@@ -195,7 +195,7 @@ export class BrowserWindowCtl {
     this.subs.push(this.store.on('favicons', () => this.favbar.refreshIcons()));
     this.ctx.onLangChange(() => this.relocalize());
     this.updateDownloadsButton();
-    this.audioTimer = setInterval(() => this.pollAudio(), 2000);
+    this.audioTimer = setInterval(() => this.pollAudio(), 1000);
   }
 
   relocalize() {
@@ -1007,6 +1007,7 @@ export class BrowserWindowCtl {
     });
     on('media-started-playing', () => {
       tab.web.audible = true;
+      tab.audibleAt = Date.now();
       this.updateTabEl(tab);
     });
     on('media-paused', () => setTimeout(() => this.pollAudio(tab), 300));
@@ -1031,13 +1032,18 @@ export class BrowserWindowCtl {
   }
 
   pollAudio(only) {
-    // media-started-playing turns the indicator on; polling (cheap, only audible tabs) turns it off.
+    // media-started-playing turns the indicator on; polling (cheap, only audible tabs) turns it off
+    // once the tab has been silent for a moment (like Chrome's "recently audible"), so short
+    // silences never make it flicker.
+    const now = Date.now();
     for (const tab of only ? [only] : this.tabs.filter((x) => x.web.audible)) {
       if (!tab.wv || !tab.ready) continue;
       let audible = false;
       try {
         audible = tab.wv.isCurrentlyAudible();
       } catch {}
+      if (audible) tab.audibleAt = now;
+      else if (tab.web.audible && now - (tab.audibleAt || 0) < 2500) continue;
       if (audible !== tab.web.audible) {
         tab.web.audible = audible;
         this.updateTabEl(tab);

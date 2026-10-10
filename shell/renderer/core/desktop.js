@@ -48,7 +48,11 @@ const STRINGS = {
       deleteConfirm_one: 'Are you sure you want to permanently delete this item?',
       deleteConfirm_other: 'Are you sure you want to permanently delete these {count} items?',
       renameError: 'Couldn’t rename the item',
-      invalidName: 'A file name can’t contain “/”.',
+      invalidName: 'A file name can’t contain “/” and can’t be “.” or “..”.',
+      noPermission: 'You don’t have permission to do this.',
+      noSpace: 'There isn’t enough space on the disk.',
+      notFound: 'The item no longer exists. It may have been moved or deleted.',
+      nameTooLong: 'The file name is too long.',
       exists: 'There is already a file with the same name in this location.',
       opError: 'The operation couldn’t be completed',
       openTerminalHere: 'Open in Terminal',
@@ -78,7 +82,11 @@ const STRINGS = {
       deleteConfirm_one: 'Voulez-vous vraiment supprimer définitivement cet élément ?',
       deleteConfirm_other: 'Voulez-vous vraiment supprimer définitivement ces {count} éléments ?',
       renameError: 'Impossible de renommer l’élément',
-      invalidName: 'Un nom de fichier ne peut pas contenir « / ».',
+      invalidName: 'Un nom de fichier ne peut pas contenir « / » ni être « . » ou « .. ».',
+      noPermission: 'Vous n’avez pas l’autorisation d’effectuer cette opération.',
+      noSpace: 'L’espace disque est insuffisant.',
+      notFound: 'L’élément n’existe plus. Il a peut-être été déplacé ou supprimé.',
+      nameTooLong: 'Le nom du fichier est trop long.',
       exists: 'Un fichier portant le même nom existe déjà à cet emplacement.',
       opError: 'L’opération n’a pas pu être effectuée',
       openTerminalHere: 'Ouvrir dans le Terminal',
@@ -338,11 +346,19 @@ function setFocus(id, { select = true, extend = false, toggle = false } = {}) {
 }
 
 // ---------------------------------------------------------------- operations
+// Backend errors carry English messages: show a localized one for the common error codes.
+function errText(err) {
+  const map = { EACCES: 'desktop.noPermission', EPERM: 'desktop.noPermission', EROFS: 'desktop.noPermission', ENOSPC: 'desktop.noSpace', ENOENT: 'desktop.notFound', EEXIST: 'desktop.exists', EINVAL: 'desktop.invalidName', ENAMETOOLONG: 'desktop.nameTooLong' };
+  return map[err?.code] ? t(map[err.code]) : err?.message || String(err);
+}
+function validName(name) {
+  return !!name && name !== '.' && name !== '..' && !/[\/\0]/.test(name) && new TextEncoder().encode(name).length <= 255;
+}
 async function op(fn) {
   try {
     return await fn();
   } catch (err) {
-    ui.alert(err.message || String(err), { title: t('desktop.opError') });
+    ui.alert(errText(err), { title: t('desktop.opError') });
     return null;
   }
 }
@@ -439,8 +455,8 @@ function startRename(id) {
       el.focus({ preventScroll: true });
       return;
     }
-    if (value.includes('/')) {
-      ui.alert(t('desktop.invalidName'), { title: t('desktop.renameError') });
+    if (!validName(value)) {
+      ui.alert(t(new TextEncoder().encode(value).length > 255 ? 'desktop.nameTooLong' : 'desktop.invalidName'), { title: t('desktop.renameError') });
       return;
     }
     try {
@@ -456,7 +472,7 @@ function startRename(id) {
       await render();
       elById(newPath)?.focus({ preventScroll: true });
     } catch (err) {
-      ui.alert(err.code === 'EEXIST' ? t('desktop.exists') : err.message, { title: t('desktop.renameError') });
+      ui.alert(errText(err), { title: t('desktop.renameError') });
     }
   };
   box.addEventListener('keydown', (e) => {

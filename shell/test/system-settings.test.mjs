@@ -510,12 +510,13 @@ async function lightEnglish() {
     await go(s, 'users');
     await s.page.locator(S('.btn.primary'), { hasText: 'Add account' }).click();
     await s.page.waitForSelector('.dialog .st-form');
+    await sleep(250); // dialog entrance + initial focus
     await s.page.locator('.dialog .st-form input').nth(0).fill('Hélène Martin');
     check((await s.page.locator('.dialog .st-form input').nth(1).inputValue()) === 'helene', 'user name is suggested from the full name');
     await s.page.locator('.dialog .st-form input[type=password]').nth(0).fill('Bonjour123');
     await s.page.locator('.dialog .st-form input[type=password]').nth(1).fill('Bonjour12');
     await s.page.locator('.dialog .dialog-footer .btn.primary').click();
-    check((await s.page.locator('.dialog .field-hint.error').innerText()).includes("don't match"), 'password confirmation is checked');
+    check(await s.page.waitForFunction(() => document.querySelector('.dialog .field-hint.error')?.textContent.includes("don't match"), null, { timeout: 3000 }).then(() => true, () => false), 'password confirmation is checked');
     await s.page.locator('.dialog .st-form input[type=password]').nth(1).fill('Bonjour123');
     await s.page.locator('.dialog .st-form input[type=checkbox]').check();
     await docShot(s, 'accounts-add');
@@ -538,6 +539,8 @@ async function lightEnglish() {
     check(!(await inv(s, 'users:list')).some((u) => u.name === 'helene'), 'Remove deletes the account');
     await go(s, 'accounts', 'password');
     await s.page.locator(S('.st-expander[data-section="password"] .btn'), { hasText: 'Change' }).click();
+    await s.page.waitForSelector('.dialog input[type=password]');
+    await sleep(250);
     await s.page.locator('.dialog input[type=password]').nth(0).fill('nope');
     await s.page.locator('.dialog input[type=password]').nth(1).fill('NewPass456');
     await s.page.locator('.dialog input[type=password]').nth(2).fill('NewPass456');

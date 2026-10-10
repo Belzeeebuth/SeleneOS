@@ -848,7 +848,8 @@ if (want('minesweeper')) {
       await page.waitForSelector(`${W} .gk-help`);
       await sleep(120);
       assert.ok((await page.locator(`${W} .gk-help-section`).count()) >= 3);
-      assert.ok((await page.locator(`${W} .gk-key-row`).count()) >= 4);
+      assert.ok((await page.locator(`${W} .gk-key-row`).count()) >= 6);
+      assert.match(await page.locator(`${W} .gk-keys`).textContent(), /Home\/End.*start \/ end of the row/);
       await page.keyboard.press('Escape');
       await sleep(250);
       assert.equal(await page.locator(`${W} .gk-help`).count(), 0);
@@ -1070,6 +1071,10 @@ if (want('snake')) {
 
     await test('eating food scores, then hitting the wall ends the game with a record', async () => {
       assert.equal(await sn((h) => h.state), 'paused', 'still paused after being restored');
+      // The paused wrap-around run scored 30: switching to Walls must file it under wrap-around.
+      await sn((h) => {
+        h.game.score = 30;
+      });
       await page.locator(`${W} [data-id="options"]`).click();
       await page.locator('.menu .menu-item', { hasText: 'Walls' }).click();
       await sleep(300);
@@ -1077,6 +1082,8 @@ if (want('snake')) {
       assert.equal(await sn((h) => h.game.wrap), false);
       const playedBefore = await sn((h) => h.stats.played);
       assert.equal(playedBefore, 1, 'the abandoned run (it had moved) counts as played');
+      assert.deepEqual(await sn((h) => h.stats.best), { wrap: 30 }, 'abandoned run recorded under the mode it was played in');
+      assert.equal(await page.locator(`${W} [data-id="best"] .gk-chip-value`).textContent(), '0', 'walls has no record yet');
       await sn((h) => {
         const g = h.game;
         g.food = { x: g.snake[0].x + 1, y: g.snake[0].y, born: 0 };
@@ -1091,7 +1098,7 @@ if (want('snake')) {
       const st = await sn((h) => h.stats);
       assert.equal(st.played, playedBefore + 1);
       assert.equal(st.best.walls, 10);
-      assert.equal(st.best.wrap, undefined, 'the wrap-around run scored nothing');
+      assert.equal(st.best.wrap, 30, 'the wrap-around record is untouched');
       assert.equal(await page.locator(`${W} [data-id="best"] .gk-chip-value`).textContent(), '10');
       await sleep(900);
       await winShot(s, 'snake', 'snake-gameover-light-en');
@@ -1152,6 +1159,12 @@ if (want('snake')) {
       await page.locator(`${W} [data-id="help"]`).click();
       await page.waitForSelector(`${W} .gk-help`);
       assert.ok((await page.locator(`${W} .gk-key-row`).count()) >= 4);
+      // Letter keys are read by position: the help names them as printed on the active layout.
+      const letters = await page.evaluate(async () => {
+        const m = await navigator.keyboard.getLayoutMap();
+        return ['KeyW', 'KeyA', 'KeyS', 'KeyD'].map((c) => m.get(c).toUpperCase()).join(' ');
+      });
+      assert.ok((await page.locator(`${W} .gk-keys kbd`).allTextContents()).includes(letters), `help shows ${letters}`);
       await page.locator(`${W} .dialog button`, { hasText: 'Got it' }).click();
       await sleep(200);
     });
@@ -1519,6 +1532,10 @@ if (!ONLY.length || ONLY.includes('fr')) {
 
     await test('2048 in French (dark)', async () => {
       await page.evaluate(() => window.__aurora.wm.byApp('snake')[0].minimize());
+      // Simulate an AZERTY keyboard: the help must say Z Q S D for the W A S D positions.
+      await page.evaluate(() =>
+        Object.defineProperty(navigator, 'keyboard', { configurable: true, value: { getLayoutMap: async () => new Map([['KeyW', 'z'], ['KeyA', 'q'], ['KeyS', 's'], ['KeyD', 'd']]) } }),
+      );
       await page.evaluate(() => window.__aurora.registry.launch('game2048'));
       const W = winOf('game2048');
       await page.waitForSelector(`${W} .t-tile`);
@@ -1539,6 +1556,11 @@ if (!ONLY.length || ONLY.includes('fr')) {
       await sleep(400);
       await assertNoOverflow(page, 'game2048');
       await winShot(s, 'game2048', 'game2048-minsize-dark-fr');
+      await page.keyboard.press('F1');
+      await page.waitForSelector(`${W} .gk-help`);
+      assert.ok((await page.locator(`${W} .gk-keys kbd`).allTextContents()).includes('Z Q S D'), 'AZERTY labels in the help');
+      await page.keyboard.press('Escape');
+      await sleep(250);
     });
 
     await test('live switch to English + light updates every game', async () => {

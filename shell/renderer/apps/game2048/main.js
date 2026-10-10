@@ -420,6 +420,12 @@ export default {
       board.focus({ preventScroll: true });
     }
 
+    // Letter keys named as printed on the active layout (resolved ahead of time: no await before the dialog).
+    let wasd = ctx.lang === 'fr' ? 'Z Q S D' : 'W A S D';
+    const refreshWasd = () => kit.wasdLabel().then((v) => (wasd = v));
+    refreshWasd();
+    ctx.onLangChange(refreshWasd);
+
     async function showHelp() {
       await kit.helpDialog({
         title: t('gk.howToPlay'),
@@ -429,7 +435,7 @@ export default {
           { title: t('help.tips'), icon: 'sparkle', items: [t('help.t1'), t('help.t2')] },
         ],
         keys: [
-          [`← ↑ → ↓ / W A S D`, t('keys.slide')],
+          [`← ↑ → ↓ / ${wasd}`, t('keys.slide')],
           ['Ctrl+Z / U', t('undo')],
           ['N / F2', t('gk.newGame')],
           ['F1', t('gk.howToPlay')],

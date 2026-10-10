@@ -584,7 +584,7 @@ export default {
     }
     // resize: false only enforces the (new) minimum size, keeping a size the user chose.
     function fitWindow({ resize = true } = {}) {
-      if (!spec) return;
+      if (!spec || !win.el.isConnected || !win.el.offsetWidth) return; // nothing measurable yet
       const chrome = measureChrome();
       const headH = bar.offsetHeight + status.offsetHeight;
       const extraW = chrome.w + 2 * STAGE_PAD + 2 * FRAME_PAD + 2;
@@ -823,6 +823,7 @@ export default {
         ],
         keys: [
           [`← ↑ → ↓`, t('keys.move')],
+          [`${t('keys.home')} / ${t('keys.end')}`, t('keys.rowEdge')],
           [`${t('keys.space')} / ${t('keys.enter')}`, t('keys.reveal')],
           ['F', t('keys.flag')],
           ['N / F2', t('gk.newGame')],

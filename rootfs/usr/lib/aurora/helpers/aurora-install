@@ -139,7 +139,8 @@ die() { # die CODE MESSAGE
 run() {
   local msg=$1; shift
   log "\$ $*"
-  "$@" || die 5 "$msg (command failed: $1)"
+  local cmd=$1; [[ "$cmd" == in_target ]] && cmd=${2:-$1}
+  "$@" || die 5 "$msg (command failed: $cmd)"
 }
 
 [[ -z "$ARG_ERR" ]] || die 2 "$ARG_ERR"
@@ -154,7 +155,7 @@ RE_PATH='^/[A-Za-z0-9._/+-]*$'
 [[ -n "$DISK" ]] || die 2 "--disk is required"
 [[ "$DISK" =~ ^/dev/[A-Za-z0-9/_.:-]+$ && "$DISK" != *..* ]] || die 2 "invalid disk path: $DISK"
 [[ -n "$USERNAME" ]] || die 2 "--user is required"
-[[ "$USERNAME" =~ $RE_USER ]] || die 2 "invalid user name (lowercase letters, digits, - and _; must start with a letter)"
+[[ "$USERNAME" =~ $RE_USER ]] || die 2 "invalid user name (lowercase letters, digits, - and _; must start with a letter or _)"
 [[ "$RESERVED_USERS" != *" $USERNAME "* ]] || die 2 "the user name '$USERNAME' is reserved by the system"
 ((${#FULLNAME} <= 128)) || die 2 "the full name is too long"
 RE_BADNAME='[:,=\\]'
@@ -183,7 +184,7 @@ fi
 [[ "$PASSWORD" != *[[:cntrl:]]* ]] || die 2 "the password contains control characters"
 
 maybe_fail() { # maybe_fail STAGE — testing aid (--fail-at)
-  [[ "$FAIL_AT" == "$1" ]] && die 5 "simulated failure at stage '$1' (--fail-at)"
+  if [[ "$FAIL_AT" == "$1" ]]; then STAGE=$1; die 5 "simulated failure at stage '$1' (--fail-at)"; fi
   return 0
 }
 
@@ -453,6 +454,40 @@ in_target() {
 }
 
 parts_ready() { [[ -b "$(part_path 1)" && -b "$(part_path 2)" && -b "$(part_path 3)" ]]; }
+# The EFI system partition is mounted on $TARGET/boot/efi. Where the running kernel cannot mount
+# FAT (no vfat driver, e.g. a container), a tmpfs named after the partition is mounted there instead
+# (grub-install identifies the ESP by the mount's source device and checks it with GRUB's own FAT
+# reader), and its content is written into the FAT file system with mtools by flush_esp.
+ESP_MODE=""
+mount_esp() {
+  mkdir -p "$TARGET/boot/efi"
+  log "\$ mount -t vfat $P_ESP $TARGET/boot/efi"
+  if mount -t vfat -o umask=0077 "$P_ESP" "$TARGET/boot/efi"; then ESP_MODE=mount; return 0; fi
+  grep -qw vfat /proc/filesystems && die 5 "could not mount the EFI system partition"
+  command -v mcopy >/dev/null 2>&1 || die 5 "this kernel cannot mount FAT file systems and mtools is not installed"
+  run "could not prepare the EFI system partition" mount -t tmpfs -o size=512m,mode=0700 "$P_ESP" "$TARGET/boot/efi"
+  ESP_MODE=mtools
+  log "no vfat support in the running kernel: EFI files are staged on a tmpfs and written with mtools"
+}
+flush_esp() {
+  [[ "$ESP_MODE" == mtools ]] || return 0
+  local e out rc="$WORKDIR/mtoolsrc"
+  printf 'mtools_skip_check=1\ndrive e: file="%s"\n' "$P_ESP" >"$rc"
+  shopt -s nullglob dotglob
+  for e in "$TARGET"/boot/efi/*; do
+    log "\$ mcopy -s ${e#"$TARGET"} $P_ESP:/"
+    out=$(MTOOLSRC=$rc mcopy -s -o -m -Q "$e" e:/ 2>&1) || { printf '%s\n' "$out" >&2; die 5 "could not write the EFI system partition (mcopy)"; }
+    grep -v 'Could not get geometry' <<<"$out" >&2 || true
+  done
+  shopt -u nullglob dotglob
+  MTOOLSRC=$rc mtype e:/EFI/BOOT/BOOTX64.EFI 2>/dev/null | cmp -s - "$TARGET/boot/efi/EFI/BOOT/BOOTX64.EFI" \
+    || die 5 "EFI/BOOT/BOOTX64.EFI on the EFI system partition does not match"
+  MTOOLSRC=$rc mdir -/ e:/EFI 2>&1 | grep -v 'Could not get geometry' >&2 || true
+  rm -f "$rc"
+  umount "$TARGET/boot/efi" || die 5 "could not unmount the EFI staging area"
+  ESP_MODE=flushed
+}
+
 wait_for_partitions() {
   local i
   udevadm settle --timeout=10 >/dev/null 2>&1 || true
@@ -655,8 +690,7 @@ stage_configure() {
   maybe_fail configure
   progress configure 76 "Configuring the system"
   local t_start; t_start=$(date +%s)
-  mkdir -p "$TARGET/boot/efi"
-  run "could not mount the EFI system partition" mount -t vfat -o umask=0077 "$P_ESP" "$TARGET/boot/efi"
+  mount_esp
   chroot_mount
 
   write_file "$TARGET/etc/fstab" 0644 <<EOF
@@ -853,6 +887,7 @@ EOF
   [[ -s "$cfg" ]] || die 5 "/boot/grub/grub.cfg was not generated"
   grep -q "root=UUID=$ROOT_UUID" "$cfg" || die 5 "the boot menu does not boot the system partition by UUID"
   grep -q 'scripts/casper\|boot=casper' "$cfg" && die 5 "the boot menu still refers to the live system"
+  flush_esp
   progress bootloader 97 ""
 }
 

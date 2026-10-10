@@ -10,6 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { execFileSync } from 'node:child_process';
+import { launchShell } from './lib.mjs';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -327,3 +328,671 @@ export async function startMailServer({ tlsImap = false } = {}) {
   };
 }
 
+
+// ================================================================== end-to-end tests
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const only = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
+const results = [];
+const consoleErrors = [];
+let cur = null; // current shell
+const M = '.app-mail';
+
+function assert(cond, msg) {
+  if (!cond) throw new Error(`assertion failed: ${msg}`);
+}
+async function until(fn, { timeout = 10000, interval = 120, msg = 'condition' } = {}) {
+  const end = Date.now() + timeout;
+  let last;
+  while (Date.now() < end) {
+    try {
+      last = await fn();
+      if (last) return last;
+    } catch (e) {
+      last = e;
+    }
+    await sleep(interval);
+  }
+  throw new Error(`timed out waiting for ${msg}${last instanceof Error ? ` (${last.message})` : ''}`);
+}
+async function step(name, fn) {
+  if (only.length && !only.some((o) => name.startsWith(o))) return;
+  const t0 = Date.now();
+  try {
+    await fn();
+    results.push({ name, ok: true });
+    console.log(`  ✓ ${name} (${Date.now() - t0} ms)`);
+  } catch (e) {
+    results.push({ name, ok: false, error: e.message });
+    console.log(`  ✗ ${name}\n      ${String(e.stack || e).split('\n').slice(0, 4).join('\n      ')}`);
+    if (cur) await cur.shot(`mail-FAIL-${name.replace(/\W+/g, '-')}`).catch(() => {});
+  }
+}
+function docShot(file) {
+  try {
+    fs.mkdirSync(DOCS_SHOTS, { recursive: true });
+    fs.copyFileSync(file, path.join(DOCS_SHOTS, path.basename(file)));
+  } catch (e) {
+    console.log(`    (could not copy ${file}: ${e.message})`);
+  }
+}
+const serverMsg = (srv, box, re) => srv.box(box).messages.find((m) => re.test(m.raw));
+const subjectOf = (m) => /\r?\nSubject: ([^\r\n]*)/.exec(`\n${m.raw}`)?.[1] || '';
+
+const mainLog = [];
+async function launch(opts) {
+  const s = await launchShell({ ...opts, keepHome: true });
+  for (const stream of [s.app.process().stdout, s.app.process().stderr]) {
+    stream?.on('data', (d) => {
+      for (const line of String(d).split('\n')) if (line.includes('[mail]')) mainLog.push(line);
+      if (process.env.MAIL_TEST_VERBOSE) process.stdout.write(`    [main] ${d}`);
+    });
+  }
+  s.page.on('console', (m) => {
+    if (m.type() === 'error') consoleErrors.push(`[${opts.lang}/${opts.theme}] ${m.text()}`);
+  });
+  s.page.on('pageerror', (e) => consoleErrors.push(`[pageerror] ${e.message}`));
+  // Record URLs the shell would open in Aurora Browser instead of launching it.
+  await s.page.evaluate(() => {
+    window.__openedUrls = [];
+    window.__aurora.shell.openUrl = (u) => window.__openedUrls.push(u);
+  });
+  cur = s;
+  return s;
+}
+const mailApp = (p) => p.evaluate(() => !!document.querySelector('.app-mail')?.__mail);
+async function rowBySubject(p, text) {
+  const loc = p.locator(`${M} .ml-item`, { has: p.locator('.ml-subj', { hasText: text }) }).first();
+  await loc.waitFor({ timeout: 10000 });
+  return loc;
+}
+async function openBySubject(p, text) {
+  await (await rowBySubject(p, text)).click();
+  await p.waitForSelector(`${M} .ml-read-subject:has-text(${JSON.stringify(text)})`, { timeout: 10000 });
+  await p.waitForSelector(`${M} .ml-reader:not(.loading) iframe.ml-frame`, { timeout: 10000 });
+}
+const srcdoc = (p) => p.$eval(`${M} iframe.ml-frame`, (f) => f.srcdoc);
+async function inbox(p) {
+  await p.click(`${M} .ml-folder.sp-inbox`);
+  await p.waitForSelector(`${M} .ml-item:not(.skeleton)`);
+}
+
+export async function runTests() {
+  const srv = await startMailServer();
+  const tlsSrv = await startMailServer({ tlsImap: true });
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-mail-test-'));
+  console.log(`IMAP :${srv.imapPort}  SMTP :${srv.smtpPort}  TLS-IMAP :${tlsSrv.imapPort}  HOME ${home}`);
+  let s = await launch({ open: ['mail'], lang: 'en', theme: 'light', home });
+  let p = s.page;
+  // Remote images of the newsletter are served by the test (the session's https handler), so we can
+  // count whether the reading pane requested them.
+  const hookRemote = async (sh) => {
+    await sh.app.evaluate(({ session }, b64) => {
+      globalThis.__mailRemoteHits = 0;
+      const body = Buffer.from(b64, 'base64');
+      session.defaultSession.protocol.handle('https', (req) => {
+        if (/^https:\/\/(images|track)\.contoso\.example\//.test(req.url)) {
+          globalThis.__mailRemoteHits++;
+          return new Response(body, { headers: { 'content-type': 'image/png' } });
+        }
+        return new Response('blocked by test', { status: 404 });
+      });
+    }, png(560, 180, [15, 108, 189], [120, 220, 255]).toString('base64'));
+  };
+  const hits = () => cur.app.evaluate(() => globalThis.__mailRemoteHits || 0);
+  await hookRemote(s);
+
+  // ---------------------------------------------------------------- first run
+  await step('welcome: provider tiles + webmail link', async () => {
+    await p.waitForSelector(`${M} .ml-provider`);
+    const names = await p.$$eval(`${M} .ml-provider-name`, (els) => els.map((e) => e.textContent));
+    assert(names.length === 11, `11 providers, got ${names.length}`);
+    for (const n of ['Outlook.com', 'Google', 'Yahoo', 'iCloud', 'Orange', 'Free', 'SFR', 'La Poste', 'GMX', 'Proton Mail', 'Other account']) assert(names.includes(n), `tile ${n}`);
+    assert(!(await p.$(`${M} .ml-provider img`)), 'no logos, monograms only');
+    await sleep(400);
+    docShot(await s.shot('mail-welcome'));
+    await p.click(`${M} .ml-provider[data-provider="gmail"]`);
+    await p.waitForSelector(`${M} .ml-help`);
+    assert((await p.textContent(`${M} .ml-help`)).includes('app password'), 'gmail app password note');
+    await p.click(`${M} .ml-webmail`);
+    await until(() => p.evaluate(() => window.__openedUrls.includes('https://mail.google.com/')), { msg: 'webmail opened in browser' });
+    await p.click(`${M} .ml-help a`);
+    await until(() => p.evaluate(() => window.__openedUrls.includes('https://myaccount.google.com/apppasswords')), { msg: 'app password page' });
+    // Autodetect from the e-mail domain on the "Other" form
+    await p.click(`${M} .ml-form-head button`);
+    await p.click(`${M} .ml-provider[data-provider="other"]`);
+    await p.fill(`${M} input[name=email]`, 'someone@orange.fr');
+    await until(async () => (await p.inputValue(`${M} input[name=imap-host]`)) === '', { msg: 'other keeps manual servers' }).catch(() => {});
+  });
+
+  const fillOther = async (email, password, imapPort, smtpPort) => {
+    await p.fill(`${M} input[name=email]`, email);
+    await p.fill(`${M} input[name=name]`, 'Alice Martin');
+    await p.fill(`${M} input[name=password]`, password);
+    await p.fill(`${M} input[name=imap-host]`, '127.0.0.1');
+    await p.selectOption(`${M} select[name=imap-security]`, 'none');
+    await p.fill(`${M} input[name=imap-port]`, String(imapPort));
+    await p.fill(`${M} input[name=smtp-host]`, '127.0.0.1');
+    await p.selectOption(`${M} select[name=smtp-security]`, 'none');
+    await p.fill(`${M} input[name=smtp-port]`, String(smtpPort));
+  };
+
+  await step('setup: unencrypted host is refused unless accepted', async () => {
+    await fillOther(USER, PASS, srv.imapPort, srv.smtpPort);
+    await p.fill(`${M} input[name=imap-host]`, 'mail.example.com');
+    await p.waitForSelector(`${M} input[name=allow-insecure]`);
+    assert(await p.isDisabled(`${M} button[name=signin]`), 'sign in disabled until the risk is accepted');
+    await p.fill(`${M} input[name=imap-host]`, '127.0.0.1');
+    await until(async () => !(await p.$(`${M} input[name=allow-insecure]`)), { msg: 'localhost needs no confirmation' });
+    assert(await p.isEnabled(`${M} button[name=signin]`), 'sign in enabled for localhost');
+  });
+
+  await step('setup: wrong password shows EAUTH', async () => {
+    await p.fill(`${M} input[name=password]`, 'not-the-password');
+    await p.click(`${M} button[name=signin]`);
+    await p.waitForSelector(`${M} .ml-error-box[data-code="EAUTH"]`, { timeout: 20000 });
+    const txt = await p.textContent(`${M} .ml-error-box`);
+    assert(/password is incorrect/i.test(txt), `error text: ${txt}`);
+    assert(/IMAP/.test(txt), 'says which server');
+    await s.shot('mail-setup-error');
+  });
+
+  await step('setup: add account + secure storage of the password', async () => {
+    await p.fill(`${M} input[name=password]`, PASS);
+    await p.click(`${M} button[name=signin]`);
+    await p.waitForSelector(`${M} .ml-setup-done`, { timeout: 20000 });
+    await s.shot('mail-setup-done');
+    await p.click(`${M} button[name=done]`);
+    await p.waitForSelector(`${M} .ml-item:not(.skeleton)`, { timeout: 20000 });
+    const file = path.join(home, '.config', 'aurora', 'mail', 'accounts.json');
+    const st = fs.statSync(file);
+    assert((st.mode & 0o777) === 0o600, `accounts.json mode ${(st.mode & 0o777).toString(8)}`);
+    assert((fs.statSync(path.dirname(file)).mode & 0o777) === 0o700, 'mail dir 0700');
+    const raw = fs.readFileSync(file, 'utf8');
+    assert(!raw.includes(PASS), 'password not stored in clear text');
+    const accs = await p.evaluate(() => window.aurora.invoke('mail:accounts'));
+    assert(accs.length === 1 && !JSON.stringify(accs).includes(PASS), 'renderer never receives the password');
+    assert(typeof accs[0].insecureStorage === 'boolean', 'insecureStorage flag');
+  });
+
+  // ---------------------------------------------------------------- folders & list
+  await step('folders: special folders, localized names, unread badge, tree', async () => {
+    const names = await p.$$eval(`${M} .ml-folder .label`, (els) => els.map((e) => e.textContent));
+    for (const n of ['Inbox', 'Drafts', 'Sent Items', 'Archive', 'Junk Email', 'Deleted Items', 'Projects', 'Aurora']) assert(names.includes(n), `folder ${n} in ${names}`);
+    const badge = await p.textContent(`${M} .ml-folder.sp-inbox .ml-count`);
+    assert(badge === '5', `inbox unread badge 5, got ${badge}`);
+    assert((await p.textContent(`${M} .ml-list-title`)) === 'Inbox', 'list title');
+  });
+
+  await step('list: envelopes, unread, icons, pagination', async () => {
+    const n = await p.$$eval(`${M} .ml-item:not(.skeleton)`, (els) => els.length);
+    assert(n === 50, `first page 50 rows, got ${n}`);
+    const unread = await p.$$eval(`${M} .ml-item.unread`, (els) => els.length);
+    assert(unread === 5, `5 unread rows, got ${unread}`);
+    const report = await rowBySubject(p, 'Quarterly report');
+    assert(await report.locator('.ml-ic-attach').count(), 'attachment icon');
+    const elodie = await rowBySubject(p, "Réunion d'équipe");
+    assert(await elodie.locator('.ml-ic-flag').count(), 'flag icon');
+    assert((await elodie.locator('.ml-row3').textContent()).includes('Bonjour à tous'), 'preview snippet with accents');
+    const groups = await p.$$eval(`${M} .ml-group`, (els) => els.map((e) => e.textContent));
+    assert(groups[0] === 'Today', `first group Today (${groups})`);
+    await p.$eval(`${M} .ml-list`, (el) => (el.scrollTop = el.scrollHeight));
+    await until(async () => (await p.$$eval(`${M} .ml-item:not(.skeleton)`, (els) => els.length)) === 56, { msg: 'infinite scroll loads 56' });
+    await p.$eval(`${M} .ml-list`, (el) => (el.scrollTop = 0));
+  });
+
+  await step('read: HTML mail sandboxed, remote pictures blocked then shown', async () => {
+    await openBySubject(p, 'Your weekly digest');
+    const sandbox = await p.$eval(`${M} iframe.ml-frame`, (f) => f.getAttribute('sandbox'));
+    assert(sandbox === 'allow-popups allow-popups-to-escape-sandbox', `sandbox=${sandbox}`);
+    const doc = await srcdoc(p);
+    assert(/Content-Security-Policy" content="default-src 'none'; img-src data:;/.test(doc), 'CSP blocks remote images');
+    assert(!doc.includes('images.contoso.example') && !doc.includes('track.contoso.example'), 'remote URLs removed while blocked');
+    assert(doc.includes('<base target="_blank">'), 'links open in new window');
+    await p.waitForSelector(`${M} .ml-pictures-bar`);
+    await sleep(800);
+    assert((await hits()) === 0, `no remote request while blocked (${await hits()})`);
+    const row = await rowBySubject(p, 'Your weekly digest');
+    await until(async () => !(await row.getAttribute('class')).includes('unread'), { msg: 'marked read in list' });
+    await until(() => serverMsg(srv, 'INBOX', /weekly digest/).flags.includes('\\Seen'), { msg: 'marked seen on server' });
+    await until(async () => (await p.textContent(`${M} .ml-folder.sp-inbox .ml-count`)) === '4', { msg: 'badge 4' });
+    await sleep(300);
+    docShot(await s.shot('mail-inbox'));
+    await p.click(`${M} button[name=show-pictures]`);
+    await until(async () => (await hits()) >= 1, { msg: 'remote image requested after "Show pictures"' });
+    assert(!(await p.$(`${M} .ml-pictures-bar`)), 'infobar gone');
+    assert((await srcdoc(p)).includes("img-src data: https: http:"), 'CSP relaxed for images only');
+    const frame = p.frameLocator(`${M} iframe.ml-frame`);
+    await until(() => frame.locator('#hero').evaluate((img) => img.complete && img.naturalWidth > 0), { msg: 'hero image loaded' });
+    await s.shot('mail-pictures-shown');
+  });
+
+  await step('read: hostile HTML is neutralized', async () => {
+    await openBySubject(p, 'Security test message');
+    const doc = await srcdoc(p);
+    for (const bad of ['<script', 'javascript:', '<iframe', '<object', 'evil.example/style.css', 'evil.example/refresh', 'evil.example/bg.png', '<form', 'href="https://evil.example/"']) assert(!doc.includes(bad), `srcdoc must not contain ${bad}`);
+    assert(!/\son[a-z]+\s*=/i.test(doc.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, '')), 'no inline event handlers');
+    assert(doc.includes('safe-heading') && doc.includes('href="https://www.example.com/page"'), 'safe content kept');
+    const frame = p.frameLocator(`${M} iframe.ml-frame`);
+    await frame.locator('#safe-heading').waitFor();
+    assert((await frame.locator('script').count()) === 0, 'no script element in the frame');
+    // Clicking a web link goes to Aurora Browser through the shell's main process.
+    await frame.locator('#web-link').click();
+    await until(() => p.evaluate(() => window.__openedUrls.includes('https://www.example.com/page')), { msg: 'link routed to the browser' });
+    assert(!(await p.evaluate(() => location.href)).startsWith('http'), 'shell did not navigate');
+  });
+
+  await step('read: mailto: link opens a new message', async () => {
+    await openBySubject(p, 'Contact et liens');
+    await p.frameLocator(`${M} iframe.ml-frame`).locator('#mailto-link').click();
+    await p.waitForSelector(`${M} .ml-compose`, { timeout: 10000 });
+    await p.waitForSelector(`${M} .ml-addr[data-field=to] .ml-chip[data-address="lucas.bernard@exemple.fr"]`);
+    assert((await p.inputValue(`${M} .ml-subject`)) === 'Bonjour Lucas', 'subject from mailto');
+    await p.click(`${M} .ml-compose button[name=discard]`);
+    await p.waitForSelector(`${M} .ml-compose`, { state: 'detached' });
+  });
+
+  await step('read: inline cid: image', async () => {
+    await openBySubject(p, 'Photo from the trip');
+    const doc = await srcdoc(p);
+    assert(doc.includes('data:image/png;base64,') && !doc.includes('cid:'), 'cid replaced by data URL');
+    const ok = await p.frameLocator(`${M} iframe.ml-frame`).locator('#inline-photo').evaluate((img) => img.complete && img.naturalWidth === 192);
+    assert(ok, 'inline image rendered');
+    assert(!(await p.$(`${M} .ml-read-atts`)), 'inline image is not listed as an attachment');
+  });
+
+  await step('attachments: chips, save to Downloads (unique names), open with default app', async () => {
+    await openBySubject(p, 'Quarterly report');
+    const chips = await p.$$eval(`${M} .ml-read-atts .ml-att`, (els) => els.map((e) => e.dataset.name));
+    assert(chips.join('|') === 'Quarterly report.pdf|data.csv|chart.png', `chips ${chips}`);
+    await p.click(`${M} .ml-att[data-name="Quarterly report.pdf"] .ml-att-menu`);
+    await p.click('.menu .menu-item:has-text("Save to Downloads")');
+    const f1 = path.join(home, 'Downloads', 'Quarterly report.pdf');
+    await until(() => fs.existsSync(f1), { msg: 'saved file' });
+    assert(fs.readFileSync(f1).subarray(0, 5).toString() === '%PDF-', 'PDF content');
+    await p.waitForSelector(`${M} .ml-snack`);
+    await p.click(`${M} .ml-att[data-name="Quarterly report.pdf"] .ml-att-menu`);
+    await p.click('.menu .menu-item:has-text("Save to Downloads")');
+    await until(() => fs.existsSync(path.join(home, 'Downloads', 'Quarterly report (1).pdf')), { msg: 'unique name (1)' });
+    await p.click(`${M} .ml-att[data-name="data.csv"]`);
+    await until(() => p.evaluate(() => window.__aurora.wm.list().some((w) => w.appId === 'notepad')), { msg: 'csv opened in Notepad' });
+    await p.evaluate(() => window.__aurora.wm.list().filter((w) => w.appId === 'notepad').forEach((w) => w.close(true)));
+    await p.evaluate(() => window.__aurora.wm.list().find((w) => w.appId === 'mail')?.focus());
+  });
+
+  await step('flags: quick actions, toolbar and shortcuts sync with the server', async () => {
+    const lucas = /Subject: Contact et liens/;
+    const row = await rowBySubject(p, 'Contact et liens');
+    await row.hover();
+    await row.locator('button[name=qa-flag]').click();
+    await until(() => serverMsg(srv, 'INBOX', lucas).flags.includes('\\Flagged'), { msg: 'flagged on server' });
+    await row.click();
+    await p.waitForSelector(`${M} .ml-reader:not(.loading) iframe.ml-frame`);
+    await p.click(`${M} .ml-read-bar button[name=unread]`);
+    await until(() => !serverMsg(srv, 'INBOX', lucas).flags.includes('\\Seen'), { msg: 'unread on server' });
+    await p.focus(`${M} .ml-list`);
+    await p.keyboard.press('Control+q');
+    await until(() => serverMsg(srv, 'INBOX', lucas).flags.includes('\\Seen'), { msg: 'Ctrl+Q marks read' });
+    await p.keyboard.press('Control+u');
+    await until(() => !serverMsg(srv, 'INBOX', lucas).flags.includes('\\Seen'), { msg: 'Ctrl+U marks unread' });
+    await p.keyboard.press('Insert');
+    await until(() => !serverMsg(srv, 'INBOX', lucas).flags.includes('\\Flagged'), { msg: 'Insert toggles the flag' });
+  });
+
+  await step('delete / move / archive', async () => {
+    const trash0 = srv.box('Trash').messages.length;
+    await (await rowBySubject(p, 'Invoice 1047')).click();
+    await p.focus(`${M} .ml-list`);
+    await p.keyboard.press('Delete');
+    await until(() => srv.box('Trash').messages.length === trash0 + 1, { msg: 'moved to Trash' });
+    await until(async () => !(await p.$(`${M} .ml-item .ml-subj:text-is("Invoice 1047")`)), { msg: 'removed from list' });
+    await p.waitForSelector(`${M} .ml-snack:has-text("Deleted Items")`);
+    // Move to a user folder
+    const aurora0 = srv.box('Projects/Aurora').messages.length;
+    await (await rowBySubject(p, 'Invoice 1039')).click();
+    await p.waitForSelector(`${M} .ml-read-bar button[name=move]:not([disabled])`);
+    await p.click(`${M} .ml-read-bar button[name=move]`);
+    await p.click('.menu .menu-item:has-text("Aurora")');
+    await until(() => srv.box('Projects/Aurora').messages.length === aurora0 + 1, { msg: 'moved to Projects/Aurora' });
+    // Archive
+    const arch0 = srv.box('Archive').messages.length;
+    await (await rowBySubject(p, 'Invoice 1031')).click();
+    await p.waitForSelector(`${M} .ml-read-bar button[name=archive]:not([disabled])`);
+    await p.click(`${M} .ml-read-bar button[name=archive]`);
+    await until(() => srv.box('Archive').messages.length === arch0 + 1, { msg: 'archived' });
+    // Drag & drop a message onto a folder
+    const junk0 = srv.box('Junk').messages.length;
+    const src = await rowBySubject(p, 'Invoice 1023');
+    await src.dragTo(p.locator(`${M} .ml-folder.sp-junk`));
+    await until(() => srv.box('Junk').messages.length === junk0 + 1, { msg: 'dragged to Junk' });
+  });
+
+  await step('multi-select + bulk mark as read', async () => {
+    const a = await rowBySubject(p, 'Welcome to Aurora Mail');
+    const b = await rowBySubject(p, 'Security test message');
+    await a.click();
+    await b.click({ modifiers: ['Control'] });
+    await p.waitForSelector(`${M} .ml-multi [data-count="2"]`);
+    await p.click(`${M} .ml-multi button[name=read]`);
+    await until(() => serverMsg(srv, 'INBOX', /Subject: Welcome to Aurora Mail/).flags.includes('\\Seen') && serverMsg(srv, 'INBOX', /Subject: Security test message/).flags.includes('\\Seen'), { msg: 'both read on server' });
+  });
+
+  await step('search: server-side IMAP search + clear', async () => {
+    await p.fill(`${M} .ml-search-input`, 'digest');
+    await p.press(`${M} .ml-search-input`, 'Enter');
+    await until(async () => (await p.$$eval(`${M} .ml-item:not(.skeleton)`, (els) => els.map((e) => e.querySelector('.ml-subj').textContent))).join() === 'Your weekly digest: 5 stories you might have missed', { msg: 'one search result' });
+    assert(await p.$(`${M} .ml-search-banner:not([hidden])`), 'search banner');
+    await p.fill(`${M} .ml-search-input`, 'zzzz-nothing');
+    await p.press(`${M} .ml-search-input`, 'Enter');
+    await p.waitForSelector(`${M} .ml-list-empty:has-text("didn't find")`);
+    await p.click(`${M} button[name=clear-search]`);
+    await until(async () => (await p.$$eval(`${M} .ml-item:not(.skeleton)`, (els) => els.length)) >= 50, { msg: 'full list back' });
+  });
+
+  await step('compose: chips, autocomplete, formatting, drag & drop attachment, send, Sent copy', async () => {
+    const attach = path.join(home, 'Documents', 'notes.txt');
+    fs.writeFileSync(attach, 'Aurora test attachment\n');
+    await p.click(`${M} .ml-list`);
+    await p.keyboard.press('Control+n');
+    await p.waitForSelector(`${M} .ml-compose`);
+    await p.click(`${M} .ml-addr[data-field=to] .ml-chip-input`);
+    await p.keyboard.type('ravi');
+    await p.waitForSelector(`${M} .ml-suggest-item:has-text("Ravi Patel")`);
+    await p.keyboard.press('Enter');
+    await p.waitForSelector(`${M} .ml-addr[data-field=to] .ml-chip[data-address="ravi@fabrikam.example"]`);
+    await p.keyboard.type('bad-address, mia.chen@adatum.example;');
+    await p.waitForSelector(`${M} .ml-chip.invalid[data-address="bad-address"]`);
+    await p.click(`${M} .ml-chip.invalid .ml-chip-x`, { force: true });
+    await p.click(`${M} button[name=show-cc]`);
+    await p.keyboard.type('lucas.bernard@exemple.fr');
+    await p.fill(`${M} .ml-subject`, 'Aurora test send');
+    await p.click(`${M} .ml-editor`);
+    await p.keyboard.press('Control+Home');
+    await p.keyboard.type('Hello team, ');
+    await p.keyboard.press('Control+b');
+    await p.keyboard.type('bold news');
+    await p.keyboard.press('Control+b');
+    await p.keyboard.type(' inside.');
+    assert(await p.$(`${M} .ml-editor b, ${M} .ml-editor strong`), 'bold text in editor');
+    assert((await p.textContent(`${M} .ml-editor`)).includes('Sent from Aurora OS'), 'default signature');
+    await p.$eval(`${M} .ml-compose`, (el, file) => {
+      const dt = new DataTransfer();
+      dt.setData('application/x-aurora-paths', JSON.stringify([file]));
+      el.dispatchEvent(new DragEvent('dragenter', { dataTransfer: dt, bubbles: true, cancelable: true }));
+      el.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    }, attach);
+    await p.waitForSelector(`${M} .ml-attach-row .ml-att[data-name="notes.txt"]`);
+    await sleep(300);
+    await s.shot('mail-compose-new');
+    const sent0 = srv.box('Sent').messages.length;
+    await p.keyboard.press('Control+Enter');
+    await p.waitForSelector(`${M} .ml-snack:has-text("Message sent")`, { timeout: 20000 });
+    const cap = await until(() => srv.captured.find((c) => /Subject: Aurora test send/.test(c.raw)), { msg: 'SMTP received' });
+    assert(cap.rcpt.includes('ravi@fabrikam.example') && cap.rcpt.includes('mia.chen@adatum.example') && cap.rcpt.includes('lucas.bernard@exemple.fr'), `recipients ${cap.rcpt}`);
+    assert(!cap.rcpt.includes('bad-address'), 'invalid chip removed');
+    assert(/filename="?notes\.txt/.test(cap.raw) && /<b>bold news<\/b>|<strong>bold news<\/strong>/.test(cap.raw.replace(/=\r\n/g, '')), 'attachment + HTML formatting');
+    assert(/Content-Type: text\/plain/.test(cap.raw), 'plain text alternative');
+    await until(() => srv.box('Sent').messages.length === sent0 + 1, { msg: 'copy appended to Sent' });
+    assert(subjectOf(srv.box('Sent').messages.at(-1)) === 'Aurora test send', 'Sent copy subject');
+    await p.click(`${M} .ml-folder.sp-sent`);
+    await rowBySubject(p, 'Aurora test send');
+    await inbox(p);
+  });
+
+  await step('reply: recipients, subject and quoted original', async () => {
+    await openBySubject(p, "Réunion d'équipe");
+    await p.focus(`${M} .ml-list`);
+    await p.keyboard.press('Control+r');
+    await p.waitForSelector(`${M} .ml-compose`);
+    await p.waitForSelector(`${M} .ml-addr[data-field=to] .ml-chip[data-address="elodie@exemple.fr"]`);
+    assert((await p.inputValue(`${M} .ml-subject`)) === "Re: Réunion d'équipe — compte rendu", 'Re: subject');
+    const head = await p.textContent(`${M} .ml-editor .ml-quote-head`);
+    assert(/^On .+, Élodie Fournier wrote:$/.test(head), `quote header: ${head}`);
+    assert((await p.textContent(`${M} .ml-editor blockquote.ml-quote`)).includes('Bonjour à tous'), 'quoted original');
+    await p.keyboard.type('Merci Élodie !');
+    await sleep(300);
+    docShot(await s.shot('mail-compose'));
+    await p.keyboard.press('Control+Enter');
+    await p.waitForSelector(`${M} .ml-snack:has-text("Message sent")`, { timeout: 20000 });
+    const cap = await until(() => srv.captured.find((c) => /Subject: Re: R/.test(c.raw) || /R=C3=A9union/.test(c.raw)), { msg: 'reply sent' });
+    assert(/In-Reply-To: </i.test(cap.raw) && /References: </i.test(cap.raw), 'threading headers');
+    await until(() => serverMsg(srv, 'INBOX', /elodie@exemple\.fr/).flags.includes('\\Answered'), { msg: 'original marked answered' });
+  });
+
+  await step('reply all + forward prefill', async () => {
+    await openBySubject(p, 'Re: Projet Aurora');
+    await p.focus(`${M} .ml-list`);
+    await p.keyboard.press('Control+Shift+r');
+    await p.waitForSelector(`${M} .ml-compose`);
+    const to = await p.$$eval(`${M} .ml-addr[data-field=to] .ml-chip`, (els) => els.map((e) => e.dataset.address));
+    const cc = await p.$$eval(`${M} .ml-addr[data-field=cc] .ml-chip`, (els) => els.map((e) => e.dataset.address));
+    assert(to.join() === 'ravi@fabrikam.example', `reply-all to ${to}`);
+    assert(cc.includes('mia.chen@adatum.example') && cc.includes('lucas.bernard@exemple.fr') && !cc.includes(USER), `reply-all cc ${cc}`);
+    await p.click(`${M} .ml-compose button[name=discard]`);
+    await p.waitForSelector(`${M} .ml-compose`, { state: 'detached' });
+    await openBySubject(p, 'Quarterly report');
+    await p.focus(`${M} .ml-list`);
+    await p.keyboard.press('Control+f');
+    await p.waitForSelector(`${M} .ml-compose`);
+    assert((await p.inputValue(`${M} .ml-subject`)) === 'Fwd: Quarterly report (PDF + spreadsheet)', 'Fwd: subject');
+    await p.waitForSelector(`${M} .ml-compose .ml-attach-row .ml-att[data-name="chart.png"]`);
+    assert((await p.$$(`${M} .ml-compose .ml-attach-row .ml-att`)).length === 3, 'original attachments forwarded');
+    assert((await p.textContent(`${M} .ml-editor`)).includes('Forwarded message'), 'forward header');
+    await p.click(`${M} .ml-compose button[name=discard]`);
+    await p.waitForSelector(`${M} .ml-compose`, { state: 'detached' });
+  });
+
+  await step('drafts: Ctrl+S saves to Drafts, unsaved prompt on close', async () => {
+    const d0 = srv.box('Drafts').messages.length;
+    await p.keyboard.press('Control+n');
+    await p.waitForSelector(`${M} .ml-compose`);
+    await p.fill(`${M} .ml-subject`, 'Draft from test');
+    await p.keyboard.press('Control+s');
+    await until(() => srv.box('Drafts').messages.some((m) => subjectOf(m) === 'Draft from test'), { msg: 'draft on server' });
+    await p.waitForSelector(`${M} .ml-compose-status:has-text("Draft saved")`);
+    await p.fill(`${M} .ml-subject`, 'Draft from test v2');
+    // Closing the window asks to save
+    await p.click(`${M} .win-close`);
+    await p.waitForSelector(`${M} .dialog:has-text("Save this message?")`);
+    await p.click(`${M} .dialog button:has-text("Cancel")`);
+    assert(await p.$(`${M} .ml-compose`), 'still composing after Cancel');
+    await p.click(`${M} .win-close`);
+    await p.click(`${M} .dialog button:has-text("Save draft")`);
+    await until(() => srv.box('Drafts').messages.some((m) => subjectOf(m) === 'Draft from test v2'), { msg: 'updated draft saved' });
+    await until(async () => !(await mailApp(p)), { msg: 'window closed' });
+    assert(srv.box('Drafts').messages.filter((m) => !m.flags.includes('\\Deleted')).length === d0 + 1, 'old draft replaced');
+    await p.evaluate(() => window.__aurora.shell.launch('mail'));
+    await p.waitForSelector(`${M} .ml-item:not(.skeleton)`, { timeout: 20000 });
+  });
+
+  await step('new mail: IDLE push -> list refresh + notification', async () => {
+    await inbox(p);
+    srv.deliver(await build({ from: { name: 'Zoé Durand', address: 'zoe@durand.example' }, to: USER, subject: 'Fresh news from Zoé', text: 'Hello Alice!', date: new Date() }));
+    await until(() => p.evaluate(() => window.__aurora.notifications.list().some((n) => n.appId === 'mail' && n.title === 'Zoé Durand' && n.body === 'Fresh news from Zoé')), { timeout: 15000, msg: 'notification' });
+    await rowBySubject(p, 'Fresh news from Zoé');
+    const first = await p.textContent(`${M} .ml-item:not(.skeleton) .ml-subj`);
+    assert(first === 'Fresh news from Zoé', `new message on top (${first})`);
+    await sleep(500);
+    await s.shot('mail-new-notification');
+  });
+
+  await step('launch args: mailto / {to, subject, body} open a prefilled composer', async () => {
+    await p.evaluate(() => window.__aurora.shell.launch('mail', { to: 'Bob <bob@example.com>', subject: 'From another app', body: 'Line 1' }));
+    await p.waitForSelector(`${M} .ml-compose .ml-chip[data-address="bob@example.com"]`);
+    assert((await p.inputValue(`${M} .ml-subject`)) === 'From another app', 'subject');
+    assert((await p.textContent(`${M} .ml-editor`)).includes('Line 1'), 'body');
+    await p.click(`${M} .ml-compose button[name=discard]`);
+    await p.waitForSelector(`${M} .ml-compose`, { state: 'detached' });
+  });
+
+  await step('settings: storage warning, signature, notifications toggle', async () => {
+    await p.click(`${M} button[name=settings]`);
+    await p.waitForSelector(`${M} .ml-settings`);
+    const secure = await p.evaluate(() => window.aurora.invoke('mail:storage'));
+    if (!secure.secure) assert(await p.$(`${M} .ml-storage-warning`), 'insecure storage warning shown');
+    await s.shot('mail-settings');
+    await p.click(`${M} button[name=section-signature]`);
+    await p.fill(`${M} textarea[name=signature]`, 'Cheers,\nAlice');
+    await p.waitForSelector(`${M} .ml-sig-status:has-text("Saved")`);
+    await p.click(`${M} button[name=section-notifications]`);
+    await p.waitForSelector(`${M} input[name=notifications]`);
+    await p.click(`${M} button[name=close-settings]`);
+    await p.keyboard.press('Control+n');
+    await p.waitForSelector(`${M} .ml-compose`);
+    assert((await p.textContent(`${M} .ml-editor .ml-signature`)).includes('Cheers,Alice') || (await p.innerText(`${M} .ml-editor .ml-signature`)).includes('Cheers,\nAlice'), 'new signature used');
+    await p.click(`${M} .ml-compose button[name=discard]`);
+    await p.waitForSelector(`${M} .ml-compose`, { state: 'detached' });
+  });
+
+  await step('keyboard: arrows move through the list and open messages', async () => {
+    await (await rowBySubject(p, 'Fresh news from Zoé')).click();
+    await p.focus(`${M} .ml-list`);
+    await p.keyboard.press('ArrowDown');
+    await p.keyboard.press('ArrowDown');
+    const subjects = await p.$$eval(`${M} .ml-item:not(.skeleton) .ml-subj`, (els) => els.map((e) => e.textContent));
+    await p.waitForSelector(`${M} .ml-read-subject:has-text(${JSON.stringify(subjects[2])})`, { timeout: 10000 });
+    await p.keyboard.press('Home');
+    await p.waitForSelector(`${M} .ml-read-subject:has-text(${JSON.stringify(subjects[0])})`, { timeout: 10000 });
+  });
+
+  await step('eml: .eml files open in a read-only Mail window', async () => {
+    const msgs = await p.evaluate(() => window.aurora.invoke('mail:accounts'));
+    const accId = msgs[0].id;
+    const list = await p.evaluate((id) => window.aurora.invoke('mail:list', id, 'INBOX', { search: 'Photo from the trip' }), accId);
+    const eml = path.join(home, 'Documents', 'photo.eml');
+    await p.evaluate(([id, uid, dest]) => window.aurora.invoke('mail:saveSource', id, 'INBOX', uid, dest), [accId, list.messages[0].uid, eml]);
+    await p.evaluate((f) => window.__aurora.shell.openFile(f), eml);
+    await p.waitForSelector(`${M} .ml-eml-window .ml-read-subject:has-text("Photo from the trip")`, { timeout: 15000 });
+    await p.evaluate(() => window.__aurora.wm.list().filter((w) => w.title.startsWith('Photo from the trip')).forEach((w) => w.close(true)));
+  });
+
+  await step('add second account (TLS with a self-signed certificate -> trust)', async () => {
+    await p.click(`${M} button[name=account]`);
+    await p.click('.menu .menu-item:has-text("Add account")');
+    await p.waitForSelector(`${M} .ml-setup-dialog .ml-provider`);
+    await p.click(`${M} .ml-setup-dialog .ml-provider[data-provider="other"]`);
+    await p.fill(`${M} .ml-setup-dialog input[name=email]`, 'alice2@aurora.test');
+    await p.fill(`${M} .ml-setup-dialog input[name=password]`, PASS);
+    await p.fill(`${M} .ml-setup-dialog input[name=imap-host]`, '127.0.0.1');
+    await p.selectOption(`${M} .ml-setup-dialog select[name=imap-security]`, 'ssl');
+    await p.fill(`${M} .ml-setup-dialog input[name=imap-port]`, String(tlsSrv.imapPort));
+    await p.fill(`${M} .ml-setup-dialog input[name=imap-user]`, USER);
+    await p.fill(`${M} .ml-setup-dialog input[name=smtp-host]`, '127.0.0.1');
+    await p.selectOption(`${M} .ml-setup-dialog select[name=smtp-security]`, 'none');
+    await p.fill(`${M} .ml-setup-dialog input[name=smtp-port]`, String(tlsSrv.smtpPort));
+    await p.click(`${M} .ml-setup-dialog button[name=signin]`);
+    await p.waitForSelector(`${M} .dialog:has-text("Untrusted certificate")`, { timeout: 20000 });
+    assert(/SHA-256/.test(await p.textContent(`${M} .dialog:has-text("Untrusted certificate")`)), 'fingerprint shown');
+    await s.shot('mail-cert-trust');
+    await p.click(`${M} .dialog button:has-text("Trust this certificate")`);
+    await p.waitForSelector(`${M} .ml-setup-dialog .ml-setup-done`, { timeout: 20000 });
+    await p.click(`${M} .ml-setup-dialog button[name=done]`);
+    await until(async () => (await p.textContent(`${M} .ml-account`)).includes('alice2@aurora.test'), { msg: 'switched to the new account' });
+    await p.waitForSelector(`${M} .ml-item:not(.skeleton)`, { timeout: 20000 });
+    const accs = await p.evaluate(() => window.aurora.invoke('mail:accounts'));
+    assert(accs.length === 2 && accs[1].imap.trusted, 'certificate pinned for the account');
+    // switch back
+    await p.click(`${M} button[name=account]`);
+    await p.click(`.menu .menu-item:has-text("${USER}")`);
+    await until(async () => (await p.textContent(`${M} .ml-account`)).includes(USER), { msg: 'switched back' });
+  });
+
+  await step('layout: minimum size (narrow, single pane) and maximized', async () => {
+    await p.evaluate(() => {
+      const w = window.__aurora.wm.list().find((x) => x.appId === 'mail');
+      w.restore?.();
+      w.setSize(520, 440);
+    });
+    await until(() => p.$eval(`${M} .ml-root`, (el) => el.dataset.layout === 'narrow'), { msg: 'narrow layout' });
+    await inbox(p);
+    await sleep(300);
+    await s.shot('mail-min-size-list');
+    await (await rowBySubject(p, 'Your weekly digest')).click();
+    await p.waitForSelector(`${M} .ml-root.show-reader .ml-back`);
+    await sleep(400);
+    docShot(await s.shot('mail-min-size'));
+    await p.click(`${M} .ml-back`);
+    await p.waitForSelector(`${M} .ml-root:not(.show-reader)`);
+    await p.click(`${M} .ml-nav-toggle`);
+    await p.waitForSelector(`${M} .ml-root.nav-open`);
+    await sleep(300);
+    await s.shot('mail-min-size-nav');
+    await p.click(`${M} .ml-scrim`, { position: { x: 400, y: 200 } });
+    await p.evaluate(() => window.__aurora.wm.list().find((x) => x.appId === 'mail').maximize());
+    await until(() => p.$eval(`${M} .ml-root`, (el) => el.dataset.layout === 'wide'), { msg: 'wide layout' });
+    await sleep(500);
+    docShot(await s.shot('mail-maximized'));
+  });
+
+  await s.close();
+
+  // ---------------------------------------------------------------- French + dark
+  s = await launch({ open: ['mail'], lang: 'fr', theme: 'dark', home });
+  p = s.page;
+  await hookRemote(s);
+  await step('fr/dark: localized folders, dates, reading pane, composer', async () => {
+    await p.waitForSelector(`${M} .ml-item:not(.skeleton)`, { timeout: 20000 });
+    const names = await p.$$eval(`${M} .ml-folder .label`, (els) => els.map((e) => e.textContent));
+    for (const n of ['Boîte de réception', 'Brouillons', 'Éléments envoyés', 'Courrier indésirable', 'Éléments supprimés']) assert(names.includes(n), `folder ${n}`);
+    assert((await p.textContent(`${M} button[name=new-mail]`)).includes('Nouveau message'), 'Nouveau message');
+    const groups = await p.$$eval(`${M} .ml-group`, (els) => els.map((e) => e.textContent));
+    assert(groups[0] === "Aujourd'hui", `groupes ${groups}`);
+    await openBySubject(p, "Réunion d'équipe");
+    assert((await srcdoc(p)).includes('color-scheme:dark'), 'plain text follows the dark theme');
+    await sleep(400);
+    docShot(await s.shot('mail-fr-dark'));
+    await openBySubject(p, 'Your weekly digest');
+    await sleep(400);
+    await s.shot('mail-fr-dark-html');
+    await p.focus(`${M} .ml-list`);
+    await p.keyboard.press('Control+r');
+    await p.waitForSelector(`${M} .ml-compose`);
+    assert((await p.inputValue(`${M} .ml-subject`)).startsWith('RE : Your weekly digest'), 'RE : prefix');
+    assert(/^Le .+, Contoso Weekly a écrit :$/.test(await p.textContent(`${M} .ml-editor .ml-quote-head`)), 'French quote header');
+    await sleep(300);
+    docShot(await s.shot('mail-compose-fr-dark'));
+    await p.click(`${M} .ml-compose button[name=discard]`);
+    await p.waitForSelector(`${M} .ml-compose`, { state: 'detached' });
+    // Text overflow check: no horizontal scrollbars in the main panes.
+    const overflow = await p.evaluate(() => [...document.querySelectorAll('.app-mail .ml-nav, .app-mail .ml-list-head, .app-mail .ml-read-bar')].filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.className));
+    assert(!overflow.length, `overflow in ${overflow}`);
+  });
+
+  await step('fr/dark: welcome (separate profile)', async () => {
+    const h2 = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-mail-test-fr-'));
+    const s2 = await launch({ open: ['mail'], lang: 'fr', theme: 'dark', home: h2 });
+    await s2.page.waitForSelector(`${M} .ml-provider`);
+    await sleep(500);
+    docShot(await s2.shot('mail-welcome-fr-dark'));
+    await s2.page.click(`${M} .ml-provider[data-provider="proton"]`);
+    await s2.page.waitForSelector(`${M} .ml-help`);
+    assert((await s2.page.textContent(`${M} .ml-help`)).includes('Bridge'), 'Proton Bridge note');
+    await s2.shot('mail-setup-fr-dark');
+    await s2.close();
+    fs.rmSync(h2, { recursive: true, force: true });
+    cur = s;
+  });
+
+  await s.close();
+  await srv.close();
+  await tlsSrv.close();
+  fs.rmSync(home, { recursive: true, force: true });
+
+  const relevant = consoleErrors.filter((e) => !/Autofill|DevTools|net::ERR_|favicon/i.test(e));
+  if (relevant.length) {
+    console.log('\nConsole errors:');
+    for (const e of relevant) console.log(`  ${e}`);
+  }
+  results.push({ name: 'no console errors', ok: relevant.length === 0 });
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length) console.log(`\nMain process [mail] log (last 40 lines):\n${mainLog.slice(-40).join('\n')}`);
+  console.log(`\n${results.length - failed.length}/${results.length} passed`);
+  process.exit(failed.length ? 1 : 0);
+}
+
+const isMain = process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
+if (isMain && process.argv.includes('--server')) {
+  const s = await startMailServer();
+  console.log(`IMAP 127.0.0.1:${s.imapPort}  SMTP 127.0.0.1:${s.smtpPort}  user ${USER} / ${PASS}`);
+} else if (isMain) {
+  await runTests();
+}

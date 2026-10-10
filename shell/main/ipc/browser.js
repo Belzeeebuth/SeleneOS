@@ -324,7 +324,14 @@ module.exports = function register(api) {
 
   // ------------------------------------------------------------------ downloads
   function uniquePath(dir, name) {
-    const safe = String(name || 'download').replace(/[/\\\0]/g, '_').replace(/^\.+/, '') || 'download';
+    // The name comes from the server: no path separators, control characters or leading dots, and
+    // short enough for any file system (255 bytes) once " (n)" is added.
+    let safe = String(name || 'download').replace(/[/\\\0]/g, '_').replace(/[\u0000-\u001f\u007f]/g, '').replace(/^[.\s]+/, '').trim() || 'download';
+    while (Buffer.byteLength(safe) > 200) {
+      const e = path.extname(safe);
+      const stem = safe.slice(0, safe.length - e.length);
+      safe = stem.length > 1 ? `${stem.slice(0, -1)}${e}` : safe.slice(0, -1);
+    }
     const ext = path.extname(safe);
     const stem = ext && ext !== safe ? safe.slice(0, -ext.length) : safe;
     let candidate = path.join(dir, safe);
@@ -433,6 +440,11 @@ module.exports = function register(api) {
     if (savePath) {
       if (!path.isAbsolute(savePath)) throw api.error('Invalid destination', 'EINVAL');
       pendingSaveAs.set(url, savePath);
+      // Forget it if this download never starts, so a later download of the same URL by a page
+      // does not silently land at that path.
+      setTimeout(() => {
+        if (pendingSaveAs.get(url) === savePath) pendingSaveAs.delete(url);
+      }, 60000);
     }
     let wc = null;
     try {

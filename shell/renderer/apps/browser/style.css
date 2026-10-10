@@ -2093,3 +2093,25 @@
 .dialog .bw-wrap {
   overflow-wrap: anywhere;
 }
+
+/* alert / confirm / prompt from a page */
+.dialog .bw-jsdlg {
+  min-width: min(360px, 70vw);
+}
+.dialog .bw-jsdlg-msg {
+  white-space: pre-wrap;
+  max-height: 40vh;
+  overflow-y: auto;
+  color: var(--text);
+}
+.dialog .bw-jsdlg .input {
+  width: 100%;
+}
+.dialog .bw-jsdlg .bw-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}

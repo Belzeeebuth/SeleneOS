@@ -5,9 +5,14 @@
 import { h, icon } from './dom.js';
 
 const open = []; // stack of { el, close } for the current menu tree
+let restoreFocus = null; // a page (<webview>) that had the keyboard focus when the menu opened
 
 export function closeMenus() {
   while (open.length) open.pop().destroy();
+  const back = restoreFocus;
+  restoreFocus = null;
+  const ae = document.activeElement;
+  if (back?.isConnected && (!ae || ae === document.body)) back.focus();
 }
 
 export function menusOpen() {
@@ -27,7 +32,13 @@ function itemIcon(it) {
  */
 export function showMenu(at, items, opts = {}) {
   closeMenus();
+  const prev = document.activeElement;
   const root = build(at, items, opts, 0);
+  // Opened from the keyboard while a page has the focus (e.g. Alt+F): keys must reach the menu.
+  if (prev?.tagName === 'WEBVIEW') {
+    restoreFocus = prev;
+    root.el.focus({ preventScroll: true });
+  }
   setTimeout(() => {
     document.addEventListener('pointerdown', outside, true);
     window.addEventListener('blur', closeMenus);

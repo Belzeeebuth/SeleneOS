@@ -802,12 +802,14 @@ export class NotepadWindow {
     d.eol = eol;
     d.metaDirty = true;
     this.onDocChanged(d);
+    this.updateStatus();
   }
   setEncoding(d, enc) {
     if (d.encoding === enc) return;
     d.encoding = enc;
     d.metaDirty = true;
     this.onDocChanged(d);
+    this.updateStatus();
   }
 
   async reopenWith(d, enc) {

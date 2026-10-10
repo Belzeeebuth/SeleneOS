@@ -1,0 +1,15 @@
+{
+  "id": "terminal",
+  "name": { "en": "Terminal", "fr": "Terminal" },
+  "description": { "en": "Command line with tabs, panes and profiles", "fr": "Ligne de commande avec onglets, volets et profils" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 980, "height": 600, "minWidth": 420, "minHeight": 260, "titlebar": "tall", "background": "mica" },
+  "category": "system",
+  "keywords": {
+    "en": ["terminal", "console", "shell", "bash", "command", "prompt", "cmd", "powershell", "wt", "python", "sudo"],
+    "fr": ["terminal", "console", "shell", "bash", "commande", "invite", "invite de commandes", "cmd", "python", "sudo"]
+  },
+  "singleInstance": false
+}

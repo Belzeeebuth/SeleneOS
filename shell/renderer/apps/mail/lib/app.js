@@ -482,8 +482,9 @@ export class MailApp {
     await openSettings(this.ctx, this, 'accounts', account?.id);
   }
 
-  openSettings(section) {
-    return openSettings(this.ctx, this, section);
+  async openSettings(section) {
+    await openSettings(this.ctx, this, section);
+    this.focusList();
   }
 
   onAccountsChanged() {
@@ -920,6 +921,7 @@ export class MailApp {
     this.readerHost.replaceChildren(this.reader.el);
     this.reader.showEmpty();
     this.root.classList.remove('show-reader');
+    this.focusList();
     if (reason === 'sent') this.snackbar(this.t('snack.sent'));
     if (info?.folder || reason === 'sent') {
       this.refreshFolders();
@@ -989,10 +991,29 @@ export class MailApp {
     await this.ctx.ui.alert([info.text, info.detail].filter(Boolean).join('\n\n'), { title: info.title || this.t('err.title'), parent: this.ctx.win });
   }
 
+  // Keys are taken from the whole document while this window is the active one, so shortcuts keep
+  // working when focus fell back to <body> (e.g. after a pane was replaced).
   wireKeys() {
     if (this.keysWired) return;
     this.keysWired = true;
-    this.ctx.win.el.addEventListener('keydown', (e) => this.onKey(e));
+    const handler = (e) => {
+      const win = this.ctx.win;
+      if (!win.el.isConnected || this.ctx.shell.wm.focused?.() !== win) return;
+      if (!win.el.contains(e.target) && e.target !== document.body && e.target !== document.documentElement) return;
+      this.onKey(e);
+    };
+    document.addEventListener('keydown', handler);
+    this.offs.push(() => document.removeEventListener('keydown', handler));
+  }
+
+  // Put keyboard focus back on the message list (after a composer, dialog or menu went away).
+  focusList() {
+    setTimeout(() => {
+      if (!this.list || this.composer) return;
+      const a = document.activeElement;
+      if (a && a !== document.body && this.ctx.win.el.contains(a) && a.isConnected) return;
+      this.list.scroller.focus({ preventScroll: true });
+    }, 30);
   }
 
   onKey(e) {

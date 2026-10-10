@@ -470,9 +470,16 @@ console.log(`Local test server: ${srv.url}`);
     }
     const labels = await s.page.$$eval('.menu .menu-item .label', (els) => els.map((e) => e.textContent));
     for (const l of ['Open link in new tab', 'Open link in Private window', 'Copy link', 'Save link as…', 'View page source']) assert(labels.includes(l), `menu has ${l} (${labels})`);
+    // The keyboard works in the menu although the right-click happened inside the page.
+    await s.page.keyboard.press('Escape');
+    await waitFor('!document.querySelector(".menu")', { msg: 'Esc closes the page menu' });
+    await waitFor('document.activeElement === bw.active.wv', { msg: 'focus back in the page' });
+    await s.page.mouse.click(wv.x + r.x, wv.y + r.y, { button: 'right' });
+    await s.page.waitForSelector('.menu .menu-item');
     const n = await run('bw.tabs.length');
-    await s.page.locator('.menu .menu-item', { hasText: 'Open link in new tab' }).click();
-    await waitFor(`bw.tabs.length === ${n + 1}`, { msg: 'open link in new tab' });
+    await s.page.keyboard.press('ArrowDown'); // first item: Open link in new tab
+    await s.page.keyboard.press('Enter');
+    await waitFor(`bw.tabs.length === ${n + 1}`, { msg: 'open link in new tab (keyboard)' });
     assert(await run('bw.active.web.title === "Aurora Test Page"'), 'opened in the background');
   });
 
@@ -707,6 +714,7 @@ console.log(`Local test server: ${srv.url}`);
     const played = await pageJs("document.getElementById('a').play().then(() => 'ok', (e) => e.message)");
     assert(played === 'ok', `audio plays (${played})`);
     await waitFor('bw.active.el.classList.contains("audible")', { msg: 'audible tab' });
+    console.log('DEBUG audio', JSON.stringify(await run(`({ n: bw.tabs.length, w: bw.active.el.getBoundingClientRect().width, audio: (() => { const b = bw.active.parts.audio.getBoundingClientRect(); const cs = getComputedStyle(bw.active.parts.audio); return [b.width, b.height, cs.display, cs.transform, cs.opacity, cs.animationName, cs.animationPlayState]; })(), locked: bw.tabsEl.className })`)));
     await s.page.click('.app-browser .bw-tab.active .bw-tab-audio');
     await waitFor('bw.active.muted && bw.active.wv.isAudioMuted()', { msg: 'muted' });
     await s.page.click('.app-browser .bw-tab.active .bw-tab-audio');

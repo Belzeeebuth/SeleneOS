@@ -188,7 +188,8 @@ body.tb-autohide .desk-icons {
   padding: 0 2px;
   font-size: 12px;
   line-height: 16px;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.75), 0 0 4px rgba(0, 0, 0, 0.5);
+  /* Windows-like crisp dark outline + drop shadow: readable on the brightest wallpapers without a smudgy halo */
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.7), 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 3px rgba(0, 0, 0, 0.25);
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -708,6 +709,74 @@ body.has-fullscreen #taskbar {
 .tb-app.leaving {
   pointer-events: none;
 }
+.tb-btn[hidden] {
+  display: none;
+}
+body.has-fullscreen #taskbar.fly-open {
+  transform: none;
+  transition: transform var(--dur-slow) var(--ease);
+}
+/* Overflow ("…") button + flyout for apps that do not fit on the taskbar */
+.tb-overflow.running .tb-ind {
+  transform: none;
+  opacity: 1;
+}
+.tb-overflow.flashing {
+  background: color-mix(in srgb, #f7a600 52%, transparent);
+}
+.tb-ovf {
+  position: fixed;
+  bottom: calc(var(--taskbar-h) + 8px);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 40px);
+  width: min(calc(100vw - 16px), calc(6 * 44px + 12px));
+  gap: 4px;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: var(--fly-bg);
+  border: 1px solid var(--fly-stroke);
+  box-shadow: var(--fly-shadow);
+  backdrop-filter: blur(40px) saturate(160%);
+  animation: tb-pv-in var(--dur-slow) var(--ease);
+  z-index: 10;
+}
+:root[data-transparency="off"] .tb-ovf {
+  backdrop-filter: none;
+}
+.tb-ovf-item {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  outline-offset: -2px;
+}
+.tb-ovf-item:hover,
+.tb-ovf-item:focus-visible {
+  background: var(--tb-hover);
+  border-color: var(--tb-hover-stroke);
+}
+.tb-ovf-item.active {
+  background: var(--tb-active);
+}
+.tb-ovf-item img {
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+}
+.tb-ovf-item.running .tb-ind {
+  transform: none;
+  opacity: 1;
+}
+.tb-ovf-item.active .tb-ind {
+  width: 16px;
+  margin-left: -8px;
+  background: var(--accent);
+}
 .tb-tray {
   margin-left: auto;
   display: flex;
@@ -1058,8 +1127,7 @@ body.tb-left #start {
   align-items: center;
   justify-content: flex-start;
   gap: 6px;
-  padding-top: 12px !important;
-  padding: 4px;
+  padding: 10px 4px 0;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   background: transparent;
@@ -1087,6 +1155,7 @@ body.tb-left #start {
   transform: scale(0.88);
 }
 .start-tile-label {
+  flex: none; /* never squeezed: two-line labels ("Gestionnaire des tâches") stay whole */
   max-width: 100%;
   padding: 0 2px;
   text-align: center;

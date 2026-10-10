@@ -12,7 +12,7 @@
 //   kit.confetti(host, { count, duration })
 //   kit.statsDialog({ title, categories, value, render(cat), onReset })
 //   kit.helpDialog({ title, sections: [{ title, items }], keys: [[combo, label]] })
-//   kit.fmtTime(ms, decimals)  kit.fmtNum(n)  kit.reduceMotion()
+//   kit.fmtTime(ms, decimals)  kit.fmtNum(n)  kit.reduceMotion()  await kit.wasdLabel() -> "W A S D" / "Z Q S D"…
 //   kit.load(name, fallback) / kit.save(name, value)   per-app JSON storage that never throws
 // Strings use the 'gk.*' keys, present in each game's i18n.json.
 
@@ -424,6 +424,17 @@ export function createKit(ctx) {
     return ui.dialog({ title: title || t('gk.howToPlay'), body, parent: win, className: 'gk-dialog gk-help-dialog', buttons: [{ label: t('gk.gotIt'), value: true, primary: true }] });
   }
 
+  // Labels of the letter keys at the W A S D positions on the active keyboard layout (Z Q S D on
+  // AZERTY): games read those keys by physical position, so the help must name what is printed on them.
+  async function wasdLabel() {
+    try {
+      const map = await navigator.keyboard?.getLayoutMap?.();
+      const keys = map && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].map((c) => String(map.get(c) || '').toUpperCase());
+      if (keys && keys.every((k) => /^\p{L}$/u.test(k))) return keys.join(' ');
+    } catch {}
+    return ctx.lang === 'fr' ? 'Z Q S D' : 'W A S D';
+  }
+
   // ---------------------------------------------------------------- formatting & storage
   const nf = () => new Intl.NumberFormat(ctx.lang === 'fr' ? 'fr-FR' : 'en-US');
   function fmtNum(n) {
@@ -478,5 +489,5 @@ export function createKit(ctx) {
   }
   ctx.onClose(() => flush());
 
-  return { button, iconButton, chip, toolbar, bindKeys, sound, overlay, confetti, statsDialog, statTile, helpDialog, fmtNum, fmtTime, load, save, flush, reduceMotion };
+  return { button, iconButton, chip, toolbar, bindKeys, sound, overlay, confetti, statsDialog, statTile, helpDialog, wasdLabel, fmtNum, fmtTime, load, save, flush, reduceMotion };
 }

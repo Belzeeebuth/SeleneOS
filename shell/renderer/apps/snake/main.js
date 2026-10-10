@@ -114,7 +114,7 @@ export default {
       if (!game || game.steps === 0 || game.recorded) return null;
       game.recorded = true;
       if (state === 'running') playedMs += performance.now() - playStart;
-      const res = recordGame(stats, { score: game.score, eaten: game.eaten, length: game.snake.length, ms: playedMs, mode: mode() });
+      const res = recordGame(stats, { score: game.score, eaten: game.eaten, length: game.snake.length, ms: playedMs, mode: game.mode || mode() });
       stats = res.stats;
       kit.save('stats', stats);
       return res;
@@ -123,6 +123,8 @@ export default {
       recordIfPlayed();
       const sz = SIZES[prefs.size];
       game = createGame({ cols: sz.cols, rows: sz.rows, wrap: prefs.wrap, obstacles: prefs.obstacles, speed: prefs.speed, speedUp: prefs.speedUp });
+      // The mode this run is played in: a run abandoned by switching mode is recorded under its own mode.
+      game.mode = mode();
       state = 'ready';
       acc = 0;
       alpha = 1;
@@ -688,6 +690,12 @@ export default {
       boardWrap.focus({ preventScroll: true });
     }
 
+    // Letter keys named as printed on the active layout (resolved ahead of time: no await before the dialog).
+    let wasd = ctx.lang === 'fr' ? 'Z Q S D' : 'W A S D';
+    const refreshWasd = () => kit.wasdLabel().then((v) => (wasd = v));
+    refreshWasd();
+    ctx.onLangChange(refreshWasd);
+
     async function showHelp() {
       if (state === 'running') pause();
       await kit.helpDialog({
@@ -698,7 +706,7 @@ export default {
           { title: t('help.modes'), icon: 'options', items: [t('help.o1'), t('help.o2'), t('help.o3')] },
         ],
         keys: [
-          [`← ↑ → ↓ / W A S D`, t('keys.steer')],
+          [`← ↑ → ↓ / ${wasd}`, t('keys.steer')],
           [`${t('keys.space')} / P / Esc`, t('keys.pause')],
           [t('keys.enter'), t('keys.start')],
           ['N / F2', t('gk.newGame')],

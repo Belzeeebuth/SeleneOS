@@ -321,7 +321,24 @@ export function pageMenu(bw, tab, p) {
   const pageUrl = tab.web.url;
   if (isWebUrl(pageUrl)) items.push('-', { label: t('ctx.viewSource'), icon: 'code', shortcut: 'Ctrl+U', action: () => bw.openUrl(`view-source:${pageUrl}`, { active: true, opener: tab }) });
   if (shared.dev) items.push({ label: t('ctx.inspect'), icon: 'window_dev_tools', action: () => shared.api.invoke('browser:inspect', tab.wcId, p.x, p.y).catch(() => {}) });
-  ui.menu(at, items, menuOpts(bw));
+  // Commands act on the page: give it the keyboard focus back first (edit commands need it).
+  for (const it of items) {
+    if (!it || typeof it.action !== 'function') continue;
+    const run = it.action;
+    it.action = () => {
+      if (tab.wv && bw.active === tab && !bw.dialogOpen()) tab.wv.focus();
+      run();
+    };
+  }
+  const done = ui.menu(at, items, menuOpts(bw));
+  // The right-click happened inside the page, which keeps the keyboard focus: move it to the menu
+  // so Esc / arrows / Enter work, and return it to the page when the menu closes.
+  const el = [...document.querySelectorAll('body > .menu')].pop();
+  el?.focus({ preventScroll: true });
+  done.then(() => {
+    const ae = document.activeElement;
+    if (!bw.closing && bw.active === tab && tab.wv && !bw.dialogOpen() && (!ae || ae === document.body)) tab.wv.focus();
+  });
 }
 
 function suggestName(url, fallback = 'download') {

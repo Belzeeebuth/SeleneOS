@@ -31,6 +31,7 @@ const STRINGS = {
       noNotifications: 'No new notifications',
       dndOn: 'Do not disturb is on',
       closeWindowTip: 'Close',
+      moreApps: 'Show more apps',
     },
     notif: { system: 'System' },
     tray: {
@@ -57,6 +58,7 @@ const STRINGS = {
       noNotifications: 'Aucune nouvelle notification',
       dndOn: 'Ne pas déranger est activé',
       closeWindowTip: 'Fermer',
+      moreApps: 'Afficher plus d’applications',
     },
     notif: { system: 'Système' },
     tray: {
@@ -232,10 +234,10 @@ function setPinned(appId, pin) {
 function flip(mutate) {
   if (reduceMotion() || !centerEl) return mutate();
   const els = [...centerEl.querySelectorAll(':scope > .tb-btn, .tb-apps > .tb-btn:not(.leaving)')];
-  const before = new Map(els.map((e) => [e, e.getBoundingClientRect().left]));
+  const before = new Map(els.filter((e) => !e.hidden).map((e) => [e, e.getBoundingClientRect().left]));
   mutate();
   for (const [e, left] of before) {
-    if (!e.isConnected || e.classList.contains('dragging')) continue;
+    if (!e.isConnected || e.hidden || e.classList.contains('dragging')) continue;
     const dx = left - e.getBoundingClientRect().left;
     if (Math.abs(dx) > 0.5) e.animate([{ transform: `translateX(${dx}px)` }, { transform: 'none' }], { duration: 320, easing: EASE });
   }
@@ -248,7 +250,7 @@ function appMenu(e, appId) {
   const wins = visibleWins(appId);
   const pinned = (settings.get('pinned') || []).includes(appId);
   const m = registry.get(appId);
-  const anchor = buttons.get(appId) || e.currentTarget;
+  const anchor = visibleButton(appId) || e.currentTarget;
   const p = ui.menu(
     anchor,
     [
@@ -570,6 +572,7 @@ function renderApps() {
         () => b.remove(),
       );
     }
+    fitApps();
   };
   if (changed) flip(apply);
   else apply();
@@ -594,6 +597,141 @@ function renderApps() {
     b.setAttribute('aria-label', wins.length === 1 ? wins[0].title || registry.name(id) : registry.name(id));
   }
   if (previewEl && previewApp && !visibleWins(previewApp).length) hidePreview(true);
+  if (overflowBtn && !overflowBtn.hidden) {
+    overflowBtn.classList.toggle('running', hiddenApps.some((id) => visibleWins(id).length));
+    overflowBtn.classList.toggle('flashing', hiddenApps.some((id) => visibleWins(id).some((w) => w.flashing)));
+  }
+}
+
+// ---------------------------------------------------------------- overflow (too many apps for the bar)
+// Windows 11 style: buttons that do not fit between the left area and the tray go into an overflow
+// flyout opened by a "…" button at the end of the app list (the focused app always stays visible).
+let overflowBtn = null;
+let hiddenApps = [];
+let ovfEl = null;
+const visibleButton = (id) => {
+  const b = buttons.get(id);
+  return b && !b.hidden ? b : overflowBtn && !overflowBtn.hidden && hiddenApps.includes(id) ? overflowBtn : b;
+};
+function fitApps() {
+  if (!appsBox || !root?.isConnected) return;
+  const btns = [...appsBox.querySelectorAll(':scope > .tb-app:not(.leaving)')];
+  const W = root.clientWidth;
+  if (!W) return;
+  const trayW = trayEl.getBoundingClientRect().width;
+  const leftW = leftEl.children.length ? leftEl.getBoundingClientRect().width + 12 : 0;
+  const avail = root.classList.contains('left') ? W - trayW - 24 : W - 2 * (Math.max(trayW, leftW) + 12);
+  const fixed = [...centerEl.children].filter((c) => c !== appsBox).reduce((sum, c) => sum + c.getBoundingClientRect().width + 4, 0);
+  const SLOT = 44; // 40px button + 4px gap
+  const cap = Math.max(1, Math.floor((avail - fixed) / SLOT));
+  let visible = btns.map((b) => b.dataset.app);
+  if (btns.length > cap) {
+    visible = visible.slice(0, Math.max(1, cap - 1)); // one slot for the overflow button
+    const focused = wm.focused();
+    const activeId = focused && !focused.minimized ? focused.appId : null;
+    if (activeId && buttons.has(activeId) && !visible.includes(activeId)) visible[visible.length - 1] = activeId;
+  }
+  const keep = new Set(visible);
+  hiddenApps = btns.map((b) => b.dataset.app).filter((id) => !keep.has(id));
+  for (const b of btns) b.hidden = !keep.has(b.dataset.app);
+  if (hiddenApps.length) {
+    if (!overflowBtn) {
+      overflowBtn = h(
+        'button',
+        { class: 'tb-btn tb-overflow', 'aria-haspopup': 'menu', onclick: () => toggleOverflow() },
+        icon('more_horizontal', { size: 20 }),
+        h('span', { class: 'tb-ind' }),
+      );
+    }
+    overflowBtn.dataset.tip = t('taskbar.moreApps');
+    overflowBtn.setAttribute('aria-label', t('taskbar.moreApps'));
+    overflowBtn.classList.toggle('running', hiddenApps.some((id) => visibleWins(id).length));
+    overflowBtn.classList.toggle('flashing', hiddenApps.some((id) => visibleWins(id).some((w) => w.flashing)));
+    if (overflowBtn.parentElement !== appsBox || appsBox.lastElementChild !== overflowBtn) appsBox.appendChild(overflowBtn);
+    overflowBtn.hidden = false;
+    if (ovfEl) renderOverflow();
+  } else {
+    if (overflowBtn) overflowBtn.hidden = true;
+    closeOverflow();
+  }
+}
+
+function activateApp(id) {
+  const wins = visibleWins(id);
+  if (!wins.length) return registry.launch(id);
+  const w = wins.find((x) => x.isFocused()) || wins[wins.length - 1];
+  if (w.isFocused() && !w.minimized && wins.length === 1) w.minimize();
+  else w.focus();
+}
+function ovfOutside(e) {
+  if (ovfEl && !ovfEl.contains(e.target) && !overflowBtn?.contains(e.target)) closeOverflow();
+}
+function ovfKeys(e) {
+  if (!ovfEl) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    closeOverflow();
+    overflowBtn?.focus();
+    return;
+  }
+  const items = [...ovfEl.querySelectorAll('.tb-ovf-item')];
+  const i = items.indexOf(document.activeElement);
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (step && items.length) {
+    e.preventDefault();
+    items[(i + step + items.length) % items.length].focus();
+  }
+}
+function closeOverflow() {
+  if (!ovfEl) return;
+  ovfEl.remove();
+  ovfEl = null;
+  overflowBtn?.classList.remove('open');
+  document.removeEventListener('pointerdown', ovfOutside, true);
+  document.removeEventListener('keydown', ovfKeys, true);
+}
+function renderOverflow() {
+  const focused = wm.focused();
+  ovfEl.replaceChildren(
+    ...hiddenApps.map((id) => {
+      const wins = visibleWins(id);
+      return h(
+        'button',
+        {
+          class: ['tb-ovf-item', wins.length && 'running', wins.some((w) => w === focused && !w.minimized) && 'active'],
+          role: 'menuitem',
+          dataset: { app: id, tip: registry.name(id) },
+          'aria-label': registry.name(id),
+          onclick: () => {
+            closeOverflow();
+            activateApp(id);
+          },
+          oncontextmenu: (e) => {
+            closeOverflow();
+            appMenu(e, id);
+          },
+        },
+        h('img', { src: registry.iconUrl(id), alt: '', draggable: false }),
+        h('span', { class: 'tb-ind' }),
+      );
+    }),
+  );
+  const r = overflowBtn.getBoundingClientRect();
+  const pr = ovfEl.getBoundingClientRect();
+  ovfEl.style.left = `${Math.max(8, Math.min(window.innerWidth - pr.width - 8, r.left + r.width / 2 - pr.width / 2))}px`;
+}
+function toggleOverflow() {
+  if (ovfEl) return closeOverflow();
+  if (!hiddenApps.length) return;
+  hidePreview(true);
+  ovfEl = h('div', { class: 'tb-ovf', role: 'menu', 'aria-label': t('taskbar.moreApps') });
+  document.getElementById('flyouts').appendChild(ovfEl);
+  overflowBtn.classList.add('open');
+  renderOverflow();
+  document.addEventListener('pointerdown', ovfOutside, true);
+  document.addEventListener('keydown', ovfKeys, true);
+  setTimeout(() => ovfEl?.querySelector('.tb-ovf-item')?.focus({ preventScroll: true }), 30);
 }
 
 // ---------------------------------------------------------------- tray
@@ -679,6 +817,7 @@ function renderTray() {
   // Never leave the quick-settings button empty.
   const fallback = trayEl.querySelector('.tb-qs-fallback');
   fallback.hidden = !!(ng || a || b);
+  fitApps(); // the tray's width changed: re-check how many app buttons fit
 }
 
 async function refreshStatus(kind) {
@@ -688,6 +827,13 @@ async function refreshStatus(kind) {
   } catch {
     status[kind] = null; // backend missing (ENOHANDLER) or failing: hide the icon
   }
+  renderTray();
+}
+// Status fetched by someone else (quick settings) is shared with the tray: a backend only pushes
+// *changes* ('net:changed'/'audio:changed'), so a status read elsewhere can swallow that push.
+function applyStatus(kind, st) {
+  if (!(kind in status)) return;
+  status[kind] = st ?? null;
   renderTray();
 }
 
@@ -761,6 +907,7 @@ function applyAutohide() {
 // ---------------------------------------------------------------- static layout
 function renderStatic() {
   hidePreview(true);
+  closeOverflow();
   clear(root);
   buttons.clear();
   const tb = settings.get('taskbar') || {};
@@ -865,6 +1012,8 @@ export const taskbar = {
     });
     root.addEventListener('keydown', onKeyNav);
     flyEvents.on('change', () => {
+      // A flyout also brings the taskbar back over a fullscreen window (like Start in Windows).
+      root.classList.toggle('fly-open', isFlyoutOpen());
       if (isFlyoutOpen()) reveal();
       else scheduleHide();
     });
@@ -914,12 +1063,22 @@ export const taskbar = {
       renderTray();
     });
     setInterval(() => refreshStatus('battery'), 60000);
-    window.addEventListener('resize', () => hidePreview(true));
+    // Safety net: backends only push changes, and a status read by another component can swallow a
+    // push — re-sync the tray now and then so it can never stay wrong for long.
+    setInterval(() => {
+      refreshStatus('net');
+      refreshStatus('audio');
+    }, 30000);
+    window.addEventListener('resize', () => {
+      hidePreview(true);
+      closeOverflow();
+      fitApps();
+    });
 
-    wm.anchorProvider = (win) => buttons.get(win.appId)?.getBoundingClientRect() || null;
+    wm.anchorProvider = (win) => visibleButton(win.appId)?.getBoundingClientRect() || null;
   },
   anchorFor(appId) {
-    return buttons.get(appId)?.getBoundingClientRect() || null;
+    return visibleButton(appId)?.getBoundingClientRect() || null;
   },
   setTrayIcon(kind, iconName) {
     const span = trayEl?.querySelector(kind === 'net' ? '.tb-net' : '.tb-vol');
@@ -931,6 +1090,10 @@ export const taskbar = {
   /** Latest system status seen by the tray: { net, audio, battery } (null = backend unavailable). */
   status() {
     return { ...status };
+  },
+  /** Share a status read elsewhere (quick settings) with the tray: kind = 'net' | 'audio' | 'battery'. */
+  applyStatus(kind, st) {
+    applyStatus(kind, st);
   },
   /** Re-query network / audio / battery status (e.g. after resume). */
   refresh() {

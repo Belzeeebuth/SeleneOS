@@ -73,7 +73,8 @@ function formDialog(pc, { title, body, okLabel, submit, focus }) {
         return false;
       };
       wrap.addEventListener('input', () => (err.textContent = ''));
-      if (focus) setTimeout(() => focus.focus(), 60);
+      // never steal the focus from a field the user already went to
+      if (focus) setTimeout(() => !wrap.contains(document.activeElement) && focus.focus(), 60);
     },
   });
 }

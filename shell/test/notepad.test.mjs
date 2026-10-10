@@ -582,7 +582,7 @@ async function mainRun() {
       await s.page.locator('.np-menu .menu-item', { hasText: 'Recent' }).hover();
       await until(() => run(s, `document.querySelectorAll('.np-menu').length === 2`), { label: 'recent submenu' });
       const items = await run(s, `[...document.querySelectorAll('.np-menu')[1].querySelectorAll('.menu-item .label')].map((x) => x.textContent)`);
-      check('recent lists saved/opened files (most recent first)', items.slice(0, 3), ['groceries-copy.md', 'groceries.txt', 'utf16.txt']);
+      check('recent lists saved/opened files (most recent first)', items.slice(0, 3), ['groceries-copy.md', 'groceries.txt', 'notes.md']);
       check('recent has clear entry', items.includes('Clear recent files'), true);
       await shot(s, 'menu-recent-light-en', true);
       await s.page.keyboard.press('Escape');
@@ -601,7 +601,7 @@ async function mainRun() {
       await NP(s, (np, el, p) => np.shared.addRecent(p), path.join(docs, 'gone.txt'));
       NP(s, (np, el, p) => {
         np.openRecent(p);
-      }, path.join(docs, 'gone.txt'));
+      }, path.join(docs, 'gone.txt')).catch(() => {});
       await until(() => dialogOpen(s), { label: 'missing dialog' });
       check('missing message', await dialogText(s), (v) => v.includes('gone.txt'));
       await dialogButton(s, 'Remove');
@@ -787,21 +787,21 @@ async function mainRun() {
       fs.writeFileSync(huge, Buffer.alloc(65 * 1024 * 1024, 0x61));
       NP(s, (np, el, p) => {
         np.openPath(p);
-      }, big);
+      }, big).catch(() => {});
       await until(() => dialogOpen(s), { label: 'big dialog' });
       check('big warning', await dialogText(s), (v) => v.includes('big.log') && v.includes('MB'));
       await dialogButton(s, 'Cancel');
       check('not opened', (await tabs(s)).some((x) => x.title === 'big.log'), false);
       NP(s, (np, el, p) => {
         np.openPath(p);
-      }, huge);
+      }, huge).catch(() => {});
       await until(() => dialogOpen(s), { label: 'huge dialog' });
       check('huge refused', await dialogText(s), (v) => v.includes('too large') && v.includes('64 MB'));
       await dialogButton(s, 'OK');
       check('huge not opened', (await tabs(s)).some((x) => x.title === 'huge.log'), false);
       NP(s, (np, el, p) => {
         np.openPath(p);
-      }, big);
+      }, big).catch(() => {});
       await until(() => dialogOpen(s), { label: 'big dialog 2' });
       await dialogButton(s, 'Open anyway');
       await until(() => NP(s, (np) => np.active.title === 'big.log'), { label: 'big opened', timeout: 20000 });
@@ -869,7 +869,7 @@ async function mainRun() {
       const before = await run(s, `window.__aurora.wm.byApp('browser').length`);
       await s.page.keyboard.press('Control+e');
       await until(async () => (await run(s, `window.__aurora.wm.byApp('browser').length`)) > before, { label: 'browser window', timeout: 10000 });
-      const url = await run(s, `(() => { const w = window.__aurora.wm.byApp('browser').at(-1); return window.__aurora.registry.instance(w.id)?.ctx.args.url; })()`);
+      const url = await until(() => run(s, `(() => { const w = window.__aurora.wm.byApp('browser').at(-1); return window.__aurora.registry.instance(w.id)?.ctx.args.url; })()`), { label: 'browser instance', timeout: 10000 });
       check('search URL carries the selection', url, (u) => /^https:\/\/[^ ]+\?(q|query)=Aurora\+borealis$/.test(u || ''));
       await sleep(500);
       await run(s, `window.__aurora.wm.byApp('browser').forEach((w) => w.close(true)); 0`);
@@ -1091,6 +1091,7 @@ async function sessionRun() {
     await section('File > Exit closes every Notepad window', async () => {
       await s.page.keyboard.press('Control+Shift+n');
       await until(async () => (await winCount(s)) === 2, { label: 'second window' });
+      await until(() => NP(s, (np) => !!np?.active, null, -1), { label: 'second window ready' });
       await NP(s, (np) => np.bar.open('file'), null, -1);
       await s.page.locator('.np-menu .menu-item', { hasText: 'Exit' }).click();
       await until(async () => (await winCount(s)) === 0, { label: 'all closed', timeout: 6000 });

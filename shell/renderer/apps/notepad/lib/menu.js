@@ -300,7 +300,8 @@ export class Menus {
         const def = defs.find((d) => d.id === id);
         const btn = buttons.get(id);
         if (!def || !btn) return;
-        const restore = menus.session?.restore || (el.contains(document.activeElement) ? restoreFocus?.() : document.activeElement) || restoreFocus?.();
+        const ae = document.activeElement;
+        const restore = menus.session?.restore || (!ae || ae === document.body || el.contains(ae) ? restoreFocus?.() : ae);
         menus.close(null, { restoreFocus: false });
         bar.hideTips();
         btn.classList.add('open');

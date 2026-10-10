@@ -121,6 +121,8 @@ async function load(kind) {
   } catch {
     state[kind] = null;
   }
+  // Keep the taskbar tray in sync (a backend pushes only changes, and this read can swallow one).
+  if (kind !== 'display') ctx.taskbar?.applyStatus?.(kind, state[kind]);
 }
 function throttle(fn, ms) {
   let last = 0;
@@ -202,11 +204,16 @@ function renderMain() {
   const tiles = h('div', { class: 'qs-tiles' });
   if (hasWifi) {
     const p = net.primary || {};
+    // The Wi-Fi tile names the connected network even when Ethernet is the primary connection.
+    const wdev = (net.devices || []).find((d) => (d.type === 'wifi' || d.type === 'wireless') && /^connected/.test(d.state || '') && d.connection);
+    const ssid = p.type === 'wifi' && p.name ? p.name : wdev?.connection || null;
+    const ap = ssid ? (state.wifiList || []).find((n) => n.ssid === ssid) : null;
+    const strength = p.type === 'wifi' && p.strength != null ? Number(p.strength) : ap?.signal ?? 100;
     tiles.appendChild(
       tile({
         key: 'wifi',
-        label: p.type === 'wifi' && p.name ? p.name : t('quick.wifi'),
-        iconName: net.wifiEnabled && !net.airplane ? wifiGlyph(p.type === 'wifi' ? Number(p.strength ?? 100) : 100, false) : icon('wifi_off', { size: 20 }),
+        label: ssid && net.wifiEnabled && !net.airplane ? ssid : t('quick.wifi'),
+        iconName: net.wifiEnabled && !net.airplane ? wifiGlyph(strength, false) : icon('wifi_off', { size: 20 }),
         on: !!net.wifiEnabled && !net.airplane,
         moreLabel: t('quick.manageWifi'),
         onToggle: (v) => backend('net:setWifi', [v], () => (state.net = { ...state.net, wifiEnabled: v })),

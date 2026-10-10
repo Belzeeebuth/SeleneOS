@@ -803,6 +803,20 @@ function allAppMenu(e, id) {
   ]);
 }
 
+// Roving tab stop (Windows 11 Start): Tab enters a group (pinned grid, recommended list, All apps
+// list) once, on the item focused last; the arrow keys move inside the group.
+function rove(container, selector) {
+  const items = [...container.querySelectorAll(selector)];
+  items.forEach((el, i) => (el.tabIndex = i === 0 ? 0 : -1));
+  if (container._rove) return;
+  container._rove = true;
+  container.addEventListener('focusin', (e) => {
+    const it = e.target.closest?.(selector);
+    if (!it || !container.contains(it)) return;
+    for (const el of container.querySelectorAll(selector)) el.tabIndex = el === it ? 0 : -1;
+  });
+}
+
 function pinnedIds() {
   return (settings.get('startPinned') || []).filter((id) => registry.get(id));
 }
@@ -833,6 +847,7 @@ function renderPinnedGrid(gridWrap, dots, animate) {
     );
   });
   if (!ids.length) grid.appendChild(h('div', { class: 'start-empty caption text-2' }, t('start.emptyPinned')));
+  rove(grid, '.start-tile');
   enableReorder(grid, page * per);
   gridWrap.appendChild(grid);
   clear(dots);
@@ -968,6 +983,7 @@ function viewPinned(animate) {
       clear(recBox);
       if (!recentFiles.length) recBox.appendChild(h('div', { class: 'start-rec-empty caption text-2' }, t('start.noRecent')));
       for (const e of recentFiles.slice(0, 6)) recBox.appendChild(recItem(e));
+      rove(recBox, '.start-rec');
     };
     fill();
     v._fillRecent = fill;
@@ -1025,6 +1041,7 @@ function viewAll() {
       );
     }
   }
+  rove(list, '.start-letter, .start-row');
   jump.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -1044,6 +1061,7 @@ function viewRecommended() {
   const box = h('div', { class: 'start-recs start-recs-all' });
   for (const e of recentFiles) box.appendChild(recItem(e));
   if (!recentFiles.length) box.appendChild(h('div', { class: 'start-rec-empty caption text-2' }, t('start.noRecent')));
+  rove(box, '.start-rec');
   return h('div', { class: 'start-view start-view-rec' }, sectionHead(t('start.moreRecommended'), t('start.back'), () => setView('pinned'), 'chevron_left', true), h('div', { class: 'start-scroll' }, box));
 }
 
@@ -1218,12 +1236,13 @@ function onKey(e) {
   }
   const t0 = e.target;
   if (t0.closest?.('.start-jump')) return;
-  if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey && !t0.closest?.('.menu')) {
-    // Typing anywhere in Start goes to the search box.
+  // Typing anywhere in Start goes to the search box (Space still activates the focused button).
+  if (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.altKey && !e.metaKey && !t0.closest?.('.menu')) {
     input.focus();
     return;
   }
-  const items = [...bodyEl.querySelectorAll('.start-view:not(.leaving) .start-tile, .start-view:not(.leaving) .start-row, .start-view:not(.leaving) .start-rec, .start-view:not(.leaving) .start-head-btn')];
+  const V = '.start-view:not(.leaving)';
+  const items = [...bodyEl.querySelectorAll(`${V} .start-tile, ${V} .start-letter, ${V} .start-row, ${V} .start-rec, ${V} .start-head-btn`)];
   const i = items.indexOf(t0);
   if (i < 0) return;
   let next = -1;

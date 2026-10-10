@@ -88,14 +88,19 @@ export function accentVars(hex, mode) {
   };
 }
 
+// The result is used inside CSS `url("…")`: quotes, backslashes and line breaks are percent-encoded and
+// only image-safe schemes are accepted (anything else falls back to the default wallpaper).
 export function resolveWallpaper(value, mode) {
-  const v = value || 'builtin:bloom';
-  if (v.startsWith('builtin:')) {
-    const w = WALLPAPERS.find((x) => x.id === v.slice(8)) || WALLPAPERS[0];
+  const v = typeof value === 'string' && value ? value : 'builtin:bloom';
+  const builtin = (id) => {
+    const w = WALLPAPERS.find((x) => x.id === id) || WALLPAPERS[0];
     return `app://shell/assets/wallpapers/${mode === 'dark' ? w.dark : w.light}`;
-  }
-  if (v.startsWith('/')) return api.mediaUrl(v);
-  return v;
+  };
+  if (v.startsWith('builtin:')) return builtin(v.slice(8));
+  const safe = (u) => u.replace(/["\\\n\r\f]/g, (c) => encodeURIComponent(c));
+  if (v.startsWith('/')) return safe(api.mediaUrl(v));
+  if (/^(app|media|blob|https?):/i.test(v) || /^data:image\//i.test(v)) return safe(v);
+  return builtin('bloom');
 }
 
 // Pre-blur the wallpaper once (downscaled canvas + blur filter) for the Mica material.
@@ -159,30 +164,41 @@ function applyColors(all) {
   return mode;
 }
 
+let latest = null; // most recent settings snapshot passed to applyTheme
+let transitioning = false;
+
 export async function applyTheme(all = settings.all()) {
   const root = document.documentElement;
+  latest = all;
   const prevMode = root.dataset.theme;
   const nextMode = all.theme === 'dark' ? 'dark' : 'light';
-  const accentChanged = root.style.getPropertyValue('--accent-base') !== (all.accent || '#0078d4');
+  const accentChanged = root.style.getPropertyValue('--accent-base') !== (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(all.accent || '') ? all.accent : '#0078d4');
   const animate = applied && all.animations !== false && (prevMode !== nextMode || accentChanged);
   let mode;
-  // Light/dark (and accent) switches cross-fade the whole screen for a short moment.
-  if (animate && typeof document.startViewTransition === 'function') {
-    try {
-      root.classList.add('theme-switching');
-      const vt = document.startViewTransition(() => {
-        mode = applyColors(all);
-      });
-      await vt.updateCallbackDone.catch(() => {});
-      vt.finished.finally(() => root.classList.remove('theme-switching'));
-    } catch {
-      mode = applyColors(all);
+  // Light/dark (and accent) switches cross-fade the whole screen for a short moment. Only one
+  // transition runs at a time: a switch requested meanwhile applies at once, and the transition's
+  // (asynchronous) update callback always applies the *latest* settings, so rapid toggling can never
+  // leave the screen out of sync with the setting.
+  if (animate && !transitioning && typeof document.startViewTransition === 'function') {
+    transitioning = true;
+    root.classList.add('theme-switching');
+    const done = () => {
+      transitioning = false;
       root.classList.remove('theme-switching');
+    };
+    try {
+      const vt = document.startViewTransition(() => {
+        mode = applyColors(latest || all);
+      });
+      vt.ready.catch(() => {});
+      vt.finished.catch(() => {}).then(done);
+      await vt.updateCallbackDone.catch(() => {});
+    } catch {
+      done();
     }
-  } else {
-    mode = applyColors(all);
   }
-  if (!mode) mode = applyColors(all);
+  if (!mode) mode = applyColors(latest || all);
+  all = latest || all;
   applied = true;
 
   const wp = resolveWallpaper(all.wallpaper, mode);

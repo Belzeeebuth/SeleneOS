@@ -70,7 +70,7 @@ export class PaneTree {
     const target = this.find(session);
     if (!target) return null;
     const leaf = this.leaf(newSession);
-    const el = this.h('div', { class: ['tm-split', dir] });
+    const el = this.h('div', { class: ['tm-split', `tm-${dir}`] });
     const divider = this.h('div', { class: 'tm-divider', role: 'separator', 'aria-orientation': dir === 'row' ? 'vertical' : 'horizontal' });
     const split = { kind: 'split', dir, ratio: 0.5, a: target, b: leaf, el, divider, parent: null };
     target.el.replaceWith(el);
