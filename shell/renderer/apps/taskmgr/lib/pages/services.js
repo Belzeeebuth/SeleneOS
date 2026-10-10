@@ -62,8 +62,8 @@ export class ServicesPage {
       { id: 'name', name: true, width: 220, min: 120, label: () => t('col.name'), cell: (r) => ({ text: r.data.name, icon: { name: 'puzzle_piece', tone: r.data.active === 'active' ? 'svc-on' : 'svc-off' } }) },
       { id: 'pid', width: 72, min: 48, align: 'end', label: () => t('col.pid'), cell: (r) => (r.data.pid ? String(r.data.pid) : '') },
       { id: 'description', flex: true, width: 300, min: 120, label: () => t('col.description'), cell: (r) => ({ text: r.data.description, tip: r.data.description }) },
-      { id: 'status', width: 130, min: 70, label: () => t('col.status'), cell: (r) => ({ text: this.statusText(r.data), cls: `st-${this.statusKey(r.data)}` }) },
-      { id: 'startup', width: 110, min: 60, label: () => t('col.startup'), cell: (r) => this.startupText(r.data) },
+      { id: 'status', width: 130, min: 70, label: () => t('col.status'), fit: () => ['running', 'exited', 'stopped', 'failed', 'starting', 'stopping', 'busy'].map((k) => t(`svc.status.${k}`)), cell: (r) => ({ text: this.statusText(r.data), cls: `st-${this.statusKey(r.data)}` }) },
+      { id: 'startup', width: 110, min: 60, label: () => t('col.startup'), fit: () => ['auto', 'manual', 'static', 'disabled'].map((k) => t(`svc.startup.${k}`)), cell: (r) => this.startupText(r.data) },
     ]);
   }
 

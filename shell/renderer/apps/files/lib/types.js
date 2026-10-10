@@ -70,6 +70,21 @@ export function knownFolder(p) {
   return null;
 }
 
+// System locations: "/", the home folder, the user folders (Desktop, Documents…) and mount points.
+// Deleting, renaming or moving them would break the session (XDG user dirs), so Explorer refuses.
+export function isProtectedPath(p) {
+  if (!p) return false;
+  if (p === '/' || p === shared.home) return true;
+  if (knownFolder(p)) return true;
+  return shared.drives.some((d) => d.mountpoint === p);
+}
+
+// Regular file (not a FIFO, socket or device): only those get thumbnails / previews.
+export function isRegular(e) {
+  if (!e || e.dir) return false;
+  return e.mode == null || (e.mode & 0o170000) === 0o100000;
+}
+
 export function iconFor(entry) {
   if (!entry) return iconPath('file');
   if (entry.dir) {

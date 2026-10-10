@@ -229,6 +229,13 @@ const { page } = s;
 const resErrs = watchResources(page);
 const tm = (fn, arg) => s.aurora(fn, arg);
 const DLG = '.app-taskmgr .dialog-layer:not(.closing) .dialog';
+// The Run dialog focuses its text box on the next task: wait for it before typing / pressing keys.
+const runFocused = () => page.waitForFunction(() => document.activeElement?.classList.contains('tm-run-input'), null, { timeout: 3000 }).catch(() => null);
+async function openRun() {
+  await page.click('.app-taskmgr .tm-cmd[data-cmd="run"]');
+  await page.waitForSelector(`${DLG} .tm-run input`, { timeout: 3000 });
+  await runFocused();
+}
 try {
   await waitFor(() => tm(() => window.__aurora.wm.byApp('taskmgr')[0]?.taskmgr?.store.procs?.length > 0));
   await tm(() => window.__aurora.wm.byApp('taskmgr')[0].focus());
@@ -343,13 +350,15 @@ try {
   await page.click('.app-taskmgr .tm-page-processes .tm-row:not([hidden]):has(.tm-tx:text-is("Calculator"))');
   await page.keyboard.press('Shift+F10');
   await page.waitForSelector('.menu', { timeout: 2000 }).catch(() => null);
+  await sleep(150); // the menu starts listening to the keyboard on the next task
   const menuItems = await page.$$eval('.menu .menu-item', (els) => els.map((e) => e.innerText.trim()));
   check('Shift+F10 opens the row context menu', menuItems.includes('End task') && menuItems.includes('Switch to'), menuItems);
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Escape');
   await sleep(150);
-  check('arrow keys inside a menu do not move the row selection', (await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes.table.sel)) === 'a:calculator');
+  const selAfterMenu = await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes.table.sel);
+  check('arrow keys inside a menu do not move the row selection', selAfterMenu === 'a:calculator', selAfterMenu);
   check('focus returns to the grid after the menu closes', await page.evaluate(() => document.activeElement?.classList.contains('tm-table')));
   // One tab stop for the whole header row.
   const headStops = await page.$$eval('.app-taskmgr .tm-page-processes .tm-th', (els) => els.filter((e) => e.tabIndex === 0).length);
@@ -470,7 +479,9 @@ try {
     await waitFor(() => tm((pid) => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes.table.rows.some((r) => r.data?.pid === pid), evil.pid), { timeout: 5000 });
     await sleep(300);
     const shown = await page.$$eval('.app-taskmgr .tm-page-processes .tm-row:not([hidden]) .tm-name .tm-tx', (els) => els.map((e) => e.textContent));
-    await tm((pid) => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.actions.processProperties(pid, null), evil.pid);
+    await tm((pid) => {
+      window.__aurora.wm.byApp('taskmgr')[0].taskmgr.actions.processProperties(pid, null); // resolves when closed
+    }, evil.pid);
     await page.waitForSelector(DLG, { timeout: 3000 }).catch(() => null);
     const propsTxt = await page.$eval(DLG, (e) => e.innerText).catch(() => '');
     await page.keyboard.press('Escape');
@@ -694,28 +705,25 @@ try {
   check('polling resumes on restore', (await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.store.ticks)) > m1);
 
   // ---- Run new task: app id, then an unknown command (error dialog, dialog reopens)
-  await page.click('.app-taskmgr .tm-cmd[data-cmd="run"]');
-  await page.waitForSelector(`${DLG} .tm-run input`, { timeout: 3000 });
+  await openRun();
   await page.fill(`${DLG} .tm-run input`, 'calculator');
   await page.keyboard.press('Enter');
   check('Run new task launches an app', await waitFor(() => tm(() => window.__aurora.wm.byApp('calculator').length === 1), { timeout: 5000 }));
   await tm(() => window.__aurora.wm.byApp('taskmgr')[0].focus());
   await sleep(300);
-  await page.click('.app-taskmgr .tm-cmd[data-cmd="run"]');
-  await page.waitForSelector(`${DLG} .tm-run input`, { timeout: 3000 });
+  await openRun();
   await page.fill(`${DLG} .tm-run input`, 'no-such-command-xyz --flag');
   await page.keyboard.press('Enter');
   await page.waitForSelector(`${DLG}:has-text("can't find")`, { timeout: 4000 }).catch(() => null);
   const errTxt = await page.$eval(DLG, (e) => e.innerText).catch(() => '');
   check('unknown command -> error message', /can't find “no-such-command-xyz”/.test(errTxt), errTxt);
   await page.click(`${DLG} .btn.primary`);
-  await page.waitForSelector(`${DLG} .tm-run input`, { timeout: 3000 });
+  await runFocused();
   check('Create new task reopens with the typed text', (await page.inputValue(`${DLG} .tm-run input`)) === 'no-such-command-xyz --flag');
   await page.keyboard.press('Escape');
   await sleep(300);
   // Command line through proc:spawn (detached, user privileges).
-  await page.click('.app-taskmgr .tm-cmd[data-cmd="run"]');
-  await page.waitForSelector(`${DLG} .tm-run input`, { timeout: 3000 });
+  await openRun();
   await page.fill(`${DLG} .tm-run input`, 'sleep 777');
   await page.keyboard.press('Enter');
   const spawned = await waitFor(
@@ -741,14 +749,13 @@ try {
     const dir = path.join(s.home, 'My Notes');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'to do.txt'), 'hello');
-    const script = path.join(dir, 'tm run.sh');
+    const script = path.join(dir, 'tm run');
     fs.writeFileSync(script, '#!/bin/sh\nexec sleep 779\n');
     fs.chmodSync(script, 0o755);
     fs.writeFileSync(path.join(dir, 'data.zzz'), 'x');
     const runIt = async (cmd) => {
       await tm(() => window.__aurora.wm.byApp('taskmgr')[0].focus());
-      await page.click('.app-taskmgr .tm-cmd[data-cmd="run"]');
-      await page.waitForSelector(`${DLG} .tm-run input`, { timeout: 3000 });
+      await openRun();
       await page.fill(`${DLG} .tm-run input`, cmd);
       await page.keyboard.press('Enter');
       await sleep(1200);
@@ -781,13 +788,14 @@ try {
     check('Run: a file that is not a program -> clear message', /can't run “.*data\.zzz”/.test(noExec), noExec);
     await page.keyboard.press('Enter'); // close the message -> the Run dialog reopens
     await page.waitForSelector(`${DLG} .tm-run input`, { timeout: 3000 }).catch(() => null);
+    await runFocused();
     const recentBtn = await page.$(`${DLG} .tm-run-recent`);
     check('Run dialog has a recent-commands drop-down', !!recentBtn && !(await recentBtn.evaluate((b) => b.disabled)));
     if (recentBtn) {
       await recentBtn.click();
       await page.waitForSelector('.menu', { timeout: 2000 }).catch(() => null);
       const recentItems = await page.$$eval('.menu .menu-item', (els) => els.map((e) => e.innerText.trim()));
-      check('recent commands listed (most recent first)', /tm run\.sh"$/.test(recentItems[0] || '') && recentItems[1] === '~/Documents' && recentItems.includes('calculator'), recentItems);
+      check('recent commands listed (most recent first)', /tm run"$/.test(recentItems[0] || '') && recentItems[1] === '~/Documents' && recentItems.includes('calculator'), recentItems);
       await page.click('.menu .menu-item:has-text("calculator")');
       check('choosing a recent command fills the box', (await page.inputValue(`${DLG} .tm-run input`)) === 'calculator');
     }
@@ -824,8 +832,11 @@ try {
   });
   await sleep(3200);
   await tm(() => {
-    const t = window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes.table;
-    t.scroller.scrollTop = 0;
+    const T = window.__aurora.wm.byApp('taskmgr')[0].taskmgr;
+    for (const w of window.__aurora.wm.list()) if (!['taskmgr', 'files'].includes(w.appId)) w.close(true);
+    T.pages.processes.table.select(null);
+    T.pages.processes.table.scroller.scrollTop = 0;
+    T.pages.details.table.select(null);
   });
   await sleep(300);
   const shot = async (name) => {
@@ -930,6 +941,11 @@ try {
     const fit = await fp.$eval(`.app-taskmgr .tm-page-${pg} .tm-th[data-col="${col}"] .tm-th-label`, (e) => ({ text: e.textContent, sw: e.scrollWidth, cw: e.clientWidth })).catch(() => null);
     check(`FR header "${fit?.text}" not truncated (${pg})`, fit && fit.sw <= fit.cw, fit);
   }
+  // …and so do the French words inside the cells (status, priority).
+  await ftm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.go('details', { focus: false }));
+  await sleep(600);
+  const cut = await fp.$$eval('.app-taskmgr .tm-page-details .tm-row:not([hidden]) .c-status .tm-tx, .app-taskmgr .tm-page-details .tm-row:not([hidden]) .c-priority .tm-tx', (els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent));
+  check('FR Details status / priority cells not truncated', cut.length === 0, [...new Set(cut)]);
   // Backend errors are shown in French (no English system text).
   const svcErr = await ftm(async () => {
     const T = window.__aurora.wm.byApp('taskmgr')[0].taskmgr;
@@ -1029,7 +1045,9 @@ try {
     });
     check('corrupted preferences are ignored (valid speed, page, column widths)', st.speed === 'normal' && st.interval === 1000 && st.page === 'processes' && !/NaN|-5px|wide/.test(st.tpl) && st.group === true && st.rows > 5, st);
     check('valid saved preferences are kept', st.onTop === true, st);
-    await gtm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.actions.runNewTask());
+    await gtm(() => {
+      window.__aurora.wm.byApp('taskmgr')[0].taskmgr.actions.runNewTask(); // resolves when closed
+    });
     check('Run new task works with a corrupted history file', !!(await g.page.waitForSelector(`${DLG} .tm-run input`, { timeout: 3000 }).catch(() => null)));
     await g.page.keyboard.press('Escape');
     await sleep(300);
@@ -1055,6 +1073,7 @@ try {
     // IPC traffic is counted from the first cycle on (ctx.api is the shared core api object).
     for (let i = 0; i < 15; i++) {
       await gtm(() => window.__aurora.registry.launch('taskmgr'));
+      await waitFor(() => gtm(() => !!window.__aurora.wm.byApp('taskmgr')[0]?.taskmgr), { timeout: 8000 });
       await sleep(i % 5 === 0 ? 1200 : 350);
       await gtm((k) => window.__aurora.wm.byApp('taskmgr')[0]?.taskmgr?.go(['processes', 'performance', 'services', 'users', 'details', 'history', 'startup'][k % 7], { focus: false }), i);
       await sleep(350);
@@ -1069,7 +1088,7 @@ try {
           };
         });
       }
-      await gtm(() => window.__aurora.wm.byApp('taskmgr')[0].close(true));
+      await gtm(() => window.__aurora.wm.byApp('taskmgr')[0]?.close(true));
       await sleep(250);
     }
     await sleep(1500);

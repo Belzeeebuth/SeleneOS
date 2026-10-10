@@ -47,6 +47,7 @@ export class SidePane {
     const e = it.entry;
     if (it.kind === 'drive' || e.dir || e.missing) return msg(t('pane.noPreview'));
     const src = it.kind === 'trash' ? e.path : e.path;
+    if (!T.isRegular(e)) return msg(t('pane.noPreview'));
     if (T.isImage(e)) {
       const img = h('img', { class: 'fx-pv-img', src: api.mediaUrl(src), alt: e.name });
       img.addEventListener('error', () => seq === this.seq && msg(t('pane.noPreview')), { once: true });
@@ -146,7 +147,7 @@ export class SidePane {
       return this.body.replaceChildren(wrap);
     }
     let visual;
-    if (T.isImage(e) && !e.missing) {
+    if (T.isImage(e) && T.isRegular(e) && !e.missing) {
       visual = h('img', { class: 'fx-dp-thumb', src: api.mediaUrl(e.path), alt: '' });
       visual.addEventListener('error', () => visual.replaceWith(iconImg(T.iconFor(e))), { once: true });
     } else visual = iconImg(T.iconFor(e));

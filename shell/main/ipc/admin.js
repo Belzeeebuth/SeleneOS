@@ -4,8 +4,9 @@
 //
 //   admin:needsPassword          -> bool  (false when sudo needs no password, e.g. the live user)
 //   admin:status                 -> { isAdmin, needsPassword, live, user }
-//   admin:run (password, action, args[])  -> { stdout }     errors: EAUTH (wrong password / not an admin),
-//                                    EINVAL (rejected arguments), ENOTFOUND, EPERM (refused by policy), ECMD
+//   admin:run (password, action, args[])  -> { stdout }     errors: EAUTH (wrong password), ENOTADMIN (sudo
+//                                    refuses this account), EINVAL (rejected arguments), ENOTFOUND, EPERM
+//                                    (refused by policy), ECMD
 //       Used through shell.runAdmin(action, args, { reason, appId }), which shows the UAC prompt.
 //       Secrets: for user-add and set-password the LAST element of args is the new password; it is
 //       sent to the helper on stdin (never on a command line) — see the helper's header.
@@ -87,6 +88,13 @@ function validate(action, args) {
 
 /** Map a helper failure (exit code + stderr) to an error code. */
 function helperError(e) {
+  // The password was right but sudo refuses this account (not an administrator): asking again
+  // for the password would never help, so this is not EAUTH (shell.runAdmin retries on EAUTH).
+  if (/is not in the sudoers file|is not allowed to execute|may not run sudo/i.test(String(e.result?.stderr || ''))) {
+    const out = err('This account is not allowed to make administrator changes', 'ENOTADMIN');
+    out.result = e.result;
+    return out;
+  }
   if (e.code === 'EAUTH') return e;
   const code = e.result?.code;
   const msg = String(e.result?.stderr || e.message || '')
@@ -316,8 +324,10 @@ function register(api) {
         })()
       : null;
     if (useMock) {
-      // Simulation: any password works except "wrong" (lets tests exercise the retry path).
+      // Simulation: any password works except "wrong" (lets tests exercise the retry path); a
+      // standard (non-administrator) current user is refused like sudo refuses it.
       if (password === 'wrong') throw err('Authentication failed', 'EAUTH');
+      if (!isAdmin()) throw err('This account is not allowed to make administrator changes', 'ENOTADMIN');
       const stdout = await devRun(action, clean, secret, onLine);
       return { stdout };
     }

@@ -233,6 +233,8 @@ fi
 # ====================================================================== real installation
 [[ $EUID -eq 0 ]] || die 4 "must be run as root"
 [[ -n "$LOG_FILE" ]] || LOG_FILE=/var/log/aurora-install.log
+# Never follow a planted symlink (the log is made root:adm 0640 and appended to as root).
+[[ -L "$LOG_FILE" || ( -e "$LOG_FILE" && ! -f "$LOG_FILE" ) ]] && die 2 "the log file $LOG_FILE must be a regular file"
 mkdir -p "$(dirname "$LOG_FILE")"
 touch "$LOG_FILE" || die 5 "cannot write the log file $LOG_FILE"
 chmod 0640 "$LOG_FILE"
@@ -381,7 +383,8 @@ check_disk() {
       swapoff "$part" || die 4 "cannot disable the swap space on $part"
     fi
   done
-  for part in /sys/class/block/"$name"/"$name"*/holders/*; do
+  # Holders of the whole disk (LVM/RAID/crypt directly on the disk) or of one of its partitions.
+  for part in /sys/class/block/"$name"/holders/* /sys/class/block/"$name"/"$name"*/holders/*; do
     [[ -e "$part" ]] && die 4 "$DISK is in use by $(basename "$part") (LVM, RAID or encryption): choose another disk"
   done
   return 0

@@ -71,6 +71,13 @@ export default {
       toastError,
       toast,
       fmtSize: (b) => i18n.formatSize(b),
+      // Largest display scale (%) that still leaves a usable desktop: at least 800 × 500 effective pixels.
+      maxScale: () => {
+        const z = (Number(settings.get('scale')) || 100) / 100;
+        const w = window.innerWidth * z;
+        const hh = window.innerHeight * z;
+        return Math.max(100, Math.floor((Math.min(w / 800, hh / 500) * 100) / 5) * 5);
+      },
       fmtNum: (n, o) => i18n.formatNumber(n, o),
       pageTitle: (id) => L(PAGES[id]?.title) || id,
       async adminStatus(force) {
@@ -84,7 +91,8 @@ export default {
         try {
           return await api.invoke(channel, ...args);
         } catch (err) {
-          if (err.code !== 'ENOHANDLER' && err.code !== 'ENOENT' && !/ENOENT/.test(err.message)) console.warn(`[settings] ${channel}:`, err.message);
+          // missing backend / tool (a page shows its own "not available" state): not worth a warning
+          if (!['ENOHANDLER', 'ENOENT', 'ENOTSUP'].includes(err.code) && !/ENOENT/.test(err.message)) console.warn(`[settings] ${channel}:`, err.message);
           return null;
         }
       },
@@ -112,7 +120,7 @@ export default {
     const header = h('header', { class: 'st-header' }, titleEl);
     const errorHost = h('div', { class: 'st-errors' });
     const content = h('div', { class: 'st-content' });
-    const scroller = h('div', { class: 'st-scroll' }, h('div', { class: 'st-content-wrap' }, errorHost, content));
+    const scroller = h('div', { class: 'st-scroll', tabindex: '-1' }, h('div', { class: 'st-content-wrap' }, errorHost, content));
     const main = h('main', { class: 'st-main' }, header, scroller);
     const scrim = h('div', { class: 'st-scrim', onclick: () => setPaneOpen(false) });
     const root = h('div', { class: 'st-root' }, pane, main, scrim);
@@ -160,15 +168,27 @@ export default {
           ),
         );
       }
-      // Arrow keys move between categories.
+      // One tab stop for the whole list (the selected category); arrow keys, Home and End move
+      // between categories, Enter / Space opens one.
       nav.onkeydown = (e) => {
-        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
         const items = [...nav.querySelectorAll('.st-nav-item')];
         const i = items.indexOf(document.activeElement);
-        const n = items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
+        const n = e.key === 'Home' ? items[0] : e.key === 'End' ? items[items.length - 1] : items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
         e.preventDefault();
-        n?.focus();
+        if (!n) return;
+        for (const el of items) el.tabIndex = el === n ? 0 : -1;
+        n.focus();
       };
+      nav.onfocusout = (e) => {
+        if (!nav.contains(e.relatedTarget)) rovingReset();
+      };
+      rovingReset();
+    }
+    function rovingReset() {
+      const items = [...nav.querySelectorAll('.st-nav-item')];
+      const sel = items.find((el) => el.classList.contains('selected')) || items[0];
+      for (const el of items) el.tabIndex = el === sel ? 0 : -1;
     }
     function markNav(page) {
       const cat = page === 'search' ? null : categoryOf(page);
@@ -178,6 +198,7 @@ export default {
         if (on) el.setAttribute('aria-current', 'page');
         else el.removeAttribute('aria-current');
       }
+      if (!nav.contains(document.activeElement)) rovingReset();
     }
 
     // ---------------------------------------------------------------- account card
@@ -198,13 +219,17 @@ export default {
     }
     pc.paintAvatar = paintAvatar;
     function initialsOf(u) {
-      const n = String(u?.fullName || u?.name || '').trim();
-      const parts = n.split(/\s+/).filter(Boolean);
+      // first letter of the first and last words, ignoring punctuation and symbols ("<b>Ann</b>" -> "A")
+      const parts = String(u?.fullName || u?.name || '')
+        .split(/\s+/)
+        .map((w) => w.match(/[\p{L}\p{N}]/u)?.[0])
+        .filter(Boolean);
       if (!parts.length) return icon('person', { size: 28, filled: true });
-      return h('span', { class: 'st-initials' }, (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase());
+      return h('span', { class: 'st-initials' }, (parts[0] + (parts.length > 1 ? parts[parts.length - 1] : '')).toUpperCase());
     }
     globalDisposers.push(
       api.on('users:changed', () => {
+        adminCache = null;
         loadUser();
       }),
     );
@@ -220,6 +245,8 @@ export default {
     function toastError(err) {
       if (!err || err.code === 'ECANCELED') return;
       console.warn('[settings]', err);
+      // sudo refused the account (not an administrator): say so instead of the raw backend message
+      if (err.code === 'ENOTADMIN') return toast(t('settings.notAdminError'), 'error');
       return toast(t('settings.errorGeneric', { msg: err.message || String(err) }), 'error');
     }
 
@@ -248,7 +275,10 @@ export default {
 
     async function navigate(page, { section = null, push = true, animate = true, keepScroll = false } = {}) {
       const r = page === 'search' ? { page: 'search', section: null } : resolvePage(page, section);
-      if (push && current && (current.page !== r.page || r.page === 'search')) history.push(current);
+      if (push && current && (current.page !== r.page || r.page === 'search')) {
+        history.push(current);
+        if (history.length > 50) history.shift();
+      }
       backBtn.disabled = history.length === 0;
       const prevScroll = scroller.scrollTop;
       current = r;
@@ -284,7 +314,12 @@ export default {
         clearTimeout(spinTimer);
       }
       errorHost.replaceChildren();
+      const focusWasInPage = content.contains(document.activeElement) || errorHost.contains(document.activeElement);
       content.replaceChildren(pageEl);
+      // The control that had the focus is gone (or nothing in the window had it, e.g. a deep link):
+      // put the keyboard on the page, so Tab goes to its first control and Alt+Left / Ctrl+F work.
+      const outside = !(win.el || root).contains(document.activeElement);
+      if (focusWasInPage || (outside && shell.wm?.focused?.() === win && !document.querySelector('.dialog-layer:not(.closing)'))) scroller.focus({ preventScroll: true });
       if (keepScroll) scroller.scrollTop = prevScroll;
       else scroller.scrollTop = 0;
       if (animate && !kit.reduceMotion()) {

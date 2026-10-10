@@ -403,12 +403,28 @@ async function studio(job) {
       S.kick(drumCh, end, 0.5);
       // Bell melody, bars 5-10 (+ final note): [bar, beat (1-based), length in beats, midi]
       const mel = [
-        [5, 1, 1.5, 78], [5, 2.5, 0.5, 76], [5, 3, 1, 74], [5, 4, 1, 69],
-        [6, 1, 2, 76], [6, 3, 1, 73], [6, 4, 1, 69],
-        [7, 1, 1.5, 74], [7, 2.5, 0.5, 76], [7, 3, 1, 78], [7, 4, 1, 81],
-        [8, 1, 2, 79], [8, 3, 1, 78], [8, 4, 1, 74],
-        [9, 1, 1.5, 76], [9, 2.5, 0.5, 78], [9, 3, 1, 79], [9, 4, 1, 83],
-        [10, 1, 2, 81], [10, 3, 0.5, 79], [10, 3.5, 0.5, 78], [10, 4, 1, 76],
+        [5, 1, 1.5, 78],
+        [5, 2.5, 0.5, 76],
+        [5, 3, 1, 74],
+        [5, 4, 1, 69],
+        [6, 1, 2, 76],
+        [6, 3, 1, 73],
+        [6, 4, 1, 69],
+        [7, 1, 1.5, 74],
+        [7, 2.5, 0.5, 76],
+        [7, 3, 1, 78],
+        [7, 4, 1, 81],
+        [8, 1, 2, 79],
+        [8, 3, 1, 78],
+        [8, 4, 1, 74],
+        [9, 1, 1.5, 76],
+        [9, 2.5, 0.5, 78],
+        [9, 3, 1, 79],
+        [9, 4, 1, 83],
+        [10, 1, 2, 81],
+        [10, 3, 0.5, 79],
+        [10, 3.5, 0.5, 78],
+        [10, 4, 1, 76],
         [11, 1, 4, 74],
       ];
       for (const [b, bt, len, m] of mel) S.bell(bellCh, m, (b - 1) * bar + (bt - 1) * beat, { decay: Math.max(1.4, len * beat * 1.6), level: 0.13 });
@@ -460,14 +476,41 @@ async function studio(job) {
       S.hat(hatCh, end, 0.12, true);
       // Lead melody bars 5-12 + final note: [bar, beat, beats, midi]
       const mel = [
-        [5, 1, 0.5, 69], [5, 1.5, 0.5, 72], [5, 2, 1.5, 76], [5, 3.5, 0.5, 74], [5, 4, 1, 72],
-        [6, 1, 1.5, 69], [6, 2.5, 0.5, 72], [6, 3, 1, 77], [6, 4, 1, 76],
-        [7, 1, 1.5, 76], [7, 2.5, 0.5, 79], [7, 3, 0.5, 76], [7, 3.5, 0.5, 74], [7, 4, 1, 72],
-        [8, 1, 2, 74], [8, 3, 1, 71], [8, 4, 1, 67],
-        [9, 1, 1, 81], [9, 2, 0.5, 79], [9, 2.5, 0.5, 76], [9, 3, 1, 81], [9, 4, 1, 84],
-        [10, 1, 1.5, 84], [10, 2.5, 0.5, 81], [10, 3, 1, 77], [10, 4, 1, 81],
-        [11, 1, 1.5, 79], [11, 2.5, 0.5, 76], [11, 3, 0.5, 79], [11, 3.5, 0.5, 81], [11, 4, 1, 79],
-        [12, 1, 2, 83], [12, 3, 0.5, 81], [12, 3.5, 0.5, 79], [12, 4, 1, 76],
+        [5, 1, 0.5, 69],
+        [5, 1.5, 0.5, 72],
+        [5, 2, 1.5, 76],
+        [5, 3.5, 0.5, 74],
+        [5, 4, 1, 72],
+        [6, 1, 1.5, 69],
+        [6, 2.5, 0.5, 72],
+        [6, 3, 1, 77],
+        [6, 4, 1, 76],
+        [7, 1, 1.5, 76],
+        [7, 2.5, 0.5, 79],
+        [7, 3, 0.5, 76],
+        [7, 3.5, 0.5, 74],
+        [7, 4, 1, 72],
+        [8, 1, 2, 74],
+        [8, 3, 1, 71],
+        [8, 4, 1, 67],
+        [9, 1, 1, 81],
+        [9, 2, 0.5, 79],
+        [9, 2.5, 0.5, 76],
+        [9, 3, 1, 81],
+        [9, 4, 1, 84],
+        [10, 1, 1.5, 84],
+        [10, 2.5, 0.5, 81],
+        [10, 3, 1, 77],
+        [10, 4, 1, 81],
+        [11, 1, 1.5, 79],
+        [11, 2.5, 0.5, 76],
+        [11, 3, 0.5, 79],
+        [11, 3.5, 0.5, 81],
+        [11, 4, 1, 79],
+        [12, 1, 2, 83],
+        [12, 3, 0.5, 81],
+        [12, 3.5, 0.5, 79],
+        [12, 4, 1, 76],
         [13, 1, 3, 81],
       ];
       for (const [b, bt, len, m] of mel) S.lead(leadCh, m, (b - 1) * bar + (bt - 1) * beat, len * beat * 0.92, { level: 0.1 });
@@ -590,15 +633,28 @@ async function studio(job) {
       return gr;
     };
     if (id === 'morning-light') {
-      g.fillStyle = lin(0, 0, 0, W, [[0, '#6f7ff0'], [0.45, '#f39bb8'], [0.75, '#ffc48f'], [1, '#ffe3b0']]);
+      g.fillStyle = lin(0, 0, 0, W, [
+        [0, '#6f7ff0'],
+        [0.45, '#f39bb8'],
+        [0.75, '#ffc48f'],
+        [1, '#ffe3b0'],
+      ]);
       g.fillRect(0, 0, W, W);
-      g.fillStyle = rad(W * 0.5, W * 0.66, 10, W * 0.5, [[0, 'rgba(255,250,220,0.95)'], [0.18, 'rgba(255,226,170,0.75)'], [1, 'rgba(255,200,150,0)']]);
+      g.fillStyle = rad(W * 0.5, W * 0.66, 10, W * 0.5, [
+        [0, 'rgba(255,250,220,0.95)'],
+        [0.18, 'rgba(255,226,170,0.75)'],
+        [1, 'rgba(255,200,150,0)'],
+      ]);
       g.fillRect(0, 0, W, W);
       g.fillStyle = '#fff8e6';
       g.beginPath();
       g.arc(W * 0.5, W * 0.66, W * 0.1, 0, TAU);
       g.fill();
-      const hills = [['#c97a9e', 0.7, 0.06], ['#9a5f93', 0.78, 0.05], ['#5b3f7a', 0.87, 0.04]];
+      const hills = [
+        ['#c97a9e', 0.7, 0.06],
+        ['#9a5f93', 0.78, 0.05],
+        ['#5b3f7a', 0.87, 0.04],
+      ];
       for (const [col, y, a] of hills) {
         g.fillStyle = col;
         g.beginPath();
@@ -608,7 +664,13 @@ async function studio(job) {
         g.fill();
       }
     } else if (id === 'night-drive') {
-      g.fillStyle = lin(0, 0, 0, W, [[0, '#140a2e'], [0.5, '#4a1460'], [0.62, '#d1367f'], [0.63, '#1a0b30'], [1, '#07040f']]);
+      g.fillStyle = lin(0, 0, 0, W, [
+        [0, '#140a2e'],
+        [0.5, '#4a1460'],
+        [0.62, '#d1367f'],
+        [0.63, '#1a0b30'],
+        [1, '#07040f'],
+      ]);
       g.fillRect(0, 0, W, W);
       for (let i = 0; i < 90; i++) {
         g.fillStyle = `rgba(255,255,255,${0.2 + r() * 0.6})`;
@@ -619,7 +681,11 @@ async function studio(job) {
       g.beginPath();
       g.arc(W / 2, sy, W * 0.22, 0, TAU);
       g.clip();
-      g.fillStyle = lin(0, sy - W * 0.22, 0, sy + W * 0.22, [[0, '#ffe36e'], [0.6, '#ff7a59'], [1, '#e2337e']]);
+      g.fillStyle = lin(0, sy - W * 0.22, 0, sy + W * 0.22, [
+        [0, '#ffe36e'],
+        [0.6, '#ff7a59'],
+        [1, '#e2337e'],
+      ]);
       g.fillRect(0, 0, W, W);
       g.fillStyle = '#4a1460';
       for (let k = 0; k < 6; k++) g.fillRect(0, sy + k * 14 - 2, W, 3 + k * 1.6);
@@ -629,7 +695,7 @@ async function studio(job) {
       g.strokeStyle = 'rgba(255,80,200,0.75)';
       g.lineWidth = 1.6;
       for (let k = 0; k < 12; k++) {
-        const y = W * 0.625 + ((k / 12) ** 2) * W * 0.375;
+        const y = W * 0.625 + (k / 12) ** 2 * W * 0.375;
         g.beginPath();
         g.moveTo(0, y);
         g.lineTo(W, y);
@@ -642,7 +708,11 @@ async function studio(job) {
         g.stroke();
       }
     } else {
-      g.fillStyle = lin(0, 0, 0, W, [[0, '#020617'], [0.6, '#0b2545'], [1, '#13406b']]);
+      g.fillStyle = lin(0, 0, 0, W, [
+        [0, '#020617'],
+        [0.6, '#0b2545'],
+        [1, '#13406b'],
+      ]);
       g.fillRect(0, 0, W, W);
       for (let i = 0; i < 160; i++) {
         g.fillStyle = `rgba(255,255,255,${0.15 + r() * 0.7})`;
@@ -651,13 +721,21 @@ async function studio(job) {
       }
       g.globalCompositeOperation = 'lighter';
       g.filter = 'blur(6px)';
-      const cols = [['rgba(61,255,168,', 0.75], ['rgba(34,211,238,', 0.55], ['rgba(167,139,250,', 0.4]];
+      const cols = [
+        ['rgba(61,255,168,', 0.75],
+        ['rgba(34,211,238,', 0.55],
+        ['rgba(167,139,250,', 0.4],
+      ];
       cols.forEach(([col, base], j) => {
         for (let x = -20; x < W + 20; x += 3) {
           const y = W * (0.25 + j * 0.08) + Math.sin(x * 0.011 + j * 1.7) * W * 0.09 + Math.sin(x * 0.027 + j) * W * 0.03;
           const h = W * (0.22 + 0.12 * Math.sin(x * 0.019 + j * 2.1));
           const a = 0.5 + 0.5 * Math.sin(x * 0.05 + j * 3);
-          g.fillStyle = lin(0, y - h, 0, y + 8, [[0, `${col}0)`], [0.85, `${col}${(base * a).toFixed(3)})`], [1, `${col}0)`]]);
+          g.fillStyle = lin(0, y - h, 0, y + 8, [
+            [0, `${col}0)`],
+            [0.85, `${col}${(base * a).toFixed(3)})`],
+            [1, `${col}0)`],
+          ]);
           g.fillRect(x, y - h, 3, h + 8);
         }
       });
@@ -672,7 +750,10 @@ async function studio(job) {
     }
     // Subtle vignette + grain
     g.globalCompositeOperation = 'source-over';
-    g.fillStyle = rad(W / 2, W / 2, W * 0.35, W * 0.75, [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0.28)']]);
+    g.fillStyle = rad(W / 2, W / 2, W * 0.35, W * 0.75, [
+      [0, 'rgba(0,0,0,0)'],
+      [1, 'rgba(0,0,0,0.28)'],
+    ]);
     g.fillRect(0, 0, W, W);
     const img = g.getImageData(0, 0, W, W);
     for (let i = 0; i < img.data.length; i += 4) {
@@ -846,7 +927,7 @@ async function studio(job) {
       }
       const fadeIn = Math.min(1, t / 0.8);
       const fadeOut = Math.max(0, (t - (seconds - 1.1)) / 1.0);
-      const black = Math.min(1, (1 - fadeIn) + fadeOut);
+      const black = Math.min(1, 1 - fadeIn + fadeOut);
       if (black > 0) {
         g.fillStyle = `rgba(0,0,0,${black})`;
         g.fillRect(0, 0, W, H);
@@ -1114,7 +1195,18 @@ function muxWebM(job, res) {
   const tracks = el(
     0x1654ae6b,
     el(0xae, eUint(0xd7, 1), eUint(0x73c5, 1), eUint(0x83, 1), eUint(0x9c, 0), eStr(0x86, 'V_VP9'), eUint(0x23e383, Math.round(1e9 / fps)), el(0xe0, eUint(0xb0, width), eUint(0xba, height))),
-    el(0xae, eUint(0xd7, 2), eUint(0x73c5, 2), eUint(0x83, 2), eUint(0x9c, 0), eStr(0x86, 'A_OPUS'), el(0x63a2, opusHead(preSkip)), eUint(0x56aa, Math.round((preSkip / 48000) * 1e9)), eUint(0x56bb, 80000000), el(0xe1, eFloat(0xb5, 48000), eUint(0x9f, 2))),
+    el(
+      0xae,
+      eUint(0xd7, 2),
+      eUint(0x73c5, 2),
+      eUint(0x83, 2),
+      eUint(0x9c, 0),
+      eStr(0x86, 'A_OPUS'),
+      el(0x63a2, opusHead(preSkip)),
+      eUint(0x56aa, Math.round((preSkip / 48000) * 1e9)),
+      eUint(0x56bb, 80000000),
+      el(0xe1, eFloat(0xb5, 48000), eUint(0x9f, 2)),
+    ),
   );
   // Blocks, sorted by time (video first on ties).
   const vids = splitPackets(res.video).map((d, i) => ({ track: 1, ts: res.video.ts[i], key: res.video.keys[i], data: d }));
@@ -1143,7 +1235,15 @@ function muxWebM(job, res) {
       }),
     ),
   );
-  const seekHead = (pos) => el(0x114d9b74, ...[[0x1549a966, pos.info], [0x1654ae6b, pos.tracks], [0x1c53bb6b, pos.cues]].map(([id, p]) => el(0x4dbb, el(0x53ab, idBytes(id)), eUint(0x53ac, p, 8))));
+  const seekHead = (pos) =>
+    el(
+      0x114d9b74,
+      ...[
+        [0x1549a966, pos.info],
+        [0x1654ae6b, pos.tracks],
+        [0x1c53bb6b, pos.cues],
+      ].map(([id, p]) => el(0x4dbb, el(0x53ab, idBytes(id)), eUint(0x53ac, p, 8))),
+    );
   const shLen = seekHead({ info: 0, tracks: 0, cues: 0 }).length;
   const pos = { info: shLen, tracks: shLen + info.length };
   let off = pos.tracks + tracks.length;

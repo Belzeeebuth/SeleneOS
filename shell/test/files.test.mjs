@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { execFileSync } from 'node:child_process';
 import { launchShell, ROOT } from './lib.mjs';
 
 const DOCS = path.join(ROOT, '..', 'docs', 'screenshots');
@@ -912,6 +913,294 @@ if (!fatal) {
     await page.evaluate(() => window.__aurora.settings.set('lang', 'en'));
     await page.waitForTimeout(600);
     check('back to English', (await page.locator('.app-files .fx-dh-cell').first().innerText()).trim(), 'Name');
+  });
+
+  // ---------------------------------------------------------------- QA regressions (adversarial pass)
+  await section('QA: hostile file names (no HTML injection, no zip option injection)', async () => {
+    const dir = D('QA/Hostile');
+    fs.mkdirSync(dir, { recursive: true });
+    const hostile = ['<img src=x onerror="window.__xss=1">.txt', '"><svg onload="window.__xss=2">', '-T', '--unzip-command=touch PWNED', 'plain.txt'];
+    for (const n of hostile) fs.writeFileSync(path.join(dir, n), 'x');
+    await H.go(dir);
+    for (const m of ['details', 'large', 'tiles', 'list']) await page.evaluate((m) => window.__fx().setMode(m), m);
+    await page.evaluate(() => window.__fx().setMode('details'));
+    await page.evaluate(() => window.__fx().navigate({ type: 'search', root: window.__fx().tab.loc, query: 'img' }));
+    await page.waitForTimeout(1200);
+    check('search highlight keeps names as text', await page.locator('.app-files .fx-row .fx-name').first().innerText(), '<img src=x onerror="window.__xss=1">.txt');
+    await H.go(dir);
+    await H.select('"><svg onload="window.__xss=2">');
+    await H.focusView();
+    await H.key('Shift+Delete');
+    check('delete dialog shows the name as text', await H.dialogText(), (t) => t.includes('"><svg onload="window.__xss=2">'));
+    await H.clickDialog('No');
+    check('no script ran from file names', await page.evaluate(() => window.__xss ?? null), null);
+    // Compress names that look like zip options: they must be stored, never parsed as options.
+    await page.evaluate(() => {
+      const v = window.__fx().view;
+      v.setSel(v.items.filter((x) => ['-T', '--unzip-command=touch PWNED', 'plain.txt'].includes(x.entry.name)).map((x) => x.key));
+    });
+    await page.evaluate(() => window.__fx().compress(window.__fx().view.selectedEntries()));
+    await H.settle();
+    await page.evaluate(() => window.__fx().view.renaming && window.__fx().view.endRename());
+    check('zip option injection: no command ran', H.exists(path.join(dir, 'PWNED')), false);
+    check('zip created', H.exists(path.join(dir, 'Hostile.zip')), true);
+    const listing = H.exists(path.join(dir, 'Hostile.zip')) ? execFileSync('unzip', ['-Z1', path.join(dir, 'Hostile.zip')], { encoding: 'utf8' }).split('\n').filter(Boolean).sort() : [];
+    check('zip stores the odd names', listing, ['--unzip-command=touch PWNED', '-T', 'plain.txt']);
+  });
+
+  await section('QA: special files (FIFO preview must not hang the backend)', async () => {
+    const dir = D('QA/Special');
+    fs.mkdirSync(dir, { recursive: true });
+    execFileSync('mkfifo', [path.join(dir, 'pipe')]);
+    execFileSync('mkfifo', [path.join(dir, 'fake.png')]);
+    await H.go(dir);
+    await page.evaluate(() => window.__fx().setMode('large'));
+    await page.waitForTimeout(300);
+    check('no thumbnail requested for a FIFO named .png', await page.locator('.app-files img.fx-photo').count(), 0);
+    await page.evaluate(() => window.__fx().setMode('details'));
+    await page.evaluate(() => window.__fx().togglePane('preview'));
+    await H.select('pipe');
+    await page.waitForTimeout(600);
+    check('FIFO: no preview', await page.locator('.app-files .fx-pane-body').innerText(), 'No preview available.');
+    const t0 = Date.now();
+    const res = await Promise.race([
+      page.evaluate(async (p) => {
+        const api = window.__fx().api;
+        const out = [];
+        for (let i = 0; i < 6; i++) out.push((await api.invoke('files:head', p, 100)).special === true);
+        return out;
+      }, path.join(dir, 'pipe')),
+      new Promise((r) => setTimeout(() => r('timeout'), 4000)),
+    ]);
+    check('files:head refuses FIFOs at once', res, [true, true, true, true, true, true]);
+    check('files:head fast', Date.now() - t0 < 3000, true);
+    check('fs still responsive', await page.evaluate(async (p) => (await window.__fx().api.invoke('fs:list', p)).length, dir), 2);
+    await page.evaluate(() => window.__fx().togglePane('preview'));
+  });
+
+  await section('QA: forged drag payloads from web content are ignored', async () => {
+    const dir = D('QA/Drop');
+    fs.mkdirSync(path.join(dir, 'victim'), { recursive: true });
+    fs.mkdirSync(path.join(dir, 'target'), { recursive: true });
+    await H.go(path.join(dir, 'target'));
+    const drop = (paths, withShellDragstart) =>
+      page.evaluate(async ([paths, shellStart]) => {
+        window.dispatchEvent(new PointerEvent('pointerdown')); // ends any previous drag
+        if (shellStart) document.dispatchEvent(new DragEvent('dragstart', { bubbles: true }));
+        const ex = window.__fx();
+        const dt = new DataTransfer();
+        dt.setData('application/x-aurora-paths', JSON.stringify(paths));
+        dt.setData('text/uri-list', paths.map((p) => `file://${p}`).join('\r\n'));
+        const sc = ex.view.scroller;
+        const r = sc.getBoundingClientRect();
+        const opts = { bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.left + 200, clientY: r.bottom - 30 };
+        sc.dispatchEvent(new DragEvent('dragenter', opts));
+        const over = new DragEvent('dragover', opts);
+        sc.dispatchEvent(over);
+        sc.dispatchEvent(new DragEvent('drop', opts));
+        await new Promise((r) => setTimeout(r, 900));
+        document.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
+        return over.defaultPrevented;
+      }, [paths, withShellDragstart]);
+    const accepted = await drop([path.join(dir, 'victim')], false);
+    check('forged payload refused (dragover not accepted)', accepted, false);
+    check('forged payload moved nothing', H.exists(path.join(dir, 'victim')) && !H.exists(path.join(dir, 'target/victim')), true);
+    await drop([path.join(dir, 'victim')], true);
+    await H.settle();
+    check('shell drags still work', H.exists(path.join(dir, 'target/victim')), true);
+  });
+
+  await section('QA: toast Undo undoes its own operation', async () => {
+    const dir = D('QA/Undo');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'A.txt'), 'a');
+    fs.writeFileSync(path.join(dir, 'B.txt'), 'b');
+    await H.go(dir);
+    await H.select('A.txt');
+    await H.focusView();
+    await H.key('Delete');
+    await H.settle();
+    check('A trashed', H.exists(path.join(dir, 'A.txt')), false);
+    // another operation after the delete: rename B -> C
+    await page.evaluate(async () => {
+      const ex = window.__fx();
+      const ops = await import('app://shell/apps/files/lib/ops.js');
+      await ops.rename(ex, ex.view.items.find((x) => x.entry.name === 'B.txt').entry, 'C.txt');
+    });
+    await H.settle();
+    await page.click('.app-files .fx-toast button:has-text("Undo")');
+    await H.settle();
+    await H.waitNames((n) => n.includes('A.txt'));
+    check('toast undo restored A', H.exists(path.join(dir, 'A.txt')), true);
+    check('toast undo left the rename alone', H.exists(path.join(dir, 'C.txt')) && !H.exists(path.join(dir, 'B.txt')), true);
+    check('rename still undoable with Ctrl+Z', await page.evaluate(async () => (await import('app://shell/apps/files/lib/shared.js')).peekUndo()?.type), 'rename');
+  });
+
+  await section('QA: double presses / double clicks start one operation', async () => {
+    const dir = D('QA/Races');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'twice.txt'), 'x');
+    await H.go(dir);
+    await H.select('twice.txt');
+    await H.focusView();
+    await page.keyboard.press('Delete');
+    await page.keyboard.press('Delete');
+    await H.settle();
+    await page.waitForTimeout(400);
+    check('double Delete: no error dialog', await page.locator('.dialog-layer:not(.closing)').count(), 0);
+    check('double Delete: trashed once', fs.readdirSync(D('.local/share/Trash/files')).filter((n) => n.startsWith('twice')).length, 1);
+    await H.focusView();
+    await page.keyboard.press('Control+Shift+N');
+    await page.keyboard.press('Control+Shift+N');
+    await page.waitForTimeout(1200);
+    check('double Ctrl+Shift+N: one new folder', fs.readdirSync(dir).filter((n) => n.startsWith('New folder')).length, 1);
+    await page.keyboard.press('Escape');
+    await H.go({ type: 'trash' });
+    await page.locator('.app-files .fx-cmd:has-text("Empty Recycle Bin")').dblclick();
+    await page.waitForTimeout(600);
+    check('double click Empty Recycle Bin: one confirmation', await page.locator('.dialog-layer:not(.closing)').count(), 1);
+    await H.clickDialog('No');
+    await page.evaluate(() => window.__fx().view.selectAll());
+    await page.locator('.app-files .fx-cmd:has-text("Restore the selected items")').dblclick();
+    await H.settle();
+    await page.waitForTimeout(500);
+    check('double click Restore: no error dialog', await page.locator('.dialog-layer:not(.closing)').count(), 0);
+    check('restored', H.exists(path.join(dir, 'twice.txt')), true);
+  });
+
+  await section('QA: search inside the Recycle Bin lists trash items', async () => {
+    const dir = D('QA/TrashSearch');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'needle.txt'), 'x');
+    await H.go(dir);
+    await H.select('needle.txt');
+    await page.evaluate(() => window.__fx().del(false));
+    await H.settle();
+    await H.go({ type: 'trash' });
+    await page.evaluate(() => window.__fx().navigate({ type: 'search', root: { type: 'trash' }, query: 'needle' }));
+    await page.waitForTimeout(1200);
+    check('trash search kind', await page.evaluate(() => window.__fx().view.items.map((i) => i.kind)), ['trash']);
+    check('trash search columns', (await page.locator('.app-files .fx-dh-cell').allInnerTexts()).map((x) => x.trim()).slice(0, 3), ['Name', 'Original location', 'Date deleted']);
+    check('trash search shows the original location', await page.locator('.app-files .fx-row .c-origin').first().innerText(), dir);
+    await page.locator('.app-files .fx-row').first().click({ button: 'right' });
+    await page.waitForSelector('.menu');
+    const labels = await page.locator('.menu .menu-item .label').allInnerTexts();
+    check('trash search menu offers Restore, not Cut/Rename', labels.includes('Restore') && !labels.includes('Compress to ZIP file') && (await page.locator('.menu .menu-iconbar').count()) === 0, true);
+    await H.menuClick('Restore');
+    await H.settle();
+    check('restored from search', H.exists(path.join(dir, 'needle.txt')), true);
+  });
+
+  await section('QA: system folders are protected, Tab stays in the window, misc', async () => {
+    await H.go({ type: 'home' });
+    await page.evaluate(() => {
+      const v = window.__fx().view;
+      const it = v.items.find((x) => x.key.startsWith('q:') && x.entry.path.endsWith('/Documents'));
+      v.setSel([it.key], it.key);
+    });
+    check('Documents tile: Delete / Rename / Cut disabled', await page.evaluate(() => ['del', 'rename', 'cut'].map((k) => window.__fx().cmd[k].disabled)), [true, true, true]);
+    await H.focusView();
+    await H.key('Delete');
+    check('Delete on a system folder explains why', await H.dialogText(), (t) => t.includes("can't be deleted"));
+    await H.clickDialog('OK');
+    await H.settle();
+    check('Documents not deleted', H.exists(D('Documents')), true);
+    await H.focusView();
+    await H.key('F2');
+    check('F2 on a system folder explains why', await H.dialogText(), (t) => t.includes("can't be renamed"));
+    await H.clickDialog('OK');
+    // Tab / Shift+Tab wrap inside the window
+    await H.go(D('Documents'));
+    const last = await page.evaluate(() => {
+      const stops = window.__fx().tabStops();
+      stops[stops.length - 1].focus();
+      return stops.length;
+    });
+    check('tab stops found', last > 5, true);
+    await H.key('Tab');
+    check('Tab from the last control wraps to the first', await page.evaluate(() => window.__fx().tabStops()[0] === document.activeElement), true);
+    await H.key('Shift+Tab');
+    check('Shift+Tab from the first wraps to the last', await page.evaluate(() => {
+      const s = window.__fx().tabStops();
+      return s[s.length - 1] === document.activeElement;
+    }), true);
+    // Malformed file:// URI in the address bar: error dialog, no exception
+    const pageErrors = s.logs.filter((l) => l.startsWith('[pageerror]')).length;
+    await page.evaluate(() => window.__fx().address.beginEdit('file:///%E0%A4%A'));
+    await H.key('Enter');
+    await page.waitForTimeout(400);
+    check('malformed file URI: error dialog', await H.dialogText(), (t) => t.includes("can't find"));
+    await H.clickDialog('OK');
+    check('malformed file URI: no exception', s.logs.filter((l) => l.startsWith('[pageerror]')).length, pageErrors);
+    await page.keyboard.press('Escape');
+    // Debounced search bound to its tab
+    await H.go(D('Documents'));
+    await H.key('Control+t');
+    await H.settle();
+    await page.locator('.app-files .fx-tab').first().click();
+    await H.settle();
+    await page.click('.app-files .fx-search-input');
+    await page.keyboard.type('notes');
+    await page.keyboard.press('Control+Tab');
+    await page.waitForTimeout(1000);
+    check('debounced search does not run in the other tab', (await H.loc()).type, 'home');
+    await H.key('Control+w');
+    await H.settle();
+    // Animations off: endless animations become static
+    const anim = await page.evaluate(() => {
+      const root = document.documentElement;
+      const prev = root.dataset.animations;
+      root.dataset.animations = 'off';
+      const host = document.createElement('div');
+      host.className = 'app-files';
+      host.innerHTML = '<div class="fx-pg-bar indeterminate"><div class="bar"></div></div><div class="fx-address busy"></div>';
+      document.body.append(host);
+      const a = getComputedStyle(host.querySelector('.bar')).animationName;
+      const b = getComputedStyle(host.querySelector('.fx-address'), '::before').animationName;
+      host.remove();
+      if (prev == null) delete root.dataset.animations;
+      else root.dataset.animations = prev;
+      return [a, b];
+    });
+    check('animations off: no endless animations', anim, ['none', 'none']);
+  });
+
+  await section('QA: pinned folders reorder by drag, launch args, Home refresh across windows', async () => {
+    const order = () => page.evaluate(async () => (await import('app://shell/apps/files/lib/shared.js')).shared.pinned.map((p) => p.split('/').pop()));
+    const before = await order();
+    const music = page.locator('.app-files .fx-tnode[draggable="true"]:has-text("Music")');
+    const desktop = page.locator('.app-files .fx-tnode[draggable="true"]:has-text("Desktop")');
+    await music.dragTo(desktop, { targetPosition: { x: 40, y: 4 } });
+    await page.waitForTimeout(400);
+    const after = await order();
+    check('pin moved before Desktop', after.indexOf('Music') === after.indexOf('Desktop') - 1 && after.length === before.length, true);
+    check('pin drag did not move the folder', H.exists(D('Music')) && !H.exists(D('Desktop/Music')), true);
+    await page.waitForTimeout(400);
+    check('pin order persisted', JSON.parse(fs.readFileSync(D('.config/aurora/apps/files/pinned.json'), 'utf8')).map((p) => p.split('/').pop()), after);
+    await page.evaluate(async (list) => {
+      const { shared, movePin } = await import('app://shell/apps/files/lib/shared.js');
+      list.forEach((name, i) => movePin(shared.pinned.find((p) => p.endsWith(`/${name}`)), i));
+    }, before);
+    // Relative and ~ launch paths resolve against the home folder
+    await page.evaluate(() => window.__aurora.shell.launch('files', { path: '~/Documents/../Downloads' }));
+    await page.waitForFunction(() => window.__fx(1)?.view?.loc);
+    await H.settle(1);
+    check('~ and .. in launch path', (await H.loc(1)).path, D('Downloads'));
+    // Home in window 2 refreshes after a file operation in window 1
+    fs.writeFileSync(D('Documents/fresh-file.txt'), 'new');
+    await page.evaluate(() => window.__fx(1).navigate({ type: 'home' }));
+    await H.settle(1);
+    const recentBefore = await page.evaluate(() => window.__fx(1).view.items.filter((i) => i.section === 'r').map((i) => i.entry.name));
+    check('new file listed in Recent of window 2', recentBefore.includes('fresh-file.txt'), true);
+    await H.go(D('Documents'));
+    await H.select('fresh-file.txt');
+    await page.evaluate(() => window.__fx(0).del(false));
+    await H.settle();
+    await page.waitForTimeout(1200);
+    const recentNames = await page.evaluate(() => window.__fx(1).view.items.filter((i) => i.section === 'r').map((i) => i.entry.name));
+    check('other window Home refreshed (trashed file left Recent)', recentNames.includes('fresh-file.txt'), false);
+    await page.evaluate(() => window.__fx(1).win.close());
+    await page.waitForTimeout(400);
   });
 
   await section('Window sizes', async () => {

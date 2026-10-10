@@ -94,7 +94,8 @@ async function network(pc) {
       const eth = st.devices.find((d) => d.type === 'ethernet' && /^connected/.test(d.state)) || st.devices.find((d) => d.type === 'ethernet');
       rows.push(kit.row({ icon: 'plug_connected', title: t('net.ethernet'), desc: /^connected/.test(eth.state) ? t('net.ethConnected') : t('net.ethUnplugged'), onClick: () => pc.go('ethernet') }));
     }
-    rows.push(
+    // Without NetworkManager (read-only status) there is no radio to switch off.
+    if (st.managed !== false) rows.push(
       kit.row({
         icon: 'airplane',
         title: t('net.airplane'),
@@ -102,6 +103,8 @@ async function network(pc) {
         section: 'airplane',
         control: kit.toggle({ value: !!st.airplane, label: t('net.airplane'), onChange: (v) => api.invoke('net:setAirplane', v) }),
       }),
+    );
+    rows.push(
       kit.row({ icon: PAGES.advancedNetwork.icon, title: L(pc, PAGES.advancedNetwork.title), desc: L(pc, PAGES.advancedNetwork.desc), onClick: () => pc.go('advancedNetwork') }),
     );
     root.append(hero, kit.group(null, ...rows));
@@ -128,6 +131,7 @@ async function wifi(pc) {
   let busy = null; // ssid being connected
   let errFor = null; // { ssid, code, msg }
   let needKey = null; // ssid that asks for a key
+  const autoFor = new Map(); // ssid -> "Connect automatically" (checked unless the user unchecked it)
 
   const scan = async (rescan = true) => {
     scanning = true;
@@ -150,7 +154,7 @@ async function wifi(pc) {
     errFor = null;
     paintList();
     try {
-      await api.invoke('net:wifiConnect', n.ssid, password || undefined);
+      await api.invoke('net:wifiConnect', n.ssid, password || undefined, { autoconnect: autoFor.get(n.ssid) !== false });
       busy = null;
       needKey = null;
       expanded = null;
@@ -209,7 +213,7 @@ async function wifi(pc) {
     } else if (needKey === n.ssid) {
       form.append(keyForm(n));
     } else {
-      const auto = h('input', { type: 'checkbox', checked: true });
+      const auto = h('input', { type: 'checkbox', checked: autoFor.get(n.ssid) !== false, onchange: (e) => autoFor.set(n.ssid, e.target.checked) });
       form.append(
         h('label', { class: 'checkbox' }, auto, h('span', null, t('net.connectAuto'))),
         errFor?.ssid === n.ssid ? kit.infobar({ kind: 'error', message: errFor.code === 'ENOTFOUND' ? t('net.notInRange') : t('net.cantConnect', { msg: errFor.msg }) }) : null,
@@ -291,7 +295,15 @@ async function wifi(pc) {
     }
   }
 
+  // "Wi-Fi" row description: follows the radio and the connection (net:changed, the toggle).
+  const headDesc = h('span');
+  function paintHead() {
+    const conn = (st?.devices || []).find((d) => d.type === 'wifi' && d.connection);
+    headDesc.textContent = !st?.wifiEnabled ? t('net.wifiDesc') : conn ? t('net.connectedTo', { name: conn.connection }) : t('net.notConnectedTitle');
+  }
+
   function paintList() {
+    paintHead();
     scanBar.classList.toggle('on', scanning);
     ui.clear(listBox);
     if (!st?.wifiEnabled) {
@@ -401,7 +413,7 @@ async function wifi(pc) {
         kit.row({
           icon: 'wifi_1',
           title: t('net.wifi'),
-          desc: !st.wifiEnabled ? t('net.wifiDesc') : (st.devices || []).find((d) => d.type === 'wifi' && d.connection) ? t('net.connectedTo', { name: st.devices.find((d) => d.type === 'wifi' && d.connection).connection }) : t('net.notConnectedTitle'),
+          desc: headDesc,
           control: wifiToggle,
         }),
         avail,

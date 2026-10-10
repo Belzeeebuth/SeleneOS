@@ -1,6 +1,6 @@
 // File operations shared by every File Explorer window: copy/move with a Windows-style progress
 // window (cancellable), Recycle Bin, permanent delete, restore, new items, archives and undo.
-import { shared, pushUndo, popUndo, peekUndo, renamePaths } from './shared.js';
+import { shared, pushUndo, popUndo, peekUndo, takeUndo, renamePaths } from './shared.js';
 import * as T from './types.js';
 
 let opSeq = 0;
@@ -37,6 +37,18 @@ function errText(ex, err) {
   return err?.message || String(err);
 }
 export { errText };
+
+// One run at a time per window and per kind of operation: a double click on "Empty Recycle Bin",
+// a key pressed twice (Delete, Ctrl+Shift+N) or "Restore" clicked twice must not start a second
+// operation on items the first one already moved (that showed "item could not be found" errors).
+export function exclusive(ex, key, fn) {
+  const running = (ex._running ??= new Set());
+  if (running.has(key)) return Promise.resolve(undefined);
+  running.add(key);
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => running.delete(key));
+}
 
 export function alertError(ex, err, title) {
   if (codeOf(err) === 'ECANCELED') return Promise.resolve();
@@ -152,6 +164,11 @@ export async function transfer(ex, paths, destDir, { move = false, select = true
   const t = ex.t;
   paths = [...new Set(paths)].filter(Boolean);
   if (!paths.length || !destDir) return [];
+  const prot = move && paths.find((p) => T.isProtectedPath(p));
+  if (prot) {
+    await ex.ui.alert(t('errors.protectedChange', { name: ex.locName({ type: 'dir', path: prot }) }), { title: t('progress.moveError'), parent: ex.win });
+    return [];
+  }
   const count = paths.length;
   const fromName = ex.locName({ type: 'dir', path: T.dirname(paths[0]) });
   const toName = ex.locName({ type: 'dir', path: destDir });
@@ -186,7 +203,10 @@ export async function paste(ex, destDir) {
 }
 
 // ---------------------------------------------------------------- Recycle Bin
-export async function trash(ex, paths) {
+export function trash(ex, paths) {
+  return exclusive(ex, 'delete', () => trashNow(ex, paths));
+}
+async function trashNow(ex, paths) {
   const t = ex.t;
   paths = [...new Set(paths)];
   if (!paths.length) return 0;
@@ -208,14 +228,17 @@ export async function trash(ex, paths) {
     ex.setBusy(false);
   }
   if (n) {
-    pushUndo({ type: 'trash', paths, time });
-    ex.toast(t('toast.trashed', { count: n }), { label: t('common.undo'), action: () => undo(ex) });
+    const op = pushUndo({ type: 'trash', paths, time });
+    ex.toast(t('toast.trashed', { count: n }), { label: t('common.undo'), action: () => undo(ex, op) });
   }
-  ex.refreshAll();
+  await ex.refreshAll();
   return n;
 }
 
-export async function deleteForever(ex, entries) {
+export function deleteForever(ex, entries) {
+  return exclusive(ex, 'delete', () => deleteForeverNow(ex, entries));
+}
+async function deleteForeverNow(ex, entries) {
   const t = ex.t;
   if (!entries.length) return 0;
   const { h } = ex;
@@ -253,23 +276,28 @@ export async function deleteForever(ex, entries) {
   } finally {
     ex.setBusy(false);
   }
-  ex.refreshAll();
+  await ex.refreshAll();
   return n;
 }
 
-export async function restore(ex, trashEntries) {
-  if (!trashEntries.length) return 0;
-  try {
-    return await ex.api.invoke('fs:trashRestore', trashEntries.map((e) => T.basename(e.path)));
-  } catch (err) {
-    await alertError(ex, err);
-    return 0;
-  } finally {
-    ex.refreshAll();
-  }
+export function restore(ex, trashEntries) {
+  if (!trashEntries.length) return Promise.resolve(0);
+  return exclusive(ex, 'restore', async () => {
+    try {
+      return await ex.api.invoke('fs:trashRestore', trashEntries.map((e) => T.basename(e.path)));
+    } catch (err) {
+      await alertError(ex, err);
+      return 0;
+    } finally {
+      await ex.refreshAll();
+    }
+  });
 }
 
-export async function emptyTrash(ex) {
+export function emptyTrash(ex) {
+  return exclusive(ex, 'empty', () => emptyTrashNow(ex));
+}
+async function emptyTrashNow(ex) {
   const t = ex.t;
   let list = [];
   try {
@@ -294,7 +322,7 @@ export async function emptyTrash(ex) {
     return 0;
   } finally {
     ex.setBusy(false);
-    ex.refreshAll();
+    await ex.refreshAll();
   }
 }
 
@@ -385,8 +413,9 @@ export function undoLabel(ex) {
   return ex.t(`undo.${op.type}`);
 }
 
-export async function undo(ex) {
-  const op = popUndo();
+// undo(ex) undoes the last operation; undo(ex, op) undoes that one operation (if still undoable).
+export async function undo(ex, target = null) {
+  const op = target ? takeUndo(target) : popUndo();
   if (!op) return false;
   const api = ex.api;
   try {

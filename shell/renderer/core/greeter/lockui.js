@@ -23,7 +23,7 @@
 // (one stop: arrow keys / Home / End move inside it), the tray buttons.
 import { h, icon, ui } from '../ui.js';
 import { i18n, t } from '../i18n.js';
-import { blurredImage } from './backdrop.js';
+import { blurredImage, topLuminance } from './backdrop.js';
 import { KB_CODES, LANG_CODES } from './strings.js';
 
 const IDLE_COVER_MS = 60000;
@@ -237,6 +237,8 @@ export class LockScreen {
   async _loadBlur() {
     const url = this.o.wallpaper;
     if (!url) return;
+    // A light picture behind the white clock gets a stronger shade at the top (legible time and date).
+    topLuminance(url).then((lum) => this.el.classList.toggle('lk-light-wall', lum != null && lum > 0.28));
     const blurred = await blurredImage(url, { blur: 30, brightness: 0.72, saturate: 1.3 });
     if (blurred) {
       this.blur.style.backgroundImage = `url("${blurred}")`;
@@ -926,6 +928,11 @@ export class LockScreen {
       const name = this.userInput.value.trim();
       if (!name) {
         this.userInput.focus();
+        return;
+      }
+      // Enter in the user name box moves on to the password box first.
+      if (document.activeElement === this.userInput && !this.input.value) {
+        this.input.focus();
         return;
       }
       user = { ...user, name, fullName: name };

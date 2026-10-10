@@ -192,7 +192,9 @@
   width: var(--nav-w);
   transform: translateX(-100%);
   visibility: hidden;
-  transition: transform var(--dur-slow) var(--ease-in), visibility 0s linear var(--dur-slow);
+  transition:
+    transform var(--dur-slow) var(--ease-in),
+    visibility 0s linear var(--dur-slow);
 }
 .app-media .mp.nav-minimal .mp-float {
   display: flex;
@@ -237,7 +239,9 @@
   border-right: 1px solid var(--window-stroke);
   border-radius: 0 var(--radius) var(--radius) 0;
   box-shadow: var(--shadow-flyout);
-  transition: transform var(--dur-slow) var(--ease), width var(--dur-slow) var(--ease);
+  transition:
+    transform var(--dur-slow) var(--ease),
+    width var(--dur-slow) var(--ease);
   animation: mp-pane-in var(--dur-slow) var(--ease);
 }
 .app-media .mp.nav-open .mp-nav-scrim {
@@ -440,7 +444,7 @@
   border-color: var(--stroke);
 }
 .app-media .mp-row.selected::before {
-  content: "";
+  content: '';
   position: absolute;
   left: -1px;
   top: 50%;
@@ -653,7 +657,9 @@
   aspect-ratio: 1;
   margin-bottom: 8px;
   border-radius: var(--radius);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--stroke-card);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.12),
+    0 0 0 1px var(--stroke-card);
   transition: transform var(--dur) var(--ease);
 }
 .app-media .mp-tile-art > .mp-art {
@@ -688,7 +694,10 @@
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
   opacity: 0;
   transform: translateY(6px) scale(0.92);
-  transition: opacity var(--dur) linear, transform var(--dur-slow) var(--ease), background var(--dur-fast) linear;
+  transition:
+    opacity var(--dur) linear,
+    transform var(--dur-slow) var(--ease),
+    background var(--dur-fast) linear;
 }
 .app-media .mp-tile-play:hover {
   background: var(--accent-hover);
@@ -752,7 +761,9 @@
   width: 196px;
   height: 196px;
   border-radius: var(--radius);
-  box-shadow: var(--shadow-flyout), 0 0 0 1px var(--stroke-card);
+  box-shadow:
+    var(--shadow-flyout),
+    0 0 0 1px var(--stroke-card);
 }
 .app-media .mp-hero-art > .mp-art {
   border-radius: var(--radius);
@@ -970,7 +981,10 @@
   padding: 6px 16px 10px;
   background: var(--layer-alt);
   border-top: 1px solid var(--stroke);
-  transition: opacity var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), background var(--dur) linear;
+  transition:
+    opacity var(--dur-slow) var(--ease),
+    transform var(--dur-slow) var(--ease),
+    background var(--dur) linear;
 }
 .app-media .mp-seek {
   display: grid;
@@ -1029,14 +1043,23 @@
   border-radius: 50%;
   background: var(--acrylic-solid);
   border: 1px solid var(--control-stroke);
-  box-shadow: inset 0 0 0 4px var(--acrylic-solid), inset 0 0 0 10px var(--accent), 0 1px 3px rgba(0, 0, 0, 0.18);
+  box-shadow:
+    inset 0 0 0 4px var(--acrylic-solid),
+    inset 0 0 0 10px var(--accent),
+    0 1px 3px rgba(0, 0, 0, 0.18);
   transition: box-shadow var(--dur) var(--ease);
 }
 .app-media .mp-seekbar:hover::-webkit-slider-thumb {
-  box-shadow: inset 0 0 0 3px var(--acrylic-solid), inset 0 0 0 10px var(--accent), 0 1px 3px rgba(0, 0, 0, 0.18);
+  box-shadow:
+    inset 0 0 0 3px var(--acrylic-solid),
+    inset 0 0 0 10px var(--accent),
+    0 1px 3px rgba(0, 0, 0, 0.18);
 }
 .app-media .mp-seekbar:active::-webkit-slider-thumb {
-  box-shadow: inset 0 0 0 5px var(--acrylic-solid), inset 0 0 0 10px var(--accent), 0 1px 3px rgba(0, 0, 0, 0.18);
+  box-shadow:
+    inset 0 0 0 5px var(--acrylic-solid),
+    inset 0 0 0 10px var(--accent),
+    0 1px 3px rgba(0, 0, 0, 0.18);
 }
 .app-media .mp-seekbar:disabled::-webkit-slider-thumb {
   visibility: hidden;
@@ -1124,7 +1147,7 @@
   color: var(--accent-text);
 }
 .app-media .mp-tb.on::after {
-  content: "";
+  content: '';
   position: absolute;
   left: 50%;
   bottom: 3px;
@@ -1144,7 +1167,9 @@
   color: var(--on-accent);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-  transition: background var(--dur-fast) linear, transform var(--dur) var(--ease);
+  transition:
+    background var(--dur-fast) linear,
+    transform var(--dur) var(--ease);
 }
 .app-media .mp-tb.mp-play:hover {
   background: var(--accent-hover);
@@ -1246,7 +1271,9 @@
 .app-media .mp-stage-bg {
   position: absolute;
   inset: 0;
-  background: radial-gradient(120% 90% at 15% 20%, color-mix(in srgb, var(--np1, #4466ff) 70%, transparent), transparent 70%), radial-gradient(120% 100% at 90% 90%, color-mix(in srgb, var(--np2, #7733aa) 75%, transparent), transparent 70%), #101018;
+  background:
+    radial-gradient(120% 90% at 15% 20%, color-mix(in srgb, var(--np1, #4466ff) 70%, transparent), transparent 70%),
+    radial-gradient(120% 100% at 90% 90%, color-mix(in srgb, var(--np2, #7733aa) 75%, transparent), transparent 70%), #101018;
 }
 .app-media .mp-stage-bg-img {
   position: absolute;
@@ -1261,7 +1288,7 @@
   opacity: 0.95;
 }
 .app-media .mp-stage-bg::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.42) 70%, rgba(0, 0, 0, 0.6));
@@ -1280,7 +1307,9 @@
   width: min(46cqh, 32cqw, 320px);
   aspect-ratio: 1;
   border-radius: var(--radius);
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
   animation: mp-art-in var(--dur-slower) var(--ease);
 }
 .app-media .mp-np-art > .mp-art {
@@ -1415,7 +1444,9 @@
   align-items: center;
   gap: 8px;
   padding: 8px 16px 24px 8px;
-  transition: opacity var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease);
+  transition:
+    opacity var(--dur-slow) var(--ease),
+    transform var(--dur-slow) var(--ease);
 }
 .app-media .mp-stage.video .mp-stage-top {
   background: linear-gradient(rgba(0, 0, 0, 0.55), transparent);
@@ -1569,7 +1600,9 @@
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
   backdrop-filter: blur(12px);
-  transition: background var(--dur-fast) linear, transform var(--dur) var(--ease);
+  transition:
+    background var(--dur-fast) linear,
+    transform var(--dur) var(--ease);
 }
 .app-media .mp-mini-btn:hover {
   background: rgba(255, 255, 255, 0.22);
@@ -1785,7 +1818,11 @@
 }
 
 /* ------------------------------------------------------------------ reduced motion */
-:root[data-animations="off"] .app-media .mp-eq i {
+:root[data-animations='off'] .app-media .mp-eq i {
   animation: none;
   transform: scaleY(0.6);
+}
+.app-media .mp-scroll:focus,
+.app-media .mp-scroll:focus-visible {
+  outline: none;
 }

@@ -18,7 +18,7 @@ export class Transport {
     this.bPrev = B('mp-prev', 'previous', t('transport.previous'), () => app.prev());
     this.bPlay = B('mp-play', 'play', t('transport.play'), () => app.togglePlay());
     this.bNext = B('mp-next', 'next', t('transport.next'), () => app.next());
-    this.bRepeat = B('mp-repeat', 'arrow_repeat_all_off', t('transport.repeatOff'), () => app.cycleRepeat());
+    this.bRepeat = B('mp-repeat', 'arrow_repeat_all_off', t('transport.repeat_off'), () => app.cycleRepeat());
     this.bVol = B('mp-vol', 'speaker_2', t('transport.volume'), (e) => this.toggleVolume(e), { 'aria-haspopup': 'dialog' });
     this.bFull = B('mp-full', 'full_screen_maximize', t('transport.fullscreen'), () => app.toggleFullscreen());
     this.bMini = B('mp-mini', 'picture_in_picture_enter', t('transport.mini'), () => app.toggleMini());
@@ -174,6 +174,7 @@ export class Transport {
     this.bFull.disabled = !has;
     this.setIcon(this.bFull, app.win.fullscreen ? 'full_screen_minimize' : 'full_screen_maximize');
     this.label(this.bFull, app.win.fullscreen ? t('transport.exitFullscreen') : t('transport.fullscreen'));
+    this.bMini.disabled = !has && !app.mini;
     this.setIcon(this.bMini, app.mini ? 'picture_in_picture_exit' : 'picture_in_picture_enter');
     this.label(this.bMini, app.mini ? t('transport.exitMini') : t('transport.mini'));
     this.updateTime();

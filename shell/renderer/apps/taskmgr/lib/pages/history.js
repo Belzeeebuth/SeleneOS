@@ -56,7 +56,7 @@ export class HistoryPage {
     this.table.setColumns([
       { id: 'name', name: true, flex: true, max: 560, width: 280, min: 140, label: () => t('col.name'), cell: (r) => ({ text: r.data.name, icon: r.data.icon }) },
       { id: 'cpuTime', width: 110, min: 70, align: 'end', label: () => t('col.cpuTime'), cell: (r) => fmt.duration(r.data.cpuTime) },
-      { id: 'instances', width: 110, min: 60, align: 'end', label: () => t('col.instances'), cell: (r) => (r.data.instances ? fmt.int(r.data.instances) : t('hist.notRunning')) },
+      { id: 'instances', width: 110, min: 60, align: 'end', label: () => t('col.instances'), fit: () => [t('hist.notRunning')], cell: (r) => (r.data.instances ? fmt.int(r.data.instances) : t('hist.notRunning')) },
       { id: 'mem', width: 110, min: 70, align: 'end', label: () => t('col.mem'), cell: (r) => (r.data.instances ? fmt.mb(r.data.mem) : '') },
     ]);
   }

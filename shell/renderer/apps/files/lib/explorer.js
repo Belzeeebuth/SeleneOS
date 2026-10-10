@@ -291,6 +291,11 @@ export class Explorer {
       if (this.tab?.loc.type === 'thispc') this.refresh({ quiet: true });
     }));
     this.offs.push(shared.events.on('undo', () => this.updateCommands()));
+    this.offs.push(shared.events.on('files-op', (from) => {
+      if (from === this || !['home', 'gallery'].includes(this.tab?.loc.type)) return;
+      clearTimeout(this.opRefreshTimer);
+      this.opRefreshTimer = setTimeout(() => this.refresh({ quiet: true }), 400);
+    }));
     this.offs.push(ctx.shell.on('files-clipboard', () => {
       this.view.paintCut();
       this.updateCommands();
@@ -337,7 +342,21 @@ export class Explorer {
   }
 
   async locFromArgs(args = {}) {
-    const p = args.path || args.file;
+    // Absolute, normalized paths only ("~", "~/x" and relative paths are taken from the home folder).
+    const norm = (v) => {
+      if (typeof v !== 'string' || !v || ['home', 'thispc', 'trash', 'gallery'].includes(v)) return v || null;
+      let x = v === '~' || v.startsWith('~/') ? shared.home + v.slice(1) : v;
+      if (!x.startsWith('/')) x = T.joinPath(shared.home, x);
+      const out = [];
+      for (const part of x.split('/')) {
+        if (!part || part === '.') continue;
+        if (part === '..') out.pop();
+        else out.push(part);
+      }
+      return `/${out.join('/')}`;
+    };
+    const p = norm(args.path || args.file);
+    args = { ...args, select: norm(args.select) };
     let select = args.select ? [args.select] : null;
     if (!p && args.select) return { loc: { type: 'dir', path: T.dirname(args.select) }, select };
     if (!p) return { loc: { type: shared.prefs.startAt === 'thispc' ? 'thispc' : 'home' } };
@@ -364,7 +383,10 @@ export class Explorer {
     });
     if (this.watchId) this.api.invoke('fs:unwatch', this.watchId).catch(() => {});
     this.watchId = null;
+    clearTimeout(this.opRefreshTimer);
+    clearTimeout(this.watchTimer);
     this.view.thumbObserver.disconnect();
+    this.view.galleryVideos?.disconnect();
   }
 
   relabel() {
@@ -882,12 +904,16 @@ export class Explorer {
 
   // Called after operations: refresh this window (selecting new items when they are in view).
   refreshAll(opts) {
-    if (this.closed) return;
+    if (this.closed) return Promise.resolve();
+    // Other Files windows showing a page without a folder watcher (Home's Recent, the Gallery) refresh too.
+    shared.events.emit('files-op', this);
     this.nav.updateTrash();
     const loc = this.tab?.loc;
-    if (opts?.dir && loc?.type === 'dir' && loc.path === opts.dir) this.refresh({ select: opts.select, quiet: true });
-    else this.refresh({ quiet: true });
+    let p;
+    if (opts?.dir && loc?.type === 'dir' && loc.path === opts.dir) p = this.refresh({ select: opts.select, quiet: true });
+    else p = this.refresh({ quiet: true });
     if (opts?.dir) this.nav.refreshPath(opts.dir);
+    return p;
   }
 
   async watch(loc) {
@@ -964,11 +990,12 @@ export class Explorer {
     const c = this.cmd;
     const clip = this.ctx.shell.clipboard.getFiles();
     c.new.disabled = !s.inFolder;
-    c.cut.disabled = !s.canModify;
+    const prot = s.canModify && s.entries.some((e) => T.isProtectedPath(e.path));
+    c.cut.disabled = !s.canModify || prot;
     c.copy.disabled = !s.canModify;
     c.paste.disabled = !s.inFolder || !clip?.paths?.length;
-    c.rename.disabled = !s.canModify;
-    c.del.disabled = !(s.canModify || (s.trash && s.items.length));
+    c.rename.disabled = !s.canModify || prot;
+    c.del.disabled = !((s.canModify && !prot) || (s.trash && s.items.length));
     const custom = s.loc.type === 'home' || s.loc.type === 'thispc';
     c.sort.disabled = custom;
     c.details.classList.toggle('toggled', shared.prefs.pane === 'details');
@@ -1043,7 +1070,8 @@ export class Explorer {
   sortItems() {
     const t = this.t;
     const loc = this.tab.loc;
-    const keys = loc.type === 'trash' ? ['name', 'origin', 'deleted', 'size', 'type', 'mtime'] : loc.type === 'search' ? ['name', 'mtime', 'type', 'size', 'location'] : ['name', 'mtime', 'type', 'size'];
+    const inTrash = loc.type === 'trash' || (loc.type === 'search' && loc.root.type === 'trash');
+    const keys = inTrash ? ['name', 'origin', 'deleted', 'size', 'type', 'mtime'] : loc.type === 'search' ? ['name', 'mtime', 'type', 'size', 'location'] : ['name', 'mtime', 'type', 'size'];
     return [
       ...keys.map((k) => ({ label: t(`cols.${k}`), checked: this.vs.sort === k, action: () => this.setSort(k, this.vs.sort === k ? this.vs.dir : k === 'mtime' || k === 'deleted' || k === 'size' ? -1 : 1) })),
       '-',
@@ -1178,11 +1206,12 @@ export class Explorer {
     const single = entries.length === 1 ? entries[0] : null;
     const missing = entries.some((e) => e.missing);
     const allDirs = entries.every((e) => e.dir);
+    const prot = entries.some((e) => T.isProtectedPath(e.path));
     const iconBar = [
-      { icon: 'cut', label: t('cmd.cut'), disabled: missing, action: () => this.clip('cut') },
+      { icon: 'cut', label: t('cmd.cut'), disabled: missing || prot, action: () => this.clip('cut') },
       { icon: 'copy', label: t('cmd.copy'), disabled: missing, action: () => this.clip('copy') },
-      { icon: 'rename', label: t('cmd.rename'), disabled: !single || missing, action: () => this.rename() },
-      { icon: 'delete', label: t('cmd.delete'), disabled: missing, action: () => this.del(false) },
+      { icon: 'rename', label: t('cmd.rename'), disabled: !single || missing || prot, action: () => this.rename() },
+      { icon: 'delete', label: t('cmd.delete'), disabled: missing || prot, action: () => this.del(false) },
     ];
     const list = [];
     list.push({ label: t('menu.open'), icon: 'open', shortcut: 'Enter', disabled: missing, action: () => this.openEntries(entries) });
@@ -1338,6 +1367,7 @@ export class Explorer {
   clip(mode) {
     const s = this.selectionInfo();
     if (!s.canModify) return;
+    if (mode === 'cut' && s.entries.some((e) => T.isProtectedPath(e.path))) return;
     const paths = s.entries.map((e) => e.path);
     this.ctx.shell.clipboard.setFiles(paths, mode);
     this.view.paintCut();
@@ -1353,6 +1383,11 @@ export class Explorer {
   rename() {
     const s = this.selectionInfo();
     if (!s.canModify || !s.items.length) return;
+    const prot = s.entries.find((e) => T.isProtectedPath(e.path));
+    if (prot) {
+      this.ui.alert(this.t('errors.protectedChange', { name: prot.name }), { title: this.t('appName'), parent: this.win });
+      return;
+    }
     if (s.single) return this.view.beginRename(s.single.key);
     // Several items: rename the focused one inline, the others follow as "name (2)", "name (3)"…
     const focus = s.items.find((i) => i.key === this.view.focusKey) || s.items[0];
@@ -1363,7 +1398,7 @@ export class Explorer {
   }
 
   isProtected(p) {
-    return p === '/' || p === shared.home || shared.drives.some((d) => d.mountpoint === p);
+    return T.isProtectedPath(p);
   }
 
   async del(permanent) {
@@ -1380,29 +1415,37 @@ export class Explorer {
     else await ops.trash(this, s.entries.map((e) => e.path));
   }
 
-  async restoreAll() {
-    const list = await this.api.invoke('fs:trashList').catch(() => []);
-    if (!list.length) return;
-    const ok = await this.ui.confirm(this.t('trash.restoreAllConfirm', { count: list.length }), { title: this.t('trash.restoreAll'), parent: this.win });
-    if (ok) await ops.restore(this, list);
+  restoreAll() {
+    return ops.exclusive(this, 'restoreAll', async () => {
+      const list = await this.api.invoke('fs:trashList').catch(() => []);
+      if (!list.length) return;
+      const ok = await this.ui.confirm(this.t('trash.restoreAllConfirm', { count: list.length }), { title: this.t('trash.restoreAll'), parent: this.win });
+      if (ok) await ops.restore(this, list);
+    });
   }
 
-  async newFolder() {
+  // Ctrl+Shift+N pressed twice (or New > Folder clicked twice) while the first folder is still being
+  // created must not create a second one: the second press is ignored, like Windows.
+  newFolder() {
     const dir = this.currentDir();
     if (!dir) return;
-    const e = await ops.createFolder(this, dir);
-    if (!e) return;
-    await this.refresh({ select: [e.path], quiet: true });
-    this.view.beginRename(e.path, { isNew: true });
+    return ops.exclusive(this, 'new', async () => {
+      const e = await ops.createFolder(this, dir);
+      if (!e) return;
+      await this.refresh({ select: [e.path], quiet: true });
+      this.view.beginRename(e.path, { isNew: true });
+    });
   }
 
-  async newFile(kind) {
+  newFile(kind) {
     const dir = this.currentDir();
     if (!dir) return;
-    const e = await ops.createFile(this, dir, kind);
-    if (!e) return;
-    await this.refresh({ select: [e.path], quiet: true });
-    this.view.beginRename(e.path, { isNew: true });
+    return ops.exclusive(this, 'new', async () => {
+      const e = await ops.createFile(this, dir, kind);
+      if (!e) return;
+      await this.refresh({ select: [e.path], quiet: true });
+      this.view.beginRename(e.path, { isNew: true });
+    });
   }
 
   async compress(entries) {
@@ -1493,6 +1536,15 @@ export class Explorer {
     else next.focus();
   }
 
+  // Keyboard-focusable controls of the window, in DOM (= Tab) order.
+  tabStops() {
+    return [...this.win.el.querySelectorAll('button, input, textarea, select, [tabindex]')].filter((el) => {
+      if (el.disabled || el.tabIndex < 0 || el.closest('[hidden], .dialog-layer')) return false;
+      if (el.classList.contains('fx-address') && this.address.editing) return false;
+      return el.getClientRects().length > 0;
+    });
+  }
+
   onKey(e) {
     if (e.defaultPrevented || this.closed) return;
     if (e.target.closest?.('.dialog-layer, .fx-props, .fx-pg')) return;
@@ -1509,6 +1561,14 @@ export class Explorer {
       e.stopPropagation();
     };
     // ---- window-wide
+    // Tab / Shift+Tab cycle inside the window like a Windows app (they used to walk out to the taskbar).
+    if (k === 'Tab' && !ctrl && !alt && !e.metaKey) {
+      const stops = this.tabStops();
+      const i = stops.findIndex((x) => x === document.activeElement || x.contains(document.activeElement));
+      if (stops.length && !shift && i === stops.length - 1) return handled(), stops[0].focus();
+      if (stops.length && shift && i === 0) return handled(), stops[stops.length - 1].focus();
+      return;
+    }
     if (ctrl && !alt && low === 't') return handled(), this.newTab();
     if (ctrl && !alt && low === 'w') return handled(), this.closeTab();
     if (ctrl && !alt && !shift && low === 'n') return handled(), this.ctx.shell.launch('files', { path: this.tab.loc.type === 'dir' ? this.tab.loc.path : this.tab.loc.type === 'search' ? 'home' : this.tab.loc.type });

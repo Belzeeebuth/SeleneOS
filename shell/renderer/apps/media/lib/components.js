@@ -8,7 +8,9 @@ export const ROW_MIME = 'application/x-aurora-media';
 export function artEl(app, { src, key, kind = 'audio', glyph, round = false, wide = false, cls } = {}) {
   const { h, icon } = app;
   const [c1, c2] = artColors(key || src || 'aurora');
-  const el = h('div', { class: ['mp-art', round && 'round', wide && 'wide', cls], style: { '--a1': c1, '--a2': c2 } });
+  const el = h('div', { class: ['mp-art', round && 'round', wide && 'wide', cls] });
+  el.style.setProperty('--a1', c1);
+  el.style.setProperty('--a2', c2);
   const gen = () => {
     el.classList.add('gen');
     el.appendChild(icon(glyph || (kind === 'video' ? 'video' : 'music_note_2'), { filled: true, class: 'mp-art-glyph' }));
@@ -209,8 +211,10 @@ export class SongList {
       const fresh = this.app.lib.get(e.path);
       if (fresh) this.items[i] = fresh;
       const row = this._row(this.items[i], i);
+      const hadFocus = this.rows[i] === document.activeElement;
       this.rows[i].replaceWith(row);
       this.rows[i] = row;
+      if (hadFocus) row.focus({ preventScroll: true });
     });
     this._syncSel();
   }
@@ -284,7 +288,12 @@ export class SongList {
         'aria-label': `${app.titleOf(e)}, ${artist}`,
       },
       lead,
-      h('div', { class: 'c-title' }, h('div', { class: 'ellipsis mp-row-title' }, app.titleOf(e)), h('div', { class: 'ellipsis caption text-2 mp-row-sub' }, [artist, album].filter(Boolean).join(' · '))),
+      h(
+        'div',
+        { class: 'c-title' },
+        h('div', { class: 'ellipsis mp-row-title' }, app.titleOf(e)),
+        h('div', { class: 'ellipsis caption text-2 mp-row-sub' }, [artist, album].filter(Boolean).join(' · ')),
+      ),
       h('div', { class: 'c-artist ellipsis text-2' }, link(artist, !isVideo && app.artistKeyOf(e) != null ? () => app.go({ name: 'artist', arg: app.artistKeyOf(e) }) : null)),
       h('div', { class: 'c-album ellipsis text-2' }, link(album, !isVideo && ctx !== 'album' ? () => app.go({ name: 'album', arg: app.albumKeyOf(e) }) : null)),
       h('div', { class: 'c-genre ellipsis text-2' }, e.genre || ''),

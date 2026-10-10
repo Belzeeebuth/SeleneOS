@@ -11,8 +11,10 @@
   --st-nav-accessibility: #0067c0;
   --st-nav-privacy: #56616f;
   --st-nav-update: #0067c0;
+  --st-selected-hover: rgba(0, 0, 0, 0.06); /* selected nav item under the pointer */
 }
 :root[data-theme="dark"] .app-settings {
+  --st-selected-hover: rgba(255, 255, 255, 0.084);
   --st-nav-system: #4cc2ff;
   --st-nav-bluetooth: #6cb8ff;
   --st-nav-network: #60cdff;
@@ -179,6 +181,14 @@
   flex: none;
   transition: background var(--dur-fast) linear;
 }
+/* (the transparent reset above would otherwise also hide ui.css's hover / selected fills) */
+.app-settings .st-nav-item:hover,
+.app-settings .st-nav-item.selected {
+  background: var(--subtle-hover);
+}
+.app-settings .st-nav-item.selected:hover {
+  background: var(--st-selected-hover);
+}
 .app-settings .st-nav-item:active {
   background: var(--subtle-pressed);
   color: var(--text-2);
@@ -230,7 +240,7 @@
   color: var(--text-2);
   transition: color var(--dur-fast) linear;
 }
-button.st-crumb:hover {
+.app-settings button.st-crumb:hover {
   color: var(--text);
 }
 .app-settings .st-crumb.current {
@@ -250,8 +260,14 @@ button.st-crumb:hover {
   padding: 0 28px 36px 20px;
   scrollbar-gutter: stable;
 }
+/* the page area takes the keyboard focus after a navigation (main.js): no ring around everything */
+.app-settings .st-scroll:focus,
+.app-settings .st-scroll:focus-visible {
+  outline: none;
+}
 .app-settings .st-content-wrap {
   max-width: 1000px;
+  container-type: inline-size;
 }
 .app-settings .st-errors:empty {
   display: none;
@@ -550,6 +566,21 @@ button.st-crumb:hover {
   max-width: 100%;
   color: var(--text-2);
 }
+/* Accessibility > Text size: the slider shrinks before the Apply button gets pushed out (narrow windows) */
+.app-settings .st-textsize-ctl {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.app-settings .st-textsize-ctl .st-textsize-slider {
+  flex: 0 1 360px;
+  width: auto;
+  min-width: 150px;
+}
+.app-settings .st-textsize-ctl .btn {
+  flex: none;
+}
 .app-settings .st-slider .slider {
   flex: 1;
   min-width: 80px;
@@ -675,7 +706,7 @@ button.st-crumb:hover {
   font: inherit;
   transition: background var(--dur-fast) linear;
 }
-button.st-qcard:hover {
+.app-settings button.st-qcard:hover {
   background: var(--card-hover);
 }
 .app-settings .st-qcard .icon {
@@ -1129,7 +1160,9 @@ button.st-qcard:hover {
 }
 .app-settings .st-swatches {
   display: grid;
-  grid-template-columns: repeat(9, 40px);
+  /* nine per row like Windows, fewer when the window is narrow (never clipped) */
+  grid-template-columns: repeat(auto-fill, 40px);
+  max-width: calc(9 * 40px + 8 * 6px);
   gap: 6px;
   padding: 4px 0 8px;
 }
@@ -1238,10 +1271,16 @@ button.st-qcard:hover {
 }
 
 /* ---------- Privacy ---------- */
+/* four cards: one row of four when there is room, otherwise two rows of two (never 3 + 1) */
 .app-settings .st-sec-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+@container (min-width: 760px) {
+  .app-settings .st-sec-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 .app-settings .st-sec-card {
   display: flex;
@@ -1257,7 +1296,7 @@ button.st-qcard:hover {
   font: inherit;
   transition: background var(--dur-fast) linear;
 }
-button.st-sec-card:hover {
+.app-settings button.st-sec-card:hover {
   background: var(--card-hover);
 }
 .app-settings .st-sec-card .st-sec-icon {
@@ -1431,4 +1470,31 @@ button.st-sec-card:hover {
 }
 .app-settings .st-net-hero .st-hero-text {
   min-width: 220px;
+}
+
+/* ---------- narrow page (small window or big scale): controls go under their label ----------
+   Like a WinUI SettingsCard below its wrap threshold. .st-content-wrap is the size container. */
+@container (max-width: 600px) {
+  .app-settings .st-row {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .app-settings .st-row > .st-row-text {
+    flex: 1 1 180px;
+  }
+  .app-settings .st-row > .st-row-right {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+  .app-settings .st-row-right .st-combo {
+    min-width: 0 !important; /* kit.picker / combo widths are inline */
+    max-width: 100%;
+  }
+  .app-settings .st-level {
+    width: 140px;
+  }
+  .app-settings .st-exp-body > .st-sub-pad,
+  .app-settings .st-sub {
+    padding-left: 16px;
+  }
 }

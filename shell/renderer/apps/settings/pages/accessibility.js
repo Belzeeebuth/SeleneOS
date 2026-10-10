@@ -35,7 +35,8 @@ async function textSize(pc) {
   }, { primary: true, disabled: true });
   const slider = kit.slider({
     min: 100,
-    max: 200,
+    // never so big that the desktop becomes unusable on this screen (see pc.maxScale)
+    max: Math.max(cur, Math.min(200, pc.maxScale())),
     step: 5,
     value: cur,
     label: t('a11y.textSize'),
@@ -47,7 +48,7 @@ async function textSize(pc) {
       apply.disabled = v === (Number(settings.get('scale')) || 100);
     },
   });
-  slider.style.width = '360px';
+  slider.classList.add('st-textsize-slider');
   pc.onDispose(
     settings.on('scale', (v) => {
       pending = Number(v) || 100;
@@ -60,7 +61,7 @@ async function textSize(pc) {
     'div',
     null,
     h('div', { class: 'st-row st-text-preview', style: { flexDirection: 'column', alignItems: 'stretch', gap: '8px' } }, h('div', { class: 'caption text-2' }, t('a11y.preview')), sample),
-    kit.group(null, kit.row({ icon: 'text_font_size', title: t('a11y.textSize'), desc: t('a11y.textSizeDesc'), control: h('div', { class: 'row', style: { gap: '12px' } }, slider, apply) })),
+    kit.group(null, kit.row({ icon: 'text_font_size', title: t('a11y.textSize'), desc: t('a11y.textSizeDesc'), control: h('div', { class: 'st-textsize-ctl' }, slider, apply) })),
   );
 }
 

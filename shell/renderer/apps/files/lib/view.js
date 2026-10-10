@@ -139,7 +139,8 @@ export class ContentView {
     if (mode === 'thispc') return this.renderThisPC();
     if (this.loc.type === 'gallery' && ['xl', 'large', 'medium', 'small'].includes(mode)) return this.renderGallery();
     const entries = this.data.entries || [];
-    let items = entries.map((e) => ({ key: e.path, entry: e, kind: this.loc.type === 'trash' ? 'trash' : 'file', type: T.typeName(e) }));
+    const kind = this.inTrash() ? 'trash' : 'file';
+    let items = entries.map((e) => ({ key: e.path, entry: e, kind, type: T.typeName(e) }));
     this.sortItems(items);
     if (mode === 'details') this.renderDetailsHeader();
     if (!items.length) {
@@ -260,7 +261,7 @@ export class ContentView {
         id = it.type;
         label = it.type;
       } else if (g === 'mtime') {
-        id = T.dateBucket(this.loc.type === 'trash' && this.vs.sort === 'deleted' ? it.entry.deletedAt : it.entry.mtime);
+        id = T.dateBucket(this.inTrash() && this.vs.sort === 'deleted' ? it.entry.deletedAt : it.entry.mtime);
         label = t(`groups.${id}`);
       } else if (g === 'size') {
         id = T.sizeBucket(it.entry);
@@ -285,8 +286,14 @@ export class ContentView {
   }
 
   // ---------------------------------------------------------------- details columns
+  // The Recycle Bin, or search results inside it (their items are trash entries, not plain files).
+  inTrash() {
+    return this.loc?.type === 'trash' || (this.loc?.type === 'search' && this.loc.root?.type === 'trash');
+  }
+
   colSetName() {
-    return this.loc.type === 'search' ? 'search' : this.loc.type === 'trash' ? 'trash' : 'dir';
+    if (this.inTrash()) return 'trash';
+    return this.loc.type === 'search' ? 'search' : 'dir';
   }
 
   columns() {
@@ -438,7 +445,7 @@ export class ContentView {
     const { h, api } = this.ex;
     const box = h('span', { class: 'fx-ic' });
     let img;
-    if (thumbs && size >= 32 && T.isImage(entry) && !entry.deletedAt) {
+    if (thumbs && size >= 32 && T.isImage(entry) && T.isRegular(entry) && !entry.deletedAt) {
       img = h('img', { class: 'fx-photo', src: api.mediaUrl(entry.path), loading: 'lazy', decoding: 'async', alt: '', draggable: false });
       img.addEventListener('error', () => {
         img.className = '';
@@ -446,7 +453,7 @@ export class ContentView {
       }, { once: true });
     } else {
       img = h('img', { src: T.iconFor(entry), alt: '', draggable: false, decoding: 'async' });
-      if (thumbs && size >= 48 && T.isVideo(entry) && !entry.deletedAt) {
+      if (thumbs && size >= 48 && T.isVideo(entry) && T.isRegular(entry) && !entry.deletedAt) {
         box.dataset.video = entry.path;
         this.thumbObserver.observe(box);
       }
@@ -511,7 +518,8 @@ export class ContentView {
     const lines = [`${t('props.type')}: ${it.type}`];
     if (!e.dir) lines.push(`${t('props.size')}: ${T.humanSize(e.size)}`);
     if (e.mtime) lines.push(`${t('cols.mtime')}: ${T.formatDate(e.mtime)}`);
-    if (this.loc?.type === 'search') lines.push(`${t('cols.location')}: ${T.dirname(e.path)}`);
+    if (this.inTrash()) lines.push(`${t('cols.origin')}: ${T.dirname(e.originalPath || '')}`);
+    else if (this.loc?.type === 'search') lines.push(`${t('cols.location')}: ${T.dirname(e.path)}`);
     return lines.join('\n');
   }
 
@@ -652,7 +660,11 @@ export class ContentView {
             }
           }, { root: this.scroller, rootMargin: '200px' });
           this.galleryVideos.observe(el);
-        } else img.src = api.mediaUrl(e.path);
+        } else if (T.isRegular(e)) img.src = api.mediaUrl(e.path);
+        else {
+          img.src = T.iconFor(e);
+          img.classList.add('fallback');
+        }
         it.el = el;
         body.append(el);
       }
@@ -873,7 +885,7 @@ export class ContentView {
       return it.entry.path;
     }
     if (this.loc?.type === 'dir') return this.loc.path;
-    if (this.loc?.type === 'trash') return TRASH_TARGET;
+    if (this.inTrash()) return TRASH_TARGET;
     return null;
   }
 
@@ -1262,6 +1274,7 @@ export class ContentView {
   beginRename(key, { isNew = false, batch = null } = {}) {
     const it = this.byKey.get(key);
     if (!it || it.kind !== 'file' || !it.entry || it.entry.missing) return false;
+    if (T.isProtectedPath(it.entry.path) || batch?.some((e) => T.isProtectedPath(e.path))) return false;
     if (this.renaming) this.endRename();
     const { h } = this.ex;
     this.setSel([key], key);

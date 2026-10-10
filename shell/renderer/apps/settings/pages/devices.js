@@ -30,9 +30,12 @@ async function mouse(pc) {
   const { h, t, kit, api } = pc;
   const st = await pc.tryInvoke('input:mouse');
   if (!st?.available) return h('div', null, kit.infobar({ kind: 'info', title: t('dev.noMouseTitle'), message: t('dev.noMouse') }));
-  // libinput speed -1..1 shown like Windows: 1..20, 10 = default
-  const toUi = (s) => Math.round(((Number(s) || 0) + 1) * 9.5 + 0.5);
-  const fromUi = (v) => Math.round(((v - 0.5) / 9.5 - 1) * 100) / 100;
+  // libinput speed -1..1 shown like Windows: 1..20, 10 = default (0); 1 = -1 and 20 = +1 exactly.
+  const toUi = (s) => {
+    const x = Math.max(-1, Math.min(1, Number(s) || 0));
+    return Math.round(x < 0 ? 10 + x * 9 : 10 + x * 10);
+  };
+  const fromUi = (v) => Math.round((v < 10 ? (v - 10) / 9 : (v - 10) / 10) * 100) / 100;
   let tmr = null;
   return h(
     'div',

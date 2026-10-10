@@ -230,7 +230,11 @@ async function display(pc) {
     const pct = (v) => (pc.lang === 'fr' ? `${v} %` : `${v}%`);
     const steps = [100, 125, 150, 175];
     if (!steps.includes(scale)) steps.push(scale);
-    const scaleOpts = steps.sort((a, b) => a - b).map((v) => ({ value: v, label: v === 100 ? `${pct(v)} (${t('system.recommended')})` : [125, 150, 175].includes(v) ? pct(v) : `${pct(v)} (${t('system.custom')})` }));
+    // Like Windows, scales that would leave too small a desktop on this screen are not offered.
+    const maxScale = pc.maxScale();
+    const scaleOpts = steps
+      .sort((a, b) => a - b)
+      .map((v) => ({ value: v, disabled: v > maxScale && v !== scale, label: v === 100 ? `${pct(v)} (${t('system.recommended')})` : [125, 150, 175].includes(v) ? pct(v) : `${pct(v)} (${t('system.custom')})` }));
     const sl = [
       kit.row({
         icon: 'zoom_in',
@@ -340,8 +344,13 @@ async function sound(pc) {
   }
   let dragging = false;
   let micStream = null;
+  let micPending = false;
+  let disposed = false;
   let raf = 0;
-  pc.onDispose(() => stopMic());
+  pc.onDispose(() => {
+    disposed = true;
+    stopMic();
+  });
 
   const deviceList = (list, kind) => {
     const name = `st-${kind}-${Math.random().toString(36).slice(2, 7)}`;
@@ -425,12 +434,23 @@ async function sound(pc) {
   const micBtn = kit.button(t('sound.startTest'), () => (micStream ? stopMic() : startMic()));
   const micMsg = h('span', { class: 'caption text-2' });
   async function startMic() {
+    if (micPending) return; // a second click while the microphone is being opened
+    micPending = true;
+    let stream;
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
       micMsg.textContent = t('sound.micUnavailable');
       return;
+    } finally {
+      micPending = false;
     }
+    // The page was left while the microphone was opening: release it right away.
+    if (disposed) {
+      stream.getTracks().forEach((tr) => tr.stop());
+      return;
+    }
+    micStream = stream;
     micMsg.textContent = t('sound.speakNow');
     micBtn.textContent = t('sound.stopTest');
     const ac = new AudioContext();

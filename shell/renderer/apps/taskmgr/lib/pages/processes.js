@@ -76,7 +76,7 @@ export class ProcessesPage {
     const na = (r) => (r.data.inShell ? { text: '—', heat: null, cls: 'na', tip: t('tip.inShell') } : { text: '', heat: null });
     return {
       name: { id: 'name', name: true, flex: true, max: 560, width: 220, min: 140, label: () => t('col.name'), cell: (r) => ({ text: r.data.name, icon: r.data.icon }) },
-      status: { id: 'status', width: 116, min: 60, label: () => t('col.status'), cell: (r) => r.data.status || '' },
+      status: { id: 'status', width: 116, min: 60, label: () => t('col.status'), fit: () => [t('status.efficiency'), t('status.suspended')], fitIcon: true, cell: (r) => r.data.status || '' },
       pid: { id: 'pid', width: 80, min: 50, align: 'end', label: () => t('col.pid'), cell: (r) => (r.data.pid ? String(r.data.pid) : '') },
       procname: { id: 'procname', width: 140, min: 70, label: () => t('col.procname'), cell: (r) => r.data.procname || '' },
       user: { id: 'user', width: 110, min: 60, label: () => t('col.user'), cell: (r) => r.data.user || '' },

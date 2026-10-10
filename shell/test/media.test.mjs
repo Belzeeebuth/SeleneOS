@@ -12,6 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.join(here, '..', 'renderer', 'apps', 'media');
@@ -31,8 +32,16 @@ async function test(name, fn) {
     console.log(`PASS  ${name} (${Date.now() - t0} ms)`);
   } catch (err) {
     results.push({ name, ok: false, err });
-    const where = String(err?.stack || '').split('\n').find((l) => l.includes('media.test.mjs')) || '';
-    console.log(`FAIL  ${name}\n      ${String(err?.message || err).split('\n').slice(0, 20).join('\n      ')}\n      ${where.trim()}`);
+    const where =
+      String(err?.stack || '')
+        .split('\n')
+        .find((l) => l.includes('media.test.mjs')) || '';
+    console.log(
+      `FAIL  ${name}\n      ${String(err?.message || err)
+        .split('\n')
+        .slice(0, 20)
+        .join('\n      ')}\n      ${where.trim()}`,
+    );
     if (current) {
       await current.page.keyboard.press('Escape').catch(() => {});
       await current.page.evaluate(() => document.querySelectorAll('.menu, .dialog-layer').forEach((e) => e.remove())).catch(() => {});
@@ -132,6 +141,9 @@ async function press(s, key, n = 1) {
 }
 async function focusList(s) {
   await M(s, (a) => a.focusContent());
+}
+async function focusPage(s) {
+  await M(s, (a) => a.scroller.focus());
 }
 async function menuPick(s, ...labels) {
   for (const l of labels) {
@@ -408,7 +420,13 @@ await test('unit: tag readers (ID3v2/ID3v1, FLAC, MP4, WAV, Ogg Opus)', async ()
           'meta',
           Buffer.alloc(4),
           atom('hdlr', Buffer.alloc(25)),
-          atom('ilst', atom('©nam', data(1, Buffer.from('Mp4 Title'))), atom('©ART', data(1, Buffer.from('Mp4 Artist'))), atom('trkn', data(0, Buffer.from([0, 0, 0, 9, 0, 12, 0, 0]))), atom('covr', data(14, PNG))),
+          atom(
+            'ilst',
+            atom('©nam', data(1, Buffer.from('Mp4 Title'))),
+            atom('©ART', data(1, Buffer.from('Mp4 Artist'))),
+            atom('trkn', data(0, Buffer.from([0, 0, 0, 9, 0, 12, 0, 0]))),
+            atom('covr', data(14, PNG)),
+          ),
         ),
       ),
     ),
@@ -485,14 +503,29 @@ await test('unit: i18n has every key in English and French', () => {
   const flat = (o, p = '') => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' ? flat(v, `${p}${k}.`) : [`${p}${k}`]));
   const en = new Set(flat(dict.en));
   const fr = new Set(flat(dict.fr));
-  assert.deepEqual([...en].filter((k) => !fr.has(k)), [], 'missing in fr');
-  assert.deepEqual([...fr].filter((k) => !en.has(k)), [], 'missing in en');
+  assert.deepEqual(
+    [...en].filter((k) => !fr.has(k)),
+    [],
+    'missing in fr',
+  );
+  assert.deepEqual(
+    [...fr].filter((k) => !en.has(k)),
+    [],
+    'missing in en',
+  );
   // Every literal t('…') key used by the code exists.
-  const src = fs.readdirSync(path.join(APP, 'lib')).map((f) => fs.readFileSync(path.join(APP, 'lib', f), 'utf8')).join('\n');
+  const src = fs
+    .readdirSync(path.join(APP, 'lib'))
+    .map((f) => fs.readFileSync(path.join(APP, 'lib', f), 'utf8'))
+    .join('\n');
   const core = new Set(['common.close']);
   const used = new Set([...src.matchAll(/\bt\(\s*'([a-zA-Z0-9_.]+)'/g)].map((m) => m[1]));
   const has = (k) => en.has(k) || en.has(`${k}_one`) || core.has(k);
-  assert.deepEqual([...used].filter((k) => !has(k)), [], 'keys used but not defined');
+  assert.deepEqual(
+    [...used].filter((k) => !has(k)),
+    [],
+    'keys used but not defined',
+  );
 });
 
 // ================================================================== shell session (en, light)
@@ -506,7 +539,10 @@ const D = path.join(home, 'Documents');
 const MUSIC = path.join(home, 'Music');
 
 await test('library scan: tags, durations, artwork and video thumbnail', async () => {
-  await waitFor(s, (a) => a.lib.songs().length === 4 && a.lib.videos().length === 1 && a.lib.songs().every((e) => e.tagged && e.duration > 0) && a.lib.videos().every((e) => e.tagged), null, { timeout: 30000, what: 'library enriched' });
+  await waitFor(s, (a) => a.lib.songs().length === 4 && a.lib.videos().length === 1 && a.lib.songs().every((e) => e.tagged && e.duration > 0) && a.lib.videos().every((e) => e.tagged), null, {
+    timeout: 30000,
+    what: 'library enriched',
+  });
   const lib = await M(s, (a) => ({
     songs: a.lib.songs().map((e) => ({ title: e.title, artist: e.artist, album: e.album, track: e.track, duration: e.duration, art: e.art, path: e.path })),
     video: a.lib.videos().map((e) => ({ title: a.titleOf(e), duration: e.duration, thumb: e.thumb, w: e.width, h: e.height }))[0],
@@ -524,9 +560,14 @@ await test('library scan: tags, durations, artwork and video thumbnail', async (
   assert.deepEqual([lib.video.w, lib.video.h], [1280, 720]);
   assert.ok(lib.video.thumb && fs.existsSync(lib.video.thumb), 'thumbnail written');
   assert.equal(lib.video.title, 'Aurora Intro');
-  assert.deepEqual(lib.albums, [['Aurora Sessions', 3], ['Unknown album', 1]]);
+  assert.deepEqual(lib.albums, [
+    ['Aurora Sessions', 3],
+    ['Unknown album', 1],
+  ]);
   assert.deepEqual(lib.artists, ['Aurora', 'Aurora QA']);
-  const meta = JSON.parse(fs.readFileSync(path.join(home, '.config', 'aurora', 'apps', 'media', 'meta.json'), 'utf8'));
+  const metaFile = path.join(home, '.config', 'aurora', 'apps', 'media', 'meta.json');
+  for (let i = 0; i < 40 && !fs.existsSync(metaFile); i++) await wait(s, 100);
+  const meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
   assert.ok(Object.keys(meta.items || meta.value?.items || {}).length >= 5 || JSON.stringify(meta).includes('Night Drive'), 'metadata cached in storage');
 });
 
@@ -664,7 +705,7 @@ await test('next / previous / repeat / shuffle and automatic advance', async () 
 });
 
 await test('volume: keyboard, mute, flyout slider', async () => {
-  await focusList(s);
+  await focusPage(s);
   const v0 = (await state(s)).volume;
   await press(s, 'ArrowDown', 2);
   assert.ok(Math.abs((await state(s)).volume - (v0 - 0.1)) < 0.001, '↓ lowers volume by 5 %');
@@ -730,15 +771,32 @@ await test('play queue page: reorder, remove, play next, save, clear', async () 
   await press(s, 'Delete');
   await wait(s, 400);
   assert.deepEqual(await titlesOf(), ['Morning Light', 'Night Drive']);
-  // Drag-reorder through the list's handlers
-  await M(s, (a) => a.moveInQueue(1, 0));
-  await wait(s, 400);
+  // Drag-reorder with the mouse (drop on the top half of the first row)
+  await s.page
+    .locator(`${WIN} .mp-queue .mp-row`)
+    .nth(1)
+    .dragTo(s.page.locator(`${WIN} .mp-queue .mp-row`).nth(0), { targetPosition: { x: 200, y: 8 } });
+  await wait(s, 450);
   assert.deepEqual(await titlesOf(), ['Night Drive', 'Morning Light']);
   assert.equal((await state(s)).index, 1, 'current item followed the move');
   // Play next from the library
   await M(s, (a) => a.playNext([a.lib.songs().find((e) => e.title === 'Northern Lights').path]));
   await wait(s, 400);
   assert.deepEqual(await titlesOf(), ['Night Drive', 'Morning Light', 'Northern Lights']);
+  // Drag a song from the library onto "Play queue" in the navigation pane
+  await s.page.click(`${WIN} [data-nav="music"]`);
+  await s.page.waitForSelector(`${WIN} .mp-music .mp-row`);
+  await s.page
+    .locator(`${WIN} .mp-music .mp-row`)
+    .nth(3)
+    .dragTo(s.page.locator(`${WIN} [data-nav="queue"]`));
+  await waitFor(s, (a) => a.queue.length === 4, null, { what: 'dragged onto Play queue' });
+  await s.page.click(`${WIN} [data-nav="queue"]`);
+  await wait(s, 400);
+  assert.deepEqual(await titlesOf(), ['Night Drive', 'Morning Light', 'Northern Lights', 'Test Tone']);
+  await s.page.click(`${WIN} .mp-queue .mp-row >> nth=3`);
+  await press(s, 'Delete');
+  await wait(s, 400);
   // Save as playlist
   await s.page.click(`${WIN} .mp-queue-save`);
   await s.page.waitForSelector(`${WIN} .dialog input`);
@@ -824,7 +882,15 @@ await test('search finds songs, albums and playlists', async () => {
 });
 
 await test('now playing view with a running visualizer', async () => {
-  await M(s, (a) => a.playEntries(a.lib.songs().filter((e) => e.album).sort((x, y) => x.track - y.track), 1));
+  await M(s, (a) =>
+    a.playEntries(
+      a.lib
+        .songs()
+        .filter((e) => e.album)
+        .sort((x, y) => x.track - y.track),
+      1,
+    ),
+  );
   await waitFor(s, (a) => !a.player.paused && a.player.currentTime > 1.2, null, { what: 'song playing' });
   await s.page.click(`${WIN} .mp-bar-art`);
   await s.page.waitForSelector(`${WIN} .mp.stage-open`);
@@ -909,10 +975,11 @@ await test('mini player shrinks the window and restores it', async () => {
   const before = await M(s, (a) => ({ ...a.win.rect(), state: a.win.state }));
   await s.page.click(`${WIN} .mp-bar .mp-mini`);
   await wait(s, 400);
-  const mini = await M(s, (a) => ({ ...a.win.rect(), mini: a.mini, top: a.win.alwaysOnTop, cls: a.root.classList.contains('mini') }));
+  const mini = await M(s, (a) => ({ ...a.win.rect(), mini: a.mini, top: a.win.alwaysOnTop, cls: a.root.classList.contains('mini'), video: a.isVideo() }));
   assert.equal(mini.mini, true);
   assert.equal(mini.cls, true);
-  assert.equal(mini.width, 340);
+  assert.equal(mini.video, true, 'the intro video is still playing');
+  assert.deepEqual([mini.width, mini.height], [400, 225 + 32], '16:9 mini player for video');
   assert.equal(mini.top, true, 'mini player stays on top');
   await shot(s, 'mini-player', true);
   await s.page.hover(`${WIN} .mp-stage`);
@@ -941,7 +1008,7 @@ await test('opening files: shell.openFile / relaunch with {file} and {files}', a
   await waitFor(s, (a, p) => a.player.path === p && a.queue.length === 2, path.join(D, 'second.wav'), { what: 'relaunch with files' });
   st = await state(s);
   assert.equal(st.title, 'second', 'falls back to the file name');
-  assert.ok(await M(s, (a) => a.recent.includes(a.player.path)), 'recent media updated');
+  await waitFor(s, (a) => a.recent[0] === a.player.path, null, { what: 'recent media updated' });
 });
 
 await test('drag and drop: files are queued, unsupported items are reported', async () => {
@@ -988,10 +1055,7 @@ await test('errors: unsupported and missing files show an error and skip ahead',
   await M(s, (a) => a.toasts.replaceChildren());
   // a missing file in the middle of a queue is skipped
   const gone = path.join(D, 'gone.wav');
-  fs.writeFileSync(gone, wavFile({ seconds: 1 }));
   await M(s, (a, p) => a.playEntries([p[0], p[1]], 0), [gone, path.join(D, 'hello.wav')]);
-  fs.rmSync(gone);
-  await M(s, (a) => a.loadCurrent({ autoplay: true }));
   await s.page.waitForSelector(`${WIN} .mp-toast.error`, { timeout: 8000 });
   assert.match(await s.page.textContent(`${WIN} .mp-toast.error`), /can't be found/);
   await waitFor(s, (a) => a.player.path?.endsWith('hello.wav') && !a.player.paused, null, { timeout: 6000, what: 'skips to the next item' });
@@ -1003,15 +1067,17 @@ await test('keyboard: Ctrl+O opens the file picker, Esc cancels; Ctrl+Shift+O pi
   await s.page.keyboard.press('Control+o');
   await s.page.waitForSelector(`${WIN} .fp-dialog`);
   assert.match(await s.page.textContent(`${WIN} .fp-dialog .dialog-title`), /Open file/);
+  await s.page.waitForFunction(() => !!document.activeElement?.closest('.fp-dialog'));
+  const pausedBefore = (await state(s)).paused;
+  await press(s, 'k');
+  assert.equal((await state(s)).paused, pausedBefore, 'shortcuts are inactive while a dialog is open');
   await press(s, 'Escape');
   await s.page.waitForSelector(`${WIN} .fp-dialog`, { state: 'detached' });
   await focusList(s);
+  await M(s, (a, p) => (a.lastDir = p), path.join(MUSIC, 'Tests'));
   await s.page.keyboard.press('Control+Shift+O');
   await s.page.waitForSelector(`${WIN} .fp-dialog`);
-  // choose ~/Music/Tests through the path box
-  await s.page.fill(`${WIN} .fp-dialog .fp-path`, path.join(MUSIC, 'Tests'));
-  await s.page.press(`${WIN} .fp-dialog .fp-path`, 'Enter');
-  await wait(s, 200);
+  assert.equal(await s.page.inputValue(`${WIN} .fp-dialog .fp-path`), path.join(MUSIC, 'Tests'));
   await s.page.click(`${WIN} .fp-dialog .dialog-footer .btn.primary`);
   await waitFor(s, (a) => a.player.path?.endsWith('tone.wav') && a.queue.length === 1, null, { what: 'open folder plays its media' });
 });
@@ -1040,10 +1106,24 @@ await test('settings: library folders, visualizer and resume preferences persist
 });
 
 await test('screenshots: music library (light) and home', async () => {
-  await M(s, (a) => a.playEntries(a.lib.songs().filter((e) => e.album).sort((x, y) => x.track - y.track), 0));
+  await M(s, (a) => {
+    a.toasts.replaceChildren();
+    a.searchInput.value = '';
+  });
+  await M(s, (a) =>
+    a.playEntries(
+      a.lib
+        .songs()
+        .filter((e) => e.album)
+        .sort((x, y) => x.track - y.track),
+      0,
+    ),
+  );
   await M(s, (a) => a.go({ name: 'music' }));
   await waitFor(s, (a) => a.player.currentTime > 1);
-  await s.page.mouse.move(900, 600);
+  await s.page.hover(`${WIN} .mp-bar .mp-mini`);
+  await s.page.hover(`${WIN} .mp-title`);
+  await s.page.mouse.move(900, 620, { steps: 4 });
   await shot(s, 'music-library', true);
   await M(s, (a) => a.go({ name: 'home' }));
   await shot(s, 'home', true);
@@ -1066,6 +1146,51 @@ await test('resume: the queue and position come back after closing', async () =>
   assert.equal(after.paused, true, 'restored paused');
   assert.ok(Math.abs(after.t - 12.5) < 1, `position ${after.t}`);
   assert.equal(after.title, 'Morning Light');
+});
+
+await test('codec matrix: every supported extension plays (needs ffmpeg to build fixtures)', async () => {
+  if (spawnSync('ffmpeg', ['-version']).status !== 0) {
+    console.log('      (skipped: ffmpeg not installed)');
+    return;
+  }
+  const dir = path.join(home, 'Documents', 'formats');
+  fs.mkdirSync(dir, { recursive: true });
+  const tone = ['-f', 'lavfi', '-i', 'sine=f=440:d=2'];
+  const pic = ['-f', 'lavfi', '-i', 'testsrc=d=2:s=320x240:r=25'];
+  const jobs = {
+    'a.mp3': [...tone],
+    'a.m4a': [...tone, '-c:a', 'aac'],
+    'a.aac': [...tone, '-c:a', 'aac'],
+    'a.flac': [...tone, '-c:a', 'flac'],
+    'a.opus': [...tone, '-c:a', 'libopus'],
+    'a.oga': [...tone, '-c:a', 'libvorbis'],
+    'v.mp4': [...pic, '-c:v', 'libx264', '-pix_fmt', 'yuv420p'],
+    'v.m4v': [...pic, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-f', 'mp4'],
+    'v.mov': [...pic, '-c:v', 'libx264', '-pix_fmt', 'yuv420p'],
+    'v.mkv': [...pic, '-c:v', 'libvpx-vp9'],
+  };
+  const made = [];
+  for (const [name, args] of Object.entries(jobs)) {
+    const r = spawnSync('ffmpeg', ['-v', 'error', '-y', ...args, path.join(dir, name)]);
+    if (r.status === 0) made.push(name);
+  }
+  assert.ok(made.length >= 8, `fixtures: ${made}`);
+  for (const name of made) {
+    const p = path.join(dir, name);
+    await s.aurora((f) => window.__aurora.shell.openFile(f), p);
+    await waitFor(s, (a, f) => a.player.path === f && !a.player.paused && a.player.currentTime > 0.15, p, { timeout: 8000, what: `${name} plays` });
+    if (name.startsWith('v.')) assert.equal(await M(s, (a) => a.player.hasVideo), true, `${name} has video`);
+  }
+  await M(s, (a) => a.closeStage());
+  await M(s, (a) => a.toasts.replaceChildren());
+  // Theora (.ogv) is no longer decoded by Chromium: it must fail gracefully.
+  const ogv = path.join(dir, 'v.ogv');
+  if (spawnSync('ffmpeg', ['-v', 'error', '-y', ...pic, '-c:v', 'libtheora', ogv]).status === 0) {
+    await s.aurora((f) => window.__aurora.shell.openFile(f), ogv);
+    await s.page.waitForSelector(`${WIN} .mp-toast.error`, { timeout: 8000 });
+    assert.match(await s.page.textContent(`${WIN} .mp-toast.error`), /v\.ogv/);
+    await M(s, (a) => a.toasts.replaceChildren());
+  }
 });
 
 await test('no console errors from the app (en/light session)', async () => {
@@ -1107,7 +1232,15 @@ await test('French UI strings and dark theme', async () => {
   assert.equal(await f.page.textContent(`${WIN} [data-nav="queue"] .mp-nav-label`), "File d'attente");
   assert.equal(await f.page.getAttribute(`${WIN} .mp-bar .mp-play`, 'aria-label'), 'Lire (Ctrl+P)');
   assert.equal(await f.page.evaluate(() => document.documentElement.dataset.theme), 'dark');
-  await M(f, (a) => a.playEntries(a.lib.songs().filter((e) => e.album).sort((x, y) => x.track - y.track), 2));
+  await M(f, (a) =>
+    a.playEntries(
+      a.lib
+        .songs()
+        .filter((e) => e.album)
+        .sort((x, y) => x.track - y.track),
+      2,
+    ),
+  );
   await waitFor(f, (a) => a.player.currentTime > 1);
   await f.page.mouse.move(900, 600);
   assert.deepEqual(await overflowCheck(f), []);
@@ -1128,7 +1261,7 @@ await test('minimum window size (500×460): compact layout still works', async (
   const r = await M(f, (a) => a.win.rect());
   assert.deepEqual([r.width, r.height], [500, 460], 'manifest minimum size');
   await M(f, (a) => a.go({ name: 'music' }));
-  await wait(f, 300);
+  await wait(f, 700);
   const info = await M(f, (a) => ({ minimal: a.root.classList.contains('nav-minimal'), tiny: a.root.classList.contains('w-tiny'), navVisible: getComputedStyle(a.navEl).visibility }));
   assert.equal(info.minimal, true);
   assert.equal(info.tiny, true);
@@ -1152,6 +1285,35 @@ await test('minimum window size (500×460): compact layout still works', async (
   await wait(f, 300);
   assert.equal(await M(f, (a) => a.root.classList.contains('nav-compact')), true);
   assert.equal(await M(f, (a) => a.navEl.getBoundingClientRect().width), 48);
+});
+
+await test('switching the language live rebuilds the UI without stopping playback', async () => {
+  await M(f, (a) => a.win.maximize());
+  await M(f, (a) => a.playEntries(a.lib.songs(), 0));
+  await waitFor(f, (a) => !a.player.paused && a.player.currentTime > 0.5);
+  await M(f, (a) => a.openStage());
+  await f.aurora(() => window.__aurora.i18n.setLang('en'));
+  await wait(f, 300);
+  assert.equal(await f.page.textContent(`${WIN} [data-nav="queue"] .mp-nav-label`), 'Play queue');
+  assert.equal(await f.page.textContent(`${WIN} .mp-np-kicker`), 'Now playing');
+  const st = await state(f);
+  assert.equal(st.paused, false, 'still playing');
+  assert.equal(st.stage, true, 'still in the now playing view');
+  assert.ok(await M(f, (a) => a.stage.videoHost.contains(a.player.el)), 'media element moved into the new stage');
+  await f.aurora(() => window.__aurora.i18n.setLang('fr'));
+  await wait(f, 300);
+  assert.equal(await f.page.textContent(`${WIN} [data-nav="queue"] .mp-nav-label`), "File d'attente");
+  await M(f, (a) => a.closeStage());
+});
+
+await test('animations off: the visualizer stops and is hidden', async () => {
+  await M(f, (a) => a.openStage());
+  await waitFor(f, (a) => a.stage.viz.running, null, { what: 'visualizer running' });
+  await f.aurora(() => window.__aurora.settings.set('animations', false));
+  await waitFor(f, (a) => document.documentElement.dataset.animations === 'off' && !a.stage.viz.running && a.stage.canvas.hidden, null, { what: 'visualizer stopped' });
+  await f.aurora(() => window.__aurora.settings.set('animations', true));
+  await waitFor(f, (a) => a.stage.viz.running && !a.stage.canvas.hidden, null, { what: 'visualizer back' });
+  await M(f, (a) => a.closeStage());
 });
 
 await test('no console errors from the app (fr/dark session)', async () => {

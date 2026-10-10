@@ -1,13 +1,15 @@
 'use strict';
 // Network backend (NetworkManager through nmcli).
 //
-//   net:status                  -> { connectivity: 'full'|'limited'|'none', wifiEnabled, airplane, wifiHardware,
+//   net:status                  -> { connectivity: 'full'|'limited'|'none', wifiEnabled, airplane, wifiHardware, managed,
 //                                    primary: { type: 'wifi'|'ethernet'|null, name, strength, device },
 //                                    devices: [{ device, type, state, connection }] }
+//                                  (managed false: NetworkManager is missing, the status is read-only)
 //   net:wifiList (rescan)       -> [{ ssid, signal, security, active, saved, bssid, freq, chan, rate }]  (strongest first)
-//   net:wifiConnect (ssid, password?, { hidden }?)   errors: EAUTH (wrong / missing key), ENOTFOUND
+//   net:wifiConnect (ssid, password?, { hidden, autoconnect }?)   errors: EAUTH (wrong / missing key), ENOTFOUND
+//                               (autoconnect false: the profile is not joined automatically later)
 //   net:wifiDisconnect ()       net:wifiForget (ssid)
-//   net:known                   -> [{ ssid, name, uuid }]  saved Wi-Fi networks (in range or not)
+//   net:known                   -> [{ ssid, name, uuid, autoconnect }]  saved Wi-Fi networks (in range or not)
 //   net:setWifi (bool)          net:setAirplane (bool)   (airplane = every radio off; the previous Wi-Fi state is restored)
 //   net:details (device?)       -> one device (or all): { device, type, state, connection, mac, mtu, speed,
 //                                    ipv4: ['192.168.1.5/24'], gateway4, dns4: [], ipv6: [], gateway6, dns6: [],
@@ -103,11 +105,11 @@ function parseWifiList(text, savedSsids = new Set()) {
   return [...bySsid.values()].sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0) || b.signal - a.signal || a.ssid.localeCompare(b.ssid));
 }
 
-/** `nmcli -t -f NAME,UUID,TYPE,DEVICE connection show` */
+/** `nmcli -t -f NAME,UUID,TYPE,DEVICE,AUTOCONNECT connection show` (AUTOCONNECT optional) */
 function parseConnections(text) {
   return lines(text).map((l) => {
-    const [name, uuid, type, device] = splitTerse(l, 4);
-    return { name, uuid, type: TYPE_MAP[type] || type, device: device && device !== '--' ? device : null };
+    const [name, uuid, type, device, auto] = splitTerse(l, 5);
+    return { name, uuid, type: TYPE_MAP[type] || type, device: device && device !== '--' ? device : null, autoconnect: auto == null ? null : auto === 'yes' };
   });
 }
 
@@ -239,7 +241,7 @@ function nmBackend() {
   const ssidCache = new Map(); // uuid -> ssid
 
   async function wifiProfiles() {
-    const conns = parseConnections(await nm(['-t', '-f', 'NAME,UUID,TYPE,DEVICE', 'connection', 'show']));
+    const conns = parseConnections(await nm(['-t', '-f', 'NAME,UUID,TYPE,DEVICE,AUTOCONNECT', 'connection', 'show']));
     const wifi = conns.filter((c) => c.type === 'wifi');
     await Promise.all(
       wifi.map(async (c) => {
@@ -314,12 +316,19 @@ function nmBackend() {
     return parseWifiList(text, new Set(profiles.map((p) => p.ssid)));
   }
 
+  // "Connect automatically" (Settings > Wi-Fi): connection.autoconnect of the network's profiles.
+  async function setAutoconnect(ssid, on) {
+    const profiles = (await wifiProfiles().catch(() => [])).filter((p) => p.ssid === ssid);
+    for (const p of profiles) await nm(['connection', 'modify', 'uuid', p.uuid, 'connection.autoconnect', on ? 'yes' : 'no'], { allowFail: true }).catch(() => {});
+  }
+
   async function wifiConnect(ssid, password, opts = {}) {
     if (typeof ssid !== 'string' || !ssid || ssid.length > 32 * 4) throw err('Invalid network name', 'EINVAL');
     const before = await wifiProfiles().catch(() => []);
     const known = before.filter((p) => p.ssid === ssid);
     if (known.length && !password) {
       await nm(['-w', '45', 'connection', 'up', 'uuid', known[0].uuid], { timeout: 60000 });
+      if (opts.autoconnect != null) await setAutoconnect(ssid, !!opts.autoconnect);
       return true;
     }
     // A new key for a saved network: start from a fresh profile.
@@ -334,6 +343,8 @@ function nmBackend() {
     try {
       await nm(args, { timeout: 60000 });
       ssidCache.clear();
+      // NetworkManager creates profiles with autoconnect on: only an explicit "no" changes it.
+      if (opts.autoconnect === false) await setAutoconnect(ssid, false);
       return true;
     } catch (e) {
       // Don't leave a broken profile behind (Windows forgets a network whose key was wrong).
@@ -408,7 +419,7 @@ function nmBackend() {
   }
 
   async function known() {
-    return (await wifiProfiles()).map((p) => ({ ssid: p.ssid, name: p.name, uuid: p.uuid }));
+    return (await wifiProfiles()).map((p) => ({ ssid: p.ssid, name: p.name, uuid: p.uuid, autoconnect: p.autoconnect }));
   }
 
   return { status, wifiList, wifiConnect, wifiDisconnect, wifiForget, setWifi, setAirplane, details, known, monitorCmd: ['nmcli', ['monitor']] };
@@ -440,6 +451,7 @@ function sysfsBackend() {
       wifiEnabled: false,
       wifiHardware: false,
       airplane: false,
+      managed: false, // read-only: no Wi-Fi / airplane controls without NetworkManager
       primary: prim ? { type: prim.type, name: prim.device, strength: null, device: prim.device } : { type: null, name: null, strength: null, device: null },
       devices: devs,
     };
@@ -516,7 +528,7 @@ function mockBackend(onChange) {
       new Set(st.networks.filter((n) => n.saved).map((n) => n.ssid)),
     );
   }
-  async function wifiConnect(ssid, password) {
+  async function wifiConnect(ssid, password, opts = {}) {
     const n = st.networks.find((x) => x.ssid === ssid);
     await delay(1200);
     if (!st.wifiEnabled) throw err('Wi-Fi is disabled', 'ENET');
@@ -526,6 +538,8 @@ function mockBackend(onChange) {
       if (!password && !n.saved) throw err('Secrets were required, but not provided.', 'EAUTH');
       if (password === 'wrong' || (password && password.length < 8)) throw err('Secrets were required, but not provided.', 'EAUTH');
     }
+    if (!n.saved || password) n.autoconnect = opts.autoconnect !== false;
+    else if (opts.autoconnect != null) n.autoconnect = !!opts.autoconnect;
     n.saved = true;
     st.active = ssid;
     changed();
@@ -601,9 +615,9 @@ function mockBackend(onChange) {
     if (!d) throw err(`No such network device: ${device}`, 'ENOTFOUND');
     return d;
   }
-  const extraKnown = [{ ssid: 'Hotel-Lumiere-Guest', name: 'Hotel-Lumiere-Guest', uuid: '6b1e3c1a-5f0e-4c1b-9d3e-2a7f0c9e8b11' }];
+  const extraKnown = [{ ssid: 'Hotel-Lumiere-Guest', name: 'Hotel-Lumiere-Guest', uuid: '6b1e3c1a-5f0e-4c1b-9d3e-2a7f0c9e8b11', autoconnect: true }];
   async function known() {
-    return [...st.networks.filter((n) => n.saved).map((n, i) => ({ ssid: n.ssid, name: n.ssid, uuid: `0a9c7e52-1d4b-4f7a-8c3e-${String(i).padStart(12, '0')}` })), ...extraKnown];
+    return [...st.networks.filter((n) => n.saved).map((n, i) => ({ ssid: n.ssid, name: n.ssid, uuid: `0a9c7e52-1d4b-4f7a-8c3e-${String(i).padStart(12, '0')}`, autoconnect: n.autoconnect !== false })), ...extraKnown];
   }
   const forget0 = wifiForget;
   async function forgetAny(ssid) {

@@ -117,5 +117,5 @@ export function artColors(key) {
   const h = parseInt(hash(String(key || '')), 16);
   const hue = h % 360;
   const hue2 = (hue + 35 + ((h >>> 9) % 50)) % 360;
-  return [`hsl(${hue} 62% 52%)`, `hsl(${hue2} 70% 38%)`, hue];
+  return [`hsl(${hue} 56% 56%)`, `hsl(${hue2} 62% 40%)`, hue];
 }

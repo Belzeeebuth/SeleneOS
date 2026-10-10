@@ -171,8 +171,33 @@ ww="$(find "$S/opt/aurora" \( -type f -o -type d \) -perm -0002 | head -n5)"
 nr="$(find "$S/opt/aurora" ! -user 0 | head -n5)"
 [[ -z "$nr" ]] && pass "/opt/aurora is owned by root" || fail "not root-owned under /opt/aurora: $nr"
 [[ "$(stat -c %a "$S/etc/sudoers.d/aurora")" == 440 ]] && pass "/etc/sudoers.d/aurora is 0440" || fail "/etc/sudoers.d/aurora mode $(stat -c %a "$S/etc/sudoers.d/aurora")"
+# setuid/setgid: only the expected binaries (Ubuntu's account/mount/privilege tools, Chromium's
+# sandbox helper; mount.cifs belongs to casper's dependencies and is purged by the installer).
+SUID_OK=" /opt/aurora/electron/chrome-sandbox /usr/bin/chage /usr/bin/chfn /usr/bin/chsh /usr/bin/expiry
+  /usr/bin/fusermount3 /usr/bin/gpasswd /usr/bin/mount /usr/bin/newgrp /usr/bin/passwd /usr/bin/pkexec /usr/bin/su
+  /usr/bin/sudo /usr/bin/umount /usr/lib/dbus-1.0/dbus-daemon-launch-helper /usr/lib/polkit-1/polkit-agent-helper-1
+  /usr/sbin/mount.cifs /usr/sbin/pam_extrausers_chkpwd /usr/sbin/unix_chkpwd /usr/bin/ssh-agent /usr/bin/crontab "
+SUID_OK="$(tr -s ' \n' ' ' <<<"$SUID_OK")"
 suid="$(find "$S" -xdev -type f -perm /6000 -printf '/%P\n' | sort | tr '\n' ' ')"
-pass "setuid/setgid files: $suid"
+unexpected=""; for f in $suid; do [[ "$SUID_OK" == *" $f "* ]] || unexpected+=" $f"; done
+[[ -z "$unexpected" ]] && pass "setuid/setgid files are all expected: $suid" || fail "unexpected setuid/setgid files:$unexpected"
+# sudo: no passwordless rule is shipped (the live user's NOPASSWD rule is written by casper at boot).
+sd="$(find "$S/etc/sudoers.d" -mindepth 1 -printf '%f ' | sort)"
+if grep -rqs 'NOPASSWD' "$S/etc/sudoers" "$S/etc/sudoers.d"; then fail "a NOPASSWD sudo rule is shipped in the image"
+else pass "no NOPASSWD sudo rule in the image (/etc/sudoers.d: $sd)"; fi
+[[ ! -e "$S/etc/sudoers.d/casper" ]] && pass "/etc/sudoers.d/casper is not in the image (casper writes it in the live session only)" || fail "/etc/sudoers.d/casper shipped"
+# polkit: the Aurora rule grants nothing to non-administrators beyond power actions.
+pr="$S/etc/polkit-1/rules.d/50-aurora.rules"
+if grep -q 'isInGroup("netdev")' "$pr"; then warn "50-aurora.rules grants actions to the netdev group (standard users)"
+else pass "polkit 50-aurora.rules: network/drive grants limited to administrators (group sudo)"; fi
+# Automated install: gated to the live medium.
+au="$S/usr/lib/systemd/system/aurora-autoinstall.service"
+if [[ -f "$au" ]]; then
+  grep -qx 'ConditionKernelCommandLine=aurora.autoinstall=1' "$au" && grep -qx 'ConditionKernelCommandLine=boot=casper' "$au" \
+    && grep -qx 'ConditionPathIsDirectory=/cdrom/casper' "$au" \
+    && pass "aurora-autoinstall.service only runs with aurora.autoinstall=1 + boot=casper + /cdrom/casper" \
+    || fail "aurora-autoinstall.service is not gated to the live medium"
+fi
 [[ "$(stat -c '%U %a' "$S/var/lib/aurora-greeter")" == "_greetd 750" || "$(stat -c '%u %a' "$S/var/lib/aurora-greeter")" =~ ^[0-9]+\ 750$ ]] \
   && pass "/var/lib/aurora-greeter: $(stat -c '%u:%g %a' "$S/var/lib/aurora-greeter")" || fail "/var/lib/aurora-greeter has wrong mode"
 
@@ -220,6 +245,14 @@ done
 grep -q 'URIs: http://archive.ubuntu.com/ubuntu' "$S/etc/apt/sources.list.d/ubuntu.sources" && pass "apt sources: archive.ubuntu.com + security.ubuntu.com" || fail "apt sources not final"
 [[ -L "$S/etc/resolv.conf" ]] && pass "/etc/resolv.conf -> $(readlink "$S/etc/resolv.conf")" || warn "/etc/resolv.conf is not a symlink"
 
+# No build-time helpers left behind.
+[[ ! -e "$S/usr/sbin/policy-rc.d" ]] && pass "no /usr/sbin/policy-rc.d" || fail "/usr/sbin/policy-rc.d shipped (services would never start)"
+[[ ! -e "$S/etc/resolv.conf.aurora-build" ]] && pass "no build-time resolv.conf" || fail "build-time resolv.conf shipped"
+leftover="$(find "$S/var/log" -type f -size +0 -printf '/var/log/%P ' 2>/dev/null; find "$S/tmp" "$S/var/tmp" "$S/root" -mindepth 1 \( -name '.bash_history' -o -name '.npm' -o -name '.cache' -o -type f -path '*/tmp/*' \) -printf '/%P ' 2>/dev/null)"
+[[ -z "$leftover" ]] && pass "logs and temporary files are empty" || fail "build leftovers: $leftover"
+nlists="$(find "$S/var/lib/apt/lists" -type f ! -name lock 2>/dev/null | wc -l)"; ndebs="$(find "$S/var/cache/apt/archives" -name '*.deb' 2>/dev/null | wc -l)"
+((nlists == 0 && ndebs == 0)) && pass "apt lists and .deb cache are empty" || fail "apt caches not cleaned ($nlists list files, $ndebs debs)"
+
 # initramfs: casper + Aurora splash.
 if [[ -x "$S/usr/bin/lsinitramfs" ]]; then
   mount -t tmpfs tmpfs "$S/tmp" && mount -t tmpfs tmpfs "$S/var/tmp" && mount -t proc proc "$S/proc" && mount --bind /dev "$S/dev"
@@ -228,6 +261,11 @@ if [[ -x "$S/usr/bin/lsinitramfs" ]]; then
   grep -q 'scripts/casper-bottom/25adduser' <<<"$lst" && pass "initrd: casper scripts" || fail "initrd: no casper scripts"
   grep -q 'usr/share/plymouth/themes/aurora/aurora.plymouth' <<<"$lst" && pass "initrd: Aurora Plymouth theme" || warn "initrd: no Aurora Plymouth theme"
   grep -Eq 'virtio-gpu\.ko|virtio_gpu' <<<"$lst" && pass "initrd: virtio-gpu driver" || warn "initrd: no virtio-gpu module"
+  if out="$(chroot "$S" apparmor_parser --skip-kernel-load --skip-cache -Q /etc/apparmor.d/aurora-shell 2>&1)"; then
+    pass "AppArmor profile /etc/apparmor.d/aurora-shell parses (apparmor_parser -Q in the image)"
+  else
+    fail "AppArmor profile does not parse: $out"
+  fi
   umount "$S/dev" "$S/proc" "$S/var/tmp" "$S/tmp"
 fi
 

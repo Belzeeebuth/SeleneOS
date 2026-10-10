@@ -44,9 +44,19 @@ export class Stage {
     this.mini = h(
       'div',
       { class: 'mp-mini-ctl' },
-      h('div', { class: 'mp-mini-top' }, mb('mp-mini-exit', 'picture_in_picture_exit', t('transport.exitMini'), () => app.toggleMini(false))),
+      h(
+        'div',
+        { class: 'mp-mini-top' },
+        mb('mp-mini-exit', 'picture_in_picture_exit', t('transport.exitMini'), () => app.toggleMini(false)),
+      ),
       h('div', { class: 'mp-mini-meta' }, this.miniTitle, this.miniSub),
-      h('div', { class: 'mp-mini-row' }, mb('mp-mini-prev', 'previous', t('transport.previous'), () => app.prev()), this.miniPlay, mb('mp-mini-next', 'next', t('transport.next'), () => app.next())),
+      h(
+        'div',
+        { class: 'mp-mini-row' },
+        mb('mp-mini-prev', 'previous', t('transport.previous'), () => app.prev()),
+        this.miniPlay,
+        mb('mp-mini-next', 'next', t('transport.next'), () => app.next()),
+      ),
       this.miniBar,
     );
     this.el = h('div', { class: 'mp-stage', 'aria-hidden': 'true' }, this.bg, this.videoHost, this.canvas, this.np, this.spinner, this.top, this.mini);
@@ -79,6 +89,7 @@ export class Stage {
       this.bgImg.style.backgroundImage = img ? `url("${app.api.mediaUrl(img)}")` : '';
       this.bgImg.classList.toggle('has-img', !!img);
       if (img) this._tint(app.api.mediaUrl(img), key);
+      else this.viz.setColors(['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.92)']);
     }
     const title = e ? app.titleOf(e) : '';
     this.npTitle.textContent = title;
@@ -115,10 +126,16 @@ export class Stage {
           const s = [0, 0, 0];
           for (let y = y0; y < y1; y++) for (let x = 0; x < 4; x++) for (let k = 0; k < 3; k++) s[k] += d[(y * 4 + x) * 4 + k];
           const n = (y1 - y0) * 4;
-          return `rgb(${s.map((v) => Math.round(v / n)).join(' ')})`;
+          return s.map((v) => Math.round(v / n));
         };
-        this.el.style.setProperty('--np1', avg(0, 2));
-        this.el.style.setProperty('--np2', avg(2, 4));
+        const top = avg(0, 2);
+        const bottom = avg(2, 4);
+        const all = avg(0, 4);
+        const toward = (c, f) => c.map((v) => Math.round(v + (255 - v) * f)).join(',');
+        this.el.style.setProperty('--np1', `rgb(${top.join(' ')})`);
+        this.el.style.setProperty('--np2', `rgb(${bottom.join(' ')})`);
+        // Visualizer: the artwork's colour, lifted towards white so it reads on the dark backdrop.
+        this.viz.setColors([`rgba(${toward(all, 0.35)},0.35)`, `rgba(${toward(all, 0.7)},0.95)`]);
       } catch {}
     };
     img.src = url;

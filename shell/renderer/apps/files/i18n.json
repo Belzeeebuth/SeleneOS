@@ -116,7 +116,8 @@
    "permission": "You need permission to perform this action.",
    "protected": "\"{name}\" is a system location and can't be deleted.",
    "readOnly": "The disk is write-protected.",
-   "subfolder": "The destination folder is a subfolder of the source folder."
+   "subfolder": "The destination folder is a subfolder of the source folder.",
+   "protectedChange": "\"{name}\" is a system location. It can't be renamed or moved."
   },
   "group": {
    "none": "(None)",
@@ -597,7 +598,8 @@
    "permission": "Vous devez disposer d’une autorisation pour effectuer cette action.",
    "protected": "« {name} » est un emplacement système et ne peut pas être supprimé.",
    "readOnly": "Le disque est protégé en écriture.",
-   "subfolder": "Le dossier de destination est un sous-dossier du dossier source."
+   "subfolder": "Le dossier de destination est un sous-dossier du dossier source.",
+   "protectedChange": "« {name} » est un emplacement système. Il ne peut pas être renommé ni déplacé."
   },
   "group": {
    "none": "(Aucun)",

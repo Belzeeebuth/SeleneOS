@@ -139,7 +139,7 @@ export class SnipEditor {
     this.wrap.addEventListener('lostpointercapture', (e) => this._op && this._op.pointerId === e.pointerId && this._up(e, this._op.kind === 'pan'));
     this.el.addEventListener('pointerdown', (e) => {
       // Middle button (or primary on the empty stage around the image) pans when zoomed in.
-      if (e.target.closest('.snip-wrap') && e.button !== 1) return;
+      if (this._op || (e.target.closest('.snip-wrap') && e.button !== 1)) return;
       if (e.button === 1 || e.button === 0) this._startPan(e, this.el);
     });
     this.el.addEventListener('pointermove', (e) => this._op?.kind === 'pan' && this._op.host === this.el && this._panMove(e));
@@ -518,6 +518,7 @@ export class SnipEditor {
       this.cropLayer.addEventListener('pointercancel', (e) => this._cropUp(e));
     }
     this._layoutCrop();
+    this.el.focus({ preventScroll: true }); // Enter applies, Esc cancels
     this.onCropChange?.(this.crop);
   }
   _endCrop() {
@@ -541,6 +542,13 @@ export class SnipEditor {
     this._layoutCrop();
     this.onCropChange?.(this.crop);
   }
+  /** Keyboard crop: arrows move the box, Shift+arrows resize it (Ctrl = 10 px steps). */
+  nudgeCrop(dx, dy, resize = false) {
+    if (!this.crop) return;
+    const c = this.crop;
+    if (resize) this.setCropRect({ x: c.x, y: c.y, w: c.w + dx, h: c.h + dy });
+    else this.setCropRect({ x: clamp(c.x + dx, 0, this.W - c.w), y: clamp(c.y + dy, 0, this.H - c.h), w: c.w, h: c.h });
+  }
   resetCrop() {
     if (this.crop) this.setCropRect({ x: 0, y: 0, w: this.W, h: this.H });
   }
@@ -560,6 +568,7 @@ export class SnipEditor {
     e.stopPropagation();
     const handle = e.target.closest('.snip-ch')?.dataset.h || (e.target.closest('.snip-crop-box') ? 'move' : null);
     if (!handle) return;
+    this.el.focus({ preventScroll: true });
     this._cropDrag = { handle, pointerId: e.pointerId, x: e.clientX, y: e.clientY, start: { ...this.crop } };
     try {
       this.cropLayer.setPointerCapture(e.pointerId);

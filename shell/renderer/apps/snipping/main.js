@@ -24,7 +24,7 @@ const BORDER_COLORS = [
 const MODE_ALIASES = { region: 'rect', rect: 'rect', rectangle: 'rect', window: 'window', full: 'full', fullscreen: 'full', screen: 'full', free: 'free', freeform: 'free', 'free-form': 'free' };
 const COMPACT = { w: 548, h: 178 };
 const EDITOR_MIN = { w: 560, h: 400 };
-const EDITOR_PREF = { w: 940, h: 600 };
+const EDITOR_PREF = { w: 1000, h: 620 };
 const EASE = 'cubic-bezier(0.1, 0.9, 0.2, 1)';
 const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp'];
 
@@ -164,6 +164,13 @@ class Snipping {
     this.applyView('compact', { size: false });
 
     win.el.addEventListener('keydown', (e) => this.onKey(e));
+    // Shortcuts keep working when the keyboard focus fell back to <body> while this window is active.
+    this.docKey = (e) => {
+      if (this.hidden || this.closed || wm.focused() !== this.win) return;
+      if (e.target !== document.body && e.target !== document.documentElement) return;
+      this.onKey(e);
+    };
+    document.addEventListener('keydown', this.docKey);
     win.onBeforeClose(() => this.beforeClose());
     ctx.onClose(() => this.dispose());
     this.offs.push(ctx.shell.on?.('lock', () => this.session?.cancel()));
@@ -173,16 +180,21 @@ class Snipping {
     win.on('resize', () => this.layoutToolbar());
 
     if (deferReveal || args.mode) this.handleArgs(args);
+    else if (wm.focused() === win) this.btnNew.focus({ preventScroll: true }); // like Windows: Enter starts a snip
     return this;
   }
 
   dispose() {
     this.closed = true;
+    document.removeEventListener('keydown', this.docKey);
     this.session?.cancel();
     this.closeFlyout();
     this.tbObserver?.disconnect();
     for (const off of this.offs) typeof off === 'function' && off();
-    for (const id of this.timers) clearTimeout(id);
+    for (const id of this.timers) {
+      clearTimeout(id);
+      clearInterval(id);
+    }
     clearTimeout(this.copyTimer);
     clearTimeout(this.flashTimer);
   }
@@ -276,7 +288,7 @@ class Snipping {
     this.btnDelay = h('button', { class: 'btn subtle snip-dd snip-delay', 'aria-haspopup': 'menu', onclick: (e) => this.delayMenu(e) }, icon('timer'), this.delayLabel, icon('chevron_down', { size: 12, class: 'snip-chev' }));
     this.left = h('div', { class: 'snip-tb-left' }, this.btnNew, this.btnMode, this.btnDelay);
     this.btnBack = btn('snip-back', t('back'), 'arrow_left', () => this.closeSettings());
-    this.setHead = h('div', { class: 'snip-tb-settings' }, this.btnBack, h('span', { class: 'snip-tb-title' }, t('settingsTitle')));
+    this.setHead = h('div', { class: 'snip-tb-settings' }, this.btnBack, h('span', { class: 'snip-tb-title' }, this.ctx.i18n.name(this.ctx.manifest.name)));
 
     // -- editing tools (in the title bar when it is wide enough, otherwise in a row below it)
     this.btnUndo = btn('snip-undo', t('undo'), 'arrow_undo', () => this.editor.undo());
@@ -370,7 +382,7 @@ class Snipping {
           'aria-checked': String(hex === s.borderColor),
           'aria-label': t(`colorNames.${name}`),
           'data-tip': t(`colorNames.${name}`),
-          style: { '--sw': hex },
+          style: { background: hex },
           onclick: (e) => {
             this.setSetting('borderColor', hex);
             for (const b of swatches.children) {
@@ -404,7 +416,7 @@ class Snipping {
     const env = this.ctx.env || {};
     return h(
       'div',
-      { class: 'snip-settings' },
+      { class: 'snip-settings', tabindex: '-1' },
       h(
         'div',
         { class: 'snip-set-inner' },
@@ -491,6 +503,11 @@ class Snipping {
     for (const b of [this.btnZoom, this.btnSave, this.btnCopy, this.btnPaint]) b.disabled = !has;
     this.btnPaint.hidden = !this.ctx.shell.registry?.get?.('paint');
     this.root?.classList.toggle('cropping', cropping);
+    // A focused button that just got disabled (or hidden) drops the keyboard focus to <body>, where the
+    // window shortcuts (Ctrl+Y…) no longer arrive: hand it to the canvas instead.
+    const a = document.activeElement;
+    if (a && this.win.el.contains(a) && (a.disabled || !a.offsetParent) && this.view === 'editor') this.editor.el.focus({ preventScroll: true });
+    else if ((!a || a === document.body) && this.view === 'editor' && this.win.isFocused?.() && !this.hidden) this.editor.el.focus({ preventScroll: true });
     this.layoutToolbar();
   }
 
@@ -552,20 +569,26 @@ class Snipping {
 
   layoutToolbar() {
     if (!this.tb || this.closed) return;
-    const editor = this.view === 'editor';
-    if (!editor) {
-      if (this.tools.parentNode !== this.tb) this.tb.insertBefore(this.tools, this.right);
-      this.root.classList.remove('has-toolrow');
-      return;
-    }
+    const tb = this.tb;
     const slot = this.win.titlebarSlot;
     const avail = slot.clientWidth;
     if (!avail) return;
-    const need = this.left.offsetWidth + this.tools.offsetWidth + this.right.offsetWidth + 40;
-    const inline = need <= avail;
-    if (inline && this.tools.parentNode !== this.tb) this.tb.insertBefore(this.tools, this.right);
+    tb.classList.remove('narrow', 'narrower');
+    const editor = this.view === 'editor';
+    let inline = true;
+    if (editor) {
+      const need = this.left.offsetWidth + this.tools.offsetWidth + this.right.offsetWidth + 40;
+      inline = need <= avail;
+    }
+    if (inline && this.tools.parentNode !== tb) tb.insertBefore(this.tools, this.right);
     else if (!inline && this.tools.parentNode !== this.toolrow) this.toolrow.appendChild(this.tools);
-    this.root.classList.toggle('has-toolrow', !inline);
+    this.root.classList.toggle('has-toolrow', editor && !inline);
+    // Narrow windows: drop the text labels (they stay in the tooltips), then the New label.
+    const fits = () => this.left.offsetWidth + this.setHead.offsetWidth + this.right.offsetWidth + (inline && editor ? this.tools.offsetWidth + 24 : 0) + 12 <= avail;
+    if (!fits()) {
+      tb.classList.add('narrow');
+      if (!fits()) tb.classList.add('narrower');
+    }
   }
 
   openSettings() {
@@ -575,7 +598,7 @@ class Snipping {
     this.applyView('settings');
     this.settingsEl.scrollTop = 0;
     if (this.hidden) this.showWindow();
-    this.btnBack.focus();
+    this.settingsEl.focus({ preventScroll: true });
   }
   closeSettings() {
     const back = this.prevView && this.prevView !== 'settings' ? this.prevView : this.editor.hasImage ? 'editor' : 'compact';
@@ -587,16 +610,25 @@ class Snipping {
   }
 
   // ------------------------------------------------------------------ menus
+  /** Open a menu from a button; when it closes the keyboard goes back to that button (Windows behaviour). */
+  menuFrom(e, items) {
+    const btn = e?.currentTarget;
+    return this.ctx.ui.menu(e, items).then((v) => {
+      const a = document.activeElement;
+      if (btn?.isConnected && !this.hidden && !this.closed && (!a || a === document.body)) btn.focus({ preventScroll: true });
+      return v;
+    });
+  }
   modeMenu(e) {
     const t = this.t;
-    return this.ctx.ui.menu(
+    return this.menuFrom(
       e,
       MODES.map((m) => ({ label: t(`modes.${m}`), icon: MODE_ICONS[m], checked: this.prefs.mode === m, action: () => this.setMode(m) })),
     );
   }
   delayMenu(e) {
     const t = this.t;
-    return this.ctx.ui.menu(
+    return this.menuFrom(
       e,
       DELAYS.map((d) => ({ label: d ? t('delaySeconds', { n: d }) : t('noDelay'), checked: this.prefs.delay === d, action: () => this.setDelay(d) })),
     );
@@ -604,7 +636,7 @@ class Snipping {
   zoomMenu(e) {
     const t = this.t;
     const ed = this.editor;
-    return this.ctx.ui.menu(e, [
+    return this.menuFrom(e, [
       { header: t('zoomLevel', { p: Math.round(ed.zoom * 100) }) },
       { label: t('zoomIn'), icon: 'zoom_in', shortcut: 'Ctrl++', action: () => ed.zoomIn() },
       { label: t('zoomOut'), icon: 'zoom_out', shortcut: 'Ctrl+-', action: () => ed.zoomOut() },
@@ -615,7 +647,7 @@ class Snipping {
   moreMenu(e) {
     const t = this.t;
     const editing = this.view === 'editor' && this.editor.hasImage;
-    return this.ctx.ui.menu(e, [
+    return this.menuFrom(e, [
       { label: t('openFile'), icon: 'folder_open', shortcut: 'Ctrl+O', action: () => this.openFileDialog() },
       { label: t('openFolder'), icon: 'folder', action: () => this.openScreenshotsFolder() },
       editing ? { label: t('paint'), icon: 'paint_brush', action: () => this.editInPaint(), hidden: !this.ctx.shell.registry?.get?.('paint') } : null,
@@ -701,6 +733,7 @@ class Snipping {
         }
         this.updateUI();
         this.savePrefs();
+        paintPreview();
       };
       for (const [cname, hex] of colors) {
         grid.appendChild(
@@ -712,7 +745,7 @@ class Snipping {
             'aria-label': t(`colorNames.${cname}`),
             'data-tip': t(`colorNames.${cname}`),
             dataset: { color: hex },
-            style: { '--sw': hex },
+            style: { background: hex },
             onclick: () => pick(hex),
           }),
         );
@@ -768,7 +801,7 @@ class Snipping {
         e.stopPropagation();
         this.closeFlyout();
         anchor.focus();
-      }
+      } else if (e.ctrlKey) this.onKey(e); // window shortcuts (Ctrl+Z, Ctrl+S…) work from the flyout too
     };
     setTimeout(() => document.addEventListener('pointerdown', outside, true));
     fl.addEventListener('keydown', keys);
@@ -779,7 +812,13 @@ class Snipping {
       close: () => {
         document.removeEventListener('pointerdown', outside, true);
         offWin?.();
+        // The keyboard goes back to the tool button (or the canvas) instead of a vanishing flyout.
+        if (fl.contains(document.activeElement)) {
+          if (anchor.isConnected && !anchor.disabled && anchor.offsetParent) anchor.focus({ preventScroll: true });
+          else this.editor.el.focus({ preventScroll: true });
+        }
         fl.classList.add('closing');
+        fl.inert = true;
         setTimeout(() => fl.remove(), 120);
       },
     };
@@ -814,6 +853,11 @@ class Snipping {
     if (ed.crop) {
       if (e.key === 'Enter') return run(() => ed.applyCrop());
       if (e.key === 'Escape') return run(() => ed.cancelCrop());
+      const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (dir && !e.target.closest?.('button')) {
+        const step = e.ctrlKey ? 10 : 1;
+        return run(() => ed.nudgeCrop(dir[0] * step, dir[1] * step, e.shiftKey));
+      }
     }
     if (ctrl && k === 's') return run(() => this.saveAs());
     if (ctrl && k === 'c' && !inField) return run(() => this.copy());
@@ -853,8 +897,10 @@ class Snipping {
     if (this.editor.crop) this.editor.cancelCrop();
     const wasFocused = wm.focused() === this.win;
     const wasHidden = this.hidden;
+    // A window that was never shown also leaves the taskbar: give its button time to animate out.
+    const settle = !this.shown || this.win.opts.skipTaskbar ? 260 : 40;
     this.hideWindow({ skipTaskbar: !this.shown });
-    const session = new SnipSession({ api: ctx.api, h: ctx.h, icon: ctx.icon, t, mode, delay, exclude: this.win, onMode: (m) => this.setMode(m) });
+    const session = new SnipSession({ api: ctx.api, h: ctx.h, icon: ctx.icon, t, mode, delay, exclude: this.win, onMode: (m) => this.setMode(m), settle });
     this.session = session;
     let res = null;
     let error = null;

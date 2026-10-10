@@ -4,6 +4,7 @@
 //                           onSort(colId), onSelect(row), onActivate(row), onContext(row, event|rect),
 //                           onToggle(row), onHeaderContext(event), onResize(widths), onDelete(row) });
 //   tb.setColumns(cols)   cols: [{ id, label: () => str, top?: () => str, hot?: () => bool, width, min,
+//                                  fit?: () => [str] (words the default width must fit), fitIcon?: true,
 //                                  align: 'start'|'end', name?: true, flex?: true, max?: px, sortable?: true,
 //                                  cell: (row) => str | { text, heat, icon, tip, cls } }]
 //   tb.setRows(rows)      rows: [{ key, kind: 'group'|'item', depth, expandable, expanded, data,
@@ -81,13 +82,17 @@ export class VTable {
     // set by dragging a divider wins.
     return Math.max(c.min || 48, this.widths[c.id] ?? Math.max(c.width ?? 100, this._labelWidth(c)));
   }
+  // Widest of the header label and the column's fixed vocabulary (`fit`: status words, priority
+  // classes…), so a translation never ends in "…" at the default width.
   _labelWidth(c) {
-    const text = typeof c.label === 'function' ? c.label() : c.label || '';
-    if (!text) return 0;
+    const label = typeof c.label === 'function' ? c.label() : c.label || '';
+    const words = [label, ...(c.fit?.() || [])].filter(Boolean);
+    if (!words.length) return 0;
     const ctx = (VTable._measure ||= document.createElement('canvas').getContext('2d'));
     const font = `12px ${getComputedStyle(this.el.isConnected ? this.el : document.body).fontFamily}`;
     if (ctx.font !== font) ctx.font = font;
-    return Math.ceil(ctx.measureText(text).width) + 24; // + the cell's horizontal padding
+    const w = Math.max(...words.map((x) => ctx.measureText(String(x)).width));
+    return Math.ceil(w) + 24 + (c.fitIcon ? 22 : 0); // + the cell's horizontal padding (and icon)
   }
   _applyWidths() {
     // A flexible column takes the spare width, up to its `max` (so numbers don't drift far away

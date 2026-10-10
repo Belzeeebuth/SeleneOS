@@ -85,10 +85,43 @@ umount_under() { # path: unmount every mount point below (and including) path, d
 
 LOCK_FD=
 LOG_FILE=
+BG_PID=""
+
+# Long-running commands (debootstrap, apt-get, npm, update-initramfs, mksquashfs) run through
+# run_bg: bash only runs a signal trap once the *foreground* command has finished, so a SIGTERM
+# (or Ctrl+C) would otherwise wait for a 4-minute mksquashfs. "wait" is interrupted at once; the
+# EXIT trap then stops the command (and its children) before unmounting.
+run_bg() { # cmd...  (a command or a shell function)
+  local rc=0
+  "$@" &
+  BG_PID=$!
+  wait "$BG_PID" || rc=$?
+  BG_PID=""
+  return "$rc"
+}
+# shellcheck disable=SC2317  # invoked from cleanup
+kill_tree() { # pid signal: children first, then the process itself
+  local c
+  for c in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$c" "$2"; done
+  kill "-$2" "$1" 2>/dev/null || true
+}
+# shellcheck disable=SC2317  # invoked from cleanup
+stop_bg() {
+  [[ -n "$BG_PID" ]] && kill -0 "$BG_PID" 2>/dev/null || return 0
+  warn "stopping the running command ($(ps -o comm= -p "$BG_PID" 2>/dev/null || echo "pid $BG_PID"))"
+  kill_tree "$BG_PID" TERM
+  local i
+  for ((i = 0; i < 100; i++)); do kill -0 "$BG_PID" 2>/dev/null || break; sleep 0.1; done
+  kill -0 "$BG_PID" 2>/dev/null && kill_tree "$BG_PID" KILL
+  wait "$BG_PID" 2>/dev/null || true
+  BG_PID=""
+}
+
 # shellcheck disable=SC2317  # invoked through trap
 cleanup() {
   local rc=$?
   trap - EXIT INT TERM
+  stop_bg
   if [[ -d "$WORK" ]]; then umount_under "$WORK"; fi
   if ((rc != 0)); then
     printf '%s[aurora] build FAILED (exit %d) after %ss%s\n' "$C_R" "$rc" "$(( $(date +%s) - BUILD_T0 ))" "$C_0" >&2
@@ -144,9 +177,9 @@ in_chroot() { # root cmd...
     "$@"
 }
 
-apt_in() { # root apt-get args...
+apt_in() { # root apt-get args...  (interruptible: see run_bg)
   local r="$1"; shift
-  in_chroot "$r" apt-get -y -q -o Dpkg::Use-Pty=0 -o APT::Color=0 "$@"
+  run_bg in_chroot "$r" apt-get -y -q -o Dpkg::Use-Pty=0 -o APT::Color=0 "$@"
 }
 
 sha256_of_text() { sha256sum | cut -c1-16; }
@@ -252,7 +285,7 @@ stage_base() {
   [[ -n "$BUILD_HTTPS_PROXY" ]] && env_proxy+=("https_proxy=$BUILD_HTTPS_PROXY")
   [[ -n "$BUILD_HTTP_PROXY" ]] && env_proxy+=("http_proxy=$BUILD_HTTP_PROXY")
   [[ -n "$BUILD_CA_BUNDLE" ]] && env_proxy+=("SSL_CERT_FILE=$BUILD_CA_BUNDLE")
-  env "${env_proxy[@]}" debootstrap --variant=minbase --arch="$ARCH" --merged-usr \
+  run_bg env "${env_proxy[@]}" debootstrap --variant=minbase --arch="$ARCH" --merged-usr \
     --components="${COMPONENTS// /,}" --keyring="$KEYRING" \
     --cache-dir="$CACHE/debootstrap-debs" \
     "$SUITE" "$tmp" "$MIRROR" \
@@ -299,18 +332,29 @@ packages_key() { # -> hash of everything except the package list itself
     echo "rev=3"
     echo "$BASE_KEY"
     echo "$MIRROR $COMPONENTS $INSTALL_RECOMMENDS $WITH_FIRMWARE $KERNEL_PACKAGE"
-    write_dpkg_excludes /dev/stdout
+    write_dpkg_excludes /dev/stdout "$KEEP_MANPAGES"
   } | sha256_of_text
 }
 
-write_dpkg_excludes() { # file
-  cat >"$1" <<'EOF'
+# Manual pages are kept (English and French) when a package list asks for man-db (Terminal);
+# otherwise they are not installed at all. Set by stage_packages from the requested packages.
+KEEP_MANPAGES=0
+
+write_dpkg_excludes() { # file keep-manpages(0|1)
+  {
+    cat <<'EOF'
 # Aurora OS: keep the image small (documentation, manual pages and translations other than
 # English/French are not installed). Copyright files are kept.
 # Remove this file and reinstall packages to get the full content back.
 path-exclude=/usr/share/doc/*
 path-include=/usr/share/doc/*/copyright
 path-exclude=/usr/share/man/*
+EOF
+    if [[ "${2:-0}" == 1 ]]; then
+      echo 'path-include=/usr/share/man/man*'
+      echo 'path-include=/usr/share/man/fr*'
+    fi
+    cat <<'EOF'
 path-exclude=/usr/share/info/*
 path-exclude=/usr/share/groff/*
 path-exclude=/usr/share/lintian/*
@@ -323,6 +367,7 @@ path-exclude=/usr/share/help/*
 path-include=/usr/share/help/C/*
 path-include=/usr/share/help/fr*
 EOF
+  } >"$1"
 }
 
 write_build_sources() { # root
@@ -463,6 +508,10 @@ EOS
       warn "skipping $(wc -l <<<"$missing") missing package(s) (ALLOW_MISSING_PACKAGES=1)"
       cut -f1 <<<"$missing" >"$WORK/missing-packages.txt"
     else
+      # Nothing was installed yet: put the layer back in its normal state (no build-time apt
+      # network settings, no policy-rc.d, original resolv.conf) so that it stays reusable.
+      apt_net_off "$r"
+      chroot_umount "$r"
       die "missing packages (see above)"
     fi
   else
@@ -483,15 +532,17 @@ tzdata tzdata/Zones/Etc select UTC
 EOF
 }
 
-install_packages() { # root mode(full|incremental) pkg-tsv
-  local r="$1" mode="$2" tsv="$3" pkgs=() extra=()
+install_packages() { # root mode(full|incremental) pkg-tsv [layer-stamp]
+  # layer-stamp: the cache key file of an existing layer, removed once the layer is about to be
+  # modified (after the package names were validated), so an interrupted install rebuilds it.
+  local r="$1" mode="$2" tsv="$3" stamp="${4:-}" pkgs=() extra=()
   chroot_mount "$r"
   mkdir -p "$CACHE/apt/archives/partial"
   mount --bind "$CACHE/apt/archives" "$r/var/cache/apt/archives"
   write_build_sources "$r"
   apt_net_on "$r"
   divert_initramfs "$r"
-  write_dpkg_excludes "$r/etc/dpkg/dpkg.cfg.d/aurora-excludes"
+  write_dpkg_excludes "$r/etc/dpkg/dpkg.cfg.d/aurora-excludes" "$KEEP_MANPAGES"
   # Snaps are not part of Aurora OS: never let a transitional package pull snapd in.
   cat >"$r/etc/apt/preferences.d/aurora-no-snap.pref" <<'EOF'
 # Aurora OS does not use snaps.
@@ -511,6 +562,7 @@ EOF
   preseed_debconf "$r"
 
   validate_packages "$r" "$tsv"
+  if [[ -n "$stamp" ]]; then rm -f "$stamp"; fi
   local skip=""
   [[ -s "$WORK/missing-packages.txt" ]] && skip="$(cat "$WORK/missing-packages.txt")"
   local p
@@ -546,6 +598,8 @@ stage_packages() {
   compute_base_key
   local key tsv="$WORK/packages.tsv"
   collect_packages >"$tsv"
+  KEEP_MANPAGES=0
+  if grep -qx man-db <<<"$(cut -f1 "$tsv")"; then KEEP_MANPAGES=1; fi
   key="$(packages_key)"
   local stamp_key="$PKG_LAYER.key" stamp_list="$PKG_LAYER.packages"
   log "$(wc -l <"$tsv") packages requested from $(find "$PACKAGES_DIR" -maxdepth 1 -name '*.list' | wc -l) list(s)"
@@ -561,8 +615,7 @@ stage_packages() {
     fi
     if [[ -z "$removed" ]]; then
       log "package lists gained: $(echo "$added" | tr '\n' ' ')— installing them into the existing layer"
-      rm -f "$stamp_key"
-      install_packages "$PKG_LAYER" incremental "$tsv"
+      install_packages "$PKG_LAYER" incremental "$tsv" "$stamp_key"
       cp "$tsv" "$stamp_list"; echo "$key" >"$stamp_key"
       stage_done packages; return
     fi
@@ -635,6 +688,14 @@ install_electron() {
   echo "$v" >"$dest/version.aurora"
 }
 
+# shellcheck disable=SC2317  # invoked through run_bg
+npm_ci_runtime() { # dir  (runs in a subshell through run_bg)
+  cd "$1" || return 1
+  export PATH="$NODE_BIN:$PATH" npm_config_cache="$CACHE/npm" npm_config_update_notifier=false
+  if [[ -n "$BUILD_CA_BUNDLE" ]]; then export NODE_EXTRA_CA_CERTS="$BUILD_CA_BUNDLE"; fi
+  npm ci --omit=dev --ignore-scripts --no-audit --no-fund --prefer-offline --loglevel=error
+}
+
 install_shell() {
   local stage_dir="$WORK/staging/shell" dest="$ROOT/opt/aurora/shell"
   log "staging Aurora Shell and installing runtime npm dependencies (npm ci --omit=dev)"
@@ -644,12 +705,7 @@ install_shell() {
     [[ -e "$SHELL_SRC/$p" ]] || die "missing $SHELL_SRC/$p"
     cp -a "$SHELL_SRC/$p" "$stage_dir/"
   done
-  (
-    cd "$stage_dir"
-    export PATH="$NODE_BIN:$PATH" npm_config_cache="$CACHE/npm" npm_config_update_notifier=false
-    [[ -n "$BUILD_CA_BUNDLE" ]] && export NODE_EXTRA_CA_CERTS="$BUILD_CA_BUNDLE"
-    npm ci --omit=dev --ignore-scripts --no-audit --no-fund --prefer-offline --loglevel=error
-  ) || die "npm ci failed for the shell"
+  run_bg npm_ci_runtime "$stage_dir" || die "npm ci failed for the shell"
   # The image only needs the runtime files.
   rm -f "$stage_dir/node_modules/.package-lock.json"
   rm -rf "$dest"; mkdir -p "$(dirname "$dest")"
@@ -921,7 +977,13 @@ cleanup_image() {
   # Documentation/translations installed by debootstrap before the dpkg excludes existed.
   find "$ROOT/usr/share/doc" -mindepth 1 ! -type d ! -name copyright -delete 2>/dev/null || true
   find "$ROOT/usr/share/doc" -mindepth 1 -type d -empty -delete 2>/dev/null || true
-  rm -rf "$ROOT"/usr/share/man/* "$ROOT"/usr/share/info/* "$ROOT"/usr/share/lintian/*
+  rm -rf "$ROOT"/usr/share/info/* "$ROOT"/usr/share/lintian/*
+  if [[ -x "$ROOT/usr/bin/man" ]]; then
+    # man-db is part of the image (Terminal): English and French manual pages only.
+    find "$ROOT/usr/share/man" -mindepth 1 -maxdepth 1 ! -name 'man*' ! -name 'fr*' -exec rm -rf {} + 2>/dev/null || true
+  else
+    rm -rf "$ROOT"/usr/share/man/*
+  fi
   find "$ROOT/usr/share/locale" -mindepth 1 -maxdepth 1 -type d ! -name 'en*' ! -name 'fr*' -exec rm -rf {} + 2>/dev/null || true
 }
 
@@ -1028,7 +1090,7 @@ EOF
   kver="$(basename "$(find "$ROOT/usr/lib/modules" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)")"
   [[ -n "$kver" && -f "$ROOT/boot/vmlinuz-$kver" ]] || die "no kernel found in the image"
   rm -f "$ROOT"/boot/initrd.img-*
-  in_chroot "$ROOT" update-initramfs -c -k "$kver"
+  run_bg in_chroot "$ROOT" update-initramfs -c -k "$kver" || die "update-initramfs failed"
   [[ -s "$ROOT/boot/initrd.img-$kver" ]] || die "initramfs generation failed"
   has_text "scripts/casper-bottom" "$(in_chroot "$ROOT" lsinitramfs "/boot/initrd.img-$kver")" \
     || die "the initramfs does not contain casper"
@@ -1068,7 +1130,7 @@ stage_squashfs() {
   esac
   # SOURCE_DATE_EPOCH is unset for mksquashfs on purpose: it would force *every* timestamp to
   # that value; the tree's mtimes are already clamped (keeping caches such as fontconfig valid).
-  env -u SOURCE_DATE_EPOCH mksquashfs "$ROOT" "$ISO_TREE/casper/filesystem.squashfs" \
+  run_bg env -u SOURCE_DATE_EPOCH mksquashfs "$ROOT" "$ISO_TREE/casper/filesystem.squashfs" \
     -noappend -no-progress -quiet "${comp[@]}" -b "$SQUASHFS_BLOCK" \
     -mkfs-time "$SOURCE_DATE_EPOCH" -root-time "$SOURCE_DATE_EPOCH" \
     -xattrs-exclude '^system\.posix_acl_' \
@@ -1111,6 +1173,7 @@ make_grub_theme() {
     grub-mkfont -s 36 -r "$range" -n "Aurora Bold"    -o "$t/aurora-bold-36.pf2" "$bold"
   } >"$mk" 2>&1 || { tail -n 20 "$mk" >&2; die "grub-mkfont failed"; }
 
+  # shellcheck disable=SC2054  # ImageMagick option values contain commas
   local png_opts=(-define png:exclude-chunks=date,time +set date:create +set date:modify -strip)
   # Background: deep navy with a soft aurora glow and the logo, 1920x1080.
   rsvg-convert -w 168 -h 168 "$logo" -o "$tmp/logo.png"

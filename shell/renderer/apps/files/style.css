@@ -633,6 +633,24 @@
 .app-files .fx-tnode:hover {
   background: var(--subtle-hover);
 }
+/* Insertion line while a pinned folder is dragged to a new position. */
+.app-files .fx-tnode.pin-before::after,
+.app-files .fx-tnode.pin-after::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.app-files .fx-tnode.pin-before::after {
+  top: -1px;
+}
+.app-files .fx-tnode.pin-after::after {
+  bottom: -1px;
+}
 .app-files .fx-tnode:active {
   background: var(--subtle-pressed);
 }
@@ -1680,18 +1698,33 @@
   background: var(--accent);
   transition: width var(--dur-slow) var(--ease);
 }
+/* Indeterminate: a 35% bar sliding across (transform only, no layout per frame). */
 .app-files .fx-pg-bar.indeterminate .bar {
   position: absolute;
+  left: 0;
   width: 35%;
+  transform: translateX(-100%);
   animation: fx-indet 1.4s var(--ease-std) infinite;
 }
 @keyframes fx-indet {
   from {
-    left: -35%;
+    transform: translateX(-100%);
   }
   to {
-    left: 100%;
+    transform: translateX(286%);
   }
+}
+/* Animations off: the global rule shortens every animation to 1 ms, which would make these endless
+   ones flicker; show calm static states instead. */
+:root[data-animations="off"] .app-files .fx-pg-bar.indeterminate .bar {
+  animation: none;
+  transform: none;
+  width: 100%;
+  opacity: 0.55;
+}
+:root[data-animations="off"] .app-files .fx-address.busy::before {
+  animation: none;
+  background-position: 50% 0;
 }
 .app-files .fx-pg-details {
   display: grid;
@@ -1908,7 +1941,26 @@
   flex-direction: column;
   gap: 12px;
 }
+/* In a small window only the app list scrolls (the title and file name stay visible, no nested
+   double scroll bars). */
+.app-files.fx-openwith-dlg .dialog-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.app-files.fx-openwith-dlg .dialog-title {
+  flex: none;
+}
+.app-files.fx-openwith-dlg .fx-openwith {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.app-files.fx-openwith-dlg .fx-apps {
+  flex: 1 1 auto;
+  min-height: 72px;
+}
 .app-files .fx-openwith-file {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 10px;

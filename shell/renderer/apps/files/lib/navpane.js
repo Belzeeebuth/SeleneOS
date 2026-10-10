@@ -1,11 +1,14 @@
 // Navigation pane: Home, pinned Quick access folders, This PC (user folders + drives, expandable
 // tree) and the Recycle Bin. Keyboard navigable tree, drop targets with spring-loaded expansion.
-import { shared, isPinned, pin, unpin } from './shared.js';
+import { shared, isPinned, pin, unpin, movePin } from './shared.js';
 import * as T from './types.js';
 import * as ops from './ops.js';
 import { TRASH_TARGET } from './dnd.js';
 
 let treeSeq = 0;
+// Reordering pinned folders by dragging them in the navigation pane (Windows 11 does the same). The
+// drag only carries this private type: dropping a pin somewhere else never moves the real folder.
+const PIN_MIME = 'application/x-aurora-pin';
 
 export class NavPane {
   constructor(ex) {
@@ -167,6 +170,7 @@ export class NavPane {
           dataset: { id: node.id },
           style: { '--lvl': String(node.level - 1) },
           title: node.path || '',
+          draggable: node.pinned ? 'true' : 'false',
         },
         h('span', { class: ['fx-tchev', (!node.expandable || leaf) && 'none', open && 'open'] }, icon('chevron_right', { size: 12 })),
         h('img', { class: 'fx-tic', src: node.icon, alt: '', draggable: false }),
@@ -241,6 +245,7 @@ export class NavPane {
       if (row) this.menu(e, row.node);
     });
     tr.addEventListener('keydown', (e) => this.onKey(e));
+    this.bindPinDrag();
     this.ex.dnd.dropTarget(tr, (e) => {
       const row = this.rowOf(e.target);
       if (!row) return null;
@@ -255,6 +260,65 @@ export class NavPane {
         this.springId = null;
       }
     });
+  }
+
+  bindPinDrag() {
+    const tr = this.tree;
+    tr.addEventListener('dragstart', (e) => {
+      const row = this.rowOf(e.target);
+      if (!row?.node.pinned || !row.node.path) {
+        e.preventDefault();
+        return;
+      }
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData(PIN_MIME, row.node.path);
+      this.pinDrag = row.node.path;
+    });
+    tr.addEventListener('dragend', () => {
+      this.pinDrag = null;
+      this.markPin(null);
+    });
+    // Capture phase: a pin being reordered never reaches the folder drop targets of the tree.
+    const where = (e) => {
+      const row = this.rowOf(e.target);
+      if (!row?.node.pinned) return null;
+      const r = row.el.getBoundingClientRect();
+      return { row, after: e.clientY > r.top + r.height / 2 };
+    };
+    tr.addEventListener('dragenter', (e) => {
+      if (!this.pinDrag) return;
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
+    tr.addEventListener('dragover', (e) => {
+      if (!this.pinDrag) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const w = where(e);
+      e.dataTransfer.dropEffect = w ? 'move' : 'none';
+      this.markPin(w?.row.el || null, w?.after);
+    }, true);
+    tr.addEventListener('drop', (e) => {
+      if (!this.pinDrag) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const from = this.pinDrag;
+      this.pinDrag = null;
+      this.markPin(null);
+      const w = where(e);
+      if (!w || w.row.node.path === from) return;
+      const rest = shared.pinned.filter((p) => p !== from);
+      const at = rest.indexOf(w.row.node.path);
+      if (at >= 0) movePin(from, at + (w.after ? 1 : 0));
+    }, true);
+  }
+
+  markPin(el, after = false) {
+    if (this.pinMarked && this.pinMarked !== el) this.pinMarked.classList.remove('pin-before', 'pin-after');
+    this.pinMarked = el;
+    if (!el) return;
+    el.classList.toggle('pin-before', !after);
+    el.classList.toggle('pin-after', !!after);
   }
 
   springLoad(node) {

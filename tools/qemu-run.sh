@@ -281,7 +281,9 @@ for name in sorted(files):
                for t in fw.get("targets", [])):
         continue
     feats = set(fw.get("features", []))
-    if "amd-sev" in feats or "amd-sev-es" in feats or "intel-tdx" in feats:
+    # "amd-sev" only means SEV-capable (Ubuntu/Fedora list it on their normal OVMF builds);
+    # skip the confidential-computing-only builds (stateless, no variable store).
+    if feats & {"amd-sev-es", "amd-sev-snp", "intel-tdx"}:
         continue
     if secure != ("secure-boot" in feats and "enrolled-keys" in feats):
         continue
@@ -332,8 +334,10 @@ args=(-name "$VM_NAME" -machine "$MACHINE" "${ACCEL_ARGS[@]}" -m "$MEM" -smp "$C
 args+=("${FW_ARGS[@]}")
 
 # Disks: virtio disk + SATA CD-ROM (q35 AHCI). bootindex sets the firmware boot order.
-DISK_IDX=0; CD_IDX=1
-[[ "$BOOT" == cd ]] && { CD_IDX=0; DISK_IDX=1; }
+# Indexes start at 1: with -kernel (--kernel) QEMU gives bootindex 0 to its linuxboot option ROM,
+# and a device asking for 0 as well makes QEMU exit ("The bootindex 0 has already been used").
+DISK_IDX=1; CD_IDX=2
+[[ "$BOOT" == cd ]] && { CD_IDX=1; DISK_IDX=2; }
 if ((NO_DISK == 0)); then
   snap=""; ((SNAPSHOT)) && snap=",snapshot=on"
   args+=(-drive "file=$DISK,if=none,id=hd0,format=qcow2,discard=unmap,detect-zeroes=unmap,cache=writeback$snap"

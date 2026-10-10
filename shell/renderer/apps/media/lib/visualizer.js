@@ -140,7 +140,7 @@ export class Visualizer {
       for (let i = 0; i < pts; i++) {
         const x = (i / (pts - 1)) * w;
         const env = Math.sin((Math.PI * i) / (pts - 1));
-        const y = mid + this._wy[i] * mid * 0.9 * env;
+        const y = mid + Math.max(-1, Math.min(1, this._wy[i] * 2.4)) * mid * 0.92 * env;
         if (i === 0) g.moveTo(x, y);
         else {
           const px = ((i - 0.5) / (pts - 1)) * w;

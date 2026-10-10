@@ -1,6 +1,7 @@
 // System backends + Settings app test.
 //
-//   xvfb-run -a -s "-screen 0 1600x900x24" node test/system-settings.test.mjs [--unit] [--skip-dark]
+//   xvfb-run -a -s "-screen 0 1600x900x24" node test/system-settings.test.mjs [--unit] [--skip-dark] [--qa]
+//   (--qa: unit tests + only the QA regression pass)
 //
 // 1. Unit tests of the backend parsers against captured outputs of nmcli, wpctl, pactl, xrandr,
 //    timedatectl, setxkbmap, xinput, /proc and /sys files (no Electron needed).
@@ -82,6 +83,8 @@ console.log('\n# Backend parsers');
   check(eq(n.parseProcNetDev(dev), [{ iface: 'enp0s3', rx: 734003200, tx: 52428800 }]), '/proc/net/dev: per-interface totals without lo');
   check(n.mapConnectivity('full', 'connected') === 'full' && n.mapConnectivity('portal', 'connected (site only)') === 'limited' && n.mapConnectivity('unknown', 'connected') === 'full' && n.mapConnectivity('none', 'disconnected') === 'none', 'connectivity mapping (full / portal / unknown / none)');
   check(n.isAuthError('Error: Connection activation failed: (7) Secrets were required, but not provided.') && !n.isAuthError("Error: No network with SSID 'x' found."), 'wrong Wi-Fi key detection');
+  const conns = n.parseConnections('Café\\:Wifi:0a9c7e52-1d4b-4f7a-8c3e-000000000001:802-11-wireless:wlp2s0:no\nWired connection 1:6b1e3c1a-5f0e-4c1b-9d3e-2a7f0c9e8b11:802-3-ethernet:--:yes\n');
+  check(conns[0].name === 'Café:Wifi' && conns[0].type === 'wifi' && conns[0].autoconnect === false && conns[1].device === null && conns[1].autoconnect === true, 'nmcli connection show: escaped names, AUTOCONNECT ("Connect automatically")');
 }
 {
   const { parsers: a } = require('../main/ipc/audio.js');
@@ -204,6 +207,8 @@ HDMI-1 connected 1080x1920+1920+0 left (normal left inverted right x axis y axis
   check(ok('set-timezone', ['America/Argentina/Buenos_Aires']) && !ok('set-timezone', ['../etc/passwd']) && !ok('set-timezone', ['posix/Europe/Paris']), 'admin: time zones');
   check(ok('set-keyboard', ['fr']) && ok('set-keyboard', ['ch', 'fr']) && !ok('set-keyboard', ['fr', 'a b']) && !ok('set-keyboard', []), 'admin: keyboard with an optional variant');
   check(!ok('rm', ['-rf', '/']) && !ok('__proto__', []) && !ok('service', ['enable', 'ssh']) && ok('service', ['restart', 'NetworkManager.service']), 'admin: only allow-listed actions and verbs');
+  const he = (code, stderr, exit = 1) => ad.helperError(Object.assign(new Error('x'), { code, result: { code: exit, stderr, stdout: '' } })).code;
+  check(he('EAUTH', 'bob is not in the sudoers file.\n') === 'ENOTADMIN' && he('ECMD', "Sorry, user bob is not allowed to execute '/usr/lib/aurora/helpers/aurora-admin ping' as root on aurora.\n") === 'ENOTADMIN' && he('EAUTH', 'sudo: 1 incorrect password attempt\n') === 'EAUTH' && he('ECMD', 'aurora-admin: invalid device name\n', 2) === 'EINVAL' && he('ECMD', 'aurora-admin: at least one administrator account is required\n', 4) === 'EPERM', 'sudo refusing a standard account -> ENOTADMIN (no endless password prompt); helper exit codes');
   check(ad.parseGreetdAutologin('[terminal]\nvt = 7\n\n[default_session]\ncommand = "x"\nuser = "_greetd"\n\n[initial_session]\ncommand = "/usr/bin/aurora-session"\nuser = "aurora"\n') === 'aurora' && ad.parseGreetdAutologin('[default_session]\nuser = "_greetd"\n') === null, 'greetd config: automatic sign-in user');
 }
 {
@@ -218,6 +223,7 @@ HDMI-1 connected 1080x1920+1920+0 left (normal left inverted right x axis y axis
   const bad = links.filter(([p, s]) => !idx.PAGES[idx.resolvePage(p, s).page] || (idx.resolvePage(p, s).page === 'system' && p !== 'system'));
   check(!bad.length, `every deep link used by the shell resolves to a page${bad.length ? ` (bad: ${bad.join(' ')})` : ''}`);
   check(eq(idx.resolvePage('accounts', 'password'), { page: 'signIn', section: 'password' }) && eq(idx.resolvePage('accessibility', 'animations'), { page: 'visualEffects', section: 'animations' }) && idx.resolvePage('ms-settings:windowsupdate').page === 'update' && idx.resolvePage('nope').page === 'system', 'section redirects and aliases');
+  check(idx.searchIndex('wifi', 'en')[0]?.page === 'wifi' && idx.searchIndex('wi fi', 'fr')[0]?.page === 'wifi' && idx.searchIndex('sign in', 'en').some((e) => e.section === 'autologin') && idx.searchIndex('24 hour', 'en')[0]?.section === 'clock24h' && idx.searchIndex('signin', 'en').length > 0, 'search ignores hyphens: "wifi" finds Wi-Fi, "sign in" / "signin" find Sign-in, "24 hour" finds 24-hour');
   check(idx.searchIndex('night', 'en')[0]?.section === 'nightLight' && idx.searchIndex('fuseau', 'fr')[0]?.section === 'timezone' && idx.searchIndex('mot de passe', 'fr').some((e) => e.page === 'signIn') && idx.searchIndex('zzzz', 'en').length === 0, 'in-app search (en, fr, accents)');
   const man = JSON.parse(fs.readFileSync(path.join(ROOT, 'renderer/apps/settings/manifest.json'), 'utf8'));
   check(man.searchIndex?.length === idx.INDEX.length && man.searchIndex.every((e, i) => e.page === idx.INDEX[i].page && e.name.fr === idx.INDEX[i].name.fr), 'manifest.json searchIndex (Start search) matches lib/index.js');
@@ -266,6 +272,7 @@ console.log('\n# Privileged helper + display restore script');
     'python3',
     [
       '-I',
+      '-B', // never leave a __pycache__ next to the helper in rootfs/
       '-c',
       `
 import importlib.machinery, importlib.util, json, sys
@@ -756,8 +763,188 @@ async function darkFrench() {
   }
 }
 
+
+// Regressions found in QA: keyboard paths, focus, combo keys, nav states, Wi-Fi auto-connect, pointer
+// speed range, scale limits on a small screen, standard (non-administrator) accounts, mic race, XSS.
+async function qaRegressions() {
+  console.log('\n# QA regressions — 1280×720, Wi-Fi only');
+  const s = await launchShell({ theme: 'light', lang: 'en', size: '1280x720', open: ['settings'], env: { AURORA_MOCK_NET: 'wifi' } });
+  const bad = [];
+  s.page.on('response', (r) => r.status() >= 400 && r.url().includes('/apps/settings/') && bad.push(`${r.status()} ${r.url()}`));
+  try {
+    await s.page.waitForSelector(S('.st-page[data-page="system"]'), { timeout: 20000 });
+    await sleep(600);
+
+    // ---- nav: one tab stop, arrows / Home / End, selected + hover fills
+    const tabStops = await s.aurora(() => [...document.querySelectorAll('.app-settings .st-nav-item')].filter((b) => b.tabIndex === 0).map((b) => b.dataset.cat));
+    check(eq(tabStops, ['system']), `navigation list is a single tab stop (the selected category)${tabStops.length !== 1 ? `: ${tabStops}` : ''}`);
+    await s.page.locator(S('.st-nav-item[data-cat="system"]')).focus();
+    await s.page.keyboard.press('ArrowDown');
+    await s.page.keyboard.press('End');
+    const endFocus = await s.aurora(() => document.activeElement?.dataset?.cat);
+    await s.page.keyboard.press('Home');
+    const homeFocus = await s.aurora(() => document.activeElement?.dataset?.cat);
+    check(endFocus === 'update' && homeFocus === 'system', 'nav: End / Home move to the last / first category');
+    const fill = await s.aurora(() => getComputedStyle(document.querySelector('.app-settings .st-nav-item.selected')).backgroundColor);
+    check(fill && fill !== 'rgba(0, 0, 0, 0)' && fill !== 'transparent', `selected category has the subtle fill like Windows 11 (${fill})`);
+
+    // ---- focus stays in the window after a row replaced the page: Alt+Left goes back
+    await s.page.locator(S('.st-row'), { hasText: 'Display' }).first().click();
+    await s.page.waitForSelector(S('.st-page[data-page="display"]'));
+    await sleep(400);
+    check(await s.aurora(() => document.querySelector('.app-settings')?.contains(document.activeElement)), 'after opening a sub page the keyboard focus stays in Settings');
+    await s.page.keyboard.press('Alt+ArrowLeft');
+    await s.page.waitForSelector(S('.st-page[data-page="system"]'), { timeout: 3000 }).then(
+      () => check(true, 'Alt+Left goes back after clicking a row'),
+      () => check(false, 'Alt+Left goes back after clicking a row'),
+    );
+
+    // ---- combo: arrows move in the open list without changing the value; Enter picks
+    await go(s, 'display');
+    await s.page.locator(S('[data-section="scale"] .st-combo')).focus();
+    await s.page.keyboard.press('Enter');
+    await s.page.waitForSelector('.menu.st-combo-menu');
+    await s.page.mouse.move(2, 700); // no item under the pointer
+    await s.page.keyboard.press('ArrowDown');
+    await s.page.keyboard.press('ArrowDown');
+    await sleep(250);
+    check((await get(s, 'scale')) === 100, 'arrow keys inside an open combo list do not change the setting');
+    await s.page.keyboard.press('Enter');
+    await sleep(400);
+    check((await get(s, 'scale')) === 125, 'Enter picks the highlighted item');
+    // ---- scale limits: 1280×720 -> 150 % and 175 % would leave a desktop smaller than 800×500
+    await s.page.locator(S('[data-section="scale"] .st-combo')).click();
+    await s.page.waitForSelector('.menu.st-combo-menu');
+    const dis = await s.aurora(() => [...document.querySelectorAll('.menu.st-combo-menu .menu-item.disabled')].map((e) => e.textContent.trim()));
+    check(dis.length === 2 && dis.every((x) => /^1[57][05]%/.test(x)), `scales too big for a 1280×720 screen are disabled (${dis.join(', ')})`);
+    await s.page.keyboard.press('Escape');
+    await s.aurora(() => window.__aurora.settings.set('scale', 100));
+    await sleep(500);
+    await go(s, 'textSize');
+    check(Number(await s.page.locator(S('.slider')).getAttribute('max')) === 140, 'text size slider stops at what the screen can show (140 % at 1280×720)');
+
+    // ---- search: "wifi" without the hyphen
+    await go(s, 'system');
+    await s.page.locator(S('.st-search input')).fill('wifi');
+    await s.page.waitForSelector(S('.st-suggest .st-suggest-item'), { timeout: 3000 }).catch(() => {});
+    check(((await s.page.locator(S('.st-suggest .st-suggest-item')).first().innerText().catch(() => '')) || '').startsWith('Wi-Fi'), 'Find a setting: "wifi" suggests Wi-Fi');
+    await s.page.locator(S('.st-search input')).fill('');
+
+    // ---- Wi-Fi: header follows the radio; "Connect automatically" is honoured
+    await go(s, 'wifi');
+    await s.page.waitForSelector(S('.st-wifi-list .st-row-title'), { timeout: 8000 });
+    const head = s.page.locator(S('.st-group .st-row')).first();
+    await head.locator('.toggle input').click();
+    await sleep(500);
+    check((await head.locator('.st-row-desc').innerText()).includes('Turn Wi-Fi on'), 'Wi-Fi page: turning Wi-Fi off updates the description under the switch');
+    await head.locator('.toggle input').click();
+    await s.page.waitForSelector(S('.st-wifi-list .st-row-title'), { timeout: 8000 });
+    await sleep(300);
+    await s.page.locator(S('.st-wifi-list .st-row'), { hasText: 'Café du Coin' }).first().click();
+    await s.page.locator(S('.st-wifi-form input[type=checkbox]')).uncheck();
+    await s.page.locator(S('.st-wifi-form .btn.primary')).click();
+    await s.page.waitForFunction(() => [...document.querySelectorAll('.app-settings .st-wifi-list .st-row')].some((r) => r.textContent.includes('Café du Coin') && r.textContent.includes('Connected')), null, { timeout: 8000 }).catch(() => {});
+    const k = (await inv(s, 'net:known')).find((x) => x.ssid === 'Café du Coin');
+    check(k && k.autoconnect === false, '"Connect automatically" unchecked: the network is saved without automatic connection');
+
+    // ---- update page follows connectivity (Wi-Fi only: airplane mode = offline)
+    await go(s, 'update');
+    const checkBtn = s.page.locator(S('.st-upd-hero .btn'), { hasText: 'Check for updates' });
+    const enabledBefore = await checkBtn.isEnabled();
+    await inv(s, 'net:setAirplane', true);
+    await sleep(800);
+    const offline = (await s.page.locator(S('.st-infobar.warning')).count()) > 0 && !(await checkBtn.isEnabled());
+    await inv(s, 'net:setAirplane', false);
+    await sleep(800);
+    check(enabledBefore && offline && (await checkBtn.isEnabled()), 'Aurora Update: going offline disables Check for updates (and back) without leaving the page');
+
+    // ---- pointer speed covers the whole libinput range
+    await go(s, 'mouse');
+    const speedAt = async (v) => {
+      await setRange(s.page.locator(S('[data-section="speed"] .slider')), v);
+      await sleep(350);
+      return (await inv(s, 'input:mouse')).speed;
+    };
+    const sp = [await speedAt(1), await speedAt(10), await speedAt(20)];
+    check(eq(sp, [-1, 0, 1]), `pointer speed 1 / 10 / 20 = libinput -1 / 0 / +1 (${sp.join(' / ')})`);
+
+    // ---- microphone opened after leaving the page is released at once
+    await go(s, 'sound');
+    await s.aurora(() => {
+      window.__micStopped = false;
+      navigator.mediaDevices.getUserMedia = () => new Promise((r) => setTimeout(() => r({ getTracks: () => [{ stop: () => (window.__micStopped = true) }] }), 600));
+    });
+    await s.page.locator(S('.btn'), { hasText: 'Start' }).click();
+    await go(s, 'system');
+    await sleep(900);
+    check(await s.aurora(() => window.__micStopped), 'microphone test: a microphone that opens after the page was left is closed right away');
+
+    // ---- XSS: file names are text, never markup
+    const evil = '<img src=x onerror="window.__xss=1">.png';
+    fs.copyFileSync(path.join(ROOT, 'renderer/assets/wallpapers/aurora.jpg'), path.join(s.home, 'Pictures', evil));
+    await inv(s, 'storage:set', 'settings', 'recent-wallpapers', [path.join(s.home, 'Pictures', evil)]);
+    await go(s, 'background');
+    await s.page.locator(S(`.st-wall[aria-label="${evil.replace(/"/g, '\\"')}"]`)).hover();
+    await sleep(900);
+    check(!(await s.aurora(() => window.__xss)) && (await s.aurora((n) => [...document.querySelectorAll('.tooltip')].some((t) => t.textContent === n), evil)), 'a picture named like HTML is shown as text (tile, tooltip)');
+
+    // ---- standard account: no endless password prompt, a clear message instead
+    const me = (await inv(s, 'users:current')).name;
+    await inv(s, 'admin:run', 'pw', 'user-set-admin', [me, '0']);
+    await go(s, 'about');
+    await s.page.locator(S('.btn'), { hasText: 'Rename this PC' }).click();
+    await s.page.locator('.dialog input').fill('NEW-NAME');
+    await s.page.locator('.dialog .dialog-footer .btn.primary').click();
+    await uac(s);
+    await sleep(600);
+    const uacAgain = await s.page.locator('.uac-dialog').count();
+    const msg = await s.page.locator(S('.st-errors .st-infobar.error')).innerText().catch(() => '');
+    check(!uacAgain && /Only an administrator/.test(msg), 'standard account: the elevation is refused once with "Only an administrator can change this setting"');
+    await go(s, 'users');
+    check((await s.page.locator(S('.st-infobar.warning')).count()) === 1 && (await s.page.locator(S('.btn.primary'), { hasText: 'Add account' }).isDisabled()), 'standard account: Other users explains why and disables Add account');
+    const initials = await s.aurora(() => document.querySelector('.app-settings .st-user .st-initials')?.textContent);
+    check(/^[A-Z]{1,2}$/.test(initials || ''), `account card initials are letters only (${initials})`);
+
+    // ---- security cards: never 3 + 1
+    await go(s, 'privacy');
+    const rows = await s.aurora(() => [...document.querySelectorAll('.app-settings .st-sec-card')].map((c) => Math.round(c.getBoundingClientRect().top)));
+    const perRow = Object.values(rows.reduce((a, y) => ((a[y] = (a[y] || 0) + 1), a), {}));
+    check(perRow.length && perRow.every((n) => n === perRow[0]), `security overview cards fill their rows evenly (${perRow.join(' + ')})`);
+
+    // ---- 20 open / close cycles leave nothing behind
+    const count = () => s.aurora(() => ({ nodes: document.getElementsByTagName('*').length, menus: document.querySelectorAll('.menu, .st-picker, .tooltip').length }));
+    await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'settings')?.close());
+    await sleep(800);
+    const before = await count();
+    for (let i = 0; i < 20; i++) {
+      await s.aurora(() => window.__aurora.registry.launch('settings', { page: ['display', 'wifi', 'personalization', 'time', 'update'][Math.floor(Math.random() * 5)] }));
+      await s.page.waitForSelector(S('.st-page'), { timeout: 10000 });
+      await sleep(250);
+      await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'settings')?.close());
+      await sleep(350);
+    }
+    await sleep(800);
+    const after = await count();
+    check(after.nodes - before.nodes <= 5 && after.menus === 0, `20 open/close cycles leave no DOM behind (${before.nodes} -> ${after.nodes} nodes)`);
+
+    check(!bad.length, `no Settings resource fails to load${bad.length ? `: ${bad.join(', ')}` : ''}`);
+    const errs = errorsOf(s);
+    check(!errs.length, `no renderer errors (QA regressions)${errs.length ? `:\n${errs.join('\n')}` : ''}`);
+  } catch (err) {
+    check(false, `QA regression flow crashed: ${err.stack || err}`);
+    await s.shot('settings-crash-qa').catch(() => {});
+  } finally {
+    await s.close();
+  }
+}
+
+if (ARGS.has('--qa')) {
+  await qaRegressions();
+  finish();
+}
 await lightEnglish();
 if (!ARGS.has('--skip-dark')) await darkFrench();
+await qaRegressions();
 finish();
 
 function finish() {

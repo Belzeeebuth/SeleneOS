@@ -1,7 +1,9 @@
 // Screen snipping: optional delay countdown, frozen full-screen capture (shell:capture) and the
 // Windows 11-style selection overlay (Rectangle / Window / Full screen / Free-form).
 //
-//   const s = new SnipSession({ api, h, icon, t, mode, delay, exclude: win, onMode });
+//   const s = new SnipSession({ api, h, icon, t, mode, delay, exclude: win, onMode, settle });
+//     settle: ms to wait after hiding the app window before the screen is grabbed (lets the
+//     taskbar finish animating a button out)
 //   const res = await s.run();   // -> { canvas, mode, rect } | null when cancelled (Esc, X, s.cancel())
 //   s.cancel();                  // window closed, screen locked, …
 //
@@ -71,10 +73,11 @@ export function cropBitmap(bmp, scale, rect, path) {
 }
 
 export class SnipSession {
-  constructor({ api, h, icon, t, mode = 'rect', delay = 0, exclude = null, onMode = null }) {
+  constructor({ api, h, icon, t, mode = 'rect', delay = 0, exclude = null, onMode = null, settle = 40 }) {
     Object.assign(this, { api, h, icon, t, exclude, onMode });
     this.mode = MODES.includes(mode) ? mode : 'rect';
     this.delay = Math.max(0, Number(delay) || 0);
+    this.settle = Math.max(0, Number(settle) || 0);
     this.cancelled = false;
     this.phase = 'idle'; // idle | countdown | grabbing | overlay | done
     this._cancelers = new Set();
@@ -115,7 +118,7 @@ export class SnipSession {
       // Let the compositor present a frame without the app window / countdown pill.
       await nextFrame();
       await nextFrame();
-      await this._sleep(40);
+      await this._sleep(this.settle);
       if (this.cancelled) return null;
       const bytes = await this.api.invoke('shell:capture');
       if (this.cancelled) return null;
@@ -167,7 +170,7 @@ export class SnipSession {
     for (let n = seconds; n > 0 && !this.cancelled; n--) {
       num.textContent = String(n);
       label.textContent = t('countdown', { n });
-      num.animate?.([{ transform: 'scale(1.35)', opacity: 0.2 }, { transform: 'none', opacity: 1 }], { duration: 260, easing: 'cubic-bezier(0.1, 0.9, 0.2, 1)' });
+      if (document.documentElement.dataset.animations !== 'off') num.animate?.([{ transform: 'scale(1.35)', opacity: 0.2 }, { transform: 'none', opacity: 1 }], { duration: 260, easing: 'cubic-bezier(0.1, 0.9, 0.2, 1)' });
       await this._sleep(1000);
     }
     this.pill?.remove();
@@ -287,7 +290,7 @@ export class SnipSession {
       const inset = 1;
       Object.entries({ x: r.x + inset, y: r.y + inset, width: Math.max(0, r.width - 2 * inset), height: Math.max(0, r.height - 2 * inset) }).forEach(([k, v]) => winOutline.setAttribute(k, String(v)));
       winOutline.setAttribute('rx', tg.kind === 'window' && r.width < vw ? '8' : '0');
-      winOutline.style.display = '';
+      winOutline.style.display = 'inline';
       showSize(r);
     };
     const updateHint = () => {

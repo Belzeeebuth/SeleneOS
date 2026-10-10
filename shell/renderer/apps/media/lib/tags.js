@@ -10,7 +10,88 @@
 // LIST/INFO + fmt/data duration. Anything unknown or malformed yields an empty result, never throws.
 const MAX_TAG = 16 * 1024 * 1024;
 
-const GENRES = ['Blues', 'Classic Rock', 'Country', 'Dance', 'Disco', 'Funk', 'Grunge', 'Hip-Hop', 'Jazz', 'Metal', 'New Age', 'Oldies', 'Other', 'Pop', 'R&B', 'Rap', 'Reggae', 'Rock', 'Techno', 'Industrial', 'Alternative', 'Ska', 'Death Metal', 'Pranks', 'Soundtrack', 'Euro-Techno', 'Ambient', 'Trip-Hop', 'Vocal', 'Jazz+Funk', 'Fusion', 'Trance', 'Classical', 'Instrumental', 'Acid', 'House', 'Game', 'Sound Clip', 'Gospel', 'Noise', 'Alternative Rock', 'Bass', 'Soul', 'Punk', 'Space', 'Meditative', 'Instrumental Pop', 'Instrumental Rock', 'Ethnic', 'Gothic', 'Darkwave', 'Techno-Industrial', 'Electronic', 'Pop-Folk', 'Eurodance', 'Dream', 'Southern Rock', 'Comedy', 'Cult', 'Gangsta', 'Top 40', 'Christian Rap', 'Pop/Funk', 'Jungle', 'Native American', 'Cabaret', 'New Wave', 'Psychedelic', 'Rave', 'Showtunes', 'Trailer', 'Lo-Fi', 'Tribal', 'Acid Punk', 'Acid Jazz', 'Polka', 'Retro', 'Musical', 'Rock & Roll', 'Hard Rock'];
+const GENRES = [
+  'Blues',
+  'Classic Rock',
+  'Country',
+  'Dance',
+  'Disco',
+  'Funk',
+  'Grunge',
+  'Hip-Hop',
+  'Jazz',
+  'Metal',
+  'New Age',
+  'Oldies',
+  'Other',
+  'Pop',
+  'R&B',
+  'Rap',
+  'Reggae',
+  'Rock',
+  'Techno',
+  'Industrial',
+  'Alternative',
+  'Ska',
+  'Death Metal',
+  'Pranks',
+  'Soundtrack',
+  'Euro-Techno',
+  'Ambient',
+  'Trip-Hop',
+  'Vocal',
+  'Jazz+Funk',
+  'Fusion',
+  'Trance',
+  'Classical',
+  'Instrumental',
+  'Acid',
+  'House',
+  'Game',
+  'Sound Clip',
+  'Gospel',
+  'Noise',
+  'Alternative Rock',
+  'Bass',
+  'Soul',
+  'Punk',
+  'Space',
+  'Meditative',
+  'Instrumental Pop',
+  'Instrumental Rock',
+  'Ethnic',
+  'Gothic',
+  'Darkwave',
+  'Techno-Industrial',
+  'Electronic',
+  'Pop-Folk',
+  'Eurodance',
+  'Dream',
+  'Southern Rock',
+  'Comedy',
+  'Cult',
+  'Gangsta',
+  'Top 40',
+  'Christian Rap',
+  'Pop/Funk',
+  'Jungle',
+  'Native American',
+  'Cabaret',
+  'New Wave',
+  'Psychedelic',
+  'Rave',
+  'Showtunes',
+  'Trailer',
+  'Lo-Fi',
+  'Tribal',
+  'Acid Punk',
+  'Acid Jazz',
+  'Polka',
+  'Retro',
+  'Musical',
+  'Rock & Roll',
+  'Hard Rock',
+];
 
 const latin1 = (u8) => {
   let s = '';
@@ -45,7 +126,11 @@ function genreName(g) {
   if (!g) return null;
   const m = /^\(?(\d{1,3})\)?$/.exec(String(g).trim());
   if (m) return GENRES[Number(m[1])] || null;
-  return String(g).replace(/^\(\d+\)/, '').trim() || null;
+  return (
+    String(g)
+      .replace(/^\(\d+\)/, '')
+      .trim() || null
+  );
 }
 const yearOf = (s) => {
   const m = /(\d{4})/.exec(String(s || ''));

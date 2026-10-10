@@ -523,6 +523,8 @@ async function greeterTests() {
   await page.waitForTimeout(300);
   check((await text(page, '.lk-name')) === 'Alex Morgan', 'remembered/first user selected');
   check((await page.$$('.lk-user')).length === 3, 'bottom-left user list (3 accounts)');
+  const tileW = await page.$$eval('.lk-user', (els) => [...new Set(els.map((e) => Math.round(e.getBoundingClientRect().width)))]);
+  check(tileW.length === 1 && tileW[0] >= 232, `account tiles share one width, at least 232 px (${tileW})`);
   check(await page.$eval('.lk-pw-field input', (e) => e.placeholder === 'Password'), 'placeholder');
   check((await layoutProblems(page)).length === 0, `layout OK: ${await layoutProblems(page)}`);
   await shot(page, 'login-signin-en');
@@ -1097,6 +1099,8 @@ async function greeterQaTests() {
   check((await page.evaluate(() => window.__xss)) === undefined && !(await q(page, '.lk-user-name img')), 'a hostile full name is shown as text');
   const heights = await page.$$eval('.lk-user', (els) => [...new Set(els.map((e) => Math.round(e.getBoundingClientRect().height)))]);
   check(heights.length === 1 && heights[0] >= 40, `account tiles keep their height in a long list (${heights})`);
+  const widths = await page.$$eval('.lk-user', (els) => [...new Set(els.map((e) => Math.round(e.getBoundingClientRect().width)))]);
+  check(widths.length === 1, `account tiles share one width (${widths})`);
   check(await page.$eval('.lk-users', (e) => e.scrollHeight > e.clientHeight && e.classList.contains('lk-scroll') && e.classList.contains('lk-at-top') && !e.classList.contains('lk-at-end')), 'long list scrolls, bottom edge fades');
   await page.click('.lk-user[data-user="longname"]');
   await page.waitForTimeout(400);
@@ -1132,6 +1136,7 @@ async function greeterQaTests() {
   for (const sel of ['.lk-power', '.lk-a11y', '.lk-ind']) {
     await page.click(sel);
     await page.waitForSelector('.menu.lk-menu');
+    await page.waitForTimeout(350); // past the menu's opening slide
     const geo = await page.evaluate((sel) => {
       const m = document.querySelector('.menu.lk-menu').getBoundingClientRect();
       const b = document.querySelector(sel).getBoundingClientRect();
@@ -1189,7 +1194,9 @@ async function greeterQaTests() {
     await s3.page.keyboard.press('Enter');
     await s3.page.waitForTimeout(800);
     await s3.page.keyboard.type('pas valide!');
-    await s3.page.keyboard.press('Tab');
+    await s3.page.keyboard.press('Enter');
+    await s3.page.waitForTimeout(150);
+    check(await s3.page.evaluate(() => document.activeElement?.closest('.lk-pw-field') && !document.querySelector('.lockui.busy')), 'Enter in the user name box moves to the password box (no sign-in attempt yet)');
     await s3.page.keyboard.type('x');
     await s3.page.keyboard.press('Enter');
     await s3.page.waitForFunction(() => !document.querySelector('.lockui.busy'), null, { timeout: 8000 });
@@ -1317,6 +1324,31 @@ async function lockQaTests() {
   await page.waitForTimeout(800);
   const badge = await page.$$eval('.lk-badge', (els) => els.map((e) => ({ title: e.title, imgs: e.querySelectorAll('img').length })));
   check((await page.evaluate(() => window.__xss)) === undefined && badge.some((b) => b.title.startsWith('<img src=y') && b.imgs === 0), `notification text shown as text on the lock screen (${JSON.stringify(badge)})`);
+  check(!(await page.$eval('.lockui', (e) => e.classList.contains('lk-light-wall'))), 'dark picture: normal shade behind the clock');
+  await s.aurora(() => window.__aurora.shell.emit('unlock'));
+  await page.waitForTimeout(600);
+  // The user's own (light) picture as wallpaper: media:// is another origin than the shell page.
+  const wallSrc = path.join(ROOT, 'renderer', 'assets', 'wallpapers', fs.readdirSync(path.join(ROOT, 'renderer', 'assets', 'wallpapers')).find((f) => /light/.test(f) && f.endsWith('.jpg')) || '');
+  const myWall = path.join(home, 'Pictures', 'my "holiday" (1).jpg');
+  fs.copyFileSync(wallSrc, myWall);
+  await s.aurora((p) => window.__aurora.settings.set('wallpaper', p), myWall);
+  await page.waitForTimeout(800);
+  await s.aurora(() => window.__aurora.shell.lock());
+  await page.waitForFunction(() => document.querySelector('.lockui .lk-blur.ready'), null, { timeout: 5000 }).catch(() => {});
+  const blur = await page.evaluate(() => {
+    const b = document.querySelector('.lockui .lk-blur');
+    return { ready: b?.classList.contains('ready'), bg: (b?.style.backgroundImage || '').slice(0, 12), light: document.querySelector('.lockui')?.classList.contains('lk-light-wall') };
+  });
+  check(blur.ready && blur.bg.startsWith('url("blob:'), `a wallpaper from the user's files gets its pre-blurred copy (was a tainted canvas: ${JSON.stringify(blur)})`);
+  check(blur.light === true, 'light picture: deeper shade behind the white clock');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(900);
+  await shot(page, 'lock-signin-custom-wallpaper');
+  await s.aurora(() => window.__aurora.shell.emit('unlock'));
+  await page.waitForTimeout(600);
+  await s.aurora(() => window.__aurora.settings.set('wallpaper', 'builtin:bloom'));
+  await s.aurora(() => window.__aurora.shell.lock());
+  await page.waitForTimeout(800);
   check(!myErrors(s.logs).length, `no renderer errors: ${myErrors(s.logs)}`);
 
   section('QA: a shell restarted while locked comes back locked (crash restart)');

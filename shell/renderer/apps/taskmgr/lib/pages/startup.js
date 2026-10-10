@@ -53,9 +53,9 @@ export class StartupPage {
     this.table.setColumns([
       { id: 'name', name: true, width: 220, min: 120, label: () => t('col.name'), cell: (r) => ({ text: r.data.name, icon: { name: 'app_generic', tone: r.data.enabled ? 'user' : 'muted' } }) },
       { id: 'command', flex: true, width: 260, min: 100, label: () => t('col.command'), cell: (r) => ({ text: r.data.exec, tip: r.data.exec }) },
-      { id: 'status', width: 110, min: 60, label: () => t('col.status'), cell: (r) => (r.data.enabled ? t('startup.enabled') : t('startup.disabled')) },
-      { id: 'scope', width: 120, min: 60, label: () => t('col.scope'), cell: (r) => t(`startup.scope.${r.data.scope}`) },
-      { id: 'impact', width: 120, min: 60, label: () => t('col.impact'), cell: () => t('startup.notMeasured') },
+      { id: 'status', width: 110, min: 60, label: () => t('col.status'), fit: () => [t('startup.enabled'), t('startup.disabled')], cell: (r) => (r.data.enabled ? t('startup.enabled') : t('startup.disabled')) },
+      { id: 'scope', width: 120, min: 60, label: () => t('col.scope'), fit: () => [t('startup.scope.system'), t('startup.scope.user')], cell: (r) => t(`startup.scope.${r.data.scope}`) },
+      { id: 'impact', width: 120, min: 60, label: () => t('col.impact'), fit: () => [t('startup.notMeasured')], cell: () => t('startup.notMeasured') },
     ]);
   }
 

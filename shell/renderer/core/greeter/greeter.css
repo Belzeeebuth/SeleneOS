@@ -109,6 +109,12 @@
     linear-gradient(180deg, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0.12) 30%, rgba(0, 0, 0, 0) 52%),
     linear-gradient(0deg, rgba(0, 0, 0, 0.28) 0%, rgba(0, 0, 0, 0) 22%);
 }
+/* Light pictures: deeper shade behind the clock and the date (about 3:1 for the time, more for the date). */
+.lockui.lk-light-wall .lk-shade {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.44) 0%, rgba(0, 0, 0, 0.32) 30%, rgba(0, 0, 0, 0.1) 48%, rgba(0, 0, 0, 0) 60%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0) 24%);
+}
 .lk-clock {
   position: absolute;
   left: 0;
@@ -655,7 +661,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-width: min(232px, 100%);
+  /* Same width for every tile (as wide as the list may be on small screens). */
+  min-width: min(232px, max(180px, calc(50vw - 214px)));
   max-width: 100%;
   height: 56px;
   flex: none;

@@ -8,14 +8,15 @@ const VIDEO_SORTS = ['az', 'added', 'duration'];
 function sortSongs(app, list, by) {
   const loc = app.locale;
   const T = (e) => app.titleOf(e);
-  const cmp = {
-    az: (a, b) => compareText(T(a), T(b), loc),
-    artist: (a, b) => compareText(app.artistOf(a), app.artistOf(b), loc) || compareText(app.albumOf(a), app.albumOf(b), loc) || (a.track || 999) - (b.track || 999) || compareText(T(a), T(b), loc),
-    album: (a, b) => compareText(app.albumOf(a), app.albumOf(b), loc) || (a.track || 999) - (b.track || 999) || compareText(T(a), T(b), loc),
-    year: (a, b) => (b.year || 0) - (a.year || 0) || compareText(T(a), T(b), loc),
-    added: (a, b) => (b.mtime || 0) - (a.mtime || 0),
-    duration: (a, b) => (b.duration || 0) - (a.duration || 0),
-  }[by] || ((a, b) => compareText(T(a), T(b), loc));
+  const cmp =
+    {
+      az: (a, b) => compareText(T(a), T(b), loc),
+      artist: (a, b) => compareText(app.artistOf(a), app.artistOf(b), loc) || compareText(app.albumOf(a), app.albumOf(b), loc) || (a.track || 999) - (b.track || 999) || compareText(T(a), T(b), loc),
+      album: (a, b) => compareText(app.albumOf(a), app.albumOf(b), loc) || (a.track || 999) - (b.track || 999) || compareText(T(a), T(b), loc),
+      year: (a, b) => (b.year || 0) - (a.year || 0) || compareText(T(a), T(b), loc),
+      added: (a, b) => (b.mtime || 0) - (a.mtime || 0),
+      duration: (a, b) => (b.duration || 0) - (a.duration || 0),
+    }[by] || ((a, b) => compareText(T(a), T(b), loc));
   return [...list].sort(cmp);
 }
 
@@ -30,7 +31,14 @@ function sortSelect(app, value, options, onChange) {
 }
 
 function scanningBar(app) {
-  return app.lib.scanning ? app.h('div', { class: 'mp-scan', role: 'status' }, app.h('div', { class: 'progress indeterminate' }, app.h('div', { class: 'bar' })), app.h('span', { class: 'caption text-2' }, app.t('library.scanning'))) : null;
+  return app.lib.scanning
+    ? app.h(
+        'div',
+        { class: 'mp-scan', role: 'status' },
+        app.h('div', { class: 'progress indeterminate' }, app.h('div', { class: 'bar' })),
+        app.h('span', { class: 'caption text-2' }, app.t('library.scanning')),
+      )
+    : null;
 }
 
 function folderList(app, kind) {
@@ -66,7 +74,7 @@ function heroActions(app, getPaths, { shuffle = true, extra = [] } = {}) {
   return [
     btn(app, { label: t('music.playAll'), icon: 'play', primary: true, onClick: () => app.playEntries(getPaths(), 0, { shuffle: false }), cls: 'mp-play-all' }),
     shuffle ? btn(app, { label: t('music.shuffle'), icon: 'arrow_shuffle', onClick: () => app.playEntries(getPaths(), 0, { shuffle: true }), cls: 'mp-shuffle-all' }) : null,
-    btn(app, { label: t('music.addTo'), icon: 'add', onClick: (e) => app.ui.menu(e, app.addToMenuItems(getPaths().map((x) => x.path || x))), cls: 'mp-add-to' }),
+    btn(app, { label: t('music.addTo'), icon: 'add', onClick: (e) => app._menu(e, app.addToMenuItems(getPaths().map((x) => x.path || x))), cls: 'mp-add-to' }),
     ...extra,
   ].filter(Boolean);
 }
@@ -96,7 +104,12 @@ function mosaic(app, entries, key) {
     if (src && !arts.includes(src)) arts.push(src);
     if (arts.length === 4) break;
   }
-  if (arts.length >= 4) return h('div', { class: 'mp-art mp-mosaic' }, arts.map((src) => h('img', { src: app.api.mediaUrl(src), alt: '', draggable: false })));
+  if (arts.length >= 4)
+    return h(
+      'div',
+      { class: 'mp-art mp-mosaic' },
+      arts.map((src) => h('img', { src: app.api.mediaUrl(src), alt: '', draggable: false })),
+    );
   if (arts.length) return artEl(app, { src: arts[0], key });
   return artEl(app, { key, glyph: 'text_bullet_list' });
 }
@@ -107,10 +120,16 @@ export function homeView(app) {
   const el = h('div', { class: 'mp-page mp-home' });
   el.appendChild(
     pageHeader(app, t('nav.home'), {
-      actions: [btn(app, { label: t('home.openFiles'), icon: 'document', onClick: () => app.openFiles(), cls: 'mp-open-files' }), btn(app, { label: t('home.openFolder'), icon: 'folder_open', onClick: () => app.openFolder(), cls: 'mp-open-folder' })],
+      actions: [
+        btn(app, { label: t('home.openFiles'), icon: 'document', onClick: () => app.openFiles(), cls: 'mp-open-files' }),
+        btn(app, { label: t('home.openFolder'), icon: 'folder_open', onClick: () => app.openFolder(), cls: 'mp-open-folder' }),
+      ],
     }),
   );
-  const recent = app.recent.map((p) => app.lib.get(p)).filter(Boolean).slice(0, 12);
+  const recent = app.recent
+    .map((p) => app.lib.get(p))
+    .filter(Boolean)
+    .slice(0, 12);
   if (!recent.length) {
     el.appendChild(
       h(
@@ -154,17 +173,33 @@ export function homeView(app) {
   const pls = app.playlists.list();
   if (pls.length) {
     el.appendChild(sectionHead(app, t('nav.playlists'), { onSeeAll: () => app.go({ name: 'playlists' }) }));
-    el.appendChild(grid(app, pls.slice(0, 6).map((pl) => playlistTile(app, pl))));
+    el.appendChild(
+      grid(
+        app,
+        pls.slice(0, 6).map((pl) => playlistTile(app, pl)),
+      ),
+    );
   }
   const albums = app.albums().slice(0, 6);
   if (albums.length) {
     el.appendChild(sectionHead(app, t('home.music'), { onSeeAll: () => app.go({ name: 'music', arg: 'albums' }) }));
-    el.appendChild(grid(app, albums.map((a) => albumTile(app, a))));
+    el.appendChild(
+      grid(
+        app,
+        albums.map((a) => albumTile(app, a)),
+      ),
+    );
   }
   const vids = app.lib.videos().slice(0, 6);
   if (vids.length) {
     el.appendChild(sectionHead(app, t('home.videos'), { onSeeAll: () => app.go({ name: 'videos' }) }));
-    el.appendChild(grid(app, vids.map((v) => videoTile(app, v)), { wide: true }));
+    el.appendChild(
+      grid(
+        app,
+        vids.map((v) => videoTile(app, v)),
+        { wide: true },
+      ),
+    );
   }
   if (!albums.length && !vids.length && !app.lib.scanning) {
     el.appendChild(h('div', { class: 'mp-hint caption text-2' }, icon('info'), t('home.libraryHint')));
@@ -258,13 +293,39 @@ export function musicView(app, tab = 'songs') {
   }
   if (tab === 'albums') {
     const albums = app.albums();
-    el.appendChild(h('div', { class: 'mp-toolbar' }, btn(app, { label: t('music.shufflePlay'), icon: 'arrow_shuffle', primary: true, onClick: () => app.playEntries(songs, 0, { shuffle: true }) }), h('span', { class: 'grow' }), h('span', { class: 'caption text-2 mp-count' }, t('count.albums', { count: albums.length }))));
-    el.appendChild(grid(app, albums.map((a) => albumTile(app, a))));
+    el.appendChild(
+      h(
+        'div',
+        { class: 'mp-toolbar' },
+        btn(app, { label: t('music.shufflePlay'), icon: 'arrow_shuffle', primary: true, onClick: () => app.playEntries(songs, 0, { shuffle: true }) }),
+        h('span', { class: 'grow' }),
+        h('span', { class: 'caption text-2 mp-count' }, t('count.albums', { count: albums.length })),
+      ),
+    );
+    el.appendChild(
+      grid(
+        app,
+        albums.map((a) => albumTile(app, a)),
+      ),
+    );
     return { el, rerenderOnMeta: true };
   }
   const artists = app.artists();
-  el.appendChild(h('div', { class: 'mp-toolbar' }, btn(app, { label: t('music.shufflePlay'), icon: 'arrow_shuffle', primary: true, onClick: () => app.playEntries(songs, 0, { shuffle: true }) }), h('span', { class: 'grow' }), h('span', { class: 'caption text-2 mp-count' }, t('count.artists', { count: artists.length }))));
-  el.appendChild(grid(app, artists.map((a) => artistTile(app, a))));
+  el.appendChild(
+    h(
+      'div',
+      { class: 'mp-toolbar' },
+      btn(app, { label: t('music.shufflePlay'), icon: 'arrow_shuffle', primary: true, onClick: () => app.playEntries(songs, 0, { shuffle: true }) }),
+      h('span', { class: 'grow' }),
+      h('span', { class: 'caption text-2 mp-count' }, t('count.artists', { count: artists.length })),
+    ),
+  );
+  el.appendChild(
+    grid(
+      app,
+      artists.map((a) => artistTile(app, a)),
+    ),
+  );
   return { el, rerenderOnMeta: true };
 }
 
@@ -365,7 +426,13 @@ export function videosView(app) {
       h('span', { class: 'caption text-2 mp-count' }, t('count.videos', { count: sorted.length })),
     ),
   );
-  el.appendChild(grid(app, sorted.map((v) => videoTile(app, v)), { wide: true, cls: 'mp-video-grid' }));
+  el.appendChild(
+    grid(
+      app,
+      sorted.map((v) => videoTile(app, v)),
+      { wide: true, cls: 'mp-video-grid' },
+    ),
+  );
   return { el, rerenderOnMeta: true };
 }
 
@@ -385,7 +452,14 @@ export function queueView(app) {
     }),
   );
   if (!q.length) {
-    el.appendChild(emptyState(app, { glyph: 'text_bullet_list', title: t('queue.empty'), body: t('queue.emptyBody'), actions: [btn(app, { label: t('home.openFiles'), icon: 'document', primary: true, onClick: () => app.openFiles() })] }));
+    el.appendChild(
+      emptyState(app, {
+        glyph: 'text_bullet_list',
+        title: t('queue.empty'),
+        body: t('queue.emptyBody'),
+        actions: [btn(app, { label: t('home.openFiles'), icon: 'document', primary: true, onClick: () => app.openFiles() })],
+      }),
+    );
     return { el };
   }
   const entries = q.items.map((it) => app.lib.get(it.path) || { path: it.path, kind: null, name: baseName(it.path), guessTitle: baseName(it.path) });
@@ -413,7 +487,7 @@ export function playlistTile(app, pl) {
     onOpen: () => app.go({ name: 'playlist', arg: pl.id }),
     onPlay: pl.items.length ? () => app.playEntries(pl.items, 0) : null,
     onMenu: (ev) =>
-      app.ui.menu(ev, [
+      app._menu(ev, [
         { label: t('menu.play'), icon: 'play', disabled: !pl.items.length, action: () => app.playEntries(pl.items, 0) },
         { label: t('menu.playNext'), icon: 'arrow_next', disabled: !pl.items.length, action: () => app.playNext(pl.items) },
         { label: t('menu.addToQueue'), icon: 'text_bullet_list_add', disabled: !pl.items.length, action: () => app.addToQueue(pl.items) },
@@ -430,10 +504,23 @@ export function playlistsView(app) {
   el.appendChild(pageHeader(app, t('nav.playlists'), { actions: [btn(app, { label: t('playlists.new'), icon: 'add', primary: true, onClick: () => app.newPlaylist(), cls: 'mp-new-playlist' })] }));
   const pls = app.playlists.list();
   if (!pls.length) {
-    el.appendChild(emptyState(app, { glyph: 'album', title: t('playlists.empty'), body: t('playlists.emptyBody'), actions: [btn(app, { label: t('playlists.new'), icon: 'add', primary: true, onClick: () => app.newPlaylist() })] }));
+    el.appendChild(
+      emptyState(app, {
+        glyph: 'album',
+        title: t('playlists.empty'),
+        body: t('playlists.emptyBody'),
+        actions: [btn(app, { label: t('playlists.new'), icon: 'add', primary: true, onClick: () => app.newPlaylist() })],
+      }),
+    );
     return { el };
   }
-  el.appendChild(grid(app, pls.map((pl) => playlistTile(app, pl)), { cls: 'mp-playlist-grid' }));
+  el.appendChild(
+    grid(
+      app,
+      pls.map((pl) => playlistTile(app, pl)),
+      { cls: 'mp-playlist-grid' },
+    ),
+  );
   return { el, rerenderOnMeta: true };
 }
 
@@ -462,7 +549,7 @@ export function playlistView(app, id) {
           iconOnly: true,
           cls: 'mp-pl-more',
           onClick: (e) =>
-            app.ui.menu(e, [
+            app._menu(e, [
               { label: t('playlists.rename'), icon: 'rename', action: () => app.renamePlaylist(pl.id) },
               { label: t('playlists.delete'), icon: 'delete', danger: true, action: () => app.deletePlaylist(pl.id) },
             ]),
@@ -490,7 +577,9 @@ export function playlistView(app, id) {
 // ====================================================================== Search
 export function searchView(app, query) {
   const { h, t } = app;
-  const q = String(query || '').trim().toLowerCase();
+  const q = String(query || '')
+    .trim()
+    .toLowerCase();
   const el = h('div', { class: 'mp-page mp-search' });
   el.appendChild(pageHeader(app, t('search.results', { q: query })));
   const match = (...s) => s.some((x) => x && String(x).toLowerCase().includes(q));
@@ -510,19 +599,40 @@ export function searchView(app, query) {
   }
   if (vids.length) {
     el.appendChild(sectionHead(app, `${t('home.videos')} (${vids.length})`));
-    el.appendChild(grid(app, vids.map((v) => videoTile(app, v)), { wide: true }));
+    el.appendChild(
+      grid(
+        app,
+        vids.map((v) => videoTile(app, v)),
+        { wide: true },
+      ),
+    );
   }
   if (albums.length) {
     el.appendChild(sectionHead(app, `${t('music.albums')} (${albums.length})`));
-    el.appendChild(grid(app, albums.map((a) => albumTile(app, a))));
+    el.appendChild(
+      grid(
+        app,
+        albums.map((a) => albumTile(app, a)),
+      ),
+    );
   }
   if (artists.length) {
     el.appendChild(sectionHead(app, `${t('music.artists')} (${artists.length})`));
-    el.appendChild(grid(app, artists.map((a) => artistTile(app, a))));
+    el.appendChild(
+      grid(
+        app,
+        artists.map((a) => artistTile(app, a)),
+      ),
+    );
   }
   if (pls.length) {
     el.appendChild(sectionHead(app, `${t('nav.playlists')} (${pls.length})`));
-    el.appendChild(grid(app, pls.map((p) => playlistTile(app, p))));
+    el.appendChild(
+      grid(
+        app,
+        pls.map((p) => playlistTile(app, p)),
+      ),
+    );
   }
   return { el, rerenderOnMeta: true };
 }
@@ -571,7 +681,12 @@ export function settingsView(app) {
   const resume = ui.toggle({ checked: app.prefs.resume !== false, onchange: (v) => app.setPref('resume', v) });
   resume.classList.add('mp-resume-toggle');
   const autoStage = ui.toggle({ checked: app.prefs.videoStage !== false, onchange: (v) => app.setPref('videoStage', v) });
-  const row = (ic, title, hint, control) => h('div', { class: 'mp-set-card' }, h('div', { class: 'mp-set-row' }, icon(ic, { class: 'mp-set-ic' }), h('div', { class: 'grow' }, h('div', null, title), hint ? h('div', { class: 'caption text-2' }, hint) : null), control));
+  const row = (ic, title, hint, control) =>
+    h(
+      'div',
+      { class: 'mp-set-card' },
+      h('div', { class: 'mp-set-row' }, icon(ic, { class: 'mp-set-ic' }), h('div', { class: 'grow' }, h('div', null, title), hint ? h('div', { class: 'caption text-2' }, hint) : null), control),
+    );
   el.append(
     h('h2', { class: 'mp-set-section' }, t('settings.library')),
     folderCard('music'),
@@ -584,7 +699,18 @@ export function settingsView(app) {
     h('h2', { class: 'mp-set-section' }, t('settings.about')),
     row('image_arrow_counterclockwise', t('settings.cache'), t('settings.cacheHint'), btn(app, { label: t('settings.clear'), onClick: () => app.clearCache(), cls: 'mp-clear-cache' })),
     row('keyboard', t('shortcuts.title'), null, btn(app, { label: t('shortcuts.show'), onClick: () => app.showShortcuts() })),
-    h('div', { class: 'mp-set-card mp-about' }, h('img', { src: app.appUrl('icon.svg'), alt: '', width: 32, height: 32 }), h('div', null, h('div', { class: 'body-strong' }, t('app.name')), h('div', { class: 'caption text-2' }, t('settings.version', { v: '1.0' })), h('div', { class: 'caption text-2' }, t('settings.aboutBody')))),
+    h(
+      'div',
+      { class: 'mp-set-card mp-about' },
+      h('img', { src: app.appUrl('icon.svg'), alt: '', width: 32, height: 32 }),
+      h(
+        'div',
+        null,
+        h('div', { class: 'body-strong' }, t('app.name')),
+        h('div', { class: 'caption text-2' }, t('settings.version', { v: '1.0' })),
+        h('div', { class: 'caption text-2' }, t('settings.aboutBody')),
+      ),
+    ),
   );
   return { el };
 }

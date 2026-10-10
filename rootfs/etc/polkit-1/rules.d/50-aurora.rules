@@ -1,7 +1,12 @@
 // Aurora OS polkit policy.
 //
-// * Administrators (group "sudo") and members of "netdev" using a local, active session
-//   manage networks and mount/unlock/eject drives without a password prompt.
+// * Administrators (group "sudo") using a local, active session manage networks and
+//   mount/unlock/eject internal drives without a password prompt (Aurora OS has no polkit
+//   authentication agent: an "auth_admin" answer would simply fail).
+// * Standard users keep the packages' defaults: their own removable drives (udisks2) and, with
+//   group "netdev", system-wide network connections (Ubuntu's NetworkManager rule). They cannot
+//   mount internal partitions, unmount other users' drives, change the host name or the global
+//   DNS without an administrator.
 // * Power off / reboot / suspend / hibernate are allowed from every local active session,
 //   including the sign-in screen (greetd's "_greetd" user). Doing so while other users are
 //   still signed in is limited to administrators and the sign-in screen.
@@ -42,13 +47,12 @@ polkit.addRule(function (action, subject) {
   }
   var id = action.id;
   var admin = subject.isInGroup("sudo");
-  var trusted = admin || subject.isInGroup("netdev");
   var greeter = subject.user === "_greetd";
 
-  if (trusted && id.indexOf("org.freedesktop.NetworkManager.") === 0) {
+  if (admin && id.indexOf("org.freedesktop.NetworkManager.") === 0) {
     return polkit.Result.YES;
   }
-  if (trusted && AURORA_UDISKS_ACTIONS.indexOf(id) >= 0) {
+  if (admin && AURORA_UDISKS_ACTIONS.indexOf(id) >= 0) {
     return polkit.Result.YES;
   }
   if (AURORA_POWER_ACTIONS.indexOf(id) >= 0) {

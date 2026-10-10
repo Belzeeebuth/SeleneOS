@@ -116,7 +116,6 @@ function readText(file) {
 function register(api) {
   const useMock = api.DEV && process.env.AURORA_REAL_BACKENDS !== '1';
   const dev = useMock ? require('./admin').dev : null;
-  const mockMouse = { speed: 0, leftHanded: false };
   const getSetting = (k) => api.settings?.get(k);
   const setSetting = (k, v) => api.settings?.set(k, v);
 
@@ -229,7 +228,8 @@ function register(api) {
   }
   api.handle('input:mouse', async () => {
     const saved = getSetting('mouse') || {};
-    if (useMock) return { available: true, speed: mockMouse.speed, leftHanded: mockMouse.leftHanded, devices: ['ImExPS/2 Generic Explorer Mouse', 'QEMU USB Tablet'], simulated: true };
+    // Simulated pointer: starts from what the user saved (like the real one, re-applied at sign-in).
+    if (useMock) return { available: true, speed: Number(saved.speed) || 0, leftHanded: !!saved.leftHanded, devices: ['ImExPS/2 Generic Explorer Mouse', 'QEMU USB Tablet'], simulated: true };
     const devs = await pointers();
     let live = { accel: null, leftHanded: null };
     for (const d of devs) {
@@ -252,8 +252,7 @@ function register(api) {
       cur.speed = Math.round(s * 100) / 100;
     }
     if (opts.leftHanded != null) cur.leftHanded = !!opts.leftHanded;
-    if (useMock) Object.assign(mockMouse, cur);
-    else await applyMouse({ speed: opts.speed != null ? cur.speed : null, leftHanded: opts.leftHanded != null ? cur.leftHanded : null });
+    if (!useMock) await applyMouse({ speed: opts.speed != null ? cur.speed : null, leftHanded: opts.leftHanded != null ? cur.leftHanded : null });
     setSetting('mouse', cur);
     return cur;
   });

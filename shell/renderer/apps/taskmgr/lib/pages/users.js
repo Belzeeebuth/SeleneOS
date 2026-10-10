@@ -57,7 +57,7 @@ export class UsersPage {
     const total = () => perf()?.mem.total || 1;
     this.table.setColumns([
       { id: 'name', name: true, flex: true, max: 560, width: 260, min: 140, label: () => t('col.userCol'), cell: (r) => ({ text: r.data.label, icon: r.data.icon }) },
-      { id: 'status', width: 120, min: 60, label: () => t('col.status'), cell: (r) => r.data.statusText || '' },
+      { id: 'status', width: 120, min: 60, label: () => t('col.status'), fit: () => ['active', 'online', 'closing', 'disconnected'].map((k) => t(`user.status.${k}`)), cell: (r) => r.data.statusText || '' },
       { id: 'cpu', width: 88, min: 60, align: 'end', heat: true, label: () => t('col.cpu'), top: () => (perf() ? fmt.pct(perf().cpu.total) : ''), hot: () => (perf()?.cpu.total || 0) >= 85, cell: (r) => ({ text: fmt.cpu(r.data.cpu), heat: heat(r.data.cpu / 100) }) },
       {
         id: 'mem',

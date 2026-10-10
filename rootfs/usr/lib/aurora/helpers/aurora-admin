@@ -119,6 +119,8 @@ read_secret() { # read_secret <nonce>
       break
     fi
   done
+  # Nothing else may read what is left on stdin (useradd, chpasswd…): the secret is in $SECRET now.
+  exec </dev/null
   [ -n "$SECRET" ] || die 2 "no password was provided"
   [ ${#SECRET} -le 256 ] || die 2 "the password is too long"
   case $SECRET in *$'\n'* | *$'\r'*) die 2 "the password cannot contain line breaks" ;; esac
@@ -141,6 +143,14 @@ write_file_atomic() { # write_file_atomic <path> <mode>   (content on stdin)
 }
 
 log "user=$CALLER action=$ACTION"
+
+# Only user-add and set-password read stdin (their secret, see read_secret). Every other action, and
+# every program an action starts (apt-get, dpkg maintainer scripts, ufw…), gets /dev/null: when sudo
+# needed no password, the line the shell wrote for it is still unread on stdin.
+case $ACTION in
+user-add | set-password) ;;
+*) exec </dev/null ;;
+esac
 
 case $ACTION in
 # ------------------------------------------------------------------ accounts

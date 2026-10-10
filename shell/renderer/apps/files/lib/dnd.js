@@ -11,6 +11,16 @@ import * as ops from './ops.js';
 
 export const TRASH_TARGET = '\u0000trash';
 
+// Security (same rule as core/desktop.js): the internal paths format and file:// URI lists are only
+// trusted when the drag started in the shell's own document (Files, the desktop, other apps). A drag
+// coming out of web content (<webview> tab, sandboxed mail iframe) never fires 'dragstart' here, so a
+// page can't forge a payload that makes Explorer move, copy or trash arbitrary files.
+let shellDrag = false;
+document.addEventListener('dragstart', () => (shellDrag = true), true);
+document.addEventListener('dragend', () => (shellDrag = false), true);
+window.addEventListener('pointerdown', () => (shellDrag = false), true);
+export const isShellDrag = () => shellDrag;
+
 export class DnD {
   constructor(ex) {
     this.ex = ex;
@@ -32,7 +42,7 @@ export class DnD {
     const { h } = this.ex;
     const first = entries[0];
     const ghost = h('div', { class: 'app-files fx-drag-ghost' },
-      h('img', { src: T.isImage(first) ? this.ex.api.mediaUrl(first.path) : T.iconFor(first), alt: '' }),
+      h('img', { src: T.isImage(first) && T.isRegular(first) ? this.ex.api.mediaUrl(first.path) : T.iconFor(first), alt: '' }),
       paths.length > 1 ? h('span', { class: 'fx-drag-count' }, String(paths.length)) : null);
     document.body.appendChild(ghost);
     try {
@@ -49,12 +59,15 @@ export class DnD {
   // ---------------------------------------------------------------- targets
   accepts(e) {
     const types = [...(e.dataTransfer?.types || [])];
-    return types.includes(DND_MIME) || types.includes('Files') || types.includes('text/uri-list');
+    if (types.includes('Files')) return true;
+    return shellDrag && (types.includes(DND_MIME) || types.includes('text/uri-list'));
   }
 
   effectFor(e, dest) {
     const drag = shared.drag;
-    if (dest === TRASH_TARGET) return drag ? 'move' : 'none';
+    const types = [...(e.dataTransfer?.types || [])];
+    // Internal drags (this or another Files window) and shell drags (desktop icons) can go to the bin.
+    if (dest === TRASH_TARGET) return drag || (shellDrag && types.includes(DND_MIME)) ? 'move' : 'none';
     if (!dest) return 'none';
     if (drag) {
       if (drag.paths.some((p) => p === dest || T.isInside(dest, p))) return 'none';
@@ -66,9 +79,8 @@ export class DnD {
       const same = drag.paths.every((p) => mountOf(p) === mountOf(dest));
       return same ? 'move' : 'copy';
     }
-    const types = [...(e.dataTransfer?.types || [])];
     // From the desktop (same session, same drive): move; external files: copy.
-    return types.includes(DND_MIME) ? 'move' : 'copy';
+    return shellDrag && types.includes(DND_MIME) ? 'move' : 'copy';
   }
 
   // el: element; getDest(): folder path | TRASH_TARGET | null ; opts.onHover: spring-loading callback
@@ -135,19 +147,30 @@ export class DnD {
 
   readPaths(e) {
     const dt = e.dataTransfer;
-    try {
-      const raw = dt.getData(DND_MIME);
-      if (raw) {
-        const list = JSON.parse(raw);
-        if (Array.isArray(list)) return list.filter((p) => typeof p === 'string' && p.startsWith('/'));
-      }
-    } catch {}
-    const files = [...(dt.files || [])].map((f) => this.ex.api.pathForFile(f)).filter(Boolean);
+    const valid = (p) => typeof p === 'string' && p.startsWith('/') && !p.includes('\0');
+    if (shellDrag) {
+      try {
+        const raw = dt.getData(DND_MIME);
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) return [...new Set(list.filter(valid))];
+        }
+      } catch {}
+    }
+    // Real files dragged in from outside the shell (Electron gives their paths).
+    const files = [...(dt.files || [])].map((f) => this.ex.api.pathForFile(f)).filter(valid);
     if (files.length) return files;
-    const uris = (dt.getData('text/uri-list') || '')
-      .split(/\r?\n/)
-      .filter((l) => l.startsWith('file://'))
-      .map((l) => decodeURIComponent(l.slice(7)));
+    if (!shellDrag) return [];
+    const uris = [];
+    for (const l of (dt.getData('text/uri-list') || '').split(/\r?\n/)) {
+      if (!l.startsWith('file://')) continue;
+      try {
+        const p = decodeURIComponent(l.slice(7).replace(/^localhost(?=\/)/, ''));
+        if (valid(p)) uris.push(p);
+      } catch {
+        // malformed %-escape: skip that line
+      }
+    }
     return uris;
   }
 

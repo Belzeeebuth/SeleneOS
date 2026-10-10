@@ -125,7 +125,7 @@ class PropsWindow {
     const { h, t } = this.ex;
     const ex = this.ex;
     const isRoot = info.path === '/';
-    const editable = !isRoot && info.path !== shared.home;
+    const editable = !T.isProtectedPath(info.path);
     const nameInput = h('input', { class: 'input grow', value: info.name, disabled: !editable, 'aria-label': t('cols.name'),
       oninput: () => {
         if (nameInput.value !== info.name) this.changes.name = nameInput.value;

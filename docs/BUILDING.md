@@ -84,7 +84,10 @@ sudo ./iso/build.sh --clean            # start from scratch (keeps the download 
 
 `make clean` removes `work/` except the VM disk (`work/qemu/`), `make clean-vm` removes the VM
 disk, `make distclean` removes `work/`, `cache/` and `out/`. Every mount made by the build is
-undone when it ends, even after an error or Ctrl+C.
+undone when it ends, even after an error, Ctrl+C or `kill` (the running step, e.g. `mksquashfs`,
+is stopped at once); after a hard crash the next build unmounts the leftovers first. An unknown
+package name stops the build before anything is installed, so fixing the list and running
+`make iso` again reuses the package layer.
 
 ### Reproducibility
 
@@ -134,6 +137,9 @@ Set them on the `make` command line (`make iso NAME=value`) or in the environmen
 
 Apt packages needed by a feature go in `iso/packages.d/<feature>.list` (one per line, `#`
 comments); every list is installed. Files copied verbatim into the image live in `rootfs/`.
+To keep the image small, package documentation and translations other than English/French are
+not installed; manual pages (English and French) are kept only while a list asks for `man-db`
+(the Terminal's list does).
 
 ## Measured build time and size
 
@@ -174,7 +180,7 @@ dependencies, session scripts and helpers, greetd autologin, enabled services
 (`systemctl --root`), firewall, locales, permissions, and that no build proxy, build CA,
 machine-id or SSH host key was shipped.
 
-Mounts the ISO's `filesystem.squashfs` read-only with a throwaway overlay, starts a private Xvfb
+`make smoke-image` mounts the ISO's `filesystem.squashfs` read-only with a throwaway overlay, starts a private Xvfb
 and runs the image's own launchers (`/usr/bin/aurora-shell` and the sign-in screen
 `/usr/lib/aurora/aurora-xgreeter`) as a temporary unprivileged user. It checks that Electron's
 shared libraries resolve, that the desktop's renderer reaches `body.ready` and that the sign-in
@@ -234,11 +240,12 @@ qemu-img create -f qcow2 aurora-disk.qcow2 32G          # once: the disk to inst
 
 # BIOS: live session + installation. The disk comes first in the boot order: while it is blank
 # the firmware falls through to the CD; once Aurora OS is installed, the disk boots.
+# (bootindex starts at 1: with -kernel QEMU reserves bootindex 0 for its own kernel loader.)
 qemu-system-x86_64 -machine q35,vmport=off -accel kvm -cpu host -m 4096 -smp 4 \
   -drive file=aurora-disk.qcow2,if=none,id=hd0,format=qcow2,discard=unmap \
-  -device virtio-blk-pci,drive=hd0,bootindex=0 \
+  -device virtio-blk-pci,drive=hd0,bootindex=1 \
   -drive file=$ISO,if=none,id=cd0,media=cdrom,format=raw,readonly=on \
-  -device ide-cd,drive=cd0,bus=ide.1,bootindex=1 \
+  -device ide-cd,drive=cd0,bus=ide.1,bootindex=2 \
   -vga none -device virtio-vga,xres=1920,yres=1080 -display gtk,zoom-to-fit=on \
   -device qemu-xhci -device usb-tablet \
   -nic user,model=virtio-net-pci \
@@ -251,9 +258,9 @@ qemu-system-x86_64 -machine q35,vmport=off -accel kvm -cpu host -m 4096 -smp 4 \
   -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
   -drive if=pflash,format=raw,unit=1,file=aurora-vars.fd \
   -drive file=aurora-disk.qcow2,if=none,id=hd0,format=qcow2,discard=unmap \
-  -device virtio-blk-pci,drive=hd0,bootindex=0 \
+  -device virtio-blk-pci,drive=hd0,bootindex=1 \
   -drive file=$ISO,if=none,id=cd0,media=cdrom,format=raw,readonly=on \
-  -device ide-cd,drive=cd0,bus=ide.1,bootindex=1 \
+  -device ide-cd,drive=cd0,bus=ide.1,bootindex=2 \
   -vga none -device virtio-vga,xres=1920,yres=1080 -display gtk,zoom-to-fit=on \
   -device qemu-xhci -device usb-tablet \
   -nic user,model=virtio-net-pci \
@@ -486,7 +493,10 @@ tant que leurs entrées ne changent pas ; un paquet ajouté à une liste est ins
 existante. Options utiles (`make iso BUILD_ARGS="..."`) : `--until <étape>`, `--from <étape>`,
 `--rebuild-packages`, `--clean`. `make clean` supprime `work/` sauf le disque de la VM
 (`work/qemu/`), `make clean-vm` supprime ce disque, `make distclean` supprime `work/`, `cache/`
-et `out/`. Tous les montages sont défaits à la fin, même après une erreur ou un Ctrl+C.
+et `out/`. Tous les montages sont défaits à la fin, même après une erreur, un Ctrl+C ou un `kill`
+(l'étape en cours, par ex. `mksquashfs`, est arrêtée immédiatement) ; après un plantage, la
+construction suivante démonte d'abord les restes. Un nom de paquet inconnu arrête la construction
+avant toute installation : après correction de la liste, `make iso` réutilise la couche de paquets.
 
 Reproductibilité : paquets issus d'un instantané daté de l'archive Ubuntu, Electron vérifié contre
 le `SHASUMS256.txt` de la version **et** la somme figée dans `iso/config.sh`, dépendances npm
@@ -524,7 +534,9 @@ système de fichiers Linux local (ext4, xfs, btrfs). Les mêmes réglages s'appl
 | `BUILD_CA_BUNDLE` | certificats du système | autorités de confiance pendant les téléchargements |
 
 Les paquets apt d'une fonctionnalité vont dans `iso/packages.d/<fonction>.list` ; les fichiers
-copiés tels quels dans l'image sont dans `rootfs/`.
+copiés tels quels dans l'image sont dans `rootfs/`. Pour garder l'image compacte, la documentation
+des paquets et les traductions autres qu'anglais/français ne sont pas installées ; les pages de
+manuel (anglais et français) sont gardées tant qu'une liste demande `man-db` (c'est le cas du Terminal).
 
 ### Durée et taille mesurées
 
@@ -682,6 +694,7 @@ programme avant l'écran de connexion, puis éteint la machine. **Le disque cibl
 # QEMU, démarrage direct du noyau (sans GRUB) : installation, arrêt, puis démarrage du disque installé
 make run QEMU_ARGS="--kernel 'aurora.autoinstall=1 aurora.autoinstall.disk=/dev/vda aurora.autoinstall.lang=fr aurora.autoinstall.password=test'"
 make run-disk            # ou : make run-disk-uefi (le disque a les chargeurs BIOS et UEFI)
+make run DRY_RUN=1 QEMU_ARGS="--kernel 'aurora.autoinstall=1'"   # affiche seulement la commande QEMU
 ```
 
 Depuis le menu de démarrage : sélectionnez *Aurora OS (Français)*, appuyez sur `e`, ajoutez les
@@ -714,5 +727,6 @@ session live démarre et l'erreur reste affichée sur la console.
 | Pas de son | `make run AUDIO=pa` ou `AUDIO=sdl` ; sous Ubuntu installer `qemu-system-gui` |
 | Construction : `missing packages` | corriger le nom dans `iso/packages.d/*.list` (`apt-cache policy <nom>`) ou `ALLOW_MISSING_PACKAGES=1` |
 | Construction : instantané injoignable | vérifier réseau/proxy ; `make iso SNAPSHOT=auto` ou `SNAPSHOT=0` |
+| Construction : `another build is running` | un autre `iso/build.sh` détient `work/.build.lock` : attendre qu'il se termine |
 | Construction : disque plein | libérer de la place (15 Go conseillés), `make clean` ; `cache/` peut aussi être supprimé |
 | Montages restés après un plantage | `make clean` démonte tout ce qui se trouve sous `work/` |

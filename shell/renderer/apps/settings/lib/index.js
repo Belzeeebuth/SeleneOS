@@ -193,8 +193,8 @@ const ENTRIES = [
   ['printers', null, 'print', 'Printers & scanners', 'Imprimantes et scanners', 'print scan', 'imprimer numériser'],
   ['network', null, 'globe', 'Network & internet', 'Réseau et Internet', 'connection status', 'connexion état'],
   ['network', 'airplane', 'airplane', 'Airplane mode', 'Mode avion', 'flight offline radios', 'vol hors ligne'],
-  ['wifi', null, 'wifi_1', 'Wi-Fi', 'Wi-Fi', 'wireless wlan hotspot networks', 'sans fil réseaux'],
-  ['wifi', 'known', 'wifi_1', 'Manage known networks', 'Gérer les réseaux connus', 'forget saved', 'oublier enregistrés'],
+  ['wifi', null, 'wifi_1', 'Wi-Fi', 'Wi-Fi', 'wifi wireless wlan hotspot networks', 'wifi sans fil réseaux'],
+  ['wifi', 'known', 'wifi_1', 'Manage known networks', 'Gérer les réseaux connus', 'wifi forget saved', 'wifi oublier enregistrés'],
   ['wifi', 'hidden', 'wifi_lock', 'Hidden network', 'Réseau masqué', 'ssid not broadcast', 'ssid non diffusé'],
   ['ethernet', null, 'plug_connected', 'Ethernet', 'Ethernet', 'wired cable lan ip address mac dns', 'filaire câble adresse ip mac dns'],
   ['advancedNetwork', null, 'data_usage', 'Data usage', 'Utilisation des données', 'bandwidth traffic adapters', 'bande passante trafic cartes'],
@@ -247,12 +247,16 @@ const ENTRIES = [
 
 export const INDEX = ENTRIES.map(([page, section, icon, en, fr, kwEn, kwFr]) => ({ page, section, icon, name: { en, fr }, keywords: { en: kwEn.split(' '), fr: kwFr.split(' ') } }));
 
+// Lower case, no accents, apostrophes as spaces, hyphens/dots dropped: "Wi-Fi" matches "wifi",
+// "Sign-in" matches "sign in" and "signin", "l’heure" matches "heure".
 const norm = (s) =>
   String(s || '')
     .toLowerCase()
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
-    .replace(/[’']/g, ' ');
+    .replace(/[’'`]/g, ' ')
+    .replace(/[-‐‑_.]/g, '')
+    .replace(/\s+/g, ' ');
 
 /** Search the index: best matches first. lang = 'en' | 'fr' */
 export function searchIndex(query, lang = 'en', limit = 12) {

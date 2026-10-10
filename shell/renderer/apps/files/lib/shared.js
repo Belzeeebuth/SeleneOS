@@ -218,9 +218,20 @@ export function saveColumns(set, cols) {
 
 // ---------------------------------------------------------------- undo stack (session wide, like Windows)
 export function pushUndo(op) {
-  shared.undo.push({ ...op, time: Date.now() });
+  const entry = { time: Date.now(), ...op };
+  shared.undo.push(entry);
   if (shared.undo.length > 50) shared.undo.shift();
   shared.events.emit('undo');
+  return entry;
+}
+// Remove one specific operation from the stack (the toast's "Undo" undoes its own operation, not
+// whatever happened last). Returns null when it was already undone.
+export function takeUndo(entry) {
+  const i = shared.undo.indexOf(entry);
+  if (i < 0) return null;
+  shared.undo.splice(i, 1);
+  shared.events.emit('undo');
+  return entry;
 }
 export function peekUndo() {
   return shared.undo[shared.undo.length - 1] || null;

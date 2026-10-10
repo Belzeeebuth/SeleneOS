@@ -301,11 +301,12 @@ export function createActions(app) {
       shell.openUrl(/^www\./i.test(s) ? `https://${s}` : s);
       return;
     }
-    // A path, bare or quoted (Browse… quotes paths with spaces): folders open in File Explorer,
-    // documents in their app, anything else is run as a program.
+    // A path, quoted (Browse… quotes paths with spaces) or not (an unquoted path with spaces counts
+    // when it exists as a whole): folders open in File Explorer, documents in their app, anything
+    // else is run as a program.
     const quoted = /^"([^"]+)"$/.exec(s) || /^'([^']+)'$/.exec(s);
-    const target = quoted ? quoted[1] : /\s/.test(s) ? null : s;
-    if (target && /^(~|\/)/.test(target)) {
+    const target = quoted ? quoted[1] : s;
+    if (/^(~|\/)/.test(target)) {
       const p = target === '~' || target.startsWith('~/') ? ctx.env.home + target.slice(1) : target;
       const st = await api.invoke('fs:stat', p).catch(() => null);
       if (st?.dir) {
@@ -317,7 +318,10 @@ export function createActions(app) {
         return;
       }
       if (st) {
-        await api.invoke('proc:spawn', quote(p));
+        await api.invoke('proc:spawn', quote(p)).catch((err) => {
+          err.target = target;
+          throw err;
+        });
         app.store.refresh();
         return;
       }
@@ -404,7 +408,7 @@ export function createActions(app) {
       ctx.storage.set('run-history', next).catch(() => {});
     } catch (err) {
       const quoted = /^"([^"]+)"$/.exec(cmd) || /^'([^']+)'$/.exec(cmd);
-      const name = quoted ? quoted[1] : cmd.split(/\s+/)[0];
+      const name = err.target || (quoted ? quoted[1] : cmd.split(/\s+/)[0]);
       const msg = err.code === 'ENOENT' ? t('run.notFound', { cmd: name }) : err.code === 'EACCES' ? t('run.noExec', { cmd: name }) : msgOf(err);
       if (app.closed) return;
       await alertErr(msg, t('run.title'));

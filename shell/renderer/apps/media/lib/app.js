@@ -140,10 +140,20 @@ export class MediaApp {
     });
     this.backBtn = h('button', { class: 'btn subtle icon-btn mp-back', 'aria-label': t('nav.back'), 'data-tip': t('nav.back'), disabled: true, onclick: () => this.back() }, icon('arrow_left'));
     this.menuBtn = h('button', { class: 'btn subtle icon-btn mp-hamburger', 'aria-label': t('nav.toggle'), 'data-tip': t('nav.toggle'), onclick: (e) => this.toggleNav(e) }, icon('line_horizontal_3'));
-    this.searchBtn = h('button', { class: 'btn subtle icon-btn mp-search-btn', 'aria-label': t('search.placeholder'), 'data-tip': t('search.placeholder'), onclick: () => this.focusSearch() }, icon('search'));
+    this.searchBtn = h(
+      'button',
+      { class: 'btn subtle icon-btn mp-search-btn', 'aria-label': t('search.placeholder'), 'data-tip': t('search.placeholder'), onclick: () => this.focusSearch() },
+      icon('search'),
+    );
     this.navItems = {};
     const item = (id, ic, label, route, extra) => {
-      const el = h('div', { class: 'nav-item mp-nav-item', tabindex: '0', role: 'link', dataset: { nav: id }, 'aria-label': label }, icon(ic), h('span', { class: 'mp-nav-label ellipsis' }, label), extra || null);
+      const el = h(
+        'div',
+        { class: 'nav-item mp-nav-item', tabindex: '0', role: 'link', dataset: { nav: id }, 'aria-label': label },
+        icon(ic),
+        h('span', { class: 'mp-nav-label ellipsis' }, label),
+        extra || null,
+      );
       el.addEventListener('click', () => {
         this.go(route);
         this._closeNavOverlay();
@@ -280,7 +290,12 @@ export class MediaApp {
     this.navItems.playlists.setAttribute('aria-expanded', String(open));
     this.navPlaylists.hidden = !open;
     const kids = this.playlists.list().map((pl) => {
-      const el = h('div', { class: 'nav-item mp-nav-item mp-nav-child', tabindex: '0', role: 'link', dataset: { nav: `pl:${pl.id}` }, 'aria-label': pl.name, 'data-tip': pl.name }, icon('text_bullet_list'), h('span', { class: 'mp-nav-label ellipsis' }, pl.name));
+      const el = h(
+        'div',
+        { class: 'nav-item mp-nav-item mp-nav-child', tabindex: '0', role: 'link', dataset: { nav: `pl:${pl.id}` }, 'aria-label': pl.name, 'data-tip': pl.name },
+        icon('text_bullet_list'),
+        h('span', { class: 'mp-nav-label ellipsis' }, pl.name),
+      );
       el.addEventListener('click', () => {
         this.go({ name: 'playlist', arg: pl.id });
         this._closeNavOverlay();
@@ -293,7 +308,7 @@ export class MediaApp {
         }
       });
       el.addEventListener('contextmenu', (e) =>
-        this.ui.menu(e, [
+        this._menu(e, [
           { label: t('menu.play'), icon: 'play', disabled: !pl.items.length, action: () => this.playEntries(pl.items, 0) },
           { label: t('playlists.rename'), icon: 'rename', action: () => this.renamePlaylist(pl.id) },
           { label: t('playlists.delete'), icon: 'delete', danger: true, action: () => this.deletePlaylist(pl.id) },
@@ -302,7 +317,12 @@ export class MediaApp {
       this._navDrop(el, (paths) => this.addToPlaylist(pl.id, paths));
       return el;
     });
-    const add = h('div', { class: 'nav-item mp-nav-item mp-nav-child mp-nav-new', tabindex: '0', role: 'button', 'aria-label': t('playlists.new'), 'data-tip': t('playlists.new') }, icon('add'), h('span', { class: 'mp-nav-label ellipsis' }, t('playlists.new')));
+    const add = h(
+      'div',
+      { class: 'nav-item mp-nav-item mp-nav-child mp-nav-new', tabindex: '0', role: 'button', 'aria-label': t('playlists.new'), 'data-tip': t('playlists.new') },
+      icon('add'),
+      h('span', { class: 'mp-nav-label ellipsis' }, t('playlists.new')),
+    );
     add.addEventListener('click', () => this.newPlaylist());
     add.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -386,7 +406,18 @@ export class MediaApp {
 
   render({ keepScroll = false, scroll, anim } = {}) {
     this.lists = [];
-    const map = { home: V.homeView, music: V.musicView, album: V.albumView, artist: V.artistView, videos: V.videosView, queue: V.queueView, playlists: V.playlistsView, playlist: V.playlistView, search: V.searchView, settings: V.settingsView };
+    const map = {
+      home: V.homeView,
+      music: V.musicView,
+      album: V.albumView,
+      artist: V.artistView,
+      videos: V.videosView,
+      queue: V.queueView,
+      playlists: V.playlistsView,
+      playlist: V.playlistView,
+      search: V.searchView,
+      settings: V.settingsView,
+    };
     const fn = map[this.route.name] || V.homeView;
     let res;
     try {
@@ -396,17 +427,30 @@ export class MediaApp {
       res = { el: this.h('div', { class: 'mp-page' }, this.h('div', { class: 'empty' }, this.icon('error_circle', { size: 48 }), String(err?.message || err))) };
     }
     const top = keepScroll ? this.scroller.scrollTop : scroll || 0;
-    const hadFocus = this.scroller.contains(document.activeElement);
+    const active = document.activeElement;
+    const hadFocus = this.scroller.contains(active);
+    // Re-renders of the same page (library updates) keep keyboard focus on the same item.
+    const focusPath = keepScroll && hadFocus ? active.closest?.('[data-path]')?.dataset.path : null;
     this.scroller.replaceChildren(res.el);
     this.view = res;
     this.scroller.scrollTop = top;
+    if (focusPath) {
+      const again = [...this.scroller.querySelectorAll('[data-path]')].find((el) => el.dataset.path === focusPath);
+      (again || this.scroller).focus({ preventScroll: true });
+    }
     if (anim && !reduceMotion()) {
-      const frames = anim === 'enter' ? [{ opacity: 0, transform: 'translateY(28px)' }, { opacity: 1, transform: 'none' }] : [{ opacity: 0 }, { opacity: 1 }];
+      const frames =
+        anim === 'enter'
+          ? [
+              { opacity: 0, transform: 'translateY(28px)' },
+              { opacity: 1, transform: 'none' },
+            ]
+          : [{ opacity: 0 }, { opacity: 1 }];
       res.el.animate(frames, { duration: anim === 'enter' ? 300 : 160, easing: EASE });
     }
     this._syncBack();
     this._updateNavSelection();
-    if (hadFocus && !keepScroll) this.scroller.focus?.();
+    if (hadFocus && (!keepScroll || !this.scroller.contains(document.activeElement))) this.scroller.focus?.({ preventScroll: true });
   }
   _rerenderSoon = debounce(() => this.render({ keepScroll: true }), 300);
 
@@ -474,9 +518,7 @@ export class MediaApp {
     if (k === 'visualizer') this.stage.syncViz();
   }
   _saveState = debounce(() => {
-    this.storage
-      .set('state', { queue: this.queue.toJSON(), pos: this.player.currentTime || 0, volume: this.player.volume, muted: this.player.muted, rate: this.player.rate })
-      .catch(() => {});
+    this.storage.set('state', { queue: this.queue.toJSON(), pos: this.player.currentTime || 0, volume: this.player.volume, muted: this.player.muted, rate: this.player.rate }).catch(() => {});
   }, 700);
   _saveRecent = debounce(() => this.storage.set('recent', this.recent).catch(() => {}), 800);
   addRecent(path) {
@@ -491,8 +533,14 @@ export class MediaApp {
       this.updateNow();
       this._saveState();
       if (!p.paused) this._errStreak = 0;
+      // Only items that actually play become "recent media".
+      if (!p.paused && p.path && this._recentFor !== p.path && p.el.readyState >= 2) {
+        this._recentFor = p.path;
+        this.addRecent(p.path);
+      }
       this._poke();
     });
+    p.on('load', () => (this._recentFor = null));
     p.on('load', () => this.updateNow());
     p.on('meta', () => {
       this.updateNow();
@@ -536,8 +584,28 @@ export class MediaApp {
       return true;
     });
     this.ctx.onClose(() => this.destroy());
-    const onAnim = () => this.stage.syncViz();
-    this._disposers.push(this.ctx.settings.on('animations', onAnim));
+    this.ctx.onLangChange?.(() => this.relocalize());
+    // Follow the "Animation effects" setting (theme.js toggles <html data-animations>).
+    const mo = new MutationObserver(() => this.stage.syncViz());
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-animations'] });
+    this._disposers.push(() => mo.disconnect());
+  }
+
+  /** Language switched: rebuild the chrome (the <video> element and playback carry on). */
+  relocalize() {
+    if (this._destroyed) return;
+    const keep = { stage: this.stageOpen, mini: this.mini, fs: !!this.win.fullscreen, idle: false };
+    this.transport.closeVolume();
+    this.stage.viz.stop();
+    this._ro?.disconnect();
+    this.root.remove();
+    this._build();
+    this.root.classList.toggle('stage-open', keep.stage);
+    this.stage.el.setAttribute('aria-hidden', String(!keep.stage));
+    this.root.classList.toggle('mini', keep.mini);
+    this.root.classList.toggle('fs', keep.fs);
+    this.render({ keepScroll: false });
+    this.updateNow();
   }
 
   destroy() {
@@ -621,7 +689,6 @@ export class MediaApp {
     }
     await this.lib.ensure(it.path);
     this.player.load(it.path, { autoplay, at });
-    if (autoplay) this.addRecent(it.path);
     this.updateNow();
   }
   async addToQueue(list, { quiet = false } = {}) {
@@ -689,6 +756,10 @@ export class MediaApp {
     const name = baseName(path);
     const exists = await this.api.invoke('fs:exists', path).catch(() => true);
     const key = !exists ? 'errors.notFound' : code === 4 ? 'errors.notSupported' : code === 3 ? 'errors.decode' : 'errors.read';
+    if (this.recent.includes(path)) {
+      this.recent = this.recent.filter((p) => p !== path);
+      this._saveRecent();
+    }
     const e = this.lib.get(path);
     if (e) {
       e.bad = true;
@@ -753,7 +824,14 @@ export class MediaApp {
       this._stageFocus = document.activeElement;
       this.root.classList.add('stage-open');
       this.stage.el.setAttribute('aria-hidden', 'false');
-      if (!reduceMotion()) this.stage.el.animate([{ opacity: 0, transform: 'scale(1.02)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: EASE });
+      if (!reduceMotion())
+        this.stage.el.animate(
+          [
+            { opacity: 0, transform: 'scale(1.02)' },
+            { opacity: 1, transform: 'none' },
+          ],
+          { duration: 260, easing: EASE },
+        );
     }
     this._syncBack();
     this.stage.update();
@@ -796,7 +874,9 @@ export class MediaApp {
       this.openStage();
       const r = w.rect();
       const wa = this.shell?.wm?.workarea?.() || { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
-      const size = { width: 340, height: 340 + 32 };
+      // Square for music artwork, 16:9 for video (plus the title bar).
+      const tb = w.titlebar?.offsetHeight || 32;
+      const size = this.isVideo() ? { width: 400, height: 225 + tb } : { width: 340, height: 340 + tb };
       w.setRect({ x: Math.min(r.x + r.width - size.width, wa.x + wa.width - size.width - 16), y: Math.max(wa.y, Math.min(r.y, wa.y + wa.height - size.height - 16)), ...size }, true);
       w.alwaysOnTop = true;
       w.focus();
@@ -824,7 +904,8 @@ export class MediaApp {
     if (this.transport.fly || document.querySelector('.menu')) return;
     this._idleT = setTimeout(
       () => {
-        if (this.stageOpen && this.isVideo() && !this.player.paused && !this.transport.fly && !document.querySelector('.menu') && !this.transport.el.contains(document.activeElement)) this.root.classList.add('idle');
+        if (this.stageOpen && this.isVideo() && !this.player.paused && !this.transport.fly && !document.querySelector('.menu') && !this.transport.el.contains(document.activeElement))
+          this.root.classList.add('idle');
       },
       leave ? 600 : 3000,
     );
@@ -835,7 +916,14 @@ export class MediaApp {
     this.osd.replaceChildren(icon(ic, { filled: true }), h('span', null, text));
     this.osd.hidden = false;
     this.osd.classList.remove('out');
-    if (!reduceMotion()) this.osd.animate([{ opacity: 0, transform: 'translate(-50%, 8px) scale(.96)' }, { opacity: 1, transform: 'translate(-50%, 0)' }], { duration: 160, easing: EASE });
+    if (!reduceMotion())
+      this.osd.animate(
+        [
+          { opacity: 0, transform: 'translate(-50%, 8px) scale(.96)' },
+          { opacity: 1, transform: 'translate(-50%, 0)' },
+        ],
+        { duration: 160, easing: EASE },
+      );
     clearTimeout(this._osdT);
     this._osdT = setTimeout(() => (this.osd.hidden = true), 1100);
   }
@@ -848,11 +936,18 @@ export class MediaApp {
   // ================================================================== keyboard
   _bindKeys() {
     this.win.el.addEventListener('keydown', (e) => this._key(e));
+    // After a menu or dialog closes, focus can fall back to <body>: keep the shortcuts working
+    // while this window is the active one.
+    const onDoc = (e) => {
+      if ((e.target === document.body || e.target === document.documentElement) && this.win.isFocused?.()) this._key(e);
+    };
+    document.addEventListener('keydown', onDoc);
+    this._disposers.push(() => document.removeEventListener('keydown', onDoc));
   }
   _key(e) {
     if (e.defaultPrevented) return;
     if (e.target.closest?.('.dialog-layer, .menu')) return;
-    if (document.querySelector('.menu')) return;
+    if (document.querySelector('.menu') || this.win.el.querySelector('.dialog-layer')) return;
     const k = e.key;
     const lower = k.length === 1 ? k.toLowerCase() : k;
     const ctrl = e.ctrlKey || e.metaKey;
@@ -868,30 +963,35 @@ export class MediaApp {
         return e.shiftKey ? this.openFolder() : this.openFiles();
       }
       if (typing) return;
-      if (lower === 'p') return done(), this.togglePlay();
-      if (lower === 'f') return done(), this.next();
-      if (lower === 'b') return done(), this.prev();
-      if (lower === 'h') return done(), this.toggleShuffle();
-      if (lower === 't') return done(), this.cycleRepeat();
-      if (lower === 'e') return done(), this.focusSearch();
-      if (lower === 'm' && e.shiftKey) return done(), this.toggleMini();
+      if (lower === 'p') return (done(), this.togglePlay());
+      if (lower === 'f') return (done(), this.next());
+      if (lower === 'b') return (done(), this.prev());
+      if (lower === 'h') return (done(), this.toggleShuffle());
+      if (lower === 't') return (done(), this.cycleRepeat());
+      if (lower === 'e') return (done(), this.focusSearch());
+      if (lower === 'm' && e.shiftKey) return (done(), this.toggleMini());
       return;
     }
     if (k === 'Escape') {
-      if (this.transport.fly) return done(), this.transport.closeVolume();
-      if (this.win.fullscreen) return done(), this.toggleFullscreen(false);
+      if (this.transport.fly) return (done(), this.transport.closeVolume());
+      if (this.win.fullscreen) return (done(), this.toggleFullscreen(false));
       if (typing) return;
-      if (this.navOverlay) return done(), this._closeNavOverlay();
-      if (this.stageOpen && !this.mini) return done(), this.closeStage();
+      if (this.navOverlay) return (done(), this._closeNavOverlay());
+      if (this.stageOpen && !this.mini) return (done(), this.closeStage());
       return;
     }
-    if (k === 'F11') return done(), this.toggleFullscreen();
+    if (k === 'F11') return (done(), this.toggleFullscreen());
+    // Keyboard media keys (when the shell lets them through to the focused window).
+    if (k === 'MediaPlayPause') return (done(), this.togglePlay());
+    if (k === 'MediaTrackNext') return (done(), this.next());
+    if (k === 'MediaTrackPrevious') return (done(), this.prev());
+    if (k === 'MediaStop') return (done(), this.player.pause());
     if (typing || e.altKey) return;
     const onControl = e.target.closest?.('button, [role="tab"], a, input[type="range"], input[type="checkbox"]');
     if (k === ' ' || lower === 'k') {
       if (k === ' ' && onControl && !this.transport.el.contains(e.target)) return; // let buttons activate
       if (k === ' ' && onControl && this.transport.el.contains(e.target) && e.target.tagName === 'BUTTON') return;
-      return done(), this.togglePlay();
+      return (done(), this.togglePlay());
     }
     if (e.target.closest?.('input[type="range"]')) return;
     if (k === 'ArrowLeft' || k === 'ArrowRight' || lower === 'j' || lower === 'l') {
@@ -911,12 +1011,15 @@ export class MediaApp {
     if (lower === 'm') {
       done();
       this.setMuted(!this.player.muted);
-      this.osdShow(this.player.muted ? 'speaker_mute' : 'speaker_2', this.player.muted ? this.t('transport.volumeMuted') : this.t('transport.volumeValue', { v: Math.round(this.player.volume * 100) }));
+      this.osdShow(
+        this.player.muted ? 'speaker_mute' : 'speaker_2',
+        this.player.muted ? this.t('transport.volumeMuted') : this.t('transport.volumeValue', { v: Math.round(this.player.volume * 100) }),
+      );
       return;
     }
-    if (lower === 'f') return done(), this.toggleFullscreen();
-    if (lower === 'n') return done(), this.next();
-    if (lower === 'p') return done(), this.prev();
+    if (lower === 'f') return (done(), this.toggleFullscreen());
+    if (lower === 'n') return (done(), this.next());
+    if (lower === 'p') return (done(), this.prev());
     if (k === '>' || k === '<') {
       done();
       const i = RATES.indexOf(this.player.rate);
@@ -1124,7 +1227,12 @@ export class MediaApp {
   async deletePlaylist(id) {
     const pl = this.playlists.get(id);
     if (!pl) return;
-    const ok = await this.ui.confirm(this.t('playlists.deleteConfirm', { name: pl.name }), { title: this.t('playlists.deleteTitle'), okLabel: this.t('playlists.delete'), danger: true, parent: this.win });
+    const ok = await this.ui.confirm(this.t('playlists.deleteConfirm', { name: pl.name }), {
+      title: this.t('playlists.deleteTitle'),
+      okLabel: this.t('playlists.delete'),
+      danger: true,
+      parent: this.win,
+    });
     if (!ok) return;
     this.playlists.remove(id);
     if (this.route.name === 'playlist' && this.route.arg === id) this.go({ name: 'playlists' }, { replace: true });
@@ -1178,7 +1286,12 @@ export class MediaApp {
       const pl = this.playlists.get(ctx.playlistId);
       items.push('-');
       items.push({ label: t('menu.moveUp'), icon: 'arrow_up', disabled: !single || ctx.indexes[0] === 0, action: () => this.playlists.move(ctx.playlistId, ctx.indexes[0], ctx.indexes[0] - 1) });
-      items.push({ label: t('menu.moveDown'), icon: 'arrow_down', disabled: !single || ctx.indexes[0] >= (pl?.items.length || 0) - 1, action: () => this.playlists.move(ctx.playlistId, ctx.indexes[0], ctx.indexes[0] + 1) });
+      items.push({
+        label: t('menu.moveDown'),
+        icon: 'arrow_down',
+        disabled: !single || ctx.indexes[0] >= (pl?.items.length || 0) - 1,
+        action: () => this.playlists.move(ctx.playlistId, ctx.indexes[0], ctx.indexes[0] + 1),
+      });
       items.push({ label: t('playlists.removeFrom'), icon: 'dismiss', shortcut: t('keys.del'), action: () => this.playlists.removeAt(ctx.playlistId, ctx.indexes) });
     }
     if (single) {
@@ -1186,7 +1299,18 @@ export class MediaApp {
       items.push({ label: t('menu.showInFolder'), icon: 'folder_open', action: () => this.showInFolder(single.path) });
       items.push({ label: t('menu.properties'), icon: 'info', action: () => this.showProperties(single.path) });
     }
-    return this.ui.menu(ev, items.filter(Boolean));
+    return this._menu(ev, items.filter(Boolean));
+  }
+
+  /** ui.menu, then give the keyboard back to the page if the menu took it away. */
+  _menu(ev, items, opts) {
+    return this.ui.menu(ev, items, opts).then((r) => {
+      setTimeout(() => {
+        const a = document.activeElement;
+        if ((!a || a === document.body) && this.win.isFocused?.()) this.focusContent();
+      }, 60);
+      return r;
+    });
   }
 
   moreMenu(ev) {
@@ -1214,7 +1338,7 @@ export class MediaApp {
       { label: t('nav.settings'), icon: 'settings', action: () => this.go({ name: 'settings' }) },
       { label: t('shortcuts.title'), icon: 'keyboard', action: () => this.showShortcuts() },
     ];
-    return this.ui.menu(ev, items.filter(Boolean), { above: true });
+    return this._menu(ev, items.filter(Boolean), { above: true });
   }
 
   showInFolder(path) {
@@ -1272,7 +1396,11 @@ export class MediaApp {
       ['Ctrl+E', 'shortcuts.search'],
       ['Ctrl+Shift+M', 'shortcuts.mini'],
     ];
-    const body = h('div', { class: 'mp-keys' }, list.map(([k, d]) => h('div', { class: 'mp-key-row' }, h('kbd', null, k), h('span', null, t(d)))));
+    const body = h(
+      'div',
+      { class: 'mp-keys' },
+      list.map(([k, d]) => h('div', { class: 'mp-key-row' }, h('kbd', null, k), h('span', null, t(d)))),
+    );
     await this.ui.dialog({ title: t('shortcuts.title'), body, parent: this.win, className: 'mp-keys-dialog', buttons: [{ label: t('common.close'), value: true, primary: true }] });
   }
 
@@ -1282,7 +1410,13 @@ export class MediaApp {
     if (id) this.toasts.querySelector(`[data-id="${id}"]`)?.remove();
     const ic = { error: 'error_circle', warning: 'warning', success: 'checkmark_circle', info: 'info' }[kind] || 'info';
     const close = h('button', { class: 'btn subtle icon-btn mp-toast-close', 'aria-label': t('common.close'), 'data-tip': t('common.close') }, icon('dismiss'));
-    const el = h('div', { class: ['infobar', 'mp-toast', kind], role: kind === 'error' ? 'alert' : 'status', dataset: id ? { id } : {} }, icon(ic, { filled: true }), h('div', { class: 'grow' }, h('div', { class: 'body-strong' }, title), body ? h('div', { class: 'mp-toast-body' }, body) : null), close);
+    const el = h(
+      'div',
+      { class: ['infobar', 'mp-toast', kind], role: kind === 'error' ? 'alert' : 'status', dataset: id ? { id } : {} },
+      icon(ic, { filled: true }),
+      h('div', { class: 'grow' }, h('div', { class: 'body-strong' }, title), body ? h('div', { class: 'mp-toast-body' }, body) : null),
+      close,
+    );
     const remove = () => {
       if (!el.isConnected) return;
       el.classList.add('out');

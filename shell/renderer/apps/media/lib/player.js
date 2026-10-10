@@ -28,7 +28,10 @@ export class Player {
     this.analyser = null;
     this.gain = null;
     const el = this.el;
-    const fire = (ev, ...a) => () => this._emit(ev, ...a);
+    const fire =
+      (ev, ...a) =>
+      () =>
+        this._emit(ev, ...a);
     el.addEventListener('timeupdate', fire('time'));
     el.addEventListener('seeked', fire('time'));
     el.addEventListener('play', fire('state'));

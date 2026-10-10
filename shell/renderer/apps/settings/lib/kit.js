@@ -210,6 +210,8 @@ export function createKit(pc) {
         },
         onkeydown: (e) => {
           if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+          // while the list is open the arrows move in the list (core menu), they must not also pick
+          if (btn.classList.contains('open')) return;
           e.preventDefault();
           const real = options.filter((o) => o !== '-' && !o.disabled);
           const i = real.findIndex((o) => String(o.value) === String(cur));

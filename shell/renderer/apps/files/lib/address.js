@@ -279,14 +279,20 @@ export class AddressBar {
       ex.navigate(special);
       return;
     }
-    if (v.startsWith('file://')) v = decodeURIComponent(v.slice(7));
+    if (v.startsWith('file://')) {
+      try {
+        v = decodeURIComponent(v.slice(7).replace(/^localhost(?=\/)/, ''));
+      } catch {
+        v = v.slice(7); // malformed %-escape: take it literally (then "can't find" if it doesn't exist)
+      }
+    }
     if (v === '~' || v.startsWith('~/')) v = shared.home + v.slice(1);
     if (!v.startsWith('/')) {
       const base = this.loc?.type === 'dir' ? this.loc.path : shared.home;
       v = T.joinPath(base, v);
     }
     v = normalize(v);
-    const st = await ex.api.invoke('fs:stat', v);
+    const st = await ex.api.invoke('fs:stat', v).catch(() => null);
     if (!st) {
       this.el.classList.add('error');
       await ex.ui.alert(t('errors.notFound', { path: value }), { title: t('appName'), parent: ex.win });
@@ -434,7 +440,10 @@ export class SearchBox {
     // Leaving search results (navigation elsewhere) empties the box.
     if (loc.type === 'search') {
       if (this.input.value !== loc.query) this.input.value = loc.query;
-    } else if (document.activeElement !== this.input) this.input.value = '';
+    } else if (document.activeElement !== this.input) {
+      this.input.value = '';
+      clearTimeout(this.timer); // a pending debounced search belongs to the place we just left
+    }
     this.el.classList.toggle('has-text', !!this.input.value);
     this.btn.replaceChildren(this.ex.icon(this.input.value ? 'dismiss' : 'search', { size: this.input.value ? 12 : 14 }));
     this.btn.setAttribute('aria-label', this.ex.t(this.input.value ? 'search.clear' : 'search.label'));
@@ -444,11 +453,15 @@ export class SearchBox {
     this.el.classList.toggle('has-text', !!this.input.value);
     this.btn.replaceChildren(this.ex.icon(this.input.value ? 'dismiss' : 'search', { size: this.input.value ? 12 : 14 }));
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.run(), 600);
+    const tab = this.ex.tab;
+    // Debounced: only if the user is still on the same tab (Ctrl+Tab while typing must not start the
+    // search in the other tab).
+    this.timer = setTimeout(() => this.ex.tab === tab && this.run(), 600);
   }
 
   run() {
     const q = this.input.value.trim();
+    if (!this.ex.tab) return;
     const loc = this.ex.tab.loc;
     if (!q) {
       if (loc.type === 'search') this.ex.navigate(loc.root, { replace: true });

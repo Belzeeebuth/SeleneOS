@@ -440,7 +440,11 @@ module.exports = function register(api) {
 
   // First bytes of a file for the preview pane (fs:readText refuses files above maxBytes).
   api.handle('files:head', async (p, max = 65536) => {
-    const fh = await fsp.open(p, 'r');
+    // Only regular files: opening a FIFO blocks a libuv worker thread until a writer shows up (four
+    // of them would freeze every fs call of the shell), and devices like /dev/zero never end.
+    const st = await fsp.stat(p);
+    if (!st.isFile()) return { text: '', binary: true, truncated: false, size: 0, special: true };
+    const fh = await fsp.open(p, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
     try {
       const size = (await fh.stat()).size;
       const buf = Buffer.alloc(Math.min(Math.max(1024, Number(max) || 65536), 1024 * 1024));
@@ -478,13 +482,17 @@ module.exports = function register(api) {
   });
 
   // Video thumbnails (images are displayed directly by the renderer).
-  api.handle('files:thumb', async (p, size = 256) => {
+  api.handle('files:thumb', async (file, rawSize = 256) => {
+    // Sanitize: the size ends up in an ffmpeg filter string, the path must stay an operand.
+    const size = Math.max(16, Math.min(1024, Math.round(Number(rawSize)) || 256));
+    const p = path.resolve(String(file || ''));
     let st;
     try {
       st = await fsp.stat(p);
     } catch {
       return null;
     }
+    if (!st.isFile()) return null; // FIFOs / devices: ffmpeg would block on them
     const key = crypto.createHash('sha1').update(`${p}|${st.mtimeMs}|${st.size}|${size}`).digest('hex');
     const out = path.join(THUMBS, `${key}.png`);
     try {
@@ -517,8 +525,12 @@ module.exports = function register(api) {
       if (bin === ff) {
         const ok2 = await new Promise((resolve) => {
           const child = spawn(ff, ['-v', 'error', '-i', p, '-frames:v', '1', '-vf', `scale=${size}:-2`, '-y', out], { stdio: 'ignore' });
+          const timer = setTimeout(() => child.kill('SIGKILL'), 15000);
           child.on('error', () => resolve(false));
-          child.on('close', (code) => resolve(code === 0));
+          child.on('close', (code) => {
+            clearTimeout(timer);
+            resolve(code === 0);
+          });
         });
         if (ok2) return out;
       }
@@ -549,11 +561,13 @@ module.exports = function register(api) {
 
   const TAR_EXT = /\.(tar|tar\.gz|tgz|tar\.xz|txz|tar\.bz2|tbz2?|tar\.zst|tzst)$/i;
 
-  api.handle('files:extract', async (archive, destDir, opts = {}, event) => {
+  api.handle('files:extract', async (archiveArg, destDir, opts = {}, event) => {
     const op = makeOp(opts.opId || `ex${Date.now()}`, event?.sender);
     try {
+      // Absolute paths only: an operand starting with "-" must never reach unzip/tar/python as an option.
+      const archive = path.resolve(String(archiveArg || ''));
       const base = path.basename(archive).replace(TAR_EXT, '').replace(/\.zip$/i, '');
-      const parent = destDir || path.dirname(archive);
+      const parent = destDir ? path.resolve(String(destDir)) : path.dirname(archive);
       const dest = opts.exact ? parent : path.join(parent, await uniqueName(parent, base || 'Extracted'));
       await fsp.mkdir(dest, { recursive: true });
       try {
@@ -582,10 +596,15 @@ module.exports = function register(api) {
       const list = Array.isArray(paths) ? paths : [paths];
       const cwd = path.dirname(list[0]);
       if (list.some((p) => path.dirname(p) !== cwd)) throw api.error('All items must be in the same folder', 'EINVAL');
+      if (!path.isAbsolute(String(zipPath || ''))) throw api.error('Invalid archive path', 'EINVAL');
+      // Security: a file name starting with "-" ("-T", "--unzip-command=…") must never be parsed as an
+      // option — zip would run arbitrary commands. "./name" is always an operand; zip and python's
+      // zipfile both store it as "name".
+      const names = list.map((p) => `./${path.basename(p)}`);
       const zip = which('zip');
       try {
-        if (zip) await runOp(op, zip, ['-q', '-r', '-y', zipPath, ...list.map((p) => path.basename(p))], cwd);
-        else await runOp(op, which('python3') || 'python3', ['-m', 'zipfile', '-c', zipPath, ...list.map((p) => path.basename(p))], cwd);
+        if (zip) await runOp(op, zip, ['-q', '-r', '-y', path.resolve(zipPath), ...names], cwd);
+        else await runOp(op, which('python3') || 'python3', ['-m', 'zipfile', '-c', path.resolve(zipPath), ...names], cwd);
       } catch (err) {
         await fsp.rm(zipPath, { force: true }).catch(() => {});
         throw err;

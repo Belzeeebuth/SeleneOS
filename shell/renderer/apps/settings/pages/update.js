@@ -92,7 +92,8 @@ function when(pc, ms) {
 async function update(pc) {
   const { h, t, kit, icon } = pc;
   await loadSaved(pc);
-  const [adm, info, isOnline] = await Promise.all([pc.adminStatus(), pc.tryInvoke('sys:info'), online(pc)]);
+  const [adm, info, onlineNow] = await Promise.all([pc.adminStatus(), pc.tryInvoke('sys:info'), online(pc)]);
+  let isOnline = onlineNow;
   const root = h('div');
   const paint = () => {
     pc.ui.clear(root);
@@ -208,6 +209,14 @@ async function update(pc) {
   paint();
   listeners.add(paint);
   pc.onDispose(() => listeners.delete(paint));
+  // The network coming back (or going away) enables / disables the buttons without leaving the page.
+  pc.on('net:changed', (st) => {
+    const now = !st || st.connectivity !== 'none';
+    if (now !== isOnline) {
+      isOnline = now;
+      paint();
+    }
+  });
   return root;
 }
 
