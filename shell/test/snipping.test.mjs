@@ -540,6 +540,45 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     assert.match(await S(s, (app, el) => el.querySelector('.snip-zoom-label').textContent), /^100%$/);
   });
 
+  await test('ruler: drag, rotate, and pen strokes drawn straight along its edge', async () => {
+    await s.page.click(`${WIN} .snip-ruler-btn`);
+    assert.equal(await S(s, (app, el) => el.querySelector('.snip-ruler-btn').getAttribute('aria-pressed')), 'true');
+    const r0 = await S(s, (app) => ({ ...app.editor.ruler }));
+    assert.equal(r0.angle, 0);
+    // Drag it by (+30, -20) image px (zoom is 100 %).
+    const c0 = await imgClient(s, r0.cx, r0.cy);
+    await drag(s, [[c0[0] + 120, c0[1]], [c0[0] + 150, c0[1] - 20]], { steps: 6 });
+    const r1 = await S(s, (app) => ({ ...app.editor.ruler }));
+    assert.ok(Math.abs(r1.cx - r0.cx - 30) < 1.5 && Math.abs(r1.cy - r0.cy + 20) < 1.5, `ruler moved (${JSON.stringify(r1)})`);
+    // Wheel over it rotates by 1° per notch; the arrows rotate too.
+    await s.page.mouse.move(c0[0] + 150, c0[1] - 20);
+    for (let i = 0; i < 4; i++) await s.page.mouse.wheel(0, 100);
+    await sleep(100);
+    assert.equal(await S(s, (app) => app.editor.ruler.angle), 4);
+    assert.equal(await S(s, (app, el) => el.querySelector('.snip-ruler-angle').textContent), '4°');
+    await s.page.keyboard.press('Home');
+    assert.equal(await S(s, (app) => app.editor.ruler.angle), 0);
+    await S(s, (app) => {
+      app.editor.ruler.cx = 140;
+      app.editor.ruler.cy = 120;
+      app.editor._layoutRuler();
+    });
+    await s.shot('snipping-ruler-light-en');
+    // A wobbly pen stroke started just above the top edge (y = 120 - 32) is drawn as a straight line.
+    await s.page.click(`${WIN} .snip-tool[data-tool="pen"]`);
+    const n = await S(s, (app) => app.editor.strokes.length);
+    const p = await imgClient(s, 40, 80);
+    await drag(s, [p, [p[0] + 50, p[1] - 9], [p[0] + 100, p[1] + 4], [p[0] + 160, p[1] - 6]], { steps: 5 });
+    const st = await S(s, (app) => app.editor.strokes[app.editor.strokes.length - 1]);
+    assert.equal(await S(s, (app) => app.editor.strokes.length), n + 1);
+    const ys = st.points.map((q) => q[1]);
+    assert.ok(Math.max(...ys) - Math.min(...ys) < 0.01, `straight along the ruler (${Math.min(...ys)}..${Math.max(...ys)})`);
+    assert.ok(Math.abs(ys[0] - (120 - 32 - st.size / 2 - 1)) < 0.6, `against the edge (${ys[0]})`);
+    await s.page.keyboard.press('Control+z');
+    await s.page.click(`${WIN} .snip-ruler-btn`);
+    assert.equal(await S(s, (app, el) => !app.editor.ruler && el.querySelector('.snip-ruler-layer').hidden), true);
+  });
+
   await test('Save as (Ctrl+S): PNG and JPEG through the file picker', async () => {
     await s.page.keyboard.press('Control+s');
     await savePicker(s, 'annotated');
