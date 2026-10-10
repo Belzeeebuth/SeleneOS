@@ -1051,10 +1051,13 @@ console.log(`Local test server: ${srv.url}`);
   await test('French: no English text in any menu, flyout, dialog or page', async () => {
     const pats = englishPatterns();
     const found = {};
-    const close = () => s.page.evaluate(async () => {
-      (await import('app://shell/apps/browser/lib/menu.js')).closeMenus();
-      document.querySelectorAll('.menu').forEach((m) => m.remove());
-    });
+    const close = async () => {
+      for (let i = 0; i < 4 && (await s.page.locator('.menu').count()); i++) {
+        await s.page.keyboard.press('Escape');
+        await s.page.waitForTimeout(120);
+      }
+      assert(!(await s.page.locator('.menu').count()), 'menus close with Esc');
+    };
     const scan = async (label) => {
       await s.page.waitForTimeout(250);
       const e = await findEnglish(s, pats);

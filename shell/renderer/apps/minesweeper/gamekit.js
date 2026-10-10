@@ -242,8 +242,14 @@ export function createKit(ctx) {
         el.hidden = false;
         el.classList.remove('leaving');
         api.visible = true;
+        // Move the keyboard to the primary action, but never pull focus back from another surface
+        // (Start menu, search, another window) that took it — e.g. when the card is an auto-pause.
         const primary = card.querySelector('.btn.primary');
-        if (primary && win.isFocused?.() !== false) setTimeout(() => api.visible && primary.focus({ preventScroll: true }), 60);
+        const focusIsHere = () => {
+          const a = document.activeElement;
+          return win.isFocused?.() !== false && (!a || a === document.body || win.el.contains(a));
+        };
+        if (primary && focusIsHere()) setTimeout(() => api.visible && primary.isConnected && focusIsHere() && primary.focus({ preventScroll: true }), 60);
       },
       hide() {
         if (!api.visible) return;

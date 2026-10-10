@@ -630,9 +630,11 @@ export default {
       const availW = stage.clientWidth - 2 * STAGE_PAD - 2 * FRAME_PAD - 2;
       const availH = stage.clientHeight - 2 * STAGE_PAD - 2 * FRAME_PAD - 2;
       if (availW <= 0 || availH <= 0) return;
-      let cell = Math.floor(Math.min(availW / (spec.cols + (spec.cols - 1) * 0.075), availH / (spec.rows + (spec.rows - 1) * 0.075)));
-      cell = clamp(cell, MIN_CELL, MAX_CELL);
-      while (cell > MIN_CELL && (boardPixels(cell).w > availW || boardPixels(cell).h > availH)) cell--;
+      // Largest cell whose board (cells + rounded gaps) fits; the estimate only seeds the search.
+      const fits = (c) => boardPixels(c).w <= availW && boardPixels(c).h <= availH;
+      let cell = clamp(Math.floor(Math.min(availW / (spec.cols + (spec.cols - 1) * 0.075), availH / (spec.rows + (spec.rows - 1) * 0.075))), MIN_CELL, MAX_CELL);
+      while (cell < MAX_CELL && fits(cell + 1)) cell++;
+      while (cell > MIN_CELL && !fits(cell)) cell--;
       if (cell === cellSize && board.style.getPropertyValue('--cell')) return;
       cellSize = cell;
       board.style.setProperty('--cell', `${cell}px`);

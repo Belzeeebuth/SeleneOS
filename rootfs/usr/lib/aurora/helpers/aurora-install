@@ -47,13 +47,14 @@
 # On failure or cancellation (SIGTERM/SIGINT), everything this script mounted is unmounted.
 #
 # Exit codes: 0 ok, 2 invalid arguments, 3 not found, 4 refused (safety checks), 5 failed, 130 cancelled.
+# shellcheck disable=SC2317  # functions below are also called through traps and exported to subshells
+# shellcheck disable=SC2016  # single-quoted ${...} are dpkg-query formats and bash -c scripts
 set -Eeuo pipefail
 umask 022
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export LC_ALL=C
 IFS=$' \t\n'
 
-PROG=aurora-install
 MIN_SIZE=12000000000            # bytes (12 GB)
 WORKDIR=/run/aurora-install     # mount root (target system under $WORKDIR/target)
 TARGET=$WORKDIR/target
@@ -99,7 +100,7 @@ exec 3>&1 1>&2   # fd 3 = the caller's stdout (JSON only); everything else goes 
 # A closed pipe (the installer UI went away) must not kill the installation half-way: writes then
 # fail quietly and the log file keeps the full record.
 trap '' PIPE
-STAGE="" PROGRESS=0 DONE=0 ERROR_SENT=0 CANCELLED=0 T0=$(date +%s) BG_PID="" TEE_PID=""
+STAGE="" PROGRESS=0 DONE=0 ERROR_SENT=0 T0=$(date +%s) BG_PID=""
 
 json_str() { # json_str TEXT -> "TEXT" with JSON escaping (control characters dropped)
   local s=$1
@@ -188,7 +189,7 @@ maybe_fail() { # maybe_fail STAGE — testing aid (--fail-at)
 
 # ------------------------------------------------------------------ dry run
 if ((DRY_RUN)); then
-  trap 'CANCELLED=1; die 130 "installation cancelled"' INT TERM HUP
+  trap 'die 130 "installation cancelled"' INT TERM HUP
   trap 'rc=$?; ((DONE || rc == 0)) || emit_error "$rc" "installation failed (exit $rc)"' EXIT
   dsleep() { sleep "$DRY_DELAY"; }
   size_txt="unknown size"
@@ -219,7 +220,7 @@ if ((DRY_RUN)); then
   progress bootloader 97 "Writing the boot menu"; dsleep
   sim cleanup 98 99 "Finishing" "sync; unmounting $TARGET"
   DONE=1
-  progress done 100 "Aurora OS has been installed (simulation: nothing was written)"
+  progress "done" 100 "Aurora OS has been installed (simulation: nothing was written)"
   exit 0
 fi
 
@@ -227,10 +228,11 @@ fi
 [[ $EUID -eq 0 ]] || die 4 "must be run as root"
 [[ -n "$LOG_FILE" ]] || LOG_FILE=/var/log/aurora-install.log
 mkdir -p "$(dirname "$LOG_FILE")"
-touch "$LOG_FILE" && chmod 0640 "$LOG_FILE" && chgrp adm "$LOG_FILE" 2>/dev/null || true
+touch "$LOG_FILE" || die 5 "cannot write the log file $LOG_FILE"
+chmod 0640 "$LOG_FILE"
+chgrp adm "$LOG_FILE" 2>/dev/null || true
 # Everything written to stderr also lands in the log file (tee -p: keeps logging if the caller goes away).
 exec 2> >(exec tee -p -a "$LOG_FILE" >&2)
-TEE_PID=$!
 {
   echo
   echo "======================================================================"
@@ -284,7 +286,7 @@ cleanup() {
   exit "$rc"
 }
 trap cleanup EXIT
-trap 'CANCELLED=1; die 130 "installation cancelled"' INT TERM HUP
+trap 'die 130 "installation cancelled"' INT TERM HUP
 trap 'log "failed: $BASH_COMMAND (line $LINENO)"' ERR
 
 # Long-running commands run in the background so that a cancellation (SIGTERM) is handled at once.
@@ -886,5 +888,5 @@ stage_configure
 stage_bootloader
 stage_cleanup
 DONE=1
-progress done 100 "Aurora OS has been installed on $DISK"
+progress "done" 100 "Aurora OS has been installed on $DISK"
 exit 0

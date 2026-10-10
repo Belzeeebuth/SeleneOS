@@ -327,11 +327,3 @@ export async function startMailServer({ tlsImap = false } = {}) {
   };
 }
 
-const isMain = process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
-if (isMain && process.argv.includes('--server')) {
-  const s = await startMailServer();
-  console.log(`IMAP 127.0.0.1:${s.imapPort}  SMTP 127.0.0.1:${s.smtpPort}  user ${USER} / ${PASS}`);
-} else if (isMain) {
-  const { runTests } = await import('./mail.e2e.mjs').catch(() => ({}));
-  if (runTests) await runTests();
-}

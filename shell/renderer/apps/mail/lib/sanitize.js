@@ -115,7 +115,19 @@ export function buildMailDocument({ html, text, cids = {}, allowRemote = false, 
       }
       if (tag === 'a' && el.hasAttribute('href')) el.setAttribute('rel', 'noopener noreferrer');
       if (tag === 'img' && !el.hasAttribute('src') && el.hasAttribute('data-blocked-src')) {
-        el.setAttribute('alt', el.getAttribute('alt') || '');
+        // A neutral placeholder of the same size instead of a broken-image icon.
+        const ph = doc.createElement('span');
+        ph.className = 'aurora-blocked-img';
+        const w = Number(el.getAttribute('width'));
+        const hgt = Number(el.getAttribute('height'));
+        if (w > 0) ph.style.width = `${Math.min(w, 2000)}px`;
+        if (hgt > 0) ph.style.height = `${Math.min(hgt, 2000)}px`;
+        if (w > 0 && w < 4 && hgt > 0 && hgt < 4) ph.style.display = 'none'; // tracking pixel
+        const style = el.getAttribute('style');
+        if (style) ph.setAttribute('style', `${style};${ph.getAttribute('style') || ''}`);
+        ph.textContent = el.getAttribute('alt') || '';
+        el.replaceWith(ph);
+        continue;
       }
       if (tag === 'style') el.textContent = cleanCss(el.textContent, allowRemote, cids, counter);
     }
@@ -133,7 +145,7 @@ export function buildMailDocument({ html, text, cids = {}, allowRemote = false, 
   const base = isHtml
     ? `:root{color-scheme:light}html{background:#fff}body{margin:0;padding:16px 20px;font:14px/1.45 ${font};color:#1b1b1b;background:#fff;word-wrap:break-word;overflow-wrap:anywhere}
 img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}a{color:#0f6cbd}
-img[data-blocked-src]{display:inline-block;min-width:24px;min-height:24px;background:#f0f0f0;border:1px dashed #c8c8c8;border-radius:4px}
+.aurora-blocked-img{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-width:24px;min-height:24px;max-width:100%;padding:4px 8px;overflow:hidden;background:#f3f3f3;border:1px dashed #c8c8c8;border-radius:4px;color:#767676;font-size:12px;vertical-align:middle}
 blockquote{margin:6px 0 6px 2px;padding-left:12px;border-left:3px solid #c8c8c8;color:#555}
 ${adapt ? 'html{filter:invert(1) hue-rotate(180deg);background:#fff}img,picture,video,[style*="background-image"],[data-bgimg]{filter:invert(1) hue-rotate(180deg)}' : ''}`
     : `:root{color-scheme:${dark ? 'dark' : 'light'}}html,body{background:transparent}body{margin:0;padding:16px 20px;font:14px/1.5 ${font};color:${dark ? '#ffffff' : '#1b1b1b'}}
