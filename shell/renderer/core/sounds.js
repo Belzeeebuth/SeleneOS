@@ -25,6 +25,12 @@ function tone(ac, { freq, start = 0, dur = 0.25, type = 'sine', gain = 0.18, gli
 }
 
 const PRESETS = {
+  alarm: [
+    { freq: 1046.5, dur: 0.16, gain: 0.16, type: 'triangle' },
+    { freq: 1318.5, start: 0.2, dur: 0.16, gain: 0.16, type: 'triangle' },
+    { freq: 1046.5, start: 0.4, dur: 0.16, gain: 0.16, type: 'triangle' },
+    { freq: 1568, start: 0.6, dur: 0.3, gain: 0.14, type: 'triangle' },
+  ],
   notify: [
     { freq: 880, dur: 0.18, gain: 0.12 },
     { freq: 1318.5, start: 0.09, dur: 0.32, gain: 0.1 },

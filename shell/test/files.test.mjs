@@ -1135,6 +1135,12 @@ if (!fatal) {
       const s = window.__fx().tabStops();
       return s[s.length - 1] === document.activeElement;
     }), true);
+    await H.focusView();
+    await H.key('Control+l');
+    await H.key('Shift+Tab');
+    check('Shift+Tab from the address field goes to Refresh', await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Refresh');
+    await page.waitForTimeout(200);
+    check('address left edit mode', await page.locator('.app-files .fx-address.editing').count(), 0);
     // ... and inside a dialog shown over the window
     await H.select('notes.md');
     await H.focusView();
@@ -1186,16 +1192,17 @@ if (!fatal) {
       root.dataset.animations = 'off';
       const host = document.createElement('div');
       host.className = 'app-files';
-      host.innerHTML = '<div class="fx-pg-bar indeterminate"><div class="bar"></div></div><div class="fx-address busy"></div>';
+      host.innerHTML = '<div class="fx-pg-bar indeterminate"><div class="bar"></div></div><div class="fx-address busy"></div><span class="spinner small"></span>';
       document.body.append(host);
       const a = getComputedStyle(host.querySelector('.bar')).animationName;
       const b = getComputedStyle(host.querySelector('.fx-address'), '::before').animationName;
+      const c = getComputedStyle(host.querySelector('.spinner')).animationName;
       host.remove();
       if (prev == null) delete root.dataset.animations;
       else root.dataset.animations = prev;
-      return [a, b];
+      return [a, b, c];
     });
-    check('animations off: no endless animations', anim, ['none', 'none']);
+    check('animations off: no endless animations', anim, ['none', 'none', 'none']);
   });
 
   await section('QA: pinned folders reorder by drag, launch args, Home refresh across windows', async () => {

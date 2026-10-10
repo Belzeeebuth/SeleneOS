@@ -237,6 +237,7 @@ export class AddressBar {
     }
     this.editing = true;
     this.el.classList.add('editing');
+    this.el.tabIndex = -1; // while editing, the input is the Tab stop (Shift+Tab goes to Refresh)
     this.input.value = text ?? this.displayText(this.loc || { type: 'home' });
     this.input.focus();
     this.input.select();
@@ -245,6 +246,7 @@ export class AddressBar {
   endEdit() {
     const hadFocus = this.el.contains(document.activeElement);
     this.editing = false;
+    this.el.tabIndex = 0;
     this.el.classList.remove('editing', 'error');
     this.hideSuggest();
     this.fit();

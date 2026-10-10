@@ -6,7 +6,7 @@ import { Reader } from './reader.js';
 import { Composer } from './compose.js';
 import { AccountSetup } from './setup.js';
 import { openSettings } from './settings.js';
-import { MailWindowBase } from './base.js';
+import { MailWindowBase, trapFocus } from './base.js';
 import { avatarColor, initials, parseAddresses, parseMailto, debounce, keyName } from './util.js';
 
 const FOLDER_ICONS = { inbox: 'mail_inbox', drafts: 'drafts', sent: 'send', archive: 'archive', junk: 'mail_prohibited', trash: 'delete', all: 'mail_multiple', flagged: 'flag', important: 'star' };
@@ -25,6 +25,7 @@ export class MailApp extends MailWindowBase {
     const { h } = ctx;
     this.root = h('div', { class: 'ml-root', 'data-layout': 'wide' });
     ctx.win.body.appendChild(this.root);
+    trapFocus(ctx.win);
     ctx.win.el.__mail = this; // test / debugging hook
   }
 
@@ -418,11 +419,19 @@ export class MailApp extends MailWindowBase {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           this.openFolder(node.path);
-        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        } else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
           e.preventDefault();
           const all = [...this.nav.querySelectorAll('.ml-folder:not(.noselect)')].filter((x) => x.offsetParent);
           const i = all.indexOf(row);
-          all[i + (e.key === 'ArrowDown' ? 1 : -1)]?.focus();
+          const next = e.key === 'Home' ? all[0] : e.key === 'End' ? all[all.length - 1] : all[i + (e.key === 'ArrowDown' ? 1 : -1)];
+          next?.focus();
+        } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && row.hasAttribute('aria-expanded')) {
+          // Collapse / expand a folder with subfolders, like a tree view.
+          const open = row.getAttribute('aria-expanded') === 'true';
+          if (open === (e.key === 'ArrowLeft')) {
+            e.preventDefault();
+            row.querySelector('.ml-twisty')?.click();
+          }
         }
       });
       row.addEventListener('contextmenu', (e) => this.folderMenu(e, node));
@@ -448,10 +457,14 @@ export class MailApp extends MailWindowBase {
 
   paintNavSelection() {
     if (!this.nav) return;
-    for (const el of this.nav.querySelectorAll('.ml-folder')) {
+    // The folder tree is one Tab stop (the selected folder); arrows move inside it.
+    const rows = [...this.nav.querySelectorAll('.ml-folder')];
+    const sel = rows.find((el) => el.dataset.path === this.folder) || rows.find((el) => !el.classList.contains('noselect'));
+    for (const el of rows) {
       const on = el.dataset.path === this.folder;
       el.classList.toggle('selected', on);
       el.setAttribute('aria-selected', String(on));
+      el.tabIndex = el === sel ? 0 : -1;
     }
   }
 

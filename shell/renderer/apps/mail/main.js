@@ -9,6 +9,7 @@ import { MailApp } from './lib/app.js';
 import { Composer } from './lib/compose.js';
 import { Reader } from './lib/reader.js';
 import { MessageWindow } from './lib/msgwin.js';
+import { trapFocus } from './lib/base.js';
 import { parseAddresses, parseMailto } from './lib/util.js';
 import { errorText } from './lib/setup.js';
 
@@ -81,6 +82,7 @@ function composeWindow(ctx, snap) {
     },
   });
   root.appendChild(composer.el);
+  trapFocus(win);
   title(composer.subject.value);
   win.onBeforeClose(async () => composer.close());
   ctx.onLangChange(() => {
@@ -129,6 +131,7 @@ async function emlWindow(ctx, file) {
   };
   const reader = new Reader(ctx, viewer);
   root.appendChild(h('div', { class: 'ml-readpane solo' }, reader.el));
+  trapFocus(win);
   reader.showLoading({ subject: file.split('/').pop() });
   try {
     const msg = await api.invoke('mail:parseFile', file);

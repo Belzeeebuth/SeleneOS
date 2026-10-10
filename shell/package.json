@@ -22,7 +22,8 @@
     "@xterm/xterm": "6.0.0",
     "imapflow": "2.4.0",
     "mailparser": "3.9.38",
-    "nodemailer": "10.1.0"
+    "nodemailer": "10.1.0",
+    "pdfjs-dist": "6.4.299"
   },
   "private": true
 }

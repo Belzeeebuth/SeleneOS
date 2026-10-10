@@ -897,6 +897,12 @@
   line-height: 28px;
   font-weight: 600;
   overflow-wrap: anywhere;
+  /* A very long subject must not push the message out of view (full text in the tooltip). */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
 }
 .app-mail .ml-head-flags {
   padding-top: 6px;
@@ -1539,6 +1545,9 @@
 .app-mail .ml-setup-stage {
   position: relative;
 }
+.app-mail .ml-step:focus {
+  outline: none;
+}
 .app-mail .ml-step.enter {
   animation: ml-step-in var(--dur-slower) var(--ease);
 }
@@ -1949,6 +1958,7 @@
   margin: 2px 0 8px;
 }
 .app-mail .ml-radio {
+  display: flex;
   align-items: flex-start;
   padding: 6px 0;
 }
@@ -2023,4 +2033,23 @@
   color: var(--text);
   font: 12px/1.45 var(--font-mono);
   white-space: pre;
+}
+
+/* Dark theme: the danger color is a light red there, so destructive buttons (Delete forever, Empty
+   folder, Remove account…) get dark text, like Fluent's critical buttons. */
+:root[data-theme="dark"] .app-mail .btn.danger {
+  color: #1b1b1b;
+}
+:root[data-theme="dark"] .app-mail .btn.danger:hover {
+  background: color-mix(in srgb, var(--danger) 90%, #fff);
+}
+
+/* Focus sentinel at the end of each Mail window (see trapFocus in lib/base.js). */
+.app-mail .ml-tab-sentinel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }

@@ -1726,6 +1726,9 @@
   animation: none;
   background-position: 50% 0;
 }
+:root[data-animations="off"] .app-files .spinner {
+  animation: none;
+}
 .app-files .fx-pg-details {
   display: grid;
   grid-template-columns: auto 1fr;

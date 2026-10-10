@@ -2,6 +2,35 @@
 // snackbar, error dialogs, attachments (open / save / save all), .eml export and message source.
 import { errorText } from './setup.js';
 
+// Tab / Shift+Tab cycle inside the window (inside its open dialog, if any) like a Windows app,
+// instead of walking out to the taskbar and the desktop. The end sentinel also catches Tab pressed
+// inside the message body: keys typed in that sandboxed frame never reach this document.
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+export function trapFocus(win) {
+  const scope = () => [...win.el.querySelectorAll('.dialog-layer:not(.closing)')].pop() || win.el;
+  const items = () =>
+    [...scope().querySelectorAll(FOCUSABLE)].filter((el) => el.tabIndex >= 0 && !el.classList.contains('ml-tab-sentinel') && !el.closest('[hidden], [inert]') && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
+  const sentinel = document.createElement('span');
+  sentinel.className = 'ml-tab-sentinel';
+  sentinel.tabIndex = 0;
+  sentinel.setAttribute('aria-hidden', 'true');
+  sentinel.addEventListener('focus', () => items()[0]?.focus());
+  win.body.appendChild(sentinel);
+  win.el.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return;
+    const list = items();
+    if (!list.length) return;
+    const inScope = scope().contains(e.target);
+    if (e.shiftKey && (e.target === list[0] || !inScope)) {
+      e.preventDefault();
+      list[list.length - 1].focus();
+    } else if (!e.shiftKey && (e.target === list[list.length - 1] || !inScope)) {
+      e.preventDefault();
+      list[0].focus();
+    }
+  });
+}
+
 export class MailWindowBase {
   constructor(ctx) {
     this.ctx = ctx;

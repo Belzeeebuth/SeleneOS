@@ -2,13 +2,18 @@
 // pane with all its actions. Changes are announced on the store so the main window refreshes.
 import { store } from './store.js';
 import { Reader } from './reader.js';
-import { MailWindowBase } from './base.js';
+import { MailWindowBase, trapFocus } from './base.js';
 
 export class MessageWindow extends MailWindowBase {
   constructor(ctx, ref) {
     super(ctx);
     this.ref = ref; // { accountId, folder, uid, special }
     this.special = ref.special || {};
+  }
+
+  // Error messages name this account's server.
+  get account() {
+    return store.account(this.ref.accountId);
   }
 
   async init() {
@@ -19,6 +24,7 @@ export class MessageWindow extends MailWindowBase {
     this.snack = h('div', { class: 'ml-snack-host', 'aria-live': 'polite' });
     this.root = h('div', { class: 'ml-root ml-msg-window' }, h('div', { class: 'ml-readpane solo' }, this.reader.el), this.snack);
     win.body.appendChild(this.root);
+    trapFocus(win);
     win.el.__mailMsg = this;
     const keys = (e) => {
       if (this.ctx.shell.wm.focused?.() !== win || e.defaultPrevented) return;
@@ -41,6 +47,10 @@ export class MessageWindow extends MailWindowBase {
     this.ctx.onClose(() => {
       document.removeEventListener('keydown', keys);
       this.reader.destroy();
+    });
+    this.ctx.onLangChange(() => {
+      this.reader.relocalize();
+      if (this.reader.msg) win.setTitle(`${this.reader.msg.subject || this.t('list.noSubject')} - ${this.t('appName')}`);
     });
     await this.load();
   }

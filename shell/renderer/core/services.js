@@ -13,6 +13,7 @@ import { notify } from './notify.js';
 import { settings } from './settings.js';
 import { theme } from './theme.js';
 import { sounds } from './sounds.js';
+import { reminders } from './reminders.js';
 import { wm } from './wm.js';
 import { h, icon, ui } from './ui.js';
 import { i18n, t } from './i18n.js';
@@ -27,6 +28,7 @@ export const shell = {
   settings,
   theme,
   sounds,
+  reminders, // shared alarm/reminder scheduler (see core/reminders.js)
   xdg: null,
   on: (ev, fn) => emitter.on(ev, fn),
   emit: (ev, ...a) => emitter.emit(ev, ...a),

@@ -19,7 +19,6 @@ let shellDrag = false;
 document.addEventListener('dragstart', () => (shellDrag = true), true);
 document.addEventListener('dragend', () => (shellDrag = false), true);
 window.addEventListener('pointerdown', () => (shellDrag = false), true);
-export const isShellDrag = () => shellDrag;
 
 export class DnD {
   constructor(ex) {

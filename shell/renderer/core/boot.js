@@ -14,6 +14,7 @@ import { taskbar } from './taskbar.js';
 import { start } from './start.js';
 import { desktop } from './desktop.js';
 import { sounds } from './sounds.js';
+import { reminders } from './reminders.js';
 import { h, ui } from './ui.js';
 
 // Feature modules in core/features/ are discovered at runtime; FEATURES only fixes the load order.
@@ -33,6 +34,7 @@ async function main() {
   shell.xdg = await api.invoke('fs:xdg').catch(() => null);
   setShellServices(shell);
   await registry.load();
+  reminders.init(registry).catch((err) => console.error('[boot] reminders failed', err));
 
   const $ = (id) => document.getElementById(id);
   wm.mount($('windows'));

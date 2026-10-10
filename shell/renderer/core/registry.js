@@ -15,6 +15,7 @@
 //   "singleInstance": false,            // true -> relaunch focuses the existing window (and calls onRelaunch);
 //                                       //         launch(id, { newWindow: true }) still opens another window
 //   "fileTypes": [".txt", ".md"],       // extensions this app can open (ctx.args.file)
+//   "defaultFor": [".txt"],             // extensions this app should open by default (beats other fileTypes)
 //   "hidden": false,                    // hide from Start "All apps"
 //   "liveOnly": false                   // only in the live session (installer)
 // }
@@ -75,6 +76,8 @@ export const registry = {
     const ext = (/\.[^./]+$/.exec(path || '')?.[0] || '').toLowerCase();
     const def = settings.get('defaultApps')?.[ext];
     if (def && apps.has(def)) return def;
+    // An app that declares the extension in "defaultFor" wins over apps that merely support it.
+    for (const m of apps.values()) if ((m.defaultFor || []).includes(ext)) return m.id;
     for (const m of apps.values()) if ((m.fileTypes || []).includes(ext)) return m.id;
     return null;
   },
