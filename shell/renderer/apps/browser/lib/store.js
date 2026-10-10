@@ -28,8 +28,13 @@ export const SEED_SITES = [
   { title: 'Ubuntu', url: 'https://ubuntu.com/' },
 ];
 
-function seedBookmarks() {
+/** Default favorites; `t` localizes the titles of the Aurora OS folder (first run only). */
+function seedBookmarks(t = null) {
   const now = Date.now();
+  const tr = (key, fallback) => {
+    const v = t ? t(key) : key;
+    return v && v !== key ? v : fallback;
+  };
   const mk = (title, url) => ({ id: uid('b'), type: 'url', title, url, added: now });
   return {
     bar: {
@@ -44,12 +49,34 @@ function seedBookmarks() {
           type: 'folder',
           title: 'Aurora OS',
           added: now,
-          children: [mk('Aurora OS — documentation', 'aurora://about'), mk('Aurora Browser settings', 'aurora://settings')],
+          children: [mk(tr('seed.docs', 'Aurora OS — documentation'), 'aurora://about'), mk(tr('seed.settings', 'Aurora Browser settings'), 'aurora://settings')],
         },
       ],
     },
     other: { id: 'other', type: 'folder', title: '', added: now, children: [] },
   };
+}
+
+/** Validate a stored favorites tree (a hand-edited or truncated file must not break the app). */
+function sanitizeNode(n, forceId = null, depth = 0) {
+  if (!n || typeof n !== 'object' || depth > 40) return null;
+  const id = forceId || (typeof n.id === 'string' && n.id ? n.id : uid(n.type === 'folder' ? 'f' : 'b'));
+  const title = typeof n.title === 'string' ? n.title : '';
+  const added = Number(n.added) || Date.now();
+  if (forceId || n.type === 'folder') {
+    if (!Array.isArray(n.children)) return forceId ? null : { id, type: 'folder', title, added, children: [] };
+    const seen = new Set();
+    const children = [];
+    for (const c of n.children) {
+      const x = sanitizeNode(c, null, depth + 1);
+      if (!x || seen.has(x.id) || x.id === 'bar' || x.id === 'other') continue;
+      seen.add(x.id);
+      children.push(x);
+    }
+    return { id, type: 'folder', title, added, children };
+  }
+  if (typeof n.url !== 'string' || !n.url) return null;
+  return { id, type: 'url', title, url: n.url, added };
 }
 
 class Emitter {
@@ -86,7 +113,7 @@ export class Store extends Emitter {
     this.storage = null;
   }
 
-  async load(storage) {
+  async load(storage, t = null) {
     this.storage = storage;
     const get = (n, f) => storage.get(n, f).catch(() => f);
     const [prefs, bookmarks, history, favicons, downloads, session, ntp] = await Promise.all([
@@ -99,9 +126,21 @@ export class Store extends Emitter {
       get('ntp', null),
     ]);
     if (prefs && typeof prefs === 'object') this.prefs = { ...DEFAULT_PREFS, ...prefs };
-    if (bookmarks?.bar?.children && bookmarks?.other?.children) this.bookmarks = bookmarks;
-    else this.save('bookmarks');
-    if (Array.isArray(history)) for (const e of history) if (e?.url) this.history.set(e.url, e);
+    const bar = sanitizeNode(bookmarks?.bar, 'bar');
+    const other = sanitizeNode(bookmarks?.other, 'other');
+    if (bar && other) this.bookmarks = { bar, other };
+    else {
+      this.bookmarks = seedBookmarks(t);
+      this.save('bookmarks');
+    }
+    if (Array.isArray(history)) {
+      // Oldest first, so the Map stays ordered by recency like addVisit() keeps it.
+      const list = history.filter((e) => e && typeof e.url === 'string' && isWebUrl(e.url));
+      list.sort((a, b) => (Number(a.last) || 0) - (Number(b.last) || 0));
+      for (const e of list.slice(-HISTORY_CAP)) {
+        this.history.set(e.url, { url: e.url, title: typeof e.title === 'string' ? e.title : '', visits: Math.max(1, Number(e.visits) || 1), first: Number(e.first) || Number(e.last) || 0, last: Number(e.last) || 0 });
+      }
+    }
     if (favicons && typeof favicons === 'object') for (const [k, v] of Object.entries(favicons)) if (typeof v === 'string') this.favicons.set(k, v);
     if (Array.isArray(downloads)) this.downloads = downloads.filter((d) => d && d.id);
     if (session?.windows) this.session = session;

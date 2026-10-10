@@ -77,6 +77,7 @@ export function iconFor(entry) {
     return iconPath(k ? `folder-${k}` : 'folder');
   }
   const kind = kindOf(entry);
+  if (kind === 'file' && !entry.ext && entry.mode & 0o111 && !entry.link) return iconPath('file-exec');
   return iconPath(kind === 'file' ? 'file' : `file-${kind === 'script' ? 'exec' : kind}`);
 }
 

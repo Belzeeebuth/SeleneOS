@@ -19,9 +19,10 @@ session (nothing is written to the disk) from which Aurora OS can be installed.
 ## Prerequisites
 
 - An **Ubuntu 24.04** (or Debian 12+/Ubuntu 22.04+) x86-64 host with **root** access (`sudo`).
-  The build uses `debootstrap`, `chroot`, overlay and loop mounts.
-- About **25 GB free** in the repository's file system (work tree ~3 GB, download cache ~1 GB,
-  ISO ~0.7 GB; the first build needs more temporary space than rebuilds), 4 GB RAM or more.
+  The build uses `debootstrap`, `chroot` and overlay mounts.
+- About **25 GB free** in the repository's file system (the build itself uses ~2.7 GB in `work/`,
+  ~0.7 GB of downloads in `cache/` and ~0.75 GB for the ISO; the rest is headroom for the
+  package layer growing), 4 GB RAM or more.
 - Network access to `snapshot.ubuntu.com` (HTTPS) and `github.com` (Electron download).
   Behind a proxy, export `https_proxy`/`http_proxy`; for a TLS-intercepting proxy, also set
   `BUILD_CA_BUNDLE=/path/to/ca.pem`. Proxy settings and CA are used during the build only and are
@@ -134,30 +135,42 @@ comments); every list is installed. Files copied verbatim into the image live in
 
 ## Measured build time and size
 
-Measured on the build container used for development (4 vCPU Xeon 2.1 GHz, 15 GB RAM, SSD,
-fast network; Electron 44.7.0, snapshot `20261001T000000Z`, `WITH_FIRMWARE=0`):
+Measured on the development build container (4 vCPU Xeon 2.1 GHz, 15 GB RAM, SSD, fast network;
+Electron 44.7.0, snapshot `20261001T000000Z`, `WITH_FIRMWARE=0`, October 2026 package lists):
 
 | Build | Time |
 |---|---|
-| First build, empty cache (downloads ~500 MB of packages + Electron) | **MEASURE_COLD** |
-| Rebuild with nothing changed in the package lists (system + squashfs + iso stages) | **MEASURE_WARM** |
-| Rebuild after adding a package to a list | **MEASURE_INCR** |
+| First build, empty `cache/` and `work/` (downloads ~75 MB for debootstrap, ~440 MB of packages, 118 MB Electron) | **10 min 49 s** — base 2:43, packages 4:32, system 0:43, squashfs 2:44, iso 0:06 |
+| Rebuild after other features added 4 package lists (installed into the existing layer) | **6 min 00 s** — packages 2:15 |
+| Rebuild with unchanged package lists (shell, rootfs or build script changes) | **5 min 18 s** — system 0:41, squashfs 4:21, iso 0:06 |
+
+`mksquashfs` (zstd level 19) dominates rebuilds and scales with the number of cores; it took
+2.7 to 4.9 minutes here depending on the image size and the machine's load (other builds and tests ran in parallel). `SQUASHFS_LEVEL=3`
+makes it several times faster for development builds, at the cost of a bigger ISO.
 
 | Output | Size |
 |---|---|
-| ISO | **MEASURE_ISO** |
-| `casper/filesystem.squashfs` (zstd 19) | **MEASURE_SQUASH** |
-| Installed size of the root file system | **MEASURE_ROOTFS** |
-| Packages in the image | **MEASURE_PKGS** |
-
-Most of the first build is `apt-get install` (network and dpkg) and `mksquashfs` (CPU bound:
-more cores = faster).
+| ISO (`aurora-os-1.0.0-amd64.iso`) | **753 MiB** (789,237,760 bytes) |
+| `casper/filesystem.squashfs` (zstd 19, 1 MiB blocks) | 666 MiB |
+| Root file system, uncompressed | 1630 MiB |
+| Debian packages in the image | 599 |
+| Disk used by the build | `work/` 2.7 GB, `cache/` 0.7 GB (plus the ISO in `out/`) |
 
 ## Check the image without a VM
 
 ```sh
-make smoke-image          # = sudo tools/smoke-image.sh  [--iso PATH] [--secs 20]
+make verify-iso           # = sudo tools/verify-iso.sh [--iso PATH]
+make smoke-image          # = sudo tools/smoke-image.sh [--iso PATH] [--secs 20]
 ```
+
+`make verify-iso` checks the ISO statically (about 100 checks, a few seconds): SHA-256, El Torito
+BIOS and UEFI boot images, GPT with an EFI System Partition and GRUB's MBR code (USB boot), the
+EFI loader, `md5sum.txt`, the GRUB menu (`grub-script-check` and every entry's kernel
+parameters), the casper files and the initramfs (casper, Plymouth theme, virtio-gpu), then the
+content of the squashfs: Electron, `chrome-sandbox` setuid root, the shell and its runtime npm
+dependencies, session scripts and helpers, greetd autologin, enabled services
+(`systemctl --root`), firewall, locales, permissions, and that no build proxy, build CA,
+machine-id or SSH host key was shipped.
 
 Mounts the ISO's `filesystem.squashfs` read-only with a throwaway overlay, starts a private Xvfb
 and runs the image's own launchers (`/usr/bin/aurora-shell` and the sign-in screen
@@ -169,7 +182,7 @@ keeps the sandbox.)
 
 ## Try it in QEMU
 
-Install QEMU **as your normal user** (do not run the VM with sudo):
+Install QEMU (then start the VM as your normal user, not with sudo):
 
 | Host | Packages |
 |---|---|
@@ -214,9 +227,10 @@ The same thing without the helper script (KVM; for TCG replace `-accel kvm -cpu 
 
 ```sh
 ISO=out/aurora-os-1.0.0-amd64.iso
-qemu-img create -f qcow2 aurora-disk.qcow2 32G          # once
+qemu-img create -f qcow2 aurora-disk.qcow2 32G          # once: the disk to install to
 
-# BIOS: live session + installation (disk first: a blank disk falls through to the CD)
+# BIOS: live session + installation. The disk comes first in the boot order: while it is blank
+# the firmware falls through to the CD; once Aurora OS is installed, the disk boots.
 qemu-system-x86_64 -machine q35,vmport=off -accel kvm -cpu host -m 4096 -smp 4 \
   -drive file=aurora-disk.qcow2,if=none,id=hd0,format=qcow2,discard=unmap \
   -device virtio-blk-pci,drive=hd0,bootindex=0 \
@@ -225,15 +239,36 @@ qemu-system-x86_64 -machine q35,vmport=off -accel kvm -cpu host -m 4096 -smp 4 \
   -vga none -device virtio-vga,xres=1920,yres=1080 -display gtk,zoom-to-fit=on \
   -device qemu-xhci -device usb-tablet \
   -nic user,model=virtio-net-pci \
-  -audiodev pipewire,id=snd0 -device intel-hda -device hda-duplex,audiodev=snd0
+  -audiodev pipewire,id=snd0 -device intel-hda -device hda-duplex,audiodev=snd0 \
+  -serial file:aurora-serial.log
 
-# UEFI: copy the variable store once, then add the two pflash drives to the command above
-cp /usr/share/OVMF/OVMF_VARS_4M.fd aurora-vars.fd        # Fedora: /usr/share/edk2/ovmf/OVMF_VARS.fd
-                                                         # Arch:   /usr/share/edk2/x64/OVMF_VARS.4m.fd
+# UEFI: the same, plus the OVMF firmware and a private, writable copy of its variable store.
+cp /usr/share/OVMF/OVMF_VARS_4M.fd aurora-vars.fd       # once
+qemu-system-x86_64 -machine q35,vmport=off -accel kvm -cpu host -m 4096 -smp 4 \
   -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
-  -drive if=pflash,format=raw,unit=1,file=aurora-vars.fd
+  -drive if=pflash,format=raw,unit=1,file=aurora-vars.fd \
+  -drive file=aurora-disk.qcow2,if=none,id=hd0,format=qcow2,discard=unmap \
+  -device virtio-blk-pci,drive=hd0,bootindex=0 \
+  -drive file=$ISO,if=none,id=cd0,media=cdrom,format=raw,readonly=on \
+  -device ide-cd,drive=cd0,bus=ide.1,bootindex=1 \
+  -vga none -device virtio-vga,xres=1920,yres=1080 -display gtk,zoom-to-fit=on \
+  -device qemu-xhci -device usb-tablet \
+  -nic user,model=virtio-net-pci \
+  -audiodev pipewire,id=snd0 -device intel-hda -device hda-duplex,audiodev=snd0 \
+  -serial file:aurora-serial.log
+
+# After the installation, without the ISO (BIOS; for UEFI keep the two pflash drives):
+qemu-system-x86_64 -machine q35,vmport=off -accel kvm -cpu host -m 4096 -smp 4 \
+  -drive file=aurora-disk.qcow2,if=virtio,format=qcow2,discard=unmap \
+  -vga none -device virtio-vga,xres=1920,yres=1080 -display gtk,zoom-to-fit=on \
+  -device qemu-xhci -device usb-tablet -nic user,model=virtio-net-pci \
+  -audiodev pipewire,id=snd0 -device intel-hda -device hda-duplex,audiodev=snd0
 ```
 
+OVMF file names on other hosts: Fedora `/usr/share/edk2/ovmf/OVMF_CODE.fd` + `OVMF_VARS.fd`;
+Arch `/usr/share/edk2/x64/OVMF_CODE.4m.fd` + `OVMF_VARS.4m.fd`; openSUSE
+`/usr/share/qemu/ovmf-x86_64-4m-code.bin` + `ovmf-x86_64-4m-vars.bin` (`tools/qemu-run.sh` finds
+them automatically, also through QEMU's firmware descriptors in `/usr/share/qemu/firmware/`).
 Use `-audiodev pa,id=snd0` on hosts with PulseAudio or QEMU older than 8.1, and
 `-device VGA,xres=1920,yres=1080` instead of `virtio-vga` if the screen stays black.
 The ISO's boot loader is not signed for Secure Boot: use OVMF without Secure Boot
@@ -262,7 +297,9 @@ Write the ISO to a USB stick (all its data is erased) with
 4. In the VM, the screen switches to 1920x1080 (KVM) or 1600x900 (TCG) automatically; the
    network works out of the box (QEMU user networking, NAT).
 
-Boot time: about 30–60 s to the desktop with KVM; several minutes under TCG.
+Boot time: with KVM, expect well under a minute to the desktop. Under TCG emulation (no KVM,
+4 vCPUs) an earlier test reached the automatic sign-in after about 2.5 minutes and the desktop
+about 30 seconds later.
 
 ## Troubleshooting
 
@@ -271,7 +308,7 @@ Boot time: about 30–60 s to the desktop with KVM; several minutes under TCG.
 | `Could not access KVM kernel module` / "KVM not available — using TCG" | enable VT-x/AMD-V in the PC's firmware; `sudo modprobe kvm_intel` (or `kvm_amd`); `sudo usermod -aG kvm $USER` and log in again; check `ls -l /dev/kvm` |
 | Very slow boot | that is TCG (no KVM). Give it more cores (`CPUS=`), keep `MEM=4096`+, be patient on the first boot; the boot menu's default entry works, *copy to RAM* does not help under TCG |
 | Black screen after the splash | choose **Safe graphics** in the boot menu; in QEMU try `make run VGA=std`; the *debug* entry logs everything to `work/qemu/aurora.serial.log` |
-| Desktop does not appear, back to a sign-in screen | boot the *debug* entry and look for `aurora-session`/`aurora-shell` lines in the serial log; `journalctl -b -t aurora-session` in a text console (Ctrl+Alt+F1, user `aurora`, no password) |
+| Desktop does not appear, back to a sign-in screen | boot the *debug* entry and look for `aurora-session`/`aurora-shell` lines in the serial log; or open a text console (Ctrl+Alt+F1 — in the QEMU window use *Machine → Send key* if the host catches it; user `aurora`, empty password) and run `journalctl -b -t aurora-session -t aurora-greeter` |
 | UEFI VM goes to the UEFI shell or does not find the ISO | Secure Boot firmware selected: use `OVMF_CODE_4M.fd` (`make run-uefi` does) |
 | Installed VM does not boot | use the same firmware for installation and later boots (`make run-disk` for BIOS, `make run-disk-uefi` for UEFI) |
 | `OVMF ... not found` | install `ovmf` (Ubuntu/Debian), `edk2-ovmf` (Fedora/Arch), or set `OVMF_CODE=... OVMF_VARS=...` |
@@ -293,7 +330,7 @@ une session live (rien n'est écrit sur le disque) depuis laquelle on peut insta
 ### Prérequis
 
 - Une machine **Ubuntu 24.04** (ou Debian 12+/Ubuntu 22.04+) x86-64 avec les droits **root**
-  (`sudo`) : la construction utilise `debootstrap`, `chroot`, des montages overlay et loop.
+  (`sudo`) : la construction utilise `debootstrap`, `chroot` et des montages overlay.
 - Environ **25 Go libres** dans le système de fichiers du dépôt, 4 Go de RAM ou plus.
 - Un accès réseau à `snapshot.ubuntu.com` (HTTPS) et à `github.com` (téléchargement d'Electron).
   Derrière un proxy, exportez `https_proxy`/`http_proxy` ; pour un proxy qui intercepte le TLS,
@@ -378,13 +415,25 @@ copiés tels quels dans l'image sont dans `rootfs/`.
 
 ### Durée et taille mesurées
 
-Voir le [tableau en anglais](#measured-build-time-and-size) (mêmes chiffres) : première
-construction **MEASURE_COLD**, reconstruction sans changement de paquets **MEASURE_WARM**,
-ISO de **MEASURE_ISO**.
+Mesures sur le conteneur de développement (4 vCPU Xeon 2,1 GHz, 15 Go de RAM, SSD, réseau rapide) :
+
+| Construction | Durée |
+|---|---|
+| Première construction, `cache/` et `work/` vides (~75 Mo pour debootstrap, ~440 Mo de paquets, 118 Mo pour Electron) | **10 min 49 s** |
+| Après l'ajout de 4 listes de paquets (installés dans la couche existante) | **6 min 00 s** |
+| Listes de paquets inchangées (modification du shell, de `rootfs/` ou des scripts) | **5 min 18 s** |
+
+`mksquashfs` (zstd niveau 19) domine les reconstructions (2,7 à 4,9 min selon la taille de l'image et la charge de la machine) ; `SQUASHFS_LEVEL=3`
+accélère beaucoup les constructions de développement (ISO plus grosse). Tailles : ISO **753 Mio**
+(789 237 760 octets), squashfs 666 Mio, système de fichiers décompressé 1630 Mio, 599 paquets ;
+la construction occupe 2,7 Go dans `work/` et 0,7 Go dans `cache/`.
 
 ### Vérifier l'image sans VM
 
-`make smoke-image` monte le `filesystem.squashfs` de l'ISO en lecture seule, lance un Xvfb privé
+`make verify-iso` vérifie l'ISO sans la démarrer (une centaine de contrôles : enregistrements de
+démarrage BIOS et UEFI, GPT et partition EFI, menu GRUB et paramètres du noyau, fichiers casper,
+initramfs, contenu du squashfs, services activés, permissions, absence de proxy/certificat de
+construction, de machine-id et de clés SSH). `make smoke-image` monte le `filesystem.squashfs` de l'ISO en lecture seule, lance un Xvfb privé
 et exécute les lanceurs de l'image (bureau et écran de connexion) avec un utilisateur temporaire :
 bibliothèques d'Electron toutes présentes, rendu du bureau jusqu'à `body.ready`, page de connexion
 chargée, aucune erreur fatale ; puis tout est démonté. Journaux : `work/smoke-logs/`.
@@ -439,6 +488,10 @@ et construisez avec `WITH_FIRMWARE=1`.
 4. Dans la VM, l'écran passe en 1920x1080 (KVM) ou 1600x900 (TCG) ; le réseau fonctionne
    directement (NAT de QEMU).
 
+Durée de démarrage : avec KVM, nettement moins d'une minute jusqu'au bureau. En émulation TCG
+(sans KVM, 4 vCPU), un essai précédent a atteint la connexion automatique en 2 min 30 environ et
+le bureau une trentaine de secondes plus tard.
+
 ### Dépannage
 
 | Problème | Solution |
@@ -446,7 +499,7 @@ et construisez avec `WITH_FIRMWARE=1`.
 | « KVM not available — using TCG » | activer VT-x/AMD-V dans le BIOS/UEFI du PC, `sudo modprobe kvm_intel` (ou `kvm_amd`), `sudo usermod -aG kvm $USER` puis se reconnecter |
 | Démarrage très lent | c'est TCG (sans KVM) : plus de cœurs (`CPUS=`), `MEM=4096` ou plus, patience au premier démarrage |
 | Écran noir après le logo | entrée **Mode graphique sûr** ; dans QEMU `make run VGA=std` ; l'entrée *débogage* journalise tout dans `work/qemu/aurora.serial.log` |
-| Le bureau n'apparaît pas | entrée *débogage*, lignes `aurora-session`/`aurora-shell` du journal série ; `journalctl -b -t aurora-session` dans une console texte (Ctrl+Alt+F1, utilisateur `aurora`, sans mot de passe) |
+| Le bureau n'apparaît pas | entrée *débogage*, lignes `aurora-session`/`aurora-shell` du journal série ; ou console texte (Ctrl+Alt+F1 — dans la fenêtre QEMU, *Machine → Send key* si l'hôte intercepte la touche ; utilisateur `aurora`, mot de passe vide) puis `journalctl -b -t aurora-session -t aurora-greeter` |
 | La VM UEFI tombe dans le shell UEFI | micrologiciel Secure Boot choisi : prendre `OVMF_CODE_4M.fd` (`make run-uefi` le fait) |
 | La VM installée ne démarre pas | même micrologiciel pour l'installation et ensuite (`make run-disk` ou `make run-disk-uefi`) |
 | Pas de son | `make run AUDIO=pa` ou `AUDIO=sdl` ; sous Ubuntu installer `qemu-system-gui` |

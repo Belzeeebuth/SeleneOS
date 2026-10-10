@@ -31,6 +31,11 @@ export class AddressBar {
     this.el = h('div', {
       class: 'fx-address',
       role: 'navigation',
+      tabindex: '0',
+      onfocus: (e) => {
+        // Reaching the address bar with Tab (or clicking its empty area) switches to editing.
+        if (e.target === this.el && !this.editing) this.beginEdit();
+      },
       'aria-label': ex.t('address.label'),
       onclick: (e) => {
         if (this.editing) return;
@@ -50,6 +55,7 @@ export class AddressBar {
     const x = shared.xdg;
     const pc = { label: t('places.thisPc'), loc: { type: 'thispc' } };
     if (loc.type === 'home') return [{ label: t('places.home'), loc }];
+    if (loc.type === 'gallery') return [{ label: t('places.gallery'), loc }];
     if (loc.type === 'thispc') return [pc];
     if (loc.type === 'trash') return [{ label: t('places.trash'), loc }];
     if (loc.type === 'search') {
@@ -163,6 +169,7 @@ export class AddressBar {
       const x = shared.xdg;
       items = [
         mk(t('places.home'), { type: 'home' }, 'home'),
+        mk(t('places.gallery'), { type: 'gallery' }, 'image_multiple'),
         '-',
         mk(t('places.desktop'), { type: 'dir', path: x.desktop }),
         mk(t('places.documents'), { type: 'dir', path: x.documents }),
@@ -263,6 +270,8 @@ export class AddressBar {
       'recycle bin': { type: 'trash' },
       'trash:': { type: 'trash' },
       'trash:///': { type: 'trash' },
+      [t('places.gallery').toLowerCase()]: { type: 'gallery' },
+      gallery: { type: 'gallery' },
     };
     const special = names[v.toLowerCase()];
     if (special) {

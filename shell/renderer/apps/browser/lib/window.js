@@ -17,6 +17,27 @@ import { closeMenus, showMenu } from './menu.js';
 let tabSeq = 0;
 const reduceMotion = () => document.documentElement.dataset.animations === 'off';
 const APP_ICON = 'app://shell/apps/browser/icon.svg';
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** Download progress ring around the toolbar button (real SVG elements: h() only makes HTML ones). */
+function progressRing() {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', 'bw-dl-ring');
+  svg.setAttribute('viewBox', '0 0 36 36');
+  svg.setAttribute('aria-hidden', 'true');
+  const track = document.createElementNS(SVG_NS, 'circle');
+  const bar = document.createElementNS(SVG_NS, 'circle');
+  for (const c of [track, bar]) {
+    c.setAttribute('cx', '18');
+    c.setAttribute('cy', '18');
+    c.setAttribute('r', '15');
+    c.setAttribute('pathLength', '100');
+  }
+  track.setAttribute('class', 'track');
+  bar.setAttribute('class', 'bar');
+  svg.append(track, bar);
+  return svg;
+}
 
 export class BrowserWindowCtl {
   constructor(ctx) {
@@ -105,7 +126,7 @@ export class BrowserWindowCtl {
       'button',
       { class: 'bw-tbtn bw-dl-btn', 'aria-label': t('dl.title'), onclick: () => this.toggleDownloads() },
       icon('arrow_download', { size: 18 }),
-      h('svg', { class: 'bw-dl-ring', viewBox: '0 0 36 36', html: '<circle cx="18" cy="18" r="15" pathLength="100"></circle>' }),
+      progressRing(),
       (this.dlBadge = h('span', { class: 'bw-dl-badge', hidden: true })),
     );
     this.moreBtn = tb('menu.more', 'more_horizontal', () => panels.moreMenu(this, this.moreBtn));
@@ -246,22 +267,32 @@ export class BrowserWindowCtl {
   onClose() {
     this.closing = true;
     clearInterval(this.audioTimer);
+    for (const timer of [this.pressTimer, this.hoverTimer, this.statusTimer, this.fsHintTimer]) clearTimeout(timer);
     for (const off of this.subs) off();
+    this.subs = [];
     closeMenus();
+    this.closeFlyout();
+    this.hideHoverCard();
+    for (const tab of this.tabs) this.disposeTab(tab);
     for (const tab of this.tabs) for (const p of tab.perms || []) shared.api.invoke('browser:permissionReply', p.id, { allow: false }).catch(() => {});
     shared.windows = shared.windows.filter((w) => w !== this);
     if (!this.private) {
       const others = shared.windows.filter((w) => !w.private);
       if (others.length) shared.saveSession();
       else {
-        // Last normal window: remember its tabs for "continue where you left off".
+        // Last normal window: remember its tabs for "continue where you left off", and let the
+        // next start of the browser (even in this desktop session) restore them.
         this.closing = false;
         shared.store.session = { windows: [this.sessionState()], saved: Date.now() };
         this.closing = true;
         shared.store.save('session', 0);
+        shared.restoredOnce = false;
       }
     } else if (!shared.windows.some((w) => w.private && w.partition === this.partition)) {
+      // Private session over: forget its finished downloads and wipe the in-memory partition.
       shared.privatePartition = null;
+      for (const [id, d] of shared.downloads) if (d.partition === this.partition && d.state !== 'progressing') shared.downloads.delete(id);
+      shared.emit('downloads');
       shared.api.invoke('browser:disposePartition', this.partition).catch(() => {});
     }
     shared.store.flush();
@@ -344,7 +375,9 @@ export class BrowserWindowCtl {
     at = Math.max(0, Math.min(at, this.tabs.length));
     this.flipTabs(() => {
       this.tabs.splice(at, 0, tab);
-      this.tabsEl.insertBefore(tab.el, this.tabsEl.children[at] || null);
+      // Insert relative to the model, not to tabsEl.children: closing tabs stay in the DOM
+      // for their exit animation.
+      this.tabsEl.insertBefore(tab.el, this.tabs[at + 1]?.el || null);
     }, animate ? tab.el : null);
     if (!lazy && url) this.navigate(tab, url, { initial: true });
     this.updateTabEl(tab);
@@ -518,11 +551,16 @@ export class BrowserWindowCtl {
       this.omni.focus();
       return;
     }
+    if (this.dialogOpen()) return; // never pull focus out of a modal dialog
     if (this.isWeb(tab) && tab.wv) {
       setTimeout(() => {
-        if (this.active === tab && !this.omni.editing) tab.wv.focus();
+        if (this.active === tab && !this.omni.editing && !this.dialogOpen()) tab.wv.focus();
       }, 0);
     } else tab.pageEl?.focus?.({ preventScroll: true });
+  }
+
+  dialogOpen() {
+    return !!this.win.el.querySelector('.dialog-layer:not(.closing)');
   }
 
   scrollTabIntoView(tab) {
@@ -548,8 +586,8 @@ export class BrowserWindowCtl {
     for (const p of tab.perms) shared.api.invoke('browser:permissionReply', p.id, { allow: false }).catch(() => {});
     tab.perms = [];
     if (this.tabs.length === 1) {
-      // Closing the last tab closes the window (like Edge / Chrome).
-      this.tabs = [];
+      // Closing the last tab closes the window (like Edge / Chrome); the window keeps the tab so
+      // "continue where you left off" restores it, and onClose() releases it.
       this.win.close();
       return;
     }
@@ -563,6 +601,7 @@ export class BrowserWindowCtl {
     this.tabs.splice(i, 1);
     tab.closed = true;
     if (tab.find.open) this.findBar.stop(tab);
+    this.disposeTab(tab);
     const el = tab.el;
     el.classList.add('closing');
     const finish = () => {
@@ -576,14 +615,29 @@ export class BrowserWindowCtl {
     this.saveSession();
   }
 
+  /** Release what a tab holds outside its own DOM (internal page store listeners). */
+  disposeTab(tab) {
+    this.cancelAuth(tab);
+    try {
+      tab.page?.destroy?.();
+    } catch (err) {
+      console.error('[browser] page destroy failed', err);
+    }
+    tab.page = null;
+    tab.pageEntry = null;
+  }
+
   closeOtherTabs(keep) {
-    for (const tab of [...this.tabs]) if (tab !== keep) this.closeTab(tab);
+    // Activate the survivor first so closing the others never activates (and loads) them.
     this.activate(keep);
+    for (const tab of [...this.tabs]) if (tab !== keep) this.closeTab(tab);
   }
 
   closeTabsToRight(tab) {
     const i = this.tabs.indexOf(tab);
-    for (const x of this.tabs.slice(i + 1)) this.closeTab(x);
+    const doomed = this.tabs.slice(i + 1);
+    if (doomed.includes(this.active)) this.activate(tab);
+    for (const x of doomed) this.closeTab(x);
   }
 
   reopenClosed() {
@@ -602,7 +656,7 @@ export class BrowserWindowCtl {
     if (from < 0 || to === from) return;
     this.tabs.splice(from, 1);
     this.tabs.splice(to, 0, tab);
-    this.tabsEl.insertBefore(tab.el, this.tabsEl.children[to + (to > from ? 1 : 0)] || null);
+    this.tabsEl.insertBefore(tab.el, this.tabs[to + 1]?.el || null);
     this.saveSession();
   }
 
@@ -806,7 +860,14 @@ export class BrowserWindowCtl {
       return;
     }
     if (tab.ready) tab.wv.loadURL(url).catch(() => {});
-    else tab.wv.src = url;
+    else {
+      // Not attached yet: start over with a fresh element (changing src on a live guest would
+      // report failed loads as console errors).
+      tab.wv.remove();
+      tab.wv = null;
+      tab.wcId = null;
+      this.createWebview(tab, url);
+    }
   }
 
   createWebview(tab, url) {
@@ -846,6 +907,9 @@ export class BrowserWindowCtl {
       if (tab.closed || !wv.isConnected) return;
       try {
         tab.wcId = wv.getWebContentsId();
+        // The guest exists from here on: its methods (loadURL, canGoBack…) are usable.
+        tab.ready = true;
+        if (tab.muted) wv.setAudioMuted(true);
       } catch {}
     });
     on('dom-ready', () => {
@@ -862,6 +926,7 @@ export class BrowserWindowCtl {
     });
     on('did-stop-loading', () => {
       tab.web.loading = false;
+      this.cancelAuth(tab); // stopped (Esc / Stop): the request that wanted credentials is gone
       this.updateTabEl(tab);
       if (isActive()) {
         this.updateChrome({ keepOmni: true });
@@ -870,6 +935,7 @@ export class BrowserWindowCtl {
     });
     on('did-start-navigation', (e) => {
       if (!e.isMainFrame || e.isInPlace) return;
+      this.cancelAuth(tab);
       tab.web.error = null;
       tab.web.crashed = false;
       tab.errorEl?.remove();
@@ -965,7 +1031,8 @@ export class BrowserWindowCtl {
   }
 
   pollAudio(only) {
-    for (const tab of only ? [only] : this.tabs) {
+    // media-started-playing turns the indicator on; polling (cheap, only audible tabs) turns it off.
+    for (const tab of only ? [only] : this.tabs.filter((x) => x.web.audible)) {
       if (!tab.wv || !tab.ready) continue;
       let audible = false;
       try {
@@ -1095,46 +1162,50 @@ export class BrowserWindowCtl {
     e.preventDefault();
     const tab = this.active;
     if (!tab) return;
+    const anchor = dir < 0 ? this.backBtn : this.fwdBtn;
     const items = [];
+    const webItem = (x, go) => {
+      const fav = isInternal(x.url) ? APP_ICON : this.private ? null : this.store.favicon(x.url);
+      return { label: x.title || displayUrl(x.url), img: fav || undefined, icon: fav ? undefined : 'globe', title: displayUrl(x.url), action: go };
+    };
+    const internalItem = (en, idx) => {
+      const pi = pageIcon(en);
+      return { label: pageTitle(this, en), img: pi.img, icon: pi.img ? undefined : pi.icon || 'tab_desktop', action: () => this.goToEntry(tab, idx) };
+    };
+    // The web part of the tab's history, with page titles (Chromium keeps them per entry).
+    let hist = null;
+    if (this.isWeb(tab) && tab.wv && tab.ready && tab.wcId != null) hist = await shared.api.invoke('browser:navHistory', tab.wcId).catch(() => null);
+    if (this.active !== tab || this.closing) return;
+    const webSteps = [];
+    if (hist?.entries?.length) {
+      const list = hist.entries;
+      if (dir < 0) for (let i = hist.index - 1; i >= 0 && webSteps.length < 12; i--) webSteps.push({ ...list[i], off: i - hist.index });
+      else for (let i = hist.index + 1; i < list.length && webSteps.length < 12; i++) webSteps.push({ ...list[i], off: i - hist.index });
+    }
+    for (const x of webSteps) items.push(webItem(x, () => tab.wv?.goToOffset(x.off)));
     if (dir < 0) {
-      if (this.isWeb(tab) && tab.wv && tab.ready) {
-        for (let k = 1; k < 12; k++) {
-          try {
-            if (!tab.wv.canGoToOffset(-k)) break;
-          } catch {
-            break;
-          }
-          const off = -k;
-          items.push({ label: this.t('nav.stepsBack', { count: k }), icon: 'arrow_left', action: () => tab.wv.goToOffset(off) });
-        }
-      }
-      for (let i = tab.idx - 1; i >= 0; i--) {
-        const en = tab.entries[i];
-        if (en.kind === 'internal') {
-          const idx = i;
-          items.push({ label: pageTitle(this, en), icon: pageIcon(en).icon || 'tab_desktop', action: () => ((tab.idx = idx), this.showEntry(tab)) });
-        }
-      }
+      for (let i = tab.idx - 1; i >= 0; i--) if (tab.entries[i].kind === 'internal') items.push(internalItem(tab.entries[i], i));
     } else {
-      if (this.isWeb(tab) && tab.wv && tab.ready) {
-        for (let k = 1; k < 12; k++) {
-          try {
-            if (!tab.wv.canGoToOffset(k)) break;
-          } catch {
-            break;
-          }
-          const off = k;
-          items.push({ label: this.t('nav.stepsForward', { count: k }), icon: 'arrow_right', action: () => tab.wv.goToOffset(off) });
-        }
-      }
       for (let i = tab.idx + 1; i < tab.entries.length; i++) {
         const en = tab.entries[i];
-        const idx = i;
-        items.push({ label: en.kind === 'internal' ? pageTitle(this, en) : tab.web.title || tab.web.url, icon: 'tab_desktop', action: () => ((tab.idx = idx), this.showEntry(tab)) });
+        if (en.kind === 'internal') items.push(internalItem(en, i));
+        else items.push(webItem({ url: tab.web.url, title: tab.web.title }, () => this.goToEntry(tab, i)));
       }
     }
     if (!items.length) return;
-    ui.menu(e.__el || e, items, { class: this.menuClass() });
+    items.push('-', { label: this.t('nav.fullHistory'), icon: 'history', shortcut: 'Ctrl+H', action: () => this.openInternal('history') });
+    anchor.classList.add('open');
+    showMenu(anchor, items.slice(0, 16).concat(items.length > 16 ? items.slice(-2) : []), {
+      className: this.private ? 'bw-private' : '',
+      onClose: () => anchor.classList.remove('open'),
+    });
+  }
+
+  goToEntry(tab, idx) {
+    if (!tab.entries[idx]) return;
+    if (this.isWeb(tab)) this.pauseMedia(tab);
+    tab.idx = idx;
+    this.showEntry(tab);
   }
 
   reload(ignoreCache = false, tab = this.active) {
@@ -1147,15 +1218,14 @@ export class BrowserWindowCtl {
       this.showEntry(tab, { rerender: true });
       return;
     }
-    if (!tab.wv) return this.loadInWebview(tab, tab.web.url);
+    if (!tab.wv || !tab.ready) return this.loadInWebview(tab, tab.web.error?.url || tab.web.url);
     if (tab.web.error || tab.web.crashed) {
       const url = tab.web.error?.url || tab.web.url;
       tab.web.error = null;
       tab.web.crashed = false;
       tab.errorEl?.remove();
       tab.errorEl = null;
-      if (tab.ready) tab.wv.loadURL(url).catch(() => {});
-      else tab.wv.reload();
+      tab.wv.loadURL(url).catch(() => {});
       return;
     }
     if (ignoreCache) tab.wv.reloadIgnoringCache();
@@ -1211,6 +1281,8 @@ export class BrowserWindowCtl {
   // ================================================================== backend events
   handleOpen(source, p) {
     const url = p.url;
+    // Defense in depth (the backend already refuses these): pages never open data: documents.
+    if (/^data:/i.test(url) && !/^data:image\/(png|jpe?g|gif|webp|bmp|avif|x-icon)[;,]/i.test(url)) return null;
     if (p.disposition === 'new-window' && /\b(width|height|popup)\b/i.test(p.features || '')) {
       const m = /width=(\d+)/i.exec(p.features);
       const n = /height=(\d+)/i.exec(p.features);
@@ -1227,9 +1299,13 @@ export class BrowserWindowCtl {
   }
 
   onDownloadStarted(d, tab) {
-    // A tab opened just to start a download (target=_blank link to a file) is closed again.
-    if (tab && tab.openedByScript && !tab.web.committed && this.tabs.length > 1) this.closeTab(tab, { skipStack: true });
+    this.closeDownloadTab(tab);
     if (!this.closing) this.toggleDownloads(true);
+  }
+
+  /** A tab opened just to start a download (target=_blank link to a file) is closed again. */
+  closeDownloadTab(tab) {
+    if (tab && tab.openedByScript && !tab.web.committed && this.tabs.length > 1 && this.tabs.includes(tab)) this.closeTab(tab, { skipStack: true });
   }
 
   popupBlocked(tab, url) {
@@ -1253,10 +1329,44 @@ export class BrowserWindowCtl {
     panels.permissionBubble(this, tab, p);
   }
 
-  async showAuth(tab, p) {
-    if (tab !== this.active) this.activate(tab);
-    const creds = await panels.authDialog(this, p);
-    shared.api.invoke('browser:authReply', p.id, creds).catch(() => {});
+  /**
+   * Modal requests from a page (HTTP sign-in, alert / confirm / prompt), one dialog at a time per
+   * window. `open(done => …)` shows the dialog and resolves with the answer; `reply(answer)` sends it.
+   */
+  queueModal(tab, p, open, reply) {
+    this.modalQueue = (this.modalQueue || Promise.resolve()).then(async () => {
+      if (tab.closed || this.closing || this.modalDropped?.has(p.id)) return reply(null);
+      if (tab !== this.active) this.activate(tab, { focusPage: false });
+      tab.auth = p;
+      let answer = null;
+      try {
+        answer = await open((done) => (tab.authDone = done));
+      } catch (err) {
+        console.error('[browser] page dialog failed', err);
+      }
+      tab.auth = null;
+      tab.authDone = null;
+      reply(answer);
+    });
+  }
+
+  showAuth(tab, p) {
+    this.queueModal(tab, p, (onHandle) => panels.authDialog(this, p, onHandle), (creds) => shared.api.invoke('browser:authReply', p.id, creds).catch(() => {}));
+  }
+
+  showJsDialog(tab, p) {
+    this.queueModal(tab, p, (onHandle) => panels.jsDialog(this, p, onHandle), (answer) => shared.api.invoke('browser:jsDialogReply', p.id, answer || { ok: false }).catch(() => {}));
+  }
+
+  /** The backend gave up on a request (navigation, timeout, tab gone): close its dialog. */
+  dropAuth(id) {
+    (this.modalDropped ||= new Set()).add(id);
+    for (const tab of this.tabs) if (tab.auth?.id === id) tab.authDone?.(null);
+  }
+
+  /** The tab moved on (new navigation, stop, close): its pending sign-in is moot. */
+  cancelAuth(tab) {
+    tab.authDone?.(null);
   }
 
   showPageMenu(tab, params) {
@@ -1332,8 +1442,8 @@ export class BrowserWindowCtl {
   }
 
   updateDownloadsButton() {
-    const active = shared.activeDownloads();
-    const any = shared.downloads.size > 0;
+    const active = shared.activeDownloads(this);
+    const any = shared.downloadList(this).length > 0;
     this.dlBtn.classList.toggle('has', any);
     this.dlBtn.hidden = !any && !this.dlPinned;
     this.dlBadge.hidden = !active.length;

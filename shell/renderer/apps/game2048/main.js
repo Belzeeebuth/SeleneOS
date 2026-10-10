@@ -1,6 +1,6 @@
 // 2048 — slide tiles, merge equal numbers, reach 2048.
 // Game rules live in logic.mjs (pure, unit-tested); this file renders the board and animates it.
-import { newGame as createGame, move, cloneGame, fromGrid, maxTile, canMove, SIZES, WIN_VALUE, emptyStats, recordGame } from './logic.mjs';
+import { newGame as createGame, move, cloneGame, fromGrid, maxTile, canMove, SIZES, emptyStats, recordGame, sanitizePrefs, sanitizeAllStats, reviveGame } from './logic.mjs';
 import { createKit, reduceMotion } from './gamekit.js';
 
 const MOVE_MS = 120;
@@ -11,9 +11,9 @@ export default {
   async launch(ctx) {
     const { win, h, ui, t } = ctx;
     const kit = createKit(ctx);
-    const prefs = Object.assign({ size: 4, undo: true, sound: true }, await kit.load('settings', {}));
-    if (!SIZES.includes(prefs.size)) prefs.size = 4;
-    let stats = (await kit.load('stats', {})) || {};
+    // Saved data may be from an older version, hand-edited or damaged: always sanitized.
+    const prefs = sanitizePrefs(await kit.load('settings', {}));
+    let stats = sanitizeAllStats(await kit.load('stats', {}));
     kit.sound.enabled = prefs.sound !== false;
 
     let game = null;
@@ -336,7 +336,9 @@ export default {
       if (e.target.closest('.gk-overlay')) return;
       board.focus({ preventScroll: true });
       swipe = { x: e.clientX, y: e.clientY, id: e.pointerId };
-      board.setPointerCapture?.(e.pointerId);
+      try {
+        board.setPointerCapture?.(e.pointerId); // keep tracking a swipe that leaves the board
+      } catch {} // pointer already released (e.g. a very short tap): nothing to capture
     });
     board.addEventListener('pointerup', (e) => {
       if (!swipe || swipe.id !== e.pointerId) return;
@@ -463,26 +465,12 @@ export default {
     ctx.onClose(() => flushPending());
 
     // Restore the saved game (2048 keeps your game between sessions, like the original).
-    // Saved data is validated and rebuilt through fromGrid(), so a damaged file just starts a new game.
-    const revive = (data) => {
-      if (!data || !SIZES.includes(data.size) || !Array.isArray(data.tiles) || !data.tiles.length) return null;
-      const n = data.size;
-      const grid = Array.from({ length: n }, () => Array(n).fill(0));
-      for (const tl of data.tiles) {
-        const ok = Number.isInteger(tl?.r) && Number.isInteger(tl?.c) && tl.r >= 0 && tl.c >= 0 && tl.r < n && tl.c < n && Number.isInteger(tl.value) && tl.value >= 2 && (tl.value & (tl.value - 1)) === 0;
-        if (!ok || grid[tl.r][tl.c]) return null;
-        grid[tl.r][tl.c] = tl.value;
-      }
-      const num = (v) => (Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
-      const g = fromGrid(grid, { score: num(data.score), moves: num(data.moves), won: !!data.won, keepPlaying: !!data.keepPlaying, recorded: !!data.recorded });
-      g.over = !canMove(g);
-      return g;
-    };
+    // Saved data is validated and rebuilt (reviveGame), so a damaged file just starts a new game.
     const saved = await kit.load('game', null);
-    const restored = revive(saved);
+    const restored = reviveGame(saved);
     if (restored && !restored.over) {
       game = restored;
-      undoState = prefs.undo ? revive(saved.undo) : null;
+      undoState = prefs.undo ? reviveGame(saved.undo, { size: game.size }) : null;
       // If the saved game is the one holding the record, keep showing it as a record.
       bestAtStart = bestFor(game.size) === game.score ? 0 : bestFor(game.size);
       requestAnimationFrame(() => {

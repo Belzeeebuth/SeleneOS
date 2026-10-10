@@ -1,0 +1,16 @@
+{
+  "id": "notepad",
+  "name": { "en": "Notepad", "fr": "Bloc-notes" },
+  "description": { "en": "Write and edit plain text files", "fr": "Écrire et modifier des fichiers texte" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 960, "height": 640, "minWidth": 400, "minHeight": 300, "titlebar": "tall", "background": "mica" },
+  "category": "productivity",
+  "keywords": {
+    "en": ["text", "editor", "txt", "notes", "write", "notepad", "plain text", "edit"],
+    "fr": ["texte", "éditeur", "txt", "notes", "écrire", "bloc-notes", "modifier"]
+  },
+  "singleInstance": true,
+  "fileTypes": [".txt", ".md", ".log", ".ini", ".conf", ".cfg", ".csv", ".json", ".xml", ".yml", ".yaml", ".sh", ".py", ".js", ".css", ".c", ".h", ".cpp", ".rs", ".go", ".java", ".toml", ".srt"]
+}

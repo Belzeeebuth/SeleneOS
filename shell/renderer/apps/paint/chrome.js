@@ -34,6 +34,8 @@ export function createChrome(app) {
 
   // ------------------------------------------------------------ helpers
   const tip = (label, key) => (key ? `${label} (${key})` : label);
+  // ui.menu wrapper: keyboard focus returns to the canvas once the menu is gone.
+  const menuAt = (anchor, items) => ui.menu(anchor, items).finally(() => app.restoreFocus?.());
 
   function btn({ ic, label, key, cls, onclick, chevron, size = 20, filled, aria, attrs }) {
     const b = h(
@@ -81,6 +83,10 @@ export function createChrome(app) {
     window.removeEventListener('blur', f.blur);
     f.anchor?.classList.remove('open');
     f.anchor?.setAttribute('aria-expanded', 'false');
+    if (f.el.contains(document.activeElement)) {
+      if (f.anchor?.isConnected && f.anchor.offsetParent) f.anchor.focus({ preventScroll: true });
+      else app.restoreFocus?.();
+    }
     f.el.classList.add('closing');
     setTimeout(() => f.el.remove(), 140);
     f.onClose?.();
@@ -233,7 +239,7 @@ export function createChrome(app) {
       ];
     }
     anchor.classList.add('open');
-    await ui.menu(anchor, items);
+    await menuAt(anchor, items);
     anchor.classList.remove('open');
   }
 
@@ -279,7 +285,7 @@ export function createChrome(app) {
         label: t('clip.pasteOptions'),
         cls: 'pt-split-arrow',
         onclick: (e) =>
-          ui.menu(e.currentTarget, [
+          menuAt(e.currentTarget, [
             { label: t('edit.paste'), icon: 'clipboard_paste', shortcut: 'Ctrl+V', action: () => app.cmd('paste') },
             { label: t('edit.pasteFrom'), icon: 'image_add', action: () => app.cmd('pasteFrom') },
           ]),
@@ -292,7 +298,7 @@ export function createChrome(app) {
 
   function selectMenu(anchor) {
     const c = (k) => app.can(k);
-    ui.menu(anchor, [
+    menuAt(anchor, [
       { header: t('image.selectShapes') },
       { label: t('image.rectSel'), icon: 'select_object', checked: S.selMode === 'rect', action: () => app.setSelMode('rect') },
       { label: t('image.freeSel'), icon: 'lasso', checked: S.selMode === 'free', action: () => app.setSelMode('free') },
@@ -306,7 +312,7 @@ export function createChrome(app) {
   }
 
   function rotateMenu(anchor) {
-    ui.menu(anchor, [
+    menuAt(anchor, [
       { label: t('image.rotR'), icon: 'rotate_right', action: () => app.cmd('rotR') },
       { label: t('image.rotL'), icon: 'rotate_left', action: () => app.cmd('rotL') },
       { label: t('image.rot180'), icon: 'arrow_rotate_clockwise', action: () => app.cmd('rot180') },
@@ -314,7 +320,7 @@ export function createChrome(app) {
   }
 
   function flipMenu(anchor) {
-    ui.menu(anchor, [
+    menuAt(anchor, [
       { label: t('image.flipV'), icon: 'flip_vertical', action: () => app.cmd('flipV') },
       { label: t('image.flipH'), icon: 'flip_horizontal', action: () => app.cmd('flipH') },
     ]);
@@ -408,7 +414,7 @@ export function createChrome(app) {
       cls: 'sm wide',
       chevron: true,
       onclick: (e) =>
-        ui.menu(
+        menuAt(
           e.currentTarget,
           OUTLINES.map((o) => ({ label: t(`outline.${o}`), checked: S.outline === o, action: () => app.setOutline(o) })),
         ),
@@ -419,7 +425,7 @@ export function createChrome(app) {
       cls: 'sm wide',
       chevron: true,
       onclick: (e) =>
-        ui.menu(
+        menuAt(
           e.currentTarget,
           FILLS.map((o) => ({ label: t(`fillstyle.${o}`), checked: S.fill === o, action: () => app.setFillStyle(o) })),
         ),
@@ -515,10 +521,11 @@ export function createChrome(app) {
       { type: 'button', class: 'pt-b big pt-edit-colors', 'data-tip': t('colors.edit'), 'aria-label': t('colors.edit'), onclick: () => app.cmd('editColors') },
       h('span', { class: 'pt-rainbow' }, icon('add', { size: 12 })),
     );
+    refs.miniCur = h('span', { class: 'pt-mini-cur', 'aria-hidden': 'true' }, h('i', { class: 'b' }), h('i', { class: 'a' }));
     return group(
       'colors',
       h('div', { class: 'pt-g-body' }, h('div', { class: 'pt-cur-stack' }, refs.c1, refs.c2), h('div', { class: 'pt-pal-wrap' }, refs.palette, refs.custom), refs.edit),
-      'color',
+      refs.miniCur,
     );
   }
 
@@ -655,7 +662,7 @@ export function createChrome(app) {
         'data-tip': t('view.zoomLevel'),
         'aria-haspopup': 'menu',
         onclick: (e) =>
-          ui.menu(e.currentTarget, [
+          menuAt(e.currentTarget, [
             ...[8, 6, 4, 3, 2, 1, 0.5, 0.25, 0.125].map((z) => ({ label: `${z * 100}%`, checked: Math.abs(app.zoom() - z) < 1e-6, action: () => app.setZoom(z) })),
             '-',
             { label: t('view.fit'), icon: 'zoom_fit', action: () => app.cmd('zoomFit') },
@@ -756,7 +763,10 @@ export function createChrome(app) {
         b.setAttribute('aria-checked', String(on));
       }
       refs.selectMain.classList.toggle('on', S.tool === 'select');
-      refs.selectMain.replaceChildren(icon(S.selMode === 'free' ? 'lasso' : 'select_object', { size: 24 }));
+      if (refs.selectMain.dataset.mode !== S.selMode) {
+        refs.selectMain.dataset.mode = S.selMode;
+        refs.selectMain.replaceChildren(icon(S.selMode === 'free' ? 'lasso' : 'select_object', { size: 24 }));
+      }
       refs.brushes.classList.toggle('on', S.tool === 'brush');
       for (const [id, b] of Object.entries(refs.shapes || {})) {
         const on = S.tool === 'shape' && S.shape === id;
@@ -772,6 +782,8 @@ export function createChrome(app) {
       // current colours
       refs.c1.style.setProperty('--c', S.primary);
       refs.c2.style.setProperty('--c', S.secondary);
+      refs.miniCur.style.setProperty('--c1', S.primary);
+      refs.miniCur.style.setProperty('--c2', S.secondary);
       refs.c1.classList.toggle('active', S.slot === 'primary');
       refs.c2.classList.toggle('active', S.slot === 'secondary');
       refs.c1.dataset.tip = `${t('colors.c1tip')} — ${S.primary.toUpperCase()}`;

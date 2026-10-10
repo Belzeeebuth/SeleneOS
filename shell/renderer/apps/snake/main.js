@@ -1,11 +1,10 @@
 // Snake — canvas game with smooth interpolated movement (fixed-timestep logic + requestAnimationFrame).
 // Game rules live in logic.mjs (pure, unit-tested); this file renders and handles input.
-import { createGame, queueTurn, step, stepInterval, modeKey, SPEEDS, SIZES, emptyStats, recordGame } from './logic.mjs';
+import { createGame, queueTurn, step, stepInterval, modeKey, SIZES, MODES, emptyStats, recordGame, sanitizePrefs, sanitizeStats } from './logic.mjs';
 import { createKit, reduceMotion } from './gamekit.js';
 
 const SPEED_ORDER = ['slow', 'normal', 'fast', 'insane'];
 const SIZE_ORDER = ['small', 'medium', 'large'];
-const MODES = ['walls', 'wrap', 'walls-obstacles', 'wrap-obstacles'];
 // Arrow keys by key, letters by physical position (WASD on QWERTY = ZQSD on AZERTY).
 const KEY_DIRS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 const CODE_DIRS = { KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right' };
@@ -17,10 +16,9 @@ export default {
   async launch(ctx) {
     const { win, h, ui, t } = ctx;
     const kit = createKit(ctx);
-    const prefs = Object.assign({ speed: 'normal', speedUp: true, wrap: false, obstacles: false, size: 'medium', sound: true }, await kit.load('settings', {}));
-    if (!SPEEDS[prefs.speed]) prefs.speed = 'normal';
-    if (!SIZES[prefs.size]) prefs.size = 'medium';
-    let stats = { ...emptyStats(), ...((await kit.load('stats', {})) || {}) };
+    // Saved data may be from an older version, hand-edited or damaged: always sanitized.
+    const prefs = sanitizePrefs(await kit.load('settings', {}));
+    let stats = sanitizeStats(await kit.load('stats', {}));
     kit.sound.enabled = prefs.sound !== false;
 
     let game = null;
@@ -588,6 +586,25 @@ export default {
     win.on('minimize', () => pause('auto'));
     const onVis = () => document.hidden && pause('auto');
     document.addEventListener('visibilitychange', onVis);
+    // The Start menu, search and other shell flyouts take the keyboard without deactivating the
+    // window in the window manager: pause as soon as focus lands outside this window.
+    const onFocusIn = (e) => {
+      const tgt = e.target;
+      if (state === 'running' && tgt instanceof Element && tgt !== document.body && !win.el.contains(tgt)) pause('auto');
+    };
+    document.addEventListener('focusin', onFocusIn);
+    // Display scale changes (shell zoom) change devicePixelRatio: redraw the canvas at the new resolution.
+    let dprQuery = null;
+    const onDprChange = () => {
+      layout();
+      watchDpr();
+    };
+    function watchDpr() {
+      dprQuery?.removeEventListener('change', onDprChange);
+      dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+      dprQuery.addEventListener('change', onDprChange);
+    }
+    watchDpr();
 
     // ---------------------------------------------------------------- options, stats, help
     async function openOptions(anchor) {
@@ -732,6 +749,8 @@ export default {
       cancelAnimationFrame(raf);
       themeObs.disconnect();
       document.removeEventListener('visibilitychange', onVis);
+      document.removeEventListener('focusin', onFocusIn);
+      dprQuery?.removeEventListener('change', onDprChange);
     });
 
     requestAnimationFrame(() => {

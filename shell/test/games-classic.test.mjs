@@ -391,6 +391,65 @@ await test('2048 statistics: wins, streaks, best score and tile', () => {
   assert.equal(s.bestTile, 2048);
 });
 
+console.log('Saved data (damaged / hand-edited files)');
+await test('Minesweeper: any saved JSON yields valid preferences and statistics', () => {
+  const def = MS.sanitizePrefs(null);
+  assert.deepEqual(def, { difficulty: 'beginner', custom: { cols: 20, rows: 12, mines: 45 }, questionMarks: true, sound: true });
+  for (const bad of [undefined, 'x', 42, [], { custom: null, difficulty: 5 }, { custom: { cols: 99, rows: 5, mines: 1 } }, { questionMarks: 'yes' }]) assert.deepEqual(MS.sanitizePrefs(bad), def, JSON.stringify(bad));
+  assert.deepEqual(MS.sanitizePrefs({ difficulty: 'custom', custom: { cols: 40, rows: 24, mines: 951 }, questionMarks: false, sound: false }), {
+    difficulty: 'custom',
+    custom: { cols: 40, rows: 24, mines: 951 },
+    questionMarks: false,
+    sound: false,
+  });
+  assert.equal(MS.validateCustom(null).field, 'cols', 'validateCustom never throws');
+  const st = MS.sanitizeAllStats({
+    beginner: { played: 'abc', won: null, bestTimes: 'x' },
+    custom: { played: 3, won: 9, currentStreak: 7, longestStreak: -1, bestTimes: [{ ms: 'x', date: 'y' }, null, { ms: 900, date: 1e20 }, { ms: 2000, date: 1 }, { ms: 1000, date: 2 }] },
+    hacker: { played: 1 },
+  });
+  assert.deepEqual(Object.keys(st).sort(), ['beginner', 'custom']);
+  assert.deepEqual(st.beginner, MS.emptyStats());
+  assert.equal(st.custom.won, 3, 'won <= played');
+  assert.equal(st.custom.currentStreak, 3);
+  assert.equal(st.custom.longestStreak, 3);
+  assert.deepEqual(st.custom.bestTimes, [{ ms: 1000, date: 2 }, { ms: 2000, date: 1 }], 'invalid times and dates dropped, sorted');
+  assert.deepEqual(MS.sanitizeAllStats('"hello"'), {});
+});
+await test('Snake: any saved JSON yields valid preferences and statistics', () => {
+  const def = SN.sanitizePrefs([]);
+  assert.deepEqual(def, { speed: 'normal', speedUp: true, wrap: false, obstacles: false, size: 'medium', sound: true });
+  assert.equal(SN.sanitizePrefs({ speed: 'constructor' }).speed, 'normal', 'inherited keys are not speeds');
+  assert.equal(SN.sanitizePrefs({ size: 'toString' }).size, 'medium');
+  assert.deepEqual(SN.sanitizePrefs({ speed: 'insane', size: 'large', wrap: true, obstacles: true, speedUp: false, sound: false }), { speed: 'insane', speedUp: false, wrap: true, obstacles: true, size: 'large', sound: false });
+  const st = SN.sanitizeStats({ best: { walls: 'big', wrap: 50, bogus: 9 }, played: 2, longest: {}, totalScore: -4, foodEaten: 3.7 });
+  assert.deepEqual(st, { played: 2, foodEaten: 3, totalMs: 0, totalScore: 0, longest: 0, best: { wrap: 50 } });
+  assert.deepEqual(SN.sanitizeStats(42), SN.emptyStats());
+  assert.ok(Number.isFinite(SN.stepInterval(SN.sanitizePrefs({ speed: '__proto__' }).speed)));
+});
+await test('2048: any saved JSON yields valid preferences, statistics and game', () => {
+  assert.deepEqual(T48.sanitizePrefs(true), { size: 4, undo: true, sound: true });
+  assert.deepEqual(T48.sanitizePrefs({ size: '5', undo: false }), { size: 5, undo: false, sound: true });
+  assert.equal(T48.sanitizePrefs({ size: 7 }).size, 4);
+  const st = T48.sanitizeAllStats({ 4: { bestScore: 'lots', played: -3, bestTile: 3 }, 5: null, 6: { played: 2, won: 5, bestTile: 4096, totalScore: 1e400 }, x: {} });
+  assert.deepEqual(Object.keys(st), ['4', '6']);
+  assert.deepEqual(st[4], T48.emptyStats());
+  assert.equal(st[6].won, 2);
+  assert.equal(st[6].bestTile, 4096);
+  assert.equal(st[6].totalScore, 0, 'Infinity is not a score');
+  assert.deepEqual(T48.sanitizeAllStats([1, 2, 3]), {});
+  // reviveGame: valid data, impossible tiles, overlapping tiles, Infinity, wrong-size undo state
+  const g = T48.reviveGame({ size: 4, tiles: [{ r: 0, c: 0, value: 2 }, { r: 1, c: 1, value: 2048 }], score: 1e400, moves: 3 });
+  assert.equal(g.tiles.length, 2);
+  assert.equal(g.score, 0);
+  assert.equal(g.won, true, 'a 2048 tile means the game is won');
+  assert.equal(T48.reviveGame({ size: 4, tiles: [{ r: 0, c: 0, value: 3 }] }), null);
+  assert.equal(T48.reviveGame({ size: 4, tiles: [{ r: 0, c: 0, value: 2 }, { r: 0, c: 0, value: 4 }] }), null);
+  assert.equal(T48.reviveGame({ size: 4, tiles: [{ r: 4, c: 0, value: 2 }] }), null);
+  assert.equal(T48.reviveGame({ size: 5, tiles: [{ r: 0, c: 0, value: 2 }] }, { size: 4 }), null, 'undo state of another size');
+  assert.equal(T48.reviveGame('[]'), null);
+});
+
 console.log('App packaging');
 await test('manifests, i18n (EN+FR complete), icons and shared kit copies', () => {
   const kitJs = fs.readFileSync(path.join(APPS, 'minesweeper', 'gamekit.js'), 'utf8');
@@ -463,6 +522,44 @@ async function winShot(s, id, name) {
 
 const winOf = (id) => `[data-app="${id}"]`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Synthetic touch pointer event at a page position (xvfb has no touchscreen).
+function touchAt(page, type, x, y, id = 11) {
+  return page.evaluate(
+    ([t, px, py, pid]) => {
+      const el = document.elementFromPoint(px, py);
+      el?.dispatchEvent(new PointerEvent(t, { pointerType: 'touch', pointerId: pid, isPrimary: true, clientX: px, clientY: py, bubbles: true, cancelable: true, button: t === 'pointermove' ? -1 : 0, buttons: t === 'pointerup' ? 0 : 1 }));
+    },
+    [type, x, y, id],
+  );
+}
+
+// WCAG contrast ratio of two CSS colours (#rrggbb or rgb()/rgba() without transparency).
+function contrast(a, b) {
+  const rgb = (c) => {
+    c = c.trim();
+    if (c.startsWith('#')) return [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+    return c.match(/[\d.]+/g).slice(0, 3).map(Number);
+  };
+  const lum = (c) => {
+    const [r, g, bl] = rgb(c).map((v) => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+
+// Every solid 2048 tile must keep large-text contrast (>= 3:1) in the current theme.
+async function assertTileContrast(page) {
+  const vars = await page.evaluate(() => {
+    const cs = getComputedStyle(document.querySelector('[data-app="game2048"]'));
+    return [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024].map((v) => [v, cs.getPropertyValue(`--t${v}-bg`).trim(), cs.getPropertyValue(`--t${v}-fg`).trim()]);
+  });
+  for (const [v, bg, fg] of vars) assert.ok(contrast(bg, fg) >= 3, `tile ${v}: ${fg} on ${bg} = ${contrast(bg, fg).toFixed(2)}`);
+}
 
 async function waitFor(page, fn, arg, timeout = 4000) {
   await page.waitForFunction(fn, arg, { timeout, polling: 50 });
@@ -553,6 +650,27 @@ if (want('minesweeper')) {
       assert.match(await cell(i).getAttribute('class'), /\bflag\b/, 'Shift+click flags');
       await cell(i).click({ button: 'right' });
       await cell(i).click({ button: 'right' });
+    });
+
+    await test('touch: long-press flags, a tap uncovers', async () => {
+      const i = await ms((h) => h.game.cells.findIndex((c) => c.state === 'hidden'));
+      let b = await cell(i).boundingBox();
+      await touchAt(page, 'pointerdown', b.x + b.width / 2, b.y + b.height / 2);
+      await sleep(600);
+      await touchAt(page, 'pointerup', b.x + b.width / 2, b.y + b.height / 2);
+      await sleep(100);
+      assert.match(await cell(i).getAttribute('class'), /\bflag\b/, 'long-press placed a flag');
+      await cell(i).click({ button: 'right' });
+      await cell(i).click({ button: 'right' });
+      // A quick tap on a safe covered cell uncovers it.
+      const safe = await ms((h) => h.game.cells.findIndex((c) => c.state === 'hidden' && !c.mine));
+      b = await cell(safe).boundingBox();
+      await touchAt(page, 'pointerdown', b.x + b.width / 2, b.y + b.height / 2);
+      await sleep(60);
+      await touchAt(page, 'pointerup', b.x + b.width / 2, b.y + b.height / 2);
+      await sleep(150);
+      assert.equal(await ms((h, a) => h.game.cells[a].state, safe), 'revealed');
+      assert.equal(await ms((h) => h.game.status), 'playing');
     });
 
     await test('abandoning a game asks for confirmation', async () => {
@@ -713,7 +831,10 @@ if (want('minesweeper')) {
       assert.equal(await page.locator(`${W} .gk-rank`).count(), 1);
       await sleep(300);
       await winShot(s, 'minesweeper', 'minesweeper-stats-light-en');
-      await page.locator(`${W} .dialog button`, { hasText: 'Reset' }).click();
+      // A double-click on Reset must open a single confirmation.
+      await page.locator(`${W} .dialog button`, { hasText: 'Reset' }).dblclick();
+      await sleep(250);
+      assert.equal(await page.locator(`${W} .dialog`).count(), 2, 'statistics + one confirmation');
       await page.locator(`${W} .dialog button`, { hasText: 'Reset' }).last().click();
       await sleep(400);
       assert.equal(await page.locator(`${W} .gk-stat[data-id="played"] .gk-stat-value`).textContent(), '0');
@@ -755,6 +876,32 @@ if (want('minesweeper')) {
       assert.ok(r.w === r.min && r.w >= 340 && r.h >= 400, `clamped to the board's minimum ${JSON.stringify(r)}`);
       await assertNoOverflow(page, 'minesweeper');
       assert.ok((await ms((h) => h.cellSize)) >= 18);
+    });
+
+    await test('a level changed while maximized refits the window on restore (no scrollbars, even at min size)', async () => {
+      const wmw = (f, ...a) => page.evaluate(([fn, args]) => window.__aurora.wm.byApp('minesweeper')[0][fn](...args), [f, a]);
+      const scrollbars = () =>
+        page.evaluate(() => {
+          const st = document.querySelector('[data-app="minesweeper"] .ms-stage');
+          return st.scrollWidth > st.clientWidth || st.scrollHeight > st.clientHeight;
+        });
+      await wmw('maximize');
+      await sleep(500);
+      await page.locator(`${W} [data-id="difficulty"]`).click();
+      await page.locator('.menu .menu-item', { hasText: 'Expert' }).click();
+      await sleep(500);
+      assert.equal(await page.locator(`${W} .ms-cell`).count(), 480);
+      assert.equal(await page.evaluate(() => window.__aurora.wm.byApp('minesweeper')[0].state), 'maximized', 'stays maximized');
+      await wmw('restore');
+      await sleep(800);
+      const w = await page.evaluate(() => window.__aurora.wm.byApp('minesweeper')[0].w);
+      assert.ok(w > 800, `restored window fits the expert board (${w}px wide)`);
+      assert.equal(await scrollbars(), false, 'no scrollbars after restore');
+      assert.equal(await ms((h) => h.cellSize), 28, 'preferred expert cell size');
+      await wmw('setSize', 10, 10);
+      await sleep(400);
+      assert.equal(await scrollbars(), false, 'the minimum size still holds the whole board');
+      assert.equal(await ms((h) => h.cellSize), 18);
     });
 
     await test('mid-game screenshot (light, English)', async () => {
@@ -882,6 +1029,43 @@ if (want('snake')) {
       assert.equal(await sn((h) => h.state), 'paused');
       await page.evaluate(() => window.__aurora.wm.byApp('snake')[0].restoreFromMinimize());
       await sleep(400);
+    });
+
+    await test('pauses when the Start menu takes the keyboard (window stays active in the WM)', async () => {
+      await page.locator(`${W} .sn-board`).focus();
+      await page.keyboard.press('Space');
+      assert.equal(await sn((h) => h.state), 'running');
+      await page.locator('.tb-start').click();
+      await sleep(500);
+      assert.equal(await page.evaluate(() => window.__aurora.wm.focused()?.appId), 'snake', 'the WM still sees Snake as active');
+      assert.equal(await sn((h) => h.state), 'paused');
+      const steps = await sn((h) => h.game.steps);
+      await page.keyboard.press('ArrowDown');
+      await sleep(250);
+      assert.equal(await sn((h) => h.game.steps), steps, 'keys typed in the Start menu do not steer the snake');
+      await page.keyboard.press('Escape');
+      await sleep(400);
+      await page.evaluate(() => window.__aurora.wm.byApp('snake')[0].focus());
+      await sleep(200);
+      assert.equal(await sn((h) => h.state), 'paused');
+    });
+
+    await test('display scale change re-renders the canvas at the new pixel ratio', async () => {
+      await page.evaluate(() => window.__aurora.api.invoke('shell:zoom', 1.25));
+      await sleep(900);
+      const c = await page.evaluate(() => {
+        const cv = document.querySelector('[data-app="snake"] canvas');
+        return { w: cv.width, cssW: cv.getBoundingClientRect().width, dpr: devicePixelRatio };
+      });
+      await page.evaluate(() => window.__aurora.api.invoke('shell:zoom', 1));
+      await sleep(900);
+      assert.ok(Math.abs(c.dpr - 1.25) < 0.01, `zoomed dpr ${c.dpr}`);
+      assert.ok(Math.abs(c.w - c.cssW * c.dpr) <= 2, `canvas ${c.w}px for ${c.cssW} css px at ${c.dpr}`);
+      const back = await page.evaluate(() => {
+        const cv = document.querySelector('[data-app="snake"] canvas');
+        return { w: cv.width, cssW: cv.getBoundingClientRect().width, dpr: devicePixelRatio };
+      });
+      assert.ok(Math.abs(back.w - back.cssW * back.dpr) <= 1, JSON.stringify(back));
     });
 
     await test('eating food scores, then hitting the wall ends the game with a record', async () => {
@@ -1063,7 +1247,14 @@ if (want('game2048')) {
     await test('[2,2,2,2] -> [4,4,_,_] with slide + merge animations', async () => {
       await tg((h) => h.load([[2, 2, 2, 2], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], { moves: 1 }));
       await page.locator(`${W} .t-board`).focus();
-      await page.keyboard.press('ArrowLeft');
+      // Key press and style read in the same task: the merged tiles must stay hidden while the
+      // sources are still sliding (they pop once the slide lands).
+      const during = await page.evaluate(() => {
+        const b = document.querySelector('[data-app="game2048"] .t-board');
+        b.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft', bubbles: true, cancelable: true }));
+        return [...document.querySelectorAll('[data-app="game2048"] .t-tile.merged > span')].map((s) => getComputedStyle(s).opacity);
+      });
+      assert.deepEqual(during, ['0', '0'], 'merged tiles hidden during the slide');
       assert.equal(await page.locator(`${W} .t-tile.merged`).count(), 2, 'merged tiles pop');
       assert.equal(await page.locator(`${W} .t-tile.new`).count(), 1, 'a new tile appears');
       const g = await grid();
@@ -1101,6 +1292,27 @@ if (want('game2048')) {
       await page.mouse.up();
       await sleep(250);
       assert.equal((await grid())[0][3], 2);
+      // Touch swipe down (synthetic touch pointer events).
+      await tg((h) => h.load([[0, 0, 0, 2], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], { moves: 4 }));
+      const cx = b.x + b.width / 2;
+      const cy = b.y + b.height / 3;
+      await touchAt(page, 'pointerdown', cx, cy, 21);
+      for (let k = 1; k <= 5; k++) await touchAt(page, 'pointermove', cx + 3, cy + k * 25, 21);
+      await touchAt(page, 'pointerup', cx + 3, cy + 125, 21);
+      await sleep(250);
+      assert.equal((await grid())[3][3], 2, 'touch swipe moved the tile down');
+    });
+
+    await test('tile colours keep readable contrast (light palette)', async () => {
+      await assertTileContrast(page);
+      const gold = await page.evaluate(() => {
+        const chip = document.querySelector('[data-app="game2048"] [data-id="best"]');
+        chip.classList.add('record');
+        const c = getComputedStyle(chip.querySelector('.gk-chip-value')).color;
+        chip.classList.remove('record');
+        return c;
+      });
+      assert.ok(contrast(gold, '#fbfbfb') >= 4.5, `record gold ${gold}`);
     });
 
     await test('reaching 2048 offers to keep going', async () => {
@@ -1313,12 +1525,14 @@ if (!ONLY.length || ONLY.includes('fr')) {
       await sleep(500);
       assert.equal(await page.locator(`${W} [data-id="undo"] .gk-btn-label`).textContent(), 'Annuler');
       assert.match(await page.locator(`${W} .t-hint`).textContent(), /tuile 2048/);
+      await assertTileContrast(page);
       await page.evaluate(() =>
-        document.querySelector('[data-app="game2048"]').__game2048.load([[2, 4, 8, 16], [32, 64, 128, 256], [512, 1024, 2048, 4], [4096, 2, 0, 8]], { moves: 900, score: 41260, won: true, keepPlaying: true }),
+        document.querySelector('[data-app="game2048"]').__game2048.load([[0, 2, 0, 4], [16, 8, 2, 0], [128, 64, 32, 4], [4096, 2048, 1024, 256]], { moves: 900, score: 41260, won: true, keepPlaying: true }),
       );
       await page.locator(`${W} .t-board`).focus();
-      await page.keyboard.press('ArrowDown');
-      await sleep(600);
+      await page.keyboard.press('ArrowLeft');
+      await sleep(700);
+      assert.equal(await page.locator(`${W} .gk-overlay:not([hidden])`).count(), 0, 'mid-game: no overlay in the screenshot');
       await assertNoOverflow(page, 'game2048');
       await winShot(s, 'game2048', 'game2048-dark-fr');
       await page.evaluate(() => window.__aurora.wm.byApp('game2048')[0].setSize(10, 10));
@@ -1328,9 +1542,12 @@ if (!ONLY.length || ONLY.includes('fr')) {
     });
 
     await test('live switch to English + light updates every game', async () => {
+      // A size the user chose for Minesweeper survives the language switch.
+      await page.evaluate(() => window.__aurora.wm.byApp('minesweeper')[0].setSize(640, 720));
       await page.evaluate(() => window.__aurora.settings.set('lang', 'en'));
       await page.evaluate(() => window.__aurora.settings.set('theme', 'light'));
       await sleep(900);
+      assert.deepEqual(await page.evaluate(() => [window.__aurora.wm.byApp('minesweeper')[0].w, window.__aurora.wm.byApp('minesweeper')[0].h]), [640, 720]);
       assert.equal(await page.locator('[data-app="game2048"] [data-id="undo"] .gk-btn-label').textContent(), 'Undo');
       assert.equal(await page.locator('[data-app="snake"] [data-id="best"] .gk-chip-label').textContent(), 'Best');
       assert.equal(await page.locator('[data-app="minesweeper"] [data-id="difficulty"] .gk-btn-label').textContent(), 'Beginner');

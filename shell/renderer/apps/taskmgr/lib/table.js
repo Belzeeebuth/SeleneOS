@@ -4,7 +4,7 @@
 //                           onSort(colId), onSelect(row), onActivate(row), onContext(row, event|rect),
 //                           onToggle(row), onHeaderContext(event), onResize(widths), onDelete(row) });
 //   tb.setColumns(cols)   cols: [{ id, label: () => str, top?: () => str, hot?: () => bool, width, min,
-//                                  align: 'start'|'end', name?: true, flex?: true, sortable?: true,
+//                                  align: 'start'|'end', name?: true, flex?: true, max?: px, sortable?: true,
 //                                  cell: (row) => str | { text, heat, icon, tip, cls } }]
 //   tb.setRows(rows)      rows: [{ key, kind: 'group'|'item', depth, expandable, expanded, data,
 //                                  label (group rows), selectable }]
@@ -33,20 +33,32 @@ export class VTable {
     this.layoutVer = 0;
     this.id = `tmt${++seq}`;
     this.el = h('div', {
-      class: ['tm-table', opts.header === 'two-line' ? 'two-line' : 'one-line', opts.className],
+      class: ['tm-table', opts.header === 'two-line' ? 'two-line' : 'one-line', opts.flat && 'flat', opts.className],
       role: 'treegrid',
       tabindex: '0',
       'aria-label': opts.label || '',
       'aria-multiselectable': 'false',
     });
+    this.el.style.setProperty('--rowh', `${this.rowH}px`);
+    // The header lives outside the scrolling area (rows never slide under it); it follows the
+    // horizontal scroll and reserves the vertical scrollbar's width so the columns line up.
     this.head = h('div', { class: 'tm-thead', role: 'row' });
+    this.headWrap = h('div', { class: 'tm-thead-wrap' }, this.head);
     this.body = h('div', { class: 'tm-tbody', role: 'rowgroup' });
     this.emptyEl = h('div', { class: 'tm-empty caption text-2', hidden: true });
-    this.el.append(this.head, this.body, this.emptyEl);
+    this.scroller = h('div', { class: 'tm-scroll' }, this.body, this.emptyEl);
+    this.el.append(this.headWrap, this.scroller);
     this._raf = 0;
-    this.el.addEventListener('scroll', () => this._queue(), { passive: true });
+    this.scroller.addEventListener(
+      'scroll',
+      () => {
+        if (this.headWrap.scrollLeft !== this.scroller.scrollLeft) this.headWrap.scrollLeft = this.scroller.scrollLeft;
+        this._queue();
+      },
+      { passive: true },
+    );
     this._ro = new ResizeObserver(() => this._queue());
-    this._ro.observe(this.el);
+    this._ro.observe(this.scroller);
     this._wire();
   }
 
@@ -65,7 +77,14 @@ export class VTable {
     return Math.max(c.min || 48, this.widths[c.id] ?? c.width ?? 100);
   }
   _applyWidths() {
-    const tpl = this.cols.map((c) => (c.flex ? `minmax(${this.colWidth(c)}px, 1fr)` : `${this.colWidth(c)}px`)).join(' ');
+    // A flexible column takes the spare width, up to its `max` (so numbers don't drift far away
+    // from the names in a maximized window).
+    const tpl = this.cols
+      .map((c) => {
+        const w = this.colWidth(c);
+        return c.flex ? `minmax(${w}px, ${c.max ? `${Math.max(w, c.max)}px` : '1fr'})` : `${w}px`;
+      })
+      .join(' ');
     const total = this.cols.reduce((a, c) => a + this.colWidth(c), 0);
     this.el.style.setProperty('--tm-cols', tpl);
     this.el.style.setProperty('--tm-minw', `${total}px`);
@@ -81,7 +100,7 @@ export class VTable {
         {
           class: ['tm-th', c.align === 'end' && 'end', c.sortable === false && 'nosort'],
           role: 'columnheader',
-          tabindex: '-1',
+          tabindex: c.sortable === false ? '-1' : '0',
           dataset: { col: c.id },
           'aria-sort': 'none',
         },
@@ -170,11 +189,11 @@ export class VTable {
     return true;
   }
   scrollTo(i) {
+    const sc = this.scroller;
     const top = i * this.rowH;
-    const headH = this.head.offsetHeight;
-    const view = this.el.clientHeight - headH;
-    if (top < this.el.scrollTop) this.el.scrollTop = top;
-    else if (top + this.rowH > this.el.scrollTop + view) this.el.scrollTop = top + this.rowH - view;
+    const view = sc.clientHeight;
+    if (top < sc.scrollTop) sc.scrollTop = top;
+    else if (top + this.rowH > sc.scrollTop + view) sc.scrollTop = top + this.rowH - view;
   }
   focus() {
     this.el.focus({ preventScroll: true });
@@ -191,9 +210,14 @@ export class VTable {
   _render() {
     const n = this.rows.length;
     this.body.style.height = `${n * this.rowH}px`;
-    const headH = this.head.offsetHeight || 0;
-    const top = this.el.scrollTop;
-    const vh = Math.max(this.el.clientHeight - headH, this.rowH * 10);
+    const sc = this.scroller;
+    const gutter = sc.offsetWidth - sc.clientWidth;
+    if (this._gutter !== gutter) {
+      this._gutter = gutter;
+      this.head.style.paddingRight = `${gutter}px`;
+    }
+    const top = sc.scrollTop;
+    const vh = Math.max(sc.clientHeight, this.rowH * 10);
     const first = Math.max(0, Math.floor(top / this.rowH) - OVERSCAN);
     const last = Math.min(n, Math.ceil((top + vh) / this.rowH) + OVERSCAN);
     const want = new Set();
@@ -201,6 +225,9 @@ export class VTable {
     for (const [k, el] of this.live) {
       if (!want.has(k)) {
         this.live.delete(k);
+        el.classList.remove('sel');
+        el.removeAttribute('aria-selected');
+        el._key = null;
         this.spare.push(el);
       }
     }
@@ -208,9 +235,9 @@ export class VTable {
       const row = this.rows[i];
       let el = this.live.get(row.key);
       if (!el) {
+        // Recycled rows keep their cells: _fill only rewrites what differs for the new row.
         el = this.spare.pop() || h('div', { role: 'row' });
         el._key = row.key;
-        el._kind = null;
         this.live.set(row.key, el);
         if (!el.parentNode) this.body.appendChild(el);
       }
@@ -297,8 +324,8 @@ export class VTable {
       const tip = v.tip || '';
       if (slot.tip !== tip) {
         slot.tip = tip;
-        if (tip) slot.el.title = tip;
-        else slot.el.removeAttribute('title');
+        if (tip) slot.el.dataset.tip = tip;
+        else delete slot.el.dataset.tip;
       }
       const cls = v.cls || '';
       if (slot.cls !== cls) {
@@ -423,6 +450,23 @@ export class VTable {
       this._applyWidths();
       this.o.onResize?.({ ...this.widths });
     });
+    // Keyboard on column headers: Enter / Space sorts, Shift+F10 / Menu opens the column chooser.
+    this.head.addEventListener('keydown', (e) => {
+      const th = e.target.closest?.('.tm-th');
+      if (!th) return;
+      if ((e.key === 'Enter' || e.key === ' ') && !th.classList.contains('nosort')) {
+        e.preventDefault();
+        this.o.onSort?.(th.dataset.col);
+      } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+        e.preventDefault();
+        const r = th.getBoundingClientRect();
+        this.o.onHeaderContext?.({ x: r.left + 8, y: r.bottom });
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const sib = e.key === 'ArrowRight' ? th.nextElementSibling : th.previousElementSibling;
+        sib?.focus();
+      }
+    });
     this.el.addEventListener('keydown', (e) => this._key(e));
   }
 
@@ -439,7 +483,7 @@ export class VTable {
   _key(e) {
     if (e.target !== this.el) return;
     const row = this.selectedRow();
-    const page = Math.max(1, Math.floor((this.el.clientHeight - this.head.offsetHeight) / this.rowH) - 1);
+    const page = Math.max(1, Math.floor(this.scroller.clientHeight / this.rowH) - 1);
     switch (e.key) {
       case 'ArrowDown':
         this._move(1);

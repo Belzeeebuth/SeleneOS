@@ -9,10 +9,19 @@ if (!bridge) {
   console.error('[aurora] preload bridge missing');
 }
 
+function unwrapResult(res) {
+  if (res && res.ok) return res.value;
+  const err = new Error(res?.error?.message || 'IPC error');
+  err.code = res?.error?.code || 'EFAIL';
+  throw err;
+}
+
 export const env = bridge?.env || { mode: 'shell', dev: true, lang: 'en', user: 'user', home: '/home/user', live: false };
 
 export const api = {
-  invoke: (channel, ...args) => bridge.invoke(channel, ...args),
+  // Rejects with an Error carrying `code` (ENOHANDLER, EAUTH, ENOENT…): built here because Error objects
+  // lose their custom properties when they cross Electron's context bridge.
+  invoke: (channel, ...args) => (bridge.invokeRaw ? bridge.invokeRaw(channel, ...args).then(unwrapResult) : bridge.invoke(channel, ...args)),
   on: (channel, cb) => bridge.on(channel, cb),
   send: (channel, ...args) => bridge.send(channel, ...args),
   mediaUrl: (p) => bridge.mediaUrl(p),

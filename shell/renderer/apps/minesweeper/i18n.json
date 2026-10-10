@@ -16,6 +16,7 @@
     "gk.currentStreak": "Current streak",
     "gk.longestStreak": "Longest streak",
     "gk.newRecord": "New record!",
+    "gk.saveFailed": "Your progress and statistics couldn't be saved. Check that your home folder isn't full or read-only.",
 
     "diff.beginner": "Beginner",
     "diff.intermediate": "Intermediate",
@@ -101,6 +102,7 @@
     "gk.currentStreak": "Série en cours",
     "gk.longestStreak": "Meilleure série",
     "gk.newRecord": "Nouveau record !",
+    "gk.saveFailed": "Impossible d'enregistrer votre progression et vos statistiques. Vérifiez que votre dossier personnel n'est pas plein ou en lecture seule.",
 
     "diff.beginner": "Débutant",
     "diff.intermediate": "Intermédiaire",

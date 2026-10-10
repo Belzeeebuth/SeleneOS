@@ -22,6 +22,7 @@ export class NavPane {
     this.selectedId = null;
     this.lastClickedId = null;
     this.trashFull = false;
+    this.kbd = false;
     this.bind();
     this.updateTrash();
   }
@@ -29,7 +30,11 @@ export class NavPane {
   // ---------------------------------------------------------------- model
   roots() {
     const t = this.ex.t;
-    const nodes = [{ id: 'home', label: t('places.home'), icon: T.iconPath('home'), loc: { type: 'home' }, level: 1 }, { sep: true }];
+    const nodes = [
+      { id: 'home', label: t('places.home'), icon: T.iconPath('home'), loc: { type: 'home' }, level: 1 },
+      { id: 'gallery', label: t('places.gallery'), icon: T.iconPath('gallery'), loc: { type: 'gallery' }, level: 1 },
+      { sep: true },
+    ];
     shared.pinned.forEach((p, i) => {
       nodes.push(this.folderNode(`pin${i}`, p, 1, { pinned: true, label: this.knownLabel(p) }));
     });
@@ -192,7 +197,7 @@ export class NavPane {
       const on = r.node.id === this.selectedId;
       r.el.classList.toggle('selected', on);
       r.el.setAttribute('aria-selected', String(on));
-      r.el.classList.toggle('focused', r.node.id === this.focusId && this.kbd);
+      r.el.classList.toggle('focused', !!(this.kbd && r.node.id === this.focusId));
     }
   }
 
@@ -331,7 +336,7 @@ export class NavPane {
         ? { label: t('menu.unpin'), icon: 'pin_off', action: () => unpin(node.path) }
         : { label: t('menu.pin'), icon: 'pin', action: () => pin(node.path) });
       items.push({ label: t('menu.copyPath'), icon: 'copy_select', action: () => ops.copyAsPath(ex, [node.path]) });
-      items.push({ label: t('menu.openTerminal'), icon: 'window_console', action: () => ex.ctx.shell.launch('terminal', { cwd: node.path }) });
+      if (ex.hasApp('terminal')) items.push({ label: t('menu.openTerminal'), icon: 'window_console', action: () => ex.openTerminal(node.path) });
       items.push('-');
       items.push({ label: t('menu.properties'), icon: 'info', action: async () => {
         const st = await ex.api.invoke('fs:stat', node.path);
@@ -348,7 +353,7 @@ export class NavPane {
     }
     if (node.id === 'thispc') {
       items.push('-');
-      items.push({ label: t('menu.properties'), icon: 'info', action: () => ex.ctx.shell.launch('settings', { page: 'about' }) });
+      items.push({ label: t('menu.properties'), icon: 'info', action: () => ex.systemProperties() });
     }
     ex.menu(at, items);
   }

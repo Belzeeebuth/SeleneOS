@@ -1,0 +1,888 @@
+/* Sign-in screen + lock screen (core/greeter/lockui.js), Windows 11 style.
+   Always light-on-dark, whatever the desktop theme: the colours are set here, not from the theme tokens. */
+.lockui {
+  --lk-slide: cubic-bezier(0.7, 0, 0.12, 1);
+  --lk-fg: #ffffff;
+  --lk-fg-2: rgba(255, 255, 255, 0.82);
+  --lk-fg-3: rgba(255, 255, 255, 0.66);
+  --lk-hover: rgba(255, 255, 255, 0.09);
+  --lk-pressed: rgba(255, 255, 255, 0.05);
+  --lk-selected: rgba(255, 255, 255, 0.15);
+  --lk-shadow-text: 0 1px 2px rgba(0, 0, 0, 0.22), 0 2px 18px rgba(0, 0, 0, 0.22);
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  overflow: hidden;
+  color: var(--lk-fg);
+  background: #0b0e14;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 20px;
+  user-select: none;
+  outline: none;
+  contain: strict;
+  color-scheme: dark;
+}
+.lockui.lk-entering {
+  animation: lk-fade-in 520ms linear both;
+}
+.lk-greeter.lk-entering {
+  animation-duration: 900ms;
+}
+.lockui.lk-leaving {
+  animation: lk-fade-out 360ms cubic-bezier(0.33, 0, 0.67, 1) forwards;
+  pointer-events: none;
+}
+.lockui.lk-leaving .lk-card {
+  transform: scale(1.04);
+  transition: transform 360ms var(--ease);
+}
+@keyframes lk-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes lk-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+.lockui :focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.55);
+  border-radius: 4px;
+}
+.lk-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.lockui button {
+  font: inherit;
+  color: inherit;
+  cursor: default;
+}
+
+/* ------------------------------------------------------------------ curtain (picture + clock) */
+.lk-curtain {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  touch-action: none;
+  transform: translate3d(0, 0, 0);
+  transition: transform 620ms var(--lk-slide);
+  will-change: transform;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.45);
+}
+.lockui.stage-signin .lk-curtain {
+  transform: translate3d(0, -101%, 0);
+  pointer-events: none;
+}
+.lk-curtain.dragging {
+  transition: none;
+}
+.lk-wall {
+  position: absolute;
+  inset: -24px;
+  background: #121620 var(--lk-wall-img, none) center / cover no-repeat;
+  transform: translate3d(var(--px, 0px), var(--py, 0px), 0);
+  transition: transform 900ms cubic-bezier(0.2, 0.6, 0.2, 1);
+}
+.lockui.lk-entering .lk-wall {
+  animation: lk-wall-in 1600ms cubic-bezier(0.1, 0.7, 0.2, 1) both;
+}
+@keyframes lk-wall-in {
+  from {
+    transform: scale(1.07);
+  }
+}
+.lk-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0.12) 30%, rgba(0, 0, 0, 0) 52%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.28) 0%, rgba(0, 0, 0, 0) 22%);
+}
+.lk-clock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: max(48px, 11vh);
+  text-align: center;
+  text-shadow: var(--lk-shadow-text);
+  pointer-events: none;
+  transition: opacity 360ms linear, transform 620ms var(--lk-slide);
+}
+.lockui.stage-signin .lk-clock {
+  opacity: 0;
+  transform: translateY(-40px);
+}
+.lockui.lk-entering .lk-clock {
+  animation: lk-clock-in 900ms 120ms var(--ease) both;
+}
+@keyframes lk-clock-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+.lk-time {
+  font-family: "Inter Display", var(--font-display);
+  font-weight: 300;
+  font-size: clamp(72px, 14.5vh, 184px);
+  line-height: 1;
+  letter-spacing: -0.025em;
+  font-variant-numeric: lining-nums;
+}
+.lk-date {
+  margin-top: max(6px, 1.4vh);
+  font-family: "Inter Display", var(--font-display);
+  font-weight: 500;
+  font-size: clamp(17px, 2.65vh, 30px);
+  line-height: 1.25;
+  letter-spacing: 0.005em;
+}
+.lk-badges {
+  position: absolute;
+  left: 50%;
+  bottom: max(28px, 4.5vh);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+.lk-badges[hidden] {
+  display: none;
+}
+.lk-badge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px 0 8px;
+  border-radius: 16px;
+  background: rgba(20, 20, 24, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-weight: 600;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: none;
+}
+.lk-badge img,
+.lk-badge .icon {
+  width: 18px;
+  height: 18px;
+}
+.lk-status {
+  position: absolute;
+  right: 28px;
+  bottom: 26px;
+  display: flex;
+  gap: 18px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
+}
+.lk-status-item .icon {
+  display: block;
+}
+
+/* ------------------------------------------------------------------ sign-in view */
+.lk-signin {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.lk-blur {
+  position: absolute;
+  inset: 0;
+  background: #141922 var(--lk-wall-img, none) center / cover no-repeat;
+  transform: scale(1.08);
+  transition: transform 900ms cubic-bezier(0.1, 0.8, 0.2, 1);
+}
+/* Until the pre-blurred copy is ready (a few ms), blur the picture live. */
+.lk-blur:not(.ready) {
+  filter: blur(36px) brightness(0.72);
+}
+.lockui.stage-signin .lk-blur {
+  transform: scale(1);
+}
+.lk-scrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 50% 40%, rgba(0, 0, 0, 0.04) 0%, rgba(0, 0, 0, 0.3) 100%);
+}
+.lk-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px 9vh;
+}
+.lk-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(380px, 100%);
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 280ms linear, transform 640ms var(--ease);
+}
+.lockui.stage-signin .lk-card {
+  opacity: 1;
+  transform: none;
+  transition-delay: 140ms, 100ms;
+}
+.lk-card.lk-swap .lk-avatar-slot,
+.lk-card.lk-swap .lk-name {
+  animation: lk-swap 420ms var(--ease);
+}
+@keyframes lk-swap {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+.lk-avatar {
+  --lk-av: 40px;
+  position: relative;
+  flex: none;
+  width: var(--lk-av);
+  height: var(--lk-av);
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-family: "Inter Display", var(--font-display);
+  font-weight: 400;
+  font-size: calc(var(--lk-av) * 0.34);
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+.lk-avatar.initials {
+  background:
+    radial-gradient(130% 130% at 28% 18%, hsla(var(--lk-hue, 212), 62%, 70%, 0.96), hsla(calc(var(--lk-hue, 212) + 28), 50%, 40%, 0.96));
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.lk-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.lk-avatar .icon {
+  opacity: 0.92;
+}
+.lk-avatar-slot .lk-avatar {
+  --lk-av: clamp(112px, 21.5vh, 192px);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14), 0 10px 36px rgba(0, 0, 0, 0.28);
+}
+.lk-avatar-slot .lk-avatar .icon {
+  width: 44%;
+  height: 44%;
+}
+.lk-name {
+  margin-top: clamp(14px, 2.4vh, 22px);
+  max-width: 100%;
+  font-family: "Inter Display", var(--font-display);
+  font-weight: 600;
+  font-size: clamp(22px, 3.1vh, 28px);
+  line-height: 1.3;
+  text-align: center;
+  overflow-wrap: anywhere;
+  text-shadow: var(--lk-shadow-text);
+}
+.lk-form-slot {
+  position: relative;
+  width: 100%;
+  margin-top: clamp(18px, 3vh, 26px);
+  min-height: 132px;
+}
+.lk-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: opacity 160ms linear;
+}
+.lk-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 296px;
+  max-width: 100%;
+  height: 36px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom-color: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  transition: background 120ms linear, border-color 120ms linear;
+}
+.lk-field[hidden] {
+  display: none;
+}
+.lk-field:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.lk-field:focus-within {
+  background: rgba(24, 24, 26, 0.72);
+  border-color: rgba(255, 255, 255, 0.08);
+  border-bottom-color: transparent;
+  box-shadow: inset 0 -2px 0 var(--accent), 0 2px 12px rgba(0, 0, 0, 0.14);
+}
+.lk-user-field {
+  margin-bottom: 8px;
+}
+.lk-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 6px 1px 11px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  caret-color: #fff;
+  font: 400 14px/20px var(--font);
+  user-select: text;
+}
+.lk-input::placeholder {
+  color: rgba(255, 255, 255, 0.74);
+}
+.lk-input[type="password"]:not(:placeholder-shown) {
+  letter-spacing: 0.14em;
+}
+.lk-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.lk-input:disabled {
+  opacity: 0.5;
+}
+.lk-icon-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  margin-right: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.86);
+  transition: background 80ms linear;
+}
+.lk-icon-btn:hover {
+  background: var(--lk-hover);
+}
+.lk-icon-btn:active {
+  background: var(--lk-pressed);
+  color: rgba(255, 255, 255, 0.62);
+}
+.lk-icon-btn:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.lk-go {
+  background: rgba(255, 255, 255, 0.06);
+}
+.lk-field:not(.has-text) .lk-reveal {
+  display: none;
+}
+.lk-field.lk-shake,
+.lk-signin-btn.lk-shake {
+  animation: lk-shake 460ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+@keyframes lk-shake {
+  10%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  80% {
+    transform: translateX(4px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-9px);
+  }
+  40%,
+  60% {
+    transform: translateX(9px);
+  }
+}
+.lk-signin-btn {
+  width: 296px;
+  max-width: 100%;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.12);
+  font-weight: 600;
+  transition: background 80ms linear;
+}
+.lk-signin-btn[hidden] {
+  display: none;
+}
+.lk-signin-btn:hover {
+  background: rgba(255, 255, 255, 0.17);
+}
+.lk-signin-btn:active {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.78);
+}
+.lk-msg {
+  display: none;
+  max-width: 340px;
+  margin-top: 14px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 20px;
+  text-shadow: var(--lk-shadow-text);
+  animation: lk-msg-in 240ms var(--ease);
+}
+.lk-msg.show {
+  display: block;
+}
+.lk-msg-detail {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--lk-fg-2);
+}
+@keyframes lk-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.lk-caps {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--lk-fg-2);
+  text-shadow: var(--lk-shadow-text);
+}
+.lk-caps.show {
+  display: flex;
+}
+.lk-link {
+  margin-top: 16px;
+  padding: 5px 10px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font-weight: 600;
+  text-shadow: var(--lk-shadow-text);
+  transition: background 80ms linear;
+}
+.lk-link[hidden] {
+  display: none;
+}
+.lk-link:hover {
+  background: var(--lk-hover);
+}
+.lk-link:active {
+  background: var(--lk-pressed);
+  color: var(--lk-fg-2);
+}
+.lk-help {
+  max-width: 340px;
+  margin-top: 6px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: rgba(20, 20, 24, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--lk-fg-2);
+  font-size: 13px;
+  line-height: 19px;
+  text-align: center;
+  animation: lk-msg-in 240ms var(--ease);
+}
+.lk-help[hidden] {
+  display: none;
+}
+.lockui.lk-rate .lk-field {
+  opacity: 0.7;
+}
+
+/* Busy: the form gives way to the orbiting dots and "Welcome". */
+.lk-busy {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding-top: 2px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 200ms linear, visibility 0s 200ms;
+}
+.lockui.busy .lk-form {
+  opacity: 0;
+  pointer-events: none;
+}
+.lockui.busy .lk-busy {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 60ms, 0s;
+}
+.lk-busy-text {
+  font-family: "Inter Display", var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 28px;
+  text-shadow: var(--lk-shadow-text);
+}
+
+/* The Windows "orbiting dots" spinner. It keeps turning with animations off (it is a progress indicator). */
+.lk-spinner {
+  position: relative;
+  width: 44px;
+  height: 44px;
+}
+.lk-spinner i {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  animation: lk-orbit 5.4s infinite;
+  animation-delay: calc(var(--i) * 230ms);
+}
+:root[data-animations="off"] .lockui .lk-spinner i {
+  animation-duration: 5.4s !important;
+  animation-delay: calc(var(--i) * 230ms) !important;
+}
+.lk-spinner i::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: #fff;
+}
+@keyframes lk-orbit {
+  0% {
+    transform: rotate(225deg);
+    opacity: 1;
+    animation-timing-function: ease-out;
+  }
+  7% {
+    transform: rotate(345deg);
+    animation-timing-function: linear;
+  }
+  30% {
+    transform: rotate(455deg);
+    animation-timing-function: ease-in-out;
+  }
+  39% {
+    transform: rotate(690deg);
+    animation-timing-function: linear;
+  }
+  70% {
+    transform: rotate(815deg);
+    opacity: 1;
+    animation-timing-function: ease-out;
+  }
+  75% {
+    transform: rotate(945deg);
+    animation-timing-function: ease-out;
+  }
+  76% {
+    transform: rotate(945deg);
+    opacity: 0;
+  }
+  100% {
+    transform: rotate(945deg);
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ bottom corners */
+.lk-users {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(44vh, calc(100vh - 160px));
+  max-width: calc(50vw - 40px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 260ms linear, transform 520ms var(--ease);
+}
+.lockui.stage-signin .lk-users {
+  opacity: 1;
+  transform: none;
+  transition-delay: 220ms;
+}
+.lk-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 232px;
+  max-width: 100%;
+  height: 56px;
+  padding: 0 16px 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-weight: 600;
+  text-align: left;
+  text-shadow: var(--lk-shadow-text);
+  transition: background 80ms linear;
+}
+.lk-user:hover {
+  background: var(--lk-hover);
+}
+.lk-user:active {
+  background: var(--lk-pressed);
+}
+.lk-user.selected {
+  background: var(--lk-selected);
+}
+.lk-user .lk-avatar {
+  --lk-av: 40px;
+  text-shadow: none;
+}
+.lk-avatar-icon {
+  background: rgba(255, 255, 255, 0.14);
+}
+.lk-user-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lk-tray {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 260ms linear;
+}
+.lockui.stage-signin .lk-tray {
+  opacity: 1;
+  transition-delay: 220ms;
+}
+.lk-tray-btn {
+  display: grid;
+  place-items: center;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+  transition: background 80ms linear;
+}
+.lk-tray-btn[hidden] {
+  display: none;
+}
+.lk-tray-btn:hover {
+  background: var(--lk-hover);
+}
+.lk-tray-btn:active {
+  background: var(--lk-pressed);
+}
+.lk-tray-btn .icon {
+  width: 20px;
+  height: 20px;
+}
+.lk-ind {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  padding: 0 10px;
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.lk-ind-kb {
+  font-weight: 400;
+  color: var(--lk-fg-2);
+}
+
+/* ------------------------------------------------------------------ menus opened from the tray */
+.menu.lk-menu {
+  --acrylic: rgba(40, 40, 42, 0.94);
+  --window-stroke: rgba(255, 255, 255, 0.09);
+  --shadow-flyout: 0 8px 16px rgba(0, 0, 0, 0.36);
+  --subtle-hover: rgba(255, 255, 255, 0.07);
+  --text: #fff;
+  --text-2: rgba(255, 255, 255, 0.72);
+  --text-disabled: rgba(255, 255, 255, 0.82);
+  --stroke: rgba(255, 255, 255, 0.08);
+  --danger: #ff99a4;
+  color: #fff;
+  z-index: 2147483100;
+  color-scheme: dark;
+  min-width: 220px;
+}
+.menu.lk-menu .menu-item.disabled .icon {
+  opacity: 0.85;
+}
+body.aurora-locked .tooltip,
+#greeter ~ .tooltip {
+  z-index: 2147483200;
+}
+
+/* ------------------------------------------------------------------ in-screen dialog */
+.lk-dialog-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.42);
+  animation: lk-fade-in 160ms linear;
+}
+.lk-dialog-layer.closing {
+  animation: lk-fade-out 160ms linear forwards;
+  pointer-events: none;
+}
+.lk-dialog {
+  width: min(448px, 100%);
+  overflow: hidden;
+  border-radius: 8px;
+  background: #2b2b2b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.56), 0 2px 21px rgba(0, 0, 0, 0.55);
+  animation: lk-dialog-in 260ms var(--ease);
+  user-select: text;
+}
+@keyframes lk-dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+}
+.lk-dialog-main {
+  padding: 24px 24px 22px;
+}
+.lk-dialog-title {
+  margin-bottom: 12px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 28px;
+}
+.lk-dialog-body {
+  color: var(--lk-fg-2);
+}
+.lk-dialog-btns {
+  display: flex;
+  gap: 8px;
+  padding: 24px;
+  background: #202020;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.lk-dbtn {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 12px 1px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-top-color: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.06);
+  transition: background 80ms linear;
+}
+.lk-dbtn:hover {
+  background: rgba(255, 255, 255, 0.084);
+}
+.lk-dbtn:active {
+  background: rgba(255, 255, 255, 0.033);
+  color: var(--lk-fg-2);
+}
+.lk-dbtn.primary {
+  background: var(--accent, #60cdff);
+  color: var(--on-accent, #000);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.lk-dbtn.primary:hover {
+  background: var(--accent-hover, #5ab9e8);
+}
+.lk-dbtn.primary:active {
+  background: var(--accent-pressed, #50a8d4);
+}
+
+/* ------------------------------------------------------------------ transparency effects off */
+:root[data-transparency="off"] .menu.lk-menu {
+  --acrylic: #2c2c2c;
+}
+:root[data-transparency="off"] .lk-badge,
+:root[data-transparency="off"] .lk-help {
+  background: #1f1f23;
+}
+:root[data-transparency="off"] .lk-field {
+  background: #2b2b2e;
+}
+:root[data-transparency="off"] .lk-field:focus-within {
+  background: #1c1c1e;
+}
+:root[data-transparency="off"] .lk-signin-btn {
+  background: #35353a;
+}
+
+/* ------------------------------------------------------------------ small screens */
+@media (max-height: 720px) {
+  .lk-user {
+    height: 44px;
+  }
+  .lk-user .lk-avatar {
+    --lk-av: 32px;
+  }
+  .lk-users {
+    max-height: 34vh;
+  }
+}
+@media (max-height: 620px) {
+  .lk-center {
+    padding-bottom: 64px;
+  }
+  .lk-form-slot {
+    min-height: 112px;
+  }
+  .lk-link {
+    margin-top: 8px;
+  }
+}
+@media (max-width: 760px) {
+  .lk-users {
+    max-width: calc(100vw - 32px);
+    bottom: 64px;
+  }
+  .lk-user {
+    min-width: 0;
+    height: 48px;
+  }
+}

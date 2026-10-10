@@ -1255,8 +1255,10 @@
 .app-files .fx-hhead {
   height: 28px;
   color: var(--text-2);
-  padding: 0 12px;
   border: 1px solid transparent;
+}
+.app-files .fx-hhead > span {
+  padding: 0 8px;
 }
 
 /* rubber band */
@@ -1924,9 +1926,9 @@
   margin: 0 -8px;
   padding: 0 8px;
 }
-.app-files .fx-apps:focus-visible {
-  outline: 2px solid var(--text);
-  border-radius: 4px;
+.app-files .fx-apps:focus-visible .fx-app-row.selected {
+  outline: 1px solid var(--text-2);
+  outline-offset: -1px;
 }
 .app-files .fx-apps-head {
   padding: 8px 4px 4px;
@@ -1964,7 +1966,17 @@
   background: var(--accent);
 }
 .app-files .fx-opts {
-  width: min(440px, 80vw);
+  width: 100%;
+  min-width: min(420px, 70vw);
+}
+.app-files .fx-opts-tabs .tab {
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+}
+.app-files .fx-opts-tabs .tab:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
 }
 .app-files .fx-opts-page {
   display: flex;
@@ -2036,4 +2048,84 @@
   .app-files .fx-navbtns .fx-navbtn:nth-child(2) {
     display: none;
   }
+}
+
+/* ---------------------------------------------------------------- Gallery */
+.app-files .fx-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 0 8px;
+}
+.app-files .fx-gtile {
+  position: relative;
+  flex: 0 0 auto;
+  height: var(--gh, 148px);
+  padding: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--fx-cap-bg);
+  border-width: 2px;
+}
+.app-files .fx-gtile .fx-gimg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform var(--dur-slow) var(--ease);
+}
+.app-files .fx-gtile .fx-gimg.fallback {
+  object-fit: contain;
+  padding: 18%;
+}
+.app-files .fx-gtile:hover .fx-gimg:not(.fallback) {
+  transform: scale(1.03);
+}
+.app-files .fx-gtile .fx-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 14px 8px 5px;
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
+  opacity: 0;
+  transition: opacity var(--dur) linear;
+}
+.app-files .fx-gtile:hover .fx-name,
+.app-files .fx-gtile.selected .fx-name {
+  opacity: 1;
+}
+.app-files .fx-gtile.selected {
+  border-color: var(--accent);
+  background: var(--fx-cap-bg);
+}
+.app-files .fx-gtile.selected::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--accent) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M3.5 8.2l3 3 6-6.4' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 100% no-repeat;
+}
+.app-files .fx-gtile.video::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.45) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M7 5.5v9l7.5-4.5z' fill='white'/></svg>") center / 60% no-repeat;
+}
+.app-files .fx-gtile.fx-drop,
+.app-files .fx-gtile.focused {
+  border-color: var(--text-2);
 }

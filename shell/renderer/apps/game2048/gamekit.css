@@ -289,7 +289,10 @@
   font-weight: 600;
 }
 .app-game2048 .gk-rank:first-child .gk-rank-pos {
-  color: #c48a00;
+  color: #9a6a00;
+}
+:root[data-theme="dark"] .app-game2048 .gk-rank:first-child .gk-rank-pos {
+  color: #ffc83d;
 }
 .app-game2048 .gk-rank-date {
   color: var(--text-2);

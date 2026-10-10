@@ -168,6 +168,60 @@ export function emptyStats() {
   return { played: 0, won: 0, currentStreak: 0, longestStreak: 0, bestScore: 0, bestTile: 0, totalScore: 0 };
 }
 
+// ---------------------------------------------------------------- saved data (any JSON value -> valid)
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const count = (v) => (Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
+const isTileValue = (v) => Number.isInteger(v) && v >= 2 && Number.isInteger(Math.log2(v)) && v <= 2 ** 30;
+
+/** Saved preferences -> a complete, valid preferences object. */
+export function sanitizePrefs(raw) {
+  const p = { size: 4, undo: true, sound: true };
+  if (!isObj(raw)) return p;
+  const n = Number(raw.size);
+  if (SIZES.includes(n)) p.size = n;
+  if (typeof raw.undo === 'boolean') p.undo = raw.undo;
+  if (typeof raw.sound === 'boolean') p.sound = raw.sound;
+  return p;
+}
+
+/** One board size's saved statistics -> valid stats. */
+export function sanitizeStats(raw) {
+  const s = emptyStats();
+  if (!isObj(raw)) return s;
+  for (const k of ['played', 'bestScore', 'totalScore']) s[k] = count(raw[k]);
+  s.won = Math.min(count(raw.won), s.played);
+  s.currentStreak = Math.min(count(raw.currentStreak), s.won);
+  s.longestStreak = Math.max(Math.min(count(raw.longestStreak), s.won), s.currentStreak);
+  s.bestTile = isTileValue(raw.bestTile) ? raw.bestTile : 0;
+  return s;
+}
+
+/** Saved statistics for every board size ({ 4: {...}, 5: {...} }). Unknown keys are dropped. */
+export function sanitizeAllStats(raw) {
+  const out = {};
+  if (isObj(raw)) for (const n of SIZES) if (raw[n] != null) out[n] = sanitizeStats(raw[n]);
+  return out;
+}
+
+/**
+ * Rebuilds a saved game, or returns null when the data is unusable (wrong size, overlapping or
+ * impossible tiles…). With `size`, a game of another size is rejected too (e.g. a stale undo state).
+ */
+export function reviveGame(data, { size } = {}) {
+  if (!isObj(data) || !SIZES.includes(data.size) || (size && data.size !== size) || !Array.isArray(data.tiles) || !data.tiles.length) return null;
+  const n = data.size;
+  const grid = Array.from({ length: n }, () => Array(n).fill(0));
+  for (const tl of data.tiles) {
+    const ok = isObj(tl) && Number.isInteger(tl.r) && Number.isInteger(tl.c) && tl.r >= 0 && tl.c >= 0 && tl.r < n && tl.c < n && isTileValue(tl.value);
+    if (!ok || grid[tl.r][tl.c]) return null;
+    grid[tl.r][tl.c] = tl.value;
+  }
+  const g = fromGrid(grid, { score: count(data.score), moves: count(data.moves), won: data.won === true, keepPlaying: data.keepPlaying === true, recorded: data.recorded === true });
+  if (!g.won && g.tiles.some((t) => t.value >= WIN_VALUE)) g.won = true;
+  g.over = !canMove(g);
+  return g;
+}
+
 /** Records a finished or abandoned game (per board size). */
 export function recordGame(stats, { won, score, tile }) {
   const s = { ...emptyStats(), ...(stats || {}) };

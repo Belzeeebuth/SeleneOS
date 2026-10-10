@@ -282,8 +282,9 @@ export function uid(prefix = 'n') {
 export function colorFor(str) {
   let h = 0;
   for (const c of String(str || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  const hues = [210, 4, 145, 265, 30, 190, 330, 95, 240, 15];
-  return `hsl(${hues[h % hues.length]}, 55%, 46%)`;
+  // Fluent palette colors that all keep >= 4.5:1 contrast with the white monogram letter.
+  const colors = ['#0f6cbd', '#c4314b', '#107c10', '#8764b8', '#ca5010', '#03787c', '#b4009e', '#4f52b2', '#8e562e', '#005b70'];
+  return colors[h % colors.length];
 }
 
 export function monogram(title, url) {

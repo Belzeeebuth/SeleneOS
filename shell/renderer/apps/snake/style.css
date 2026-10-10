@@ -54,7 +54,7 @@
   min-width: 96px;
 }
 .app-snake .sn-best.record .gk-chip-value {
-  color: #c48a00;
+  color: #9a6a00;
 }
 :root[data-theme="dark"] .app-snake .sn-best.record .gk-chip-value {
   color: #ffd66b;

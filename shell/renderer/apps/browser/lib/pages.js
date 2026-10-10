@@ -7,6 +7,7 @@ import { SEED_SITES } from './store.js';
 import { ENGINES, engineOf, displayUrl, bareHost, hostOf, siteLabel, colorFor, monogram, classify, isWebUrl, uid } from './util.js';
 import * as panels from './panels.js';
 import { barMode } from './favbar.js';
+import { showMenu } from './menu.js';
 
 const APP_ICON = 'app://shell/apps/browser/icon.svg';
 
@@ -123,7 +124,7 @@ function newTabPage(bw, tab) {
   });
   const searchBtn = h('button', { class: 'bp-ntp-go', onclick: () => go() }, icon('arrow_right', { size: 18 }));
   const box = h('div', { class: 'bp-ntp-search' }, icon('search', { size: 20, class: 'bp-ntp-sicon' }), input, searchBtn);
-  const customize = h('button', { class: 'bp-ntp-tool', onclick: (e) => customizeMenu(e) }, icon('settings', { size: 18 }));
+  const customize = h('button', { class: 'bp-ntp-tool', 'aria-haspopup': 'menu', onclick: () => customizeMenu() }, icon('settings', { size: 18 }));
   tools.appendChild(customize);
   const brand = h('div', { class: 'bp-ntp-brand' }, h('img', { src: APP_ICON, alt: '', draggable: false }), h('span', { class: 'bp-ntp-name' }, 'Aurora'));
   if (bw.private) {
@@ -153,17 +154,18 @@ function newTabPage(bw, tab) {
     customize.setAttribute('aria-label', t('ntp.customize'));
   }
 
-  function customizeMenu(e) {
-    ui.menu(
-      e,
+  function customizeMenu() {
+    customize.classList.add('open');
+    showMenu(
+      customize,
       [
-        { label: t('ntp.showShortcuts'), checked: !!store.prefs.ntpShortcuts, action: () => store.setPref('ntpShortcuts', !store.prefs.ntpShortcuts) },
-        { label: t('ntp.showBackground'), checked: !!store.prefs.ntpBackground, action: () => store.setPref('ntpBackground', !store.prefs.ntpBackground) },
+        { label: t('ntp.menuShortcuts'), checked: !!store.prefs.ntpShortcuts, action: () => store.setPref('ntpShortcuts', !store.prefs.ntpShortcuts) },
+        { label: t('ntp.menuBackground'), checked: !!store.prefs.ntpBackground, action: () => store.setPref('ntpBackground', !store.prefs.ntpBackground) },
         '-',
         { label: t('ntp.restoreShortcuts'), icon: 'arrow_reset', disabled: !store.ntp.hidden.length, action: () => ((store.ntp.hidden = []), store.save('ntp', 100), renderTiles()) },
         { label: t('settings.title'), icon: 'settings', action: () => bw.openInternal('settings') },
       ],
-      { class: bw.menuClass() },
+      { align: 'right', className: bw.private ? 'bw-private' : '', onClose: () => customize.classList.remove('open') },
     );
   }
 
@@ -643,7 +645,7 @@ function downloadsPage(bw) {
     const scroll = body.scrollTop;
     clear(list);
     const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-    let items = shared.downloadList();
+    let items = shared.downloadList(bw);
     if (terms.length) items = items.filter((d) => terms.every((x) => (d.filename || '').toLowerCase().includes(x) || (d.url || '').toLowerCase().includes(x)));
     if (!items.length) {
       list.appendChild(query ? empty('search', t('dl.noResults')) : empty('arrow_download', t('dl.empty'), t('dl.emptySub')));
@@ -757,7 +759,7 @@ function settingsPage(bw, tab, entry) {
         ),
         row(t('settings.homeButton'), t('settings.homeButtonDesc'), toggle('homeButton'), { icon: 'home' }),
         (() => {
-          const input = h('input', { class: 'input', value: store.prefs.homeUrl || '', placeholder: t('settings.homeNewTab'), spellcheck: false, style: { width: '260px' } });
+          const input = h('input', { class: 'input', value: store.prefs.homeUrl || '', placeholder: t('settings.homeNewTab'), spellcheck: false, style: { width: '260px', maxWidth: '100%' } });
           const err = h('div', { class: 'caption bw-field-error' });
           input.addEventListener('change', () => {
             const v = input.value.trim();

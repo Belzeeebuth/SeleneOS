@@ -22,7 +22,8 @@ export function maxMines(cols, rows) {
 }
 
 /** Validates a custom board. Returns null when valid, or { field, min, max } describing the problem. */
-export function validateCustom({ cols, rows, mines }) {
+export function validateCustom(spec) {
+  const { cols, rows, mines } = spec && typeof spec === 'object' ? spec : {};
   const L = CUSTOM_LIMITS;
   const isInt = (v) => Number.isInteger(v);
   if (!isInt(cols) || cols < L.minCols || cols > L.maxCols) return { field: 'cols', min: L.minCols, max: L.maxCols };
@@ -255,4 +256,46 @@ export function recordGame(stats, { won, ms = 0, date = Date.now() }) {
 
 export function winRate(s) {
   return s && s.played ? Math.round((s.won / s.played) * 100) : 0;
+}
+
+// ---------------------------------------------------------------- saved data (any JSON value -> valid)
+export const LEVELS = ['beginner', 'intermediate', 'expert', 'custom'];
+export const DEFAULT_CUSTOM = { cols: 20, rows: 12, mines: 45 };
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const count = (v) => (Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
+const MAX_DATE = 8.64e15; // largest valid Date value
+
+/** Saved preferences -> a complete, valid preferences object. */
+export function sanitizePrefs(raw) {
+  const p = { difficulty: 'beginner', custom: { ...DEFAULT_CUSTOM }, questionMarks: true, sound: true };
+  if (!isObj(raw)) return p;
+  if (LEVELS.includes(raw.difficulty)) p.difficulty = raw.difficulty;
+  if (isObj(raw.custom) && !validateCustom(raw.custom)) p.custom = { cols: raw.custom.cols, rows: raw.custom.rows, mines: raw.custom.mines };
+  if (typeof raw.questionMarks === 'boolean') p.questionMarks = raw.questionMarks;
+  if (typeof raw.sound === 'boolean') p.sound = raw.sound;
+  return p;
+}
+
+/** One level's saved statistics -> valid stats (non-negative counts, at most five sane best times). */
+export function sanitizeStats(raw) {
+  const s = emptyStats();
+  if (!isObj(raw)) return s;
+  s.played = count(raw.played);
+  s.won = Math.min(count(raw.won), s.played);
+  s.currentStreak = Math.min(count(raw.currentStreak), s.won);
+  s.longestStreak = Math.max(Math.min(count(raw.longestStreak), s.won), s.currentStreak);
+  s.totalMs = count(raw.totalMs);
+  s.bestTimes = (Array.isArray(raw.bestTimes) ? raw.bestTimes : [])
+    .filter((b) => isObj(b) && Number.isFinite(b.ms) && b.ms >= 0 && Number.isFinite(b.date) && Math.abs(b.date) <= MAX_DATE)
+    .map((b) => ({ ms: b.ms, date: b.date }))
+    .sort((a, b) => a.ms - b.ms)
+    .slice(0, 5);
+  return s;
+}
+
+/** Saved statistics for every level ({ beginner: {...}, ... }). Unknown keys are dropped. */
+export function sanitizeAllStats(raw) {
+  const out = {};
+  if (isObj(raw)) for (const k of LEVELS) if (raw[k] != null) out[k] = sanitizeStats(raw[k]);
+  return out;
 }

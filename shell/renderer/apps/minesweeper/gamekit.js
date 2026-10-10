@@ -347,13 +347,19 @@ export function createKit(ctx) {
         { label: t('common.close'), value: 'close', primary: true },
       ],
       onOpen: (dlg) => {
+        let confirming = false; // a double-click on Reset must not stack two confirmations
         dlg._validate = (v) => {
           if (v !== 'reset') return true;
-          ui.confirm(t('gk.resetConfirm'), { title: t('gk.resetTitle'), okLabel: t('gk.reset'), parent: win }).then(async (ok) => {
-            if (!ok) return;
-            await onReset?.(current);
-            await paint();
-          });
+          if (confirming) return false;
+          confirming = true;
+          ui.confirm(t('gk.resetConfirm'), { title: t('gk.resetTitle'), okLabel: t('gk.reset'), danger: true, parent: win })
+            .then(async (ok) => {
+              if (!ok) return;
+              await onReset?.(current);
+              await paint();
+            })
+            .catch((err) => console.error(err))
+            .finally(() => (confirming = false));
           return false;
         };
       },
@@ -432,6 +438,16 @@ export function createKit(ctx) {
     }
   }
   const pending = new Map();
+  let saveWarned = false;
+  // A failed write (disk full, read-only home…) is reported once per session, without interrupting the game.
+  function saveFailed(name, err) {
+    console.warn(`[${ctx.appId}] could not save ${name}`, err);
+    if (saveWarned) return;
+    saveWarned = true;
+    try {
+      ctx.shell?.notify?.({ title: ctx.i18n?.name ? ctx.i18n.name(ctx.manifest?.name) : ctx.appId, body: t('gk.saveFailed'), appId: ctx.appId, icon: 'warning' });
+    } catch {}
+  }
   function save(name, value) {
     // Coalesce rapid writes (e.g. a 2048 game saved after every move).
     clearTimeout(pending.get(name)?.timer);
@@ -443,7 +459,9 @@ export function createKit(ctx) {
     if (!job) return Promise.resolve();
     pending.delete(name);
     clearTimeout(job.timer);
-    return Promise.resolve(ctx.storage.set(name, job.value)).catch((err) => console.warn(`[${ctx.appId}] could not save ${name}`, err));
+    return Promise.resolve()
+      .then(() => ctx.storage.set(name, job.value))
+      .catch((err) => saveFailed(name, err));
   }
   function flush() {
     return Promise.all([...pending.keys()].map(flushOne));

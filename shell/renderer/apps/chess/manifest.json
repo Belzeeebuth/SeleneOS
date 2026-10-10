@@ -1,0 +1,13 @@
+{
+  "id": "chess",
+  "name": { "en": "Chess", "fr": "Échecs" },
+  "description": { "en": "Play chess against the computer or a friend", "fr": "Jouez aux échecs contre l'ordinateur ou un ami" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1040, "height": 760, "minWidth": 720, "minHeight": 560, "background": "mica" },
+  "category": "games",
+  "keywords": { "en": ["chess", "game", "board", "checkmate", "pgn", "fen", "strategy"], "fr": ["échecs", "jeu", "échiquier", "mat", "pgn", "fen", "stratégie"] },
+  "fileTypes": [".pgn"],
+  "singleInstance": true
+}

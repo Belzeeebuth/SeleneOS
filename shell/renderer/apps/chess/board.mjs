@@ -77,6 +77,11 @@ export class BoardView {
       this.cursorEl,
     );
     this.el.addEventListener('pointerdown', (e) => this._pointerDown(e));
+    this.el.addEventListener('pointermove', (e) => this._hover(e));
+    this.el.addEventListener('pointerleave', () => {
+      this._hoverSq = null;
+      this.el.classList.remove('can-grab');
+    });
     this.el.addEventListener('contextmenu', (e) => {
       // right click cancels a selection / drag (like most chess UIs)
       if (this.selected || this.drag) {
@@ -184,17 +189,19 @@ export class BoardView {
         p.el.dataset.piece = code;
       }
       p.el.dataset.square = sq;
-      if (moved || p.el.classList.contains('dragging')) this._movePieceEl(p.el, sq, anim && moved && p !== this._dropped);
+      if (moved || p.el.classList.contains('dragging')) this._movePieceEl(p.el, sq, anim && moved);
       next.push(p);
     };
-    // 1. the move itself (and the castling rook) keeps its identity
+    // 1. the move itself (and the castling rook) keeps its identity; a piece that was just dropped
+    //    by drag & drop already sits on its destination square
     if (move) {
       const pairs = [[move.from, move.to]];
       if (move.rookFrom) pairs.push([move.rookFrom, move.rookTo]);
-      for (const [from, to] of pairs) {
-        const p = old.find((q) => q.sq === from && !used.has(q));
+      pairs.forEach(([from, to], i) => {
+        const dropped = i === 0 && this._dropped && old.includes(this._dropped) && !used.has(this._dropped) ? this._dropped : null;
+        const p = dropped || old.find((q) => q.sq === from && !used.has(q));
         if (p && want.has(to)) assign(p, to, want.get(to));
-      }
+      });
     }
     // 2. unchanged squares
     for (const p of old) {
@@ -235,8 +242,9 @@ export class BoardView {
     }
     this.pieces = next;
     this._dropped = null;
+    this._hoverSq = null; // recompute the grab cursor on the next pointer move
     if (this.selected && !this._pieceAt(this.selected)) this.select(null);
-    else if (this.selected) this.select(this.selected, true);
+    else if (this.selected) this.select(this.selected);
     this._renderHighlights();
   }
 
@@ -276,10 +284,7 @@ export class BoardView {
       this._hl(lastMove.from, 'last');
       this._hl(lastMove.to, 'last');
     }
-    if (this.hint) {
-      this._hl(this.hint.from, 'hint');
-      this._hl(this.hint.to, 'hint');
-    }
+    if (this.hint) this._hl(this.hint.to, 'hint');
     if (this.selected) this._hl(this.selected, 'selected');
     if (check) this._hl(check, 'check');
     if (this.drag?.over && this.drag.over !== this.drag.from) this._hl(this.drag.over, 'hover');
@@ -353,7 +358,7 @@ export class BoardView {
   }
 
   // ------------------------------------------------------------ selection
-  select(sq, keep = false) {
+  select(sq) {
     if (!sq) {
       this.selected = null;
       this.targets = [];
@@ -367,8 +372,7 @@ export class BoardView {
         this.targets = targets;
       }
     }
-    if (!keep || !this.selected) this._renderHighlights();
-    else this._renderHighlights();
+    this._renderHighlights();
     this._renderDots();
   }
 
@@ -386,6 +390,22 @@ export class BoardView {
   }
 
   // ------------------------------------------------------------ pointer
+  _hover(e) {
+    if (this.drag || this._promo) return;
+    const sq = this._squareAt(e.clientX, e.clientY);
+    if (sq === this._hoverSq) return;
+    this._hoverSq = sq;
+    let grab = false;
+    if (sq && this.interactive) {
+      if (this.selected && this._target(sq)) grab = true;
+      else if (this._pieceAt(sq)) {
+        const tg = this.getTargets(sq);
+        grab = !!(tg && tg.length);
+      }
+    }
+    this.el.classList.toggle('can-grab', grab);
+  }
+
   _pointerDown(e) {
     if (e.button !== 0 || this._promo) return;
     e.preventDefault(); // keep focus where it is (arrow keys keep browsing the move list)
@@ -454,20 +474,21 @@ export class BoardView {
     if (d.active) {
       if (sq && sq !== d.from && this._target(sq)) {
         this._dropped = d.piece;
-        // the piece stays under the pointer until the app re-renders; put it on the square now
+        // put the piece on its destination now (the app re-renders right after, or after the
+        // promotion picker; a cancelled promotion slides it back)
         d.piece.el.classList.remove('dragging');
+        d.piece.el.style.removeProperty('--drag-x');
+        d.piece.el.style.removeProperty('--drag-y');
         d.piece.el.classList.add('no-anim');
         this._place(d.piece.el, sq);
         void d.piece.el.offsetWidth;
         d.piece.el.classList.remove('no-anim');
+        d.piece.sq = sq;
         this._tryMove(d.from, sq);
         return;
       }
-      // snap back
-      d.piece.el.classList.remove('dragging');
-      d.piece.el.style.removeProperty('--drag-x');
-      d.piece.el.style.removeProperty('--drag-y');
-      this._movePieceEl(d.piece.el, d.from, false);
+      // glide back to where it came from
+      this._movePieceEl(d.piece.el, d.from, animOn());
       if (sq !== d.from) this.select(null);
       else this._renderHighlights();
       return;
@@ -482,10 +503,7 @@ export class BoardView {
     this._dragCleanup?.();
     this.drag = null;
     this.el.classList.remove('dragging-piece');
-    if (d.active) {
-      d.piece.el.classList.remove('dragging');
-      this._movePieceEl(d.piece.el, d.from, false);
-    }
+    if (d.active) this._movePieceEl(d.piece.el, d.from, animOn());
     this._renderHighlights();
   }
 
@@ -562,7 +580,6 @@ export class BoardView {
             dataset: { piece: c },
             'aria-label': names[c],
             title: `${names[c]} (${t(`pieces.key_${c}`)})`,
-            style: { '--i': i },
             onclick: (e) => {
               e.stopPropagation();
               done(c);

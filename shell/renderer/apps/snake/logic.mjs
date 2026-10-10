@@ -251,6 +251,30 @@ export function emptyStats() {
   return { played: 0, foodEaten: 0, totalMs: 0, totalScore: 0, longest: 0, best: {} };
 }
 
+// ---------------------------------------------------------------- saved data (any JSON value -> valid)
+export const MODES = ['walls', 'wrap', 'walls-obstacles', 'wrap-obstacles'];
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const count = (v) => (Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
+
+/** Saved preferences -> a complete, valid preferences object. */
+export function sanitizePrefs(raw) {
+  const p = { speed: 'normal', speedUp: true, wrap: false, obstacles: false, size: 'medium', sound: true };
+  if (!isObj(raw)) return p;
+  if (typeof raw.speed === 'string' && Object.hasOwn(SPEEDS, raw.speed)) p.speed = raw.speed;
+  if (typeof raw.size === 'string' && Object.hasOwn(SIZES, raw.size)) p.size = raw.size;
+  for (const k of ['speedUp', 'wrap', 'obstacles', 'sound']) if (typeof raw[k] === 'boolean') p[k] = raw[k];
+  return p;
+}
+
+/** Saved statistics -> valid stats (non-negative counts, best score per known mode). */
+export function sanitizeStats(raw) {
+  const s = emptyStats();
+  if (!isObj(raw)) return s;
+  for (const k of ['played', 'foodEaten', 'totalMs', 'totalScore', 'longest']) s[k] = count(raw[k]);
+  if (isObj(raw.best)) for (const m of MODES) if (count(raw.best[m])) s.best[m] = count(raw.best[m]);
+  return s;
+}
+
 export function recordGame(stats, { score, eaten, length, ms, mode }) {
   const s = { ...emptyStats(), ...(stats || {}) };
   s.best = { ...(s.best || {}) };

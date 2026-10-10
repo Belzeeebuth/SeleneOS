@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="tile" x1="6" y1="4" x2="42" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3ddc97"/>
+      <stop offset=".5" stop-color="#14a37f"/>
+      <stop offset="1" stop-color="#0a6b5c"/>
+    </linearGradient>
+    <linearGradient id="ivory" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".6" stop-color="#f1f4f2"/>
+      <stop offset="1" stop-color="#cfdcd6"/>
+    </linearGradient>
+    <linearGradient id="shade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".0"/>
+      <stop offset=".6" stop-color="#0a5a4c" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0a5a4c" stop-opacity=".22"/>
+    </linearGradient>
+    <linearGradient id="fadeChk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="1"/>
+    </linearGradient>
+    <mask id="chkMask"><rect x="3" y="3" width="42" height="42" fill="url(#fadeChk)"/></mask>
+    <filter id="drop" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0.4" dy="1.4" stdDeviation="1.2" flood-color="#053d34" flood-opacity=".45"/>
+    </filter>
+  </defs>
+  <rect x="3" y="3" width="42" height="42" rx="11" fill="url(#tile)"/>
+  <g mask="url(#chkMask)" fill="#ffffff" fill-opacity=".14">
+    <rect x="3" y="24" width="10.5" height="10.5"/>
+    <rect x="24" y="24" width="10.5" height="10.5"/>
+    <rect x="13.5" y="34.5" width="10.5" height="10.5"/>
+    <rect x="34.5" y="34.5" width="10.5" height="10.5"/>
+    <rect x="13.5" y="13.5" width="10.5" height="10.5"/>
+    <rect x="34.5" y="13.5" width="10.5" height="10.5"/>
+  </g>
+  <rect x="3" y="3" width="42" height="42" rx="11" fill="none" stroke="#ffffff" stroke-opacity=".18" stroke-width="1"/>
+  <g filter="url(#drop)" transform="translate(4.6 4.8) scale(.4)">
+    <path d="M20 85C20 82 23 80 27 80H73C77 80 80 82 80 85V88C80 90 78.5 91 76.5 91H23.5C21.5 91 20 90 20 88Z" fill="url(#ivory)"/>
+    <path d="M26 80C26 76 29 74 33 74H67C71 74 74 76 74 80Z" fill="url(#ivory)"/>
+    <path d="M31 75C30.5 66 35 58.5 44 52.5C40 53 35 55.5 30 57.5C25 59.5 18.5 58 17 52.5C15.8 48.5 18 45.5 20.5 42.5L33 26C36 22 40 19.5 44 18.5L47.5 8.5L54 17.5C67 20.5 77 32 78 47C78.8 58 75.5 67.5 72 75Z" fill="url(#ivory)"/>
+    <path d="M31 75C30.5 66 35 58.5 44 52.5C40 53 35 55.5 30 57.5C25 59.5 18.5 58 17 52.5C15.8 48.5 18 45.5 20.5 42.5L33 26C36 22 40 19.5 44 18.5L47.5 8.5L54 17.5C67 20.5 77 32 78 47C78.8 58 75.5 67.5 72 75Z" fill="url(#shade)"/>
+    <path d="M56 19.5C67 24.5 73 34.5 73.2 47.5C73.3 56 71.5 63 69 69" fill="none" stroke="#0e7a64" stroke-opacity=".55" stroke-width="4" stroke-linecap="round"/>
+    <ellipse cx="38" cy="31" rx="3.6" ry="2.8" fill="#0b5f50"/>
+    <circle cx="22.5" cy="47.5" r="2.4" fill="#0b5f50" fill-opacity=".7"/>
+  </g>
+</svg>

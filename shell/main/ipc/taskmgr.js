@@ -449,7 +449,7 @@ async function spawnCommand(api, line) {
   for (const k of Object.keys(env)) if (k.startsWith('ELECTRON_') || k === 'NODE_OPTIONS' || k === 'CHROME_DESKTOP') delete env[k];
   const child = shellish
     ? spawn('/bin/sh', ['-c', cmd], { cwd: os.homedir(), env, detached: true, stdio: 'ignore' })
-    : spawn(which(argv[0]), argv.slice(1), { cwd: os.homedir(), env, detached: true, stdio: 'ignore' });
+    : spawn(which(argv[0]), argv.slice(1), { argv0: argv[0], cwd: os.homedir(), env, detached: true, stdio: 'ignore' });
   const res = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => resolve({ pid: child.pid }), 400);
     child.once('error', (err) => {
@@ -586,7 +586,8 @@ function meminfo() {
     kernelStack: m.KernelStack || 0,
     pageTables: m.PageTables || 0,
     committed: m.Committed_AS || 0,
-    commitLimit: m.CommitLimit || total + (m.SwapTotal || 0),
+    // Like Windows (RAM + page file); the kernel's CommitLimit only applies in strict overcommit mode.
+    commitLimit: (rd('/proc/sys/vm/overcommit_memory') || '').trim() === '2' && m.CommitLimit ? m.CommitLimit : total + (m.SwapTotal || 0),
     swapTotal: m.SwapTotal || 0,
     swapUsed: Math.max(0, (m.SwapTotal || 0) - (m.SwapFree || 0)),
     hardwareReserved: hardwareReserved(total),
@@ -786,9 +787,25 @@ function gpuInfo() {
   return null;
 }
 
-const perfState = { prev: null, cache: null, cacheAt: 0 };
-function snapshot() {
+const perfState = { prev: null, cache: null, cacheAt: 0, inflight: null };
+// The first call primes the counters for a moment so it already reports real rates.
+async function snapshot() {
   if (perfState.cache && Date.now() - perfState.cacheAt < 250) return perfState.cache;
+  if (perfState.inflight) return perfState.inflight;
+  perfState.inflight = (async () => {
+    if (!perfState.prev) {
+      perfState.prev = { at: Date.now(), cpus: cpuLines(), disks: diskCounters(), net: netCounters() };
+      await sleep(200);
+    }
+    return computeSnapshot();
+  })();
+  try {
+    return await perfState.inflight;
+  } finally {
+    perfState.inflight = null;
+  }
+}
+function computeSnapshot() {
   const now = Date.now();
   const cpus = cpuLines();
   const disks = diskCounters();

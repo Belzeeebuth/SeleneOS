@@ -316,6 +316,7 @@
   height: 100%;
 }
 .app-browser .bw-spinner {
+  box-sizing: border-box;
   width: 16px;
   height: 16px;
   border-radius: 50%;
@@ -650,11 +651,19 @@
 }
 .app-browser .bw-dl-ring circle {
   fill: none;
-  stroke: var(--accent);
   stroke-width: 2.2;
+}
+.app-browser .bw-dl-ring .track {
+  stroke: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.app-browser .bw-dl-ring .bar {
+  stroke: var(--accent);
   stroke-linecap: round;
   stroke-dasharray: var(--dl-pct, 0) 100;
   transition: stroke-dasharray 0.3s var(--ease);
+}
+:root[data-animations="off"] .app-browser .bw-dl-ring .bar {
+  transition: none;
 }
 .app-browser .bw-dl-badge {
   position: absolute;
@@ -933,6 +942,17 @@
 .app-browser.bw-menu {
   overflow-y: auto;
 }
+/* Long labels (page titles, favorite names, French strings) end with an ellipsis inside the menu. */
+.menu.app-browser .menu-item .label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.menu.app-browser .menu-item .shortcut,
+.menu.app-browser .menu-item > .icon,
+.menu.app-browser .menu-item > .check {
+  flex: none;
+}
 .app-browser .bw-menu-img {
   width: 16px;
   height: 16px;
@@ -1197,8 +1217,12 @@
   min-height: 16px;
 }
 .app-browser .bw-clear .bw-check {
+  display: flex;
   align-items: flex-start;
   padding: 6px 0;
+}
+.app-browser .bw-clear {
+  min-width: 360px;
 }
 .app-browser .bw-clear .bw-check input {
   margin-top: 2px;
@@ -2062,4 +2086,10 @@
 }
 .app-browser .bw-tabs.ov-l.ov-r {
   -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+}
+
+/* Long unbroken text from sites (host names, realms, URLs) must wrap inside dialogs. */
+.app-browser .bw-wrap,
+.dialog .bw-wrap {
+  overflow-wrap: anywhere;
 }

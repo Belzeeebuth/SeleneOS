@@ -1,0 +1,115 @@
+#!/usr/bin/python3 -I
+# aurora-apply-display — restores the screen modes chosen in Settings > System > Display.
+#
+# Runs as the signed-in user inside the X session, before the shell starts
+# (/usr/lib/aurora/aurora-xsession). Reads ~/.config/aurora/display.json, written by the shell
+# (shell/main/ipc/display.js, "display:save" once the user clicked "Keep changes"):
+#
+#   { "version": 1,
+#     "outputs": { "Virtual-1": { "width": 1920, "height": 1080, "rate": 60.0, "mode": "1920x1080" } } }
+#
+# For every connected output with a saved entry whose mode the output still offers, runs
+#   xrandr --output <name> --mode <mode> [--rate <rate>]
+# Outputs, modes or rates that no longer exist are skipped (a different monitor, a VM resized…).
+# Exit status: 0 (also when there is nothing to do), 1 when xrandr failed for an output.
+import json
+import os
+import re
+import subprocess
+import sys
+
+CONFIG = os.path.join(os.path.expanduser("~"), ".config", "aurora", "display.json")
+NAME_RE = re.compile(r"^[\w.-]{1,32}$")
+
+
+def log(msg):
+    print(f"aurora-apply-display: {msg}", file=sys.stderr)
+
+
+def parse_xrandr(text):
+    """{output: {"current": (w, h, rate) | None, "modes": {(w, h): {rate: mode_name}}}} for connected outputs."""
+    outputs = {}
+    cur = None
+    for line in text.splitlines():
+        m = re.match(r"^(\S+)\s+(connected|disconnected|unknown connection)\b", line)
+        if m:
+            cur = None
+            if m.group(2) == "connected":
+                cur = outputs.setdefault(m.group(1), {"current": None, "modes": {}})
+            continue
+        if cur is None:
+            continue
+        m = re.match(r"^\s+(\d+)x(\d+)(i?)(\S*)\s+(.*)$", line)
+        if not m:
+            if line and not line[0].isspace():
+                cur = None
+            continue
+        w, h, interlaced = int(m.group(1)), int(m.group(2)), bool(m.group(3))
+        name = f"{m.group(1)}x{m.group(2)}{m.group(3)}{m.group(4)}"
+        rates = cur["modes"].setdefault((w, h), {})
+        last = None
+        for tok in m.group(5).split():
+            r = re.match(r"^(\d+(?:\.\d+)?)([*+]*)$", tok)
+            if r:
+                last = round(float(r.group(1)), 2)
+                if not (interlaced and last in rates):
+                    rates.setdefault(last, name)
+                if "*" in r.group(2):
+                    cur["current"] = (w, h, last)
+            elif last is not None and "*" in tok:
+                cur["current"] = (w, h, last)
+    return outputs
+
+
+def main():
+    try:
+        with open(CONFIG, encoding="utf-8") as f:
+            cfg = json.load(f)
+    except FileNotFoundError:
+        return 0
+    except (OSError, ValueError) as e:
+        log(f"ignoring {CONFIG}: {e}")
+        return 0
+    saved = cfg.get("outputs") if isinstance(cfg, dict) else None
+    if not isinstance(saved, dict) or not saved:
+        return 0
+    try:
+        q = subprocess.run(["xrandr", "--query"], capture_output=True, text=True, timeout=10, env={**os.environ, "LC_ALL": "C"})
+    except (OSError, subprocess.TimeoutExpired) as e:
+        log(f"xrandr unavailable: {e}")
+        return 0
+    if q.returncode != 0:
+        log(f"xrandr --query failed: {q.stderr.strip()}")
+        return 0
+    status = 0
+    for name, info in parse_xrandr(q.stdout).items():
+        want = saved.get(name)
+        if not isinstance(want, dict) or not NAME_RE.match(name):
+            continue
+        try:
+            w, h = int(want["width"]), int(want["height"])
+            rate = round(float(want["rate"]), 2) if want.get("rate") is not None else None
+        except (KeyError, TypeError, ValueError):
+            continue
+        rates = info["modes"].get((w, h))
+        if not rates:
+            log(f"{name}: {w}x{h} is not offered any more; skipped")
+            continue
+        if rate is None or rate not in rates:
+            rate = max(rates)
+        if info["current"] == (w, h, rate):
+            continue
+        cmd = ["xrandr", "--output", name, "--mode", rates[rate]]
+        if len(rates) > 1:
+            cmd += ["--rate", f"{rate:.2f}"]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        if r.returncode != 0:
+            log(f"{' '.join(cmd)} failed: {r.stderr.strip()}")
+            status = 1
+        else:
+            log(f"{name} set to {w}x{h} @ {rate} Hz")
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main())

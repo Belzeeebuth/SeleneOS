@@ -1,0 +1,1026 @@
+/* Notepad — Windows 11 style. Every rule is scoped under .app-notepad (the window) or .np-menu
+   (Notepad's own popup menus, which live in <body>). */
+
+/* ------------------------------------------------------------------ app theme override
+   Settings > App theme = Light / Dark different from the system: the window (and its menus)
+   get the other token set. Values mirror core/tokens.css. */
+.app-notepad.np-theme-light,
+.np-menu.np-theme-light {
+  color-scheme: light;
+  --text: rgba(0, 0, 0, 0.896);
+  --text-2: rgba(0, 0, 0, 0.606);
+  --text-3: rgba(0, 0, 0, 0.446);
+  --text-disabled: rgba(0, 0, 0, 0.361);
+  --bg: #f3f3f3;
+  --bg-alt: #eeeeee;
+  --mica-tint: rgba(243, 243, 243, 0.92);
+  --mica-tint-alt: rgba(232, 232, 232, 0.92);
+  --solid: #f9f9f9;
+  --layer: rgba(255, 255, 255, 0.5);
+  --layer-alt: rgba(255, 255, 255, 0.7);
+  --card: rgba(255, 255, 255, 0.7);
+  --card-hover: rgba(249, 249, 249, 0.5);
+  --card-solid: #fbfbfb;
+  --control: rgba(255, 255, 255, 0.7);
+  --control-hover: rgba(249, 249, 249, 0.5);
+  --control-pressed: rgba(249, 249, 249, 0.3);
+  --control-disabled: rgba(249, 249, 249, 0.3);
+  --control-strong: rgba(0, 0, 0, 0.446);
+  --control-stroke: rgba(0, 0, 0, 0.0578);
+  --control-stroke-bottom: rgba(0, 0, 0, 0.1622);
+  --stroke: rgba(0, 0, 0, 0.0803);
+  --stroke-strong: rgba(0, 0, 0, 0.1);
+  --stroke-card: rgba(0, 0, 0, 0.0578);
+  --subtle-hover: rgba(0, 0, 0, 0.0373);
+  --subtle-pressed: rgba(0, 0, 0, 0.0241);
+  --subtle-selected: rgba(0, 0, 0, 0.0373);
+  --input-bg: rgba(255, 255, 255, 0.7);
+  --input-focus-bg: #ffffff;
+  --acrylic: rgba(252, 252, 252, 0.85);
+  --acrylic-solid: #f9f9f9;
+  --acrylic-strong: rgba(243, 243, 243, 0.9);
+  --shadow-flyout: 0 8px 16px rgba(0, 0, 0, 0.14);
+  --shadow-dialog: 0 32px 64px rgba(0, 0, 0, 0.1876), 0 2px 21px rgba(0, 0, 0, 0.1474);
+  --window-stroke: rgba(0, 0, 0, 0.1);
+  --scrollbar: rgba(0, 0, 0, 0.42);
+  --danger: #c42b1c;
+  --danger-bg: #fde7e9;
+  --success: #0f7b0f;
+  --success-bg: #dff6dd;
+  --warning: #9d5d00;
+  --warning-bg: #fff4ce;
+  --info-bg: rgba(246, 246, 246, 0.5);
+}
+.app-notepad.np-theme-dark,
+.np-menu.np-theme-dark {
+  color-scheme: dark;
+  --text: #ffffff;
+  --text-2: rgba(255, 255, 255, 0.786);
+  --text-3: rgba(255, 255, 255, 0.544);
+  --text-disabled: rgba(255, 255, 255, 0.363);
+  --bg: #202020;
+  --bg-alt: #1c1c1c;
+  --mica-tint: rgba(32, 32, 32, 0.92);
+  --mica-tint-alt: rgba(26, 26, 26, 0.92);
+  --solid: #272727;
+  --layer: rgba(58, 58, 58, 0.3);
+  --layer-alt: rgba(255, 255, 255, 0.0538);
+  --card: rgba(255, 255, 255, 0.0512);
+  --card-hover: rgba(255, 255, 255, 0.0837);
+  --card-solid: #2b2b2b;
+  --control: rgba(255, 255, 255, 0.0605);
+  --control-hover: rgba(255, 255, 255, 0.0837);
+  --control-pressed: rgba(255, 255, 255, 0.0326);
+  --control-disabled: rgba(255, 255, 255, 0.0419);
+  --control-strong: rgba(255, 255, 255, 0.544);
+  --control-stroke: rgba(255, 255, 255, 0.0698);
+  --control-stroke-bottom: rgba(255, 255, 255, 0.0465);
+  --stroke: rgba(255, 255, 255, 0.0837);
+  --stroke-strong: rgba(255, 255, 255, 0.12);
+  --stroke-card: rgba(0, 0, 0, 0.1);
+  --subtle-hover: rgba(255, 255, 255, 0.0605);
+  --subtle-pressed: rgba(255, 255, 255, 0.0419);
+  --subtle-selected: rgba(255, 255, 255, 0.0605);
+  --input-bg: rgba(255, 255, 255, 0.0605);
+  --input-focus-bg: rgba(30, 30, 30, 0.7);
+  --acrylic: rgba(44, 44, 44, 0.86);
+  --acrylic-solid: #2c2c2c;
+  --acrylic-strong: rgba(32, 32, 32, 0.92);
+  --shadow-flyout: 0 8px 16px rgba(0, 0, 0, 0.26);
+  --shadow-dialog: 0 32px 64px rgba(0, 0, 0, 0.56), 0 2px 21px rgba(0, 0, 0, 0.55);
+  --window-stroke: rgba(255, 255, 255, 0.08);
+  --scrollbar: rgba(255, 255, 255, 0.5);
+  --danger: #ff99a4;
+  --danger-bg: #442726;
+  --success: #6ccb5f;
+  --success-bg: #393d1b;
+  --warning: #fce100;
+  --warning-bg: #433519;
+  --info-bg: rgba(255, 255, 255, 0.0326);
+}
+.app-notepad.np-theme-light,
+.app-notepad.np-theme-dark {
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ local tokens */
+.app-notepad {
+  --np-surface: var(--layer-alt);
+  --np-divider: var(--stroke);
+  --np-match: color-mix(in srgb, var(--accent) 24%, transparent);
+  --np-match-cur: color-mix(in srgb, var(--accent) 52%, transparent);
+  --np-lh: 1.4;
+  --np-pad-y: 8px;
+  --np-pad-x: 12px;
+}
+.app-notepad [hidden] {
+  display: none !important;
+}
+
+/* ------------------------------------------------------------------ title bar + tabs */
+.app-notepad > .win-titlebar > .win-title {
+  display: none;
+}
+.app-notepad > .win-titlebar {
+  padding-left: 14px;
+  gap: 4px;
+}
+.app-notepad > .win-titlebar > .win-icon {
+  margin-right: 6px;
+}
+.app-notepad .np-strip {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  position: relative;
+}
+.app-notepad .np-tabs {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  padding: 0 8px 0 2px;
+}
+.app-notepad .np-tabs::-webkit-scrollbar {
+  display: none;
+}
+.app-notepad .np-tabs.fade-l {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
+}
+.app-notepad .np-tabs.fade-r {
+  -webkit-mask-image: linear-gradient(to left, transparent, #000 24px);
+}
+.app-notepad .np-tabs.fade-l.fade-r {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+.app-notepad .np-tab {
+  position: relative;
+  flex: 0 1 auto;
+  width: 220px;
+  min-width: 76px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 12px;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  outline: none;
+  container-type: inline-size;
+  transition: color var(--dur-fast) linear;
+}
+.app-notepad .np-tab > :not(.np-tab-bg) {
+  position: relative;
+  z-index: 1;
+}
+.app-notepad .np-tab-bg {
+  position: absolute;
+  inset: 4px 2px 4px;
+  border-radius: 6px;
+  background: transparent;
+  pointer-events: none;
+  transition: background var(--dur-fast) linear;
+}
+.app-notepad .np-tab:hover .np-tab-bg {
+  background: var(--subtle-hover);
+}
+.app-notepad .np-tab:active:not(.active) .np-tab-bg {
+  background: var(--subtle-pressed);
+}
+.app-notepad .np-tab.active {
+  color: var(--text);
+  z-index: 2;
+}
+.app-notepad .np-tab.active .np-tab-bg {
+  inset: 0;
+  border-radius: 8px 8px 0 0;
+  background: var(--np-surface);
+}
+.app-notepad .np-tab.active .np-tab-bg::before,
+.app-notepad .np-tab.active .np-tab-bg::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+}
+.app-notepad .np-tab.active .np-tab-bg::before {
+  left: -8px;
+  background: radial-gradient(circle at 0 0, transparent 7.5px, var(--np-surface) 8px);
+}
+.app-notepad .np-tab.active .np-tab-bg::after {
+  right: -8px;
+  background: radial-gradient(circle at 100% 0, transparent 7.5px, var(--np-surface) 8px);
+}
+/* separators between inactive tabs */
+.app-notepad .np-tab::after {
+  content: "";
+  position: absolute;
+  right: -0.5px;
+  top: 50%;
+  width: 1px;
+  height: 16px;
+  margin-top: -8px;
+  background: var(--stroke-strong);
+  transition: opacity var(--dur-fast) linear;
+}
+.app-notepad .np-tab:last-child::after,
+.app-notepad .np-tab.active::after,
+.app-notepad .np-tab:hover::after,
+.app-notepad .np-tab:has(+ .np-tab.active)::after,
+.app-notepad .np-tab:has(+ .np-tab:hover)::after {
+  opacity: 0;
+}
+.app-notepad .np-tab:focus-visible .np-tab-bg {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.app-notepad .np-tab-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+}
+.app-notepad .np-tab-state {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.app-notepad .np-tab-close {
+  grid-area: 1 / 1;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: background var(--dur-fast) linear, opacity var(--dur-fast) linear;
+}
+.app-notepad .np-tab.active .np-tab-close,
+.app-notepad .np-tab:hover .np-tab-close {
+  opacity: 1;
+  pointer-events: auto;
+}
+.app-notepad .np-tab-close:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-notepad .np-tab-close:active {
+  background: var(--subtle-pressed);
+}
+.app-notepad .np-tab-dot {
+  grid-area: 1 / 1;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity var(--dur-fast) linear, transform var(--dur) var(--ease);
+  pointer-events: none;
+}
+/* Unsaved: the dot replaces the close button until the tab is hovered. */
+.app-notepad .np-tab.dirty:not(:hover) .np-tab-dot {
+  opacity: 1;
+  transform: none;
+}
+.app-notepad .np-tab.dirty:not(:hover) .np-tab-close {
+  opacity: 0;
+  pointer-events: none;
+}
+@container (max-width: 96px) {
+  .app-notepad .np-tab:not(.active):not(.dirty) .np-tab-state {
+    display: none;
+  }
+}
+.app-notepad .np-tabs.dragging .np-tab:not(.drag) {
+  transition: transform 200ms var(--ease);
+}
+.app-notepad .np-tab.drag {
+  z-index: 5;
+  transition: none;
+}
+.app-notepad .np-tab.drag::after {
+  opacity: 0;
+}
+.app-notepad .np-tab-ghost {
+  position: absolute;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.app-notepad .np-newtab {
+  width: 32px;
+  height: 30px;
+  flex: none;
+  margin: 0 4px 3px 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  transition: background var(--dur-fast) linear;
+}
+.app-notepad .np-newtab:hover {
+  background: var(--subtle-hover);
+}
+.app-notepad .np-newtab:active {
+  background: var(--subtle-pressed);
+  color: var(--text-2);
+}
+.app-notepad .np-strip-drag {
+  flex: 1 0 24px;
+  height: 100%;
+}
+.app-notepad:not(.active) .np-tab,
+.app-notepad:not(.active) .np-newtab {
+  color: var(--text-3);
+}
+.app-notepad:not(.active) .np-tab.active {
+  color: var(--text-2);
+}
+
+/* ------------------------------------------------------------------ layout */
+.app-notepad .np-root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.app-notepad .np-root.settings-open > :not(.np-settings) {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ menu bar */
+.app-notepad .np-menubar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 6px 0 4px;
+  background: var(--np-surface);
+}
+.app-notepad .np-menus {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.app-notepad .np-menu-btn {
+  position: relative;
+  height: 32px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: 20px;
+  transition: background var(--dur-fast) linear;
+}
+.app-notepad .np-menu-btn:hover {
+  background: var(--subtle-hover);
+}
+.app-notepad .np-menu-btn:active,
+.app-notepad .np-menu-btn.open {
+  background: var(--subtle-pressed);
+}
+.app-notepad .np-menu-btn.open {
+  background: var(--subtle-hover);
+}
+.app-notepad .np-menus.kbd .np-menu-btn:focus {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.app-notepad .np-keytip {
+  position: absolute;
+  left: 50%;
+  top: calc(100% - 4px);
+  min-width: 18px;
+  padding: 1px 5px 2px;
+  border-radius: var(--radius-sm);
+  background: var(--acrylic-solid);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-tooltip);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  text-align: center;
+  transform: translateX(-50%) scale(0.9);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 30;
+  transition: opacity var(--dur-fast) linear, transform var(--dur) var(--ease);
+}
+.app-notepad .np-menus.keytips .np-keytip {
+  opacity: 1;
+  transform: translateX(-50%);
+}
+.app-notepad:not(.active) .np-menu-btn {
+  color: var(--text-2);
+}
+.app-notepad .np-gear .icon {
+  transition: transform var(--dur-slow) var(--ease);
+}
+.app-notepad .np-gear:hover .icon {
+  transform: rotate(30deg);
+}
+
+/* Notepad popup menus (body level) */
+.np-menu .np-menu-chev {
+  width: 12px;
+  height: 12px;
+  color: var(--text-2);
+  margin-left: 4px;
+}
+.np-menu .menu-item.sub-open {
+  background: var(--subtle-hover);
+}
+.np-menu .menu-item .shortcut {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.np-menu .menu-item.disabled .shortcut {
+  color: var(--text-disabled);
+}
+.np-menu:focus {
+  outline: none;
+}
+
+/* ------------------------------------------------------------------ editor area */
+.app-notepad .np-main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--np-surface);
+  border-top: 1px solid var(--np-divider);
+}
+.app-notepad .np-docs {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.app-notepad .np-doc {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.app-notepad .np-text,
+.app-notepad .np-hl-inner {
+  font-family: var(--np-font, var(--font-mono));
+  font-size: var(--np-fs, 14.667px);
+  font-weight: var(--np-weight, 400);
+  font-style: var(--np-style, normal);
+  line-height: var(--np-lh);
+  letter-spacing: 0;
+  font-variant-ligatures: none;
+  font-kerning: none;
+  tab-size: 8;
+  padding: var(--np-pad-y) var(--np-pad-x);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  text-rendering: auto;
+}
+.app-notepad .np-text {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  caret-color: var(--text);
+  overflow: auto;
+  user-select: text;
+}
+.app-notepad .np-text:focus,
+.app-notepad .np-text:focus-visible {
+  outline: none;
+}
+.app-notepad .np-text::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.app-notepad .np-root.nowrap .np-text,
+.app-notepad .np-root.nowrap .np-hl-inner {
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.app-notepad .np-hl {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.app-notepad .np-hl-inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0;
+  color: transparent;
+  pointer-events: none;
+}
+.app-notepad .np-hl mark.np-m {
+  color: transparent;
+  background: var(--np-match);
+  border-radius: 2px;
+}
+.app-notepad .np-hl mark.np-m.cur {
+  background: var(--np-match-cur);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.app-notepad .np-measure {
+  visibility: hidden;
+  z-index: -1;
+  height: auto;
+  max-height: none;
+}
+
+/* infobar for files changed on disk */
+.app-notepad .np-notice {
+  flex: none;
+  padding: 8px 8px 0;
+}
+.app-notepad .np-notice-bar {
+  align-items: center;
+  padding: 6px 8px 6px 14px;
+  animation: np-drop-in var(--dur-slow) var(--ease);
+}
+.app-notepad .np-notice-bar > .icon {
+  margin-top: 0;
+}
+.app-notepad .np-notice-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+@keyframes np-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+/* drag & drop target */
+.app-notepad .np-drop {
+  position: absolute;
+  inset: 8px;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  pointer-events: none;
+  animation: np-fade var(--dur) linear;
+}
+.app-notepad .np-drop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  border-radius: var(--radius);
+  background: var(--acrylic-solid);
+  box-shadow: var(--shadow-flyout);
+  color: var(--text);
+}
+.app-notepad .np-drop-card .icon {
+  color: var(--accent);
+}
+@keyframes np-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ find / replace bar */
+.app-notepad .np-find {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--np-divider);
+  background: var(--np-surface);
+  container-type: inline-size;
+}
+.app-notepad .np-find-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.app-notepad .np-find-btn {
+  flex: none;
+}
+.app-notepad .btn.np-find-opts {
+  padding: 0 8px;
+  gap: 4px;
+  min-width: 0;
+}
+.app-notepad .np-find-opts .icon:last-child {
+  color: var(--text-2);
+}
+.app-notepad .np-find-spacer {
+  width: 32px;
+  flex: none;
+}
+.app-notepad .np-find-field {
+  position: relative;
+  flex: 0 1 300px;
+  min-width: 120px;
+}
+.app-notepad .np-find-field .input {
+  width: 100%;
+}
+.app-notepad .np-find-input {
+  padding-right: 92px;
+}
+.app-notepad .np-find-count {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  pointer-events: none;
+}
+.app-notepad .np-find-field.none .np-find-count {
+  color: var(--danger);
+}
+.app-notepad .np-find-input.invalid,
+.app-notepad .np-find-input.invalid:focus {
+  border-bottom-color: var(--danger);
+}
+.app-notepad .np-find-status {
+  min-width: 0;
+  margin-left: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.app-notepad .np-find-row2 .btn {
+  flex: none;
+  min-width: 92px;
+}
+@container (max-width: 470px) {
+  .app-notepad .np-find-status {
+    display: none;
+  }
+  .app-notepad .np-find-row2 .btn {
+    min-width: 0;
+    padding: 5px 8px 6px;
+  }
+}
+
+/* ------------------------------------------------------------------ status bar */
+.app-notepad .np-status {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  border-top: 1px solid var(--np-divider);
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  color: var(--text);
+  container-type: inline-size;
+  overflow: hidden;
+}
+.app-notepad .np-st-left,
+.app-notepad .np-st-right {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.app-notepad .np-st-left {
+  flex: 0 1 auto;
+}
+.app-notepad .np-st-right {
+  flex: none;
+}
+.app-notepad .np-st-item {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.app-notepad .np-st-pos {
+  min-width: 108px;
+  flex: none;
+}
+.app-notepad .np-st-btn {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  transition: background var(--dur-fast) linear;
+}
+.app-notepad .np-st-btn:hover {
+  background: var(--subtle-hover);
+}
+.app-notepad .np-st-btn:active {
+  background: var(--subtle-pressed);
+}
+.app-notepad .np-st-sep {
+  width: 1px;
+  height: 16px;
+  flex: none;
+  background: var(--stroke-strong);
+}
+.app-notepad:not(.active) .np-status {
+  color: var(--text-2);
+}
+@container (max-width: 540px) {
+  .app-notepad .np-st-chars,
+  .app-notepad .np-st-left .np-st-sep {
+    display: none;
+  }
+}
+@container (max-width: 400px) {
+  .app-notepad .np-st-zoom,
+  .app-notepad .np-st-zoom + .np-st-sep {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ settings page */
+.app-notepad .np-settings {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  outline: none;
+}
+.app-notepad .np-set-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 1048px;
+  margin: 0 auto;
+  padding: 16px 24px 12px;
+}
+.app-notepad .np-set-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  line-height: 36px;
+  font-weight: 600;
+}
+.app-notepad .np-set-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 24px 28px;
+}
+.app-notepad .np-set-content {
+  max-width: 1000px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-notepad .np-set-section {
+  margin: 18px 0 6px;
+  font-weight: 600;
+}
+.app-notepad .np-set-section:first-child {
+  margin-top: 4px;
+}
+.app-notepad .np-set-card {
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.app-notepad .np-set-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 66px;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+.app-notepad .np-set-row > .icon {
+  flex: none;
+}
+.app-notepad .np-set-head {
+  transition: background var(--dur-fast) linear;
+}
+.app-notepad .np-set-head:hover {
+  background: var(--card-hover);
+}
+.app-notepad .np-set-head:active {
+  background: var(--subtle-pressed);
+}
+.app-notepad .np-set-text {
+  flex: 1;
+  min-width: 0;
+}
+.app-notepad .np-set-summary {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 45%;
+}
+.app-notepad .np-set-chev {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin: 0 4px;
+  transition: transform var(--dur) var(--ease);
+}
+.app-notepad .np-set-exp.open .np-set-chev {
+  transform: rotate(180deg);
+}
+.app-notepad .np-set-body {
+  border-top: 1px solid var(--stroke);
+  padding: 14px 16px 16px 52px;
+}
+.app-notepad .np-set-radios {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-notepad .np-set-radio {
+  align-items: flex-start;
+  padding: 6px 0;
+}
+.app-notepad .np-set-radio input {
+  margin-top: 0;
+}
+.app-notepad .np-set-select {
+  flex: none;
+  min-width: 200px;
+  max-width: 50%;
+}
+.app-notepad .np-set-toggle {
+  flex: none;
+}
+.app-notepad .np-set-about .np-set-row img {
+  flex: none;
+}
+.app-notepad .np-set-legal {
+  padding: 0 16px 14px 64px;
+}
+
+/* ------------------------------------------------------------------ font controls (dialog + settings) */
+.app-notepad .np-font-dialog {
+  width: 520px;
+  max-width: 100%;
+}
+.app-notepad .np-font-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.app-notepad .np-font-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.app-notepad .np-font-grid > :nth-child(1) {
+  flex: 2 1 180px;
+}
+.app-notepad .np-font-grid > :nth-child(2) {
+  flex: 1 1 130px;
+}
+.app-notepad .np-font-grid > :nth-child(3) {
+  flex: 0 1 92px;
+  min-width: 80px;
+}
+.app-notepad .np-font-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.app-notepad .np-font-field .select {
+  width: 100%;
+}
+.app-notepad .np-font-label {
+  font-size: var(--fs-body);
+}
+.app-notepad .np-font-preview {
+  height: 104px;
+  overflow: hidden;
+  padding: 12px 16px;
+  border: 1px solid var(--stroke-card);
+  border-radius: var(--radius-sm);
+  background: var(--np-surface);
+}
+.app-notepad .np-font-sample {
+  line-height: 1.45;
+  white-space: nowrap;
+  color: var(--text);
+}
+.app-notepad .np-font-dlg .dialog-body {
+  overflow: auto;
+}
+
+/* ------------------------------------------------------------------ dialogs */
+.app-notepad .np-ask .dialog-body {
+  max-width: 520px;
+}
+.app-notepad .np-ask-many {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 300px;
+}
+.app-notepad .np-ask-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 200px;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--stroke-card);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+}
+.app-notepad .np-ask-item {
+  display: grid;
+  grid-template-columns: 20px minmax(0, auto) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+}
+.app-notepad .np-ask-item:hover {
+  background: var(--subtle-hover);
+}
+.app-notepad .np-ask-path {
+  text-align: right;
+}
+.app-notepad .np-alert {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 460px;
+}
+.app-notepad .np-alert-detail {
+  word-break: break-word;
+}
+.app-notepad .dialog-footer .btn {
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------------ reduced motion */
+:root[data-animations="off"] .app-notepad .np-tab,
+:root[data-animations="off"] .app-notepad .np-tab-close,
+:root[data-animations="off"] .app-notepad .np-tab-dot {
+  transition: none;
+}

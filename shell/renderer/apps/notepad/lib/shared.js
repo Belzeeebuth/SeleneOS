@@ -34,6 +34,8 @@ export const shared = {
   recent: [],
   session: null,
   windows: [], // NotepadWindow controllers, oldest first
+  mru: [], // most recently focused first
+  justFocused: null,
   fonts: null,
   _subs: new Map(),
   _timers: {},
@@ -138,8 +140,28 @@ export const shared = {
   },
   unregister(w) {
     this.windows = this.windows.filter((x) => x !== w);
+    this.mru = this.mru.filter((x) => x !== w);
+  },
+  // Focus tracking. The registry focuses the *oldest* Notepad window right before calling
+  // onRelaunch; justFocused remembers which window was in front before that, for one tick.
+  noteFocus(w) {
+    if (this.mru[0] !== w) {
+      const jf = { w, prev: this.mru[0] || null };
+      this.justFocused = jf;
+      setTimeout(() => {
+        if (this.justFocused === jf) this.justFocused = null;
+      });
+    }
+    this.mru = [w, ...this.mru.filter((x) => x !== w)];
+  },
+  relaunchTarget() {
+    const jf = this.justFocused;
+    if (jf?.prev && this.windows.includes(jf.prev) && !jf.prev.closing) return jf.prev;
+    return this.mostRecent();
   },
   mostRecent() {
+    const alive = this.mru.find((w) => this.windows.includes(w) && !w.closing);
+    if (alive) return alive;
     const wm = this.windows[0]?.ctx.shell.wm;
     if (!wm) return null;
     const order = wm.mru({ desktop: null });

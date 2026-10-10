@@ -1,0 +1,16 @@
+{
+  "id": "mail",
+  "name": { "en": "Mail", "fr": "Courrier" },
+  "description": { "en": "Read and send e-mail from all your accounts", "fr": "Lisez et envoyez les e-mails de tous vos comptes" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1240, "height": 780, "minWidth": 520, "minHeight": 440, "titlebar": "tall", "background": "mica" },
+  "category": "internet",
+  "keywords": {
+    "en": ["mail", "email", "e-mail", "inbox", "outlook", "imap", "smtp", "message", "gmail", "compose"],
+    "fr": ["courrier", "mail", "e-mail", "courriel", "messagerie", "boîte de réception", "message", "gmail"]
+  },
+  "singleInstance": true,
+  "fileTypes": [".eml"]
+}

@@ -9,7 +9,7 @@
 # userns rule, so loading it alone is safe on the overlay root of the live session.
 [Unit]
 Description=Load the Aurora Shell AppArmor profile (live session)
-Documentation=man:apparmor_parser(8)
+Documentation=file:/etc/apparmor.d/aurora-shell
 DefaultDependencies=no
 After=local-fs.target systemd-sysctl.service apparmor.service
 Before=sysinit.target greetd.service display-manager.service

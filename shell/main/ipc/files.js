@@ -2,6 +2,7 @@
 // File Explorer helpers (complements fs.js, which stays the generic file API).
 //
 //   files:recent ({limit})                -> [Entry]  recently modified files under the user's folders
+//   files:media ({roots, limit})          -> [Entry]  photos and videos under roots (default ~/Pictures), newest first
 //   files:props (path)                    -> Entry + {atime, birthtime, sizeOnDisk, owner, group, uid, gid,
 //                                             nlink, readonly, target, writable, dev}
 //   files:dirStats (paths, {opId})        -> {bytes, disk, files, dirs}; live 'files:dirStats' {opId, ...partial}
@@ -318,6 +319,38 @@ module.exports = function register(api) {
     } catch {}
     found.sort((a, b) => b.mtime - a.mtime);
     return found.slice(0, limit);
+  });
+
+  // Gallery: photos and videos under the given folders (default: Pictures), newest first.
+  api.handle('files:media', async (opts = {}) => {
+    const roots = Array.isArray(opts.roots) && opts.roots.length ? opts.roots : [path.join(HOME, 'Pictures')];
+    const limit = opts.limit ?? 2000;
+    const deadline = Date.now() + (opts.timeoutMs ?? 4000);
+    const EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg', '.avif', '.heic', '.jfif', '.mp4', '.webm', '.mkv', '.mov', '.m4v', '.ogv']);
+    const out = [];
+    const walk = async (dir, depth) => {
+      if (Date.now() > deadline || out.length >= limit * 2) return;
+      let list;
+      try {
+        list = await fsp.readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const d of list) {
+        if (d.name.startsWith('.')) continue;
+        const p = path.join(dir, d.name);
+        if (d.isDirectory()) {
+          if (depth < 8) await walk(p, depth + 1);
+        } else if (EXT.has(path.extname(d.name).toLowerCase())) {
+          try {
+            out.push((await statEntry(p)).entry);
+          } catch {}
+        }
+      }
+    };
+    for (const r of roots) await walk(r, 0);
+    out.sort((a, b) => b.mtime - a.mtime);
+    return out.slice(0, limit);
   });
 
   api.handle('files:props', async (p) => {

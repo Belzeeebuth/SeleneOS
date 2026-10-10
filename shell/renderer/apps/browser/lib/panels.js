@@ -269,7 +269,7 @@ export function pageMenu(bw, tab, p) {
     items.push(
       { label: t('ctx.openImageTab'), icon: 'image', action: () => bw.openUrl(p.srcURL, { active: false, opener: tab }) },
       { label: t('ctx.saveImageAs'), icon: 'save', action: () => saveUrlAs(bw, tab, p.srcURL, suggestName(p.srcURL, 'image')) },
-      { label: t('ctx.copyImage'), icon: 'copy', action: () => shared.api.invoke('browser:copyImageAt', tab.wcId, p.x, p.y).catch((e) => ui.alert(e.message, { parent: bw.win })) },
+      { label: t('ctx.copyImage'), icon: 'copy', action: () => shared.api.invoke('browser:copyImageAt', tab.wcId, p.x, p.y).catch((e) => ui.alert(shared.errorText(e), { title: t('ctx.copyImage'), parent: bw.win })) },
       { label: t('ctx.copyImageLink'), icon: 'link', action: () => copyText(p.srcURL) },
       '-',
     );
@@ -342,7 +342,7 @@ async function saveUrlAs(bw, tab, url, name) {
   try {
     await shared.api.invoke('browser:downloadUrl', { sourceId: tab?.wcId, partition: bw.partition, url, savePath: path });
   } catch (err) {
-    ui.alert(err.message, { title: bw.t('dl.title'), parent: bw.win });
+    ui.alert(shared.errorText(err), { title: bw.t('dl.title'), parent: bw.win });
   }
 }
 
@@ -365,7 +365,7 @@ export async function savePdf(bw) {
     await shared.api.invoke('fs:writeBytes', path, data);
     shared.shell.notify({ title: bw.t('menu.pdfSaved'), body: path.split('/').pop(), appId: 'browser', onClick: () => shared.shell.openFile(path) });
   } catch (err) {
-    ui.alert(err.message, { title: bw.t('menu.savePdf'), parent: bw.win });
+    ui.alert(shared.errorText(err), { title: bw.t('menu.savePdf'), parent: bw.win });
   }
 }
 
@@ -498,7 +498,7 @@ export function favoriteItemMenu(bw, node, e) {
 
 export async function deleteFavorite(bw, node) {
   if (node.type === 'folder' && node.children.length) {
-    const ok = await ui.confirm(bw.t('fav.deleteFolderConfirm', { name: node.title, count: node.children.length }), { title: bw.t('fav.deleteFolder'), okLabel: bw.t('common.delete'), danger: true, parent: bw.win });
+    const ok = await ui.confirm(bw.t('fav.deleteFolderConfirm', { name: node.title, count: node.children.length }), { title: bw.t('fav.deleteFolder'), okLabel: bw.t('common.delete'), parent: bw.win });
     if (!ok) return;
   }
   shared.store.removeNode(node.id);
@@ -701,7 +701,7 @@ export function downloadsFlyout(bw, anchor) {
   const list = h('div', { class: 'bw-dl-list' });
   const render = () => {
     clear(list);
-    const items = shared.downloadList().slice(0, 6);
+    const items = shared.downloadList(bw).slice(0, 6);
     if (!items.length) list.appendChild(h('div', { class: 'bw-dl-empty' }, icon('arrow_download', { size: 32 }), h('div', null, t('dl.empty'))));
     for (const d of items) list.appendChild(downloadRow(bw, d, { compact: true }));
   };
@@ -777,7 +777,7 @@ export function downloadRow(bw, d, { compact = false } = {}) {
     );
   const actions = h('div', { class: 'bw-dl-actions' });
   const api = shared.api;
-  const fail = (err) => ui.alert(err.message, { title: t('dl.title'), parent: bw.win });
+  const fail = (err) => ui.alert(shared.errorText(err), { title: t('dl.title'), parent: bw.win });
   if (d.state === 'progressing') {
     if (d.paused) actions.appendChild(act('play', t('dl.resume'), () => api.invoke('browser:downloadResume', d.id).catch(fail)));
     else actions.appendChild(act('pause', t('dl.pause'), () => api.invoke('browser:downloadPause', d.id).catch(fail)));
@@ -887,7 +887,7 @@ export async function siteInfo(bw, anchor) {
           onclick: async () => {
             const ok = await ui.confirm(t('site.clearConfirm', { host }), { title: t('site.clearData'), okLabel: t('settings.clearNow'), parent: bw.win });
             if (!ok) return;
-            await shared.api.invoke('browser:clearData', { partition: bw.partition, cookies: true, origin }).catch((e) => ui.alert(e.message, { parent: bw.win }));
+            await shared.api.invoke('browser:clearData', { partition: bw.partition, cookies: true, origin }).catch((e) => ui.alert(shared.errorText(e), { title: t('site.clearData'), parent: bw.win }));
             bw.closeFlyout();
             bw.reload();
           },
@@ -999,15 +999,16 @@ export function permissionBubble(bw, tab, p) {
 }
 
 // ================================================================== dialogs
-export async function authDialog(bw, p) {
+export async function authDialog(bw, p, onHandle) {
   const t = bw.t;
   const user = h('input', { class: 'input', autocomplete: 'username', spellcheck: false });
   const pass = h('input', { class: 'input', type: 'password', autocomplete: 'current-password' });
   const body = h(
     'div',
     { class: 'bw-dialog-form' },
-    h('p', { class: 'text-2', style: { margin: '0 0 12px' } }, p.isProxy ? t('auth.proxyBody', { host: p.host }) : t('auth.body', { host: p.host })),
-    p.realm ? h('p', { class: 'caption text-2', style: { margin: '0 0 12px' } }, t('auth.realm', { realm: p.realm })) : null,
+    h('p', { class: 'text-2 bw-wrap', style: { margin: '0 0 12px' } }, p.isProxy ? t('auth.proxyBody', { host: String(p.host || '').slice(0, 253) }) : t('auth.body', { host: String(p.host || '').slice(0, 253) })),
+    // The realm is chosen by the server: shown as plain text, shortened.
+    p.realm ? h('p', { class: 'caption text-2 bw-wrap', style: { margin: '0 0 12px' } }, t('auth.realm', { realm: String(p.realm).slice(0, 120) })) : null,
     h('div', { class: 'field' }, h('label', null, t('auth.user')), user),
     h('div', { class: 'field' }, h('label', null, t('auth.password')), pass),
   );
@@ -1020,9 +1021,48 @@ export async function authDialog(bw, p) {
       { label: t('auth.signIn'), value: 'ok', primary: true },
       { label: t('common.cancel'), value: null },
     ],
+    onOpen: (_dlg, done) => {
+      onHandle?.(done);
+      setTimeout(() => user.focus(), 60);
+    },
   });
   if (v !== 'ok') return null;
   return { username: user.value, password: pass.value };
+}
+
+/** alert / confirm / prompt from a web page, Edge style ("example.com says"). -> { ok, value, suppress } | null */
+export async function jsDialog(bw, p, onHandle) {
+  const t = bw.t;
+  const host = (hostOf(p.origin) || p.origin || '').slice(0, 253);
+  const text = String(p.message || '');
+  const message = h('div', { class: 'bw-jsdlg-msg bw-wrap selectable' }, text.length > 2000 ? `${text.slice(0, 2000)}…` : text);
+  const input = p.kind === 'prompt' ? h('input', { class: 'input', value: p.def || '', spellcheck: false, 'aria-label': text.slice(0, 200) || t('jsdlg.prompt') }) : null;
+  const suppress = p.offerSuppress ? h('input', { type: 'checkbox' }) : null;
+  const body = h(
+    'div',
+    { class: 'bw-dialog-form bw-jsdlg' },
+    message,
+    input ? h('div', { class: 'field', style: { marginTop: '12px' } }, input) : null,
+    suppress ? h('label', { class: 'checkbox bw-check' }, suppress, h('span', null, t('jsdlg.suppress'))) : null,
+  );
+  const buttons = [{ label: t('common.ok'), value: 'ok', primary: true }];
+  if (p.kind !== 'alert') buttons.push({ label: t('common.cancel'), value: null });
+  const v = await ui.dialog({
+    title: host ? t('jsdlg.says', { host }) : t('jsdlg.pageSays'),
+    body,
+    parent: bw.win,
+    width: 440,
+    buttons,
+    onOpen: (_dlg, done) => {
+      onHandle?.(done);
+      if (input)
+        setTimeout(() => {
+          input.focus();
+          input.select();
+        }, 60);
+    },
+  });
+  return { ok: v === 'ok' || (p.kind === 'alert' && v !== undefined), value: input ? input.value : null, suppress: !!suppress?.checked };
 }
 
 export async function clearDataDialog(bw) {
@@ -1089,7 +1129,7 @@ export async function clearDataDialog(bw) {
     shared.shell.notify({ title: t('clear.doneTitle'), body: t('clear.doneBody'), appId: 'browser', icon: 'checkmark_circle', timeout: 4000 });
     return true;
   } catch (err) {
-    ui.alert(err.message, { title: t('settings.clearData'), parent: bw.win });
+    ui.alert(shared.errorText(err), { title: t('settings.clearData'), parent: bw.win });
     return false;
   }
 }

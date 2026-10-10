@@ -1,0 +1,796 @@
+{
+  "en": {
+    "app": {
+      "name": "Task Manager"
+    },
+    "nav": {
+      "label": "Task Manager pages",
+      "toggle": "Open or close navigation",
+      "processes": "Processes",
+      "performance": "Performance",
+      "history": "App history",
+      "startup": "Startup apps",
+      "users": "Users",
+      "details": "Details",
+      "services": "Services",
+      "settings": "Settings"
+    },
+    "search": {
+      "placeholder": "Type a name, publisher, or PID to search",
+      "label": "Search processes",
+      "clear": "Clear search",
+      "onlineSuffix": "Linux process"
+    },
+    "cmd": {
+      "toolbar": "Commands",
+      "run": "Run new task",
+      "endTask": "End task",
+      "endTree": "End process tree",
+      "efficiency": "Efficiency mode",
+      "view": "View",
+      "properties": "Properties",
+      "more": "See more",
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "enable": "Enable",
+      "disable": "Disable",
+      "signOut": "Sign out",
+      "manageAccounts": "Manage user accounts",
+      "deleteHistory": "Delete usage history",
+      "copy": "Copy"
+    },
+    "view": {
+      "speed": "Update speed",
+      "refresh": "Refresh now",
+      "groupByType": "Group by type",
+      "expandAll": "Expand all",
+      "collapseAll": "Collapse all",
+      "kernelThreads": "Show kernel threads"
+    },
+    "speed": {
+      "high": "High",
+      "normal": "Normal",
+      "low": "Low",
+      "paused": "Paused"
+    },
+    "grp": {
+      "apps": "Apps ({count})",
+      "background": "Background processes ({count})",
+      "system": "Aurora processes ({count})"
+    },
+    "col": {
+      "name": "Name",
+      "status": "Status",
+      "pid": "PID",
+      "ppid": "Parent PID",
+      "procname": "Process name",
+      "user": "User name",
+      "userCol": "User",
+      "cpu": "CPU",
+      "mem": "Memory",
+      "memPrivate": "Memory (private)",
+      "rss": "Working set",
+      "disk": "Disk",
+      "threads": "Threads",
+      "priority": "Base priority",
+      "cpuTime": "CPU time",
+      "started": "Started",
+      "cmdline": "Command line",
+      "description": "Description",
+      "startup": "Startup type",
+      "command": "Command",
+      "scope": "Installed for",
+      "impact": "Startup impact",
+      "instances": "Running"
+    },
+    "status": {
+      "running": "Running",
+      "suspended": "Suspended",
+      "zombie": "Terminated",
+      "efficiency": "Efficiency mode"
+    },
+    "prio": {
+      "realtime": "Realtime",
+      "high": "High",
+      "aboveNormal": "Above normal",
+      "normal": "Normal",
+      "belowNormal": "Below normal",
+      "low": "Low"
+    },
+    "shell": {
+      "name": "Aurora Shell",
+      "main": "Aurora Shell (main process)",
+      "desktop": "Desktop and apps",
+      "gpu": "GPU process",
+      "utility": "Utility",
+      "zygote": "Process launcher",
+      "renderer": "Content process"
+    },
+    "kernel": {
+      "name": "Linux kernel"
+    },
+    "proc": {
+      "tab": "Web content ({name})"
+    },
+    "tip": {
+      "inShell": "This app runs inside Aurora Shell; its usage is included in Aurora Shell."
+    },
+    "menu": {
+      "expand": "Expand",
+      "collapse": "Collapse",
+      "switchTo": "Switch to",
+      "minimize": "Minimize",
+      "maximize": "Maximize",
+      "restore": "Restore",
+      "resourceValues": "Resource values",
+      "values": "Values",
+      "percents": "Percents",
+      "goToDetails": "Go to details",
+      "goToService": "Go to service",
+      "openLocation": "Open file location",
+      "searchOnline": "Search online",
+      "properties": "Properties",
+      "columns": "Select columns",
+      "resetColumns": "Reset columns",
+      "setPriority": "Set priority",
+      "suspend": "Suspend process",
+      "resume": "Resume process"
+    },
+    "empty": {
+      "loading": "Loading…",
+      "search": "No results for “{q}”"
+    },
+    "err": {
+      "title": "Task Manager",
+      "data": "Couldn't read system information: {msg}",
+      "end": "Unable to end “{name}”: {msg}",
+      "priority": "Unable to change the priority of “{name}”: {msg}",
+      "admin": "The operation couldn't be completed: {msg}",
+      "gone": "The process has already ended.",
+      "noLocation": "The file location of this process isn't available.",
+      "noService": "“{name}” isn't part of a service.",
+      "priorityAdmin": "Raising the priority of “{name}” needs administrator rights, which this version of Aurora can't grant for priorities. You can still lower it.",
+      "priorityOther": "Only an administrator can change the priority of “{name}”, which belongs to another user."
+    },
+    "uac": {
+      "end": "End “{name}” (PID {pid}), which belongs to another user.",
+      "priority": "Change the priority of “{name}” (PID {pid})."
+    },
+    "confirm": {
+      "endTitle": "End “{name}”?",
+      "endBody": "If an open program is associated with this process, it will close and you will lose any unsaved data.",
+      "endProcess": "End process",
+      "criticalTitle": "End “{name}”?",
+      "criticalBody": "This is a system process. Ending it can close all your apps, sign you out or make the system unstable, and unsaved data will be lost. Are you sure you want to continue?",
+      "treeTitle": "End the process tree of “{name}”?",
+      "treeBody": "This process and all of the processes it started will end. Any open programs among them will close and you will lose unsaved data.",
+      "endTree": "End process tree"
+    },
+    "notResponding": {
+      "title": "“{name}” is not responding",
+      "body": "The process didn't close when it was asked to. If you end it now, you will lose any unsaved data.",
+      "endNow": "End now",
+      "wait": "Wait"
+    },
+    "eff": {
+      "title": "Turn on Efficiency mode?",
+      "body": "Efficiency mode lowers the process priority so other apps stay responsive and the system uses less power. Some processes may run slower.",
+      "dontAsk": "Don't show this again",
+      "turnOn": "Turn on Efficiency mode"
+    },
+    "props": {
+      "title": "{name} Properties",
+      "process": "Process",
+      "kernelThread": "Kernel thread",
+      "auroraApp": "Aurora app",
+      "location": "Location",
+      "cmdline": "Command line",
+      "parent": "Parent process",
+      "started": "Started",
+      "memory": "Working set",
+      "peak": "Peak working set",
+      "files": "Open files",
+      "service": "Service",
+      "cwd": "Working folder",
+      "description": "Description",
+      "appId": "App ID",
+      "windows": "Windows",
+      "openedAt": "Opened",
+      "host": "Process",
+      "inShell": "Runs inside Aurora Shell (PID {pid})",
+      "ownProcesses": "Own processes: {pids}",
+      "na": "Not available",
+      "none": "None",
+      "denied": "Access denied"
+    },
+    "run": {
+      "title": "Create new task",
+      "intro": "Type the name of a program, folder, document, or Internet resource, and Aurora will open it for you.",
+      "open": "Open:",
+      "browse": "Browse…",
+      "browseTitle": "Browse",
+      "notFound": "Aurora can't find “{cmd}”. Make sure you typed the name correctly, and then try again."
+    },
+    "perf": {
+      "devices": "Devices",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "disk": "Disk {n}",
+      "ethernet": "Ethernet",
+      "wifi": "Wi-Fi",
+      "gpu": "GPU {n}",
+      "utilization": "% Utilization",
+      "utilizationOver": "% Utilization over {s} seconds",
+      "seconds": "60 seconds",
+      "util": "Utilization",
+      "speed": "Speed",
+      "processes": "Processes",
+      "threads": "Threads",
+      "handles": "Open files",
+      "uptime": "Up time",
+      "baseSpeed": "Base speed:",
+      "sockets": "Sockets:",
+      "cores": "Cores:",
+      "logical": "Logical processors:",
+      "virtualization": "Virtualization:",
+      "vm": "Virtual machine:",
+      "l1": "L1 cache:",
+      "l2": "L2 cache:",
+      "l3": "L3 cache:",
+      "load": "Load average:",
+      "virt": {
+        "enabled": "Enabled",
+        "disabled": "Not capable",
+        "unavailable": "Not available"
+      },
+      "memUsage": "Memory usage",
+      "memComposition": "Memory composition",
+      "comp": {
+        "inuse": "In use",
+        "inuseDesc": "Memory used by processes, drivers or the operating system",
+        "modified": "Modified",
+        "modifiedDesc": "Memory whose contents must be written to disk before it can be used for another purpose",
+        "standby": "Standby",
+        "standbyDesc": "Memory that contains cached data and code that is not actively in use",
+        "free": "Free",
+        "freeDesc": "Memory that is not currently in use, and that will be repurposed first"
+      },
+      "inUse": "In use",
+      "available": "Available",
+      "committed": "Committed",
+      "cached": "Cached",
+      "shared": "Shared",
+      "kernelMem": "Kernel memory",
+      "installed": "Total:",
+      "swap": "Swap:",
+      "noSwap": "None",
+      "buffers": "Buffers:",
+      "reserved": "Hardware reserved:",
+      "activeTime": "Active time",
+      "transferRate": "Disk transfer rate",
+      "avgResponse": "Average response time",
+      "readSpeed": "Read speed",
+      "writeSpeed": "Write speed",
+      "capacity": "Capacity:",
+      "formatted": "Formatted:",
+      "systemDisk": "System disk:",
+      "pageFile": "Swap space:",
+      "type": "Type:",
+      "model": "Model:",
+      "mounts": "Mount points:",
+      "throughput": "Throughput",
+      "send": "Send",
+      "receive": "Receive",
+      "sendRecv": "S: {s} R: {r}",
+      "adapter": "Adapter name:",
+      "connType": "Connection type:",
+      "linkSpeed": "Link speed:",
+      "signal": "Signal strength:",
+      "ipv4": "IPv4 address:",
+      "ipv6": "IPv6 address:",
+      "mac": "MAC address:",
+      "disconnected": "Not connected",
+      "vram": "Dedicated GPU memory",
+      "driver": "Driver:",
+      "changeGraph": "Change graph to",
+      "overall": "Overall utilization",
+      "logicalGraph": "Logical processors"
+    },
+    "disk": {
+      "ssd": "SSD",
+      "hdd": "HDD",
+      "removable": "Removable"
+    },
+    "svc": {
+      "mock": "systemd isn't running on this computer, so sample services are shown and service actions are unavailable.",
+      "unavailable": "Services aren't available",
+      "none": "No services to display",
+      "failed": "Couldn't change “{name}”: {msg}",
+      "reason": {
+        "start": "Start the “{name}” service.",
+        "stop": "Stop the “{name}” service.",
+        "restart": "Restart the “{name}” service."
+      },
+      "status": {
+        "running": "Running",
+        "exited": "Completed",
+        "stopped": "Stopped",
+        "failed": "Failed",
+        "starting": "Starting",
+        "stopping": "Stopping",
+        "busy": "Working…"
+      },
+      "startup": {
+        "auto": "Automatic",
+        "manual": "Manual",
+        "static": "Static",
+        "disabled": "Disabled"
+      }
+    },
+    "user": {
+      "status": {
+        "active": "Active",
+        "online": "Online",
+        "closing": "Signing out",
+        "disconnected": "Disconnected"
+      },
+      "signOutTitle": "Sign out?",
+      "signOutBody": "All your apps will close. Make sure you have saved your work."
+    },
+    "hist": {
+      "since": "Resource usage since {date} for the current user account.",
+      "notRunning": "Not running",
+      "deleteTitle": "Delete usage history?",
+      "deleteBody": "The CPU time collected for every app will be reset to zero."
+    },
+    "startup": {
+      "boot": "Last start: {date}",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "notMeasured": "Not measured",
+      "scope": {
+        "system": "All users",
+        "user": "Current user"
+      },
+      "file": "File",
+      "desktops": "Desktops",
+      "none": "There are no startup items to display",
+      "noneHint": "Apps that start automatically when you sign in will appear here.",
+      "error": "Startup apps aren't available",
+      "failed": "Couldn't change “{name}”: {msg}"
+    },
+    "set": {
+      "general": "General",
+      "startPage": "Default start page",
+      "speed": "Real time update speed",
+      "speedDesc": "How often the lists and graphs refresh",
+      "window": "Window management",
+      "alwaysOnTop": "Always on top",
+      "minimizeOnUse": "Minimize on use",
+      "minimizeOnUseDesc": "Minimize Task Manager after switching to an app",
+      "other": "Other options",
+      "groupByType": "Group processes by type",
+      "showFullName": "Show full account name",
+      "historyAll": "Show history for all processes",
+      "kernelThreads": "Show kernel threads in Details",
+      "effConfirm": "Show efficiency mode confirmation dialog",
+      "about": "About",
+      "aboutDesc": "Aurora OS Task Manager · reads live data from the Linux kernel"
+    },
+    "u": {
+      "pct": "%",
+      "B": "B",
+      "KB": "KB",
+      "MB": "MB",
+      "GB": "GB",
+      "TB": "TB",
+      "K": "K",
+      "KBs": "KB/s",
+      "MBs": "MB/s",
+      "GBs": "GB/s",
+      "Kbps": "Kbps",
+      "Mbps": "Mbps",
+      "Gbps": "Gbps",
+      "GHz": "GHz",
+      "ms": "ms"
+    }
+  },
+  "fr": {
+    "app": {
+      "name": "Gestionnaire des tâches"
+    },
+    "nav": {
+      "label": "Pages du Gestionnaire des tâches",
+      "toggle": "Ouvrir ou fermer la navigation",
+      "processes": "Processus",
+      "performance": "Performances",
+      "history": "Historique des applications",
+      "startup": "Applications de démarrage",
+      "users": "Utilisateurs",
+      "details": "Détails",
+      "services": "Services",
+      "settings": "Paramètres"
+    },
+    "search": {
+      "placeholder": "Tapez un nom, un éditeur ou un PID pour rechercher",
+      "label": "Rechercher des processus",
+      "clear": "Effacer la recherche",
+      "onlineSuffix": "processus Linux"
+    },
+    "cmd": {
+      "toolbar": "Commandes",
+      "run": "Exécuter une nouvelle tâche",
+      "endTask": "Fin de tâche",
+      "endTree": "Terminer l'arborescence du processus",
+      "efficiency": "Mode efficacité",
+      "view": "Affichage",
+      "properties": "Propriétés",
+      "more": "Voir plus",
+      "start": "Démarrer",
+      "stop": "Arrêter",
+      "restart": "Redémarrer",
+      "enable": "Activer",
+      "disable": "Désactiver",
+      "signOut": "Se déconnecter",
+      "manageAccounts": "Gérer les comptes d'utilisateurs",
+      "deleteHistory": "Supprimer l'historique d'utilisation",
+      "copy": "Copier"
+    },
+    "view": {
+      "speed": "Vitesse d'actualisation",
+      "refresh": "Actualiser maintenant",
+      "groupByType": "Regrouper par type",
+      "expandAll": "Tout développer",
+      "collapseAll": "Tout réduire",
+      "kernelThreads": "Afficher les threads du noyau"
+    },
+    "speed": {
+      "high": "Élevée",
+      "normal": "Normale",
+      "low": "Basse",
+      "paused": "Suspendue"
+    },
+    "grp": {
+      "apps": "Applications ({count})",
+      "background": "Processus en arrière-plan ({count})",
+      "system": "Processus Aurora ({count})"
+    },
+    "col": {
+      "name": "Nom",
+      "status": "Statut",
+      "pid": "PID",
+      "ppid": "PID parent",
+      "procname": "Nom du processus",
+      "user": "Nom d'utilisateur",
+      "userCol": "Utilisateur",
+      "cpu": "Processeur",
+      "mem": "Mémoire",
+      "memPrivate": "Mémoire (privée)",
+      "rss": "Plage de travail",
+      "disk": "Disque",
+      "threads": "Threads",
+      "priority": "Priorité de base",
+      "cpuTime": "Temps processeur",
+      "started": "Démarré",
+      "cmdline": "Ligne de commande",
+      "description": "Description",
+      "startup": "Type de démarrage",
+      "command": "Commande",
+      "scope": "Installé pour",
+      "impact": "Impact au démarrage",
+      "instances": "En cours"
+    },
+    "status": {
+      "running": "En cours d'exécution",
+      "suspended": "Suspendu",
+      "zombie": "Terminé",
+      "efficiency": "Mode efficacité"
+    },
+    "prio": {
+      "realtime": "Temps réel",
+      "high": "Haute",
+      "aboveNormal": "Supérieure à la normale",
+      "normal": "Normale",
+      "belowNormal": "Inférieure à la normale",
+      "low": "Basse"
+    },
+    "shell": {
+      "name": "Aurora Shell",
+      "main": "Aurora Shell (processus principal)",
+      "desktop": "Bureau et applications",
+      "gpu": "Processus GPU",
+      "utility": "Utilitaire",
+      "zygote": "Lanceur de processus",
+      "renderer": "Processus de contenu"
+    },
+    "kernel": {
+      "name": "Noyau Linux"
+    },
+    "proc": {
+      "tab": "Contenu web ({name})"
+    },
+    "tip": {
+      "inShell": "Cette application s'exécute dans Aurora Shell ; sa consommation est comprise dans celle d'Aurora Shell."
+    },
+    "menu": {
+      "expand": "Développer",
+      "collapse": "Réduire",
+      "switchTo": "Basculer vers",
+      "minimize": "Réduire la fenêtre",
+      "maximize": "Agrandir",
+      "restore": "Restaurer",
+      "resourceValues": "Valeurs des ressources",
+      "values": "Valeurs",
+      "percents": "Pourcentages",
+      "goToDetails": "Accéder aux détails",
+      "goToService": "Accéder au service",
+      "openLocation": "Ouvrir l'emplacement du fichier",
+      "searchOnline": "Rechercher en ligne",
+      "properties": "Propriétés",
+      "columns": "Sélectionner les colonnes",
+      "resetColumns": "Réinitialiser les colonnes",
+      "setPriority": "Définir la priorité",
+      "suspend": "Suspendre le processus",
+      "resume": "Reprendre le processus"
+    },
+    "empty": {
+      "loading": "Chargement…",
+      "search": "Aucun résultat pour « {q} »"
+    },
+    "err": {
+      "title": "Gestionnaire des tâches",
+      "data": "Impossible de lire les informations système : {msg}",
+      "end": "Impossible de terminer « {name} » : {msg}",
+      "priority": "Impossible de modifier la priorité de « {name} » : {msg}",
+      "admin": "L'opération n'a pas pu aboutir : {msg}",
+      "gone": "Le processus est déjà terminé.",
+      "noLocation": "L'emplacement du fichier de ce processus n'est pas disponible.",
+      "noService": "« {name} » ne fait partie d'aucun service.",
+      "priorityAdmin": "Augmenter la priorité de « {name} » nécessite des droits d'administrateur, qu'Aurora ne peut pas encore accorder pour les priorités. Vous pouvez toujours la diminuer.",
+      "priorityOther": "Seul un administrateur peut modifier la priorité de « {name} », qui appartient à un autre utilisateur."
+    },
+    "uac": {
+      "end": "Terminer « {name} » (PID {pid}), qui appartient à un autre utilisateur.",
+      "priority": "Modifier la priorité de « {name} » (PID {pid})."
+    },
+    "confirm": {
+      "endTitle": "Terminer « {name} » ?",
+      "endBody": "Si un programme ouvert est associé à ce processus, il sera fermé et vous perdrez toutes les données non enregistrées.",
+      "endProcess": "Terminer le processus",
+      "criticalTitle": "Terminer « {name} » ?",
+      "criticalBody": "Il s'agit d'un processus système. Le terminer peut fermer toutes vos applications, vous déconnecter ou rendre le système instable, et les données non enregistrées seront perdues. Voulez-vous vraiment continuer ?",
+      "treeTitle": "Terminer l'arborescence de « {name} » ?",
+      "treeBody": "Ce processus et tous les processus qu'il a lancés vont se terminer. Les programmes ouverts concernés seront fermés et vous perdrez les données non enregistrées.",
+      "endTree": "Terminer l'arborescence"
+    },
+    "notResponding": {
+      "title": "« {name} » ne répond pas",
+      "body": "Le processus ne s'est pas fermé à la demande. Si vous le terminez maintenant, vous perdrez les données non enregistrées.",
+      "endNow": "Terminer maintenant",
+      "wait": "Attendre"
+    },
+    "eff": {
+      "title": "Activer le mode efficacité ?",
+      "body": "Le mode efficacité réduit la priorité du processus pour que les autres applications restent réactives et que le système consomme moins d'énergie. Certains processus peuvent ralentir.",
+      "dontAsk": "Ne plus afficher ce message",
+      "turnOn": "Activer le mode efficacité"
+    },
+    "props": {
+      "title": "Propriétés de {name}",
+      "process": "Processus",
+      "kernelThread": "Thread du noyau",
+      "auroraApp": "Application Aurora",
+      "location": "Emplacement",
+      "cmdline": "Ligne de commande",
+      "parent": "Processus parent",
+      "started": "Démarré",
+      "memory": "Plage de travail",
+      "peak": "Plage de travail maximale",
+      "files": "Fichiers ouverts",
+      "service": "Service",
+      "cwd": "Dossier de travail",
+      "description": "Description",
+      "appId": "ID de l'application",
+      "windows": "Fenêtres",
+      "openedAt": "Ouverte le",
+      "host": "Processus",
+      "inShell": "S'exécute dans Aurora Shell (PID {pid})",
+      "ownProcesses": "Processus propres : {pids}",
+      "na": "Non disponible",
+      "none": "Aucun",
+      "denied": "Accès refusé"
+    },
+    "run": {
+      "title": "Créer une tâche",
+      "intro": "Entrez le nom d'un programme, dossier, document ou ressource Internet, et Aurora l'ouvrira pour vous.",
+      "open": "Ouvrir :",
+      "browse": "Parcourir…",
+      "browseTitle": "Parcourir",
+      "notFound": "Aurora ne trouve pas « {cmd} ». Vérifiez que le nom est correct, puis réessayez."
+    },
+    "perf": {
+      "devices": "Périphériques",
+      "cpu": "Processeur",
+      "memory": "Mémoire",
+      "disk": "Disque {n}",
+      "ethernet": "Ethernet",
+      "wifi": "Wi-Fi",
+      "gpu": "GPU {n}",
+      "utilization": "% d'utilisation",
+      "utilizationOver": "% d'utilisation sur {s} secondes",
+      "seconds": "60 secondes",
+      "util": "Utilisation",
+      "speed": "Vitesse",
+      "processes": "Processus",
+      "threads": "Threads",
+      "handles": "Fichiers ouverts",
+      "uptime": "Temps d'activité",
+      "baseSpeed": "Vitesse de base :",
+      "sockets": "Sockets :",
+      "cores": "Cœurs :",
+      "logical": "Processeurs logiques :",
+      "virtualization": "Virtualisation :",
+      "vm": "Machine virtuelle :",
+      "l1": "Cache de niveau 1 :",
+      "l2": "Cache de niveau 2 :",
+      "l3": "Cache de niveau 3 :",
+      "load": "Charge moyenne :",
+      "virt": {
+        "enabled": "Activée",
+        "disabled": "Non prise en charge",
+        "unavailable": "Non disponible"
+      },
+      "memUsage": "Utilisation de la mémoire",
+      "memComposition": "Composition de la mémoire",
+      "comp": {
+        "inuse": "En cours d'utilisation",
+        "inuseDesc": "Mémoire utilisée par les processus, les pilotes ou le système d'exploitation",
+        "modified": "Modifiée",
+        "modifiedDesc": "Mémoire dont le contenu doit être écrit sur le disque avant de pouvoir être réutilisée",
+        "standby": "En attente",
+        "standbyDesc": "Mémoire contenant des données et du code en cache qui ne sont pas utilisés activement",
+        "free": "Libre",
+        "freeDesc": "Mémoire actuellement inutilisée, qui sera réaffectée en premier"
+      },
+      "inUse": "Utilisée",
+      "available": "Disponible",
+      "committed": "Validée",
+      "cached": "En cache",
+      "shared": "Partagée",
+      "kernelMem": "Mémoire du noyau",
+      "installed": "Total :",
+      "swap": "Espace d'échange :",
+      "noSwap": "Aucun",
+      "buffers": "Tampons :",
+      "reserved": "Réservée au matériel :",
+      "activeTime": "Temps d'activité",
+      "transferRate": "Vitesse de transfert du disque",
+      "avgResponse": "Temps de réponse moyen",
+      "readSpeed": "Vitesse de lecture",
+      "writeSpeed": "Vitesse d'écriture",
+      "capacity": "Capacité :",
+      "formatted": "Formaté :",
+      "systemDisk": "Disque système :",
+      "pageFile": "Espace d'échange :",
+      "type": "Type :",
+      "model": "Modèle :",
+      "mounts": "Points de montage :",
+      "throughput": "Débit",
+      "send": "Envoi",
+      "receive": "Réception",
+      "sendRecv": "E : {s} R : {r}",
+      "adapter": "Nom de l'adaptateur :",
+      "connType": "Type de connexion :",
+      "linkSpeed": "Vitesse de la liaison :",
+      "signal": "Puissance du signal :",
+      "ipv4": "Adresse IPv4 :",
+      "ipv6": "Adresse IPv6 :",
+      "mac": "Adresse MAC :",
+      "disconnected": "Non connecté",
+      "vram": "Mémoire GPU dédiée",
+      "driver": "Pilote :",
+      "changeGraph": "Changer le graphique en",
+      "overall": "Utilisation globale",
+      "logicalGraph": "Processeurs logiques"
+    },
+    "disk": {
+      "ssd": "SSD",
+      "hdd": "Disque dur",
+      "removable": "Amovible"
+    },
+    "svc": {
+      "mock": "systemd n'est pas actif sur cet ordinateur : des services d'exemple sont affichés et les actions sur les services sont indisponibles.",
+      "unavailable": "Les services ne sont pas disponibles",
+      "none": "Aucun service à afficher",
+      "failed": "Impossible de modifier « {name} » : {msg}",
+      "reason": {
+        "start": "Démarrer le service « {name} ».",
+        "stop": "Arrêter le service « {name} ».",
+        "restart": "Redémarrer le service « {name} »."
+      },
+      "status": {
+        "running": "En cours d'exécution",
+        "exited": "Terminé",
+        "stopped": "Arrêté",
+        "failed": "Échec",
+        "starting": "Démarrage",
+        "stopping": "Arrêt en cours",
+        "busy": "En cours…"
+      },
+      "startup": {
+        "auto": "Automatique",
+        "manual": "Manuel",
+        "static": "Statique",
+        "disabled": "Désactivé"
+      }
+    },
+    "user": {
+      "status": {
+        "active": "Actif",
+        "online": "En ligne",
+        "closing": "Déconnexion",
+        "disconnected": "Déconnecté"
+      },
+      "signOutTitle": "Se déconnecter ?",
+      "signOutBody": "Toutes vos applications vont se fermer. Vérifiez que votre travail est enregistré."
+    },
+    "hist": {
+      "since": "Utilisation des ressources depuis le {date} pour le compte d'utilisateur actuel.",
+      "notRunning": "Arrêtée",
+      "deleteTitle": "Supprimer l'historique d'utilisation ?",
+      "deleteBody": "Le temps processeur collecté pour chaque application sera remis à zéro."
+    },
+    "startup": {
+      "boot": "Dernier démarrage : {date}",
+      "enabled": "Activé",
+      "disabled": "Désactivé",
+      "notMeasured": "Non mesuré",
+      "scope": {
+        "system": "Tous les utilisateurs",
+        "user": "Utilisateur actuel"
+      },
+      "file": "Fichier",
+      "desktops": "Bureaux",
+      "none": "Aucun élément de démarrage à afficher",
+      "noneHint": "Les applications qui démarrent automatiquement à l'ouverture de session apparaîtront ici.",
+      "error": "Les applications de démarrage ne sont pas disponibles",
+      "failed": "Impossible de modifier « {name} » : {msg}"
+    },
+    "set": {
+      "general": "Général",
+      "startPage": "Page de démarrage par défaut",
+      "speed": "Vitesse d'actualisation en temps réel",
+      "speedDesc": "Fréquence d'actualisation des listes et des graphiques",
+      "window": "Gestion des fenêtres",
+      "alwaysOnTop": "Toujours visible",
+      "minimizeOnUse": "Réduire après utilisation",
+      "minimizeOnUseDesc": "Réduire le Gestionnaire des tâches après avoir basculé vers une application",
+      "other": "Autres options",
+      "groupByType": "Regrouper les processus par type",
+      "showFullName": "Afficher le nom complet du compte",
+      "historyAll": "Afficher l'historique de tous les processus",
+      "kernelThreads": "Afficher les threads du noyau dans Détails",
+      "effConfirm": "Afficher la confirmation du mode efficacité",
+      "about": "À propos",
+      "aboutDesc": "Gestionnaire des tâches d'Aurora OS · lit les données en direct depuis le noyau Linux"
+    },
+    "u": {
+      "pct": " %",
+      "B": "o",
+      "KB": "Ko",
+      "MB": "Mo",
+      "GB": "Go",
+      "TB": "To",
+      "K": "Ko",
+      "KBs": "Ko/s",
+      "MBs": "Mo/s",
+      "GBs": "Go/s",
+      "Kbps": "Kbit/s",
+      "Mbps": "Mbit/s",
+      "Gbps": "Gbit/s",
+      "GHz": "GHz",
+      "ms": "ms"
+    }
+  }
+}

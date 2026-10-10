@@ -48,6 +48,8 @@ const DEFAULTS = {
   showSeconds: false,
   // Settings app (apps/settings) — keys below are applied live by the shell or the backends:
   lockWallpaper: null, // lock screen picture: null = same as the desktop, 'builtin:<id>' or absolute image path
+  multitasking: { snap: true, snapLayouts: true, snapAssist: true, shake: false }, // features/snaplayouts.js
+  clipboard: { history: false }, // Win+V clipboard history (features/hotkeys.js)
   mouse: { speed: 0, leftHanded: false }, // pointer acceleration -1..1 and primary button (applied with xinput, main/ipc/locale.js)
 };
 

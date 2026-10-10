@@ -500,7 +500,7 @@ export async function optionsDialog(ex) {
     body: h('div', { class: 'fx-opts' }, tabs, general, view),
     parent: ex.win,
     className: 'app-files fx-opts-dlg',
-    width: 480,
+    width: 520,
     buttons: [
       { label: t('common.ok'), value: 'ok', primary: true },
       { label: t('common.cancel'), value: null },

@@ -1,0 +1,20 @@
+# Aurora Terminal: the PTY helper (aurora-pty) and the everyday command-line tools.
+python3
+bash
+bash-completion
+ncurses-base
+ncurses-term
+nano
+vim-tiny
+less
+htop
+curl
+wget
+git
+file
+tree
+unzip
+zip
+xz-utils
+man-db
+manpages

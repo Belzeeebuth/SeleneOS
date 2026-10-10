@@ -300,7 +300,8 @@ function register(api) {
   api.handle('audio:setInputVolume', act((n) => be.setInputVolume(n)));
   api.handle('audio:setInputMuted', act((m) => be.setInputMuted(!!m)));
 
-  if (useMock || !be) return;
+  // No change monitor for the sign-in screen (its system user has no sound session).
+  if (useMock || !be || api.env?.mode === 'greeter') return;
   // Change notifications: 'pactl subscribe' prints "Event 'change' on sink #46" for every change
   // (works with pipewire-pulse too). Without pactl, poll the default devices.
   if (hasPa) {

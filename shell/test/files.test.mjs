@@ -36,7 +36,10 @@ async function section(name, fn) {
     failures.push(`${name}: threw ${err?.stack || err}`);
     console.log(`  ✗ ${name}: ${err?.message || err}`);
   }
+  // Leave a clean slate for the next section: no menus, dialogs or stray windows.
+  await cleanup?.();
 }
+let cleanup = null;
 
 // ---------------------------------------------------------------- fixtures
 function png(w, h, pix) {
@@ -156,6 +159,8 @@ function helpers(s) {
     exists: (p) => fs.existsSync(p),
     async shot(name) {
       const file = path.join(DOCS, `${name}.png`);
+      await page.mouse.move(1590, 420); // park the pointer on the desktop: no hover artefacts
+      await page.waitForTimeout(250);
       await page.screenshot({ path: file });
       return file;
     },
@@ -174,6 +179,20 @@ const D = (p) => path.join(home, p);
 const s = await launchShell({ home, open: ['files'], lang: 'en', theme: 'light', settle: 1200 });
 const { page } = s;
 const H = helpers(s);
+const bad = [];
+const trackHttp = (pg) => pg.on('response', (r) => r.status() >= 400 && bad.push(`${r.status()} ${r.url()}`));
+trackHttp(page);
+cleanup = async () => {
+  for (let i = 0; i < 4 && (await page.locator('.menu').count()); i++) await page.keyboard.press('Escape');
+  for (let i = 0; i < 4 && (await page.locator('.dialog-layer').count()); i++) {
+    await page.locator('.dialog-layer .dialog').last().locator('.dialog-footer button').last().click().catch(() => {});
+    await page.waitForTimeout(250);
+  }
+  await page.evaluate(() => {
+    for (const w of window.__aurora.wm.list()) if (w.el.classList.contains('fx-props-win')) w.close(true);
+  });
+  await page.evaluate(() => window.__fx()?.view.renaming && window.__fx().view.endRename());
+};
 let fatal = null;
 try {
   await H.init();
@@ -278,6 +297,7 @@ if (!fatal) {
   });
 
   await section('Address bar editing, autocomplete and errors', async () => {
+    await H.go(D('Documents'));
     await H.focusView();
     await H.key('Control+l');
     check('edit mode', await page.locator('.app-files .fx-address.editing').count(), 1);
@@ -308,6 +328,7 @@ if (!fatal) {
   });
 
   await section('New folder + inline rename, rename validation, F2', async () => {
+    await H.go(D('Documents'));
     await H.focusView();
     await H.key('Control+Shift+n');
     await page.waitForSelector('.app-files .fx-rename', { timeout: 5000 });
@@ -354,7 +375,8 @@ if (!fatal) {
     await page.keyboard.type('Letters');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(400);
-    check('conflict dialog', (await H.dialogText()).includes('already a folder'), true);
+    const conflictText = await H.dialogText();
+    check('conflict dialog', conflictText.includes('already a folder') ? true : conflictText, true);
     await H.clickDialog('OK');
     check('still editing after conflict', await page.locator('.app-files .fx-rename').count(), 1);
     await H.key('Escape');
@@ -687,7 +709,9 @@ if (!fatal) {
     const iconbar = await page.locator('.menu .menu-iconbar button').count();
     check('compact icon bar', iconbar, 4);
     const labels = await page.locator('.menu .menu-item .label').allInnerTexts();
-    check('item menu entries', ['Open', 'Open in new tab', 'Pin to Quick access', 'Copy as path', 'Open in Terminal', 'Properties'].every((l) => labels.includes(l)), true);
+    const hasTerminal = await page.evaluate(() => !!window.__aurora.registry.get('terminal'));
+    check('item menu entries', ['Open', 'Open in new tab', 'Pin to Quick access', 'Copy as path', 'Properties'].every((l) => labels.includes(l)), true);
+    check('Open in Terminal only when Terminal is installed', labels.includes('Open in Terminal'), hasTerminal);
     await H.menuClick('Pin to Quick access');
     await page.waitForTimeout(300);
     check('pinned in nav', (await page.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts()).includes('Projects'), true);
@@ -701,7 +725,7 @@ if (!fatal) {
     await page.mouse.click(1000, 600, { button: 'right' });
     await page.waitForSelector('.menu');
     const bg = await page.locator('.menu .menu-item .label').allInnerTexts();
-    check('background menu', ['View', 'Sort by', 'Refresh', 'Paste', 'New', 'Open in Terminal', 'Properties'].every((l) => bg.includes(l)), true);
+    check('background menu', ['View', 'Sort by', 'Refresh', 'Paste', 'New', 'Properties'].every((l) => bg.includes(l)), true);
     await page.keyboard.press('Escape');
     // copy as path
     await H.select('ideas.md').catch(() => {});
@@ -782,6 +806,114 @@ if (!fatal) {
     check('crumbs for root', await page.locator('.app-files .fx-crumb:visible').allInnerTexts(), ['This PC', 'System (/)']);
   });
 
+  await section('Batch rename (F2 with several items) + undo', async () => {
+    await H.go(D('Pictures'));
+    await page.evaluate(() => {
+      const v = window.__fx().view;
+      v.setSel(v.items.filter((i) => /\.png$/.test(i.entry.name)).map((i) => i.key));
+      v.focusKey = v.items.find((i) => i.entry.name === 'checker.png').key;
+    });
+    await H.focusView();
+    await H.key('F2');
+    await page.waitForSelector('.app-files .fx-rename');
+    await page.keyboard.press('Control+a');
+    await page.keyboard.type('Holiday');
+    await H.key('Enter');
+    await H.settle();
+    const pics = fs.readdirSync(D('Pictures')).sort();
+    check('batch renamed', pics, ['Holiday (1).png', 'Holiday (2).png', 'Holiday (3).png', 'Holidays']);
+    check('batch selection kept', (await H.selected()).length, 3);
+    await H.key('Control+z');
+    await H.settle();
+    check('batch undo', fs.readdirSync(D('Pictures')).sort(), ['Holidays', 'checker.png', 'mountains.png', 'sunset.png']);
+  });
+
+  await section('Gallery', async () => {
+    await page.click('.app-files .fx-tnode:has-text("Gallery")');
+    await H.settle();
+    check('gallery location', (await H.loc()).type, 'gallery');
+    check('gallery photos (recursive)', (await H.names()).sort(), ['beach.png', 'checker.png', 'mountains.png', 'sunset.png']);
+    await page.waitForFunction(() => [...document.querySelectorAll('.app-files .fx-gtile img')].filter((i) => i.complete && i.naturalWidth > 0).length >= 4, null, { timeout: 10000 });
+    check('gallery month header', await page.locator('.app-files .fx-group-head .lbl').first().innerText(), (t) => /\d{4}/.test(t));
+    check('gallery crumb', await page.locator('.app-files .fx-crumb:visible').allInnerTexts(), ['Gallery']);
+    await page.locator('.app-files .fx-gtile').nth(1).click();
+    check('gallery selection', (await H.selected()).length, 1);
+    await H.focusView();
+    await H.key('ArrowRight');
+    check('gallery keyboard', (await H.selected()).length, 1);
+    await H.shot('files-gallery');
+    await page.click('.app-files .fx-navbtn[aria-label="Up"]');
+    await H.settle();
+    check('up from gallery', (await H.loc()).type, 'home');
+  });
+
+  await section('Error mapping, middle-click, F6', async () => {
+    const text = await page.evaluate(async () => {
+      const ex = window.__fx();
+      const p = ex.showNavError({ type: 'dir', path: '/root/secret' }, new Error("EACCES: permission denied, scandir '/root/secret'"));
+      await new Promise((r) => setTimeout(r, 300));
+      const t = document.querySelector('.dialog-layer .dialog')?.innerText;
+      document.querySelector('.dialog-layer .dialog-footer button')?.click();
+      await p;
+      return t;
+    });
+    check('permission error dialog', text, (t) => t?.includes("You don't currently have permission to access this folder."));
+    await H.go(D('Documents'));
+    await H.item('Projects').click({ button: 'middle' });
+    await page.waitForTimeout(300);
+    check('middle-click opens background tab', await page.locator('.app-files .fx-tab').count(), 2);
+    check('current tab unchanged', (await H.loc()).path, D('Documents'));
+    await page.locator('.app-files .fx-tab').nth(1).click({ button: 'middle' });
+    await page.waitForTimeout(200);
+    check('middle-click closes tab', await page.locator('.app-files .fx-tab').count(), 1);
+    await H.focusView();
+    await H.key('F6');
+    check('F6 -> address bar', await page.locator('.app-files .fx-address.editing').count(), 1);
+    await H.key('F6');
+    check('F6 -> navigation pane', await page.evaluate(() => document.activeElement.classList.contains('fx-tree')), true);
+    await H.key('ArrowDown');
+    check('tree keyboard focus ring', await page.locator('.app-files .fx-tnode.focused').count(), 1);
+    await H.key('F6');
+    check('F6 -> items', await page.evaluate(() => document.activeElement.classList.contains('fx-scroll')), true);
+    check('address left edit mode', await page.locator('.app-files .fx-address.editing').count(), 0);
+  });
+
+  await section('Open with, choose app, live language switch', async () => {
+    await H.go(D('Documents'));
+    const before = await page.evaluate(() => window.__aurora.wm.list().length);
+    await H.item('notes.md').click({ button: 'right' });
+    await page.locator('.menu .menu-item:has-text("Open with")').hover();
+    await page.waitForTimeout(500);
+    const owLabels = await page.locator('.menu').last().locator('.menu-item .label').allInnerTexts();
+    check('open with lists choose another app', owLabels.includes('Choose another app'), true);
+    const hasNotepad = await page.evaluate(() => !!window.__aurora.registry.get('notepad'));
+    if (hasNotepad) check('open with lists Notepad (declares .md)', owLabels.includes('Notepad'), true);
+    await H.menuClick('Choose another app');
+    await page.waitForSelector('.dialog-layer .fx-apps');
+    check('choose app dialog title', await page.locator('.dialog-layer .dialog-title').innerText(), 'Select an app to open this .md file');
+    const target = hasNotepad ? 'Notepad' : 'About Aurora';
+    await page.locator(`.dialog-layer .fx-app-row:has-text("${target}")`).click();
+    await H.clickDialog('Always');
+    await page.waitForTimeout(800);
+    const def = await page.evaluate(() => window.__aurora.settings.get('defaultApps'));
+    check('always -> default app saved', def?.['.md'], hasNotepad ? 'notepad' : 'winver');
+    check('app launched', await page.evaluate(() => window.__aurora.wm.list().length), (n) => n > before);
+    await page.evaluate((id) => window.__aurora.wm.byApp(id).forEach((w) => w.close(true)), hasNotepad ? 'notepad' : 'winver');
+    await page.waitForTimeout(300);
+    await page.evaluate(() => window.__aurora.settings.set('defaultApps', {}));
+    // Live language switch
+    await page.evaluate(() => window.__aurora.settings.set('lang', 'fr'));
+    await page.waitForTimeout(600);
+    check('relabel: command bar', await page.locator('.app-files .fx-cmd[aria-label="Nouveau"] .fx-cmd-label').innerText(), 'Nouveau');
+    check('relabel: nav', (await page.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts()).includes('Accueil'), true);
+    check('relabel: headers', (await page.locator('.app-files .fx-dh-cell').first().innerText()).trim(), 'Nom');
+    check('relabel: tab', await page.locator('.app-files .fx-tab.active .fx-tab-title').innerText(), 'Documents');
+    check('relabel: types', await page.evaluate(() => window.__fx().view.items.find((i) => i.entry.dir).type), 'Dossier de fichiers');
+    await page.evaluate(() => window.__aurora.settings.set('lang', 'en'));
+    await page.waitForTimeout(600);
+    check('back to English', (await page.locator('.app-files .fx-dh-cell').first().innerText()).trim(), 'Name');
+  });
+
   await section('Window sizes', async () => {
     await H.go(D('Documents'));
     await page.evaluate(() => {
@@ -804,9 +936,10 @@ if (!fatal) {
 }
 
 const errors = s.logs.filter((l) => (l.startsWith('[error]') || l.startsWith('[pageerror]')) && !/Failed to load resource/.test(l));
-const mine404 = s.logs.filter((l) => /apps\/files/.test(l) && /404|Failed/.test(l));
 check('no console errors (en)', errors, []);
-check('no missing app resources', mine404, []);
+check('no failed requests from the app', bad.filter((u) => /apps\/files|media:/.test(u)), []);
+if (bad.length) console.log('  (other failed requests, not from this app:', bad.filter((u) => !/apps\/files|media:/.test(u)).join(', '), ')');
+cleanup = null;
 await s.close();
 
 // ================================================================ French + dark theme
@@ -814,6 +947,10 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
   const home2 = makeHome();
   const s2 = await launchShell({ home: home2, open: ['files'], lang: 'fr', theme: 'dark', settle: 1200 });
   const H2 = helpers(s2);
+  trackHttp(s2.page);
+  cleanup = async () => {
+    for (let i = 0; i < 4 && (await s2.page.locator('.menu').count()); i++) await s2.page.keyboard.press('Escape');
+  };
   try {
     await H2.init();
     await section('French + dark theme', async () => {
@@ -837,6 +974,8 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
       check('dark theme', await p2.evaluate(() => document.documentElement.dataset.theme), 'dark');
       await p2.evaluate(() => window.__fx().togglePane('details'));
       await p2.waitForTimeout(500);
+      await p2.mouse.move(1590, 420);
+      await p2.waitForTimeout(250);
       await s2.page.screenshot({ path: path.join(DOCS, 'files-fr-dark.png') });
       await p2.evaluate(() => window.__fx().togglePane('details'));
       await p2.locator('.app-files .fx-item').first().click({ button: 'right' });
@@ -847,6 +986,8 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
       await H2.settle();
       check('fr this pc', await p2.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Dossiers');
       check('fr drives', await p2.locator('.app-files .fx-drive .fx-sub').first().innerText(), (t) => / libres sur /.test(t));
+      await p2.mouse.move(1590, 420);
+      await p2.waitForTimeout(250);
       await s2.page.screenshot({ path: path.join(DOCS, 'files-this-pc-fr-dark.png') });
     });
     const errors2 = s2.logs.filter((l) => (l.startsWith('[error]') || l.startsWith('[pageerror]')) && !/Failed to load resource/.test(l));

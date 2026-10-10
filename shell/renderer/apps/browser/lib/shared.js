@@ -27,6 +27,13 @@ export const shared = {
     listeners.get(ev).add(fn);
     return () => listeners.get(ev)?.delete(fn);
   },
+  /** Number of live subscriptions (tests use it to check that closed windows release theirs). */
+  listenerCount() {
+    let n = 0;
+    for (const set of listeners.values()) n += set.size;
+    for (const set of shared.store._h.values()) n += set.size;
+    return n;
+  },
   emit(ev, ...a) {
     for (const fn of [...(listeners.get(ev) || [])]) {
       try {
@@ -58,12 +65,14 @@ export const shared = {
     shared.store.save('session', 800);
   },
 
-  activeDownloads() {
-    return [...shared.downloads.values()].filter((d) => d.state === 'progressing');
+  /** Downloads a window may show: Private windows see everything, normal windows never see Private ones. */
+  activeDownloads(bw = null) {
+    return shared.downloadList(bw).filter((d) => d.state === 'progressing');
   },
 
-  downloadList() {
-    return [...shared.downloads.values()].sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
+  downloadList(bw = null) {
+    const list = [...shared.downloads.values()].filter((d) => !bw || bw.private || !d.private);
+    return list.sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
   },
 
   removeDownload(id) {
@@ -76,6 +85,23 @@ export const shared = {
     for (const [id, d] of shared.downloads) if (d.state !== 'progressing') shared.downloads.delete(id);
     shared.store.clearDownloads(true);
     shared.emit('downloads');
+  },
+
+  /** User-facing (translated) text for a failed backend call. */
+  errorText(err) {
+    const t = shared.t;
+    const key = {
+      ENORESUME: 'errors.noResume',
+      ENOTAB: 'errors.tabGone',
+      EINVAL: 'errors.invalid',
+      EACCES: 'errors.denied',
+      EPERM: 'errors.denied',
+      EROFS: 'errors.denied',
+      ENOSPC: 'errors.diskFull',
+      ENOENT: 'errors.notFound',
+    }[err?.code];
+    if (key) return t(key);
+    return t('errors.generic', { msg: String(err?.message || err || '').slice(0, 300) });
   },
 
   showInFolder(path) {
@@ -92,7 +118,7 @@ export const shared = {
       }
       await shared.shell.openFile(d.path);
     } catch (err) {
-      shared.ui.alert(err.message, { title: shared.t('dl.title'), parent });
+      shared.ui.alert(shared.errorText(err), { title: shared.t('dl.title'), parent });
     }
   },
 };
@@ -102,7 +128,7 @@ export function initShared(ctx) {
   shared.ready = (async () => {
     Object.assign(shared, { ctx, t: ctx.t, api: ctx.api, shell: ctx.shell, ui: ctx.ui, dev: !!ctx.env?.dev });
     const { api, store } = shared;
-    await store.load(ctx.storage);
+    await store.load(ctx.storage, ctx.t);
     for (const d of store.downloads) shared.downloads.set(d.id, { ...d, state: d.state === 'progressing' ? 'interrupted' : d.state });
     try {
       for (const d of await api.invoke('browser:downloads')) shared.downloads.set(d.id, d);
@@ -141,6 +167,13 @@ export function initShared(ctx) {
       if (hit) hit.bw.showAuth(hit.tab, p);
       else api.invoke('browser:authReply', p.id, null).catch(() => {});
     });
+    api.on('browser:auth-done', (p) => shared.windows.forEach((w) => w.dropAuth(p.id)));
+    api.on('browser:js-dialog', (p) => {
+      const hit = shared.findTab(p.sourceId);
+      if (hit) hit.bw.showJsDialog(hit.tab, p);
+      else api.invoke('browser:jsDialogReply', p.id, { ok: false }).catch(() => {});
+    });
+    api.on('browser:js-dialog-done', (p) => shared.windows.forEach((w) => w.dropAuth(p.id)));
     api.on('browser:external', (p) => {
       const hit = shared.findTab(p.sourceId);
       (hit?.bw || shared.mostRecent({ allowPrivate: true }))?.openExternal(p.url);
@@ -172,6 +205,15 @@ function onDownload(d) {
     const hit = shared.findTab(d.sourceId);
     const bw = hit?.bw || shared.windows.find((w) => w.partition === d.partition) || shared.mostRecent({ allowPrivate: true });
     bw?.onDownloadStarted(d, hit?.tab);
+    // The download can be reported before a brand-new tab learns its webContents id: look again.
+    if (!hit && d.sourceId != null) {
+      for (const delay of [150, 600]) {
+        setTimeout(() => {
+          const late = shared.findTab(d.sourceId);
+          if (late) late.bw.closeDownloadTab(late.tab);
+        }, delay);
+      }
+    }
   }
   if (prev && prev.state === 'progressing' && d.state === 'completed') {
     shell.notify({

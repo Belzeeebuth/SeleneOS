@@ -85,6 +85,7 @@ umount_under() { # path: unmount every mount point below (and including) path, d
 
 LOCK_FD=
 LOG_FILE=
+# shellcheck disable=SC2317  # invoked through trap
 cleanup() {
   local rc=$?
   trap - EXIT INT TERM
@@ -663,7 +664,9 @@ install_rootfs_overlay() {
   log "copying rootfs/ overlay"
   # tar keeps symlinks and modes, never changes the metadata of existing directories, and
   # makes everything root-owned and not group/world writable.
-  tar -C "$ROOTFS_SRC" --exclude='.gitkeep' --exclude='./README*' \
+  # Development leftovers (Python bytecode caches, editor backups) are never shipped.
+  tar -C "$ROOTFS_SRC" --exclude='.gitkeep' --exclude='./README*' --exclude='__pycache__' --exclude='*.pyc' \
+      --exclude='*~' --exclude='.*.swp' \
       --owner=0 --group=0 --numeric-owner --mode='go-w' -cf - . \
     | tar -C "$ROOT" --no-overwrite-dir --same-permissions -xf -
   # Executables (git only tracks the x bit; enforce it for the documented entry points).
@@ -839,18 +842,28 @@ $nf"
     || die "chrome-sandbox must be root:root 4755"
   # AppArmor profile must parse (and be loaded in the live session by aurora-apparmor.service).
   [[ -f "$ROOT/etc/apparmor.d/aurora-shell" ]] || die "AppArmor profile /etc/apparmor.d/aurora-shell is missing (rootfs/)"
-  local out
+  local out r
   out="$(in_chroot "$ROOT" apparmor_parser --skip-kernel-load --skip-cache -Q /etc/apparmor.d/aurora-shell 2>&1)" \
     || die "AppArmor profile /etc/apparmor.d/aurora-shell does not parse:
 $out"
   grep -q '^profile aurora-shell /opt/aurora/electron/electron ' "$ROOT/etc/apparmor.d/aurora-shell" \
     || die "the AppArmor profile must attach to /opt/aurora/electron/electron"
   [[ -f "$ROOT/usr/lib/systemd/system/aurora-apparmor.service" ]] || die "aurora-apparmor.service is missing (rootfs/)"
+  # Every unit shipped in rootfs/ must pass systemd's own checks.
+  local units=()
+  for r in "$ROOT"/usr/lib/systemd/system/aurora-* "$ROOT"/etc/systemd/system/aurora-*; do
+    [[ -f "$r" ]] && units+=("${r#"$ROOT"}")
+  done
+  if ((${#units[@]})); then
+    out="$(in_chroot "$ROOT" systemd-analyze verify "${units[@]}" 2>&1)" || die "systemd-analyze verify failed:
+$out"
+  fi
   # polkit rules are JavaScript: syntax-check them with node on the host.
-  local r
+  local node="$NODE_BIN/node"
+  [[ -x "$node" ]] || node="$(command -v node)"
   for r in "$ROOT"/etc/polkit-1/rules.d/*aurora*.rules; do
     [[ -f "$r" ]] || continue
-    "$NODE_BIN/node" -e 'new Function(require("fs").readFileSync(process.argv[1], "utf8"))' "$r" \
+    "$node" -e 'new Function(require("fs").readFileSync(process.argv[1], "utf8"))' "$r" \
       || die "polkit rules syntax error: $r"
   done
   # Session entry points and helpers: present, executable, valid shell syntax.
@@ -959,6 +972,9 @@ assert_clean_image() {
   [[ -z "$ww" ]] || bad+=("files not owned by root under /opt/aurora: $ww")
   ww="$(find "$ROOT/opt/aurora" -xdev -type f -perm /6000 | sed "s|^$ROOT||")"
   [[ "$ww" == /opt/aurora/electron/chrome-sandbox ]] || bad+=("unexpected setuid/setgid set under /opt/aurora: $ww")
+  ww="$(find "$ROOT/usr/lib/aurora" "$ROOT/opt/aurora/shell/main" "$ROOT/opt/aurora/shell/renderer" "$ROOT/etc" -xdev \
+         \( -name __pycache__ -o -name '*.pyc' \) 2>/dev/null | sed "s|^$ROOT||" | head -n5)"
+  [[ -z "$ww" ]] || bad+=("development leftovers: $ww")
   # Final package sources.
   grep -qF "URIs: $FINAL_MIRROR" "$ROOT/etc/apt/sources.list.d/ubuntu.sources" || bad+=("ubuntu.sources does not point to $FINAL_MIRROR")
   if ((${#bad[@]})); then
@@ -1161,16 +1177,29 @@ terminal-height: "80%"
   scrollbar = false
 }
 
+# Two countdown labels (GRUB fills one %d per label): English left, French right.
 + label {
   id = "__timeout__"
   left = 0
   top = 100%-90
-  width = 100%
+  width = 50%-14
   height = 24
-  align = "center"
+  align = "right"
   color = "#8fa2c2"
   font = "Aurora Regular 16"
-  text = "Starting in %d s  ·  Démarrage dans %d s"
+  text = "Starting in %d s"
+}
+
++ label {
+  id = "__timeout__"
+  left = 50%+14
+  top = 100%-90
+  width = 50%-14
+  height = 24
+  align = "left"
+  color = "#8fa2c2"
+  font = "Aurora Regular 16"
+  text = "Démarrage dans %d s"
 }
 
 + label {
@@ -1344,4 +1373,6 @@ main() {
   ok "build finished in $(( $(date +%s) - BUILD_T0 ))s"
 }
 
-main
+# Everything above is only definitions; "exit" on the same line keeps bash from reading this
+# file any further, so editing build.sh while a build runs cannot affect that build.
+main "$@"; exit $?

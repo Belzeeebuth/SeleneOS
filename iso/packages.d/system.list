@@ -1,0 +1,19 @@
+# System backends of the shell + the Settings app (shell/main/ipc/{net,audio,display,users,admin,locale,power-ext}.js,
+# /usr/lib/aurora/helpers/aurora-admin and aurora-apply-display). Most tools already come from base.list
+# (network-manager, wireplumber/pipewire, pulseaudio-utils, x11-xserver-utils for xrandr, x11-xkb-utils
+# for setxkbmap, ufw, sudo, tzdata, locales, keyboard-configuration, python3); listed here are the extras
+# and the ones the backends cannot work without, so the dependency is explicit.
+network-manager
+wireplumber
+pulseaudio-utils
+x11-xserver-utils
+x11-xkb-utils
+xinput
+ufw
+passwd
+adduser
+bsdutils
+locales
+tzdata
+python3
+systemd-timesyncd

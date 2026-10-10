@@ -183,6 +183,7 @@ export async function createPaint(ctx) {
     zoom: () => S.zoom,
     fonts: () => fonts,
     recent: () => recent,
+    restoreFocus: () => restoreFocusSoon(),
   };
 
   // ------------------------------------------------------------------ DOM
@@ -402,7 +403,7 @@ export async function createPaint(ctx) {
       c.clearRect(0, 0, horiz ? len : th, horiz ? th : len);
       const origin = horiz ? L.left - scroller.scrollLeft : L.top - scroller.scrollTop;
       c.fillStyle = line;
-      c.font = '10px var(--font), sans-serif';
+      c.font = `10px ${cs.fontFamily || 'sans-serif'}`;
       c.textBaseline = 'top';
       const start = Math.floor(-origin / s / minor) * minor;
       for (let v = start; v * s + origin <= len; v += minor) {
@@ -761,17 +762,33 @@ export async function createPaint(ctx) {
   }
 
   // Right-drag with the eraser replaces only the primary colour with the secondary one.
+  // The pixels it changes are saved per 64×64 tile (not the whole picture) for undo.
   function startColorEraser(p) {
     const s = Math.max(1, Math.round(S.sizes.eraser));
     const from = hexToRgb(S.primary);
     const to = hexToRgb(S.secondary);
-    const before = docCtx.getImageData(0, 0, W(), H());
+    const TILE = 64;
+    const tiles = new Map();
+    const saveTiles = (r) => {
+      for (let ty = Math.floor(r.y / TILE); ty <= Math.floor((r.y + r.h - 1) / TILE); ty++) {
+        for (let tx = Math.floor(r.x / TILE); tx <= Math.floor((r.x + r.w - 1) / TILE); tx++) {
+          const key = `${tx},${ty}`;
+          if (tiles.has(key)) continue;
+          const x = tx * TILE;
+          const y = ty * TILE;
+          const w = Math.min(TILE, W() - x);
+          const hh = Math.min(TILE, H() - y);
+          tiles.set(key, { x, y, w, h: hh, data: docCtx.getImageData(x, y, w, hh) });
+        }
+      }
+    };
     let box = null;
     let last = null;
     const stamp = (ix, iy) => {
       const o = Math.floor((s - 1) / 2);
       const r = clipRect({ x: ix - o, y: iy - o, w: s, h: s }, W(), H());
       if (!r) return;
+      saveTiles(r);
       const img = docCtx.getImageData(r.x, r.y, r.w, r.h);
       const d = img.data;
       let hit = false;
@@ -801,11 +818,15 @@ export async function createPaint(ctx) {
         pts.forEach(add);
       },
       up() {
-        if (box) history.pushRegionData(box, subImage(before, box));
+        if (box) {
+          const before = docCtx.getImageData(box.x, box.y, box.w, box.h);
+          for (const tile of tiles.values()) blit(before, box, tile.data, tile);
+          history.pushRegionData(box, before);
+        }
         changed();
       },
       cancel() {
-        if (box) docCtx.putImageData(before, 0, 0, box.x, box.y, box.w, box.h);
+        for (const tile of tiles.values()) docCtx.putImageData(tile.data, tile.x, tile.y);
       },
     };
   }
@@ -1737,12 +1758,22 @@ export async function createPaint(ctx) {
   }
 
   // ------------------------------------------------------------------ clipboard
+  // Paint's own channels (main/ipc/paint.js) support both clipboard APIs Electron has shipped;
+  // the generic shell channels are the fallback.
+  async function clipInvoke(own, generic, ...args) {
+    try {
+      return await api.invoke(own, ...args);
+    } catch (err) {
+      if (err?.code !== 'ENOHANDLER') throw err;
+      return api.invoke(generic, ...args);
+    }
+  }
   async function copy() {
     const c = selectionCanvas();
     if (!c) return false;
     try {
       const bytes = await encodeCanvas(c, 'png');
-      await api.invoke('clipboard:writeImage', bytes);
+      await clipInvoke('paint:clipboardWriteImage', 'clipboard:writeImage', bytes);
       return true;
     } catch (err) {
       await showError(t('err.copy'), err);
@@ -1755,7 +1786,7 @@ export async function createPaint(ctx) {
   async function paste() {
     let bmp = null;
     try {
-      const bytes = await api.invoke('clipboard:readImage');
+      const bytes = await clipInvoke('paint:clipboardReadImage', 'clipboard:readImage');
       if (bytes?.length) bmp = await decodeImage(bytes);
     } catch (err) {
       console.warn('[paint] clipboard read failed', err);
@@ -2207,7 +2238,22 @@ export async function createPaint(ctx) {
       console.error(`[paint] ${id} failed`, err);
       await showError(t('err.generic'), err);
       return undefined;
+    } finally {
+      restoreFocusSoon();
     }
+  }
+
+  // Closing a dialog (after its fade-out) drops keyboard focus on <body>: bring it back to the
+  // canvas so shortcuts keep working — unless another window took the focus meanwhile.
+  function restoreFocusSoon() {
+    const check = () => {
+      if (win._closing || !win.el.isConnected || textEdit) return;
+      const a = document.activeElement;
+      const lost = !a || a === document.body || !!a.closest?.('.dialog-layer.closing');
+      if (lost && (win.isFocused?.() ?? true)) scroller.focus({ preventScroll: true });
+    };
+    check();
+    setTimeout(check, 240);
   }
 
   function can(id) {
@@ -2424,6 +2470,7 @@ export async function createPaint(ctx) {
     get history() {
       return { undo: history.undoStack.length, redo: history.redoStack.length, state: history.state, raw: history.rawBytes() };
     },
+    historyInternals: history,
     dirty: isDirty,
     pixel(x, y) {
       return [...docCtx.getImageData(x, y, 1, 1).data];

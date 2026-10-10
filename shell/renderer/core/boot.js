@@ -23,6 +23,8 @@ const FEATURES = ['hotkeys', 'quick', 'calendar', 'alttab', 'taskview', 'search'
 async function main() {
   await Promise.all([settings.load(), loadIcons()]);
   i18n.init(settings.get('lang') || env.lang);
+  // Session "Welcome" view (features/welcome.js, optional): covers the screen before the desktop mounts.
+  await import('./features/welcome.js').then((m) => m.early?.({ api, env, settings, i18n }), () => null).catch((err) => console.error('[boot] welcome failed', err));
   await i18n.load();
   await applyTheme();
   watchTheme();

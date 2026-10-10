@@ -1,0 +1,1427 @@
+/* Aurora Settings — Windows 11 Settings look. Everything is scoped under .app-settings. */
+.app-settings {
+  --st-pane-w: 300px;
+  --st-nav-system: #0067c0;
+  --st-nav-bluetooth: #1a73e8;
+  --st-nav-network: #0f6cbd;
+  --st-nav-personalization: #c74e23;
+  --st-nav-apps: #5b57d1;
+  --st-nav-accounts: #1f8a43;
+  --st-nav-timeLanguage: #0b7f90;
+  --st-nav-accessibility: #0067c0;
+  --st-nav-privacy: #56616f;
+  --st-nav-update: #0067c0;
+}
+:root[data-theme="dark"] .app-settings {
+  --st-nav-system: #4cc2ff;
+  --st-nav-bluetooth: #6cb8ff;
+  --st-nav-network: #60cdff;
+  --st-nav-personalization: #ff9a73;
+  --st-nav-apps: #aaa7ff;
+  --st-nav-accounts: #6ccb5f;
+  --st-nav-timeLanguage: #4fd1e0;
+  --st-nav-accessibility: #4cc2ff;
+  --st-nav-privacy: #a6b1bf;
+  --st-nav-update: #4cc2ff;
+}
+
+/* ---------- title bar additions ---------- */
+.app-settings .st-tb-btn {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 32px;
+  margin: 0 -4px 0 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  transition: background var(--dur-fast) linear;
+}
+.app-settings .st-tb-btn:hover {
+  background: var(--subtle-hover);
+}
+.app-settings .st-tb-btn:active {
+  background: var(--subtle-pressed);
+  color: var(--text-2);
+}
+.app-settings .st-tb-btn:disabled {
+  color: var(--text-disabled);
+  background: transparent;
+}
+.app-settings .st-tb-btn + .win-icon,
+.app-settings .st-tb-btn + .st-tb-btn + .win-icon {
+  margin-left: 12px;
+}
+.app-settings .st-tb-menu {
+  display: none;
+}
+.app-settings:has(.st-root.compact) .st-tb-menu {
+  display: inline-grid;
+}
+
+/* ---------- layout ---------- */
+.app-settings .st-root {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.app-settings .st-pane {
+  flex: none;
+  width: var(--st-pane-w);
+  display: flex;
+  flex-direction: column;
+  padding: 4px 8px 12px 16px;
+  min-height: 0;
+}
+.app-settings .st-user {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 8px 0 14px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  transition: background var(--dur-fast) linear;
+}
+.app-settings .st-user:hover {
+  background: var(--subtle-hover);
+}
+.app-settings .st-user:active {
+  background: var(--subtle-pressed);
+}
+.app-settings .st-user-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-settings .st-user-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+.app-settings .st-user-kind {
+  color: var(--text-2);
+}
+.app-settings .st-avatar {
+  --size: 60px;
+  flex: none;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-base, #0078d4) 85%, #fff), color-mix(in srgb, var(--accent-base, #0078d4) 80%, #000));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+.app-settings .st-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.app-settings .st-initials {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: calc(var(--size) * 0.36);
+  letter-spacing: 0.02em;
+}
+.app-settings .st-search {
+  position: relative;
+  margin: 0 4px 12px 0;
+}
+.app-settings .st-search input::-webkit-search-cancel-button {
+  appearance: none;
+}
+.app-settings .st-search .st-suggest {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-width: none;
+  max-height: 380px;
+  overflow: auto;
+  z-index: 60;
+}
+.app-settings .st-suggest-item {
+  height: auto;
+  min-height: 40px;
+  padding: 4px 12px;
+}
+.app-settings .st-suggest-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 18px;
+}
+.app-settings .st-suggest-empty {
+  padding: 10px 12px;
+}
+.app-settings .st-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  gap: 4px;
+  padding: 2px 4px 2px 0;
+}
+.app-settings .st-nav-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-size: 14px;
+  flex: none;
+  transition: background var(--dur-fast) linear;
+}
+.app-settings .st-nav-item:active {
+  background: var(--subtle-pressed);
+  color: var(--text-2);
+}
+.app-settings .st-nav-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+}
+.app-settings .st-nav-item[data-cat="system"] .st-nav-icon { color: var(--st-nav-system); }
+.app-settings .st-nav-item[data-cat="bluetooth"] .st-nav-icon { color: var(--st-nav-bluetooth); }
+.app-settings .st-nav-item[data-cat="network"] .st-nav-icon { color: var(--st-nav-network); }
+.app-settings .st-nav-item[data-cat="personalization"] .st-nav-icon { color: var(--st-nav-personalization); }
+.app-settings .st-nav-item[data-cat="apps"] .st-nav-icon { color: var(--st-nav-apps); }
+.app-settings .st-nav-item[data-cat="accounts"] .st-nav-icon { color: var(--st-nav-accounts); }
+.app-settings .st-nav-item[data-cat="timeLanguage"] .st-nav-icon { color: var(--st-nav-timeLanguage); }
+.app-settings .st-nav-item[data-cat="accessibility"] .st-nav-icon { color: var(--st-nav-accessibility); }
+.app-settings .st-nav-item[data-cat="privacy"] .st-nav-icon { color: var(--st-nav-privacy); }
+.app-settings .st-nav-item[data-cat="update"] .st-nav-icon { color: var(--st-nav-update); }
+
+.app-settings .st-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-settings .st-header {
+  flex: none;
+  padding: 14px 40px 20px 20px;
+}
+.app-settings .st-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  line-height: 40px;
+  font-weight: 600;
+  min-height: 40px;
+}
+.app-settings .st-crumb {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--text-2);
+  transition: color var(--dur-fast) linear;
+}
+button.st-crumb:hover {
+  color: var(--text);
+}
+.app-settings .st-crumb.current {
+  color: var(--text);
+}
+.app-settings .st-crumb-sep {
+  display: inline-grid;
+  place-items: center;
+  margin: 2px 12px 0;
+  color: var(--text-2);
+}
+.app-settings .st-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 28px 36px 20px;
+  scrollbar-gutter: stable;
+}
+.app-settings .st-content-wrap {
+  max-width: 1000px;
+}
+.app-settings .st-errors:empty {
+  display: none;
+}
+.app-settings .st-errors {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.app-settings .st-page > * + *,
+.app-settings .st-page > div > * + * {
+  margin-top: 28px;
+}
+.app-settings .st-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 4px;
+}
+
+/* compact (narrow window): the pane slides over the content */
+.app-settings .st-scrim {
+  display: none;
+}
+.app-settings .st-root.compact .st-pane {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(var(--st-pane-w), 86%);
+  background: var(--acrylic-strong);
+  backdrop-filter: blur(30px) saturate(150%);
+  border-right: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  transform: translateX(-104%);
+  visibility: hidden;
+  box-shadow: 8px 0 28px rgba(0, 0, 0, 0.2);
+  transition: transform var(--dur-slow) var(--ease), visibility 0s linear var(--dur-slow);
+}
+:root[data-transparency="off"] .app-settings .st-root.compact .st-pane {
+  backdrop-filter: none;
+  background: var(--solid);
+}
+.app-settings .st-root.compact.pane-open .st-pane {
+  transform: none;
+  visibility: visible;
+  transition: transform var(--dur-slow) var(--ease), visibility 0s;
+}
+.app-settings .st-root.compact.pane-open .st-scrim {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  background: transparent;
+}
+.app-settings .st-root.compact .st-header {
+  padding-left: 24px;
+}
+.app-settings .st-root.compact .st-scroll {
+  padding-left: 24px;
+  padding-right: 20px;
+}
+
+/* ---------- groups & rows (SettingsCard) ---------- */
+.app-settings .st-group-title {
+  margin: 0 0 8px 2px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+.app-settings .st-group-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.app-settings .st-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 66px;
+  padding: 11px 16px;
+  border: 1px solid var(--stroke-card);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  text-align: left;
+  font-size: 14px;
+  transition: background var(--dur-fast) linear;
+}
+.app-settings button.st-row {
+  font: inherit;
+}
+.app-settings .st-row.clickable:hover {
+  background: var(--card-hover);
+}
+.app-settings .st-row.clickable:active {
+  background: var(--control-pressed);
+}
+.app-settings .st-row.clickable:active > .st-row-text {
+  opacity: 0.8;
+}
+.app-settings .st-row.disabled {
+  color: var(--text-disabled);
+}
+.app-settings .st-row.disabled .st-row-desc {
+  color: var(--text-disabled);
+}
+.app-settings .st-row-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  color: var(--text);
+}
+.app-settings .st-row-icon img {
+  width: 24px;
+  height: 24px;
+}
+.app-settings .st-row-text {
+  flex: 1;
+  min-width: 0;
+}
+.app-settings .st-row-title {
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+.app-settings .st-row-desc {
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.app-settings .st-row-right {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  max-width: 60%;
+}
+.app-settings .st-chev {
+  display: inline-grid;
+  place-items: center;
+  color: var(--text-2);
+  margin-left: 4px;
+  transition: transform var(--dur-slow) var(--ease);
+}
+.app-settings .st-row-value {
+  color: var(--text-2);
+  text-align: right;
+}
+.app-settings .st-flash {
+  animation: st-flash 2.2s var(--ease-std);
+}
+@keyframes st-flash {
+  0%,
+  35% {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+
+/* expander */
+.app-settings .st-expander {
+  border-radius: var(--radius-sm);
+}
+.app-settings .st-expander.open > .st-exp-head {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.app-settings .st-expander.open .st-exp-chev {
+  transform: rotate(180deg);
+}
+.app-settings .st-exp-body {
+  border: 1px solid var(--stroke-card);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--card);
+  overflow: hidden;
+}
+.app-settings .st-exp-body > .st-sub-pad {
+  padding: 12px 16px 16px 56px;
+}
+.app-settings .st-sub {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 52px;
+  padding: 10px 16px 10px 56px;
+}
+.app-settings .st-sub + .st-sub,
+.app-settings .st-sub-sep {
+  border-top: 1px solid var(--stroke);
+}
+.app-settings .st-sub > .st-row-icon {
+  margin-left: -36px;
+  width: 20px;
+}
+.app-settings .st-exp-body .st-row-desc {
+  margin-top: 1px;
+}
+
+/* toggle with its On / Off text */
+.app-settings .st-toggle {
+  flex-direction: row;
+  gap: 12px;
+}
+.app-settings .st-toggle-text {
+  min-width: 30px;
+  text-align: right;
+  white-space: nowrap;
+}
+.app-settings .st-toggle.disabled {
+  color: var(--text-disabled);
+}
+.app-settings .st-toggle input:disabled {
+  opacity: 0.45;
+}
+
+/* combo box */
+.app-settings .st-combo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 160px;
+  max-width: 340px;
+  height: 32px;
+  padding: 0 11px 0 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--control-stroke);
+  border-bottom-color: var(--control-stroke-bottom);
+  background: var(--control);
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+  transition: background var(--dur-fast) linear;
+}
+.app-settings .st-combo:hover {
+  background: var(--control-hover);
+}
+.app-settings .st-combo:active,
+.app-settings .st-combo.open {
+  background: var(--control-pressed);
+}
+.app-settings .st-combo:disabled {
+  color: var(--text-disabled);
+  background: var(--control-disabled);
+}
+.app-settings .st-combo > .icon {
+  color: var(--text-2);
+}
+.app-settings .st-combo-text {
+  flex: 1;
+  min-width: 0;
+}
+.st-combo-menu {
+  max-height: min(420px, calc(100vh - 80px));
+  overflow-y: auto;
+  min-width: 180px;
+}
+/* searchable picker popup (rendered in document.body) */
+.st-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 4px 4px;
+}
+.st-picker .search-box {
+  margin: 0 4px 4px;
+}
+.st-picker-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.st-picker-list .menu-item.current {
+  background: var(--subtle-selected);
+}
+.st-picker-empty {
+  padding: 8px 12px;
+}
+
+/* slider */
+.app-settings .st-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 280px;
+  max-width: 100%;
+  color: var(--text-2);
+}
+.app-settings .st-slider .slider {
+  flex: 1;
+  min-width: 80px;
+}
+.app-settings .st-slider-val {
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.app-settings .st-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font-size: 14px;
+  text-align: left;
+}
+.app-settings .st-link:hover {
+  text-decoration: underline;
+}
+.app-settings .st-link:active {
+  opacity: 0.75;
+}
+.app-settings .btn.st-danger {
+  color: var(--danger);
+}
+.app-settings .st-infobar {
+  align-items: center;
+}
+.app-settings .st-infobar > .icon {
+  margin-top: 0;
+}
+.app-settings .st-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--text-2);
+}
+.app-settings .st-empty > .icon {
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+.app-settings .st-empty .body-large {
+  color: var(--text);
+}
+
+/* ---------- hero cards ---------- */
+.app-settings .st-hero {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 4px 0 0;
+}
+.app-settings .st-hero-text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-settings .st-hero-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.app-settings .st-hero-sub {
+  color: var(--text-2);
+}
+.app-settings .st-hero-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.app-settings .st-device-pic {
+  flex: none;
+  width: 168px;
+  height: 104px;
+  border-radius: 6px;
+  border: 4px solid #1b1b1b;
+  border-bottom-width: 7px;
+  background: var(--wallpaper) center / cover, #333;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  position: relative;
+}
+.app-settings .st-device-pic::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -17px;
+  width: 44px;
+  height: 10px;
+  margin-left: -22px;
+  border-radius: 0 0 4px 4px;
+  background: linear-gradient(#2a2a2a, #3a3a3a);
+}
+.app-settings .st-quick-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+.app-settings .st-qcard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  min-height: 64px;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  transition: background var(--dur-fast) linear;
+}
+button.st-qcard:hover {
+  background: var(--card-hover);
+}
+.app-settings .st-qcard .icon {
+  color: var(--accent-text);
+}
+.app-settings .st-kv {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr;
+  gap: 6px 24px;
+  padding: 4px 0;
+  font-size: 14px;
+}
+.app-settings .st-kv > .k {
+  color: var(--text-2);
+}
+.app-settings .st-kv > .v {
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+
+/* status dot / badges */
+.app-settings .st-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.app-settings .st-badge.ok .icon {
+  color: var(--success);
+}
+.app-settings .st-badge.warn .icon {
+  color: var(--warning);
+}
+.app-settings .st-badge.bad .icon {
+  color: var(--danger);
+}
+.app-settings .st-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  background: var(--subtle-selected);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.app-settings .st-pill.accent {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+
+/* usage bars (storage, data usage) */
+.app-settings .st-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--control-strong);
+  opacity: 0.9;
+  overflow: hidden;
+}
+.app-settings .st-bar > i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: var(--accent);
+  transform-origin: left;
+  animation: st-bar-in 700ms var(--ease);
+}
+.app-settings .st-bar.warn > i {
+  background: var(--danger);
+}
+.app-settings .st-bar-light {
+  background: color-mix(in srgb, var(--control-strong) 40%, transparent);
+}
+@keyframes st-bar-in {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* ---------- System ---------- */
+.app-settings .st-display-pick {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+}
+.app-settings .st-monitor {
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  border: 2px solid var(--accent);
+  background: var(--accent-subtle);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text);
+}
+.app-settings .st-countdown {
+  font-variant-numeric: tabular-nums;
+}
+.app-settings .st-level {
+  position: relative;
+  width: 220px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--control-strong);
+  overflow: hidden;
+}
+.app-settings .st-level > i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 80ms linear;
+}
+.app-settings .st-storage-cats .st-row {
+  min-height: 60px;
+}
+.app-settings .st-storage-cat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-settings .st-storage-cat .st-bar {
+  width: 100%;
+}
+.app-settings .st-storage-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.app-settings .st-specs-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------- Network ---------- */
+.app-settings .st-net-hero {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 20px 24px;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+}
+.app-settings .st-net-art {
+  flex: none;
+  position: relative;
+  width: 104px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+.app-settings .st-net-art .st-net-globe {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  color: var(--text-2);
+}
+.app-settings .st-net-props {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.app-settings .st-net-prop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+}
+.app-settings .st-wifi-list .st-row {
+  min-height: 60px;
+}
+.app-settings .st-wifi-signal {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+}
+.app-settings .st-wifi-signal .bg {
+  position: absolute;
+  inset: 0;
+  color: var(--text-3);
+  opacity: 0.45;
+}
+.app-settings .st-wifi-signal .lock {
+  position: absolute;
+  right: -3px;
+  bottom: -2px;
+  background: var(--solid);
+  border-radius: 3px;
+  line-height: 0;
+}
+.app-settings .st-wifi-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 16px 56px;
+  max-width: 520px;
+}
+.app-settings .st-wifi-form .row {
+  flex-wrap: wrap;
+}
+.app-settings .st-scanbar {
+  height: 2px;
+  margin: -2px 0 0;
+  overflow: hidden;
+  position: relative;
+}
+.app-settings .st-scanbar.on::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 30%;
+  background: var(--accent);
+  border-radius: 1px;
+  animation: st-scan 1.4s var(--ease-std) infinite;
+}
+@keyframes st-scan {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(380%);
+  }
+}
+
+/* ---------- Personalization ---------- */
+.app-settings .st-pers-hero {
+  display: flex;
+  gap: 24px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+.app-settings .st-preview {
+  position: relative;
+  flex: none;
+  width: 300px;
+  aspect-ratio: 16 / 10;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #222;
+  background-position: center;
+  background-size: cover;
+  border: 1px solid var(--stroke-strong);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+}
+.app-settings .st-preview[data-fit="fit"] {
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+.app-settings .st-preview[data-fit="stretch"] {
+  background-size: 100% 100%;
+}
+.app-settings .st-preview[data-fit="center"] {
+  background-size: auto 140%;
+  background-repeat: no-repeat;
+}
+.app-settings .st-preview[data-fit="tile"] {
+  background-size: 34%;
+  background-repeat: repeat;
+}
+.app-settings .st-preview .pv-win {
+  position: absolute;
+  left: 22%;
+  top: 18%;
+  width: 56%;
+  height: 52%;
+  border-radius: 4px;
+  background: rgba(243, 243, 243, 0.92);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+.app-settings .st-preview[data-mode="dark"] .pv-win {
+  background: rgba(32, 32, 32, 0.92);
+}
+.app-settings .st-preview .pv-win::before {
+  content: "";
+  position: absolute;
+  left: 8%;
+  top: 22%;
+  width: 34%;
+  height: 10%;
+  border-radius: 2px;
+  background: var(--pv-accent, #0078d4);
+}
+.app-settings .st-preview .pv-win::after {
+  content: "";
+  position: absolute;
+  left: 8%;
+  top: 44%;
+  width: 70%;
+  height: 34%;
+  border-radius: 2px;
+  background: repeating-linear-gradient(rgba(127, 127, 127, 0.28) 0 12%, transparent 12% 30%);
+}
+.app-settings .st-preview .pv-taskbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 9%;
+  background: rgba(238, 238, 238, 0.86);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+.app-settings .st-preview[data-mode="dark"] .pv-taskbar {
+  background: rgba(28, 28, 28, 0.88);
+}
+.app-settings .st-preview .pv-taskbar i {
+  width: 5%;
+  height: 56%;
+  border-radius: 2px;
+  background: rgba(127, 127, 127, 0.55);
+}
+.app-settings .st-preview .pv-taskbar i:first-child {
+  background: var(--pv-accent, #0078d4);
+}
+.app-settings .st-preview .pv-start {
+  position: absolute;
+  left: 35%;
+  bottom: 12%;
+  width: 30%;
+  height: 50%;
+  border-radius: 4px;
+  background: rgba(243, 243, 243, 0.94);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.app-settings .st-preview[data-mode="dark"] .pv-start {
+  background: rgba(40, 40, 40, 0.95);
+}
+.app-settings .st-themes-strip {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-settings .st-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+}
+.app-settings .st-theme-grid.large {
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  gap: 12px;
+}
+.app-settings .st-theme {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--stroke-strong);
+  background: #333 center / cover;
+  overflow: hidden;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.app-settings .st-theme:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.16);
+}
+.app-settings .st-theme.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.app-settings .st-theme .th-win {
+  position: absolute;
+  right: 10%;
+  bottom: 14%;
+  width: 46%;
+  height: 46%;
+  border-radius: 3px;
+  background: rgba(243, 243, 243, 0.94);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+}
+.app-settings .st-theme[data-mode="dark"] .th-win {
+  background: rgba(36, 36, 36, 0.95);
+}
+.app-settings .st-theme .th-win::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  bottom: 16%;
+  width: 40%;
+  height: 18%;
+  border-radius: 2px;
+  background: var(--th-accent);
+}
+.app-settings .st-theme-label {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+  text-align: center;
+}
+.app-settings .st-theme-cell {
+  display: flex;
+  flex-direction: column;
+}
+.app-settings .st-wall-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  padding: 4px 0;
+}
+.app-settings .st-wall {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  padding: 0;
+  border: 1px solid var(--stroke-strong);
+  border-radius: 6px;
+  background: #333 center / cover;
+  overflow: hidden;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.app-settings .st-wall:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.16);
+}
+.app-settings .st-wall.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.app-settings .st-wall .st-wall-check {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.app-settings .st-swatches {
+  display: grid;
+  grid-template-columns: repeat(9, 40px);
+  gap: 6px;
+  padding: 4px 0 8px;
+}
+.app-settings .st-swatch {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--sw);
+  transition: transform var(--dur) var(--ease);
+}
+.app-settings .st-swatch:hover {
+  transform: scale(1.06);
+}
+.app-settings .st-swatch.selected {
+  box-shadow: 0 0 0 2px var(--solid), 0 0 0 4px var(--text);
+}
+.app-settings .st-swatch.selected::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 5px;
+  margin: -4px 0 0 -5px;
+  border: 2px solid #fff;
+  border-top: 0;
+  border-right: 0;
+  transform: rotate(-45deg);
+}
+.app-settings .st-mode-cards {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.app-settings .st-solid-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 40px);
+  gap: 6px;
+}
+
+/* ---------- Apps ---------- */
+.app-settings .st-app-icon {
+  width: 32px;
+  height: 32px;
+}
+.app-settings .st-apps-tools {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.app-settings .st-apps-tools .search-box {
+  flex: 1;
+  min-width: 200px;
+  max-width: 360px;
+}
+
+/* ---------- Accounts ---------- */
+.app-settings .st-account-hero {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.app-settings .st-account-hero .st-avatar {
+  --size: 96px;
+}
+.app-settings .st-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 380px;
+  max-width: 440px;
+}
+.app-settings .st-form .field {
+  margin-bottom: 10px;
+}
+.app-settings .st-form .field-hint.error {
+  color: var(--danger);
+}
+.app-settings .st-user-row-avatar .st-avatar {
+  --size: 32px;
+}
+.app-settings .st-user-row-avatar .st-initials {
+  font-size: 13px;
+}
+
+/* ---------- Time ---------- */
+.app-settings .st-clock-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-settings .st-clock-big {
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 52px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.app-settings .st-type-test {
+  width: 320px;
+  max-width: 100%;
+}
+
+/* ---------- Privacy ---------- */
+.app-settings .st-sec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.app-settings .st-sec-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  min-height: 132px;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+  transition: background var(--dur-fast) linear;
+}
+button.st-sec-card:hover {
+  background: var(--card-hover);
+}
+.app-settings .st-sec-card .st-sec-icon {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  color: var(--text-2);
+}
+.app-settings .st-sec-card .st-sec-state {
+  position: absolute;
+  right: -6px;
+  bottom: -4px;
+  border-radius: 50%;
+  background: var(--solid);
+  line-height: 0;
+}
+.app-settings .st-sec-card .st-sec-state.ok {
+  color: var(--success);
+}
+.app-settings .st-sec-card .st-sec-state.warn {
+  color: var(--warning);
+}
+
+/* ---------- Update ---------- */
+.app-settings .st-upd-hero {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.app-settings .st-upd-icon {
+  position: relative;
+  flex: none;
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+.app-settings .st-upd-icon .st-upd-badge {
+  position: absolute;
+  right: 2px;
+  bottom: 4px;
+  border-radius: 50%;
+  background: var(--solid);
+  line-height: 0;
+}
+.app-settings .st-upd-icon .st-upd-badge.ok {
+  color: var(--success);
+}
+.app-settings .st-upd-icon .st-upd-badge.pending {
+  color: var(--accent);
+}
+.app-settings .st-upd-icon.spinning > .icon:first-child {
+  animation: ui-spin 1.6s linear infinite;
+}
+.app-settings .st-upd-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 260px;
+  flex: 1;
+}
+.app-settings .st-pkg-list {
+  display: flex;
+  flex-direction: column;
+}
+.app-settings .st-pkg {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 16px;
+  padding: 8px 16px 8px 56px;
+  border-top: 1px solid var(--stroke);
+}
+.app-settings .st-pkg:first-child {
+  border-top: 0;
+}
+.app-settings .st-pkg .mono {
+  font-size: 12px;
+}
+
+/* Wi-Fi network list: flat items inside the "Available networks" card */
+.app-settings .st-wifi-list .st-group-rows {
+  gap: 2px;
+}
+.app-settings .st-wifi-list .st-expander > .st-row {
+  min-height: 56px;
+  border-color: transparent;
+  background: transparent;
+}
+.app-settings .st-wifi-list .st-expander > .st-row.clickable:hover {
+  background: var(--subtle-hover);
+}
+.app-settings .st-wifi-list .st-expander > .st-row.clickable:active {
+  background: var(--subtle-pressed);
+}
+.app-settings .st-wifi-list .st-expander.open {
+  background: var(--subtle-selected);
+  border-radius: var(--radius-sm);
+}
+.app-settings .st-wifi-list .st-expander.open > .st-row,
+.app-settings .st-wifi-list .st-expander.open > .st-row:hover {
+  background: transparent;
+}
+.app-settings .st-wifi-list .st-exp-body {
+  border: 0;
+  background: transparent;
+}
+.app-settings .st-wifi-list .st-wifi-form {
+  padding-top: 0;
+}
+
+/* lock screen preview + "same as desktop" tile */
+.app-settings .st-lock-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 13%;
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+.app-settings .st-lock-time {
+  font-family: var(--font-display);
+  font-size: 46px;
+  line-height: 54px;
+  font-weight: 600;
+}
+.app-settings .st-lock-date {
+  font-size: 13px;
+}
+.app-settings .st-wall-same .st-wall-same-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.38);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  line-height: 14px;
+}
+
+.app-settings .st-themes-strip .st-theme-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.app-settings .segmented > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 3px 14px;
+}
+.app-settings .st-text-preview {
+  min-height: 140px;
+  justify-content: center;
+}
+.app-settings .st-text-preview-sample {
+  line-height: 1.45;
+  transition: font-size var(--dur) var(--ease);
+}
+.app-settings .st-pers-hero {
+  align-items: flex-start;
+}

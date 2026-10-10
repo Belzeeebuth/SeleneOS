@@ -324,6 +324,7 @@ set-keyboard)
 
 firewall)
   need_args $# 1
+  case $1 in enable | disable | status) ;; *) die 2 "expected enable, disable or status" ;; esac
   command -v ufw >/dev/null 2>&1 || die 3 "the firewall (ufw) is not installed"
   case $1 in
   enable) run_or_die "could not turn the firewall on" ufw --force enable ;;

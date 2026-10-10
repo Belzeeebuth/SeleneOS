@@ -1,0 +1,16 @@
+# File Explorer (renderer/apps/files + main/ipc/files.js)
+# Compress to ZIP / Extract all (python3 zipfile is the fallback when zip/unzip are missing)
+zip
+unzip
+# Extract .tar.gz / .tar.xz / .tar.bz2 / .tar.zst archives
+tar
+gzip
+xz-utils
+bzip2
+# Video thumbnails in icon views
+ffmpegthumbnailer
+# Drive list (lsblk), mount / unmount / eject (udisksctl; udisks2 is in base.list)
+util-linux
+# Read and write USB sticks formatted by Windows or macOS
+ntfs-3g
+exfatprogs

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="ml-back" x1="6" y1="14" x2="42" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1a6ee3"/>
+      <stop offset="1" stop-color="#0b3fa8"/>
+    </linearGradient>
+    <linearGradient id="ml-paper" x1="0" y1="6" x2="0" y2="31" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d9e6f7"/>
+    </linearGradient>
+    <linearGradient id="ml-front" x1="9" y1="41" x2="39" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1f7ff0"/>
+      <stop offset="0.55" stop-color="#3ba9ff"/>
+      <stop offset="1" stop-color="#78d8ff"/>
+    </linearGradient>
+    <radialGradient id="ml-glow" cx="18" cy="24" r="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="24" cy="42.6" rx="17" ry="1.9" fill="#0b2a6b" opacity="0.2"/>
+  <rect x="5" y="14.5" width="38" height="26" rx="4.5" fill="url(#ml-back)"/>
+  <rect x="11" y="6.5" width="26" height="25" rx="2.6" fill="url(#ml-paper)"/>
+  <rect x="15" y="11.5" width="12" height="2.6" rx="1.3" fill="#2b86ef"/>
+  <rect x="15" y="16.6" width="18" height="2.2" rx="1.1" fill="#a5bddd"/>
+  <rect x="15" y="21.2" width="14" height="2.2" rx="1.1" fill="#a5bddd"/>
+  <path d="M5 19.4 21.5 30.5a4.6 4.6 0 0 0 5 0L43 19.4v16.6a4.5 4.5 0 0 1-4.5 4.5h-29A4.5 4.5 0 0 1 5 36z" fill="url(#ml-front)"/>
+  <path d="M5 19.4 21.5 30.5a4.6 4.6 0 0 0 5 0L43 19.4v16.6a4.5 4.5 0 0 1-4.5 4.5h-29A4.5 4.5 0 0 1 5 36z" fill="url(#ml-glow)"/>
+  <path d="M5.7 20.2 21.6 31a4.4 4.4 0 0 0 4.8 0l15.9-10.8" fill="none" stroke="#ffffff" stroke-opacity="0.6" stroke-width="1" stroke-linecap="round"/>
+  <path d="M6.6 39 18.4 29.2M41.4 39 29.6 29.2" fill="none" stroke="#0b3fa8" stroke-opacity="0.22" stroke-width="1.2" stroke-linecap="round"/>
+</svg>

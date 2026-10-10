@@ -1,7 +1,7 @@
 // Content area of File Explorer: Details / icons (XL, L, M, S) / List / Tiles views, the Home and
 // This PC pages, grouping, selection (click, Ctrl/Shift, rubber band, keyboard, type-to-find),
 // inline rename, thumbnails and drag & drop.
-import { shared, getColumns, saveColumns, isPinned } from './shared.js';
+import { shared, getColumns, saveColumns, pushUndo } from './shared.js';
 import * as T from './types.js';
 import * as ops from './ops.js';
 import { TRASH_TARGET } from './dnd.js';
@@ -123,8 +123,12 @@ export class ContentView {
   render() {
     const { h } = this.ex;
     this.thumbObserver.disconnect();
+    this.galleryVideos?.disconnect();
     this.items = [];
     this.byKey = new Map();
+    this.queue = null;
+    this.paintedSel = new Set();
+    this.focusedEl = null;
     this.inner.replaceChildren();
     const mode = this.mode;
     this.inner.className = `fx-inner m-${mode}${shared.prefs.checkboxes ? ' with-checks' : ''}`;
@@ -133,6 +137,7 @@ export class ContentView {
     if (!this.loc || !this.data) return;
     if (mode === 'home') return this.renderHome();
     if (mode === 'thispc') return this.renderThisPC();
+    if (this.loc.type === 'gallery' && ['xl', 'large', 'medium', 'small'].includes(mode)) return this.renderGallery();
     const entries = this.data.entries || [];
     let items = entries.map((e) => ({ key: e.path, entry: e, kind: this.loc.type === 'trash' ? 'trash' : 'file', type: T.typeName(e) }));
     this.sortItems(items);
@@ -142,6 +147,7 @@ export class ContentView {
       return;
     }
     const groups = this.vs.group !== 'none' && mode !== 'list' ? this.groupItems(items) : null;
+    const queue = [];
     if (groups) {
       for (const g of groups) {
         const collapsed = this.collapsed.has(g.id);
@@ -157,17 +163,64 @@ export class ContentView {
           },
         }, this.ex.icon('chevron_down', { size: 12 }), h('span', { class: 'lbl' }, g.label), h('span', { class: 'cnt' }, `(${g.items.length})`), h('span', { class: 'line' }));
         const sec = h('div', { class: ['fx-group', collapsed && 'collapsed'] }, head, body);
-        for (const it of g.items) body.append(this.itemEl(it, mode));
+        for (const it of g.items) {
+          this.register(it);
+          queue.push([it, body]);
+        }
         this.inner.append(sec);
       }
     } else {
       const body = h('div', { class: ['fx-items', `l-${mode}`] });
-      const frag = document.createDocumentFragment();
-      for (const it of items) frag.append(this.itemEl(it, mode));
-      body.append(frag);
+      for (const it of items) {
+        this.register(it);
+        queue.push([it, body]);
+      }
       this.inner.append(body);
     }
-    this.paintCut();
+    this.renderQueue(queue, mode);
+  }
+
+  // Big folders render in chunks: the first screenful at once, the rest over the next frames.
+  renderQueue(queue, mode) {
+    const token = (this.renderToken = {});
+    this.queue = { list: queue, at: 0, mode, token };
+    this.flushTo(Math.min(queue.length, 240));
+    const step = () => {
+      const q = this.queue;
+      if (!q || q.token !== token) return;
+      this.flushTo(Math.min(q.list.length, q.at + 400));
+      if (this.queue && this.queue.at < this.queue.list.length) requestAnimationFrame(step);
+    };
+    if (this.queue && this.queue.at < queue.length) requestAnimationFrame(step);
+  }
+
+  flushTo(end) {
+    const q = this.queue;
+    if (!q) return;
+    const cut = this.cutSet();
+    let body = null;
+    let frag = null;
+    for (; q.at < end; q.at++) {
+      const [it, b] = q.list[q.at];
+      if (b !== body) {
+        if (frag) body.append(frag);
+        body = b;
+        frag = document.createDocumentFragment();
+      }
+      const el = this.itemEl(it, q.mode);
+      if (this.sel.has(it.key)) {
+        el.classList.add('selected');
+        el.setAttribute('aria-selected', 'true');
+      }
+      if (cut?.has(it.entry.path)) el.classList.add('cut');
+      frag.append(el);
+    }
+    if (frag) body.append(frag);
+    if (q.at >= q.list.length) this.queue = null;
+  }
+
+  flushAll() {
+    if (this.queue) this.flushTo(this.queue.list.length);
   }
 
   register(it) {
@@ -423,7 +476,6 @@ export class ContentView {
 
   itemEl(it, mode) {
     const { h } = this.ex;
-    this.register(it);
     const e = it.entry;
     const attrs = {
       class: ['fx-item', mode === 'details' ? 'fx-row' : mode === 'tiles' ? 'fx-tilecard' : mode === 'list' || mode === 'small' ? 'fx-line' : 'fx-tile', e.hidden && 'is-hidden'],
@@ -534,6 +586,81 @@ export class ContentView {
     return p;
   }
 
+  // ---------------------------------------------------------------- Gallery (photo timeline)
+  renderGallery() {
+    const { h, t, api } = this.ex;
+    const mode = this.vs.mode;
+    const H = { xl: 260, large: 196, medium: 148, small: 100 }[mode] || 148;
+    this.inner.classList.add('m-gallery');
+    const entries = [...(this.data.entries || [])].sort((a, b) => (b.mtime - a.mtime) * (this.vs.dir < 0 ? 1 : -1));
+    if (!entries.length) {
+      this.inner.append(h('div', { class: 'fx-empty' }, t('gallery.empty')));
+      return;
+    }
+    const month = new Intl.DateTimeFormat(this.ex.ctx.lang === 'fr' ? 'fr-FR' : 'en-US', { month: 'long', year: 'numeric' });
+    const groups = new Map();
+    for (const e of entries) {
+      const d = new Date(e.mtime);
+      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
+      if (!groups.has(key)) groups.set(key, { id: key, label: month.format(d), items: [] });
+      groups.get(key).items.push(e);
+    }
+    for (const g of groups.values()) {
+      const collapsed = this.collapsed.has(g.id);
+      const body = h('div', { class: 'fx-gallery', style: { '--gh': `${H}px` } });
+      const head = h('button', {
+        class: 'fx-group-head',
+        'aria-expanded': String(!collapsed),
+        onclick: () => {
+          if (this.collapsed.has(g.id)) this.collapsed.delete(g.id);
+          else this.collapsed.add(g.id);
+          sec.classList.toggle('collapsed', this.collapsed.has(g.id));
+          head.setAttribute('aria-expanded', String(!this.collapsed.has(g.id)));
+        },
+      }, this.ex.icon('chevron_down', { size: 12 }), h('span', { class: 'lbl' }, g.label), h('span', { class: 'cnt' }, `(${g.items.length})`), h('span', { class: 'line' }));
+      const sec = h('div', { class: ['fx-group', collapsed && 'collapsed'] }, head, body);
+      for (const e of g.items) {
+        const it = { key: e.path, entry: e, kind: 'file', type: T.typeName(e) };
+        this.register(it);
+        const video = T.isVideo(e);
+        const img = h('img', { class: 'fx-gimg', alt: '', draggable: false, loading: 'lazy', decoding: 'async' });
+        const el = h('div', { class: ['fx-item', 'fx-gtile', video && 'video'], id: it.id, role: 'option', 'aria-selected': 'false', 'aria-label': e.name, draggable: 'true', dataset: { key: it.key }, title: `${e.name}\n${T.formatDate(e.mtime)}`, style: { width: `${Math.round(H * 1.4)}px` } },
+          img, h('span', { class: 'fx-name' }, e.name));
+        const fit = () => {
+          if (img.naturalWidth && img.naturalHeight) el.style.width = `${Math.round(Math.max(0.6, Math.min(2.4, img.naturalWidth / img.naturalHeight)) * H)}px`;
+        };
+        img.addEventListener('load', fit);
+        img.addEventListener('error', () => {
+          img.src = T.iconFor(e);
+          img.classList.add('fallback');
+        }, { once: true });
+        if (video) {
+          img.src = T.iconFor(e);
+          img.classList.add('fallback');
+          el.dataset.video = e.path;
+          this.galleryVideos ??= new IntersectionObserver((list) => {
+            for (const en of list) {
+              if (!en.isIntersecting) continue;
+              const tile = en.target;
+              this.galleryVideos.unobserve(tile);
+              api.invoke('files:thumb', tile.dataset.video, 320).then((thumb) => {
+                if (!thumb || !tile.isConnected) return;
+                const im = tile.querySelector('img');
+                im.classList.remove('fallback');
+                im.src = api.mediaUrl(thumb);
+              }).catch(() => {});
+            }
+          }, { root: this.scroller, rootMargin: '200px' });
+          this.galleryVideos.observe(el);
+        } else img.src = api.mediaUrl(e.path);
+        it.el = el;
+        body.append(el);
+      }
+      this.inner.append(sec);
+    }
+    this.paintCut();
+  }
+
   // ---------------------------------------------------------------- This PC
   renderThisPC() {
     const { h, t } = this.ex;
@@ -630,13 +757,30 @@ export class ContentView {
   }
 
   paintSel() {
-    for (const it of this.items) {
-      const on = this.sel.has(it.key);
-      if (it.el.classList.contains('selected') !== on) {
-        it.el.classList.toggle('selected', on);
-        it.el.setAttribute('aria-selected', String(on));
+    // Only touch the rows whose state changed (folders can hold thousands of items).
+    const prev = this.paintedSel || new Set();
+    for (const k of prev) {
+      if (this.sel.has(k)) continue;
+      const el = this.byKey.get(k)?.el;
+      if (el) {
+        el.classList.remove('selected');
+        el.setAttribute('aria-selected', 'false');
       }
-      it.el.classList.toggle('focused', this.kbd && it.key === this.focusKey);
+    }
+    for (const k of this.sel) {
+      if (prev.has(k)) continue;
+      const el = this.byKey.get(k)?.el;
+      if (el) {
+        el.classList.add('selected');
+        el.setAttribute('aria-selected', 'true');
+      }
+    }
+    this.paintedSel = new Set(this.sel);
+    const fEl = this.kbd ? this.byKey.get(this.focusKey)?.el || null : null;
+    if (this.focusedEl !== fEl) {
+      this.focusedEl?.classList.remove('focused');
+      fEl?.classList.add('focused');
+      this.focusedEl = fEl;
     }
     const f = this.byKey.get(this.focusKey);
     if (f) this.scroller.setAttribute('aria-activedescendant', f.id);
@@ -649,13 +793,18 @@ export class ContentView {
     this.ex.onSelection();
   }
 
-  paintCut() {
+  cutSet() {
     const clip = this.ex.ctx.shell.clipboard.getFiles();
-    const cut = clip?.mode === 'cut' ? new Set(clip.paths) : null;
-    for (const it of this.items) it.el.classList.toggle('cut', !!cut && cut.has(it.entry?.path));
+    return clip?.mode === 'cut' ? new Set(clip.paths) : null;
+  }
+
+  paintCut() {
+    const cut = this.cutSet();
+    for (const it of this.items) it.el?.classList.toggle('cut', !!cut && cut.has(it.entry?.path));
   }
 
   reveal(it) {
+    if (it && !it.el) this.flushAll();
     if (!it?.el) return;
     const group = it.el.closest('.fx-group.collapsed, .fx-sec.collapsed');
     if (group) group.classList.remove('collapsed');
@@ -669,6 +818,17 @@ export class ContentView {
     sc.addEventListener('pointerup', (e) => this.onPointerUp(e));
     sc.addEventListener('click', (e) => this.onClick(e));
     sc.addEventListener('dblclick', (e) => this.onDblClick(e));
+    // Middle-click on a folder opens it in a new background tab (Windows 11 22H2+).
+    sc.addEventListener('mousedown', (e) => e.button === 1 && e.target.closest('.fx-item') && e.preventDefault());
+    sc.addEventListener('auxclick', (e) => {
+      if (e.button !== 1) return;
+      const el = e.target.closest('.fx-item');
+      const it = el && this.byKey.get(el.dataset.key);
+      if (it?.entry?.dir && it.entry.path && !it.entry.missing && it.kind !== 'trash') {
+        e.preventDefault();
+        this.ex.newTab({ type: 'dir', path: it.entry.path }, { activate: false });
+      }
+    });
     sc.addEventListener('contextmenu', (e) => this.onContextMenu(e));
     sc.addEventListener('keydown', (e) => this.onKey(e));
     sc.addEventListener('focus', () => {
@@ -856,6 +1016,7 @@ export class ContentView {
   }
 
   menuAtFocus() {
+    this.flushAll();
     const it = this.byKey.get(this.focusKey) || this.selectedItems()[0];
     if (it && this.sel.has(it.key)) {
       const r = it.el.getBoundingClientRect();
@@ -869,6 +1030,7 @@ export class ContentView {
   // ---------------------------------------------------------------- rubber band
   startBand(e) {
     if (e.pointerType === 'touch') return;
+    this.flushAll();
     const sc = this.scroller;
     const r0 = sc.getBoundingClientRect();
     // Ignore clicks on the scrollbars.
@@ -1025,10 +1187,12 @@ export class ContentView {
   }
 
   neighbor(k) {
-    const items = this.items.filter((i) => i.el.offsetParent !== null);
+    this.flushAll();
+    const anyCollapsed = !!this.inner.querySelector('.collapsed');
+    const items = anyCollapsed ? this.items.filter((i) => !i.el.closest('.collapsed')) : this.items;
     if (!items.length) return null;
     const cur = this.byKey.get(this.focusKey);
-    if (!cur || cur.el.offsetParent === null) return k === 'End' ? items[items.length - 1] : items[0];
+    if (!cur || !items.includes(cur)) return k === 'End' ? items[items.length - 1] : items[0];
     const idx = items.indexOf(cur);
     if (k === 'Home') return items[0];
     if (k === 'End') return items[items.length - 1];
@@ -1095,13 +1259,14 @@ export class ContentView {
   }
 
   // ---------------------------------------------------------------- inline rename
-  beginRename(key, { isNew = false } = {}) {
+  beginRename(key, { isNew = false, batch = null } = {}) {
     const it = this.byKey.get(key);
     if (!it || it.kind !== 'file' || !it.entry || it.entry.missing) return false;
     if (this.renaming) this.endRename();
     const { h } = this.ex;
     this.setSel([key], key);
     this.reveal(it);
+    if (this.inner.classList.contains('m-gallery')) return this.promptRename(it);
     const nameEl = it.el.querySelector('.fx-name');
     if (!nameEl) return false;
     const e = it.entry;
@@ -1122,7 +1287,7 @@ export class ContentView {
     it.el.append(tip);
     it.el.classList.add('renaming');
     it.el.draggable = false;
-    this.renaming = { key, it, input, nameEl, tip, entry: e, isNew, ext, showExt };
+    this.renaming = { key, it, input, nameEl, tip, entry: e, isNew, ext, showExt, batch: batch?.length ? batch : null };
     const fit = () => {
       if (multiline) {
         input.style.height = 'auto';
@@ -1167,6 +1332,26 @@ export class ContentView {
     return true;
   }
 
+  // Rename through a dialog where an inline field cannot fit (Gallery tiles).
+  async promptRename(it) {
+    const ex = this.ex;
+    const e = it.entry;
+    const v = await ex.ui.prompt({
+      title: ex.t('rename.title'),
+      value: e.name,
+      parent: ex.win,
+      validate: (val) => ops.validateName(ex, val.trim()),
+    });
+    if (v == null || v.trim() === e.name) return this.focus();
+    try {
+      const res = await ops.rename(ex, e, v.trim());
+      await ex.refresh({ select: [res.path] });
+    } catch (err) {
+      await ops.alertError(ex, err, ex.t('rename.title'));
+    }
+    this.focus();
+  }
+
   renameTip(msg) {
     const r = this.renaming;
     if (!r) return;
@@ -1194,6 +1379,7 @@ export class ContentView {
       return false;
     }
     r.busy = true;
+    if (r.batch) return this.commitBatch(r, v);
     if (r.showExt && !r.entry.dir) {
       const oldExt = T.splitExt(r.entry.name, false)[1].toLowerCase();
       const newExt = T.splitExt(v, false)[1].toLowerCase();
@@ -1213,19 +1399,55 @@ export class ContentView {
       this.focus();
       return true;
     } catch (e2) {
-      r.busy = false;
-      if (e2.code === 'EEXIST') {
+      // Stay "busy" while the dialog is up: the input's blur must not commit again.
+      if (ops.codeOf(e2) === 'EEXIST') {
         await ex.ui.alert(t(r.entry.dir ? 'rename.existsFolder' : 'rename.exists', { name: v }), { title: t('rename.title'), parent: ex.win });
+        r.busy = false;
         if (this.renaming === r) {
           r.input.focus();
-          r.input.select();
+          const [stem] = T.splitExt(r.input.value, r.entry.dir);
+          r.input.setSelectionRange(0, r.showExt && !r.entry.dir ? stem.length : r.input.value.length);
         }
       } else {
         await ops.alertError(ex, e2, t('rename.title'));
+        r.busy = false;
         this.endRename();
       }
       return false;
     }
+  }
+
+  // Windows batch rename: "Holiday" -> "Holiday (1).jpg", "Holiday (2).png", … (one undo step).
+  async commitBatch(r, value) {
+    const ex = this.ex;
+    const [stem] = T.splitExt(value, r.entry.dir);
+    const list = [r.entry, ...r.batch];
+    const done = [];
+    const failed = [];
+    let n = 1;
+    for (const e of list) {
+      const ext = e.dir ? '' : T.splitExt(e.name, false)[1];
+      for (;;) {
+        const name = `${stem} (${n++})${ext}`;
+        try {
+          if (name !== e.name) {
+            const res = await ops.rename(ex, e, name, { undo: false });
+            done.push({ from: e.path, to: res.path });
+          }
+          break;
+        } catch (err) {
+          if (ops.codeOf(err) === 'EEXIST' && n < 10000) continue;
+          failed.push(e.name);
+          break;
+        }
+      }
+    }
+    if (done.length) pushUndo({ type: 'renameMany', items: done });
+    this.endRename();
+    await ex.refresh({ select: done.map((d) => d.to) });
+    this.focus();
+    if (failed.length) await ops.alertError(ex, new Error(failed.join('\n')), ex.t('rename.title'));
+    return true;
   }
 
   endRename() {

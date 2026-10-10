@@ -180,6 +180,7 @@ export function renamePaths(from, to) {
 export function viewDefaults(locKey) {
   const x = shared.xdg || {};
   if (locKey === 'trash') return { ...VIEW_DEFAULT, sort: 'deleted', dir: -1 };
+  if (locKey === 'gallery') return { ...VIEW_DEFAULT, mode: 'medium', sort: 'mtime', dir: -1 };
   if (locKey === x.pictures || locKey === x.videos) return { ...VIEW_DEFAULT, mode: 'large' };
   if (locKey === x.downloads) return { ...VIEW_DEFAULT, sort: 'mtime', dir: -1, group: 'mtime' };
   if (locKey.startsWith('search:')) return { ...VIEW_DEFAULT };

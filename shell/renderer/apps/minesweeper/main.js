@@ -1,6 +1,6 @@
 // Minesweeper — classic Windows game with a Fluent look.
 // Game rules live in logic.mjs (pure, unit-tested); this file is the UI.
-import { Minesweeper, DIFFICULTIES, CUSTOM_LIMITS, maxMines, validateCustom, emptyStats, recordGame, winRate } from './logic.mjs';
+import { Minesweeper, DIFFICULTIES, CUSTOM_LIMITS, LEVELS, maxMines, validateCustom, emptyStats, recordGame, winRate, sanitizePrefs, sanitizeAllStats } from './logic.mjs';
 import { createKit, reduceMotion } from './gamekit.js';
 
 const MIN_CELL = 18;
@@ -9,7 +9,7 @@ const PREF_CELL = { beginner: 40, intermediate: 32, expert: 28, custom: 32 };
 const FRAME_PAD = 8;
 const STAGE_PAD = 12;
 const LONG_PRESS_MS = 420;
-const DIFF_ORDER = ['beginner', 'intermediate', 'expert', 'custom'];
+const DIFF_ORDER = LEVELS;
 
 let uid = 0;
 
@@ -40,10 +40,9 @@ export default {
     const { win, h, icon, ui, t } = ctx;
     const kit = createKit(ctx);
 
-    const prefs = Object.assign({ difficulty: 'beginner', custom: { cols: 20, rows: 12, mines: 45 }, questionMarks: true, sound: true }, await kit.load('settings', {}));
-    if (!DIFF_ORDER.includes(prefs.difficulty)) prefs.difficulty = 'beginner';
-    if (validateCustom(prefs.custom)) prefs.custom = { cols: 20, rows: 12, mines: 45 };
-    let stats = (await kit.load('stats', {})) || {};
+    // Saved data may be from an older version, hand-edited or damaged: always sanitized.
+    const prefs = sanitizePrefs(await kit.load('settings', {}));
+    let stats = sanitizeAllStats(await kit.load('stats', {}));
     kit.sound.enabled = prefs.sound !== false;
 
     let game = null;
@@ -140,7 +139,7 @@ export default {
       const key = `${spec.cols}x${spec.rows}`;
       if (fittedFor !== key) {
         fittedFor = key;
-        requestAnimationFrame(fitWindow);
+        requestAnimationFrame(() => fitWindow());
       } else layout();
     }
 
@@ -552,8 +551,14 @@ export default {
     });
 
     // ---------------------------------------------------------------- sizing
+    let normalChrome = null; // title bar + borders, measured while the window is in its normal state
+    let refitOnRestore = false; // the board changed while maximized/snapped: refit when restored
+    const isDocked = () => !!(win.isMaximized?.() || win.isSnapped?.() || win.fullscreen || (win.state && win.state !== 'normal'));
     function measureChrome() {
-      return { w: win.el.offsetWidth - win.body.clientWidth, h: win.el.offsetHeight - win.body.clientHeight };
+      const c = { w: win.el.offsetWidth - win.body.clientWidth, h: win.el.offsetHeight - win.body.clientHeight };
+      if (!isDocked()) return (normalChrome = c);
+      // Maximized/snapped windows lose their 1px border: reuse the normal measure (or allow for the border).
+      return normalChrome || { w: c.w + 2, h: c.h + 2 };
     }
     function boardPixels(cell) {
       const gap = gapFor(cell);
@@ -567,7 +572,8 @@ export default {
       const statusW = minesChip.offsetWidth + face.offsetWidth + timeChip.offsetWidth + 24 + 24;
       return Math.max(toolbarW, statusW);
     }
-    function fitWindow() {
+    // resize: false only enforces the (new) minimum size, keeping a size the user chose.
+    function fitWindow({ resize = true } = {}) {
       if (!spec) return;
       const chrome = measureChrome();
       const headH = bar.offsetHeight + status.offsetHeight;
@@ -586,18 +592,24 @@ export default {
         win.opts.minWidth = Math.min(min.w, wa.width);
         win.opts.minHeight = Math.min(min.h, wa.height);
       }
-      const docked = win.isMaximized?.() || win.isSnapped?.() || win.fullscreen || (win.state && win.state !== 'normal');
-      if (docked) return layout();
-      const want = sizeFor(cell);
+      if (isDocked()) {
+        refitOnRestore = refitOnRestore || resize;
+        return layout();
+      }
+      refitOnRestore = false;
+      const want = resize ? sizeFor(cell) : { w: Math.max(win.w, win.opts?.minWidth || 0), h: Math.max(win.h, win.opts?.minHeight || 0) };
       const width = Math.min(want.w, wa.width);
       const height = Math.min(want.h, wa.height);
+      if (!resize && width === win.w && height === win.h) return layout();
       // Grow/shrink around the current centre, but stay inside the work area.
       let x = win.x + Math.round((win.w - width) / 2);
       let y = win.y;
       x = clamp(x, wa.x, wa.x + wa.width - width);
       y = clamp(y, wa.y, wa.y + wa.height - height);
       // No FLIP animation on the very first fit: the window is still playing its opening animation.
-      if (typeof win.setRect === 'function') win.setRect({ x, y, width, height }, !firstFit && !reduceMotion());
+      // (and none while the user drags the window off a maximized/snapped position).
+      const animate = !firstFit && !reduceMotion() && !document.body.classList.contains('wm-dragging');
+      if (typeof win.setRect === 'function') win.setRect({ x, y, width, height }, animate);
       else win.setSize(width, height);
       firstFit = false;
       layout();
@@ -623,7 +635,13 @@ export default {
       layoutRaf = requestAnimationFrame(layout);
     });
     win.on('maximize', () => requestAnimationFrame(layout));
-    win.on('restore', () => requestAnimationFrame(layout));
+    win.on('restore', () =>
+      requestAnimationFrame(() => {
+        // Level changed while maximized/snapped: the restored size belongs to the old board.
+        if (refitOnRestore && !isDocked() && !win.minimized) fitWindow();
+        else layout();
+      }),
+    );
     // Like Windows 7 Minesweeper, the clock stops while the window is minimised.
     win.on('minimize', () => {
       if (game?.status !== 'playing' || !timerId) return;
@@ -820,11 +838,8 @@ export default {
       paintCursor();
       bar.refit();
       if (overlay.visible && card) card();
-      fittedFor = '';
-      requestAnimationFrame(() => {
-        fittedFor = `${spec.cols}x${spec.rows}`;
-        fitWindow();
-      });
+      // Labels changed width: update the minimum size (grow if needed) but keep the user's size.
+      requestAnimationFrame(() => fitWindow({ resize: false }));
     });
     ctx.onClose(() => {
       clearInterval(timerId);

@@ -1,0 +1,12 @@
+# Sign-in screen (greetd greeter), lock screen and session hand-off (shell/main/ipc/greetd.js, auth.js).
+greetd
+# aurora-checkpass (lock screen password check): python3 + libpam through ctypes, PAM service aurora-lock.
+python3
+libpam0g
+libpam-modules
+libpam-runtime
+# Keyboard layout switcher of the sign-in screen (setxkbmap -query / -layout).
+x11-xkb-utils
+xkb-data
+# Large clock / display font of the sign-in and lock screens (Inter Display).
+fonts-inter

@@ -121,7 +121,12 @@ function finishOutput(o) {
 function modeName(output, width, height, rate) {
   const e = output.modes.find((m) => m.width === Number(width) && m.height === Number(height));
   if (!e) return null;
-  const r = rate != null ? e.rates.find((x) => Math.abs(x - Number(rate)) < 0.05) : e.rates[0];
+  let r = e.rates[0];
+  if (rate != null) {
+    // closest advertised rate (59.96 and 60.00 are both common: never take the first "close enough" one)
+    r = e.rates.reduce((best, x) => (Math.abs(x - Number(rate)) < Math.abs(best - Number(rate)) ? x : best), e.rates[0]);
+    if (Math.abs(r - Number(rate)) > 0.05) return null;
+  }
   if (r == null) return null;
   return { name: e.names[r], rate: r };
 }

@@ -7,6 +7,7 @@
 //   net:wifiList (rescan)       -> [{ ssid, signal, security, active, saved, bssid, freq, chan, rate }]  (strongest first)
 //   net:wifiConnect (ssid, password?, { hidden }?)   errors: EAUTH (wrong / missing key), ENOTFOUND
 //   net:wifiDisconnect ()       net:wifiForget (ssid)
+//   net:known                   -> [{ ssid, name, uuid }]  saved Wi-Fi networks (in range or not)
 //   net:setWifi (bool)          net:setAirplane (bool)   (airplane = every radio off; the previous Wi-Fi state is restored)
 //   net:details (device?)       -> one device (or all): { device, type, state, connection, mac, mtu, speed,
 //                                    ipv4: ['192.168.1.5/24'], gateway4, dns4: [], ipv6: [], gateway6, dns6: [],
@@ -406,7 +407,11 @@ function nmBackend() {
     return device ? out[0] : out;
   }
 
-  return { status, wifiList, wifiConnect, wifiDisconnect, wifiForget, setWifi, setAirplane, details, monitorCmd: ['nmcli', ['monitor']] };
+  async function known() {
+    return (await wifiProfiles()).map((p) => ({ ssid: p.ssid, name: p.name, uuid: p.uuid }));
+  }
+
+  return { status, wifiList, wifiConnect, wifiDisconnect, wifiForget, setWifi, setAirplane, details, known, monitorCmd: ['nmcli', ['monitor']] };
 }
 
 // ------------------------------------------------------------------ fallback without NetworkManager (read-only)
@@ -461,7 +466,7 @@ function sysfsBackend() {
     if (!d) throw err(`No such network device: ${device}`, 'ENOTFOUND');
     return d;
   }
-  return { status, wifiList: async () => [], wifiConnect: notSupported, wifiDisconnect: notSupported, wifiForget: notSupported, setWifi: notSupported, setAirplane: notSupported, details };
+  return { status, known: async () => [], wifiList: async () => [], wifiConnect: notSupported, wifiDisconnect: notSupported, wifiForget: notSupported, setWifi: notSupported, setAirplane: notSupported, details };
 }
 
 // ------------------------------------------------------------------ dev mock
@@ -596,7 +601,20 @@ function mockBackend(onChange) {
     if (!d) throw err(`No such network device: ${device}`, 'ENOTFOUND');
     return d;
   }
-  return { status, wifiList, wifiConnect, wifiDisconnect, wifiForget, setWifi, setAirplane, details, mock: true };
+  const extraKnown = [{ ssid: 'Hotel-Lumiere-Guest', name: 'Hotel-Lumiere-Guest', uuid: '6b1e3c1a-5f0e-4c1b-9d3e-2a7f0c9e8b11' }];
+  async function known() {
+    return [...st.networks.filter((n) => n.saved).map((n, i) => ({ ssid: n.ssid, name: n.ssid, uuid: `0a9c7e52-1d4b-4f7a-8c3e-${String(i).padStart(12, '0')}` })), ...extraKnown];
+  }
+  const forget0 = wifiForget;
+  async function forgetAny(ssid) {
+    const i = extraKnown.findIndex((k) => k.ssid === ssid);
+    if (i >= 0) {
+      extraKnown.splice(i, 1);
+      return true;
+    }
+    return forget0(ssid);
+  }
+  return { status, wifiList, wifiConnect, wifiDisconnect, wifiForget: forgetAny, setWifi, setAirplane, details, known, mock: true };
 }
 
 // ------------------------------------------------------------------ registration
@@ -644,6 +662,7 @@ function register(api) {
     return true;
   });
   api.handle('net:details', (device) => be.details(device ? String(device) : undefined));
+  api.handle('net:known', () => be.known());
   api.handle('net:usage', async () => {
     const st = await be.status().catch(() => ({ devices: [] }));
     const typeOf = new Map((st.devices || []).map((d) => [d.device, d.type]));

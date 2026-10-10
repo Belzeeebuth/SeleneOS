@@ -45,9 +45,14 @@ function parseUsers(passwdText, groupText, currentName) {
 /** Classify passwd's output after a failed run (unit-tested). */
 function passwdFailure(text) {
   const t = String(text || '');
-  const bad = /BAD PASSWORD:\s*(.+)/.exec(t) || /(You must choose a longer password\.?)/.exec(t) || /(Bad: new password is too simple|Bad: new and old password are too similar|Password unchanged|The password is too similar to the old one|Sorry, passwords do not match\.?)/i.exec(t);
-  if (bad) return { code: 'EWEAK', message: bad[1].trim() };
   if (/Authentication token manipulation error|Authentication failure|authentication information cannot be recovered/i.test(t)) return { code: 'EAUTH', message: 'The current password is incorrect' };
+  const bad =
+    /BAD PASSWORD:\s*(.+)/.exec(t) ||
+    /(You must choose a longer password\.?)/.exec(t) ||
+    /(Bad: new password is too simple|Bad: new and old password are too similar|The password is too similar to the old one)/i.exec(t) ||
+    /^(Password unchanged)/m.exec(t) ||
+    /(Sorry, passwords do not match\.?)/i.exec(t);
+  if (bad) return { code: 'EWEAK', message: bad[1].trim() };
   const last = t.split('\n').map((l) => l.trim()).filter(Boolean).pop() || 'passwd failed';
   return { code: 'ECMD', message: last.replace(/^passwd:\s*/, '') };
 }
@@ -102,7 +107,7 @@ function runPasswd(current, next) {
     const onData = (d) => {
       text += String(d);
       const tail = text.slice(seen);
-      if (step >= 1 && /BAD PASSWORD|You must choose a longer|Bad: |Password unchanged|do not match/i.test(tail)) {
+      if (/Authentication token manipulation error|Authentication failure/i.test(tail) || (step >= 1 && /BAD PASSWORD|You must choose a longer|Bad: |^Password unchanged|do not match/im.test(tail))) {
         failed = passwdFailure(tail);
         child.kill('SIGTERM');
         return;

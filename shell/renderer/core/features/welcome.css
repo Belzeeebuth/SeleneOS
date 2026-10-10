@@ -1,0 +1,45 @@
+/* Session "Welcome" (features/welcome.js): the overlay reuses the sign-in screen styles (core/greeter/greeter.css). */
+.lockui.lk-welcome {
+  background: #000 !important;
+  animation: lk-fade-in 260ms linear both;
+}
+.lk-welcome .lk-card {
+  transition: transform 640ms var(--ease), opacity 360ms linear;
+}
+.lockui.lk-welcome.lk-out {
+  opacity: 0;
+  transition: opacity 520ms cubic-bezier(0.33, 0, 0.67, 1);
+}
+.lockui.lk-welcome.lk-out .lk-card {
+  transform: scale(1.06);
+  opacity: 0;
+}
+.lockui.lk-welcome.lk-out-fast {
+  transition-duration: 180ms;
+}
+.lk-welcome-skip {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  opacity: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* The desktop settles in under the fading overlay; the taskbar slides up. */
+body.aurora-welcome-reveal #desktop {
+  animation: aurora-welcome-desktop 1000ms cubic-bezier(0.1, 0.75, 0.2, 1) both;
+}
+body.aurora-welcome-reveal #taskbar {
+  animation: aurora-welcome-taskbar 700ms 160ms cubic-bezier(0.1, 0.9, 0.2, 1) both;
+}
+@keyframes aurora-welcome-desktop {
+  from {
+    transform: scale(1.045);
+  }
+}
+@keyframes aurora-welcome-taskbar {
+  from {
+    transform: translateY(100%);
+  }
+}

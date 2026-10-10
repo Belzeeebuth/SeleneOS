@@ -1,0 +1,6 @@
+#%PAM-1.0
+# Aurora OS lock screen: verifies the signed-in user's own password.
+# Used by /usr/lib/aurora/helpers/aurora-checkpass (run as that user by the shell; pam_unix
+# then checks the password through unix_chkpwd, which only accepts the caller's own account).
+@include common-auth
+@include common-account

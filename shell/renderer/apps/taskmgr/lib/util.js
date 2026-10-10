@@ -189,3 +189,17 @@ export function compare(a, b) {
 export function copyText(api, text) {
   return api.invoke('clipboard:writeText', text);
 }
+
+// ui.menu draws a check column only on items that define `checked`: when a menu mixes checkable
+// and plain items, give every item the column so the labels line up (submenus included).
+export function alignMenu(items) {
+  const list = items.filter((x) => x && x !== '-' && !x.separator && !x.header);
+  const checkable = list.some((x) => x.checked !== undefined);
+  return items.map((x) => {
+    if (!x || x === '-' || x.separator || x.header) return x;
+    const y = { ...x };
+    if (checkable && y.checked === undefined) y.checked = false;
+    if (Array.isArray(y.submenu)) y.submenu = alignMenu(y.submenu);
+    return y;
+  });
+}

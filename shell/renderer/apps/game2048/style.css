@@ -8,7 +8,7 @@
   --t4-bg: #dcebfa; --t4-fg: #22364f;
   --t8-bg: #aee0f5; --t8-fg: #0b3550;
   --t16-bg: #76cbef; --t16-fg: #082f48;
-  --t32-bg: #3db4e8; --t32-fg: #ffffff;
+  --t32-bg: #3db4e8; --t32-fg: #062a40;
   --t64-bg: #1597d6; --t64-fg: #ffffff;
   --t128-bg: #2f7df1; --t128-fg: #ffffff;
   --t256-bg: #2563e0; --t256-fg: #ffffff;
@@ -26,7 +26,7 @@
   --t4-bg: #34536f; --t4-fg: #e9f2fb;
   --t8-bg: #19719a; --t8-fg: #ffffff;
   --t16-bg: #1688bd; --t16-fg: #ffffff;
-  --t32-bg: #19a0d8; --t32-fg: #ffffff;
+  --t32-bg: #19a0d8; --t32-fg: #05202e;
   --t64-bg: #2bb8ea; --t64-fg: #05202e;
   --t128-bg: #3f87f6; --t128-fg: #ffffff;
   --t256-bg: #5470f0; --t256-fg: #ffffff;
@@ -59,7 +59,7 @@
   min-width: 104px;
 }
 .app-game2048 .t-best.record .gk-chip-value {
-  color: #c48a00;
+  color: #9a6a00;
 }
 :root[data-theme="dark"] .app-game2048 .t-best.record .gk-chip-value {
   color: #ffd66b;
@@ -163,8 +163,9 @@
 .app-game2048 .t-tile.new > span {
   animation: g2048-appear 200ms var(--ease) 110ms both;
 }
+/* The merged tile stays invisible while its two sources slide in underneath, then pops. */
 .app-game2048 .t-tile.merged > span {
-  animation: g2048-pop 220ms var(--ease-spring) 100ms both;
+  animation: g2048-pop 230ms linear 100ms both;
 }
 @keyframes g2048-appear {
   from {
@@ -174,12 +175,20 @@
 }
 @keyframes g2048-pop {
   0% {
-    transform: scale(0.6);
+    opacity: 0;
+    transform: scale(0.85);
   }
-  55% {
-    transform: scale(1.16);
+  1% {
+    opacity: 1;
+    transform: scale(0.85);
+    animation-timing-function: cubic-bezier(0.2, 0, 0.3, 1);
+  }
+  50% {
+    transform: scale(1.14);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
   }
   100% {
+    opacity: 1;
     transform: scale(1);
   }
 }

@@ -49,6 +49,12 @@ contextBridge.exposeInMainWorld('aurora', {
     err.code = res?.error?.code || 'EFAIL';
     throw err;
   },
+  // Same call, resolving to the raw result { ok: true, value } | { ok: false, error: { message, code } }.
+  // Errors lose their custom properties (code) when they cross the context bridge, so core/api.js
+  // builds the Error on the page side from this.
+  invokeRaw(channel, ...args) {
+    return ipcRenderer.invoke('aurora:invoke', channel, args);
+  },
   on(channel, cb) {
     if (!subs.has(channel)) subs.set(channel, new Set());
     subs.get(channel).add(cb);

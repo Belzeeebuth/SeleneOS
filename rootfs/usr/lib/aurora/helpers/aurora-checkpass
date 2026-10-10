@@ -1,0 +1,237 @@
+#!/usr/bin/python3 -I
+"""aurora-checkpass: verify the calling user's password with PAM (Aurora lock screen).
+
+Usage: aurora-checkpass [--user NAME] [--service NAME] [--confdir DIR]
+
+The password is read from standard input, up to the first newline (at most 4096 bytes).
+Exit status: 0 the password is correct and the account is usable
+             1 wrong password, or the account is locked/expired
+             2 usage error (bad arguments, password too long, another user while not root)
+             3 PAM is unavailable or failed to start
+
+It runs unprivileged, as the user being checked: pam_unix then verifies through its setgid
+helper unix_chkpwd, which only checks the caller's own password. Only root may name another
+user with --user. --service (default "aurora-lock", /etc/pam.d/aurora-lock) and --confdir
+(a PAM configuration directory, Linux-PAM >= 1.4) exist for testing.
+"""
+import ctypes
+import ctypes.util
+import os
+import pwd
+import sys
+
+PAM_SUCCESS = 0
+PAM_BUF_ERR = 5
+PAM_NEW_AUTHTOK_REQD = 12
+PAM_CONV_ERR = 19
+PAM_TTY = 3
+PAM_PROMPT_ECHO_OFF = 1
+PAM_PROMPT_ECHO_ON = 2
+PAM_ERROR_MSG = 3
+PAM_TEXT_INFO = 4
+
+EXIT_OK, EXIT_FAIL, EXIT_USAGE, EXIT_ERROR = 0, 1, 2, 3
+MAX_PASSWORD = 4096
+MAX_MESSAGES = 64
+
+
+class PamMessage(ctypes.Structure):
+    _fields_ = [("msg_style", ctypes.c_int), ("msg", ctypes.c_char_p)]
+
+
+class PamResponse(ctypes.Structure):
+    _fields_ = [("resp", ctypes.c_void_p), ("resp_retcode", ctypes.c_int)]
+
+
+CONV_FUNC = ctypes.CFUNCTYPE(
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.POINTER(ctypes.POINTER(PamMessage)),
+    ctypes.POINTER(ctypes.POINTER(PamResponse)),
+    ctypes.c_void_p,
+)
+
+
+class PamConv(ctypes.Structure):
+    _fields_ = [("conv", CONV_FUNC), ("appdata_ptr", ctypes.c_void_p)]
+
+
+def die(code, message):
+    if message:
+        sys.stderr.write("aurora-checkpass: %s\n" % message)
+    sys.exit(code)
+
+
+def parse_args(argv):
+    opts = {"user": None, "service": "aurora-lock", "confdir": None}
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-h", "--help"):
+            sys.stdout.write(__doc__)
+            sys.exit(EXIT_OK)
+        key = None
+        value = None
+        for name in ("user", "service", "confdir"):
+            if a == "--" + name:
+                key = name
+                if i + 1 >= len(argv):
+                    die(EXIT_USAGE, "--%s needs a value" % name)
+                value = argv[i + 1]
+                i += 1
+            elif a.startswith("--" + name + "="):
+                key = name
+                value = a.split("=", 1)[1]
+        if key is None:
+            die(EXIT_USAGE, "unknown argument %r (see --help)" % a)
+        if not value or "\0" in value:
+            die(EXIT_USAGE, "empty --%s" % key)
+        opts[key] = value
+        i += 1
+    if "/" in opts["service"]:
+        die(EXIT_USAGE, "invalid service name")
+    return opts
+
+
+def read_password(stream):
+    data = stream.read(MAX_PASSWORD + 2)
+    line = data.split(b"\n", 1)[0]
+    if len(line) > MAX_PASSWORD:
+        die(EXIT_USAGE, "password too long")
+    return line
+
+
+def load_libs():
+    try:
+        libpam = ctypes.CDLL("libpam.so.0")
+    except OSError:
+        name = ctypes.util.find_library("pam")
+        if not name:
+            die(EXIT_ERROR, "libpam is not available")
+        try:
+            libpam = ctypes.CDLL(name)
+        except OSError as err:
+            die(EXIT_ERROR, "cannot load libpam: %s" % err)
+    try:
+        libc = ctypes.CDLL("libc.so.6")
+    except OSError:
+        libc = ctypes.CDLL(ctypes.util.find_library("c"))
+    libc.calloc.argtypes = [ctypes.c_size_t, ctypes.c_size_t]
+    libc.calloc.restype = ctypes.c_void_p
+    libc.strdup.argtypes = [ctypes.c_char_p]
+    libc.strdup.restype = ctypes.c_void_p
+    libc.free.argtypes = [ctypes.c_void_p]
+    libc.free.restype = None
+
+    handle_p = ctypes.POINTER(ctypes.c_void_p)
+    libpam.pam_start.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.POINTER(PamConv), handle_p]
+    libpam.pam_start.restype = ctypes.c_int
+    if hasattr(libpam, "pam_start_confdir"):
+        libpam.pam_start_confdir.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.POINTER(PamConv), ctypes.c_char_p, handle_p]
+        libpam.pam_start_confdir.restype = ctypes.c_int
+    for fn in ("pam_authenticate", "pam_acct_mgmt", "pam_end"):
+        getattr(libpam, fn).argtypes = [ctypes.c_void_p, ctypes.c_int]
+        getattr(libpam, fn).restype = ctypes.c_int
+    libpam.pam_set_item.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+    libpam.pam_set_item.restype = ctypes.c_int
+    libpam.pam_strerror.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    libpam.pam_strerror.restype = ctypes.c_char_p
+    return libpam, libc
+
+
+def make_conversation(libc, user, password, notes):
+    """PAM conversation: hidden prompts get the password, visible ones the user name."""
+
+    def conversation(count, messages, responses, _appdata):
+        if count <= 0 or count > MAX_MESSAGES:
+            return PAM_CONV_ERR
+        block = libc.calloc(count, ctypes.sizeof(PamResponse))
+        if not block:
+            return PAM_BUF_ERR
+        replies = ctypes.cast(block, ctypes.POINTER(PamResponse))
+        for i in range(count):
+            msg = messages[i].contents
+            style = msg.msg_style
+            if style == PAM_PROMPT_ECHO_OFF:
+                answer = password
+            elif style == PAM_PROMPT_ECHO_ON:
+                answer = user
+            elif style in (PAM_ERROR_MSG, PAM_TEXT_INFO):
+                text = (msg.msg or b"").decode("utf-8", "replace").strip()
+                if text:
+                    notes.append(text)
+                continue
+            else:
+                answer = None
+            if answer is None:
+                for j in range(i):
+                    if replies[j].resp:
+                        libc.free(replies[j].resp)
+                libc.free(block)
+                return PAM_CONV_ERR
+            copy = libc.strdup(answer)
+            if not copy:
+                for j in range(i):
+                    if replies[j].resp:
+                        libc.free(replies[j].resp)
+                libc.free(block)
+                return PAM_BUF_ERR
+            replies[i].resp = copy
+            replies[i].resp_retcode = 0
+        responses[0] = replies
+        return PAM_SUCCESS
+
+    return CONV_FUNC(conversation)
+
+
+def main(argv):
+    opts = parse_args(argv)
+    uid = os.getuid()
+    try:
+        me = pwd.getpwuid(uid).pw_name
+    except KeyError:
+        die(EXIT_USAGE, "the calling user (uid %d) has no account" % uid)
+    user = opts["user"] or me
+    if user != me and uid != 0:
+        die(EXIT_USAGE, "only root can check another user's password")
+
+    password = read_password(sys.stdin.buffer)
+    if b"\0" in password:
+        die(EXIT_FAIL, "authentication failed")
+
+    libpam, libc = load_libs()
+    notes = []
+    conv_cb = make_conversation(libc, user.encode(), password, notes)
+    conv = PamConv(conv_cb, None)
+    handle = ctypes.c_void_p()
+    if opts["confdir"]:
+        if not hasattr(libpam, "pam_start_confdir"):
+            die(EXIT_ERROR, "this libpam has no pam_start_confdir")
+        rc = libpam.pam_start_confdir(opts["service"].encode(), user.encode(), ctypes.byref(conv), opts["confdir"].encode(), ctypes.byref(handle))
+    else:
+        rc = libpam.pam_start(opts["service"].encode(), user.encode(), ctypes.byref(conv), ctypes.byref(handle))
+    if rc != PAM_SUCCESS or not handle:
+        die(EXIT_ERROR, "pam_start failed (%d)" % rc)
+
+    display = os.environ.get("DISPLAY")
+    if display:
+        tty = ctypes.create_string_buffer(display.encode())
+        libpam.pam_set_item(handle, PAM_TTY, ctypes.cast(tty, ctypes.c_void_p))
+
+    rc = libpam.pam_authenticate(handle, 0)
+    if rc == PAM_SUCCESS:
+        acct = libpam.pam_acct_mgmt(handle, 0)
+        # An expired password is still the right password: unlocking is allowed.
+        if acct not in (PAM_SUCCESS, PAM_NEW_AUTHTOK_REQD):
+            rc = acct
+    reason = (libpam.pam_strerror(handle, rc) or b"").decode("utf-8", "replace")
+    libpam.pam_end(handle, rc)
+    for note in notes:
+        sys.stderr.write("aurora-checkpass: pam: %s\n" % note)
+    if rc != PAM_SUCCESS:
+        die(EXIT_FAIL, reason or "authentication failed")
+    return EXIT_OK
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

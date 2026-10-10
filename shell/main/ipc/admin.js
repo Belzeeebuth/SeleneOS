@@ -286,7 +286,13 @@ function register(api) {
   }
 
   api.handle('admin:needsPassword', needsPassword);
-  api.handle('admin:status', async () => ({ isAdmin: isAdmin(), needsPassword: await needsPassword(), live, user: os.userInfo().username, simulated: useMock }));
+  api.handle('admin:status', async () => ({
+    isAdmin: isAdmin(),
+    needsPassword: await needsPassword(),
+    live,
+    user: useMock ? (dev.users || []).find((u) => u.current)?.name || os.userInfo().username : os.userInfo().username,
+    simulated: useMock,
+  }));
 
   api.handle('admin:run', async (password, action, args, event) => {
     // The renderer may omit args: event then arrives in its place.
@@ -310,7 +316,8 @@ function register(api) {
         })()
       : null;
     if (useMock) {
-      if (password === 'wrong' || ((await needsPassword()) && !password)) throw err('Authentication failed', 'EAUTH');
+      // Simulation: any password works except "wrong" (lets tests exercise the retry path).
+      if (password === 'wrong') throw err('Authentication failed', 'EAUTH');
       const stdout = await devRun(action, clean, secret, onLine);
       return { stdout };
     }

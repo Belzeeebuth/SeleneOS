@@ -1,0 +1,15 @@
+{
+  "id": "taskmgr",
+  "name": { "en": "Task Manager", "fr": "Gestionnaire des tâches" },
+  "description": { "en": "See and manage running apps, processes, performance, users and services", "fr": "Affichez et gérez les applications, processus, performances, utilisateurs et services" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 920, "height": 640, "minWidth": 600, "minHeight": 420, "titlebar": "tall", "background": "mica" },
+  "category": "system",
+  "keywords": {
+    "en": ["task manager", "taskmgr", "processes", "performance", "cpu", "memory", "end task", "kill", "services", "top", "htop", "system monitor"],
+    "fr": ["gestionnaire des tâches", "taskmgr", "processus", "performances", "processeur", "mémoire", "fin de tâche", "services", "moniteur système"]
+  },
+  "singleInstance": true
+}

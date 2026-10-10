@@ -278,7 +278,8 @@
    "pictures": "Pictures",
    "videos": "Videos",
    "thisPc": "This PC",
-   "trash": "Recycle Bin"
+   "trash": "Recycle Bin",
+   "gallery": "Gallery"
   },
   "progress": {
    "calculating": "Calculating…",
@@ -457,7 +458,8 @@
    "trash": "Undo Delete",
    "new": "Undo New",
    "failed": "Couldn't undo",
-   "nothing": "Undo"
+   "nothing": "Undo",
+   "renameMany": "Undo Rename"
   },
   "view": {
    "xl": "Extra large icons",
@@ -473,6 +475,9 @@
    "label": "Items View",
    "largeTip": "Display items by using large thumbnails.",
    "show": "Show"
+  },
+  "gallery": {
+   "empty": "Photos and videos from your Pictures folder will show up here."
   }
  },
  "fr": {
@@ -754,7 +759,8 @@
    "pictures": "Images",
    "videos": "Vidéos",
    "thisPc": "Ce PC",
-   "trash": "Corbeille"
+   "trash": "Corbeille",
+   "gallery": "Galerie"
   },
   "progress": {
    "calculating": "Calcul en cours…",
@@ -933,7 +939,8 @@
    "trash": "Annuler Supprimer",
    "new": "Annuler Nouveau",
    "failed": "Impossible d'annuler",
-   "nothing": "Annuler"
+   "nothing": "Annuler",
+   "renameMany": "Annuler Renommer"
   },
   "view": {
    "xl": "Très grandes icônes",
@@ -949,6 +956,9 @@
    "label": "Affichage des éléments",
    "largeTip": "Afficher les éléments sous forme de grandes miniatures.",
    "show": "Afficher"
+  },
+  "gallery": {
+   "empty": "Les photos et vidéos de votre dossier Images s’afficheront ici."
   }
  }
 }

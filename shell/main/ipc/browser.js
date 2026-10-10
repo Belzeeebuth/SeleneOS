@@ -21,15 +21,19 @@
 //   browser:downloadPause(id) / downloadResume(id) / downloadCancel(id) / downloads()
 //   browser:permissionReply(id, { allow, remember })
 //   browser:sitePermissions() / browser:resetSitePermissions(origin?)
-//   browser:authReply(id, { username, password } | null)
+//   browser:authReply(id, { username, password } | null)   (+ 'browser:auth-done' {id} when a request goes away)
 //   browser:clearData({ partition, cookies, cache, origin })
 //   browser:copyImageAt(sourceId, x, y) / browser:inspect(sourceId, x, y)
+//   browser:navHistory(sourceId)                 -> { index, entries: [{ url, title }] }
+//   browser:jsDialogReply(id, { ok, value, suppress })  answers 'browser:js-dialog' {id, sourceId, kind, message, def, origin, offerSuppress}
 const { app, session, webContents } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
 const PERSIST = 'persist:browser';
+// Session preload giving pages working alert/confirm/prompt (see that file: it exposes nothing else).
+const GUEST_PRELOAD = path.join(__dirname, '..', '..', 'renderer', 'apps', 'browser', 'guest-preload.js');
 const PRIVATE_RE = /^browser-private-[A-Za-z0-9_-]{1,64}$/;
 const HOME = os.homedir();
 const PERM_FILE = path.join(HOME, '.config', 'aurora', 'apps', 'browser', 'site-permissions.json');
@@ -49,6 +53,8 @@ const COMBOS = new Set([
 const DEV_COMBOS = new Set(['F12', 'Ctrl+Shift+I', 'Ctrl+Shift+J', 'Ctrl+Shift+C']);
 // Forwarded to the app but still delivered to the page (pages rely on Escape).
 const PASS_THROUGH = new Set(['Escape']);
+// data: URLs a page may open in a new tab (non-scriptable images only).
+const SAFE_DATA = /^data:image\/(png|jpe?g|gif|webp|bmp|avif|x-icon)[;,]/i;
 
 // Rough registrable-domain ("site") computation for third-party cookie blocking.
 const MULTI = new Set([
@@ -170,6 +176,11 @@ module.exports = function register(api) {
     try {
       ses.setSpellCheckerEnabled(false);
     } catch {}
+    try {
+      if (fs.existsSync(GUEST_PRELOAD)) ses.registerPreloadScript({ type: 'frame', id: 'aurora-browser-dialogs', filePath: GUEST_PRELOAD });
+    } catch (err) {
+      console.error('[browser] guest preload not registered', err?.message || err);
+    }
     ses.on('will-download', (event, item, wc) => onWillDownload(partition, item, wc));
     ses.setPermissionRequestHandler((wc, permission, callback, details) => onPermissionRequest(partition, wc, permission, callback, details || {}));
     ses.setPermissionCheckHandler((wc, permission, requestingOrigin, details) => onPermissionCheck(partition, permission, requestingOrigin, details || {}));
@@ -240,6 +251,8 @@ module.exports = function register(api) {
         return { action: 'deny' };
       }
       if (!/^(https?|ftp|data|about|view-source):/i.test(url) && url !== '') return { action: 'deny' };
+      // Like Chrome, pages may not open data: documents (phishing vector); plain images are fine.
+      if (/^data:/i.test(url) && !SAFE_DATA.test(url)) return { action: 'deny' };
       api.broadcast('browser:open', { url: url || 'about:blank', disposition, features: features || '', frameName: frameName || '', sourceId: id, partition });
       return { action: 'deny' };
     });
@@ -285,7 +298,22 @@ module.exports = function register(api) {
     wc.on('will-frame-navigate', (ev) => {
       if (/^(file|app|media|chrome|devtools|chrome-extension):/i.test(ev.url || '')) ev.preventDefault();
     });
-    wc.once('destroyed', () => popupTimes.delete(id));
+    // alert / confirm / prompt from the page (guest-preload.js): the page waits for the answer.
+    wc.ipc.on('browser:js-dialog', (event, p) => onJsDialog(wc, event, p || {}));
+    // A new navigation (or closing the tab) abandons any sign-in or page dialog the previous one was waiting for.
+    wc.on('did-start-navigation', (details) => {
+      if (details?.isMainFrame && !details.isSameDocument) {
+        cancelAuthFor(id);
+        cancelDialogsFor(id);
+        dialogState.delete(id);
+      }
+    });
+    wc.once('destroyed', () => {
+      popupTimes.delete(id);
+      cancelAuthFor(id);
+      cancelDialogsFor(id);
+      dialogState.delete(id);
+    });
   }
 
   function guest(sourceId) {
@@ -499,10 +527,8 @@ module.exports = function register(api) {
     if (!wc || wc.isDestroyed?.() || !partitionOf.has(wc.session) || wc.getType() !== 'webview') return;
     event.preventDefault();
     const id = `a${++seq}`;
-    const timer = setTimeout(() => {
-      if (pendingAuth.delete(id)) callback();
-    }, 300000);
-    pendingAuth.set(id, { callback, timer });
+    const timer = setTimeout(() => cancelAuth(id), 300000);
+    pendingAuth.set(id, { callback, timer, wcId: wc.id });
     api.broadcast('browser:auth', {
       id,
       sourceId: wc.id,
@@ -512,6 +538,74 @@ module.exports = function register(api) {
       isProxy: !!authInfo?.isProxy,
     });
   });
+  // ------------------------------------------------------------------ page dialogs (alert / confirm / prompt)
+  const pendingDialogs = new Map(); // id -> { event, wcId, kind }
+  const dialogState = new Map(); // wc.id -> { count, suppressed } since the last navigation
+  const dialogDefault = (kind) => (kind === 'confirm' ? false : kind === 'prompt' ? null : true);
+
+  function onJsDialog(wc, event, p) {
+    const kind = ['alert', 'confirm', 'prompt'].includes(p.kind) ? p.kind : 'alert';
+    const st = dialogState.get(wc.id) || { count: 0, suppressed: false };
+    dialogState.set(wc.id, st);
+    if (st.suppressed || wc.isDestroyed()) {
+      event.returnValue = dialogDefault(kind);
+      return;
+    }
+    st.count++;
+    const id = `j${++seq}`;
+    pendingDialogs.set(id, { event, wcId: wc.id, kind });
+    let frameUrl = '';
+    try {
+      frameUrl = event.senderFrame?.url || '';
+    } catch {}
+    api.broadcast('browser:js-dialog', {
+      id,
+      sourceId: wc.id,
+      kind,
+      message: String(p.message || '').slice(0, 10000),
+      def: String(p.def || '').slice(0, 2000),
+      origin: originOf(frameUrl || wc.getURL()),
+      offerSuppress: st.count > 1,
+    });
+  }
+
+  function finishDialog(id, { ok = false, value = null, suppress = false } = {}) {
+    const d = pendingDialogs.get(id);
+    if (!d) return false;
+    pendingDialogs.delete(id);
+    if (suppress) {
+      const st = dialogState.get(d.wcId);
+      if (st) st.suppressed = true;
+    }
+    let ret = dialogDefault(d.kind);
+    if (ok && d.kind === 'confirm') ret = true;
+    if (ok && d.kind === 'prompt') ret = String(value ?? '');
+    try {
+      d.event.returnValue = ret;
+    } catch {}
+    api.broadcast('browser:js-dialog-done', { id });
+    return true;
+  }
+  function cancelDialogsFor(wcId) {
+    for (const [id, d] of pendingDialogs) if (d.wcId === wcId) finishDialog(id);
+  }
+  api.handle('browser:jsDialogReply', (id, answer) => finishDialog(id, answer && typeof answer === 'object' ? answer : {}));
+
+  // The request went away (timeout, tab navigated or closed): answer it and close the app's dialog.
+  function cancelAuth(id) {
+    const p = pendingAuth.get(id);
+    if (!p) return;
+    pendingAuth.delete(id);
+    clearTimeout(p.timer);
+    try {
+      p.callback();
+    } catch {}
+    api.broadcast('browser:auth-done', { id });
+  }
+  function cancelAuthFor(wcId) {
+    for (const [id, p] of pendingAuth) if (p.wcId === wcId) cancelAuth(id);
+  }
+
   api.handle('browser:authReply', (id, creds) => {
     const p = pendingAuth.get(id);
     if (!p) return false;
@@ -604,6 +698,14 @@ module.exports = function register(api) {
       faviconCache.set(u, null);
       return null;
     }
+  });
+
+  // Back / forward list of a tab (long-press or right-click on the arrows), with page titles.
+  api.handle('browser:navHistory', (sourceId) => {
+    const wc = guest(sourceId);
+    const nh = wc.navigationHistory;
+    const entries = safe(() => nh.getAllEntries(), []).map((e) => ({ url: String(e.url || ''), title: String(e.title || '') }));
+    return { index: safe(() => nh.getActiveIndex(), entries.length - 1), entries };
   });
 
   api.handle('browser:copyImageAt', (sourceId, x, y) => {

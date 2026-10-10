@@ -6,6 +6,7 @@
 #   make run-uefi       same with UEFI firmware (OVMF)
 #   make run-disk       boot the installed virtual disk only, BIOS     (run-disk-uefi: UEFI)
 #   make run DRY_RUN=1  print the QEMU command line instead of starting the VM (any run* target)
+#   make verify-iso     static checks of the ISO: boot records, GRUB menu, casper, image content (root)
 #   make smoke-image    run the built image's Electron shell + greeter under Xvfb (no VM; root)
 #   make shell-deps     npm ci in shell/ (Electron + test tooling for development)
 #   make test           shell smoke test under Xvfb
@@ -60,7 +61,7 @@ QEMU_ENV := MEM='$(MEM)' CPUS='$(CPUS)' DISK='$(DISK)' DISK_SIZE='$(DISK_SIZE)' 
 QEMU_FLAGS := $(if $(filter 1,$(HEADLESS)),--headless) $(if $(filter 1,$(DRY_RUN)),--dry-run)
 QEMU_RUN := $(QEMU_ENV) $(ROOT)/tools/qemu-run.sh
 
-.PHONY: help iso run run-uefi run-disk run-disk-uefi smoke-image shell-deps test docker-iso clean clean-vm distclean
+.PHONY: help iso run run-uefi run-disk run-disk-uefi verify-iso smoke-image shell-deps test docker-iso clean clean-vm distclean
 
 help:
 	@sed -n '1,/^$$/p' $(firstword $(MAKEFILE_LIST)) | sed 's/^# \{0,1\}//'
@@ -80,8 +81,11 @@ run-disk:
 run-disk-uefi:
 	$(QEMU_RUN) --uefi --boot disk $(QEMU_FLAGS) $(QEMU_ARGS)
 
+verify-iso:
+	$(SUDO) $(ROOT)/tools/verify-iso.sh --iso '$(ISO)'
+
 smoke-image:
-	$(SUDO) $(ROOT)/tools/smoke-image.sh
+	$(SUDO) $(ROOT)/tools/smoke-image.sh --iso '$(ISO)'
 
 shell-deps:
 	cd $(ROOT)/shell && PATH="$(NODE_BIN):$$PATH" npm ci --no-audit --no-fund

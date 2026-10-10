@@ -5,7 +5,7 @@
   "icon": "icon.svg",
   "entry": "main.js",
   "styles": ["style.css"],
-  "window": { "width": 1180, "height": 760, "minWidth": 560, "minHeight": 420, "titlebar": "tall", "background": "mica" },
+  "window": { "width": 1180, "height": 760, "minWidth": 560, "minHeight": 380, "titlebar": "tall", "background": "mica" },
   "category": "productivity",
   "keywords": {
     "en": ["draw", "drawing", "image", "picture", "photo", "brush", "sketch", "mspaint", "edit"],

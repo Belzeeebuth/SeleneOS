@@ -319,6 +319,28 @@
   box-shadow: none;
   border: 1px dashed var(--text-3);
 }
+.app-paint .pt-mini-cur {
+  position: relative;
+  width: 26px;
+  height: 24px;
+}
+.app-paint .pt-mini-cur > i {
+  position: absolute;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--pt-sw-ring), 0 0 0 1.5px var(--solid);
+}
+.app-paint .pt-mini-cur > .a {
+  left: 0;
+  top: 0;
+  background: var(--c1, #000);
+}
+.app-paint .pt-mini-cur > .b {
+  right: 0;
+  bottom: 0;
+  background: var(--c2, #fff);
+}
 .app-paint .pt-edit-colors {
   margin-left: 4px;
 }

@@ -1,0 +1,450 @@
+// Aurora Settings — Windows 11 style Settings app.
+//   shell.launch('settings', { page, section })   deep link (see lib/index.js for page ids and aliases)
+// Layout: left pane (account card, "Find a setting", category nav) + page area (breadcrumb title,
+// scrolling content). Pages live in pages/<module>.js: `export default { pageId: async (pc) => Node }`.
+import { NAV, PAGES, resolvePage, crumbs, categoryOf, searchIndex } from './lib/index.js';
+import { createKit } from './lib/kit.js';
+
+const MODULES = {
+  system: () => import('./pages/system.js'),
+  devices: () => import('./pages/devices.js'),
+  network: () => import('./pages/network.js'),
+  personalization: () => import('./pages/personalization.js'),
+  apps: () => import('./pages/apps.js'),
+  accounts: () => import('./pages/accounts.js'),
+  time: () => import('./pages/time.js'),
+  accessibility: () => import('./pages/accessibility.js'),
+  privacy: () => import('./pages/privacy.js'),
+  update: () => import('./pages/update.js'),
+};
+
+const NAV_ICONS = {
+  system: 'desktop',
+  bluetooth: 'bluetooth',
+  network: 'globe',
+  personalization: 'paint_brush',
+  apps: 'apps_list',
+  accounts: 'person',
+  timeLanguage: 'local_language',
+  accessibility: 'accessibility',
+  privacy: 'shield',
+  update: 'arrow_sync',
+};
+
+export default {
+  async launch(ctx) {
+    const { win, h, icon, ui, t, api, shell, settings, i18n } = ctx;
+    const lang = () => i18n.lang;
+    const L = (obj) => i18n.name(obj);
+
+    // ---------------------------------------------------------------- page context
+    let disposers = [];
+    const globalDisposers = [];
+    const pc = {
+      ctx,
+      h,
+      icon,
+      ui,
+      t,
+      api,
+      shell,
+      settings,
+      i18n,
+      env: ctx.env,
+      win,
+      storage: ctx.storage,
+      section: null,
+      get lang() {
+        return i18n.lang;
+      },
+      L,
+      go: (page, section) => navigate(page, { section }),
+      back: () => goBack(),
+      refresh: () => navigate(current.page, { section: null, push: false, animate: false, keepScroll: true }),
+      onDispose: (fn) => typeof fn === 'function' && disposers.push(fn),
+      on: (channel, fn) => disposers.push(api.on(channel, fn)),
+      every: (ms, fn) => {
+        const id = setInterval(fn, ms);
+        disposers.push(() => clearInterval(id));
+        return id;
+      },
+      toastError,
+      toast,
+      fmtSize: (b) => i18n.formatSize(b),
+      fmtNum: (n, o) => i18n.formatNumber(n, o),
+      pageTitle: (id) => L(PAGES[id]?.title) || id,
+      async adminStatus(force) {
+        if (!adminCache || force) adminCache = api.invoke('admin:status').catch(() => ({ isAdmin: false, needsPassword: true, live: !!ctx.env.live }));
+        return adminCache;
+      },
+      // Elevated action with the UAC prompt; resolves to stdout, rejects (code ECANCELED when dismissed).
+      runAdmin: (action, args = [], reasonKey, vars) => shell.runAdmin(action, args, { reason: reasonKey ? t(reasonKey, vars) : undefined, appId: 'settings' }),
+      // invoke() that resolves to null when the backend channel does not exist (ENOHANDLER) or fails.
+      tryInvoke: async (channel, ...args) => {
+        try {
+          return await api.invoke(channel, ...args);
+        } catch (err) {
+          if (err.code !== 'ENOHANDLER' && err.code !== 'ENOENT' && !/ENOENT/.test(err.message)) console.warn(`[settings] ${channel}:`, err.message);
+          return null;
+        }
+      },
+    };
+    let adminCache = null;
+    const kit = createKit(pc);
+    pc.kit = kit;
+
+    // ---------------------------------------------------------------- layout
+    const avatar = h('div', { class: 'st-avatar', 'aria-hidden': 'true' });
+    const userName = h('div', { class: 'st-user-name ellipsis' });
+    const userKind = h('div', { class: 'st-user-kind caption ellipsis' });
+    const userCard = h(
+      'button',
+      { class: 'st-user', type: 'button', onclick: () => navigate('yourInfo') },
+      avatar,
+      h('div', { class: 'st-user-text' }, userName, userKind),
+    );
+    const searchInput = h('input', { class: 'input', type: 'search', autocomplete: 'off', spellcheck: false, 'aria-label': t('settings.findSetting'), placeholder: t('settings.findSetting') });
+    const suggest = h('div', { class: 'st-suggest menu', role: 'listbox', hidden: true });
+    const searchBox = h('div', { class: 'st-search search-box' }, searchInput, icon('search', { size: 16 }), suggest);
+    const nav = h('nav', { class: 'st-nav nav', 'aria-label': t('settings.navigation') });
+    const pane = h('aside', { class: 'st-pane' }, userCard, searchBox, nav);
+    const titleEl = h('h1', { class: 'st-title' });
+    const header = h('header', { class: 'st-header' }, titleEl);
+    const errorHost = h('div', { class: 'st-errors' });
+    const content = h('div', { class: 'st-content' });
+    const scroller = h('div', { class: 'st-scroll' }, h('div', { class: 'st-content-wrap' }, errorHost, content));
+    const main = h('main', { class: 'st-main' }, header, scroller);
+    const scrim = h('div', { class: 'st-scrim', onclick: () => setPaneOpen(false) });
+    const root = h('div', { class: 'st-root' }, pane, main, scrim);
+    win.body.appendChild(root);
+
+    // Title bar: back arrow (and the nav button when the window is narrow), like Windows 11 Settings.
+    const backBtn = h('button', { class: 'st-tb-btn st-tb-back', type: 'button', 'aria-label': t('common.back'), 'data-tip': t('common.back'), disabled: true, onclick: () => goBack() }, icon('arrow_left', { size: 16 }));
+    const menuBtn = h('button', { class: 'st-tb-btn st-tb-menu', type: 'button', 'aria-label': t('settings.navigation'), onclick: () => setPaneOpen(!root.classList.contains('pane-open')) }, icon('line_horizontal_3', { size: 16 }));
+    const tbHost = win.titlebar || win.el?.querySelector('.win-titlebar');
+    if (tbHost && win.iconEl) {
+      tbHost.insertBefore(backBtn, win.iconEl);
+      tbHost.insertBefore(menuBtn, win.iconEl);
+    } else win.titlebarSlot?.append(backBtn, menuBtn);
+
+    function setPaneOpen(open) {
+      root.classList.toggle('pane-open', !!open);
+      if (open) setTimeout(() => nav.querySelector('.selected')?.focus(), 50);
+    }
+    const ro = new ResizeObserver(() => {
+      const compact = win.body.clientWidth < 860;
+      root.classList.toggle('compact', compact);
+      if (!compact) root.classList.remove('pane-open');
+    });
+    ro.observe(win.body);
+    globalDisposers.push(() => ro.disconnect());
+
+    // ---------------------------------------------------------------- nav
+    function buildNav() {
+      ui.clear(nav);
+      for (const id of NAV) {
+        nav.appendChild(
+          h(
+            'button',
+            {
+              class: 'nav-item st-nav-item',
+              type: 'button',
+              dataset: { page: id, cat: id },
+              onclick: () => {
+                setPaneOpen(false);
+                navigate(id);
+              },
+            },
+            h('span', { class: 'st-nav-icon' }, icon(NAV_ICONS[id], { size: 18, filled: true })),
+            h('span', { class: 'ellipsis' }, L(PAGES[id].title)),
+          ),
+        );
+      }
+      // Arrow keys move between categories.
+      nav.onkeydown = (e) => {
+        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+        const items = [...nav.querySelectorAll('.st-nav-item')];
+        const i = items.indexOf(document.activeElement);
+        const n = items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
+        e.preventDefault();
+        n?.focus();
+      };
+    }
+    function markNav(page) {
+      const cat = page === 'search' ? null : categoryOf(page);
+      for (const el of nav.querySelectorAll('.st-nav-item')) {
+        const on = el.dataset.cat === cat;
+        el.classList.toggle('selected', on);
+        if (on) el.setAttribute('aria-current', 'page');
+        else el.removeAttribute('aria-current');
+      }
+    }
+
+    // ---------------------------------------------------------------- account card
+    async function loadUser() {
+      const u = await pc.tryInvoke('users:current');
+      const st = await pc.adminStatus();
+      const name = u?.fullName || u?.name || ctx.env.user;
+      userName.textContent = name;
+      userKind.textContent = `${t('settings.localAccount')}${st?.isAdmin ? ` · ${t('settings.administrator')}` : ''}`;
+      paintAvatar(avatar, u, 60);
+    }
+    function paintAvatar(el, u, size) {
+      ui.clear(el);
+      el.style.setProperty('--size', `${size}px`);
+      if (u?.picture) {
+        el.appendChild(h('img', { src: `${api.mediaUrl(u.picture)}?v=${Date.now()}`, alt: '', draggable: false, onerror: (e) => e.target.replaceWith(initialsOf(u)) }));
+      } else el.appendChild(initialsOf(u));
+    }
+    pc.paintAvatar = paintAvatar;
+    function initialsOf(u) {
+      const n = String(u?.fullName || u?.name || '').trim();
+      const parts = n.split(/\s+/).filter(Boolean);
+      if (!parts.length) return icon('person', { size: 28, filled: true });
+      return h('span', { class: 'st-initials' }, (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase());
+    }
+    globalDisposers.push(
+      api.on('users:changed', () => {
+        loadUser();
+      }),
+    );
+
+    // ---------------------------------------------------------------- errors / toasts
+    function toast(message, kind = 'success') {
+      const bar = kit.infobar({ kind, message, action: h('button', { class: 'btn subtle icon-btn small', 'aria-label': t('common.close'), onclick: () => bar.remove() }, icon('dismiss', { size: 12 })) });
+      errorHost.appendChild(bar);
+      scroller.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(() => bar.isConnected && bar.remove(), kind === 'error' ? 12000 : 5000);
+      return bar;
+    }
+    function toastError(err) {
+      if (!err || err.code === 'ECANCELED') return;
+      console.warn('[settings]', err);
+      return toast(t('settings.errorGeneric', { msg: err.message || String(err) }), 'error');
+    }
+
+    // ---------------------------------------------------------------- router
+    let current = null;
+    const history = [];
+    let navSeq = 0;
+
+    function renderTitle(page) {
+      ui.clear(titleEl);
+      if (page === 'search') {
+        titleEl.appendChild(h('span', { class: 'st-crumb current' }, t('settings.searchResultsFor', { q: lastQuery })));
+        return;
+      }
+      const chain = crumbs(page);
+      chain.forEach((id, i) => {
+        const last = i === chain.length - 1;
+        if (i > 0) titleEl.appendChild(h('span', { class: 'st-crumb-sep', 'aria-hidden': 'true' }, icon('chevron_right', { size: 16 })));
+        titleEl.appendChild(
+          last
+            ? h('span', { class: 'st-crumb current', 'aria-current': 'page' }, L(PAGES[id].title))
+            : h('button', { class: 'st-crumb', type: 'button', onclick: () => navigate(id) }, L(PAGES[id].title)),
+        );
+      });
+    }
+
+    async function navigate(page, { section = null, push = true, animate = true, keepScroll = false } = {}) {
+      const r = page === 'search' ? { page: 'search', section: null } : resolvePage(page, section);
+      if (push && current && (current.page !== r.page || r.page === 'search')) history.push(current);
+      backBtn.disabled = history.length === 0;
+      const prevScroll = scroller.scrollTop;
+      current = r;
+      for (const fn of disposers.splice(0)) {
+        try {
+          fn();
+        } catch {}
+      }
+      ui.closeMenus?.();
+      pc.section = r.section;
+      markNav(r.page);
+      renderTitle(r.page);
+      win.setTitle?.(r.page === 'system' || r.page === 'search' ? t('settings.appName') : `${t('settings.appName')} – ${L(PAGES[r.page]?.title)}`);
+      const token = ++navSeq;
+      const pageEl = h('div', { class: 'st-page', dataset: { page: r.page } });
+      const spinTimer = setTimeout(() => token === navSeq && content.replaceChildren(kit.spinnerRow()), 180);
+      try {
+        let node;
+        if (r.page === 'search') node = renderSearchPage();
+        else {
+          const mod = await MODULES[PAGES[r.page].module]();
+          const fn = mod.default[r.page];
+          if (typeof fn !== 'function') throw new Error(`Page ${r.page} is missing`);
+          node = await fn(pc);
+        }
+        if (token !== navSeq) return;
+        pageEl.append(node);
+      } catch (err) {
+        console.error('[settings] page failed', err);
+        if (token !== navSeq) return;
+        pageEl.append(kit.infobar({ kind: 'error', title: t('settings.pageError'), message: err.message }));
+      } finally {
+        clearTimeout(spinTimer);
+      }
+      errorHost.replaceChildren();
+      content.replaceChildren(pageEl);
+      if (keepScroll) scroller.scrollTop = prevScroll;
+      else scroller.scrollTop = 0;
+      if (animate && !kit.reduceMotion()) {
+        pageEl.animate([{ opacity: 0, transform: 'translateY(18px)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'cubic-bezier(0.1, 0.9, 0.2, 1)' });
+        titleEl.animate([{ opacity: 0, transform: 'translateX(-8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(0.1, 0.9, 0.2, 1)' });
+      }
+      if (r.section) revealSection(r.section);
+    }
+
+    function revealSection(section) {
+      requestAnimationFrame(() => {
+        const el = content.querySelector(`[data-section="${CSS.escape(section)}"]`);
+        if (!el) return;
+        el.scrollIntoView({ block: 'center', behavior: kit.reduceMotion() ? 'auto' : 'smooth' });
+        if (el.classList.contains('st-expander') && el.toggle) el.toggle(true);
+        el.classList.remove('st-flash');
+        void el.offsetWidth;
+        el.classList.add('st-flash');
+        setTimeout(() => el.classList.remove('st-flash'), 2200);
+      });
+    }
+
+    function goBack() {
+      const prev = history.pop();
+      backBtn.disabled = history.length === 0;
+      if (prev) navigate(prev.page === 'search' ? 'search' : prev.page, { section: null, push: false });
+    }
+    win.el?.addEventListener('keydown', (e) => {
+      if ((e.altKey && e.key === 'ArrowLeft') || (e.key === 'BrowserBack')) {
+        e.preventDefault();
+        goBack();
+      } else if (e.key === 'Escape' && root.classList.contains('pane-open')) {
+        setPaneOpen(false);
+      } else if ((e.ctrlKey && e.key.toLowerCase() === 'f') || (e.ctrlKey && e.key.toLowerCase() === 'e')) {
+        e.preventDefault();
+        if (root.classList.contains('compact')) setPaneOpen(true);
+        searchInput.focus();
+        searchInput.select();
+      }
+    });
+
+    // ---------------------------------------------------------------- search
+    let lastQuery = '';
+    let results = [];
+    let active = -1;
+    function parentLabel(e) {
+      const chain = crumbs(e.page);
+      const labels = chain.map((id) => L(PAGES[id].title));
+      if (e.section && labels[labels.length - 1] === L(e.name)) labels.pop();
+      return labels.join(' › ');
+    }
+    function renderSuggest() {
+      ui.clear(suggest);
+      const q = searchInput.value.trim();
+      if (!q) {
+        suggest.hidden = true;
+        return;
+      }
+      results = searchIndex(q, lang(), 8);
+      if (!results.length) suggest.appendChild(h('div', { class: 'st-suggest-empty caption text-2' }, t('settings.noResults')));
+      results.forEach((e, i) => {
+        suggest.appendChild(
+          h(
+            'div',
+            {
+              class: ['menu-item', 'st-suggest-item', i === active && 'active'],
+              role: 'option',
+              'aria-selected': String(i === active),
+              onpointerdown: (ev) => ev.preventDefault(),
+              onclick: () => openResult(e),
+            },
+            icon(e.icon, { size: 16 }),
+            h('span', { class: 'st-suggest-text' }, h('span', { class: 'ellipsis' }, L(e.name)), h('span', { class: 'caption text-2 ellipsis' }, parentLabel(e))),
+          ),
+        );
+      });
+      suggest.hidden = false;
+    }
+    function openResult(e) {
+      suggest.hidden = true;
+      searchInput.blur();
+      setPaneOpen(false);
+      navigate(e.page, { section: e.section });
+    }
+    searchInput.addEventListener('input', () => {
+      active = -1;
+      renderSuggest();
+    });
+    searchInput.addEventListener('focus', () => searchInput.value.trim() && renderSuggest());
+    searchInput.addEventListener('blur', () => setTimeout(() => (suggest.hidden = true), 120));
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!results.length) return;
+        e.preventDefault();
+        active = (active + (e.key === 'ArrowDown' ? 1 : -1) + results.length) % results.length;
+        renderSuggest();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const q = searchInput.value.trim();
+        if (!q) return;
+        if (active >= 0 && results[active]) openResult(results[active]);
+        else {
+          lastQuery = q;
+          suggest.hidden = true;
+          setPaneOpen(false);
+          navigate('search');
+        }
+      } else if (e.key === 'Escape') {
+        if (searchInput.value) {
+          e.stopPropagation();
+          searchInput.value = '';
+          renderSuggest();
+        }
+      }
+    });
+    function renderSearchPage() {
+      const list = searchIndex(lastQuery, lang(), 40);
+      if (!list.length) {
+        return h('div', { class: 'st-empty' }, icon('search', { size: 40 }), h('div', { class: 'body-large' }, t('settings.noResultsFor', { q: lastQuery })), h('div', { class: 'text-2' }, t('settings.noResultsHint')));
+      }
+      return kit.group(null, ...list.map((e) => kit.row({ icon: e.icon, title: L(e.name), desc: parentLabel(e), onClick: () => navigate(e.page, { section: e.section }) })));
+    }
+
+    // ---------------------------------------------------------------- language switch
+    ctx.onLangChange(() => {
+      searchInput.placeholder = t('settings.findSetting');
+      searchInput.setAttribute('aria-label', t('settings.findSetting'));
+      backBtn.setAttribute('aria-label', t('common.back'));
+      backBtn.dataset.tip = t('common.back');
+      buildNav();
+      loadUser();
+      if (current) navigate(current.page, { section: null, push: false, animate: false, keepScroll: true });
+    });
+
+    win.on('close', () => {
+      for (const fn of [...disposers.splice(0), ...globalDisposers.splice(0)]) {
+        try {
+          fn();
+        } catch {}
+      }
+      backBtn.remove();
+      menuBtn.remove();
+    });
+
+    // Dev builds simulate the system (admin actions, users…): refresh the visible page when it changes.
+    globalDisposers.push(
+      api.on('admin:devChanged', () => {
+        adminCache = null;
+      }),
+    );
+
+    buildNav();
+    loadUser();
+    await navigate(ctx.args?.page || 'system', { section: ctx.args?.section, push: false });
+
+    return {
+      onRelaunch(args) {
+        if (args?.page) navigate(args.page, { section: args.section });
+      },
+      navigate: (page, section) => navigate(page, { section }),
+    };
+  },
+};

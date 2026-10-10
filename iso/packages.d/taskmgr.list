@@ -1,0 +1,3 @@
+# Task Manager (shell/renderer/apps/taskmgr + shell/main/ipc/taskmgr.js): reads /proc and /sys directly.
+# systemctl / loginctl (Services, Users pages) come from systemd in base.list and getconf from libc-bin,
+# so no extra OS packages are needed.

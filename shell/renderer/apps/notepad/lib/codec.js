@@ -178,3 +178,29 @@ export function encode(text, encoding = 'utf-8', eol = 'lf') {
   }
   return { bytes, lossy };
 }
+
+/** Decode with an explicit encoding (Reopen with encoding). A matching BOM is skipped. */
+export function decodeAs(input, encoding) {
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input || []);
+  let label = 'utf-8';
+  let off = 0;
+  let enc = encoding;
+  if (encoding === 'utf-16le') {
+    label = 'utf-16le';
+    if (bytes[0] === 0xff && bytes[1] === 0xfe) off = 2;
+  } else if (encoding === 'utf-16be') {
+    label = 'utf-16be';
+    if (bytes[0] === 0xfe && bytes[1] === 0xff) off = 2;
+  } else if (encoding === 'ansi') {
+    label = 'windows-1252';
+  } else {
+    enc = 'utf-8';
+    if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+      off = 3;
+      enc = 'utf-8-bom';
+    }
+  }
+  const raw = new TextDecoder(label, { ignoreBOM: true }).decode(bytes.subarray(off));
+  const { eol, mixed } = detectEol(raw);
+  return { text: normalizeEol(raw), encoding: enc, eol, mixedEol: mixed };
+}

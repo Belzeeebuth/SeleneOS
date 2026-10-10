@@ -90,6 +90,30 @@ function startServer() {
     if (url.pathname === '/audio') return html(200, page('Audio page', '<audio id="a" loop controls src="/tone.wav"></audio>'));
     if (url.pathname === '/perm') return html(200, page('Permission page', `<button id="b" onclick="Notification.requestPermission().then((r) => (document.title = 'perm:' + r))">Ask</button>`));
     if (url.pathname === '/popups') return html(200, page('Popups page', `<button id="b" onclick="for (let i = 0; i < 5; i++) window.open('/page2?spam=' + i)">Spam</button>`));
+    if (url.pathname === '/data') {
+      return html(
+        200,
+        page('Data page', `<button id="html" onclick="window.open('data:text/html,<title>phish</title><h1>Sign in</h1>')">html</button><button id="img" onclick="window.open('data:image/png;base64,iVBORw0KGgo=')">img</button>`),
+      );
+    }
+    if (url.pathname === '/xss') return html(200, page('&lt;img src=x onerror="window.top.__pwned=1"&gt;', '<a id="a" href="/">home</a>'));
+    if (url.pathname === '/dialogs') {
+      return html(
+        200,
+        page(
+          'Dialogs page',
+          `<button id="alert" onclick="alert('Hello from the page'); document.title = 'alert:done'">alert</button>
+<button id="confirm" onclick="document.title = 'confirm:' + confirm('Delete everything?')">confirm</button>
+<button id="prompt" onclick="document.title = 'prompt:' + prompt('Your name?', 'Ada')">prompt</button>`,
+        ),
+      );
+    }
+    if (url.pathname === '/auth2') {
+      // Separate realm and credentials: the cached ones of /auth never match.
+      if (req.headers.authorization === `Basic ${Buffer.from('ada:lovelace').toString('base64')}`) return html(200, page('Authorized 2', '<h1>Welcome</h1>'));
+      res.writeHead(401, { 'www-authenticate': 'Basic realm="Aurora second"', 'content-type': 'text/html' });
+      return res.end(page('Denied', 'denied'));
+    }
     if (url.pathname === '/auth') {
       if (req.headers.authorization === `Basic ${Buffer.from('aurora:secret').toString('base64')}`) return html(200, page('Authorized', '<h1>Welcome</h1>'));
       res.writeHead(401, { 'www-authenticate': 'Basic realm="Aurora test"', 'content-type': 'text/html' });
@@ -174,6 +198,66 @@ function harness(s) {
 function copyShot(file, name) {
   fs.mkdirSync(DOCS_SHOTS, { recursive: true });
   fs.copyFileSync(file, path.join(DOCS_SHOTS, `${name}.png`));
+}
+
+// English UI strings (app + core dictionaries) that have a different French translation: any of
+// them visible while the UI is in French is an untranslated string.
+function englishPatterns() {
+  const root = path.join(here, '..', 'renderer');
+  const flat = (o, p = '', out = {}) => {
+    for (const [k, v] of Object.entries(o)) {
+      if (v && typeof v === 'object') flat(v, `${p}${k}.`, out);
+      else out[p + k] = v;
+    }
+    return out;
+  };
+  const app = JSON.parse(fs.readFileSync(path.join(root, 'apps', 'browser', 'i18n.json'), 'utf8'));
+  const coreEn = flat(JSON.parse(fs.readFileSync(path.join(root, 'core', 'i18n', 'en.json'), 'utf8')));
+  const coreFr = flat(JSON.parse(fs.readFileSync(path.join(root, 'core', 'i18n', 'fr.json'), 'utf8')));
+  const vals = [...Object.entries(app.en).filter(([k, v]) => app.fr[k] !== v), ...Object.entries(coreEn).filter(([k, v]) => typeof v === 'string' && coreFr[k] !== v)].map(([, v]) => v);
+  return vals
+    .filter((v) => v.replace(/\{[^}]+\}/g, '').trim().length >= 3)
+    .map((v) => `^${v.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\\?\{[^}]+\\?\}/g, '.*')}$`);
+}
+
+/** Visible texts / labels of the browser UI (window, its menus, flyouts and dialogs) matching English strings. */
+async function findEnglish(s, pats) {
+  return s.page.evaluate((pats) => {
+    const res = pats.map((p) => new RegExp(p));
+    const found = new Set();
+    const roots = [...document.querySelectorAll('.app-browser, .menu, .dialog-layer')];
+    for (const root of roots) {
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = w.nextNode())) {
+        const t = n.textContent.trim();
+        const el = n.parentElement;
+        if (!t || !el || !el.getClientRects().length || el.closest('webview')) continue;
+        if (res.some((r) => r.test(t))) found.add(t);
+      }
+      for (const el of root.querySelectorAll('[aria-label], [placeholder], [data-tip]')) {
+        for (const a of ['aria-label', 'placeholder', 'data-tip']) {
+          const v = el.getAttribute(a);
+          if (v && res.some((r) => r.test(v))) found.add(`${a}=${v}`);
+        }
+      }
+    }
+    return [...found];
+  }, pats);
+}
+
+/** Elements of the browser window whose content overflows horizontally (clipped or spilling text). */
+function overflowing(s) {
+  return s.page.evaluate(() => {
+    const out = [];
+    for (const el of document.querySelectorAll('.app-browser.win *')) {
+      if (!el.getClientRects().length || el.closest('.bw-tab, svg')) continue;
+      const cs = getComputedStyle(el);
+      if (cs.overflowX !== 'visible' || cs.textOverflow === 'ellipsis' || el.classList.contains('ellipsis')) continue;
+      if (el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1) out.push(`${el.tagName.toLowerCase()}.${String(el.className).split(' ').slice(0, 2).join('.')} ${el.scrollWidth}>${el.clientWidth}`);
+    }
+    return out.slice(0, 12);
+  });
 }
 
 // ------------------------------------------------------------------ tests
@@ -277,6 +361,26 @@ console.log(`Local test server: ${srv.url}`);
     await waitFor(`bw.isWeb(bw.active) && bw.active.web.title === 'Aurora Test Page'`, { msg: 'forward to web page' });
   });
 
+  await test('back / forward buttons: right-click lists the tab history with page titles', async () => {
+    await s.page.click('.app-browser .bw-tbtn[aria-label="Forward"]', { button: 'right' });
+    await s.page.waitForSelector('.bw-menu .menu-item');
+    let labels = await s.page.$$eval('.bw-menu .menu-item .label', (els) => els.map((e) => e.textContent));
+    assert(labels[0] === 'Second Page' && labels.includes('Show full history'), `forward list (${labels})`);
+    await s.page.keyboard.press('Escape');
+    await waitFor('!document.querySelector(".bw-menu")', { msg: 'menu closed' });
+    await s.page.click('.app-browser .bw-tbtn[aria-label="Back"]', { button: 'right' });
+    await s.page.waitForSelector('.bw-menu .menu-item');
+    labels = await s.page.$$eval('.bw-menu .menu-item .label', (els) => els.map((e) => e.textContent));
+    assert(labels[0] === 'New tab', `back list goes to the new tab page (${labels})`);
+    await s.page.keyboard.press('Escape');
+    // Pick an entry from the forward list.
+    await s.page.click('.app-browser .bw-tbtn[aria-label="Forward"]', { button: 'right' });
+    await s.page.locator('.bw-menu .menu-item', { hasText: 'Second Page' }).click();
+    await waitFor('bw.active.web.title === "Second Page" && !bw.active.web.loading', { msg: 'went forward from the list' });
+    await run('bw.goBack()');
+    await waitFor('bw.active.web.title === "Aurora Test Page" && !bw.active.web.loading', { msg: 'back to the test page' });
+  });
+
   await test('link with target=_blank opens a new foreground tab next to its opener', async () => {
     await pageJs("document.getElementById('blank').click()");
     await waitFor('bw.tabs.length === 2 && bw.active.web.title === "Second Page"', { msg: 'new tab' });
@@ -321,6 +425,18 @@ console.log(`Local test server: ${srv.url}`);
     assert(after[2] === before[0] && after[0] === before[1], `dragged first tab to the end (${before} -> ${after})`);
     const dom = await run('[...bw.tabsEl.children].map((el) => el.dataset.tab).join() === bw.tabs.map((t) => t.id).join()');
     assert(dom, 'DOM order matches the model');
+  });
+
+  await test('keyboard: tab strip arrow keys / Delete, toolbar buttons are labelled', async () => {
+    await run('bw.activate(bw.tabs[0], { focusPage: false })');
+    await run('bw.active.el.focus()');
+    await s.page.keyboard.press('ArrowRight');
+    await waitFor('bw.tabs.indexOf(bw.active) === 1 && document.activeElement === bw.active.el', { msg: 'ArrowRight moves to the next tab' });
+    await s.page.keyboard.press('Home');
+    await waitFor('bw.tabs.indexOf(bw.active) === 0', { msg: 'Home goes to the first tab' });
+    const unlabelled = await run('[...bw.toolbar.querySelectorAll("button")].filter((b) => !b.hidden && !b.getAttribute("aria-label")).map((b) => b.className)');
+    assert(!unlabelled.length, `buttons without aria-label: ${unlabelled}`);
+    assert(await run('bw.tabsEl.getAttribute("role") === "tablist" && bw.active.el.getAttribute("aria-selected") === "true"'), 'tablist semantics');
   });
 
   await test('tab context menu has the expected commands and Duplicate works', async () => {
@@ -451,6 +567,10 @@ console.log(`Local test server: ${srv.url}`);
     await waitFor('bw.flyout && bw.flyout.kind === "downloads"', { msg: 'downloads flyout opens' });
     await waitFor('document.querySelector(".app-browser .bw-dl-row.state-progressing .bw-dl-progress")', { msg: 'progress bar' });
     assert(await run('!bw.dlBtn.hidden && bw.dlBtn.classList.contains("progress") && !bw.dlBadge.hidden'), 'toolbar button shows progress ring + badge');
+    const ringExpr = `(() => { const r = bw.dlBtn.querySelector('.bw-dl-ring'); const bar = r.querySelector('.bar'); const b = r.getBoundingClientRect(); return { ns: r.namespaceURI, w: b.width, opacity: getComputedStyle(r).opacity, dash: getComputedStyle(bar).strokeDasharray }; })()`;
+    const ring = await waitFor(`(() => { const x = ${ringExpr}; return x.opacity === '1' && !/^0(px)?,/.test(x.dash) && x; })()`, { msg: 'progress ring' }).catch(() => run(ringExpr));
+    assert(ring.ns === 'http://www.w3.org/2000/svg' && ring.w > 20 && ring.opacity === '1', `progress ring is a rendered SVG (${JSON.stringify(ring)})`);
+    assert(!/^0(px)?,/.test(ring.dash), `ring shows progress (${ring.dash})`);
     await s.page.waitForTimeout(500);
     await s.shot('browser-downloads-progress');
     await waitFor('document.querySelector(".app-browser .bw-dl-row.state-completed")', { timeout: 20000, msg: 'download completed' });
@@ -644,6 +764,147 @@ console.log(`Local test server: ${srv.url}`);
     await run('bw.closeTab(bw.active)');
   });
 
+  await test('security: pages cannot open data: documents (images are fine)', async () => {
+    await run(`bw.navigate(bw.active, '${srv.url}/data')`);
+    await waitFor('bw.active.web.title === "Data page" && !bw.active.web.loading');
+    const n = await run('bw.tabs.length');
+    await pageJs("document.getElementById('html').click()");
+    await s.page.waitForTimeout(700);
+    assert((await run('bw.tabs.length')) === n, 'data:text/html pop-up refused');
+    await pageJs("document.getElementById('img').click()");
+    await waitFor(`bw.tabs.length === ${n + 1}`, { msg: 'data:image opens in a tab' });
+    await run('bw.closeTab(bw.active)');
+  });
+
+  await test('security: page titles and URLs are shown as text, never parsed as HTML', async () => {
+    await run(`bw.navigate(bw.active, '${srv.url}/xss')`);
+    await waitFor('bw.active.web.title.startsWith("<img") && !bw.active.web.loading', { msg: 'hostile title' });
+    await s.page.waitForTimeout(300);
+    const r = await run(`({ pwned: !!window.__pwned, tabText: bw.active.el.querySelector('.bw-tab-title').textContent, imgs: bw.active.el.querySelectorAll('.bw-tab-title img').length, win: bw.win.title })`);
+    assert(!r.pwned && r.imgs === 0 && r.tabText.startsWith('<img'), JSON.stringify(r));
+    await run('bw.showHoverCard(bw.active)');
+    assert(await run('!document.querySelector(".bw-hovercard img") && document.querySelector(".bw-hovercard .bw-hc-title").textContent.startsWith("<img")'), 'hover card text only');
+    await run('bw.hideHoverCard()');
+    // The history page renders it as text too.
+    await run('bw.openInternal("history")');
+    await waitFor('document.querySelector(".app-browser .bw-view.active .bp-row-title")');
+    assert(await run('!document.querySelector(".app-browser .bw-view.active .bp-row-title img") && !window.__pwned'), 'history row text only');
+    await run('bw.closeTab(bw.active)');
+  });
+
+  await test('page dialogs: alert / confirm / prompt open an Edge-style dialog and return the answer', async () => {
+    await run(`bw.navigate(bw.active, '${srv.url}/dialogs')`);
+    await waitFor('bw.active.web.title === "Dialogs page" && !bw.active.web.loading');
+    const fire = (id) => pageJs(`document.title = 'waiting'; setTimeout(() => document.getElementById('${id}').click()); 0`);
+    const dlg = '.dialog-layer:not(.closing) .bw-jsdlg';
+    await fire('confirm');
+    await s.page.waitForSelector(dlg);
+    const head = await s.page.evaluate(() => ({ title: document.querySelector('.dialog-layer:not(.closing) .dialog-title').textContent, msg: document.querySelector('.dialog-layer:not(.closing) .bw-jsdlg-msg').textContent }));
+    assert(head.title === `127.0.0.1 says` && head.msg === 'Delete everything?', JSON.stringify(head));
+    await s.page.locator('.dialog-layer:not(.closing) .btn.primary').click();
+    await waitFor('bw.active.web.title === "confirm:true"', { msg: 'confirm OK -> true' });
+    await fire('confirm');
+    await s.page.waitForSelector(dlg);
+    // From the second dialog on, the page can be silenced.
+    assert(await s.page.locator('.dialog-layer:not(.closing) .bw-jsdlg input[type=checkbox]').count(), 'suppress checkbox offered');
+    await s.page.keyboard.press('Escape');
+    await waitFor('bw.active.web.title === "confirm:false"', { msg: 'Esc -> false' });
+    await fire('prompt');
+    await s.page.waitForSelector(`${dlg} input.input`);
+    assert((await s.page.inputValue(`${dlg} input.input`)) === 'Ada', 'prompt default value');
+    await s.page.fill(`${dlg} input.input`, 'Grace');
+    await s.page.keyboard.press('Enter');
+    await waitFor('bw.active.web.title === "prompt:Grace"', { msg: 'prompt value returned' });
+    await fire('alert');
+    await s.page.waitForSelector(dlg);
+    assert((await s.page.locator('.dialog-layer:not(.closing) .dialog-footer .btn').count()) === 1, 'alert has only OK');
+    await s.page.check('.dialog-layer:not(.closing) .bw-jsdlg input[type=checkbox]');
+    await s.page.locator('.dialog-layer:not(.closing) .btn.primary').click();
+    await waitFor('bw.active.web.title === "alert:done"', { msg: 'alert returns after OK' });
+    await fire('confirm');
+    await waitFor('bw.active.web.title === "confirm:false"', { msg: 'silenced page gets the default answer' });
+    assert(!(await s.page.locator(dlg).count()), 'no dialog once silenced');
+    // A dialog left open is closed when the tab navigates away.
+    await run(`bw.navigate(bw.active, '${srv.url}/dialogs')`);
+    await waitFor('bw.active.web.title === "Dialogs page" && !bw.active.web.loading');
+    await fire('confirm');
+    await s.page.waitForSelector(dlg);
+    await run(`bw.navigate(bw.active, '${srv.url}/page2')`);
+    await waitFor('bw.active.web.title === "Second Page"', { msg: 'navigation goes through' });
+    await waitFor(`!document.querySelector('${dlg}')`, { msg: 'dialog closed with its page' });
+  });
+
+  await test('HTTP sign-in dialog takes the focus and closes when the tab moves on', async () => {
+    await run(`bw.navigate(bw.active, '${srv.url}/auth2')`);
+    await s.page.waitForSelector('.dialog-layer:not(.closing) input[autocomplete="username"]');
+    await waitFor('document.activeElement?.getAttribute("autocomplete") === "username"', { msg: 'username focused' });
+    await run(`bw.navigate(bw.active, '${srv.url}/')`);
+    await waitFor('bw.active.web.title === "Aurora Test Page" && !bw.active.web.loading', { msg: 'navigated away' });
+    await waitFor('!document.querySelector(".dialog-layer:not(.closing) input[autocomplete=username]")', { msg: 'sign-in dialog closed' });
+    await run(`bw.navigate(bw.active, '${srv.url}/auth2')`);
+    await s.page.waitForSelector('.dialog-layer:not(.closing) input[autocomplete="username"]');
+    await s.page.waitForTimeout(200);
+    await s.page.keyboard.press('Escape');
+    await waitFor('bw.active.web.title === "Denied" && !document.querySelector(".dialog-layer:not(.closing)")', { msg: 'Esc cancels -> 401 page' });
+  });
+
+  await test('rapid clicks: new tab / close keep the strip and the model in sync', async () => {
+    const n = await run('bw.tabs.length');
+    for (let i = 0; i < 6; i++) await s.page.click('.app-browser .bw-newtab');
+    for (let i = 0; i < 3; i++) await s.page.keyboard.press('Control+w');
+    await s.page.click('.app-browser .bw-newtab');
+    await s.page.waitForTimeout(500);
+    const r = await run('({ n: bw.tabs.length, dom: [...bw.tabsEl.children].map((e) => e.dataset.tab).join() === bw.tabs.map((t) => t.id).join(), active: bw.tabs.includes(bw.active) })');
+    assert(r.n === n + 4 && r.dom && r.active, JSON.stringify(r));
+    await run('bw.closeOtherTabs(bw.tabs[0])');
+  });
+
+  await test('"Close other tabs" never loads the background tabs it closes', async () => {
+    await run(`bw.navigate(bw.tabs[0], '${srv.url}/')`);
+    for (let i = 0; i < 4; i++) await run(`bw.createTab({ lazy: { url: '${srv.url}/page2?lazy=${i}', title: 'Lazy ${i}' }, active: false, activateIfNone: false })`);
+    await run('bw.activate(bw.tabs[2])'); // the user looks at one of them: it loads
+    await waitFor('bw.tabs[2].wv', { msg: 'activated lazy tab loads' });
+    await run('(window.__cw = 0, bw.__cw = bw.createWebview, bw.createWebview = function (...a) { window.__cw++; return bw.__cw.apply(this, a); }, 0)');
+    await run('bw.closeOtherTabs(bw.tabs[0])');
+    const created = await run('window.__cw');
+    await run('(bw.createWebview = bw.__cw, 0)');
+    assert(created === 0, `no webview created while closing the other tabs (${created})`);
+    assert((await run('bw.tabs.length')) === 1 && (await run('bw.active === bw.tabs[0]')), 'one tab left, active');
+  });
+
+  await test('translated errors for failed backend calls', async () => {
+    const r = await run(`[shared.errorText({ code: 'ENOSPC' }), shared.errorText({ code: 'ENORESUME' }), shared.errorText({ message: 'boom' })]`);
+    assert(r[0] === "There isn't enough space on the disk." && /can't be resumed/.test(r[1]) && r[2] === 'Something went wrong: boom', JSON.stringify(r));
+  });
+
+  await test('no leaks: extra windows and app relaunches release every listener', async () => {
+    const counts = () => s.page.evaluate(async () => {
+      const { shared } = await import('app://shell/apps/browser/lib/shared.js');
+      return { app: shared.listenerCount(), wm: [...window.__aurora.wm._h.values()].reduce((n, x) => n + x.size, 0), dom: document.querySelectorAll('.app-browser.win, .bw-flyout, .bw-menu, .bw-hovercard, .bw-suggest').length };
+    });
+    const before = await counts();
+    for (let i = 0; i < 15; i++) {
+      await s.page.evaluate(() => window.__aurora.shell.launch('browser', { newWindow: true }));
+      await waitFor('window.__aurora.wm.byApp("browser").length === 2 && window.__aurora.registry.instance(window.__aurora.wm.byApp("browser")[1].id)?.hooks?.ctl?.active', { msg: 'second window' });
+      await run('(bw.newTab({ url: "aurora://history" }), bw.newTab({ url: "aurora://favorites" }), bw.newTab({ url: "aurora://downloads" }), bw.toggleDownloads(), 0)', 1);
+      await run('bw.win.close()', 1);
+      await waitFor('window.__aurora.wm.byApp("browser").length === 1', { msg: 'closed' });
+    }
+    await s.page.waitForTimeout(400);
+    const mid = await counts();
+    assert(mid.app === before.app && mid.wm <= before.wm, `extra windows released their listeners (${JSON.stringify(before)} -> ${JSON.stringify(mid)})`);
+    // Close the app entirely and start it again, 15 times.
+    for (let i = 0; i < 15; i++) {
+      await run('bw.win.close()');
+      await s.page.waitForFunction(() => window.__aurora.wm.byApp('browser').length === 0, null, { timeout: 8000 });
+      await s.page.evaluate(() => window.__aurora.shell.launch('browser'));
+      await s.page.waitForFunction(() => window.__aurora.registry.instance(window.__aurora.wm.byApp('browser')[0]?.id)?.hooks?.ctl?.active, null, { timeout: 8000 });
+    }
+    await s.page.waitForTimeout(400);
+    const after = await counts();
+    assert(after.app === before.app && after.wm <= before.wm && after.dom === 1, `relaunches released everything (${JSON.stringify(before)} -> ${JSON.stringify(after)})`);
+  });
+
   await test('no renderer errors', async () => {
     const e = errors();
     assert(!e.length, e.join('\n'));
@@ -658,9 +919,27 @@ console.log(`Local test server: ${srv.url}`);
   fs.mkdirSync(appDir, { recursive: true });
   fs.writeFileSync(path.join(appDir, 'prefs.json'), JSON.stringify({ startup: 'continue' }));
   fs.writeFileSync(path.join(appDir, 'session.json'), JSON.stringify({ windows: [{ tabs: [{ url: `${srv.url}/`, title: 'Aurora Test Page' }, { url: 'aurora://history', title: 'History' }], active: 1 }] }));
+  // Damaged data files (hand-edited / truncated): the app must keep what is valid and start normally.
+  fs.writeFileSync(
+    path.join(appDir, 'bookmarks.json'),
+    JSON.stringify({
+      bar: { id: 'bar', type: 'folder', children: [null, 42, { type: 'url', title: 'Valid', url: 'https://valid.example/' }, { type: 'url', title: 'No URL' }, { id: 'fx', type: 'folder', title: 'Broken folder', children: 'oops' }] },
+      other: { children: [] },
+    }),
+  );
+  fs.writeFileSync(path.join(appDir, 'history.json'), JSON.stringify([null, 'x', { url: 'javascript:alert(1)' }, { url: 'https://valid.example/', title: 5, visits: 'abc', last: 1700000000000 }]));
   const s = await launchShell({ open: ['browser'], theme: 'light', lang: 'en', home, keepHome: false });
   const { run, waitFor, errors } = harness(s);
   console.log('Session 2 (restore, private window)');
+
+  await test('damaged favorites / history files: valid entries kept, no crash', async () => {
+    await waitFor('bw.tabs.length === 2', { msg: 'window up' });
+    const r = await run(`({ bar: bw.store.bookmarks.bar.children.map((n) => n.title), folder: bw.store.bookmarks.bar.children.find((n) => n.title === 'Broken folder')?.children, hist: [...bw.store.history.values()], favbar: [...document.querySelectorAll('.app-browser .bw-favbar .bw-fav-label')].map((x) => x.textContent) })`);
+    assert(JSON.stringify(r.bar) === '["Valid","Broken folder"]', `bar ${JSON.stringify(r.bar)}`);
+    assert(Array.isArray(r.folder) && !r.folder.length, 'broken folder repaired');
+    assert(r.hist.length === 1 && r.hist[0].url === 'https://valid.example/' && r.hist[0].title === '' && r.hist[0].visits === 1, JSON.stringify(r.hist));
+    assert(r.favbar.includes('Valid') && r.favbar.includes('Broken folder'), `favorites bar ${r.favbar}`);
+  });
 
   await test('startup restores the previous session (lazy background tabs)', async () => {
     await waitFor('bw.tabs.length === 2', { msg: 'restored tabs' });
@@ -701,11 +980,38 @@ console.log(`Local test server: ${srv.url}`);
     await waitFor('window.__aurora.wm.byApp("browser").length === 1');
   });
 
+  await test('Private window downloads stay out of normal windows and are forgotten on close', async () => {
+    await run('window.__aurora.shell.launch("browser", { private: true })');
+    await waitFor('window.__aurora.wm.byApp("browser").length === 2 && window.__aurora.registry.instance(window.__aurora.wm.byApp("browser")[1].id)?.hooks?.ctl?.active', { msg: 'private window' });
+    await run(`bw.navigate(bw.active, '${srv.url}/')`, 1);
+    await waitFor('bw.active.web.title === "Aurora Test Page" && !bw.active.web.loading', { i: 1 });
+    await run(`bw.active.wv.executeJavaScript("document.getElementById('dl').click()", true)`, 1);
+    await waitFor(`[...shared.downloads.values()].some((d) => d.private && d.state === 'completed')`, { timeout: 20000, msg: 'private download done' });
+    const r = await run(`({ normal: shared.downloadList(bw).filter((d) => d.private).length, privateWin: shared.downloadList(${CTL(1)}).filter((d) => d.private).length, disk: (await bw.ctx.storage.get('downloads', [])).length })`);
+    assert(r.normal === 0 && r.privateWin === 1 && r.disk === 0, JSON.stringify(r));
+    await run('bw.win.close()', 1);
+    await waitFor('window.__aurora.wm.byApp("browser").length === 1');
+    await waitFor('![...shared.downloads.values()].some((d) => d.private)', { msg: 'forgotten with the Private session' });
+    assert(fs.existsSync(path.join(home, 'Downloads', 'aurora-test.bin')), 'the downloaded file itself is kept');
+  });
+
   await test('relaunch with a URL opens a tab in the most recent normal window', async () => {
     const n = await run('bw.tabs.length');
     await run(`window.__aurora.shell.openUrl('${srv.url}/page2?from=shell')`);
     await waitFor(`bw.tabs.length === ${n + 1} && bw.active.web.title === 'Second Page'`, { msg: 'openUrl -> new tab' });
     assert(await run('window.__aurora.wm.byApp("browser").length === 1'), 'no extra window');
+  });
+
+  await test('closing the last tab closes the window and keeps the tab for "continue where you left off"', async () => {
+    await run(`bw.navigate(bw.active, '${srv.url}/page2?last=1')`);
+    await waitFor('bw.active.web.title === "Second Page" && !bw.active.web.loading');
+    await run('bw.closeOtherTabs(bw.active)');
+    await s.page.waitForTimeout(300);
+    await run('bw.closeTab(bw.active)');
+    await s.page.waitForFunction(() => window.__aurora.wm.byApp('browser').length === 0, null, { timeout: 8000 });
+    await s.page.waitForTimeout(300);
+    await s.page.evaluate(() => window.__aurora.shell.launch('browser'));
+    await waitFor('bw.tabs.length === 1 && bw.tabUrl(bw.active).endsWith("/page2?last=1")', { msg: 'restored the last tab' });
   });
 
   await test('no renderer errors (session 2)', async () => {
@@ -735,8 +1041,117 @@ console.log(`Local test server: ${srv.url}`);
     }
     await run('bw.navigate(bw.active, "aurora://settings")');
     await waitFor('document.querySelector(".app-browser .bw-view.active .bp-settings")');
+    await run('(bw.omni.input.blur(), bw.focusPage())');
     await s.page.waitForTimeout(400);
     copyShot(await s.shot('browser-fr-dark'), 'browser-fr-dark');
+  });
+
+  await test('French: no English text in any menu, flyout, dialog or page', async () => {
+    const pats = englishPatterns();
+    const found = {};
+    const close = () => s.page.evaluate(async () => {
+      (await import('app://shell/apps/browser/lib/menu.js')).closeMenus();
+      document.querySelectorAll('.menu').forEach((m) => m.remove());
+    });
+    const scan = async (label) => {
+      await s.page.waitForTimeout(250);
+      const e = await findEnglish(s, pats);
+      if (e.length) found[label] = e;
+    };
+    const dialogDone = async () => {
+      await s.page.keyboard.press('Escape');
+      await waitFor('!document.querySelector(".dialog-layer:not(.closing)")', { msg: 'dialog closed' });
+    };
+    const P = "(await import('app://shell/apps/browser/lib/panels.js'))";
+    await run('bw.navigate(bw.active, "aurora://newtab")');
+    await scan('new tab page');
+    await s.page.click('.app-browser .bp-ntp-tool');
+    await scan('new tab customize menu');
+    await close();
+    await s.page.click('.app-browser .bp-tile:not(.add)', { button: 'right' });
+    await scan('shortcut menu');
+    await close();
+    await s.page.click('.app-browser .bp-tile.add');
+    await s.page.waitForSelector('.dialog-layer:not(.closing)');
+    await scan('add shortcut dialog');
+    await dialogDone();
+    await s.page.click('.app-browser .bw-tab', { button: 'right' });
+    await scan('tab menu');
+    await close();
+    await s.page.click('.app-browser .bw-tbtn[aria-label="Paramètres et plus"]');
+    await s.page.locator('.bw-menu .menu-item', { hasText: "Plus d'outils" }).hover();
+    await s.page.waitForTimeout(400);
+    await scan('settings and more menu + more tools');
+    await close();
+    await run(`${P}.favoritesMenu(bw, bw.favBtn)`);
+    await scan('favorites menu');
+    await close();
+    await s.page.locator('.app-browser .bw-favbar .bw-fav.folder').first().click();
+    await scan('favorites bar folder');
+    await close();
+    await s.page.click('.app-browser .bw-favbar', { button: 'right', position: { x: 600, y: 8 } });
+    await scan('favorites bar menu');
+    await close();
+    await run(`bw.navigate(bw.active, '${srv.url}/dialogs')`);
+    await waitFor('bw.active.web.title === "Dialogs page" && !bw.active.web.loading');
+    await run(`${P}.favoriteFlyout(bw)`);
+    await scan('favorite flyout');
+    await run('bw.closeFlyout()');
+    await run(`${P}.siteInfo(bw, bw.omni.siteBtn)`);
+    await scan('site information');
+    await run('bw.closeFlyout()');
+    await run('bw.zoom(1)');
+    await run(`${P}.zoomFlyout(bw, bw.omni.zoomBtn)`);
+    await scan('zoom flyout');
+    await run('(bw.closeFlyout(), bw.zoom(0))');
+    await run('bw.findBar.open()');
+    await s.page.keyboard.type('zzzz');
+    await scan('find bar');
+    await run('bw.findBar.close()');
+    await run('bw.toggleDownloads()');
+    await scan('downloads flyout');
+    await run('bw.closeFlyout()');
+    await run(`${P}.pageMenu(bw, bw.active, { x: 5, y: 5, linkURL: '${srv.url}/page2', mediaType: 'image', srcURL: '${srv.url}/favicon.svg', isEditable: false, selectionText: 'aurora', editFlags: {} })`);
+    await scan('page menu: link, image, selection');
+    await close();
+    await run(`${P}.pageMenu(bw, bw.active, { x: 5, y: 5, linkURL: '', mediaType: 'video', srcURL: '${srv.url}/v.mp4', isEditable: true, selectionText: '', editFlags: {} })`);
+    await scan('page menu: video, editable');
+    await close();
+    await run(`bw.active.wv.executeJavaScript("setTimeout(() => document.getElementById('prompt').click()); 0", true)`);
+    await s.page.waitForSelector('.dialog-layer:not(.closing) .bw-jsdlg');
+    await scan('page prompt dialog');
+    await dialogDone();
+    await run('(bw.findBar.open(), 0)');
+    await run(`(${P}.clearDataDialog(bw), 0)`);
+    await s.page.waitForSelector('.dialog-layer:not(.closing) .bw-clear');
+    await scan('clear browsing data dialog');
+    await dialogDone();
+    for (const route of ['history', 'favorites', 'downloads', 'settings', 'about']) {
+      await run(`bw.navigate(bw.active, 'aurora://${route}')`);
+      await scan(`${route} page`);
+    }
+    await run(`(${P}.addFavoriteDialog(bw), 0)`);
+    await s.page.waitForSelector('.dialog-layer:not(.closing)');
+    await scan('add favorite dialog');
+    await dialogDone();
+    await run(`(${P}.editFavoriteDialog(bw, bw.store.bookmarks.bar.children[0]), 0)`);
+    await s.page.waitForSelector('.dialog-layer:not(.closing)');
+    await scan('edit favorite dialog');
+    await dialogDone();
+    await run(`(${P}.deleteFavorite(bw, bw.store.bookmarks.bar.children.find((n) => n.type === 'folder')), 0)`);
+    await s.page.waitForSelector('.dialog-layer:not(.closing)');
+    await scan('delete folder confirmation');
+    await dialogDone();
+    await run('bw.navigate(bw.active, "file:///etc/passwd")');
+    await scan('blocked address page');
+    await run('bw.navigate(bw.active, "aurora://nowhere")');
+    await scan('unknown aurora page');
+    await run('(window.__aurora && 0)');
+    assert(!Object.keys(found).length, `English strings in the French UI: ${JSON.stringify(found)}`);
+    // First-run favorites are localized too.
+    const seeds = await run('bw.store.bookmarks.bar.children.find((n) => n.title === "Aurora OS").children.map((n) => n.title)');
+    assert(seeds.includes('Paramètres du Navigateur Aurora'), `French seed favorites (${seeds})`);
+    assert((await run(`shared.errorText({ code: 'ENOSPC' })`)) === "L'espace disque est insuffisant.", 'French error text');
   });
 
   await test('French error page and labels', async () => {
@@ -762,6 +1177,15 @@ console.log(`Local test server: ${srv.url}`);
     assert(tabs.activeVisible, 'active tab scrolled into view');
     await s.shot('browser-min-size');
     await run('bw.closeOtherTabs(bw.tabs[0])');
+    for (const route of ['newtab', 'history', 'favorites', 'downloads', 'settings', 'about']) {
+      await run(`bw.navigate(bw.active, 'aurora://${route}')`);
+      await s.page.waitForTimeout(250);
+      const o = await overflowing(s);
+      assert(!o.length, `${route} page fits the minimum window (${o})`);
+    }
+    await run(`bw.navigate(bw.active, 'http://127.0.0.1:${deadPort}/')`);
+    await waitFor('bw.active.errorEl?.isConnected');
+    assert(!(await overflowing(s)).length, 'error page fits the minimum window');
   });
 
   await test('maximized window', async () => {
@@ -818,6 +1242,42 @@ console.log(`Local test server: ${srv.url}`);
   await s.close();
 }
 
+// ======== Session 5: maximized on common screen sizes (layout must fill and never overflow)
+for (const [size, lang, theme] of [
+  ['1280x720', 'fr', 'light'],
+  ['1920x1080', 'en', 'dark'],
+]) {
+  const s = await launchShell({ open: ['browser'], theme, lang, size });
+  const { run, waitFor, errors } = harness(s);
+  await waitFor('bw.tabs.length === 1 && document.querySelector(".app-browser .bp-ntp")');
+  console.log(`Session 5 (${size}, ${lang}, ${theme}, maximized)`);
+  await test(`maximized ${size}: every page fills the window without horizontal overflow`, async () => {
+    await run('bw.win.maximize()');
+    await s.page.waitForTimeout(500);
+    const [w] = size.split('x').map(Number);
+    const r = await run(`({ win: bw.win.el.getBoundingClientRect().width, tb: bw.toolbar.scrollWidth <= bw.toolbar.clientWidth + 1, more: bw.moreBtn.getBoundingClientRect().right <= bw.win.el.getBoundingClientRect().right })`);
+    assert(Math.abs(r.win - w) <= 1 && r.tb && r.more, `window ${r.win}px wide, toolbar fits (${JSON.stringify(r)})`);
+    for (const route of ['newtab', 'history', 'favorites', 'downloads', 'settings', 'about']) {
+      await run(`bw.navigate(bw.active, 'aurora://${route}')`);
+      await s.page.waitForTimeout(250);
+      const o = await overflowing(s);
+      assert(!o.length, `${route}: ${o}`);
+    }
+    await run(`bw.navigate(bw.active, '${srv.url}/')`);
+    await waitFor('bw.active.web.title === "Aurora Test Page" && !bw.active.web.loading');
+    const wv = await run('(() => { const a = bw.active.wv.getBoundingClientRect(); const b = bw.views.getBoundingClientRect(); return Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1; })()');
+    assert(wv, 'the page fills the content area');
+    await run('(bw.omni.input.blur(), bw.navigate(bw.active, "aurora://newtab"), 0)');
+    await s.page.waitForTimeout(300);
+    await s.shot(`browser-maximized-${size}`);
+  });
+  await test(`no renderer errors (${size})`, async () => {
+    const e = errors();
+    assert(!e.length, e.join('\n'));
+  });
+  await s.close();
+}
+
 // ======== Session 4: real HTTPS (network dependent; failures are reported, not fatal)
 {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-home-'));
@@ -845,7 +1305,8 @@ console.log(`Local test server: ${srv.url}`);
       try {
         await waitFor('!bw.active.web.loading', { timeout: 15000 });
       } catch {}
-      await s.page.waitForTimeout(1500);
+      await run('(bw.omni.input.blur(), bw.focusPage())');
+      await s.page.waitForTimeout(5000); // let the site finish its own intro animations
       copyShot(await s.shot('browser-page'), 'browser-page');
       break;
     }
@@ -853,6 +1314,7 @@ console.log(`Local test server: ${srv.url}`);
   if (!real) {
     await run(`bw.navigate(bw.active, '${srv.url}/')`);
     await waitFor('bw.active.web.title === "Aurora Test Page" && !bw.active.web.loading');
+    await run('(bw.omni.input.blur(), bw.focusPage())');
     await s.page.waitForTimeout(400);
     copyShot(await s.shot('browser-page'), 'browser-page');
     notes.push('No real HTTPS site was reachable; browser-page.png shows the local test page.');

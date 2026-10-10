@@ -6,9 +6,28 @@ import * as T from './types.js';
 let opSeq = 0;
 const newOpId = () => `fx${Date.now().toString(36)}${++opSeq}`;
 
+// Error codes do not survive Electron's contextBridge (only the message does), so derive them:
+// Node fs errors start with the code ("EACCES: permission denied, …"); known backend messages map.
+export function codeOf(err) {
+  if (!err) return '';
+  if (err.code) return err.code;
+  const msg = String(err.message || err);
+  const m = /^(E[A-Z0-9]{2,})\b/.exec(msg);
+  if (m) return m[1];
+  if (/already exists/i.test(msg)) return 'EEXIST';
+  if (/subfolder of the source|into itself/i.test(msg)) return 'ESUBFOLDER';
+  if (/operation was cancel/i.test(msg)) return 'ECANCELED';
+  if (/permission denied|not permitted/i.test(msg)) return 'EACCES';
+  if (/no such file or directory/i.test(msg)) return 'ENOENT';
+  if (/not a (directory|folder)/i.test(msg)) return 'ENOTDIR';
+  if (/no space left/i.test(msg)) return 'ENOSPC';
+  if (/read-only file system/i.test(msg)) return 'EROFS';
+  return '';
+}
+
 function errText(ex, err) {
   const t = ex.t;
-  const code = err?.code;
+  const code = codeOf(err);
   if (code === 'EACCES' || code === 'EPERM') return t('errors.permission');
   if (code === 'ENOSPC') return t('errors.noSpace');
   if (code === 'ESUBFOLDER') return t('errors.subfolder');
@@ -20,7 +39,7 @@ function errText(ex, err) {
 export { errText };
 
 export function alertError(ex, err, title) {
-  if (err?.code === 'ECANCELED') return Promise.resolve();
+  if (codeOf(err) === 'ECANCELED') return Promise.resolve();
   return ex.ui.alert(errText(ex, err), { title: title || ex.t('appName'), parent: ex.win });
 }
 
@@ -143,7 +162,7 @@ export async function transfer(ex, paths, destDir, { move = false, select = true
       ex.api.invoke('files:transfer', paths, destDir, { move, opId }),
     );
   } catch (err) {
-    if (err?.code !== 'ECANCELED') await alertError(ex, err, t(move ? 'progress.moveError' : 'progress.copyError'));
+    if (codeOf(err) !== 'ECANCELED') await alertError(ex, err, t(move ? 'progress.moveError' : 'progress.copyError'));
     ex.refreshAll();
     return [];
   }
@@ -331,7 +350,7 @@ export async function extract(ex, entry, { dest: destDir, exact = false, open = 
       ex.api.invoke('files:extract', entry.path, destDir || T.dirname(entry.path), { opId, exact }),
     );
   } catch (err) {
-    if (err?.code !== 'ECANCELED') await alertError(ex, err, t('archive.extractError'));
+    if (codeOf(err) !== 'ECANCELED') await alertError(ex, err, t('archive.extractError'));
     return null;
   }
   if (!exact) pushUndo({ type: 'new', path: dest });
@@ -352,7 +371,7 @@ export async function compress(ex, entries) {
       ex.api.invoke('files:compress', entries.map((e) => e.path), T.joinPath(dir, name), { opId }),
     );
   } catch (err) {
-    if (err?.code !== 'ECANCELED') await alertError(ex, err, t('archive.compressError'));
+    if (codeOf(err) !== 'ECANCELED') await alertError(ex, err, t('archive.compressError'));
     return null;
   }
   pushUndo({ type: 'new', path: zip });
@@ -375,6 +394,12 @@ export async function undo(ex) {
       await api.invoke('fs:rename', op.to, T.basename(op.from));
       renamePaths(op.to, op.from);
       ex.refreshAll({ dir: T.dirname(op.from), select: [op.from] });
+    } else if (op.type === 'renameMany') {
+      for (const { from, to } of [...op.items].reverse()) {
+        await api.invoke('fs:rename', to, T.basename(from));
+        renamePaths(to, from);
+      }
+      ex.refreshAll({ dir: T.dirname(op.items[0].from), select: op.items.map((x) => x.from) });
     } else if (op.type === 'move') {
       for (const { from, to } of op.items) {
         const [back] = await api.invoke('files:transfer', [to], T.dirname(from), { move: true });

@@ -29,7 +29,12 @@ async function test(name, fn) {
     if (current) {
       // Don't let one failure cascade: dismiss dialogs, menus and flyouts left open.
       await current.page.keyboard.press('Escape').catch(() => {});
-      await current.page.evaluate(() => document.querySelectorAll('.dialog-layer, .menu, .pt-flyout').forEach((e) => e.remove())).catch(() => {});
+      await current.page
+        .evaluate(() => {
+          document.querySelectorAll('.dialog-layer, .menu, .pt-flyout').forEach((e) => e.remove());
+          [...document.querySelectorAll('.win.app-paint .pt-scroll')].pop()?.focus();
+        })
+        .catch(() => {});
     }
     console.log(`FAIL  ${name}\n      ${String(err?.message || err).split('\n').slice(0, 24).join('\n      ')}\n      ${where.trim()}`);
   }
@@ -487,7 +492,7 @@ await test('clipboard: copy all, new image, paste gives identical pixels', async
   await s.page.keyboard.press('Control+c');
   await wait(s, 300);
   const img = await s.page.evaluate(async () => {
-    const bytes = await window.aurora.invoke('clipboard:readImage');
+    const bytes = await window.aurora.invoke('paint:clipboardReadImage');
     const bmp = await createImageBitmap(new Blob([bytes]));
     return { width: bmp.width, height: bmp.height };
   });
@@ -580,6 +585,7 @@ await test('zoom: Ctrl+wheel, Ctrl+plus/minus, slider, fit to window, magnifier'
   assert.equal(await P(s, (p) => p.zoom()), 1.5);
   await s.page.keyboard.press('Control+Minus');
   assert.equal(await P(s, (p) => p.zoom()), 1);
+  await P(s, (p) => p.reveal([[300, 300]]));
   const c = await client(s, 300, 300);
   await s.page.mouse.move(c.x, c.y);
   await s.page.keyboard.down('Control');
@@ -589,7 +595,7 @@ await test('zoom: Ctrl+wheel, Ctrl+plus/minus, slider, fit to window, magnifier'
   const z = await P(s, (p) => p.zoom());
   assert.ok(z > 1.2, `wheel zoomed in (${z})`);
   const c2 = await client(s, 300, 300);
-  assert.ok(Math.abs(c2.x - c.x) < 3 && Math.abs(c2.y - c.y) < 3, 'zoom anchored at the cursor');
+  assert.ok(Math.abs(c2.x - c.x) < 3 && Math.abs(c2.y - c.y) < 3, `zoom anchored at the cursor: ${JSON.stringify({ c, c2, z, size: await P(s, (p) => p.size) })}`);
   await s.page.click(`${WIN} .pt-status .pt-b[aria-label="Fit to window"]`);
   const fit = await P(s, (p) => p.zoom());
   assert.ok(fit < 1, `fit (${fit})`);
@@ -600,6 +606,300 @@ await test('zoom: Ctrl+wheel, Ctrl+plus/minus, slider, fit to window, magnifier'
   await click(s, 500, 300, { button: 'right' });
   assert.ok(Math.abs((await P(s, (p) => p.zoom())) - fit) < 0.3, 'right click zooms out');
   await setZoom100(s);
+});
+
+await test('View menu: rulers, gridlines, status bar and full screen', async () => {
+  await menu(s, 'view', 'Rulers');
+  await menu(s, 'view', 'Gridlines');
+  const v = await P(s, (p, el) => ({
+    rulers: el.querySelector('.pt-main').classList.contains('rulers'),
+    rulerW: el.querySelector('.pt-ruler-h').getBoundingClientRect().width,
+    grid: !el.querySelector('.pt-grid').hidden,
+    scrollTop: getComputedStyle(el.querySelector('.pt-scroll')).top,
+  }));
+  assert.deepEqual([v.rulers, v.grid, v.scrollTop], [true, true, '20px']);
+  assert.ok(v.rulerW > 300, 'ruler drawn across the workspace');
+  await s.shot('paint-rulers-grid');
+  await s.page.keyboard.press('Control+r');
+  await s.page.keyboard.press('Control+g');
+  assert.deepEqual(await P(s, (p) => [p.S.rulers, p.S.grid]), [false, false]);
+  await menu(s, 'view', 'Status bar');
+  assert.equal(await P(s, (p, el) => el.querySelector('.pt-status').hidden), true);
+  await menu(s, 'view', 'Status bar');
+  assert.equal(await P(s, (p, el) => el.querySelector('.pt-status').hidden), false);
+  await s.page.keyboard.press('F11');
+  await wait(s, 300);
+  const fs1 = await P(s, (p, el) => ({ win: el.classList.contains('fullscreen'), bar: getComputedStyle(el.querySelector('.pt-cmdbar')).display }));
+  assert.deepEqual(fs1, { win: true, bar: 'none' });
+  await s.page.keyboard.press('Escape');
+  await wait(s, 300);
+  assert.equal(await P(s, (p, el) => el.classList.contains('fullscreen')), false);
+});
+
+await test('curve control handles bend the line; transparent selection drops color 2', async () => {
+  await P(s, (p) => {
+    p.app.setColor('primary', '#000000');
+    p.app.setColor('secondary', '#ffffff');
+  });
+  await shape(s, 'curve');
+  await drag(s, [[100, 300], [400, 300]]);
+  const c1 = await P(s, (p, el) => {
+    const r = el.querySelector('.pt-h[data-h="c1"]').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await s.page.mouse.move(c1.x, c1.y);
+  await s.page.mouse.down();
+  await s.page.mouse.move(c1.x, c1.y - 120, { steps: 6 });
+  await s.page.mouse.up();
+  await P(s, (p) => p.commitPending());
+  assert.ok((await nonWhite(s, 120, 200, 120, 80)) > 20, 'curve bent upwards');
+  // transparent selection: white pixels of the moved selection don't cover what's below
+  await P(s, (p) => p.app.setColor('primary', '#22b14c'));
+  await shape(s, 'rect');
+  await P(s, (p) => {
+    p.app.setFillStyle('solid');
+    p.app.setColor('secondary', '#22b14c');
+  });
+  await drag(s, [[500, 100], [700, 200]]);
+  await P(s, (p) => {
+    p.commitPending();
+    p.app.setFillStyle('none');
+    p.app.setColor('secondary', '#ffffff');
+    p.app.setColor('primary', '#000000');
+  });
+  await P(s, (p) => p.app.setTool('select'));
+  await drag(s, [[90, 260], [420, 320]]);
+  await P(s, (p) => p.app.cmd('transparentSel'));
+  assert.equal(await P(s, (p) => p.S.transparentSel), true);
+  await drag(s, [[250, 300], [610, 140]]);
+  await s.page.keyboard.press('Escape');
+  await wait(s, 80);
+  const under = await px(s, 690, 190);
+  assert.deepEqual(under, [34, 177, 76, 255], 'green still visible through the transparent selection');
+  await P(s, (p) => p.app.cmd('transparentSel'));
+});
+
+await test('pasting a picture larger than the canvas enlarges it (undoable)', async () => {
+  await P(s, async (p) => {
+    const c = document.createElement('canvas');
+    c.width = 1500;
+    c.height = 700;
+    const g = c.getContext('2d');
+    g.fillStyle = '#ff7f27';
+    g.fillRect(0, 0, 1500, 700);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    await window.aurora.invoke('paint:clipboardWriteImage', new Uint8Array(await blob.arrayBuffer()));
+  });
+  const before = await P(s, (p) => p.size);
+  await P(s, (p) => p.app.cmd('paste'));
+  await waitFor(s, (p) => p.sel && p.sel.floating);
+  assert.deepEqual(await P(s, (p) => p.size), { w: 1500, h: 700 });
+  await s.page.keyboard.press('Escape');
+  assert.deepEqual(await px(s, 1400, 650), [255, 127, 39, 255]);
+  await P(s, (p) => p.app.cmd('undo'));
+  await P(s, (p) => p.app.cmd('undo'));
+  assert.deepEqual(await P(s, (p) => p.size), before);
+});
+
+await test('Set as desktop background stores the saved picture in settings', async () => {
+  const f = path.join(pics, 'wallpaper.png');
+  assert.equal(await P(s, (p, el, a) => p.writeFile(a, 'png'), f), true);
+  await P(s, (p) => {
+    p.app.cmd('wallpaper', 'center');
+  });
+  await s.page.waitForFunction((file) => window.__aurora.settings.get('wallpaper') === file, f, { timeout: 5000 });
+  assert.equal(await s.aurora(() => window.__aurora.settings.get('wallpaperFit')), 'center');
+  await s.aurora(() => window.__aurora.settings.reset('wallpaper'));
+});
+
+await test('selection handles scale, rotate applies to the selection, arrows nudge', async () => {
+  await P(s, (p) => {
+    p.app.cmd('new');
+  });
+  const ask = await s.page.waitForSelector(`${WIN} .pt-ask`, { timeout: 1500 }).catch(() => null);
+  if (ask) await s.page.click(`${WIN} .pt-ask .dialog-footer .btn:nth-child(2)`);
+  await waitFor(s, (p) => !p.dirty() && p.size.w === 1152);
+  await P(s, (p) => {
+    p.app.setColor('primary', '#3f48cc');
+    p.app.setColor('secondary', '#3f48cc');
+    p.app.setFillStyle('solid');
+  });
+  await shape(s, 'rect');
+  await drag(s, [[100, 100], [199, 149]]);
+  await P(s, (p) => {
+    p.commitPending();
+    p.app.setFillStyle('none');
+    p.app.setColor('secondary', '#ffffff');
+    p.app.setTool('select');
+  });
+  await drag(s, [[100, 100], [199, 149]]);
+  assert.deepEqual(await P(s, (p) => p.sel), { x: 100, y: 100, w: 100, h: 50, floating: false });
+  // drag the south-east handle: the selection is lifted and stretched
+  const se = await P(s, (p, el) => {
+    const r = el.querySelector('.pt-h[data-kind="sel"][data-h="se"]').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, z: p.zoom() };
+  });
+  await s.page.mouse.move(se.x, se.y);
+  await s.page.mouse.down();
+  await s.page.mouse.move(se.x + 100 * se.z, se.y + 50 * se.z, { steps: 6 });
+  await s.page.mouse.up();
+  assert.deepEqual(await P(s, (p) => p.sel), { x: 100, y: 100, w: 200, h: 100, floating: true });
+  // rotate right applies to the floating selection only
+  await P(s, (p) => p.app.cmd('rotR'));
+  assert.deepEqual(await P(s, (p) => p.sel), { x: 100, y: 100, w: 100, h: 200, floating: true });
+  assert.deepEqual(await P(s, (p) => p.size), { w: 1152, h: 648 });
+  // arrow keys nudge (Shift = 10 px)
+  await s.page.keyboard.press('ArrowRight');
+  await s.page.keyboard.press('Shift+ArrowDown');
+  assert.deepEqual(await P(s, (p) => p.sel), { x: 101, y: 110, w: 100, h: 200, floating: true });
+  await s.page.keyboard.press('Enter');
+  await s.page.keyboard.press('Escape');
+  await wait(s, 60);
+  assert.deepEqual(await px(s, 150, 300), [63, 72, 204, 255], 'stretched + rotated content committed');
+  assert.ok(isWhite(await px(s, 150, 105)), 'original area cleared');
+});
+
+await test('right-drag eraser only replaces color 1 (color eraser)', async () => {
+  await P(s, (p) => {
+    p.app.setColor('primary', '#3f48cc');
+    p.app.setColor('secondary', '#fff200');
+  });
+  await tool(s, 'eraser');
+  await drag(s, [[90, 250], [260, 250]], { button: 'right' });
+  assert.deepEqual(await px(s, 150, 250), [255, 242, 0, 255], 'blue replaced by yellow');
+  assert.ok(isWhite(await px(s, 95, 250)), 'white left alone');
+  await P(s, (p) => p.app.cmd('undo'));
+  assert.deepEqual(await px(s, 150, 250), [63, 72, 204, 255]);
+  await P(s, (p) => p.app.setColor('secondary', '#ffffff'));
+});
+
+await test('polygon vertices stay editable; text box can be resized before committing', async () => {
+  await P(s, (p) => {
+    p.app.setColor('primary', '#000000');
+    p.app.setFillStyle('none');
+    p.app.setSize(3);
+  });
+  await shape(s, 'polygon');
+  await drag(s, [[500, 100], [700, 100]]);
+  await click(s, 700, 250);
+  await click(s, 500, 250, { clickCount: 2 });
+  const handles = await P(s, (p, el) => [...el.querySelectorAll('.pt-h[data-kind="shape"]')].map((x) => x.dataset.h));
+  assert.deepEqual(handles, ['v0', 'v1', 'v2', 'v3']);
+  const v2 = await P(s, (p, el) => {
+    const r = el.querySelector('.pt-h[data-h="v2"]').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, z: p.zoom() };
+  });
+  await s.page.mouse.move(v2.x, v2.y);
+  await s.page.mouse.down();
+  await s.page.mouse.move(v2.x + 60 * v2.z, v2.y + 60 * v2.z, { steps: 5 });
+  await s.page.mouse.up();
+  await P(s, (p) => p.commitPending());
+  assert.ok((await nonWhite(s, 700, 255, 60, 60)) > 20, 'moved vertex drawn');
+  await tool(s, 'text');
+  await click(s, 300, 400);
+  await s.page.waitForSelector(`${WIN} .pt-ta`);
+  await s.page.keyboard.type('Resizable text box that wraps over several lines');
+  const before = await P(s, (p, el) => el.querySelector('.pt-textbox').getBoundingClientRect().height);
+  const e = await P(s, (p, el) => {
+    const r = el.querySelector('.pt-textbox .pt-h-e').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await s.page.mouse.move(e.x, e.y);
+  await s.page.mouse.down();
+  await s.page.mouse.move(e.x - 120, e.y, { steps: 5 });
+  await s.page.mouse.up();
+  const after = await P(s, (p, el) => el.querySelector('.pt-textbox').getBoundingClientRect().height);
+  assert.ok(after > before, `narrower box grows taller (${before} -> ${after})`);
+  await s.page.keyboard.press('Escape');
+  await wait(s, 80);
+  assert.ok((await nonWhite(s, 300, 400, 300, 120)) > 200, 'wrapped text committed');
+});
+
+await test('About dialog, recent files menu, zoom slider, middle-button pan, inches in properties', async () => {
+  await menu(s, 'file', 'About Paint');
+  await s.page.waitForSelector(`${WIN} .pt-about`);
+  assert.match(await s.page.locator(`${WIN} .pt-about`).textContent(), /Paint/);
+  await s.page.click(`${WIN} .dialog-footer .btn.primary`);
+  await wait(s, 250);
+  await s.page.click(`${WIN} .pt-menu-btn:nth-child(1)`);
+  await s.page.locator('.menu .menu-item', { hasText: 'Recent' }).hover();
+  await wait(s, 350);
+  const rec = await s.page.locator('.menu .menu-item .label').allTextContents();
+  assert.ok(rec.includes('paint-test.png'), `recent list: ${rec.join('|')}`);
+  await s.page.keyboard.press('Escape');
+  await wait(s, 100);
+  // zoom slider
+  const sl = await s.page.locator(`${WIN} .pt-zoom-slider`).boundingBox();
+  await s.page.mouse.click(sl.x + sl.width * 0.9, sl.y + sl.height / 2);
+  const z = await P(s, (p) => p.zoom());
+  assert.ok(z > 3, `slider zoomed to ${z}`);
+  // middle-button drag pans the view
+  const sc0 = await P(s, (p, el) => [el.querySelector('.pt-scroll').scrollLeft, el.querySelector('.pt-scroll').scrollTop]);
+  const mid = await P(s, (p, el) => {
+    const r = el.querySelector('.pt-scroll').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await s.page.mouse.move(mid.x, mid.y);
+  await s.page.mouse.down({ button: 'middle' });
+  await s.page.mouse.move(mid.x - 150, mid.y - 80, { steps: 5 });
+  await s.page.mouse.up({ button: 'middle' });
+  const sc1 = await P(s, (p, el) => [el.querySelector('.pt-scroll').scrollLeft, el.querySelector('.pt-scroll').scrollTop]);
+  assert.deepEqual([sc1[0] - sc0[0], sc1[1] - sc0[1]], [150, 80]);
+  await setZoom100(s);
+  // image properties in inches
+  await s.page.keyboard.press('Control+e');
+  await s.page.waitForSelector(`${WIN} .pt-props-dlg`);
+  await s.page.locator(`${WIN} .pt-props-dlg .segmented button`, { hasText: 'Inches' }).click();
+  assert.equal(await s.page.locator(`${WIN} .pt-props-dlg input[type=number]`).first().inputValue(), '12');
+  await s.page.locator(`${WIN} .pt-props-dlg input[type=number]`).first().fill('10');
+  await s.page.click(`${WIN} .dialog-footer .btn.primary`);
+  await wait(s, 200);
+  assert.equal((await P(s, (p) => p.size)).w, 960, '10 in = 960 px');
+  await s.page.keyboard.press('Control+z');
+  await wait(s, 100);
+  assert.equal((await P(s, (p) => p.size)).w, 1152);
+});
+
+await test('older undo steps are compressed to PNG in the background and still restore exactly', async () => {
+  await P(s, (p) => {
+    p.app.cmd('new');
+  });
+  const ask = await s.page.waitForSelector(`${WIN} .pt-ask`, { timeout: 1500 }).catch(() => null);
+  if (ask) await s.page.click(`${WIN} .pt-ask .dialog-footer .btn:nth-child(2)`);
+  await waitFor(s, (p) => !p.dirty() && p.history.undo === 0);
+  await P(s, (p) => {
+    p.historyInternals.budget = 2 * 1024 * 1024;
+    p.historyInternals.keepRaw = 2;
+    p.app.setTolerance(0);
+  });
+  const start = await hash(s);
+  await tool(s, 'fill');
+  const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#00ffff', '#ff00ff', '#000000', '#7f7f7f'];
+  for (const c of colors) {
+    await P(s, (p, el, col) => p.app.setColor('primary', col), c);
+    await click(s, 300, 300);
+  }
+  const end = await hash(s);
+  const st = await waitFor(
+    s,
+    (p) => {
+      const h = p.historyInternals;
+      const blobs = h.undoStack.filter((e) => e.blob).length;
+      return blobs >= 5 ? { blobs, raw: h.rawBytes() } : null;
+    },
+    null,
+    { timeout: 15000 },
+  );
+  assert.ok(st.raw <= 4 * 1152 * 648 * 4, `raw bytes kept low (${st.raw})`);
+  for (let i = 0; i < colors.length; i++) await P(s, (p) => p.app.cmd('undo'));
+  assert.equal(await hash(s), start, 'undo through compressed steps');
+  for (let i = 0; i < colors.length; i++) await P(s, (p) => p.app.cmd('redo'));
+  assert.equal(await hash(s), end, 'redo through compressed steps');
+  await P(s, (p) => {
+    p.historyInternals.budget = 160 * 1024 * 1024;
+    p.historyInternals.keepRaw = 4;
+    p.app.setTolerance(12);
+  });
 });
 
 await test('Edit colors dialog (HSV + hex) sets color 1 and fills a custom slot', async () => {
@@ -774,10 +1074,36 @@ await test('demo drawing + screenshots (dark, fr) and dialogs in French', async 
   await tool(f, 'text');
   await wait(f, 300);
   await f.shot('paint-text-fr');
+  fs.copyFileSync(path.join(OUT, 'paint-text-fr.png'), path.join(DOCS, 'paint-text-fr.png'));
   const errs = await errorsOf(f);
   assert.deepEqual(errs, []);
 });
 await f.close();
+
+// ================================================================== high-DPI (shell scale 200 %)
+const hd = await launchShell({ open: ['paint'], lang: 'en', theme: 'light', settings: { scale: 200 } });
+current = hd;
+await hd.page.waitForSelector(`${WIN} .pt-doc`, { timeout: 30000 });
+await wait(hd, 800);
+await test('high-DPI: at 100 % one image pixel is one device pixel, and strokes land on the right pixels', async () => {
+  await P(hd, (p, el) => window.__aurora.wm.get(el.dataset.id).maximize());
+  await wait(hd, 400);
+  const info = await P(hd, (p, el) => {
+    p.setZoom(1);
+    const r = el.querySelector('.pt-doc').getBoundingClientRect();
+    return { dpr: devicePixelRatio, cssW: r.width, zoomTxt: el.querySelector('.pt-zoom-txt').textContent };
+  });
+  assert.equal(info.dpr, 2);
+  assert.equal(info.cssW, 576, '1152 image px = 576 CSS px = 1152 device px');
+  assert.equal(info.zoomTxt, '100%');
+  await tool(hd, 'pencil');
+  await drag(hd, [[50, 60], [150, 60]]);
+  assert.deepEqual(await px(hd, 100, 60), [0, 0, 0, 255]);
+  assert.ok(isWhite(await px(hd, 100, 62)));
+  await hd.shot('paint-hidpi');
+  assert.deepEqual(await errorsOf(hd), []);
+});
+await hd.close();
 
 // ------------------------------------------------------------------ demo drawing
 async function demo(sx) {

@@ -56,6 +56,7 @@ export class Explorer {
     const t = this.t;
     if (!loc) return '';
     if (loc.type === 'home') return t('places.home');
+    if (loc.type === 'gallery') return t('places.gallery');
     if (loc.type === 'thispc') return t('places.thisPc');
     if (loc.type === 'trash') return t('places.trash');
     if (loc.type === 'search') return t('search.resultsIn', { name: this.locName(loc.root) });
@@ -71,6 +72,7 @@ export class Explorer {
   locIcon(loc) {
     if (!loc) return T.iconPath('folder');
     if (loc.type === 'home') return T.iconPath('home');
+    if (loc.type === 'gallery') return T.iconPath('gallery');
     if (loc.type === 'thispc') return T.THIS_PC_ICON;
     if (loc.type === 'trash') return this.nav.trashFull ? T.iconPath('trash-full') : T.TRASH_ICON;
     if (loc.type === 'search') return T.iconPath('folder');
@@ -339,7 +341,7 @@ export class Explorer {
     let select = args.select ? [args.select] : null;
     if (!p && args.select) return { loc: { type: 'dir', path: T.dirname(args.select) }, select };
     if (!p) return { loc: { type: shared.prefs.startAt === 'thispc' ? 'thispc' : 'home' } };
-    if (p === 'home' || p === 'thispc' || p === 'trash') return { loc: { type: p } };
+    if (p === 'home' || p === 'thispc' || p === 'trash' || p === 'gallery') return { loc: { type: p } };
     if (p === '~') return { loc: { type: 'dir', path: shared.home } };
     const st = await this.api.invoke('fs:stat', p);
     if (st && !st.dir) return { loc: { type: 'dir', path: T.dirname(p) }, select: [p] };
@@ -413,8 +415,17 @@ export class Explorer {
     this.tab = tab;
     this.renderTabs();
     const entry = tab.history[tab.index];
-    const ok = await this.navigate(entry.loc, { push: false, restore: entry.state });
-    if (!ok && this.tab === tab && !this.view.loc) await this.navigate({ type: 'home' }, { push: false });
+    const ok = await this.navigate(entry.loc, { push: false, restore: entry.state, quietError: entry.loc.type === 'dir' });
+    if (!ok && this.tab === tab) {
+      // The tab's folder vanished while the tab was in the background: closest existing parent.
+      let fallback = { type: 'home' };
+      if (entry.loc.type === 'dir') {
+        let p = T.dirname(entry.loc.path);
+        while (p !== '/' && !(await this.api.invoke('fs:exists', p))) p = T.dirname(p);
+        fallback = { type: 'dir', path: p };
+      }
+      await this.navigate(fallback, { replace: true });
+    }
     tab.el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
@@ -634,6 +645,8 @@ export class Explorer {
         return { entries: await api.invoke('fs:trashList') };
       case 'home':
         return this.loadHome();
+      case 'gallery':
+        return { entries: await api.invoke('files:media', { roots: [shared.xdg.pictures] }) };
       case 'thispc': {
         await refreshDrives();
         const x = shared.xdg;
@@ -651,7 +664,7 @@ export class Explorer {
           const list = await api.invoke('fs:trashList');
           return { entries: list.filter((e) => words.every((w) => e.name.toLowerCase().includes(w))) };
         }
-        const root = loc.root.type === 'dir' ? loc.root.path : loc.root.type === 'thispc' ? '/' : shared.home;
+        const root = loc.root.type === 'dir' ? loc.root.path : loc.root.type === 'thispc' ? '/' : loc.root.type === 'gallery' ? shared.xdg.pictures : shared.home;
         const entries = await api.invoke('fs:search', root, q, { hidden, limit: 1000, timeoutMs: 15000 });
         return { entries };
       }
@@ -683,7 +696,7 @@ export class Explorer {
       clearTimeout(busyTimer);
       if (seq === this.navSeq) this.setBusy(false);
       if (seq !== this.navSeq || this.closed) return false;
-      await this.showNavError(loc, err);
+      if (!(opts.quietError && ['ENOENT', 'ENOTDIR'].includes(ops.codeOf(err)))) await this.showNavError(loc, err);
       if (loc.type === 'search' && this.tab === tab) this.applyLocation(loc, { entries: [] }, null);
       return false;
     }
@@ -736,19 +749,23 @@ export class Explorer {
     const t = this.t;
     const name = this.locName(loc);
     let msg;
-    if (err?.code === 'EACCES' || err?.code === 'EPERM') msg = t('errors.noAccess', { name });
-    else if (err?.code === 'ENOENT') msg = t('errors.notFound', { path: loc.path || name });
-    else if (err?.code === 'ENOTDIR') msg = t('errors.notFolder', { path: loc.path || name });
+    const code = ops.codeOf(err);
+    if (code === 'EACCES' || code === 'EPERM') msg = t('errors.noAccess', { name });
+    else if (code === 'ENOENT') msg = t('errors.notFound', { path: loc.path || name });
+    else if (code === 'ENOTDIR') msg = t('errors.notFolder', { path: loc.path || name });
     else msg = ops.errText(this, err);
     await this.ui.alert(msg, { title: name || t('appName'), parent: this.win });
   }
 
   updateTitle() {
+    if (!this.iconSet) {
+      this.iconSet = true;
+      this.win.setIcon?.(this.ctx.appUrl('icon.svg'));
+    }
     const loc = this.tab?.loc;
     if (!loc) return;
     const base = shared.prefs.fullPathTitle && loc.type === 'dir' ? loc.path : this.locName(loc);
     this.win.setTitle(`${base} - ${this.t('appName')}`);
-    this.win.setIcon?.(this.ctx.appUrl('icon.svg'));
   }
 
   updateNavButtons() {
@@ -796,7 +813,7 @@ export class Explorer {
     const loc = this.tab?.loc;
     if (!loc) return null;
     if (loc.type === 'search') return loc.root;
-    if (loc.type === 'thispc' || loc.type === 'trash') return { type: 'home' };
+    if (loc.type === 'thispc' || loc.type === 'trash' || loc.type === 'gallery') return { type: 'home' };
     if (loc.type === 'dir') {
       const segs = this.address.segmentsFor(loc);
       return segs[segs.length - 2]?.loc || { type: 'thispc' };
@@ -852,7 +869,7 @@ export class Explorer {
       if (loc.type === 'dir') this.nav.refreshPath(loc.path);
     } catch (err) {
       if (navAt !== this.navSeq) return;
-      if (loc.type === 'dir' && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) {
+      if (loc.type === 'dir' && ['ENOENT', 'ENOTDIR'].includes(ops.codeOf(err))) {
         // The folder vanished (deleted, renamed, drive removed): go to the closest existing parent.
         let p = T.dirname(loc.path);
         while (p !== '/' && !(await this.api.invoke('fs:exists', p))) p = T.dirname(p);
@@ -950,7 +967,7 @@ export class Explorer {
     c.cut.disabled = !s.canModify;
     c.copy.disabled = !s.canModify;
     c.paste.disabled = !s.inFolder || !clip?.paths?.length;
-    c.rename.disabled = !(s.single && s.canModify);
+    c.rename.disabled = !s.canModify;
     c.del.disabled = !(s.canModify || (s.trash && s.items.length));
     const custom = s.loc.type === 'home' || s.loc.type === 'thispc';
     c.sort.disabled = custom;
@@ -1096,7 +1113,7 @@ export class Explorer {
       { label: t('more.invert'), icon: 'checkbox_indeterminate', disabled: !this.view.items.length, action: () => this.view.invert() },
       '-',
       { label: t('menu.copyPath'), icon: 'copy_select', shortcut: 'Ctrl+Shift+C', disabled: !(s.entries.length || s.inFolder), action: () => this.copyPath() },
-      { label: t('menu.openTerminal'), icon: 'window_console', disabled: !s.inFolder, action: () => this.openTerminal(this.currentDir()) },
+      { label: t('menu.openTerminal'), icon: 'window_console', hidden: !this.hasApp('terminal'), disabled: !s.inFolder, action: () => this.openTerminal(this.currentDir()) },
       '-',
       { label: t('menu.properties'), icon: 'info', shortcut: 'Alt+Enter', disabled: s.loc.type === 'home', action: () => this.propertiesForSelection() },
       { label: t('more.options'), icon: 'settings', action: () => dlg.optionsDialog(this) },
@@ -1195,7 +1212,7 @@ export class Explorer {
     }
     list.push({ label: t('menu.copyPath'), icon: 'copy_select', shortcut: 'Ctrl+Shift+C', action: () => this.copyPath() });
     if (single && T.isImage(single) && !missing) list.push({ label: t('cmd.setBackground'), icon: 'image', action: () => ops.setWallpaper(this, single) });
-    if (single?.dir && !missing) {
+    if (single?.dir && !missing && this.hasApp('terminal')) {
       list.push('-');
       list.push({ label: t('menu.openTerminal'), icon: 'window_console', action: () => this.openTerminal(single.path) });
     }
@@ -1232,13 +1249,13 @@ export class Explorer {
       list.push('-');
       list.push({ label: t('cmd.new'), icon: 'add_circle', submenu: this.newItems() });
       list.push('-');
-      list.push({ label: t('menu.openTerminal'), icon: 'window_console', action: () => this.openTerminal(dir) });
+      if (this.hasApp('terminal')) list.push({ label: t('menu.openTerminal'), icon: 'window_console', action: () => this.openTerminal(dir) });
       list.push({ label: t('menu.copyPath'), icon: 'copy_select', action: () => ops.copyAsPath(this, [dir]) });
       list.push('-');
       list.push({ label: t('menu.properties'), icon: 'info', action: () => this.propertiesForSelection(true) });
     } else if (loc.type === 'thispc') {
       list.push('-');
-      list.push({ label: t('menu.properties'), icon: 'info', action: () => this.ctx.shell.launch('settings', { page: 'about' }) });
+      list.push({ label: t('menu.properties'), icon: 'info', action: () => this.systemProperties() });
     }
     this.menu(at, list);
   }
@@ -1335,8 +1352,14 @@ export class Explorer {
 
   rename() {
     const s = this.selectionInfo();
-    if (!s.single || !s.canModify) return;
-    this.view.beginRename(s.single.key);
+    if (!s.canModify || !s.items.length) return;
+    if (s.single) return this.view.beginRename(s.single.key);
+    // Several items: rename the focused one inline, the others follow as "name (2)", "name (3)"…
+    const focus = s.items.find((i) => i.key === this.view.focusKey) || s.items[0];
+    const sel = [...this.view.sel];
+    this.view.beginRename(focus.key, { batch: s.items.filter((i) => i !== focus).map((i) => i.entry) });
+    this.view.sel = new Set(sel);
+    this.view.paintSel();
   }
 
   isProtected(p) {
@@ -1398,8 +1421,18 @@ export class Explorer {
     if (paths.length) ops.copyAsPath(this, paths);
   }
 
+  hasApp(id) {
+    return !!this.ctx.shell.registry.get(id);
+  }
+
   openTerminal(dir) {
-    if (dir) this.ctx.shell.launch('terminal', { cwd: dir });
+    if (dir && this.hasApp('terminal')) this.ctx.shell.launch('terminal', { cwd: dir });
+  }
+
+  // Windows opens Settings > System > About for This PC properties; fall back to the About dialog.
+  systemProperties() {
+    if (this.hasApp('settings')) this.ctx.shell.launch('settings', { page: 'about' });
+    else if (this.hasApp('winver')) this.ctx.shell.launch('winver');
   }
 
   properties(target) {
@@ -1418,7 +1451,7 @@ export class Explorer {
     if (s.loc.type === 'dir') {
       const st = await this.api.invoke('fs:stat', s.loc.path);
       if (st) this.properties({ entries: [st] });
-    } else if (s.loc.type === 'thispc') this.ctx.shell.launch('settings', { page: 'about' });
+    } else if (s.loc.type === 'thispc') this.systemProperties();
   }
 
   // ---------------------------------------------------------------- view settings
@@ -1463,6 +1496,7 @@ export class Explorer {
   onKey(e) {
     if (e.defaultPrevented || this.closed) return;
     if (e.target.closest?.('.dialog-layer, .fx-props, .fx-pg')) return;
+    if (document.querySelector('.menu')) return; // an open menu owns the keyboard
     const k = e.key;
     const low = k.length === 1 ? k.toLowerCase() : k;
     const ctrl = e.ctrlKey || e.metaKey;
