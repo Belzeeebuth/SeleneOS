@@ -28,9 +28,9 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 |---|---|
 | 1. Questions | done |
 | 2. Architecture | done (docs/DEVELOPING.md) |
-| 3. Core ISO + desktop | shell done & verified; ISO build system finishing (no-QEMU verification) |
+| 3. Core ISO + desktop | done — shell verified; ISO builds (≈800 MB, `make verify-iso` 104/104, `make smoke-image` OK); QEMU boot left to the user |
 | 4. Required apps | browser, files, mail, paint, calculator, notepad, terminal, media, snipping, taskmgr, settings, 5 games — built; most verified (see table) |
-| 5. Installer + QEMU instructions | installer being built + tested on a loop-device disk; docs/BUILDING.md written |
+| 5. Installer + QEMU instructions | done — installer app + aurora-install helper (92-check loop-disk install, BIOS+UEFI GRUB, autoinstall via `aurora.autoinstall=1`); docs/BUILDING.md (EN+FR) |
 | **UI/UX personalization** (user request #2) | **in progress** — workflow `aurora-personalization`: core (theme engine, 5 visual styles, per-app themes, profiles, Theme designer) → wallpapers / taskbar+Start+focus / packs+shortcuts in parallel → verify → integration critic. Spec: see "Personalization request" below; settings schema in docs/PERSONALIZATION.md |
 | **App phase 1** (PHASEAPP.md) | **in progress**: photos, calendar, clock, notes, todo, pdf, archive |
 | App phases 2–4 | not started — see PHASEAPP.md |
@@ -48,8 +48,8 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 | Mail | ✅ | 🔄 |
 | Paint, Calculator, Notepad, Terminal, Media Player, Snipping Tool | ✅ | Terminal ✅, Media ✅, others 🔄 |
 | Minesweeper, Snake, 2048, Solitaire, Chess, Task Manager | ✅ | ✅ |
-| ISO build system | ✅ (ISO built, 640 MB) | 🔄 static verification (no QEMU) |
-| Installer (app + aurora-install helper) | 🔄 | ⏳ |
+| ISO build system | ✅ | ✅ static (no QEMU by user's choice) |
+| Installer (app + aurora-install helper) | ✅ | ✅ (loop-device installs) |
 
 ## File structure
 
@@ -105,7 +105,10 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 - Task Manager: killing several of another user's processes asks for admin once per PID (aurora-admin kill-process takes one PID).
 - Solitaire auto-complete only offered when stock is empty and all cards face up.
 - Sounds were never listened to (no audio device in the container).
-- QEMU boot of the latest ISO is untested by the agent (by user's choice); first QEMU boot earlier reached the live session's Electron shell.
+- QEMU boot of the latest ISO is untested by the agent (user's choice). Proven only statically: live-session AppArmor fix (aurora-apparmor.service), GRUB theme/countdown, Secure Boot on installed disks, safe-graphics entry.
+- Polkit: network/drive rights are for the sudo group only — standard users cannot mount internal partitions (no polkit password dialog yet).
+- Build container leftovers: empty /cdrom and /usr/lib/aurora on the build host (mount points from an installer test; removal blocked by a safety check — harmless).
+- ISO not bit-for-bit reproducible (grub-mkrescue date + volume UUID).
 - docs/DEVELOPING.md API table should list the newer channels (proc:*, perf:*, net:*, audio:*, display:*, users:*, locale:*, admin:*, mail:*, pty:*, installer:*).
 
 ### Integration TODO (from QA reports — do in the integration pass)
