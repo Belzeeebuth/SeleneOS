@@ -1,7 +1,7 @@
 // Details page: every process in one sortable table (name, PID, status, user, CPU, memory,
 // threads, priority, command line…), End task / End process tree, priority, suspend/resume.
 import { VTable } from '../table.js';
-import { matcher, compare, processIcon, priorityOf } from '../util.js';
+import { matcher, compare, processIcon, priorityOf, errText } from '../util.js';
 
 const COLS = ['name', 'pid', 'status', 'user', 'cpu', 'mem', 'rss', 'disk', 'threads', 'priority', 'cpuTime', 'started', 'ppid', 'cmdline'];
 const DEFAULT_VISIBLE = ['name', 'pid', 'status', 'user', 'cpu', 'mem', 'threads', 'priority', 'cmdline'];
@@ -196,7 +196,15 @@ export class DetailsPage {
   }
   endTree(r) {
     if (!this.canEnd(r)) return;
-    this.app.actions.endTree(r.data.pid, r.data.label);
+    const shell = this.app.store.shellInfo;
+    // Ending the tree of the shell (or of one of its ancestors) ends the desktop: warn like Windows does.
+    const hostsShell = !!shell && (r.data.pid === shell.mainPid || this.isAncestorOf(r.data.pid, shell.mainPid));
+    this.app.actions.endTree(r.data.pid, r.data.label, { critical: hostsShell || this.app.actions.isCritical(r.data.name, r.data.pid) });
+  }
+  isAncestorOf(pid, child) {
+    const byPid = new Map((this.app.store.procs || []).map((p) => [p.pid, p]));
+    for (let p = byPid.get(child), i = 0; p && i < 64; p = byPid.get(p.ppid), i++) if (p.ppid === pid) return true;
+    return false;
   }
   toggleEff(r) {
     if (!this.canEff(r)) return;
@@ -209,9 +217,9 @@ export class DetailsPage {
     try {
       const info = await this.app.ctx.api.invoke('proc:info', r.data.pid);
       if (info.unit?.endsWith('.service')) this.app.go('services', { select: info.unit });
-      else await this.app.ctx.ui.alert(this.app.t('err.noService', { name: r.data.label }), { parent: this.app.win });
+      else await this.app.ctx.ui.alert(this.app.t('err.noService', { name: r.data.label }), { title: this.app.t('err.title'), parent: this.app.win });
     } catch (err) {
-      this.app.actions.alertErr(err.code === 'ESRCH' ? this.app.t('err.gone') : err.message);
+      this.app.actions.alertErr(errText(this.app.t, err));
     }
   }
 

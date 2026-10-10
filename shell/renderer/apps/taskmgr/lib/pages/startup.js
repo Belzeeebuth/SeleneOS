@@ -1,7 +1,7 @@
 // Startup apps: XDG autostart entries (/etc/xdg/autostart + ~/.config/autostart) that apply to
 // the Aurora session, with Enable / Disable (a per-user override file, no admin rights needed).
 import { VTable } from '../table.js';
-import { matcher, compare } from '../util.js';
+import { matcher, compare, errText } from '../util.js';
 
 export class StartupPage {
   constructor(app) {
@@ -90,7 +90,7 @@ export class StartupPage {
     if (empty || this.error) {
       const [, title, sub] = this.emptyEl.children;
       title.textContent = this.error ? t('startup.error') : t('startup.none');
-      sub.textContent = this.error ? this.error.message : t('startup.noneHint');
+      sub.textContent = this.error ? errText(t, this.error) : t('startup.noneHint');
       return;
     }
     const m = matcher(this.query);
@@ -119,7 +119,7 @@ export class StartupPage {
     try {
       await this.app.ctx.api.invoke('perf:startupSet', r.data.id, enabled);
     } catch (err) {
-      await this.app.actions.alertErr(this.app.t('startup.failed', { name: r.data.name, msg: err.message }));
+      await this.app.actions.alertErr(this.app.t('startup.failed', { name: r.data.name, msg: errText(this.app.t, err) }));
     }
     await this.load();
   }

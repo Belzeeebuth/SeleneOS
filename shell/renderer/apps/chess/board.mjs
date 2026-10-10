@@ -543,8 +543,9 @@ export class BoardView {
       this.el.classList.add('kb');
       if (!this.interactive) return;
       const sq = this.cursor;
-      if (this.selected && sq !== this.selected && this._target(sq)) this._tryMove(this.selected, sq);
-      else if (this.selected === sq) this.select(null);
+      // a move is announced by the app; only a (de)selection describes the square again
+      if (this.selected && sq !== this.selected && this._target(sq)) return void this._tryMove(this.selected, sq);
+      if (this.selected === sq) this.select(null);
       else this.select(this._pieceAt(sq) ? sq : null);
       this.onCursor?.(this.cursor);
       return;

@@ -14,6 +14,8 @@ session (nothing is written to the disk) from which Aurora OS can be installed.
 - [Check the image without a VM](#check-the-image-without-a-vm)
 - [Try it in QEMU](#try-it-in-qemu) (live session, installation, BIOS and UEFI)
 - [What to expect](#what-to-expect)
+- [Install Aurora OS](#install-aurora-os) (graphical installer, testing it without a VM)
+- [Automated install](#automated-install) (`aurora.autoinstall=1`)
 - [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
@@ -209,7 +211,8 @@ gives it boot priority over the CD: while the disk is blank the firmware falls t
 live ISO; once Aurora OS is installed, the next boot starts the installed system even though the
 ISO is still attached ("boot once from the CD"). `make run BOOT=cd` forces the live CD first.
 In UEFI mode a private copy of the firmware variables is kept in `work/qemu/` so the boot entry
-created by the installer survives. Use the same mode (BIOS or UEFI) for installing and running.
+created by the firmware survives. The installer writes both a BIOS and a UEFI boot loader, so the
+installed disk boots with either firmware (`make run-disk` or `make run-disk-uefi`).
 
 VM settings: `MEM=4096` (MB), `CPUS=4`, `RES=1920x1080` (initial screen mode; 1600x900 under TCG),
 `VGA=virtio` (`VGA=std` = standard VGA, the most compatible), `AUDIO=auto`
@@ -292,14 +295,122 @@ Write the ISO to a USB stick (all its data is erased) with
    signed in automatically (no password; administrator rights without password in the live
    session). Nothing is saved across reboots.
 3. On the desktop: **This PC**, **Recycle Bin**, `Welcome.txt` (English/French) and the
-   **Install Aurora OS** icon (shown in the live session when the installer app is part of the
-   image), the taskbar and the Start menu. Signing out shows the Aurora sign-in screen.
+   **Install Aurora OS** icon (live session only, see [Install Aurora OS](#install-aurora-os)),
+   the taskbar and the Start menu. Signing out shows the Aurora sign-in screen.
 4. In the VM, the screen switches to 1920x1080 (KVM) or 1600x900 (TCG) automatically; the
    network works out of the box (QEMU user networking, NAT).
 
 Boot time: with KVM, expect well under a minute to the desktop. Under TCG emulation (no KVM,
 4 vCPUs) an earlier test reached the automatic sign-in after about 2.5 minutes and the desktop
 about 30 seconds later.
+
+## Install Aurora OS
+
+In the live session, open **Install Aurora OS** (desktop icon, or Start → All apps). The installer
+looks like Windows 11 Setup, speaks English and French (the language chosen on the first page
+switches it at once and becomes the installed system's language) and follows the light/dark theme.
+
+1. **Language** — English or Français.
+2. **Keyboard** — the layout is applied to the live session right away, so the test field shows
+   what your keys produce.
+3. **Disk** — Aurora OS uses a **whole disk, which is erased**. Disks smaller than 12 GB are shown
+   but cannot be chosen; the live medium, read-only, loop, zram and in-use disks are not listed.
+4. **Account** — your name, a user name (derived from the first name, editable), password +
+   confirmation (with a strength hint), computer name, and *Sign in automatically*. The account
+   is an administrator (group `sudo`).
+5. **Time zone** — searchable list (default Europe/Paris in French, America/New_York in English).
+6. **Summary** — every choice with a *Change* link. **Install** asks for confirmation before the
+   disk is erased.
+
+The progress page lists the stages, shows the percentage and, with *Show details*, the live log.
+*Cancel* (or closing the window) asks first, then stops cleanly: everything is unmounted, but the
+disk stays unusable until an installation succeeds. At the end, **Restart now** reboots (remove the
+ISO first if your firmware starts the CD before the disk; `make run` already boots the disk first).
+On an error the page shows the message and the last lines of the log, and *Try again* goes back to
+the summary.
+
+The work is done by `/usr/lib/aurora/helpers/aurora-install` (root, started with `sudo -n`; the
+live user has passwordless sudo from casper; the password goes through stdin, never the command
+line):
+
+| Stage | What happens |
+|---|---|
+| partition | `wipefs`, then GPT: 1 MiB BIOS boot partition, 512 MiB EFI System Partition (FAT32, label `EFI`), the rest ext4 (label `AURORA`) |
+| copy | `unsquashfs` of `/cdrom/casper/filesystem.squashfs` (or `rsync` of `/rofs`), with progress |
+| configure | `/etc/fstab` by UUID; host name; live user, casper's sudo rule and `/etc/casper.conf` removed; live-only packages (`casper/filesystem.manifest-remove`: casper, user-setup, …) purged offline with `dpkg --purge`; locale, keyboard (`/etc/default/keyboard`), time zone; the account (groups sudo, adm, users, netdev, audio, video, plugdev) and its `~/.config/aurora/settings.json` (language); greetd without the live autologin (or `[initial_session]` for the account); new machine-id; initramfs regenerated without casper |
+| bootloader | GRUB for **BIOS** on the disk **and** for **UEFI** on the ESP: Ubuntu's signed shim + GRUB in `EFI/ubuntu` and on the removable path `EFI/BOOT/BOOTX64.EFI` (no NVRAM writes, so the disk boots on any UEFI machine); Aurora GRUB theme; `/etc/default/grub.d/50-aurora.cfg` (`GRUB_DISTRIBUTOR="Aurora OS"`, `quiet splash`, 3 s menu); `update-grub` |
+| cleanup | log copied to the installed system, `sync`, unmount |
+
+Logs: `/var/log/aurora-install.log` in the live session, copied to `/var/log/aurora-install.log`
+on the installed system. Measured on the build container (4 vCPUs, loop device): the whole
+installation takes 50–65 s, most of it the initramfs; expect a few minutes in a VM under TCG.
+`sudo /usr/lib/aurora/helpers/aurora-install --help` documents the command line (`--json`
+progress, `--dry-run`, `--source`, `--fail-at` for testing error handling).
+
+### Test the installer without a VM
+
+The helper can install to a disk image attached to a loop device, using the squashfs of a build:
+
+```sh
+make iso                                             # only if work/iso is missing or outdated
+truncate -s 24G /tmp/aurora-disk.img
+LOOP=$(sudo losetup -fP --show /tmp/aurora-disk.img) # -P: partition devices (${LOOP}p1…)
+printf 'my password\n' | sudo rootfs/usr/lib/aurora/helpers/aurora-install --disk "$LOOP" \
+  --user jane --fullname "Jane Doe" --password-stdin --lang fr --keyboard 'fr(oss)' \
+  --timezone Europe/Paris --source "$PWD/work/iso/casper/filesystem.squashfs"
+sudo sgdisk -p "$LOOP"; sudo blkid "${LOOP}"p*      # GPT + file systems
+sudo mount -o ro "${LOOP}p3" /mnt && cat /mnt/etc/fstab && sudo umount /mnt
+sudo losetup -d "$LOOP"; rm /tmp/aurora-disk.img
+```
+
+The default `--medium` is two levels above a squashfs `--source` (here `work/iso`: GRUB theme and
+`filesystem.manifest-remove`). On a kernel without FAT support (containers) the EFI partition is
+staged on a tmpfs and written with `mtools`; an `--source` directory needs `rsync`. The UI and the
+helper's protocol are tested by `cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node
+test/installer.test.mjs` (dry run, nothing is written).
+
+## Automated install
+
+For virtual machines and labs, the live ISO installs itself without any interaction when the kernel
+command line contains `aurora.autoinstall=1`: `aurora-autoinstall.service` runs the same helper
+before the sign-in screen, then powers the machine off. **The target disk is erased.**
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `aurora.autoinstall=1` | — | enable (required) |
+| `aurora.autoinstall.disk=/dev/vda` | the only eligible disk | disk to erase; refused when several disks qualify |
+| `aurora.autoinstall.user=` | `aurora` | account name |
+| `aurora.autoinstall.password=` | `aurora` | password (`%20` for a space). Readable in `/proc/cmdline` during the live session: **test passwords only** |
+| `aurora.autoinstall.fullname=` | `Aurora User` | full name, `+` or `%20` for spaces |
+| `aurora.autoinstall.hostname=` | `<user>-pc` | computer name |
+| `aurora.autoinstall.lang=` | `en` | `en` or `fr` |
+| `aurora.autoinstall.keyboard=` | `us` (`fr` with lang=fr) | e.g. `fr(oss)`, `ch(fr)`, `de` |
+| `aurora.autoinstall.timezone=` | `UTC` (`Europe/Paris` with lang=fr) | `Area/City` |
+| `aurora.autoinstall.autologin=1` | off | sign the account in automatically |
+| `aurora.autoinstall.finish=` | `poweroff` | `poweroff`, `reboot` or `none` (the live session starts) |
+| `aurora.autoinstall.force=1` | off | install even if the disk already holds a complete installation |
+
+```sh
+# QEMU, direct kernel boot (no GRUB): install, power off, then boot the installed disk
+make run QEMU_ARGS="--kernel 'aurora.autoinstall=1 aurora.autoinstall.disk=/dev/vda aurora.autoinstall.lang=fr aurora.autoinstall.password=test'"
+make run-disk            # or: make run-disk-uefi (the disk has BIOS and UEFI boot loaders)
+make run DRY_RUN=1 QEMU_ARGS="--kernel 'aurora.autoinstall=1'"   # just print the QEMU command
+```
+
+From the boot menu instead: highlight *Aurora OS (English)*, press `e`, add the parameters before
+`---` on the `linux` line and press Ctrl+X (or F10). Progress appears on the boot splash, on the
+VM screen, on the serial console (`tail -f work/qemu/aurora.serial.log`; `--kernel` adds
+`console=ttyS0`) and in `journalctl -u aurora-autoinstall`; the full log is
+`/var/log/aurora-install.log`.
+
+Safety: the unit only runs when the command line has `aurora.autoinstall=1` **and** `boot=casper`
+**and** `/cdrom/casper` exists (live medium); the script checks the live medium again, and the
+installer removes the unit from the installed system, so an installed Aurora OS can never
+reinstall itself. If the disk already holds a complete installation (ext4 labelled `AURORA` whose
+`/etc/aurora/install-info` has the `AURORA_INSTALL_COMPLETE` line the installer writes last), the
+automated installation is skipped unless `aurora.autoinstall.force=1` — a VM that keeps booting
+the ISO (direct kernel boot always does) never reinstalls in a loop, while an interrupted
+installation is retried. On failure the live session starts and the error stays on the console. Details: `/usr/lib/aurora/autoinstall/README` in the image.
 
 ## Troubleshooting
 
@@ -310,7 +421,9 @@ about 30 seconds later.
 | Black screen after the splash | choose **Safe graphics** in the boot menu; in QEMU try `make run VGA=std`; the *debug* entry logs everything to `work/qemu/aurora.serial.log` |
 | Desktop does not appear, back to a sign-in screen | boot the *debug* entry and look for `aurora-session`/`aurora-shell` lines in the serial log; or open a text console (Ctrl+Alt+F1 — in the QEMU window use *Machine → Send key* if the host catches it; user `aurora`, empty password) and run `journalctl -b -t aurora-session -t aurora-greeter` |
 | UEFI VM goes to the UEFI shell or does not find the ISO | Secure Boot firmware selected: use `OVMF_CODE_4M.fd` (`make run-uefi` does) |
-| Installed VM does not boot | use the same firmware for installation and later boots (`make run-disk` for BIOS, `make run-disk-uefi` for UEFI) |
+| Installed VM does not boot | the disk has BIOS and UEFI boot loaders: check that the disk comes first (`make run-disk`, `make run-disk-uefi`); read `/var/log/aurora-install.log` (live session, also copied to the installed system) |
+| Installer: "Administrator rights are required" | the helper runs with `sudo -n`: only the live user (passwordless sudo from casper) can install; in a terminal use `sudo /usr/lib/aurora/helpers/aurora-install …` |
+| Installer: a disk is missing from the list | disks under 12 GB, the live medium, read-only, loop/zram and in-use (mounted outside `/media`, LVM/RAID) disks are not offered |
 | `OVMF ... not found` | install `ovmf` (Ubuntu/Debian), `edk2-ovmf` (Fedora/Arch), or set `OVMF_CODE=... OVMF_VARS=...` |
 | No sound in the VM | `make run AUDIO=pa` or `AUDIO=sdl`; on Ubuntu install `qemu-system-gui` (audio and gtk display modules) |
 | Build: `missing packages` report | a name in `iso/packages.d/*.list` does not exist in noble: fix it (check with `apt-cache policy <name>`), or `ALLOW_MISSING_PACKAGES=1` |
@@ -458,7 +571,8 @@ make run DRY_RUN=1    # affiche seulement la commande QEMU
 priorité de démarrage : tant qu'il est vide, le micrologiciel passe au CD live ; une fois Aurora OS
 installé, la VM démarre sur le disque même si l'ISO est encore branchée (« démarrage unique sur le
 CD »). `make run BOOT=cd` force le CD. En UEFI, une copie privée des variables du micrologiciel
-est gardée dans `work/qemu/`. Utilisez le même mode (BIOS ou UEFI) pour installer et démarrer.
+est gardée dans `work/qemu/`. L'installateur écrit un chargeur de démarrage BIOS **et** UEFI : le
+disque installé démarre avec les deux (`make run-disk` ou `make run-disk-uefi`).
 
 Réglages : `MEM=4096`, `CPUS=4`, `RES=1920x1080`, `VGA=virtio` (`VGA=std` = VGA standard, le plus
 compatible), `AUDIO=auto` (PipeWire, sinon PulseAudio, sinon SDL, sinon aucun), `DISK=...`,
@@ -483,14 +597,107 @@ et construisez avec `WITH_FIRMWARE=1`.
    automatiquement (sans mot de passe ; droits d'administrateur sans mot de passe en session live).
    Rien n'est conservé au redémarrage.
 3. Sur le bureau : **Ce PC**, **Corbeille**, `Welcome.txt` (anglais/français) et l'icône
-   **Installer Aurora OS** (présente en session live quand l'application d'installation fait partie
-   de l'image), la barre des tâches et le menu Démarrer. Se déconnecter affiche l'écran de connexion.
+   **Installer Aurora OS** (session live uniquement, voir [Installer Aurora OS](#installer-aurora-os)),
+   la barre des tâches et le menu Démarrer. Se déconnecter affiche l'écran de connexion.
 4. Dans la VM, l'écran passe en 1920x1080 (KVM) ou 1600x900 (TCG) ; le réseau fonctionne
    directement (NAT de QEMU).
 
 Durée de démarrage : avec KVM, nettement moins d'une minute jusqu'au bureau. En émulation TCG
 (sans KVM, 4 vCPU), un essai précédent a atteint la connexion automatique en 2 min 30 environ et
 le bureau une trentaine de secondes plus tard.
+
+### Installer Aurora OS
+
+Dans la session live, ouvrez **Installer Aurora OS** (icône du bureau, ou Démarrer → Toutes les
+applications). L'installateur ressemble au programme d'installation de Windows 11, parle anglais et
+français (la langue choisie en première page change l'interface immédiatement et devient celle du
+système installé) et suit le thème clair/sombre.
+
+1. **Langue** — English ou Français.
+2. **Clavier** — la disposition est appliquée tout de suite à la session live : le champ de test
+   montre ce que produisent vos touches.
+3. **Disque** — Aurora OS utilise un **disque entier, qui est effacé**. Les disques de moins de
+   12 Go sont affichés mais pas sélectionnables ; le support live, les disques en lecture seule,
+   loop, zram ou utilisés ne sont pas proposés.
+4. **Compte** — votre nom, un nom d'utilisateur (déduit du prénom, modifiable), mot de passe +
+   confirmation (avec indication de robustesse), nom de l'ordinateur et *Se connecter
+   automatiquement*. Le compte est administrateur (groupe `sudo`).
+5. **Fuseau horaire** — liste avec recherche (Europe/Paris par défaut en français,
+   America/New_York en anglais).
+6. **Récapitulatif** — chaque choix avec un lien *Modifier*. **Installer** demande confirmation
+   avant d'effacer le disque.
+
+La page de progression liste les étapes, affiche le pourcentage et, avec *Afficher les détails*, le
+journal en direct. *Annuler* (ou fermer la fenêtre) demande confirmation puis arrête proprement :
+tout est démonté, mais le disque reste inutilisable tant qu'une installation n'a pas réussi. À la
+fin, **Redémarrer maintenant** redémarre (retirez l'ISO si votre micrologiciel démarre le CD avant
+le disque ; `make run` démarre déjà le disque en premier). En cas d'erreur, la page affiche le
+message et les dernières lignes du journal ; *Réessayer* revient au récapitulatif.
+
+Le travail est fait par `/usr/lib/aurora/helpers/aurora-install` (root, lancé avec `sudo -n` ;
+l'utilisateur live a sudo sans mot de passe grâce à casper ; le mot de passe passe par l'entrée
+standard, jamais par la ligne de commande) :
+
+| Étape | Ce qui est fait |
+|---|---|
+| partition | `wipefs`, puis GPT : partition BIOS boot de 1 Mio, partition système EFI de 512 Mio (FAT32, étiquette `EFI`), le reste en ext4 (étiquette `AURORA`) |
+| copy | `unsquashfs` de `/cdrom/casper/filesystem.squashfs` (ou `rsync` de `/rofs`), avec progression |
+| configure | `/etc/fstab` par UUID ; nom d'hôte ; suppression de l'utilisateur live, de la règle sudo de casper et de `/etc/casper.conf` ; purge hors ligne (`dpkg --purge`) des paquets propres au live (`casper/filesystem.manifest-remove` : casper, user-setup…) ; langue, clavier (`/etc/default/keyboard`), fuseau ; le compte (groupes sudo, adm, users, netdev, audio, video, plugdev) et son `~/.config/aurora/settings.json` (langue) ; greetd sans la connexion automatique du live (ou `[initial_session]` pour le compte) ; nouveau machine-id ; initramfs régénéré sans casper |
+| bootloader | GRUB pour le **BIOS** sur le disque **et** pour l'**UEFI** sur l'ESP : shim + GRUB signés d'Ubuntu dans `EFI/ubuntu` et sur le chemin amovible `EFI/BOOT/BOOTX64.EFI` (sans écrire dans la NVRAM : le disque démarre sur toute machine UEFI) ; thème GRUB Aurora ; `/etc/default/grub.d/50-aurora.cfg` (`GRUB_DISTRIBUTOR="Aurora OS"`, `quiet splash`, menu 3 s) ; `update-grub` |
+| cleanup | copie du journal sur le système installé, `sync`, démontage |
+
+Journal : `/var/log/aurora-install.log` dans la session live, copié dans `/var/log/aurora-install.log`
+du système installé. Mesuré sur le conteneur de construction (4 vCPU, périphérique loop) :
+l'installation complète prend 50 à 65 s, surtout pour l'initramfs ; comptez quelques minutes dans
+une VM en TCG. `sudo /usr/lib/aurora/helpers/aurora-install --help` décrit la ligne de commande
+(progression `--json`, `--dry-run`, `--source`, `--fail-at` pour tester la gestion des erreurs).
+
+Tester l'installateur sans VM : les commandes `truncate` / `losetup -fP` / `aurora-install
+--source work/iso/casper/filesystem.squashfs` de la [section anglaise](#test-the-installer-without-a-vm)
+installent dans une image disque ; `cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node
+test/installer.test.mjs` teste l'interface et le protocole (simulation, rien n'est écrit).
+
+### Installation automatisée
+
+Pour les machines virtuelles et les salles de test, l'ISO live s'installe toute seule quand la ligne
+de commande du noyau contient `aurora.autoinstall=1` : `aurora-autoinstall.service` lance le même
+programme avant l'écran de connexion, puis éteint la machine. **Le disque cible est effacé.**
+
+| Paramètre | Par défaut | Rôle |
+|---|---|---|
+| `aurora.autoinstall=1` | — | active l'installation (obligatoire) |
+| `aurora.autoinstall.disk=/dev/vda` | le seul disque éligible | disque à effacer ; refusé si plusieurs disques conviennent |
+| `aurora.autoinstall.user=` | `aurora` | nom du compte |
+| `aurora.autoinstall.password=` | `aurora` | mot de passe (`%20` pour une espace). Lisible dans `/proc/cmdline` pendant la session live : **mots de passe de test uniquement** |
+| `aurora.autoinstall.fullname=` | `Aurora User` | nom complet, `+` ou `%20` pour les espaces |
+| `aurora.autoinstall.hostname=` | `<user>-pc` | nom de l'ordinateur |
+| `aurora.autoinstall.lang=` | `en` | `en` ou `fr` |
+| `aurora.autoinstall.keyboard=` | `us` (`fr` si lang=fr) | par ex. `fr(oss)`, `ch(fr)`, `de` |
+| `aurora.autoinstall.timezone=` | `UTC` (`Europe/Paris` si lang=fr) | `Zone/Ville` |
+| `aurora.autoinstall.autologin=1` | non | connexion automatique du compte |
+| `aurora.autoinstall.finish=` | `poweroff` | `poweroff`, `reboot` ou `none` (la session live démarre) |
+| `aurora.autoinstall.force=1` | non | installe même si le disque contient déjà une installation complète |
+
+```sh
+# QEMU, démarrage direct du noyau (sans GRUB) : installation, arrêt, puis démarrage du disque installé
+make run QEMU_ARGS="--kernel 'aurora.autoinstall=1 aurora.autoinstall.disk=/dev/vda aurora.autoinstall.lang=fr aurora.autoinstall.password=test'"
+make run-disk            # ou : make run-disk-uefi (le disque a les chargeurs BIOS et UEFI)
+```
+
+Depuis le menu de démarrage : sélectionnez *Aurora OS (Français)*, appuyez sur `e`, ajoutez les
+paramètres avant `---` sur la ligne `linux`, puis Ctrl+X (ou F10). La progression s'affiche sur
+l'écran de démarrage, l'écran de la VM, la console série (`tail -f work/qemu/aurora.serial.log`) et
+dans `journalctl -u aurora-autoinstall` ; le journal complet est `/var/log/aurora-install.log`.
+
+Sécurité : le service ne s'exécute que si la ligne de commande contient `aurora.autoinstall=1`
+**et** `boot=casper` **et** que `/cdrom/casper` existe (support live) ; le script revérifie le
+support live et l'installateur retire le service du système installé : un Aurora OS installé ne
+peut jamais se réinstaller. Si le disque contient déjà une installation complète (ext4 étiqueté
+`AURORA` dont `/etc/aurora/install-info` contient la ligne `AURORA_INSTALL_COMPLETE` écrite en
+dernier par l'installateur), l'installation automatisée est ignorée sauf avec
+`aurora.autoinstall.force=1` : une VM qui redémarre sur l'ISO (toujours le cas avec `--kernel`) ne
+se réinstalle pas en boucle, et une installation interrompue est reprise. En cas d'échec, la
+session live démarre et l'erreur reste affichée sur la console.
 
 ### Dépannage
 
@@ -501,7 +708,9 @@ le bureau une trentaine de secondes plus tard.
 | Écran noir après le logo | entrée **Mode graphique sûr** ; dans QEMU `make run VGA=std` ; l'entrée *débogage* journalise tout dans `work/qemu/aurora.serial.log` |
 | Le bureau n'apparaît pas | entrée *débogage*, lignes `aurora-session`/`aurora-shell` du journal série ; ou console texte (Ctrl+Alt+F1 — dans la fenêtre QEMU, *Machine → Send key* si l'hôte intercepte la touche ; utilisateur `aurora`, mot de passe vide) puis `journalctl -b -t aurora-session -t aurora-greeter` |
 | La VM UEFI tombe dans le shell UEFI | micrologiciel Secure Boot choisi : prendre `OVMF_CODE_4M.fd` (`make run-uefi` le fait) |
-| La VM installée ne démarre pas | même micrologiciel pour l'installation et ensuite (`make run-disk` ou `make run-disk-uefi`) |
+| La VM installée ne démarre pas | le disque a les chargeurs BIOS et UEFI : vérifier qu'il démarre en premier (`make run-disk`, `make run-disk-uefi`) ; lire `/var/log/aurora-install.log` (session live, copié aussi sur le système installé) |
+| Installateur : « Des droits d'administrateur sont nécessaires » | le programme est lancé avec `sudo -n` : seul l'utilisateur live (sudo sans mot de passe) peut installer ; en terminal, `sudo /usr/lib/aurora/helpers/aurora-install …` |
+| Installateur : un disque n'apparaît pas | les disques de moins de 12 Go, le support live, les disques en lecture seule, loop/zram ou utilisés (montés hors de `/media`, LVM/RAID) ne sont pas proposés |
 | Pas de son | `make run AUDIO=pa` ou `AUDIO=sdl` ; sous Ubuntu installer `qemu-system-gui` |
 | Construction : `missing packages` | corriger le nom dans `iso/packages.d/*.list` (`apt-cache policy <nom>`) ou `ALLOW_MISSING_PACKAGES=1` |
 | Construction : instantané injoignable | vérifier réseau/proxy ; `make iso SNAPSHOT=auto` ou `SNAPSHOT=0` |

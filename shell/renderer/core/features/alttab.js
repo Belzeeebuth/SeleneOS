@@ -464,6 +464,7 @@ function open(dir = 1, { sticky = false } = {}) {
   shell.emit('start:close');
   shell.emit('flyouts:close');
   ui.closeMenus();
+  wm.endKeyboardMove?.(); // arrow keys now belong to the switcher
   const focused = wm.focused();
   let index = 0;
   if (list.length > 1) index = dir > 0 ? (focused && list[0] === focused ? 1 : 0) : list.length - 1;
@@ -521,6 +522,10 @@ export function mount(ctx) {
   wm.on('focus', (w) => {
     if (w) scheduleFocusCapture();
   });
+  // Another shell surface taking over (Task View, a flyout, the lock screen) dismisses the switcher.
+  shell.on('flyouts:close', () => cancel());
+  shell.on('lock', () => cancel());
+  wm.on('desktop', () => cancel()); // its list belongs to the desktop it was opened on
   wm.on('close', (w) => {
     thumbs.drop(w);
     if (state) {

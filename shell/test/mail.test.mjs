@@ -132,7 +132,7 @@ const TOPICS = [
   ['Invoice {n}', 'Please find the details of invoice {n} in your customer area.'],
 ];
 
-export async function seed() {
+export async function seed({ gmail = false } = {}) {
   const now = Date.now();
   const H = 3600 * 1000;
   const D = 24 * H;
@@ -178,6 +178,7 @@ export async function seed() {
     inbox,
     {
       from: { name: 'Élodie Fournier', address: 'elodie@exemple.fr' },
+      messageId: '<meeting-notes@exemple.fr>',
       subject: "Réunion d'équipe — compte rendu",
       text: "Bonjour à tous,\n\nVoici le compte rendu de la réunion d'équipe de mardi :\n\n• Les déploiements se feront désormais le jeudi.\n• L'équipe « Interface » présentera la maquette à la fin du mois.\n• Prochaine réunion : lundi 14 h 30, salle Hélène-Boucher.\n\nN'hésitez pas à me répondre si j'ai oublié quelque chose.\n\nÉlodie\nhttps://intranet.exemple.fr/reunions",
     },
@@ -255,6 +256,29 @@ export async function seed() {
   const projects = [];
   await add(projects, { from: { name: 'Mia Chen', address: 'mia.chen@adatum.example' }, subject: 'Aurora milestones', text: 'Milestone 1: alpha. Milestone 2: beta.' }, { flags: [], ago: 8 * D });
 
+  if (gmail) {
+    // Gmail-like tree: special folders nested under a \\Noselect "[Gmail]" parent.
+    return {
+      INBOX: { messages: inbox },
+      '': {
+        separator: '/',
+        folders: {
+          '[Gmail]': {
+            flags: ['\\Noselect'],
+            folders: {
+              'All Mail': { 'special-use': '\\All', messages: [...archive] },
+              Drafts: { 'special-use': '\\Drafts', messages: drafts },
+              'Sent Mail': { 'special-use': '\\Sent', messages: sent },
+              Spam: { 'special-use': '\\Junk', messages: junk },
+              Starred: { 'special-use': '\\Flagged' },
+              Trash: { 'special-use': '\\Trash', messages: trash },
+            },
+          },
+          Receipts: { messages: projects },
+        },
+      },
+    };
+  }
   return {
     INBOX: { messages: inbox },
     '': {
@@ -272,12 +296,12 @@ export async function seed() {
 }
 
 // ------------------------------------------------------------------ servers
-export async function startMailServer({ tlsImap = false } = {}) {
+export async function startMailServer({ tlsImap = false, gmail = false } = {}) {
   const dir = testDeps();
   const req = createRequire(path.join(dir, 'package.json'));
   const hoodiecrow = req('hoodiecrow-imap');
   const { SMTPServer } = req('smtp-server');
-  const storage = await seed();
+  const storage = await seed({ gmail });
   const imap = hoodiecrow({
     plugins: ['ID', 'IDLE', 'ENABLE', 'NAMESPACE', 'SPECIAL-USE', 'UNSELECT', 'UIDPLUS', 'MOVE', 'LIST-STATUS', 'LITERALPLUS', 'ESEARCH'],
     users: { [USER]: { password: PASS } },
@@ -416,9 +440,51 @@ async function inbox(p) {
   await p.waitForSelector(`${M} .ml-item:not(.skeleton)`);
 }
 
+// Backend helpers, without Electron (electron is stubbed for this require only).
+async function unitTests() {
+  await step('unit: backend helpers (classify, presets, previews, file names)', async () => {
+    const Module = require('node:module');
+    const orig = Module._load;
+    Module._load = function (req, ...rest) {
+      if (req === 'electron') return { app: { on() {} }, safeStorage: { isEncryptionAvailable: () => false }, net: null };
+      return orig.call(this, req, ...rest);
+    };
+    let m;
+    try {
+      m = require('../main/ipc/mail.js').__test;
+    } finally {
+      Module._load = orig;
+    }
+    const c = (e) => m.classify(e);
+    assert(c({ authenticationFailed: true }) === 'EAUTH' && c({ code: 'EAUTH', responseCode: 535 }) === 'EAUTH', 'EAUTH');
+    assert(c({ code: 'ECONNREFUSED' }) === 'ECONN' && c({ code: 'ENOTFOUND' }) === 'ECONN', 'ECONN');
+    assert(c({ code: 'DEPTH_ZERO_SELF_SIGNED_CERT' }) === 'ETLS' && c({ code: 'ERR_SSL_WRONG_VERSION_NUMBER' }) === 'ETLS', 'ETLS');
+    assert(c({ code: 'ETIMEDOUT' }) === 'ETIMEOUT' && c({ code: 'CONNECT_TIMEOUT' }) === 'ETIMEOUT' && c({ message: 'Greeting never received' }) === 'ETIMEOUT', 'ETIMEOUT');
+    assert(m.presetForEmail('a@gmail.com').provider === 'gmail' && m.presetForEmail('a@hotmail.fr').provider === 'outlook', 'presets');
+    assert(m.presetForEmail('a@gmx.de').imap.host === 'imap.gmx.net' && m.presetForEmail('a@laposte.net').smtp.host === 'smtp.laposte.net', 'domain specific servers');
+    assert(m.presetForEmail('a@proton.me').imap.port === 1143 && m.presetForEmail('a@proton.me').imap.security === 'starttls', 'proton bridge');
+    assert(m.cleanPreview('Sounds good.\n\nOn Tue, Mia wrote:\n> quoted') === 'Sounds good.', 'reply quote removed from preview');
+    assert(m.cleanPreview('Merci !\nLe sam. 10/10, Bob a écrit :\n> x') === 'Merci !', 'French quote header removed');
+    assert(m.htmlToPreview('<head><style>.a{}</style></head><p>Hi&nbsp;<b>there</b> &amp; you</p><style>.cut{').replace(/\s+/g, ' ').trim() === 'Hi there & you', 'html preview');
+    assert(!m.safeFileName('../../etc/passwd').includes('/') && m.safeFileName('') === 'attachment', 'safe file names');
+    assert(m.isLoopback('127.0.0.1') && m.isLoopback('localhost') && m.isLoopback('::1') && !m.isLoopback('192.168.1.2'), 'loopback detection');
+    let threw = null;
+    try {
+      m.normalizeCfg({ email: 'a@example.com', provider: 'other', imap: { host: 'mail.example.com', port: 143, security: 'none' }, smtp: { host: 'mail.example.com', port: 25, security: 'none' } });
+    } catch (e) {
+      threw = e.code;
+    }
+    assert(threw === 'EINSECURE', 'plain text to a remote host refused without consent');
+    const ok = m.normalizeCfg({ email: 'a@example.com', provider: 'other', allowInsecure: true, imap: { host: 'mail.example.com', port: 143, security: 'none' }, smtp: { host: 'mail.example.com', port: 25, security: 'none' } });
+    assert(ok.imap.user === 'a@example.com' && ok.smtp.sameAuth === true, 'defaults');
+    assert(m.addrList('Ann <ann@x.org>, bob@y.org; not-an-address').map((a) => a.address).join() === 'ann@x.org,bob@y.org', 'address parsing');
+  });
+}
+
 export async function runTests() {
+  await unitTests();
   const srv = await startMailServer();
-  const tlsSrv = await startMailServer({ tlsImap: true });
+  const tlsSrv = await startMailServer({ tlsImap: true, gmail: true });
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-mail-test-'));
   console.log(`IMAP :${srv.imapPort}  SMTP :${srv.smtpPort}  TLS-IMAP :${tlsSrv.imapPort}  HOME ${home}`);
   let s = await launch({ open: ['mail'], lang: 'en', theme: 'light', home });
@@ -461,7 +527,9 @@ export async function runTests() {
     await p.click(`${M} .ml-form-head button`);
     await p.click(`${M} .ml-provider[data-provider="other"]`);
     await p.fill(`${M} input[name=email]`, 'someone@orange.fr');
-    await until(async () => (await p.inputValue(`${M} input[name=imap-host]`)) === '', { msg: 'other keeps manual servers' }).catch(() => {});
+    await until(async () => (await p.inputValue(`${M} input[name=imap-host]`)) === 'imap.orange.fr', { msg: 'servers autodetected from the domain' });
+    assert((await p.inputValue(`${M} input[name=smtp-host]`)) === 'smtp.orange.fr', 'smtp autodetected');
+    assert((await p.inputValue(`${M} select[name=imap-security]`)) === 'ssl', 'ssl autodetected');
   });
 
   const fillOther = async (email, password, imapPort, smtpPort) => {
@@ -749,13 +817,15 @@ export async function runTests() {
     assert(/^On .+, Élodie Fournier wrote:$/.test(head), `quote header: ${head}`);
     assert((await p.textContent(`${M} .ml-editor blockquote.ml-quote`)).includes('Bonjour à tous'), 'quoted original');
     await p.keyboard.type('Merci Élodie !');
+    await p.$$eval(`${M} .ml-snack`, (els) => els.forEach((e) => e.remove()));
     await sleep(300);
     docShot(await s.shot('mail-compose'));
     await p.keyboard.press('Control+Enter');
     await p.waitForSelector(`${M} .ml-snack:has-text("Message sent")`, { timeout: 20000 });
     const cap = await until(() => srv.captured.find((c) => /Subject: Re: R/.test(c.raw) || /R=C3=A9union/.test(c.raw)), { msg: 'reply sent' });
     assert(/In-Reply-To: </i.test(cap.raw) && /References: </i.test(cap.raw), 'threading headers');
-    await until(() => serverMsg(srv, 'INBOX', /elodie@exemple\.fr/).flags.includes('\\Answered'), { msg: 'original marked answered' });
+    assert(cap.raw.includes('Merci'), 'typed reply text sent');
+    await until(() => serverMsg(srv, 'INBOX', /Message-ID: <meeting-notes@exemple\.fr>/i).flags.includes('\\Answered'), { msg: 'original marked answered' });
   });
 
   await step('reply all + forward prefill', async () => {
@@ -779,6 +849,52 @@ export async function runTests() {
     assert((await p.textContent(`${M} .ml-editor`)).includes('Forwarded message'), 'forward header');
     await p.click(`${M} .ml-compose button[name=discard]`);
     await p.waitForSelector(`${M} .ml-compose`, { state: 'detached' });
+  });
+
+  await step('compose: pop-out window + plain text', async () => {
+    await p.keyboard.press('Control+n');
+    await p.waitForSelector(`${M} .ml-compose`);
+    await p.keyboard.type('bob@example.com,');
+    await p.fill(`${M} .ml-subject`, 'Popped out');
+    await p.click(`${M} .ml-compose button[name=popout]`);
+    await p.waitForSelector(`${M} .ml-compose-window .ml-compose`);
+    assert(!(await p.$(`${M} .ml-readpane .ml-compose`)), 'inline composer closed');
+    const W = `${M}:has(.ml-compose-window)`;
+    assert((await p.inputValue(`${W} .ml-subject`)) === 'Popped out', 'subject carried over');
+    assert(await p.$(`${W} .ml-chip[data-address="bob@example.com"]`), 'recipient carried over');
+    await p.click(`${W} button[name=more]`);
+    await p.click('.menu .menu-item:has-text("Switch to plain text")');
+    await p.click(`${W} .dialog button:has-text("Switch")`);
+    await p.waitForSelector(`${W} textarea[name=body-plain]:visible`);
+    await p.click(`${W} textarea[name=body-plain]`);
+    await p.keyboard.press('Control+Home');
+    await p.keyboard.type('Plain text body.');
+    await s.shot('mail-compose-window');
+    await p.keyboard.press('Control+Enter');
+    await until(async () => !(await p.$(`${M} .ml-compose-window`)), { msg: 'compose window closed after sending' });
+    const cap = await until(() => srv.captured.find((c) => /Subject: Popped out/.test(c.raw)), { msg: 'sent from the pop-out' });
+    assert(!/text\/html/i.test(cap.raw) && cap.raw.includes('Plain text body.'), 'plain text only');
+    await p.evaluate(() => window.__aurora.wm.list().find((w) => w.appId === 'mail')?.focus());
+  });
+
+  await step('compose: unsaved prompt when opening another message', async () => {
+    await p.click(`${M} .ml-list`);
+    await p.keyboard.press('Control+n');
+    await p.waitForSelector(`${M} .ml-compose`);
+    await p.fill(`${M} .ml-subject`, 'Not finished');
+    await (await rowBySubject(p, 'Photo from the trip')).click();
+    await p.waitForSelector(`${M} .dialog:has-text("Save this message?")`);
+    await p.click(`${M} .dialog button:has-text("Don't save")`);
+    await p.waitForSelector(`${M} .ml-read-subject:has-text("Photo from the trip")`);
+    assert(!(await p.$(`${M} .ml-compose`)), 'composer closed');
+  });
+
+  await step('folders: context menu "Mark all as read"', async () => {
+    await p.click(`${M} .ml-folder.sp-inbox`, { button: 'right' });
+    await p.click('.menu .menu-item:has-text("Mark all as read")');
+    await until(() => srv.box('INBOX').messages.every((m) => m.flags.includes('\\Seen')), { msg: 'all seen on server' });
+    await until(async () => !(await p.$(`${M} .ml-folder.sp-inbox .ml-count`)), { msg: 'badge cleared' });
+    assert(!(await p.$(`${M} .ml-item.unread`)), 'no unread rows');
   });
 
   await step('drafts: Ctrl+S saves to Drafts, unsaved prompt on close', async () => {
@@ -808,7 +924,13 @@ export async function runTests() {
     await inbox(p);
     srv.deliver(await build({ from: { name: 'Zoé Durand', address: 'zoe@durand.example' }, to: USER, subject: 'Fresh news from Zoé', text: 'Hello Alice!', date: new Date() }));
     await until(() => p.evaluate(() => window.__aurora.notifications.list().some((n) => n.appId === 'mail' && n.title === 'Zoé Durand' && n.body === 'Fresh news from Zoé')), { timeout: 15000, msg: 'notification' });
-    await rowBySubject(p, 'Fresh news from Zoé');
+    await rowBySubject(p, 'Fresh news from Zoé').catch(async (e) => {
+      console.log('    list state:', await p.evaluate(() => {
+        const a = document.querySelector('.app-mail').__mail;
+        return JSON.stringify({ n: a.list.messages.length, loading: a.list.loading, queued: a.list.queuedSoft, seq: a.list.seq, folder: a.folder, first: a.list.messages[0]?.subject, err: a.list.error?.message });
+      }));
+      throw e;
+    });
     const first = await p.textContent(`${M} .ml-item:not(.skeleton) .ml-subj`);
     assert(first === 'Fresh news from Zoé', `new message on top (${first})`);
     await sleep(500);
@@ -854,12 +976,31 @@ export async function runTests() {
     await p.waitForSelector(`${M} .ml-read-subject:has-text(${JSON.stringify(subjects[0])})`, { timeout: 10000 });
   });
 
+  await step('message window: double-click opens it, actions work there', async () => {
+    await (await rowBySubject(p, 'Photo from the trip')).dblclick();
+    const W = `${M}:has(.ml-msg-window)`;
+    await p.waitForSelector(`${W} .ml-read-subject:has-text("Photo from the trip")`, { timeout: 15000 });
+    await p.click(`${W} .ml-read-bar button[name=flag]`);
+    await until(() => serverMsg(srv, 'INBOX', /Subject: Photo from the trip/).flags.includes('\\Flagged'), { msg: 'flagged from the message window' });
+    await until(async () => (await (await rowBySubject(p, 'Photo from the trip')).locator('.ml-ic-flag').count()) === 1, { msg: 'main list updated' });
+    await p.click(`${W} .ml-read-bar button[name=reply]`);
+    await p.waitForSelector(`${M} .ml-compose-window .ml-chip[data-address="sophie@martin.example"]`);
+    await s.shot('mail-message-window');
+    await p.click(`${M} .ml-compose-window button[name=discard]`);
+    await until(async () => !(await p.$(`${M} .ml-compose-window`)), { msg: 'compose window closed' });
+    const trash0 = srv.box('Trash').messages.length;
+    await p.click(`${W} .ml-read-bar button[name=delete]`);
+    await until(() => srv.box('Trash').messages.length === trash0 + 1, { msg: 'deleted from the message window' });
+    await until(async () => !(await p.$(`${M} .ml-msg-window`)), { msg: 'message window closed' });
+    await until(async () => !(await p.$(`${M} .ml-item .ml-subj:text-is("Photo from the trip")`)), { msg: 'gone from the main list' });
+  });
+
   await step('eml: .eml files open in a read-only Mail window', async () => {
     const msgs = await p.evaluate(() => window.aurora.invoke('mail:accounts'));
     const accId = msgs[0].id;
-    const list = await p.evaluate((id) => window.aurora.invoke('mail:list', id, 'INBOX', { search: 'Photo from the trip' }), accId);
+    const list = await p.evaluate((id) => window.aurora.invoke('mail:list', id, 'Trash', { search: 'Photo from the trip' }), accId);
     const eml = path.join(home, 'Documents', 'photo.eml');
-    await p.evaluate(([id, uid, dest]) => window.aurora.invoke('mail:saveSource', id, 'INBOX', uid, dest), [accId, list.messages[0].uid, eml]);
+    await p.evaluate(([id, uid, dest]) => window.aurora.invoke('mail:saveSource', id, 'Trash', uid, dest), [accId, list.messages[0].uid, eml]);
     await p.evaluate((f) => window.__aurora.shell.openFile(f), eml);
     await p.waitForSelector(`${M} .ml-eml-window .ml-read-subject:has-text("Photo from the trip")`, { timeout: 15000 });
     await p.evaluate(() => window.__aurora.wm.list().filter((w) => w.title.startsWith('Photo from the trip')).forEach((w) => w.close(true)));
@@ -890,10 +1031,76 @@ export async function runTests() {
     await p.waitForSelector(`${M} .ml-item:not(.skeleton)`, { timeout: 20000 });
     const accs = await p.evaluate(() => window.aurora.invoke('mail:accounts'));
     assert(accs.length === 2 && accs[1].imap.trusted, 'certificate pinned for the account');
+    // Gmail-like folder tree: nested special folders are listed first, the rest under "Folders".
+    const top = await p.$$eval(`${M} .ml-folders > .ml-folder .label`, (els) => els.map((e) => e.textContent));
+    assert(top.join('|') === 'Inbox|Drafts|Sent Items|Junk Email|Deleted Items', `special folders on top: ${top}`);
+    const rest = await p.$$eval(`${M} .ml-folder-group .ml-folder .label`, (els) => els.map((e) => e.textContent));
+    assert(rest.includes('[Gmail]') && rest.includes('All Mail') && rest.includes('Starred') && rest.includes('Receipts') && !rest.includes('Trash'), `other folders: ${rest}`);
+    await s.shot('mail-second-account');
     // switch back
     await p.click(`${M} button[name=account]`);
     await p.click(`.menu .menu-item:has-text("${USER}")`);
     await until(async () => (await p.textContent(`${M} .ml-account`)).includes(USER), { msg: 'switched back' });
+  });
+
+  await step('settings: editing an account with a wrong password is refused', async () => {
+    await p.click(`${M} button[name=settings]`);
+    await p.waitForSelector(`${M} .ml-settings .ml-acct-row`);
+    await p.click(`${M} .ml-acct-row:has-text("${USER}") button[name=edit-account]`);
+    await p.waitForSelector(`${M} .ml-settings .ml-setup-form`);
+    await p.fill(`${M} .ml-settings input[name=password]`, 'definitely-wrong');
+    await p.click(`${M} .ml-settings button[name=signin]`);
+    await p.waitForSelector(`${M} .ml-settings .ml-error-box[data-code="EAUTH"]`, { timeout: 20000 });
+    await s.shot('mail-settings-edit-error');
+    await p.click(`${M} .ml-settings .ml-form-foot button:has-text("Cancel")`);
+    await p.waitForSelector(`${M} .ml-settings .ml-acct-row`);
+    await p.click(`${M} button[name=close-settings]`);
+    await p.click(`${M} button[name=refresh]`);
+    await p.waitForSelector(`${M} .ml-item:not(.skeleton)`);
+    assert(!(await p.$(`${M} .ml-list-banner .infobar.error`)), 'stored password unchanged');
+  });
+
+  await step('offline server + remove account', async () => {
+    await p.click(`${M} button[name=account]`);
+    await p.click('.menu .menu-item:has-text("alice2@aurora.test")');
+    await until(async () => (await p.textContent(`${M} .ml-account`)).includes('alice2@aurora.test'), { msg: 'switched to alice2' });
+    await p.waitForSelector(`${M} .ml-item:not(.skeleton)`, { timeout: 20000 });
+    await tlsSrv.close();
+    tlsSrv.closed = true;
+    await p.click(`${M} button[name=refresh]`);
+    await until(async () => (await p.$(`${M} .ml-offline:not([hidden]) .infobar`)) || (await p.$(`${M} .ml-list-banner .infobar.error`)), { timeout: 20000, msg: 'offline / error shown' });
+    await sleep(300);
+    await s.shot('mail-offline');
+    await p.click(`${M} button[name=settings]`);
+    await p.click(`${M} .ml-acct-row:has-text("alice2@aurora.test") button[name=remove-account]`);
+    await p.click(`${M} .dialog:has-text("Remove account") button:has-text("Remove")`);
+    await until(async () => (await p.$$(`${M} .ml-acct-row`)).length === 1, { msg: 'one account left' });
+    await p.click(`${M} button[name=close-settings]`);
+    await until(async () => (await p.textContent(`${M} .ml-account`)).includes(USER), { msg: 'back on the remaining account' });
+    await p.waitForSelector(`${M} .ml-item:not(.skeleton)`, { timeout: 20000 });
+    const accs = await p.evaluate(() => window.aurora.invoke('mail:accounts'));
+    assert(accs.length === 1 && accs[0].email === USER, 'account removed from accounts.json');
+  });
+
+  await step('layout: medium width uses a navigation rail', async () => {
+    await p.evaluate(() => {
+      const w = window.__aurora.wm.list().find((x) => x.appId === 'mail');
+      w.restore?.();
+      w.setSize(960, 680);
+    });
+    await until(() => p.$eval(`${M} .ml-root`, (el) => el.dataset.layout === 'medium'), { msg: 'medium layout' });
+    await (await rowBySubject(p, 'Quarterly report')).click();
+    await p.waitForSelector(`${M} .ml-reader:not(.loading) iframe.ml-frame`);
+    await sleep(400);
+    const navW = await p.$eval(`${M} .ml-nav`, (el) => el.getBoundingClientRect().width);
+    assert(navW < 60, `rail width ${navW}`);
+    await s.shot('mail-medium');
+    await p.click(`${M} .ml-nav button[name=nav-toggle]`);
+    await p.waitForSelector(`${M} .ml-root.nav-open .ml-folder .label:visible`);
+    await sleep(300);
+    await s.shot('mail-medium-nav-open');
+    await p.keyboard.press('Escape');
+    await p.waitForSelector(`${M} .ml-root:not(.nav-open)`);
   });
 
   await step('layout: minimum size (narrow, single pane) and maximized', async () => {
@@ -903,7 +1110,12 @@ export async function runTests() {
       w.setSize(520, 440);
     });
     await until(() => p.$eval(`${M} .ml-root`, (el) => el.dataset.layout === 'narrow'), { msg: 'narrow layout' });
-    await inbox(p);
+    if (await p.$(`${M} .ml-root.show-reader`)) {
+      // The open message stays on screen; Back returns to the list.
+      await p.click(`${M} .ml-back`);
+    }
+    await p.waitForSelector(`${M} .ml-listpane .ml-item:not(.skeleton)`);
+    await until(async () => !(await p.isVisible(`${M} .ml-folder.sp-inbox`)), { msg: 'navigation hidden in narrow windows' });
     await sleep(300);
     await s.shot('mail-min-size-list');
     await (await rowBySubject(p, 'Your weekly digest')).click();
@@ -952,9 +1164,22 @@ export async function runTests() {
     docShot(await s.shot('mail-compose-fr-dark'));
     await p.click(`${M} .ml-compose button[name=discard]`);
     await p.waitForSelector(`${M} .ml-compose`, { state: 'detached' });
-    // Text overflow check: no horizontal scrollbars in the main panes.
-    const overflow = await p.evaluate(() => [...document.querySelectorAll('.app-mail .ml-nav, .app-mail .ml-list-head, .app-mail .ml-read-bar')].filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.className));
+    // Text overflow check (French is longer): nothing clipped in the panes, at default and maximized size.
+    const overflowCheck = () => p.evaluate(() => [...document.querySelectorAll('.app-mail .ml-nav, .app-mail .ml-list-head, .app-mail .ml-read-bar, .app-mail .ml-compose-bar, .app-mail .ml-folder')].filter((el) => el.offsetParent && el.scrollWidth > el.clientWidth + 1).map((el) => el.className));
+    let overflow = await overflowCheck();
     assert(!overflow.length, `overflow in ${overflow}`);
+    await p.evaluate(() => window.__aurora.wm.list().find((x) => x.appId === 'mail').maximize());
+    await openBySubject(p, 'Quarterly report');
+    await sleep(500);
+    overflow = await overflowCheck();
+    assert(!overflow.length, `overflow (maximized) in ${overflow}`);
+    await s.shot('mail-fr-dark-maximized');
+    await p.focus(`${M} .ml-list`);
+    await p.keyboard.press('Control+n');
+    await p.waitForSelector(`${M} .ml-compose`);
+    overflow = await overflowCheck();
+    assert(!overflow.length, `overflow (composer) in ${overflow}`);
+    await p.click(`${M} .ml-compose button[name=discard]`);
   });
 
   await step('fr/dark: welcome (separate profile)', async () => {
@@ -974,7 +1199,7 @@ export async function runTests() {
 
   await s.close();
   await srv.close();
-  await tlsSrv.close();
+  if (!tlsSrv.closed) await tlsSrv.close();
   fs.rmSync(home, { recursive: true, force: true });
 
   const relevant = consoleErrors.filter((e) => !/Autofill|DevTools|net::ERR_|favicon/i.test(e));

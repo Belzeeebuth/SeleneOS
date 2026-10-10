@@ -60,6 +60,11 @@ export class MessageList {
   async load({ reset = true, soft = false } = {}) {
     const app = this.app;
     if (!app.account || !app.folder) return;
+    if (soft && this.loading) {
+      this.queuedSoft = true; // refresh again once the current load is done
+      return;
+    }
+    if (!soft) this.queuedSoft = false;
     const seq = ++this.seq;
     const accountId = app.account.id;
     const folder = app.folder;
@@ -91,7 +96,10 @@ export class MessageList {
       // Drop selections that disappeared.
       const uids = new Set(this.messages.map((m) => m.uid));
       for (const u of [...this.selected]) if (!uids.has(u)) this.selected.delete(u);
-      this.render();
+      if (soft && this.sameAsRendered(this.messages)) {
+        this.updateCount();
+        this.renderFooter();
+      } else this.render();
       this.app.onListLoaded?.(soft);
     } catch (e) {
       if (seq !== this.seq) return;
@@ -103,6 +111,10 @@ export class MessageList {
         this.loading = false;
         this.progress.hidden = true;
         this.refreshBtn.classList.remove('spinning');
+        if (this.queuedSoft) {
+          this.queuedSoft = false;
+          setTimeout(() => this.load({ soft: true }), 30);
+        }
       }
     }
   }
@@ -132,6 +144,10 @@ export class MessageList {
       if (seq === this.seq) {
         this.loading = false;
         this.renderFooter();
+        if (this.queuedSoft) {
+          this.queuedSoft = false;
+          setTimeout(() => this.load({ soft: true }), 30);
+        }
       }
     }
   }
@@ -269,6 +285,7 @@ export class MessageList {
 
   renderSkeleton() {
     const { h, ui } = this.ctx;
+    this.rowCache = null;
     ui.clear(this.scroller);
     ui.clear(this.banner);
     for (let i = 0; i < 8; i++) {
@@ -280,6 +297,8 @@ export class MessageList {
     const { h, icon, ui } = this.ctx;
     ui.clear(this.banner);
     if (!e) return;
+    // The "offline" bar above already explains connection problems.
+    if (['ECONN', 'ETIMEOUT'].includes(e.code) && this.app.offline && !this.app.offline.hidden) return;
     const info = errorText(this.ctx.t, e, this.app.account?.imap?.host);
     this.banner.appendChild(
       h(
@@ -297,7 +316,6 @@ export class MessageList {
     const { h, icon, ui } = this.ctx;
     const t = (k, v) => this.t(k, v);
     const top = this.scroller.scrollTop;
-    ui.clear(this.scroller);
     ui.clear(this.banner);
     this.updateCount();
     const q = this.query;
@@ -310,6 +328,8 @@ export class MessageList {
     }
     if (this.error && !this.messages.length) {
       const info = errorText(this.ctx.t, this.error, this.app.account?.imap?.host);
+      this.rowCache = null;
+      ui.clear(this.scroller);
       this.scroller.appendChild(
         h(
           'div',
@@ -326,6 +346,8 @@ export class MessageList {
     }
     if (!this.messages.length) {
       const special = this.app.folderSpecial();
+      this.rowCache = null;
+      ui.clear(this.scroller);
       this.scroller.appendChild(
         h(
           'div',
@@ -337,23 +359,47 @@ export class MessageList {
       );
       return;
     }
-    const frag = document.createDocumentFragment();
-    let group = null;
+    // Keyed rendering: rows whose data did not change are reused as-is, so a refresh never
+    // swallows a click in progress or flickers.
     const special = this.app.folderSpecial();
     const showTo = special === 'sent' || special === 'drafts';
+    const cache = this.rowCache || new Map();
+    const next = new Map();
+    const nodes = [];
+    let group = null;
     for (const m of this.messages) {
       const g = dateGroup(m.date);
       if (g !== group) {
         group = g;
-        frag.appendChild(h('div', { class: 'ml-group', role: 'presentation' }, t(`group.${g}`)));
+        nodes.push(h('div', { class: 'ml-group', role: 'presentation' }, t(`group.${g}`)));
       }
-      frag.appendChild(this.row(m, showTo));
+      const sig = this.rowSig(m, showTo);
+      let el = cache.get(m.uid);
+      if (!el || el._sig !== sig) {
+        el = this.row(m, showTo);
+        el._sig = sig;
+      }
+      next.set(m.uid, el);
+      nodes.push(el);
     }
-    frag.appendChild(this.footer());
-    this.scroller.appendChild(frag);
+    this.rowCache = next;
+    nodes.push(this.footer());
+    this.scroller.replaceChildren(...nodes);
     this.scroller.scrollTop = top;
     this.paintSelection();
-    void icon;
+  }
+
+  rowSig(m, showTo) {
+    return JSON.stringify([m.uid, m.seen, m.flagged, m.answered, m.forwarded, m.draft, m.hasAttachments, m.subject, m.preview, m.date, showTo ? m.to : m.from, this.ctx.lang]);
+  }
+
+  // Same rows as on screen? (soft refreshes that bring nothing new skip the DOM entirely)
+  sameAsRendered(list) {
+    const special = this.app.folderSpecial();
+    const showTo = special === 'sent' || special === 'drafts';
+    if (!this.rowCache || this.rowCache.size !== list.length) return false;
+    const keys = [...this.rowCache.keys()];
+    return list.every((m, i) => keys[i] === m.uid && this.rowCache.get(m.uid)._sig === this.rowSig(m, showTo));
   }
 
   row(m, showTo) {
@@ -422,7 +468,7 @@ export class MessageList {
             m.flagged ? icon('flag', { size: 14, filled: true, class: 'ml-ic-flag' }) : null,
           ),
         ),
-        h('div', { class: 'ml-row3 ellipsis' }, m.preview == null ? '' : m.preview || t('list.noPreview')),
+        h('div', { class: 'ml-row3 ellipsis' }, m.preview || ''),
       ),
       h(
         'div',

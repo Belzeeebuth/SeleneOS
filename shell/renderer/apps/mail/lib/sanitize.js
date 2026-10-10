@@ -151,7 +151,7 @@ ${adapt ? 'html{filter:invert(1) hue-rotate(180deg);background:#fff}img,picture,
     : `:root{color-scheme:${dark ? 'dark' : 'light'}}html,body{background:transparent}body{margin:0;padding:16px 20px;font:14px/1.5 ${font};color:${dark ? '#ffffff' : '#1b1b1b'}}
 .aurora-text{white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere}a{color:${dark ? accentDark : accent}}
 blockquote.q{margin:2px 0;padding-left:10px;border-left:3px solid ${dark ? '#5c5c5c' : '#c8c8c8'};color:${dark ? '#c5c5c5' : '#5c5c5c'}}`;
-  const srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="referrer" content="no-referrer"><base target="_blank"><style>${base}</style>${head}</head><body>${body}</body></html>`;
+  const srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="referrer" content="no-referrer"><meta http-equiv="x-dns-prefetch-control" content="off"><base target="_blank"><style>${base}</style>${head}</head><body>${body}</body></html>`;
   return { srcdoc, remote: counter.remote, isHtml };
 }
 

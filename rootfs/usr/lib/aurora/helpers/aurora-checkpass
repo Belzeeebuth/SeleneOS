@@ -12,7 +12,8 @@ Exit status: 0 the password is correct and the account is usable
 It runs unprivileged, as the user being checked: pam_unix then verifies through its setgid
 helper unix_chkpwd, which only checks the caller's own password. Only root may name another
 user with --user. --service (default "aurora-lock", /etc/pam.d/aurora-lock) and --confdir
-(a PAM configuration directory, Linux-PAM >= 1.4) exist for testing.
+(a PAM configuration directory, Linux-PAM >= 1.4) exist for testing; none of the options are
+accepted when the helper runs through sudo.
 """
 import ctypes
 import ctypes.util
@@ -142,8 +143,16 @@ def load_libs():
 def make_conversation(libc, user, password, notes):
     """PAM conversation: hidden prompts get the password, visible ones the user name."""
 
-    def conversation(count, messages, responses, _appdata):
-        if count <= 0 or count > MAX_MESSAGES:
+    def conversation(count, messages, responses, appdata):
+        # An exception escaping a ctypes callback is printed and the callback returns 0 (PAM_SUCCESS) without
+        # any answer: never let that happen.
+        try:
+            return answer_all(count, messages, responses, appdata)
+        except Exception:  # pylint: disable=broad-except
+            return PAM_CONV_ERR
+
+    def answer_all(count, messages, responses, _appdata):
+        if count <= 0 or count > MAX_MESSAGES or not messages or not responses:
             return PAM_CONV_ERR
         block = libc.calloc(count, ctypes.sizeof(PamResponse))
         if not block:
@@ -194,6 +203,11 @@ def main(argv):
     user = opts["user"] or me
     if user != me and uid != 0:
         die(EXIT_USAGE, "only root can check another user's password")
+    # The shell runs this helper unprivileged. Run as root through sudo (the helpers directory is in the sudo
+    # rules of administrators), the options would turn it into a password oracle for other accounts (--user) or
+    # load PAM modules from any configuration (--service, --confdir): refuse them there.
+    if uid == 0 and os.environ.get("SUDO_UID") and (opts["user"] or opts["confdir"] or opts["service"] != "aurora-lock"):
+        die(EXIT_USAGE, "options are not allowed through sudo")
 
     password = read_password(sys.stdin.buffer)
     if b"\0" in password:

@@ -1,0 +1,164 @@
+#!/bin/bash
+# aurora-autoinstall — unattended installation of Aurora OS from the live medium (VM testing, labs).
+#
+# Started at boot by aurora-autoinstall.service when the kernel command line contains
+# aurora.autoinstall=1. LIVE MEDIA ONLY: the unit requires boot=casper on the command line and
+# /cdrom/casper, and this script checks both again, so it can never run on an installed system
+# (the installer also removes the unit's enablement link from the installed system).
+#
+# Kernel parameters (see /usr/lib/aurora/autoinstall/README):
+#   aurora.autoinstall=1                   enable (required)
+#   aurora.autoinstall.disk=/dev/vda       disk to ERASE (default: the only eligible disk; refused if several)
+#   aurora.autoinstall.user=aurora         account name                       (default: aurora)
+#   aurora.autoinstall.password=aurora     account password — readable in /proc/cmdline, testing only (default: aurora)
+#   aurora.autoinstall.fullname=Jane+Doe   full name, "+" or "%20" for spaces  (default: Aurora User)
+#   aurora.autoinstall.hostname=aurora-pc  computer name                      (default: <user>-pc)
+#   aurora.autoinstall.lang=en|fr          system language                    (default: en)
+#   aurora.autoinstall.keyboard=us|fr|...  keyboard layout, e.g. fr(oss)      (default: us; fr when lang=fr)
+#   aurora.autoinstall.timezone=Area/City  time zone                          (default: UTC; Europe/Paris when lang=fr)
+#   aurora.autoinstall.autologin=1         sign the account in automatically
+#   aurora.autoinstall.finish=poweroff|reboot|none   after a successful installation (default: poweroff)
+#   aurora.autoinstall.force=1             install even when the disk already holds a complete installation
+#
+# Progress goes to the console (and the serial console with console=ttyS0), to the boot splash
+# (plymouth message) and to the journal; the installer's full log is /var/log/aurora-install.log.
+# On failure the boot continues into the live session.
+set -uo pipefail
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LC_ALL=C
+HELPER=/usr/lib/aurora/helpers/aurora-install
+MIN_SIZE=12000000000
+
+# /dev/console is the LAST console= of the command line (e.g. ttyS0 when booted with
+# "console=tty1 console=ttyS0"): mirror the progress on the screen (tty1) in that case.
+MIRROR_TTY=""
+if [[ -w /dev/tty1 && -r /sys/class/tty/console/active ]]; then
+  _active=$(cat /sys/class/tty/console/active 2>/dev/null || true)
+  [[ " $_active " == *" tty1 "* && "${_active##* }" != tty1 ]] && MIRROR_TTY=/dev/tty1
+fi
+say() {
+  printf '[aurora-autoinstall] %s\n' "$*"
+  [[ -n "$MIRROR_TTY" ]] && printf '[aurora-autoinstall] %s\n' "$*" >"$MIRROR_TTY" 2>/dev/null
+  if command -v plymouth >/dev/null 2>&1 && plymouth --ping 2>/dev/null; then
+    plymouth display-message --text="$*" 2>/dev/null || true
+  fi
+}
+fail() {
+  say "Automated installation failed: $*"
+  say "The live session starts instead. Full log: /var/log/aurora-install.log"
+  : >/run/aurora-autoinstall.failed
+  sleep 8
+  exit 1
+}
+
+# ---- kernel command line
+CMDLINE=$(cat /proc/cmdline 2>/dev/null || true)
+param() { # param NAME DEFAULT
+  local w v=""
+  for w in $CMDLINE; do
+    case "$w" in "aurora.autoinstall.$1="*) v=${w#*=} ;; esac
+  done
+  printf '%s' "${v:-$2}"
+}
+urldecode() { local s=${1//+/ }; printf '%b' "${s//%/\\x}"; }
+
+# ---- live medium only (defence in depth: the unit checks the same conditions)
+[[ " $CMDLINE " == *" aurora.autoinstall=1 "* ]] || { echo "aurora.autoinstall=1 is not set: nothing to do"; exit 0; }
+if [[ " $CMDLINE " != *" boot=casper "* || ! -d /cdrom/casper ]]; then
+  echo "not running from the Aurora OS live medium: automated installation refused"
+  exit 0
+fi
+[[ -x "$HELPER" ]] || fail "$HELPER is missing"
+
+LANG_ID=$(param lang en)
+case "$LANG_ID" in fr) DEF_KBD=fr DEF_TZ=Europe/Paris ;; *) LANG_ID=en DEF_KBD=us DEF_TZ=UTC ;; esac
+USER_NAME=$(param user aurora)
+PASSWORD=$(urldecode "$(param password aurora)")
+FULLNAME=$(urldecode "$(param fullname 'Aurora+User')")
+HOST_NAME=$(param hostname "$USER_NAME-pc")
+KEYBOARD=$(param keyboard "$DEF_KBD")
+TIMEZONE=$(param timezone "$DEF_TZ")
+FINISH=$(param finish poweroff)
+DISK=$(param disk "")
+case "$FINISH" in poweroff|reboot|none) ;; *) FINISH=poweroff ;; esac
+
+# ---- target disk: wait for it (udev), or pick the only eligible one
+live_disks() {
+  local m src
+  for m in /cdrom /rofs /isodevice; do
+    src=$(findmnt -n -o SOURCE --mountpoint "$m" 2>/dev/null | head -n1)
+    src=${src%%\[*}
+    [[ "$src" == /dev/* ]] && lsblk -nrspo NAME,TYPE "$src" 2>/dev/null | awk '$2 == "disk" {print $1}'
+  done
+  return 0
+}
+udevadm settle --timeout=30 >/dev/null 2>&1 || true
+if [[ -z "$DISK" ]]; then
+  mapfile -t cands < <(
+    live=" $(live_disks | sort -u | tr '\n' ' ') "
+    lsblk -dnbpo NAME,TYPE,RO,SIZE 2>/dev/null | while read -r n t ro sz; do
+      [[ "$t" == disk && "$ro" == 0 && "$sz" -ge $MIN_SIZE && ! "$n" =~ ^/dev/(zram|sr|loop|ram) && "$live" != *" $n "* ]] || continue
+      # a disk with mounted partitions is in use (the helper refuses it too)
+      [[ -z "$(lsblk -nrpo MOUNTPOINTS "$n" 2>/dev/null | tr -d '[:space:]')" ]] && echo "$n"
+    done
+  )
+  ((${#cands[@]} == 1)) || fail "set aurora.autoinstall.disk=/dev/... (eligible disks: ${cands[*]:-none})"
+  DISK=${cands[0]}
+else
+  for _ in $(seq 1 30); do [[ -b "$DISK" ]] && break; sleep 1; done
+  [[ -b "$DISK" ]] || fail "disk $DISK not found"
+fi
+
+# ---- never reinstall in a loop (direct kernel boot restarts the live system after a reboot)
+has_aurora() { # the disk holds a COMPLETE Aurora OS installation (an interrupted one is retried)
+  local p info
+  for p in $(lsblk -nrpo NAME,TYPE "$1" 2>/dev/null | awk '$2 == "part" {print $1}'); do
+    info=" $(blkid -p -o export "$p" 2>/dev/null | tr '\n' ' ') "   # probed, not udev's cache
+    [[ "$info" == *" LABEL=AURORA "* && "$info" == *" TYPE=ext4 "* ]] || continue
+    # aurora-install appends this line as its very last step (read without mounting).
+    debugfs -R 'cat /etc/aurora/install-info' "$p" 2>/dev/null | grep -q '^AURORA_INSTALL_COMPLETE=' && return 0
+  done
+  return 1
+}
+if [[ "$(param force 0)" != 1 ]] && has_aurora "$DISK"; then
+  say "Aurora OS is already installed on $DISK: automated installation skipped (add aurora.autoinstall.force=1 to reinstall)."
+  exit 0
+fi
+
+AUTOLOGIN=()
+[[ "$(param autologin 0)" == 1 ]] && AUTOLOGIN=(--autologin)
+say "Installing Aurora OS on $DISK (user $USER_NAME, $LANG_ID, keyboard $KEYBOARD, $TIMEZONE)…"
+ERRFILE=/run/aurora-autoinstall.error
+rm -f "$ERRFILE"
+progress_reader() { # JSON lines of aurora-install -> console + boot splash
+  local line pct msg last=-1
+  while IFS= read -r line; do
+    if [[ "$line" =~ \"error\":\"(([^\"\\]|\\.)*)\" ]]; then
+      printf '%s\n' "${BASH_REMATCH[1]}" >"$ERRFILE"
+    elif [[ "$line" =~ \"progress\":([0-9]+) ]]; then
+      pct=${BASH_REMATCH[1]} msg=""
+      [[ "$line" =~ \"message\":\"(([^\"\\]|\\.)*)\" ]] && msg=${BASH_REMATCH[1]}
+      if [[ -n "$msg" ]] || ((pct >= last + 5)); then
+        last=$pct
+        say "Installing Aurora OS… ${pct}%${msg:+ — $msg}"
+      fi
+    fi
+  done
+}
+# The helper's own log (every command and its output) is /var/log/aurora-install.log.
+printf '%s\n' "$PASSWORD" | "$HELPER" --json --password-stdin --disk "$DISK" --user "$USER_NAME" \
+  --fullname "$FULLNAME" --hostname "$HOST_NAME" --lang "$LANG_ID" --keyboard "$KEYBOARD" \
+  --timezone "$TIMEZONE" "${AUTOLOGIN[@]}" 2>/dev/null | progress_reader
+rc=${PIPESTATUS[1]}
+if ((rc != 0)); then
+  err=$(cat "$ERRFILE" 2>/dev/null || echo "exit status $rc")
+  tail -n 15 /var/log/aurora-install.log 2>/dev/null | sed 's/^/[aurora-install] /'
+  fail "$err"
+fi
+
+case "$FINISH" in
+  poweroff) say "Aurora OS is installed on $DISK. Powering off…"; sleep 3; systemctl --no-block poweroff ;;
+  reboot) say "Aurora OS is installed on $DISK. Restarting…"; sleep 3; systemctl --no-block reboot ;;
+  none) say "Aurora OS is installed on $DISK." ;;
+esac
+exit 0

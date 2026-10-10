@@ -108,6 +108,16 @@ function startServer() {
         ),
       );
     }
+    if (url.pathname === '/slow') {
+      // Headers only after 5 s: the tab stays "loading" (Stop button, Esc).
+      const t = setTimeout(() => html(200, page('Slow page', '<h1>Finally</h1>')), 5000);
+      req.on('close', () => clearTimeout(t));
+      return;
+    }
+    if (url.pathname === '/headers') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      return res.end(page('Headers', `<pre id="h">${JSON.stringify(req.headers).replace(/[<>&]/g, '')}</pre>`));
+    }
     if (url.pathname === '/auth2') {
       // Separate realm and credentials: the cached ones of /auth never match.
       if (req.headers.authorization === `Basic ${Buffer.from('ada:lovelace').toString('base64')}`) return html(200, page('Authorized 2', '<h1>Welcome</h1>'));
@@ -531,6 +541,11 @@ console.log(`Local test server: ${srv.url}`);
     assert(await run('![...document.querySelectorAll(".app-browser .bw-favbar .bw-fav-label")].some((x) => x.textContent === "My test page")'), 'gone from bar');
   });
 
+  await test('flyouts never scroll the window (the whole UI used to shift 3 px after Ctrl+D)', async () => {
+    const scrolled = await run(`[bw.win.el, ...bw.win.el.querySelectorAll('*')].filter((e) => e.scrollLeft && !e.matches('.bw-tabs, .bp-body, .bw-flyout')).map((e) => e.className)`);
+    assert(!scrolled.length, `scrolled: ${scrolled}`);
+  });
+
   await test('favorites bar folder menu, toggle with Ctrl+Shift+B, favorites manager page', async () => {
     await s.page.locator('.app-browser .bw-favbar .bw-fav', { hasText: 'Aurora OS' }).click();
     await s.page.waitForSelector('.bw-menu .menu-item');
@@ -590,7 +605,8 @@ console.log(`Local test server: ${srv.url}`);
     assert(fs.existsSync(path.join(s.home, 'Downloads', 'aurora-test (2).bin')), 'unique name for the second file');
     await guestKey('J', ['control']);
     await waitFor('bw.entry(bw.active).route === "downloads" && document.querySelectorAll(".app-browser .bw-view.active .bw-dl-row").length === 2', { msg: 'downloads page' });
-    await s.page.waitForTimeout(300);
+    await s.page.mouse.move(700, 600); // no hover tooltip in the reference shot
+    await s.page.waitForTimeout(600);
     copyShot(await s.shot('browser-downloads'), 'browser-downloads');
   });
 
@@ -635,6 +651,58 @@ console.log(`Local test server: ${srv.url}`);
     await waitFor('window.__aurora.wm.byApp("browser").length === 1');
   });
 
+  await test('toolbar: Stop while loading, Refresh, Home; Ctrl+L from the page selects the address', async () => {
+    await run(`bw.navigate(bw.active, '${srv.url}/slow')`);
+    await waitFor('bw.active.web.loading && bw.reloadBtn.getAttribute("aria-label") === "Stop"', { msg: 'reload button turns into Stop' });
+    await s.page.click('.app-browser .bw-tbtn[aria-label="Stop"]');
+    await waitFor('!bw.active.web.loading && bw.reloadBtn.getAttribute("aria-label") === "Refresh"', { msg: 'stopped' });
+    await run(`bw.navigate(bw.active, '${srv.url}/page2')`);
+    await waitFor('bw.active.web.title === "Second Page" && !bw.active.web.loading');
+    await pageJs('window.__marker = 1');
+    await s.page.click('.app-browser .bw-tbtn[aria-label="Refresh"]');
+    await waitFor('!bw.active.web.loading', { msg: 'reloaded' });
+    await waitFor(`bw.active.wv.executeJavaScript('!window.__marker')`, { msg: 'page really reloaded' });
+    await guestKey('L', ['control']);
+    await waitFor('bw.omni.editing', { msg: 'Ctrl+L focuses the address bar' });
+    const sel = await run('({ start: bw.omni.input.selectionStart, end: bw.omni.input.selectionEnd, len: bw.omni.input.value.length })');
+    assert(sel.start === 0 && sel.end === sel.len && sel.len > 10, `whole address selected (${JSON.stringify(sel)})`);
+    await s.page.keyboard.press('Escape');
+    await s.page.click('.app-browser .bw-tbtn[aria-label="Home"]');
+    await waitFor('bw.entry(bw.active).route === "newtab" && bw.omni.editing', { msg: 'Home opens the new tab page' });
+    await run('bw.goBack()');
+    await waitFor('bw.active.web.title === "Second Page"');
+  });
+
+  await test('"Settings and more" menu: zoom buttons and full screen', async () => {
+    await s.page.click('.app-browser .bw-tbtn[aria-label="Settings and more"]');
+    await s.page.waitForSelector('.bw-more-menu .bw-menu-zoom');
+    await s.page.click('.bw-more-menu .bw-menu-zoom button[aria-label^="Zoom in"]');
+    await waitFor('Math.abs(bw.active.zoom - 1.1) < 0.01 && document.querySelector(".bw-more-menu .bw-zoom-pct").textContent === "110 %"', { msg: 'zoom in from the menu' });
+    assert(await s.page.locator('.bw-more-menu').count(), 'menu stays open while zooming');
+    await s.page.click('.bw-more-menu .bw-menu-zoom button[aria-label^="Zoom out"]');
+    await waitFor('Math.abs(bw.active.zoom - 1) < 0.01', { msg: 'zoom out from the menu' });
+    await s.page.click('.bw-more-menu .bw-menu-zoom button[aria-label^="Full screen"]');
+    await waitFor('bw.fs === "user" && !document.querySelector(".bw-more-menu")', { msg: 'full screen from the menu' });
+    await run('bw.toggleFullscreen()');
+    await waitFor('!bw.fs');
+  });
+
+  await test('Do Not Track: the DNT header is sent once enabled', async () => {
+    await run('bw.store.setPref("dnt", true)');
+    await s.page.waitForTimeout(300);
+    await run(`bw.navigate(bw.active, '${srv.url}/headers')`);
+    await waitFor('bw.active.web.title === "Headers" && !bw.active.web.loading');
+    const h = JSON.parse(await pageJs("document.getElementById('h').textContent"));
+    assert(h.dnt === '1', `DNT header (${JSON.stringify(h)})`);
+    await run('bw.store.setPref("dnt", false)');
+    await s.page.waitForTimeout(300);
+    await run('bw.reload()');
+    await waitFor('!bw.active.web.loading');
+    await s.page.waitForTimeout(200);
+    const h2 = JSON.parse(await pageJs("document.getElementById('h').textContent"));
+    assert(!h2.dnt, 'no DNT header when disabled');
+  });
+
   await test('settings: search engine, home button, favorites bar mode', async () => {
     await run('bw.openInternal("settings")');
     await waitFor('document.querySelector(".app-browser .bw-view.active .bp-settings")');
@@ -650,12 +718,21 @@ console.log(`Local test server: ${srv.url}`);
     await waitFor('bw.ctx.storage.get("prefs").then((p) => p && p.engine === "duckduckgo" && p.homeButton === true)', { msg: 'prefs persisted' });
   });
 
-  await test('clear browsing data dialog clears history', async () => {
+  await test('clear browsing data dialog clears history, cookies and site data', async () => {
     assert((await run('bw.store.history.size')) > 0, 'has history');
+    await run(`bw.navigate(bw.active, '${srv.url}/')`);
+    await waitFor('bw.active.web.title === "Aurora Test Page" && !bw.active.web.loading');
+    await pageJs('document.cookie = "aurora_test=1; path=/; max-age=3600"; localStorage.setItem("aurora_test", "1")');
+    assert(/aurora_test=1/.test(await pageJs('document.cookie')), 'cookie set');
     await guestKey('Delete', ['control', 'shift']);
     await s.page.waitForSelector('.dialog .bw-clear');
     await s.page.locator('.dialog .btn.primary').click();
     await waitFor('bw.store.history.size === 0', { msg: 'history cleared' });
+    await waitFor(`bw.active.wv.executeJavaScript('!document.cookie.includes("aurora_test")')`, { msg: 'cookie deleted' });
+    await run('bw.reload()');
+    await waitFor('!bw.active.web.loading');
+    await s.page.waitForTimeout(200);
+    assert(await pageJs('localStorage.getItem("aurora_test") === null'), 'site storage deleted');
   });
 
   await test('HTML fullscreen and F11 hide the browser chrome', async () => {
@@ -928,27 +1005,10 @@ console.log(`Local test server: ${srv.url}`);
   fs.mkdirSync(appDir, { recursive: true });
   fs.writeFileSync(path.join(appDir, 'prefs.json'), JSON.stringify({ startup: 'continue' }));
   fs.writeFileSync(path.join(appDir, 'session.json'), JSON.stringify({ windows: [{ tabs: [{ url: `${srv.url}/`, title: 'Aurora Test Page' }, { url: 'aurora://history', title: 'History' }], active: 1 }] }));
-  // Damaged data files (hand-edited / truncated): the app must keep what is valid and start normally.
-  fs.writeFileSync(
-    path.join(appDir, 'bookmarks.json'),
-    JSON.stringify({
-      bar: { id: 'bar', type: 'folder', children: [null, 42, { type: 'url', title: 'Valid', url: 'https://valid.example/' }, { type: 'url', title: 'No URL' }, { id: 'fx', type: 'folder', title: 'Broken folder', children: 'oops' }] },
-      other: { children: [] },
-    }),
-  );
-  fs.writeFileSync(path.join(appDir, 'history.json'), JSON.stringify([null, 'x', { url: 'javascript:alert(1)' }, { url: 'https://valid.example/', title: 5, visits: 'abc', last: 1700000000000 }]));
+
   const s = await launchShell({ open: ['browser'], theme: 'light', lang: 'en', home, keepHome: false });
   const { run, waitFor, errors } = harness(s);
   console.log('Session 2 (restore, private window)');
-
-  await test('damaged favorites / history files: valid entries kept, no crash', async () => {
-    await waitFor('bw.tabs.length === 2', { msg: 'window up' });
-    const r = await run(`({ bar: bw.store.bookmarks.bar.children.map((n) => n.title), folder: bw.store.bookmarks.bar.children.find((n) => n.title === 'Broken folder')?.children, hist: [...bw.store.history.values()], favbar: [...document.querySelectorAll('.app-browser .bw-favbar .bw-fav-label')].map((x) => x.textContent) })`);
-    assert(JSON.stringify(r.bar) === '["Valid","Broken folder"]', `bar ${JSON.stringify(r.bar)}`);
-    assert(Array.isArray(r.folder) && !r.folder.length, 'broken folder repaired');
-    assert(r.hist.length === 1 && r.hist[0].url === 'https://valid.example/' && r.hist[0].title === '' && r.hist[0].visits === 1, JSON.stringify(r.hist));
-    assert(r.favbar.includes('Valid') && r.favbar.includes('Broken folder'), `favorites bar ${r.favbar}`);
-  });
 
   await test('startup restores the previous session (lazy background tabs)', async () => {
     await waitFor('bw.tabs.length === 2', { msg: 'restored tabs' });
@@ -1024,6 +1084,41 @@ console.log(`Local test server: ${srv.url}`);
   });
 
   await test('no renderer errors (session 2)', async () => {
+    const e = errors();
+    assert(!e.length, e.join('\n'));
+  });
+  await s.close();
+  fs.rmSync(home, { recursive: true, force: true });
+}
+
+// ======== Session 2b: damaged data files (hand-edited / truncated): keep what is valid, start normally
+{
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-home-'));
+  const appDir = path.join(home, '.config', 'aurora', 'apps', 'browser');
+  fs.mkdirSync(appDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(appDir, 'bookmarks.json'),
+    JSON.stringify({
+      bar: { id: 'bar', type: 'folder', children: [null, 42, { type: 'url', title: 'Valid', url: 'https://valid.example/' }, { type: 'url', title: 'No URL' }, { id: 'fx', type: 'folder', title: 'Broken folder', children: 'oops' }] },
+      other: { children: [] },
+    }),
+  );
+  fs.writeFileSync(path.join(appDir, 'history.json'), JSON.stringify([null, 'x', { url: 'javascript:alert(1)' }, { url: 'https://valid.example/', title: 5, visits: 'abc', last: 1700000000000 }]));
+  fs.writeFileSync(path.join(appDir, 'prefs.json'), '{"engine": "goo');
+  fs.writeFileSync(path.join(appDir, 'session.json'), '[1, 2');
+  const s = await launchShell({ open: ['browser'], theme: 'light', lang: 'en', home });
+  const { run, waitFor, errors } = harness(s);
+  console.log('Session 2b (damaged data files)');
+  await test('damaged data files (favorites, history, prefs, session): valid entries kept, defaults otherwise', async () => {
+    await waitFor('bw.tabs.length === 1 && bw.prefs.engine === "duckduckgo"', { msg: 'window up with default prefs' });
+    const r = await run(`({ bar: bw.store.bookmarks.bar.children.map((n) => n.title), folder: bw.store.bookmarks.bar.children.find((n) => n.title === 'Broken folder')?.children, hist: [...bw.store.history.values()], favbar: [...document.querySelectorAll('.app-browser .bw-favbar .bw-fav-label')].map((x) => x.textContent) })`);
+    assert(JSON.stringify(r.bar) === '["Valid","Broken folder"]', `bar ${JSON.stringify(r.bar)}`);
+    assert(Array.isArray(r.folder) && !r.folder.length, 'broken folder repaired');
+    assert(r.hist.length === 1 && r.hist[0].url === 'https://valid.example/' && r.hist[0].title === '' && r.hist[0].visits === 1, JSON.stringify(r.hist));
+    assert(r.favbar.includes('Valid') && r.favbar.includes('Broken folder'), `favorites bar ${r.favbar}`);
+  });
+
+  await test('no renderer errors (damaged data)', async () => {
     const e = errors();
     assert(!e.length, e.join('\n'));
   });

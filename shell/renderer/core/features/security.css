@@ -22,13 +22,29 @@
     opacity: 0;
   }
 }
-/* --sec-image: the wallpaper blurred once on a canvas (security.js) — no live CSS blur, cheap in a VM. */
+/* .sec-bg-img: the wallpaper blurred once on a canvas (security.js, precomputed when idle) — no live CSS blur, cheap in a VM. */
 .sec-bg {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(4, 10, 22, 0.26), rgba(4, 10, 22, 0.5)), var(--sec-image, var(--mica-image, none)) center / cover, linear-gradient(135deg, #1d2b4a, #0b1220);
+  background: linear-gradient(135deg, #1d2b4a, #0b1220);
   transform: scale(1.02);
   animation: sec-bg-in 600ms var(--ease);
+}
+.sec-bg-img {
+  position: absolute;
+  inset: 0;
+  background: center / cover no-repeat;
+  opacity: 0;
+  transition: opacity 260ms linear;
+}
+.sec-bg-img.ready {
+  opacity: 1;
+}
+.sec-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(4, 10, 22, 0.26), rgba(4, 10, 22, 0.5));
 }
 @keyframes sec-bg-in {
   from {
@@ -89,7 +105,10 @@
 }
 .sec-opt:focus-visible,
 .sec-cancel:focus-visible,
-.sec-tray-btn:focus-visible {
+.sec-tray-btn:focus-visible,
+.sec-screen.kbd .sec-opt:focus,
+.sec-screen.kbd .sec-cancel:focus,
+.sec-screen.kbd .sec-tray-btn:focus {
   outline: 2px solid #fff;
   outline-offset: 1px;
 }

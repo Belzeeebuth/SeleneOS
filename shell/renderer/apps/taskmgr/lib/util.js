@@ -186,6 +186,25 @@ export function compare(a, b) {
   return String(a ?? '').localeCompare(String(b ?? ''), undefined, { sensitivity: 'base', numeric: true });
 }
 
+// Backend errors carry English messages: show a localized sentence for the codes we know.
+const ERR_KEYS = {
+  EPERM: 'err.code.denied',
+  EACCES: 'err.code.denied',
+  ESRCH: 'err.gone',
+  EINVAL: 'err.code.invalid',
+  ENOENT: 'err.code.notFound',
+  ENOTFOUND: 'err.code.notFound',
+  ESYSTEMD: 'err.code.noSystemd',
+  ETIMEDOUT: 'err.code.timeout',
+  EROFS: 'err.code.readOnly',
+  ENOSPC: 'err.code.noSpace',
+  ENOHANDLER: 'err.code.unavailable',
+};
+export function errText(t, err) {
+  const key = ERR_KEYS[err?.code];
+  return key ? t(key) : err?.message || String(err ?? '');
+}
+
 export function copyText(api, text) {
   return api.invoke('clipboard:writeText', text);
 }

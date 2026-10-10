@@ -43,12 +43,15 @@ export class AccountSetup {
     ui.clear(this.stage);
     node.classList.add('ml-step', dir === 'back' ? 'enter-back' : 'enter');
     this.stage.appendChild(node);
-    setTimeout(() => node.querySelector('[autofocus]')?.focus(), 60);
+    // Initial focus, unless the user already moved into the new step.
+    setTimeout(() => {
+      if (!node.contains(document.activeElement)) node.querySelector('[autofocus]')?.focus();
+    }, 60);
   }
 
   // ------------------------------------------------------------ step 1: providers
   showProviders(dir) {
-    const { h, icon, ui } = this.ctx;
+    const { h, icon } = this.ctx;
     const t = (k, v) => this.t(k, v);
     const tiles = store.presets.map((p) =>
       h(
@@ -70,7 +73,6 @@ export class AccountSetup {
     );
     this.swap(step, dir);
     if (dir === 'back') setTimeout(() => step.querySelector(`.ml-provider[data-provider="${this.provider?.id}"]`)?.focus(), 80);
-    void ui;
   }
 
   monogram(p, size = 40) {
@@ -231,7 +233,7 @@ export class AccountSetup {
         this.monogram(p, 36),
         h('div', { class: 'grow' }, h('div', { class: 'subtitle' }, editing ? t('setup.editTitle') : p.id === 'other' ? t('setup.otherTitle') : t('setup.formTitle', { provider: p.name })), editing ? h('div', { class: 'text-2 caption' }, this.opts.account.email) : null),
       ),
-      h('div', { class: 'ml-form-body' }, field(t('setup.email'), email), field(t('setup.name'), name, t('setup.nameHint')), field(t('setup.password'), h('div', { class: 'ml-pass' }, pass, reveal)), help, advToggle, advBody, this.errorBox),
+      h('div', { class: 'ml-form-body' }, this.errorBox, field(t('setup.email'), email), field(t('setup.name'), name, t('setup.nameHint')), field(t('setup.password'), h('div', { class: 'ml-pass' }, pass, reveal)), help, advToggle, advBody),
       h('div', { class: 'ml-form-foot' }, webmail || h('span'), h('div', { class: 'ml-setup-actions' }, this.submitBtn, back)),
     );
     form.addEventListener('submit', (e) => {
@@ -257,11 +259,16 @@ export class AccountSetup {
       } catch {}
       if (!res || email !== s.email || !this.form?.isConnected) return;
       if (s.provider !== 'other' && res.provider !== s.provider) return;
+      s.autoHost ||= {};
       for (const side of ['imap', 'smtp']) {
         if (s.touched[side] || !res[side]) continue;
-        Object.assign(s[side], { host: res[side].host, port: res[side].port, security: res[side].security });
-        if (res[side].user === 'local') s[side].user = email.split('@')[0];
         const r = this.refs.servers;
+        // Never overwrite what the user is typing or typed.
+        const typing = [r[`${side}Host`], r[`${side}Port`]].includes(document.activeElement);
+        if (typing || (s[side].host && s[side].host !== s.autoHost[side] && s[side].host !== this.provider?.[side]?.host)) continue;
+        Object.assign(s[side], { host: res[side].host, port: res[side].port, security: res[side].security });
+        s.autoHost[side] = res[side].host;
+        if (res[side].user === 'local') s[side].user = email.split('@')[0];
         r[`${side}Host`].value = s[side].host;
         r[`${side}Port`].value = s[side].port;
         const sel = this.form.querySelector(`select[name="${side}-security"]`);
@@ -350,7 +357,7 @@ export class AccountSetup {
   // ------------------------------------------------------------ step 3: signing in
   async submit() {
     if (this.busy || !this.validate()) return;
-    const { h, api, ui } = this.ctx;
+    const { h, api } = this.ctx;
     const t = (k, v) => this.t(k, v);
     const s = this.state;
     if (!s.name.trim() && this.mode !== 'edit') s.name = s.email.split('@')[0];
@@ -393,7 +400,6 @@ export class AccountSetup {
       this.validate();
       this.showError(e, s.imap.host);
     }
-    void ui;
   }
 
   async askTrust(e) {

@@ -85,6 +85,12 @@ async function dialogButton(s, label) {
   await btn.click();
   await sleep(220);
 }
+// The file picker focuses its path box, then its name box, a few ms after opening: wait for that.
+async function pickerReady(s) {
+  await until(() => run(s, `!!document.querySelector('${FP}.fp-dialog')`), { label: 'file picker', timeout: 8000 });
+  await until(() => run(s, `!!document.activeElement?.matches('${FP} .fp-bottom input')`), { label: 'picker name box focused', timeout: 8000 });
+  await sleep(60);
+}
 async function focusEditor(s) {
   await NP(s, (np) => np.active.focus());
   await sleep(30);
@@ -545,32 +551,32 @@ async function mainRun() {
       check('new tab is Untitled and active', (await tabs(s)).find((x) => x.active).title, 'Untitled');
       await s.page.keyboard.type('Shopping list\nmilk\neggs');
       await s.page.keyboard.press('Control+s');
-      await until(() => run(s, `!!document.querySelector('${FP}.fp-dialog')`), { label: 'save dialog' });
+      await pickerReady(s);
       check('suggested name from first line', await run(s, `document.querySelector('${FP} .fp-bottom input').value`), 'Shopping list.txt');
       check('default folder Documents', await run(s, `document.querySelector('${FP} .fp-path').value`), docs);
       await shot(s, 'save-as-light-en', true);
       await s.page.fill(`${FP} .fp-bottom input`, 'groceries');
       await s.page.keyboard.press('Enter');
       const target = path.join(docs, 'groceries.txt');
-      await until(() => fs.existsSync(target), { label: 'saved file' });
+      await until(() => fs.existsSync(target) && fs.statSync(target).size > 0, { label: 'saved file', timeout: 10000 });
       await sleep(150);
       check('content', fs.readFileSync(target, 'utf8'), 'Shopping list\nmilk\neggs');
       check('tab renamed', (await tabs(s)).find((x) => x.active).title, 'groceries.txt');
       check('path set', (await tabs(s)).find((x) => x.active).path, target);
       // Save as again with an explicit name -> copy
       await s.page.keyboard.press('Control+Shift+s');
-      await until(() => run(s, `!!document.querySelector('${FP}.fp-dialog')`), { label: 'save as dialog' });
+      await pickerReady(s);
       check('save as proposes current name', await run(s, `document.querySelector('${FP} .fp-bottom input').value`), 'groceries.txt');
       await s.page.fill(`${FP} .fp-bottom input`, 'groceries-copy.md');
       await s.page.keyboard.press('Enter');
-      await until(() => fs.existsSync(path.join(docs, 'groceries-copy.md')), { label: 'copy saved' });
+      await until(() => fs.existsSync(path.join(docs, 'groceries-copy.md')), { label: 'copy saved', timeout: 10000 });
       await sleep(150);
       check('tab follows new name', (await tabs(s)).find((x) => x.active).title, 'groceries-copy.md');
       // Cancel save as keeps the tab dirty
       await s.page.keyboard.press('Control+n');
       await s.page.keyboard.type('x');
       await s.page.keyboard.press('Control+s');
-      await until(() => run(s, `!!document.querySelector('${FP}.fp-dialog')`), { label: 'save dialog 2' });
+      await pickerReady(s);
       await s.page.keyboard.press('Escape');
       await sleep(250);
       check('still dirty after cancel', (await tabs(s)).find((x) => x.active).dirty, true);
@@ -776,8 +782,9 @@ async function mainRun() {
       await until(() => run(s, `!document.querySelector('${WIN} .np-notice').hidden`), { label: 'deleted notice' });
       check('deleted notice', await run(s, `document.querySelector('${WIN} .np-notice').innerText`), (v) => v.includes('deleted or moved'));
       await s.page.locator(`${WIN} .np-notice .btn`, { hasText: 'Save' }).click();
-      await until(() => fs.existsSync(f), { label: 'resaved' });
+      await until(() => fs.existsSync(f) && fs.readFileSync(f, 'utf8') === 'version 3\n', { label: 'resaved' });
       check('saving recreates file', fs.readFileSync(f, 'utf8'), 'version 3\n');
+      check('notice gone after save', await run(s, `document.querySelector('${WIN} .np-notice').hidden`), true);
     });
 
     await section('big file guard: >16 MB asks, >64 MB refused', async () => {

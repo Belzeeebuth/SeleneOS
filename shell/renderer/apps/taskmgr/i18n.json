@@ -151,7 +151,17 @@
       "noLocation": "The file location of this process isn't available.",
       "noService": "“{name}” isn't part of a service.",
       "priorityAdmin": "Raising the priority of “{name}” needs administrator rights, which this version of Aurora can't grant for priorities. You can still lower it.",
-      "priorityOther": "Only an administrator can change the priority of “{name}”, which belongs to another user."
+      "priorityOther": "Only an administrator can change the priority of “{name}”, which belongs to another user.",
+      "code": {
+        "denied": "Access is denied.",
+        "invalid": "This operation isn't allowed for this item.",
+        "notFound": "The item couldn't be found. It may have been moved or removed.",
+        "noSystemd": "systemd isn't running on this computer.",
+        "timeout": "The operation took too long and was stopped.",
+        "readOnly": "The file system is read-only.",
+        "noSpace": "There isn't enough disk space.",
+        "unavailable": "This feature isn't available on this computer."
+      }
     },
     "uac": {
       "end": "End “{name}” (PID {pid}), which belongs to another user.",
@@ -202,7 +212,8 @@
       "ownProcesses": "Own processes: {pids}",
       "na": "Not available",
       "none": "None",
-      "denied": "Access denied"
+      "denied": "Access denied",
+      "nice": "nice {n}"
     },
     "run": {
       "title": "Create new task",
@@ -210,7 +221,9 @@
       "open": "Open:",
       "browse": "Browse…",
       "browseTitle": "Browse",
-      "notFound": "Aurora can't find “{cmd}”. Make sure you typed the name correctly, and then try again."
+      "notFound": "Aurora can't find “{cmd}”. Make sure you typed the name correctly, and then try again.",
+      "noExec": "Aurora can't run “{cmd}”. It isn't a program, or you don't have permission to run it.",
+      "recent": "Show recent tasks"
     },
     "perf": {
       "devices": "Devices",
@@ -295,7 +308,8 @@
       "driver": "Driver:",
       "changeGraph": "Change graph to",
       "overall": "Overall utilization",
-      "logicalGraph": "Logical processors"
+      "logicalGraph": "Logical processors",
+      "cpuN": "CPU {n}"
     },
     "disk": {
       "ssd": "SSD",
@@ -548,7 +562,17 @@
       "noLocation": "L'emplacement du fichier de ce processus n'est pas disponible.",
       "noService": "« {name} » ne fait partie d'aucun service.",
       "priorityAdmin": "Augmenter la priorité de « {name} » nécessite des droits d'administrateur, qu'Aurora ne peut pas encore accorder pour les priorités. Vous pouvez toujours la diminuer.",
-      "priorityOther": "Seul un administrateur peut modifier la priorité de « {name} », qui appartient à un autre utilisateur."
+      "priorityOther": "Seul un administrateur peut modifier la priorité de « {name} », qui appartient à un autre utilisateur.",
+      "code": {
+        "denied": "Accès refusé.",
+        "invalid": "Cette opération n'est pas autorisée pour cet élément.",
+        "notFound": "L'élément est introuvable. Il a peut-être été déplacé ou supprimé.",
+        "noSystemd": "systemd n'est pas actif sur cet ordinateur.",
+        "timeout": "L'opération a pris trop de temps et a été interrompue.",
+        "readOnly": "Le système de fichiers est en lecture seule.",
+        "noSpace": "L'espace disque est insuffisant.",
+        "unavailable": "Cette fonctionnalité n'est pas disponible sur cet ordinateur."
+      }
     },
     "uac": {
       "end": "Terminer « {name} » (PID {pid}), qui appartient à un autre utilisateur.",
@@ -599,7 +623,8 @@
       "ownProcesses": "Processus propres : {pids}",
       "na": "Non disponible",
       "none": "Aucun",
-      "denied": "Accès refusé"
+      "denied": "Accès refusé",
+      "nice": "valeur nice {n}"
     },
     "run": {
       "title": "Créer une tâche",
@@ -607,7 +632,9 @@
       "open": "Ouvrir :",
       "browse": "Parcourir…",
       "browseTitle": "Parcourir",
-      "notFound": "Aurora ne trouve pas « {cmd} ». Vérifiez que le nom est correct, puis réessayez."
+      "notFound": "Aurora ne trouve pas « {cmd} ». Vérifiez que le nom est correct, puis réessayez.",
+      "noExec": "Aurora ne peut pas exécuter « {cmd} ». Ce n'est pas un programme, ou vous n'avez pas l'autorisation de l'exécuter.",
+      "recent": "Afficher les tâches récentes"
     },
     "perf": {
       "devices": "Périphériques",
@@ -692,7 +719,8 @@
       "driver": "Pilote :",
       "changeGraph": "Changer le graphique en",
       "overall": "Utilisation globale",
-      "logicalGraph": "Processeurs logiques"
+      "logicalGraph": "Processeurs logiques",
+      "cpuN": "Processeur {n}"
     },
     "disk": {
       "ssd": "SSD",

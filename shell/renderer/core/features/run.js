@@ -61,6 +61,8 @@ const ALIASES = {
   snippingtool: 'snipping', 'snippingtool.exe': 'snipping', wmplayer: 'media', vlc: 'media', totem: 'media',
 };
 
+const WEB_URL = /^(https?|ftp):\/\/[^\s]+$/i;
+
 export function parseCommand(input) {
   const s = String(input || '').trim();
   const toks = [];
@@ -77,7 +79,28 @@ function expandHome(p) {
   return p;
 }
 
-// Best registry match for a typed name: exact id / alias / name, then prefix, then substring, then subsequence.
+// How well a typed name matches an app: exact id / name (100), prefix, substring, subsequence; matches on
+// the app's keywords count a little less than matches on its id or name (so "no" ranks Notepad first).
+export function scoreApp(q, a) {
+  const s = String(q || '').trim().toLowerCase();
+  if (!s || !a) return 0;
+  const names = [a.id, i18n.name(a.name), a.name?.en, a.name?.fr].filter(Boolean).map((x) => String(x).toLowerCase());
+  const keywords = [...(a.keywords?.[i18n.lang] || []), ...(a.keywords?.en || [])].filter(Boolean).map((x) => String(x).toLowerCase());
+  let score = 0;
+  for (const [list, penalty] of [[names, 0], [keywords, 10]]) {
+    for (const n of list) {
+      let v = 0;
+      if (n === s) v = 100;
+      else if (n.startsWith(s) && s.length >= 2) v = 80 - Math.min(20, n.length - s.length);
+      else if (n.includes(s) && s.length >= 3) v = 55;
+      else if (s.length >= 3 && isSubsequence(s, n)) v = 35;
+      if (v) score = Math.max(score, v - penalty);
+    }
+  }
+  return score;
+}
+
+// Best registry match for a typed name (classic aliases first, e.g. "calc", "explorer", "cmd").
 export function matchApp(q, apps = registry.list({ includeHidden: true })) {
   const s = String(q || '').trim().toLowerCase();
   if (!s) return null;
@@ -86,20 +109,13 @@ export function matchApp(q, apps = registry.list({ includeHidden: true })) {
   let best = null;
   let bestScore = 0;
   for (const a of apps) {
-    const names = [a.id, i18n.name(a.name), a.name?.en, a.name?.fr, ...(a.keywords?.[i18n.lang] || []), ...(a.keywords?.en || [])].filter(Boolean).map((x) => String(x).toLowerCase());
-    let score = 0;
-    for (const n of names) {
-      if (n === s) score = Math.max(score, 100);
-      else if (n.startsWith(s) && s.length >= 2) score = Math.max(score, 80 - Math.min(20, n.length - s.length));
-      else if (n.includes(s) && s.length >= 3) score = Math.max(score, 55);
-      else if (s.length >= 3 && isSubsequence(s, n)) score = Math.max(score, 35);
-    }
+    const score = scoreApp(s, a);
     if (score > bestScore) {
       bestScore = score;
       best = a.id;
     }
   }
-  return bestScore >= 35 ? best : null;
+  return bestScore >= 25 ? best : null;
 }
 
 function isSubsequence(a, b) {
@@ -112,7 +128,19 @@ function isSubsequence(a, b) {
 export async function resolveCommand(input, { stat = (p) => api.invoke('fs:stat', p) } = {}) {
   const s = String(input || '').trim();
   if (!s) return null;
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s) || /^(mailto|about):/i.test(s)) return { kind: 'url', url: s };
+  // Only web addresses go to the browser. file:// is opened like a path; any other scheme
+  // (javascript:, data:, app:, media:…) is refused rather than handed to a web page.
+  const fileUrl = /^file:\/\/(\/[^?#]*)$/i.exec(s);
+  if (fileUrl) {
+    let p = fileUrl[1];
+    try {
+      p = decodeURIComponent(p);
+    } catch {}
+    const st = await stat(p).catch(() => null);
+    return st ? { kind: 'path', path: p, dir: !!st.dir } : null;
+  }
+  if (WEB_URL.test(s) || /^mailto:[^\s]+$/i.test(s) || /^about:(blank|home|newtab)$/i.test(s)) return { kind: 'url', url: s };
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s) && !/^(ms-settings|aurora-settings|settings):/i.test(s) && !/^[a-z]:[\\/]/i.test(s)) return null;
   if (/^www\.[^\s]+\.[a-z]{2,}/i.test(s)) return { kind: 'url', url: `https://${s}` };
   const ms = /^(ms-settings|aurora-settings|settings):([\w-]*)$/i.exec(s);
   if (ms) return { kind: 'app', appId: 'settings', args: ms[2] ? { page: ms[2] } : {} };
@@ -129,7 +157,7 @@ export async function resolveCommand(input, { stat = (p) => api.invoke('fs:stat'
   const rest = toks.slice(1).join(' ');
   if (!rest) return { kind: 'app', appId, args: {} };
   const p = expandHome(rest);
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(rest)) return { kind: 'app', appId, args: { url: rest } };
+  if (WEB_URL.test(rest)) return { kind: 'app', appId, args: { url: rest } };
   const st = await stat(p).catch(() => null);
   if (st?.dir) return { kind: 'app', appId, args: { path: p, cwd: p } };
   if (st) return { kind: 'app', appId, args: { file: p } };
@@ -158,7 +186,16 @@ function saveHistory(cmd) {
 function suggestions(all) {
   const q = input.value.trim().toLowerCase();
   const hist = history.filter((x) => all || !q || x.toLowerCase().startsWith(q)).slice(0, 8);
-  const apps = !all && q.length >= 2 ? registry.list().filter((a) => matchApp(q, [a]) === a.id && !hist.includes(a.id)).slice(0, 5) : [];
+  const apps =
+    !all && q.length >= 2
+      ? registry
+          .list()
+          .map((a) => [a, ALIASES[q] === a.id ? 200 : scoreApp(q, a)])
+          .filter(([a, sc]) => sc >= 25 && !hist.includes(a.id))
+          .sort((x, y) => y[1] - x[1])
+          .slice(0, 5)
+          .map(([a]) => a)
+      : [];
   return { hist, apps };
 }
 
@@ -225,17 +262,25 @@ function updateOk() {
   if (okBtn) okBtn.disabled = !input.value.trim();
 }
 
+let running = false;
 async function execute() {
-  const cmd = input.value.trim();
-  if (!cmd) return;
+  const cmd = input?.value.trim();
+  if (!cmd || running) return; // Enter pressed twice while the command is being resolved runs it once
   closeDrop();
   let action = null;
+  running = true;
   try {
     action = await resolveCommand(cmd);
-  } catch {}
+  } catch {
+  } finally {
+    running = false;
+  }
   const fail = (msg) => ui.alert(msg, { title: t('run.title') }).then(() => input?.focus());
   if (!action) return fail(t('run.notFound', { cmd }));
-  if (action.kind === 'url') {
+  if (action.kind === 'url' && /^mailto:/i.test(action.url)) {
+    if (!registry.get('mail')) return fail(t('run.notFound', { cmd }));
+    shell.launch('mail', { mailto: action.url });
+  } else if (action.kind === 'url') {
     if (!registry.get('browser')) return fail(t('run.noBrowser'));
     shell.openUrl(action.url);
   } else if (action.kind === 'path') {
@@ -377,5 +422,5 @@ export function mount(ctx) {
       w.close(true).then(() => openRun());
     }
   });
-  ctx.run = { open: openRun, resolve: resolveCommand, matchApp, parse: parseCommand };
+  ctx.run = { open: openRun, resolve: resolveCommand, matchApp, scoreApp, parse: parseCommand };
 }

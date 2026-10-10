@@ -1,0 +1,16 @@
+{
+  "id": "media",
+  "name": { "en": "Media Player", "fr": "Lecteur multimédia" },
+  "description": { "en": "Play music and videos, manage your library and playlists", "fr": "Écoutez de la musique, regardez des vidéos et gérez votre bibliothèque et vos playlists" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1120, "height": 720, "minWidth": 500, "minHeight": 460, "background": "mica" },
+  "category": "media",
+  "keywords": {
+    "en": ["music", "video", "audio", "player", "media", "playlist", "mp3", "movie", "song", "groove"],
+    "fr": ["musique", "vidéo", "audio", "lecteur", "média", "playlist", "mp3", "film", "chanson"]
+  },
+  "singleInstance": true,
+  "fileTypes": [".mp3", ".wav", ".ogg", ".oga", ".opus", ".flac", ".m4a", ".aac", ".mp4", ".m4v", ".webm", ".ogv", ".mkv", ".mov"]
+}

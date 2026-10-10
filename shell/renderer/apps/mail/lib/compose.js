@@ -223,7 +223,7 @@ export class Composer {
     if (this.mode === 'draft' || this.mode === 'restore') {
       if (o.html) this.editor.replaceChildren(sanitizeForCompose(o.html, o.cids || {}));
       else this.editor.replaceChildren(sanitizeForCompose(plainToComposeHtml(o.body || '')));
-      this.textarea.value = o.body ?? htmlToText(this.editor.innerHTML);
+      this.textarea.value = o.body ?? htmlToText(this.editor.innerHTML, { trim: false });
       return;
     }
     const intro = o.body ? plainToComposeHtml(o.body) : '<div><br></div>';
@@ -298,11 +298,13 @@ export class Composer {
   }
 
   focus() {
-    setTimeout(() => {
+    const run = () => {
       if (!this.to.chips.length && this.mode !== 'draft') this.to.focus();
       else if (!this.subject.value) this.subject.focus();
       else this.focusBody();
-    }, 30);
+    };
+    if (this.el.isConnected) run();
+    else setTimeout(run, 30);
   }
 
   focusBody() {
@@ -445,15 +447,14 @@ export class Composer {
 
   setPlain(on, { convert = true } = {}) {
     if (convert && on !== this.plain) {
-      if (on) this.textarea.value = htmlToText(this.editor.innerHTML);
+      if (on) this.textarea.value = htmlToText(this.editor.innerHTML, { trim: false });
       else this.editor.replaceChildren(sanitizeForCompose(plainToComposeHtml(this.textarea.value)));
       this.markDirty();
     }
     this.plain = on;
     this.editor.hidden = on;
     this.textarea.hidden = !on;
-    this.formatBar.classList.toggle('disabled', on);
-    this.formatBar.querySelectorAll('button').forEach((b) => (b.disabled = on));
+    this.formatBar.hidden = on; // plain text has no formatting
   }
 
   async moreMenu(e) {

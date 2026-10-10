@@ -27,10 +27,13 @@ import { settings } from '../settings.js';
 import { h, icon, ui } from '../ui.js';
 import { i18n, t } from '../i18n.js';
 import { alttab } from './alttab.js';
+import { exit as exitTaskView, isOpen as taskViewOpen } from './taskview.js';
+import { isFlyoutOpen } from '../taskbar.js';
 
 i18n.extend({
   en: {
     cliphist: {
+      header: 'Clipboard',
       title: 'Clipboard history',
       clearAll: 'Clear all',
       offTitle: 'Clipboard history',
@@ -45,6 +48,7 @@ i18n.extend({
   },
   fr: {
     cliphist: {
+      header: 'Presse-papiers',
       title: 'Historique du Presse-papiers',
       clearAll: 'Tout effacer',
       offTitle: 'Historique du Presse-papiers',
@@ -134,6 +138,7 @@ const LEFT_SIDE = { left: 'right', tl: 'tr', bl: 'br' };
 const RIGHT_SIDE = { right: 'left', tr: 'tl', br: 'bl' };
 
 function snapKey(dir) {
+  exitTaskView(null, { instant: true }); // the window must be back in place before it moves
   const w = wm.focused();
   if (!w || w.minimized || w.fullscreen) return;
   const canSnap = w.opts.resizable && settings.get('multitasking.snap') !== false;
@@ -244,7 +249,8 @@ function brightness(delta) {
 function switchDesktopBy(delta) {
   const i = wm.desktopIndex(wm.currentDesktop) + delta;
   const d = wm.desktops[i];
-  if (d) wm.switchDesktop(d.id);
+  // In Task View the overview itself shows the switch (no slide of the scaled windows).
+  if (d) wm.switchDesktop(d.id, { animate: !taskViewOpen() });
   else shell.emit('desktop:bump', delta);
 }
 
@@ -257,6 +263,15 @@ function altF4() {
   const dlg = [...document.querySelectorAll('#overlays > .dialog-layer.global')].pop();
   if (dlg) {
     dlg.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    return;
+  }
+  // Like Windows, Alt+F4 first dismisses the shell surface that has the keyboard (Start, a flyout, Task View).
+  if (taskViewOpen()) {
+    exitTaskView(null);
+    return;
+  }
+  if (isFlyoutOpen?.() || clip.isOpen) {
+    closeTransient();
     return;
   }
   const w = wm.focused();
@@ -281,6 +296,7 @@ const ACTIONS = {
     for (const w of wm.listDesktop()) if (w.minimized) w.restoreFromMinimize();
   },
   'Super+Home': () => {
+    exitTaskView(null, { instant: true });
     const f = wm.focused();
     for (const w of wm.listDesktop()) if (w !== f) w.minimize();
   },
@@ -307,6 +323,7 @@ const ACTIONS = {
   'Super+X': () => shell.emit('winx:toggle'),
   'Super+V': () => clip.toggle(),
   'Super+Z': () => {
+    exitTaskView(null, { instant: true });
     const w = wm.focused();
     if (w) shell.emit('snaplayouts:open', w);
   },
@@ -314,14 +331,17 @@ const ACTIONS = {
   'Super+ArrowRight': () => snapKey('right'),
   'Super+ArrowUp': () => snapKey('up'),
   'Super+ArrowDown': () => snapKey('down'),
-  'Super+Shift+ArrowUp': () => wm.focused()?.maximizeVertically(),
+  'Super+Shift+ArrowUp': () => {
+    exitTaskView(null, { instant: true });
+    wm.focused()?.maximizeVertically();
+  },
   'Super+Ctrl+ArrowLeft': () => switchDesktopBy(-1),
   'Super+Ctrl+ArrowRight': () => switchDesktopBy(1),
   'Super+Ctrl+D': () => {
     const d = wm.createDesktop();
-    wm.switchDesktop(d.id);
+    wm.switchDesktop(d.id, { animate: !taskViewOpen() });
   },
-  'Super+Ctrl+F4': () => wm.removeDesktop(wm.currentDesktop),
+  'Super+Ctrl+F4': () => wm.removeDesktop(wm.currentDesktop, { animate: !taskViewOpen() }),
   'Super+Shift+S': () => launch('snipping', { mode: 'region', immediate: true }),
   PrintScreen: () => launch('snipping', { mode: 'region', immediate: true }),
   'Alt+Tab': () => alttab.open(1),
@@ -330,6 +350,7 @@ const ACTIONS = {
   'Alt:up': () => alttab.altUp(),
   'Alt+F4': altF4,
   'Alt+Space': () => {
+    exitTaskView(null, { instant: true });
     const w = wm.focused();
     if (w) shell.emit('sysmenu:open', w);
   },
@@ -452,7 +473,7 @@ const clip = (() => {
     }
     el.replaceChildren(
       h('div', { class: 'cliph-head' },
-        h('span', { class: 'body-strong' }, t('cliphist.title')),
+        h('span', { class: 'body-strong' }, t('cliphist.header')),
         enabled() && items.some((i) => !i.pinned) ? h('button', { class: 'btn subtle small', onclick: () => { items = items.filter((i) => i.pinned); render(); } }, t('cliphist.clearAll')) : null),
       body,
     );
@@ -526,12 +547,15 @@ const clip = (() => {
 })();
 
 let locked = false;
+// The lock screen (features/lock.js) marks <body> while it is up; `locked` covers the moment between
+// shell.emit('lock') and the lock screen appearing, and setups without a lock screen.
+const isLocked = () => locked || document.body.classList.contains('aurora-locked');
 
 function trigger(combo, { repeat = false } = {}) {
   const c = normalize(combo);
   if (repeat && !REPEATABLE.has(c)) return false;
   // While the lock screen or the Ctrl+Alt+Del screen is up only the hardware keys keep working.
-  if ((locked || document.querySelector('.sec-screen:not(.closing)')) && !/^(Audio|Brightness)/.test(c)) return false;
+  if ((isLocked() || document.querySelector('.sec-screen:not(.closing)')) && !/^(Audio|Brightness)/.test(c)) return false;
   const fn = ACTIONS[c];
   if (!fn) return false;
   try {
@@ -570,7 +594,7 @@ export function mount(ctx) {
     alttab.cancel();
     // If no lock screen actually came up (feature missing or failed), don't leave hotkeys disabled.
     setTimeout(() => {
-      if (locked && !document.querySelector('#overlays > *')) locked = false;
+      if (locked && !document.body.classList.contains('aurora-locked')) locked = false;
     }, 1500);
   });
   shell.on('unlock', () => (locked = false));

@@ -185,6 +185,7 @@ export function openFlyout(win, { keyboard = false, anchor } = {}) {
   }
   hideFlyout();
   shell.emit('flyouts:close');
+  if (keyboard) wm.endKeyboardMove?.();
   const grid = h('div', { class: 'snapl-grid' });
   const el = h(
     'div',
@@ -275,14 +276,14 @@ function renderAssist() {
   const zone = a.zones[0];
   const r = wm.zoneRect(zone);
   const pad = 16;
-  const W = r.width - 12 - pad * 2;
-  const H = r.height - 12 - pad * 2 - 28;
+  const W = r.width - 12 - pad * 2 - 4; // a little slack against sub-pixel rounding
+  const H = r.height - 12 - pad * 2 - 32; // minus the hint line and its gap
   const n = cands.length;
   let best = { tw: 0, cols: 1 };
   for (let cols = 1; cols <= n; cols++) {
     const rows = Math.ceil(n / cols);
     const cellW = (W - 12 * (cols - 1)) / cols;
-    const cellH = (H - 12 * (rows - 1)) / rows - 30;
+    const cellH = (H - 12 * (rows - 1)) / rows - 38; // card chrome: 2 x 6 px padding, 20 px title, 6 px gap
     const tw = Math.min(cellW - 12, cellH * 1.6, 300);
     if (tw > best.tw) best = { tw, cols };
   }
@@ -306,7 +307,10 @@ function renderAssist() {
       h('div', { class: 'snapa-cell', style: { height: `${th}px` } }, h('div', { class: 'snapa-thumb', style: { width: `${fw}px`, height: `${fh}px` } }, thumbs.node(w, fw, fh))),
     );
   });
-  const grid = h('div', { class: 'snapa-grid', style: { maxWidth: `${best.cols * (tw + 12) + (best.cols - 1) * 12}px` } }, cards);
+  // Explicit rows of best.cols cards (a wrapping flex box could break rows differently than computed).
+  const rows = [];
+  for (let i = 0; i < cards.length; i += best.cols) rows.push(h('div', { class: 'snapa-row' }, cards.slice(i, i + best.cols)));
+  const grid = h('div', { class: 'snapa-grid' }, rows);
   const fresh = !a.el;
   const el =
     a.el ||
@@ -497,7 +501,7 @@ export function mount(ctx) {
     setTimeout(() => (barLayout = null));
   });
   wm.on('snap', (win, zone, { source } = {}) => {
-    if (source === 'assist' || source === 'refit' || source === 'api' || source === 'border' || !opt('snapAssist')) return;
+    if (source === 'assist' || source === 'refit' || source === 'api' || source === 'border' || source === 'restore' || !opt('snapAssist')) return;
     let zones = null;
     if (source === 'layout' && pendingLayout?.includes(zone)) zones = pendingLayout.filter((z) => z !== zone);
     else if (source === 'drag' && barLayout?.includes(zone)) zones = barLayout.filter((z) => z !== zone);
@@ -517,6 +521,11 @@ export function mount(ctx) {
   });
   wm.on('focus', (w) => {
     if (assist && w && !assist.group.has(w) && !assist.cands?.includes(w)) endAssist(false);
+  });
+  // Switching virtual desktops takes the windows these surfaces belong to off screen.
+  wm.on('desktop', () => {
+    hideFlyout();
+    endAssist(false);
   });
   ctx.snap = {
     open: (win, o) => openFlyout(win || wm.focused(), o),

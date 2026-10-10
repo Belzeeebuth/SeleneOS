@@ -27,9 +27,13 @@
 //   win.snapTo(zone, { animate = true, source })  zones: left right tl tr bl br third-l third-c third-r
 //       two-thirds-l two-thirds-r quarter-l half-c quarter-r vmax (vertical maximize) max
 //   win.maximizeVertically()  win.isSnapped()  win.isOnCurrentDesktop()
+//   Snapped windows: toggleMaximize() (title bar double-click / maximize button) maximizes them, and restore()
+//   from that maximized state puts them back in their snap zone; restore() of a snapped window -> normal size.
+//   Closing the active window hands activation to the next window as soon as the close animation starts.
 //   win.focusContent()        -> moves keyboard focus into the window (last focused control, [autofocus], or the body)
 //   win.restoreFromMinimize({ animate = true })
-//   win.startKeyboardMove('move'|'size')   -> arrow keys move/resize, Enter commits, Esc cancels (Alt+Space menu)
+//   win.startKeyboardMove('move'|'size')   -> arrow keys move/resize, Enter commits, Esc cancels (Alt+Space menu);
+//       it also ends when another window is activated.   wm.endKeyboardMove(commit = true) ends any in progress
 //   win.desktop               -> id of the virtual desktop the window lives on
 //   wm.mru({ desktop, includeMinimized = true }) -> windows, most recently focused first (Alt+Tab order)
 //   wm.zoneRect(zone, win?)   -> {x, y, width, height} of a snap zone in the current work area
@@ -105,6 +109,17 @@ function zBase(win) {
   if (win.fullscreen) return 200000;
   if (win.alwaysOnTop) return 100000;
   return 0;
+}
+
+// Stacking counter. It only grows, so after very many activations it is compacted (order kept) to stay
+// far below the always-on-top / fullscreen bands and the shell overlays above windows.
+function nextZ() {
+  if (zTop >= 20000) {
+    const order = wm.list().sort((a, b) => Number(a.el.style.zIndex || 0) - zBase(a) - (Number(b.el.style.zIndex || 0) - zBase(b)));
+    zTop = 10;
+    for (const w of order) w.el.style.zIndex = String(zBase(w) + ++zTop);
+  }
+  return ++zTop;
 }
 
 class Win extends Emitter {
@@ -301,8 +316,10 @@ class Win extends Emitter {
     // the taskbar or Alt+Tab puts the keyboard back on the window's last focused control.
     const clickInBody = this._ptrTarget && this.body.contains(this._ptrTarget);
     wm._focused = this;
+    // A keyboard move/size (Alt+Space > Move) ends when another window is activated.
+    if (prev && prev !== this) prev._kbMove?.finish(true);
     this.flashing = false;
-    this.el.style.zIndex = String(zBase(this) + ++zTop);
+    this.el.style.zIndex = String(zBase(this) + nextZ());
     for (const w of wm.list()) w.el.classList.toggle('active', w === this);
     if (prev && prev !== this) prev.emit('blur');
     this.emit('focus');
@@ -347,10 +364,20 @@ class Win extends Emitter {
     this.btnMax.innerHTML = restore ? SVG_RESTORE : SVG_MAX;
     this.btnMax.setAttribute('aria-label', restore ? t('wm.restore') : t('wm.maximize'));
   }
+  // Caption button labels follow a live language switch.
+  _relabel() {
+    for (const [b, k] of [[this.btnMin, 'wm.minimize'], [this.btnClose, 'wm.close']]) {
+      b.setAttribute('aria-label', t(k));
+      b.dataset.tip = t(k);
+    }
+    this.btnMax.setAttribute('aria-label', this.state === 'maximized' ? t('wm.restore') : t('wm.maximize'));
+  }
 
   maximize() {
     if (!this.opts.maximizable || this.state === 'maximized') return;
     if (this.state === 'normal') this.restoreRect = this.rect();
+    // Maximizing a snapped window and restoring it puts it back in its snap zone (Windows behaviour).
+    this._snapBeforeMax = this.state === 'snapped' && this.snap !== 'vmax' ? this.snap : null;
     this.state = 'maximized';
     this.snap = null;
     this.el.classList.remove('snapped');
@@ -364,6 +391,14 @@ class Win extends Emitter {
   restore() {
     if (this.minimized) return this.restoreFromMinimize();
     if (this.state === 'normal') return;
+    const back = this.state === 'maximized' ? this._snapBeforeMax : null;
+    this._snapBeforeMax = null;
+    if (back && this.opts.resizable && wm.zoneRect(back, this)) {
+      this.el.classList.remove('maximized');
+      this.state = 'snapped'; // keeps restoreRect: the size the window had before it was snapped
+      this.emit('restore');
+      return this.snapTo(back, { source: 'restore' });
+    }
     this.state = 'normal';
     this.snap = null;
     this.el.classList.remove('maximized', 'snapped');
@@ -372,9 +407,11 @@ class Win extends Emitter {
     this.emit('restore');
     wm.emit('change', this);
   }
+  // Title bar double-click / maximize button: a snapped window shows "Maximize" and maximizes (like Windows);
+  // only a maximized window restores.
   toggleMaximize() {
-    if (this.state === 'normal') this.maximize();
-    else this.restore();
+    if (this.state === 'maximized') this.restore();
+    else this.maximize();
   }
   maximizeVertically() {
     if (!this.opts.resizable) return;
@@ -408,6 +445,7 @@ class Win extends Emitter {
 
   minimize() {
     if (this.minimized || !this.opts.minimizable) return;
+    this._kbMove?.finish(true);
     this.minimized = true;
     this._geomAnim?.cancel();
     const done = () => {
@@ -443,7 +481,7 @@ class Win extends Emitter {
       wm.focusTop(this);
     }
     // Stay above the window that just got focus while flying to the taskbar.
-    if (this._minAnim) this.el.style.zIndex = String(zBase(this) + ++zTop);
+    if (this._minAnim) this.el.style.zIndex = String(zBase(this) + nextZ());
     this.emit('minimize');
     wm.emit('change', this);
   }
@@ -475,7 +513,7 @@ class Win extends Emitter {
     if (want === this.el.classList.contains('fullscreen')) return;
     this.el.classList.toggle('fullscreen', want);
     this.fullscreen = want;
-    this.el.style.zIndex = String(zBase(this) + ++zTop);
+    this.el.style.zIndex = String(zBase(this) + nextZ());
     this.emit('fullscreen', want);
     this.emit('resize', this.rect());
     wm.emit('change', this);
@@ -499,6 +537,14 @@ class Win extends Emitter {
       wm._remove(this);
     };
     this.emit('close');
+    // Hand activation to the next window right away (not after the close animation): a second Alt+F4
+    // pressed during the animation closes that next window, like Windows.
+    if (wm._focused === this) {
+      wm._focused = null;
+      this.el.classList.remove('active');
+      this.emit('blur');
+      wm.focusTop(this);
+    }
     // No close animation when hidden, or when a feature (Task View) is driving the transform itself.
     if (reduceMotion() || this.minimized || !this.isOnCurrentDesktop() || this.el.style.transform) finish();
     else {
@@ -613,7 +659,7 @@ class Win extends Emitter {
           }
         } else if (this.state === 'normal') this.restoreRect = this.rect();
         wm.emit('change', this);
-        this.focusContent();
+        if (wm._focused === this) this.focusContent();
       },
     };
     wm.emit('change', this);
@@ -801,6 +847,11 @@ function isInteractive(el) {
   return !!el.closest?.('button, input, select, textarea, a, [contenteditable="true"], [data-no-drag], .win-controls, webview, iframe, .no-drag');
 }
 
+// Desktop names: plain strings, trimmed, at most 100 characters (null = default "Desktop N").
+function cleanName(name) {
+  return typeof name === 'string' || typeof name === 'number' ? String(name).trim().slice(0, 100) || null : null;
+}
+
 function clampRect(r, wa) {
   const width = Math.min(r.width, wa.width);
   const height = Math.min(r.height, wa.height);
@@ -869,6 +920,9 @@ class WindowManager extends Emitter {
     this.snapPreview = h('div', { class: 'snap-preview' });
     layer.appendChild(this.snapPreview);
     window.addEventListener('resize', () => this._refit());
+    i18n.on('change', () => {
+      for (const w of this.list()) w._relabel();
+    });
     // Focus moving into a <webview>/<iframe> never fires focusin in the shell document; the shell
     // window just blurs. Catch that and activate the window that owns the embedded content.
     window.addEventListener('blur', () =>
@@ -1033,6 +1087,10 @@ class WindowManager extends Emitter {
   minimizeAll() {
     for (const w of this.listDesktop()) w.minimize();
   }
+  // End any keyboard move/size in progress (a shell surface such as Alt+Tab or Task View takes the keyboard).
+  endKeyboardMove(commit = true) {
+    for (const w of this.list()) w._kbMove?.finish(commit);
+  }
   // Win+D: minimise everything, press again to bring the same windows back.
   toggleDesktop() {
     if (this._desktopShown) {
@@ -1072,7 +1130,7 @@ class WindowManager extends Emitter {
     return this.desktops[i].name || t('wm.desktopN', { n: i + 1 });
   }
   createDesktop(name = null) {
-    const d = { id: `d${++dseq}`, name: name || null };
+    const d = { id: `d${++dseq}`, name: cleanName(name) };
     this.desktops.push(d);
     this.emit('desktops', this.desktops);
     return d;
@@ -1080,7 +1138,7 @@ class WindowManager extends Emitter {
   renameDesktop(id, name) {
     const d = this.desktops.find((x) => x.id === id);
     if (!d) return;
-    d.name = String(name || '').trim() || null;
+    d.name = cleanName(name);
     this.emit('desktops', this.desktops);
   }
   removeDesktop(id, { animate = true } = {}) {

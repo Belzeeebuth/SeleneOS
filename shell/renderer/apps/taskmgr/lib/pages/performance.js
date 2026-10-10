@@ -30,6 +30,7 @@ export class PerformancePage {
     this.root = h('div', { class: 'tm-perf' }, this.list, this.detailEl);
     el.appendChild(this.root);
     this.list.addEventListener('keydown', (e) => {
+      if (e.defaultPrevented) return; // an open menu's keys
       const ids = this.devices.map((d) => d.id);
       const i = ids.indexOf(this.selected);
       let j = null;
@@ -42,6 +43,7 @@ export class PerformancePage {
       this.select(ids[j]);
     });
     this.root.addEventListener('keydown', (e) => {
+      if (e.defaultPrevented) return;
       if (e.ctrlKey && (e.key === 'c' || e.key === 'C') && !String(window.getSelection?.() || '')) {
         e.preventDefault();
         this.copy();
@@ -221,7 +223,7 @@ export class PerformancePage {
         grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
         d.cores = [];
         for (let i = 0; i < n; i++) {
-          const c = new Chart({ gridRows: 4, gridCols: 6, label: `CPU ${i}` });
+          const c = new Chart({ gridRows: 4, gridCols: 6, label: t('perf.cpuN', { n: i }) });
           charts.push(c);
           grid.appendChild(h('div', { class: 'tm-chart' }, c.canvas));
           d.cores.push(c);
@@ -230,13 +232,13 @@ export class PerformancePage {
           h(
             'div',
             { class: 'tm-chartbox main' },
-            h('div', { class: 'tm-chart-top caption text-2' }, h('span', null, t('perf.utilizationOver', { s: 60 })), h('span', null, '100%')),
+            h('div', { class: 'tm-chart-top caption text-2' }, h('span', null, t('perf.utilizationOver', { s: 60 })), h('span', null, this.app.fmt.pct(100))),
             grid,
             h('div', { class: 'tm-chart-foot caption text-2' }, h('span', null, t('perf.seconds')), h('span', null, '0')),
           ),
         );
       } else {
-        const c = chartBox(t('perf.utilization'), '100%', { box: 'main' });
+        const c = chartBox(t('perf.utilization'), this.app.fmt.pct(100), { box: 'main' });
         d.main = c.chart;
         body.appendChild(c.box);
       }
@@ -299,7 +301,7 @@ export class PerformancePage {
         ['reserved', t('perf.reserved')],
       ]);
     } else if (dev.kind === 'disk') {
-      const c1 = chartBox(t('perf.activeTime'), '100%', { box: 'main' });
+      const c1 = chartBox(t('perf.activeTime'), this.app.fmt.pct(100), { box: 'main' });
       const c2 = chartBox(t('perf.transferRate'), '', { box: 'second', rows: 4 });
       d.main = c1.chart;
       d.second = c2.chart;
@@ -345,7 +347,7 @@ export class PerformancePage {
         ['mac', t('perf.mac')],
       ]);
     } else if (dev.kind === 'gpu') {
-      const c = chartBox(t('perf.utilization'), '100%', { box: 'main' });
+      const c = chartBox(t('perf.utilization'), this.app.fmt.pct(100), { box: 'main' });
       d.main = c.chart;
       body.appendChild(c.box);
       addStats([
@@ -380,7 +382,10 @@ export class PerformancePage {
       let color = this.colors[dv.kind];
       let second = null;
       const set = (a, b, c) => {
-        if (tile.t1.textContent !== a) tile.t1.textContent = a;
+        if (tile.t1.textContent !== a) {
+          tile.t1.textContent = a;
+          tile.t1.dataset.tip = a; // long mount-point lists are cut off
+        }
         if (tile.t2.textContent !== b) tile.t2.textContent = b;
         if (tile.t3.textContent !== (c || '')) tile.t3.textContent = c || '';
       };

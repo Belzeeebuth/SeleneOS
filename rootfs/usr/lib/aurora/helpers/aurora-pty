@@ -117,14 +117,6 @@ def set_nonblock(fd):
     fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
 
-def set_block(fd):
-    try:
-        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-        fcntl.fcntl(fd, fcntl.F_SETFL, fl & ~os.O_NONBLOCK)
-    except OSError:
-        pass
-
-
 def fd_open(fd):
     try:
         os.fstat(fd)
@@ -293,14 +285,18 @@ class Relay:
         except (ValueError, AttributeError, OSError) as e:
             sys.stderr.write(f"aurora-pty: bad control command {line!r}: {e}\n")
 
-    def write_out(self, block=False):
+    def write_out(self, block=False, timeout=5.0):
+        deadline = time.monotonic() + timeout
         while self.outbuf and self.stdout_open:
             try:
                 n = os.write(1, self.outbuf[:CHUNK])
             except BlockingIOError:
                 if not block:
                     return
-                select.select([], [1], [], 1.0)
+                if time.monotonic() > deadline:   # the reader stopped reading: give up on the rest
+                    self.outbuf.clear()
+                    return
+                select.select([], [1], [], 0.2)
                 continue
             except OSError:            # EPIPE: nobody listens any more
                 self.stdout_open = False
@@ -446,8 +442,7 @@ class Relay:
             except ChildProcessError:
                 self.status = signal.SIGKILL
         if self.stdout_open:
-            set_block(1)
-            self.write_out(block=True)
+            self.write_out(block=True, timeout=1.0)
         return exit_code(self.status)
 
 

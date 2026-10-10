@@ -443,7 +443,10 @@ export class SearchView {
             class: ['sv-tab', this.cat === c && 'selected'],
             role: 'tab',
             'aria-selected': String(this.cat === c),
-            onclick: () => this.setCategory(c),
+            onclick: () => {
+              this.setCategory(c);
+              this.onCategory?.();
+            },
           },
           t(`search.${c}`),
         ),
@@ -607,7 +610,7 @@ export class SearchView {
             'button',
             { class: 'sv-topapp', onclick: () => this.launchApp(id), oncontextmenu: (e) => this.contextMenu(e, { kind: 'app', id }) },
             h('img', { src: registry.iconUrl(id), alt: '', draggable: false }),
-            h('span', { class: 'ellipsis' }, registry.name(id)),
+            h('span', null, registry.name(id)),
           ),
         ),
       ),
@@ -712,7 +715,7 @@ export class SearchView {
           run: () => {
             recent.addSearch(this.q);
             done();
-            shell.launch('files', { path: parentDir(item.entry.path), select: item.entry.name });
+            shell.launch('files', { path: parentDir(item.entry.path), select: item.entry.path });
           },
         },
         { icon: 'copy', label: t('start.copyPath'), run: () => api.invoke('clipboard:writeText', item.entry.path).catch(() => {}) },
@@ -937,7 +940,7 @@ function recItem(e) {
       oncontextmenu: (ev) =>
         ui.menu(ev, [
           { label: t('start.open'), icon: 'open', action: () => (fly.close('launch'), shell.openFile(e.path)) },
-          { label: t('start.openFileLocation'), icon: 'folder_open', action: () => (fly.close('launch'), shell.launch('files', { path: parentDir(e.path), select: e.name })) },
+          { label: t('start.openFileLocation'), icon: 'folder_open', action: () => (fly.close('launch'), shell.launch('files', { path: parentDir(e.path), select: e.path })) },
           { label: t('start.copyPath'), icon: 'copy', action: () => api.invoke('clipboard:writeText', e.path).catch(() => {}) },
         ]),
     },
@@ -1082,6 +1085,8 @@ function setView(next, { animate = true } = {}) {
   const prev = view;
   view = next;
   const old = bodyEl.firstElementChild;
+  // Keyboard focus inside the outgoing view (e.g. Enter on "All apps") moves into the new view.
+  const moveFocus = !!old && old.contains(document.activeElement) && next !== 'search';
   let el;
   if (next === 'all') el = viewAll();
   else if (next === 'recommended') el = viewRecommended();
@@ -1103,6 +1108,10 @@ function setView(next, { animate = true } = {}) {
     bodyEl.appendChild(el);
   }
   if (next === 'all') setTimeout(() => el.querySelector('.start-row')?.scrollIntoView?.({ block: 'nearest' }), 0);
+  if (moveFocus) {
+    const target = next === 'pinned' ? el.querySelector('.start-head-btn') : el.querySelector('.start-all [tabindex="0"], .start-recs [tabindex="0"]') || el.querySelector('.start-head-btn');
+    target?.focus({ preventScroll: true });
+  }
 }
 
 function onInput() {

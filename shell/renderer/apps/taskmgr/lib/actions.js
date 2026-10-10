@@ -1,9 +1,15 @@
 // Actions shared by the pages: ending processes (with elevation and "not responding" follow-up),
 // efficiency mode / priority, Properties, Open file location, Search online, Run new task.
 import { registry } from '../../../core/registry.js';
-import { priorityOf, PRIORITIES, CRITICAL, processIcon } from './util.js';
+import { priorityOf, PRIORITIES, CRITICAL, processIcon, errText } from './util.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Does the admin helper offer "renice"? Probed once per shell session (not at every launch). The
+// probe can never reach sudo: its argument can't pass any validation, so the backend answers
+// "Action not allowed" (no such action) or "invalid argument" (the action exists).
+let reniceProbe = null;
+let reniceSupport = null;
 
 export function createActions(app) {
   const { ctx } = app;
@@ -11,8 +17,10 @@ export function createActions(app) {
   const t = (k, v) => ctx.t(k, v);
 
   async function alertErr(message, title) {
+    if (app.closed) return; // the window is gone: nowhere to show it
     await ui.alert(message, { title: title || t('err.title'), parent: win });
   }
+  const msgOf = (err) => errText(t, err);
 
   // Run a privileged helper action through the UAC prompt. false when cancelled or failed.
   async function elevate(action, args, reason) {
@@ -21,7 +29,7 @@ export function createActions(app) {
       return true;
     } catch (err) {
       if (err?.code === 'ECANCELED') return false;
-      await alertErr(t('err.admin', { msg: err?.message || String(err) }));
+      await alertErr(t('err.admin', { msg: msgOf(err) }));
       return false;
     }
   }
@@ -29,18 +37,15 @@ export function createActions(app) {
   // aurora-admin takes signal names without the SIG prefix (TERM, KILL, STOP, CONT…).
   const helperSig = (sig) => String(sig).replace(/^SIG/, '');
 
-  // Does the admin helper offer "renice"? Probed without a password: unknown actions are rejected
-  // by the argument validation before any authentication or prompt.
-  let reniceSupport = null;
-  async function canElevateRenice() {
-    if (reniceSupport != null) return reniceSupport;
-    try {
-      await api.invoke('admin:run', '', 'renice', []);
-      reniceSupport = true;
-    } catch (err) {
-      reniceSupport = !(err?.code === 'ENOHANDLER' || /not allowed/i.test(err?.message || ''));
+  function canElevateRenice() {
+    if (!reniceProbe) {
+      reniceProbe = api.invoke('admin:run', '', 'renice', ['\n']).then(
+        () => true,
+        (err) => !(err?.code === 'ENOHANDLER' || /not allowed/i.test(err?.message || '')),
+      );
+      reniceProbe.then((v) => (reniceSupport = v));
     }
-    return reniceSupport;
+    return reniceProbe;
   }
   canElevateRenice();
   const isRoot = () => ctx.env.uid === 0;
@@ -69,13 +74,23 @@ export function createActions(app) {
       const ok = await elevate('kill-process', [pid, helperSig(sig)], t('uac.end', { name, pid }));
       if (!ok) break;
     }
-    if (firstErr) await alertErr(t('err.end', { name, msg: firstErr.message }));
+    if (firstErr) await alertErr(t('err.end', { name, msg: msgOf(firstErr) }));
   }
 
   // End processes gracefully (SIGTERM); if they are still there after a moment, offer to end them now.
-  async function endProcesses(pids, { name, critical = false, confirm = false } = {}) {
-    pids = [...new Set(pids)].filter((p) => p > 1);
+  // PIDs already being ended (End task clicked twice, Delete held down…) are left alone.
+  const ending = new Set();
+  async function endProcesses(pids, opts = {}) {
+    pids = [...new Set(pids)].filter((p) => p > 1 && !ending.has(p));
     if (!pids.length) return;
+    for (const p of pids) ending.add(p);
+    try {
+      await endNow(pids, opts);
+    } finally {
+      for (const p of pids) ending.delete(p);
+    }
+  }
+  async function endNow(pids, { name, critical = false, confirm = false } = {}) {
     if (critical) {
       const ok = await ui.confirm(t('confirm.criticalBody', { name }), { title: t('confirm.criticalTitle', { name }), okLabel: t('confirm.endProcess'), danger: true, parent: win });
       if (!ok) return;
@@ -90,7 +105,7 @@ export function createActions(app) {
       await sleep(300);
       left = await alive(left);
     }
-    if (left.length) {
+    if (left.length && !app.closed) {
       const v = await ui.dialog({
         title: t('notResponding.title', { name }),
         body: t('notResponding.body'),
@@ -105,9 +120,11 @@ export function createActions(app) {
     app.store.refresh();
   }
 
-  async function endTree(pid, name) {
-    const ok = await ui.confirm(t('confirm.treeBody'), { title: t('confirm.treeTitle', { name }), okLabel: t('confirm.endTree'), danger: true, parent: win });
+  async function endTree(pid, name, { critical = false } = {}) {
+    if (ending.has(pid)) return;
+    const ok = await ui.confirm(critical ? `${t('confirm.treeBody')}\n\n${t('confirm.criticalBody')}` : t('confirm.treeBody'), { title: t('confirm.treeTitle', { name }), okLabel: t('confirm.endTree'), danger: true, parent: win });
     if (!ok) return;
+    ending.add(pid);
     try {
       const res = await api.invoke('proc:killTree', pid, 'SIGTERM');
       for (const f of res.failed || []) {
@@ -117,7 +134,9 @@ export function createActions(app) {
       }
     } catch (err) {
       if (err.code === 'EPERM') await elevate('kill-process', [pid, 'TERM'], t('uac.end', { name, pid }));
-      else if (err.code !== 'ESRCH') await alertErr(t('err.end', { name, msg: err.message }));
+      else if (err.code !== 'ESRCH') await alertErr(t('err.end', { name, msg: msgOf(err) }));
+    } finally {
+      ending.delete(pid);
     }
     app.store.refresh();
   }
@@ -136,7 +155,7 @@ export function createActions(app) {
           await alertErr(t(nice >= 19 ? 'err.priorityOther' : 'err.priorityAdmin', { name }));
           return false;
         }
-        await alertErr(t('err.priority', { name, msg: err.message }));
+        await alertErr(t('err.priority', { name, msg: msgOf(err) }));
         return false;
       }
     }
@@ -174,7 +193,7 @@ export function createActions(app) {
       const dir = info.exe.replace(/\/[^/]*$/, '') || '/';
       await shell.launch('files', { path: dir, select: info.exe });
     } catch (err) {
-      await alertErr(err.code === 'ESRCH' ? t('err.gone') : err.message || t('err.noLocation'));
+      await alertErr(err.code ? msgOf(err) : err.message || t('err.noLocation'));
     }
   }
 
@@ -202,7 +221,7 @@ export function createActions(app) {
     try {
       info = await api.invoke('proc:info', pid);
     } catch (err) {
-      return alertErr(err.code === 'ESRCH' ? t('err.gone') : err.message);
+      return alertErr(msgOf(err));
     }
     const f = app.fmt;
     const st = { R: 'running', S: 'running', D: 'running', I: 'running', T: 'suspended', t: 'suspended', Z: 'zombie', X: 'zombie' }[info.state] || 'running';
@@ -220,7 +239,7 @@ export function createActions(app) {
         [t('props.started'), f.date(info.startTime)],
         [t('col.cpuTime'), f.duration(info.cpuTime)],
         [t('col.threads'), f.int(info.threads)],
-        [t('col.priority'), `${t(`prio.${priorityOf(info.nice)}`)} (nice ${info.nice})`],
+        [t('col.priority'), `${t(`prio.${priorityOf(info.nice)}`)} (${t('props.nice', { n: info.nice })})`],
         [t('props.memory'), f.size(info.mem)],
         [t('props.peak'), info.peak != null ? f.size(info.peak) : null],
         [t('props.files'), info.fds != null ? f.int(info.fds) : t('props.denied')],
@@ -265,6 +284,9 @@ export function createActions(app) {
   // ------------------------------------------------------------------ Run new task
   const ALIASES = { calc: 'calculator', explorer: 'files', 'explorer.exe': 'files', taskmgr: 'taskmgr', 'taskmgr.exe': 'taskmgr', mspaint: 'paint', notepad: 'notepad', cmd: 'terminal', control: 'settings', winver: 'winver', msedge: 'browser' };
 
+  // Quote a path for proc:spawn's command-line splitting.
+  const quote = (p) => `"${p.replace(/(["\\])/g, '\\$1')}"`;
+
   async function execute(cmd) {
     const s = cmd.trim();
     const lower = s.toLowerCase();
@@ -279,10 +301,24 @@ export function createActions(app) {
       shell.openUrl(/^www\./i.test(s) ? `https://${s}` : s);
       return;
     }
-    if (/^(~|\/)/.test(s) && !/\s/.test(s)) {
-      const p = s.startsWith('~') ? ctx.env.home + s.slice(1) : s;
-      if (await api.invoke('fs:exists', p)) {
+    // A path, bare or quoted (Browse… quotes paths with spaces): folders open in File Explorer,
+    // documents in their app, anything else is run as a program.
+    const quoted = /^"([^"]+)"$/.exec(s) || /^'([^']+)'$/.exec(s);
+    const target = quoted ? quoted[1] : /\s/.test(s) ? null : s;
+    if (target && /^(~|\/)/.test(target)) {
+      const p = target === '~' || target.startsWith('~/') ? ctx.env.home + target.slice(1) : target;
+      const st = await api.invoke('fs:stat', p).catch(() => null);
+      if (st?.dir) {
+        await shell.launch('files', { path: p });
+        return;
+      }
+      if (st && registry.handlerFor(p)) {
         await shell.openFile(p);
+        return;
+      }
+      if (st) {
+        await api.invoke('proc:spawn', quote(p));
+        app.store.refresh();
         return;
       }
     }
@@ -291,18 +327,46 @@ export function createActions(app) {
   }
 
   async function runNewTask(initial = '') {
+    if (app.closed) return;
     let history = [];
     try {
-      history = (await ctx.storage.get('run-history', [])) || [];
+      const saved = await ctx.storage.get('run-history', []);
+      if (Array.isArray(saved)) history = saved.filter((x) => typeof x === 'string' && x.trim()).slice(0, 20);
     } catch {}
     const listId = `tm-run-list-${Date.now()}`;
-    const input = h('input', { class: 'input grow', value: initial || history[0] || '', list: listId, spellcheck: false, 'aria-label': t('run.open') });
+    const input = h('input', { class: 'input tm-run-input', value: initial || history[0] || '', list: listId, spellcheck: false, autocomplete: 'off', 'aria-label': t('run.open') });
     const datalist = h(
       'datalist',
       { id: listId },
       history.map((x) => h('option', { value: x })),
       registry.list().map((m) => h('option', { value: m.id, label: registry.name(m.id) })),
     );
+    // Like the Run box: a drop-down of the recently run commands.
+    const recent = h(
+      'button',
+      { class: 'btn subtle icon-btn tm-run-recent', type: 'button', tabindex: '-1', disabled: !history.length, 'aria-label': t('run.recent'), 'data-tip': t('run.recent'), 'aria-haspopup': 'menu' },
+      icon('chevron_down', { size: 12 }),
+    );
+    const showRecent = () => {
+      if (!history.length) return;
+      ui.menu(
+        input,
+        history.map((x) => ({
+          label: x,
+          action: () => {
+            input.value = x;
+            input.focus();
+          },
+        })),
+      );
+    };
+    recent.addEventListener('click', showRecent);
+    input.addEventListener('keydown', (e) => {
+      if (e.altKey && e.key === 'ArrowDown') {
+        e.preventDefault();
+        showRecent();
+      }
+    });
     const browse = h('button', { class: 'btn', type: 'button' }, t('run.browse'));
     browse.addEventListener('click', async () => {
       const p = await ui.filePicker({ mode: 'open', parent: win, title: t('run.browseTitle') });
@@ -315,7 +379,7 @@ export function createActions(app) {
       'div',
       { class: 'tm-run' },
       h('div', { class: 'tm-run-intro' }, h('img', { src: ctx.appUrl('icon.svg'), width: 32, height: 32, alt: '' }), h('p', { class: 'tm-dlg-text' }, t('run.intro'))),
-      h('label', { class: 'tm-run-row' }, h('span', { class: 'tm-run-lab' }, t('run.open')), input, browse),
+      h('label', { class: 'tm-run-row' }, h('span', { class: 'tm-run-lab' }, t('run.open')), h('div', { class: 'tm-run-combo' }, input, recent), browse),
       datalist,
     );
     const v = await ui.dialog({
@@ -339,7 +403,11 @@ export function createActions(app) {
       const next = [cmd, ...history.filter((x) => x !== cmd)].slice(0, 20);
       ctx.storage.set('run-history', next).catch(() => {});
     } catch (err) {
-      await alertErr(err.code === 'ENOENT' ? t('run.notFound', { cmd: cmd.split(/\s+/)[0] }) : err.message, t('run.title'));
+      const quoted = /^"([^"]+)"$/.exec(cmd) || /^'([^']+)'$/.exec(cmd);
+      const name = quoted ? quoted[1] : cmd.split(/\s+/)[0];
+      const msg = err.code === 'ENOENT' ? t('run.notFound', { cmd: name }) : err.code === 'EACCES' ? t('run.noExec', { cmd: name }) : msgOf(err);
+      if (app.closed) return;
+      await alertErr(msg, t('run.title'));
       return runNewTask(cmd);
     }
   }

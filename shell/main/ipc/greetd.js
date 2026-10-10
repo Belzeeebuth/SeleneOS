@@ -11,6 +11,8 @@
 //                                      for the _greetd user, see /etc/polkit-1/rules.d/50-aurora.rules)
 //   greeter:keyboard                -> { layout, variant, id, layouts: [{ id, layout, variant }] }
 //   greeter:setKeyboard (id)        -> sets the greeter's X keyboard layout (setxkbmap; allow-listed ids)
+//   greeter:a11y                    -> { largeText, animations } (remembered; applies the zoom factor)
+//   greeter:setA11y ({ largeText?, animations? }) -> the same, after saving the change
 // Shell mode:
 //   session:welcome                 -> true once per login session (marker in $XDG_RUNTIME_DIR; dev: only with
 //                                      AURORA_WELCOME=1, { show, hold } with AURORA_WELCOME_HOLD=<ms>): the shell shows
@@ -574,7 +576,9 @@ function registerGreeter(api) {
         live: !!u.live,
       }));
     }
-    users.sort((a, b) => (b.live ? 1 : 0) - (a.live ? 1 : 0) || a.fullName.localeCompare(b.fullName));
+    // Live user first, then by name ("User 2" before "User 10").
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+    users.sort((a, b) => (b.live ? 1 : 0) - (a.live ? 1 : 0) || collator.compare(a.fullName, b.fullName) || collator.compare(a.name, b.name));
     return users.map((u) => ({ ...u, last: u.name === last }));
   });
 
@@ -626,6 +630,33 @@ function registerGreeter(api) {
     const r = await run('systemctl', ['--no-ask-password', verb], { timeout: 20000 });
     if (r.code !== 0) throw api.error((r.stderr || r.stdout).trim() || `systemctl ${verb} failed`, 'EPOWER');
     return true;
+  });
+
+  // Accessibility options of the sign-in screen (tray menu), remembered like the last user. Larger text is the
+  // window's zoom factor: Chromium also remembers a per-origin zoom in the profile, so the factor is always set
+  // explicitly from the saved choice (the menu's check mark then matches what is on screen).
+  const ZOOM_LARGE = 1.25;
+  const a11yPrefs = () => ({ largeText: false, animations: true, ...(state.get().a11y || {}) });
+  const applyZoom = (large) => {
+    try {
+      const w = api.getMainWindow();
+      if (w && !w.isDestroyed()) w.webContents.setZoomFactor(large ? ZOOM_LARGE : 1);
+    } catch {}
+  };
+  api.handle('greeter:a11y', () => {
+    const a = a11yPrefs();
+    applyZoom(a.largeText);
+    return a;
+  });
+  api.handle('greeter:setA11y', (patch) => {
+    const a = a11yPrefs();
+    if (patch && typeof patch === 'object') {
+      if (typeof patch.largeText === 'boolean') a.largeText = patch.largeText;
+      if (typeof patch.animations === 'boolean') a.animations = patch.animations;
+    }
+    applyZoom(a.largeText);
+    state.set({ a11y: { largeText: a.largeText, animations: a.animations } });
+    return a;
   });
 
   // Re-apply the layout chosen last time (the greeter's X server starts with the system default).

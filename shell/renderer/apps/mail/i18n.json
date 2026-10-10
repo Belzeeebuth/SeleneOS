@@ -60,7 +60,6 @@
   "list.inboxZeroHint": "There's nothing in your inbox.",
   "list.emptyFolder": "This folder is empty",
   "list.noSubject": "(No subject)",
-  "list.noPreview": "This message has no text.",
   "list.noRecipients": "(No recipients)",
   "list.draft": "Draft",
   "list.loadMore": "Load more",
@@ -99,6 +98,7 @@
   "reader.lightBackground": "Show with a light background",
   "reader.saveEml": "Save as file (.eml)",
   "reader.viewSource": "View message source",
+  "reader.newWindow": "Open in new window",
   "reader.emlFile": "E-mail message",
   "reader.bodyLabel": "Message body",
   "act.reply": "Reply",
@@ -316,8 +316,7 @@
   "snack.showFolder": "Show in folder",
   "status.offline": "You're offline or the server can't be reached. Mail will keep trying.",
   "status.authFailed": "The server refused your password. Update it in the account settings.",
-  "notify.many": "{count} new messages",
-  "notify.open": "Open"
+  "notify.many": "{count} new messages"
  },
  "fr": {
   "appName": "Courrier",
@@ -380,7 +379,6 @@
   "list.inboxZeroHint": "Votre boîte de réception est vide.",
   "list.emptyFolder": "Ce dossier est vide",
   "list.noSubject": "(Sans objet)",
-  "list.noPreview": "Ce message n'a pas de texte.",
   "list.noRecipients": "(Aucun destinataire)",
   "list.draft": "Brouillon",
   "list.loadMore": "Charger plus",
@@ -419,6 +417,7 @@
   "reader.lightBackground": "Afficher sur fond clair",
   "reader.saveEml": "Enregistrer comme fichier (.eml)",
   "reader.viewSource": "Afficher la source du message",
+  "reader.newWindow": "Ouvrir dans une nouvelle fenêtre",
   "reader.emlFile": "Message électronique",
   "reader.bodyLabel": "Corps du message",
   "act.reply": "Répondre",
@@ -636,7 +635,6 @@
   "snack.showFolder": "Afficher dans le dossier",
   "status.offline": "Vous êtes hors connexion ou le serveur est injoignable. Courrier va réessayer.",
   "status.authFailed": "Le serveur a refusé votre mot de passe. Mettez-le à jour dans les paramètres du compte.",
-  "notify.many": "{count} nouveaux messages",
-  "notify.open": "Ouvrir"
+  "notify.many": "{count} nouveaux messages"
  }
 }

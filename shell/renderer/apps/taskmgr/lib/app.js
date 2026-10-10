@@ -4,7 +4,7 @@
 //     commands() -> [{ id, icon, label, action, disabled, pressed, menu }], onSearch(q), focus(), relabel() }
 import { wm } from '../../../core/wm.js';
 import { Store } from './store.js';
-import { createFormat, debounce, alignMenu } from './util.js';
+import { createFormat, debounce, alignMenu, errText } from './util.js';
 import { createActions } from './actions.js';
 import { ProcessesPage } from './pages/processes.js';
 import { PerformancePage } from './pages/performance.js';
@@ -38,6 +38,33 @@ const DEFAULT_PREFS = {
   sort: {},
 };
 
+// Saved preferences are user-editable JSON: keep only well-formed values (a bad column width would
+// otherwise break the grid layout, an unknown speed would stop polling…).
+const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
+export function sanitizePrefs(saved) {
+  const p = { ...DEFAULT_PREFS };
+  if (!plain(saved)) return p;
+  const oneOf = (v, list, d) => (list.includes(v) ? v : d);
+  for (const [k, d] of Object.entries(DEFAULT_PREFS)) if (typeof d === 'boolean' && typeof saved[k] === 'boolean') p[k] = saved[k];
+  p.startPage = oneOf(saved.startPage, [...PAGE_ORDER, 'settings'], DEFAULT_PREFS.startPage);
+  p.speed = oneOf(saved.speed, ['high', 'normal', 'low', 'paused'], DEFAULT_PREFS.speed);
+  p.cpuGraph = oneOf(saved.cpuGraph, ['overall', 'logical'], DEFAULT_PREFS.cpuGraph);
+  const pages = Object.keys;
+  p.columns = {};
+  if (plain(saved.columns)) for (const pg of pages(saved.columns)) if (Array.isArray(saved.columns[pg])) p.columns[pg] = saved.columns[pg].filter((c) => typeof c === 'string');
+  p.widths = {};
+  if (plain(saved.widths)) {
+    for (const pg of pages(saved.widths)) {
+      if (!plain(saved.widths[pg])) continue;
+      p.widths[pg] = {};
+      for (const [c, w] of Object.entries(saved.widths[pg])) if (Number.isFinite(w) && w >= 24 && w <= 4000) p.widths[pg][c] = Math.round(w);
+    }
+  }
+  p.sort = {};
+  if (plain(saved.sort)) for (const pg of pages(saved.sort)) if (plain(saved.sort[pg]) && typeof saved.sort[pg].id === 'string') p.sort[pg] = { id: saved.sort[pg].id, dir: saved.sort[pg].dir < 0 ? -1 : 1 };
+  return p;
+}
+
 export class TaskManager {
   constructor(ctx) {
     this.ctx = ctx;
@@ -55,8 +82,7 @@ export class TaskManager {
   async init() {
     const { h, icon, win, t } = this.ctx;
     try {
-      const saved = await this.ctx.storage.get('prefs', null);
-      if (saved && typeof saved === 'object') this.prefs = { ...DEFAULT_PREFS, ...saved };
+      this.prefs = sanitizePrefs(await this.ctx.storage.get('prefs', null));
     } catch {}
     this.savePrefs = debounce(() => this.ctx.storage.set('prefs', this.prefs).catch(() => {}), 400);
     this.actions = createActions(this);
@@ -143,7 +169,7 @@ export class TaskManager {
     this.store.setSpeed(this.prefs.speed);
     this.store.on('tick', () => this._tick());
     this.store.on('error', (err) => {
-      this.errorText.textContent = t('err.data', { msg: err?.message || String(err) });
+      this.errorText.textContent = this.t('err.data', { msg: errText(this.t, err) });
       this.errorBar.hidden = false;
     });
     this._ro = new ResizeObserver(() => this._layout());
@@ -156,6 +182,9 @@ export class TaskManager {
     this.offs.push(wm.on('close', () => this.current?.onWindows?.()));
     this.ctx.onLangChange(() => this.relabel());
     this.root.addEventListener('keydown', (e) => this._keys(e));
+    // Tab / Shift+Tab cycle inside this window (and inside an open dialog): focus must never move
+    // into another window's DOM, which would also activate that window.
+    win.el.addEventListener('keydown', (e) => this._wrapTab(e));
     this.applyAlwaysOnTop();
     this.applyNav();
 
@@ -292,6 +321,7 @@ export class TaskManager {
     this._fitCommands();
   }
   _navKeys(e) {
+    if (e.defaultPrevented) return;
     const items = [...this.navItems.values()];
     const i = items.indexOf(document.activeElement);
     if (i < 0) return;
@@ -306,6 +336,7 @@ export class TaskManager {
   }
 
   _keys(e) {
+    if (e.defaultPrevented) return; // handled by an open menu
     const k = e.key;
     if ((e.ctrlKey && (k === 'f' || k === 'F' || k === 'e' || k === 'E')) || (k === '/' && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName))) {
       e.preventDefault();
@@ -324,6 +355,27 @@ export class TaskManager {
       e.preventDefault();
       this.store.refresh();
       this.current?.refresh?.();
+    }
+  }
+
+  _wrapTab(e) {
+    if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return;
+    const layers = [...this.win.el.querySelectorAll(':scope > .dialog-layer:not(.closing)')];
+    const scope = layers[layers.length - 1] || this.win.el;
+    const list = [...scope.querySelectorAll('a[href], button, input, select, textarea, [tabindex]')].filter(
+      (el) => el.tabIndex >= 0 && !el.disabled && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && (scope !== this.win.el || !el.closest('.dialog-layer')),
+    );
+    if (!list.length) return;
+    const a = document.activeElement;
+    const outside = !scope.contains(a);
+    // Focus on something outside the list (e.g. a scrollable box Chromium made focusable): is any
+    // tab stop left in that direction?
+    const FOLLOWING = Node.DOCUMENT_POSITION_FOLLOWING;
+    const after = list.filter((el) => el !== a && a.compareDocumentPosition(el) & FOLLOWING);
+    const atEnd = e.shiftKey ? after.length === list.length - (list.includes(a) ? 1 : 0) : after.length === 0;
+    if (outside || atEnd) {
+      e.preventDefault();
+      (e.shiftKey ? list[list.length - 1] : list[0]).focus();
     }
   }
 
@@ -388,7 +440,8 @@ export class TaskManager {
   }
 
   destroy() {
-    this.store.stop();
+    this.closed = true;
+    this.store.dispose();
     this._ro?.disconnect();
     for (const off of this.offs) off();
     for (const p of Object.values(this.pages)) p.destroy?.();

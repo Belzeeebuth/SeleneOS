@@ -1,0 +1,43 @@
+Aurora OS — automated installation (live medium only)
+=====================================================
+
+Booting the live ISO with  aurora.autoinstall=1  on the kernel command line installs Aurora OS
+without any interaction: aurora-autoinstall.service runs /usr/lib/aurora/autoinstall/aurora-autoinstall,
+which runs the same root helper as the graphical installer (/usr/lib/aurora/helpers/aurora-install),
+then powers the machine off. Meant for virtual machines and labs: THE TARGET DISK IS ERASED.
+
+It only ever runs from the live medium: the unit requires boot=casper on the command line AND
+/cdrom/casper, the script checks both again, and the installed system never has it enabled.
+
+Kernel parameters
+-----------------
+  aurora.autoinstall=1                   enable (required)
+  aurora.autoinstall.disk=/dev/vda       disk to erase. Default: the only eligible disk (whole disk,
+                                         writable, >= 12 GB, not the live medium); refused when there
+                                         are several
+  aurora.autoinstall.user=aurora         account name (default: aurora)
+  aurora.autoinstall.password=aurora     account password (default: aurora). It is readable by every
+                                         local user in /proc/cmdline during the live session: use
+                                         test passwords only, change it after the first sign-in
+  aurora.autoinstall.fullname=Jane+Doe   full name; "+" or "%20" for spaces (default: Aurora User)
+  aurora.autoinstall.hostname=aurora-pc  computer name (default: <user>-pc)
+  aurora.autoinstall.lang=en|fr          language (default: en)
+  aurora.autoinstall.keyboard=fr(oss)    keyboard layout (default: us; fr with lang=fr)
+  aurora.autoinstall.timezone=Europe/Paris  time zone (default: UTC; Europe/Paris with lang=fr)
+  aurora.autoinstall.autologin=1         sign the account in automatically
+  aurora.autoinstall.finish=poweroff     after success: poweroff (default), reboot or none
+  aurora.autoinstall.force=1             install even if the disk already holds Aurora OS
+
+When the disk already holds a complete Aurora OS installation (ext4 file system labelled AURORA
+whose /etc/aurora/install-info has the AURORA_INSTALL_COMPLETE line the installer writes last),
+the installation is skipped unless aurora.autoinstall.force=1 is given, so a VM that boots the
+ISO again never reinstalls in a loop; an interrupted installation is simply retried. On failure
+the live session starts normally.
+
+Progress is shown on the boot splash and on the console (add console=ttyS0,115200n8 to follow
+it on a serial port); the full log is /var/log/aurora-install.log (also copied to the installed
+system) and the unit's output is in  journalctl -u aurora-autoinstall.
+
+Example (QEMU, from the source tree):
+  make run QEMU_ARGS="--kernel 'aurora.autoinstall=1 aurora.autoinstall.disk=/dev/vda aurora.autoinstall.lang=fr'"
+  make run-disk          # boot the installed disk afterwards

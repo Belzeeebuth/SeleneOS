@@ -25,6 +25,7 @@ export class Reader {
   destroy() {
     this.offTheme?.();
     this.offAccent?.();
+    this.barObs?.disconnect();
   }
 
   clear() {
@@ -144,7 +145,24 @@ export class Reader {
       h('span', { class: 'grow' }),
       b('more', 'more_horizontal', t('act.more'), (e) => this.moreMenu(e), { iconOnly: true }),
     );
+    this.fitToolbar(bar);
     return bar;
+  }
+
+  // Like Outlook's simplified ribbon: drop labels (then Archive/Move, reachable from "…")
+  // until the toolbar fits, whatever the language and window width.
+  fitToolbar(bar) {
+    this.barObs?.disconnect();
+    const fit = () => {
+      if (!bar.isConnected) return;
+      for (let level = 0; level <= 4; level++) {
+        bar.dataset.compact = String(level);
+        if (bar.scrollWidth <= bar.clientWidth + 1) return;
+      }
+    };
+    this.barObs = new ResizeObserver(() => requestAnimationFrame(fit));
+    this.barObs.observe(bar);
+    requestAnimationFrame(fit);
   }
 
   async moreMenu(e) {
@@ -156,7 +174,11 @@ export class Reader {
     const dark = document.documentElement.dataset.theme === 'dark';
     const special = this.app.folderSpecial();
     const sender = msg.from?.[0]?.address;
+    const compact = Number(this.el.querySelector('.ml-read-bar')?.dataset.compact || 0);
     await ui.menu(e, [
+      compact >= 4 && !file ? { label: t('act.archive'), icon: 'archive', disabled: special === 'archive', action: () => this.app.archiveSelected() } : null,
+      compact >= 4 && !file ? { label: t('act.move'), icon: 'folder_arrow_right', action: () => this.app.moveMenu(e) } : null,
+      compact >= 4 && !file ? '-' : null,
       { label: t('act.reply'), icon: 'arrow_reply', shortcut: 'Ctrl+R', disabled: file, action: () => this.app.reply('reply') },
       { label: t('act.replyAll'), icon: 'arrow_reply_all', shortcut: 'Ctrl+Shift+R', disabled: file, action: () => this.app.reply('replyAll') },
       { label: t('act.forward'), icon: 'arrow_forward', shortcut: 'Ctrl+F', disabled: file, action: () => this.app.reply('forward') },
@@ -167,6 +189,7 @@ export class Reader {
       sender && this.remote ? { label: store.isTrustedSender(sender) ? t('reader.untrustSender') : t('reader.trustSender'), icon: 'shield', action: () => this.toggleTrust(sender) } : null,
       dark && this.isHtml ? { label: store.prefs.darkAdapt ? t('reader.lightBackground') : t('reader.darkBackground'), icon: store.prefs.darkAdapt ? 'weather_sunny' : 'weather_moon', action: () => this.toggleAdapt() } : null,
       '-',
+      !file && this.app.openStandalone ? { label: t('reader.newWindow'), icon: 'window_new', action: () => this.app.openStandalone(msg) } : null,
       !file ? { label: t('reader.saveEml'), icon: 'save', action: () => this.app.saveAsEml(msg) } : null,
       !file ? { label: t('reader.viewSource'), icon: 'code', action: () => this.app.viewSource(msg) } : null,
     ].filter(Boolean));
@@ -174,7 +197,7 @@ export class Reader {
 
   // ------------------------------------------------------------ message
   showMessage(msg) {
-    const { h, icon, ui, i18n } = this.ctx;
+    const { h, icon, i18n } = this.ctx;
     const t = (k, v) => this.t(k, v);
     this.clear();
     this.msg = msg;
@@ -220,7 +243,6 @@ export class Reader {
     this.frameWrap = h('div', { class: 'ml-body-wrap' });
     this.el.append(this.toolbar(msg), h('div', { class: 'ml-reader-scroll' }, this.headEl, this.infoEl, this.attEl, this.frameWrap));
     this.renderBody();
-    void ui;
   }
 
   attachments(list) {

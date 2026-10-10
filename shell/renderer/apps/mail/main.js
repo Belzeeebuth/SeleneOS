@@ -8,6 +8,7 @@ import { store } from './lib/store.js';
 import { MailApp } from './lib/app.js';
 import { Composer } from './lib/compose.js';
 import { Reader } from './lib/reader.js';
+import { MessageWindow } from './lib/msgwin.js';
 import { parseAddresses, parseMailto } from './lib/util.js';
 
 const apps = new Set();
@@ -28,7 +29,14 @@ function subscribe(ctx) {
       title: many ? shared.t('notify.many', { count: ev.count }) : ev.from || shared.t('reader.unknownSender'),
       body: many ? `${ev.from}: ${ev.subject || shared.t('list.noSubject')}` : ev.subject || shared.t('list.noSubject'),
       onClick: () => shared.shell.launch('mail', { open: { accountId: ev.accountId, folder: ev.folder || 'INBOX', uid: ev.uid } }),
-      actions: acc ? [{ label: shared.t('notify.open'), onClick: () => shared.shell.launch('mail', { open: { accountId: ev.accountId, folder: ev.folder || 'INBOX', uid: ev.uid } }) }] : [],
+      // Quick actions on a single new message, like Outlook's toasts.
+      actions:
+        acc && !many && ev.uid
+          ? [
+              { label: shared.t('act.markRead'), onClick: () => shared.api.invoke('mail:setFlags', ev.accountId, ev.folder || 'INBOX', [ev.uid], { seen: true }).catch(() => {}) },
+              { label: shared.t('act.delete'), onClick: () => shared.api.invoke('mail:delete', ev.accountId, ev.folder || 'INBOX', [ev.uid]).catch(() => {}) },
+            ]
+          : [],
     });
   });
   // mailto: links clicked inside a message body (routed by the shell's main process).
@@ -55,7 +63,7 @@ function composeWindow(ctx, snap) {
     },
   });
   root.appendChild(composer.el);
-  title(snap.subject);
+  title(composer.subject.value);
   win.onBeforeClose(async () => composer.close());
   composer.focus();
   return { composer };
@@ -116,6 +124,11 @@ export default {
     subscribe(ctx);
     const args = ctx.args || {};
     if (args.compose) return composeWindow(ctx, args.compose);
+    if (args.read) {
+      const w = new MessageWindow(ctx, args.read);
+      await w.init();
+      return {};
+    }
     if (args.newWindow && (args.to || args.subject || args.body || args.mailto)) {
       const pre = args.mailto ? parseMailto(args.mailto) || {} : args;
       return composeWindow(ctx, { accountId: store.prefs.lastAccount, mode: 'new', to: parseAddresses(pre.to), cc: parseAddresses(pre.cc), bcc: parseAddresses(pre.bcc), subject: pre.subject || '', body: pre.body || '' });

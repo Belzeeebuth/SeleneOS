@@ -56,18 +56,18 @@ export function textToHtml(text) {
   return html;
 }
 
-export function htmlToText(html) {
+export function htmlToText(html, { trim = true } = {}) {
   const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
   for (const el of doc.querySelectorAll('script,style,head,title')) el.remove();
   for (const br of doc.querySelectorAll('br')) br.replaceWith('\n');
   for (const el of doc.querySelectorAll('p,div,li,tr,h1,h2,h3,h4,h5,h6,blockquote,pre,table')) el.append('\n');
   for (const li of doc.querySelectorAll('li')) li.prepend('• ');
   for (const a of doc.querySelectorAll('a[href^="http"]')) if (a.textContent.trim() && a.textContent.trim() !== a.getAttribute('href')) a.append(` <${a.getAttribute('href')}>`);
-  return (doc.body?.textContent || '')
-    .replace(/ /g, ' ')
+  const text = (doc.body?.textContent || '')
+    .replace(/\u00a0/g, ' ')
     .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+    .replace(/\n{3,}/g, '\n\n');
+  return trim ? text.trim() : text.replace(/\s+$/, '\n');
 }
 
 // ---------------------------------------------------------------- people

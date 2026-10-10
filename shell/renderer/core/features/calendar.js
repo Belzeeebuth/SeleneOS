@@ -13,6 +13,7 @@ let calCard;
 let viewMonth; // Date (1st of the displayed month)
 let selected = null; // Date
 let collapsed = false;
+let refocusIndex = null; // notification list position to focus after a keyboard dismiss
 
 const STRINGS = {
   en: {
@@ -120,8 +121,33 @@ function renderNotifs() {
     );
   }
   const prevScroll = notifCard.querySelector('.nc-list')?.scrollTop || 0;
+  // Remember what had keyboard focus so a re-render never drops it on the floor.
+  const act = notifCard.contains(document.activeElement) ? document.activeElement : null;
+  const oldItems = [...notifCard.querySelectorAll('.nc-item')];
+  const focusItem = act?.closest('.nc-item');
+  const was = act ? (act.classList.contains('nc-dnd') ? 'dnd' : act.classList.contains('nc-clear') ? 'clear' : focusItem ? 'item' : 'other') : null;
+  if (focusItem && refocusIndex == null) refocusIndex = oldItems.indexOf(focusItem);
   notifCard.replaceChildren(head, list);
   list.scrollTop = prevScroll;
+  if (was || refocusIndex != null) {
+    const items = [...list.querySelectorAll('.nc-item')];
+    let target = null;
+    if (was === 'item' && focusItem) target = list.querySelector(`.nc-item[data-id="${focusItem.dataset.id}"]`);
+    if (!target && refocusIndex != null && items.length) target = items[Math.min(refocusIndex, items.length - 1)];
+    if (!target) target = was === 'dnd' ? dndBtn : head.querySelector('.nc-clear') || dndBtn;
+    target.focus({ preventScroll: true });
+    refocusIndex = null;
+  }
+}
+
+// Relative times ("5 min ago") are refreshed in place, so a re-render never steals focus or hover.
+function refreshTimes() {
+  const byId = new Map(ctx.notifications.list().map((n) => [String(n.id), n]));
+  for (const el of notifCard.querySelectorAll('.nc-item')) {
+    const n = byId.get(el.dataset.id);
+    const time = el.querySelector('.nc-time');
+    if (n && time) time.textContent = relTime(n.time);
+  }
 }
 
 function notifItem(n) {
@@ -139,11 +165,19 @@ function notifItem(n) {
         notifications.activate(n.id);
       },
       onkeydown: (e) => {
-        if (e.key === 'Enter') {
+        if (e.target !== el) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
           fly.close('launch');
           notifications.activate(n.id);
-        } else if (e.key === 'Delete') {
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault();
+          refocusIndex = [...notifCard.querySelectorAll('.nc-item')].indexOf(el);
           animateOut([el], () => notifications.dismiss(n.id));
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const all = [...notifCard.querySelectorAll('.nc-item')];
+          all[all.indexOf(el) + (e.key === 'ArrowDown' ? 1 : -1)]?.focus();
         }
       },
     },
@@ -152,7 +186,19 @@ function notifItem(n) {
       { class: 'nc-item-top' },
       h('div', { class: 'nc-item-title body-strong ellipsis' }, n.title),
       h('span', { class: 'nc-time caption' }, relTime(n.time)),
-      h('button', { class: 'nc-x nc-item-x', 'aria-label': t('cal.dismiss'), onclick: () => animateOut([el], () => notifications.dismiss(n.id)) }, icon('dismiss', { size: 12 })),
+      h(
+        'button',
+        {
+          class: 'nc-x nc-item-x',
+          'aria-label': t('cal.dismiss'),
+          'data-tip': t('cal.dismiss'),
+          onclick: (e) => {
+            if (e.detail === 0) refocusIndex = [...notifCard.querySelectorAll('.nc-item')].indexOf(el); // keyboard activation
+            animateOut([el], () => notifications.dismiss(n.id));
+          },
+        },
+        icon('dismiss', { size: 12 }),
+      ),
     ),
     n.body ? h('div', { class: 'nc-body' }, n.body) : null,
     n.actions?.length
@@ -404,7 +450,7 @@ export function mount(c) {
     if (fly.isOpen) (renderNotifs(), renderCalendar());
   });
   // Refresh relative times while open.
-  setInterval(() => fly.isOpen && renderNotifs(), 30000);
+  setInterval(() => fly.isOpen && refreshTimes(), 30000);
   renderNotifs();
   renderCalendar();
   c.calendar = {

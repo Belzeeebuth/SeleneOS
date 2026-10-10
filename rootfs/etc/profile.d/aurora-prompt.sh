@@ -34,6 +34,18 @@ __aurora_ps1_git() {
   return "$s"
 }
 
+# PS0 runs right before a command: title the terminal tab with that command ("htop", "make -j8").
+__aurora_ps0() {
+  local c
+  c=$(HISTTIMEFORMAT= builtin history 1 2>/dev/null) || return 0
+  c=${c#"${c%%[![:space:]]*}"}
+  c=${c#*[[:space:]]}
+  c=${c#"${c%%[![:space:]]*}"}
+  c=${c//[$'\001'-$'\037']/ }
+  [ -n "$c" ] && printf '\033]0;%s\007' "${c:0:80}"
+  return 0
+}
+
 __aurora_prompt_apply() {
   case "$PS1" in
     '\s-\v\$ ' | *'\u@\h:\w\$ ' | *'\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ ') ;;
@@ -41,6 +53,7 @@ __aurora_prompt_apply() {
   esac
   local user_color='1;32'
   [ "${EUID:-$(id -u)}" -eq 0 ] && user_color='1;31'
+  [ -z "${PS0:-}" ] && PS0='$(__aurora_ps0)'
   PS1='\[\e]0;\u@\h: \w\a\]$(__aurora_ps1_status)\[\e['"$user_color"'m\]\u@\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\]$(__aurora_ps1_git)\$ '
 }
 

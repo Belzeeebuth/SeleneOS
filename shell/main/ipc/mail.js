@@ -308,7 +308,7 @@ function classify(e) {
   if (['EAUTH', 'ECONN', 'ETLS', 'ETIMEOUT', 'EINSECURE', 'EEXISTS', 'ENOACCOUNT', 'ENOMSG', 'EINVAL'].includes(code)) return code;
   if (e.authenticationFailed || code === 'EAUTH' || e.responseCode === 535 || e.responseCode === 534 || /AUTHENTICATIONFAILED|authentication failed|invalid credentials|LOGIN failed|Username and Password not accepted|\bAUTHENTICATE failed/i.test(all)) return 'EAUTH';
   if (CERT_CODES.has(code) || TLS_CODES.has(code) || /certificate|\bSSL\b|\bTLS\b|wrong version number|handshake|STARTTLS/i.test(all)) return 'ETLS';
-  if (/TIMEOUT|ETIMEDOUT|timed? ?out/i.test(all)) return 'ETIMEOUT';
+  if (/TIMEOUT|ETIMEDOUT|timed? ?out|Greeting never received/i.test(all)) return 'ETIMEOUT';
   if (CONN_CODES.has(code) || /ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|ENETUNREACH|ECONNRESET|getaddrinfo|Connection closed|socket hang up|Unexpected close/i.test(all)) return 'ECONN';
   return 'EFAIL';
 }
@@ -472,7 +472,13 @@ async function loadAccounts() {
     const data = JSON.parse(await fsp.readFile(FILE, 'utf8'));
     accountsCache = Array.isArray(data?.accounts) ? data.accounts : [];
   } catch (e) {
-    if (e.code !== 'ENOENT') log('accounts.json unreadable:', e.message);
+    if (e.code !== 'ENOENT') {
+      // Keep the damaged file aside instead of overwriting it with the next save.
+      log('accounts.json unreadable:', e.message);
+      try {
+        await fsp.rename(FILE, `${FILE}.damaged-${Date.now()}`);
+      } catch {}
+    }
     accountsCache = [];
   }
   return accountsCache;
@@ -967,6 +973,7 @@ const ENTITIES = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", 
 function htmlToPreview(html) {
   return String(html || '')
     .replace(/<(head|style|script|title)[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
+    .replace(/<(head|style|script|title)\b[\s\S]*$/i, ' ') // a block cut by the partial fetch
     .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/<(br|\/p|\/div|\/tr|\/h\d|\/li)[^>]*>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
@@ -984,10 +991,11 @@ function htmlToPreview(html) {
 }
 
 function cleanPreview(text) {
-  const lines = String(text || '')
-    .replace(/\r/g, '')
-    .split('\n')
-    .filter((l) => !/^\s*>/.test(l)); // drop quoted text
+  let src = String(text || '').replace(/\r/g, '');
+  // Stop at the quoted original of a reply ("On … wrote:", "Le … a écrit :", "-----Original Message-----").
+  const cut = src.search(/(^|\n)[^\n]{0,8}(On [^\n]{4,200} wrote:|Le [^\n]{4,200} a écrit\s?:|-{3,} ?Original Message ?-{3,}|-{3,} ?Message d'origine ?-{3,})/i);
+  if (cut > 0) src = src.slice(0, cut);
+  const lines = src.split('\n').filter((l) => !/^\s*>/.test(l)); // drop quoted text
   return lines
     .join(' ')
     .replace(/[​-‏­͏﻿ ⁠]/g, '')
@@ -1046,7 +1054,8 @@ async function addPreviews(client, accountId, folder, mailbox, rows, fetched) {
   for (const [part, items] of groups) {
     const byUid = new Map(items.map((x) => [x.row.uid, x]));
     try {
-      const res = await client.fetchAll(items.map((x) => x.row.uid).join(','), { uid: true, bodyParts: [{ key: part, start: 0, maxLength: 2048 }] }, { uid: true });
+      const html = items.some((x) => x.info.type === 'text/html');
+      const res = await client.fetchAll(items.map((x) => x.row.uid).join(','), { uid: true, bodyParts: [{ key: part, start: 0, maxLength: html ? 8192 : 2048 }] }, { uid: true });
       for (const m of res) {
         const it = byUid.get(m.uid);
         if (!it || !m.bodyParts) continue;
@@ -1078,6 +1087,10 @@ async function listMessages(accountId, folder, opts = {}) {
   const query = searchQuery(opts.search, opts.filter);
   return withImap(accountId, (client) =>
     withMailbox(client, folder, async (mailbox) => {
+      // A mailbox that was already selected only learns about new messages (EXISTS) with the
+      // response to a command: sync first so the page range is computed on the current count.
+      if (opts.sync !== false) await client.noop().catch(() => {});
+      mailbox = client.mailbox || mailbox;
       let total = mailbox.exists || 0;
       let fetched = [];
       if (query) {
@@ -1298,6 +1311,18 @@ function compose(acc, msg, { keepBcc = false, messageId, date } = {}) {
     if (!p || !path.isAbsolute(p)) continue;
     mail.attachments.push({ path: p, filename: safeFileName(typeof a === 'object' && a.filename ? a.filename : path.basename(p)) });
   }
+  // Pictures inside the HTML (pasted images, quoted inline images) travel as related parts
+  // (cid:) — many mail clients refuse data: URLs.
+  if (mail.html && /\bsrc=["']data:image\//i.test(mail.html)) {
+    let n = 0;
+    const stamp = crypto.randomBytes(4).toString('hex');
+    mail.html = mail.html.replace(/(<img\b[^>]*?\bsrc=)(["'])data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)\2/gi, (m, pre, q, type, b64) => {
+      const cid = `image${++n}.${stamp}@aurora`;
+      const ext = type.split('/')[1].replace('jpeg', 'jpg').replace(/[^a-z0-9]/gi, '').slice(0, 5) || 'img';
+      mail.attachments.push({ cid, content: Buffer.from(b64.replace(/\s+/g, ''), 'base64'), contentType: type, filename: `image${n}.${ext}`, contentDisposition: 'inline' });
+      return `${pre}${q}cid:${cid}${q}`;
+    });
+  }
   if (!mail.attachments.length) delete mail.attachments;
   const node = new C(mail).compile();
   node.keepBcc = keepBcc;
@@ -1478,7 +1503,10 @@ class Watcher {
       this.failures = 0;
       setStatus(this.id, true);
       c.on('exists', (d) => this.onExists(d).catch((e) => log(`${this.id} new mail check failed: ${describe(e)}`)));
-      c.on('expunge', () => this.changed());
+      c.on('expunge', () => {
+        this.exists = Math.max(0, (c.mailbox?.exists ?? this.exists - 1));
+        this.changed();
+      });
       c.on('flags', () => this.changed());
       c.on('close', () => {
         if (this.client === c) this.client = null;
@@ -1516,7 +1544,8 @@ class Watcher {
   }
   async onExists(d) {
     if (process.env.AURORA_MAIL_DEBUG) log(`${this.id} exists ${JSON.stringify(d)} (was ${this.exists})`);
-    const prev = this.exists;
+    // imapflow reports the count before this EXISTS (expunges by other sessions included).
+    const prev = Number.isInteger(d.prevCount) ? d.prevCount : this.exists;
     this.exists = d.count;
     if (d.count <= prev || !this.client) {
       this.changed();
@@ -1701,6 +1730,7 @@ module.exports = function register(api) {
     pools.delete(id);
     statuses.delete(id);
     for (const k of [...parsedCache.keys()]) if (k.startsWith(`${id}|`)) parsedCache.delete(k);
+    for (const k of [...previewCache.keys()]) if (k.startsWith(`${id}|`)) previewCache.delete(k);
     log(`account ${id} removed`);
     return true;
   });

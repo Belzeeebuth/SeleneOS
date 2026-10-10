@@ -6,6 +6,8 @@
 //
 // early(ctx) runs from core/boot.js before the desktop mounts (so the desktop never flashes first);
 // mount(ctx) is the regular feature entry and falls back to showing the overlay itself.
+// early() also puts up a black cover when the session is still locked (shell restarted after a crash, see
+// main/ipc/auth.js auth:status.locked): features/lock.js replaces it with the lock screen.
 import { h } from '../ui.js';
 import { avatar, spinner } from '../greeter/lockui.js';
 import { extendStrings } from '../greeter/strings.js';
@@ -47,11 +49,15 @@ export async function early({ api, env, settings, i18n }) {
   decided = true;
   let first = false;
   let hold = 0;
-  try {
-    const r = await api.invoke('session:welcome');
-    first = r === true || r?.show === true;
-    hold = Number(r?.hold) || 0;
-  } catch {}
+  const [r, auth] = await Promise.all([api.invoke('session:welcome').catch(() => null), api.invoke('auth:status').catch(() => null)]);
+  first = r === true || r?.show === true;
+  hold = Number(r?.hold) || 0;
+  if (auth?.locked) {
+    // The shell restarted (crash) while the session was locked: keep the screen black until the lock screen is
+    // back (features/lock.js removes this cover); the desktop must never show unlocked in between.
+    coverForLock();
+    first = false;
+  }
   if (!first) {
     // A shell restarted in the same session (after a crash) must not replay the startup sound.
     if (!env.dev) {
@@ -131,6 +137,16 @@ export async function early({ api, env, settings, i18n }) {
     blur.classList.add('ready');
   });
   return true;
+}
+
+function coverForLock() {
+  if (document.getElementById('aurora-lock-cover')) return;
+  const el = h('div', { id: 'aurora-lock-cover', 'aria-hidden': 'true', style: 'position:fixed;inset:0;z-index:2147483000;background:#000' });
+  document.body.appendChild(el);
+  // Without a working lock screen feature there is nothing to wait for: do not leave a black screen forever.
+  setTimeout(() => {
+    if (!window.__aurora?.lockScreen) el.remove();
+  }, 20000);
 }
 
 function finish(fast = false) {

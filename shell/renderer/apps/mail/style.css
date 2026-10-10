@@ -246,10 +246,13 @@
   }
 }
 /* Narrow windows: one pane at a time. */
-.app-mail .ml-root[data-layout="narrow"] .ml-nav {
+.app-mail .ml-root[data-layout="narrow"]:not(.nav-open) .ml-nav {
   width: 0;
   padding: 0;
   overflow: hidden;
+}
+.app-mail.ml-narrow > .win-titlebar > .win-title {
+  display: none;
 }
 .app-mail .ml-root[data-layout="narrow"].nav-open .ml-nav {
   width: 280px;
@@ -832,31 +835,34 @@
 .app-mail .ml-tb[name="delete"]:hover:not(:disabled) .icon {
   color: var(--danger);
 }
-@container (max-width: 760px) {
-  .app-mail .ml-read-bar .ml-tb:not([name="reply"]):not([name="send"]) .lbl {
-    display: none;
-  }
-  .app-mail .ml-read-bar .ml-tb:not([name="reply"]) {
-    width: 32px;
-    padding: 0;
-  }
-  .app-mail .ml-read-bar .ml-tb .chev {
-    display: none;
-  }
+/* Reading toolbar compaction levels (set by Reader.fitToolbar until everything fits):
+   1 = labels only on Reply / Reply all / Forward, 2 = only on Reply, 3 = icons only,
+   4 = Archive and Move go to the "…" menu. */
+.app-mail .ml-read-bar[data-compact="1"] .ml-tb:not([name="reply"]):not([name="replyAll"]):not([name="forward"]) .lbl,
+.app-mail .ml-read-bar[data-compact="2"] .ml-tb:not([name="reply"]) .lbl,
+.app-mail .ml-read-bar[data-compact="3"] .ml-tb .lbl,
+.app-mail .ml-read-bar[data-compact="4"] .ml-tb .lbl,
+.app-mail .ml-read-bar:not([data-compact="0"]) .ml-tb .chev {
+  display: none;
+}
+.app-mail .ml-read-bar[data-compact="1"] .ml-tb:not([name="reply"]):not([name="replyAll"]):not([name="forward"]),
+.app-mail .ml-read-bar[data-compact="2"] .ml-tb:not([name="reply"]),
+.app-mail .ml-read-bar[data-compact="3"] .ml-tb,
+.app-mail .ml-read-bar[data-compact="4"] .ml-tb {
+  width: 32px;
+  padding: 0;
+}
+.app-mail .ml-read-bar[data-compact="4"] [name="archive"],
+.app-mail .ml-read-bar[data-compact="4"] [name="move"] {
+  display: none;
 }
 @container (max-width: 470px) {
-  .app-mail .ml-read-bar .ml-tb .lbl,
   .app-mail .ml-compose-bar .ml-tb .lbl {
     display: none;
   }
-  .app-mail .ml-read-bar .ml-tb,
   .app-mail .ml-compose-bar .ml-tb {
     width: 32px;
     padding: 0;
-  }
-  .app-mail .ml-read-bar [name="archive"],
-  .app-mail .ml-read-bar [name="move"] {
-    display: none;
   }
 }
 .app-mail .ml-reader-scroll {
@@ -1054,7 +1060,6 @@
   border: 0;
   display: block;
   background: transparent;
-  color-scheme: normal;
 }
 .app-mail .ml-skel-body {
   flex: 1;
@@ -1390,8 +1395,6 @@
 }
 .app-mail .ml-editor-plain {
   resize: none;
-  font-family: var(--font-mono);
-  font-size: 13px;
 }
 .app-mail .ml-editor:focus-visible,
 .app-mail .ml-editor-plain:focus-visible {
@@ -1442,9 +1445,11 @@
   border: 1px solid var(--ml-pane-stroke);
   overflow: hidden;
 }
-.app-mail .ml-eml-window {
+.app-mail .ml-eml-window,
+.app-mail .ml-msg-window {
   flex-direction: column;
 }
+.app-mail .ml-msg-window .ml-readpane,
 .app-mail .ml-eml-window .ml-readpane {
   margin: 0 8px 8px;
   background: var(--ml-card);
@@ -1772,7 +1777,7 @@
   margin-top: 4px;
 }
 .app-mail .ml-error-box {
-  margin-top: 12px;
+  margin: 4px 0 14px;
 }
 .app-mail .ml-error-box .infobar {
   animation: ml-shake 400ms var(--ease-std);

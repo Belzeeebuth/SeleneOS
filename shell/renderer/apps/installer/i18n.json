@@ -1,0 +1,340 @@
+{
+  "en": {
+    "title": "Install Aurora OS",
+    "next": "Next",
+    "back": "Back",
+    "install": "Install",
+    "cancel": "Cancel",
+    "close": "Close",
+    "change": "Change",
+    "refresh": "Refresh",
+    "stepOf": "Step {n} of {total}",
+    "simulation": "Simulation: nothing will be written to disk",
+    "simulationTip": "This is not the live session (or the shell runs in development mode), so the installation is only simulated.",
+    "steps": {
+      "welcome": "Language",
+      "keyboard": "Keyboard",
+      "disk": "Disk",
+      "account": "Account",
+      "timezone": "Time zone",
+      "summary": "Summary",
+      "install": "Install"
+    },
+    "welcome": {
+      "title": "Welcome to Aurora OS",
+      "subtitle": "Let's install Aurora OS on this computer. First, choose your language: it is used by this installer and by the installed system.",
+      "enName": "English",
+      "enRegion": "United States",
+      "frName": "Français",
+      "frRegion": "France",
+      "note": "You can keep using the live session while Aurora OS is being installed."
+    },
+    "keyboard": {
+      "title": "Is this the right keyboard layout?",
+      "subtitle": "Choose the layout of your keyboard. You can change it later in Settings.",
+      "search": "Search layouts",
+      "test": "Type here to test your keyboard",
+      "testHint": "Try letters such as A, Q, Z, W and M, and accented characters.",
+      "none": "No layout matches “{q}”."
+    },
+    "disk": {
+      "title": "Where do you want to install Aurora OS?",
+      "subtitle": "Aurora OS uses a whole disk. Choose the disk to install it on.",
+      "warning": "Everything on the selected disk will be erased: partitions, files and any other operating system.",
+      "empty": "No partitions",
+      "partitions_one": "{count} partition",
+      "partitions_other": "{count} partitions",
+      "tooSmall": "Too small: at least {size} needed",
+      "removable": "Removable",
+      "none": "No disk was found where Aurora OS can be installed.",
+      "noneHint": "Connect a disk of at least {size}, then select Refresh.",
+      "loading": "Looking for disks…",
+      "unknownModel": "Disk",
+      "loadError": "The disks could not be listed: {error}"
+    },
+    "account": {
+      "title": "Who's going to use this PC?",
+      "subtitle": "Create the account you'll use to sign in. It is an administrator account: it can install apps and change settings.",
+      "fullname": "Your name",
+      "fullnamePh": "e.g. Jane Doe",
+      "username": "User name",
+      "usernameHint": "Lowercase letters, digits, - and _",
+      "password": "Password",
+      "confirm": "Confirm the password",
+      "showPassword": "Show the password",
+      "hostname": "Computer name",
+      "hostnameHint": "How this PC appears on the network",
+      "autologin": "Sign in automatically",
+      "autologinHint": "Skip the sign-in screen when the computer starts",
+      "strength": {
+        "weak": "Weak password",
+        "fair": "Fair password",
+        "strong": "Strong password",
+        "hint": "Use 12 or more characters with upper- and lowercase letters, digits and symbols."
+      },
+      "err": {
+        "fullname": "Enter your name.",
+        "fullnameChars": "The name cannot contain : , = or \\.",
+        "username": "Use lowercase letters, digits, - or _, starting with a letter.",
+        "usernameReserved": "This name is reserved by the system.",
+        "usernameLong": "Use 32 characters at most.",
+        "password": "Enter a password.",
+        "mismatch": "The passwords don't match.",
+        "hostname": "Use letters, digits and hyphens (63 characters at most)."
+      }
+    },
+    "tz": {
+      "title": "Choose your time zone",
+      "subtitle": "Aurora OS uses it for the clock and the calendar.",
+      "search": "Search for a city or a region",
+      "none": "No time zone matches “{q}”.",
+      "utc": "Coordinated Universal Time",
+      "now": "Now {time}"
+    },
+    "region": {
+      "Africa": "Africa",
+      "America": "Americas",
+      "Antarctica": "Antarctica",
+      "Arctic": "Arctic",
+      "Asia": "Asia",
+      "Atlantic": "Atlantic",
+      "Australia": "Australia",
+      "Europe": "Europe",
+      "Indian": "Indian Ocean",
+      "Pacific": "Pacific",
+      "Etc": "Universal"
+    },
+    "summary": {
+      "title": "Ready to install",
+      "subtitle": "Check your choices, then select Install. It takes a few minutes.",
+      "language": "Language",
+      "keyboard": "Keyboard",
+      "disk": "Disk",
+      "erase": "Will be completely erased",
+      "account": "Account",
+      "admin": "Administrator · {user}",
+      "signin": "Sign-in",
+      "autologinOn": "Signs in automatically",
+      "autologinOff": "Password required",
+      "hostname": "Computer name",
+      "timezone": "Time zone"
+    },
+    "confirm": {
+      "title": "Erase this disk?",
+      "body": "All data on {disk} ({size}) will be permanently erased. This cannot be undone.",
+      "ok": "Erase and install"
+    },
+    "installing": {
+      "title": "Installing Aurora OS",
+      "subtitle": "This takes a few minutes. You can keep using the live session in the meantime.",
+      "details": "Show details",
+      "hideDetails": "Hide details",
+      "cancelTitle": "Cancel the installation?",
+      "cancelBody": "The selected disk will be left unusable until Aurora OS is installed on it again.",
+      "cancelOk": "Cancel installation",
+      "continue": "Continue installing",
+      "cancelling": "Cancelling…",
+      "starting": "Starting…"
+    },
+    "stage": {
+      "partition": "Preparing the disk",
+      "format": "Formatting",
+      "copy": "Copying files",
+      "configure": "Configuring the system",
+      "bootloader": "Installing the boot loader",
+      "cleanup": "Finishing up"
+    },
+    "done": {
+      "title": "Aurora OS is installed",
+      "subtitle": "Restart your computer to start using Aurora OS.",
+      "removeMedia": "Remove the installation media (ISO file or USB stick) before the computer restarts, so that it starts from the disk.",
+      "account": "Sign in as {name} ({user}).",
+      "restart": "Restart now",
+      "later": "Keep using the live session",
+      "simulated": "Simulation finished: nothing was written to disk.",
+      "restartSimulated": "Restart skipped: this was a simulation.",
+      "restartFailed": "The computer could not be restarted: {error}"
+    },
+    "error": {
+      "title": "The installation failed",
+      "subtitle": "Aurora OS could not be installed. Nothing else on this computer was changed, but the selected disk may be unusable until the installation succeeds.",
+      "cancelledTitle": "Installation cancelled",
+      "cancelledSubtitle": "The installation was stopped. Start it again to make the selected disk usable.",
+      "details": "What happened",
+      "log": "Last lines of the log",
+      "logFile": "Full log: /var/log/aurora-install.log",
+      "retry": "Try again",
+      "auth": "Administrator rights are required to install Aurora OS.",
+      "start": "The installation could not start: {error}"
+    }
+  },
+  "fr": {
+    "title": "Installer Aurora OS",
+    "next": "Suivant",
+    "back": "Précédent",
+    "install": "Installer",
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "change": "Modifier",
+    "refresh": "Actualiser",
+    "stepOf": "Étape {n} sur {total}",
+    "simulation": "Simulation : rien ne sera écrit sur le disque",
+    "simulationTip": "Vous n'êtes pas dans la session live (ou le shell fonctionne en mode développement) : l'installation est seulement simulée.",
+    "steps": {
+      "welcome": "Langue",
+      "keyboard": "Clavier",
+      "disk": "Disque",
+      "account": "Compte",
+      "timezone": "Fuseau horaire",
+      "summary": "Récapitulatif",
+      "install": "Installation"
+    },
+    "welcome": {
+      "title": "Bienvenue dans Aurora OS",
+      "subtitle": "Installons Aurora OS sur cet ordinateur. Choisissez d'abord votre langue : elle sera utilisée par ce programme d'installation et par le système installé.",
+      "enName": "English",
+      "enRegion": "États-Unis",
+      "frName": "Français",
+      "frRegion": "France",
+      "note": "Vous pouvez continuer à utiliser la session live pendant l'installation d'Aurora OS."
+    },
+    "keyboard": {
+      "title": "Est-ce la bonne disposition de clavier ?",
+      "subtitle": "Choisissez la disposition de votre clavier. Vous pourrez la modifier plus tard dans les Paramètres.",
+      "search": "Rechercher une disposition",
+      "test": "Tapez ici pour tester votre clavier",
+      "testHint": "Essayez des lettres comme A, Q, Z, W et M, ainsi que des caractères accentués.",
+      "none": "Aucune disposition ne correspond à « {q} »."
+    },
+    "disk": {
+      "title": "Où voulez-vous installer Aurora OS ?",
+      "subtitle": "Aurora OS utilise un disque entier. Choisissez le disque sur lequel l'installer.",
+      "warning": "Tout le contenu du disque sélectionné sera effacé : partitions, fichiers et tout autre système d'exploitation.",
+      "empty": "Aucune partition",
+      "partitions_one": "{count} partition",
+      "partitions_other": "{count} partitions",
+      "tooSmall": "Trop petit : {size} minimum",
+      "removable": "Amovible",
+      "none": "Aucun disque permettant d'installer Aurora OS n'a été trouvé.",
+      "noneHint": "Branchez un disque d'au moins {size}, puis sélectionnez Actualiser.",
+      "loading": "Recherche des disques…",
+      "unknownModel": "Disque",
+      "loadError": "Impossible d'obtenir la liste des disques : {error}"
+    },
+    "account": {
+      "title": "Qui va utiliser ce PC ?",
+      "subtitle": "Créez le compte avec lequel vous vous connecterez. C'est un compte administrateur : il peut installer des applications et modifier les paramètres.",
+      "fullname": "Votre nom",
+      "fullnamePh": "par ex. Marie Dupont",
+      "username": "Nom d'utilisateur",
+      "usernameHint": "Lettres minuscules, chiffres, - et _",
+      "password": "Mot de passe",
+      "confirm": "Confirmez le mot de passe",
+      "showPassword": "Afficher le mot de passe",
+      "hostname": "Nom de l'ordinateur",
+      "hostnameHint": "Nom de ce PC sur le réseau",
+      "autologin": "Se connecter automatiquement",
+      "autologinHint": "Ignorer l'écran de connexion au démarrage de l'ordinateur",
+      "strength": {
+        "weak": "Mot de passe faible",
+        "fair": "Mot de passe moyen",
+        "strong": "Mot de passe fort",
+        "hint": "Utilisez au moins 12 caractères avec des majuscules, des minuscules, des chiffres et des symboles."
+      },
+      "err": {
+        "fullname": "Saisissez votre nom.",
+        "fullnameChars": "Le nom ne peut pas contenir : , = ou \\.",
+        "username": "Utilisez des lettres minuscules, des chiffres, - ou _, en commençant par une lettre.",
+        "usernameReserved": "Ce nom est réservé par le système.",
+        "usernameLong": "32 caractères au maximum.",
+        "password": "Saisissez un mot de passe.",
+        "mismatch": "Les mots de passe ne correspondent pas.",
+        "hostname": "Utilisez des lettres, des chiffres et des tirets (63 caractères au maximum)."
+      }
+    },
+    "tz": {
+      "title": "Choisissez votre fuseau horaire",
+      "subtitle": "Aurora OS l'utilise pour l'horloge et le calendrier.",
+      "search": "Rechercher une ville ou une région",
+      "none": "Aucun fuseau horaire ne correspond à « {q} ».",
+      "utc": "Temps universel coordonné",
+      "now": "Il est {time}"
+    },
+    "region": {
+      "Africa": "Afrique",
+      "America": "Amérique",
+      "Antarctica": "Antarctique",
+      "Arctic": "Arctique",
+      "Asia": "Asie",
+      "Atlantic": "Atlantique",
+      "Australia": "Australie",
+      "Europe": "Europe",
+      "Indian": "Océan Indien",
+      "Pacific": "Pacifique",
+      "Etc": "Universel"
+    },
+    "summary": {
+      "title": "Prêt pour l'installation",
+      "subtitle": "Vérifiez vos choix, puis sélectionnez Installer. L'installation prend quelques minutes.",
+      "language": "Langue",
+      "keyboard": "Clavier",
+      "disk": "Disque",
+      "erase": "Sera entièrement effacé",
+      "account": "Compte",
+      "admin": "Administrateur · {user}",
+      "signin": "Connexion",
+      "autologinOn": "Connexion automatique",
+      "autologinOff": "Mot de passe demandé",
+      "hostname": "Nom de l'ordinateur",
+      "timezone": "Fuseau horaire"
+    },
+    "confirm": {
+      "title": "Effacer ce disque ?",
+      "body": "Toutes les données de {disk} ({size}) seront définitivement effacées. Cette action est irréversible.",
+      "ok": "Effacer et installer"
+    },
+    "installing": {
+      "title": "Installation d'Aurora OS",
+      "subtitle": "Cela prend quelques minutes. Vous pouvez continuer à utiliser la session live en attendant.",
+      "details": "Afficher les détails",
+      "hideDetails": "Masquer les détails",
+      "cancelTitle": "Annuler l'installation ?",
+      "cancelBody": "Le disque sélectionné restera inutilisable tant qu'Aurora OS n'y aura pas été réinstallé.",
+      "cancelOk": "Annuler l'installation",
+      "continue": "Poursuivre l'installation",
+      "cancelling": "Annulation…",
+      "starting": "Démarrage…"
+    },
+    "stage": {
+      "partition": "Préparation du disque",
+      "format": "Formatage",
+      "copy": "Copie des fichiers",
+      "configure": "Configuration du système",
+      "bootloader": "Installation du chargeur de démarrage",
+      "cleanup": "Finalisation"
+    },
+    "done": {
+      "title": "Aurora OS est installé",
+      "subtitle": "Redémarrez l'ordinateur pour commencer à utiliser Aurora OS.",
+      "removeMedia": "Retirez le support d'installation (fichier ISO ou clé USB) avant le redémarrage, pour que l'ordinateur démarre sur le disque.",
+      "account": "Connectez-vous en tant que {name} ({user}).",
+      "restart": "Redémarrer maintenant",
+      "later": "Continuer la session live",
+      "simulated": "Simulation terminée : rien n'a été écrit sur le disque.",
+      "restartSimulated": "Redémarrage ignoré : il s'agissait d'une simulation.",
+      "restartFailed": "Impossible de redémarrer l'ordinateur : {error}"
+    },
+    "error": {
+      "title": "L'installation a échoué",
+      "subtitle": "Aurora OS n'a pas pu être installé. Rien d'autre n'a été modifié sur cet ordinateur, mais le disque sélectionné restera peut-être inutilisable tant que l'installation n'aura pas réussi.",
+      "cancelledTitle": "Installation annulée",
+      "cancelledSubtitle": "L'installation a été interrompue. Relancez-la pour rendre le disque sélectionné utilisable.",
+      "details": "Ce qui s'est passé",
+      "log": "Dernières lignes du journal",
+      "logFile": "Journal complet : /var/log/aurora-install.log",
+      "retry": "Réessayer",
+      "auth": "Des droits d'administrateur sont nécessaires pour installer Aurora OS.",
+      "start": "L'installation n'a pas pu démarrer : {error}"
+    }
+  }
+}

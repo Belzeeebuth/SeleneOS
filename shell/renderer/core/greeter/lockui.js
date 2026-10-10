@@ -8,8 +8,9 @@
 //     clock24h: () => true|false|null,             // null = locale default
 //     onAuth: async (user, password) => ({ ok: true } | { error: 'auth'|'rate'|'expired'|'other', retryAfter, message, detail }),
 //     onSuccess: (user) => {},                     // the screen stays in its "Welcome" state; the owner dismisses it
-//     onPower: async ('sleep'|'shutdown'|'restart') => {},   confirmPower: bool (warn that apps are open)
+//     onPower: async ('sleep'|'shutdown'|'restart') => {},   confirmPower: bool | () => bool (warn that apps are open)
 //     onSwitchUser: async () => {},                 // lock mode: bottom-left "Switch user" (signs out)
+//     confirmSwitch: bool | () => bool              // ask first (apps are open and will close)
 //     input: { langs: [{id, label}], lang, onLang(id), layouts: [{id, label}], layout, onLayout(id) }  // greeter
 //     accessibility: [{ label, checked: () => bool, toggle: () => {} }],
 //     onUserChange: (user) => {},  onError: () => {},
@@ -18,7 +19,8 @@
 //   ls.setNetwork(status|null)  ls.setBattery(b|null)  ls.setBadges([{ icon, count, label }])  ls.setRetry(ms)
 //   await ls.dismiss()  ls.destroy()
 // Keyboard: any key / click / wheel / swipe up opens the sign-in view (typed characters go to the password box),
-// Esc goes back, Alt+F8 reveals the password, Enter signs in. Tab order: user name/password, buttons, users, tray.
+// Esc goes back, Alt+F8 reveals the password, Enter signs in. Tab order: user name/password, buttons, the user list
+// (one stop: arrow keys / Home / End move inside it), the tray buttons.
 import { h, icon, ui } from '../ui.js';
 import { i18n, t } from '../i18n.js';
 import { blurredImage } from './backdrop.js';
@@ -173,6 +175,7 @@ export class LockScreen {
     this.busyEl = h('div', { class: 'lk-busy', 'aria-live': 'polite' }, spinner(), this.busyText);
     this.card = h('div', { class: 'lk-card' }, this.avatarSlot, this.nameEl, h('div', { class: 'lk-form-slot' }, this.form, this.busyEl));
     this.usersEl = h('div', { class: 'lk-users', role: 'listbox' });
+    this.usersEl.addEventListener('scroll', () => this._usersScrolled(), { passive: true });
     this.tray = h('div', { class: 'lk-tray' });
     this.signin = h('div', { class: 'lk-signin' }, this.blur, h('div', { class: 'lk-scrim' }), h('div', { class: 'lk-center' }, this.card), this.usersEl, this.tray);
 
@@ -210,6 +213,9 @@ export class LockScreen {
     const onKey = (e) => this._onKey(e);
     document.addEventListener('keydown', onKey, true);
     this.disposers.push(() => document.removeEventListener('keydown', onKey, true));
+    const onResize = () => this._usersScrolled();
+    window.addEventListener('resize', onResize);
+    this.disposers.push(() => window.removeEventListener('resize', onResize));
     const onActivity = () => this._bumpIdle();
     for (const ev of ['pointermove', 'pointerdown', 'wheel']) {
       this.el.addEventListener(ev, onActivity, { passive: true });
@@ -297,11 +303,12 @@ export class LockScreen {
   }
 
   // ---------------------------------------------------------------- lifecycle
-  show() {
+  /** Start the clock and fade in (animate: false = at once, e.g. when the screen must never be seen through). */
+  show({ animate = true } = {}) {
     this._tick(true);
     clearInterval(this.timers.clock);
     this.timers.clock = setInterval(() => this._tick(false), 1000);
-    if (!reduceMotion()) {
+    if (animate && !reduceMotion()) {
       this.el.classList.add('lk-entering');
       setTimeout(() => this.el.classList.remove('lk-entering'), 1500);
     }
@@ -504,12 +511,19 @@ export class LockScreen {
       this._onInput();
       target.focus({ preventScroll: true });
     }
-    // Arrow keys move between the accounts of the user list.
-    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && this.usersEl.contains(a)) {
+    // Arrow keys / Home / End move between the accounts of the user list (roving Tab stop).
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key) && this.usersEl.contains(a) && this.mode === 'greeter') {
       e.preventDefault();
       const items = [...this.usersEl.querySelectorAll('.lk-user')];
       const i = items.indexOf(a);
-      items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+      const n = items.length;
+      const j = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
+      const next = items[j];
+      if (next) {
+        for (const it of items) it.tabIndex = it === next ? 0 : -1;
+        next.focus();
+        next.scrollIntoView?.({ block: 'nearest' });
+      }
     }
   }
 
@@ -520,7 +534,7 @@ export class LockScreen {
 
   _onInput() {
     this.field.classList.toggle('has-text', !!this.input.value);
-    if (this._msgKey === 'lockui.wrong' || this._msgKey === 'lockui.verifyError' || this._msgKey === 'lockui.loginError') {
+    if (['lockui.wrong', 'lockui.wrongUser', 'lockui.verifyError', 'lockui.loginError', 'lockui.expired'].includes(this._msgKey)) {
       if (this.input.value) this._clearMsg();
     }
     this._bumpIdle();
@@ -600,6 +614,7 @@ export class LockScreen {
       list.replaceChildren();
       return;
     }
+    list.setAttribute('role', 'listbox');
     list.replaceChildren(
       ...this.users.map((u) => {
         const sel = u === this.user;
@@ -610,6 +625,8 @@ export class LockScreen {
             class: ['lk-user', sel && 'selected'],
             role: 'option',
             'aria-selected': String(sel),
+            // One Tab stop for the whole list (the selected account); the arrow keys move inside it.
+            tabindex: sel ? '0' : '-1',
             dataset: { user: u.name },
             onclick: () => this.selectUser(u.other ? null : u.name),
           },
@@ -618,6 +635,23 @@ export class LockScreen {
         );
       }),
     );
+    // A long list scrolls: keep the selected account in view, fade the edges that have more accounts behind them.
+    requestAnimationFrame(() => {
+      const sel = list.querySelector('.lk-user.selected');
+      if (sel && list.scrollHeight > list.clientHeight) {
+        const top = sel.offsetTop;
+        if (top < list.scrollTop || top + sel.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = top - (list.clientHeight - sel.offsetHeight) / 2;
+      }
+      this._usersScrolled();
+    });
+  }
+
+  _usersScrolled() {
+    const l = this.usersEl;
+    const over = l.scrollHeight > l.clientHeight + 1;
+    l.classList.toggle('lk-scroll', over);
+    l.classList.toggle('lk-at-top', !over || l.scrollTop <= 1);
+    l.classList.toggle('lk-at-end', !over || l.scrollTop + l.clientHeight >= l.scrollHeight - 1);
   }
 
   // ---------------------------------------------------------------- tray
@@ -681,7 +715,19 @@ export class LockScreen {
 
   _menu(anchor, items) {
     this._bumpIdle();
-    return ui.menu(anchor, items, { above: true, class: 'lk-menu' }).then((r) => {
+    const p = ui.menu(anchor, items, { above: true, class: 'lk-menu' });
+    // ui.menu opens at the button's left edge and clamps to the screen edge; align the menu's right edge with the
+    // button instead, a little above it, like the Windows sign-in screen.
+    const m = [...document.querySelectorAll('body > .menu.lk-menu')].pop();
+    if (m && anchor?.getBoundingClientRect) {
+      const a = anchor.getBoundingClientRect();
+      const r = m.getBoundingClientRect();
+      const left = Math.max(8, Math.min(window.innerWidth - r.width - 8, a.right - r.width));
+      const top = Math.max(8, a.top - r.height - 8);
+      m.style.left = `${left}px`;
+      m.style.top = `${top}px`;
+    }
+    return p.then((r) => {
       // Like Windows, the keyboard goes back to the password box once a tray menu closes.
       setTimeout(() => {
         if (this.stage === 'signin' && !this.dialog && this.el.isConnected) this._focusPrimary();
@@ -710,8 +756,17 @@ export class LockScreen {
     this._menu(anchor, items);
   }
 
+  _wants(opt) {
+    const v = this.o[opt];
+    try {
+      return typeof v === 'function' ? !!v() : !!v;
+    } catch {
+      return true;
+    }
+  }
+
   async _power(action) {
-    if (this.o.confirmPower && action !== 'sleep') {
+    if (action !== 'sleep' && this._wants('confirmPower')) {
       const ok = await this.confirm({
         title: t('lockui.powerTitle'),
         body: t('lockui.powerBody'),
@@ -723,14 +778,18 @@ export class LockScreen {
     try {
       await this.o.onPower(action);
     } catch (err) {
-      this._showMsg('lockui.powerError', { message: err?.message || '' });
+      // Localized sentence; the system's own (English) explanation as a secondary line.
+      this._showMsg('lockui.powerError', null, err?.message || '');
     }
   }
 
   async _switchUser() {
     const name = this.user?.fullName || this.user?.name || '';
-    const ok = await this.confirm({ title: t('lockui.switchTitle', { name }), body: t('lockui.switchBody', { name }), ok: t('lockui.signOut'), danger: true });
-    if (ok) await this.o.onSwitchUser?.();
+    if (this.o.confirmSwitch === undefined || this._wants('confirmSwitch')) {
+      const ok = await this.confirm({ title: t('lockui.switchTitle', { name }), body: t('lockui.switchBody', { name }), ok: t('lockui.signOut'), danger: true });
+      if (!ok) return;
+    }
+    await this.o.onSwitchUser?.();
   }
 
   setNetwork(status) {
@@ -757,7 +816,7 @@ export class LockScreen {
     this.netBtn.replaceChildren(netGlyph(name, 20));
     const label = netLabel(this.net);
     this.netBtn.dataset.tip = label;
-    this.netBtn.setAttribute('aria-label', `${t('lockui.network')}: ${label}`);
+    this.netBtn.setAttribute('aria-label', t('lockui.networkStatus', { status: label }));
   }
 
   _renderStatus() {
@@ -899,9 +958,10 @@ export class LockScreen {
       this._shake();
       return;
     }
-    if (res.error === 'auth') this._showMsg('lockui.wrong', null, res.detail);
+    // "Other user": the name may be wrong as well as the password (never say which).
+    if (res.error === 'auth') this._showMsg(this.user?.other ? 'lockui.wrongUser' : 'lockui.wrong', null, res.detail);
     else if (res.error === 'expired') this._showMsg('lockui.expired', null, res.detail);
-    else if (this.mode === 'greeter') this._showMsg('lockui.loginError', { message: res.message || '' });
+    else if (this.mode === 'greeter') this._showMsg('lockui.loginError', null, res.message || '');
     else this._showMsg('lockui.verifyError', null, res.message);
     this._shake();
     if (res.retryAfter > 0) this.setRetry(res.retryAfter);

@@ -18,6 +18,28 @@ import { registry } from './registry.js';
 import { theme } from './theme.js';
 
 const DND_MIME = 'application/x-aurora-paths';
+
+// Security: the internal paths format is only trusted when the drag started in the shell's own
+// document (desktop, Files, …). A drag coming from web content (<webview> tab, sandboxed mail iframe)
+// never fires 'dragstart' here, so a forged payload can't make us move or trash arbitrary files.
+let shellDrag = false;
+document.addEventListener('dragstart', () => (shellDrag = true), true);
+document.addEventListener('dragend', () => (shellDrag = false), true);
+window.addEventListener('pointerdown', () => (shellDrag = false), true);
+/** Paths of an 'application/x-aurora-paths' drag, or [] when the drag did not start in the shell
+ *  (exported so apps that accept that format — Files, Notepad, Mail — can apply the same rule). */
+export function trustedDragPaths(dt) {
+  return trustedPaths(dt);
+}
+function trustedPaths(dt) {
+  if (!shellDrag || !dt) return [];
+  try {
+    const v = JSON.parse(dt.getData(DND_MIME) || '[]');
+    return Array.isArray(v) ? v.filter((p) => typeof p === 'string' && p.startsWith('/') && !p.includes('\0')) : [];
+  } catch {
+    return [];
+  }
+}
 const IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg', '.avif', '.ico'];
 const SIZES = {
   small: { w: 76, h: 70, icon: 32 },
@@ -221,8 +243,19 @@ function entryIcon(it) {
     );
   }
   const name = ui.fileIcon(e);
+  // Page-shaped document icons get a white sheet under the coloured outline (like Windows), so they
+  // stay readable on both very light and very dark wallpapers.
+  if (!e.dir && PAGE_ICONS.has(name)) {
+    return h(
+      'span',
+      { class: `desk-fi desk-page ft-${tint(e)}`, style: { width: `${s.icon}px`, height: `${s.icon}px` } },
+      icon(name, { size: s.icon, filled: true, class: 'pg-fill' }),
+      icon(name, { size: s.icon, class: 'pg-line' }),
+    );
+  }
   return icon(name, { size: s.icon, filled: e.dir, class: e.dir ? 'desk-fi folder-icon' : `desk-fi ft-${tint(e)}` });
 }
+const PAGE_ICONS = new Set(['document', 'document_text', 'document_pdf']);
 function tint(e) {
   const x = (e.ext || '').toLowerCase();
   if (['.doc', '.docx', '.odt', '.rtf'].includes(x)) return 'doc';
@@ -737,7 +770,7 @@ function markDrop(el) {
 function onDragOver(e) {
   const types = [...(e.dataTransfer?.types || [])];
   const internal = !!dragState;
-  if (!internal && !types.includes(DND_MIME) && !types.includes('Files')) return;
+  if (!internal && !(shellDrag && types.includes(DND_MIME)) && !types.includes('Files')) return;
   e.preventDefault();
   const target = dropTargetFor(e);
   markDrop(target?.el || null);
@@ -752,10 +785,8 @@ async function onDrop(e) {
   markDrop(null);
   const target = dropTargetFor(e);
   const dt = e.dataTransfer;
-  let paths = [];
-  try {
-    paths = JSON.parse(dt.getData(DND_MIME) || '[]');
-  } catch {}
+  let paths = trustedPaths(dt);
+  const fromShell = paths.length > 0;
   if (!paths.length && dt.files?.length) paths = [...dt.files].map((f) => api.pathForFile(f)).filter(Boolean);
   const internal = dragState;
   if (target?.kind === 'trash') {
@@ -794,8 +825,7 @@ async function onDrop(e) {
   }
   // Files dropped from an app window or another program: move (same session) / copy (Ctrl, external).
   if (paths.length) {
-    const fromOutside = !dt.getData(DND_MIME);
-    const res = await op(() => api.invoke('fs:copy', paths, desktopDir, { move: !e.ctrlKey && !fromOutside }));
+    const res = await op(() => api.invoke('fs:copy', paths, desktopDir, { move: !e.ctrlKey && fromShell }));
     if (Array.isArray(res)) {
       const cell = cellAt(e.clientX, e.clientY);
       if (!layout.auto && res[0]) layout.pos[res[0]] = cell;

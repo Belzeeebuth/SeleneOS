@@ -6,15 +6,30 @@
 //          end process tree), Performance charts updating, Services (sample data without systemd),
 //          Users, Run new task, update speed / pause, minimize stops polling, keyboard, sizes.
 //   Part 3 (FR dark): translations, minimum size and maximized layouts.
+//   Part 4: corrupted saved preferences, fallbacks, 15 open/close cycles (no leaks, no polling after close).
 //   Screenshots -> aurora-os/docs/screenshots/taskmgr-*.png
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/taskmgr.test.mjs [--node-only]
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { launchShell, ROOT } from './lib.mjs';
+import { launchShell as launchShellRaw, ROOT } from './lib.mjs';
 
 const require = createRequire(import.meta.url);
+// A launch that fails (e.g. the X server went away) is reported instead of aborting the whole run.
+async function launchShell(opts) {
+  try {
+    return await launchShellRaw(opts);
+  } catch (err) {
+    console.log(`launch failed: ${err.message.split('\n')[0]}`);
+    finishEarly(`shell launch failed (${opts.lang} ${opts.theme}): ${err.message.split('\n')[0]}`);
+  }
+}
+function finishEarly(msg) {
+  failures.push(msg);
+  for (const c of children) c.kill('SIGKILL');
+  finish();
+}
 const DOCS = path.join(ROOT, '..', 'docs', 'screenshots');
 fs.mkdirSync(DOCS, { recursive: true });
 const args = new Set(process.argv.slice(2));
@@ -39,6 +54,22 @@ async function waitFor(fn, { timeout = 8000, step = 100 } = {}) {
     if (Date.now() - t0 > timeout) return v;
     await sleep(step);
   }
+}
+// Console errors. Other apps being written in parallel may fail to load an asset (a missing
+// icon.svg…): "Failed to load resource" only counts when it is one of Task Manager's files, and
+// Task Manager's images must all have loaded.
+function watchResources(page) {
+  const list = [];
+  page.on('console', (m) => {
+    if (m.type() === 'error' && /Failed to load resource/.test(m.text())) list.push(m.location()?.url || '');
+  });
+  return list;
+}
+function ownErrors(logs, resErrs) {
+  return [
+    ...logs.filter((l) => /^\[(error|pageerror)\]/.test(l) && !/Failed to load resource/.test(l)),
+    ...resErrs.filter((u) => !u || /\/apps\/taskmgr\//.test(u)).map((u) => `resource: ${u}`),
+  ];
 }
 const niceOf = (pid) => {
   try {
@@ -122,6 +153,40 @@ const alive = (pid) => {
   const snap = await H['perf:snapshot']();
   check('backend perf:snapshot', snap.cpu.logical >= 1 && snap.mem.total > 0 && Array.isArray(snap.disks) && Array.isArray(snap.net), snap.cpu);
 
+  // End process tree never reaches the shell's own subtree: descendants(root, keep) leaves `keep`
+  // (here: this test process) and its children out when walking from an ancestor.
+  {
+    const kid = spawn('sleep', ['1000'], { stdio: 'ignore' });
+    await sleep(200);
+    const all = be.descendants(process.ppid);
+    const kept = be.descendants(process.ppid, process.pid);
+    check('descendants() lists this process and its child', all.includes(process.pid) && all.includes(kid.pid), { all: all.length });
+    check('descendants(…, keep) skips the kept subtree', !kept.includes(process.pid) && !kept.includes(kid.pid), kept);
+    check('descendants(keep, keep) still walks the kept process itself', be.descendants(process.pid, process.pid).includes(kid.pid));
+    kid.kill('SIGKILL');
+  }
+  // proc:spawn reports a file that isn't a program as EACCES (Run new task explains it), a missing one as ENOENT.
+  {
+    const tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), 'tm-spawn-'));
+    const doc = path.join(tmp2, 'notes.unknownext');
+    fs.writeFileSync(doc, 'hello');
+    let code = null;
+    try {
+      await H['proc:spawn'](`"${doc}"`);
+    } catch (e) {
+      code = e.code;
+    }
+    check('proc:spawn on a non-executable file -> EACCES', code === 'EACCES', code);
+    code = null;
+    try {
+      await H['proc:spawn']('/nonexistent/tm-binary --x');
+    } catch (e) {
+      code = e.code;
+    }
+    check('proc:spawn on a missing program -> ENOENT', code === 'ENOENT', code);
+    fs.rmSync(tmp2, { recursive: true, force: true });
+  }
+
   // Dictionaries: same keys in both languages, nothing empty.
   const dict = JSON.parse(fs.readFileSync(path.join(ROOT, 'renderer/apps/taskmgr/i18n.json'), 'utf8'));
   const flat = (o, p = '') => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' ? flat(v, `${p}${k}.`) : [[`${p}${k}`, v]]));
@@ -141,6 +206,12 @@ const alive = (pid) => {
   const used = [...src.matchAll(/\bt\(\s*'([a-zA-Z0-9_.]+)'/g)].map((x) => x[1]).filter((k) => !k.startsWith('common.'));
   const unknown = [...new Set(used)].filter((k) => !en.has(k));
   check('all statically used keys exist', !unknown.length, unknown);
+  // Keys picked through tables (localized backend errors) exist too.
+  const tableKeys = [...src.matchAll(/'((?:err|svc|run|perf|props)\.[a-zA-Z0-9_.]+)'/g)].map((x) => x[1]);
+  const unknownT = [...new Set(tableKeys)].filter((k) => !en.has(k));
+  check('all i18n keys referenced in tables exist', !unknownT.length, unknownT);
+  // No hard-coded "100%" in the UI code (French needs "100 %").
+  check('no hard-coded percent labels', !/'100%'/.test(src));
 }
 
 if (args.has('--node-only')) finish();
@@ -155,6 +226,7 @@ const spawnSleep = (cmd = 'sleep', a = ['1000']) => {
 };
 const s = await launchShell({ open: ['taskmgr', 'calculator'], lang: 'en', theme: 'light' });
 const { page } = s;
+const resErrs = watchResources(page);
 const tm = (fn, arg) => s.aurora(fn, arg);
 const DLG = '.app-taskmgr .dialog-layer:not(.closing) .dialog';
 try {
@@ -199,6 +271,8 @@ try {
   check('app rows for open windows', R.some((r) => r.type === 'app' && r.name === 'Calculator') && R.some((r) => r.type === 'app' && r.name === 'Task Manager'));
   check('Aurora Shell row', R.some((r) => r.type === 'shell' && /^Aurora Shell \(\d+\)$/.test(r.name)), R.filter((r) => r.type === 'shell'));
   check('Linux kernel row', R.some((r) => r.type === 'kernel'));
+  const imgs = await page.$$eval('.app-taskmgr img', (els) => els.map((e) => ({ src: e.getAttribute('src'), ok: e.complete && e.naturalWidth > 0 })));
+  check("Task Manager's images all load", imgs.length > 0 && imgs.every((i) => i.ok), imgs.filter((i) => !i.ok));
   const heads = await page.$$eval('.app-taskmgr .tm-page-processes .tm-th', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
   check('column headers with totals', heads.some((x) => /^\d+% CPU$/.test(x)) && heads.some((x) => /^\d+% Memory$/.test(x)) && heads.some((x) => /^\d+% Disk$/.test(x)), heads);
   const heat = await page.$$eval('.app-taskmgr .tm-page-processes .tm-td[data-h]', (els) => els.length);
@@ -265,6 +339,35 @@ try {
   await page.keyboard.press('Control+f');
   check('Ctrl+F focuses the search box', await page.evaluate(() => document.activeElement?.classList.contains('tm-search-input')));
 
+  // ---- keyboard: an open context menu owns the arrow keys / Enter (the grid selection must not move)
+  await page.click('.app-taskmgr .tm-page-processes .tm-row:not([hidden]):has(.tm-tx:text-is("Calculator"))');
+  await page.keyboard.press('Shift+F10');
+  await page.waitForSelector('.menu', { timeout: 2000 }).catch(() => null);
+  const menuItems = await page.$$eval('.menu .menu-item', (els) => els.map((e) => e.innerText.trim()));
+  check('Shift+F10 opens the row context menu', menuItems.includes('End task') && menuItems.includes('Switch to'), menuItems);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Escape');
+  await sleep(150);
+  check('arrow keys inside a menu do not move the row selection', (await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes.table.sel)) === 'a:calculator');
+  check('focus returns to the grid after the menu closes', await page.evaluate(() => document.activeElement?.classList.contains('tm-table')));
+  // One tab stop for the whole header row.
+  const headStops = await page.$$eval('.app-taskmgr .tm-page-processes .tm-th', (els) => els.filter((e) => e.tabIndex === 0).length);
+  check('column headers are a single tab stop', headStops === 1, headStops);
+  // Tab / Shift+Tab cycle inside the window: focus never lands in another window (which would activate it).
+  await page.click('.app-taskmgr .tm-search-input');
+  const tabTrail = [];
+  for (let i = 0; i < 14; i++) {
+    await page.keyboard.press('Tab');
+    tabTrail.push(await page.evaluate(() => !!document.activeElement?.closest('.app-taskmgr')));
+  }
+  for (let i = 0; i < 6; i++) {
+    await page.keyboard.press('Shift+Tab');
+    tabTrail.push(await page.evaluate(() => !!document.activeElement?.closest('.app-taskmgr')));
+  }
+  check('Tab cycles inside the Task Manager window', tabTrail.every(Boolean), tabTrail);
+  check('Tab never activates another window', (await tm(() => window.__aurora.wm.focused()?.appId)) === 'taskmgr');
+
   // ---- End task on an app window
   await page.click('.app-taskmgr .tm-page-processes .tm-row:not([hidden]):has(.tm-tx:text-is("Calculator"))');
   check('End task enabled for an app', await page.$eval('.app-taskmgr .tm-cmd[data-cmd="end"]', (b) => !b.disabled));
@@ -319,6 +422,69 @@ try {
   const ex = await Promise.race([child.exited, sleep(5000).then(() => null)]);
   check('End task terminates the process (SIGTERM)', ex?.signal === 'SIGTERM', ex);
   await page.keyboard.press('Escape');
+
+  // ---- End task clicked three times on a process that ignores SIGTERM: one signal, one
+  //      "not responding" prompt, and "End now" kills it.
+  {
+    const stubborn = spawnSleep(process.execPath, ['-e', 'process.on("SIGTERM",()=>{});setInterval(()=>{},1000)']);
+    await sleep(500);
+    await page.fill('.app-taskmgr .tm-search-input', String(stubborn.pid));
+    await waitFor(() => tm((pid) => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes.table.rows.some((r) => r.data?.pid === pid), stubborn.pid), { timeout: 5000 });
+    await selectPid(stubborn.pid);
+    await tm(() => {
+      const api = window.__aurora.wm.byApp('taskmgr')[0].taskmgr.ctx.api;
+      window.__tmKills = [];
+      if (!api.__tmCount) {
+        const inv = api.invoke;
+        api.__tmCount = true;
+        api.invoke = (ch, ...a) => {
+          if (ch === 'proc:kill') window.__tmKills.push(a.join(' '));
+          return inv(ch, ...a);
+        };
+      }
+    });
+    await sleep(150);
+    await page.dblclick('.app-taskmgr .tm-cmd[data-cmd="end"]');
+    await page.click('.app-taskmgr .tm-cmd[data-cmd="end"]');
+    await page.waitForSelector(`${DLG}:has-text("is not responding")`, { timeout: 6000 }).catch(() => null);
+    await sleep(400);
+    const kills = await tm(() => window.__tmKills);
+    const prompts = await page.$$eval(DLG, (els) => els.length);
+    check('repeated End task sends one SIGTERM', kills.length === 1 && kills[0] === `${stubborn.pid} SIGTERM`, kills);
+    check('one "not responding" prompt', prompts === 1, prompts);
+    await page.click(`${DLG} .btn.primary`);
+    const ex2 = await Promise.race([stubborn.exited, sleep(4000).then(() => null)]);
+    check('"End now" kills a process that ignores SIGTERM', ex2?.signal === 'SIGKILL', ex2);
+    await page.fill('.app-taskmgr .tm-search-input', '');
+  }
+
+  // ---- untrusted process names / command lines are shown as text, never parsed as HTML
+  {
+    const tmpX = fs.mkdtempSync(path.join((await import('node:os')).tmpdir(), 'tm-xss-'));
+    const evilBin = path.join(tmpX, '<img src=x onerror=window.__tmPwned=1>');
+    fs.copyFileSync('/bin/sleep', evilBin);
+    fs.chmodSync(evilBin, 0o755);
+    const evil = spawnSleep(evilBin, ['999']);
+    await sleep(400);
+    await page.fill('.app-taskmgr .tm-search-input', String(evil.pid));
+    await waitFor(() => tm((pid) => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes.table.rows.some((r) => r.data?.pid === pid), evil.pid), { timeout: 5000 });
+    await sleep(300);
+    const shown = await page.$$eval('.app-taskmgr .tm-page-processes .tm-row:not([hidden]) .tm-name .tm-tx', (els) => els.map((e) => e.textContent));
+    await tm((pid) => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.actions.processProperties(pid, null), evil.pid);
+    await page.waitForSelector(DLG, { timeout: 3000 }).catch(() => null);
+    const propsTxt = await page.$eval(DLG, (e) => e.innerText).catch(() => '');
+    await page.keyboard.press('Escape');
+    await tm((pid) => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.go('details', { select: pid, focus: false }), evil.pid);
+    await sleep(800);
+    const xss = await tm(() => ({ pwned: !!window.__tmPwned, imgs: document.querySelectorAll('.app-taskmgr img[src="x"]').length }));
+    check('HTML in a process name is shown as text', shown.some((x) => x.startsWith('<img src=x')) && /<img src=x onerror=window.__tmPwned=1>/.test(propsTxt), { shown, propsTxt: propsTxt.slice(0, 200) });
+    check('HTML in a process name is never injected', !xss.pwned && xss.imgs === 0, xss);
+    evil.kill('SIGKILL');
+    fs.rmSync(tmpX, { recursive: true, force: true });
+    await page.fill('.app-taskmgr .tm-search-input', '');
+    await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.go('processes', { focus: false }));
+    await sleep(300);
+  }
 
   // ---- efficiency mode (renice 19) on another sleep
   const eff = spawnSleep();
@@ -465,21 +631,33 @@ try {
     const runAdmin = sh.runAdmin;
     const mock = p.data.mock;
     let call = null;
+    let n = 0;
+    let busyCmd = null;
     sh.runAdmin = async (action, args, opts) => {
+      n++;
       call = { action, args, appId: opts?.appId };
+      await new Promise((r) => setTimeout(r, 400));
       return 'ok';
     };
     try {
       p.data.mock = false;
       const s = p.data.services.find((x) => x.name === 'cron') || p.data.services[0];
-      await p.act('restart', s);
+      p.table.select(`s:${s.unit}`);
+      // A rapid double / triple click must not stack UAC prompts.
+      const first = p.act('restart', s);
+      await new Promise((r) => setTimeout(r, 30));
+      busyCmd = p.app.cmdBar.querySelector('[data-cmd="restart"]')?.disabled;
+      p.act('restart', s);
+      p.act('stop', s);
+      await first;
     } finally {
       sh.runAdmin = runAdmin;
       if (p.data) p.data.mock = mock;
     }
-    return call;
+    return { ...call, n, busyCmd };
   });
   check('service restart -> runAdmin("service", ["restart", unit])', svcCall?.action === 'service' && svcCall.args[0] === 'restart' && /\.service$/.test(svcCall.args[1]) && svcCall.appId === 'taskmgr', svcCall);
+  check('repeated service actions -> one UAC prompt, commands disabled meanwhile', svcCall?.n === 1 && svcCall.busyCmd === true, svcCall);
 
   // ---- Users
   await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.go('users', { focus: false }));
@@ -557,6 +735,66 @@ try {
   check('Run new task runs a command line', !!spawned);
   if (spawned) process.kill(Number(spawned), 'SIGKILL');
 
+  // Paths: a quoted path with spaces (what Browse… inserts) opens in its app, a folder opens in
+  // File Explorer, an executable file runs, and a file that is neither gets a clear message.
+  {
+    const dir = path.join(s.home, 'My Notes');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'to do.txt'), 'hello');
+    const script = path.join(dir, 'tm run.sh');
+    fs.writeFileSync(script, '#!/bin/sh\nexec sleep 779\n');
+    fs.chmodSync(script, 0o755);
+    fs.writeFileSync(path.join(dir, 'data.zzz'), 'x');
+    const runIt = async (cmd) => {
+      await tm(() => window.__aurora.wm.byApp('taskmgr')[0].focus());
+      await page.click('.app-taskmgr .tm-cmd[data-cmd="run"]');
+      await page.waitForSelector(`${DLG} .tm-run input`, { timeout: 3000 });
+      await page.fill(`${DLG} .tm-run input`, cmd);
+      await page.keyboard.press('Enter');
+      await sleep(1200);
+    };
+    await runIt(`"${path.join(dir, 'to do.txt')}"`);
+    check('Run: quoted document path opens its app', await waitFor(() => tm(() => window.__aurora.wm.byApp('notepad').length === 1), { timeout: 4000 }));
+    await tm(() => window.__aurora.wm.byApp('notepad').forEach((w) => w.close(true)));
+    await runIt('~/Documents');
+    check('Run: a folder opens in File Explorer', await waitFor(() => tm(() => window.__aurora.wm.byApp('files').length >= 1), { timeout: 4000 }));
+    await tm(() => window.__aurora.wm.byApp('files').forEach((w) => w.close(true)));
+    await runIt(`"${script}"`);
+    const ran = await waitFor(
+      () =>
+        fs
+          .readdirSync('/proc')
+          .filter((n) => /^\d+$/.test(n))
+          .find((p) => {
+            try {
+              return fs.readFileSync(`/proc/${p}/cmdline`, 'utf8') === 'sleep\u0000779\u0000';
+            } catch {
+              return false;
+            }
+          }),
+      { timeout: 4000 },
+    );
+    check('Run: an executable path (with spaces) runs', !!ran);
+    if (ran) process.kill(Number(ran), 'SIGKILL');
+    await runIt(path.join(dir, 'data.zzz'));
+    const noExec = await page.$eval(DLG, (e) => e.innerText).catch(() => '');
+    check('Run: a file that is not a program -> clear message', /can't run “.*data\.zzz”/.test(noExec), noExec);
+    await page.keyboard.press('Enter'); // close the message -> the Run dialog reopens
+    await page.waitForSelector(`${DLG} .tm-run input`, { timeout: 3000 }).catch(() => null);
+    const recentBtn = await page.$(`${DLG} .tm-run-recent`);
+    check('Run dialog has a recent-commands drop-down', !!recentBtn && !(await recentBtn.evaluate((b) => b.disabled)));
+    if (recentBtn) {
+      await recentBtn.click();
+      await page.waitForSelector('.menu', { timeout: 2000 }).catch(() => null);
+      const recentItems = await page.$$eval('.menu .menu-item', (els) => els.map((e) => e.innerText.trim()));
+      check('recent commands listed (most recent first)', /tm run\.sh"$/.test(recentItems[0] || '') && recentItems[1] === '~/Documents' && recentItems.includes('calculator'), recentItems);
+      await page.click('.menu .menu-item:has-text("calculator")');
+      check('choosing a recent command fills the box', (await page.inputValue(`${DLG} .tm-run input`)) === 'calculator');
+    }
+    await page.keyboard.press('Escape');
+    await sleep(300);
+  }
+
   // ---- Settings: always on top, default page
   await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.go('settings', { focus: false }));
   await sleep(400);
@@ -625,13 +863,13 @@ try {
 } catch (err) {
   failures.push(`EN run threw: ${err.stack || err}`);
 } finally {
-  const errs = s.logs.filter((l) => /^\[(error|pageerror)\]/.test(l));
-  check('no console errors (EN)', errs.length === 0, errs);
+  check('no console errors (EN)', ownErrors(s.logs, resErrs).length === 0, ownErrors(s.logs, resErrs));
   await s.close();
 }
 
 // ================================================================ Part 3: FR dark, sizes
 const f = await launchShell({ open: ['taskmgr'], lang: 'fr', theme: 'dark' });
+const fResErrs = watchResources(f.page);
 try {
   const fp = f.page;
   const ftm = (fn, arg) => f.aurora(fn, arg);
@@ -671,6 +909,10 @@ try {
     });
     check(`FR ${pg}: command bar fits`, !overflow);
     if (pg === 'performance') {
+      const top = await fp.$$eval('.app-taskmgr .tm-pd .tm-chart-top span:last-child', (els) => els.map((e) => e.textContent));
+      check('FR chart scale label "100 %"', top.length >= 1 && top.every((x) => x === '100\u202f%'), top);
+      const tips = await fp.$$eval('.app-taskmgr .tm-dev .tm-dev-title', (els) => els.every((e) => e.dataset.tip === e.textContent));
+      check('device titles carry their full text as a tooltip', tips);
       await fp.click('.app-taskmgr .tm-dev[data-dev="cpu"]');
       await fp.mouse.move(1595, 5);
       await sleep(1500);
@@ -681,6 +923,30 @@ try {
       await fp.screenshot({ path: path.join(DOCS, 'taskmgr-performance-dark-fr.png'), clip: { x: r.x - 16, y: r.y - 16, width: r.width + 32, height: r.height + 32 } });
     }
   }
+  // French column labels fit their default widths (the widths grow to the label).
+  for (const [pg, col] of [['details', 'cpu'], ['details', 'user'], ['history', 'cpuTime'], ['services', 'startup'], ['startup', 'impact']]) {
+    await ftm((p) => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.go(p, { focus: false }), pg);
+    await sleep(500);
+    const fit = await fp.$eval(`.app-taskmgr .tm-page-${pg} .tm-th[data-col="${col}"] .tm-th-label`, (e) => ({ text: e.textContent, sw: e.scrollWidth, cw: e.clientWidth })).catch(() => null);
+    check(`FR header "${fit?.text}" not truncated (${pg})`, fit && fit.sw <= fit.cw, fit);
+  }
+  // Backend errors are shown in French (no English system text).
+  const svcErr = await ftm(async () => {
+    const T = window.__aurora.wm.byApp('taskmgr')[0].taskmgr;
+    const api = T.ctx.api;
+    const inv = api.invoke;
+    api.invoke = (ch, ...a) => (ch === 'perf:services' ? Promise.reject(Object.assign(new Error('systemd is not available'), { code: 'ESYSTEMD' })) : inv(ch, ...a));
+    try {
+      T.pages.services.data = null;
+      T.go('services', { focus: false });
+      await new Promise((r) => setTimeout(r, 600));
+      return T.pages.services.errorEl.hidden ? '' : T.pages.services.errorEl.innerText;
+    } finally {
+      api.invoke = inv;
+    }
+  });
+  check('FR: services error state is localized', /Les services ne sont pas disponibles/.test(svcErr) && /systemd n'est pas actif/.test(svcErr) && !/not available/.test(svcErr), svcErr);
+  await ftm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.services.load());
   await ftm(() => {
     const T = window.__aurora.wm.byApp('taskmgr')[0].taskmgr;
     T.go('processes', { focus: false });
@@ -729,12 +995,96 @@ try {
   await fp.mouse.move(300, 885);
   await sleep(300);
   await fp.screenshot({ path: path.join(DOCS, 'taskmgr-maximized-dark-fr.png') });
-  const errs = f.logs.filter((l) => /^\[(error|pageerror)\]/.test(l));
-  check('no console errors (FR)', errs.length === 0, errs);
+  check('no console errors (FR)', ownErrors(f.logs, fResErrs).length === 0, ownErrors(f.logs, fResErrs));
 } catch (err) {
   failures.push(`FR run threw: ${err.stack || err}`);
 } finally {
   await f.close();
+}
+
+// ================================================================ Part 4: lifecycle, saved data
+// Corrupted preferences, open/close many times (no leaks, no polling after close), perf:users failing.
+{
+  const home = fs.mkdtempSync(path.join((await import('node:os')).tmpdir(), 'aurora-home-'));
+  const store = path.join(home, '.config', 'aurora', 'apps', 'taskmgr');
+  fs.mkdirSync(store, { recursive: true });
+  fs.writeFileSync(path.join(store, 'prefs.json'), JSON.stringify({ speed: 'warp', startPage: '../../x', widths: { processes: { name: 'wide', cpu: -5, mem: 1e9 }, details: 'x' }, columns: { processes: 'name' }, sort: { processes: { id: 7 } }, groupByType: 'yes', alwaysOnTop: true }));
+  fs.writeFileSync(path.join(store, 'run-history.json'), JSON.stringify({ not: 'an array' }));
+  const g = await launchShell({ open: [], lang: 'en', theme: 'light', home });
+  const gRes = watchResources(g.page);
+  const gtm = (fn, a) => g.aurora(fn, a);
+  try {
+    const counts = () =>
+      gtm(() => {
+        const em = (e) => [...e._h.values()].reduce((a, x) => a + x.size, 0);
+        return { wm: em(window.__aurora.wm), nodes: document.getElementsByTagName('*').length };
+      });
+    await gtm(() => window.__aurora.registry.launch('taskmgr'));
+    await waitFor(() => gtm(() => window.__aurora.wm.byApp('taskmgr')[0]?.taskmgr?.store.procs?.length > 0));
+    await sleep(800);
+    const st = await gtm(() => {
+      const T = window.__aurora.wm.byApp('taskmgr')[0].taskmgr;
+      const tpl = T.pages.processes.table.el.style.getPropertyValue('--tm-cols');
+      return { speed: T.prefs.speed, page: T.current.id, interval: T.store.interval, tpl, group: T.prefs.groupByType, onTop: T.win.alwaysOnTop, rows: T.pages.processes.table.rows.length };
+    });
+    check('corrupted preferences are ignored (valid speed, page, column widths)', st.speed === 'normal' && st.interval === 1000 && st.page === 'processes' && !/NaN|-5px|wide/.test(st.tpl) && st.group === true && st.rows > 5, st);
+    check('valid saved preferences are kept', st.onTop === true, st);
+    await gtm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.actions.runNewTask());
+    check('Run new task works with a corrupted history file', !!(await g.page.waitForSelector(`${DLG} .tm-run input`, { timeout: 3000 }).catch(() => null)));
+    await g.page.keyboard.press('Escape');
+    await sleep(300);
+    // Users page without logind data: still shows the signed-in user.
+    const users = await gtm(async () => {
+      const T = window.__aurora.wm.byApp('taskmgr')[0].taskmgr;
+      const api = T.ctx.api;
+      const inv = api.invoke;
+      api.invoke = (ch, ...a) => (ch === 'perf:users' ? Promise.reject(Object.assign(new Error('boom'), { code: 'EIO' })) : inv(ch, ...a));
+      try {
+        T.pages.users.users = null;
+        T.go('users', { focus: false });
+        await new Promise((r) => setTimeout(r, 1500));
+        return T.pages.users.table.rows.filter((r) => r.data.type === 'user').map((r) => r.data.name);
+      } finally {
+        api.invoke = inv;
+      }
+    });
+    check('Users page falls back to the signed-in user', users.length === 1 && users[0] === (await gtm(() => window.aurora.env.user)), users);
+    await gtm(() => window.__aurora.wm.byApp('taskmgr')[0].close(true));
+    await sleep(600);
+    const base = await counts();
+    // IPC traffic is counted from the first cycle on (ctx.api is the shared core api object).
+    for (let i = 0; i < 15; i++) {
+      await gtm(() => window.__aurora.registry.launch('taskmgr'));
+      await sleep(i % 5 === 0 ? 1200 : 350);
+      await gtm((k) => window.__aurora.wm.byApp('taskmgr')[0]?.taskmgr?.go(['processes', 'performance', 'services', 'users', 'details', 'history', 'startup'][k % 7], { focus: false }), i);
+      await sleep(350);
+      if (i === 0) {
+        await gtm(() => {
+          const api = window.__aurora.wm.byApp('taskmgr')[0].taskmgr.ctx.api;
+          window.__tmIpc = 0;
+          const inv = api.invoke;
+          api.invoke = (ch, ...a) => {
+            if (/^(proc|perf):/.test(ch)) window.__tmIpc++;
+            return inv(ch, ...a);
+          };
+        });
+      }
+      await gtm(() => window.__aurora.wm.byApp('taskmgr')[0].close(true));
+      await sleep(250);
+    }
+    await sleep(1500);
+    await gtm(() => (window.__tmIpc = 0));
+    await sleep(3000);
+    const after = await counts();
+    check('no polling after Task Manager closed', (await gtm(() => window.__tmIpc)) === 0, await gtm(() => window.__tmIpc));
+    check('no listener / DOM leak after 15 open-close cycles', after.wm === base.wm && Math.abs(after.nodes - base.nodes) < 40, { base, after });
+    check('no console errors (lifecycle)', ownErrors(g.logs, gRes).length === 0, ownErrors(g.logs, gRes));
+  } catch (err) {
+    failures.push(`lifecycle run threw: ${err.stack || err}`);
+  } finally {
+    await g.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 }
 
 for (const c of children) {

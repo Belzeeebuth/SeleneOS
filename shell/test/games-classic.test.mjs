@@ -1358,6 +1358,13 @@ if (want('game2048')) {
       await page.locator(`${W} .t-board`).focus();
       for (const k of ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown']) await page.keyboard.press(k);
       await sleep(200);
+      // Cancelling the switch keeps both the game and the preferred size.
+      await page.locator(`${W} [data-id="options"]`).click();
+      await page.locator('.menu .menu-item', { hasText: '5 × 5' }).click();
+      await page.waitForSelector(`${W} .dialog`);
+      await page.locator(`${W} .dialog button`, { hasText: 'Keep playing' }).click();
+      await sleep(300);
+      assert.deepEqual(await tg((h) => [h.game.size, h.prefs.size]), [4, 4], 'cancelled size change is not remembered');
       await page.locator(`${W} [data-id="options"]`).click();
       await page.locator('.menu .menu-item', { hasText: '5 × 5' }).click();
       await page.waitForSelector(`${W} .dialog`);
@@ -1365,6 +1372,7 @@ if (want('game2048')) {
       await sleep(400);
       assert.equal(await page.locator(`${W} .t-slot`).count(), 25);
       assert.equal(await tg((h) => h.game.size), 5);
+      assert.equal(await tg((h) => h.prefs.size), 5);
       assert.match(await page.locator(`${W} [data-id="options"]`).textContent(), /5 × 5/);
       await page.locator(`${W} [data-id="options"]`).click();
       await page.locator('.menu .menu-item', { hasText: '4 × 4' }).click();

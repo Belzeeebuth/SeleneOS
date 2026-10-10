@@ -10,6 +10,7 @@
 // Screenshots: test/out/solitaire-*.png, copied to docs/screenshots/.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {
   Klondike,
@@ -23,6 +24,8 @@ import {
   recordResult,
   emptyStats,
   validateState,
+  normalizeState,
+  sanitizeStats,
 } from '../renderer/apps/solitaire/rules.mjs';
 import { faceSvg, backSvg, BACKS } from '../renderer/apps/solitaire/cards.mjs';
 
@@ -67,6 +70,14 @@ function deadEndDesc(scoring) {
   return { scoring, t: tops.map((top, i) => (i < 4 ? [aces[i], top] : [top])), hidden: [1, 1, 1, 1, 0, 0, 0], stock: [], waste: [...rest, '7H'] };
 }
 const deadEnd = (scoring) => new Klondike(stateFrom(deadEndDesc(scoring)));
+
+// Stuck unless 5♣ comes back down from its foundation onto 6♥, where the waste's 4♦ can then go.
+function foundationDownDesc() {
+  const t = [['6H'], ['AS', '9D'], ['AH', '9H'], ['AD', 'QD'], ['5S', 'QH'], ['6C', '3S'], ['7S', '8D']];
+  const f = [[], [], [], ['AC', '2C', '3C', '4C', '5C']];
+  const used = new Set([...t.flat(), ...f.flat(), '4D']);
+  return { scoring: 'vegas', t, hidden: [0, 1, 1, 1, 1, 1, 1], f, stock: [], waste: [...ALL.filter((c) => !used.has(c)), '4D'] };
+}
 
 // ---------------------------------------------------------------- 1. rules
 async function unitTests() {
@@ -342,6 +353,50 @@ async function unitTests() {
     assert.ok(alive.hints().some((x) => x.draw));
   });
 
+  await test('hints: a card can come back down from a foundation to free a stuck one', () => {
+    const g = new Klondike(stateFrom(foundationDownDesc()));
+    const hs = g.hints();
+    assert.equal(hs.length, 1, JSON.stringify(hs));
+    assert.deepEqual([hs[0].from, hs[0].to, hs[0].kind], ['f3', 't0', 'foundation-down']);
+    assert.equal(g.hasMoves(), true, 'not a dead end');
+    assert.ok(g.move(hs[0].from, hs[0].index, hs[0].to));
+    // Now the waste card that was waiting goes first, not 5♣ straight back home.
+    const next = g.hints();
+    assert.deepEqual([next[0].from, next[0].to], ['waste', 't0'], JSON.stringify(next));
+    // Without anything waiting for it, a foundation card stays put (the dead end is still a dead end).
+    assert.equal(deadEnd('vegas').hasMoves(), false);
+  });
+
+  await test('save / load: tampered data is cleaned up, broken layouts refused', () => {
+    const g = Klondike.deal(4242);
+    const raw = JSON.parse(JSON.stringify(g.toJSON()));
+    Object.assign(raw.state, { seed: 'abc', draw: 7, scoring: '<img src=x onerror=alert(1)>', timed: 'yes', score: 'NaN', moves: -3, recycles: 'z', elapsed: 'later', fan: 'q', bonus: 1e9 });
+    raw.state.hidden[6] = 7; // top card face down: never a Klondike position
+    raw.history = [1, 'x', null, { stock: [] }, JSON.parse(JSON.stringify(g.s))];
+    const back = Klondike.fromJSON(raw);
+    const s = back.s;
+    assert.deepEqual([s.seed, s.draw, s.scoring, s.timed, s.score, s.moves, s.recycles, s.elapsed, s.fan, s.bonus, s.won], [1, 1, 'standard', true, 0, 0, 0, 0, 0, 0, false]);
+    assert.equal(s.hidden[6], 6, 'the top card of a column is face up');
+    assert.equal(back.history.length, 1, 'only the valid history entry is kept');
+    assert.throws(() => normalizeState({ ...g.s, t: g.s.t.map((c, i) => (i ? c : [...c, 999])) }), /52 cards/);
+    assert.throws(() => normalizeState('nope'), /missing/);
+    // Vegas keeps a negative score; won is derived from the foundations, not trusted.
+    const v = normalizeState({ ...Klondike.deal(9, { scoring: 'vegas' }).s, won: true, score: -40 });
+    assert.equal(v.won, false);
+    assert.equal(v.score, -40);
+  });
+
+  await test('statistics: stored records are sanitised; Vegas dollars never become the best score', () => {
+    const st = sanitizeStats({ played: 'lots', won: 9, bestTime: -5, streak: -2.4, longestWin: Infinity, extra: 1 });
+    assert.deepEqual(st, { ...emptyStats(), won: 0, streak: -2 });
+    assert.deepEqual(sanitizeStats(null), emptyStats());
+    let s2 = recordResult(emptyStats(), { won: true, time: 90000, score: 208, scoring: 'vegas' });
+    assert.equal(s2.bestScore, 0, 'Vegas win: no best score');
+    assert.equal(s2.won, 1);
+    s2 = recordResult(s2, { won: true, time: 90000, score: 650, scoring: 'standard' });
+    assert.equal(s2.bestScore, 650);
+  });
+
   await test('save / load: JSON round trip keeps the undo history', () => {
     const g = Klondike.deal(31337, { draw: 3 });
     g.drawCards();
@@ -389,7 +444,12 @@ async function unitTests() {
     for (const b of BACKS) used.add(`back.${b}`);
     for (const b of ['felt', 'blue', 'aurora']) used.add(`tableBg.${b}`);
     // keys passed through helpers (tbBtn / stat / keys table)
-    for (const m of src.matchAll(/\[\s*'[^']*',\s*'([a-zA-Z.]+)'\s*\]/g)) used.add(m[1]);
+    for (const m of src.matchAll(/\[\s*(?:'[^']*'|`[^`]*`|t\('[^']*'\)),\s*'([a-zA-Z.]+)'\s*\]/g)) used.add(m[1]);
+    assert.ok(used.has('help.kAuto') && used.has('help.kCancel') && used.has('restart'), 'help-table keys are checked');
+    // Key names shown to the user are localized too (Maj / Entrée / Échap in French).
+    assert.equal(dict.fr['key.shift'], 'Maj');
+    assert.equal(dict.fr['key.esc'], 'Échap');
+    assert.ok(!/\[\s*'(Shift|Ctrl|Esc|Enter)[^']*',\s*'[a-zA-Z.]+'\s*\]/.test(src), 'no hard-coded English key names in the help table');
     for (const m of src.matchAll(/stat\('([a-z]+)'\)/g)) used.add(m[1]);
     const get = (d, k) => (k in d ? d[k] : k.split('.').reduce((o, x) => (o == null ? undefined : o[x]), d));
     for (const lang of ['en', 'fr']) {
@@ -541,6 +601,29 @@ async function uiTests() {
       assert.equal(await s.page.locator('.app-solitaire .sol-gameno').textContent(), 'Game #4242');
     });
 
+    await test('toolbar: one Tab stop, arrow keys / Home / End move between the buttons', async () => {
+      await s.page.locator('.app-solitaire .sol-split-main').focus();
+      const focused = () => s.page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
+      const stops = () => s.page.locator('.app-solitaire .sol-toolbar button[tabindex="0"]').count();
+      assert.equal(await stops(), 1);
+      await s.page.keyboard.press('ArrowRight');
+      assert.equal(await focused(), 'More game options');
+      await s.page.keyboard.press('End');
+      assert.equal(await focused(), 'Settings');
+      assert.equal(await stops(), 1, 'the Tab stop follows the focus');
+      await s.page.keyboard.press('ArrowRight');
+      assert.equal(await focused(), 'New game', 'wraps around');
+      await s.page.keyboard.press('ArrowLeft');
+      assert.equal(await focused(), 'Settings');
+      await s.page.keyboard.press('Home');
+      assert.equal(await focused(), 'New game');
+      // Undo is disabled at the start of a game: arrows skip it.
+      await s.page.keyboard.press('ArrowRight');
+      await s.page.keyboard.press('ArrowRight');
+      assert.equal(await focused(), 'Hint');
+      await s.page.locator('.app-solitaire .sol-table').focus();
+    });
+
     // Crafted position for drag & drop tests.
     const POS = {
       t: [['8S'], ['5C', '7H'], ['QD'], [], ['AH'], ['2C'], ['9D']],
@@ -638,6 +721,17 @@ async function uiTests() {
       assert.equal(st.moves, 3);
     });
 
+    await test('stock: rapid clicks each draw a card (none lost to the card still gliding away)', async () => {
+      await T('deal', 2718, { draw: 1, scoring: 'standard' });
+      const stockSlot = await T('pileRect', 'stock');
+      for (let i = 0; i < 5; i++) await s.page.mouse.click(stockSlot.x + 30, stockSlot.y + 30);
+      await s.page.waitForTimeout(450);
+      const st = await T('state');
+      assert.equal(st.waste.length, 5, 'five clicks, five cards');
+      assert.equal(st.moves, 5);
+      assert.equal(await s.page.locator('.app-solitaire .sol-card:not(.down)').count(), 7 + 5);
+    });
+
     await test('keyboard: pick up with Enter, drop with a column number', async () => {
       await T('load', POS);
       await s.page.locator('.app-solitaire .sol-table').focus();
@@ -680,9 +774,14 @@ async function uiTests() {
       assert.deepEqual(await T('held'), { pile: 't1', index: 1 });
       await s.page.waitForTimeout(500); // not a double-click
       const b = await center('8S');
-      await s.page.mouse.click(b.x, b.y);
+      // Double-clicking the destination drops the card there, and the second click must not then send
+      // the new 8♠-7♥ run on to the 9♦.
+      await s.page.mouse.dblclick(b.x, b.y);
       await s.page.waitForTimeout(350);
       assert.equal(await where('7H'), 't0');
+      assert.equal(await where('8S'), 't0', 'the run stays where it was built');
+      assert.equal((await T('state')).moves, 1);
+      await s.page.keyboard.press('Escape');
       // double-click still auto-moves
       const c = await center('AH');
       await s.page.mouse.dblclick(c.x, c.y);
@@ -974,6 +1073,75 @@ async function uiTests() {
       assert.equal(await T('busy'), false, 'a resumed game is not re-dealt');
     });
 
+    // One card left: K♠ goes home and wins.
+    const LAST_CARD = {
+      f: [
+        ['AS', '2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S', '10S', 'JS', 'QS'],
+        ['AH', '2H', '3H', '4H', '5H', '6H', '7H', '8H', '9H', '10H', 'JH', 'QH', 'KH'],
+        ['AD', '2D', '3D', '4D', '5D', '6D', '7D', '8D', '9D', '10D', 'JD', 'QD', 'KD'],
+        ['AC', '2C', '3C', '4C', '5C', '6C', '7C', '8C', '9C', '10C', 'JC', 'QC', 'KC'],
+      ],
+      t: [['KS'], [], [], [], [], [], []],
+      stock: [],
+      moves: 40,
+    };
+    const wins = async () => (await T('stats')).draw1.won;
+
+    await test('win: the win counts even when F2 follows the winning move at once', async () => {
+      const before = await wins();
+      await T('load', LAST_CARD);
+      await s.page.waitForTimeout(150);
+      const k = await center('KS');
+      await s.page.mouse.click(k.x, k.y);
+      await s.page.keyboard.press('F2');
+      await s.page.waitForTimeout(900);
+      await idle();
+      assert.equal(await wins(), before + 1);
+      const st = await T('state');
+      assert.equal(st.moves, 0, 'a new game was dealt');
+      assert.equal(await T('cascading'), false, 'no cascade for the abandoned celebration');
+      assert.equal(await s.page.locator('.app-solitaire .dialog').count(), 0, 'no stray win dialog');
+    });
+
+    await test('win: the win counts even when the window closes right after the winning move', async () => {
+      const before = await wins();
+      await T('load', LAST_CARD);
+      await s.page.waitForTimeout(150);
+      const k = await center('KS');
+      await s.page.mouse.click(k.x, k.y);
+      await win('close');
+      await s.page.waitForTimeout(700);
+      await s.page.evaluate(() => window.__aurora.registry.launch('solitaire'));
+      await s.page.waitForSelector('.app-solitaire .sol-card');
+      await s.page.waitForTimeout(500);
+      await idle();
+      assert.equal(await wins(), before + 1, 'saved to disk');
+      const st = await T('state');
+      assert.equal(st.won, false, 'the won game is not resumed');
+      assert.equal(st.moves, 0);
+    });
+
+    await test('auto-complete waits while a dialog is open, then finishes and celebrates', async () => {
+      await T('load', NEAR_WIN);
+      await s.page.waitForTimeout(200);
+      await s.page.click('.app-solitaire .sol-auto');
+      await s.page.click('.app-solitaire .sol-toolbar button[aria-label="How to play"]');
+      await s.page.waitForSelector('.app-solitaire .sol-help');
+      await s.page.waitForTimeout(1200);
+      const mid = await T('state');
+      assert.equal(mid.won, false, 'paused under the dialog');
+      assert.ok(mid.f.flat().length < 50, `only the first card flew (${mid.f.flat().length} home)`);
+      await s.page.keyboard.press('Escape');
+      for (let i = 0; i < 40 && !(await T('state')).won; i++) await s.page.waitForTimeout(100);
+      assert.equal((await T('state')).won, true);
+      for (let i = 0; i < 30 && !(await T('cascading')); i++) await s.page.waitForTimeout(100);
+      await T('stopCascade');
+      await s.page.waitForSelector('.app-solitaire .dialog-title:has-text("You won!")', { timeout: 5000 });
+      await s.page.click('.app-solitaire .dialog-footer .btn.primary');
+      await s.page.waitForTimeout(300);
+      await idle();
+    });
+
     await test('layout: minimum size keeps every pile and the toolbar inside the window', async () => {
       await win('setSize', 600, 480);
       await s.page.waitForTimeout(400);
@@ -994,6 +1162,33 @@ async function uiTests() {
     });
     await s.page.mouse.move(5, 5);
     publish(await winShot(s, 'solitaire-small'), 'solitaire-small');
+
+    await test('layout: at the minimum size every dialog stays inside the window', async () => {
+      const inside = () =>
+        s.page.evaluate(() => {
+          const w = document.querySelector('.app-solitaire').getBoundingClientRect();
+          const d = document.querySelector('.app-solitaire .dialog:not(.closing)').getBoundingClientRect();
+          const body = document.querySelector('.app-solitaire .dialog .dialog-body');
+          return { ok: d.left >= w.left && d.right <= w.right && d.top >= w.top && d.bottom <= w.bottom, d: [d.left, d.right, d.top, d.bottom], w: [w.left, w.right, w.top, w.bottom], hscroll: body.scrollWidth - body.clientWidth, vscroll: body.scrollHeight - body.clientHeight };
+        });
+      const dialogs = [
+        ['Settings', '.sol-settings'],
+        ['Statistics', '.sol-stats-grid'],
+        ['How to play', '.sol-help'],
+      ];
+      for (const [label, sel] of dialogs) {
+        await s.page.click(`.app-solitaire .sol-toolbar button[aria-label="${label}"]`);
+        await s.page.waitForSelector(`.app-solitaire ${sel}`);
+        await s.page.waitForTimeout(350);
+        const r = await inside();
+        assert.ok(r.ok, `${label} dialog leaves the window: ${JSON.stringify(r)}`);
+        assert.ok(r.hscroll <= 0, `${label} dialog scrolls sideways`);
+        if (label === 'Statistics') assert.ok(r.vscroll <= 0, `statistics need no scrolling (${r.vscroll}px)`);
+        if (label === 'Settings') publish(await winShot(s, 'solitaire-settings-small'), 'solitaire-settings-small');
+        await s.page.keyboard.press('Escape');
+        await s.page.waitForTimeout(300);
+      }
+    });
 
     await test('no renderer errors, no missing solitaire resources', async () => {
       const errs = solErrors(s);
@@ -1030,10 +1225,19 @@ async function uiTests() {
     });
     await d.page.mouse.move(5, 5);
     publish(await d.shot('solitaire-dark-fr-1920'), 'solitaire-dark-fr-1920');
-    await test('fr: help dialog', async () => {
+    await test('fr: help dialog, with French key names', async () => {
       await d.page.click('.app-solitaire .sol-toolbar button[aria-label="Comment jouer"]');
       await d.page.waitForSelector('.app-solitaire .sol-help');
+      await d.page.waitForTimeout(450); // let the dialog finish fading in before the screenshot
+      const keys = await d.page.locator('.app-solitaire .sol-keys kbd').allTextContents();
+      for (const k of ['Maj+F2', 'Ctrl+Z', 'Maj+Entrée', 'Échap', 'Entrée / Espace']) assert.ok(keys.includes(k), `${k} in ${keys.join(', ')}`);
+      assert.ok(!keys.some((k) => /Shift|Esc$|Enter/.test(k)), keys.join(', '));
       publish(await d.shot('solitaire-help-fr'), 'solitaire-help-fr');
+      await d.page.keyboard.press('Escape');
+      await d.page.waitForTimeout(300);
+      await d.page.click('.app-solitaire .sol-split-more');
+      await d.page.waitForSelector('.menu .menu-item');
+      assert.ok((await d.page.locator('.menu').innerText()).includes('Maj+F2'), 'restart shortcut in the menu');
       await d.page.keyboard.press('Escape');
     });
     await test('fr/dark: win cascade and dialog', async () => {
@@ -1069,21 +1273,35 @@ async function uiTests() {
     await H3.win('maximize');
     await m.page.waitForTimeout(500);
     await H3.idle();
-    await test('1280x720: the longest possible column still fits', async () => {
+    await test('1280x720: the longest possible column fits, every rank index stays readable', async () => {
       await H3.T('setPrefs', { table: 'aurora', back: 'midnight' });
+      const normal = (await H3.T('layout')).cw;
       // 6 face-down cards + a full King-to-Ace run in the last column.
       await H3.T('load', {
         t: [[], [], [], [], [], [], ['2S', '3S', '4S', '5S', '6S', '7S', 'KH', 'QC', 'JD', '10S', '9H', '8C', '7D', '6C', '5H', '4C', '3H', '2C', 'AH']],
         hidden: [0, 0, 0, 0, 0, 0, 6],
       });
-      await m.page.waitForTimeout(400);
+      await m.page.waitForTimeout(500);
+      const L = await H3.T('layout');
+      assert.ok(L.cw < normal, `cards shrink for a very long column (${normal} -> ${L.cw})`);
       const r = await m.page.evaluate(() => {
         const root = document.querySelector('.app-solitaire');
-        const table = root.querySelector('.sol-table').getBoundingClientRect();
-        const ace = root.querySelector('.sol-card[data-code="AH"]').getBoundingClientRect();
-        return { bottom: ace.bottom, tableBottom: table.bottom };
+        const footer = root.querySelector('.sol-footer').getBoundingClientRect();
+        const run = ['KH', 'QC', 'JD', '10S', '9H', '8C', '7D', '6C', '5H', '4C', '3H', '2C', 'AH'].map((c) => root.querySelector(`.sol-card[data-code="${c}"]`).getBoundingClientRect());
+        return { bottom: run[run.length - 1].bottom, footerTop: footer.top, gaps: run.slice(1).map((b, i) => b.top - run[i].top), ch: run[0].height };
       });
-      assert.ok(r.bottom <= r.tableBottom, JSON.stringify(r));
+      assert.ok(r.bottom <= r.footerTop, `column runs into the footer: ${JSON.stringify(r)}`);
+      // The rank index ends at 58/350 of the card height: each face-up card must show at least that much.
+      assert.ok(Math.min(...r.gaps) >= r.ch * 0.166, `face-up cards overlap their rank index: ${JSON.stringify(r.gaps)} (card ${r.ch}px)`);
+      // Back to an ordinary deal: full-size cards again.
+      await H3.T('deal', 3, { draw: 1 });
+      await m.page.waitForTimeout(400);
+      assert.equal((await H3.T('layout')).cw, normal);
+      await H3.T('load', {
+        t: [[], [], [], [], [], [], ['2S', '3S', '4S', '5S', '6S', '7S', 'KH', 'QC', 'JD', '10S', '9H', '8C', '7D', '6C', '5H', '4C', '3H', '2C', 'AH']],
+        hidden: [0, 0, 0, 0, 0, 0, 6],
+      });
+      await m.page.waitForTimeout(400);
     });
     await m.page.mouse.move(5, 5);
     publish(await m.shot('solitaire-1280-aurora'), 'solitaire-1280-aurora');
@@ -1093,6 +1311,147 @@ async function uiTests() {
     });
   } finally {
     await m.close();
+  }
+
+  // Saved data edited by hand / corrupted on disk, then 15 open/close cycles.
+  console.log('UI (Electron, tampered saved data + open/close cycles)');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-home-'));
+  const store = path.join(home, '.config', 'aurora', 'apps', 'solitaire');
+  fs.mkdirSync(store, { recursive: true });
+  fs.writeFileSync(path.join(store, 'prefs.json'), JSON.stringify({ draw: 'x', scoring: '<img src=x onerror=alert(1)>', bank: 'abc', back: 5, table: { a: 1 }, timed: 'yes', clickMove: 0, sound: 'no' }));
+  fs.writeFileSync(path.join(store, 'stats.json'), JSON.stringify({ draw1: { played: 'lots', won: 4, bestTime: -5, streak: 'x' }, draw3: 7, draw7: { played: 1 } }));
+  const tampered = Klondike.deal(77).toJSON();
+  Object.assign(tampered.state, { seed: 'abc', draw: 7, scoring: 'evil', timed: 'x', score: 'NaN', moves: -3, recycles: 'z', elapsed: 'later', fan: 'q' });
+  tampered.history = [1, 'x', null];
+  fs.writeFileSync(path.join(store, 'game.json'), JSON.stringify(tampered));
+  const c = await launchShell({ open: ['solitaire'], lang: 'en', theme: 'light', home });
+  const H4 = helpers(c);
+  try {
+    await c.page.waitForSelector('.app-solitaire .sol-card', { timeout: 20000 });
+    await c.page.waitForTimeout(600);
+    await test('tampered saved data: the app opens with sane values, nothing injected', async () => {
+      const ui = await c.page.evaluate(() => ({
+        toolbar: document.querySelector('.app-solitaire .sol-stats').innerText.replace(/\s+/g, ' '),
+        footer: document.querySelector('.app-solitaire .sol-footer').innerText.replace(/\s+/g, ' '),
+        imgs: document.querySelectorAll('.app-solitaire .sol-toolbar img, .app-solitaire .sol-footer img').length,
+      }));
+      assert.equal(ui.toolbar, 'Score 0 Time 0:00 Moves 0');
+      assert.equal(ui.footer, 'Game #1 Draw 1 · Standard scoring');
+      assert.equal(ui.imgs, 0);
+      assert.deepEqual(await H4.T('prefs'), { draw: 1, scoring: 'standard', timed: true, cumulative: false, bank: 0, back: 'aurora', table: 'felt', clickMove: true, sound: true });
+      const st = await H4.T('state');
+      assert.deepEqual(st.t, Klondike.deal(77).s.t, 'the cards of the saved game are kept');
+      assert.equal(await H4.T('history'), 0, 'corrupt undo steps dropped');
+      const stats = await H4.T('stats');
+      assert.deepEqual(Object.keys(stats).sort(), ['draw1', 'draw3']);
+      assert.equal(stats.draw1.played, 0);
+      assert.equal(stats.draw1.won, 0, 'never more wins than games');
+      await c.page.click('.app-solitaire .sol-tb-btn[aria-label="Statistics"]');
+      await c.page.waitForSelector('.app-solitaire .sol-stats-grid');
+      assert.ok(!/NaN|undefined/.test(await c.page.locator('.app-solitaire .sol-stats-grid').innerText()));
+      await c.page.keyboard.press('Escape');
+      await c.page.waitForTimeout(300);
+    });
+
+    await test('open / close 15 times: no leaked listeners, timers or windows', async () => {
+      await H4.win('close');
+      await c.page.waitForTimeout(500);
+      await c.page.evaluate(() => {
+        const a = window.__aurora;
+        const probe = (window.__solProbe = { subs: 0, intervals: new Set(), audio: 0, audioClosed: 0 });
+        const on = a.settings.on.bind(a.settings);
+        a.settings.on = (k, fn) => {
+          probe.subs++;
+          const off = on(k, fn);
+          return () => {
+            probe.subs--;
+            return off();
+          };
+        };
+        const si = window.setInterval.bind(window);
+        const ci = window.clearInterval.bind(window);
+        window.setInterval = (...x) => {
+          const id = si(...x);
+          probe.intervals.add(id);
+          return id;
+        };
+        window.clearInterval = (id) => {
+          probe.intervals.delete(id);
+          return ci(id);
+        };
+        const AC = window.AudioContext;
+        window.AudioContext = class extends AC {
+          constructor(...x) {
+            super(...x);
+            probe.audio++;
+          }
+          close() {
+            probe.audioClosed++;
+            return super.close();
+          }
+        };
+      });
+      const dom0 = await c.page.evaluate(() => document.querySelectorAll('*').length);
+      // (Relaunching while the previous window is still in its close animation would just focus that
+      // dying window — a shell-level race — so each cycle waits for the window to be gone.)
+      const gone = () => c.page.waitForFunction(() => !window.__aurora.wm.byApp('solitaire').length, null, { timeout: 5000 });
+      await gone();
+      for (let i = 0; i < 15; i++) {
+        await c.page.evaluate(() => window.__aurora.registry.launch('solitaire'));
+        await c.page.waitForFunction(() => {
+          const w = window.__aurora.wm.byApp('solitaire')[0];
+          return !!(w && window.__aurora.registry.instance(w.id)?.hooks?.test);
+        });
+        await c.page.waitForTimeout(150);
+        const st = await H4.T('pileRect', 'stock');
+        await c.page.mouse.click(st.x + 20, st.y + 20); // makes a sound -> AudioContext
+        await H4.win('close');
+        await gone();
+      }
+      const r = await c.page.evaluate(() => ({ ...window.__solProbe, intervals: window.__solProbe.intervals.size, wins: window.__aurora.wm.byApp('solitaire').length, dom: document.querySelectorAll('*').length, css: document.querySelectorAll('link[href*="apps/solitaire"]').length }));
+      assert.equal(r.wins, 0);
+      assert.equal(r.subs, 0, 'settings subscriptions released');
+      assert.equal(r.intervals, 0, 'clock intervals cleared');
+      assert.equal(r.audio, r.audioClosed, 'every AudioContext closed');
+      assert.equal(r.css, 1, 'stylesheet injected once');
+      assert.ok(r.dom - dom0 < 20, `DOM grew by ${r.dom - dom0} nodes`);
+    });
+
+    await test('tampered data / cycles: no renderer errors', async () => {
+      const errs = solErrors(c);
+      assert.equal(errs.length, 0, errs.join('\n'));
+    });
+  } finally {
+    await c.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+
+  // Saving fails (the storage folder is a file): one clear, translated error, the game goes on.
+  console.log('UI (Electron, fr, storage not writable)');
+  const home2 = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-home-'));
+  fs.mkdirSync(path.join(home2, '.config', 'aurora', 'apps'), { recursive: true });
+  fs.writeFileSync(path.join(home2, '.config', 'aurora', 'apps', 'solitaire'), 'not a folder');
+  const f = await launchShell({ open: ['solitaire'], lang: 'fr', theme: 'dark', home: home2 });
+  const H5 = helpers(f);
+  try {
+    await f.page.waitForSelector('.app-solitaire .sol-card', { timeout: 20000 });
+    await test('save failure: a single translated error, then the game keeps working', async () => {
+      await f.page.waitForSelector('.app-solitaire .dialog', { timeout: 5000 });
+      await f.page.waitForTimeout(400);
+      const txt = await f.page.locator('.app-solitaire .dialog').innerText();
+      assert.match(txt, /Impossible d'enregistrer la partie/);
+      await f.page.click('.app-solitaire .dialog-footer .btn.primary');
+      await f.page.waitForTimeout(300);
+      await H5.idle();
+      const st = await H5.T('pileRect', 'stock');
+      await f.page.mouse.click(st.x + 20, st.y + 20);
+      await f.page.waitForTimeout(1200); // past the save debounce
+      assert.equal((await H5.T('state')).moves, 1);
+      assert.equal(await f.page.locator('.app-solitaire .dialog').count(), 0, 'not shown again');
+    });
+  } finally {
+    await f.close();
+    fs.rmSync(home2, { recursive: true, force: true });
   }
 }
 

@@ -2115,3 +2115,12 @@
   color: var(--text-2);
   font-size: var(--fs-caption);
 }
+
+/* Focusing a control inside an animating flyout or dialog must never scroll the window itself
+   (overflow: hidden boxes can still be scrolled programmatically; clip cannot). */
+.app-browser.win,
+.app-browser.win > .win-body,
+.app-browser .bw-root,
+.app-browser .bw-content {
+  overflow: clip;
+}

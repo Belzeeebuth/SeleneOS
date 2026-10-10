@@ -372,7 +372,9 @@ function killOne(api, pid, signal) {
   }
 }
 
-function descendants(pid) {
+// Every descendant of pid, deepest first. The subtree rooted at `keep` (the shell's main process:
+// its GPU, renderer and utility processes) is left out unless it is the tree being ended.
+function descendants(pid, keep = null) {
   const children = new Map();
   for (const p of listPids()) {
     const st = parseStat(rd(`/proc/${p}/stat`) || '');
@@ -384,6 +386,7 @@ function descendants(pid) {
   const walk = (p, depth) => {
     if (depth > 64) return;
     for (const c of children.get(p) || []) {
+      if (c === keep && c !== pid) continue;
       walk(c, depth + 1);
       order.push(c);
     }
@@ -454,7 +457,7 @@ async function spawnCommand(api, line) {
     const timer = setTimeout(() => resolve({ pid: child.pid }), 400);
     child.once('error', (err) => {
       clearTimeout(timer);
-      reject(api.error(err.message, err.code === 'ENOENT' ? 'ENOENT' : 'EFAIL'));
+      reject(api.error(err.message, err.code === 'ENOENT' || err.code === 'EACCES' ? err.code : 'EFAIL'));
     });
     child.once('exit', (code) => {
       if (code === 127 || code === 126) {
@@ -1209,8 +1212,8 @@ function register(api) {
     checkTarget(api, pid);
     const killed = [];
     const failed = [];
-    for (const p of [...descendants(pid), pid]) {
-      if (p === process.pid) continue; // never take the shell down as a side effect
+    for (const p of [...descendants(pid, process.pid), pid]) {
+      if (p === process.pid) continue; // never take the shell (or its own processes) down as a side effect
       try {
         killOne(api, p, signal);
         killed.push(p);
@@ -1237,4 +1240,5 @@ module.exports.mergeServices = mergeServices;
 module.exports.parseStat = parseStat;
 module.exports.parseDesktop = parseDesktop;
 module.exports.splitCommand = splitCommand;
+module.exports.descendants = descendants;
 module.exports.SAMPLE_UNITS = SAMPLE_UNITS;

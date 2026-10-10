@@ -113,8 +113,16 @@
   line-height: 16px;
   color: var(--text);
 }
+/* The close button only takes room from the title while it is visible (hover / keyboard selection),
+   so short titles of narrow windows (Calculator) are not cut for nothing. */
+.tv-card:hover .tv-title,
+.tv-card.sel .tv-title {
+  padding-right: 28px;
+}
 .tv-x {
-  flex: none;
+  position: absolute;
+  right: 0;
+  top: 0;
   width: 28px;
   height: 28px;
   display: grid;
@@ -290,6 +298,17 @@
   width: 12px;
   height: 12px;
 }
+/* Miniature drawn from the window's last screen capture. */
+.tv-mini.pic {
+  overflow: hidden;
+  border-radius: 3px;
+  background: transparent;
+}
+.tv-mini-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 .tv-new-thumb {
   display: grid;
   place-items: center;
@@ -379,7 +398,13 @@
   width: 18px;
   background: var(--accent);
 }
+.tv-pill {
+  max-width: min(480px, calc(100vw - 32px));
+}
 .tv-pill-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 600;
   white-space: nowrap;
 }

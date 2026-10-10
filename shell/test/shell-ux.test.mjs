@@ -2,7 +2,8 @@
 // OSD, widgets, desktop icons, theme switching — in light/dark and English/French.
 //
 //   cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/shell-ux.test.mjs
-//   options: --quick (one locale/theme)  --unit (unit checks only)  --docs (copy the best screenshots to docs/screenshots)
+//   options: --quick (one locale/theme)  --unit (unit checks only)  --adv (adversarial QA runs only)
+//            --docs (copy the best screenshots to docs/screenshots)
 //
 // The system backends (net:*, audio:*, display:*, power:battery) belong to another area; when they
 // are missing (or to get deterministic screenshots) the test installs a realistic in-renderer mock
@@ -14,6 +15,7 @@ import { launchShell, OUT } from './lib.mjs';
 const QUICK = process.argv.includes('--quick');
 const UNIT_ONLY = process.argv.includes('--unit');
 const DOCS = process.argv.includes('--docs');
+const ADV_ONLY = process.argv.includes('--adv'); // only the adversarial (real backends, 1280x720) runs
 const DOCS_DIR = path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'docs', 'screenshots');
 
 let failures = 0;
@@ -169,6 +171,18 @@ async function unitTests() {
       out.settingsDark = st.search.settings('dark mode').some((x) => x.page === 'colors');
       out.settingsAccents = st.search.settings('resolution')[0]?.page === 'display';
       out.webUrl = st.search.webUrl('a b').endsWith('a%20b');
+      // hostile values never escape CSS url("…") or reach a non-image scheme
+      const evil = th.resolveWallpaper('/tmp/a") ; background:red; ("b.jpg', 'light');
+      out.wpQuoteSafe = !evil.includes('"') && evil.startsWith('media://');
+      out.wpScheme = th.resolveWallpaper('javascript:alert(1)', 'light').endsWith('bloom-light.jpg') && th.resolveWallpaper('https://example.com/a.jpg', 'dark') === 'https://example.com/a.jpg';
+      const tick = () => new Promise((r) => setTimeout(r, 80));
+      await window.__aurora.settings.set('searchEngine', 'javascript:alert(1)//');
+      await tick();
+      out.webEngineSafe = st.search.webUrl('x').startsWith('https://duckduckgo.com/');
+      await window.__aurora.settings.set('searchEngine', 'https://www.qwant.com/?q=');
+      await tick();
+      out.webEngineCustom = st.search.webUrl('x') === 'https://www.qwant.com/?q=x';
+      await window.__aurora.settings.set('searchEngine', null);
       out.fileTint = [st.fileTint({ ext: '.pdf' }), st.fileTint({ ext: '.xlsx' }), st.fileTint({ dir: true })].join(',');
       const { notify, notifications } = window.__aurora;
       notifications.clear();
@@ -191,6 +205,8 @@ async function unitTests() {
     check(r.allWallpapers.every(Boolean), `every built-in wallpaper is served (${r.allWallpapers.join(',')})`);
     check(r.settingsWifi && r.settingsDark && r.settingsAccents, 'settings search index finds Wi-Fi, dark mode, resolution');
     check(r.webUrl, 'web search URL is encoded');
+    check(r.wpQuoteSafe && r.wpScheme, 'resolveWallpaper escapes quotes and refuses non-image schemes');
+    check(r.webEngineSafe && r.webEngineCustom, 'search engine setting only accepts http(s) prefixes');
     check(r.fileTint === 'pdf,xls,dir', `file type tints (${r.fileTint})`);
     check(r.groups === 'winver:2,system:1', `notifications grouped by app, newest group first (${r.groups})`);
     check(r.unread === 3 && r.afterClearApp === 1 && r.unreadAfter === 0, 'unread count, clearApp, markAllRead');
@@ -671,10 +687,340 @@ async function scenario(theme, lang) {
   }
 }
 
+// ------------------------------------------------------------------------------------------ adversarial
+// QA regressions, driven against the real (dev) system backends — no mock — at 1280x720:
+// keyboard paths, overflow, races, leaks, XSS, untranslated strings.
+// English words that must never show up in the French shell chrome (user content is excluded).
+const EN_ONLY = /\b(Settings|Search|Pinned|All apps|Recommended|Back|Clear all|Do not disturb|Night light|Airplane mode|Brightness|Mute|Unmute|Connected|Secured|Sign out|Shut down|Restart|Sleep|Lock|Refresh|Paste|View|Sort by|Personalize|Today|Weather|Quick notes|Memory|Processor|Good (morning|afternoon|evening)|Type here|Top apps|Quick searches|Close|Task Manager|Taskbar|Previous month|Next month|Collapse|Expand|No new notifications|Dark mode|remaining|Speakers|Internet access|Task view|Show more|Show desktop|Power|Account|Sound output|More|Open|New|Start)\b/;
+
+async function listenerCounts(cdp) {
+  const r = await cdp.send('Runtime.evaluate', {
+    expression: 'JSON.stringify([document, window].map((o) => Object.values(getEventListeners(o)).reduce((n, l) => n + l.length, 0)))',
+    includeCommandLineAPI: true,
+    returnByValue: true,
+  });
+  return JSON.parse(r.result.value);
+}
+
+// Visible shell-chrome strings (text, aria-label, data-tip, placeholder) under the given roots,
+// minus user/backend content (SSIDs, device names, file names, notification text, app names).
+function chromeStrings(s, selectors) {
+  return s.aurora((selectors) => {
+    const skip = '.qs-out-list, .qs-net-list, .start-rec, .sv-row, .nc-item, .nc-group-head, .wg-photo, .start-tile-label, .start-row, .sv-topapp, .start-user, .tb-pv-head, .wg-greet, .desk-label';
+    const appNames = new Set(window.__aurora.registry.list({ includeHidden: true }).map((m) => window.__aurora.registry.name(m.id)));
+    const out = new Set();
+    const add = (v, el) => {
+      v = String(v || '').trim();
+      if (!v || appNames.has(v) || el.closest(skip)) return;
+      out.add(v);
+    };
+    for (const sel of selectors) {
+      const root = document.querySelector(sel);
+      if (!root) continue;
+      const walk = (n) => {
+        if (n.nodeType === 3) {
+          const p = n.parentElement;
+          if (p && p.getClientRects().length && getComputedStyle(p).visibility !== 'hidden') add(n.textContent, p);
+          return;
+        }
+        if (n.nodeType !== 1) return;
+        for (const a of ['aria-label', 'data-tip', 'placeholder']) if (n.getAttribute(a)) add(n.getAttribute(a), n);
+        for (const c of n.childNodes) walk(c);
+      };
+      walk(root);
+    }
+    return [...out];
+  }, selectors);
+}
+
+async function adversarial(theme, lang) {
+  const tag = `${theme}-${lang}-720p`;
+  console.log(`• adversarial ${tag} (real dev backends)`);
+  const fr = lang === 'fr';
+  const s = await launchShell({ theme, lang, size: '1280x720', settings: { theme, lang, taskbar: { showWidgets: true } }, env: { AURORA_MOCK_BATTERY: '64' } });
+  const P = s.page;
+  const A = (fn, a) => s.aurora(fn, a);
+  const active = () => A(() => document.activeElement?.className || '');
+  const english = [];
+  const scan = async (where, sels) => {
+    if (!fr) return;
+    for (const v of await chromeStrings(s, sels)) if (EN_ONLY.test(v)) english.push(`${where}: “${v}”`);
+  };
+  try {
+    fs.writeFileSync(path.join(s.home, 'Desktop', '<img src=x onerror="window.__xss=1">.txt'), 'x');
+    fs.writeFileSync(path.join(s.home, 'Desktop', 'Meeting notes.txt'), 'hello');
+    fs.writeFileSync(path.join(s.home, 'Documents', 'Project plan.docx'), 'x');
+    await A(() => window.__aurora.desktop.refresh());
+    await sleep(600);
+    await scan('taskbar', ['#taskbar']);
+
+    // ---- every flyout fits on a 1280x720 screen, above the taskbar
+    for (const [ev, sel] of [['start:toggle', '#start'], ['search:toggle', '#search-panel'], ['quick:toggle', '#quick-settings'], ['calendar:toggle', '#calendar-center'], ['widgets:toggle', '#widgets-board']]) {
+      await A((ev) => window.__aurora.shell.emit(ev), ev);
+      await sleep(800);
+      const r = await A((sel) => JSON.parse(JSON.stringify(document.querySelector(sel).getBoundingClientRect())), sel);
+      check(r.top >= 0 && r.left >= 0 && r.right <= 1280 && r.bottom <= 720 - 48 + 1, `[${tag}] ${sel} fits the screen above the taskbar (${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)})`);
+      await scan(sel, [sel]);
+      await A(() => window.__aurora.shell.emit('flyouts:close'));
+      await sleep(300);
+    }
+
+    // ---- Start: tile labels are never clipped (two-line French labels included)
+    await P.click('.tb-start');
+    await sleep(700);
+    const clipped = await A(() =>
+      [...document.querySelectorAll('.start-tile')]
+        .filter((t) => {
+          const l = t.querySelector('.start-tile-label');
+          return l.scrollHeight > l.clientHeight + 1 || l.getBoundingClientRect().bottom > t.getBoundingClientRect().bottom + 0.5;
+        })
+        .map((t) => t.textContent),
+    );
+    check(clipped.length === 0, `[${tag}] Start tile labels are not clipped (${clipped.join(', ')})`);
+    // keyboard: Space on a tile launches it (it used to jump to the search box)
+    await P.keyboard.press('ArrowDown');
+    const firstApp = await A(() => document.activeElement?.dataset.app);
+    await P.keyboard.press(' ');
+    await sleep(1200);
+    check(await A((id) => window.__aurora.wm.list().some((w) => w.appId === id) && !window.__aurora.start.isOpen, firstApp), `[${tag}] Space on a Start tile launches it (${firstApp})`);
+    await A(() => window.__aurora.wm.list().forEach((w) => w.close(true)));
+    await sleep(400);
+    // Tab stays inside Start: one stop per group, wrapping back to the search box
+    await P.click('.tb-start');
+    await sleep(700);
+    const stops = [];
+    for (let i = 0; i < 6; i++) {
+      await P.keyboard.press('Tab');
+      stops.push(await active());
+    }
+    check(stops.every((c) => /start-/.test(c)) && stops.includes('start-search'), `[${tag}] Tab cycles inside Start (${stops.join(' → ')})`);
+    check(stops.filter((c) => c.includes('start-tile')).length <= 2, `[${tag}] the pinned grid is a single Tab stop (roving focus)`);
+    // keyboard into All apps: focus follows, arrows move from the letter headers
+    await A(() => document.querySelector('.start-search').focus());
+    await P.keyboard.press('Shift+Tab'); // wraps to the power button
+    await A(() => document.querySelector('.start-view-pinned .start-head-btn').focus());
+    await P.keyboard.press('Enter');
+    await sleep(600);
+    check(await A(() => !!document.activeElement?.closest('.start-view-all')), `[${tag}] Enter on “All apps” moves focus into the list (${await active()})`);
+    check(/start-letter/.test(await active()), `[${tag}] All apps starts on its first letter header (${await active()})`);
+    await P.keyboard.press('ArrowDown');
+    check(/start-row/.test(await active()), `[${tag}] ArrowDown moves from a letter header to the first app (${await active()})`);
+    await scan('start all apps', ['#start']);
+    await P.keyboard.press('Escape');
+    await sleep(300);
+
+    // ---- Start pinned pagination (> 18 pins): dots, wheel paging, dot click
+    const pinBackup = await A(() => {
+      const { registry, settings } = window.__aurora;
+      const orig = registry.get;
+      window.__origRegistryGet = orig;
+      registry.get = (id) => orig.call(registry, id) || (/^fakeapp\d+$/.test(id) ? { id, name: { en: id, fr: id } } : undefined);
+      const before = settings.get('startPinned');
+      settings.set('startPinned', [...registry.list().map((m) => m.id), ...Array.from({ length: 12 }, (_, i) => `fakeapp${i}`)]);
+      return before;
+    });
+    await sleep(300);
+    await A(() => window.__aurora.shell.emit('start:open'));
+    await sleep(800);
+    const pg1 = await A(() => ({ tiles: document.querySelectorAll('.start-tile').length, dots: document.querySelectorAll('.start-dots:not([hidden]) .start-dot').length }));
+    await P.mouse.move(640, 250);
+    await P.mouse.wheel(0, 120);
+    await sleep(700);
+    const pg2 = await A(() => ({ tiles: document.querySelectorAll('.start-view:not(.leaving) .start-tile').length, on: [...document.querySelectorAll('.start-dot')].findIndex((d) => d.classList.contains('on')) }));
+    check(pg1.tiles === 18 && pg1.dots >= 2 && pg2.on === 1 && pg2.tiles > 0, `[${tag}] pinned grid pages by 18 with dots and wheel paging (${JSON.stringify([pg1, pg2])})`);
+    await P.click('.start-dot:first-child');
+    await sleep(500);
+    check(await A(() => document.querySelector('.start-dot.on') === document.querySelector('.start-dot:first-child')), `[${tag}] clicking a page dot goes back to page 1`);
+    await A((before) => {
+      window.__aurora.registry.get = window.__origRegistryGet;
+      window.__aurora.settings.set('startPinned', before);
+    }, pinBackup);
+    await A(() => window.__aurora.shell.emit('flyouts:close'));
+    await sleep(300);
+
+    // ---- quick settings vs the real backends: Wi-Fi tile + tray stay in sync
+    await P.click('.tb-quick');
+    await sleep(1200);
+    const wifiLabel = await A(() => document.querySelector('[data-key="wifi"] .qs-tile-label')?.textContent);
+    const wifiConn = await A(async () => (await window.__aurora.api.invoke('net:status')).devices.find((d) => d.type === 'wifi' && /^connected/.test(d.state))?.connection);
+    check(!wifiConn || wifiLabel === wifiConn, `[${tag}] Wi-Fi tile names the connected network (${wifiLabel} / ${wifiConn})`);
+    await P.click('.qs-mute');
+    await sleep(800);
+    check(await A(() => /muted|coupé/.test(document.querySelector('.tb-vol').dataset.tip)), `[${tag}] muting from quick settings updates the tray icon`);
+    await P.click('.qs-mute');
+    await sleep(600);
+    await P.click('[data-key="airplane"] .qs-tile-main');
+    await sleep(1200);
+    check(await A(() => window.__aurora.taskbar.status().net?.airplane === true && document.querySelector('.tb-net [data-icon="airplane"]')), `[${tag}] airplane mode from quick settings shows in the tray`);
+    await P.click('[data-key="airplane"] .qs-tile-main');
+    await sleep(1200);
+    for (const pg of ['wifi', 'audio', 'a11y']) {
+      await A((pg) => window.__aurora.quick.showPage(pg), pg);
+      await sleep(1300);
+      await scan(`quick ${pg}`, ['#quick-settings']);
+    }
+    await A(() => window.__aurora.shell.emit('flyouts:close'));
+    await sleep(300);
+
+    // ---- menus are localized
+    await P.click('#desktop', { button: 'right', position: { x: 700, y: 300 } });
+    await sleep(300);
+    await scan('desktop menu', ['.menu']);
+    await P.keyboard.press('Escape');
+    await P.click('#taskbar', { button: 'right', position: { x: 300, y: 24 } });
+    await sleep(300);
+    const tbMenu = await A(() => ({ bottom: document.querySelector('.menu').getBoundingClientRect().bottom, top: document.getElementById('taskbar').getBoundingClientRect().top }));
+    check(tbMenu.bottom <= tbMenu.top, `[${tag}] the taskbar menu opens above the taskbar (${Math.round(tbMenu.bottom)} ≤ ${Math.round(tbMenu.top)})`);
+    await scan('taskbar menu', ['.menu']);
+    await P.keyboard.press('Escape');
+
+    // ---- XSS: file names and notification text are rendered as text
+    await A(() => window.__aurora.notify({ appId: 'winver', title: '<img src=x onerror="window.__xss=2">', body: '<b>bold</b>', silent: true, timeout: 1 }));
+    await P.click('.tb-clock');
+    await sleep(800);
+    await P.click('.tb-start');
+    await sleep(800);
+    check(await A(() => !window.__xss && !document.querySelector('img[src="x"]') && !document.querySelector('.nc-body b, .toast-body b')), `[${tag}] HTML in file names / notifications is never interpreted`);
+    await A(() => window.__aurora.shell.emit('flyouts:close'));
+    await A(() => window.__aurora.notifications.clear());
+    fs.rmSync(path.join(s.home, 'Desktop', '<img src=x onerror="window.__xss=1">.txt'), { force: true });
+    await A(() => window.__aurora.desktop.refresh());
+
+    // ---- security: a drop carrying the internal paths format that did not start in the shell
+    // (web page in a <webview>, sandboxed mail iframe) must never move or trash files
+    const secret = path.join(s.home, 'Documents', 'secret.txt');
+    fs.writeFileSync(secret, 'top secret');
+    await A((p) => {
+      const fire = (el, x, y) => {
+        const dt = new DataTransfer();
+        dt.setData('application/x-aurora-paths', JSON.stringify([p]));
+        for (const type of ['dragenter', 'dragover', 'drop']) el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt, clientX: x, clientY: y }));
+      };
+      const bin = document.querySelector('.desk-icon[data-special="trash"]');
+      const r = bin.getBoundingClientRect();
+      fire(bin, r.left + 10, r.top + 10);
+      fire(document.querySelector('.desk-icons'), 700, 400);
+    }, secret);
+    await sleep(900);
+    check(fs.existsSync(secret) && !fs.existsSync(path.join(s.home, 'Desktop', 'secret.txt')), `[${tag}] a forged drag payload from web content cannot trash or move files`);
+
+    // ---- notification center keyboard: Delete dismisses and keeps focus in the list
+    await A(() => {
+      for (let i = 0; i < 4; i++) window.__aurora.notify({ appId: 'winver', title: `N${i}`, body: 'b', silent: true, timeout: 1 });
+    });
+    await P.click('.tb-clock');
+    await sleep(800);
+    await A(() => document.querySelector('.nc-item')?.focus());
+    await P.keyboard.press('Delete');
+    await sleep(700);
+    check(await A(() => document.querySelectorAll('.nc-item').length === 3 && document.activeElement?.classList.contains('nc-item')), `[${tag}] Delete dismisses a notification and focus stays in the list (${await active()})`);
+    await scan('notification center', ['#calendar-center']);
+    await P.keyboard.press('Escape');
+    await A(() => window.__aurora.notifications.clear());
+
+    // ---- many running apps: no overlap with the tray, overflow flyout lists the rest
+    await A(() => {
+      const { wm, registry } = window.__aurora;
+      const ids = registry.list().map((m) => m.id);
+      for (let i = 0; i < 20; i++) wm.create({ appId: i < ids.length ? ids[i] : `extra-${i}`, title: `W${i}`, width: 400, height: 300 });
+    });
+    await sleep(900);
+    const ov = await A(() => {
+      const vis = [...document.querySelectorAll('#taskbar .tb-center .tb-btn')].filter((b) => !b.hidden && b.getClientRects().length);
+      return { lastRight: Math.max(...vis.map((b) => b.getBoundingClientRect().right)), trayLeft: document.querySelector('.tb-tray').getBoundingClientRect().left, hidden: document.querySelectorAll('.tb-app[hidden]').length, btn: !!document.querySelector('.tb-overflow:not([hidden])') };
+    });
+    check(ov.lastRight <= ov.trayLeft && ov.hidden > 0 && ov.btn, `[${tag}] too many apps go to an overflow button instead of covering the tray (${JSON.stringify(ov)})`);
+    await P.click('.tb-overflow');
+    await sleep(400);
+    const items = await A(() => [...document.querySelectorAll('.tb-ovf-item')].map((b) => b.dataset.app));
+    check(items.length === ov.hidden, `[${tag}] the overflow flyout lists the hidden apps (${items.length})`);
+    await shot(s, `overflow-${tag}`, lang === 'en' ? 'shell-taskbar-overflow' : null);
+    await P.click(`.tb-ovf-item[data-app="${items[0]}"]`);
+    await sleep(400);
+    check(await A((id) => window.__aurora.wm.focused()?.appId === id && !document.querySelector('.tb-ovf'), items[0]), `[${tag}] picking an app in the overflow flyout focuses it`);
+    // a fullscreen window hides the taskbar, Start brings it back
+    await A(() => window.__aurora.wm.focused()?.setFullscreen?.(true));
+    await sleep(500);
+    await A(() => window.__aurora.shell.emit('start:toggle'));
+    await sleep(600);
+    check(await A(() => document.body.classList.contains('has-fullscreen') && getComputedStyle(document.getElementById('taskbar')).transform === 'none'), `[${tag}] Start over a fullscreen window shows the taskbar`);
+    await A(() => window.__aurora.shell.emit('flyouts:close'));
+    await A(() => window.__aurora.wm.list().forEach((w) => w.close(true)));
+    await sleep(500);
+
+    // ---- rapid theme switching never desynchronises the screen from the setting
+    for (let i = 0; i < 7; i++) await A((m) => window.__aurora.settings.set('theme', m), i % 2 ? theme : theme === 'dark' ? 'light' : 'dark');
+    await sleep(1800);
+    const th = await A(() => ({ dom: document.documentElement.dataset.theme, set: window.__aurora.settings.get('theme'), wp: getComputedStyle(document.querySelector('.wallpaper-layer:last-child')).backgroundImage }));
+    check(th.dom === th.set && th.wp.includes(`bloom-${th.set}`), `[${tag}] rapid light/dark toggling ends in the right theme (${JSON.stringify(th)})`);
+
+    // ---- desktop rename to “..” is refused with the right message
+    await P.click('.desk-icon[data-id$="Meeting notes.txt"]');
+    await P.keyboard.press('F2');
+    await P.keyboard.press('Control+A');
+    await P.keyboard.type('..');
+    await P.keyboard.press('Enter');
+    await sleep(500);
+    const dlg = await A(() => document.querySelector('.dialog')?.textContent || '');
+    check(/\.\./.test(dlg) && !/already|existe déjà/.test(dlg), `[${tag}] renaming to “..” explains the invalid name (${dlg.slice(0, 90)})`);
+    await P.keyboard.press('Escape');
+    await sleep(300);
+    // drag a desktop file into an app window (Notepad opens it)
+    if (await A(() => !!window.__aurora.registry.get('notepad'))) {
+      await A(() => window.__aurora.registry.launch('notepad'));
+      await sleep(1500);
+      await P.dragAndDrop('.desk-icon[data-id$="Meeting notes.txt"]', '.app-notepad .win-body', { targetPosition: { x: 150, y: 120 } }).catch(() => {});
+      await sleep(1000);
+      const t = await A(() => window.__aurora.wm.list().filter((w) => w.appId === 'notepad').map((w) => w.title).join(' | '));
+      check(/Meeting notes/.test(t), `[${tag}] dragging a desktop file into Notepad opens it (${t})`);
+      await A(() => window.__aurora.wm.list().forEach((w) => w.close(true)));
+      await sleep(400);
+    }
+
+    // ---- listener / DOM leaks: 20 open/close cycles of every flyout
+    const cdp = await P.context().newCDPSession(P);
+    const evs = ['start:toggle', 'search:toggle', 'quick:toggle', 'calendar:toggle', 'widgets:toggle'];
+    for (const ev of evs) {
+      await A((ev) => window.__aurora.shell.emit(ev), ev);
+      await sleep(250);
+    }
+    await A(() => window.__aurora.shell.emit('flyouts:close'));
+    await sleep(500);
+    const l0 = await listenerCounts(cdp);
+    const n0 = await A(() => document.getElementsByTagName('*').length);
+    for (let k = 0; k < 20; k++) {
+      for (const ev of evs) await A((ev) => window.__aurora.shell.emit(ev), ev);
+    }
+    await A(() => window.__aurora.shell.emit('flyouts:close'));
+    for (let k = 0; k < 41; k++) await A(() => window.__aurora.shell.emit('quick:toggle'));
+    await sleep(900);
+    const rapid = await A(() => ({ open: [...document.querySelectorAll('[data-flyout].open')].map((x) => x.dataset.flyout), btn: [...document.querySelectorAll('#taskbar .tb-btn.open')].length }));
+    check(rapid.open.join() === 'quick' && rapid.btn === 1, `[${tag}] rapid toggling leaves exactly one consistent flyout (${JSON.stringify(rapid)})`);
+    await A(() => window.__aurora.shell.emit('flyouts:close'));
+    await sleep(700);
+    const l1 = await listenerCounts(cdp);
+    const n1 = await A(() => document.getElementsByTagName('*').length);
+    check(l1[0] === l0[0] && l1[1] === l0[1], `[${tag}] no document/window listener leak after 100 flyout toggles (${l0} → ${l1})`);
+    check(n1 - n0 < 40, `[${tag}] no DOM growth after 100 flyout toggles (${n0} → ${n1})`);
+
+    if (fr) check(english.length === 0, `[${tag}] no English strings in the French shell${english.length ? `: ${[...new Set(english)].join('; ')}` : ''}`);
+    const errs = s.logs.filter((l) => l.startsWith('[pageerror]') || (l.startsWith('[error]') && MINE.test(l)));
+    check(errs.length === 0, `[${tag}] no renderer errors${errs.length ? `: ${errs.join(' | ')}` : ''}`);
+  } catch (err) {
+    failures++;
+    console.log(`  ✗ [${tag}] crashed: ${err.stack || err}`);
+    await s.shot(`ux-crash-${tag}`).catch(() => {});
+  } finally {
+    await s.close();
+  }
+}
+
 // ------------------------------------------------------------------------------------------ main
 fs.mkdirSync(OUT, { recursive: true });
-await unitTests();
-const combos = UNIT_ONLY ? [] : QUICK ? [['light', 'en']] : [['light', 'en'], ['dark', 'fr'], ['dark', 'en'], ['light', 'fr']];
+if (!ADV_ONLY) await unitTests();
+const combos = UNIT_ONLY || ADV_ONLY ? [] : QUICK ? [['light', 'en']] : [['light', 'en'], ['dark', 'fr'], ['dark', 'en'], ['light', 'fr']];
 for (const [theme, lang] of combos) await scenario(theme, lang);
+const advCombos = UNIT_ONLY ? [] : QUICK ? [['dark', 'fr']] : [['dark', 'fr'], ['light', 'en']];
+for (const [theme, lang] of advCombos) await adversarial(theme, lang);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

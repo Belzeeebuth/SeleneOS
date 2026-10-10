@@ -1,0 +1,29 @@
+# Install Aurora OS (shell/renderer/apps/installer, shell/main/ipc/installer.js,
+# /usr/lib/aurora/helpers/aurora-install, /usr/lib/aurora/autoinstall).
+# Partitioning and file systems: wipefs, sfdisk, partx, lsblk, blkid (util-linux, fdisk),
+# mkfs.vfat (dosfstools), mkfs.ext4 (e2fsprogs), partprobe (parted).
+util-linux
+fdisk
+parted
+dosfstools
+e2fsprogs
+# Copying the system: unsquashfs (from /cdrom/casper/filesystem.squashfs) or rsync (from /rofs).
+squashfs-tools
+rsync
+# Boot loaders written to the target: GRUB for BIOS (on the disk) and UEFI (signed shim + GRUB on
+# the EFI system partition, removable path EFI/BOOT/BOOTX64.EFI), update-grub, initramfs.
+grub-pc-bin
+grub-efi-amd64-bin
+grub-efi-amd64-signed
+shim-signed
+grub2-common
+initramfs-tools
+# Account, language, keyboard and time zone of the installed system.
+passwd
+locales
+keyboard-configuration
+tzdata
+# Keyboard test field: the chosen layout is applied to the live session.
+x11-xkb-utils
+# Process tree handling during cancellation (ps).
+procps

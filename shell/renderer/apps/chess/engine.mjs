@@ -1004,26 +1004,55 @@ export class Chess {
     return `${lines.join('\n')}\n\n${out.join('\n')}\n`;
   }
 
-  // Loads a PGN (headers, comments, variations, NAGs are tolerated). Throws on an illegal move.
+  // Loads a PGN (headers, comments, variations, NAGs and annotations are tolerated). Only the first
+  // game of a multi-game file is read. Throws an Error with err.code = 'fen' (err.fenError holds the
+  // validateFen code) for a bad [FEN] tag, or err.code = 'move' (err.move, err.ply) for an illegal move.
   loadPgn(text) {
     const src = String(text || '');
     const headers = {};
-    const re = /\[\s*(\w+)\s+"((?:[^"\\]|\\.)*)"\s*\]/g;
+    const sans = [];
+    // tags | {comments} | ;line comments | ( ) | $NAG | anything else up to a separator
+    const re = /\[\s*(\w+)\s+"((?:[^"\\]|\\.)*)"\s*\]|\{[^}]*\}?|;[^\n]*|[()]|\$\d+|[^\s(){}[\];]+/g;
+    let depth = 0;
     let mm;
-    while ((mm = re.exec(src))) headers[mm[1]] = mm[2].replace(/\\(["\\])/g, '$1');
-    let body = src.replace(re, ' ');
-    body = body.replace(/\{[^}]*\}/g, ' ').replace(/;[^\n]*/g, ' ');
-    // strip (nested) variations
-    let prev;
-    do {
-      prev = body;
-      body = body.replace(/\([^()]*\)/g, ' ');
-    } while (body !== prev);
-    body = body.replace(/\$\d+/g, ' ').replace(/\d+\.(\.\.)?/g, ' ');
-    const tokens = body.split(/\s+/).filter((x) => x && !/^(1-0|0-1|1\/2-1\/2|\*)$/.test(x));
-    const game = new Chess(headers.FEN && headers.SetUp !== '0' ? headers.FEN : START_FEN);
-    for (const tok of tokens) {
-      if (!game.move(tok)) throw new Error(`Illegal move: ${tok}`);
+    while ((mm = re.exec(src))) {
+      const tok = mm[0];
+      if (mm[1] !== undefined) {
+        if (sans.length) break; // the next game's tags
+        headers[mm[1]] = mm[2].replace(/\\(["\\])/g, '$1');
+        continue;
+      }
+      if (tok[0] === '{' || tok[0] === ';' || tok[0] === '$') continue;
+      if (tok === '(') depth++;
+      else if (tok === ')') depth = Math.max(0, depth - 1);
+      else if (!depth) {
+        if (/^(1-0|0-1|1\/2-1\/2|½-½|\*)$/.test(tok)) {
+          if (sans.length) break; // end of the first game
+          continue;
+        }
+        // "12." "12..." "12…" "1.e4" -> move text only ; drop annotations like "!?", "+-", "e.p."
+        const mv = tok.replace(/^\d+\s*(\.|…)+/, '').replace(/e\.p\.?$/, '');
+        if (!mv || /^\d+$/.test(mv) || /^[.…]+$/.test(mv) || /^[!?+\-=∞±∓⩲⩱]+$/.test(mv)) continue;
+        sans.push(mv);
+      }
+    }
+    const fen = headers.FEN && headers.SetUp !== '0' ? headers.FEN : START_FEN;
+    const fenError = validateFen(fen);
+    if (fenError) {
+      const err = new Error(`Invalid FEN (${fenError})`);
+      err.code = 'fen';
+      err.fenError = fenError;
+      throw err;
+    }
+    const game = new Chess(fen);
+    for (const tok of sans) {
+      if (!game.move(tok)) {
+        const err = new Error(`Illegal move: ${tok}`);
+        err.code = 'move';
+        err.move = tok;
+        err.ply = game.length;
+        throw err;
+      }
     }
     this.pos = game.pos;
     this.startFen = game.startFen;

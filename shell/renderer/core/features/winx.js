@@ -8,6 +8,7 @@ import { i18n, t } from '../i18n.js';
 import { wm } from '../wm.js';
 import { registry } from '../registry.js';
 import { shell } from '../services.js';
+import { powerAction } from './security.js';
 
 i18n.extend({
   en: {
@@ -115,7 +116,7 @@ let winxOpen = false;
 function winxItems() {
   const has = (id) => !!registry.get(id);
   return [
-    { label: accel('winx.apps'), hidden: !has('settings'), action: () => launch('settings', { page: 'apps' }) },
+    { label: accel('winx.apps'), hidden: !has('settings'), action: () => launch('settings', { page: 'installedApps' }) },
     { label: accel('winx.power'), hidden: !has('settings'), action: () => launch('settings', { page: 'power' }) },
     { label: accel('winx.system'), hidden: !has('settings'), action: () => launch('settings', { page: 'about' }) },
     { label: accel('winx.network'), hidden: !has('settings'), action: () => launch('settings', { page: 'network' }) },
@@ -131,10 +132,11 @@ function winxItems() {
     {
       label: accel('winx.shutdownMenu'),
       submenu: [
-        { label: accel('winx.signOut'), action: () => shell.logout() },
-        { label: accel('winx.sleep'), action: () => shell.suspend() },
-        { label: accel('winx.shutdown'), action: () => shell.shutdown() },
-        { label: accel('winx.restart'), action: () => shell.reboot() },
+        // Same path as the Ctrl+Alt+Del / Alt+F4 power options: apps get to veto (unsaved work), errors are shown.
+        { label: accel('winx.signOut'), action: () => powerAction('signOut') },
+        { label: accel('winx.sleep'), action: () => powerAction('sleep') },
+        { label: accel('winx.shutdown'), action: () => powerAction('shutdown') },
+        { label: accel('winx.restart'), action: () => powerAction('restart') },
       ],
     },
     { label: accel('winx.desktop'), action: () => wm.toggleDesktop() },
@@ -150,7 +152,10 @@ export async function toggleWinX() {
   shell.emit('flyouts:close');
   const start = document.querySelector('#taskbar .tb-start');
   const r = start?.getBoundingClientRect();
-  const at = r && r.width ? { x: r.left, y: r.top - 4, anchor: r } : { x: 12, y: window.innerHeight - 60, anchor: new DOMRect(12, window.innerHeight - 48, 40, 40) };
+  // Above the Start button with the same gap as the Start menu (never touching the taskbar).
+  const barTop = Math.min(r?.top ?? Infinity, document.getElementById('taskbar')?.getBoundingClientRect().top ?? Infinity, window.innerHeight - wm.insets.bottom);
+  const lift = Number.isFinite(barTop) ? barTop - 8 : window.innerHeight - 56;
+  const at = r && r.width ? { x: r.left, y: lift, anchor: new DOMRect(r.left, lift, r.width, 1) } : { x: 12, y: lift, anchor: new DOMRect(12, lift, 40, 1) };
   winxOpen = true;
   start?.classList.add('open');
   try {

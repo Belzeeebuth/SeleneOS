@@ -1,14 +1,52 @@
 {
   "en": {
-    "tb": { "label": "Game commands", "newGame": "New game", "undo": "Undo", "hint": "Hint", "flip": "Flip board", "draw": "Offer draw", "resign": "Resign", "more": "More options" },
-    "board": { "label": "Chessboard", "role": "chessboard" },
-    "panel": { "label": "Game information" },
-    "side": { "white": "White", "black": "Black" },
-    "sideChoice": { "w": "White", "b": "Black", "random": "Random" },
-    "player": { "you": "You", "computer": "Computer" },
-    "mode": { "ai": "vs Computer", "two": "Two players", "analysis": "Analysis board" },
-    "modeDesc": { "ai": "Play against the engine", "two": "Take turns on this PC", "analysis": "Free play with live evaluation" },
-    "level": { "beginner": "Beginner", "easy": "Easy", "medium": "Medium", "hard": "Hard", "expert": "Expert" },
+    "tb": {
+      "label": "Game commands",
+      "newGame": "New game",
+      "undo": "Undo",
+      "hint": "Hint",
+      "flip": "Flip board",
+      "draw": "Offer draw",
+      "resign": "Resign",
+      "more": "More options"
+    },
+    "board": {
+      "label": "Chessboard",
+      "role": "chessboard"
+    },
+    "panel": {
+      "label": "Game information"
+    },
+    "side": {
+      "white": "White",
+      "black": "Black"
+    },
+    "sideChoice": {
+      "w": "White",
+      "b": "Black",
+      "random": "Random"
+    },
+    "player": {
+      "you": "You",
+      "computer": "Computer"
+    },
+    "mode": {
+      "ai": "vs Computer",
+      "two": "Two players",
+      "analysis": "Analysis board"
+    },
+    "modeDesc": {
+      "ai": "Play against the engine",
+      "two": "Take turns on this PC",
+      "analysis": "Free play with live evaluation"
+    },
+    "level": {
+      "beginner": "Beginner",
+      "easy": "Easy",
+      "medium": "Medium",
+      "hard": "Hard",
+      "expert": "Expert"
+    },
     "levelDesc": {
       "beginner": "Plays fast and makes plenty of mistakes. Great to learn the moves.",
       "easy": "Looks one move ahead and sometimes misses tactics.",
@@ -16,8 +54,19 @@
       "hard": "Strong tactical player that thinks up to 1.5 seconds per move.",
       "expert": "Full-strength engine that thinks up to 3.5 seconds per move."
     },
-    "time": { "none": "No clock", "5+0": "5 min", "10+0": "10 min", "15+10": "15 | 10" },
-    "theme": { "wood": "Classic wood", "green": "Green", "blue": "Blue", "aurora": "Aurora (accent color)", "dark": "Dark" },
+    "time": {
+      "none": "No clock",
+      "5+0": "5 min",
+      "10+0": "10 min",
+      "15+10": "15 | 10"
+    },
+    "theme": {
+      "wood": "Classic wood",
+      "green": "Green",
+      "blue": "Blue",
+      "aurora": "Aurora (accent color)",
+      "dark": "Dark"
+    },
     "status": {
       "yourTurn": "Your move",
       "computerTurn": "Computer to move",
@@ -31,14 +80,61 @@
       "reviewing": "Reviewing {move}",
       "reviewStart": "Reviewing the starting position"
     },
-    "nav": { "first": "First move", "prev": "Previous move", "next": "Next move", "last": "Last move", "backToGame": "Back to the game" },
-    "moves": { "title": "Moves", "label": "Move list", "empty": "No moves yet. White starts." },
-    "pieces": { "king": "King", "queen": "Queen", "rook": "Rook", "bishop": "Bishop", "knight": "Knight", "pawn": "Pawn", "key_q": "Q", "key_r": "R", "key_b": "B", "key_n": "N" },
-    "promotion": { "title": "Promote pawn to" },
-    "announce": { "move": "{side} played {san}" },
-    "clock": { "aria": "{side} clock: {time}" },
-    "analysis": { "eval": "Evaluation", "thinking": "Analyzing…", "over": "Game over in this position", "line": "{score} · depth {depth} · {line}" },
-    "newGame": { "title": "New game", "mode": "Game mode", "playAs": "Play as", "level": "Difficulty", "time": "Time control", "autoFlip": "Rotate the board after each move", "start": "Start game" },
+    "nav": {
+      "first": "First move",
+      "prev": "Previous move",
+      "next": "Next move",
+      "last": "Last move",
+      "backToGame": "Back to the game"
+    },
+    "moves": {
+      "title": "Moves",
+      "label": "Move list",
+      "empty": "No moves yet. White starts.",
+      "emptyBlack": "No moves yet. Black starts."
+    },
+    "pieces": {
+      "king": "King",
+      "queen": "Queen",
+      "rook": "Rook",
+      "bishop": "Bishop",
+      "knight": "Knight",
+      "pawn": "Pawn",
+      "key_q": "Q",
+      "key_r": "R",
+      "key_b": "B",
+      "key_n": "N",
+      "key_k": "K"
+    },
+    "promotion": {
+      "title": "Promote pawn to"
+    },
+    "announce": {
+      "move": "{side} played {san}",
+      "empty": "empty",
+      "target": "legal move",
+      "selected_one": "selected, {count} legal move",
+      "selected_other": "selected, {count} legal moves"
+    },
+    "clock": {
+      "aria": "{side} clock: {time}"
+    },
+    "analysis": {
+      "eval": "Evaluation",
+      "thinking": "Analyzing…",
+      "over": "Game over in this position",
+      "line": "{score} · depth {depth} · {line}",
+      "failed": "The analysis is not available right now."
+    },
+    "newGame": {
+      "title": "New game",
+      "mode": "Game mode",
+      "playAs": "Play as",
+      "level": "Difficulty",
+      "time": "Time control",
+      "autoFlip": "Rotate the board after each move",
+      "start": "Start game"
+    },
     "result": {
       "youWon": "You won!",
       "youLost": "You lost",
@@ -73,7 +169,12 @@
       "accept": "Accept",
       "decline": "Decline"
     },
-    "resign": { "title": "Resign", "confirmAi": "Do you really want to resign this game?", "confirmTwo": "Does {side} really want to resign?", "ok": "Resign" },
+    "resign": {
+      "title": "Resign",
+      "confirmAi": "Do you really want to resign this game?",
+      "confirmTwo": "Does {side} really want to resign?",
+      "ok": "Resign"
+    },
     "menu": {
       "theme": "Board theme",
       "coords": "Show coordinates",
@@ -98,7 +199,9 @@
       "empty": "Paste a FEN or PGN first.",
       "badFen": "This FEN is not valid: {detail}.",
       "badPgn": "This PGN could not be read (illegal move: {detail}).",
-      "openFailed": "“{name}” could not be opened. {detail}"
+      "openFailed": "“{name}” could not be opened. {detail}",
+      "badFenTag": "The [FEN] tag of this PGN is not valid: {detail}.",
+      "notChess": "This text is neither a FEN position nor a PGN game."
     },
     "fenError": {
       "empty": "it is empty",
@@ -137,27 +240,95 @@
       "boardHelp": "Arrows move the cursor, Enter picks up and drops a piece",
       "promo": "Choose a promotion piece"
     },
-    "toast": { "pgnCopied": "PGN copied to the clipboard.", "fenCopied": "FEN copied to the clipboard.", "saved": "Saved as {name}." },
+    "toast": {
+      "pgnCopied": "PGN copied to the clipboard.",
+      "fenCopied": "FEN copied to the clipboard.",
+      "saved": "Saved as {name}."
+    },
     "copied": "Copied",
-    "file": { "pgn": "Chess games", "defaultName": "Chess game" },
+    "file": {
+      "pgn": "Chess games",
+      "defaultName": "Chess game"
+    },
     "error": {
       "title": "Chess",
-      "engine": "The computer player stopped working. {detail}",
+      "engine": "The computer player stopped working. Undo your move or start a new game.",
       "hint": "No hint is available right now.",
-      "clipboard": "Could not copy to the clipboard. {detail}",
+      "clipboard": "Could not copy to the clipboard.",
       "save": "The game could not be saved. {detail}"
+    },
+    "pieceName": {
+      "wk": "White king",
+      "wq": "White queen",
+      "wr": "White rook",
+      "wb": "White bishop",
+      "wn": "White knight",
+      "wp": "White pawn",
+      "bk": "Black king",
+      "bq": "Black queen",
+      "br": "Black rook",
+      "bb": "Black bishop",
+      "bn": "Black knight",
+      "bp": "Black pawn"
+    },
+    "fsError": {
+      "notFound": "The file does not exist (it may have been moved or deleted).",
+      "denied": "You do not have permission to access this file.",
+      "tooBig": "The file is too large to be a chess game.",
+      "isDir": "This is a folder, not a file.",
+      "noSpace": "There is not enough free space on the disk.",
+      "readOnly": "The location is read-only.",
+      "generic": "The file could not be accessed."
     }
   },
   "fr": {
-    "tb": { "label": "Commandes de la partie", "newGame": "Nouvelle partie", "undo": "Annuler", "hint": "Indice", "flip": "Retourner", "draw": "Proposer nulle", "resign": "Abandonner", "more": "Plus d'options" },
-    "board": { "label": "Échiquier", "role": "échiquier" },
-    "panel": { "label": "Informations sur la partie" },
-    "side": { "white": "Blancs", "black": "Noirs" },
-    "sideChoice": { "w": "Blancs", "b": "Noirs", "random": "Au hasard" },
-    "player": { "you": "Vous", "computer": "Ordinateur" },
-    "mode": { "ai": "Contre l'ordinateur", "two": "Deux joueurs", "analysis": "Analyse" },
-    "modeDesc": { "ai": "Affrontez le moteur", "two": "Jouez à tour de rôle sur ce PC", "analysis": "Jeu libre avec évaluation" },
-    "level": { "beginner": "Débutant", "easy": "Facile", "medium": "Moyen", "hard": "Difficile", "expert": "Expert" },
+    "tb": {
+      "label": "Commandes de la partie",
+      "newGame": "Nouvelle partie",
+      "undo": "Annuler",
+      "hint": "Indice",
+      "flip": "Retourner",
+      "draw": "Proposer nulle",
+      "resign": "Abandonner",
+      "more": "Plus d'options"
+    },
+    "board": {
+      "label": "Échiquier",
+      "role": "échiquier"
+    },
+    "panel": {
+      "label": "Informations sur la partie"
+    },
+    "side": {
+      "white": "Blancs",
+      "black": "Noirs"
+    },
+    "sideChoice": {
+      "w": "Blancs",
+      "b": "Noirs",
+      "random": "Au hasard"
+    },
+    "player": {
+      "you": "Vous",
+      "computer": "Ordinateur"
+    },
+    "mode": {
+      "ai": "Contre l'ordinateur",
+      "two": "Deux joueurs",
+      "analysis": "Analyse"
+    },
+    "modeDesc": {
+      "ai": "Affrontez le moteur",
+      "two": "Jouez à tour de rôle sur ce PC",
+      "analysis": "Jeu libre avec évaluation"
+    },
+    "level": {
+      "beginner": "Débutant",
+      "easy": "Facile",
+      "medium": "Moyen",
+      "hard": "Difficile",
+      "expert": "Expert"
+    },
     "levelDesc": {
       "beginner": "Joue vite et fait beaucoup d'erreurs. Idéal pour apprendre les coups.",
       "easy": "Calcule un coup à l'avance et rate parfois des tactiques.",
@@ -165,8 +336,19 @@
       "hard": "Tacticien redoutable qui réfléchit jusqu'à 1,5 seconde par coup.",
       "expert": "Moteur à pleine puissance qui réfléchit jusqu'à 3,5 secondes par coup."
     },
-    "time": { "none": "Sans pendule", "5+0": "5 min", "10+0": "10 min", "15+10": "15 | 10" },
-    "theme": { "wood": "Bois classique", "green": "Vert", "blue": "Bleu", "aurora": "Aurora (couleur d'accentuation)", "dark": "Sombre" },
+    "time": {
+      "none": "Sans pendule",
+      "5+0": "5 min",
+      "10+0": "10 min",
+      "15+10": "15 | 10"
+    },
+    "theme": {
+      "wood": "Bois classique",
+      "green": "Vert",
+      "blue": "Bleu",
+      "aurora": "Aurora (couleur d'accentuation)",
+      "dark": "Sombre"
+    },
     "status": {
       "yourTurn": "À vous de jouer",
       "computerTurn": "Au tour de l'ordinateur",
@@ -180,14 +362,61 @@
       "reviewing": "Revue du coup {move}",
       "reviewStart": "Revue de la position de départ"
     },
-    "nav": { "first": "Premier coup", "prev": "Coup précédent", "next": "Coup suivant", "last": "Dernier coup", "backToGame": "Revenir à la partie" },
-    "moves": { "title": "Coups", "label": "Liste des coups", "empty": "Aucun coup pour l'instant. Les Blancs commencent." },
-    "pieces": { "king": "Roi", "queen": "Dame", "rook": "Tour", "bishop": "Fou", "knight": "Cavalier", "pawn": "Pion", "key_q": "D", "key_r": "T", "key_b": "F", "key_n": "C" },
-    "promotion": { "title": "Promouvoir le pion en" },
-    "announce": { "move": "Les {side} ont joué {san}" },
-    "clock": { "aria": "Pendule des {side} : {time}" },
-    "analysis": { "eval": "Évaluation", "thinking": "Analyse en cours…", "over": "Partie terminée dans cette position", "line": "{score} · profondeur {depth} · {line}" },
-    "newGame": { "title": "Nouvelle partie", "mode": "Mode de jeu", "playAs": "Jouer avec", "level": "Difficulté", "time": "Cadence", "autoFlip": "Tourner l'échiquier après chaque coup", "start": "Commencer" },
+    "nav": {
+      "first": "Premier coup",
+      "prev": "Coup précédent",
+      "next": "Coup suivant",
+      "last": "Dernier coup",
+      "backToGame": "Revenir à la partie"
+    },
+    "moves": {
+      "title": "Coups",
+      "label": "Liste des coups",
+      "empty": "Aucun coup pour l'instant. Les Blancs commencent.",
+      "emptyBlack": "Aucun coup pour l'instant. Les Noirs commencent."
+    },
+    "pieces": {
+      "king": "Roi",
+      "queen": "Dame",
+      "rook": "Tour",
+      "bishop": "Fou",
+      "knight": "Cavalier",
+      "pawn": "Pion",
+      "key_q": "D",
+      "key_r": "T",
+      "key_b": "F",
+      "key_n": "C",
+      "key_k": "R"
+    },
+    "promotion": {
+      "title": "Promouvoir le pion en"
+    },
+    "announce": {
+      "move": "Les {side} ont joué {san}",
+      "empty": "vide",
+      "target": "coup possible",
+      "selected_one": "sélectionné, {count} coup possible",
+      "selected_other": "sélectionné, {count} coups possibles"
+    },
+    "clock": {
+      "aria": "Pendule des {side} : {time}"
+    },
+    "analysis": {
+      "eval": "Évaluation",
+      "thinking": "Analyse en cours…",
+      "over": "Partie terminée dans cette position",
+      "line": "{score} · profondeur {depth} · {line}",
+      "failed": "L'analyse n'est pas disponible pour le moment."
+    },
+    "newGame": {
+      "title": "Nouvelle partie",
+      "mode": "Mode de jeu",
+      "playAs": "Jouer avec",
+      "level": "Difficulté",
+      "time": "Cadence",
+      "autoFlip": "Tourner l'échiquier après chaque coup",
+      "start": "Commencer"
+    },
     "result": {
       "youWon": "Vous avez gagné !",
       "youLost": "Vous avez perdu",
@@ -222,7 +451,12 @@
       "accept": "Accepter",
       "decline": "Refuser"
     },
-    "resign": { "title": "Abandonner", "confirmAi": "Voulez-vous vraiment abandonner cette partie ?", "confirmTwo": "Les {side} veulent-ils vraiment abandonner ?", "ok": "Abandonner" },
+    "resign": {
+      "title": "Abandonner",
+      "confirmAi": "Voulez-vous vraiment abandonner cette partie ?",
+      "confirmTwo": "Les {side} veulent-ils vraiment abandonner ?",
+      "ok": "Abandonner"
+    },
     "menu": {
       "theme": "Thème de l'échiquier",
       "coords": "Afficher les coordonnées",
@@ -247,7 +481,9 @@
       "empty": "Collez d'abord un FEN ou un PGN.",
       "badFen": "Ce FEN n'est pas valide : {detail}.",
       "badPgn": "Impossible de lire ce PGN (coup illégal : {detail}).",
-      "openFailed": "Impossible d'ouvrir « {name} ». {detail}"
+      "openFailed": "Impossible d'ouvrir « {name} ». {detail}",
+      "badFenTag": "La balise [FEN] de ce PGN n'est pas valide : {detail}.",
+      "notChess": "Ce texte n'est ni une position FEN ni une partie PGN."
     },
     "fenError": {
       "empty": "il est vide",
@@ -284,17 +520,47 @@
       "end": "Fin",
       "board": "échiquier",
       "boardHelp": "Les flèches déplacent le curseur, Entrée prend et pose une pièce",
-      "promo": "Choisir la pièce de promotion (D T F C)"
+      "promo": "Choisir la pièce de promotion"
     },
-    "toast": { "pgnCopied": "PGN copié dans le Presse-papiers.", "fenCopied": "FEN copié dans le Presse-papiers.", "saved": "Enregistré sous {name}." },
+    "toast": {
+      "pgnCopied": "PGN copié dans le Presse-papiers.",
+      "fenCopied": "FEN copié dans le Presse-papiers.",
+      "saved": "Enregistré sous {name}."
+    },
     "copied": "Copié",
-    "file": { "pgn": "Parties d'échecs", "defaultName": "Partie d'échecs" },
+    "file": {
+      "pgn": "Parties d'échecs",
+      "defaultName": "Partie d'échecs"
+    },
     "error": {
       "title": "Échecs",
-      "engine": "Le joueur ordinateur a cessé de fonctionner. {detail}",
+      "engine": "Le joueur ordinateur a cessé de fonctionner. Annulez votre coup ou commencez une nouvelle partie.",
       "hint": "Aucun indice n'est disponible pour le moment.",
-      "clipboard": "Impossible de copier dans le Presse-papiers. {detail}",
+      "clipboard": "Impossible de copier dans le Presse-papiers.",
       "save": "Impossible d'enregistrer la partie. {detail}"
+    },
+    "pieceName": {
+      "wk": "Roi blanc",
+      "wq": "Dame blanche",
+      "wr": "Tour blanche",
+      "wb": "Fou blanc",
+      "wn": "Cavalier blanc",
+      "wp": "Pion blanc",
+      "bk": "Roi noir",
+      "bq": "Dame noire",
+      "br": "Tour noire",
+      "bb": "Fou noir",
+      "bn": "Cavalier noir",
+      "bp": "Pion noir"
+    },
+    "fsError": {
+      "notFound": "Le fichier n'existe pas (il a peut-être été déplacé ou supprimé).",
+      "denied": "Vous n'avez pas l'autorisation d'accéder à ce fichier.",
+      "tooBig": "Le fichier est trop volumineux pour être une partie d'échecs.",
+      "isDir": "Il s'agit d'un dossier, pas d'un fichier.",
+      "noSpace": "L'espace disque est insuffisant.",
+      "readOnly": "Cet emplacement est en lecture seule.",
+      "generic": "Impossible d'accéder au fichier."
     }
   }
 }

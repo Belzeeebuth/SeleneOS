@@ -112,12 +112,25 @@ function procName(pid) {
   }
 }
 
+// The program in the foreground of a terminal. An interactive shell gives each job its own process
+// group (tpgid != shell); a non-interactive one (bash -c "make; ./run") keeps its children in its own
+// group, so look for a child of the shell in the foreground group too.
 function foreground(p) {
   if (!p.shellPid || p.exited) return null;
   try {
     const st = readStat(p.shellPid);
     const fgPid = st.tpgid > 0 ? st.tpgid : p.shellPid;
-    return { fgPid, fgName: procName(fgPid) || procName(p.shellPid), busy: fgPid !== p.shellPid };
+    if (fgPid !== p.shellPid) return { fgPid, fgName: procName(fgPid) || procName(p.shellPid), busy: true };
+    let kids = [];
+    try {
+      kids = fs.readFileSync(`/proc/${p.shellPid}/task/${p.shellPid}/children`, 'utf8').trim().split(/\s+/).filter(Boolean).map(Number);
+    } catch {}
+    for (const kid of kids) {
+      try {
+        if (readStat(kid).pgrp === fgPid) return { fgPid: kid, fgName: procName(kid), busy: true };
+      } catch {}
+    }
+    return { fgPid, fgName: procName(p.shellPid), busy: false };
   } catch {
     return null;
   }
@@ -165,6 +178,13 @@ function flush(api, p) {
 
 function killPty(p, { force = false } = {}) {
   if (!p || p.exited) return;
+  // Nobody wants the rest of the output: drain it so a paused (flow-controlled) helper can finish.
+  p.discard = true;
+  clearTimeout(p.timer);
+  p.pending = [];
+  try {
+    p.child.stdout.resume();
+  } catch {}
   try {
     p.child.stdin.end();
   } catch {}
@@ -244,12 +264,14 @@ module.exports = function register(api) {
       exited: false,
       fgKey: '',
       killTimer: null,
+      discard: false,
     };
     ptys.set(id, p);
     trackOwner(sender).add(id);
     child.stdin.on('error', () => {});
     child.stdio[3]?.on('error', () => {});
     child.stdout.on('data', (buf) => {
+      if (p.discard) return;
       const s = p.decoder.write(buf);
       if (!s) return;
       p.pending.push(s);
@@ -280,7 +302,7 @@ module.exports = function register(api) {
       p.exited = true;
       clearTimeout(p.killTimer);
       const tail = p.decoder.end();
-      if (tail) p.pending.push(tail);
+      if (tail && !p.discard) p.pending.push(tail);
       if (spawnError && !p.pending.length) p.pending.push(`\r\n${spawnError.message}\r\n`);
       flush(api, p);
       ptys.delete(id);

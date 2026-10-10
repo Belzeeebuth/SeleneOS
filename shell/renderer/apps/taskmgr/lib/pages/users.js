@@ -89,8 +89,11 @@ export class UsersPage {
     try {
       this.users = await this.app.ctx.api.invoke('perf:users');
     } catch {
-      this.users = this.users || [];
+      // No session information: at least the signed-in user (otherwise the page would say "Loading…" forever).
+      const env = this.app.ctx.env;
+      if (!this.users?.length) this.users = [{ uid: env.uid, user: env.user, fullName: env.user, status: 'active', sessions: [] }];
     }
+    if (this.app.closed) return;
     this.render();
   }
   update() {

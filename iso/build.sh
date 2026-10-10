@@ -671,7 +671,8 @@ install_rootfs_overlay() {
     | tar -C "$ROOT" --no-overwrite-dir --same-permissions -xf -
   # Executables (git only tracks the x bit; enforce it for the documented entry points).
   local f
-  for f in "$ROOT"/usr/bin/aurora-* "$ROOT"/usr/lib/aurora/aurora-* "$ROOT"/usr/lib/aurora/helpers/*; do
+  for f in "$ROOT"/usr/bin/aurora-* "$ROOT"/usr/lib/aurora/aurora-* "$ROOT"/usr/lib/aurora/helpers/* \
+           "$ROOT"/usr/lib/aurora/autoinstall/aurora-*; do
     [[ -f "$f" ]] && chmod 0755 "$f"
   done
   for f in "$ROOT"/etc/netplan/*.yaml; do [[ -f "$f" ]] && chmod 0600 "$f"; done
@@ -871,7 +872,8 @@ $out"
            /usr/lib/aurora/aurora-xstart /usr/lib/aurora/aurora-xgreeter; do
     [[ -x "$ROOT$r" ]] || die "$r is missing or not executable (rootfs/)"
   done
-  for r in "$ROOT"/usr/bin/aurora-* "$ROOT"/usr/lib/aurora/aurora-* "$ROOT"/usr/lib/aurora/helpers/*; do
+  for r in "$ROOT"/usr/bin/aurora-* "$ROOT"/usr/lib/aurora/aurora-* "$ROOT"/usr/lib/aurora/helpers/* \
+           "$ROOT"/usr/lib/aurora/autoinstall/aurora-*; do
     [[ -f "$r" ]] || continue
     case "$(head -n1 "$r")" in
       '#!/bin/sh'*|'#!/usr/bin/sh'*|'# shellcheck shell=sh'*) in_chroot "$ROOT" /bin/sh -n "${r#"$ROOT"}" || die "shell syntax error in ${r#"$ROOT"}" ;;

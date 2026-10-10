@@ -125,7 +125,9 @@ async function render() {
   const notes = h('textarea', { class: 'textarea wg-notes', placeholder: t('widgets.notesPlaceholder'), spellcheck: false });
   api
     .invoke('storage:get', 'shell', 'widget-notes', '')
-    .then((v) => (notes.value = typeof v === 'string' ? v : ''))
+    .then((v) => {
+      if (!notes.value && typeof v === 'string') notes.value = v; // never clobber what the user already typed
+    })
     .catch(() => {});
   notes.addEventListener('input', () => {
     clearTimeout(notesSave);
@@ -160,6 +162,7 @@ async function render() {
     const show = () => {
       const f = files[i++ % files.length];
       const img = h('img', { src: api.mediaUrl(f.path), alt: f.name, draggable: false, onclick: () => (fly.close('launch'), shell.openFile(f.path)) });
+      img.addEventListener('error', () => img.remove()); // unreadable picture: skip it, never pile up
       img.addEventListener('load', () => {
         const old = [...photoBox.querySelectorAll('img')].filter((x) => x !== img);
         img.classList.add('in');

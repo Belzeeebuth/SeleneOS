@@ -116,6 +116,22 @@ export function createFlyout({ id, el, button, onOpen, onClose, onKey, onEscape,
       return;
     }
     onKey?.(e);
+    // Tab cycles inside the flyout (like Windows 11 flyouts) instead of escaping to the desktop.
+    if (e.key === 'Tab' && !e.defaultPrevented && !e.ctrlKey && !e.altKey && el.contains(document.activeElement)) {
+      const list = [...el.querySelectorAll('button, input, textarea, select, a[href], [tabindex]')].filter(
+        (x) => x.tabIndex >= 0 && !x.disabled && !x.closest('[hidden], .leaving, [inert]') && x.getClientRects().length && getComputedStyle(x).visibility !== 'hidden',
+      );
+      if (!list.length) return;
+      const first = list[0];
+      const last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
   };
   const fly = {
     id,
@@ -131,6 +147,7 @@ export function createFlyout({ id, el, button, onOpen, onClose, onKey, onEscape,
       el.classList.add('open');
       el.removeAttribute('aria-hidden');
       btn()?.classList.add('open');
+      for (const tip of document.querySelectorAll('body > .tooltip')) tip.remove(); // never float over the flyout
       document.addEventListener('pointerdown', outside, true);
       document.addEventListener('keydown', keys);
       flyEvents.emit('change');
@@ -272,7 +289,7 @@ function appMenu(e, appId) {
   return p;
 }
 
-async function captureThumb(win) {
+async function captureThumb(win, maxWait = 400) {
   if (!win || win.minimized || win._closing || !win.el.isConnected) return null;
   // Only capture windows that are not covered by another window.
   const r = win.el.getBoundingClientRect();
@@ -286,7 +303,7 @@ async function captureThumb(win) {
   if (covered && thumbs.has(win.id)) return thumbs.get(win.id);
   if (covered) return null;
   try {
-    const bytes = await Promise.race([api.invoke('shell:capture', { x: r.left, y: r.top, width: r.width, height: r.height }), new Promise((res) => setTimeout(() => res(null), 400))]);
+    const bytes = await Promise.race([api.invoke('shell:capture', { x: r.left, y: r.top, width: r.width, height: r.height }), new Promise((res) => setTimeout(() => res(null), maxWait))]);
     if (!bytes) return thumbs.get(win.id) || null;
     const url = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
     if (thumbs.has(win.id)) URL.revokeObjectURL(thumbs.get(win.id));
@@ -434,7 +451,7 @@ async function clickApp(appId, btn) {
     hidePreview(true);
     const w = wins[0];
     if (w.isFocused()) {
-      await captureThumb(w);
+      await captureThumb(w, 150); // never make minimizing feel sluggish on a slow VM
       w.minimize();
     } else w.focus();
     return;
@@ -717,6 +734,7 @@ function renderOverflow() {
       );
     }),
   );
+  ovfEl.style.setProperty('--cols', String(Math.max(1, Math.min(6, hiddenApps.length))));
   const r = overflowBtn.getBoundingClientRect();
   const pr = ovfEl.getBoundingClientRect();
   ovfEl.style.left = `${Math.max(8, Math.min(window.innerWidth - pr.width - 8, r.left + r.width / 2 - pr.width / 2))}px`;
@@ -774,17 +792,24 @@ function renderBell() {
 
 function netGlyph(st) {
   if (!st) return null;
-  if (st.airplane) return { node: icon('airplane', { size: 16 }), tip: t('tray.airplane') };
+  if (st.airplane) return { key: 'airplane', node: () => icon('airplane', { size: 16 }), tip: t('tray.airplane') };
   const p = st.primary || {};
   const limited = st.connectivity !== 'full';
   if (p.type === 'wifi') {
     const s = Number(p.strength ?? 100);
     const level = s >= 75 ? 4 : s >= 50 ? 3 : s >= 25 ? 2 : 1;
-    const node = limited ? icon('wifi_warning', { size: 16 }) : glyph(wifiSvg(level));
-    return { node, tip: t(limited ? 'tray.wifiLimited' : 'tray.wifi', { name: p.name || 'Wi-Fi' }) };
+    return { key: limited ? 'wifi-limited' : `wifi${level}`, node: () => (limited ? icon('wifi_warning', { size: 16 }) : glyph(wifiSvg(level))), tip: t(limited ? 'tray.wifiLimited' : 'tray.wifi', { name: p.name || 'Wi-Fi' }) };
   }
-  if (p.type === 'ethernet') return { node: glyph(ETHERNET_SVG), tip: t(limited ? 'tray.ethernetLimited' : 'tray.ethernet'), limited };
-  return { node: icon('globe_prohibited', { size: 16 }), tip: t('tray.disconnected') };
+  if (p.type === 'ethernet') return { key: 'ethernet', node: () => glyph(ETHERNET_SVG), tip: t(limited ? 'tray.ethernetLimited' : 'tray.ethernet'), limited };
+  return { key: 'none', node: () => icon('globe_prohibited', { size: 16 }), tip: t('tray.disconnected') };
+}
+
+// Replace a tray glyph only when it actually changes: re-creating the node under the pointer would
+// re-trigger its tooltip (e.g. over an open quick settings flyout) and cost a re-layout every push.
+function setGlyph(el, key, make) {
+  if (el.dataset.glyph === key && el.firstChild) return;
+  el.dataset.glyph = key;
+  el.replaceChildren(make());
 }
 
 function renderTray() {
@@ -795,7 +820,7 @@ function renderTray() {
   const ng = netGlyph(status.net);
   net.hidden = !ng;
   if (ng) {
-    net.replaceChildren(ng.node);
+    setGlyph(net, ng.key, ng.node);
     net.dataset.tip = ng.tip;
   }
   const a = status.audio;
@@ -803,14 +828,14 @@ function renderTray() {
   if (a) {
     const v = Math.round(a.volume ?? 0);
     const name = a.muted ? 'speaker_mute' : v === 0 ? 'speaker_0' : v < 34 ? 'speaker_1' : 'speaker_2';
-    vol.replaceChildren(icon(name, { size: 16 }));
+    setGlyph(vol, name, () => icon(name, { size: 16 }));
     vol.dataset.tip = a.muted ? t('tray.muted') : t('tray.volume', { value: v });
   }
   const b = status.battery;
   bat.hidden = !b;
   if (b) {
     const pct = Math.round(b.percent ?? 0);
-    bat.replaceChildren(glyph(batterySvg(pct, b.charging)));
+    setGlyph(bat, `${pct}|${!!b.charging}`, () => glyph(batterySvg(pct, b.charging)));
     const time = b.timeLeftMin > 0 && !b.charging ? t('tray.hours', { h: Math.floor(b.timeLeftMin / 60), m: b.timeLeftMin % 60 }) : null;
     bat.dataset.tip = b.charging ? t('tray.charging', { percent: pct }) : time ? t('tray.batteryTime', { percent: pct, time }) : t('tray.battery', { percent: pct });
   }
@@ -859,7 +884,11 @@ function onVolumeWheel(e) {
 function taskbarMenu(e) {
   if (e.target.closest('.tb-app, .tb-preview')) return;
   e.preventDefault();
-  ui.menu(e, [
+  e.stopPropagation();
+  // Opens just above the taskbar, like Windows (a point with an anchor rect = the taskbar's top edge).
+  const top = root.getBoundingClientRect().top;
+  const at = e.clientX || e.clientY ? { x: e.clientX, y: e.clientY, anchor: { left: e.clientX, right: e.clientX, top, bottom: top } } : e;
+  ui.menu(at, [
     registry.get('taskmgr') ? { label: t('taskbar.taskManager'), icon: 'data_histogram', action: () => shell.launch('taskmgr') } : null,
     '-',
     { label: t('taskbar.settings'), icon: 'settings', action: () => shell.launch('settings', { page: 'taskbar' }) },
@@ -1039,6 +1068,12 @@ export const taskbar = {
     settings.on('clock24h', tickClock);
     settings.on('showSeconds', tickClock);
     settings.on('notifications', renderBell);
+    // Volume changed by the hotkeys / quick settings: reflect it right away in the tray icon.
+    shell.on('osd', (o) => {
+      if (o?.kind !== 'volume' || !status.audio || o.value == null) return;
+      status.audio = { ...status.audio, volume: Math.round(Number(o.value) || 0), muted: !!o.muted };
+      renderTray();
+    });
     i18n.on('change', () => {
       renderStatic();
       tickClock();
@@ -1084,7 +1119,7 @@ export const taskbar = {
     const span = trayEl?.querySelector(kind === 'net' ? '.tb-net' : '.tb-vol');
     if (span) {
       span.hidden = false;
-      span.replaceChildren(icon(iconName, { size: 16 }));
+      setGlyph(span, `custom:${iconName}`, () => icon(iconName, { size: 16 }));
     }
   },
   /** Latest system status seen by the tray: { net, audio, battery } (null = backend unavailable). */

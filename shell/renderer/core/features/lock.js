@@ -5,6 +5,8 @@
 // the screen shows the clock + notification counts, then the password box. The password is checked by the
 // backend (auth:verify, main/ipc/auth.js — PAM through aurora-checkpass; rate-limited). On success:
 // shell.emit('unlock') and the screen fades out. "Switch user" signs out (one session per seat).
+// The main process keeps the locked state (auth:setLocked) so a shell restarted after a crash comes back locked:
+// mount() locks again at once, behind the black cover features/welcome.js early() put up before the desktop mounted.
 //   window.__aurora.lockScreen = { lock(), locked, el }
 import { LockScreen } from '../greeter/lockui.js';
 import { extendStrings } from '../greeter/strings.js';
@@ -21,7 +23,7 @@ function codeOf(err) {
   return '';
 }
 
-export function mount(ctx) {
+export async function mount(ctx) {
   const { api, env, shell, settings, theme, ui, i18n, notifications, wm, sounds } = ctx;
   extendStrings(i18n);
   ui.loadCss('app://shell/core/greeter/greeter.css');
@@ -31,7 +33,15 @@ export function mount(ctx) {
   let prevWin = null;
   let overlayObserver = null;
   let user = { name: env.user, fullName: env.user, avatarUrl: null };
-  let status = { needsPassword: !env.live, retryAfter: 0 };
+  let status = { needsPassword: !env.live, retryAfter: 0, locked: false };
+  const appsOpen = () => {
+    try {
+      return wm.list().length > 0;
+    } catch {
+      return true;
+    }
+  };
+  const setLocked = (on) => api.invoke('auth:setLocked', on).catch(() => {});
   let lastActivity = Date.now();
 
   const refreshStatus = async () => {
@@ -148,7 +158,9 @@ export function mount(ctx) {
       onAuth,
       onSuccess: () => unlock(),
       onPower: (action) => (action === 'sleep' ? shell.suspend() : action === 'shutdown' ? shell.shutdown() : shell.reboot()),
-      confirmPower: true,
+      // "Apps are still open": only when they are.
+      confirmPower: appsOpen,
+      confirmSwitch: appsOpen,
       onSwitchUser: async () => {
         try {
           await shell.logout();
@@ -172,7 +184,13 @@ export function mount(ctx) {
     for (const [k, v] of Object.entries(accentVars(settings.get('accent'), 'dark'))) ls.el.style.setProperty(k, v);
     (document.getElementById('overlays') || document.body).appendChild(ls.el);
     ls.setBadges(badges());
-    ls.show();
+    // A shell restarted while locked has a black cover up (features/welcome.js): no fade-in through which the
+    // desktop would show, then the cover is no longer needed.
+    const cover = document.getElementById('aurora-lock-cover');
+    ls.show({ animate: !cover });
+    cover?.remove();
+    // Remembered by the main process (crash restarts come back locked); also pulls the keyboard focus out of web pages.
+    setLocked(true);
     const cur = ls;
     if (status.retryAfter > 0) cur.setRetry(status.retryAfter);
     refreshStatus().then((st) => {
@@ -211,6 +229,7 @@ export function mount(ctx) {
     inerted = [];
     document.body.classList.remove('aurora-locked');
     lastActivity = Date.now();
+    setLocked(false);
     el.dismiss();
     const w = prevWin && wm.get?.(prevWin.id) ? prevWin : wm.focused?.();
     prevWin = null;
@@ -276,9 +295,7 @@ export function mount(ctx) {
   scheduleIdle();
   settings.on('lockTimeout', scheduleIdle);
 
-  loadUser().catch(() => {});
   api.on('users:changed', () => loadUser().catch(() => {}));
-  refreshStatus();
 
   ctx.lockScreen = {
     lock: () => shell.lock(),
@@ -289,4 +306,13 @@ export function mount(ctx) {
       return ls?.el || null;
     },
   };
+
+  // A shell restarted while the session was locked (after a crash) locks again before the desktop is usable
+  // (the boot sequence waits for this mount). The account name is waited for briefly so the screen shows it.
+  const userReady = loadUser().catch(() => {});
+  const st = await refreshStatus();
+  if (st.locked) {
+    await Promise.race([userReady, new Promise((r) => setTimeout(r, 1500))]);
+    shell.lock();
+  } else document.getElementById('aurora-lock-cover')?.remove();
 }

@@ -839,15 +839,23 @@ export class NotepadWindow {
     return this.ctx.shell.launch('notepad', { newWindow: true });
   }
 
+  // The file picker is ~820×560: inside a smaller window it would be clipped, so it is then shown
+  // as a screen-level modal instead (like the separate dialog window Windows uses).
+  pickerParent() {
+    const r = this.win.el.getBoundingClientRect();
+    return r.width >= 860 && r.height >= 600 ? this.win : undefined;
+  }
+
   async openDialog() {
     const res = await this.ui.filePicker({
       mode: 'open',
       multiple: true,
-      parent: this.win,
+      parent: this.pickerParent(),
       title: this.t('file.openTitle'),
       path: this.active?.path ? dirname(this.active.path) : undefined,
     });
     const list = Array.isArray(res) ? res : res ? [res] : [];
+    this.active?.focus();
     for (const p of list) await this.openPath(p);
   }
 
@@ -942,7 +950,7 @@ export class NotepadWindow {
     this.activate(doc, { focus: false });
     const name = doc.path ? basename(doc.path) : suggestName(doc.text) || `${t('untitled')}.txt`;
     const dir = doc.path ? dirname(doc.path) : this.ctx.shell.xdg?.documents;
-    let p = await this.ui.filePicker({ mode: 'save', name, path: dir, parent: this.win, title: t('file.saveAs') });
+    let p = await this.ui.filePicker({ mode: 'save', name, path: dir, parent: this.pickerParent(), title: t('file.saveAs') });
     if (!p) {
       doc.focus();
       return false;

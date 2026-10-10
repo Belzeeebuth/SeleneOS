@@ -4,11 +4,12 @@
 const sessions = new Map();
 let attached = false;
 const early = new Map(); // ptyId -> events that arrived before register() (spawn reply raced the output)
+const dead = new Set(); // terminals that were closed: their last events are dropped
 
 function route(id, fn) {
   const s = sessions.get(id);
   if (s) fn(s);
-  else {
+  else if (!dead.has(id)) {
     if (!early.has(id)) {
       early.set(id, []);
       setTimeout(() => early.delete(id), 5000);
@@ -35,7 +36,11 @@ export const bus = {
     }
   },
   unregister(id) {
+    if (!id) return;
     sessions.delete(id);
+    early.delete(id);
+    dead.add(id);
+    if (dead.size > 500) dead.delete(dead.values().next().value);
   },
   get size() {
     return sessions.size;

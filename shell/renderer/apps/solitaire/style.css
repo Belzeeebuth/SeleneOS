@@ -170,6 +170,9 @@
   color: rgba(255, 255, 255, 0.24);
   transition: background var(--dur) linear, color var(--dur) linear;
 }
+.app-solitaire .sol-table.ready .sol-slot {
+  transition: background var(--dur) linear, color var(--dur) linear, transform 260ms var(--ease), width 260ms var(--ease), height 260ms var(--ease);
+}
 .app-solitaire .sol-slot-waste {
   border-color: transparent;
   background: none;
@@ -206,7 +209,8 @@
   width: var(--cw);
   height: var(--ch);
   perspective: calc(var(--cw) * 7);
-  transition: transform 260ms var(--ease);
+  /* width/height glide too: very long columns make every card shrink a little so the fan stays readable */
+  transition: transform 260ms var(--ease), width 260ms var(--ease), height 260ms var(--ease);
 }
 .app-solitaire .sol-card-inner {
   position: absolute;
@@ -248,6 +252,7 @@
 }
 .app-solitaire .sol-table.sol-instant .sol-card,
 .app-solitaire .sol-table.sol-instant .sol-card-inner,
+.app-solitaire .sol-table.sol-instant .sol-slot,
 .app-solitaire .sol-table.sol-instant .sol-cursor {
   transition: none !important;
 }
@@ -524,6 +529,22 @@
   background: var(--card);
   min-width: 0;
 }
+.app-solitaire .sol-stats-dialog.compact .dialog-body {
+  padding-bottom: 16px;
+}
+.app-solitaire .sol-stats-dialog.compact .dialog-title {
+  margin-bottom: 8px;
+}
+.app-solitaire .sol-stats-dialog.compact .sol-stats-body {
+  gap: 10px;
+}
+.app-solitaire .sol-stats-dialog.compact .sol-stat-card {
+  padding: 5px 12px 6px;
+}
+.app-solitaire .sol-stats-dialog.compact .sol-stat-big {
+  font-size: 17px;
+  line-height: 22px;
+}
 .app-solitaire .sol-stat-big {
   font-family: var(--font-display);
   font-size: 20px;
@@ -534,8 +555,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.app-solitaire .sol-settings-dialog {
-  max-width: min(820px, calc(100% - 32px));
+/* Sized here rather than with an inline width: a fixed width would make the dialog's grid track wider
+   than a small window and push the dialog past the window edges. */
+.app-solitaire .dialog.sol-settings-dialog {
+  width: min(820px, calc(100% - 32px));
+  max-width: none;
 }
 .app-solitaire .sol-settings-dialog .dialog-body {
   container-type: inline-size;

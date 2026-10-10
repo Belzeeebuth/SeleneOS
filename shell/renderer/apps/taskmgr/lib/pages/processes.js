@@ -510,16 +510,45 @@ export class ProcessesPage {
     if (!this.canEnd(r)) return;
     const d = r.data;
     const A = this.app.actions;
-    if (d.type === 'window') return d.win.close();
-    if (d.type === 'app') {
-      for (const w of d.wins) await w.close();
-      return;
-    }
+    if (d.type === 'window') return this.closeWindows([d.win], d.name);
+    if (d.type === 'app') return this.closeWindows(d.wins, d.baseName || d.name);
     const name = d.baseName || d.name;
     const critical = d.type === 'shell' || d.shell || d.pids.some((pid) => A.isCritical(this.byPid?.get(pid)?.name, pid));
     // Children first so a parent's own shutdown logic does not race them.
     const pids = d.type === 'proc' ? d.pids : [...d.pids].sort((a, b) => b - a);
     await A.endProcesses(pids, { name, critical });
+  }
+  // End task on an app: ask its windows to close (the app may ask to save its work). A window that
+  // neither closes nor shows a dialog within a few seconds is treated as not responding.
+  async closeWindows(wins, name) {
+    const { t } = this.app;
+    const { ui } = this.app.ctx;
+    this.closing ||= new WeakSet();
+    await Promise.all(
+      wins.map(async (w) => {
+        // A second End task while the app is still deciding (e.g. its "Save changes?" prompt is
+        // open) must not ask again.
+        if (this.closing.has(w) || w._closing) return;
+        this.closing.add(w);
+        const closed = Promise.resolve()
+          .then(() => w.close())
+          .catch(() => false);
+        closed.then(() => this.closing.delete(w));
+        const res = await Promise.race([closed, new Promise((r) => setTimeout(() => r('timeout'), 4000))]);
+        if (res !== 'timeout' || w._closing || !wm.get(w.id) || w.el.querySelector('.dialog-layer') || this.app.closed) return;
+        this.closing.delete(w);
+        const v = await ui.dialog({
+          title: t('notResponding.title', { name: w.title || name }),
+          body: t('notResponding.body'),
+          parent: this.app.win,
+          buttons: [
+            { label: t('notResponding.endNow'), value: 'kill', primary: true },
+            { label: t('notResponding.wait'), value: null },
+          ],
+        });
+        if (v === 'kill' && wm.get(w.id)) await w.close(true);
+      }),
+    );
   }
   async toggleEfficiency(r) {
     const st = this.effState(r);

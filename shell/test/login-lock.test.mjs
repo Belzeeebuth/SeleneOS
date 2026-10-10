@@ -1018,12 +1018,361 @@ async function welcomeTests() {
   await w4.close();
 }
 
+// ======================================================================= QA round 2 (adversarial checks + fixes)
+async function unitQaTests() {
+  section('QA: auth.js helper outcomes, lock state location, aurora-checkpass through sudo');
+  const mk = (name, body, mode = 0o755) => {
+    const f = path.join(TMP, name);
+    fs.writeFileSync(f, body, { mode });
+    return f;
+  };
+  const code = (p) => p.then((v) => v, (e) => e.code || e.message);
+  const ran = path.join(TMP, 'helper-ran');
+  const ok = mk('fake-ok', `#!/bin/sh\ntouch ${ran}\nexit 0\n`);
+  check((await auth.checkPassword('right\nanything', { helper: ok })) === false && !fs.existsSync(ran), 'a password with a newline is refused without running the helper (never cut at the newline)');
+  check((await auth.checkPassword('nul\0x', { helper: ok })) === false, 'a password with a NUL byte is refused');
+  check((await auth.checkPassword('fine', { helper: ok })) === true, 'helper exit 0 -> true');
+  const got = path.join(TMP, 'helper-stdin');
+  const cat = mk('fake-cat', `#!/bin/sh\ncat > ${got}\nexit 1\n`);
+  check((await auth.checkPassword('pä ss wörd', { helper: cat })) === false && fs.readFileSync(got, 'utf8') === 'pä ss wörd\n', 'helper exit 1 -> false; the password goes on stdin as one line');
+  const slow = mk('fake-slow', '#!/bin/sh\nsleep 5\nexit 0\n');
+  const t0 = Date.now();
+  check((await code(auth.checkPassword('x', { helper: slow, timeout: 300 }))) === 'ECHECKPASS' && Date.now() - t0 < 3000, 'a hung helper is killed: ECHECKPASS (was counted as a wrong password)');
+  const noexec = mk('fake-noexec', '#!/bin/sh\nexit 0\n', 0o644);
+  check((await code(auth.checkPassword('x', { helper: noexec }))) === 'ECHECKPASS', 'a helper that cannot run: ECHECKPASS (was "wrong password")');
+  const badInterp = mk('fake-interp', '#!/nonexistent/python3\nexit 0\n');
+  check((await code(auth.checkPassword('x', { helper: badInterp }))) === 'ECHECKPASS', 'a missing interpreter: ECHECKPASS');
+  const e3 = mk('fake-e3', '#!/bin/sh\necho "pam_start failed (4)" >&2\nexit 3\n');
+  const err3 = await auth.checkPassword('x', { helper: e3 }).then(() => null, (e) => e);
+  check(err3?.code === 'ECHECKPASS' && /pam_start/.test(err3.message), 'PAM failure (exit 3): ECHECKPASS with the helper message');
+
+  const saved = { AURORA_LOCK_STATE: process.env.AURORA_LOCK_STATE, XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR, XDG_SESSION_ID: process.env.XDG_SESSION_ID };
+  delete process.env.AURORA_LOCK_STATE;
+  process.env.XDG_RUNTIME_DIR = '/run/user/1000';
+  process.env.XDG_SESSION_ID = '3';
+  check(auth.lockMarker(false) === '/run/user/1000/aurora-locked-3', `lock state kept per login session in $XDG_RUNTIME_DIR (${auth.lockMarker(false)})`);
+  check(auth.lockMarker(true) === null, 'dev runs keep the lock state in memory (no leak between test runs)');
+  process.env.XDG_SESSION_ID = '../../etc/x';
+  check(path.dirname(auth.lockMarker(false)) === '/run/user/1000', 'session id cannot move the file out of the runtime dir');
+  process.env.AURORA_LOCK_STATE = '/tmp/x-lock';
+  check(auth.lockMarker(true) === '/tmp/x-lock', 'AURORA_LOCK_STATE (tests) wins');
+  for (const [k, v] of Object.entries(saved)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+
+  const sudoEnv = { ...process.env, SUDO_UID: '1000', SUDO_USER: 'admin' };
+  for (const args of [['--user', 'root'], ['--confdir', TMP], ['--service', 'login']]) {
+    const r = spawnSync(HELPER, args, { input: 'x\n', encoding: 'utf8', env: sudoEnv, timeout: 20000 });
+    check(r.status === 2 && (process.getuid() !== 0 || /sudo/.test(r.stderr)), `through sudo, ${args[0]} is refused (exit ${r.status}: ${r.stderr.trim()})`);
+  }
+  const src = fs.readFileSync(HELPER, 'utf8');
+  check(/except Exception/.test(src) && /return PAM_CONV_ERR/.test(src), 'conversation callback never lets an exception turn into PAM_SUCCESS');
+}
+
+// Accounts for the greeter QA run: a hostile GECOS, a very long name, 14 numbered accounts.
+function qaPasswd() {
+  const file = path.join(TMP, 'passwd-qa');
+  const lines = ['root:x:0:0:root:/root:/bin/bash', 'xss:x:1000:1000:<img src=x onerror="window.__xss=1">,,,:/home/xss:/bin/bash'];
+  lines.push('longname:x:1001:1001:Marie-Christine Anne-Sophie de La Rochefoucauld-Montmorency,,,:/home/l:/bin/bash');
+  for (let i = 0; i < 14; i++) lines.push(`user${i}:x:${1002 + i}:${1002 + i}:Utilisateur Numéro ${i},,,:/home/u${i}:/bin/bash`);
+  fs.writeFileSync(file, `${lines.join('\n')}\n`);
+  return file;
+}
+
+async function greeterQaTests() {
+  section('QA: greeter with 16 accounts + long names (1280x720, FR): layout, order, keyboard, menus, errors');
+  const sock = path.join(TMP, 'greetd-qa.sock');
+  const gopts = { users: { user3: 'pw' } };
+  const g = await fakeGreetd(sock, gopts);
+  const passwd = qaPasswd();
+  const data = fs.mkdtempSync(path.join(TMP, 'gdata-'));
+  const env = { GREETD_SOCK: sock, AURORA_GREETER_PASSWD: passwd, AURORA_GREETER_DATA: data };
+  const s = await greeter({ size: '1280x720', lang: 'fr', env });
+  const { page } = s;
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(900);
+  const names = await page.$$eval('.lk-user .lk-user-name', (els) => els.map((e) => e.textContent));
+  check(names.indexOf('Utilisateur Numéro 2') >= 0 && names.indexOf('Utilisateur Numéro 2') < names.indexOf('Utilisateur Numéro 10'), 'accounts in natural order ("2" before "10")');
+  check((await page.evaluate(() => window.__xss)) === undefined && !(await q(page, '.lk-user-name img')), 'a hostile full name is shown as text');
+  const heights = await page.$$eval('.lk-user', (els) => [...new Set(els.map((e) => Math.round(e.getBoundingClientRect().height)))]);
+  check(heights.length === 1 && heights[0] >= 40, `account tiles keep their height in a long list (${heights})`);
+  check(await page.$eval('.lk-users', (e) => e.scrollHeight > e.clientHeight && e.classList.contains('lk-scroll') && e.classList.contains('lk-at-top') && !e.classList.contains('lk-at-end')), 'long list scrolls, bottom edge fades');
+  await page.click('.lk-user[data-user="longname"]');
+  await page.waitForTimeout(400);
+  check(await page.$eval('.lk-user.selected .lk-user-name', (e) => e.scrollWidth > e.clientWidth && getComputedStyle(e).textOverflow === 'ellipsis'), 'a long name is cut with an ellipsis in the list');
+  await page.fill('.lk-pw-field input', 'faux');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !document.querySelector('.lockui.busy'), null, { timeout: 8000 });
+  await page.click('.lk-link');
+  await page.waitForTimeout(400);
+  const probs = await layoutProblems(page);
+  const sep = await page.evaluate(() => document.querySelector('.lk-users').getBoundingClientRect().right <= document.querySelector('.lk-card').getBoundingClientRect().left);
+  check(!probs.length && sep, `user list stays clear of the sign-in card (${probs})`);
+  await shot(page, 'login-many-users-fr');
+  // One Tab stop for the list; arrows / Home / End inside it.
+  await page.focus('.lk-link');
+  await page.keyboard.press('Tab');
+  check(await page.evaluate(() => document.activeElement?.dataset?.user === 'longname'), 'Tab enters the list on the selected account');
+  await page.keyboard.press('Tab');
+  check(await page.evaluate(() => document.activeElement?.classList.contains('lk-ind')), 'next Tab leaves the list (one stop, not 16)');
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('End');
+  check(await page.evaluate(() => document.activeElement === [...document.querySelectorAll('.lk-user')].pop()), 'End: last account');
+  await page.waitForTimeout(150);
+  check(await page.$eval('.lk-users', (e) => e.classList.contains('lk-at-end')), 'list scrolled to the focused account');
+  await page.keyboard.press('Home');
+  check(await page.evaluate(() => document.activeElement === document.querySelector('.lk-user')), 'Home: first account');
+  await page.keyboard.press('ArrowUp');
+  check(await page.evaluate(() => document.activeElement === [...document.querySelectorAll('.lk-user')].pop()), 'ArrowUp wraps around');
+  check((await page.$$('.lk-user[tabindex="0"]')).length === 1, 'exactly one account is tabbable');
+  // Tray: localized labels; menus open right-aligned above their button.
+  const netLabel = await page.$eval('.lk-net', (e) => e.getAttribute('aria-label'));
+  check(/^Réseau : /.test(netLabel), `network label uses French punctuation (${netLabel})`);
+  for (const sel of ['.lk-power', '.lk-a11y', '.lk-ind']) {
+    await page.click(sel);
+    await page.waitForSelector('.menu.lk-menu');
+    const geo = await page.evaluate((sel) => {
+      const m = document.querySelector('.menu.lk-menu').getBoundingClientRect();
+      const b = document.querySelector(sel).getBoundingClientRect();
+      return { dr: Math.round(m.right - b.right), gap: Math.round(b.top - m.bottom), edge: Math.round(innerWidth - m.right) };
+    }, sel);
+    check(Math.abs(geo.dr) <= 1 && geo.gap >= 4 && geo.edge >= 8, `${sel} menu right-aligned above its button (${JSON.stringify(geo)})`);
+    if (sel === '.lk-power') await shot(page, 'login-power-menu-fr');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+  }
+  // Larger text: applied, remembered, and the check mark matches what is on screen.
+  const zoom = () => s.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getZoomFactor());
+  await page.click('.lk-a11y');
+  await page.waitForSelector('.menu.lk-menu');
+  await page.click('.menu.lk-menu .menu-item:has-text("Texte plus grand")');
+  await page.waitForTimeout(400);
+  check((await zoom()) === 1.25, 'Larger text zooms to 125 %');
+  check(!(await layoutProblems(page)).length, `layout OK at 125 % (${await layoutProblems(page)})`);
+  // greetd unreachable mid-way: a French sentence, the technical reason only as a detail line.
+  gopts.dropOn = 'create_session';
+  await page.keyboard.press('Escape');
+  await page.click('.lk-user[data-user="user3"]');
+  await page.fill('.lk-pw-field input', 'pw');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !document.querySelector('.lockui.busy'), null, { timeout: 8000 });
+  await page.waitForTimeout(200);
+  const main = await page.$eval('.lk-msg > div:first-child', (e) => e.textContent).catch(() => '');
+  const detail = await page.$eval('.lk-msg .lk-msg-detail', (e) => e.textContent).catch(() => '');
+  check(main === 'Connexion impossible. Réessayez.' && /greetd/.test(detail), `greetd failure: localized message + detail (${main} | ${detail})`);
+  await shot(page, 'login-greetd-error-fr');
+  check(!myErrors(s.logs).length, `no renderer errors: ${myErrors(s.logs)}`);
+  await s.close();
+  await g.close();
+
+  // Relaunch: the accessibility choice is remembered and shown checked (Chromium also keeps a per-origin zoom).
+  const g2 = await fakeGreetd(sock, { users: {} });
+  const s2 = await greeter({ size: '1280x720', lang: 'fr', env, state: s.state });
+  const zoom2 = await s2.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getZoomFactor());
+  await s2.page.keyboard.press('Enter');
+  await s2.page.waitForTimeout(800);
+  await s2.page.click('.lk-a11y');
+  await s2.page.waitForSelector('.menu.lk-menu');
+  const checkedLarge = await s2.page.$eval('.menu.lk-menu .menu-item:has(.label:text-is("Texte plus grand")) .check', (e) => e.childElementCount > 0).catch(() => null);
+  check(zoom2 === 1.25 && checkedLarge === true, `Larger text remembered and checked after a restart (zoom ${zoom2}, checked ${checkedLarge})`);
+  await s2.page.click('.menu.lk-menu .menu-item:has-text("Texte plus grand")');
+  await s2.page.waitForTimeout(300);
+  const zoom3 = await s2.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getZoomFactor());
+  check(zoom3 === 1, `one click turns it off again (was a dead click: zoom ${zoom3})`);
+  await s2.close();
+  await g2.close();
+
+  section('QA: greeter "Other user" with an impossible user name (FR)');
+  {
+    const s3 = await greeter({ lang: 'fr', env: { AURORA_MOCK_USERS: '0' } });
+    await s3.page.keyboard.press('Enter');
+    await s3.page.waitForTimeout(800);
+    await s3.page.keyboard.type('pas valide!');
+    await s3.page.keyboard.press('Tab');
+    await s3.page.keyboard.type('x');
+    await s3.page.keyboard.press('Enter');
+    await s3.page.waitForFunction(() => !document.querySelector('.lockui.busy'), null, { timeout: 8000 });
+    await s3.page.waitForTimeout(200);
+    const m = await text(s3.page, '.lk-msg');
+    check(/nom d’utilisateur ou le mot de passe est incorrect/.test(m) && !/Invalid/.test(m), `"Other user": user name or password incorrect, in French (${m})`);
+    await s3.close();
+  }
+}
+
+// xdotool: real X key events (the main-process before-input-event hotkey path), when available.
+const XDOTOOL = !!process.env.DISPLAY && spawnSync('sh', ['-c', 'command -v xdotool']).status === 0;
+function xkey(app, keys) {
+  const pid = String(app.process().pid);
+  let ids = spawnSync('xdotool', ['search', '--onlyvisible', '--pid', pid], { encoding: 'utf8' }).stdout.trim().split('\n').filter(Boolean);
+  if (!ids.length) ids = spawnSync('xdotool', ['search', '--onlyvisible', '--name', 'Aurora'], { encoding: 'utf8' }).stdout.trim().split('\n').filter(Boolean);
+  if (!ids.length) return false;
+  spawnSync('xdotool', ['windowfocus', '--sync', ids.at(-1)], { timeout: 5000 });
+  return spawnSync('xdotool', ['key', ...keys], { timeout: 5000 }).status === 0;
+}
+
+async function lockQaTests() {
+  section('QA: lock screen — real Super+L, empty password, confirmations, leaks, races, hostile text');
+  const lockState = path.join(TMP, 'lock-state');
+  const home = fs.mkdtempSync(path.join(TMP, 'home-qa-'));
+  const env = { AURORA_LOCK_STATE: lockState };
+  let s = await launchShell({ home, keepHome: true, theme: 'dark', lang: 'en', env });
+  let { page } = s;
+  const locked = () => s.aurora(() => !!window.__aurora.lockScreen?.locked);
+  if (XDOTOOL) {
+    xkey(s.app, ['super+l']);
+    await page.waitForTimeout(1200);
+    check(await locked(), 'the real Super+L key (X event -> main-process hotkey -> shell) locks the session');
+  } else {
+    console.log('  (xdotool not available: Super+L checked through the hotkey action only)');
+    await s.aurora(() => window.__aurora.hotkeys.trigger('Super+L'));
+    await page.waitForTimeout(1200);
+  }
+  check(fs.existsSync(lockState), 'the main process records the locked state (survives a shell crash)');
+  // Enter pressed on an empty box (e.g. to wake the screen) never uses up attempts.
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(800);
+  for (let i = 0; i < 6; i++) {
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => !document.querySelector('.lockui.busy'), null, { timeout: 5000 });
+    await page.waitForTimeout(60);
+  }
+  const st = await page.evaluate(() => window.aurora.invoke('auth:status'));
+  check(st.failures === 0 && st.retryAfter === 0, `six empty Enter presses do not count as failed attempts (${JSON.stringify(st)})`);
+  check(!(await page.$eval('.lk-pw-field input', (e) => e.disabled)), 'password box still usable');
+  // No app open: Shut down / Switch user do not warn about open apps.
+  await s.aurora(() => {
+    window.__calls = [];
+    window.__aurora.shell.shutdown = async () => window.__calls.push('shutdown');
+    window.__aurora.shell.logout = async () => window.__calls.push('logout');
+  });
+  check((await s.aurora(() => window.__aurora.wm.list().length)) === 0, 'no app open');
+  await page.click('.lk-power');
+  await page.waitForSelector('.menu.lk-menu');
+  await page.click('.menu.lk-menu .menu-item:nth-child(2)');
+  await page.waitForTimeout(400);
+  check(!(await q(page, '.lk-dialog')) && (await s.aurora(() => window.__calls.join())) === 'shutdown', 'Shut down without apps: no "apps are still open" warning');
+  await page.click('.lk-switch');
+  await page.waitForTimeout(400);
+  check(!(await q(page, '.lk-dialog')) && (await s.aurora(() => window.__calls.join())) === 'shutdown,logout', 'Switch user without apps: signs out at once');
+  await page.fill('.lk-pw-field input', 'aurora');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(1200);
+  check(!(await locked()) && !fs.existsSync(lockState), 'unlock clears the recorded state');
+  // With an app open, the warning comes back.
+  await s.aurora(() => window.__aurora.registry.launch('calculator'));
+  await page.waitForTimeout(800);
+  await s.aurora(() => window.__aurora.shell.lock());
+  await page.waitForTimeout(700);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(800);
+  await page.click('.lk-power');
+  await page.waitForSelector('.menu.lk-menu');
+  await page.click('.menu.lk-menu .menu-item:nth-child(3)');
+  await page.waitForTimeout(400);
+  check(!!(await q(page, '.lk-dialog')), 'Restart with an app open: warning dialog');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+  await s.aurora(() => window.__aurora.shell.emit('unlock'));
+  await page.waitForTimeout(600);
+
+  // Listener / DOM leaks over 20 lock-unlock cycles.
+  await page.evaluate(() => {
+    const counts = (window.__probe = { doc: 0, win: 0 });
+    for (const [target, key] of [[document, 'doc'], [window, 'win']]) {
+      const add = target.addEventListener.bind(target);
+      const rem = target.removeEventListener.bind(target);
+      target.addEventListener = (...a) => (counts[key]++, add(...a));
+      target.removeEventListener = (...a) => (counts[key]--, rem(...a));
+    }
+  });
+  for (let i = 0; i < 20; i++) {
+    await s.aurora(() => window.__aurora.shell.lock());
+    await page.waitForTimeout(90);
+    await page.keyboard.press(i % 2 ? 'a' : 'Enter');
+    await page.waitForTimeout(60);
+    await s.aurora(() => window.__aurora.shell.emit('unlock'));
+    await page.waitForTimeout(480);
+  }
+  const bal = await page.evaluate(() => window.__probe);
+  check(bal.doc <= 0 && bal.win <= 0, `no document/window listener leak after 20 lock cycles (${JSON.stringify(bal)})`);
+  check((await page.$$('.lockui')).length === 0 && (await page.$$('[inert]')).length === 0, 'no lock screen or inert layer left behind');
+  // Rapid toggling.
+  await page.evaluate(() => {
+    const sh = window.__aurora.shell;
+    for (let i = 0; i < 10; i++) {
+      sh.lock();
+      sh.emit('unlock');
+    }
+    sh.lock();
+  });
+  await page.waitForTimeout(700);
+  check((await page.$$('.lockui:not(.lk-leaving)')).length === 1 && (await locked()), 'rapid lock/unlock ends with exactly one lock screen');
+  await s.aurora(() => window.__aurora.shell.emit('unlock'));
+  await page.waitForTimeout(600);
+  check((await page.$$('[inert]')).length === 0, 'and everything usable after the last unlock');
+  // Hostile notification text.
+  await s.aurora(() => window.__aurora.notify({ title: '<img src=x onerror="window.__xss=1">', body: '<b>x</b>', appName: '<img src=y onerror="window.__xss=2">', silent: true }));
+  await s.aurora(() => window.__aurora.shell.lock());
+  await page.waitForTimeout(800);
+  const badge = await page.$$eval('.lk-badge', (els) => els.map((e) => ({ title: e.title, imgs: e.querySelectorAll('img').length })));
+  check((await page.evaluate(() => window.__xss)) === undefined && badge.some((b) => b.title.startsWith('<img src=y') && b.imgs === 0), `notification text shown as text on the lock screen (${JSON.stringify(badge)})`);
+  check(!myErrors(s.logs).length, `no renderer errors: ${myErrors(s.logs)}`);
+
+  section('QA: a shell restarted while locked comes back locked (crash restart)');
+  // Still locked: simulate a crash of the whole shell process (no clean quit).
+  check(fs.existsSync(lockState), 'locked state recorded before the crash');
+  s.app.process().kill('SIGKILL');
+  await sleep(800);
+  s = await launchShell({ home, keepHome: true, theme: 'dark', lang: 'en', env, settle: 400 });
+  page = s.page;
+  check(await locked(), 'the restarted shell is locked at once');
+  check(!(await q(page, '#aurora-lock-cover')), 'black cover replaced by the lock screen');
+  // Renderer restart with a frame-by-frame watch: the desktop must never be visible unlocked.
+  await page.addInitScript(() => {
+    window.__exposed = 0;
+    window.__frames = 0;
+    const tick = () => {
+      window.__frames++;
+      const desk = document.getElementById('desktop');
+      const ls = document.querySelector('.lockui:not(.lk-leaving)');
+      const covered = document.getElementById('aurora-lock-cover') || (ls && getComputedStyle(ls).opacity === '1');
+      if (desk && desk.childElementCount > 0 && !covered) window.__exposed++;
+      if (!document.body?.classList.contains('aurora-locked')) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await page.reload();
+  await page.waitForSelector('body.ready', { timeout: 30000 });
+  await page.waitForTimeout(600);
+  const watch = await page.evaluate(() => ({ exposed: window.__exposed, frames: window.__frames }));
+  check(watch.exposed === 0 && watch.frames > 0 && (await locked()), `desktop never shown unlocked while the shell restarts (${JSON.stringify(watch)})`);
+  check(!(await page.evaluate(() => !!document.querySelector('.lockui.lk-entering'))), 'restored without a fade-in (nothing shows through)');
+  await shot(page, 'lock-restored-dark-en');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(800);
+  await page.fill('.lk-pw-field input', 'aurora');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(1200);
+  check(!(await locked()) && !fs.existsSync(lockState), 'unlocking the restored screen clears the state');
+  await s.aurora(() => window.__aurora.shell.lock());
+  await page.waitForTimeout(600);
+  check(fs.existsSync(lockState), 'locked again');
+  await s.close();
+  check(!fs.existsSync(lockState), 'a normal exit (sign out) forgets the locked state');
+  check(!myErrors(s.logs).length, `no renderer errors: ${myErrors(s.logs)}`);
+  fs.rmSync(home, { recursive: true, force: true });
+}
+
 // ======================================================================= main
-// --only=unit,greeter,greeter-fr,protocol,variants,lock,lock-extra,welcome  runs a subset.
+// --only=unit,greeter,greeter-fr,protocol,variants,lock,lock-extra,welcome,greeter-qa,lock-qa  runs a subset.
 const ONLY = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
 const want = (name) => !ONLY.length || ONLY.includes(name);
 try {
-  if (want('unit')) await unitTests();
+  if (want('unit')) {
+    await unitTests();
+    await unitQaTests();
+  }
   if (!UNIT_ONLY) {
     if (want('greeter')) await greeterTests();
     if (want('greeter-fr')) await greeterFrTests();
@@ -1035,6 +1384,8 @@ try {
     }
     if (want('lock-extra')) await lockExtraTests();
     if (want('welcome')) await welcomeTests();
+    if (want('greeter-qa')) await greeterQaTests();
+    if (want('lock-qa')) await lockQaTests();
   }
 } catch (err) {
   failures++;

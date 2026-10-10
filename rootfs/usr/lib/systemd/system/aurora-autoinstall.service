@@ -1,0 +1,25 @@
+# Aurora OS: unattended installation from the live medium (aurora.autoinstall=1 on the kernel
+# command line), for virtual-machine testing and labs. See /usr/lib/aurora/autoinstall/README.
+#
+# Live media ONLY: all three conditions must hold (boot=casper is only on the live medium's boot
+# entries, /cdrom/casper only exists in a casper live session); the script checks them again, and
+# the installer removes this unit's enablement link from the installed system.
+[Unit]
+Description=Aurora OS automated installation (live medium, aurora.autoinstall=1)
+Documentation=file:/usr/lib/aurora/autoinstall/README
+ConditionKernelCommandLine=aurora.autoinstall=1
+ConditionKernelCommandLine=boot=casper
+ConditionPathIsDirectory=/cdrom/casper
+After=local-fs.target systemd-udev-trigger.service aurora-apparmor.service
+# The sign-in screen / live session only starts once the installation is over (or has failed).
+Before=greetd.service display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/aurora/autoinstall/aurora-autoinstall
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=multi-user.target

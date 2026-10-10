@@ -1,0 +1,15 @@
+{
+  "id": "snipping",
+  "name": { "en": "Snipping Tool", "fr": "Outil Capture" },
+  "description": { "en": "Capture any part of your screen, then mark it up and share it", "fr": "Capturez une partie de l'écran, puis annotez-la et partagez-la" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 548, "height": 178, "minWidth": 440, "minHeight": 150, "titlebar": "tall", "background": "mica" },
+  "category": "utilities",
+  "keywords": {
+    "en": ["screenshot", "snip", "capture", "screen", "print screen", "prtscn", "snippingtool", "crop", "annotate"],
+    "fr": ["capture d'écran", "capture", "écran", "impr écran", "outil capture", "rogner", "annoter"]
+  },
+  "singleInstance": true
+}

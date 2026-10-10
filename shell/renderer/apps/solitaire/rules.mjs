@@ -146,6 +146,54 @@ export function validateState(s) {
   return true;
 }
 
+const finite = (v, def) => (typeof v === 'number' && Number.isFinite(v) ? v : def);
+const count = (v) => Math.max(0, Math.floor(finite(v, 0)));
+const cardList = (v) => (Array.isArray(v) ? v.slice() : []);
+
+/**
+ * A clean copy of a state read from storage: options and counters are coerced to valid values,
+ * piles are copied, a column's top card is always face up. Throws when the cards themselves are
+ * not a coherent Klondike layout (see validateState).
+ */
+export function normalizeState(raw) {
+  if (!raw || typeof raw !== 'object') throw new Error('state missing');
+  const seed = Math.floor(finite(raw.seed, 1));
+  const s = {
+    v: 1,
+    seed: seed >= 1 && seed <= MAX_GAME ? seed : 1,
+    draw: raw.draw === 3 ? 3 : 1,
+    scoring: SCORINGS.includes(raw.scoring) ? raw.scoring : 'standard',
+    timed: raw.timed !== false,
+    bank: Math.round(finite(raw.bank, 0)),
+    stock: cardList(raw.stock),
+    waste: cardList(raw.waste),
+    fan: 0,
+    f: Array.isArray(raw.f) ? raw.f.map(cardList) : [],
+    t: Array.isArray(raw.t) ? raw.t.map(cardList) : [],
+    hidden: Array.isArray(raw.hidden) ? raw.hidden.slice() : [],
+    score: 0,
+    moves: count(raw.moves),
+    recycles: count(raw.recycles),
+    elapsed: Math.max(0, finite(raw.elapsed, 0)),
+    won: false,
+    bonus: count(raw.bonus),
+  };
+  if (!Array.isArray(raw.hidden) && s.t.length === 7) s.hidden = s.t.map((col) => Math.max(0, col.length - 1));
+  validateState(s);
+  // Klondike never leaves a column with its top card face down.
+  s.hidden = s.hidden.map((n, i) => Math.min(n, Math.max(0, s.t[i].length - 1)));
+  const maxFan = Math.min(s.waste.length, s.draw === 3 ? 3 : 1);
+  s.fan = Math.min(maxFan, count(raw.fan ?? maxFan));
+  if (s.waste.length && !s.fan) s.fan = 1;
+  const defScore = s.scoring === 'vegas' ? s.bank - 52 : 0;
+  s.score = Math.round(finite(raw.score, defScore));
+  if (s.scoring === 'standard') s.score = Math.max(0, s.score);
+  if (s.scoring === 'none') s.score = 0;
+  s.won = s.f.reduce((n, p) => n + p.length, 0) === 52;
+  if (!s.won) s.bonus = 0;
+  return s;
+}
+
 // ---------------------------------------------------------------- game
 export class Klondike {
   constructor(state, history = []) {
@@ -158,19 +206,17 @@ export class Klondike {
     return new Klondike(dealState(seed, opts));
   }
 
-  /** Accepts a saved game ({state, history}) or a bare state. Missing fields get defaults. */
+  /**
+   * Accepts a saved game ({state, history}) or a bare state. The data comes from disk, so every field is
+   * checked: missing or malformed values get safe defaults and incoherent card layouts are refused.
+   */
   static fromJSON(json) {
     const raw = json?.state ? json.state : json;
-    const base = dealState(raw?.seed || 1, raw || {});
-    const s = { ...base, ...raw };
-    s.hidden = Array.isArray(raw?.hidden) ? raw.hidden.slice() : s.t.map((col) => Math.max(0, col.length - 1));
-    if (s.fan == null) s.fan = Math.min(s.waste.length, 1);
-    const game = new Klondike(cloneState(s));
+    const game = new Klondike(normalizeState(raw));
     if (Array.isArray(json?.history)) {
       for (const h of json.history) {
         try {
-          validateState(h);
-          game.history.push(cloneState(h));
+          game.history.push(normalizeState(h));
         } catch {
           // ignore a corrupt history entry rather than refusing the whole game
         }
@@ -517,6 +563,12 @@ export class Klondike {
         const first = s.hidden[i];
         return p.length > first && first > 0 && rankOf(p[first]) === 13;
       });
+    const fitsOn = (under, c) => rankOf(c) === rankOf(under) - 1 && isRed(c) !== isRed(under);
+    const wasteTop = s.waste.length ? s.waste[s.waste.length - 1] : null;
+    // Heads of the runs sitting on face-down cards: giving them a place turns a card over.
+    const revealHeads = TABLEAU.map((t, i) => (s.hidden[i] > 0 && s.t[i].length > s.hidden[i] ? s.t[i][s.hidden[i]] : null)).filter((c) => c != null);
+    // A card that the waste top or a revealing run is waiting for is better left on the tableau for now.
+    const wanted = (c) => (wasteTop != null && fitsOn(c, wasteTop)) || revealHeads.some((hc) => fitsOn(c, hc));
     // Waste and foundation tops.
     if (s.waste.length) {
       const idx = s.waste.length - 1;
@@ -535,7 +587,7 @@ export class Klondike {
         const empties = idx === 0;
         for (const to of this.legalTargets(from, idx)) {
           if (isFoundation(to)) {
-            add(from, idx, to, 'foundation', reveals ? 100 : 70);
+            add(from, idx, to, 'foundation', reveals ? 100 : wanted(p[idx]) ? 10 : 70);
             continue;
           }
           const destEmpty = this.pile(to).length === 0;
@@ -554,6 +606,19 @@ export class Klondike {
     if (this.canDraw()) {
       const playable = this.reachableWasteCards().some((c) => c !== s.waste[s.waste.length - 1] && this._placeable(c));
       if (playable) out.push({ from: 'stock', index: s.stock.length - 1, to: 'waste', draw: true, kind: 'draw', rank: 5 });
+    }
+    if (!out.length) {
+      // Last resort: take a card back down from a foundation when that gives a stuck card a place —
+      // one the stock can still bring up, or the head of a run that would turn a card over.
+      const reach = this.reachableWasteCards();
+      FOUNDATIONS.forEach((from, fi) => {
+        const p = s.f[fi];
+        if (!p.length) return;
+        const fc = p[p.length - 1];
+        if (!reach.some((c) => fitsOn(fc, c)) && !revealHeads.some((hc) => fitsOn(fc, hc))) return;
+        const to = TABLEAU.find((t) => this.canMove(from, p.length - 1, t));
+        if (to) add(from, p.length - 1, to, 'foundation-down', 3);
+      });
     }
     return out;
   }
@@ -581,15 +646,30 @@ export function emptyStats() {
   return { played: 0, won: 0, bestTime: 0, bestScore: 0, streak: 0, longestWin: 0, longestLoss: 0, totalTime: 0 };
 }
 
-/** Record a finished game (won or lost) in a stats object; returns a new object. */
-export function recordResult(stats, { won, time = 0, score = 0 }) {
-  const st = { ...emptyStats(), ...(stats || {}) };
+/** A clean stats record for one draw mode (the stored copy may be missing fields or hand-edited). */
+export function sanitizeStats(raw) {
+  const st = emptyStats();
+  if (!raw || typeof raw !== 'object') return st;
+  for (const k of Object.keys(st)) {
+    const v = raw[k];
+    if (typeof v === 'number' && Number.isFinite(v)) st[k] = k === 'streak' ? Math.round(v) : Math.max(0, Math.round(v));
+  }
+  st.won = Math.min(st.won, st.played);
+  return st;
+}
+
+/**
+ * Record a finished game (won or lost) in a stats object; returns a new object.
+ * The best score only follows standard scoring: Vegas dollars are not comparable with points.
+ */
+export function recordResult(stats, { won, time = 0, score = 0, scoring = 'standard' }) {
+  const st = sanitizeStats(stats);
   st.played++;
   st.totalTime += Math.round(time);
   if (won) {
     st.won++;
     if (!st.bestTime || time < st.bestTime) st.bestTime = Math.round(time);
-    if (score > st.bestScore) st.bestScore = score;
+    if (scoring === 'standard' && score > st.bestScore) st.bestScore = score;
     st.streak = st.streak > 0 ? st.streak + 1 : 1;
     st.longestWin = Math.max(st.longestWin, st.streak);
   } else {

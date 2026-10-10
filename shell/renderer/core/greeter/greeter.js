@@ -18,15 +18,20 @@ const withTimeout = (p, ms, fallback) => Promise.race([p, new Promise((r) => set
 function mapLoginError(err) {
   const message = String(err?.message || '');
   const code = err?.code || (/^Authentication failed$/i.test(message) ? 'EAUTH' : '');
-  if (code === 'EAUTH') return { error: 'auth', detail: /^Authentication failed$/i.test(message) ? '' : message };
+  // PAM's own text (e.g. "Account locked") is shown as a detail line; the generic one adds nothing.
+  if (code === 'EAUTH') return { error: 'auth', detail: /^Authentication (failed|failure)$/i.test(message) ? '' : message };
+  // A user name the system cannot have ("Other user" form): same answer as a wrong password.
+  if (code === 'EINVAL' && /user name/i.test(message)) return { error: 'auth', detail: '' };
   if (code === 'EEXPIRED') return { error: 'expired', detail: message };
   return { error: 'other', message };
 }
 
 async function main() {
   extendStrings(i18n);
-  const [info] = await Promise.all([
+  const [info, a11yPrefs] = await Promise.all([
     api.invoke('greeter:info').catch(() => ({})),
+    // Accessibility choices made on this screen before (larger text, animations); also sets the zoom factor.
+    api.invoke('greeter:a11y').catch(() => null),
     settings.load().catch(() => ({})),
     loadIcons(),
   ]);
@@ -37,7 +42,7 @@ async function main() {
   const root = document.documentElement;
   root.dataset.theme = 'dark';
   root.dataset.transparency = settings.get('transparency') === false ? 'off' : 'on';
-  root.dataset.animations = settings.get('animations') === false ? 'off' : 'on';
+  root.dataset.animations = settings.get('animations') === false || a11yPrefs?.animations === false ? 'off' : 'on';
   for (const [k, v] of Object.entries(accentVars(settings.get('accent'), 'dark'))) root.style.setProperty(k, v);
 
   const wallpaper = resolveWallpaper(settings.get('lockWallpaper') || settings.get('wallpaper') || 'builtin:bloom', 'dark');
@@ -59,7 +64,8 @@ async function main() {
   const selected = (rawUsers.find((u) => u.last) || rawUsers[0])?.name;
   const kb = { id: kbInfo?.id || 'us', layouts: kbInfo?.layouts || [] };
   let langChosen = !!info.lastLang;
-  let zoom = 1;
+  let largeText = !!a11yPrefs?.largeText;
+  const saveA11y = (patch) => api.invoke('greeter:setA11y', patch).catch((err) => console.warn('[greeter] accessibility:', err.message));
 
   const ls = new LockScreen({
     mode: 'greeter',
@@ -102,10 +108,10 @@ async function main() {
     accessibility: [
       {
         label: () => t('lockui.largerText'),
-        checked: () => zoom > 1,
+        checked: () => largeText,
         toggle() {
-          zoom = zoom > 1 ? 1 : 1.25;
-          api.invoke('shell:zoom', zoom).catch(() => {});
+          largeText = !largeText;
+          saveA11y({ largeText });
         },
       },
       {
@@ -113,6 +119,7 @@ async function main() {
         checked: () => root.dataset.animations !== 'off',
         toggle() {
           root.dataset.animations = root.dataset.animations === 'off' ? 'on' : 'off';
+          saveA11y({ animations: root.dataset.animations === 'on' });
         },
       },
     ],

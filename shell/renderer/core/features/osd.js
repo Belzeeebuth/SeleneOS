@@ -62,6 +62,10 @@ export function mount(c) {
   ctx.shell.on('osd', (o) => show(o || {}));
   ctx.shell.on('osd:suppress', (ms) => (suppressUntil = Date.now() + (Number(ms) || 1500)));
   ctx.shell.on('lock', () => (el.hidden = true));
+  // Opening Start / a flyout moves on from the volume change: don't leave the pill floating over it.
+  ctx.shell.on('flyouts:close', () => {
+    if (!el.hidden && !el.classList.contains('hiding')) hide();
+  });
   ctx.api
     .invoke('audio:status')
     .then((st) => (lastAudio = st ? { volume: st.volume, muted: st.muted } : null))

@@ -1107,3 +1107,32 @@
 .app-taskmgr .tm-run-lab {
   flex: none;
 }
+/* "Open:" combo box: text field + recent-commands drop-down (the native datalist arrow is hidden). */
+.app-taskmgr .tm-run-combo {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.app-taskmgr .tm-run-input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 36px;
+}
+.app-taskmgr .tm-run-input::-webkit-calendar-picker-indicator,
+.app-taskmgr .tm-run-input::-webkit-list-button {
+  display: none !important;
+}
+.app-taskmgr .tm-run-recent.btn {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 28px;
+  min-width: 28px;
+  min-height: 24px;
+  height: 24px;
+  color: var(--text-2);
+}
+.app-taskmgr .tm-run-recent.btn:disabled {
+  opacity: 0.5;
+}

@@ -100,10 +100,19 @@ let screen = null;
 
 // The wallpaper, blurred and darkened once on a small canvas (no live CSS blur: cheap in a VM).
 let blurCache = { src: '', url: '' };
-async function blurredWallpaper() {
+let blurJob = null; // { src, promise } while a blur is being computed
+function blurredWallpaper() {
   const src = theme.wallpaperUrl;
-  if (!src) return '';
-  if (blurCache.src === src) return blurCache.url;
+  if (!src) return Promise.resolve('');
+  if (blurCache.src === src) return Promise.resolve(blurCache.url);
+  if (blurJob?.src === src) return blurJob.promise;
+  const promise = computeBlur(src).finally(() => {
+    if (blurJob?.promise === promise) blurJob = null;
+  });
+  blurJob = { src, promise };
+  return promise;
+}
+async function computeBlur(src) {
   try {
     const img = new Image();
     img.src = src;
@@ -115,10 +124,14 @@ async function blurredWallpaper() {
     c.height = hgt;
     const g = c.getContext('2d');
     const k = Math.max(w / img.naturalWidth, hgt / img.naturalHeight) * 1.08;
-    g.filter = 'blur(16px) saturate(1.25) brightness(0.7)';
+    g.filter = 'blur(16px) saturate(1.6) brightness(0.68)';
     g.drawImage(img, (w - img.naturalWidth * k) / 2, (hgt - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
     const url = await new Promise((res) => c.toBlob((b) => res(b ? URL.createObjectURL(b) : ''), 'image/jpeg', 0.9));
-    if (blurCache.url) URL.revokeObjectURL(blurCache.url);
+    if (theme.wallpaperUrl !== src) {
+      if (url) URL.revokeObjectURL(url);
+      return blurCache.src === theme.wallpaperUrl ? blurCache.url : '';
+    }
+    if (blurCache.url && !screen) URL.revokeObjectURL(blurCache.url);
     blurCache = { src, url };
     return url;
   } catch {
@@ -146,10 +159,26 @@ function netLabel(st) {
   return t('security.connected', { name: p.name || 'Wi-Fi' });
 }
 
+// While the screen is up nothing else can take input (Tab must not walk into the windows behind it).
+const LAYERS = ['desktop', 'windows', 'taskbar', 'start', 'flyouts', 'toasts'];
+function isolate(keep) {
+  const done = [];
+  const els = [...LAYERS.map((id) => document.getElementById(id)), ...(document.getElementById('overlays')?.children || [])];
+  for (const el of els) {
+    if (!el || el === keep || el.inert) continue;
+    el.inert = true;
+    done.push(el);
+  }
+  return () => {
+    for (const el of done) el.inert = false;
+  };
+}
+
 function closeScreen(then) {
   if (!screen) return then?.();
   const s = screen;
   screen = null;
+  s.release?.();
   document.removeEventListener('keydown', s.onKey, true);
   s.el.classList.add('closing');
   setTimeout(() => s.el.remove(), 220);
@@ -171,6 +200,7 @@ export async function openSecurity() {
 
 async function buildSecurity() {
   ui.closeMenus();
+  wm.endKeyboardMove?.(false);
   const go = (fn) => () => closeScreen(fn);
   const opts = [
     { key: 'lock', icon: 'lock_closed', action: go(() => shell.lock()) },
@@ -218,13 +248,27 @@ async function buildSecurity() {
       { above: true },
     ),
   );
-  const bg = h('div', { class: 'sec-bg' });
-  const blurred = await blurredWallpaper();
-  if (screen) return;
-  if (blurred) bg.style.setProperty('--sec-image', `url("${blurred}")`);
+  // The screen comes up at once; the blurred wallpaper (normally precomputed while idle) fades in when ready.
+  const img = h('div', { class: 'sec-bg-img' });
+  const bg = h('div', { class: 'sec-bg' }, img);
+  const showBlur = (url) => {
+    if (!url) return;
+    img.style.backgroundImage = `url("${url}")`;
+    img.classList.add('ready');
+  };
+  if (blurCache.src && blurCache.src === theme.wallpaperUrl) showBlur(blurCache.url);
+  else blurredWallpaper().then(showBlur);
   const el = h(
     'div',
-    { class: 'sec-screen wm-keep-focus', role: 'dialog', 'aria-modal': 'true', tabindex: '-1' },
+    {
+      class: 'sec-screen wm-keep-focus kbd',
+      role: 'dialog',
+      'aria-modal': 'true',
+      tabindex: '-1',
+      // Opened from the keyboard: the focused option shows its focus rectangle (like Windows) until the mouse is used.
+      onpointerdown: (e) => e.currentTarget.classList.remove('kbd'),
+      onkeydown: (e) => e.currentTarget.classList.add('kbd'),
+    },
     bg,
     h('div', { class: 'sec-center' }, h('div', { class: 'sec-list', role: 'menu' }, buttons), cancel),
     h('div', { class: 'sec-tray' }, netBtn, a11yBtn, powerBtn),
@@ -247,6 +291,7 @@ async function buildSecurity() {
   screen = { el, onKey, prevWin: wm.focused() };
   document.addEventListener('keydown', onKey, true);
   document.getElementById('overlays').appendChild(el);
+  screen.release = isolate(el);
   setTimeout(() => buttons[0]?.focus(), 40);
   try {
     netState = await api.invoke('net:status');
@@ -306,6 +351,11 @@ export function mount(ctx) {
   shell.on('security:open', () => openSecurity());
   shell.on('shutdown:dialog', () => openShutdownDialog());
   shell.on('lock', () => closeScreen(() => {}));
+  // Precompute the blurred wallpaper while the shell is idle (and again when the wallpaper changes), so the
+  // screen never waits for it.
+  const warm = () => (window.requestIdleCallback || setTimeout)(() => blurredWallpaper(), { timeout: 4000 });
+  setTimeout(warm, 3000);
+  theme.on('wallpaper', () => setTimeout(warm, 1000));
   ctx.security = {
     open: openSecurity,
     close: () => closeScreen(),

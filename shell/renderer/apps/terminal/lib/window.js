@@ -10,7 +10,6 @@ import { resolveScheme, xtermTheme, rgba } from './schemes.js';
 import { profileIcon, profileIconSvg } from './icons.js';
 
 let envPromise = null;
-const windows = new Set();
 
 function cap(s) {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
@@ -57,6 +56,11 @@ export class TerminalApp {
     return this.ctx.t;
   }
 
+  // A shortcut as the user's language writes it (Ctrl+Maj+T in French).
+  kbd(combo) {
+    return combo.replace(/Shift/g, this.ctx.t('keys.shift'));
+  }
+
   // ================================================================== setup
   async init() {
     const { ctx } = this;
@@ -67,7 +71,6 @@ export class TerminalApp {
     const [env] = await Promise.all([envPromise, prefs.load(ctx), loadXterm(ctx.ui).catch(() => null)]);
     this.env = env;
     bus.attach(ctx.api);
-    windows.add(this);
     this.build();
     this.wire();
     this.applyAppearance();
@@ -80,6 +83,7 @@ export class TerminalApp {
   build() {
     const { h, icon, t, win } = this.ctx;
     win.el.classList.add('tm-window');
+    win.el.__terminal = this; // tests and debugging
     // ---- tab strip in the title bar
     this.tabsEl = h('div', { class: 'tm-tabs', role: 'tablist', 'aria-label': t('tabs.label') });
     this.newBtn = h(
@@ -92,8 +96,31 @@ export class TerminalApp {
       { type: 'button', class: 'tm-dropdown', 'aria-label': t('tabs.profiles'), 'aria-haspopup': 'menu', 'data-tip': t('tabs.profiles'), 'data-tip-pos': 'below', onclick: () => this.profileMenu() },
       icon('chevron_down', { size: 12 }),
     );
-    this.strip = h('div', { class: 'tm-strip' }, this.tabsEl, h('div', { class: 'tm-newgroup' }, this.newBtn, this.dropBtn), h('div', { class: 'tm-strip-drag' }));
+    // Scroll buttons, shown when the tabs do not fit (Windows Terminal style).
+    const scrollBtn = (dir) =>
+      h(
+        'button',
+        { type: 'button', tabindex: '-1', class: `tm-scroll tm-scroll-${dir}`, 'aria-hidden': 'true', hidden: true, onclick: () => this.scrollTabs(dir === 'l' ? -1 : 1) },
+        icon(dir === 'l' ? 'chevron_left' : 'chevron_right', { size: 12 }),
+      );
+    this.scrollL = scrollBtn('l');
+    this.scrollR = scrollBtn('r');
+    this.strip = h(
+      'div',
+      { class: 'tm-strip' },
+      this.scrollL,
+      this.tabsEl,
+      this.scrollR,
+      h('div', { class: 'tm-newgroup' }, this.newBtn, this.dropBtn),
+      h('div', { class: 'tm-strip-drag' }),
+    );
     win.titlebarSlot.appendChild(this.strip);
+    this.tabsEl.addEventListener('scroll', () => this.updateScrollButtons(), { passive: true });
+    this.stripRo = new ResizeObserver(() => {
+      this.updateScrollButtons();
+      if (this.active) this.revealTab(this.active);
+    });
+    this.stripRo.observe(this.tabsEl);
     this.tabsEl.addEventListener(
       'wheel',
       (e) => {
@@ -165,7 +192,7 @@ export class TerminalApp {
           if (!this.win.el.contains(document.activeElement) || document.activeElement === this.win.body) this.session?.focus();
         }, 0);
       }
-      for (const tab of this.tabs) if (tab === this.active) tab.el.classList.remove('bell');
+      this.active?.el.classList.remove('bell');
     });
     win.on('fullscreen', () => this.session?.fitSoon(60));
     this.offs.push(
@@ -214,10 +241,12 @@ export class TerminalApp {
       cursorWidth: 2,
       scrollback: prefs.get('scrollback'),
       theme: xtermTheme(this.scheme, opacity),
-      drawBoldTextInBrightColors: true,
+      // Bold as bright suits dark schemes; on light ones the bright colours wash out.
+      drawBoldTextInBrightColors: this.scheme.dark,
       customGlyphs: true,
       rescaleOverlappingGlyphs: true,
-      minimumContrastRatio: this.scheme.dark ? 1 : 1.35,
+      // (> 1 would also "fix" inverse video against the default background and grey it out)
+      minimumContrastRatio: 1,
       smoothScrollDuration: 0,
       scrollOnUserInput: true,
       rightClickSelectsWord: false,
@@ -304,6 +333,8 @@ export class TerminalApp {
       }
     });
     tab.el.addEventListener('dblclick', (e) => {
+      // Never let it reach the title bar (double-click there maximizes the window).
+      e.stopPropagation();
       if (!e.target.closest('.tm-tab-close') && tab.kind === 'term') this.renameTab(tab);
     });
     tab.el.addEventListener('contextmenu', (e) => this.tabMenu(e, tab));
@@ -325,7 +356,7 @@ export class TerminalApp {
 
   insertTab(tab, index = this.tabs.length) {
     this.tabs.splice(index, 0, tab);
-    const ref = this.tabsEl.children[index] || null;
+    const ref = this.tabs[index + 1]?.el || null;
     this.tabsEl.insertBefore(tab.el, ref);
     this.views.appendChild(tab.view);
     if (document.documentElement.dataset.animations !== 'off') {
@@ -372,7 +403,7 @@ export class TerminalApp {
     if (prev !== tab && this.find.isOpen) this.find.close({ refocus: false });
     if (tab.kind === 'term') {
       for (const s of tab.tree.sessions()) s.fitSoon(0);
-      setTimeout(() => this.active === tab && tab.session?.focus(), 0);
+      setTimeout(() => this.active === tab && !tab.el.querySelector('.tm-tab-rename') && tab.session?.focus(), 0);
     } else tab.page?.focus();
     this.updateTitle();
   }
@@ -380,10 +411,24 @@ export class TerminalApp {
   // Scroll the tab strip (only it) so the tab is visible.
   revealTab(tab) {
     const strip = this.tabsEl;
-    const l = tab.el.offsetLeft;
-    const r = l + tab.el.offsetWidth;
+    const l = tab.el.offsetLeft - strip.offsetLeft - 4;
+    const r = l + tab.el.offsetWidth + 12;
     if (l < strip.scrollLeft) strip.scrollLeft = l;
     else if (r > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = r - strip.clientWidth;
+    this.updateScrollButtons();
+  }
+
+  updateScrollButtons() {
+    const el = this.tabsEl;
+    const over = el.scrollWidth > el.clientWidth + 1;
+    this.scrollL.hidden = this.scrollR.hidden = !over;
+    this.scrollL.disabled = el.scrollLeft <= 0;
+    this.scrollR.disabled = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+  }
+
+  scrollTabs(dir) {
+    const reduce = document.documentElement.dataset.animations === 'off';
+    this.tabsEl.scrollBy({ left: dir * Math.max(120, this.tabsEl.clientWidth * 0.6), behavior: reduce ? 'auto' : 'smooth' });
   }
 
   tabFor(session) {
@@ -512,7 +557,7 @@ export class TerminalApp {
     const tab = this.tabFor(session);
     if (!tab) return;
     if (!force && session.busy && prefs.get('confirmClose')) {
-      const ok = await this.ctx.ui.confirm(this.ctx.t('confirm.runningBody', { name: session.proc.name }), {
+      const ok = await this.ctx.ui.confirm(this.ctx.t('confirm.runningBody', { name: session.busyName }), {
         title: this.ctx.t('confirm.runningTitle'),
         okLabel: this.ctx.t('confirm.close'),
         parent: this.win,
@@ -540,7 +585,7 @@ export class TerminalApp {
       const busy = sessions.find((s) => s.busy);
       if (sessions.length > 1 || busy) {
         const ok = await this.ctx.ui.confirm(
-          busy && sessions.length === 1 ? this.ctx.t('confirm.runningBody', { name: busy.proc.name }) : this.ctx.t('confirm.panesBody', { count: sessions.length }),
+          busy && sessions.length === 1 ? this.ctx.t('confirm.runningBody', { name: busy.busyName }) : this.ctx.t('confirm.panesBody', { count: sessions.length }),
           { title: busy && sessions.length === 1 ? this.ctx.t('confirm.runningTitle') : this.ctx.t('confirm.panesTitle'), okLabel: this.ctx.t('confirm.close'), parent: this.win },
         );
         if (!ok) return;
@@ -624,17 +669,19 @@ export class TerminalApp {
   // Drag a tab sideways to reorder it.
   tabPointerDown(e, tab) {
     if (e.button !== 0 || e.target.closest('.tm-tab-close, input')) return;
-    this.activate(tab);
+    if (this.active !== tab) this.activate(tab);
     const el = tab.el;
     const startX = e.clientX;
     const grab = startX - el.getBoundingClientRect().left;
     let dragging = false;
+    try {
+      el.setPointerCapture(e.pointerId); // so the release is seen even outside the tab
+    } catch {}
     const naturalLeft = () => this.tabsEl.getBoundingClientRect().left + el.offsetLeft - this.tabsEl.scrollLeft;
     const move = (ev) => {
       if (!dragging && Math.abs(ev.clientX - startX) < 6) return;
       if (!dragging) {
         dragging = true;
-        el.setPointerCapture(ev.pointerId);
         el.classList.add('dragging');
       }
       const others = this.tabs.filter((x) => x !== tab);
@@ -655,7 +702,10 @@ export class TerminalApp {
         el.classList.remove('dragging');
         el.style.transform = '';
       }
-      if (this.active === tab && tab.kind === 'term') setTimeout(() => tab.session?.focus(), 0);
+      // Clicking a tab puts the keyboard back in its terminal (not while its name is being edited).
+      setTimeout(() => {
+        if (this.active === tab && tab.kind === 'term' && !tab.el.querySelector('.tm-tab-rename')) tab.session?.focus();
+      }, 0);
     };
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
@@ -687,11 +737,11 @@ export class TerminalApp {
     const items = profiles.map((p, i) => ({
       label: p.name,
       icon: 'window_console',
-      shortcut: i < 9 ? `Ctrl+Shift+${i + 1}` : undefined,
+      shortcut: i < 9 ? this.kbd(`Ctrl+Shift+${i + 1}`) : undefined,
       action: () => this.newTab(p),
     }));
-    items.push('-', { label: t('menu.settings'), icon: 'settings', shortcut: 'Ctrl+,', action: () => this.openSettings() });
-    items.push({ label: t('menu.newWindow'), icon: 'window_new', shortcut: 'Ctrl+Shift+N', action: () => this.newWindow() });
+    items.push('-', { label: t('menu.settings'), icon: 'settings', shortcut: this.kbd('Ctrl+,'), action: () => this.openSettings() });
+    items.push({ label: t('menu.newWindow'), icon: 'window_new', shortcut: this.kbd('Ctrl+Shift+N'), action: () => this.newWindow() });
     items.push({ label: t('menu.about'), icon: 'info', action: () => this.about() });
     this.dropBtn.classList.add('open');
     const p = ui.menu(this.dropBtn, items, { class: 'tm-menu tm-profile-menu' });
@@ -713,24 +763,24 @@ export class TerminalApp {
     const tab = this.tabFor(s);
     const multi = tab?.tree.count > 1;
     return [
-      { label: t('menu.copy'), icon: 'copy', shortcut: 'Ctrl+Shift+C', disabled: !s.hasSelection(), action: () => s.copy() },
-      { label: t('menu.paste'), icon: 'clipboard_paste', shortcut: 'Ctrl+Shift+V', disabled: s.state !== 'running', action: () => s.paste() },
-      { label: t('menu.selectAll'), icon: 'select_all_on', shortcut: 'Ctrl+Shift+A', action: () => s.selectAll() },
+      { label: t('menu.copy'), icon: 'copy', shortcut: this.kbd('Ctrl+Shift+C'), disabled: !s.hasSelection(), action: () => s.copy() },
+      { label: t('menu.paste'), icon: 'clipboard_paste', shortcut: this.kbd('Ctrl+Shift+V'), disabled: s.state !== 'running', action: () => s.paste() },
+      { label: t('menu.selectAll'), icon: 'select_all_on', shortcut: this.kbd('Ctrl+Shift+A'), action: () => s.selectAll() },
       '-',
-      { label: t('menu.find'), icon: 'search', shortcut: 'Ctrl+Shift+F', action: () => this.find.open(s) },
+      { label: t('menu.find'), icon: 'search', shortcut: this.kbd('Ctrl+Shift+F'), action: () => this.find.open(s) },
       { label: t('menu.clear'), icon: 'eraser', action: () => s.clear() },
       '-',
       {
         label: t('menu.split'),
         icon: 'split_vertical',
         submenu: [
-          { label: t('menu.splitDuplicate'), icon: 'tab_desktop_copy', shortcut: 'Alt+Shift+D', action: () => this.splitPane('auto', s) },
-          { label: t('menu.splitRight'), icon: 'split_vertical', shortcut: 'Alt+Shift++', action: () => this.splitPane('row', s) },
-          { label: t('menu.splitDown'), icon: 'split_horizontal', shortcut: 'Alt+Shift+-', action: () => this.splitPane('col', s) },
+          { label: t('menu.splitDuplicate'), icon: 'tab_desktop_copy', shortcut: this.kbd('Alt+Shift+D'), action: () => this.splitPane('auto', s) },
+          { label: t('menu.splitRight'), icon: 'split_vertical', shortcut: this.kbd('Alt+Shift++'), action: () => this.splitPane('row', s) },
+          { label: t('menu.splitDown'), icon: 'split_horizontal', shortcut: this.kbd('Alt+Shift+-'), action: () => this.splitPane('col', s) },
         ],
       },
-      multi ? { label: t('menu.closePane'), icon: 'dismiss_square_multiple', shortcut: 'Ctrl+Shift+W', action: () => this.closeSession(s) } : null,
-      { label: t('menu.closeTab'), icon: 'dismiss', shortcut: multi ? undefined : 'Ctrl+Shift+W', action: () => this.closeTab(tab) },
+      multi ? { label: t('menu.closePane'), icon: 'dismiss_square_multiple', shortcut: this.kbd('Ctrl+Shift+W'), action: () => this.closeSession(s) } : null,
+      { label: t('menu.closeTab'), icon: 'dismiss', shortcut: multi ? undefined : this.kbd('Ctrl+Shift+W'), action: () => this.closeTab(tab) },
     ].filter(Boolean);
   }
 
@@ -756,7 +806,7 @@ export class TerminalApp {
       e,
       [
         term ? { label: t('menu.renameTab'), icon: 'rename', action: () => this.renameTab(tab) } : null,
-        term ? { label: t('menu.duplicateTab'), icon: 'tab_desktop_copy', shortcut: 'Ctrl+Shift+D', action: () => this.duplicateTab(tab) } : null,
+        term ? { label: t('menu.duplicateTab'), icon: 'tab_desktop_copy', shortcut: this.kbd('Ctrl+Shift+D'), action: () => this.duplicateTab(tab) } : null,
         term ? { label: t('menu.splitTab'), icon: 'split_vertical', action: () => (this.activate(tab), this.splitPane('auto', tab.session)) } : null,
         term ? '-' : null,
         { label: t('menu.closeRight'), icon: 'arrow_right', disabled: i >= this.tabs.length - 1, action: () => this.closeOtherTabs(tab, { rightOnly: true }) },
@@ -861,9 +911,6 @@ export class TerminalApp {
         return run(() => s.term.scrollToTop());
       case 'Ctrl+Shift+End':
         return run(() => s.term.scrollToBottom());
-      case 'Escape':
-        if (this.find.isOpen) return run(() => this.find.close());
-        return;
       default:
     }
     m = /^Alt\+(Shift\+)?Arrow(Left|Right|Up|Down)$/.exec(combo);
@@ -904,7 +951,7 @@ export class TerminalApp {
 
   async confirmPaste(text) {
     const { t, ui } = this.ctx;
-    const lines = text.split(/\r\n|\r|\n/).length;
+    const lines = text.replace(/[\r\n]+$/, '').split(/\r\n|\r|\n/).length;
     return ui.confirm(t('paste.body', { count: lines }), { title: t('paste.title'), okLabel: t('paste.ok'), parent: this.win });
   }
 
@@ -973,14 +1020,13 @@ export class TerminalApp {
       body = t('confirm.panesBody', { count: sessions.length });
     } else {
       title = t('confirm.runningTitle');
-      body = t('confirm.runningBody', { name: busy[0].proc.name });
+      body = t('confirm.runningBody', { name: busy[0].busyName });
     }
     return ui.confirm(body, { title, okLabel: tabs > 1 ? t('confirm.closeAll') : t('confirm.close'), parent: this.win });
   }
 
   destroy() {
     this.closing = true;
-    windows.delete(this);
     for (const off of this.offs) off?.();
     this.find.close({ refocus: false });
     for (const tab of this.tabs) {
@@ -988,5 +1034,6 @@ export class TerminalApp {
       tab.page?.dispose();
     }
     clearTimeout(this._toastTimer);
+    this.stripRo?.disconnect();
   }
 }

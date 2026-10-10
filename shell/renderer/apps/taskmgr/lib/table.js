@@ -46,8 +46,11 @@ export class VTable {
     this.headWrap = h('div', { class: 'tm-thead-wrap' }, this.head);
     this.body = h('div', { class: 'tm-tbody', role: 'rowgroup' });
     this.emptyEl = h('div', { class: 'tm-empty caption text-2', hidden: true });
-    this.scroller = h('div', { class: 'tm-scroll' }, this.body, this.emptyEl);
+    // Not a tab stop of its own (Chromium makes overflowing boxes focusable): the grid is.
+    this.scroller = h('div', { class: 'tm-scroll', tabindex: '-1' }, this.body, this.emptyEl);
     this.el.append(this.headWrap, this.scroller);
+    // A click on a row would focus the scroller (tabindex -1): the keyboard belongs to the grid.
+    this.scroller.addEventListener('focus', () => this.focus());
     this._raf = 0;
     this.scroller.addEventListener(
       'scroll',
@@ -74,7 +77,17 @@ export class VTable {
     this._queue();
   }
   colWidth(c) {
-    return Math.max(c.min || 48, this.widths[c.id] ?? c.width ?? 100);
+    // Default widths grow to fit the header label (French labels are longer); a width the user
+    // set by dragging a divider wins.
+    return Math.max(c.min || 48, this.widths[c.id] ?? Math.max(c.width ?? 100, this._labelWidth(c)));
+  }
+  _labelWidth(c) {
+    const text = typeof c.label === 'function' ? c.label() : c.label || '';
+    if (!text) return 0;
+    const ctx = (VTable._measure ||= document.createElement('canvas').getContext('2d'));
+    const font = `12px ${getComputedStyle(this.el.isConnected ? this.el : document.body).fontFamily}`;
+    if (ctx.font !== font) ctx.font = font;
+    return Math.ceil(ctx.measureText(text).width) + 24; // + the cell's horizontal padding
   }
   _applyWidths() {
     // A flexible column takes the spare width, up to its `max` (so numbers don't drift far away
@@ -100,7 +113,8 @@ export class VTable {
         {
           class: ['tm-th', c.align === 'end' && 'end', c.sortable === false && 'nosort'],
           role: 'columnheader',
-          tabindex: c.sortable === false ? '-1' : '0',
+          // One tab stop for the whole header row (roving): ←/→ move between the column headers.
+          tabindex: '-1',
           dataset: { col: c.id },
           'aria-sort': 'none',
         },
@@ -133,6 +147,7 @@ export class VTable {
       const lab = this.headCells?.get(c.id)?.cell.querySelector('.tm-th-label');
       if (lab) lab.textContent = typeof c.label === 'function' ? c.label() : c.label;
     }
+    this._applyWidths();
     this.refreshHeader();
   }
   setSort(id, dir) {
@@ -147,6 +162,13 @@ export class VTable {
       cell.classList.toggle('desc', on && this.sort.dir < 0);
       cell.setAttribute('aria-sort', on ? (this.sort.dir < 0 ? 'descending' : 'ascending') : 'none');
     }
+    if (!this.head.contains(document.activeElement)) this._rove(this.headCells.get(this.sort.id)?.cell);
+  }
+  // The header's single tab stop: the given cell, else the sorted column, else the first one.
+  _rove(cell) {
+    const cells = [...this.head.children];
+    const target = cell && cells.includes(cell) ? cell : cells[0];
+    for (const c of cells) c.tabIndex = c === target ? 0 : -1;
   }
 
   // ------------------------------------------------------------------ rows
@@ -208,6 +230,10 @@ export class VTable {
   }
 
   _render() {
+    if (!this._fitted && this.el.isConnected && document.fonts?.status !== 'loading') {
+      this._fitted = true; // label widths measured with the real font
+      this._applyWidths();
+    }
     const n = this.rows.length;
     this.body.style.height = `${n * this.rowH}px`;
     const sc = this.scroller;
@@ -453,7 +479,7 @@ export class VTable {
     // Keyboard on column headers: Enter / Space sorts, Shift+F10 / Menu opens the column chooser.
     this.head.addEventListener('keydown', (e) => {
       const th = e.target.closest?.('.tm-th');
-      if (!th) return;
+      if (!th || e.defaultPrevented) return;
       if ((e.key === 'Enter' || e.key === ' ') && !th.classList.contains('nosort')) {
         e.preventDefault();
         this.o.onSort?.(th.dataset.col);
@@ -461,11 +487,22 @@ export class VTable {
         e.preventDefault();
         const r = th.getBoundingClientRect();
         this.o.onHeaderContext?.({ x: r.left + 8, y: r.bottom });
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Home' || e.key === 'End') {
         e.preventDefault();
-        const sib = e.key === 'ArrowRight' ? th.nextElementSibling : th.previousElementSibling;
-        sib?.focus();
+        const cells = [...this.head.children];
+        const sib = e.key === 'Home' ? cells[0] : e.key === 'End' ? cells[cells.length - 1] : e.key === 'ArrowRight' ? th.nextElementSibling : th.previousElementSibling;
+        if (sib) {
+          this._rove(sib);
+          sib.focus();
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        this.focus();
       }
+    });
+    this.head.addEventListener('focusin', (e) => {
+      const th = e.target.closest?.('.tm-th');
+      if (th) this._rove(th);
     });
     this.el.addEventListener('keydown', (e) => this._key(e));
   }
@@ -481,7 +518,8 @@ export class VTable {
   }
 
   _key(e) {
-    if (e.target !== this.el) return;
+    // Keys an open menu already handled (its listener runs first, in the capture phase) are not ours.
+    if (e.target !== this.el || e.defaultPrevented) return;
     const row = this.selectedRow();
     const page = Math.max(1, Math.floor(this.scroller.clientHeight / this.rowH) - 1);
     switch (e.key) {

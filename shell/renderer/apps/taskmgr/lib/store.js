@@ -57,8 +57,15 @@ export class Store extends Emitter {
     this.timer = null;
   }
 
+  // For good (the window closed): a request still in flight is dropped when it returns.
+  dispose() {
+    this.disposed = true;
+    this.stop();
+  }
+
   // Fetch now (also while paused); the regular schedule resumes from here.
   refresh() {
+    if (this.disposed) return;
     if (this.busy) {
       this.pending = true;
       return;
@@ -76,7 +83,7 @@ export class Store extends Emitter {
   }
 
   async _tick() {
-    if (this.busy) return;
+    if (this.busy || this.disposed) return;
     this.busy = true;
     const inv = (ch) => this.api.invoke(ch);
     try {
@@ -90,6 +97,7 @@ export class Store extends Emitter {
         this.procs = procs;
         this.procsAt = Date.now();
       }
+      if (this.disposed) return;
       if (shellInfo) this.shellInfo = shellInfo;
       this._record(perf);
       this.error = null;
@@ -98,7 +106,7 @@ export class Store extends Emitter {
       this.emit('tick', this);
     } catch (err) {
       this.error = err;
-      this.emit('error', err);
+      if (!this.disposed) this.emit('error', err);
     } finally {
       this.busy = false;
       if (this.pending) {

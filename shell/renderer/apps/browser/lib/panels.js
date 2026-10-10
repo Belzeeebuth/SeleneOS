@@ -708,7 +708,7 @@ export function favoriteFlyout(bw) {
   const f = flyout({ host: bw.root, anchor: bw.omni.starBtn.hidden ? bw.omni.el : bw.omni.starBtn, content, align: 'right', className: 'bw-pop', width: 340, onClose: () => node && store.node(node.id) && commit() });
   bw.setFlyout(f, 'favorite');
   setTimeout(() => {
-    name.focus();
+    name.focus({ preventScroll: true });
     name.select();
   }, 30);
 }

@@ -68,6 +68,7 @@
   line-height: 16px;
   outline: none;
   transition: color var(--dur-fast) linear;
+  container-type: inline-size;
   --tm-tab-surface: var(--tm-bg);
 }
 .app-terminal .tm-tab.tm-tab-settings {
@@ -94,6 +95,7 @@
 .app-terminal .tm-tab.active {
   color: var(--text);
   z-index: 2;
+  min-width: 128px;
 }
 .app-terminal .tm-tab.tm-tab-term.active {
   color: var(--tm-fg);
@@ -220,6 +222,12 @@
 .app-terminal .tm-tab:not(.active):not(:hover) .tm-tab-close {
   opacity: 0;
 }
+/* narrow tabs: the hidden close button of inactive tabs gives its room to the title */
+@container (max-width: 120px) {
+  .app-terminal .tm-tab:not(.active):not(:hover) .tm-tab-close {
+    display: none;
+  }
+}
 .app-terminal .tm-tab-close:hover {
   background: var(--subtle-hover);
   opacity: 1;
@@ -265,6 +273,27 @@
 .app-terminal .tm-dropdown:active {
   background: var(--subtle-pressed);
   color: var(--text-2);
+}
+.app-terminal .tm-scroll {
+  flex: none;
+  align-self: center;
+  width: 24px;
+  height: 28px;
+  margin-top: 4px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+}
+.app-terminal .tm-scroll:hover:not(:disabled) {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-terminal .tm-scroll:disabled {
+  color: var(--text-disabled);
 }
 .app-terminal .tm-strip-drag {
   flex: 1;

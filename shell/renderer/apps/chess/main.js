@@ -3,7 +3,7 @@
 //   ai.mjs      computer player (alpha-beta search), run in worker.js — pure, node-tested
 //   board.mjs   board view (squares, pieces, drag & drop, animation, promotion picker)
 //   pieces.mjs  original SVG piece set ; sfx.mjs  WebAudio sound effects
-import { Chess, Position, SQUARES, START_FEN, validateFen, colorOf, typeOf, sqName } from './engine.mjs';
+import { Chess, Position, SQUARES, START_FEN, validateFen, colorOf, typeOf, sqName, sqIndex } from './engine.mjs';
 import { LEVELS, LEVEL_IDS, Engine, positionFrom } from './ai.mjs';
 import { BoardView } from './board.mjs';
 import { pieceUrl } from './pieces.mjs';
@@ -17,6 +17,7 @@ const DEFAULT_PREFS = { theme: 'wood', coords: true, legal: true, sound: true, a
 const PIECE_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 const CAPTURE_ORDER = ['p', 'n', 'b', 'r', 'q'];
 const MIN_AI_DELAY = 450;
+const MAX_PGN_BYTES = 8 * 1024 * 1024;
 
 const animOn = () => document.documentElement.dataset.animations !== 'off';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -71,11 +72,12 @@ class EngineClient {
   }
 
   // Resolves with the search result; rejects with err.cancelled when superseded / cancelled.
-  think(params) {
+  // kind ('ai' | 'hint' | 'analysis' | 'draw') lets cancel(kind) stop only that search.
+  think(params, kind = 'ai') {
     this.cancel();
     return new Promise((resolve, reject) => {
       const id = ++this.seq;
-      this.pending = { id, resolve, reject };
+      this.pending = { id, resolve, reject, kind };
       try {
         this._ensure();
         this.worker.postMessage({ ...params, id, type: 'think' });
@@ -91,8 +93,8 @@ class EngineClient {
     return !!this.pending;
   }
 
-  cancel() {
-    if (!this.pending) return;
+  cancel(kind) {
+    if (!this.pending || (kind && this.pending.kind !== kind)) return;
     const p = this.pending;
     this.pending = null;
     // a running search cannot be interrupted: drop the worker, a fresh one starts on demand
@@ -163,15 +165,15 @@ class ChessApp {
       ctx.storage.get('stats', null).catch(() => null),
       ctx.storage.get('game', null).catch(() => null),
     ]);
-    if (prefs && typeof prefs === 'object') this.prefs = { ...DEFAULT_PREFS, ...prefs, setup: sanitizeSetup(prefs.setup) };
-    if (!THEMES.includes(this.prefs.theme)) this.prefs.theme = 'wood';
+    this.prefs = sanitizePrefs(prefs);
     if (stats && typeof stats === 'object') this.stats = mergeStats(stats);
     this.buildUI();
     ctx.onLangChange(() => this.buildUI());
     ctx.onClose(() => this.dispose());
     ctx.win.on('resize', () => this.layout());
     let started = false;
-    if (ctx.args?.file) started = await this.openPgnFile(ctx.args.file);
+    // the error dialog of an unreadable file must not hold up the launch
+    if (ctx.args?.file) started = await this.openPgnFile(ctx.args.file, { wait: false });
     if (!started && saved) started = this.resume(saved);
     if (!started) this.newGame(this.prefs.setup, { silent: true });
     requestAnimationFrame(() => this.layout());
@@ -183,11 +185,15 @@ class ChessApp {
   }
 
   dispose() {
+    this.disposed = true;
     this.saveNow();
     this.cancelAi();
+    this.cancelAnalysis();
+    this.board.cancelPromotion();
     this.engine.dispose();
     clearInterval(this.ticker);
     this.ticker = null;
+    for (const k of ['_resultTimer', '_anTimer', '_toastTimer', '_flipTimer', '_saveTimer']) clearTimeout(this[k]);
     this.resizeObs?.disconnect();
     this.sfx.dispose();
   }
@@ -197,6 +203,10 @@ class ChessApp {
     const { h, t, ctx } = this;
     const { icon } = ctx;
     const win = ctx.win;
+    // rebuilt on a language change: the promotion picker would keep the old language and lose
+    // its keyboard focus, so it is cancelled (the pawn slides back); focus stays in the app
+    const hadFocus = !!this.root && win.body.contains(document.activeElement);
+    this.board.cancelPromotion();
     this.resizeObs?.disconnect();
     ctx.ui.clear(win.body);
 
@@ -277,16 +287,17 @@ class ChessApp {
     this.srEl = h('div', { class: 'cx-sr', 'aria-live': 'polite', role: 'status' });
     this.root = h('div', { class: 'cx', tabindex: '-1' }, toolbar, this.main, this.srEl);
     win.body.appendChild(this.root);
-    const appName = ctx.i18n.name(ctx.manifest.name);
-    win.setTitle(this.fileName ? `${this.fileName} - ${appName}` : appName);
+    this.setWindowTitle();
     if (!this._keysBound) {
       win.body.addEventListener('keydown', (e) => this.onKey(e));
       this._keysBound = true;
     }
     this.resizeObs = new ResizeObserver(() => this.layout());
     this.resizeObs.observe(this.main);
+    this.board.onCursor = (sq) => this.announceSquare(sq);
     this.applyPrefs();
     if (this.game) this.render({ animate: false });
+    if (hadFocus) this.root.focus({ preventScroll: true });
   }
 
   playerCard() {
@@ -324,7 +335,7 @@ class ChessApp {
     const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
     const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     const gap = parseFloat(cs.columnGap) || 0;
-    const evalW = this.setup.mode === 'analysis' ? 22 : 0;
+    const evalW = this.setup.mode === 'analysis' ? 28 : 0; // bar + gap
     const availW = r.width - padX - gap - this.panel.offsetWidth - evalW;
     const availH = r.height - padY;
     const size = Math.max(128, Math.floor(Math.min(availW, availH) / 8) * 8);
@@ -344,7 +355,7 @@ class ChessApp {
     this.game = new Chess(startFen);
     this.headers = {};
     this.fileName = null;
-    this.ctx.win.setTitle(this.ctx.i18n.name(this.ctx.manifest.name));
+    this.setWindowTitle();
     this.human = this.setup.side === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : this.setup.side;
     if (this.setup.mode !== 'ai') this.human = 'w';
     this.view = 0;
@@ -357,6 +368,12 @@ class ChessApp {
     this.board.focusCursorOn(this.setup.mode === 'ai' && this.human === 'b' ? 'e7' : 'e2');
     this.clockReset();
     this.setFlipped(this.setup.mode === 'ai' ? this.human === 'b' : this.game.turn() === 'b' && this.prefs.autoFlip, false);
+    // a set-up position that is already over (mate, stalemate, dead draw) is shown as finished
+    const st = this.setup.mode === 'analysis' ? null : this.game.status();
+    if (st) {
+      this.result = st;
+      this.statsRecorded = true;
+    }
     this.layout();
     this.render({ animate: !silent });
     this.save();
@@ -373,7 +390,7 @@ class ChessApp {
       if (g.status()) return false;
       this.setup = sanitizeSetup(data.setup);
       this.game = g;
-      this.headers = data.headers || {};
+      this.headers = sanitizeHeaders(data.headers);
       this.human = data.human === 'b' ? 'b' : 'w';
       this.view = g.length;
       this.result = null;
@@ -396,8 +413,8 @@ class ChessApp {
     }
   }
 
-  // Load a position or game (FEN or PGN text) into analysis mode.
-  loadText(text) {
+  // Load a position or game (FEN or PGN text) into analysis mode. fileName: the .pgn it came from.
+  loadText(text, { fileName = null } = {}) {
     const src = String(text || '').trim();
     if (!src) throw new Error(this.t('import.empty'));
     let g;
@@ -406,7 +423,10 @@ class ChessApp {
       try {
         g.loadPgn(src);
       } catch (err) {
-        throw new Error(this.t('import.badPgn', { detail: err.message.replace(/^Illegal move: /, '') }));
+        if (err.code === 'fen') throw new Error(this.t('import.badFenTag', { detail: this.t(`fenError.${err.fenError}`) }));
+        // nothing that looks like chess at all (the very first token is not a move)
+        if (err.code === 'move' && err.ply === 0 && !/^\s*\[/.test(src) && !/\d+\./.test(src)) throw new Error(this.t('import.notChess'));
+        throw new Error(this.t('import.badPgn', { detail: err.code === 'move' ? this.localSan(err.move) : err.message }));
       }
     } else {
       const err = validateFen(src);
@@ -415,9 +435,12 @@ class ChessApp {
     }
     this.cancelAi();
     this.cancelAnalysis();
+    this.board.cancelPromotion();
+    this.fileName = fileName;
+    this.setWindowTitle();
     this.setup = { ...this.setup, mode: 'analysis' };
     this.game = g;
-    this.headers = g.headers || {};
+    this.headers = sanitizeHeaders(g.headers);
     this.human = 'w';
     this.view = g.length;
     this.result = null;
@@ -432,17 +455,41 @@ class ChessApp {
     this.analyse();
   }
 
-  async openPgnFile(path) {
+  // Opens a .pgn file on the analysis board. Errors are shown in a dialog (awaited unless wait: false).
+  async openPgnFile(path, { wait = true } = {}) {
+    const name = String(path || '').split('/').pop();
+    let text;
     try {
-      const text = await this.ctx.api.invoke('fs:readText', path);
-      this.loadText(text);
-      this.fileName = path.split('/').pop();
-      this.ctx.win.setTitle(`${this.fileName} - ${this.ctx.i18n.name(this.ctx.manifest.name)}`);
-      return true;
+      text = await this.ctx.api.invoke('fs:readText', path, { maxBytes: MAX_PGN_BYTES });
     } catch (err) {
-      await this.ctx.ui.alert(this.t('import.openFailed', { name: path.split('/').pop(), detail: err.message }), { title: this.t('import.title'), parent: this.ctx.win });
+      const p = this.errorAlert(this.t('import.openFailed', { name, detail: this.fsErrorText(err) }));
+      if (wait) await p;
       return false;
     }
+    try {
+      this.loadText(text, { fileName: name });
+      return true;
+    } catch (err) {
+      const p = this.errorAlert(this.t('import.openFailed', { name, detail: err.message }));
+      if (wait) await p;
+      return false;
+    }
+  }
+
+  // Backend file errors carry a code; never show raw (English, path-revealing) system messages.
+  fsErrorText(err) {
+    const key = { ENOENT: 'notFound', EACCES: 'denied', EPERM: 'denied', ETOOBIG: 'tooBig', EISDIR: 'isDir', ENOSPC: 'noSpace', EROFS: 'readOnly' }[err?.code];
+    return this.t(`fsError.${key || 'generic'}`);
+  }
+
+  errorAlert(message) {
+    if (this.disposed) return Promise.resolve();
+    return this.modal({ title: this.t('error.title'), body: message, buttons: [{ label: this.t('common.ok'), value: true, primary: true }] });
+  }
+
+  setWindowTitle() {
+    const appName = this.ctx.i18n.name(this.ctx.manifest.name);
+    this.ctx.win.setTitle(this.fileName ? `${this.fileName} - ${appName}` : appName);
   }
 
   // ------------------------------------------------------------ moves
@@ -515,8 +562,7 @@ class ChessApp {
     const v = g.move(input);
     if (!v) return null;
     this.view = g.length;
-    this.hint = null;
-    this.board.setHint(null);
+    this.cancelHint();
     this.hideToast();
     this.clockOnMove(v.color);
     const st = g.status();
@@ -536,7 +582,8 @@ class ChessApp {
     this.save();
     if (this.setup.mode === 'two' && this.prefs.autoFlip) {
       const want = g.turn() === 'b';
-      setTimeout(() => {
+      clearTimeout(this._flipTimer);
+      this._flipTimer = setTimeout(() => {
         if (this.game === g && !this.result && g.turn() === (want ? 'b' : 'w')) this.setFlipped(want);
       }, animOn() ? 420 : 0);
     }
@@ -548,7 +595,7 @@ class ChessApp {
   // Screen readers hear every move (and check / mate) through a polite live region.
   announce(v) {
     const side = this.t(v.color === 'w' ? 'side.white' : 'side.black');
-    let text = this.t('announce.move', { side, san: v.san });
+    let text = this.t('announce.move', { side, san: this.localSan(v.san) });
     if (this.game.inCheck() && !v.san.endsWith('#')) text += ` ${this.t('status.check')}`;
     if (this.srEl) this.srEl.textContent = text;
   }
@@ -563,10 +610,7 @@ class ChessApp {
     const v = n > this.view ? hist[n - 1] : null;
     this.view = n;
     this.board.select(null);
-    if (this.hint && !this.liveAtView()) {
-      this.hint = null;
-      this.board.setHint(null);
-    }
+    this.cancelHint(); // a hint (shown or still searching) belongs to the position it was asked for
     this.render({ move, animate: true });
     if (v) this.sfx.play(v.captured ? 'capture' : 'move');
     if (this.setup.mode === 'analysis') this.analyse();
@@ -597,9 +641,10 @@ class ChessApp {
         res = await thinkInline(params);
       } catch (err2) {
         if (token !== this.aiToken) return;
+        console.warn('[chess] the computer player failed:', err2?.message);
         this.thinking = false;
         this.render({ animate: false });
-        this.ctx.ui.alert(this.t('error.engine', { detail: err2.message }), { title: this.t('error.title'), parent: this.ctx.win });
+        this.errorAlert(this.t('error.engine'));
         return;
       }
     }
@@ -608,8 +653,9 @@ class ChessApp {
     if (token !== this.aiToken || this.game !== g) return;
     this.thinking = false;
     if (!res?.move || !this.playMove(res.move, 'ai')) {
+      console.warn('[chess] the computer player returned an illegal move:', res?.move);
       this.render({ animate: false });
-      this.ctx.ui.alert(this.t('error.engine', { detail: `illegal move ${res?.move}` }), { title: this.t('error.title'), parent: this.ctx.win });
+      this.errorAlert(this.t('error.engine'));
     }
   }
 
@@ -617,8 +663,23 @@ class ChessApp {
     this.aiToken++;
     this.hintToken++;
     this.hintBusy = false;
+    this.hintWanted = false;
     if (this.thinking) this.thinking = false;
     this.engine.cancel();
+  }
+
+  // Drops the hint arrow and any hint search still running (the position changed).
+  cancelHint() {
+    this.hintToken++;
+    this.hintWanted = false;
+    if (this.hintBusy) {
+      this.hintBusy = false;
+      this.engine.cancel('hint');
+    }
+    if (this.hint) {
+      this.hint = null;
+      this.board.setHint(null);
+    }
   }
 
   // ------------------------------------------------------------ analysis mode
@@ -632,30 +693,46 @@ class ChessApp {
       const g = this.gameAtView();
       if (g.status()) {
         this.analysis = { over: true };
+        this.hintDone(null);
         this.renderAnalysis();
         return;
       }
       const params = { startFen: g.startFen, moves: g.history({ verbose: true }).map((v) => v.uci), level: 'expert', timeMs: 1500, analysis: true };
       try {
-        const res = this.engine.failed ? await thinkInline(params) : await this.engine.think(params);
+        const res = this.engine.failed ? await thinkInline(params) : await this.engine.think(params, 'analysis');
         if (token !== this.analysisToken) return;
         const white = g.turn() === 'w' ? 1 : -1;
         const san = pvToSan(g, res.pv);
         this.analysis = { score: res.score * white, mate: res.mate == null ? null : res.mate * white, pv: san, best: res.move, depth: res.depth };
+        this.hintDone(res.move);
         this.renderAnalysis();
       } catch (err) {
         if (err?.cancelled || token !== this.analysisToken) return;
-        this.analysis = null;
+        console.warn('[chess] analysis failed:', err?.message);
+        this.analysis = { failed: true };
+        this.hintDone(null);
         this.renderAnalysis();
       }
     }, 120);
+  }
+
+  // Analysis board: a hint asked for while the analysis is still running is answered by it
+  // (a separate hint search would cancel the analysis).
+  hintDone(uci) {
+    if (!this.hintWanted) return;
+    this.hintWanted = false;
+    this.hintBusy = false;
+    if (uci) this.setHint(uci);
+    else if (!this.gameAtView().status()) this.showToast(this.t('error.hint'));
+    this.renderToolbar();
+    this.renderStatus();
   }
 
   cancelAnalysis() {
     this.analysisToken++;
     clearTimeout(this._anTimer);
     this.analysis = null;
-    if (this.engine.busy) this.engine.cancel();
+    this.engine.cancel('analysis');
   }
 
   // ------------------------------------------------------------ commands
@@ -714,23 +791,34 @@ class ChessApp {
     this.renderEval();
   }
 
+  // A finished game takes no hint, except earlier positions of the analysis board.
+  resultBlocks() {
+    return !!this.result && !(this.setup.mode === 'analysis' && !this.liveAtView());
+  }
+
   async showHint() {
-    if (this.result || this.hintBusy || this.drawBusy) return;
+    if (this.resultBlocks() || this.hintBusy || this.drawBusy) return;
     if (!this.liveAtView() && this.setup.mode !== 'analysis') return;
     if (this.setup.mode === 'ai' && (this.thinking || this.game.turn() !== this.human)) return;
-    if (this.setup.mode === 'analysis' && this.analysis?.best) {
-      this.setHint(this.analysis.best);
-      return;
-    }
     const g = this.gameAtView();
     if (g.status()) return;
+    if (this.setup.mode === 'analysis') {
+      if (this.analysis?.best) return this.setHint(this.analysis.best);
+      if (this.analysis?.pending) {
+        this.hintWanted = true;
+        this.hintBusy = true;
+        this.renderToolbar();
+        this.renderStatus();
+        return;
+      }
+    }
     const token = ++this.hintToken;
     this.hintBusy = true;
     this.renderToolbar();
     this.renderStatus();
     const params = { startFen: g.startFen, moves: g.history({ verbose: true }).map((v) => v.uci), level: 'hard', timeMs: 900, analysis: true };
     try {
-      const res = this.engine.failed ? await thinkInline(params) : await this.engine.think(params);
+      const res = this.engine.failed ? await thinkInline(params) : await this.engine.think(params, 'hint');
       if (token !== this.hintToken) return;
       this.hintBusy = false;
       if (res.move) this.setHint(res.move);
@@ -755,7 +843,7 @@ class ChessApp {
 
   async offerDraw() {
     if (this.result || this.setup.mode === 'analysis' || this.drawBusy) return;
-    const { t, ctx } = this;
+    const { t } = this;
     if (this.setup.mode === 'ai') {
       if (this.thinking) return;
       const g = this.game;
@@ -767,7 +855,7 @@ class ChessApp {
       const stale = () => this.game !== g || this.result || g.length !== plies;
       try {
         const params = { startFen: g.startFen, moves: g.history({ verbose: true }).map((v) => v.uci), level: 'hard', timeMs: 600, analysis: true };
-        const res = this.engine.failed ? await thinkInline(params) : await this.engine.think(params);
+        const res = this.engine.failed ? await thinkInline(params) : await this.engine.think(params, 'draw');
         if (stale()) return;
         // score is from the side to move's point of view
         const aiScore = g.turn() === this.human ? -res.score : res.score;
@@ -792,31 +880,32 @@ class ChessApp {
       return;
     }
     const offerer = this.game.turn();
-    const ok = await ctx.ui.confirm(t('draw.twoPrompt', { offerer: this.sideName(offerer), other: this.sideName(other(offerer)) }), {
+    const g = this.game;
+    const ok = await this.confirmDialog(t('draw.twoPrompt', { offerer: this.sideName(offerer), other: this.sideName(other(offerer)) }), {
       title: t('draw.title'),
       okLabel: t('draw.accept'),
       cancelLabel: t('draw.decline'),
-      parent: ctx.win,
     });
-    if (ok && !this.result) this.endGame({ winner: null, reason: 'agreement', result: '1/2-1/2' });
+    if (ok && !this.result && this.game === g) this.endGame({ winner: null, reason: 'agreement', result: '1/2-1/2' });
   }
 
   async resign() {
     if (this.result || this.setup.mode === 'analysis') return;
-    const { t, ctx } = this;
+    const { t } = this;
     const loser = this.setup.mode === 'ai' ? this.human : this.game.turn();
-    const ok = await ctx.ui.confirm(this.setup.mode === 'ai' ? t('resign.confirmAi') : t('resign.confirmTwo', { side: this.sideName(loser) }), {
+    const g = this.game;
+    const ok = await this.confirmDialog(this.setup.mode === 'ai' ? t('resign.confirmAi') : t('resign.confirmTwo', { side: this.sideName(loser) }), {
       title: t('resign.title'),
       okLabel: t('resign.ok'),
-      parent: ctx.win,
     });
-    if (!ok || this.result) return;
+    if (!ok || this.result || this.game !== g) return;
     const winner = other(loser);
     this.endGame({ winner, reason: 'resign', loser, result: winner === 'w' ? '1-0' : '0-1' });
   }
 
   endGame(st) {
     this.cancelAi();
+    this.board.cancelPromotion(); // e.g. resigned or flagged with the promotion picker open
     this.result = st;
     this.clockStop();
     this.board.select(null);
@@ -960,6 +1049,35 @@ class ChessApp {
     return this.t(c === 'w' ? 'side.white' : 'side.black');
   }
 
+  // SAN with the piece letters of the UI language (French: R D T F C) for text shown or spoken;
+  // PGN and the move list (figurines) keep the standard notation.
+  localSan(san) {
+    const s = String(san || '');
+    const letter = (c) => this.t(`pieces.key_${c.toLowerCase()}`) || c;
+    return s.replace(/^[KQRBN]/, letter).replace(/=([QRBN])/, (_, c) => `=${letter(c)}`);
+  }
+
+  // "12. Nf3" / "12… Nc6" for the move at index idx of the history
+  moveLabel(idx, hist = this.game.history({ verbose: true }), start = Position.fromFen(this.game.startFen)) {
+    const v = hist[idx];
+    if (!v) return '';
+    const plies = idx + (start.turn === 1 ? 1 : 0);
+    const num = start.fullmove + Math.floor(plies / 2);
+    return `${num}${v.color === 'w' ? '.' : '…'} ${this.localSan(v.san)}`;
+  }
+
+  // Keyboard play: say which square the cursor is on and what stands there.
+  announceSquare(sq) {
+    if (!this.srEl) return;
+    const pos = this.positionAt(this.view);
+    const p = pos.board[sqIndex(sq)];
+    let text = p ? `${sq}, ${this.t(`pieceName.${colorOf(p) ? 'b' : 'w'}${' pnbrqk'[typeOf(p)]}`)}` : `${sq}, ${this.t('announce.empty')}`;
+    const sel = this.board.selected;
+    if (sel === sq) text += `, ${this.t('announce.selected', { count: new Set(this.board.targets.map((x) => x.to)).size })}`;
+    else if (sel && this.board.targets.some((x) => x.to === sq)) text += `, ${this.t('announce.target')}`;
+    this.srEl.textContent = text;
+  }
+
   playerName(c) {
     const { t } = this;
     if (this.setup.mode === 'ai') return c === this.human ? t('player.you') : t('player.computer');
@@ -1053,17 +1171,22 @@ class ChessApp {
     if (!this.statusText) return;
     const { t, ctx } = this;
     const g = this.game;
+    const analysis = this.setup.mode === 'analysis';
+    const live = this.liveAtView();
+    // the analysis board describes the position on screen, a finished one included (a loaded game
+    // that ends in mate has no "result" of its own)
+    const over = analysis ? this.gameAtView().status() : this.result;
+    const reviewing = () => (this.view === 0 ? t('status.reviewStart') : t('status.reviewing', { move: this.moveLabel(this.view - 1) }));
     let text;
     let icon = null;
     let tone = '';
-    if (this.result) {
-      const r = this.result;
-      const kind = this.outcomeFor(r);
-      text = `${this.resultTitle(r)} · ${this.reasonText(r)}`;
+    if (over) {
+      const kind = this.outcomeFor(over);
+      text = `${this.resultTitle(over)} · ${this.reasonText(over)}`;
       icon = kind === 'draw' ? 'handshake' : kind === 'loss' ? 'flag' : 'trophy';
       tone = kind === 'loss' ? 'bad' : kind === 'draw' ? '' : 'good';
-    } else if (!this.liveAtView()) {
-      text = this.view === 0 ? t('status.reviewStart') : t('status.reviewing', { move: moveLabel(this.game.history({ verbose: true }), this.view - 1, Position.fromFen(this.game.startFen)) });
+    } else if (!live && !analysis) {
+      text = reviewing();
       icon = 'history';
     } else if (this.thinking) {
       text = t('status.thinking');
@@ -1072,9 +1195,12 @@ class ChessApp {
       text = t('status.hintThinking');
       icon = 'spinner';
     } else if (this.hint) {
-      text = t('status.hint', { san: this.hint.san });
+      text = t('status.hint', { san: this.localSan(this.hint.san) });
       icon = 'lightbulb';
       tone = 'accent';
+    } else if (!live) {
+      text = reviewing();
+      icon = 'history';
     } else {
       const turn = g.turn();
       if (this.setup.mode === 'ai') text = turn === this.human ? t('status.yourTurn') : t('status.computerTurn');
@@ -1129,7 +1255,7 @@ class ChessApp {
     this.ctx.ui.clear(el);
     const hist = this.game.history({ verbose: true });
     if (!hist.length) {
-      el.appendChild(h('div', { class: 'cx-moves-empty caption text-2' }, t('moves.empty')));
+      el.appendChild(h('div', { class: 'cx-moves-empty caption text-2' }, t(this.game.turn() === 'b' ? 'moves.emptyBlack' : 'moves.empty')));
       return;
     }
     const start = Position.fromFen(this.game.startFen);
@@ -1143,7 +1269,7 @@ class ChessApp {
         {
           class: ['cx-mv', idx + 1 === this.view && 'current'],
           role: 'listitem',
-          'aria-label': moveLabel(hist, idx, start),
+          'aria-label': this.moveLabel(idx, hist, start),
           'aria-current': idx + 1 === this.view ? 'true' : null,
           dataset: { ply: String(idx + 1) },
           onclick: () => this.goto(idx + 1),
@@ -1162,7 +1288,7 @@ class ChessApp {
       el.appendChild(h('div', { class: 'cx-mrow' }, h('span', { class: 'cx-mnum' }, `${num}.`), mk(i), i + 1 < hist.length ? mk(i + 1) : h('span', { class: 'cx-mv cx-mv-empty' })));
       num++;
     }
-    if (this.result) el.appendChild(h('div', { class: 'cx-mresult' }, this.result.result));
+    if (this.result) el.appendChild(h('div', { class: 'cx-mresult' }, this.result.result.replace(/1\/2/g, '½')));
     // re-rendering removed the focused move button: keep keyboard focus in the list
     if (hadFocus) (current || el).focus({ preventScroll: true });
     if (current) current.scrollIntoView({ block: 'nearest' });
@@ -1176,7 +1302,7 @@ class ChessApp {
     const live = this.liveAtView();
     this.btnUndo.disabled = !this.canUndo();
     const hintable =
-      !this.result &&
+      !this.resultBlocks() &&
       !this.hintBusy &&
       !this.drawBusy &&
       (live || mode === 'analysis') &&
@@ -1204,10 +1330,11 @@ class ChessApp {
     const a = this.analysis;
     const { t } = this;
     if (!a || a.pending) this.analysisText.textContent = t('analysis.thinking');
+    else if (a.failed) this.analysisText.textContent = t('analysis.failed');
     else if (a.over) this.analysisText.textContent = t('analysis.over');
     else {
       const score = formatScore(a);
-      this.analysisText.textContent = t('analysis.line', { score, depth: a.depth, line: a.pv.slice(0, 6).join(' ') });
+      this.analysisText.textContent = t('analysis.line', { score, depth: a.depth, line: a.pv.slice(0, 6).map((x) => this.localSan(x)).join(' ') });
     }
     this.renderEval();
   }
@@ -1217,19 +1344,22 @@ class ChessApp {
     const a = this.analysis;
     let frac = 0.5;
     let label = '';
-    if (a && !a.pending && !a.over) {
+    let short = '';
+    if (a && !a.pending && !a.over && !a.failed) {
       if (a.mate != null) frac = a.mate > 0 ? 1 : 0;
       else frac = 1 / (1 + Math.exp(-a.score / 260));
       label = formatScore(a);
+      short = a.mate != null ? `M${Math.abs(a.mate)}` : Math.abs(a.score) >= 1000 ? String(Math.round(Math.abs(a.score) / 100)) : (Math.abs(a.score) / 100).toFixed(1);
     } else if (a?.over) {
       const st = this.gameAtView().status();
       frac = !st?.winner ? 0.5 : st.winner === 'w' ? 1 : 0;
       label = st?.result || '';
+      short = label.replace(/1\/2/g, '½');
     }
     frac = Math.max(0.03, Math.min(0.97, frac));
     this.evalBar.classList.toggle('flipped', this.flipped);
     this.evalFill.style.transform = `scaleY(${frac})`;
-    this.evalText.textContent = label;
+    this.evalText.textContent = short;
     this.evalText.classList.toggle('dark-side', frac < 0.5);
     this.evalBar.setAttribute('aria-valuenow', a?.score != null ? String(Math.round(a.score / 10) / 10) : '0');
     this.evalBar.setAttribute('aria-valuetext', label);
@@ -1251,11 +1381,56 @@ class ChessApp {
   }
 
   // ------------------------------------------------------------ dialogs
+  // Every dialog of the app goes through here:
+  //  - Enter on a focused secondary button (Review, Copy PGN, Cancel…) activates that button, as in
+  //    Windows; the UI kit alone would answer Enter with the primary button wherever the focus is;
+  //  - a result dialog that comes up while another dialog is open is shown once that one closes.
+  async modal(opts) {
+    this._modals = (this._modals || 0) + 1;
+    try {
+      return await this.ctx.ui.dialog({
+        parent: this.ctx.win,
+        className: 'cx-dialog',
+        ...opts,
+        onOpen: (dlg, done) => {
+          dlg.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            const b = e.target.closest?.('button');
+            if (b && !b.classList.contains('primary') && b.getAttribute('role') !== 'radio') e.stopPropagation();
+          });
+          opts.onOpen?.(dlg, done);
+        },
+      });
+    } finally {
+      this._modals--;
+      setTimeout(() => this.flushResult(), 0);
+    }
+  }
+
+  async confirmDialog(message, { title, okLabel, cancelLabel } = {}) {
+    const v = await this.modal({
+      title,
+      body: message,
+      buttons: [
+        { label: okLabel || this.t('common.ok'), value: true, primary: true },
+        { label: cancelLabel || this.t('common.cancel'), value: false },
+      ],
+    });
+    return v === true;
+  }
+
+  flushResult() {
+    if (!this._resultPending || this._modals || this.disposed) return;
+    this._resultPending = false;
+    if (this.result) this.showResultDialog();
+  }
+
   async openNewGameDialog() {
     const { h, t, ctx } = this;
     const { icon, ui } = ctx;
-    if (this._dialogOpen) return;
+    if (this._modals || this.disposed) return;
     const s = { ...this.setup };
+    let autoFlip = this.prefs.autoFlip;
     const refs = {};
     const modeCard = (id, ic) =>
       h(
@@ -1305,18 +1480,20 @@ class ChessApp {
         h('button', { class: ['cx-time', s.time === id && 'selected'], role: 'radio', 'aria-checked': String(s.time === id), dataset: { time: id }, onclick: () => ((s.time = id), sync()) }, t(`time.${id}`)),
       ),
     );
-    refs.autoFlip = ui.toggle({ checked: this.prefs.autoFlip, label: t('newGame.autoFlip'), onchange: (v) => (this.prefs.autoFlip = v) });
+    refs.autoFlip = ui.toggle({ checked: autoFlip, label: t('newGame.autoFlip'), onchange: (v) => (autoFlip = v) });
     const section = (label, ...content) => h('div', { class: 'cx-ng-section' }, h('div', { class: 'cx-ng-label' }, label), ...content);
     refs.secSide = section(t('newGame.playAs'), refs.sides);
     refs.secLevel = section(t('newGame.level'), refs.levels, refs.levelDesc);
     refs.secTime = section(t('newGame.time'), refs.times);
     refs.secFlip = h('div', { class: 'cx-ng-section' }, refs.autoFlip);
     const body = h('div', { class: 'cx-newgame' }, section(t('newGame.mode'), refs.modes), refs.secSide, refs.secLevel, refs.secTime, refs.secFlip);
+    // radio groups: one tab stop per group (the checked item), arrows move inside
     const mark = (container, attr, value) => {
       for (const b of container.children) {
         const on = b.dataset[attr] === value;
         b.classList.toggle('selected', on);
         b.setAttribute('aria-checked', String(on));
+        b.tabIndex = on ? 0 : -1;
       }
     };
     const sync = () => {
@@ -1344,11 +1521,9 @@ class ChessApp {
       n.focus();
       n.click();
     });
-    this._dialogOpen = true;
-    const v = await ui.dialog({
+    const v = await this.modal({
       title: t('newGame.title'),
       body,
-      parent: ctx.win,
       width: 560,
       className: 'cx-dialog cx-newgame-dialog',
       buttons: [
@@ -1358,14 +1533,20 @@ class ChessApp {
       // the dialog would focus the first input (the hidden "rotate" toggle): start on the mode cards
       onOpen: () => setTimeout(() => refs.modes.querySelector('.selected')?.focus(), 50),
     });
-    this._dialogOpen = false;
-    this.savePrefs();
-    if (v === 'start') this.newGame(s);
+    if (this.disposed) return;
+    if (v === 'start') {
+      this.prefs.autoFlip = autoFlip;
+      this.newGame(s);
+    }
     this.root?.focus({ preventScroll: true });
   }
 
   async showResultDialog() {
-    if (!this.result || this._dialogOpen) return;
+    if (!this.result || this.disposed) return;
+    if (this._modals) {
+      this._resultPending = true; // shown when the open dialog closes
+      return;
+    }
     const { h, t, ctx } = this;
     const r = this.result;
     const kind = this.outcomeFor(r);
@@ -1387,10 +1568,8 @@ class ChessApp {
       record,
       h('div', { class: 'cx-res-actions' }, copyBtn, saveBtn),
     );
-    this._dialogOpen = true;
-    const v = await ctx.ui.dialog({
+    const v = await this.modal({
       body,
-      parent: ctx.win,
       width: 420,
       className: 'cx-dialog cx-result-dialog',
       buttons: [
@@ -1399,30 +1578,39 @@ class ChessApp {
         { label: t('result.review'), value: null },
       ],
     });
-    this._dialogOpen = false;
+    if (this.disposed) return;
     if (v === 'again') this.newGame(this.setup);
     else if (v === 'new') this.openNewGameDialog();
     else this.root?.focus({ preventScroll: true });
   }
 
   async openImportDialog() {
-    const { h, t, ctx } = this;
+    const { h, t } = this;
     const area = h('textarea', { class: 'textarea cx-import-text', rows: 7, spellcheck: false, placeholder: t('import.placeholder') });
     const err = h('div', { class: 'field-hint cx-import-err', role: 'alert' });
     const body = h('div', { class: 'cx-import' }, h('div', { class: 'caption text-2' }, t('import.help')), area, err);
-    this._dialogOpen = true;
-    const v = await ctx.ui.dialog({
+    const v = await this.modal({
       title: t('import.title'),
       body,
-      parent: ctx.win,
       width: 520,
-      className: 'cx-dialog',
       buttons: [
         { label: t('import.load'), value: 'load', primary: true },
         { label: t('common.cancel'), value: null },
       ],
       onOpen: (dlg) => {
         setTimeout(() => area.focus(), 40);
+        // a FEN or PGN already on the clipboard is filled in
+        this.ctx.api
+          .invoke('clipboard:readText')
+          .then((clip) => {
+            const c = String(clip || '').trim();
+            if (!c || area.value || c.length > 200000) return;
+            if (!validateFen(c) || /^\s*\[\w+\s+"/.test(c) || /^\s*1\.\s*[a-hNBRQKO]/.test(c)) {
+              area.value = c;
+              area.select();
+            }
+          })
+          .catch(() => {});
         dlg._validate = () => {
           try {
             this.loadText(area.value);
@@ -1435,13 +1623,13 @@ class ChessApp {
         };
       },
     });
-    this._dialogOpen = false;
     if (v === 'load') this.showToast(t('import.loaded'));
     this.root?.focus({ preventScroll: true });
   }
 
   async openStatsDialog() {
     const { h, t, ctx } = this;
+    const pct = new Intl.NumberFormat(ctx.i18n.locale || ctx.lang, { style: 'percent', maximumFractionDigits: 0 });
     const rows = LEVEL_IDS.map((l) => {
       const s = this.stats.ai[l];
       const n = s.w + s.l + s.d;
@@ -1452,7 +1640,7 @@ class ChessApp {
         h('td', null, String(s.w)),
         h('td', null, String(s.l)),
         h('td', null, String(s.d)),
-        h('td', null, n ? `${Math.round((s.w / n) * 100)} %` : '—'),
+        h('td', null, n ? pct.format(s.w / n) : '—'),
       );
     });
     const two = this.stats.two;
@@ -1471,21 +1659,17 @@ class ChessApp {
       h('div', { class: 'cx-ng-label' }, t('stats.twoPlayers')),
       h('div', { class: 'caption text-2' }, t('stats.twoSummary', { games: two.games, w: two.w, b: two.b, d: two.d })),
     );
-    this._dialogOpen = true;
-    const v = await ctx.ui.dialog({
+    const v = await this.modal({
       title: t('stats.title'),
       body,
-      parent: ctx.win,
       width: 460,
-      className: 'cx-dialog',
       buttons: [
         { label: t('common.close'), value: null, primary: true },
         { label: t('stats.reset'), value: 'reset' },
       ],
     });
-    this._dialogOpen = false;
     if (v === 'reset') {
-      const ok = await ctx.ui.confirm(t('stats.resetConfirm'), { title: t('stats.title'), okLabel: t('stats.reset'), parent: ctx.win });
+      const ok = await this.confirmDialog(t('stats.resetConfirm'), { title: t('stats.title'), okLabel: t('stats.reset') });
       if (ok) {
         this.stats = emptyStats();
         await ctx.storage.set('stats', this.stats).catch(() => {});
@@ -1496,7 +1680,7 @@ class ChessApp {
   }
 
   async openShortcutsDialog() {
-    const { h, t, ctx } = this;
+    const { h, t } = this;
     const rows = [
       ['←  →', t('keys.prevNext')],
       [`${t('keys.home')} / ↑`, t('nav.first')],
@@ -1509,12 +1693,10 @@ class ChessApp {
       ['Ctrl+Shift+C', t('menu.copyFen')],
       ['Ctrl+O / Ctrl+S', `${t('menu.openPgn')} / ${t('menu.savePgn')}`],
       ['Tab → ' + t('keys.board'), t('keys.boardHelp')],
-      ['Q R B N', t('keys.promo')],
+      [['q', 'r', 'b', 'n'].map((c) => t(`pieces.key_${c}`)).join(' '), t('keys.promo')],
     ];
     const body = h('div', { class: 'cx-keys' }, rows.map(([k, d]) => h('div', { class: 'cx-key-row' }, h('kbd', null, k), h('span', null, d))));
-    this._dialogOpen = true;
-    await ctx.ui.dialog({ title: t('keys.title'), body, parent: ctx.win, width: 480, className: 'cx-dialog', buttons: [{ label: t('common.close'), value: true, primary: true }] });
-    this._dialogOpen = false;
+    await this.modal({ title: t('keys.title'), body, width: 480, buttons: [{ label: t('common.close'), value: true, primary: true }] });
     this.root?.focus({ preventScroll: true });
   }
 
@@ -1589,7 +1771,8 @@ class ChessApp {
         }, 1600);
       }
     } catch (err) {
-      this.ctx.ui.alert(this.t('error.clipboard', { detail: err.message }), { title: this.t('error.title'), parent: this.ctx.win });
+      console.warn('[chess] clipboard:', err?.message);
+      this.errorAlert(this.t('error.clipboard'));
     }
   }
 
@@ -1601,25 +1784,45 @@ class ChessApp {
     return this.copyText(this.gameAtView().fen(), this.t('toast.fenCopied'));
   }
 
+  // Runs a file picker once at a time (Ctrl+S pressed twice must not stack two pickers).
+  async pick(opts) {
+    if (this._picking) return null;
+    this._picking = true;
+    this._modals = (this._modals || 0) + 1;
+    try {
+      return await this.ctx.ui.filePicker({ parent: this.ctx.win, ...opts });
+    } catch (err) {
+      console.warn('[chess] file picker:', err?.message);
+      this.errorAlert(this.fsErrorText(err));
+      return null;
+    } finally {
+      this._picking = false;
+      this._modals--;
+      setTimeout(() => this.flushResult(), 0);
+    }
+  }
+
   async savePgn() {
     const { ctx, t } = this;
     const d = new Date();
     const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const path = await ctx.ui.filePicker({ mode: 'save', title: t('menu.savePgn'), filters: [{ name: t('file.pgn'), ext: ['.pgn'] }], name: this.fileName || `${t('file.defaultName')} ${stamp}.pgn`, parent: ctx.win });
-    if (!path) return;
+    const path = await this.pick({ mode: 'save', title: t('menu.savePgn'), filters: [{ name: t('file.pgn'), ext: ['.pgn'] }], name: this.fileName || `${t('file.defaultName')} ${stamp}.pgn` });
+    if (!path || this.disposed) return;
     try {
       await ctx.api.invoke('fs:writeText', path, this.pgnText());
       this.fileName = path.split('/').pop();
+      this.setWindowTitle();
+      this.renderStatus();
       this.showToast(t('toast.saved', { name: this.fileName }));
     } catch (err) {
-      ctx.ui.alert(t('error.save', { detail: err.message }), { title: t('error.title'), parent: ctx.win });
+      this.errorAlert(t('error.save', { detail: this.fsErrorText(err) }));
     }
   }
 
   async openPgnDialog() {
-    const { ctx, t } = this;
-    const path = await ctx.ui.filePicker({ mode: 'open', title: t('menu.openPgn'), filters: [{ name: t('file.pgn'), ext: ['.pgn'] }], parent: ctx.win });
-    if (path) await this.openPgnFile(path);
+    const { t } = this;
+    const path = await this.pick({ mode: 'open', title: t('menu.openPgn'), filters: [{ name: t('file.pgn'), ext: ['.pgn'] }] });
+    if (path && !this.disposed) await this.openPgnFile(path);
   }
 
   // ------------------------------------------------------------ keyboard
@@ -1709,6 +1912,7 @@ class ChessApp {
         clock: this.clock.on ? { w: this.clockLeft('w'), b: this.clockLeft('b'), running: this.clock.running } : null,
         boardSize: this.board.size,
         theme: this.prefs.theme,
+        prefs: this.prefs,
         stats: this.stats,
         engineFailed: this.engine.failed,
         analysis: this.analysis,
@@ -1732,19 +1936,45 @@ class ChessApp {
 }
 
 // ---------------------------------------------------------------- helpers
+// Stored data is untrusted: only own, known keys with the right types survive (a stored
+// "constructor" time control or a truthy [] for a boolean must not leak through).
 function sanitizeSetup(s) {
-  const o = { ...DEFAULT_SETUP, ...(s && typeof s === 'object' ? s : {}) };
-  if (!MODES.includes(o.mode)) o.mode = 'ai';
-  if (!['w', 'b', 'random'].includes(o.side)) o.side = 'w';
-  if (!LEVEL_IDS.includes(o.level)) o.level = 'medium';
-  if (!(o.time in TIME_CONTROLS)) o.time = 'none';
-  return { mode: o.mode, side: o.side, level: o.level, time: o.time };
+  const o = s && typeof s === 'object' ? s : {};
+  const pick = (v, allowed, def) => (typeof v === 'string' && allowed.includes(v) ? v : def);
+  return {
+    mode: pick(o.mode, MODES, DEFAULT_SETUP.mode),
+    side: pick(o.side, ['w', 'b', 'random'], DEFAULT_SETUP.side),
+    level: pick(o.level, LEVEL_IDS, DEFAULT_SETUP.level),
+    time: pick(o.time, Object.keys(TIME_CONTROLS), DEFAULT_SETUP.time),
+  };
+}
+
+// PGN tags (from a file or the saved game): plain string values under simple names, bounded.
+function sanitizeHeaders(hd) {
+  const out = {};
+  if (!hd || typeof hd !== 'object' || Array.isArray(hd)) return out;
+  for (const [k, v] of Object.entries(hd).slice(0, 40)) {
+    if (/^[A-Za-z0-9_]{1,40}$/.test(k) && typeof v === 'string' && !['__proto__', 'constructor', 'prototype'].includes(k)) out[k] = v.slice(0, 500);
+  }
+  return out;
+}
+
+function sanitizePrefs(p) {
+  const o = p && typeof p === 'object' ? p : {};
+  const out = { ...DEFAULT_PREFS, setup: sanitizeSetup(o.setup) };
+  if (typeof o.theme === 'string' && THEMES.includes(o.theme)) out.theme = o.theme;
+  for (const k of ['coords', 'legal', 'sound', 'autoQueen', 'autoFlip']) if (typeof o[k] === 'boolean') out[k] = o[k];
+  return out;
 }
 
 function mergeStats(s) {
   const out = emptyStats();
-  for (const l of LEVEL_IDS) for (const k of ['w', 'l', 'd']) out.ai[l][k] = Number(s?.ai?.[l]?.[k]) || 0;
-  for (const k of ['games', 'w', 'b', 'd']) out.two[k] = Number(s?.two?.[k]) || 0;
+  const count = (v) => {
+    const n = Math.floor(Number(v));
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 1e9) : 0;
+  };
+  for (const l of LEVEL_IDS) for (const k of ['w', 'l', 'd']) out.ai[l][k] = count(s?.ai?.[l]?.[k]);
+  for (const k of ['games', 'w', 'b', 'd']) out.two[k] = count(s?.two?.[k]);
   return out;
 }
 
@@ -1771,15 +2001,6 @@ function formatScore(a) {
 
 function pieceKey(p) {
   return { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' }[p];
-}
-
-// "12. Nf3" / "12… Nc6" (hist: verbose history, start: the starting Position)
-function moveLabel(hist, idx, start) {
-  const v = hist[idx];
-  if (!v) return '';
-  const plies = idx + (start.turn === 1 ? 1 : 0);
-  const num = start.fullmove + Math.floor(plies / 2);
-  return `${num}${v.color === 'w' ? '.' : '…'} ${v.san}`;
 }
 
 function figurine(h, code) {
@@ -1837,16 +2058,35 @@ function pvToSan(game, pv) {
   return out;
 }
 
-// Can `color` still deliver mate with its material (for the timeout rule)?
+// Could `color` still checkmate by any series of legal moves (FIDE 6.9: a player whose flag falls
+// still draws when the opponent cannot mate)? Lone minor pieces can only mate with the help of
+// the other side's own men blocking its king.
 function sideCanMate(pos, color) {
   const c = color === 'w' ? 0 : 1;
-  let minors = 0;
+  const mine = { n: 0, bl: 0, bd: 0 };
+  const theirs = { pawns: 0, n: 0, bl: 0, bd: 0, rooks: 0, queens: 0 };
   for (const sq of SQUARES) {
     const p = pos.board[sq];
-    if (!p || colorOf(p) !== c) continue;
+    if (!p) continue;
     const ty = typeOf(p);
-    if (ty === 1 || ty === 4 || ty === 5) return true;
-    if (ty === 2 || ty === 3) minors++;
+    const light = ((sq >> 4) + (sq & 7)) % 2 === 0;
+    if (colorOf(p) === c) {
+      if (ty === 1 || ty === 4 || ty === 5) return true; // pawn, rook or queen
+      if (ty === 2) mine.n++;
+      else if (ty === 3) mine[light ? 'bl' : 'bd']++;
+    } else if (ty === 1) theirs.pawns++;
+    else if (ty === 2) theirs.n++;
+    else if (ty === 3) theirs[light ? 'bl' : 'bd']++;
+    else if (ty === 4) theirs.rooks++;
+    else if (ty === 5) theirs.queens++;
   }
-  return minors >= 2;
+  const bishops = mine.bl + mine.bd;
+  if (!mine.n && !bishops) return false; // bare king
+  if (mine.n && bishops) return true;
+  if (mine.n >= 2) return true;
+  const blockers = theirs.pawns + theirs.n + theirs.bl + theirs.bd + theirs.rooks;
+  if (mine.n === 1) return blockers > 0;
+  // bishops only: one square colour unless the opponent has men that can stand on the other one
+  if (mine.bl && mine.bd) return true;
+  return theirs.pawns + theirs.n > 0 || (mine.bl ? theirs.bd : theirs.bl) > 0;
 }

@@ -59,6 +59,7 @@ MIN_SIZE=12000000000            # bytes (12 GB)
 WORKDIR=/run/aurora-install     # mount root (target system under $WORKDIR/target)
 TARGET=$WORKDIR/target
 LOCK=/run/aurora-install.lock
+LINKS_STATE=/run/aurora-install.links   # /dev/disk/by-uuid links created where udev does not run
 STAGES=(partition format copy configure bootloader cleanup)
 USER_GROUPS=(sudo adm users netdev audio video plugdev)
 RESERVED_USERS=" root daemon bin sys sync games man lp mail news uucp proxy www-data backup list irc gnats nobody systemd-network systemd-resolve systemd-timesync systemd-coredump messagebus syslog _apt tss uuidd tcpdump sshd polkitd _greetd greeter aurora-greeter admin sudo adm users wheel staff operator ubuntu "
@@ -140,7 +141,11 @@ run() {
   local msg=$1; shift
   log "\$ $*"
   local cmd=$1; [[ "$cmd" == in_target ]] && cmd=${2:-$1}
-  "$@" || die 5 "$msg (command failed: $cmd)"
+  if declare -F bg_wait >/dev/null; then
+    bg_wait "$@" || die 5 "$msg (command failed: $cmd)"
+  else
+    "$@" || die 5 "$msg (command failed: $cmd)"
+  fi
 }
 
 [[ -z "$ARG_ERR" ]] || die 2 "$ARG_ERR"
@@ -193,9 +198,8 @@ if ((DRY_RUN)); then
   trap 'die 130 "installation cancelled"' INT TERM HUP
   trap 'rc=$?; ((DONE || rc == 0)) || emit_error "$rc" "installation failed (exit $rc)"' EXIT
   dsleep() { sleep "$DRY_DELAY"; }
-  size_txt="unknown size"
-  [[ -b "$DISK" ]] && size_txt="$(( $(blockdev --getsize64 "$DISK" 2>/dev/null || echo 0) / 1000000000 )) GB"
-  log "DRY RUN — nothing will be written. disk=$DISK ($size_txt) user=$USERNAME host=$HOST_NAME lang=$LANGUAGE_ID keyboard=$KEYBOARD timezone=$TIMEZONE autologin=$AUTOLOGIN"
+  # A dry run never opens the named device (it may well be the disk of the machine running it).
+  log "DRY RUN — nothing will be written. disk=$DISK user=$USERNAME host=$HOST_NAME lang=$LANGUAGE_ID keyboard=$KEYBOARD timezone=$TIMEZONE autologin=$AUTOLOGIN"
   sim() { # sim STAGE FROM TO MESSAGE [log lines...]
     local st=$1 from=$2 to=$3 msg=$4 i; shift 4
     maybe_fail "$st"
@@ -204,8 +208,9 @@ if ((DRY_RUN)); then
     dsleep
     progress "$st" "$to" ""
   }
+  pp=""; [[ "$DISK" =~ [0-9]$ ]] && pp=p   # partition names: sda2, nvme0n1p2, loop0p2
   sim partition 1 4 "Partitioning $DISK" "\$ wipefs --all $DISK" "\$ sfdisk --label gpt $DISK (BIOS boot 1 MiB, EFI System 512 MiB, Aurora OS ext4)"
-  sim format 4 7 "Formatting the partitions" "\$ mkfs.vfat -F 32 -n EFI ${DISK}2" "\$ mkfs.ext4 -L AURORA ${DISK}3"
+  sim format 4 7 "Formatting the partitions" "\$ mkfs.vfat -F 32 -n EFI ${DISK}${pp}2" "\$ mkfs.ext4 -L AURORA ${DISK}${pp}3"
   maybe_fail copy
   progress copy 7 "Copying the system files"
   for p in 5 12 20 28 37 45 53 61 70 78 86 93 100; do
@@ -244,7 +249,6 @@ exec 2> >(exec tee -p -a "$LOG_FILE" >&2)
 exec 9>"$LOCK"
 flock -n 9 || die 4 "another installation is already running"
 
-CREATED_LINKS=()
 child_pids() { ps -o pid= --ppid "$1" 2>/dev/null | tr -d ' ' || true; }
 kill_tree() { # kill_tree PID: SIGTERM to PID and all its descendants (children first)
   local c
@@ -280,9 +284,7 @@ cleanup() {
   sync
   umount_under "$WORKDIR"
   rmdir "$TARGET" "$WORKDIR" 2>/dev/null
-  local l
-  for l in "${CREATED_LINKS[@]}"; do rm -f "$l"; done
-  rmdir /dev/disk/by-uuid /dev/disk 2>/dev/null
+  remove_created_links
   log "aurora-install finished with status $rc after $(( $(date +%s) - T0 ))s"
   exit "$rc"
 }
@@ -311,6 +313,7 @@ disks_of() {
     echo "$dev"
     bf=$(cat "/sys/class/block/$name/loop/backing_file")
     src=$(findmnt -n -o SOURCE -T "$bf" 2>/dev/null | head -n1)
+    src=${src%%\[*}
     [[ "$src" == /dev/* ]] && disks_of "$src"
     return 0
   fi
@@ -321,10 +324,12 @@ protected_disks() {
   local m src
   for m in /cdrom /rofs /isodevice /run/live/medium /media/cdrom /run/initramfs/live /; do
     src=$(findmnt -n -o SOURCE --mountpoint "$m" 2>/dev/null | head -n1) || continue
+    src=${src%%\[*}   # bind mounts are reported as /dev/sdX[/subdir]
     [[ "$src" == /dev/* ]] && disks_of "$src"
   done
   if [[ -n "$SOURCE" && -e "$SOURCE" ]]; then
     src=$(findmnt -n -o SOURCE -T "$SOURCE" 2>/dev/null | head -n1)
+    src=${src%%\[*}
     [[ "$src" == /dev/* ]] && disks_of "$src"
   fi
   return 0
@@ -503,13 +508,22 @@ wait_for_partitions() {
 }
 
 # grub-mkconfig only writes root=UUID=… when /dev/disk/by-uuid/<uuid> exists (udev creates it;
-# create it ourselves where udev does not run).
+# create it ourselves where udev does not run). They are removed at the end, or by the next run
+# when this one was killed.
 ensure_uuid_link() { # ensure_uuid_link UUID DEVICE
   local l=/dev/disk/by-uuid/$1
   [[ -e "$l" ]] && return 0
   mkdir -p /dev/disk/by-uuid
   ln -sf "../../${2#/dev/}" "$l"
-  CREATED_LINKS+=("$l")
+  echo "$l" >>"$LINKS_STATE"
+}
+remove_created_links() {
+  local l
+  if [[ -f "$LINKS_STATE" ]]; then
+    while read -r l; do [[ "$l" == /dev/disk/by-uuid/* && -L "$l" ]] && rm -f "$l"; done <"$LINKS_STATE"
+    rm -f "$LINKS_STATE"
+  fi
+  rmdir /dev/disk/by-uuid /dev/disk 2>/dev/null || true
 }
 
 # ====================================================================== stages
@@ -598,7 +612,7 @@ stage_copy() {
     [[ -e "$TARGET/$f" ]] || die 5 "the copied system is incomplete ($f is missing)"
   done
   compgen -G "$TARGET/boot/vmlinuz-*" >/dev/null || die 5 "the copied system has no kernel"
-  log "system copied in $((SECONDS - t0))s ($(du -sh --apparent-size "$TARGET" 2>/dev/null | cut -f1))"
+  log "system copied in $((SECONDS - t0))s"
   progress copy 75 ""
 }
 export -f copy_progress progress log json_str
@@ -658,6 +672,11 @@ purge_live_packages() {
   fi
 }
 
+initramfs_list() { # initramfs_list KVER -> content listing (run in the background: interruptible)
+  local out="$WORKDIR/initramfs.list"
+  bg_wait in_target lsinitramfs "/boot/initrd.img-$1" >"$out" 2>/dev/null || { rm -f "$out"; return 1; }
+  cat "$out"; rm -f "$out"
+}
 regenerate_initramfs() {
   local k kvers=() need=0 since=$1
   for k in "$TARGET"/usr/lib/modules/*; do [[ -d "$k" && -e "$TARGET/boot/vmlinuz-${k##*/}" ]] && kvers+=("${k##*/}"); done
@@ -666,7 +685,7 @@ regenerate_initramfs() {
   for k in "${kvers[@]}"; do
     local img="$TARGET/boot/initrd.img-$k"
     if [[ ! -s "$img" ]] || (( $(stat -c %Y "$img") < since )) \
-       || has_text scripts/casper "$(in_target lsinitramfs "/boot/initrd.img-$k" 2>/dev/null || true)"; then
+       || has_text scripts/casper "$(initramfs_list "$k" || true)"; then
       need=1
     fi
   done
@@ -678,7 +697,7 @@ regenerate_initramfs() {
   fi
   for k in "${kvers[@]}"; do
     [[ -s "$TARGET/boot/initrd.img-$k" ]] || die 5 "initramfs missing for kernel $k"
-    local content; content=$(in_target lsinitramfs "/boot/initrd.img-$k") || die 5 "cannot read the initramfs of kernel $k"
+    local content; content=$(initramfs_list "$k") || die 5 "cannot read the initramfs of kernel $k"
     if has_text scripts/casper "$content"; then
       die 5 "the initramfs of kernel $k still contains the live-session (casper) scripts"
     fi
@@ -896,9 +915,12 @@ stage_cleanup() {
   progress cleanup 98 "Finishing"
   rm -f "$TARGET/usr/sbin/policy-rc.d"
   rm -rf "${TARGET:?}"/tmp/* "${TARGET:?}"/var/tmp/* 2>/dev/null || true
+  # Completion marker, written last: a disk with this line holds a complete installation
+  # (aurora-autoinstall uses it to never reinstall in a loop, and to retry an interrupted one).
+  printf 'AURORA_INSTALL_COMPLETE=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$TARGET/etc/aurora/install-info"
   # Keep a copy of this log on the installed system (no secrets are ever logged).
   install -D -m 0600 "$LOG_FILE" "$TARGET/var/log/aurora-install.log" 2>/dev/null || true
-  sync
+  bg_wait sync
   umount_under "$TARGET"
   if has_text "$TARGET" "$(findmnt -rn -o TARGET)"; then die 5 "could not unmount the installed system"; fi
   rmdir "$TARGET" 2>/dev/null || true
@@ -912,6 +934,7 @@ stage_cleanup() {
 # ====================================================================== main
 progress partition 0 "Checking the disk and the installation source"
 umount_under "$WORKDIR"   # leftovers of an interrupted run
+remove_created_links
 resolve_source
 check_disk
 check_choices

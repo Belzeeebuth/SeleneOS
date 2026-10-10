@@ -1,0 +1,903 @@
+/* Snipping Tool — every rule is scoped under .app-snipping (the window, and the overlay / countdown /
+   flyout roots that live outside it, which also carry the class). */
+
+/* ------------------------------------------------------------------ window states */
+/* Until launch() decides (a PrintScreen snip keeps the window hidden), the window stays invisible.
+   Failsafe: it shows up after 3 s anyway, so a crash message would still be visible. */
+.win.app-snipping:not(.snip-ready) {
+  visibility: hidden;
+  animation: snip-failsafe 1ms linear 3s forwards;
+}
+:root[data-animations="off"] .win.app-snipping:not(.snip-ready) {
+  animation-delay: 3s !important;
+}
+@keyframes snip-failsafe {
+  to {
+    visibility: visible;
+  }
+}
+.win.app-snipping.snip-hidden {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+.app-snipping [hidden] {
+  display: none !important;
+}
+/* The Windows 11 Snipping Tool draws its commands in the title bar, without icon or caption. */
+.win.app-snipping > .win-titlebar {
+  padding-left: 8px;
+  gap: 0;
+}
+.win.app-snipping > .win-titlebar > .win-icon,
+.win.app-snipping > .win-titlebar > .win-title {
+  display: none;
+}
+.win.app-snipping.snip-compact > .win-resize,
+.win.app-snipping.snip-compact .win-max {
+  display: none !important;
+}
+
+/* ------------------------------------------------------------------ title bar commands */
+.app-snipping .snip-tb {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 6px;
+}
+.app-snipping .snip-tb-left,
+.app-snipping .snip-tb-right,
+.app-snipping .snip-tb-edit,
+.app-snipping .snip-tb-settings {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.app-snipping .snip-tb-left {
+  gap: 4px;
+}
+.app-snipping .snip-tb-right {
+  margin-left: auto;
+}
+.app-snipping .snip-tb-settings {
+  gap: 8px;
+}
+.app-snipping .snip-tb-title {
+  font-size: var(--fs-caption);
+}
+.app-snipping .snip-new {
+  min-height: 32px;
+  padding: 0 14px 0 10px;
+  gap: 6px;
+}
+.app-snipping .snip-new .icon {
+  width: 16px;
+  height: 16px;
+}
+.app-snipping .snip-dd {
+  min-height: 32px;
+  padding: 0 8px;
+  gap: 6px;
+}
+.app-snipping .snip-dd .snip-chev {
+  color: var(--text-2);
+  margin-left: -1px;
+}
+.app-snipping .snip-dd-icon {
+  display: inline-flex;
+}
+.app-snipping .snip-dd-label,
+.app-snipping .snip-zoom-label {
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+.app-snipping .snip-zoom-label {
+  min-width: 34px;
+  text-align: left;
+  color: var(--text-2);
+}
+.app-snipping .snip-tb .btn.icon-btn {
+  width: 36px;
+  min-width: 36px;
+  height: 32px;
+  min-height: 32px;
+}
+.app-snipping .snip-tb .btn:disabled,
+.app-snipping .snip-toolrow .btn:disabled {
+  background: transparent;
+}
+
+/* ------------------------------------------------------------------ editing tools */
+.app-snipping .snip-tools {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+.app-snipping .snip-tb .snip-tools {
+  margin: 0 auto;
+}
+.app-snipping .snip-tools-ink,
+.app-snipping .snip-tools-crop {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.app-snipping .snip-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 6px;
+  background: var(--stroke-strong);
+  flex: none;
+}
+.app-snipping .snip-tool.selected {
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+}
+.app-snipping .snip-tool.selected:hover {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+.app-snipping .snip-ink {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 0;
+}
+.app-snipping .snip-ink-bar {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--text) 30%, transparent);
+}
+.app-snipping .snip-tool[data-tool="eraser"] .snip-ink-bar {
+  visibility: hidden;
+}
+.app-snipping .snip-tool.selected .snip-ink-bar {
+  width: 16px;
+}
+.app-snipping .snip-crop-ok {
+  color: var(--accent-text);
+}
+:root[data-theme="dark"] .app-snipping .snip-crop-ok {
+  color: var(--accent);
+}
+.app-snipping .snip-crop-reset {
+  min-height: 32px;
+  gap: 6px;
+  padding: 0 10px;
+  font-size: var(--fs-caption);
+}
+.app-snipping .snip-toolrow {
+  display: none;
+  flex: none;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+}
+.app-snipping .snip-app.has-toolrow[data-view="editor"] .snip-toolrow {
+  display: flex;
+}
+.app-snipping .snip-toolrow .snip-tools {
+  animation: snip-fade-in var(--dur-slow) var(--ease);
+}
+
+/* ------------------------------------------------------------------ views */
+.app-snipping .snip-app {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-snipping .snip-app > .snip-compact,
+.app-snipping .snip-app > .snip-editor,
+.app-snipping .snip-app > .snip-settings {
+  display: none;
+}
+.app-snipping .snip-app[data-view="compact"] > .snip-compact,
+.app-snipping .snip-app[data-view="editor"] > .snip-editor,
+.app-snipping .snip-app[data-view="settings"] > .snip-settings {
+  display: flex;
+  animation: snip-fade-in var(--dur-slow) var(--ease);
+}
+
+/* compact */
+.app-snipping .snip-compact {
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 28px 16px;
+}
+.app-snipping .snip-hint {
+  margin: 0;
+  max-width: 460px;
+  text-align: center;
+  color: var(--text-2);
+  line-height: 26px;
+}
+.app-snipping .snip-keys {
+  white-space: nowrap;
+}
+.app-snipping .snip-hint kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: var(--fs-caption);
+  line-height: 20px;
+  text-align: center;
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  background: var(--control);
+  border: 1px solid var(--control-stroke);
+  border-bottom-color: var(--control-stroke-bottom);
+}
+.app-snipping .snip-plus {
+  margin: 0 3px;
+  color: var(--text-3);
+}
+
+/* editor */
+.app-snipping .snip-editor {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--layer);
+  border-top: 1px solid var(--stroke);
+}
+.app-snipping .snip-app.has-toolrow .snip-toolrow {
+  border-bottom: 0;
+}
+.app-snipping .snip-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  outline: none;
+}
+.app-snipping .snip-stage:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--text);
+}
+.app-snipping .snip-stage-inner {
+  box-sizing: border-box;
+  min-width: 100%;
+  min-height: 100%;
+  width: max-content;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.app-snipping .snip-wrap {
+  position: relative;
+  isolation: isolate;
+  touch-action: none;
+  box-shadow: 0 0 0 1px var(--stroke), 0 2px 4px rgba(0, 0, 0, 0.1), 0 10px 28px rgba(0, 0, 0, 0.14);
+  background-color: #fff;
+  background-image: conic-gradient(#e8e8e8 25%, #fff 0 50%, #e8e8e8 0 75%, #fff 0);
+  background-size: 16px 16px;
+  animation: snip-pop var(--dur-slower) var(--ease);
+}
+.app-snipping .snip-wrap > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.app-snipping .snip-wrap.pixelated > canvas {
+  image-rendering: pixelated;
+}
+.app-snipping .snip-live {
+  pointer-events: none;
+}
+.app-snipping .snip-live.hl {
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+}
+.app-snipping .snip-flash {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 5;
+  padding: 7px 14px 8px;
+  border-radius: var(--radius);
+  background: var(--acrylic-solid);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  font-size: var(--fs-caption);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 10px);
+  transition: opacity var(--dur) linear, transform var(--dur-slow) var(--ease);
+  white-space: nowrap;
+  max-width: calc(100% - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-snipping .snip-flash.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* crop */
+.app-snipping .snip-crop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 2;
+}
+.app-snipping .snip-crop-box {
+  position: absolute;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  outline: 1px solid rgba(255, 255, 255, 0.85);
+  outline-offset: -1px;
+  cursor: move;
+}
+.app-snipping .snip-crop-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur) linear;
+  background:
+    linear-gradient(to right, transparent calc(33.333% - 0.5px), rgba(255, 255, 255, 0.55) calc(33.333% - 0.5px), rgba(255, 255, 255, 0.55) calc(33.333% + 0.5px), transparent calc(33.333% + 0.5px), transparent calc(66.666% - 0.5px), rgba(255, 255, 255, 0.55) calc(66.666% - 0.5px), rgba(255, 255, 255, 0.55) calc(66.666% + 0.5px), transparent calc(66.666% + 0.5px)),
+    linear-gradient(to bottom, transparent calc(33.333% - 0.5px), rgba(255, 255, 255, 0.55) calc(33.333% - 0.5px), rgba(255, 255, 255, 0.55) calc(33.333% + 0.5px), transparent calc(33.333% + 0.5px), transparent calc(66.666% - 0.5px), rgba(255, 255, 255, 0.55) calc(66.666% - 0.5px), rgba(255, 255, 255, 0.55) calc(66.666% + 0.5px), transparent calc(66.666% + 0.5px));
+}
+.app-snipping .snip-crop.dragging .snip-crop-grid {
+  opacity: 1;
+}
+.app-snipping .snip-ch {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  z-index: 1;
+}
+.app-snipping .snip-ch::before {
+  content: "";
+  position: absolute;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
+}
+.app-snipping .snip-ch-nw { left: 0; top: 0; cursor: nwse-resize; }
+.app-snipping .snip-ch-ne { right: 0; top: 0; cursor: nesw-resize; }
+.app-snipping .snip-ch-se { right: 0; bottom: 0; cursor: nwse-resize; }
+.app-snipping .snip-ch-sw { left: 0; bottom: 0; cursor: nesw-resize; }
+.app-snipping .snip-ch-nw::before,
+.app-snipping .snip-ch-ne::before,
+.app-snipping .snip-ch-se::before,
+.app-snipping .snip-ch-sw::before {
+  width: 18px;
+  height: 18px;
+  border: 0 solid #fff;
+}
+.app-snipping .snip-ch-nw::before { left: 0; top: 0; border-left-width: 4px; border-top-width: 4px; }
+.app-snipping .snip-ch-ne::before { right: 0; top: 0; border-right-width: 4px; border-top-width: 4px; }
+.app-snipping .snip-ch-se::before { right: 0; bottom: 0; border-right-width: 4px; border-bottom-width: 4px; }
+.app-snipping .snip-ch-sw::before { left: 0; bottom: 0; border-left-width: 4px; border-bottom-width: 4px; }
+.app-snipping .snip-ch-n,
+.app-snipping .snip-ch-s {
+  left: 50%;
+  width: 40px;
+  margin-left: -20px;
+  height: 16px;
+  cursor: ns-resize;
+}
+.app-snipping .snip-ch-n { top: 0; }
+.app-snipping .snip-ch-s { bottom: 0; }
+.app-snipping .snip-ch-e,
+.app-snipping .snip-ch-w {
+  top: 50%;
+  height: 40px;
+  margin-top: -20px;
+  width: 16px;
+  cursor: ew-resize;
+}
+.app-snipping .snip-ch-e { right: 0; }
+.app-snipping .snip-ch-w { left: 0; }
+.app-snipping .snip-ch-n::before,
+.app-snipping .snip-ch-s::before {
+  left: 8px;
+  right: 8px;
+  height: 4px;
+  border-radius: 2px;
+  background: #fff;
+}
+.app-snipping .snip-ch-n::before { top: 0; }
+.app-snipping .snip-ch-s::before { bottom: 0; }
+.app-snipping .snip-ch-e::before,
+.app-snipping .snip-ch-w::before {
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 2px;
+  background: #fff;
+}
+.app-snipping .snip-ch-e::before { right: 0; }
+.app-snipping .snip-ch-w::before { left: 0; }
+.app-snipping .snip-crop-size {
+  position: absolute;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: var(--fs-caption);
+  line-height: 18px;
+  pointer-events: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* settings */
+.app-snipping .snip-settings {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  justify-content: center;
+  align-items: flex-start;
+}
+.app-snipping .snip-set-inner {
+  width: 100%;
+  max-width: 1000px;
+  padding: 4px 32px 32px;
+}
+.app-snipping .snip-set-h1 {
+  margin: 0 0 16px;
+}
+.app-snipping .snip-set-h2 {
+  margin: 20px 0 8px;
+  font-size: var(--fs-body);
+  line-height: 20px;
+  font-weight: 600;
+}
+.app-snipping .snip-set-title {
+  line-height: 20px;
+}
+.app-snipping .snip-set-row .caption {
+  margin-top: 1px;
+}
+.app-snipping .snip-set-group {
+  margin-bottom: 4px;
+}
+.app-snipping .snip-set-group > .card-row {
+  margin-bottom: 0;
+}
+.app-snipping .snip-set-group > .card-row:has(+ .snip-set-sub:not([hidden])) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.app-snipping .snip-set-sub {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--stroke-card);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--card);
+  animation: snip-fade-in var(--dur-slow) var(--ease);
+}
+.app-snipping .snip-set-subrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 16px 8px 52px;
+}
+.app-snipping .snip-set-subrow + .snip-set-subrow {
+  border-top: 1px solid var(--stroke-card);
+}
+.app-snipping .snip-set-subrow .slider {
+  width: 160px;
+}
+.app-snipping .snip-set-val {
+  min-width: 40px;
+  text-align: right;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.app-snipping .snip-set-about {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+}
+.app-snipping .snip-set-desc {
+  margin: 6px 0 2px;
+}
+.app-snipping .snip-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--accent-text);
+  font-size: inherit;
+  cursor: pointer;
+}
+:root[data-theme="dark"] .app-snipping .snip-link {
+  color: var(--accent);
+}
+.app-snipping .snip-link:hover {
+  text-decoration: underline;
+}
+
+/* swatches (settings border color, pen / highlighter colors) */
+.app-snipping .snip-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.app-snipping .snip-swatch {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--sw);
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  flex: none;
+  transition: transform var(--dur-fast) var(--ease);
+}
+:root[data-theme="dark"] .app-snipping .snip-swatch {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.app-snipping .snip-swatch:hover {
+  transform: scale(1.1);
+}
+.app-snipping .snip-swatch:active {
+  transform: scale(0.94);
+}
+.app-snipping .snip-swatch.selected::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: snip-pop var(--dur-slow) var(--ease);
+}
+.app-snipping .snip-swatch:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 5px;
+  border-radius: 50%;
+}
+
+/* ------------------------------------------------------------------ flyout (pen / highlighter / eraser) */
+.app-snipping.snip-flyout {
+  position: fixed;
+  z-index: 100000;
+  width: 276px;
+  padding: 14px 16px 12px;
+  border-radius: var(--radius);
+  background: var(--acrylic);
+  backdrop-filter: blur(30px) saturate(150%);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  color: var(--text);
+  outline: none;
+  animation: snip-fl-in var(--dur-slow) var(--ease);
+  transform-origin: top center;
+}
+:root[data-transparency="off"] .app-snipping.snip-flyout {
+  backdrop-filter: none;
+}
+.app-snipping.snip-flyout.closing {
+  animation: snip-fade-out 120ms linear forwards;
+}
+.app-snipping .snip-fl-label {
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  margin: 0 0 8px;
+}
+.app-snipping .snip-fl-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 24px);
+  justify-content: space-between;
+  gap: 8px 0;
+  margin: 0 0 14px;
+  padding: 0 2px;
+}
+.app-snipping .snip-fl-grid.hl .snip-swatch {
+  border-radius: 6px;
+}
+.app-snipping .snip-fl-grid.hl .snip-swatch.selected::after {
+  border-radius: 9px;
+}
+.app-snipping .snip-fl-size {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-snipping .snip-fl-size .slider {
+  flex: 1;
+  min-width: 0;
+}
+.app-snipping .snip-size-box {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.app-snipping .snip-size-dot {
+  display: block;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 25%, transparent);
+}
+.app-snipping .snip-fl-size .snip-set-val {
+  min-width: 18px;
+}
+.app-snipping .snip-fl-hint {
+  margin: 0 0 10px;
+}
+.app-snipping .snip-erase-all {
+  width: 100%;
+}
+
+/* ------------------------------------------------------------------ delay countdown */
+.app-snipping.snip-countdown {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  z-index: 99000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 6px;
+  border-radius: 999px;
+  background: var(--acrylic);
+  backdrop-filter: blur(30px) saturate(150%);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  color: var(--text);
+  transform: translateX(-50%);
+  animation: snip-drop var(--dur-slower) var(--ease);
+  white-space: nowrap;
+}
+.app-snipping .snip-cd-ring {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.app-snipping .snip-cd-num {
+  display: block;
+}
+.app-snipping .snip-cd-label {
+  margin-right: 2px;
+}
+.app-snipping .snip-cd-x {
+  border-radius: 50%;
+  width: 28px;
+  min-width: 28px;
+  min-height: 28px;
+}
+
+/* ------------------------------------------------------------------ full-screen snipping overlay */
+.app-snipping.snip-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99000;
+  cursor: crosshair;
+  outline: none;
+  user-select: none;
+  touch-action: none;
+  overflow: hidden;
+  background: #000;
+  animation: snip-fade-in 140ms linear;
+}
+.app-snipping .snip-shot,
+.app-snipping .snip-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+.app-snipping .snip-dim {
+  fill: rgba(0, 0, 0, 0.45);
+}
+.app-snipping .snip-outline {
+  stroke: #fff;
+  stroke-width: 1;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.app-snipping .snip-outline-dark {
+  stroke: rgba(0, 0, 0, 0.4);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.app-snipping.snip-overlay[data-mode="rect"] .snip-outline,
+.app-snipping.snip-overlay[data-mode="rect"] .snip-outline-dark {
+  shape-rendering: crispEdges;
+}
+.app-snipping .snip-win-outline {
+  stroke: var(--accent);
+  stroke-width: 2;
+  display: none;
+}
+.app-snipping .snip-size {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 3px 8px 4px;
+  border-radius: var(--radius-sm);
+  background: var(--acrylic-solid);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-tooltip);
+  color: var(--text);
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast) linear;
+}
+.app-snipping .snip-size.show {
+  opacity: 1;
+}
+.app-snipping .snip-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--radius);
+  background: var(--acrylic);
+  backdrop-filter: blur(30px) saturate(150%);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  cursor: default;
+  transform: translateX(-50%);
+  transition: opacity var(--dur) linear, transform var(--dur-slow) var(--ease);
+  animation: snip-bar-in var(--dur-slower) var(--ease);
+}
+:root[data-transparency="off"] .app-snipping .snip-bar,
+:root[data-transparency="off"] .app-snipping.snip-countdown {
+  backdrop-filter: none;
+}
+.app-snipping.snip-overlay.dragging .snip-bar {
+  opacity: 0;
+  pointer-events: none;
+}
+.app-snipping.snip-overlay.dragging .snip-ov-hint {
+  visibility: hidden;
+}
+.app-snipping .snip-bar-btn {
+  position: relative;
+  width: 40px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  transition: background var(--dur-fast) linear;
+}
+.app-snipping .snip-bar-btn:hover {
+  background: var(--subtle-hover);
+}
+.app-snipping .snip-bar-btn:active {
+  background: var(--subtle-pressed);
+}
+.app-snipping .snip-bar-btn.selected {
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  color: var(--accent-text);
+}
+:root[data-theme="dark"] .app-snipping .snip-bar-btn.selected {
+  color: var(--accent);
+}
+.app-snipping .snip-bar-btn.selected::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 14px;
+  height: 3px;
+  margin-left: -7px;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: snip-pill var(--dur-slow) var(--ease);
+}
+.app-snipping .snip-bar-sep {
+  width: 1px;
+  height: 24px;
+  margin: 0 4px;
+  background: var(--stroke-strong);
+}
+.app-snipping .snip-ov-hint {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 12px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: var(--fs-caption);
+  pointer-events: none;
+  white-space: nowrap;
+  opacity: 0;
+  animation: snip-hint 3.4s var(--ease) 0.25s;
+}
+.app-snipping.snip-overlay .snip-ov-hint:empty {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ about dialog */
+.snip-about-dialog .snip-about {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.snip-about-dialog .snip-about-desc {
+  margin: 10px 0 8px;
+}
+
+/* ------------------------------------------------------------------ motion */
+@keyframes snip-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes snip-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes snip-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes snip-pill {
+  from {
+    transform: scaleX(0.3);
+  }
+}
+@keyframes snip-fl-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+@keyframes snip-drop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -16px);
+  }
+}
+@keyframes snip-bar-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -24px);
+  }
+}
+@keyframes snip-hint {
+  0% {
+    opacity: 0;
+  }
+  8%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

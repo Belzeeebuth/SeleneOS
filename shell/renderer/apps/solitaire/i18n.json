@@ -126,7 +126,7 @@
     "help.goal": "Move all 52 cards to the four foundations, building each one up by suit from Ace to King.",
     "help.tableau": "In the seven columns, build down in alternating colors (a red 6 on a black 7). You can move a whole run of cards at once. Only a King, or a run starting with a King, can fill an empty column.",
     "help.stock": "Click the stock to turn over one or three cards. When it is empty, click it again to turn the waste back over. Right-click the table to send every possible card to the foundations.",
-    "help.scoring": "Standard scoring: +10 for a card on a foundation, +5 from the waste to a column, +5 for turning a card over, −15 for taking a card back from a foundation. Vegas: each game costs $52 and every foundation card pays $5.",
+    "help.scoring": "Standard scoring: +10 for a card on a foundation, +5 from the waste to a column, +5 for turning a card over, −15 for taking a card back from a foundation. Turning the waste over costs 100 points in Draw 1, and 20 points after the third pass in Draw 3. Timed games lose 2 points every 10 seconds but earn a bonus for a fast win. Vegas: each game costs $52 and every foundation card pays $5; the stock can be gone through once in Draw 1, three times in Draw 3.",
     "help.keys": "Keyboard shortcuts",
     "help.arrows": "Arrows / Tab",
     "help.enter": "Enter / Space",
@@ -137,10 +137,14 @@
     "help.kColumn": "Jump to a column, or drop the cards you hold on it",
     "help.kCancel": "Cancel the selection",
     "error.title": "Solitaire",
-    "error.save": "Your game couldn't be saved: {msg}",
+    "error.save": "Your game and statistics couldn't be saved. Check that there is free space in your home folder.",
     "passOf": "Pass {n} of {total}",
     "win.summary_one": "You've won {won} of {played} games ({pct}).",
-    "win.summary_other": "You've won {won} of {played} games ({pct})."
+    "win.summary_other": "You've won {won} of {played} games ({pct}).",
+    "key.shift": "Shift",
+    "key.ctrl": "Ctrl",
+    "key.enter": "Enter",
+    "key.esc": "Esc"
   },
   "fr": {
     "newGame": "Nouvelle partie",
@@ -269,7 +273,7 @@
     "help.goal": "Placez les 52 cartes sur les quatre fondations, en montant de l'As au Roi dans chaque couleur.",
     "help.tableau": "Dans les sept colonnes, descendez en alternant rouge et noir (un 6 rouge sur un 7 noir). Vous pouvez déplacer une suite entière d'un coup. Seul un Roi, ou une suite commençant par un Roi, peut occuper une colonne vide.",
     "help.stock": "Cliquez sur la pioche pour retourner une ou trois cartes. Quand elle est vide, cliquez de nouveau pour remettre la défausse en jeu. Un clic droit sur la table envoie toutes les cartes possibles sur les fondations.",
-    "help.scoring": "Score standard : +10 par carte posée sur une fondation, +5 de la défausse vers une colonne, +5 par carte retournée, −15 pour reprendre une carte d'une fondation. Vegas : chaque partie coûte 52 $ et chaque carte sur une fondation rapporte 5 $.",
+    "help.scoring": "Score standard : +10 par carte posée sur une fondation, +5 de la défausse vers une colonne, +5 par carte retournée, −15 pour reprendre une carte d'une fondation. Remettre la défausse dans la pioche coûte 100 points en Pioche 1, et 20 points après le troisième passage en Pioche 3. En partie chronométrée, vous perdez 2 points toutes les 10 secondes mais gagnez un bonus pour une victoire rapide. Vegas : chaque partie coûte 52 $ et chaque carte sur une fondation rapporte 5 $ ; la pioche ne peut être parcourue qu'une fois en Pioche 1, trois fois en Pioche 3.",
     "help.keys": "Raccourcis clavier",
     "help.arrows": "Flèches / Tab",
     "help.enter": "Entrée / Espace",
@@ -280,9 +284,13 @@
     "help.kColumn": "Aller à une colonne, ou y poser les cartes tenues",
     "help.kCancel": "Annuler la sélection",
     "error.title": "Solitaire",
-    "error.save": "Impossible d'enregistrer la partie : {msg}",
+    "error.save": "Impossible d'enregistrer la partie et les statistiques. Vérifiez qu'il reste de l'espace libre dans votre dossier personnel.",
     "passOf": "Passage {n} sur {total}",
     "win.summary_one": "Vous avez gagné {won} partie sur {played} ({pct}).",
-    "win.summary_other": "Vous avez gagné {won} parties sur {played} ({pct})."
+    "win.summary_other": "Vous avez gagné {won} parties sur {played} ({pct}).",
+    "key.shift": "Maj",
+    "key.ctrl": "Ctrl",
+    "key.enter": "Entrée",
+    "key.esc": "Échap"
   }
 }

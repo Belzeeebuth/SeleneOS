@@ -1,7 +1,7 @@
 // Services page: systemd services (name, PID, description, status, startup type) with
 // Start / Stop / Restart through the administrator prompt (aurora-admin "service" action).
 import { VTable } from '../table.js';
-import { matcher, compare } from '../util.js';
+import { matcher, compare, errText } from '../util.js';
 
 const REFRESH_MS = 5000;
 
@@ -132,7 +132,7 @@ export class ServicesPage {
     if (this.error) {
       const { h, icon } = this.app.ctx;
       this.errorEl.textContent = '';
-      this.errorEl.append(icon('puzzle_piece', { size: 40 }), h('div', { class: 'body-strong' }, t('svc.unavailable')), h('div', { class: 'caption text-2' }, this.error.message));
+      this.errorEl.append(icon('puzzle_piece', { size: 40 }), h('div', { class: 'body-strong' }, t('svc.unavailable')), h('div', { class: 'caption text-2' }, errText(t, this.error)));
       return;
     }
     if (!this.data) {
@@ -169,17 +169,20 @@ export class ServicesPage {
   }
 
   async act(verb, s) {
-    if (!s || this.data?.mock) return;
+    // One action per service at a time: a double click must not stack two UAC prompts.
+    if (!s || this.data?.mock || this.busy.has(s.unit)) return;
     const { t } = this.app;
     this.busy.add(s.unit);
     this.render();
+    this.app.renderCommands();
     try {
       await this.app.ctx.shell.runAdmin('service', [verb, s.unit], { reason: t(`svc.reason.${verb}`, { name: s.name }), appId: 'taskmgr' });
     } catch (err) {
-      if (err?.code !== 'ECANCELED') await this.app.actions.alertErr(t('svc.failed', { name: s.name, msg: err?.message || String(err) }));
+      if (err?.code !== 'ECANCELED') await this.app.actions.alertErr(t('svc.failed', { name: s.name, msg: errText(t, err) }));
     } finally {
       this.busy.delete(s.unit);
     }
+    if (this.app.closed) return;
     await this.load();
   }
 

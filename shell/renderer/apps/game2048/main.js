@@ -164,6 +164,11 @@ export default {
         });
         if (v !== 'new') return board.focus({ preventScroll: true });
       }
+      // A new board size becomes the preference only once its game really starts (not if cancelled).
+      if (size && size !== prefs.size) {
+        prefs.size = size;
+        savePrefs();
+      }
       startNew(size || prefs.size);
     }
 
@@ -366,8 +371,6 @@ export default {
           checked: game.size === n,
           action: () => {
             if (n === game.size) return;
-            prefs.size = n;
-            savePrefs();
             requestNewGame(n);
           },
         })),

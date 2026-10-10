@@ -625,7 +625,8 @@
   flex-direction: column;
   gap: 2px;
   max-height: min(44vh, calc(100vh - 160px));
-  max-width: calc(50vw - 40px);
+  /* Never reaches under the centred sign-in card (380px wide): long names are cut with an ellipsis. */
+  max-width: min(360px, max(180px, calc(50vw - 214px)));
   overflow-y: auto;
   scrollbar-width: none;
   opacity: 0;
@@ -637,13 +638,27 @@
   transform: none;
   transition-delay: 220ms;
 }
+/* More accounts above / below: the edge fades out. */
+.lk-users.lk-scroll {
+  --lk-fade-top: 20px;
+  --lk-fade-end: 20px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--lk-fade-top), #000 calc(100% - var(--lk-fade-end)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--lk-fade-top), #000 calc(100% - var(--lk-fade-end)), transparent 100%);
+}
+.lk-users.lk-scroll.lk-at-top {
+  --lk-fade-top: 0px;
+}
+.lk-users.lk-scroll.lk-at-end {
+  --lk-fade-end: 0px;
+}
 .lk-user {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-width: 232px;
+  min-width: min(232px, 100%);
   max-width: 100%;
   height: 56px;
+  flex: none;
   padding: 0 16px 0 8px;
   border: 0;
   border-radius: 6px;

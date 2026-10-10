@@ -61,6 +61,8 @@ function render() {
     }
   });
   sv = new SearchView({ variant: 'panel', onDone: () => fly.close('launch') });
+  // Picking a category with the mouse keeps typing / arrow keys in the search box.
+  sv.onCategory = () => input.focus({ preventScroll: true });
   sv.onPickRecent = (q) => {
     input.value = q;
     clearBtn.hidden = false;
@@ -100,7 +102,9 @@ export function mount(c) {
     if (fly.isOpen) {
       if (typeof opts?.query === 'string') {
         input.value = opts.query;
+        root.querySelector('.sp-clear').hidden = !opts.query;
         sv.setQuery(opts.query);
+        input.focus();
       }
       return;
     }

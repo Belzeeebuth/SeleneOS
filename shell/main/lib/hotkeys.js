@@ -95,6 +95,10 @@ function installHotkeys(contents, ipc, mode) {
       if (input.key === 'Alt') ipc.broadcast('shell:hotkey', { combo: 'Alt:up' });
     }
   });
+  // Super held while clicking (Super+click / drag) is not a Super tap: releasing it must not toggle Start.
+  contents.on('before-mouse-event', (_event, mouse) => {
+    if (superDown && mouse?.type === 'mouseDown') superUsed = true;
+  });
 }
 
 module.exports = { installHotkeys, comboOf, isSystem, SYSTEM };

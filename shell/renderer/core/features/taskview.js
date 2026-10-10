@@ -15,6 +15,7 @@ import { i18n, t } from '../i18n.js';
 import { wm } from '../wm.js';
 import { registry } from '../registry.js';
 import { shell } from '../services.js';
+import { thumbs } from './alttab.js';
 
 i18n.extend({
   en: {
@@ -62,7 +63,8 @@ export function computeLayout(items, area, { gapX = 28, gapY = 24, title = TITLE
   const n = items.length;
   if (!n) return new Map();
   let best = null;
-  for (let rows = 1; rows <= Math.min(n, 6); rows++) {
+  let tiny = null; // best layout whose thumbnails are under 24 px (only used when nothing better fits)
+  for (let rows = 1; rows <= Math.min(n, 12); rows++) {
     const per = Math.ceil(n / rows);
     const rowsArr = [];
     for (let i = 0; i < n; i += per) rowsArr.push(items.slice(i, i + per));
@@ -77,14 +79,19 @@ export function computeLayout(items, area, { gapX = 28, gapY = 24, title = TITLE
       else hi = mid;
     }
     const th = lo;
-    if (th < 24) continue;
+    if (th <= 1) continue;
     const sizes = rowsArr.map((r) => r.map((it) => {
       const ih = Math.min(th, it.h * maxScale);
       return { id: it.id, iw: ih * (it.w / it.h), ih };
     }));
     const area2 = sizes.flat().reduce((a, s) => a + s.iw * s.ih, 0);
+    if (th < 24) {
+      if (!tiny || area2 > tiny.score) tiny = { score: area2, sizes, th };
+      continue;
+    }
     if (!best || area2 > best.score * 1.02) best = { score: area2, sizes, th };
   }
+  best = best || tiny;
   if (!best) return new Map();
   const out = new Map();
   const rowHs = best.sizes.map((r) => Math.max(...r.map((s) => s.ih)) + title);
@@ -124,11 +131,13 @@ function deskThumb(id) {
     .sort((a, b) => Number(a.el.style.zIndex || 0) - Number(b.el.style.zIndex || 0));
   for (const w of wins) {
     const b = elementBox(w);
+    const bmp = thumbs.get(w);
+    const pic = bmp && Math.abs(bmp.width / bmp.height - b.width / b.height) < 0.04 ? miniCanvas(bmp, (b.width * k * 192) | 0) : null;
     box.appendChild(
       h(
         'div',
         {
-          class: 'tv-mini',
+          class: ['tv-mini', pic && 'pic'],
           style: {
             left: `${b.x * k * 100}%`,
             top: `${(b.y / L.height) * 100}%`,
@@ -136,11 +145,26 @@ function deskThumb(id) {
             height: `${(b.height / L.height) * 100}%`,
           },
         },
-        h('img', { src: w.iconUrl || registry.iconUrl(w.appId), alt: '', draggable: false }),
+        pic || h('img', { src: w.iconUrl || registry.iconUrl(w.appId), alt: '', draggable: false }),
       ),
     );
   }
   return box;
+}
+
+// A small canvas with a window's last screen capture (desktop tile miniatures).
+function miniCanvas(bmp, cssW) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.min(bmp.width, Math.round(Math.max(8, cssW) * dpr)));
+  const c = h('canvas', { class: 'tv-mini-img' });
+  c.width = w;
+  c.height = Math.max(1, Math.round((w * bmp.height) / bmp.width));
+  try {
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  } catch {
+    return null;
+  }
+  return c;
 }
 
 function renderStrip() {
@@ -223,7 +247,7 @@ function renderStrip() {
 
 function renameInline(id, nameEl) {
   if (!tv) return;
-  const input = h('input', { class: 'input tv-rename', value: wm.desktopName(id), spellcheck: false });
+  const input = h('input', { class: 'input tv-rename', value: wm.desktopName(id), spellcheck: false, maxlength: 60, 'aria-label': t('taskview.rename') });
   let done = false;
   const finish = (commit) => {
     if (done) return;
@@ -346,7 +370,7 @@ function buildCard(win) {
 }
 
 // Place every window of the shown desktop; windows of other desktops fade out in place.
-function layout({ instant = false } = {}) {
+function layout({ instant = false, appear = false } = {}) {
   if (!tv) return;
   const shownWins = wm.mru({ desktop: tv.shown }).filter((w) => !w._closing).reverse();
   // Keep a stable, Windows-like order: by creation time.
@@ -379,7 +403,7 @@ function layout({ instant = false } = {}) {
     el.classList.remove('tv-out');
     el.style.transformOrigin = '0 0';
     const T = `translate(${r.x - b.x}px, ${r.y - b.y}px) scale(${s})`;
-    if (fresh && (w.minimized || w.desktop !== wm.currentDesktop) && d) {
+    if (fresh && (appear || w.minimized || w.desktop !== wm.currentDesktop) && d) {
       // Not on screen before: appear in place with a fade/zoom.
       el.style.transition = 'none';
       el.style.opacity = '0';
@@ -582,6 +606,7 @@ export function open() {
   shell.emit('start:close');
   shell.emit('flyouts:close');
   ui.closeMenus();
+  wm.endKeyboardMove?.();
   const plates = h('div', { class: 'tv-plates' });
   const backdrop = h('div', { class: 'tv-backdrop', onclick: () => exit(null) }, plates);
   const cardsLayer = h('div', { class: 'tv-cards' });
@@ -671,6 +696,7 @@ export function exit(selected = null, { desktop = null, then = null, instant = f
       console.error(err);
     }
     shell.emit('taskview:closed');
+    if (s.reopen && !tv) open();
   };
   if (d) setTimeout(cleanup, d + 20);
   else cleanup();
@@ -678,7 +704,12 @@ export function exit(selected = null, { desktop = null, then = null, instant = f
 
 export function toggle() {
   if (tv && !tv.exiting) exit(null);
-  else if (!tv) open();
+  else if (tv) tv.reopen = !tv.reopen; // pressed again while the exit animation runs: come back after it
+  else open();
+}
+
+export function isOpen() {
+  return !!tv && !tv.exiting;
 }
 
 // ------------------------------------------------------------------ desktop switch pill
@@ -724,8 +755,8 @@ async function restoreDesktops() {
   try {
     const saved = await api.invoke('storage:get', 'shell', 'desktops', null);
     if (!Array.isArray(saved) || !saved.length) return;
-    wm.desktops[0].name = saved[0]?.name || null;
-    for (const d of saved.slice(1, 20)) wm.createDesktop(d?.name || null);
+    wm.renameDesktop(wm.desktops[0].id, saved[0]?.name);
+    for (const d of saved.slice(1, 20)) wm.createDesktop(d?.name);
   } catch {}
 }
 
@@ -738,7 +769,17 @@ export function mount(ctx) {
   shell.on('flyouts:close', () => tv && exit(null));
   shell.on('lock', () => tv && exit(null, { instant: true }));
   shell.on('desktop:bump', (d) => showPill(d));
-  wm.on('desktop', () => showPill());
+  wm.on('desktop', () => {
+    if (tv && !tv.exiting) {
+      // Super+Ctrl+←/→ / Super+Ctrl+D inside Task View: show the newly active desktop.
+      clearTimeout(tv.previewTimer);
+      tv.shown = wm.currentDesktop;
+      tv.sel = tv.sel?.area === 'desks' ? { area: 'desks', index: wm.desktopIndex(wm.currentDesktop) } : null;
+      layout({ appear: true });
+      if (!tv.sel && tv.order.length) tv.sel = { area: 'cards', index: Math.max(0, tv.order.indexOf(wm.focused())) };
+      paintSel();
+    } else showPill();
+  });
   wm.on('desktops', () => {
     saveDesktops();
     if (tv) {

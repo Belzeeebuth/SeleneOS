@@ -9,8 +9,9 @@
 //      and analysis mode, themes, persistence (resume after relaunch), EN/FR, light/dark, min size and
 //      maximized layouts, and no renderer errors.
 // Usage (from aurora-os/shell):
-//   xvfb-run -a -s "-screen 0 1600x900x24" node test/chess.test.mjs          # everything
+//   xvfb-run -a -s "-screen 0 1920x1080x24" node test/chess.test.mjs          # everything
 //   node test/chess.test.mjs --unit                                           # rules + AI only
+//   xvfb-run … node test/chess.test.mjs --ui --sessions=4,5                   # some UI sessions only
 // Screenshots: test/out/chess-*.png, published to docs/screenshots/chess-*.png.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -22,6 +23,9 @@ import { pieceSvg, PIECE_CODES } from '../renderer/apps/chess/pieces.mjs';
 const args = process.argv.slice(2);
 const UNIT_ONLY = args.includes('--unit');
 const UI_ONLY = args.includes('--ui');
+// --sessions=4,5 runs only those UI sessions (1 English, 2 persistence, 3 French, 4 robustness, 5 screens)
+const SESSIONS = (args.find((a) => a.startsWith('--sessions=')) || '').slice(11).split(',').filter(Boolean);
+const want = (n) => !SESSIONS.length || SESSIONS.includes(String(n));
 
 let passed = 0;
 let failed = 0;
@@ -175,6 +179,33 @@ async function unitTests() {
     const long = new Chess();
     for (let i = 0; i < 12; i++) for (const mm of ['Nf3', 'Nf6', 'Ng1', 'Ng8'].slice(0, 2)) long.move(mm) || long.move(mm === 'Nf3' ? 'Ng1' : 'Ng8');
     for (const line of long.pgn().split('\n')) assert.ok(line.length <= 80, `line too long: ${line}`);
+  });
+
+  await test('PGN import: first game of a multi-game file, coded errors, move-number and annotation forms', () => {
+    const multi = '[Event "A"]\n[Result "1-0"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0\n\n[Event "B"]\n[Result "0-1"]\n\n1. f3 e5 2. g4 Qh4# 0-1\n';
+    const m = new Chess().loadPgn(multi);
+    assert.deepEqual(m.history(), ['e4', 'e5', 'Qh5', 'Nc6', 'Bc4', 'Nf6', 'Qxf7#']);
+    assert.equal(m.headers.Event, 'A', 'tags of the first game only');
+    assert.deepEqual(new Chess().loadPgn('1. e4 ... e5 2.Nf3 2...Nc6 3. Bb5 a6!? 4. Ba4 +- Nf6 5. O-O $14 Be7 *').history(), ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'Nf6', 'O-O', 'Be7']);
+    assert.deepEqual(new Chess().loadPgn('[SetUp "1"]\n[FEN "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"]\n1… e5 2. Nf3 *').history(), ['e5', 'Nf3']);
+    assert.deepEqual(new Chess().loadPgn('1. e4 Nf6 2. e5 d5 3. exd6e.p. *').history(), ['e4', 'Nf6', 'e5', 'd5', 'exd6']);
+    assert.deepEqual(new Chess().loadPgn('1. e4 (1. d4 d5 (1... Nf6 2. c4) 2. c4) e5 {a (comment)} 2. Nf3 *').history(), ['e4', 'e5', 'Nf3']);
+    const err = (txt) => {
+      try {
+        new Chess().loadPgn(txt);
+      } catch (e) {
+        return e;
+      }
+      return null;
+    };
+    const bad = err('[SetUp "1"]\n[FEN "8/8/8 w - - 0 1"]\n\n1. e4 *');
+    assert.equal(bad.code, 'fen');
+    assert.equal(bad.fenError, 'rows');
+    const ill = err('1. e4 e5 2. Ke3');
+    assert.equal(ill.code, 'move');
+    assert.equal(ill.move, 'Ke3');
+    assert.equal(ill.ply, 2);
+    assert.equal(err('hello world').ply, 0);
   });
 
   await test('pieces: 12 original SVGs (gradients, outlines, no external references)', () => {
@@ -377,8 +408,8 @@ async function uiTests() {
   };
 
   // ------------------------------------------------------------ session 1: English, light
+  if (want(1)) {
   console.log('UI — English, light');
-  {
     const s = await launchShell({ open: ['chess'], lang: 'en', theme: 'light' });
     const H = helpers(s);
     const { page, T, state, waitFor, click, drag, pieces, dots, dotSquares, closeDialogs, focusApp } = H;
@@ -759,6 +790,7 @@ async function uiTests() {
         assert.equal(st.length, 18);
         assert.equal(await page.isVisible('.app-chess .cx-eval'), true);
         assert.match(await page.textContent('.app-chess .cx-analysis'), /depth/);
+        assert.match(await page.textContent('.app-chess .cx-eval-text'), /^(\d+(\.\d)?|M\d+)$/, 'score shown on the evaluation bar');
         await page.waitForTimeout(300);
         await winShot(s, 'chess-analysis');
         // free play from an earlier position replaces the rest of the line
@@ -780,8 +812,8 @@ async function uiTests() {
   }
 
   // ------------------------------------------------------------ session 2: persistence
+  if (want(2)) {
   console.log('UI — persistence');
-  {
     const home = fs.mkdtempSync(path.join((await import('node:os')).tmpdir(), 'aurora-chess-'));
     try {
       let s = await launchShell({ open: ['chess'], lang: 'en', theme: 'light', home });
@@ -819,8 +851,8 @@ async function uiTests() {
   }
 
   // ------------------------------------------------------------ session 3: French, dark, sizes
+  if (want(3)) {
   console.log('UI — French, dark, window sizes');
-  {
     const s = await launchShell({ open: ['chess'], lang: 'fr', theme: 'dark' });
     const H = helpers(s);
     const { page, T, win, state, waitFor, click } = H;
@@ -905,7 +937,456 @@ async function uiTests() {
         await page.waitForTimeout(400);
       });
 
+      await test('French notation in texts, French promotion keys, French number format', async () => {
+        // the hint is the mate Qd8#: in French the queen is "D"
+        await T('setup', '6k1/5ppp/8/8/8/8/5PPP/3Q2K1 w - - 0 1', { mode: 'two', time: 'none' });
+        await page.click('.app-chess [data-cmd="hint"]');
+        await waitFor((x) => !!x.hint, 6000, 'hint');
+        assert.match(await page.textContent('.app-chess .cx-status-text'), /Indice : essayez Dd8#/);
+        // a win against the computer, then the statistics show a French percentage
+        await T('setup', '6k1/5ppp/8/8/8/8/5PPP/3R2K1 w - - 0 1', { mode: 'ai', side: 'w', level: 'medium' });
+        await click('d1');
+        await click('d8');
+        await page.waitForSelector('.app-chess .cx-result');
+        await H.closeDialogs();
+        await page.click('.app-chess [data-cmd="more"]');
+        await page.click('.menu .menu-item:has-text("Statistiques")');
+        await page.waitForSelector('.app-chess .cx-stats');
+        const rate = await page.$eval('.app-chess .cx-stats tbody tr:nth-child(3) td:last-child', (e) => e.textContent);
+        assert.match(rate, /^100[\s  ]%$/, `French percent: "${rate}"`);
+        await H.closeDialogs();
+        await page.click('.app-chess [data-cmd="more"]');
+        await page.click('.menu .menu-item:has-text("Raccourcis")');
+        await page.waitForSelector('.app-chess .cx-keys');
+        const keys = await page.$$eval('.app-chess .cx-key-row kbd', (els) => els.map((e) => e.textContent));
+        assert.ok(keys.includes('D T F C'), `promotion keys in French: ${keys.join(' | ')}`);
+        await H.closeDialogs();
+      });
+
+      await test('French error messages for unreadable files (no raw system text, no path)', async () => {
+        const missing = path.join(s.home, 'Documents', 'absente.pgn');
+        await page.evaluate((p) => window.__aurora.shell.openFile(p), missing);
+        await page.waitForSelector('.app-chess .dialog');
+        const txt = await page.textContent('.app-chess .dialog');
+        assert.match(txt, /Impossible d'ouvrir « absente\.pgn »\. Le fichier n'existe pas/);
+        assert.doesNotMatch(txt, /ENOENT|no such file|\/Documents\//);
+        await H.closeDialogs();
+      });
+
       await test('no renderer errors (French, dark)', () => assert.deepEqual(chessErrors(s), []));
+    } finally {
+      await s.close();
+    }
+  }
+
+  // ------------------------------------------------------------ session 4: robustness + regressions
+  if (want(4)) {
+  console.log('UI — robustness, security, races, accessibility, leaks');
+    const home = fs.mkdtempSync(path.join((await import('node:os')).tmpdir(), 'aurora-chess-qa-'));
+    const appDir = path.join(home, '.config', 'aurora', 'apps', 'chess');
+    fs.mkdirSync(appDir, { recursive: true });
+    // corrupted / hostile stored data
+    fs.writeFileSync(path.join(appDir, 'prefs.json'), JSON.stringify({ theme: '<b>x</b>', coords: 'yes', legal: null, sound: 5, autoQueen: [], autoFlip: {}, setup: { mode: 'hack', side: 7, level: '__proto__', time: 'constructor' } }));
+    fs.writeFileSync(path.join(appDir, 'stats.json'), JSON.stringify({ ai: { medium: { w: 'NaN', l: -5, d: 2.7 } }, two: 'x' }));
+    fs.writeFileSync(path.join(appDir, 'game.json'), JSON.stringify({ v: 1, setup: {}, startFen: 'garbage', moves: 'e2e4', headers: 'abc' }));
+    const s = await launchShell({ open: [], lang: 'en', theme: 'light', home, keepHome: true });
+    const H = helpers(s);
+    const { page, T, state, waitFor, click, pieces, dots, closeDialogs } = H;
+    const docs = path.join(home, 'Documents');
+    try {
+      // count workers / audio contexts / timers created by the app (for the leak test below)
+      await page.evaluate(() => {
+        const W = window.Worker;
+        window.__workers = { created: 0, terminated: 0 };
+        window.Worker = class extends W {
+          constructor(...a) {
+            super(...a);
+            window.__workers.created++;
+          }
+          terminate() {
+            window.__workers.terminated++;
+            return super.terminate();
+          }
+        };
+        const AC = window.AudioContext;
+        window.__ac = { created: 0, closed: 0 };
+        window.AudioContext = class extends AC {
+          constructor(...a) {
+            super(...a);
+            window.__ac.created++;
+          }
+          close() {
+            window.__ac.closed++;
+            return super.close();
+          }
+        };
+        const si = window.setInterval;
+        const ci = window.clearInterval;
+        window.__iv = new Set();
+        window.setInterval = (fn, ms, ...r) => {
+          const id = si(fn, ms, ...r);
+          if (/apps\/chess/.test(new Error().stack)) window.__iv.add(id);
+          return id;
+        };
+        window.clearInterval = (id) => {
+          window.__iv.delete(id);
+          return ci(id);
+        };
+      });
+      const wmHandlers = () => page.evaluate(() => [...window.__aurora.wm._h.values()].reduce((n, set) => n + set.size, 0));
+      const baseHandlers = await wmHandlers();
+      await page.evaluate(() => window.__aurora.registry.launch('chess'));
+      await page.waitForSelector('.app-chess .cb-board');
+      await page.waitForTimeout(500);
+
+      await test('corrupted saved data is sanitized (types, prototype keys, negative counts)', async () => {
+        const st = await state();
+        assert.equal(st.mode, 'ai');
+        assert.equal(st.level, 'medium');
+        assert.equal(st.clock, null, '"constructor" is not a time control');
+        assert.equal(st.theme, 'wood');
+        assert.deepEqual(
+          { coords: st.prefs.coords, legal: st.prefs.legal, sound: st.prefs.sound, autoQueen: st.prefs.autoQueen, autoFlip: st.prefs.autoFlip },
+          { coords: true, legal: true, sound: true, autoQueen: false, autoFlip: false },
+        );
+        assert.deepEqual(st.stats.ai.medium, { w: 0, l: 0, d: 2 });
+        assert.equal(st.length, 0, 'the broken saved game is not resumed');
+        assert.match(await T('pgn'), /^\[Event "Casual game"\]/, 'string "headers" are ignored');
+        await click('e2');
+        assert.equal(await dots(), 2, 'legal move dots are on');
+        await click('e2');
+      });
+
+      await test('hostile file names and PGN tags are shown as text, never as HTML', async () => {
+        const name = '<img src=x onerror=window.__pwned=1>.pgn';
+        fs.writeFileSync(path.join(docs, name), '[Event "<script>window.__pwned=2</script>"]\n[White "<img src=x onerror=window.__pwned=3>"]\n\n1. e4 e5 2. Nf3 *');
+        await page.evaluate((p) => window.__aurora.shell.openFile(p), path.join(docs, name));
+        await waitFor((x) => x.mode === 'analysis' && x.length === 3, 6000, 'file opened');
+        await page.waitForTimeout(300);
+        assert.equal(await page.$eval('.win.app-chess .win-title', (e) => e.textContent), `${name} - Chess`);
+        assert.match(await page.textContent('.app-chess .cx-mode'), /<img src=x onerror=window.__pwned=1>\.pgn/, 'file name in the status card');
+        assert.equal(await page.evaluate(() => window.__pwned || 0), 0);
+        assert.equal(await page.$$eval('.app-chess img:not(.win-icon), .app-chess script', (els) => els.length), 0);
+        assert.match(await T('pgn'), /\[White "<img src=x onerror=window.__pwned=3>"\]/);
+      });
+
+      await test('unreadable files: clear messages without raw system errors or paths', async () => {
+        const cases = [
+          ['missing.pgn', null, /does not exist/],
+          ['huge.pgn', Buffer.alloc(9 * 1024 * 1024, 32), /too large/],
+          ['badfen.pgn', '[SetUp "1"]\n[FEN "8/8/8 w - - 0 1"]\n\n1. e4 *', /\[FEN\] tag of this PGN is not valid: each of the 8 ranks/],
+          ['notes.pgn', 'hello world, this is not chess', /neither a FEN position nor a PGN game/],
+          ['illegal.pgn', '1. e4 e5 2. Ke3 *', /illegal move: Ke3/],
+        ];
+        for (const [file, content, re] of cases) {
+          if (content !== null) fs.writeFileSync(path.join(docs, file), content);
+          await page.evaluate((p) => window.__aurora.shell.openFile(p), path.join(docs, file));
+          await page.waitForSelector('.app-chess .dialog', { timeout: 5000 });
+          const txt = await page.textContent('.app-chess .dialog');
+          assert.match(txt, re, `${file}: ${txt}`);
+          assert.match(txt, new RegExp(`“${file.replace('.', '\\.')}” could not be opened`));
+          assert.doesNotMatch(txt, /ENOENT|ETOOBIG|bytes\)|Invalid FEN|\/tmp\//, `${file}: raw error text`);
+          await closeDialogs();
+        }
+        assert.equal((await state()).length, 3, 'the open game is kept');
+      });
+
+      await test('a multi-game PGN opens its first game; a finished game reads as finished', async () => {
+        fs.writeFileSync(path.join(docs, 'two-games.pgn'), '[Event "A"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0\n\n[Event "B"]\n\n1. f3 e5 2. g4 Qh4# 0-1\n');
+        await page.evaluate((p) => window.__aurora.shell.openFile(p), path.join(docs, 'two-games.pgn'));
+        const st = await waitFor((x) => x.length === 7, 6000, 'first game');
+        assert.equal(st.history[6], 'Qxf7#');
+        assert.match(await page.textContent('.app-chess .cx-status-text'), /White wins · by checkmate/);
+        await page.waitForTimeout(400);
+        assert.match(await page.textContent('.app-chess .cx-analysis'), /Game over/);
+      });
+
+      await test('analysis: Hint while the analysis is running answers without stopping it', async () => {
+        await T('setup', START_FEN, { mode: 'analysis' });
+        await page.click('.app-chess [data-cmd="hint"]');
+        const st = await waitFor((x) => !!x.hint && x.analysis && x.analysis.depth > 0, 8000, 'hint and analysis');
+        assert.ok(st.hint.from && st.hint.to);
+        assert.match(await page.textContent('.app-chess .cx-analysis'), /depth \d+/);
+        // a hint belongs to its position: navigating drops it
+        await click('e2');
+        await click('e4');
+        await page.click('.app-chess [data-cmd="hint"]');
+        await waitFor((x) => !!x.hint && x.length === 1, 8000, 'hint after e4');
+        await H.focusApp();
+        await page.keyboard.press('Home');
+        await page.waitForTimeout(150);
+        assert.equal((await state()).hint, null);
+        assert.equal(await page.$$eval('.app-chess .cb-arrow', (e) => e.length), 0);
+      });
+
+      await test('analysis: after the line ends in mate, earlier positions still take hints and moves', async () => {
+        await T('setup', '6k1/5ppp/8/8/8/8/5PPP/3R2K1 w - - 0 1', { mode: 'analysis' });
+        await click('g1');
+        await click('f1');
+        await click('g8');
+        await click('f8');
+        await click('f1');
+        await click('g1');
+        await waitFor((x) => x.length === 3, 3000, 'three moves');
+        await click('f8');
+        await click('g8');
+        await click('d1');
+        await click('d8');
+        await page.waitForSelector('.app-chess .cx-result', { timeout: 4000 });
+        await closeDialogs();
+        assert.equal(await page.$eval('.app-chess [data-cmd="hint"]', (b) => b.disabled), true, 'no hint in the mated position');
+        await H.focusApp();
+        await page.keyboard.press('ArrowLeft');
+        await page.waitForTimeout(200);
+        assert.equal(await page.$eval('.app-chess [data-cmd="hint"]', (b) => b.disabled), false, 'hint available one move earlier');
+        assert.match(await page.textContent('.app-chess .cx-status-text'), /Reviewing 2… Kg8/);
+      });
+
+      await test('two players: a hint still searching is dropped when a move is played', async () => {
+        await T('setup', START_FEN, { mode: 'two', time: 'none' });
+        await page.click('.app-chess [data-cmd="hint"]');
+        await click('e2');
+        await click('e4');
+        await page.waitForTimeout(1300);
+        const st = await state();
+        assert.deepEqual(st.history, ['e4']);
+        assert.equal(st.hint, null);
+        assert.match(await page.textContent('.app-chess .cx-status-text'), /Black to move/);
+      });
+
+      await test('a set-up position that is already over is shown as finished', async () => {
+        await T('setup', '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1', { mode: 'two', time: 'none' });
+        await page.waitForTimeout(700);
+        assert.equal((await state()).result?.reason, 'stalemate');
+        assert.equal(await page.$('.app-chess .cx-result'), null, 'no result dialog for a game that never started');
+        assert.match(await page.textContent('.app-chess .cx-status-text'), /Draw · Stalemate/);
+      });
+
+      await test('fifty-move rule ends the game as a draw (result dialog, ½-½ in the move list)', async () => {
+        await T('setup', '8/8/8/4k3/8/8/8/R3K3 w - - 99 80', { mode: 'two', time: 'none' });
+        await click('a1');
+        await click('a2');
+        await page.waitForSelector('.app-chess .cx-result', { timeout: 4000 });
+        assert.match(await page.textContent('.app-chess .cx-res-reason'), /Fifty-move rule/);
+        assert.equal((await state()).result.reason, 'fifty');
+        assert.equal(await page.textContent('.app-chess .cx-mresult'), '½-½');
+        await closeDialogs();
+      });
+
+      await test('resigning with the promotion picker open closes the picker', async () => {
+        await T('setup', '4k3/1P6/8/8/8/8/8/4K3 w - - 0 1', { mode: 'two', time: 'none' });
+        await click('b7');
+        await click('b8');
+        await page.waitForSelector('.app-chess .cb-promo');
+        await page.click('.app-chess [data-cmd="resign"]');
+        await page.waitForSelector('.app-chess .dialog');
+        await page.click('.app-chess .dialog-footer .btn.primary');
+        await page.waitForSelector('.app-chess .cx-result');
+        await page.waitForTimeout(300);
+        assert.equal(await page.$('.app-chess .cb-promo:not(.closing)'), null);
+        assert.equal((await pieces()).b7, 'wP', 'the pawn went back');
+        await closeDialogs();
+      });
+
+      await test('Enter activates the focused dialog button (Copy PGN, Review, Cancel), not the default one', async () => {
+        await T('setup', '6k1/5ppp/8/8/8/8/5PPP/3R2K1 w - - 0 1', { mode: 'two', time: 'none' });
+        await click('d1');
+        await click('d8');
+        await page.waitForSelector('.app-chess .cx-result');
+        await page.waitForTimeout(400);
+        await page.focus('.app-chess .cx-res-copy');
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(300);
+        assert.ok(await page.$('.app-chess .cx-result'), 'Copy PGN keeps the dialog open');
+        assert.match(await page.evaluate(() => window.aurora.invoke('clipboard:readText')), /Rd8#/);
+        await page.focus('.app-chess .dialog-footer .btn:last-child'); // Review
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(400);
+        let st = await state();
+        assert.equal(await page.$('.app-chess .cx-result'), null);
+        assert.deepEqual(st.history, ['Rd8#'], 'Review did not start a new game');
+        assert.equal(st.result?.reason, 'checkmate');
+        // Cancel in the resign confirmation
+        await T('setup', START_FEN, { mode: 'ai', side: 'w', level: 'easy', time: 'none' });
+        await page.click('.app-chess [data-cmd="resign"]');
+        await page.waitForSelector('.app-chess .dialog');
+        await page.waitForTimeout(100);
+        await page.focus('.app-chess .dialog-footer .btn:last-child');
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(400);
+        st = await state();
+        assert.equal(st.result, null, 'Enter on Cancel does not resign');
+        assert.equal(await page.$('.app-chess .dialog'), null);
+      });
+
+      await test('a result reached while another dialog is open is shown when that dialog closes', async () => {
+        await T('setup', START_FEN, { mode: 'two', time: '5+0' });
+        await click('e2');
+        await click('e4');
+        await page.click('.app-chess [data-cmd="more"]');
+        await page.click('.menu .menu-item:has-text("Keyboard shortcuts")');
+        await page.waitForSelector('.app-chess .cx-keys');
+        await T('setClock', 'b', 30);
+        await waitFor((x) => !!x.result, 3000, 'flag');
+        await page.waitForTimeout(800);
+        assert.equal(await page.$('.app-chess .cx-result'), null, 'not stacked over the open dialog');
+        await page.keyboard.press('Escape');
+        await page.waitForSelector('.app-chess .cx-result', { timeout: 3000 });
+        assert.match(await page.textContent('.app-chess .cx-res-reason'), /Black ran out of time/);
+        await closeDialogs();
+      });
+
+      await test('timeout rule: a lone knight can still mate against pawns; a bare king cannot', async () => {
+        await T('setup', '7k/7p/8/8/8/8/8/K5N1 w - - 0 1', { mode: 'two', time: '5+0' });
+        await click('a1');
+        await click('a2');
+        await T('setClock', 'b', 30);
+        let st = await waitFor((x) => !!x.result, 3000, 'flag');
+        assert.deepEqual([st.result.reason, st.result.winner], ['timeout', 'w']);
+        await closeDialogs();
+        await T('setup', '7k/8/8/8/8/8/8/K5Q1 b - - 0 1', { mode: 'two', time: '5+0' });
+        await click('h8');
+        await click('h7');
+        await T('setClock', 'w', 30);
+        st = await waitFor((x) => !!x.result, 3000, 'flag');
+        assert.deepEqual([st.result.reason, st.result.winner], ['timeoutDraw', null]);
+        await page.waitForSelector('.app-chess .cx-result');
+        await closeDialogs();
+      });
+
+      await test('keyboard play is announced square by square for screen readers', async () => {
+        await T('setup', START_FEN, { mode: 'two', time: 'none' });
+        await page.focus('.app-chess .cb-board');
+        const sr = () => page.textContent('.app-chess .cx-sr');
+        await page.keyboard.press('ArrowUp');
+        assert.equal(await sr(), 'e3, empty');
+        await page.keyboard.press('ArrowDown');
+        assert.equal(await sr(), 'e2, White pawn');
+        await page.keyboard.press('Enter');
+        assert.equal(await sr(), 'e2, White pawn, selected, 2 legal moves');
+        await page.keyboard.press('ArrowUp');
+        assert.equal(await sr(), 'e3, empty, legal move');
+        await page.keyboard.press('ArrowUp');
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(200);
+        assert.equal(await sr(), 'White played e4');
+      });
+
+      await test('switching language with the promotion picker open cancels it; keys still work', async () => {
+        await T('setup', '4k3/1P6/8/8/8/8/8/4K3 w - - 0 1', { mode: 'two', time: 'none' });
+        await click('b7');
+        await click('b8');
+        await page.waitForSelector('.app-chess .cb-promo');
+        await page.evaluate(() => window.__aurora.settings.set('lang', 'fr'));
+        await page.waitForTimeout(700);
+        assert.equal(await page.$('.app-chess .cb-promo:not(.closing)'), null);
+        assert.equal((await pieces()).b7, 'wP');
+        await click('b7');
+        await click('b8');
+        await page.waitForSelector('.app-chess .cb-promo');
+        await page.waitForTimeout(100);
+        await page.keyboard.press('d'); // Dame
+        await page.waitForTimeout(300);
+        assert.deepEqual((await state()).history, ['b8=Q+']);
+        await page.evaluate(() => window.__aurora.settings.set('lang', 'en'));
+        await page.waitForTimeout(500);
+      });
+
+      await test('no leaks: 15 open/close cycles (also mid-search, mid-drag, with clocks)', async () => {
+        // (a single-instance app relaunched during its close animation gets the dying window back:
+        // wait until it is gone)
+        const closed = () => page.waitForFunction(() => window.__aurora.wm.byApp('chess').length === 0, null, { timeout: 5000 });
+        await page.evaluate(() => window.__aurora.wm.byApp('chess')[0].close());
+        await closed();
+        for (let i = 0; i < 15; i++) {
+          await page.evaluate(() => window.__aurora.registry.launch('chess'));
+          await page.waitForFunction(() => {
+            const w = window.__aurora.wm.byApp('chess')[0];
+            return !!(w && window.__aurora.registry.instance(w.id)?.hooks?.test);
+          });
+          await page.waitForTimeout(150);
+          if (i % 3 === 0) {
+            await T('setup', START_FEN, { mode: 'ai', side: 'w', level: 'expert', time: '5+0' });
+            await click('e2');
+            await click('e4');
+          } else if (i % 3 === 1) {
+            const p = await page.evaluate(() => {
+              const b = document.querySelector('.app-chess .cb-board').getBoundingClientRect();
+              return { x: b.left + b.width * 0.81, y: b.bottom - b.height * 0.06 };
+            });
+            await page.mouse.move(p.x, p.y);
+            await page.mouse.down();
+            await page.mouse.move(p.x + 30, p.y - 60, { steps: 3 });
+          }
+          await page.evaluate(() => window.__aurora.wm.byApp('chess')[0].close());
+          await closed();
+          if (i % 3 === 1) await page.mouse.up();
+        }
+        await page.waitForTimeout(1200);
+        const c = await page.evaluate(() => ({ workers: window.__workers, ac: window.__ac, intervals: window.__iv.size, wins: window.__aurora.wm.byApp('chess').length }));
+        assert.equal(c.wins, 0);
+        assert.equal(c.workers.created, c.workers.terminated, `workers ${JSON.stringify(c.workers)}`);
+        assert.equal(c.ac.created, c.ac.closed, `audio contexts ${JSON.stringify(c.ac)}`);
+        assert.equal(c.intervals, 0, 'clock intervals cleared');
+        assert.equal(await wmHandlers(), baseHandlers, 'window manager listeners');
+      });
+
+      await test('no renderer errors (robustness)', () =>
+        assert.deepEqual(
+          chessErrors(s).filter((l) => !/could not resume the saved game/.test(l)),
+          [],
+        ));
+    } finally {
+      await s.close();
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  }
+
+  // ------------------------------------------------------------ session 5: common screen sizes
+  if (want(5)) console.log('UI — 1280x720 and 1920x1080 screens');
+  for (const size of want(5) ? ['1280x720', '1920x1080'] : []) {
+    const s = await launchShell({ open: ['chess'], lang: 'fr', theme: size === '1280x720' ? 'light' : 'dark', size });
+    const H = helpers(s);
+    try {
+      await s.page.waitForSelector('.app-chess .cb-board');
+      await s.page.waitForTimeout(500);
+      await test(`${size}: default, maximized and minimum windows fit (French, clocks, analysis)`, async () => {
+        const fit = () =>
+          s.page.evaluate(() => {
+            const w = document.querySelector('.win.app-chess').getBoundingClientRect();
+            const out = [];
+            for (const sel of ['.cb-board', '.cx-panel', '.cx-toolbar', '.cx-moves-card', '.cx-player:last-child', '.cx-eval']) {
+              const el = document.querySelector(`.app-chess ${sel}`);
+              if (!el || el.offsetParent === null) continue;
+              const r = el.getBoundingClientRect();
+              if (r.left < w.left - 1 || r.right > w.right + 1 || r.top < w.top - 1 || r.bottom > w.bottom + 1) out.push(sel);
+            }
+            if (w.bottom > innerHeight || w.right > innerWidth) out.push('window off screen');
+            for (const el of document.querySelectorAll('.app-chess .cx-toolbar *, .app-chess .cx-panel *')) {
+              if (el.offsetParent === null || el.children.length || el.matches('.ellipsis')) continue;
+              if (el.scrollWidth > el.clientWidth + 1) out.push(`overflow: ${el.className} "${el.textContent.trim().slice(0, 30)}"`);
+            }
+            return out;
+          });
+        await H.T('setup', 'r1bq1rk1/pp2bppp/2n1pn2/3p4/2PP4/2N1PN2/PP3PPP/R2QKB1R w KQ - 0 8', { mode: 'ai', side: 'w', level: 'medium', time: '15+10' });
+        await s.page.waitForTimeout(300);
+        assert.deepEqual(await fit(), [], 'default size');
+        await H.win('maximize');
+        await s.page.waitForTimeout(700);
+        assert.deepEqual(await fit(), [], 'maximized');
+        const big = (await H.state()).boardSize;
+        assert.ok(big >= (size === '1280x720' ? 540 : 900), `maximized board ${big}`);
+        await winShot(s, `chess-maximized-${size}`, { pub: size === '1920x1080' });
+        await H.win('restore');
+        await s.page.waitForTimeout(400);
+        await H.win('setSize', 400, 300);
+        await s.page.waitForTimeout(500);
+        assert.deepEqual(await fit(), [], 'minimum size');
+        await H.T('setup', START_FEN, { mode: 'analysis' });
+        await s.page.waitForTimeout(600);
+        assert.deepEqual(await fit(), [], 'minimum size, analysis board');
+      });
+      await test(`${size}: no renderer errors`, () => assert.deepEqual(chessErrors(s), []));
     } finally {
       await s.close();
     }

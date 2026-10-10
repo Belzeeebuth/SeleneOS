@@ -17,6 +17,7 @@ import {
   randomGameNumber,
   emptyStats,
   recordResult,
+  sanitizeStats,
   stateFrom,
 } from './rules.mjs';
 import { faceSvg, backSvg, svgUrl, BACKS, CARD_W, CARD_H } from './cards.mjs';
@@ -27,6 +28,29 @@ const RATIO = CARD_H / CARD_W;
 const MOVE_MS = 260;
 const DEAL_STAGGER = 34;
 const TOP_ROW = ['stock', 'waste', null, 'f0', 'f1', 'f2', 'f3'];
+// Tightest tableau fan, in card heights: face-down edges, and face-up cards still showing the whole rank index.
+const FD_MIN = 0.05;
+const FU_MIN = 0.17;
+// Vertical room planned for a column below its first card (in card heights) before the cards shrink.
+const FAN_ROOM = 1.7;
+
+/** Preferences read from storage, with anything unknown or malformed replaced by the default. */
+function sanitizePrefs(p) {
+  const o = { ...DEFAULTS };
+  if (!p || typeof p !== 'object') return o;
+  if (p.draw === 1 || p.draw === 3) o.draw = p.draw;
+  if (SCORINGS.includes(p.scoring)) o.scoring = p.scoring;
+  for (const k of ['timed', 'cumulative', 'clickMove', 'sound']) if (typeof p[k] === 'boolean') o[k] = p[k];
+  if (typeof p.bank === 'number' && Number.isFinite(p.bank)) o.bank = Math.round(p.bank);
+  if (BACKS.includes(p.back)) o.back = p.back;
+  if (TABLES.includes(p.table)) o.table = p.table;
+  return o;
+}
+
+function sanitizeAllStats(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return { draw1: sanitizeStats(src.draw1), draw3: sanitizeStats(src.draw3) };
+}
 
 const faceUrls = [];
 const faceUrl = (c) => (faceUrls[c] ||= svgUrl(faceSvg(c)));
@@ -159,8 +183,8 @@ class SolitaireApp {
     let saved = null;
     try {
       const [prefs, stats, game] = await Promise.all([ctx.storage.get('prefs', null), ctx.storage.get('stats', null), ctx.storage.get('game', null)]);
-      if (prefs && typeof prefs === 'object') this.prefs = { ...DEFAULTS, ...prefs };
-      if (stats && typeof stats === 'object') this.stats = stats;
+      this.prefs = sanitizePrefs(prefs);
+      this.stats = sanitizeAllStats(stats);
       if (game) {
         try {
           const g = Klondike.fromJSON(game);
@@ -172,8 +196,6 @@ class SolitaireApp {
     } catch (err) {
       console.warn('[solitaire] could not read saved data', err);
     }
-    if (!BACKS.includes(this.prefs.back)) this.prefs.back = 'aurora';
-    if (!TABLES.includes(this.prefs.table)) this.prefs.table = 'felt';
     this.applyLook();
     this.layout();
     if (saved) this.setGame(saved, { deal: false });
@@ -211,6 +233,8 @@ class SolitaireApp {
       this.sfx.dispose();
     });
     setTimeout(() => this.focusTable(), 50);
+    // Piles glide when the cards are rescaled, but not into their first position.
+    requestAnimationFrame(() => requestAnimationFrame(() => this.table.classList.add('ready')));
   }
 
   later(fn, ms) {
@@ -224,7 +248,9 @@ class SolitaireApp {
 
   paused() {
     const w = this.ctx.win;
-    return this.disposed || w.minimized || document.hidden || this.modal > 0 || this.cascading;
+    // Also paused while the window sits on another virtual desktop, where nobody can be playing.
+    const away = typeof w.isOnCurrentDesktop === 'function' && !w.isOnCurrentDesktop();
+    return this.disposed || w.minimized || away || document.hidden || this.modal > 0 || this.cascading;
   }
 
   focusTable() {
@@ -303,7 +329,7 @@ class SolitaireApp {
     this.btnGameMenu = h('button', { class: 'btn sol-split-more', type: 'button', 'aria-haspopup': 'menu', onclick: (e) => this.gameMenu(e) }, icon('chevron_down', { size: 12 }));
     this.bind(this.btnGameMenu, () => t('gameMenu'), 'aria-label');
     this.bind(this.btnGameMenu, () => t('gameMenu'), 'data-tip');
-    this.btnUndo = tbBtn('arrow_undo', () => t('undo'), () => `${t('undo')} (Ctrl+Z)`, () => this.undo());
+    this.btnUndo = tbBtn('arrow_undo', () => t('undo'), () => `${t('undo')} (${t('key.ctrl')}+Z)`, () => this.undo());
     this.btnHint = tbBtn('lightbulb', () => t('hint'), () => `${t('hint')} (H)`, () => this.hint());
 
     const stat = (key) => {
@@ -333,6 +359,7 @@ class SolitaireApp {
       h('div', { class: 'sol-tb-group sol-tb-end' }, this.btnStats, this.btnHelp, this.btnSettings),
     );
     this.bind(this.toolbar, () => t('toolbar'), 'aria-label');
+    this.setupToolbarKeys();
 
     // Table ----------------------------------------------------------------
     this.table = h('div', { class: 'sol-table', tabindex: '0', role: 'application' });
@@ -418,6 +445,29 @@ class SolitaireApp {
     this.root.addEventListener('keydown', (e) => this.onKey(e));
   }
 
+  /** ARIA toolbar: one Tab stop, arrow keys / Home / End move between the buttons. */
+  setupToolbarKeys() {
+    const all = () => [...this.toolbar.querySelectorAll('button')];
+    const usable = () => all().filter((b) => !b.disabled && b.getClientRects().length);
+    this.setToolbarStop = (btn) => {
+      for (const b of all()) b.tabIndex = b === btn ? 0 : -1;
+    };
+    this.toolbar.addEventListener('focusin', (e) => {
+      const b = e.target.closest('button');
+      if (b) this.setToolbarStop(b);
+    });
+    this.toolbar.addEventListener('keydown', (e) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key) || e.altKey || e.ctrlKey) return;
+      const list = usable();
+      const i = list.indexOf(document.activeElement);
+      if (i < 0 || !list.length) return;
+      e.preventDefault();
+      const j = e.key === 'Home' ? 0 : e.key === 'End' ? list.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + list.length) % list.length;
+      list[j].focus();
+    });
+    this.setToolbarStop(this.btnNew);
+  }
+
   applyLook(p = this.prefs) {
     const accent = this.ctx.settings.get('accent') || '#0078d4';
     const back = BACKS.includes(p.back) ? p.back : 'aurora';
@@ -438,8 +488,14 @@ class SolitaireApp {
     const padTop = clamp(H * 0.035, 10, 28);
     const padBottom = clamp(H * 0.055, 28, 44);
     const byW = (W - 2 * padX) / (7 + 6 * 0.16);
-    const byH = (H - padTop - padBottom) / (RATIO * 3.9);
-    const cw = Math.max(34, Math.floor(Math.min(byW, byH)));
+    const room = H - padTop - padBottom;
+    const byH = room / (RATIO * (2.2 + FAN_ROOM));
+    // A very long column would have to squeeze its fan until the rank indices overlap: shrink the
+    // cards instead (top row + gap + first card + tightest readable fan must fit).
+    const span = this.longestSpan();
+    const fit = span > FAN_ROOM ? span : 0;
+    const byCol = fit ? Math.min((room - 2) / (2.2 + fit), (room - 12) / (2 + fit)) / RATIO : Infinity;
+    const cw = Math.max(34, Math.floor(Math.min(byW, byH, byCol)));
     const ch = Math.round(cw * RATIO);
     const gap = Math.max(4, Math.min((W - 2 * padX - 7 * cw) / 6, cw * 0.42));
     const field = 7 * cw + 6 * gap;
@@ -460,6 +516,7 @@ class SolitaireApp {
       fu: ch * 0.26,
       wasteDx: Math.round(cw * 0.24),
       depth: Math.max(1, Math.round(cw * 0.016)),
+      fit,
     };
     const st = this.table.style;
     st.setProperty('--cw', `${cw}px`);
@@ -472,6 +529,19 @@ class SolitaireApp {
       this.slots[id].style.transform = `translate(${x}px, ${y}px)`;
     }
     return true;
+  }
+
+  /** Height of the tallest tableau column below its first card at the tightest fan, in card heights. */
+  longestSpan() {
+    const s = this.game?.s;
+    if (!s) return 0;
+    let max = 0;
+    s.t.forEach((col, i) => {
+      if (col.length < 2) return;
+      const nd = Math.min(s.hidden[i], col.length - 1);
+      max = Math.max(max, nd * FD_MIN + (col.length - 1 - nd) * FU_MIN);
+    });
+    return max;
   }
 
   onResize() {
@@ -499,9 +569,8 @@ class SolitaireApp {
     const nd = Math.min(s.hidden[ti], n - 1);
     const nu = n - 1 - nd;
     if (nd * fd + nu * fu > avail) {
-      const fdMin = L.ch * 0.045;
-      if (nd) fd = Math.max(fdMin, Math.min(fd, (avail - nu * fu) / nd));
-      if (nu && nd * fd + nu * fu > avail) fu = Math.max(L.ch * 0.13, (avail - nd * fd) / nu);
+      if (nd) fd = Math.max(L.ch * FD_MIN, Math.min(fd, (avail - nu * fu) / nd));
+      if (nu && nd * fd + nu * fu > avail) fu = Math.max(L.ch * FU_MIN, (avail - nd * fd) / nu);
     }
     return { fd, fu };
   }
@@ -538,6 +607,9 @@ class SolitaireApp {
   // ------------------------------------------------------------ rendering
   render({ animate = true, delays = null, dealZ = null } = {}) {
     if (!this.L || !this.game) return;
+    // Columns grew past (or shrank back within) the room planned for them: rescale the cards.
+    const span = this.longestSpan();
+    if ((span > FAN_ROOM ? span : 0) !== this.L.fit) this.layout();
     const pos = this.positions();
     this.pos = pos;
     const anim = animate && animOn();
@@ -634,6 +706,8 @@ class SolitaireApp {
     this.btnUndo.disabled = !g.canUndo() || this.busy;
     this.bannerUndo.disabled = !g.canUndo();
     this.btnHint.disabled = g.s.won;
+    // The toolbar's single Tab stop must never sit on a disabled button.
+    if (this.toolbar.querySelector('button[tabindex="0"]:disabled')) this.setToolbarStop(this.btnNew);
     const auto = !this.busy && g.canAutoComplete();
     if (auto !== !this.autoBtn.hidden) {
       this.autoBtn.hidden = !auto;
@@ -663,11 +737,12 @@ class SolitaireApp {
     this.hideBanner();
     this.cursor = { pile: 'stock', index: -1 };
     for (const el of this.cards) el.style.visibility = '';
-    if (!this.L) this.layout();
+    // The card size depends on the longest column, so size the table for this game before showing it.
+    this.table.classList.add('sol-instant');
+    this.layout();
     if (deal && animOn() && this.L) this.dealAnimation();
     else {
       // A loaded / resumed game appears in place: no cards gliding across the table.
-      this.table.classList.add('sol-instant');
       this.render({ animate: false });
       void this.table.offsetWidth;
       this.table.classList.remove('sol-instant');
@@ -729,6 +804,12 @@ class SolitaireApp {
     if (this.modal || this.disposed) return;
     const g = this.game;
     if (g && g.started && !g.s.won) {
+      // Stop an auto-complete / send-home run: it must not keep playing under the question.
+      if (this.busy) {
+        this.autoToken++;
+        this.busy = false;
+        this.updateToolbar();
+      }
       const ok = await this.confirm(restart ? 'confirmRestart' : 'confirmNew');
       if (!ok) return;
       this.recordLoss();
@@ -744,7 +825,7 @@ class SolitaireApp {
     const g = this.game;
     if (!g || !g.started || g.s.won) return;
     const key = `draw${g.s.draw}`;
-    this.stats[key] = recordResult(this.stats[key], { won: false, time: g.s.elapsed, score: g.score });
+    this.stats[key] = recordResult(this.stats[key], { won: false, time: g.s.elapsed, score: g.score, scoring: g.s.scoring });
     if (g.s.scoring === 'vegas' && this.prefs.cumulative) this.prefs.bank = g.score;
     this.persist('stats', this.stats);
     this.persist('prefs', this.prefs);
@@ -779,7 +860,7 @@ class SolitaireApp {
     const { t } = this;
     this.ctx.ui.menu(e.currentTarget, [
       { label: t('newGame'), icon: 'add', shortcut: 'F2', action: () => this.requestNewGame() },
-      { label: t('restart'), icon: 'arrow_counterclockwise', action: () => this.requestNewGame({ restart: true }) },
+      { label: t('restart'), icon: 'arrow_counterclockwise', shortcut: `${t('key.shift')}+F2`, action: () => this.requestNewGame({ restart: true }) },
       { label: t('playNumber'), icon: 'number_symbol', action: () => this.promptGameNumber() },
       '-',
       { label: t('statistics'), icon: 'trophy', action: () => this.showStats() },
@@ -838,8 +919,12 @@ class SolitaireApp {
       this.sfx.play('place');
       if (!quiet) this.say(t('a.undone'));
     }
-    if (ev.won) this.later(() => this.onWin(), MOVE_MS + 80);
-    else if (!quiet) this.checkStuck();
+    if (ev.won) {
+      // Book the win right away (a new game or closing the window may follow at once); only the
+      // celebration waits for the last card to land.
+      const info = this.recordWin();
+      if (info) this.later(() => this.celebrate(info), MOVE_MS + 80);
+    } else if (!quiet) this.checkStuck();
   }
 
   drawAction() {
@@ -998,6 +1083,7 @@ class SolitaireApp {
         if (!ev) break;
         this.afterAction(ev, { quiet: true });
         if (step) await new Promise((r) => this.later(r, s.draw ? step * 2 : step));
+        await this.whileModal();
         if (token !== this.autoToken || this.disposed) return;
       }
     } finally {
@@ -1006,6 +1092,11 @@ class SolitaireApp {
         this.updateToolbar();
       }
     }
+  }
+
+  /** Resolves once no dialog of this app is open (automatic play waits instead of running underneath). */
+  async whileModal() {
+    while (this.modal && !this.disposed) await new Promise((r) => this.later(r, 120));
   }
 
   /** Move every card that can go to a foundation right now, one after another. */
@@ -1038,6 +1129,7 @@ class SolitaireApp {
         this.afterAction(ev, { quiet: true });
         if (ev.won) break;
         if (animOn()) await new Promise((r) => this.later(r, 110));
+        await this.whileModal();
         if (token !== this.autoToken || this.disposed) return;
       }
     } finally {
@@ -1053,18 +1145,21 @@ class SolitaireApp {
     }
   }
 
-  async onWin() {
+  /** Record the won game in the statistics (once) and return what the win dialog shows. */
+  recordWin() {
     const g = this.game;
-    if (!g?.s.won || this._wonGame === g) return;
+    if (!g?.s.won || this._wonGame === g) return null;
     this._wonGame = g;
     this.release();
     this.clearHint();
     this.hideBanner();
     const s = g.s;
     const key = `draw${s.draw}`;
-    const prev = { ...emptyStats(), ...(this.stats[key] || {}) };
+    const prev = sanitizeStats(this.stats[key]);
     const score = s.scoring === 'none' ? 0 : g.score;
     const info = {
+      game: g,
+      key,
       seed: s.seed,
       time: s.elapsed,
       moves: s.moves,
@@ -1072,10 +1167,11 @@ class SolitaireApp {
       bonus: s.bonus || 0,
       scoring: s.scoring,
       bestTime: !prev.bestTime || s.elapsed < prev.bestTime,
-      bestScore: s.scoring !== 'none' && score > prev.bestScore,
+      bestScore: s.scoring === 'standard' && score > prev.bestScore,
     };
-    this.stats[key] = recordResult(prev, { won: true, time: s.elapsed, score });
+    this.stats[key] = recordResult(prev, { won: true, time: s.elapsed, score, scoring: s.scoring });
     if (s.scoring === 'vegas' && this.prefs.cumulative) this.prefs.bank = score;
+    clearTimeout(this.saveTimer);
     this.persist('stats', this.stats);
     this.persist('prefs', this.prefs);
     this.persist('game', null);
@@ -1083,9 +1179,18 @@ class SolitaireApp {
     this.updateToolbar();
     this.sfx.play('win');
     this.say(this.t('win.title'));
+    return info;
+  }
+
+  /** Bouncing-card cascade, then the "You won!" dialog. */
+  async celebrate(info) {
+    const g = info.game;
+    // Never start the show under another dialog (statistics, settings…) opened meanwhile.
+    await this.whileModal();
+    if (this.disposed || this.game !== g) return;
     await this.cascade();
     if (this.disposed || this.game !== g) return;
-    const v = await this.showWin(info, this.stats[key]);
+    const v = await this.showWin(info, this.stats[info.key]);
     if (this.game !== g) return;
     if (v === 'new') this.startGame(randomGameNumber());
     else {
@@ -1240,16 +1345,17 @@ class SolitaireApp {
     this.setKb(false);
     if (this.busy || this.modal || !this.game) return;
     this.clearHint();
-    const cardEl = e.target.closest('.sol-card');
-    const slotEl = e.target.closest('.sol-slot');
     const pt = this.pointInTable(e);
-    if (cardEl) {
-      const c = Number(cardEl.dataset.id);
+    // Hit-test the cards where they belong, not where they are drawn: a card still gliding away
+    // (say, just drawn from the stock) must not swallow a quick second click on its old pile.
+    const hit = this.hitTest(pt);
+    if (hit?.card != null) {
+      const c = hit.card;
       const loc = this.game.locate(c);
       if (!loc) return;
       this.press = { c, loc, x0: pt.x, y0: pt.y, id: e.pointerId, pickable: this.game.canPick(loc.pile, loc.index) };
-    } else if (slotEl) {
-      this.press = { slot: slotEl.dataset.pile, x0: pt.x, y0: pt.y, id: e.pointerId };
+    } else if (hit?.slot) {
+      this.press = { slot: hit.slot, x0: pt.x, y0: pt.y, id: e.pointerId };
     } else {
       this.release();
       this.render();
@@ -1260,6 +1366,25 @@ class SolitaireApp {
     } catch {
       // pointer already gone
     }
+  }
+
+  /** The topmost card (by its resting place) or the empty pile slot under a table point. */
+  hitTest(pt) {
+    const L = this.L;
+    if (!L || !this.pos.length) return null;
+    let best = null;
+    for (let c = 0; c < 52; c++) {
+      const p = this.pos[c];
+      if (!p || pt.x < p.x || pt.x >= p.x + L.cw || pt.y < p.y || pt.y >= p.y + L.ch) continue;
+      if (best == null || p.z > this.pos[best].z) best = c;
+    }
+    if (best != null) return { card: best };
+    for (const id of PILES) {
+      const x = L.col[colOf(id)];
+      const y = isTableau(id) ? L.tab : L.top;
+      if (pt.x >= x && pt.x < x + L.cw && pt.y >= y && pt.y < y + L.ch) return { slot: id };
+    }
+    return null;
   }
 
   onPointerMove(e) {
@@ -1283,15 +1408,14 @@ class SolitaireApp {
     const { pile, index } = pr.loc;
     this.release();
     const p = this.game.pile(pile);
-    const tr = this.table.getBoundingClientRect();
     const items = p.slice(index).map((c, i) => {
       const el = this.cards[c];
-      const r = el.getBoundingClientRect();
       clearTimeout(el._zt);
       el._zt = null;
       el.classList.add('dragging');
       el.style.zIndex = String(20000 + i);
-      return { c, el, x: r.left - tr.left, y: r.top - tr.top };
+      // Start from the card's resting place (where it was grabbed), even if it was still gliding there.
+      return { c, el, x: this.pos[c].x, y: this.pos[c].y };
     });
     this.drag = { pile, index, items, set: new Set(items.map((i) => i.c)), dx: 0, dy: 0 };
     this.table.classList.add('is-dragging');
@@ -1434,6 +1558,8 @@ class SolitaireApp {
       }
       if (g.canMove(this.held.pile, this.held.index, loc.pile)) {
         this.dropHeld(loc.pile);
+        // A double-click on the destination must not also send the run it just built elsewhere.
+        this.lastTap = null;
         return;
       }
       this.release();
@@ -1706,7 +1832,8 @@ class SolitaireApp {
     console.warn('[solitaire] save failed', err);
     if (this.saveErrorShown || this.disposed) return;
     this.saveErrorShown = true;
-    this.ctx.ui.alert(this.t('error.save', { msg: err?.message || String(err) }), { title: this.t('error.title'), parent: this.ctx.win });
+    const detail = err?.message || String(err);
+    this.dialog({ title: this.t('error.title'), body: `${this.t('error.save')}\n\n${detail}`, buttons: [{ label: this.t('common.ok'), value: true, primary: true }] });
   }
 
   scheduleSave() {
@@ -1729,7 +1856,7 @@ class SolitaireApp {
     let mode = initialMode || `draw${this.game.s.draw}`;
     const grid = h('div', { class: 'sol-stats-grid' });
     const fill = () => {
-      const st = { ...emptyStats(), ...(this.stats[mode] || {}) };
+      const st = sanitizeStats(this.stats[mode]);
       const pct = st.played ? i18n.formatNumber(st.won / st.played, { style: 'percent', maximumFractionDigits: 0 }) : '—';
       const streak = st.streak > 0 ? t('stats.wins', { count: st.streak }) : st.streak < 0 ? t('stats.losses', { count: -st.streak }) : '—';
       const items = [
@@ -1760,7 +1887,8 @@ class SolitaireApp {
     const v = await this.dialog({
       title: t('stats.title'),
       body,
-      className: 'sol-dialog',
+      // Tighter tiles when the window is short, so the eight figures fit without scrolling.
+      className: ['sol-dialog', 'sol-stats-dialog', this.ctx.win.body.clientHeight < 600 && 'compact'].filter(Boolean).join(' '),
       width: 520,
       buttons: [
         { label: t('common.close'), value: 'close', primary: true },
@@ -1895,7 +2023,6 @@ class SolitaireApp {
       title: t('settings.title'),
       body,
       className: 'sol-dialog sol-settings-dialog',
-      width: 820,
       buttons: [
         { label: t('common.ok'), value: 'ok', primary: true },
         { label: t('common.cancel'), value: null },
@@ -1937,16 +2064,16 @@ class SolitaireApp {
     const { t } = this;
     const keys = [
       ['F2', 'newGame'],
-      ['Shift+F2', 'restart'],
-      ['Ctrl+Z', 'undo'],
+      [`${t('key.shift')}+F2`, 'restart'],
+      [`${t('key.ctrl')}+Z`, 'undo'],
       ['H', 'hint'],
       ['A', 'autoComplete'],
       ['D', 'help.kDraw'],
       [t('help.arrows'), 'help.kMove'],
       [t('help.enter'), 'help.kPick'],
-      ['Shift+Enter', 'help.kAuto'],
+      [`${t('key.shift')}+${t('key.enter')}`, 'help.kAuto'],
       ['1 – 7', 'help.kColumn'],
-      ['Esc', 'help.kCancel'],
+      [t('key.esc'), 'help.kCancel'],
     ];
     const body = h(
       'div',

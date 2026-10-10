@@ -1,0 +1,14 @@
+{
+  "id": "installer",
+  "name": { "en": "Install Aurora OS", "fr": "Installer Aurora OS" },
+  "description": { "en": "Install Aurora OS on this computer's disk", "fr": "Installer Aurora OS sur le disque de cet ordinateur" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 960, "height": 680, "minWidth": 960, "minHeight": 680, "resizable": false, "maximizable": false, "background": "mica" },
+  "category": "system",
+  "keywords": { "en": ["install", "setup", "installer", "disk", "partition"], "fr": ["installer", "installation", "programme d'installation", "disque", "partition"] },
+  "singleInstance": true,
+  "liveOnly": true,
+  "fileTypes": []
+}

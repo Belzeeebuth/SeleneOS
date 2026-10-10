@@ -2,6 +2,7 @@
 //   const s = new Session(app, profile, { cwd, command });  pane.appendChild(s.el);  await s.start();
 //   s.title  s.busy  s.copy()  s.paste()  s.selectAll()  s.clear()  s.fitSoon()  s.dispose()
 import { bus } from './bus.js';
+import { installUnicode } from './unicode.js';
 
 const XTERM = 'app://shell/node_modules/@xterm/xterm/lib/xterm.mjs';
 const FIT = 'app://shell/node_modules/@xterm/addon-fit/lib/addon-fit.mjs';
@@ -36,8 +37,7 @@ export class Session {
     this.state = 'new'; // new | running | exited (waiting for Enter/Ctrl+D) | closed
     this.exitCode = null;
     this.oscTitle = '';
-    this.oscAt = 0;
-    this.proc = { name: '', busy: false, since: 0 };
+    this.proc = { name: '', busy: false }; // foreground program (main/ipc/pty.js 'pty:proc')
     this.pane = null;
     this.el = this.ctx.h('div', { class: 'tm-term', dataset: { session: this.id } });
     this.bellEl = this.ctx.h('div', { class: 'tm-bell', 'aria-hidden': 'true' });
@@ -45,7 +45,7 @@ export class Session {
     this.disposed = false;
     this._fitTimer = 0;
     this._selTimer = 0;
-    this._lastSize = '';
+    this._ptySize = ''; // the size the PTY was last told
     this._offs = [];
   }
 
@@ -53,15 +53,25 @@ export class Session {
     return this.ctx.api;
   }
 
+  // Windows Terminal: the title a program sets (OSC 0/2); else the program running in the
+  // foreground; else the profile name. (Aurora's bash prompt titles the tab with the running command.)
   get title() {
     const p = this.proc;
-    // A program started after the shell last set the title (bash sets it at each prompt): show the program.
-    if (p.busy && p.name && (!this.oscTitle || this.oscAt < p.since)) return p.name;
-    return this.oscTitle || this.profile.name;
+    return this.oscTitle || (p.busy && p.name) || this.commandLabel || this.profile.name;
   }
 
+  // A command given at launch ({ command: 'htop' }) rather than the profile's interactive shell.
+  get commandLabel() {
+    return typeof this.command === 'string' && this.command.trim() ? this.command.trim().slice(0, 60) : '';
+  }
+
+  // A program other than the interactive shell is running (closing would stop it).
   get busy() {
-    return this.state === 'running' && this.proc.busy;
+    return this.state === 'running' && (this.proc.busy || !!this.commandLabel);
+  }
+
+  get busyName() {
+    return (this.proc.busy && this.proc.name) || this.commandLabel || this.proc.name || this.profile.name;
   }
 
   // ------------------------------------------------------------------ lifecycle
@@ -70,6 +80,7 @@ export class Session {
     if (this.disposed) return;
     const term = new Terminal({ ...this.app.termOptions(), allowProposedApi: true, allowTransparency: true });
     this.term = term;
+    installUnicode(term);
     this.fit = new FitAddon();
     term.loadAddon(this.fit);
     term.loadAddon(
@@ -89,7 +100,6 @@ export class Session {
       term.onResize(({ cols, rows }) => this.ptyResize(cols, rows)),
       term.onTitleChange((title) => {
         this.oscTitle = String(title || '').slice(0, 200);
-        this.oscAt = performance.now();
         this.app.sessionTitleChanged(this);
       }),
       term.onBell(() => this.app.bell(this)),
@@ -106,6 +116,7 @@ export class Session {
     const { api } = this;
     const command = this.command ?? this.profile.command ?? null;
     this.fitNow();
+    this._ptySize = `${this.term.cols}x${this.term.rows}`;
     try {
       this.ptyId = await api.invoke('pty:spawn', { cols: this.term.cols, rows: this.term.rows, cwd: this.cwd || this.app.startDir(), command });
     } catch (err) {
@@ -123,8 +134,7 @@ export class Session {
     this.exitCode = null;
     bus.register(this.ptyId, this);
     // The window may have been resized while the PTY started.
-    const { cols, rows } = this.term;
-    if (`${cols}x${rows}` !== this._spawnSize) this.ptyResize(cols, rows);
+    this.ptyResize(this.term.cols, this.term.rows);
     this.app.sessionTitleChanged(this);
   }
 
@@ -144,14 +154,17 @@ export class Session {
     if (this.state !== 'exited' || this.disposed) return;
     this.state = 'new';
     this.oscTitle = '';
-    this.proc = { name: '', busy: false, since: 0 };
+    this.proc = { name: '', busy: false };
     this.term.write('\r\n');
     this.spawn();
   }
 
   ptyResize(cols, rows) {
-    this._spawnSize = `${cols}x${rows}`;
-    if (this.ptyId && this.state === 'running') this.api.invoke('pty:resize', this.ptyId, cols, rows).catch(() => {});
+    if (!this.ptyId || this.state !== 'running') return;
+    const size = `${cols}x${rows}`;
+    if (size === this._ptySize) return;
+    this._ptySize = size;
+    this.api.invoke('pty:resize', this.ptyId, cols, rows).catch(() => {});
   }
 
   // ------------------------------------------------------------------ PTY events (lib/bus.js)
@@ -166,10 +179,10 @@ export class Session {
     if (this.disposed || this.state === 'closed') return;
     this.state = 'exited';
     this.exitCode = code;
-    this.proc = { name: '', busy: false, since: 0 };
+    this.proc = { name: '', busy: false };
     const mode = this.app.prefs.get('closeOnExit');
     if (mode === 'always' || (mode === 'graceful' && code === 0)) {
-      this.app.closeSession(this, { force: true, exited: true });
+      this.app.closeSession(this, { force: true });
       return;
     }
     const { t } = this.ctx;
@@ -179,8 +192,7 @@ export class Session {
   }
 
   onPtyProc({ name, busy }) {
-    const prev = this.proc;
-    this.proc = { name: name || '', busy: !!busy, since: busy && (!prev.busy || prev.name !== name) ? performance.now() : prev.since };
+    this.proc = { name: name || '', busy: !!busy };
     this.app.sessionTitleChanged(this);
   }
 
@@ -260,7 +272,7 @@ export class Session {
   }
 
   focus() {
-    this.term?.focus();
+    if (!this.disposed) this.term?.focus();
   }
 
   // ------------------------------------------------------------------ visuals

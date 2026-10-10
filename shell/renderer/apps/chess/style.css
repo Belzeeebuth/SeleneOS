@@ -488,7 +488,7 @@
 /* ---------------------------------------------------------------- evaluation bar (analysis) */
 .app-chess .cx-eval {
   position: relative;
-  width: 14px;
+  width: 20px;
   flex: none;
   border-radius: 4px;
   overflow: hidden;
@@ -517,12 +517,33 @@
   height: 1px;
   background: rgba(232, 17, 35, 0.6);
 }
+/* the score sits at the end of the side that is better (white part: dark text, black part: light) */
 .app-chess .cx-eval-text {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 4px;
-  font-size: 0;
+  font-family: var(--font-display);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 12px;
+  letter-spacing: -0.2px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: #2b2b2e;
+  pointer-events: none;
+}
+.app-chess .cx-eval-text.dark-side,
+.app-chess .cx-eval.flipped .cx-eval-text {
+  top: 4px;
+  bottom: auto;
+}
+.app-chess .cx-eval-text.dark-side {
+  color: #f2f2f2;
+}
+.app-chess .cx-eval.flipped .cx-eval-text.dark-side {
+  top: auto;
+  bottom: 4px;
 }
 
 /* ---------------------------------------------------------------- side panel */

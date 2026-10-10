@@ -4,15 +4,16 @@ import { store } from './store.js';
 import { MessageList, DRAG_MIME } from './list.js';
 import { Reader } from './reader.js';
 import { Composer } from './compose.js';
-import { AccountSetup, errorText } from './setup.js';
+import { AccountSetup } from './setup.js';
 import { openSettings } from './settings.js';
+import { MailWindowBase } from './base.js';
 import { avatarColor, initials, parseAddresses, parseMailto, debounce } from './util.js';
 
 const FOLDER_ICONS = { inbox: 'mail_inbox', drafts: 'drafts', sent: 'send', archive: 'archive', junk: 'mail_prohibited', trash: 'delete', all: 'mail_multiple', flagged: 'flag', important: 'star' };
 
-export class MailApp {
+export class MailApp extends MailWindowBase {
   constructor(ctx) {
-    this.ctx = ctx;
+    super(ctx);
     this.account = null;
     this.folder = null;
     this.folders = new Map(); // accountId -> { tree, special }
@@ -27,14 +28,11 @@ export class MailApp {
     ctx.win.el.__mail = this; // test / debugging hook
   }
 
-  t(k, v) {
-    return this.ctx.t(k, v);
-  }
-
   async init() {
     const { api, win } = this.ctx;
     await store.init(this.ctx);
     this.offs.push(store.on('accounts', () => this.onAccountsChanged()));
+    this.offs.push(store.on('changed', (ev) => this.onChanged(ev))); // from message windows
     this.offs.push(api.on('mail:changed', (ev) => this.onChanged(ev)));
     this.offs.push(api.on('mail:status', (ev) => this.onStatus(ev)));
     this.ctx.onClose(() => this.destroy());
@@ -43,6 +41,11 @@ export class MailApp {
     if (!store.accounts.length) this.showSetup('first');
     else await this.showMain();
     api.invoke('mail:watch', true).catch(() => {});
+    // Folders other than the inbox have no push: refresh what is on screen every few minutes.
+    const timer = setInterval(() => {
+      if (this.list && !this.composer && !win.minimized && document.visibilityState !== 'hidden') this.refresh().catch(() => {});
+    }, 5 * 60 * 1000);
+    this.offs.push(() => clearInterval(timer));
   }
 
   destroy() {
@@ -58,6 +61,11 @@ export class MailApp {
   // ------------------------------------------------------------ first run / setup
   showSetup(mode = 'first') {
     const { h, ui, win } = this.ctx;
+    this.resizeObs?.disconnect();
+    this.resizeObs = null;
+    win.el.classList.remove('ml-narrow');
+    this.list = null;
+    this.nav = null;
     ui.clear(this.root);
     ui.clear(win.titlebarSlot);
     this.root.className = 'ml-root setup';
@@ -67,6 +75,12 @@ export class MailApp {
       onDone: async (account) => {
         store.setPref('lastAccount', account.id);
         await this.showMain(account.id);
+        // A message requested by another app before any account existed (mailto: link…)
+        if (this.pendingCompose) {
+          const pre = this.pendingCompose;
+          this.pendingCompose = null;
+          await this.newMessage({ to: parseAddresses(pre.to), cc: parseAddresses(pre.cc), bcc: parseAddresses(pre.bcc), subject: pre.subject, body: pre.body });
+        }
       },
       onCancel: () => this.showMain(),
     });
@@ -75,7 +89,7 @@ export class MailApp {
 
   // ------------------------------------------------------------ main layout
   async showMain(accountId) {
-    const { h, ui, win } = this.ctx;
+    const { h, ui } = this.ctx;
     if (!store.accounts.length) return this.showSetup('first');
     ui.clear(this.root);
     this.root.className = 'ml-root';
@@ -89,17 +103,18 @@ export class MailApp {
     this.snack = h('div', { class: 'ml-snack-host', 'aria-live': 'polite' });
     this.offline = h('div', { class: 'ml-offline', hidden: true });
     this.root.append(this.nav, this.main, this.scrim, this.snack);
-    this.list.el.prepend(this.offline);
+    this.list.head.after(this.offline);
     this.list.el.style.setProperty('--list-w', `${store.prefs.listWidth || 380}px`);
     this.buildSearch();
     this.wireSplitter();
     this.wireKeys();
+    this.navSig = null;
+    this.resizeObs?.disconnect();
     this.resizeObs = new ResizeObserver(() => this.layout());
     this.resizeObs.observe(this.root);
     this.layout();
     const acc = store.account(accountId) || store.account(store.prefs.lastAccount) || store.accounts[0];
     await this.switchAccount(acc.id);
-    void win;
   }
 
   layout() {
@@ -112,6 +127,8 @@ export class MailApp {
     }
     const collapsed = mode !== 'wide' || store.prefs.navCollapsed;
     this.root.classList.toggle('nav-collapsed', collapsed);
+    // Small windows: the title bar keeps its room for the search box.
+    this.ctx.win.el.classList.toggle('ml-narrow', mode === 'narrow');
   }
 
   toggleNav(force) {
@@ -279,6 +296,14 @@ export class MailApp {
     const t = (k, v) => this.t(k, v);
     const nav = this.nav;
     if (!nav) return;
+    // Only rebuild when something visible changed (folder counts refresh often).
+    const sig = JSON.stringify([this.account?.id, this.account?.name, this.account?.email, this.ctx.lang, this.folderData().tree, store.prefs.collapsed]);
+    if (sig === this.navSig && nav.firstChild) {
+      this.paintNavSelection();
+      return;
+    }
+    this.navSig = sig;
+    const focusedPath = nav.contains(document.activeElement) ? document.activeElement.closest?.('.ml-folder')?.dataset.path : null;
     const keepScroll = nav.querySelector('.ml-folders')?.scrollTop || 0;
     ui.clear(nav);
     const acc = this.account;
@@ -295,9 +320,21 @@ export class MailApp {
     acctBtn.title = acc ? `${acc.email} (${p.name})` : '';
     const data = this.folderData();
     const folders = h('div', { class: 'ml-folders', role: 'tree', 'aria-label': t('nav.folders') });
-    const specialNodes = data.tree.filter((n) => n.special && ['inbox', 'drafts', 'sent', 'archive', 'junk', 'trash'].includes(n.special));
-    const otherNodes = data.tree.filter((n) => !specialNodes.includes(n));
-    for (const n of specialNodes) folders.appendChild(this.folderRow(n, 0));
+    // Special folders come first in a fixed order wherever they live in the tree (INBOX.Sent,
+    // [Gmail]/Trash…); everything else follows under "Folders".
+    const TOP = ['inbox', 'drafts', 'sent', 'archive', 'junk', 'trash'];
+    const top = new Map();
+    const walk = (arr) => {
+      for (const n of arr) {
+        if (n.special && TOP.includes(n.special) && !top.has(n.special)) top.set(n.special, n);
+        walk(n.children);
+      }
+    };
+    walk(data.tree);
+    const specialNodes = TOP.filter((k) => top.has(k)).map((k) => top.get(k));
+    const exclude = new Set(specialNodes);
+    const otherNodes = data.tree.filter((n) => !exclude.has(n));
+    for (const n of specialNodes) this.appendTree(folders, n, 0, exclude);
     if (otherNodes.length) {
       const collapsed = !!store.prefs.collapsed?.[`${acc.id}:__more`];
       const head = h('button', { class: ['ml-folder-section', collapsed && 'collapsed'], name: 'more-folders', 'aria-expanded': String(!collapsed) }, icon('chevron_down', { size: 12, class: 'chev' }), h('span', { class: 'label' }, t('nav.moreFolders')));
@@ -309,7 +346,7 @@ export class MailApp {
         head.setAttribute('aria-expanded', String(!c));
         store.setPref('collapsed', { ...(store.prefs.collapsed || {}), [`${acc.id}:__more`]: c });
       });
-      for (const n of otherNodes) this.appendTree(box, n, 0);
+      for (const n of otherNodes) this.appendTree(box, n, 0, exclude);
       folders.append(head, box);
     }
     if (!data.tree.length) folders.appendChild(h('div', { class: 'caption text-2 ml-folders-empty' }, t('nav.noFolders')));
@@ -317,17 +354,19 @@ export class MailApp {
     nav.append(h('div', { class: 'ml-nav-top' }, hamburger), h('div', { class: 'ml-nav-compose' }, compose), acctBtn, folders, h('div', { class: 'ml-nav-bottom' }, settingsBtn));
     folders.scrollTop = keepScroll;
     this.paintNavSelection();
+    if (focusedPath) [...nav.querySelectorAll('.ml-folder')].find((el) => el.dataset.path === focusedPath)?.focus({ preventScroll: true });
   }
 
-  appendTree(parent, node, depth) {
+  appendTree(parent, node, depth, exclude = new Set()) {
     const { h } = this.ctx;
-    const row = this.folderRow(node, depth);
+    const kids = node.children.filter((c) => !exclude.has(c));
+    const row = this.folderRow(node, depth, kids.length > 0);
     parent.appendChild(row);
-    if (node.children.length) {
+    if (kids.length) {
       const key = `${this.account.id}:${node.path}`;
       const collapsed = !!store.prefs.collapsed?.[key];
       const box = h('div', { class: 'ml-folder-group', role: 'group', hidden: collapsed });
-      for (const c of node.children) this.appendTree(box, c, depth + 1);
+      for (const c of kids) this.appendTree(box, c, depth + 1, exclude);
       parent.appendChild(box);
       row.setAttribute('aria-expanded', String(!collapsed));
       row.querySelector('.ml-twisty')?.addEventListener('click', (e) => {
@@ -342,7 +381,7 @@ export class MailApp {
     }
   }
 
-  folderRow(node, depth) {
+  folderRow(node, depth, hasKids = node.children.length > 0) {
     const { h, icon } = this.ctx;
     const t = (k, v) => this.t(k, v);
     const ic = FOLDER_ICONS[node.special] || 'folder';
@@ -358,7 +397,7 @@ export class MailApp {
         title: node.path,
         style: { paddingLeft: `${12 + depth * 16}px` },
       },
-      node.children.length ? h('span', { class: 'ml-twisty', role: 'button', 'aria-label': t('nav.expand') }, icon('chevron_down', { size: 10 })) : depth ? h('span', { class: 'ml-twisty-space' }) : null,
+      hasKids ? h('span', { class: 'ml-twisty', role: 'button', 'aria-label': t('nav.expand') }, icon('chevron_down', { size: 10 })) : depth ? h('span', { class: 'ml-twisty-space' }) : null,
       icon(ic, { size: 18 }),
       h('span', { class: 'label ellipsis grow' }, name),
       count ? h('span', { class: ['ml-count', node.special === 'drafts' && 'muted'], 'aria-label': t('nav.unread', { count }) }, String(count)) : null,
@@ -412,7 +451,7 @@ export class MailApp {
     const t = (k, v) => this.t(k, v);
     await ui.menu(e, [
       { label: t('nav.open'), icon: 'folder_open', action: () => this.openFolder(node.path) },
-      { label: t('nav.markAllRead'), icon: 'mail_all_read', disabled: !node.unseen, action: () => this.markAllRead(node.path) },
+      { label: t('nav.markAllRead'), icon: 'mail_all_read', action: () => this.markAllRead(node.path) },
       ['trash', 'junk'].includes(node.special)
         ? {
             label: t('nav.emptyFolder'),
@@ -509,7 +548,7 @@ export class MailApp {
     if (ev.folder === this.folder || (ev.folder === 'INBOX' && this.folderSpecial() === 'inbox')) this.softRefresh();
   }
 
-  softRefresh = debounce(() => this.list && !this.list.loading && this.list.load({ soft: true }), 250);
+  softRefresh = debounce(() => this.list && this.list.load({ soft: true }), 250);
 
   onNewMail(ev) {
     if (!this.account || ev.accountId !== this.account.id) return;
@@ -522,8 +561,18 @@ export class MailApp {
     const { h, icon, ui } = this.ctx;
     ui.clear(this.offline);
     this.offline.hidden = ev.online;
+    if (!ev.online && ['ECONN', 'ETIMEOUT'].includes(this.list?.error?.code || '')) ui.clear(this.list.banner);
+    if (!ev.online && this.list?.banner?.querySelector('.infobar.error')) ui.clear(this.list.banner);
     if (!ev.online) {
-      this.offline.append(h('div', { class: 'infobar warning' }, icon('cloud_dismiss'), h('div', { class: 'grow' }, ev.code === 'EAUTH' ? this.t('status.authFailed') : this.t('status.offline')), h('button', { class: 'btn small', onclick: () => this.refresh() }, this.t('list.retry'))));
+      this.offline.append(
+        h(
+          'div',
+          { class: 'infobar warning' },
+          icon('cloud_dismiss'),
+          h('div', { class: 'grow' }, ev.code === 'EAUTH' ? this.t('status.authFailed') : this.t('status.offline')),
+          ev.code === 'EAUTH' ? h('button', { class: 'btn small', onclick: () => this.editAccount(this.account) }, this.t('list.fixAccount')) : h('button', { class: 'btn small', onclick: () => this.refresh() }, this.t('list.retry')),
+        ),
+      );
     }
   }
 
@@ -534,7 +583,8 @@ export class MailApp {
   }
 
   async refresh() {
-    if (!this.account) return;
+    if (!this.account || !this.list) return;
+    if (!this.folder) return this.switchAccount(this.account.id); // the first load failed
     this.refreshFolders();
     await this.list.load({ soft: true });
   }
@@ -568,6 +618,7 @@ export class MailApp {
   // ------------------------------------------------------------ selection & reading
   onSelection(open) {
     const uids = this.list.selectedUids;
+    if (uids.length !== 1 || !open) this.openSeq++; // cancel a message still loading
     if (uids.length > 1) {
       if (!this.composer) this.reader.showMulti(uids.length);
       return;
@@ -797,73 +848,6 @@ export class MailApp {
     ].filter(Boolean));
   }
 
-  // ------------------------------------------------------------ attachments
-  async openAttachment(msg, a) {
-    const { api, shell } = this.ctx;
-    try {
-      const path = await api.invoke('mail:attachment', msg.accountId, msg.folder, msg.uid, a.id, {});
-      await shell.openFile(path);
-    } catch (e) {
-      this.alertError(e);
-    }
-  }
-
-  async saveAttachment(msg, a, { ask = false } = {}) {
-    const { api, ui, shell } = this.ctx;
-    const t = (k, v) => this.t(k, v);
-    try {
-      let dest = null;
-      if (ask) {
-        dest = await ui.filePicker({ mode: 'save', name: a.filename, path: shell.xdg?.downloads, parent: this.ctx.win });
-        if (!dest) return;
-      }
-      const path = await api.invoke('mail:attachment', msg.accountId, msg.folder, msg.uid, a.id, dest ? { dest } : {});
-      this.snackbar(t('snack.saved', { name: path.split('/').pop() }), { label: t('snack.openFile'), action: () => shell.openFile(path) }, { label: t('snack.showFolder'), action: () => shell.launch('files', { path: path.replace(/\/[^/]+$/, '') || '/' }) });
-      return path;
-    } catch (e) {
-      this.alertError(e);
-      return null;
-    }
-  }
-
-  async saveAllAttachments(msg, list) {
-    const { api, ui, shell } = this.ctx;
-    const t = (k, v) => this.t(k, v);
-    const dir = await ui.filePicker({ mode: 'folder', path: shell.xdg?.downloads, parent: this.ctx.win });
-    if (!dir) return;
-    try {
-      for (const a of list) await api.invoke('mail:attachment', msg.accountId, msg.folder, msg.uid, a.id, { dir });
-      this.snackbar(t('snack.savedAll', { count: list.length }), { label: t('snack.showFolder'), action: () => shell.launch('files', { path: dir }) });
-    } catch (e) {
-      this.alertError(e);
-    }
-  }
-
-  async saveAsEml(msg) {
-    const { api, ui, shell } = this.ctx;
-    const name = `${(msg.subject || this.t('list.noSubject')).replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 80)}.eml`;
-    const dest = await ui.filePicker({ mode: 'save', name, path: shell.xdg?.documents, filters: [{ name: this.t('reader.emlFile'), ext: ['.eml'] }], parent: this.ctx.win });
-    if (!dest) return;
-    try {
-      await api.invoke('mail:saveSource', msg.accountId, msg.folder, msg.uid, dest);
-      this.snackbar(this.t('snack.saved', { name: dest.split('/').pop() }));
-    } catch (e) {
-      this.alertError(e);
-    }
-  }
-
-  async viewSource(msg) {
-    const { api, ui, h } = this.ctx;
-    try {
-      const src = await api.invoke('mail:source', msg.accountId, msg.folder, msg.uid);
-      const ta = h('textarea', { class: 'ml-source', readonly: true, spellcheck: false });
-      ta.value = src;
-      await ui.dialog({ title: this.t('reader.viewSource'), body: ta, parent: this.ctx.win, className: 'ml-source-dialog', width: 760, buttons: [{ label: this.t('common.close'), value: true, primary: true }] });
-    } catch (e) {
-      this.alertError(e);
-    }
-  }
-
   // ------------------------------------------------------------ composing
   newMessage(prefill = {}) {
     return this.openComposer({ mode: 'new', ...prefill });
@@ -872,29 +856,20 @@ export class MailApp {
   async reply(mode) {
     const msg = this.reader.msg;
     if (!msg || msg.accountId === '@file') return;
-    let attachments = [];
-    if (mode === 'forward') {
-      const atts = (msg.attachments || []).filter((a) => !a.inline);
-      if (atts.length) {
-        try {
-          const dir = await this.ctx.api.invoke('mail:tempDir');
-          for (const a of atts) {
-            const path = await this.ctx.api.invoke('mail:attachment', msg.accountId, msg.folder, msg.uid, a.id, { dir });
-            attachments.push({ path, filename: a.filename, size: a.size });
-          }
-        } catch (e) {
-          this.alertError(e);
-          attachments = [];
-        }
-      }
-    }
+    const attachments = mode === 'forward' ? await this.forwardAttachments(msg) : [];
     await this.openComposer({ mode, original: msg, attachments });
+  }
+
+  // Double-click: the message in its own window.
+  openStandalone(m) {
+    if (!m || !this.account) return;
+    if (this.folderSpecial() === 'drafts' || m.draft) return;
+    this.ctx.shell.launch('mail', { newWindow: true, read: { accountId: this.account.id, folder: this.folder, uid: m.uid, special: { ...this.folderData().special } } });
   }
 
   async openComposer(opts) {
     if (!store.accounts.length) return;
     if (this.composer && !(await this.closeComposer())) return;
-    const { h } = this.ctx;
     this.list?.clearSelection();
     const composer = new Composer(this.ctx, {
       accountId: this.account?.id,
@@ -905,7 +880,6 @@ export class MailApp {
     this.root.classList.add('composing', 'show-reader');
     this.readerHost.replaceChildren(composer.el);
     composer.focus();
-    void h;
     return composer;
   }
 
@@ -921,7 +895,7 @@ export class MailApp {
     this.readerHost.replaceChildren(this.reader.el);
     this.reader.showEmpty();
     this.root.classList.remove('show-reader');
-    this.focusList();
+    if (reason !== 'popout') this.focusList();
     if (reason === 'sent') this.snackbar(this.t('snack.sent'));
     if (info?.folder || reason === 'sent') {
       this.refreshFolders();
@@ -954,43 +928,6 @@ export class MailApp {
   }
 
   // ------------------------------------------------------------ misc
-  snackbar(text, ...actions) {
-    const { h, icon } = this.ctx;
-    if (!this.snack) return;
-    const el = h(
-      'div',
-      { class: 'ml-snack', role: 'status' },
-      icon('checkmark_circle', { filled: true, class: 'ml-snack-ic' }),
-      h('span', { class: 'grow' }, text),
-      ...actions.filter(Boolean).map((a) =>
-        h(
-          'button',
-          {
-            class: 'btn subtle small',
-            onclick: () => {
-              a.action();
-              close();
-            },
-          },
-          a.label,
-        ),
-      ),
-      h('button', { class: 'btn subtle icon-btn small', 'aria-label': this.t('common.close'), onclick: () => close() }, icon('dismiss', { size: 12 })),
-    );
-    const close = () => {
-      el.classList.add('leaving');
-      setTimeout(() => el.remove(), 200);
-    };
-    for (const old of [...this.snack.children].slice(0, -1)) old.remove();
-    this.snack.appendChild(el);
-    setTimeout(close, actions.length ? 8000 : 4500);
-  }
-
-  async alertError(e) {
-    const info = errorText(this.ctx.t, e, this.account?.imap?.host);
-    await this.ctx.ui.alert([info.text, info.detail].filter(Boolean).join('\n\n'), { title: info.title || this.t('err.title'), parent: this.ctx.win });
-  }
-
   // Keys are taken from the whole document while this window is the active one, so shortcuts keep
   // working when focus fell back to <body> (e.g. after a pane was replaced).
   wireKeys() {
@@ -1010,8 +947,10 @@ export class MailApp {
   focusList() {
     setTimeout(() => {
       if (!this.list || this.composer) return;
+      // Never steal focus from another window (e.g. a composer that was just popped out).
+      if (this.ctx.shell.wm.focused?.() !== this.ctx.win) return;
       const a = document.activeElement;
-      if (a && a !== document.body && this.ctx.win.el.contains(a) && a.isConnected) return;
+      if (a && a !== document.body && this.ctx.win.el.contains(a) && a.isConnected && !a.closest('.dialog-layer.closing')) return;
       this.list.scroller.focus({ preventScroll: true });
     }, 30);
   }
@@ -1019,7 +958,8 @@ export class MailApp {
   onKey(e) {
     if (!this.list || this.root.classList.contains('setup')) return;
     if (e.defaultPrevented) return;
-    if (e.target.closest?.('.dialog-layer')) return;
+    const layer = e.target.closest?.('.dialog-layer');
+    if (layer && !layer.classList.contains('closing')) return;
     const k = e.key;
     const lower = k.length === 1 ? k.toLowerCase() : k;
     const ctrl = e.ctrlKey || e.metaKey;

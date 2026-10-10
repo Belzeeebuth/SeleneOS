@@ -1,7 +1,10 @@
 // Window management & navigation: hotkeys, Alt+Tab, Task View + virtual desktops, Snap layouts / Snap
 // Assist, Ctrl+Alt+Del screen, Run dialog, Win+X menu, window menu, WM behaviour.
 //
-//   xvfb-run -a -s "-screen 0 1600x900x24" node test/wm-nav.test.mjs [--only=alttab,taskview] [--quick]
+//   xvfb-run -a -s "-screen 0 1920x1080x24" node test/wm-nav.test.mjs [--only=alttab,taskview] [--quick]
+//   Passes: English/light 1600x900 (every feature), French/dark (strings, clipping, screenshots), animations +
+//   transparency off, "qa" (1280x720 dark: regressions for bugs found in review, listener/DOM leaks, hostile
+//   strings) and "sizes" (1280x720 fr/light and 1920x1080 en/dark: nothing off screen or cut).
 //
 // Hotkeys are driven two ways:
 //   * press(): webContents.sendInputEvent from the main process -> main/lib/hotkeys.js
@@ -679,6 +682,7 @@ async function mainRun() {
       const opts = await A(() => [...document.querySelectorAll('.sec-opt')].map((b) => b.textContent));
       check('security options', ['Lock', 'Switch user', 'Sign out'].every((x) => opts.includes(x)), opts.join(', '));
       check('first option has keyboard focus', await A(() => document.activeElement?.classList.contains('sec-opt')));
+      check('… and shows its focus rectangle (opened from the keyboard)', (await A(() => getComputedStyle(document.activeElement).outlineStyle)) === 'solid');
       await shot('wm-security', true, { rest: true });
       await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
       await sleep(350);
@@ -1104,11 +1108,432 @@ async function reducedRun() {
   }
 }
 
+// ------------------------------------------------------------------ QA regressions (1280x720, English, dark)
+// Each check below covers a bug found in review; see the comment above each block.
+async function qaRun() {
+  const s = await launchShell({ lang: 'en', theme: 'dark', size: '1280x720' });
+  const T = helpers(s);
+  const { page } = s;
+  const { hk, A, newWin, winState, focusedTitle, closeAll, shot } = T;
+  const key = (k, o = {}) => A(([k, o]) => document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, ...o })), [k, o]);
+  const cdp = await page.context().newCDPSession(page);
+  async function listenerCount(expr) {
+    const { result } = await cdp.send('Runtime.evaluate', { expression: expr });
+    const { listeners } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId });
+    return listeners.length;
+  }
+  try {
+    // Alt+F4 pressed twice quickly closes two windows: activation moves on when the close animation starts.
+    await newWin('F1');
+    await newWin('F2');
+    await newWin('F3');
+    await sleep(350);
+    await hk('Alt+F4');
+    await sleep(20);
+    await hk('Alt+F4');
+    await sleep(450);
+    check('qa: Alt+F4 twice in a row closes two windows', JSON.stringify(await A(() => window.__aurora.wm.list().map((w) => w.title))) === '["F1"]' && (await focusedTitle()) === 'F1');
+    // Alt+F4 while Start (or a flyout / Task View) has the keyboard dismisses it, not the window behind.
+    await A(() => window.__aurora.shell.emit('start:toggle'));
+    await sleep(400);
+    const startOpen = await A(() => !!document.querySelector('#start.open'));
+    await hk('Alt+F4');
+    await sleep(400);
+    check('qa: Alt+F4 with Start open closes Start, not the window', startOpen && !(await A(() => !!document.querySelector('#start.open'))) && (await A(() => window.__aurora.wm.list().length)) === 1);
+    await hk('Super+Tab');
+    await sleep(400);
+    await hk('Alt+F4');
+    await sleep(450);
+    check('qa: Alt+F4 in Task View leaves Task View', !(await A(() => window.__aurora.taskview.isOpen)) && (await A(() => window.__aurora.wm.list().length)) === 1);
+    await closeAll();
+
+    // A keyboard move (Alt+Space > Move) ends when Alt+Tab activates another window.
+    const km = await newWin('Mover', { x: 200, y: 100 });
+    await newWin('Other', { x: 500, y: 200 });
+    await A((id) => window.__aurora.wm.get(id).focus(), km);
+    await sleep(150);
+    await A((id) => window.__aurora.wm.get(id).startKeyboardMove('move'), km);
+    await hk('Alt+Tab');
+    await sleep(40);
+    await hk('Alt:up');
+    await sleep(250);
+    const kmRect = (await winState(km)).rect;
+    await key('ArrowRight');
+    check('qa: keyboard move ends when another window is activated', !(await A(() => document.body.classList.contains('wm-kb-moving'))) && (await winState(km)).rect.x === kmRect.x && (await focusedTitle()) === 'Other');
+    await closeAll();
+
+    // A snapped window's maximize button maximizes (it shows "Maximize"), and restoring puts it back in its zone.
+    const sn = await newWin('Snapped', { width: 640, height: 400, x: 300, y: 120 });
+    await sleep(300);
+    await A((id) => window.__aurora.wm.get(id).snapTo('left', { source: 'api' }), sn);
+    await sleep(300);
+    await A((id) => window.__aurora.wm.get(id).btnMax.click(), sn);
+    await sleep(320);
+    check('qa: maximize button on a snapped window maximizes', (await winState(sn)).state === 'maximized');
+    await A((id) => window.__aurora.wm.get(id).btnMax.click(), sn);
+    await sleep(320);
+    let st = await winState(sn);
+    check('qa: restoring it returns to the snap zone', st.snap === 'left' && st.rect.x === 0);
+    await A((id) => window.__aurora.wm.get(id).restore(), sn);
+    await sleep(320);
+    st = await winState(sn);
+    check('qa: restoring the snapped window gives back its original size', st.state === 'normal' && st.rect.width === 640 && st.rect.height === 400);
+    await closeAll();
+
+    // Task View follows Super+Ctrl+arrows while it is open, and Super+Tab during its exit animation re-opens it.
+    await newWin('D1 window');
+    await A(() => {
+      const { wm } = window.__aurora;
+      const d = wm.createDesktop();
+      wm.create({ appId: 'test', title: 'D2 window', width: 500, height: 320, desktop: d.id });
+    });
+    await sleep(300);
+    await hk('Super+Tab');
+    await sleep(450);
+    await hk('Super+Ctrl+ArrowRight');
+    await sleep(500);
+    const tvState = await A(() => [window.__aurora.taskview.state?.shown === window.__aurora.wm.currentDesktop, [...document.querySelectorAll('.tv-card')].map((c) => c.getAttribute('aria-label')).join('|')]);
+    check('qa: Task View shows the desktop switched to with Super+Ctrl+Right', tvState[0] && tvState[1] === 'D2 window', JSON.stringify(tvState));
+    await hk('Super+Tab');
+    await sleep(80);
+    await hk('Super+Tab');
+    await sleep(800);
+    check('qa: Super+Tab pressed during the exit animation re-opens Task View', await A(() => window.__aurora.taskview.isOpen && document.body.classList.contains('tv-on')));
+    await A(() => window.__aurora.taskview.close());
+    await sleep(500);
+    check('qa: no transforms left behind', await A(() => window.__aurora.wm.list().every((w) => !w.el.style.transform && !w.el.classList.contains('tv-win'))));
+    await closeAll();
+
+    // A very long desktop name never makes the switch pill wider than the screen; rename boxes are capped.
+    await A(() => window.__aurora.wm.createDesktop('W'.repeat(400)));
+    await hk('Super+Ctrl+ArrowRight');
+    await sleep(350);
+    check('qa: desktop names are capped and the pill fits on screen', await A(() => {
+      const p = document.querySelector('.tv-pill')?.getBoundingClientRect();
+      return window.__aurora.wm.desktopName(window.__aurora.wm.currentDesktop).length === 100 && p && p.width <= innerWidth - 16 && p.left >= 0;
+    }));
+    await closeAll();
+
+    // Task View: narrow windows keep readable titles (the hidden X takes no room); dozens of windows all get a card.
+    await A(() => window.__aurora.registry.get('calculator') && window.__aurora.shell.launch('calculator'));
+    await page.waitForFunction(() => window.__aurora.wm.byApp('calculator').length > 0, null, { timeout: 8000 }).catch(() => {});
+    await newWin('Wide document', { width: 900, height: 560 });
+    await newWin('Another document', { width: 800, height: 520 });
+    await sleep(400);
+    await page.mouse.move(1270, 6);
+    await hk('Super+Tab');
+    await sleep(500);
+    check('qa: Task View titles of narrow windows are not cut', (await T.clipped('.tv-title')).length === 0, (await T.clipped('.tv-title')).join(' | '));
+    await hk('Super+Tab');
+    await sleep(450);
+    await A(() => {
+      for (let i = 0; i < 60; i++) window.__aurora.wm.create({ appId: 'test', title: `Many ${i}`, width: 480 + (i % 5) * 60, height: 360 });
+    });
+    await sleep(400);
+    await hk('Super+Tab');
+    await sleep(600);
+    const many = await A(() => {
+      const r = [...document.querySelectorAll('.tv-card')].map((c) => c.getBoundingClientRect());
+      let overlap = false;
+      for (let i = 0; i < r.length && !overlap; i++)
+        for (let j = i + 1; j < r.length; j++) if (r[i].left < r[j].right - 1 && r[j].left < r[i].right - 1 && r[i].top < r[j].bottom - 1 && r[j].top < r[i].bottom - 1) overlap = true;
+      return { cards: r.length, wins: window.__aurora.wm.listDesktop().length, overlap };
+    });
+    check('qa: Task View with 60+ windows gives every window a card, no overlap', many.cards === many.wins && !many.overlap, JSON.stringify(many));
+    await hk('Super+Tab');
+    await sleep(450);
+    await closeAll();
+
+    // Ctrl+Alt+Del: Tab never walks out of the screen into the windows / taskbar behind it.
+    await newWin('Behind the screen');
+    await sleep(250);
+    const t0 = Date.now();
+    await hk('Ctrl+Alt+Delete');
+    await page.waitForFunction(() => !!document.activeElement?.closest('.sec-screen'), null, { timeout: 3000 }).catch(() => {});
+    check('qa: the Ctrl+Alt+Del screen takes the keyboard at once (no wait for the wallpaper blur)', Date.now() - t0 < 800, `${Date.now() - t0} ms`);
+    let escaped = false;
+    for (let i = 0; i < 14; i++) {
+      await page.keyboard.press('Tab');
+      if (!(await A(() => !!document.activeElement?.closest('.sec-screen') || document.activeElement === document.body))) escaped = true;
+    }
+    check('qa: Tab stays inside the Ctrl+Alt+Del screen', !escaped);
+    await A(() => window.__aurora.security.close());
+    await sleep(300);
+    check('qa: closing it gives input back to the desktop', await A(() => ['desktop', 'windows', 'taskbar'].every((id) => !document.getElementById(id)?.inert)));
+    await closeAll();
+
+    // The real lock screen keeps hotkeys off for as long as it is up (not just 1.5 s), unlock turns them back on.
+    await newWin('Locked away');
+    await A(() => window.__aurora.shell.lock());
+    await sleep(1900);
+    check('qa: hotkeys stay disabled while the lock screen is up', (await hk('Super+D')) === false && (await hk('Ctrl+Alt+Delete')) === false);
+    await A(() => window.__aurora.shell.emit('unlock'));
+    await sleep(500);
+    check('qa: hotkeys work again after unlocking', (await hk('Super+M')) === true);
+    await closeAll();
+
+    // Run: only web addresses go to the browser; file:// opens like a path; ranked suggestions.
+    check('qa: Run refuses javascript: / app: / data: URLs', (await A(async () => [await window.__aurora.run.resolve('javascript://x%0aalert(1)'), await window.__aurora.run.resolve('app://shell/shell.html'), await window.__aurora.run.resolve('data:text/html,x')])).every((r) => r === null));
+    check('qa: Run opens file:// URLs as paths', (await A(() => window.__aurora.run.resolve(`file://${window.__aurora.env.home}/Documents`)))?.kind === 'path');
+    await hk('Super+R');
+    await sleep(500);
+    await page.fill('.run-input', 'no');
+    await sleep(250);
+    check('qa: Run suggestions are ranked (name matches before keyword matches)', (await A(() => document.querySelector('.run-opt')?.dataset.value)) === 'notepad');
+    await A(() => window.__aurora.wm.list().find((w) => w.appId === 'run')?.close());
+    await sleep(250);
+
+    // Win+X: clear of the taskbar; "Sign out" goes through the same veto path as the other power options.
+    await A(() => {
+      window.__loggedOut = 0;
+      window.__aurora.shell.logout = async () => {
+        window.__loggedOut++;
+      };
+    });
+    const vetoId = await A(() => {
+      const w = window.__aurora.wm.create({ appId: 'test', title: 'Unsaved work', width: 500, height: 300 });
+      w.onBeforeClose(async () => false);
+      return w.id;
+    });
+    await sleep(250);
+    await hk('Super+X');
+    await sleep(300);
+    check('qa: Win+X menu sits above the taskbar with a gap', await A(() => document.querySelector('body > .menu').getBoundingClientRect().bottom <= document.getElementById('taskbar').getBoundingClientRect().top - 8));
+    await key('u');
+    await sleep(300);
+    await key('i');
+    await sleep(500);
+    check('qa: Win+X sign out is cancelled by an app with unsaved work', (await A(() => window.__loggedOut)) === 0 && !!(await winState(vetoId)));
+    await A(async (id) => window.__aurora.wm.get(id).close(true), vetoId);
+    await sleep(250);
+    await hk('Super+X');
+    await sleep(300);
+    await key('u');
+    await sleep(300);
+    await key('i');
+    await sleep(500);
+    check('qa: … and signs out when nothing objects', (await A(() => window.__loggedOut)) === 1);
+
+    // Hostile strings (window titles, desktop names, Run history) are only ever rendered as text.
+    const XSS = '<img src=x onerror="window.__xss=(window.__xss||0)+1">';
+    await A((x) => {
+      const { wm } = window.__aurora;
+      wm.create({ appId: 'test', title: x, width: 500, height: 300 });
+      wm.create({ appId: 'test', title: 'plain', width: 500, height: 300 });
+      wm.renameDesktop(wm.desktops[0].id, x);
+    }, XSS);
+    await A((x) => window.__aurora.api.invoke('storage:set', 'shell', 'run-history', [x]), XSS);
+    await sleep(900);
+    await hk('Ctrl+Alt+Tab');
+    await sleep(500);
+    await key('Escape');
+    await hk('Super+Tab');
+    await sleep(500);
+    await hk('Super+Tab');
+    await sleep(450);
+    await hk('Alt+Space');
+    await sleep(200);
+    await A(() => window.__aurora.ui.closeMenus());
+    await hk('Super+ArrowLeft');
+    await sleep(800);
+    await A(() => window.__aurora.snap.endAssist());
+    await hk('Super+R');
+    await sleep(500);
+    await A(() => document.querySelector('.run-dd')?.click());
+    await sleep(250);
+    check('qa: hostile titles / names / history never become markup', await A(() => !window.__xss && !document.querySelector('img[src="x"]')));
+    await A(() => window.__aurora.wm.list().find((w) => w.appId === 'run')?.close());
+    await A((x) => window.__aurora.api.invoke('storage:set', 'shell', 'run-history', []));
+    await closeAll();
+    await A(() => window.__aurora.wm.renameDesktop(window.__aurora.wm.desktops[0].id, null));
+
+    // Clipboard history header reads "Clipboard" (the off state has its own "Clipboard history" title).
+    await hk('Super+V');
+    await sleep(300);
+    check('qa: clipboard flyout header is not duplicated', (await A(() => document.querySelector('.cliph-head .body-strong')?.textContent)) === 'Clipboard');
+    await hk('Super+V');
+    await sleep(200);
+
+    // Super held while clicking is not a Super tap: releasing it must not open Start (main/lib/hotkeys.js).
+    await A(() => {
+      window.__startEv = 0;
+      window.__aurora.shell.on('start:toggle', () => window.__startEv++);
+    });
+    const superClick = (withClick) =>
+      s.app.evaluate(({ BrowserWindow }, withClick) => {
+        const wc = BrowserWindow.getAllWindows()[0].webContents;
+        wc.sendInputEvent({ type: 'keyDown', keyCode: 'Meta', modifiers: ['meta'] });
+        if (withClick) {
+          wc.sendInputEvent({ type: 'mouseDown', x: 700, y: 300, button: 'left', clickCount: 1, modifiers: ['meta'] });
+          wc.sendInputEvent({ type: 'mouseUp', x: 700, y: 300, button: 'left', clickCount: 1, modifiers: ['meta'] });
+        }
+        wc.sendInputEvent({ type: 'keyUp', keyCode: 'Meta', modifiers: [] });
+      }, withClick);
+    await superClick(true);
+    await sleep(250);
+    const afterClick = await A(() => window.__startEv);
+    await superClick(false);
+    await sleep(250);
+    check('qa: Super+click does not open Start, a Super tap still does', afterClick === 0 && (await A(() => window.__startEv)) === 1, `${afterClick} / ${await A(() => window.__startEv)}`);
+    await A(() => window.__aurora.shell.emit('start:close'));
+    await sleep(200);
+
+    // The stacking counter is compacted after very many activations: always-on-top windows stay on top.
+    const z = await A(() => {
+      const { wm } = window.__aurora;
+      const top = wm.create({ appId: 'test', title: 'On top', width: 300, height: 200, alwaysOnTop: true });
+      const a = wm.create({ appId: 'test', title: 'Z-A', width: 400, height: 300 });
+      const b = wm.create({ appId: 'test', title: 'Z-B', width: 400, height: 300 });
+      for (let i = 0; i < 21000; i++) (i % 2 ? a : b).focus();
+      return { order: wm.stack().map((w) => w.title).join(','), max: Math.max(...wm.list().map((w) => Number(w.el.style.zIndex))) };
+    });
+    check('qa: after 21000 activations always-on-top stays on top, z stays bounded', z.order === 'On top,Z-A,Z-B' && z.max < 150000, JSON.stringify(z));
+    await closeAll();
+
+    // Caption button labels follow a live language switch.
+    await newWin('Langue');
+    await A(() => window.__aurora.settings.set('lang', 'fr'));
+    await sleep(300);
+    check('qa: caption buttons are relabelled when the language changes', JSON.stringify(await A(() => {
+      const w = window.__aurora.wm.focused();
+      return [w.btnMin.dataset.tip, w.btnClose.dataset.tip, w.btnMax.getAttribute('aria-label')];
+    })) === JSON.stringify(['Réduire', 'Fermer', 'Agrandir']));
+    await A(() => window.__aurora.settings.set('lang', 'en'));
+    await sleep(300);
+    await closeAll();
+
+    // No listener / DOM leaks: open and close every surface 10 times.
+    await newWin('Leak A');
+    await newWin('Leak B');
+    await sleep(900);
+    const before = { doc: await listenerCount('document'), win: await listenerCount('window'), nodes: await A(() => document.getElementsByTagName('*').length) };
+    for (let i = 0; i < 10; i++) {
+      await hk('Ctrl+Alt+Tab');
+      await sleep(200);
+      await key('Escape');
+      await hk('Super+Tab');
+      await sleep(120);
+      await hk('Super+Tab');
+      await sleep(380);
+      await hk('Super+Z');
+      await sleep(40);
+      await key('Escape');
+      await hk('Ctrl+Alt+Delete');
+      await sleep(120);
+      await key('Escape');
+      await hk('Super+X');
+      await sleep(60);
+      await hk('Super+X');
+      await hk('Alt+Space');
+      await sleep(60);
+      await key('Escape');
+      await hk('Super+V');
+      await sleep(40);
+      await hk('Super+V');
+      await hk('Super+R');
+      await sleep(150);
+      await A(() => window.__aurora.wm.list().find((w) => w.appId === 'run')?.close(true));
+      await sleep(250);
+    }
+    await sleep(700);
+    const after = { doc: await listenerCount('document'), win: await listenerCount('window'), nodes: await A(() => document.getElementsByTagName('*').length) };
+    check('qa: no event listener leaks after 10 open/close cycles of every surface', after.doc === before.doc && after.win === before.win, `${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
+    check('qa: no DOM leaks', after.nodes <= before.nodes + 5, `${before.nodes} -> ${after.nodes}`);
+    check('qa: Escape still reaches the page afterwards', await A(() => {
+      const inp = document.createElement('input');
+      document.body.appendChild(inp);
+      let got = false;
+      inp.addEventListener('keydown', (e) => e.key === 'Escape' && (got = true));
+      inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      inp.remove();
+      return got;
+    }));
+    await closeAll();
+    void shot;
+  } finally {
+    const mine = T.myErrors();
+    check('qa: no renderer errors from wm-nav code', mine.length === 0, mine.map((e) => e.text).join(' | '));
+    await s.close();
+  }
+}
+
+// ------------------------------------------------------------------ small and large screens: nothing off screen or cut
+async function sizesRun(size, lang, theme) {
+  const s = await launchShell({ lang, theme, size });
+  const T = helpers(s);
+  const { page } = s;
+  const { hk, A, newWin, clipped } = T;
+  const tag = `${size} ${lang}/${theme}`;
+  const offscreen = (sel) =>
+    A((sel) => [...document.querySelectorAll(sel)].filter((e) => {
+      const r = e.getBoundingClientRect();
+      return r.width && (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1);
+    }).length, sel);
+  try {
+    for (const id of ['files', 'settings', 'calculator', 'notepad']) await A((id) => window.__aurora.registry.get(id) && window.__aurora.shell.launch(id), id);
+    await newWin(lang === 'fr' ? 'Un titre de fenêtre très long pour vérifier la troncature — brouillon' : 'A very long window title to check truncation — draft', { width: 700, height: 420 });
+    await sleep(1500);
+    await hk('Ctrl+Alt+Tab');
+    await page.waitForSelector('.alttab-card', { timeout: 4000 }).catch(() => {});
+    await sleep(300);
+    check(`${tag}: Alt+Tab panel on screen`, (await offscreen('.alttab')) === 0);
+    await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    await hk('Super+Tab');
+    await sleep(500);
+    await A(() => window.__aurora.wm.createDesktop());
+    await sleep(250);
+    check(`${tag}: Task View cards and desktop tiles on screen, above the strip`, (await offscreen('.tv-card, .tv-desk')) === 0 && (await A(() => [...document.querySelectorAll('.tv-card')].every((c) => c.getBoundingClientRect().bottom <= document.querySelector('.tv-strip').getBoundingClientRect().top))));
+    check(`${tag}: desktop names not cut`, (await clipped('.tv-desk-name')).length === 0);
+    await hk('Super+Tab');
+    await sleep(450);
+    await hk('Super+Z');
+    await sleep(250);
+    check(`${tag}: snap layouts flyout on screen`, (await offscreen('.snapl-fly')) === 0);
+    await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    await hk('Super+ArrowLeft');
+    await page.waitForSelector('.snapa-card', { timeout: 3000 }).catch(() => {});
+    await sleep(250);
+    check(`${tag}: Snap Assist cards inside their zone`, await A(() => {
+      const z = document.querySelector('.snapa')?.getBoundingClientRect();
+      return !!z && [...document.querySelectorAll('.snapa-card')].every((c) => {
+        const r = c.getBoundingClientRect();
+        return r.left >= z.left - 1 && r.right <= z.right + 1 && r.top >= z.top - 1 && r.bottom <= z.bottom + 1;
+      });
+    }));
+    await A(() => window.__aurora.snap.endAssist());
+    await hk('Ctrl+Alt+Delete');
+    await sleep(500);
+    check(`${tag}: security screen options not cut`, (await clipped('.sec-opt, .sec-cancel')).length === 0 && (await offscreen('.sec-opt, .sec-tray-btn')) === 0);
+    await A(() => window.__aurora.security.close());
+    await sleep(300);
+    await hk('Super+R');
+    await sleep(500);
+    check(`${tag}: Run dialog fits`, (await clipped('.wm-run .btn, .run-label')).length === 0 && (await offscreen('.wm-run')) === 0);
+    await A(() => window.__aurora.wm.list().find((w) => w.appId === 'run')?.close());
+    await sleep(250);
+    await hk('Super+X');
+    await sleep(300);
+    await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'u', bubbles: true })));
+    await sleep(300);
+    check(`${tag}: Win+X menu and submenu on screen, labels not cut`, (await offscreen('body > .menu')) === 0 && (await clipped('body > .menu .label')).length === 0);
+    await A(() => window.__aurora.ui.closeMenus());
+  } finally {
+    const mine = T.myErrors();
+    check(`${tag}: no renderer errors from wm-nav code`, mine.length === 0, mine.map((e) => e.text).join(' | '));
+    await s.close();
+  }
+}
+
 unitTests();
-await mainRun();
+if (!ONLY.length || ONLY.some((o) => o !== 'qa' && o !== 'sizes')) await mainRun();
 if (!process.argv.includes('--quick')) {
   if (!ONLY.length || ONLY.includes('fr')) await frenchDarkRun();
   if (!ONLY.length || ONLY.includes('reduced')) await reducedRun();
+  if (!ONLY.length || ONLY.includes('qa')) await qaRun();
+  if (!ONLY.length || ONLY.includes('sizes')) {
+    await sizesRun('1280x720', 'fr', 'light');
+    await sizesRun('1920x1080', 'en', 'dark');
+  }
 }
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

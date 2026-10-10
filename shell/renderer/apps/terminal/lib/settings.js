@@ -27,6 +27,17 @@ export class SettingsPage {
       this.ctx.shell.theme.on('change', () => this.sync()),
     ];
     this.render();
+    // Narrow window: the navigation shows icons only, so give them tooltips.
+    this.ro = new ResizeObserver(() => this.updateNavTips());
+    this.ro.observe(this.el);
+  }
+
+  updateNavTips() {
+    const narrow = this.el.clientWidth > 0 && this.el.clientWidth <= 680;
+    for (const item of this.nav.querySelectorAll('.nav-item')) {
+      if (narrow) item.dataset.tip = item.getAttribute('aria-label');
+      else delete item.dataset.tip;
+    }
   }
 
   get t() {
@@ -34,13 +45,20 @@ export class SettingsPage {
   }
 
   focus() {
-    (this.nav.querySelector('.nav-item.selected') || this.nav).focus({ preventScroll: true });
+    this.main.focus({ preventScroll: true });
   }
 
   show(section) {
     if (!SECTIONS.some((s) => s.id === section)) return;
+    const changed = section !== this.section;
     this.section = section;
-    this.render();
+    for (const item of this.nav.querySelectorAll('.nav-item')) {
+      const on = item.dataset.section === section;
+      item.classList.toggle('selected', on);
+      item.setAttribute('aria-selected', String(on));
+      item.tabIndex = on ? 0 : -1;
+    }
+    if (changed) this.renderMain();
   }
 
   relabel() {
@@ -49,6 +67,7 @@ export class SettingsPage {
 
   dispose() {
     for (const off of this.offs) off?.();
+    this.ro?.disconnect();
   }
 
   sync() {
@@ -121,9 +140,13 @@ export class SettingsPage {
 
   // ------------------------------------------------------------------ render
   render() {
+    this.renderNav();
+    this.renderMain();
+  }
+
+  renderNav() {
     const { h, icon, ui } = this.ctx;
     const t = this.t;
-    this.syncers = [];
     ui.clear(this.nav);
     this.nav.appendChild(h('div', { class: 'tm-set-navtitle' }, t('settings.title')));
     for (const s of SECTIONS) {
@@ -135,7 +158,7 @@ export class SettingsPage {
           tabindex: s.id === this.section ? '0' : '-1',
           'aria-selected': String(s.id === this.section),
           dataset: { section: s.id },
-          'data-tip': t(`settings.${s.id}`),
+          'aria-label': t(`settings.${s.id}`),
           onclick: () => this.show(s.id),
           onkeydown: (e) => {
             const i = SECTIONS.findIndex((x) => x.id === s.id);
@@ -155,6 +178,13 @@ export class SettingsPage {
       );
       this.nav.appendChild(item);
     }
+    this.updateNavTips?.();
+  }
+
+  renderMain() {
+    const { h, ui } = this.ctx;
+    const t = this.t;
+    this.syncers = [];
     ui.clear(this.main);
     const body = h('div', { class: 'tm-set-body' }, h('h1', { class: 'tm-set-h1' }, t(`settings.${this.section}`)));
     this[`render_${this.section}`](body);
