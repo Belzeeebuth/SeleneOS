@@ -115,7 +115,7 @@ async function blurredWallpaper() {
     c.height = hgt;
     const g = c.getContext('2d');
     const k = Math.max(w / img.naturalWidth, hgt / img.naturalHeight) * 1.08;
-    g.filter = 'blur(16px) saturate(1.25) brightness(0.78)';
+    g.filter = 'blur(16px) saturate(1.25) brightness(0.7)';
     g.drawImage(img, (w - img.naturalWidth * k) / 2, (hgt - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
     const url = await new Promise((res) => c.toBlob((b) => res(b ? URL.createObjectURL(b) : ''), 'image/jpeg', 0.9));
     if (blurCache.url) URL.revokeObjectURL(blurCache.url);

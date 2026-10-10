@@ -83,6 +83,17 @@ export class Explorer {
     return T.iconFor(e);
   }
 
+  // Localized shortcut text: "Ctrl+Shift+N" -> "Ctrl+Maj+N", "Del" -> "Suppr", …
+  kb(s) {
+    if (!s) return s;
+    const t = this.t;
+    const map = { Shift: t('keys.shift'), Left: t('keys.left'), Right: t('keys.right'), Up: t('keys.up'), Enter: t('keys.enter'), Del: t('keys.del') };
+    return s
+      .split('+')
+      .map((p) => map[p] || p)
+      .join('+');
+  }
+
   currentDir() {
     const loc = this.tab?.loc;
     return loc?.type === 'dir' ? loc.path : null;
@@ -117,7 +128,7 @@ export class Explorer {
   buildTop() {
     const { h, t } = this;
     const navBtn = (ic, label, key, fn) =>
-      h('button', { class: 'fx-navbtn', 'aria-label': label, 'data-tip': key ? `${label} (${key})` : label, 'data-tip-pos': 'below', onclick: fn }, this.icon(ic, { size: 16 }));
+      h('button', { class: 'fx-navbtn', 'aria-label': label, 'data-tip': key ? `${label} (${this.kb(key)})` : label, 'data-tip-pos': 'below', onclick: fn }, this.icon(ic, { size: 16 }));
     this.btnBack = navBtn('arrow_left', t('nav.back'), 'Alt+Left', () => this.goBack());
     this.btnFwd = navBtn('arrow_right', t('nav.forward'), 'Alt+Right', () => this.goForward());
     this.btnUp = navBtn('arrow_up', t('nav.up'), 'Alt+Up', () => this.goUp());
@@ -151,7 +162,7 @@ export class Explorer {
     const b = h('button', {
       class: ['fx-cmd', opts.text && 'has-text', opts.menu && 'has-menu', opts.cls],
       'aria-label': label,
-      'data-tip': opts.text ? null : opts.key ? `${label} (${opts.key})` : label,
+      'data-tip': opts.text ? null : opts.key ? `${label} (${this.kb(opts.key)})` : label,
       'data-tip-pos': 'below',
       'aria-haspopup': opts.menu ? 'menu' : null,
       onclick: opts.onclick,
@@ -576,7 +587,7 @@ export class Explorer {
   tabMenu(e, tab) {
     const t = this.t;
     const i = this.tabs.indexOf(tab);
-    this.ui.menu(e, [
+    this.menu(e, [
       { label: t('tabs.new'), icon: 'tab_add', shortcut: 'Ctrl+T', action: () => this.newTab() },
       { label: t('tabs.duplicate'), icon: 'tab_desktop_copy', action: () => this.newTab(tab.loc, { index: i + 1 }) },
       { label: t('tabs.moveToWindow'), icon: 'window_new', action: () => {
@@ -748,10 +759,12 @@ export class Explorer {
     this.btnUp.disabled = tab.loc.type === 'home';
     const prev = tab.history[tab.index - 1];
     const next = tab.history[tab.index + 1];
-    this.btnBack.dataset.tip = prev ? this.t('nav.backTo', { name: this.locName(prev.loc) }) : `${this.t('nav.back')} (Alt+Left)`;
-    this.btnFwd.dataset.tip = next ? this.t('nav.forwardTo', { name: this.locName(next.loc) }) : `${this.t('nav.forward')} (Alt+Right)`;
+    const back = `(${this.kb('Alt+Left')})`;
+    const fwd = `(${this.kb('Alt+Right')})`;
+    this.btnBack.dataset.tip = prev ? `${this.t('nav.backTo', { name: this.locName(prev.loc) })} ${back}` : `${this.t('nav.back')} ${back}`;
+    this.btnFwd.dataset.tip = next ? `${this.t('nav.forwardTo', { name: this.locName(next.loc) })} ${fwd}` : `${this.t('nav.forward')} ${fwd}`;
     const up = this.upLoc();
-    this.btnUp.dataset.tip = up ? this.t('nav.upTo', { name: this.locName(up) }) : this.t('nav.up');
+    this.btnUp.dataset.tip = `${up ? this.t('nav.upTo', { name: this.locName(up) }) : this.t('nav.up')} (${this.kb('Alt+Up')})`;
   }
 
   historyMenu(e, dir) {
@@ -760,7 +773,7 @@ export class Explorer {
     if (dir < 0) for (let i = tab.index - 1; i >= 0 && items.length < 12; i--) items.push(i);
     else for (let i = tab.index + 1; i < tab.history.length && items.length < 12; i++) items.push(i);
     if (!items.length) return;
-    this.ui.menu(e, items.map((i) => ({ label: this.locName(tab.history[i].loc), icon: 'folder', iconFilled: true, action: () => this.goHistory(i) })), { class: 'app-files fx-scroll-menu' });
+    this.menu(e, items.map((i) => ({ label: this.locName(tab.history[i].loc), icon: 'folder', iconFilled: true, action: () => this.goHistory(i) })), { class: 'app-files fx-scroll-menu' });
   }
 
   async goHistory(i) {
@@ -988,7 +1001,8 @@ export class Explorer {
       for (const m of muts) for (const n of m.addedNodes) if (n.classList?.contains('menu')) decorate(n);
     });
     mo.observe(document.body, { childList: true });
-    const p = this.ui.menu(at, items, opts);
+    const loc = (list) => list.map((it) => (it && typeof it === 'object' ? { ...it, shortcut: this.kb(it.shortcut), submenu: it.submenu ? loc(it.submenu) : undefined } : it));
+    const p = this.ui.menu(at, loc(items), opts);
     p.finally(() => setTimeout(() => mo.disconnect(), 0));
     return p;
   }

@@ -337,7 +337,7 @@ export class ContentView {
   columnsMenu(e) {
     const t = this.ex.t;
     const cols = this.columns();
-    this.ex.ui.menu(e, [
+    this.ex.menu(e, [
       ...cols.map((c) => ({
         label: t(`cols.${c.id}`),
         checked: !c.hidden,

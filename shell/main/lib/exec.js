@@ -56,6 +56,7 @@ function run(cmd, args = [], opts = {}) {
 // Run a privileged helper action through sudo, feeding the user's password on stdin.
 //   sudoRun(password, '/usr/lib/aurora/helpers/aurora-admin', ['set-hostname', 'pc'])
 // Rejects with code 'EAUTH' when the password is wrong / user not allowed.
+// opts: { input (extra stdin after the password line), onStdout(text), onStderr(text), timeout (ms) }
 function sudoRun(password, helper, args = [], opts = {}) {
   return new Promise((resolve, reject) => {
     const bin = which('sudo');
@@ -78,7 +79,10 @@ function sudoRun(password, helper, args = [], opts = {}) {
       err += d;
       opts.onStderr?.(String(d));
     });
-    child.stdin.end(`${password ?? ''}\n`);
+    // opts.input: extra stdin for the helper, after the password line (sudo -S reads the
+    // password byte by byte up to the newline, so the rest reaches the helper untouched).
+    child.stdin.on('error', () => {});
+    child.stdin.end(`${password ?? ''}\n${opts.input ?? ''}`);
     const timer = opts.timeout ? setTimeout(() => child.kill('SIGTERM'), opts.timeout) : null;
     child.on('close', (code) => {
       if (timer) clearTimeout(timer);

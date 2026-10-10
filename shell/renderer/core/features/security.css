@@ -26,7 +26,7 @@
 .sec-bg {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(4, 10, 22, 0.18), rgba(4, 10, 22, 0.42)), var(--sec-image, var(--mica-image, none)) center / cover, linear-gradient(135deg, #1d2b4a, #0b1220);
+  background: radial-gradient(ellipse at center, rgba(4, 10, 22, 0.26), rgba(4, 10, 22, 0.5)), var(--sec-image, var(--mica-image, none)) center / cover, linear-gradient(135deg, #1d2b4a, #0b1220);
   transform: scale(1.02);
   animation: sec-bg-in 600ms var(--ease);
 }

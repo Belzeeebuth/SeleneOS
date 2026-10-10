@@ -15,6 +15,7 @@ fs.mkdirSync(DOCS, { recursive: true });
 const ONLY = process.argv.find((a) => a.startsWith('--only='))?.slice(7);
 
 const results = [];
+let current = null; // session used for cleanup after a failure
 async function test(name, fn) {
   if (ONLY && !name.includes(ONLY)) return;
   const t0 = Date.now();
@@ -24,7 +25,13 @@ async function test(name, fn) {
     console.log(`PASS  ${name} (${Date.now() - t0} ms)`);
   } catch (err) {
     results.push({ name, ok: false, err });
-    console.log(`FAIL  ${name}\n      ${String(err?.stack || err).split('\n').slice(0, 4).join('\n      ')}`);
+    const where = String(err?.stack || '').split('\n').find((l) => l.includes('paint.test.mjs')) || '';
+    if (current) {
+      // Don't let one failure cascade: dismiss dialogs, menus and flyouts left open.
+      await current.page.keyboard.press('Escape').catch(() => {});
+      await current.page.evaluate(() => document.querySelectorAll('.dialog-layer, .menu, .pt-flyout').forEach((e) => e.remove())).catch(() => {});
+    }
+    console.log(`FAIL  ${name}\n      ${String(err?.message || err).split('\n').slice(0, 24).join('\n      ')}\n      ${where.trim()}`);
   }
 }
 
@@ -126,6 +133,7 @@ async function menu(s, top, ...labels) {
 
 // ================================================================== main session (en, light)
 const s = await launchShell({ open: ['paint'], lang: 'en', theme: 'light' });
+current = s;
 await s.page.waitForSelector(`${WIN} .pt-doc`, { timeout: 30000 });
 await wait(s, 600);
 const home = s.home;
@@ -292,7 +300,7 @@ await test('all shapes render, Shift constrains, outline/fill styles apply', asy
     p.app.setColor('secondary', '#ffc90e');
     p.app.setFillStyle('solid');
   });
-  await P(s, (p) => p.app.cmd('new'));
+  await P(s, (p) => { p.app.cmd('new'); });
   await wait(s, 150);
   // the drawing above is dirty: "new" asks to save -> Don't save
   await s.page.waitForSelector(`${WIN} .pt-ask`);
@@ -320,7 +328,7 @@ await test('all shapes render, Shift constrains, outline/fill styles apply', asy
   await shape(s, 'ellipse');
   await drag(s, [[60, 500], [200, 560]], { shift: true });
   const sel = await P(s, (p, el) => el.querySelector('.pt-st-item.sel').textContent);
-  assert.equal(sel, '140 × 140px', 'constrained to a circle');
+  assert.equal(sel, '141 × 141px', 'constrained to a circle (cells 60…200 inclusive)');
   await P(s, (p) => p.commitPending());
   // outline/fill styles through the menus
   await s.page.click(`${WIN} .pt-g[data-g="shapes"] .pt-col .pt-b:nth-child(1)`);
@@ -350,7 +358,7 @@ await test('color picker sets color 1 and returns to the previous tool', async (
 });
 
 await test('rectangle selection: move with the mouse, Delete, undo', async () => {
-  await P(s, (p) => p.app.cmd('new'));
+  await P(s, (p) => { p.app.cmd('new'); });
   await s.page.waitForSelector(`${WIN} .pt-ask`);
   await s.page.click(`${WIN} .pt-ask .dialog-footer .btn:nth-child(2)`);
   await wait(s, 250);
@@ -367,8 +375,8 @@ await test('rectangle selection: move with the mouse, Delete, undo', async () =>
   const h0 = await hash(s);
   await s.page.click(`${WIN} .pt-split .pt-split-main[aria-label="Select"]`);
   await drag(s, [[90, 90], [210, 210]]);
-  assert.deepEqual(await P(s, (p) => p.sel), { x: 90, y: 90, w: 120, h: 120, floating: false });
-  assert.equal(await P(s, (p, el) => el.querySelector('.pt-st-item.sel').textContent), '120 × 120px');
+  assert.deepEqual(await P(s, (p) => p.sel), { x: 90, y: 90, w: 121, h: 121, floating: false });
+  assert.equal(await P(s, (p, el) => el.querySelector('.pt-st-item.sel').textContent), '121 × 121px');
   await drag(s, [[150, 150], [450, 250]]);
   assert.equal((await P(s, (p) => p.sel)).floating, true);
   assert.ok(isWhite(await px(s, 150, 150)), 'hole filled with color 2');
@@ -395,13 +403,15 @@ await test('free-form selection, invert, crop to selection', async () => {
   assert.ok(sel && sel.w > 150 && sel.h > 150, 'lasso selection');
   await P(s, (p) => p.app.cmd('invertSel'));
   assert.deepEqual(await P(s, (p) => p.sel), { x: 0, y: 0, w: 1152, h: 648, floating: false });
-  await P(s, (p) => p.app.cmd('undo')); // drop selection
+  await s.page.keyboard.press('Escape'); // drop the selection
+  await wait(s, 60);
+  assert.equal(await P(s, (p) => p.sel), null);
   await P(s, (p) => p.app.setSelMode('rect'));
   const h0 = await hash(s);
   await drag(s, [[100, 100], [200, 160]]);
   await s.page.keyboard.press('Control+Shift+X');
   await wait(s, 120);
-  assert.deepEqual(await P(s, (p) => p.size), { w: 100, h: 60 });
+  assert.deepEqual(await P(s, (p) => p.size), { w: 101, h: 61 });
   assert.deepEqual(await px(s, 50, 30), [237, 28, 36, 255]);
   await s.page.keyboard.press('Control+z');
   await wait(s, 150);
@@ -447,6 +457,7 @@ await test('Ctrl+S saves in place; JPEG, BMP, GIF and WebP round-trip with the r
     ['webp', 'webp', '52494646'],
   ]) {
     const f = path.join(pics, `paint-test.${ext}`);
+    await P(s, (p, el, a) => p.openPath(a), savedPng);
     const ok = await P(s, (p, el, a) => p.writeFile(a[0], a[1]), [f, fmt]);
     assert.equal(ok, true, `${fmt} saved`);
     const head = fs.readFileSync(f).subarray(0, magic.length / 2).toString('hex');
@@ -475,9 +486,13 @@ await test('clipboard: copy all, new image, paste gives identical pixels', async
   await s.page.keyboard.press('Control+a');
   await s.page.keyboard.press('Control+c');
   await wait(s, 300);
-  const img = await s.app.evaluate(({ clipboard }) => clipboard.readImage().getSize());
+  const img = await s.page.evaluate(async () => {
+    const bytes = await window.aurora.invoke('clipboard:readImage');
+    const bmp = await createImageBitmap(new Blob([bytes]));
+    return { width: bmp.width, height: bmp.height };
+  });
   assert.deepEqual(img, { width: 1152, height: 648 }, 'system clipboard holds the picture');
-  await P(s, (p) => p.app.cmd('new'));
+  await P(s, (p) => { p.app.cmd('new'); });
   await waitFor(s, (p) => !p.file.path);
   assert.notEqual(await hash(s), h0);
   await s.page.keyboard.press('Control+v');
@@ -494,7 +509,7 @@ await test('clipboard: copy all, new image, paste gives identical pixels', async
   assert.ok(isWhite(await px(s, 150, 150)), 'cut clears to color 2');
   await s.page.keyboard.press('Control+v');
   await waitFor(s, (p) => p.sel && p.sel.floating);
-  assert.equal((await P(s, (p) => p.sel)).w, 120);
+  assert.equal((await P(s, (p) => p.sel)).w, 121);
 });
 
 await test('resize & skew dialog, rotate and flip transform pixels correctly', async () => {
@@ -543,6 +558,7 @@ await test('image properties and canvas resize grip change the canvas size (undo
   await wait(s, 150);
   assert.deepEqual(await P(s, (p) => p.size), { w: 800, h: 648 });
   await P(s, (p) => p.app.cmd('undo'));
+  await P(s, (p) => p.reveal([[p.size.w, p.size.h]]));
   const g = await P(s, (p, el) => {
     const r = el.querySelector('.pt-cvh-se').getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2, z: p.zoom() };
@@ -682,6 +698,7 @@ await test('small (minimum size) and maximized windows keep the command bar usab
   const id = await P(s, (p, el) => el.dataset.id);
   await s.aurora((wid) => {
     const w = window.__aurora.wm.get(wid);
+    w.restore();
     w.setRect({ width: 560, height: 420 });
   }, id);
   await wait(s, 400);
@@ -713,6 +730,7 @@ await s.close();
 
 // ================================================================== French + dark
 const f = await launchShell({ open: ['paint'], lang: 'fr', theme: 'dark' });
+current = f;
 await f.page.waitForSelector(`${WIN} .pt-doc`, { timeout: 30000 });
 await wait(f, 600);
 await test('French UI strings and dark theme', async () => {

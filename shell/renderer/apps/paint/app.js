@@ -861,20 +861,29 @@ export async function createPaint(ctx) {
     }
     if (S.shape === 'polygon') return startPolygon(p, right);
     const open = isOpen(S.shape);
-    const snap = (q) => (open ? { x: Math.floor(q.x) + 0.5, y: Math.floor(q.y) + 0.5 } : { x: Math.round(q.x), y: Math.round(q.y) });
-    const s0 = snap(p);
+    // Lines join pixel centres; box shapes cover whole pixel cells, start and end cell included.
+    const cell = (q) => ({ x: Math.floor(q.x), y: Math.floor(q.y) });
+    const c0 = cell(p);
+    const s0 = open ? { x: c0.x + 0.5, y: c0.y + 0.5 } : c0;
     const shape = { type: S.shape, x0: s0.x, y0: s0.y, x1: s0.x, y1: s0.y, ...shapeColors(right), size: S.sizes.shape, outline: S.outline, fill: S.fill, seed: rnd() };
     let moved = false;
     return {
       move(pts, ev) {
-        const c = constrain(s0, snap(pts[pts.length - 1]), ev.shiftKey, open);
-        shape.x1 = c.x;
-        shape.y1 = c.y;
+        const c1 = cell(pts[pts.length - 1]);
+        if (open) {
+          const c = constrain(s0, { x: c1.x + 0.5, y: c1.y + 0.5 }, ev.shiftKey, true);
+          shape.x1 = c.x;
+          shape.y1 = c.y;
+        } else {
+          const e = constrain(c0, c1, ev.shiftKey, false);
+          [shape.x0, shape.x1] = e.x >= c0.x ? [c0.x, e.x + 1] : [c0.x + 1, e.x];
+          [shape.y0, shape.y1] = e.y >= c0.y ? [c0.y, e.y + 1] : [c0.y + 1, e.y];
+        }
         if (shape.type === 'curve') {
           shape.c1 = [shape.x0 + (shape.x1 - shape.x0) / 3, shape.y0 + (shape.y1 - shape.y0) / 3];
           shape.c2 = [shape.x0 + ((shape.x1 - shape.x0) * 2) / 3, shape.y0 + ((shape.y1 - shape.y0) * 2) / 3];
         }
-        moved = moved || Math.abs(shape.x1 - shape.x0) >= 1 || Math.abs(shape.y1 - shape.y0) >= 1;
+        moved = moved || c1.x !== c0.x || c1.y !== c0.y;
         poly = null;
         drawPending(shape);
         chrome.setStatus({ sel: fmtSize(Math.round(Math.abs(shape.x1 - shape.x0)), Math.round(Math.abs(shape.y1 - shape.y0))) });
@@ -1066,21 +1075,23 @@ export async function createPaint(ctx) {
     return S.selMode === 'free' ? lassoGesture(p) : marqueeGesture(p);
   }
 
+  // Selections cover whole pixel cells: the cells under the start and end points are included.
   function marqueeGesture(p) {
-    const sx = clamp(Math.round(p.x), 0, W());
-    const sy = clamp(Math.round(p.y), 0, H());
+    const sx = clamp(Math.floor(p.x), 0, W() - 1);
+    const sy = clamp(Math.floor(p.y), 0, H() - 1);
     let r = null;
     return {
       move(pts, ev) {
         const q = pts[pts.length - 1];
-        let ex = clamp(Math.round(q.x), 0, W());
-        let ey = clamp(Math.round(q.y), 0, H());
+        let ex = clamp(Math.floor(q.x), 0, W() - 1);
+        let ey = clamp(Math.floor(q.y), 0, H() - 1);
+        if (ex === sx && ey === sy && !r) return;
         if (ev.shiftKey) {
-          const d = Math.min(Math.max(Math.abs(ex - sx), Math.abs(ey - sy)), ex >= sx ? W() - sx : sx, ey >= sy ? H() - sy : sy);
+          const d = Math.min(Math.max(Math.abs(ex - sx), Math.abs(ey - sy)), ex >= sx ? W() - 1 - sx : sx, ey >= sy ? H() - 1 - sy : sy);
           ex = sx + (ex >= sx ? d : -d);
           ey = sy + (ey >= sy ? d : -d);
         }
-        r = { x: Math.min(sx, ex), y: Math.min(sy, ey), w: Math.abs(ex - sx), h: Math.abs(ey - sy) };
+        r = { x: Math.min(sx, ex), y: Math.min(sy, ey), w: Math.abs(ex - sx) + 1, h: Math.abs(ey - sy) + 1 };
         marquee = r;
         overlay();
       },

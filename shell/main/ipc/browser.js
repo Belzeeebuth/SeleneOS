@@ -166,6 +166,10 @@ module.exports = function register(api) {
     sessions.set(partition, ses);
     partitionOf.set(ses, partition);
     ses.setUserAgent(cleanUserAgent(ses.getUserAgent()), acceptLanguages(prefs.lang));
+    // No spell-checker dictionaries fetched from Google servers behind the user's back.
+    try {
+      ses.setSpellCheckerEnabled(false);
+    } catch {}
     ses.on('will-download', (event, item, wc) => onWillDownload(partition, item, wc));
     ses.setPermissionRequestHandler((wc, permission, callback, details) => onPermissionRequest(partition, wc, permission, callback, details || {}));
     ses.setPermissionCheckHandler((wc, permission, requestingOrigin, details) => onPermissionCheck(partition, permission, requestingOrigin, details || {}));

@@ -80,6 +80,21 @@ function screenBounds() {
   return { x, y, width, height };
 }
 
+// Chromium never gives a window exactly the size of a display (it subtracts 1px so that window
+// managers do not maximize it). With no window manager that leaves a 1px gap on the right and
+// bottom edges, so the OS image's helper resizes the X window itself (absent in dev: no-op).
+const XRESIZE = '/usr/lib/aurora/aurora-xresize';
+function coverExactly(win, b) {
+  if (process.platform !== 'linux' || win.isDestroyed() || !fs.existsSync(XRESIZE)) return;
+  const cur = win.getBounds();
+  if (cur.x === b.x && cur.y === b.y && cur.width === b.width && cur.height === b.height) return;
+  const h = win.getNativeWindowHandle();
+  const xid = h.length >= 8 ? h.readBigUInt64LE(0) : BigInt(h.readUInt32LE(0));
+  require('child_process').execFile(XRESIZE, [xid, b.x, b.y, b.width, b.height].map(String), { timeout: 5000 }, (err) => {
+    if (err) console.warn(`aurora: ${XRESIZE} failed: ${err.message}`);
+  });
+}
+
 // Keep the shell window on the whole primary display when the resolution or monitors change.
 function followScreen(win) {
   const { screen } = require('electron');
@@ -87,10 +102,14 @@ function followScreen(win) {
     if (win.isDestroyed()) return;
     const b = screenBounds();
     const cur = win.getBounds();
-    if (cur.x !== b.x || cur.y !== b.y || cur.width !== b.width || cur.height !== b.height) win.setBounds(b);
+    if (cur.x !== b.x || cur.y !== b.y || cur.width !== b.width || cur.height !== b.height) {
+      win.setBounds(b);
+      setTimeout(() => coverExactly(win, b), 100);
+    }
   };
   for (const ev of ['display-metrics-changed', 'display-added', 'display-removed']) screen.on(ev, () => setTimeout(fit, 50));
   win.once('ready-to-show', fit);
+  win.once('show', () => setTimeout(fit, 50));
 }
 
 function createWindow() {

@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # variables are used by iso/build.sh, which sources this file
 # Aurora OS — pinned build configuration.
 #
 # Sourced by iso/build.sh (and the Makefile/tools). Every value can be overridden from the

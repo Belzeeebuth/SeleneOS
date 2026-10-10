@@ -91,7 +91,8 @@ test:
 	cd $(ROOT)/shell && PATH="$(NODE_BIN):$$PATH" xvfb-run -a -s "-screen 0 1600x900x24" node test/smoke.mjs
 
 docker-iso:
-	$(DOCKER) build -t $(DOCKER_IMAGE) -f $(ROOT)/iso/Dockerfile $(ROOT)/iso
+	$(DOCKER) build --network host -t $(DOCKER_IMAGE) -f $(ROOT)/iso/Dockerfile \
+	  $(foreach v,https_proxy HTTPS_PROXY http_proxy,$(if $($(v)),--build-arg $(v)='$($(v))')) $(ROOT)/iso
 	$(DOCKER) run --rm --privileged --network host -v /dev:/dev -v $(ROOT):/src -w /src \
 	  -e AURORA_OUT_OWNER=$$(id -u):$$(id -g) \
 	  $(foreach v,https_proxy HTTPS_PROXY http_proxy,$(if $($(v)),-e $(v)='$($(v))')) \

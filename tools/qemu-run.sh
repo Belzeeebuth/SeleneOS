@@ -134,10 +134,24 @@ QEMU="${QEMU:-qemu-system-x86_64}"
 QEMU_IMG="${QEMU_IMG:-qemu-img}"
 STATE="$ROOT/work/qemu"
 
+# Shell-quote for display: plain words stay readable (QEMU options are full of commas).
+shq() {
+  local a out=()
+  for a in "$@"; do
+    if [[ "$a" =~ ^[A-Za-z0-9_./:=,+@%-]+$ ]]; then out+=("$a"); else out+=("'${a//\'/\'\\\'\'}'"); fi
+  done
+  echo "${out[*]}"
+}
 # Commands that change something on the host; in --dry-run they are only printed.
 PRE_CMDS=()
 run_or_print() { # cmd...
-  if ((DRY_RUN)); then PRE_CMDS+=("$(printf '%q ' "$@")"); else "$@"; fi
+  if ((DRY_RUN)); then
+    local c c_new; c_new="$(shq "$@")"
+    for c in "${PRE_CMDS[@]}"; do [[ "$c" == "$c_new" ]] && return 0; done
+    PRE_CMDS+=("$c_new")
+  else
+    "$@"
+  fi
 }
 
 if ! command -v "$QEMU" >/dev/null 2>&1; then
@@ -177,11 +191,16 @@ fi
 if ((NO_DISK == 0)); then
   DISK="${DISK:-$STATE/aurora-disk.qcow2}"
   if [[ ! -f "$DISK" ]]; then
-    [[ "$BOOT" == disk ]] && die "disk $DISK does not exist (install Aurora OS first: make run)"
-    command -v "$QEMU_IMG" >/dev/null 2>&1 || ((DRY_RUN)) || die "$QEMU_IMG not found (Ubuntu/Debian: sudo apt install qemu-utils)"
-    run_or_print mkdir -p "$(dirname "$DISK")"
-    run_or_print "$QEMU_IMG" create -q -f qcow2 "$DISK" "$DISK_SIZE"
-    ((DRY_RUN)) || note "created $DISK ($DISK_SIZE, grows on demand)"
+    if [[ "$BOOT" == disk ]]; then
+      ((DRY_RUN)) || die "disk $DISK does not exist (install Aurora OS first: make run)"
+      note "warning: disk $DISK does not exist yet (install Aurora OS first: make run)"
+    fi
+    if [[ "$BOOT" != disk ]]; then
+      command -v "$QEMU_IMG" >/dev/null 2>&1 || ((DRY_RUN)) || die "$QEMU_IMG not found (Ubuntu/Debian: sudo apt install qemu-utils)"
+      run_or_print mkdir -p "$(dirname "$DISK")"
+      run_or_print "$QEMU_IMG" create -q -f qcow2 "$DISK" "$DISK_SIZE"
+      ((DRY_RUN)) || note "created $DISK ($DISK_SIZE, grows on demand)"
+    fi
   fi
 fi
 ((DRY_RUN)) || mkdir -p "$STATE"
@@ -415,7 +434,7 @@ summary="$firmware, $ACCEL, ${MEM} MB, $CPUS vCPU, $VGA ${RES}, audio=$AUDIO, di
 if ((DRY_RUN)); then
   note "dry run ($summary) — nothing is started or created"
   for c in "${PRE_CMDS[@]}"; do echo "$c"; done
-  printf '%q ' "$QEMU" "${args[@]}"; echo
+  shq "$QEMU" "${args[@]}"
   exit 0
 fi
 rm -f "$QMP_SOCK" "$QGA_SOCK"

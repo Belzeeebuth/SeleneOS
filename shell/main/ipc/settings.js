@@ -46,6 +46,9 @@ const DEFAULTS = {
   keyboardLayout: null,
   startShowRecent: true,
   showSeconds: false,
+  // Settings app (apps/settings) — keys below are applied live by the shell or the backends:
+  lockWallpaper: null, // lock screen picture: null = same as the desktop, 'builtin:<id>' or absolute image path
+  mouse: { speed: 0, leftHanded: false }, // pointer acceleration -1..1 and primary button (applied with xinput, main/ipc/locale.js)
 };
 
 function isObj(v) {
@@ -108,6 +111,18 @@ module.exports = function register(api) {
         console.error('[settings] save failed', err);
       }
     }, 150);
+  };
+
+  // Main-process access for other backend modules (e.g. locale:setKeyboard persists keyboardLayout).
+  api.settings = {
+    get: (key) => getPath(merged(), key),
+    set: (key, value) => {
+      setPath(user, key, value);
+      save();
+      const all = merged();
+      api.broadcast('settings:changed', { key, value: getPath(all, key), all });
+      return getPath(all, key);
+    },
   };
 
   api.handle('settings:all', () => merged());

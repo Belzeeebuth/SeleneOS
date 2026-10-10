@@ -298,7 +298,7 @@ function renderAssist() {
       {
         class: ['snapa-card', i === a.index && 'sel'],
         dataset: { id: w.id },
-        style: { width: `${tw + 12}px` },
+        style: { width: `${fw + 12}px` },
         onpointerdown: (e) => e.preventDefault(),
         onclick: () => choose(w),
       },

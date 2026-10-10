@@ -27,7 +27,7 @@ function check(name, actual, expected) {
   return ok;
 }
 async function section(name, fn) {
-  if (only && !name.toLowerCase().includes(only.toLowerCase())) return;
+  if (only && !only.toLowerCase().split(',').some((o) => name.toLowerCase().includes(o))) return;
   const t0 = Date.now();
   try {
     await fn();
@@ -614,7 +614,7 @@ if (!fatal) {
     await page.waitForFunction(() => !document.querySelector('.fx-props-win .fx-inline-spin'), null, { timeout: 10000 });
     const text = await page.locator('.fx-props-win .fx-props-page').innerText();
     check('props type', text.includes('File folder'), true);
-    check('props contains', text.includes('3 Files, 4 Folders'), true);
+    check('props contains', text.includes('3 Files, 3 Folders'), true);
     check('props location', text.includes(D('Documents')), true);
     check('props title', await page.evaluate(() => window.__aurora.wm.list().find((w) => w.el.classList.contains('fx-props-win'))?.title), 'Projects Properties');
     await page.click('.fx-props-win .fx-props-tab:has-text("Permissions")');
@@ -810,7 +810,7 @@ check('no missing app resources', mine404, []);
 await s.close();
 
 // ================================================================ French + dark theme
-if (!only || 'french dark'.includes(only.toLowerCase())) {
+if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o))) {
   const home2 = makeHome();
   const s2 = await launchShell({ home: home2, open: ['files'], lang: 'fr', theme: 'dark', settle: 1200 });
   const H2 = helpers(s2);

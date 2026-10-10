@@ -502,7 +502,7 @@ console.log(`Local test server: ${srv.url}`);
 
   await test('pop-up with window features opens a new browser window', async () => {
     await pageJs("document.getElementById('pop').click()");
-    await waitFor('window.__aurora.wm.byApp("browser").length === 2', { msg: 'second window' });
+    await waitFor('window.__aurora.wm.byApp("browser").length === 2 && window.__aurora.registry.instance(window.__aurora.wm.byApp("browser")[1].id)?.hooks?.ctl?.active', { msg: 'second window' });
     await waitFor('bw.active.web.title === "Second Page"', { i: 1, msg: 'popup content' });
     await run('bw.win.close()', 1);
     await waitFor('window.__aurora.wm.byApp("browser").length === 1');
@@ -578,7 +578,7 @@ console.log(`Local test server: ${srv.url}`);
     await run(`bw.activate(bw.tabs.find((t) => t.id === '${a}'))`);
     await waitFor('bw.omni.input.value === "draft words"', { msg: 'typed text restored' });
     await run(`bw.closeTab(bw.tabs.find((t) => bw.tabUrl(t) === 'aurora://about'))`);
-    await run('bw.omni.reset(); bw.omni.sync(bw.active)');
+    await run('(bw.omni.reset(), bw.omni.sync(bw.active))');
   });
 
   await test('audio indicator on the playing tab, click to mute', async () => {
@@ -674,7 +674,7 @@ console.log(`Local test server: ${srv.url}`);
   await test('Private window: dark styling, badge, separate partition, no history', async () => {
     const before = await run('bw.store.history.size');
     await run('window.__aurora.shell.launch("browser", { private: true })');
-    await waitFor('window.__aurora.wm.byApp("browser").length === 2', { msg: 'private window' });
+    await waitFor('window.__aurora.wm.byApp("browser").length === 2 && window.__aurora.registry.instance(window.__aurora.wm.byApp("browser")[1].id)?.hooks?.ctl?.active', { msg: 'private window' });
     const r = await run('({ cls: bw.win.el.className, badge: bw.privateBadge?.textContent, part: bw.partition, title: bw.win.title, ntp: !!document.querySelector(".app-browser.bw-private .bp-private-card") })', 1);
     assert(/bw-private/.test(r.cls), 'private class');
     assert(r.badge === 'Private', `badge (${r.badge})`);

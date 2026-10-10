@@ -1,0 +1,381 @@
+#!/bin/bash
+# aurora-admin — the privileged actions behind Aurora Shell's elevation prompt (UAC).
+#
+# Run as root through sudo by the shell (shell/main/ipc/admin.js -> lib/exec.js sudoRun):
+#     sudo -S -k -p '' -- /usr/lib/aurora/helpers/aurora-admin <action> [args...]
+# /etc/sudoers.d/aurora lets members of the "sudo" group run it (password required; the live user
+# has NOPASSWD rights from casper).
+#
+# This is an ALLOW-LIST. Every argument is validated with a strict pattern and only ever passed to
+# programs as a separate argv element (never through a shell or eval). Anything else is refused.
+#
+# Actions:
+#   ping                                         -> "pong" (used to probe the setup)
+#   user-add <name> <full name> <admin 0|1> <nonce>     password read from stdin (see "Secrets")
+#   user-delete <name> <keep-home 0|1>
+#   user-set-admin <name> <0|1>
+#   user-set-fullname <name> <full name>
+#   set-password <name> <nonce>                  new password read from stdin
+#   set-hostname <name>
+#   set-timezone <Area/City>
+#   set-ntp <0|1>
+#   set-locale <en_US.UTF-8|en_GB.UTF-8|fr_FR.UTF-8|fr_CA.UTF-8|fr_BE.UTF-8|fr_CH.UTF-8>
+#   set-keyboard <layout> [variant]              system default (/etc/default/keyboard: sign-in screen, new users)
+#   firewall <enable|disable|status>             ufw
+#   set-autologin <user|none>                    greetd [initial_session]
+#   kill-process <pid> <TERM|KILL|HUP|INT|QUIT|STOP|CONT|USR1|USR2>
+#   service <start|stop|restart> <unit>          systemd units (.service, .socket, .timer)
+#   apt-check                                    apt-get update, then one "Inst …" line per pending upgrade
+#   apt-upgrade                                  non-interactive upgrade; APT status lines on stdout
+#                                                ("dlstatus:…" / "pmstatus:pkg:percent:message"), apt's own output on stderr
+#
+# Secrets: passwords never appear on a command line. The caller passes a random nonce (32 hex
+# digits) as the last argument and writes "<nonce>:<base64 of the password>" on stdin, after the
+# line sudo itself reads its password from. sudo -S reads its password byte by byte up to the
+# newline, so the rest of stdin reaches this script untouched; when sudo needs no password (NOPASSWD)
+# that first line is still there, which is why up to two lines are read and only the one carrying
+# the nonce is used.
+#
+# Exit codes: 0 ok, 2 invalid arguments, 3 not found / not installed, 4 refused by policy, 5 failed.
+# Every action is logged to the system journal (authpriv, tag aurora-admin) — never a password.
+set -euo pipefail
+umask 022
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LC_ALL=C
+IFS=$' \t\n'
+
+PROG=aurora-admin
+ACTION=""
+CALLER="${SUDO_USER:-$(id -un 2>/dev/null || echo unknown)}"
+[[ $CALLER =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || CALLER=unknown
+
+log() { logger -t "$PROG" -p authpriv.notice -- "$*" >/dev/null 2>&1 || true; }
+die() {
+  local code=$1
+  shift
+  printf '%s: %s\n' "$PROG" "$*" >&2
+  log "user=$CALLER action=${ACTION:-none} refused/failed: $*"
+  exit "$code"
+}
+run_or_die() { # run_or_die <message> cmd args... : runs cmd, maps a failure to exit code 5
+  local msg=$1
+  shift
+  "$@" || die 5 "$msg"
+}
+
+[ "$(id -u)" -eq 0 ] || die 4 "must be run as root (through sudo)"
+[ $# -ge 1 ] || die 2 "usage: $PROG <action> [arguments]"
+ACTION=$1
+shift
+
+# ------------------------------------------------------------------ validation helpers
+RE_USER='^[a-z_][a-z0-9_-]{0,31}$'
+RESERVED_USERS=" root daemon bin sys sync games man lp mail news uucp proxy www-data backup list irc gnats nobody systemd-network systemd-resolve systemd-timesync messagebus syslog _apt tss uuidd tcpdump sshd polkitd _greetd greeter aurora-greeter admin sudo adm users "
+
+need_args() { # need_args <got> <min> [max]
+  local got=$1 min=$2 max=${3:-$2}
+  { [ "$got" -ge "$min" ] && [ "$got" -le "$max" ]; } || die 2 "$ACTION: wrong number of arguments"
+}
+valid_user() { [[ $1 =~ $RE_USER ]] || die 2 "invalid user name"; }
+valid_bool() { [[ $1 =~ ^[01]$ ]] || die 2 "expected 0 or 1"; }
+valid_nonce() { [[ $1 =~ ^[0-9a-f]{32}$ ]] || die 2 "invalid secret nonce"; }
+valid_fullname() {
+  local v=$1
+  [ ${#v} -le 256 ] || die 2 "full name too long"
+  [[ $v =~ [[:cntrl:]] ]] && die 2 "invalid characters in the full name"
+  case $v in *[:,=\\]*) die 2 "the full name cannot contain : , = or \\" ;; esac
+  return 0
+}
+uid_of() { getent passwd "$1" | cut -d: -f3; }
+is_human_user() {
+  local uid
+  uid=$(uid_of "$1") || return 1
+  [ -n "$uid" ] && [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ]
+}
+require_human_user() {
+  valid_user "$1"
+  is_human_user "$1" || die 3 "no such user account: $1"
+}
+in_group() { id -nG -- "$1" 2>/dev/null | tr ' ' '\n' | grep -qx -- "$2"; }
+admin_count_except() { # number of human administrators other than $1
+  local n=0 u
+  for u in $(getent group sudo | cut -d: -f4 | tr ',' ' '); do
+    [ "$u" = "$1" ] && continue
+    is_human_user "$u" && n=$((n + 1))
+  done
+  echo "$n"
+}
+
+SECRET=""
+read_secret() { # read_secret <nonce>
+  local nonce=$1 line b64 _
+  SECRET=""
+  for _ in 1 2; do
+    IFS= read -r -t 15 line || break
+    if [[ $line == "$nonce:"* ]]; then
+      b64=${line#"$nonce:"}
+      [[ $b64 =~ ^[A-Za-z0-9+/]*={0,2}$ ]] || die 2 "malformed secret"
+      SECRET=$(printf '%s' "$b64" | base64 -d 2>/dev/null) || die 2 "malformed secret"
+      break
+    fi
+  done
+  [ -n "$SECRET" ] || die 2 "no password was provided"
+  [ ${#SECRET} -le 256 ] || die 2 "the password is too long"
+  case $SECRET in *$'\n'* | *$'\r'*) die 2 "the password cannot contain line breaks" ;; esac
+  return 0
+}
+set_password() { # set_password <user>  (uses $SECRET; chpasswd reads "user:password" on stdin)
+  printf '%s:%s\n' "$1" "$SECRET" | chpasswd || die 5 "could not set the password"
+}
+
+GREETD_CONF=/etc/greetd/config.toml
+greetd_without_initial() { # prints the greetd config without its [initial_session] table
+  awk '/^[[:space:]]*\[/ { skip = ($0 ~ /^[[:space:]]*\[initial_session\][[:space:]]*$/) } !skip' "$GREETD_CONF"
+}
+write_file_atomic() { # write_file_atomic <path> <mode>   (content on stdin)
+  local dst=$1 mode=$2 tmp
+  tmp=$(mktemp "${dst}.aurora.XXXXXX")
+  cat >"$tmp"
+  chmod "$mode" "$tmp"
+  mv -f -- "$tmp" "$dst"
+}
+
+log "user=$CALLER action=$ACTION"
+
+case $ACTION in
+# ------------------------------------------------------------------ accounts
+ping)
+  need_args $# 0
+  echo pong
+  ;;
+
+user-add)
+  need_args $# 4
+  name=$1 full=$2 admin=$3 nonce=$4
+  valid_user "$name"
+  valid_fullname "$full"
+  valid_bool "$admin"
+  valid_nonce "$nonce"
+  case $RESERVED_USERS in *" $name "*) die 4 "this user name is reserved" ;; esac
+  getent passwd "$name" >/dev/null && die 4 "the user name $name is already in use"
+  getent group "$name" >/dev/null && die 4 "the name $name is already used by a group"
+  read_secret "$nonce"
+  groups=""
+  for g in users audio video plugdev netdev bluetooth lpadmin; do
+    getent group "$g" >/dev/null && groups="$groups,$g"
+  done
+  if [ "$admin" = 1 ]; then
+    for g in sudo adm; do getent group "$g" >/dev/null && groups="$groups,$g"; done
+  fi
+  args=(--create-home --user-group --shell /bin/bash --comment "$full")
+  [ -n "$groups" ] && args+=(--groups "${groups#,}")
+  run_or_die "could not create the account" useradd "${args[@]}" -- "$name"
+  if ! printf '%s:%s\n' "$name" "$SECRET" | chpasswd; then
+    userdel --remove -- "$name" >/dev/null 2>&1 || true
+    die 5 "could not set the password (account not created)"
+  fi
+  log "user=$CALLER created account $name (admin=$admin)"
+  echo "created $name"
+  ;;
+
+user-delete)
+  need_args $# 2
+  name=$1 keep=$2
+  require_human_user "$name"
+  valid_bool "$keep"
+  [ "$name" != "$CALLER" ] || die 4 "you can't remove the account you are signed in with"
+  if pgrep -u "$name" >/dev/null 2>&1; then die 4 "$name is signed in; sign them out first"; fi
+  if [ -f "$GREETD_CONF" ] && greetd_user=$(awk '/^\[/{s=($0 ~ /^\[initial_session\]/)} s && /^[[:space:]]*user[[:space:]]*=/ {gsub(/.*=[[:space:]]*"|".*/, ""); print; exit}' "$GREETD_CONF") && [ "$greetd_user" = "$name" ]; then
+    greetd_without_initial | write_file_atomic "$GREETD_CONF" 644
+  fi
+  if [ "$keep" = 1 ]; then
+    run_or_die "could not remove the account" userdel -- "$name"
+  else
+    # userdel -r warns (exit 12) when the mail spool does not exist; the account is gone either way.
+    userdel --remove -- "$name" 2>/dev/null || { getent passwd "$name" >/dev/null && die 5 "could not remove the account"; }
+  fi
+  log "user=$CALLER removed account $name (keep-home=$keep)"
+  echo "removed $name"
+  ;;
+
+user-set-admin)
+  need_args $# 2
+  name=$1 admin=$2
+  require_human_user "$name"
+  valid_bool "$admin"
+  getent group sudo >/dev/null || die 3 "the sudo group does not exist"
+  if [ "$admin" = 1 ]; then
+    in_group "$name" sudo || run_or_die "could not change the account type" gpasswd -a "$name" sudo >/dev/null
+    if getent group adm >/dev/null && ! in_group "$name" adm; then gpasswd -a "$name" adm >/dev/null || true; fi
+  else
+    [ "$(admin_count_except "$name")" -ge 1 ] || die 4 "at least one administrator account is required"
+    in_group "$name" sudo && run_or_die "could not change the account type" gpasswd -d "$name" sudo >/dev/null
+    if getent group adm >/dev/null && in_group "$name" adm; then gpasswd -d "$name" adm >/dev/null || true; fi
+  fi
+  echo "ok"
+  ;;
+
+user-set-fullname)
+  need_args $# 2
+  name=$1 full=$2
+  require_human_user "$name"
+  valid_fullname "$full"
+  run_or_die "could not change the name" usermod --comment "$full" -- "$name"
+  echo "ok"
+  ;;
+
+set-password)
+  need_args $# 2
+  name=$1 nonce=$2
+  require_human_user "$name"
+  valid_nonce "$nonce"
+  read_secret "$nonce"
+  set_password "$name"
+  log "user=$CALLER changed the password of $name"
+  echo "ok"
+  ;;
+
+set-autologin)
+  need_args $# 1
+  target=$1
+  [ -f "$GREETD_CONF" ] || die 3 "greetd is not configured ($GREETD_CONF missing)"
+  if [ "$target" != none ]; then require_human_user "$target"; fi
+  {
+    greetd_without_initial
+    if [ "$target" != none ]; then
+      printf '\n[initial_session]\ncommand = "/usr/bin/aurora-session"\nuser = "%s"\n' "$target"
+    fi
+  } | write_file_atomic "$GREETD_CONF" 644
+  echo "ok"
+  ;;
+
+# ------------------------------------------------------------------ system
+set-hostname)
+  need_args $# 1
+  host=$1
+  [[ $host =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || die 2 "invalid device name (letters, digits and hyphens, up to 63 characters)"
+  if ! hostnamectl set-hostname "$host" 2>/dev/null; then
+    printf '%s\n' "$host" | write_file_atomic /etc/hostname 644
+    hostname "$host" || true
+  fi
+  if grep -qE '^127\.0\.1\.1[[:space:]]' /etc/hosts; then
+    sed -i -E "s/^127\.0\.1\.1[[:space:]].*/127.0.1.1\t$host/" /etc/hosts
+  else
+    printf '127.0.1.1\t%s\n' "$host" >>/etc/hosts
+  fi
+  echo "ok"
+  ;;
+
+set-timezone)
+  need_args $# 1
+  tz=$1
+  [[ $tz =~ ^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+){0,2}$ ]] || die 2 "invalid time zone"
+  case $tz in posix/* | right/* | */../* | ..*) die 2 "invalid time zone" ;; esac
+  [ -f "/usr/share/zoneinfo/$tz" ] || die 3 "unknown time zone: $tz"
+  if ! timedatectl set-timezone "$tz" 2>/dev/null; then
+    ln -sfn "/usr/share/zoneinfo/$tz" /etc/localtime
+    printf '%s\n' "$tz" | write_file_atomic /etc/timezone 644
+  fi
+  echo "ok"
+  ;;
+
+set-ntp)
+  need_args $# 1
+  valid_bool "$1"
+  if [ "$1" = 1 ]; then v=true; else v=false; fi
+  run_or_die "could not change automatic time synchronization" timedatectl set-ntp "$v"
+  echo "ok"
+  ;;
+
+set-locale)
+  need_args $# 1
+  loc=$1
+  case $loc in
+  en_US.UTF-8 | en_GB.UTF-8 | fr_FR.UTF-8 | fr_CA.UTF-8 | fr_BE.UTF-8 | fr_CH.UTF-8) ;;
+  *) die 2 "unsupported locale: $loc" ;;
+  esac
+  short=${loc%%.*}
+  if ! locale -a 2>/dev/null | grep -qix -- "${short}.utf8"; then
+    run_or_die "could not generate the locale $loc" locale-gen "$loc" >/dev/null
+  fi
+  run_or_die "could not set the system locale" update-locale "LANG=$loc" "LANGUAGE=$short:${short%%_*}"
+  echo "ok"
+  ;;
+
+set-keyboard)
+  need_args $# 1 2
+  layout=$1 variant=${2:-}
+  [[ $layout =~ ^[a-z]{2,3}$ ]] || die 2 "invalid keyboard layout"
+  [[ $variant =~ ^[a-z0-9_-]{0,32}$ ]] || die 2 "invalid keyboard variant"
+  sym=/usr/share/X11/xkb/symbols/$layout
+  [ -f "$sym" ] || die 3 "unknown keyboard layout: $layout"
+  if [ -n "$variant" ]; then grep -q "xkb_symbols \"$variant\"" "$sym" || die 3 "unknown variant $variant for layout $layout"; fi
+  XKBMODEL=pc105 XKBOPTIONS="" BACKSPACE=guess
+  # shellcheck disable=SC1091
+  [ -r /etc/default/keyboard ] && . /etc/default/keyboard
+  [[ ${XKBMODEL:-} =~ ^[A-Za-z0-9_-]*$ ]] || XKBMODEL=pc105
+  [[ ${XKBOPTIONS:-} =~ ^[A-Za-z0-9_:,-]*$ ]] || XKBOPTIONS=""
+  [[ ${BACKSPACE:-} =~ ^[a-z]*$ ]] || BACKSPACE=guess
+  printf '# KEYBOARD CONFIGURATION FILE\n\n# Consult the keyboard(5) manual page.\n\nXKBMODEL="%s"\nXKBLAYOUT="%s"\nXKBVARIANT="%s"\nXKBOPTIONS="%s"\n\nBACKSPACE="%s"\n' \
+    "${XKBMODEL:-pc105}" "$layout" "$variant" "${XKBOPTIONS:-}" "${BACKSPACE:-guess}" | write_file_atomic /etc/default/keyboard 644
+  command -v setupcon >/dev/null 2>&1 && { setupcon --save-only >/dev/null 2>&1 || true; }
+  echo "ok"
+  ;;
+
+firewall)
+  need_args $# 1
+  command -v ufw >/dev/null 2>&1 || die 3 "the firewall (ufw) is not installed"
+  case $1 in
+  enable) run_or_die "could not turn the firewall on" ufw --force enable ;;
+  disable) run_or_die "could not turn the firewall off" ufw disable ;;
+  status) ufw status verbose ;;
+  *) die 2 "expected enable, disable or status" ;;
+  esac
+  ;;
+
+kill-process)
+  need_args $# 2
+  pid=$1 sig=$2
+  [[ $pid =~ ^[1-9][0-9]{0,9}$ ]] || die 2 "invalid process id"
+  [ "$pid" -gt 1 ] || die 4 "refusing to signal process 1"
+  if [ "$pid" -eq $$ ] || [ "$pid" -eq "$PPID" ]; then die 4 "refusing to signal the helper itself"; fi
+  case $sig in TERM | KILL | HUP | INT | QUIT | STOP | CONT | USR1 | USR2) ;; *) die 2 "invalid signal" ;; esac
+  [ -d "/proc/$pid" ] || die 3 "no such process: $pid"
+  run_or_die "could not signal process $pid" kill -s "$sig" -- "$pid"
+  echo "ok"
+  ;;
+
+service)
+  need_args $# 2
+  verb=$1 unit=$2
+  case $verb in start | stop | restart) ;; *) die 2 "expected start, stop or restart" ;; esac
+  [[ $unit =~ ^[A-Za-z0-9][A-Za-z0-9@._:-]{0,120}$ ]] || die 2 "invalid unit name"
+  case $unit in *.service | *.socket | *.timer) ;; *.*) die 2 "only .service, .socket and .timer units" ;; *) unit=$unit.service ;; esac
+  run_or_die "could not $verb $unit" systemctl "$verb" "$unit"
+  echo "ok"
+  ;;
+
+# ------------------------------------------------------------------ updates
+apt-check)
+  need_args $# 0
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get -q -o DPkg::Lock::Timeout=120 update >&2 || die 5 "could not refresh the package lists (check the network connection)"
+  sim=$(apt-get -s -q -o Debug::NoLocking=1 upgrade --with-new-pkgs) || die 5 "could not compute the available updates"
+  printf '%s\n' "$sim" | grep '^Inst ' || true
+  ;;
+
+apt-upgrade)
+  need_args $# 0
+  export DEBIAN_FRONTEND=noninteractive
+  # APT status lines (fd 3) go to stdout for the progress bar; apt's normal output to stderr.
+  apt-get -q -y -o DPkg::Lock::Timeout=120 \
+    -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold \
+    -o APT::Status-Fd=3 upgrade --with-new-pkgs 3>&1 1>&2 || die 5 "the update failed (see the system journal)"
+  [ -e /run/reboot-required ] && echo "reboot-required"
+  echo "done"
+  ;;
+
+*)
+  die 2 "unknown action: $ACTION"
+  ;;
+esac

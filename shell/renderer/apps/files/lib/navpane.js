@@ -350,6 +350,6 @@ export class NavPane {
       items.push('-');
       items.push({ label: t('menu.properties'), icon: 'info', action: () => ex.ctx.shell.launch('settings', { page: 'about' }) });
     }
-    ex.ui.menu(at, items);
+    ex.menu(at, items);
   }
 }
