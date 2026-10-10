@@ -644,11 +644,9 @@ function register(api) {
   };
   const be = useMock ? mockBackend(push) : hasNm ? nmBackend() : sysfsBackend();
 
-  api.handle('net:status', async () => {
-    const st = await be.status();
-    lastJson = JSON.stringify(st);
-    return st;
-  });
+  // A plain status read must not update lastJson: that would swallow the 'net:changed' push that
+  // other listeners (tray, quick settings, Settings) are waiting for after an action.
+  api.handle('net:status', () => be.status());
   api.handle('net:wifiList', (rescan) => be.wifiList(!!rescan));
   api.handle('net:wifiConnect', async (ssid, password, opts) => {
     await be.wifiConnect(String(ssid ?? ''), password ? String(password) : undefined, opts || {});

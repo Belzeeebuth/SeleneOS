@@ -148,9 +148,10 @@ Electron 44.7.0, snapshot `20261001T000000Z`, `WITH_FIRMWARE=0`, October 2026 pa
 
 | Build | Time |
 |---|---|
-| First build, empty `cache/` and `work/` (downloads ~75 MB for debootstrap, ~440 MB of packages, 118 MB Electron) | **10 min 49 s** — base 2:43, packages 4:32, system 0:43, squashfs 2:44, iso 0:06 |
-| Rebuild after other features added 4 package lists (installed into the existing layer) | **6 min 00 s** — packages 2:15 |
-| Rebuild with unchanged package lists (shell, rootfs or build script changes) | **5 min 18 s** — system 0:41, squashfs 4:21, iso 0:06 |
+| First build, empty `cache/` and `work/` (downloads ~75 MB for debootstrap, ~440 MB of packages, 118 MB Electron; earlier measurement with 599 packages) | **10 min 49 s** — base 2:43, packages 4:32, system 0:43, squashfs 2:44, iso 0:06 |
+| After `make clean` (downloads kept in `cache/`: the package layer is rebuilt from the cached `.deb`s) | **7 min 29 s** — packages 1:50, system 0:42, squashfs 4:47, iso 0:08 |
+| Rebuild after a package list gained a package (installed into the existing layer) | packages stage 0:11 |
+| Rebuild with unchanged package lists (shell, rootfs or build script changes) | **5 min 28 s** — system 0:40–0:56, squashfs 4:23–4:41, iso 0:05–0:08 |
 
 `mksquashfs` (zstd level 19) dominates rebuilds and scales with the number of cores; it took
 2.7 to 4.9 minutes here depending on the image size and the machine's load (other builds and tests ran in parallel). `SQUASHFS_LEVEL=3`
@@ -158,10 +159,10 @@ makes it several times faster for development builds, at the cost of a bigger IS
 
 | Output | Size |
 |---|---|
-| ISO (`aurora-os-1.0.0-amd64.iso`) | **753 MiB** (789,237,760 bytes) |
-| `casper/filesystem.squashfs` (zstd 19, 1 MiB blocks) | 666 MiB |
-| Root file system, uncompressed | 1630 MiB |
-| Debian packages in the image | 599 |
+| ISO (`aurora-os-1.0.0-amd64.iso`) | **778 MiB** (815,919,104 bytes) |
+| `casper/filesystem.squashfs` (zstd 19, 1 MiB blocks) | 691 MiB |
+| Root file system, uncompressed | 1730 MiB |
+| Debian packages in the image | 620 |
 | Disk used by the build | `work/` 2.7 GB, `cache/` 0.7 GB (plus the ISO in `out/`) |
 
 ## Check the image without a VM
@@ -171,7 +172,7 @@ make verify-iso           # = sudo tools/verify-iso.sh [--iso PATH]
 make smoke-image          # = sudo tools/smoke-image.sh [--iso PATH] [--secs 20]
 ```
 
-`make verify-iso` checks the ISO statically (about 100 checks, a few seconds): SHA-256, El Torito
+`make verify-iso` checks the ISO statically (about 110 checks, under a minute): SHA-256, El Torito
 BIOS and UEFI boot images, GPT with an EFI System Partition and GRUB's MBR code (USB boot), the
 EFI loader, `md5sum.txt`, the GRUB menu (`grub-script-check` and every entry's kernel
 parameters), the casper files and the initramfs (casper, Plymouth theme, virtio-gpu), then the
@@ -544,18 +545,19 @@ Mesures sur le conteneur de développement (4 vCPU Xeon 2,1 GHz, 15 Go de RAM, S
 
 | Construction | Durée |
 |---|---|
-| Première construction, `cache/` et `work/` vides (~75 Mo pour debootstrap, ~440 Mo de paquets, 118 Mo pour Electron) | **10 min 49 s** |
-| Après l'ajout de 4 listes de paquets (installés dans la couche existante) | **6 min 00 s** |
-| Listes de paquets inchangées (modification du shell, de `rootfs/` ou des scripts) | **5 min 18 s** |
+| Première construction, `cache/` et `work/` vides (~75 Mo pour debootstrap, ~440 Mo de paquets, 118 Mo pour Electron ; mesure antérieure, 599 paquets) | **10 min 49 s** |
+| Après `make clean` (téléchargements gardés dans `cache/` : la couche de paquets est refaite depuis les `.deb` en cache) | **7 min 29 s** |
+| Après l'ajout d'un paquet à une liste (installé dans la couche existante) | étape packages : 11 s |
+| Listes de paquets inchangées (modification du shell, de `rootfs/` ou des scripts) | **5 min 28 s** |
 
 `mksquashfs` (zstd niveau 19) domine les reconstructions (2,7 à 4,9 min selon la taille de l'image et la charge de la machine) ; `SQUASHFS_LEVEL=3`
-accélère beaucoup les constructions de développement (ISO plus grosse). Tailles : ISO **753 Mio**
-(789 237 760 octets), squashfs 666 Mio, système de fichiers décompressé 1630 Mio, 599 paquets ;
+accélère beaucoup les constructions de développement (ISO plus grosse). Tailles : ISO **778 Mio**
+(815 919 104 octets), squashfs 691 Mio, système de fichiers décompressé 1730 Mio, 620 paquets ;
 la construction occupe 2,7 Go dans `work/` et 0,7 Go dans `cache/`.
 
 ### Vérifier l'image sans VM
 
-`make verify-iso` vérifie l'ISO sans la démarrer (une centaine de contrôles : enregistrements de
+`make verify-iso` vérifie l'ISO sans la démarrer (environ 110 contrôles : enregistrements de
 démarrage BIOS et UEFI, GPT et partition EFI, menu GRUB et paramètres du noyau, fichiers casper,
 initramfs, contenu du squashfs, services activés, permissions, absence de proxy/certificat de
 construction, de machine-id et de clés SSH). `make smoke-image` monte le `filesystem.squashfs` de l'ISO en lecture seule, lance un Xvfb privé

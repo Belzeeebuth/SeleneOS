@@ -288,11 +288,9 @@ function register(api) {
     return true;
   };
 
-  api.handle('audio:status', async () => {
-    const st = await status();
-    lastJson = JSON.stringify(st);
-    return st;
-  });
+  // A plain status read must not update lastJson: that would swallow the 'audio:changed' push that
+  // other listeners (tray, quick settings, Settings) are waiting for after an action.
+  api.handle('audio:status', () => status());
   api.handle('audio:setVolume', act((n) => be.setVolume(n)));
   api.handle('audio:setMuted', act((m) => be.setMuted(!!m)));
   api.handle('audio:setOutput', act((id) => be.setOutput(String(id))));

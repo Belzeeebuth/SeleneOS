@@ -136,7 +136,9 @@ export const i18n = {
       v /= 1024;
       i++;
     }
-    return `${new Intl.NumberFormat(localeOf(current), { maximumFractionDigits: i === 0 ? 0 : v < 10 ? 1 : 0 }).format(v)} ${units[i]}`;
+    // "1 byte" / "2 bytes" (English plural); French "o" is invariable.
+    const unit = i === 0 && current !== 'fr' && v === 1 ? 'byte' : units[i];
+    return `${new Intl.NumberFormat(localeOf(current), { maximumFractionDigits: i === 0 ? 0 : v < 10 ? 1 : 0 }).format(v)} ${unit}`;
   },
   relativeTime(ms) {
     const rtf = new Intl.RelativeTimeFormat(localeOf(current), { numeric: 'auto' });

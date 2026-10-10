@@ -186,7 +186,10 @@ if (!gotLock) {
 } else {
   app.whenReady().then(async () => {
     registerProtocols(protocol, session.defaultSession, { RENDERER, ROOT });
-    await ipc.loadModules(path.join(__dirname, 'ipc'));
+    // The sign-in screen runs as the greeter system user: give it only the backends it uses
+    // (no file system, terminal, mail, admin… channels before anyone has signed in).
+    const GREETER_MODULES = new Set(['settings.js', 'sys.js', 'greetd.js', 'net.js', 'power-ext.js']);
+    await ipc.loadModules(path.join(__dirname, 'ipc'), MODE === 'greeter' ? (f) => GREETER_MODULES.has(f) : undefined);
     createWindow();
   });
 }

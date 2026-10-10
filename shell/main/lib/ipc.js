@@ -70,8 +70,9 @@ function createIpc({ env, getMainWindow, RENDERER, ROOT, DEV }) {
       if (sender && !sender.isDestroyed()) sender.send('aurora:event', channel, payload);
     },
     webContents,
-    async loadModules(dir) {
-      const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.js')).sort() : [];
+    // filter(fileName) -> boolean limits which modules load (the sign-in screen loads only a few).
+    async loadModules(dir, filter = () => true) {
+      const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.js') && filter(f)).sort() : [];
       for (const f of files) {
         try {
           const mod = require(path.join(dir, f));

@@ -1240,7 +1240,13 @@ class WindowManager extends Emitter {
       if (w.fullscreen) continue;
       if (w.state === 'maximized') w.setRect({ x: wa.x, y: wa.y, width: wa.width, height: wa.height });
       else if (w.state === 'snapped' && w.snap) w.snapTo(w.snap, { animate: false, source: 'refit' });
-      else w._ensureVisible();
+      else {
+        // A window larger than the new work area (resolution or scale change) shrinks to fit.
+        if (w.w > wa.width || w.h > wa.height) {
+          w.setRect({ x: Math.max(wa.x, Math.min(w.x, wa.x + wa.width - Math.min(w.w, wa.width))), y: Math.max(wa.y, Math.min(w.y, wa.y + wa.height - Math.min(w.h, wa.height))), width: Math.min(w.w, wa.width), height: Math.min(w.h, wa.height) });
+        }
+        w._ensureVisible();
+      }
     }
   }
 }

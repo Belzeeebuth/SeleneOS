@@ -182,6 +182,7 @@ function showMenu(items, pt, level, resolve, opts = {}) {
   const handle = {
     el,
     close(v) {
+      handle.closed = true;
       el.remove();
       if (level === 0) {
         document.removeEventListener('pointerdown', outside, true);
@@ -218,6 +219,7 @@ function showMenu(items, pt, level, resolve, opts = {}) {
     // pointer/blur listeners wait a task so the click that opened the menu doesn't close it.
     document.addEventListener('keydown', keys, true);
     setTimeout(() => {
+      if (handle.closed) return; // closed in the same tick it opened: never attach (would leak)
       document.addEventListener('pointerdown', outside, true);
       window.addEventListener('blur', blurClose);
     });

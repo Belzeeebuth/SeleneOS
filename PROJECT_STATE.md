@@ -108,6 +108,24 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 - QEMU boot of the latest ISO is untested by the agent (by user's choice); first QEMU boot earlier reached the live session's Electron shell.
 - docs/DEVELOPING.md API table should list the newer channels (proc:*, perf:*, net:*, audio:*, display:*, users:*, locale:*, admin:*, mail:*, pty:*, installer:*).
 
+### Integration TODO (from QA reports — do in the integration pass)
+
+- **SECURITY (drag and drop):** Files (`files/lib/dnd.js`), Notepad (`notepad/lib/window.js`) and Mail compose (`mail/lib/compose.js`) trust `application/x-aurora-paths` from ANY drag, including from web pages. Switch them to `trustedDragPaths(dataTransfer)` exported by `core/desktop.js`.
+- **`shell.runAdmin`:** callers (Task Manager, installer) must handle the new error code ENOTADMIN (standard user) with a localized message.
+- **Account pictures on the sign-in screen:** add `/var/lib/aurora/faces` (mode 1733) to `rootfs/usr/lib/tmpfiles.d/aurora.conf`, the ISO agent's file.
+- **Greeter mode:** `main/index.js` loads every backend module, even mail, pty and fs. Restrict it to an allow-list of the modules the sign-in screen needs.
+- **Wi-Fi key:** it is passed on the `nmcli` command line, so other local users can see it briefly in `/proc`. Consider a passwd-file approach.
+- **Task Manager:** `kill-process` takes one PID at a time; a multi-PID admin action would avoid one UAC prompt per process.
+- **Fixed in session 1 by the coordinator:**
+  - net/audio status reads no longer suppress change pushes.
+  - Oversized windows shrink after a resolution or scale change.
+  - "1 byte" now has the right plural.
+  - `ui.menu` no longer leaks a listener when closed in the same tick it opens.
+  - French apostrophes in the core dictionary are now typographic (’).
+  - `ui.dialog`: Enter respects the focused button.
+  - `ui.menu`: captures keys immediately after opening.
+  - Added `win.setMinSize`.
+
 ## Next steps (exact)
 
 1. Wait for the running workflows (list at the bottom) to finish; commit after each.
