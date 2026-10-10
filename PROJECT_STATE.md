@@ -31,7 +31,7 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 | 3. Core ISO + desktop | shell done & verified; ISO build system finishing (no-QEMU verification) |
 | 4. Required apps | browser, files, mail, paint, calculator, notepad, terminal, media, snipping, taskmgr, settings, 5 games — built; most verified (see table) |
 | 5. Installer + QEMU instructions | installer being built + tested on a loop-device disk; docs/BUILDING.md written |
-| **UI/UX personalization** (user request #2) | **queued** — starts when the Settings verification finishes (it edits apps/settings) |
+| **UI/UX personalization** (user request #2) | **in progress** — workflow `aurora-personalization`: core (theme engine, 5 visual styles, per-app themes, profiles, Theme designer) → wallpapers / taskbar+Start+focus / packs+shortcuts in parallel → verify → integration critic. Spec: see "Personalization request" below; settings schema in docs/PERSONALIZATION.md |
 | **App phase 1** (PHASEAPP.md) | **in progress**: photos, calendar, clock, notes, todo, pdf, archive |
 | App phases 2–4 | not started — see PHASEAPP.md |
 
@@ -42,7 +42,7 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 | Shell UX (taskbar, Start, search, quick settings, calendar flyout, OSD, widgets, wallpapers, desktop) | ✅ | ✅ |
 | Window mgmt (hotkeys, Alt+Tab, Task View + virtual desktops, snap layouts, Ctrl+Alt+Del, Run, Win+X) | ✅ | ✅ |
 | Login screen, lock screen, welcome | ✅ | ✅ |
-| System backends + Settings | ✅ | 🔄 in progress |
+| System backends + Settings | ✅ | ✅ |
 | Browser | ✅ | ✅ |
 | File Explorer | ✅ | 🔄 |
 | Mail | ✅ | 🔄 |
@@ -138,3 +138,23 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
    - Rebuild the ISO (`sudo make iso`), run `make verify-iso` + `make smoke-image`.
    - Update README and this file.
 4. Then wait for the user to request app Phase 2 (PHASEAPP.md).
+
+## Personalization request (verbatim, user request #2)
+
+- Theme designer: custom accent color, wallpaper, lock screen, taskbar color, window transparency and blur intensity.
+- Multiple visual styles: Windows 11-like, minimal, glassmorphism, retro, high contrast.
+- Animated wallpapers and dynamic wallpapers that change with time of day or weather.
+- Customizable taskbar: size, position, icons, widgets, transparency, auto-hide.
+- Custom Start menu: layout, pinned apps, folders, recommended files, background style.
+- Cursor packs, icon packs, sound packs, notification sounds, and startup/shutdown sounds.
+- Font and text size controls, rounded-corner intensity, UI scale, and reduced-motion mode.
+- Per-app themes: light, dark, system, or custom accent.
+- Snap layout presets and customizable keyboard shortcuts.
+- Optional "Focus mode": hides notifications, dims desktop, and simplifies the taskbar.
+- Profile system: save and switch between complete UI themes with one click.
+
+## Running workflows (session 1)
+
+aurora-iso-noqemu, aurora-apps-internet (files/mail verify), aurora-apps-productivity (remaining verifies),
+aurora-apps-phase1-a (photos, pdf, archive, notes), aurora-apps-phase1-b (calendar, clock, todo),
+aurora-personalization. Finished: aurora-shell, aurora-apps-games.
