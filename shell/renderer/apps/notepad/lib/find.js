@@ -125,8 +125,7 @@ export class FindBar {
     if (!wasOpen && document.documentElement.dataset.animations !== 'off') {
       this.el.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }], { duration: 167, easing: 'cubic-bezier(0.1, 0.9, 0.2, 1)' });
     }
-    this.setReplaceMode(replace || (wasOpen && this.replaceMode && replace !== false && this.replaceMode));
-    if (replace) this.setReplaceMode(true);
+    this.setReplaceMode(!!replace);
     // Seed with the selection (single line), like Windows.
     if (doc) {
       const s = doc.ta.selectionStart;
@@ -180,6 +179,7 @@ export class FindBar {
   /** Recompute the match list for the active document. */
   search({ select = false, fromAnchor = false } = {}) {
     const doc = this.doc;
+    this.matchesStale = false;
     this.matches = [];
     this.truncated = false;
     this.current = -1;
@@ -258,7 +258,7 @@ export class FindBar {
       this.open();
       return false;
     }
-    if (!this.matches.length || this.matchesStale) this.search({ select: false });
+    if (!this.isOpen || this.matchesStale || !this.matches.length) this.search({ select: false });
     const n = this.matches.length;
     if (!n) {
       this.setStatus(this.nw.t('find.notFound', { q: this.query }));
