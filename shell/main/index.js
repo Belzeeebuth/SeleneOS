@@ -155,6 +155,7 @@ function createWindow() {
   });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) ipc.broadcast('shell:open-url', { url });
+    else if (/^mailto:/i.test(url)) ipc.broadcast('shell:open-mailto', { url }); // e-mail links in mail bodies -> Mail
     return { action: 'deny' };
   });
   if (DEV && process.env.AURORA_DEVTOOLS === '1') mainWindow.webContents.openDevTools({ mode: 'detach' });

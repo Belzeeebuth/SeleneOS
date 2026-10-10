@@ -1,0 +1,3 @@
+# Aurora Mail (renderer/apps/mail + main/ipc/mail.js).
+# IMAP/SMTP/MIME come from the bundled imapflow, nodemailer and mailparser; TLS trust anchors:
+ca-certificates

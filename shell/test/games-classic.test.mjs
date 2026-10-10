@@ -1579,6 +1579,89 @@ if (!ONLY.length || ONLY.includes('fr')) {
   }
 }
 
+// ------------------------------------------------------------------ Damaged saved data + storage that cannot be written
+if (!ONLY.length || ONLY.includes('robust')) {
+  console.log('Damaged saved data and storage failures');
+  const os = await import('node:os');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-games-robust-'));
+  const store = path.join(home, '.config', 'aurora', 'apps');
+  const put = (app, name, raw) => {
+    fs.mkdirSync(path.join(store, app), { recursive: true });
+    fs.writeFileSync(path.join(store, app, `${name}.json`), typeof raw === 'string' ? raw : JSON.stringify(raw));
+  };
+  // Valid JSON of the wrong shape (crashed Minesweeper at launch before), plus impossible values.
+  put('minesweeper', 'settings', { custom: null, difficulty: 5, questionMarks: 'yes' });
+  put('minesweeper', 'stats', { beginner: { played: 'abc', bestTimes: [{ ms: 'x', date: 'y' }, null, { ms: 5000, date: 1e20 }] }, expert: { played: 4, won: 9 } });
+  put('game2048', 'settings', { size: '9', undo: 'x' });
+  put('game2048', 'stats', { 4: { bestScore: 'lots', played: -3, bestTile: 3 } });
+  put('game2048', 'game', { size: 4, tiles: [{ r: 0, c: 0, value: 2 }, { r: 2, c: 1, value: 8 }], score: 1e400, moves: 2, undo: { size: 5, tiles: [{ r: 4, c: 4, value: 2 }] } });
+  // Snake cannot write: its storage folder is a plain file.
+  fs.mkdirSync(store, { recursive: true });
+  fs.writeFileSync(path.join(store, 'snake'), 'not a folder');
+  const s = await launchShell({ open: ['minesweeper', 'game2048', 'snake'], lang: 'en', theme: 'dark', home });
+  const errs = watchErrors(s);
+  const { page } = s;
+  try {
+    await page.waitForSelector('[data-app="snake"] canvas');
+    await sleep(1200);
+
+    await test('every game starts with sane defaults despite damaged saved data', async () => {
+      const crashed = await page.evaluate(() => ['minesweeper', 'snake', 'game2048'].filter((id) => window.__aurora.wm.byApp(id)[0]?.el.querySelector('.win-body > .empty')));
+      assert.deepEqual(crashed, []);
+      assert.equal(await page.evaluate(() => document.querySelector('[data-app="minesweeper"]').__minesweeper.game.total), 81, 'falls back to Beginner');
+      assert.equal(await page.locator('[data-app="minesweeper"] [data-id="mines"] .gk-chip-value').textContent(), '10');
+      const g = await page.evaluate(() => {
+        const h = document.querySelector('[data-app="game2048"]').__game2048;
+        return { size: h.game.size, tiles: h.game.tiles.length, score: h.game.score, canUndo: h.canUndo };
+      });
+      assert.deepEqual(g, { size: 4, tiles: 2, score: 0, canUndo: false }, 'saved game restored, Infinity score and a 5x5 undo state dropped');
+    });
+
+    await test('statistics dialogs show clean numbers (no NaN, no negatives)', async () => {
+      for (const id of ['minesweeper', 'snake', 'game2048']) {
+        const W = winOf(id);
+        await page.evaluate((app) => window.__aurora.wm.byApp(app)[0].focus(), id);
+        await sleep(150);
+        await page.locator(`${W} [data-id="stats"]`).click();
+        await page.waitForSelector(`${W} .gk-stats`, { timeout: 3000 });
+        if (id === 'minesweeper') await page.locator(`${W} .gk-stats-picker`).selectOption('expert');
+        await sleep(150);
+        const txt = await page.locator(`${W} .gk-stats`).textContent();
+        assert.doesNotMatch(txt, /NaN|Infinity|-\d|Invalid/, `${id}: ${txt}`);
+        if (id === 'minesweeper') assert.equal(await page.locator(`${W} .gk-stat[data-id="won"] .gk-stat-value`).textContent(), '4', 'won <= played');
+        await page.locator(`${W} .dialog button`, { hasText: 'Close' }).click();
+        await sleep(250);
+      }
+    });
+
+    await test('a storage write failure is reported once, and the game keeps going', async () => {
+      const W = winOf('snake');
+      await page.evaluate(() => window.__aurora.wm.byApp('snake')[0].focus());
+      await page.locator(`${W} .sn-board`).focus();
+      await page.keyboard.press('ArrowUp');
+      await sleep(300);
+      await page.keyboard.press('n'); // records the run -> save fails
+      await sleep(700);
+      await page.keyboard.press('ArrowUp');
+      await sleep(300);
+      await page.keyboard.press('n');
+      await sleep(700);
+      const notes = await page.evaluate(() => window.__aurora.notifications.list().filter((n) => n.appId === 'snake').map((n) => n.body));
+      assert.equal(notes.length, 1, `one notice: ${JSON.stringify(notes)}`);
+      assert.match(notes[0], /couldn't be saved/);
+      assert.equal(await page.evaluate(() => document.querySelector('[data-app="snake"]').__snake.stats.played), 2, 'stats still tracked in memory');
+      assert.equal(await page.evaluate(() => document.querySelector('[data-app="snake"]').__snake.state), 'ready');
+    });
+
+    await test('no console errors with damaged data', async () => {
+      assert.deepEqual(errs, []);
+    });
+  } finally {
+    await s.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
 finish();
 
 function finish() {

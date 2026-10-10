@@ -1,0 +1,869 @@
+#!/bin/bash
+# aurora-install — installs Aurora OS from the live medium onto a whole disk.
+#
+# Run as root. The graphical installer (shell/main/ipc/installer.js) starts it as
+#     sudo -n /usr/lib/aurora/helpers/aurora-install --json --password-stdin --disk /dev/vda ...
+# In the live session the live user has passwordless sudo: casper's initramfs script
+# casper-bottom/25adduser writes "/etc/sudoers.d/casper" (<user> ALL=(ALL) NOPASSWD: ALL) into the
+# live root at every boot. The automated install (aurora.autoinstall=1, see
+# /usr/lib/aurora/autoinstall/README) runs it as root directly.
+#
+# Usage:
+#   aurora-install --disk /dev/vda --user NAME --fullname "Full Name" --password-stdin
+#                  --hostname aurora-pc --lang en|fr --keyboard us|fr|fr(oss)|ch(fr)|... --timezone Europe/Paris
+#                  [--autologin] [--source DIR|FILE.squashfs] [--medium DIR] [--log FILE]
+#                  [--json] [--dry-run [--dry-run-delay SECONDS]] [--fail-at STAGE]
+#
+#   --disk DEV          whole disk to ERASE (sda, vda, nvme0n1, mmcblk0, loopN with partition scanning);
+#                       refused when it is the live medium, holds the installation source, has
+#                       partitions mounted outside /media, /mnt or /run/media, or is smaller than 12 GB
+#   --user NAME         account to create ([a-z_][a-z0-9_-]{0,31}, not a system account); member of
+#                       sudo, adm, users, netdev, audio, video, plugdev
+#   --password-stdin    the account password is the first line of standard input (never an argument)
+#   --autologin         sign that account in automatically (greetd [initial_session])
+#   --source            system to copy: a squashfs image (unsquashfs) or a directory (rsync).
+#                       Default: /cdrom/casper/filesystem.squashfs, else the casper live root /rofs
+#   --medium DIR        root of the live medium (filesystem.manifest-remove, GRUB theme, build id).
+#                       Default: two levels above a squashfs source, /cdrom for /rofs
+#   --log FILE          log file (default /var/log/aurora-install.log; dry runs log to stderr only)
+#   --json              machine-readable progress on stdout, one JSON object per line:
+#                         {"stage":"partition|format|copy|configure|bootloader|cleanup|done","progress":0..100,"message":"…"}
+#                         {"error":"…","stage":"…","code":N}
+#                       Human-readable log lines always go to stderr (and to the log file).
+#   --dry-run           validate the arguments, then simulate every stage with short sleeps: touches
+#                       nothing, needs no root (UI development, tests)
+#   --fail-at STAGE     testing aid: fail at the start of STAGE (real or dry run), to exercise error
+#                       handling and cleanup
+#
+# Stages: partition (wipefs, GPT: 1 MiB BIOS boot + 512 MiB EFI System + ext4 "AURORA"), format,
+# copy (unsquashfs/rsync with progress), configure (fstab by UUID, hostname, live-session remnants
+# removed, live-only packages purged offline from filesystem.manifest-remove, locale, keyboard, time
+# zone, user + password, per-user settings, greetd, machine-id, initramfs), bootloader (GRUB for BIOS
+# on the disk AND UEFI on the ESP: EFI/ubuntu + removable EFI/BOOT/BOOTX64.EFI via shim, no NVRAM
+# writes; /etc/default/grub.d/50-aurora.cfg, Aurora GRUB theme, update-grub), cleanup (sync, unmount).
+#
+# Re-running on the same disk is safe: leftovers of an interrupted run (mounts under
+# /run/aurora-install) are unmounted first and the disk is partitioned and formatted again.
+# On failure or cancellation (SIGTERM/SIGINT), everything this script mounted is unmounted.
+#
+# Exit codes: 0 ok, 2 invalid arguments, 3 not found, 4 refused (safety checks), 5 failed, 130 cancelled.
+set -Eeuo pipefail
+umask 022
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LC_ALL=C
+IFS=$' \t\n'
+
+PROG=aurora-install
+MIN_SIZE=12000000000            # bytes (12 GB)
+WORKDIR=/run/aurora-install     # mount root (target system under $WORKDIR/target)
+TARGET=$WORKDIR/target
+LOCK=/run/aurora-install.lock
+STAGES=(partition format copy configure bootloader cleanup)
+USER_GROUPS=(sudo adm users netdev audio video plugdev)
+RESERVED_USERS=" root daemon bin sys sync games man lp mail news uucp proxy www-data backup list irc gnats nobody systemd-network systemd-resolve systemd-timesync systemd-coredump messagebus syslog _apt tss uuidd tcpdump sshd polkitd _greetd greeter aurora-greeter admin sudo adm users wheel staff operator ubuntu "
+
+# ------------------------------------------------------------------ arguments
+DISK="" USERNAME="" FULLNAME="" HOST_NAME="" LANGUAGE_ID="en" KEYBOARD="us" TIMEZONE="UTC"
+AUTOLOGIN=0 SOURCE="" MEDIUM="" LOG_FILE="" JSON=0 DRY_RUN=0 DRY_DELAY=0.35 FAIL_AT="" PASSWORD_STDIN=0
+PASSWORD=""
+
+usage() { sed -n '2,/^set -E/p' "${BASH_SOURCE[0]}" | sed -e '$d' -e 's/^# \{0,1\}//'; }
+
+ARG_ERR=""
+need_val() { [[ $# -ge 2 && -n "${2-}" ]] || { ARG_ERR="$1 needs a value"; return 1; }; }
+while (($#)); do
+  case "$1" in
+    --disk) need_val "$@" || break; DISK=$2; shift 2 ;;
+    --user) need_val "$@" || break; USERNAME=$2; shift 2 ;;
+    --fullname) [[ $# -ge 2 ]] || { ARG_ERR="--fullname needs a value"; break; }; FULLNAME=$2; shift 2 ;;
+    --hostname) need_val "$@" || break; HOST_NAME=$2; shift 2 ;;
+    --lang) need_val "$@" || break; LANGUAGE_ID=$2; shift 2 ;;
+    --keyboard) need_val "$@" || break; KEYBOARD=$2; shift 2 ;;
+    --timezone) need_val "$@" || break; TIMEZONE=$2; shift 2 ;;
+    --source) need_val "$@" || break; SOURCE=$2; shift 2 ;;
+    --medium) need_val "$@" || break; MEDIUM=$2; shift 2 ;;
+    --log) need_val "$@" || break; LOG_FILE=$2; shift 2 ;;
+    --dry-run-delay) need_val "$@" || break; DRY_DELAY=$2; shift 2 ;;
+    --fail-at) need_val "$@" || break; FAIL_AT=$2; shift 2 ;;
+    --password-stdin) PASSWORD_STDIN=1; shift ;;
+    --autologin) AUTOLOGIN=1; shift ;;
+    --json) JSON=1; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) ARG_ERR="unknown argument: $1 (see --help)"; break ;;
+  esac
+done
+
+# ------------------------------------------------------------------ output: JSON on fd 3, log on stderr
+exec 3>&1 1>&2   # fd 3 = the caller's stdout (JSON only); everything else goes to stderr
+STAGE="" PROGRESS=0 DONE=0 ERROR_SENT=0 CANCELLED=0 T0=$(date +%s)
+
+json_str() { # json_str TEXT -> "TEXT" with JSON escaping (control characters dropped)
+  local s=$1
+  s=${s//\\/\\\\}; s=${s//\"/\\\"}; s=${s//$'\n'/\\n}; s=${s//$'\r'/}; s=${s//$'\t'/ }
+  s=$(printf '%s' "$s" | tr -d '\000-\010\013\014\016-\037\177')
+  printf '"%s"' "$s"
+}
+log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
+# progress STAGE PERCENT MESSAGE: overall percentage, never decreasing
+progress() {
+  local stage=$1 pct=$2 msg=${3:-}
+  ((pct < PROGRESS)) && pct=$PROGRESS
+  ((pct > 100)) && pct=100
+  if [[ "$stage" != "$STAGE" || -n "$msg" ]]; then
+    [[ -n "$msg" ]] && log "==> [$pct%] $msg"
+  fi
+  STAGE=$stage PROGRESS=$pct
+  if ((JSON)); then
+    printf '{"stage":"%s","progress":%d,"message":%s}\n' "$stage" "$pct" "$(json_str "$msg")" >&3
+  fi
+}
+emit_error() { # emit_error CODE MESSAGE
+  ((ERROR_SENT)) && return 0
+  ERROR_SENT=1
+  log "ERROR: $2"
+  if ((JSON)); then
+    printf '{"error":%s,"stage":"%s","code":%d}\n' "$(json_str "$2")" "${STAGE:-init}" "$1" >&3
+  fi
+}
+die() { # die CODE MESSAGE
+  emit_error "$1" "$2"
+  exit "$1"
+}
+# run MESSAGE CMD...: runs CMD (output to the log), turns a failure into a clean error
+run() {
+  local msg=$1; shift
+  log "\$ $*"
+  "$@" || die 5 "$msg (command failed: $1)"
+}
+
+[[ -z "$ARG_ERR" ]] || die 2 "$ARG_ERR"
+
+# ------------------------------------------------------------------ validation (shared by real and dry runs)
+RE_USER='^[a-z_][a-z0-9_-]{0,31}$'
+RE_HOST='^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$'
+RE_KBD='^([a-z]{2,3})(\(([a-z0-9_-]{1,32})\))?$'
+RE_TZ='^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+){0,2}$'
+RE_PATH='^/[A-Za-z0-9._/+-]*$'
+
+[[ -n "$DISK" ]] || die 2 "--disk is required"
+[[ "$DISK" =~ ^/dev/[A-Za-z0-9/_.:-]+$ && "$DISK" != *..* ]] || die 2 "invalid disk path: $DISK"
+[[ -n "$USERNAME" ]] || die 2 "--user is required"
+[[ "$USERNAME" =~ $RE_USER ]] || die 2 "invalid user name (lowercase letters, digits, - and _; must start with a letter)"
+[[ "$RESERVED_USERS" != *" $USERNAME "* ]] || die 2 "the user name '$USERNAME' is reserved by the system"
+((${#FULLNAME} <= 128)) || die 2 "the full name is too long"
+[[ "$FULLNAME" != *[:,=\\]* ]] || die 2 "the full name cannot contain : , = or \\"
+[[ "$FULLNAME" != *[[:cntrl:]]* ]] || die 2 "the full name contains control characters"
+[[ -n "$FULLNAME" ]] || FULLNAME=$USERNAME
+[[ -n "$HOST_NAME" ]] || HOST_NAME="$USERNAME-pc"
+[[ "$HOST_NAME" =~ $RE_HOST ]] || die 2 "invalid computer name (letters, digits and -, at most 63 characters)"
+case "$LANGUAGE_ID" in en) LOCALE=en_US.UTF-8 ;; fr) LOCALE=fr_FR.UTF-8 ;; *) die 2 "--lang must be en or fr" ;; esac
+[[ "$KEYBOARD" =~ $RE_KBD ]] || die 2 "invalid keyboard layout: $KEYBOARD (e.g. us, fr, fr(oss), ch(fr))"
+XKB_LAYOUT=${BASH_REMATCH[1]} XKB_VARIANT=${BASH_REMATCH[3]:-}
+[[ "$TIMEZONE" =~ $RE_TZ && "$TIMEZONE" != *..* && ! "$TIMEZONE" =~ ^(posix|right)/ ]] || die 2 "invalid time zone: $TIMEZONE"
+[[ "$DRY_DELAY" =~ ^[0-9]{1,2}(\.[0-9]{1,3})?$ ]] || die 2 "invalid --dry-run-delay"
+if [[ -n "$FAIL_AT" ]]; then
+  [[ " ${STAGES[*]} " == *" $FAIL_AT "* ]] || die 2 "--fail-at: unknown stage $FAIL_AT (${STAGES[*]})"
+fi
+for _p in "$SOURCE" "$MEDIUM" "$LOG_FILE"; do
+  [[ -z "$_p" ]] || { [[ "$_p" =~ $RE_PATH && "$_p" != *..* ]] || die 2 "invalid path: $_p (absolute paths only)"; }
+done
+if ((PASSWORD_STDIN)); then
+  IFS= read -r PASSWORD || true
+  PASSWORD=${PASSWORD%$'\r'}
+fi
+[[ -n "$PASSWORD" ]] || die 2 "a password is required (--password-stdin)"
+((${#PASSWORD} <= 256)) || die 2 "the password is too long"
+[[ "$PASSWORD" != *[[:cntrl:]]* ]] || die 2 "the password contains control characters"
+
+maybe_fail() { # maybe_fail STAGE — testing aid (--fail-at)
+  [[ "$FAIL_AT" == "$1" ]] && die 5 "simulated failure at stage '$1' (--fail-at)"
+  return 0
+}
+
+# ------------------------------------------------------------------ dry run
+if ((DRY_RUN)); then
+  trap 'CANCELLED=1; die 130 "installation cancelled"' INT TERM HUP
+  trap 'rc=$?; ((DONE || rc == 0)) || emit_error "$rc" "installation failed (exit $rc)"' EXIT
+  dsleep() { sleep "$DRY_DELAY"; }
+  size_txt="unknown size"
+  [[ -b "$DISK" ]] && size_txt="$(( $(blockdev --getsize64 "$DISK" 2>/dev/null || echo 0) / 1000000000 )) GB"
+  log "DRY RUN — nothing will be written. disk=$DISK ($size_txt) user=$USERNAME host=$HOST_NAME lang=$LANGUAGE_ID keyboard=$KEYBOARD timezone=$TIMEZONE autologin=$AUTOLOGIN"
+  sim() { # sim STAGE FROM TO MESSAGE [log lines...]
+    local st=$1 from=$2 to=$3 msg=$4 i; shift 4
+    maybe_fail "$st"
+    progress "$st" "$from" "$msg"
+    for i in "$@"; do log "$i"; done
+    dsleep
+    progress "$st" "$to" ""
+  }
+  sim partition 1 4 "Partitioning $DISK" "\$ wipefs --all $DISK" "\$ sfdisk --label gpt $DISK (BIOS boot 1 MiB, EFI System 512 MiB, Aurora OS ext4)"
+  sim format 4 7 "Formatting the partitions" "\$ mkfs.vfat -F 32 -n EFI ${DISK}2" "\$ mkfs.ext4 -L AURORA ${DISK}3"
+  maybe_fail copy
+  progress copy 7 "Copying the system files"
+  for p in 5 12 20 28 37 45 53 61 70 78 86 93 100; do
+    sleep "$DRY_DELAY"
+    progress copy $((7 + p * 68 / 100)) ""
+  done
+  sim configure 76 79 "Configuring the system" "fstab, hostname $HOST_NAME, locale $LOCALE, keyboard $KEYBOARD, time zone $TIMEZONE"
+  progress configure 81 "Creating the user account $USERNAME"; dsleep
+  progress configure 83 "Removing live-session packages"; dsleep
+  progress configure 86 "Updating the initramfs"; dsleep
+  sim bootloader 87 91 "Installing the boot loader (BIOS)" "\$ grub-install --target=i386-pc $DISK"
+  progress bootloader 94 "Installing the boot loader (UEFI)"; dsleep
+  progress bootloader 97 "Writing the boot menu"; dsleep
+  sim cleanup 98 99 "Finishing" "sync; unmounting $TARGET"
+  DONE=1
+  progress done 100 "Aurora OS has been installed (simulation: nothing was written)"
+  exit 0
+fi
+
+# ====================================================================== real installation
+[[ $EUID -eq 0 ]] || die 4 "must be run as root"
+[[ -n "$LOG_FILE" ]] || LOG_FILE=/var/log/aurora-install.log
+mkdir -p "$(dirname "$LOG_FILE")"
+touch "$LOG_FILE" && chmod 0640 "$LOG_FILE" && chgrp adm "$LOG_FILE" 2>/dev/null || true
+# Everything written to stderr also lands in the log file.
+exec 2> >(tee -a "$LOG_FILE" >&2)
+{
+  echo
+  echo "======================================================================"
+  echo "aurora-install $(date -u '+%F %T') UTC — caller: ${SUDO_USER:-root}"
+  echo "disk=$DISK user=$USERNAME host=$HOST_NAME lang=$LANGUAGE_ID keyboard=$KEYBOARD timezone=$TIMEZONE autologin=$AUTOLOGIN"
+} >&2
+
+exec 9>"$LOCK"
+flock -n 9 || die 4 "another installation is already running"
+
+CREATED_LINKS=()
+child_pids() { ps -o pid= --ppid "$1" 2>/dev/null | tr -d ' ' || true; }
+kill_tree() { # kill_tree PID: SIGTERM to all descendants of PID
+  local c
+  for c in $(child_pids "$1"); do kill_tree "$c"; kill -TERM "$c" 2>/dev/null || true; done
+}
+umount_under() { # unmount everything at/below a path, deepest first
+  local base mp
+  base=$(readlink -f "$1" 2>/dev/null || echo "$1")
+  while read -r mp; do
+    [[ -n "$mp" ]] || continue
+    umount "$mp" 2>/dev/null || umount -l "$mp" 2>/dev/null || log "warning: could not unmount $mp"
+  done < <(findmnt -rn -o TARGET | awk -v b="$base" '$0 == b || index($0, b "/") == 1' | sort -r)
+}
+# shellcheck disable=SC2317  # invoked through traps
+cleanup() {
+  local rc=$?
+  trap - EXIT INT TERM HUP ERR
+  set +e
+  kill_tree $$
+  if ((!DONE)); then
+    ((rc == 0)) && rc=5
+    emit_error "$rc" "installation failed (exit $rc)"
+  fi
+  rm -f "$TARGET/usr/sbin/policy-rc.d" 2>/dev/null
+  sync
+  umount_under "$WORKDIR"
+  rmdir "$TARGET" "$WORKDIR" 2>/dev/null
+  local l
+  for l in "${CREATED_LINKS[@]}"; do rm -f "$l"; done
+  rmdir /dev/disk/by-uuid /dev/disk 2>/dev/null
+  log "aurora-install finished with status $rc after $(( $(date +%s) - T0 ))s"
+  exit "$rc"
+}
+trap cleanup EXIT
+trap 'CANCELLED=1; die 130 "installation cancelled"' INT TERM HUP
+trap 'log "failed: $BASH_COMMAND (line $LINENO)"' ERR
+
+# Long-running commands run in the background so that a cancellation (SIGTERM) is handled at once.
+bg_wait() { # bg_wait CMD... : runs CMD in the background and waits for it (interruptible)
+  "$@" &
+  local pid=$!
+  wait "$pid"
+}
+
+# ------------------------------------------------------------------ disk checks
+# Whole-disk device(s) underneath a block device (partitions, loop backing files, dm/md stacks).
+disks_of() {
+  local dev=$1 name bf src
+  dev=$(readlink -f "$dev" 2>/dev/null) || return 0
+  [[ -b "$dev" ]] || return 0
+  name=${dev#/dev/}
+  if [[ "$name" == loop* && -r "/sys/class/block/$name/loop/backing_file" ]]; then
+    echo "$dev"
+    bf=$(cat "/sys/class/block/$name/loop/backing_file")
+    src=$(findmnt -n -o SOURCE -T "$bf" 2>/dev/null | head -n1)
+    [[ "$src" == /dev/* ]] && disks_of "$src"
+    return 0
+  fi
+  lsblk -nrspo NAME,TYPE "$dev" 2>/dev/null | awk '$2 == "disk" || $2 == "loop" || $2 == "rom" {print $1}'
+}
+# Devices that must never be erased: the live medium and whatever holds the source and the running root.
+protected_disks() {
+  local m src
+  for m in /cdrom /rofs /isodevice /run/live/medium /media/cdrom /run/initramfs/live /; do
+    src=$(findmnt -n -o SOURCE --mountpoint "$m" 2>/dev/null | head -n1) || continue
+    [[ "$src" == /dev/* ]] && disks_of "$src"
+  done
+  if [[ -n "$SOURCE" && -e "$SOURCE" ]]; then
+    src=$(findmnt -n -o SOURCE -T "$SOURCE" 2>/dev/null | head -n1)
+    [[ "$src" == /dev/* ]] && disks_of "$src"
+  fi
+  return 0
+}
+part_path() { # part_path N -> /dev/sda3, /dev/nvme0n1p3, /dev/loop0p3
+  if [[ "$DISK" =~ [0-9]$ ]]; then echo "${DISK}p$1"; else echo "${DISK}$1"; fi
+}
+
+check_disk() {
+  local real name type ro size d mp part
+  real=$(readlink -f "$DISK") || die 3 "disk $DISK not found"
+  [[ -b "$real" ]] || die 3 "$DISK is not a block device"
+  DISK=$real name=${DISK#/dev/}
+  [[ -e "/sys/class/block/$name/partition" ]] && die 4 "$DISK is a partition: choose a whole disk"
+  type=$(lsblk -dno TYPE "$DISK" 2>/dev/null | head -n1)
+  case "$type" in
+    disk|loop) ;;
+    *) die 4 "$DISK is not a disk (type: ${type:-unknown})" ;;
+  esac
+  [[ "$name" == zram* || "$name" == ram* || "$name" == sr* ]] && die 4 "$DISK cannot be used for an installation"
+  if [[ "$type" == loop ]]; then
+    [[ -r "/sys/class/block/$name/loop/backing_file" ]] || die 4 "$DISK is not attached to an image"
+    [[ "$(cat "/sys/class/block/$name/loop/partscan" 2>/dev/null)" == 1 ]] \
+      || die 4 "$DISK has no partition scanning: attach the image with 'losetup -P'"
+  fi
+  ro=$(cat "/sys/class/block/$name/ro" 2>/dev/null || echo 0)
+  [[ "$ro" == 0 ]] || die 4 "$DISK is read-only"
+  size=$(blockdev --getsize64 "$DISK")
+  DISK_SIZE=$size
+  ((size >= MIN_SIZE)) || die 4 "$DISK is too small: $((size / 1000000)) MB, at least $((MIN_SIZE / 1000000000)) GB are needed"
+  for d in $(protected_disks | sort -u); do
+    [[ "$d" == "$DISK" ]] && die 4 "$DISK holds the live system or the installation source: choose another disk"
+  done
+  # Partitions in use: unmount removable-media style mounts, refuse anything else.
+  while read -r part mp; do
+    [[ -n "$mp" ]] || continue
+    case "$mp" in
+      /media/*|/mnt/*|/run/media/*|"$WORKDIR"|"$WORKDIR"/*)
+        log "unmounting $part from $mp"
+        umount_under "$mp" ;;
+      \[SWAP\])
+        log "disabling swap on $part"
+        swapoff "$part" || die 4 "cannot disable the swap space on $part" ;;
+      *) die 4 "$part is in use (mounted on $mp): choose another disk" ;;
+    esac
+  done < <(lsblk -nrpo NAME,MOUNTPOINTS "$DISK" 2>/dev/null | awk 'NF >= 2 {print $1, $2}')
+  for part in /sys/class/block/"$name"/"$name"*/holders/*; do
+    [[ -e "$part" ]] && die 4 "$DISK is in use by $(basename "$part") (LVM, RAID or encryption): choose another disk"
+  done
+  return 0
+}
+
+resolve_source() {
+  if [[ -z "$SOURCE" ]]; then
+    if [[ -f /cdrom/casper/filesystem.squashfs ]]; then SOURCE=/cdrom/casper/filesystem.squashfs
+    elif mountpoint -q /rofs; then SOURCE=/rofs
+    else die 3 "no installation source: not running from the Aurora OS live medium (use --source)"; fi
+  fi
+  [[ "$SOURCE" != / ]] || die 2 "--source / is the running system; use the read-only live root (/rofs)"
+  if [[ -f "$SOURCE" ]]; then
+    SOURCE_KIND=squashfs
+    unsquashfs -s "$SOURCE" >/dev/null 2>&1 || die 3 "$SOURCE is not a squashfs image"
+    [[ -n "$MEDIUM" ]] || MEDIUM=$(cd "$(dirname "$SOURCE")/.." && pwd)
+  elif [[ -d "$SOURCE" ]]; then
+    SOURCE_KIND=dir
+    [[ -n "$MEDIUM" ]] || MEDIUM=/cdrom
+  else
+    die 3 "installation source $SOURCE not found"
+  fi
+  # The source must be an Aurora OS system.
+  local osr
+  if [[ "$SOURCE_KIND" == squashfs ]]; then
+    osr=$(unsquashfs -cat "$SOURCE" usr/lib/os-release 2>/dev/null || true)
+  else
+    osr=$(cat "$SOURCE/usr/lib/os-release" 2>/dev/null || true)
+  fi
+  grep -q '^IMAGE_ID=aurora-os' <<<"$osr" || die 3 "$SOURCE is not an Aurora OS system image"
+  log "source: $SOURCE ($SOURCE_KIND), medium: $MEDIUM"
+}
+
+source_cat() { # source_cat REL-PATH -> file content from the source
+  if [[ "$SOURCE_KIND" == squashfs ]]; then unsquashfs -cat "$SOURCE" "$1" 2>/dev/null; else cat "$SOURCE/$1" 2>/dev/null; fi
+}
+
+check_choices() {
+  # The account must not exist in the source (system accounts such as daemon or _greetd).
+  if source_cat etc/passwd | cut -d: -f1 | grep -qxF "$USERNAME"; then
+    die 2 "the user name '$USERNAME' is already used by the system: choose another one"
+  fi
+  # Keyboard layout and time zone (checked on this system: the live system is the same image).
+  if [[ -d /usr/share/X11/xkb/symbols ]]; then
+    [[ -f "/usr/share/X11/xkb/symbols/$XKB_LAYOUT" ]] || die 2 "unknown keyboard layout: $XKB_LAYOUT"
+    if [[ -n "$XKB_VARIANT" ]]; then
+      grep -q "xkb_symbols \"$XKB_VARIANT\"" "/usr/share/X11/xkb/symbols/$XKB_LAYOUT" \
+        || die 2 "unknown keyboard variant: $KEYBOARD"
+    fi
+  fi
+  if [[ -d /usr/share/zoneinfo && "$TIMEZONE" != UTC ]]; then
+    [[ -f "/usr/share/zoneinfo/$TIMEZONE" ]] || die 2 "unknown time zone: $TIMEZONE"
+  fi
+}
+
+# ------------------------------------------------------------------ chroot helpers
+chroot_mount() {
+  local t=$TARGET
+  mkdir -p "$t/proc" "$t/sys" "$t/dev" "$t/run" "$t/tmp"
+  mountpoint -q "$t/proc" || mount -t proc proc "$t/proc"
+  mountpoint -q "$t/sys" || mount -t sysfs sysfs "$t/sys" 2>/dev/null || mount --rbind /sys "$t/sys"
+  mountpoint -q "$t/dev" || mount --bind /dev "$t/dev"
+  mountpoint -q "$t/dev/pts" || mount --bind /dev/pts "$t/dev/pts"
+  mountpoint -q "$t/run" || mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs "$t/run"
+  # Maintainer scripts must not start services in the target.
+  printf '#!/bin/sh\n# aurora-install: do not start daemons in the target\nexit 101\n' >"$t/usr/sbin/policy-rc.d"
+  chmod 0755 "$t/usr/sbin/policy-rc.d"
+}
+in_target() {
+  chroot "$TARGET" /usr/bin/env -i \
+    HOME=/root PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    LANG=C.UTF-8 LC_ALL=C.UTF-8 TERM=dumb \
+    DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true DEBCONF_NOWARNINGS=yes \
+    "$@"
+}
+
+wait_for_partitions() {
+  local i n
+  udevadm settle --timeout=10 >/dev/null 2>&1 || true
+  for ((i = 0; i < 100; i++)); do
+    for n in 1 2 3; do [[ -b "$(part_path $n)" ]] || continue 2; done
+    return 0
+  done 2>/dev/null
+  # Some kernels need an explicit re-read (partprobe/partx) before the nodes appear.
+  partx -u "$DISK" >/dev/null 2>&1 || partprobe "$DISK" >/dev/null 2>&1 || true
+  for ((i = 0; i < 100; i++)); do
+    udevadm settle --timeout=2 >/dev/null 2>&1 || true
+    if [[ -b "$(part_path 1)" && -b "$(part_path 2)" && -b "$(part_path 3)" ]]; then return 0; fi
+    sleep 0.1
+  done
+  die 5 "the new partitions of $DISK did not appear ($(part_path 1) …)"
+}
+
+# grub-mkconfig only writes root=UUID=… when /dev/disk/by-uuid/<uuid> exists (udev creates it;
+# create it ourselves where udev does not run).
+ensure_uuid_link() { # ensure_uuid_link UUID DEVICE
+  local l=/dev/disk/by-uuid/$1
+  [[ -e "$l" ]] && return 0
+  mkdir -p /dev/disk/by-uuid
+  ln -sf "../../${2#/dev/}" "$l"
+  CREATED_LINKS+=("$l")
+}
+
+# ====================================================================== stages
+stage_partition() {
+  maybe_fail partition
+  progress partition 1 "Partitioning $DISK"
+  local p
+  # Old signatures inside the existing partitions, then the partition table itself.
+  for p in $(lsblk -nrpo NAME,TYPE "$DISK" | awk '$2 == "part" {print $1}'); do
+    wipefs --all --force --quiet "$p" >/dev/null 2>&1 || true
+  done
+  run "could not erase $DISK" wipefs --all --force "$DISK"
+  progress partition 2 ""
+  log "\$ sfdisk --label gpt $DISK"
+  sfdisk --quiet --wipe always --wipe-partitions always --label gpt "$DISK" <<'EOF' || die 5 "could not create the partition table on the disk"
+label: gpt
+size=1MiB, type=21686148-6449-6E6F-744E-656564454649, name="BIOS boot"
+size=512MiB, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI System"
+type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Aurora OS"
+EOF
+  blockdev --rereadpt "$DISK" >/dev/null 2>&1 || partx -u "$DISK" >/dev/null 2>&1 || true
+  wait_for_partitions
+  P_BIOS=$(part_path 1) P_ESP=$(part_path 2) P_ROOT=$(part_path 3)
+  sfdisk --dump "$DISK" >&2 || true
+  progress partition 4 ""
+}
+
+stage_format() {
+  maybe_fail format
+  progress format 4 "Formatting the partitions"
+  wipefs --all --force --quiet "$P_BIOS" "$P_ESP" "$P_ROOT" >/dev/null 2>&1 || true
+  run "could not format the EFI system partition" mkfs.vfat -F 32 -n EFI "$P_ESP"
+  progress format 5 ""
+  run "could not format the system partition" mkfs.ext4 -F -q -L AURORA "$P_ROOT"
+  udevadm settle --timeout=10 >/dev/null 2>&1 || true
+  ROOT_UUID=$(blkid -p -s UUID -o value "$P_ROOT" 2>/dev/null || blkid -s UUID -o value "$P_ROOT")
+  ESP_UUID=$(blkid -p -s UUID -o value "$P_ESP" 2>/dev/null || blkid -s UUID -o value "$P_ESP")
+  [[ -n "$ROOT_UUID" && -n "$ESP_UUID" ]] || die 5 "could not read the UUIDs of the new file systems"
+  log "root $P_ROOT UUID=$ROOT_UUID, ESP $P_ESP UUID=$ESP_UUID"
+  ensure_uuid_link "$ROOT_UUID" "$P_ROOT"
+  ensure_uuid_link "$ESP_UUID" "$P_ESP"
+  mkdir -p "$TARGET"
+  run "could not mount the system partition" mount -t ext4 "$P_ROOT" "$TARGET"
+  progress format 7 ""
+}
+
+copy_progress() { # reads tool output; percentages -> overall 7..75
+  local line pct last=-1
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^[[:space:]]*([0-9]{1,3})[[:space:]]*$ ]]; then
+      pct=${BASH_REMATCH[1]}
+    elif [[ "$line" =~ [[:space:]]([0-9]{1,3})%[[:space:]] ]]; then
+      pct=${BASH_REMATCH[1]}
+    else
+      [[ -n "${line// /}" ]] && printf '%s\n' "$line" >&2
+      continue
+    fi
+    ((pct > 100)) && pct=100
+    if ((pct != last)); then
+      last=$pct
+      progress copy $((7 + pct * 68 / 100)) ""
+    fi
+  done
+}
+
+stage_copy() {
+  maybe_fail copy
+  progress copy 7 "Copying the system files"
+  local t0=$SECONDS
+  if [[ "$SOURCE_KIND" == squashfs ]]; then
+    log "\$ unsquashfs -f -d $TARGET -percentage $SOURCE"
+    bg_wait bash -o pipefail -c '
+      unsquashfs -f -d "$1" -percentage -processors "$(nproc)" "$2" | copy_progress' \
+      _ "$TARGET" "$SOURCE" || die 5 "copying the system failed (unsquashfs; is the disk or the medium damaged?)"
+  else
+    log "\$ rsync -aHAXx --info=progress2 $SOURCE/ $TARGET/"
+    bg_wait bash -o pipefail -c '
+      rsync -aHAXx --numeric-ids --info=progress2 --no-inc-recursive \
+        --exclude=/proc/* --exclude=/sys/* --exclude=/dev/* --exclude=/run/* --exclude=/tmp/* \
+        --exclude=/var/tmp/* --exclude=/boot/efi/* --exclude=/lost+found --exclude=/cdrom/* \
+        --exclude=/rofs/* --exclude=/media/* --exclude=/mnt/* --exclude=/swapfile \
+        "$2"/ "$1"/ | tr "\r" "\n" | copy_progress' \
+      _ "$TARGET" "$SOURCE" || die 5 "copying the system failed (rsync)"
+  fi
+  for f in usr/lib/os-release usr/bin/bash etc/passwd; do
+    [[ -e "$TARGET/$f" ]] || die 5 "the copied system is incomplete ($f is missing)"
+  done
+  compgen -G "$TARGET/boot/vmlinuz-*" >/dev/null || die 5 "the copied system has no kernel"
+  log "system copied in $((SECONDS - t0))s ($(du -sh --apparent-size "$TARGET" 2>/dev/null | cut -f1))"
+  progress copy 75 ""
+}
+export -f copy_progress progress log json_str
+export JSON PROGRESS STAGE
+
+write_file() { # write_file PATH MODE  (content on stdin)
+  local f=$1 mode=$2
+  mkdir -p "$(dirname "$f")"
+  cat >"$f.aurora-tmp"
+  chmod "$mode" "$f.aurora-tmp"
+  mv -f "$f.aurora-tmp" "$f"
+}
+
+machine_id() { # random 128-bit id, UUID v4 layout, as systemd generates it
+  local h
+  h=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+  printf '%s4%s%x%s\n' "${h:0:12}" "${h:13:3}" $(( (0x${h:16:1} & 0x3) | 0x8 )) "${h:17:15}"
+}
+
+remove_live_remnants() {
+  local live_user uid
+  live_user=$(sed -n 's/^export USERNAME="\{0,1\}\([a-z_][a-z0-9_-]*\)"\{0,1\}$/\1/p' "$TARGET/etc/casper.conf" 2>/dev/null | head -n1)
+  live_user=${live_user:-aurora}
+  if [[ "$live_user" != "$USERNAME" ]] && uid=$(in_target id -u "$live_user" 2>/dev/null) && ((uid >= 1000)); then
+    log "removing the live user $live_user"
+    in_target userdel --force --remove "$live_user" >&2 2>&1 || log "warning: userdel $live_user failed"
+  fi
+  [[ "$live_user" != "$USERNAME" ]] && rm -rf "${TARGET:?}/home/$live_user"
+  rm -f "$TARGET/etc/sudoers.d/casper" "$TARGET/etc/casper.conf" "$TARGET/var/lib/AccountsService/users/$live_user"
+  rm -f "$TARGET"/etc/systemd/system/getty@*.service.d/*autologin*.conf "$TARGET"/etc/systemd/system/serial-getty@*.service.d/*autologin*.conf
+  rmdir "$TARGET"/etc/systemd/system/getty@*.service.d "$TARGET"/etc/systemd/system/serial-getty@*.service.d 2>/dev/null || true
+  # The automated install is for live media only: never leave it enabled on the installed system.
+  rm -f "$TARGET"/etc/systemd/system/*.wants/aurora-autoinstall.service
+}
+
+purge_live_packages() {
+  local list=() p f="$MEDIUM/casper/filesystem.manifest-remove"
+  if [[ -r "$f" ]]; then
+    while read -r p _; do
+      p=${p%%:*}
+      [[ "$p" =~ ^[a-z0-9][a-z0-9+.-]*$ ]] && list+=("$p")
+    done < <(grep -v '^[[:space:]]*#' "$f")
+  else
+    log "warning: $f not found; removing casper and user-setup only"
+    list=(casper user-setup)
+  fi
+  local installed=()
+  for p in "${list[@]}"; do
+    [[ "$(in_target dpkg-query -W -f='${db:Status-Abbrev}' "$p" 2>/dev/null)" == [ir]* ]] && installed+=("$p")
+  done
+  if ((${#installed[@]})); then
+    log "purging live-only packages: ${installed[*]}"
+    bg_wait in_target dpkg --purge "${installed[@]}" >&2 || die 5 "could not remove the live-session packages (${installed[*]})"
+  fi
+  if in_target dpkg-query -W -f='${db:Status-Abbrev}' casper 2>/dev/null | grep -q '^i'; then
+    die 5 "casper is still installed after the purge"
+  fi
+}
+
+regenerate_initramfs() {
+  local k kvers=() need=0 since=$1
+  for k in "$TARGET"/usr/lib/modules/*; do [[ -d "$k" && -e "$TARGET/boot/vmlinuz-${k##*/}" ]] && kvers+=("${k##*/}"); done
+  ((${#kvers[@]})) || die 5 "no kernel found in the installed system"
+  # Purging casper may already have regenerated it through the initramfs-tools trigger.
+  for k in "${kvers[@]}"; do
+    local img="$TARGET/boot/initrd.img-$k"
+    if [[ ! -s "$img" ]] || (( $(stat -c %Y "$img") < since )) \
+       || in_target lsinitramfs "/boot/initrd.img-$k" 2>/dev/null | grep -q 'scripts/casper'; then
+      need=1
+    fi
+  done
+  if ((need)); then
+    log "\$ update-initramfs -u -k all"
+    bg_wait in_target update-initramfs -u -k all >&2 || die 5 "could not generate the initramfs"
+  else
+    log "initramfs already regenerated by the package removal"
+  fi
+  for k in "${kvers[@]}"; do
+    [[ -s "$TARGET/boot/initrd.img-$k" ]] || die 5 "initramfs missing for kernel $k"
+    if in_target lsinitramfs "/boot/initrd.img-$k" | grep -q 'scripts/casper'; then
+      die 5 "the initramfs of kernel $k still contains the live-session (casper) scripts"
+    fi
+  done
+  log "initramfs: ${kvers[*]}"
+}
+
+stage_configure() {
+  maybe_fail configure
+  progress configure 76 "Configuring the system"
+  local t_start; t_start=$(date +%s)
+  mkdir -p "$TARGET/boot/efi"
+  run "could not mount the EFI system partition" mount -t vfat -o umask=0077 "$P_ESP" "$TARGET/boot/efi"
+  chroot_mount
+
+  write_file "$TARGET/etc/fstab" 0644 <<EOF
+# /etc/fstab: static file system information (written by the Aurora OS installer).
+# Use 'blkid' to print the UUID of a device. Swap: compressed RAM (zram), see /etc/systemd/zram-generator.conf.
+# <file system>                            <mount point>  <type>  <options>          <dump>  <pass>
+UUID=$ROOT_UUID  /              ext4    errors=remount-ro  0       1
+UUID=$ESP_UUID                             /boot/efi      vfat    umask=0077         0       1
+EOF
+  printf '%s\n' "$HOST_NAME" | write_file "$TARGET/etc/hostname" 0644
+  write_file "$TARGET/etc/hosts" 0644 <<EOF
+127.0.0.1	localhost
+127.0.1.1	$HOST_NAME
+
+# The following lines are desirable for IPv6 capable hosts
+::1     ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+EOF
+
+  progress configure 77 "Removing the live session"
+  remove_live_remnants
+  purge_live_packages
+  progress configure 79 ""
+
+  # Language, keyboard, time zone.
+  progress configure 80 "Setting the language, keyboard and time zone"
+  if ! in_target locale -a 2>/dev/null | grep -qix "${LOCALE%%.*}.utf8"; then
+    grep -q "^$LOCALE " "$TARGET/etc/locale.gen" 2>/dev/null || echo "$LOCALE UTF-8" >>"$TARGET/etc/locale.gen"
+    run "could not generate the locale $LOCALE" in_target locale-gen "$LOCALE"
+  fi
+  run "could not set the system language" in_target update-locale --reset "LANG=$LOCALE"
+  [[ -f "$TARGET/usr/share/X11/xkb/symbols/$XKB_LAYOUT" ]] || die 2 "unknown keyboard layout: $XKB_LAYOUT"
+  write_file "$TARGET/etc/default/keyboard" 0644 <<EOF
+# KEYBOARD CONFIGURATION FILE (written by the Aurora OS installer)
+# Consult the keyboard(5) manual page.
+
+XKBMODEL="pc105"
+XKBLAYOUT="$XKB_LAYOUT"
+XKBVARIANT="$XKB_VARIANT"
+XKBOPTIONS=""
+
+BACKSPACE="guess"
+EOF
+  in_target debconf-set-selections >&2 2>&1 <<EOF || log "warning: debconf-set-selections (keyboard) failed"
+keyboard-configuration keyboard-configuration/layoutcode string $XKB_LAYOUT
+keyboard-configuration keyboard-configuration/variantcode string $XKB_VARIANT
+keyboard-configuration keyboard-configuration/modelcode string pc105
+EOF
+  if [[ "$TIMEZONE" == UTC ]]; then TIMEZONE=Etc/UTC; fi
+  [[ -f "$TARGET/usr/share/zoneinfo/$TIMEZONE" ]] || die 2 "unknown time zone: $TIMEZONE"
+  ln -sfn "/usr/share/zoneinfo/$TIMEZONE" "$TARGET/etc/localtime"
+  printf '%s\n' "$TIMEZONE" | write_file "$TARGET/etc/timezone" 0644
+
+  # User account.
+  progress configure 81 "Creating the user account $USERNAME"
+  in_target id -u "$USERNAME" >/dev/null 2>&1 && die 2 "the user name '$USERNAME' is already used by the system"
+  local g groups=""
+  for g in "${USER_GROUPS[@]}"; do
+    in_target getent group "$g" >/dev/null || run "could not create the group $g" in_target groupadd --system "$g"
+    groups+="${groups:+,}$g"
+  done
+  run "could not create the user $USERNAME" in_target useradd --create-home --shell /bin/bash \
+    --comment "$FULLNAME" --groups "$groups" "$USERNAME"
+  log "\$ chpasswd ($USERNAME)"
+  printf '%s:%s\n' "$USERNAME" "$PASSWORD" | in_target chpasswd || die 5 "could not set the password of $USERNAME"
+  [[ "$(in_target getent shadow "$USERNAME" | cut -d: -f2)" == \$* ]] || die 5 "the password of $USERNAME was not set"
+  local uid gid home
+  uid=$(in_target id -u "$USERNAME") gid=$(in_target id -g "$USERNAME")
+  home=$(in_target getent passwd "$USERNAME" | cut -d: -f6)
+  # Per-user Aurora settings: the shell's language follows the installation language.
+  install -d -m 0755 -o "$uid" -g "$gid" "$TARGET$home/.config" "$TARGET$home/.config/aurora"
+  local sf="$TARGET$home/.config/aurora/settings.json"
+  if [[ -s "$sf" ]]; then
+    in_target python3 -I -c 'import json,sys; f=sys.argv[1]; d=json.load(open(f)); d["lang"]=sys.argv[2]; json.dump(d, open(f, "w"), indent=2)' \
+      "$home/.config/aurora/settings.json" "$LANGUAGE_ID" || die 5 "could not write the user settings"
+  else
+    printf '{\n  "lang": "%s"\n}\n' "$LANGUAGE_ID" >"$sf"
+  fi
+  chown "$uid:$gid" "$sf"; chmod 0644 "$sf"
+  progress configure 82 ""
+
+  # Sign-in screen (greetd): no live autologin; the new account when --autologin is set.
+  {
+    cat <<'EOF'
+# Aurora OS — greetd configuration (written by the Aurora OS installer).
+# Automatic sign-in: Settings > Accounts > Sign-in options (aurora-admin set-autologin).
+
+[terminal]
+# VT used by the sign-in screen and the desktop session (tty1 keeps a text console).
+vt = 7
+
+# Sign-in screen: Xorg + Aurora Shell in greeter mode, as greetd's system user.
+[default_session]
+command = "/usr/lib/aurora/aurora-greeter"
+user = "_greetd"
+EOF
+    if ((AUTOLOGIN)); then
+      cat <<EOF
+
+# Automatic sign-in once per boot; signing out shows the sign-in screen.
+[initial_session]
+command = "/usr/bin/aurora-session"
+user = "$USERNAME"
+EOF
+    fi
+  } | write_file "$TARGET/etc/greetd/config.toml" 0644
+
+  # Per-machine identity and installation record.
+  machine_id | write_file "$TARGET/etc/machine-id" 0444
+  [[ -L "$TARGET/var/lib/dbus/machine-id" ]] || { mkdir -p "$TARGET/var/lib/dbus"; ln -sfn /etc/machine-id "$TARGET/var/lib/dbus/machine-id"; }
+  local build_id
+  build_id=$(cat "$MEDIUM/.disk/aurora-build-id" 2>/dev/null || cat "$TARGET/etc/aurora/build-id" 2>/dev/null || echo unknown)
+  write_file "$TARGET/etc/aurora/install-info" 0644 <<EOF
+AURORA_INSTALL_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+AURORA_INSTALL_BUILD_ID=$build_id
+AURORA_INSTALL_FIRMWARE=$([[ -d /sys/firmware/efi ]] && echo uefi || echo bios)
+AURORA_INSTALL_LANG=$LANGUAGE_ID
+EOF
+  # No hibernation: zram swap only (skips the initramfs resume-device lookup at boot).
+  printf 'RESUME=none\n' | write_file "$TARGET/etc/initramfs-tools/conf.d/resume" 0644
+
+  progress configure 83 "Updating the initramfs"
+  regenerate_initramfs "$t_start"
+  progress configure 86 ""
+}
+
+stage_bootloader() {
+  maybe_fail bootloader
+  progress bootloader 87 "Installing the boot loader (BIOS)"
+  # GRUB settings (Ubuntu's /etc/default/grub stays untouched; this drop-in overrides it).
+  local theme_src="$MEDIUM/boot/grub/themes/aurora" theme_line="#GRUB_THEME= (no Aurora theme on the installation medium)"
+  [[ -f "$TARGET/usr/share/grub/themes/aurora/theme.txt" ]] && theme_src="$TARGET/usr/share/grub/themes/aurora"
+  if [[ -f "$theme_src/theme.txt" ]]; then
+    rm -rf "$TARGET/boot/grub/themes/aurora"
+    mkdir -p "$TARGET/boot/grub/themes"
+    cp -r "$theme_src" "$TARGET/boot/grub/themes/aurora"
+    chmod -R u+rwX,go+rX,go-w "$TARGET/boot/grub/themes/aurora"
+    theme_line='GRUB_THEME=/boot/grub/themes/aurora/theme.txt'
+  else
+    log "warning: no GRUB theme at $theme_src; using the plain menu"
+  fi
+  write_file "$TARGET/etc/default/grub.d/50-aurora.cfg" 0644 <<EOF
+# Aurora OS boot menu (written by the Aurora OS installer). Sourced after /etc/default/grub;
+# run 'sudo update-grub' after changing it.
+GRUB_DISTRIBUTOR="Aurora OS"
+GRUB_TIMEOUT_STYLE=menu
+GRUB_TIMEOUT=3
+GRUB_RECORDFAIL_TIMEOUT=10
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+GRUB_GFXMODE=1920x1080,1600x900,1280x800,1024x768,auto
+GRUB_GFXPAYLOAD_LINUX=keep
+$theme_line
+EOF
+  # Kernel/GRUB package updates keep the removable UEFI boot path (EFI/BOOT) up to date too.
+  in_target debconf-set-selections >&2 2>&1 <<'EOF' || log "warning: debconf-set-selections (grub) failed"
+grub-efi-amd64 grub2/force_efi_extra_removable boolean true
+EOF
+
+  run "could not install the BIOS boot loader on $DISK" \
+    in_target grub-install --target=i386-pc --boot-directory=/boot --recheck "$DISK"
+  [[ -s "$TARGET/boot/grub/i386-pc/core.img" ]] || die 5 "the BIOS boot loader was not installed (core.img missing)"
+
+  progress bootloader 91 "Installing the boot loader (UEFI)"
+  # EFI/ubuntu: Ubuntu's signed GRUB reads its configuration from /EFI/ubuntu (its built-in prefix);
+  # EFI/BOOT/BOOTX64.EFI: removable path, boots without any firmware boot entry (no NVRAM writes).
+  run "could not install the UEFI boot loader" \
+    in_target grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot \
+      --bootloader-id=ubuntu --no-nvram --recheck
+  run "could not install the removable UEFI boot loader" \
+    in_target grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot \
+      --removable --no-nvram --recheck
+  [[ -s "$TARGET/boot/efi/EFI/BOOT/BOOTX64.EFI" ]] || die 5 "EFI/BOOT/BOOTX64.EFI was not installed"
+  # Every directory that holds a GRUB image gets the configuration stub (search root by UUID).
+  local stub="" d
+  for d in "$TARGET/boot/efi/EFI/ubuntu" "$TARGET/boot/efi/EFI/BOOT"; do
+    [[ -s "$d/grub.cfg" ]] && { stub=$d/grub.cfg; break; }
+  done
+  if [[ -z "$stub" ]]; then
+    stub=$TARGET/boot/efi/EFI/ubuntu/grub.cfg
+    mkdir -p "$(dirname "$stub")"
+    printf "search.fs_uuid %s root\nset prefix=(\$root)'/boot/grub'\nconfigfile \$prefix/grub.cfg\n" "$ROOT_UUID" >"$stub"
+  fi
+  grep -q "$ROOT_UUID" "$stub" || die 5 "the UEFI boot loader configuration does not point to the system partition"
+  for d in "$TARGET/boot/efi/EFI/ubuntu" "$TARGET/boot/efi/EFI/BOOT"; do
+    [[ -d "$d" && ! -s "$d/grub.cfg" ]] && cp "$stub" "$d/grub.cfg"
+  done
+
+  progress bootloader 94 "Writing the boot menu"
+  run "could not write the boot menu (update-grub)" in_target update-grub
+  local cfg="$TARGET/boot/grub/grub.cfg"
+  [[ -s "$cfg" ]] || die 5 "/boot/grub/grub.cfg was not generated"
+  grep -q "root=UUID=$ROOT_UUID" "$cfg" || die 5 "the boot menu does not boot the system partition by UUID"
+  grep -q 'scripts/casper\|boot=casper' "$cfg" && die 5 "the boot menu still refers to the live system"
+  progress bootloader 97 ""
+}
+
+stage_cleanup() {
+  maybe_fail cleanup
+  progress cleanup 98 "Finishing"
+  rm -f "$TARGET/usr/sbin/policy-rc.d"
+  rm -rf "${TARGET:?}"/tmp/* "${TARGET:?}"/var/tmp/* 2>/dev/null || true
+  # Keep a copy of this log on the installed system (no secrets are ever logged).
+  install -D -m 0600 "$LOG_FILE" "$TARGET/var/log/aurora-install.log" 2>/dev/null || true
+  sync
+  umount_under "$TARGET"
+  if findmnt -rn -o TARGET | grep -q "^$TARGET"; then die 5 "could not unmount the installed system"; fi
+  rmdir "$TARGET" 2>/dev/null || true
+  # Restarting from the live session must not wait for "remove the installation medium".
+  if [[ -d /cdrom/casper ]] && grep -qw 'boot=casper' /proc/cmdline 2>/dev/null; then
+    : >/run/casper-no-prompt
+  fi
+  progress cleanup 99 ""
+}
+
+# ====================================================================== main
+progress partition 0 "Checking the disk and the installation source"
+umount_under "$WORKDIR"   # leftovers of an interrupted run
+resolve_source
+check_disk
+check_choices
+log "installing to $DISK ($((DISK_SIZE / 1000000000)) GB)"
+stage_partition
+stage_format
+stage_copy
+stage_configure
+stage_bootloader
+stage_cleanup
+DONE=1
+progress done 100 "Aurora OS has been installed on $DISK"
+exit 0

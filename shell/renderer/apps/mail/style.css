@@ -176,35 +176,35 @@
   display: none;
 }
 
-/* Collapsed navigation: a 48px rail (medium windows, or collapsed by the user). */
-.app-mail .ml-root.nav-collapsed .ml-nav {
+/* Collapsed navigation: a 52px rail (medium windows, or collapsed by the user). */
+.app-mail .ml-root.nav-collapsed:not(.nav-open) .ml-nav {
   width: 52px;
   padding-right: 2px;
 }
-.app-mail .ml-root.nav-collapsed .ml-nav .label,
-.app-mail .ml-root.nav-collapsed .ml-nav .ml-count,
-.app-mail .ml-root.nav-collapsed .ml-nav .ml-folder-section,
-.app-mail .ml-root.nav-collapsed .ml-nav .ml-folder-group,
-.app-mail .ml-root.nav-collapsed .ml-nav .ml-twisty,
-.app-mail .ml-root.nav-collapsed .ml-nav .ml-twisty-space {
+.app-mail .ml-root.nav-collapsed:not(.nav-open) .ml-nav .label,
+.app-mail .ml-root.nav-collapsed:not(.nav-open) .ml-nav .ml-count,
+.app-mail .ml-root.nav-collapsed:not(.nav-open) .ml-nav .ml-folder-section,
+.app-mail .ml-root.nav-collapsed:not(.nav-open) .ml-nav .ml-folder-group,
+.app-mail .ml-root.nav-collapsed:not(.nav-open) .ml-nav .ml-twisty,
+.app-mail .ml-root.nav-collapsed:not(.nav-open) .ml-nav .ml-twisty-space {
   display: none;
 }
-.app-mail .ml-root.nav-collapsed .ml-nav .ml-newmail {
+.app-mail .ml-root.nav-collapsed:not(.nav-open) .ml-nav .ml-newmail {
   width: 36px;
   min-width: 36px;
   padding: 0;
   justify-content: center;
 }
-.app-mail .ml-root.nav-collapsed .ml-nav .ml-account {
+.app-mail .ml-root.nav-collapsed:not(.nav-open) .ml-nav .ml-account {
   justify-content: center;
   padding: 6px 0;
 }
-.app-mail .ml-root.nav-collapsed .ml-nav .ml-folder,
-.app-mail .ml-root.nav-collapsed .ml-nav .ml-navbtn {
+.app-mail .ml-root.nav-collapsed:not(.nav-open) .ml-nav .ml-folder,
+.app-mail .ml-root.nav-collapsed:not(.nav-open) .ml-nav .ml-navbtn {
   justify-content: center;
   padding: 0 !important;
 }
-.app-mail .ml-root.nav-collapsed .ml-nav .ml-folder .ml-rail-dot {
+.app-mail .ml-root.nav-collapsed:not(.nav-open) .ml-nav .ml-folder .ml-rail-dot {
   display: block;
 }
 /* Overlay navigation (opened from the rail or the list header in small windows). */
@@ -223,38 +223,8 @@
   border-radius: 0 var(--radius) var(--radius) 0;
   animation: ml-nav-in var(--dur-slow) var(--ease);
 }
-.app-mail .ml-root.nav-open .ml-nav .label,
-.app-mail .ml-root.nav-open .ml-nav .ml-count,
-.app-mail .ml-root.nav-open .ml-nav .ml-folder-section,
-.app-mail .ml-root.nav-open .ml-nav .ml-twisty,
-.app-mail .ml-root.nav-open .ml-nav .ml-twisty-space {
-  display: revert;
-}
-.app-mail .ml-root.nav-open .ml-nav .ml-folder-group:not([hidden]) {
-  display: block;
-}
-.app-mail .ml-root.nav-open .ml-nav .ml-folder .label {
-  display: block;
-}
-.app-mail .ml-root.nav-open .ml-nav .ml-account-text {
-  display: flex;
-}
-.app-mail .ml-root.nav-open .ml-nav .ml-newmail {
-  width: 100%;
-  padding: 5px 12px 6px;
-  justify-content: flex-start;
-}
-.app-mail .ml-root.nav-open .ml-nav .ml-folder,
-.app-mail .ml-root.nav-open .ml-nav .ml-navbtn {
-  justify-content: flex-start;
-  padding: 0 12px !important;
-}
-.app-mail .ml-root.nav-open .ml-nav .ml-folder .ml-rail-dot {
-  display: none;
-}
-.app-mail .ml-root.nav-open .ml-nav .ml-account {
-  justify-content: flex-start;
-  padding: 6px 8px;
+.app-mail .ml-root.nav-open:not([data-layout="narrow"]) .ml-main {
+  padding-left: 54px;
 }
 .app-mail .ml-root.nav-open .ml-scrim {
   display: block;
