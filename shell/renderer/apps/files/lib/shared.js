@@ -245,8 +245,12 @@ export function popUndo() {
 // ---------------------------------------------------------------- keyboard focus helpers
 // Keyboard-focusable controls inside root, in Tab order (DOM order; no positive tabindex is used).
 export function tabStops(root, skip = () => false) {
+  const inOtherLayer = (el) => {
+    const layer = el.closest('.dialog-layer');
+    return !!layer && !layer.contains(root); // a dialog over root is not part of root's cycle
+  };
   return [...root.querySelectorAll('button, input, textarea, select, [tabindex]')].filter(
-    (el) => !el.disabled && el.tabIndex >= 0 && !el.closest('[hidden], .dialog-layer') && el.getClientRects().length > 0 && !skip(el),
+    (el) => !el.disabled && el.tabIndex >= 0 && !el.closest('[hidden]') && !inOtherLayer(el) && el.getClientRects().length > 0 && !skip(el),
   );
 }
 // Tab / Shift+Tab cycle inside a window like a Windows app instead of walking out to the taskbar.

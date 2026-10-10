@@ -19,9 +19,9 @@ export function errorText(t, e, fallbackHost) {
     const name = detail.split('/').filter(Boolean).pop() || detail;
     return { title: null, text: t(`err.${code}`, { path: code === 'ENOENT' ? name : detail }), detail: null };
   }
-  const known = ['EAUTH', 'ECONN', 'ETLS', 'ETIMEOUT', 'EINSECURE', 'EEXISTS', 'EINVAL', 'ENOACCOUNT', 'ENOMSG'];
+  const known = ['EAUTH', 'ECONN', 'ETLS', 'ETIMEOUT', 'EINSECURE', 'EEXISTS', 'EINVAL', 'ENOACCOUNT', 'ENOMSG', 'ESERVER'];
   const text = known.includes(code) ? t(`err.${code}`, { host }) : t('err.EFAIL', { detail: detail || code });
-  return { title: side ? t(`err.side.${side}`) : null, text, detail: known.includes(code) && !['EAUTH', 'EEXISTS', 'ENOMSG', 'ENOACCOUNT'].includes(code) ? detail : null };
+  return { title: side ? t(`err.side.${side}`) : null, text, detail: known.includes(code) && !['EAUTH', 'EEXISTS', 'ENOMSG', 'ENOACCOUNT', 'ESERVER'].includes(code) ? detail : null };
 }
 
 export class AccountSetup {

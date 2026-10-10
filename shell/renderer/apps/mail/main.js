@@ -10,6 +10,7 @@ import { Composer } from './lib/compose.js';
 import { Reader } from './lib/reader.js';
 import { MessageWindow } from './lib/msgwin.js';
 import { parseAddresses, parseMailto } from './lib/util.js';
+import { errorText } from './lib/setup.js';
 
 const apps = new Set();
 let subscribed = false;
@@ -45,6 +46,23 @@ function subscribe(ctx) {
   });
 }
 
+// Secondary windows (composer, message, .eml viewer) are Mail windows too: the shell hands them
+// "launch Mail" requests (Start menu, taskbar, notifications, mailto: from other apps) when they
+// come first in the window list. Forward those to the main window, opening it when needed.
+function forwardRelaunch(ctx, next = {}) {
+  const main = [...apps].find((a) => a.ctx.win.el.isConnected);
+  if (next.file && !next.compose) {
+    ctx.shell.launch('mail', { ...next, newWindow: true });
+    return;
+  }
+  if (main) {
+    main.ctx.win.focus();
+    main.handleArgs(next);
+    return;
+  }
+  ctx.shell.launch('mail', { ...next, newWindow: true, main: true });
+}
+
 // A composer in its own window (pop-out, or "new message" from another app with newWindow).
 function composeWindow(ctx, snap) {
   const { win, h } = ctx;
@@ -65,8 +83,12 @@ function composeWindow(ctx, snap) {
   root.appendChild(composer.el);
   title(composer.subject.value);
   win.onBeforeClose(async () => composer.close());
+  ctx.onLangChange(() => {
+    composer.relocalize();
+    title(composer.subject.value);
+  });
   composer.focus();
-  return { composer };
+  return { composer, onRelaunch: (next) => forwardRelaunch(ctx, next) };
 }
 
 // Read-only viewer for .eml files.
@@ -85,20 +107,20 @@ async function emlWindow(ctx, file) {
     moveToSpecial() {},
     async openAttachment(msg, a) {
       try {
-        ctx.shell.openFile(await api.invoke('mail:attachment', '@file', file, 0, a.id, {}));
+        ctx.shell.openFile(await api.invoke('mail:attachment', '@file', file, 0, a.id, { reuse: true }));
       } catch (e) {
-        ui.alert(e.message, { parent: win });
+        ui.alert(errorText(ctx.t, e).text, { parent: win });
       }
     },
     async saveAttachment(msg, a, { ask } = {}) {
       try {
         let dest = null;
-        if (ask) dest = await ui.filePicker({ mode: 'save', name: a.filename, parent: win });
+        if (ask) dest = await ui.filePicker({ mode: 'save', name: a.filename, path: ctx.shell.xdg?.downloads, parent: win });
         if (ask && !dest) return;
         const p = await api.invoke('mail:attachment', '@file', file, 0, a.id, dest ? { dest } : {});
         ctx.shell.notify({ appId: 'mail', title: ctx.t('snack.saved', { name: p.split('/').pop() }), body: p, timeout: 4000, silent: true });
       } catch (e) {
-        ui.alert(e.message, { parent: win });
+        ui.alert(errorText(ctx.t, e).text, { parent: win });
       }
     },
     async saveAllAttachments(msg, list) {
@@ -115,6 +137,7 @@ async function emlWindow(ctx, file) {
   } catch (e) {
     reader.showError(e);
   }
+  ctx.onLangChange(() => reader.relocalize());
   ctx.onClose(() => reader.destroy());
 }
 
@@ -127,15 +150,15 @@ export default {
     if (args.read) {
       const w = new MessageWindow(ctx, args.read);
       await w.init();
-      return {};
+      return { onRelaunch: (next) => forwardRelaunch(ctx, next) };
     }
-    if (args.newWindow && (args.to || args.subject || args.body || args.mailto)) {
+    if (args.newWindow && !args.main && (args.to || args.cc || args.subject || args.body || args.mailto)) {
       const pre = args.mailto ? parseMailto(args.mailto) || {} : args;
       return composeWindow(ctx, { accountId: store.prefs.lastAccount, mode: 'new', to: parseAddresses(pre.to), cc: parseAddresses(pre.cc), bcc: parseAddresses(pre.bcc), subject: pre.subject || '', body: pre.body || '' });
     }
     if (args.file) {
       await emlWindow(ctx, args.file);
-      return {};
+      return { onRelaunch: (next) => forwardRelaunch(ctx, next) };
     }
     const app = new MailApp(ctx);
     apps.add(app);

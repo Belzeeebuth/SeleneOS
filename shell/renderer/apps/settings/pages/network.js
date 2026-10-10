@@ -131,13 +131,17 @@ async function wifi(pc) {
   let busy = null; // ssid being connected
   let errFor = null; // { ssid, code, msg }
   let needKey = null; // ssid that asks for a key
-  const autoFor = new Map(); // ssid -> "Connect automatically" (checked unless the user unchecked it)
+  const autoFor = new Map(); // ssid -> "Connect automatically" as the user just set it
+  let savedAuto = new Map(); // ssid -> autoconnect of the saved profile (net:known)
+  const autoOf = (ssid) => (autoFor.has(ssid) ? autoFor.get(ssid) : savedAuto.get(ssid) !== false);
 
   const scan = async (rescan = true) => {
     scanning = true;
     paintList();
     try {
-      list = (await api.invoke('net:wifiList', rescan)) || [];
+      const [l, known] = await Promise.all([api.invoke('net:wifiList', rescan), pc.tryInvoke('net:known')]);
+      list = l || [];
+      if (known) savedAuto = new Map(known.map((k) => [k.ssid, k.autoconnect]));
     } catch (err) {
       list = list || [];
       if (err.code !== 'ENOHANDLER') pc.toastError(err);
@@ -154,7 +158,8 @@ async function wifi(pc) {
     errFor = null;
     paintList();
     try {
-      await api.invoke('net:wifiConnect', n.ssid, password || undefined, { autoconnect: autoFor.get(n.ssid) !== false });
+      // a saved network keeps its own setting unless the box was changed here
+      await api.invoke('net:wifiConnect', n.ssid, password || undefined, { autoconnect: autoFor.has(n.ssid) || !n.saved ? autoOf(n.ssid) : undefined });
       busy = null;
       needKey = null;
       expanded = null;
@@ -213,7 +218,7 @@ async function wifi(pc) {
     } else if (needKey === n.ssid) {
       form.append(keyForm(n));
     } else {
-      const auto = h('input', { type: 'checkbox', checked: autoFor.get(n.ssid) !== false, onchange: (e) => autoFor.set(n.ssid, e.target.checked) });
+      const auto = h('input', { type: 'checkbox', checked: autoOf(n.ssid), onchange: (e) => autoFor.set(n.ssid, e.target.checked) });
       form.append(
         h('label', { class: 'checkbox' }, auto, h('span', null, t('net.connectAuto'))),
         errFor?.ssid === n.ssid ? kit.infobar({ kind: 'error', message: errFor.code === 'ENOTFOUND' ? t('net.notInRange') : t('net.cantConnect', { msg: errFor.msg }) }) : null,

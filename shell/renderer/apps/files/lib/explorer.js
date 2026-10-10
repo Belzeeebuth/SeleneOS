@@ -308,6 +308,11 @@ export class Explorer {
 
     // Window-level keyboard shortcuts and mouse back/forward buttons.
     this.win.el.addEventListener('keydown', (e) => this.onKey(e));
+    // Tab stays inside a dialog shown over this window (confirmations, Folder Options, Open with…).
+    this.win.el.addEventListener('keydown', (e) => {
+      const layer = e.key === 'Tab' && e.target.closest?.('.dialog-layer');
+      if (layer && !layer.classList.contains('closing')) wrapTab(e, layer.querySelector('.dialog') || layer);
+    }, true);
     // When a focused element disappears (re-rendered row, hidden input…), focus would fall to <body>,
     // outside the window, and keyboard shortcuts would stop working: bring it back to the items view.
     this.win.el.addEventListener('focusout', (e) => {

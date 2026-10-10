@@ -31,6 +31,12 @@ function cleanCss(css, allowRemote, cids, counter) {
     .replace(/@import[^;]*;?/gi, '')
     .replace(/expression\s*\(/gi, 'x(')
     .replace(/(java|vb)script\s*:/gi, 'x:')
+    // image-set("https://…" 1x) loads a picture without url(): blocked like any remote image.
+    .replace(/(?:-webkit-)?image-set\s*\(((?:[^()]|\([^()]*\))*)\)/gi, (m, inner) => {
+      if (!/(https?:)?\/\//i.test(inner)) return m;
+      counter.remote++;
+      return allowRemote ? m : 'none';
+    })
     .replace(URL_IN_CSS, (m, q, u) => {
       const url = u.trim();
       if (/^cid:/i.test(url)) {

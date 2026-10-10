@@ -90,7 +90,8 @@ export const registry = {
       return null;
     }
     if (m.singleInstance && !args?.newWindow) {
-      const existing = wm.byApp(id)[0];
+      // (a window playing its close animation is gone for the user: open a new one instead)
+      const existing = wm.byApp(id).find((w) => !w._closing);
       if (existing) {
         existing.focus();
         const inst = instances.get(existing.id);

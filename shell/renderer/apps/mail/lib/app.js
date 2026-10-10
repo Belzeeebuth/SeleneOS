@@ -7,7 +7,7 @@ import { Composer } from './compose.js';
 import { AccountSetup } from './setup.js';
 import { openSettings } from './settings.js';
 import { MailWindowBase } from './base.js';
-import { avatarColor, initials, parseAddresses, parseMailto, debounce } from './util.js';
+import { avatarColor, initials, parseAddresses, parseMailto, debounce, keyName } from './util.js';
 
 const FOLDER_ICONS = { inbox: 'mail_inbox', drafts: 'drafts', sent: 'send', archive: 'archive', junk: 'mail_prohibited', trash: 'delete', all: 'mail_multiple', flagged: 'flag', important: 'star' };
 
@@ -70,7 +70,7 @@ export class MailApp extends MailWindowBase {
     ui.clear(win.titlebarSlot);
     this.root.className = 'ml-root setup';
     win.setTitle(this.t('appName'));
-    const setup = new AccountSetup(this.ctx, {
+    const setup = (this.setup = new AccountSetup(this.ctx, {
       mode,
       onDone: async (account) => {
         store.setPref('lastAccount', account.id);
@@ -83,7 +83,7 @@ export class MailApp extends MailWindowBase {
         }
       },
       onCancel: () => this.showMain(),
-    });
+    }));
     this.root.appendChild(h('div', { class: 'ml-setup-page' }, setup.el));
   }
 
@@ -91,10 +91,12 @@ export class MailApp extends MailWindowBase {
   async showMain(accountId) {
     const { h, ui } = this.ctx;
     if (!store.accounts.length) return this.showSetup('first');
+    this.setup = null;
     ui.clear(this.root);
     this.root.className = 'ml-root';
     this.nav = h('nav', { class: 'ml-nav', 'aria-label': this.t('nav.label') });
     this.list = new MessageList(this.ctx, this);
+    this.reader?.destroy(); // coming back from the setup screen: drop the old pane's listeners
     this.reader = new Reader(this.ctx, this);
     this.readerHost = h('div', { class: 'ml-readpane' }, this.reader.el);
     this.splitter = h('div', { class: 'ml-splitter', role: 'separator', 'aria-orientation': 'vertical', tabindex: '-1' });
@@ -212,6 +214,13 @@ export class MailApp extends MailWindowBase {
     this.list.setHeader(this.t('folder.inbox'), 'inbox');
     this.list.renderSkeleton();
     this.reader.showEmpty();
+    this.lastUndo = null;
+    // The offline / wrong-password bar belongs to the previous account.
+    this.onStatus({ accountId: id, online: true });
+    this.ctx.api
+      .invoke('mail:status')
+      .then((all) => all?.[id] && this.onStatus({ accountId: id, ...all[id] }))
+      .catch(() => {});
     let data = null;
     try {
       data = await this.loadFolders();
@@ -394,7 +403,7 @@ export class MailApp extends MailWindowBase {
         role: 'treeitem',
         tabindex: '0',
         dataset: { path: node.path },
-        title: node.path,
+        title: node.special ? name : node.path.split(node.delimiter || '/').join(' › '),
         style: { paddingLeft: `${12 + depth * 16}px` },
       },
       hasKids ? h('span', { class: 'ml-twisty', role: 'button', 'aria-label': t('nav.expand') }, icon('chevron_down', { size: 10 })) : depth ? h('span', { class: 'ml-twisty-space' }) : null,
@@ -561,6 +570,7 @@ export class MailApp extends MailWindowBase {
     const { h, icon, ui } = this.ctx;
     ui.clear(this.offline);
     this.offline.hidden = ev.online;
+    this.offline.dataset.code = ev.online ? '' : ev.code || '';
     if (!ev.online && ['ECONN', 'ETIMEOUT'].includes(this.list?.error?.code || '')) ui.clear(this.list.banner);
     if (!ev.online && this.list?.banner?.querySelector('.infobar.error')) ui.clear(this.list.banner);
     if (!ev.online) {
@@ -760,7 +770,8 @@ export class MailApp extends MailWindowBase {
     }
     try {
       const res = await op();
-      if (doneText) this.snackbar(typeof doneText === 'function' ? doneText(res) : doneText);
+      const undo = this.undoFor(res);
+      if (doneText) this.snackbar(typeof doneText === 'function' ? doneText(res) : doneText, undo ? { label: this.t('snack.undo'), action: undo } : null);
       this.refreshFolders();
       return res;
     } catch (e) {
@@ -769,6 +780,27 @@ export class MailApp extends MailWindowBase {
       this.alertError(e);
       return null;
     }
+  }
+
+  // "Undo" for a move / archive / delete to Trash: move the messages back (the server told us their
+  // new UIDs). Also reachable with Ctrl+Z while the snackbar is the last action.
+  undoFor(res) {
+    if (!res?.folder || !Array.isArray(res.uids) || !res.uids.length) return null;
+    const acc = this.account;
+    const from = this.folder;
+    const run = async () => {
+      if (this.lastUndo === run) this.lastUndo = null;
+      try {
+        await this.ctx.api.invoke('mail:move', acc.id, res.folder, res.uids, from);
+        if (this.account === acc && this.folder === from) await this.list.load({ soft: true });
+        this.refreshFolders();
+        this.snackbar(this.t('snack.undone'));
+      } catch (e) {
+        this.alertError(e);
+      }
+    };
+    this.lastUndo = run;
+    return run;
   }
 
   async deleteMessages(uids) {
@@ -839,12 +871,12 @@ export class MailApp extends MailWindowBase {
       one ? { label: t('act.forward'), icon: 'arrow_forward', shortcut: 'Ctrl+F', action: () => this.reply('forward') } : null,
       one ? '-' : null,
       { label: anyUnread ? t('act.markRead') : t('act.markUnread'), icon: anyUnread ? 'mail_read' : 'mail_unread', shortcut: anyUnread ? 'Ctrl+Q' : 'Ctrl+U', action: () => this.setFlags(uids, { seen: anyUnread }) },
-      { label: allFlagged ? t('act.unflag') : t('act.flag'), icon: allFlagged ? 'flag_off' : 'flag', shortcut: 'Insert', action: () => this.setFlags(uids, { flagged: !allFlagged }) },
+      { label: allFlagged ? t('act.unflag') : t('act.flag'), icon: allFlagged ? 'flag_off' : 'flag', shortcut: keyName('Insert', this.ctx.lang), action: () => this.setFlags(uids, { flagged: !allFlagged }) },
       '-',
       { label: t('act.move'), icon: 'folder_arrow_right', action: () => this.moveMenu(e instanceof Event ? e : null) },
       special !== 'archive' ? { label: t('act.archive'), icon: 'archive', action: () => this.archiveSelected() } : null,
       special !== 'junk' ? { label: t('act.junk'), icon: 'mail_prohibited', action: () => this.moveToSpecial('junk') } : { label: t('act.notJunk'), icon: 'mail_inbox', action: () => this.moveToSpecial('inbox') },
-      { label: t('act.delete'), icon: 'delete', shortcut: this.ctx.lang === 'fr' ? 'Suppr' : 'Delete', danger: true, action: () => this.deleteMessages(uids) },
+      { label: t('act.delete'), icon: 'delete', shortcut: keyName('Delete', this.ctx.lang), danger: true, action: () => this.deleteMessages(uids) },
     ].filter(Boolean));
   }
 
@@ -982,20 +1014,40 @@ export class MailApp extends MailWindowBase {
     if (ctrl && e.shiftKey && lower === 'g') return run(() => this.toggleFlagSelected());
     if (ctrl && e.shiftKey && lower === 'v') return run(() => this.moveMenu(this.list.el.querySelector('.ml-item.selected') || null));
     if (editable) return;
+    if (ctrl && !e.shiftKey && lower === 'z' && this.lastUndo) return run(() => this.lastUndo());
     if (k === 'Delete') return run(() => this.deleteSelected());
     if (k === 'Insert') return run(() => this.toggleFlagSelected());
     if (k === 'Escape' && this.root.classList.contains('show-reader') && this.root.dataset.layout === 'narrow') return run(() => this.backToList());
     if (k === 'Escape' && this.root.classList.contains('nav-open')) return run(() => this.toggleNav(false));
   }
 
+  // Language switched while Mail is open: every pane follows, nothing typed is lost.
   relocalize() {
+    if (this.setup) {
+      this.setup.relocalize();
+      this.ctx.win.setTitle(this.t('appName'));
+      return;
+    }
     if (!this.list) return;
-    const keepMsg = this.reader.msg;
+    this.nav?.setAttribute('aria-label', this.t('nav.label'));
     this.renderNav();
+    const typed = this.searchInput?.value || '';
+    const hadFocus = document.activeElement === this.searchInput;
     this.buildSearch();
+    this.searchInput.value = typed;
+    this.searchClear.hidden = !typed;
+    if (hadFocus) this.searchInput.focus();
     const node = this.findFolder(this.folder);
-    this.list.setHeader(node ? this.folderName(node) : this.folder || '', this.folderSpecial());
-    this.list.render();
-    if (keepMsg && !this.composer) this.reader.showMessage(keepMsg);
+    const name = node ? this.folderName(node) : this.folder || '';
+    this.list.setHeader(name, this.folderSpecial());
+    if (this.folder && this.account) {
+      this.searchInput.placeholder = this.t('search.placeholderIn', { folder: name });
+      this.ctx.win.setTitle(`${name} - ${this.account.email} - ${this.t('appName')}`);
+    }
+    this.list.relocalize();
+    this.reader.relocalize();
+    this.composer?.relocalize();
+    const status = this.offline && !this.offline.hidden ? this.offline.dataset.code : null;
+    if (status != null) this.onStatus({ accountId: this.account.id, online: false, code: status || null });
   }
 }

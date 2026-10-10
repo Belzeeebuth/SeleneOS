@@ -643,7 +643,7 @@ if (!fatal) {
     await page.click('.fx-props-win .fx-props-tab:has-text("Permissions")');
     check('permissions tab', await page.locator('.fx-props-win .fx-perm-grid input[type=checkbox]').count(), 9);
     await page.click('.fx-props-win .fx-props-foot button:has-text("Cancel")');
-    await page.waitForTimeout(300);
+    await page.waitForFunction(() => !document.querySelector('.fx-props-win'), null, { timeout: 3000 }).catch(() => {});
     check('props closed', await page.locator('.fx-props-win').count(), 0);
     // Rename + read-only through Properties
     await H.select('notes.md');
@@ -1135,6 +1135,17 @@ if (!fatal) {
       const s = window.__fx().tabStops();
       return s[s.length - 1] === document.activeElement;
     }), true);
+    // ... and inside a dialog shown over the window
+    await H.select('notes.md');
+    await H.focusView();
+    await H.key('Shift+Delete');
+    await page.waitForSelector('.dialog-layer .dialog-footer button');
+    await page.waitForTimeout(100);
+    await page.locator('.dialog-layer .dialog-footer button').last().focus();
+    await H.key('Tab');
+    check('Tab wraps inside a dialog', await page.evaluate(() => document.activeElement === document.querySelector('.dialog-layer .dialog-footer button')), true);
+    await H.clickDialog('No');
+    check('dialog answered No: file kept', H.exists(D('Documents/notes.md')), true);
     // A refresh (watcher, other window) must not restore a selection snapshot taken before its load
     const kept = await page.evaluate(async () => {
       const ex = window.__fx();

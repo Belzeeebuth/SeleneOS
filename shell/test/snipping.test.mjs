@@ -190,7 +190,11 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
       hint: el.querySelector('.snip-hint').textContent,
       title: app.win.title,
       visible: getComputedStyle(el).visibility,
+      focusNew: document.activeElement === el.querySelector('.snip-new'),
+      ring: getComputedStyle(el.querySelector('.snip-new')).outlineStyle,
     }));
+    assert.equal(info.focusNew, true, 'New has the keyboard focus (Enter starts a snip)');
+    assert.equal(info.ring, 'none', 'no focus ring before the keyboard is used');
     assert.equal(info.view, 'compact');
     assert.equal(info.rect.width, 548);
     assert.equal(info.rect.height, 178);

@@ -3,7 +3,7 @@
 import { store } from './store.js';
 import { buildMailDocument } from './sanitize.js';
 import { errorText } from './setup.js';
-import { avatarColor, initials, displayName, addressText, fullDate, fileKind } from './util.js';
+import { avatarColor, initials, displayName, addressText, fullDate, fileKind, keyName } from './util.js';
 
 export class Reader {
   constructor(ctx, app) {
@@ -35,9 +35,25 @@ export class Reader {
     this.el.className = 'ml-reader';
   }
 
+  // Language switched: redraw whatever the pane shows (a message keeps its "Show pictures" choice).
+  relocalize() {
+    this.el.setAttribute('aria-label', this.t('reader.label'));
+    const st = this.state || { kind: 'empty' };
+    if (st.kind === 'message' && this.msg) {
+      const msg = this.msg;
+      const keep = this.allowRemote;
+      this.showMessage(msg);
+      if (keep && !this.allowRemote) this.showPictures();
+    } else if (st.kind === 'multi') this.showMulti(st.count);
+    else if (st.kind === 'error') this.showError(st.error, st.retry);
+    else if (st.kind === 'loading') this.showLoading(st.summary);
+    else this.showEmpty();
+  }
+
   showEmpty() {
     const { h, icon } = this.ctx;
     this.clear();
+    this.state = { kind: 'empty' };
     this.el.classList.add('empty-state');
     this.el.appendChild(
       h(
@@ -54,6 +70,7 @@ export class Reader {
     const { h, icon } = this.ctx;
     const t = (k, v) => this.t(k, v);
     this.clear();
+    this.state = { kind: 'multi', count };
     this.el.classList.add('empty-state');
     const act = (name, ic, label, fn) => h('button', { class: 'btn', name, onclick: fn }, icon(ic), label);
     this.el.appendChild(
@@ -80,6 +97,7 @@ export class Reader {
   showLoading(summary) {
     const { h } = this.ctx;
     this.clear();
+    this.state = { kind: 'loading', summary };
     this.el.classList.add('loading');
     this.el.appendChild(this.toolbar(null));
     this.el.appendChild(
@@ -96,6 +114,7 @@ export class Reader {
   showError(e, retry) {
     const { h, icon } = this.ctx;
     this.clear();
+    this.state = { kind: 'error', error: e, retry };
     this.el.classList.add('empty-state');
     const info = errorText(this.ctx.t, e);
     this.el.appendChild(
@@ -136,11 +155,11 @@ export class Reader {
       b('replyAll', 'arrow_reply_all', t('act.replyAll'), () => app.reply('replyAll'), { tip: `${t('act.replyAll')} (Ctrl+Shift+R)`, disabled: file }),
       b('forward', 'arrow_forward', t('act.forward'), () => app.reply('forward'), { tip: `${t('act.forward')} (Ctrl+F)`, disabled: file }),
       h('span', { class: 'vsep' }),
-      b('delete', 'delete', t('act.delete'), () => app.deleteSelected(), { tip: `${t('act.delete')} (Suppr)`.replace('Suppr', this.ctx.lang === 'fr' ? 'Suppr' : 'Delete'), disabled: file }),
+      b('delete', 'delete', t('act.delete'), () => app.deleteSelected(), { tip: `${t('act.delete')} (${keyName('Delete', this.ctx.lang)})`, disabled: file }),
       b('archive', 'archive', t('act.archive'), () => app.archiveSelected(), { disabled: file || app.folderSpecial() === 'archive' }),
       b('move', 'folder_arrow_right', t('act.move'), (e) => app.moveMenu(e), { chevron: true, disabled: file }),
       h('span', { class: 'vsep' }),
-      b('flag', flagged ? 'flag_off' : 'flag', flagged ? t('act.unflag') : t('act.flag'), () => app.setSelectedFlags({ flagged: !flagged }), { cls: flagged && 'on', disabled: file }),
+      b('flag', flagged ? 'flag_off' : 'flag', flagged ? t('act.unflag') : t('act.flag'), () => app.setSelectedFlags({ flagged: !flagged }), { cls: flagged && 'on', disabled: file, tip: `${flagged ? t('act.unflag') : t('act.flag')} (${keyName('Insert', this.ctx.lang)})` }),
       b('unread', msg?.seen === false ? 'mail_read' : 'mail_unread', msg?.seen === false ? t('act.markRead') : t('act.markUnread'), () => app.setSelectedFlags({ seen: msg?.seen === false }), { disabled: file }),
       h('span', { class: 'grow' }),
       b('more', 'more_horizontal', t('act.more'), (e) => this.moreMenu(e), { iconOnly: true }),
@@ -201,6 +220,7 @@ export class Reader {
     const t = (k, v) => this.t(k, v);
     this.clear();
     this.msg = msg;
+    this.state = { kind: 'message' };
     const sender = msg.from?.[0] || { name: '', address: '' };
     this.allowRemote = store.prefs.remoteImages === 'always' || store.isTrustedSender(sender.address) || !!msg.allowRemote;
     const recip = (label, list) =>
@@ -216,7 +236,7 @@ export class Reader {
     this.headEl = h(
       'div',
       { class: 'ml-reader-head' },
-      h('div', { class: 'ml-subject-line' }, h('h2', { class: 'ml-read-subject selectable' }, msg.subject || t('list.noSubject')), flags),
+      h('div', { class: 'ml-subject-line' }, h('h2', { class: 'ml-read-subject selectable', title: msg.subject || '' }, msg.subject || t('list.noSubject')), flags),
       h(
         'div',
         { class: 'ml-sender-row' },
@@ -268,7 +288,11 @@ export class Reader {
               title: a.filename,
               onclick: (e) => (e.target.closest('.ml-att-menu') ? null : this.app.openAttachment(this.msg, a)),
               onkeydown: (e) => {
-                if (e.key === 'Enter') this.app.openAttachment(this.msg, a);
+                if (e.target !== e.currentTarget) return; // keys on the chip's menu button
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  this.app.openAttachment(this.msg, a);
+                }
                 if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) this.attMenu(e, a);
               },
               oncontextmenu: (e) => this.attMenu(e, a),

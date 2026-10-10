@@ -52,7 +52,8 @@ export class MailWindowBase {
   async openAttachment(msg, a) {
     const { api, shell } = this.ctx;
     try {
-      const path = await api.invoke('mail:attachment', msg.accountId, msg.folder, msg.uid, a.id, {});
+      // Saved to Downloads first; opening it again reuses that copy instead of making "name (1).ext".
+      const path = await api.invoke('mail:attachment', msg.accountId, msg.folder, msg.uid, a.id, { reuse: true });
       await shell.openFile(path);
     } catch (e) {
       this.alertError(e);

@@ -7,7 +7,7 @@ import { store } from './store.js';
 import { AddressField } from './chips.js';
 import { sanitizeForCompose, plainToComposeHtml } from './sanitize.js';
 import { errorText } from './setup.js';
-import { escapeHtml, textToHtml, htmlToText, fullDate, addressText, displayName, sameAddress, prefixSubject, fileKind, isEmail } from './util.js';
+import { escapeHtml, textToHtml, htmlToText, fullDate, addressText, displayName, sameAddress, prefixSubject, fileKind, isEmail, shortTime } from './util.js';
 
 const BIG_ATTACHMENTS = 25 * 1024 * 1024;
 
@@ -127,7 +127,8 @@ export class Composer {
           })
         : h('span', { class: 'ml-from-static' }, this.account ? addressText({ name: this.account.name, address: this.account.email }) : '');
     this.fromSel.classList?.add('ml-from');
-    const fromRow = h('div', { class: 'ml-field' }, h('label', { class: 'ml-field-label' }, t('compose.from')), this.fromSel);
+    this.fromLabel = h('label', { class: 'ml-field-label' }, t('compose.from'));
+    const fromRow = h('div', { class: 'ml-field' }, this.fromLabel, this.fromSel);
 
     this.ccBtn = h('button', { class: 'btn subtle small ml-ccbtn', type: 'button', name: 'show-cc', onclick: () => this.showField('cc') }, t('compose.cc'));
     this.bccBtn = h('button', { class: 'btn subtle small ml-ccbtn', type: 'button', name: 'show-bcc', onclick: () => this.showField('bcc') }, t('compose.bcc'));
@@ -280,6 +281,47 @@ export class Composer {
       else node.remove();
     }
     if (prevSig && this.textarea.value.includes(prevSig)) this.textarea.value = this.textarea.value.replace(prevSig, sig);
+  }
+
+  // Language switched while composing: relabel everything in place (nothing typed is touched).
+  relocalize() {
+    const t = (k, v) => this.t(k, v);
+    const set = (el, key, ...kinds) => {
+      if (!el) return;
+      const v = t(key);
+      for (const k of kinds) {
+        if (k === 'text') el.textContent = v;
+        else if (k === 'lbl') {
+          const l = el.querySelector('.lbl');
+          if (l) l.textContent = v;
+        } else if (k === 'tip') el.dataset.tip = v;
+        else el.setAttribute(k, v);
+      }
+    };
+    const btn = (name) => this.el.querySelector(`button[name="${name}"]`);
+    set(this.sendBtn, 'compose.sendTip', 'tip');
+    if (!this.sending) set(this.sendBtn, 'compose.send', 'lbl');
+    set(btn('discard'), 'compose.discard', 'lbl', 'tip', 'aria-label');
+    set(btn('attach'), 'compose.attach', 'lbl', 'tip', 'aria-label');
+    set(btn('more'), 'compose.more', 'lbl', 'tip', 'aria-label');
+    set(btn('popout'), 'compose.popOut', 'tip', 'aria-label');
+    set(this.fromLabel, 'compose.from', 'text');
+    set(this.ccBtn, 'compose.cc', 'text');
+    set(this.bccBtn, 'compose.bcc', 'text');
+    this.to.setLabel(t('compose.to'));
+    this.cc.setLabel(t('compose.cc'));
+    this.bcc.setLabel(t('compose.bcc'));
+    set(this.subject, 'compose.subject', 'placeholder', 'aria-label');
+    const fmtKeys = { bold: 'fmt.bold', italic: 'fmt.italic', underline: 'fmt.underline', insertUnorderedList: 'fmt.bullets', insertOrderedList: 'fmt.numbering', link: 'fmt.link', removeFormat: 'fmt.clear' };
+    for (const [cmd, key] of Object.entries(fmtKeys)) set(btn(`fmt-${cmd}`), key, 'tip', 'aria-label');
+    set(this.formatBar, 'fmt.toolbar', 'aria-label');
+    set(this.editor, 'compose.body', 'aria-label');
+    set(this.textarea, 'compose.body', 'aria-label');
+    set(this.dropOverlay.querySelector('.subtitle'), 'compose.dropFiles', 'text');
+    set(this.el, 'compose.newMessage', 'aria-label');
+    this.renderAttachments();
+    if (this.status.dataset.saved && this.savedAt) this.status.textContent = t('compose.draftSaved', { time: shortTime(this.savedAt, this.ctx.i18n) });
+    else if (this.sending) this.sendBtn.querySelector('.lbl').textContent = t('compose.sending');
   }
 
   markDirty() {
@@ -638,7 +680,18 @@ export class Composer {
   }
 
   async send() {
-    if (this.sending || this.closed) return;
+    // `checking`: a confirmation ("No subject?") is open — a second Ctrl+Enter must not open another
+    // one and send the message twice.
+    if (this.sending || this.closed || this.checking) return;
+    this.checking = true;
+    try {
+      await this.checkAndSend();
+    } finally {
+      this.checking = false;
+    }
+  }
+
+  async checkAndSend() {
     const { api, ui, h, icon } = this.ctx;
     const t = (k, v) => this.t(k, v);
     for (const f of [this.to, this.cc, this.bcc]) f.commit();
@@ -686,7 +739,7 @@ export class Composer {
   }
 
   async saveDraft({ quiet = false } = {}) {
-    if (this.sending) return false;
+    if (this.sending || this.checking) return false;
     const { api, ui } = this.ctx;
     const t = (k, v) => this.t(k, v);
     for (const f of [this.to, this.cc, this.bcc]) f.commit();
@@ -695,7 +748,8 @@ export class Composer {
       const res = await api.invoke('mail:saveDraft', this.accountId, this.message(), { replaceUid: this.draft?.uid || null });
       this.draft = res?.uid ? { folder: res.folder, uid: res.uid } : this.draft;
       this.dirty = false;
-      this.status.textContent = t('compose.draftSaved', { time: this.ctx.i18n.formatTime(new Date(), { hour: 'numeric', minute: '2-digit' }) });
+      this.savedAt = new Date();
+      this.status.textContent = t('compose.draftSaved', { time: shortTime(this.savedAt, this.ctx.i18n) });
       this.status.dataset.saved = '1';
       return true;
     } catch (e) {

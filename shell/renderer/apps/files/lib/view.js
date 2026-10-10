@@ -1336,10 +1336,14 @@ export class ContentView {
     input.addEventListener('blur', () => setTimeout(() => this.renaming?.input === input && !this.renaming.busy && this.commitRename(), 0));
     input.addEventListener('pointerdown', (ev) => ev.stopPropagation());
     input.addEventListener('dblclick', (ev) => ev.stopPropagation());
+    // Focus at once (not on the next frame): a key pressed right after "New folder" / F2 must land in
+    // the field, not on the items view (a second Ctrl+Shift+N created a second folder).
+    const end = showExt && ext && !e.dir ? initial.length - ext.length : initial.length;
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(0, Math.max(0, end));
     requestAnimationFrame(() => {
-      input.focus();
-      const end = showExt && ext && !e.dir ? initial.length - ext.length : initial.length;
-      input.setSelectionRange(0, Math.max(0, end));
+      if (this.renaming?.input !== input) return;
+      if (document.activeElement !== input) input.focus({ preventScroll: true });
       fit();
     });
     return true;

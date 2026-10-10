@@ -269,6 +269,22 @@ export class MessageList {
     this.el.classList.toggle('multi', this.selected.size > 1 || this.selectMode);
   }
 
+  // Language switched: header buttons, then the rows (their signature includes the language).
+  relocalize() {
+    const t = (k, v) => this.t(k, v);
+    const label = (el, key, tip = t(key)) => {
+      el.setAttribute('aria-label', t(key));
+      el.dataset.tip = tip;
+    };
+    label(this.filterBtn, 'list.filter');
+    label(this.selectBtn, 'list.selectMode');
+    label(this.refreshBtn, 'list.refresh', `${t('list.refresh')} (F5)`);
+    label(this.navBtn, 'nav.toggle');
+    this.scroller.setAttribute('aria-label', t('list.label'));
+    if (this.loading && !this.messages.length && !this.error) return; // skeleton: nothing to translate
+    this.render();
+  }
+
   // ------------------------------------------------------------ rendering
   setHeader(title, special) {
     this.titleEl.textContent = title;

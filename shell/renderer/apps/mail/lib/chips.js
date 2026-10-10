@@ -16,7 +16,8 @@ export class AddressField {
     this.input = h('input', { class: 'ml-chip-input', type: 'text', name, autocomplete: 'off', spellcheck: false, 'aria-label': label, 'aria-autocomplete': 'list' });
     this.box = h('div', { class: 'ml-chips', onclick: (e) => e.target === this.box && this.input.focus() }, this.input);
     this.popup = h('div', { class: 'ml-suggest', role: 'listbox', hidden: true });
-    this.el = h('div', { class: 'ml-field ml-addr', dataset: { field: name } }, h('label', { class: 'ml-field-label', onclick: () => this.input.focus() }, label), this.box, extra || null, this.popup);
+    this.labelEl = h('label', { class: 'ml-field-label', onclick: () => this.input.focus() }, label);
+    this.el = h('div', { class: 'ml-field ml-addr', dataset: { field: name } }, this.labelEl, this.box, extra || null, this.popup);
     for (const a of value) this.add(a, { silent: true });
     this.wire();
   }
@@ -26,6 +27,17 @@ export class AddressField {
     const list = this.chips.map((c) => ({ name: c.name, address: c.address }));
     if (pending) for (const a of parseAddresses(pending)) list.push(a);
     return list;
+  }
+
+  // Language switched: the field label and the chips' tooltips.
+  setLabel(label) {
+    const { t } = this.ctx;
+    this.labelEl.textContent = label;
+    this.input.setAttribute('aria-label', label);
+    for (const c of this.chips) {
+      c.el.querySelector('.ml-chip-x')?.setAttribute('aria-label', t('compose.removeRecipient'));
+      if (!c.valid) c.el.title = t('compose.invalidAddress', { address: c.address });
+    }
   }
 
   get invalid() {

@@ -305,7 +305,7 @@ function classify(e) {
   const code = String(e.code || '');
   const msg = String(e.message || e);
   const all = `${code} ${msg} ${e.response || ''}`;
-  if (['EAUTH', 'ECONN', 'ETLS', 'ETIMEOUT', 'EINSECURE', 'EEXISTS', 'ENOACCOUNT', 'ENOMSG', 'EINVAL', 'EACCES', 'ENOSPC', 'ENOENT'].includes(code)) return code;
+  if (['EAUTH', 'ECONN', 'ETLS', 'ETIMEOUT', 'EINSECURE', 'EEXISTS', 'ENOACCOUNT', 'ENOMSG', 'EINVAL', 'EACCES', 'ENOSPC', 'ENOENT', 'ESERVER'].includes(code)) return code;
   // Local file system errors (saving attachments, reading files to send).
   if (e.syscall && ['EPERM', 'EROFS', 'EISDIR', 'ENOTDIR'].includes(code)) return 'EACCES';
   if (e.syscall && code === 'EDQUOT') return 'ENOSPC';
@@ -825,6 +825,15 @@ async function withImap(accountId, fn, { retry = true } = {}) {
     if (classify(e) === 'ETIMEOUT') pool.drop();
     throw mapError(e);
   }
+}
+
+// imapflow reports a refused STORE / MOVE / EXPUNGE by returning false (or undefined) instead of
+// throwing: turn that into an error, so the UI never shows a change the server did not make.
+// A dropped connection becomes ECONN (withImap reconnects and retries once).
+function must(client, res) {
+  if (res !== false && res != null) return res;
+  if (!client.usable) throw err('The connection to the server was lost.', 'ECONN');
+  throw err('The server refused this operation.', 'ESERVER');
 }
 
 async function withMailbox(client, folder, fn) {
@@ -1785,17 +1794,25 @@ module.exports = function register(api) {
           if (flags[k] === true) add.push(f);
           else if (flags[k] === false) remove.push(f);
         }
-        if (add.length) await client.messageFlagsAdd(list, add, { uid: true });
-        if (remove.length) await client.messageFlagsRemove(list, remove, { uid: true });
+        if (add.length) must(client, await client.messageFlagsAdd(list, add, { uid: true }));
+        if (remove.length) must(client, await client.messageFlagsRemove(list, remove, { uid: true }));
         return true;
       }),
     );
   });
 
+  // Moves report the messages' new UIDs (UIDPLUS COPYUID) so the renderer can offer "Undo".
+  const movedUids = (res) => (res?.uidMap instanceof Map && res.uidMap.size ? [...res.uidMap.values()] : null);
+
   handle('mail:move', (accountId, folder, uids, toFolder) => {
     const list = uidList(uids).join(',');
     if (!toFolder || String(toFolder) === String(folder)) throw err('Choose another folder.', 'EINVAL');
-    return withImap(accountId, (client) => withMailbox(client, String(folder), async () => !!(await client.messageMove(list, String(toFolder), { uid: true }))));
+    return withImap(accountId, (client) =>
+      withMailbox(client, String(folder), async () => {
+        const res = must(client, await client.messageMove(list, String(toFolder), { uid: true }));
+        return { folder: String(toFolder), uids: movedUids(res) };
+      }),
+    );
   });
 
   handle('mail:archive', (accountId, folder, uids) => {
@@ -1803,8 +1820,8 @@ module.exports = function register(api) {
     return withImap(accountId, async (client) => {
       const archive = await ensureSpecial(accountId, client, 'archive');
       if (archive === folder) throw err('These messages are already archived.', 'EINVAL');
-      await withMailbox(client, String(folder), () => client.messageMove(list, archive, { uid: true }));
-      return { folder: archive };
+      const res = await withMailbox(client, String(folder), async () => must(client, await client.messageMove(list, archive, { uid: true })));
+      return { folder: archive, uids: movedUids(res) };
     });
   });
 
@@ -1814,18 +1831,19 @@ module.exports = function register(api) {
       const sp = await specialFolders(accountId, client);
       const trash = sp.trash;
       const permanent = !trash || trash === folder;
+      let res = null;
       await withMailbox(client, String(folder), async () => {
-        if (permanent) await client.messageDelete(list, { uid: true });
-        else await client.messageMove(list, trash, { uid: true });
+        if (permanent) must(client, await client.messageDelete(list, { uid: true }));
+        else res = must(client, await client.messageMove(list, trash, { uid: true }));
       });
-      return { permanent, trash: trash || null };
+      return { permanent, trash: trash || null, folder: permanent ? null : trash, uids: permanent ? null : movedUids(res) };
     });
   });
 
   handle('mail:emptyFolder', (accountId, folder) =>
     withImap(accountId, (client) =>
       withMailbox(client, String(folder), async (mb) => {
-        if (mb.exists) await client.messageDelete('1:*');
+        if (mb.exists) must(client, await client.messageDelete('1:*'));
         return true;
       }),
     ),
@@ -1834,7 +1852,7 @@ module.exports = function register(api) {
   handle('mail:markAllRead', (accountId, folder) =>
     withImap(accountId, (client) =>
       withMailbox(client, String(folder), async (mb) => {
-        if (mb.exists) await client.messageFlagsAdd('1:*', ['\\Seen']);
+        if (mb.exists) must(client, await client.messageFlagsAdd('1:*', ['\\Seen']));
         return true;
       }),
     ),

@@ -934,6 +934,14 @@ async function qaRegressions() {
     await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'settings').setSize(1100, 640));
     await sleep(400);
 
+    // ---- reopening Settings while its window is still playing the close animation opens a new window
+    await s.aurora(async () => {
+      await window.__aurora.wm.list().find((w) => w.appId === 'settings').close();
+      window.__aurora.registry.launch('settings', { page: 'about' });
+    });
+    check(await s.page.waitForSelector(S('.st-page[data-page="about"]'), { timeout: 6000 }).then(() => true, () => false), 'reopening Settings during its close animation opens it again (core/registry.js singleInstance)');
+    await sleep(400);
+
     // ---- 20 open / close cycles leave nothing behind
     const count = () => s.aurora(() => ({ nodes: document.getElementsByTagName('*').length, menus: document.querySelectorAll('.menu, .st-picker, .tooltip').length }));
     await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'settings')?.close());

@@ -140,6 +140,9 @@ export class SnipSession {
       return { canvas: cropBitmap(bmp, scale, sel.rect, sel.path), mode: sel.mode, rect: sel.rect };
     } finally {
       this._teardown();
+      // The snip has been cropped into its own canvas by now: free the full-screen bitmap.
+      this.bitmap?.close?.();
+      this.bitmap = null;
     }
   }
 

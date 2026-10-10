@@ -15,7 +15,7 @@
 //   win.titlebarSlot        -> element inside the title bar for tabs / search boxes
 //   win.setTitle(s) win.setIcon(url) win.focus() win.minimize() win.maximize() win.restore()
 //   win.toggleMaximize() win.close(force) win.setSize(w, h) win.center() win.setFullscreen(bool)
-//   win.setProgress(0..1 | null)  win.flash()  win.makeDraggable(el)
+//   win.setProgress(0..1 | null)  win.flash()  win.makeDraggable(el)  win.setMinSize(w, h)
 //   win.onBeforeClose(async () => boolean)   -> return false to cancel closing
 //   win.on('focus'|'blur'|'resize'|'move'|'minimize'|'restore'|'maximize'|'close'|'fullscreen'|'snap', fn)
 //   wm.list() wm.focused() wm.get(id) wm.byApp(appId) wm.minimizeAll() wm.toggleDesktop()
@@ -254,6 +254,14 @@ class Win extends Emitter {
   }
   setSize(width, height) {
     this.setRect({ width, height });
+  }
+  /** Change the minimum size (e.g. a game board that grows); grows the window if it is smaller. */
+  setMinSize(minWidth, minHeight) {
+    if (minWidth != null) this.opts.minWidth = Math.max(1, Math.round(minWidth));
+    if (minHeight != null) this.opts.minHeight = Math.max(1, Math.round(minHeight));
+    if (this.state === 'normal' && (this.w < this.opts.minWidth || this.h < this.opts.minHeight)) {
+      this.setRect({ width: Math.max(this.w, this.opts.minWidth), height: Math.max(this.h, this.opts.minHeight) });
+    }
   }
   center() {
     const wa = wm.workarea();

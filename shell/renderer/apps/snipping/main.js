@@ -181,7 +181,15 @@ class Snipping {
     win.on('resize', () => this.layoutToolbar());
 
     if (deferReveal || args.mode) this.handleArgs(args);
-    else if (wm.focused() === win) this.btnNew.focus({ preventScroll: true }); // like Windows: Enter starts a snip
+    else if (wm.focused() === win) {
+      // Like Windows: Enter starts a snip right away; the focus ring only shows once the keyboard is used.
+      const btn = this.btnNew;
+      btn.classList.add('snip-quiet');
+      const loud = () => btn.classList.remove('snip-quiet');
+      btn.addEventListener('keydown', loud, { once: true });
+      btn.addEventListener('blur', loud, { once: true });
+      btn.focus({ preventScroll: true });
+    }
     return this;
   }
 

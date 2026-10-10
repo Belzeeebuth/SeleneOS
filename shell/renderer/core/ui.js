@@ -214,9 +214,11 @@ function showMenu(items, pt, level, resolve, opts = {}) {
     }
   };
   if (level === 0) {
+    // Keys are captured at once (a key pressed right after opening must reach the menu);
+    // pointer/blur listeners wait a task so the click that opened the menu doesn't close it.
+    document.addEventListener('keydown', keys, true);
     setTimeout(() => {
       document.addEventListener('pointerdown', outside, true);
-      document.addEventListener('keydown', keys, true);
       window.addEventListener('blur', blurClose);
     });
   }
@@ -268,7 +270,9 @@ export const ui = {
         if (e.key === 'Escape' && closeOnEsc) {
           e.stopPropagation();
           done(null);
-        } else if (e.key === 'Enter' && !e.shiftKey && e.target.tagName !== 'TEXTAREA') {
+        } else if (e.key === 'Enter' && !e.shiftKey && !e.defaultPrevented && e.target.tagName !== 'TEXTAREA') {
+          // Enter on a focused button activates that button (native click), not the primary one.
+          if (e.target.closest?.('button, a, select, [role="button"], [contenteditable="true"]')) return;
           const b = (buttons || []).find((x) => x.primary);
           if (b && !b.disabled) {
             e.preventDefault();
