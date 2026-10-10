@@ -79,6 +79,8 @@ export function createChrome(app) {
     const f = flyoutState;
     if (!f) return;
     flyoutState = null;
+    f.closed = true;
+    clearTimeout(f.armTimer);
     document.removeEventListener('pointerdown', f.outside, true);
     window.removeEventListener('blur', f.blur);
     f.anchor?.classList.remove('open');
@@ -131,26 +133,52 @@ export function createChrome(app) {
         anchor.focus();
       }
     });
-    setTimeout(() => document.addEventListener('pointerdown', outside, true));
     window.addEventListener('blur', blur);
     anchor.classList.add('open');
     anchor.setAttribute('aria-expanded', 'true');
-    flyoutState = { el, anchor, outside, blur, onClose };
+    const state = { el, anchor, outside, blur, onClose, closed: false, armTimer: 0 };
+    flyoutState = state;
+    // Armed one task later so the click that opened the flyout doesn't close it; never armed if
+    // the flyout was closed meanwhile (that listener would otherwise stay on the document).
+    state.armTimer = setTimeout(() => {
+      if (!state.closed) document.addEventListener('pointerdown', outside, true);
+    });
     if (focus) setTimeout(() => (el.querySelector('.pt-sel-item, .selected, button, input, [tabindex]') || el).focus?.(), 30);
     return el;
   }
 
-  // Arrow-key navigation inside a grid of buttons.
+  // Arrow-key navigation inside a grid of buttons, with a roving tab stop: the grid is a single
+  // Tab stop (its selected item, else the last focused one) instead of one stop per button.
   function gridNav(container, cols) {
+    const items = () => [...container.querySelectorAll('button:not([disabled])')];
+    const setStop = (b) => {
+      for (const x of container.querySelectorAll('button')) x.tabIndex = x === b ? 0 : -1;
+    };
     container.addEventListener('keydown', (e) => {
-      const items = [...container.querySelectorAll('button:not([disabled])')];
-      const i = items.indexOf(document.activeElement);
+      const list = items();
+      const i = list.indexOf(document.activeElement);
       if (i < 0) return;
       const d = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols }[e.key];
-      if (!d) return;
+      let next = null;
+      if (d) next = list[Math.max(0, Math.min(list.length - 1, i + d))];
+      else if (e.key === 'Home') next = list[0];
+      else if (e.key === 'End') next = list[list.length - 1];
+      if (!next) return;
       e.preventDefault();
-      items[Math.max(0, Math.min(items.length - 1, i + d))]?.focus();
+      setStop(next);
+      next.focus();
     });
+    container.addEventListener('focusin', (e) => {
+      const b = e.target.closest?.('button');
+      if (b && container.contains(b)) setStop(b);
+    });
+    container._sync = () => {
+      if (container.contains(document.activeElement)) return;
+      const list = items();
+      const cur = list.find((b) => b.classList.contains('on') || b.classList.contains('selected') || b.classList.contains('active')) || list.find((b) => b.tabIndex === 0) || list[0];
+      if (cur) setStop(cur);
+    };
+    container._sync();
   }
 
   // ------------------------------------------------------------ title bar (menus + quick access + title)
@@ -347,6 +375,7 @@ export function createChrome(app) {
   function buildTools() {
     refs.tools = {};
     const grid = h('div', { class: 'pt-tools', role: 'radiogroup', 'aria-label': t('groups.tools') });
+    refs.toolsGrid = grid;
     for (const [id, ic, key] of TOOLS) {
       const b = btn({ ic, label: t(`tools.${id}`), key, cls: 'sm tool', onclick: () => app.setTool(id), attrs: { role: 'radio', dataset: { tool: id } } });
       refs.tools[id] = b;
@@ -402,6 +431,7 @@ export function createChrome(app) {
   function buildShapes() {
     refs.shapes = {};
     const gal = h('div', { class: 'pt-gallery', role: 'radiogroup', 'aria-label': t('groups.shapes') });
+    refs.gallery = gal;
     for (const id of SHAPES) {
       const b = btn({ ic: svgIcon(shapeIcon(id), { size: 18 }), label: t(`shapes.${id}`), cls: 'shape', onclick: () => app.setShape(id), attrs: { role: 'radio', dataset: { shape: id } } });
       refs.shapes[id] = b;
@@ -483,19 +513,25 @@ export function createChrome(app) {
   function swatch(color, name, { custom = false, index } = {}) {
     const b = h('button', {
       type: 'button',
-      class: ['pt-sw', !color && 'empty'],
+      class: ['pt-sw', !color && 'pt-empty'],
       'data-tip': color ? `${name} (${color.toUpperCase()})` : t('colors.emptySlot'),
       'aria-label': color ? `${name} ${color}` : t('colors.emptySlot'),
       dataset: { color: color || '', custom: custom ? String(index) : '' },
     });
     if (color) b.style.setProperty('--c', color);
-    b.addEventListener('click', () => {
-      if (color) app.setColor(S.slot, color);
-      else app.cmd('editColors');
+    b.addEventListener('click', (e) => {
+      if (color) {
+        app.setColor(S.slot, color);
+        // A colour picked with the mouse while typing text keeps the text box active.
+        if (e.detail > 0) app.focusEditor?.();
+      } else app.cmd('editColors');
     });
     b.addEventListener('contextmenu', (e) => {
       e.preventDefault();
-      if (color) app.setColor('secondary', color);
+      if (color) {
+        app.setColor('secondary', color);
+        app.focusEditor?.();
+      }
     });
     return b;
   }
@@ -515,7 +551,8 @@ export function createChrome(app) {
     refs.custom = h('div', { class: 'pt-palette custom' });
     for (const [c, n] of PALETTE) refs.palette.appendChild(swatch(c, t(`colors.${n}`)));
     renderCustom();
-    gridNav(refs.palette, 10);
+    refs.palWrap = h('div', { class: 'pt-pal-wrap' }, refs.palette, refs.custom);
+    gridNav(refs.palWrap, 10);
     refs.edit = h(
       'button',
       { type: 'button', class: 'pt-b big pt-edit-colors', 'data-tip': t('colors.edit'), 'aria-label': t('colors.edit'), onclick: () => app.cmd('editColors') },
@@ -524,7 +561,7 @@ export function createChrome(app) {
     refs.miniCur = h('span', { class: 'pt-mini-cur', 'aria-hidden': 'true' }, h('i', { class: 'b' }), h('i', { class: 'a' }));
     return group(
       'colors',
-      h('div', { class: 'pt-g-body' }, h('div', { class: 'pt-cur-stack' }, refs.c1, refs.c2), h('div', { class: 'pt-pal-wrap' }, refs.palette, refs.custom), refs.edit),
+      h('div', { class: 'pt-g-body' }, h('div', { class: 'pt-cur-stack' }, refs.c1, refs.c2), refs.palWrap, refs.edit),
       refs.miniCur,
     );
   }
@@ -532,6 +569,7 @@ export function createChrome(app) {
   function renderCustom() {
     if (!refs.custom) return;
     refs.custom.replaceChildren(...S.custom.map((c, i) => swatch(c, t('colors.custom'), { custom: true, index: i })));
+    refs.palWrap?._sync?.();
   }
 
   function buildCmdbar() {
@@ -582,7 +620,7 @@ export function createChrome(app) {
     });
     const dl = h('datalist', { id: `pt-sizes-${app.win.id}` }, sizes.map((s) => h('option', { value: s })));
     const tog = (key, ic, label, k) => {
-      const b = btn({ ic, label, key: k, cls: 'sm toggle', onclick: () => app.setTextOpt(key, !S.text[key]), attrs: { 'aria-pressed': 'false', dataset: { opt: key } } });
+      const b = btn({ ic, label, key: k, cls: 'sm pt-toggle', onclick: () => app.setTextOpt(key, !S.text[key]), attrs: { 'aria-pressed': 'false', dataset: { opt: key } } });
       refs[`t_${key}`] = b;
       return b;
     };
@@ -607,7 +645,7 @@ export function createChrome(app) {
       tog('underline', 'text_underline', t('text.underline'), 'Ctrl+U'),
       tog('strike', 'text_strikethrough', t('text.strike')),
       h('div', { class: 'vsep' }),
-      h('span', { class: 'caption text-2' }, t('text.background')),
+      h('span', { class: 'caption text-2 pt-ctx-cap' }, t('text.background')),
       refs.bgSeg,
     );
     refs.tolVal = h('span', { class: 'pt-tol-val' });
@@ -704,12 +742,36 @@ export function createChrome(app) {
   }
   const zoomToSlider = (z) => Math.round(((Math.log(Math.max(0.125, Math.min(8, z))) - LMIN) / (LMAX - LMIN)) * 1000);
 
+  // Drop the least useful status items until everything fits (French labels are longer).
+  const STATUS_STEPS = ['narrow', 'xnarrow', 'xxnarrow'];
   function fitStatus() {
     const st = refs.status;
-    if (!st?.isConnected) return;
-    const w = st.clientWidth;
-    st.classList.toggle('narrow', w < 720);
-    st.classList.toggle('xnarrow', w < 520);
+    if (!st?.isConnected || st.hidden) return;
+    st.classList.remove(...STATUS_STEPS);
+    for (const c of STATUS_STEPS) {
+      if (st.scrollWidth <= st.clientWidth + 1) break;
+      st.classList.add(c);
+    }
+  }
+
+  // Context bar (text / fill options): tighten, then hide captions, when the window is narrow.
+  const CTX_STEPS = ['narrow', 'xnarrow'];
+  function fitCtx() {
+    const bar = refs.ctx;
+    if (!bar?.isConnected || bar.hidden) return;
+    bar.classList.remove(...CTX_STEPS);
+    for (const c of CTX_STEPS) {
+      if (bar.scrollWidth <= bar.clientWidth + 1) break;
+      bar.classList.add(c);
+    }
+  }
+
+  // The centred document title is hidden rather than cut down to a couple of letters.
+  function fitTitle() {
+    const el = refs.title;
+    if (!el?.isConnected) return;
+    el.classList.remove('tiny');
+    if (el.clientWidth < 72) el.classList.add('tiny');
   }
 
   // ------------------------------------------------------------ public API
@@ -730,6 +792,8 @@ export function createChrome(app) {
     fit() {
       fitBar();
       fitStatus();
+      fitCtx();
+      fitTitle();
     },
     setTitle(text) {
       if (refs.title) refs.title.textContent = text;
@@ -739,16 +803,16 @@ export function createChrome(app) {
     setStatus({ pos, sel, size, file } = {}) {
       if (pos !== undefined) {
         refs.stPos.txt.textContent = pos ?? '';
-        refs.stPos.classList.toggle('empty', !pos);
+        refs.stPos.classList.toggle('pt-empty', !pos);
       }
       if (sel !== undefined) {
         refs.stSel.txt.textContent = sel ?? '';
-        refs.stSel.classList.toggle('empty', !sel);
+        refs.stSel.classList.toggle('pt-empty', !sel);
       }
       if (size !== undefined) refs.stSize.txt.textContent = size;
       if (file !== undefined) {
         refs.stFile.txt.textContent = file ?? '';
-        refs.stFile.classList.toggle('empty', !file);
+        refs.stFile.classList.toggle('pt-empty', !file);
       }
     },
     setZoom(z) {
@@ -773,6 +837,8 @@ export function createChrome(app) {
         b.classList.toggle('on', on);
         b.setAttribute('aria-checked', String(on));
       }
+      refs.toolsGrid?._sync?.();
+      refs.gallery?._sync?.();
       refs.cut.disabled = !c('cut');
       refs.copy.disabled = !c('copy');
       refs.crop.disabled = !c('crop');
@@ -799,6 +865,10 @@ export function createChrome(app) {
         void refs.ctx.offsetWidth;
         refs.ctx.classList.add('enter');
       }
+      if (ctxFor && (wasHidden || refs.ctx.dataset.for !== ctxFor)) {
+        refs.ctx.dataset.for = ctxFor;
+        fitCtx();
+      }
       if (ctxFor === 'text') {
         if (refs.fontSel.value !== S.text.family) refs.fontSel.value = S.text.family;
         if (document.activeElement !== refs.fontSize) refs.fontSize.value = S.text.sizePt;
@@ -812,7 +882,9 @@ export function createChrome(app) {
         refs.tol.setValue(S.tolerance);
         refs.tolVal.textContent = `${S.tolerance}%`;
       }
+      const stWasHidden = refs.status.hidden;
       refs.status.hidden = S.statusbar === false;
+      if (stWasHidden && !refs.status.hidden) fitStatus();
     },
   };
   return api;

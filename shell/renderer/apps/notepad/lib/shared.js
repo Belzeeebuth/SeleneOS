@@ -26,6 +26,38 @@ function clone(v) {
   return JSON.parse(JSON.stringify(v));
 }
 
+const oneOf = (v, list, def) => (list.includes(v) ? v : def);
+const bool = (v, def) => (typeof v === 'boolean' ? v : def);
+
+/** Stored preferences are untrusted (hand-edited or from an older version): keep only valid values. */
+export function sanitizePrefs(raw) {
+  const d = DEFAULT_PREFS;
+  const p = raw && typeof raw === 'object' ? raw : {};
+  const f = p.font && typeof p.font === 'object' ? p.font : {};
+  const family = typeof f.family === 'string' ? f.family.replace(/["\\;{}<>]/g, '').trim().slice(0, 80) : '';
+  const size = Number(f.size);
+  const weight = Number(f.weight);
+  const zoom = Number(p.zoom);
+  return {
+    font: {
+      family: family || d.font.family,
+      weight: [300, 400, 600, 700].includes(weight) ? weight : d.font.weight,
+      italic: bool(f.italic, d.font.italic),
+      size: Number.isFinite(size) && size >= 6 && size <= 96 ? Math.round(size) : d.font.size,
+    },
+    wordWrap: bool(p.wordWrap, d.wordWrap),
+    statusBar: bool(p.statusBar, d.statusBar),
+    zoom: Number.isFinite(zoom) ? Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(zoom))) : d.zoom,
+    theme: oneOf(p.theme, ['system', 'light', 'dark'], d.theme),
+    openFiles: oneOf(p.openFiles, ['tab', 'window'], d.openFiles),
+    startup: oneOf(p.startup, ['new', 'restore'], d.startup),
+    matchCase: bool(p.matchCase, d.matchCase),
+    wrapAround: bool(p.wrapAround, d.wrapAround),
+    wholeWord: bool(p.wholeWord, d.wholeWord),
+    defaultEol: oneOf(p.defaultEol, ['lf', 'crlf', 'cr'], d.defaultEol),
+  };
+}
+
 export const shared = {
   ready: null,
   storage: null,
@@ -47,14 +79,32 @@ export const shared = {
       this.ready = (async () => {
         const get = (n, f) => ctx.storage.get(n, f).catch(() => f);
         const [prefs, recent, session] = await Promise.all([get('prefs', null), get('recent', []), get('session', null)]);
-        if (prefs && typeof prefs === 'object') {
-          this.prefs = { ...clone(DEFAULT_PREFS), ...prefs, font: { ...DEFAULT_PREFS.font, ...(prefs.font || {}) } };
-        }
-        this.recent = Array.isArray(recent) ? recent.filter((p) => typeof p === 'string') : [];
-        this.session = session && Array.isArray(session.windows) ? session : { windows: [] };
+        this.prefs = sanitizePrefs(prefs);
+        this.recent = Array.isArray(recent) ? [...new Set(recent.filter((p) => typeof p === 'string' && p.startsWith('/')))].slice(0, MAX_RECENT) : [];
+        this.session = session && Array.isArray(session.windows) ? { windows: session.windows.filter((w) => w && typeof w === 'object' && Array.isArray(w.tabs)) } : { windows: [] };
+        this.watchTooltips();
       })();
     }
     return this.ready;
+  },
+
+  // Tooltips are drawn at screen level (core/ui.js): give the ones shown over a Notepad window that
+  // overrides the system theme (Settings > App theme) that window's colours too.
+  watchTooltips() {
+    if (this._tipObserver || typeof MutationObserver === 'undefined') return;
+    let hoverWin = null;
+    document.addEventListener('pointerover', (e) => (hoverWin = e.target?.closest?.('.win.app-notepad') || null), true);
+    this._tipObserver = new MutationObserver((recs) => {
+      for (const r of recs) {
+        for (const n of r.addedNodes) {
+          if (n.nodeType !== 1 || !n.classList.contains('tooltip')) continue;
+          const owner = (hoverWin?.isConnected && hoverWin) || document.activeElement?.closest?.('.win.app-notepad');
+          const cls = owner && [...owner.classList].find((c) => c === 'np-theme-light' || c === 'np-theme-dark');
+          if (cls) n.classList.add(cls);
+        }
+      }
+    });
+    this._tipObserver.observe(document.body, { childList: true });
   },
 
   on(ev, fn) {
@@ -172,6 +222,7 @@ export const shared = {
     return this.windows.find((x) => !x.closing) || null;
   },
   findDoc(path) {
+    if (!path) return null; // (Untitled tabs have no path)
     for (const w of this.windows) {
       const d = w.docs.find((x) => x.path === path);
       if (d) return { w, d };

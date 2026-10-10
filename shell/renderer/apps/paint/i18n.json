@@ -221,7 +221,17 @@
       "copy": "The selection couldn't be copied to the clipboard.",
       "noImage": "The clipboard doesn't contain a picture.",
       "undo": "This change couldn't be undone.",
-      "generic": "Something went wrong."
+      "generic": "Something went wrong.",
+      "denied": "You don't have permission to access this file or folder.",
+      "readOnly": "The disk is read-only.",
+      "noSpace": "There isn't enough space on the disk.",
+      "isDir": "This is a folder, not a picture.",
+      "badFolder": "The folder doesn't exist and can't be created there.",
+      "badName": "The file name isn't valid.",
+      "decode": "The file isn't a picture, or it is damaged.",
+      "busy": "The file is in use by another program.",
+      "detail": "Error code: {code}.",
+      "pasteTooBig": "The picture is too large to paste: Paint pictures are limited to {max} pixels per side and 50 megapixels."
     }
   },
   "fr": {
@@ -446,7 +456,17 @@
       "copy": "La sélection n'a pas pu être copiée dans le Presse-papiers.",
       "noImage": "Le Presse-papiers ne contient pas d'image.",
       "undo": "Cette modification n'a pas pu être annulée.",
-      "generic": "Une erreur s'est produite."
+      "generic": "Une erreur s'est produite.",
+      "denied": "Vous n'avez pas l'autorisation d'accéder à ce fichier ou à ce dossier.",
+      "readOnly": "Le disque est en lecture seule.",
+      "noSpace": "L'espace disque est insuffisant.",
+      "isDir": "Il s'agit d'un dossier, pas d'une image.",
+      "badFolder": "Le dossier n'existe pas et ne peut pas y être créé.",
+      "badName": "Le nom de fichier n'est pas valide.",
+      "decode": "Ce fichier n'est pas une image, ou il est endommagé.",
+      "busy": "Le fichier est utilisé par un autre programme.",
+      "detail": "Code d'erreur : {code}.",
+      "pasteTooBig": "L'image est trop grande pour être collée : les images de Paint sont limitées à {max} pixels de côté et à 50 mégapixels."
     }
   }
 }

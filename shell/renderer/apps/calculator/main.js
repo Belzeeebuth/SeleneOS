@@ -59,8 +59,10 @@ class CalculatorApp {
 
   // ------------------------------------------------------------ startup
   async start() {
-    // The window can be closed while the saved state loads: register the cleanup first and stop there.
-    this.closed = false;
+    // The window can be closed before launch() runs (the registry still awaits the module) or while
+    // the saved state loads: then never attach document listeners (they used to leak).
+    this.closed = !!this.win._closing;
+    if (this.closed) return;
     this.ctx.onClose(() => {
       this.closed = true;
       if (this.onKey) document.removeEventListener('keydown', this.onKey);
@@ -69,7 +71,7 @@ class CalculatorApp {
       this.view?.destroy?.();
     });
     const saved = await this.ctx.storage.get('state', null).catch(() => null);
-    if (this.closed) return;
+    if (this.closed || this.win._closing) return;
     this.restore(saved);
     const S = this.S;
     this.engines = {
@@ -100,7 +102,7 @@ class CalculatorApp {
     const S = this.S;
     if (MODE_IDS.includes(saved.mode)) S.mode = saved.mode;
     if (['deg', 'rad', 'grad'].includes(saved.angle)) S.angle = saved.angle;
-    S.fe = !!saved.fe;
+    S.fe = saved.fe === true;
     const p = saved.prog || {};
     if ([16, 10, 8, 2].includes(p.radix)) S.prog.radix = p.radix;
     if (WORDS.some((w) => w.bits === p.bits)) S.prog.bits = p.bits;
@@ -220,10 +222,23 @@ class CalculatorApp {
     this.view?.destroy?.();
     this.view = null;
     const wasCompact = this.compact;
+    this.backBtn?.remove(); // may live in the window title bar while compact
     this.root.remove();
     this.build();
     this.root.classList.toggle('compact', wasCompact);
+    this.placeBackButton();
     this.setMode(this.S.mode, { animate: false });
+  }
+
+  /**
+   * Compact overlay: like Windows, "Back to full view" sits in the window title bar (whose title text
+   * and icon are hidden) instead of taking a header row away from the keypad.
+   */
+  placeBackButton() {
+    const slot = this.win.titlebarSlot;
+    this.win.el.classList.toggle('calc-compact-win', this.compact && !!slot);
+    if (this.compact && slot) slot.appendChild(this.backBtn);
+    else if (this.backBtn.parentElement !== this.header) this.header.prepend(this.backBtn);
   }
 
   flyoutHost() {
@@ -631,6 +646,7 @@ class CalculatorApp {
       if (win.btnMax) win.btnMax.hidden = true;
       this.compact = true;
       this.root.classList.add('compact');
+      this.placeBackButton();
       const r = win.rect();
       win.setRect({ x: r.x + Math.max(0, r.width - COMPACT.width), y: r.y, width: COMPACT.width, height: COMPACT.height }, true);
       this.setOnTop(true);
@@ -643,6 +659,7 @@ class CalculatorApp {
       if (win.btnMax) win.btnMax.hidden = !win.opts.maximizable || !win.opts.resizable;
       this.compact = false;
       this.root.classList.remove('compact');
+      this.placeBackButton();
       this.setOnTop(false);
       if (win.state !== 'normal') win.restore();
       if (p.rect) win.setRect(p.rect, true);

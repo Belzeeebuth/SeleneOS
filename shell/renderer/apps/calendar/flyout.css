@@ -1,0 +1,85 @@
+/* Events of the selected day in the taskbar calendar flyout (apps/calendar/flyout.js). */
+#calendar-center .acf {
+  padding: 4px 8px 10px;
+  border-top: 1px solid var(--stroke);
+  margin-top: 4px;
+}
+#calendar-center .acf-head {
+  padding: 8px 8px 4px;
+  font-weight: 600;
+  text-transform: none;
+}
+#calendar-center .acf-head::first-letter {
+  text-transform: uppercase;
+}
+#calendar-center .acf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+#calendar-center .acf-item {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  transition: background var(--dur-fast) linear;
+}
+#calendar-center .acf-item:hover {
+  background: var(--subtle-hover);
+}
+#calendar-center .acf-item:active {
+  background: var(--subtle-pressed);
+}
+#calendar-center .acf-bar {
+  flex: none;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--ev);
+}
+#calendar-center .acf-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+#calendar-center .acf-title,
+#calendar-center .acf-when {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#calendar-center .acf-when {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  line-height: 16px;
+}
+#calendar-center .acf-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px 0;
+  min-height: 28px;
+}
+#calendar-center .acf-empty {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+#calendar-center .acf-link {
+  border: 0;
+  padding: 4px 6px;
+  margin: 0 -6px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent-text);
+  font-size: var(--fs-caption);
+}
+#calendar-center .acf-link:hover {
+  background: var(--subtle-hover);
+  text-decoration: underline;
+}

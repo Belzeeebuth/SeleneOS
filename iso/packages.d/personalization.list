@@ -1,0 +1,8 @@
+# Personalization (docs/PERSONALIZATION.md): the curated font list of Settings > Theme designer
+# (core/theme.js FONTS): Inter, Noto Sans/Serif, DejaVu Sans/Serif, Liberation Sans, Cascadia Code, Unifont (pixel).
+fonts-inter
+fonts-noto-core
+fonts-dejavu-core
+fonts-liberation2
+fonts-cascadia-code
+fonts-unifont

@@ -1,5 +1,6 @@
-// Notepad dialogs: save prompts, Go to line, Font, error messages. All are window-modal
-// (ui.dialog with parent: the Notepad window), so they follow the app theme too.
+// Notepad dialogs: save prompts, Go to line, Font, error messages. All go through nw.dialog():
+// window-modal (so they follow the app theme too), or screen-level when the window is too small
+// for the dialog (it then gets the app theme class).
 import { FONT_SIZES } from './shared.js';
 
 export const STYLES = [
@@ -25,87 +26,114 @@ export function fontCss(font) {
 }
 
 export async function askSave(nw, doc) {
-  const { t, ui, win } = nw;
-  const v = await ui.dialog({
+  const { t } = nw;
+  const v = await nw.dialog({
     title: nw.appName,
     body: t('ask.save', { name: doc.path || doc.title }),
-    parent: win,
     className: 'np-dialog np-ask',
     buttons: [
       { label: t('common.save'), value: 'save', primary: true },
       { label: t('ask.dontSave'), value: 'discard' },
       { label: t('common.cancel'), value: null },
     ],
-  });
+  }, { w: 380, h: 260 });
   return v || null;
 }
 
 /** Several unsaved tabs: list them with checkboxes. -> { action: 'save', docs } | { action: 'discard' } | null */
 export async function askSaveMany(nw, docs) {
-  const { t, ui, win, h } = nw;
+  const { t, h } = nw;
   const boxes = docs.map((d) => {
-    const input = h('input', { type: 'checkbox', checked: true });
+    const input = h('input', { type: 'checkbox', checked: true, 'aria-label': d.path || d.title });
+    // name, and the folder underneath (the end of a long folder path is the useful part)
+    const dir = d.path ? d.path.slice(0, d.path.lastIndexOf('/')) || '/' : null;
     return {
       d,
       input,
-      el: h('label', { class: 'checkbox np-ask-item' }, input, h('span', { class: 'ellipsis', title: d.path || d.title }, d.title), d.path ? h('span', { class: 'caption text-2 ellipsis np-ask-path' }, d.path) : null),
+      el: h(
+        'label',
+        { class: 'checkbox np-ask-item', 'data-tip': d.path || null },
+        input,
+        h('span', { class: 'np-ask-text' }, h('span', { class: 'ellipsis np-ask-name' }, d.title), dir ? h('span', { class: 'caption text-2 np-ask-path' }, h('bdi', null, dir)) : null),
+      ),
     };
   });
   const body = h('div', { class: 'np-ask-many' }, h('div', null, t('ask.saveMany')), h('div', { class: 'np-ask-list' }, boxes.map((b) => b.el)));
-  const v = await ui.dialog({
+  const v = await nw.dialog({
     title: nw.appName,
     body,
-    parent: win,
     className: 'np-dialog np-ask',
     buttons: [
       { label: t('common.save'), value: 'save', primary: true },
       { label: t('ask.dontSave'), value: 'discard' },
       { label: t('common.cancel'), value: null },
     ],
-  });
+  }, { w: 460, h: 300 + 44 * Math.min(docs.length, 4) });
   if (v === 'save') return { action: 'save', docs: boxes.filter((b) => b.input.checked).map((b) => b.d) };
   if (v === 'discard') return { action: 'discard' };
   return null;
 }
 
 export async function goToLine(nw, doc) {
-  const { t, ui, win } = nw;
+  const { t, h } = nw;
   const max = doc.lineCount();
   const cur = doc.lineCol(doc.ta.selectionStart).line;
-  const v = await ui.prompt({
+  const input = h('input', { class: 'input np-goto-input', type: 'text', inputmode: 'numeric', value: String(cur), autocomplete: 'off', spellcheck: false });
+  const err = h('div', { class: 'field-hint np-goto-err', 'aria-live': 'polite' });
+  const label = h('label', { class: 'np-goto-label' }, t('goto.label'));
+  const body = h('div', { class: 'field np-goto' }, label, input, err);
+  const parse = () => {
+    const s = input.value.trim();
+    const n = Number(s);
+    return /^\d+$/.test(s) && n >= 1 && n <= max ? n : null;
+  };
+  const v = await nw.dialog({
     title: t('goto.title'),
-    label: t('goto.label'),
-    value: String(cur),
-    okLabel: t('goto.go'),
-    parent: win,
-    validate: (s) => {
-      const n = Number(String(s).trim());
-      if (!/^\d+$/.test(String(s).trim()) || n < 1 || n > max) return t('goto.range', { max: nw.fmt(max) });
-      return null;
+    body,
+    className: 'np-dialog np-goto-dlg',
+    buttons: [
+      { label: t('goto.go'), value: 'ok', primary: true },
+      { label: t('common.cancel'), value: null },
+    ],
+    onOpen: (dlg) => {
+      dlg._validate = () => {
+        if (parse() != null) return true;
+        err.textContent = t('goto.range', { max: nw.fmt(max) });
+        input.classList.add('invalid');
+        input.focus();
+        input.select();
+        return false;
+      };
+      input.addEventListener('input', () => {
+        err.textContent = '';
+        input.classList.remove('invalid');
+      });
+      setTimeout(() => {
+        input.focus();
+        input.select();
+      }, 40);
     },
-  });
-  if (v == null) return null;
-  return Number(v.trim());
+  }, { w: 380, h: 260 });
+  return v === 'ok' ? parse() : null;
 }
 
 export function alert(nw, title, message, detail) {
-  const { ui, win, h } = nw;
+  const { h } = nw;
   const body = h('div', { class: 'np-alert' }, h('div', { class: 'selectable' }, message), detail ? h('div', { class: 'caption text-2 selectable np-alert-detail' }, detail) : null);
-  return ui.dialog({ title, body, parent: win, className: 'np-dialog', buttons: [{ label: nw.t('common.ok'), value: true, primary: true }] });
+  return nw.dialog({ title, body, className: 'np-dialog', buttons: [{ label: nw.t('common.ok'), value: true, primary: true }] }, { w: 380, h: detail ? 360 : 260 });
 }
 
 export async function confirm(nw, { title, message, ok, cancel, danger }) {
-  const { ui, win, t } = nw;
-  const v = await ui.dialog({
+  const { t } = nw;
+  const v = await nw.dialog({
     title,
     body: message,
-    parent: win,
     className: 'np-dialog',
     buttons: [
       { label: ok || t('common.ok'), value: true, primary: !danger, danger },
       { label: cancel || t('common.cancel'), value: false },
     ],
-  });
+  }, { w: 380, h: 280 });
   return v === true;
 }
 
@@ -172,19 +200,18 @@ export function fontControls(nw, font, fonts, onChange) {
 }
 
 export async function fontDialog(nw) {
-  const { ui, win, t, h } = nw;
+  const { t, h } = nw;
   const fonts = await nw.shared.loadFonts();
   const ctl = fontControls(nw, nw.prefs.font, fonts);
-  const v = await ui.dialog({
+  const v = await nw.dialog({
     title: t('font.title'),
     body: h('div', { class: 'np-font-dialog' }, ctl.el),
-    parent: win,
     className: 'np-dialog np-font-dlg',
     buttons: [
       { label: t('common.ok'), value: 'ok', primary: true },
       { label: t('common.cancel'), value: null },
     ],
     onOpen: () => setTimeout(() => ctl.family.focus(), 40),
-  });
+  }, { w: 620, h: 500 });
   return v === 'ok' ? ctl.value() : null;
 }

@@ -1,0 +1,17 @@
+/* Visual style "Fluent" (win11) — the default Windows 11-like look. Every rule of core/tokens.css,
+   core/ui.css and core/shell.css already is this style, so the layer only restates its base shape
+   (useful when a preview inside another style carries data-style="win11"). Each style is scoped
+   `to` any element with another data-style, so previews in Settings are never touched by the global style. */
+@scope ([data-style="win11"]) to ([data-style]:not([data-style="win11"])) {
+  :scope {
+    --r-xs: 2px;
+    --r-sm: 4px;
+    --r: 8px;
+    --r-lg: 12px;
+    --tp-k: 1;
+    --blur-k: 1;
+    --blur-sat: 160%;
+    --titlebar-h: 32px;
+    --titlebar-tall-h: 44px;
+  }
+}

@@ -311,6 +311,47 @@ class Library {
     this.emit('items');
     if (fav) this.emit('favorites');
   }
+  /** Merge fresh metadata for one file (after a save / rotate); adds it when it lives in a library folder. */
+  applyItem(n) {
+    if (!n?.path) return null;
+    const old = this.byPath.get(n.path);
+    if (old) {
+      if (old !== n) Object.assign(old, n);
+    } else if (this.roots().some((r) => n.path.startsWith(`${r}/`))) {
+      this.items.push(n);
+      this.byPath.set(n.path, n);
+    } else return n;
+    this.items = sortItems(this.items);
+    this.emit('items');
+    return this.byPath.get(n.path);
+  }
+
+  /** A file was renamed: carry favorites and album membership over to the new path. */
+  renamed(oldPath, n) {
+    const old = this.byPath.get(oldPath);
+    if (old) {
+      this.byPath.delete(oldPath);
+      Object.assign(old, n);
+      this.byPath.set(old.path, old);
+    }
+    if (this.favorites.delete(oldPath)) {
+      this.favorites.add(n.path);
+      this.storage.set('favorites', [...this.favorites]).catch(() => {});
+    }
+    let alb = false;
+    for (const a of this.albums) {
+      const i = a.items.indexOf(oldPath);
+      if (i >= 0) {
+        a.items[i] = n.path;
+        alb = true;
+      }
+      if (a.cover === oldPath) a.cover = n.path;
+    }
+    if (alb) this._saveAlbums();
+    this.items = sortItems(this.items);
+    this.emit('items');
+  }
+
   /** A file was rewritten (rotate, save): refresh its metadata from the backend. */
   async changed(path) {
     const [it] = await this.api.invoke('photos:items', [path]).catch(() => []);

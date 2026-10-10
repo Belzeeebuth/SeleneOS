@@ -1,26 +1,50 @@
-/* Aurora design tokens — Fluent / Windows 11 inspired.
-   Theme is selected with <html data-theme="light|dark">, transparency with
-   data-transparency="on|off", animations with data-animations="on|off".
-   theme.js sets: --accent, --accent-hover, --accent-pressed, --accent-text,
-   --accent-subtle, --on-accent, --mica-image, --wallpaper. */
+/* Aurora design tokens — Fluent / Windows 11 inspired. See docs/PERSONALIZATION.md.
+   <html> attributes: data-theme="light|dark", data-style="win11|minimal|glass|retro|contrast",
+   data-transparency="on|off", data-animations="on|off", data-reduced-motion="on|off".
+   theme.js sets inline: --accent, --accent-hover, --accent-pressed, --accent-text, --accent-subtle,
+   --on-accent, --accent-base, --mica-image, --wallpaper; and, in <style id="aurora-theme-vars"> (":root"
+   specificity, so a style layer can override them): --tp (transparency factor, 0 = opaque), --blur-px,
+   --corner, --text-scale, --font, --font-display, --a-taskbar, --taskbar-rgb.
+
+   Per-element theming: any element with  data-theme-scope data-theme="light|dark"  (an app window with
+   a per-app theme, #taskbar with a custom colour, previews in Settings) gets the full colour token set of
+   that mode. Elements with data-style get the shape / transparency tokens recomputed for that style. */
 :root {
   --font: "Segoe UI Variable Text", "Segoe UI", "Inter", "Noto Sans", "DejaVu Sans", system-ui, sans-serif;
   --font-display: "Segoe UI Variable Display", "Segoe UI", "Inter Display", "Inter", sans-serif;
   --font-mono: "Cascadia Code", "Cascadia Mono", "DejaVu Sans Mono", "Noto Sans Mono", monospace;
   --font-emoji: "Noto Color Emoji", "Segoe UI Emoji", sans-serif;
 
-  --fs-caption: 12px;
-  --fs-body: 14px;
-  --fs-body-large: 18px;
-  --fs-subtitle: 20px;
-  --fs-title: 28px;
-  --fs-title-large: 40px;
-  --fs-display: 68px;
+  /* text size (Settings > Text size): every font-size / line-height token follows --text-scale */
+  --text-scale: 1;
+  --fs-caption: calc(12px * var(--text-scale));
+  --fs-body: calc(14px * var(--text-scale));
+  --fs-body-large: calc(18px * var(--text-scale));
+  --fs-subtitle: calc(20px * var(--text-scale));
+  --fs-title: calc(28px * var(--text-scale));
+  --fs-title-large: calc(40px * var(--text-scale));
+  --fs-display: calc(68px * var(--text-scale));
+  --lh-caption: calc(16px * var(--text-scale));
+  --lh-body: calc(20px * var(--text-scale));
+  --lh-body-large: calc(24px * var(--text-scale));
+  --lh-subtitle: calc(28px * var(--text-scale));
+  --lh-title: calc(36px * var(--text-scale));
+  --lh-title-large: calc(52px * var(--text-scale));
+  --lh-display: calc(92px * var(--text-scale));
 
-  --radius-xs: 2px;
-  --radius-sm: 4px;
-  --radius: 8px;
-  --radius-lg: 12px;
+  /* shape: a style sets the base radii (--r-*), Settings > rounded corners sets --corner (0–2) */
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r: 8px;
+  --r-lg: 12px;
+  --corner: 1;
+
+  /* transparency + blur: --tp from transparencyLevel (theme.js), --tp-k / --blur-k from the style */
+  --tp: 1;
+  --tp-k: 1;
+  --blur-px: 40px;
+  --blur-k: 1;
+  --blur-sat: 160%;
 
   --ease: cubic-bezier(0.1, 0.9, 0.2, 1); /* decelerate – things arriving */
   --ease-in: cubic-bezier(0.7, 0, 1, 0.5); /* accelerate – things leaving */
@@ -52,7 +76,28 @@
   --close-hover: #c42b1c;
 }
 
-:root[data-theme="light"] {
+/* Derived tokens: recomputed on every element that sets its own style (data-style), so a style preview
+   inside Settings gets that style's radii, blur and transparency. */
+:root,
+[data-style] {
+  --radius-xs: calc(var(--r-xs) * var(--corner));
+  --radius-sm: calc(var(--r-sm) * var(--corner));
+  --radius: calc(var(--r) * var(--corner));
+  --radius-lg: calc(var(--r-lg) * var(--corner));
+  --blur: calc(var(--blur-px) * var(--blur-k));
+  --blur-sm: calc(var(--blur) * 0.5);
+  --blur-md: calc(var(--blur) * 0.75);
+  --blur-lg: calc(var(--blur) * 1.5);
+  /* alpha of the translucent surfaces: 1 = opaque */
+  --a-mica: clamp(0.3, calc(1 - 0.15 * var(--tp) * var(--tp-k)), 1);
+  --a-acrylic: clamp(0.3, calc(1 - 0.15 * var(--tp) * var(--tp-k)), 1);
+  --a-acrylic-strong: clamp(0.4, calc(1 - 0.09 * var(--tp) * var(--tp-k)), 1);
+  --a-fly: clamp(0.3, calc(1 - 0.17 * var(--tp) * var(--tp-k)), 1);
+  --a-tb: var(--a-taskbar, clamp(0.25, calc(1 - 0.17 * var(--tp) * var(--tp-k)), 1));
+}
+
+:root[data-theme="light"],
+[data-theme-scope][data-theme="light"] {
   color-scheme: light;
   --text: rgba(0, 0, 0, 0.896);
   --text-2: rgba(0, 0, 0, 0.606);
@@ -61,8 +106,8 @@
 
   --bg: #f3f3f3;
   --bg-alt: #eeeeee;
-  --mica-tint: rgba(243, 243, 243, 0.86);
-  --mica-tint-alt: rgba(232, 232, 232, 0.86);
+  --mica-tint: rgb(243 243 243 / var(--a-mica));
+  --mica-tint-alt: rgb(232 232 232 / var(--a-mica));
   --solid: #f9f9f9;
   --layer: rgba(255, 255, 255, 0.5);
   --layer-alt: rgba(255, 255, 255, 0.7);
@@ -84,10 +129,10 @@
   --subtle-selected: rgba(0, 0, 0, 0.0373);
   --input-bg: rgba(255, 255, 255, 0.7);
   --input-focus-bg: #ffffff;
-  --acrylic: rgba(252, 252, 252, 0.85);
+  --acrylic: rgb(252 252 252 / var(--a-acrylic));
   --acrylic-solid: #f9f9f9;
-  --acrylic-strong: rgba(243, 243, 243, 0.9);
-  --taskbar-bg: rgba(238, 238, 238, 0.82);
+  --acrylic-strong: rgb(243 243 243 / var(--a-acrylic-strong));
+  --taskbar-bg: rgb(var(--taskbar-rgb, 238 238 238) / var(--a-tb));
   --scrim: rgba(0, 0, 0, 0.3);
   --shadow-flyout: 0 8px 16px rgba(0, 0, 0, 0.14);
   --shadow-dialog: 0 32px 64px rgba(0, 0, 0, 0.1876), 0 2px 21px rgba(0, 0, 0, 0.1474);
@@ -96,9 +141,18 @@
   --shadow-tooltip: 0 4px 8px rgba(0, 0, 0, 0.14);
   --window-stroke: rgba(0, 0, 0, 0.1);
   --scrollbar: rgba(0, 0, 0, 0.42);
+
+  --danger: #c42b1c;
+  --danger-bg: #fde7e9;
+  --success: #0f7b0f;
+  --success-bg: #dff6dd;
+  --warning: #9d5d00;
+  --warning-bg: #fff4ce;
+  --info-bg: rgba(246, 246, 246, 0.5);
 }
 
-:root[data-theme="dark"] {
+:root[data-theme="dark"],
+[data-theme-scope][data-theme="dark"] {
   color-scheme: dark;
   --text: #ffffff;
   --text-2: rgba(255, 255, 255, 0.786);
@@ -107,8 +161,8 @@
 
   --bg: #202020;
   --bg-alt: #1c1c1c;
-  --mica-tint: rgba(32, 32, 32, 0.84);
-  --mica-tint-alt: rgba(26, 26, 26, 0.86);
+  --mica-tint: rgb(32 32 32 / var(--a-mica));
+  --mica-tint-alt: rgb(26 26 26 / var(--a-mica));
   --solid: #272727;
   --layer: rgba(58, 58, 58, 0.3);
   --layer-alt: rgba(255, 255, 255, 0.0538);
@@ -130,10 +184,10 @@
   --subtle-selected: rgba(255, 255, 255, 0.0605);
   --input-bg: rgba(255, 255, 255, 0.0605);
   --input-focus-bg: rgba(30, 30, 30, 0.7);
-  --acrylic: rgba(44, 44, 44, 0.86);
+  --acrylic: rgb(44 44 44 / var(--a-acrylic));
   --acrylic-solid: #2c2c2c;
-  --acrylic-strong: rgba(32, 32, 32, 0.92);
-  --taskbar-bg: rgba(28, 28, 28, 0.84);
+  --acrylic-strong: rgb(32 32 32 / var(--a-acrylic-strong));
+  --taskbar-bg: rgb(var(--taskbar-rgb, 28 28 28) / var(--a-tb));
   --scrim: rgba(0, 0, 0, 0.3);
   --shadow-flyout: 0 8px 16px rgba(0, 0, 0, 0.26);
   --shadow-dialog: 0 32px 64px rgba(0, 0, 0, 0.56), 0 2px 21px rgba(0, 0, 0, 0.55);
@@ -152,23 +206,11 @@
   --info-bg: rgba(255, 255, 255, 0.0326);
 }
 
-/* Transparency off: every translucent surface becomes opaque, no blur. */
+/* Transparency off: every translucent surface becomes opaque (theme.js sets --tp: 0), no blur, no Mica. */
 :root[data-transparency="off"] {
   --mica-image: none !important;
-}
-:root[data-transparency="off"][data-theme="light"] {
-  --mica-tint: #f3f3f3;
-  --mica-tint-alt: #e8e8e8;
-  --acrylic: #f9f9f9;
-  --acrylic-strong: #f3f3f3;
-  --taskbar-bg: #eeeeee;
-}
-:root[data-transparency="off"][data-theme="dark"] {
-  --mica-tint: #202020;
-  --mica-tint-alt: #1a1a1a;
-  --acrylic: #2c2c2c;
-  --acrylic-strong: #202020;
-  --taskbar-bg: #1c1c1c;
+  --tp: 0 !important;
+  --a-taskbar: 1 !important;
 }
 :root[data-animations="off"] *,
 :root[data-animations="off"] *::before,

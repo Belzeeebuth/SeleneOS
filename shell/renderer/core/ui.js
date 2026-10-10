@@ -234,6 +234,7 @@ function dialogHost(parent) {
 }
 
 let dialogSeq = 0;
+const openDialogs = []; // stack of open .dialog elements (topmost last)
 
 export const ui = {
   h,
@@ -283,6 +284,35 @@ export const ui = {
         }
       };
       layer.addEventListener('keydown', keys);
+      // Tab stays inside the dialog (focus trap).
+      layer.addEventListener('keydown', (e) => {
+        if (e.key !== 'Tab') return;
+        const f = [...dlg.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(
+          (x) => !x.disabled && x.offsetParent !== null,
+        );
+        if (!f.length) return;
+        const i = f.indexOf(document.activeElement);
+        const next = e.shiftKey ? (i <= 0 ? f[f.length - 1] : f[i - 1]) : i === -1 || i === f.length - 1 ? f[0] : f[i + 1];
+        e.preventDefault();
+        next.focus();
+      });
+      // Esc while focus is outside the topmost dialog (e.g. right after it opened) still closes it,
+      // and keys never reach the app behind a modal dialog.
+      const outsideKeys = (e) => {
+        if (closed || openDialogs[openDialogs.length - 1] !== dlg || layer.contains(e.target)) return;
+        if (e.key === 'Escape' && closeOnEsc) {
+          e.preventDefault();
+          e.stopPropagation();
+          done(null);
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          e.stopPropagation();
+          (dlg.querySelector('input, textarea, select, button') || dlg).focus?.();
+        }
+      };
+      document.addEventListener('keydown', outsideKeys, true);
+      const opener = document.activeElement;
+      openDialogs.push(dlg);
       layer.addEventListener('pointerdown', (e) => {
         if (e.target === layer) {
           dlg.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.015)' }, { transform: 'scale(1)' }], { duration: 200 });
@@ -293,14 +323,26 @@ export const ui = {
         if (closed) return;
         if (v !== null && dlg._validate && dlg._validate(v) === false) return;
         closed = true;
+        document.removeEventListener('keydown', outsideKeys, true);
+        const idx = openDialogs.indexOf(dlg);
+        if (idx >= 0) openDialogs.splice(idx, 1);
         layer.classList.add('closing');
         setTimeout(() => layer.remove(), 170);
+        // Give focus back to whatever opened the dialog (if it is still there and focusable).
+        if (opener && opener !== document.body && opener.isConnected && typeof opener.focus === 'function') {
+          try {
+            opener.focus({ preventScroll: true });
+          } catch {}
+        }
         resolve(v);
       }
       dlg._done = done;
       host.appendChild(layer);
       const focusTarget = dlg.querySelector('input, textarea, select, [autofocus]') || btns.find((b) => b.classList.contains('primary')) || btns[0];
-      setTimeout(() => focusTarget?.focus(), 30);
+      focusTarget?.focus({ preventScroll: true }); // synchronously: an early key press must land in the dialog
+      setTimeout(() => {
+        if (!closed && !layer.contains(document.activeElement)) focusTarget?.focus({ preventScroll: true });
+      }, 30);
       onOpen?.(dlg, done);
     });
   },

@@ -103,7 +103,7 @@ export class FindBar {
     this.rinput.placeholder = t('find.replace');
     this.rinput.setAttribute('aria-label', t('find.replace'));
     const tip = (el, label, key) => {
-      el.dataset.tip = key ? `${label} (${key})` : label;
+      el.dataset.tip = key ? `${label} (${this.nw.kbd(key)})` : label;
       el.setAttribute('aria-label', label);
     };
     tip(this.toggleBtn, t('find.toggleReplace'));

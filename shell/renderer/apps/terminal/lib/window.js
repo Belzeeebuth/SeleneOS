@@ -2,7 +2,7 @@
 // settings tab, profiles dropdown, keyboard shortcuts, context menus.
 import { prefs } from './prefs.js';
 import { bus } from './bus.js';
-import { Session, loadXterm } from './session.js';
+import { Session, loadXterm, LARGE_PASTE } from './session.js';
 import { PaneTree } from './panes.js';
 import { FindBar } from './find.js';
 import { SettingsPage } from './settings.js';
@@ -10,6 +10,7 @@ import { resolveScheme, xtermTheme, rgba } from './schemes.js';
 import { profileIcon, profileIconSvg } from './icons.js';
 
 let envPromise = null;
+let fontsPromise = null; // installed monospace fonts (pty:fonts), fetched once, not awaited
 
 function cap(s) {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
@@ -68,15 +69,24 @@ export class TerminalApp {
     if (!envPromise) {
       envPromise = ctx.api.invoke('pty:env').catch(() => ({ shellName: 'bash', python: true, sudo: true }));
     }
+    if (!fontsPromise) fontsPromise = ctx.api.invoke('pty:fonts').catch(() => []);
     const [env] = await Promise.all([envPromise, prefs.load(ctx), loadXterm(ctx.ui).catch(() => null)]);
     this.env = env;
+    fontsPromise.then((fonts) => {
+      if (this.closing) return;
+      this.fonts = Array.isArray(fonts) ? fonts : [];
+      for (const tab of this.tabs) tab.page?.fontsChanged();
+    });
     bus.attach(ctx.api);
     this.build();
     this.wire();
     this.applyAppearance();
-    const args = ctx.args || {};
-    const profile = this.profileById(args.profile) || this.defaultProfile();
-    await this.newTab(profile, { cwd: args.cwd || null, command: args.command || null });
+    // Launch arguments come from other apps: keep only well-formed values.
+    const args = ctx.args && typeof ctx.args === 'object' ? ctx.args : {};
+    const str = (v) => (typeof v === 'string' && v.trim() && !v.includes('\0') ? v : null);
+    const command = str(args.command) || (Array.isArray(args.command) && args.command.length && args.command.every((a) => typeof a === 'string') ? args.command : null);
+    const profile = this.profileById(typeof args.profile === 'string' ? args.profile : null) || this.defaultProfile();
+    await this.newTab(profile, { cwd: str(args.cwd), command });
     if (args.settings) this.openSettings();
   }
 
@@ -181,7 +191,8 @@ export class TerminalApp {
       e.preventDefault();
       const files = [...(e.dataTransfer?.files || [])].map((f) => ctx.api.pathForFile(f)).filter(Boolean);
       const text = files.length ? files.map(shellQuote).join(' ') : e.dataTransfer.getData('text/plain');
-      if (text && s.state === 'running') ctx.api.send('pty:write', s.ptyId, text);
+      // Like a paste: sanitized, bracketed when the program asks for it, with the paste warnings.
+      if (text && s.state === 'running') s.paste(text);
       s.focus();
     });
     win.onBeforeClose(() => this.beforeClose());
@@ -252,7 +263,15 @@ export class TerminalApp {
       rightClickSelectsWord: false,
       macOptionIsMeta: false,
       wordSeparator: ' ()[]{}\',"`│─<>|;',
-      linkHandler: { activate: (e, uri) => this.openLink(e, uri), allowNonHttpProtocols: false },
+      // OSC 8 hyperlinks: the text shown can differ from the target, so hovering shows the real URL.
+      linkHandler: {
+        activate: (e, uri) => this.openLink(e, uri),
+        hover: (e, uri) => this.sessionAt(e?.target)?.showLinkTip(e, uri),
+        leave: (e) => {
+          for (const s of this.allSessions()) s.hideLinkTip();
+        },
+        allowNonHttpProtocols: false,
+      },
     };
   }
 
@@ -274,7 +293,7 @@ export class TerminalApp {
   }
 
   prefsChanged(key) {
-    if (key === 'defaultProfile' || key === 'startDir' || key === 'confirmClose' || key === 'warnPaste' || key === 'copyOnSelect' || key === 'bell' || key === 'closeOnExit') return;
+    if (['defaultProfile', 'startDir', 'confirmClose', 'warnPaste', 'warnLargePaste', 'copyOnSelect', 'bell', 'closeOnExit'].includes(key)) return;
     this.applyAppearance();
   }
 
@@ -309,6 +328,7 @@ export class TerminalApp {
   makeTabEl(tab) {
     const { h, icon, t } = this.ctx;
     tab.iconEl = h('span', { class: 'tm-tab-icon' });
+    tab.progEl = h('span', { class: 'tm-tab-progress', 'aria-hidden': 'true', hidden: true });
     tab.titleEl = h('span', { class: 'tm-tab-title' });
     tab.bellEl = h('span', { class: 'tm-tab-bell', 'aria-hidden': 'true' }, icon('alert', { size: 12, filled: true }));
     tab.closeEl = h(
@@ -318,9 +338,9 @@ export class TerminalApp {
     );
     tab.el = h(
       'div',
-      { class: `tm-tab tm-tab-${tab.kind} no-drag`, role: 'tab', tabindex: '-1', 'aria-selected': 'false', dataset: { tab: tab.id } },
+      { class: `tm-tab tm-tab-${tab.kind} no-drag`, role: 'tab', tabindex: '-1', 'aria-selected': 'false', dataset: { tab: tab.id, tipPos: 'below' } },
       h('span', { class: 'tm-tab-bg' }),
-      tab.iconEl,
+      h('span', { class: 'tm-tab-iconwrap' }, tab.iconEl, tab.progEl),
       tab.titleEl,
       tab.bellEl,
       tab.closeEl,
@@ -403,7 +423,7 @@ export class TerminalApp {
     if (prev !== tab && this.find.isOpen) this.find.close({ refocus: false });
     if (tab.kind === 'term') {
       for (const s of tab.tree.sessions()) s.fitSoon(0);
-      setTimeout(() => this.active === tab && !tab.el.querySelector('.tm-tab-rename') && tab.session?.focus(), 0);
+      setTimeout(() => this.active === tab && !tab.el.querySelector('.tm-tab-rename') && !this.find.isOpen && tab.session?.focus(), 0);
     } else tab.page?.focus();
     this.updateTitle();
   }
@@ -444,7 +464,7 @@ export class TerminalApp {
     if (!tab) return;
     const title = this.tabTitle(tab);
     if (tab.titleEl.textContent !== title) tab.titleEl.textContent = title;
-    tab.el.title = title;
+    tab.el.dataset.tip = title; // Fluent tooltip with the full title (the tab may cut it)
     tab.el.setAttribute('aria-label', title);
     const kind = tab.kind === 'settings' ? 'settings' : tab.session?.profile.icon || 'shell';
     if (tab.iconEl.dataset.kind !== kind) {
@@ -453,7 +473,33 @@ export class TerminalApp {
       tab.iconEl.appendChild(kind === 'settings' ? this.ctx.icon('settings', { size: 16 }) : profileIcon(this.ctx.h, kind));
     }
     tab.el.classList.toggle('exited', tab.kind === 'term' && tab.session?.state === 'exited');
-    if (tab === this.active) this.updateTitle();
+    // Progress reported by the program (OSC 9;4): a ring in place of the icon, like Windows Terminal.
+    const p = tab.kind === 'term' ? tab.session?.progress : null;
+    tab.progEl.hidden = !p;
+    tab.el.classList.toggle('progress', !!p);
+    if (p) {
+      tab.progEl.className = `tm-tab-progress s${p.state}`;
+      tab.progEl.style.setProperty('--p', String(p.state === 3 ? 25 : p.value));
+    }
+    if (tab === this.active) {
+      this.updateTitle();
+      this.updateWinProgress();
+    }
+  }
+
+  // The taskbar button shows the active tab's progress.
+  updateWinProgress() {
+    const p = this.active?.kind === 'term' ? this.active.session?.progress : null;
+    const v = p && p.state !== 3 ? p.value / 100 : null;
+    if (v !== this._winProgress) {
+      this._winProgress = v;
+      this.win.setProgress(v);
+    }
+  }
+
+  sessionProgressChanged(session) {
+    const tab = this.tabFor(session);
+    if (tab && tab.session === session) this.updateTab(tab);
   }
 
   updateTitle() {
@@ -562,7 +608,7 @@ export class TerminalApp {
         okLabel: this.ctx.t('confirm.close'),
         parent: this.win,
       });
-      if (!ok) return;
+      if (!ok) return void session.focus();
     }
     if (tab.tree.count <= 1) {
       this.removeTab(tab);
@@ -588,7 +634,7 @@ export class TerminalApp {
           busy && sessions.length === 1 ? this.ctx.t('confirm.runningBody', { name: busy.busyName }) : this.ctx.t('confirm.panesBody', { count: sessions.length }),
           { title: busy && sessions.length === 1 ? this.ctx.t('confirm.runningTitle') : this.ctx.t('confirm.panesTitle'), okLabel: this.ctx.t('confirm.close'), parent: this.win },
         );
-        if (!ok) return;
+        if (!ok) return void this.refocus();
       }
     }
     this.removeTab(tab);
@@ -623,13 +669,14 @@ export class TerminalApp {
     const victims = this.tabs.filter((t, i) => t !== keep && (!rightOnly || i > idx));
     if (!victims.length) return;
     const count = victims.reduce((n, t) => n + (t.tree ? t.tree.count : 0), 0);
-    if (prefs.get('confirmClose') && count > 1) {
+    const busy = victims.some((t) => t.tree?.sessions().some((x) => x.busy));
+    if (prefs.get('confirmClose') && (count > 1 || busy)) {
       const ok = await this.ctx.ui.confirm(this.ctx.t('confirm.tabsBody', { count: victims.length }), {
         title: this.ctx.t('confirm.tabsTitle'),
         okLabel: this.ctx.t('confirm.closeAll'),
         parent: this.win,
       });
-      if (!ok) return;
+      if (!ok) return void this.refocus();
     }
     this.activate(keep);
     for (const t of victims) this.removeTab(t);
@@ -808,6 +855,8 @@ export class TerminalApp {
         term ? { label: t('menu.renameTab'), icon: 'rename', action: () => this.renameTab(tab) } : null,
         term ? { label: t('menu.duplicateTab'), icon: 'tab_desktop_copy', shortcut: this.kbd('Ctrl+Shift+D'), action: () => this.duplicateTab(tab) } : null,
         term ? { label: t('menu.splitTab'), icon: 'split_vertical', action: () => (this.activate(tab), this.splitPane('auto', tab.session)) } : null,
+        term ? { label: t('menu.exportText'), icon: 'document_arrow_down', action: () => this.exportText(tab) } : null,
+        term ? { label: t('menu.find'), icon: 'search', shortcut: this.kbd('Ctrl+Shift+F'), action: () => (this.activate(tab), this.find.open(tab.session)) } : null,
         term ? '-' : null,
         { label: t('menu.closeRight'), icon: 'arrow_right', disabled: i >= this.tabs.length - 1, action: () => this.closeOtherTabs(tab, { rightOnly: true }) },
         { label: t('menu.closeOthers'), icon: 'dismiss_square_multiple', disabled: this.tabs.length < 2, action: () => this.closeOtherTabs(tab) },
@@ -818,9 +867,36 @@ export class TerminalApp {
   }
 
   // ================================================================== keyboard
+  trapDialogTab(e) {
+    const layer = [...this.win.el.querySelectorAll(':scope > .dialog-layer:not(.closing)')].pop();
+    if (!layer) return;
+    const items = [...layer.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(
+      (el) => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length,
+    );
+    if (!items.length) return;
+    const i = items.indexOf(document.activeElement);
+    const next = e.shiftKey ? (i <= 0 ? items[items.length - 1] : null) : i < 0 || i === items.length - 1 ? items[0] : null;
+    if (next) {
+      e.preventDefault();
+      e.stopPropagation();
+      next.focus();
+    }
+  }
+
+  // A dialog (confirm, alert, file picker…) is open over this window.
+  modalOpen() {
+    return !!this.win.el.querySelector(':scope > .dialog-layer:not(.closing)');
+  }
+
   onKey(e) {
     if (e.defaultPrevented || e.isComposing) return;
     if (e.getModifierState?.('AltGraph')) return;
+    // While a dialog is open the window's shortcuts are off: the dialog owns the keyboard
+    // (and Tab cycles inside it instead of wandering off to the taskbar).
+    if (this.modalOpen() || e.target.closest?.('.dialog-layer')) {
+      if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) this.trapDialogTab(e);
+      return;
+    }
     const combo = comboOf(e);
     const inField = e.target.closest?.('input, textarea:not(.xterm-helper-textarea), select, [contenteditable="true"]');
     const s = this.session;
@@ -949,10 +1025,39 @@ export class TerminalApp {
     this.win.flash();
   }
 
-  async confirmPaste(text) {
+  async confirmPaste(text, kind = 'lines') {
     const { t, ui } = this.ctx;
+    if (kind === 'large') {
+      const fmt = (n) => (this.ctx.i18n.formatSize ? this.ctx.i18n.formatSize(n) : String(n));
+      return ui.confirm(t('paste.largeBody', { size: fmt(new Blob([text]).size), limit: fmt(LARGE_PASTE) }), { title: t('paste.largeTitle'), okLabel: t('paste.ok'), parent: this.win });
+    }
     const lines = text.replace(/[\r\n]+$/, '').split(/\r\n|\r|\n/).length;
     return ui.confirm(t('paste.body', { count: lines }), { title: t('paste.title'), okLabel: t('paste.ok'), parent: this.win });
+  }
+
+  // Tab menu > Export text: the tab's buffer (focused pane) as a text file.
+  async exportText(tab = this.active) {
+    const s = tab?.session;
+    if (!s?.term) return;
+    const { t, ui, api } = this.ctx;
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+    const base = (this.tabTitle(tab) || 'terminal').replace(/[\\/:*?"<>|\x00-\x1f]+/g, ' ').trim().slice(0, 60) || 'terminal';
+    let file;
+    try {
+      file = await ui.filePicker({ mode: 'save', title: t('menu.exportText'), name: `${base} ${stamp}.txt`, filters: [{ name: t('export.filter'), ext: ['.txt'] }], parent: this.win });
+    } catch (err) {
+      this.error(err);
+      return;
+    }
+    if (!file) return;
+    try {
+      await api.invoke('fs:writeText', file, s.text());
+      this.showToast(t('export.done', { name: file.split('/').pop() }));
+    } catch (err) {
+      ui.alert(t('export.failed', { message: String(err?.message || err) }), { title: t('error.title'), parent: this.win });
+    } finally {
+      if (this.active === tab) s.focus();
+    }
   }
 
   about() {
@@ -1022,7 +1127,18 @@ export class TerminalApp {
       title = t('confirm.runningTitle');
       body = t('confirm.runningBody', { name: busy[0].busyName });
     }
-    return ui.confirm(body, { title, okLabel: tabs > 1 ? t('confirm.closeAll') : t('confirm.close'), parent: this.win });
+    const ok = await ui.confirm(body, { title, okLabel: tabs > 1 ? t('confirm.closeAll') : t('confirm.close'), parent: this.win });
+    if (!ok) this.refocus();
+    return ok;
+  }
+
+  // The keyboard back where it was before a dialog (the active terminal, or the settings page).
+  refocus() {
+    setTimeout(() => {
+      if (this.closing || this.modalOpen()) return;
+      if (this.active?.kind === 'term') this.session?.focus();
+      else this.active?.page?.focus();
+    }, 0);
   }
 
   destroy() {

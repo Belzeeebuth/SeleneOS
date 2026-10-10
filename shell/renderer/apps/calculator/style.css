@@ -109,7 +109,18 @@
   display: none;
 }
 .app-calculator .calc.compact .calc-header {
-  height: 38px;
+  display: none;
+}
+/* compact overlay: "Back to full view" lives in the window title bar, which shows no title */
+.win.app-calculator.calc-compact-win .win-icon,
+.win.app-calculator.calc-compact-win .win-title {
+  display: none;
+}
+.app-calculator .win-tb-slot .calc-back-full {
+  display: inline-grid;
+  width: 40px;
+  height: 28px;
+  margin-left: -6px;
 }
 
 /* ---------------------------------------------------------------- views */
@@ -1395,7 +1406,7 @@
   display: none;
 }
 .app-calculator .calc.compact .calc-display {
-  flex-basis: 20%;
+  flex: 0 0 26%; /* the keypad takes the rest, as in Windows' compact overlay */
   min-height: 64px;
 }
 .app-calculator .calc.compact .calc-keypad {

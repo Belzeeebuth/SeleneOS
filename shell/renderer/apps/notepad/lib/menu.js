@@ -5,7 +5,7 @@
 //     Alt / F10 focus the bar and show key tips, Alt+F/E/V open a menu directly);
 //   - menus follow the app's own theme setting (light / dark override per window).
 //
-//   const menus = new Menus({ h, icon, themeClass: () => 'np-theme-dark' | '' });
+//   const menus = new Menus({ h, icon, themeClass: () => 'np-theme-dark' | '', kbd: (combo) => localisedCombo });
 //   await menus.popup(eventOrPoint, [{ label, icon, shortcut, checked, disabled, action, submenu }, '-', …]);
 //   const bar = menus.menubar(barEl, [{ id, label, key, items: () => [...] }], { restoreFocus: () => el });
 
@@ -24,10 +24,11 @@ function pointOf(at) {
 }
 
 export class Menus {
-  constructor({ h, icon, themeClass }) {
+  constructor({ h, icon, themeClass, kbd }) {
     this.h = h;
     this.icon = icon;
     this.themeClass = themeClass || (() => '');
+    this.kbd = kbd || ((k) => k);
     this.stack = []; // [{ el, entries, active, items }]
     this.session = null; // { resolve, restore, bar, barId, keyboard }
     this._onKey = this._onKey.bind(this);
@@ -116,7 +117,7 @@ export class Menus {
         hasCheck ? h('span', { class: 'check' }, it.checked ? icon('checkmark', { size: 16 }) : null) : null,
         it.icon ? icon(it.icon) : hasIcon ? h('span', { class: 'icon' }) : null,
         h('span', { class: 'label' }, it.label),
-        it.shortcut ? h('span', { class: 'shortcut' }, it.shortcut) : null,
+        it.shortcut ? h('span', { class: 'shortcut' }, this.kbd(it.shortcut)) : null,
         it.submenu ? icon('chevron_right', { size: 12, class: 'np-menu-chev' }) : null,
       );
       const idx = m.entries.length;

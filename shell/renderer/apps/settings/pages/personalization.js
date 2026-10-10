@@ -1,6 +1,12 @@
-// Settings > Personalization: preview + themes, Background, Colors, Themes, Lock screen, Start, Taskbar.
-import { WALLPAPERS, ACCENTS, resolveWallpaper } from '../../../core/theme.js';
+// Settings > Personalization: preview + themes and the index of every personalization page, Background,
+// Colors, Themes, Lock screen. (Taskbar + Start: personalization-taskbar.js; Theme designer, Visual style,
+// Profiles, App themes: personalization-designer.js; see docs/PERSONALIZATION.md.)
+import { WALLPAPERS, ACCENTS, resolveWallpaper, theme as coreTheme } from '../../../core/theme.js';
 import { PAGES } from '../lib/index.js';
+import { modeControl, accentControls, taskbarColorControls } from './personalization-designer.js';
+import { ensureStrings } from './personalization-strings.js';
+
+ensureStrings();
 
 export const THEMES = [
   { id: 'light', name: { en: 'Aurora Light', fr: 'Aurora clair' }, wallpaper: 'builtin:bloom', theme: 'light', accent: '#0078d4' },
@@ -106,28 +112,21 @@ function themeTile(pc, th, { large = false } = {}) {
   return large ? h('div', { class: 'st-theme-cell' }, el, h('div', { class: 'st-theme-label' }, L(th.name))) : el;
 }
 
-// core/theme.js cross-fades the screen (view transition) on accent and light/dark changes; a second change
-// while one runs would skip it, so the preset's changes are applied one cross-fade after the other.
-async function transitionsSettled() {
-  await new Promise((r) => setTimeout(r, 30));
-  for (let i = 0; i < 60 && document.documentElement.classList.contains('theme-switching'); i++) await new Promise((r) => setTimeout(r, 25));
-}
+// A theme preset changes the wallpaper, accent and mode at once: one atomic settings:setMany inside a single
+// cross-fade of the whole screen (core/theme.js theme.transition), and Auto mode is turned off.
 let applying = null;
 async function applyTheme(pc, th) {
-  const { settings } = pc;
+  const { settings, api } = pc;
   if (applying) await applying.catch(() => {});
-  applying = (async () => {
-    await settings.set('wallpaper', th.wallpaper);
-    if (String(settings.get('accent') || '').toLowerCase() !== th.accent) {
-      await settings.set('accent', th.accent);
-      await transitionsSettled();
-    }
-    if ((settings.get('theme') === 'dark' ? 'dark' : 'light') !== th.theme) {
-      await settings.set('theme', th.theme);
-      await transitionsSettled();
-    }
-  })();
-  return applying;
+  const patch = { wallpaper: th.wallpaper, accent: th.accent, theme: th.theme };
+  if (settings.get('accentFromWallpaper')) patch.accentFromWallpaper = false;
+  if (settings.get('autoTheme')?.enabled) patch['autoTheme.enabled'] = false;
+  applying = coreTheme.transition(() => api.invoke('settings:setMany', patch));
+  try {
+    return await applying;
+  } finally {
+    applying = null;
+  }
 }
 
 async function rememberCustom(pc, path) {
@@ -183,9 +182,15 @@ async function wallGrid(pc, { key, includeSame = false }) {
 }
 
 // ------------------------------------------------------------------ Personalization home
+const HOME_GROUPS = [
+  ['pz.groupLook', ['themeDesigner', 'visualStyle', 'profiles', 'colors', 'appThemes']],
+  ['pz.groupDesktop', ['background', 'wallpaperEffects', 'lockscreen', 'themes']],
+  ['pz.groupTaskbar', ['taskbar', 'start', 'focus']],
+  ['pz.groupPacks', ['cursors', 'iconPacks', 'soundPacks']],
+  ['pz.groupInput', ['shortcuts', 'snapPresets']],
+];
 async function personalization(pc) {
   const { h, t, kit, L } = pc;
-  const subs = ['background', 'colors', 'themes', 'lockscreen', 'start', 'taskbar'];
   return h(
     'div',
     null,
@@ -195,7 +200,7 @@ async function personalization(pc) {
       preview(pc, { start: true }),
       h('div', { class: 'st-themes-strip' }, h('div', { class: 'body-strong' }, t('pers.selectTheme')), h('div', { class: 'st-theme-grid' }, THEMES.map((th) => themeTile(pc, th)))),
     ),
-    kit.group(null, ...subs.map((id) => kit.row({ icon: PAGES[id].icon, title: L(PAGES[id].title), desc: L(PAGES[id].desc), onClick: () => pc.go(id) }))),
+    ...HOME_GROUPS.map(([title, ids]) => kit.group(t(title), ...ids.filter((id) => PAGES[id]).map((id) => kit.row({ icon: PAGES[id].icon, title: L(PAGES[id].title), desc: L(PAGES[id].desc), onClick: () => pc.go(id) })))),
   );
 }
 
@@ -318,28 +323,27 @@ async function pickColor(pc, initial) {
 // ------------------------------------------------------------------ Colors
 async function colors(pc) {
   const { h, t, kit, settings, ui } = pc;
-  const mode = ui.segmented({
-    options: [
-      { value: 'light', label: t('pers.light'), icon: 'weather_sunny' },
-      { value: 'dark', label: t('pers.dark'), icon: 'weather_moon' },
-    ],
-    value: settings.get('theme') === 'dark' ? 'dark' : 'light',
-    onchange: (v) => settings.set('theme', v),
-  });
-  mode.setAttribute('role', 'radiogroup');
-  mode.setAttribute('aria-label', t('pers.mode'));
-  pc.onDispose(settings.on('theme', (v) => mode.setValue(v === 'dark' ? 'dark' : 'light')));
+  pc.ui.loadCss('app://shell/apps/settings/pages/personalization.css');
+  // Light / Dark / Auto (time of day) — shared with the Theme designer
+  const { seg: mode, autoRow } = modeControl(pc);
+  const { fromRow } = accentControls(pc);
+  const { colorRow } = taskbarColorControls(pc);
 
   const swatches = h('div', { class: 'st-swatches', role: 'listbox', 'aria-label': t('pers.accent') });
   const paintSw = () => {
     const cur = String(settings.get('accent') || '#0078d4').toLowerCase();
     ui.clear(swatches);
     for (const c of ACCENTS) {
-      const b = h('button', { class: ['st-swatch', c === cur && 'selected'], type: 'button', role: 'option', 'aria-selected': String(c === cur), 'aria-label': c, 'data-tip': c, onclick: () => settings.set('accent', c) });
+      const b = h('button', { class: ['st-swatch', c === cur && 'selected'], type: 'button', role: 'option', 'aria-selected': String(c === cur), 'aria-label': c, 'data-tip': c, onclick: () => pickAccent(c) });
       b.style.setProperty('--sw', c);
       swatches.appendChild(b);
     }
   };
+  // choosing a colour by hand turns "accent from wallpaper" off
+  async function pickAccent(c) {
+    if (settings.get('accentFromWallpaper')) await settings.set('accentFromWallpaper', false);
+    await settings.set('accent', c);
+  }
   paintSw();
   pc.onDispose(settings.on('accent', paintSw));
   return h(
@@ -349,6 +353,7 @@ async function colors(pc) {
     kit.group(
       null,
       kit.row({ icon: 'dark_theme', title: t('pers.mode'), desc: t('pers.modeDesc'), section: 'mode', control: mode }),
+      autoRow,
       kit.settingToggleRow({ icon: 'blur', title: t('pers.transparency'), desc: t('pers.transparencyDesc'), key: 'transparency', def: true, section: 'transparency' }),
       kit.expander({
         icon: 'color',
@@ -368,12 +373,18 @@ async function colors(pc) {
               h('span', null, t('pers.customColors')),
               kit.button(t('pers.viewColors'), async () => {
                 const c = await pickColor(pc, settings.get('accent') || '#0078d4');
-                if (c) settings.set('accent', c);
+                if (c) pickAccent(c);
               }),
             ),
           ),
       }),
+      fromRow,
+      colorRow,
     ),
+    kit.related([
+      { icon: 'window_brush', title: pc.pageTitle('themeDesigner'), desc: L(pc, PAGES.themeDesigner.desc), onClick: () => pc.go('themeDesigner') },
+      { icon: 'window_apps', title: pc.pageTitle('appThemes'), desc: L(pc, PAGES.appThemes.desc), onClick: () => pc.go('appThemes') },
+    ]),
   );
 }
 
@@ -458,71 +469,4 @@ async function lockscreen(pc) {
   );
 }
 
-// ------------------------------------------------------------------ Start
-async function start(pc) {
-  const { h, t, kit, settings, ui } = pc;
-  return h(
-    'div',
-    null,
-    kit.group(
-      null,
-      kit.settingToggleRow({ icon: 'history', title: t('pers.startRecent'), desc: t('pers.startRecentDesc'), key: 'startShowRecent', def: true }),
-      kit.row({
-        icon: 'pin',
-        title: t('pers.resetStartPins'),
-        desc: t('pers.resetStartPinsDesc'),
-        control: kit.button(t('pers.reset'), async () => {
-          if (await ui.confirm(t('pers.resetStartConfirm'), { title: t('pers.resetStartPins'), okLabel: t('pers.reset'), parent: pc.win })) {
-            await settings.reset('startPinned');
-            pc.toast(t('pers.resetDone'));
-          }
-        }),
-      }),
-      kit.row({ icon: 'apps', title: t('pers.openStart'), desc: t('pers.openStartDesc'), control: kit.button(t('common.open'), () => pc.shell.emit('start:toggle')) }),
-    ),
-  );
-}
-
-// ------------------------------------------------------------------ Taskbar
-async function taskbar(pc) {
-  const { h, t, kit, settings, ui } = pc;
-  const tb = () => settings.get('taskbar') || {};
-  const alignCombo = kit.combo({
-    options: [
-      { value: 'left', label: t('pers.alignLeft') },
-      { value: 'center', label: t('pers.alignCenter') },
-    ],
-    value: tb().align === 'left' ? 'left' : 'center',
-    label: t('pers.alignment'),
-    onChange: (v) => settings.set('taskbar.align', v),
-  });
-  pc.onDispose(settings.on('taskbar', () => alignCombo.setValue(tb().align === 'left' ? 'left' : 'center')));
-  return h(
-    'div',
-    null,
-    kit.group(
-      t('pers.taskbarItems'),
-      kit.settingToggleRow({ icon: 'search', title: t('pers.tbSearch'), key: 'taskbar.showSearch', def: true, section: 'items' }),
-      kit.settingToggleRow({ icon: 'window_multiple', title: t('pers.tbTaskView'), key: 'taskbar.showTaskView', def: true }),
-      kit.settingToggleRow({ icon: 'board', title: t('pers.tbWidgets'), key: 'taskbar.showWidgets', def: false }),
-    ),
-    kit.group(
-      t('pers.taskbarBehaviors'),
-      kit.row({ icon: 'align_center_horizontal', title: t('pers.alignment'), desc: t('pers.alignmentDesc'), section: 'align', control: alignCombo }),
-      kit.settingToggleRow({ icon: 'panel_bottom_contract', title: t('pers.autohide'), desc: t('pers.autohideDesc'), key: 'taskbar.autohide', def: false, section: 'autohide' }),
-      kit.row({
-        icon: 'pin',
-        title: t('pers.resetTbPins'),
-        desc: t('pers.resetTbPinsDesc'),
-        control: kit.button(t('pers.reset'), async () => {
-          if (await ui.confirm(t('pers.resetTbConfirm'), { title: t('pers.resetTbPins'), okLabel: t('pers.reset'), parent: pc.win })) {
-            await settings.reset('pinned');
-            pc.toast(t('pers.resetDone'));
-          }
-        }),
-      }),
-    ),
-  );
-}
-
-export default { personalization, background, colors, themes, lockscreen, start, taskbar };
+export default { personalization, background, colors, themes, lockscreen };

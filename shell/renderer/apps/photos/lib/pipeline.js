@@ -143,7 +143,7 @@ function drawGeometry(src, srcW, srcH, edit, scale, crop) {
   return canvas;
 }
 
-function drawMarkup(canvas, srcW, srcH, edit, scale, crop) {
+export function drawMarkup(canvas, srcW, srcH, edit, scale, crop) {
   const strokes = edit.markup || [];
   if (!strokes.length) return;
   const ctx = canvas.getContext('2d');
@@ -420,3 +420,37 @@ export function centeredCrop(fw, fh, ratio) {
   const w = ratio / fr;
   return { x: (1 - w) / 2, y: 0, w, h: 1 };
 }
+
+/** Does a stroke pass within `radius` source pixels of (x, y) (0..1 source coords)? Used by the eraser. */
+export function strokeHit(s, x, y, srcW, srcH, radius) {
+  const px = x * srcW;
+  const py = y * srcH;
+  const r = radius + ((s.size || 0.01) * Math.min(srcW, srcH)) / 2;
+  const pts = s.points || [];
+  const P = (p) => [p[0] * srcW, p[1] * srcH];
+  if (pts.length === 1) {
+    const [ax, ay] = P(pts[0]);
+    return Math.hypot(px - ax, py - ay) <= r;
+  }
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = P(pts[i - 1]);
+    const [bx, by] = P(pts[i]);
+    const dx = bx - ax;
+    const dy = by - ay;
+    const L = dx * dx + dy * dy;
+    const t = L ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L)) : 0;
+    if (Math.hypot(px - (ax + t * dx), py - (ay + t * dy)) <= r) return true;
+  }
+  return false;
+}
+
+/** Crop rectangle after a quarter turn / flip of the frame (keeps the same image region). */
+export function transformCrop(c, op) {
+  if (!c) return c;
+  if (op === 'cw') return { x: 1 - c.y - c.h, y: c.x, w: c.h, h: c.w };
+  if (op === 'ccw') return { x: c.y, y: 1 - c.x - c.w, w: c.h, h: c.w };
+  if (op === 'flipH') return { x: 1 - c.x - c.w, y: c.y, w: c.w, h: c.h };
+  if (op === 'flipV') return { x: c.x, y: 1 - c.y - c.h, w: c.w, h: c.h };
+  return c;
+}
+export const SWAP_ASPECT = { '4:3': '3:4', '3:4': '4:3', '3:2': '2:3', '2:3': '3:2', '16:9': '9:16', '9:16': '16:9' };

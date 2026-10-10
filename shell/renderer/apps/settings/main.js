@@ -10,6 +10,13 @@ const MODULES = {
   devices: () => import('./pages/devices.js'),
   network: () => import('./pages/network.js'),
   personalization: () => import('./pages/personalization.js'),
+  // personalization areas (docs/PERSONALIZATION.md): A = designer; B1 = wallpaper; B2 = taskbar + focus; B3 = packs + input
+  'personalization-designer': () => import('./pages/personalization-designer.js'),
+  'personalization-taskbar': () => import('./pages/personalization-taskbar.js'),
+  'personalization-wallpaper': () => import('./pages/personalization-wallpaper.js'),
+  'personalization-focus': () => import('./pages/personalization-focus.js'),
+  'personalization-packs': () => import('./pages/personalization-packs.js'),
+  'personalization-input': () => import('./pages/personalization-input.js'),
   apps: () => import('./pages/apps.js'),
   accounts: () => import('./pages/accounts.js'),
   time: () => import('./pages/time.js'),

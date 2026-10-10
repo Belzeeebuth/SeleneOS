@@ -155,6 +155,16 @@ export class History {
     e.bytes = cur.width * cur.height * 4;
   }
 
+  /** Stops background work and frees every stored step (the window is closing). */
+  dispose() {
+    clearTimeout(this._timer);
+    this._timer = null;
+    this._disposed = true;
+    for (const e of [...this.undoStack, ...this.redoStack]) this._release(e);
+    this.undoStack = [];
+    this.redoStack = [];
+  }
+
   rawBytes() {
     let n = 0;
     for (const e of this.undoStack) if (!e.blob) n += e.bytes || 0;
@@ -163,7 +173,7 @@ export class History {
   }
 
   _scheduleCompress() {
-    if (this._timer || typeof OffscreenCanvas === 'undefined') return;
+    if (this._timer || this._disposed || typeof OffscreenCanvas === 'undefined') return;
     this._timer = setTimeout(() => {
       this._timer = null;
       this._compressOne().catch((err) => console.warn('[paint] history compression failed', err));

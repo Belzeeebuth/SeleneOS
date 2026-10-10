@@ -31,6 +31,8 @@ function cleanCss(css, allowRemote, cids, counter) {
     .replace(/@import[^;]*;?/gi, '')
     .replace(/expression\s*\(/gi, 'x(')
     .replace(/(java|vb)script\s*:/gi, 'x:')
+    // Web fonts are never loaded (the CSP only allows data: fonts): drop their URLs up front.
+    .replace(/@font-face\s*\{[^}]*\}/gi, (block) => block.replace(URL_IN_CSS, (m, q, u) => (/^\s*data:font\//i.test(u) ? m : 'none')))
     // image-set("https://…" 1x) loads a picture without url(): blocked like any remote image.
     .replace(/(?:-webkit-)?image-set\s*\(((?:[^()]|\([^()]*\))*)\)/gi, (m, inner) => {
       if (!/(https?:)?\/\//i.test(inner)) return m;

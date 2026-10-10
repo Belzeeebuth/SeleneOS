@@ -2,7 +2,7 @@
 // pane with all its actions. Changes are announced on the store so the main window refreshes.
 import { store } from './store.js';
 import { Reader } from './reader.js';
-import { MailWindowBase, trapFocus } from './base.js';
+import { MailWindowBase, trapFocus, guardDialog } from './base.js';
 
 export class MessageWindow extends MailWindowBase {
   constructor(ctx, ref) {
@@ -24,10 +24,12 @@ export class MessageWindow extends MailWindowBase {
     this.snack = h('div', { class: 'ml-snack-host', 'aria-live': 'polite' });
     this.root = h('div', { class: 'ml-root ml-msg-window' }, h('div', { class: 'ml-readpane solo' }, this.reader.el), this.snack);
     win.body.appendChild(this.root);
-    trapFocus(win);
+    const trap = trapFocus(win);
     win.el.__mailMsg = this;
     const keys = (e) => {
       if (this.ctx.shell.wm.focused?.() !== win || e.defaultPrevented) return;
+      if ((win.el.contains(e.target) || e.target === document.body) && guardDialog(win, e)) return;
+      if (trap.tabFromBody(e)) return;
       if (e.target.closest?.('.dialog-layer:not(.closing)') || e.target.closest?.('input, textarea, [contenteditable="true"]')) return;
       const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
       const run = (fn) => {

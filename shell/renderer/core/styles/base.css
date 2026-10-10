@@ -1,0 +1,44 @@
+/* Personalization effects shared by every visual style (loaded by core/theme.js).
+   - Blur intensity (Settings > Theme designer): surfaces whose own CSS predates the --blur tokens.
+     `:root .x` (0,2,0) beats their `.x` (0,1,0); their `:root[data-transparency="off"] .x` (0,3,0) still wins.
+   - Reduced motion: no cross-fades / view transitions. */
+:root .cal-card,
+:root .nc-card,
+:root .alttab,
+:root .cliph {
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+}
+:root .snapl-bar,
+:root .snapa,
+:root .osd,
+:root .tv-pill {
+  backdrop-filter: blur(var(--blur)) saturate(var(--blur-sat));
+}
+:root .snapl-fly,
+:root .run-drop {
+  backdrop-filter: blur(var(--blur-md)) saturate(150%);
+}
+:root .tv-backdrop {
+  backdrop-filter: blur(calc(var(--blur) * 1.2)) saturate(150%);
+}
+:root[data-reduced-motion="on"]::view-transition-group(*),
+:root[data-reduced-motion="on"]::view-transition-old(*),
+:root[data-reduced-motion="on"]::view-transition-new(*) {
+  animation: none !important;
+}
+/* Styles that turn translucency off also drop every backdrop blur (cheaper in a VM). */
+:root[data-transparency="off"] .cal-card,
+:root[data-transparency="off"] .nc-card,
+:root[data-transparency="off"] .alttab,
+:root[data-transparency="off"] .cliph,
+:root[data-transparency="off"] .snapl-bar,
+:root[data-transparency="off"] .snapl-fly,
+:root[data-transparency="off"] .snapa,
+:root[data-transparency="off"] .osd,
+:root[data-transparency="off"] .tv-pill,
+:root[data-transparency="off"] .tv-backdrop,
+:root[data-transparency="off"] .run-drop,
+:root[data-transparency="off"] .snap-preview,
+:root[data-transparency="off"] .menu {
+  backdrop-filter: none;
+}

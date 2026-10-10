@@ -95,3 +95,43 @@ export function nightPath(at = Date.now(), alt = 0, steps = 180) {
 export function project(lat, lon) {
   return { x: lon + 180, y: 90 - lat };
 }
+
+/**
+ * Sunrise / sunset of the local calendar day that starts at `dayStart` (epoch ms of local midnight)
+ * at (lat, lon): { rise, set } epoch ms, or null when the sun does not rise / set that day
+ * (polar day: { polar: 'day' }, polar night: { polar: 'night' }). Found numerically (10-min scan
+ * then bisection) so it works at any latitude and across DST days.
+ */
+export function sunTimes(lat, lon, dayStart, dayEnd = dayStart + 86400000) {
+  const H = -0.833;
+  const f = (t) => sunAltitude(lat, lon, t) - H;
+  const step = 10 * 60000;
+  let rise = null;
+  let set = null;
+  let prevT = dayStart;
+  let prev = f(prevT);
+  const first = prev;
+  for (let t = dayStart + step; t <= dayEnd; t += step) {
+    const v = f(t);
+    if ((prev < 0) !== (v < 0)) {
+      let a = prevT;
+      let b = t;
+      let fa = prev;
+      for (let i = 0; i < 24; i++) {
+        const m = (a + b) / 2;
+        const fm = f(m);
+        if ((fa < 0) === (fm < 0)) {
+          a = m;
+          fa = fm;
+        } else b = m;
+      }
+      const at = Math.round((a + b) / 2);
+      if (prev < 0 && rise == null) rise = at;
+      else if (prev >= 0 && set == null) set = at;
+    }
+    prevT = t;
+    prev = v;
+  }
+  if (rise == null && set == null) return { rise: null, set: null, polar: first >= 0 ? 'day' : 'night' };
+  return { rise, set, polar: null };
+}

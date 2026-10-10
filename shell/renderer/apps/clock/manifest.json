@@ -1,0 +1,15 @@
+{
+  "id": "clock",
+  "name": { "en": "Clock", "fr": "Horloge" },
+  "description": { "en": "Alarms, timers, stopwatch, world clock and focus sessions", "fr": "Alarmes, minuteurs, chronomètre, horloge mondiale et sessions de concentration" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1040, "height": 720, "minWidth": 400, "minHeight": 500, "background": "mica" },
+  "category": "utilities",
+  "keywords": {
+    "en": ["clock", "alarm", "timer", "stopwatch", "world clock", "time zone", "focus", "pomodoro", "countdown", "wake up"],
+    "fr": ["horloge", "alarme", "réveil", "minuteur", "chronomètre", "horloge mondiale", "fuseau horaire", "concentration", "pomodoro", "compte à rebours"]
+  },
+  "singleInstance": true
+}

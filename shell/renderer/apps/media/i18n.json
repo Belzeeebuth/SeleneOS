@@ -45,7 +45,7 @@
       "play": "Play", "playNext": "Play next", "addTo": "Add to", "queue": "Play queue", "addToQueue": "Add to play queue", "removeFromQueue": "Remove from play queue",
       "moveUp": "Move up", "moveDown": "Move down", "showInFolder": "Show in folder", "properties": "Properties"
     },
-    "keys": { "del": "Del" },
+    "keys": { "del": "Del", "space": "Space", "esc": "Esc", "shift": "Shift", "ctrl": "Ctrl" },
     "more": { "openFiles": "Open file(s)…", "openFolder": "Open folder…", "addToPlaylist": "Add to playlist", "shuffle": "Shuffle" },
     "speed": { "title": "Playback speed", "normal": "Normal" },
     "transport": {
@@ -136,7 +136,7 @@
       "play": "Lire", "playNext": "Lire ensuite", "addTo": "Ajouter à", "queue": "File d'attente", "addToQueue": "Ajouter à la file d'attente", "removeFromQueue": "Retirer de la file d'attente",
       "moveUp": "Monter", "moveDown": "Descendre", "showInFolder": "Afficher dans le dossier", "properties": "Propriétés"
     },
-    "keys": { "del": "Suppr" },
+    "keys": { "del": "Suppr", "space": "Espace", "esc": "Échap", "shift": "Maj", "ctrl": "Ctrl" },
     "more": { "openFiles": "Ouvrir des fichiers…", "openFolder": "Ouvrir un dossier…", "addToPlaylist": "Ajouter à une playlist", "shuffle": "Lecture aléatoire" },
     "speed": { "title": "Vitesse de lecture", "normal": "Normale" },
     "transport": {

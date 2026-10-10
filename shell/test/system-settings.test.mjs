@@ -821,7 +821,8 @@ async function qaRegressions() {
     await s.aurora(() => window.__aurora.settings.set('scale', 100));
     await sleep(500);
     await go(s, 'textSize');
-    check(Number(await s.page.locator(S('.slider')).getAttribute('max')) === 140, 'text size slider stops at what the screen can show (140 % at 1280×720)');
+    // (Text size page: text size slider (textScale, personalization) + the UI scale slider in [data-section="scale"])
+    check(Number(await s.page.locator(S('[data-section="scale"] .slider')).getAttribute('max')) === 140, 'UI scale slider on the Text size page stops at what the screen can show (140 % at 1280×720)');
 
     // ---- search: "wifi" without the hyphen
     await go(s, 'system');

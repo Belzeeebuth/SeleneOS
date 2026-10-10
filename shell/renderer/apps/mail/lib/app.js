@@ -6,7 +6,7 @@ import { Reader } from './reader.js';
 import { Composer } from './compose.js';
 import { AccountSetup } from './setup.js';
 import { openSettings } from './settings.js';
-import { MailWindowBase, trapFocus } from './base.js';
+import { MailWindowBase, trapFocus, guardDialog } from './base.js';
 import { avatarColor, initials, parseAddresses, parseMailto, debounce, keyName } from './util.js';
 
 const FOLDER_ICONS = { inbox: 'mail_inbox', drafts: 'drafts', sent: 'send', archive: 'archive', junk: 'mail_prohibited', trash: 'delete', all: 'mail_multiple', flagged: 'flag', important: 'star' };
@@ -25,7 +25,7 @@ export class MailApp extends MailWindowBase {
     const { h } = ctx;
     this.root = h('div', { class: 'ml-root', 'data-layout': 'wide' });
     ctx.win.body.appendChild(this.root);
-    trapFocus(ctx.win);
+    this.focusTrap = trapFocus(ctx.win);
     ctx.win.el.addEventListener('ml-focus-lost', () => this.focusList());
     ctx.win.el.__mail = this; // test / debugging hook
   }
@@ -629,13 +629,14 @@ export class MailApp extends MailWindowBase {
     this.searchClear.hidden = true;
     this.searchText = '';
     this.filter = '';
+    this.list.updateCount();
     if (had) this.list.load({ reset: true });
     if (focus) this.searchInput.focus();
   }
 
   setFilter(f) {
     this.filter = f;
-    this.list.filterBtn.classList.toggle('on', !!f);
+    this.list.updateCount();
     this.list.load({ reset: true });
   }
 
@@ -1002,8 +1003,10 @@ export class MailApp extends MailWindowBase {
   }
 
   onKey(e) {
-    if (!this.list || this.root.classList.contains('setup')) return;
     if (e.defaultPrevented) return;
+    if (guardDialog(this.ctx.win, e)) return; // a dialog is open: nothing happens behind it
+    if (this.focusTrap?.tabFromBody(e)) return;
+    if (!this.list || this.root.classList.contains('setup')) return;
     const layer = e.target.closest?.('.dialog-layer');
     if (layer && !layer.classList.contains('closing')) return;
     const k = e.key;

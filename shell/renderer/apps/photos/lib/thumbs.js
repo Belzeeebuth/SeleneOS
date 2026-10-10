@@ -3,7 +3,7 @@
 //   thumbs.request(item, prio)     -> Promise<url | null>  (generated off the main thread, cached on disk)
 //   thumbs.cancel(item)            -> drop a queued request (tile scrolled away)
 // Cache: memory (key -> URL, LRU) + disk (~/.config/aurora/apps/photos/thumbs/<key>.webp, key = path+mtime+size).
-import { loadImage } from './util.js';
+import { loadPixels } from './util.js';
 
 const TH_HEIGHT = 320;
 const TH_MAXW = 960;
@@ -184,7 +184,7 @@ export class Thumbs {
 
   // Fallback when a worker can't decode (or workers are unavailable): <img> decode + canvas.
   async _mainThread(item) {
-    const img = await loadImage(this.api.mediaUrl(item.path));
+    const img = await loadPixels(this.api.mediaUrl(item.path));
     const w = img.naturalWidth;
     const h = img.naturalHeight;
     if (!w || !h) throw new Error('empty');

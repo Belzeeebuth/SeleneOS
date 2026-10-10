@@ -1,0 +1,226 @@
+/* Visual style "Minimal": flat and calm. Opaque surfaces (no blur, no Mica), thin 1 px strokes, soft
+   shadows, more whitespace, monochrome accent (graphite, computed by theme.js). Works in light and dark.
+   Scoped with @scope so a Settings preview carrying data-style="minimal" renders it too. Selectors mirror
+   the specificity of core/ui.css and core/shell.css (scope proximity wins the ties). */
+@scope ([data-style="minimal"]) to ([data-style]:not([data-style="minimal"])) {
+  :scope {
+    --r-xs: 2px;
+    --r-sm: 6px;
+    --r: 10px;
+    --r-lg: 14px;
+    --tp-k: 0;
+    --blur-k: 0;
+    --blur-sat: 100%;
+    --titlebar-h: 38px;
+    --titlebar-tall-h: 46px;
+  }
+  :scope[data-theme="light"],
+  [data-theme-scope][data-theme="light"] {
+    --text: #1c1c1c;
+    --text-2: #5a5a5a;
+    --text-3: #767676;
+    --bg: #fafafa;
+    --bg-alt: #f5f5f5;
+    --solid: #ffffff;
+    --mica-tint: #fafafa;
+    --mica-tint-alt: #f4f4f4;
+    --layer: #ffffff;
+    --layer-alt: #ffffff;
+    --card: #ffffff;
+    --card-hover: #f6f6f6;
+    --card-solid: #ffffff;
+    --control: #ffffff;
+    --control-hover: #f4f4f4;
+    --control-pressed: #ececec;
+    --control-disabled: #f4f4f4;
+    --control-stroke: rgba(0, 0, 0, 0.13);
+    --control-stroke-bottom: rgba(0, 0, 0, 0.13);
+    --control-strong: rgba(0, 0, 0, 0.5);
+    --stroke: rgba(0, 0, 0, 0.08);
+    --stroke-strong: rgba(0, 0, 0, 0.12);
+    --stroke-card: rgba(0, 0, 0, 0.08);
+    --subtle-hover: rgba(0, 0, 0, 0.045);
+    --subtle-pressed: rgba(0, 0, 0, 0.07);
+    --subtle-selected: rgba(0, 0, 0, 0.06);
+    --input-bg: #ffffff;
+    --input-focus-bg: #ffffff;
+    --acrylic: #ffffff;
+    --acrylic-solid: #ffffff;
+    --acrylic-strong: #fafafa;
+    --taskbar-bg: rgb(var(--taskbar-rgb, 250 250 250) / var(--a-tb));
+    --fly-bg: #ffffff;
+    --fly-footer: #fafafa;
+    --fly-card: #f4f4f4;
+    --fly-stroke: rgba(0, 0, 0, 0.08);
+    --fly-shadow: 0 12px 32px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+    --tb-hover: rgba(0, 0, 0, 0.05);
+    --tb-hover-stroke: transparent;
+    --tb-pressed: rgba(0, 0, 0, 0.08);
+    --tb-active: rgba(0, 0, 0, 0.065);
+    --tb-ind: rgba(0, 0, 0, 0.5);
+    --shadow-flyout: 0 6px 20px rgba(0, 0, 0, 0.08);
+    --shadow-dialog: 0 16px 48px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06);
+    --shadow-window: 0 12px 36px rgba(0, 0, 0, 0.09), 0 1px 3px rgba(0, 0, 0, 0.06);
+    --shadow-window-inactive: 0 4px 14px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-tooltip: 0 2px 8px rgba(0, 0, 0, 0.1);
+    --window-stroke: rgba(0, 0, 0, 0.1);
+  }
+  :scope[data-theme="dark"],
+  [data-theme-scope][data-theme="dark"] {
+    --text: #ededed;
+    --text-2: #a8a8a8;
+    --text-3: #8a8a8a;
+    --bg: #161616;
+    --bg-alt: #131313;
+    --solid: #1c1c1c;
+    --mica-tint: #171717;
+    --mica-tint-alt: #141414;
+    --layer: #1e1e1e;
+    --layer-alt: #1e1e1e;
+    --card: #1f1f1f;
+    --card-hover: #262626;
+    --card-solid: #1f1f1f;
+    --control: #222222;
+    --control-hover: #2a2a2a;
+    --control-pressed: #1c1c1c;
+    --control-disabled: #1c1c1c;
+    --control-stroke: rgba(255, 255, 255, 0.12);
+    --control-stroke-bottom: rgba(255, 255, 255, 0.12);
+    --control-strong: rgba(255, 255, 255, 0.5);
+    --stroke: rgba(255, 255, 255, 0.08);
+    --stroke-strong: rgba(255, 255, 255, 0.12);
+    --stroke-card: rgba(255, 255, 255, 0.07);
+    --subtle-hover: rgba(255, 255, 255, 0.06);
+    --subtle-pressed: rgba(255, 255, 255, 0.04);
+    --subtle-selected: rgba(255, 255, 255, 0.075);
+    --input-bg: #1c1c1c;
+    --input-focus-bg: #1c1c1c;
+    --acrylic: #1f1f1f;
+    --acrylic-solid: #1f1f1f;
+    --acrylic-strong: #1a1a1a;
+    --taskbar-bg: rgb(var(--taskbar-rgb, 22 22 22) / var(--a-tb));
+    --fly-bg: #1e1e1e;
+    --fly-footer: #1a1a1a;
+    --fly-card: #262626;
+    --fly-stroke: rgba(255, 255, 255, 0.08);
+    --fly-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    --tb-hover: rgba(255, 255, 255, 0.07);
+    --tb-hover-stroke: transparent;
+    --tb-pressed: rgba(255, 255, 255, 0.05);
+    --tb-active: rgba(255, 255, 255, 0.09);
+    --tb-ind: rgba(255, 255, 255, 0.55);
+    --shadow-flyout: 0 6px 20px rgba(0, 0, 0, 0.35);
+    --shadow-dialog: 0 16px 48px rgba(0, 0, 0, 0.5);
+    --shadow-window: 0 12px 36px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-window-inactive: 0 4px 14px rgba(0, 0, 0, 0.3);
+    --shadow-tooltip: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --window-stroke: rgba(255, 255, 255, 0.09);
+  }
+
+  /* ---- windows ---- */
+  .win-titlebar {
+    padding-left: 16px;
+    gap: 10px;
+  }
+  .win-title {
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+  .win-ctl {
+    width: 44px;
+  }
+  .win-ctl svg {
+    width: 9px;
+    height: 9px;
+  }
+
+  /* ---- controls: flat, even 1 px stroke ---- */
+  .btn {
+    border-color: var(--control-stroke);
+    border-bottom-color: var(--control-stroke);
+    padding-left: 16px;
+    padding-right: 16px;
+    font-weight: 500;
+  }
+  .btn:active {
+    border-bottom-color: var(--control-stroke);
+  }
+  .btn.primary,
+  .btn.accent {
+    border-color: transparent;
+    border-bottom-color: transparent;
+  }
+  .btn.subtle,
+  .btn.ghost {
+    border-color: transparent;
+  }
+  .btn.icon-btn {
+    padding: 0;
+  }
+  .input,
+  .textarea,
+  .select {
+    border-color: var(--control-stroke);
+    border-bottom: 1px solid var(--control-stroke);
+  }
+  .input:focus,
+  .textarea:focus,
+  .select:focus {
+    border: 1px solid var(--accent);
+    border-bottom: 1px solid var(--accent);
+    padding-bottom: 6px;
+    box-shadow: 0 0 0 3px var(--accent-subtle);
+  }
+  .toggle input {
+    border-width: 1px;
+  }
+  .card,
+  .card-row {
+    box-shadow: none;
+  }
+
+  /* ---- menus & dialogs: airy ---- */
+  .menu {
+    padding: 6px;
+    border-color: var(--stroke-strong);
+  }
+  .menu-item {
+    height: 34px;
+    padding: 0 14px;
+  }
+  .dialog-body {
+    padding: 28px 28px 24px;
+  }
+  .dialog-footer {
+    background: transparent;
+    border-top-color: var(--stroke);
+    padding: 16px 28px 24px;
+  }
+  .tooltip {
+    border-color: var(--stroke-strong);
+  }
+
+  /* ---- taskbar / Start / flyouts ---- */
+  #taskbar {
+    border-top: 1px solid var(--stroke);
+  }
+  .tb-app.active .tb-ind {
+    background: var(--text);
+  }
+  #start {
+    border-color: var(--stroke-strong);
+  }
+  .flyout {
+    border-color: var(--stroke-strong);
+  }
+  .start-footer {
+    border-top-color: var(--stroke);
+  }
+  .toast {
+    border-color: var(--stroke-strong);
+  }
+  .snap-preview {
+    background: color-mix(in srgb, var(--accent) 10%, var(--solid));
+    border: 1px solid var(--stroke-strong);
+  }
+}

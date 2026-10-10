@@ -31,7 +31,8 @@
       "duplicateTab": "Duplicate tab",
       "splitTab": "Split tab",
       "closeRight": "Close tabs to the right",
-      "closeOthers": "Close other tabs"
+      "closeOthers": "Close other tabs",
+      "exportText": "Export text…"
     },
     "confirm": {
       "close": "Close",
@@ -52,7 +53,14 @@
       "title": "Paste multiple lines?",
       "body_one": "The text you are about to paste has {count} line. Each line may run as a command.",
       "body_other": "The text you are about to paste has {count} lines. Each line may run as a command as soon as it is pasted.",
-      "ok": "Paste anyway"
+      "ok": "Paste anyway",
+      "largeTitle": "Paste a large amount of text?",
+      "largeBody": "The text you are about to paste is {size} long, more than {limit}. Do you want to continue?"
+    },
+    "export": {
+      "filter": "Text files",
+      "done": "Saved as {name}",
+      "failed": "The text could not be saved: {message}"
     },
     "zoom": {
       "toast": "Font size {size}"
@@ -101,7 +109,7 @@
       "homeFolder": "Home folder",
       "useHome": "Use the home folder",
       "browse": "Browse…",
-      "noSuchFolder": "The folder “{path}” does not exist.",
+      "noSuchFolder": "“{path}” is not an existing folder.",
       "profiles": "Profiles",
       "openTab": "Open",
       "copyOnSelect": "Copy on select",
@@ -110,6 +118,8 @@
       "confirmCloseDesc": "Ask before closing several tabs or panes, or a program that is still running",
       "warnPaste": "Warn when pasting multiple lines",
       "warnPasteDesc": "Only when the program cannot tell pasted text from typed text",
+      "warnLargePaste": "Warn when pasting a large amount of text",
+      "warnLargePasteDesc": "More than 5 KB at once",
       "bell": "Bell notification style",
       "bellDesc": "What happens when a program rings the bell",
       "bell_visual": "Flash the terminal",
@@ -182,7 +192,8 @@
       "duplicateTab": "Dupliquer l’onglet",
       "splitTab": "Fractionner l’onglet",
       "closeRight": "Fermer les onglets à droite",
-      "closeOthers": "Fermer les autres onglets"
+      "closeOthers": "Fermer les autres onglets",
+      "exportText": "Exporter le texte…"
     },
     "confirm": {
       "close": "Fermer",
@@ -203,7 +214,14 @@
       "title": "Coller plusieurs lignes ?",
       "body_one": "Le texte que vous allez coller compte {count} ligne. Chaque ligne peut être exécutée comme une commande.",
       "body_other": "Le texte que vous allez coller compte {count} lignes. Chaque ligne peut être exécutée comme une commande dès qu’elle est collée.",
-      "ok": "Coller quand même"
+      "ok": "Coller quand même",
+      "largeTitle": "Coller un texte volumineux ?",
+      "largeBody": "Le texte que vous allez coller fait {size}, soit plus de {limit}. Voulez-vous continuer ?"
+    },
+    "export": {
+      "filter": "Fichiers texte",
+      "done": "Enregistré sous {name}",
+      "failed": "Le texte n’a pas pu être enregistré : {message}"
     },
     "zoom": {
       "toast": "Taille de police {size}"
@@ -252,7 +270,7 @@
       "homeFolder": "Dossier personnel",
       "useHome": "Utiliser le dossier personnel",
       "browse": "Parcourir…",
-      "noSuchFolder": "Le dossier « {path} » n’existe pas.",
+      "noSuchFolder": "« {path} » n’est pas un dossier existant.",
       "profiles": "Profils",
       "openTab": "Ouvrir",
       "copyOnSelect": "Copier lors de la sélection",
@@ -261,6 +279,8 @@
       "confirmCloseDesc": "Demander avant de fermer plusieurs onglets ou volets, ou un programme encore en cours d’exécution",
       "warnPaste": "Avertir lors du collage de plusieurs lignes",
       "warnPasteDesc": "Uniquement si le programme ne distingue pas le texte collé du texte tapé",
+      "warnLargePaste": "Avertir lors du collage d’un texte volumineux",
+      "warnLargePasteDesc": "Plus de 5 Ko d’un coup",
       "bell": "Style de notification de la cloche",
       "bellDesc": "Ce qui se passe quand un programme fait sonner la cloche",
       "bell_visual": "Faire clignoter le terminal",

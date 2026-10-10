@@ -35,21 +35,21 @@ Rules for every key:
 | `blur` | 0–100 | `50` | Blur intensity. Surfaces: `--blur` = 0–80 px (40 px at 50); `--blur-sm/-md/-lg` = ×0.5/×0.75/×1.5. The Mica copy of the wallpaper is pre-blurred 0–36 px |
 | `cornerRadius` | 0–200 (%) | `100` | Multiplies the style's radii: `--radius-xs/-sm/(base)/-lg` = `--r-*` × `--corner` |
 | `fontFamily` | `'inter' \| 'system' \| 'noto-sans' \| 'dejavu-sans' \| 'liberation-sans' \| 'noto-serif' \| 'dejavu-serif' \| 'cascadia' \| 'unifont'` | `'inter'` | `--font` / `--font-display`. Fonts that are not installed are greyed out in Settings |
-| `textScale` | 80–150 (%) | `100` | Scales the `--fs-*` font-size tokens and the `--lh-*` line heights; the rest of the layout keeps its size |
+| `textScale` | 80–150 (%) | `100` | Scales the `--fs-*` font-size tokens and the `--lh-*` line heights; the rest of the layout keeps its size. The first time it differs from 100, theme.js also rewrites every plain `font-size: Npx` / `line-height: Npx` of the shell and app stylesheets to `calc(Npx * var(--text-scale, 1))`, so hard-coded sizes follow too |
 | `scale` | 100–200 (%) | `100` | UI zoom (`shell:zoom`); pre-existing |
 | `reducedMotion` | bool | `false` | Implies `data-animations="off"`. Also sets `<html data-reduced-motion="on">`: no animated wallpaper, no cross-fades, no parallax |
 | `animations` | bool | `true` | Animation effects; pre-existing. `false` = `data-animations="off"` |
-| `taskbar.color` | `null \| 'accent' \| '#rrggbb'` | `null` | `null` = theme default. Otherwise sets `--taskbar-custom`; `#taskbar` gets `data-theme` light/dark from the colour's luminance, so icons and text stay readable |
+| `taskbar.color` | `null \| 'accent' \| '#rrggbb'` | `null` | `null` = theme default. Otherwise `#taskbar` gets `--taskbar-rgb` plus `data-theme-scope` and `data-theme` light/dark (from the colour's luminance), so icons and text stay readable. `'accent'` uses a deep shade of the accent |
 | `taskbar.opacity` | `null \| 0–100` | `null` | `null` = follows `transparencyLevel`; a number fixes the taskbar alpha (`--a-taskbar`) |
 | `appThemes` | `{ [appId]: { theme: 'system'\|'light'\|'dark', accent: null\|'#rrggbb' } }` | `{}` | Per-app theme: see §3 |
 
 Notes:
 
 - **Visual styles have traits** (`STYLES` in theme.js):
-  - `minimal`: monochrome accent, no Mica.
-  - `glass`: stronger transparency, colourful Mica.
-  - `retro`: no blur.
-  - `contrast`: forced opaque, no blur, own palette.
+  - `minimal`: opaque, no blur, graphite accent.
+  - `glass`: transparency ×2.3, Mica pre-blur ×0.8 and saturation ×1.9.
+  - `retro`: opaque, no blur.
+  - `contrast`: opaque, no blur, its own palette, ignores `taskbar.color`.
 - **Traits beat the sliders**, e.g. *transparency* has no effect in High contrast. Settings shows a note when a
   control is overridden by the style.
 
@@ -100,16 +100,18 @@ The pages that will host them are already registered in Settings as stubs.
 
 ### Tokens on any element
 
-Every colour token is declared for `:root[data-theme=X]` **and** `[data-theme=X]`, so any element that
-carries `data-theme="light|dark"` gets the full token set. Elements that do this:
+Every colour token is declared for `:root[data-theme=X]` **and** `[data-theme-scope][data-theme=X]`, so any element
+that carries `data-theme-scope data-theme="light|dark"` gets the full token set. The extra marker attribute keeps the
+existing uses of `data-theme` (chess board themes, Settings theme tiles) unaffected. Elements that do this:
 
 - an app window (per-app theme);
 - `#taskbar` (custom taskbar colour);
+- menus opened from a themed window;
 - previews in Settings.
 
 Accent variables are set inline (`--accent`, `--accent-hover`, `--accent-pressed`, `--accent-text`,
-`--accent-subtle`, `--on-accent`, `--accent-base`). Use `accentVars(hex, mode)` to compute them for an
-element.
+`--accent-subtle`, `--on-accent`, `--accent-base`). Use `accentVars(hex, mode)`, or `styleAccentVars(style, hex, mode)`, which honours the
+Minimal and High contrast palettes, to compute them for an element.
 
 ### Computed variables
 
@@ -118,13 +120,13 @@ still override them:
 
 | Variable | Source |
 |---|---|
-| `--tp` | Alpha factor (0 = opaque) from `transparency` and `transparencyLevel` |
-| `--blur`, `--blur-sm`, `--blur-md`, `--blur-lg` | `blur` |
+| `--tp` | Alpha factor (0 = opaque) from `transparency` and `transparencyLevel`; a style multiplies it by its `--tp-k` |
+| `--blur-px` (→ `--blur`, `--blur-sm`, `--blur-md`, `--blur-lg`, × the style's `--blur-k`) | `blur` |
 | `--corner` | `cornerRadius` / 100 |
 | `--font`, `--font-display` | `fontFamily` |
 | `--text-scale` | `textScale` / 100 |
 | `--a-taskbar` (when `taskbar.opacity` is set) | `taskbar.opacity` |
-| `--taskbar-custom` (when `taskbar.color` is set) | `taskbar.color` |
+| `--taskbar-rgb` (inline on `#taskbar`, when `taskbar.color` is set) | `taskbar.color` |
 
 ### Attributes on `<html>`
 
@@ -156,8 +158,12 @@ theme.js watches `#windows` (MutationObserver) and decorates every `.win[data-ap
 
 - **Theme different from the system mode:** the window gets `data-theme`.
 - **Custom accent, or forced mode:** the window gets inline accent variables.
-- **App stylesheets:** written with `:root[data-theme="dark"] .app-x …`. When the app is loaded,
-  `registry.js` asks theme.js to rewrite those rules so they follow the window's own mode.
+- **App stylesheets:** written with `:root[data-theme="dark"] .app-x …`. theme.js watches `<head>`, and when an app's
+  stylesheet loads (`app://shell/apps/…`) it rewrites those selectors in the CSSOM:
+  - `:root[data-theme="dark"] X` becomes "root is dark and X is not inside a themed window" plus "X is in, or is, a
+    dark-themed window" (`scopeThemeSelector()`).
+  - Specificity is unchanged (`:where`), so apps need no change.
+  - JS that reads `document.documentElement.dataset.theme` should switch to `effectiveTheme(el)`.
 - **Menus and tooltips:** opened from that window (appended to `<body>`), they copy its theme.
 - **Dialogs:** a dialog with `parent: win` lives inside the window and inherits its theme.
 
@@ -238,6 +244,10 @@ shell.emit('profiles:apply', { id });  // also window.__aurora.theme.profiles
 
 ## 6. Settings pages
 
+**Strings** (`pz.*`, English and French) live in `apps/settings/i18n.json`. Shared page helpers live in
+`pages/personalization-strings.js` (`comingSoon()` for stub pages). Page styles are in
+`pages/personalization.css`, which the modules load with `ui.loadCss`.
+
 **Personalization** contains:
 
 - the hero preview;
@@ -258,6 +268,19 @@ shell.emit('profiles:apply', { id });  // also window.__aurora.theme.profiles
 - **Text size** has the text size and the UI scale.
 - **Visual effects** has transparency, animations and reduced motion.
 
+### Replacing a stub (areas B1–B3)
+
+1. Replace the module (`pages/personalization-wallpaper.js`, `personalization-taskbar.js`, `personalization-focus.js`,
+   `personalization-packs.js` or `personalization-input.js`). Keep the page ids listed in `lib/index.js` → `PAGES`,
+   which also feed the search index and `manifest.json` → `searchIndex`. **Regenerate** `manifest.json` → `searchIndex`
+   whenever you add `ENTRIES`; test/system-settings.test.mjs checks the two match.
+2. Reuse the control builders: `ctl()`, `liveSlider()` and `bindToggle()` exported by `personalization-designer.js`.
+3. Implement the runtime in the shell. Read the keys with `settings.get` / `settings.on` and keep the defaults in
+   `main/ipc/settings.js`.
+4. Append new keys to `PROFILE_KEYS`, and to `LOOK_KEYS` if the built-in profiles should reset them. Add a validator to
+   `VALIDATORS`; there is a generic type check otherwise.
+5. Check `data-reduced-motion="on"` on `<html>` for anything animated.
+
 ## 7. Backend: `settings:setMany`
 
 ```js
@@ -268,3 +291,15 @@ api.invoke('settings:setMany', { 'style': 'retro', 'taskbar.color': null, … },
 - **One broadcast:** a single `settings:changed` with `{ key: '*', keys: [...], all }`. Renderer listeners
   run once.
 - **Return value:** the merged settings.
+
+## 8. Known limitations
+
+- **Windows never see each other through Glass.** Windows show the pre-blurred wallpaper (Mica), not the windows
+  behind them. This keeps the cost at zero while dragging in a VM without a GPU.
+- **Per-app themes and app JS.** Apps that read `document.documentElement.dataset.theme` in JS to choose canvas
+  colours (Task Manager charts, the Mail reader, Notepad's "system" theme) keep following the system mode until they
+  switch to `effectiveTheme(win.el)`. Their CSS already follows the window.
+- **App-specific colours.** The visual styles restyle every shared token and class. An app's own hard-coded
+  colours (`--fx-*`, `--ck-*`…) are unchanged; in High contrast these may stay below 7:1 inside some apps.
+- **The sign-in screen** (greeter) runs before login, so it applies the style of the settings it can read: the system
+  defaults (`/etc/aurora/settings.json`), not the user's.

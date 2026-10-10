@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="rim" x1="8" y1="42" x2="40" y2="6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1c56d8"/>
+      <stop offset="0.55" stop-color="#2f86ee"/>
+      <stop offset="1" stop-color="#62cdf3"/>
+    </linearGradient>
+    <linearGradient id="face" x1="24" y1="9" x2="24" y2="39" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dfe9f6"/>
+    </linearGradient>
+    <linearGradient id="hand" x1="24" y1="12" x2="24" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#26385e"/>
+      <stop offset="1" stop-color="#14203a"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="17" cy="13" r="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="24" cy="25.2" r="20" fill="#0a2f78" opacity=".2"/>
+  <circle cx="24" cy="24" r="20" fill="url(#rim)"/>
+  <circle cx="24" cy="24" r="20" fill="url(#shine)"/>
+  <circle cx="24" cy="24" r="15.2" fill="#0d3a8f" opacity=".25"/>
+  <circle cx="24" cy="24.4" r="15" fill="url(#face)"/>
+  <g stroke="#9fb3cf" stroke-width="2" stroke-linecap="round">
+    <path d="M24 11.6v2.4M36.4 24.4H34M24 37.2v-2.4M11.6 24.4H14"/>
+  </g>
+  <path d="M24 24.4V14.6" stroke="url(#hand)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M24 24.4l6.2 4.2" stroke="url(#hand)" stroke-width="3.4" stroke-linecap="round"/>
+  <circle cx="24" cy="24.4" r="2.4" fill="#2f86ee"/>
+  <circle cx="24" cy="24.4" r="1" fill="#ffffff"/>
+</svg>

@@ -338,12 +338,25 @@ function renderCalendar(slide = 0) {
     );
     viewport.addEventListener('keydown', onGridKey);
     body.append(nav, wk, viewport);
+    mountDayEvents(body);
     if (slide && !reduceMotion()) {
       viewport.firstElementChild.animate([{ transform: `translateY(${slide > 0 ? 36 : -36}px)`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 280, easing: 'cubic-bezier(0.1,0.9,0.2,1)' });
     }
   }
   calCard.classList.toggle('collapsed', collapsed);
   calCard.replaceChildren(head, body);
+}
+
+// Events of the selected day, from the Calendar app (apps/calendar/flyout.js). Optional: loaded lazily;
+// the flyout works the same when the module is missing or fails.
+let dayEventsMod = null;
+const dayEvents = () => (dayEventsMod = dayEventsMod || import('../../apps/calendar/flyout.js').catch(() => null));
+function mountDayEvents(body) {
+  const slot = ctx.h('div', { class: 'cal-day-events' });
+  body.appendChild(slot);
+  dayEvents()
+    .then((m) => m?.renderAgenda?.(slot, { ctx, date: selected || new Date(), close: () => fly?.close('launch') }))
+    .catch(() => {});
 }
 
 function changeMonth(delta) {
@@ -448,6 +461,10 @@ export function mount(c) {
   ctx.i18n.on('change', () => {
     root.setAttribute('aria-label', ctx.t('cal.title'));
     if (fly.isOpen) (renderNotifs(), renderCalendar());
+  });
+  // A Calendar reminder fired while the app may be closed: schedule its next occurrences (optional).
+  ctx.shell.reminders?.on?.('fire', (r) => {
+    if (r?.appId === 'calendar') setTimeout(() => dayEvents().then((m) => m?.resync?.(ctx)).catch(() => {}), 1000);
   });
   // Refresh relative times while open.
   setInterval(() => fly.isOpen && refreshTimes(), 30000);

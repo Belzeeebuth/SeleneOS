@@ -418,6 +418,67 @@ function part1() {
   check('parse "abc"', parseLoose('abc'), null);
 }
 
+// ================================================================ Part 1b: QA regressions (engine)
+// Bugs found in QA: huge exact powers froze the whole shell (all apps share one renderer), BigInt
+// RangeErrors and out-of-range exponent entries escaped as "unexpected error" alerts, asinh/acosh
+// and mod overflowed on large but valid inputs. References from Python's decimal module.
+function part1qa() {
+  const timed = (seq, prec = SCI_PREC) => {
+    const t = performance.now();
+    const r = feed(seq, { prec });
+    return { ...r, ms: performance.now() - t };
+  };
+  const HEAVY = [
+    ['1.0000001 pow 99999 =', '1.010050065574136'],
+    ['1.0000001 neg pow 99999 =', '-1.010050065574136'],
+    ['0.9999999999999999 pow 9999999999999999 =', '0.3678794411714423'],
+    ['1.000000000000001 pow 999999999999999 =', '2.718281828459041'],
+    ['1.23456789 pow 12345 =', '5.654486280073803e+1129'],
+    ['1.23456789 pow 1234 neg =', '1.176300206120295e-113'],
+    ['1.0000001 root 0.00001 =', '1.010050166579143'],
+    ['3 pow 20000 =', '2.66130342721742e+9542'],
+    ['1.5 pow 9999999999999999 =', 'ERR:overflow'],
+    ['1 exp 9999 mod 0.0000007 =', '0.0000004'],
+    ['1 exp 9999 asinh', '23,024.24149202802'],
+    ['1 exp 9999 acosh', '23,024.24149202802'],
+    ['1 exp 30 = neg asinh', '-69.77069997038132'],
+    ['1 exp 30 neg asinh', '1.e-30'], // ± while typing the exponent flips the exponent's sign
+  ];
+  for (const [seq, disp] of HEAVY) {
+    const r = timed(seq);
+    check(`qa engine: ${seq}`, r.display, disp);
+    check(`qa engine: ${seq} is fast (no freeze)`, r.ms, (ms) => ms < 1500);
+  }
+  // exponent entry can no longer leave the representable range (it threw out of the engine)
+  for (const [seq, disp] of [
+    ['99 exp 9999 +', '9.9e+1000'],
+    ['99 exp 9999 sqrt', '3.146426544510455e+500'],
+    ['99 exp 9999 =', '9.9e+1000'],
+    ['0.01 exp neg 9999 =', '1.e-1001'],
+  ]) {
+    let r;
+    try {
+      r = feed(seq, { prec: SCI_PREC }).display;
+    } catch (err) {
+      r = `THROWS ${err.message}`;
+    }
+    check(`qa engine: ${seq} (no exception)`, r, disp);
+  }
+  // any RangeError from a number system becomes "Overflow" instead of escaping
+  const sys = decimalSystem();
+  const eng = new Engine({ ...sys, binary: () => { throw new RangeError('Maximum BigInt size exceeded'); } }, { prec: SCI_PREC });
+  eng.digit('2');
+  eng.op('pow');
+  eng.digit('3');
+  let threw = null;
+  try {
+    eng.equals();
+  } catch (err) {
+    threw = err.message;
+  }
+  check('qa engine: RangeError -> Overflow state', [threw, eng.error], [null, 'overflow']);
+}
+
 // ================================================================ Part 2: UI
 const A = '.app-calculator';
 async function part2() {
@@ -1000,15 +1061,330 @@ async function part2() {
   fs.rmSync(home, { recursive: true, force: true });
 }
 
+// ================================================================ Part 3: QA regressions (UI)
+async function part3() {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-calc-qa-'));
+  const sdir = path.join(home, '.config', 'aurora', 'apps', 'calculator');
+  const stateFile = path.join(sdir, 'state.json');
+  fs.mkdirSync(sdir, { recursive: true });
+  // hostile saved state (the file is user-writable): markup, wrong types, prototype keys
+  fs.writeFileSync(
+    stateFile,
+    '{"mode":"<img src=x onerror=window.__pwned=1>","angle":"<b>","fe":"yes","prog":{"radix":"16","bits":7,"shift":"x","keypad":"<x>"},' +
+      '"conv":{"__proto__":{"from":"km","to":"mi"},"constructor":{"from":"a","to":"b"},"length":{"from":"<img>","to":"mi"},"weight":{"from":"lb","to":"kg"}},"date":{"mode":"__proto__"}}',
+  );
+  const s = await launchShell({ open: ['calculator'], lang: 'en', theme: 'light', home });
+  const p = s.page;
+  const errorsOf = () => s.logs.filter((l) => l.startsWith('[pageerror]') || (l.startsWith('[error]') && /calculator|apps\/calc/i.test(l)));
+  const calcWin = (i = 0) => s.aurora((i) => window.__aurora.wm.byApp('calculator')[i], i);
+  const winInfo = () =>
+    s.aurora(() => {
+      const w = window.__aurora.wm.byApp('calculator')[0];
+      return { state: w.state, snap: w.snap, top: w.alwaysOnTop, rect: w.rect(), maxHidden: w.btnMax.hidden, maximizable: w.opts.maximizable, compact: w.body.querySelector('.calc').classList.contains('compact') };
+    });
+  const display = async () => (await p.textContent(`${A} .calc-result`)).trim();
+  const press = async (...keys) => {
+    for (const k of keys) await p.click(`${A} [data-key="${k}"]`);
+  };
+  const typeSeq = async (str) => {
+    for (const ch of str) await p.keyboard.press(ch === '\n' ? 'Enter' : ch);
+  };
+  const setSize = (w, h) => s.aurora(([w, h]) => window.__aurora.wm.byApp('calculator')[0].setRect({ width: w, height: h }), [w, h]);
+  const mode = async (id) => {
+    await press('nav');
+    await p.waitForTimeout(350);
+    await p.click(`${A} .calc-nav-item[data-mode="${id}"]`);
+    await p.waitForTimeout(400);
+  };
+  const clip = (text) => s.app.evaluate(({ clipboard }, t) => clipboard.writeText(t), text);
+  const cdp = await p.context().newCDPSession(p);
+  const listeners = async () => {
+    const { result } = await cdp.send('Runtime.evaluate', { expression: 'document' });
+    const { listeners: ls } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId });
+    const { result: w } = await cdp.send('Runtime.evaluate', { expression: 'window' });
+    const { listeners: wl } = await cdp.send('DOMDebugger.getEventListeners', { objectId: w.objectId });
+    return { doc: ls.length, keydown: ls.filter((l) => l.type === 'keydown').length, win: wl.length };
+  };
+  const focusInside = (sel) => s.aurora((sel) => !!document.activeElement?.closest(sel), sel);
+
+  await p.waitForSelector(`${A} .ck[data-key="7"]`, { timeout: 20000 });
+  // --- hostile saved state
+  check('qa state: hostile mode falls back to Standard', await p.$eval(`${A} .calc`, (e) => e.dataset.mode), 'standard');
+  check('qa state: no markup injected', await s.aurora(() => [window.__pwned, document.querySelectorAll('.app-calculator .calc img, .app-calculator .calc b').length]), [undefined, 0]);
+  check('qa state: Object.prototype untouched', await s.aurora(() => Object.keys(Object.getPrototypeOf({})).length), 0);
+  await mode('conv-weight');
+  check('qa state: valid saved units kept', await p.$$eval(`${A} .calc-conv-unit`, (b) => b.map((x) => x.textContent.trim())), ['Pounds', 'Kilograms']);
+  await mode('conv-length');
+  check('qa state: invalid saved units replaced by defaults', await p.$$eval(`${A} .calc-conv-unit`, (b) => b.map((x) => x.textContent.trim())), ['Centimeters', 'Inches']);
+  // converter: huge values stay values (they used to become 0 when activated or pasted)
+  await clip('1e50');
+  await p.keyboard.press('Control+v');
+  await p.waitForTimeout(200);
+  check('qa conv: paste 1e50', await p.$$eval(`${A} .calc-conv-value`, (e) => e.map((x) => x.textContent)), ['1.e+50', '3.937007874015748e+49']);
+  await p.click(`${A} .calc-conv-value[data-field="1"]`);
+  check('qa conv: activating a huge converted value keeps it', await p.$$eval(`${A} .calc-conv-value`, (e) => e.map((x) => x.textContent)), ['1.e+50', '3.937007874015748e+49']);
+  await p.keyboard.press('Alt+1');
+  await p.waitForTimeout(700);
+  const saved = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  check('qa state: only known converter categories persisted', Object.keys(saved.conv).sort(), ['length', 'weight']);
+  check('qa state: angle/fe/prog sanitized ("fe":"yes" is not true)', [saved.angle, saved.fe, saved.prog.radix, saved.prog.bits, saved.prog.shift, saved.prog.keypad], ['deg', false, 10, 64, 'arith', 'full']);
+
+  // --- shell freeze regressions through the UI (scientific)
+  await p.keyboard.press('Alt+2');
+  await p.waitForTimeout(300);
+  let t = Date.now();
+  await typeSeq('1.0000001^99999=');
+  check('qa ui: 1.0000001^99999 computed (no freeze)', [await display(), Date.now() - t < 4000], ['1.010050065574136', true]);
+  await p.keyboard.press('Escape');
+  await typeSeq('99x9999+');
+  check('qa ui: out-of-range exponent entry -> no "unexpected error" dialog', [await display(), await p.$(`${A} .dialog-layer`)], ['9.9e+1000', null]);
+  await p.keyboard.press('Escape');
+  await p.keyboard.press('Alt+1');
+  await p.waitForTimeout(300);
+
+  // --- paste is limited like Windows (512 characters)
+  await clip('1'.repeat(600));
+  await p.keyboard.press('Control+v');
+  await p.waitForTimeout(200);
+  check('qa paste: > 512 characters -> Invalid input', await display(), 'Invalid input');
+  await clip('<img src=x onerror=window.__pwned=2>');
+  await p.keyboard.press('Control+v');
+  await p.waitForTimeout(200);
+  check('qa paste: markup is just invalid input', [await display(), await s.aurora(() => window.__pwned)], ['Invalid input', undefined]);
+  await p.keyboard.press('Escape');
+
+  // --- Tab stays inside the window (it walked out into the taskbar, after which every key was ignored)
+  await s.aurora(() => document.querySelector('.app-calculator .calc').focus());
+  let inside = true;
+  for (let i = 0; i < 45; i++) {
+    await p.keyboard.press('Tab');
+    inside &&= await focusInside('.app-calculator');
+  }
+  check('qa focus: 45 x Tab stays in the calculator', inside, true);
+  inside = true;
+  for (let i = 0; i < 12; i++) {
+    await p.keyboard.press('Shift+Tab');
+    inside &&= await focusInside('.app-calculator');
+  }
+  check('qa focus: Shift+Tab stays in the calculator', inside, true);
+  await s.aurora(() => document.querySelector('.app-calculator .calc').focus());
+  await typeSeq('9*9=');
+  check('qa focus: typing still works after tabbing around', await display(), '81');
+  await p.focus(`${A} .calc-header [data-key="nav"]`);
+  await p.keyboard.press('Enter');
+  await p.waitForTimeout(400);
+  inside = true;
+  for (let i = 0; i < 20; i++) {
+    await p.keyboard.press('Tab');
+    inside &&= await focusInside('.app-calculator .calc-nav');
+  }
+  check('qa focus: Tab cycles inside the open navigation pane', inside, true);
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(300);
+  await typeSeq('1+2=');
+  await p.keyboard.press('Control+h');
+  await p.waitForTimeout(300);
+  inside = true;
+  for (let i = 0; i < 6; i++) {
+    await p.keyboard.press('Tab');
+    inside &&= await focusInside('.app-calculator .calc-panefly-panel');
+  }
+  check('qa focus: Tab cycles inside the history flyout', inside, true);
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(300);
+  check('qa focus: Esc closes the history flyout', await p.$(`${A} .calc-panefly`), null);
+  await typeSeq('6*7=');
+  check('qa focus: keys work after the flyout', await display(), '42');
+  await p.keyboard.press('Escape');
+
+  // --- programmer: long BIN values wrap instead of being cut with an ellipsis
+  await setSize(320, 480);
+  await p.keyboard.press('Alt+4');
+  await p.waitForTimeout(300);
+  await typeSeq('1');
+  await p.keyboard.press('F9');
+  await p.waitForTimeout(300);
+  const bin = await p.$eval(`${A} .calc-radix[data-radix="bin"] .calc-radix-val`, (e) => ({ ones: (e.textContent.match(/1/g) || []).length, clipped: e.scrollWidth > e.clientWidth + 1, lines: Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)) }));
+  check('qa prog: BIN of -1 shows all 64 bits, wrapped, not clipped', [bin.ones, bin.clipped, bin.lines > 1], [64, false, true]);
+  check(
+    'qa prog: keypad still inside the window at min size',
+    await s.aurora(() => {
+      const w = document.querySelector('.app-calculator');
+      return w.querySelector('.calc-keypad').getBoundingClientRect().bottom <= w.querySelector('.win-body').getBoundingClientRect().bottom + 1;
+    }),
+    true,
+  );
+  await p.keyboard.press('Escape');
+  await setSize(340, 560);
+
+  // --- date: an open calendar no longer survives a mode switch
+  await p.keyboard.press('Alt+5');
+  await p.waitForTimeout(300);
+  await p.click(`${A} .calc-dp[data-picker="from"]`);
+  await p.waitForTimeout(300);
+  check('qa date: calendar flyout open', !!(await p.$(`${A} .calc-cal-flyout`)), true);
+  await p.keyboard.press('Alt+1');
+  await p.waitForTimeout(400);
+  check('qa date: Alt+1 closes the calendar (no orphan flyout)', await p.$(`${A} .calc-cal-flyout`), null);
+
+  // --- keep on top (compact overlay): no maximize / snap, title-bar back button, restores snap
+  await s.aurora(() => window.__aurora.wm.byApp('calculator')[0].snapTo('right'));
+  await p.waitForTimeout(400);
+  await press('compact');
+  await p.waitForTimeout(500);
+  let wi = await winInfo();
+  check('qa compact: on, on top, maximize button hidden', [wi.compact, wi.top, wi.maxHidden, wi.maximizable, wi.state], [true, true, true, false, 'normal']);
+  check('qa compact: "Back to full view" sits in the title bar', !!(await p.$(`${A} .win-titlebar .win-tb-slot [data-key="fullview"]`)), true);
+  const tb = await s.aurora(() => {
+    const r = window.__aurora.wm.byApp('calculator')[0].titlebar.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await p.mouse.dblclick(tb.x, tb.y);
+  await p.waitForTimeout(400);
+  await s.aurora(() => {
+    const w = window.__aurora.wm.byApp('calculator')[0];
+    w.maximize();
+    w.snapTo('left');
+  });
+  await p.waitForTimeout(400);
+  wi = await winInfo();
+  check('qa compact: title double-click / maximize / snap ignored', [wi.state, wi.compact, wi.rect.width, wi.rect.height], ['normal', true, 296, 400]);
+  await s.aurora(async () => {
+    const n = await window.__aurora.registry.launch('notepad');
+    n.maximize();
+    n.focus();
+  });
+  await p.waitForTimeout(700);
+  check(
+    'qa compact: stays above a maximized, focused window',
+    await s.aurora(() => {
+      const r = window.__aurora.wm.byApp('calculator')[0].el.getBoundingClientRect();
+      return !!document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest('.app-calculator');
+    }),
+    true,
+  );
+  await s.aurora(() => window.__aurora.wm.byApp('calculator')[0].focus());
+  await p.waitForTimeout(200);
+  await p.keyboard.press('Escape');
+  await typeSeq('7*6=');
+  check('qa compact: keypad works', await display(), '42');
+  await s.aurora(() => window.__aurora.wm.byApp('calculator')[0].el.scrollIntoView());
+  {
+    await p.waitForTimeout(300);
+    const r = await s.aurora(() => window.__aurora.wm.byApp('calculator')[0].rect());
+    const m = 24;
+    const clipR = { x: Math.max(0, r.x - m), y: Math.max(0, r.y - m), width: r.width + 2 * m, height: r.height + 2 * m };
+    await p.screenshot({ path: path.join(DOCS, 'calculator-compact.png'), clip: clipR });
+  }
+  await press('fullview');
+  await p.waitForTimeout(500);
+  wi = await winInfo();
+  check('qa compact: back to full view restores the snapped layout', [wi.compact, wi.top, wi.maxHidden, wi.maximizable, wi.state, wi.snap], [false, false, false, true, 'snapped', 'right']);
+  await s.aurora(() => {
+    window.__aurora.wm.byApp('notepad')[0]?.close(true);
+    window.__aurora.wm.byApp('calculator')[0].restore();
+  });
+  await p.waitForTimeout(500);
+
+  // --- leaks: 15 open/close cycles (with flyouts, menus, nav, calendar and compact open at close time)
+  const launch = () => s.aurora(async () => (await window.__aurora.registry.launch('calculator', { newWindow: true })).id);
+  const closeWin = (id) => s.aurora((id) => window.__aurora.wm.get(id).close(), id);
+  const warm = await launch();
+  await p.waitForTimeout(300);
+  await closeWin(warm);
+  await p.waitForTimeout(600);
+  const before = await listeners();
+  // two calculator windows are open: scope every selector to the new one
+  const scenarios = [
+    async () => {},
+    async (W) => p.click(`${W} [data-key="nav"]`),
+    async (W) => {
+      await p.keyboard.press('Alt+2');
+      await p.click(`${W} [data-key="trig"]`);
+    },
+    async (W) => {
+      await p.keyboard.press('Alt+5');
+      await p.click(`${W} .calc-dp[data-picker="from"]`);
+    },
+    async (W) => {
+      await p.keyboard.press('Alt+1');
+      await p.click(`${W} [data-key="compact"]`);
+    },
+    async (W) => {
+      await p.keyboard.press('Alt+4');
+      await p.click(`${W} [data-key="bitshift"]`);
+    },
+  ];
+  let scenarioErrors = 0;
+  for (let i = 0; i < 15; i++) {
+    const id = await launch();
+    await p.waitForTimeout(250);
+    await s.aurora((id) => window.__aurora.wm.get(id).focus(), id);
+    await scenarios[i % scenarios.length](`${A}[data-id="${id}"]`).catch(() => scenarioErrors++);
+    await p.waitForTimeout(150);
+    await closeWin(id);
+    await p.waitForTimeout(450);
+  }
+  await p.mouse.click(5, 5);
+  await p.waitForTimeout(500);
+  const after = await listeners();
+  check('qa leaks: every open/close scenario ran', scenarioErrors, 0);
+  check('qa leaks: document/window listeners unchanged after 15 open/close', after, before);
+  check(
+    'qa leaks: no stray flyouts, menus or windows',
+    await s.aurora(() => [document.querySelectorAll('.calc-flyout').length, document.querySelectorAll('body > .menu').length, window.__aurora.wm.byApp('calculator').length]),
+    [0, 0, 1],
+  );
+  // closing a window while it still loads its saved state
+  const b2 = await listeners();
+  await s.aurora(async () => {
+    const pr = window.__aurora.registry.launch('calculator', { newWindow: true });
+    await new Promise((r) => setTimeout(r, 0));
+    const ws = window.__aurora.wm.byApp('calculator');
+    ws[ws.length - 1].close(true);
+    await pr;
+  });
+  await p.waitForTimeout(700);
+  check('qa leaks: closing during startup leaves no keydown listener', (await listeners()).keydown, b2.keydown);
+
+  // --- storage write failure (state.json replaced by a directory): the app keeps working
+  fs.rmSync(stateFile, { force: true });
+  fs.mkdirSync(stateFile);
+  await s.aurora(() => window.__aurora.wm.byApp('calculator')[0].focus());
+  await p.keyboard.press('Alt+2');
+  await p.waitForTimeout(600);
+  await p.keyboard.press('Alt+1');
+  await p.waitForTimeout(600);
+  await typeSeq('2+2=');
+  check('qa storage: unwritable state -> still calculates', await display(), '4');
+  const id3 = await launch();
+  await p.waitForTimeout(500);
+  check('qa storage: unreadable state -> new window starts in Standard', await s.aurora((id) => window.__aurora.wm.get(id).body.querySelector('.calc').dataset.mode, id3), 'standard');
+  await closeWin(id3);
+  await p.waitForTimeout(400);
+
+  check('console: no calculator errors (QA session)', errorsOf(), []);
+  await s.close();
+  fs.rmSync(home, { recursive: true, force: true });
+}
+
 // ================================================================ run
 const t0 = Date.now();
-if (!args.has('--ui-only')) part1();
+if (!args.has('--ui-only')) {
+  part1();
+  part1qa();
+}
 console.log(`engine table: ${passed} checks passed${failures.length ? `, ${failures.length} failed` : ''}`);
 if (!args.has('--engine-only')) {
   try {
-    await part2();
+    if (!args.has('--qa-only')) await part2();
   } catch (err) {
     failures.push(`UI test crashed: ${err.stack || err}`);
+  }
+  try {
+    await part3();
+  } catch (err) {
+    failures.push(`QA UI test crashed: ${err.stack || err}`);
   }
 }
 console.log(`\n${passed} passed, ${failures.length} failed (${((Date.now() - t0) / 1000).toFixed(1)}s)`);

@@ -293,6 +293,9 @@ export class MessageList {
 
   updateCount() {
     const t = (k, v) => this.t(k, v);
+    // The Filter button shows whether a filter is active (cleared by "Clear", account switches…).
+    this.filterBtn.classList.toggle('on', !!this.app.filter);
+    this.filterBtn.setAttribute('aria-pressed', String(!!this.app.filter));
     const unread = this.messages.filter((m) => !m.seen).length;
     const q = this.query;
     if (q.search) this.countEl.textContent = t('list.results', { count: this.total });
@@ -384,7 +387,7 @@ export class MessageList {
     const nodes = [];
     let group = null;
     for (const m of this.messages) {
-      const g = dateGroup(m.date);
+      const g = dateGroup(m.received || m.date); // grouped and sorted by received time, like Outlook
       if (g !== group) {
         group = g;
         nodes.push(h('div', { class: 'ml-group', role: 'presentation' }, t(`group.${g}`)));
@@ -406,7 +409,7 @@ export class MessageList {
   }
 
   rowSig(m, showTo) {
-    return JSON.stringify([m.uid, m.seen, m.flagged, m.answered, m.forwarded, m.draft, m.hasAttachments, m.subject, m.preview, m.date, showTo ? m.to : m.from, this.ctx.lang]);
+    return JSON.stringify([m.uid, m.seen, m.flagged, m.answered, m.forwarded, m.draft, m.hasAttachments, m.subject, m.preview, m.date, m.received, showTo ? m.to : m.from, this.ctx.lang]);
   }
 
   // Same rows as on screen? (soft refreshes that bring nothing new skip the DOM entirely)
@@ -470,7 +473,7 @@ export class MessageList {
       h(
         'div',
         { class: 'ml-item-main' },
-        h('div', { class: 'ml-row1' }, h('span', { class: 'ml-from ellipsis' }, m.draft ? h('span', { class: 'ml-draft-tag' }, `[${t('list.draft')}] `) : null, who), h('span', { class: 'ml-date' }, listDate(m.date, this.ctx.i18n))),
+        h('div', { class: 'ml-row1' }, h('span', { class: 'ml-from ellipsis' }, m.draft ? h('span', { class: 'ml-draft-tag' }, `[${t('list.draft')}] `) : null, who), h('span', { class: 'ml-date' }, listDate(m.received || m.date, this.ctx.i18n))),
         h(
           'div',
           { class: 'ml-row2' },

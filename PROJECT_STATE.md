@@ -43,9 +43,9 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 | Window mgmt (hotkeys, Alt+Tab, Task View + virtual desktops, snap layouts, Ctrl+Alt+Del, Run, Win+X) | ✅ | ✅ |
 | Login screen, lock screen, welcome | ✅ | ✅ |
 | System backends + Settings | ✅ | ✅ |
-| Browser | ✅ | ✅ |
-| File Explorer | ✅ | 🔄 |
-| Mail | ✅ | 🔄 |
+| Browser | ✅ | ✅ (66 tests) |
+| File Explorer | ✅ | ✅ (272 checks) |
+| Mail | ✅ | ✅ (44 steps, local IMAP/SMTP test server) |
 | Paint, Calculator, Notepad, Terminal, Media Player, Snipping Tool | ✅ | Terminal ✅, Media ✅, others 🔄 |
 | Minesweeper, Snake, 2048, Solitaire, Chess, Task Manager | ✅ | ✅ |
 | ISO build system | ✅ | ✅ static (no QEMU by user's choice) |
@@ -119,7 +119,22 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 - **Greeter mode:** `main/index.js` loads every backend module, even mail, pty and fs. Restrict it to an allow-list of the modules the sign-in screen needs.
 - **Wi-Fi key:** it is passed on the `nmcli` command line, so other local users can see it briefly in `/proc`. Consider a passwd-file approach.
 - **Task Manager:** `kill-process` takes one PID at a time; a multi-PID admin action would avoid one UAC prompt per process.
+- **Core CSS, after the personalization workflow** (its agents are editing tokens.css and ui.css now):
+  - `.btn.danger` in dark mode is white on #ff99a4 (2:1 contrast).
+  - `ui.menu` labels have no ellipsis (max-width 360 px, nowrap).
+  - `.select:focus` hides the dropdown arrow.
+  - `[data-animations="off"]` keeps infinite iterations, so spinners flicker. Add `animation-iteration-count: 1`.
+- **wm:** optional Tab containment per window. Files and Mail already do it themselves.
+- **fs.js:**
+  - `fs:readText` should return the first maxBytes instead of throwing ETOOBIG.
+  - `fs:copy` has no cancel.
+  - `fs:trash` returns only a count.
+- **Browser:**
+  - Pop-ups are reopened as tabs, so `window.opener` doesn't work and some sign-in pop-ups may fail.
+  - Real sites are blocked by the container proxy; only ubuntu.com was tested.
+- **Mail:** no OAuth2; passwords are obfuscated, not encrypted (no keyring).
 - **Fixed in session 1 by the coordinator:**
+  - `ui.dialog`: focus moves into the dialog synchronously, goes back to the opener on close, Tab is trapped, Esc works with focus outside.
   - net/audio status reads no longer suppress change pushes.
   - Oversized windows shrink after a resolution or scale change.
   - "1 byte" now has the right plural.

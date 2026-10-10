@@ -128,6 +128,8 @@ export class FindBar {
     this.el.classList.remove('closing');
     const sel = session.term.getSelection();
     if (sel && !sel.includes('\n') && sel.length < 200) this.input.value = sel;
+    // (opening it again on the same pane must not stack a second listener)
+    this._writeOff?.dispose();
     this._writeOff = session.term.onWriteParsed(() => (this.dirty = true));
     this.input.focus();
     this.input.select();

@@ -115,7 +115,7 @@ const PRESETS = [
     id: 'icloud',
     name: 'iCloud',
     sub: 'iCloud Mail',
-    color: '#2f7fe6',
+    color: '#1f6fd1',
     mono: 'iC',
     domains: ['icloud.com', 'me.com', 'mac.com'],
     imap: { host: 'imap.mail.me.com', port: 993, security: 'ssl' },
@@ -1135,6 +1135,11 @@ async function listMessages(accountId, folder, opts = {}) {
           fetched.sort((a, b) => b.seq - a.seq);
         }
       }
+      // Newest received first inside the page. Arrival order (sequence numbers) is the same thing,
+      // except for messages moved back into the folder (Undo, Not junk…): they keep their received
+      // date and must not jump to the top of the list.
+      const when = (m) => (m.internalDate ? new Date(m.internalDate).getTime() : 0) || 0;
+      fetched.sort((a, b) => when(b) - when(a) || b.seq - a.seq);
       const rows = fetched.map(summarize);
       await addPreviews(client, accountId, folder, mailbox, rows, fetched);
       return {

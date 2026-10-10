@@ -1,0 +1,17 @@
+{
+  "id": "photos",
+  "name": { "en": "Photos", "fr": "Photos" },
+  "description": { "en": "View, organize and edit your photos and pictures", "fr": "Affichez, organisez et retouchez vos photos et images" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1180, "height": 760, "minWidth": 500, "minHeight": 420, "titlebar": "tall", "background": "mica" },
+  "category": "media",
+  "keywords": {
+    "en": ["photos", "pictures", "images", "gallery", "viewer", "album", "slideshow", "edit", "crop", "filters", "jpeg", "png"],
+    "fr": ["photos", "images", "galerie", "visionneuse", "album", "diaporama", "retoucher", "rogner", "filtres", "jpeg", "png"]
+  },
+  "singleInstance": false,
+  "fileTypes": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".avif", ".ico"],
+  "defaultFor": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".avif", ".ico"]
+}

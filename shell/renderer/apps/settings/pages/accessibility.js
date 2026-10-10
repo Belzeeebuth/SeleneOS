@@ -1,5 +1,8 @@
 // Settings > Accessibility: Text size, Visual effects.
+// The text size / UI scale / transparency / motion controls are the same builders as Personalization >
+// Theme designer (pages/personalization-designer.js), so each setting has a single source of truth.
 import { PAGES } from '../lib/index.js';
+import { textSizeControls, motionControls, transparencyControls } from './personalization-designer.js';
 
 async function accessibility(pc) {
   const { h, t, kit, L } = pc;
@@ -22,60 +25,24 @@ async function accessibility(pc) {
 }
 
 async function textSize(pc) {
-  const { h, t, kit, settings } = pc;
-  const cur = Number(settings.get('scale')) || 100;
-  let pending = cur;
-  const sample = h('div', { class: 'st-text-preview-sample' }, t('a11y.sample'));
-  const pct = (v) => (pc.lang === 'fr' ? `${v} %` : `${v}%`);
-  const paintSample = () => (sample.style.fontSize = `${(14 * pending) / 100}px`);
-  paintSample();
-  const apply = kit.button(t('common.apply'), async () => {
-    await settings.set('scale', pending);
-    apply.disabled = true;
-  }, { primary: true, disabled: true });
-  const slider = kit.slider({
-    min: 100,
-    // never so big that the desktop becomes unusable on this screen (see pc.maxScale)
-    max: Math.max(cur, Math.min(200, pc.maxScale())),
-    step: 5,
-    value: cur,
-    label: t('a11y.textSize'),
-    format: pct,
-    iconStart: 'text_font_size',
-    onInput: (v) => {
-      pending = v;
-      paintSample();
-      apply.disabled = v === (Number(settings.get('scale')) || 100);
-    },
-  });
-  slider.classList.add('st-textsize-slider');
-  pc.onDispose(
-    settings.on('scale', (v) => {
-      pending = Number(v) || 100;
-      slider.set(pending);
-      paintSample();
-      apply.disabled = true;
-    }),
-  );
+  const { h, kit } = pc;
+  pc.ui.loadCss('app://shell/apps/settings/pages/personalization.css');
+  const tx = textSizeControls(pc, { sample: true });
   return h(
     'div',
     null,
-    h('div', { class: 'st-row st-text-preview', style: { flexDirection: 'column', alignItems: 'stretch', gap: '8px' } }, h('div', { class: 'caption text-2' }, t('a11y.preview')), sample),
-    kit.group(null, kit.row({ icon: 'text_font_size', title: t('a11y.textSize'), desc: t('a11y.textSizeDesc'), control: h('div', { class: 'st-textsize-ctl' }, slider, apply) })),
+    h('div', { class: 'st-text-preview' }, h('div', { class: 'caption text-2' }, pc.t('a11y.preview')), tx.sample),
+    kit.group(null, tx.sizeRow, tx.fontRow),
+    kit.group(null, tx.scaleRow),
   );
 }
 
 async function visualEffects(pc) {
-  const { h, t, kit } = pc;
-  return h(
-    'div',
-    null,
-    kit.group(
-      null,
-      kit.settingToggleRow({ icon: 'blur', title: t('pers.transparency'), desc: t('a11y.transparencyDesc'), key: 'transparency', def: true, section: 'transparency' }),
-      kit.settingToggleRow({ icon: 'sparkle', title: t('a11y.animations'), desc: t('a11y.animationsDesc'), key: 'animations', def: true, section: 'animations' }),
-    ),
-  );
+  const { h, kit } = pc;
+  pc.ui.loadCss('app://shell/apps/settings/pages/personalization.css');
+  const tr = transparencyControls(pc);
+  const mo = motionControls(pc);
+  return h('div', null, kit.group(null, tr.toggleRow, tr.levelRow, tr.blurRow), kit.group(null, mo.animationsRow, mo.reducedRow));
 }
 
 export default { accessibility, textSize, visualEffects };

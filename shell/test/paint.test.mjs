@@ -8,6 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
+import zlib from 'node:zlib';
+import os from 'node:os';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DOCS = path.join(here, '..', '..', 'docs', 'screenshots');
@@ -120,10 +122,12 @@ async function setZoom100(s) {
   await wait(s, 80);
 }
 async function savePicker(s, file) {
-  await s.page.waitForSelector(`${WIN} .fp-dialog`, { timeout: 5000 });
-  const input = s.page.locator(`${WIN} .fp-dialog .fp-bottom input`);
+  // (a picker that was just accepted may still be fading out: only use the live one)
+  const live = `${WIN} .dialog-layer:not(.closing) .fp-dialog`;
+  await s.page.waitForSelector(live, { timeout: 5000 });
+  const input = s.page.locator(`${live} .fp-bottom input`);
   await input.fill(file);
-  await s.page.click(`${WIN} .fp-dialog .dialog-footer .btn.primary`);
+  await s.page.click(`${live} .dialog-footer .btn.primary`);
 }
 async function menu(s, top, ...labels) {
   await s.page.click(`${WIN} .pt-menu-btn:nth-child(${{ file: 1, edit: 2, view: 3 }[top]})`);
@@ -134,6 +138,73 @@ async function menu(s, top, ...labels) {
     await item.click();
   }
   await wait(s, 120);
+}
+
+// Minimal PNG / ICO writers (solid colour) for files the tests need on disk.
+const CRC = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+function makePng(w, h, rgba = [255, 0, 0, 255]) {
+  const crc = (buf) => {
+    let c = 0xffffffff;
+    for (const b of buf) c = CRC[(c ^ b) & 255] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]);
+    const c = Buffer.alloc(4);
+    c.writeUInt32BE(crc(td));
+    return Buffer.concat([len, td, c]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(h, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const row = Buffer.alloc(w * 4 + 1);
+  for (let x = 0; x < w; x++) row.set(rgba, 1 + x * 4);
+  const raw = Buffer.concat(Array.from({ length: h }, () => row));
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+function makeIco(w, h, rgba) {
+  const png = makePng(w, h, rgba);
+  const head = Buffer.alloc(22);
+  head.writeUInt16LE(0, 0);
+  head.writeUInt16LE(1, 2);
+  head.writeUInt16LE(1, 4);
+  head[6] = w;
+  head[7] = h;
+  head.writeUInt16LE(1, 10);
+  head.writeUInt16LE(32, 12);
+  head.writeUInt32LE(png.length, 14);
+  head.writeUInt32LE(22, 18);
+  return Buffer.concat([head, png]);
+}
+// Text of the dialogs currently open in the Paint window(s).
+const dialogTexts = (s) => s.page.evaluate(() => [...document.querySelectorAll('.win.app-paint .dialog-layer:not(.closing) .dialog')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()));
+async function waitDialog(s, timeout = 4000) {
+  const t0 = Date.now();
+  for (;;) {
+    const d = await dialogTexts(s);
+    if (d.length) return d;
+    if (Date.now() - t0 > timeout) throw new Error('no dialog appeared');
+    await wait(s, 50);
+  }
+}
+async function dismissDialogs(s) {
+  for (let i = 0; i < 8; i++) {
+    const n = await s.page.evaluate(() => {
+      const l = [...document.querySelectorAll('.win.app-paint .dialog-layer:not(.closing)')].pop();
+      l?.querySelector('.dialog').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      return l ? 1 : 0;
+    });
+    if (!n) return;
+    await wait(s, 220);
+  }
 }
 
 // ================================================================== main session (en, light)
@@ -163,6 +234,9 @@ await test('boots with an untitled 1152×648 white canvas and the Windows 11 com
   assert.equal(info.status, '1152 × 648px');
   assert.equal(info.dirty, false);
   assert.ok(isWhite(await px(s, 10, 10)));
+  // status items (empty ones included) stay inside the 32px status bar, unaffected by shell classes
+  const st = await P(s, (p, el) => [...el.querySelectorAll('.pt-st-item')].map((x) => Math.round(x.getBoundingClientRect().height)));
+  assert.ok(st.every((hgt) => hgt <= 24), `status item heights ${st}`);
   const title = await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'paint').title);
   assert.equal(title, 'Untitled - Paint');
 });
@@ -957,6 +1031,282 @@ await test('drag & drop of an image file opens it', async () => {
   assert.equal(await P(s, (p) => p.file.name), 'dropped.png');
 });
 
+// ------------------------------------------------------------------ QA regressions (en, light)
+async function freshDirty(sx) {
+  P(sx, (p) => {
+    p.app.cmd('new');
+  });
+  const ask = await sx.page.waitForSelector(`${WIN} .pt-ask`, { timeout: 800 }).catch(() => null);
+  if (ask) await sx.page.click(`${WIN} .pt-ask .dialog-footer .btn:nth-child(2)`);
+  await waitFor(sx, (p) => !p.file.path && !p.dirty());
+  await wait(sx, 250);
+  await tool(sx, 'pencil');
+  await drag(sx, [[20, 20], [80, 60]]);
+  assert.equal(await P(sx, (p) => p.dirty()), true);
+}
+
+await test('repeated Ctrl+S / Ctrl+O and double clicks open a single dialog; closing points at it', async () => {
+  await freshDirty(s);
+  await s.page.locator(`${WIN} .pt-scroll`).focus();
+  await s.page.keyboard.press('Control+s');
+  await s.page.keyboard.press('Control+s');
+  await wait(s, 800);
+  assert.equal(await s.page.locator(`${WIN} .fp-dialog`).count(), 1, 'one save picker for two Ctrl+S');
+  // Alt+F4 / taskbar close while the picker is open: no second prompt, window stays
+  const closed = await P(s, (p, el) => window.__aurora.wm.get(el.dataset.id).close());
+  assert.equal(closed, false, 'close is refused while a dialog is open');
+  assert.equal(await s.page.locator(`${WIN} .pt-ask`).count(), 0, 'no save prompt stacked on the picker');
+  await dismissDialogs(s);
+  await waitFor(s, () => !document.querySelector('.win.app-paint .dialog-layer:not(.closing)'));
+  // double click on the title-bar Save button
+  await s.page.click(`${WIN} .pt-qa[data-tip^="Save"]`, { clickCount: 2 });
+  await wait(s, 800);
+  assert.equal(await s.page.locator(`${WIN} .fp-dialog`).count(), 1, 'one picker for a double click');
+  await dismissDialogs(s);
+  await wait(s, 250);
+  // Ctrl+O twice on a dirty picture: a single "save changes?" prompt
+  await s.page.locator(`${WIN} .pt-scroll`).focus();
+  await s.page.keyboard.press('Control+o');
+  await s.page.keyboard.press('Control+o');
+  await wait(s, 600);
+  assert.equal((await dialogTexts(s)).length, 1, 'one prompt for two Ctrl+O');
+  await dismissDialogs(s);
+  await wait(s, 300);
+  // keyboard shortcuts work again once the dialogs are gone
+  await s.page.keyboard.press('b');
+  assert.equal(await P(s, (p) => p.S.tool), 'brush', 'focus returned to the canvas');
+  await s.page.keyboard.press('p');
+});
+
+await test('Ctrl+Z in the middle of a stroke only cancels that stroke', async () => {
+  await tool(s, 'pencil');
+  const before = (await P(s, (p) => p.history)).undo;
+  const h0 = await hash(s);
+  await P(s, (p) => p.reveal([[300, 300], [400, 330]]));
+  const a = await client(s, 300, 300);
+  const b = await client(s, 400, 330);
+  await s.page.mouse.move(a.x, a.y);
+  await s.page.mouse.down();
+  await s.page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 4 });
+  await s.page.keyboard.press('Control+z');
+  await s.page.mouse.move(b.x, b.y, { steps: 4 });
+  await s.page.mouse.up();
+  await wait(s, 150);
+  assert.equal((await P(s, (p) => p.history)).undo, before, 'earlier steps untouched');
+  assert.equal(await hash(s), h0, 'the cancelled stroke left no pixels');
+});
+
+await test('error paths show localized explanations (undecodable, empty, folder, missing, bad save folder)', async () => {
+  fs.writeFileSync(path.join(pics, 'garbage.png'), 'this is not a picture');
+  fs.writeFileSync(path.join(pics, 'empty.png'), '');
+  fs.mkdirSync(path.join(pics, 'folder.png'), { recursive: true });
+  const cases = [
+    ['garbage.png', "Paint can't open garbage.png.", "The file isn't a picture, or it is damaged."],
+    ['empty.png', "Paint can't open empty.png.", "The file isn't a picture, or it is damaged."],
+    ['folder.png', "Paint can't open folder.png.", 'This is a folder, not a picture.'],
+    ['missing.png', "Paint can't open missing.png.", "The file doesn't exist anymore."],
+  ];
+  const h0 = await hash(s);
+  for (const [name, first, why] of cases) {
+    P(s, (p, el, a) => {
+      p.openPath(a);
+    }, path.join(pics, name));
+    const [d] = await waitDialog(s);
+    assert.ok(d.includes(first) && d.includes(why), `${name}: ${d}`);
+    assert.ok(!/EISDIR|ENOENT|source image|InvalidState/.test(d), `no raw system text: ${d}`);
+    await dismissDialogs(s);
+  }
+  assert.equal(await hash(s), h0, 'picture untouched by failed opens');
+  // saving below a regular file -> the folder can't be created
+  P(s, (p, el, a) => {
+    p.writeFile(a, 'png');
+  }, path.join(pics, 'garbage.png', 'x.png'));
+  let [d] = await waitDialog(s);
+  assert.ok(d.includes("Paint can't save x.png.") && d.includes("The folder doesn't exist and can't be created there."), d);
+  await dismissDialogs(s);
+  P(s, (p) => {
+    p.writeFile('/proc/aurora-paint-test.png', 'png');
+  });
+  [d] = await waitDialog(s);
+  assert.ok(d.includes("The folder doesn't exist and can't be created there.") || d.includes("You don't have permission"), d);
+  await dismissDialogs(s);
+  assert.notEqual(await P(s, (p) => p.file.path), '/proc/aurora-paint-test.png', 'failed save keeps the old file name');
+  // a recent file that disappeared is dropped from the Recent list
+  const gone = path.join(pics, 'gone.png');
+  fs.writeFileSync(gone, makePng(12, 8, [0, 128, 255, 255]));
+  await P(s, (p, el, a) => p.openPath(a), gone);
+  assert.ok((await P(s, (p) => p.app.recent())).includes(gone));
+  fs.unlinkSync(gone);
+  P(s, (p, el, a) => {
+    p.app.cmd('openRecent', a);
+  }, gone);
+  [d] = await waitDialog(s);
+  assert.ok(d.includes("The file doesn't exist anymore."), d);
+  await dismissDialogs(s);
+  assert.ok(!(await P(s, (p) => p.app.recent())).includes(gone), 'missing file removed from Recent');
+});
+
+await test('file names are shown as text, never as HTML (title, Recent menu, error message)', async () => {
+  const evil = '<img src=x onerror="window.__pxss=1">.png';
+  const file = path.join(pics, evil);
+  fs.writeFileSync(file, makePng(30, 20, [10, 200, 30, 255]));
+  await P(s, (p, el, a) => p.openPath(a), file);
+  const t = await P(s, (p, el) => el.querySelector('.pt-doctitle').textContent);
+  assert.equal(t, `${evil} - Paint`);
+  await s.page.click(`${WIN} .pt-menu-btn:nth-child(1)`);
+  await wait(s, 250);
+  await s.page.locator('.menu .menu-item', { hasText: 'Recent' }).hover();
+  await wait(s, 400);
+  const labels = await s.page.locator('.menu .menu-item .label').allTextContents();
+  assert.ok(labels.includes(evil), 'literal name in the Recent menu');
+  await s.page.keyboard.press('Escape');
+  await s.page.keyboard.press('Escape');
+  const bad = path.join(pics, '<b onmouseover=alert(1)>bad<b>.png');
+  fs.writeFileSync(bad, 'nope');
+  P(s, (p, el, a) => {
+    p.openPath(a);
+  }, bad);
+  const [d] = await waitDialog(s);
+  assert.ok(d.includes("can't open <b onmouseover=alert(1)>bad<b>.png"), d);
+  await dismissDialogs(s);
+  const injected = await s.page.evaluate(() => ({ imgs: document.querySelectorAll('img[src="x"]').length, bold: document.querySelectorAll('.win.app-paint b, .menu b, .dialog b').length, xss: window.__pxss }));
+  assert.deepEqual(injected, { imgs: 0, bold: 0, xss: undefined });
+});
+
+await test('canvas grip and pasting respect the 16000 px / 50 megapixel limits', async () => {
+  await P(s, (p) => p.app.cmd('new'));
+  await dismissDialogs(s);
+  await waitFor(s, (p) => p.size.w === 1152);
+  await P(s, (p) => p.setZoom(0.02));
+  await wait(s, 300);
+  const g = await s.page.locator(`${WIN} .pt-cvh-se`).boundingBox();
+  await s.page.mouse.move(g.x + 4, g.y + 4);
+  await s.page.mouse.down();
+  await s.page.mouse.move(g.x + 420, g.y + 330, { steps: 6 });
+  await s.page.mouse.up();
+  await wait(s, 600);
+  const sz = await P(s, (p) => p.size);
+  assert.ok(sz.w > 1152 && sz.h > 648, `canvas grew: ${sz.w}x${sz.h}`);
+  assert.ok(sz.w * sz.h <= 50e6 && sz.w <= 16000 && sz.h <= 16000, `within limits: ${sz.w}x${sz.h}`);
+  await P(s, (p) => p.app.cmd('undo'));
+  await waitFor(s, (p) => p.size.w === 1152 && p.size.h === 648);
+  await P(s, (p) => p.setZoom(1));
+  // a 16001-pixel-wide picture can't be pasted
+  const wide = path.join(pics, 'too-wide.png');
+  fs.writeFileSync(wide, makePng(16001, 4, [0, 0, 0, 255]));
+  P(s, (p, el, a) => {
+    p.pasteFromPath(a);
+  }, wide);
+  const [d] = await waitDialog(s, 8000);
+  assert.ok(d.includes('too large to paste'), d);
+  await dismissDialogs(s);
+  assert.deepEqual(await P(s, (p) => p.size), { w: 1152, h: 648 });
+  assert.equal(await P(s, (p) => p.sel), null);
+});
+
+await test('Save as honours a typed picture extension; .ico pictures are not overwritten with PNG data', async () => {
+  await P(s, (p) => p.app.setTool('pencil'));
+  P(s, (p) => {
+    p.app.cmd('saveAs');
+  });
+  await savePicker(s, 'typed.jpg');
+  await waitFor(s, (p) => p.file.name === 'typed.jpg');
+  const jpg = fs.readFileSync(path.join(pics, 'typed.jpg'));
+  assert.deepEqual([...jpg.subarray(0, 3)], [0xff, 0xd8, 0xff], 'JPEG data in typed.jpg');
+  assert.equal(await P(s, (p) => p.file.format), 'jpeg');
+  assert.ok(!fs.existsSync(path.join(pics, 'typed.jpg.png')));
+  P(s, (p) => {
+    p.app.cmd('saveAs', 'png');
+  });
+  await savePicker(s, 'plain');
+  await waitFor(s, (p) => p.file.name === 'plain.png');
+  assert.deepEqual(pngSize(path.join(pics, 'plain.png')), { w: 1152, h: 648 });
+  // .ico: opens, but Ctrl+S asks for a name and format
+  const ico = path.join(pics, 'app.ico');
+  const icoBytes = makeIco(32, 32, [255, 0, 255, 255]);
+  fs.writeFileSync(ico, icoBytes);
+  await P(s, (p, el, a) => p.openPath(a), ico);
+  assert.deepEqual(await P(s, (p) => p.size), { w: 32, h: 32 });
+  assert.deepEqual(await px(s, 3, 3), [255, 0, 255, 255]);
+  await tool(s, 'pencil');
+  await drag(s, [[2, 2], [20, 20]]);
+  await s.page.locator(`${WIN} .pt-scroll`).focus();
+  await s.page.keyboard.press('Control+s');
+  await s.page.waitForSelector(`${WIN} .fp-dialog`, { timeout: 4000 });
+  await dismissDialogs(s);
+  assert.ok(fs.readFileSync(ico).equals(icoBytes), 'the .ico file is unchanged');
+});
+
+await test('shell launch arguments: wrong types ignored, relative paths refused, launch never waits for a message', async () => {
+  const count = () => s.page.locator(WIN).count();
+  const n0 = await count();
+  const keep = await s.aurora(() => window.__aurora.wm.list().filter((w) => w.appId === 'paint').map((w) => w.id));
+  try {
+    await s.aurora(() => window.__aurora.registry.launch('paint', { file: { evil: 1 } }));
+    await s.page.waitForFunction((n) => document.querySelectorAll('.win.app-paint').length === n + 1, n0);
+    await wait(s, 400);
+    assert.deepEqual(await dialogTexts(s), [], 'no message for a non-string argument');
+    const resolved = await s.aurora(() => Promise.race([window.__aurora.registry.launch('paint', { file: '../../etc/x.png' }).then(() => 'resolved'), new Promise((r) => setTimeout(() => r('blocked'), 4000))]));
+    assert.equal(resolved, 'resolved', 'launch() returns while the error message is shown');
+    const d = await waitDialog(s);
+    assert.ok(d.some((x) => x.includes("Paint can't open x.png.")), d.join('|'));
+  } finally {
+    await dismissDialogs(s);
+    await s.aurora((ids) => {
+      window.__aurora.wm
+        .list()
+        .filter((w) => w.appId === 'paint' && !ids.includes(w.id))
+        .forEach((w) => w.close(true));
+    }, keep);
+    await s.page.waitForFunction((n) => document.querySelectorAll('.win.app-paint').length === n, n0);
+    await wait(s, 300);
+  }
+});
+
+await test('keyboard: the tools grid, shape gallery and palette are single Tab stops with arrow keys inside', async () => {
+  await tool(s, 'fill');
+  const stops = await P(s, (p, el) => ({
+    tools: [...el.querySelectorAll('.pt-tools button')].filter((b) => b.tabIndex === 0).map((b) => b.dataset.tool),
+    shapes: [...el.querySelectorAll('.pt-gallery button')].filter((b) => b.tabIndex === 0).length,
+    palette: [...el.querySelectorAll('.pt-pal-wrap button')].filter((b) => b.tabIndex === 0).length,
+  }));
+  assert.deepEqual(stops, { tools: ['fill'], shapes: 1, palette: 1 });
+  await s.page.focus(`${WIN} .pt-tools [data-tool="fill"]`);
+  await s.page.keyboard.press('ArrowRight');
+  assert.equal(await s.page.evaluate(() => document.activeElement.dataset.tool), 'text');
+  await s.page.keyboard.press('Tab');
+  const next = await s.page.evaluate(() => document.activeElement.getAttribute('aria-label'));
+  assert.equal(next, 'Brushes', 'Tab leaves the tools grid');
+  await s.page.keyboard.press('Shift+Tab');
+  assert.equal(await s.page.evaluate(() => document.activeElement.dataset.tool), 'text', 'Shift+Tab returns to the last focused tool');
+  await s.page.keyboard.press('Enter');
+  assert.equal(await P(s, (p) => p.S.tool), 'text');
+  await tool(s, 'pencil');
+});
+
+await test('picking a colour with the mouse while typing keeps the text box active', async () => {
+  P(s, (p) => {
+    p.app.cmd('new');
+  });
+  const ask = await s.page.waitForSelector(`${WIN} .pt-ask`, { timeout: 800 }).catch(() => null);
+  if (ask) await s.page.click(`${WIN} .pt-ask .dialog-footer .btn:nth-child(2)`);
+  await waitFor(s, (p) => p.size.w === 1152 && !p.dirty());
+  await setZoom100(s);
+  await tool(s, 'text');
+  await click(s, 300, 300);
+  await s.page.waitForSelector(`${WIN} .pt-ta`);
+  await s.page.keyboard.type('ab');
+  await s.page.click(`${WIN} .pt-palette .pt-sw[data-color="#ed1c24"]`);
+  await s.page.keyboard.type('c');
+  assert.equal(await P(s, (p, el) => el.querySelector('.pt-ta').value), 'abc');
+  assert.equal(await P(s, (p) => p.S.primary), '#ed1c24');
+  await s.page.keyboard.press('Escape');
+  await waitFor(s, (p) => !p.pending);
+  assert.ok((await nonWhite(s, 295, 295, 120, 60)) > 20, 'red text committed');
+  await P(s, (p) => p.app.setColor('primary', '#000000'));
+  await tool(s, 'pencil');
+});
+
 await test('closing with unsaved changes asks Save / Don\'t save / Cancel', async () => {
   await tool(s, 'pencil');
   await drag(s, [[5, 5], [40, 30]]);
@@ -1022,6 +1372,46 @@ await test('small (minimum size) and maximized windows keep the command bar usab
   await s.shot('paint-max');
 });
 
+await test('opening and closing Paint 15 times leaks no listeners or DOM nodes', async () => {
+  const cdp = await s.page.context().newCDPSession(s.page);
+  const counts = async () => {
+    await cdp.send('HeapProfiler.collectGarbage');
+    const out = {};
+    for (const [k, expr] of [['window', 'window'], ['document', 'document'], ['body', 'document.body']]) {
+      const { result } = await cdp.send('Runtime.evaluate', { expression: expr });
+      const { listeners } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId });
+      out[k] = listeners.length;
+    }
+    out.nodes = await s.page.evaluate(() => document.getElementsByTagName('*').length);
+    return out;
+  };
+  const closeAll = async () => {
+    await s.aurora(() => window.__aurora.wm.list().filter((w) => w.appId === 'paint').forEach((w) => w.close(true)));
+    await s.page.waitForFunction(() => !document.querySelector('.win.app-paint'), null, { timeout: 5000 });
+    await wait(s, 300);
+  };
+  await closeAll();
+  const before = await counts();
+  for (let i = 0; i < 15; i++) {
+    await s.aurora(() => window.__aurora.registry.launch('paint'));
+    await s.page.waitForSelector(`${WIN} .pt-doc`);
+    await wait(s, 150);
+    await tool(s, 'pencil');
+    await drag(s, [[30, 30], [90, 60]], { steps: 3 });
+    await s.page.click(`${WIN} .pt-g[data-g="size"] .pt-b:not(.pt-g-compact)`);
+    await wait(s, 60);
+    await s.page.keyboard.press('Escape');
+    await s.page.click(`${WIN} .pt-menu-btn:nth-child(3)`);
+    await wait(s, 60);
+    await s.page.keyboard.press('Escape');
+    await P(s, (p) => p.app.setTool('text'));
+    await closeAll();
+  }
+  const after = await counts();
+  assert.deepEqual(after, before, `listeners/nodes before ${JSON.stringify(before)} after ${JSON.stringify(after)}`);
+  await cdp.detach();
+});
+
 await test('no renderer errors in the English/light session', async () => {
   const errs = await errorsOf(s);
   assert.deepEqual(errs, []);
@@ -1072,12 +1462,182 @@ await test('demo drawing + screenshots (dark, fr) and dialogs in French', async 
   await f.page.keyboard.press('Escape');
   // text tool bar in French + dark
   await tool(f, 'text');
-  await wait(f, 300);
+  await f.page.mouse.move(800, 600); // no tooltip in the docs screenshot
+  await wait(f, 500);
   await f.shot('paint-text-fr');
   fs.copyFileSync(path.join(OUT, 'paint-text-fr.png'), path.join(DOCS, 'paint-text-fr.png'));
   const errs = await errorsOf(f);
   assert.deepEqual(errs, []);
 });
+await test('French: menus, submenus, flyouts, context menus, messages and dialogs have no English left', async () => {
+  const flat = (o, p = '') => Object.entries(o).flatMap(([k, v]) => (typeof v === 'object' ? flat(v, `${p}${k}.`) : [[p + k, v]]));
+  const read = (f) => JSON.parse(fs.readFileSync(path.join(here, '..', 'renderer', f), 'utf8'));
+  const app = read('apps/paint/i18n.json');
+  const frVals = new Set([...flat(app.fr), ...flat(read('core/i18n/fr.json'))].map((x) => x[1]));
+  const english = new Set([...flat(app.en), ...flat(read('core/i18n/en.json'))].map((x) => x[1]).filter((v) => typeof v === 'string' && !frVals.has(v) && /[a-z]{3}/i.test(v) && !v.includes('{')));
+  const found = new Map();
+  const scan = async (where) => {
+    const texts = await f.page.evaluate(() => {
+      const out = [];
+      for (const r of document.querySelectorAll('.win.app-paint, .menu')) {
+        const walker = document.createTreeWalker(r, NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          if (n.parentElement?.closest('[hidden], option')) continue;
+          const v = n.textContent.trim();
+          if (v) out.push(v);
+        }
+        for (const el of r.querySelectorAll('[data-tip],[aria-label],[title],[placeholder]')) for (const a of ['data-tip', 'aria-label', 'title', 'placeholder']) if (el.getAttribute(a)) out.push(el.getAttribute(a));
+      }
+      return out;
+    });
+    // strings from the English dictionaries, and English sentences that come from nowhere
+    // (raw system or decoder messages)
+    const words = /\b(the|cannot|can't|doesn't|isn't|couldn't|failed|error|invalid|denied|permission|please|with|from|this|your)\b/i;
+    for (const raw of texts) {
+      for (const line of raw.split('\n')) {
+        const v = line.replace(/\s*(\(.*\)|—.*)$/, '').trim();
+        if (english.has(v) || english.has(line.trim()) || words.test(line)) found.set(v, where);
+      }
+    }
+  };
+  const esc = async () => {
+    await f.page.keyboard.press('Escape');
+    await wait(f, 200);
+  };
+  await P(f, (p) => p.app.setTool('pencil'));
+  await scan('window');
+  for (const i of [1, 2, 3]) {
+    await f.page.click(`${WIN} .pt-menu-btn:nth-child(${i})`);
+    await wait(f, 300);
+    await scan(`menu ${i}`);
+    const items = f.page.locator('.menu').first().locator('.menu-item:not(.disabled)');
+    const n = await items.count();
+    for (let k = 0; k < n; k++) {
+      await items.nth(k).hover();
+      await wait(f, 280);
+      await scan(`menu ${i} item ${k}`);
+    }
+    await esc();
+    await esc();
+  }
+  for (const sel of ['.pt-split-arrow', '.pt-b.sm.wide', '.pt-zoom-pct']) {
+    const n = await f.page.locator(`${WIN} ${sel}`).count();
+    for (let k = 0; k < n; k++) {
+      await f.page.locator(`${WIN} ${sel}`).nth(k).click();
+      await wait(f, 280);
+      await scan(`${sel} ${k}`);
+      await esc();
+    }
+  }
+  for (const g of ['brushes', 'size']) {
+    await P(f, (p) => p.app.setTool('pencil'));
+    await f.page.click(`${WIN} .pt-g[data-g="${g}"] .pt-b:not(.pt-g-compact)`);
+    await wait(f, 300);
+    await scan(`flyout ${g}`);
+    await esc();
+  }
+  for (const id of ['text', 'fill']) {
+    await P(f, (p, el, a) => p.app.setTool(a), id);
+    await wait(f, 200);
+    await scan(`context bar ${id}`);
+  }
+  await P(f, (p) => p.app.setTool('select'));
+  await click(f, 200, 200, { button: 'right' });
+  await wait(f, 300);
+  await scan('selection context menu');
+  await esc();
+  for (const c of ['resize', 'props', 'editColors', 'about']) {
+    P(f, (p, el, a) => {
+      p.app.cmd(a);
+    }, c);
+    await wait(f, 450);
+    await scan(`dialog ${c}`);
+    await dismissDialogs(f);
+  }
+  await P(f, (p) => p.app.setTool('pencil'));
+  await drag(f, [[40, 40], [90, 80]]);
+  P(f, (p) => {
+    p.app.cmd('new');
+  });
+  await wait(f, 450);
+  await scan('save changes prompt');
+  await dismissDialogs(f);
+  P(f, (p) => {
+    p.app.cmd('wallpaper', 'fill');
+  });
+  await wait(f, 450);
+  await scan('wallpaper prompt');
+  await dismissDialogs(f);
+  P(f, (p) => {
+    p.app.cmd('saveAs');
+  });
+  await wait(f, 900);
+  await scan('save as picker');
+  await dismissDialogs(f);
+  fs.writeFileSync(path.join(f.home, 'Pictures', 'abime.png'), 'xx');
+  P(f, (p, el, a) => {
+    p.openPath(a);
+  }, path.join(f.home, 'Pictures', 'abime.png'));
+  const [d] = await waitDialog(f);
+  assert.ok(d.includes("Ce fichier n'est pas une image, ou il est endommagé."), d);
+  await scan('error message');
+  await dismissDialogs(f);
+  assert.deepEqual([...found].map(([v, w]) => `${w}: ${v}`), [], 'English strings in the French UI');
+});
+
+await test('minimum window size in French: text/fill options, status bar and title fit without clipping', async () => {
+  const id = await P(f, (p, el) => el.dataset.id);
+  await f.aurora((wid) => {
+    const w = window.__aurora.wm.get(wid);
+    w.restore();
+    w.setRect({ width: 300, height: 200 });
+  }, id);
+  await wait(f, 500);
+  const rect = await f.aurora((wid) => window.__aurora.wm.get(wid).rect(), id);
+  assert.deepEqual([rect.width, rect.height], [560, 380], 'manifest minimum size');
+  const check = () =>
+    P(f, (p, el) => {
+      const wr = el.getBoundingClientRect();
+      const out = [];
+      for (const sel of ['.pt-ctxbar', '.pt-status', '.pt-cmdbar']) {
+        const bar = el.querySelector(sel);
+        if (!bar || bar.hidden) continue;
+        const br = bar.getBoundingClientRect();
+        if (bar.scrollWidth > bar.clientWidth + 1) out.push(`${sel} overflows by ${bar.scrollWidth - bar.clientWidth}px`);
+        for (const x of bar.querySelectorAll('button, input, select, .segmented, span')) {
+          if (x.offsetParent === null || x.closest('[hidden]') || x.closest('.pt-g.compact .pt-g-body')) continue;
+          const r = x.getBoundingClientRect();
+          if (!r.width) continue;
+          if (r.right > Math.min(br.right, wr.right) + 1 || r.left < br.left - 1) out.push(`${sel} ${x.className || x.tagName} "${x.textContent.trim().slice(0, 20)}" cut off`);
+        }
+      }
+      const tt = el.querySelector('.pt-doctitle');
+      if (!tt.classList.contains('tiny') && tt.scrollWidth > tt.clientWidth + 1 && tt.clientWidth < 72) out.push('title cut to a few letters');
+      return out;
+    });
+  for (const t of ['text', 'fill', 'pencil']) {
+    await P(f, (p, el, a) => p.app.setTool(a), t);
+    await wait(f, 350);
+    assert.deepEqual(await check(), [], `tool ${t}`);
+    if (t === 'text') await f.shot('paint-min-fr-text');
+  }
+  // every text option is still reachable
+  await P(f, (p) => p.app.setTool('text'));
+  await wait(f, 300);
+  const seg = await f.page.locator(`${WIN} .pt-ctxbar .segmented button`).last().boundingBox();
+  const win = await f.page.locator(WIN).boundingBox();
+  assert.ok(seg && seg.x + seg.width <= win.x + win.width, 'background option inside the window');
+  await f.page.locator(`${WIN} .pt-ctxbar .segmented button`).last().click();
+  assert.equal(await P(f, (p) => p.S.text.opaque), true);
+  await f.page.locator(`${WIN} .pt-ctxbar .segmented button`).first().click();
+  await P(f, (p) => p.app.setTool('pencil'));
+  await f.aurora((wid) => window.__aurora.wm.get(wid).maximize(), id);
+  await wait(f, 500);
+  assert.deepEqual(await check(), [], 'maximized');
+  assert.equal(await P(f, (p, el) => el.querySelector('.pt-doctitle').classList.contains('tiny')), false, 'title visible when maximized');
+  assert.deepEqual(await errorsOf(f), []);
+});
+
 await f.close();
 
 // ================================================================== high-DPI (shell scale 200 %)
@@ -1104,6 +1664,42 @@ await test('high-DPI: at 100 % one image pixel is one device pixel, and strokes 
   assert.deepEqual(await errorsOf(hd), []);
 });
 await hd.close();
+
+// ================================================================== damaged preferences
+{
+  const prefHome = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-paint-prefs-'));
+  const dir = path.join(prefHome, '.config', 'aurora', 'apps', 'paint');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'prefs.json'),
+    JSON.stringify({ tool: 'shape', shape: 'bogus<script>', outline: 'bogus', fill: { x: 1 }, sizes: { shape: 'abc', brush: 1e9 }, primary: 'red', secondary: '#12345', custom: ['#zzzzzz', 7], text: { family: 'x'.repeat(500), sizePt: -5, bold: 'yes' }, tolerance: 'lots' }),
+  );
+  fs.writeFileSync(path.join(dir, 'recent.json'), JSON.stringify(['/nope.png', 42, { a: 1 }, null]));
+  const pr = await launchShell({ open: ['paint'], lang: 'en', theme: 'light', home: prefHome });
+  current = pr;
+  await pr.page.waitForSelector(`${WIN} .pt-doc`, { timeout: 30000 });
+  await wait(pr, 600);
+  await test('damaged stored preferences fall back to defaults and drawing still works', async () => {
+    const st = await P(pr, (p) => ({ tool: p.S.tool, shape: p.S.shape, outline: p.S.outline, fill: p.S.fill, sizes: p.S.sizes, primary: p.S.primary, secondary: p.S.secondary, family: p.S.text.family, sizePt: p.S.text.sizePt, tol: p.S.tolerance, recent: p.app.recent() }));
+    assert.equal(st.tool, 'shape');
+    assert.equal(st.shape, 'rect');
+    assert.equal(st.outline, 'solid');
+    assert.equal(st.fill, 'none');
+    assert.deepEqual(st.sizes, { pencil: 1, brush: 50, eraser: 10, shape: 3 });
+    assert.equal(st.primary, '#000000');
+    assert.equal(st.secondary, '#ffffff');
+    assert.ok(st.family.length < 120);
+    assert.equal(st.sizePt, 24);
+    assert.equal(st.tol, 12);
+    assert.deepEqual(st.recent, ['/nope.png']);
+    await drag(pr, [[100, 100], [220, 180]]);
+    await P(pr, (p) => p.commitPending());
+    assert.ok((await nonWhite(pr, 95, 95, 130, 90)) > 100, 'rectangle drawn');
+    assert.deepEqual(await errorsOf(pr), []);
+  });
+  await pr.close();
+  fs.rmSync(prefHome, { recursive: true, force: true });
+}
 
 // ------------------------------------------------------------------ demo drawing
 async function demo(sx) {

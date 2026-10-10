@@ -99,6 +99,7 @@ export class Doc {
     });
     ta.addEventListener('input', (e) => this.onInput(e));
     ta.addEventListener('keydown', (e) => {
+      if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) this._menuKeyAt = Date.now();
       if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
         e.preventDefault();
         this.replaceSelection('\t', { kind: 'type', reveal: !this.nw.prefs.wordWrap });

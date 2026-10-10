@@ -20,6 +20,7 @@ export function formatOf(path) {
   return null;
 }
 
+/** Decodes a picture. Rejects with an Error whose `code` is 'EDECODE' when the data is not a picture. */
 export async function decodeImage(bytes) {
   const blob = bytes instanceof Blob ? bytes : new Blob([bytes]);
   try {
@@ -32,6 +33,10 @@ export async function decodeImage(bytes) {
       img.src = url;
       await img.decode();
       return await createImageBitmap(img);
+    } catch (err) {
+      const e = new Error(err?.message || 'Cannot decode the picture');
+      e.code = 'EDECODE';
+      throw e;
     } finally {
       URL.revokeObjectURL(url);
     }

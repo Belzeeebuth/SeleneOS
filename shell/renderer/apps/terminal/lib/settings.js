@@ -65,6 +65,15 @@ export class SettingsPage {
     this.render();
   }
 
+  // The list of installed fonts arrived (lib/window.js): refresh the font face list if it is shown.
+  fontsChanged() {
+    const sel = this.main.querySelector('select[data-key="fontFace"]');
+    if (!sel || sel.matches(':focus')) return;
+    const row = sel.closest('.tm-set-row');
+    const fresh = this.fontRow();
+    row.replaceWith(fresh);
+  }
+
   dispose() {
     for (const off of this.offs) off?.();
     this.ro?.disconnect();
@@ -216,12 +225,24 @@ export class SettingsPage {
     const dirInput = h('input', { class: 'input tm-dir', type: 'text', spellcheck: false, placeholder: t('settings.homeFolder'), value: prefs.get('startDir') });
     dirInput.addEventListener('change', async () => {
       const v = dirInput.value.trim();
-      if (v && !(await this.ctx.api.invoke('fs:exists', v).catch(() => false))) {
-        ui.alert(t('settings.noSuchFolder', { path: v }), { parent: this.app.win });
-        dirInput.value = prefs.get('startDir');
-        return;
+      if (v) {
+        // '~' and '~/…' are the home folder (main/ipc/pty.js expands them the same way).
+        const home = this.app.env?.home || '';
+        const abs = v === '~' ? home : v.startsWith('~/') ? `${home}/${v.slice(2)}` : v;
+        const st = abs.startsWith('/') ? await this.ctx.api.invoke('fs:stat', abs).catch(() => null) : null;
+        if (!st?.dir) {
+          ui.alert(t('settings.noSuchFolder', { path: v }), { title: t('settings.startDir'), parent: this.app.win });
+          dirInput.value = prefs.get('startDir');
+          return;
+        }
       }
       prefs.set('startDir', v);
+    });
+    dirInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && dirInput.value !== prefs.get('startDir')) {
+        e.stopPropagation();
+        dirInput.value = prefs.get('startDir');
+      }
     });
     const browse = h(
       'button',
@@ -262,6 +283,7 @@ export class SettingsPage {
     body.appendChild(this.row({ id: 'copyOnSelect', icon: 'copy', label: t('settings.copyOnSelect'), desc: t('settings.copyOnSelectDesc'), control: this.toggle('copyOnSelect') }));
     body.appendChild(this.row({ id: 'confirmClose', icon: 'dismiss_square_multiple', label: t('settings.confirmClose'), desc: t('settings.confirmCloseDesc'), control: this.toggle('confirmClose') }));
     body.appendChild(this.row({ id: 'warnPaste', icon: 'clipboard_paste', label: t('settings.warnPaste'), desc: t('settings.warnPasteDesc'), control: this.toggle('warnPaste') }));
+    body.appendChild(this.row({ id: 'warnLargePaste', icon: 'clipboard_text_ltr', label: t('settings.warnLargePaste'), desc: t('settings.warnLargePasteDesc'), control: this.toggle('warnLargePaste') }));
     body.appendChild(
       this.row({
         id: 'bell',
@@ -309,16 +331,35 @@ export class SettingsPage {
       const sp = (color, text, bold) => h('span', { style: { color, fontWeight: bold ? '700' : null } }, text);
       const user = this.app.env?.user || 'user';
       const host = this.app.env?.hostname || 'aurora';
+      const root = user === 'root';
       const shape = prefs.get('cursorShape');
+      // The Aurora prompt: green user@host (red for root), blue folder.
+      const prompt = () => [sp(root ? c.brightRed : c.brightGreen, `${user}@${host}`, true), ':', sp(c.brightBlue, '~', true), root ? '# ' : '$ '];
       this.ctx.ui.clear(el);
       el.append(
-        h('div', null, sp(c.brightGreen, `${user}@${host}`, true), ':', sp(c.brightBlue, '~', true), '$ ls --color'),
+        h('div', null, ...prompt(), 'ls --color'),
         h('div', null, sp(c.brightBlue, 'Documents', true), '  ', sp(c.brightBlue, 'Music', true), '  ', sp(c.brightGreen, 'run.sh', true), '  notes.txt  ', sp(c.brightRed, 'photo.zip', true)),
-        h('div', null, sp(c.brightGreen, `${user}@${host}`, true), ':', sp(c.brightBlue, '~', true), '$ ', h('span', { class: ['tm-preview-cursor', shape, prefs.get('cursorBlink') && 'blink'], style: { '--c': c.cursor } })),
+        h('div', null, ...prompt(), h('span', { class: ['tm-preview-cursor', shape, prefs.get('cursorBlink') && 'blink'], style: { '--c': c.cursor } })),
       );
     };
     this.syncers.push(draw);
     return el;
+  }
+
+  fontRow() {
+    // Curated faces that are installed, then every other installed monospace family (fontconfig).
+    const installed = Array.isArray(this.app.fonts) ? this.app.fonts : [];
+    const curated = installed.length ? FONTS.filter((f) => installed.includes(f)) : FONTS;
+    const fonts = [...new Set([...curated, ...installed, prefs.get('fontFace')])];
+    return this.row({
+      id: 'fontFace',
+      icon: 'text_font',
+      label: this.t('settings.fontFace'),
+      control: this.select(
+        'fontFace',
+        fonts.map((f) => ({ value: f, label: f })),
+      ),
+    });
   }
 
   render_appearance(body) {
@@ -326,18 +367,7 @@ export class SettingsPage {
     const t = this.t;
     body.appendChild(this.preview());
     body.appendChild(this.row({ id: 'scheme', icon: 'color', label: t('settings.scheme'), desc: t('settings.schemeDesc'), control: this.select('scheme', this.schemeOptions()) }));
-    const fonts = [...new Set([...FONTS, prefs.get('fontFace')])];
-    body.appendChild(
-      this.row({
-        id: 'fontFace',
-        icon: 'text_font',
-        label: t('settings.fontFace'),
-        control: this.select(
-          'fontFace',
-          fonts.map((f) => ({ value: f, label: f })),
-        ),
-      }),
-    );
+    body.appendChild(this.fontRow());
     body.appendChild(this.row({ id: 'fontSize', icon: 'text_font_size', label: t('settings.fontSize'), desc: t('settings.fontSizeDesc'), control: this.number('fontSize', { min: 6, max: 48 }) }));
     body.appendChild(
       this.row({
@@ -376,11 +406,12 @@ export class SettingsPage {
 
     body.appendChild(h('h2', { class: 'tm-set-h2' }, t('settings.background')));
     const val = h('span', { class: 'tm-slider-val' });
-    const slider = ui.slider({ min: 20, max: 100, step: 1, value: prefs.get('opacity'), oninput: (v) => ((val.textContent = `${v} %`), prefs.set('opacity', v)) });
+    const pct = (v) => (this.ctx.i18n.formatNumber ? this.ctx.i18n.formatNumber(v / 100, { style: 'percent' }) : `${v}%`);
+    const slider = ui.slider({ min: 20, max: 100, step: 1, value: prefs.get('opacity'), oninput: (v) => ((val.textContent = pct(v)), prefs.set('opacity', v)) });
     slider.setAttribute('aria-label', t('settings.opacity'));
     this.syncers.push(() => {
       if (Number(slider.value) !== prefs.get('opacity')) slider.setValue(prefs.get('opacity'));
-      val.textContent = `${prefs.get('opacity')} %`;
+      val.textContent = pct(prefs.get('opacity'));
     });
     const noTransparency = h('div', { class: 'tm-set-note', hidden: true }, t('settings.transparencyOff'));
     this.syncers.push(() => (noTransparency.hidden = document.documentElement.dataset.transparency !== 'off'));

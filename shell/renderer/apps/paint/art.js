@@ -48,10 +48,17 @@ function glyphCursor(name, hot, { flip = false } = {}) {
   return svgCursor(svg, (hot[0] + 1) * k, (hot[1] + 1) * k);
 }
 
+// Brush/eraser cursors depend on size × zoom (continuous with Ctrl+wheel): keep the cache bounded.
 const cache = new Map();
+const CACHE_MAX = 160;
 function cached(key, fn) {
-  if (!cache.has(key)) cache.set(key, fn());
-  return cache.get(key);
+  let v = cache.get(key);
+  if (v === undefined) {
+    v = fn();
+    if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
+  } else cache.delete(key);
+  cache.set(key, v);
+  return v;
 }
 
 /** CSS cursor for a tool. opts: { size (image px), scale (CSS px per image px) } */

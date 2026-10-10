@@ -1,0 +1,4 @@
+# Calendar (shell/renderer/apps/calendar): pure JavaScript — recurrence engine, holidays and .ics
+# parser/writer run in the shell; time zone rules come from Electron's bundled ICU. The system
+# time zone is read from /etc/localtime, which needs the zoneinfo database:
+tzdata

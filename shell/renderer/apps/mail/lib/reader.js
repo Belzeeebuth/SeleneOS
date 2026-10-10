@@ -385,7 +385,13 @@ export class Reader {
     if (!this.msg) return;
     Object.assign(this.msg, patch);
     const bar = this.el.querySelector('.ml-read-bar');
-    if (bar) bar.replaceWith(this.toolbar(this.msg));
+    if (bar) {
+      // Keep keyboard focus on the same button (Flag, Mark as unread…) in the new toolbar.
+      const focused = bar.contains(document.activeElement) ? document.activeElement.closest('button')?.name : null;
+      const next = this.toolbar(this.msg);
+      bar.replaceWith(next);
+      if (focused) next.querySelector(`button[name="${focused}"]`)?.focus();
+    }
     const flags = this.headEl?.querySelector('.ml-head-flags');
     if (flags) {
       this.ctx.ui.clear(flags);

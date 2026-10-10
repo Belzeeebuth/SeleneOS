@@ -67,9 +67,28 @@ export function isValidZone(tz) {
   }
 }
 
+// CLDR (what Intl may report) still uses a few old names; the city list uses the current IANA ones.
+const ALIASES = {
+  'Asia/Calcutta': 'Asia/Kolkata',
+  'Asia/Katmandu': 'Asia/Kathmandu',
+  'Asia/Saigon': 'Asia/Ho_Chi_Minh',
+  'Asia/Rangoon': 'Asia/Yangon',
+  'Asia/Ulan_Bator': 'Asia/Ulaanbaatar',
+  'Europe/Kiev': 'Europe/Kyiv',
+  'America/Godthab': 'America/Nuuk',
+  'Atlantic/Faeroe': 'Atlantic/Faroe',
+  'Pacific/Ponape': 'Pacific/Pohnpei',
+  'Pacific/Truk': 'Pacific/Chuuk',
+  'America/Buenos_Aires': 'America/Argentina/Buenos_Aires',
+  'America/Indianapolis': 'America/Indiana/Indianapolis',
+  'Etc/UTC': 'UTC',
+  'Etc/GMT': 'UTC',
+};
+export const canonicalZone = (tz) => ALIASES[tz] || tz;
+
 export function localZone() {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    return canonicalZone(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
   } catch {
     return 'UTC';
   }
@@ -109,7 +128,8 @@ export function offsetFromLocal(tz, at = Date.now(), local = localZone()) {
 
 /** "+6 h", "−5 h 30", "+0 h" */
 export function shortOffset(t, mins) {
-  const sign = mins > 0 ? '+' : mins < 0 ? '−' : '±';
+  if (!mins) return t('world.sameShort');
+  const sign = mins > 0 ? '+' : '−';
   const a = Math.abs(mins);
   const h = Math.floor(a / 60);
   const m = a % 60;
@@ -240,6 +260,16 @@ export function dayKey(at = Date.now()) {
 export function addDays(key, n) {
   const [y, m, d] = key.split('-').map(Number);
   return dayKey(new Date(y, m - 1, d + n, 12));
+}
+
+/** Name for a timer without a name: "5 min", "1 hr 30 min", "45 sec", "2 min 30 sec" */
+export function durationName(t, ms) {
+  const total = Math.round(ms / 1000);
+  const s = total % 60;
+  const m = Math.floor(total / 60);
+  if (!m) return t('units.sOnly', { s });
+  if (s) return t('units.mSec', { m, s });
+  return minutesText(t, m);
 }
 
 /** Short duration text: "1 hr 30 min" / "45 min" */

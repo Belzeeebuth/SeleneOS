@@ -479,7 +479,7 @@ body.tb-autohide .desk-icons {
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--acrylic) 60%, transparent);
   border: 1px solid var(--window-stroke);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(var(--blur-sm, 20px));
   box-shadow: var(--shadow-flyout);
   opacity: 0;
   transform: scale(0.96);
@@ -494,7 +494,8 @@ body.tb-autohide .desk-icons {
 }
 
 /* ---------------- Taskbar ---------------- */
-:root[data-theme="light"] {
+:root[data-theme="light"],
+[data-theme-scope][data-theme="light"] {
   --tb-hover: rgba(255, 255, 255, 0.62);
   --tb-hover-stroke: rgba(0, 0, 0, 0.045);
   --tb-pressed: rgba(255, 255, 255, 0.42);
@@ -502,7 +503,8 @@ body.tb-autohide .desk-icons {
   --tb-ind: rgba(0, 0, 0, 0.42);
   --taskbar-solid: #eeeeee;
 }
-:root[data-theme="dark"] {
+:root[data-theme="dark"],
+[data-theme-scope][data-theme="dark"] {
   --tb-hover: rgba(255, 255, 255, 0.075);
   --tb-hover-stroke: rgba(255, 255, 255, 0.055);
   --tb-pressed: rgba(255, 255, 255, 0.045);
@@ -520,7 +522,7 @@ body.tb-autohide .desk-icons {
   align-items: center;
   background: var(--taskbar-bg);
   border-top: 1px solid var(--window-stroke);
-  backdrop-filter: blur(40px) saturate(160%);
+  backdrop-filter: blur(var(--blur, 40px)) saturate(var(--blur-sat, 160%));
   transition: transform var(--dur-slow) var(--ease-in);
   user-select: none;
 }
@@ -709,7 +711,8 @@ body.has-fullscreen #taskbar {
   display: none;
   background: linear-gradient(to right, #3ab34a var(--p, 0%), color-mix(in srgb, var(--text) 18%, transparent) var(--p, 0%));
 }
-:root[data-theme="dark"] .tb-progress {
+:root[data-theme="dark"] .tb-progress,
+[data-theme-scope][data-theme="dark"] .tb-progress {
   background: linear-gradient(to right, #6ccb5f var(--p, 0%), rgba(255, 255, 255, 0.2) var(--p, 0%));
 }
 .tb-app.has-progress .tb-progress {
@@ -748,7 +751,7 @@ body.has-fullscreen #taskbar.fly-open {
   background: var(--fly-bg);
   border: 1px solid var(--fly-stroke);
   box-shadow: var(--fly-shadow);
-  backdrop-filter: blur(40px) saturate(160%);
+  backdrop-filter: blur(var(--blur, 40px)) saturate(var(--blur-sat, 160%));
   animation: tb-pv-in var(--dur-slow) var(--ease);
   z-index: 10;
 }
@@ -885,7 +888,7 @@ body.has-fullscreen #taskbar.fly-open {
   background: var(--fly-bg);
   border: 1px solid var(--fly-stroke);
   box-shadow: var(--fly-shadow);
-  backdrop-filter: blur(40px) saturate(160%);
+  backdrop-filter: blur(var(--blur, 40px)) saturate(var(--blur-sat, 160%));
   animation: tb-pv-in var(--dur-slow) var(--ease);
   z-index: 10;
 }
@@ -971,26 +974,31 @@ body.has-fullscreen #taskbar.fly-open {
 }
 
 /* ---------------- Flyouts: shared surface + motion ---------------- */
-:root[data-theme="light"] {
-  --fly-bg: rgba(243, 243, 243, 0.84);
-  --fly-footer: rgba(234, 234, 234, 0.72);
+:root[data-theme="light"],
+[data-theme-scope][data-theme="light"] {
+  --fly-bg: rgb(243 243 243 / var(--a-fly, 0.84));
+  --fly-footer: rgb(234 234 234 / calc(var(--a-fly, 0.84) * 0.86));
   --fly-card: rgba(255, 255, 255, 0.6);
   --fly-stroke: rgba(0, 0, 0, 0.09);
   --fly-shadow: 0 32px 64px rgba(0, 0, 0, 0.14), 0 2px 21px rgba(0, 0, 0, 0.12);
 }
-:root[data-theme="dark"] {
-  --fly-bg: rgba(40, 40, 40, 0.82);
-  --fly-footer: rgba(30, 30, 30, 0.6);
+:root[data-theme="dark"],
+[data-theme-scope][data-theme="dark"] {
+  --fly-bg: rgb(40 40 40 / var(--a-fly, 0.82));
+  --fly-footer: rgb(30 30 30 / calc(var(--a-fly, 0.82) * 0.73));
   --fly-card: rgba(255, 255, 255, 0.05);
   --fly-stroke: rgba(255, 255, 255, 0.085);
   --fly-shadow: 0 32px 64px rgba(0, 0, 0, 0.42), 0 2px 21px rgba(0, 0, 0, 0.36);
 }
-:root[data-transparency="off"][data-theme="light"] {
+/* (:where keeps these at the specificity of the theme blocks, so a visual style can still override them) */
+:root[data-transparency="off"]:where([data-theme="light"]),
+:root[data-transparency="off"] :where([data-theme-scope][data-theme="light"]) {
   --fly-bg: #f2f2f2;
   --fly-footer: #e9e9e9;
   --fly-card: #fbfbfb;
 }
-:root[data-transparency="off"][data-theme="dark"] {
+:root[data-transparency="off"]:where([data-theme="dark"]),
+:root[data-transparency="off"] :where([data-theme-scope][data-theme="dark"]) {
   --fly-bg: #2a2a2a;
   --fly-footer: #232323;
   --fly-card: #313131;
@@ -1002,7 +1010,7 @@ body.has-fullscreen #taskbar.fly-open {
   border: 1px solid var(--fly-stroke);
   border-radius: var(--radius);
   box-shadow: var(--fly-shadow);
-  backdrop-filter: blur(40px) saturate(160%);
+  backdrop-filter: blur(var(--blur, 40px)) saturate(var(--blur-sat, 160%));
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -1809,7 +1817,7 @@ body.tb-autohide #toasts {
   background: var(--acrylic);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-dialog);
-  backdrop-filter: blur(60px) saturate(170%);
+  backdrop-filter: blur(var(--blur-lg, 60px)) saturate(170%);
   animation: toast-in var(--dur-slower) var(--ease);
 }
 .toast.leaving {

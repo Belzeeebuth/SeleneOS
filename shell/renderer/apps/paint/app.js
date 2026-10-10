@@ -9,7 +9,7 @@
 import { History, clipRect, cloneCanvas } from './lib/history.js';
 import { fillMask, applyMask } from './lib/fill.js';
 import { applyFinish, bresenham, createEngine, finishFor, finishRect, previewStyle } from './lib/brushes.js';
-import { hitShape, isOpen, normBox, renderShape, shapeBounds } from './lib/shapes.js';
+import { FILLS, hitShape, isOpen, normBox, OUTLINES, renderShape, shapeBounds, SHAPES } from './lib/shapes.js';
 import { layoutText, metrics, fontString, renderText, PT_TO_PX } from './lib/text.js';
 import { decodeImage, encodeCanvas, formatOf, FORMATS, OPEN_EXTS } from './lib/codecs.js';
 import { clamp, hexToRgb, luminance, rgbToHex } from './lib/color.js';
@@ -184,6 +184,7 @@ export async function createPaint(ctx) {
     fonts: () => fonts,
     recent: () => recent,
     restoreFocus: () => restoreFocusSoon(),
+    focusEditor: () => textEdit?.ta.focus({ preventScroll: true }),
   };
 
   // ------------------------------------------------------------------ DOM
@@ -231,21 +232,22 @@ export async function createPaint(ctx) {
   function mergePrefs(p) {
     const str = (v, ok) => (typeof v === 'string' && (!ok || ok.includes(v)) ? v : undefined);
     const hex = (v) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : undefined);
+    // Stored preferences are untrusted: only known values are taken over.
     S.tool = str(p.tool, ['pencil', 'brush', 'eraser', 'fill', 'text', 'select', 'shape', 'zoom']) || S.tool;
     S.brush = str(p.brush) && BRUSH_TOOLS.has(p.brush) ? p.brush : S.brush;
-    S.shape = str(p.shape) || S.shape;
+    S.shape = str(p.shape, SHAPES) || S.shape;
     if (p.sizes && typeof p.sizes === 'object') for (const k of Object.keys(S.sizes)) if (Number(p.sizes[k]) >= 1) S.sizes[k] = Math.min(50, Math.round(p.sizes[k]));
     S.primary = hex(p.primary) || S.primary;
     S.secondary = hex(p.secondary) || S.secondary;
     if (Array.isArray(p.custom)) S.custom = Array.from({ length: 10 }, (_, i) => hex(p.custom[i]) || null);
-    S.outline = str(p.outline) || S.outline;
-    S.fill = str(p.fill) || S.fill;
+    S.outline = str(p.outline, OUTLINES) || S.outline;
+    S.fill = str(p.fill, FILLS) || S.fill;
     if (Number.isFinite(p.tolerance)) S.tolerance = clamp(Math.round(p.tolerance), 0, 100);
     S.selMode = str(p.selMode, ['rect', 'free']) || S.selMode;
     S.transparentSel = !!p.transparentSel;
     if (p.text && typeof p.text === 'object') {
-      if (typeof p.text.family === 'string') S.text.family = p.text.family;
-      if (Number(p.text.sizePt) >= 1) S.text.sizePt = Math.min(400, Number(p.text.sizePt));
+      if (typeof p.text.family === 'string' && p.text.family.trim() && p.text.family.length <= 120) S.text.family = p.text.family;
+      if (Number(p.text.sizePt) >= 1) S.text.sizePt = Math.min(400, Math.round(Number(p.text.sizePt)));
       for (const k of ['bold', 'italic', 'underline', 'strike', 'opaque']) S.text[k] = !!p.text[k];
     }
     S.rulers = !!p.rulers;
@@ -253,13 +255,17 @@ export async function createPaint(ctx) {
     S.statusbar = p.statusbar !== false;
   }
   let prefTimer = null;
+  function writePrefs() {
+    const { tool, brush, shape, sizes, primary, secondary, custom, outline, fill, tolerance, selMode, transparentSel, text, rulers, grid, statusbar } = S;
+    ctx.storage
+      .set('prefs', { tool: tool === 'picker' ? S.prevTool : tool, brush, shape, sizes, primary, secondary, custom, outline, fill, tolerance, selMode, transparentSel, text, rulers, grid, statusbar })
+      .catch(() => {});
+  }
   function savePrefs() {
     clearTimeout(prefTimer);
     prefTimer = setTimeout(() => {
-      const { tool, brush, shape, sizes, primary, secondary, custom, outline, fill, tolerance, selMode, transparentSel, text, rulers, grid, statusbar } = S;
-      ctx.storage
-        .set('prefs', { tool: tool === 'picker' ? S.prevTool : tool, brush, shape, sizes, primary, secondary, custom, outline, fill, tolerance, selMode, transparentSel, text, rulers, grid, statusbar })
-        .catch(() => {});
+      prefTimer = null;
+      writePrefs();
     }, 400);
   }
   function setRecent(list) {
@@ -268,10 +274,48 @@ export async function createPaint(ctx) {
   }
   const addRecent = (p) => setRecent([p, ...recent.filter((x) => x !== p)]);
 
-  async function showError(msg, err) {
-    if (err) console.warn('[paint]', err);
-    await ui.alert(err?.message ? `${msg}\n\n${err.message}` : msg, { title: 'Paint', parent: win });
+  // System and decoder errors arrive in English (Node / Chromium messages): show a localized
+  // explanation for the common cases and keep the raw message for the console.
+  const ERR_KEYS = {
+    ENOENT: 'err.notFound',
+    EACCES: 'err.denied',
+    EPERM: 'err.denied',
+    EROFS: 'err.readOnly',
+    ENOSPC: 'err.noSpace',
+    EDQUOT: 'err.noSpace',
+    EISDIR: 'err.isDir',
+    ENOTDIR: 'err.badFolder',
+    EEXIST: 'err.badFolder',
+    ENAMETOOLONG: 'err.badName',
+    EINVAL: 'err.badName',
+    EDECODE: 'err.decode',
+    EBUSY: 'err.busy',
+  };
+  function explain(err, saving) {
+    if (!err) return '';
+    // Writing: a missing path means the folder is gone, not the file.
+    const key = (saving && err.code === 'ENOENT' ? 'err.badFolder' : ERR_KEYS[err.code]) || (/decode|encod/i.test(err.name || '') ? 'err.decode' : null);
+    if (key) return t(key);
+    if (err.localized) return err.message;
+    return t('err.detail', { code: err.code || err.name || 'EFAIL' });
   }
+  // One message box at a time: a second error while one is shown (e.g. Ctrl+V held down on an
+  // empty clipboard) only draws attention to the open one.
+  let alertOpen = null;
+  function message(text) {
+    if (alertOpen) {
+      nudgeModal();
+      return alertOpen;
+    }
+    alertOpen = ui.alert(text, { title: 'Paint', parent: win }).finally(() => (alertOpen = null));
+    return alertOpen;
+  }
+  async function showError(msg, err, { saving = false } = {}) {
+    if (err && !err.localized) console.warn('[paint]', msg, err);
+    const detail = explain(err, saving);
+    await message(detail ? `${msg}\n\n${detail}` : msg);
+  }
+  const localized = (message) => Object.assign(new Error(message), { localized: true });
 
   // ------------------------------------------------------------------ layout / zoom
   function layout() {
@@ -1628,11 +1672,14 @@ export async function createPaint(ctx) {
     docCtx.drawImage(old, Math.round((nw - old.width) * ax), Math.round((nh - old.height) * ay));
   }
 
+  const fitsLimits = (w, hh) => w >= 1 && hh >= 1 && w <= MAX_DIM && hh <= MAX_DIM && w * hh <= MAX_AREA;
+
   function resizeCanvas(nw, nh, anchor = 'tl') {
     commitPending();
     nw = clamp(Math.round(nw), 1, MAX_DIM);
     nh = clamp(Math.round(nh), 1, MAX_DIM);
     if (nw === W() && nh === H()) return;
+    if (!fitsLimits(nw, nh)) throw localized(t('resize.errTooBig', { max: MAX_DIM }));
     history.recordFull();
     resizeRaw(nw, nh, anchor);
     changed();
@@ -1649,6 +1696,16 @@ export async function createPaint(ctx) {
         const q = pts[pts.length - 1];
         if (id.includes('e')) nw = clamp(Math.round(q.x), 1, MAX_DIM);
         if (id.includes('s')) nh = clamp(Math.round(q.y), 1, MAX_DIM);
+        // Keep the picture within the area limit (a 16000×16000 canvas would need 1 GB).
+        if (nw * nh > MAX_AREA) {
+          if (id === 'e') nw = Math.floor(MAX_AREA / nh);
+          else if (id === 's') nh = Math.floor(MAX_AREA / nw);
+          else {
+            const k = Math.sqrt(MAX_AREA / (nw * nh));
+            nw = Math.max(1, Math.floor(nw * k));
+            nh = Math.max(1, Math.floor(nh * k));
+          }
+        }
         ghost = { x: 0, y: 0, w: nw, h: nh };
         overlay();
         chrome.setStatus({ size: fmtSize(nw, nh) });
@@ -1713,7 +1770,7 @@ export async function createPaint(ctx) {
       const ty = Math.tan((skV * Math.PI) / 180);
       const ow = Math.round(nw + Math.abs(tx) * nh);
       const oh = Math.round(nh + Math.abs(ty) * nw);
-      if (ow > MAX_DIM || oh > MAX_DIM || ow * oh > MAX_AREA) throw new Error(t('resize.errTooBig', { max: MAX_DIM }));
+      if (ow > MAX_DIM || oh > MAX_DIM || ow * oh > MAX_AREA) throw localized(t('resize.errTooBig', { max: MAX_DIM }));
       const o = makeCanvas(ow, oh);
       const oc = o.getContext('2d');
       if (bg) {
@@ -1795,12 +1852,16 @@ export async function createPaint(ctx) {
       const files = shell?.clipboard?.getFiles?.();
       const img = files?.paths?.find((p) => OPEN_EXTS.includes(extOf(p)));
       if (img) return pasteFromPath(img);
-      await ui.alert(t('err.noImage'), { title: 'Paint', parent: win });
+      await message(t('err.noImage'));
       return;
     }
     pasteBitmap(bmp);
   }
   function pasteBitmap(bmp) {
+    if (!fitsLimits(Math.max(W(), bmp.width), Math.max(H(), bmp.height))) {
+      bmp.close?.();
+      throw localized(t('err.pasteTooBig', { max: MAX_DIM }));
+    }
     commitPending();
     const c = makeCanvas(bmp.width, bmp.height);
     c.getContext('2d').drawImage(bmp, 0, 0);
@@ -1856,13 +1917,23 @@ export async function createPaint(ctx) {
   }
 
   async function openPath(path, { prompt = true } = {}) {
+    if (typeof path === 'string' && path.startsWith('file://')) {
+      try {
+        path = decodeURIComponent(new URL(path).pathname);
+      } catch {}
+    }
+    if (typeof path !== 'string' || !path.startsWith('/') || path.includes('\0')) {
+      await showError(t('err.open', { name: typeof path === 'string' ? baseName(path) : '' }), { code: 'ENOENT' });
+      return false;
+    }
     if (prompt && !(await confirmDiscard())) return false;
     let bmp;
     try {
       const bytes = await api.invoke('fs:readBytes', path);
       bmp = await decodeImage(bytes);
     } catch (err) {
-      await showError(t('err.open', { name: baseName(path) }), err.code === 'ENOENT' ? new Error(t('err.notFound')) : err);
+      if (err?.code === 'ENOENT' && recent.includes(path)) setRecent(recent.filter((x) => x !== path));
+      await showError(t('err.open', { name: baseName(path) }), err);
       return false;
     }
     if (bmp.width * bmp.height > MAX_AREA || bmp.width > MAX_DIM || bmp.height > MAX_DIM) {
@@ -1875,7 +1946,9 @@ export async function createPaint(ctx) {
     docCtx.clearRect(0, 0, bmp.width, bmp.height);
     docCtx.drawImage(bmp, 0, 0);
     bmp.close?.();
-    Object.assign(file, { path, name: baseName(path), format: formatOf(path) || 'png', size: null, mtime: null });
+    // Unknown extensions (.ico, .avif…) have no encoder: Save then asks for a name and format
+    // instead of writing PNG data into a file with the wrong extension.
+    Object.assign(file, { path, name: baseName(path), format: formatOf(path), size: null, mtime: null });
     history.clear();
     savedState = history.state;
     addRecent(path);
@@ -1901,7 +1974,7 @@ export async function createPaint(ctx) {
       const bytes = await encodeCanvas(docCanvas, fmt);
       await api.invoke('fs:writeBytes', path, bytes);
     } catch (err) {
-      await showError(t('err.save', { name: baseName(path) }), err);
+      await showError(t('err.save', { name: baseName(path) }), err, { saving: true });
       return false;
     }
     Object.assign(file, { path, name: baseName(path), format: fmt });
@@ -1933,7 +2006,18 @@ export async function createPaint(ctx) {
       parent: win,
     });
     if (!path) return false;
-    return writeFile(path, formatOf(path) || first);
+    return writeFile(typedName(path, first), formatOf(typedName(path, first)) || first);
+  }
+
+  // The file picker appends the selected type's extension unless the name already ends with it,
+  // so "photo.jpg" typed with the default PNG type comes back as "photo.jpg.png". Like Windows,
+  // a picture extension typed by the user wins: "photo.jpg" is saved as a JPEG.
+  function typedName(path, first) {
+    const m = /^(.*(\.[^./]+))(\.[^./]+)$/.exec(path);
+    if (!m) return path;
+    const inner = formatOf(m[1]);
+    if (inner && inner !== first && m[3].toLowerCase() === FORMATS[first].ext) return m[1];
+    return path;
   }
 
   function askSave() {
@@ -1989,7 +2073,11 @@ export async function createPaint(ctx) {
 
   // ------------------------------------------------------------------ undo / redo
   async function undo() {
-    cancelGesture();
+    // Ctrl+Z in the middle of a stroke/drag only cancels that stroke (one step, like Paint).
+    if (gesture) {
+      cancelGesture();
+      return changed();
+    }
     if (textEdit) return cancelText();
     if (poly) {
       poly = null;
@@ -2017,7 +2105,7 @@ export async function createPaint(ctx) {
     changed();
   }
   async function redo() {
-    cancelGesture();
+    if (gesture) return;
     if (pend || poly || sel?.float || textEdit || !history.canRedo) return;
     if (sel) {
       sel = null;
@@ -2228,19 +2316,45 @@ export async function createPaint(ctx) {
     },
   };
 
+  // Commands that can open a dialog run one at a time: a double click on Save or a repeated
+  // Ctrl+S / Ctrl+O must not stack two file pickers or two "save changes?" prompts.
+  const MODAL = new Set(['new', 'open', 'openRecent', 'save', 'saveAs', 'pasteFrom', 'wallpaper', 'props', 'about', 'resize', 'editColors']);
+  let modalBusy = false;
+  function nudgeModal() {
+    const dlg = [...win.el.querySelectorAll('.dialog-layer:not(.closing) .dialog')].pop();
+    if (!dlg) return;
+    if (document.documentElement.dataset.animations !== 'off') dlg.animate?.([{ transform: 'scale(1)' }, { transform: 'scale(1.015)' }, { transform: 'scale(1)' }], { duration: 200, easing: 'cubic-bezier(0.1, 0.9, 0.2, 1)' });
+    if (!dlg.contains(document.activeElement)) (dlg.querySelector('.btn.primary') || dlg.querySelector('button, input'))?.focus();
+  }
+  async function exclusive(fn) {
+    if (modalBusy) {
+      nudgeModal();
+      return undefined;
+    }
+    modalBusy = true;
+    try {
+      return await fn();
+    } finally {
+      modalBusy = false;
+    }
+  }
+
   async function cmd(id, arg) {
     chrome.closeFlyout();
     const fn = commands[id];
     if (!fn) return undefined;
-    try {
-      return await fn(arg);
-    } catch (err) {
-      console.error(`[paint] ${id} failed`, err);
-      await showError(t('err.generic'), err);
-      return undefined;
-    } finally {
-      restoreFocusSoon();
-    }
+    const run = async () => {
+      try {
+        return await fn(arg);
+      } catch (err) {
+        if (!err?.localized) console.error(`[paint] ${id} failed`, err);
+        await showError(t('err.generic'), err);
+        return undefined;
+      } finally {
+        restoreFocusSoon();
+      }
+    };
+    return MODAL.has(id) ? exclusive(run) : run();
   }
 
   // Closing a dialog (after its fade-out) drops keyboard focus on <body>: bring it back to the
@@ -2372,12 +2486,20 @@ export async function createPaint(ctx) {
       if (uri.startsWith('file://')) path = decodeURIComponent(new URL(uri).pathname);
       else if (uri.startsWith('/')) path = uri;
     }
-    if (path) openPath(path);
-    else if (f) openFileObject(f);
+    if (path) exclusive(() => openPath(path));
+    else if (f) exclusive(() => openFileObject(f));
   });
 
   // ------------------------------------------------------------------ lifecycle
-  win.onBeforeClose(() => confirmDiscard());
+  // While a dialog of this window is open (file picker, Image properties…), closing it from the
+  // taskbar or with Alt+F4 points at that dialog instead of stacking a second prompt over it.
+  win.onBeforeClose(async () => {
+    if (modalBusy || alertOpen) {
+      nudgeModal();
+      return false;
+    }
+    return (await exclusive(confirmDiscard)) === true;
+  });
   let roFrame = 0;
   const ro = new ResizeObserver(() => {
     cancelAnimationFrame(roFrame);
@@ -2409,10 +2531,18 @@ export async function createPaint(ctx) {
   });
   ctx.onClose(() => {
     ro.disconnect();
+    cancelAnimationFrame(roFrame);
     mq?.removeEventListener('change', onDpr);
     offTheme?.();
-    clearTimeout(prefTimer);
     cancelGesture();
+    chrome.closeFlyout();
+    history.dispose();
+    // Preferences changed in the last moments are still written.
+    if (prefTimer) {
+      clearTimeout(prefTimer);
+      prefTimer = null;
+      writePrefs();
+    }
   });
   ctx.onLangChange(() => {
     const next = createChrome(app).build();
@@ -2449,7 +2579,11 @@ export async function createPaint(ctx) {
   updateCursor();
   blank();
   chrome.fit();
-  if (ctx.args?.file) await openPath(ctx.args.file, { prompt: false });
+  // Opening the file passed by the shell is not awaited: launch() (and so shell.openFile) returns
+  // at once, and an error message about the file doesn't block the window's creation.
+  // Only a path string is accepted; anything else in the arguments is ignored.
+  const argFile = ctx.args?.file;
+  const opening = typeof argFile === 'string' && argFile ? exclusive(() => openPath(argFile, { prompt: false })) : Promise.resolve(false);
 
   // Test / automation hook (not used by the UI).
   const testApi = {
@@ -2501,7 +2635,9 @@ export async function createPaint(ctx) {
       scroller.scrollLeft = fit(Math.min(...xs), Math.max(...xs), xs[0], scroller.scrollLeft, scroller.clientWidth, L.left);
       scroller.scrollTop = fit(Math.min(...ys), Math.max(...ys), ys[0], scroller.scrollTop, scroller.clientHeight, L.top);
     },
+    opening,
     openPath: (p) => openPath(p, { prompt: false }),
+    pasteFromPath: (p) => pasteFromPath(p),
     writeFile,
     commitPending,
     setZoom: (z) => setZoom(z),

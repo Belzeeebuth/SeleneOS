@@ -57,7 +57,7 @@
   position: relative;
   flex: 0 1 auto;
   width: 220px;
-  min-width: 72px;
+  min-width: 48px;
   height: 36px;
   display: flex;
   align-items: center;
@@ -95,7 +95,7 @@
 .app-terminal .tm-tab.active {
   color: var(--text);
   z-index: 2;
-  min-width: 128px;
+  min-width: 112px;
 }
 .app-terminal .tm-tab.tm-tab-term.active {
   color: var(--tm-fg);
@@ -157,6 +157,43 @@
   flex: none;
   display: grid;
   place-items: center;
+}
+.app-terminal .tm-tab-iconwrap {
+  position: relative;
+  flex: none;
+  display: grid;
+}
+/* progress ring (OSC 9;4) drawn over the icon, which fades out */
+.app-terminal .tm-tab.progress .tm-tab-icon {
+  opacity: 0;
+}
+.app-terminal .tm-tab-progress {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  --c: var(--accent);
+  background: conic-gradient(var(--c) calc(var(--p, 0) * 1%), color-mix(in srgb, currentColor 18%, transparent) 0);
+  -webkit-mask: radial-gradient(circle, transparent 5.5px, #000 6px);
+  mask: radial-gradient(circle, transparent 5.5px, #000 6px);
+  transition: --p var(--dur) linear;
+}
+.app-terminal .tm-tab-progress.s2 {
+  --c: var(--danger);
+}
+.app-terminal .tm-tab-progress.s4 {
+  --c: var(--warning);
+}
+.app-terminal .tm-tab-progress.s3 {
+  background: conic-gradient(var(--c) 25%, transparent 0);
+  animation: tm-spin 1s linear infinite;
+}
+html[data-animations="off"] .app-terminal .tm-tab-progress.s3 {
+  animation: none;
+}
+@keyframes tm-spin {
+  to {
+    transform: rotate(1turn);
+  }
 }
 .app-terminal .tm-picon {
   display: inline-grid;
@@ -222,9 +259,20 @@
 .app-terminal .tm-tab:not(.active):not(:hover) .tm-tab-close {
   opacity: 0;
 }
-/* narrow tabs: the hidden close button of inactive tabs gives its room to the title */
+/* narrow tabs: the hidden close button of inactive tabs gives its room to the title, and a very
+   narrow tab shows only its icon (Windows Terminal) */
 @container (max-width: 120px) {
   .app-terminal .tm-tab:not(.active):not(:hover) .tm-tab-close {
+    display: none;
+  }
+}
+@container (max-width: 64px) {
+  .app-terminal .tm-tab:not(.active) {
+    justify-content: center;
+    padding: 0;
+  }
+  .app-terminal .tm-tab:not(.active) .tm-tab-title,
+  .app-terminal .tm-tab:not(.active) .tm-tab-close {
     display: none;
   }
 }
@@ -297,7 +345,7 @@
 }
 .app-terminal .tm-strip-drag {
   flex: 1;
-  min-width: 40px;
+  min-width: 32px;
   height: 100%;
 }
 .win.app-terminal:not(.active) .tm-tab:not(.active),
@@ -587,6 +635,13 @@
 }
 
 /* ------------------------------------------------------------------ settings tab */
+/* keep the select chevron on hover/focus (core .select:hover sets the background shorthand) */
+.app-terminal .tm-settings .select:hover,
+.app-terminal .tm-settings .select:focus {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2.2 4.2a.7.7 0 0 1 1 0L6 7l2.8-2.8a.7.7 0 1 1 1 1L6.5 8.5a.7.7 0 0 1-1 0L2.2 5.2a.7.7 0 0 1 0-1z' fill='%23888'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
 .app-terminal .tm-settings {
   display: flex;
   width: 100%;
@@ -601,6 +656,7 @@
   gap: 4px;
   padding: 12px 8px;
   overflow-y: auto;
+  scrollbar-width: none; /* a short window scrolls it with the wheel; no bar next to the icons */
   outline: none;
 }
 .app-terminal .tm-set-navtitle {
@@ -948,9 +1004,24 @@
   }
   .app-terminal .tm-dir {
     width: auto;
-    flex: 1;
+    flex: 1 1 120px;
   }
   .app-terminal .tm-dirpick {
+    flex: 1;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  .app-terminal .tm-slider {
+    flex: 1;
+    min-width: 0;
+  }
+  .app-terminal .tm-slider .slider {
+    flex: 1;
+    width: auto;
+    min-width: 80px;
+  }
+  .app-terminal .tm-set-control .select {
+    min-width: 0;
     flex: 1;
   }
 }

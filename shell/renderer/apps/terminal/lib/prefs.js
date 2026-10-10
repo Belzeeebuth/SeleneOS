@@ -5,7 +5,9 @@
 import { Emitter } from '../../../core/api.js';
 import { SCHEMES } from './schemes.js';
 
-export const FONTS = ['Cascadia Code', 'Cascadia Mono', 'DejaVu Sans Mono', 'Noto Sans Mono', 'Liberation Mono', 'Ubuntu Mono'];
+// Offered first in the font list; the rest of the list is what fontconfig reports as installed
+// (pty:env fonts). Without that list (no fontconfig) only these are offered.
+export const FONTS = ['Cascadia Code', 'Cascadia Mono', 'DejaVu Sans Mono', 'Noto Sans Mono', 'Liberation Mono'];
 export const CURSORS = ['bar', 'underline', 'block'];
 export const BELLS = ['visual', 'sound', 'none'];
 export const CLOSE_ON_EXIT = ['graceful', 'always', 'never'];
@@ -25,6 +27,7 @@ export const DEFAULTS = Object.freeze({
   copyOnSelect: false,
   confirmClose: true,
   warnPaste: true,
+  warnLargePaste: true,
   bell: 'visual',
   closeOnExit: 'graceful',
 });

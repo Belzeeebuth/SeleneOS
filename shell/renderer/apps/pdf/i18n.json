@@ -1,0 +1,490 @@
+{
+  "en": {
+    "more": "More options",
+    "loading": "Opening {name}…",
+    "tabs": {
+      "label": "Documents",
+      "new": "New tab",
+      "newTab": "New tab",
+      "close": "Close tab",
+      "closeOthers": "Close other tabs",
+      "closeRight": "Close tabs to the right",
+      "unsaved": "unsaved changes"
+    },
+    "tb": {
+      "label": "Document commands",
+      "sidebar": "Pages and outline",
+      "page": "Page number",
+      "goto": "Go to page",
+      "zoom": "Zoom",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "rotateLeft": "Rotate counterclockwise",
+      "rotateRight": "Rotate clockwise",
+      "layout": "Page view",
+      "find": "Find",
+      "darkPages": "Dark reading mode",
+      "present": "Present",
+      "save": "Save",
+      "saveAs": "Save as"
+    },
+    "zoom": {
+      "auto": "Automatic",
+      "actual": "Actual size",
+      "fit": "Fit to page",
+      "width": "Fit to width"
+    },
+    "layout": {
+      "single": "Single page",
+      "continuous": "Continuous scrolling",
+      "two": "Two pages",
+      "cover": "Two pages with cover"
+    },
+    "tool": {
+      "highlight": "Highlight",
+      "highlightOptions": "Highlight options",
+      "ink": "Draw",
+      "inkOptions": "Drawing options",
+      "text": "Add text",
+      "textOptions": "Text options",
+      "color": "Color",
+      "thickness": "Thickness",
+      "opacity": "Opacity",
+      "size": "Font size",
+      "unavailableTitle": "Annotations unavailable",
+      "unavailable": "This document doesn't allow adding annotations."
+    },
+    "color": {
+      "yellow": "Yellow",
+      "green": "Green",
+      "blue": "Blue",
+      "pink": "Pink",
+      "red": "Red",
+      "black": "Black",
+      "orange": "Orange",
+      "purple": "Purple",
+      "white": "White"
+    },
+    "sidebar": {
+      "thumbs": "Pages",
+      "outline": "Outline",
+      "attachments": "Attachments",
+      "pageN": "Page {n}",
+      "noOutline": "This document has no outline.",
+      "noAttachments": "This document has no attachments.",
+      "untitled": "(Untitled)",
+      "resize": "Resize the sidebar"
+    },
+    "att": {
+      "open": "Open",
+      "saveAs": "Save as…",
+      "saveFailed": "Couldn't save {name}",
+      "openFailed": "Couldn't open {name}",
+      "empty": "The attachment is empty."
+    },
+    "find": {
+      "placeholder": "Find in document",
+      "prev": "Previous result",
+      "next": "Next result",
+      "matchCase": "Match case",
+      "wholeWord": "Whole words",
+      "close": "Close",
+      "count": "{current} of {total}",
+      "none": "No results"
+    },
+    "menu": {
+      "open": "Open…",
+      "copy": "Copy",
+      "selectAll": "Select all",
+      "openLocation": "Open file location",
+      "openWith": "Open with",
+      "properties": "Document properties"
+    },
+    "ctx": {
+      "openLink": "Open link",
+      "copyLink": "Copy link",
+      "highlight": "Highlight"
+    },
+    "open": {
+      "title": "Open a PDF",
+      "filter": "PDF documents"
+    },
+    "openWith": {
+      "title": "Open with",
+      "choose": "Choose another app…",
+      "suggested": "Suggested apps",
+      "others": "Other apps",
+      "open": "Open"
+    },
+    "start": {
+      "subtitle": "Read, search, highlight and present your PDF documents.",
+      "open": "Open a file",
+      "dropTitle": "Drag and drop a PDF here",
+      "dropHint": "or choose one from your files",
+      "shortcut": "Ctrl+O",
+      "recent": "Recent",
+      "clear": "Clear list",
+      "clearTitle": "Clear recent documents?",
+      "clearBody": "The list of recently opened documents will be cleared. Your files won't be deleted.",
+      "noRecent": "Documents you open will appear here.",
+      "pageOf": "Page {page} of {pages}",
+      "missing": "File not found",
+      "missingTitle": "File not found",
+      "missingBody": "{path} can't be found. It may have been moved or deleted. Remove it from the list?",
+      "remove": "Remove from list",
+      "openItem": "Open",
+      "openNewTab": "Open in new tab",
+      "copyPath": "Copy path"
+    },
+    "error": {
+      "retry": "Try again",
+      "openOther": "Open another file",
+      "closeTab": "Close tab",
+      "enterPassword": "Enter password",
+      "isFolder": "This is a folder, not a file.",
+      "notPdf": "The file doesn't start like a PDF document.",
+      "missing": {
+        "title": "File not found",
+        "body": "{path} doesn't exist anymore. It may have been moved, renamed or deleted."
+      },
+      "corrupt": {
+        "title": "Can't open this file",
+        "body": "{name} is damaged or isn't a PDF document."
+      },
+      "locked": {
+        "title": "This PDF is password protected",
+        "body": "Enter the password to open {name}."
+      },
+      "denied": {
+        "title": "Access denied",
+        "body": "You don't have permission to read {name}."
+      },
+      "read": {
+        "title": "Can't read this file",
+        "body": "{name} couldn't be read from the disk."
+      },
+      "tooBig": {
+        "title": "File too large",
+        "body": "{name} is larger than 1 GB and can't be opened."
+      },
+      "engine": {
+        "title": "PDF engine unavailable",
+        "body": "The PDF engine couldn't be loaded. Try again."
+      },
+      "invalidStructure": "The document structure is invalid."
+    },
+    "password": {
+      "title": "Password required",
+      "body": "{name} is protected. Enter the document password to open it.",
+      "label": "Password",
+      "open": "Open",
+      "wrong": "Incorrect password. Try again.",
+      "empty": "Enter the password."
+    },
+    "props": {
+      "dialogTitle": "Document properties",
+      "file": "File",
+      "description": "Description",
+      "advanced": "Advanced",
+      "name": "Name",
+      "location": "Location",
+      "size": "Size",
+      "bytes": "{n} bytes",
+      "title": "Title",
+      "author": "Author",
+      "subject": "Subject",
+      "keywords": "Keywords",
+      "created": "Created",
+      "modified": "Modified",
+      "creator": "Application",
+      "producer": "PDF producer",
+      "version": "PDF version",
+      "pages": "Page count",
+      "pageSize": "Page size",
+      "encrypted": "Encrypted",
+      "portrait": "portrait",
+      "landscape": "landscape"
+    },
+    "link": {
+      "title": "Open this link?",
+      "body": "This document links to a website. Only open links you trust.",
+      "mailTitle": "Write an e-mail?",
+      "mailBody": "This document links to an e-mail address.",
+      "open": "Open",
+      "copy": "Copy link",
+      "blockedTitle": "Link not supported",
+      "blockedBody": "This kind of link can't be opened."
+    },
+    "save": {
+      "ask": "Do you want to save the changes to {name}?",
+      "save": "Save",
+      "dontSave": "Don't save",
+      "asTitle": "Save as",
+      "done": "Saved to {name}",
+      "failedTitle": "Couldn't save",
+      "failed": "{name} couldn't be saved. {error}",
+      "inUse": "{name} is open in another tab. Close it first or choose another name."
+    },
+    "goto": {
+      "title": "Go to page",
+      "label": "Page number (1–{n})",
+      "go": "Go",
+      "invalid": "Enter a number between 1 and {n}."
+    },
+    "drop": {
+      "hint": "Drop to open",
+      "notPdfTitle": "Not a PDF",
+      "notPdf": "PDF Reader opens .pdf files only."
+    },
+    "present": {
+      "hint": "Press Esc to exit the presentation"
+    },
+    "copy": {
+      "failed": "Couldn't copy to the clipboard"
+    }
+  },
+  "fr": {
+    "more": "Plus d’options",
+    "loading": "Ouverture de {name}…",
+    "tabs": {
+      "label": "Documents",
+      "new": "Nouvel onglet",
+      "newTab": "Nouvel onglet",
+      "close": "Fermer l’onglet",
+      "closeOthers": "Fermer les autres onglets",
+      "closeRight": "Fermer les onglets à droite",
+      "unsaved": "modifications non enregistrées"
+    },
+    "tb": {
+      "label": "Commandes du document",
+      "sidebar": "Pages et plan",
+      "page": "Numéro de page",
+      "goto": "Atteindre la page",
+      "zoom": "Zoom",
+      "zoomIn": "Zoom avant",
+      "zoomOut": "Zoom arrière",
+      "rotateLeft": "Faire pivoter vers la gauche",
+      "rotateRight": "Faire pivoter vers la droite",
+      "layout": "Affichage des pages",
+      "find": "Rechercher",
+      "darkPages": "Mode lecture sombre",
+      "present": "Présenter",
+      "save": "Enregistrer",
+      "saveAs": "Enregistrer sous"
+    },
+    "zoom": {
+      "auto": "Automatique",
+      "actual": "Taille réelle",
+      "fit": "Ajuster à la page",
+      "width": "Ajuster à la largeur"
+    },
+    "layout": {
+      "single": "Une page",
+      "continuous": "Défilement continu",
+      "two": "Deux pages",
+      "cover": "Deux pages avec couverture"
+    },
+    "tool": {
+      "highlight": "Surligner",
+      "highlightOptions": "Options de surlignage",
+      "ink": "Dessiner",
+      "inkOptions": "Options de dessin",
+      "text": "Ajouter du texte",
+      "textOptions": "Options du texte",
+      "color": "Couleur",
+      "thickness": "Épaisseur",
+      "opacity": "Opacité",
+      "size": "Taille de police",
+      "unavailableTitle": "Annotations indisponibles",
+      "unavailable": "Ce document n’autorise pas l’ajout d’annotations."
+    },
+    "color": {
+      "yellow": "Jaune",
+      "green": "Vert",
+      "blue": "Bleu",
+      "pink": "Rose",
+      "red": "Rouge",
+      "black": "Noir",
+      "orange": "Orange",
+      "purple": "Violet",
+      "white": "Blanc"
+    },
+    "sidebar": {
+      "thumbs": "Pages",
+      "outline": "Plan",
+      "attachments": "Pièces jointes",
+      "pageN": "Page {n}",
+      "noOutline": "Ce document n’a pas de plan.",
+      "noAttachments": "Ce document n’a pas de pièces jointes.",
+      "untitled": "(Sans titre)",
+      "resize": "Redimensionner le volet"
+    },
+    "att": {
+      "open": "Ouvrir",
+      "saveAs": "Enregistrer sous…",
+      "saveFailed": "Impossible d’enregistrer {name}",
+      "openFailed": "Impossible d’ouvrir {name}",
+      "empty": "La pièce jointe est vide."
+    },
+    "find": {
+      "placeholder": "Rechercher dans le document",
+      "prev": "Résultat précédent",
+      "next": "Résultat suivant",
+      "matchCase": "Respecter la casse",
+      "wholeWord": "Mots entiers",
+      "close": "Fermer",
+      "count": "{current} sur {total}",
+      "none": "Aucun résultat"
+    },
+    "menu": {
+      "open": "Ouvrir…",
+      "copy": "Copier",
+      "selectAll": "Tout sélectionner",
+      "openLocation": "Ouvrir l’emplacement du fichier",
+      "openWith": "Ouvrir avec",
+      "properties": "Propriétés du document"
+    },
+    "ctx": {
+      "openLink": "Ouvrir le lien",
+      "copyLink": "Copier le lien",
+      "highlight": "Surligner"
+    },
+    "open": {
+      "title": "Ouvrir un PDF",
+      "filter": "Documents PDF"
+    },
+    "openWith": {
+      "title": "Ouvrir avec",
+      "choose": "Choisir une autre application…",
+      "suggested": "Applications suggérées",
+      "others": "Autres applications",
+      "open": "Ouvrir"
+    },
+    "start": {
+      "subtitle": "Lisez, recherchez, surlignez et présentez vos documents PDF.",
+      "open": "Ouvrir un fichier",
+      "dropTitle": "Glissez-déposez un PDF ici",
+      "dropHint": "ou choisissez-en un dans vos fichiers",
+      "shortcut": "Ctrl+O",
+      "recent": "Récents",
+      "clear": "Effacer la liste",
+      "clearTitle": "Effacer les documents récents ?",
+      "clearBody": "La liste des documents ouverts récemment sera effacée. Vos fichiers ne seront pas supprimés.",
+      "noRecent": "Les documents que vous ouvrez s’afficheront ici.",
+      "pageOf": "Page {page} sur {pages}",
+      "missing": "Fichier introuvable",
+      "missingTitle": "Fichier introuvable",
+      "missingBody": "{path} est introuvable. Il a peut-être été déplacé ou supprimé. Le retirer de la liste ?",
+      "remove": "Retirer de la liste",
+      "openItem": "Ouvrir",
+      "openNewTab": "Ouvrir dans un nouvel onglet",
+      "copyPath": "Copier le chemin d’accès"
+    },
+    "error": {
+      "retry": "Réessayer",
+      "openOther": "Ouvrir un autre fichier",
+      "closeTab": "Fermer l’onglet",
+      "enterPassword": "Entrer le mot de passe",
+      "isFolder": "Il s’agit d’un dossier, pas d’un fichier.",
+      "notPdf": "Le fichier ne commence pas comme un document PDF.",
+      "missing": {
+        "title": "Fichier introuvable",
+        "body": "{path} n’existe plus. Il a peut-être été déplacé, renommé ou supprimé."
+      },
+      "corrupt": {
+        "title": "Impossible d’ouvrir ce fichier",
+        "body": "{name} est endommagé ou n’est pas un document PDF."
+      },
+      "locked": {
+        "title": "Ce PDF est protégé par mot de passe",
+        "body": "Entrez le mot de passe pour ouvrir {name}."
+      },
+      "denied": {
+        "title": "Accès refusé",
+        "body": "Vous n’avez pas l’autorisation de lire {name}."
+      },
+      "read": {
+        "title": "Impossible de lire ce fichier",
+        "body": "{name} n’a pas pu être lu sur le disque."
+      },
+      "tooBig": {
+        "title": "Fichier trop volumineux",
+        "body": "{name} dépasse 1 Go et ne peut pas être ouvert."
+      },
+      "engine": {
+        "title": "Moteur PDF indisponible",
+        "body": "Le moteur PDF n’a pas pu être chargé. Réessayez."
+      },
+      "invalidStructure": "La structure du document n’est pas valide."
+    },
+    "password": {
+      "title": "Mot de passe requis",
+      "body": "{name} est protégé. Entrez le mot de passe du document pour l’ouvrir.",
+      "label": "Mot de passe",
+      "open": "Ouvrir",
+      "wrong": "Mot de passe incorrect. Réessayez.",
+      "empty": "Entrez le mot de passe."
+    },
+    "props": {
+      "dialogTitle": "Propriétés du document",
+      "file": "Fichier",
+      "description": "Description",
+      "advanced": "Avancé",
+      "name": "Nom",
+      "location": "Emplacement",
+      "size": "Taille",
+      "bytes": "{n} octets",
+      "title": "Titre",
+      "author": "Auteur",
+      "subject": "Objet",
+      "keywords": "Mots-clés",
+      "created": "Création",
+      "modified": "Modification",
+      "creator": "Application",
+      "producer": "Producteur PDF",
+      "version": "Version PDF",
+      "pages": "Nombre de pages",
+      "pageSize": "Taille de page",
+      "encrypted": "Chiffré",
+      "portrait": "portrait",
+      "landscape": "paysage"
+    },
+    "link": {
+      "title": "Ouvrir ce lien ?",
+      "body": "Ce document renvoie vers un site web. N’ouvrez que les liens de confiance.",
+      "mailTitle": "Écrire un e-mail ?",
+      "mailBody": "Ce document renvoie vers une adresse e-mail.",
+      "open": "Ouvrir",
+      "copy": "Copier le lien",
+      "blockedTitle": "Lien non pris en charge",
+      "blockedBody": "Ce type de lien ne peut pas être ouvert."
+    },
+    "save": {
+      "ask": "Voulez-vous enregistrer les modifications apportées à {name} ?",
+      "save": "Enregistrer",
+      "dontSave": "Ne pas enregistrer",
+      "asTitle": "Enregistrer sous",
+      "done": "Enregistré dans {name}",
+      "failedTitle": "Échec de l’enregistrement",
+      "failed": "Impossible d’enregistrer {name}. {error}",
+      "inUse": "{name} est ouvert dans un autre onglet. Fermez-le d’abord ou choisissez un autre nom."
+    },
+    "goto": {
+      "title": "Atteindre la page",
+      "label": "Numéro de page (1–{n})",
+      "go": "Atteindre",
+      "invalid": "Entrez un nombre entre 1 et {n}."
+    },
+    "drop": {
+      "hint": "Déposez pour ouvrir",
+      "notPdfTitle": "Ce n’est pas un PDF",
+      "notPdf": "Le Lecteur PDF n’ouvre que les fichiers .pdf."
+    },
+    "present": {
+      "hint": "Appuyez sur Échap pour quitter la présentation"
+    },
+    "copy": {
+      "failed": "Impossible de copier dans le Presse-papiers"
+    }
+  }
+}

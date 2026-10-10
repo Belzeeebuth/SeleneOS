@@ -8,7 +8,7 @@ import { api, env } from '../api.js';
 import { i18n, t, LANGS } from '../i18n.js';
 import { loadIcons } from '../icons.js';
 import { settings } from '../settings.js';
-import { accentVars, resolveWallpaper } from '../theme.js';
+import { accentVars, resolveWallpaper, applyVisualStyle } from '../theme.js';
 import { LockScreen } from './lockui.js';
 import { extendStrings } from './strings.js';
 import { preload } from './backdrop.js';
@@ -44,6 +44,8 @@ async function main() {
   root.dataset.transparency = settings.get('transparency') === false ? 'off' : 'on';
   root.dataset.animations = settings.get('animations') === false || a11yPrefs?.animations === false ? 'off' : 'on';
   for (const [k, v] of Object.entries(accentVars(settings.get('accent'), 'dark'))) root.style.setProperty(k, v);
+  // visual style (data-style + core/styles/*.css: shapes and controls of the sign-in form), docs/PERSONALIZATION.md
+  await applyVisualStyle(settings.all()).catch((err) => console.warn('[greeter] visual style:', err.message));
 
   const wallpaper = resolveWallpaper(settings.get('lockWallpaper') || settings.get('wallpaper') || 'builtin:bloom', 'dark');
   const [rawUsers, kbInfo] = await Promise.all([

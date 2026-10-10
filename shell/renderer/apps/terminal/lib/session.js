@@ -25,6 +25,25 @@ export function loadXterm(ui) {
 
 let seq = 0;
 
+export const LARGE_PASTE = 5 * 1024; // Windows Terminal warns above 5 KiB
+
+// Pasted text must never be able to act as terminal input sequences: an embedded "ESC [ 201 ~"
+// would end bracketed paste early and run the rest as typed commands (and a raw ESC/C1 byte could
+// drive the program). Keep tab and line breaks, drop every other C0/C1 control character.
+export function sanitizePaste(text) {
+  return String(text ?? '')
+    .replace(/\x1b\[20[01]~/g, '')
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g, '');
+}
+
+// Titles set by programs (OSC 0/2) are untrusted: no control or bidi-override characters.
+export function cleanTitle(title) {
+  return String(title ?? '')
+    .replace(/[\x00-\x1f\x7f-\x9f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+    .trim()
+    .slice(0, 200);
+}
+
 export class Session {
   constructor(app, profile, { cwd = null, command = null } = {}) {
     this.app = app;
@@ -38,6 +57,7 @@ export class Session {
     this.exitCode = null;
     this.oscTitle = '';
     this.proc = { name: '', busy: false }; // foreground program (main/ipc/pty.js 'pty:proc')
+    this.progress = null; // { state: 1 normal | 2 error | 3 indeterminate | 4 paused, value: 0..100 } (OSC 9;4)
     this.pane = null;
     this.el = this.ctx.h('div', { class: 'tm-term', dataset: { session: this.id } });
     this.bellEl = this.ctx.h('div', { class: 'tm-bell', 'aria-hidden': 'true' });
@@ -99,13 +119,28 @@ export class Session {
       term.onBinary((d) => this.ptyId && this.state === 'running' && this.api.send('pty:write', this.ptyId, d, 'binary')),
       term.onResize(({ cols, rows }) => this.ptyResize(cols, rows)),
       term.onTitleChange((title) => {
-        this.oscTitle = String(title || '').slice(0, 200);
+        this.oscTitle = cleanTitle(title);
         this.app.sessionTitleChanged(this);
       }),
       term.onBell(() => this.app.bell(this)),
-      term.onSelectionChange(() => this.selectionChanged()),
+      // Windows Terminal progress: ESC ] 9 ; 4 ; state ; value ST -> ring on the tab, taskbar progress.
+      term.parser.registerOscHandler(9, (data) => this.onProgress(data)),
     );
     term.textarea?.addEventListener('focus', () => this.app.sessionFocused(this));
+    // Copy on select and the X11 PRIMARY selection follow what the user selects with the mouse
+    // (not the matches the find box selects, nor Select all).
+    this._onMouseUp = () => {
+      window.removeEventListener('mouseup', this._onMouseUp, true);
+      clearTimeout(this._selTimer);
+      this._selTimer = setTimeout(() => this.selectionDone(), 0);
+    };
+    this.el.addEventListener(
+      'mousedown',
+      (e) => {
+        if (e.button === 0) window.addEventListener('mouseup', this._onMouseUp, true);
+      },
+      true,
+    );
 
     this.ro = new ResizeObserver(() => this.fitSoon());
     this.ro.observe(this.el);
@@ -122,7 +157,8 @@ export class Session {
     } catch (err) {
       this.state = 'exited';
       this.exitCode = -1;
-      this.term.write(`\x1b[31m${this.ctx.t('error.spawn', { message: err.message })}\x1b[0m\r\n`);
+      const { t } = this.ctx;
+      this.term.write(`\x1b[0m\x1b[31m${t('error.spawn', { message: cleanTitle(err?.message || err) })}\x1b[0m\r\n${t('exit.hint')}`);
       this.app.sessionTitleChanged(this);
       return;
     }
@@ -154,6 +190,7 @@ export class Session {
     if (this.state !== 'exited' || this.disposed) return;
     this.state = 'new';
     this.oscTitle = '';
+    this.setProgress(null);
     this.proc = { name: '', busy: false };
     this.term.write('\r\n');
     this.spawn();
@@ -180,6 +217,8 @@ export class Session {
     this.state = 'exited';
     this.exitCode = code;
     this.proc = { name: '', busy: false };
+    this.oscTitle = ''; // the tab shows the profile again, not the last command ("exit")
+    this.setProgress(null);
     const mode = this.app.prefs.get('closeOnExit');
     if (mode === 'always' || (mode === 'graceful' && code === 0)) {
       this.app.closeSession(this, { force: true });
@@ -187,8 +226,24 @@ export class Session {
     }
     const { t } = this.ctx;
     const hex = `0x${(code >>> 0).toString(16).toUpperCase().padStart(8, '0')}`;
-    this.term.write(`\r\n\x1b[0m\x1b[90m${t('exit.code', { code, hex })}\x1b[0m\r\n\x1b[90m${t('exit.hint')}\x1b[0m`);
+    // Default colours, like Windows Terminal (bright black is barely readable on dark schemes).
+    this.term.write(`\r\n\x1b[0m${t('exit.code', { code, hex })}\r\n${t('exit.hint')}`);
     this.app.sessionTitleChanged(this);
+  }
+
+  onProgress(data) {
+    const m = /^4;([0-4])(?:;(\d{1,3}))?/.exec(String(data));
+    if (!m) return false; // other OSC 9 uses (ConEmu notifications): not ours
+    const state = Number(m[1]);
+    const value = Math.max(0, Math.min(100, Number(m[2] || 0)));
+    this.setProgress(state === 0 ? null : { state, value });
+    return true;
+  }
+
+  setProgress(p) {
+    const same = JSON.stringify(p) === JSON.stringify(this.progress);
+    this.progress = p;
+    if (!same) this.app.sessionProgressChanged?.(this);
   }
 
   onPtyProc({ name, busy }) {
@@ -233,7 +288,7 @@ export class Session {
   }
 
   async paste(text) {
-    if (!this.term || this.state !== 'running') return;
+    if (!this.term || this.state !== 'running' || this._pasting) return;
     if (text == null) {
       try {
         text = await this.api.invoke('clipboard:readText');
@@ -242,22 +297,46 @@ export class Session {
         return;
       }
     }
+    text = sanitizePaste(text);
     if (!text) return;
-    if (this.app.prefs.get('warnPaste') && /[\r\n]/.test(text.replace(/[\r\n]+$/, '')) && !this.term.modes.bracketedPasteMode) {
-      if (!(await this.app.confirmPaste(text))) return;
+    this._pasting = true; // one paste (and one warning) at a time
+    try {
+      const prefs = this.app.prefs;
+      if (prefs.get('warnLargePaste') && text.length > LARGE_PASTE) {
+        if (!(await this.app.confirmPaste(text, 'large'))) return void this.focus();
+      } else if (prefs.get('warnPaste') && /[\r\n]/.test(text.replace(/[\r\n]+$/, '')) && !this.term.modes.bracketedPasteMode) {
+        if (!(await this.app.confirmPaste(text))) return void this.focus();
+      }
+      if (this.disposed || this.state !== 'running') return;
+      this.term.paste(text);
+      this.focus();
+    } finally {
+      this._pasting = false;
     }
-    this.term.paste(text);
-    this.term.focus();
   }
 
-  selectionChanged() {
-    clearTimeout(this._selTimer);
-    this._selTimer = setTimeout(() => {
-      const text = this.term?.getSelection();
-      if (!text) return;
-      this.api.invoke('pty:primaryWrite', text).catch(() => {});
-      if (this.app.prefs.get('copyOnSelect')) this.api.invoke('clipboard:writeText', text).catch(() => {});
-    }, 120);
+  // A mouse selection ended: PRIMARY selection (middle-click paste) and copy on select.
+  selectionDone() {
+    const text = this.term?.hasSelection() ? this.term.getSelection() : '';
+    if (!text) return;
+    this.api.invoke('pty:primaryWrite', text).catch(() => {});
+    if (this.app.prefs.get('copyOnSelect')) this.api.invoke('clipboard:writeText', text).catch((err) => this.app.error(err));
+  }
+
+  // The whole buffer as plain text (Export text).
+  text() {
+    const b = this.term?.buffer.active;
+    if (!b) return '';
+    const lines = [];
+    for (let y = 0; y < b.length; y++) {
+      const line = b.getLine(y);
+      const next = b.getLine(y + 1);
+      const s = line.translateToString(!next?.isWrapped);
+      if (line.isWrapped && lines.length) lines[lines.length - 1] += s;
+      else lines.push(s);
+    }
+    while (lines.length && !lines[lines.length - 1]) lines.pop();
+    return `${lines.join('\n')}\n`;
   }
 
   selectAll() {
@@ -272,7 +351,8 @@ export class Session {
   }
 
   focus() {
-    if (!this.disposed) this.term?.focus();
+    // Never pull the keyboard away from a dialog open over the window.
+    if (!this.disposed && !this.app.modalOpen?.()) this.term?.focus();
   }
 
   // ------------------------------------------------------------------ visuals
@@ -318,6 +398,7 @@ export class Session {
     if (this.ptyId) bus.unregister(this.ptyId);
     clearTimeout(this._fitTimer);
     clearTimeout(this._selTimer);
+    if (this._onMouseUp) window.removeEventListener('mouseup', this._onMouseUp, true);
     this.ro?.disconnect();
     this.hideLinkTip();
     for (const d of this._offs) d?.dispose?.();

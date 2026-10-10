@@ -67,6 +67,9 @@
   font-size: var(--fs-caption);
   color: var(--text);
 }
+.app-paint .pt-doctitle.tiny {
+  visibility: hidden;
+}
 .app-paint:not(.active) .pt-doctitle,
 .app-paint:not(.active) .pt-menu-btn {
   color: var(--text-2);
@@ -314,7 +317,7 @@
 .app-paint .pt-sw:active {
   transform: scale(1.04);
 }
-.app-paint .pt-sw.empty {
+.app-paint .pt-sw.pt-empty {
   background: transparent;
   box-shadow: none;
   border: 1px dashed var(--text-3);
@@ -370,7 +373,39 @@
   height: 44px;
   padding: 0 14px;
   border-top: 1px solid var(--stroke);
-  overflow: hidden;
+  /* last resort on very narrow windows: scroll rather than clip the options */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.app-paint .pt-ctxbar::-webkit-scrollbar {
+  display: none;
+}
+.app-paint .pt-ctxbar.narrow {
+  padding: 0 10px;
+}
+.app-paint .pt-ctxbar.narrow .pt-ctx-row {
+  gap: 6px;
+}
+.app-paint .pt-ctxbar.narrow .pt-font {
+  width: 150px;
+}
+.app-paint .pt-ctxbar.narrow .segmented > button {
+  padding: 3px 8px;
+}
+.app-paint .pt-ctxbar.narrow .pt-tol {
+  width: 140px;
+}
+.app-paint .pt-ctxbar.xnarrow .pt-ctx-cap,
+.app-paint .pt-ctxbar.xnarrow .pt-ctx-row > .icon,
+.app-paint .pt-ctxbar.xnarrow .pt-ctx-hint {
+  display: none;
+}
+.app-paint .pt-ctxbar.xnarrow .pt-font {
+  width: 112px;
+}
+.app-paint .pt-ctxbar.xnarrow .pt-ctx-row > .vsep {
+  display: none;
 }
 .app-paint .pt-ctxbar[hidden],
 .app-paint .pt-ctx-row[hidden] {
@@ -807,15 +842,25 @@
 .app-paint .pt-st-item > .icon {
   color: var(--text-2);
 }
-.app-paint .pt-st-item.empty > .icon {
+.app-paint .pt-st-item.pt-empty > .icon {
   opacity: 0.55;
 }
 .app-paint .pt-status.narrow .pt-st-item.file,
 .app-paint .pt-status.narrow .pt-st-item.sel {
   display: none;
 }
+.app-paint .pt-status.narrow .pt-st-item {
+  min-width: 104px;
+}
 .app-paint .pt-status.xnarrow .pt-zoom-slider {
+  width: 72px;
+}
+.app-paint .pt-status.xxnarrow .pt-zoom-slider,
+.app-paint .pt-status.xxnarrow .pt-st-sep {
   display: none;
+}
+.app-paint .pt-status.xxnarrow .pt-st-item {
+  min-width: 0;
 }
 .app-paint .pt-zoom {
   display: flex;

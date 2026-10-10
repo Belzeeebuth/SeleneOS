@@ -250,6 +250,7 @@
   width: 0;
   padding: 0;
   overflow: hidden;
+  visibility: hidden; /* out of the Tab order while hidden */
 }
 .app-mail.ml-narrow > .win-titlebar > .win-title {
   display: none;

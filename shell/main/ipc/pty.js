@@ -11,6 +11,8 @@
 //   pty:resize(id, cols, rows)  pty:signal(id, 'INT')  pty:kill(id)
 //   pty:info(id) -> { pid, fgPid, fgName, busy, cwd }    busy: a program other than the shell runs
 //   pty:env() -> { shell, shellName, user, home, hostname, python, sudo, version }
+//   pty:fonts() -> installed monospace font families (fontconfig), [] when unknown
+//   cwd: absolute, '~', '~/dir', or relative to the home folder; anything that is not a folder -> home
 //   pty:primaryRead() -> text   pty:primaryWrite(text)   the X11 PRIMARY selection (middle-click paste)
 // Events, sent only to the renderer that spawned the terminal:
 //   'pty:data' { id, data }       output decoded with a streaming UTF-8 decoder, batched every ~8 ms
@@ -18,6 +20,9 @@
 //   'pty:exit' { id, code }       after the last 'pty:data'
 // Output is paused while more than HIGH characters wait for an ack, so a flood (yes, cat of a big
 // file) cannot swamp the renderer; the helper then stops reading the PTY and the program blocks.
+// The IPC framework appends the event after the arguments, so every handler takes it from the end of
+// the argument list (a call with a missing or extra argument must never shift it into another one and
+// skip the ownership check).
 // Terminals die with their renderer (closed, reloaded, crashed) and when the app quits; if the
 // shell process itself dies the helper sees EOF on stdin and hangs its terminal up.
 const { app, clipboard } = require('electron');
@@ -26,7 +31,7 @@ const { StringDecoder } = require('string_decoder');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { helperPath, which } = require('../lib/exec');
+const { helperPath, which, run } = require('../lib/exec');
 
 const FLUSH_MS = 8;
 const MAX_BATCH = 256 * 1024;
@@ -43,6 +48,39 @@ let procTimer = null;
 function clampInt(v, lo, hi, def) {
   const n = Math.round(Number(v));
   return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : def;
+}
+
+// '~', '~/src', 'src' (relative to home) or an absolute path -> an existing folder, else home.
+function resolveCwd(cwd) {
+  const home = os.homedir();
+  let dir = typeof cwd === 'string' ? cwd.trim() : '';
+  if (!dir || dir.includes('\0')) return home;
+  if (dir === '~') dir = home;
+  else if (dir.startsWith('~/')) dir = path.join(home, dir.slice(2));
+  else if (!path.isAbsolute(dir)) dir = path.join(home, dir);
+  try {
+    return fs.statSync(dir).isDirectory() ? dir : home;
+  } catch {
+    return home;
+  }
+}
+
+// Monospace font families known to fontconfig, for the font face setting.
+let fontsPromise = null;
+function monoFonts() {
+  if (!fontsPromise) {
+    fontsPromise = run('fc-list', [':spacing=mono', 'family'], { timeout: 8000 })
+      .then(({ stdout }) => {
+        const set = new Set();
+        for (const line of stdout.split('\n')) {
+          const name = line.split(',')[0].replace(/\\/g, '').trim();
+          if (name && !/emoji|symbol/i.test(name)) set.add(name);
+        }
+        return [...set].sort((a, b) => a.localeCompare(b));
+      })
+      .catch(() => []);
+  }
+  return fontsPromise;
 }
 
 function loginShell() {
@@ -226,23 +264,34 @@ function trackOwner(sender) {
 }
 
 module.exports = function register(api) {
-  api.handle('pty:spawn', (opts = {}, event) => {
-    const sender = event?.sender;
-    if (!sender) throw api.error('No renderer', 'EINVAL');
+  // handle(channel, (event, ...args) => …): the IPC event is always the last argument.
+  const handle = (channel, fn) =>
+    api.handle(channel, (...args) => {
+      const event = args.pop();
+      if (!event?.sender) throw api.error('No renderer', 'EINVAL');
+      return fn(event, ...args);
+    });
+  const listen = (channel, fn) =>
+    api.on(channel, (...args) => {
+      const event = args.pop();
+      if (event?.sender) fn(event, ...args);
+    });
+
+  handle('pty:spawn', (event, opts) => {
+    const sender = event.sender;
+    if (!opts || typeof opts !== 'object') opts = {};
+    const wcId = sender.id;
     const cols = clampInt(opts.cols, 2, 1000, 80);
     const rows = clampInt(opts.rows, 1, 500, 24);
-    let cwd = typeof opts.cwd === 'string' && opts.cwd ? opts.cwd : os.homedir();
-    try {
-      if (!fs.statSync(cwd).isDirectory()) cwd = os.homedir();
-    } catch {
-      cwd = os.homedir();
-    }
+    const cwd = resolveCwd(opts.cwd);
     const args = ['--cols', String(cols), '--rows', String(rows), '--cwd', cwd, '--'];
     const command = opts.command;
     if (Array.isArray(command) && command.length) {
       if (!command.every((a) => typeof a === 'string')) throw api.error('Invalid command', 'EINVAL');
+      if (command.some((a) => a.includes('\0'))) throw api.error('Invalid command', 'EINVAL');
       args.push(...command);
     } else if (typeof command === 'string' && command.trim()) {
+      if (command.includes('\0')) throw api.error('Invalid command', 'EINVAL');
       args.push(loginShell(), '-c', command);
     } else if (command != null && !(Array.isArray(command) || typeof command === 'string')) {
       throw api.error('Invalid command', 'EINVAL');
@@ -306,7 +355,7 @@ module.exports = function register(api) {
       if (spawnError && !p.pending.length) p.pending.push(`\r\n${spawnError.message}\r\n`);
       flush(api, p);
       ptys.delete(id);
-      owners.get(sender.id)?.delete(id);
+      owners.get(wcId)?.delete(id); // (the renderer may be destroyed by now: no sender.id)
       const exit = code ?? (signal ? 128 + (os.constants.signals[signal] || 1) : 1);
       api.sendTo(sender, 'pty:exit', { id, code: exit });
     });
@@ -314,17 +363,16 @@ module.exports = function register(api) {
   });
 
   // aurora.send('pty:write', id, data[, 'binary']) — 'binary': one byte per char code (xterm onBinary).
-  api.on('pty:write', (id, data, ...rest) => {
-    const event = rest.pop();
+  listen('pty:write', (event, id, data, mode) => {
     const p = ptys.get(id);
-    if (!p || p.exited || p.owner !== event?.sender || typeof data !== 'string') return;
+    if (!p || p.exited || p.owner !== event.sender || typeof data !== 'string') return;
     if (p.child.stdin.destroyed) return;
-    p.child.stdin.write(rest[0] === 'binary' ? Buffer.from(data, 'latin1') : data);
+    p.child.stdin.write(mode === 'binary' ? Buffer.from(data, 'latin1') : data);
   });
 
-  api.on('pty:ack', (id, chars, event) => {
+  listen('pty:ack', (event, id, chars) => {
     const p = ptys.get(id);
-    if (!p || p.owner !== event?.sender) return;
+    if (!p || p.owner !== event.sender) return;
     p.unacked = Math.max(0, p.unacked - (Number(chars) || 0));
     if (p.paused && p.unacked < LOW) {
       p.paused = false;
@@ -335,11 +383,11 @@ module.exports = function register(api) {
   function own(id, event) {
     const p = ptys.get(id);
     if (!p || p.exited) throw api.error(`No terminal ${id}`, 'ENOENT');
-    if (event?.sender && p.owner !== event.sender) throw api.error('Not your terminal', 'EPERM');
+    if (p.owner !== event.sender) throw api.error('Not your terminal', 'EPERM');
     return p;
   }
 
-  api.handle('pty:resize', (id, cols, rows, event) => {
+  handle('pty:resize', (event, id, cols, rows) => {
     const p = own(id, event);
     const c = clampInt(cols, 2, 1000, 80);
     const r = clampInt(rows, 1, 500, 24);
@@ -347,7 +395,7 @@ module.exports = function register(api) {
     return true;
   });
 
-  api.handle('pty:signal', (id, name, event) => {
+  handle('pty:signal', (event, id, name) => {
     const p = own(id, event);
     const sig = String(name || '').toUpperCase().replace(/^SIG/, '');
     if (!SIGNALS.has(sig)) throw api.error(`Signal ${name} not allowed`, 'EINVAL');
@@ -355,15 +403,15 @@ module.exports = function register(api) {
     return true;
   });
 
-  api.handle('pty:kill', (id, event) => {
+  handle('pty:kill', (event, id) => {
     const p = ptys.get(id);
     if (!p) return false;
-    if (event?.sender && p.owner !== event.sender) throw api.error('Not your terminal', 'EPERM');
+    if (p.owner !== event.sender) throw api.error('Not your terminal', 'EPERM');
     killPty(p);
     return true;
   });
 
-  api.handle('pty:info', (id, event) => {
+  handle('pty:info', (event, id) => {
     const p = own(id, event);
     const fg = foreground(p) || { fgPid: p.shellPid, fgName: '', busy: false };
     let cwd = null;
@@ -373,7 +421,9 @@ module.exports = function register(api) {
     return { pid: p.shellPid, ...fg, cwd };
   });
 
-  api.handle('pty:env', () => {
+  handle('pty:fonts', () => monoFonts());
+
+  handle('pty:env', () => {
     const shell = loginShell();
     return {
       shell,
@@ -387,16 +437,16 @@ module.exports = function register(api) {
     };
   });
 
-  api.handle('pty:primaryRead', () => {
+  handle('pty:primaryRead', () => {
     try {
       return clipboard.readText('selection');
     } catch {
       return '';
     }
   });
-  api.handle('pty:primaryWrite', (text) => {
+  handle('pty:primaryWrite', (event, text) => {
     try {
-      clipboard.writeText(String(text ?? ''), 'selection');
+      clipboard.writeText(String(text ?? '').slice(0, 4 * 1024 * 1024), 'selection');
     } catch {}
     return true;
   });
@@ -416,4 +466,4 @@ module.exports = function register(api) {
 };
 
 // For tests (plain node, no Electron): which helper would be run.
-module.exports.__test = { helperCommand, loginShell };
+module.exports.__test = { helperCommand, loginShell, resolveCwd };

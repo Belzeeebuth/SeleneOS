@@ -9,6 +9,13 @@
 //     and dark (follow system theme + explicit), settings tab (persisted), link click -> openUrl, bell,
 //     confirm on close, French UI, minimum size and maximized layouts, 10 open/close cycles without
 //     orphan processes, and no console errors.
+//   QA regressions: pasted ESC sequences cannot break out of bracketed paste, large-paste warning,
+//     OSC 8 targets shown on hover, program titles sanitised, window shortcuts and Tab focus stay
+//     inside an open dialog, find listeners do not stack, copy on select only for mouse selections,
+//     readable exit message + spawn failure hint, Export text, starting directory validation (~),
+//     launch cwd '~/x' / relative / junk, IPC event never taken from the arguments, installed fonts
+//     only, OSC 9;4 progress ring + taskbar progress, French tab menu / paste warning / min-size
+//     settings, 15 open/close cycles with unchanged listeners, sessions and DOM.
 //   Documentation screenshots: aurora-os/docs/screenshots/terminal-*.png
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/terminal.test.mjs [--only=helper|ui|fr|orphans|shots]
 import fs from 'node:fs';
@@ -262,6 +269,26 @@ async function typeLine(s, line) {
   await focusTerm(s);
   await s.page.keyboard.type(line);
   await s.page.keyboard.press('Enter');
+}
+// Drag the mouse over the first `chars` cells of the last buffer line equal to `text` (a real selection).
+async function mouseSelect(s, text, chars = text.length) {
+  const r = await TM(
+    s,
+    (app, el, text) => {
+      const b = app.session.term.buffer.active;
+      let row = -1;
+      for (let y = 0; y < b.length; y++) if (b.getLine(y).translateToString(true) === text) row = y - b.viewportY;
+      const screen = app.session.el.querySelector('.xterm-screen').getBoundingClientRect();
+      return { row, x: screen.left, y: screen.top + (row + 0.5) * (screen.height / app.session.term.rows), cw: screen.width / app.session.term.cols };
+    },
+    text,
+  );
+  if (r.row < 0) throw new Error(`line not on screen: ${text}`);
+  await s.page.mouse.move(r.x + 2, r.y);
+  await s.page.mouse.down();
+  await s.page.mouse.move(r.x + r.cw * chars - 2, r.y, { steps: 5 });
+  await s.page.mouse.up();
+  await sleep(60);
 }
 async function waitText(s, re, opts = {}) {
   return until(async () => re.test(await buffer(s, opts.pane ?? null)), { timeout: opts.timeout || 6000, label: `buffer ${re}` });
@@ -585,11 +612,22 @@ async function uiTests() {
       await s.page.keyboard.press('Enter');
       await waitText(s, /^pasted-42$/m);
       check('Ctrl+Shift+V pastes', /^pasted-42$/m.test(await buffer(s)), true);
-      // copy on select (setting)
+      // copy on select (setting): a mouse selection is copied; Select all and the find box are not
       await TM(s, (app) => app.prefs.set('copyOnSelect', true));
-      await TM(s, (app) => app.session.term.select(0, app.session.term.buffer.active.cursorY + app.session.term.buffer.active.baseY - 1, 9));
+      await mouseSelect(s, 'pasted-42');
       await until(async () => (await run(s, `window.aurora.invoke('clipboard:readText')`)) === 'pasted-42', { label: 'copy on select' });
       check('copy on select', await run(s, `window.aurora.invoke('clipboard:readText')`), 'pasted-42');
+      await run(s, `window.aurora.invoke('clipboard:writeText', 'keep-me'); 0`);
+      await TM(s, (app) => app.session.selectAll());
+      await TM(s, (app) => {
+        app.find.open(app.session);
+        app.find.input.value = 'pasted';
+        app.find.run({ keepIndex: false });
+      });
+      await sleep(400);
+      check('find matches and Select all leave the clipboard alone', await run(s, `window.aurora.invoke('clipboard:readText')`), 'keep-me');
+      await TM(s, (app) => app.find.close());
+      await TM(s, (app) => app.session.term.clearSelection());
       await TM(s, (app) => app.prefs.set('copyOnSelect', false));
       // multi-line paste without bracketed paste mode asks first (sh -c 'cat' has no bracketed paste)
       await typeLine(s, "sh -c 'IFS= read -r a; IFS= read -r b; echo \"[$a+$b]\"'");
@@ -611,7 +649,7 @@ async function uiTests() {
       await s.page.keyboard.press('Enter');
       await waitText(s, /^primary-42$/m);
       check('middle click pastes PRIMARY', /^primary-42$/m.test(await buffer(s)), true);
-      await TM(s, (app) => app.session.term.select(0, app.session.term.buffer.active.baseY + app.session.term.buffer.active.cursorY - 1, 10));
+      await mouseSelect(s, 'primary-42');
       await until(async () => (await run(s, `window.aurora.invoke('pty:primaryRead')`)) === 'primary-42', { label: 'selection -> PRIMARY' });
       check('selecting sets PRIMARY', await run(s, `window.aurora.invoke('pty:primaryRead')`), 'primary-42');
       // dropping text inserts it at the prompt
@@ -785,7 +823,7 @@ async function uiTests() {
       await shot(s, 'settings-schemes-dark');
       await s.page.click(`${WIN} .tm-set-nav [data-section="interaction"]`);
       await sleep(300);
-      check('interaction rows', await run(s, `document.querySelectorAll('${WIN} .tm-set-row').length`), 5);
+      check('interaction rows', await run(s, `document.querySelectorAll('${WIN} .tm-set-row').length`), 6);
       await s.page.click(`${WIN} .tm-set-nav [data-section="advanced"]`);
       await sleep(300);
       await s.page.locator(`${WIN} [data-setting="reset"] .btn`).click();
@@ -834,6 +872,253 @@ async function uiTests() {
       check('shell.openUrl called', await run(s, `window.__opened[0]`), 'https://example.com/aurora?x=1');
       await run(s, `window.__aurora.shell.openUrl = window.__aurora.shell.__openUrl; 0`);
       await s.page.mouse.move(10, 10);
+    });
+
+    await section('ui', 'security: pasted escape sequences, OSC 8 targets, program titles', async () => {
+      // An embedded "ESC [201~" must not end bracketed paste and run the rest as a command.
+      await typeLine(s, 'clear');
+      await waitText(s, /[$#] *$/m);
+      check('bash uses bracketed paste', await TM(s, (app) => app.session.term.modes.bracketedPasteMode), true);
+      await run(s, `window.aurora.invoke('clipboard:writeText', 'echo safe\\x1b[201~echo INJECTED-$((1+1))\\r'); 0`);
+      await TM(s, (app) => app.session.paste());
+      await sleep(700);
+      check('paste injection did not run', /^INJECTED-2$/m.test(await buffer(s)), false);
+      check('…the text stayed on the command line', /echo safeecho INJECTED/.test(await buffer(s)), true);
+      await focusTerm(s);
+      await s.page.keyboard.press('Control+c');
+      await sleep(200);
+      // Control characters in pasted text are dropped (tabs and line breaks stay).
+      check('sanitizePaste', await run(s, `import('app://shell/apps/terminal/lib/session.js').then((m) => JSON.stringify(m.sanitizePaste('a\\x1b[31mb\\x07c\\td\\x9be\\x7ff\\r\\ng')))`), JSON.stringify('a[31mbc\tde' + 'f\r\ng'));
+      // A large paste asks first (Windows Terminal: more than 5 KiB).
+      await run(s, `window.aurora.invoke('clipboard:writeText', 'echo ' + 'x'.repeat(6000)); 0`);
+      await focusTerm(s);
+      await s.page.keyboard.press('Control+Shift+V');
+      await until(() => dialogOpen(s), { label: 'large paste warning' });
+      check('large paste warning', await dialogText(s), (t) => /large amount of text/.test(t) && /5 KB/.test(t));
+      await dialogButton(s, 'Cancel');
+      check('cancelled: nothing pasted', /xxxxxxxxxx/.test(await buffer(s)), false);
+      // OSC 8 hyperlink whose text differs from its target: hovering shows the real target.
+      await run(s, `window.__opened = []; window.__aurora.shell.__openUrl = window.__aurora.shell.openUrl; window.__aurora.shell.openUrl = (u) => { window.__opened.push(u); }; 0`);
+      await typeLine(s, `clear; printf '\\033]8;;https://evil.example/x\\033\\\\click here please\\033]8;;\\033\\\\\\n'`);
+      await waitText(s, /^click here please$/m);
+      const p = await TM(s, (app) => {
+        const b = app.session.term.buffer.active;
+        let row = -1;
+        for (let y = 0; y < b.length; y++) if (b.getLine(y).translateToString(true) === 'click here please') row = y - b.viewportY;
+        const screen = app.session.el.querySelector('.xterm-screen').getBoundingClientRect();
+        return { x: screen.left + (screen.width / app.session.term.cols) * 3.5, y: screen.top + (row + 0.5) * (screen.height / app.session.term.rows) };
+      });
+      await s.page.mouse.move(p.x + 40, p.y + 60);
+      await s.page.mouse.move(p.x, p.y, { steps: 6 });
+      await until(() => run(s, `!!document.querySelector('${WIN} .tm-linktip')`), { label: 'OSC 8 tooltip' });
+      check('OSC 8 tooltip shows the real target', await run(s, `document.querySelector('${WIN} .tm-linktip-url').textContent`), 'https://evil.example/x');
+      await s.page.mouse.click(p.x, p.y);
+      await until(() => run(s, `window.__opened.length > 0`), { label: 'OSC 8 open' });
+      check('OSC 8 click opens the target', await run(s, `window.__opened[0]`), 'https://evil.example/x');
+      await run(s, `window.__aurora.shell.openUrl = window.__aurora.shell.__openUrl; 0`);
+      await s.page.mouse.move(10, 10);
+      await sleep(100);
+      check('tooltip hidden on leave', await run(s, `!!document.querySelector('${WIN} .tm-linktip')`), false);
+      // Titles set by programs: HTML stays text, control and bidi-override characters are removed.
+      await typeLine(s, `clear; printf '\\033]0;<img src=x onerror="window.__xss=1">\\a'; sleep 1; echo title-$((1+1))`);
+      await until(async () => (await tabInfo(s)).titles[0].startsWith('<img'), { label: 'html title' });
+      check('HTML title is shown as text', await run(s, `!window.__xss && !document.querySelector('img[src="x"]')`), true);
+      await waitText(s, /^title-2$/m, { timeout: 5000 });
+      await typeLine(s, `clear; printf '\\033]0;abc\\u202Eevil\\a'; sleep 1; echo title-$((1+2))`);
+      await until(async () => /^abc/.test((await tabInfo(s)).titles[0]), { label: 'bidi title' });
+      check('bidi override stripped from the title', (await tabInfo(s)).titles[0], 'abcevil');
+      await waitText(s, /^title-3$/m, { timeout: 5000 });
+    });
+
+    await section('ui', 'dialogs own the keyboard: no shortcuts behind a dialog', async () => {
+      await typeLine(s, 'clear; sleep 30');
+      await until(() => TM(s, (app) => app.session.busy), { label: 'busy' });
+      await s.page.keyboard.press('Control+Shift+W');
+      await until(() => dialogOpen(s), { label: 'confirm' });
+      await sleep(100);
+      const n = (await tabInfo(s)).count;
+      await s.page.keyboard.press('Control+Shift+T');
+      await s.page.keyboard.press('Control+Shift+W');
+      await s.page.keyboard.press('Control+Tab');
+      await sleep(500);
+      check('no new tab opened behind the dialog', (await tabInfo(s)).count, n);
+      check('no second dialog', await run(s, `document.querySelectorAll('${WIN} > .dialog-layer:not(.closing)').length`), 1);
+      check('the dialog keeps the focus', await run(s, `!!document.activeElement.closest('${WIN} > .dialog-layer')`), true);
+      const tabbed = [];
+      for (const key of ['Tab', 'Tab', 'Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab']) {
+        await s.page.keyboard.press(key);
+        tabbed.push(await run(s, `!!document.activeElement.closest('${WIN} > .dialog-layer')`));
+      }
+      check('Tab and Shift+Tab cycle inside the dialog', tabbed, [true, true, true, true, true, true]);
+      await dialogButton(s, 'Cancel');
+      check('cancel keeps the tab', (await tabInfo(s)).count, n);
+      await focusTerm(s);
+      await s.page.keyboard.press('Control+c');
+      await until(() => TM(s, (app) => !app.session.busy), { label: 'sleep stopped' });
+      // closing other tabs asks when one of them runs a program
+      await s.page.keyboard.press('Control+Shift+T');
+      await until(async () => (await tabInfo(s)).count === n + 1, { label: 'second tab' });
+      await waitReady(s);
+      await typeLine(s, 'sleep 40');
+      await until(() => TM(s, (app) => app.session.busy), { label: 'busy 2' });
+      await TM(s, (app) => {
+        app.closeOtherTabs(app.tabs[0]); // (not awaited: it waits for the dialog)
+      });
+      await until(() => dialogOpen(s), { label: 'close others confirm' });
+      await dialogButton(s, 'Cancel');
+      check('close other tabs asked (running program)', (await tabInfo(s)).count, n + 1);
+      await TM(s, (app, el, n) => app.closeTab(app.tabs[n], { force: true }), n);
+      await until(async () => (await tabInfo(s)).count === n, { label: 'closed' });
+    });
+
+    await section('ui', 'find box: reopening does not stack listeners', async () => {
+      const live = await TM(s, (app) => {
+        const term = app.session.term;
+        let n = 0;
+        const orig = term.onWriteParsed; // (a getter on the prototype: shadow it on the instance)
+        Object.defineProperty(term, 'onWriteParsed', {
+          configurable: true,
+          value: (fn) => {
+            const d = orig(fn);
+            n++;
+            let live = true;
+            return { dispose: () => (live && n--, (live = false), d.dispose()) };
+          },
+        });
+        for (let i = 0; i < 4; i++) app.find.open(app.session);
+        const open = n;
+        app.find.close();
+        delete term.onWriteParsed;
+        return [open, n];
+      });
+      check('one write listener while open, none after closing', live, [1, 0]);
+    });
+
+    await section('ui', 'exit: readable message, title reset, spawn failure hint', async () => {
+      await TM(s, (app) => app.prefs.set('closeOnExit', 'never'));
+      await s.page.keyboard.press('Control+Shift+T');
+      await until(async () => (await tabInfo(s)).count === 2, { label: 'tab' });
+      await waitReady(s);
+      await typeLine(s, 'exit');
+      await waitText(s, /process exited with code 0/);
+      const attrs = await TM(s, (app) => {
+        const b = app.session.term.buffer.active;
+        for (let y = 0; y < b.length; y++) {
+          const line = b.getLine(y);
+          if (line.translateToString(true).startsWith('[process exited')) {
+            const c = line.getCell(1);
+            return { def: c.isFgDefault(), title: app.active.titleEl.textContent };
+          }
+        }
+        return null;
+      });
+      check('exit message in the default colour (readable)', attrs?.def, true);
+      check('exited tab shows the profile name, not the last command', attrs?.title, 'Bash');
+      await focusTerm(s);
+      await s.page.keyboard.press('Control+d');
+      await until(async () => (await tabInfo(s)).count === 1, { label: 'Ctrl+D closed' });
+      await TM(s, (app) => app.prefs.set('closeOnExit', 'graceful'));
+      // the helper cannot start: the error, how to retry, and Enter retries
+      await TM(s, (app) => {
+        app.__invoke = app.ctx.api.invoke;
+        app.ctx.api.invoke = (ch, ...a) => (ch === 'pty:spawn' ? Promise.reject(new Error('helper missing')) : app.__invoke.call(app.ctx.api, ch, ...a));
+      });
+      await TM(s, (app) => app.newTab());
+      await waitText(s, /could not start: helper missing/);
+      check('spawn failure explains how to retry', /press Enter to restart/.test(await buffer(s)), true);
+      check('…and the tab is marked as exited', await TM(s, (app) => app.active.el.classList.contains('exited')), true);
+      await TM(s, (app) => (app.ctx.api.invoke = app.__invoke));
+      await focusTerm(s);
+      await s.page.keyboard.press('Enter');
+      await waitReady(s);
+      check('Enter retries', await TM(s, (app) => app.session.state), 'running');
+      await TM(s, (app) => app.closeTab(app.active, { force: true }));
+      await until(async () => (await tabInfo(s)).count === 1, { label: 'back to one tab' });
+    });
+
+    await section('ui', 'export text from the tab menu', async () => {
+      await typeLine(s, 'clear; echo export-marker-$((6*7))');
+      await waitText(s, /^export-marker-42$/m);
+      const tb = await run(s, `(() => { const r = document.querySelector('${WIN} .tm-tab.active').getBoundingClientRect(); return { x: r.x + 40, y: r.y + r.height / 2 }; })()`);
+      await s.page.mouse.click(tb.x, tb.y, { button: 'right' });
+      await until(async () => (await menuLabels(s)).includes('Export text…'), { label: 'tab menu' });
+      check('tab menu has Find…', (await menuLabels(s)).includes('Find…'), true);
+      await s.page.locator('body > .menu .menu-item', { hasText: 'Export text…' }).click();
+      await until(() => run(s, `!!document.querySelector('${WIN} > .dialog-layer .fp-bottom input')`), { label: 'save dialog' });
+      check('suggested name', await run(s, `document.querySelector('${WIN} > .dialog-layer .fp-bottom input').value`), (v) => /\.txt$/.test(v));
+      await s.page.fill(`${WIN} > .dialog-layer .fp-bottom input`, 'terminal-export.txt');
+      await s.page.locator(`${WIN} > .dialog-layer .dialog-footer .btn.primary`).click();
+      const file = path.join(home, 'Documents', 'terminal-export.txt');
+      await until(() => fs.existsSync(file), { label: 'exported file' });
+      check('exported buffer', fs.readFileSync(file, 'utf8'), (t) => /^export-marker-42$/m.test(t) && t.endsWith('\n'));
+      await until(() => run(s, `!document.querySelector('${WIN} > .dialog-layer:not(.closing)')`), { label: 'dialog closed' });
+    });
+
+    await section('ui', 'settings: starting directory must be a folder, ~ works; launch cwd', async () => {
+      await TM(s, (app) => app.openSettings('startup'));
+      await sleep(300);
+      await s.page.fill(`${WIN} .tm-dir`, '/etc/passwd');
+      await s.page.keyboard.press('Enter');
+      await until(() => dialogOpen(s), { label: 'not a folder' });
+      check('a file is refused', await dialogText(s), (t) => /not an existing folder/.test(t));
+      await dialogButton(s, 'OK');
+      check('setting unchanged', await TM(s, (app) => app.prefs.get('startDir')), '');
+      await s.page.fill(`${WIN} .tm-dir`, '~/Documents');
+      await s.page.keyboard.press('Enter');
+      await sleep(300);
+      check('~/Documents accepted', await TM(s, (app) => app.prefs.get('startDir')), '~/Documents');
+      await s.page.keyboard.press('Control+Shift+T');
+      await waitReady(s);
+      await typeLine(s, 'pwd');
+      await waitText(s, new RegExp(`^${home}/Documents$`, 'm'));
+      check('new tab starts in ~/Documents', new RegExp(`^${home}/Documents$`, 'm').test(await buffer(s)), true);
+      await TM(s, (app) => app.prefs.set('startDir', ''));
+      await TM(s, (app) => {
+        for (const t of [...app.tabs].slice(1)) app.closeTab(t, { force: true });
+      });
+      await until(async () => (await tabInfo(s)).count === 1, { label: 'one tab' });
+      // launch arguments: '~/…' and paths relative to home; junk is ignored
+      const n = await winCount(s);
+      for (const [cwd, want] of [['~/Music', `${home}/Music`], ['Projects', `${home}/Projects`], [42, home]]) {
+        await openTerminal(s, { cwd, command: cwd === 42 ? 42 : undefined });
+        await typeLine(s, 'pwd');
+        await waitText(s, new RegExp(`^${want}$`, 'm'));
+        check(`launch cwd ${JSON.stringify(cwd)}`, new RegExp(`^${want}$`, 'm').test(await buffer(s)), true);
+        await TM(s, (app) => app.win.close(true));
+        await until(async () => (await winCount(s)) === n, { label: 'closed' });
+      }
+    });
+
+    await section('ui', 'backend: the IPC event is never taken from the arguments', async () => {
+      const id = await run(s, `window.aurora.invoke('pty:spawn')`);
+      check('pty:spawn without options still works', id, (v) => /^pty\d+$/.test(v));
+      check('pty:info with extra arguments', await run(s, `window.aurora.invoke('pty:info', ${JSON.stringify(id)}, 'x', 'y').then((r) => typeof r.pid)`), 'number');
+      check('pty:resize with missing arguments uses defaults', await run(s, `window.aurora.invoke('pty:resize', ${JSON.stringify(id)}).then((r) => r, (e) => e.message)`), true);
+      check('unknown terminal', await run(s, `window.aurora.invoke('pty:resize', 'pty999999', 80, 24).then(() => 'ok', (e) => e.code || e.message)`), (v) => /ENOENT|No terminal/.test(v));
+      check('pty:kill', await run(s, `window.aurora.invoke('pty:kill', ${JSON.stringify(id)})`), true);
+      const fonts = await run(s, `window.aurora.invoke('pty:fonts')`);
+      check('pty:fonts lists installed monospace fonts', fonts, (f) => Array.isArray(f) && f.includes('DejaVu Sans Mono') && !f.some((x) => /emoji/i.test(x)));
+      check('the font face list offers only installed fonts', await TM(s, (app) => {
+        app.openSettings('appearance');
+        const opts = [...app.win.el.querySelectorAll('select[data-key="fontFace"] option')].map((o) => o.value);
+        app.closeTab(app.tabs.find((t) => t.kind === 'settings'));
+        return opts.filter((f) => f !== app.prefs.get('fontFace') && !app.fonts.includes(f));
+      }), []);
+    });
+
+    await section('ui', 'progress (OSC 9;4): ring on the tab, taskbar progress', async () => {
+      await typeLine(s, "clear; printf '\\033]9;4;1;40\\a'");
+      await until(() => TM(s, (app) => !app.active.progEl.hidden), { label: 'progress ring' });
+      check('tab ring at 40 %', await TM(s, (app) => app.active.progEl.style.getPropertyValue('--p')), '40');
+      check('taskbar button progress', await TM(s, (app) => app.win.progress), 0.4);
+      await shot(s, 'progress-dark', { clip: true });
+      await typeLine(s, "printf '\\033]9;4;2;70\\a'");
+      await until(() => TM(s, (app) => app.active.progEl.classList.contains('s2')), { label: 'error state' });
+      check('error state', await TM(s, (app) => app.win.progress), 0.7);
+      await typeLine(s, "printf '\\033]9;4;0;0\\a'");
+      await until(() => TM(s, (app) => app.active.progEl.hidden), { label: 'progress cleared' });
+      check('taskbar progress cleared', await TM(s, (app) => app.win.progress), null);
+      check('other OSC 9 sequences are ignored', await TM(s, (app) => app.session.onProgress('hello')), false);
     });
 
     await section('ui', 'bell: visual flash and tab badge', async () => {
@@ -992,6 +1277,40 @@ async function orphanTests() {
       }
       await until(() => terminalProcs(home).length === 0, { label: 'processes gone', timeout: 8000 }).catch(() => {});
       check('no orphans (helpers, shells, jobs)', terminalProcs(home), []);
+    });
+    await section('orphans', '15 open/close cycles leak no listeners, nodes or sessions', async () => {
+      const counts = () =>
+        run(
+          s,
+          `import('app://shell/apps/terminal/lib/bus.js').then(({ bus }) => { const a = window.__aurora; const em = (e) => { let n = 0; for (const set of (e?._h?.values?.() || [])) n += set.size; return n; }; return { wm: em(a.wm), i18n: em(a.i18n), sessions: bus.size, nodes: document.getElementsByTagName('*').length, css: document.querySelectorAll('link[rel=stylesheet]').length, tips: document.querySelectorAll('.tooltip, .tm-linktip').length, menus: document.querySelectorAll('body > .menu').length }; })`,
+        );
+      const gone = () => until(() => run(s, `document.querySelectorAll('${WIN}').length === 0 && !document.querySelector('.tooltip')`), { label: 'window removed', timeout: 8000 });
+      await openTerminal(s);
+      await TM(s, (app) => app.win.close(true));
+      await gone();
+      await sleep(600);
+      const before = await counts();
+      for (let i = 0; i < 15; i++) {
+        await openTerminal(s);
+        if (i % 3 === 0) {
+          await s.page.keyboard.press('Alt+Shift+D');
+          await until(async () => (await tabInfo(s)).panes === 2, { label: 'split' });
+          await TM(s, (app) => {
+            app.openSettings('appearance');
+            app.find.open(app.tabs[0].session);
+          });
+        }
+        await TM(s, (app) => app.win.close(true));
+        await until(async () => (await winCount(s)) === 0, { label: 'closed' });
+      }
+      await gone();
+      await sleep(600);
+      const after = await counts();
+      check('same listeners, sessions and DOM after 15 cycles', after, before);
+      await until(() => terminalProcs(home).length === 0, { label: 'processes gone', timeout: 8000 }).catch(() => {});
+      check('…and no processes', terminalProcs(home), []);
+    });
+    await section('orphans', 'a page reload kills its terminals', async () => {
       // Reloading the shell page kills its terminals too.
       await openTerminal(s);
       check('a terminal runs', terminalProcs(home).length >= 2, true);
@@ -1065,8 +1384,41 @@ async function frenchTests() {
         // nothing overflows its row (French is longer)
         const over = await run(s, `[...document.querySelectorAll('${WIN} .tm-set-row')].filter((r) => r.scrollWidth > r.clientWidth + 1).map((r) => r.dataset.setting)`);
         check(`no overflow in ${sec} (fr)`, over, []);
-        if (sec === 'appearance') await shot(s, 'settings-appearance-fr-light');
+        if (sec === 'appearance') {
+          await shot(s, 'settings-appearance-fr-light');
+          check('percent in French', await run(s, `document.querySelector('${WIN} .tm-slider-val').textContent`), (v) => /^100[\u202f\u00a0 ]%$/.test(v));
+        }
       }
+      // tab menu and the large paste warning in French
+      await TM(s, (app) => app.activate(app.tabs[0]));
+      const tb = await run(s, `(() => { const r = document.querySelector('${WIN} .tm-tab').getBoundingClientRect(); return { x: r.x + 40, y: r.y + r.height / 2 }; })()`);
+      await s.page.mouse.click(tb.x, tb.y, { button: 'right' });
+      await until(async () => (await menuLabels(s)).includes('Exporter le texte…'), { label: 'tab menu (fr)' });
+      check('tab menu (fr)', await menuLabels(s), (l) => l.includes('Rechercher…') && l.includes('Renommer l’onglet') && l.includes('Fermer les autres onglets'));
+      await closeMenus(s);
+      await run(s, `window.aurora.invoke('clipboard:writeText', 'y'.repeat(6000)); 0`);
+      await TM(s, (app) => {
+        app.session.paste();
+      });
+      await until(() => dialogOpen(s), { label: 'large paste (fr)' });
+      check('large paste warning (fr)', await dialogText(s), (t) => /Coller un texte volumineux/.test(t) && /5 Ko/.test(t));
+      await dialogButton(s, 'Annuler');
+      // minimum window size in French: nothing scrolls sideways, both tabs fit
+      await TM(s, (app) => app.win.setSize(100, 100));
+      await sleep(300);
+      for (const sec of ['startup', 'interaction', 'appearance', 'schemes', 'advanced']) {
+        await TM(s, (app, el, sec) => app.openSettings(sec), sec);
+        await sleep(250);
+        check(`min size, ${sec} (fr): no sideways scrolling`, await run(s, `(() => { const m = document.querySelector('${WIN} .tm-set-main'); return m.scrollWidth - m.clientWidth; })()`), (v) => v <= 1);
+      }
+      check('min size: both tabs fit without scroll arrows', await TM(s, (app) => app.scrollL.hidden && app.tabsEl.scrollWidth <= app.tabsEl.clientWidth + 1), true);
+      check('min size: settings nav has no scrollbar', await run(s, `getComputedStyle(document.querySelector('${WIN} .tm-set-nav')).scrollbarWidth`), 'none');
+      await shot(s, 'minsize-settings-fr-light', { clip: true });
+      await TM(s, (app) => {
+        app.win.setSize(980, 600);
+        app.win.center();
+      });
+      await sleep(300);
       // exit message in French
       await TM(s, (app) => app.activate(app.tabs[0]));
       await typeLine(s, 'exit 2');

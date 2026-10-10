@@ -1,0 +1,15 @@
+{
+  "id": "todo",
+  "name": { "en": "To Do", "fr": "Tâches" },
+  "description": { "en": "Lists, My Day, reminders, due dates and steps for everything you need to get done", "fr": "Listes, Ma journée, rappels, échéances et étapes pour tout ce que vous avez à faire" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1180, "height": 760, "minWidth": 400, "minHeight": 480, "background": "mica" },
+  "category": "productivity",
+  "keywords": {
+    "en": ["to do", "todo", "tasks", "task list", "reminders", "my day", "checklist", "planner", "due date", "groceries", "important"],
+    "fr": ["tâches", "à faire", "liste de tâches", "rappels", "ma journée", "liste de contrôle", "planificateur", "échéance", "courses", "important"]
+  },
+  "singleInstance": true
+}

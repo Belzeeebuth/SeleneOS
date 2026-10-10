@@ -1,0 +1,1587 @@
+/* PDF Reader — Windows 11 / Fluent style. Every rule is scoped under .app-pdf (the window).
+   pdf.js' own stylesheet is injected by lib/engine.js inside @scope (.pdf-scroller). */
+
+.app-pdf {
+  /* Resolved here, on the window: visual styles may restyle the title bar (e.g. High contrast), but the
+     active tab belongs to the document surface and keeps its colours. */
+  --pdf-ink: var(--text);
+  --pdf-ink-2: var(--text-2);
+  --pdf-surface: var(--layer-alt);
+  --pdf-stage: color-mix(in srgb, var(--bg-alt) 96%, var(--text));
+  --pdf-side-w: 232px;
+  --pdf-match: color-mix(in srgb, var(--accent) 28%, transparent);
+  --pdf-match-cur: color-mix(in srgb, var(--accent) 58%, transparent);
+}
+.app-pdf [hidden] {
+  display: none !important;
+}
+
+/* ------------------------------------------------------------------ title bar + tabs */
+.app-pdf > .win-titlebar > .win-title {
+  display: none;
+}
+.app-pdf > .win-titlebar {
+  padding-left: 14px;
+  gap: 4px;
+}
+.app-pdf > .win-titlebar > .win-icon {
+  margin-right: 6px;
+}
+.app-pdf .pdf-strip {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  position: relative;
+}
+.app-pdf .pdf-tabs {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  padding: 0 8px 0 2px;
+}
+.app-pdf .pdf-tabs::-webkit-scrollbar {
+  display: none;
+}
+.app-pdf .pdf-tabs.fade-l {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
+}
+.app-pdf .pdf-tabs.fade-r {
+  -webkit-mask-image: linear-gradient(to left, transparent, #000 24px);
+}
+.app-pdf .pdf-tabs.fade-l.fade-r {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+.app-pdf .pdf-tab {
+  position: relative;
+  flex: 0 1 auto;
+  width: 232px;
+  min-width: 88px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 12px;
+  color: color-mix(in srgb, var(--text) 72%, transparent);
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  outline: none;
+  container-type: inline-size;
+  transition: color var(--dur-fast) linear;
+}
+.app-pdf .pdf-tab > :not(.pdf-tab-bg) {
+  position: relative;
+  z-index: 1;
+}
+.app-pdf .pdf-tab-bg {
+  position: absolute;
+  inset: 4px 2px 4px;
+  border-radius: 6px;
+  background: transparent;
+  pointer-events: none;
+  transition: background var(--dur-fast) linear;
+}
+.app-pdf .pdf-tab:hover .pdf-tab-bg {
+  background: var(--subtle-hover);
+}
+.app-pdf .pdf-tab:active:not(.active) .pdf-tab-bg {
+  background: var(--subtle-pressed);
+}
+.app-pdf .pdf-tab.active {
+  color: var(--pdf-ink);
+  z-index: 2;
+}
+.app-pdf .pdf-tab.active .pdf-tab-close {
+  color: var(--pdf-ink-2);
+}
+.app-pdf .pdf-tab.active .pdf-tab-close:hover {
+  color: var(--pdf-ink);
+}
+.app-pdf .pdf-tab.active .pdf-tab-bg {
+  inset: 0;
+  border-radius: 8px 8px 0 0;
+  background: var(--pdf-surface);
+}
+.app-pdf .pdf-tab.active .pdf-tab-bg::before,
+.app-pdf .pdf-tab.active .pdf-tab-bg::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+}
+.app-pdf .pdf-tab.active .pdf-tab-bg::before {
+  left: -8px;
+  background: radial-gradient(circle at 0 0, transparent 7.5px, var(--pdf-surface) 8px);
+}
+.app-pdf .pdf-tab.active .pdf-tab-bg::after {
+  right: -8px;
+  background: radial-gradient(circle at 100% 0, transparent 7.5px, var(--pdf-surface) 8px);
+}
+.app-pdf .pdf-tab::after {
+  content: "";
+  position: absolute;
+  right: -0.5px;
+  top: 50%;
+  width: 1px;
+  height: 16px;
+  margin-top: -8px;
+  background: var(--stroke-strong);
+  transition: opacity var(--dur-fast) linear;
+}
+.app-pdf .pdf-tab:last-child::after,
+.app-pdf .pdf-tab.active::after,
+.app-pdf .pdf-tab:hover::after,
+.app-pdf .pdf-tab:has(+ .pdf-tab.active)::after,
+.app-pdf .pdf-tab:has(+ .pdf-tab:hover)::after {
+  opacity: 0;
+}
+.app-pdf .pdf-tab:focus-visible .pdf-tab-bg {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.app-pdf .pdf-tab-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.app-pdf .pdf-tab-icon img {
+  width: 16px;
+  height: 16px;
+}
+.app-pdf .pdf-tab-icon .spinner.small {
+  width: 14px;
+  height: 14px;
+}
+.app-pdf .pdf-tab-icon .icon {
+  color: var(--danger);
+}
+.app-pdf .pdf-tab-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+}
+.app-pdf .pdf-tab-state {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.app-pdf .pdf-tab-close {
+  grid-area: 1 / 1;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: background var(--dur-fast) linear, opacity var(--dur-fast) linear;
+}
+.app-pdf .pdf-tab.active .pdf-tab-close,
+.app-pdf .pdf-tab:hover .pdf-tab-close {
+  opacity: 1;
+  pointer-events: auto;
+}
+.app-pdf .pdf-tab-close:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-pdf .pdf-tab-close:active {
+  background: var(--subtle-pressed);
+}
+.app-pdf .pdf-tab-dot {
+  grid-area: 1 / 1;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity var(--dur-fast) linear, transform var(--dur) var(--ease);
+  pointer-events: none;
+}
+.app-pdf .pdf-tab.dirty:not(:hover) .pdf-tab-dot {
+  opacity: 1;
+  transform: none;
+}
+.app-pdf .pdf-tab.dirty:not(:hover) .pdf-tab-close {
+  opacity: 0;
+  pointer-events: none;
+}
+@container (max-width: 108px) {
+  .app-pdf .pdf-tab:not(.active):not(.dirty) .pdf-tab-state {
+    display: none;
+  }
+}
+.app-pdf .pdf-tabs.dragging .pdf-tab:not(.drag) {
+  transition: transform 200ms var(--ease);
+}
+.app-pdf .pdf-tab.drag {
+  z-index: 5;
+  transition: none;
+}
+.app-pdf .pdf-tab.drag::after {
+  opacity: 0;
+}
+.app-pdf .pdf-tab-ghost {
+  position: absolute;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.app-pdf .pdf-newtab {
+  width: 32px;
+  height: 30px;
+  flex: none;
+  margin: 0 4px 3px 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  transition: background var(--dur-fast) linear;
+}
+.app-pdf .pdf-newtab:hover {
+  background: var(--subtle-hover);
+}
+.app-pdf .pdf-newtab:active {
+  background: var(--subtle-pressed);
+  color: var(--text-2);
+}
+.app-pdf .pdf-strip-drag {
+  flex: 1 0 24px;
+  height: 100%;
+}
+.app-pdf:not(.active) .pdf-tab,
+.app-pdf:not(.active) .pdf-newtab {
+  color: var(--text-3);
+}
+.app-pdf:not(.active) .pdf-tab.active {
+  color: var(--pdf-ink-2);
+}
+
+/* ------------------------------------------------------------------ layout */
+.app-pdf .pdf-root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--pdf-surface);
+}
+.app-pdf .pdf-main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.app-pdf .pdf-root:not(.has-doc) .pdf-main {
+  display: none;
+}
+.app-pdf .pdf-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: var(--pdf-stage);
+  border-top: 1px solid var(--stroke);
+}
+.app-pdf .pdf-docs {
+  position: absolute;
+  inset: 0;
+}
+.app-pdf .pdf-doc {
+  position: absolute;
+  inset: 0;
+}
+
+/* ------------------------------------------------------------------ command bar */
+.app-pdf .pdf-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 44px;
+  flex: none;
+  padding: 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.app-pdf .pdf-tb-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.app-pdf .pdf-tb-spacer {
+  flex: 1 1 8px;
+  min-width: 8px;
+}
+.app-pdf .pdf-tb-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 5px;
+  background: var(--stroke-strong);
+  flex: none;
+}
+.app-pdf .pdf-overflowed {
+  display: none !important;
+}
+.app-pdf .pdf-toolbar .btn {
+  min-height: 32px;
+  border-radius: var(--radius-sm);
+}
+.app-pdf .pdf-toolbar .btn .icon {
+  width: 18px;
+  height: 18px;
+}
+.app-pdf .pdf-tb-btn.on,
+.app-pdf .pdf-tool.on {
+  background: var(--subtle-selected);
+}
+.app-pdf .pdf-tb-btn.on .icon {
+  color: var(--accent-text, var(--accent));
+}
+:root[data-theme="dark"] .app-pdf .pdf-tb-btn.on .icon {
+  color: var(--accent);
+}
+.app-pdf .pdf-toolbar.disabled .pdf-tb-group {
+  opacity: 0.55;
+}
+.app-pdf .pdf-tb-page {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.app-pdf .pdf-pagebox {
+  height: 28px;
+  min-width: 36px;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--control-stroke);
+  border-bottom-color: var(--control-stroke-bottom);
+  background: var(--input-bg);
+  color: var(--text);
+  text-align: center;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  transition: background var(--dur-fast) linear;
+}
+.app-pdf .pdf-pagebox:hover {
+  background: var(--control-hover);
+}
+.app-pdf .pdf-pagebox:focus {
+  background: var(--input-focus-bg);
+  border-bottom: 2px solid var(--accent);
+}
+.app-pdf .pdf-pagecount {
+  min-width: 2ch;
+}
+.app-pdf .pdf-tb-zoom {
+  min-width: 72px;
+  gap: 6px;
+  padding: 0 8px 0 10px;
+  font-variant-numeric: tabular-nums;
+}
+.app-pdf .pdf-tb-zoom .icon,
+.app-pdf .pdf-tb-split1 > .icon,
+.app-pdf .pdf-tool-more .icon {
+  width: 12px !important;
+  height: 12px !important;
+  color: var(--text-2);
+}
+.app-pdf .pdf-zoom-label {
+  flex: 1;
+  text-align: center;
+}
+.app-pdf .pdf-tb-split1 {
+  gap: 4px;
+  padding: 0 6px 0 8px;
+}
+.app-pdf .pdf-layout-icon {
+  display: inline-flex;
+}
+.app-pdf .pdf-tool {
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-fast) linear;
+}
+.app-pdf .pdf-tool .btn {
+  background: transparent;
+}
+.app-pdf .pdf-tool .btn:hover {
+  background: var(--subtle-hover);
+}
+.app-pdf .pdf-tool .btn:active {
+  background: var(--subtle-pressed);
+}
+.app-pdf .pdf-tool-main {
+  position: relative;
+  width: 34px;
+  padding: 0;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm) !important;
+  flex-direction: column;
+  gap: 1px;
+}
+.app-pdf .pdf-tool-swatch {
+  display: block;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--c, transparent);
+  box-shadow: 0 0 0 0.5px var(--stroke-strong);
+}
+.app-pdf .pdf-tool-more {
+  width: 20px;
+  min-width: 20px;
+  padding: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0 !important;
+}
+.app-pdf .pdf-tool.on .pdf-tool-main .icon {
+  color: var(--accent-text, var(--accent));
+}
+:root[data-theme="dark"] .app-pdf .pdf-tool.on .pdf-tool-main .icon {
+  color: var(--accent);
+}
+.app-pdf .pdf-tool.on .pdf-tool-main::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  width: 14px;
+  height: 3px;
+  margin-left: -7px;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: pdf-pill var(--dur-slow) var(--ease);
+}
+.app-pdf .pdf-tool.on .pdf-tool-swatch {
+  opacity: 0;
+}
+@keyframes pdf-pill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* ------------------------------------------------------------------ sidebar */
+.app-pdf .pdf-sidebar {
+  position: relative;
+  width: var(--pdf-side-w);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--pdf-surface);
+  border-top: 1px solid var(--stroke);
+}
+.app-pdf .pdf-side-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 12px 0 8px;
+  flex: none;
+}
+.app-pdf .pdf-pivots {
+  display: flex;
+  gap: 2px;
+}
+.app-pdf .pdf-pivot {
+  position: relative;
+  width: 34px;
+  min-width: 34px;
+}
+.app-pdf .pdf-pivot .icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-2);
+}
+.app-pdf .pdf-pivot.selected {
+  background: var(--subtle-selected);
+}
+.app-pdf .pdf-pivot.selected .icon {
+  color: var(--text);
+}
+.app-pdf .pdf-pivot.selected::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 14px;
+  height: 3px;
+  margin-left: -7px;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: pdf-pill var(--dur-slow) var(--ease);
+}
+.app-pdf .pdf-side-title {
+  flex: 1;
+  min-width: 0;
+  padding-left: 8px;
+  border-left: 1px solid var(--stroke-strong);
+  line-height: 20px;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+.app-pdf .pdf-side-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.app-pdf .pdf-side-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 3;
+}
+.app-pdf .pdf-side-resize::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: transparent;
+  transition: background var(--dur) linear;
+}
+.app-pdf .pdf-side-resize:hover::after,
+.app-pdf .side-resizing .pdf-side-resize::after {
+  background: var(--accent);
+}
+.app-pdf .side-resizing,
+.app-pdf .side-resizing * {
+  cursor: ew-resize !important;
+  user-select: none;
+}
+.app-pdf .pdf-side-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-3);
+}
+.app-pdf .pdf-side-empty .text-2 {
+  font-size: var(--fs-caption);
+}
+/* narrow windows: the sidebar floats over the document */
+.app-pdf .pdf-root.narrow .pdf-sidebar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  background: var(--acrylic);
+  -webkit-backdrop-filter: blur(var(--blur, 30px)) saturate(150%);
+  backdrop-filter: blur(var(--blur, 30px)) saturate(150%);
+  box-shadow: var(--shadow-flyout);
+  border-right: 1px solid var(--window-stroke);
+  animation: pdf-side-in var(--dur-slow) var(--ease);
+}
+:root[data-transparency="off"] .app-pdf .pdf-root.narrow .pdf-sidebar {
+  background: var(--solid);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+@keyframes pdf-side-in {
+  from {
+    transform: translateX(-16px);
+    opacity: 0;
+  }
+}
+
+/* thumbnails */
+.app-pdf .pdf-thumbs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0 16px;
+  outline: none;
+  --thumb-w: 120px;
+}
+.app-pdf .pdf-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 6px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--dur-fast) linear;
+}
+.app-pdf .pdf-thumb:hover {
+  background: var(--subtle-hover);
+}
+.app-pdf .pdf-thumb:active {
+  background: var(--subtle-pressed);
+}
+.app-pdf .pdf-thumb-frame {
+  position: relative;
+  width: var(--thumb-w);
+  height: calc(var(--thumb-w) * 1.414);
+  border-radius: var(--radius-xs);
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--stroke-card), 0 1.6px 3.6px rgba(0, 0, 0, 0.13), 0 0.3px 0.9px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: box-shadow var(--dur) linear;
+}
+.app-pdf .pdf-thumb-frame:not(.loaded)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(0, 0, 0, 0.04) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: pdf-shimmer 1.4s linear infinite;
+}
+@keyframes pdf-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+.app-pdf .pdf-thumb-frame canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  animation: pdf-fade-in var(--dur-slow) linear;
+}
+@keyframes pdf-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+.app-pdf .pdf-thumb-num {
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  min-width: 24px;
+  padding: 0 6px;
+  border-radius: 10px;
+  text-align: center;
+  line-height: 18px;
+}
+.app-pdf .pdf-thumb.selected .pdf-thumb-frame {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent), 0 3.2px 7.2px rgba(0, 0, 0, 0.13);
+}
+.app-pdf .pdf-thumb.selected .pdf-thumb-num {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.app-pdf .pdf-thumbs:focus-visible .pdf-thumb.selected {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+
+/* outline tree */
+.app-pdf .pdf-outline {
+  padding: 2px 6px 16px;
+}
+.app-pdf .pdf-ol-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.app-pdf .pdf-ol-item {
+  outline: none;
+}
+.app-pdf .pdf-ol-item[aria-expanded="false"] > ul {
+  display: none;
+}
+.app-pdf .pdf-ol-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 32px;
+  padding: 4px 8px 4px calc(4px + var(--depth, 0) * 16px);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--dur-fast) linear;
+}
+.app-pdf .pdf-ol-row:hover {
+  background: var(--subtle-hover);
+}
+.app-pdf .pdf-ol-row:active {
+  background: var(--subtle-pressed);
+}
+.app-pdf .pdf-ol-row.current {
+  background: var(--subtle-selected);
+}
+.app-pdf .pdf-ol-row.current::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 16px;
+  margin-top: -8px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.app-pdf .pdf-ol-item:focus-visible > .pdf-ol-row {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.app-pdf .pdf-ol-chev {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+}
+.app-pdf .pdf-ol-chev .icon {
+  transition: transform var(--dur) var(--ease);
+}
+.app-pdf .pdf-ol-item[aria-expanded="true"] > .pdf-ol-row .pdf-ol-chev .icon {
+  transform: rotate(90deg);
+}
+.app-pdf .has-kids > .pdf-ol-row .pdf-ol-chev:hover {
+  background: var(--subtle-hover);
+}
+.app-pdf .pdf-ol-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-body);
+}
+
+/* attachments */
+.app-pdf .pdf-attachments {
+  padding: 2px 6px 16px;
+}
+.app-pdf .pdf-att {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 6px 10px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: default;
+}
+.app-pdf .pdf-att:hover {
+  background: var(--subtle-hover);
+}
+.app-pdf .pdf-att:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.app-pdf .pdf-att-text {
+  flex: 1;
+  min-width: 0;
+}
+.app-pdf .pdf-att-more {
+  opacity: 0;
+}
+.app-pdf .pdf-att:hover .pdf-att-more,
+.app-pdf .pdf-att:focus-within .pdf-att-more {
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------------ document view (pdf.js) */
+.app-pdf .pdf-scroller {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  outline: none;
+  isolation: isolate;
+  --pdfViewer-padding-bottom: 8px;
+  scrollbar-color: var(--scrollbar) transparent;
+}
+/* pdf.js keeps a 9px transparent border around pages (its layout maths rely on it): the paper shadow
+   is drawn by a pseudo-element on the content box, behind the page. */
+.app-pdf .pdf-scroller .pdfViewer .page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 2px;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.07), 0 3.2px 7.2px rgba(0, 0, 0, 0.13), 0 0.6px 1.8px rgba(0, 0, 0, 0.11);
+}
+:root[data-theme="dark"] .app-pdf .pdf-scroller .pdfViewer .page::before {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 3.2px 7.2px rgba(0, 0, 0, 0.4), 0 0.6px 1.8px rgba(0, 0, 0, 0.3);
+}
+.app-pdf .pdf-scroller .pdfViewer .page .canvasWrapper {
+  border-radius: 2px;
+}
+.app-pdf .pdf-scroller .pdfViewer .page.loadingIcon::after {
+  background: none;
+}
+.app-pdf .pdf-scroller .textLayer .highlight {
+  --highlight-bg-color: var(--pdf-match);
+  --highlight-selected-bg-color: var(--pdf-match-cur);
+  border-radius: 2px;
+}
+.app-pdf .pdf-scroller .textLayer ::selection {
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+.app-pdf .pdf-scroller .annotationLayer .linkAnnotation > a:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: 0 2px 0 -1px var(--accent);
+}
+/* Editor toolbars (selected annotation) in the Fluent style */
+.app-pdf .pdf-scroller .annotationEditorLayer .editToolbar {
+  --editor-toolbar-bg-color: var(--acrylic-solid, var(--solid));
+  --editor-toolbar-fg-color: var(--text);
+  --editor-toolbar-border-color: var(--window-stroke);
+  --editor-toolbar-hover-bg-color: var(--subtle-hover);
+  --editor-toolbar-shadow: var(--shadow-flyout);
+  border-radius: var(--radius);
+}
+.app-pdf.tool-active .pdf-scroller,
+.app-pdf .tool-active .pdf-scroller {
+  scroll-behavior: auto;
+}
+
+/* dark reading mode: pages inverted, hues kept */
+.app-pdf .pdf-root.dark-pages .pdf-scroller .pdfViewer .page {
+  --page-bg-color: #1f1f1f;
+}
+.app-pdf .pdf-root.dark-pages .pdf-scroller .pdfViewer .page .canvasWrapper,
+.app-pdf .pdf-root.dark-pages .pdf-thumb-frame canvas {
+  filter: invert(0.88) hue-rotate(180deg) contrast(1.05);
+}
+.app-pdf .pdf-root.dark-pages .pdf-thumb-frame {
+  background: #1f1f1f;
+}
+
+/* ------------------------------------------------------------------ loading / error states */
+.app-pdf .pdf-doc-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: auto;
+}
+.app-pdf .pdf-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  transition: opacity var(--dur-slow) linear;
+}
+.app-pdf .pdf-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 560px;
+  text-align: center;
+  animation: pdf-rise var(--dur-slower) var(--ease);
+}
+.app-pdf .pdf-error-icon {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+  color: var(--text-2);
+}
+.app-pdf .pdf-error-body {
+  overflow-wrap: anywhere;
+}
+.app-pdf .pdf-error-detail {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+}
+.app-pdf .pdf-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+@keyframes pdf-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* ------------------------------------------------------------------ find bar */
+.app-pdf .pdf-find {
+  position: absolute;
+  top: 10px;
+  right: 22px;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 32px);
+  padding: 4px;
+  border-radius: var(--radius);
+  background: var(--acrylic-solid, var(--solid));
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+}
+.app-pdf .pdf-find-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 300px;
+  min-width: 120px;
+  flex: 0 1 300px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--control-stroke);
+  border-bottom-color: var(--control-stroke-bottom);
+  background: var(--input-bg);
+}
+.app-pdf .pdf-find-box:focus-within {
+  background: var(--input-focus-bg);
+  border-bottom: 2px solid var(--accent);
+}
+.app-pdf .pdf-find.not-found .pdf-find-box:focus-within {
+  border-bottom-color: var(--danger);
+}
+.app-pdf .pdf-find-glass {
+  color: var(--text-2);
+}
+.app-pdf .pdf-find-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+.app-pdf .pdf-find-input::placeholder {
+  color: var(--text-2);
+}
+.app-pdf .pdf-find-count {
+  flex: none;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.app-pdf .pdf-find.not-found .pdf-find-count {
+  color: var(--danger);
+}
+.app-pdf .pdf-find-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 3px;
+  background: var(--stroke-strong);
+}
+.app-pdf .pdf-find-btn.on {
+  background: var(--accent-subtle);
+}
+.app-pdf .pdf-find-btn.on .icon {
+  color: var(--accent-text, var(--accent));
+}
+:root[data-theme="dark"] .app-pdf .pdf-find-btn.on .icon {
+  color: var(--accent);
+}
+.app-pdf .pdf-find-btn:disabled {
+  background: transparent;
+}
+
+/* ------------------------------------------------------------------ flyouts (tool options) */
+.app-pdf .pdf-flyout {
+  position: absolute;
+  z-index: 4000;
+  min-width: 220px;
+  padding: 12px 14px 14px;
+  border-radius: var(--radius);
+  background: var(--acrylic-solid, var(--solid));
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  animation: pdf-fly-in var(--dur-slow) var(--ease);
+  outline: none;
+}
+@keyframes pdf-fly-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+.app-pdf .pdf-flyout-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.app-pdf .pdf-fly-title {
+  color: var(--text-2);
+  font-weight: 600;
+}
+.app-pdf .pdf-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 236px;
+}
+.app-pdf .pdf-swatch {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border: 0;
+  background: var(--c);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+  display: grid;
+  place-items: center;
+  transition: transform var(--dur) var(--ease);
+  outline: none;
+}
+.app-pdf .pdf-swatch:hover {
+  transform: scale(1.1);
+}
+.app-pdf .pdf-swatch:active {
+  transform: scale(0.95);
+}
+.app-pdf .pdf-swatch.selected {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18), 0 0 0 2px var(--solid), 0 0 0 4px var(--accent);
+}
+.app-pdf .pdf-swatch:focus-visible {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18), 0 0 0 2px var(--solid), 0 0 0 4px var(--text);
+}
+.app-pdf .pdf-swatch-check {
+  opacity: 0;
+  color: #1a1a1a;
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.9));
+}
+.app-pdf .pdf-swatch.selected .pdf-swatch-check {
+  opacity: 1;
+}
+.app-pdf .pdf-swatch[style*="#1E1E1E"] .pdf-swatch-check,
+.app-pdf .pdf-swatch[style*="#8764B8"] .pdf-swatch-check,
+.app-pdf .pdf-swatch[style*="#0078D4"] .pdf-swatch-check,
+.app-pdf .pdf-swatch[style*="#E81123"] .pdf-swatch-check {
+  color: #fff;
+  filter: none;
+}
+.app-pdf .pdf-fly-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-pdf .pdf-fly-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--fs-caption);
+}
+.app-pdf .pdf-fly-row .slider {
+  width: 100%;
+}
+
+/* ------------------------------------------------------------------ start page */
+.app-pdf .pdf-start {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--pdf-surface);
+  border-top: 1px solid transparent;
+}
+.app-pdf .pdf-start-inner {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 40px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: pdf-rise var(--dur-slower) var(--ease);
+}
+.app-pdf .pdf-start-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.app-pdf .pdf-start-hero img {
+  flex: none;
+}
+.app-pdf .pdf-start-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 24px 22px;
+  border-radius: var(--radius-lg);
+  border: 1.5px dashed var(--control-strong);
+  background: var(--card);
+  text-align: center;
+  transition: border-color var(--dur) linear, background var(--dur) linear;
+}
+.app-pdf .pdf-start-drop-icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  background: var(--accent-subtle);
+  color: var(--accent-text, var(--accent));
+}
+:root[data-theme="dark"] .app-pdf .pdf-start-drop-icon {
+  color: var(--accent);
+}
+.app-pdf .pdf-start-open {
+  margin-top: 12px;
+  min-width: 180px;
+}
+.app-pdf .pdf-start-key {
+  margin-top: 2px;
+}
+.app-pdf .pdf-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-pdf .pdf-recent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  padding: 0 4px;
+}
+.app-pdf .pdf-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-pdf .pdf-recent-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto auto 32px;
+  align-items: center;
+  gap: 14px;
+  min-height: 64px;
+  padding: 6px 8px 6px 12px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+  outline: none;
+  cursor: default;
+  transition: background var(--dur-fast) linear;
+  animation: pdf-rise var(--dur-slower) var(--ease) both;
+}
+.app-pdf .pdf-recent-row:hover {
+  background: var(--card-hover);
+}
+.app-pdf .pdf-recent-row:active {
+  background: var(--subtle-pressed);
+}
+.app-pdf .pdf-recent-row:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.app-pdf .pdf-recent-row.missing {
+  opacity: 0.6;
+}
+.app-pdf .pdf-recent-thumb {
+  width: 38px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-xs);
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--stroke-card), 0 1.6px 3.6px rgba(0, 0, 0, 0.13);
+  overflow: hidden;
+  color: #c42b1c;
+}
+.app-pdf .pdf-recent-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+.app-pdf .pdf-recent-text {
+  min-width: 0;
+}
+.app-pdf .pdf-recent-name {
+  font-weight: 600;
+}
+.app-pdf .pdf-recent-meta,
+.app-pdf .pdf-recent-date {
+  white-space: nowrap;
+  text-align: right;
+}
+.app-pdf .pdf-recent-date {
+  min-width: 84px;
+}
+.app-pdf .pdf-recent-remove {
+  opacity: 0;
+  transition: opacity var(--dur-fast) linear;
+}
+.app-pdf .pdf-recent-row:hover .pdf-recent-remove,
+.app-pdf .pdf-recent-row:focus-within .pdf-recent-remove {
+  opacity: 1;
+}
+.app-pdf .pdf-recent-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 16px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+  color: var(--text-3);
+}
+/* ------------------------------------------------------------------ narrow windows */
+.app-pdf .pdf-root.narrow .pdf-start-inner {
+  padding: 24px 16px;
+}
+.app-pdf .pdf-root.narrow .pdf-recent-row {
+  grid-template-columns: 40px minmax(0, 1fr) 32px;
+}
+.app-pdf .pdf-root.narrow .pdf-recent-meta,
+.app-pdf .pdf-root.narrow .pdf-recent-date {
+  display: none;
+}
+.app-pdf .pdf-root.narrow .pdf-find-box {
+  width: auto;
+}
+
+/* ------------------------------------------------------------------ drop overlay, hint */
+.app-pdf .pdf-drop {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 2px dashed var(--accent);
+  border-radius: 0 0 var(--radius) var(--radius);
+  pointer-events: none;
+  animation: pdf-fade-in var(--dur) linear;
+}
+.app-pdf .pdf-drop-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 22px;
+  border-radius: var(--radius);
+  background: var(--acrylic-solid, var(--solid));
+  box-shadow: var(--shadow-flyout);
+  color: var(--text);
+}
+.app-pdf .pdf-drop-card .icon {
+  color: var(--accent);
+}
+.app-pdf .pdf-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  z-index: 40;
+  transform: translate(-50%, 0);
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  background: var(--acrylic-solid, var(--solid));
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ presentation */
+.app-pdf .pdf-root.presenting .pdf-toolbar,
+.app-pdf .pdf-root.presenting .pdf-sidebar,
+.app-pdf .pdf-root.presenting .pdf-find {
+  display: none !important;
+}
+.app-pdf .pdf-root.presenting,
+.app-pdf .pdf-root.presenting .pdf-stage {
+  background: #000;
+  border: 0;
+}
+.app-pdf .pdf-root.presenting .pdf-scroller {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.app-pdf .pdf-root.presenting .pdf-scroller .pdfViewer {
+  padding: 0;
+}
+.app-pdf .pdf-root.presenting .pdf-scroller {
+  --page-border: 2px solid transparent;
+  --page-margin: 0 auto;
+}
+.app-pdf .pdf-root.presenting .pdf-scroller .pdfViewer .page::before {
+  display: none;
+}
+.app-pdf .pdf-root.presenting .pdf-hint {
+  background: rgba(32, 32, 32, 0.86);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.app-pdf .pdf-root.presenting.hide-cursor,
+.app-pdf .pdf-root.presenting.hide-cursor * {
+  cursor: none !important;
+}
+
+/* ------------------------------------------------------------------ dialogs (inside the window) */
+.app-pdf .pdf-dialog .dialog-body {
+  overflow-wrap: anywhere;
+}
+.app-pdf .pdf-pw {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 320px;
+}
+.app-pdf .pdf-pw-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.app-pdf .pdf-pw-icon {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-subtle);
+  color: var(--accent-text, var(--accent));
+}
+:root[data-theme="dark"] .app-pdf .pdf-pw-icon {
+  color: var(--accent);
+}
+.app-pdf .pdf-pw-text {
+  padding-top: 2px;
+}
+.app-pdf .pdf-pw .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-pdf .pdf-pw-error {
+  min-height: 16px;
+  color: var(--danger);
+}
+.app-pdf .pdf-props {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 380px;
+}
+.app-pdf .pdf-props-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding-bottom: 4px;
+}
+.app-pdf .pdf-props-name {
+  min-width: 0;
+}
+.app-pdf .pdf-props-sec {
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+  padding: 10px 14px 12px;
+}
+.app-pdf .pdf-props-sec-title {
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+.app-pdf .pdf-props-grid {
+  display: grid;
+  grid-template-columns: minmax(110px, auto) minmax(0, 1fr);
+  gap: 6px 16px;
+  margin: 0;
+}
+.app-pdf .pdf-props-grid dt {
+  font-size: var(--fs-caption);
+  line-height: 20px;
+}
+.app-pdf .pdf-props-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  line-height: 20px;
+}
+.app-pdf .pdf-link {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.app-pdf .pdf-link-url {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  word-break: break-all;
+  max-height: 120px;
+  overflow: auto;
+}
+.app-pdf .pdf-openwith {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 320px;
+}
+.app-pdf .pdf-apps {
+  max-height: 280px;
+  overflow: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+  padding: 4px;
+  outline: none;
+}
+.app-pdf .pdf-apps:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.app-pdf .pdf-apps-head {
+  padding: 8px 10px 4px;
+  color: var(--text-2);
+  font-weight: 600;
+}
+.app-pdf .pdf-app-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+}
+.app-pdf .pdf-app-row:hover {
+  background: var(--subtle-hover);
+}
+.app-pdf .pdf-app-row.selected {
+  background: var(--accent-subtle);
+}
+
+/* ------------------------------------------------------------------ reduced motion */
+:root[data-animations="off"] .app-pdf .pdf-tab,
+:root[data-animations="off"] .app-pdf .pdf-tab-close,
+:root[data-animations="off"] .app-pdf .pdf-tab-dot,
+:root[data-animations="off"] .app-pdf .pdf-recent-row,
+:root[data-animations="off"] .app-pdf .pdf-start-inner,
+:root[data-animations="off"] .app-pdf .pdf-error,
+:root[data-animations="off"] .app-pdf .pdf-thumb-frame:not(.loaded)::after {
+  animation: none !important;
+  transition: none !important;
+}
+.app-pdf .pdf-start:focus {
+  outline: none;
+}
+
+/* ------------------------------------------------------------------ pdf.js annotation editor, Fluent look */
+.app-pdf .pdf-scroller {
+  --outline-color: var(--accent);
+  --outline-around-color: transparent;
+  --hover-outline-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  --resizer-bg-color: var(--accent);
+  --editor-toolbar-vert-offset: 8px;
+}
+.app-pdf .pdf-scroller .editToolbar {
+  --editor-toolbar-bg-color: var(--acrylic-solid, var(--solid));
+  --editor-toolbar-fg-color: var(--text);
+  --editor-toolbar-border-color: var(--window-stroke);
+  --editor-toolbar-hover-border-color: var(--window-stroke);
+  --editor-toolbar-hover-bg-color: var(--subtle-hover);
+  --editor-toolbar-hover-fg-color: var(--text);
+  --editor-toolbar-focus-outline-color: var(--text);
+  --editor-toolbar-shadow: var(--shadow-flyout);
+  --editor-toolbar-height: 32px;
+  --hover-outline-color: var(--accent);
+  --selected-outline-color: var(--accent);
+  --swatch-border-color: rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius);
+  padding: 2px;
+}
+.app-pdf .pdf-scroller .editToolbar .buttons > button {
+  height: 32px;
+  min-width: 32px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--dur-fast) linear;
+}
+.app-pdf .pdf-scroller .editToolbar .buttons > button:hover {
+  background: var(--subtle-hover);
+}
+.app-pdf .pdf-scroller .editToolbar .buttons > button:active {
+  background: var(--subtle-pressed);
+}
+.app-pdf .pdf-scroller .editToolbar .buttons .basic::before {
+  display: block;
+  width: 16px;
+  height: 16px;
+  -webkit-mask-size: 16px 16px;
+  mask-size: 16px 16px;
+}
+.app-pdf .pdf-scroller .editToolbar .buttons .divider {
+  height: 20px;
+  margin-inline: 3px;
+  border-left-color: var(--stroke-strong);
+}
+.app-pdf .pdf-scroller .editToolbar .buttons .colorPicker {
+  padding: 0 8px;
+  gap: 6px;
+}
+.app-pdf .pdf-scroller .editToolbar .buttons .colorPicker .dropdown {
+  padding: 8px 0;
+  gap: 8px;
+  border-radius: var(--radius);
+  animation: pdf-fly-in var(--dur-slow) var(--ease);
+}
+.app-pdf .pdf-scroller .editToolbar .buttons .colorPicker .dropdown button {
+  height: 28px;
+  min-width: 0;
+  border-radius: 0;
+}
+.app-pdf .pdf-scroller .editToolbar .buttons .colorPicker .dropdown button:hover {
+  background: transparent;
+}

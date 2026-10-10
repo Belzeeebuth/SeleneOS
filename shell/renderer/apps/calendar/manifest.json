@@ -1,0 +1,17 @@
+{
+  "id": "calendar",
+  "name": { "en": "Calendar", "fr": "Calendrier" },
+  "description": { "en": "Events, reminders, holidays and .ics calendars", "fr": "Événements, rappels, jours fériés et calendriers .ics" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1180, "height": 760, "minWidth": 480, "minHeight": 440, "titlebar": "tall", "background": "mica" },
+  "category": "productivity",
+  "keywords": {
+    "en": ["calendar", "events", "agenda", "schedule", "meeting", "appointment", "reminder", "holidays", "ics", "outlook"],
+    "fr": ["calendrier", "événements", "agenda", "planning", "réunion", "rendez-vous", "rappel", "jours fériés", "ics"]
+  },
+  "singleInstance": true,
+  "fileTypes": [".ics"],
+  "defaultFor": [".ics"]
+}

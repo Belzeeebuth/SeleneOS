@@ -1351,8 +1351,8 @@ export class MediaApp {
     const narrow = this.root.classList.contains('w-tiny');
     const rate = this.player.rate;
     const items = [
-      { label: t('more.openFiles'), icon: 'document', shortcut: 'Ctrl+O', action: () => this.openFiles() },
-      { label: t('more.openFolder'), icon: 'folder_open', shortcut: 'Ctrl+Shift+O', action: () => this.openFolder() },
+      { label: t('more.openFiles'), icon: 'document', shortcut: this.kb('Ctrl+O'), action: () => this.openFiles() },
+      { label: t('more.openFolder'), icon: 'folder_open', shortcut: this.kb('Ctrl+Shift+O'), action: () => this.openFolder() },
       '-',
       narrow ? { label: t('more.shuffle'), icon: 'arrow_shuffle', checked: this.queue.shuffle, action: () => this.toggleShuffle() } : null,
       narrow ? { label: t(`transport.repeat_${this.queue.repeat}`), icon: 'arrow_repeat_all', action: () => this.cycleRepeat() } : null,
@@ -1371,6 +1371,11 @@ export class MediaApp {
       { label: t('shortcuts.title'), icon: 'keyboard', action: () => this.showShortcuts() },
     ];
     return this._menu(ev, items.filter(Boolean), { above: true });
+  }
+
+  /** Localized key names for shortcut hints: 'Ctrl+Shift+O' -> 'Ctrl+Maj+O' in French. */
+  kb(spec) {
+    return String(spec).replace(/\b(Ctrl|Shift|Space|Esc)\b/g, (m) => this.t(`keys.${m.toLowerCase()}`));
   }
 
   showInFolder(path) {
@@ -1431,7 +1436,7 @@ export class MediaApp {
     const body = h(
       'div',
       { class: 'mp-keys' },
-      list.map(([k, d]) => h('div', { class: 'mp-key-row' }, h('kbd', null, k), h('span', null, t(d)))),
+      list.map(([k, d]) => h('div', { class: 'mp-key-row' }, h('kbd', null, this.kb(k)), h('span', null, t(d)))),
     );
     await this.ui.dialog({ title: t('shortcuts.title'), body, parent: this.win, className: 'mp-keys-dialog', buttons: [{ label: t('common.close'), value: true, primary: true }] });
   }

@@ -12,7 +12,7 @@ body {
   overflow: hidden;
   font-family: var(--font);
   font-size: var(--fs-body);
-  line-height: 20px;
+  line-height: var(--lh-body, 20px);
   color: var(--text);
   background: #000;
   -webkit-font-smoothing: antialiased;
@@ -48,7 +48,7 @@ svg {
   outline: none;
 }
 :focus-visible {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring, var(--text));
   outline-offset: 1px;
   border-radius: var(--radius-sm);
 }
@@ -82,37 +82,37 @@ svg {
 /* ---------- Typography ---------- */
 .caption {
   font-size: var(--fs-caption);
-  line-height: 16px;
+  line-height: var(--lh-caption, 16px);
 }
 .body-strong {
   font-weight: 600;
 }
 .body-large {
   font-size: var(--fs-body-large);
-  line-height: 24px;
+  line-height: var(--lh-body-large, 24px);
 }
 .subtitle {
   font-family: var(--font-display);
   font-size: var(--fs-subtitle);
-  line-height: 28px;
+  line-height: var(--lh-subtitle, 28px);
   font-weight: 600;
 }
 .title {
   font-family: var(--font-display);
   font-size: var(--fs-title);
-  line-height: 36px;
+  line-height: var(--lh-title, 36px);
   font-weight: 600;
 }
 .title-large {
   font-family: var(--font-display);
   font-size: var(--fs-title-large);
-  line-height: 52px;
+  line-height: var(--lh-title-large, 52px);
   font-weight: 600;
 }
 .display {
   font-family: var(--font-display);
   font-size: var(--fs-display);
-  line-height: 92px;
+  line-height: var(--lh-display, 92px);
   font-weight: 600;
 }
 .muted,
@@ -156,7 +156,7 @@ svg {
   background: var(--control);
   color: var(--text);
   font-size: var(--fs-body);
-  line-height: 20px;
+  line-height: var(--lh-body, 20px);
   white-space: nowrap;
   transition: background var(--dur-fast) linear, color var(--dur-fast) linear;
 }
@@ -247,7 +247,7 @@ svg {
   border-bottom: 1px solid var(--control-strong);
   background: var(--input-bg);
   color: var(--text);
-  line-height: 20px;
+  line-height: var(--lh-body, 20px);
   transition: background var(--dur-fast) linear;
 }
 .input:hover,
@@ -771,7 +771,7 @@ hr.sep {
   background: var(--acrylic);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
-  backdrop-filter: blur(30px) saturate(150%);
+  backdrop-filter: blur(var(--blur-md, 30px)) saturate(150%);
   animation: ui-menu-in var(--dur-slow) var(--ease);
   transform-origin: top left;
   outline: none;
@@ -914,7 +914,7 @@ hr.sep {
 .dialog-title {
   font-family: var(--font-display);
   font-size: var(--fs-subtitle);
-  line-height: 28px;
+  line-height: var(--lh-subtitle, 28px);
   font-weight: 600;
   margin: 0 0 12px;
 }
@@ -942,7 +942,7 @@ hr.sep {
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-tooltip);
   font-size: var(--fs-caption);
-  line-height: 16px;
+  line-height: var(--lh-caption, 16px);
   pointer-events: none;
   animation: ui-fade var(--dur) linear;
 }

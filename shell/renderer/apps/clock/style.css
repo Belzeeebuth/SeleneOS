@@ -1,0 +1,1573 @@
+/* Clock — Windows 11 style. Every rule is scoped under .app-clock; colours come from the shell tokens
+   (only day/night/sun colours of the world map and clock faces are content colours). */
+.app-clock .ck {
+  --nav-w: 264px;
+  --clk-track: color-mix(in srgb, var(--text) 13%, transparent);
+  --clk-night: #08142e;
+  --clk-night-face: #1d2945;
+  position: relative;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* the UI kit gives many classes an explicit display: keep the hidden attribute working */
+.app-clock [hidden] {
+  display: none !important;
+}
+
+/* ------------------------------------------------------------------ navigation pane */
+.app-clock .ck-nav {
+  position: relative;
+  z-index: 6;
+  flex: none;
+  width: var(--nav-w);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 4px 6px;
+  overflow: hidden;
+  transition: width var(--dur-slow) var(--ease);
+}
+.app-clock .ck-nav-top {
+  display: flex;
+  padding-bottom: 2px;
+}
+.app-clock .ck-burger {
+  width: 40px;
+  min-width: 40px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+}
+.app-clock .ck-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+.app-clock .ck-nav-foot {
+  display: flex;
+  flex-direction: column;
+  padding-top: 4px;
+}
+.app-clock .ck-nav-item {
+  flex: none;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  gap: 16px;
+  padding: 0 12px;
+  white-space: nowrap;
+  color: var(--text);
+  transition: background var(--dur-fast) linear;
+}
+.app-clock .ck-nav-item:active {
+  background: var(--subtle-pressed);
+}
+.app-clock .ck-nav-item:active .ck-nav-icon {
+  transform: scale(0.88);
+}
+.app-clock .ck-nav-item.selected::before {
+  display: none; /* the sliding pill below replaces the per-item indicator */
+}
+.app-clock .ck-nav-icon {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  transition: transform var(--dur) var(--ease);
+}
+.app-clock .ck-nav-icon > .icon {
+  width: 16px;
+  height: 16px;
+}
+.app-clock .ck-nav-item.selected .ck-nav-icon > .icon {
+  color: var(--accent-text);
+}
+.app-clock .ck-nav-dot {
+  position: absolute;
+  right: -4px;
+  top: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--solid);
+}
+.app-clock .ck-nav-label {
+  flex: 1;
+  min-width: 0;
+  transition: opacity var(--dur) linear;
+}
+.app-clock .ck-nav-pill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.app-clock .ck.compact .ck-nav {
+  width: 48px;
+}
+.app-clock .ck.compact .ck-nav-label {
+  opacity: 0;
+}
+/* narrow window: the pane overlays the page when opened */
+.app-clock .ck.narrow .ck-nav {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+}
+.app-clock .ck.narrow .ck-main {
+  margin-left: 48px;
+}
+.app-clock .ck.narrow.nav-open .ck-nav {
+  width: var(--nav-w);
+  max-width: calc(100% - 24px);
+  background: var(--acrylic);
+  backdrop-filter: blur(30px) saturate(150%);
+  border-right: 1px solid var(--window-stroke);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  box-shadow: var(--shadow-flyout);
+}
+.app-clock .ck.narrow.nav-open .ck-nav-label {
+  opacity: 1;
+}
+:root[data-transparency="off"] .app-clock .ck.narrow.nav-open .ck-nav {
+  backdrop-filter: none;
+}
+.app-clock .ck-scrim {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}
+.app-clock .ck.nav-open .ck-scrim {
+  display: block;
+}
+
+/* ------------------------------------------------------------------ content area */
+.app-clock .ck-main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--layer);
+  border: 1px solid var(--stroke-card);
+  border-right: 0;
+  border-bottom: 0;
+  border-top-left-radius: var(--radius);
+}
+.app-clock .ck-info-slot:empty {
+  display: none;
+}
+.app-clock .ck-info-slot {
+  padding: 12px 16px 0;
+}
+.app-clock .ck-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  container-type: inline-size;
+  scroll-padding: 16px;
+}
+.app-clock .ck-scroll:focus,
+.app-clock .ck-scroll:focus-visible {
+  outline: none;
+}
+.app-clock .ck-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 24px 40px 24px;
+}
+.app-clock .ck.tight .ck-page {
+  padding: 16px 14px 16px;
+}
+.app-clock .ck-grid {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.app-clock .ck-alarm-grid {
+  grid-template-columns: repeat(auto-fill, minmax(296px, 1fr));
+}
+.app-clock .ck-timer-grid {
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+}
+.app-clock .ck-city-grid {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+.app-clock .ck.tight .ck-grid {
+  grid-template-columns: 1fr;
+}
+.app-clock .ck-card {
+  position: relative;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  transition: background var(--dur-fast) linear, box-shadow var(--dur) var(--ease);
+}
+.app-clock .ck-card[tabindex]:hover {
+  background: var(--card-hover);
+}
+.app-clock .ck-card:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+.app-clock .ck-card.flash {
+  animation: ck-flash 1.4s var(--ease);
+}
+@keyframes ck-flash {
+  0%,
+  45% {
+    box-shadow: 0 0 0 2px var(--accent), 0 8px 24px var(--accent-subtle);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.app-clock .ck-card-del {
+  display: none;
+}
+.app-clock .editing .ck-card-del {
+  display: inline-flex;
+  color: var(--danger);
+}
+.app-clock .ck-empty {
+  flex: 1;
+  min-height: 260px;
+}
+.app-clock .ck-empty .btn {
+  margin-top: 8px;
+}
+.app-clock .ck-round {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 50%;
+}
+.app-clock .ck-round.big {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+}
+.app-clock .ck-round .icon {
+  width: 16px;
+  height: 16px;
+}
+.app-clock .ck-round.big .icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* floating command bar (Edit / Add) */
+.app-clock .ck-cmdbar {
+  position: sticky;
+  bottom: 20px;
+  z-index: 4;
+  align-self: flex-end;
+  margin-top: auto;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  transform: translateY(4px);
+  border-radius: var(--radius);
+  background: var(--acrylic);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  backdrop-filter: blur(30px) saturate(150%);
+}
+:root[data-transparency="off"] .app-clock .ck-cmdbar {
+  backdrop-filter: none;
+}
+/* keep the floating bar from covering the last row of cards */
+.app-clock .ck-alarms > .ck-grid,
+.app-clock .ck-timers > .ck-grid,
+.app-clock .ck-world > .ck-grid {
+  margin-bottom: 72px;
+}
+.app-clock .ck-cmd {
+  width: 40px;
+  min-width: 40px;
+  height: 36px;
+  padding: 0;
+}
+.app-clock .ck-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 6px 4px 12px;
+  margin-bottom: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--stroke-card);
+  background: var(--info-bg);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  line-height: 16px;
+}
+.app-clock .ck-note > .icon {
+  color: var(--accent-text);
+}
+.app-clock .ck.tight .ck-note {
+  flex-wrap: wrap;
+  padding: 8px 6px 4px 12px;
+}
+.app-clock .ck.tight .ck-note > .grow {
+  flex-basis: calc(100% - 40px);
+}
+.app-clock .ck.tight .ck-note > .btn {
+  margin-left: auto;
+}
+.app-clock .ck-note.warn {
+  background: var(--warning-bg);
+  color: var(--text);
+}
+.app-clock .ck-note.warn > .icon {
+  color: var(--warning);
+}
+
+/* ------------------------------------------------------------------ progress ring + analog face */
+.app-clock .ck-ring {
+  display: block;
+  overflow: visible;
+}
+.app-clock .ck-ring-track {
+  stroke: var(--clk-track);
+}
+.app-clock .ck-ring-bar {
+  stroke: var(--accent);
+  transition: opacity var(--dur) linear;
+}
+.app-clock .ck-face {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.app-clock .ck-face-bg {
+  fill: var(--card-solid);
+  stroke: var(--stroke-strong);
+  stroke-width: 1.5;
+  transition: fill var(--dur-slower) linear;
+}
+.app-clock .ck-face-ticks line {
+  stroke: var(--text-3);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.app-clock .ck-face-ticks line.major {
+  stroke: var(--text-2);
+  stroke-width: 3;
+}
+.app-clock .ck-hand-h,
+.app-clock .ck-hand-m {
+  stroke: var(--text);
+  stroke-linecap: round;
+}
+.app-clock .ck-hand-h {
+  stroke-width: 5.5;
+}
+.app-clock .ck-hand-m {
+  stroke-width: 3.6;
+}
+.app-clock .ck-hand-s {
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.app-clock .ck-face-pin {
+  fill: var(--accent);
+}
+.app-clock .ck-face.night .ck-face-bg {
+  fill: var(--clk-night-face);
+  stroke: rgba(255, 255, 255, 0.12);
+}
+.app-clock .ck-face.twilight .ck-face-bg {
+  fill: color-mix(in srgb, var(--clk-night-face) 55%, var(--card-solid));
+}
+.app-clock .ck-face.night .ck-hand-h,
+.app-clock .ck-face.night .ck-hand-m,
+.app-clock .ck-face.twilight .ck-hand-h,
+.app-clock .ck-face.twilight .ck-hand-m {
+  stroke: #ffffff;
+}
+.app-clock .ck-face.night .ck-face-ticks line,
+.app-clock .ck-face.twilight .ck-face-ticks line {
+  stroke: rgba(255, 255, 255, 0.55);
+}
+
+/* ------------------------------------------------------------------ spin pickers */
+.app-clock .ck-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 0;
+}
+.app-clock .ck-spin {
+  --row: 56px;
+  position: relative;
+  flex: none;
+  width: calc(var(--row) * 1.45);
+  border-radius: var(--radius);
+  touch-action: none;
+}
+.app-clock .ck-spin:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+.app-clock .ck-spin-view {
+  position: relative;
+  height: calc(var(--row) * 2.1);
+  overflow: hidden;
+}
+.app-clock .ck-spin-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+}
+.app-clock .ck-spin-cell {
+  height: var(--row);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: calc(var(--row) * 0.7);
+  line-height: 1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  border-radius: var(--radius);
+  user-select: none;
+}
+.app-clock .ck-spin-cell.above,
+.app-clock .ck-spin-cell.below {
+  height: calc(var(--row) * 0.55);
+  color: var(--text-3);
+  font-size: calc(var(--row) * 0.36);
+  font-weight: 400;
+  transition: opacity var(--dur) linear;
+}
+.app-clock .ck-spin:hover .ck-spin-cell.above,
+.app-clock .ck-spin:hover .ck-spin-cell.below,
+.app-clock .ck-spin:focus-within .ck-spin-cell.above,
+.app-clock .ck-spin:focus-within .ck-spin-cell.below {
+  opacity: 0;
+}
+.app-clock .ck-spin:hover .ck-spin-cell.cur,
+.app-clock .ck-spin:focus-visible .ck-spin-cell.cur {
+  background: var(--subtle-hover);
+}
+.app-clock .ck-spin:focus .ck-spin-cell.cur {
+  color: var(--accent-text);
+}
+.app-clock .ck-spin-btn {
+  position: absolute;
+  left: 50%;
+  z-index: 2;
+  width: 36px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--control-stroke);
+  border-radius: var(--radius-sm);
+  background: var(--control);
+  color: var(--text-2);
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity var(--dur) linear, background var(--dur-fast) linear;
+}
+.app-clock .ck-spin-btn.up {
+  top: calc(var(--row) * 0.275 - 11px);
+}
+.app-clock .ck-spin-btn.down {
+  bottom: calc(var(--row) * 0.275 - 11px);
+}
+.app-clock .ck-spin-btn:hover {
+  background: var(--control-hover);
+  color: var(--text);
+}
+.app-clock .ck-spin-btn:disabled {
+  visibility: hidden;
+}
+.app-clock .ck-spin:hover .ck-spin-btn,
+.app-clock .ck-spin:focus-within .ck-spin-btn {
+  opacity: 1;
+}
+.app-clock .ck-spin-colon {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 600;
+  color: var(--text-2);
+  padding-bottom: 4px;
+}
+.app-clock .ck-spin.period {
+  --row: 44px;
+  width: 76px;
+  margin-left: 6px;
+}
+.app-clock .ck-spin.period .ck-spin-cell.cur {
+  font-size: 22px;
+}
+.app-clock .ck-spin.period .ck-spin-cell.above,
+.app-clock .ck-spin.period .ck-spin-cell.below {
+  font-size: 15px;
+}
+.app-clock .ck-dur .ck-spin {
+  --row: 50px;
+}
+.app-clock .ck-dur-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.app-clock .ck-dur-unit {
+  margin-top: -2px;
+}
+
+/* ------------------------------------------------------------------ dialogs */
+/* explicit tracks so a dialog's max-width / max-height resolve against the window, not its own size */
+.app-clock > .dialog-layer {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.app-clock .dialog.ck-dialog {
+  width: 440px;
+}
+.app-clock .dialog.ck-search-dialog {
+  width: 540px;
+}
+.app-clock .ck-dialog .dialog-body {
+  position: relative;
+}
+.app-clock .ck-dlg {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.app-clock .ck-dlg-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.app-clock .ck-dlg-row > .icon {
+  color: var(--text-2);
+}
+.app-clock .ck-dlg-preview {
+  text-align: center;
+  min-height: 16px;
+  margin-top: -6px;
+}
+.app-clock .ck-dlg-check {
+  min-height: 24px;
+}
+.app-clock .ck-dlg-del {
+  position: absolute;
+  top: 22px;
+  right: 18px;
+  color: var(--danger);
+}
+.app-clock .ck-dlg-presets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.app-clock .ck-dlg-err {
+  min-height: 16px;
+  color: var(--danger);
+}
+.app-clock .ck-days {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+}
+.app-clock .ck-day {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--control-stroke);
+  border-bottom-color: var(--control-stroke-bottom);
+  background: var(--control);
+  color: var(--text);
+  font-size: var(--fs-caption);
+  transition: background var(--dur-fast) linear, color var(--dur-fast) linear;
+}
+.app-clock .ck-day:hover {
+  background: var(--control-hover);
+}
+.app-clock .ck-day.on {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.app-clock .ck-day.on:hover {
+  background: var(--accent-hover);
+}
+
+/* ------------------------------------------------------------------ alarms */
+.app-clock .ck-alarm {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 176px;
+}
+.app-clock .ck-alarm-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.app-clock .ck-alarm-timebox {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.app-clock .ck-alarm-clock {
+  font-family: var(--font-display);
+  font-size: calc(var(--fs-title-large) * 1.08);
+  line-height: 1.12;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+}
+.app-clock .ck-alarm-period {
+  font-size: var(--fs-body-large);
+  font-weight: 600;
+}
+.app-clock .ck-alarm.off .ck-alarm-clock,
+.app-clock .ck-alarm.off .ck-alarm-period,
+.app-clock .ck-alarm.off .ck-alarm-name {
+  color: var(--text-3);
+}
+.app-clock .ck-alarm-toggle {
+  min-height: 28px;
+}
+.app-clock .editing .ck-alarm-toggle {
+  display: none;
+}
+.app-clock .ck-alarm-when,
+.app-clock .ck-alarm-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.app-clock .ck-alarm-when {
+  color: var(--text-2);
+  margin-top: 2px;
+}
+.app-clock .ck-alarm:not(.off) .ck-alarm-when > .icon {
+  color: var(--accent-text);
+}
+.app-clock .ck-alarm-name {
+  font-weight: 600;
+}
+.app-clock .ck-alarm-name > .icon {
+  color: var(--text-2);
+}
+.app-clock .ck-alarm-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.app-clock .ck-chip {
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+}
+.app-clock .ck-chip.on {
+  color: var(--accent-text);
+  background: var(--accent-subtle);
+  font-weight: 600;
+}
+.app-clock .ck-alarm.off .ck-chip.on {
+  color: var(--text-2);
+  background: var(--subtle-hover);
+}
+.app-clock .ck-chip.once {
+  color: var(--text-2);
+  background: var(--subtle-hover);
+}
+.app-clock .ck-alarm-meta {
+  display: flex;
+  gap: 16px;
+  margin-top: auto;
+  padding-top: 8px;
+  min-width: 0;
+}
+.app-clock .ck-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------------ timers */
+.app-clock .ck-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.app-clock .ck-presets-label {
+  margin-right: 4px;
+}
+.app-clock .ck-preset {
+  min-width: 60px;
+}
+.app-clock .ck-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px 16px;
+}
+.app-clock .ck-timer-head {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 32px;
+}
+.app-clock .ck-timer-name {
+  flex: 1;
+  min-width: 0;
+  padding-left: 6px;
+  font-weight: 600;
+}
+.app-clock .ck-timer-dial {
+  position: relative;
+  width: min(208px, 100%);
+  aspect-ratio: 1;
+}
+.app-clock .ck-timer-dial .ck-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.app-clock .ck-timer-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.app-clock .ck-timer-time {
+  font-family: var(--font-display);
+  font-size: calc(var(--fs-title) * 1.2);
+  line-height: 1.2;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+}
+.app-clock .ck-timer:not(.big) .ck-timer-time:hover {
+  background: var(--subtle-hover);
+}
+.app-clock .ck-timer-sub {
+  min-height: 16px;
+}
+.app-clock .ck-timer.state-paused .ck-timer-time {
+  color: var(--text-2);
+}
+.app-clock .ck-timer.state-paused .ck-ring-bar {
+  stroke: color-mix(in srgb, var(--accent) 55%, var(--text-3));
+}
+.app-clock .ck-timer.state-done .ck-ring-track {
+  stroke: var(--accent);
+  animation: ck-done 0.9s ease-in-out infinite alternate;
+}
+.app-clock .ck-timer.state-done .ck-timer-time,
+.app-clock .ck-timer.state-done .ck-timer-sub {
+  color: var(--accent-text);
+}
+@keyframes ck-done {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.3;
+  }
+}
+.app-clock .ck-timer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+.app-clock .ck-timer-plus {
+  min-width: 56px;
+  font-variant-numeric: tabular-nums;
+}
+.app-clock .editing .ck-timer-expand {
+  display: none;
+}
+.app-clock .editing .ck-timer {
+  cursor: pointer;
+}
+.app-clock .ck-timers.has-big > :not(.ck-timer-big) {
+  display: none;
+}
+.app-clock .ck-timer-big {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.app-clock .ck-timer.big {
+  width: min(560px, 100%);
+  background: transparent;
+  border: 0;
+  gap: 16px;
+}
+.app-clock .ck-timer.big .ck-timer-name {
+  text-align: center;
+  font-size: var(--fs-subtitle);
+  line-height: 28px;
+  padding-left: 40px;
+}
+.app-clock .ck-timer.big .ck-timer-dial {
+  width: min(400px, 90%);
+}
+.app-clock .ck-timer.big .ck-timer-time {
+  font-size: clamp(36px, 9cqw, 64px);
+}
+.app-clock .ck-timer.big .ck-timer-actions .ck-round {
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+}
+
+/* ------------------------------------------------------------------ stopwatch */
+.app-clock .ck-sw {
+  align-items: center;
+  gap: 20px;
+}
+.app-clock .ck-sw-top {
+  align-self: stretch;
+  display: flex;
+  justify-content: flex-end;
+  margin: -8px -24px 0 0;
+}
+.app-clock .ck.tight .ck-sw-top {
+  margin-right: 0;
+}
+.app-clock .ck-sw-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  margin-top: 2vh;
+}
+.app-clock .ck-sw-display {
+  display: flex;
+  align-items: flex-start;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(38px, 11.5cqw, 92px);
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -1px;
+}
+.app-clock .ck-sw-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.app-clock .ck-sw-num {
+  display: block;
+}
+.app-clock .ck-sw-num.cs {
+  color: var(--text-2);
+}
+.app-clock .ck-sw-unit {
+  font-family: var(--font);
+  font-weight: 400;
+  letter-spacing: 0;
+  min-height: 16px;
+}
+.app-clock .ck-sw-sep {
+  padding: 0 0.04em;
+  color: var(--text-2);
+}
+.app-clock .ck-sw-actions {
+  display: flex;
+  gap: 16px;
+}
+.app-clock .ck-sw-hint {
+  opacity: 0.85;
+  text-align: center;
+}
+.app-clock .ck-sw.running .ck-sw-hint {
+  opacity: 0.5;
+}
+.app-clock .ck-sw.expanded .ck-laps,
+.app-clock .ck-sw.expanded .ck-sw-hint {
+  display: none;
+}
+.app-clock .ck-sw.expanded .ck-sw-center {
+  flex: 1;
+  justify-content: center;
+  margin-top: 0;
+}
+.app-clock .ck-sw.expanded .ck-sw-display {
+  font-size: clamp(48px, 15cqw, 168px);
+}
+.app-clock .ck-laps {
+  width: min(760px, 100%);
+  margin-top: 8px;
+}
+.app-clock .ck-laps-head,
+.app-clock .ck-lap {
+  display: grid;
+  grid-template-columns: minmax(118px, 1.25fr) 1fr 1fr minmax(32px, auto);
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px 0 16px;
+}
+.app-clock .ck-laps-head {
+  min-height: 40px;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  border-bottom: 1px solid var(--stroke);
+}
+.app-clock .ck-laps-tools {
+  justify-self: end;
+}
+.app-clock .ck-sw-copy {
+  min-height: 28px;
+  padding: 2px 8px;
+}
+.app-clock .ck-sw-copy.copied .icon {
+  color: var(--success);
+}
+.app-clock .ck-lap {
+  min-height: 42px;
+  border-bottom: 1px solid var(--stroke);
+  font-variant-numeric: tabular-nums;
+}
+.app-clock .ck-lap-n {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.app-clock .ck-lap-tag {
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0 7px;
+  border-radius: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.app-clock .ck-lap-tag.fast {
+  color: var(--success);
+  background: var(--success-bg);
+}
+.app-clock .ck-lap-tag.slow {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.app-clock .ck-lap-total {
+  color: var(--text-2);
+}
+
+/* ------------------------------------------------------------------ world clock */
+.app-clock .ck-map-card {
+  padding: 0;
+  overflow: hidden;
+  margin-bottom: 12px;
+  flex: none;
+  background: color-mix(in srgb, var(--accent) 9%, var(--card-solid));
+}
+.app-clock .ck-map {
+  position: relative;
+  width: 100%;
+  max-width: calc(440px * 360 / 142);
+  margin: 0 auto;
+  aspect-ratio: 360 / 142;
+}
+.app-clock .ck-map-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.app-clock .ck-ocean {
+  fill: color-mix(in srgb, var(--accent) 9%, var(--card-solid));
+}
+.app-clock .ck-land {
+  fill: color-mix(in srgb, var(--text) 17%, var(--card-solid));
+  stroke: color-mix(in srgb, var(--text) 8%, transparent);
+  stroke-width: 0.15;
+}
+.app-clock .ck-night {
+  fill: var(--clk-night);
+  opacity: 0.07;
+}
+.app-clock .ck-night.n0 {
+  opacity: 0.13;
+}
+:root[data-theme="dark"] .app-clock .ck-night {
+  fill: #000000;
+  opacity: 0.13;
+}
+:root[data-theme="dark"] .app-clock .ck-night.n0 {
+  opacity: 0.26;
+}
+:root[data-theme="dark"] .app-clock .ck-sun-glow {
+  opacity: 0.22;
+}
+.app-clock .ck-sun-glow {
+  fill: #ffcf3f;
+  opacity: 0.32;
+}
+.app-clock .ck-sun-core {
+  fill: #ffc21a;
+}
+.app-clock .ck-pins {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.app-clock .ck-pin {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.app-clock .ck-pin-dot {
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 0 2px var(--card-solid);
+}
+.app-clock .ck-pin.local .ck-pin-dot {
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+}
+.app-clock .ck-pin-label {
+  position: absolute;
+  left: 9px;
+  top: -11px;
+  display: flex;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 14px;
+  padding: 2px 6px 3px;
+  border-radius: var(--radius-sm);
+  background: var(--acrylic-solid);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-tooltip);
+}
+.app-clock .ck-pin.left .ck-pin-label {
+  left: auto;
+  right: 9px;
+}
+.app-clock .ck-pin.nolabel .ck-pin-label {
+  visibility: hidden;
+}
+.app-clock .ck-pin-name {
+  font-weight: 600;
+}
+.app-clock .ck-pin-time {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.app-clock .ck-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 14px 18px;
+}
+.app-clock .ck-cmp-head,
+.app-clock .ck-cmp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.app-clock .ck-cmp-slider {
+  flex: 1;
+  min-width: 0;
+}
+.app-clock .comparing .ck-city-time,
+.app-clock .comparing .ck-pin-time {
+  color: var(--accent-text);
+}
+.app-clock .ck-city {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  min-height: 112px;
+}
+.app-clock .ck-city-face {
+  flex: none;
+  width: 58px;
+  height: 58px;
+}
+.app-clock .ck-city.local .ck-city-face {
+  width: 104px;
+  height: 104px;
+}
+@container (min-width: 760px) {
+  .app-clock .ck-city.local {
+    grid-column: span 2;
+  }
+}
+.app-clock .ck-city-body {
+  flex: 1;
+  min-width: 0;
+}
+.app-clock .ck-city-name {
+  font-weight: 600;
+}
+.app-clock .ck-city-time {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 2px;
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  line-height: 36px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.app-clock .ck-city.local .ck-city-time {
+  font-size: calc(var(--fs-title-large) * 1.05);
+  line-height: 50px;
+}
+.app-clock .ck-city-period {
+  font-size: var(--fs-body);
+}
+.app-clock .ck-city-handle {
+  display: none;
+  align-self: stretch;
+  align-items: center;
+  margin: -16px 0 -16px -10px;
+  padding: 0 2px;
+  color: var(--text-3);
+  cursor: grab;
+  touch-action: none;
+}
+.app-clock .editing .ck-city-handle {
+  display: flex;
+}
+.app-clock .editing .ck-city:not(.local) {
+  cursor: grab;
+}
+.app-clock .ck-city.dragging {
+  z-index: 3;
+  cursor: grabbing;
+  background: var(--card-solid);
+  box-shadow: var(--shadow-flyout);
+  transition: none;
+}
+.app-clock .ck-search-list {
+  height: 280px;
+  overflow: auto;
+  margin: 0 -8px;
+  padding: 0 4px;
+}
+.app-clock .ck-search-hint:empty,
+.app-clock .ck-search-hint[hidden] {
+  display: none;
+}
+.app-clock .ck-search-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+}
+.app-clock .ck-search-item:hover {
+  background: var(--subtle-hover);
+}
+.app-clock .ck-search-item.selected {
+  background: var(--subtle-selected);
+}
+.app-clock .ck-search-item.selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.app-clock .ck-search-item > .icon {
+  color: var(--text-2);
+}
+.app-clock .ck-search-item.added {
+  color: var(--text-2);
+}
+.app-clock .ck-search-time {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ focus sessions */
+.app-clock .ck-focus-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@container (max-width: 780px) {
+  .app-clock .ck-focus-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.app-clock .ck-focus-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.app-clock .ck-focus-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 440px;
+  padding: 28px 24px;
+  text-align: center;
+}
+.app-clock .ck-focus-idle,
+.app-clock .ck-focus-run,
+.app-clock .ck-focus-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 440px;
+}
+.app-clock .ck-focus-intro {
+  max-width: 360px;
+}
+.app-clock .ck-focus-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+  padding-left: 40px;
+}
+.app-clock .ck-focus-spin {
+  --row: 72px;
+  width: 132px;
+}
+.app-clock .ck-focus-unit {
+  width: 40px;
+  text-align: left;
+  font-size: var(--fs-body-large);
+}
+.app-clock .ck-focus-breaks {
+  min-height: 20px;
+}
+.app-clock .ck-focus-start {
+  margin-top: 10px;
+  min-width: 220px;
+}
+.app-clock .ck-focus-phase {
+  font-size: var(--fs-body-large);
+  line-height: 24px;
+}
+.app-clock .ck-focus-dial {
+  position: relative;
+  width: min(250px, 80%);
+  aspect-ratio: 1;
+  margin: 6px 0;
+}
+.app-clock .ck-focus-dial .ck-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.app-clock .ck-focus-ring.break .ck-ring-bar {
+  stroke: var(--success);
+}
+.app-clock .ck-focus-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.app-clock .ck-focus-left {
+  font-family: var(--font-display);
+  font-size: calc(var(--fs-title-large) * 1.15);
+  line-height: 1.1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.app-clock .ck-focus-main.paused .ck-focus-left {
+  color: var(--text-2);
+}
+.app-clock .ck-focus-main.paused .ck-ring-bar {
+  stroke: color-mix(in srgb, var(--accent) 55%, var(--text-3));
+}
+.app-clock .ck-focus-bar {
+  display: flex;
+  gap: 3px;
+  width: min(340px, 90%);
+  height: 6px;
+}
+.app-clock .ck-focus-seg {
+  position: relative;
+  min-width: 4px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--clk-track);
+}
+.app-clock .ck-focus-seg .fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  background: var(--accent);
+}
+.app-clock .ck-focus-seg.break .fill {
+  background: var(--success);
+}
+.app-clock .ck-focus-next {
+  min-height: 16px;
+}
+.app-clock .ck-focus-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 8px;
+}
+.app-clock .ck-focus-skip[hidden] {
+  display: none;
+}
+.app-clock .ck-focus-done-icon {
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+.app-clock .ck-focus-done-icon.ok {
+  color: var(--success);
+}
+.app-clock .ck-focus-progress,
+.app-clock .ck-focus-log {
+  padding: 16px 20px 20px;
+}
+.app-clock .ck-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  margin-bottom: 8px;
+}
+.app-clock .ck-goal-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.app-clock .ck-goal {
+  position: relative;
+  width: 140px;
+  height: 140px;
+}
+.app-clock .ck-goal .ck-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.app-clock .ck-goal-ring.met .ck-ring-bar {
+  stroke: var(--success);
+}
+.app-clock .ck-goal-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.app-clock .ck-goal-value,
+.app-clock .ck-stat-value {
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle);
+  line-height: 28px;
+  font-weight: 600;
+}
+.app-clock .ck-stat {
+  text-align: center;
+  min-width: 0;
+}
+.app-clock .ck-goal-done {
+  text-align: center;
+  margin-top: 10px;
+}
+.app-clock .ck-log-list {
+  display: flex;
+  flex-direction: column;
+}
+.app-clock .ck-log-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  border-bottom: 1px solid var(--stroke);
+  font-variant-numeric: tabular-nums;
+}
+.app-clock .ck-log-item:last-child {
+  border-bottom: 0;
+}
+.app-clock .ck-log-item .ok {
+  color: var(--success);
+}
+.app-clock .ck-log-item .stopped {
+  color: var(--text-3);
+}
+.app-clock .ck-log-empty {
+  padding: 8px 0 4px;
+}
+
+/* ------------------------------------------------------------------ settings */
+.app-clock .ck-settings {
+  max-width: 1000px;
+  width: 100%;
+}
+.app-clock .ck-set-title {
+  margin: 0 0 12px;
+}
+.app-clock .ck-set-section {
+  margin: 20px 0 8px;
+}
+.app-clock .ck-set-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 68px;
+  padding: 12px 16px;
+  margin-bottom: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+}
+.app-clock .ck-set-row > .icon {
+  color: var(--text);
+}
+.app-clock .ck-set-text {
+  flex: 1;
+  min-width: 0;
+}
+.app-clock .ck-set-control {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 55%;
+}
+.app-clock .ck-set-control .select {
+  min-width: 160px;
+  max-width: 100%;
+}
+.app-clock .ck-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.app-clock .ck-set-info {
+  margin-top: 8px;
+}
+.app-clock .ck-about img {
+  flex: none;
+}
+.app-clock .ck.tight .ck-set-row {
+  flex-wrap: wrap;
+}
+.app-clock .ck.tight .ck-set-control {
+  max-width: none;
+  width: 100%;
+  padding-left: 36px;
+}
+.app-clock .ck-infobar {
+  align-items: center;
+}
+
+.app-clock .ck-dlg-search input::-webkit-search-cancel-button {
+  display: none;
+}
+.app-clock .ck-sun-info {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 170px;
+  padding-left: 20px;
+  border-left: 1px solid var(--stroke);
+}
+@container (min-width: 760px) {
+  .app-clock .ck-city.local .ck-sun-info {
+    display: flex;
+  }
+}
+.app-clock .ck-sun-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-clock .ck-sun-row > .icon {
+  width: 20px;
+  height: 20px;
+  color: var(--text-2);
+}
+.app-clock .ck-sun-row .v {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

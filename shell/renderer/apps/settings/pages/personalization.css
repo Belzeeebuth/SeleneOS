@@ -1,0 +1,790 @@
+/* Settings > Personalization pages of area A (Theme designer, Visual style, Profiles, App themes, stubs).
+   Loaded by pages/personalization-designer.js. Everything is scoped under .app-settings and uses tokens. */
+
+/* ---------- control lines (.pz-ctl): like a Settings row, control on the right or underneath ---------- */
+.app-settings .pz-ctl {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+}
+.app-settings .st-group-rows > .pz-ctl,
+.app-settings .pz-card > .pz-ctl,
+.app-settings .st-group-rows > .pz-auto {
+  border: 1px solid var(--stroke-card);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+}
+.app-settings .pz-ctl-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 32px;
+}
+.app-settings .pz-ctl-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  color: var(--text);
+}
+.app-settings .pz-ctl-text {
+  flex: 1;
+  min-width: 0;
+}
+.app-settings .pz-ctl-title {
+  overflow-wrap: anywhere;
+}
+.app-settings .pz-ctl-right {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 60%;
+}
+.app-settings .pz-ctl-body {
+  padding-left: 38px;
+  min-width: 0;
+}
+.app-settings .pz-ctl.pz-dim .pz-ctl-body {
+  opacity: 0.55;
+}
+.app-settings .pz-ctl .st-slider,
+.app-settings .pz-slider {
+  width: 100%;
+  max-width: 420px;
+}
+.app-settings .pz-slider .slider {
+  flex: 1;
+  min-width: 80px;
+}
+.app-settings .pz-overridden {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.app-settings .pz-note {
+  padding-left: 38px;
+  color: var(--text-2);
+}
+.app-settings .pz-note[hidden] {
+  display: none;
+}
+.app-settings .pz-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.app-settings .pz-inline.pz-wrap {
+  flex-wrap: wrap;
+}
+.app-settings .pz-intro {
+  margin: 0 0 16px;
+  max-width: 760px;
+}
+.app-settings .pz-after {
+  margin: 12px 0 0;
+}
+.app-settings .pz-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.app-settings .pz-empty {
+  padding: 16px;
+}
+.app-settings .pz-badge {
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-settings .pz-badge[hidden] {
+  display: none;
+}
+
+/* ---------- swatches ---------- */
+.app-settings .pz-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 32px);
+  gap: 6px;
+  max-width: calc(9 * 32px + 8 * 6px);
+}
+.app-settings .pz-swatches.small {
+  grid-template-columns: repeat(auto-fill, 28px);
+  max-width: calc(9 * 28px + 8 * 6px);
+}
+.app-settings .pz-swatch {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--sw);
+  transition: transform var(--dur) var(--ease);
+}
+.app-settings .pz-swatches.small .pz-swatch {
+  width: 28px;
+  height: 28px;
+}
+.app-settings .pz-swatch:hover {
+  transform: scale(1.08);
+}
+.app-settings .pz-swatch.selected {
+  box-shadow: 0 0 0 2px var(--solid), 0 0 0 4px var(--text);
+}
+.app-settings .pz-swatch.selected::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 9px;
+  height: 5px;
+  margin: -4px 0 0 -5px;
+  border: 2px solid #fff;
+  border-top: 0;
+  border-right: 0;
+  transform: rotate(-45deg);
+}
+.app-settings .pz-accent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.app-settings .pz-accent-row {
+  display: flex;
+  gap: 8px;
+}
+.app-settings .pz-custom-color .pz-custom-dot,
+.app-settings .pz-tb-dot,
+.app-settings .pz-app-dot {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--sw, var(--accent));
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.45);
+}
+.app-settings .pz-tb-dot[hidden] {
+  display: none;
+}
+.app-settings .pz-custom-color.selected {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.pz-color-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 320px;
+}
+.pz-color-dialog .pz-swatches {
+  display: grid;
+  grid-template-columns: repeat(9, 28px);
+  gap: 6px;
+}
+.pz-color-dialog .pz-swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--sw);
+}
+.pz-color-dialog .pz-swatch.selected {
+  box-shadow: 0 0 0 2px var(--solid), 0 0 0 4px var(--text);
+}
+.pz-color-dialog .pz-color-input {
+  width: 100%;
+  height: 96px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.pz-color-dialog .pz-hex {
+  width: 120px;
+}
+
+/* ---------- mode / auto ---------- */
+.app-settings .pz-auto {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  padding: 10px 16px 12px 54px;
+}
+.app-settings .pz-auto[hidden] {
+  display: none;
+}
+.app-settings .pz-time-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-settings .pz-time {
+  width: 130px;
+}
+.app-settings .pz-auto-desc {
+  flex-basis: 100%;
+}
+
+/* ---------- wallpaper thumbnails ---------- */
+.app-settings .pz-wall-thumb {
+  width: 64px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--stroke-strong);
+  background: #333 center / cover;
+}
+
+/* ---------- Theme designer layout ---------- */
+.app-settings .pz-designer {
+  container-type: inline-size;
+}
+.app-settings .pz-designer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.app-settings .pz-designer-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.app-settings .pz-preview-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-settings .pz-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.app-settings .pz-designer-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.app-settings .pz-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.app-settings .pz-card-title {
+  margin: 0 0 6px;
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+@container (min-width: 860px) {
+  .app-settings .pz-designer-grid {
+    grid-template-columns: minmax(0, 1.2fr) minmax(330px, 1fr);
+  }
+  .app-settings .pz-designer-preview {
+    position: sticky;
+    top: 0;
+  }
+  .app-settings .pz-designer-controls .pz-ctl-right {
+    max-width: 55%;
+  }
+}
+
+/* ---------- live preview mock desktop (virtual 960 × 600, scaled to the frame width) ---------- */
+.app-settings .pz-mock-frame {
+  position: relative;
+  container-type: inline-size;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-strong);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+  background: #222;
+}
+.app-settings .pz-mock {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 960px;
+  height: 600px;
+  transform: scale(calc(100cqw / 960px));
+  transform-origin: 0 0;
+  pointer-events: none;
+  user-select: none;
+  color: var(--text);
+  font-size: var(--fs-body);
+}
+.app-settings .pz-mock-wall {
+  position: absolute;
+  inset: 0;
+  background: #1b1b1b center / cover no-repeat;
+}
+:root[data-style="glass"] .app-settings .pz-mock-wall::after,
+.app-settings [data-style="glass"] .pz-spv-wall::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 55% at 12% 18%, color-mix(in srgb, var(--accent-base, #0078d4) 55%, transparent), transparent 70%),
+    radial-gradient(50% 50% at 88% 22%, rgba(255, 64, 160, 0.38), transparent 70%),
+    radial-gradient(55% 60% at 70% 92%, rgba(0, 200, 220, 0.34), transparent 70%);
+  mix-blend-mode: soft-light;
+}
+.app-settings .pz-mock-win {
+  left: 30px;
+  top: 30px;
+  width: 440px;
+  height: 320px;
+}
+.app-settings .pz-mock .win-ctl,
+.app-settings .pz-spv .win-ctl {
+  display: grid;
+  place-items: center;
+}
+.app-settings .pz-mock-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 22px;
+}
+.app-settings .pz-mock-content .input {
+  width: 260px;
+}
+.app-settings .pz-mock-content .slider {
+  width: 260px;
+}
+.app-settings .pz-mock-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.app-settings .pz-mock-fly {
+  position: absolute;
+  color: var(--text);
+  background: var(--fly-bg);
+  border: 1px solid var(--fly-stroke);
+  border-radius: var(--radius);
+  box-shadow: var(--fly-shadow);
+  backdrop-filter: blur(var(--blur)) saturate(var(--blur-sat));
+}
+.app-settings .pz-mock-start {
+  left: 400px;
+  bottom: 60px;
+  width: 300px;
+  height: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 22px 0;
+  overflow: hidden;
+}
+.app-settings .pz-mock-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 16px;
+  border: 1px solid var(--control-stroke);
+  border-bottom-color: var(--accent);
+  background: var(--input-bg);
+  color: var(--text-2);
+}
+.app-settings .pz-mock-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px 4px;
+}
+.app-settings .pz-mock-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.app-settings .pz-mock-tile img {
+  width: 30px;
+  height: 30px;
+}
+.app-settings .pz-mock-tile span {
+  max-width: 100%;
+}
+.app-settings .pz-mock-start-foot {
+  margin: auto -22px 0;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 24px;
+  border-top: 1px solid var(--fly-stroke);
+  background: var(--fly-footer);
+}
+.app-settings .pz-mock-start-foot > .icon {
+  margin-left: auto;
+}
+.app-settings .pz-mock-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+.app-settings .pz-mock-qs {
+  right: 26px;
+  bottom: 60px;
+  width: 230px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.app-settings .pz-mock-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.app-settings .pz-mock-qtile {
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--control-stroke);
+  background: var(--control);
+}
+.app-settings .pz-mock-qtile.on {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+.app-settings .pz-mock-qs .slider {
+  flex: 1;
+}
+.app-settings .pz-mock-menu {
+  left: 238px;
+  top: 214px;
+  width: 150px;
+  padding: 4px;
+  border-color: var(--window-stroke);
+  background: var(--acrylic);
+}
+.app-settings .pz-mock-mi {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+}
+.app-settings .pz-mock-mi.hover {
+  background: var(--subtle-hover);
+}
+.app-settings .pz-mock-taskbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  background: var(--taskbar-bg);
+  border-top: 1px solid var(--window-stroke);
+  backdrop-filter: blur(var(--blur)) saturate(var(--blur-sat));
+}
+.app-settings .pz-mock-tb-apps {
+  display: flex;
+  gap: 4px;
+}
+.app-settings .pz-mock-tbb {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+}
+.app-settings .pz-mock-tbb.active {
+  background: var(--tb-active);
+}
+.app-settings .pz-mock-tbb img {
+  width: 24px;
+  height: 24px;
+}
+.app-settings .pz-mock-tbb i {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  width: 6px;
+  height: 3px;
+  margin-left: -3px;
+  border-radius: 2px;
+  background: var(--tb-ind);
+}
+.app-settings .pz-mock-tbb.active i {
+  width: 16px;
+  margin-left: -8px;
+  background: var(--accent);
+}
+.app-settings .pz-mock-clock {
+  position: absolute;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 16px;
+}
+
+/* ---------- visual style cards (mini previews rendered with the real classes) ---------- */
+.app-settings .pz-style-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 14px;
+}
+.app-settings .pz-style-grid.compact {
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+}
+.app-settings .pz-style-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 6px 10px;
+  border: 1px solid var(--stroke-card);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text);
+  text-align: left;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.app-settings .pz-style-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.14);
+}
+.app-settings .pz-style-card.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.app-settings .pz-style-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 6px;
+}
+.app-settings .pz-style-name {
+  font-weight: 600;
+}
+.app-settings .pz-style-grid.compact .pz-style-name {
+  font-weight: 500;
+  font-size: var(--fs-caption);
+}
+.app-settings .pz-style-check {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 22px;
+  height: 22px;
+  display: none;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  z-index: 2;
+}
+.app-settings .pz-style-card.selected .pz-style-check {
+  display: grid;
+}
+.app-settings .pz-style-grid.compact .pz-style-check {
+  right: 8px;
+  top: 8px;
+  width: 18px;
+  height: 18px;
+}
+
+/* the mini preview: a 400 × 240 stage scaled into the card */
+.app-settings .pz-spv {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 5 / 3;
+  overflow: hidden;
+  border-radius: calc(var(--radius) - 2px);
+  container-type: inline-size;
+  color: var(--text);
+  font-size: 14px;
+  background: var(--bg);
+}
+.app-settings .pz-spv-wall {
+  position: absolute;
+  inset: 0;
+  background: #333 center / cover;
+}
+.app-settings .pz-spv-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 400px;
+  height: 240px;
+  transform: scale(calc(100cqw / 400px));
+  transform-origin: 0 0;
+}
+.app-settings .pz-spv .pz-mock-win {
+  left: 40px;
+  top: 22px;
+  width: 320px;
+  height: 172px;
+}
+.app-settings .pz-spv-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.app-settings .pz-spv-body .input {
+  width: 150px;
+}
+.app-settings .pz-spv-taskbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 9%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4%;
+  background: var(--taskbar-bg);
+  border-top: 1px solid var(--window-stroke);
+}
+.app-settings .pz-spv-taskbar i {
+  width: 4.5%;
+  height: 56%;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--text) 35%, transparent);
+}
+.app-settings .pz-spv-taskbar i:first-child {
+  background: var(--accent);
+}
+
+/* ---------- profiles ---------- */
+.app-settings .pz-section {
+  margin-bottom: 22px;
+}
+.app-settings .pz-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+.app-settings .pz-profile {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--stroke-card);
+  border-radius: var(--radius);
+  background: var(--card);
+  overflow: hidden;
+}
+.app-settings .pz-profile.current {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.app-settings .pz-profile-preview {
+  display: block;
+  padding: 6px 6px 0;
+  border: 0;
+  background: transparent;
+}
+.app-settings .pz-profile-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 10px 12px;
+}
+.app-settings .pz-profile-accent {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.45);
+}
+.app-settings .pz-profile-text {
+  flex: 1;
+  min-width: 0;
+}
+.app-settings .pz-profile-name {
+  font-weight: 600;
+}
+.app-settings .pz-apply {
+  flex: none;
+}
+.app-settings .pz-current-badge {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ---------- app themes ---------- */
+.app-settings .pz-app-search {
+  width: 280px;
+  max-width: 100%;
+}
+.app-settings .pz-app-icon {
+  width: 24px;
+  height: 24px;
+}
+.app-settings .pz-app-row .st-row-right {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.app-settings .pz-app-accent {
+  gap: 8px;
+  min-width: 150px;
+  justify-content: flex-start;
+}
+.app-settings .pz-app-accent-label {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- text sample (Accessibility > Text size) ---------- */
+.app-settings .pz-text-sample {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 20px;
+  border: 1px solid var(--stroke-card);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+}
+
+/* ---------- stubs ---------- */
+.app-settings .pz-stub {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.app-settings .pz-stub-empty {
+  padding: 40px 16px;
+}
+
+/* narrow windows: controls under their labels */
+@container (max-width: 560px) {
+  .app-settings .pz-ctl-head {
+    flex-wrap: wrap;
+  }
+  .app-settings .pz-ctl-right {
+    max-width: 100%;
+    margin-left: 38px;
+  }
+  .app-settings .pz-ctl-body,
+  .app-settings .pz-note {
+    padding-left: 0;
+  }
+}

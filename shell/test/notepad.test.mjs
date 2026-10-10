@@ -6,10 +6,16 @@
 //   middle click, drag reorder, Ctrl+Tab), unsaved prompts (tab + window list), external changes,
 //   big file guard, drag & drop, menu bar keyboard access, French + dark theme, app theme override,
 //   session restore, minimum and maximized sizes — and checks for console errors.
+//   QA regressions: one prompt for repeated close / save / open / exit requests, devices and pipes
+//   refused, relative paths refused, file:// URLs, minimised window raised for its prompt, keyboard
+//   context menu, French key names in shortcuts, screen-level dialogs in small windows (placed over
+//   the window, app theme kept), themed tooltips, narrow notice / find status layout, corrupted
+//   storage, open/close x15 leak check.
 //   Documentation screenshots: aurora-os/docs/screenshots/notepad-*.png
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/notepad.test.mjs [--only=find]
 import fs from 'node:fs';
 import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { launchShell, ROOT } from './lib.mjs';
 
@@ -43,7 +49,7 @@ let recover = null;
 function setRecover(s) {
   recover = async () => {
     for (let i = 0; i < 6; i++) {
-      const busy = await s.page.evaluate(`!!document.querySelector('.np-menu, .win.app-notepad > .dialog-layer:not(.closing)')`).catch(() => false);
+      const busy = await s.page.evaluate(`!!document.querySelector('.np-menu, .win.app-notepad > .dialog-layer:not(.closing), #overlays > .dialog-layer:not(.closing)')`).catch(() => false);
       if (!busy) break;
       await s.page.keyboard.press('Escape').catch(() => {});
       await sleep(250);
@@ -77,11 +83,14 @@ const text = (s) => NP(s, (np) => np.active.text);
 const status = (s) => NP(s, (np) => ({ pos: np.st.pos.textContent, chars: np.st.chars.textContent, zoom: np.st.zoom.textContent, eol: np.st.eol.textContent, enc: np.st.enc.textContent }));
 const tabs = (s, index = -1) => NP(s, (np) => np.docs.map((d) => ({ title: d.title, dirty: d.dirty, active: d === np.active, path: d.path })), null, index);
 const winCount = (s) => run(s, `document.querySelectorAll(${JSON.stringify(WIN)}).length`);
-const dialogOpen = (s) => run(s, `!!document.querySelector('${WIN} > .dialog-layer:not(.closing)')`);
-const dialogText = (s) => run(s, `(document.querySelector('${WIN} > .dialog-layer:not(.closing) .dialog-body')||{}).innerText || ''`);
+// Notepad's dialogs are window-modal, or screen-level (#overlays) when the window is too small for them.
+const LAYER = `:is(${WIN}, #overlays) > .dialog-layer:not(.closing)`;
+const dialogOpen = (s) => run(s, `!!document.querySelector('${LAYER}')`);
+const dialogCount = (s) => run(s, `document.querySelectorAll('${LAYER}').length`);
+const dialogText = (s) => run(s, `(document.querySelector('${LAYER} .dialog-body')||{}).innerText || ''`);
 async function dialogButton(s, label) {
   await until(() => dialogOpen(s), { label: 'dialog' });
-  const btn = s.page.locator(`${WIN} > .dialog-layer:not(.closing) .dialog-footer .btn`, { hasText: label }).first();
+  const btn = s.page.locator(`${LAYER} .dialog-footer .btn`, { hasText: label }).first();
   await btn.click();
   await sleep(220);
 }
@@ -978,6 +987,222 @@ async function mainRun() {
       await sleep(300);
     });
 
+    await section('QA: one prompt for repeated close / exit requests', async () => {
+      await NP(s, (np) => {
+        const keep = np.newTab();
+        for (const d of [...np.docs]) if (d !== keep) np.removeTab(d, { animate: false });
+        keep.replaceRange(0, 0, 'unsaved draft');
+      });
+      // Alt+F4 twice / taskbar "Close window" while the prompt is up
+      await NP(s, (np) => {
+        np.win.close();
+        np.win.close();
+      });
+      await until(() => dialogOpen(s), { label: 'close prompt' });
+      await sleep(300);
+      check('two close requests -> one prompt', await dialogCount(s), 1);
+      await dialogButton(s, 'Cancel');
+      check('window kept after Cancel', await winCount(s), 1);
+      check('nothing left waiting', await NP(s, (np) => np._closeBusy), false);
+      await NP(s, (np) => {
+        np.exitAll();
+        np.exitAll();
+      });
+      await until(() => dialogOpen(s), { label: 'exit prompt' });
+      await sleep(300);
+      check('File > Exit twice -> one prompt', await dialogCount(s), 1);
+      await dialogButton(s, 'Cancel');
+      check('window kept after Exit cancelled', await winCount(s), 1);
+      // tab prompt up, then Ctrl+W again and a window close request: still one prompt at a time
+      await NP(s, (np) => {
+        np.closeTab(np.active);
+        np.closeTab(np.active);
+        np.win.close();
+      });
+      await until(() => dialogOpen(s), { label: 'tab prompt' });
+      await sleep(300);
+      check('tab prompt + close requests -> one prompt', await dialogCount(s), 1);
+      await dialogButton(s, 'Cancel');
+      // the window close request asks next (one prompt)
+      await until(() => dialogOpen(s), { label: 'window prompt after tab prompt' });
+      await sleep(250);
+      check('then the window asks, once', await dialogCount(s), 1);
+      await dialogButton(s, 'Cancel');
+      check('still open', await winCount(s), 1);
+    });
+
+    await section('QA: one Save as / Open dialog for repeated requests', async () => {
+      await NP(s, (np) => {
+        np.save();
+        np.save();
+        np.saveAs();
+      });
+      await until(() => run(s, `!!document.querySelector('.fp-dialog')`), { label: 'save as picker', timeout: 8000 });
+      await sleep(600);
+      check('Ctrl+S x2 + Save as -> one picker', await run(s, `document.querySelectorAll('.fp-dialog').length`), 1);
+      await s.page.keyboard.press('Escape');
+      await until(async () => !(await run(s, `!!document.querySelector('.dialog-layer:not(.closing) .fp-dialog')`)), { label: 'picker closed' });
+      check('save promise released', await NP(s, (np) => np.active._saveP), null);
+      await NP(s, (np) => {
+        np.openDialog();
+        np.openDialog();
+      });
+      await until(() => run(s, `!!document.querySelector('.fp-dialog')`), { label: 'open picker', timeout: 8000 });
+      await sleep(600);
+      check('Ctrl+O x2 -> one picker', await run(s, `document.querySelectorAll('.fp-dialog').length`), 1);
+      await s.page.keyboard.press('Escape');
+      await sleep(300);
+    });
+
+    await section('QA: devices / pipes and relative paths are refused; file:// URLs work', async () => {
+      const fifo = path.join(docs, 'pipe.txt');
+      execFileSync('mkfifo', [fifo]);
+      try {
+        NP(s, (np, el, p) => {
+          np.openPath(p);
+        }, fifo).catch(() => {});
+        await until(() => dialogOpen(s), { label: 'pipe refused', timeout: 4000 });
+        check('pipe refused with a message', await dialogText(s), (v) => v.includes("isn't a regular file"));
+        await dialogButton(s, 'OK');
+        check('no tab for the pipe', (await tabs(s)).some((x) => x.title === 'pipe.txt'), false);
+      } finally {
+        // (if the guard ever regresses, unblock the backend's read of the pipe)
+        try {
+          fs.closeSync(fs.openSync(fifo, fs.constants.O_WRONLY | fs.constants.O_NONBLOCK));
+        } catch {}
+        fs.rmSync(fifo, { force: true });
+      }
+      await run(s, `window.__aurora.shell.launch('notepad', { file: '../../etc/hostname' }); 0`);
+      await until(() => dialogOpen(s), { label: 'relative path refused' });
+      check('relative path refused', await dialogText(s), (v) => v.includes("isn't a valid file path"));
+      await dialogButton(s, 'OK');
+      check('no relative path tab', (await tabs(s)).some((x) => x.path && !x.path.startsWith('/')), false);
+      await run(s, `window.__aurora.shell.launch('notepad', { file: ${JSON.stringify(`file://${encodeURI(path.join(docs, 'notes.md'))}`)} }); 0`);
+      await until(() => NP(s, (np) => np.active.title === 'notes.md'), { label: 'file:// opened' });
+      check('file:// URL opens the file', (await tabs(s)).find((x) => x.active).path, path.join(docs, 'notes.md'));
+      await run(s, `window.__aurora.shell.launch('notepad', { file: ${JSON.stringify(`${docs}/../Documents/./notes.md`)} }); 0`);
+      await sleep(400);
+      check('"..", "." collapsed: same tab, no duplicate', (await tabs(s)).filter((x) => x.title === 'notes.md').length, 1);
+    });
+
+    await section('QA: a minimised window comes back for its unsaved prompt', async () => {
+      await NP(s, (np) => {
+        np.active.replaceRange(0, 0, 'changed ');
+        np.win.minimize();
+      });
+      await sleep(400);
+      NP(s, (np) => {
+        np.win.close();
+      }).catch(() => {});
+      await until(() => dialogOpen(s), { label: 'prompt' });
+      check('window restored to show the prompt', await NP(s, (np) => np.win.minimized), false);
+      await dialogButton(s, 'Cancel');
+      check('still open after Cancel', await winCount(s), 1);
+    });
+
+    await section('QA: keyboard context menu (Shift+F10) highlights the first item', async () => {
+      await focusEditor(s);
+      await s.page.keyboard.press('Shift+F10');
+      await until(() => run(s, `!!document.querySelector('.np-menu')`), { label: 'context menu' });
+      check('an item is highlighted', await run(s, `!!document.querySelector('.np-menu .menu-item.active')`), true);
+      await s.page.keyboard.press('Escape');
+      await sleep(150);
+      check('focus back in the editor', await run(s, `document.activeElement?.classList.contains('np-text')`), true);
+    });
+
+    await section('QA: tooltips follow the app theme override', async () => {
+      await NP(s, (np) => np.shared.setPref('theme', 'dark'));
+      await sleep(150);
+      await s.page.mouse.move(5, 5);
+      await sleep(200);
+      await s.page.hover(`${WIN} .np-gear`);
+      await until(() => run(s, `!!document.querySelector('.tooltip')`), { label: 'tooltip', timeout: 4000 });
+      check('tooltip gets the dark theme', await run(s, `(() => { const t = document.querySelector('.tooltip'); return t.classList.contains('np-theme-dark') && getComputedStyle(t).color; })()`), 'rgb(255, 255, 255)');
+      await s.page.mouse.move(5, 5);
+      await NP(s, (np) => np.shared.setPref('theme', 'system'));
+      await sleep(200);
+    });
+
+    await section('QA: small window: dialogs at screen level over the window; notice and find status fit', async () => {
+      await NP(s, (np) => np.win.setSize(400, 300));
+      await NP(s, (np) => np.shared.setPref('theme', 'dark'));
+      await sleep(250);
+      NP(s, (np) => {
+        np.fontDialog();
+      }).catch(() => {});
+      await until(() => run(s, `!!document.querySelector('#overlays > .dialog-layer.global:not(.closing) .np-font-dlg')`), { label: 'screen-level font dialog' });
+      await sleep(350);
+      const g = await run(s, `(() => { const d = document.querySelector('#overlays > .dialog-layer.global:not(.closing) .np-font-dlg'); const r = d.getBoundingClientRect(); const w = document.querySelector('${WIN}').getBoundingClientRect(); return { themed: d.classList.contains('np-theme-dark'), color: getComputedStyle(d).color, onScreen: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, overlaps: r.left < w.right && r.right > w.left && r.top < w.bottom && r.bottom > w.top, preview: d.querySelector('.np-font-preview').getBoundingClientRect().bottom <= r.bottom }; })()`);
+      check('font dialog keeps the app theme', [g.themed, g.color], [true, 'rgb(255, 255, 255)']);
+      check('font dialog on screen, over the window, preview visible', [g.onScreen, g.overlaps, g.preview], [true, true, true]);
+      await s.page.keyboard.press('Escape');
+      await sleep(300);
+      check('focus back in the editor after a screen-level dialog', await run(s, `document.activeElement?.classList.contains('np-text')`), true);
+      // a short question still fits in the window
+      await NP(s, (np) => np.active.replaceRange(0, 0, 'x'));
+      NP(s, (np) => {
+        np.closeTab(np.active);
+      }).catch(() => {});
+      await until(() => dialogOpen(s), { label: 'tab prompt' });
+      check('save prompt stays window-modal', await run(s, `!!document.querySelector('${WIN} > .dialog-layer:not(.closing) .np-ask')`), true);
+      await dialogButton(s, 'Cancel');
+      await NP(s, (np) => np.shared.setPref('theme', 'system'));
+      // file changed on disk: the message keeps the whole line, the buttons wrap underneath
+      await NP(s, (np) => {
+        np.active.notice = { kind: 'changed' };
+        np.renderNotice();
+      });
+      await sleep(200);
+      const n = await run(s, `(() => { const el = document.querySelector('${WIN}'); const m = el.querySelector('.np-notice-msg').getBoundingClientRect(); const bar = el.querySelector('.np-notice-bar').getBoundingClientRect(); const btns = [...el.querySelectorAll('.np-notice .btn')].map((b) => b.getBoundingClientRect()); return { msgH: m.height, barW: bar.width, msgW: m.width, btnsInside: btns.every((b) => b.right <= bar.right + 1 && b.top >= m.bottom - 1) }; })()`);
+      check('notice message on at most two lines', n.msgH, (v) => v <= 40);
+      check('notice buttons under the message, inside the bar', n.btnsInside, true);
+      await NP(s, (np) => {
+        np.active.notice = null;
+        np.renderNotice();
+      });
+      // find status ("Replaced N occurrences") still shown at this width, all find buttons inside the bar
+      await setText(s, 'aaa bbb aaa', 0);
+      await s.page.keyboard.press('Control+h');
+      await s.page.fill(`${WIN} .np-find-input`, 'aaa');
+      await s.page.fill(`${WIN} .np-replace-input`, 'c');
+      await s.page.click(`${WIN} .np-replace-all`);
+      await sleep(200);
+      const f = await run(s, `(() => { const el = document.querySelector('${WIN}'); const st = el.querySelector('.np-find-status'); const bar = el.querySelector('.np-find').getBoundingClientRect(); const row = el.querySelector('.np-find-row'); const top = el.querySelector('.np-find-input').getBoundingClientRect().top; return { text: st.offsetParent ? st.textContent : null, inside: [...el.querySelectorAll('.np-find button, .np-find input')].filter((b) => b.offsetParent).every((b) => b.getBoundingClientRect().right <= bar.right + 1), oneRow: [...row.querySelectorAll(':scope > button')].every((b) => Math.abs(b.getBoundingClientRect().top - top) < 8) }; })()`);
+      check('replace all count shown in a narrow window', f.text, 'Replaced 2 occurrences');
+      check('find buttons fit', f.inside, true);
+      check('find buttons stay on the first row', f.oneRow, true);
+      await shot(s, 'minsize-find-status-light-en', true);
+      await s.page.keyboard.press('Escape');
+      await NP(s, (np) => np.win.setSize(960, 640));
+      await sleep(200);
+    });
+
+    await section('QA: open and close Notepad 15 times leaves nothing behind', async () => {
+      await run(s, `window.__aurora.wm.byApp('notepad').forEach((w) => w.close(true)); 0`);
+      await until(async () => (await winCount(s)) === 0, { label: 'all closed' });
+      await sleep(300);
+      const snap = () =>
+        run(s, `(async () => {
+          const { shared } = await import('app://shell/apps/notepad/lib/shared.js');
+          const wm = window.__aurora.wm;
+          const hm = wm._h || wm.emitter?._h;
+          return { windows: shared.windows.length, mru: shared.mru.length, subs: [...shared._subs.values()].reduce((a, x) => a + x.size, 0), wm: hm ? [...hm.values()].reduce((a, x) => a + x.size, 0) : -1, body: document.body.children.length, menus: document.querySelectorAll('.np-menu').length };
+        })()`);
+      const before = await snap();
+      for (let i = 0; i < 15; i++) {
+        await openNotepad(s);
+        await NP(s, (np) => {
+          np.find.open();
+          np.bar.open('file');
+        });
+        await NP(s, (np) => np.win.close(true));
+        await until(async () => (await winCount(s)) === 0, { label: 'closed' });
+      }
+      await sleep(400);
+      check('no Notepad state, listeners or popups left after 15 open/close', await snap(), before);
+      await openNotepad(s);
+    });
+
     await section('no console errors from Notepad (EN light run)', async () => {
       check('console errors', errorsSince(s, mark), []);
     });
@@ -1052,6 +1277,36 @@ async function frenchDarkRun() {
       await sleep(400);
       await shot(s, 'maximized-dark-fr');
     });
+    await section('QA (FR): French key names in shortcuts and tooltips; save list shows folders', async () => {
+      await NP(s, (np) => {
+        if (np.win.state === 'maximized') np.win.restore();
+        np.win.setSize(960, 640);
+      });
+      await sleep(200);
+      await NP(s, (np) => np.bar.open('file'));
+      await sleep(200);
+      const fileKeys = await run(s, `[...document.querySelectorAll('.np-menu .menu-item .shortcut')].map((x) => x.textContent)`);
+      check('File menu uses Maj', fileKeys.includes('Ctrl+Maj+N') && fileKeys.includes('Ctrl+Maj+S') && fileKeys.includes('Ctrl+Maj+W'), true);
+      check('no "Shift" in French menus', fileKeys.some((k) => /Shift/.test(k)), false);
+      await s.page.keyboard.press('ArrowRight');
+      await sleep(150);
+      const editKeys = await run(s, `[...document.querySelectorAll('.np-menu .menu-item .shortcut')].map((x) => x.textContent)`);
+      check('Edit menu: Maj+F3 and Suppr', editKeys.includes('Maj+F3') && editKeys.includes('Suppr'), true);
+      await s.page.keyboard.press('Escape');
+      await s.page.keyboard.press('Escape');
+      check('find tooltips', await NP(s, (np) => [np.find.prevBtn.dataset.tip, np.find.closeBtn.dataset.tip]), ['Rechercher le précédent (Maj+F3)', 'Fermer (Échap)']);
+      // two unsaved tabs, one of them a file: the list shows the file's folder
+      await NP(s, (np) => {
+        for (const d of np.docs) if (d.path) d.replaceRange(0, 0, '!');
+      });
+      NP(s, (np) => {
+        np.win.close();
+      }).catch(() => {});
+      await until(() => run(s, `!!document.querySelector('${LAYER} .np-ask-many')`), { label: 'save list' });
+      check('folder under the file name', await run(s, `[...document.querySelectorAll('${LAYER} .np-ask-path')].map((x) => x.textContent)`), (v) => v.length >= 1 && v.every((x) => x === docs));
+      await dialogButton(s, 'Annuler');
+    });
+
     await section('no console errors from Notepad (FR dark run)', async () => {
       check('console errors', errorsSince(s, mark), []);
     });
@@ -1115,6 +1370,37 @@ async function sessionRun() {
   }
 }
 
+// ================================================================== corrupted storage
+async function storageRun() {
+  const home = makeHome();
+  const dir = path.join(home, '.config', 'aurora', 'apps', 'notepad');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'prefs.json'), JSON.stringify({ zoom: 'abc', font: { family: 'x"; } body { display:none', size: -4, weight: 'bold' }, theme: 'purple', startup: 'restore', wordWrap: 'yes', defaultEol: 'weird' }));
+  fs.writeFileSync(path.join(dir, 'recent.json'), JSON.stringify(['relative.txt', 42, '/abs/ok.txt', null]));
+  fs.writeFileSync(path.join(dir, 'session.json'), JSON.stringify({ windows: [{ key: 'k1', tabs: [{ text: 'restored text', encoding: 'evil', eol: 'zz', sel: ['a', 9999], dirty: true }, { path: '../rel.txt' }, 'junk', null], active: 'x' }, null, { tabs: 'nope' }] }));
+  const s = await launchShell({ theme: 'light', lang: 'en', home });
+  const mark = s.logs.length;
+  try {
+    await section('corrupted prefs / recent / session files are sanitised', async () => {
+      await openNotepad(s);
+      const p = await NP(s, (np) => np.prefs);
+      check('bad values fall back to defaults', [p.zoom, p.font.size, p.font.weight, p.theme, p.wordWrap, p.defaultEol, p.startup], [100, 11, 400, 'system', true, 'lf', 'restore']);
+      check('font family cannot inject CSS', /[";{}]/.test(p.font.family), false);
+      check('recent keeps absolute paths only', await NP(s, (np) => np.shared.recent), ['/abs/ok.txt']);
+      const t = await NP(s, (np) => np.docs.map((d) => [d.title, d.encoding, d.eol, d.text, d.dirty]));
+      check('session: valid tab restored, junk ignored', t, [['Untitled', 'utf-8', 'lf', 'restored text', true]]);
+      check('status bar sane', await status(s), (v) => v.zoom === '100%' && v.enc === 'UTF-8' && v.eol === 'Unix (LF)');
+      check('editor font size sane', await NP(s, (np) => getComputedStyle(np.active.ta).fontSize), '14.6667px');
+    });
+    await section('no console errors (storage run)', async () => {
+      check('console errors', errorsSince(s, mark), []);
+    });
+  } finally {
+    await s.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
 const t0 = Date.now();
 console.log('Notepad — English, light');
 await mainRun();
@@ -1122,6 +1408,8 @@ console.log('Notepad — French, dark');
 await frenchDarkRun();
 console.log('Notepad — session restore');
 await sessionRun();
+console.log('Notepad — corrupted storage');
+await storageRun();
 console.log(`\n${passed} checks passed, ${failures.length} failed (${Math.round((Date.now() - t0) / 1000)} s)`);
 if (failures.length) {
   console.log(`\nFailures:\n  - ${failures.join('\n  - ')}`);

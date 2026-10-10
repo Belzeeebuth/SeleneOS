@@ -6,6 +6,20 @@ import { errorText } from './setup.js';
 // instead of walking out to the taskbar and the desktop. The end sentinel also catches Tab pressed
 // inside the message body: keys typed in that sandboxed frame never reach this document.
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+
+// A key pressed while one of this window's dialogs is open but focus sits outside it (on <body>
+// after a control disappeared, or on the window after another window closed): Esc still closes the
+// dialog, and no shortcut (Delete…) reaches the panes behind it. Returns true when handled.
+export function guardDialog(win, e) {
+  const top = [...win.el.querySelectorAll(':scope > .dialog-layer:not(.closing)')].pop();
+  if (!top || top.contains(e.target)) return false;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.key === 'Escape') top.querySelector('.dialog')?._done?.(null);
+  else top.querySelector(FOCUSABLE)?.focus();
+  return true;
+}
+
 export function trapFocus(win) {
   const scope = () => [...win.el.querySelectorAll('.dialog-layer:not(.closing)')].pop() || win.el;
   const items = () =>
@@ -21,7 +35,15 @@ export function trapFocus(win) {
   // where Esc and Tab do nothing.
   const obs = new MutationObserver((records) => {
     for (const r of records) {
-      for (const n of r.addedNodes) if (n.classList?.contains('dialog-layer')) n.__mlReturn = document.activeElement;
+      for (const n of r.addedNodes) {
+        if (!n.classList?.contains('dialog-layer')) continue;
+        n.__mlReturn = document.activeElement;
+        // Move focus into the new dialog now (the UI kit does it after a timer): a key pressed at
+        // once (Esc on "Remove account?") must go to this dialog, not to the one underneath.
+        const dlg = n.querySelector('.dialog');
+        const target = dlg?.querySelector('input, textarea, select, [autofocus]') || dlg?.querySelector('.dialog-footer .btn.primary') || dlg?.querySelector('.dialog-footer .btn');
+        target?.focus({ preventScroll: true });
+      }
       for (const n of r.removedNodes) {
         if (!n.classList?.contains('dialog-layer')) continue;
         const a = document.activeElement;
@@ -36,7 +58,9 @@ export function trapFocus(win) {
   });
   obs.observe(win.el, { childList: true });
   win.el.addEventListener('keydown', (e) => {
-    if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return;
+    if (e.defaultPrevented) return;
+    if (e.key === 'Escape' && guardDialog(win, e)) return;
+    if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey) return;
     const list = items();
     if (!list.length) return;
     const inScope = scope().contains(e.target);
@@ -48,6 +72,19 @@ export function trapFocus(win) {
       list[0].focus();
     }
   });
+  // Focus fell back to <body> (the focused control was re-rendered away): the next Tab re-enters
+  // this window instead of the taskbar. Called by the window's document-level key handler.
+  return {
+    tabFromBody(e) {
+      if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey) return false;
+      if (e.target !== document.body && e.target !== document.documentElement) return false;
+      const list = items();
+      if (!list.length) return false;
+      e.preventDefault();
+      (e.shiftKey ? list[list.length - 1] : list[0]).focus();
+      return true;
+    },
+  };
 }
 
 export class MailWindowBase {

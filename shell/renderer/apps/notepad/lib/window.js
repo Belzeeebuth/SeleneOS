@@ -7,13 +7,12 @@ import { SettingsPage } from './settings.js';
 import * as dlg from './dialogs.js';
 import { decode, decodeAs, encode, unencodable, ENCODINGS, EOLS, normalizeEol } from './codec.js';
 import { shared, ZOOM_MIN, ZOOM_MAX } from './shared.js';
-import { accentVars } from '../../../core/theme.js';
+import * as coreTheme from '../../../core/theme.js';
 
 const WARN_SIZE = 16 * 1024 * 1024;
 const MAX_SIZE = 64 * 1024 * 1024;
 const SESSION_TEXT_LIMIT = 8 * 1024 * 1024;
 const DND_MIME = 'application/x-aurora-paths';
-const ACCENT_KEYS = ['--accent', '--accent-hover', '--accent-pressed', '--accent-text', '--accent-subtle', '--on-accent', '--accent-base'];
 const SEARCH_ENGINES = {
   duckduckgo: 'https://duckduckgo.com/?q=%s',
   google: 'https://www.google.com/search?q=%s',
@@ -24,6 +23,32 @@ const SEARCH_ENGINES = {
 };
 
 const reduceMotion = () => document.documentElement.dataset.animations === 'off';
+const S_IFMT = 0o170000;
+const S_IFREG = 0o100000;
+
+/**
+ * Absolute, normalised path for a file argument (launch args, drops, recent list), or null.
+ * Relative paths would be resolved against the shell's working directory, so they are refused;
+ * file:// URLs are accepted. "." and ".." segments are collapsed.
+ */
+export function normalizePath(p) {
+  if (typeof p !== 'string' || !p || p.includes('\0')) return null;
+  if (/^file:\/\//i.test(p)) {
+    try {
+      p = decodeURIComponent(new URL(p).pathname);
+    } catch {
+      return null;
+    }
+  }
+  if (!p.startsWith('/')) return null;
+  const out = [];
+  for (const seg of p.split('/')) {
+    if (!seg || seg === '.') continue;
+    if (seg === '..') out.pop();
+    else out.push(seg);
+  }
+  return `/${out.join('/')}`;
+}
 
 /** Suggested file name for "Save as": the first line of text, like Windows 11 Notepad. */
 function suggestName(text) {
@@ -57,11 +82,13 @@ export class NotepadWindow {
     this.closing = false;
     this.themeClass = '';
     this.key = `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
-    this.menus = new Menus({ h: ctx.h, icon: ctx.icon, themeClass: () => this.themeClass });
+    this.menus = new Menus({ h: ctx.h, icon: ctx.icon, themeClass: () => this.themeClass, kbd: (k) => this.kbd(k) });
     this.offs = [];
     this._stRaf = 0;
     this._findTimer = null;
     this._sessionTimer = null;
+    this._closeBusy = false; // the window's "save changes?" prompt is up
+    this._openP = null;
   }
 
   get prefs() {
@@ -72,6 +99,51 @@ export class NotepadWindow {
   }
   fmt(n) {
     return this.ctx.i18n.formatNumber(n);
+  }
+  /** Localised key names in shortcuts: "Ctrl+Shift+S" -> "Ctrl+Maj+S" in French, "Esc" -> "Échap". */
+  kbd(combo) {
+    if (!combo) return combo;
+    const { t } = this;
+    return String(combo)
+      .replace(/\bShift\b/g, t('keys.shift'))
+      .replace(/\bEsc\b/g, t('keys.esc'))
+      .replace(/\bDel\b/g, t('keys.del'));
+  }
+
+  // ================================================================== dialogs
+  // Dialogs are window-modal; in a window too small for one (e.g. the 400×300 minimum size) it is
+  // shown at screen level instead, like the separate dialog window Windows would use, keeping the
+  // app theme. need: the room the dialog needs, in px.
+  dialogParent(need = {}) {
+    const r = this.win.el.getBoundingClientRect();
+    return r.width >= (need.w || 0) && r.height >= (need.h || 0) ? this.win : undefined;
+  }
+  async dialog(opts, need) {
+    const parent = this.dialogParent(need);
+    const className = [opts.className || 'np-dialog', !parent && this.themeClass].filter(Boolean).join(' ');
+    const onOpen = (dlg, done) => {
+      if (!parent) this.centerOverWindow(dlg);
+      return opts.onOpen?.(dlg, done);
+    };
+    const v = await this.ui.dialog({ ...opts, parent, className, onOpen });
+    if (!parent) this.restoreFocus();
+    return v;
+  }
+  /** A screen-level dialog is centred on the screen: move it over this window (kept on screen). */
+  centerOverWindow(dlg) {
+    const r = this.win.el.getBoundingClientRect();
+    if (!r.width || !r.height) return; // minimised: stay centred on the screen
+    const w = dlg.offsetWidth;
+    const hgt = dlg.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const x = Math.max(8, Math.min(vw - w - 8, r.left + (r.width - w) / 2));
+    const y = Math.max(8, Math.min(vh - hgt - 8, r.top + (r.height - hgt) / 2));
+    dlg.style.translate = `${Math.round(x - (vw - w) / 2)}px ${Math.round(y - (vh - hgt) / 2)}px`;
+  }
+  /** The (not closing) dialog layer in front of this window: window-level, or a Notepad screen-level one. */
+  dialogLayer() {
+    return this.win.el.querySelector(':scope > .dialog-layer:not(.closing)') || document.querySelector('#overlays > .dialog-layer.global:not(.closing):has(> .np-dialog, > .fp-dialog)');
   }
 
   // ================================================================== setup
@@ -235,7 +307,8 @@ export class NotepadWindow {
 
   restoreFocus() {
     const a = document.activeElement;
-    if (a && a !== document.body && a.isConnected) return;
+    // (focus left on a button of a dialog that is closing counts as lost)
+    if (a && a !== document.body && a.isConnected && !a.closest('.dialog-layer.closing')) return;
     if (this.closing || this.ctx.shell.wm.focused() !== this.win || this.dialogOpen() || this.menus.isOpen) return;
     if (this.settings.isOpen) this.settings.el.focus({ preventScroll: true });
     else this.active?.focus();
@@ -265,14 +338,18 @@ export class NotepadWindow {
         for (const e of entries.slice(1)) this.ctx.shell.launch('notepad', { newWindow: true, restore: e });
       }
     }
-    if (a.file) await this.openPath(a.file);
+    if (a.file) {
+      // A tab first, so the window is not empty behind an error dialog (the pristine tab is replaced).
+      if (!this.docs.length) this.newTab({ animate: false });
+      await this.openPath(a.file);
+    }
   }
 
   // ================================================================== labels / prefs / theme
   relabel() {
     const { t } = this;
     const tip = (el, label, key) => {
-      el.dataset.tip = key ? `${label} (${key})` : label;
+      el.dataset.tip = key ? `${label} (${this.kbd(key)})` : label;
       el.setAttribute('aria-label', label);
     };
     tip(this.newBtn, t('file.newTab'), 'Ctrl+N');
@@ -321,18 +398,29 @@ export class NotepadWindow {
   }
 
   applyTheme() {
-    const sys = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+    const el = this.win.el;
+    // What the shell gives this window: its per-app theme (Settings > Personalization), else the system theme.
+    const scoped = el.hasAttribute('data-theme-scope') ? el.dataset.theme : null;
+    const sys = (scoped || document.documentElement.dataset.theme) === 'dark' ? 'dark' : 'light';
     const pref = this.prefs.theme;
     const eff = pref === 'light' || pref === 'dark' ? pref : sys;
     const override = eff !== sys;
     this.themeClass = override ? `np-theme-${eff}` : '';
-    const el = this.win.el;
     el.classList.toggle('np-theme-light', override && eff === 'light');
     el.classList.toggle('np-theme-dark', override && eff === 'dark');
     if (override) {
-      const vars = accentVars(this.ctx.settings.get('accent'), eff);
+      const accent = coreTheme.appThemeFor?.('notepad')?.accent || this.ctx.settings.get('accent');
+      const vars = coreTheme.accentVars(accent, eff);
       for (const [k, v] of Object.entries(vars)) el.style.setProperty(k, v);
-    } else for (const k of ACCENT_KEYS) el.style.removeProperty(k);
+      this._accentKeys = Object.keys(vars);
+    } else if (this._accentKeys) {
+      // Only remove what Notepad set, then let the shell put back its own per-app accent (if any).
+      for (const k of this._accentKeys) el.style.removeProperty(k);
+      this._accentKeys = null;
+      try {
+        coreTheme.decorateWindow?.(el);
+      } catch {}
+    }
   }
 
   // ================================================================== tabs
@@ -400,7 +488,7 @@ export class NotepadWindow {
     el.dataset.tip = doc.path || doc.title;
     el.setAttribute('aria-label', doc.dirty ? `${doc.title}, ${t('tab.unsaved')}` : doc.title);
     close.setAttribute('aria-label', t('file.closeTab'));
-    close.dataset.tip = `${t('file.closeTab')} (Ctrl+W)`;
+    close.dataset.tip = `${t('file.closeTab')} (${this.kbd('Ctrl+W')})`;
   }
 
   /** Keep the active tab visible in a scrolled (overflowing) tab strip. */
@@ -469,8 +557,19 @@ export class NotepadWindow {
     this.scheduleSession();
   }
 
-  async closeTab(doc = this.active, { prompt = true } = {}) {
-    if (!doc || !this.docs.includes(doc)) return true;
+  /** Close a tab (asking to save it first). Resolves false when cancelled. */
+  closeTab(doc = this.active, opts = {}) {
+    if (!doc || !this.docs.includes(doc)) return Promise.resolve(true);
+    // Already being closed (Ctrl+W pressed twice, close button clicked during the prompt…): one prompt only.
+    if (doc._closeP) return doc._closeP;
+    if (this._closeBusy || this.closing) return Promise.resolve(false);
+    doc._closeP = this._closeTab(doc, opts).finally(() => {
+      doc._closeP = null;
+    });
+    return doc._closeP;
+  }
+
+  async _closeTab(doc, { prompt = true } = {}) {
     if (prompt && doc.dirty) {
       this.activate(doc);
       const r = await dlg.askSave(this, doc);
@@ -702,7 +801,7 @@ export class NotepadWindow {
       { label: t('edit.cut'), shortcut: 'Ctrl+X', disabled: !hasSel, action: () => this.cut() },
       { label: t('edit.copy'), shortcut: 'Ctrl+C', disabled: !hasSel, action: () => this.copy() },
       { label: t('edit.paste'), shortcut: 'Ctrl+V', action: () => this.paste() },
-      { label: t('edit.delete'), shortcut: t('keys.del'), disabled: !d, action: () => this.del() },
+      { label: t('edit.delete'), shortcut: t('keys.del'), disabled: !hasSel, action: () => this.del() },
       '-',
       { label: t('edit.searchWeb'), shortcut: 'Ctrl+E', disabled: !hasSel, action: () => this.searchWeb() },
       { label: t('edit.find'), shortcut: 'Ctrl+F', action: () => this.find.open() },
@@ -738,6 +837,8 @@ export class NotepadWindow {
   editorMenu(e, doc) {
     const { t } = this;
     const hasSel = doc.ta.selectionStart !== doc.ta.selectionEnd;
+    // Opened with the keyboard (Menu key / Shift+F10): highlight the first item, like Windows.
+    const keyboard = Date.now() - (doc._menuKeyAt || 0) < 600;
     this.menus.popup(e, [
       { label: t('edit.undo'), icon: 'arrow_undo', shortcut: 'Ctrl+Z', disabled: !doc.history.canUndo, action: () => this.undo() },
       { label: t('edit.redo'), icon: 'arrow_redo', shortcut: 'Ctrl+Y', disabled: !doc.history.canRedo, action: () => this.redo() },
@@ -749,7 +850,7 @@ export class NotepadWindow {
       '-',
       { label: t('edit.selectAll'), icon: 'select_all_on', shortcut: 'Ctrl+A', action: () => this.selectAll() },
       { label: t('edit.searchWeb'), icon: 'globe_search', shortcut: 'Ctrl+E', disabled: !hasSel, action: () => this.searchWeb() },
-    ], { restore: doc.ta });
+    ], { restore: doc.ta, keyboard });
   }
 
   shortDir(p) {
@@ -846,7 +947,15 @@ export class NotepadWindow {
     return r.width >= 860 && r.height >= 600 ? this.win : undefined;
   }
 
-  async openDialog() {
+  openDialog() {
+    if (!this._openP) {
+      this._openP = this._openDialog().finally(() => {
+        this._openP = null;
+      });
+    }
+    return this._openP;
+  }
+  async _openDialog() {
     const res = await this.ui.filePicker({
       mode: 'open',
       multiple: true,
@@ -871,8 +980,13 @@ export class NotepadWindow {
 
   async openPath(path, { activate = true, quiet = false } = {}) {
     const { t } = this;
-    path = String(path || '');
-    if (!path) return null;
+    if (typeof path !== 'string' || !path) return null;
+    const abs = normalizePath(path);
+    if (!abs) {
+      if (!quiet) await dlg.alert(this, t('err.openTitle'), t('err.badPath', { path: path.slice(0, 300) }));
+      return null;
+    }
+    path = abs;
     const existing = shared.findDoc(path);
     if (existing) {
       if (existing.w !== this) existing.w.win.focus();
@@ -886,6 +1000,11 @@ export class NotepadWindow {
     }
     if (st.dir) {
       if (!quiet) await dlg.alert(this, t('err.openTitle'), t('err.isDir', { name: basename(path) }));
+      return null;
+    }
+    // Devices, pipes and sockets: reading /dev/zero or a FIFO would never end (and block the backend).
+    if (typeof st.mode === 'number' && (st.mode & S_IFMT) !== S_IFREG) {
+      if (!quiet) await dlg.alert(this, t('err.openTitle'), t('err.notFile', { name: basename(path) }));
       return null;
     }
     if (st.size > MAX_SIZE) {
@@ -925,7 +1044,9 @@ export class NotepadWindow {
       const raw = dt.getData(DND_MIME);
       if (raw) paths = JSON.parse(raw);
     } catch {}
-    if (!paths.length) paths = [...(dt.files || [])].map((f) => this.api.pathForFile(f)).filter(Boolean);
+    if (!Array.isArray(paths)) paths = [];
+    if (!paths.length) paths = [...(dt.files || [])].map((f) => this.api.pathForFile(f));
+    paths = paths.map((p) => normalizePath(p)).filter(Boolean);
     for (const p of paths.slice(0, 32)) {
       const st = await this.api.invoke('fs:stat', p).catch(() => null);
       if (st && !st.dir) await this.openPath(p);
@@ -938,14 +1059,24 @@ export class NotepadWindow {
     this.dropEl.hidden = !on;
   }
 
-  async save(doc = this.active) {
-    if (!doc) return false;
-    if (!doc.path) return this.saveAs(doc);
-    return this.writeDoc(doc, doc.path);
+  // One save at a time per document: a second Ctrl+S while the Save as dialog is coming up (or the
+  // file is being written) joins the running one instead of opening a second dialog.
+  _once(doc, fn) {
+    if (!doc) return Promise.resolve(false);
+    if (doc._saveP) return doc._saveP;
+    doc._saveP = fn().finally(() => {
+      doc._saveP = null;
+    });
+    return doc._saveP;
+  }
+  save(doc = this.active) {
+    return this._once(doc, () => (doc.path ? this.writeDoc(doc, doc.path) : this._saveAs(doc)));
+  }
+  saveAs(doc = this.active) {
+    return this._once(doc, () => this._saveAs(doc));
   }
 
-  async saveAs(doc = this.active) {
-    if (!doc) return false;
+  async _saveAs(doc) {
     const { t } = this;
     this.activate(doc, { focus: false });
     const name = doc.path ? basename(doc.path) : suggestName(doc.text) || `${t('untitled')}.txt`;
@@ -986,17 +1117,19 @@ export class NotepadWindow {
     let enc = doc.encoding;
     const bad = unencodable(doc.text, enc);
     if (bad) {
-      const v = await this.ui.dialog({
-        title: t('ask.lossyTitle'),
-        body: t('ask.lossy', { ch: bad, enc: t(`enc.${enc}`) }),
-        parent: this.win,
-        className: 'np-dialog',
-        buttons: [
-          { label: t('ask.lossyUtf8'), value: 'utf8', primary: true },
-          { label: t('ask.lossyAnyway'), value: 'anyway' },
-          { label: t('common.cancel'), value: null },
-        ],
-      });
+      const v = await this.dialog(
+        {
+          title: t('ask.lossyTitle'),
+          body: t('ask.lossy', { ch: bad, enc: t(`enc.${enc}`) }),
+          className: 'np-dialog',
+          buttons: [
+            { label: t('ask.lossyUtf8'), value: 'utf8', primary: true },
+            { label: t('ask.lossyAnyway'), value: 'anyway' },
+            { label: t('common.cancel'), value: null },
+          ],
+        },
+        { w: 500, h: 340 },
+      );
       if (!v) return false;
       if (v === 'utf8') enc = 'utf-8';
     }
@@ -1024,6 +1157,7 @@ export class NotepadWindow {
     try {
       const st = await this.api.invoke('fs:stat', doc.path);
       if (!st) throw new Error(this.t('err.notFound', { path: doc.path }));
+      if (st.dir || (typeof st.mode === 'number' && (st.mode & S_IFMT) !== S_IFREG)) throw new Error(this.t('err.notFile', { name: doc.title }));
       if (st.size > MAX_SIZE) throw new Error(this.t('err.tooBig', { name: doc.title, size: this.ctx.i18n.formatSize(st.size), max: this.ctx.i18n.formatSize(MAX_SIZE) }));
       const bytes = await this.api.invoke('fs:readBytes', doc.path);
       const dec = decode(bytes);
@@ -1092,16 +1226,23 @@ export class NotepadWindow {
       n.kind === 'deleted'
         ? [btn(t('common.save'), () => this.save(d), true), btn(t('notice.dismiss'), dismiss)]
         : [btn(t('notice.reload'), () => this.reload(d), true), btn(t('notice.keep'), dismiss)];
-    this.noticeEl.replaceChildren(h('div', { class: 'infobar warning np-notice-bar' }, icon('warning', { size: 16, filled: true }), h('span', { class: 'grow' }, msg), h('span', { class: 'np-notice-actions' }, actions)));
+    this.noticeEl.replaceChildren(h('div', { class: 'infobar warning np-notice-bar' }, icon('warning', { size: 16, filled: true }), h('span', { class: 'np-notice-msg' }, msg), h('span', { class: 'np-notice-actions' }, actions)));
     this.noticeEl.hidden = false;
   }
 
-  async exitAll() {
-    for (const w of [...shared.windows]) {
-      const ok = await w.win.close();
-      if (!ok) return false;
+  exitAll() {
+    if (!shared.exiting) {
+      shared.exiting = (async () => {
+        for (const w of [...shared.windows]) {
+          if (!shared.windows.includes(w) || w.closing) continue;
+          if (!(await w.win.close())) return false;
+        }
+        return true;
+      })().finally(() => {
+        shared.exiting = null;
+      });
     }
-    return true;
+    return shared.exiting;
   }
 
   // ================================================================== commands: edit
@@ -1266,12 +1407,12 @@ export class NotepadWindow {
   }
 
   dialogOpen() {
-    return !!this.win.el.querySelector(':scope > .dialog-layer:not(.closing)');
+    return !!this.dialogLayer();
   }
 
   // ================================================================== keyboard
   onKey(e) {
-    const layer = this.win.el.querySelector(':scope > .dialog-layer:not(.closing)');
+    const layer = this.dialogLayer();
     if (layer) {
       // A dialog is up but the keyboard is still elsewhere (it focuses itself a few ms later):
       // send the key to the dialog instead of the editor behind it.
@@ -1379,7 +1520,25 @@ export class NotepadWindow {
 
   // ================================================================== close / session
   async beforeClose() {
-    if (this.closing) return true;
+    // Already on its way out (last tab closed, or a close already confirmed): nothing more to do here.
+    if (this.closing) return false;
+    // A second close request (Alt+F4 twice, taskbar "Close window" while the prompt is up…) is ignored:
+    // the first one is still asking.
+    if (this._closeBusy) return false;
+    this._closeBusy = true;
+    try {
+      return await this._beforeClose();
+    } finally {
+      this._closeBusy = false;
+    }
+  }
+
+  async _beforeClose() {
+    // Wait for tab prompts / saves already in progress.
+    for (const d of this.docs) {
+      if (d._closeP || d._saveP) await (d._closeP || d._saveP).catch(() => {});
+    }
+    if (this.closing) return false; // that prompt closed the last tab, and with it the window
     this.menus.close(null, { restoreFocus: false });
     if (this.prefs.startup === 'restore') {
       this.saveSessionNow();
@@ -1388,6 +1547,9 @@ export class NotepadWindow {
       return true;
     }
     const dirty = this.docs.filter((d) => d.dirty);
+    // Bring the window forward (and back from the taskbar) before asking: File > Exit or the
+    // taskbar's "Close window" can close a window that is behind others or minimised.
+    if (dirty.length && (this.win.minimized || this.ctx.shell.wm.focused() !== this.win)) this.win.focus();
     if (dirty.length === 1) {
       const d = dirty[0];
       this.activate(d);
@@ -1452,21 +1614,34 @@ export class NotepadWindow {
     const tabs = Array.isArray(entry?.tabs) ? entry.tabs : [];
     const made = [];
     for (const tb of tabs) {
+      if (!tb || typeof tb !== 'object') continue;
+      // session.json is untrusted input: only known encodings / line endings and absolute paths.
+      const path = normalizePath(tb.path);
       let doc = null;
-      if (tb.text != null) {
-        doc = new Doc(this, { path: tb.path || null, text: String(tb.text), encoding: tb.encoding, eol: tb.eol, mtime: tb.mtime, size: tb.size });
+      if (typeof tb.text === 'string') {
+        doc = new Doc(this, {
+          path,
+          text: normalizeEol(tb.text),
+          encoding: ENCODINGS.includes(tb.encoding) ? tb.encoding : 'utf-8',
+          eol: EOLS.includes(tb.eol) ? tb.eol : this.prefs.defaultEol,
+          mtime: Number(tb.mtime) || 0,
+          size: Number(tb.size) || 0,
+        });
         if (tb.dirty) doc.forceDirty = true;
         this.newTab({ doc, activate: false, animate: false });
-      } else if (tb.path) {
-        doc = await this.openPath(tb.path, { activate: false, quiet: true });
+      } else if (path) {
+        doc = await this.openPath(path, { activate: false, quiet: true });
       }
       if (!doc) continue;
       const len = doc.text.length;
-      if (Array.isArray(tb.sel)) doc.ta.setSelectionRange(Math.min(tb.sel[0] || 0, len), Math.min(tb.sel[1] || 0, len));
+      if (Array.isArray(tb.sel)) {
+        const a = Math.max(0, Math.min(Number(tb.sel[0]) || 0, len));
+        doc.ta.setSelectionRange(a, Math.max(a, Math.min(Number(tb.sel[1]) || 0, len)));
+      }
       if (tb.scroll) doc.scroll = { top: Number(tb.scroll.top) || 0, left: Number(tb.scroll.left) || 0 };
       made.push(doc);
     }
-    const act = made[Math.min(entry?.active || 0, made.length - 1)];
+    const act = made[Math.max(0, Math.min(Number(entry?.active) || 0, made.length - 1))];
     if (act) {
       this.activate(act);
       requestAnimationFrame(() => {

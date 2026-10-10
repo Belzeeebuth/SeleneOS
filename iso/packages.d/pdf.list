@@ -1,0 +1,1 @@
+# PDF Reader: no extra packages (pdf.js ships with the shell: shell/node_modules/pdfjs-dist)

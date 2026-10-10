@@ -1,9 +1,14 @@
-# Aurora Terminal: the PTY helper (aurora-pty) and the everyday command-line tools.
+# Aurora Terminal: the PTY helper (aurora-pty), its fonts and the everyday command-line tools.
 python3
 bash
 bash-completion
 ncurses-base
 ncurses-term
+fontconfig
+fonts-cascadia-code
+fonts-dejavu-core
+fonts-noto-mono
+fonts-noto-color-emoji
 nano
 vim-tiny
 less

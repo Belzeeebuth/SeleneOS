@@ -149,6 +149,24 @@ export function uid() {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Load a local picture for pixel access: media:// images would taint canvases (cross-origin),
+ *  so the bytes are fetched and shown through a same-origin blob: URL. */
+export async function loadPixels(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  const obj = URL.createObjectURL(blob);
+  try {
+    const img = await loadImage(obj);
+    try {
+      await img.decode();
+    } catch {}
+    return img;
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(obj), 1000);
+  }
+}
+
 /** Load an image element from a URL (resolves once decoded). */
 export function loadImage(url) {
   return new Promise((resolve, reject) => {

@@ -1,32 +1,35 @@
-const BASE = 'app://shell/node_modules/pdfjs-dist/';
+// PDF Reader — a Windows 11-style PDF viewer built on pdf.js (pdfjs-dist).
+// One module instance serves every window: lib/shared.js holds the preferences and the Recent list,
+// lib/window.js is one window (tabs, command bar, sidebar, find, tools, presentation) and
+// lib/doc.js one open document. pdf.js is loaded on first use by lib/engine.js.
+import { shared } from './lib/shared.js';
+import { PdfWindow } from './lib/window.js';
+
 export default {
   async launch(ctx) {
-    const { win, h, api } = ctx;
-    const lib = await import(`${BASE}build/pdf.mjs`);
-    const v = await import(`${BASE}web/pdf_viewer.mjs`);
-    lib.GlobalWorkerOptions.workerSrc = `${BASE}build/pdf.worker.mjs`;
-    const css = await (await fetch(`${BASE}web/pdf_viewer.css`)).text();
-    const scoped = `@scope (.pdf-host) {\n${css.replace(/:root/g, ':scope').replace(/url\((["']?)images\//g, `url($1${BASE}web/images/`)}\n}`;
-    document.head.appendChild(h('style', { text: scoped }));
-    const viewerDiv = h('div', { class: 'pdfViewer' });
-    const container = h('div', { class: 'pdf-host', style: { position: 'absolute', inset: '0', overflow: 'auto' } }, viewerDiv);
-    win.body.appendChild(h('div', { style: { position: 'relative', flex: '1' } }, container));
-    const eventBus = new v.EventBus();
-    const linkService = new v.PDFLinkService({ eventBus });
-    const findController = new v.PDFFindController({ eventBus, linkService });
-    const viewer = new v.PDFViewer({ container, viewer: viewerDiv, eventBus, linkService, findController, annotationEditorMode: lib.AnnotationEditorType.NONE });
-    linkService.setViewer(viewer);
-    window.__pdfproto = { lib, v, viewer, eventBus, findController };
-    const file = ctx.args.file;
-    if (file) {
-      const data = await api.invoke('fs:readBytes', file);
-      const task = lib.getDocument({ data, cMapUrl: `${BASE}cmaps/`, standardFontDataUrl: `${BASE}standard_fonts/`, wasmUrl: `${BASE}wasm/`, iccUrl: `${BASE}iccs/` });
-      task.onPassword = (cb, reason) => { console.log('password needed', reason); cb('secret'); };
-      const doc = await task.promise;
-      viewer.setDocument(doc);
-      linkService.setDocument(doc);
-      eventBus.on('pagesinit', () => { viewer.currentScaleValue = 'page-width'; });
-      window.__pdfproto.doc = doc;
-    }
+    await shared.init(ctx);
+    const w = new PdfWindow(ctx);
+    ctx.win.el.__pdf = w; // test / debugging hook
+    await w.init();
+    return {
+      pdf: w,
+      // Single instance: a file opened from elsewhere becomes a tab (or is brought to the front when it
+      // is already open). { newWindow: true } never reaches here — the registry opens another window.
+      onRelaunch(args = {}) {
+        if (args.file) {
+          const found = shared.findOpen(args.file);
+          if (found) {
+            found.win.win.focus();
+            found.win.activate(found.tab);
+            return;
+          }
+          const target = shared.target() || w;
+          target.win.focus();
+          target.openPath(args.file);
+          return;
+        }
+        (shared.target() || w).win.focus();
+      },
+    };
   },
 };

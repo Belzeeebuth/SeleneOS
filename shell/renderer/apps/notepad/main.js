@@ -3,7 +3,7 @@
 // and the restorable session; lib/window.js is one window (tabs, menus, editor, find, status bar).
 // Backend: main/ipc/notepad.js (installed font families). Files go through fs:readBytes/writeBytes.
 import { shared } from './lib/shared.js';
-import { NotepadWindow } from './lib/window.js';
+import { NotepadWindow, normalizePath } from './lib/window.js';
 
 export default {
   async launch(ctx) {
@@ -19,7 +19,7 @@ export default {
       onRelaunch(args = {}) {
         const target = shared.relaunchTarget() || npw;
         if (args.file) {
-          if (shared.prefs.openFiles === 'window' && !shared.findDoc(args.file)) {
+          if (shared.prefs.openFiles === 'window' && !shared.findDoc(normalizePath(args.file))) {
             ctx.shell.launch('notepad', { ...args, newWindow: true });
             return;
           }
