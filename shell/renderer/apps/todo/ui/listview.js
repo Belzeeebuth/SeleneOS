@@ -84,7 +84,8 @@ export class ListView {
           this.resetAdd();
         } else if (e.key === 'ArrowDown' && !this.addInput.value) {
           e.preventDefault();
-          this.focusList();
+          const first = this.body.querySelector('.td-task');
+          if (first) this.focusRow(first.dataset.id);
         }
       },
     });
@@ -305,7 +306,7 @@ export class ListView {
       action: () => app.store.setViewPref(v, { sort: { by: s, dir: 'asc' } }),
     }));
     if (cur) items.push('-', { label: app.t('sort.remove'), icon: 'dismiss', action: () => app.store.setViewPref(v, { sort: null }) });
-    return app.ui.menu(e, [{ header: app.t('sort.by') }, ...items]);
+    return app.menu(e, [{ header: app.t('sort.by') }, ...items]);
   }
 
   groupMenu(e) {
@@ -313,7 +314,7 @@ export class ListView {
     const v = app.view;
     const cur = app.store.viewPrefs(v).groupBy || 'none';
     const opts = v.startsWith('list:') ? ['none', 'due'] : ['none', 'list'];
-    return app.ui.menu(e, [
+    return app.menu(e, [
       { header: app.t('group.by') },
       ...opts.map((g) => ({ label: app.t(`group.${g}`), checked: cur === g, action: () => app.store.setViewPref(v, { groupBy: g }) })),
     ]);
@@ -721,8 +722,7 @@ export class ListView {
       if (e.shiftKey) {
         if (!app.anchorId) app.anchorId = id;
         app.select(target, { range: true });
-      } else if (app.openId) app.select(target);
-      else app.focusId = target;
+      } else app.select(target, { open: !!app.openId }); // the selection follows the focus; details follow if open
       this.focusRow(target);
       return;
     }

@@ -124,10 +124,16 @@ export class Transport {
   _loop() {
     this._raf = 0;
     this.updateTime();
-    if (!this.app.player.paused && this.el.isConnected) this._raf = requestAnimationFrame(this._loop);
+    // Nothing to animate while minimized: 'timeupdate' still refreshes the bar, and the
+    // window's 'restore' event starts the loop again.
+    if (!this.app.player.paused && this.el.isConnected && !this.app.win.minimized) this._raf = requestAnimationFrame(this._loop);
   }
   startLoop() {
-    if (!this._raf && !this.app.player.paused) this._raf = requestAnimationFrame(this._loop);
+    if (!this._raf && !this.app.player.paused && !this.app.win.minimized) this._raf = requestAnimationFrame(this._loop);
+  }
+  stopLoop() {
+    cancelAnimationFrame(this._raf);
+    this._raf = 0;
   }
 
   setIcon(btn, name, filled = false) {
@@ -214,7 +220,11 @@ export class Transport {
     const fw = this.fly.offsetWidth;
     const left = clamp(br.left + br.width / 2 - fw / 2 - hr.left, 8, hr.width - fw - 8);
     this.fly.style.left = `${left}px`;
-    this.fly.style.bottom = `${hr.bottom - br.top + 6}px`;
+    // Open above the whole bar: right above the button it would hide the end of the seek bar
+    // and cut the total / remaining time in half.
+    const bar = this.el.getBoundingClientRect();
+    const above = bar.height ? Math.min(br.top, bar.top) : br.top;
+    this.fly.style.bottom = `${hr.bottom - above + 6}px`;
     this.updateVolume();
     this.bVol.setAttribute('aria-expanded', 'true');
     // Keyboard activation (detail 0) moves focus into the flyout; a click leaves it on the content.

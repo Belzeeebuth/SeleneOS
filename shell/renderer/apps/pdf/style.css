@@ -867,10 +867,6 @@
   --editor-toolbar-shadow: var(--shadow-flyout);
   border-radius: var(--radius);
 }
-.app-pdf.tool-active .pdf-scroller,
-.app-pdf .tool-active .pdf-scroller {
-  scroll-behavior: auto;
-}
 
 /* dark reading mode: pages inverted, hues kept */
 .app-pdf .pdf-root.dark-pages .pdf-scroller .pdfViewer .page {

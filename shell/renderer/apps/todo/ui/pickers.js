@@ -38,7 +38,8 @@ export function popover(app, anchor, content, { className = '', onClose, width, 
     if (!el.contains(e.target) && !e.target.closest?.('.menu')) handle.close(null);
   };
   const keys = (e) => {
-    if (e.key === 'Escape') {
+    // (document level: the popover may have lost the focus after a re-render)
+    if (e.key === 'Escape' && !document.querySelector('.menu') && !app.win.el.querySelector('.dialog-layer:not(.closing)')) {
       e.preventDefault();
       e.stopPropagation();
       handle.close(null);
@@ -53,7 +54,7 @@ export function popover(app, anchor, content, { className = '', onClose, width, 
       handle.closed = true;
       if (openPop === handle) openPop = null;
       document.removeEventListener('pointerdown', outside, true);
-      el.removeEventListener('keydown', keys);
+      document.removeEventListener('keydown', keys, true);
       if (reduceMotion()) el.remove();
       else el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 100 }).finished.then(() => el.remove(), () => el.remove());
       onClose?.(v);
@@ -63,7 +64,7 @@ export function popover(app, anchor, content, { className = '', onClose, width, 
     },
   };
   setTimeout(() => !handle.closed && document.addEventListener('pointerdown', outside, true));
-  el.addEventListener('keydown', keys);
+  document.addEventListener('keydown', keys, true);
   openPop = handle;
   if (focus) setTimeout(() => (el.querySelector('[autofocus], .selected, button, input') || el).focus({ preventScroll: true }), 20);
   return handle;

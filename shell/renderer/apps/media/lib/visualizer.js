@@ -57,6 +57,13 @@ export class Visualizer {
     this.g.clearRect(0, 0, w, h);
     if (this.style === 'wave') this._wave(a, live, w, h, dpr);
     else this._bars(a, live, w, h, dpr);
+    // Paused and settled: keep the resting frame on screen but stop redrawing it 60 times a
+    // second. The stage restarts the loop when playback resumes (Stage.syncViz -> start()).
+    if (!live && this._settled()) this.stop();
+  }
+  _settled() {
+    if (this.style === 'wave') return !this._wy || this._wy.every((v) => Math.abs(v) < 0.002);
+    return this.levels.every((v) => v < 0.002) && this.peaks.every((v) => v < 0.002);
   }
   _gradient(y0, y1) {
     const gr = this.g.createLinearGradient(0, y0, 0, y1);

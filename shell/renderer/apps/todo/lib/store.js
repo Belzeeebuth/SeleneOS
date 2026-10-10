@@ -94,7 +94,13 @@ const MIGRATIONS = {
       for (const k of ['dueDate', 'reminder', 'completed', 'starred', 'inMyDay', 'myDayDate']) delete out[k];
       return out;
     });
-    return { ...d, version: 2, tasks, groups: Array.isArray(d.groups) ? d.groups : [] };
+    // v1 had no list icons: a leading emoji in the name becomes the icon
+    const lists = (Array.isArray(d.lists) ? d.lists : []).map((l) => {
+      if (!l || typeof l !== 'object' || l.emoji || typeof l.name !== 'string') return l;
+      const { emoji, name } = splitEmoji(l.name);
+      return emoji && name ? { ...l, emoji, name } : l;
+    });
+    return { ...d, version: 2, lists, tasks, groups: Array.isArray(d.groups) ? d.groups : [] };
   },
 };
 

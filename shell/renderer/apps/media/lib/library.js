@@ -59,6 +59,14 @@ export class Library {
     this._subs.add(fn);
     return () => this._subs.delete(fn);
   }
+  /** Window closed: persist what was learnt, stop background work and events. */
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this._subs.clear();
+    this._emitMeta.cancel();
+    this._saveMeta.flush();
+  }
   _emit(ev) {
     for (const fn of [...this._subs]) {
       try {
@@ -74,7 +82,23 @@ export class Library {
     if (folders && Array.isArray(folders.music) && Array.isArray(folders.video)) {
       this.folders = { music: folders.music.filter((p) => typeof p === 'string'), video: folders.video.filter((p) => typeof p === 'string') };
     }
-    if (meta && meta.v === META_VERSION && meta.items && typeof meta.items === 'object') this.meta = meta.items;
+    if (meta && meta.v === META_VERSION && meta.items && typeof meta.items === 'object') {
+      for (const [p, m] of Object.entries(meta.items)) {
+        const clean = this._cleanMeta(m);
+        if (clean) this.meta[p] = clean;
+      }
+    }
+  }
+  /** Cached metadata is re-validated on load: known fields of the right type only, and artwork /
+   *  thumbnails only from our own cache folder. */
+  _cleanMeta(m) {
+    if (!m || typeof m !== 'object' || typeof m.k !== 'string') return null;
+    const out = { k: m.k };
+    for (const f of ['title', 'artist', 'album', 'albumArtist', 'genre']) if (typeof m[f] === 'string' && m[f]) out[f] = m[f].slice(0, 500);
+    for (const f of ['track', 'year', 'duration', 'width', 'height']) if (Number.isFinite(m[f]) && m[f] > 0) out[f] = m[f];
+    for (const f of ['art', 'thumb']) if (typeof m[f] === 'string' && m[f].startsWith(`${this.cacheDir}/`) && !m[f].includes('/../')) out[f] = m[f];
+    for (const f of ['tagged', 'bad']) if (m[f] === true) out[f] = true;
+    return out;
   }
 
   saveFolders() {
@@ -123,7 +147,16 @@ export class Library {
 
   /** Walk the library folders. quiet: background refresh (no "scanning" state shown). */
   async scan({ quiet = false } = {}) {
-    if (this._scanPromise) return this._scanPromise;
+    if (this._scanPromise) {
+      // A folder added (or removed) while a scan runs must not be missed: run once more after it.
+      this._again ||= this._scanPromise
+        .catch(() => {})
+        .then(() => {
+          this._again = null;
+          return this.scan({ quiet });
+        });
+      return this._again;
+    }
     this.scanning = !quiet;
     if (!quiet) this._emit({ type: 'scanning' });
     const before = new Set(this.inLibrary);
@@ -223,6 +256,7 @@ export class Library {
   }
 
   async _enrichAudio(e) {
+    if (this.disposed) return;
     const url = this.api.mediaUrl(e.path);
     let tags = {};
     try {
@@ -268,6 +302,7 @@ export class Library {
   }
 
   async _enrichVideo(e) {
+    if (this.disposed) return;
     const data = { tagged: true };
     const v = document.createElement('video');
     v.muted = true;

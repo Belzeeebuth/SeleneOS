@@ -1212,6 +1212,8 @@ await test('library: new files dropped into Pictures appear automatically (watch
 
 await test('viewer: delete moves the file to the Recycle Bin after confirmation', async () => {
   const p = path.join(home, 'Pictures', 'new-arrival.png');
+  if (!fs.existsSync(p)) fs.writeFileSync(p, png(320, 240, 30));
+  await ensurePhotos({ file: p });
   await s.aurora((f) => [...document.querySelectorAll('.win.app-photos')].pop().__photos.openFile(f), p);
   await waitViewerImage('new-arrival.png');
   const count = (await viewerState()).count;
@@ -1371,10 +1373,10 @@ await test('drag & drop: thumbnails carry file paths; dropped pictures open in t
   });
   assert.deepEqual(JSON.parse(payload.aurora), [payload.name]);
   assert.ok(payload.uri.startsWith('file:///'));
-  const a = path.join(home, 'Pictures', 'photo-03.png');
-  const b = path.join(home, 'Pictures', 'photo-04.png');
+  const a = path.join(home, 'Pictures', 'photo-05.png');
+  const b = path.join(home, 'Pictures', 'photo-07.png');
   await appEval((x, arg) => x.openDropped(arg), [a, b, path.join(home, 'Pictures', 'notes.txt')]);
-  await waitViewerImage('photo-03.png');
+  await waitViewerImage('photo-05.png');
   const st = await viewerState();
   assert.equal(st.count, 2, 'only the dropped pictures');
 });
@@ -1609,6 +1611,7 @@ await test('performance: 1000 pictures — first paint, virtualization, scroll f
     setTime(p, NOW - i * 0.75 * 86400000);
   }
   console.log(`      generated 1000 pictures in ${Date.now() - t0} ms`);
+  try {
   s = await launchShell({ home: phome, keepHome: true, theme: 'light', lang: 'en' });
   current = s;
   const tl = Date.now();
@@ -1703,8 +1706,10 @@ await test('performance: 1000 pictures — first paint, virtualization, scroll f
   console.log(`      warm start: visible thumbnails after ${tWarm} ms`);
   assert.ok(tWarm < Math.max(3000, tFirst), `warm start faster (${tWarm} ms)`);
   assert.deepEqual([...perfErrs, ...consoleErrors(s)], []);
-  await s.close();
-  fs.rmSync(phome, { recursive: true, force: true });
+  } finally {
+    await s.close();
+    fs.rmSync(phome, { recursive: true, force: true });
+  }
 });
 
 const failed = results.filter((r) => !r.ok);

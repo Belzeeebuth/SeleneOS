@@ -382,7 +382,7 @@ export class Detail {
         'aria-label': t('detail.stepOptions'),
         'data-tip': t('detail.stepOptions'),
         onclick: (e) =>
-          app.ui.menu(e, [
+          app.menu(e, [
             { label: t(s.done ? 'detail.markStepUndone' : 'detail.markStepDone'), icon: s.done ? 'circle' : 'checkmark_circle', action: () => app.store.updateStep(id, s.id, { done: !s.done }) },
             { label: t('detail.promote'), icon: 'arrow_up_right', action: () => {
               const n = app.store.promoteStep(id, s.id);

@@ -1770,42 +1770,42 @@
 }
 
 /* ------------------------------------------------------------------ dialogs (properties, shortcuts) */
-.mp-props-dialog,
-.mp-keys-dialog {
+.app-media .mp-props-dialog,
+.app-media .mp-keys-dialog {
   width: 520px;
 }
-.mp-props {
+.app-media .mp-props {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-.mp-prop {
+.app-media .mp-prop {
   display: grid;
   grid-template-columns: 130px minmax(0, 1fr);
   gap: 12px;
   padding: 6px 0;
   border-bottom: 1px solid var(--stroke);
 }
-.mp-prop:last-child {
+.app-media .mp-prop:last-child {
   border-bottom: 0;
 }
-.mp-prop-v {
+.app-media .mp-prop-v {
   overflow-wrap: anywhere;
 }
-.mp-keys {
+.app-media .mp-keys {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 360px;
 }
-.mp-key-row {
+.app-media .mp-key-row {
   display: grid;
   grid-template-columns: 140px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   min-height: 30px;
 }
-.mp-key-row kbd {
+.app-media .mp-key-row kbd {
   justify-self: start;
   padding: 2px 8px;
   border-radius: var(--radius-sm);

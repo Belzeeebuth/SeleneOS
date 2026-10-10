@@ -41,12 +41,19 @@ function scanningBar(app) {
     : null;
 }
 
+/** '/home/me/Music' -> '~/Music' (only a real home prefix: '/home/me2' stays as is). */
+export function tildify(p, home) {
+  if (!home || home === '/') return p;
+  const h = home.replace(/\/+$/, '');
+  return p === h ? '~' : p.startsWith(`${h}/`) ? `~${p.slice(h.length)}` : p;
+}
+
 function folderList(app, kind) {
   const { h, icon } = app;
   return h(
     'div',
     { class: 'mp-folder-chips' },
-    app.lib.folders[kind].map((f) => h('span', { class: 'mp-chip', 'data-tip': f }, icon('folder', { filled: true }), h('span', { class: 'ellipsis' }, f.replace(app.home, '~')))),
+    app.lib.folders[kind].map((f) => h('span', { class: 'mp-chip', 'data-tip': f }, icon('folder', { filled: true }), h('span', { class: 'ellipsis' }, tildify(f, app.home)))),
   );
 }
 

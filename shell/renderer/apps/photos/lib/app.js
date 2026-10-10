@@ -203,6 +203,9 @@ export class PhotosApp {
     for (const k of ['gallery', 'viewer', 'editor', 'slideshow']) if (this[k]) this[k].el.hidden = k !== mode;
     if (this.gallery) this.gallery.searchBox.hidden = mode !== 'gallery';
     this.win.el.classList.toggle('ph-immersive', mode === 'viewer' || mode === 'slideshow');
+    // The previous mode's focused control may just have been hidden: keep the keyboard in the window.
+    const a = document.activeElement;
+    if (this.win.isFocused?.() !== false && (!a || a === document.body || (this.win.el.contains(a) && !a.offsetParent))) this.focusMain();
     const el = this[mode]?.el;
     if (el && prev && prev !== mode && !reduceMotion() && mode !== 'slideshow') {
       el.animate([{ opacity: 0, transform: mode === 'gallery' ? 'scale(1.01)' : 'scale(0.99)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: EASE });
@@ -689,8 +692,15 @@ export class PhotosApp {
       if (e.defaultPrevented) return;
       const tgt = e.target;
       if (tgt.closest?.('.dialog-layer, .menu')) return;
-      // A dialog of this window is open (its focus may not have landed yet): keys are not for the page behind.
-      if (this.win.el.querySelector(':scope > .dialog-layer:not(.closing)')) return;
+      // A dialog of this window is open but its focus hasn't landed yet: keys are for the dialog, not the page.
+      const layer = this.win.el.querySelector(':scope > .dialog-layer:not(.closing)');
+      if (layer) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'Escape') layer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        (layer.querySelector('input, textarea, select, [autofocus]') || layer.querySelector('.btn.primary') || layer.querySelector('button'))?.focus();
+        return;
+      }
       const typing = tgt.matches?.('input:not([type="range"]):not([type="checkbox"]), textarea, select, [contenteditable="true"]');
       let handled = false;
       if (this.mode === 'slideshow') handled = this.slideshow.onKey(e);

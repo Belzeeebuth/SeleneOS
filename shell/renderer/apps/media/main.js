@@ -6,9 +6,13 @@ import { MediaApp } from './lib/app.js';
 export default {
   async launch(ctx) {
     const app = new MediaApp(ctx);
-    await app.init();
+    // The hooks are handed back before init() finishes: the registry only routes a relaunch
+    // (another file opened while the window is starting) once launch() has returned, so
+    // returning late would silently drop that file. Relaunches wait for init, in order.
+    const ready = app.init();
+    ready.catch((err) => app.fail(err));
     return {
-      onRelaunch: (args) => app.handleArgs(args || {}),
+      onRelaunch: (args) => ready.then(() => app.openArgs(args || {})).catch(() => {}),
     };
   },
 };

@@ -67,7 +67,8 @@
     "errors": {
       "playTitle": "Can't play this item", "notSupported": "“{name}” is in a format Media Player doesn't support.", "decode": "“{name}” is damaged or uses a codec Media Player doesn't support.",
       "notFound": "“{name}” can't be found. It may have been moved, renamed or deleted.", "read": "There was a problem reading “{name}”.", "skipping": "Skipping to the next item.",
-      "noMediaTitle": "Nothing to play", "noMedia": "None of these items can be played by Media Player.", "folderEmpty": "There's no music or video in “{name}”."
+      "noMediaTitle": "Nothing to play", "noMedia": "None of these items can be played by Media Player.", "folderEmpty": "There's no music or video in “{name}”.",
+      "empty": "“{name}” is empty."
     },
     "time": { "hm": "{h} hr {m} min", "m": "{m} min", "s": "{s} sec" },
     "settings": {
@@ -158,7 +159,8 @@
     "errors": {
       "playTitle": "Impossible de lire cet élément", "notSupported": "« {name} » est dans un format que le Lecteur multimédia ne prend pas en charge.", "decode": "« {name} » est endommagé ou utilise un codec que le Lecteur multimédia ne prend pas en charge.",
       "notFound": "« {name} » est introuvable. Il a peut-être été déplacé, renommé ou supprimé.", "read": "Un problème est survenu lors de la lecture de « {name} ».", "skipping": "Passage à l'élément suivant.",
-      "noMediaTitle": "Rien à lire", "noMedia": "Aucun de ces éléments ne peut être lu par le Lecteur multimédia.", "folderEmpty": "« {name} » ne contient ni musique ni vidéo."
+      "noMediaTitle": "Rien à lire", "noMedia": "Aucun de ces éléments ne peut être lu par le Lecteur multimédia.", "folderEmpty": "« {name} » ne contient ni musique ni vidéo.",
+      "empty": "« {name} » est vide."
     },
     "time": { "hm": "{h} h {m} min", "m": "{m} min", "s": "{s} s" },
     "settings": {

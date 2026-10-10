@@ -575,6 +575,17 @@ module.exports = function register(api) {
     const uniq = [...new Map(files.map((f) => [f.path, f])).values()];
     const thumbs = await thumbSet();
     const items = await buildItems(uniq, thumbs);
+    // Forget index entries of files that disappeared from the scanned folders.
+    const found = new Set(uniq.map((f) => f.path));
+    const prefixes = list.map((r) => `${path.resolve(r)}${path.sep}`);
+    let dropped = 0;
+    for (const k of loadIndex().keys()) {
+      if (!found.has(k) && prefixes.some((pre) => k.startsWith(pre))) {
+        index.delete(k);
+        dropped++;
+      }
+    }
+    if (dropped) saveIndexSoon();
     if (opts?.prune) pruneThumbs(new Set(items.map((i) => i.key))).catch(() => {});
     await fsp.mkdir(THUMB_DIR, { recursive: true }).catch(() => {});
     return { items, errors, thumbDir: THUMB_DIR };

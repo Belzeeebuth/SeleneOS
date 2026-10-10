@@ -454,6 +454,16 @@ async function runMain() {
     check('nav: End', (await state(s)).page, 12);
     await s.page.keyboard.press('Home');
     await until(async () => (await state(s)).page === 1, { label: 'Home -> first page' });
+    await s.page.keyboard.press('ArrowRight');
+    await until(async () => (await state(s)).page === 2, { label: 'ArrowRight -> next page' });
+    await s.page.keyboard.press('ArrowLeft');
+    await until(async () => (await state(s)).page === 1, { label: 'ArrowLeft -> previous page' });
+    const topA = await run(s, `document.querySelector('${WIN} .pdf-doc:not([hidden]) .pdf-scroller').scrollTop`);
+    await s.page.keyboard.press('ArrowDown');
+    await sleep(400);
+    check('nav: ArrowDown scrolls', await run(s, `document.querySelector('${WIN} .pdf-doc:not([hidden]) .pdf-scroller').scrollTop`), (v) => v > topA);
+    await s.page.keyboard.press('Home');
+    await sleep(200);
     const top0 = await run(s, `document.querySelector('${WIN} .pdf-doc:not([hidden]) .pdf-scroller').scrollTop`);
     await s.page.keyboard.press('PageDown');
     await sleep(500);
@@ -773,8 +783,11 @@ async function runMain() {
     await until(async () => (await state(s)).mode === 3, { label: 'text mode' });
     await until(async () => (await state(s)).dirty, { label: 'ink stroke made the document dirty' });
     check('ink: editor created', await run(s, `document.querySelectorAll('${WIN} .pdf-doc:not([hidden]) .inkEditor').length`), (n) => n >= 1);
-    await s.page.mouse.click(r.x + r.w * 0.3, r.y + r.h * 0.75);
+    const click = { x: r.x + r.w * 0.3, y: r.y + r.h * 0.75 };
+    await s.page.mouse.click(click.x, click.y);
     await until(() => run(s, `!!document.querySelector('${WIN} .pdf-doc:not([hidden]) .freeTextEditor .internal')`), { label: 'free text editor' });
+    const ft = await run(s, `(() => { const r = document.querySelector('${WIN} .pdf-doc:not([hidden]) .freeTextEditor').getBoundingClientRect(); return { x: r.left, y: r.top }; })()`);
+    check('text: editor placed where clicked', Math.abs(ft.x - click.x) < 40 && Math.abs(ft.y - click.y) < 60, true);
     await sleep(200);
     await s.page.keyboard.type('Hello Aurora');
     await s.page.keyboard.press('Escape');
@@ -821,7 +834,9 @@ async function runMain() {
     await dialogButton(s, "Don't save");
     await until(() => W(s, (w) => w.tabs.length === 1), { label: "Don't save closes the tab" });
     const annCopy = fs.readFileSync(target).toString('latin1');
-    check("don't save: file unchanged (ink + free text only)", (annCopy.match(/\/Subtype\s*\/Highlight/g) || []).length, 0);
+    check("don't save: file unchanged (no highlight)", (annCopy.match(/\/Subtype\s*\/Highlight/g) || []).length, 0);
+    check('save as: ink annotation written', /\/Subtype\s*\/Ink/.test(annCopy), true);
+    check('save as: free text annotation written', /\/Subtype\s*\/FreeText/.test(annCopy) && annCopy.includes('Hello Aurora'), true);
   });
 
   await section('presentation', async () => {
@@ -846,6 +861,11 @@ async function runMain() {
     await until(async () => (await state(s)).page === 12, { label: 'End -> 12' });
     await s.page.keyboard.press('Escape');
     await until(() => W(s, (w) => !w.presenting && !w.win.fullscreen), { label: 'presentation ended' });
+    await focusDoc(s);
+    await s.page.keyboard.press('F11');
+    await until(() => W(s, (w) => !!w.presenting), { label: 'F11 presents' });
+    await s.page.keyboard.press('F11');
+    await until(() => W(s, (w) => !w.presenting && !w.win.fullscreen), { label: 'F11 again ends it' });
     check('present: layout and zoom restored', await W(s, (w) => [w.active.viewer.scrollMode, w.active.scaleValue]), [0, zoom0]);
     check('present: stays on the last shown page', (await state(s)).page, 12);
     check('present: toolbar back', await run(s, `getComputedStyle(document.querySelector('${WIN} .pdf-toolbar')).display`), 'flex');

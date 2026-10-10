@@ -303,6 +303,7 @@ export class PdfDoc {
     v.currentScaleValue = isValidScale(scale) ? String(scale) : 'auto';
     const page = Math.max(1, Math.min(this.pages, Number(initial?.page ?? remembered?.page) || 1));
     if (page > 1) v.currentPageNumber = page;
+    else this.scroller.scrollTop = 0; // show the margin above the first page
     if (initial?.rotation) v.pagesRotation = initial.rotation;
     this.pageNum = v.currentPageNumber;
     this.w.onDocPage(this);

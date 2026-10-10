@@ -109,6 +109,9 @@
   flex-direction: column;
   gap: 2px;
 }
+.app-todo .td-group-body[hidden] {
+  display: none;
+}
 .app-todo .td-nav-lists {
   position: relative;
 }

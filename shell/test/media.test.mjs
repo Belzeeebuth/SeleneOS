@@ -518,7 +518,7 @@ await test('unit: i18n has every key in English and French', () => {
     .readdirSync(path.join(APP, 'lib'))
     .map((f) => fs.readFileSync(path.join(APP, 'lib', f), 'utf8'))
     .join('\n');
-  const core = new Set(['common.close']);
+  const core = new Set(['common.close', 'registry.crashed']);
   const used = new Set([...src.matchAll(/\bt\(\s*'([a-zA-Z0-9_.]+)'/g)].map((m) => m[1]));
   const has = (k) => en.has(k) || en.has(`${k}_one`) || core.has(k);
   assert.deepEqual(

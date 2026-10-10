@@ -87,7 +87,9 @@ async function injectViewerCss() {
     .replace(/@media print\s*\{/, '@media (aurora-never) {'); // printing is not supported here
   const style = document.createElement('style');
   style.id = 'aurora-pdfjs-css';
-  style.textContent = `@scope (.pdf-scroller) {\n${css}\n}`;
+  // pdf.js reads two of its variables from the document root (getComputedStyle(documentElement)): keep them
+  // there too, or the free-text editor gets NaN positions.
+  style.textContent = `:root { --freetext-padding: 2px; --outline-width: 2px; }\n@scope (.pdf-scroller) {\n${css}\n}`;
   // Before the apps' own stylesheets so that style.css (same specificity) wins.
   document.head.insertBefore(style, document.head.querySelector('link[href*="/apps/"]') || null);
 }

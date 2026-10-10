@@ -1600,6 +1600,8 @@ export class PdfWindow {
     // Let the annotation editor move / delete selected annotations.
     if (doc.mode && doc.uiManager?.hasSelection) return;
     if (e.target.closest?.('.pdf-thumbs, .pdf-outline, .pdf-attachments, .pdf-tabs, .pdf-toolbar, .pdf-flyout, .pdf-find')) return;
+    // Shift + arrows / Home / End extend a text selection natively.
+    if (e.shiftKey && k !== ' ') return;
     const sc = doc.scroller;
     const pageMode = doc.layout === 'single' || doc.scaleValue === 'page-fit';
     const noHScroll = sc.scrollWidth <= sc.clientWidth + 1;

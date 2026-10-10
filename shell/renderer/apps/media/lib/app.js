@@ -65,7 +65,9 @@ export class MediaApp {
       this.lib.load(),
       this.playlists.load(),
     ]);
-    Object.assign(this.prefs, prefs && typeof prefs === 'object' ? prefs : {});
+    // Stored preferences are only trusted for known keys of the expected type.
+    if (prefs && typeof prefs === 'object') for (const [k, v] of Object.entries(prefs)) if (k in DEFAULT_PREFS && typeof v === typeof DEFAULT_PREFS[k]) this.prefs[k] = v;
+    if (!['bars', 'wave', 'off'].includes(this.prefs.visualizer)) this.prefs.visualizer = DEFAULT_PREFS.visualizer;
     this.recent = Array.isArray(recent) ? recent.filter((p) => typeof p === 'string').slice(0, 30) : [];
     this._build();
     // Test / automation hook (like Paint's win.el.__paint).
@@ -102,7 +104,41 @@ export class MediaApp {
     for (const p of this.recent.slice(0, 12)) this.lib.ensure(p).catch(() => {});
     this.lib.scan().catch((err) => console.error('[media] scan failed', err));
     this._watchLibrary();
-    if (wantFiles.length) await this.handleArgs(args);
+    if (wantFiles.length) await this.openArgs(args);
+  }
+
+  /** init() failed: show what happened instead of an empty window. */
+  fail(err) {
+    console.error('[media] start-up failed', err);
+    if (this._destroyed) return;
+    const { h, icon, t } = this;
+    this.root?.remove();
+    this.win.body.appendChild(
+      h(
+        'div',
+        { class: 'empty mp-crash' },
+        icon('error_circle', { size: 48 }),
+        h('div', { class: 'subtitle' }, t('registry.crashed', { app: t('app.name') })),
+        h('div', { class: 'caption selectable' }, String(err?.message || err)),
+      ),
+    );
+  }
+
+  /** Files opened from outside (launch / relaunch args), one batch at a time, in order.
+   *  File Explorer opens a multi-selection one file after the other ({ file } each, back to back):
+   *  a single file arriving right after the previous one joins the queue instead of replacing
+   *  it, so the whole selection plays. An explicit { files } list always starts over. */
+  openArgs(args) {
+    const run = async () => {
+      if (this._destroyed) return;
+      const single = typeof args?.file === 'string' && !args.files;
+      const join = single && this._argsSingle && Date.now() - (this._argsAt || 0) < 800 && !!this.queue.current;
+      await this.handleArgs(args, { join });
+      this._argsAt = Date.now();
+      this._argsSingle = single;
+    };
+    this._argsChain = (this._argsChain || Promise.resolve()).then(run, run);
+    return this._argsChain;
   }
 
   _argPaths(args) {
@@ -112,7 +148,7 @@ export class MediaApp {
     return list;
   }
 
-  async handleArgs(args = {}) {
+  async handleArgs(args = {}, { join = false } = {}) {
     const paths = this._argPaths(args);
     if (typeof args.folder === 'string') paths.push(...(await this._expand([args.folder])));
     if (!paths.length) return;
@@ -121,6 +157,7 @@ export class MediaApp {
       this.toast({ kind: 'error', title: this.t('errors.playTitle'), body: this.t('errors.notSupported', { name: baseName(paths[0]) }) });
       return;
     }
+    if (join) return this.addToQueue(playable, { quiet: true });
     await this.playEntries(playable, 0, { openStage: playable.length === 1 && kindOf(playable[0]) === 'video' && this.prefs.videoStage !== false });
   }
 
@@ -538,6 +575,12 @@ export class MediaApp {
       if (!p.paused && p.path && this._recentFor !== p.path && p.el.readyState >= 2) {
         this._recentFor = p.path;
         this.addRecent(p.path);
+        // A file marked unplayable (failed probe, earlier error) that plays now is fine after all.
+        const e = this.lib.get(p.path);
+        if (e?.bad) {
+          this.lib._store(e, { bad: false });
+          for (const l of this.lists) l.update([p.path]);
+        }
       }
       this._poke();
     });
@@ -584,6 +627,15 @@ export class MediaApp {
       if (!this.lib.scanning && Date.now() - this.lib.lastScan > 60000) this._rescanSoon();
     });
     this._disposers.push(offFocus);
+    // Back from the taskbar: resume the smooth progress animation (paused while minimized).
+    this._disposers.push(w.on('restore', () => this.transport.startLoop()));
+    // The mini player is a small always-on-top window: maximizing it (title bar double-click,
+    // Win+Up, snap to top) means "give me the full player back".
+    this._disposers.push(
+      w.on('maximize', () => {
+        if (this.mini) this.toggleMini(false, { keepRect: true });
+      }),
+    );
     w.onBeforeClose(async () => {
       this._saveState.flush();
       return true;
@@ -628,8 +680,10 @@ export class MediaApp {
     clearTimeout(this._osdT);
     this._ro?.disconnect();
     this.stage.viz.stop();
+    this.transport.stopLoop();
     this.transport.closeVolume();
     clearTimeout(this._idleT);
+    this.lib.dispose?.();
     for (const off of this._disposers) {
       try {
         off?.();
@@ -639,6 +693,7 @@ export class MediaApp {
   }
 
   _onLibrary(ev) {
+    if (this._destroyed) return;
     if (ev.type === 'meta') {
       if (this.view?.onMeta) this.view.onMeta(ev.paths);
       else if (this.view?.rerenderOnMeta) this._rerenderSoon();
@@ -759,10 +814,24 @@ export class MediaApp {
     }
     await this.loadCurrent({ autoplay: true });
   }
+  /** Why a file can't be read: 'notFound' (gone, a dangling link or a folder), 'empty', or null. */
+  async _probeFile(path) {
+    try {
+      const res = await fetch(this.api.mediaUrl(path), { headers: { Range: 'bytes=0-0' } });
+      res.body?.cancel().catch(() => {});
+      if (res.status === 404) return 'notFound';
+      if (res.status === 416) return 'empty';
+      return res.ok ? null : 'read';
+    } catch {
+      return 'read';
+    }
+  }
   async _onError({ code, path }) {
+    if (this._destroyed) return;
     const name = baseName(path);
-    const exists = await this.api.invoke('fs:exists', path).catch(() => true);
-    const key = !exists ? 'errors.notFound' : code === 4 ? 'errors.notSupported' : code === 3 ? 'errors.decode' : 'errors.read';
+    const why = await this._probeFile(path);
+    if (this._destroyed) return;
+    const key = why ? `errors.${why}` : code === 4 ? 'errors.notSupported' : code === 3 ? 'errors.decode' : 'errors.read';
     if (this.recent.includes(path)) {
       this.recent = this.recent.filter((p) => p !== path);
       this._saveRecent();
@@ -865,7 +934,15 @@ export class MediaApp {
     if (want && this.mini) this.toggleMini(false);
     this.win.setFullscreen(want);
   }
-  toggleMini(on) {
+  _setMinSize(width, height) {
+    const w = this.win;
+    if (typeof w.setMinSize === 'function') w.setMinSize(width, height);
+    else {
+      w.opts.minWidth = width;
+      w.opts.minHeight = height;
+    }
+  }
+  toggleMini(on, { keepRect = false } = {}) {
     const want = on === undefined ? !this.mini : !!on;
     if (want === this.mini) return;
     const w = this.win;
@@ -874,8 +951,7 @@ export class MediaApp {
       if (w.fullscreen) w.setFullscreen(false);
       this._miniRestore = { rect: w.rect(), state: w.state, minW: w.opts.minWidth, minH: w.opts.minHeight, stage: this.stageOpen, top: w.alwaysOnTop };
       if (w.state !== 'normal') w.restore();
-      w.opts.minWidth = 260;
-      w.opts.minHeight = 220;
+      this._setMinSize(260, 220);
       this.mini = true;
       this.root.classList.add('mini');
       this.openStage();
@@ -892,10 +968,9 @@ export class MediaApp {
       this.mini = false;
       this.root.classList.remove('mini');
       w.alwaysOnTop = !!s.top;
-      w.opts.minWidth = s.minW || 500;
-      w.opts.minHeight = s.minH || 460;
-      if (s.rect) w.setRect(s.rect, true);
-      if (s.state === 'maximized') w.maximize();
+      if (!keepRect && s.rect && w.state === 'normal') w.setRect(s.rect, true);
+      this._setMinSize(s.minW || 500, s.minH || 460);
+      if (!keepRect && s.state === 'maximized') w.maximize();
       if (!s.stage) this.closeStage();
       w.focus();
     }
@@ -1137,6 +1212,17 @@ export class MediaApp {
   }
 
   // ================================================================== files & folders
+  /** One dialog at a time: a double click (or Ctrl+O pressed twice before the picker has listed
+   *  the folder) must not stack two pickers. A refused call resolves like a cancelled dialog. */
+  async _dialog(open) {
+    if (this._dialogOpen || this._destroyed) return null;
+    this._dialogOpen = true;
+    try {
+      return await open();
+    } finally {
+      this._dialogOpen = false;
+    }
+  }
   _filters() {
     const { t } = this;
     return [
@@ -1146,7 +1232,7 @@ export class MediaApp {
     ];
   }
   async openFiles({ append = false } = {}) {
-    const res = await this.ui.filePicker({ mode: 'open', multiple: true, title: this.t('home.openFiles'), filters: this._filters(), path: this.lastDir || this.xdg.music, parent: this.win });
+    const res = await this._dialog(() => this.ui.filePicker({ mode: 'open', multiple: true, title: this.t('home.openFiles'), filters: this._filters(), path: this.lastDir || this.xdg.music, parent: this.win }));
     const paths = [].concat(res || []).filter(Boolean);
     if (!paths.length) return;
     this.lastDir = dirName(paths[0]);
@@ -1159,7 +1245,7 @@ export class MediaApp {
     else await this.playEntries(playable, 0, { openStage: playable.length === 1 && kindOf(playable[0]) === 'video' && this.prefs.videoStage !== false });
   }
   async openFolder() {
-    const dir = await this.ui.filePicker({ mode: 'folder', title: this.t('home.openFolder'), path: this.lastDir || this.xdg.music, parent: this.win });
+    const dir = await this._dialog(() => this.ui.filePicker({ mode: 'folder', title: this.t('home.openFolder'), path: this.lastDir || this.xdg.music, parent: this.win }));
     if (!dir) return;
     this.lastDir = dir;
     const paths = await this._expand([dir]);
@@ -1170,7 +1256,7 @@ export class MediaApp {
     await this.playEntries(paths, 0);
   }
   async addLibraryFolder(kind) {
-    const dir = await this.ui.filePicker({ mode: 'folder', title: this.t('library.addFolder'), path: kind === 'video' ? this.xdg.videos : this.xdg.music, parent: this.win });
+    const dir = await this._dialog(() => this.ui.filePicker({ mode: 'folder', title: this.t('library.addFolder'), path: kind === 'video' ? this.xdg.videos : this.xdg.music, parent: this.win }));
     if (!dir) return;
     if (!(await this.lib.addFolder(kind, dir))) {
       this.toast({ kind: 'info', title: this.t('library.folderExists') });
@@ -1180,7 +1266,7 @@ export class MediaApp {
     await this.refreshLibrary();
   }
   async removeLibraryFolder(kind, dir) {
-    const ok = await this.ui.confirm(this.t('settings.removeFolderConfirm', { name: dir }), { title: this.t('settings.removeFolderTitle'), okLabel: this.t('settings.remove'), parent: this.win });
+    const ok = await this._dialog(() => this.ui.confirm(this.t('settings.removeFolderConfirm', { name: dir }), { title: this.t('settings.removeFolderTitle'), okLabel: this.t('settings.remove'), parent: this.win }));
     if (!ok) return;
     await this.lib.removeFolder(kind, dir);
     this.render({ keepScroll: true });
@@ -1189,6 +1275,8 @@ export class MediaApp {
   /** Watch the library roots: files added or removed there show up without a manual refresh.
    *  (fs:watch is not recursive; subfolders are picked up when the window is activated.) */
   async _watchLibrary() {
+    if (this._destroyed) return;
+    const gen = (this._watchGen = (this._watchGen || 0) + 1);
     for (const id of this._watchIds || []) this.api.invoke('fs:unwatch', id).catch(() => {});
     this._watchIds = [];
     if (!this._offFsChanged) {
@@ -1201,9 +1289,15 @@ export class MediaApp {
       });
     }
     for (const dir of [...this.lib.folders.music, ...this.lib.folders.video]) {
+      let id;
       try {
-        this._watchIds.push(await this.api.invoke('fs:watch', dir));
-      } catch {}
+        id = await this.api.invoke('fs:watch', dir);
+      } catch {
+        continue; // folder missing or unreadable
+      }
+      // Closed meanwhile, or a newer call took over: never keep a watcher nobody will release.
+      if (this._destroyed || gen !== this._watchGen) this.api.invoke('fs:unwatch', id).catch(() => {});
+      else this._watchIds.push(id);
     }
   }
   _rescanSoon = debounce(() => {
@@ -1219,7 +1313,7 @@ export class MediaApp {
     }
   }
   async clearCache() {
-    const ok = await this.ui.confirm(this.t('settings.cacheConfirm'), { title: this.t('settings.cache'), okLabel: this.t('settings.clear'), parent: this.win });
+    const ok = await this._dialog(() => this.ui.confirm(this.t('settings.cacheConfirm'), { title: this.t('settings.cache'), okLabel: this.t('settings.clear'), parent: this.win }));
     if (!ok) return;
     await this.lib.clearCache();
     this.toast({ kind: 'success', title: this.t('settings.cacheCleared') });
@@ -1228,14 +1322,14 @@ export class MediaApp {
   // ================================================================== playlists
   async newPlaylist(paths = []) {
     const t = this.t;
-    const name = await this.ui.prompt({
+    const name = await this._dialog(() => this.ui.prompt({
       title: t('playlists.new'),
       label: t('playlists.name'),
       value: this.playlists.uniqueName(t('playlists.untitled')),
       okLabel: t('playlists.create'),
       parent: this.win,
       validate: (v) => (!v.trim() ? t('playlists.nameEmpty') : this.playlists.nameTaken(v) ? t('playlists.nameTaken') : null),
-    });
+    }));
     if (!name) return null;
     const pl = this.playlists.create(name, this._paths(paths));
     if (paths.length) this.toast({ kind: 'success', title: this.t('toast.addedPlaylist', { count: paths.length, name: pl.name }) });
@@ -1246,25 +1340,27 @@ export class MediaApp {
     const pl = this.playlists.get(id);
     if (!pl) return;
     const t = this.t;
-    const name = await this.ui.prompt({
+    const name = await this._dialog(() => this.ui.prompt({
       title: t('playlists.rename'),
       label: t('playlists.name'),
       value: pl.name,
       okLabel: t('playlists.rename'),
       parent: this.win,
       validate: (v) => (!v.trim() ? t('playlists.nameEmpty') : this.playlists.nameTaken(v, id) ? t('playlists.nameTaken') : null),
-    });
+    }));
     if (name) this.playlists.rename(id, name);
   }
   async deletePlaylist(id) {
     const pl = this.playlists.get(id);
     if (!pl) return;
-    const ok = await this.ui.confirm(this.t('playlists.deleteConfirm', { name: pl.name }), {
-      title: this.t('playlists.deleteTitle'),
-      okLabel: this.t('playlists.delete'),
-      danger: true,
-      parent: this.win,
-    });
+    const ok = await this._dialog(() =>
+      this.ui.confirm(this.t('playlists.deleteConfirm', { name: pl.name }), {
+        title: this.t('playlists.deleteTitle'),
+        okLabel: this.t('playlists.delete'),
+        danger: true,
+        parent: this.win,
+      }),
+    );
     if (!ok) return;
     this.playlists.remove(id);
     if (this.route.name === 'playlist' && this.route.arg === id) this.go({ name: 'playlists' }, { replace: true });
@@ -1277,7 +1373,7 @@ export class MediaApp {
     this.toast({ kind: 'success', title: this.t('toast.addedPlaylist', { count: paths.length, name: pl.name }) });
   }
   async addFilesToPlaylist(id) {
-    const res = await this.ui.filePicker({ mode: 'open', multiple: true, title: this.t('playlists.addMedia'), filters: this._filters(), path: this.lastDir || this.xdg.music, parent: this.win });
+    const res = await this._dialog(() => this.ui.filePicker({ mode: 'open', multiple: true, title: this.t('playlists.addMedia'), filters: this._filters(), path: this.lastDir || this.xdg.music, parent: this.win }));
     const paths = [].concat(res || []).filter(isMedia);
     if (paths.length) {
       this.lastDir = dirName(paths[0]);
@@ -1410,7 +1506,7 @@ export class MediaApp {
       { class: 'mp-props' },
       rows.map(([k, v]) => h('div', { class: 'mp-prop' }, h('div', { class: 'mp-prop-k text-2' }, k), h('div', { class: 'mp-prop-v selectable' }, v))),
     );
-    await this.ui.dialog({ title: t('menu.properties'), body, parent: this.win, className: 'mp-props-dialog', buttons: [{ label: t('common.close'), value: true, primary: true }] });
+    await this._dialog(() => this.ui.dialog({ title: t('menu.properties'), body, parent: this.win, className: 'mp-props-dialog', buttons: [{ label: t('common.close'), value: true, primary: true }] }));
   }
 
   async showShortcuts() {
@@ -1438,7 +1534,7 @@ export class MediaApp {
       { class: 'mp-keys' },
       list.map(([k, d]) => h('div', { class: 'mp-key-row' }, h('kbd', null, this.kb(k)), h('span', null, t(d)))),
     );
-    await this.ui.dialog({ title: t('shortcuts.title'), body, parent: this.win, className: 'mp-keys-dialog', buttons: [{ label: t('common.close'), value: true, primary: true }] });
+    await this._dialog(() => this.ui.dialog({ title: t('shortcuts.title'), body, parent: this.win, className: 'mp-keys-dialog', buttons: [{ label: t('common.close'), value: true, primary: true }] }));
   }
 
   // ================================================================== toasts

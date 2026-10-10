@@ -123,7 +123,11 @@ export class TodoApp {
     this.scrim = h('div', { class: 'td-scrim', onclick: () => this.closeOverlays() });
     this.root = h('div', { class: 'td', tabindex: '-1' }, this.nav.el, this.list.el, this.settingsView.el, this.scrim, this.detail.el, this.suggest.el, this.live);
     this.win.body.appendChild(this.root);
-    this.root.addEventListener('keydown', (e) => this._keys(e));
+    // keys typed anywhere in the window (the window body itself may hold the focus)
+    if (!this._keysBound) {
+      this._keysBound = true;
+      this.win.body.addEventListener('keydown', (e) => this._keys(e));
+    }
     this.ro = new ResizeObserver(() => this._layout());
     this.ro.observe(this.root);
     this._layout();
@@ -223,6 +227,19 @@ export class TodoApp {
     else this.list.render({ animate: false });
     this.detail.render();
     this.suggest.render();
+  }
+
+  /** ui.menu that gives the keyboard focus back to the app when the menu closes (it would land on <body>). */
+  menu(at, items, opts) {
+    const back = this.root.contains(document.activeElement) && document.activeElement !== this.root ? document.activeElement : null;
+    return this.ui.menu(at, items, opts).then((v) => {
+      setTimeout(() => {
+        if (this.closed || this.root.contains(document.activeElement) || document.querySelector('.menu') || this.win.el.querySelector('.dialog-layer, .td-pop')) return;
+        if (back?.isConnected) back.focus({ preventScroll: true });
+        else this.list.focusList();
+      }, 0);
+      return v;
+    });
   }
 
   announce(msg) {
@@ -362,6 +379,8 @@ export class TodoApp {
   /** Ids an action applies to: the selection, else the focused row, else the open task. */
   targets(id) {
     if (id && !this.sel.has(id)) return [id];
+    const focused = document.activeElement?.closest?.('.td-task')?.dataset.id;
+    if (focused && this.root.contains(document.activeElement) && !this.sel.has(focused) && this.store.task(focused)) return [focused];
     if (this.sel.size) return [...this.sel].filter((x) => this.store.task(x));
     if (this.focusId && this.store.task(this.focusId)) return [this.focusId];
     if (this.openId) return [this.openId];
@@ -669,7 +688,7 @@ export class TodoApp {
       isUser ? '-' : null,
       isUser ? { label: t('menu.deleteList'), icon: 'delete', danger: true, action: () => this.deleteList(id) } : null,
     ].filter(Boolean);
-    return this.ui.menu(at, items);
+    return this.menu(at, items);
   }
 
   _menuAnchor(view, fallback) {
@@ -686,7 +705,7 @@ export class TodoApp {
     const { t } = this;
     const g = this.store.group(gid);
     if (!g) return;
-    return this.ui.menu(at, [
+    return this.menu(at, [
       { label: t('menu.renameGroup'), icon: 'rename', action: () => this.nav.editGroup(gid) },
       { label: t('menu.newListInGroup'), icon: 'add', action: async () => {
         const l = this.store.addList(this.t('list.untitled'), { groupId: gid });
@@ -744,7 +763,7 @@ export class TodoApp {
       '-',
       { label: t(tasks.length > 1 ? 'menu.deleteTasks' : 'menu.deleteTask'), icon: 'delete', danger: true, shortcut: t('kbd.Delete'), action: () => this.deleteTasks(ids) },
     ].filter(Boolean);
-    return this.ui.menu(at, items);
+    return this.menu(at, items);
   }
 
   newListFromTask(id) {
@@ -777,7 +796,7 @@ export class TodoApp {
     const p = D.duePresets(this.now());
     return new Promise((resolve) => {
       let picked;
-      this.ui
+      this
         .menu(anchor, [
           { label: t('due.today'), icon: 'calendar_today', shortcut: this.fmt.date(p.today, { month: undefined }), action: () => (picked = p.today) },
           { label: t('due.tomorrow'), icon: 'calendar_arrow_right', shortcut: this.fmt.date(p.tomorrow, { month: undefined }), action: () => (picked = p.tomorrow) },
@@ -800,7 +819,7 @@ export class TodoApp {
     const p = D.reminderPresets(this.now());
     return new Promise((resolve) => {
       let picked;
-      this.ui
+      this
         .menu(anchor, [
           p.laterToday ? { label: t('remind.laterToday'), icon: 'clock_arrow_download', shortcut: this.fmt.time(p.laterToday), action: () => (picked = p.laterToday) } : null,
           { label: t('remind.tomorrow'), icon: 'arrow_clockwise', shortcut: `${this.fmt.date(D.ymd(p.tomorrow), { month: undefined })}, ${this.fmt.time(p.tomorrow)}`, action: () => (picked = p.tomorrow) },
@@ -824,7 +843,7 @@ export class TodoApp {
     const key = D.repeatKey(current);
     return new Promise((resolve) => {
       let picked;
-      this.ui
+      this
         .menu(anchor, [
           ...['daily', 'weekdays', 'weekly', 'monthly', 'yearly'].map((k) => ({ label: t(`repeat.${k}`), icon: { daily: 'calendar_day', weekdays: 'calendar_work_week', weekly: 'calendar_week_start', monthly: 'calendar_month', yearly: 'calendar_ltr' }[k], checked: current ? key === k : undefined, action: () => (picked = D.makeRepeat(k, day)) })),
           '-',
