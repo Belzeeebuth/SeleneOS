@@ -807,7 +807,7 @@ async function part2() {
   await p.keyboard.press('Escape');
   await typeSeq('42.195');
   const lv = await convVals();
-  check('conv: marathon 42.195 km in miles', lv, ['42.195', '26.21875623418754']);
+  check('conv: marathon 42.195 km in miles', lv, ['42.195', '26.21875745645431']);
   check('conv: "about equal to" shown', await p.$$eval(`${A} .calc-conv-chip`, (e) => e.length), 3);
   await crop('calculator-converter');
   await mode('conv-data');

@@ -46,6 +46,32 @@ export function normalize(combo) {
   return [...MODS.filter((m) => mods.has(m)), key].join('+');
 }
 
+// Same normalisation as main/lib/hotkeys.js comboOf(), from a DOM KeyboardEvent.
+export function comboOfEvent(e) {
+  const parts = [];
+  if (e.metaKey) parts.push('Super');
+  if (e.ctrlKey) parts.push('Ctrl');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  let key = e.key;
+  const map = { ' ': 'Space', Del: 'Delete', Esc: 'Escape', '.': 'Period', ',': 'Comma', VolumeUp: 'AudioVolumeUp', VolumeDown: 'AudioVolumeDown', VolumeMute: 'AudioVolumeMute', MonBrightnessUp: 'BrightnessUp', MonBrightnessDown: 'BrightnessDown' };
+  key = map[key] || key;
+  if (key && key.length === 1) key = key.toUpperCase();
+  if (e.metaKey && /^Digit[0-9]$/.test(e.code || '') && !/^[0-9]$/.test(key)) key = e.code.slice(5);
+  if (['Control', 'Alt', 'Shift', 'Meta', 'OS', 'Super', 'Hyper'].includes(key)) return parts.join('+');
+  return [...parts, key].join('+');
+}
+
+// Combos main forwards (fetched from main at mount; this copy is only a fallback).
+let systemCombos = new Set([
+  'Alt+Tab', 'Alt+Shift+Tab', 'Ctrl+Alt+Tab', 'Alt+F4', 'Alt+Space', 'Ctrl+Alt+Delete', 'Ctrl+Shift+Escape', 'PrintScreen',
+  'AudioVolumeUp', 'AudioVolumeDown', 'AudioVolumeMute', 'BrightnessUp', 'BrightnessDown',
+]);
+function isSystemEvent(e) {
+  const c = comboOfEvent(e);
+  return !!c && (systemCombos.has(c) || (e.metaKey && c.startsWith('Super+')));
+}
+
 const warned = new Set();
 function warnOnce(tag, err) {
   if (warned.has(tag)) return;
@@ -303,22 +329,28 @@ function trigger(combo, { repeat = false } = {}) {
   return true;
 }
 
-export const hotkeys = { trigger, normalize, actions: ACTIONS, snapKey };
+export const hotkeys = { trigger, normalize, actions: ACTIONS, snapKey, comboOfEvent, isSystemEvent };
 
 export function mount(ctx) {
   api.on('shell:hotkey', (p) => trigger(p?.combo, { repeat: !!p?.repeat }));
-  // Main forwards Alt+Tab from the shell page without swallowing it (see main/lib/hotkeys.js), so the
-  // DOM event still arrives here: cancel it before anything (focus navigation, app handlers) sees it.
+  // Main forwards system combos from the shell page without swallowing them (see main/lib/hotkeys.js),
+  // so the DOM event still arrives here: cancel it before apps or focus navigation see it.
   window.addEventListener(
     'keydown',
     (e) => {
-      if (e.key === 'Tab' && e.altKey) {
+      if (isSystemEvent(e)) {
         e.preventDefault();
         e.stopImmediatePropagation();
       }
     },
     true,
   );
+  api
+    .invoke('hotkeys:rules')
+    .then((r) => {
+      if (Array.isArray(r?.system)) systemCombos = new Set(r.system);
+    })
+    .catch(() => {});
   api.on('audio:changed', () => (volCache = null));
   shell.on('lock', () => {
     locked = true;

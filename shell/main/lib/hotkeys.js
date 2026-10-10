@@ -15,13 +15,12 @@
 // A focused <webview> receives its own before-input-event (the embedding shell does not get a
 // second one), so each key press is forwarded exactly once.
 //
-// Alt release: when a keyDown is swallowed here, Chromium also drops every following keyUp on that
-// page until the next keyDown — so the Alt release after a swallowed Alt+Tab would never be seen.
-// In the shell's own page the switcher combos are therefore forwarded WITHOUT being swallowed (the
-// shell renderer cancels the DOM event itself); in webviews they are swallowed and the shell moves
-// keyboard focus into its own page at once, so the Alt release arrives there.
-const SWITCHER = new Set(['Alt+Tab', 'Alt+Shift+Tab', 'Ctrl+Alt+Tab']);
-
+// Swallowing: when a keyDown is preventDefault()ed here, Chromium also drops every following keyUp on
+// that page until its next keyDown — e.g. the Alt release that must commit Alt+Tab. So in the shell's
+// own page system combos are forwarded WITHOUT being swallowed and the shell renderer cancels the DOM
+// event itself (features/hotkeys.js, using the same rules: see 'hotkeys:rules'). Webviews (untrusted
+// pages we cannot script) are swallowed here; on Alt+Tab the shell pulls keyboard focus into its own
+// page at once, so the Alt release still arrives there.
 const SYSTEM = new Set([
   'Alt+Tab', 'Alt+Shift+Tab', 'Ctrl+Alt+Tab', 'Alt+F4', 'Alt+Space', 'Ctrl+Alt+Delete', 'Ctrl+Shift+Escape', 'PrintScreen',
   'Super+D', 'Super+E', 'Super+L', 'Super+I', 'Super+A', 'Super+N', 'Super+S', 'Super+R', 'Super+X',
@@ -55,8 +54,20 @@ function comboOf(input) {
   return [...parts, key].join('+');
 }
 
+// Is this combo a system hotkey (forwarded to the shell)?
+function isSystem(combo, input) {
+  return SYSTEM.has(combo) || (!!input.meta && combo.startsWith('Super+'));
+}
+
+let rulesRegistered = false;
 function installHotkeys(contents, ipc, mode) {
   if (mode !== 'shell') return;
+  if (!rulesRegistered && ipc?.handle) {
+    rulesRegistered = true;
+    // The shell renderer cancels these in its own page (see above).
+    ipc.handle('hotkeys:rules', () => ({ system: [...SYSTEM], superPrefix: true }));
+  }
+  const isShellPage = contents.getType?.() === 'window';
   let superDown = false;
   let superUsed = false;
   contents.on('before-input-event', (event, input) => {
@@ -71,8 +82,8 @@ function installHotkeys(contents, ipc, mode) {
       }
       if (superDown || input.meta) superUsed = true;
       const combo = comboOf(input);
-      if (SYSTEM.has(combo) || (input.meta && combo.startsWith('Super+'))) {
-        if (!(SWITCHER.has(combo) && contents.getType?.() !== 'webview')) event.preventDefault();
+      if (isSystem(combo, input)) {
+        if (!isShellPage) event.preventDefault();
         ipc.broadcast('shell:hotkey', { combo, repeat: !!input.isAutoRepeat });
       }
     } else if (input.type === 'keyUp') {
@@ -86,4 +97,4 @@ function installHotkeys(contents, ipc, mode) {
   });
 }
 
-module.exports = { installHotkeys, comboOf, SYSTEM, SWITCHER };
+module.exports = { installHotkeys, comboOf, isSystem, SYSTEM };

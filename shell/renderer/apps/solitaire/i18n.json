@@ -78,7 +78,6 @@
     "win.bonus": "Time bonus",
     "win.newBestTime": "Best time",
     "win.newBestScore": "High score",
-    "win.summary": "You've won {won} of {played} games ({pct}).",
     "win.skip": "Click or press any key to continue",
     "stats.title": "Statistics",
     "stats.played": "Games played",
@@ -139,7 +138,9 @@
     "help.kCancel": "Cancel the selection",
     "error.title": "Solitaire",
     "error.save": "Your game couldn't be saved: {msg}",
-    "passOf": "Pass {n} of {total}"
+    "passOf": "Pass {n} of {total}",
+    "win.summary_one": "You've won {won} of {played} games ({pct}).",
+    "win.summary_other": "You've won {won} of {played} games ({pct})."
   },
   "fr": {
     "newGame": "Nouvelle partie",
@@ -220,7 +221,6 @@
     "win.bonus": "Bonus de temps",
     "win.newBestTime": "Meilleur temps",
     "win.newBestScore": "Record",
-    "win.summary": "Vous avez gagné {won} parties sur {played} ({pct}).",
     "win.skip": "Cliquez ou appuyez sur une touche pour continuer",
     "stats.title": "Statistiques",
     "stats.played": "Parties jouées",
@@ -281,6 +281,8 @@
     "help.kCancel": "Annuler la sélection",
     "error.title": "Solitaire",
     "error.save": "Impossible d'enregistrer la partie : {msg}",
-    "passOf": "Passage {n} sur {total}"
+    "passOf": "Passage {n} sur {total}",
+    "win.summary_one": "Vous avez gagné {won} partie sur {played} ({pct}).",
+    "win.summary_other": "Vous avez gagné {won} parties sur {played} ({pct})."
   }
 }

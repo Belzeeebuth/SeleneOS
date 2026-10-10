@@ -1207,7 +1207,7 @@ class SolitaireApp {
         row(t('time'), this.fmtTime(info.time), info.bestTime ? t('win.newBestTime') : null),
         row(t('moves'), i18n.formatNumber(info.moves)),
       ),
-      h('div', { class: 'caption text-2' }, t('win.summary', { won: i18n.formatNumber(st.won), played: i18n.formatNumber(st.played), pct: rate })),
+      h('div', { class: 'caption text-2' }, t('win.summary', { count: st.won, won: i18n.formatNumber(st.won), played: i18n.formatNumber(st.played), pct: rate })),
     );
     return this.dialog({
       title: t('win.title'),

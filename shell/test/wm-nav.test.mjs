@@ -42,6 +42,8 @@ function unitTests() {
   check('main comboOf: volume key', comboOf({ key: 'AudioVolumeUp' }) === 'AudioVolumeUp' && SYSTEM.has('AudioVolumeUp'));
   check('main comboOf: lone modifier', comboOf({ alt: true, key: 'Alt' }) === 'Alt');
   check('main SYSTEM has Ctrl+Alt+Tab / Alt+Space', SYSTEM.has('Ctrl+Alt+Tab') && SYSTEM.has('Alt+Space'));
+  const { isSystem } = require('../main/lib/hotkeys.js');
+  check('main isSystem: any Super combo, not plain keys', isSystem('Super+K', { meta: true }) && isSystem('Alt+Tab', {}) && !isSystem('Ctrl+S', { control: true }) && !isSystem('Tab', {}));
 }
 
 // ------------------------------------------------------------------ helpers bound to a shell
@@ -129,6 +131,20 @@ async function mainRun() {
   const { press, hk, A, newWin, launchIf, focusedTitle, winState, shot, closeAll } = T;
   try {
     check('features mounted', await A(() => ['hotkeys', 'alttab', 'taskview', 'snap', 'security', 'run', 'winx'].every((k) => window.__aurora[k])));
+    check('renderer cancels forwarded combos in the shell page, not app shortcuts', await A(() => {
+      const { isSystemEvent } = window.__aurora.hotkeys;
+      const ev = (o) => new KeyboardEvent('keydown', o);
+      return isSystemEvent(ev({ key: 'd', metaKey: true })) && isSystemEvent(ev({ key: 'Tab', altKey: true })) && isSystemEvent(ev({ key: 'Delete', ctrlKey: true, altKey: true })) && !isSystemEvent(ev({ key: 's', ctrlKey: true })) && !isSystemEvent(ev({ key: 'Tab' }));
+    }));
+    check('a forwarded combo never reaches app key handlers in the shell page', await A(async () => {
+      let seen = 0;
+      const f = () => seen++;
+      document.addEventListener('keydown', f);
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', altKey: true, bubbles: true }));
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
+      document.removeEventListener('keydown', f);
+      return seen === 1;
+    }));
     check('renderer normalize()', await A(() => {
       const n = window.__aurora.hotkeys.normalize;
       return n('Ctrl+Super+Left') === 'Super+Ctrl+ArrowLeft' && n('Shift+Super+s') === 'Super+Shift+S' && n('Alt+Shift+Tab') === 'Alt+Shift+Tab' && n('Alt:up') === 'Alt:up';

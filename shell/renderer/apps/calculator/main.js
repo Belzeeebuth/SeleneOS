@@ -674,6 +674,15 @@ class CalculatorApp {
     const tgt = e.target;
     if (tgt && tgt !== document.body && !win.el.contains(tgt)) return;
     if (document.querySelector('body > .menu') || win.el.querySelector('.dialog-layer')) return;
+    // Mode shortcuts work everywhere in the window, even while a text box has the focus.
+    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      const m = { 1: 'standard', 2: 'scientific', 4: 'programmer', 5: 'date' }[e.key];
+      if (m) {
+        e.preventDefault();
+        this.setMode(m);
+        return;
+      }
+    }
     if (tgt?.matches?.('input, textarea, select, [contenteditable="true"]')) return;
     if (e.key === 'Escape') {
       if (this.navOpen) {
@@ -692,12 +701,6 @@ class CalculatorApp {
       }
     }
     if (e.altKey && !e.ctrlKey && !e.metaKey) {
-      const m = { 1: 'standard', 2: 'scientific', 4: 'programmer', 5: 'date' }[e.key];
-      if (m) {
-        e.preventDefault();
-        this.setMode(m);
-        return;
-      }
       if (e.key === 'ArrowUp' && this.S.mode === 'standard') {
         e.preventDefault();
         this.setCompact(true);
