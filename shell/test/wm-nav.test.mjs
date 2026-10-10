@@ -829,6 +829,36 @@ async function mainRun() {
       } else check('volume key without audio backend: no osd, no error', (await A(() => window.__osd.length)) === 0);
     }
 
+    // -------------------------------------------------------- Super+V clipboard history
+    if (want('clipboard')) {
+      await closeAll();
+      const id = await newWin('Paste target', { width: 560, height: 360, x: 500, y: 200 });
+      await sleep(250);
+      await A((id) => window.__aurora.wm.get(id).body.querySelector('input').focus(), id);
+      await press('Super+V', 400);
+      check('Super+V opens clipboard history (off: "Turn on")', await A(() => !!document.querySelector('.cliph .cliph-off .btn.primary')));
+      await shot('wm-clipboard-off');
+      await page.click('.cliph .cliph-off .btn.primary');
+      await sleep(300);
+      check('"Turn on" enables it', await A(() => window.__aurora.settings.get('clipboard.history') === true && !document.querySelector('.cliph-off')));
+      await A(() => window.__aurora.clipboardHistory.close());
+      for (const txt of ['first copied text', 'Second item — with an em dash', 'https://example.org/a/very/long/path?query=1']) {
+        await A((t) => window.__aurora.api.invoke('clipboard:writeText', t), txt);
+        await sleep(1400);
+      }
+      await A((id) => window.__aurora.wm.get(id).body.querySelector('input').focus(), id);
+      await hk('Super+V');
+      await sleep(400);
+      const listed = await A(() => [...document.querySelectorAll('.cliph-item .cliph-text')].map((e) => e.textContent));
+      check('copied texts are listed, newest first', listed[0]?.startsWith('https://example.org') && listed[2] === 'first copied text', listed.join(' | '));
+      await shot('wm-clipboard', true);
+      await page.click('.cliph-item:nth-child(3)');
+      await sleep(300);
+      check('choosing an item pastes it into the focused field', (await A((id) => window.__aurora.wm.get(id).body.querySelector('input').value, id)) === 'first copied text');
+      await A(() => window.__aurora.settings.set('clipboard.history', false));
+      await closeAll();
+    }
+
     // -------------------------------------------------------- multitasking settings
     if (want('settings')) {
       await A(() => window.__aurora.settings.set('multitasking', { snap: false, shake: true }));

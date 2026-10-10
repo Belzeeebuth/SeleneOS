@@ -433,7 +433,7 @@ export class BrowserWindowCtl {
     tab.el.tabIndex = 0;
     tab.view.classList.add('active');
     this.closeFlyout();
-    this.omni.closeSuggest();
+    if (prev !== tab) this.omni.reset();
     if (tab.lazy) {
       const { url } = tab.lazy;
       tab.lazy = null;

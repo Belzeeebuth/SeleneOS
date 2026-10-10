@@ -236,10 +236,12 @@ export class AddressBar {
   }
 
   endEdit() {
+    const hadFocus = this.el.contains(document.activeElement);
     this.editing = false;
     this.el.classList.remove('editing', 'error');
     this.hideSuggest();
     this.fit();
+    if (hadFocus) this.ex.view.focus();
   }
 
   async commit(value) {

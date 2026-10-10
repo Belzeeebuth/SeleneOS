@@ -704,7 +704,7 @@ if (!fatal) {
     await H.select('Projects.zip');
     await page.click('.app-files .fx-cmd:has-text("Extract all")');
     await page.waitForTimeout(300);
-    check('extract dialog', (await H.dialogText()).includes(D('Documents/Projects')), true);
+    check('extract dialog', await page.locator('.dialog-layer .fx-extract input.input').inputValue(), D('Documents/Projects'));
     await H.clickDialog('Extract');
     await page.waitForFunction((p) => window.__fx().tab.loc.path === p, D('Documents/Projects (2)'), { timeout: 15000 });
     check('extracted', H.exists(D('Documents/Projects (2)/Projects/aurora/readme.txt')), true);
@@ -734,10 +734,10 @@ if (!fatal) {
     await page.mouse.up();
     check('rubber band selects 3', (await H.selected()).length, 3);
     // drag a file onto a folder (same drive -> move)
-    await page.dragAndDrop('.app-files .fx-row:has-text("archive-me.txt") .fx-name', '.app-files .fx-row:has-text("Alpha") .fx-name');
+    await page.dragAndDrop('.app-files .fx-row:has-text("Report 2026.txt") .fx-name', '.app-files .fx-row:has-text("Alpha") .fx-name');
     await H.settle();
     await page.waitForTimeout(400);
-    check('drag & drop move into folder', H.exists(D('Documents/Alpha/archive-me.txt')) && !H.exists(D('Documents/archive-me.txt')), true);
+    check('drag & drop move into folder', H.exists(D('Documents/Alpha/Report 2026.txt')) && !H.exists(D('Documents/Report 2026.txt')), true);
     // drag onto a nav pane folder (Downloads)
     await page.dragAndDrop('.app-files .fx-row:has-text("budget.csv") .fx-name', '.app-files .fx-tnode:has-text("Downloads")');
     await page.waitForTimeout(600);
@@ -806,7 +806,7 @@ if (!only || 'french dark'.includes(only.toLowerCase())) {
       const p2 = s2.page;
       const nav = await p2.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts();
       check('fr nav', ['Accueil', 'Bureau', 'Téléchargements', 'Documents', 'Images', 'Ce PC', 'Corbeille'].every((n) => nav.includes(n)), true);
-      check('fr quick access', await p2.locator('.app-files .fx-sec-head span').first().innerText(), 'Accès rapide');
+      check('fr quick access', await p2.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Accès rapide');
       check('fr title', await p2.evaluate(() => window.__fx().win.title), 'Accueil - Explorateur de fichiers');
       await H2.go(path.join(home2, 'Documents'));
       const types = await p2.evaluate(() => Object.fromEntries(window.__fx().view.items.map((i) => [i.entry.name, i.type])));
@@ -831,7 +831,7 @@ if (!only || 'french dark'.includes(only.toLowerCase())) {
       await p2.keyboard.press('Escape');
       await p2.click('.app-files .fx-tnode:has-text("Ce PC")');
       await H2.settle();
-      check('fr this pc', await p2.locator('.app-files .fx-sec-head span').first().innerText(), 'Dossiers');
+      check('fr this pc', await p2.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Dossiers');
       check('fr drives', await p2.locator('.app-files .fx-drive .fx-sub').first().innerText(), (t) => / libres sur /.test(t));
       await s2.page.screenshot({ path: path.join(DOCS, 'files-this-pc-fr-dark.png') });
     });

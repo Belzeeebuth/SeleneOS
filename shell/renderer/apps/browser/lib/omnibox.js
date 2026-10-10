@@ -104,8 +104,22 @@ export class Omnibox {
   }
 
   /** Show the active tab's URL (unless the user is typing). */
+  /** Forget typed text (tab switch); the next sync() shows the tab's URL. */
+  reset() {
+    this.dirty = false;
+    this.inline = null;
+    this.el.classList.remove('edited');
+    this.closeSuggest();
+  }
+
   sync(tab) {
     if (!tab) return;
+    const typing = this.editing && this.dirty;
+    if (typing) {
+      this.updateSite();
+      this.updateChips();
+      return;
+    }
     this.dirty = false;
     this.inline = null;
     this.el.classList.remove('edited');

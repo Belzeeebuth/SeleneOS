@@ -1,0 +1,112 @@
+/* Super+V clipboard history flyout (Windows 11 style). */
+.cliph {
+  position: fixed;
+  z-index: 60;
+  width: 360px;
+  max-height: min(480px, calc(100vh - 80px));
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--acrylic);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-dialog);
+  backdrop-filter: blur(60px) saturate(170%);
+  outline: none;
+  overflow: hidden;
+  animation: cliph-in var(--dur-slow) var(--ease);
+}
+:root[data-transparency="off"] .cliph {
+  backdrop-filter: none;
+}
+.cliph.closing {
+  animation: cliph-out 140ms var(--ease-in) forwards;
+  pointer-events: none;
+}
+@keyframes cliph-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@keyframes cliph-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.cliph-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 48px;
+  padding: 8px 12px 8px 16px;
+  border-bottom: 1px solid var(--stroke);
+}
+.cliph-body {
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cliph-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 6px 10px 12px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+  outline: none;
+  transition: background var(--dur-fast) linear;
+}
+.cliph-item:hover {
+  background: var(--card-hover);
+}
+.cliph-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--text);
+}
+.cliph-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  user-select: none;
+}
+.cliph-more {
+  flex: none;
+  opacity: 0;
+}
+.cliph-item:hover .cliph-more,
+.cliph-item:focus-within .cliph-more {
+  opacity: 1;
+}
+.cliph-pin {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  color: var(--text-2);
+}
+.cliph-off,
+.cliph-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 20px 20px;
+  text-align: center;
+}
+.cliph-off .icon {
+  color: var(--accent);
+}
+.cliph-off .btn {
+  margin-top: 8px;
+  min-width: 120px;
+}

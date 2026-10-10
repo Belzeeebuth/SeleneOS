@@ -23,6 +23,7 @@ const DOCK_MIN = 560;
 const COMPACT = { width: 296, height: 400, minWidth: 220, minHeight: 300 };
 const MAX_HISTORY = 100;
 const reduceMotion = () => document.documentElement.dataset.animations === 'off';
+const NO_FOCUS_ON_CLICK = '.ck, .calc-mem, .calc-tool, .calc-radix, .calc-bit, .calc-iconbtn, .calc-drop, .calc-conv-value, .calc-pane-tab, .calc-hitem, .calc-mitem';
 
 export default {
   async launch(ctx) {
@@ -143,6 +144,13 @@ class CalculatorApp {
     this.pane = h('aside', { class: 'calc-pane', 'aria-label': t('pane.label') });
     this.buildNav();
     this.root = h('div', { class: 'calc', tabindex: '-1' }, this.main, this.pane, this.navLayer);
+    // Like Windows Calculator, clicking a key does not move the focus (no focus ring appears on the
+    // last clicked key when the user then types); keyboard focus stays in this window.
+    this.root.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || !e.target.closest(NO_FOCUS_ON_CLICK)) return;
+      e.preventDefault();
+      if (document.activeElement !== this.root) this.root.focus({ preventScroll: true });
+    });
     this.win.body.appendChild(this.root);
   }
 

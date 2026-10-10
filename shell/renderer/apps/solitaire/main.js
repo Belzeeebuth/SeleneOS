@@ -1425,8 +1425,10 @@ class SolitaireApp {
     }
     if (this.held) {
       if (this.held.pile === loc.pile) {
+        // Clicking the selection again clears it; clicking another card of the same run re-selects from there.
+        const prev = this.held.index;
         this.release();
-        if (g.canPick(loc.pile, loc.index) && loc.index !== this.held?.index) this.hold(loc.pile, loc.index);
+        if (loc.index !== prev && g.canPick(loc.pile, loc.index)) this.hold(loc.pile, loc.index);
         return;
       }
       if (g.canMove(this.held.pile, this.held.index, loc.pile)) {

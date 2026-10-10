@@ -781,6 +781,8 @@ async function part2() {
   await typeSeq('1/0=');
   check('prog: divide by zero', await display(), 'Cannot divide by zero');
   await press('clearSmart');
+  await typeSeq('4095<4=');
+  check('prog: 4095 << 4', await radixVals(), { hex: 'FFF0', dec: '65,520', oct: '177 760', bin: '1111 1111 1111 0000' });
   await crop('calculator-programmer');
 
   // --- converters

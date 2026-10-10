@@ -290,6 +290,15 @@ export class Explorer {
 
     // Window-level keyboard shortcuts and mouse back/forward buttons.
     this.win.el.addEventListener('keydown', (e) => this.onKey(e));
+    // When a focused element disappears (re-rendered row, hidden input…), focus would fall to <body>,
+    // outside the window, and keyboard shortcuts would stop working: bring it back to the items view.
+    this.win.el.addEventListener('focusout', (e) => {
+      if (e.relatedTarget) return;
+      setTimeout(() => {
+        const a = document.activeElement;
+        if ((!a || a === document.body) && !this.closed && this.win.isFocused?.() && !document.querySelector('.menu')) this.view.focus();
+      }, 0);
+    });
     this.win.el.addEventListener('mouseup', (e) => {
       if (e.button === 3) {
         e.preventDefault();
@@ -405,10 +414,11 @@ export class Explorer {
       return;
     }
     const i = this.tabs.indexOf(tab);
+    const hadFocus = tab.el?.contains(document.activeElement);
     this.tabs.splice(i, 1);
     if (this.tab === tab) {
       this.tab = null;
-      this.activateTab(this.tabs[Math.min(i, this.tabs.length - 1)]);
+      this.activateTab(this.tabs[Math.min(i, this.tabs.length - 1)]).then(() => !hadFocus && this.view.focus());
     }
     this.renderTabs();
   }
@@ -435,64 +445,76 @@ export class Explorer {
     return this.locName(loc);
   }
 
-  renderTabs() {
-    const { h, t } = this;
-    const frag = document.createDocumentFragment();
-    for (const tab of this.tabs) {
-      const active = tab === this.tab;
-      const title = this.tabTitle(tab);
-      const el = h('div', {
-        class: ['fx-tab', active && 'active'],
-        role: 'tab',
-        tabindex: active ? '0' : '-1',
-        'aria-selected': String(active),
-        'data-no-drag': '',
-        title: tab.loc.type === 'dir' ? tab.loc.path : title,
-        dataset: { tab: String(tab.id) },
-      },
-      h('img', { class: 'fx-tab-ic', src: this.locIcon(tab.loc), alt: '', draggable: false }),
-      h('span', { class: 'fx-tab-title' }, title),
-      h('button', { class: 'fx-tab-x', tabindex: '-1', 'aria-label': t('tabs.close'), 'data-tip': `${t('tabs.close')} (Ctrl+W)`, 'data-tip-pos': 'below', onclick: (e) => {
+  makeTabEl(tab) {
+    const { h } = this;
+    const el = h('div', { class: 'fx-tab', role: 'tab', 'data-no-drag': '', dataset: { tab: String(tab.id) } },
+      h('img', { class: 'fx-tab-ic', alt: '', draggable: false }),
+      h('span', { class: 'fx-tab-title' }),
+      h('button', { class: 'fx-tab-x', tabindex: '-1', onclick: (e) => {
         e.stopPropagation();
         this.closeTab(tab);
       } }, this.icon('dismiss', { size: 10 })));
-      el.addEventListener('pointerdown', (e) => this.tabPointerDown(e, tab));
-      el.addEventListener('auxclick', (e) => {
-        if (e.button === 1) {
-          e.preventDefault();
-          this.closeTab(tab);
-        }
-      });
-      el.addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault());
-      el.addEventListener('contextmenu', (e) => {
+    el.addEventListener('pointerdown', (e) => this.tabPointerDown(e, tab));
+    el.addEventListener('auxclick', (e) => {
+      if (e.button === 1) {
         e.preventDefault();
-        e.stopPropagation();
-        this.tabMenu(e, tab);
-      });
-      el.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-          const i = this.tabs.indexOf(tab) + (e.key === 'ArrowRight' ? 1 : -1);
-          const next = this.tabs[(i + this.tabs.length) % this.tabs.length];
-          this.activateTab(next).then(() => next.el?.focus());
-        } else if (e.key === 'Delete') this.closeTab(tab);
-      });
-      // Dropping files on a tab moves/copies them into that tab's folder; hovering switches to it.
-      this.dnd.dropTarget(el, () => (tab.loc.type === 'dir' ? tab.loc.path : tab.loc.type === 'trash' ? TRASH_TARGET : null), {
-        onHover: () => this.activateTab(tab),
-        hoverDelay: 600,
-      });
-      tab.el = el;
-      frag.append(el);
-    }
-    this.tabStrip.replaceChildren(frag);
-    this.tabBar.classList.toggle('single', this.tabs.length === 1);
+        this.closeTab(tab);
+      }
+    });
+    el.addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault());
+    el.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.tabMenu(e, tab);
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const i = this.tabs.indexOf(tab) + (e.key === 'ArrowRight' ? 1 : -1);
+        const next = this.tabs[(i + this.tabs.length) % this.tabs.length];
+        this.activateTab(next).then(() => next.el?.focus());
+      } else if (e.key === 'Delete') this.closeTab(tab);
+      else if (e.key === 'Enter' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        this.view.focus();
+      }
+    });
+    // Dropping files on a tab moves/copies them into that tab's folder; hovering switches to it.
+    this.dnd.dropTarget(el, () => (tab.loc.type === 'dir' ? tab.loc.path : tab.loc.type === 'trash' ? TRASH_TARGET : null), {
+      onHover: () => this.activateTab(tab),
+      hoverDelay: 600,
+    });
+    return el;
   }
 
-  updateTab(tab) {
-    if (!tab.el) return this.renderTabs();
-    tab.el.querySelector('.fx-tab-ic').src = this.locIcon(tab.loc);
-    tab.el.querySelector('.fx-tab-title').textContent = this.tabTitle(tab);
-    tab.el.title = tab.loc.type === 'dir' ? tab.loc.path : this.tabTitle(tab);
+  // Keyed rendering: tab elements are reused so focus and hover states survive updates.
+  renderTabs() {
+    const t = this.t;
+    const hadFocus = this.tabStrip.contains(document.activeElement);
+    for (const tab of this.tabs) {
+      if (!tab.el) tab.el = this.makeTabEl(tab);
+      const active = tab === this.tab;
+      const title = this.tabTitle(tab);
+      tab.el.classList.toggle('active', active);
+      tab.el.setAttribute('aria-selected', String(active));
+      tab.el.tabIndex = active ? 0 : -1;
+      tab.el.title = tab.loc.type === 'dir' ? tab.loc.path : title;
+      tab.el.querySelector('.fx-tab-ic').src = this.locIcon(tab.loc);
+      tab.el.querySelector('.fx-tab-title').textContent = title;
+      const x = tab.el.querySelector('.fx-tab-x');
+      x.setAttribute('aria-label', t('tabs.close'));
+      x.dataset.tip = `${t('tabs.close')} (Ctrl+W)`;
+      x.dataset.tipPos = 'below';
+    }
+    const els = this.tabs.map((x) => x.el);
+    const kids = [...this.tabStrip.children];
+    if (kids.length !== els.length || els.some((el, i) => kids[i] !== el)) this.tabStrip.replaceChildren(...els);
+    this.tabBar.classList.toggle('single', this.tabs.length === 1);
+    if (hadFocus && !this.tabStrip.contains(document.activeElement)) this.tab?.el?.focus();
+  }
+
+  updateTab() {
+    this.renderTabs();
   }
 
   tabPointerDown(e, tab) {
@@ -537,6 +559,7 @@ export class Explorer {
       this.tabs.splice(target, 0, tab);
       // FLIP: animate tabs from their visual position to the new layout.
       const before = new Map(this.tabs.map((x) => [x, x.el.getBoundingClientRect().left]));
+      for (const x of this.tabs) x.el.style.transform = '';
       this.renderTabs();
       for (const x of this.tabs) {
         const dx = (before.get(x) ?? 0) - x.el.getBoundingClientRect().left;

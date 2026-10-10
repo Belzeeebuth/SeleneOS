@@ -885,8 +885,7 @@ if (want('snake')) {
     });
 
     await test('eating food scores, then hitting the wall ends the game with a record', async () => {
-      await page.keyboard.press('Space');
-      assert.equal(await sn((h) => h.state), 'paused');
+      assert.equal(await sn((h) => h.state), 'paused', 'still paused after being restored');
       await page.locator(`${W} [data-id="options"]`).click();
       await page.locator('.menu .menu-item', { hasText: 'Walls' }).click();
       await sleep(300);
