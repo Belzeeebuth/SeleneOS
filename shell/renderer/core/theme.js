@@ -24,6 +24,7 @@ export const ACCENTS = [
 ];
 
 const emitter = new Emitter();
+// Events: theme.on('change', mode)  theme.on('wallpaper', url)  theme.on('mica', blobUrl)
 export const theme = {
   on: (ev, fn) => emitter.on(ev, fn),
   get mode() {
@@ -189,6 +190,8 @@ export async function applyTheme(all = settings.all()) {
     lastWallpaper = wp;
     theme.wallpaperUrl = wp;
     root.style.setProperty('--wallpaper', `url("${wp}")`);
+    // The desktop starts its cross-fade right away; the blurred Mica copy follows.
+    emitter.emit('wallpaper', wp);
     const mica = await makeMica(wp);
     if (wp !== lastWallpaper) {
       if (mica) URL.revokeObjectURL(mica);
@@ -197,7 +200,7 @@ export async function applyTheme(all = settings.all()) {
       lastMica = mica;
       theme.micaUrl = mica;
       root.style.setProperty('--mica-image', mica ? `url("${mica}")` : 'none');
-      emitter.emit('wallpaper', wp);
+      emitter.emit('mica', mica);
     }
   }
 

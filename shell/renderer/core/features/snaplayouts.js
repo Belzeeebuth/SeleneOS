@@ -8,12 +8,23 @@
 //     remaining zone shows thumbnails of the other windows; clicking one snaps it there, then the next
 //     empty zone of the layout is offered. Esc / clicking elsewhere dismisses it.
 //   shell.on('snaplayouts:open', win)       window.__aurora.snap = { open, close, assist, layouts }
+// Settings (Windows "Multitasking" page; all default on except shake):
+//   multitasking.snap          edge snapping, Super+arrows snapping zones, the drag bar
+//   multitasking.snapLayouts   flyout when hovering the maximize button
+//   multitasking.snapAssist    Snap Assist after snapping
+//   multitasking.shake         title bar window shake (minimise the other windows)
 import { h, icon, ui } from '../ui.js';
 import { i18n, t } from '../i18n.js';
 import { wm } from '../wm.js';
 import { registry } from '../registry.js';
 import { shell } from '../services.js';
+import { settings } from '../settings.js';
 import { thumbs } from './alttab.js';
+
+const opt = (k, def = true) => {
+  const v = settings.get(`multitasking.${k}`);
+  return v == null ? def : v !== false;
+};
 
 i18n.extend({
   en: { snap: { label: 'Snap layouts', assist: 'Snap Assist', chooseWindow: 'Choose a window to snap here' } },
@@ -407,7 +418,7 @@ function showBar(win) {
 }
 
 function onDragMove(win, { x, y }) {
-  if (!win.opts.resizable || assist) return;
+  if (!win.opts.resizable || assist || !opt('snap')) return;
   const wa = wm.workarea();
   const cx = wa.x + wa.width / 2;
   const near = y <= wa.y + 56 && y > wa.y + 2 && Math.abs(x - cx) < 300;
@@ -434,8 +445,15 @@ let barLayout = null;
 
 export function mount(ctx) {
   ui.loadCss('app://shell/core/features/snaplayouts.css');
+  const applySettings = () => {
+    wm.snapEnabled = opt('snap');
+    wm.shakeToMinimize = opt('shake', false);
+  };
+  applySettings();
+  settings.on('multitasking', applySettings);
   wm.on('max-hover', (win, btn) => {
     clearTimeout(hideTimer);
+    if (!opt('snapLayouts') || !opt('snap')) return;
     if (fly?.win === win) return;
     clearTimeout(showTimer);
     if (document.body.classList.contains('wm-dragging')) return;
@@ -475,7 +493,7 @@ export function mount(ctx) {
     setTimeout(() => (barLayout = null));
   });
   wm.on('snap', (win, zone, { source } = {}) => {
-    if (source === 'assist' || source === 'refit' || source === 'api' || source === 'border') return;
+    if (source === 'assist' || source === 'refit' || source === 'api' || source === 'border' || !opt('snapAssist')) return;
     let zones = null;
     if (source === 'layout' && pendingLayout?.includes(zone)) zones = pendingLayout.filter((z) => z !== zone);
     else if (source === 'drag' && barLayout?.includes(zone)) zones = barLayout.filter((z) => z !== zone);

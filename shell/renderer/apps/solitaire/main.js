@@ -403,6 +403,7 @@ class SolitaireApp {
     this.table.addEventListener('pointermove', (e) => this.onPointerMove(e));
     this.table.addEventListener('pointerup', (e) => this.onPointerUp(e));
     this.table.addEventListener('pointercancel', (e) => this.onPointerUp(e, true));
+    this.table.addEventListener('lostpointercapture', (e) => this.onPointerUp(e, true));
     // Right-click plays every available card to the foundations (as in classic Windows Solitaire).
     this.table.addEventListener('contextmenu', (e) => {
       e.preventDefault();
@@ -576,6 +577,18 @@ class SolitaireApp {
         }, MOVE_MS + d + 60);
       } else if (!el._zt) el.style.zIndex = String(p.z);
     }
+    // Cards hidden right under an identically placed card drop their shadow, so tall piles
+    // (stock, waste, foundations) don't build up a dark rim.
+    const g = this.game;
+    for (const id of ['stock', 'waste', ...FOUNDATIONS]) {
+      const p = g.pile(id);
+      for (let i = 0; i < p.length; i++) {
+        const a = pos[p[i]];
+        const b = i < p.length - 1 ? pos[p[i + 1]] : null;
+        this.cards[p[i]].classList.toggle('buried', !!b && a.x === b.x && a.y === b.y);
+      }
+    }
+    for (const p of g.s.t) for (const c of p) this.cards[c].classList.remove('buried');
     this.renderStock();
     this.positionCursor();
   }
@@ -609,7 +622,7 @@ class SolitaireApp {
     this.gameNoBtn.textContent = t('gameNo', { n: g.s.seed });
     const parts = [t(g.s.draw === 3 ? 'draw3' : 'draw1'), t(`scoring.${g.s.scoring}`)];
     if (g.s.scoring === 'vegas' && Number.isFinite(g.recyclesAllowed())) {
-      parts.push(t('passesLeft', { count: Math.max(0, g.recyclesAllowed() - g.s.recycles + 1) }));
+      parts.push(t('passOf', { n: Math.min(g.s.recycles + 1, g.recyclesAllowed() + 1), total: g.recyclesAllowed() + 1 }));
     }
     this.modeEl.textContent = parts.join(' · ');
   }
@@ -970,6 +983,8 @@ class SolitaireApp {
     if (this.busy || this.modal || !this.game.canAutoComplete()) return;
     this.release();
     this.clearHint();
+    // The button hides itself; keep keyboard focus inside the game (Esc / any key skips the cascade).
+    this.focusTable();
     this.busy = true;
     this.updateToolbar();
     const token = ++this.autoToken;
@@ -1590,6 +1605,15 @@ class SolitaireApp {
     }
     const key = e.key;
     const ctrl = e.ctrlKey || e.metaKey;
+    if (this.drag) {
+      // Esc drops the dragged cards back where they came from; other keys wait for the drop.
+      e.preventDefault();
+      if (key === 'Escape') {
+        this.press = null;
+        this.cancelDrag();
+      }
+      return;
+    }
     if (ctrl && !e.altKey && !e.shiftKey && key.toLowerCase() === 'z') {
       e.preventDefault();
       this.undo();

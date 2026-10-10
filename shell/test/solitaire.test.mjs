@@ -374,6 +374,32 @@ async function unitTests() {
     assert.equal(st.streak, 1);
   });
 
+  await test('i18n: every string exists in English and French', () => {
+    const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'renderer');
+    const dict = JSON.parse(fs.readFileSync(path.join(root, 'apps/solitaire/i18n.json'), 'utf8'));
+    const core = { en: JSON.parse(fs.readFileSync(path.join(root, 'core/i18n/en.json'), 'utf8')), fr: JSON.parse(fs.readFileSync(path.join(root, 'core/i18n/fr.json'), 'utf8')) };
+    assert.deepEqual(Object.keys(dict.fr).sort(), Object.keys(dict.en).sort(), 'same keys in en and fr');
+    for (const [k, v] of Object.entries(dict.fr)) assert.ok(typeof v === 'string' && v.trim(), `fr.${k} empty`);
+    const src = fs.readFileSync(path.join(root, 'apps/solitaire/main.js'), 'utf8');
+    const used = new Set([...src.matchAll(/\bt\(\s*'([^']+)'/g)].map((m) => m[1]));
+    for (let r = 1; r <= 13; r++) used.add(`rank${r}`);
+    for (let su = 0; su < 4; su++) used.add(`suit${su}`);
+    for (const k of ['standard', 'vegas', 'none']) used.add(`scoring.${k}`);
+    for (const k of ['confirmNew', 'confirmRestart']) used.add(`${k}.title`).add(`${k}.ok`);
+    for (const b of BACKS) used.add(`back.${b}`);
+    for (const b of ['felt', 'blue', 'aurora']) used.add(`tableBg.${b}`);
+    // keys passed through helpers (tbBtn / stat / keys table)
+    for (const m of src.matchAll(/\[\s*'[^']*',\s*'([a-zA-Z.]+)'\s*\]/g)) used.add(m[1]);
+    for (const m of src.matchAll(/stat\('([a-z]+)'\)/g)) used.add(m[1]);
+    const get = (d, k) => (k in d ? d[k] : k.split('.').reduce((o, x) => (o == null ? undefined : o[x]), d));
+    for (const lang of ['en', 'fr']) {
+      for (const k of used) {
+        const ok = [dict[lang], core[lang]].some((d) => typeof get(d, k) === 'string' || typeof get(d, `${k}_other`) === 'string');
+        assert.ok(ok, `${lang}: missing "${k}"`);
+      }
+    }
+  });
+
   await test('artwork: 52 distinct faces and every back render as SVG', () => {
     const faces = new Set();
     for (let c = 0; c < 52; c++) {
@@ -666,6 +692,29 @@ async function uiTests() {
       assert.equal(await where('8H'), 't1');
     });
 
+    await test('right-click sends every playable card to the foundations', async () => {
+      await T('load', { t: [['AH'], ['3H'], ['AS'], [], [], [], []], waste: ['2H'] });
+      await s.page.mouse.click(700, 600, { button: 'right' });
+      await s.page.waitForTimeout(900);
+      for (const c of ['AH', '2H', '3H', 'AS']) assert.match(await where(c), /^f\d$/, c);
+      assert.equal((await T('state')).moves, 4);
+    });
+
+    await test('Esc during a drag puts the cards back', async () => {
+      await T('load', POS);
+      const a = await center('7H');
+      await s.page.mouse.move(a.x, a.y);
+      await s.page.mouse.down();
+      await s.page.mouse.move(a.x + 40, a.y + 40, { steps: 4 });
+      await s.page.keyboard.press('Escape');
+      const b = await center('8S');
+      await s.page.mouse.move(b.x, b.y, { steps: 4 });
+      await s.page.mouse.up();
+      await s.page.waitForTimeout(400);
+      assert.equal(await where('7H'), 't1');
+      assert.equal(await s.page.locator('.app-solitaire .sol-card.dragging').count(), 0);
+    });
+
     await test('hint: H highlights a legal move', async () => {
       await T('load', POS);
       await s.page.locator('.app-solitaire .sol-table').focus();
@@ -931,6 +980,22 @@ async function uiTests() {
       publish(await d.shot('solitaire-help-fr'), 'solitaire-help-fr');
       await d.page.keyboard.press('Escape');
     });
+    await test('fr/dark: win cascade and dialog', async () => {
+      await H2.T('load', NEAR_WIN);
+      await H2.T('setElapsed', 140000);
+      await d.page.waitForTimeout(200);
+      await d.page.click('.app-solitaire .sol-auto');
+      for (let i = 0; i < 60 && !(await H2.T('cascading')); i++) await d.page.waitForTimeout(100);
+      await d.page.waitForTimeout(3500);
+      publish(await d.shot('solitaire-win-cascade-dark'), 'solitaire-win-cascade-dark');
+      await d.page.keyboard.press('Space');
+      await d.page.waitForSelector('.app-solitaire .dialog-title:has-text("Vous avez gagné !")', { timeout: 5000 });
+      await d.page.waitForTimeout(400);
+      publish(await d.shot('solitaire-win-dialog-dark-fr'), 'solitaire-win-dialog-dark-fr');
+      await d.page.click('.app-solitaire .dialog-footer .btn:not(.primary)');
+      await d.page.waitForTimeout(300);
+    });
+
     await test('fr/dark: no renderer errors', async () => {
       const errs = solErrors(d);
       assert.equal(errs.length, 0, errs.join('\n'));

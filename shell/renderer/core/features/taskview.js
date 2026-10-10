@@ -656,6 +656,7 @@ export function exit(selected = null, { desktop = null, then = null, instant = f
     s.root.remove();
     s.backdrop.remove();
     document.body.classList.remove('tv-on');
+    wm.focused()?.focusContent(); // the chrome had the keyboard; hand it back to the active window
     if (tv === s) tv = null;
     try {
       then?.();

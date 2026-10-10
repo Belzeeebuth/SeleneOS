@@ -83,9 +83,9 @@
   font-size: 15px;
   color: var(--accent-text);
   pointer-events: none;
-  animation: t-float 760ms var(--ease) forwards;
+  animation: g2048-float 760ms var(--ease) forwards;
 }
-@keyframes t-float {
+@keyframes g2048-float {
   from {
     opacity: 1;
     transform: translateY(6px);
@@ -161,18 +161,18 @@
   z-index: 2;
 }
 .app-game2048 .t-tile.new > span {
-  animation: t-appear 200ms var(--ease) 110ms both;
+  animation: g2048-appear 200ms var(--ease) 110ms both;
 }
 .app-game2048 .t-tile.merged > span {
-  animation: t-pop 220ms var(--ease-spring) 100ms both;
+  animation: g2048-pop 220ms var(--ease-spring) 100ms both;
 }
-@keyframes t-appear {
+@keyframes g2048-appear {
   from {
     opacity: 0;
     transform: scale(0.2);
   }
 }
-@keyframes t-pop {
+@keyframes g2048-pop {
   0% {
     transform: scale(0.6);
   }

@@ -45,7 +45,9 @@
 //     wm.on('drag-end', (win, { x, y, zone }))  wm.on('titlebar-menu', (win, event))
 //     wm.on('max-hover', (win, button))  wm.on('max-leave', (win, button))
 //   wm.dragSnapOverride       -> zone a feature (snap bar) wants a drag to end in, or null
+//   wm.snapEnabled            -> edge snapping while dragging (default on)
 //   wm.shakeToMinimize        -> Aero shake (shake a title bar to minimise the other windows); default off
+//   (features/snaplayouts.js drives both from settings 'multitasking.snap' / 'multitasking.shake')
 //   Focus inside <webview>/<iframe>: such focus changes never reach the shell document as focusin, so the
 //   wm watches window 'blur' + document.activeElement and focuses the owning window. Apps need nothing extra.
 import { Emitter } from './api.js';
@@ -642,7 +644,7 @@ class Win extends Emitter {
       this.y = Math.round(ny);
       this._apply();
       wm.emit('drag-move', this, { x: ev.clientX, y: ev.clientY });
-      if (this.opts.resizable) {
+      if (this.opts.resizable && wm.snapEnabled !== false) {
         zone = wm.dragSnapOverride || snapZone(ev.clientX, ev.clientY, wa);
         wm._showSnapPreview(zone, this);
       }
@@ -846,6 +848,7 @@ class WindowManager extends Emitter {
     this.desktops = [{ id: 'd1', name: null }];
     this.currentDesktop = 'd1';
     this.dragSnapOverride = null;
+    this.snapEnabled = true;
     this.shakeToMinimize = false;
     this._shaken = null;
   }

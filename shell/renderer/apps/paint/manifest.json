@@ -1,0 +1,16 @@
+{
+  "id": "paint",
+  "name": { "en": "Paint", "fr": "Paint" },
+  "description": { "en": "Draw, edit and annotate pictures", "fr": "Dessiner, retoucher et annoter des images" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1180, "height": 760, "minWidth": 560, "minHeight": 420, "titlebar": "tall", "background": "mica" },
+  "category": "productivity",
+  "keywords": {
+    "en": ["draw", "drawing", "image", "picture", "photo", "brush", "sketch", "mspaint", "edit"],
+    "fr": ["dessin", "dessiner", "image", "photo", "pinceau", "croquis", "retoucher", "peinture"]
+  },
+  "fileTypes": [".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"],
+  "singleInstance": false
+}

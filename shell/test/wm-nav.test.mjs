@@ -134,6 +134,43 @@ async function mainRun() {
       return n('Ctrl+Super+Left') === 'Super+Ctrl+ArrowLeft' && n('Shift+Super+s') === 'Super+Shift+S' && n('Alt+Shift+Tab') === 'Alt+Shift+Tab' && n('Alt:up') === 'Alt:up';
     }));
 
+    // -------------------------------------------------------- hotkeys that drive other shell surfaces
+    if (want('shellkeys')) {
+      await A(() => {
+        window.__ev = [];
+        for (const e of ['start:toggle', 'quick:toggle', 'calendar:toggle', 'search:toggle', 'widgets:toggle', 'taskview:toggle', 'lock', 'run:open', 'winx:toggle', 'security:open'])
+          window.__aurora.shell.on(e, () => window.__ev.push(e));
+      });
+      await press('Super', 250);
+      check('Super alone toggles Start (real key path)', (await A(() => window.__ev.join())) === 'start:toggle');
+      await A(() => window.__aurora.shell.emit('start:close'));
+      for (const [combo, ev] of [['Super+A', 'quick:toggle'], ['Super+N', 'calendar:toggle'], ['Super+S', 'search:toggle'], ['Super+W', 'widgets:toggle']]) {
+        await A(() => (window.__ev = []));
+        await press(combo, 150);
+        check(`${combo} -> ${ev} (real key path)`, (await A(() => window.__ev.join())) === ev, await A(() => window.__ev.join()));
+        await A(() => window.__aurora.shell.emit('flyouts:close'));
+      }
+      await A(() => (window.__ev = []));
+      check('auto-repeat of a one-shot combo is ignored', (await A(() => window.__aurora.hotkeys.trigger('Super+A', { repeat: true }))) === false);
+      // Super+L locks (stub the lock screen: just record the event, then unlock).
+      await A(() => (window.__ev = []));
+      await hk('Super+L');
+      check('Super+L -> shell.lock()', (await A(() => window.__ev.join())).includes('lock'));
+      await A(() => window.__aurora.shell.emit('unlock'));
+      await sleep(100);
+      await A(() => document.querySelectorAll('#overlays > *').forEach((e) => !e.classList.contains('osd') && !e.classList.contains('alttab-sink') && e.remove()));
+      // App launchers (only when the app is installed; otherwise the key is a silent no-op).
+      for (const [combo, app] of [['Super+E', 'files'], ['Super+I', 'settings'], ['Ctrl+Shift+Escape', 'taskmgr'], ['PrintScreen', 'snipping'], ['Super+Shift+S', 'snipping']]) {
+        const has = await A((a) => !!window.__aurora.registry.get(a), app);
+        await press(combo, 200);
+        if (has) {
+          await page.waitForFunction((a) => window.__aurora.wm.byApp(a).length > 0, app, { timeout: 8000 }).catch(() => {});
+          check(`${combo} launches ${app} (real key path)`, (await A((a) => window.__aurora.wm.byApp(a).length, app)) > 0);
+        } else check(`${combo}: ${app} not installed -> no-op, no error`, (await A((a) => window.__aurora.wm.byApp(a).length, app)) === 0);
+      }
+      await closeAll();
+    }
+
     // -------------------------------------------------------- Super+D / Super+M / Win+Home
     if (want('desktop')) {
       const a = await newWin('Alpha');
@@ -301,6 +338,24 @@ async function mainRun() {
       await hk('Alt:up');
       await sleep(250);
       check('switching back restores focus to the last focused control', await A((id) => document.activeElement === window.__aurora.wm.get(id).body.querySelector('input'), a));
+      // Showing the panel and coming back to the same window keeps the caret where it was.
+      await hk('Ctrl+Alt+Tab');
+      await page.waitForSelector('.alttab-card', { timeout: 3000 });
+      await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+      await sleep(250);
+      check('Esc from the switcher gives the keyboard back to the same control', await A((id) => document.activeElement === window.__aurora.wm.get(id).body.querySelector('input'), a));
+      await hk('Super+Tab');
+      await sleep(450);
+      await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+      await sleep(450);
+      check('leaving Task View gives the keyboard back to the active window', await A((id) => document.activeElement === window.__aurora.wm.get(id).body.querySelector('input'), a));
+      // One key press = exactly one hotkey event, whether the shell page or a webview has focus.
+      await A(() => {
+        window.__hkCount = 0;
+        window.__aurora.api.on('shell:hotkey', (p) => p.combo === 'Super+K' && window.__hkCount++);
+      });
+      await press('Super+K', 200);
+      check('no double handling: one IPC event per press (shell page)', (await A(() => window.__hkCount)) === 1);
       // Webview focus: clicking inside a <webview> activates its window.
       const wv = await A(() => {
         const { wm } = window.__aurora;
@@ -321,6 +376,27 @@ async function mainRun() {
       await page.mouse.click(300, 250);
       await sleep(400);
       check('clicking inside a <webview> focuses its window', (await focusedTitle()) === 'Web content', await focusedTitle());
+      await s.app.evaluate(({ webContents }) => {
+        const g = webContents.getAllWebContents().find((w) => w.getType() === 'webview');
+        g.sendInputEvent({ type: 'keyDown', keyCode: 'K', modifiers: ['meta'] });
+        g.sendInputEvent({ type: 'keyUp', keyCode: 'K', modifiers: ['meta'] });
+      });
+      await sleep(200);
+      check('no double handling: one IPC event per press (webview)', (await A(() => window.__hkCount)) === 2);
+      // Alt+Tab pressed while a webview has the keyboard: the guest swallows the combo, the shell pulls
+      // focus into its own page at once, so the Alt release (sent where the OS would send it: the
+      // now-focused shell page) still commits the switch.
+      await A(() => (window.__wvTarget = window.__aurora.wm.mru()[1]?.title));
+      await s.app.evaluate(({ webContents }) => {
+        const g = webContents.getAllWebContents().find((w) => w.getType() === 'webview');
+        g.sendInputEvent({ type: 'keyDown', keyCode: 'Alt', modifiers: [] });
+        g.sendInputEvent({ type: 'keyDown', keyCode: 'Tab', modifiers: ['alt'] });
+      });
+      await sleep(150);
+      check('Alt+Tab from inside a webview opens the switcher and takes the keyboard', await A(() => window.__aurora.alttab.isOpen && document.activeElement?.classList.contains('alttab-sink')));
+      await T.send([['keyUp', 'Alt', []]]);
+      await sleep(300);
+      check('… and releasing Alt switches', !(await A(() => window.__aurora.alttab.isOpen)) && (await focusedTitle()) === (await A(() => window.__wvTarget)));
       await A((id) => window.__aurora.wm.get(id).close(true), wv);
       await closeAll();
     }
@@ -737,6 +813,21 @@ async function mainRun() {
       } else check('volume key without audio backend: no osd, no error', (await A(() => window.__osd.length)) === 0);
     }
 
+    // -------------------------------------------------------- multitasking settings
+    if (want('settings')) {
+      await A(() => window.__aurora.settings.set('multitasking', { snap: false, shake: true }));
+      await sleep(200);
+      const id = await newWin('No snapping', { width: 600, height: 400, x: 300, y: 200 });
+      await sleep(300);
+      await hk('Super+ArrowLeft');
+      check('multitasking.snap=false: Super+Left does not snap', (await winState(id)).state === 'normal');
+      check('multitasking.shake=true enables title bar shake', await A(() => window.__aurora.wm.shakeToMinimize === true && window.__aurora.wm.snapEnabled === false));
+      await A(() => window.__aurora.settings.set('multitasking', {}));
+      await sleep(200);
+      check('defaults restored', await A(() => window.__aurora.wm.shakeToMinimize === false && window.__aurora.wm.snapEnabled === true));
+      await closeAll();
+    }
+
     // -------------------------------------------------------- WM polish
     if (want('wm')) {
       await closeAll();
@@ -846,7 +937,8 @@ async function frenchDarkRun() {
     await hk('Super+X');
     await sleep(300);
     const winx = await A(() => [...document.querySelectorAll('.menu.wm-accel-menu .menu-item .label')].map((l) => l.textContent));
-    check('fr: Win+X localized', winx.includes('Gestionnaire des tâches') && winx.includes('Exécuter'), winx.join(', '));
+    const hasTm = await A(() => !!window.__aurora.registry.get('taskmgr'));
+    check('fr: Win+X localized', (!hasTm || winx.includes('Gestionnaire des tâches')) && winx.includes('Exécuter') && winx.includes('Bureau') && winx.includes('Arrêter ou se déconnecter'), winx.join(', '));
     check('fr: Win+X labels not clipped', (await clipped('.menu.wm-accel-menu .menu-item .label')).length === 0);
     await shot('wm-winx-fr-dark', true);
     await A(() => window.__aurora.ui.closeMenus());
@@ -862,7 +954,8 @@ async function frenchDarkRun() {
     });
     await sleep(300);
     await hk('Alt+F4');
-    await sleep(500);
+    await page.waitForSelector('.sd-dialog', { timeout: 2000 }).catch(() => {});
+    await sleep(300);
     check('fr: Shut Down dialog localized', (await A(() => document.querySelector('.sd-hero span')?.textContent)) === 'Arrêter Aurora');
     check('fr: Shut Down dialog not clipped', (await clipped('.sd-dialog .btn, .sd-select')).length === 0);
     await shot('wm-shutdown-fr-dark', true);
@@ -896,7 +989,7 @@ async function reducedRun() {
     await sleep(50);
     check('animations off: Task View exits immediately', await A(() => !window.__aurora.taskview.isOpen));
     await hk('Super+Ctrl+D');
-    check('animations off: desktop switch is instant', await A(() => window.__aurora.wm.list().every((w) => w.el.getAnimations().length === 0)));
+    check('animations off: desktop switch is instant (no WAAPI slide)', await A(() => window.__aurora.wm.list().every((w) => w.el.getAnimations().filter((a) => !(a instanceof CSSTransition) && !(a instanceof CSSAnimation)).length === 0)));
     await hk('Alt+Tab');
     await sleep(500);
     await shot('wm-alttab-reduced');

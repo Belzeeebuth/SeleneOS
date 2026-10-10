@@ -40,6 +40,7 @@ export default {
     let boardH = 0;
     let colors = {};
     let swipe = null;
+    let lastOver = { reason: 'wall', record: false };
 
     // ---------------------------------------------------------------- DOM
     const newBtn = kit.button({ icon: 'add', label: t('gk.newGame'), tip: `${t('gk.newGame')} (F2)`, onClick: () => newGame(), id: 'new', collapsible: true });
@@ -167,17 +168,20 @@ export default {
       pauseReason = reason;
       playedMs += performance.now() - playStart;
       updatePauseBtn();
+      showPaused();
+      draw(performance.now());
+    }
+    function showPaused() {
       overlay.show({
         kind: 'paused',
         icon: 'pause',
         title: t('paused.title'),
-        text: reason === 'auto' ? t('paused.auto') : t('paused.text'),
+        text: pauseReason === 'auto' ? t('paused.auto') : t('paused.text'),
         actions: [
           { label: t('paused.resume'), primary: true, id: 'resume', onClick: () => start() },
           { label: t('gk.newGame'), id: 'restart', onClick: () => newGame() },
         ],
       });
-      draw(performance.now());
     }
     function togglePause() {
       if (state === 'running') pause();
@@ -194,21 +198,20 @@ export default {
       bestChip.classList.remove('record');
       updatePauseBtn();
       if (game.won) kit.confetti(boardWrap);
-      setTimeout(
-        () => {
-          if (state !== 'over') return;
-          overlay.show({
-            kind: 'over',
-            icon: game.won ? 'trophy' : 'emoji_sad',
-            tone: game.won ? 'success' : 'danger',
-            title: game.won ? t('over.wonTitle') : t('over.title'),
-            badge: record ? t('gk.newRecord') : null,
-            text: [t('over.score', { score: kit.fmtNum(game.score) }), t(`over.reason.${game.won ? 'won' : reason}`)].join('\n'),
-            actions: [{ label: t('gk.playAgain'), primary: true, id: 'again', onClick: () => newGame() }],
-          });
-        },
-        reduceMotion() ? 50 : 650,
-      );
+      lastOver = { reason, record };
+      setTimeout(() => state === 'over' && showOver(), reduceMotion() ? 50 : 650);
+    }
+    function showOver() {
+      const { reason, record } = lastOver;
+      overlay.show({
+        kind: 'over',
+        icon: game.won ? 'trophy' : 'emoji_sad',
+        tone: game.won ? 'success' : 'danger',
+        title: game.won ? t('over.wonTitle') : t('over.title'),
+        badge: record ? t('gk.newRecord') : null,
+        text: [t('over.score', { score: kit.fmtNum(game.score) }), t(`over.reason.${game.won ? 'won' : reason}`)].join('\n'),
+        actions: [{ label: t('gk.playAgain'), primary: true, id: 'again', onClick: () => newGame() }],
+      });
     }
     function doStep(now) {
       const ev = step(game);
@@ -717,10 +720,8 @@ export default {
       updatePauseBtn();
       updateChips();
       if (state === 'ready') showReady();
-      else if (state === 'paused') {
-        state = 'running';
-        pause(pauseReason);
-      }
+      else if (state === 'paused') showPaused();
+      else if (state === 'over' && overlay.visible) showOver();
     });
     win.onBeforeClose(async () => {
       recordIfPlayed();

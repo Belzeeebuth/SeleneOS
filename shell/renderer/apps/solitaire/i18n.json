@@ -20,8 +20,6 @@
     "scoring.standard": "Standard scoring",
     "scoring.vegas": "Vegas scoring",
     "scoring.none": "No scoring",
-    "passesLeft_one": "{count} pass left",
-    "passesLeft_other": "{count} passes left",
     "table.label": "Solitaire table",
     "table.desc": "Use the arrow keys or Tab to move between piles, Enter or Space to pick up and drop cards, Shift+Enter to send a card to its best place, H for a hint, Ctrl+Z to undo.",
     "noMoves": "No more moves. Undo or start a new game.",
@@ -140,7 +138,8 @@
     "help.kColumn": "Jump to a column, or drop the cards you hold on it",
     "help.kCancel": "Cancel the selection",
     "error.title": "Solitaire",
-    "error.save": "Your game couldn't be saved: {msg}"
+    "error.save": "Your game couldn't be saved: {msg}",
+    "passOf": "Pass {n} of {total}"
   },
   "fr": {
     "newGame": "Nouvelle partie",
@@ -163,8 +162,6 @@
     "scoring.standard": "Score standard",
     "scoring.vegas": "Score Vegas",
     "scoring.none": "Sans score",
-    "passesLeft_one": "{count} passage restant",
-    "passesLeft_other": "{count} passages restants",
     "table.label": "Table de solitaire",
     "table.desc": "Utilisez les flèches ou Tab pour passer d'une pile à l'autre, Entrée ou Espace pour prendre et poser des cartes, Maj+Entrée pour envoyer une carte au meilleur endroit, H pour un indice, Ctrl+Z pour annuler.",
     "noMoves": "Plus aucun coup possible. Annulez ou commencez une nouvelle partie.",
@@ -283,6 +280,7 @@
     "help.kColumn": "Aller à une colonne, ou y poser les cartes tenues",
     "help.kCancel": "Annuler la sélection",
     "error.title": "Solitaire",
-    "error.save": "Impossible d'enregistrer la partie : {msg}"
+    "error.save": "Impossible d'enregistrer la partie : {msg}",
+    "passOf": "Passage {n} sur {total}"
   }
 }

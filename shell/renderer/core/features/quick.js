@@ -581,13 +581,14 @@ function refreshPage() {
 function focusPath(el, rootEl) {
   const key = el.closest('[data-key]')?.dataset.key;
   const all = [...rootEl.querySelectorAll('button, input')];
-  return { key, idx: all.indexOf(el), cls: el.className };
+  return { key, idx: all.indexOf(el), cls: el.className, inList: !!el.closest('.qs-net-list') };
 }
 function restoreFocus(rootEl, f) {
   const cls = String(f.cls || '').split(' ')[0];
   let el = f.key && cls ? rootEl.querySelector(`[data-key="${f.key}"] .${CSS.escape(cls)}`) : null;
-  // Inside the network list keep focus on the expanded network rather than a random control.
+  // Inside the network list keep focus on the expanded (or newly connected) network.
   if (!el) el = rootEl.querySelector('.qs-net.expanded input, .qs-net.expanded .btn.primary, .qs-net.expanded .qs-net-head');
+  if (!el && f.inList) el = rootEl.querySelector('.qs-net.active .qs-net-head, .qs-net .qs-net-head');
   if (!el) el = [...rootEl.querySelectorAll('button, input')][f.idx];
   el?.focus({ preventScroll: true });
 }

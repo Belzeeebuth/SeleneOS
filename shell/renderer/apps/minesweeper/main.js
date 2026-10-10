@@ -58,7 +58,9 @@ export default {
     let cellSize = 0;
     let fittedFor = '';
     let firstFit = true;
+    let minimizedAt = 0;
     let overlayTimer = 0;
+    let card = null; // re-renders the visible end-of-game card (language switch)
     const mouse = { left: false, right: false, middle: false, chord: false, suppress: false, hover: null };
 
     // ---------------------------------------------------------------- DOM
@@ -92,7 +94,7 @@ export default {
     }
     function elapsedMs() {
       if (!game) return 0;
-      if (game.status === 'playing') return performance.now() - timerStart;
+      if (game.status === 'playing') return (minimizedAt || performance.now()) - timerStart;
       return finalMs;
     }
     function setFace(kind) {
@@ -120,6 +122,7 @@ export default {
 
     // ---------------------------------------------------------------- game lifecycle
     function newGame() {
+      minimizedAt = 0;
       clearTimeout(overlayTimer);
       overlay.hide();
       clearInterval(timerId);
@@ -326,21 +329,22 @@ export default {
       recordResult(false, finalMs);
       updateCounters();
       clearTimeout(overlayTimer);
-      overlayTimer = setTimeout(
-        () =>
-          overlay.show({
-            kind: 'lost',
-            icon: 'emoji_sad',
-            tone: 'danger',
-            title: t('lost.title'),
-            text: t('lost.text'),
-            actions: [
-              { label: t('gk.playAgain'), primary: true, id: 'again', onClick: () => requestNewGame() },
-              { label: t('viewBoard'), id: 'dismiss', onClick: () => (overlay.hide(), board.focus({ preventScroll: true })) },
-            ],
-          }),
-        reduceMotion() ? 200 : 700 + Math.min(maxDelay, 600),
-      );
+      card = () =>
+        overlay.show({
+          kind: 'lost',
+          icon: 'emoji_sad',
+          tone: 'danger',
+          title: t('lost.title'),
+          text: t('lost.text'),
+          actions: endActions(),
+        });
+      overlayTimer = setTimeout(card, reduceMotion() ? 200 : 700 + Math.min(maxDelay, 600));
+    }
+    function endActions() {
+      return [
+        { label: t('gk.playAgain'), primary: true, id: 'again', onClick: () => requestNewGame() },
+        { label: t('viewBoard'), id: 'dismiss', onClick: () => (overlay.hide(), board.focus({ preventScroll: true })) },
+      ];
     }
 
     function winGame() {
@@ -355,22 +359,17 @@ export default {
       updateCounters();
       kit.confetti(stage);
       clearTimeout(overlayTimer);
-      overlayTimer = setTimeout(
-        () =>
-          overlay.show({
-            kind: 'won',
-            art: h('span', { html: faceSvg('cool') }),
-            tone: 'success',
-            title: t('won.title'),
-            badge: rank === 0 && s.won > 0 ? t('gk.newRecord') : null,
-            text: [t('won.text', { time: kit.fmtTime(finalMs) }), s.bestTimes[0] ? t('won.best', { time: kit.fmtTime(s.bestTimes[0].ms) }) : ''].filter(Boolean).join('\n'),
-            actions: [
-              { label: t('gk.playAgain'), primary: true, id: 'again', onClick: () => requestNewGame() },
-              { label: t('viewBoard'), id: 'dismiss', onClick: () => (overlay.hide(), board.focus({ preventScroll: true })) },
-            ],
-          }),
-        reduceMotion() ? 200 : 900,
-      );
+      card = () =>
+        overlay.show({
+          kind: 'won',
+          art: h('span', { html: faceSvg('cool') }),
+          tone: 'success',
+          title: t('won.title'),
+          badge: rank === 0 && s.won > 0 ? t('gk.newRecord') : null,
+          text: [t('won.text', { time: kit.fmtTime(finalMs) }), s.bestTimes[0] ? t('won.best', { time: kit.fmtTime(s.bestTimes[0].ms) }) : ''].filter(Boolean).join('\n'),
+          actions: endActions(),
+        });
+      overlayTimer = setTimeout(card, reduceMotion() ? 200 : 900);
     }
 
     // ---------------------------------------------------------------- mouse & touch
@@ -625,6 +624,21 @@ export default {
     });
     win.on('maximize', () => requestAnimationFrame(layout));
     win.on('restore', () => requestAnimationFrame(layout));
+    // Like Windows 7 Minesweeper, the clock stops while the window is minimised.
+    win.on('minimize', () => {
+      if (game?.status !== 'playing' || !timerId) return;
+      minimizedAt = performance.now();
+      clearInterval(timerId);
+      timerId = 0;
+    });
+    win.on('restore', () => {
+      if (!minimizedAt) return;
+      if (game?.status === 'playing') {
+        timerStart += performance.now() - minimizedAt;
+        timerId = setInterval(updateCounters, 250);
+      }
+      minimizedAt = 0;
+    });
 
     // ---------------------------------------------------------------- menus & dialogs
     async function openDifficultyMenu(anchor) {
@@ -805,6 +819,7 @@ export default {
       board.setAttribute('aria-label', t('boardLabel'));
       paintCursor();
       bar.refit();
+      if (overlay.visible && card) card();
       fittedFor = '';
       requestAnimationFrame(() => {
         fittedFor = `${spec.cols}x${spec.rows}`;
@@ -832,6 +847,9 @@ export default {
       },
       get cellSize() {
         return cellSize;
+      },
+      get elapsed() {
+        return elapsedMs();
       },
       newGame: () => newGame(),
       // Places mines explicitly (before the first click) for reproducible UI tests.

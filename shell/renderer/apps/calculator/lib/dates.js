@@ -6,8 +6,9 @@ export const MAX_YEAR = 9999;
 
 /** A calendar date as a UTC midnight Date. */
 export function ymd(y, m, d) {
-  const dt = new Date(Date.UTC(2000, m - 1, d));
-  dt.setUTCFullYear(y);
+  // setUTCFullYear(y, m, d) resolves day/month overflow in the target year and supports years < 100
+  const dt = new Date(Date.UTC(2000, 0, 1));
+  dt.setUTCFullYear(y, m - 1, d);
   return dt;
 }
 

@@ -74,6 +74,25 @@ const env = {
 let mainWindow = null;
 const ipc = createIpc({ env, getMainWindow: () => mainWindow, RENDERER, ROOT, DEV });
 
+function screenBounds() {
+  const { screen } = require('electron');
+  const { x, y, width, height } = screen.getPrimaryDisplay().bounds;
+  return { x, y, width, height };
+}
+
+// Keep the shell window on the whole primary display when the resolution or monitors change.
+function followScreen(win) {
+  const { screen } = require('electron');
+  const fit = () => {
+    if (win.isDestroyed()) return;
+    const b = screenBounds();
+    const cur = win.getBounds();
+    if (cur.x !== b.x || cur.y !== b.y || cur.width !== b.width || cur.height !== b.height) win.setBounds(b);
+  };
+  for (const ev of ['display-metrics-changed', 'display-added', 'display-removed']) screen.on(ev, () => setTimeout(fit, 50));
+  win.once('ready-to-show', fit);
+}
+
 function createWindow() {
   const opts = {
     show: false,
@@ -96,11 +115,15 @@ function createWindow() {
     opts.width = SIZE[0] || 1600;
     opts.height = SIZE[1] || 900;
   } else {
+    // No window manager runs under the shell (it *is* the window manager), so nothing would
+    // honour a fullscreen request: cover the primary display explicitly and follow it.
+    Object.assign(opts, screenBounds());
     opts.fullscreen = true;
     opts.kiosk = true;
   }
   mainWindow = new BrowserWindow(opts);
   mainWindow.setMenu(null);
+  if (!DEV) followScreen(mainWindow);
   const page = MODE === 'greeter' ? 'greeter.html' : 'shell.html';
   mainWindow.loadURL(`app://shell/${page}`);
   mainWindow.once('ready-to-show', () => mainWindow.show());

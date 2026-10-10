@@ -423,7 +423,6 @@ await test('manifests, i18n (EN+FR complete), icons and shared kit copies', () =
   }
 });
 
-const unitFailed = results.filter((r) => !r.ok).length;
 if (UNIT_ONLY) finish();
 
 // =====================================================================================
@@ -528,6 +527,16 @@ if (want('minesweeper')) {
       assert.ok((await page.locator(`${W} .ms-cell.open`).count()) >= st.revealed);
       await sleep(1100);
       assert.ok(Number(await page.locator(`${W} [data-id="time"] .gk-chip-value`).textContent()) >= 1, 'timer runs');
+      // The clock stops while the window is minimised.
+      await page.evaluate(() => window.__aurora.wm.byApp('minesweeper')[0].minimize());
+      const t0 = await page.evaluate(() => document.querySelector('[data-app="minesweeper"]').__minesweeper.elapsed);
+      await sleep(1200);
+      const t1 = await page.evaluate(() => document.querySelector('[data-app="minesweeper"]').__minesweeper.elapsed);
+      assert.ok(Math.abs(t1 - t0) < 50, `paused while minimised (${t0} -> ${t1})`);
+      await page.evaluate(() => window.__aurora.wm.byApp('minesweeper')[0].restoreFromMinimize());
+      await sleep(600);
+      const t2 = await page.evaluate(() => document.querySelector('[data-app="minesweeper"]').__minesweeper.elapsed);
+      assert.ok(t2 > t1 + 300 && t2 < t1 + 1100, `resumes after restore (${t1} -> ${t2})`);
     });
 
     await test('right-click cycles flag -> question -> none and updates the mine counter', async () => {
@@ -1316,6 +1325,8 @@ if (!ONLY.length || ONLY.includes('fr')) {
       assert.equal(await page.locator('[data-app="game2048"] [data-id="undo"] .gk-btn-label').textContent(), 'Undo');
       assert.equal(await page.locator('[data-app="snake"] [data-id="best"] .gk-chip-label').textContent(), 'Best');
       assert.equal(await page.locator('[data-app="minesweeper"] [data-id="difficulty"] .gk-btn-label').textContent(), 'Beginner');
+      assert.equal(await page.locator('[data-app="snake"] .gk-overlay-title').textContent(), 'Paused', 'visible overlay re-translated');
+      assert.equal(await page.evaluate(() => document.querySelector('[data-app="snake"]').__snake.state), 'paused');
       const bg = await page.evaluate(() => getComputedStyle(document.querySelector('[data-app="game2048"] .t-board')).backgroundColor);
       assert.equal(bg, 'rgb(207, 217, 230)', 'light board palette applied');
       await page.evaluate(() => window.__aurora.wm.byApp('game2048')[0].maximize());
@@ -1350,4 +1361,3 @@ function finish() {
   for (const f of failed) console.log(`  - ${f.name}`);
   process.exit(failed.length ? 1 : 0);
 }
-void unitFailed;

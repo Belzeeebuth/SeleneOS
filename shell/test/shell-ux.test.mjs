@@ -2,7 +2,7 @@
 // OSD, widgets, desktop icons, theme switching — in light/dark and English/French.
 //
 //   cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/shell-ux.test.mjs
-//   options: --quick (one locale/theme)  --docs (also copy the best screenshots to docs/screenshots)
+//   options: --quick (one locale/theme)  --unit (unit checks only)  --docs (copy the best screenshots to docs/screenshots)
 //
 // The system backends (net:*, audio:*, display:*, power:battery) belong to another area; when they
 // are missing (or to get deterministic screenshots) the test installs a realistic in-renderer mock
@@ -12,6 +12,7 @@ import path from 'node:path';
 import { launchShell, OUT } from './lib.mjs';
 
 const QUICK = process.argv.includes('--quick');
+const UNIT_ONLY = process.argv.includes('--unit');
 const DOCS = process.argv.includes('--docs');
 const DOCS_DIR = path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'docs', 'screenshots');
 
@@ -224,6 +225,40 @@ async function unitTests() {
     await sleep(300);
     const wk2 = await s.aurora(() => [...document.querySelectorAll('.cal-weekdays span')].map((x) => x.textContent));
     check(wk2[0] === 'Su', `English calendar weeks start on Sunday (${wk2.join(' ')})`);
+    // Every string used by this area exists in English and French.
+    const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'renderer', 'core');
+    const files = ['taskbar.js', 'start.js', 'desktop.js', 'notify.js', 'features/quick.js', 'features/calendar.js', 'features/search.js', 'features/osd.js', 'features/widgets.js'];
+    const keys = new Set();
+    for (const f of files) {
+      const src = fs.readFileSync(path.join(root, f), 'utf8');
+      for (const m of src.matchAll(/\bt\('([a-zA-Z0-9_.]+)'/g)) keys.add(m[1]);
+    }
+    for (const c of ['all', 'apps', 'documents', 'settings', 'web', 'bestMatch']) keys.add(`search.${c}`);
+    const missing = await s.aurora(async (list) => {
+      const { i18n } = window.__aurora;
+      const out = [];
+      for (const lang of ['en', 'fr']) {
+        i18n.setLang(lang);
+        for (const k of list) {
+          const v = i18n.t(k, { count: 2, q: 'x', app: 'x', name: 'x', value: 1, percent: 1, time: 'x', n: 1, h: 1, m: 1, letter: 'A', msg: 'x', user: 'x' });
+          if (v === k) out.push(`${lang}:${k}`);
+        }
+      }
+      i18n.setLang('en');
+      return out;
+    }, [...keys]);
+    check(missing.length === 0, `all ${keys.size} UI strings exist in EN and FR${missing.length ? ` (missing: ${missing.join(', ')})` : ''}`);
+    const frSame = await s.aurora(async () => {
+      const { i18n } = window.__aurora;
+      const keys = ['quick.nightLight', 'cal.clearAll', 'search.bestMatch', 'start.searchPlaceholder', 'desktop.sortBy', 'widgets.notes'];
+      i18n.setLang('en');
+      const en = keys.map((k) => i18n.t(k));
+      i18n.setLang('fr');
+      const fr = keys.map((k) => i18n.t(k));
+      i18n.setLang('en');
+      return keys.filter((k, i) => en[i] === fr[i]);
+    });
+    check(frSame.length === 0, `French strings are actually translated (${frSame.join(', ')})`);
     check(myErrors(s).length === 0, `no renderer errors (unit) ${myErrors(s).join(' | ')}`);
   } finally {
     await s.close();
@@ -408,6 +443,24 @@ async function scenario(theme, lang) {
     await sleep(300);
     check(!(await flyState(s)).quick, `[${tag}] second Esc closes quick settings`);
 
+    // ---- Toast
+    if (tag === 'light-en' || tag === 'dark-fr') {
+      await s.aurora((fr) => {
+        window.__aurora.notify({
+          appId: 'winver',
+          title: fr ? 'Capture d’écran enregistrée' : 'Screenshot saved',
+          body: fr ? 'Votre capture a été enregistrée dans Images.' : 'Your screenshot was saved to Pictures.',
+          silent: true,
+          timeout: 4000,
+          actions: [{ label: fr ? 'Ouvrir' : 'Open' }, { label: fr ? 'Ignorer' : 'Dismiss' }],
+        });
+      }, lang === 'fr');
+      await sleep(700);
+      await shot(s, `toast-${tag}`, docName('shell-toast', tag));
+      await s.aurora(() => window.__aurora.notifications.clear());
+      await sleep(400);
+    }
+
     // ---- Notifications + calendar
     await s.aurora(() => {
       const { notify } = window.__aurora;
@@ -590,7 +643,7 @@ async function scenario(theme, lang) {
     // ---- theme switch cross-fade + transparency
     const other = theme === 'light' ? 'dark' : 'light';
     await s.aurora((m) => window.__aurora.settings.set('theme', m), other);
-    await sleep(1300);
+    await sleep(2000);
     const th = await s.aurora(() => ({ mode: document.documentElement.dataset.theme, layers: document.querySelectorAll('.wallpaper-layer').length, wp: getComputedStyle(document.querySelector('.wallpaper-layer')).backgroundImage }));
     check(th.mode === other && th.layers === 1 && th.wp.includes(`bloom-${other}`), `[${tag}] theme switch swaps the wallpaper with a cross-fade (${JSON.stringify(th)})`);
     await s.aurora(() => window.__aurora.settings.set('transparency', false));
@@ -611,7 +664,7 @@ async function scenario(theme, lang) {
 // ------------------------------------------------------------------------------------------ main
 fs.mkdirSync(OUT, { recursive: true });
 await unitTests();
-const combos = QUICK ? [['light', 'en']] : [['light', 'en'], ['dark', 'fr'], ['dark', 'en'], ['light', 'fr']];
+const combos = UNIT_ONLY ? [] : QUICK ? [['light', 'en']] : [['light', 'en'], ['dark', 'fr'], ['dark', 'en'], ['light', 'fr']];
 for (const [theme, lang] of combos) await scenario(theme, lang);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

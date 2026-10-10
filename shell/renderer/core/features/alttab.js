@@ -396,8 +396,11 @@ function commit() {
   if (!state) return;
   const s = teardown();
   const win = s.list[s.index];
-  if (win && !win._closing && wm.get(win.id)) win.focus();
-  else s.prevFocus?.focusContent?.();
+  const target = win && !win._closing && wm.get(win.id) ? win : s.prevFocus && wm.get(s.prevFocus.id) ? s.prevFocus : null;
+  if (!target) return;
+  target.focus();
+  // focus() is a no-op for the already active window: put the keyboard back explicitly.
+  setTimeout(() => wm.focused() === target && target.focusContent(), 0);
 }
 
 function cancel() {

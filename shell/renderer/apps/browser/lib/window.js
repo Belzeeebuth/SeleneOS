@@ -206,10 +206,9 @@ export class BrowserWindowCtl {
   restoreTabs(state) {
     const list = (state.tabs || []).filter((x) => x?.url);
     if (!list.length) return this.newTab();
-    list.forEach((x, i) => {
-      const active = i === Math.min(state.active ?? 0, list.length - 1);
-      this.createTab({ lazy: { url: x.url, title: x.title }, active, animate: false });
-    });
+    const activeIdx = Math.min(Math.max(0, state.active ?? 0), list.length - 1);
+    const tabs = list.map((x) => this.createTab({ lazy: { url: x.url, title: x.title }, active: false, activateIfNone: false, animate: false }));
+    this.activate(tabs[activeIdx]);
   }
 
   sessionState() {
@@ -290,7 +289,7 @@ export class BrowserWindowCtl {
     return this.createTab({ ...opts, url, active: opts.active !== false });
   }
 
-  createTab({ url, lazy, active = true, index, opener, animate = true, focusOmni = false, openedByScript = false } = {}) {
+  createTab({ url, lazy, active = true, index, opener, animate = true, focusOmni = false, openedByScript = false, activateIfNone = true } = {}) {
     const tab = {
       id: `t${++tabSeq}`,
       entries: [],
@@ -327,7 +326,7 @@ export class BrowserWindowCtl {
     }, animate ? tab.el : null);
     if (!lazy && url) this.navigate(tab, url, { initial: true });
     this.updateTabEl(tab);
-    if (active || !this.active) this.activate(tab, { focusOmni });
+    if (active || (!this.active && activateIfNone)) this.activate(tab, { focusOmni });
     this.saveSession();
     return tab;
   }
@@ -629,8 +628,8 @@ export class BrowserWindowCtl {
       for (let j = 0; j < rects.length; j++) {
         if (j === from) continue;
         const mid = rects[j].left + rects[j].width / 2;
-        if (j > from && center > mid) to = Math.max(to, j);
-        if (j < from && center < mid) to = Math.min(to, j);
+        if (j > from && center >= mid - 1) to = Math.max(to, j);
+        if (j < from && center <= mid + 1) to = Math.min(to, j);
       }
       this.tabs.forEach((x, j) => {
         if (x === tab) return;

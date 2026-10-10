@@ -45,8 +45,9 @@ const textOpts = (sys, fe = false) => ({
 /** Feed a token sequence ("12.5 + 3 =") to an engine; returns { display, expr, engine }. */
 function feed(seq, { prec = STD_PREC, sys = decimalSystem(), fe = false, engine } = {}) {
   const e = engine || new Engine(sys, { prec });
+  const CMDS = new Set(['C', 'CE', 'BS', '=', '%', '(', ')', '.', 'neg', 'exp', 'pi', 'e']);
   for (const tok of seq.split(/\s+/).filter(Boolean)) {
-    if (/^-?[0-9A-F]+(\.[0-9]*)?$/.test(tok) && tok !== '-') {
+    if (!CMDS.has(tok) && !(tok in OPS) && /^-?[0-9A-F]+(\.[0-9]*)?$/.test(tok)) {
       for (const ch of tok) ch === '.' ? e.decimal() : ch === '-' ? null : e.digit(ch);
       if (tok.startsWith('-')) e.negate();
     } else if (tok === '.') e.decimal();
@@ -61,6 +62,7 @@ function feed(seq, { prec = STD_PREC, sys = decimalSystem(), fe = false, engine 
     else if (tok === 'neg') e.negate();
     else if (tok === 'exp') e.exp();
     else if (tok === 'pi' || tok === 'e') e.constant(tok, CONSTANTS[tok]);
+    else if (tok === 'epow') e.unary('exp');
     else e.unary(tok);
   }
   const s = e.sys;
@@ -169,8 +171,8 @@ function part1() {
     ['8 logy 2 =', '3'],
     ['1000 log', '3'],
     ['0.001 log', '-3'],
-    ['2 log', '0.301029995663981'],
-    ['100 ln', '4.60517018598809'],
+    ['2 log', '0.3010299956639812'],
+    ['100 ln', '4.605170185988091'],
     ['e ln', '1'],
     ['0 ln', 'ERR:invalid'],
     ['5 fact', '120'],
@@ -178,6 +180,10 @@ function part1() {
     ['20 fact', '2.43290200817664e+18'],
     ['3 neg fact', 'ERR:invalid'],
     ['0.5 fact', '0.886226925452758'],
+    ['1.5 fact', '1.329340388179137'],
+    ['0.5 neg fact', '1.772453850905516'],
+    ['1.5 neg fact', '-3.544907701811032'],
+    ['0.3 fact', '0.8974706963062772'],
     ['3249 fact', 'ERR:overflow'],
     ['2 exp 3 =', '2,000'],
     ['2 exp 3 neg =', '0.002'],
@@ -195,10 +201,28 @@ function part1() {
     ['30.3 degrees', '30.5'],
     ['10 pow 10000 =', 'ERR:overflow'],
     ['1 / 3 =', '0.3333333333333333'],
-    ['1 sinh', '1.1752011936438'],
+    ['1 sinh', '1.175201193643801'],
     ['0 cosh', '1'],
-    ['2 acosh', '1.31695789692482'],
+    ['2 acosh', '1.316957896924817'],
     ['1 atanh', 'ERR:invalid'],
+    // references computed independently with Python's decimal module (correctly rounded to 16 digits)
+    ['2 ln', '0.6931471805599453'],
+    ['10 ln', '2.302585092994046'],
+    ['0.5 ln', '-0.6931471805599453'],
+    ['2 epow', '7.38905609893065'],
+    ['1 neg epow', '0.3678794411714423'],
+    ['1000 epow', '1.970071114017047e+434'],
+    ['0.001 epow', '1.001000500166708'],
+    ['3 log', '0.4771212547196624'],
+    ['0.5 pow10', '3.162277660168379'],
+    ['2 pow 0.3 =', '1.231144413344916'],
+    ['2 pow 100.5 =', '1.792728671193156e+30'],
+    ['3 pow 1.1 =', '3.348369522101713'],
+    ['10 pow 0.123 =', '1.32739445772974'],
+    ['1.5 pow 2.5 =', '2.755675960631075'],
+    ['7 root 2.5 =', '2.17790642448278'],
+    ['2 logy 3 =', '0.6309297535714574'],
+    ['50 logy 7 =', '2.010382137801854'],
   ];
   for (const [seq, disp, ex] of SCI) {
     const r = feed(seq, { prec: SCI_PREC });
@@ -226,11 +250,23 @@ function part1() {
     ['deg', '90 sec', 'ERR:invalid'],
     ['rad', 'pi sin', '0'],
     ['rad', 'pi cos', '-1'],
-    ['rad', '1 sin', '0.841470984807897'],
-    ['rad', '1 asin', '1.5707963267949'],
+    ['rad', '1 sin', '0.8414709848078965'],
+    ['rad', '1 asin', '1.570796326794897'],
     ['grad', '100 sin', '1'],
     ['grad', '50 tan', '1'],
     ['grad', '1 asin', '100'],
+    // independent Taylor-series references (Python decimal, 70 digits)
+    ['rad', '1 cos', '0.5403023058681397'],
+    ['rad', '1 tan', '1.557407724654902'],
+    ['rad', '1 atan', '0.7853981633974483'],
+    ['rad', '10 sin', '-0.5440211108893698'],
+    ['deg', '37 sin', '0.6018150231520483'],
+    ['deg', '1000 cos', '0.1736481776669303'],
+    ['deg', '89 tan', '57.28996163075942'],
+    ['deg', '2 atan', '63.43494882292201'],
+    ['deg', '0.3 asin', '17.45760312372209'],
+    ['deg', '0.3 acos', '72.54239687627791'],
+    ['grad', '50 sin', '0.7071067811865475'],
   ];
   for (const [angle, seq, disp] of TRIG) check(`scientific ${angle}: ${seq}`, feed(seq, { prec: SCI_PREC, sys: decimalSystem({ angle }) }).display, disp);
   check('scientific F-E: 123', feed('123 =', { prec: SCI_PREC, fe: true }).display, '1.23e+2');
@@ -309,7 +345,7 @@ function part1() {
     ['temperature', 'f', 'c', '-40', '-40'],
     ['temperature', 'k', 'f', '0', '-459.67'],
     ['temperature', 'f', 'c', '98.6', '37'],
-    ['length', 'km', 'mi', '1', '0.6213711922373339'],
+    ['length', 'km', 'mi', '1', '0.621371192237334'],
     ['length', 'mi', 'km', '1', '1.609344'],
     ['length', 'in', 'cm', '1', '2.54'],
     ['length', 'ft', 'm', '1', '0.3048'],

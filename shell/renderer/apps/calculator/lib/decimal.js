@@ -2,8 +2,7 @@
 // Provides the entry-editing rules (16-digit limit, decimal point, "exp" exponent entry), the binary
 // operators and every unary function shown on the keypad.
 import { Num, ZERO, ONE, PI, E, CalcError, iroot, pow10, bitLen } from './num.js';
-
-const LN10 = Math.LN10;
+import { lnNum, log10Num, expNum, powReal, trigRad, inverseTrigRad, hyperbolic, gammaNum, LN10_NUM } from './hp.js';
 
 // ---------------------------------------------------------------- entry editing
 // Entry grammar (canonical, independent of the UI locale):  -?  int  (. frac)?  (e [+-] digits)?
@@ -56,22 +55,8 @@ export function makeEntryOps(maxDigits = 16) {
 }
 
 // ---------------------------------------------------------------- real helpers
-
-/** 10^t for a double t, valid far beyond the double range (|t| <= 10000). */
-export function pow10Real(t) {
-  if (!Number.isFinite(t)) throw new CalcError(Number.isNaN(t) ? 'invalid' : 'overflow');
-  if (Math.abs(t) > 10000) throw new CalcError('overflow');
-  if (Math.abs(t) < 300) return Num.fromDouble(10 ** t);
-  const k = Math.floor(t);
-  const m = 10 ** (t - k);
-  return Num.parse(`${m.toPrecision(15)}e${k}`);
-}
-
-function lnNum(x) {
-  const d = x.toNumber();
-  if (d > 1e-300 && d < 1e300) return Math.log(d);
-  return x.log10Approx() * LN10;
-}
+// Transcendental functions use the 60-digit fixed-point routines of hp.js; exact rational paths are
+// kept wherever possible (integer powers, perfect roots, exact angle reduction in DEG/GRAD).
 
 /** k-th root (k >= 1 integer) with ~40 significant digits; exact for perfect powers. */
 export function nthRoot(x, k) {
@@ -84,14 +69,14 @@ export function nthRoot(x, k) {
   const rn = iroot(a.n, k);
   const rd = iroot(a.d, k);
   if (rn ** K === a.n && rd ** K === a.d) return Num.make(neg ? -rn : rn, rd);
+  let res;
   if (k > 64 || bitLen(a.d) * k > 120000) {
-    const r = pow10Real(a.log10Approx() / k);
-    return neg ? r.neg() : r;
+    res = powReal(a, Num.frac(1, k));
+  } else {
+    const P = 40 + Math.max(0, Math.ceil(-a.log10Approx() / k));
+    const N = a.n * a.d ** (K - 1n) * pow10(P * k);
+    res = Num.make(iroot(N, k), a.d * pow10(P)).approx(40);
   }
-  const P = 40 + Math.max(0, Math.ceil(-a.log10Approx() / k));
-  const N = a.n * a.d ** (K - 1n) * pow10(P * k);
-  const r = iroot(N, k);
-  const res = Num.make(r, a.d * pow10(P)).approx(40);
   return neg ? res.neg() : res;
 }
 
@@ -113,15 +98,8 @@ export function power(a, b) {
     neg = b.n % 2n !== 0n;
   }
   const base = a.abs();
-  let r;
   const p = b.n < 0n ? -b.n : b.n;
-  if (b.d <= 64n && p <= 64n) {
-    r = nthRoot(base, Number(b.d)).powInt(b.n);
-  } else {
-    const t = b.toNumber() * base.log10Approx();
-    if (Math.abs(t) < 300) r = Num.fromDouble(base.toNumber() ** b.toNumber());
-    else r = pow10Real(t);
-  }
+  const r = b.d <= 64n && p <= 64n ? nthRoot(base, Number(b.d)).powInt(b.n) : powReal(base, b);
   return neg ? r.neg() : r;
 }
 
@@ -141,7 +119,7 @@ export function root(a, b) {
 
 export function logBase(a, b) {
   if (a.sign <= 0 || b.sign <= 0 || b.eq(ONE)) throw new CalcError('invalid');
-  return Num.fromDouble(lnNum(a) / lnNum(b));
+  return lnNum(a).div(lnNum(b)).approx(40);
 }
 
 function isPow10(x) {
@@ -149,33 +127,6 @@ function isPow10(x) {
   const s = (x.d === 1n ? x.n : x.n === 1n ? x.d : -1n).toString();
   if (!/^10*$/.test(s)) return null;
   return x.d === 1n ? s.length - 1 : -(s.length - 1);
-}
-
-function expE(x) {
-  if (x.isZero()) return ONE;
-  if (x.eq(ONE)) return E;
-  const d = x.toNumber();
-  if (Math.abs(d) < 690) return Num.fromDouble(Math.exp(d));
-  return pow10Real(d / LN10);
-}
-
-// Lanczos approximation (g = 7) – double precision Γ and ln Γ.
-const LG = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
-function gamma(z) {
-  if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
-  z -= 1;
-  let x = LG[0];
-  for (let i = 1; i < 9; i++) x += LG[i] / (z + i);
-  const t = z + 7.5;
-  return Math.sqrt(2 * Math.PI) * t ** (z + 0.5) * Math.exp(-t) * x;
-}
-function lnGamma(z) {
-  // z > 0.5
-  z -= 1;
-  let x = LG[0];
-  for (let i = 1; i < 9; i++) x += LG[i] / (z + i);
-  const t = z + 7.5;
-  return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
 }
 
 export function factorial(x) {
@@ -187,10 +138,7 @@ export function factorial(x) {
     for (let i = 2n; i <= n; i++) r *= i;
     return Num.make(r, 1n);
   }
-  const z = x.toNumber() + 1;
-  if (z > 171) return pow10Real(lnGamma(z) / LN10);
-  if (z < -170) throw new CalcError('overflow');
-  return Num.fromDouble(gamma(z));
+  return gammaNum(x.add(1));
 }
 
 // ---------------------------------------------------------------- trigonometry
@@ -204,15 +152,14 @@ function quarterIndex(x, angle) {
 }
 
 function toRadians(x, angle) {
-  if (angle === 'rad') return x.toNumber();
+  if (angle === 'rad') return x;
   const full = angle === 'deg' ? 360 : 400;
-  const r = x.mod(Num.of(full));
-  return (r.toNumber() * Math.PI) / (full / 2);
+  return x.mod(Num.of(full)).mul(PI).div(full / 2); // exact reduction, then convert
 }
 
 function fromRadians(r, angle) {
-  if (angle === 'deg') return (r * 180) / Math.PI;
-  if (angle === 'grad') return (r * 200) / Math.PI;
+  if (angle === 'deg') return r.mul(180).div(PI).approx(40);
+  if (angle === 'grad') return r.mul(200).div(PI).approx(40);
   return r;
 }
 
@@ -224,11 +171,7 @@ function trig(name, x, angle) {
     if (k % 2) throw new CalcError('invalid');
     return ZERO;
   }
-  const rad = toRadians(x, angle);
-  if (!Number.isFinite(rad)) throw new CalcError('invalid');
-  let v = name === 'sin' ? Math.sin(rad) : name === 'cos' ? Math.cos(rad) : Math.tan(rad);
-  if (Math.abs(v) < 1e-15 && Math.abs(rad) > 1e-6) v = 0;
-  return Num.fromDouble(v);
+  return trigRad(name, toRadians(x, angle));
 }
 
 function recipOrInvalid(v) {
@@ -237,43 +180,11 @@ function recipOrInvalid(v) {
 }
 
 function inverseTrig(name, x, angle) {
-  const d = x.toNumber();
-  let r;
-  if (name === 'asin' || name === 'acos') {
-    if (Math.abs(d) > 1) throw new CalcError('invalid');
-    r = name === 'asin' ? Math.asin(d) : Math.acos(d);
-  } else r = Math.atan(d);
-  return Num.fromDouble(fromRadians(r, angle));
+  return fromRadians(inverseTrigRad(name, x), angle);
 }
 
 function hyper(name, x) {
-  const d = x.toNumber();
-  let v;
-  switch (name) {
-    case 'sinh':
-      v = Math.sinh(d);
-      break;
-    case 'cosh':
-      v = Math.cosh(d);
-      break;
-    case 'tanh':
-      v = Math.tanh(d);
-      break;
-    case 'asinh':
-      v = Math.asinh(d);
-      break;
-    case 'acosh':
-      if (d < 1) throw new CalcError('invalid');
-      v = Math.acosh(d);
-      break;
-    case 'atanh':
-      if (Math.abs(d) >= 1) throw new CalcError('invalid');
-      v = Math.atanh(d);
-      break;
-    default:
-      throw new CalcError('invalid');
-  }
-  return Num.fromDouble(v);
+  return hyperbolic(name, x);
 }
 
 function dms(x) {
@@ -352,21 +263,18 @@ export function unaryDec(name, x, angle = 'deg') {
     case 'cbrt':
       return nthRoot(x, 3);
     case 'pow10':
-      return x.isInt() ? Num.of(10).powInt(x.toBigInt()) : pow10Real(x.toNumber());
+      return x.isInt() ? Num.of(10).powInt(x.toBigInt()) : expNum(x.mul(LN10_NUM));
     case 'pow2':
       return power(Num.of(2), x);
     case 'exp':
-      return expE(x);
+      return x.eq(ONE) ? E : expNum(x);
     case 'ln':
-      if (x.sign <= 0) throw new CalcError('invalid');
-      if (x.eq(ONE)) return ZERO;
-      return Num.fromDouble(lnNum(x));
+      return lnNum(x);
     case 'log': {
       if (x.sign <= 0) throw new CalcError('invalid');
       const k = isPow10(x);
       if (k !== null) return Num.of(k);
-      const d = x.toNumber();
-      return Num.fromDouble(d > 1e-300 && d < 1e300 ? Math.log10(d) : x.log10Approx());
+      return log10Num(x);
     }
     case 'fact':
       return factorial(x);
@@ -402,7 +310,7 @@ export function unaryDec(name, x, angle = 'deg') {
     case 'acsc':
       return inverseTrig('asin', recipOrInvalid(x), angle);
     case 'acot':
-      if (x.isZero()) return Num.fromDouble(fromRadians(Math.PI / 2, angle));
+      if (x.isZero()) return fromRadians(PI.div(2), angle);
       return inverseTrig('atan', ONE.div(x), angle);
     case 'sinh':
     case 'cosh':

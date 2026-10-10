@@ -76,7 +76,7 @@ const RIGHT_SIDE = { right: 'left', tr: 'tl', br: 'bl' };
 function snapKey(dir) {
   const w = wm.focused();
   if (!w || w.minimized || w.fullscreen) return;
-  const canSnap = w.opts.resizable;
+  const canSnap = w.opts.resizable && settings.get('multitasking.snap') !== false;
   const z = w.state === 'snapped' ? w.snap : w.state;
   if (dir === 'left' || dir === 'right') {
     if (!canSnap) return;
@@ -90,7 +90,7 @@ function snapKey(dir) {
   if (dir === 'up') {
     const up = { left: 'tl', right: 'tr', bl: 'left', br: 'right' };
     if (canSnap && z in up) w.snapTo(up[z], { source: 'keyboard' });
-    else if (w.state !== 'maximized' && w.opts.maximizable && canSnap) w.maximize();
+    else if (w.state !== 'maximized' && w.opts.maximizable && w.opts.resizable) w.maximize();
     return;
   }
   // down

@@ -480,9 +480,9 @@ export function createChrome(app) {
       class: ['pt-sw', !color && 'empty'],
       'data-tip': color ? `${name} (${color.toUpperCase()})` : t('colors.emptySlot'),
       'aria-label': color ? `${name} ${color}` : t('colors.emptySlot'),
-      style: color ? { '--c': color } : null,
       dataset: { color: color || '', custom: custom ? String(index) : '' },
     });
+    if (color) b.style.setProperty('--c', color);
     b.addEventListener('click', () => {
       if (color) app.setColor(S.slot, color);
       else app.cmd('editColors');
