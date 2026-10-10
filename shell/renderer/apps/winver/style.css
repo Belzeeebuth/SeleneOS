@@ -1,0 +1,5 @@
+.winver { padding: 28px 32px; display: flex; flex-direction: column; gap: 14px; height: 100%; }
+.winver-brand { display: flex; align-items: center; gap: 16px; }
+.winver-brand img { width: 64px; height: 64px; }
+.winver hr { width: 100%; }
+.winver .footer { margin-top: auto; display: flex; justify-content: flex-end; }

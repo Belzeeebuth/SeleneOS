@@ -1,0 +1,8 @@
+node_modules/
+/out/
+/work/
+/cache/
+*.iso
+*.qcow2
+*.img
+/shell/test/out/

@@ -1,0 +1,180 @@
+/* Aurora design tokens — Fluent / Windows 11 inspired.
+   Theme is selected with <html data-theme="light|dark">, transparency with
+   data-transparency="on|off", animations with data-animations="on|off".
+   theme.js sets: --accent, --accent-hover, --accent-pressed, --accent-text,
+   --accent-subtle, --on-accent, --mica-image, --wallpaper. */
+:root {
+  --font: "Segoe UI Variable Text", "Segoe UI", "Inter", "Noto Sans", "DejaVu Sans", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", "Inter Display", "Inter", sans-serif;
+  --font-mono: "Cascadia Code", "Cascadia Mono", "DejaVu Sans Mono", "Noto Sans Mono", monospace;
+  --font-emoji: "Noto Color Emoji", "Segoe UI Emoji", sans-serif;
+
+  --fs-caption: 12px;
+  --fs-body: 14px;
+  --fs-body-large: 18px;
+  --fs-subtitle: 20px;
+  --fs-title: 28px;
+  --fs-title-large: 40px;
+  --fs-display: 68px;
+
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+
+  --ease: cubic-bezier(0.1, 0.9, 0.2, 1); /* decelerate – things arriving */
+  --ease-in: cubic-bezier(0.7, 0, 1, 0.5); /* accelerate – things leaving */
+  --ease-std: cubic-bezier(0.33, 0, 0.67, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 83ms;
+  --dur: 167ms;
+  --dur-slow: 250ms;
+  --dur-slower: 333ms;
+
+  --taskbar-h: 48px;
+  --titlebar-h: 32px;
+  --titlebar-tall-h: 44px;
+
+  --accent: #005fb8;
+  --accent-hover: #1a6fc0;
+  --accent-pressed: #2a77c0;
+  --accent-text: #003e92;
+  --accent-subtle: rgba(0, 95, 184, 0.12);
+  --on-accent: #ffffff;
+
+  --danger: #c42b1c;
+  --danger-bg: #fde7e9;
+  --success: #0f7b0f;
+  --success-bg: #dff6dd;
+  --warning: #9d5d00;
+  --warning-bg: #fff4ce;
+  --info-bg: rgba(246, 246, 246, 0.5);
+  --close-hover: #c42b1c;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --text: rgba(0, 0, 0, 0.896);
+  --text-2: rgba(0, 0, 0, 0.606);
+  --text-3: rgba(0, 0, 0, 0.446);
+  --text-disabled: rgba(0, 0, 0, 0.361);
+
+  --bg: #f3f3f3;
+  --bg-alt: #eeeeee;
+  --mica-tint: rgba(243, 243, 243, 0.86);
+  --mica-tint-alt: rgba(232, 232, 232, 0.86);
+  --solid: #f9f9f9;
+  --layer: rgba(255, 255, 255, 0.5);
+  --layer-alt: rgba(255, 255, 255, 0.7);
+  --card: rgba(255, 255, 255, 0.7);
+  --card-hover: rgba(249, 249, 249, 0.5);
+  --card-solid: #fbfbfb;
+  --control: rgba(255, 255, 255, 0.7);
+  --control-hover: rgba(249, 249, 249, 0.5);
+  --control-pressed: rgba(249, 249, 249, 0.3);
+  --control-disabled: rgba(249, 249, 249, 0.3);
+  --control-strong: rgba(0, 0, 0, 0.446);
+  --control-stroke: rgba(0, 0, 0, 0.0578);
+  --control-stroke-bottom: rgba(0, 0, 0, 0.1622);
+  --stroke: rgba(0, 0, 0, 0.0803);
+  --stroke-strong: rgba(0, 0, 0, 0.1);
+  --stroke-card: rgba(0, 0, 0, 0.0578);
+  --subtle-hover: rgba(0, 0, 0, 0.0373);
+  --subtle-pressed: rgba(0, 0, 0, 0.0241);
+  --subtle-selected: rgba(0, 0, 0, 0.0373);
+  --input-bg: rgba(255, 255, 255, 0.7);
+  --input-focus-bg: #ffffff;
+  --acrylic: rgba(252, 252, 252, 0.85);
+  --acrylic-solid: #f9f9f9;
+  --acrylic-strong: rgba(243, 243, 243, 0.9);
+  --taskbar-bg: rgba(238, 238, 238, 0.82);
+  --scrim: rgba(0, 0, 0, 0.3);
+  --shadow-flyout: 0 8px 16px rgba(0, 0, 0, 0.14);
+  --shadow-dialog: 0 32px 64px rgba(0, 0, 0, 0.1876), 0 2px 21px rgba(0, 0, 0, 0.1474);
+  --shadow-window: 0 32px 64px rgba(0, 0, 0, 0.1876), 0 2px 21px rgba(0, 0, 0, 0.1474);
+  --shadow-window-inactive: 0 16px 32px rgba(0, 0, 0, 0.12), 0 2px 10px rgba(0, 0, 0, 0.08);
+  --shadow-tooltip: 0 4px 8px rgba(0, 0, 0, 0.14);
+  --window-stroke: rgba(0, 0, 0, 0.1);
+  --scrollbar: rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --text: #ffffff;
+  --text-2: rgba(255, 255, 255, 0.786);
+  --text-3: rgba(255, 255, 255, 0.544);
+  --text-disabled: rgba(255, 255, 255, 0.363);
+
+  --bg: #202020;
+  --bg-alt: #1c1c1c;
+  --mica-tint: rgba(32, 32, 32, 0.84);
+  --mica-tint-alt: rgba(26, 26, 26, 0.86);
+  --solid: #272727;
+  --layer: rgba(58, 58, 58, 0.3);
+  --layer-alt: rgba(255, 255, 255, 0.0538);
+  --card: rgba(255, 255, 255, 0.0512);
+  --card-hover: rgba(255, 255, 255, 0.0837);
+  --card-solid: #2b2b2b;
+  --control: rgba(255, 255, 255, 0.0605);
+  --control-hover: rgba(255, 255, 255, 0.0837);
+  --control-pressed: rgba(255, 255, 255, 0.0326);
+  --control-disabled: rgba(255, 255, 255, 0.0419);
+  --control-strong: rgba(255, 255, 255, 0.544);
+  --control-stroke: rgba(255, 255, 255, 0.0698);
+  --control-stroke-bottom: rgba(255, 255, 255, 0.0465);
+  --stroke: rgba(255, 255, 255, 0.0837);
+  --stroke-strong: rgba(255, 255, 255, 0.12);
+  --stroke-card: rgba(0, 0, 0, 0.1);
+  --subtle-hover: rgba(255, 255, 255, 0.0605);
+  --subtle-pressed: rgba(255, 255, 255, 0.0419);
+  --subtle-selected: rgba(255, 255, 255, 0.0605);
+  --input-bg: rgba(255, 255, 255, 0.0605);
+  --input-focus-bg: rgba(30, 30, 30, 0.7);
+  --acrylic: rgba(44, 44, 44, 0.86);
+  --acrylic-solid: #2c2c2c;
+  --acrylic-strong: rgba(32, 32, 32, 0.92);
+  --taskbar-bg: rgba(28, 28, 28, 0.84);
+  --scrim: rgba(0, 0, 0, 0.3);
+  --shadow-flyout: 0 8px 16px rgba(0, 0, 0, 0.26);
+  --shadow-dialog: 0 32px 64px rgba(0, 0, 0, 0.56), 0 2px 21px rgba(0, 0, 0, 0.55);
+  --shadow-window: 0 32px 64px rgba(0, 0, 0, 0.56), 0 2px 21px rgba(0, 0, 0, 0.55);
+  --shadow-window-inactive: 0 16px 32px rgba(0, 0, 0, 0.37), 0 2px 10px rgba(0, 0, 0, 0.37);
+  --shadow-tooltip: 0 4px 8px rgba(0, 0, 0, 0.26);
+  --window-stroke: rgba(255, 255, 255, 0.08);
+  --scrollbar: rgba(255, 255, 255, 0.5);
+
+  --danger: #ff99a4;
+  --danger-bg: #442726;
+  --success: #6ccb5f;
+  --success-bg: #393d1b;
+  --warning: #fce100;
+  --warning-bg: #433519;
+  --info-bg: rgba(255, 255, 255, 0.0326);
+}
+
+/* Transparency off: every translucent surface becomes opaque, no blur. */
+:root[data-transparency="off"] {
+  --mica-image: none !important;
+}
+:root[data-transparency="off"][data-theme="light"] {
+  --mica-tint: #f3f3f3;
+  --mica-tint-alt: #e8e8e8;
+  --acrylic: #f9f9f9;
+  --acrylic-strong: #f3f3f3;
+  --taskbar-bg: #eeeeee;
+}
+:root[data-transparency="off"][data-theme="dark"] {
+  --mica-tint: #202020;
+  --mica-tint-alt: #1a1a1a;
+  --acrylic: #2c2c2c;
+  --acrylic-strong: #202020;
+  --taskbar-bg: #1c1c1c;
+}
+:root[data-animations="off"] *,
+:root[data-animations="off"] *::before,
+:root[data-animations="off"] *::after {
+  animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
+  transition-duration: 1ms !important;
+  transition-delay: 0ms !important;
+}

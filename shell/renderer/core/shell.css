@@ -1,0 +1,821 @@
+/* Aurora shell chrome: desktop, windows, taskbar, start menu, toasts. */
+body {
+  background: var(--bg);
+}
+#desktop,
+#windows,
+#toasts,
+#flyouts,
+#overlays {
+  position: fixed;
+  inset: 0;
+}
+#windows,
+#toasts,
+#flyouts,
+#overlays {
+  pointer-events: none;
+}
+#windows > *,
+#toasts > *,
+#flyouts > *,
+#overlays > * {
+  pointer-events: auto;
+}
+#windows {
+  bottom: var(--taskbar-h);
+  z-index: 10;
+}
+#start {
+  z-index: 3000;
+}
+#flyouts {
+  z-index: 3000;
+}
+#toasts {
+  z-index: 4000;
+}
+#taskbar {
+  z-index: 3500;
+}
+#overlays {
+  z-index: 9000;
+}
+.wm-dragging webview,
+.wm-dragging iframe,
+.wm-dragging .win-body {
+  pointer-events: none !important;
+}
+.wm-dragging {
+  cursor: default;
+}
+
+/* ---------------- Desktop ---------------- */
+.wallpaper {
+  position: absolute;
+  inset: 0;
+  background-color: #1f3b6e;
+  background-image: var(--wallpaper), linear-gradient(135deg, #2b5cae 0%, #6aa7e8 60%, #c9e4f8 100%);
+  background-size: cover;
+  background-position: center;
+  transition: background-image 0.6s ease;
+}
+:root[data-theme="dark"] .wallpaper {
+  background-image: var(--wallpaper), linear-gradient(135deg, #07142e 0%, #1a3a7a 60%, #2c5aa0 100%);
+}
+.desk-icons {
+  position: absolute;
+  inset: 4px 4px calc(var(--taskbar-h) + 4px) 4px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(auto-fill, 98px);
+  grid-auto-columns: 82px;
+  gap: 4px 2px;
+  align-content: start;
+}
+.desk-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  color: #fff;
+  text-align: center;
+  outline: none;
+}
+.desk-icon:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.desk-icon.selected {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.desk-icon img,
+.desk-icon > .icon {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+.desk-icon img.thumb {
+  object-fit: cover;
+  border-radius: 3px;
+  border: 2px solid #fff;
+}
+.desk-icon .folder-icon {
+  color: #f2c55c;
+}
+.desk-icon .file-icon {
+  color: #f3f3f3;
+}
+.desk-label {
+  font-size: 12px;
+  line-height: 15px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+.desk-icon.selected .desk-label {
+  -webkit-line-clamp: 5;
+}
+.desk-band {
+  position: absolute;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ---------------- Windows ---------------- */
+.win {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-window-inactive);
+  overflow: hidden;
+  color: var(--text);
+  background-color: var(--bg);
+  transition: box-shadow var(--dur) linear;
+  contain: layout;
+}
+.win.bg-mica {
+  background: linear-gradient(var(--mica-tint), var(--mica-tint)), var(--mica-image, none) center / cover fixed, var(--bg);
+}
+.win.bg-mica-alt {
+  background: linear-gradient(var(--mica-tint-alt), var(--mica-tint-alt)), var(--mica-image, none) center / cover fixed, var(--bg-alt);
+}
+.win.bg-solid {
+  background: var(--solid);
+}
+.win.bg-transparent {
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+}
+.win.active {
+  box-shadow: var(--shadow-window);
+}
+.win.maximized,
+.win.snapped {
+  border-radius: 0;
+}
+.win.maximized {
+  border: 0;
+}
+.win.minimized {
+  visibility: hidden;
+  pointer-events: none !important;
+}
+.win.fullscreen {
+  position: fixed;
+  inset: 0 !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  border-radius: 0;
+  border: 0;
+}
+.win.fullscreen > .win-titlebar,
+.win.fullscreen > .win-resize {
+  display: none;
+}
+.win-titlebar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: var(--titlebar-h);
+  flex: none;
+  padding-left: 12px;
+  gap: 8px;
+}
+.win.tb-tall .win-titlebar {
+  height: var(--titlebar-tall-h);
+}
+.win-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.win-title {
+  font-size: var(--fs-caption);
+  color: var(--text);
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.win:not(.active) .win-title,
+.win:not(.active) .win-icon {
+  opacity: 0.55;
+}
+.win-tb-slot {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.win-controls {
+  display: flex;
+  align-self: flex-start;
+  height: var(--titlebar-h);
+  flex: none;
+  margin-left: auto;
+}
+.win-controls.floating {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 20;
+}
+.win-ctl {
+  width: 46px;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  transition: background var(--dur-fast) linear;
+}
+.win:not(.active) .win-ctl {
+  color: var(--text-3);
+}
+.win-ctl svg {
+  width: 10px;
+  height: 10px;
+}
+.win-ctl:hover {
+  background: var(--subtle-hover);
+}
+.win-ctl:active {
+  background: var(--subtle-pressed);
+}
+.win-ctl.win-close:hover {
+  background: var(--close-hover);
+  color: #fff;
+}
+.win-ctl.win-close:active {
+  background: color-mix(in srgb, var(--close-hover) 80%, transparent);
+  color: rgba(255, 255, 255, 0.8);
+}
+.win-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.win-resize {
+  position: absolute;
+  z-index: 10;
+}
+.win.maximized .win-resize {
+  display: none;
+}
+.r-n {
+  top: -3px;
+  left: 8px;
+  right: 8px;
+  height: 7px;
+  cursor: ns-resize;
+}
+.r-s {
+  bottom: -3px;
+  left: 8px;
+  right: 8px;
+  height: 7px;
+  cursor: ns-resize;
+}
+.r-e {
+  right: -3px;
+  top: 8px;
+  bottom: 8px;
+  width: 7px;
+  cursor: ew-resize;
+}
+.r-w {
+  left: -3px;
+  top: 8px;
+  bottom: 8px;
+  width: 7px;
+  cursor: ew-resize;
+}
+.r-ne {
+  right: -3px;
+  top: -3px;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
+.r-nw {
+  left: -3px;
+  top: -3px;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+.r-se {
+  right: -3px;
+  bottom: -3px;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+.r-sw {
+  left: -3px;
+  bottom: -3px;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
+.snap-preview {
+  position: absolute;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--acrylic) 60%, transparent);
+  border: 1px solid var(--window-stroke);
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-flyout);
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity var(--dur) linear, transform var(--dur-slow) var(--ease), left var(--dur-slow) var(--ease), top var(--dur-slow) var(--ease),
+    width var(--dur-slow) var(--ease), height var(--dur-slow) var(--ease);
+  pointer-events: none !important;
+  z-index: 1;
+}
+.snap-preview.show {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------------- Taskbar ---------------- */
+#taskbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--taskbar-h);
+  display: flex;
+  align-items: center;
+  background: var(--taskbar-bg);
+  border-top: 1px solid var(--window-stroke);
+  backdrop-filter: blur(40px) saturate(160%);
+  transition: transform var(--dur-slow) var(--ease);
+}
+:root[data-transparency="off"] #taskbar,
+:root[data-transparency="off"] .flyout,
+:root[data-transparency="off"] .toast {
+  backdrop-filter: none;
+}
+.tb-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  transition: left var(--dur-slower) var(--ease), transform var(--dur-slower) var(--ease);
+}
+#taskbar.left .tb-center {
+  left: 12px;
+  transform: none;
+}
+.tb-apps {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tb-btn {
+  position: relative;
+  height: 40px;
+  min-width: 40px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  transition: background var(--dur-fast) linear, border-color var(--dur-fast) linear;
+}
+.tb-btn:hover,
+.tb-btn.active.tb-start,
+.tb-btn.open {
+  background: var(--subtle-hover);
+  border-color: var(--control-stroke);
+}
+.tb-btn img {
+  width: 24px;
+  height: 24px;
+  transition: transform var(--dur-slow) var(--ease-spring);
+}
+.tb-btn:hover img {
+  transform: translateY(-1px) scale(1.06);
+}
+.tb-btn.pressed img,
+.tb-btn:active img {
+  transform: scale(0.82);
+  transition-duration: var(--dur-fast);
+}
+.tb-app.running {
+  background: color-mix(in srgb, var(--subtle-hover) 60%, transparent);
+}
+.tb-app.active {
+  background: var(--subtle-hover);
+  border-color: var(--control-stroke);
+}
+.tb-ind {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  width: 0;
+  height: 3px;
+  margin-left: 0;
+  border-radius: 2px;
+  background: var(--text-3);
+  transition: width var(--dur-slow) var(--ease), margin var(--dur-slow) var(--ease), background var(--dur) linear;
+}
+.tb-app.running .tb-ind {
+  width: 6px;
+  margin-left: -3px;
+}
+.tb-app.active .tb-ind {
+  width: 16px;
+  margin-left: -8px;
+  background: var(--accent);
+}
+.tb-app.multi:not(.active) .tb-ind {
+  box-shadow: 4px 0 0 -0px var(--text-3);
+}
+.tb-app.flashing {
+  animation: tb-flash 1s ease-in-out infinite alternate;
+}
+@keyframes tb-flash {
+  to {
+    background: color-mix(in srgb, #f7a600 55%, transparent);
+  }
+}
+.tb-progress {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 1px;
+  height: 3px;
+  border-radius: 2px;
+  display: none;
+  background: linear-gradient(to right, #13a10e var(--p, 0%), transparent var(--p, 0%));
+}
+.tb-app.has-progress .tb-progress {
+  display: block;
+}
+.tb-app.entering {
+  animation: tb-enter var(--dur-slower) var(--ease);
+}
+.tb-app.leaving {
+  animation: tb-leave var(--dur) var(--ease-in) forwards;
+}
+@keyframes tb-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+@keyframes tb-leave {
+  to {
+    opacity: 0;
+    transform: scale(0.5);
+    width: 0;
+    min-width: 0;
+    margin: 0 -2px;
+  }
+}
+.tb-start img {
+  width: 26px;
+  height: 26px;
+}
+.tb-tray {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 2px;
+  padding-right: 0;
+}
+.tb-quick {
+  gap: 10px;
+  padding: 0 10px;
+}
+.tb-clock {
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 0 10px;
+  font-size: var(--fs-caption);
+  line-height: 16px;
+}
+.tb-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  font-weight: 600;
+}
+.tb-showdesk {
+  width: 10px;
+  height: 100%;
+  margin-left: 4px;
+  border-left: 1px solid transparent;
+}
+.tb-showdesk:hover {
+  border-left-color: var(--stroke-strong);
+}
+
+/* ---------------- Flyouts (Start etc.) ---------------- */
+.flyout {
+  position: fixed;
+  background: var(--acrylic);
+  border: 1px solid var(--window-stroke);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-dialog);
+  backdrop-filter: blur(60px) saturate(170%);
+}
+#start {
+  left: 50%;
+  bottom: calc(var(--taskbar-h) + 12px);
+  width: 640px;
+  max-height: calc(100vh - var(--taskbar-h) - 24px);
+  height: 720px;
+  margin-left: -320px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(40px);
+  transition: transform var(--dur-slower) var(--ease), opacity var(--dur) linear, visibility 0s linear var(--dur-slower);
+}
+#taskbar.left ~ #start,
+body.tb-left #start {
+  left: 12px;
+  margin-left: 0;
+}
+#start.open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: transform var(--dur-slower) var(--ease), opacity var(--dur-fast) linear, visibility 0s;
+}
+.start-top {
+  padding: 32px 32px 8px;
+}
+.start-search {
+  width: 100%;
+  height: 36px;
+  border-radius: 18px !important;
+  padding-left: 16px !important;
+}
+.start-body {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 32px 16px;
+}
+.start-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0 8px;
+  padding: 0 4px;
+}
+.start-section-title {
+  font-weight: 600;
+  margin: 12px 4px 8px;
+}
+.start-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  min-height: 200px;
+  align-content: start;
+}
+.start-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  min-width: 0;
+  animation: start-tile-in var(--dur-slower) var(--ease) backwards;
+}
+.start-tile:nth-child(n + 7) {
+  animation-delay: 20ms;
+}
+.start-tile:nth-child(n + 13) {
+  animation-delay: 40ms;
+}
+@keyframes start-tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+.start-tile:hover {
+  background: var(--subtle-hover);
+  border-color: var(--control-stroke);
+}
+.start-tile:active img {
+  transform: scale(0.9);
+}
+.start-tile img {
+  width: 32px;
+  height: 32px;
+  transition: transform var(--dur) var(--ease);
+}
+.start-tile span {
+  max-width: 100%;
+}
+.start-recs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.start-rec,
+.start-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: left;
+  min-width: 0;
+}
+.start-rec:hover,
+.start-row:hover {
+  background: var(--subtle-hover);
+}
+.start-rec .icon {
+  color: var(--accent);
+}
+.start-row img {
+  width: 24px;
+  height: 24px;
+}
+.start-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.start-letter {
+  padding: 8px 12px 2px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.start-rec-empty {
+  padding: 16px 4px;
+}
+.start-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  padding: 0 48px;
+  border-top: 1px solid var(--stroke);
+  background: var(--layer);
+}
+.start-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+.start-user:hover {
+  background: var(--subtle-hover);
+}
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ---------------- Toasts ---------------- */
+#toasts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 0 12px calc(var(--taskbar-h) + 12px) 0;
+}
+.toast {
+  width: 364px;
+  padding: 12px 16px 16px;
+  border-radius: var(--radius);
+  background: var(--acrylic);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-dialog);
+  backdrop-filter: blur(60px) saturate(170%);
+  animation: toast-in var(--dur-slower) var(--ease);
+}
+.toast.leaving {
+  animation: toast-out var(--dur-slow) var(--ease-in) forwards;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(110%);
+  }
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateX(110%);
+  }
+}
+.toast-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  margin-bottom: 8px;
+}
+.toast-img {
+  width: 16px;
+  height: 16px;
+}
+.toast-title {
+  margin-bottom: 2px;
+}
+.toast-body {
+  color: var(--text-2);
+}
+.toast-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.toast-actions .btn {
+  flex: 1;
+}
+.toast-x {
+  opacity: 0;
+}
+.toast:hover .toast-x {
+  opacity: 1;
+}
+
+/* ---------------- UAC ---------------- */
+.uac-dialog {
+  width: 456px;
+}
+.uac-dialog .dialog-body {
+  background: var(--solid);
+}
+.uac-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -24px -24px 16px;
+  padding: 16px 24px;
+  background: color-mix(in srgb, var(--accent) 85%, #000);
+  color: #fff;
+}
+.uac-q {
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle);
+  line-height: 28px;
+  font-weight: 600;
+}
+.uac-app {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}

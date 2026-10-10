@@ -1,0 +1,4 @@
+{
+  "en": { "version": "Version {v}", "build": "Build {b}", "kernel": "Kernel {k}", "license": "Aurora OS is free software built on Ubuntu and Linux. The desktop shell and apps are released under the MIT license. Third-party components keep their own licenses.", "user": "This product is used by:" },
+  "fr": { "version": "Version {v}", "build": "Build {b}", "kernel": "Noyau {k}", "license": "Aurora OS est un logiciel libre basé sur Ubuntu et Linux. Le shell et les applications sont publiés sous licence MIT. Les composants tiers conservent leurs propres licences.", "user": "Ce produit est utilisé par :" }
+}

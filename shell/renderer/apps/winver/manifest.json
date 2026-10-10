@@ -1,0 +1,12 @@
+{
+  "id": "winver",
+  "name": { "en": "About Aurora", "fr": "À propos d'Aurora" },
+  "description": { "en": "Version and license information", "fr": "Informations de version et de licence" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 460, "height": 420, "resizable": false, "maximizable": false, "background": "mica" },
+  "category": "system",
+  "keywords": { "en": ["version", "about", "winver"], "fr": ["version", "à propos"] },
+  "singleInstance": true
+}
