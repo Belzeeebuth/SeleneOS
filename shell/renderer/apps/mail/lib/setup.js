@@ -45,19 +45,49 @@ export class AccountSetup {
 
   swap(node, dir = 'fwd') {
     const { ui } = this.ctx;
+    // Keep keyboard focus inside the setup when the focused control is replaced (otherwise it falls
+    // back to <body>, and Esc / Tab stop working in the settings dialog).
+    const hadFocus = this.el.contains(document.activeElement) || document.activeElement === document.body;
     ui.clear(this.stage);
-    node.classList.add('ml-step', dir === 'back' ? 'enter-back' : 'enter');
+    node.classList.remove('enter', 'enter-back');
+    node.classList.add('ml-step');
+    if (dir !== 'none') node.classList.add(dir === 'back' ? 'enter-back' : 'enter');
+    node.tabIndex = -1;
     this.stage.appendChild(node);
+    if (hadFocus && this.el.isConnected) node.focus({ preventScroll: true });
     // Initial focus, unless the user already moved into the new step.
     setTimeout(() => {
-      if (!node.contains(document.activeElement)) node.querySelector('[autofocus]')?.focus();
+      if (!node.isConnected) return;
+      const a = document.activeElement;
+      if (node.contains(a) && a !== node) return;
+      const target = node.querySelector('[autofocus]:not(:disabled)');
+      if (target) target.focus();
+      else if (this.el.contains(a) || a === document.body) node.focus({ preventScroll: true });
     }, 60);
+  }
+
+  // Language switched: redraw the current step, keeping what was typed and the focused control.
+  relocalize() {
+    if (this.step === 'busy') {
+      this.relocalizeLater = true;
+      return;
+    }
+    const a = document.activeElement;
+    const key = this.stage.contains(a) ? a.getAttribute('name') || a.dataset?.provider || null : null;
+    if (this.step === 'providers') this.showProviders('none');
+    else if (this.step === 'form') {
+      const err = this.errorBox && !this.errorBox.hidden ? this.lastError : null;
+      this.renderForm('none');
+      if (err) this.showError(err.e, err.host);
+    } else if (this.step === 'done' && this.doneAccount) this.showDone(this.doneAccount, 'none');
+    if (key) this.stage.querySelector(`[name="${CSS.escape(key)}"], [data-provider="${CSS.escape(key)}"]`)?.focus();
   }
 
   // ------------------------------------------------------------ step 1: providers
   showProviders(dir) {
     const { h, icon } = this.ctx;
     const t = (k, v) => this.t(k, v);
+    this.step = 'providers';
     const tiles = store.presets.map((p) =>
       h(
         'button',
@@ -115,6 +145,7 @@ export class AccountSetup {
     const { h, icon, ui } = this.ctx;
     const t = (k, v) => this.t(k, v);
     const s = this.state;
+    this.step = 'form';
     const p = this.provider;
     const editing = this.mode === 'edit';
     const field = (label, input, hint) => h('div', { class: 'field' }, h('label', null, label), input, hint ? h('div', { class: 'field-hint' }, hint) : null);
@@ -320,6 +351,7 @@ export class AccountSetup {
 
   showError(e, host) {
     const { h, icon, ui } = this.ctx;
+    this.lastError = { e, host };
     const info = errorText(this.ctx.t, e, host);
     ui.clear(this.errorBox);
     this.errorBox.hidden = false;
@@ -370,6 +402,7 @@ export class AccountSetup {
     const formNode = this.form;
     const busyStep = h('div', { class: 'ml-setup-busy', role: 'status', 'aria-live': 'polite' }, h('div', { class: 'spinner' }), h('div', { class: 'subtitle' }, this.mode === 'edit' ? t('setup.checking') : t('setup.signingIn')), h('div', { class: 'text-2' }, t('setup.connecting', { host: s.imap.host })));
     this.swap(busyStep);
+    this.step = 'busy';
     try {
       const cfg = this.config();
       const test = await api.invoke('mail:testAccount', this.mode === 'edit' ? { ...cfg, id: this.opts.account.id, password: cfg.password || undefined } : cfg);
@@ -397,11 +430,16 @@ export class AccountSetup {
       }
       await store.loadAccounts();
       this.busy = false;
+      this.relocalizeLater = false;
       if (this.mode === 'edit') return this.opts.onDone?.(account);
       this.showDone(account);
     } catch (e) {
       this.busy = false;
-      this.swap(formNode, 'back');
+      this.step = 'form';
+      // The language may have changed while signing in: rebuild the form instead of reusing it.
+      if (this.relocalizeLater) this.renderForm('back');
+      else this.swap(formNode, 'back');
+      this.relocalizeLater = false;
       this.validate();
       this.showError(e, s.imap.host);
     }
@@ -432,9 +470,11 @@ export class AccountSetup {
   }
 
   // ------------------------------------------------------------ step 4: done
-  showDone(account) {
+  showDone(account, dir) {
     const { h, icon } = this.ctx;
     const t = (k, v) => this.t(k, v);
+    this.step = 'done';
+    this.doneAccount = account;
     const done = h('button', { class: 'btn primary', name: 'done', autofocus: true, onclick: () => this.opts.onDone?.(account) }, t('setup.done'));
     const step = h(
       'div',
@@ -446,6 +486,6 @@ export class AccountSetup {
       account.insecureStorage ? h('div', { class: 'infobar warning ml-done-warning' }, icon('warning', { filled: true }), h('div', { class: 'grow caption' }, t('settings.insecureStorage'))) : null,
       h('div', { class: 'ml-setup-actions' }, done),
     );
-    this.swap(step);
+    this.swap(step, dir);
   }
 }

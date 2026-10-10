@@ -2,7 +2,7 @@
 // signature per account, reading (remote pictures, trusted senders, dark mode rendering) and
 // notifications.
 import { store } from './store.js';
-import { AccountSetup } from './setup.js';
+import { AccountSetup, errorText } from './setup.js';
 import { avatarColor, initials, debounce } from './util.js';
 
 export async function openSettings(ctx, app, section = 'accounts', editId = null) {
@@ -29,11 +29,18 @@ export async function openSettings(ctx, app, section = 'accounts', editId = null
 
   function go(id) {
     current = id;
-    for (const b of navItems) b.classList.toggle('selected', b.dataset.id === id);
+    // Re-rendering removes the focused control (Edit, Remove…): keep focus in the dialog so Esc and
+    // Tab still work.
+    const lost = content.contains(document.activeElement) || document.activeElement === document.body;
+    for (const b of navItems) {
+      b.classList.toggle('selected', b.dataset.id === id);
+      b.setAttribute('aria-current', b.dataset.id === id ? 'page' : 'false');
+    }
     ui.clear(content);
     const page = { accounts: accountsPage, signature: signaturePage, reading: readingPage, notifications: notificationsPage }[id]();
     page.classList.add('ml-set-page');
     content.appendChild(page);
+    if (lost && body.isConnected) navItems.find((b) => b.dataset.id === id)?.focus();
   }
 
   const header = (title, sub) => h('div', { class: 'ml-set-head' }, h('div', { class: 'subtitle' }, title), sub ? h('div', { class: 'text-2 caption' }, sub) : null);
@@ -108,7 +115,8 @@ export async function openSettings(ctx, app, section = 'accounts', editId = null
       }
       go('accounts');
     } catch (e) {
-      ui.alert(e.message, { parent: ctx.win });
+      const info = errorText(ctx.t, e);
+      ui.alert(info.text, { title: info.title || t('err.title'), parent: ctx.win });
     }
   }
 
@@ -130,7 +138,7 @@ export async function openSettings(ctx, app, section = 'accounts', editId = null
         acc = store.account(acc.id);
         status.textContent = t('settings.saved');
       } catch (e) {
-        status.textContent = e.message;
+        status.textContent = errorText(ctx.t, e).text;
       }
     }, 400);
     area.addEventListener('input', () => {
@@ -147,7 +155,7 @@ export async function openSettings(ctx, app, section = 'accounts', editId = null
     toggle.input.addEventListener('change', () => (area.disabled = !toggle.input.checked));
     load(acc);
     page.append(
-      store.accounts.length > 1 ? h('div', { class: 'field' }, h('label', null, t('settings.account')), sel) : null,
+      ...[store.accounts.length > 1 ? h('div', { class: 'field' }, h('label', null, t('settings.account')), sel) : null].filter(Boolean),
       h('div', { class: 'card ml-set-card' }, toggle, h('div', { class: 'field', style: { marginTop: '8px' } }, area, h('div', { class: 'row' }, h('span', { class: 'field-hint grow' }, t('settings.signatureHint')), status))),
     );
     return page;
