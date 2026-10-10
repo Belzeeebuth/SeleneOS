@@ -366,7 +366,9 @@ export const search = {
     return { apps: search.apps(text), settings: search.settings(text), files: files ? await search.files(text) : [] };
   },
   webUrl(q) {
-    const base = settings.get('searchEngine') || 'https://duckduckgo.com/?q=';
+    const custom = settings.get('searchEngine');
+    // Only an http(s) prefix is accepted for the (user-configurable) search engine.
+    const base = typeof custom === 'string' && /^https?:\/\/[^\s]+$/i.test(custom) ? custom : 'https://duckduckgo.com/?q=';
     return `${base}${encodeURIComponent(q)}`;
   },
 };
@@ -1142,7 +1144,7 @@ async function loadUser() {
       }
     }
   }
-  userInfo = { ...info, picture };
+  userInfo = { ...info, picture, pictureVersion: Date.now() };
   if (root) renderFooter();
 }
 
@@ -1151,7 +1153,13 @@ function renderFooter() {
   if (!foot) return;
   const name = userInfo?.fullName || userInfo?.name || env.user;
   const avatar = userInfo?.picture
-    ? h('img', { class: 'avatar start-avatar', src: userInfo.picture.startsWith('/') ? api.mediaUrl(userInfo.picture) : userInfo.picture, alt: '' })
+    ? h('img', {
+        class: 'avatar start-avatar',
+        src: userInfo.picture.startsWith('/') ? `${api.mediaUrl(userInfo.picture)}?v=${userInfo.pictureVersion || 0}` : userInfo.picture,
+        alt: '',
+        // A broken picture falls back to the initials.
+        onerror: (e) => e.target.replaceWith(h('span', { class: 'avatar start-avatar' }, initials(name))),
+      })
     : h('span', { class: 'avatar start-avatar' }, initials(name));
   clear(foot);
   foot.append(
@@ -1300,6 +1308,8 @@ export const start = {
     render();
     loadUsage();
     loadUser();
+    // Account picture / name changed in Settings.
+    api.on('users:changed', () => loadUser());
     i18n.on('change', () => render());
     settings.on('startPinned', () => view === 'pinned' && fly.isOpen && setView('pinned', { animate: false }));
     settings.on('startShowRecent', () => view === 'pinned' && setView('pinned', { animate: false }));

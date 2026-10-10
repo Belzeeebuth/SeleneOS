@@ -8,7 +8,7 @@
 // Icon may be a Fluent icon name or a URL. If no icon is given, the app icon is used.
 // Do not disturb (settings.notifications.dnd) and notifications.enabled === false keep history but
 // suppress toasts and sounds.
-import { Emitter } from './api.js';
+import { api, Emitter } from './api.js';
 import { h, icon } from './ui.js';
 import { i18n, t } from './i18n.js';
 import { settings } from './settings.js';
@@ -89,8 +89,11 @@ export const notifications = {
 function iconNode(n, size = 16) {
   const src = n.icon || iconFor(n.appId);
   if (!src) return icon('alert', { size });
-  if (/^(app|media|https?|data|blob):|\//.test(src)) return h('img', { class: 'toast-img', src, alt: '', width: size, height: size });
-  return icon(src, { size });
+  // Absolute file paths (e.g. icons sent by desktop notifications) go through media://; other strings
+  // are Fluent icon names. Only image-safe URL schemes are loaded.
+  if (typeof src === 'string' && src.startsWith('/')) return h('img', { class: 'toast-img', src: api.mediaUrl(src), alt: '', width: size, height: size });
+  if (/^(app|media|https?|blob):|^data:image\//i.test(src)) return h('img', { class: 'toast-img', src, alt: '', width: size, height: size });
+  return icon(String(src), { size });
 }
 
 export function notify(opts = {}) {

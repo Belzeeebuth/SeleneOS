@@ -714,7 +714,6 @@ console.log(`Local test server: ${srv.url}`);
     const played = await pageJs("document.getElementById('a').play().then(() => 'ok', (e) => e.message)");
     assert(played === 'ok', `audio plays (${played})`);
     await waitFor('bw.active.el.classList.contains("audible")', { msg: 'audible tab' });
-    console.log('DEBUG audio', JSON.stringify(await run(`({ n: bw.tabs.length, w: bw.active.el.getBoundingClientRect().width, audio: (() => { const b = bw.active.parts.audio.getBoundingClientRect(); const cs = getComputedStyle(bw.active.parts.audio); return [b.width, b.height, cs.display, cs.transform, cs.opacity, cs.animationName, cs.animationPlayState]; })(), locked: bw.tabsEl.className })`)));
     await s.page.click('.app-browser .bw-tab.active .bw-tab-audio');
     await waitFor('bw.active.muted && bw.active.wv.isAudioMuted()', { msg: 'muted' });
     await s.page.click('.app-browser .bw-tab.active .bw-tab-audio');
