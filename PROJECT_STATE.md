@@ -110,28 +110,16 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 
 ## Next steps (exact)
 
-1. Wait for running workflows to finish:
-   - aurora-iso-noqemu: build system → installer → verify
-   - aurora-shell: Settings verify
-   - aurora-apps-internet: Files + Mail verify
-   - aurora-apps-productivity: remaining verifies
-   - Phase 1 apps
-   Commit after each.
-2. Launch the **UI/UX personalization** workflow (spec in the user's request; areas below), after the Settings verification finishes:
-   - **Core theme engine + profiles:**
-     - Visual styles: Windows 11, minimal, glassmorphism, retro, high contrast.
-     - Blur/transparency intensity, taskbar color, corner radius, font and text size, UI scale, reduced motion.
-     - Per-app themes.
-     - Theme designer page in Settings.
-   - **Wallpapers:**
-     - Animated wallpapers.
-     - Dynamic wallpapers (time of day, weather via Open-Meteo).
-     - Separate lock screen wallpaper.
-   - **Taskbar + Start customization:**
-     - Taskbar: size, position, icons, transparency, color.
-     - Start: layout, folders, background style.
-     - Focus mode.
-   - **Packs:** cursor packs, icon packs, sound packs (notification, startup and shutdown sounds), snap layout presets, customizable keyboard shortcuts.
+1. Wait for the running workflows (list at the bottom) to finish; commit after each.
+2. **UI/UX personalization** (workflow `aurora-personalization`, running). If the session was lost mid-way:
+   - Read docs/PERSONALIZATION.md and `git log`.
+   - Check which areas exist: core/styles/, core/profiles.js, core/wallpaper/, core/features/focus.js, core/cursors.js, core/iconpacks.js, Settings pages `pages/personalization-*.js`.
+   - Continue the missing ones with the same split:
+     - A: core (theme engine, 5 visual styles, per-app themes, profiles, Theme designer).
+     - B1: wallpapers (animated, dynamic by time/weather, lock screen).
+     - B2: taskbar, Start, focus mode.
+     - B3: cursor/icon/sound packs, snap presets, keyboard shortcuts.
+     - Then verify each, then run an integration checklist against the request below.
 3. Integration pass:
    - Full test sweep (every shell/test/*.test.mjs).
    - Fix cross-app issues; update DEVELOPING.md API table.
