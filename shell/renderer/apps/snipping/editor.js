@@ -8,6 +8,8 @@
 //   ed.undo() ed.redo() ed.canUndo ed.canRedo ed.eraseAll()
 //   ed.zoomIn() ed.zoomOut() ed.setZoom(z, anchor) ed.fit() ed.zoom ed.fitMode
 //   ed.applyCrop() ed.cancelCrop()
+//   ed.toggleRuler(on?) ed.ruler -> { cx, cy, angle } | null   (drag to move, wheel / arrows to rotate;
+//       pen and highlighter strokes started next to an edge are drawn straight along it)
 //   ed.render() -> canvas (image + ink)    ed.isDirty() ed.markSaved() ed.isEdited()
 //
 // Strokes are stored in image coordinates, so zoom never degrades them and crop just offsets them.
@@ -18,6 +20,9 @@ export const HL_ALPHA = 0.5;
 const ZOOMS = [0.1, 0.25, 1 / 3, 0.5, 2 / 3, 0.75, 1, 1.25, 1.5, 2, 3, 4, 6, 8];
 const HISTORY_MAX = 80;
 const MIN_CROP = 8;
+const RULER_T = 64; // ruler thickness and length, CSS px (it keeps its on-screen size at every zoom)
+const RULER_L = 1400;
+const RULER_SNAP = 28; // strokes starting this close to an edge (CSS px) are drawn along it
 
 export const PEN_COLORS = [
   ['black', '#000000'], ['white', '#ffffff'], ['gray', '#808080'], ['silver', '#c8c8c8'],
@@ -104,9 +109,10 @@ function cursorUrl(svg, hx, hy, fallback) {
 }
 
 export class SnipEditor {
-  constructor({ h, t, onChange, onZoom, onToolChange, onCropChange }) {
+  constructor({ h, t, onChange, onZoom, onToolChange, onCropChange, onRulerChange }) {
     this.h = h;
     this.t = t;
+    this.onRulerChange = onRulerChange;
     this.onChange = onChange;
     this.onZoom = onZoom;
     this.onToolChange = onToolChange;
@@ -121,6 +127,7 @@ export class SnipEditor {
     this.saved = null;
     this.original = null;
     this.crop = null;
+    this.ruler = null;
     this._op = null;
 
     this.view = h('canvas', { class: 'snip-view' });
@@ -128,7 +135,15 @@ export class SnipEditor {
     this.cropBox = h('div', { class: 'snip-crop-box' }, h('div', { class: 'snip-crop-grid' }), ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map((d) => h('div', { class: `snip-ch snip-ch-${d}`, dataset: { h: d } })));
     this.cropSize = h('div', { class: 'snip-crop-size' });
     this.cropLayer = h('div', { class: 'snip-crop', hidden: true }, this.cropBox, this.cropSize);
-    this.wrap = h('div', { class: 'snip-wrap' }, this.view, this.live, this.cropLayer);
+    this.rulerAngle = h('span', { class: 'snip-ruler-angle' });
+    this.rulerEl = h(
+      'div',
+      { class: 'snip-ruler', role: 'slider', tabindex: '0', 'aria-label': t('ruler'), 'aria-valuemin': '0', 'aria-valuemax': '359', 'aria-valuenow': '0' },
+      h('div', { class: 'snip-ruler-ticks' }),
+      this.rulerAngle,
+    );
+    this.rulerLayer = h('div', { class: 'snip-ruler-layer', hidden: true }, this.rulerEl);
+    this.wrap = h('div', { class: 'snip-wrap' }, this.view, this.live, this.rulerLayer, this.cropLayer);
     this.inner = h('div', { class: 'snip-stage-inner' }, this.wrap);
     this.el = h('div', { class: 'snip-stage', tabindex: '0', role: 'img', 'aria-label': t('canvas') }, this.inner);
 
@@ -155,6 +170,7 @@ export class SnipEditor {
       { passive: false },
     );
     this.el.addEventListener('auxclick', (e) => e.button === 1 && e.preventDefault());
+    this._wireRuler();
     new ResizeObserver(() => {
       if (this.fitMode && this.hasImage) this.fit();
     }).observe(this.el);
@@ -199,6 +215,7 @@ export class SnipEditor {
     base.getContext('2d').drawImage(source, 0, 0);
     this._cancelOp();
     if (this.crop) this._endCrop();
+    if (this.ruler) this.toggleRuler(false);
     const st = { base, strokes: [] };
     this.history = [st];
     this.idx = 0;
@@ -291,6 +308,7 @@ export class SnipEditor {
     this.wrap.classList.toggle('pixelated', this.zoom >= 2);
     this._updateCursor();
     if (this.crop) this._layoutCrop();
+    if (this.ruler) this._layoutRuler();
   }
   fitZoom() {
     const pad = 48;
@@ -382,7 +400,7 @@ export class SnipEditor {
 
   _down(e) {
     if (!this.state || this._op) return;
-    if (e.target.closest('.snip-crop')) return; // the crop layer handles its own drags
+    if (e.target.closest('.snip-crop, .snip-ruler')) return; // crop layer and ruler handle their own drags
     if (e.button === 1 || (e.button === 0 && !this.tool)) {
       this._startPan(e, this.wrap);
       return;
@@ -392,8 +410,10 @@ export class SnipEditor {
     this.el.focus({ preventScroll: true });
     if (this.tool === 'pen' || this.tool === 'hl') {
       const ink = this.tool === 'hl' ? this.hl : this.pen;
-      const stroke = { tool: this.tool, color: ink.color, size: ink.size, points: [this._pt(e)] };
-      this._op = { kind: 'ink', pointerId: e.pointerId, stroke };
+      const p = this._pt(e);
+      const snap = this._rulerSnap(p, ink.size);
+      const stroke = { tool: this.tool, color: ink.color, size: ink.size, points: [snap ? snap.project(p) : p] };
+      this._op = { kind: 'ink', pointerId: e.pointerId, stroke, snap };
       this.live.classList.toggle('hl', this.tool === 'hl');
       this._capture(e);
       this._drawLive();
@@ -413,7 +433,7 @@ export class SnipEditor {
     if (op.kind === 'ink') {
       const pts = op.stroke.points;
       for (const ce of list) {
-        const q = this._pt(ce);
+        const q = op.snap ? op.snap.project(this._pt(ce)) : this._pt(ce);
         const last = pts[pts.length - 1];
         if (Math.hypot(q[0] - last[0], q[1] - last[1]) >= 0.75) pts.push(q);
       }
@@ -505,8 +525,138 @@ export class SnipEditor {
     this._updateCursor();
   }
 
+  // ------------------------------------------------------------------ ruler
+  /** Show / hide the ruler (Windows Snipping Tool style). Returns the new state. */
+  toggleRuler(on = !this.ruler) {
+    if (on && !this.state) return false;
+    if (on && this.crop) this.cancelCrop();
+    if (on) {
+      if (!this.ruler) {
+        // Centred on the visible part of the image.
+        const sr = this.el.getBoundingClientRect();
+        const r = this.wrap.getBoundingClientRect();
+        const k = r.width / (this.W || 1) || 1;
+        const cx = clamp((sr.left + sr.width / 2 - r.left) / k, 0, this.W);
+        const cy = clamp((sr.top + sr.height / 2 - r.top) / k, 0, this.H);
+        this.ruler = { cx, cy, angle: 0 };
+      }
+      this.rulerLayer.hidden = false;
+      this._layoutRuler();
+    } else {
+      this.ruler = null;
+      this.rulerLayer.hidden = true;
+    }
+    this.onRulerChange?.(!!this.ruler);
+    return !!this.ruler;
+  }
+  rotateRuler(deg) {
+    if (!this.ruler) return;
+    this.ruler.angle = (((Math.round((this.ruler.angle + deg) * 10) / 10) % 360) + 360) % 360;
+    this._layoutRuler();
+  }
+  _layoutRuler() {
+    const r = this.ruler;
+    if (!r) return;
+    const k = this.zoom / this.dpr;
+    Object.assign(this.rulerEl.style, {
+      width: `${RULER_L}px`,
+      height: `${RULER_T}px`,
+      left: `${r.cx * k - RULER_L / 2}px`,
+      top: `${r.cy * k - RULER_T / 2}px`,
+      transform: `rotate(${r.angle}deg)`,
+    });
+    const a = Math.round(r.angle) % 360;
+    this.rulerAngle.textContent = `${a}°`;
+    this.rulerAngle.style.transform = `rotate(${-r.angle}deg)`;
+    this.rulerEl.setAttribute('aria-valuenow', String(a));
+    this.rulerEl.setAttribute('aria-valuetext', `${a}°`);
+  }
+  /** Straight-edge for a stroke starting at p (image px): the line along the nearest ruler edge, or null. */
+  _rulerSnap(p, size) {
+    const r = this.ruler;
+    if (!r || this.rulerLayer.hidden) return null;
+    const k = this.zoom / this.dpr;
+    const T = RULER_T / k;
+    const L = RULER_L / k;
+    const near = RULER_SNAP / k;
+    const a = (r.angle * Math.PI) / 180;
+    const u = [Math.cos(a), Math.sin(a)];
+    const n = [-Math.sin(a), Math.cos(a)];
+    const d = [p[0] - r.cx, p[1] - r.cy];
+    const along = d[0] * u[0] + d[1] * u[1];
+    const across = d[0] * n[0] + d[1] * n[1];
+    if (Math.abs(along) > L / 2) return null;
+    const off = size / 2 + 1;
+    let line;
+    if (across <= -T / 2 && across >= -T / 2 - near) line = -T / 2 - off;
+    else if (across >= T / 2 && across <= T / 2 + near) line = T / 2 + off;
+    else return null;
+    const base = [r.cx + n[0] * line, r.cy + n[1] * line];
+    return {
+      base,
+      u,
+      project: (q) => {
+        const tt = (q[0] - base[0]) * u[0] + (q[1] - base[1]) * u[1];
+        return [base[0] + u[0] * tt, base[1] + u[1] * tt];
+      },
+    };
+  }
+  _wireRuler() {
+    const el = this.rulerEl;
+    let drag = null;
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || !this.ruler) return;
+      e.preventDefault();
+      e.stopPropagation();
+      el.focus({ preventScroll: true });
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, cx: this.ruler.cx, cy: this.ruler.cy };
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {}
+      el.classList.add('dragging');
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!drag || drag.id !== e.pointerId || !this.ruler) return;
+      const k = this.zoom / this.dpr;
+      this.ruler.cx = clamp(drag.cx + (e.clientX - drag.x) / k, 0, this.W);
+      this.ruler.cy = clamp(drag.cy + (e.clientY - drag.y) / k, 0, this.H);
+      this._layoutRuler();
+    });
+    const end = (e) => {
+      if (!drag || drag.id !== e.pointerId) return;
+      drag = null;
+      el.classList.remove('dragging');
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener(
+      'wheel',
+      (e) => {
+        if (e.ctrlKey) return; // Ctrl+wheel still zooms
+        e.preventDefault();
+        e.stopPropagation();
+        this.rotateRuler((e.deltaY > 0 ? 1 : -1) * (e.shiftKey ? 15 : 1));
+      },
+      { passive: false },
+    );
+    el.addEventListener('keydown', (e) => {
+      const step = e.shiftKey ? 15 : 1;
+      const k = this.zoom / this.dpr;
+      const move = { ArrowUp: [0, -10], ArrowDown: [0, 10] }[e.key];
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') this.rotateRuler(e.key === 'ArrowLeft' ? -step : step);
+      else if (move && this.ruler) {
+        this.ruler.cy = clamp(this.ruler.cy + move[1] / k, 0, this.H);
+        this._layoutRuler();
+      } else if (e.key === 'Home') this.rotateRuler(-this.ruler.angle);
+      else return;
+      e.preventDefault();
+      e.stopPropagation();
+    });
+  }
+
   // ------------------------------------------------------------------ crop
   _beginCrop() {
+    if (this.ruler) this.toggleRuler(false);
     this.crop = { x: 0, y: 0, w: this.W, h: this.H };
     this.cropLayer.hidden = false;
     this.wrap.classList.add('cropping');

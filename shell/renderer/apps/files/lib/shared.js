@@ -242,6 +242,31 @@ export function popUndo() {
   return op;
 }
 
+// ---------------------------------------------------------------- keyboard focus helpers
+// Keyboard-focusable controls inside root, in Tab order (DOM order; no positive tabindex is used).
+export function tabStops(root, skip = () => false) {
+  return [...root.querySelectorAll('button, input, textarea, select, [tabindex]')].filter(
+    (el) => !el.disabled && el.tabIndex >= 0 && !el.closest('[hidden], .dialog-layer') && el.getClientRects().length > 0 && !skip(el),
+  );
+}
+// Tab / Shift+Tab cycle inside a window like a Windows app instead of walking out to the taskbar.
+// Returns true when it moved the focus (the event is then consumed).
+export function wrapTab(e, root, skip) {
+  if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey) return false;
+  const stops = tabStops(root, skip);
+  if (!stops.length) return false;
+  const a = document.activeElement;
+  const i = stops.findIndex((x) => x === a || x.contains(a));
+  let next = null;
+  if (!e.shiftKey && (i === stops.length - 1 || i < 0 && !root.contains(a))) next = stops[0];
+  else if (e.shiftKey && i === 0) next = stops[stops.length - 1];
+  if (!next) return false;
+  e.preventDefault();
+  e.stopPropagation();
+  next.focus();
+  return true;
+}
+
 // Mount point of a folder (from the cached drive list) — decides move vs copy for drag & drop.
 export function mountOf(p) {
   let best = '/';

@@ -1,6 +1,6 @@
 // Dialogs of File Explorer: Properties (separate window, like Windows), "Choose an app",
 // Folder Options and the "Extract Compressed Folder" dialog.
-import { shared, setPref, PREF_DEFAULTS, clearHistory, resetViews } from './shared.js';
+import { shared, setPref, PREF_DEFAULTS, clearHistory, resetViews, wrapTab } from './shared.js';
 import * as T from './types.js';
 import * as ops from './ops.js';
 
@@ -66,6 +66,7 @@ class PropsWindow {
     this.win.body.append(h('div', { class: 'fx-props' }, this.tabsEl, this.pageHost, foot));
     this.win.body.addEventListener('keydown', (e) => {
       if (e.target.closest('.dialog-layer')) return;
+      if (wrapTab(e, this.win.el)) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         this.win.close(true);
@@ -309,7 +310,14 @@ class PropsWindow {
       donut);
   }
 
-  async apply() {
+  // OK / Apply clicked twice (or Enter held) must not apply the same changes twice (a second rename
+  // of the old path failed with "item could not be found").
+  apply() {
+    if (!this.applying) this.applying = this.applyNow().finally(() => (this.applying = null));
+    return this.applying;
+  }
+
+  async applyNow() {
     const ex = this.ex;
     const ch = this.changes;
     if (!Object.keys(ch).length) return true;

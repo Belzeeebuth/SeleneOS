@@ -1,6 +1,6 @@
 // One File Explorer window: tabs (each with its own history), address bar, command bar,
 // navigation pane, content view, details/preview pane and status bar.
-import { shared, setPref, getView, setView, isPinned, pin, unpin, isFavorite, toggleFavorite, addRecent, removeRecent, refreshDrives, peekUndo } from './shared.js';
+import { shared, setPref, getView, setView, isPinned, pin, unpin, isFavorite, toggleFavorite, addRecent, removeRecent, refreshDrives, peekUndo, tabStops, wrapTab } from './shared.js';
 import * as T from './types.js';
 import * as ops from './ops.js';
 import * as dlg from './dialogs.js';
@@ -1538,12 +1538,11 @@ export class Explorer {
 
   // Keyboard-focusable controls of the window, in DOM (= Tab) order.
   tabStops() {
-    return [...this.win.el.querySelectorAll('button, input, textarea, select, [tabindex]')].filter((el) => {
-      if (el.disabled || el.tabIndex < 0 || el.closest('[hidden], .dialog-layer')) return false;
-      if (el.classList.contains('fx-address') && this.address.editing) return false;
-      return el.getClientRects().length > 0;
-    });
+    return tabStops(this.win.el, this.tabSkip);
   }
+
+  // While the address bar is in edit mode its wrapper is not a separate stop (the input is).
+  tabSkip = (el) => el.classList.contains('fx-address') && this.address.editing;
 
   onKey(e) {
     if (e.defaultPrevented || this.closed) return;
@@ -1563,10 +1562,7 @@ export class Explorer {
     // ---- window-wide
     // Tab / Shift+Tab cycle inside the window like a Windows app (they used to walk out to the taskbar).
     if (k === 'Tab' && !ctrl && !alt && !e.metaKey) {
-      const stops = this.tabStops();
-      const i = stops.findIndex((x) => x === document.activeElement || x.contains(document.activeElement));
-      if (stops.length && !shift && i === stops.length - 1) return handled(), stops[0].focus();
-      if (stops.length && shift && i === 0) return handled(), stops[stops.length - 1].focus();
+      wrapTab(e, this.win.el, this.tabSkip);
       return;
     }
     if (ctrl && !alt && low === 't') return handled(), this.newTab();

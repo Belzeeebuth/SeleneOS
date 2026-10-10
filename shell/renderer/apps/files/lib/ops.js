@@ -1,6 +1,6 @@
 // File operations shared by every File Explorer window: copy/move with a Windows-style progress
 // window (cancellable), Recycle Bin, permanent delete, restore, new items, archives and undo.
-import { shared, pushUndo, popUndo, peekUndo, takeUndo, renamePaths } from './shared.js';
+import { shared, pushUndo, popUndo, peekUndo, takeUndo, renamePaths, wrapTab } from './shared.js';
 import * as T from './types.js';
 
 let opSeq = 0;
@@ -95,6 +95,14 @@ class ProgressWindow {
       className: 'app-files fx-progress-win',
     });
     this.win.body.appendChild(body);
+    this.win.body.addEventListener('keydown', (e) => {
+      if (wrapTab(e, this.win.el)) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        cancel?.();
+      }
+    });
+    setTimeout(() => this.cancelBtn.isConnected && this.win.isFocused?.() && this.cancelBtn.focus(), 50);
     this.win.onBeforeClose(async () => {
       if (this.finished) return true;
       cancel?.();
