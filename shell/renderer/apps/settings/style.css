@@ -1425,3 +1425,10 @@ button.st-sec-card:hover {
 .app-settings .st-pers-hero {
   align-items: flex-start;
 }
+.app-settings .st-net-hero {
+  flex-wrap: wrap;
+  row-gap: 12px;
+}
+.app-settings .st-net-hero .st-hero-text {
+  min-width: 220px;
+}

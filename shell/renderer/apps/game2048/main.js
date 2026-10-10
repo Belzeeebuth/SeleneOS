@@ -40,9 +40,12 @@ export default {
 
     const slots = h('div', { class: 't-slots' });
     const tilesLayer = h('div', { class: 't-tiles' });
-    const board = h('div', { class: 't-board', tabindex: '0', autofocus: true, role: 'grid', 'aria-label': t('boardLabel') }, slots, tilesLayer);
+    const board = h('div', { class: 't-board', tabindex: '0', autofocus: true, role: 'application', 'aria-label': t('boardLabel') }, slots, tilesLayer);
     const live = h('div', { class: 't-live', 'aria-live': 'polite' });
-    const stage = h('div', { class: 't-stage' }, board, live);
+    // Text version of the board for screen readers (tiles themselves are presentational).
+    const desc = h('div', { class: 't-live', id: `${win.id}-board-desc` });
+    const stage = h('div', { class: 't-stage' }, board, live, desc);
+    board.setAttribute('aria-describedby', desc.id);
     const overlay = kit.overlay(board);
     const root = h('div', { class: 't-root' }, bar, status, stage);
     win.body.appendChild(root);
@@ -63,6 +66,9 @@ export default {
       undoBtn.disabled = !undoState;
       sizeBtn.querySelector('.gk-btn-label').textContent = `${game.size} × ${game.size}`;
       sizeBtn.dataset.tip = t('gk.options');
+      const rows = Array.from({ length: game.size }, () => Array(game.size).fill(0));
+      for (const tl of game.tiles) rows[tl.r][tl.c] = tl.value;
+      desc.textContent = rows.map((row, r) => t('a11y.row', { n: r + 1, cells: row.map((v) => (v ? kit.fmtNum(v) : t('a11y.empty'))).join(', ') })).join('. ');
     }
     function pos(r, c) {
       return `translate(${gap + c * (tile + gap)}px, ${gap + r * (tile + gap)}px)`;
@@ -72,7 +78,7 @@ export default {
       return Math.round(tile * (d <= 2 ? 0.46 : d === 3 ? 0.38 : d === 4 ? 0.3 : 0.24));
     }
     function makeTile(tl, cls) {
-      const el = h('div', { class: ['t-tile', `v${tl.value > 2048 ? 'super' : tl.value}`, cls], 'data-value': tl.value, role: 'gridcell' }, h('span', null, String(tl.value)));
+      const el = h('div', { class: ['t-tile', `v${tl.value > 2048 ? 'super' : tl.value}`, cls], 'data-value': tl.value, 'aria-hidden': 'true' }, h('span', null, String(tl.value)));
       el.style.transform = pos(tl.r, tl.c);
       el.style.fontSize = `${fontFor(tl.value)}px`;
       el.dataset.r = tl.r;

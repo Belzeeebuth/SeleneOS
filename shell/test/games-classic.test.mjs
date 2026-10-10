@@ -2,7 +2,7 @@
 //   1. Unit tests of the pure game logic (imported straight from the app folders).
 //   2. UI tests that drive the real shell with Playwright (mouse, keyboard, menus, dialogs,
 //      light/dark, English/French, min-size and maximized windows) + documentation screenshots.
-// Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/games-classic.test.mjs [--unit] [--only=minesweeper,snake,game2048]
+// Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/games-classic.test.mjs [--unit] [--only=minesweeper,snake,game2048,fr,robust]
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -1653,8 +1653,11 @@ if (!ONLY.length || ONLY.includes('robust')) {
       assert.equal(await page.evaluate(() => document.querySelector('[data-app="snake"]').__snake.state), 'ready');
     });
 
-    await test('no console errors with damaged data', async () => {
-      assert.deepEqual(errs, []);
+    await test('no console errors with damaged data (only the expected save warning)', async () => {
+      assert.deepEqual(
+        errs.filter((e) => !/^\[warning\] \[snake\] could not save/.test(e)),
+        [],
+      );
     });
   } finally {
     await s.close();

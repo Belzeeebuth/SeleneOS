@@ -1661,11 +1661,22 @@
   width: 100%;
 }
 .app-mail .ml-pass {
+  position: relative;
   display: flex;
-  gap: 4px;
 }
 .app-mail .ml-pass .input {
   flex: 1;
+  padding-right: 40px;
+}
+.app-mail .ml-reveal {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 30px;
+  min-width: 30px;
+  height: 28px;
+  min-height: 28px;
+  color: var(--text-2);
 }
 .app-mail .ml-help {
   margin: 4px 0 12px;

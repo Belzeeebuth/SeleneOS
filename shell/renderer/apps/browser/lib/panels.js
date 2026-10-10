@@ -1053,16 +1053,17 @@ export async function jsDialog(bw, p, onHandle) {
     parent: bw.win,
     width: 440,
     buttons,
-    onOpen: (_dlg, done) => {
+    onOpen: (dlg, done) => {
       onHandle?.(done);
-      if (input)
-        setTimeout(() => {
+      setTimeout(() => {
+        if (input) {
           input.focus();
           input.select();
-        }, 60);
+        } else dlg.querySelector('.dialog-footer .btn.primary')?.focus(); // OK, not the checkbox
+      }, 40);
     },
   });
-  return { ok: v === 'ok' || (p.kind === 'alert' && v !== undefined), value: input ? input.value : null, suppress: !!suppress?.checked };
+  return { ok: v === 'ok', value: input ? input.value : null, suppress: !!suppress?.checked };
 }
 
 export async function clearDataDialog(bw) {

@@ -683,6 +683,7 @@ async function lightEnglish() {
     await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'settings').setSize(680, 640));
     await sleep(500);
     check(await s.page.locator('.app-settings .st-tb-menu').isVisible(), 'narrow window: navigation button in the title bar');
+    await sleep(1800); // let the deep-link highlight fade
     await docShot(s, 'compact');
     await s.page.locator('.app-settings .st-tb-menu').click();
     await sleep(500);

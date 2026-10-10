@@ -69,7 +69,7 @@ export class AccountSetup {
       this.mode !== 'first' ? h('div', { class: 'ml-setup-actions' }, h('button', { class: 'btn', onclick: () => this.opts.onCancel?.() }, t('common.cancel'))) : null,
     );
     this.swap(step, dir);
-    setTimeout(() => step.querySelector('.ml-provider')?.focus(), 80);
+    if (dir === 'back') setTimeout(() => step.querySelector(`.ml-provider[data-provider="${this.provider?.id}"]`)?.focus(), 80);
     void ui;
   }
 

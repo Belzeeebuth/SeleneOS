@@ -59,12 +59,13 @@ export function createKit(ctx) {
     );
   }
 
-  function chip({ icon: ic, iconNode, label, value = '', cls, id, tip }) {
+  // role: 'status' announces changes politely; use 'timer' for a clock (not announced every second).
+  function chip({ icon: ic, iconNode, label, value = '', cls, id, tip, role = 'status' }) {
     const valueEl = h('span', { class: 'gk-chip-value' }, String(value));
     const labelEl = label != null ? h('span', { class: 'gk-chip-label' }, label) : null;
     const el = h(
       'div',
-      { class: ['gk-chip', cls, label != null && 'labelled'], 'data-id': id || null, 'data-tip': tip || null, role: 'status' },
+      { class: ['gk-chip', cls, label != null && 'labelled'], 'data-id': id || null, 'data-tip': tip || null, 'aria-label': tip || null, role },
       iconNode || (ic ? icon(ic, { class: 'gk-chip-icon' }) : null),
       h('span', { class: 'gk-chip-text' }, labelEl, valueEl),
     );
@@ -73,7 +74,10 @@ export function createKit(ctx) {
       if (valueEl.textContent !== s) valueEl.textContent = s;
     };
     el.setLabel = (s) => labelEl && (labelEl.textContent = s);
-    el.setTip = (s) => (el.dataset.tip = s);
+    el.setTip = (s) => {
+      el.dataset.tip = s;
+      el.setAttribute('aria-label', s);
+    };
     el.bump = () => {
       if (reduceMotion()) return;
       valueEl.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }], { duration: 260, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' });

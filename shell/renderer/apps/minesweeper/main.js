@@ -72,7 +72,7 @@ export default {
 
     const mineIcon = h('span', { class: 'gk-chip-icon ms-chip-mine', html: MINE_SVG });
     const minesChip = kit.chip({ iconNode: mineIcon, value: '0', id: 'mines', tip: t('minesLeft') });
-    const timeChip = kit.chip({ icon: 'timer', value: '0', id: 'time', tip: t('time') });
+    const timeChip = kit.chip({ icon: 'timer', value: '0', id: 'time', tip: t('time'), role: 'timer' });
     const face = h('button', { class: 'ms-face', 'data-id': 'face', 'aria-label': t('faceTip'), 'data-tip': t('faceTip'), 'data-tip-pos': 'below', onclick: () => requestNewGame() });
     const status = h('div', { class: 'ms-status' }, minesChip, face, timeChip);
 
@@ -176,16 +176,26 @@ export default {
       board.textContent = '';
       board.style.setProperty('--cols', spec.cols);
       board.style.setProperty('--rows', spec.rows);
+      board.setAttribute('aria-rowcount', spec.rows);
+      board.setAttribute('aria-colcount', spec.cols);
       const frag = document.createDocumentFragment();
       cellEls = new Array(game.total);
+      let row = null;
       for (let i = 0; i < game.total; i++) {
+        // ARIA grid rows; display: contents keeps every cell a direct item of the CSS grid.
+        if (i % spec.cols === 0) {
+          row = document.createElement('div');
+          row.className = 'ms-row';
+          row.setAttribute('role', 'row');
+          frag.appendChild(row);
+        }
         const el = document.createElement('div');
         el.className = 'ms-cell closed';
         el.dataset.i = i;
         el.id = `${win.id}-c${i}`;
         el.setAttribute('role', 'gridcell');
         cellEls[i] = el;
-        frag.appendChild(el);
+        row.appendChild(el);
       }
       board.appendChild(frag);
       frame.classList.remove('shake', 'won', 'lost');

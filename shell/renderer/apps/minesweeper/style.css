@@ -151,6 +151,9 @@
 .app-minesweeper .ms-board:focus-visible {
   outline: none;
 }
+.app-minesweeper .ms-row {
+  display: contents;
+}
 .app-minesweeper .ms-cell {
   position: relative;
   display: grid;

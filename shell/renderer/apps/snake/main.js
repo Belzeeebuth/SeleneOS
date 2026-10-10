@@ -53,8 +53,8 @@ export default {
     const pauseBtn = kit.iconButton({ icon: 'pause', tip: t('pauseTip'), onClick: () => togglePause(), id: 'pause' });
     const status = h('div', { class: 'sn-status' }, scoreChip, bestChip, h('div', { class: 'gk-spacer' }), modeEl, pauseBtn);
 
-    const canvas = h('canvas', { class: 'sn-canvas', role: 'img', 'aria-label': t('boardLabel') });
-    const boardWrap = h('div', { class: 'sn-board', tabindex: '0', autofocus: true }, canvas);
+    const canvas = h('canvas', { class: 'sn-canvas', 'aria-hidden': 'true' });
+    const boardWrap = h('div', { class: 'sn-board', tabindex: '0', autofocus: true, role: 'application', 'aria-label': t('boardLabel') }, canvas);
     const stage = h('div', { class: 'sn-stage' }, boardWrap);
     const overlay = kit.overlay(boardWrap);
     const root = h('div', { class: 'sn-root' }, bar, status, stage);
@@ -732,7 +732,7 @@ export default {
       helpBtn.setAttribute('aria-label', t('gk.howToPlay'));
       scoreChip.setLabel(t('score'));
       bestChip.setLabel(t('best'));
-      canvas.setAttribute('aria-label', t('boardLabel'));
+      boardWrap.setAttribute('aria-label', t('boardLabel'));
       updateMode();
       updatePauseBtn();
       updateChips();

@@ -807,11 +807,13 @@ console.log(`Local test server: ${srv.url}`);
     await s.page.waitForSelector(dlg);
     // From the second dialog on, the page can be silenced.
     assert(await s.page.locator('.dialog-layer:not(.closing) .bw-jsdlg input[type=checkbox]').count(), 'suppress checkbox offered');
+    await waitFor('document.activeElement?.matches(".dialog-layer:not(.closing) .btn.primary")', { msg: 'OK button focused' });
     await s.page.keyboard.press('Escape');
     await waitFor('bw.active.web.title === "confirm:false"', { msg: 'Esc -> false' });
     await fire('prompt');
     await s.page.waitForSelector(`${dlg} input.input`);
     assert((await s.page.inputValue(`${dlg} input.input`)) === 'Ada', 'prompt default value');
+    await waitFor('document.activeElement?.matches(".dialog-layer:not(.closing) .bw-jsdlg input.input")', { msg: 'prompt input focused' });
     await s.page.fill(`${dlg} input.input`, 'Grace');
     await s.page.keyboard.press('Enter');
     await waitFor('bw.active.web.title === "prompt:Grace"', { msg: 'prompt value returned' });
@@ -1059,6 +1061,7 @@ console.log(`Local test server: ${srv.url}`);
       if (e.length) found[label] = e;
     };
     const dialogDone = async () => {
+      await waitFor('document.activeElement?.closest(".dialog-layer:not(.closing)")', { msg: `focus in the dialog (${await s.page.evaluate(() => document.activeElement?.outerHTML.slice(0, 120))})` });
       await s.page.keyboard.press('Escape');
       await waitFor('!document.querySelector(".dialog-layer:not(.closing)")', { msg: 'dialog closed' });
     };

@@ -96,7 +96,10 @@ done
 
 # ------------------------------------------------------------------ output: JSON on fd 3, log on stderr
 exec 3>&1 1>&2   # fd 3 = the caller's stdout (JSON only); everything else goes to stderr
-STAGE="" PROGRESS=0 DONE=0 ERROR_SENT=0 CANCELLED=0 T0=$(date +%s)
+# A closed pipe (the installer UI went away) must not kill the installation half-way: writes then
+# fail quietly and the log file keeps the full record.
+trap '' PIPE
+STAGE="" PROGRESS=0 DONE=0 ERROR_SENT=0 CANCELLED=0 T0=$(date +%s) BG_PID="" TEE_PID=""
 
 json_str() { # json_str TEXT -> "TEXT" with JSON escaping (control characters dropped)
   local s=$1
@@ -104,7 +107,8 @@ json_str() { # json_str TEXT -> "TEXT" with JSON escaping (control characters dr
   s=$(printf '%s' "$s" | tr -d '\000-\010\013\014\016-\037\177')
   printf '"%s"' "$s"
 }
-log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
+log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2 || true; }
+has_text() { grep -qF -- "$1" <<<"$2"; }   # no pipes: grep -q + pipefail would misreport (SIGPIPE)
 # progress STAGE PERCENT MESSAGE: overall percentage, never decreasing
 progress() {
   local stage=$1 pct=$2 msg=${3:-}
@@ -115,7 +119,7 @@ progress() {
   fi
   STAGE=$stage PROGRESS=$pct
   if ((JSON)); then
-    printf '{"stage":"%s","progress":%d,"message":%s}\n' "$stage" "$pct" "$(json_str "$msg")" >&3
+    printf '{"stage":"%s","progress":%d,"message":%s}\n' "$stage" "$pct" "$(json_str "$msg")" >&3 2>/dev/null || true
   fi
 }
 emit_error() { # emit_error CODE MESSAGE
@@ -123,7 +127,7 @@ emit_error() { # emit_error CODE MESSAGE
   ERROR_SENT=1
   log "ERROR: $2"
   if ((JSON)); then
-    printf '{"error":%s,"stage":"%s","code":%d}\n' "$(json_str "$2")" "${STAGE:-init}" "$1" >&3
+    printf '{"error":%s,"stage":"%s","code":%d}\n' "$(json_str "$2")" "${STAGE:-init}" "$1" >&3 2>/dev/null || true
   fi
 }
 die() { # die CODE MESSAGE
@@ -152,7 +156,8 @@ RE_PATH='^/[A-Za-z0-9._/+-]*$'
 [[ "$USERNAME" =~ $RE_USER ]] || die 2 "invalid user name (lowercase letters, digits, - and _; must start with a letter)"
 [[ "$RESERVED_USERS" != *" $USERNAME "* ]] || die 2 "the user name '$USERNAME' is reserved by the system"
 ((${#FULLNAME} <= 128)) || die 2 "the full name is too long"
-[[ "$FULLNAME" != *[:,=\\]* ]] || die 2 "the full name cannot contain : , = or \\"
+RE_BADNAME='[:,=\\]'
+[[ ! "$FULLNAME" =~ $RE_BADNAME ]] || die 2 "the full name cannot contain : , = or \\"
 [[ "$FULLNAME" != *[[:cntrl:]]* ]] || die 2 "the full name contains control characters"
 [[ -n "$FULLNAME" ]] || FULLNAME=$USERNAME
 [[ -n "$HOST_NAME" ]] || HOST_NAME="$USERNAME-pc"
@@ -223,8 +228,9 @@ fi
 [[ -n "$LOG_FILE" ]] || LOG_FILE=/var/log/aurora-install.log
 mkdir -p "$(dirname "$LOG_FILE")"
 touch "$LOG_FILE" && chmod 0640 "$LOG_FILE" && chgrp adm "$LOG_FILE" 2>/dev/null || true
-# Everything written to stderr also lands in the log file.
-exec 2> >(tee -a "$LOG_FILE" >&2)
+# Everything written to stderr also lands in the log file (tee -p: keeps logging if the caller goes away).
+exec 2> >(exec tee -p -a "$LOG_FILE" >&2)
+TEE_PID=$!
 {
   echo
   echo "======================================================================"
@@ -237,9 +243,10 @@ flock -n 9 || die 4 "another installation is already running"
 
 CREATED_LINKS=()
 child_pids() { ps -o pid= --ppid "$1" 2>/dev/null | tr -d ' ' || true; }
-kill_tree() { # kill_tree PID: SIGTERM to all descendants of PID
+kill_tree() { # kill_tree PID: SIGTERM to PID and all its descendants (children first)
   local c
-  for c in $(child_pids "$1"); do kill_tree "$c"; kill -TERM "$c" 2>/dev/null || true; done
+  for c in $(child_pids "$1"); do kill_tree "$c"; done
+  kill -TERM "$1" 2>/dev/null || true
 }
 umount_under() { # unmount everything at/below a path, deepest first
   local base mp
@@ -254,7 +261,14 @@ cleanup() {
   local rc=$?
   trap - EXIT INT TERM HUP ERR
   set +e
-  kill_tree $$
+  # Stop a running copy/dpkg/grub-install (cancellation), then wait until it has really exited
+  # so that the file systems can be unmounted.
+  if [[ -n "$BG_PID" ]] && kill -0 "$BG_PID" 2>/dev/null; then
+    kill_tree "$BG_PID"
+    local i
+    for ((i = 0; i < 100; i++)); do kill -0 "$BG_PID" 2>/dev/null || break; sleep 0.1; done
+    wait "$BG_PID" 2>/dev/null
+  fi
   if ((!DONE)); then
     ((rc == 0)) && rc=5
     emit_error "$rc" "installation failed (exit $rc)"
@@ -275,9 +289,12 @@ trap 'log "failed: $BASH_COMMAND (line $LINENO)"' ERR
 
 # Long-running commands run in the background so that a cancellation (SIGTERM) is handled at once.
 bg_wait() { # bg_wait CMD... : runs CMD in the background and waits for it (interruptible)
+  local rc=0
   "$@" &
-  local pid=$!
-  wait "$pid"
+  BG_PID=$!
+  wait "$BG_PID" || rc=$?
+  BG_PID=""
+  return "$rc"
 }
 
 # ------------------------------------------------------------------ disk checks
@@ -339,18 +356,23 @@ check_disk() {
     [[ "$d" == "$DISK" ]] && die 4 "$DISK holds the live system or the installation source: choose another disk"
   done
   # Partitions in use: unmount removable-media style mounts, refuse anything else.
-  while read -r part mp; do
-    [[ -n "$mp" ]] || continue
-    case "$mp" in
-      /media/*|/mnt/*|/run/media/*|"$WORKDIR"|"$WORKDIR"/*)
-        log "unmounting $part from $mp"
-        umount_under "$mp" ;;
-      \[SWAP\])
-        log "disabling swap on $part"
-        swapoff "$part" || die 4 "cannot disable the swap space on $part" ;;
-      *) die 4 "$part is in use (mounted on $mp): choose another disk" ;;
-    esac
-  done < <(lsblk -nrpo NAME,MOUNTPOINTS "$DISK" 2>/dev/null | awk 'NF >= 2 {print $1, $2}')
+  local swaps; swaps=$(swapon --show=NAME --noheadings --raw 2>/dev/null || true)
+  for part in $(lsblk -nrpo NAME "$DISK" 2>/dev/null); do
+    while read -r mp; do
+      [[ -n "$mp" ]] || continue
+      mp=$(printf '%b' "$mp")   # findmnt -r escapes blanks as \x20
+      case "$mp" in
+        /media/*|/mnt/*|/run/media/*|"$WORKDIR"|"$WORKDIR"/*)
+          log "unmounting $part from $mp"
+          umount_under "$mp" ;;
+        *) die 4 "$part is in use (mounted on $mp): choose another disk" ;;
+      esac
+    done < <(findmnt -rn -S "$part" -o TARGET 2>/dev/null || true)
+    if grep -qxF -- "$part" <<<"$swaps"; then
+      log "disabling swap on $part"
+      swapoff "$part" || die 4 "cannot disable the swap space on $part"
+    fi
+  done
   for part in /sys/class/block/"$name"/"$name"*/holders/*; do
     [[ -e "$part" ]] && die 4 "$DISK is in use by $(basename "$part") (LVM, RAID or encryption): choose another disk"
   done
@@ -391,7 +413,7 @@ source_cat() { # source_cat REL-PATH -> file content from the source
 
 check_choices() {
   # The account must not exist in the source (system accounts such as daemon or _greetd).
-  if source_cat etc/passwd | cut -d: -f1 | grep -qxF "$USERNAME"; then
+  if grep -qxF -- "$USERNAME" <<<"$(source_cat etc/passwd | cut -d: -f1)"; then
     die 2 "the user name '$USERNAME' is already used by the system: choose another one"
   fi
   # Keyboard layout and time zone (checked on this system: the live system is the same image).
@@ -428,18 +450,16 @@ in_target() {
     "$@"
 }
 
+parts_ready() { [[ -b "$(part_path 1)" && -b "$(part_path 2)" && -b "$(part_path 3)" ]]; }
 wait_for_partitions() {
-  local i n
+  local i
   udevadm settle --timeout=10 >/dev/null 2>&1 || true
-  for ((i = 0; i < 100; i++)); do
-    for n in 1 2 3; do [[ -b "$(part_path $n)" ]] || continue 2; done
-    return 0
-  done 2>/dev/null
-  # Some kernels need an explicit re-read (partprobe/partx) before the nodes appear.
+  for ((i = 0; i < 50; i++)); do parts_ready && return 0; sleep 0.1; done
+  # Some setups need an explicit re-read (partx/partprobe) before the nodes appear.
   partx -u "$DISK" >/dev/null 2>&1 || partprobe "$DISK" >/dev/null 2>&1 || true
   for ((i = 0; i < 100; i++)); do
     udevadm settle --timeout=2 >/dev/null 2>&1 || true
-    if [[ -b "$(part_path 1)" && -b "$(part_path 2)" && -b "$(part_path 3)" ]]; then return 0; fi
+    parts_ready && return 0
     sleep 0.1
   done
   die 5 "the new partitions of $DISK did not appear ($(part_path 1) …)"
@@ -596,7 +616,7 @@ purge_live_packages() {
     log "purging live-only packages: ${installed[*]}"
     bg_wait in_target dpkg --purge "${installed[@]}" >&2 || die 5 "could not remove the live-session packages (${installed[*]})"
   fi
-  if in_target dpkg-query -W -f='${db:Status-Abbrev}' casper 2>/dev/null | grep -q '^i'; then
+  if [[ "$(in_target dpkg-query -W -f='${db:Status-Abbrev}' casper 2>/dev/null || true)" == i* ]]; then
     die 5 "casper is still installed after the purge"
   fi
 }
@@ -609,7 +629,7 @@ regenerate_initramfs() {
   for k in "${kvers[@]}"; do
     local img="$TARGET/boot/initrd.img-$k"
     if [[ ! -s "$img" ]] || (( $(stat -c %Y "$img") < since )) \
-       || in_target lsinitramfs "/boot/initrd.img-$k" 2>/dev/null | grep -q 'scripts/casper'; then
+       || has_text scripts/casper "$(in_target lsinitramfs "/boot/initrd.img-$k" 2>/dev/null || true)"; then
       need=1
     fi
   done
@@ -621,7 +641,8 @@ regenerate_initramfs() {
   fi
   for k in "${kvers[@]}"; do
     [[ -s "$TARGET/boot/initrd.img-$k" ]] || die 5 "initramfs missing for kernel $k"
-    if in_target lsinitramfs "/boot/initrd.img-$k" | grep -q 'scripts/casper'; then
+    local content; content=$(in_target lsinitramfs "/boot/initrd.img-$k") || die 5 "cannot read the initramfs of kernel $k"
+    if has_text scripts/casper "$content"; then
       die 5 "the initramfs of kernel $k still contains the live-session (casper) scripts"
     fi
   done
@@ -663,7 +684,7 @@ EOF
 
   # Language, keyboard, time zone.
   progress configure 80 "Setting the language, keyboard and time zone"
-  if ! in_target locale -a 2>/dev/null | grep -qix "${LOCALE%%.*}.utf8"; then
+  if ! grep -qix -- "${LOCALE%%.*}.utf8" <<<"$(in_target locale -a 2>/dev/null || true)"; then
     grep -q "^$LOCALE " "$TARGET/etc/locale.gen" 2>/dev/null || echo "$LOCALE UTF-8" >>"$TARGET/etc/locale.gen"
     run "could not generate the locale $LOCALE" in_target locale-gen "$LOCALE"
   fi
@@ -842,7 +863,7 @@ stage_cleanup() {
   install -D -m 0600 "$LOG_FILE" "$TARGET/var/log/aurora-install.log" 2>/dev/null || true
   sync
   umount_under "$TARGET"
-  if findmnt -rn -o TARGET | grep -q "^$TARGET"; then die 5 "could not unmount the installed system"; fi
+  if has_text "$TARGET" "$(findmnt -rn -o TARGET)"; then die 5 "could not unmount the installed system"; fi
   rmdir "$TARGET" 2>/dev/null || true
   # Restarting from the live session must not wait for "remove the installation medium".
   if [[ -d /cdrom/casper ]] && grep -qw 'boot=casper' /proc/cmdline 2>/dev/null; then
