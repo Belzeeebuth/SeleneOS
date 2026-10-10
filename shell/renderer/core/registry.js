@@ -12,7 +12,8 @@
 //               "resizable": true, "titlebar": "default", "background": "mica" },
 //   "category": "utilities",            // system | utilities | productivity | internet | media | games
 //   "keywords": { "en": ["math"], "fr": ["calcul"] },
-//   "singleInstance": false,            // true -> relaunch focuses the existing window (and calls onRelaunch)
+//   "singleInstance": false,            // true -> relaunch focuses the existing window (and calls onRelaunch);
+//                                       //         launch(id, { newWindow: true }) still opens another window
 //   "fileTypes": [".txt", ".md"],       // extensions this app can open (ctx.args.file)
 //   "hidden": false,                    // hide from Start "All apps"
 //   "liveOnly": false                   // only in the live session (installer)
@@ -88,7 +89,7 @@ export const registry = {
       console.error(`[registry] unknown app ${id}`);
       return null;
     }
-    if (m.singleInstance) {
+    if (m.singleInstance && !args?.newWindow) {
       const existing = wm.byApp(id)[0];
       if (existing) {
         existing.focus();

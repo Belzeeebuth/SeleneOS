@@ -53,6 +53,9 @@ async function main() {
     }
   }
 
+  // Links opened from sandboxed content (e.g. mail bodies) arrive here and open in the browser.
+  api.on('shell:open-url', ({ url }) => url && shell.openUrl(url));
+
   document.body.classList.add('ready');
   if (!sessionStorage.getItem('aurora-started')) {
     sessionStorage.setItem('aurora-started', '1');
