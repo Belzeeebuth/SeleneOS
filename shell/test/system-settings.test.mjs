@@ -911,6 +911,29 @@ async function qaRegressions() {
     const perRow = Object.values(rows.reduce((a, y) => ((a[y] = (a[y] || 0) + 1), a), {}));
     check(perRow.length && perRow.every((n) => n === perRow[0]), `security overview cards fill their rows evenly (${perRow.join(' + ')})`);
 
+    // ---- smallest window: controls wrap under their labels instead of being cut off
+    await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'settings').setSize(520, 560));
+    await sleep(500);
+    const cut = [];
+    for (const p of ['time', 'sound', 'textSize', 'colors', 'keyboard', 'display', 'wifi']) {
+      await go(s, p);
+      const o = await s.aurora(() => {
+        const sc = document.querySelector('.app-settings .st-scroll');
+        let n = sc.scrollWidth - sc.clientWidth > 1 ? 1 : 0;
+        for (const r of document.querySelectorAll('.app-settings .st-content .st-row')) {
+          const rr = r.getBoundingClientRect();
+          for (const c of r.querySelectorAll('.st-row-right > *')) if (c.getBoundingClientRect().right > rr.right + 1) n++;
+        }
+        for (const b of document.querySelectorAll('.app-settings .st-exp-body')) if (b.scrollWidth > b.clientWidth + 1) n++;
+        return n;
+      });
+      if (o) cut.push(p);
+      if (p === 'time') await docShot(s, 'narrow');
+    }
+    check(!cut.length, `smallest window (520 px): nothing is cut off${cut.length ? `: ${cut.join(', ')}` : ''}`);
+    await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'settings').setSize(1100, 640));
+    await sleep(400);
+
     // ---- 20 open / close cycles leave nothing behind
     const count = () => s.aurora(() => ({ nodes: document.getElementsByTagName('*').length, menus: document.querySelectorAll('.menu, .st-picker, .tooltip').length }));
     await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'settings')?.close());

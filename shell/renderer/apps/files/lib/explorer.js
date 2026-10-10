@@ -870,12 +870,6 @@ export class Explorer {
     const loc = this.tab.loc;
     const navAt = this.navSeq;
     const seq = ++this.refreshSeq;
-    const st = this.view.state();
-    if (select) {
-      st.sel = select;
-      st.focus = select[0];
-      st.reveal = true;
-    }
     if (!quiet) this.btnRefresh.classList.add('spin');
     try {
       const data = await this.loadLocation(loc);
@@ -883,6 +877,13 @@ export class Explorer {
       if (this.view.renaming) {
         this.pendingRefresh = true;
         return;
+      }
+      // Snapshot the selection now, not before the (async) load: what the user selected meanwhile wins.
+      const st = this.view.state();
+      if (select) {
+        st.sel = select;
+        st.focus = select[0];
+        st.reveal = true;
       }
       this.view.setData(loc, data, this.vs, st);
       this.updateCommands();

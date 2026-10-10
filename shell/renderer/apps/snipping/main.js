@@ -351,6 +351,7 @@ class Snipping {
     this.root = h('div', { class: 'snip-app', dataset: { view: this.view } }, this.toolrow, this.compactEl, this.editorEl, this.settingsEl);
     win.body.appendChild(this.root);
     this.editor.el.setAttribute('aria-label', t('canvas'));
+    this.editor.rulerEl.setAttribute('aria-label', t('ruler'));
     this.updateUI();
   }
 

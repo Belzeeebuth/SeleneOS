@@ -1135,6 +1135,17 @@ if (!fatal) {
       const s = window.__fx().tabStops();
       return s[s.length - 1] === document.activeElement;
     }), true);
+    // A refresh (watcher, other window) must not restore a selection snapshot taken before its load
+    const kept = await page.evaluate(async () => {
+      const ex = window.__fx();
+      ex.view.selectNone();
+      const p = ex.refresh({ quiet: true });
+      const keys = ex.view.items.slice(0, 2).map((i) => i.key);
+      ex.view.setSel(keys, keys[0]);
+      await p;
+      return ex.view.selectedItems().length;
+    });
+    check('selection made during a refresh survives it', kept, 2);
     // Malformed file:// URI in the address bar: error dialog, no exception
     const pageErrors = s.logs.filter((l) => l.startsWith('[pageerror]')).length;
     await page.evaluate(() => window.__fx().address.beginEdit('file:///%E0%A4%A'));

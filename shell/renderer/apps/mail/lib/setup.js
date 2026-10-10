@@ -12,11 +12,16 @@ export function errorText(t, e, fallbackHost) {
   const code = e?.code || 'EFAIL';
   const msg = String(e?.message || '');
   const side = e?.side || (/^smtp:/.test(msg) ? 'smtp' : /^imap:/.test(msg) ? 'imap' : null);
-  const host = e?.host || fallbackHost || '';
+  const host = e?.host || fallbackHost || t('err.server');
   const detail = msg.replace(/^(imap|smtp):\s*/, '');
+  // File system problems (saving an attachment, a file to send): the message is the file's path.
+  if (['EACCES', 'ENOSPC', 'ENOENT'].includes(code)) {
+    const name = detail.split('/').filter(Boolean).pop() || detail;
+    return { title: null, text: t(`err.${code}`, { path: code === 'ENOENT' ? name : detail }), detail: null };
+  }
   const known = ['EAUTH', 'ECONN', 'ETLS', 'ETIMEOUT', 'EINSECURE', 'EEXISTS', 'EINVAL', 'ENOACCOUNT', 'ENOMSG'];
   const text = known.includes(code) ? t(`err.${code}`, { host }) : t('err.EFAIL', { detail: detail || code });
-  return { title: side ? t(`err.side.${side}`) : null, text, detail: known.includes(code) && code !== 'EAUTH' && code !== 'EEXISTS' ? detail : null };
+  return { title: side ? t(`err.side.${side}`) : null, text, detail: known.includes(code) && !['EAUTH', 'EEXISTS', 'ENOMSG', 'ENOACCOUNT'].includes(code) ? detail : null };
 }
 
 export class AccountSetup {

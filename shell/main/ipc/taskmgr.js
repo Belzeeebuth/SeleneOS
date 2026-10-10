@@ -15,10 +15,13 @@
 //   proc:kill (pid, signal)       -> true   signal: SIGTERM (default) SIGKILL SIGSTOP SIGCONT SIGINT SIGHUP…
 //                                    errors: EPERM (someone else's process: use shell.runAdmin('kill-process', …)),
 //                                            ESRCH (already gone), EINVAL (pid 1, kernel threads, bad signal)
-//   proc:killTree (pid, signal)   -> {killed:[pid…], failed:[{pid, code}]}  children first
+//   proc:killTree (pid, signal)   -> {killed:[pid…], failed:[{pid, code}]}  children first; the shell's own
+//                                    processes (its main process and everything under it) are left alone
+//                                    unless the tree being ended is the shell's
 //   proc:setPriority (pid, nice)  -> nice (applied to every thread). EACCES when lowering niceness needs admin,
 //                                    EPERM for another user's process
-//   proc:spawn (commandLine)      -> {pid}  runs the command detached with the user's privileges (ENOENT if not found)
+//   proc:spawn (commandLine)      -> {pid}  runs the command detached with the user's privileges (ENOENT if not
+//                                    found, EACCES if the file isn't a program / can't be executed)
 //   perf:snapshot                 -> {time, cpu, mem, disks, net, gpu}   (see snapshot() below)
 //   perf:services                 -> {mock, services:[{unit, name, description, load, active, sub, startup, pid}]}
 //   perf:users                    -> [{user, uid, fullName, status, sessions:[{id, state, type, tty, seat, remote, since}]}]

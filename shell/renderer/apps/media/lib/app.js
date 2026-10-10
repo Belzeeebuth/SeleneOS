@@ -101,6 +101,7 @@ export class MediaApp {
     this.updateNow();
     for (const p of this.recent.slice(0, 12)) this.lib.ensure(p).catch(() => {});
     this.lib.scan().catch((err) => console.error('[media] scan failed', err));
+    this._watchLibrary();
     if (wantFiles.length) await this.handleArgs(args);
   }
 
@@ -579,6 +580,10 @@ export class MediaApp {
       this._poke();
     });
     this._disposers.push(offFs);
+    const offFocus = w.on('focus', () => {
+      if (!this.lib.scanning && Date.now() - this.lib.lastScan > 60000) this._rescanSoon();
+    });
+    this._disposers.push(offFocus);
     w.onBeforeClose(async () => {
       this._saveState.flush();
       return true;
@@ -618,6 +623,7 @@ export class MediaApp {
     this._saveState = noop;
     this._saveRecent = noop;
     this._rerenderSoon.cancel();
+    this._rescanSoon.cancel();
     clearTimeout(this._skipT);
     clearTimeout(this._osdT);
     this._ro?.disconnect();
@@ -639,7 +645,8 @@ export class MediaApp {
       const cur = this.currentPath();
       if (cur && ev.paths.includes(cur)) this.updateNow();
     } else if (ev.type === 'scan' || ev.type === 'scanning') {
-      if (['home', 'music', 'videos', 'album', 'artist', 'search'].includes(this.route.name)) this.render({ keepScroll: true });
+      if (ev.type === 'scan' && ev.quiet && !ev.changed) return;
+      if (['home', 'music', 'videos', 'album', 'artist', 'search', 'settings'].includes(this.route.name)) this.render({ keepScroll: true });
     }
   }
   _onPlaylists() {
@@ -1179,7 +1186,32 @@ export class MediaApp {
     this.render({ keepScroll: true });
     await this.refreshLibrary();
   }
+  /** Watch the library roots: files added or removed there show up without a manual refresh.
+   *  (fs:watch is not recursive; subfolders are picked up when the window is activated.) */
+  async _watchLibrary() {
+    for (const id of this._watchIds || []) this.api.invoke('fs:unwatch', id).catch(() => {});
+    this._watchIds = [];
+    if (!this._offFsChanged) {
+      this._offFsChanged = this.api.on('fs:changed', ({ watchId } = {}) => {
+        if (this._watchIds?.includes(watchId)) this._rescanSoon();
+      });
+      this._disposers.push(() => {
+        this._offFsChanged?.();
+        for (const id of this._watchIds || []) this.api.invoke('fs:unwatch', id).catch(() => {});
+      });
+    }
+    for (const dir of [...this.lib.folders.music, ...this.lib.folders.video]) {
+      try {
+        this._watchIds.push(await this.api.invoke('fs:watch', dir));
+      } catch {}
+    }
+  }
+  _rescanSoon = debounce(() => {
+    if (!this._destroyed) this.lib.scan({ quiet: true }).catch(() => {});
+  }, 1200);
+
   async refreshLibrary() {
+    this._watchLibrary();
     try {
       await this.lib.scan();
     } catch (err) {

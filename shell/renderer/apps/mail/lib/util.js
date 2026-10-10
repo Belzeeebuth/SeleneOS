@@ -161,15 +161,25 @@ export function startOfDay(d) {
   return x;
 }
 
+// Hours as each language writes them: "7:40 PM" in English, "00:19" (never "0:19") in French.
+export const hourStyle = (i18n) => (i18n?.lang === 'fr' ? '2-digit' : 'numeric');
+
+// Key names as printed on the keyboard of each language (French keyboards say "Suppr", "Inser").
+export function keyName(key, lang) {
+  const fr = { Delete: 'Suppr', Insert: 'Inser', Enter: 'Entrée', Escape: 'Échap' };
+  return lang === 'fr' && fr[key] ? fr[key] : key;
+}
+
 // List dates: today -> time, this week -> weekday + time, older -> short date (Outlook style).
 export function listDate(iso, i18n) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const now = new Date();
   const today = startOfDay(now);
-  if (d >= today) return i18n.formatTime(d, { hour: 'numeric', minute: '2-digit' });
+  const hour = hourStyle(i18n);
+  if (d >= today) return i18n.formatTime(d, { hour, minute: '2-digit' });
   const days = Math.round((today - startOfDay(d)) / 86400000);
-  if (days < 7) return i18n.formatDate(d, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  if (days < 7) return i18n.formatDate(d, { weekday: 'short', hour, minute: '2-digit' });
   if (d.getFullYear() === now.getFullYear()) return i18n.formatDate(d, { day: 'numeric', month: 'numeric' }).replace(/\s/g, ' ');
   return i18n.formatDate(d, { dateStyle: 'short' });
 }
@@ -177,8 +187,10 @@ export function listDate(iso, i18n) {
 export function fullDate(iso, i18n) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return i18n.formatDate(d, { weekday: 'short', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return i18n.formatDate(d, { weekday: 'short', year: 'numeric', month: 'numeric', day: 'numeric', hour: hourStyle(i18n), minute: '2-digit' });
 }
+
+export const shortTime = (d, i18n) => i18n.formatTime(d, { hour: hourStyle(i18n), minute: '2-digit' });
 
 // Group key for the message list headers.
 export function dateGroup(iso) {

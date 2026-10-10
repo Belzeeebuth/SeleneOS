@@ -866,7 +866,11 @@ try {
   await sleep(1800);
   await tm(() => (window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.details.table.scroller.scrollTop = 0));
   await shot('taskmgr-details');
-  await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.go('services', { focus: false }));
+  await tm(() => {
+    const T = window.__aurora.wm.byApp('taskmgr')[0].taskmgr;
+    T.pages.services.table.select(null);
+    T.go('services', { focus: false });
+  });
   await sleep(1200);
   await shot('taskmgr-services');
   burn.kill('SIGKILL');

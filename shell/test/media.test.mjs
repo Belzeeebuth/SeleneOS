@@ -1105,6 +1105,17 @@ await test('settings: library folders, visualizer and resume preferences persist
   await waitFor(s, (a) => a.lib.videos().length === 1, null, { what: 'video folder restored' });
 });
 
+await test('library follows files added to or removed from ~/Music', async () => {
+  const added = path.join(MUSIC, 'Fresh Song.wav');
+  fs.writeFileSync(added, wavFile({ seconds: 1, title: 'Fresh Song', artist: 'Aurora QA' }));
+  await waitFor(s, (a, p) => a.lib.songs().some((e) => e.path === p && e.title === 'Fresh Song'), added, { timeout: 10000, what: 'new file picked up' });
+  await M(s, (a) => a.go({ name: 'music' }));
+  await s.page.waitForSelector(`${WIN} .mp-music .mp-row[data-path$="Fresh Song.wav"]`);
+  fs.rmSync(added);
+  await waitFor(s, (a, p) => !a.lib.songs().some((e) => e.path === p), added, { timeout: 10000, what: 'removed file dropped' });
+  await s.page.waitForSelector(`${WIN} .mp-music .mp-row[data-path$="Fresh Song.wav"]`, { state: 'detached' });
+});
+
 await test('screenshots: music library (light) and home', async () => {
   await M(s, (a) => {
     a.toasts.replaceChildren();

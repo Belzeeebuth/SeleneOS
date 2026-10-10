@@ -551,7 +551,7 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     const r1 = await S(s, (app) => ({ ...app.editor.ruler }));
     assert.ok(Math.abs(r1.cx - r0.cx - 30) < 1.5 && Math.abs(r1.cy - r0.cy + 20) < 1.5, `ruler moved (${JSON.stringify(r1)})`);
     // Wheel over it rotates by 1° per notch; the arrows rotate too.
-    await s.page.mouse.move(c0[0] + 150, c0[1] - 20);
+    await s.page.mouse.move(c0[0] + 100, c0[1] - 20);
     for (let i = 0; i < 4; i++) await s.page.mouse.wheel(0, 100);
     await sleep(100);
     assert.equal(await S(s, (app) => app.editor.ruler.angle), 4);

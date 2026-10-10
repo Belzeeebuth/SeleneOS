@@ -183,7 +183,8 @@ unexpected=""; for f in $suid; do [[ "$SUID_OK" == *" $f "* ]] || unexpected+=" 
 [[ -z "$unexpected" ]] && pass "setuid/setgid files are all expected: $suid" || fail "unexpected setuid/setgid files:$unexpected"
 # sudo: no passwordless rule is shipped (the live user's NOPASSWD rule is written by casper at boot).
 sd="$(find "$S/etc/sudoers.d" -mindepth 1 -printf '%f ' | sort)"
-if grep -rqs 'NOPASSWD' "$S/etc/sudoers" "$S/etc/sudoers.d"; then fail "a NOPASSWD sudo rule is shipped in the image"
+nopw="$(grep -rhs 'NOPASSWD' "$S/etc/sudoers" "$S/etc/sudoers.d" | grep -v '^[[:space:]]*#' || true)"
+if [[ -n "$nopw" ]]; then fail "a NOPASSWD sudo rule is shipped in the image: $nopw"
 else pass "no NOPASSWD sudo rule in the image (/etc/sudoers.d: $sd)"; fi
 [[ ! -e "$S/etc/sudoers.d/casper" ]] && pass "/etc/sudoers.d/casper is not in the image (casper writes it in the live session only)" || fail "/etc/sudoers.d/casper shipped"
 # polkit: the Aurora rule grants nothing to non-administrators beyond power actions.

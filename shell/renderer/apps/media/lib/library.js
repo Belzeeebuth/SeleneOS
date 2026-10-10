@@ -121,10 +121,12 @@ export class Library {
     return files;
   }
 
-  async scan() {
+  /** Walk the library folders. quiet: background refresh (no "scanning" state shown). */
+  async scan({ quiet = false } = {}) {
     if (this._scanPromise) return this._scanPromise;
-    this.scanning = true;
-    this._emit({ type: 'scanning' });
+    this.scanning = !quiet;
+    if (!quiet) this._emit({ type: 'scanning' });
+    const before = new Set(this.inLibrary);
     this._scanPromise = (async () => {
       const found = new Map();
       for (const [kind, exts] of [
@@ -144,7 +146,8 @@ export class Library {
       this._saveMeta();
       this.lastScan = Date.now();
       this.scanning = false;
-      this._emit({ type: 'scan' });
+      const changed = before.size !== found.size || [...found.keys()].some((p) => !before.has(p));
+      this._emit({ type: 'scan', changed, quiet });
       this.enrich([...found.keys()]);
     })().finally(() => {
       this.scanning = false;

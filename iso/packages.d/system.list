@@ -17,3 +17,5 @@ locales
 tzdata
 python3
 systemd-timesyncd
+rfkill
+procps

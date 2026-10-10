@@ -305,7 +305,10 @@ function classify(e) {
   const code = String(e.code || '');
   const msg = String(e.message || e);
   const all = `${code} ${msg} ${e.response || ''}`;
-  if (['EAUTH', 'ECONN', 'ETLS', 'ETIMEOUT', 'EINSECURE', 'EEXISTS', 'ENOACCOUNT', 'ENOMSG', 'EINVAL'].includes(code)) return code;
+  if (['EAUTH', 'ECONN', 'ETLS', 'ETIMEOUT', 'EINSECURE', 'EEXISTS', 'ENOACCOUNT', 'ENOMSG', 'EINVAL', 'EACCES', 'ENOSPC', 'ENOENT'].includes(code)) return code;
+  // Local file system errors (saving attachments, reading files to send).
+  if (e.syscall && ['EPERM', 'EROFS', 'EISDIR', 'ENOTDIR'].includes(code)) return 'EACCES';
+  if (e.syscall && code === 'EDQUOT') return 'ENOSPC';
   if (e.authenticationFailed || code === 'EAUTH' || e.responseCode === 535 || e.responseCode === 534 || /AUTHENTICATIONFAILED|authentication failed|invalid credentials|LOGIN failed|Username and Password not accepted|\bAUTHENTICATE failed/i.test(all)) return 'EAUTH';
   if (CERT_CODES.has(code) || TLS_CODES.has(code) || /certificate|\bSSL\b|\bTLS\b|wrong version number|handshake|STARTTLS/i.test(all)) return 'ETLS';
   if (/TIMEOUT|ETIMEDOUT|timed? ?out|Greeting never received/i.test(all)) return 'ETIMEOUT';
@@ -328,7 +331,9 @@ function describe(e) {
 function mapError(e, side) {
   if (e && e.__mapped) return e;
   const code = classify(e);
-  const out = err(`${side ? `${side}: ` : ''}${describe(e)}`, code);
+  // File system errors carry the path only: the renderer words them in the user's language.
+  const fsError = e?.syscall && ['EACCES', 'ENOSPC', 'ENOENT'].includes(code);
+  const out = err(fsError ? String(e.path || e.dest || describe(e)) : `${side ? `${side}: ` : ''}${describe(e)}`, code);
   out.__mapped = true;
   return out;
 }
@@ -386,19 +391,31 @@ function downloadsDir() {
   return path.join(HOME, 'Downloads');
 }
 
-async function uniquePath(dir, name) {
+// Write `data` as dir/name, or "name (1).ext", "name (2).ext"… when taken. The file is created
+// exclusively (O_EXCL), so two saves at the same time never overwrite each other. With `reuse`,
+// an existing copy with exactly the same content is returned instead of writing another one
+// (opening the same attachment twice must not fill Downloads with copies).
+async function writeUnique(dir, name, data, { reuse = false } = {}) {
   const ext = path.extname(name);
   const base = ext ? name.slice(0, -ext.length) : name;
-  let candidate = path.join(dir, name);
-  for (let i = 1; i < 10000; i++) {
-    try {
-      await fsp.access(candidate);
-    } catch {
-      return candidate;
+  for (let i = 0; i < 10000; i++) {
+    const candidate = path.join(dir, i ? `${base} (${i})${ext}` : name);
+    if (reuse) {
+      try {
+        const st = await fsp.stat(candidate);
+        if (st.isFile() && st.size === data.length && (await fsp.readFile(candidate)).equals(data)) return candidate;
+      } catch {}
     }
-    candidate = path.join(dir, `${base} (${i})${ext}`);
+    try {
+      await fsp.writeFile(candidate, data, { flag: 'wx' });
+      return candidate;
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+    }
   }
-  return path.join(dir, `${base} (${Date.now()})${ext}`);
+  const last = path.join(dir, `${base} (${Date.now()})${ext}`);
+  await fsp.writeFile(last, data, { flag: 'wx' });
+  return last;
 }
 
 // ------------------------------------------------------------------ secrets
@@ -1245,17 +1262,17 @@ async function saveAttachment(accountId, folder, uid, attachmentId, opts = {}) {
   const entry = parsedCache.get(key);
   const a = entry?.attachments?.[Number(attachmentId)];
   if (!a) throw err('This attachment could not be found.', 'ENOMSG');
-  let dest = opts.dest ? String(opts.dest) : null;
-  if (dest) {
+  if (opts.dest) {
+    // "Save as": the user picked this exact path (and confirmed replacing it in the file picker).
+    const dest = String(opts.dest);
     if (!path.isAbsolute(dest)) throw err('Invalid destination.', 'EINVAL');
     await fsp.mkdir(path.dirname(dest), { recursive: true });
-  } else {
-    const dir = opts.dir && path.isAbsolute(String(opts.dir)) ? String(opts.dir) : downloadsDir();
-    await fsp.mkdir(dir, { recursive: true });
-    dest = await uniquePath(dir, safeFileName(a.filename));
+    await fsp.writeFile(dest, a.content);
+    return dest;
   }
-  await fsp.writeFile(dest, a.content);
-  return dest;
+  const dir = opts.dir && path.isAbsolute(String(opts.dir)) ? String(opts.dir) : downloadsDir();
+  await fsp.mkdir(dir, { recursive: true });
+  return writeUnique(dir, safeFileName(a.filename), a.content, { reuse: !!opts.reuse });
 }
 
 async function parseFile(file) {
@@ -1340,8 +1357,9 @@ async function sendMessage(accountId, msg = {}) {
     const p = typeof a === 'string' ? a : a?.path;
     try {
       await fsp.access(p, fs.constants.R_OK);
-    } catch {
-      throw err(`Attachment not found: ${path.basename(String(p || ''))}`, 'EINVAL');
+    } catch (e) {
+      // The message is the file's path: the composer says which attachment is missing, in its language.
+      throw err(String(p || ''), e.code === 'EACCES' ? 'EACCES' : 'ENOENT');
     }
   }
   const domain = acc.email.split('@')[1] || 'aurora.localdomain';
