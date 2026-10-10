@@ -807,6 +807,11 @@ if (want('snake')) {
     });
 
     await test('arrow key starts the game and the snake moves', async () => {
+      // Wrap-around keeps these timing-based tests safe from the walls.
+      await page.locator(`${W} [data-id="options"]`).click();
+      await page.locator('.menu .menu-item', { hasText: 'Wrap-around' }).click();
+      await sleep(200);
+      assert.equal(await sn((h) => h.game.wrap), true);
       await page.locator(`${W} .sn-board`).focus();
       const x0 = await sn((h) => h.game.snake[0].x);
       await page.keyboard.press('ArrowDown');
@@ -880,9 +885,13 @@ if (want('snake')) {
     });
 
     await test('eating food scores, then hitting the wall ends the game with a record', async () => {
-      await page.keyboard.press('n');
+      await page.keyboard.press('Space');
+      assert.equal(await sn((h) => h.state), 'paused');
+      await page.locator(`${W} [data-id="options"]`).click();
+      await page.locator('.menu .menu-item', { hasText: 'Walls' }).click();
       await sleep(300);
-      assert.equal(await sn((h) => h.state), 'ready');
+      assert.equal(await sn((h) => h.state), 'ready', 'changing the board starts a new game');
+      assert.equal(await sn((h) => h.game.wrap), false);
       const playedBefore = await sn((h) => h.stats.played);
       assert.equal(playedBefore, 1, 'the abandoned run (it had moved) counts as played');
       await sn((h) => {
@@ -899,6 +908,7 @@ if (want('snake')) {
       const st = await sn((h) => h.stats);
       assert.equal(st.played, playedBefore + 1);
       assert.equal(st.best.walls, 10);
+      assert.equal(st.best.wrap, undefined, 'the wrap-around run scored nothing');
       assert.equal(await page.locator(`${W} [data-id="best"] .gk-chip-value`).textContent(), '10');
       await sleep(900);
       await winShot(s, 'snake', 'snake-gameover-light-en');

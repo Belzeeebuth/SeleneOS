@@ -45,7 +45,7 @@ class CalculatorApp {
       date: { mode: 'diff' },
     };
     this.history = { standard: [], scientific: [] };
-    this.memory = { dec: [], prog: [] };
+    this.memStore = { dec: [], prog: [] };
     this.convState = {};
     this.dateState = null;
     this.paneTab = 'history';
@@ -315,7 +315,7 @@ class CalculatorApp {
 
   // ------------------------------------------------------------ history & memory
   memoryList() {
-    return this.memory[this.view?.memoryKind || 'dec'];
+    return this.memStore[this.view?.memoryKind || 'dec'];
   }
 
   memOps() {
@@ -329,7 +329,7 @@ class CalculatorApp {
 
   memoryWrap() {
     const sys = this.engines.programmer.sys;
-    this.memory.prog = this.memory.prog.map((v) => sys.wrap(v));
+    this.memStore.prog = this.memStore.prog.map((v) => sys.wrap(v));
     this.renderPane();
   }
 
