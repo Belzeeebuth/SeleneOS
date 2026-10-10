@@ -102,7 +102,6 @@ class ProgressWindow {
         cancel?.();
       }
     });
-    setTimeout(() => this.cancelBtn.isConnected && this.win.isFocused?.() && this.cancelBtn.focus(), 50);
     this.win.onBeforeClose(async () => {
       if (this.finished) return true;
       cancel?.();

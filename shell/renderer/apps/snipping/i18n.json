@@ -3,8 +3,18 @@
     "new": "New",
     "newTip": "New snip (Ctrl+N)",
     "mode": "Snipping mode",
-    "modes": { "rect": "Rectangle", "window": "Window", "full": "Full screen", "free": "Free-form" },
-    "modeTips": { "rect": "Rectangle mode", "window": "Window mode", "full": "Full-screen mode", "free": "Free-form mode" },
+    "modes": {
+      "rect": "Rectangle",
+      "window": "Window",
+      "full": "Full screen",
+      "free": "Free-form"
+    },
+    "modeTips": {
+      "rect": "Rectangle mode",
+      "window": "Window mode",
+      "full": "Full-screen mode",
+      "free": "Free-form mode"
+    },
     "delay": "Snip delay",
     "noDelay": "No delay",
     "delaySeconds": "{n} seconds",
@@ -95,17 +105,43 @@
     "aboutLicense": "Part of Aurora OS. Released under the MIT license.",
     "aboutTitle": "About Snipping Tool",
     "colorNames": {
-      "black": "Black", "white": "White", "gray": "Gray", "silver": "Silver", "red": "Red", "orange": "Orange",
-      "yellow": "Yellow", "lime": "Lime", "green": "Green", "teal": "Teal", "cyan": "Cyan", "blue": "Blue",
-      "navy": "Navy", "purple": "Purple", "pink": "Pink", "magenta": "Magenta", "brown": "Brown", "accent": "Accent color"
-    }
+      "black": "Black",
+      "white": "White",
+      "gray": "Gray",
+      "silver": "Silver",
+      "red": "Red",
+      "orange": "Orange",
+      "yellow": "Yellow",
+      "lime": "Lime",
+      "green": "Green",
+      "teal": "Teal",
+      "cyan": "Cyan",
+      "blue": "Blue",
+      "navy": "Navy",
+      "purple": "Purple",
+      "pink": "Pink",
+      "magenta": "Magenta",
+      "brown": "Brown",
+      "accent": "Accent color"
+    },
+    "ruler": "Ruler"
   },
   "fr": {
     "new": "Nouveau",
     "newTip": "Nouvelle capture (Ctrl+N)",
     "mode": "Mode de capture",
-    "modes": { "rect": "Rectangle", "window": "Fenêtre", "full": "Plein écran", "free": "Forme libre" },
-    "modeTips": { "rect": "Mode Rectangle", "window": "Mode Fenêtre", "full": "Mode Plein écran", "free": "Mode Forme libre" },
+    "modes": {
+      "rect": "Rectangle",
+      "window": "Fenêtre",
+      "full": "Plein écran",
+      "free": "Forme libre"
+    },
+    "modeTips": {
+      "rect": "Mode Rectangle",
+      "window": "Mode Fenêtre",
+      "full": "Mode Plein écran",
+      "free": "Mode Forme libre"
+    },
     "delay": "Délai de capture",
     "noDelay": "Aucun délai",
     "delaySeconds": "{n} secondes",
@@ -196,9 +232,25 @@
     "aboutLicense": "Fait partie d'Aurora OS. Publié sous licence MIT.",
     "aboutTitle": "À propos de l'Outil Capture",
     "colorNames": {
-      "black": "Noir", "white": "Blanc", "gray": "Gris", "silver": "Argent", "red": "Rouge", "orange": "Orange",
-      "yellow": "Jaune", "lime": "Citron vert", "green": "Vert", "teal": "Bleu canard", "cyan": "Cyan", "blue": "Bleu",
-      "navy": "Bleu marine", "purple": "Violet", "pink": "Rose", "magenta": "Magenta", "brown": "Marron", "accent": "Couleur d'accentuation"
-    }
+      "black": "Noir",
+      "white": "Blanc",
+      "gray": "Gris",
+      "silver": "Argent",
+      "red": "Rouge",
+      "orange": "Orange",
+      "yellow": "Jaune",
+      "lime": "Citron vert",
+      "green": "Vert",
+      "teal": "Bleu canard",
+      "cyan": "Cyan",
+      "blue": "Bleu",
+      "navy": "Bleu marine",
+      "purple": "Violet",
+      "pink": "Rose",
+      "magenta": "Magenta",
+      "brown": "Marron",
+      "accent": "Couleur d'accentuation"
+    },
+    "ruler": "Règle"
   }
 }

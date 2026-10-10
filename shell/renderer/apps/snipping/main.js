@@ -157,6 +157,7 @@ class Snipping {
       onZoom: () => this.updateUI(),
       onToolChange: () => this.updateUI(),
       onCropChange: () => {},
+      onRulerChange: () => this.updateUI(),
     });
     if (this.penPref) Object.assign(this.editor.pen, this.penPref);
     if (this.hlPref) Object.assign(this.editor.hl, this.hlPref);
@@ -306,11 +307,12 @@ class Snipping {
     this.btnPen = inkBtn('pen', 'pen', t('pen'));
     this.btnHl = inkBtn('hl', 'highlight', t('highlighter'));
     this.btnEraser = inkBtn('eraser', 'eraser', t('eraser'));
+    this.btnRuler = h('button', { class: 'btn subtle icon-btn snip-tool snip-ruler-btn', dataset: { tool: 'ruler' }, 'data-tip': t('ruler'), 'aria-label': t('ruler'), 'aria-pressed': 'false', onclick: () => this.editor.toggleRuler() }, icon('ruler'));
     this.btnCrop = h('button', { class: 'btn subtle icon-btn snip-tool', dataset: { tool: 'crop' }, 'data-tip': t('crop'), 'aria-label': t('crop'), 'aria-pressed': 'false', onclick: () => this.toolClick('crop') }, icon('crop'));
     this.btnCropOk = h('button', { class: 'btn subtle icon-btn snip-crop-ok', 'data-tip': t('cropApply'), 'aria-label': t('cropApply'), onclick: () => this.editor.applyCrop() }, icon('checkmark'));
     this.btnCropNo = h('button', { class: 'btn subtle icon-btn snip-crop-no', 'data-tip': t('cropCancel'), 'aria-label': t('cropCancel'), onclick: () => this.editor.cancelCrop() }, icon('dismiss'));
     this.btnCropReset = h('button', { class: 'btn subtle snip-crop-reset', onclick: () => this.editor.resetCrop() }, icon('arrow_reset'), h('span', null, t('cropReset')));
-    this.inkGroup = h('div', { class: 'snip-tools-ink' }, this.btnUndo, this.btnRedo, h('div', { class: 'snip-sep' }), this.btnPen, this.btnHl, this.btnEraser, this.btnCrop);
+    this.inkGroup = h('div', { class: 'snip-tools-ink' }, this.btnUndo, this.btnRedo, h('div', { class: 'snip-sep' }), this.btnPen, this.btnHl, this.btnEraser, this.btnRuler, this.btnCrop);
     this.cropGroup = h('div', { class: 'snip-tools-crop' }, this.btnCropReset, h('div', { class: 'snip-sep' }), this.btnCropOk, this.btnCropNo);
     this.tools = h('div', { class: 'snip-tools', role: 'toolbar', 'aria-label': t('canvas') }, this.inkGroup, this.cropGroup);
 
@@ -485,8 +487,8 @@ class Snipping {
     const has = ed.hasImage;
     this.btnUndo.disabled = !ed.canUndo;
     this.btnRedo.disabled = !ed.canRedo;
-    for (const b of [this.btnPen, this.btnHl, this.btnEraser, this.btnCrop]) {
-      const on = ed.tool === b.dataset.tool;
+    for (const b of [this.btnPen, this.btnHl, this.btnEraser, this.btnRuler, this.btnCrop]) {
+      const on = b === this.btnRuler ? !!ed.ruler : ed.tool === b.dataset.tool;
       b.classList.toggle('selected', on);
       b.setAttribute('aria-pressed', String(on));
       b.disabled = !has;

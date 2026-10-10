@@ -1066,6 +1066,17 @@ if (!fatal) {
     await page.waitForTimeout(500);
     check('double click Restore: no error dialog', await page.locator('.dialog-layer:not(.closing)').count(), 0);
     check('restored', H.exists(path.join(dir, 'twice.txt')), true);
+    // Properties: OK double-clicked applies the rename once
+    await H.go(dir);
+    await H.select('twice.txt');
+    await H.focusView();
+    await H.key('Alt+Enter');
+    await page.waitForSelector('.fx-props-win .fx-props-head .input');
+    await page.fill('.fx-props-win .fx-props-head .input', 'once.txt');
+    await page.locator('.fx-props-win .fx-props-head .input').dispatchEvent('input');
+    await page.locator('.fx-props-win .fx-props-foot button.primary').dblclick();
+    await page.waitForTimeout(800);
+    check('Properties double OK: renamed once, no error', [H.exists(path.join(dir, 'once.txt')), await page.locator('.dialog-layer:not(.closing)').count()], [true, 0]);
   });
 
   await section('QA: search inside the Recycle Bin lists trash items', async () => {

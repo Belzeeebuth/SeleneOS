@@ -346,6 +346,67 @@
   transform: translate(-50%, 0);
 }
 
+/* ruler */
+.app-snipping .snip-ruler-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 1;
+  pointer-events: none;
+}
+.app-snipping .snip-ruler {
+  position: absolute;
+  pointer-events: auto;
+  border-radius: 6px;
+  background: rgba(252, 252, 252, 0.86);
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+  cursor: grab;
+  transform-origin: center;
+  outline: none;
+  animation: snip-fade-in var(--dur-slow) var(--ease);
+  --tk: rgba(0, 0, 0, 0.55);
+}
+:root[data-theme="dark"] .app-snipping .snip-ruler {
+  background: rgba(40, 40, 40, 0.88);
+  border-color: rgba(255, 255, 255, 0.2);
+  --tk: rgba(255, 255, 255, 0.6);
+}
+.app-snipping .snip-ruler.dragging {
+  cursor: grabbing;
+}
+.app-snipping .snip-ruler:focus-visible {
+  box-shadow: 0 0 0 2px var(--text), 0 4px 16px rgba(0, 0, 0, 0.22);
+}
+.app-snipping .snip-ruler-ticks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, var(--tk) 0 1px, transparent 1px 100px) 0 0 / 100% 20px no-repeat,
+    repeating-linear-gradient(90deg, var(--tk) 0 1px, transparent 1px 50px) 0 0 / 100% 13px no-repeat,
+    repeating-linear-gradient(90deg, var(--tk) 0 1px, transparent 1px 10px) 0 0 / 100% 7px no-repeat,
+    repeating-linear-gradient(90deg, var(--tk) 0 1px, transparent 1px 100px) 0 100% / 100% 20px no-repeat,
+    repeating-linear-gradient(90deg, var(--tk) 0 1px, transparent 1px 50px) 0 100% / 100% 13px no-repeat,
+    repeating-linear-gradient(90deg, var(--tk) 0 1px, transparent 1px 10px) 0 100% / 100% 7px no-repeat;
+}
+.app-snipping .snip-ruler-angle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 22px;
+  margin: -11px 0 0 -26px;
+  border-radius: 11px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--fs-caption);
+  line-height: 22px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
 /* crop */
 .app-snipping .snip-crop {
   position: absolute;
