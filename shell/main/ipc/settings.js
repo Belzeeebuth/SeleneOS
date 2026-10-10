@@ -6,6 +6,11 @@
 //   settings:get (key)           -> value at dotted key ('taskbar.align')
 //   settings:set (key, value)    -> sets & persists; broadcasts 'settings:changed' {key, value, all}
 //   settings:reset (key?)        -> restore default for key (or everything)
+//   settings:setMany (patch, { reset })  -> applies { 'dotted.key': value, … } (and resets the keys in
+//                                   opts.reset) atomically: one save, ONE 'settings:changed'
+//                                   broadcast { key: '*', keys, value: all, all }
+//   settings:defaults            -> the defaults (DEFAULTS + /etc/aurora/settings.json)
+// Personalization keys are documented in docs/PERSONALIZATION.md.
 // App storage channels (~/.config/aurora/apps/<appId>/<name>.json):
 //   storage:get (appId, name, fallback)  -> stored JSON value or fallback
 //   storage:set (appId, name, value)     -> true
@@ -51,7 +56,43 @@ const DEFAULTS = {
   multitasking: { snap: true, snapLayouts: true, snapAssist: true, shake: false }, // features/snaplayouts.js
   clipboard: { history: false }, // Win+V clipboard history (features/hotkeys.js)
   mouse: { speed: 0, leftHanded: false }, // pointer acceleration -1..1 and primary button (applied with xinput, main/ipc/locale.js)
+
+  // ---- Personalization (docs/PERSONALIZATION.md). Area A — theme engine (core/theme.js):
+  style: 'win11', // visual style: win11 | minimal | glass | retro | contrast
+  autoTheme: { enabled: false, light: '07:00', dark: '19:00' }, // "Auto" mode: theme follows the time of day
+  accentFromWallpaper: false, // pick the accent colour from the wallpaper
+  transparencyLevel: 50, // 0 opaque … 50 Windows 11 look … 100 most see-through (windows, flyouts, taskbar)
+  blur: 50, // blur intensity 0–100 (acrylic surfaces + Mica)
+  cornerRadius: 100, // rounded-corner intensity, % of the style's radii (0–200)
+  fontFamily: 'inter', // inter | system | noto-sans | dejavu-sans | liberation-sans | noto-serif | dejavu-serif | cascadia | unifont
+  textScale: 100, // text size % (80–150), independent of the UI scale
+  reducedMotion: false, // implies animations off + no animated wallpaper
+  appThemes: {}, // { [appId]: { theme: 'system'|'light'|'dark', accent: null|'#rrggbb' } }
+  // Area B1 — wallpaper engine (reserved):
+  wallpaperMode: 'static', // static | animated | dynamic
+  animatedWallpaper: { id: 'aurora', speed: 50 },
+  dynamicWallpaper: { source: 'time', set: 'bloom', location: null }, // location: { name, lat, lon }
+  // Area B2 — Start + Focus mode (reserved; taskbar.* additions are merged into `taskbar` below):
+  start: { layout: 'default', background: 'acrylic', folders: [], groups: [] },
+  focusMode: { active: false, hideNotifications: true, dimDesktop: true, dimLevel: 40, simplifyTaskbar: true, duration: 0 },
+  // Area B3 — packs + input (reserved):
+  cursorPack: 'default',
+  iconPack: 'fluent',
+  soundPack: 'aurora',
+  soundEvents: { notification: null, startup: null, shutdown: null }, // null = pack sound, 'none' = silent
+  snapPresets: [], // [{ id, name, zones: [{ x, y, w, h }] }] (fractions of the work area)
+  shortcuts: {}, // { [actionId]: 'Super+K' | null }
 };
+// Personalization keys of the taskbar (Area A: color/opacity; Area B2: the rest), merged into DEFAULTS.taskbar.
+Object.assign(DEFAULTS.taskbar, {
+  color: null, // null = theme default | 'accent' | '#rrggbb'
+  opacity: null, // null = follows transparencyLevel | 0–100
+  size: 'medium', // small | medium | large
+  position: 'bottom', // bottom | top | left | right
+  showLabels: false,
+  combine: 'always', // always | whenFull | never
+  widgets: [], // tray mini widgets ('weather', 'cpu', …)
+});
 
 function isObj(v) {
   return v && typeof v === 'object' && !Array.isArray(v);
@@ -137,6 +178,31 @@ module.exports = function register(api) {
     const all = merged();
     api.broadcast('settings:changed', { key, value: getPath(all, key), all });
     return getPath(all, key);
+  });
+  // Several keys at once (profiles, the Theme designer): one save, one broadcast.
+  api.handle('settings:setMany', (patch, opts = {}) => {
+    if (!isObj(patch)) throw api.error('Invalid settings patch', 'EINVAL');
+    const reset = Array.isArray(opts?.reset) ? opts.reset : [];
+    const keys = [];
+    for (const key of [...Object.keys(patch), ...reset]) {
+      if (typeof key !== 'string' || !key || key.split('.').some((p) => !p || p === '__proto__' || p === 'constructor' || p === 'prototype')) {
+        throw api.error(`Invalid settings key ${key}`, 'EINVAL');
+      }
+    }
+    for (const key of reset) {
+      const parts = key.split('.');
+      const parent = parts.length > 1 ? getPath(user, parts.slice(0, -1).join('.')) : user;
+      if (isObj(parent)) delete parent[parts[parts.length - 1]];
+      keys.push(key);
+    }
+    for (const [key, value] of Object.entries(patch)) {
+      setPath(user, key, value);
+      if (!keys.includes(key)) keys.push(key);
+    }
+    save();
+    const all = merged();
+    api.broadcast('settings:changed', { key: '*', keys, value: all, all });
+    return all;
   });
   api.handle('settings:reset', (key) => {
     if (!key) user = {};

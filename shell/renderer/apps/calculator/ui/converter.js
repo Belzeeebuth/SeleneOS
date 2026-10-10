@@ -96,8 +96,9 @@ export function createConverterView(env, catId) {
   }
 
   function entryFromValue(v) {
+    // "2.2e+41" is a valid entry too (it used to become 0 when a huge converted value was activated)
     const s = toPlain(v, 16);
-    return /e/.test(s) ? '0' : s;
+    return /^-?\d+(\.\d+)?(e[+-]\d+)?$/.test(s) ? s : '0';
   }
 
   function pickUnit(i, anchor) {

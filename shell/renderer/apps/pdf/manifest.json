@@ -1,0 +1,17 @@
+{
+  "id": "pdf",
+  "name": { "en": "PDF Reader", "fr": "Lecteur PDF" },
+  "description": { "en": "Read, search, annotate and present PDF documents", "fr": "Lire, rechercher, annoter et présenter des documents PDF" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1100, "height": 760, "minWidth": 500, "minHeight": 380, "titlebar": "tall", "background": "mica" },
+  "category": "productivity",
+  "keywords": {
+    "en": ["pdf", "reader", "viewer", "document", "acrobat", "annotate", "highlight", "ebook"],
+    "fr": ["pdf", "lecteur", "visionneuse", "document", "annoter", "surligner", "livre"]
+  },
+  "singleInstance": true,
+  "fileTypes": [".pdf"],
+  "defaultFor": [".pdf"]
+}

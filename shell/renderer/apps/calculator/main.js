@@ -22,6 +22,7 @@ const MODE_IDS = [...CALC_MODES.map((m) => m.id), ...CATEGORIES.map((c) => `conv
 const DOCK_MIN = 560;
 const COMPACT = { width: 296, height: 400, minWidth: 220, minHeight: 300 };
 const MAX_HISTORY = 100;
+const MAX_PASTE = 512;
 const reduceMotion = () => document.documentElement.dataset.animations === 'off';
 const NO_FOCUS_ON_CLICK = '.ck, .calc-mem, .calc-tool, .calc-radix, .calc-bit, .calc-iconbtn, .calc-drop, .calc-conv-value, .calc-pane-tab, .calc-hitem, .calc-mitem';
 
@@ -58,7 +59,17 @@ class CalculatorApp {
 
   // ------------------------------------------------------------ startup
   async start() {
+    // The window can be closed while the saved state loads: register the cleanup first and stop there.
+    this.closed = false;
+    this.ctx.onClose(() => {
+      this.closed = true;
+      if (this.onKey) document.removeEventListener('keydown', this.onKey);
+      this.ro?.disconnect();
+      clearTimeout(this.persistTimer);
+      this.view?.destroy?.();
+    });
     const saved = await this.ctx.storage.get('state', null).catch(() => null);
+    if (this.closed) return;
     this.restore(saved);
     const S = this.S;
     this.engines = {
@@ -81,12 +92,6 @@ class CalculatorApp {
     this.ro = new ResizeObserver(() => this.layout());
     this.ro.observe(this.win.body);
     this.ctx.onLangChange(() => this.rebuild());
-    this.ctx.onClose(() => {
-      document.removeEventListener('keydown', this.onKey);
-      this.ro.disconnect();
-      clearTimeout(this.persistTimer);
-      this.view?.destroy?.();
-    });
     setTimeout(() => this.root.focus({ preventScroll: true }), 0);
   }
 
@@ -102,7 +107,12 @@ class CalculatorApp {
     if (SHIFTS.includes(p.shift)) S.prog.shift = p.shift;
     if (p.keypad === 'bits' || p.keypad === 'full') S.prog.keypad = p.keypad;
     if (saved.conv && typeof saved.conv === 'object') {
-      for (const [k, v] of Object.entries(saved.conv)) if (v && typeof v.from === 'string' && typeof v.to === 'string') S.conv[k] = { from: v.from, to: v.to };
+      // only known categories and units (the file is user-writable: never trust its keys, e.g. "__proto__")
+      for (const c of CATEGORIES) {
+        const v = Object.prototype.hasOwnProperty.call(saved.conv, c.id) ? saved.conv[c.id] : null;
+        const ok = (id) => typeof id === 'string' && c.units.some((u) => u.id === id);
+        if (v && ok(v.from) && ok(v.to)) S.conv[c.id] = { from: v.from, to: v.to };
+      }
     }
     if (saved.date?.mode === 'add' || saved.date?.mode === 'diff') S.date.mode = saved.date.mode;
   }
@@ -598,10 +608,27 @@ class CalculatorApp {
       if (this.S.mode !== 'standard') this.setMode('standard', { animate: false });
       this.closeNav(true);
       this.closePaneFlyout(true);
-      this.preCompact = { rect: win.rect(), minWidth: win.opts.minWidth, minHeight: win.opts.minHeight, maximized: win.isMaximized?.() || win.state === 'maximized' };
-      if (this.preCompact.maximized) win.restore();
+      this.preCompact = {
+        rect: win.rect(),
+        minWidth: win.opts.minWidth,
+        minHeight: win.opts.minHeight,
+        maximizable: win.opts.maximizable,
+        resizable: win.opts.resizable,
+        maximized: win.isMaximized?.() || win.state === 'maximized',
+        snap: win.state === 'snapped' ? win.snap : null,
+      };
+      if (this.preCompact.maximized || this.preCompact.snap) {
+        win.restore();
+        if (!this.preCompact.maximized) this.preCompact.rect = win.rect();
+      }
       win.opts.minWidth = COMPACT.minWidth;
       win.opts.minHeight = COMPACT.minHeight;
+      // Like Windows' compact overlay: the always-on-top keypad can be resized but not maximized or
+      // snapped (the wm checks these options on title-bar double-click, Win+arrows and edge drags; its
+      // resize borders keep working).
+      win.opts.maximizable = false;
+      win.opts.resizable = false;
+      if (win.btnMax) win.btnMax.hidden = true;
       this.compact = true;
       this.root.classList.add('compact');
       const r = win.rect();
@@ -611,11 +638,16 @@ class CalculatorApp {
       const p = this.preCompact || {};
       win.opts.minWidth = p.minWidth ?? 320;
       win.opts.minHeight = p.minHeight ?? 480;
+      win.opts.maximizable = p.maximizable ?? true;
+      win.opts.resizable = p.resizable ?? true;
+      if (win.btnMax) win.btnMax.hidden = !win.opts.maximizable || !win.opts.resizable;
       this.compact = false;
       this.root.classList.remove('compact');
       this.setOnTop(false);
+      if (win.state !== 'normal') win.restore();
       if (p.rect) win.setRect(p.rect, true);
       if (p.maximized) win.maximize();
+      else if (p.snap) win.snapTo(p.snap, { source: 'api' });
     }
     this.layout();
     this.renderPane();
@@ -659,6 +691,8 @@ class CalculatorApp {
     }
     const view = this.view;
     if (!view) return;
+    // Windows refuses clipboard text longer than 512 characters ("Invalid input")
+    if (typeof text !== 'string' || text.length > MAX_PASTE) text = '';
     if (view.paste) {
       view.paste(text);
       return;
@@ -684,6 +718,10 @@ class CalculatorApp {
     const tgt = e.target;
     if (tgt && tgt !== document.body && !win.el.contains(tgt)) return;
     if (document.querySelector('body > .menu') || win.el.querySelector('.dialog-layer')) return;
+    if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      this.cycleFocus(e);
+      return;
+    }
     // Mode shortcuts work everywhere in the window, even while a text box has the focus.
     if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
       const m = { 1: 'standard', 2: 'scientific', 4: 'programmer', 5: 'date' }[e.key];
@@ -762,6 +800,36 @@ class CalculatorApp {
       e.preventDefault();
       e.stopPropagation();
     }
+  }
+
+  /**
+   * Keep Tab inside the app like a Windows window (it used to walk out into the taskbar, after which
+   * the still-active calculator ignored every key): an open navigation pane or flyout keeps the focus
+   * to itself, otherwise Tab cycles through the calculator. Inside the scope the browser's own order
+   * is kept; only the wrap-around at either end is handled here.
+   */
+  cycleFocus(e) {
+    const scope = (this.navOpen && this.nav) || this.paneFly?.panel || this.root.querySelector('.calc-flyout:not(.closing)') || this.root;
+    const visible = (el) => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden' && !el.closest('[hidden], [inert]');
+    const items = [...scope.querySelectorAll('button, input, select, textarea, a[href], [tabindex]')].filter((el) => {
+      if (el.disabled || el.tabIndex < 0 || !visible(el)) return false;
+      // a radio group is a single tab stop (its checked radio)
+      if (el.matches('input[type="radio"]') && el.name) {
+        const group = [...scope.querySelectorAll(`input[type="radio"][name="${CSS.escape(el.name)}"]`)];
+        return el.checked || (!group.some((r) => r.checked) && group[0] === el);
+      }
+      return true;
+    });
+    if (!items.length) return;
+    const a = document.activeElement;
+    const i = items.indexOf(a);
+    let next = null;
+    if (i < 0 || !scope.contains(a)) next = e.shiftKey ? items[items.length - 1] : items[0];
+    else if (!e.shiftKey && i === items.length - 1) next = items[0];
+    else if (e.shiftKey && i === 0) next = items[items.length - 1];
+    if (!next) return; // the browser moves within the scope
+    e.preventDefault();
+    next.focus({ preventScroll: false });
   }
 
   reportError(err) {

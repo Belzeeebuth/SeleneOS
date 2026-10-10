@@ -481,10 +481,11 @@
 .app-calculator .calc-radix {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 12px;
-  height: 28px;
-  padding: 0 10px;
+  min-height: 28px;
+  padding: 5px 10px;
+  line-height: 18px;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -508,9 +509,9 @@
 .app-calculator .calc-radix-val {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* long BIN values wrap at the nibble groups (Windows), never an ellipsis that hides bits */
+  white-space: normal;
+  overflow-wrap: anywhere;
   font-size: var(--fs-body);
   font-variant-numeric: tabular-nums;
 }
@@ -524,10 +525,9 @@
   content: "";
   position: absolute;
   left: 0;
-  top: 50%;
+  top: 6px; /* level with the first line when a long BIN value wraps */
   width: 3px;
   height: 16px;
-  margin-top: -8px;
   border-radius: 2px;
   background: var(--accent);
   animation: calc-pill var(--dur-slow) var(--ease);
@@ -1370,7 +1370,15 @@
   padding-bottom: 2px;
 }
 .app-calculator .calc-programmer.tight .calc-radix {
-  height: 22px;
+  min-height: 22px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+.app-calculator .calc-programmer.tight .calc-radix-val {
+  font-size: var(--fs-caption);
+}
+.app-calculator .calc-programmer.tight .calc-radix.selected::before {
+  top: 3px;
 }
 .app-calculator .calc-programmer.tight .calc-radixes {
   padding-bottom: 2px;

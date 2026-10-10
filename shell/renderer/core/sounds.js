@@ -57,10 +57,27 @@ const PRESETS = {
   ],
 };
 
+// A pattern is an array of tones [{ freq, start, dur, type, gain, glide }] (e.g. an app's alarm tone).
+const TYPES = ['sine', 'square', 'triangle', 'sawtooth'];
+const num = (v, min, max, def) => (Number.isFinite(Number(v)) ? Math.min(max, Math.max(min, Number(v))) : def);
+export function sanitizePattern(p) {
+  if (!Array.isArray(p)) return null;
+  const out = p.slice(0, 32).filter((x) => x && Number.isFinite(Number(x.freq))).map((x) => ({
+    freq: num(x.freq, 20, 8000, 440),
+    start: num(x.start, 0, 3, 0),
+    dur: num(x.dur, 0.02, 3, 0.25),
+    type: TYPES.includes(x.type) ? x.type : 'sine',
+    gain: num(x.gain, 0.001, 0.3, 0.15),
+    ...(Number.isFinite(Number(x.glide)) ? { glide: num(x.glide, 20, 8000, 440) } : {}),
+  }));
+  return out.length ? out : null;
+}
+
 export const sounds = {
+  /** sounds.play('notify') or sounds.play([{ freq: 880, dur: 0.2 }, …]) (a tone pattern) */
   play(name) {
     if (settings.get('sounds') === false) return;
-    const p = PRESETS[name];
+    const p = Array.isArray(name) ? sanitizePattern(name) : PRESETS[name];
     if (!p) return;
     try {
       const ac = audio();

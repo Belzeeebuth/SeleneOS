@@ -10,6 +10,7 @@
 //     repeat,             // null | 'daily' | 'weekdays' | 'weekly' | { days: [0..6] } (0 = Sunday)
 //     kind,               // 'reminder' (default: notification + chime) | 'alarm' (rings until dismissed, max 1 min)
 //     snoozeMinutes,      // snooze length offered on the notification (default 10, 0 = no snooze button)
+//     sound,              // optional ring tone for kind 'alarm': a tone pattern [{freq, start, dur, type, gain}] (see sounds.js)
 //     data,               // any JSON the app wants back (launch args)
 //   }) -> reminder
 //   shell.reminders.remove(id, appId)    shell.reminders.list(appId?) -> [reminder]
@@ -20,7 +21,7 @@
 // 6 hours late; older one-shot reminders are dropped, repeating ones jump to their next occurrence.
 import { api, Emitter } from './api.js';
 import { notify, notifications } from './notify.js';
-import { sounds } from './sounds.js';
+import { sounds, sanitizePattern } from './sounds.js';
 import { t, i18n } from './i18n.js';
 
 i18n.extend({
@@ -34,6 +35,9 @@ let items = [];
 let timer = null;
 let registryRef = null;
 let ringing = null;
+// Last fired copy of each reminder, so "Snooze" on the notification of a one-shot reminder (already
+// removed from the schedule when it fired) can still reschedule it.
+const fired = new Map();
 
 const key = (r) => `${r.appId}::${r.id}`;
 
@@ -74,11 +78,12 @@ function stopRinging() {
   ringing = null;
 }
 
-function ring() {
+function ring(sound) {
   stopRinging();
-  sounds.play('alarm');
+  const tone = sound || 'alarm';
+  sounds.play(tone);
   ringing = {
-    loop: setInterval(() => sounds.play('alarm'), 1600),
+    loop: setInterval(() => sounds.play(tone), 1600),
     stop: setTimeout(stopRinging, 60000),
   };
 }
@@ -86,7 +91,10 @@ function ring() {
 function fire(r, late = false) {
   const appName = registryRef?.name?.(r.appId) || r.appId;
   const snooze = r.snoozeMinutes ?? 10;
-  if (r.kind === 'alarm') ring();
+  if (r.kind === 'alarm') ring(r.sound);
+  fired.delete(key(r));
+  fired.set(key(r), { ...r });
+  if (fired.size > 64) fired.delete(fired.keys().next().value);
   const actions = [];
   if (snooze > 0) {
     actions.push({ label: t('reminders.snooze', { n: snooze }), onClick: () => (stopRinging(), reminders.snooze(r.id, r.appId, snooze)) });
@@ -153,6 +161,8 @@ export const reminders = {
       snoozeMinutes: r.snoozeMinutes ?? 10,
       data: r.data ?? null,
     };
+    const sound = sanitizePattern(r.sound);
+    if (sound) item.sound = sound;
     items = items.filter((x) => key(x) !== key(item));
     items.push(item);
     save();
@@ -184,6 +194,9 @@ export const reminders = {
     } else if (r) {
       // keep the repeating reminder and add a one-off snoozed copy
       reminders.set({ ...r, id: `${r.id}~snooze`, at, repeat: null });
+    } else if (fired.has(`${appId}::${id}`)) {
+      // a one-shot reminder that already fired: schedule it again
+      reminders.set({ ...fired.get(`${appId}::${id}`), at, repeat: null });
     }
   },
   stopRinging,

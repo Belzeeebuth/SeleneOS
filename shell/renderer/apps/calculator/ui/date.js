@@ -36,6 +36,7 @@ export function createDateView(env) {
   }
 
   let refreshFn = () => {};
+  let pickers = []; // date pickers of the current sub-mode (their flyouts live in the app root)
 
   function field(label, control) {
     return h('div', { class: 'calc-date-field' }, h('div', { class: 'calc-date-label' }, label), control);
@@ -48,6 +49,7 @@ export function createDateView(env) {
     const to = datePicker({ ctx, host: app.flyoutHost(), value: st.to, label: t('date.to'), onChange: (d) => ((st.to = d), refreshFn()) });
     from.el.dataset.picker = 'from';
     to.el.dataset.picker = 'to';
+    pickers = [from, to];
     content.append(field(t('date.from'), from.el), field(t('date.to'), to.el), field(t('date.difference'), h('div', null, result, total)));
     refreshFn = () => {
       if (sameDay(st.from, st.to)) {
@@ -116,6 +118,7 @@ export function createDateView(env) {
   function buildAdd() {
     const base = datePicker({ ctx, host: app.flyoutHost(), value: st.base, label: t('date.from'), onChange: (d) => ((st.base = d), refreshFn()) });
     base.el.dataset.picker = 'base';
+    pickers = [base];
     const result = h('div', { class: 'calc-date-result', 'data-result': 'date', 'aria-live': 'polite' });
     content.append(
       field(t('date.from'), base.el),
@@ -131,6 +134,8 @@ export function createDateView(env) {
   }
 
   function build(animate = false) {
+    for (const p of pickers) p.close();
+    pickers = [];
     content.textContent = '';
     modeText.textContent = t(`date.mode.${S.date.mode}`);
     if (S.date.mode === 'add') buildAdd();
@@ -150,6 +155,13 @@ export function createDateView(env) {
     layout() {},
     handleKey: () => false,
     copyText: () => root.querySelector('.calc-date-result')?.textContent || null,
-    destroy() {},
+    closeFlyouts: () => {
+      const open = !!app.flyoutHost().querySelector('.calc-cal-flyout:not(.closing)');
+      for (const p of pickers) p.close();
+      return open;
+    },
+    destroy() {
+      for (const p of pickers) p.close();
+    },
   };
 }

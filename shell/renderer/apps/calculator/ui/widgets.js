@@ -109,7 +109,10 @@ export function datePicker({ ctx, host, value, onChange, label }) {
   };
   paint();
 
+  let fl = null; // the open calendar flyout
+
   function open() {
+    if (fl && !fl.closed) return;
     let view = 'month';
     let cursor = new Date(current); // focused date (month view) / month (year view) / year (decade view)
     const title = h('button', { class: 'calc-cal-title', onclick: () => zoomOut() });
@@ -117,7 +120,7 @@ export function datePicker({ ctx, host, value, onChange, label }) {
     const next = h('button', { class: 'calc-cal-nav', 'aria-label': ctx.t('date.next'), onclick: () => step(1) }, icon('chevron_down', { size: 16 }));
     const grid = h('div', { class: 'calc-cal-grid', role: 'grid' });
     const body = h('div', { class: 'calc-cal' }, h('div', { class: 'calc-cal-head' }, title, h('div', { class: 'grow' }), prev, next), grid);
-    const fl = openFlyout({ h, anchor: btn, host, content: body, className: 'calc-cal-flyout', focus: false });
+    fl = openFlyout({ h, anchor: btn, host, content: body, className: 'calc-cal-flyout', focus: false });
 
     function step(dir) {
       if (view === 'month') cursor = addMonthsKeep(cursor, dir);
@@ -272,6 +275,10 @@ export function datePicker({ ctx, host, value, onChange, label }) {
       paint();
     },
     repaint: paint,
+    /** Close the calendar flyout if it is open (the view is going away). */
+    close() {
+      if (fl && !fl.closed) fl.close();
+    },
   };
 }
 
