@@ -1,0 +1,137 @@
+/* Snake — layout and board palette. Shared chrome is in gamekit.css. Colours below are read by
+   main.js (getComputedStyle) to paint the canvas, so they must stay #rrggbb hex values. */
+.app-snake {
+  --sn-bg-a: #e7f2e1;
+  --sn-bg-b: #dcebd4;
+  --sn-border: #c9dcc0;
+  --sn-head: #1f8f4e;
+  --sn-head-hi: #63d37f;
+  --sn-body-a: #2fa95a;
+  --sn-body-b: #9bdc6e;
+  --sn-belly: rgba(255, 255, 255, 0.28);
+  --sn-eye: #ffffff;
+  --sn-pupil: #10251a;
+  --sn-food: #d92d3a;
+  --sn-food-hi: #ff8a7a;
+  --sn-leaf: #3fae49;
+  --sn-rock-a: #9aa3b0;
+  --sn-rock-b: #6b7482;
+  --sn-dead: #8d9690;
+}
+:root[data-theme="dark"] .app-snake {
+  --sn-bg-a: #1d2820;
+  --sn-bg-b: #212e24;
+  --sn-border: #2c3b30;
+  --sn-head: #2fb565;
+  --sn-head-hi: #8ef0a2;
+  --sn-body-a: #3cc671;
+  --sn-body-b: #a7e57c;
+  --sn-belly: rgba(255, 255, 255, 0.22);
+  --sn-eye: #f4fff6;
+  --sn-pupil: #0b1a10;
+  --sn-food: #ff4d58;
+  --sn-food-hi: #ffa194;
+  --sn-leaf: #5fd068;
+  --sn-rock-a: #6d7685;
+  --sn-rock-b: #474f5c;
+  --sn-dead: #6c746e;
+}
+.app-snake .sn-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.app-snake .sn-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 6px 12px 2px;
+  min-width: 0;
+}
+.app-snake .sn-status .gk-chip {
+  min-width: 96px;
+}
+.app-snake .sn-best.record .gk-chip-value {
+  color: #c48a00;
+}
+:root[data-theme="dark"] .app-snake .sn-best.record .gk-chip-value {
+  color: #ffd66b;
+}
+.app-snake .sn-mode {
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.app-snake .sn-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  overflow: hidden;
+}
+.app-snake .sn-board {
+  position: relative;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px var(--stroke-card), 0 4px 14px rgba(0, 0, 0, 0.08);
+  outline: none;
+  touch-action: none;
+}
+.app-snake .sn-board:focus-visible {
+  box-shadow: 0 0 0 1px var(--stroke-card), 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent), 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+.app-snake .sn-canvas {
+  display: block;
+  border-radius: var(--radius-lg);
+}
+.app-snake .sn-board .gk-overlay {
+  border-radius: var(--radius-lg);
+}
+
+/* "Ready" prompt: compact card near the bottom so the snake and the first apple stay visible. */
+.app-snake .gk-overlay[data-kind="ready"] {
+  align-items: end;
+  padding-bottom: 20px;
+  background: transparent;
+}
+.app-snake .gk-overlay[data-kind="ready"] .gk-overlay-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "icon title btn" "icon text btn";
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 0;
+  width: auto;
+  max-width: min(520px, 100%);
+  padding: 12px 14px 12px 12px;
+  text-align: left;
+}
+.app-snake .gk-overlay[data-kind="ready"] .gk-overlay-icon {
+  grid-area: icon;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+}
+.app-snake .gk-overlay[data-kind="ready"] .gk-overlay-title {
+  grid-area: title;
+  font-size: var(--fs-body-large);
+  line-height: 24px;
+}
+.app-snake .gk-overlay[data-kind="ready"] .gk-overlay-text {
+  grid-area: text;
+  font-size: var(--fs-caption);
+  line-height: 16px;
+}
+.app-snake .gk-overlay[data-kind="ready"] .gk-overlay-actions {
+  grid-area: btn;
+  width: auto;
+  margin: 0;
+}
+.app-snake .gk-overlay[data-kind="ready"] .gk-overlay-actions .btn {
+  min-width: 96px;
+}

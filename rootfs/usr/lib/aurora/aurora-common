@@ -1,0 +1,188 @@
+# shellcheck shell=sh
+# Aurora OS session helpers — sourced by aurora-greeter, aurora-session, aurora-xstart,
+# aurora-xgreeter, aurora-xsession and aurora-shell. POSIX sh.
+#
+# Tunables (environment, /etc/aurora/session.conf or the kernel command line):
+#   AURORA_GPU=auto|on|off        aurora.gpu=   Electron GPU acceleration (auto: on only with a 3D-capable GPU)
+#   AURORA_RESOLUTION=WxH         aurora.resolution=  force a screen mode (VMs default to 1920x1080/1600x900)
+#   AURORA_ELECTRON_FLAGS="..."   extra Chromium/Electron switches
+#   AURORA_DEBUG=1                aurora.debug  verbose logs (Electron logging to the journal)
+
+AURORA_ELECTRON=/opt/aurora/electron/electron
+AURORA_APP=/opt/aurora/shell
+
+[ -r /etc/aurora/session.conf ] && . /etc/aurora/session.conf
+
+aurora_log() { printf 'aurora: %s\n' "$*" >&2; }
+
+# aurora_cmdline KEY -> value of KEY=value on the kernel command line ("1" for a bare KEY)
+aurora_cmdline() {
+  for _w in $(cat /proc/cmdline 2>/dev/null); do
+    case "$_w" in
+      "$1"=*) printf '%s\n' "${_w#*=}"; return 0 ;;
+      "$1") echo 1; return 0 ;;
+    esac
+  done
+  return 1
+}
+
+[ -n "${AURORA_DEBUG:-}" ] || AURORA_DEBUG="$(aurora_cmdline aurora.debug || true)"
+
+# Locale: /etc/default/locale (set by casper's locale= or the installer), unless already set.
+aurora_locale_env() {
+  if [ -z "${LANG:-}" ] && [ -r /etc/default/locale ]; then
+    # shellcheck disable=SC1091
+    . /etc/default/locale
+  fi
+  # C.UTF-8 is what casper writes without a locale= boot parameter: use US English then.
+  case "${LANG:-}" in ''|C|C.*|POSIX) LANG=en_US.UTF-8 ;; esac
+  export LANG
+  if [ -n "${LANGUAGE:-}" ]; then export LANGUAGE; fi
+  for _v in LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION; do
+    eval "_val=\${$_v:-}"
+    if [ -n "$_val" ]; then export "$_v"; fi
+  done
+  return 0
+}
+
+# Value of a top-level key in the user's shell settings (~/.config/aurora/settings.json).
+aurora_user_setting() {
+  _f="${HOME:-/nonexistent}/.config/aurora/settings.json"
+  [ -r "$_f" ] || return 1
+  command -v python3 >/dev/null 2>&1 || return 1
+  python3 -I -c '
+import json, sys
+try:
+    v = json.load(open(sys.argv[1])).get(sys.argv[2])
+except Exception:
+    sys.exit(1)
+if v is None or isinstance(v, (dict, list)):
+    sys.exit(1)
+print(v)' "$_f" "$1" 2>/dev/null
+}
+
+# GPU mode for Electron and Xorg: prints "on" or "off".
+aurora_gpu_mode() {
+  _m="${AURORA_GPU:-}"
+  [ -n "$_m" ] || _m="$(aurora_cmdline aurora.gpu || true)"
+  case "$_m" in on|1|yes) echo on; return ;; off|0|no) echo off; return ;; esac
+  if aurora_cmdline nomodeset >/dev/null; then echo off; return; fi
+  _accel=off
+  for _c in /sys/class/drm/card[0-9]*; do
+    [ -e "$_c/device/driver" ] || continue
+    case "$_c" in *-*) continue ;; esac   # connectors (card0-HDMI-A-1)
+    _drv="$(basename "$(readlink -f "$_c/device/driver")")"
+    case "$_drv" in
+      virtio_gpu|virtio-gpu)
+        # VIRTIO_GPU_F_VIRGL is feature bit 0 of the virtio device.
+        _feat="$(cat "$_c/device/features" 2>/dev/null || true)"
+        case "$_feat" in 1*) _accel=on ;; esac ;;
+      bochs|bochs-drm|cirrus|cirrus-qemu|qxl|simpledrm|simple-framebuffer|efifb|vesafb|ofdrm|vboxvideo|hyperv_drm|ast|mgag200|udl|gm12u320|vkms) ;;
+      *) _accel=on ;;
+    esac
+  done
+  echo "$_accel"
+}
+
+# Sets AURORA_FLAGS (Chromium/Electron switches) and the environment the shell expects.
+# Call it directly (not in $(...)): it exports variables.
+aurora_electron_setup() {
+  AURORA_FLAGS="--ozone-platform=x11"
+  if [ "$(aurora_gpu_mode)" = off ]; then
+    export AURORA_DISABLE_GPU=1
+    AURORA_FLAGS="$AURORA_FLAGS --disable-gpu"
+  fi
+  if [ -n "${AURORA_DEBUG:-}" ] && [ "$AURORA_DEBUG" != 0 ]; then
+    AURORA_FLAGS="$AURORA_FLAGS --enable-logging=stderr --v=0"
+  fi
+  AURORA_FLAGS="$AURORA_FLAGS ${AURORA_ELECTRON_FLAGS:-}"
+}
+
+# VT of the current logind session.
+aurora_vt() {
+  if [ -n "${XDG_VTNR:-}" ]; then echo "$XDG_VTNR"; return 0; fi
+  if [ -n "${XDG_SESSION_ID:-}" ] && command -v loginctl >/dev/null 2>&1; then
+    _vt="$(loginctl show-session "$XDG_SESSION_ID" -p VTNr --value 2>/dev/null || true)"
+    if [ -n "$_vt" ] && [ "$_vt" != 0 ]; then echo "$_vt"; return 0; fi
+  fi
+  _tty="$(tty 2>/dev/null || true)"
+  case "$_tty" in /dev/tty[0-9]*) echo "${_tty#/dev/tty}"; return 0 ;; esac
+  return 1
+}
+
+aurora_free_display() {
+  _n=0
+  while [ "$_n" -lt 64 ]; do
+    if [ ! -e "/tmp/.X$_n-lock" ] && [ ! -S "/tmp/.X11-unix/X$_n" ]; then echo "$_n"; return 0; fi
+    _n=$((_n + 1))
+  done
+  return 1
+}
+
+# Keyboard layout: user setting (shell Settings app) > /etc/default/keyboard.
+aurora_apply_keyboard() {
+  command -v setxkbmap >/dev/null 2>&1 || return 0
+  XKBMODEL="" XKBLAYOUT="" XKBVARIANT="" XKBOPTIONS=""
+  # shellcheck disable=SC1091
+  [ -r /etc/default/keyboard ] && . /etc/default/keyboard
+  _user="$(aurora_user_setting keyboardLayout || true)"
+  if [ -n "$_user" ]; then
+    case "$_user" in
+      *"("*")") XKBVARIANT="${_user#*(}"; XKBVARIANT="${XKBVARIANT%)}"; XKBLAYOUT="${_user%%(*}" ;;
+      *+*) XKBLAYOUT="${_user%%+*}"; XKBVARIANT="${_user#*+}" ;;
+      *:*) XKBLAYOUT="${_user%%:*}"; XKBVARIANT="${_user#*:}" ;;
+      *) XKBLAYOUT="$_user"; XKBVARIANT="" ;;
+    esac
+  fi
+  set -- -layout "${XKBLAYOUT:-us}"
+  [ -n "$XKBMODEL" ] && set -- "$@" -model "$XKBMODEL"
+  [ -n "$XKBVARIANT" ] && set -- "$@" -variant "$XKBVARIANT"
+  [ -n "$XKBOPTIONS" ] && set -- "$@" -option "" -option "$XKBOPTIONS"
+  setxkbmap "$@" 2>/dev/null || aurora_log "setxkbmap $* failed"
+  return 0
+}
+
+# Screen mode: honour AURORA_RESOLUTION / aurora.resolution=; in virtual machines whose
+# virtual display starts small (QEMU's default is 1280x800), pick 1920x1080 or 1600x900.
+aurora_apply_resolution() {
+  command -v xrandr >/dev/null 2>&1 || return 0
+  _want="${AURORA_RESOLUTION:-$(aurora_cmdline aurora.resolution || true)}"
+  _q="$(xrandr --query 2>/dev/null)" || return 0
+  _out="$(printf '%s\n' "$_q" | awk '/ connected/ {print $1; exit}')"
+  [ -n "$_out" ] || return 0
+  _cur="$(printf '%s\n' "$_q" | awk '/^Screen 0/ {gsub(",", "", $10); print $8 "x" $10; exit}')"
+  if [ -z "$_want" ]; then
+    systemd-detect-virt --vm -q 2>/dev/null || return 0
+    _w="${_cur%x*}"
+    [ -n "$_w" ] && [ "$_w" -ge 1600 ] 2>/dev/null && return 0
+    _want="1920x1080 1600x900"
+  fi
+  for _m in $_want; do
+    if printf '%s\n' "$_q" | awk -v m="$_m" '$1 == m {f=1} END {exit !f}'; then
+      [ "$_m" = "$_cur" ] && return 0
+      xrandr --output "$_out" --mode "$_m" 2>/dev/null && { aurora_log "display $_out set to $_m"; return 0; }
+    fi
+  done
+  # Mode not advertised by the output: add it (VMs accept arbitrary modes).
+  _m="${_want%% *}"
+  if command -v cvt >/dev/null 2>&1; then
+    _ml="$(cvt "${_m%x*}" "${_m#*x}" 60 2>/dev/null | sed -n 's/^Modeline //p')"
+    if [ -n "$_ml" ]; then
+      _name="$(echo "$_ml" | awk '{print $1}' | tr -d '"')"
+      # shellcheck disable=SC2086
+      xrandr --newmode $(echo "$_ml" | tr -d '"') 2>/dev/null || true
+      xrandr --addmode "$_out" "$_name" 2>/dev/null && xrandr --output "$_out" --mode "$_name" 2>/dev/null || true
+    fi
+  fi
+  return 0
+}
+
+# Common X setup for the greeter and the user session.
+aurora_x_setup() {
+  export XCURSOR_THEME="${XCURSOR_THEME:-DMZ-White}" XCURSOR_SIZE="${XCURSOR_SIZE:-24}"
+  # No screen blanking / DPMS from X: the shell handles idle (lock screen) itself.
+  xset s off s noblank -dpms 2>/dev/null || true
+  xsetroot -cursor_name left_ptr -solid '#000000' 2>/dev/null || true
+  aurora_apply_resolution
+  aurora_apply_keyboard
+}

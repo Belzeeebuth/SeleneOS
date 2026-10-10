@@ -1,0 +1,2039 @@
+/* File Explorer — Windows 11 (22H2/23H2) layout. Every rule is scoped under .app-files. */
+
+.app-files {
+  --fx-bar: rgba(255, 255, 255, 0.66);
+  --fx-content: #ffffff;
+  --fx-field: rgba(255, 255, 255, 0.92);
+  --fx-field-hover: #ffffff;
+  --fx-field-stroke: rgba(0, 0, 0, 0.08);
+  --fx-hover: color-mix(in srgb, var(--accent-base, #0078d4) 8%, transparent);
+  --fx-sel: color-mix(in srgb, var(--accent-base, #0078d4) 18%, transparent);
+  --fx-sel-hover: color-mix(in srgb, var(--accent-base, #0078d4) 24%, transparent);
+  --fx-sel-stroke: color-mix(in srgb, var(--accent-base, #0078d4) 30%, transparent);
+  --fx-cap-bg: #e2e2e2;
+  --fx-folder: #e8a92c;
+  --fx-row-h: 30px;
+  --fx-line-h: 26px;
+  --fx-tree-h: 30px;
+}
+:root[data-theme="dark"] .app-files {
+  --fx-bar: rgba(255, 255, 255, 0.055);
+  --fx-content: #1b1b1b;
+  --fx-field: rgba(255, 255, 255, 0.06);
+  --fx-field-hover: rgba(255, 255, 255, 0.09);
+  --fx-field-stroke: rgba(255, 255, 255, 0.07);
+  --fx-hover: rgba(255, 255, 255, 0.06);
+  --fx-sel: color-mix(in srgb, var(--accent-base, #0078d4) 30%, rgba(255, 255, 255, 0.06));
+  --fx-sel-hover: color-mix(in srgb, var(--accent-base, #0078d4) 36%, rgba(255, 255, 255, 0.08));
+  --fx-sel-stroke: color-mix(in srgb, var(--accent-base, #0078d4) 45%, transparent);
+  --fx-cap-bg: #3b3b3b;
+}
+:root[data-transparency="off"][data-theme="light"] .app-files {
+  --fx-bar: #f9f9f9;
+}
+:root[data-transparency="off"][data-theme="dark"] .app-files {
+  --fx-bar: #2b2b2b;
+}
+.app-files .fx-root.compact,
+.app-files.compact {
+  --fx-row-h: 24px;
+  --fx-line-h: 22px;
+  --fx-tree-h: 26px;
+}
+
+/* The hidden attribute always wins over the display rules below. */
+.app-files [hidden] {
+  display: none !important;
+}
+
+/* ---------------------------------------------------------------- title bar tabs */
+.app-files.tb-tall > .win-titlebar {
+  padding-left: 8px;
+  gap: 0;
+}
+.app-files.tb-tall > .win-titlebar > .win-icon,
+.app-files.tb-tall > .win-titlebar > .win-title {
+  display: none;
+}
+.app-files .fx-tabbar {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding-top: 8px;
+  gap: 4px;
+}
+.app-files .fx-tabs {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  padding: 0 8px;
+}
+.app-files .fx-tabs::-webkit-scrollbar {
+  display: none;
+}
+.app-files .fx-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 236px;
+  min-width: 84px;
+  height: 32px;
+  margin-bottom: 4px;
+  padding: 0 4px 0 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text);
+  background-image: linear-gradient(var(--stroke-strong), var(--stroke-strong));
+  background-size: 1px 16px;
+  background-position: left center;
+  background-repeat: no-repeat;
+  transition: background-color var(--dur-fast) linear;
+}
+.app-files .fx-tab:first-child,
+.app-files .fx-tab.active + .fx-tab,
+.app-files .fx-tab:hover,
+.app-files .fx-tab:hover + .fx-tab,
+.app-files .fx-tab.active {
+  background-image: none;
+}
+.app-files .fx-tab:not(.active):hover {
+  background-color: var(--subtle-hover);
+}
+.app-files .fx-tab.active {
+  height: 36px;
+  margin-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background-color: var(--fx-bar);
+  box-shadow: 0 -1px 0 var(--stroke) inset, 0 0 0 0 transparent;
+  box-shadow: none;
+  z-index: 1;
+}
+.app-files .fx-tab.active::before,
+.app-files .fx-tab.active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+}
+.app-files .fx-tab.active::before {
+  left: -8px;
+  background: radial-gradient(circle at 0 0, transparent 7.5px, var(--fx-bar) 8px);
+}
+.app-files .fx-tab.active::after {
+  right: -8px;
+  background: radial-gradient(circle at 100% 0, transparent 7.5px, var(--fx-bar) 8px);
+}
+.app-files .fx-tab.dragging {
+  z-index: 3;
+  transition: none;
+  opacity: 0.92;
+}
+.app-files .fx-tabs.reordering .fx-tab:not(.dragging) {
+  transition: transform var(--dur) var(--ease);
+}
+.app-files .fx-tab:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.app-files .fx-tab.fx-drop {
+  background-color: var(--fx-sel);
+}
+.app-files .fx-tab-ic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.app-files .fx-tab-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-files .fx-tab-x {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-2);
+  opacity: 0;
+  transition: opacity var(--dur-fast) linear;
+}
+.app-files .fx-tab:hover .fx-tab-x,
+.app-files .fx-tab.active .fx-tab-x {
+  opacity: 1;
+}
+.app-files .fx-tab-x:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-files .fx-tab-x:active {
+  background: var(--subtle-pressed);
+}
+.app-files .fx-newtab {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+}
+.app-files .fx-newtab:hover {
+  background: var(--subtle-hover);
+}
+.app-files .fx-newtab:active {
+  background: var(--subtle-pressed);
+}
+
+/* ---------------------------------------------------------------- layout */
+.app-files .fx-root {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+  font-size: 12px;
+}
+.app-files .fx-root.busy,
+.app-files .fx-root.busy * {
+  cursor: progress;
+}
+.app-files .fx-top {
+  flex: none;
+  background: var(--fx-bar);
+  border-bottom: 1px solid var(--stroke);
+}
+.app-files .fx-addrrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 12px 0 8px;
+}
+.app-files .fx-navbtns {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+.app-files .fx-navbtn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  transition: background var(--dur-fast) linear;
+}
+.app-files .fx-navbtn:hover {
+  background: var(--subtle-hover);
+}
+.app-files .fx-navbtn:active {
+  background: var(--subtle-pressed);
+}
+.app-files .fx-navbtn:active .icon {
+  transform: scale(0.88);
+}
+.app-files .fx-navbtn .icon {
+  transition: transform var(--dur) var(--ease);
+}
+.app-files .fx-navbtn:disabled {
+  color: var(--text-disabled);
+  background: transparent;
+}
+.app-files .fx-navbtn.spin .icon {
+  animation: fx-spin 0.5s var(--ease);
+}
+@keyframes fx-spin {
+  from {
+    transform: rotate(-200deg);
+  }
+}
+
+/* ---------------------------------------------------------------- address bar */
+.app-files .fx-address {
+  position: relative;
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 0 0 8px;
+  border-radius: 4px;
+  border: 1px solid var(--fx-field-stroke);
+  background: var(--fx-field);
+  overflow: visible;
+  transition: background var(--dur-fast) linear;
+}
+.app-files .fx-address:hover {
+  background: var(--fx-field-hover);
+}
+.app-files .fx-address::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 18%, transparent), transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  opacity: 0;
+}
+.app-files .fx-address.busy::before {
+  opacity: 1;
+  animation: fx-busy 1.2s linear infinite;
+}
+@keyframes fx-busy {
+  from {
+    background-position: -60% 0;
+  }
+  to {
+    background-position: 160% 0;
+  }
+}
+.app-files .fx-address.editing {
+  background: var(--input-focus-bg);
+  border-bottom: 2px solid var(--accent);
+}
+.app-files .fx-address.error {
+  border-bottom: 2px solid var(--danger);
+}
+.app-files .fx-addr-ic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-right: 2px;
+}
+.app-files .fx-crumbs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  overflow: hidden;
+}
+.app-files .fx-address.editing .fx-crumbs,
+.app-files .fx-address.editing .fx-addr-ic {
+  display: none;
+}
+.app-files .fx-crumb,
+.app-files .fx-crumb-chev,
+.app-files .fx-crumb-more {
+  flex: none;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+  transition: background var(--dur-fast) linear;
+}
+.app-files .fx-crumb {
+  padding: 0 6px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-files .fx-crumb-chev,
+.app-files .fx-crumb-more {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  color: var(--text-2);
+}
+.app-files .fx-crumb-chev .icon {
+  transition: transform var(--dur) var(--ease);
+}
+.app-files .fx-crumb-chev.open .icon {
+  transform: rotate(90deg);
+}
+.app-files .fx-crumb:hover,
+.app-files .fx-crumb-chev:hover,
+.app-files .fx-crumb-more:hover,
+.app-files .fx-crumb-chev.open {
+  background: var(--subtle-hover);
+}
+.app-files .fx-crumb.fx-drop {
+  background: var(--fx-sel);
+}
+.app-files .fx-addr-input {
+  display: none;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  outline: none;
+  padding: 0 4px;
+  font-size: 12px;
+}
+.app-files .fx-address.editing .fx-addr-input {
+  display: block;
+}
+.app-files .fx-addr-hist {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 100%;
+  border: 0;
+  border-radius: 0 4px 4px 0;
+  background: transparent;
+  color: var(--text-2);
+}
+.app-files .fx-addr-hist:hover {
+  background: var(--subtle-hover);
+}
+.app-files .fx-suggest {
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  top: calc(100% + 4px);
+  z-index: 30;
+  max-height: 320px;
+  overflow: auto;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--acrylic-solid);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  animation: fx-pop var(--dur-slow) var(--ease);
+}
+.app-files .fx-sug {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 4px;
+}
+.app-files .fx-sug img {
+  width: 16px;
+  height: 16px;
+}
+.app-files .fx-sug:hover,
+.app-files .fx-sug.active {
+  background: var(--subtle-hover);
+}
+@keyframes fx-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+/* ---------------------------------------------------------------- search box */
+.app-files .fx-search {
+  position: relative;
+  flex: 0 1 300px;
+  min-width: 140px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  border: 1px solid var(--fx-field-stroke);
+  background: var(--fx-field);
+}
+.app-files .fx-search:hover {
+  background: var(--fx-field-hover);
+}
+.app-files .fx-search:focus-within {
+  background: var(--input-focus-bg);
+  border-bottom: 2px solid var(--accent);
+}
+.app-files .fx-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  outline: none;
+  padding: 0 4px 0 10px;
+  font-size: 12px;
+}
+.app-files .fx-search-input::placeholder {
+  color: var(--text-2);
+}
+.app-files .fx-search-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  margin-right: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-2);
+}
+.app-files .fx-search.has-text .fx-search-btn:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+
+/* ---------------------------------------------------------------- command bar */
+.app-files .fx-cmdbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 48px;
+  padding: 0 12px 0 10px;
+  border-top: 1px solid var(--stroke);
+  overflow: hidden;
+}
+.app-files .fx-cmd-ctx {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.app-files .fx-cmd {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 32px;
+  min-width: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+  transition: background var(--dur-fast) linear;
+}
+.app-files .fx-cmd.has-text {
+  padding: 0 10px;
+}
+.app-files .fx-cmd:hover {
+  background: var(--subtle-hover);
+}
+.app-files .fx-cmd:active {
+  background: var(--subtle-pressed);
+}
+.app-files .fx-cmd:active > .icon:first-child {
+  transform: scale(0.9);
+}
+.app-files .fx-cmd > .icon:first-child {
+  transition: transform var(--dur) var(--ease);
+}
+.app-files .fx-cmd:disabled {
+  color: var(--text-disabled);
+  background: transparent;
+}
+.app-files .fx-cmd:disabled .icon {
+  opacity: 0.55;
+}
+.app-files .fx-cmd.accent-icon:not(:disabled) > .icon:first-child {
+  color: var(--accent);
+}
+.app-files .fx-cmd .fx-cmd-chev {
+  color: var(--text-2);
+  margin-left: -2px;
+}
+.app-files .fx-cmd.toggled {
+  background: var(--subtle-selected);
+}
+.app-files .fx-cmd.toggled:hover {
+  background: var(--subtle-hover);
+}
+.app-files .fx-cmd-sep {
+  flex: none;
+  width: 1px;
+  height: 24px;
+  margin: 0 6px;
+  background: var(--stroke-strong);
+}
+
+/* ---------------------------------------------------------------- main area */
+.app-files .fx-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: var(--fx-content);
+}
+.app-files .fx-nav {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.app-files .fx-split {
+  position: relative;
+  flex: none;
+  width: 5px;
+  margin: 0 -2px;
+  z-index: 4;
+  cursor: col-resize;
+}
+.app-files .fx-split::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--stroke);
+  transition: background var(--dur-fast) linear;
+}
+.app-files .fx-split:hover::after,
+.app-files .fx-split.active::after {
+  background: var(--accent);
+  left: 1px;
+  width: 3px;
+  opacity: 0.6;
+}
+.app-files .fx-split[hidden] {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- navigation tree */
+.app-files .fx-tree {
+  flex: 1;
+  overflow: auto;
+  overflow-x: hidden;
+  padding: 6px 6px 16px 6px;
+  outline: none;
+}
+.app-files .fx-tnode {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--fx-tree-h);
+  padding: 0 4px 0 calc(4px + var(--lvl, 0) * 16px);
+  border-radius: 4px;
+  color: var(--text);
+  white-space: nowrap;
+  transition: background var(--dur-fast) linear;
+}
+.app-files .fx-tnode:hover {
+  background: var(--subtle-hover);
+}
+.app-files .fx-tnode:active {
+  background: var(--subtle-pressed);
+}
+.app-files .fx-tnode.selected {
+  background: var(--subtle-selected);
+}
+:root[data-theme="light"] .app-files .fx-tnode.selected {
+  background: rgba(0, 0, 0, 0.06);
+}
+.app-files .fx-tnode.selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: ui-pill var(--dur-slow) var(--ease);
+}
+.app-files .fx-tnode.focused,
+.app-files .fx-tree:focus-visible .fx-tnode.selected:not(.focused):only-child {
+  outline: 1px solid var(--text);
+  outline-offset: -1px;
+}
+.app-files .fx-tnode.fx-drop {
+  background: var(--fx-sel);
+  outline: 1px solid var(--fx-sel-stroke);
+}
+.app-files .fx-tnode.dim .fx-tic,
+.app-files .fx-tnode.dim .fx-tlabel {
+  opacity: 0.6;
+}
+.app-files .fx-tchev {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  color: var(--text-2);
+  opacity: 0;
+  transition: opacity var(--dur) linear, transform var(--dur) var(--ease);
+}
+.app-files .fx-nav:hover .fx-tchev,
+.app-files .fx-tree:focus-within .fx-tchev,
+.app-files .fx-tchev.open {
+  opacity: 1;
+}
+.app-files .fx-tchev.open {
+  transform: rotate(90deg);
+}
+.app-files .fx-tchev.none {
+  visibility: hidden;
+}
+.app-files .fx-tchev:hover {
+  color: var(--text);
+}
+.app-files .fx-tic {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.app-files .fx-tlabel {
+  flex: 1;
+  min-width: 0;
+}
+.app-files .fx-tpin {
+  flex: none;
+  color: var(--text-3);
+  padding-right: 4px;
+}
+.app-files .fx-tsep {
+  height: 1px;
+  margin: 6px 8px 6px 10px;
+  background: var(--stroke);
+}
+.app-files .fx-tloading {
+  height: 24px;
+  padding-left: calc(28px + var(--lvl, 0) * 16px);
+  display: flex;
+  align-items: center;
+}
+
+/* ---------------------------------------------------------------- content */
+.app-files .fx-content {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-files .fx-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+  position: relative;
+}
+.app-files .fx-scroll.details {
+  scroll-padding-top: 34px;
+}
+.app-files .fx-inner {
+  position: relative;
+  min-height: 100%;
+  padding: 2px 8px 24px 8px;
+}
+.app-files .fx-inner.enter {
+  animation: fx-enter 0.22s var(--ease);
+}
+@keyframes fx-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.app-files .fx-inner.m-list {
+  height: 100%;
+  min-height: 0;
+  padding-bottom: 8px;
+}
+.app-files .fx-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text-2);
+}
+.app-files .fx-empty-inline {
+  padding: 12px 16px 16px;
+  color: var(--text-2);
+}
+
+/* items: shared states */
+.app-files .fx-item {
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text);
+  transition: background-color var(--dur-fast) linear;
+}
+.app-files .fx-item:hover {
+  background-color: var(--fx-hover);
+}
+.app-files .fx-item.selected {
+  background-color: var(--fx-sel);
+}
+.app-files .fx-item.selected:hover {
+  background-color: var(--fx-sel-hover);
+}
+.app-files .fx-item.focused {
+  border-color: var(--text-2);
+}
+.app-files .fx-item.fx-drop {
+  background-color: var(--fx-sel);
+  border-color: var(--fx-sel-stroke);
+}
+.app-files .fx-item.cut .fx-ic,
+.app-files .fx-item.cut .fx-name {
+  opacity: 0.5;
+}
+.app-files .fx-item.is-hidden .fx-ic {
+  opacity: 0.55;
+}
+.app-files .fx-item.missing {
+  opacity: 0.6;
+}
+.app-files .fx-ic {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.app-files .fx-ic > img {
+  max-width: 100%;
+  max-height: 100%;
+}
+.app-files .fx-ic > img.fx-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.app-files .fx-ic > img.fx-link {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 38%;
+  height: 38%;
+  max-width: 14px;
+  max-height: 14px;
+  min-width: 9px;
+  min-height: 9px;
+}
+.app-files .fx-ic.has-video::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 28%;
+  height: 28%;
+  max-width: 40px;
+  max-height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M7 5.5v9l7.5-4.5z' fill='white'/></svg>") center / 60% no-repeat;
+}
+.app-files .fx-name {
+  min-width: 0;
+}
+.app-files mark.fx-hl {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+.app-files .fx-check {
+  display: none;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid var(--control-strong);
+  background: var(--control);
+}
+.app-files .with-checks .fx-check {
+  display: inline-block;
+}
+.app-files .with-checks .fx-item:not(:hover):not(.selected) .fx-check {
+  opacity: 0;
+}
+.app-files .fx-item.selected .fx-check,
+.app-files .fx-check-all.on {
+  border-color: var(--accent);
+  background: var(--accent) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M3.5 8.2l3 3 6-6.4' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 100% no-repeat;
+}
+.app-files .fx-check-all.some {
+  border-color: var(--accent);
+  background: var(--accent) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M4 8h8' stroke='white' stroke-width='1.6' stroke-linecap='round'/></svg>") center / 100% no-repeat;
+}
+
+/* details view */
+.app-files .fx-dh {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: stretch;
+  width: var(--w-total);
+  min-width: 100%;
+  height: 32px;
+  margin: 0 -8px 2px;
+  padding: 0 8px;
+  background: var(--fx-content);
+  box-sizing: content-box;
+}
+.app-files .fx-dh .fx-check {
+  align-self: center;
+  margin: 0 6px 0 7px;
+}
+.app-files .fx-dh-cell {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  color: var(--text-2);
+  transition: background var(--dur-fast) linear;
+}
+.app-files .fx-dh-cell + .fx-dh-cell::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--stroke-strong);
+}
+.app-files .fx-dh-cell:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-files .fx-dh-cell:active {
+  background: var(--subtle-pressed);
+}
+.app-files .fx-dh-cell.end {
+  justify-content: flex-end;
+}
+.app-files .fx-sort-ind {
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--text-2);
+  line-height: 0;
+}
+.app-files .fx-col-resize {
+  position: absolute;
+  right: -5px;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  z-index: 2;
+  cursor: col-resize;
+}
+.app-files .fx-inner.resizing,
+.app-files .fx-inner.resizing * {
+  cursor: col-resize !important;
+}
+.app-files .fx-row {
+  display: flex;
+  align-items: center;
+  height: var(--fx-row-h);
+  width: var(--w-total);
+}
+.app-files .fx-row .fx-check {
+  margin: 0 6px 0 6px;
+}
+.app-files .fx-cell {
+  flex: none;
+  padding: 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-2);
+}
+.app-files .fx-cell.end {
+  text-align: right;
+}
+.app-files .fx-cell.c-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+.app-files .fx-cell.c-name .fx-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-files .fx-row .fx-ic,
+.app-files .fx-line .fx-ic,
+.app-files .fx-hrow .fx-ic {
+  width: 16px;
+  height: 16px;
+}
+.app-files .fx-measure {
+  position: absolute;
+  visibility: hidden;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+/* icon views */
+.app-files .fx-items.l-xl,
+.app-files .fx-items.l-large,
+.app-files .fx-items.l-medium {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--tile-w));
+  gap: 4px 2px;
+  padding-top: 4px;
+}
+.app-files .fx-items.l-xl {
+  --tile-w: 272px;
+  --ic: 256px;
+}
+.app-files .fx-items.l-large {
+  --tile-w: 116px;
+  --ic: 96px;
+}
+.app-files .fx-items.l-medium {
+  --tile-w: 86px;
+  --ic: 48px;
+}
+.app-files .fx-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px 6px;
+}
+.app-files .compact .fx-tile {
+  padding: 2px 2px 3px;
+}
+.app-files .fx-tile .fx-ic {
+  width: var(--ic);
+  height: var(--ic);
+}
+.app-files .fx-tile .fx-photo {
+  border-radius: 2px;
+}
+.app-files .fx-tile .fx-name {
+  max-width: 100%;
+  text-align: center;
+  line-height: 16px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.app-files .fx-tile.selected .fx-name {
+  -webkit-line-clamp: 4;
+}
+.app-files .fx-items.l-small {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0 2px;
+}
+.app-files .fx-items.l-list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(auto-fill, var(--fx-line-h));
+  grid-auto-columns: minmax(180px, max-content);
+  gap: 0 8px;
+  height: 100%;
+  align-content: start;
+}
+.app-files .fx-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--fx-line-h);
+  padding: 0 8px 0 6px;
+  min-width: 0;
+}
+.app-files .fx-items.l-list .fx-line {
+  max-width: 420px;
+}
+.app-files .fx-line .fx-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-files .fx-items.l-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 4px;
+  padding-top: 4px;
+}
+.app-files .fx-tilecard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 64px;
+  padding: 0 10px;
+}
+.app-files .fx-tilecard .fx-ic {
+  width: 48px;
+  height: 48px;
+}
+.app-files .fx-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  line-height: 16px;
+}
+.app-files .fx-meta .fx-name,
+.app-files .fx-sub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-files .fx-sub {
+  color: var(--text-2);
+}
+.app-files .fx-item .fx-check {
+  position: relative;
+}
+.app-files .fx-tile .fx-check,
+.app-files .fx-tilecard .fx-check {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  z-index: 1;
+}
+
+/* groups */
+.app-files .fx-group {
+  margin-bottom: 6px;
+}
+.app-files .fx-group-head,
+.app-files .fx-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.app-files .fx-group-head {
+  font-size: 13px;
+}
+.app-files .fx-group-head:hover,
+.app-files .fx-sec-head:hover {
+  background: var(--subtle-hover);
+}
+.app-files .fx-group-head .icon,
+.app-files .fx-sec-head .icon {
+  color: var(--text-2);
+  transition: transform var(--dur) var(--ease);
+}
+.app-files .fx-group.collapsed .fx-group-head .icon,
+.app-files .fx-sec.collapsed .fx-sec-head .icon {
+  transform: rotate(-90deg);
+}
+.app-files .fx-group-head .cnt,
+.app-files .fx-sec-head .cnt {
+  color: var(--text-2);
+  font-weight: 400;
+}
+.app-files .fx-group-head .line {
+  flex: 1;
+  height: 1px;
+  background: var(--stroke);
+  margin-left: 4px;
+}
+.app-files .fx-group.collapsed .fx-items,
+.app-files .fx-sec.collapsed .fx-sec-body {
+  display: none;
+}
+
+/* Home / This PC */
+.app-files .fx-home,
+.app-files .fx-thispc {
+  padding: 4px 4px 16px;
+}
+.app-files .fx-sec {
+  margin-bottom: 10px;
+}
+.app-files .fx-sec-head {
+  font-size: 14px;
+  font-weight: 600;
+  height: 36px;
+}
+.app-files .fx-sec-body {
+  padding: 2px 0 0;
+}
+.app-files .fx-quick,
+.app-files .fx-pcgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 4px;
+}
+.app-files .fx-qtile,
+.app-files .fx-pctile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 64px;
+  padding: 0 28px 0 12px;
+}
+.app-files .fx-qtile .fx-ic {
+  width: 40px;
+  height: 40px;
+}
+.app-files .fx-pctile .fx-ic,
+.app-files .fx-drive .fx-ic {
+  width: 48px;
+  height: 48px;
+}
+.app-files .fx-pin {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  color: var(--text-3);
+  line-height: 0;
+}
+.app-files .fx-pcgrid.drives {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+.app-files .fx-drive {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 8px 14px 8px 12px;
+}
+.app-files .fx-drive.unmounted .fx-ic {
+  opacity: 0.6;
+}
+.app-files .fx-cap {
+  height: 12px;
+  margin: 5px 0 4px;
+  border-radius: 2px;
+  background: var(--fx-cap-bg);
+  overflow: hidden;
+}
+.app-files .fx-cap .fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px 0 0 2px;
+  transform-origin: left;
+  animation: fx-cap 0.6s var(--ease);
+}
+.app-files .fx-cap.full .fill {
+  background: var(--danger);
+}
+@keyframes fx-cap {
+  from {
+    transform: scaleX(0);
+  }
+}
+.app-files .fx-htable {
+  display: flex;
+  flex-direction: column;
+}
+.app-files .fx-hrow {
+  display: grid;
+  grid-template-columns: minmax(180px, 2.2fr) minmax(130px, 1fr) minmax(140px, 1.6fr);
+  align-items: center;
+  height: var(--fx-row-h);
+  padding: 0 4px;
+}
+.app-files .fx-hrow > .fx-cell {
+  width: auto;
+}
+.app-files .fx-hhead {
+  height: 28px;
+  color: var(--text-2);
+  padding: 0 12px;
+  border: 1px solid transparent;
+}
+
+/* rubber band */
+.app-files .fx-band {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  pointer-events: none;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* inline rename */
+.app-files .fx-rename {
+  flex: 1;
+  min-width: 60px;
+  height: 22px;
+  margin: 0 -4px;
+  padding: 0 4px;
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  background: var(--solid);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+  user-select: text;
+}
+.app-files .fx-rename.multi {
+  flex: none;
+  width: calc(100% + 6px);
+  height: auto;
+  min-height: 20px;
+  margin: 0 -3px;
+  padding: 1px 3px;
+  resize: none;
+  overflow: hidden;
+  text-align: center;
+  line-height: 16px;
+  word-break: break-word;
+}
+.app-files .fx-rename-tip {
+  position: absolute;
+  left: 24px;
+  top: calc(100% + 4px);
+  z-index: 10;
+  max-width: 280px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: var(--acrylic-solid);
+  border: 1px solid var(--window-stroke);
+  border-left: 3px solid var(--warning);
+  box-shadow: var(--shadow-tooltip);
+  color: var(--text);
+  white-space: normal;
+  animation: fx-pop var(--dur-slow) var(--ease);
+}
+.app-files .fx-item.renaming {
+  z-index: 5;
+}
+
+/* drag & drop */
+.app-files .fx-dnd-badge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 60;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  background: var(--acrylic-solid);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-tooltip);
+  white-space: nowrap;
+}
+.app-files .fx-dnd-badge .icon {
+  color: var(--accent);
+}
+.app-files.fx-drag-ghost {
+  position: fixed;
+  left: -400px;
+  top: -400px;
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+}
+.app-files.fx-drag-ghost img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+.app-files.fx-drag-ghost .fx-drag-count {
+  position: absolute;
+  right: 0;
+  bottom: 2px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+}
+
+/* in-window toast */
+.app-files .fx-toasts {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 8;
+  transform: translateX(-50%);
+  pointer-events: none;
+  width: max-content;
+  max-width: calc(100% - 32px);
+}
+.app-files .fx-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 280px;
+  padding: 6px 6px 6px 12px;
+  border-radius: 8px;
+  background: var(--acrylic-solid);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  animation: fx-toast-in var(--dur-slow) var(--ease);
+}
+.app-files .fx-toast > .icon:first-child {
+  color: var(--success);
+}
+.app-files .fx-toast.leaving {
+  animation: fx-toast-out var(--dur) var(--ease-in) forwards;
+}
+@keyframes fx-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+@keyframes fx-toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ---------------------------------------------------------------- side pane */
+.app-files .fx-pane {
+  flex: none;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: fx-pane-in var(--dur-slow) var(--ease);
+}
+.app-files .fx-pane[hidden] {
+  display: none;
+}
+@keyframes fx-pane-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+.app-files .fx-pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.app-files .fx-pane-msg {
+  margin: auto;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-2);
+}
+.app-files .fx-pane-msg.small {
+  margin: 8px 0 0;
+  padding: 8px 0;
+}
+.app-files .fx-dp {
+  padding: 16px 16px 24px;
+  display: flex;
+  flex-direction: column;
+}
+.app-files .fx-dp-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding-bottom: 12px;
+}
+.app-files .fx-dp-visual {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 120px;
+  max-height: 200px;
+  margin-bottom: 4px;
+}
+.app-files .fx-dp-icon {
+  width: 96px;
+  height: 96px;
+}
+.app-files .fx-dp-thumb {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.app-files .fx-dp-stack {
+  position: relative;
+  width: 112px;
+  height: 104px;
+}
+.app-files .fx-dp-stack img {
+  position: absolute;
+  left: calc(8px + var(--k) * 10px);
+  top: calc(var(--k) * 6px);
+  width: 80px;
+  height: 80px;
+}
+.app-files .fx-dp-name {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.app-files .fx-dp-sec {
+  margin: 8px 0 6px;
+  font-weight: 600;
+  padding-top: 12px;
+  border-top: 1px solid var(--stroke);
+}
+.app-files .fx-dp-row {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  min-width: 0;
+}
+.app-files .fx-dp-row .v {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.app-files .fx-dp-cap {
+  width: 100%;
+}
+.app-files .fx-pv-media {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  min-height: 0;
+}
+.app-files .fx-pv-img,
+.app-files .fx-pv-video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.app-files .fx-pv-img {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+.app-files .fx-pv-audio {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  max-width: 100%;
+}
+.app-files .fx-pv-audio img {
+  width: 96px;
+  height: 96px;
+}
+.app-files .fx-pv-audio audio {
+  width: 100%;
+  min-width: 180px;
+}
+.app-files .fx-pv-textwrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-files .fx-pv-text {
+  flex: 1;
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+.app-files .fx-pv-trunc {
+  padding: 6px 14px 10px;
+  border-top: 1px solid var(--stroke);
+}
+
+/* ---------------------------------------------------------------- status bar */
+.app-files .fx-status {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 28px;
+  padding: 0 8px 0 14px;
+  background: var(--fx-content);
+  color: var(--text-2);
+  white-space: pre;
+}
+.app-files .fx-st-sel {
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--stroke-strong);
+  line-height: 14px;
+}
+.app-files .fx-st-sel[hidden] {
+  display: none;
+}
+.app-files .fx-st-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 22px;
+  margin-left: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-2);
+}
+.app-files .fx-st-btn:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-files .fx-st-btn.on {
+  background: var(--fx-sel);
+  color: var(--text);
+}
+.app-files .fx-st-btn:disabled {
+  opacity: 0.4;
+  background: transparent;
+}
+
+/* ---------------------------------------------------------------- menus opened by the app (attached to <body>) */
+.app-files.menu.fx-scroll-menu {
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+}
+.app-files.menu .menu-item .icon[data-icon="folder"] {
+  color: var(--fx-folder);
+}
+.app-files.menu .fx-menu-img {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.app-files.menu .fx-bold .label {
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- progress window */
+.app-files.fx-progress-win .fx-pg {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 20px 16px;
+}
+.app-files .fx-pg-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-files .fx-pg-head .icon {
+  color: var(--accent);
+}
+.app-files .fx-pg-pct {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+.app-files .fx-pg-line {
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-files .fx-pg-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--fx-cap-bg);
+  overflow: hidden;
+}
+.app-files .fx-pg-bar .bar {
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width var(--dur-slow) var(--ease);
+}
+.app-files .fx-pg-bar.indeterminate .bar {
+  position: absolute;
+  width: 35%;
+  animation: fx-indet 1.4s var(--ease-std) infinite;
+}
+@keyframes fx-indet {
+  from {
+    left: -35%;
+  }
+  to {
+    left: 100%;
+  }
+}
+.app-files .fx-pg-details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  color: var(--text);
+}
+.app-files .fx-pg-details .k {
+  color: var(--text-2);
+}
+.app-files .fx-pg-foot {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+}
+.app-files .fx-pg-foot .btn {
+  min-width: 96px;
+}
+
+/* ---------------------------------------------------------------- properties window */
+.app-files.fx-props-win .fx-props {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+}
+.app-files .fx-props-tabs {
+  flex: none;
+  display: flex;
+  gap: 4px;
+  padding: 0 16px;
+}
+.app-files .fx-props-tab {
+  position: relative;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px 4px 0 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.app-files .fx-props-tab:hover {
+  color: var(--text);
+}
+.app-files .fx-props-tab.selected {
+  color: var(--text);
+  font-weight: 600;
+}
+.app-files .fx-props-tab.selected::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 16px;
+  height: 3px;
+  margin-left: -8px;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: ui-tab var(--dur-slow) var(--ease);
+}
+.app-files .fx-props-page {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 4px 12px 0;
+  border-radius: 8px;
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+}
+.app-files .fx-props-body {
+  padding: 16px 18px 20px;
+}
+.app-files .fx-props-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 14px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--stroke);
+}
+.app-files .fx-props-head > img {
+  width: 40px;
+  height: 40px;
+  flex: none;
+}
+.app-files .fx-props-head .input {
+  font-size: 13px;
+}
+.app-files .fx-props-grid {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) 1fr;
+  gap: 8px 14px;
+  align-items: baseline;
+}
+.app-files .fx-props-grid .k {
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.app-files .fx-props-grid .v {
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.app-files .fx-props-grid .hsep.span {
+  grid-column: 1 / -1;
+  margin: 2px 0;
+}
+.app-files .fx-props-app {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.app-files .fx-props-app img {
+  width: 16px;
+  height: 16px;
+}
+.app-files .fx-props-attrs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.app-files .fx-props-attrs .checkbox {
+  min-height: 24px;
+}
+.app-files .fx-inline-spin {
+  display: inline-block;
+  vertical-align: -3px;
+  margin-right: 6px;
+}
+.app-files .fx-props-foot {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px;
+}
+.app-files .fx-props-foot .btn {
+  min-width: 84px;
+}
+.app-files .fx-perm-grid {
+  display: grid;
+  grid-template-columns: 1fr repeat(3, 72px);
+  gap: 4px 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.app-files .fx-perm-grid .k {
+  color: var(--text-2);
+}
+.app-files .fx-perm-grid .c {
+  justify-self: center;
+  text-align: center;
+}
+.app-files .fx-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  border-radius: 2px;
+  vertical-align: -2px;
+}
+.app-files .fx-swatch.used {
+  background: var(--accent);
+}
+.app-files .fx-swatch.free {
+  background: var(--fx-cap-bg);
+}
+.app-files .fx-donut {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+.app-files .fx-donut circle.free {
+  stroke: var(--fx-cap-bg);
+}
+.app-files .fx-donut circle.used {
+  stroke: var(--accent);
+  transition: stroke-dasharray 0.6s var(--ease);
+}
+.app-files .fx-donut circle.used.full {
+  stroke: var(--danger);
+}
+
+/* ---------------------------------------------------------------- dialogs (ui.dialog with className app-files …) */
+.app-files .fx-del {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 420px;
+}
+.app-files .fx-del-item {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.app-files .fx-del-item img {
+  width: 48px;
+  height: 48px;
+  flex: none;
+}
+.app-files .fx-del-item .col {
+  gap: 2px;
+  min-width: 0;
+}
+.app-files.fx-openwith-dlg .fx-openwith,
+.app-files .fx-openwith {
+  width: min(420px, 80vw);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.app-files .fx-openwith-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.app-files .fx-openwith-file img {
+  width: 32px;
+  height: 32px;
+  flex: none;
+}
+.app-files .fx-apps {
+  max-height: 300px;
+  overflow: auto;
+  outline: none;
+  margin: 0 -8px;
+  padding: 0 8px;
+}
+.app-files .fx-apps:focus-visible {
+  outline: 2px solid var(--text);
+  border-radius: 4px;
+}
+.app-files .fx-apps-head {
+  padding: 8px 4px 4px;
+  color: var(--text-2);
+  font-weight: 600;
+}
+.app-files .fx-app-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 4px;
+}
+.app-files .fx-app-row img {
+  width: 24px;
+  height: 24px;
+}
+.app-files .fx-app-row:hover {
+  background: var(--subtle-hover);
+}
+.app-files .fx-app-row.selected {
+  background: var(--subtle-selected);
+}
+.app-files .fx-app-row.selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.app-files .fx-opts {
+  width: min(440px, 80vw);
+}
+.app-files .fx-opts-page {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 14px;
+  min-height: 320px;
+}
+.app-files .fx-opts-page[hidden] {
+  display: none;
+}
+.app-files .fx-opts-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+}
+.app-files .fx-opts-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 10px 0 2px;
+}
+.app-files .fx-extract {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(460px, 80vw);
+}
+
+/* ---------------------------------------------------------------- narrow windows */
+@container (max-width: 860px) {
+  .app-files .fx-cmd-ctx .fx-cmd-label,
+  .app-files .fx-cmd-details .fx-cmd-label {
+    display: none;
+  }
+  .app-files .fx-search {
+    flex-basis: 200px;
+  }
+}
+@container (max-width: 700px) {
+  .app-files .fx-cmd .fx-cmd-label {
+    display: none;
+  }
+  .app-files .fx-cmd.has-text {
+    padding: 0 6px;
+  }
+  .app-files .fx-nav {
+    max-width: 170px;
+  }
+  .app-files .fx-pane,
+  .app-files .fx-split + .fx-content + .fx-split {
+    display: none;
+  }
+  .app-files .fx-search {
+    flex-basis: 150px;
+    min-width: 110px;
+  }
+  .app-files .fx-cmd-sep {
+    margin: 0 2px;
+  }
+}
+@container (max-width: 560px) {
+  .app-files .fx-nav,
+  .app-files .fx-main > .fx-split:first-of-type {
+    display: none;
+  }
+  .app-files .fx-navbtns .fx-navbtn:nth-child(2) {
+    display: none;
+  }
+}

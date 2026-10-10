@@ -1,0 +1,32 @@
+#!/bin/sh
+# greetd greeter for Aurora OS (default_session in /etc/greetd/config.toml).
+# Runs as greetd's "_greetd" user: starts Xorg on greetd's VT and shows the Aurora sign-in
+# screen (Electron, --mode=greeter). The greeter talks to greetd over $GREETD_SOCK, asks it to
+# start /usr/bin/aurora-session for the user who signed in, and exits; greetd then starts
+# that session on the same VT.
+set -eu
+. /usr/lib/aurora/aurora-common
+
+if [ -z "${GREETD_SOCK:-}" ]; then
+  aurora_log "GREETD_SOCK is not set: aurora-greeter must be started by greetd"
+fi
+
+# Writable state for Xorg logs and Electron (the greeter user's home, /etc/greetd, is not).
+state=/var/lib/aurora-greeter
+if [ ! -w "$state" ]; then
+  state="${XDG_RUNTIME_DIR:-/tmp}/aurora-greeter"
+  mkdir -p "$state"
+fi
+export HOME="$state"
+export AURORA_GREETER_DATA="$state/electron"
+cd "$HOME"
+aurora_locale_env
+
+# Text fallback when the graphical sign-in screen is not available.
+if [ ! -f "$AURORA_APP/renderer/greeter.html" ] || [ ! -x "$AURORA_ELECTRON" ]; then
+  aurora_log "graphical greeter unavailable, falling back to agreety"
+  exec /usr/sbin/agreety --cmd /usr/bin/aurora-session
+fi
+
+exec systemd-cat --identifier=aurora-greeter --stderr-priority=warning \
+  /usr/lib/aurora/aurora-xstart /usr/lib/aurora/aurora-xgreeter

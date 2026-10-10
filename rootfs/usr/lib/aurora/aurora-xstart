@@ -1,0 +1,37 @@
+#!/bin/sh
+# aurora-xstart CLIENT [ARGS...]
+# Starts a rootless X server (Xorg via systemd-logind) on the VT of the current logind
+# session and runs CLIENT in it with xinit. Used by the greeter and the desktop session.
+# When CLIENT exits, the X server stops and this command returns CLIENT's status.
+set -eu
+. /usr/lib/aurora/aurora-common
+
+[ $# -ge 1 ] || { aurora_log "usage: aurora-xstart CLIENT [ARGS...]"; exit 2; }
+
+vt="$(aurora_vt)" || { aurora_log "cannot determine the VT of this session (XDG_VTNR unset)"; exit 1; }
+disp="$(aurora_free_display)" || { aurora_log "no free X display"; exit 1; }
+
+rundir="${XDG_RUNTIME_DIR:-}"
+if [ -z "$rundir" ] || [ ! -w "$rundir" ]; then
+  rundir="$(mktemp -d /tmp/aurora-x.XXXXXX)"
+fi
+auth="$rundir/aurora-Xauthority-$disp"
+rm -f "$auth"
+: >"$auth"
+chmod 600 "$auth"
+cookie="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+xauth -q -f "$auth" add ":$disp" . "$cookie"
+export XAUTHORITY="$auth"
+export XDG_SESSION_TYPE=x11
+
+# Without a 3D-capable GPU (VMs, simpledrm, nomodeset) 2D through glamor would run on
+# llvmpipe: plain shadow framebuffer is much faster there.
+config=""
+if [ "$(aurora_gpu_mode)" = off ]; then
+  config="-config /usr/share/aurora/xorg/noaccel.conf"
+fi
+
+aurora_log "starting X :$disp on vt$vt for $(id -un) ($*)"
+# shellcheck disable=SC2086
+exec xinit "$@" -- /usr/bin/Xorg ":$disp" "vt$vt" -keeptty -nolisten tcp -noreset \
+  -auth "$auth" -background none $config

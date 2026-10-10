@@ -1,0 +1,327 @@
+/* Notification center + calendar (features/calendar.js) */
+#calendar-center {
+  --fly-from: 32px;
+  right: 12px;
+  bottom: calc(var(--taskbar-h) + 12px);
+  width: 360px;
+  max-height: calc(100vh - var(--taskbar-h) - 24px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  border-radius: 0;
+}
+.nc-card,
+.cal-card {
+  background: var(--fly-bg);
+  border: 1px solid var(--fly-stroke);
+  border-radius: var(--radius);
+  box-shadow: var(--fly-shadow);
+  backdrop-filter: blur(60px) saturate(170%);
+  overflow: hidden;
+}
+:root[data-transparency="off"] .nc-card,
+:root[data-transparency="off"] .cal-card {
+  backdrop-filter: none;
+}
+.nc-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 0 1 auto;
+}
+#calendar-center.open .nc-card {
+  animation: cal-card-in 300ms var(--ease) backwards;
+}
+#calendar-center.open .cal-card {
+  animation: cal-card-in 300ms var(--ease) 40ms backwards;
+}
+@keyframes cal-card-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+.nc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 8px 16px;
+  flex: none;
+}
+.nc-title {
+  flex: 1;
+  font-weight: 600;
+}
+.nc-clear {
+  background: var(--fly-card);
+}
+.nc-dnd {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+}
+.nc-dnd:hover {
+  background: var(--subtle-hover);
+}
+.nc-dnd.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.nc-dnd.on:hover {
+  background: var(--accent-hover);
+}
+.nc-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.nc-empty {
+  padding: 48px 16px 52px;
+  text-align: center;
+  color: var(--text-2);
+}
+.nc-hint {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--fly-card);
+  color: var(--text-2);
+}
+.nc-hint .icon {
+  margin-top: 1px;
+}
+.nc-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nc-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 0 0 4px;
+  color: var(--text-2);
+}
+.nc-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nc-item {
+  position: relative;
+  padding: 10px 12px 12px;
+  border-radius: var(--radius);
+  background: var(--fly-card);
+  border: 1px solid var(--control-stroke);
+  outline-offset: -2px;
+  animation: nc-in var(--dur-slow) var(--ease);
+}
+@keyframes nc-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+.nc-item:hover {
+  background: color-mix(in srgb, var(--fly-card) 70%, var(--subtle-hover));
+}
+.nc-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+}
+.nc-item-title {
+  flex: 1;
+  min-width: 0;
+}
+.nc-time {
+  color: var(--text-2);
+  flex: none;
+}
+.nc-x {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  opacity: 0;
+  transition: opacity var(--dur-fast) linear;
+}
+.nc-group-head:hover .nc-x,
+.nc-item:hover .nc-x,
+.nc-x:focus-visible {
+  opacity: 1;
+}
+.nc-item:hover .nc-time {
+  display: none;
+}
+.nc-x:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.nc-body {
+  margin-top: 2px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.nc-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.nc-actions .btn {
+  flex: 1;
+  min-width: 0;
+}
+
+/* calendar */
+.cal-card {
+  flex: none;
+}
+.cal-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 12px 0 8px;
+  border-bottom: 1px solid var(--fly-stroke);
+}
+.cal-card.collapsed .cal-head {
+  border-bottom-color: transparent;
+}
+.cal-date {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cal-date:hover {
+  background: var(--subtle-hover);
+}
+.cal-icon-btn {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+}
+.cal-icon-btn:hover {
+  background: var(--subtle-hover);
+}
+.cal-icon-btn:active {
+  background: var(--subtle-pressed);
+}
+.cal-body {
+  padding: 8px 12px 14px;
+}
+.cal-card.collapsed .cal-body {
+  display: none;
+}
+.cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 40px;
+  padding-left: 8px;
+}
+.cal-month {
+  flex: 1;
+  font-weight: 600;
+}
+.cal-weekdays,
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  justify-items: center;
+}
+.cal-weekdays {
+  height: 32px;
+  align-items: center;
+  font-size: var(--fs-caption);
+  color: var(--text);
+}
+.cal-viewport {
+  position: relative;
+  overflow: hidden;
+}
+.cal-grid-out {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.cal-grid {
+  row-gap: 2px;
+}
+.cal-day {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  display: grid;
+  place-items: center;
+  outline-offset: -2px;
+  transition: background var(--dur-fast) linear;
+}
+.cal-day:hover {
+  background: var(--subtle-hover);
+}
+.cal-day.other {
+  color: var(--text-3);
+}
+.cal-day.selected {
+  border-color: var(--accent);
+}
+.cal-day.today {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.cal-day.today:hover {
+  background: var(--accent-hover);
+}
+.cal-day.today.selected {
+  box-shadow: inset 0 0 0 2px var(--fly-bg);
+}

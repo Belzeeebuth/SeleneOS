@@ -1,0 +1,24 @@
+Welcome to Aurora OS
+====================
+
+Aurora OS is a modern desktop built on Ubuntu 24.04 LTS.
+
+  * Open the Start menu with the Windows key or the button in the middle of the taskbar.
+  * Your files live in Documents, Downloads, Pictures, Music and Videos.
+  * Settings lets you change the theme, the language (English / French), the network and more.
+  * In the live session nothing is saved: use "Install Aurora OS" to install it on your disk.
+
+Enjoy!
+
+
+Bienvenue dans Aurora OS
+========================
+
+Aurora OS est un bureau moderne basé sur Ubuntu 24.04 LTS.
+
+  * Ouvrez le menu Démarrer avec la touche Windows ou le bouton au centre de la barre des tâches.
+  * Vos fichiers se trouvent dans Documents, Téléchargements, Images, Musique et Vidéos.
+  * Les Paramètres permettent de changer le thème, la langue (anglais / français), le réseau, etc.
+  * Dans la session live, rien n'est enregistré : utilisez « Installer Aurora OS » pour l'installer sur votre disque.
+
+Bonne découverte !

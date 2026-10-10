@@ -1,0 +1,16 @@
+{
+  "id": "files",
+  "name": { "en": "File Explorer", "fr": "Explorateur de fichiers" },
+  "description": { "en": "Browse, organize and manage your files and folders", "fr": "Parcourez, organisez et gérez vos fichiers et dossiers" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1100, "height": 700, "minWidth": 520, "minHeight": 360, "titlebar": "tall", "background": "mica" },
+  "category": "system",
+  "keywords": {
+    "en": ["explorer", "files", "folders", "documents", "browse", "file manager", "this pc", "recycle bin"],
+    "fr": ["explorateur", "fichiers", "dossiers", "documents", "parcourir", "gestionnaire de fichiers", "ce pc", "corbeille"]
+  },
+  "singleInstance": false,
+  "fileTypes": []
+}

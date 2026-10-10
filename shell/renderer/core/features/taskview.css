@@ -1,0 +1,385 @@
+/* Task View + virtual desktops (Windows 11). */
+.tv-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--tv-bg);
+  backdrop-filter: blur(48px) saturate(150%);
+  animation: tv-fade-in 260ms linear;
+}
+:root[data-theme="light"] .tv-backdrop {
+  --tv-bg: rgba(236, 236, 236, 0.66);
+}
+:root[data-theme="dark"] .tv-backdrop {
+  --tv-bg: rgba(24, 24, 24, 0.66);
+}
+:root[data-transparency="off"] .tv-backdrop {
+  --tv-bg: var(--bg);
+  backdrop-filter: none;
+}
+.tv-backdrop.closing {
+  animation: tv-fade-out 300ms linear forwards;
+  pointer-events: none;
+}
+@keyframes tv-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes tv-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+.tv-plates,
+.tv-cards {
+  position: absolute;
+  inset: 0;
+}
+.tv-plate {
+  position: absolute;
+  border-radius: 10px;
+  transition: background var(--dur-fast) linear, opacity var(--dur-fast) linear;
+  animation: tv-fade-in 300ms linear;
+}
+.tv-plate.hover {
+  background: var(--tv-plate-hover);
+}
+:root[data-theme="light"] .tv-plate {
+  --tv-plate-hover: rgba(0, 0, 0, 0.07);
+}
+:root[data-theme="dark"] .tv-plate {
+  --tv-plate-hover: rgba(255, 255, 255, 0.09);
+}
+.tv-plate.sel {
+  background: var(--tv-plate-hover);
+  box-shadow: inset 0 0 0 2px var(--text);
+}
+.tv-plate.hide {
+  opacity: 0;
+}
+
+.tv-chrome {
+  position: absolute;
+  inset: 0;
+  z-index: 3000000;
+  outline: none;
+}
+.tv-chrome.closing {
+  pointer-events: none;
+}
+.tv-chrome.closing .tv-card,
+.tv-chrome.closing .tv-empty {
+  animation: tv-fade-out 140ms linear forwards;
+}
+.tv-chrome.closing .tv-strip {
+  animation: tv-strip-out 260ms var(--ease-in) forwards;
+}
+.tv-card {
+  position: absolute;
+  border-radius: 10px;
+  animation: tv-card-in 340ms var(--ease) backwards;
+  transition: opacity var(--dur-fast) linear;
+}
+@keyframes tv-card-in {
+  from {
+    opacity: 0;
+  }
+}
+.tv-card.dragging,
+.tv-card.closing {
+  opacity: 0;
+}
+.tv-head {
+  position: absolute;
+  left: 8px;
+  right: 6px;
+  top: 4px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.tv-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.tv-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  color: var(--text);
+}
+.tv-x {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  opacity: 0;
+  transition: opacity var(--dur-fast) linear, background var(--dur-fast) linear;
+}
+.tv-card:hover .tv-x,
+.tv-card.sel .tv-x {
+  opacity: 1;
+}
+.tv-x:hover {
+  background: var(--close-hover);
+  color: #fff;
+}
+.tv-hit {
+  position: absolute;
+  inset: 36px 0 0 0;
+}
+.tv-empty {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 38%;
+  text-align: center;
+  font-size: var(--fs-body-large);
+  line-height: 24px;
+  color: var(--text-2);
+  animation: tv-fade-in 300ms linear;
+}
+.tv-empty[hidden] {
+  display: none;
+}
+
+/* Desktops strip */
+.tv-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 178px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid var(--stroke);
+  background: var(--tv-strip-bg);
+  animation: tv-strip-in 380ms var(--ease);
+}
+:root[data-theme="light"] .tv-strip {
+  --tv-strip-bg: rgba(255, 255, 255, 0.42);
+}
+:root[data-theme="dark"] .tv-strip {
+  --tv-strip-bg: rgba(0, 0, 0, 0.16);
+}
+@keyframes tv-strip-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+}
+@keyframes tv-strip-out {
+  to {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+}
+.tv-desks {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 100%;
+  padding: 8px 24px;
+  overflow-x: auto;
+}
+.tv-desk {
+  flex: none;
+  width: 208px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 8px 10px;
+  border-radius: var(--radius);
+  outline: none;
+  transition: background var(--dur-fast) linear, transform var(--dur) var(--ease);
+}
+.tv-desk:hover {
+  background: var(--subtle-hover);
+}
+.tv-desk.sel {
+  box-shadow: inset 0 0 0 2px var(--text);
+}
+.tv-desk.drop {
+  background: var(--accent-subtle);
+  transform: scale(1.04);
+}
+.tv-desk.drop .tv-desk-thumb {
+  box-shadow: 0 0 0 2px var(--accent), 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+.tv-desk-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 0 0 2px;
+  min-width: 0;
+}
+.tv-desk-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-caption);
+  line-height: 16px;
+}
+.tv-desk.current .tv-desk-name {
+  font-weight: 600;
+}
+.tv-rename {
+  flex: 1;
+  min-width: 0;
+  min-height: 0 !important;
+  height: 26px;
+  padding: 0 6px !important;
+  font-size: var(--fs-caption) !important;
+}
+.tv-desk-x {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  opacity: 0;
+  transition: opacity var(--dur-fast) linear, background var(--dur-fast) linear;
+}
+.tv-desk:hover .tv-desk-x {
+  opacity: 1;
+}
+.tv-desk-x:hover {
+  background: var(--close-hover);
+  color: #fff;
+}
+.tv-desk-thumb {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--wallpaper) center / cover, linear-gradient(135deg, #2b5cae, #6aa7e8);
+  box-shadow: 0 0 0 1px var(--stroke-strong), 0 2px 8px rgba(0, 0, 0, 0.16);
+  transition: box-shadow var(--dur) linear;
+}
+.tv-desk.current .tv-desk-thumb {
+  box-shadow: 0 0 0 2px var(--accent), 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+.tv-desk.shown:not(.current) .tv-desk-thumb {
+  box-shadow: 0 0 0 2px var(--text-3), 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+.tv-mini {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border-radius: 2px;
+  background: var(--solid);
+  border: 1px solid var(--stroke-strong);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+}
+.tv-mini img {
+  width: 12px;
+  height: 12px;
+}
+.tv-new-thumb {
+  display: grid;
+  place-items: center;
+  background: var(--card);
+  color: var(--text-2);
+  box-shadow: 0 0 0 1px var(--stroke-strong);
+}
+.tv-new:hover .tv-new-thumb {
+  color: var(--text);
+  background: var(--card-hover);
+}
+
+/* Real windows while Task View is up: visible even if minimised / on another desktop, inert. */
+.tv-on .win.tv-win {
+  visibility: visible !important;
+  pointer-events: none !important;
+}
+.tv-on .win.tv-win * {
+  pointer-events: none !important;
+}
+.win.tv-out {
+  opacity: 0 !important;
+}
+
+/* Desktop switch pill (Super+Ctrl+arrows) */
+.tv-pill {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--taskbar-h) + 28px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 180px;
+  padding: 12px 24px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--acrylic);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  backdrop-filter: blur(40px) saturate(160%);
+  pointer-events: none !important;
+  transform: translateX(-50%);
+  animation: tv-pill-in var(--dur-slow) var(--ease);
+  transition: opacity 260ms linear;
+}
+:root[data-transparency="off"] .tv-pill {
+  backdrop-filter: none;
+}
+.tv-pill.hide {
+  opacity: 0;
+}
+@keyframes tv-pill-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
+.tv-pill.bump-l {
+  animation: tv-bump-l 300ms var(--ease);
+}
+.tv-pill.bump-r {
+  animation: tv-bump-r 300ms var(--ease);
+}
+@keyframes tv-bump-l {
+  30% {
+    transform: translateX(calc(-50% - 10px));
+  }
+}
+@keyframes tv-bump-r {
+  30% {
+    transform: translateX(calc(-50% + 10px));
+  }
+}
+.tv-pill-dots {
+  display: flex;
+  gap: 6px;
+}
+.tv-pill-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--text-3);
+  transition: width var(--dur) var(--ease), background var(--dur) linear;
+}
+.tv-pill-dots span.on {
+  width: 18px;
+  background: var(--accent);
+}
+.tv-pill-name {
+  font-weight: 600;
+  white-space: nowrap;
+}

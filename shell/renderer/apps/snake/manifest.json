@@ -1,0 +1,12 @@
+{
+  "id": "snake",
+  "name": { "en": "Snake", "fr": "Snake" },
+  "description": { "en": "Guide the snake to the food and grow as long as you can", "fr": "Guidez le serpent vers la nourriture et grandissez le plus possible" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["gamekit.css", "style.css"],
+  "window": { "width": 720, "height": 660, "minWidth": 480, "minHeight": 460, "background": "mica" },
+  "category": "games",
+  "keywords": { "en": ["game", "snake", "arcade", "retro"], "fr": ["jeu", "serpent", "arcade", "rétro"] },
+  "singleInstance": true
+}

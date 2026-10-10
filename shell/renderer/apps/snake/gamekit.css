@@ -1,0 +1,416 @@
+/* Aurora game kit — shared Fluent chrome for the classic games. Identical in apps/minesweeper,
+   apps/snake and apps/game2048 except for the scope class (.app-<id>); see gamekit.js. */
+
+/* ---------- Toolbar ---------- */
+.app-snake .gk-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  min-height: 44px;
+  padding: 6px 8px 2px;
+}
+.app-snake .gk-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.app-snake .gk-spacer {
+  flex: 1;
+  min-width: 4px;
+}
+.app-snake .gk-btn {
+  gap: 8px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.app-snake .gk-btn.icon-btn {
+  padding: 0;
+}
+.app-snake .gk-toolbar.compact .gk-btn[data-collapsible] {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+.app-snake .gk-toolbar.compact .gk-btn[data-collapsible] .gk-btn-label {
+  display: none;
+}
+.app-snake .gk-btn .icon {
+  transition: transform var(--dur) var(--ease);
+}
+.app-snake .gk-btn:active .icon:first-child {
+  transform: scale(0.88);
+}
+.app-snake .gk-btn .gk-chevron {
+  width: 12px;
+  height: 12px;
+  margin-left: -2px;
+  color: var(--text-2);
+}
+.app-snake .gk-btn:active .gk-chevron {
+  transform: translateY(2px);
+}
+
+/* ---------- Chips (score / timer / counters) ---------- */
+.app-snake .gk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px 0 12px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  white-space: nowrap;
+}
+.app-snake .gk-chip-icon,
+.app-snake .gk-chip > svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--text-2);
+}
+.app-snake .gk-chip-text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.app-snake .gk-chip.labelled .gk-chip-text {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+.app-snake .gk-chip-label {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text-2);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.app-snake .gk-chip-value {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 2ch;
+}
+
+/* ---------- Overlay card (win / game over / pause) ---------- */
+.app-snake .gk-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--bg) 40%, transparent);
+  border-radius: inherit;
+  animation: gk-fade var(--dur) linear;
+}
+.app-snake .gk-overlay[hidden] {
+  display: none;
+}
+.app-snake .gk-overlay.leaving {
+  animation: gk-fade-out 160ms linear forwards;
+}
+.app-snake .gk-overlay.leaving .gk-overlay-card {
+  animation: gk-card-out 160ms var(--ease-in) forwards;
+}
+.app-snake .gk-overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 300px;
+  max-width: 100%;
+  padding: 24px 24px 20px;
+  border-radius: var(--radius);
+  background: var(--acrylic);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-dialog);
+  backdrop-filter: blur(30px) saturate(150%);
+  text-align: center;
+  animation: gk-card-in var(--dur-slower) var(--ease);
+}
+:root[data-transparency="off"] .app-snake .gk-overlay-card {
+  backdrop-filter: none;
+}
+.app-snake .gk-overlay-icon,
+.app-snake .gk-overlay-art {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  animation: gk-icon-in 520ms var(--ease-spring) 80ms both;
+}
+.app-snake .gk-overlay-art {
+  background: transparent;
+}
+.app-snake .gk-overlay-art svg {
+  width: 56px;
+  height: 56px;
+}
+.app-snake .tone-success .gk-overlay-icon {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.app-snake .tone-danger .gk-overlay-icon {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.app-snake .gk-overlay-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle);
+  line-height: 28px;
+  font-weight: 600;
+}
+.app-snake .gk-overlay-text {
+  color: var(--text-2);
+  white-space: pre-line;
+}
+.app-snake .gk-overlay-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-top: 14px;
+}
+.app-snake .gk-overlay-actions .btn {
+  flex: 1;
+  min-width: 0;
+}
+.app-snake .gk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 3px;
+  border-radius: 12px;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  background: color-mix(in srgb, #ffb900 22%, transparent);
+  color: #8a5300;
+  animation: gk-badge-in 600ms var(--ease-spring) 250ms both;
+}
+:root[data-theme="dark"] .app-snake .gk-badge {
+  color: #ffd66b;
+}
+.app-snake .gk-confetti {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 30;
+  pointer-events: none;
+}
+
+/* ---------- Statistics dialog ---------- */
+.app-snake .gk-dialog {
+  width: 440px;
+}
+.app-snake .gk-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.app-snake .gk-stats-picker {
+  align-self: flex-start;
+  max-width: 100%;
+}
+.app-snake .gk-stats-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: gk-fade var(--dur) linear;
+}
+.app-snake .gk-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  gap: 6px;
+}
+.app-snake .gk-stat {
+  padding: 8px 12px 10px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+  min-width: 0;
+}
+.app-snake .gk-stat-value {
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-snake .gk-stat.accent .gk-stat-value {
+  color: var(--accent-text);
+}
+.app-snake .gk-stat-label {
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  color: var(--text-2);
+}
+.app-snake .gk-subhead {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.app-snake .gk-rank-list {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+  overflow: hidden;
+}
+.app-snake .gk-rank {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  font-variant-numeric: tabular-nums;
+}
+.app-snake .gk-rank + .gk-rank {
+  border-top: 1px solid var(--stroke);
+}
+.app-snake .gk-rank-pos {
+  color: var(--text-3);
+  font-weight: 600;
+}
+.app-snake .gk-rank:first-child .gk-rank-pos {
+  color: #c48a00;
+}
+.app-snake .gk-rank-date {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+.app-snake .gk-empty-note {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--stroke-strong);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+
+/* ---------- How to play ---------- */
+.app-snake .gk-help {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.app-snake .gk-help-intro {
+  margin: 0;
+  color: var(--text-2);
+}
+.app-snake .gk-help-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: var(--fs-body);
+  line-height: 20px;
+  font-weight: 600;
+}
+.app-snake .gk-help-title .icon {
+  color: var(--accent-text);
+}
+.app-snake .gk-help ul {
+  margin: 0;
+  padding-left: 22px;
+  color: var(--text-2);
+}
+.app-snake .gk-help li + li {
+  margin-top: 4px;
+}
+.app-snake .gk-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+  padding: 4px 12px;
+}
+.app-snake .gk-key-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 32px;
+}
+.app-snake .gk-key-row + .gk-key-row {
+  border-top: 1px solid var(--stroke);
+}
+.app-snake .gk-key-combo {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: none;
+}
+.app-snake .gk-key-label {
+  color: var(--text-2);
+  text-align: right;
+}
+.app-snake .gk-key-sep {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+.app-snake kbd {
+  display: inline-block;
+  min-width: 26px;
+  padding: 1px 7px 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--control-stroke);
+  border-bottom: 2px solid var(--control-stroke-bottom);
+  background: var(--control);
+  font: 600 12px/18px var(--font);
+  text-align: center;
+  color: var(--text);
+}
+
+@keyframes gk-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes gk-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes gk-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+}
+@keyframes gk-card-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes gk-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-20deg);
+  }
+}
+@keyframes gk-badge-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}

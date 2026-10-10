@@ -1,0 +1,216 @@
+/* Snap layouts flyout, drag bar and Snap Assist (Windows 11). */
+.snapl-fly,
+.snapl-bar {
+  position: fixed;
+  z-index: 70;
+  padding: 10px;
+  border-radius: var(--radius);
+  background: var(--acrylic);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  backdrop-filter: blur(40px) saturate(160%);
+  outline: none;
+  animation: snapl-in var(--dur-slow) var(--ease);
+}
+:root[data-transparency="off"] .snapl-fly,
+:root[data-transparency="off"] .snapl-bar,
+:root[data-transparency="off"] .snapa {
+  backdrop-filter: none;
+}
+.snapl-fly.closing,
+.snapl-bar.closing {
+  animation: snapl-out 130ms var(--ease-in) forwards;
+  pointer-events: none;
+}
+@keyframes snapl-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+@keyframes snapl-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.snapl-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 100px);
+  gap: 10px 12px;
+}
+.snapl-layout {
+  position: relative;
+  width: 100%;
+}
+.snapl-zone {
+  position: absolute;
+  border: 2px solid transparent;
+  border-radius: 5px;
+  background-clip: padding-box;
+  background-color: var(--snapl-zone);
+  box-shadow: inset 0 0 0 1px var(--snapl-zone-stroke);
+  display: grid;
+  place-items: center;
+  transition: background-color var(--dur-fast) linear, box-shadow var(--dur-fast) linear;
+}
+:root[data-theme="light"] .snapl-zone {
+  --snapl-zone: rgba(0, 0, 0, 0.05);
+  --snapl-zone-stroke: rgba(0, 0, 0, 0.16);
+}
+:root[data-theme="dark"] .snapl-zone {
+  --snapl-zone: rgba(255, 255, 255, 0.07);
+  --snapl-zone-stroke: rgba(255, 255, 255, 0.2);
+}
+.snapl-zone:hover,
+.snapl-zone.kb,
+.snapl-zone.hot {
+  background-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-hover);
+}
+.snapl-num {
+  font-size: 11px;
+  line-height: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.snapl-zone:hover .snapl-num,
+.snapl-zone.kb .snapl-num {
+  color: var(--on-accent);
+}
+.snapl-lnum {
+  position: absolute;
+  left: -7px;
+  top: -7px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: var(--solid);
+  border: 1px solid var(--stroke-strong);
+  font-size: 10px;
+  line-height: 13px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* Drag a window to the top of the screen. */
+.snapl-bar {
+  top: 8px;
+  left: 50%;
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  transform: translateX(-50%);
+  animation: snapl-bar-in var(--dur-slower) var(--ease);
+  pointer-events: none !important;
+}
+.snapl-bar .snapl-layout {
+  width: 72px;
+}
+.snapl-bar.closing {
+  animation: snapl-bar-out 140ms var(--ease-in) forwards;
+}
+@keyframes snapl-bar-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -24px);
+  }
+}
+@keyframes snapl-bar-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -16px);
+  }
+}
+
+/* Snap Assist */
+.snapa {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 16px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--acrylic-strong) 88%, transparent);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  backdrop-filter: blur(40px) saturate(150%);
+  outline: none;
+  animation: snapa-in var(--dur-slower) var(--ease);
+}
+.snapa.closing {
+  animation: snapa-out 150ms var(--ease-in) forwards;
+  pointer-events: none;
+}
+@keyframes snapa-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes snapa-out {
+  to {
+    opacity: 0;
+  }
+}
+.snapa-hint {
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  text-align: center;
+}
+.snapa-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+.snapa-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  min-width: 0;
+  transition: background var(--dur-fast) linear;
+}
+.snapa-card:hover {
+  background: var(--subtle-hover);
+}
+.snapa-cell {
+  display: grid;
+  place-items: center;
+}
+.snapa-card.sel {
+  background: var(--subtle-hover);
+  box-shadow: inset 0 0 0 2px var(--text);
+}
+.snapa-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 20px;
+  font-size: var(--fs-caption);
+}
+.snapa-head img {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.snapa-thumb {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px var(--stroke), 0 4px 12px rgba(0, 0, 0, 0.16);
+}

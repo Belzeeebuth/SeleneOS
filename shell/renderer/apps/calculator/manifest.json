@@ -1,0 +1,18 @@
+{
+  "id": "calculator",
+  "name": { "en": "Calculator", "fr": "Calculatrice" },
+  "description": {
+    "en": "Standard, scientific and programmer calculator, date calculation and unit converters",
+    "fr": "Calculatrice standard, scientifique et programmeur, calcul de dates et convertisseurs d'unités"
+  },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 340, "height": 560, "minWidth": 320, "minHeight": 480, "background": "mica" },
+  "category": "utilities",
+  "keywords": {
+    "en": ["calculator", "math", "calc", "scientific", "programmer", "hex", "binary", "converter", "units", "date"],
+    "fr": ["calculatrice", "calcul", "maths", "scientifique", "programmeur", "hexadécimal", "binaire", "convertisseur", "unités", "date"]
+  },
+  "singleInstance": false
+}

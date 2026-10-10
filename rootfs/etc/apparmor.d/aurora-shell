@@ -1,0 +1,13 @@
+# Aurora Shell (Electron/Chromium).
+# Ubuntu 24.04 restricts unprivileged user namespaces (kernel.apparmor_restrict_unprivileged_userns=1);
+# Chromium's sandbox needs them. This profile only grants "userns" and otherwise leaves the
+# shell unconfined, like the profiles Ubuntu ships for other Chromium-based applications.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile aurora-shell /opt/aurora/electron/electron flags=(unconfined) {
+  userns,
+
+  # Site-specific additions and overrides. See local/README for details.
+  include if exists <local/aurora-shell>
+}

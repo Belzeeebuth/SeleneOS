@@ -1,0 +1,122 @@
+# Aurora OS base system (owned by the ISO build).
+# One package per line; blank lines and # comments are ignored. Packages are installed
+# WITHOUT Recommends: list everything you need explicitly.
+# The kernel is added by iso/build.sh ($KERNEL_PACKAGE, plus linux-firmware when WITH_FIRMWARE=1).
+
+# --- boot / live -----------------------------------------------------------------------
+casper
+initramfs-tools
+zstd
+plymouth
+plymouth-theme-spinner
+plymouth-label
+grub-pc-bin
+grub-efi-amd64-bin
+grub-efi-amd64-signed
+shim-signed
+grub2-common
+efibootmgr
+
+# --- core system -----------------------------------------------------------------------
+systemd-sysv
+systemd-resolved
+systemd-timesyncd
+systemd-zram-generator
+libpam-systemd
+libnss-systemd
+dbus
+dbus-user-session
+udev
+kmod
+sudo
+locales
+tzdata
+keyboard-configuration
+console-setup
+kbd
+apparmor
+ufw
+polkitd
+pkexec
+procps
+psmisc
+file
+less
+nano
+bash-completion
+lsb-release
+pciutils
+usbutils
+python3
+xdg-user-dirs
+ca-certificates
+curl
+
+# --- network ---------------------------------------------------------------------------
+network-manager
+wpasupplicant
+iw
+iproute2
+iputils-ping
+
+# --- storage ---------------------------------------------------------------------------
+udisks2
+dosfstools
+exfatprogs
+e2fsprogs
+fdisk
+parted
+rsync
+squashfs-tools
+
+# --- graphics: X.Org + Mesa ------------------------------------------------------------
+xserver-xorg-core
+xserver-xorg-input-libinput
+xinit
+xauth
+x11-xserver-utils
+x11-xkb-utils
+xkb-data
+dmz-cursor-theme
+libgl1-mesa-dri
+libegl1
+libegl-mesa0
+libglx-mesa0
+libgbm1
+libdrm2
+mesa-utils
+
+# --- Electron runtime libraries --------------------------------------------------------
+libgtk-3-0t64
+libnss3
+libxss1
+libxtst6
+libasound2t64
+libxshmfence1
+libatk-bridge2.0-0t64
+libcups2t64
+libsecret-1-0
+libpulse0
+
+# --- login manager ---------------------------------------------------------------------
+greetd
+
+# --- audio -----------------------------------------------------------------------------
+pipewire
+pipewire-pulse
+pipewire-alsa
+wireplumber
+pulseaudio-utils
+alsa-utils
+alsa-ucm-conf
+
+# --- fonts -----------------------------------------------------------------------------
+fontconfig
+fonts-inter
+fonts-cascadia-code
+fonts-noto-color-emoji
+fonts-dejavu-core
+
+# --- virtual machine integration -------------------------------------------------------
+spice-vdagent
+qemu-guest-agent

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="body" x1="24" y1="3" x2="24" y2="45" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5b6b82"/>
+      <stop offset="0.55" stop-color="#3a4658"/>
+      <stop offset="1" stop-color="#262f3d"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="24" y1="3" x2="24" y2="20" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="12" y1="8" x2="36" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f4fbff"/>
+      <stop offset="1" stop-color="#bfe3fb"/>
+    </linearGradient>
+    <linearGradient id="key" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eef2f7"/>
+      <stop offset="1" stop-color="#b9c3d0"/>
+    </linearGradient>
+    <linearGradient id="eq" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5fd0ff"/>
+      <stop offset="0.5" stop-color="#2a9af0"/>
+      <stop offset="1" stop-color="#1062c8"/>
+    </linearGradient>
+  </defs>
+  <rect x="7.5" y="3" width="33" height="42" rx="7" fill="url(#body)"/>
+  <rect x="7.5" y="3" width="33" height="42" rx="7" fill="url(#rim)"/>
+  <rect x="8" y="3.5" width="32" height="41" rx="6.5" fill="none" stroke="#ffffff" stroke-opacity=".14"/>
+  <rect x="11.5" y="7.5" width="25" height="10" rx="2.6" fill="url(#screen)"/>
+  <rect x="25" y="11" width="8.5" height="3" rx="1.5" fill="#2c6fb8" fill-opacity=".55"/>
+  <g fill="url(#key)">
+    <rect x="11.5" y="21.5" width="7" height="5.4" rx="1.6"/>
+    <rect x="20.5" y="21.5" width="7" height="5.4" rx="1.6"/>
+    <rect x="29.5" y="21.5" width="7" height="5.4" rx="1.6" fill-opacity=".75"/>
+    <rect x="11.5" y="28.6" width="7" height="5.4" rx="1.6"/>
+    <rect x="20.5" y="28.6" width="7" height="5.4" rx="1.6"/>
+    <rect x="11.5" y="35.7" width="7" height="5.4" rx="1.6"/>
+    <rect x="20.5" y="35.7" width="7" height="5.4" rx="1.6"/>
+  </g>
+  <rect x="29.5" y="28.6" width="7" height="12.5" rx="1.8" fill="url(#eq)"/>
+  <rect x="30.5" y="29.4" width="5" height="3" rx="1.2" fill="#ffffff" fill-opacity=".28"/>
+</svg>

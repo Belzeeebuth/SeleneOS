@@ -1,0 +1,180 @@
+/* Widgets board (features/widgets.js) */
+#widgets-board {
+  --fly-from: 0px;
+  left: 12px;
+  top: 12px;
+  bottom: calc(var(--taskbar-h) + 12px);
+  width: min(760px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  padding: 0 24px 24px;
+  transform: translateX(-32px);
+}
+#widgets-board.open {
+  transform: none;
+  transition: transform 300ms var(--ease), opacity 100ms linear, visibility 0s;
+}
+:root[data-animations="off"] #widgets-board {
+  transform: none;
+}
+.wg-top {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  flex: none;
+}
+.wg-title {
+  flex: 1;
+  font-weight: 600;
+}
+.wg-icon-btn {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  place-items: center;
+}
+.wg-icon-btn:hover {
+  background: var(--subtle-hover);
+}
+.wg-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 4px 20px;
+  flex: none;
+}
+.wg-time {
+  font-family: var(--font-display);
+  font-size: 44px;
+  line-height: 52px;
+  font-weight: 600;
+}
+.wg-date {
+  color: var(--text-2);
+}
+.wg-greet {
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle);
+  line-height: 28px;
+  font-weight: 600;
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.wg-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.wg-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.wg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-radius: var(--radius);
+  background: var(--fly-card);
+  border: 1px solid var(--control-stroke);
+  min-width: 0;
+}
+#widgets-board.open .wg-card {
+  animation: start-fade-up 380ms var(--ease) backwards;
+}
+#widgets-board.open .wg-col:last-child .wg-card {
+  animation-delay: 50ms;
+}
+.wg-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+}
+.wg-card .btn {
+  align-self: flex-start;
+}
+.wg-weather-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.wg-weather-art {
+  color: #f2b01e;
+  display: inline-flex;
+}
+.wg-weather {
+  background: linear-gradient(135deg, color-mix(in srgb, #5aa7ff 22%, var(--fly-card)), var(--fly-card));
+}
+.wg-notes {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  font: inherit;
+}
+.wg-saved {
+  min-height: 16px;
+}
+.wg-photo {
+  position: relative;
+  height: 196px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.wg-photo img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 700ms linear;
+  cursor: pointer;
+}
+.wg-photo img.in {
+  opacity: 1;
+}
+.wg-photo-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+  color: var(--text-3);
+}
+.wg-photo-empty .btn {
+  align-self: center;
+}
+.wg-meter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+.wg-meter {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--control-strong);
+  overflow: hidden;
+  opacity: 0.9;
+}
+.wg-meter-fill {
+  width: 0;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 600ms var(--ease);
+}

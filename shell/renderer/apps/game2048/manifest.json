@@ -1,0 +1,12 @@
+{
+  "id": "game2048",
+  "name": { "en": "2048", "fr": "2048" },
+  "description": { "en": "Slide and merge numbered tiles to reach 2048", "fr": "Faites glisser et fusionnez les tuiles pour atteindre 2048" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["gamekit.css", "style.css"],
+  "window": { "width": 520, "height": 680, "minWidth": 420, "minHeight": 540, "background": "mica" },
+  "category": "games",
+  "keywords": { "en": ["game", "2048", "puzzle", "tiles", "numbers"], "fr": ["jeu", "2048", "puzzle", "tuiles", "nombres"] },
+  "singleInstance": true
+}

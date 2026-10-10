@@ -1,0 +1,92 @@
+/* Search flyout (features/search.js); the results view (.sv-*) is styled in shell.css */
+#search-panel {
+  --fly-from: 64px;
+  left: 50%;
+  bottom: calc(var(--taskbar-h) + 12px);
+  width: 800px;
+  max-width: calc(100vw - 24px);
+  height: min(700px, calc(100vh - var(--taskbar-h) - 24px));
+  margin-left: -400px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+body.tb-left #search-panel {
+  left: 12px;
+  margin-left: 0;
+}
+@media (max-width: 830px) {
+  #search-panel {
+    left: 12px;
+    margin-left: 0;
+  }
+}
+#search-panel.open {
+  transition: transform 300ms var(--ease), opacity 80ms linear, visibility 0s;
+}
+.sp-top {
+  padding: 24px 24px 14px;
+  flex: none;
+}
+.sp-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.sp-box > .icon {
+  position: absolute;
+  left: 16px;
+  color: var(--accent-text);
+  pointer-events: none;
+}
+.sp-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 44px 0 46px;
+  border-radius: 20px;
+  border: 1px solid var(--control-stroke);
+  border-bottom-color: var(--control-strong);
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+}
+.sp-input:hover {
+  background: var(--control-hover);
+}
+.sp-input:focus {
+  background: var(--input-focus-bg);
+  border-bottom: 2px solid var(--accent);
+}
+.sp-input::placeholder {
+  color: var(--text-3);
+}
+.sp-clear {
+  position: absolute;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  display: grid;
+  place-items: center;
+}
+.sp-clear:hover {
+  background: var(--subtle-hover);
+}
+.sp-clear[hidden] {
+  display: none;
+}
+.sp-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0 24px 20px;
+}
+#search-panel.open .sv-main {
+  animation: start-fade-up 360ms var(--ease) 40ms backwards;
+}
+#search-panel .sv-topapps {
+  grid-template-columns: repeat(3, 1fr);
+}

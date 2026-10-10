@@ -1,0 +1,1 @@
+{ "type": "module", "private": true, "description": "Calculator engine modules (pure ES modules, also imported by Node tests)" }

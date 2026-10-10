@@ -61,7 +61,8 @@ function hsl(h, s, l, a = 1) {
 }
 
 export function accentVars(hex, mode) {
-  const [h, s, l] = rgbToHsl(hexToRgb(hex || '#0078d4'));
+  hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex || '') ? hex : '#0078d4';
+  const [h, s, l] = rgbToHsl(hexToRgb(hex));
   if (mode === 'dark') {
     const L = Math.max(66, Math.min(78, l + 30));
     return {
@@ -124,42 +125,80 @@ async function makeMica(url) {
 let lastWallpaper = '';
 let lastMica = '';
 let nightEl = null;
+let applied = false;
+let pending = null;
 
-export async function applyTheme(all = settings.all()) {
+// Synchronous part: everything that changes colours (so it can run inside a view transition).
+function applyColors(all) {
   const root = document.documentElement;
   const mode = all.theme === 'dark' ? 'dark' : 'light';
   root.dataset.theme = mode;
   root.dataset.transparency = all.transparency === false ? 'off' : 'on';
   root.dataset.animations = all.animations === false ? 'off' : 'on';
   for (const [k, v] of Object.entries(accentVars(all.accent, mode))) root.style.setProperty(k, v);
+  root.style.setProperty('--wallpaper-fit', all.wallpaperFit || 'fill');
+
+  // Night light: warm overlay above everything, ignores pointer events; fades in and out.
+  if (all.nightLight) {
+    if (!nightEl) {
+      nightEl = document.createElement('div');
+      nightEl.id = 'night-light';
+      Object.assign(nightEl.style, { position: 'fixed', inset: '0', pointerEvents: 'none', zIndex: '2147483646', mixBlendMode: 'multiply', transition: 'opacity 1s, background 1s', opacity: '0' });
+      document.body.appendChild(nightEl);
+      requestAnimationFrame(() => nightEl && (nightEl.style.opacity = '1'));
+    }
+    const s = Math.max(0, Math.min(100, all.nightLightStrength ?? 40)) / 100;
+    nightEl.style.background = `rgba(255, ${Math.round(190 - 60 * s)}, ${Math.round(120 - 100 * s)}, ${0.15 + 0.35 * s})`;
+  } else if (nightEl) {
+    const el = nightEl;
+    nightEl = null;
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 1000);
+  }
+  return mode;
+}
+
+export async function applyTheme(all = settings.all()) {
+  const root = document.documentElement;
+  const prevMode = root.dataset.theme;
+  const nextMode = all.theme === 'dark' ? 'dark' : 'light';
+  const accentChanged = root.style.getPropertyValue('--accent-base') !== (all.accent || '#0078d4');
+  const animate = applied && all.animations !== false && (prevMode !== nextMode || accentChanged);
+  let mode;
+  // Light/dark (and accent) switches cross-fade the whole screen for a short moment.
+  if (animate && typeof document.startViewTransition === 'function') {
+    try {
+      root.classList.add('theme-switching');
+      const vt = document.startViewTransition(() => {
+        mode = applyColors(all);
+      });
+      await vt.updateCallbackDone.catch(() => {});
+      vt.finished.finally(() => root.classList.remove('theme-switching'));
+    } catch {
+      mode = applyColors(all);
+      root.classList.remove('theme-switching');
+    }
+  } else {
+    mode = applyColors(all);
+  }
+  if (!mode) mode = applyColors(all);
+  applied = true;
 
   const wp = resolveWallpaper(all.wallpaper, mode);
-  root.style.setProperty('--wallpaper-fit', all.wallpaperFit || 'fill');
   if (wp !== lastWallpaper) {
     lastWallpaper = wp;
     theme.wallpaperUrl = wp;
     root.style.setProperty('--wallpaper', `url("${wp}")`);
     const mica = await makeMica(wp);
-    if (lastMica) URL.revokeObjectURL(lastMica);
-    lastMica = mica;
-    theme.micaUrl = mica;
-    root.style.setProperty('--mica-image', mica ? `url("${mica}")` : 'none');
-    emitter.emit('wallpaper', wp);
-  }
-
-  // Night light: warm overlay above everything, ignores pointer events.
-  if (all.nightLight) {
-    if (!nightEl) {
-      nightEl = document.createElement('div');
-      nightEl.id = 'night-light';
-      Object.assign(nightEl.style, { position: 'fixed', inset: '0', pointerEvents: 'none', zIndex: '2147483646', mixBlendMode: 'multiply', transition: 'opacity 1s' });
-      document.body.appendChild(nightEl);
+    if (wp !== lastWallpaper) {
+      if (mica) URL.revokeObjectURL(mica);
+    } else {
+      if (lastMica) URL.revokeObjectURL(lastMica);
+      lastMica = mica;
+      theme.micaUrl = mica;
+      root.style.setProperty('--mica-image', mica ? `url("${mica}")` : 'none');
+      emitter.emit('wallpaper', wp);
     }
-    const s = Math.max(0, Math.min(100, all.nightLightStrength ?? 40)) / 100;
-    nightEl.style.background = `rgba(255, ${Math.round(190 - 60 * s)}, ${Math.round(120 - 100 * s)}, ${0.15 + 0.35 * s})`;
-  } else if (nightEl) {
-    nightEl.remove();
-    nightEl = null;
   }
 
   const scale = (Number(all.scale) || 100) / 100;
@@ -167,6 +206,14 @@ export async function applyTheme(all = settings.all()) {
   emitter.emit('change', mode);
 }
 
+const THEME_KEYS = ['theme', 'accent', 'transparency', 'animations', 'wallpaper', 'wallpaperFit', 'nightLight', 'nightLightStrength', 'scale', '*'];
 export function watchTheme() {
-  settings.on('*', () => applyTheme());
+  settings.on('*', (_v, key) => {
+    if (key && !THEME_KEYS.includes(String(key).split('.')[0])) return;
+    if (pending) return;
+    pending = Promise.resolve().then(() => {
+      pending = null;
+      return applyTheme();
+    });
+  });
 }

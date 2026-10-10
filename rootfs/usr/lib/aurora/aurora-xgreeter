@@ -1,0 +1,8 @@
+#!/bin/sh
+# X client of the sign-in screen (started by aurora-greeter through aurora-xstart).
+set -eu
+. /usr/lib/aurora/aurora-common
+aurora_x_setup
+aurora_electron_setup
+# shellcheck disable=SC2086
+exec "$AURORA_ELECTRON" $AURORA_FLAGS "$AURORA_APP" --mode=greeter

@@ -1,0 +1,675 @@
+/* Aurora Solitaire. Every rule is scoped under .app-solitaire (the window class). */
+.app-solitaire {
+  --sol-noise: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n' x='0' y='0'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .6 0'/></filter><rect width='220' height='220' filter='url(%23n)' opacity='.38'/></svg>");
+}
+
+.app-solitaire .sol {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+  container-name: sol;
+}
+
+/* ---------------------------------------------------------------- toolbar */
+.app-solitaire .sol-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 48px;
+  padding: 6px 10px 6px 8px;
+}
+.app-solitaire .sol-tb-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.app-solitaire .sol-tb-end {
+  justify-content: flex-end;
+}
+.app-solitaire .sol-tb-btn .icon,
+.app-solitaire .sol-split .icon {
+  width: 16px;
+  height: 16px;
+}
+.app-solitaire .sol-split {
+  display: inline-flex;
+  flex: none;
+}
+.app-solitaire .sol-split-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.app-solitaire .sol-split-more {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 0;
+  min-width: 28px;
+  padding: 0 8px;
+  box-shadow: inset 1px 0 0 var(--stroke);
+}
+.app-solitaire .sol-split-more .icon {
+  width: 12px;
+  height: 12px;
+  transition: transform var(--dur) var(--ease);
+}
+.app-solitaire .sol-split-more:active .icon {
+  transform: translateY(2px);
+}
+.app-solitaire .sol-stats {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.app-solitaire .sol-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 68px;
+  padding: 0 12px;
+}
+.app-solitaire .sol-stat[hidden] {
+  display: none;
+}
+.app-solitaire .sol-stat + .sol-stat {
+  border-left: 1px solid var(--stroke);
+}
+.app-solitaire .sol-stat-label {
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.app-solitaire .sol-stat-value {
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@container sol (max-width: 900px) {
+  .app-solitaire .sol-tb-btn .sol-btn-label,
+  .app-solitaire .sol-split-main .sol-btn-label {
+    display: none;
+  }
+  .app-solitaire .sol-tb-btn {
+    padding: 0;
+    width: 32px;
+    min-width: 32px;
+  }
+  .app-solitaire .sol-split-main {
+    padding: 0 10px;
+  }
+  .app-solitaire .sol-stat {
+    min-width: 58px;
+    padding: 0 9px;
+  }
+}
+@container sol (max-width: 520px) {
+  .app-solitaire .sol-stat-moves {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------- table */
+.app-solitaire .sol-table {
+  --sol-radius: calc(var(--cw, 80px) * 0.064);
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  outline: none;
+  touch-action: none;
+  isolation: isolate;
+  border-top: 1px solid var(--stroke);
+}
+.app-solitaire [data-bg="felt"] {
+  background-color: #1f7743;
+  background-image: var(--sol-noise), radial-gradient(130% 95% at 50% 18%, #33a061 0%, #23824a 48%, #17633a 100%);
+}
+.app-solitaire [data-bg="blue"] {
+  background-color: #1d5a99;
+  background-image: var(--sol-noise), radial-gradient(130% 95% at 50% 18%, #3a86cf 0%, #2565a8 48%, #17457c 100%);
+}
+.app-solitaire [data-bg="aurora"] {
+  background-color: #0d1b36;
+  background-image: radial-gradient(90% 75% at 12% 0%, color-mix(in srgb, var(--accent-base, #0078d4) 85%, transparent) 0%, transparent 72%),
+    radial-gradient(80% 70% at 100% 100%, rgba(72, 214, 184, 0.5) 0%, transparent 70%),
+    radial-gradient(60% 50% at 85% 10%, color-mix(in srgb, var(--accent-base, #0078d4) 40%, #b46cff) 0%, transparent 70%),
+    linear-gradient(160deg, #0b1a36 0%, #142a52 55%, #0b1630 100%);
+}
+:root[data-theme="dark"] .app-solitaire .sol-table[data-bg="felt"] {
+  background-image: var(--sol-noise), radial-gradient(130% 95% at 50% 18%, #2a8a53 0%, #1c6c3d 48%, #114a2b 100%);
+}
+:root[data-theme="dark"] .app-solitaire .sol-table[data-bg="blue"] {
+  background-image: var(--sol-noise), radial-gradient(130% 95% at 50% 18%, #2f73b8 0%, #1d5491 48%, #11365f 100%);
+}
+.app-solitaire .sol-table.is-dragging {
+  cursor: grabbing;
+}
+
+/* ---------------------------------------------------------------- slots */
+.app-solitaire .sol-slot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--cw);
+  height: var(--ch);
+  border-radius: var(--sol-radius);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.1);
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.24);
+  transition: background var(--dur) linear, color var(--dur) linear;
+}
+.app-solitaire .sol-slot-waste {
+  border-color: transparent;
+  background: none;
+}
+.app-solitaire .sol-slot-letter {
+  font-family: var(--font-display);
+  font-size: calc(var(--cw) * 0.42);
+  line-height: 1;
+  font-weight: 600;
+}
+.app-solitaire .sol-slot-tableau .sol-slot-letter {
+  font-size: calc(var(--cw) * 0.3);
+  opacity: 0.7;
+}
+.app-solitaire .sol-slot-glyph .icon {
+  width: calc(var(--cw) * 0.42);
+  height: calc(var(--cw) * 0.42);
+}
+.app-solitaire .sol-slot-stock.can-recycle {
+  color: rgba(255, 255, 255, 0.7);
+}
+.app-solitaire .sol-slot-stock.can-recycle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.app-solitaire .sol-slot-stock.can-recycle:active {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ---------------------------------------------------------------- cards */
+.app-solitaire .sol-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--cw);
+  height: var(--ch);
+  perspective: calc(var(--cw) * 7);
+  transition: transform 260ms var(--ease);
+}
+.app-solitaire .sol-card-inner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 320ms var(--ease-std), translate var(--dur) var(--ease);
+}
+.app-solitaire .sol-card.down .sol-card-inner {
+  transform: rotateY(180deg);
+}
+.app-solitaire .sol-face {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--sol-radius);
+  backface-visibility: hidden;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.26), 0 0 1px rgba(0, 0, 0, 0.3);
+  transition: box-shadow var(--dur) linear;
+}
+.app-solitaire .sol-back {
+  transform: rotateY(180deg);
+  background-image: var(--sol-back);
+}
+.app-solitaire .sol-card.dragging {
+  transition: none;
+}
+.app-solitaire .sol-card.dragging .sol-face {
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.34), 0 3px 8px rgba(0, 0, 0, 0.22);
+}
+.app-solitaire .sol-card.held .sol-card-inner {
+  translate: 0 calc(var(--ch) * -0.025);
+}
+.app-solitaire .sol-card.held .sol-face {
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.app-solitaire .sol-table.sol-instant .sol-card,
+.app-solitaire .sol-table.sol-instant .sol-card-inner,
+.app-solitaire .sol-table.sol-instant .sol-cursor {
+  transition: none !important;
+}
+
+/* Rings: hint (pulsing), hint destination, selection, legal drop target */
+.app-solitaire .sol-card::after,
+.app-solitaire .sol-slot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: calc(var(--sol-radius) + 3px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur) linear;
+}
+.app-solitaire .sol-slot::after {
+  inset: -5px;
+}
+.app-solitaire .sol-card.held::after {
+  opacity: 1;
+  translate: 0 calc(var(--ch) * -0.025);
+  box-shadow: 0 0 0 2.5px var(--accent);
+}
+.app-solitaire .sol-card.hint::after,
+.app-solitaire .sol-slot.hint::after,
+.app-solitaire .sol-card.hint-dst::after,
+.app-solitaire .sol-slot.hint-dst::after {
+  box-shadow: 0 0 0 3px #ffd54a, 0 0 18px 4px rgba(255, 213, 74, 0.65);
+  animation: sol-pulse 0.55s var(--ease-std) infinite alternate;
+}
+.app-solitaire .sol-card.drop-ok::after,
+.app-solitaire .sol-slot.drop-ok::after {
+  opacity: 1;
+  box-shadow: 0 0 0 2.5px rgba(255, 255, 255, 0.95), 0 0 14px 2px rgba(255, 255, 255, 0.45);
+}
+@keyframes sol-pulse {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Keyboard selection cursor */
+.app-solitaire .sol-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 30000;
+  pointer-events: none;
+  border-radius: calc(var(--sol-radius) + 4px);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: transform var(--dur-slow) var(--ease), width var(--dur-slow) var(--ease), height var(--dur-slow) var(--ease), opacity var(--dur) linear;
+}
+.app-solitaire .sol-cursor.show {
+  opacity: 1;
+}
+.app-solitaire .sol-cursor.holding {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px #fff, 0 0 0 6px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------------------------------------------------------------- footer, floating controls */
+.app-solitaire .sol-footer {
+  position: absolute;
+  left: var(--field-x, 12px);
+  width: var(--field-w, calc(100% - 24px));
+  bottom: 6px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.app-solitaire .sol-gameno {
+  pointer-events: auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  padding: 3px 8px;
+  margin-left: -8px;
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-fast) linear;
+}
+.app-solitaire .sol-gameno:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.app-solitaire .sol-gameno:active {
+  background: rgba(255, 255, 255, 0.06);
+}
+.app-solitaire .sol-mode {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-solitaire .sol-auto {
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  transform: translateX(-50%);
+  z-index: 25000;
+  min-height: 36px;
+  padding: 6px 20px 7px 16px;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+.app-solitaire .sol-auto[hidden],
+.app-solitaire .sol-banner[hidden],
+.app-solitaire .sol-skip[hidden] {
+  display: none;
+}
+.app-solitaire .sol-banner {
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  transform: translateX(-50%);
+  z-index: 25001;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 8px 8px 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--window-stroke);
+  background: var(--acrylic-solid);
+  color: var(--text);
+  box-shadow: var(--shadow-flyout);
+}
+.app-solitaire .sol-banner > .icon {
+  color: var(--accent);
+}
+.app-solitaire .sol-cascade {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 40000;
+  pointer-events: none;
+  display: none;
+}
+.app-solitaire .sol-cascade.show {
+  display: block;
+}
+.app-solitaire .sol-cascade.fade {
+  animation: sol-fade-out 450ms var(--ease-in) forwards;
+}
+@keyframes sol-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+.app-solitaire .sol-skip {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 40001;
+  padding: 3px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: var(--fs-caption);
+  pointer-events: none;
+  animation: ui-fade var(--dur-slow) linear;
+}
+.app-solitaire .sol-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- dialogs */
+.app-solitaire .sol-dialog .dialog-body {
+  padding-bottom: 20px;
+}
+.app-solitaire .sol-win {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: min(340px, 70vw);
+}
+.app-solitaire .sol-win-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: -4px;
+}
+.app-solitaire .sol-win-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  flex: none;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(145deg, #ffcf5c, #e89a1c);
+  box-shadow: 0 4px 12px rgba(232, 154, 28, 0.35);
+  animation: sol-pop 520ms var(--ease-spring);
+}
+@keyframes sol-pop {
+  from {
+    transform: scale(0.4) rotate(-20deg);
+    opacity: 0;
+  }
+}
+.app-solitaire .sol-win-rows {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+}
+.app-solitaire .sol-win-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 40px;
+  padding: 6px 14px;
+}
+.app-solitaire .sol-win-row + .sol-win-row {
+  border-top: 1px solid var(--stroke);
+}
+.app-solitaire .sol-win-val {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.app-solitaire .sol-badge {
+  padding: 1px 8px 2px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--on-accent);
+  background: var(--accent);
+  white-space: nowrap;
+}
+.app-solitaire .sol-stats-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+.app-solitaire .sol-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+.app-solitaire .sol-stat-card {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+  min-width: 0;
+}
+.app-solitaire .sol-stat-big {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-solitaire .sol-settings-dialog {
+  max-width: min(820px, calc(100% - 32px));
+}
+.app-solitaire .sol-settings-dialog .dialog-body {
+  container-type: inline-size;
+}
+.app-solitaire .sol-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px 24px;
+}
+.app-solitaire .sol-set-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+@container (min-width: 640px) {
+  .app-solitaire .sol-settings {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  }
+  .app-solitaire .sol-set-col + .sol-set-col .sol-set-section {
+    margin-top: 0;
+  }
+  .app-solitaire .sol-set-col + .sol-set-col .sol-pick {
+    min-width: 0;
+    flex: 1 1 0;
+    padding: 6px 4px 4px;
+  }
+  .app-solitaire .sol-set-col + .sol-set-col .sol-picker {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  .app-solitaire .sol-set-col + .sol-set-col .sol-pick-table {
+    width: 100%;
+    height: 48px;
+  }
+}
+.app-solitaire .sol-set-section {
+  font-weight: 600;
+  margin: 10px 0 2px;
+}
+.app-solitaire .sol-set-col:first-child .sol-set-section:first-child {
+  margin-top: 0;
+}
+.app-solitaire .sol-set-note {
+  margin: -4px 0 6px;
+}
+.app-solitaire .sol-set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 46px;
+  padding: 6px 12px 6px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+}
+.app-solitaire .sol-set-row.disabled .sol-set-text {
+  color: var(--text-disabled);
+}
+.app-solitaire .sol-set-row.disabled .sol-set-text .text-2 {
+  color: var(--text-disabled);
+}
+.app-solitaire .sol-set-row .toggle input:disabled {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+.app-solitaire .sol-set-text {
+  min-width: 0;
+  flex: 1;
+}
+.app-solitaire .sol-set-row .toggle,
+.app-solitaire .sol-set-row .segmented,
+.app-solitaire .sol-set-row .select {
+  flex: none;
+}
+.app-solitaire .sol-set-label {
+  margin: 6px 0 2px;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+.app-solitaire .sol-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.app-solitaire .sol-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px 4px;
+  min-width: 80px;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+  color: var(--text);
+  transition: background var(--dur-fast) linear, border-color var(--dur-fast) linear;
+}
+.app-solitaire .sol-pick:hover {
+  background: var(--card-hover);
+}
+.app-solitaire .sol-pick:active {
+  background: var(--subtle-pressed);
+}
+.app-solitaire .sol-pick.selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.app-solitaire .sol-pick-back {
+  width: 40px;
+  height: 56px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform var(--dur) var(--ease);
+}
+.app-solitaire .sol-pick:hover .sol-pick-back {
+  transform: translateY(-2px);
+}
+.app-solitaire .sol-pick-table {
+  display: block;
+  width: 88px;
+  height: 52px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+.app-solitaire .sol-help p {
+  margin: 0 0 10px;
+  user-select: text;
+}
+.app-solitaire .sol-keys {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 14px;
+  align-items: center;
+}
+.app-solitaire .sol-keys kbd {
+  justify-self: start;
+  padding: 1px 7px 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--control-stroke);
+  border-bottom-color: var(--control-stroke-bottom);
+  background: var(--control);
+  font-family: var(--font);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}

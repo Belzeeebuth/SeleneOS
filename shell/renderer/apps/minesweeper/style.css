@@ -1,0 +1,344 @@
+/* Minesweeper — board, cells and status row. Shared chrome is in gamekit.css. */
+.app-minesweeper {
+  --ms-tile-a: color-mix(in srgb, var(--accent) 13%, #ffffff);
+  --ms-tile-b: color-mix(in srgb, var(--accent) 24%, #ffffff);
+  --ms-tile-hover-a: color-mix(in srgb, var(--accent) 7%, #ffffff);
+  --ms-tile-hover-b: color-mix(in srgb, var(--accent) 16%, #ffffff);
+  --ms-tile-pressed: color-mix(in srgb, var(--accent) 30%, #ffffff);
+  --ms-tile-hi: rgba(255, 255, 255, 0.85);
+  --ms-tile-lo: rgba(0, 0, 0, 0.13);
+  --ms-open: rgba(0, 0, 0, 0.04);
+  --ms-open-stroke: rgba(0, 0, 0, 0.05);
+  --ms-mine: #1f2328;
+  --ms-glint: rgba(255, 255, 255, 0.75);
+  --ms-flag: #e0313b;
+  --ms-pole: #3b3f46;
+  --ms-cross: #c42b1c;
+  --ms-question: var(--accent-text);
+  --ms-explode: #e5484d;
+  --ms-n1: #1565d8;
+  --ms-n2: #1f8a3c;
+  --ms-n3: #d13438;
+  --ms-n4: #3b3fb0;
+  --ms-n5: #93311c;
+  --ms-n6: #00838c;
+  --ms-n7: #2b2b2b;
+  --ms-n8: #767676;
+}
+:root[data-theme="dark"] .app-minesweeper {
+  --ms-tile-a: color-mix(in srgb, var(--accent) 36%, #3c3c3c);
+  --ms-tile-b: color-mix(in srgb, var(--accent) 27%, #303030);
+  --ms-tile-hover-a: color-mix(in srgb, var(--accent) 46%, #444444);
+  --ms-tile-hover-b: color-mix(in srgb, var(--accent) 35%, #383838);
+  --ms-tile-pressed: color-mix(in srgb, var(--accent) 16%, #262626);
+  --ms-tile-hi: rgba(255, 255, 255, 0.14);
+  --ms-tile-lo: rgba(0, 0, 0, 0.4);
+  --ms-open: rgba(255, 255, 255, 0.035);
+  --ms-open-stroke: rgba(255, 255, 255, 0.04);
+  --ms-mine: #e9ebee;
+  --ms-glint: rgba(0, 0, 0, 0.35);
+  --ms-flag: #ff5c5c;
+  --ms-pole: #d6d9de;
+  --ms-cross: #ff99a4;
+  --ms-explode: #d13438;
+  --ms-n1: #6cb6ff;
+  --ms-n2: #6fd68a;
+  --ms-n3: #ff7b7b;
+  --ms-n4: #a9a5ff;
+  --ms-n5: #f5a35c;
+  --ms-n6: #4fd6d6;
+  --ms-n7: #ececec;
+  --ms-n8: #a8a8a8;
+}
+
+.app-minesweeper .ms-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ---------- status row: mines | face | timer ---------- */
+.app-minesweeper .ms-status {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  padding: 6px 12px 2px;
+}
+.app-minesweeper .ms-status > .gk-chip:first-child {
+  justify-self: start;
+}
+.app-minesweeper .ms-status > .gk-chip:last-child {
+  justify-self: end;
+}
+.app-minesweeper .gk-chip .gk-chip-value {
+  min-width: 3ch;
+}
+.app-minesweeper .ms-chip-mine {
+  color: var(--ms-mine);
+  opacity: 0.85;
+}
+.app-minesweeper .ms-chip-mine svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+.app-minesweeper .ms-face {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--control-stroke);
+  border-bottom-color: var(--control-stroke-bottom);
+  background: var(--control);
+  transition: background var(--dur-fast) linear, transform var(--dur) var(--ease);
+}
+.app-minesweeper .ms-face:hover {
+  background: var(--control-hover);
+}
+.app-minesweeper .ms-face:active {
+  background: var(--control-pressed);
+  transform: scale(0.92);
+}
+.app-minesweeper .ms-face svg {
+  width: 32px;
+  height: 32px;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.22));
+  animation: ms-face-in 320ms var(--ease-spring);
+}
+.app-minesweeper .ms-face:focus-visible {
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+/* ---------- board ---------- */
+.app-minesweeper .ms-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  overflow: auto;
+}
+.app-minesweeper .ms-frame {
+  position: relative;
+  padding: 8px;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05), 0 1px 1px rgba(0, 0, 0, 0.03);
+}
+.app-minesweeper .ms-frame.shake {
+  animation: ms-shake 460ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+.app-minesweeper .ms-board {
+  --cell: 32px;
+  --gap: 2px;
+  --fs: 18px;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), var(--cell));
+  grid-auto-rows: var(--cell);
+  gap: var(--gap);
+  outline: none;
+  border-radius: var(--radius);
+  touch-action: none;
+}
+.app-minesweeper .ms-board:focus-visible {
+  outline: none;
+}
+.app-minesweeper .ms-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: max(3px, calc(var(--cell) * 0.16));
+  font-family: var(--font-display);
+  font-size: var(--fs);
+  line-height: 1;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.app-minesweeper .ms-cell > svg {
+  width: 70%;
+  height: 70%;
+  pointer-events: none;
+}
+.app-minesweeper .ms-cell.closed {
+  background: linear-gradient(180deg, var(--ms-tile-a), var(--ms-tile-b));
+  box-shadow: inset 0 1px 0 var(--ms-tile-hi), inset 0 -1.5px 0 var(--ms-tile-lo);
+  transition: transform 110ms var(--ease), filter var(--dur-fast) linear;
+}
+.app-minesweeper .ms-cell.closed:hover {
+  background: linear-gradient(180deg, var(--ms-tile-hover-a), var(--ms-tile-hover-b));
+}
+.app-minesweeper .ms-cell.closed.pressed {
+  background: var(--ms-tile-pressed);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+  transform: scale(0.92);
+}
+.app-minesweeper .ms-board.over .ms-cell.closed:hover,
+.app-minesweeper .ms-frame.won .ms-cell.closed:hover,
+.app-minesweeper .ms-frame.lost .ms-cell.closed:hover {
+  background: linear-gradient(180deg, var(--ms-tile-a), var(--ms-tile-b));
+}
+.app-minesweeper .ms-cell.open {
+  background: var(--ms-open);
+  box-shadow: inset 0 0 0 1px var(--ms-open-stroke);
+}
+.app-minesweeper .ms-cell.n1 { color: var(--ms-n1); }
+.app-minesweeper .ms-cell.n2 { color: var(--ms-n2); }
+.app-minesweeper .ms-cell.n3 { color: var(--ms-n3); }
+.app-minesweeper .ms-cell.n4 { color: var(--ms-n4); }
+.app-minesweeper .ms-cell.n5 { color: var(--ms-n5); }
+.app-minesweeper .ms-cell.n6 { color: var(--ms-n6); }
+.app-minesweeper .ms-cell.n7 { color: var(--ms-n7); }
+.app-minesweeper .ms-cell.n8 { color: var(--ms-n8); }
+.app-minesweeper .ms-cell.question {
+  color: var(--ms-question);
+}
+.app-minesweeper .ms-cell.mine {
+  color: var(--ms-mine);
+}
+.app-minesweeper .ms-cell.exploded {
+  background: var(--ms-explode);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ms-explode) 40%, transparent);
+  color: #1b1b1b;
+  --ms-glint: rgba(255, 255, 255, 0.7);
+  z-index: 1;
+}
+.app-minesweeper .ms-cell.exploded.anim {
+  animation: ms-boom 600ms var(--ease-spring) both;
+}
+.app-minesweeper .ms-cell.wrong > svg:first-child {
+  opacity: 0.45;
+}
+.app-minesweeper .ms-cell > svg.ms-cross {
+  position: absolute;
+  width: 78%;
+  height: 78%;
+}
+
+/* keyboard focus cursor */
+.app-minesweeper .ms-cell.cursor::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 2px solid var(--text);
+  border-radius: max(5px, calc(var(--cell) * 0.16 + 3px));
+  pointer-events: none;
+  z-index: 2;
+  animation: ms-cursor-in var(--dur) var(--ease);
+}
+
+/* flood-fill reveal: the tile shrinks away, then the number pops in */
+.app-minesweeper .ms-cell.open.anim::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, var(--ms-tile-a), var(--ms-tile-b));
+  box-shadow: inset 0 1px 0 var(--ms-tile-hi), inset 0 -1.5px 0 var(--ms-tile-lo);
+  animation: ms-tile-out 260ms var(--ease-in) var(--d, 0ms) both;
+}
+.app-minesweeper .ms-cell.open.exploded.anim::before {
+  display: none;
+}
+.app-minesweeper .ms-cell.open.anim > * {
+  animation: ms-pop-in 300ms var(--ease) calc(var(--d, 0ms) + 90ms) both;
+}
+.app-minesweeper .ms-cell.flag.anim > svg:first-child {
+  animation: ms-flag-in 420ms var(--ease-spring) var(--d, 0ms) both;
+  transform-origin: 30% 90%;
+}
+
+@keyframes ms-tile-out {
+  to {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+}
+@keyframes ms-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+@keyframes ms-flag-in {
+  from {
+    opacity: 0;
+    transform: translateY(-40%) scale(0.5) rotate(-12deg);
+  }
+}
+@keyframes ms-boom {
+  0% {
+    transform: scale(0.6);
+  }
+  45% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes ms-shake {
+  10%,
+  90% {
+    transform: translateX(-1px);
+  }
+  20%,
+  80% {
+    transform: translateX(3px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-5px);
+  }
+  40%,
+  60% {
+    transform: translateX(5px);
+  }
+}
+@keyframes ms-face-in {
+  from {
+    transform: scale(0.7) rotate(-10deg);
+  }
+}
+@keyframes ms-cursor-in {
+  from {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+
+/* ---------- custom board dialog ---------- */
+.app-minesweeper .ms-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 360px;
+  max-width: 100%;
+}
+.app-minesweeper .ms-custom-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+.app-minesweeper .ms-field {
+  margin-bottom: 10px;
+}
+.app-minesweeper .ms-field .input {
+  width: 100%;
+}
+.app-minesweeper .ms-field-error {
+  min-height: 20px;
+  color: var(--danger);
+  font-size: var(--fs-caption);
+}
+.app-minesweeper .ms-density {
+  min-height: 16px;
+}

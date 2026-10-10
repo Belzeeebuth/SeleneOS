@@ -1,0 +1,12 @@
+{
+  "id": "solitaire",
+  "name": { "en": "Solitaire", "fr": "Solitaire" },
+  "description": { "en": "The classic Klondike card game", "fr": "Le jeu de cartes Klondike classique" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1000, "height": 720, "minWidth": 600, "minHeight": 480, "background": "mica" },
+  "category": "games",
+  "keywords": { "en": ["cards", "klondike", "patience", "game", "solitaire"], "fr": ["cartes", "klondike", "patience", "réussite", "jeu", "solitaire"] },
+  "singleInstance": true
+}

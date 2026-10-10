@@ -1,0 +1,61 @@
+// Aurora OS polkit policy.
+//
+// * Administrators (group "sudo") and members of "netdev" using a local, active session
+//   manage networks and mount/unlock/eject drives without a password prompt.
+// * Power off / reboot / suspend / hibernate are allowed from every local active session,
+//   including the sign-in screen (greetd's "_greetd" user). Doing so while other users are
+//   still signed in is limited to administrators and the sign-in screen.
+// Everything else keeps the packages' defaults (e.g. formatting disks asks for a password).
+
+var AURORA_UDISKS_ACTIONS = [
+  "org.freedesktop.udisks2.filesystem-mount",
+  "org.freedesktop.udisks2.filesystem-mount-system",
+  "org.freedesktop.udisks2.filesystem-mount-other-seat",
+  "org.freedesktop.udisks2.filesystem-unmount-others",
+  "org.freedesktop.udisks2.encrypted-unlock",
+  "org.freedesktop.udisks2.encrypted-unlock-system",
+  "org.freedesktop.udisks2.eject-media",
+  "org.freedesktop.udisks2.eject-media-system",
+  "org.freedesktop.udisks2.power-off-drive",
+  "org.freedesktop.udisks2.power-off-drive-system",
+  "org.freedesktop.udisks2.loop-setup",
+  "org.freedesktop.udisks2.rescan"
+];
+
+var AURORA_POWER_ACTIONS = [
+  "org.freedesktop.login1.power-off",
+  "org.freedesktop.login1.reboot",
+  "org.freedesktop.login1.suspend",
+  "org.freedesktop.login1.hibernate"
+];
+
+var AURORA_POWER_MULTI_ACTIONS = [
+  "org.freedesktop.login1.power-off-multiple-sessions",
+  "org.freedesktop.login1.reboot-multiple-sessions",
+  "org.freedesktop.login1.suspend-multiple-sessions",
+  "org.freedesktop.login1.hibernate-multiple-sessions"
+];
+
+polkit.addRule(function (action, subject) {
+  if (!subject.local || !subject.active) {
+    return polkit.Result.NOT_HANDLED;
+  }
+  var id = action.id;
+  var admin = subject.isInGroup("sudo");
+  var trusted = admin || subject.isInGroup("netdev");
+  var greeter = subject.user === "_greetd";
+
+  if (trusted && id.indexOf("org.freedesktop.NetworkManager.") === 0) {
+    return polkit.Result.YES;
+  }
+  if (trusted && AURORA_UDISKS_ACTIONS.indexOf(id) >= 0) {
+    return polkit.Result.YES;
+  }
+  if (AURORA_POWER_ACTIONS.indexOf(id) >= 0) {
+    return polkit.Result.YES;
+  }
+  if ((admin || greeter) && AURORA_POWER_MULTI_ACTIONS.indexOf(id) >= 0) {
+    return polkit.Result.YES;
+  }
+  return polkit.Result.NOT_HANDLED;
+});

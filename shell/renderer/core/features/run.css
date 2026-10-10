@@ -1,0 +1,114 @@
+/* Run dialog (Super+R). */
+.wm-run .win-body {
+  background: var(--solid);
+}
+.run {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.run-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 20px 0;
+}
+.run-icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+}
+.run-intro {
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  color: var(--text);
+  padding-top: 1px;
+}
+.run-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px 16px;
+}
+.run-label {
+  flex: none;
+  min-width: 32px;
+}
+.run-combo {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.run-input {
+  width: 100%;
+  padding-right: 34px !important;
+}
+.run-dd {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  bottom: 4px;
+  width: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+}
+.run-dd:hover {
+  background: var(--subtle-hover);
+}
+.run-dd:active {
+  background: var(--subtle-pressed);
+}
+.run-foot {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+  background: var(--bg);
+  border-top: 1px solid var(--stroke-card);
+}
+.run-foot .btn {
+  min-width: 96px;
+}
+.run-drop {
+  position: fixed;
+  z-index: 60;
+  max-height: 280px;
+  overflow: auto;
+  padding: 4px;
+  border-radius: var(--radius);
+  background: var(--acrylic);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  backdrop-filter: blur(30px) saturate(150%);
+  animation: ui-menu-in var(--dur-slow) var(--ease);
+}
+:root[data-transparency="off"] .run-drop {
+  backdrop-filter: none;
+}
+.run-drop-h {
+  padding: 6px 10px 2px;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  font-weight: 600;
+}
+.run-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+.run-opt .icon {
+  color: var(--text-2);
+}
+.run-opt:hover,
+.run-opt.active {
+  background: var(--subtle-hover);
+}

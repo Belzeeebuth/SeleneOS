@@ -1,0 +1,65 @@
+[Plymouth Theme]
+Name=Aurora OS
+Name[fr]=Aurora OS
+Description=Aurora OS boot splash: logo and spinner on black.
+Description[fr]=Écran de démarrage d'Aurora OS : logo et indicateur de chargement sur fond noir.
+ModuleName=two-step
+
+# Images: watermark.png (Aurora logo, rendered from shell/renderer/assets/aurora-logo.svg)
+# and the spinner/dialog images of Ubuntu's "spinner" theme, copied by iso/build.sh.
+[two-step]
+Font=Ubuntu 12
+TitleFont=Ubuntu Light 26
+ImageDir=/usr/share/plymouth/themes/aurora
+DialogHorizontalAlignment=.5
+DialogVerticalAlignment=.62
+TitleHorizontalAlignment=.5
+TitleVerticalAlignment=.25
+HorizontalAlignment=.5
+VerticalAlignment=.70
+WatermarkHorizontalAlignment=.5
+WatermarkVerticalAlignment=.42
+Transition=none
+TransitionDuration=0.0
+BackgroundStartColor=0x000000
+BackgroundEndColor=0x000000
+ProgressBarBackgroundColor=0x3a3a3a
+ProgressBarForegroundColor=0x4cc2ff
+MessageBelowAnimation=true
+
+[boot-up]
+UseEndAnimation=false
+
+[shutdown]
+UseEndAnimation=false
+
+[reboot]
+UseEndAnimation=false
+
+[updates]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Installing updates... / Installation des mises à jour...
+SubTitle=Do not turn off your computer / N'éteignez pas votre ordinateur
+
+[system-upgrade]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Upgrading Aurora OS... / Mise à niveau d'Aurora OS...
+SubTitle=Do not turn off your computer / N'éteignez pas votre ordinateur
+
+[firmware-upgrade]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Upgrading firmware... / Mise à jour du micrologiciel...
+SubTitle=Do not turn off your computer / N'éteignez pas votre ordinateur
+
+[system-reset]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Resetting Aurora OS... / Réinitialisation d'Aurora OS...
+SubTitle=Do not turn off your computer / N'éteignez pas votre ordinateur

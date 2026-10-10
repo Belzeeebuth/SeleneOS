@@ -1,0 +1,12 @@
+{
+  "id": "minesweeper",
+  "name": { "en": "Minesweeper", "fr": "Démineur" },
+  "description": { "en": "Clear the minefield without setting off a mine", "fr": "Déminez le terrain sans faire exploser de mine" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["gamekit.css", "style.css"],
+  "window": { "width": 428, "height": 556, "minWidth": 360, "minHeight": 420, "background": "mica" },
+  "category": "games",
+  "keywords": { "en": ["game", "mines", "puzzle", "minesweeper", "flag"], "fr": ["jeu", "mines", "démineur", "puzzle", "drapeau"] },
+  "singleInstance": true
+}

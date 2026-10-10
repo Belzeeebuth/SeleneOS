@@ -1,0 +1,1196 @@
+#!/usr/bin/env bash
+# Aurora OS — live/installable ISO builder.
+#
+#   sudo ./iso/build.sh                 full build -> out/aurora-os-<version>-amd64.iso
+#   sudo ./iso/build.sh --until system  stop after a stage (base|packages|system|squashfs|iso)
+#   sudo ./iso/build.sh --from squashfs start at a stage (earlier stages must have run before)
+#   sudo ./iso/build.sh --rebuild-packages   ignore the cached package layer
+#   sudo ./iso/build.sh --clean         remove work/ first (keeps cache/)
+#
+# Stages (each one logs its duration):
+#   base      debootstrap --variant=minbase, cached as cache/base/<key>.tar.zst
+#   packages  apt install of iso/packages.d/*.list into work/layers/packages
+#             (reused while its inputs are unchanged; package additions are applied in place)
+#   system    overlay on top of the package layer: Electron, Aurora Shell, rootfs/ overlay,
+#             system configuration, casper, Plymouth theme, initramfs, cleanup
+#   squashfs  manifests + casper/filesystem.squashfs
+#   iso       ISO tree, themed GRUB menu, hybrid BIOS+UEFI image (grub-mkrescue/xorriso)
+#
+# Configuration lives in iso/config.sh (every value can be overridden from the environment).
+set -Eeuo pipefail
+umask 022
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=iso/config.sh
+source "$HERE/config.sh"
+
+STAGES=(base packages system squashfs iso)
+UNTIL=iso
+FROM=base
+REBUILD_PACKAGES=0
+CLEAN=0
+
+usage() {
+  sed -n '2,/^set -E/p' "${BASH_SOURCE[0]}" | sed -e '$d' -e 's/^# \{0,1\}//'
+}
+
+while (($#)); do
+  case "$1" in
+    --until) UNTIL="${2:?--until needs a stage}"; shift 2 ;;
+    --until=*) UNTIL="${1#*=}"; shift ;;
+    --from) FROM="${2:?--from needs a stage}"; shift 2 ;;
+    --from=*) FROM="${1#*=}"; shift ;;
+    --rebuild-packages) REBUILD_PACKAGES=1; shift ;;
+    --clean) CLEAN=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "build.sh: unknown argument: $1 (see --help)" >&2; exit 2 ;;
+  esac
+done
+
+# ---------------------------------------------------------------------------------------
+# logging
+# ---------------------------------------------------------------------------------------
+if [[ -t 2 ]]; then C_B=$'\e[1;34m'; C_G=$'\e[1;32m'; C_Y=$'\e[1;33m'; C_R=$'\e[1;31m'; C_0=$'\e[0m'
+else C_B=; C_G=; C_Y=; C_R=; C_0=; fi
+BUILD_T0=$(date +%s)
+log()  { printf '%s[aurora %s]%s %s\n' "$C_B" "$(date +%H:%M:%S)" "$C_0" "$*" >&2; }
+ok()   { printf '%s[aurora %s]%s %s\n' "$C_G" "$(date +%H:%M:%S)" "$C_0" "$*" >&2; }
+warn() { printf '%s[aurora %s] WARNING:%s %s\n' "$C_Y" "$(date +%H:%M:%S)" "$C_0" "$*" >&2; }
+die()  { printf '%s[aurora %s] ERROR:%s %s\n' "$C_R" "$(date +%H:%M:%S)" "$C_0" "$*" >&2; exit 1; }
+STAGE_T0=0
+stage() { STAGE_T0=$(date +%s); printf '\n%s==== stage: %s ====%s\n' "$C_B" "$1" "$C_0" >&2; }
+stage_done() { ok "stage $1 done in $(( $(date +%s) - STAGE_T0 ))s"; }
+stage_index() { local i; for i in "${!STAGES[@]}"; do [[ "${STAGES[$i]}" == "$1" ]] && { echo "$i"; return 0; }; done; return 1; }
+stage_enabled() { # stage -> true when it lies between --from and --until
+  local i f u
+  i="$(stage_index "$1")"; f="$(stage_index "$FROM")"; u="$(stage_index "$UNTIL")"
+  ((i >= f && i <= u))
+}
+# grep for a fixed string in a variable (no pipes: avoids SIGPIPE under pipefail)
+has_text() { grep -qF -- "$1" <<<"$2"; }
+
+# ---------------------------------------------------------------------------------------
+# mounts + cleanup (everything under $WORK is unmounted on exit, even on failure)
+# ---------------------------------------------------------------------------------------
+umount_under() { # path: unmount every mount point below (and including) path, deepest first
+  local base mp
+  base="$(readlink -f "$1" 2>/dev/null || echo "$1")"
+  while read -r mp; do
+    [[ -z "$mp" ]] && continue
+    umount "$mp" 2>/dev/null || umount -l "$mp" 2>/dev/null || warn "could not unmount $mp"
+  done < <(findmnt -rn -o TARGET | awk -v b="$base" '$0 == b || index($0, b "/") == 1' | sort -r)
+}
+
+LOCK_FD=
+cleanup() {
+  local rc=$?
+  trap - EXIT INT TERM
+  if [[ -d "$WORK" ]]; then umount_under "$WORK"; fi
+  if ((rc != 0)); then
+    printf '%s[aurora] build FAILED (exit %d) after %ss%s\n' "$C_R" "$rc" "$(( $(date +%s) - BUILD_T0 ))" "$C_0" >&2
+  fi
+  exit "$rc"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+chroot_mount() { # root
+  local r="$1"
+  mkdir -p "$r/proc" "$r/sys" "$r/dev" "$r/run" "$r/tmp"
+  mountpoint -q "$r/proc" || mount -t proc proc "$r/proc"
+  mountpoint -q "$r/sys" || mount -t sysfs sysfs "$r/sys" 2>/dev/null || mount --rbind -o ro /sys "$r/sys"
+  mountpoint -q "$r/dev" || mount --bind /dev "$r/dev"
+  mountpoint -q "$r/dev/pts" || mount --bind /dev/pts "$r/dev/pts"
+  mountpoint -q "$r/run" || mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs "$r/run"
+  mkdir -p "$r/run/lock" "$r/run/systemd"
+  # Let maintainer scripts know they run in a build chroot; never start services.
+  printf '#!/bin/sh\n# aurora build: do not start daemons in the chroot\nexit 101\n' >"$r/usr/sbin/policy-rc.d"
+  chmod 755 "$r/usr/sbin/policy-rc.d"
+  # DNS for the build (the image's own resolv.conf is restored by chroot_umount).
+  if [[ -e "$r/etc/resolv.conf" || -L "$r/etc/resolv.conf" ]] && [[ ! -e "$r/etc/resolv.conf.aurora-build" && ! -L "$r/etc/resolv.conf.aurora-build" ]]; then
+    mv "$r/etc/resolv.conf" "$r/etc/resolv.conf.aurora-build"
+  fi
+  rm -f "$r/etc/resolv.conf"
+  cp -L /etc/resolv.conf "$r/etc/resolv.conf"
+}
+
+chroot_umount() { # root
+  local r="$1"
+  rm -f "$r/usr/sbin/policy-rc.d"
+  if [[ -e "$r/etc/resolv.conf.aurora-build" || -L "$r/etc/resolv.conf.aurora-build" ]]; then
+    rm -f "$r/etc/resolv.conf"
+    mv "$r/etc/resolv.conf.aurora-build" "$r/etc/resolv.conf"
+  fi
+  local m
+  for m in var/cache/apt/archives run dev/pts dev sys proc; do
+    if mountpoint -q "$r/$m"; then umount "$r/$m" 2>/dev/null || umount -l "$r/$m"; fi
+  done
+  umount_under "$r/sys"
+}
+
+in_chroot() { # root cmd...
+  local r="$1"; shift
+  chroot "$r" /usr/bin/env -i \
+    HOME=/root PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    LANG=C.UTF-8 LC_ALL=C.UTF-8 TERM=dumb \
+    DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true DEBCONF_NOWARNINGS=yes \
+    SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
+    "$@"
+}
+
+apt_in() { # root apt-get args...
+  local r="$1"; shift
+  in_chroot "$r" apt-get -y -q -o Dpkg::Use-Pty=0 -o APT::Color=0 "$@"
+}
+
+sha256_of_text() { sha256sum | cut -c1-16; }
+
+# ---------------------------------------------------------------------------------------
+# preflight
+# ---------------------------------------------------------------------------------------
+preflight() {
+  [[ $EUID -eq 0 ]] || die "run as root: sudo $0"
+  [[ "$ARCH" == amd64 ]] || die "only ARCH=amd64 is supported"
+  local missing=() t
+  for t in debootstrap chroot mount findmnt mksquashfs xorriso grub-mkrescue grub-mkfont mformat \
+           rsvg-convert convert unzip curl sha256sum dpkg-deb tar zstd md5sum; do
+    command -v "$t" >/dev/null 2>&1 || missing+=("$t")
+  done
+  [[ -x "$NODE_BIN/npm" ]] || command -v npm >/dev/null 2>&1 || missing+=("npm (node 22)")
+  [[ -d /usr/lib/grub/i386-pc ]] || missing+=("grub-pc-bin")
+  [[ -d /usr/lib/grub/x86_64-efi ]] || missing+=("grub-efi-amd64-bin")
+  ((${#missing[@]} == 0)) || die "missing build tools: ${missing[*]}
+  On Ubuntu/Debian: apt-get install debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin \\
+    grub-common mtools dosfstools librsvg2-bin imagemagick unzip curl zstd  (+ Node.js 22)"
+  [[ -r "$KEYRING" ]] || die "Ubuntu archive keyring not found at $KEYRING (apt-get install ubuntu-keyring)"
+  [[ -n "$ELECTRON_VERSION" ]] || die "could not read the Electron version from $SHELL_SRC/package.json"
+  [[ -f "$SHELL_SRC/package-lock.json" ]] || die "$SHELL_SRC/package-lock.json is missing (npm ci needs it)"
+  [[ -d "$PACKAGES_DIR" ]] || die "$PACKAGES_DIR is missing"
+  if [[ "$MIRROR" == https://* && -z "$BUILD_CA_BUNDLE" ]]; then
+    die "https mirror $MIRROR needs a CA bundle (set BUILD_CA_BUNDLE) — or use SNAPSHOT=0"
+  fi
+  mkdir -p "$WORK" "$CACHE" "$OUT"
+  local avail_gb
+  avail_gb=$(( $(df -Pk "$WORK" | awk 'NR==2 {print $4}') / 1024 / 1024 ))
+  ((avail_gb >= 8)) || die "only ${avail_gb} GB free under $WORK (need ~10 GB for a rebuild, ~20 GB for the first build)"
+  ((avail_gb >= 15)) || warn "only ${avail_gb} GB free under $WORK; a first build needs ~20 GB"
+
+  exec {LOCK_FD}>"$WORK/.build.lock"
+  flock -n "$LOCK_FD" || die "another build is running (lock: $WORK/.build.lock)"
+  umount_under "$WORK"   # leftovers from an interrupted run
+
+  log "Aurora OS $ISO_VERSION  build-id $BUILD_ID"
+  log "suite=$SUITE arch=$ARCH mirror=$MIRROR"
+  log "electron=$ELECTRON_VERSION kernel=$KERNEL_PACKAGE firmware=$WITH_FIRMWARE recommends=$INSTALL_RECOMMENDS"
+  log "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH ($(date -u -d "@$SOURCE_DATE_EPOCH" '+%F %T') UTC)"
+  log "work=$WORK cache=$CACHE out=$OUT"
+}
+
+# ---------------------------------------------------------------------------------------
+# stage: base (debootstrap)
+# ---------------------------------------------------------------------------------------
+BASE_KEY=""
+BASE_TARBALL=""
+compute_base_key() {
+  BASE_KEY="$(printf '%s\n' "rev=2" "$SUITE" "$ARCH" "$MIRROR" "minbase" | sha256_of_text)"
+  BASE_TARBALL="$CACHE/base/$SUITE-$ARCH-minbase-$BASE_KEY.tar.zst"
+}
+
+stage_base() {
+  stage base
+  compute_base_key
+  if [[ -s "$BASE_TARBALL" ]]; then
+    log "reusing cached debootstrap tarball $(basename "$BASE_TARBALL")"
+    stage_done base; return
+  fi
+  local tmp="$WORK/debootstrap"
+  umount_under "$tmp"; rm -rf "$tmp"; mkdir -p "$tmp" "$CACHE/debootstrap-debs" "$CACHE/base"
+  log "debootstrap $SUITE ($MIRROR) — debs cached in $CACHE/debootstrap-debs"
+  local env_proxy=()
+  [[ -n "$BUILD_HTTPS_PROXY" ]] && env_proxy+=("https_proxy=$BUILD_HTTPS_PROXY")
+  [[ -n "$BUILD_HTTP_PROXY" ]] && env_proxy+=("http_proxy=$BUILD_HTTP_PROXY")
+  [[ -n "$BUILD_CA_BUNDLE" ]] && env_proxy+=("SSL_CERT_FILE=$BUILD_CA_BUNDLE")
+  env "${env_proxy[@]}" debootstrap --variant=minbase --arch="$ARCH" --merged-usr \
+    --components="${COMPONENTS// /,}" --keyring="$KEYRING" \
+    --cache-dir="$CACHE/debootstrap-debs" \
+    "$SUITE" "$tmp" "$MIRROR" \
+    || { [[ -f "$tmp/debootstrap/debootstrap.log" ]] && tail -n 40 "$tmp/debootstrap/debootstrap.log" >&2; die "debootstrap failed"; }
+  umount_under "$tmp"
+  log "saving base tarball"
+  tar --numeric-owner --xattrs --xattrs-include='*' -C "$tmp" -cf - . | zstd -q -T0 -10 -o "$BASE_TARBALL.part"
+  mv "$BASE_TARBALL.part" "$BASE_TARBALL"
+  rm -rf "$tmp"
+  stage_done base
+}
+
+# ---------------------------------------------------------------------------------------
+# stage: packages
+# ---------------------------------------------------------------------------------------
+PKG_LAYER="$WORK/layers/packages"
+
+# Prints "package<TAB>source-file" for every requested package (deduplicated, first wins).
+collect_packages() {
+  local f line
+  shopt -s nullglob
+  local lists=("$PACKAGES_DIR"/*.list)
+  shopt -u nullglob
+  ((${#lists[@]})) || die "no package lists in $PACKAGES_DIR"
+  {
+    printf '%s\t%s\n' "$KERNEL_PACKAGE" "config.sh:KERNEL_PACKAGE"
+    if [[ "$WITH_FIRMWARE" == 1 ]]; then printf '%s\t%s\n' linux-firmware "config.sh:WITH_FIRMWARE"; fi
+    for f in "${lists[@]}"; do
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%%#*}"
+        line="$(echo "$line" | tr -d '[:space:]')"
+        [[ -z "$line" ]] && continue
+        if [[ ! "$line" =~ ^[a-z0-9][a-z0-9+.:-]*(=[^[:space:]]+)?$ ]]; then
+          die "invalid package name '$line' in $(basename "$f")"
+        fi
+        printf '%s\t%s\n' "$line" "$(basename "$f")"
+      done <"$f"
+    done
+  } | awk -F'\t' '!seen[$1]++'
+}
+
+packages_key() { # -> hash of everything except the package list itself
+  {
+    echo "rev=3"
+    echo "$BASE_KEY"
+    echo "$MIRROR $COMPONENTS $INSTALL_RECOMMENDS $WITH_FIRMWARE $KERNEL_PACKAGE"
+    write_dpkg_excludes /dev/stdout
+  } | sha256_of_text
+}
+
+write_dpkg_excludes() { # file
+  cat >"$1" <<'EOF'
+# Aurora OS: keep the image small (documentation, manual pages and translations other than
+# English/French are not installed). Copyright files are kept.
+# Remove this file and reinstall packages to get the full content back.
+path-exclude=/usr/share/doc/*
+path-include=/usr/share/doc/*/copyright
+path-exclude=/usr/share/man/*
+path-exclude=/usr/share/info/*
+path-exclude=/usr/share/groff/*
+path-exclude=/usr/share/lintian/*
+path-exclude=/usr/share/linda/*
+path-exclude=/usr/share/locale/*
+path-include=/usr/share/locale/locale.alias
+path-include=/usr/share/locale/en*
+path-include=/usr/share/locale/fr*
+path-exclude=/usr/share/help/*
+path-include=/usr/share/help/C/*
+path-include=/usr/share/help/fr*
+EOF
+}
+
+write_build_sources() { # root
+  local r="$1"
+  rm -f "$r/etc/apt/sources.list"
+  mkdir -p "$r/etc/apt/sources.list.d"
+  cat >"$r/etc/apt/sources.list.d/ubuntu.sources" <<EOF
+# Aurora OS build-time sources (replaced by the final archive sources before squashing)
+Types: deb
+URIs: $MIRROR
+Suites: $SUITE $SUITE-updates $SUITE-security
+Components: $COMPONENTS
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+Check-Valid-Until: no
+EOF
+}
+
+write_final_sources() { # root
+  local r="$1"
+  rm -f "$r/etc/apt/sources.list"
+  cat >"$r/etc/apt/sources.list" <<'EOF'
+# Ubuntu sources have moved to /etc/apt/sources.list.d/ubuntu.sources
+EOF
+  cat >"$r/etc/apt/sources.list.d/ubuntu.sources" <<EOF
+Types: deb
+URIs: $FINAL_MIRROR
+Suites: $SUITE $SUITE-updates $SUITE-backports
+Components: $COMPONENTS
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+Types: deb
+URIs: $FINAL_SECURITY_MIRROR
+Suites: $SUITE-security
+Components: $COMPONENTS
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+EOF
+}
+
+# Build-time apt network settings (CA + proxy). Removed by apt_net_off before squashing.
+apt_net_on() { # root
+  local r="$1"
+  {
+    echo '// Aurora OS build-time apt settings — removed before the image is squashed'
+    echo 'Acquire::Retries "5";'
+    echo 'Acquire::Languages "none";'
+    echo 'Acquire::http::Timeout "60";'
+    echo 'Acquire::https::Timeout "60";'
+    if [[ -n "$BUILD_CA_BUNDLE" ]]; then
+      cp "$BUILD_CA_BUNDLE" "$r/etc/apt/aurora-build-ca.crt"
+      echo 'Acquire::https::CAInfo "/etc/apt/aurora-build-ca.crt";'
+    fi
+    [[ -n "$BUILD_HTTPS_PROXY" ]] && echo "Acquire::https::Proxy \"$BUILD_HTTPS_PROXY\";"
+    [[ -n "$BUILD_HTTP_PROXY" ]] && echo "Acquire::http::Proxy \"$BUILD_HTTP_PROXY\";"
+    if [[ "$INSTALL_RECOMMENDS" != 1 ]]; then
+      echo 'APT::Install-Recommends "false";'
+      echo 'APT::Install-Suggests "false";'
+    fi
+    echo 'Dpkg::Options { "--force-confdef"; "--force-confold"; };'
+  } >"$r/etc/apt/apt.conf.d/99aurora-build"
+}
+
+apt_net_off() { # root
+  rm -f "$1/etc/apt/apt.conf.d/99aurora-build" "$1/etc/apt/aurora-build-ca.crt"
+}
+
+# Kernel/initramfs hooks are pointless while packages are being installed: the initramfs is
+# generated once, at the end of the system stage.
+divert_initramfs() { # root
+  local r="$1"
+  if ! has_text aurora-build "$(in_chroot "$r" dpkg-divert --list /usr/sbin/update-initramfs)"; then
+    in_chroot "$r" dpkg-divert --local --rename --divert /usr/sbin/update-initramfs.aurora-build \
+      --add /usr/sbin/update-initramfs >/dev/null
+  fi
+  printf '#!/bin/sh\necho "update-initramfs: deferred by the Aurora OS build" >&2\nexit 0\n' >"$r/usr/sbin/update-initramfs"
+  chmod 755 "$r/usr/sbin/update-initramfs"
+}
+
+undivert_initramfs() { # root
+  local r="$1"
+  if has_text aurora-build "$(in_chroot "$r" dpkg-divert --list /usr/sbin/update-initramfs)"; then
+    rm -f "$r/usr/sbin/update-initramfs"
+    in_chroot "$r" dpkg-divert --local --rename --divert /usr/sbin/update-initramfs.aurora-build \
+      --remove /usr/sbin/update-initramfs >/dev/null
+  fi
+}
+
+build_firmware_placeholder() { # -> path of .deb
+  local d="$WORK/debs/aurora-firmware-placeholder"
+  rm -rf "$d"; mkdir -p "$d/DEBIAN" "$d/usr/share/doc/aurora-firmware-placeholder"
+  cat >"$d/DEBIAN/control" <<'EOF'
+Package: aurora-firmware-placeholder
+Version: 1.0
+Architecture: all
+Maintainer: Aurora OS <aurora-os@localhost>
+Provides: linux-firmware
+Section: kernel
+Priority: optional
+Description: placeholder for linux-firmware (Aurora OS build without firmware)
+ This Aurora OS image was built with WITH_FIRMWARE=0 for virtual machines and does not
+ ship the large linux-firmware collection. Install the real "linux-firmware" package
+ for physical hardware (Wi-Fi, GPUs...); this placeholder can then be removed.
+EOF
+  printf 'Aurora OS firmware placeholder. Public domain.\n' >"$d/usr/share/doc/aurora-firmware-placeholder/copyright"
+  find "$d" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+  dpkg-deb --root-owner-group -Zxz --build "$d" "$WORK/debs/aurora-firmware-placeholder_1.0_all.deb" >/dev/null
+  echo "$WORK/debs/aurora-firmware-placeholder_1.0_all.deb"
+}
+
+# Check that every requested package exists; print a clear report otherwise.
+validate_packages() { # root pkglist-file(pkg<TAB>source)
+  local r="$1" list="$2" missing
+  cp "$list" "$r/tmp/aurora-packages.tsv"
+  cat >"$r/tmp/aurora-validate.sh" <<'EOS'
+#!/bin/bash
+# prints "pkg<TAB>source" for every package apt cannot install
+while IFS=$'\t' read -r p src; do
+  name="${p%%=*}"
+  cand="$(apt-cache policy "$name" 2>/dev/null | awk '/Candidate:/ {print $2; exit}')"
+  if [[ -z "$cand" || "$cand" == "(none)" ]]; then
+    # a virtual package with at least one provider is fine
+    providers="$(apt-cache showpkg "$name" 2>/dev/null | awk '/^Reverse Provides:/ {f=1; next} f && NF {print $1}')"
+    [[ -n "$providers" ]] || printf '%s\t%s\n' "$p" "$src"
+  fi
+done </tmp/aurora-packages.tsv
+EOS
+  missing="$(in_chroot "$r" /bin/bash /tmp/aurora-validate.sh)"
+  rm -f "$r/tmp/aurora-packages.tsv" "$r/tmp/aurora-validate.sh"
+  if [[ -n "$missing" ]]; then
+    {
+      echo
+      echo "The following packages requested in $PACKAGES_DIR do not exist in $SUITE ($MIRROR):"
+      awk -F'\t' '{printf "    %-40s (from %s)\n", $1, $2}' <<<"$missing"
+      echo "Fix the package names in those .list files (check with: apt-cache policy <name>),"
+      echo "or rerun with ALLOW_MISSING_PACKAGES=1 to skip them."
+      echo
+    } >&2
+    if [[ "$ALLOW_MISSING_PACKAGES" == 1 ]]; then
+      warn "skipping $(wc -l <<<"$missing") missing package(s) (ALLOW_MISSING_PACKAGES=1)"
+      cut -f1 <<<"$missing" >"$WORK/missing-packages.txt"
+    else
+      die "missing packages (see above)"
+    fi
+  else
+    : >"$WORK/missing-packages.txt"
+  fi
+}
+
+preseed_debconf() { # root
+  in_chroot "$1" debconf-set-selections <<'EOF'
+keyboard-configuration keyboard-configuration/layoutcode string us
+keyboard-configuration keyboard-configuration/modelcode string pc105
+keyboard-configuration keyboard-configuration/variantcode string
+keyboard-configuration keyboard-configuration/xkb-keymap select us
+console-setup console-setup/charmap47 select UTF-8
+console-setup console-setup/codeset47 select Guess optimal character set
+tzdata tzdata/Areas select Etc
+tzdata tzdata/Zones/Etc select UTC
+EOF
+}
+
+install_packages() { # root mode(full|incremental) pkg-tsv
+  local r="$1" mode="$2" tsv="$3" pkgs=() extra=()
+  chroot_mount "$r"
+  mkdir -p "$CACHE/apt/archives/partial"
+  mount --bind "$CACHE/apt/archives" "$r/var/cache/apt/archives"
+  write_build_sources "$r"
+  apt_net_on "$r"
+  divert_initramfs "$r"
+  write_dpkg_excludes "$r/etc/dpkg/dpkg.cfg.d/aurora-excludes"
+  # Snaps are not part of Aurora OS: never let a transitional package pull snapd in.
+  cat >"$r/etc/apt/preferences.d/aurora-no-snap.pref" <<'EOF'
+# Aurora OS does not use snaps.
+Package: snapd
+Pin: release a=*
+Pin-Priority: -10
+EOF
+  ln -sf /usr/share/zoneinfo/Etc/UTC "$r/etc/localtime"
+  echo "Etc/UTC" >"$r/etc/timezone"
+
+  log "apt-get update ($MIRROR)"
+  apt_in "$r" update || die "apt-get update failed inside the chroot (mirror $MIRROR unreachable?)"
+  # Proves that apt inside the chroot really reaches the configured mirror.
+  local policy; policy="$(in_chroot "$r" apt-cache policy)"
+  has_text "${MIRROR#*://}" "$policy" || die "apt in the chroot does not see $MIRROR"
+  ok "apt inside the chroot reaches $MIRROR"
+  preseed_debconf "$r"
+
+  validate_packages "$r" "$tsv"
+  local skip=""
+  [[ -s "$WORK/missing-packages.txt" ]] && skip="$(cat "$WORK/missing-packages.txt")"
+  local p
+  while IFS=$'\t' read -r p _; do
+    if [[ -n "$skip" ]] && grep -qxF "$p" <<<"$skip"; then continue; fi
+    pkgs+=("$p")
+  done <"$tsv"
+  if [[ "$WITH_FIRMWARE" != 1 ]]; then
+    local deb; deb="$(build_firmware_placeholder)"
+    cp "$deb" "$r/tmp/"
+    extra+=("/tmp/$(basename "$deb")")
+  fi
+
+  if [[ "$mode" == full ]]; then
+    log "apt-get dist-upgrade (base system -> $SUITE-updates/-security)"
+    apt_in "$r" dist-upgrade
+  fi
+  log "installing ${#pkgs[@]} packages (+dependencies)"
+  apt_in "$r" install "${extra[@]}" "${pkgs[@]}" || die "apt-get install failed"
+  rm -f "$r"/tmp/aurora-firmware-placeholder_*.deb
+  # Packages pulled in only as dependencies of removed lists are cleaned up as well.
+  apt_in "$r" autoremove --purge
+  apt_in "$r" clean
+  apt_net_off "$r"
+  chroot_umount "$r"
+}
+
+stage_packages() {
+  stage packages
+  compute_base_key
+  local key tsv="$WORK/packages.tsv"
+  collect_packages >"$tsv"
+  key="$(packages_key)"
+  local stamp_key="$PKG_LAYER.key" stamp_list="$PKG_LAYER.packages"
+  log "$(wc -l <"$tsv") packages requested from $(find "$PACKAGES_DIR" -maxdepth 1 -name '*.list' | wc -l) list(s)"
+
+  if ((REBUILD_PACKAGES == 0)) && [[ -d "$PKG_LAYER" && -f "$stamp_key" && -f "$stamp_list" ]] \
+     && [[ "$(cat "$stamp_key")" == "$key" ]]; then
+    local added removed
+    added="$(comm -13 <(cut -f1 "$stamp_list" | sort -u) <(cut -f1 "$tsv" | sort -u))"
+    removed="$(comm -23 <(cut -f1 "$stamp_list" | sort -u) <(cut -f1 "$tsv" | sort -u))"
+    if [[ -z "$added" && -z "$removed" ]]; then
+      log "package layer is up to date — reusing $PKG_LAYER"
+      stage_done packages; return
+    fi
+    if [[ -z "$removed" ]]; then
+      log "package lists gained: $(echo "$added" | tr '\n' ' ')— installing them into the existing layer"
+      rm -f "$stamp_key"
+      install_packages "$PKG_LAYER" incremental "$tsv"
+      cp "$tsv" "$stamp_list"; echo "$key" >"$stamp_key"
+      stage_done packages; return
+    fi
+    log "packages removed from the lists ($(echo "$removed" | tr '\n' ' ')) — rebuilding the layer"
+  fi
+
+  umount_under "$WORK/layers"
+  rm -rf "$PKG_LAYER" "$stamp_key" "$stamp_list"
+  mkdir -p "$PKG_LAYER"
+  log "unpacking base system"
+  zstd -q -dc "$BASE_TARBALL" | tar --numeric-owner --xattrs --xattrs-include='*' -C "$PKG_LAYER" -xf -
+  install_packages "$PKG_LAYER" full "$tsv"
+  cp "$tsv" "$stamp_list"
+  echo "$key" >"$stamp_key"
+  log "package layer: $(du -sh --apparent-size "$PKG_LAYER" | cut -f1)"
+  stage_done packages
+}
+
+# ---------------------------------------------------------------------------------------
+# stage: system (overlay on top of the package layer)
+# ---------------------------------------------------------------------------------------
+ROOT="$WORK/chroot"
+SYS_UPPER="$WORK/layers/system"
+
+mount_system_overlay() {
+  umount_under "$ROOT"
+  mkdir -p "$ROOT" "$SYS_UPPER/upper" "$SYS_UPPER/work"
+  mount -t overlay overlay -o "lowerdir=$PKG_LAYER,upperdir=$SYS_UPPER/upper,workdir=$SYS_UPPER/work" "$ROOT"
+}
+
+install_electron() {
+  local v="$ELECTRON_VERSION" zip sums dest="$ROOT/opt/aurora/electron"
+  local name="electron-v$v-linux-x64.zip"
+  mkdir -p "$CACHE/electron"
+  zip="$CACHE/electron/$name"
+  sums="$CACHE/electron/SHASUMS256-v$v.txt"
+  local curl_opts=(--fail --location --silent --show-error --retry 4 --retry-delay 3 --connect-timeout 30)
+  if [[ ! -s "$sums" ]]; then
+    log "downloading SHASUMS256.txt for Electron $v"
+    curl "${curl_opts[@]}" -o "$sums.part" "$ELECTRON_MIRROR/v$v/SHASUMS256.txt"
+    mv "$sums.part" "$sums"
+  fi
+  local want
+  want="$(awk -v n="$name" '$2 == n || $2 == "*" n {print $1}' "$sums")"
+  [[ "$want" =~ ^[0-9a-f]{64}$ ]] || die "no checksum for $name in SHASUMS256.txt"
+  if [[ ! -s "$zip" ]] || [[ "$(sha256sum "$zip" | cut -d' ' -f1)" != "$want" ]]; then
+    log "downloading $name"
+    curl "${curl_opts[@]}" -o "$zip.part" "$ELECTRON_MIRROR/v$v/$name"
+    mv "$zip.part" "$zip"
+  fi
+  [[ "$(sha256sum "$zip" | cut -d' ' -f1)" == "$want" ]] || { rm -f "$zip"; die "SHA256 mismatch for $name"; }
+  ok "Electron $v verified (sha256 $want)"
+  rm -rf "$dest"; mkdir -p "$dest"
+  unzip -q "$zip" -d "$dest"
+  # Keep only the UI locales the OS ships (en/fr); everything else falls back to en-US.
+  local keep=" $ELECTRON_LOCALES " f base
+  for f in "$dest"/locales/*.pak; do
+    base="$(basename "$f" .pak)"
+    [[ "$keep" == *" $base "* ]] || rm -f "$f"
+  done
+  chown -R root:root "$dest"
+  chmod -R u+rwX,go+rX,go-w "$dest"
+  chmod 4755 "$dest/chrome-sandbox"
+  echo "$v" >"$dest/version.aurora"
+}
+
+install_shell() {
+  local stage_dir="$WORK/staging/shell" dest="$ROOT/opt/aurora/shell"
+  log "staging Aurora Shell and installing runtime npm dependencies (npm ci --omit=dev)"
+  rm -rf "$stage_dir"; mkdir -p "$stage_dir"
+  local p
+  for p in package.json package-lock.json main preload renderer; do
+    [[ -e "$SHELL_SRC/$p" ]] || die "missing $SHELL_SRC/$p"
+    cp -a "$SHELL_SRC/$p" "$stage_dir/"
+  done
+  (
+    cd "$stage_dir"
+    export PATH="$NODE_BIN:$PATH" npm_config_cache="$CACHE/npm" npm_config_update_notifier=false
+    [[ -n "$BUILD_CA_BUNDLE" ]] && export NODE_EXTRA_CA_CERTS="$BUILD_CA_BUNDLE"
+    npm ci --omit=dev --ignore-scripts --no-audit --no-fund --prefer-offline --loglevel=error
+  ) || die "npm ci failed for the shell"
+  # The image only needs the runtime files.
+  rm -f "$stage_dir/node_modules/.package-lock.json"
+  rm -rf "$dest"; mkdir -p "$(dirname "$dest")"
+  cp -a "$stage_dir" "$dest"
+  chown -R root:root "$dest"
+  chmod -R u+rwX,go+rX,go-w "$dest"
+  log "shell installed: $(du -sh "$dest" | cut -f1) ($(find "$dest/node_modules" -maxdepth 2 -name package.json | wc -l) npm packages)"
+}
+
+install_rootfs_overlay() {
+  [[ -d "$ROOTFS_SRC" ]] || die "$ROOTFS_SRC is missing"
+  log "copying rootfs/ overlay"
+  # tar keeps symlinks and modes, never changes the metadata of existing directories, and
+  # makes everything root-owned and not group/world writable.
+  tar -C "$ROOTFS_SRC" --exclude='.gitkeep' --exclude='./README*' \
+      --owner=0 --group=0 --numeric-owner --mode='go-w' -cf - . \
+    | tar -C "$ROOT" --no-overwrite-dir --same-permissions -xf -
+  # Executables (git only tracks the x bit; enforce it for the documented entry points).
+  local f
+  for f in "$ROOT"/usr/bin/aurora-* "$ROOT"/usr/lib/aurora/aurora-* "$ROOT"/usr/lib/aurora/helpers/*; do
+    [[ -f "$f" ]] && chmod 0755 "$f"
+  done
+  for f in "$ROOT"/etc/netplan/*.yaml; do [[ -f "$f" ]] && chmod 0600 "$f"; done
+  if [[ -d "$ROOT/etc/sudoers.d" ]]; then
+    for f in "$ROOT"/etc/sudoers.d/aurora*; do
+      [[ -f "$f" ]] || continue
+      chmod 0440 "$f"
+      in_chroot "$ROOT" visudo -c -q -f "/etc/sudoers.d/$(basename "$f")" || die "sudoers syntax error in $f"
+    done
+  fi
+}
+
+write_os_identity() {
+  # os-release: keep ID=ubuntu / ID_LIKE=debian (and the Ubuntu codename) for compatibility,
+  # brand everything users see. A local diversion keeps it across base-files upgrades.
+  if ! has_text os-release.ubuntu "$(in_chroot "$ROOT" dpkg-divert --list /usr/lib/os-release)"; then
+    in_chroot "$ROOT" dpkg-divert --local --rename --divert /usr/lib/os-release.ubuntu --add /usr/lib/os-release >/dev/null
+  fi
+  local src="$ROOT/usr/lib/os-release.ubuntu"
+  {
+    echo "PRETTY_NAME=\"$OS_NAME $ISO_VERSION\""
+    echo "NAME=\"$OS_NAME\""
+    grep -E '^VERSION_ID=' "$src"
+    echo "VERSION=\"$ISO_VERSION (based on Ubuntu $(sed -n 's/^VERSION="\(.*\)"/\1/p' "$src" | sed 's/ (.*//'))\""
+    grep -E '^(VERSION_CODENAME|ID|ID_LIKE|HOME_URL|SUPPORT_URL|BUG_REPORT_URL|PRIVACY_POLICY_URL|UBUNTU_CODENAME)=' "$src"
+    echo "LOGO=aurora-logo"
+    echo "IMAGE_ID=aurora-os"
+    echo "IMAGE_VERSION=$ISO_VERSION"
+    echo "BUILD_ID=$BUILD_ID"
+  } >"$ROOT/usr/lib/os-release"
+  ln -sf ../usr/lib/os-release "$ROOT/etc/os-release"
+  grep -q '^ID=ubuntu$' "$ROOT/usr/lib/os-release" || die "os-release lost ID=ubuntu"
+
+  sed -i "s/^DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION=\"$OS_NAME $ISO_VERSION\"/" "$ROOT/etc/lsb-release"
+  printf '%s %s \\n \\l\n\n' "$OS_NAME" "$ISO_VERSION" >"$ROOT/etc/issue"
+  printf '%s %s\n' "$OS_NAME" "$ISO_VERSION" >"$ROOT/etc/issue.net"
+  mkdir -p "$ROOT/etc/aurora"
+  echo "$BUILD_ID" >"$ROOT/etc/aurora/build-id"
+  cat >"$ROOT/etc/aurora/build-info" <<EOF
+AURORA_VERSION=$ISO_VERSION
+AURORA_BUILD_ID=$BUILD_ID
+AURORA_GIT_REV=$GIT_REV$GIT_DIRTY
+AURORA_SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH
+AURORA_SUITE=$SUITE
+AURORA_SNAPSHOT=$([[ "$SNAPSHOT" == 1 ]] && echo "$SNAPSHOT_STAMP" || echo none)
+AURORA_ELECTRON=$ELECTRON_VERSION
+AURORA_FIRMWARE=$WITH_FIRMWARE
+EOF
+  [[ -f "$ROOT/etc/aurora/settings.json" ]] || echo '{}' >"$ROOT/etc/aurora/settings.json"
+}
+
+configure_locale_time() {
+  local l gen="$ROOT/etc/locale.gen"
+  : >"$gen.aurora"
+  for l in $LOCALES; do echo "$l ${l#*.}" >>"$gen.aurora"; done
+  mv "$gen.aurora" "$gen"
+  in_chroot "$ROOT" locale-gen >/dev/null
+  in_chroot "$ROOT" update-locale --reset "LANG=$DEFAULT_LOCALE"
+  ln -sf "/usr/share/zoneinfo/$TIMEZONE" "$ROOT/etc/localtime"
+  echo "$TIMEZONE" >"$ROOT/etc/timezone"
+  echo "$LIVE_HOSTNAME" >"$ROOT/etc/hostname"
+  cat >"$ROOT/etc/hosts" <<EOF
+127.0.0.1	localhost
+127.0.1.1	$LIVE_HOSTNAME
+
+# The following lines are desirable for IPv6 capable hosts
+::1     ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+EOF
+}
+
+configure_skel() {
+  local d
+  for d in Desktop Documents Downloads Pictures Music Videos; do
+    mkdir -p "$ROOT/etc/skel/$d"
+  done
+  mkdir -p "$ROOT/etc/skel/.config"
+}
+
+configure_casper() {
+  cat >"$ROOT/etc/casper.conf" <<EOF
+# Aurora OS live session (read by casper in the initramfs)
+export USERNAME="$LIVE_USER"
+export USERFULLNAME="$LIVE_USER_FULLNAME"
+export HOST="$LIVE_HOSTNAME"
+export BUILD_SYSTEM="Ubuntu"
+# A non-empty FLAVOUR makes casper honour USERNAME and HOST above.
+export FLAVOUR="Aurora"
+EOF
+}
+
+configure_services() {
+  local u
+  in_chroot "$ROOT" systemctl set-default graphical.target >/dev/null
+  for u in greetd.service NetworkManager.service systemd-resolved.service ufw.service apparmor.service; do
+    in_chroot "$ROOT" systemctl enable "$u" >/dev/null 2>&1 || die "cannot enable $u"
+  done
+  # NetworkManager is the network stack; networkd (and its wait-online) only slow the boot down.
+  for u in systemd-networkd.service systemd-networkd.socket systemd-networkd-wait-online.service; do
+    in_chroot "$ROOT" systemctl disable "$u" >/dev/null 2>&1 || true
+  done
+  in_chroot "$ROOT" systemctl mask systemd-networkd-wait-online.service >/dev/null
+  # Text console on tty1 stays available (Ctrl+Alt+F1); greetd owns tty7.
+  # Optional extra units shipped in rootfs/ (enabled only if present).
+  for u in aurora-firstboot.service; do
+    [[ -f "$ROOT/usr/lib/systemd/system/$u" || -f "$ROOT/etc/systemd/system/$u" ]] && \
+      in_chroot "$ROOT" systemctl enable "$u" >/dev/null
+  done
+
+  # ufw: deny incoming, allow outgoing, enabled at boot.
+  sed -i -e 's/^DEFAULT_INPUT_POLICY=.*/DEFAULT_INPUT_POLICY="DROP"/' \
+         -e 's/^DEFAULT_OUTPUT_POLICY=.*/DEFAULT_OUTPUT_POLICY="ACCEPT"/' \
+         -e 's/^DEFAULT_FORWARD_POLICY=.*/DEFAULT_FORWARD_POLICY="DROP"/' "$ROOT/etc/default/ufw"
+  sed -i 's/^ENABLED=.*/ENABLED=yes/' "$ROOT/etc/ufw/ufw.conf"
+
+  # greetd's system user: Xorg/Electron state lives in /var/lib/aurora-greeter (tmpfiles.d).
+  in_chroot "$ROOT" getent passwd _greetd >/dev/null || die "greetd user _greetd does not exist"
+  in_chroot "$ROOT" usermod -a -G video,render,input _greetd
+}
+
+configure_plymouth() {
+  local theme="$ROOT/usr/share/plymouth/themes/aurora" logo="$SHELL_SRC/renderer/assets/aurora-logo.svg"
+  [[ -f "$theme/aurora.plymouth" ]] || { warn "no Plymouth theme in rootfs/, keeping the default"; return; }
+  [[ -d "$ROOT/usr/share/plymouth/themes/spinner" ]] || die "plymouth-theme-spinner is required for the Aurora theme"
+  # Spinner frames, dialog and keyboard images come from Ubuntu's spinner theme;
+  # the logo (watermark) is rendered from the shell's SVG.
+  local f
+  for f in "$ROOT"/usr/share/plymouth/themes/spinner/*.png; do
+    case "$(basename "$f")" in watermark.png|bgrt-fallback.png|animation-*) continue ;; esac
+    cp "$f" "$theme/"
+  done
+  rsvg-convert -w 160 -h 160 "$logo" -o "$theme/watermark.tmp.png"
+  convert "$theme/watermark.tmp.png" -define png:exclude-chunks=date,time +set date:create +set date:modify "$theme/watermark.png"
+  rm -f "$theme/watermark.tmp.png"
+  in_chroot "$ROOT" update-alternatives --quiet --install /usr/share/plymouth/themes/default.plymouth \
+    default.plymouth /usr/share/plymouth/themes/aurora/aurora.plymouth 300
+  in_chroot "$ROOT" update-alternatives --quiet --set default.plymouth /usr/share/plymouth/themes/aurora/aurora.plymouth
+}
+
+validate_system() {
+  log "validating the image"
+  # Electron must find every shared library it links against.
+  local nf
+  nf="$(in_chroot "$ROOT" /bin/sh -c 'ldd /opt/aurora/electron/electron; ldd /opt/aurora/electron/libEGL.so 2>/dev/null; ldd /opt/aurora/electron/libGLESv2.so 2>/dev/null' | grep 'not found' | sort -u || true)"
+  [[ -z "$nf" ]] || die "Electron is missing shared libraries in the image:
+$nf"
+  [[ -u "$ROOT/opt/aurora/electron/chrome-sandbox" ]] || die "chrome-sandbox is not setuid"
+  # AppArmor profile must parse.
+  if [[ -f "$ROOT/etc/apparmor.d/aurora-shell" ]]; then
+    in_chroot "$ROOT" apparmor_parser --skip-kernel-load --skip-cache -Q /etc/apparmor.d/aurora-shell \
+      || die "AppArmor profile /etc/apparmor.d/aurora-shell does not parse"
+  else
+    die "AppArmor profile /etc/apparmor.d/aurora-shell is missing (rootfs/)"
+  fi
+  # polkit rules are JavaScript: syntax-check them with node on the host.
+  local r
+  for r in "$ROOT"/etc/polkit-1/rules.d/*aurora*.rules; do
+    [[ -f "$r" ]] || continue
+    "$NODE_BIN/node" -e 'new Function(require("fs").readFileSync(process.argv[1], "utf8"))' "$r" \
+      || die "polkit rules syntax error: $r"
+  done
+  # Session entry points.
+  for r in /usr/bin/aurora-shell /usr/bin/aurora-session /usr/lib/aurora/aurora-greeter /usr/lib/aurora/aurora-xsession; do
+    [[ -x "$ROOT$r" ]] || die "$r is missing or not executable (rootfs/)"
+    if head -n1 "$ROOT$r" | grep -q '/sh$\|/bash$'; then
+      in_chroot "$ROOT" /bin/bash -n "$r" || die "shell syntax error in $r"
+    fi
+  done
+  grep -q '^user = "_greetd"' "$ROOT/etc/greetd/config.toml" || die "/etc/greetd/config.toml must run the greeter as _greetd"
+  [[ -f "$ROOT/opt/aurora/shell/renderer/shell.html" ]] || die "shell.html missing from /opt/aurora/shell"
+  if [[ ! -f "$ROOT/opt/aurora/shell/renderer/greeter.html" ]]; then
+    warn "renderer/greeter.html does not exist yet: the live session autologins, but signing out will show an empty greeter"
+  fi
+  ok "image checks passed"
+}
+
+clamp_mtimes() { # dir
+  find "$1" -xdev -newermt "@$SOURCE_DATE_EPOCH" -print0 2>/dev/null | xargs -0r touch -h -d "@$SOURCE_DATE_EPOCH" 2>/dev/null || true
+}
+
+cleanup_image() {
+  log "cleaning the image"
+  write_final_sources "$ROOT"
+  apt_net_off "$ROOT"
+  rm -rf "$ROOT"/var/lib/apt/lists/* "$ROOT"/var/cache/apt/*.bin "$ROOT"/var/cache/apt/archives/*.deb
+  mkdir -p "$ROOT/var/lib/apt/lists/partial"
+  rm -f "$ROOT"/var/cache/debconf/*-old "$ROOT"/var/lib/dpkg/*-old
+  rm -rf "$ROOT"/tmp/* "$ROOT"/var/tmp/* "$ROOT"/root/.bash_history "$ROOT"/root/.cache "$ROOT"/root/.npm
+  find "$ROOT/var/log" -type f \( -name '*.gz' -o -name '*.[0-9]' -o -name '*.old' \) -delete
+  find "$ROOT/var/log" -type f -exec truncate -s 0 {} +
+  rm -f "$ROOT/var/cache/ldconfig/aux-cache" "$ROOT/var/lib/systemd/random-seed" "$ROOT/var/lib/dbus/machine-id"
+  : >"$ROOT/etc/machine-id"
+  ln -sf /etc/machine-id "$ROOT/var/lib/dbus/machine-id"
+  # Documentation/translations installed by debootstrap before the dpkg excludes existed.
+  find "$ROOT/usr/share/doc" -mindepth 1 ! -type d ! -name copyright -delete 2>/dev/null || true
+  find "$ROOT/usr/share/doc" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+  rm -rf "$ROOT"/usr/share/man/* "$ROOT"/usr/share/info/* "$ROOT"/usr/share/lintian/*
+  find "$ROOT/usr/share/locale" -mindepth 1 -maxdepth 1 -type d ! -name 'en*' ! -name 'fr*' -exec rm -rf {} + 2>/dev/null || true
+}
+
+finalize_resolv_conf() {
+  rm -f "$ROOT/etc/resolv.conf.aurora-build" "$ROOT/etc/resolv.conf"
+  if [[ -e "$ROOT/usr/lib/systemd/resolv.conf" ]]; then
+    # systemd-resolved owns /etc/resolv.conf on the running system.
+    ln -s ../run/systemd/resolve/stub-resolv.conf "$ROOT/etc/resolv.conf"
+  else
+    : >"$ROOT/etc/resolv.conf"   # NetworkManager fills it in
+  fi
+}
+
+write_manifests() {
+  local m="$WORK/manifest"
+  rm -rf "$m"; mkdir -p "$m"
+  in_chroot "$ROOT" dpkg-query -W --showformat='${binary:Package}\t${Version}\n' | LC_ALL=C sort >"$m/filesystem.manifest"
+  # Live-only packages: casper and whatever only it pulled in. The installer purges these.
+  local sim
+  sim="$(in_chroot "$ROOT" apt-get -s -o Debug::NoLocking=1 purge --autoremove casper 2>/dev/null)"
+  { echo casper; awk '/^Purg / {print $2}' <<<"$sim"; } | sed 's/:amd64$//' | LC_ALL=C sort -u >"$m/filesystem.manifest-remove"
+  log "live-only packages (filesystem.manifest-remove): $(tr '\n' ' ' <"$m/filesystem.manifest-remove")"
+}
+
+stage_system() {
+  stage system
+  [[ -f "$PKG_LAYER.key" ]] || die "package layer missing — run the packages stage first"
+  umount_under "$ROOT"
+  umount_under "$WORK/layers"
+  rm -rf "$SYS_UPPER"
+  mount_system_overlay
+  chroot_mount "$ROOT"
+  undivert_initramfs "$ROOT"
+
+  install_electron
+  install_shell
+  install_rootfs_overlay
+  write_os_identity
+  configure_locale_time
+  configure_skel
+  configure_casper
+  configure_services
+  configure_plymouth
+  validate_system
+
+  log "generating the initramfs"
+  cat >"$ROOT/etc/initramfs-tools/conf.d/aurora.conf" <<'EOF'
+# Aurora OS: zstd is fast to decompress; keep every storage/graphics driver for live boots.
+COMPRESS=zstd
+MODULES=most
+EOF
+  local kver
+  kver="$(basename "$(find "$ROOT/usr/lib/modules" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)")"
+  [[ -n "$kver" && -f "$ROOT/boot/vmlinuz-$kver" ]] || die "no kernel found in the image"
+  rm -f "$ROOT"/boot/initrd.img-*
+  in_chroot "$ROOT" update-initramfs -c -k "$kver"
+  [[ -s "$ROOT/boot/initrd.img-$kver" ]] || die "initramfs generation failed"
+  has_text "scripts/casper-bottom" "$(in_chroot "$ROOT" lsinitramfs "/boot/initrd.img-$kver")" \
+    || die "the initramfs does not contain casper"
+  echo "$kver" >"$WORK/kernel-version"
+  log "kernel $kver, initrd $(du -h "$ROOT/boot/initrd.img-$kver" | cut -f1)"
+
+  write_manifests
+  cleanup_image
+  chroot_umount "$ROOT"
+  finalize_resolv_conf
+  # Reproducible timestamps, then font caches that match them.
+  clamp_mtimes "$ROOT"
+  chroot "$ROOT" /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin fc-cache -s -f >/dev/null 2>&1 || warn "fc-cache failed"
+  clamp_mtimes "$ROOT"
+  stage_done system
+}
+
+# ---------------------------------------------------------------------------------------
+# stage: squashfs
+# ---------------------------------------------------------------------------------------
+ISO_TREE="$WORK/iso"
+
+stage_squashfs() {
+  stage squashfs
+  mountpoint -q "$ROOT" || mount_system_overlay
+  rm -rf "$ISO_TREE"; mkdir -p "$ISO_TREE/casper"
+  [[ -s "$WORK/manifest/filesystem.manifest" ]] || die "manifests missing — run the system stage first"
+  cp "$WORK/manifest/filesystem.manifest" "$WORK/manifest/filesystem.manifest-remove" "$ISO_TREE/casper/"
+  du -sx --block-size=1 "$ROOT" | cut -f1 >"$ISO_TREE/casper/filesystem.size"
+
+  log "mksquashfs ($SQUASHFS_COMP level $SQUASHFS_LEVEL, block $SQUASHFS_BLOCK) — this takes a while"
+  local comp=(-comp "$SQUASHFS_COMP")
+  case "$SQUASHFS_COMP" in
+    zstd) comp+=(-Xcompression-level "$SQUASHFS_LEVEL") ;;
+    xz) comp+=(-Xbcj x86) ;;
+  esac
+  # SOURCE_DATE_EPOCH is unset for mksquashfs on purpose: it would force *every* timestamp to
+  # that value; the tree's mtimes are already clamped (keeping caches such as fontconfig valid).
+  env -u SOURCE_DATE_EPOCH mksquashfs "$ROOT" "$ISO_TREE/casper/filesystem.squashfs" \
+    -noappend -no-progress -quiet "${comp[@]}" -b "$SQUASHFS_BLOCK" \
+    -mkfs-time "$SOURCE_DATE_EPOCH" -root-time "$SOURCE_DATE_EPOCH" \
+    -wildcards -e 'proc/*' 'sys/*' 'dev/*' 'run/*' 'tmp/*' 'var/tmp/*' 'boot/efi/*' \
+    || die "mksquashfs failed"
+  log "filesystem.squashfs: $(du -h "$ISO_TREE/casper/filesystem.squashfs" | cut -f1) (uncompressed $(( $(cat "$ISO_TREE/casper/filesystem.size") / 1024 / 1024 )) MiB)"
+  local kver; kver="$(cat "$WORK/kernel-version")"
+  cp "$ROOT/boot/vmlinuz-$kver" "$ISO_TREE/casper/vmlinuz"
+  cp "$ROOT/boot/initrd.img-$kver" "$ISO_TREE/casper/initrd"
+  umount_under "$ROOT"
+  stage_done squashfs
+}
+
+# ---------------------------------------------------------------------------------------
+# stage: iso
+# ---------------------------------------------------------------------------------------
+font_file() { # pattern... -> first matching font in the package layer
+  local p f
+  for p in "$@"; do
+    f="$(find "$PKG_LAYER/usr/share/fonts" -iname "$p" 2>/dev/null | sort | sed -n 1p)"
+    [[ -n "$f" ]] && { echo "$f"; return 0; }
+  done
+  return 1
+}
+
+make_grub_theme() {
+  local t="$ISO_TREE/boot/grub/themes/aurora" logo="$SHELL_SRC/renderer/assets/aurora-logo.svg"
+  local tmp="$WORK/grub-theme"
+  rm -rf "$t" "$tmp"; mkdir -p "$t" "$tmp"
+  local regular bold
+  regular="$(font_file 'Inter-Regular.*' 'Inter*.ttf' 'Inter*.otf' 'DejaVuSans.ttf')" || die "no font for the GRUB theme"
+  bold="$(font_file 'Inter-SemiBold.*' 'Inter-Bold.*' 'DejaVuSans-Bold.ttf')" || bold="$regular"
+  # GRUB bitmap fonts (Latin + punctuation + arrows: enough for English and French).
+  : >"$WORK/grub-mkfont.log"
+  local range="0x20-0x7E,0xA0-0x17F,0x2013-0x2026,0x2190-0x2193,0x25B2-0x25BC"
+  grub-mkfont -s 16 -r "$range" -n "Aurora Regular" -o "$t/aurora-16.pf2" "$regular" 2>>"$WORK/grub-mkfont.log"
+  grub-mkfont -s 20 -r "$range" -n "Aurora Regular" -o "$t/aurora-20.pf2" "$regular" 2>>"$WORK/grub-mkfont.log"
+  grub-mkfont -s 22 -r "$range" -n "Aurora Bold"    -o "$t/aurora-bold-22.pf2" "$bold" 2>>"$WORK/grub-mkfont.log"
+  grub-mkfont -s 36 -r "$range" -n "Aurora Bold"    -o "$t/aurora-bold-36.pf2" "$bold" 2>>"$WORK/grub-mkfont.log"
+
+  local png_opts=(-define png:exclude-chunks=date,time +set date:create +set date:modify -strip)
+  # Background: deep navy with a soft aurora glow and the logo, 1920x1080.
+  rsvg-convert -w 168 -h 168 "$logo" -o "$tmp/logo.png"
+  convert -size 1920x1080 xc:'#070b16' \
+    \( -size 1500x700 radial-gradient:'#173a6b-#070b16' -alpha set -channel A -evaluate set 70% +channel \) \
+      -gravity north -geometry +0+40 -compose over -composite \
+    \( -size 900x420 radial-gradient:'#0f6d74-#070b16' -alpha set -channel A -evaluate set 35% +channel \) \
+      -gravity north -geometry +260+160 -compose screen -composite \
+    "$tmp/logo.png" -gravity north -geometry +0+150 -compose over -composite \
+    -font "$bold" -pointsize 54 -fill '#f4f7fc' -gravity north -annotate +0+340 "$OS_NAME" \
+    -font "$regular" -pointsize 22 -fill '#8fa2c2' -gravity north -annotate +0+412 "$ISO_VERSION" \
+    "${png_opts[@]}" "$t/background.png"
+  # Selected-entry highlight (9-slice: corners/edges/center).
+  local s=8 fill='#2f6fe0'
+  convert -size $((s*2+1))x$((s*2+1)) xc:none -fill "$fill" -draw "roundrectangle 0,0 $((s*2)),$((s*2)) $s,$s" "$tmp/hl.png"
+  convert "$tmp/hl.png" -crop "${s}x${s}+0+0"         +repage "${png_opts[@]}" "$t/select_nw.png"
+  convert "$tmp/hl.png" -crop "1x${s}+${s}+0"         +repage "${png_opts[@]}" "$t/select_n.png"
+  convert "$tmp/hl.png" -crop "${s}x${s}+$((s+1))+0"  +repage "${png_opts[@]}" "$t/select_ne.png"
+  convert "$tmp/hl.png" -crop "${s}x1+0+${s}"         +repage "${png_opts[@]}" "$t/select_w.png"
+  convert "$tmp/hl.png" -crop "1x1+${s}+${s}"         +repage "${png_opts[@]}" "$t/select_c.png"
+  convert "$tmp/hl.png" -crop "${s}x1+$((s+1))+${s}"  +repage "${png_opts[@]}" "$t/select_e.png"
+  convert "$tmp/hl.png" -crop "${s}x${s}+0+$((s+1))"  +repage "${png_opts[@]}" "$t/select_sw.png"
+  convert "$tmp/hl.png" -crop "1x${s}+${s}+$((s+1))"  +repage "${png_opts[@]}" "$t/select_s.png"
+  convert "$tmp/hl.png" -crop "${s}x${s}+$((s+1))+$((s+1))" +repage "${png_opts[@]}" "$t/select_se.png"
+  # Menu panel (translucent card behind the entries).
+  local m=12
+  convert -size $((m*2+1))x$((m*2+1)) xc:none -fill '#ffffff14' -draw "roundrectangle 0,0 $((m*2)),$((m*2)) $m,$m" "$tmp/panel.png"
+  local spec
+  for spec in "nw ${m}x${m}+0+0" "n 1x${m}+${m}+0" "ne ${m}x${m}+$((m+1))+0" "w ${m}x1+0+${m}" "c 1x1+${m}+${m}" \
+              "e ${m}x1+$((m+1))+${m}" "sw ${m}x${m}+0+$((m+1))" "s 1x${m}+${m}+$((m+1))" "se ${m}x${m}+$((m+1))+$((m+1))"; do
+    convert "$tmp/panel.png" -crop "${spec#* }" +repage "${png_opts[@]}" "$t/menu_${spec%% *}.png"
+  done
+
+  cat >"$t/theme.txt" <<'EOF'
+# Aurora OS GRUB theme (generated by iso/build.sh)
+title-text: ""
+desktop-image: "background.png"
+desktop-image-scale-method: "crop"
+desktop-image-h-align: "center"
+desktop-image-v-align: "center"
+desktop-color: "#070b16"
+terminal-font: "Aurora Regular 16"
+terminal-box: "menu_*.png"
+terminal-left: "10%"
+terminal-top: "10%"
+terminal-width: "80%"
+terminal-height: "80%"
+
++ boot_menu {
+  left = 50%-330
+  top = 50%+30
+  width = 660
+  height = 300
+  menu_pixmap_style = "menu_*.png"
+  item_font = "Aurora Regular 20"
+  item_color = "#c9d4e8"
+  selected_item_font = "Aurora Bold 22"
+  selected_item_color = "#ffffff"
+  selected_item_pixmap_style = "select_*.png"
+  item_height = 42
+  item_padding = 14
+  item_spacing = 4
+  icon_width = 0
+  icon_height = 0
+  item_icon_space = 0
+  scrollbar = false
+}
+
++ label {
+  id = "__timeout__"
+  left = 0
+  top = 100%-90
+  width = 100%
+  height = 24
+  align = "center"
+  color = "#8fa2c2"
+  font = "Aurora Regular 16"
+  text = "Starting in %d s  ·  Démarrage dans %d s"
+}
+
++ label {
+  left = 0
+  top = 100%-56
+  width = 100%
+  height = 24
+  align = "center"
+  color = "#5f6f8c"
+  font = "Aurora Regular 16"
+  text = "↑ ↓ choose / choisir   ·   Enter / Entrée: start / démarrer   ·   e: edit / modifier"
+}
+EOF
+}
+
+write_grub_cfg() {
+  local common="boot=casper"
+  cat >"$ISO_TREE/boot/grub/grub.cfg" <<EOF
+# Aurora OS $ISO_VERSION live media ($BUILD_ID) — generated by iso/build.sh
+set default=0
+set timeout=8
+set timeout_style=menu
+
+insmod all_video
+insmod gfxterm
+insmod gfxmenu
+insmod png
+insmod font
+insmod part_gpt
+insmod part_msdos
+insmod iso9660
+insmod regexp
+
+set gfxmode=1920x1080,1600x900,1280x800,1024x768,auto
+set gfxpayload=keep
+set theme_dir=\$prefix/themes/aurora
+if loadfont \$theme_dir/aurora-16.pf2 ; then
+  loadfont \$theme_dir/aurora-20.pf2
+  loadfont \$theme_dir/aurora-bold-22.pf2
+  loadfont \$theme_dir/aurora-bold-36.pf2
+  terminal_output gfxterm
+  set theme=\$theme_dir/theme.txt
+  export theme
+fi
+set menu_color_normal=light-gray/black
+set menu_color_highlight=white/blue
+
+menuentry "Aurora OS (English)" --class aurora --id aurora-en {
+  set gfxpayload=keep
+  linux /casper/vmlinuz $common quiet splash locale=en_US.UTF-8 keyboard-layouts=us keyboard-configuration/layoutcode=us ---
+  initrd /casper/initrd
+}
+
+menuentry "Aurora OS (Français)" --class aurora --id aurora-fr {
+  set gfxpayload=keep
+  linux /casper/vmlinuz $common quiet splash locale=fr_FR.UTF-8 keyboard-layouts=fr keyboard-configuration/layoutcode=fr ---
+  initrd /casper/initrd
+}
+
+menuentry "Safe graphics / Mode graphique sûr" --class aurora --id aurora-safe {
+  set gfxpayload=keep
+  linux /casper/vmlinuz $common nomodeset quiet splash locale=en_US.UTF-8 ---
+  initrd /casper/initrd
+}
+
+menuentry "Boot from first hard disk / Démarrer sur le disque dur" --class disk --id hdd {
+  if [ "\$grub_platform" = "efi" ]; then
+    # Chainload an installed system's boot loader; fall back to the firmware boot order.
+    for f in /EFI/aurora/shimx64.efi /EFI/aurora/grubx64.efi /EFI/ubuntu/shimx64.efi /EFI/ubuntu/grubx64.efi /EFI/Microsoft/Boot/bootmgfw.efi; do
+      if search --no-floppy --file --set=esp \$f; then
+        chainloader (\$esp)\$f
+        boot
+      fi
+    done
+    exit 1
+  else
+    # The disk this menu was loaded from is the ISO itself (CD or USB stick): skip it.
+    regexp --set=1:isodisk '^\(?([a-z]+[0-9]+)' "\$root"
+    if [ "\$isodisk" = "hd0" ]; then set target=hd1; else set target=hd0; fi
+    insmod chain
+    set root=(\$target)
+    chainloader +1
+    boot
+  fi
+}
+
+submenu "Advanced options / Options avancées" --class advanced {
+  menuentry "Aurora OS — debug (serial console, verbose) / débogage" --id aurora-debug {
+    linux /casper/vmlinuz $common locale=en_US.UTF-8 console=tty1 console=ttyS0,115200n8 systemd.journald.forward_to_console=1 systemd.show_status=1 aurora.debug ---
+    initrd /casper/initrd
+  }
+  menuentry "Aurora OS — copy to RAM / copier en mémoire" --id aurora-toram {
+    linux /casper/vmlinuz $common toram quiet splash locale=en_US.UTF-8 ---
+    initrd /casper/initrd
+  }
+  menuentry "Check disc for defects / Vérifier le disque" --id check {
+    linux /casper/vmlinuz $common integrity-check quiet splash locale=en_US.UTF-8 ---
+    initrd /casper/initrd
+  }
+  if [ "\$grub_platform" = "efi" ]; then
+    menuentry "UEFI firmware settings / Paramètres UEFI" --id uefi-firmware {
+      fwsetup
+    }
+  fi
+  menuentry "Restart / Redémarrer" --id reboot {
+    reboot
+  }
+  menuentry "Shut down / Arrêter" --id halt {
+    halt
+  }
+}
+EOF
+}
+
+stage_iso() {
+  stage iso
+  [[ -f "$ISO_TREE/casper/filesystem.squashfs" ]] || die "no squashfs — run the squashfs stage first"
+  mkdir -p "$ISO_TREE/.disk" "$ISO_TREE/boot/grub"
+  printf '%s %s "%s" - Release %s (%s)\n' "$OS_NAME" "$ISO_VERSION" "$SUITE" "$ARCH" "$BUILD_DATE" >"$ISO_TREE/.disk/info"
+  echo "$BUILD_ID" >"$ISO_TREE/.disk/aurora-build-id"
+  make_grub_theme
+  write_grub_cfg
+  log "computing md5sum.txt"
+  (
+    cd "$ISO_TREE"
+    find . -type f ! -name md5sum.txt ! -path './boot/grub/*' -print0 | LC_ALL=C sort -z | xargs -0 md5sum >md5sum.txt
+  )
+  find "$ISO_TREE" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+  log "creating hybrid BIOS+UEFI ISO with grub-mkrescue"
+  local tmp_iso="$ISO_PATH.part"
+  rm -f "$tmp_iso"
+  grub-mkrescue --output="$tmp_iso" --themes= --locales= --fonts=unicode \
+      --product-name="$OS_NAME" --product-version="$ISO_VERSION" \
+      "$ISO_TREE" -- -volid "$ISO_VOLID" -joliet on >"$WORK/grub-mkrescue.log" 2>&1 \
+    || { tail -n 30 "$WORK/grub-mkrescue.log" >&2; die "grub-mkrescue failed"; }
+  mv "$tmp_iso" "$ISO_PATH"
+  (cd "$OUT" && sha256sum "$(basename "$ISO_PATH")" >"$(basename "$ISO_PATH").sha256")
+  cp "$ISO_TREE/casper/filesystem.manifest" "$OUT/$(basename "$ISO_PATH" .iso).manifest"
+  ok "ISO: $ISO_PATH ($(du -h "$ISO_PATH" | cut -f1), $(stat -c %s "$ISO_PATH") bytes)"
+  ok "sha256: $(cut -d' ' -f1 "$ISO_PATH.sha256")"
+  stage_done iso
+}
+
+# ---------------------------------------------------------------------------------------
+main() {
+  stage_index "$UNTIL" >/dev/null || die "unknown stage '$UNTIL' (stages: ${STAGES[*]})"
+  stage_index "$FROM" >/dev/null || die "unknown stage '$FROM' (stages: ${STAGES[*]})"
+  preflight
+  if ((CLEAN)); then
+    log "removing $WORK (cache kept)"
+    umount_under "$WORK"
+    find "$WORK" -mindepth 1 -maxdepth 1 ! -name .build.lock -exec rm -rf {} +
+  fi
+  stage_enabled base && stage_base
+  stage_enabled packages && stage_packages
+  stage_enabled system && stage_system
+  stage_enabled squashfs && stage_squashfs
+  stage_enabled iso && stage_iso
+  ok "build finished in $(( $(date +%s) - BUILD_T0 ))s"
+}
+
+main

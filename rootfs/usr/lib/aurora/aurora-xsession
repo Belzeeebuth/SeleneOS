@@ -1,0 +1,36 @@
+#!/bin/sh
+# X client of the desktop session (started by aurora-session through aurora-xstart):
+# X settings, environment for user services, then the shell. A crashed shell is restarted
+# (at most 3 times within 2 minutes); a normal exit (sign out) ends the session.
+set -u
+. /usr/lib/aurora/aurora-common
+
+aurora_x_setup
+
+# Make the display known to D-Bus-activated and systemd user services.
+if command -v dbus-update-activation-environment >/dev/null 2>&1; then
+  dbus-update-activation-environment --systemd DISPLAY XAUTHORITY XDG_SESSION_TYPE \
+    XDG_CURRENT_DESKTOP LANG AURORA_LANG XCURSOR_THEME XCURSOR_SIZE >/dev/null 2>&1 || true
+fi
+
+# SPICE guest agent (clipboard sharing, automatic resolution) when the VM provides the channel.
+if [ -e /dev/virtio-ports/com.redhat.spice.0 ] && command -v spice-vdagent >/dev/null 2>&1; then
+  spice-vdagent >/dev/null 2>&1 || true
+fi
+
+crashes=0
+window=$(date +%s)
+while :; do
+  /usr/bin/aurora-shell
+  rc=$?
+  [ "$rc" -eq 0 ] && exit 0
+  now=$(date +%s)
+  if [ $((now - window)) -gt 120 ]; then crashes=0; window=$now; fi
+  crashes=$((crashes + 1))
+  aurora_log "aurora-shell exited with status $rc (failure $crashes)"
+  if [ "$crashes" -ge 3 ]; then
+    aurora_log "aurora-shell keeps failing; ending the session"
+    exit "$rc"
+  fi
+  sleep 1
+done
