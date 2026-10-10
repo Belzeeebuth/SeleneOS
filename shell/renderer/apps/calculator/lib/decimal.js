@@ -11,6 +11,16 @@ function split(entry) {
   return { sign: m[1] || '', int: m[2] || '0', dot: m[3] || '', frac: m[4] || '', esign: m[5] || '', edigits: m[6] || '' };
 }
 
+/** true when an entry string is a representable number (an exponent can push it past ±1e10000). */
+function fits(entry) {
+  try {
+    Num.parse(entry);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function makeEntryOps(maxDigits = 16) {
   return {
     validDigit: (d) => /^[0-9]$/.test(d),
@@ -20,7 +30,8 @@ export function makeEntryOps(maxDigits = 16) {
       if (p.esign) {
         const ed = (p.edigits === '0' ? '' : p.edigits) + d;
         if (ed.length > 4 || Number(ed) > 9999) return null;
-        return `${p.sign}${p.int}${p.dot}${p.frac}e${p.esign}${ed.replace(/^0+(?=\d)/, '')}`;
+        const next = `${p.sign}${p.int}${p.dot}${p.frac}e${p.esign}${ed.replace(/^0+(?=\d)/, '')}`;
+        return fits(next) ? next : null; // "99e+9999" would be out of range: refuse the digit
       }
       const sig = p.int.replace(/^0+/, '').length + p.frac.length;
       if (sig >= maxDigits) return null;
@@ -39,7 +50,10 @@ export function makeEntryOps(maxDigits = 16) {
     },
     negateEntry(entry) {
       const p = split(entry);
-      if (p.esign) return `${p.sign}${p.int}${p.dot}${p.frac}e${p.esign === '+' ? '-' : '+'}${p.edigits}`;
+      if (p.esign) {
+        const next = `${p.sign}${p.int}${p.dot}${p.frac}e${p.esign === '+' ? '-' : '+'}${p.edigits}`;
+        return fits(next) ? next : entry;
+      }
       if (!p.dot && /^0*$/.test(p.int)) return null; // nothing to negate
       return p.sign ? entry.slice(1) : `-${entry}`;
     },
@@ -80,12 +94,18 @@ export function nthRoot(x, k) {
   return neg ? res.neg() : res;
 }
 
+// Exact integer powers are only computed while the result stays small; beyond that (1.0000001^99999
+// would need millions of bits and freeze the shell) the 60-digit real power is used instead.
+const EXACT_POW_BITS = 120000;
+
 /** a^b for rationals. */
 export function power(a, b) {
   if (b.isInt()) {
     const k = b.toBigInt();
     if (a.isZero() && k < 0n) throw new CalcError('divzero');
-    return a.powInt(k);
+    if (a.isZero() || a.abs().eq(ONE) || a.powBits(k) <= EXACT_POW_BITS) return a.powInt(k);
+    const r = powReal(a.abs(), b);
+    return a.isNeg() && k % 2n !== 0n ? r.neg() : r;
   }
   if (a.isZero()) {
     if (b.isNeg()) throw new CalcError('divzero');

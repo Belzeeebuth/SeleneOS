@@ -124,6 +124,7 @@ export function powReal(a, b) {
 
 // ---------------------------------------------------------------- trigonometry (radians)
 const TINY = Num.parse('1e-20');
+const HUGE = Num.parse('1e25');
 
 function sinCosF(a) {
   const q = roundDiv(a, HALF_PI);
@@ -229,11 +230,13 @@ export function hyperbolic(name, x) {
     case 'asinh': {
       if (x.abs().cmp(TINY) < 0) return x;
       const a = x.abs();
-      const r = lnNum(a.add(sqrtNum(a.mul(a).add(1))));
+      // for |x| > 1e25, asinh x = ln 2|x| + 1/(4x²) − … : the correction is below 40 digits (and x² could overflow)
+      const r = a.cmp(HUGE) > 0 ? lnNum(a.mul(2)) : lnNum(a.add(sqrtNum(a.mul(a).add(1))));
       return x.isNeg() ? r.neg() : r;
     }
     case 'acosh':
       if (x.cmp(ONE) < 0) throw new CalcError('invalid');
+      if (x.cmp(HUGE) > 0) return lnNum(x.mul(2));
       return lnNum(x.add(sqrtNum(x.mul(x).sub(1))));
     case 'atanh':
       if (x.abs().cmp(ONE) >= 0) throw new CalcError('invalid');

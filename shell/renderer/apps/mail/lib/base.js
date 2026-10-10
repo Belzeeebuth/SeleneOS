@@ -16,6 +16,25 @@ export function trapFocus(win) {
   sentinel.setAttribute('aria-hidden', 'true');
   sentinel.addEventListener('focus', () => items()[0]?.focus());
   win.body.appendChild(sentinel);
+  // When a dialog of this window closes, give focus back to what had it before (the Remove button
+  // behind "Remove account?", the Settings dialog behind it…) instead of leaving it on <body>,
+  // where Esc and Tab do nothing.
+  const obs = new MutationObserver((records) => {
+    for (const r of records) {
+      for (const n of r.addedNodes) if (n.classList?.contains('dialog-layer')) n.__mlReturn = document.activeElement;
+      for (const n of r.removedNodes) {
+        if (!n.classList?.contains('dialog-layer')) continue;
+        const a = document.activeElement;
+        if (a && a !== document.body && win.el.contains(a)) continue;
+        if (!win.el.isConnected || win._closing) continue;
+        const back = n.__mlReturn;
+        const target = back?.isConnected && win.el.contains(back) && !back.closest('.dialog-layer.closing') ? back : scope() !== win.el ? items()[0] : null;
+        if (target) target.focus({ preventScroll: true });
+        else win.el.dispatchEvent(new CustomEvent('ml-focus-lost'));
+      }
+    }
+  });
+  obs.observe(win.el, { childList: true });
   win.el.addEventListener('keydown', (e) => {
     if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return;
     const list = items();

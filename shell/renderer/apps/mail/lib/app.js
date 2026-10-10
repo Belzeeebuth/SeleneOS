@@ -26,6 +26,7 @@ export class MailApp extends MailWindowBase {
     this.root = h('div', { class: 'ml-root', 'data-layout': 'wide' });
     ctx.win.body.appendChild(this.root);
     trapFocus(ctx.win);
+    ctx.win.el.addEventListener('ml-focus-lost', () => this.focusList());
     ctx.win.el.__mail = this; // test / debugging hook
   }
 

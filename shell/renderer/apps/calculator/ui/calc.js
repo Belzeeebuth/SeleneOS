@@ -463,8 +463,15 @@ export function createCalcView(env, kind) {
     try {
       a.run();
     } catch (err) {
-      console.error('[calculator]', err);
-      app.reportError(err);
+      if (err?.calcError || err instanceof RangeError) {
+        // a value out of range that escaped the engine: show it like any other calculation error
+        engine.clear();
+        engine.error = err.calcError ? err.code : 'overflow';
+        engine.errorExpr = [];
+      } else {
+        console.error('[calculator]', err);
+        app.reportError(err);
+      }
     }
     refresh();
     return true;

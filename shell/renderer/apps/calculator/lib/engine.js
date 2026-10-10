@@ -16,6 +16,8 @@ export const STD_PREC = {}; // everything equal -> left-to-right
 export const SCI_PREC = { or: 0, xor: 0, and: 1, nand: 1, nor: 1, '+': 2, '-': 2, '*': 3, '/': 3, mod: 3, '%': 3, lsh: 3, rsh: 3, pow: 4, root: 4, logy: 4 };
 
 const isCalcError = (e) => e instanceof CalcError || e?.calcError;
+// "Maximum BigInt size exceeded" / "Invalid array length": a value too large to represent.
+const asCalcError = (e) => (isCalcError(e) ? e : e instanceof RangeError ? new CalcError('overflow') : null);
 
 export class Engine {
   constructor(sys, { prec = STD_PREC, percent = false, maxHistory = 100 } = {}) {
@@ -77,8 +79,9 @@ export class Engine {
     try {
       fn();
       return true;
-    } catch (e) {
-      if (!isCalcError(e)) throw e;
+    } catch (err) {
+      const e = asCalcError(err);
+      if (!e) throw err;
       this.errorExpr = typeof exprOnFail === 'function' ? exprOnFail() : exprOnFail || [...this.tokens];
       this.error = e.code;
       this.entry = null;

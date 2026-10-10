@@ -229,7 +229,12 @@ export class Num {
   mod(o) {
     o = Num.of(o);
     if (o.isZero()) throw new CalcError('divzero');
-    return this.sub(o.mul(this.div(o).floor()));
+    // Exact on the common denominator, without forming the (possibly out-of-range) quotient:
+    // a/b mod c/d = ((a·d) mod (c·b)) / (b·d), adjusted to take the sign of the divisor.
+    const m = o.n * this.d;
+    let r = (this.n * o.d) % m;
+    if (r !== 0n && r < 0n !== m < 0n) r += m;
+    return Num.make(r, this.d * o.d);
   }
   /** BigInt value (must be an integer). */
   toBigInt() {
@@ -253,8 +258,26 @@ export class Num {
     } else if (this.n < 0n) {
       return e % 2n === 0n ? ONE : ONE.neg();
     } else return ONE;
-    const r = Num.make(this.n ** e, this.d ** e);
-    return neg ? r.inv() : r;
+    // n/d is already in lowest terms, so n^e/d^e is too: build it directly (Num.make would run a
+    // gcd on numbers of (bits × e) size, which is quadratic and froze the shell for large powers).
+    let n = this.n ** e;
+    let d = this.d ** e;
+    if (neg) {
+      [n, d] = [d, n];
+      if (d < 0n) {
+        n = -n;
+        d = -d;
+      }
+    }
+    const r = new Num(n, d);
+    r.checkRange();
+    return d > 1n && bitLen(d) > LIMIT_BITS ? r.approx(APPROX_DIGITS) : r;
+  }
+
+  /** Approximate bit size of the exact result of this^k (numerator + denominator). */
+  powBits(k) {
+    const e = Number(k < 0n ? -k : k);
+    return (bitLen(this.n) + bitLen(this.d)) * e;
   }
 
   /** log10(|x|) as a double (works far beyond the double range). */
