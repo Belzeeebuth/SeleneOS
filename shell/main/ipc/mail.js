@@ -1507,16 +1507,17 @@ class Watcher {
   }
   async start() {
     if (this.stopped) return;
+    let c = null;
     try {
       const acc = await getAccount(this.id);
       const { imap } = secretsOf(acc);
-      const c = await connectImap(acc, imap, { idle: true });
+      c = await connectImap(acc, imap, { idle: true });
       if (this.stopped) {
         c.close();
         return;
       }
       this.client = c;
-      const mb = await c.mailboxOpen('INBOX');
+      const mb = await withTimeout(c.mailboxOpen('INBOX'), 30000);
       this.exists = mb.exists || 0;
       this.failures = 0;
       setStatus(this.id, true);
@@ -1534,6 +1535,11 @@ class Watcher {
       log(`${this.id} watching INBOX (${c.capabilities.has('IDLE') ? 'IDLE' : 'polling'})`);
       if (!c.capabilities.has('IDLE')) this.poll();
     } catch (e) {
+      // Connected but INBOX could not be opened: drop that connection, a new one is made on retry.
+      if (c && this.client === c) this.client = null;
+      try {
+        c?.close();
+      } catch {}
       const code = classify(e);
       setStatus(this.id, false, code);
       log(`${this.id} watcher connect failed: ${code}`);
