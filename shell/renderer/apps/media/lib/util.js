@@ -23,6 +23,12 @@ export function dirName(p) {
   const i = s.lastIndexOf('/');
   return i <= 0 ? '/' : s.slice(0, i);
 }
+/** '/home/me/Music' -> '~/Music' (only a real home prefix: '/home/me2' stays as is). */
+export function tildify(p, home) {
+  if (!home || home === '/') return p;
+  const h = home.replace(/\/+$/, '');
+  return p === h ? '~' : p.startsWith(`${h}/`) ? `~${p.slice(h.length)}` : p;
+}
 export function stem(p) {
   const b = baseName(p);
   const i = b.lastIndexOf('.');
@@ -94,8 +100,21 @@ export function debounce(fn, ms) {
 }
 
 /** Locale-aware comparison that keeps "Track 2" before "Track 10". */
+const collators = new Map();
 export function compareText(a, b, locale) {
-  return String(a ?? '').localeCompare(String(b ?? ''), locale, { numeric: true, sensitivity: 'base' });
+  // One cached Intl.Collator per locale: localeCompare() with options builds a new one per call,
+  // which made sorting a few thousand songs take hundreds of milliseconds.
+  const key = locale || '';
+  let c = collators.get(key);
+  if (!c) {
+    try {
+      c = new Intl.Collator(locale || undefined, { numeric: true, sensitivity: 'base' });
+    } catch {
+      c = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+    }
+    collators.set(key, c);
+  }
+  return c.compare(String(a ?? ''), String(b ?? ''));
 }
 
 /** Run async fn over items with at most `n` in flight. Returns when all settle. */

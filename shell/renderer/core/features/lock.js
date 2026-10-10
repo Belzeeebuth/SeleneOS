@@ -148,7 +148,9 @@ export async function mount(ctx) {
     document.addEventListener('focusin', focusGuard, true);
 
     const lockWall = settings.get('lockWallpaper');
-    const wallpaper = lockWall ? resolveWallpaper(lockWall, theme.mode) : theme.wallpaperUrl || resolveWallpaper(settings.get('wallpaper'), theme.mode);
+    // settings.lockScreen (picture / daily Spotlight / animated) through the wallpaper engine (features/wallpaper.js)
+    const engineWall = ctx.wallpaperEngine?.lockWallpaperUrl?.();
+    const wallpaper = engineWall || (lockWall ? resolveWallpaper(lockWall, theme.mode) : theme.wallpaperUrl || resolveWallpaper(settings.get('wallpaper'), theme.mode));
     ls = new LockScreen({
       mode: 'lock',
       users: [{ ...user, passwordless: !status.needsPassword }],
@@ -183,6 +185,7 @@ export async function mount(ctx) {
     });
     for (const [k, v] of Object.entries(accentVars(settings.get('accent'), 'dark'))) ls.el.style.setProperty(k, v);
     (document.getElementById('overlays') || document.body).appendChild(ls.el);
+    Promise.resolve(ctx.wallpaperEngine?.attachLock?.(ls)).catch((err) => console.warn('[lock] animated background:', err?.message || err));
     ls.setBadges(badges());
     // A shell restarted while locked has a black cover up (features/welcome.js): no fade-in through which the
     // desktop would show, then the cover is no longer needed.

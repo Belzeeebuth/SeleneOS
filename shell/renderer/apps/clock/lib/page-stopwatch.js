@@ -35,7 +35,12 @@ export class StopwatchPage {
       { type: 'button', class: 'btn subtle icon-btn ck-sw-expand', onclick: () => this.setExpanded(!this.el.classList.contains('expanded')) },
       icon('full_screen_maximize'),
     );
-    this.copyBtn = h('button', { type: 'button', class: 'btn subtle ck-sw-copy', onclick: () => this.copyLaps() }, icon('copy'), h('span', { class: 'ck-sw-copy-label' }, t('stopwatch.copy')));
+    this.copyBtn = h(
+      'button',
+      { type: 'button', class: 'btn subtle ck-sw-copy', 'aria-label': t('stopwatch.copy'), 'data-tip': `${t('stopwatch.copy')} (Ctrl+C)`, onclick: () => this.copyLaps() },
+      icon('copy'),
+      h('span', { class: 'ck-sw-copy-label', 'aria-hidden': 'true' }, t('stopwatch.copy')),
+    );
     this.tbody = h('div', { class: 'ck-laps-body', role: 'rowgroup' });
     this.laps = h(
       'div',
@@ -174,10 +179,12 @@ export class StopwatchPage {
       await api.invoke('clipboard:writeText', lines.join('\n'));
       this.copyBtn.classList.add('copied');
       this.copyBtn.querySelector('.ck-sw-copy-label').textContent = t('stopwatch.copied');
+      this.copyBtn.setAttribute('aria-label', t('stopwatch.copied'));
       clearTimeout(this._copyT);
       this._copyT = setTimeout(() => {
         this.copyBtn.classList.remove('copied');
         this.copyBtn.querySelector('.ck-sw-copy-label').textContent = t('stopwatch.copy');
+        this.copyBtn.setAttribute('aria-label', t('stopwatch.copy'));
       }, 1600);
     } catch (err) {
       ui.alert(t('errors.copy', { msg: err.message }), { title: t('errors.title'), parent: win });

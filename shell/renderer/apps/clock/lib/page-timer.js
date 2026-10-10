@@ -215,10 +215,17 @@ export class TimerPage {
 
   quickStart(m) {
     const ms = m * MIN;
+    // a double click on a preset starts one timer, not two
+    const last = this._lastQuick;
+    if (last && last.m === m && Date.now() - last.at < 600 && this.store.timers.some((tm) => tm.id === last.id && tm.state === 'running')) {
+      this.highlight(last.id);
+      return this.store.timers.find((tm) => tm.id === last.id);
+    }
     // reuse an idle timer of that length instead of piling up duplicates
     let x = this.store.timers.find((tm) => tm.duration === ms && tm.state === 'idle' && !tm.name);
     if (!x) x = this.store.addTimer({ name: '', duration: ms });
     this.store.startTimer(x.id);
+    this._lastQuick = { m, id: x.id, at: Date.now() };
     setTimeout(() => this.highlight(x.id), 30);
     return x;
   }
@@ -310,11 +317,9 @@ export class TimerPage {
     };
     const body = h('div', { class: 'ck-dlg ck-dlg-timer' }, picker, chips, h('div', { class: 'ck-dlg-row' }, icon('edit', { size: 16 }), name), err);
     this.dialogOpen = true;
-    const res = await ui.dialog({
+    const res = await this.app.dialog({
       title: x ? t('timer.editTitle') : t('timer.addTitle'),
       body,
-      parent: win,
-      className: 'ck-dialog',
       buttons: [
         { label: t('common.save'), value: 'save', primary: true },
         { label: t('common.cancel'), value: null },

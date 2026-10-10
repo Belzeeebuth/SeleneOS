@@ -456,7 +456,11 @@ export class TodoStore {
     try {
       raw = await this._load();
     } catch (err) {
+      // unreadable (not missing): work in memory, never overwrite the file with an empty list
       this.loadError = err;
+      this.readOnly = true;
+      this.data = normalize({}, this.now());
+      return this;
     }
     if (raw == null) {
       this.firstRun = true;
@@ -489,10 +493,12 @@ export class TodoStore {
     this.emit(kind, info);
   }
   _schedule() {
+    if (this.readOnly) return;
     clearTimeout(this._timer);
     this._timer = setTimeout(() => this.flush(), this.debounce);
   }
   async flush() {
+    if (this.readOnly) return;
     clearTimeout(this._timer);
     this._timer = null;
     const snapshot = JSON.parse(JSON.stringify(this.data));

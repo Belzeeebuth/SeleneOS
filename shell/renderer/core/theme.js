@@ -17,6 +17,9 @@
 //   effectiveTheme(el)              'light' | 'dark' in effect for an element (honours per-app themes)
 //   STYLES  FONTS  fontInstalled(id)  styleVars(styleId, all)  applyVisualStyle(all, root?)  wallpaperAccent(url)
 //   appThemeFor(appId)  decorateWindow(winEl)
+//   setWallpaperOverride(url|null)  the picture the wallpaper engine shows instead of settings.wallpaper (animated
+//                                   still frame, time-of-day variant, slideshow picture): desktop, Mica, accent from
+//                                   wallpaper and the lock screen follow it (core/features/wallpaper.js, area B1)
 import { api, Emitter } from './api.js';
 import { settings } from './settings.js';
 
@@ -108,6 +111,7 @@ export const theme = {
     profilesApi = v;
   },
   wallpaperUrl: '',
+  wallpaperOverride: null,
   micaUrl: '',
   transition: (fn) => transition(fn),
   whenApplied: () => whenApplied(),
@@ -220,12 +224,26 @@ export function resolveWallpaper(value, mode) {
   return builtin('bloom');
 }
 
-async function loadImage(url) {
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.src = url;
-  await img.decode();
-  return img;
+// The wallpaper is decoded once and kept as a small (≤ 640 px) canvas: the Mica copy (320 px) and the
+// accent picker (64 px) are drawn from it, so dragging the blur slider never re-decodes a 2560 px JPEG.
+let srcCache = { url: '', p: null };
+function loadImage(url) {
+  if (srcCache.url === url && srcCache.p) return srcCache.p;
+  const p = (async () => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = url;
+    await img.decode();
+    const k = Math.min(1, 640 / Math.max(1, img.naturalWidth));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.naturalWidth * k));
+    c.height = Math.max(1, Math.round(img.naturalHeight * k));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  })();
+  srcCache = { url, p };
+  p.catch(() => srcCache.p === p && (srcCache = { url: '', p: null }));
+  return p;
 }
 
 // Pre-blur the wallpaper once (downscaled canvas + blur filter) for the Mica material.
@@ -239,9 +257,9 @@ async function makeMica(url, { blur = 18, sat = 1.4 } = {}) {
     c.height = h;
     const g = c.getContext('2d');
     // cover-fit
-    const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
-    const dw = img.naturalWidth * scale;
-    const dh = img.naturalHeight * scale;
+    const scale = Math.max(w / img.width, h / img.height);
+    const dw = img.width * scale;
+    const dh = img.height * scale;
     g.filter = `blur(${blur.toFixed(1)}px) saturate(${sat})`;
     g.drawImage(img, (w - dw) / 2 - 20, (h - dh) / 2 - 20, dw + 40, dh + 40);
     return await new Promise((res) => c.toBlob((b) => res(b ? URL.createObjectURL(b) : ''), 'image/png'));
@@ -606,7 +624,9 @@ function enableFontScaling() {
 // (the window last clicked, else the one holding the focus) when they open over that window — or of the
 // themed menu they are a submenu of.
 let lastPointerWin = null;
+let hoverWin = null; // window under the pointer (tooltips belong to what is hovered, not to what was clicked)
 function popupOwner(n) {
+  if (n.classList.contains('tooltip')) return hoverWin?.isConnected && decorated.get(hoverWin) ? hoverWin : null;
   const parentMenu = [...document.querySelectorAll('body > .menu[data-theme-scope]')].find((m) => m !== n);
   if (parentMenu) return parentMenu;
   let pointer = false;
@@ -620,10 +640,11 @@ function popupOwner(n) {
 function watchPopups() {
   document.addEventListener('pointerdown', (e) => (lastPointerWin = e.target?.closest?.('#windows > .win') || null), true);
   document.addEventListener('keydown', () => (lastPointerWin = null), true);
+  document.addEventListener('pointerover', (e) => (hoverWin = e.target?.closest?.('#windows > .win') || null), true);
   new MutationObserver((recs) => {
     for (const r of recs) {
       for (const n of r.addedNodes) {
-        if (n.nodeType !== 1 || !n.matches('.menu, .st-picker')) continue;
+        if (n.nodeType !== 1 || !n.matches('.menu, .st-picker, .tooltip')) continue;
         const owner = popupOwner(n);
         if (owner) {
           n.setAttribute('data-theme-scope', '');
@@ -639,8 +660,23 @@ function watchPopups() {
 }
 
 let lastWallpaper = '';
+// Wallpaper engine (core/features/wallpaper.js): a picture shown instead of settings.wallpaper, or null.
+let wallpaperOverride = null;
+export function setWallpaperOverride(url) {
+  const v = typeof url === 'string' && /^(app:|media:|blob:|data:image\/)/i.test(url) ? url : null;
+  if (v === wallpaperOverride) return;
+  wallpaperOverride = v;
+  theme.wallpaperOverride = v;
+  if (applied && !pending) {
+    pending = Promise.resolve().then(() => {
+      pending = null;
+      return applyTheme();
+    });
+  }
+}
 let lastMicaKey = '';
 let lastMica = '';
+let micaTimer = null;
 let nightEl = null;
 let applied = false;
 let pending = null;
@@ -707,10 +743,16 @@ async function transition(fn) {
   transitioning = true;
   root.classList.add('theme-switching');
   let result;
+  let failure = null;
   try {
     const vt = document.startViewTransition(async () => {
       const waiting = whenApplied(2500);
-      result = await fn();
+      try {
+        result = await fn();
+      } catch (err) {
+        failure = err; // e.g. settings:setMany refused the patch: the caller must hear about it
+        return;
+      }
       await waiting;
     });
     vt.ready.catch(() => {});
@@ -720,6 +762,7 @@ async function transition(fn) {
     transitioning = false;
     root.classList.remove('theme-switching');
   }
+  if (failure) throw failure;
   return result;
 }
 
@@ -760,7 +803,7 @@ export async function applyTheme(all = settings.all()) {
   applied = true;
   const waiters = appliedWaiters.splice(0);
 
-  const wp = resolveWallpaper(all.wallpaper, mode);
+  const wp = wallpaperOverride || resolveWallpaper(all.wallpaper, mode);
   const st = styleOf(all.style);
   const blurLevel = clampNum(all.blur, 0, 100, 50);
   const micaOpts = { blur: (blurLevel / 50) * 18 * (st.traits.micaBlur ?? 1), sat: 1.4 * (st.traits.micaSat ?? 1) };
@@ -779,17 +822,25 @@ export async function applyTheme(all = settings.all()) {
     });
   }
   if (micaKey !== lastMicaKey) {
+    // same picture, other blur / style: wait until the slider rests (one re-blur instead of one per step)
+    const sameWall = lastMicaKey.startsWith(`${wp}|`);
     lastMicaKey = micaKey;
-    const mica = await makeMica(wp, micaOpts);
-    if (micaKey !== lastMicaKey) {
-      if (mica) URL.revokeObjectURL(mica);
-    } else {
-      if (lastMica) URL.revokeObjectURL(lastMica);
-      lastMica = mica;
-      theme.micaUrl = mica;
-      root.style.setProperty('--mica-image', mica ? `url("${mica}")` : 'none');
-      emitter.emit('mica', mica);
-    }
+    clearTimeout(micaTimer);
+    const run = async () => {
+      if (micaKey !== lastMicaKey) return;
+      const mica = await makeMica(wp, micaOpts);
+      if (micaKey !== lastMicaKey) {
+        if (mica) URL.revokeObjectURL(mica);
+      } else {
+        if (lastMica) URL.revokeObjectURL(lastMica);
+        lastMica = mica;
+        theme.micaUrl = mica;
+        root.style.setProperty('--mica-image', mica ? `url("${mica}")` : 'none');
+        emitter.emit('mica', mica);
+      }
+    };
+    if (sameWall) micaTimer = setTimeout(run, 160);
+    else await run();
   }
 
   const scale = (Number(all.scale) || 100) / 100;
@@ -811,10 +862,23 @@ export function autoThemeAt(cfg = {}, date = new Date()) {
   const isLight = light < dark ? now >= light && now < dark : !(now >= dark && now < light);
   return isLight ? 'light' : 'dark';
 }
+// Auto mode applies its light / dark choice when it is turned on (or its times change), at boot, and each
+// time the schedule crosses a boundary. In between, a manual choice (quick settings, a profile, the Colors
+// page) is respected until the next boundary — it is never flipped back by an unrelated settings change.
+let autoSig = null; // config the schedule was last enforced for
+let autoPhase = null; // 'light' | 'dark' the schedule wanted at that time
 function checkAutoTheme() {
   const cfg = settings.get('autoTheme');
-  if (!cfg?.enabled) return;
+  if (!cfg?.enabled) {
+    autoSig = null;
+    autoPhase = null;
+    return;
+  }
+  const sig = `${cfg.light}|${cfg.dark}`;
   const want = autoThemeAt(cfg);
+  if (sig === autoSig && want === autoPhase) return;
+  autoSig = sig;
+  autoPhase = want;
   if ((settings.get('theme') === 'dark' ? 'dark' : 'light') !== want) settings.set('theme', want).catch(() => {});
 }
 

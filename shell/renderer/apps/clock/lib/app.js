@@ -3,7 +3,7 @@
 // relaunch arguments (notification clicks) and the taskbar progress of running timers / focus sessions.
 import { getStore } from './store.js';
 import { loadCities } from './cities.js';
-import { reduceMotion, EASE } from './widgets.js';
+import { reduceMotion, EASE, guardClicks } from './widgets.js';
 import { timeParts } from './time.js';
 import { AlarmPage } from './page-alarm.js';
 import { TimerPage } from './page-timer.js';
@@ -109,13 +109,28 @@ export class ClockApp {
       h('div', { class: 'ck-nav-foot' }, item(SETTINGS)),
       this.pill,
     );
+    // one Tab stop for the whole pane (the selected item); arrow keys / Home / End move between items,
+    // Enter or Space opens the page (WinUI NavigationView / ARIA tabs pattern)
     this.navEl.addEventListener('keydown', (e) => {
-      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key) || e.altKey || e.ctrlKey) return;
       const all = [...this.navEl.querySelectorAll('.ck-nav-item')];
       const i = all.indexOf(document.activeElement);
       if (i < 0) return;
       e.preventDefault();
-      all[(i + (e.key === 'ArrowDown' ? 1 : -1) + all.length) % all.length].focus();
+      const n = e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + all.length) % all.length;
+      all[n].focus();
+    });
+    // the Tab stop follows the focused item while inside the pane, and goes back to the selected
+    // page's item when the focus leaves it (so Tab always leaves the pane in one step)
+    const rove = (target) => {
+      for (const el of this.navEl.querySelectorAll('.ck-nav-item')) el.tabIndex = el === target ? 0 : -1;
+    };
+    this.navEl.addEventListener('focusin', (e) => {
+      const it = e.target.closest?.('.ck-nav-item');
+      if (it) rove(it);
+    });
+    this.navEl.addEventListener('focusout', (e) => {
+      if (!this.navEl.contains(e.relatedTarget)) rove(this.navItems[this.pageId]);
     });
     this.infoSlot = h('div', { class: 'ck-info-slot' });
     this.scroller = h('div', { class: 'ck-scroll', tabindex: '-1' });
@@ -203,6 +218,7 @@ export class ClockApp {
       el.classList.toggle('selected', pid === def.id);
       el.setAttribute('aria-selected', String(pid === def.id));
       el.setAttribute('role', 'tab');
+      el.tabIndex = pid === def.id ? 0 : -1;
     }
     this._placePill(animate);
     if (animate && !reduceMotion()) page.el.animate([{ opacity: 0, transform: 'translateY(28px)' }, { opacity: 1, transform: 'none' }], { duration: 300, easing: EASE });
@@ -328,6 +344,7 @@ export class ClockApp {
     if (!this._lastSlow || now - this._lastSlow >= 1000) {
       this._lastSlow = now;
       this._updateDots(now);
+      this.store.checkZone();
     }
     const frames = visible && this.page?.wantsFrames?.(now);
     if (frames) this.raf = requestAnimationFrame(() => this._loop());
@@ -370,6 +387,32 @@ export class ClockApp {
   }
 
   // ------------------------------------------------------------------ helpers for pages
+  /** ui.dialog scoped to the Clock window, with Clock's dialog class and a double-click guard. */
+  dialog(opts) {
+    return this.ui.dialog({
+      parent: this.win,
+      ...opts,
+      className: ['ck-dialog', opts.className].filter(Boolean).join(' '),
+      onOpen: (dlg, done) => {
+        guardClicks(dlg);
+        opts.onOpen?.(dlg, done);
+      },
+    });
+  }
+
+  /** Yes / no question in the Clock window -> boolean. */
+  async confirm(message, { title, okLabel, cancelLabel, danger } = {}) {
+    const v = await this.dialog({
+      title,
+      body: message,
+      buttons: [
+        { label: okLabel || this.t('common.ok'), value: true, primary: !danger, danger },
+        { label: cancelLabel || this.t('common.cancel'), value: false },
+      ],
+    });
+    return v === true;
+  }
+
   /** { main, period, full } for a moment, in the user's 12/24 h format (optionally in another zone). */
   timeParts(at, { tz, seconds = false } = {}) {
     return timeParts(at, { locale: this.locale, h12: this.h12, tz, seconds });

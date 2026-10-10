@@ -4,6 +4,18 @@ import * as D from '../lib/dates.js';
 export class Fmt {
   constructor(app) {
     this.app = app;
+    this.cache = new Map();
+  }
+
+  /** Intl.DateTimeFormat instances are costly to create: one per locale + options. */
+  dtf(opts) {
+    const key = `${this.locale}|${JSON.stringify(opts)}`;
+    let f = this.cache.get(key);
+    if (!f) {
+      f = new Intl.DateTimeFormat(this.locale, opts);
+      this.cache.set(key, f);
+    }
+    return f;
   }
   get t() {
     return this.app.t;
@@ -17,7 +29,7 @@ export class Fmt {
     const d = D.parseYmd(day);
     if (!d) return '';
     const y = withYear ?? d.getFullYear() !== new Date(this.app.now()).getFullYear();
-    return new Intl.DateTimeFormat(this.locale, { weekday, month, day: 'numeric', ...(y ? { year: 'numeric' } : {}) }).format(d);
+    return this.dtf({ weekday, month, day: 'numeric', ...(y ? { year: 'numeric' } : {}) }).format(d);
   }
 
   /** Today / Tomorrow / Yesterday / 'Mon, Oct 12' */
@@ -29,8 +41,14 @@ export class Fmt {
     return this.date(day);
   }
 
+  /** 'Sat' */
+  weekday(day) {
+    const d = D.parseYmd(day);
+    return d ? this.dtf({ weekday: 'short' }).format(d) : '';
+  }
+
   time(ms) {
-    return new Intl.DateTimeFormat(this.locale, { hour: 'numeric', minute: '2-digit', hour12: this.app.h12 }).format(new Date(ms));
+    return this.dtf({ hour: 'numeric', minute: '2-digit', hour12: this.app.h12 }).format(new Date(ms));
   }
 
   /** Row label of a due date (overdue rows are red; the aria label says "Overdue") */
@@ -71,7 +89,7 @@ export class Fmt {
   }
 
   weekdayNames(style = 'short') {
-    const f = new Intl.DateTimeFormat(this.locale, { weekday: style });
+    const f = this.dtf({ weekday: style });
     // 2026-10-11 is a Sunday
     return Array.from({ length: 7 }, (_, i) => f.format(new Date(2026, 9, 11 + i)));
   }
@@ -106,6 +124,6 @@ export class Fmt {
   }
 
   longToday() {
-    return new Intl.DateTimeFormat(this.locale, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date(this.app.now()));
+    return this.dtf({ weekday: 'long', month: 'long', day: 'numeric' }).format(new Date(this.app.now()));
   }
 }

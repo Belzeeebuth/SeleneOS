@@ -1,10 +1,14 @@
 // Functional tests for the Media Player app (renderer/apps/media).
-// Run: cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/media.test.mjs [--only=<name part>]
+// Run: cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/media.test.mjs [--only=<name part>[,<name part>…]]
 //
 // 1. Unit tests (plain Node): play queue logic, helpers, tag parsers, playlist store.
 // 2. Shell tests: the real Electron shell with the shipped sample media (rootfs/etc/skel) copied into
 //    the throwaway $HOME — library scan, playback, transport, keyboard, queue, playlists, video,
 //    full screen, mini player, drag & drop, errors, persistence, EN/FR, light/dark, sizes.
+// 3. QA regressions: one dialog at a time, volume flyout placement, visualizer idle, windowed song
+//    list (2500 rows), scans requested during a scan, precise error messages, File Explorer
+//    multi-selection and files opened while starting, mini player + maximize, leak check over
+//    repeated open/close (MediaApp instances, listeners, fs watchers, AudioContexts), French key names.
 // Screenshots: test/out/media-*.png and docs/screenshots/media-*.png.
 import { launchShell, OUT } from './lib.mjs';
 import fs from 'node:fs';
@@ -24,7 +28,7 @@ const ONLY = process.argv.find((a) => a.startsWith('--only='))?.slice(7);
 const results = [];
 let current = null;
 async function test(name, fn) {
-  if (ONLY && !name.includes(ONLY)) return;
+  if (ONLY && !ONLY.split(',').some((part) => name.includes(part))) return;
   const t0 = Date.now();
   try {
     await fn();
@@ -311,6 +315,11 @@ await test('unit: helpers (time format, names, kinds, hash)', () => {
   assert.equal(U.baseName('/a/b/c.mp3'), 'c.mp3');
   assert.match(U.hash('abc'), /^[0-9a-f]{8}$/);
   assert.notEqual(U.hash('abc'), U.hash('abd'));
+  // folder chips shorten the home folder only when it really is the prefix
+  assert.equal(U.tildify('/home/me/Music', '/home/me'), '~/Music');
+  assert.equal(U.tildify('/home/me', '/home/me/'), '~');
+  assert.equal(U.tildify('/home/me2/Music', '/home/me'), '/home/me2/Music');
+  assert.equal(U.tildify('/srv/home/me/Music', '/home/me'), '/srv/home/me/Music');
   for (const ext of ['.mp3', '.wav', '.ogg', '.oga', '.opus', '.flac', '.m4a', '.aac', '.mp4', '.m4v', '.webm', '.ogv', '.mkv', '.mov']) assert.ok(U.MEDIA_EXT.includes(ext), ext);
   const manifest = JSON.parse(fs.readFileSync(path.join(APP, 'manifest.json'), 'utf8'));
   assert.deepEqual([...manifest.fileTypes].sort(), [...U.MEDIA_EXT].sort(), 'manifest fileTypes match the player');
@@ -981,9 +990,9 @@ await test('mini player shrinks the window and restores it', async () => {
   assert.equal(mini.video, true, 'the intro video is still playing');
   assert.deepEqual([mini.width, mini.height], [400, 225 + 32], '16:9 mini player for video');
   assert.equal(mini.top, true, 'mini player stays on top');
-  await shot(s, 'mini-player', true);
   await s.page.hover(`${WIN} .mp-stage`);
   await wait(s, 300);
+  await shot(s, 'mini-player', true); // hover: the mini controls are visible
   await s.page.click(`${WIN} .mp-mini-play`);
   await waitFor(s, (a) => a.player.paused, null, { what: 'mini play/pause' });
   await s.page.click(`${WIN} .mp-mini-play`);
@@ -1116,6 +1125,197 @@ await test('library follows files added to or removed from ~/Music', async () =>
   await s.page.waitForSelector(`${WIN} .mp-music .mp-row[data-path$="Fresh Song.wav"]`, { state: 'detached' });
 });
 
+// ------------------------------------------------------------------ QA regressions (session 1)
+await test('one dialog at a time: double clicks and Ctrl+O pressed twice never stack pickers', async () => {
+  const layers = () => s.page.locator(`${WIN} .dialog-layer:not(.closing)`).count();
+  await M(s, (a) => a.go({ name: 'music' }));
+  await s.page.dblclick(`${WIN} .mp-add-folder`);
+  await s.page.waitForSelector(`${WIN} .fp-dialog`);
+  await wait(s, 500);
+  assert.equal(await layers(), 1, 'double click on "Add folder" opens one picker');
+  await s.page.waitForFunction(() => !!document.activeElement?.closest('.fp-dialog'));
+  await press(s, 'Escape');
+  await s.page.waitForFunction((W) => !document.querySelector(`${W} .dialog-layer`), WIN);
+  await focusList(s);
+  await s.page.keyboard.press('Control+o');
+  await s.page.keyboard.press('Control+o');
+  await s.page.waitForSelector(`${WIN} .fp-dialog`);
+  await wait(s, 500);
+  assert.equal(await layers(), 1, 'Ctrl+O twice opens one picker');
+  await s.page.waitForFunction(() => !!document.activeElement?.closest('.fp-dialog'));
+  await press(s, 'Escape');
+  await s.page.waitForFunction((W) => !document.querySelector(`${W} .dialog-layer`), WIN);
+  // the guard is released when the dialog closes
+  await M(s, (a) => {
+    a.showShortcuts();
+  });
+  await s.page.waitForSelector(`${WIN} .mp-keys-dialog`);
+  await press(s, 'Escape');
+  await s.page.waitForFunction((W) => !document.querySelector(`${W} .dialog-layer`), WIN);
+});
+
+await test('volume flyout opens above the bar and never covers the time', async () => {
+  await M(s, (a) => a.playEntries(a.lib.songs(), 0));
+  await s.page.click(`${WIN} .mp-bar .mp-vol`);
+  await s.page.waitForSelector(`${WIN} .mp-vol-fly`);
+  await wait(s, 250);
+  const r = await M(s, (a) => {
+    const f = a.transport.fly.getBoundingClientRect();
+    const t = a.transport.tRight.getBoundingClientRect();
+    const sk = a.transport.seekWrap.getBoundingClientRect();
+    return { flyBottom: f.bottom, timeTop: t.top, seekTop: sk.top };
+  });
+  assert.ok(r.flyBottom <= r.timeTop && r.flyBottom <= r.seekTop, JSON.stringify(r));
+  await press(s, 'Escape');
+  await s.page.waitForSelector(`${WIN} .mp-vol-fly`, { state: 'detached' });
+});
+
+await test('visualizer rests while paused and wakes up on play', async () => {
+  await waitFor(s, (a) => !a.player.paused && a.player.currentTime > 0.3, null, { what: 'playing' });
+  await M(s, (a) => a.openStage());
+  await waitFor(s, (a) => a.stage.viz.running, null, { what: 'visualizer running' });
+  await M(s, (a) => a.player.pause());
+  await waitFor(s, (a) => !a.stage.viz.running, null, { timeout: 6000, what: 'visualizer stops once the bars have settled' });
+  await M(s, (a) => a.player.play());
+  await waitFor(s, (a) => a.stage.viz.running, null, { what: 'visualizer restarts' });
+  await M(s, (a) => a.closeStage());
+});
+
+await test('a file marked unplayable that plays fine loses the mark', async () => {
+  const p = await M(s, (a) => {
+    const e = a.lib.songs().find((x) => x.title === 'Night Drive');
+    e.bad = true;
+    return e.path;
+  });
+  await M(s, (a) => {
+    a.go({ name: 'music' });
+    a.render();
+  });
+  await s.page.waitForSelector(`${WIN} .mp-row.bad`);
+  await M(s, (a, p) => a.playEntries([p], 0), p);
+  await waitFor(s, (a, p) => !a.lib.get(p).bad && a.player.path === p, p, { what: 'bad flag cleared' });
+  await s.page.waitForSelector(`${WIN} .mp-row.bad`, { state: 'detached' });
+});
+
+await test('a scan requested while another one runs is not lost', async () => {
+  const extra = path.join(home, 'Extra Music');
+  fs.mkdirSync(extra, { recursive: true });
+  fs.writeFileSync(path.join(extra, 'Late Song.wav'), wavFile({ seconds: 1, title: 'Late Song', artist: 'Aurora QA' }));
+  await M(
+    s,
+    async (a, dir) => {
+      a.lib.scan();
+      await a.lib.addFolder('music', dir);
+      await a.lib.scan();
+    },
+    extra,
+  );
+  assert.ok(await M(s, (a, p) => a.lib.songs().some((e) => e.path === p), path.join(extra, 'Late Song.wav')), 'the folder added during a scan is scanned');
+  await M(s, (a, dir) => a.lib.removeFolder('music', dir).then(() => a.lib.scan()), extra);
+  fs.rmSync(extra, { recursive: true, force: true });
+  assert.equal(await M(s, (a) => a.lib.songs().length), 4);
+});
+
+await test('big library: the songs list renders only the rows in view', async () => {
+  const N = 2500;
+  const info = await M(
+    s,
+    async (a, N) => {
+      for (let i = 0; i < N; i++) {
+        const p = `/nonexistent/big/${String(i).padStart(4, '0')} - Song ${i}.mp3`;
+        a.lib.entries.set(p, { path: p, name: p.split('/').pop(), ext: '.mp3', kind: 'audio', size: 1, mtime: i, dir: '/nonexistent/big', guessTitle: `Big ${String(i).padStart(4, '0')}`, guessArtist: 'Big Band', tagged: true, duration: 180 });
+        a.lib.inLibrary.add(p);
+      }
+      a.setPref('songSort', 'az');
+      a.go({ name: 'home' });
+      const t0 = performance.now();
+      a.go({ name: 'music', arg: 'songs' });
+      const ms = performance.now() - t0;
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const list = a.lists[0];
+      return { ms, rows: a.scroller.querySelectorAll('.mp-row').length, n: list.length, h: list.el.offsetHeight };
+    },
+    N,
+  );
+  assert.equal(info.n, N + 4);
+  assert.ok(info.rows > 5 && info.rows < 120, `rows in the DOM: ${info.rows}`);
+  assert.equal(info.h, (N + 4) * 54 - 2, 'full scroll height');
+  assert.ok(info.ms < 600, `render took ${Math.round(info.ms)} ms`);
+  // keyboard: End / Home reach both ends, rows follow
+  await focusList(s);
+  await press(s, 'End');
+  assert.equal(await s.page.evaluate(() => document.activeElement.getAttribute('aria-posinset')), String(N + 4));
+  assert.ok((await M(s, (a) => a.scroller.querySelectorAll('.mp-row').length)) < 120);
+  await press(s, 'Home');
+  assert.equal(await s.page.evaluate(() => document.activeElement.getAttribute('aria-posinset')), '1');
+  // scrolling paints the rows that come into view
+  await M(s, (a) => (a.scroller.scrollTop = 54 * 1200));
+  await wait(s, 150);
+  const mid = await M(s, (a) => [...a.scroller.querySelectorAll('.mp-row')].map((r) => Number(r.dataset.i)));
+  assert.ok(mid.some((i) => i > 1200 && i < 1230), 'rows around the scroll position exist');
+  assert.ok(mid.includes(0), 'the focused row is kept');
+  // DOM order follows the list order (Tab / screen readers)
+  assert.deepEqual([...mid], [...mid].sort((x, y) => x - y));
+  await M(s, (a) => a.focusContent());
+  await s.page.keyboard.press('Control+a');
+  assert.equal(await M(s, (a) => a.lists[0].sel.size), N + 4);
+  // clean up
+  await M(s, (a) => {
+    for (const p of [...a.lib.inLibrary]) if (p.startsWith('/nonexistent/big/')) {
+      a.lib.inLibrary.delete(p);
+      a.lib.entries.delete(p);
+    }
+    a.render();
+  });
+  assert.equal(await M(s, (a) => a.lib.songs().length), 4);
+});
+
+await test('errors say what is wrong: folders, dangling links and empty files', async () => {
+  fs.mkdirSync(path.join(D, 'album.mp3'), { recursive: true });
+  fs.symlinkSync(path.join(D, 'nowhere.ogg'), path.join(D, 'dangling.ogg'));
+  fs.writeFileSync(path.join(D, 'empty.mp3'), '');
+  for (const [f, re] of [
+    ['album.mp3', /can't be found/],
+    ['dangling.ogg', /can't be found/],
+    ['empty.mp3', /is empty/],
+  ]) {
+    await M(s, (a) => a.toasts.replaceChildren());
+    await s.aurora((p) => window.__aurora.shell.launch('media', { file: p }), path.join(D, f));
+    await s.page.waitForSelector(`${WIN} .mp-toast.error`, { timeout: 8000 });
+    const msg = await s.page.textContent(`${WIN} .mp-toast.error`);
+    assert.match(msg, re, `${f}: ${msg}`);
+    assert.ok(msg.includes(f), msg);
+  }
+  await M(s, (a) => a.toasts.replaceChildren());
+});
+
+await test('File Explorer multi-selection: files opened back to back all play, later files start over', async () => {
+  const files = [path.join(D, 'hello.wav'), path.join(D, 'second.wav'), path.join(MUSIC, 'Tests', 'Deeper', 'tone.wav')];
+  // Files opens a selection one file after the other (await shell.openFile per file).
+  await s.aurora(async (list) => {
+    for (const f of list) await window.__aurora.shell.openFile(f);
+  }, files);
+  await waitFor(s, (a, n) => a.queue.length === n && !a.player.paused, files.length, { what: 'the whole selection is queued' });
+  assert.deepEqual(await M(s, (a) => a.queue.items.map((i) => i.path)), files);
+  assert.equal((await state(s)).path, files[0], 'the first file plays');
+  assert.equal(await s.aurora(() => window.__aurora.wm.byApp('media').length), 1);
+  await wait(s, 500);
+  await s.aurora((f) => window.__aurora.shell.openFile(f), files[1]);
+  await waitFor(s, (a, p) => a.player.path === p && a.queue.length === 1, files[1], { what: 'a file opened later replaces the queue' });
+});
+
+await test('mini player: maximizing it brings the full player back', async () => {
+  await M(s, (a) => a.playEntries(a.lib.songs(), 0));
+  await M(s, (a) => a.win.restore());
+  await M(s, (a) => a.toggleMini(true));
+  await wait(s, 400);
+  assert.equal(await M(s, (a) => a.mini), true);
+  await M(s, (a) => a.win.maximize());
+  await wait(s, 400);
+  const st = await M(s, (a) => ({ mini: a.mini, cls: a.root.classList.contains('mini'), top: a.win.alwaysOnTop, minW: a.win.opts.minWidth, minH: a.win.opts.minHeight, state: a.win.state, stage: a.stageOpen }));
+  assert.deepEqual(st, { mini: false, cls: false, top: false, minW: 500, minH: 460, state: 'maximized', stage: false });
+});
+
 await test('screenshots: music library (light) and home', async () => {
   await M(s, (a) => {
     a.toasts.replaceChildren();
@@ -1204,6 +1404,96 @@ await test('codec matrix: every supported extension plays (needs ffmpeg to build
   }
 });
 
+await test('files opened while the window is still starting are not dropped', async () => {
+  await s.aurora(() => window.__aurora.wm.byApp('media').forEach((w) => w.close(true)));
+  await s.page.waitForFunction(() => !document.querySelector('.win.app-media'), null, { timeout: 5000 });
+  const files = [path.join(D, 'hello.wav'), path.join(D, 'second.wav')];
+  await s.aurora(async (list) => {
+    window.__aurora.shell.launch('media', { file: list[0] });
+    await new Promise((r) => setTimeout(r, 30));
+    window.__aurora.shell.launch('media', { file: list[1] });
+  }, files);
+  await waitFor(s, (a, n) => a && a.queue.length === n, files.length, { what: 'both files queued' }).catch(async (err) => {
+    console.log('      state:', JSON.stringify(await M(s, (a) => a && { q: a.queue.items.map((i) => i.path), failed: a._failed, args: a.ctx.args })));
+    throw err;
+  });
+  assert.deepEqual(await M(s, (a) => a.queue.items.map((i) => i.path)), files);
+  assert.equal(await s.aurora(() => window.__aurora.wm.byApp('media').length), 1);
+});
+
+await test('no leaks: open, use and close the player repeatedly', async () => {
+  const cdp = await s.page.context().newCDPSession(s.page);
+  await s.page.evaluate((W) => {
+    window.__mpProto = Object.getPrototypeOf([...document.querySelectorAll(W)].pop().__media);
+    window.__ac = { made: 0, closed: 0 };
+    const AC = window.AudioContext;
+    window.AudioContext = class extends AC {
+      constructor(...a) {
+        super(...a);
+        window.__ac.made++;
+      }
+      close() {
+        window.__ac.closed++;
+        return super.close();
+      }
+    };
+  }, WIN);
+  const closeAll = async () => {
+    await s.aurora(() => window.__aurora.wm.byApp('media').forEach((w) => w.close(true)));
+    await s.page.waitForFunction(() => !document.querySelector('.win.app-media'), null, { timeout: 5000 });
+    await wait(s, 600);
+  };
+  const inotify = () => {
+    let n = 0;
+    const pid = s.app.process().pid;
+    for (const fd of fs.readdirSync(`/proc/${pid}/fd`)) {
+      try {
+        if (fs.readlinkSync(`/proc/${pid}/fd/${fd}`).includes('inotify')) n += fs.readFileSync(`/proc/${pid}/fdinfo/${fd}`, 'utf8').split('\n').filter((l) => l.startsWith('inotify')).length;
+      } catch {}
+    }
+    return n;
+  };
+  const counts = async () => {
+    await cdp.send('HeapProfiler.collectGarbage');
+    const proto = await cdp.send('Runtime.evaluate', { expression: 'window.__mpProto' });
+    const { objects } = await cdp.send('Runtime.queryObjects', { prototypeObjectId: proto.result.objectId });
+    const { result } = await cdp.send('Runtime.callFunctionOn', { objectId: objects.objectId, functionDeclaration: 'function () { return this.length; }', returnByValue: true });
+    await cdp.send('Runtime.releaseObject', { objectId: objects.objectId });
+    const doc = await cdp.send('Runtime.evaluate', { expression: 'document' });
+    const win = await cdp.send('Runtime.evaluate', { expression: 'window' });
+    const docL = (await cdp.send('DOMDebugger.getEventListeners', { objectId: doc.result.objectId })).listeners.length;
+    const winL = (await cdp.send('DOMDebugger.getEventListeners', { objectId: win.result.objectId })).listeners.length;
+    const wmL = await s.page.evaluate(() => [...window.__aurora.wm._h.values()].reduce((n, set) => n + set.size, 0));
+    return { apps: result.value, docL, winL, wmL, inotify: inotify() };
+  };
+  await closeAll();
+  const c0 = await counts();
+  for (let i = 0; i < 6; i++) {
+    await s.aurora(() => window.__aurora.shell.launch('media'));
+    await s.page.waitForFunction((W) => !!document.querySelector(`${W} .mp`), WIN);
+    await waitFor(s, (a) => a && a.lib.songs().length > 0 && !a.lib.scanning, null, { what: 'library' });
+    await M(s, (a, i) => a.playEntries(i === 2 ? a.lib.videos() : a.lib.songs(), 0, { openStage: true }), i);
+    await waitFor(s, (a) => !a.player.paused, null, { what: 'playing' });
+    if (i === 1) await s.page.click(`${WIN} .mp-bar .mp-vol`);
+    if (i === 2) await M(s, (a) => a.toggleMini(true));
+    if (i === 3) await s.aurora(() => window.__aurora.i18n.setLang('fr'));
+    if (i === 4) await s.aurora(() => window.__aurora.i18n.setLang('en'));
+    if (i === 5) await M(s, (a) => a.go({ name: 'music' }));
+    await wait(s, 300);
+    await closeAll();
+  }
+  await wait(s, 800);
+  const c1 = await counts();
+  const ac = await s.page.evaluate(() => window.__ac);
+  assert.ok(c1.apps <= c0.apps, `MediaApp instances: ${c0.apps} -> ${c1.apps}`);
+  assert.deepEqual({ docL: c1.docL, winL: c1.winL, wmL: c1.wmL, inotify: c1.inotify }, { docL: c0.docL, winL: c0.winL, wmL: c0.wmL, inotify: c0.inotify }, 'listeners and watchers are released');
+  assert.equal(ac.made, ac.closed, `AudioContexts closed: ${JSON.stringify(ac)}`);
+  await cdp.detach();
+  // leave a player open for the rest of the session
+  await s.aurora(() => window.__aurora.shell.launch('media'));
+  await s.page.waitForFunction((W) => !!document.querySelector(`${W} .mp`), WIN);
+});
+
 await test('no console errors from the app (en/light session)', async () => {
   assert.deepEqual(appErrors(s), []);
 });
@@ -1264,6 +1554,26 @@ await test('French UI strings and dark theme', async () => {
   await M(f, (a) => a.go({ name: 'settings' }));
   assert.deepEqual(await overflowCheck(f), []);
   await shot(f, 'fr-dark-settings');
+});
+
+await test('French: keyboard key names are translated (shortcuts dialog, menus)', async () => {
+  await M(f, (a) => {
+    a.showShortcuts();
+  });
+  await f.page.waitForSelector(`${WIN} .mp-keys-dialog`);
+  const keys = await f.page.$$eval(`${WIN} .mp-keys-dialog kbd`, (els) => els.map((e) => e.textContent));
+  assert.ok(keys.includes('Espace / K'), keys.join(' | '));
+  assert.ok(keys.includes('Échap'), keys.join(' | '));
+  assert.ok(keys.includes('Ctrl+Maj+O') && keys.includes('Ctrl+Maj+M'), keys.join(' | '));
+  assert.ok(!keys.some((k) => /Shift|Space|Esc\b/.test(k)), keys.join(' | '));
+  await f.page.waitForFunction(() => !!document.activeElement?.closest('.mp-keys-dialog'));
+  await press(f, 'Escape');
+  await f.page.waitForFunction((W) => !document.querySelector(`${W} .dialog-layer`), WIN);
+  await f.page.click(`${WIN} .mp-bar .mp-more`);
+  await f.page.waitForSelector('.menu .menu-item');
+  const shortcuts = await f.page.$$eval('.menu .menu-item .shortcut', (els) => els.map((e) => e.textContent));
+  assert.deepEqual(shortcuts, ['Ctrl+O', 'Ctrl+Maj+O']);
+  await press(f, 'Escape');
 });
 
 await test('minimum window size (500×460): compact layout still works', async () => {

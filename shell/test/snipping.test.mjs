@@ -157,11 +157,13 @@ async function chooseMode(s, mode) {
 async function newSnip(s) {
   await s.page.click(`${WIN} .snip-new`);
 }
+// (a dialog that is closing stays in the DOM for its fade-out: only ever drive the live one)
+const FP = '.dialog-layer:not(.closing) .fp-dialog';
 async function savePicker(s, name) {
-  await s.page.waitForSelector('.fp-dialog', { timeout: 5000 });
-  const input = s.page.locator('.fp-dialog .fp-bottom input');
+  await s.page.waitForSelector(FP, { timeout: 5000 });
+  const input = s.page.locator(`${FP} .fp-bottom input`);
   await input.fill(name);
-  await s.page.click('.fp-dialog .dialog-footer .btn.primary');
+  await s.page.click(`${FP} .dialog-footer .btn.primary`);
 }
 
 // Probe geometry: a red window body; the title bar is 32 px tall.
@@ -231,6 +233,26 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     assert.equal(stored?.mode, 'free');
     assert.equal(stored?.delay, 5);
     await S(s, (app) => (app.setMode('rect'), app.setDelay(0)));
+    // Windows shortcuts: Alt+M opens the mode menu and Alt+D the delay menu, under their buttons.
+    await S(s, (app) => app.btnNew.focus());
+    await s.page.keyboard.press('Alt+m');
+    await s.page.waitForSelector('.menu .menu-item');
+    // (style.top: the menu's opening animation offsets its bounding box)
+    const m = await A(s, () => ({ items: [...document.querySelectorAll('.menu .menu-item .label')].map((e) => e.textContent), top: parseFloat(document.querySelector('.menu').style.top) }));
+    assert.deepEqual(m.items, ['Rectangle', 'Window', 'Full screen', 'Free-form']);
+    const btnBottom = await S(s, (app) => app.btnMode.getBoundingClientRect().bottom);
+    assert.ok(m.top >= btnBottom, 'the mode menu opens under its button');
+    await s.page.keyboard.press('ArrowDown');
+    await s.page.keyboard.press('ArrowDown');
+    await s.page.keyboard.press('Enter');
+    assert.equal(await S(s, (app) => app.prefs.mode), 'window', 'mode picked with the keyboard');
+    await s.page.keyboard.press('Alt+d');
+    await s.page.waitForSelector('.menu .menu-item');
+    assert.deepEqual(await A(s, () => [...document.querySelectorAll('.menu .menu-item .label')].map((e) => e.textContent)), ['No delay', '3 seconds', '5 seconds', '10 seconds']);
+    await s.page.keyboard.press('Escape');
+    assert.equal(await A(s, () => !!document.querySelector('.menu')), false);
+    assert.equal(await S(s, (app, el) => el.querySelector('.snip-mode').getAttribute('aria-keyshortcuts')), 'Alt+M');
+    await S(s, (app) => app.setMode('rect'));
   });
 
   await test('full-screen snip: PNG of the whole screen, auto-saved, on the clipboard, app window not captured', async () => {
@@ -328,6 +350,23 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     assert.ok(near(info.body, [0, 0, 255, 255], 3), `window body is blue (${info.body})`);
   });
 
+  await test('window snip: the window under the pointer is highlighted as soon as the overlay opens', async () => {
+    const rect = await A(s, () => window.__aurora.wm.list().find((x) => x.title === 'Probe 2').rect());
+    await s.page.mouse.move(rect.x + 120, rect.y + 140);
+    await chooseMode(s, 'window');
+    await S(s, (app) => {
+      app.newSnip(); // (no click: the pointer stays over Probe 2)
+    });
+    await overlayUp(s);
+    const target = await A(s, () => document.querySelector('.snip-overlay').__snip.state.target);
+    assert.equal(target?.title, 'Probe 2', 'highlighted without moving the pointer');
+    assert.notEqual(await A(s, () => getComputedStyle(document.querySelector('.snip-overlay .snip-win-outline')).display), 'none');
+    await s.page.keyboard.press('Enter');
+    await overlayGone(s);
+    await editorShown(s);
+    assert.deepEqual(await S(s, (app) => [app.editor.W, app.editor.H]), [rect.width, rect.height]);
+  });
+
   await test('Esc cancels a snip and restores the app window as it was', async () => {
     const before = shots(home).length;
     const prev = await S(s, (app) => ({ view: app.view, W: app.editor.W, rect: app.win.rect() }));
@@ -348,8 +387,9 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     assert.deepEqual(now.rect, prev.rect);
     assert.equal(now.vis, 'visible');
     assert.equal(shots(home).length, before, 'nothing saved');
-    // The X button of the overlay toolbar cancels too.
-    await newSnip(s);
+    // The X button of the overlay toolbar cancels too (snip started with Alt+N this time).
+    await S(s, (app) => app.editor.el.focus());
+    await s.page.keyboard.press('Alt+n');
     await overlayUp(s);
     await s.page.click('.snip-overlay .snip-bar-close');
     await overlayGone(s);
@@ -377,6 +417,51 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     const file = await S(s, (app) => app.snip.savedPath);
     assert.equal((await filePixel(s, file, 1, 1))[3], 0, 'saved PNG keeps the transparency');
     await chooseMode(s, 'rect');
+  });
+
+  await test('keyboard rectangle selection: arrows move the crosshair, Shift+arrows select, Enter snips', async () => {
+    await chooseMode(s, 'rect');
+    // The keyboard crosshair starts at the pointer, over the red probe body.
+    await s.page.mouse.move(PROBE.x + 100, PROBE.y + 120);
+    await S(s, (app) => {
+      app.newSnip();
+    });
+    await overlayUp(s);
+    const k = s.page.keyboard;
+    for (let i = 0; i < 2; i++) await k.press('ArrowRight');
+    await k.press('ArrowDown');
+    for (let i = 0; i < 10; i++) await k.press('Shift+ArrowRight');
+    for (let i = 0; i < 6; i++) await k.press('Shift+ArrowDown');
+    await k.press('Control+Shift+ArrowLeft');
+    const sel = await A(s, () => {
+      const o = document.querySelector('.snip-overlay');
+      return { kb: o.__snip.state.kb, rect: o.__snip.state.rect, label: o.querySelector('.snip-size').textContent, cross: getComputedStyle(o.querySelector('.snip-kb-cursor')).display, hint: o.querySelector('.snip-ov-hint').textContent };
+    });
+    assert.deepEqual(sel.kb.anchor, [PROBE.x + 120, PROBE.y + 130]);
+    assert.deepEqual(sel.rect, { x: PROBE.x + 120, y: PROBE.y + 130, width: 99, height: 60 });
+    assert.equal(sel.label, '99 × 60');
+    assert.equal(sel.cross, 'block', 'keyboard crosshair shown');
+    assert.match(sel.hint, /Shift \+ arrow keys/);
+    // Plain arrows move the whole selection.
+    await k.press('ArrowLeft');
+    assert.deepEqual(await A(s, () => document.querySelector('.snip-overlay').__snip.state.rect), { x: PROBE.x + 110, y: PROBE.y + 130, width: 99, height: 60 });
+    await s.shot('snipping-overlay-keyboard-light-en');
+    fs.copyFileSync(path.join(here, 'out', 'snipping-overlay-keyboard-light-en.png'), path.join(DOCS, 'snipping-overlay-keyboard.png'));
+    await k.press('Enter');
+    await overlayGone(s);
+    await editorShown(s);
+    const info = await S(s, (app) => ({ W: app.editor.W, H: app.editor.H, px: app.editor.pixel(50, 30), focus: document.activeElement === app.editor.el, quiet: app.editor.el.classList.contains('quiet'), ring: getComputedStyle(app.editor.wrap).outlineStyle }));
+    assert.deepEqual([info.W, info.H], [99, 60]);
+    assert.ok(near(info.px, [255, 0, 0, 255], 3), `red probe body (${info.px})`);
+    // The canvas has the keyboard focus but no focus ring (it would look like a border on the snip)…
+    assert.equal(info.focus, true);
+    assert.equal(info.quiet, true);
+    assert.equal(info.ring, 'none');
+    // …until the user tabs to it.
+    await S(s, (app) => app.btnMore.focus());
+    await k.press('Tab');
+    const tabbed = await S(s, (app) => ({ focus: document.activeElement === app.editor.el, ring: getComputedStyle(app.editor.wrap).outlineStyle }));
+    assert.deepEqual(tabbed, { focus: true, ring: 'solid' });
   });
 
   await test('annotation: pen, highlighter (multiply), stroke eraser, undo / redo', async () => {
@@ -584,7 +669,12 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
   });
 
   await test('Save as (Ctrl+S): PNG and JPEG through the file picker', async () => {
+    // A double Ctrl+S opens a single picker.
     await s.page.keyboard.press('Control+s');
+    await s.page.keyboard.press('Control+s');
+    await s.page.waitForSelector(FP);
+    await sleep(600);
+    assert.equal(await A(s, (q) => document.querySelectorAll(q).length, FP), 1, 'one Save as dialog');
     await savePicker(s, 'annotated');
     const png = path.join(home, 'Pictures', 'Screenshots', 'annotated.png');
     await waitSnip(s, (app, el, p) => app.snip.savedPath === p, png, { what: 'PNG saved' });
@@ -597,13 +687,43 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     await S(s, (app) => {
       app.saveAs();
     });
-    await s.page.waitForSelector('.fp-dialog');
-    await s.page.selectOption('.fp-dialog .fp-bottom select', '1');
+    await s.page.waitForSelector(FP);
+    await s.page.selectOption(`${FP} .fp-bottom select`, '1');
     await savePicker(s, 'annotated-jpeg');
     const jpg = path.join(home, 'Pictures', 'Screenshots', 'annotated-jpeg.jpg');
     await waitSnip(s, (app, el, p) => app.snip.savedPath === p, jpg, { what: 'JPEG saved' });
     const head = fs.readFileSync(jpg).subarray(0, 3);
     assert.deepEqual([...head], [0xff, 0xd8, 0xff], 'JPEG magic');
+  });
+
+  await test('a hotkey snip while Save as is open does not swap the image under the dialog', async () => {
+    await A(s, () => window.__aurora.notifications.clear());
+    const size = await S(s, (app) => [app.editor.W, app.editor.H]);
+    await S(s, (app) => {
+      app.saveAs();
+    });
+    await s.page.waitForSelector(FP);
+    await A(s, () => {
+      window.__aurora.hotkeys.trigger('PrintScreen');
+    });
+    await overlayUp(s);
+    await drag(s, [[PROBE2.x + 30, PROBE2.y + 70], [PROBE2.x + 130, PROBE2.y + 150]]);
+    await overlayGone(s);
+    const toast = await waitFor(s, () => [...document.querySelectorAll('#toasts .toast .toast-title')].pop()?.textContent, null, { what: 'toast' });
+    assert.equal(toast, 'Snip copied to clipboard');
+    assert.deepEqual(await S(s, (app) => [app.editor.W, app.editor.H]), size, 'the editor keeps the snip being saved');
+    assert.deepEqual(await clipboardImage(s), { w: 100, h: 80 }, 'the new snip is on the clipboard');
+    await savePicker(s, 'kept');
+    const kept = path.join(home, 'Pictures', 'Screenshots', 'kept.png');
+    await waitSnip(s, (app, el, p) => app.snip.savedPath === p, kept, { what: 'kept saved' });
+    assert.deepEqual(pngSize(kept), { w: size[0], h: size[1] }, 'the dialog saved the snip it was opened for');
+    // The toast then opens the new snip.
+    await A(s, () => {
+      const n = window.__aurora.notifications.list().find((x) => x.appId === 'snipping');
+      window.__aurora.notifications.activate(n.id);
+    });
+    await waitSnip(s, (app) => app.editor.W === 100 && app.editor.H === 80, null, { what: 'new snip opened from its toast' });
+    await editorShown(s);
   });
 
   await test('unsaved edits: closing asks Save / Don\'t save / Cancel', async () => {
@@ -653,6 +773,13 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     assert.equal(toast.title, 'Snip copied to clipboard');
     assert.equal(toast.body, 'Select here to mark up and share the image');
     assert.match(toast.app, /Snipping Tool/);
+    // Like Windows 11, the toast shows the snip itself.
+    const thumb = await waitFor(s, () => {
+      const img = [...document.querySelectorAll('#toasts .toast')].pop()?.querySelector('img.snip-toast-img');
+      return img && img.complete && img.naturalWidth ? { w: img.naturalWidth, h: img.naturalHeight, cw: img.getBoundingClientRect().width, tw: img.closest('.toast').clientWidth } : null;
+    }, null, { what: 'toast preview' });
+    assert.deepEqual([thumb.w, thumb.h], [200, 100], 'preview of the 200×100 snip');
+    assert.ok(thumb.cw <= thumb.tw, 'preview fits in the toast');
     await s.shot('snipping-toast-light-en');
     fs.copyFileSync(path.join(here, 'out', 'snipping-toast-light-en.png'), path.join(DOCS, 'snipping-toast.png'));
     // A second snip (Super+Shift+S path), then clicking the first toast reopens the first snip.
@@ -720,6 +847,52 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     assert.deepEqual(await S(s, (app) => app.win.rect()), prevRect);
   });
 
+  await test('cancelled hotkey snip: focus and stacking go back to the active window; a minimized app stays minimized', async () => {
+    await A(s, () => {
+      const w = window.__aurora.wm.create({ appId: 'probe', title: 'Active', x: 140, y: 90, width: 420, height: 300, background: 'solid' });
+      w.body.style.background = 'rgb(0, 160, 0)';
+    });
+    await sleep(350);
+    const active = () => A(s, () => window.__aurora.wm.focused()?.title);
+    assert.equal(await active(), 'Active');
+    await A(s, () => {
+      window.__aurora.hotkeys.trigger('PrintScreen');
+    });
+    await overlayUp(s);
+    await s.page.keyboard.press('Escape');
+    await overlayGone(s);
+    await waitSnip(s, (app) => !app.hidden && !app.session, null, { what: 'window back' });
+    await sleep(200);
+    assert.equal(await active(), 'Active', 'the window the user was in keeps the focus');
+    const z = await A(s, () => {
+      const a = window.__aurora.wm.list().find((w) => w.title === 'Active');
+      const sn = window.__aurora.wm.byApp('snipping')[0];
+      return { active: Number(a.el.style.zIndex), snip: Number(sn.el.style.zIndex) };
+    });
+    assert.ok(z.snip < z.active, `Snipping Tool stays behind it (${JSON.stringify(z)})`);
+    // Minimized Snipping Tool + PrintScreen + Esc: still minimized afterwards.
+    await S(s, (app) => app.win.minimize());
+    await sleep(400);
+    await A(s, () => {
+      window.__aurora.hotkeys.trigger('PrintScreen');
+    });
+    await overlayUp(s);
+    await s.page.keyboard.press('Escape');
+    await overlayGone(s);
+    await sleep(700);
+    const st = await S(s, (app, el) => ({ min: app.win.minimized, hidden: el.classList.contains('snip-hidden'), session: !!app.session }));
+    assert.deepEqual(st, { min: true, hidden: false, session: false });
+    assert.equal(await active(), 'Active');
+    // Restoring it from the taskbar brings it back as usual.
+    await S(s, (app) => app.win.focus());
+    await editorShown(s);
+    await A(s, async () => {
+      for (const w of window.__aurora.wm.list().filter((x) => x.title === 'Active')) await w.close(true);
+    });
+    await S(s, (app) => app.win.focus());
+    await editorShown(s);
+  });
+
   await test('delay: countdown pill, then the overlay', async () => {
     await S(s, (app) => app.setDelay(3));
     await chooseMode(s, 'rect');
@@ -741,6 +914,21 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     await s.page.click('.snip-countdown .snip-cd-x');
     await editorShown(s);
     assert.equal(await A(s, () => !!document.querySelector('.snip-countdown, .snip-overlay')), false);
+    // …and with Esc.
+    await newSnip(s);
+    await s.page.waitForSelector('.snip-countdown');
+    await s.page.keyboard.press('Escape');
+    await editorShown(s);
+    assert.equal(await A(s, () => !!document.querySelector('.snip-countdown, .snip-overlay')), false, 'Esc cancels the countdown');
+    // A delay passed in the launch arguments is clamped (0..30 s).
+    await A(s, () => {
+      window.__aurora.shell.launch('snipping', { mode: 'rect', immediate: true, delay: 1e9 });
+    });
+    await s.page.waitForSelector('.snip-countdown');
+    const n = Number(await A(s, () => document.querySelector('.snip-countdown .snip-cd-num').textContent));
+    assert.ok(n >= 29 && n <= 30, `clamped delay (${n})`);
+    await s.page.click('.snip-countdown .snip-cd-x');
+    await editorShown(s);
     await S(s, (app) => app.setDelay(0));
   });
 
@@ -809,8 +997,10 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
   await test('Edit in Paint opens the snip in Paint', async () => {
     const hasPaint = await A(s, () => !!window.__aurora.registry.get('paint'));
     if (!hasPaint) return;
-    await s.page.click(`${WIN} .snip-paint`);
+    await s.page.dblclick(`${WIN} .snip-paint`); // (a double click opens Paint once)
     await waitFor(s, () => window.__aurora.wm.byApp('paint').length > 0, null, { what: 'paint opened', timeout: 15000 });
+    await sleep(1200);
+    assert.equal(await A(s, () => window.__aurora.wm.byApp('paint').length), 1, 'a single Paint window');
     const p = await S(s, (app) => app.snip.savedPath);
     assert.ok(p && fs.existsSync(p), 'the edited snip was saved for Paint');
     await sleep(1500);
@@ -819,6 +1009,32 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     await A(s, async () => {
       for (const w of window.__aurora.wm.byApp('paint')) await w.close(true);
     });
+  });
+
+  await test('a hotkey snip over an edited snip asks to save it; Cancel keeps the edited snip where it was', async () => {
+    await S(s, (app) => {
+      if (app.win.isMaximized()) app.win.restore();
+    });
+    await sleep(300);
+    const p = await imgClient(s, 20, 20);
+    await s.page.click(`${WIN} .snip-tool[data-tool="pen"]`);
+    await drag(s, [p, [p[0] + 40, p[1] + 25]]);
+    assert.equal(await S(s, (app) => app.needsSave()), true);
+    const before = await S(s, (app) => ({ rect: app.win.rect(), W: app.editor.W, n: app.editor.strokes.length }));
+    const files = shots(home).length;
+    await A(s, () => {
+      window.__aurora.hotkeys.trigger('PrintScreen');
+    });
+    await overlayUp(s);
+    await drag(s, [[PROBE2.x + 20, PROBE2.y + 60], [PROBE2.x + 120, PROBE2.y + 120]]);
+    await s.page.waitForSelector(`${WIN} .dialog-layer:not(.closing) .dialog`);
+    await s.page.locator(`${WIN} .dialog-layer:not(.closing) .dialog .btn`, { hasText: 'Cancel' }).click();
+    await sleep(500);
+    const after = await S(s, (app) => ({ rect: app.win.rect(), W: app.editor.W, n: app.editor.strokes.length, view: app.view, hidden: app.hidden }));
+    assert.deepEqual(after, { ...before, view: 'editor', hidden: false }, 'same snip, same window rect');
+    assert.equal(shots(home).length, files + 1, 'the new snip was still auto-saved');
+    await S(s, (app) => app.editor.undo());
+    await S(s, (app) => app.editor.markSaved());
   });
 
   await test('editor at minimum size moves the tools to a second row; maximized keeps one row', async () => {
@@ -865,6 +1081,7 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     await s.page.locator('.menu .menu-item', { hasText: 'About' }).click();
     await s.page.waitForSelector('.snip-about-dialog');
     assert.match(await A(s, () => document.querySelector('.snip-about-dialog').textContent), /About Snipping Tool.*Version/s);
+    assert.equal(await A(s, () => document.querySelector('.snip-about-dialog').classList.contains('app-snipping')), true, 'dialog styles are scoped to the app');
     await s.page.locator('.snip-about-dialog .btn.primary').click();
     await A(s, () => window.__aurora.settings.set('lang', 'fr'));
     await waitSnip(s, (app, el) => el.querySelector('.snip-new')?.textContent === 'Nouveau', null, { what: 'French labels' });
@@ -872,6 +1089,30 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     assert.equal(await S(s, (app) => app.editor.hasImage && app.view), 'editor', 'the snip survives the language switch');
     await A(s, () => window.__aurora.settings.set('lang', 'en'));
     await waitSnip(s, (app, el) => el.querySelector('.snip-new')?.textContent === 'New', null, { what: 'English labels' });
+  });
+
+  await test('125 % display scaling: the size label matches the snip exactly', async () => {
+    await closeSnipping(s);
+    await A(s, () => window.__aurora.api.invoke('shell:zoom', 1.25));
+    await sleep(800);
+    assert.deepEqual(await A(s, () => [innerWidth, devicePixelRatio]), [1280, 1.25]);
+    await A(s, () => {
+      window.__aurora.shell.launch('snipping', { mode: 'rect', immediate: true });
+    });
+    await overlayUp(s);
+    await s.page.mouse.move(251, 201);
+    await s.page.mouse.down();
+    await s.page.mouse.move(351, 262, { steps: 5 });
+    const label = await A(s, () => document.querySelector('.snip-overlay .snip-size').textContent);
+    await s.page.mouse.up();
+    await editorShown(s);
+    const size = await S(s, (app) => `${app.editor.W} × ${app.editor.H}`);
+    assert.equal(label, size, 'label and snip agree');
+    const [w, hh] = size.split(' × ').map(Number);
+    assert.ok(Math.abs(w - 125) <= 1 && Math.abs(hh - 76) <= 1, `device-pixel size (${size})`);
+    await closeSnipping(s);
+    await A(s, () => window.__aurora.api.invoke('shell:zoom', 1));
+    await sleep(800);
   });
 
   await test('no console errors (light / English session)', async () => {
@@ -893,6 +1134,20 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
   const s = await launchShell({ open: [], lang: 'fr', theme: 'dark' });
   current = s;
   const home = s.home;
+
+  await test('double PrintScreen on the very first launch: one window, one overlay', async () => {
+    await A(s, () => {
+      window.__aurora.hotkeys.trigger('PrintScreen');
+      window.__aurora.hotkeys.trigger('PrintScreen');
+    });
+    await overlayUp(s);
+    await sleep(800);
+    assert.equal(await A(s, () => document.querySelectorAll('.snip-overlay').length), 1, 'a single overlay');
+    assert.equal(await A(s, () => window.__aurora.wm.byApp('snipping').filter((w) => !w._closing).length), 1, 'a single window');
+    await s.page.keyboard.press('Escape');
+    await overlayGone(s);
+    await waitFor(s, () => window.__aurora.wm.byApp('snipping').length === 0, null, { what: 'closed again' });
+  });
 
   await test('FR / dark: compact window strings fit', async () => {
     await s.page.mouse.click(1500, 400);
@@ -954,6 +1209,11 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     await s.page.keyboard.press('Escape');
     const tips = await S(s, (app, el) => ['.snip-save', '.snip-copy', '.snip-undo', '.snip-tool[data-tool="crop"]'].map((q) => el.querySelector(q).getAttribute('aria-label')));
     assert.deepEqual(tips, ['Enregistrer sous (Ctrl+S)', 'Copier (Ctrl+C)', 'Annuler (Ctrl+Z)', "Rogner l'image"]);
+    // French typography: "100 %", "Mode de capture : Rectangle".
+    const fr = await S(s, (app, el) => ({ zoom: el.querySelector('.snip-zoom-label').textContent, mode: el.querySelector('.snip-mode').getAttribute('aria-label'), delay: el.querySelector('.snip-delay').dataset.tip }));
+    assert.match(fr.zoom, /^\d+ %$/);
+    assert.equal(fr.mode, 'Mode de capture : Rectangle');
+    assert.equal(fr.delay, 'Délai de capture : Aucun délai');
   });
 
   await test('FR / dark: settings page and min size', async () => {
@@ -1003,6 +1263,58 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     const px = await S(s, (app, el, r) => app.editor.pixel(r.x + r.w / 2, r.y + r.h / 2), rect);
     assert.ok(near(px, [0, 200, 83, 255], 6), `webview content is in the snip (${px})`);
     await s.shot('snipping-webview-dark-fr');
+  });
+
+  await test('FR: unusable Screenshots folder -> error dialogs (Open folder, auto-save), the snip still works', async () => {
+    await closeSnipping(s);
+    await openSnipping(s);
+    const dir = path.join(home, 'Pictures', 'Screenshots');
+    fs.renameSync(dir, `${dir}.bak`);
+    fs.writeFileSync(dir, 'not a folder');
+    const DLG = '.dialog-layer:not(.closing) .dialog';
+    try {
+      await S(s, (app) => {
+        app.openScreenshotsFolder();
+      });
+      await s.page.waitForSelector(DLG);
+      assert.match(await A(s, (q) => document.querySelector(q).textContent, DLG), /Impossible d'ouvrir le dossier Screenshots/);
+      await s.page.locator(`${DLG} .btn.primary`).click();
+      await sleep(300);
+      assert.equal(await A(s, () => window.__aurora.wm.byApp('files').length), 0, 'no file manager on a broken path');
+      await A(s, () => {
+        window.__aurora.shell.launch('snipping', { mode: 'full', immediate: true });
+      });
+      await s.page.waitForSelector(DLG, { timeout: 15000 });
+      assert.match(await A(s, (q) => document.querySelector(q).textContent, DLG), /La capture n'a pas pu être enregistrée dans le dossier Screenshots/);
+      await s.page.locator(`${DLG} .btn.primary`).click();
+      // (the browser tab of the previous test must not take the focus back when the dialog closes)
+      await editorShown(s);
+      assert.equal(await A(s, () => window.__aurora.wm.focused()?.appId), 'snipping');
+      assert.deepEqual(await S(s, (app) => [app.editor.W, app.snip.savedPath]), [1600, null]);
+      assert.deepEqual(await clipboardImage(s), { w: 1600, h: 900 }, 'still copied');
+    } finally {
+      fs.unlinkSync(dir);
+      fs.renameSync(`${dir}.bak`, dir);
+    }
+  });
+
+  await test('FR: error messages are fully translated (broken image, missing file)', async () => {
+    const DLG = '.dialog-layer:not(.closing) .dialog';
+    const broken = path.join(home, 'Pictures', 'cassée.png');
+    fs.writeFileSync(broken, 'pas une image');
+    for (const [file, reason] of [
+      [broken, "Ce fichier n'est pas une image dans un format pris en charge."],
+      [path.join(home, 'Pictures', 'absente.png'), 'Le fichier ou le dossier est introuvable.'],
+    ]) {
+      await S(s, (app, el, p) => {
+        app.openPath(p);
+      }, file);
+      await s.page.waitForSelector(DLG);
+      const text = await A(s, (q) => [...document.querySelector(q).querySelectorAll('.dialog-title, .dialog-body > :not(.dialog-title)')].map((e) => e.textContent), DLG);
+      assert.deepEqual(text, ['Outil Capture', `Impossible d'ouvrir cette image. ${reason}`], 'no English system text');
+      await s.page.locator(`${DLG} .btn.primary`).click();
+      await sleep(250);
+    }
   });
 
   await test('no console errors (dark / French session)', async () => {

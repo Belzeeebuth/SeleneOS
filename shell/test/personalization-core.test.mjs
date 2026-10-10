@@ -526,6 +526,231 @@ console.log('\n# Profiles');
   await setKey(s, 'textScale', 100, 300);
 }
 
+console.log('\n# Security (settings backend + profile import)');
+{
+  const r = await T(s, async () => {
+    const A = window.__aurora;
+    const code = (p) => p.then(() => 'accepted', (e) => e.code || e.message);
+    return {
+      set: await code(A.api.invoke('settings:set', '__proto__.polluted', 'yes')),
+      set2: await code(A.api.invoke('settings:set', 'constructor.prototype.polluted', 'yes')),
+      reset: await code(A.api.invoke('settings:reset', '__proto__.toString')),
+      empty: await code(A.api.invoke('settings:set', 'a..b', 1)),
+    };
+  });
+  const main = await s.app.evaluate(() => [({}).polluted, typeof ({}).toString]);
+  check(r.set === 'EINVAL' && r.set2 === 'EINVAL' && r.reset === 'EINVAL' && r.empty === 'EINVAL' && main[0] === undefined && main[1] === 'function', `settings:set / settings:reset refuse prototype keys; the main process is not polluted (${JSON.stringify(r)})`);
+  const v = await T(s, async () => {
+    const { profiles } = window.__aurora.theme;
+    const values = {
+      cursorPack: '"); background: url(javascript:alert(1)',
+      iconPack: 'fluent',
+      soundPack: 'a'.repeat(500),
+      'taskbar.position': 'diagonal',
+      'taskbar.size': 'large',
+      'taskbar.widgets': ['weather', { evil: 1 }, '<img src=x onerror=alert(1)>'],
+      'start.background': 'url(x)',
+      'start.folders': ['documents', '../../root'],
+      'start.groups': [{ id: 'g', name: `<b>${'x'.repeat(200)}`, apps: ['files', 7, '"x'] }],
+      snapPresets: [{ id: 'p', name: 'n', zones: [{ x: -5, y: 'a', w: 2, h: 1e9 }, { x: 0, y: 0, w: 0.5, h: 1 }, { x: 0.8, y: 0, w: 0.5, h: 1 }] }],
+      shortcuts: { 'shell.start': 'Super+S', evil: { nested: true }, 'x"y': 'Ctrl+K', inject: 'Ctrl+<script>', off: null },
+      soundEvents: { notification: '/etc/shadow', startup: 'javascript:alert(1)', shutdown: '/usr/share/sounds/x.ogg' },
+      focusMode: { active: true, dimLevel: 900, hideNotifications: 'yes', duration: 30 },
+      wallpaperMode: 'evil',
+      animatedWallpaper: { id: '"><x>', speed: 40 },
+      dynamicWallpaper: { source: 'weather', set: 'bloom', location: { name: '<b>Paris</b>', lat: 48.8, lon: 2.3 } },
+      appThemes: JSON.parse('{"__proto__": {"theme":"dark","accent":null}, "constructor": {"theme":"dark","accent":null}, "calculator": {"theme":"dark","accent":"#112233"}}'),
+      wallpaper: 'https://tracker.example/pixel.png',
+      lockWallpaper: `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"><image href="https://tracker.example/x.png"/></svg>')}`,
+    };
+    const p = await profiles.importJson(JSON.stringify({ format: 'aurora-profile', version: 1, name: 'fuzz', values }));
+    await profiles.remove(p.id);
+    return p.values;
+  });
+  check(!('cursorPack' in v) && v.iconPack === 'fluent' && !('soundPack' in v) && !('taskbar.position' in v) && v['taskbar.size'] === 'large' && JSON.stringify(v['taskbar.widgets']) === '["weather"]' && !('start.background' in v) && JSON.stringify(v['start.folders']) === '["documents"]', 'import: pack ids, taskbar and Start values are strictly validated (no CSS / HTML injection, no path tricks)');
+  check(JSON.stringify(v['start.groups'][0].apps) === '["files"]' && v['start.groups'][0].name.length <= 60 && !/[<>]/.test(v['start.groups'][0].name) && JSON.stringify(v.snapPresets[0].zones) === '[{"x":0,"y":0,"w":0.5,"h":1}]', 'import: Start groups and snap layout zones are validated (bounded names, zones inside the screen)');
+  check(JSON.stringify(v.shortcuts) === '{"shell.start":"Super+S","off":null}' && JSON.stringify(v.soundEvents) === '{"shutdown":"/usr/share/sounds/x.ogg"}' && JSON.stringify(v.focusMode) === '{"duration":30}', `import: shortcuts, sound files and focus mode values are validated (${JSON.stringify(v.shortcuts)} ${JSON.stringify(v.soundEvents)})`);
+  check(!('wallpaperMode' in v) && !('animatedWallpaper' in v) && v.dynamicWallpaper?.location?.lat === 48.8 && JSON.stringify(Object.keys(v.appThemes)) === '["calculator"]' && !('wallpaper' in v) && !('lockWallpaper' in v), `import: wallpaper values validated; no prototype keys; remote pictures (tracking) refused (${JSON.stringify(v.dynamicWallpaper)})`);
+}
+
+{
+  // an error inside the cross-fade (e.g. settings:setMany refusing a patch) reaches the caller, and the UI is not stuck
+  const tr = await T(s, async () => {
+    const code = await window.__aurora.theme
+      .transition(async () => {
+        throw Object.assign(new Error('boom'), { code: 'EBOOM' });
+      })
+      .then(() => 'resolved', (e) => e.code);
+    return { code, switching: document.documentElement.classList.contains('theme-switching') };
+  });
+  check(tr.code === 'EBOOM' && !tr.switching, `theme.transition(): errors reach the caller, the cross-fade ends (${JSON.stringify(tr)})`);
+}
+
+console.log('\n# Auto mode respects a manual choice');
+{
+  const r = await T(s, async () => {
+    const A = window.__aurora;
+    const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+    const now = new Date();
+    const hm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const cfg = { enabled: true, light: hm(new Date(now.getTime() + 3600e3)), dark: hm(new Date(now.getTime() - 60e3)) };
+    await A.settings.set('autoTheme', cfg);
+    await wait(700);
+    const auto = A.settings.get('theme');
+    await A.settings.set('theme', 'light'); // quick settings "dark mode" off
+    await wait(400);
+    await A.api.invoke('settings:setMany', { blur: 45 }); // any other change
+    await wait(700);
+    const kept = A.settings.get('theme');
+    await A.settings.set('autoTheme', { ...cfg, enabled: false });
+    await A.settings.set('autoTheme', cfg); // turning Auto on again applies the schedule
+    await wait(700);
+    const again = A.settings.get('theme');
+    await A.api.invoke('settings:setMany', { autoTheme: { enabled: false, light: '07:00', dark: '19:00' }, theme: 'light' }, { reset: ['blur'] });
+    await wait(600);
+    return { auto, kept, again };
+  });
+  await waitTransitions(s);
+  check(r.auto === 'dark' && r.kept === 'light' && r.again === 'dark', `Auto mode: a manual light/dark choice is kept until the next boundary, re-enabling Auto applies the schedule (${JSON.stringify(r)})`);
+}
+
+console.log('\n# Title bars, clock, tooltips, motion, Mica');
+{
+  // tabs / fields that apps put in the title bar stay readable where a style recolours the title bar
+  const tabRatio = async () =>
+    T(s, () => {
+      const w = window.__aurora.wm.byApp('notepad')[0];
+      w.focus();
+      const tab = w.el.querySelector('.win-tb-slot .active');
+      const lum = (c) => {
+        const p = (c.match(/[\d.]+/g) || []).map(Number);
+        const f = (x) => ((x /= 255) <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
+        return 0.2126 * f(p[0]) + 0.7152 * f(p[1]) + 0.0722 * f(p[2]);
+      };
+      const bgEl = tab.querySelector(':scope > [class$="-bg"]') || tab;
+      const [a, b] = [lum(getComputedStyle(tab).color), lum(getComputedStyle(bgEl).backgroundColor)].sort((x, y) => y - x);
+      return Math.round(((a + 0.05) / (b + 0.05)) * 10) / 10;
+    });
+  const ratios = {};
+  for (const [st, mode] of [['retro', 'light'], ['retro', 'dark'], ['contrast', 'dark'], ['contrast', 'light']]) {
+    await T(s, ([a, b]) => window.__aurora.api.invoke('settings:setMany', { style: a, theme: b }), [st, mode]);
+    await sleep(900);
+    await waitTransitions(s);
+    ratios[`${st}-${mode}`] = await tabRatio();
+  }
+  check(Object.entries(ratios).every(([k, x]) => x >= (k.startsWith('contrast') ? 7 : 4.5)), `Notepad's tab in the title bar is readable in Retro and High contrast (${JSON.stringify(ratios)})`);
+  // the taskbar clock fits the taskbar at the largest text size
+  await T(s, () => window.__aurora.api.invoke('settings:setMany', { style: 'retro', theme: 'light', textScale: 150 }));
+  await sleep(900);
+  const clock = await T(s, () => {
+    const c = document.querySelector('#taskbar .tb-clock-text').getBoundingClientRect();
+    const tb = document.getElementById('taskbar').getBoundingClientRect();
+    return { inside: c.top >= tb.top && c.bottom <= tb.bottom, fs: getComputedStyle(document.querySelector('#taskbar .tb-clock')).fontSize };
+  });
+  check(clock.inside, `text size 150 %: the taskbar clock stays inside the taskbar (${clock.fs})`);
+  await T(s, () => window.__aurora.api.invoke('settings:setMany', {}, { reset: ['style', 'theme', 'textScale'] }));
+  await sleep(900);
+  await waitTransitions(s);
+  // tooltips over a window with its own theme use that theme
+  await T(s, () => window.__aurora.settings.set('appThemes', { notepad: { theme: 'dark', accent: null } }));
+  await sleep(400);
+  const tipBox = await T(s, () => {
+    window.__aurora.wm.byApp('notepad')[0].focus();
+    const el = document.querySelector('#windows > .win.app-notepad [data-tip]');
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await s.page.mouse.move(tipBox.x, tipBox.y);
+  await sleep(1000);
+  const tip = await T(s, () => document.querySelector('body > .tooltip')?.dataset.theme || null);
+  await s.page.mouse.move(800, 880);
+  await T(s, () => window.__aurora.settings.set('appThemes', {}));
+  check(tip === 'dark', `a tooltip over a dark-themed app window is dark (system light) (${tip})`);
+  // reduced motion: infinite animations play once (no flickering spinners)
+  await setKey(s, 'reducedMotion', true);
+  const iter = await T(s, () => {
+    const el = window.__t.probe('<div style="animation: spin 1s linear infinite"></div>');
+    return getComputedStyle(el).animationIterationCount;
+  });
+  await setKey(s, 'reducedMotion', false);
+  check(iter === '1', `reduced motion: infinite animations run once (${iter})`);
+  // dragging the blur slider re-blurs the Mica copy once, when it rests
+  const mica = await T(s, async () => {
+    let n = 0;
+    const off = window.__aurora.theme.on('mica', () => n++);
+    for (let i = 0; i < 12; i++) {
+      window.__aurora.settings.set('blur', 30 + i * 4);
+      await new Promise((r) => setTimeout(r, 70));
+    }
+    await new Promise((r) => setTimeout(r, 900));
+    off?.();
+    await window.__aurora.settings.set('blur', 50);
+    return n;
+  });
+  check(mica >= 1 && mica <= 2, `blur slider drag: the wallpaper copy is re-blurred ${mica}× for 12 steps`);
+  await sleep(500);
+}
+
+console.log('\n# Leaks');
+{
+  const r = {};
+  await T(s, async () => {
+    const A = window.__aurora;
+    const count = () => ({ nodes: document.getElementsByTagName('*').length, head: document.head.children.length, sheets: document.styleSheets.length });
+    const before = count();
+    const styles = ['win11', 'minimal', 'glass', 'retro', 'contrast'];
+    for (let i = 0; i < 20; i++) {
+      await A.settings.set('style', styles[i % 5]);
+      await A.settings.set('theme', i % 2 ? 'dark' : 'light');
+      await new Promise((res) => setTimeout(res, 50));
+    }
+    await A.api.invoke('settings:setMany', { style: 'win11', theme: 'light' });
+    window.__leakBefore = before;
+  });
+  await sleep(1200);
+  await waitTransitions(s);
+  Object.assign(
+    r,
+    await T(s, () => ({
+      before: window.__leakBefore,
+      after: { nodes: document.getElementsByTagName('*').length, head: document.head.children.length, sheets: document.styleSheets.length },
+      style: document.documentElement.dataset.style,
+      theme: document.documentElement.dataset.theme,
+      switching: document.documentElement.classList.contains('theme-switching'),
+    })),
+  );
+  check(r.after.head === r.before.head && r.after.sheets === r.before.sheets && Math.abs(r.after.nodes - r.before.nodes) < 10 && r.style === 'win11' && r.theme === 'light' && !r.switching, `20 rapid style + mode switches: no leaked nodes / style sheets, screen in sync (${JSON.stringify(r.before)} → ${JSON.stringify(r.after)}, ${r.style}/${r.theme}${r.switching ? ', still switching' : ''})`);
+  // Settings pages release their settings listeners
+  await T(s, async () => {
+    const m = await import('app://shell/core/settings.js');
+    const orig = m.settings.on;
+    window.__subs = new Set();
+    m.settings.__origOn = orig;
+    m.settings.on = function (k, fn) {
+      const off = orig.call(this, k, fn);
+      const tok = {};
+      window.__subs.add(tok);
+      return () => {
+        window.__subs.delete(tok);
+        return off();
+      };
+    };
+  });
+  for (let i = 0; i < 3; i++) {
+    for (const pg of ['themeDesigner', 'profiles', 'visualStyle', 'appThemes', 'colors', 'textSize', 'visualEffects']) {
+      await T(s, (p) => window.__aurora.registry.launch('settings', { page: p }), pg);
+      await sleep(300);
+    }
+  }
+  await sleep(500);
+  const open = await T(s, () => window.__subs.size);
+  await T(s, async () => {
+    const m = await import('app://shell/core/settings.js');
+    m.settings.on = m.settings.__origOn;
+  });
+  check(open <= 12, `Settings pages release their listeners when you navigate (${open} live after 21 page switches)`);
+}
+
 console.log('\n# Settings pages');
 {
   const go = async (page) => {
@@ -574,6 +799,30 @@ console.log('\n# Settings pages');
   await s.page.locator(S('.pz-swatches .pz-swatch[aria-label="#00b294"]')).first().click();
   await sleep(700);
   check((await T(s, () => window.__t.get('accent'))) === '#00b294', 'Theme designer: accent swatch');
+  // keyboard: the style cards and the swatches are one Tab stop each; arrows move, Enter picks, focus stays
+  const kb = await T(s, async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const key = (k) => document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+    const cards = [...document.querySelectorAll('.app-settings .pz-designer .pz-style-card')];
+    const cardStops = cards.filter((c) => c.tabIndex === 0).map((c) => c.dataset.styleId);
+    cards.find((c) => c.tabIndex === 0).focus();
+    key('ArrowRight');
+    const right = document.activeElement.dataset.styleId;
+    key('End');
+    const end = document.activeElement.dataset.styleId;
+    key('Home');
+    const home = document.activeElement.dataset.styleId;
+    const sw = [...document.querySelectorAll('.app-settings .pz-designer .pz-swatches .pz-swatch')];
+    const swStops = sw.filter((b) => b.tabIndex === 0).map((b) => b.getAttribute('aria-label'));
+    sw.find((b) => b.tabIndex === 0).focus();
+    key('ArrowRight');
+    const next = document.activeElement.getAttribute('aria-label');
+    document.activeElement.click();
+    await wait(800);
+    return { cardStops, right, end, home, swStops, next, accent: window.__aurora.settings.get('accent'), focused: document.activeElement.getAttribute('aria-label'), selected: document.activeElement.getAttribute('aria-selected') };
+  });
+  check(kb.cardStops.length === 1 && kb.right !== kb.cardStops[0] && kb.end === 'contrast' && kb.home === 'win11', `keyboard: style cards are one Tab stop, arrows / Home / End move between them (${JSON.stringify(kb.cardStops)} → ${kb.right}, ${kb.end}, ${kb.home})`);
+  check(kb.swStops.length === 1 && kb.swStops[0] === '#00b294' && kb.next === '#038387' && kb.accent === '#038387' && kb.focused === '#038387' && kb.selected === 'true', `keyboard: accent swatches — one Tab stop on the selected colour, arrows move, Enter picks and the focus stays (${JSON.stringify(kb)})`);
   await s.page.locator(S('.st-combo[data-key="fontFamily"]')).click();
   await s.page.locator('.menu.st-combo-menu .menu-item', { hasText: 'DejaVu Sans' }).first().click();
   await sleep(400);
@@ -603,6 +852,11 @@ console.log('\n# Settings pages');
   // Profiles page
   await go('profiles');
   check((await s.page.locator(S('.pz-profile')).count()) >= 8 && (await s.page.locator(S('.pz-profile.current')).count()) === 1, 'Profiles page: built-in + saved profiles, the current one marked');
+  const cards = await T(s, () => ({
+    cut: [...document.querySelectorAll('.app-settings .pz-profile-name')].filter((e) => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent),
+    hc: getComputedStyle(document.querySelector('.app-settings .pz-profile[data-profile-id="contrast"] .pz-profile-accent')).backgroundColor,
+  }));
+  check(!cards.cut.length && cards.hc === 'rgb(255, 255, 0)', `Profiles page: names are never cut; the colour dot shows the accent the profile really uses (High contrast ${cards.hc}) ${cards.cut.join(', ')}`);
   await docShot(s, 'profiles-dark-en');
   await s.page.locator(S('.pz-profile[data-profile-id="minimal"] .pz-apply')).click();
   await sleep(1500);
@@ -643,9 +897,15 @@ console.log('\n# Settings pages');
   // stubs + search + accessibility reuse
   for (const p of ['wallpaperEffects', 'focus', 'cursors', 'iconPacks', 'soundPacks', 'shortcuts', 'snapPresets']) {
     await go(p);
-    if (!(await s.page.locator(S(`.pz-stub[data-stub="${p}"]`)).count())) check(false, `stub page ${p}`);
+    // a stub (coming soon) until areas B1–B3 replace it with the real page: either way it renders without error
+    const st = await T(s, (id) => {
+      const page = document.querySelector(`.app-settings .st-page[data-page="${id}"]`);
+      // a page that fails to load is replaced by the "page error" infobar (and logs a console error)
+      return { stub: !!page?.querySelector(`.pz-stub[data-stub="${id}"]`), filled: (page?.textContent.trim().length || 0) > 20 };
+    }, p);
+    if (!(st.stub || st.filled)) check(false, `page ${p} renders (${JSON.stringify(st)})`);
   }
-  check(true, 'stub pages (wallpaperEffects, focus, cursors, iconPacks, soundPacks, shortcuts, snapPresets) render');
+  check(true, 'pages registered for areas B1–B3 (wallpaperEffects, focus, cursors, iconPacks, soundPacks, shortcuts, snapPresets) render (stub or real page)');
   await go('taskbar');
   check((await s.page.locator(S('.st-row-title'), { hasText: 'Taskbar alignment' }).count()) === 1, 'Taskbar page (moved module) still works');
   const found = await T(s, async () => {
@@ -765,14 +1025,21 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
 {
   console.log('\n# Persistence');
   const home = fs.mkdtempSync(path.join(OUT, 'pz-home-'));
-  const t1 = await launchShell({ home, settings: { style: 'retro', textScale: 120, blur: 20, appThemes: { notepad: { theme: 'dark', accent: null } } }, open: ['notepad'] });
+  const t1 = await launchShell({ home, settings: { style: 'retro', textScale: 120, blur: 20, cornerRadius: 150, fontFamily: 'dejavu-serif', accent: '#e3008c', reducedMotion: true, taskbar: { color: '#101820' }, appThemes: { notepad: { theme: 'dark', accent: null } } }, open: ['notepad'] });
   const r = await T(t1, () => ({
     style: document.documentElement.dataset.style,
     body: getComputedStyle(document.body).fontSize,
     np: document.querySelector('#windows > .win.app-notepad')?.dataset.theme,
     tb: getComputedStyle(document.getElementById('taskbar')).backdropFilter,
+    corner: getComputedStyle(document.documentElement).getPropertyValue('--corner').trim(),
+    font: getComputedStyle(document.body).fontFamily,
+    accent: document.documentElement.style.getPropertyValue('--accent-base'),
+    motion: document.documentElement.dataset.reducedMotion,
+    tbColor: document.getElementById('taskbar').style.getPropertyValue('--taskbar-rgb').trim(),
+    tbAlign: window.__aurora.settings.get('taskbar.align'),
   }));
   check(r.style === 'retro' && r.body === '16.8px' && r.np === 'dark' && r.tb === 'none', `settings are restored at boot (style ${r.style}, text ${r.body}, Notepad ${r.np})`);
+  check(r.corner === '1.500' && /DejaVu Serif/.test(r.font) && r.accent === '#e3008c' && r.motion === 'on' && r.tbColor === '16 24 32' && r.tbAlign === 'center', `every personalization key is applied at boot (corners ${r.corner}, accent ${r.accent}, reduced motion ${r.motion}, taskbar ${r.tbColor})`);
   await T(t1, () => window.__aurora.theme.profiles.saveCurrent('Persisted'));
   await t1.close();
   const t2 = await launchShell({ home });

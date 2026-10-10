@@ -8,11 +8,16 @@
 // Launch args:  { mode: 'region'|'rect'|'window'|'full'|'free', immediate: true }  starts a snip right
 // away without showing the window (PrintScreen / Super+Shift+S); after the snip the editor opens.
 //               { snip: id }  reopen a recent snip (toast click)      { file: path }  open an image
+// Keys: Ctrl+N / Alt+N new snip, Alt+M snipping mode, Alt+D delay, Ctrl+O open, Ctrl+S save as, Ctrl+C copy,
+//       Ctrl+Z / Ctrl+Y undo / redo, Ctrl+plus / minus / 0 zoom (overlay keys: see capture.js).
+// A cancelled hotkey snip puts everything back as it was: the focus stays in the user's window, a minimized
+// Snipping Tool stays minimized. While one of our dialogs is open, a hotkey snip does not replace the
+// image under it (it is copied, saved and announced by its toast). Save / Open / Paint never run twice.
 // The capture flow lives in capture.js, the canvas editor in editor.js.
 // Test hook: win.el.__snip (this controller).
 import { wm } from '../../core/wm.js';
 import { sounds } from '../../core/sounds.js';
-import { SnipSession, MODES, MODE_ICONS } from './capture.js';
+import { SnipSession, MODES, MODE_ICONS, MAX_DELAY } from './capture.js';
 import { SnipEditor, PEN_COLORS, HL_COLORS } from './editor.js';
 
 const DELAYS = [0, 3, 5, 10];
@@ -27,6 +32,7 @@ const EDITOR_MIN = { w: 560, h: 400 };
 const EDITOR_PREF = { w: 1000, h: 620 };
 const EASE = 'cubic-bezier(0.1, 0.9, 0.2, 1)';
 const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp'];
+const MAX_OPEN_BYTES = 200 * 1024 * 1024;
 
 // Recent snips, shared by every instance, so a toast can reopen its snip even after the app was closed.
 const recent = new Map();
@@ -57,7 +63,7 @@ function canvasBytes(canvas, type = 'image/png', quality = 0.92) {
   }
   return new Promise((resolve, reject) =>
     src.toBlob(
-      (b) => (b ? b.arrayBuffer().then((ab) => resolve(new Uint8Array(ab)), reject) : reject(new Error('Image encoding failed'))),
+      (b) => (b ? b.arrayBuffer().then((ab) => resolve(new Uint8Array(ab)), reject) : reject(Object.assign(new Error('Image encoding failed'), { code: 'EENCODE' }))),
       type,
       quality,
     ),
@@ -65,7 +71,13 @@ function canvasBytes(canvas, type = 'image/png', quality = 0.92) {
 }
 
 async function bytesToCanvas(bytes) {
-  const bmp = await createImageBitmap(new Blob([bytes]));
+  let bmp;
+  try {
+    bmp = await createImageBitmap(new Blob([bytes]));
+  } catch (err) {
+    // (the browser's own message is English-only)
+    throw Object.assign(new Error(err?.message || 'Bad image'), { code: 'EBADIMG' });
+  }
   const c = document.createElement('canvas');
   c.width = bmp.width;
   c.height = bmp.height;
@@ -98,11 +110,25 @@ function withBorder(canvas, color, width) {
   return c;
 }
 
+// The live instance. The registry's singleInstance check can miss a second launch that arrives while the
+// first window is still being created (PrintScreen pressed twice on the very first launch): such a
+// duplicate hands its arguments to the live instance and closes at once (it is never shown).
+let live = null;
+
 export default {
   async launch(ctx) {
+    if (live && !live.closed) {
+      const first = live;
+      ctx.win.el.classList.add('snip-hidden');
+      ctx.win.close(true);
+      first.ready.then(() => first.handleArgs(ctx.args || {})).catch(() => {});
+      return {};
+    }
     const app = new Snipping(ctx);
+    live = app;
     ctx.win.el.__snip = app;
-    await app.init();
+    app.ready = app.init();
+    await app.ready;
     return { onRelaunch: (args) => app.handleArgs(args || {}) };
   },
 };
@@ -179,6 +205,22 @@ class Snipping {
     this.tbObserver = new ResizeObserver(() => this.layoutToolbar());
     this.tbObserver.observe(win.titlebarSlot);
     win.on('resize', () => this.layoutToolbar());
+    // A hotkey relaunch (PrintScreen while the app is open) is preceded by the registry focusing — and
+    // un-minimizing — this window. Remember that, so a cancelled snip gives the user's window back its
+    // focus and leaves this one minimized, as before the hotkey.
+    const tick = (key) => {
+      this[key] = true;
+      queueMicrotask(() => (this[key] = false));
+    };
+    win.on('focus', () => tick('_focusTick'));
+    win.on('blur', () => (this._zAtBlur = win.el.style.zIndex));
+    win.on('minimize', () => (this._wasMinimized = true));
+    win.on('restore', () => {
+      if (!this._wasMinimized || win.minimized) return;
+      this._wasMinimized = false;
+      tick('_restoreTick');
+      if (!this.session && this.shown) win.el.classList.remove('snip-hidden');
+    });
 
     if (deferReveal || args.mode) this.handleArgs(args);
     else if (wm.focused() === win) {
@@ -195,10 +237,12 @@ class Snipping {
 
   dispose() {
     this.closed = true;
+    if (live === this) live = null;
     document.removeEventListener('keydown', this.docKey);
     this.session?.cancel();
     this.closeFlyout();
     this.tbObserver?.disconnect();
+    this.editor?.dispose();
     for (const off of this.offs) typeof off === 'function' && off();
     for (const id of this.timers) {
       clearTimeout(id);
@@ -218,8 +262,10 @@ class Snipping {
 
   handleArgs(args = {}) {
     if (this.closed) return;
+    // Read synchronously: set by the registry's focus() just before it called onRelaunch.
+    const stolen = { focus: !!this._focusTick, restored: !!this._restoreTick, z: this._zAtBlur };
     if (args.snip != null) return this.openSnipById(args.snip);
-    if (args.file) return this.openPath(args.file);
+    if (typeof args.file === 'string' && args.file) return this.openPath(args.file);
     if (args.immediate || args.mode) {
       const mode = MODE_ALIASES[String(args.mode || '').toLowerCase()] || this.prefs.mode;
       if (!args.immediate) {
@@ -227,7 +273,7 @@ class Snipping {
         this.setMode(mode);
         return;
       }
-      return this.newSnip({ mode, delay: Number(args.delay) || 0, source: 'hotkey' });
+      return this.newSnip({ mode, delay: Math.min(MAX_DELAY, Math.max(0, Math.round(Number(args.delay) || 0))), source: 'hotkey', stolen });
     }
     if (!this.shown && !this.session) this.showWindow();
   }
@@ -267,7 +313,11 @@ class Snipping {
         { duration: 240, easing: EASE },
       );
     }
-    if (focus) win.focus();
+    if (focus) {
+      win.focus();
+      // At once, not on the wm's next tick: a <webview> that had the focus would otherwise take it back.
+      this.focusView();
+    }
     requestAnimationFrame(() => this.layoutToolbar());
   }
   get hidden() {
@@ -279,7 +329,48 @@ class Snipping {
     return !this.hidden && !w.minimized && w.w >= 520 && w.h >= 380 ? w : undefined;
   }
   alert(message) {
-    return this.ctx.ui.alert(message, { title: this.t('errorTitle'), parent: this.dlgParent() });
+    return this.modal(this.ctx.ui.alert(message, { title: this.t('errorTitle'), parent: this.dlgParent() }));
+  }
+  /** A short, translated reason for a failed file operation (raw system text only as a last resort). */
+  errMsg(err) {
+    const key = { EACCES: 'errAccess', EPERM: 'errAccess', EROFS: 'errReadOnly', ENOSPC: 'errDiskFull', EDQUOT: 'errDiskFull', EEXIST: 'errInTheWay', ENOTDIR: 'errInTheWay', EISDIR: 'errInTheWay', ENOENT: 'errNotFound', ETOOBIG: 'errTooBig', EBADIMG: 'errBadImage', EENCODE: 'errEncode', ENOCLIP: 'errNoClipboard' }[err?.code];
+    if (key) return this.t(key);
+    return String(err?.message || '').replace(/^E[A-Z]+: /, '');
+  }
+  /**
+   * Wait for a dialog / file picker, then put the keyboard focus back into the window. Otherwise the closing
+   * dialog's button takes the focus with it, the focus falls back to whatever had it before — a browser
+   * tab's <webview> — and that window comes back on top of the snip.
+   */
+  modal(promise) {
+    this.openModals = (this.openModals || 0) + 1;
+    return Promise.resolve(promise)
+      .finally(() => this.openModals--)
+      .then((v) => {
+        this.focusView();
+        return v;
+      });
+  }
+  /** Run fn unless the same action is still in progress (double click, key repeat): then share its result. */
+  exclusive(key, fn) {
+    this.busy ??= new Map();
+    if (this.busy.has(key)) return this.busy.get(key);
+    const p = Promise.resolve()
+      .then(fn)
+      .finally(() => this.busy.delete(key));
+    this.busy.set(key, p);
+    return p;
+  }
+  /** Keyboard focus into the current view (synchronously), if this is the active window. */
+  focusView() {
+    if (this.closed || this.hidden || wm.focused() !== this.win || this.win.minimized) return;
+    const a = document.activeElement;
+    if (a && a !== document.body && this.win.el.contains(a) && !a.closest('.dialog-layer.closing')) return;
+    // (another of our dialogs, or a global one, took over)
+    if (this.win.el.querySelector('.dialog-layer:not(.closing)') || document.querySelector('#overlays > .dialog-layer:not(.closing)')) return;
+    if (this.view === 'editor' && this.editor.hasImage) this.editor.focusQuiet();
+    else if (this.view === 'settings') this.settingsEl.focus({ preventScroll: true });
+    else this.btnNew?.focus({ preventScroll: true });
   }
 
   // ------------------------------------------------------------------ UI
@@ -290,11 +381,11 @@ class Snipping {
       h('button', { class: `btn subtle icon-btn ${cls}`, 'data-tip': tip, 'aria-label': tip, onclick, ...extra }, typeof ic === 'string' ? icon(ic) : ic);
 
     // -- title bar: left group
-    this.btnNew = h('button', { class: 'btn primary snip-new', 'data-tip': t('newTip'), 'aria-label': t('newTip'), onclick: () => this.newSnip({ source: 'app' }) }, icon('add'), h('span', null, t('new')));
+    this.btnNew = h('button', { class: 'btn primary snip-new', 'data-tip': t('newTip'), 'aria-label': t('newTip'), 'aria-keyshortcuts': 'Control+N Alt+N', onclick: () => this.newSnip({ source: 'app' }) }, icon('add'), h('span', null, t('new')));
     this.modeIcon = h('span', { class: 'snip-dd-icon' });
-    this.btnMode = h('button', { class: 'btn subtle snip-dd snip-mode', 'aria-haspopup': 'menu', onclick: (e) => this.modeMenu(e) }, this.modeIcon, icon('chevron_down', { size: 12, class: 'snip-chev' }));
+    this.btnMode = h('button', { class: 'btn subtle snip-dd snip-mode', 'aria-haspopup': 'menu', 'aria-keyshortcuts': 'Alt+M', onclick: (e) => this.modeMenu(e) }, this.modeIcon, icon('chevron_down', { size: 12, class: 'snip-chev' }));
     this.delayLabel = h('span', { class: 'snip-dd-label' });
-    this.btnDelay = h('button', { class: 'btn subtle snip-dd snip-delay', 'aria-haspopup': 'menu', onclick: (e) => this.delayMenu(e) }, icon('timer'), this.delayLabel, icon('chevron_down', { size: 12, class: 'snip-chev' }));
+    this.btnDelay = h('button', { class: 'btn subtle snip-dd snip-delay', 'aria-haspopup': 'menu', 'aria-keyshortcuts': 'Alt+D', onclick: (e) => this.delayMenu(e) }, icon('timer'), this.delayLabel, icon('chevron_down', { size: 12, class: 'snip-chev' }));
     this.left = h('div', { class: 'snip-tb-left' }, this.btnNew, this.btnMode, this.btnDelay);
     this.btnBack = btn('snip-back', t('back'), 'arrow_left', () => this.closeSettings());
     this.setHead = h('div', { class: 'snip-tb-settings' }, this.btnBack, h('span', { class: 'snip-tb-title' }, this.ctx.i18n.name(this.ctx.manifest.name)));
@@ -486,11 +577,11 @@ class Snipping {
     const t = this.t;
     const ed = this.editor;
     this.modeIcon.replaceChildren(icon(MODE_ICONS[this.prefs.mode]));
-    const modeTip = `${t('mode')}: ${t(`modes.${this.prefs.mode}`)}`;
+    const modeTip = t('labelValue', { label: t('mode'), value: t(`modes.${this.prefs.mode}`) });
     this.btnMode.dataset.tip = modeTip;
     this.btnMode.setAttribute('aria-label', modeTip);
     this.delayLabel.textContent = this.prefs.delay ? t('delayShort', { n: this.prefs.delay }) : t('noDelay');
-    const delayTip = `${t('delay')}: ${this.prefs.delay ? t('delaySeconds', { n: this.prefs.delay }) : t('noDelay')}`;
+    const delayTip = t('labelValue', { label: t('delay'), value: this.prefs.delay ? t('delaySeconds', { n: this.prefs.delay }) : t('noDelay') });
     this.btnDelay.dataset.tip = delayTip;
     this.btnDelay.setAttribute('aria-label', delayTip);
     const has = ed.hasImage;
@@ -510,15 +601,18 @@ class Snipping {
     const cropping = !!ed.crop;
     this.inkGroup.hidden = cropping;
     this.cropGroup.hidden = !cropping;
-    this.zoomLabel.textContent = `${Math.round(ed.zoom * 100)}%`;
+    this.zoomLabel.textContent = t('zoomPct', { p: Math.round(ed.zoom * 100) });
+    const zoomTip = t('labelValue', { label: t('zoom'), value: this.zoomLabel.textContent });
+    this.btnZoom.dataset.tip = zoomTip;
+    this.btnZoom.setAttribute('aria-label', zoomTip);
     for (const b of [this.btnZoom, this.btnSave, this.btnCopy, this.btnPaint]) b.disabled = !has;
     this.btnPaint.hidden = !this.ctx.shell.registry?.get?.('paint');
     this.root?.classList.toggle('cropping', cropping);
     // A focused button that just got disabled (or hidden) drops the keyboard focus to <body>, where the
     // window shortcuts (Ctrl+Y…) no longer arrive: hand it to the canvas instead.
     const a = document.activeElement;
-    if (a && this.win.el.contains(a) && (a.disabled || !a.offsetParent) && this.view === 'editor') this.editor.el.focus({ preventScroll: true });
-    else if ((!a || a === document.body) && this.view === 'editor' && this.win.isFocused?.() && !this.hidden) this.editor.el.focus({ preventScroll: true });
+    if (a && this.win.el.contains(a) && (a.disabled || !a.offsetParent) && this.view === 'editor') this.editor.focusQuiet();
+    else if ((!a || a === document.body) && this.view === 'editor' && this.win.isFocused?.() && !this.hidden) this.editor.focusQuiet();
     this.layoutToolbar();
   }
 
@@ -624,7 +718,8 @@ class Snipping {
   /** Open a menu from a button; when it closes the keyboard goes back to that button (Windows behaviour). */
   menuFrom(e, items) {
     const btn = e?.currentTarget;
-    return this.ctx.ui.menu(e, items).then((v) => {
+    // Dropdowns open under their button (mouse or keyboard), like WinUI drop-down buttons.
+    return this.ctx.ui.menu(btn instanceof Element ? btn : e, items).then((v) => {
       const a = document.activeElement;
       if (btn?.isConnected && !this.hidden && !this.closed && (!a || a === document.body)) btn.focus({ preventScroll: true });
       return v;
@@ -669,6 +764,9 @@ class Snipping {
   }
 
   about() {
+    return this.exclusive('about', () => this._about());
+  }
+  _about() {
     const { h, ui, appUrl, env } = this.ctx;
     const t = this.t;
     const body = h(
@@ -684,7 +782,7 @@ class Snipping {
         h('div', { class: 'caption text-3' }, t('aboutLicense')),
       ),
     );
-    return ui.dialog({ title: t('aboutTitle'), body, parent: this.dlgParent(), className: 'snip-about-dialog', buttons: [{ label: t('common.ok'), value: true, primary: true }] });
+    return this.modal(ui.dialog({ title: t('aboutTitle'), body, parent: this.dlgParent(), className: 'app-snipping snip-about-dialog', buttons: [{ label: t('common.ok'), value: true, primary: true }] }));
   }
 
   // ------------------------------------------------------------------ tool flyouts (pen / highlighter / eraser options)
@@ -826,7 +924,7 @@ class Snipping {
         // The keyboard goes back to the tool button (or the canvas) instead of a vanishing flyout.
         if (fl.contains(document.activeElement)) {
           if (anchor.isConnected && !anchor.disabled && anchor.offsetParent) anchor.focus({ preventScroll: true });
-          else this.editor.el.focus({ preventScroll: true });
+          else this.editor.focusQuiet();
         }
         fl.classList.add('closing');
         fl.inert = true;
@@ -854,8 +952,13 @@ class Snipping {
       fn();
     };
     const ed = this.editor;
+    const alt = e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
     if (ctrl && k === 'n') return run(() => this.newSnip({ source: 'app' }));
     if (ctrl && k === 'o') return run(() => this.openFileDialog());
+    // Windows Snipping Tool: Alt+N new snip, Alt+M snipping mode, Alt+D delay.
+    if (alt && k === 'n') return run(() => this.newSnip({ source: 'app' }));
+    if (alt && k === 'm' && !this.left.hidden) return run(() => this.modeMenu({ currentTarget: this.btnMode }));
+    if (alt && k === 'd' && !this.left.hidden) return run(() => this.delayMenu({ currentTarget: this.btnDelay }));
     if (this.view === 'settings') {
       if ((e.altKey && e.key === 'ArrowLeft') || (e.key === 'Backspace' && !inField) || e.key === 'Escape') run(() => this.closeSettings());
       return;
@@ -891,7 +994,7 @@ class Snipping {
 
   // ------------------------------------------------------------------ snipping
   /** Start a snip: hide the window, optional delay, overlay, then the editor. */
-  async newSnip({ mode = this.prefs.mode, delay = this.prefs.delay, source = 'app' } = {}) {
+  async newSnip({ mode = this.prefs.mode, delay = this.prefs.delay, source = 'app', stolen = null } = {}) {
     if (this.session || this.closed) return;
     const { ctx } = this;
     const t = this.t;
@@ -906,7 +1009,8 @@ class Snipping {
     this.closeFlyout();
     ctx.ui.closeMenus();
     if (this.editor.crop) this.editor.cancelCrop();
-    const wasFocused = wm.focused() === this.win;
+    // (focus the registry handed over for a hotkey relaunch does not count: it goes back on cancel)
+    const wasFocused = wm.focused() === this.win && !stolen?.focus;
     const wasHidden = this.hidden;
     // A window that was never shown also leaves the taskbar: give its button time to animate out.
     const settle = !this.shown || this.win.opts.skipTaskbar ? 260 : 40;
@@ -926,15 +1030,31 @@ class Snipping {
     if (!res) {
       if (!this.shown) {
         // Launched only for this snip (PrintScreen): nothing to come back to.
-        if (error) await ctx.ui.alert(t('captureFailed', { msg: error.message || '' }), { title: t('errorTitle') });
+        if (error) await ctx.ui.alert(t('captureFailed', { msg: this.errMsg(error) }), { title: t('errorTitle') });
         this.win.close(true);
         return;
       }
-      if (!wasHidden) this.showWindow({ focus: wasFocused, animate: false });
-      if (error) this.alert(t('captureFailed', { msg: error.message || '' }));
+      if (!wasHidden) this.restoreAfterCancel(wasFocused, stolen);
+      if (error) this.alert(t('captureFailed', { msg: this.errMsg(error) }));
       return;
     }
     await this.acceptSnip(res.canvas, { source });
+  }
+
+  /** A cancelled snip puts the window back as it was before the snip (or before the hotkey relaunch). */
+  restoreAfterCancel(wasFocused, stolen) {
+    const { win } = this;
+    if (stolen?.restored && !win.minimized) {
+      // It was minimized before the hotkey: minimize it again (invisibly, it is still hidden).
+      win.minimize();
+      setTimeout(() => {
+        if (!this.session && !this.closed) this.showWindow({ focus: false, animate: false });
+      }, reduceMotion() ? 0 : 320);
+      return;
+    }
+    // Back to its place in the stacking order, behind the window the user was working in.
+    if (stolen?.focus && stolen.z && !wasFocused) win.el.style.zIndex = stolen.z;
+    this.showWindow({ focus: wasFocused, animate: false });
   }
 
   async writeToScreenshots(bytes, time = new Date()) {
@@ -956,7 +1076,7 @@ class Snipping {
 
   /** Post-capture pipeline: border, clipboard, auto-save, sound, editor and (for hotkey snips) the toast. */
   async acceptSnip(canvas, { source = 'app' } = {}) {
-    const { api, shell } = this.ctx;
+    const { api } = this.ctx;
     const t = this.t;
     if (this.settings.border) canvas = withBorder(canvas, this.settings.borderColor, this.settings.borderWidth);
     const time = new Date();
@@ -965,7 +1085,7 @@ class Snipping {
     try {
       bytes = await canvasBytes(canvas);
     } catch (err) {
-      errors.push(t('captureFailed', { msg: err.message || '' }));
+      errors.push(t('captureFailed', { msg: this.errMsg(err) }));
     }
     const snip = { id: ++snipSeq, time, savedPath: null, bytes: null };
     let copied = false;
@@ -974,14 +1094,14 @@ class Snipping {
         await writeClipboardImage(api, bytes);
         copied = true;
       } catch (err) {
-        errors.push(t('copyFailed', { msg: err.message || '' }));
+        errors.push(t('copyFailed', { msg: this.errMsg(err) }));
       }
     }
     if (bytes && this.settings.autoSave) {
       try {
         snip.savedPath = await this.writeToScreenshots(bytes, time);
       } catch (err) {
-        errors.push(t('autoSaveFailed', { msg: err.message || '' }));
+        errors.push(t('autoSaveFailed', { msg: this.errMsg(err) }));
       }
     }
     if (!snip.savedPath) snip.bytes = bytes;
@@ -989,6 +1109,14 @@ class Snipping {
     sounds.play('screenshot');
     if (this.closed) return;
 
+    // One of our dialogs is open (Save as, Open, Save changes?…): it works on the snip in the editor, so the
+    // new snip must not slip in under it. It is on the clipboard, saved, and its toast opens it later.
+    if (this.openModals > 0) {
+      if (!this.hidden || this.shown) this.showWindow();
+      this.notifySnip(snip, canvas, copied);
+      if (errors.length) this.alert(errors.join('\n'));
+      return snip;
+    }
     // Unsaved edits of the snip already in the editor: offer to save them first.
     let replace = true;
     if (this.needsSave()) {
@@ -998,15 +1126,43 @@ class Snipping {
     }
     if (replace) this.loadSnip(canvas, snip);
     const wasShown = !this.hidden;
-    if (!wasShown) this.applyView('editor', { animate: false });
+    // (the snip that was kept after "Cancel" keeps its window where the user left it)
+    if (!replace) this.applyView('editor', { size: false });
+    else if (!wasShown) this.applyView('editor', { animate: false });
     else this.applyView('editor');
     this.showWindow();
-    if (source === 'hotkey') {
-      const title = copied ? t('toastCopied') : snip.savedPath ? t('toastSaved') : t('toastTaken');
-      shell.notify({ appId: 'snipping', title, body: t('toastBody'), onClick: () => shell.launch('snipping', { snip: snip.id }) });
-    }
+    if (source === 'hotkey') this.notifySnip(snip, canvas, copied);
     if (errors.length) this.alert(errors.join('\n'));
     return snip;
+  }
+
+  /** The "Snip copied to clipboard" toast (with a preview); selecting it opens that snip. */
+  notifySnip(snip, canvas, copied) {
+    const { shell } = this.ctx;
+    const t = this.t;
+    const title = copied ? t('toastCopied') : snip.savedPath ? t('toastSaved') : t('toastTaken');
+    const id = shell.notify({ appId: 'snipping', title, body: t('toastBody'), onClick: () => shell.launch('snipping', { snip: snip.id }) });
+    this.addToastPreview(id, canvas);
+  }
+
+  /** Windows 11 shows the snip itself in its toast: add a preview of it under the text. */
+  addToastPreview(id, canvas) {
+    const toast = id != null && document.querySelector(`#toasts .toast[data-id="${Number(id)}"]`);
+    if (!toast || !canvas?.width) return;
+    try {
+      const k = Math.min(1, 680 / canvas.width, 360 / canvas.height);
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(canvas.width * k));
+      c.height = Math.max(1, Math.round(canvas.height * k));
+      const g = c.getContext('2d');
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(canvas, 0, 0, c.width, c.height);
+      const img = this.ctx.h('img', { class: 'app-snipping snip-toast-img', src: c.toDataURL('image/webp', 0.86), alt: '', draggable: false });
+      img.style.aspectRatio = `${c.width} / ${c.height}`;
+      toast.appendChild(img);
+    } catch (err) {
+      console.warn('[snipping] toast preview failed', err);
+    }
   }
 
   loadSnip(canvas, snip) {
@@ -1037,7 +1193,7 @@ class Snipping {
     } catch (err) {
       if (this.hidden && !this.editor.hasImage) this.applyView('compact', { size: false });
       this.showWindow();
-      this.alert(this.t('openFailed', { msg: err.message || '' }));
+      this.alert(this.t('openFailed', { msg: this.errMsg(err) }));
       return;
     }
     const wasHidden = this.hidden;
@@ -1046,26 +1202,35 @@ class Snipping {
     this.showWindow();
   }
 
-  async openFileDialog() {
+  openFileDialog() {
+    return this.exclusive('open', () => this._openFileDialog());
+  }
+  async _openFileDialog() {
     const { ui } = this.ctx;
     const t = this.t;
     const dir = await this.screenshotsDir();
     const exists = await this.ctx.api.invoke('fs:exists', dir).catch(() => false);
-    const path = await ui.filePicker({ mode: 'open', title: t('openFile'), filters: [{ name: t('images'), ext: IMAGE_EXTS }], path: exists ? dir : await this.picturesDir(), parent: this.dlgParent() });
+    const path = await this.modal(ui.filePicker({ mode: 'open', title: t('openFile'), filters: [{ name: t('images'), ext: IMAGE_EXTS }], path: exists ? dir : await this.picturesDir(), parent: this.dlgParent() }));
     if (path) await this.openPath(Array.isArray(path) ? path[0] : path);
   }
 
   async openPath(path) {
     const t = this.t;
+    const { api } = this.ctx;
     let canvas;
     try {
-      canvas = await bytesToCanvas(await this.ctx.api.invoke('fs:readBytes', path));
+      // (checked before reading: the whole file is loaded into memory to be decoded)
+      const st = await api.invoke('fs:stat', path);
+      if (!st) throw Object.assign(new Error(''), { code: 'ENOENT' });
+      if (st.dir) throw new Error(''); // "Couldn't open this image."
+      if (st.size > MAX_OPEN_BYTES) throw Object.assign(new Error(''), { code: 'ETOOBIG' });
+      canvas = await bytesToCanvas(await api.invoke('fs:readBytes', path));
     } catch (err) {
       if (this.hidden) {
         this.applyView(this.editor.hasImage ? 'editor' : 'compact', { size: false });
         this.showWindow();
       }
-      this.alert(t('openFailed', { msg: err.message || '' }));
+      this.alert(t('openFailed', { msg: this.errMsg(err) }));
       return false;
     }
     if (!this.hidden && !(await this.confirmDiscard())) return false;
@@ -1076,10 +1241,20 @@ class Snipping {
     return true;
   }
 
-  async openScreenshotsFolder() {
+  openScreenshotsFolder() {
+    return this.exclusive('folder', () => this._openScreenshotsFolder());
+  }
+  async _openScreenshotsFolder() {
+    const { api, shell } = this.ctx;
     const dir = await this.screenshotsDir();
-    await this.ctx.api.invoke('fs:mkdir', dir).catch(() => {});
-    this.ctx.shell.openFile(dir);
+    try {
+      await api.invoke('fs:mkdir', dir);
+      const st = await api.invoke('fs:stat', dir);
+      if (!st?.dir) throw Object.assign(new Error(''), { code: 'ENOTDIR' });
+    } catch (err) {
+      return this.alert(this.t('folderFailed', { msg: this.errMsg(err) }));
+    }
+    return shell.openFile(dir);
   }
 
   // ------------------------------------------------------------------ save / copy / paint
@@ -1092,7 +1267,7 @@ class Snipping {
     const { ui } = this.ctx;
     const t = this.t;
     if (this.hidden) this.showWindow();
-    const v = await ui.dialog({
+    const v = await this.modal(ui.dialog({
       title: this.ctx.i18n.name(this.ctx.manifest.name),
       body: t('askSaveBody'),
       parent: this.dlgParent(),
@@ -1101,12 +1276,15 @@ class Snipping {
         { label: t('common.dontSave'), value: 'discard' },
         { label: t('common.cancel'), value: null },
       ],
-    });
+    }));
     if (v === 'save') return !!(await this.saveAs());
     return v === 'discard';
   }
 
-  async saveAs() {
+  saveAs() {
+    return this.exclusive('save', () => this._saveAs());
+  }
+  async _saveAs() {
     const { ui, api } = this.ctx;
     const t = this.t;
     const ed = this.editor;
@@ -1116,7 +1294,7 @@ class Snipping {
     let dir = prev ? dirName(prev) : await this.screenshotsDir();
     if (!(await api.invoke('fs:exists', dir).catch(() => false))) dir = await this.picturesDir();
     const stem = prev ? baseName(prev).replace(/\.[^.]+$/, '') : `${t('fileBase')} ${stamp(this.snip?.time || new Date())}`;
-    const path = await ui.filePicker({
+    const path = await this.modal(ui.filePicker({
       mode: 'save',
       filters: [
         { name: t('pngImage'), ext: ['.png'] },
@@ -1125,14 +1303,14 @@ class Snipping {
       path: dir,
       name: stem,
       parent: this.dlgParent(),
-    });
+    }));
     if (!path || this.closed) return null;
     const jpeg = /\.jpe?g$/i.test(path);
     try {
       const bytes = await canvasBytes(ed.render(), jpeg ? 'image/jpeg' : 'image/png');
       await api.invoke('fs:writeBytes', path, bytes);
     } catch (err) {
-      await this.alert(t('saveFailed', { msg: err.message || '' }));
+      await this.alert(t('saveFailed', { msg: this.errMsg(err) }));
       return null;
     }
     ed.markSaved();
@@ -1151,13 +1329,16 @@ class Snipping {
       if (!quiet) this.flash(this.t('copied'));
       return true;
     } catch (err) {
-      if (!quiet) this.alert(this.t('copyFailed', { msg: err.message || '' }));
+      if (!quiet) this.alert(this.t('copyFailed', { msg: this.errMsg(err) }));
       else console.warn('[snipping] auto-copy failed', err);
       return false;
     }
   }
 
-  async editInPaint() {
+  editInPaint() {
+    return this.exclusive('paint', () => this._editInPaint());
+  }
+  async _editInPaint() {
     const { shell } = this.ctx;
     const t = this.t;
     const ed = this.editor;
@@ -1168,7 +1349,7 @@ class Snipping {
       try {
         path = await this.writeToScreenshots(await canvasBytes(ed.render()), new Date());
       } catch (err) {
-        return this.alert(t('saveFailed', { msg: err.message || '' }));
+        return this.alert(t('saveFailed', { msg: this.errMsg(err) }));
       }
       ed.markSaved();
       if (this.snip) this.snip.savedPath = path;

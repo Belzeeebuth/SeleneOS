@@ -122,7 +122,21 @@
       "brown": "Brown",
       "accent": "Accent color"
     },
-    "ruler": "Ruler"
+    "ruler": "Ruler",
+    "overlayKeys": "Drag to select. Rectangle mode: arrow keys move, Shift+arrow keys select, Enter takes the snip. Window mode: arrow keys choose a window. Esc cancels.",
+    "overlayKbHint": "Shift + arrow keys select · Enter takes the snip",
+    "labelValue": "{label}: {value}",
+    "zoomPct": "{p}%",
+    "folderFailed": "Couldn't open the Screenshots folder. {msg}",
+    "errAccess": "Access was denied.",
+    "errReadOnly": "The disk is read-only.",
+    "errDiskFull": "There isn't enough space on the disk.",
+    "errInTheWay": "A file with the same name is in the way.",
+    "errNotFound": "The file or folder wasn't found.",
+    "errTooBig": "The file is too large.",
+    "errBadImage": "The file isn't a picture in a supported format.",
+    "errEncode": "The picture couldn't be created.",
+    "errNoClipboard": "The clipboard can't hold pictures here."
   },
   "fr": {
     "new": "Nouveau",
@@ -247,6 +261,20 @@
       "brown": "Marron",
       "accent": "Couleur d'accentuation"
     },
-    "ruler": "Règle"
+    "ruler": "Règle",
+    "overlayKeys": "Faites glisser pour sélectionner. Mode Rectangle : les flèches déplacent, Maj+flèches sélectionnent, Entrée capture. Mode Fenêtre : les flèches choisissent une fenêtre. Échap annule.",
+    "overlayKbHint": "Maj + flèches pour sélectionner · Entrée pour capturer",
+    "labelValue": "{label} : {value}",
+    "zoomPct": "{p} %",
+    "folderFailed": "Impossible d'ouvrir le dossier Screenshots. {msg}",
+    "errAccess": "L'accès a été refusé.",
+    "errReadOnly": "Le disque est en lecture seule.",
+    "errDiskFull": "L'espace disque est insuffisant.",
+    "errInTheWay": "Un fichier du même nom existe déjà à cet emplacement.",
+    "errNotFound": "Le fichier ou le dossier est introuvable.",
+    "errTooBig": "Le fichier est trop volumineux.",
+    "errBadImage": "Ce fichier n'est pas une image dans un format pris en charge.",
+    "errEncode": "L'image n'a pas pu être créée.",
+    "errNoClipboard": "Le Presse-papiers ne peut pas recevoir d'images ici."
   }
 }

@@ -17,7 +17,10 @@ export function popover(app, anchor, content, { className = '', onClose, width, 
   el.style.visibility = 'hidden';
   app.root.appendChild(el);
   const host = app.root.getBoundingClientRect();
-  const a = anchor.getBoundingClientRect();
+  // the anchor may have been re-rendered away while a menu was open: centre the flyout then
+  const a = anchor?.isConnected
+    ? anchor.getBoundingClientRect()
+    : { left: host.left + host.width / 2 - 150, right: host.left + host.width / 2 + 150, top: host.top + host.height / 3, bottom: host.top + host.height / 3, width: 300, height: 0 };
   const r = el.getBoundingClientRect();
   let x = a.left - host.left;
   let y = a.bottom - host.top + 4;
@@ -59,8 +62,8 @@ export function popover(app, anchor, content, { className = '', onClose, width, 
       else el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 100 }).finished.then(() => el.remove(), () => el.remove());
       onClose?.(v);
       resolveFn(v);
-      if (anchor.isConnected && app.root.contains(document.activeElement) === false) anchor.focus?.({ preventScroll: true });
-      else if (anchor.isConnected && (!document.activeElement || document.activeElement === document.body || el.contains(document.activeElement))) anchor.focus?.({ preventScroll: true });
+      if (anchor?.isConnected && (!app.root.contains(document.activeElement) || el.contains(document.activeElement))) anchor.focus?.({ preventScroll: true });
+      else if (!anchor?.isConnected && !app.root.contains(document.activeElement)) app.list.focusList();
     },
   };
   setTimeout(() => !handle.closed && document.addEventListener('pointerdown', outside, true));

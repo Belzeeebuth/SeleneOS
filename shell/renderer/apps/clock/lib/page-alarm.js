@@ -61,8 +61,8 @@ export class AlarmPage {
       text = t('alarm.noteNotifOff');
       cls = 'warn';
     } else if (n.dnd) {
+      // alarms and timers ring through Do not disturb (urgent notifications): just say so
       text = t('alarm.noteDnd');
-      cls = 'warn';
     }
     this.note.className = `ck-note ${cls}`;
     this.note.replaceChildren(
@@ -267,11 +267,9 @@ export class AlarmPage {
     refresh();
     this.dialogOpen = true;
     let deleted = false;
-    const res = await ui.dialog({
+    const res = await this.app.dialog({
       title: a ? t('alarm.editTitle') : t('alarm.addTitle'),
       body,
-      parent: win,
-      className: 'ck-dialog',
       buttons: [
         { label: t('common.save'), value: 'save', primary: true },
         { label: t('common.cancel'), value: null },

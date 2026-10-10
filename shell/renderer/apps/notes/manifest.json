@@ -1,0 +1,15 @@
+{
+  "id": "notes",
+  "name": { "en": "Notes", "fr": "Notes" },
+  "description": { "en": "Notebooks, rich text notes, checklists, pictures and tags, saved as you type", "fr": "Carnets, notes mises en forme, cases à cocher, images et étiquettes, enregistrés pendant la saisie" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1180, "height": 760, "minWidth": 480, "minHeight": 400, "titlebar": "tall", "background": "mica" },
+  "category": "productivity",
+  "keywords": {
+    "en": ["notes", "note", "notebook", "onenote", "memo", "journal", "checklist", "write", "ideas", "markdown", "sticky"],
+    "fr": ["notes", "note", "carnet", "onenote", "mémo", "journal", "liste", "écrire", "idées", "markdown", "pense-bête"]
+  },
+  "singleInstance": true
+}

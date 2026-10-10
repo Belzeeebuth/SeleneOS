@@ -47,6 +47,10 @@
 :root[data-theme="dark"] .app-todo .td-bg-mist { --td-bgimg: radial-gradient(circle at 25% 20%, rgba(255, 255, 255, 0.12), transparent 45%), linear-gradient(160deg, #2a3746 0%, #3b4b5c 55%, #4d5e70 100%); }
 
 /* ------------------------------------------------------------------ layout */
+/* the hidden attribute always wins over the display of .btn, flex containers… */
+.app-todo [hidden] {
+  display: none !important;
+}
 .app-todo .td {
   position: relative;
   display: flex;
@@ -667,6 +671,11 @@
   outline: 2px solid var(--focus-ring, var(--text));
   outline-offset: -2px;
 }
+/* long lists: skip layout / paint of the rows that are off-screen */
+.app-todo .td-body.big .td-task {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 52px;
+}
 .app-todo .td-task.td-dragging {
   opacity: 0.35;
 }
@@ -1001,6 +1010,29 @@
   background: var(--card-solid) !important;
   border-radius: var(--radius-sm);
   opacity: 0.96;
+}
+.app-todo .td-ghost-task {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 300px;
+  min-height: 40px;
+  padding: 4px 14px 4px 4px;
+  color: var(--text);
+  border: 1px solid var(--stroke-card);
+}
+.app-todo .td-ghost-task .td-check {
+  width: 28px;
+  height: 28px;
+}
+.app-todo .td-ghost-task.done .td-check .td-fill {
+  transform: scale(1);
+}
+.app-todo .td-ghost-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .app-todo .td-ghost-count {
   position: absolute;
@@ -1739,6 +1771,13 @@
 }
 .app-todo .td.tight .td-banner {
   flex-wrap: wrap;
+  row-gap: 8px;
+}
+.app-todo .td.tight .td-banner > .grow {
+  flex: 1 1 calc(100% - 32px);
+}
+.app-todo .td.tight .td-banner-btns {
+  margin-left: 28px;
 }
 
 @keyframes td-in {

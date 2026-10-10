@@ -144,6 +144,7 @@
 
   --danger: #c42b1c;
   --danger-bg: #fde7e9;
+  --on-danger: #ffffff; /* text on a --danger fill (.btn.danger) */
   --success: #0f7b0f;
   --success-bg: #dff6dd;
   --warning: #9d5d00;
@@ -199,6 +200,7 @@
 
   --danger: #ff99a4;
   --danger-bg: #442726;
+  --on-danger: #000000; /* black on the light dark-mode red: 10:1 (white was 2:1) */
   --success: #6ccb5f;
   --success-bg: #393d1b;
   --warning: #fce100;
@@ -217,6 +219,8 @@
 :root[data-animations="off"] *::after {
   animation-duration: 1ms !important;
   animation-delay: 0ms !important;
+  /* an infinite 1 ms animation would flicker (spinners): play it once and stop */
+  animation-iteration-count: 1 !important;
   transition-duration: 1ms !important;
   transition-delay: 0ms !important;
 }

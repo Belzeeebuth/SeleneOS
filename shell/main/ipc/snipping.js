@@ -9,16 +9,16 @@ const electron = require('electron');
 
 async function writeImage(bytes) {
   const { clipboard, nativeImage } = electron;
-  if (!bytes || !bytes.length) throw new Error('No image data');
+  if (!bytes || !bytes.length) throw Object.assign(new Error('No image data'), { code: 'EBADIMG' });
   const buf = Buffer.from(bytes);
   if (typeof clipboard.writeImage === 'function' && nativeImage) {
     const img = nativeImage.createFromBuffer(buf);
-    if (img.isEmpty()) throw new Error('Invalid image data');
+    if (img.isEmpty()) throw Object.assign(new Error('Invalid image data'), { code: 'EBADIMG' });
     clipboard.writeImage(img);
     return true;
   }
   const Item = electron.ClipboardItem;
-  if (!Item || typeof clipboard.write !== 'function') throw new Error('Clipboard images are not supported');
+  if (!Item || typeof clipboard.write !== 'function') throw Object.assign(new Error('Clipboard images are not supported'), { code: 'ENOCLIP' });
   await clipboard.write([new Item({ 'image/png': new Blob([buf], { type: 'image/png' }) })]);
   return true;
 }

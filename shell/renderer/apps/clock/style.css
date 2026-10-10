@@ -69,6 +69,16 @@
   color: var(--text);
   transition: background var(--dur-fast) linear;
 }
+/* (the rule above resets the UI kit's .nav-item backgrounds: restore Fluent's hover / selected fills) */
+.app-clock .ck-nav-item:hover {
+  background: var(--subtle-hover);
+}
+.app-clock .ck-nav-item.selected {
+  background: var(--subtle-selected);
+}
+.app-clock .ck-nav-item.selected:hover {
+  background: var(--subtle-hover);
+}
 .app-clock .ck-nav-item:active {
   background: var(--subtle-pressed);
 }
@@ -203,20 +213,23 @@
   gap: 12px;
   align-content: start;
 }
+/* min(…, 100%) and minmax(0, …): a long alarm / timer name must ellipsize, never widen the column
+   past the window (a plain 1fr track grows to the min-content width of its widest card) */
 .app-clock .ck-alarm-grid {
-  grid-template-columns: repeat(auto-fill, minmax(296px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(296px, 100%), 1fr));
 }
 .app-clock .ck-timer-grid {
-  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(268px, 100%), 1fr));
 }
 .app-clock .ck-city-grid {
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
 }
 .app-clock .ck.tight .ck-grid {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 .app-clock .ck-card {
   position: relative;
+  min-width: 0;
   padding: 16px 20px;
   border-radius: var(--radius);
   transition: background var(--dur-fast) linear, box-shadow var(--dur) var(--ease);
@@ -494,6 +507,8 @@
   color: var(--text-2);
   opacity: 0;
   transform: translateX(-50%);
+  cursor: default;
+  user-select: none;
   transition: opacity var(--dur) linear, background var(--dur-fast) linear;
 }
 .app-clock .ck-spin-btn.up {
@@ -506,8 +521,12 @@
   background: var(--control-hover);
   color: var(--text);
 }
-.app-clock .ck-spin-btn:disabled {
+.app-clock .ck-spin-btn.disabled {
   visibility: hidden;
+}
+.app-clock .ck-spin-btn:active {
+  background: var(--control-pressed, var(--subtle-pressed));
+  color: var(--text-2);
 }
 .app-clock .ck-spin:hover .ck-spin-btn,
 .app-clock .ck-spin:focus-within .ck-spin-btn {
@@ -700,7 +719,7 @@
   line-height: 16px;
   padding: 2px 6px;
   border-radius: var(--radius-sm);
-  color: var(--text-3);
+  color: var(--text-2); /* readable (4.5:1); selected days stand out by colour, weight and fill */
 }
 .app-clock .ck-chip.on {
   color: var(--accent-text);
@@ -927,11 +946,7 @@
   gap: 16px;
 }
 .app-clock .ck-sw-hint {
-  opacity: 0.85;
   text-align: center;
-}
-.app-clock .ck-sw.running .ck-sw-hint {
-  opacity: 0.5;
 }
 .app-clock .ck-sw.expanded .ck-laps,
 .app-clock .ck-sw.expanded .ck-sw-hint {
@@ -952,10 +967,29 @@
 .app-clock .ck-laps-head,
 .app-clock .ck-lap {
   display: grid;
-  grid-template-columns: minmax(118px, 1.25fr) 1fr 1fr minmax(32px, auto);
+  grid-template-columns: minmax(0, 1.25fr) minmax(max-content, 1fr) minmax(max-content, 1fr) minmax(32px, auto);
   align-items: center;
   gap: 12px;
   padding: 0 12px 0 16px;
+}
+/* narrow window: the Fastest / Slowest tag goes under the lap number, Copy laps shows its icon only */
+.app-clock .ck.tight .ck-laps-head,
+.app-clock .ck.tight .ck-lap {
+  gap: 8px;
+  padding: 0 4px 0 8px;
+}
+.app-clock .ck.tight .ck-lap-n {
+  flex-wrap: wrap;
+  row-gap: 2px;
+  padding: 4px 0;
+}
+.app-clock .ck.tight .ck-sw-copy-label {
+  display: none;
+}
+.app-clock .ck.tight .ck-sw-copy {
+  width: 32px;
+  padding: 0;
+  justify-content: center;
 }
 .app-clock .ck-laps-head {
   min-height: 40px;
@@ -1014,9 +1048,8 @@
 .app-clock .ck-map {
   position: relative;
   width: 100%;
-  max-width: calc(440px * 360 / 142);
-  margin: 0 auto;
   aspect-ratio: 360 / 142;
+  max-height: 440px; /* wider than that: the view widens and the map wraps around (layoutMap) */
 }
 .app-clock .ck-map-svg {
   position: absolute;

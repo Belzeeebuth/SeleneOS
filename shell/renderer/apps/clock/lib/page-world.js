@@ -9,6 +9,7 @@ import { analogClock, commandBar, enter, reduceMotion, svg } from './widgets.js'
 
 const MAP_TOP = 6; // the map shows latitudes 84°N .. 58°S
 const MAP_H = 142;
+const WRAP = [-360, 0, 360];
 let worldData = null;
 
 export class WorldPage {
@@ -33,20 +34,29 @@ export class WorldPage {
     const { h, t, icon } = this.app;
     this.tz = localZone();
     // ---- map
-    this.land = svg('path', { class: 'ck-land', d: '' });
+    // The map wraps around: on a window wider than the map's 360° x 142° aspect, the view widens
+    // (layoutMap) and the copies of the land and of the sun at ±360° fill the sides seamlessly, so
+    // the map never stretches or shows empty bands. The night paths already repeat at ±360°.
+    this.lands = WRAP.map((dx) => svg('path', { class: 'ck-land', d: '', transform: dx ? `translate(${dx} 0)` : null }));
+    this.land = this.lands[1];
     this.nights = [0, -6, -12, -18].map((a, i) => svg('path', { class: `ck-night n${i}`, d: '', 'fill-rule': 'nonzero' }));
-    this.sun = svg('g', { class: 'ck-sun' }, svg('circle', { r: 7, class: 'ck-sun-glow' }), svg('circle', { r: 2.4, class: 'ck-sun-core' }));
+    this.suns = WRAP.map(() => svg('g', { class: 'ck-sun' }, svg('circle', { r: 7, class: 'ck-sun-glow' }), svg('circle', { r: 2.4, class: 'ck-sun-core' })));
+    this.sun = this.suns[1];
+    this.view = { x: 0, w: 360 };
     this.mapSvg = svg(
       'svg',
       { class: 'ck-map-svg', viewBox: `0 ${MAP_TOP} 360 ${MAP_H}`, preserveAspectRatio: 'none', role: 'img', 'aria-label': t('world.mapLabel') },
-      svg('rect', { class: 'ck-ocean', x: 0, y: 0, width: 360, height: 180 }),
-      this.land,
+      svg('rect', { class: 'ck-ocean', x: -360, y: 0, width: 1080, height: 180 }),
+      ...this.lands,
       ...this.nights,
-      this.sun,
+      ...this.suns,
     );
     this.pins = h('div', { class: 'ck-pins' });
     this.map = h('div', { class: 'ck-map' }, this.mapSvg, this.pins);
     this.mapCard = h('div', { class: 'card ck-map-card' }, this.map);
+    // the map's own size (not only the window's) decides the view and the pin positions
+    this.mapRO = new ResizeObserver(() => this.layoutPins());
+    this.mapRO.observe(this.map);
     this.loadMap();
     // ---- compare bar
     this.cmpLabel = h('div', { class: 'ck-cmp-label body-strong' });
@@ -80,7 +90,7 @@ export class WorldPage {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         worldData = await r.json();
       }
-      this.land.setAttribute('d', worldData.land || '');
+      for (const l of this.lands) l.setAttribute('d', worldData.land || '');
     } catch (err) {
       console.error('[clock] world map failed to load', err);
     }
@@ -339,20 +349,34 @@ export class WorldPage {
     for (const e of this.entries()) {
       const c = e.city;
       if (c.lat == null) continue;
-      const x = ((c.lon + 180) / 360) * 100;
+      const x = ((c.lon + 180 - this.view.x) / this.view.w) * 100;
       const y = ((90 - c.lat - MAP_TOP) / MAP_H) * 100;
       if (y < 0 || y > 100) continue;
       const label = h('span', { class: 'ck-pin-label' }, h('span', { class: 'ck-pin-name' }, e.local ? cityName(c, lang) : cityName(c, lang)), h('span', { class: 'ck-pin-time' }));
       const pin = h('div', { class: ['ck-pin', e.local && 'local'], style: { left: `${x}%`, top: `${y}%` }, dataset: { id: e.key } }, h('span', { class: 'ck-pin-dot' }), label);
       pin.tz = e.local ? this.tz : c.tz;
+      pin.lon = c.lon;
       this.pins.appendChild(pin);
       this.pinEls.push(pin);
     }
     requestAnimationFrame(() => this.layoutPins());
   }
 
+  // widen the view to the map's box (no stretching on wide windows), centred on Greenwich
+  layoutMap() {
+    const r = this.map.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const w = Math.min(1080, Math.max(360, (MAP_H * r.width) / r.height));
+    if (Math.abs(w - this.view.w) > 0.05) {
+      this.view = { x: 180 - w / 2, w };
+      this.mapSvg.setAttribute('viewBox', `${this.view.x.toFixed(2)} ${MAP_TOP} ${w.toFixed(2)} ${MAP_H}`);
+    }
+    for (const pin of this.pinEls || []) pin.style.left = `${((pin.lon + 180 - this.view.x) / this.view.w) * 100}%`;
+  }
+
   // hide labels that would overlap one already placed (the local pin first), flip near the right edge
   layoutPins() {
+    this.layoutMap();
     if (!this.pinEls?.length) return;
     const box = this.pins.getBoundingClientRect();
     if (!box.width) return;
@@ -377,7 +401,7 @@ export class WorldPage {
     this.lastMapMinute = minute;
     [0, -6, -12, -18].forEach((a, i) => this.nights[i].setAttribute('d', nightPath(at, a)));
     const p = solarPosition(at);
-    this.sun.setAttribute('transform', `translate(${(p.subLon + 180).toFixed(2)} ${(90 - p.subLat).toFixed(2)})`);
+    this.suns.forEach((g, i) => g.setAttribute('transform', `translate(${(p.subLon + 180 + WRAP[i]).toFixed(2)} ${(90 - p.subLat).toFixed(2)})`));
   }
 
   // ------------------------------------------------------------------ ticking
@@ -544,11 +568,10 @@ export class WorldPage {
     });
     const body = h('div', { class: 'ck-dlg ck-dlg-search' }, h('div', { class: 'search-box' }, input, icon('search')), hint, list);
     this.dialogOpen = true;
-    const res = await ui.dialog({
+    const res = await this.app.dialog({
       title: t('world.addTitle'),
       body,
-      parent: win,
-      className: 'ck-dialog ck-search-dialog',
+      className: 'ck-search-dialog',
       buttons: [
         { label: t('world.addBtn'), value: 'add', primary: true },
         { label: t('common.cancel'), value: null },
@@ -568,7 +591,9 @@ export class WorldPage {
     return city;
   }
 
-  destroy() {}
+  destroy() {
+    this.mapRO?.disconnect();
+  }
 }
 
 function utcText(mins) {

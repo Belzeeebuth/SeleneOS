@@ -17,6 +17,7 @@
 import { api, Emitter } from './api.js';
 import { settings } from './settings.js';
 import { theme, STYLES, FONTS } from './theme.js';
+import { EFFECT_IDS, SET_IDS } from './wallpaper/dynamic.js';
 import { i18n } from './i18n.js';
 
 /** Every settings key a profile saves and restores (dotted keys are sub-keys). */
@@ -25,7 +26,7 @@ export const PROFILE_KEYS = [
   'style', 'theme', 'autoTheme', 'accent', 'accentFromWallpaper', 'transparency', 'transparencyLevel', 'blur',
   'cornerRadius', 'fontFamily', 'textScale', 'scale', 'reducedMotion', 'animations', 'taskbar.color', 'taskbar.opacity', 'appThemes',
   // wallpapers (B1)
-  'wallpaper', 'wallpaperFit', 'lockWallpaper', 'wallpaperMode', 'animatedWallpaper', 'dynamicWallpaper',
+  'wallpaper', 'wallpaperFit', 'lockWallpaper', 'wallpaperMode', 'animatedWallpaper', 'dynamicWallpaper', 'slideshow', 'lockScreen',
   // taskbar + Start + Focus mode (B2)
   'taskbar.align', 'taskbar.autohide', 'taskbar.showSearch', 'taskbar.showTaskView', 'taskbar.showWidgets',
   'taskbar.size', 'taskbar.position', 'taskbar.showLabels', 'taskbar.combine', 'taskbar.widgets',
@@ -81,12 +82,50 @@ const int = (lo, hi) => (v) => (typeof v === 'number' && Number.isFinite(v) && v
 const bool = (v) => (typeof v === 'boolean' ? v : undefined);
 const oneOf = (...xs) => (v) => (xs.includes(v) ? v : undefined);
 const hex = (v) => (typeof v === 'string' && HEX.test(v) ? v.toLowerCase() : undefined);
+// Identifiers (pack ids, widget ids, app ids…): never anything that could break out of CSS, HTML or a URL.
+const SLUG = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const slug = (v) => (typeof v === 'string' && SLUG.test(v) && !UNSAFE_KEYS.has(v) ? v : undefined);
+const CTRL = /[\u0000-\u001f\u007f]/;
+/** Free text shown with textContent (names): control characters removed, length bounded. */
+const text = (max) => (v) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f<>]+/g, ' ').trim().slice(0, max) : undefined);
+const num = (lo, hi) => (v) => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? v : undefined);
+/** An absolute local path (no "..", no control characters). */
+const localPath = (v) => (typeof v === 'string' && v.startsWith('/') && v.length < 4096 && !CTRL.test(v) && !/(^|\/)\.\.(\/|$)/.test(v) ? v : undefined);
+const arrayOf = (fn, max) => (v) => (Array.isArray(v) ? v.slice(0, max).map(fn).filter((x) => x !== undefined) : undefined);
+const safePrimitive = (x) => x === null || typeof x === 'boolean' || (typeof x === 'number' && Number.isFinite(x)) || slug(x) !== undefined;
+/**
+ * An object with known fields (each validated; `required` ones must be valid). Unknown sub-keys are kept
+ * only when they are plain safe primitives, so a later area can add a field without losing it on import.
+ */
+function shape(spec, { required = [] } = {}) {
+  return (v) => {
+    if (!isObj(v)) return undefined;
+    const out = {};
+    for (const [k, fn] of Object.entries(spec)) {
+      if (!Object.prototype.hasOwnProperty.call(v, k)) {
+        if (required.includes(k)) return undefined;
+        continue;
+      }
+      const x = fn(v[k]);
+      if (x !== undefined) out[k] = x;
+      else if (required.includes(k)) return undefined;
+    }
+    for (const [k, x] of Object.entries(v)) if (!(k in spec) && slug(k) && safePrimitive(x)) out[k] = x;
+    return out;
+  };
+}
+/** A sound reference: null (the pack's sound), 'none', a sound id or an absolute file path. */
+const soundRef = (v) => (v === null || v === 'none' ? v : slug(v) ?? (/\.(ogg|oga|opus|wav|mp3|flac|m4a|webm)$/i.test(String(v)) ? localPath(v) : undefined));
+/** A keyboard combo in main/lib/hotkeys.js syntax ("Super+Shift+S"), or null (= turned off). */
+const combo = (v) => (v === null ? null : typeof v === 'string' && /^[^\s<>"'`(){}\\\u0000-\u001f\u007f]{1,48}$/u.test(v) ? v : undefined);
+const zone = shape({ x: num(0, 1), y: num(0, 1), w: num(0.02, 1), h: num(0.02, 1) }, { required: ['x', 'y', 'w', 'h'] });
 function wallpaperValue(v) {
   if (typeof v !== 'string' || !v || v.length > 8192) return undefined;
   if (/^builtin:[a-z0-9-]{1,32}$/.test(v)) return v;
-  if (v.startsWith('/') && !v.includes('\0') && !/(^|\/)\.\.(\/|$)/.test(v) && v.length < 4096) return v;
-  if (/^data:image\/(svg\+xml|png|jpeg|webp);?/i.test(v) && !/<script|javascript:|on\w+=/i.test(decodeURIComponentSafe(v))) return v;
-  if (/^https?:\/\//i.test(v) && v.length < 2048) return v;
+  if (localPath(v)) return v;
+  if (/^data:image\/(svg\+xml|png|jpeg|webp)[;,]/i.test(v) && !CTRL.test(v) && !/<script|javascript:|on\w+\s*=|<foreignObject|href\s*=/i.test(decodeURIComponentSafe(v))) return v;
+  // remote pictures are not accepted: an imported profile must not make the desktop contact a server
   return undefined;
 }
 function decodeURIComponentSafe(s) {
@@ -118,7 +157,7 @@ export const VALIDATORS = {
     if (!isObj(v)) return undefined;
     const out = {};
     for (const [id, cfg] of Object.entries(v).slice(0, 300)) {
-      if (!/^[a-z0-9._-]{1,64}$/i.test(id) || !isObj(cfg)) continue;
+      if (!slug(id) || !isObj(cfg)) continue;
       const th = ['system', 'light', 'dark'].includes(cfg.theme) ? cfg.theme : 'system';
       const ac = cfg.accent == null ? null : hex(cfg.accent);
       if (ac === undefined) continue;
@@ -130,10 +169,91 @@ export const VALIDATORS = {
   lockWallpaper: (v) => (v === null ? null : wallpaperValue(v)),
   wallpaperFit: oneOf('fill', 'fit', 'stretch', 'center', 'tile'),
   desktopIconSize: oneOf('small', 'medium', 'large'),
+  // wallpaper engine (B1)
+  wallpaperMode: oneOf('static', 'animated', 'dynamic', 'slideshow'),
+  animatedWallpaper: (v) =>
+    isObj(v) && EFFECT_IDS.includes(v.id)
+      ? { id: v.id, speed: int(0, 100)(v.speed) ?? 50, intensity: int(0, 100)(v.intensity) ?? 50, fps: v.fps === 15 ? 15 : 30, pauseOnMaximized: v.pauseOnMaximized !== false }
+      : undefined,
+  dynamicWallpaper: (v) => {
+    if (!isObj(v)) return undefined;
+    const loc = v.location;
+    const place =
+      loc === null || loc === undefined
+        ? null
+        : isObj(loc) && Number.isFinite(loc.lat) && Number.isFinite(loc.lon) && Math.abs(loc.lat) <= 90 && Math.abs(loc.lon) <= 180
+          ? { name: String(loc.name ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 120), lat: loc.lat, lon: loc.lon }
+          : undefined;
+    if (place === undefined) return undefined;
+    return { source: v.source === 'weather' ? 'weather' : 'time', set: SET_IDS.includes(v.set) ? v.set : 'bloom', location: place, followTheme: v.followTheme === true };
+  },
+  slideshow: (v) => {
+    if (!isObj(v)) return undefined;
+    const folder = v.folder == null ? null : typeof v.folder === 'string' && v.folder.startsWith('/') && !v.folder.includes('\0') && !/(^|\/)\.\.(\/|$)/.test(v.folder) && v.folder.length < 4096 ? v.folder : undefined;
+    if (folder === undefined) return undefined;
+    return { folder, interval: int(1, 1440)(v.interval) ?? 30, shuffle: v.shuffle !== false };
+  },
+  lockScreen: (v) => (isObj(v) && ['picture', 'spotlight', 'animated'].includes(v.mode) ? { mode: v.mode, effect: EFFECT_IDS.includes(v.effect) ? v.effect : 'aurora' } : undefined),
   'taskbar.align': oneOf('left', 'center'),
+  // Reserved keys (docs/PERSONALIZATION.md §1.2): strict by default. The area that implements a key may
+  // replace its validator when it changes the schema (edit it here: a second entry with the same name
+  // further down would silently win) — never fall back to the generic type check for values that reach
+  // CSS, HTML, URLs or the file system. (B1's wallpaper validators are above.)
+  // B2 — taskbar, Start, Focus mode
+  'taskbar.autohide': bool,
+  'taskbar.showSearch': bool,
+  'taskbar.showTaskView': bool,
+  'taskbar.showWidgets': bool,
+  'taskbar.size': oneOf('small', 'medium', 'large'),
+  'taskbar.position': oneOf('bottom', 'top', 'left', 'right'),
+  'taskbar.showLabels': bool,
+  'taskbar.combine': oneOf('always', 'whenFull', 'never'),
+  'taskbar.widgets': arrayOf(slug, 16),
+  'start.layout': oneOf('default', 'morePins', 'moreRecommended', 'list'),
+  'start.background': oneOf('acrylic', 'solid', 'accent', 'wallpaper'),
+  'start.folders': arrayOf(slug, 16),
+  'start.groups': arrayOf(shape({ id: slug, name: text(60), apps: arrayOf(slug, 200) }, { required: ['id'] }), 64),
+  startShowRecent: bool,
+  focusMode: shape({ active: bool, hideNotifications: bool, dimDesktop: bool, dimLevel: int(0, 100), simplifyTaskbar: bool, duration: int(0, 1440) }),
+  // B3 — packs and input
+  cursorPack: slug,
+  iconPack: slug,
+  soundPack: slug,
+  soundEvents: shape({ notification: soundRef, startup: soundRef, shutdown: soundRef }),
+  snapPresets: arrayOf(shape({ id: slug, name: text(60), zones: arrayOf((z) => { const o = zone(z); return o && o.x + o.w <= 1.001 && o.y + o.h <= 1.001 ? o : undefined; }, 16) }, { required: ['id', 'zones'] }), 32),
+  shortcuts: (v) => {
+    if (!isObj(v)) return undefined;
+    const out = {};
+    for (const [id, c] of Object.entries(v).slice(0, 300)) {
+      if (!/^[a-z0-9][\w.:-]{0,63}$/i.test(id) || UNSAFE_KEYS.has(id)) continue;
+      const x = combo(c);
+      if (x !== undefined) out[id] = x;
+    }
+    return out;
+  },
 };
 
-/** Generic check for keys without a validator: same JSON type as the default, plain JSON, bounded size. */
+/** Deep copy of plain JSON keeping only inert values: no prototype keys, no strings that could break out of
+ *  CSS / HTML / a URL (quotes, brackets, parentheses, backslashes, control characters). */
+function inert(v, depth = 0) {
+  if (v === null || typeof v === 'boolean') return v;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+  if (typeof v === 'string') return v.length <= 4096 && !/[<>"'`(){}\\;\u0000-\u001f\u007f]/.test(v) ? v : undefined;
+  if (depth > 6) return undefined;
+  if (Array.isArray(v)) return v.slice(0, 500).map((x) => inert(x, depth + 1)).filter((x) => x !== undefined);
+  if (isObj(v)) {
+    const out = {};
+    for (const [k, x] of Object.entries(v).slice(0, 500)) {
+      if (UNSAFE_KEYS.has(k) || k.length > 64) continue;
+      const y = inert(x, depth + 1);
+      if (y !== undefined) out[k] = y;
+    }
+    return out;
+  }
+  return undefined;
+}
+
+/** Generic check for keys without a validator: same JSON type as the default, inert plain JSON, bounded size. */
 function genericValid(value, def) {
   let json;
   try {
@@ -144,7 +264,7 @@ function genericValid(value, def) {
   if (json === undefined || json.length > 65536) return undefined;
   const type = (x) => (x === null ? 'null' : Array.isArray(x) ? 'array' : typeof x);
   if (def !== undefined && def !== null && value !== null && type(value) !== type(def)) return undefined;
-  return JSON.parse(json);
+  return inert(JSON.parse(json));
 }
 
 /** Validate a values map: unknown keys dropped, invalid values dropped. */

@@ -211,7 +211,8 @@ export class ListView {
     const isUser = v.startsWith('list:') && v !== `list:${DEFAULT_LIST}`;
     this.titleEl.tabIndex = isUser ? 0 : -1;
     this.titleEl.classList.toggle('editable', isUser);
-    this.titleEl.title = isUser ? t('list.clickToRename') : '';
+    if (isUser) this.titleEl.dataset.tip = t('list.clickToRename');
+    else delete this.titleEl.dataset.tip;
     app.ui.clear(this.titleIcon);
     const list = v.startsWith('list:') ? app.store.list(v.slice(5)) : null;
     if (list?.emoji) {
@@ -224,7 +225,8 @@ export class ListView {
       this.titleIcon.className = 'td-title-icon';
       this.titleIcon.append(app.icon('search'));
     } else this.titleIcon.className = 'td-title-icon empty';
-    this.titleIcon.title = isUser ? t('menu.changeIcon') : '';
+    if (isUser) this.titleIcon.dataset.tip = t('menu.changeIcon');
+    else delete this.titleIcon.dataset.tip;
     this.titleIcon.classList.toggle('clickable', isUser);
     this.subtitle.textContent = v === 'myday' ? app.fmt.longToday() : '';
     this.subtitle.hidden = v !== 'myday';
@@ -407,6 +409,7 @@ export class ListView {
       this.body.appendChild(this._completedSection(sortDone(done), { ...opts, showList: smart && v !== 'search' }));
     }
     if (!open.length && !(showDone && done.length)) this.body.appendChild(this._empty(v));
+    this.body.classList.toggle('big', open.length + (showDone ? done.length : 0) > 150);
     this.scroller.scrollTop = scroll;
     if (animate) playFlip(this.scroller, before, { sel: '.td-task' });
     this.paintSelection();
@@ -510,10 +513,10 @@ export class ListView {
     }
     if (Number.isFinite(task.remindAt)) {
       const past = task.remindAt <= Date.now();
-      meta.push(h('span', { class: ['td-meta-remind', past && 'past'], title: app.fmt.reminderMain(task.remindAt) }, icon('alert', { size: 12 }), task.due ? null : app.fmt.reminderShort(task.remindAt)));
+      meta.push(h('span', { class: ['td-meta-remind', past && 'past'], 'data-tip': `${app.fmt.reminderMain(task.remindAt)}, ${app.fmt.reminderSub(task.remindAt)}` }, icon('alert', { size: 12 }), task.due ? null : app.fmt.reminderShort(task.remindAt)));
     }
-    if (task.repeat) meta.push(h('span', { class: 'td-meta-repeat', title: app.fmt.repeat(task.repeat) }, icon('arrow_repeat_all', { size: 12 })));
-    if (task.note.trim()) meta.push(h('span', { class: 'td-meta-note', title: t('detail.note') }, icon('note', { size: 12 })));
+    if (task.repeat) meta.push(h('span', { class: 'td-meta-repeat', 'data-tip': app.fmt.repeat(task.repeat) }, icon('arrow_repeat_all', { size: 12 })));
+    if (task.note.trim()) meta.push(h('span', { class: 'td-meta-note', 'data-tip': t('detail.note') }, icon('note', { size: 12 })));
     const snip = snippets?.get(task.id);
     if (snip && snip.where !== 'title') meta.push(h('span', { class: 'td-meta-snip' }, `${t(snip.where === 'step' ? 'search.inStep' : 'search.inNote')} `, this._highlight(snip.text)));
     const titleEl = h('div', { class: 'td-row-title' }, snip ? this._highlight(task.title) : task.title);
@@ -760,12 +763,15 @@ export class ListView {
       el,
       host: app.root,
       scroller: this.scroller,
-      makeGhost: (src) => {
-        const g = src.cloneNode(true);
-        g.classList.remove('selected', 'open');
-        if (ids.length > 1) g.appendChild(app.h('span', { class: 'td-ghost-count badge' }, String(ids.length)));
-        return g;
-      },
+      compact: true,
+      makeGhost: () =>
+        app.h(
+          'div',
+          { class: ['td-ghost-task', task.done && 'done'] },
+          app.h('span', { class: 'td-check' }, checkSvg()),
+          app.h('span', { class: 'td-ghost-title' }, task.title),
+          ids.length > 1 ? app.h('span', { class: 'td-ghost-count badge' }, String(ids.length)) : null,
+        ),
       onStart: () => {
         el.classList.add('td-dragging');
         for (const id of ids) this.rowEl(id)?.classList.add('td-dragging');
@@ -823,13 +829,16 @@ export class ListView {
   }
 }
 
+let checkProto = null;
 function checkSvg() {
-  const span = document.createElement('span');
-  span.className = 'td-check-ic';
-  span.setAttribute('aria-hidden', 'true');
-  span.innerHTML =
-    '<svg viewBox="0 0 20 20"><circle class="td-ring" cx="10" cy="10" r="8.5"/><circle class="td-fill" cx="10" cy="10" r="9.25"/><path class="td-tick" d="M6.2 10.4l2.6 2.6 5-5.4"/></svg>';
-  return span;
+  if (!checkProto) {
+    checkProto = document.createElement('span');
+    checkProto.className = 'td-check-ic';
+    checkProto.setAttribute('aria-hidden', 'true');
+    checkProto.innerHTML =
+      '<svg viewBox="0 0 20 20"><circle class="td-ring" cx="10" cy="10" r="8.5"/><circle class="td-fill" cx="10" cy="10" r="9.25"/><path class="td-tick" d="M6.2 10.4l2.6 2.6 5-5.4"/></svg>';
+  }
+  return checkProto.cloneNode(true);
 }
 
 export { checkSvg };

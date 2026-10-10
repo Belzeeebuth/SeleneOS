@@ -1,5 +1,5 @@
 // Media Player pages. Each view(app, arg) returns { el, onMeta?(paths), title? }.
-import { formatTime, compareText, baseName } from './util.js';
+import { formatTime, compareText, baseName, tildify } from './util.js';
 import { artEl, entryArt, pageHeader, btn, emptyState, sectionHead, tile, grid, SongList } from './components.js';
 
 const SONG_SORTS = ['az', 'artist', 'album', 'year', 'added'];
@@ -39,13 +39,6 @@ function scanningBar(app) {
         app.h('span', { class: 'caption text-2' }, app.t('library.scanning')),
       )
     : null;
-}
-
-/** '/home/me/Music' -> '~/Music' (only a real home prefix: '/home/me2' stays as is). */
-export function tildify(p, home) {
-  if (!home || home === '/') return p;
-  const h = home.replace(/\/+$/, '');
-  return p === h ? '~' : p.startsWith(`${h}/`) ? `~${p.slice(h.length)}` : p;
 }
 
 function folderList(app, kind) {

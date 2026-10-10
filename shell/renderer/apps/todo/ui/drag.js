@@ -45,12 +45,18 @@ export function beginDrag(e, opts) {
     active = opts;
     const r = el.getBoundingClientRect();
     const hr = host.getBoundingClientRect();
-    offX = Math.min(sx - r.left, r.width);
-    offY = sy - r.top;
     ghost = opts.makeGhost ? opts.makeGhost(el) : el.cloneNode(true);
     ghost.classList.add('td-ghost');
     ghost.removeAttribute('id');
-    Object.assign(ghost.style, { position: 'absolute', left: '0', top: '0', width: `${Math.min(r.width, hr.width)}px`, pointerEvents: 'none', zIndex: '60', margin: '0' });
+    // compact ghosts sit below-right of the pointer so the drop target under it stays visible
+    if (opts.compact) {
+      offX = -14;
+      offY = -10;
+    } else {
+      offX = Math.min(sx - r.left, r.width);
+      offY = sy - r.top;
+    }
+    Object.assign(ghost.style, { position: 'absolute', left: '0', top: '0', width: opts.compact ? 'auto' : `${Math.min(r.width, hr.width)}px`, pointerEvents: 'none', zIndex: '60', margin: '0' });
     host.appendChild(ghost);
     host.classList.add('td-drag-active');
     place();

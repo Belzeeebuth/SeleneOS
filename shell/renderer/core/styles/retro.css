@@ -156,6 +156,10 @@
     --bevel-in: inset 1px 1px 0 var(--face-shadow), inset -1px -1px 0 var(--face-hi), inset 2px 2px 0 var(--face-dark), inset -2px -2px 0 var(--face-lo);
     --bevel-thin-in: inset 1px 1px 0 var(--face-shadow), inset -1px -1px 0 var(--face-hi);
     --bevel-thin-out: inset -1px -1px 0 var(--face-shadow), inset 1px 1px 0 var(--face-hi);
+    /* the body text colours, kept for what the title bar hosts (it overrides --text with the title colour) */
+    --face-text: var(--text);
+    --face-text-2: var(--text-2);
+    --face-text-3: var(--text-3);
   }
 
   /* ---- windows: raised frame, gradient title bar, small bevelled caption buttons ---- */
@@ -249,6 +253,15 @@
   }
   .win-body {
     margin-top: 2px;
+  }
+  /* Tabs and fields that apps put in the title bar (Notepad, Terminal, Browser, Files, Mail, Task Manager)
+     paint the window's own surface or a white well: they keep the body text colours, not the title's. */
+  .win-titlebar :is([role="tab"]:is(.active, .selected, [aria-selected="true"]), input, textarea, select, .input, .search-box) {
+    --text: var(--face-text);
+    --text-2: var(--face-text-2);
+    --text-3: var(--face-text-3);
+    --subtle-hover: rgba(0, 0, 60, 0.08);
+    --subtle-pressed: rgba(0, 0, 60, 0.14);
   }
 
   /* ---- buttons ---- */

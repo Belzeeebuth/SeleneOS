@@ -171,6 +171,16 @@
   .win.maximized {
     border: 0;
   }
+  /* Tabs and fields that apps put in the title bar (Notepad, Terminal, Browser, Files, Mail, Task Manager)
+     paint the window's own (black / white) surface: they keep the body colours, not the title's. */
+  .win.active .win-titlebar :is([role="tab"]:is(.active, .selected, [aria-selected="true"]), input, textarea, select, .input, .search-box) {
+    --text: var(--hc-fg);
+    --text-2: var(--hc-fg);
+    --text-3: var(--hc-fg);
+    --subtle-hover: color-mix(in srgb, var(--hc-hi) 22%, var(--hc-bg));
+    --subtle-pressed: color-mix(in srgb, var(--hc-hi) 30%, var(--hc-bg));
+    color: var(--hc-fg);
+  }
 
   /* ---- controls ---- */
   .btn {
@@ -464,5 +474,21 @@
   .lk-date,
   .lk-name {
     text-shadow: 0 0 2px #000000, 0 0 6px #000000;
+  }
+  /* a dark veil over the picture: white text, links and tray icons stay ≥ 7:1 on any wallpaper */
+  .lk-scrim,
+  .lk-shade,
+  .lockui.lk-light-wall .lk-shade {
+    background: rgba(0, 0, 0, 0.74);
+  }
+  .lk-link {
+    color: #ffffff;
+    text-decoration: underline;
+  }
+  .lk-link:focus-visible,
+  .lk-tray-btn:focus-visible,
+  .lk-user:focus-visible {
+    outline: 3px solid #1aebff;
+    outline-offset: 1px;
   }
 }

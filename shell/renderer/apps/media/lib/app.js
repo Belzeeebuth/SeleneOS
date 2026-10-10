@@ -17,6 +17,21 @@ const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 const DEFAULT_PREFS = { visualizer: 'bars', resume: true, videoStage: true, songSort: 'az', videoSort: 'az', navCollapsed: false, playlistsOpen: true, showRemaining: false };
 const reduceMotion = () => document.documentElement.dataset.animations === 'off';
 
+/** Hooks the shell keeps on the window object reach the app only through a holder that is
+ *  emptied on close (and are created outside the class so their closures cannot capture `this`):
+ *  a closed window that the shell still references must not keep the whole player alive. */
+function bindLifecycle(ref, win, ctx) {
+  win.onBeforeClose(async () => {
+    ref.app?._saveState.flush();
+    return true;
+  });
+  ctx.onClose(() => {
+    ref.app?.destroy();
+    ref.app = null;
+  });
+  ctx.onLangChange?.(() => ref.app?.relocalize());
+}
+
 export class MediaApp {
   constructor(ctx) {
     this.ctx = ctx;
@@ -43,6 +58,10 @@ export class MediaApp {
     this.dragPaths = null;
     this._errStreak = 0;
     this._disposers = [];
+    // A launch with one file starts a "burst": files opened right after it join its queue.
+    this._singleAt = typeof ctx.args?.file === 'string' && !Array.isArray(ctx.args?.files) ? performance.now() : 0;
+    // Listeners on the shell-owned window element are removed on close (see destroy()).
+    this._winSignal = new AbortController();
   }
   get locale() {
     return this.i18n?.locale || 'en-US';
@@ -51,6 +70,8 @@ export class MediaApp {
   // ================================================================== init
   async init() {
     const { api } = this;
+    // Files opened while we start (relaunches) wait for the launch files to be handled first.
+    this._argsChain = new Promise((resolve) => (this._argsGate = resolve));
     const xdg = await api.invoke('fs:xdg').catch(() => ({ home: this.ctx.env?.home || '/home/user' }));
     this.xdg = xdg;
     this.home = xdg.home;
@@ -104,12 +125,18 @@ export class MediaApp {
     for (const p of this.recent.slice(0, 12)) this.lib.ensure(p).catch(() => {});
     this.lib.scan().catch((err) => console.error('[media] scan failed', err));
     this._watchLibrary();
-    if (wantFiles.length) await this.openArgs(args);
+    try {
+      if (wantFiles.length) await this.handleArgs(args);
+    } finally {
+      this._argsGate();
+    }
   }
 
   /** init() failed: show what happened instead of an empty window. */
   fail(err) {
     console.error('[media] start-up failed', err);
+    this._failed = true;
+    this._argsGate?.();
     if (this._destroyed) return;
     const { h, icon, t } = this;
     this.root?.remove();
@@ -124,20 +151,42 @@ export class MediaApp {
     );
   }
 
-  /** Files opened from outside (launch / relaunch args), one batch at a time, in order.
-   *  File Explorer opens a multi-selection one file after the other ({ file } each, back to back):
-   *  a single file arriving right after the previous one joins the queue instead of replacing
-   *  it, so the whole selection plays. An explicit { files } list always starts over. */
-  openArgs(args) {
-    const run = async () => {
-      if (this._destroyed) return;
-      const single = typeof args?.file === 'string' && !args.files;
-      const join = single && this._argsSingle && Date.now() - (this._argsAt || 0) < 800 && !!this.queue.current;
-      await this.handleArgs(args, { join });
-      this._argsAt = Date.now();
-      this._argsSingle = single;
-    };
-    this._argsChain = (this._argsChain || Promise.resolve()).then(run, run);
+  /** Files opened from outside (relaunch args), handled one request at a time, in order.
+   *  File Explorer opens a multi-selection one file after the other ({ file } each, a few ms
+   *  apart): single files arriving back to back (< 80 ms apart, the launch file included) are
+   *  gathered and played as one list, so the whole selection plays instead of only the last
+   *  file. A file opened later, or an explicit { files } list, starts over like in Windows.
+   *  `after` delays the work (relaunches wait for init()). */
+  openArgs(args, after = null) {
+    if (typeof args?.file !== 'string' || Array.isArray(args?.files)) {
+      this._singleAt = 0;
+      return this._queueArgs(() => this.handleArgs(args), after);
+    }
+    const now = performance.now();
+    const burst = now - (this._singleAt || -1e9) < 80;
+    this._singleAt = now;
+    let batch = this._batch;
+    if (!batch) {
+      batch = this._batch = { files: [], join: burst };
+      const settled = new Promise((resolve) => {
+        batch.kick = () => {
+          clearTimeout(batch.timer);
+          batch.timer = setTimeout(resolve, 80);
+        };
+      });
+      batch.done = this._queueArgs(async () => {
+        await settled;
+        if (this._batch === batch) this._batch = null;
+        await this.handleArgs({ files: batch.files }, { join: batch.join && !!this.queue.current });
+      }, after);
+    }
+    batch.files.push(args.file);
+    batch.kick();
+    return batch.done;
+  }
+  _queueArgs(fn, after) {
+    const run = () => (this._destroyed || this._failed ? null : fn());
+    this._argsChain = Promise.all([this._argsChain, after]).then(run, run);
     return this._argsChain;
   }
 
@@ -287,6 +336,8 @@ export class MediaApp {
       if (compact) el.dataset.tip = el.getAttribute('aria-label');
       else delete el.dataset.tip;
     }
+    // A taller window shows more rows of the windowed song lists.
+    for (const l of this.lists) l.paint?.();
   }
 
   toggleNav(e) {
@@ -443,6 +494,7 @@ export class MediaApp {
   }
 
   render({ keepScroll = false, scroll, anim } = {}) {
+    for (const l of this.lists) l.dispose?.();
     this.lists = [];
     const map = {
       home: V.homeView,
@@ -469,12 +521,18 @@ export class MediaApp {
     const hadFocus = this.scroller.contains(active);
     // Re-renders of the same page (library updates) keep keyboard focus on the same item.
     const focusPath = keepScroll && hadFocus ? active.closest?.('[data-path]')?.dataset.path : null;
+    const focusRowIdx = focusPath != null && active.closest?.('.mp-row') ? Number(active.closest('.mp-row').dataset.i) : -1;
     this.scroller.replaceChildren(res.el);
     this.view = res;
     this.scroller.scrollTop = top;
+    for (const l of this.lists) l.paint?.(); // windowed lists: rows for the restored position
     if (focusPath) {
       const again = [...this.scroller.querySelectorAll('[data-path]')].find((el) => el.dataset.path === focusPath);
-      (again || this.scroller).focus({ preventScroll: true });
+      const list = this.lists.find((l) => (again ? l.el.contains(again) : true));
+      // A song row keeps focus and selection (moved with Alt+arrows); a removed one hands them to
+      // the row that took its place, like a Windows list view.
+      if (list?.length && (again?.classList.contains('mp-row') || (!again && focusRowIdx >= 0))) list.focusRow(again ? Number(again.dataset.i) : Math.min(focusRowIdx, list.length - 1));
+      else (again || this.scroller).focus({ preventScroll: true });
     }
     if (anim && !reduceMotion()) {
       const frames =
@@ -636,12 +694,7 @@ export class MediaApp {
         if (this.mini) this.toggleMini(false, { keepRect: true });
       }),
     );
-    w.onBeforeClose(async () => {
-      this._saveState.flush();
-      return true;
-    });
-    this.ctx.onClose(() => this.destroy());
-    this.ctx.onLangChange?.(() => this.relocalize());
+    bindLifecycle({ app: this }, w, this.ctx);
     // Follow the "Animation effects" setting (theme.js toggles <html data-animations>).
     const mo = new MutationObserver(() => this.stage.syncViz());
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-animations'] });
@@ -682,6 +735,7 @@ export class MediaApp {
     this.stage.viz.stop();
     this.transport.stopLoop();
     this.transport.closeVolume();
+    for (const l of this.lists) l.dispose?.();
     clearTimeout(this._idleT);
     this.lib.dispose?.();
     for (const off of this._disposers) {
@@ -690,6 +744,12 @@ export class MediaApp {
       } catch {}
     }
     this.player.destroy();
+    // The shell may keep a reference to a closed window element for a while (e.g. the last
+    // window under the pointer): make sure it does not keep the whole player alive with it.
+    this._winSignal.abort();
+    if (this.win.el.__media === this) delete this.win.el.__media;
+    const root = this.root;
+    setTimeout(() => root.remove(), 600); // after the window's close animation
   }
 
   _onLibrary(ev) {
@@ -1010,14 +1070,16 @@ export class MediaApp {
     this._osdT = setTimeout(() => (this.osd.hidden = true), 1100);
   }
 
+  /** Give the keyboard to the page: the list's current row (or the first tile), else the page. */
   focusContent() {
-    const target = this.scroller.querySelector('.mp-row.selected[tabindex="0"]') || this.scroller;
+    const q = (sel) => this.scroller.querySelector(sel);
+    const target = q('.mp-row.selected[tabindex="0"]') || q('.mp-row[tabindex="0"]') || q('.mp-tile') || this.scroller;
     target.focus?.({ preventScroll: true });
   }
 
   // ================================================================== keyboard
   _bindKeys() {
-    this.win.el.addEventListener('keydown', (e) => this._key(e));
+    this.win.el.addEventListener('keydown', (e) => this._key(e), { signal: this._winSignal.signal });
     // After a menu or dialog closes, focus can fall back to <body>: keep the shortcuts working
     // while this window is the active one.
     const onDoc = (e) => {
@@ -1165,30 +1227,31 @@ export class MediaApp {
   }
   _bindDnD() {
     const el = this.win.el;
+    const sig = { signal: this._winSignal.signal };
     let depth = 0;
     el.addEventListener('dragenter', (e) => {
       if (!this._dragHasMedia(e) || e.dataTransfer.types.includes(ROW_MIME)) return;
       depth++;
       this._showDrop();
-    });
+    }, sig);
     el.addEventListener('dragleave', () => {
       if (--depth <= 0) {
         depth = 0;
         this._hideDrop();
       }
-    });
+    }, sig);
     el.addEventListener('dragover', (e) => {
       if (!this._dragHasMedia(e) || e.dataTransfer.types.includes(ROW_MIME)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
-    });
+    }, sig);
     el.addEventListener('drop', async (e) => {
       depth = 0;
       this._hideDrop();
       if (!this._dragHasMedia(e) || e.dataTransfer.types.includes(ROW_MIME)) return;
       e.preventDefault();
       await this.dropFiles(await this._dropPaths(e));
-    });
+    }, sig);
   }
   /** Dropped files: play when idle, otherwise add to the play queue. */
   async dropFiles(paths) {

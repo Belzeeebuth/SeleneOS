@@ -12,6 +12,7 @@ import { accentVars, resolveWallpaper, applyVisualStyle } from '../theme.js';
 import { LockScreen } from './lockui.js';
 import { extendStrings } from './strings.js';
 import { preload } from './backdrop.js';
+import { lockScreenWallpaper, lockMode, mountLockEffect } from '../wallpaper/lock.js';
 
 const withTimeout = (p, ms, fallback) => Promise.race([p, new Promise((r) => setTimeout(() => r(fallback), ms))]);
 
@@ -47,7 +48,9 @@ async function main() {
   // visual style (data-style + core/styles/*.css: shapes and controls of the sign-in form), docs/PERSONALIZATION.md
   await applyVisualStyle(settings.all()).catch((err) => console.warn('[greeter] visual style:', err.message));
 
-  const wallpaper = resolveWallpaper(settings.get('lockWallpaper') || settings.get('wallpaper') || 'builtin:bloom', 'dark');
+  // settings.lockScreen: picture (lockWallpaper or the desktop picture), daily Spotlight picture, or animated scene
+  const fallbackWall = resolveWallpaper(settings.get('lockWallpaper') || settings.get('wallpaper') || 'builtin:bloom', 'dark');
+  const wallpaper = (await withTimeout(lockScreenWallpaper(settings.all(), 'dark').catch(() => null), 2000, null)) || fallbackWall;
   const [rawUsers, kbInfo] = await Promise.all([
     api.invoke('greeter:users').catch((err) => {
       console.warn('[greeter] users unavailable:', err.message);
@@ -129,6 +132,9 @@ async function main() {
   i18n.on('change', () => ls.refresh());
   document.getElementById('greeter').append(ls.el);
   ls.show();
+  if (lockMode(settings.all()) === 'animated') {
+    mountLockEffect(ls, { effect: settings.get('lockScreen')?.effect || 'aurora', params: { mode: 'dark', accent: settings.get('accent') || '#0078d4' } }).catch((err) => console.warn('[greeter] animated background:', err.message));
+  }
 
   // Network and battery state (optional backends: hidden when missing).
   api

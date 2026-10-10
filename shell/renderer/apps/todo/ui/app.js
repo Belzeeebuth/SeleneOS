@@ -22,6 +22,9 @@ const CHIME = [
   { freq: 2637, start: 0.075, dur: 0.18, gain: 0.015, type: 'sine' },
 ];
 export const SMART_ICONS = { myday: 'weather_sunny', important: 'star', planned: 'calendar_ltr', assigned: 'person', all: 'infinity', completed: 'checkmark_circle', 'list:tasks': 'home' };
+// One store for every To Do window (a second window opened with "newWindow" must not keep its own copy of
+// the data and overwrite the first one's changes): created by the first window, dropped with the last one.
+let shared = null; // { ready: Promise<TodoStore>, refs }
 const NARROW = 720;
 const DOCK = 1060;
 const COMPLETE_DELAY = 420;
@@ -31,7 +34,17 @@ export class TodoApp {
     this.ctx = ctx;
     this.h = ctx.h;
     this.t = ctx.t;
-    this.icon = (name, o) => (name === 'infinity' ? infinityIcon(ctx.h, o) : ctx.icon(name, o));
+    // icons are cloned from a cache (parsing the SVG markup for every row is the costly part of a render)
+    const iconCache = new Map();
+    this.icon = (name, o = {}) => {
+      const key = `${name}|${o.filled ? 1 : 0}|${o.size || ''}|${o.class || ''}`;
+      let proto = iconCache.get(key);
+      if (!proto) {
+        proto = name === 'infinity' ? infinityIcon(ctx.h, o) : ctx.icon(name, o);
+        iconCache.set(key, proto);
+      }
+      return proto.cloneNode(true);
+    };
     this.ui = ctx.ui;
     this.win = ctx.win;
     this.shell = ctx.shell;
@@ -75,19 +88,36 @@ export class TodoApp {
     const s = this.ctx.settings.get('clock24h');
     if (s === true) return false;
     if (s === false) return true;
-    return !!new Intl.DateTimeFormat(this.i18n.locale, { hour: 'numeric' }).resolvedOptions().hour12;
+    return !!this.fmt.dtf({ hour: 'numeric' }).resolvedOptions().hour12;
   }
 
   // ---------------------------------------------------------------- init
   async init() {
     const { ctx } = this;
-    this.store = new TodoStore({
-      load: () => ctx.storage.get('data', null),
-      save: (data) => ctx.storage.set('data', data),
-      now: () => this.now(),
-      weekStart: this.weekStart,
-    });
-    await this.store.init((s) => seed(s, ctx.lang));
+    if (shared) {
+      shared.refs++;
+      shared.apps.add(this);
+      this.store = await shared.ready;
+    } else {
+      const apps = new Set([this]);
+      // the store's clock follows a live window (tests move it with setNow)
+      const store = new TodoStore({
+        load: () => this._load(),
+        save: (data) => ctx.storage.set('data', data),
+        now: () => (apps.values().next().value || this).now(),
+        weekStart: this.weekStart,
+      });
+      const ready = store.init((st) => seed(st, ctx.lang)).then(
+        () => store,
+        (err) => {
+          shared = null;
+          throw err;
+        },
+      );
+      shared = { refs: 1, ready, apps };
+      this.ownsStore = true;
+      this.store = await ready;
+    }
     this.view = this._validView(this.store.data.prefs.lastView) || 'myday';
     this._build();
     this.win.el.__todo = this;
@@ -108,8 +138,33 @@ export class TodoApp {
     this.syncReminders();
     this.render({ animate: false });
     this._applyArgs(ctx.args || {});
-    if (this.store.loadError) this.ui.alert(this.t('errors.load', { msg: this.store.loadError.message || String(this.store.loadError) }), { title: this.t('errors.title'), parent: this.win });
+    if (!this.ownsStore) {
+      // a second window: nothing to report again
+    } else if (this.store.loadError) this.ui.alert(this.t('errors.load', { msg: this.store.loadError.message || String(this.store.loadError) }), { title: this.t('errors.title'), parent: this.win });
+    else if (this.recoveredFrom) this.ui.alert(this.t('errors.damaged', { file: this.recoveredFrom.split('/').pop() }), { title: this.t('errors.title'), parent: this.win });
     return this;
+  }
+
+  /** Read ~/.config/aurora/apps/todo/data.json. Missing -> null (first run). A damaged file is never
+   *  overwritten: it is renamed to data.damaged-<time>.json and To Do starts from an empty list. */
+  async _load() {
+    const { api } = this.ctx;
+    let file = null;
+    try {
+      file = `${await api.invoke('storage:dir', 'todo')}/data.json`;
+    } catch {
+      return this.ctx.storage.get('data', null);
+    }
+    if (!(await api.invoke('fs:exists', file))) return null;
+    const text = await api.invoke('fs:readText', file);
+    try {
+      return JSON.parse(text);
+    } catch {
+      const backup = file.replace(/data\.json$/, `data.damaged-${Date.now()}.json`);
+      await api.invoke('fs:rename', file, backup).catch(() => {});
+      this.recoveredFrom = backup;
+      return {};
+    }
   }
 
   _build() {
@@ -173,12 +228,24 @@ export class TodoApp {
   }
 
   _dispose() {
+    // finish what the user started: completions still animating, text being typed in the details pane
+    for (const [id, timer] of this.completing) {
+      clearTimeout(timer);
+      this._finishComplete(id, { force: true });
+    }
+    this.completing.clear();
+    this.detail.commitFocused();
+    this.detail.flush();
     this.closed = true;
     clearInterval(this._tick);
+    clearTimeout(this._syncT);
     for (const off of this.offs) off?.();
     this.ro?.disconnect();
-    this.detail.flush();
     this.store.flush();
+    if (shared) {
+      shared.apps.delete(this);
+      if (--shared.refs <= 0) shared = null;
+    }
   }
 
   _dayChanged(force = false) {
@@ -210,6 +277,11 @@ export class TodoApp {
       this._raf = null;
       this._rafAnimate = null;
       if (this.closed) return;
+      if (isDragging()) {
+        // never rebuild the rows under a drag in progress: try again when it is over
+        setTimeout(() => this.render({ animate: anim }), 150);
+        return;
+      }
       this.nav.render();
       if (this.view === 'settings') this.settingsView.render();
       else this.list.render({ animate: anim });
@@ -430,8 +502,8 @@ export class TodoApp {
     }
   }
 
-  _finishComplete(id) {
-    if (this.closed || !this.store.task(id)) return;
+  _finishComplete(id, { force = false } = {}) {
+    if ((this.closed && !force) || !this.store.task(id)) return;
     const { next } = this.store.setDone(id, true);
     this.applyReminder(id);
     if (next) {
@@ -798,9 +870,9 @@ export class TodoApp {
       let picked;
       this
         .menu(anchor, [
-          { label: t('due.today'), icon: 'calendar_today', shortcut: this.fmt.date(p.today, { month: undefined }), action: () => (picked = p.today) },
-          { label: t('due.tomorrow'), icon: 'calendar_arrow_right', shortcut: this.fmt.date(p.tomorrow, { month: undefined }), action: () => (picked = p.tomorrow) },
-          { label: t('due.nextWeek'), icon: 'calendar_week_start', shortcut: this.fmt.date(p.nextWeek, { month: undefined }), action: () => (picked = p.nextWeek) },
+          { label: t('due.today'), icon: 'calendar_today', shortcut: this.fmt.weekday(p.today), action: () => (picked = p.today) },
+          { label: t('due.tomorrow'), icon: 'calendar_arrow_right', shortcut: this.fmt.weekday(p.tomorrow), action: () => (picked = p.tomorrow) },
+          { label: t('due.nextWeek'), icon: 'calendar_week_start', shortcut: this.fmt.weekday(p.nextWeek), action: () => (picked = p.nextWeek) },
           '-',
           { label: t('due.pick'), icon: 'calendar_ltr', action: () => (picked = 'pick') },
           current ? '-' : null,
@@ -822,8 +894,8 @@ export class TodoApp {
       this
         .menu(anchor, [
           p.laterToday ? { label: t('remind.laterToday'), icon: 'clock_arrow_download', shortcut: this.fmt.time(p.laterToday), action: () => (picked = p.laterToday) } : null,
-          { label: t('remind.tomorrow'), icon: 'arrow_clockwise', shortcut: `${this.fmt.date(D.ymd(p.tomorrow), { month: undefined })}, ${this.fmt.time(p.tomorrow)}`, action: () => (picked = p.tomorrow) },
-          { label: t('remind.nextWeek'), icon: 'calendar_week_start', shortcut: `${this.fmt.date(D.ymd(p.nextWeek), { month: undefined })}, ${this.fmt.time(p.nextWeek)}`, action: () => (picked = p.nextWeek) },
+          { label: t('remind.tomorrow'), icon: 'arrow_clockwise', shortcut: `${this.fmt.weekday(D.ymd(p.tomorrow))}, ${this.fmt.time(p.tomorrow)}`, action: () => (picked = p.tomorrow) },
+          { label: t('remind.nextWeek'), icon: 'calendar_week_start', shortcut: `${this.fmt.weekday(D.ymd(p.nextWeek))}, ${this.fmt.time(p.nextWeek)}`, action: () => (picked = p.nextWeek) },
           '-',
           { label: t('remind.pick'), icon: 'calendar_clock', action: () => (picked = 'pick') },
           current ? '-' : null,

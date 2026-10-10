@@ -175,6 +175,15 @@ export function grid(app, tiles, { wide = false, cls } = {}) {
 // items: library entries (or { path } for missing files). opts:
 //   context: 'library' | 'album' | 'artist' | 'queue' | 'playlist' | 'search'
 //   onPlay(index), onRemove(indexes), onMove(from, to), playlistId, trackNumbers, currentIndex()
+//
+// Windowed rendering: rows have a fixed height, so only the rows in (or near) the visible part of
+// the page scroller exist in the DOM. A library of thousands of songs opens instantly and arrow
+// keys stay O(visible rows). The keyboard-focused row is always kept rendered.
+const ROW_H = 52; // keep in sync with .mp-row height in style.css
+const ROW_GAP = 2;
+const STRIDE = ROW_H + ROW_GAP;
+const OVERSCAN = 8;
+
 export class SongList {
   constructor(app, items, opts = {}) {
     this.app = app;
@@ -183,7 +192,7 @@ export class SongList {
     this.sel = new Set();
     this.anchor = 0;
     this.focusIdx = 0;
-    this.rows = [];
+    this.rendered = new Map(); // index -> row element
     this.listId = `l${Math.random().toString(36).slice(2, 8)}`;
     const { h } = app;
     this.el = h('div', { class: ['mp-songs', `ctx-${opts.context || 'library'}`], role: 'listbox', 'aria-multiselectable': 'true', 'aria-label': opts.label || '' });
@@ -193,14 +202,91 @@ export class SongList {
       if (!this.el.contains(e.relatedTarget)) this._clearDrop();
     });
     this.el.addEventListener('drop', (e) => this._drop(e));
+    this._onScroll = () => {
+      if (this._rafId) return;
+      this._rafId = requestAnimationFrame(() => {
+        this._rafId = 0;
+        this.paint();
+      });
+    };
     this.render();
   }
 
+  get length() {
+    return this.items.length;
+  }
   render() {
-    this.el.replaceChildren();
-    this.rows = this.items.map((e, i) => this._row(e, i));
-    this.el.append(...this.rows);
-    this._syncSel();
+    for (const el of this.rendered.values()) el.remove();
+    this.rendered.clear();
+    this.el.style.height = this.items.length ? `${this.items.length * STRIDE - ROW_GAP}px` : '0px';
+    this.paint();
+  }
+
+  /** Stop following the page scroller (the page was re-rendered or closed). */
+  dispose() {
+    this._scroller?.removeEventListener('scroll', this._onScroll);
+    this._scroller = null;
+    cancelAnimationFrame(this._rafId);
+    this._rafId = 0;
+  }
+
+  _range() {
+    const n = this.items.length;
+    const sc = this.app.scroller;
+    if (!this.el.isConnected || !sc?.clientHeight) return [0, Math.min(n, 40) - 1];
+    const top = this.el.getBoundingClientRect().top - sc.getBoundingClientRect().top;
+    const from = -top;
+    const first = Math.max(0, Math.floor(from / STRIDE) - OVERSCAN);
+    const last = Math.min(n - 1, Math.ceil((from + sc.clientHeight) / STRIDE) + OVERSCAN);
+    return [first, last];
+  }
+
+  /** Create the rows that came into view, drop the ones far away (never the focused one). */
+  paint() {
+    if (this.el.isConnected && this._scroller !== this.app.scroller) {
+      this._scroller?.removeEventListener('scroll', this._onScroll);
+      this._scroller = this.app.scroller;
+      this._scroller.addEventListener('scroll', this._onScroll, { passive: true });
+    }
+    const [first, last] = this._range();
+    this._cur = this._currentIndex();
+    const focused = document.activeElement;
+    for (const [i, el] of this.rendered) {
+      if (i >= first && i <= last) continue;
+      if (el === focused || el.contains(focused) || el.classList.contains('drag-src')) continue;
+      el.remove();
+      this.rendered.delete(i);
+    }
+    for (let i = first; i <= last; i++) if (!this.rendered.has(i)) this._insert(i, this._row(this.items[i], i));
+  }
+
+  /** Put row i in the DOM in index order (keeps Tab / screen reader order and :focus intact). */
+  _insert(i, el) {
+    let next = null;
+    let nextIdx = Infinity;
+    for (const [k, r] of this.rendered) {
+      if (k > i && k < nextIdx) {
+        nextIdx = k;
+        next = r;
+      }
+    }
+    this.rendered.set(i, el);
+    this.el.insertBefore(el, next);
+  }
+
+  /** Scroll the page so that row i is visible, and make sure it exists. */
+  _reveal(i) {
+    const sc = this.app.scroller;
+    if (sc && this.el.isConnected) {
+      const listTop = this.el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
+      const top = listTop + i * STRIDE;
+      const pad = 8;
+      if (top < sc.scrollTop + pad) sc.scrollTop = Math.max(0, top - pad);
+      else if (top + ROW_H > sc.scrollTop + sc.clientHeight - pad) sc.scrollTop = top + ROW_H - sc.clientHeight + pad;
+    }
+    this.paint();
+    if (!this.rendered.has(i) && this.items[i]) this._insert(i, this._row(this.items[i], i));
+    return this.rendered.get(i);
   }
 
   /** Re-render the rows showing these paths (metadata arrived). */
@@ -210,26 +296,27 @@ export class SongList {
       if (!set.has(e.path)) return;
       const fresh = this.app.lib.get(e.path);
       if (fresh) this.items[i] = fresh;
+      const old = this.rendered.get(i);
+      if (!old) return;
       const row = this._row(this.items[i], i);
-      const hadFocus = this.rows[i] === document.activeElement;
-      this.rows[i].replaceWith(row);
-      this.rows[i] = row;
+      const hadFocus = old === document.activeElement;
+      old.replaceWith(row);
+      this.rendered.set(i, row);
       if (hadFocus) row.focus({ preventScroll: true });
     });
-    this._syncSel();
   }
 
   /** Refresh the "now playing" highlight. */
   markPlaying() {
-    const cur = this._currentIndex();
+    const cur = (this._cur = this._currentIndex());
     const paused = this.app.player.paused;
-    this.rows.forEach((row, i) => {
+    for (const [i, row] of this.rendered) {
       const on = i === cur;
       row.classList.toggle('playing', on);
       const lead = row.querySelector('.c-lead');
       lead.querySelector('.mp-eq')?.remove();
       if (on) lead.appendChild(eqGlyph(this.app.h, paused));
-    });
+    }
   }
 
   _currentIndex() {
@@ -277,15 +364,20 @@ export class SongList {
         : text;
     const artist = app.artistOf(e);
     const album = isVideo ? '' : app.albumOf(e);
+    const selected = this.sel.has(i);
     const row = h(
       'div',
       {
-        class: ['mp-row', e.bad && 'bad', isVideo && 'video'],
+        class: ['mp-row', i % 2 === 0 && 'alt', selected && 'selected', e.bad && 'bad', isVideo && 'video'],
         role: 'option',
         tabindex: i === this.focusIdx ? '0' : '-1',
         draggable: 'true',
         dataset: { i: String(i), path: e.path },
+        style: { top: `${i * STRIDE}px` },
         'aria-label': `${app.titleOf(e)}, ${artist}`,
+        'aria-selected': selected ? 'true' : 'false',
+        'aria-posinset': String(i + 1),
+        'aria-setsize': String(this.items.length),
       },
       lead,
       h(
@@ -328,12 +420,13 @@ export class SongList {
     });
     row.addEventListener('dragstart', (ev) => this._dragStart(ev, i));
     row.addEventListener('dragend', () => {
+      row.classList.remove('drag-src');
       this._clearDrop();
       this._dragFrom = null;
       this.app.dragPaths = null;
       this.app.endDrag?.();
     });
-    if (i === this._currentIndex()) {
+    if (i === (this._cur ?? this._currentIndex())) {
       row.classList.add('playing');
       lead.appendChild(eqGlyph(h, app.player.paused));
     }
@@ -343,7 +436,13 @@ export class SongList {
   selected() {
     return [...this.sel].sort((a, b) => a - b);
   }
-  _select(i, ev) {
+  /** Select and focus row i (keyboard focus restored after a re-render). */
+  focusRow(i) {
+    if (!this.items.length) return;
+    i = Math.max(0, Math.min(this.items.length - 1, i));
+    this._select(i, {}, true);
+  }
+  _select(i, ev, scroll = false) {
     if (ev.shiftKey) {
       const [a, b] = [Math.min(this.anchor, i), Math.max(this.anchor, i)];
       if (!ev.ctrlKey) this.sel.clear();
@@ -356,25 +455,28 @@ export class SongList {
       this.sel = new Set([i]);
       this.anchor = i;
     }
-    this._focus(i, false);
+    this._focus(i, scroll);
     this._syncSel();
   }
   _focus(i, scroll = true) {
-    if (!this.rows.length) return;
-    i = Math.max(0, Math.min(this.rows.length - 1, i));
-    this.rows[this.focusIdx]?.setAttribute('tabindex', '-1');
+    const n = this.items.length;
+    if (!n) return;
+    i = Math.max(0, Math.min(n - 1, i));
+    this.rendered.get(this.focusIdx)?.setAttribute('tabindex', '-1');
     this.focusIdx = i;
-    const row = this.rows[i];
+    const row = scroll ? this._reveal(i) : this.rendered.get(i) || this._reveal(i);
+    if (!row) return;
     row.setAttribute('tabindex', '0');
-    row.focus({ preventScroll: !scroll });
-    if (scroll) row.scrollIntoView({ block: 'nearest' });
+    row.focus({ preventScroll: true });
+    // Rows scrolled far away can go now that the focus has moved on.
+    if (scroll) this.paint();
   }
   _syncSel() {
-    this.rows.forEach((r, i) => {
+    for (const [i, r] of this.rendered) {
       const on = this.sel.has(i);
       r.classList.toggle('selected', on);
       r.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
+    }
   }
   _menu(ev) {
     const idx = this.selected();
@@ -383,7 +485,7 @@ export class SongList {
   }
   _key(e) {
     if (e.target.closest('input, select, textarea')) return;
-    const n = this.rows.length;
+    const n = this.items.length;
     if (!n) return;
     const i = this.focusIdx;
     const handled = () => {
@@ -405,10 +507,9 @@ export class SongList {
     if (nav !== undefined) {
       handled();
       const j = Math.max(0, Math.min(n - 1, nav));
-      if (e.shiftKey) this._select(j, { shiftKey: true });
+      if (e.shiftKey) this._select(j, { shiftKey: true }, true);
       else if (e.ctrlKey) this._focus(j);
-      else this._select(j, {});
-      this.rows[j].scrollIntoView({ block: 'nearest' });
+      else this._select(j, {}, true);
       return;
     }
     if (e.key === 'Enter') {
@@ -424,14 +525,15 @@ export class SongList {
       this._syncSel();
     } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
       handled();
-      if (!this.sel.has(i)) this._select(i, {});
-      this._menu(this.rows[i]);
+      if (!this.sel.has(i)) this._select(i, {}, true);
+      this._menu(this.rendered.get(i) || this.el);
     }
   }
 
   // ---------------------------------------------------------------- drag & drop
   _dragStart(ev, i) {
     if (!this.sel.has(i)) this._select(i, {});
+    ev.currentTarget?.classList?.add('drag-src');
     const idx = this.selected();
     const paths = idx.map((k) => this.items[k].path);
     ev.dataTransfer.effectAllowed = this.opts.onMove ? 'copyMove' : 'copy';

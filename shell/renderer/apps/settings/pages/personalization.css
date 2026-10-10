@@ -676,7 +676,7 @@
 }
 .app-settings .pz-profile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 256px), 1fr));
   gap: 12px;
 }
 .app-settings .pz-profile {
@@ -716,6 +716,15 @@
 }
 .app-settings .pz-profile-name {
   font-weight: 600;
+  /* long names (French, user names) wrap to a second line instead of being cut */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: break-word;
+}
+.app-settings .pz-profile-grid > .pz-empty {
+  grid-column: 1 / -1;
 }
 .app-settings .pz-apply {
   flex: none;
@@ -743,6 +752,14 @@
 .app-settings .pz-app-row .st-row-right {
   flex-wrap: wrap;
   justify-content: flex-end;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+/* large text / narrow window: the accent button goes under the mode list instead of out of the row */
+.app-settings .pz-app-row .pz-inline {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 6px;
 }
 .app-settings .pz-app-accent {
   gap: 8px;

@@ -107,6 +107,7 @@ function fire(r, late = false) {
     appName,
     timeout: r.kind === 'alarm' ? 0 : 15000,
     silent: r.kind === 'alarm',
+    urgent: r.kind === 'alarm', // a ringing alarm / timer shows its Snooze / Dismiss toast even with Do not disturb on
     actions,
     onClick: () => {
       stopRinging();

@@ -46,7 +46,7 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 | Browser | ✅ | ✅ (66 tests) |
 | File Explorer | ✅ | ✅ (272 checks) |
 | Mail | ✅ | ✅ (44 steps, local IMAP/SMTP test server) |
-| Paint, Calculator, Notepad, Terminal, Media Player, Snipping Tool | ✅ | Terminal ✅, Media ✅, others 🔄 |
+| Paint, Calculator, Notepad, Terminal, Media Player, Snipping Tool | ✅ | ✅ (Paint 51, Calculator 672, Notepad 288, Terminal 244, Media 48, Snipping 40 checks) |
 | Minesweeper, Snake, 2048, Solitaire, Chess, Task Manager | ✅ | ✅ |
 | ISO build system | ✅ | ✅ static (no QEMU by user's choice) |
 | Installer (app + aurora-install helper) | ✅ | ✅ (loop-device installs) |
@@ -135,6 +135,13 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 - **Mail:** no OAuth2; passwords are obfuscated, not encrypted (no keyring).
 - **Fixed in session 1 by the coordinator:**
   - `ui.dialog`: focus moves into the dialog synchronously, goes back to the opener on close, Tab is trapped, Esc works with focus outside.
+  - Core image clipboard (`clipboard:readImage` / `clipboard:writeImage`) works on Electron 44 (async ClipboardItem API).
+  - File picker: no double extension (e.g. "photo.jpg.png"); "All files" works.
+  - `registry.launch`: concurrent launches of a single-instance app share one window.
+  - `notify({ image })`: preview picture in toasts.
+  - `win.setAlwaysOnTop(bool)` and the `win.closed` getter.
+- **Apps can now drop their workarounds:** Paint (`paint:clipboard*`), Snipping (`snipping:clipboard*`), Calculator (direct `win.opts` edits for keep-on-top), Snipping (toast image hack).
+- **theme.js keeps a reference to the last window the pointer was over** (memory, one window). It belongs to the personalization owner; fix after that workflow.
   - net/audio status reads no longer suppress change pushes.
   - Oversized windows shrink after a resolution or scale change.
   - "1 byte" now has the right plural.

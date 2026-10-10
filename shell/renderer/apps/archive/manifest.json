@@ -1,0 +1,17 @@
+{
+  "id": "archive",
+  "name": { "en": "Archive Manager", "fr": "Gestionnaire d'archives" },
+  "description": { "en": "Open, extract and create ZIP, 7z, RAR and TAR archives", "fr": "Ouvrir, extraire et créer des archives ZIP, 7z, RAR et TAR" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1060, "height": 680, "minWidth": 460, "minHeight": 340, "background": "mica" },
+  "category": "utilities",
+  "keywords": {
+    "en": ["zip", "unzip", "archive", "compress", "extract", "7z", "7-zip", "rar", "tar", "gz", "decompress", "winrar"],
+    "fr": ["zip", "dézipper", "archive", "compresser", "extraire", "décompresser", "7z", "rar", "tar"]
+  },
+  "singleInstance": false,
+  "fileTypes": [".zip", ".tar", ".gz", ".tgz", ".xz", ".txz", ".bz2", ".tbz2", ".zst", ".tzst", ".7z", ".rar", ".cab", ".jar"],
+  "defaultFor": [".zip", ".tar", ".gz", ".tgz", ".xz", ".txz", ".bz2", ".tbz2", ".zst", ".tzst", ".7z", ".rar", ".cab", ".jar"]
+}

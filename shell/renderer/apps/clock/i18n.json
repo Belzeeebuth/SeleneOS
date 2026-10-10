@@ -25,7 +25,7 @@
    "name": "Alarm name",
    "namePlaceholder": "Alarm name",
    "noteAwake": "Alarms ring even when Clock is closed, as long as your PC is awake.",
-   "noteDnd": "Do not disturb is on: alarms still ring, but their notifications are hidden.",
+   "noteDnd": "Do not disturb is on. Alarms and timers still ring and show their notification.",
    "noteNotifOff": "Notifications are turned off: alarms still ring, but their notifications are hidden.",
    "notifSettings": "Notification settings",
    "offText": "Off",
@@ -240,7 +240,10 @@
    "timeFormat": "Time format",
    "timerSound": "Timer sound",
    "timerSoundDesc": "Plays when a timer ends",
-   "version": "Version {v}"
+   "version": "Version {v}",
+   "accent": "Accent color",
+   "accentDesc": "Give Clock its own accent color in Settings",
+   "accentOpen": "App themes"
   },
   "units": {
    "and": ", ",
@@ -294,7 +297,7 @@
    "name": "Nom de l’alarme",
    "namePlaceholder": "Nom de l’alarme",
    "noteAwake": "Les alarmes sonnent même si l’Horloge est fermée, tant que votre PC n’est pas en veille.",
-   "noteDnd": "Ne pas déranger est activé : les alarmes sonnent quand même, mais leurs notifications sont masquées.",
+   "noteDnd": "Ne pas déranger est activé. Les alarmes et les minuteurs sonnent et s’affichent quand même.",
    "noteNotifOff": "Les notifications sont désactivées : les alarmes sonnent quand même, mais leurs notifications sont masquées.",
    "notifSettings": "Paramètres de notification",
    "offText": "Désactivée",
@@ -509,7 +512,10 @@
    "timeFormat": "Format de l’heure",
    "timerSound": "Son du minuteur",
    "timerSoundDesc": "Retentit à la fin d’un minuteur",
-   "version": "Version {v}"
+   "version": "Version {v}",
+   "accent": "Couleur d’accentuation",
+   "accentDesc": "Donnez à l’Horloge sa propre couleur d’accentuation dans Paramètres",
+   "accentOpen": "Thèmes des applications"
   },
   "units": {
    "and": " et ",

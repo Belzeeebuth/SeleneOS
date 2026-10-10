@@ -410,13 +410,14 @@
 }
 
 /* ------------------------------------------------------------------ song list */
+/* Windowed list: rows are absolutely placed at index × (52 + 2) px (see SongList in components.js). */
 .app-media .mp-songs {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  position: relative;
 }
 .app-media .mp-row {
-  position: relative;
+  position: absolute;
+  left: 0;
+  right: 0;
   display: grid;
   grid-template-columns: 40px minmax(0, 2.4fr) minmax(0, 1.4fr) minmax(0, 1.4fr) minmax(0, 1fr) 48px 52px 32px;
   align-items: center;
@@ -425,11 +426,9 @@
   padding: 0 8px 0 6px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 52px;
   transition: background var(--dur-fast) linear;
 }
-.app-media .mp-row:nth-child(odd) {
+.app-media .mp-row.alt {
   background: var(--card);
   border-color: var(--stroke-card);
 }
@@ -1403,7 +1402,7 @@
   left: 0;
   right: 0;
   bottom: calc(var(--bar-h) - 6px);
-  height: 30%;
+  height: 24%;
   width: 100%;
   opacity: 0.7;
   pointer-events: none;
@@ -1557,7 +1556,9 @@
   justify-content: space-between;
   padding: 8px 8px 0;
   color: #fff;
-  background: linear-gradient(rgba(0, 0, 0, 0.5), transparent 32%, transparent 45%, rgba(0, 0, 0, 0.72));
+  /* Even dim over the whole picture (like Windows' mini player) so the title stays legible on
+     bright or busy frames, a little darker at the edges where the buttons are. */
+  background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.38) 38%, rgba(0, 0, 0, 0.42) 55%, rgba(0, 0, 0, 0.75));
   opacity: 0;
   transition: opacity var(--dur-slow) var(--ease);
 }
@@ -1575,6 +1576,7 @@
   padding: 0 8px 4px;
   text-align: center;
   min-width: 0;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 .app-media .mp-mini-title {
   font-weight: 600;

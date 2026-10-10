@@ -122,7 +122,7 @@
    "monthly": "Monthly",
    "yearly": "Yearly",
    "custom": "Custom",
-   "customTitle": "Repeat every…",
+   "customTitle": "Custom repeat",
    "never": "Never repeat",
    "every": "Every",
    "everyOne": "Every {unit}",
@@ -357,10 +357,11 @@
   },
   "errors": {
    "title": "To Do",
-   "load": "Your tasks couldn’t be loaded: {msg}",
+   "load": "Your tasks couldn’t be loaded: {msg}. Changes made now won’t be saved, so your file isn’t overwritten.",
    "saveTitle": "Changes couldn’t be saved",
    "copy": "Couldn’t copy the list: {msg}",
-   "taskGone": "This task no longer exists. It may have been deleted."
+   "taskGone": "This task no longer exists. It may have been deleted.",
+   "damaged": "Your task data was damaged and couldn’t be read, so To Do started with empty lists. The damaged file was kept as {file} in the To Do settings folder."
   }
  },
  "fr": {
@@ -486,7 +487,7 @@
    "monthly": "Tous les mois",
    "yearly": "Tous les ans",
    "custom": "Personnalisé",
-   "customTitle": "Répéter tous les…",
+   "customTitle": "Répétition personnalisée",
    "never": "Ne jamais répéter",
    "every": "Tous les",
    "everyOne": "Chaque {unit}",
@@ -721,10 +722,11 @@
   },
   "errors": {
    "title": "Tâches",
-   "load": "Impossible de charger vos tâches : {msg}",
+   "load": "Impossible de charger vos tâches : {msg}. Les modifications faites maintenant ne seront pas enregistrées, pour ne pas écraser votre fichier.",
    "saveTitle": "Impossible d’enregistrer les modifications",
    "copy": "Impossible de copier la liste : {msg}",
-   "taskGone": "Cette tâche n’existe plus. Elle a peut-être été supprimée."
+   "taskGone": "Cette tâche n’existe plus. Elle a peut-être été supprimée.",
+   "damaged": "Vos données de tâches étaient endommagées et n’ont pas pu être lues : Tâches a démarré avec des listes vides. Le fichier endommagé a été conservé sous le nom {file} dans le dossier de paramètres de Tâches."
   }
  }
 }

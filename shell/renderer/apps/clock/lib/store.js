@@ -8,7 +8,7 @@
 //   { status: { active, state: 'running'|'paused'|null, phase: 'focus'|'break'|null, phaseEndsAt, endsAt,
 //               startedAt, minutes, breaks, updatedAt },
 //     session: {...internal...}, history: { 'YYYY-MM-DD': focusMinutes }, log: [...] }
-import { nextAlarmOccurrence, wallTime, uses12h, dayKey, addDays, durationName, MIN } from './time.js';
+import { nextAlarmOccurrence, wallTime, uses12h, dayKey, addDays, durationName, localZone, MIN } from './time.js';
 import { TONES, toneById, FOCUS_CUE } from './tones.js';
 
 export const APP = 'clock';
@@ -95,6 +95,8 @@ function cleanFocus(f) {
         state: s.state === 'paused' ? 'paused' : 'running',
         pausedAt: Number.isFinite(s.pausedAt) ? s.pausedAt : null,
         pausedTotal: Number.isFinite(s.pausedTotal) ? Math.max(0, s.pausedTotal) : 0,
+        // [from, to] of each finished pause, so focus time can be split exactly at midnight
+        pauses: Array.isArray(s.pauses) ? s.pauses.filter((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]) && p[1] >= p[0]).map((p) => [p[0], p[1]]).slice(-500) : [],
         dndChanged: s.dndChanged === true,
       };
       if (session.state === 'paused' && !session.pausedAt) session.pausedAt = Date.now();
@@ -209,6 +211,7 @@ class ClockStore {
     if (!Array.isArray(alarms)) this.persist('alarms');
     if (!Array.isArray(timers)) this.persist('timers');
     this.reconcile();
+    this.zone = localZone();
     this.rem.on('fire', (r) => this._onFire(r));
     let langT = null;
     this.i18n.on('change', () => {
@@ -298,6 +301,15 @@ class ClockStore {
     if (a1) this.persist('alarms');
     if (t1) this.persist('timers');
     this._reconcileFocus(now);
+  }
+
+  /** The system time zone changed (Settings > Time): alarms keep their wall time in the new zone. */
+  checkZone() {
+    const z = localZone();
+    if (!this.zone || z === this.zone) return false;
+    this.zone = z;
+    this.resyncAll();
+    return true;
   }
 
   resyncAll() {
@@ -697,10 +709,53 @@ class ClockStore {
     };
   }
 
+  /** Session time elapsed (pauses excluded) at wall-clock moment t. */
+  _elapsedAt(t, s = this.focus.session) {
+    if (!s) return 0;
+    let paused = 0;
+    for (const [a, b] of s.pauses || []) if (a < t) paused += Math.min(b, t) - a;
+    // pauses recorded before `pauses` existed are only known as a total: count them from the start
+    paused += Math.max(0, s.pausedTotal - (s.pauses || []).reduce((n, [a, b]) => n + (b - a), 0));
+    if (s.state === 'paused' && s.pausedAt != null && s.pausedAt < t) paused += t - s.pausedAt;
+    return Math.max(0, Math.min(this.focusTotal(s), t - s.startedAt - paused));
+  }
+  /** Focus (not break) milliseconds contained in the first `elapsed` ms of a session plan. */
+  _focusIn(elapsed, s = this.focus.session) {
+    let acc = 0;
+    let done = 0;
+    for (const g of s?.segs || []) {
+      if (elapsed <= acc) break;
+      if (g.type === 'focus') done += Math.min(g.ms, elapsed - acc);
+      acc += g.ms;
+    }
+    return done;
+  }
+  /** Whole focus minutes done by moment t (rounded the same way for every day boundary). */
+  _focusMinAt(t, s = this.focus.session, round = Math.floor) {
+    return round(this._focusIn(this._elapsedAt(t, s), s) / MIN);
+  }
+  /** { 'YYYY-MM-DD': minutes } of a session between its start and `end`, split at local midnight. */
+  _focusByDay(s, end, round = Math.floor) {
+    const out = {};
+    let from = s.startedAt;
+    let prev = 0;
+    while (from < end) {
+      const d = new Date(from);
+      const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime();
+      const to = Math.min(next, end);
+      const cum = this._focusMinAt(to, s, round);
+      if (cum > prev) out[dayKey(from)] = (out[dayKey(from)] || 0) + cum - prev;
+      prev = cum;
+      from = to;
+    }
+    return out;
+  }
+
   todayMinutes(now = Date.now()) {
-    let m = this.focus.history[dayKey(now)] || 0;
+    const today = dayKey(now);
+    let m = this.focus.history[today] || 0;
     const s = this.focus.session;
-    if (s && dayKey(s.startedAt) === dayKey(now)) m += Math.floor((this.focusPhase(now)?.focusDone || 0) / MIN);
+    if (s) m += this._focusByDay(s, now)[today] || 0;
     return m;
   }
   dayMinutes(key) {
@@ -721,7 +776,16 @@ class ClockStore {
   }
 
   async startFocus({ minutes, skipBreaks, dnd } = {}, now = Date.now()) {
-    if (this.focus.session) return;
+    if (this.focus.session || this._focusStarting) return;
+    this._focusStarting = true;
+    try {
+      await this._startFocus({ minutes, skipBreaks, dnd }, now);
+    } finally {
+      this._focusStarting = false;
+    }
+  }
+
+  async _startFocus({ minutes, skipBreaks, dnd }, now) {
     const f = this.prefs.focus;
     minutes = Math.max(FOCUS_MIN, Math.min(FOCUS_MAX, Math.round(minutes || f.minutes)));
     const s = {
@@ -732,6 +796,7 @@ class ClockStore {
       state: 'running',
       pausedAt: null,
       pausedTotal: 0,
+      pauses: [],
       dndChanged: false,
     };
     if (dnd && !this.settings.get('notifications.dnd')) {
@@ -763,6 +828,7 @@ class ClockStore {
     const s = this.focus.session;
     if (!s || s.state !== 'paused') return;
     s.pausedTotal += Math.max(0, now - s.pausedAt);
+    s.pauses = [...(s.pauses || []), [s.pausedAt, Math.max(s.pausedAt, now)]].slice(-500);
     s.pausedAt = null;
     s.state = 'running';
     this._syncFocusReminders();
@@ -785,11 +851,12 @@ class ClockStore {
   async stopFocus({ completed = false } = {}, now = Date.now()) {
     const s = this.focus.session;
     if (!s) return;
-    const p = this.focusPhase(Math.min(now, completed ? s.startedAt + s.pausedTotal + this.focusTotal(s) : now));
-    const focusMin = Math.round((completed ? s.segs.filter((g) => g.type === 'focus').reduce((n, g) => n + g.ms, 0) : p?.focusDone || 0) / MIN);
-    const day = dayKey(s.startedAt);
-    this.focus.history[day] = (this.focus.history[day] || 0) + focusMin;
-    this.focus.log.push({ start: s.startedAt, end: now, focusMin, planned: s.minutes, completed });
+    // a completed session ends exactly when its plan ends (even if the check ran a little later)
+    const end = completed ? s.startedAt + s.pausedTotal + this.focusTotal(s) : now;
+    const focusMin = this._focusMinAt(end, s, Math.round);
+    // a session that runs past midnight counts on each day for the part done that day
+    for (const [day, m] of Object.entries(this._focusByDay(s, end, Math.round))) this.focus.history[day] = (this.focus.history[day] || 0) + m;
+    this.focus.log.push({ start: s.startedAt, end, focusMin, planned: s.minutes, completed });
     if (this.focus.log.length > 200) this.focus.log.splice(0, this.focus.log.length - 200);
     this.focus.last = { completed, focusMin, endedAt: now, seen: false };
     this.focus.session = null;
@@ -876,7 +943,11 @@ class ClockStore {
 
   _reconcileFocus(now = Date.now()) {
     const s = this.focus.session;
-    if (!s) return;
+    if (!s) {
+      // leftovers of a session that no longer exists (deleted / corrupt storage) must not ring
+      for (const id of this._focusReminderIds()) this.rem.remove(id, APP);
+      return;
+    }
     if (s.state === 'running' && this.focusElapsed(now) >= this.focusTotal(s)) {
       this.stopFocus({ completed: true }, s.startedAt + s.pausedTotal + this.focusTotal(s));
       return;

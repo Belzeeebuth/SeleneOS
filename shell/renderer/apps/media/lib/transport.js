@@ -242,6 +242,11 @@ export class Transport {
     };
     document.addEventListener('pointerdown', this._outside, true);
     this.fly.addEventListener('keydown', this._esc);
+    // Like any Windows flyout, it goes away when the keyboard focus leaves it (Tab / Shift+Tab).
+    this.fly.addEventListener('focusout', (e) => {
+      const to = e.relatedTarget;
+      if (to && !this.fly?.contains(to) && !this.bVol.contains(to)) this.closeVolume();
+    });
   }
   closeVolume() {
     if (!this.fly) return;

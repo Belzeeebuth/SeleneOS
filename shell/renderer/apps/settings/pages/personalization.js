@@ -3,7 +3,7 @@
 // Profiles, App themes: personalization-designer.js; see docs/PERSONALIZATION.md.)
 import { WALLPAPERS, ACCENTS, resolveWallpaper, theme as coreTheme } from '../../../core/theme.js';
 import { PAGES } from '../lib/index.js';
-import { modeControl, accentControls, taskbarColorControls } from './personalization-designer.js';
+import { modeControl, accentControls, taskbarColorControls, rovingFocus } from './personalization-designer.js';
 import { ensureStrings } from './personalization-strings.js';
 
 ensureStrings();
@@ -329,15 +329,25 @@ async function colors(pc) {
   const { fromRow } = accentControls(pc);
   const { colorRow } = taskbarColorControls(pc);
 
-  const swatches = h('div', { class: 'st-swatches', role: 'listbox', 'aria-label': t('pers.accent') });
+  const swatches = h(
+    'div',
+    { class: 'st-swatches', role: 'listbox', 'aria-label': t('pers.accent') },
+    ACCENTS.map((c) => {
+      const b = h('button', { class: 'st-swatch', type: 'button', role: 'option', 'aria-label': c, 'data-tip': c, onclick: () => pickAccent(c) });
+      b.style.setProperty('--sw', c);
+      return b;
+    }),
+  );
+  const syncFocus = rovingFocus(swatches, '.st-swatch');
+  // updated in place (rebuilding the buttons would drop the keyboard focus)
   const paintSw = () => {
     const cur = String(settings.get('accent') || '#0078d4').toLowerCase();
-    ui.clear(swatches);
-    for (const c of ACCENTS) {
-      const b = h('button', { class: ['st-swatch', c === cur && 'selected'], type: 'button', role: 'option', 'aria-selected': String(c === cur), 'aria-label': c, 'data-tip': c, onclick: () => pickAccent(c) });
-      b.style.setProperty('--sw', c);
-      swatches.appendChild(b);
+    for (const b of swatches.children) {
+      const on = b.getAttribute('aria-label') === cur;
+      b.classList.toggle('selected', on);
+      b.setAttribute('aria-selected', String(on));
     }
+    syncFocus();
   };
   // choosing a colour by hand turns "accent from wallpaper" off
   async function pickAccent(c) {

@@ -21,6 +21,11 @@
 :root .tv-backdrop {
   backdrop-filter: blur(calc(var(--blur) * 1.2)) saturate(150%);
 }
+/* Text size: the two-line taskbar clock grows with the text, but never beyond the taskbar's height. */
+:root .tb-clock {
+  font-size: min(var(--fs-caption), 14.5px);
+  line-height: min(var(--lh-caption), 18px);
+}
 :root[data-reduced-motion="on"]::view-transition-group(*),
 :root[data-reduced-motion="on"]::view-transition-old(*),
 :root[data-reduced-motion="on"]::view-transition-new(*) {

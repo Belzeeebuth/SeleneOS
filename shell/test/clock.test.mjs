@@ -619,7 +619,12 @@ async function runEnglish() {
       const to = await s.page.locator(`${WIN} .ck-city[data-id="new-york-city-us"]`).boundingBox();
       await s.page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
       await s.page.mouse.down();
-      await s.page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+      await sleep(60);
+      // go up to New York's row first, then across: each step lets the grid re-flow under the pointer
+      await s.page.mouse.move(from.x + from.width / 2, to.y + to.height / 2, { steps: 10 });
+      await sleep(60);
+      await s.page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
+      await sleep(60);
       await s.page.mouse.up();
       await sleep(200);
       check('drag moved Kathmandu first', await CK(s, (app) => app.store.cities[0]), 'kathmandu-np');
@@ -732,6 +737,9 @@ async function runEnglish() {
       await go(s, 'focus');
       await CK(s, (app) => app.store.setPref('focus.dnd', 'always'));
       await CK(s, (app) => app.store.setPref('focus.minutes', 30));
+      // minutes recorded before (a session that crosses midnight is split over two days: sum them)
+      const histSum = () => CK(s, (app) => Object.values(app.store.focus.history).reduce((n, v) => n + v, 0));
+      const before = await histSum();
       await s.page.click(`${WIN} .ck-focus-start`);
       await until(s, (app) => !!app.store.focus.session, { label: 'session started' });
       check('"always" turns DND on without asking', await CK(s, (app) => app.ctx.settings.get('notifications.dnd')), true);
@@ -746,7 +754,8 @@ async function runEnglish() {
       check('still running when DND comes back', await CK(s, (app) => !!app.store.focus.session), true);
       await until(s, (app) => !app.store.focus.session, { label: 'session completed', timeout: 6000 });
       check('completed summary', await s.page.textContent(`${WIN} .ck-focus-done .subtitle`), 'Well done!');
-      check('today counts 30 min', await CK(s, (app) => app.store.todayMinutes()), (v) => v >= 30);
+      check('30 focus minutes recorded (split at midnight if needed)', (await histSum()) - before, 30);
+      check('today counts the part done today', await CK(s, (app) => app.store.todayMinutes()), (v) => v >= 1 && v <= 30 + 60);
       check('completion notification visible (DND was off again)', await s.page.locator('#toasts .toast', { hasText: 'Focus session complete' }).count(), 1);
       check('daily progress text', await s.page.textContent(`${WIN} .ck-goal-done`), (v) => /^Completed today: (30 min|\d+ min)$/.test(v));
       await shot(s, 'focus-done');
@@ -811,6 +820,212 @@ async function runEnglish() {
       await shot(s, 'settings');
     });
 
+    // ---------------------------------------------------------------- QA regressions (adversarial pass)
+    await section('QA: Tab in the time picker goes hours -> minutes -> AM/PM -> name (chevrons are not Tab stops)', async () => {
+      await go(s, 'alarm');
+      await s.page.click(`${WIN} .ck-page-alarm .ck-cmd-add`);
+      await s.page.waitForSelector(`${DLG} .ck-picker`);
+      await sleep(450);
+      const order = [];
+      for (let i = 0; i < 4; i++) {
+        order.push(await s.page.evaluate(`document.activeElement?.getAttribute('aria-label') || document.activeElement?.tagName`));
+        await s.page.keyboard.press('Tab');
+      }
+      check('Tab order in the alarm dialog', order, ['Hours', 'Minutes', 'AM or PM', 'Alarm name']);
+      check('chevrons are not buttons (a dialog Tab trap would stop on them)', await s.page.evaluate(`[...document.querySelectorAll(${JSON.stringify(DLG + ' .ck-spin-btn')})].every((e) => e.tagName !== 'BUTTON')`), true);
+      // typing a time column by column with Tab
+      await s.page.focus(`${DLG} .ck-spin[aria-label="Hours"]`);
+      await s.page.keyboard.type('9');
+      await s.page.keyboard.press('Tab');
+      await s.page.keyboard.type('05');
+      await s.page.keyboard.press('Tab');
+      await s.page.keyboard.press('a');
+      check('9 : 05 AM typed with Tab between columns', await s.page.evaluate(`[...document.querySelectorAll(${JSON.stringify(DLG + ' .ck-spin')})].map((e) => e.getAttribute('aria-valuetext'))`), ['9', '05', 'AM']);
+      // the chevrons still work with the mouse and keep the focus on their column
+      await s.page.hover(`${DLG} .ck-spin[aria-label="Hours"]`);
+      await s.page.click(`${DLG} .ck-spin[aria-label="Hours"] .ck-spin-btn.up`);
+      check('chevron click: +1 hour', await s.page.getAttribute(`${DLG} .ck-spin[aria-label="Hours"]`, 'aria-valuetext'), '10');
+      check('chevron click focuses its column', await s.page.evaluate(`document.activeElement?.getAttribute('aria-label')`), 'Hours');
+      await s.page.keyboard.press('Escape');
+      await sleep(250);
+      // duration picker in the timer dialog
+      await go(s, 'timer');
+      await s.page.click(`${WIN} .ck-page-timer .ck-cmd-add`);
+      await s.page.waitForSelector(`${DLG} .ck-dur`);
+      await sleep(450);
+      await s.page.focus(`${DLG} .ck-spin[aria-label="Hours"]`);
+      const seq = [];
+      for (let i = 0; i < 3; i++) {
+        seq.push(await s.page.evaluate(`document.activeElement?.getAttribute('aria-label')`));
+        await s.page.keyboard.press('Tab');
+      }
+      check('Tab order in the timer dialog', seq, ['Hours', 'Minutes', 'Seconds']);
+      await s.page.keyboard.press('Escape');
+      await sleep(250);
+    });
+
+    await section('QA: navigation pane is one Tab stop (roving tabindex), Home / End', async () => {
+      await go(s, 'timer');
+      check('only the selected item is tabbable', await s.page.evaluate(`[...document.querySelectorAll('${WIN} .ck-nav-item')].filter((e) => e.tabIndex === 0).map((e) => e.dataset.page)`), ['timer']);
+      await s.page.focus(`${WIN} .ck-nav-item[data-page="timer"]`);
+      await s.page.keyboard.press('End');
+      check('End -> Settings', await s.page.evaluate(`document.activeElement?.dataset?.page`), 'settings');
+      await s.page.keyboard.press('Home');
+      check('Home -> Focus sessions', await s.page.evaluate(`document.activeElement?.dataset?.page`), 'focus');
+      await s.page.keyboard.press('Tab');
+      check('Tab leaves the pane', await s.page.evaluate(`!document.activeElement?.classList.contains('ck-nav-item')`), true);
+    });
+
+    await section('QA: double clicks never answer a dialog or start things twice', async () => {
+      await go(s, 'focus');
+      await CK(s, (app) => app.store.setPref('focus.dnd', 'ask'));
+      await sleep(150);
+      await s.page.dblclick(`${WIN} .ck-focus-start`);
+      await sleep(400);
+      check('double click on Start: the DND question is asked once', await s.page.evaluate(`document.querySelectorAll(${JSON.stringify(DLG)}).length`), 1);
+      check('…and is not answered by the second click', await CK(s, (app) => [!!app.store.focus.session, !!app.ctx.settings.get('notifications.dnd')]), [false, false]);
+      await s.page.keyboard.press('Escape');
+      await sleep(300);
+      check('Esc: no session', await CK(s, (app) => !!app.store.focus.session), false);
+      // two concurrent starts (Space + click) make one session
+      const r = await CK(s, async (app) => {
+        app.store.setPref('focus.dnd', 'never');
+        const p = app.page;
+        await Promise.all([p.start(), p.start(), app.store.startFocus({ minutes: 20 })]);
+        const id = app.store.focus.session?.id;
+        await app.store.stopFocus();
+        app.store.dismissFocusSummary();
+        return { id: !!id, logged: app.store.focus.log.length };
+      });
+      check('concurrent starts -> one session', r.id, true);
+      // a double click on a preset starts one timer
+      await go(s, 'timer');
+      const n15 = () => CK(s, (app) => app.store.timers.filter((x) => x.duration === 15 * 60000 && x.state === 'running').length);
+      const before = await n15();
+      await s.page.dblclick(`${WIN} .ck-preset[data-min="15"]`);
+      await sleep(300);
+      check('double click on the 15 min preset starts one timer', (await n15()) - before, 1);
+      await CK(s, (app) => app.store.timers.filter((x) => x.duration === 15 * 60000).forEach((x) => app.store.deleteTimer(x.id)));
+      await CK(s, (app) => app.store.setPref('focus.dnd', 'ask'));
+    });
+
+    await section('QA: with Do not disturb on, a ringing alarm still shows its Snooze / Dismiss toast', async () => {
+      await CK(s, (app) => app.ctx.settings.set('notifications.dnd', true));
+      await until(s, (app) => app.ctx.settings.get('notifications.dnd') === true, { label: 'DND on' });
+      await go(s, 'alarm');
+      check('alarm page note says alarms ring through DND', await s.page.textContent(`${WIN} .ck-note`), (v) => v.includes('Alarms and timers still ring'));
+      const id = await CK(s, (app) => {
+        const a = app.store.addAlarm({ hour: 5, minute: 45, name: 'DND ring', days: [] });
+        app.shell.reminders.set({ ...app.shell.reminders.get(`alarm-${a.id}`, 'clock'), at: Date.now() + 1000 });
+        return a.id;
+      });
+      await until(s, (app, id) => app.store.alarms.find((x) => x.id === id)?.enabled === false, { arg: id, label: 'alarm rang', timeout: 8000 });
+      const toast = s.page.locator('#toasts .toast', { hasText: 'DND ring' }).first();
+      check('toast shown despite Do not disturb', await toast.count(), 1);
+      check('…with Snooze and Dismiss', await toast.locator('.toast-actions .btn').allTextContents(), ['Snooze 10 min', 'Dismiss']);
+      await toast.locator('.toast-actions .btn', { hasText: 'Dismiss' }).click();
+      // an ordinary (non-alarm) notification stays hidden
+      await CK(s, (app) => app.shell.notify({ title: 'Hidden by DND', body: 'x', appId: 'clock' }));
+      await sleep(300);
+      check('ordinary notifications stay hidden by DND', await s.page.locator('#toasts .toast', { hasText: 'Hidden by DND' }).count(), 0);
+      await CK(s, (app, id) => app.store.deleteAlarm(id), id);
+      await CK(s, (app) => app.ctx.settings.set('notifications.dnd', false));
+      await until(s, (app) => !app.ctx.settings.get('notifications.dnd'), { label: 'DND off' });
+    });
+
+    await section('QA: focus time of a session that runs past midnight is split between the two days', async () => {
+      const r = await CK(s, async (app) => {
+        const st = app.store;
+        const S = await import('app://shell/apps/clock/lib/store.js');
+        const MIN = 60000;
+        const M = new Date(2026, 9, 12).getTime(); // local midnight (Paris)
+        const plan = S.planSegments(60, 30, 5); // 30 focus, 5 break, 30 focus = 65 min
+        const base = { id: 'fx', minutes: 60, segs: plan, startedAt: M - 20 * MIN, state: 'running', pausedAt: null, pausedTotal: 0, pauses: [], dndChanged: false };
+        const plain = st._focusByDay(base, base.startedAt + 65 * MIN, Math.round);
+        // paused from 23:50 to 00:05
+        const paused = { ...base, pauses: [[M - 10 * MIN, M + 5 * MIN]], pausedTotal: 15 * MIN };
+        const withPause = st._focusByDay(paused, paused.startedAt + 80 * MIN, Math.round);
+        // completed through stopFocus (on a scratch copy of the focus state)
+        const saved = st.focus;
+        st.focus = { session: { ...base }, history: {}, log: [], last: null };
+        await st.stopFocus({ completed: true }, base.startedAt + 65 * MIN);
+        const hist = st.focus.history;
+        const last = st.focus.last;
+        // live "today" while the session is still running at 00:10
+        st.focus = { session: { ...base }, history: {}, log: [], last: null };
+        const liveToday = st.todayMinutes(M + 10 * MIN);
+        st.focus = saved;
+        st.emit('focus');
+        return { plain, withPause, hist, total: last.focusMin, liveToday };
+      });
+      check('20 min before midnight, 40 after', r.plain, { '2026-10-11': 20, '2026-10-12': 40 });
+      check('a pause across midnight is not counted', r.withPause, { '2026-10-11': 10, '2026-10-12': 50 });
+      check('stopFocus records each day its part', r.hist, { '2026-10-11': 20, '2026-10-12': 40 });
+      check('the summary still shows the whole session', r.total, 60);
+      check('while running at 00:10, today shows only the 10 min after midnight', r.liveToday, 10);
+    });
+
+    await section('QA: a time zone change re-registers alarms at their wall time', async () => {
+      const r = await CK(s, (app) => {
+        const st = app.store;
+        const a = st.addAlarm({ hour: 9, minute: 0, name: 'tz', days: [] });
+        const at0 = st.shell.reminders.get(`alarm-${a.id}`, 'clock').at;
+        // pretend the reminder was computed in another zone
+        st.shell.reminders.set({ ...st.shell.reminders.get(`alarm-${a.id}`, 'clock'), at: at0 - 7 * 3600000 });
+        st.zone = 'Asia/Tokyo';
+        const changed = st.checkZone();
+        const at1 = st.shell.reminders.get(`alarm-${a.id}`, 'clock').at;
+        const again = st.checkZone();
+        st.deleteAlarm(a.id);
+        return { changed, again, back: at1 === at0, zone: st.zone };
+      });
+      check('zone change detected once', [r.changed, r.again], [true, false]);
+      check('alarm re-registered at 9:00 local', r.back, true);
+      check('store follows the system zone', r.zone, 'Europe/Paris');
+    });
+
+    await section('QA: leftover focus reminders without a session are removed on reconcile', async () => {
+      const r = await CK(s, (app) => {
+        const st = app.store;
+        if (st.focus.session) return 'session running';
+        st.shell.reminders.set({ id: 'focus-7', appId: 'clock', at: Date.now() + 3600000, title: 'stale break', kind: 'reminder', data: { focus: 'gone' } });
+        const before = st.shell.reminders.list('clock').some((x) => x.id === 'focus-7');
+        st.reconcile();
+        return [before, st.shell.reminders.list('clock').some((x) => x.id === 'focus-7')];
+      });
+      check('stale focus-7 reminder removed', r, [true, false]);
+    });
+
+    await section('QA: names are shown as text, never parsed as HTML', async () => {
+      const evil = '<img src=x onerror="window.__ckXss=1"><b>bold</b>';
+      const ids = await CK(s, (app, evil) => ({ a: app.store.addAlarm({ hour: 4, minute: 0, name: evil, days: [] }).id, t: app.store.addTimer({ name: evil, duration: 60000 }).id }), evil);
+      await go(s, 'alarm');
+      await sleep(150);
+      check('alarm name rendered literally', await s.page.textContent(`${WIN} .ck-alarm[data-id="${ids.a}"] .ck-alarm-name-text`), evil);
+      await go(s, 'timer');
+      await sleep(150);
+      check('timer name rendered literally', await s.page.textContent(`${WIN} .ck-timer[data-id="${ids.t}"] .ck-timer-name`), evil);
+      check('no injected element', await s.page.evaluate(`document.querySelectorAll('img[src="x"], ${WIN} b').length`), 0);
+      check('no script ran', await s.page.evaluate(`window.__ckXss === undefined`), true);
+      check('reminder title is the plain name', (await reminders(s)).find((r) => r.id === `alarm-${ids.a}`)?.title, evil);
+      await CK(s, (app, ids) => (app.store.deleteAlarm(ids.a), app.store.deleteTimer(ids.t)), ids);
+    });
+
+    await section('QA: Settings has a link to a per-app accent color (Settings > App themes)', async () => {
+      await go(s, 'settings');
+      const row = `${WIN} .ck-set-row[data-key="accent"]`;
+      if (await s.page.locator(row).count()) {
+        check('accent row', await s.page.textContent(`${row} .ck-set-text`), (v) => v.startsWith('Accent color'));
+        await s.page.click(`${row} .btn`);
+        await until(s, () => !!document.querySelector('.win.app-settings'), { label: 'Settings app opened' });
+        await sleep(600);
+        check('Settings opens on App themes', await s.page.evaluate(`document.querySelector('.win.app-settings')?.textContent.includes('App themes')`), true);
+        await s.page.evaluate(`window.__aurora.wm.byApp('settings').forEach((w) => w.close(true))`);
+        await sleep(400);
+        await s.page.evaluate(`window.__aurora.wm.byApp('clock')[0]?.focus()`);
+      } else check('accent row only with per-app themes', await CK(s, (app) => app.page.perAppThemes), false);
+    });
+
     await section('alarm page screenshot with a few alarms (docs)', async () => {
       await CK(s, (app) => {
         app.store.addAlarm({ hour: 6, minute: 30, name: 'Gym', days: [1, 3, 5] });
@@ -850,6 +1065,11 @@ async function runFrench() {
       st.addAlarm({ hour: 6, minute: 30, name: 'Sport', days: [1, 3, 5] });
       st.addAlarm({ hour: 22, minute: 15, name: '', days: [] });
       st.startTimer(st.timers[1].id);
+      // long names must ellipsize (they used to widen the grid past the window at the minimum size)
+      st.addAlarm({ hour: 7, minute: 45, name: 'Un nom d’alarme vraiment très très long pour voir ce qui se passe', days: [2, 4], enabled: false });
+      st.addTimer({ name: 'Un nom de minuteur vraiment très long pour tester la mise en page', duration: 99 * 3600000 + 59 * 60000 + 59000 });
+      st.stopwatch = { running: false, startedAt: 0, base: 4000000, laps: [1000000, 2500000, 3900000] };
+      st.emit('stopwatch');
     });
 
     await section('French: strings, 24 h format, week order, offsets', async () => {
@@ -898,10 +1118,18 @@ async function runFrench() {
       CK(s, (app) => {
         const bad = [];
         const sc = app.scroller;
+        const box = sc.getBoundingClientRect();
         if (sc.scrollWidth > sc.clientWidth + 1) bad.push(`page ${sc.scrollWidth}>${sc.clientWidth}`);
-        for (const el of app.root.querySelectorAll('.ck-card, .ck-set-row, .ck-note, .ck-presets, .ck-sw-display, .ck-focus-main')) {
-          if (el.offsetParent && el.scrollWidth > el.clientWidth + 2) bad.push(`${el.className.split(' ').slice(0, 3).join('.')} ${el.scrollWidth}>${el.clientWidth}`);
+        for (const el of app.root.querySelectorAll('.ck-card, .ck-set-row, .ck-note, .ck-presets, .ck-sw-display, .ck-focus-main, .ck-lap, .ck-laps-head')) {
+          if (!el.offsetParent) continue;
+          if (el.scrollWidth > el.clientWidth + 2) bad.push(`${el.className.split(' ').slice(0, 3).join('.')} ${el.scrollWidth}>${el.clientWidth}`);
+          // a card wider than the page (a grid column sized by a long name) sticks out on the right
+          const r = el.getBoundingClientRect();
+          if (r.right > box.right + 1) bad.push(`${el.className.split(' ').slice(0, 3).join('.')} sticks out ${Math.round(r.right - box.right)} px`);
         }
+        // lap table header: cells must not overlap each other (Copy laps used to cover "Total")
+        const head = [...app.root.querySelectorAll('.ck-laps-head > *')].filter((e) => e.offsetParent).map((e) => e.getBoundingClientRect());
+        for (let i = 1; i < head.length; i++) if (head[i].left < head[i - 1].right - 1) bad.push(`lap header cells ${i - 1}/${i} overlap`);
         return bad;
       });
 
@@ -936,7 +1164,7 @@ async function runFrench() {
     await section('maximized in French', async () => {
       await CK(s, (app) => app.win.maximize());
       await sleep(500);
-      for (const p of ['world', 'timer', 'focus', 'stopwatch']) {
+      for (const p of ['world', 'timer', 'focus', 'stopwatch', 'alarm', 'settings']) {
         await go(s, p);
         await sleep(250);
         check(`no overflow maximized on ${p}`, await overflow(), []);
@@ -956,9 +1184,14 @@ async function runFrench() {
       check('local time still shown', t1, (v) => /^\d\d:\d\d$/.test(v));
       await go(s, 'timer');
       check('running timer without frame loop', await CK(s, (app) => app.page.wantsFrames()), false);
-      const a = await s.page.evaluate(`[...document.querySelectorAll('${WIN} .ck-timer.state-running .ck-timer-time')].map((e) => e.textContent)[0]`);
-      await sleep(1300);
-      const b = await s.page.evaluate(`[...document.querySelectorAll('${WIN} .ck-timer.state-running .ck-timer-time')].map((e) => e.textContent)[0]`);
+      // (polls for up to 4 s: other test runs may load the machine)
+      const digits = () => s.page.evaluate(`[...document.querySelectorAll('${WIN} .ck-timer.state-running .ck-timer-time')].map((e) => e.textContent)[0]`);
+      const a = await digits();
+      let b = a;
+      for (let i = 0; i < 20 && b === a; i++) {
+        await sleep(200);
+        b = await digits();
+      }
       check('…but its digits still count down', a !== b, true);
       await go(s, 'stopwatch');
       await CK(s, (app) => app.store.swStart());
@@ -969,6 +1202,126 @@ async function runFrench() {
 
     await section('console (French run): no errors from Clock', async () => {
       check('no Clock errors in the console', clockErrors(s), []);
+    });
+  } finally {
+    await s.close();
+    current = null;
+  }
+}
+
+// ================================================================== launch D: other screen sizes, leaks, save errors
+async function runSizes(size, lang, theme) {
+  const s = await launchShell({ open: ['clock'], lang, theme, size, env: { TZ: 'Europe/Paris' } });
+  current = s;
+  const tag = `${size} ${lang} ${theme}`;
+  try {
+    await s.page.waitForSelector(`${WIN} .ck`, { timeout: 20000 });
+    await until(s, (app) => !!app?.store, { label: 'clock ready' });
+    await CK(s, (app) => {
+      const st = app.store;
+      for (const id of ['new-york-city-us', 'tokyo-jp', 'kolkata-in', 'sydney-au', 'kathmandu-np']) st.addCity(id);
+      st.addAlarm({ hour: 6, minute: 30, name: 'A rather long alarm name that has to be cut with an ellipsis', days: [1, 3, 5] });
+      st.addTimer({ name: 'A rather long timer name that has to be cut with an ellipsis', duration: 25 * 60000 });
+      st.startTimer(st.timers[1].id);
+    });
+    const pageOverflow = () =>
+      CK(s, (app) => {
+        const bad = [];
+        const box = app.scroller.getBoundingClientRect();
+        if (app.scroller.scrollWidth > app.scroller.clientWidth + 1) bad.push('horizontal scroll');
+        for (const el of app.root.querySelectorAll('.ck-card, .ck-set-row, .ck-presets, .ck-lap, .ck-map-card')) {
+          if (!el.offsetParent) continue;
+          const r = el.getBoundingClientRect();
+          if (r.right > box.right + 1 || r.left < box.left - 1) bad.push(`${el.className.split(' ').slice(0, 3).join('.')} outside the page`);
+        }
+        return bad;
+      });
+
+    await section(`${tag}: maximized, every page fits; the world map wraps instead of stretching`, async () => {
+      await CK(s, (app) => app.win.maximize());
+      await sleep(600);
+      for (const p of ['focus', 'timer', 'alarm', 'stopwatch', 'world', 'settings']) {
+        await go(s, p);
+        await sleep(300);
+        check(`${tag}: no overflow on ${p}`, await pageOverflow(), []);
+      }
+      await go(s, 'world');
+      await sleep(400);
+      const m = await CK(s, (app) => {
+        const p = app.page;
+        const r = p.map.getBoundingClientRect();
+        const vb = p.mapSvg.getAttribute('viewBox').split(' ').map(Number);
+        const pins = [...p.pins.querySelectorAll('.ck-pin')].map((el) => {
+          const b = el.getBoundingClientRect();
+          return { id: el.dataset.id, x: b.left - r.left, y: b.top - r.top };
+        });
+        // pixel x of a longitude in the drawn map vs the pin
+        const ny = pins.find((x) => x.id === 'new-york-city-us');
+        const expX = ((-74.0 + 180 - vb[0]) / vb[2]) * r.width;
+        return { w: r.width, h: r.height, vb, aspect: r.width / r.height, vbAspect: vb[2] / vb[3], lands: p.lands.length, nyDx: ny ? Math.abs(ny.x - expX) : null, inside: pins.every((x) => x.x >= 0 && x.x <= r.width && x.y >= 0 && x.y <= r.height) };
+      });
+      check(`${tag}: map not distorted (viewBox aspect = box aspect)`, Math.abs(m.aspect - m.vbAspect), (v) => v < 0.02);
+      check(`${tag}: map height capped`, m.h, (v) => v <= 441);
+      if (m.aspect > 360 / 142 + 0.05) check(`${tag}: wide window shows more than 360° (wraps)`, m.vb[2], (v) => v > 360);
+      check(`${tag}: land drawn three times (wrap copies)`, m.lands, 3);
+      check(`${tag}: pins inside the map`, m.inside, true);
+      check(`${tag}: New York pin at its longitude`, m.nyDx, (v) => v != null && v < 6);
+      await shot(s, `world-${size}`, { clip: false });
+    });
+
+    await section(`${tag}: opening and closing Clock 10 times leaves no listeners behind`, async () => {
+      await s.page.evaluate(`(() => {
+        const A = window.__aurora;
+        window.__ckSubs = { settings: 0, i18n: 0 };
+        const wrap = (obj, kind) => {
+          const orig = obj.on.bind(obj);
+          obj.on = (k, fn) => { window.__ckSubs[kind]++; const off = orig(k, fn); let done = false; return () => { if (!done) { done = true; window.__ckSubs[kind]--; } return off?.(); }; };
+        };
+        wrap(A.settings, 'settings');
+        wrap(A.i18n, 'i18n');
+      })()`);
+      const stats = () => s.page.evaluate(`(() => ({ subs: { ...window.__ckSubs }, store: window.__ckStore ? window.__ckStore.subs.size : null, wins: window.__aurora.wm.byApp('clock').length }))()`);
+      await s.page.evaluate(`window.__ckStore = document.querySelector('${WIN}').__clock.store; window.__aurora.wm.byApp('clock')[0].close()`);
+      await sleep(500);
+      const base = await stats();
+      const pages = ['focus', 'timer', 'alarm', 'stopwatch', 'world', 'settings'];
+      for (let i = 0; i < 10; i++) {
+        await s.page.evaluate(`window.__aurora.registry.launch('clock', { page: '${pages[i % pages.length]}' })`);
+        await s.page.waitForSelector(`${WIN} .ck`);
+        await sleep(300);
+        await s.page.evaluate(`window.__aurora.wm.byApp('clock')[0].close()`);
+        await sleep(300);
+      }
+      const after = await stats();
+      check('no Clock window left', after.wins, 0);
+      check('store listeners back to zero', [base.store, after.store], [0, 0]);
+      check('settings / language listeners back to baseline', after.subs, base.subs);
+      await s.page.evaluate(`window.__aurora.registry.launch('clock', { page: 'alarm' })`);
+      await s.page.waitForSelector(`${WIN} .ck`);
+      await until(s, (app) => !!app?.store, { label: 'clock reopened' });
+      check('state survived the 10 reopenings', await CK(s, (app) => [app.store.cities.length, app.store.timers.some((x) => x.state === 'running')]), [5, true]);
+    });
+
+    await section(`${tag}: a failed save shows an error bar, which goes away once saving works again`, async () => {
+      const dir = path.join(s.home, '.config', 'aurora', 'apps', 'clock');
+      const file = path.join(dir, 'alarms.json');
+      fs.rmSync(file, { force: true });
+      fs.mkdirSync(path.join(file, 'blocker'), { recursive: true }); // alarms.json is now a directory: the write fails
+      await go(s, 'alarm');
+      await CK(s, (app) => app.store.addAlarm({ hour: 5, minute: 5, name: 'Disk full', days: [] }));
+      await until(s, (app) => !!app.store.saveError, { label: 'save error', timeout: 4000 });
+      check('error bar shown', await s.page.isVisible(`${WIN} .ck-info-slot .infobar.error`), true);
+      check('the alarm still works (registered)', await CK(s, (app) => app.shell.reminders.list('clock').some((r) => r.title === 'Disk full')), true);
+      fs.rmSync(file, { recursive: true, force: true });
+      await CK(s, (app) => app.store.persist('alarms'));
+      await until(s, (app) => !app.store.saveError, { label: 'save works again', timeout: 4000 });
+      check('error bar gone', await s.page.isVisible(`${WIN} .ck-info-slot .infobar.error`), false);
+      check('alarms written', JSON.parse(fs.readFileSync(file, 'utf8')).some((a) => a.name === 'Disk full'), true);
+    });
+
+    await section(`console (${tag}): no unexpected errors from Clock`, async () => {
+      // the save failure above is logged on purpose
+      check('no Clock errors in the console', clockErrors(s).filter((l) => !/saving alarms failed/.test(l)), []);
     });
   } finally {
     await s.close();
@@ -1021,7 +1374,7 @@ async function runReconcile() {
           swRunning: st.stopwatch.running,
           session: st.focus.session,
           last: st.focus.last,
-          history: st.todayMinutes(),
+          history: Object.values(st.focus.history).reduce((n, v) => n + v, 0),
           dnd: app.ctx.settings.get('notifications.dnd'),
           rems: app.shell.reminders.list('clock').map((x) => x.id).sort(),
         };
@@ -1037,7 +1390,7 @@ async function runReconcile() {
       check('stopwatch running', r.swRunning, true);
       check('finished focus session closed', r.session, null);
       check('…as completed', r.last?.completed, true);
-      check('…and counted for today', r.history, 30);
+      check('…and its 30 minutes counted (on the day(s) they were done)', r.history, 30);
       check('…and DND restored', r.dnd, false);
       check('reminders re-registered', r.rems, ['alarm-arep', 'timer-tlive']);
     });
@@ -1055,6 +1408,8 @@ console.log('Clock tests');
 await runEnglish();
 await runFrench();
 await runReconcile();
+await runSizes('1280x720', 'fr', 'dark');
+await runSizes('1920x1080', 'en', 'light');
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   console.log(`\nFailures:\n  - ${failures.join('\n  - ')}`);

@@ -203,12 +203,32 @@ module.exports = function register(api) {
     clipboard.writeText(String(t ?? ''));
     return true;
   });
-  api.handle('clipboard:writeImage', (bytes) => {
-    clipboard.writeImage(nativeImage.createFromBuffer(Buffer.from(bytes)));
+  // Images: Electron 44 replaced clipboard.writeImage/readImage with the async W3C-style
+  // clipboard.write/read of ClipboardItems; support both.
+  api.handle('clipboard:writeImage', async (bytes) => {
+    const buf = Buffer.from(bytes);
+    if (typeof clipboard.writeImage === 'function') {
+      clipboard.writeImage(nativeImage.createFromBuffer(buf));
+      return true;
+    }
+    const Item = require('electron').ClipboardItem;
+    if (!Item || typeof clipboard.write !== 'function') throw api.error('Clipboard images are not supported', 'ENOCLIP');
+    await clipboard.write([new Item({ 'image/png': new Blob([buf], { type: 'image/png' }) })]);
     return true;
   });
-  api.handle('clipboard:readImage', () => {
-    const img = clipboard.readImage();
-    return img.isEmpty() ? null : new Uint8Array(img.toPNG());
+  api.handle('clipboard:readImage', async () => {
+    if (typeof clipboard.readImage === 'function') {
+      const img = clipboard.readImage();
+      return img.isEmpty() ? null : new Uint8Array(img.toPNG());
+    }
+    if (typeof clipboard.read !== 'function') return null;
+    for (const item of (await clipboard.read()) || []) {
+      const types = item.types || [];
+      const type = types.includes('image/png') ? 'image/png' : types.find((t) => /^image\//.test(t));
+      if (!type) continue;
+      const blob = await item.getType(type);
+      if (blob && typeof blob.arrayBuffer === 'function') return new Uint8Array(await blob.arrayBuffer());
+    }
+    return null;
   });
 };

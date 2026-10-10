@@ -133,6 +133,59 @@ function styleGuard(pc, el, trait, noteEl) {
 
 const noteEl = (pc) => pc.h('div', { class: 'pz-note caption', hidden: true });
 
+/**
+ * Arrow-key navigation (roving tabindex) for a group of buttons — style cards, colour swatches: the group is
+ * one Tab stop (the selected item), arrows / Home / End move the focus (Up / Down by rows in a grid), Enter /
+ * Space activate the focused button. Returns sync() to call after the items or the selection changed.
+ */
+export function rovingFocus(container, selector) {
+  const items = () => [...container.querySelectorAll(selector)].filter((el) => !el.disabled && !el.hidden);
+  const isSel = (el) => el.classList.contains('selected') || el.getAttribute('aria-checked') === 'true' || el.getAttribute('aria-selected') === 'true';
+  const setStop = (list, stop) => {
+    for (const el of list) el.tabIndex = el === stop ? 0 : -1;
+  };
+  const sync = () => {
+    const list = items();
+    const focused = list.includes(document.activeElement) ? document.activeElement : null;
+    setStop(list, focused || list.find(isSel) || list[0]);
+  };
+  container.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const list = items();
+    const i = list.indexOf(document.activeElement);
+    if (i < 0 || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    let j = i;
+    if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = list.length - 1;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      const rtl = getComputedStyle(container).direction === 'rtl';
+      j = Math.max(0, Math.min(list.length - 1, i + ((e.key === 'ArrowRight') !== rtl ? 1 : -1)));
+    } else {
+      // the closest item (by centre) in the next / previous row
+      const r = list[i].getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const down = e.key === 'ArrowDown';
+      const rows = list.map((el) => [el, el.getBoundingClientRect()]).filter(([, b]) => (down ? b.top >= r.bottom - 2 : b.bottom <= r.top + 2));
+      if (rows.length) {
+        const rowTop = down ? Math.min(...rows.map(([, b]) => b.top)) : Math.max(...rows.map(([, b]) => b.top));
+        const row = rows.filter(([, b]) => Math.abs(b.top - rowTop) < 4);
+        row.sort((a, b) => Math.abs(a[1].left + a[1].width / 2 - cx) - Math.abs(b[1].left + b[1].width / 2 - cx));
+        j = list.indexOf(row[0][0]);
+      }
+    }
+    setStop(list, list[j]);
+    list[j].focus();
+  });
+  container.addEventListener('focusin', (e) => {
+    const list = items();
+    if (list.includes(e.target)) setStop(list, e.target);
+  });
+  sync();
+  return sync;
+}
+
 // ------------------------------------------------------------------ colour picker dialog
 export async function pickColorDialog(pc, initial, { title, allowDefault = false } = {}) {
   const { h, t, ui } = pc;
@@ -152,9 +205,14 @@ export async function pickColorDialog(pc, initial, { title, allowDefault = false
     value = c.toLowerCase();
     input.value = value;
     hex.value = value;
-    for (const b of sw.children) b.classList.toggle('selected', b.getAttribute('aria-label') === value);
+    for (const b of sw.children) {
+      const on = b.getAttribute('aria-label') === value;
+      b.classList.toggle('selected', on);
+      b.setAttribute('aria-selected', String(on));
+    }
   }
   set(value);
+  rovingFocus(sw, '.pz-swatch');
   input.addEventListener('input', () => set(input.value));
   hex.addEventListener('input', () => HEX.test(hex.value) && set(hex.value));
   const body = h('div', { class: 'pz-color-dialog' }, sw, input, h('label', { class: 'row' }, h('span', { class: 'text-2' }, t('pz.hex')), hex));
@@ -216,16 +274,25 @@ export function modeControl(pc) {
 // ------------------------------------------------------------------ accent
 export function accentControls(pc, { compact = false } = {}) {
   const { h, t, settings, kit } = pc;
-  const swatches = h('div', { class: ['pz-swatches', compact && 'small'], role: 'listbox', 'aria-label': t('pz.accent') });
+  const swatches = h(
+    'div',
+    { class: ['pz-swatches', compact && 'small'], role: 'listbox', 'aria-label': t('pz.accent') },
+    ACCENTS.map((c) => {
+      const b = h('button', { class: 'pz-swatch', type: 'button', role: 'option', 'aria-label': c, 'data-tip': c, onclick: () => setAccent(c) });
+      b.style.setProperty('--sw', c);
+      return b;
+    }),
+  );
+  let syncFocus = null;
   const paint = () => {
     const cur = String(settings.get('accent') || '#0078d4').toLowerCase();
-    swatches.replaceChildren(
-      ...ACCENTS.map((c) => {
-        const b = h('button', { class: ['pz-swatch', c === cur && 'selected'], type: 'button', role: 'option', 'aria-selected': String(c === cur), 'aria-label': c, 'data-tip': c, onclick: () => setAccent(c) });
-        b.style.setProperty('--sw', c);
-        return b;
-      }),
-    );
+    // updated in place: rebuilding the buttons would drop the keyboard focus
+    for (const b of swatches.children) {
+      const on = b.getAttribute('aria-label') === cur;
+      b.classList.toggle('selected', on);
+      b.setAttribute('aria-selected', String(on));
+    }
+    syncFocus?.();
     const custom = !ACCENTS.includes(cur);
     customBtn.classList.toggle('selected', custom);
     customBtn.style.setProperty('--sw', cur);
@@ -247,6 +314,7 @@ export function accentControls(pc, { compact = false } = {}) {
     h('span', { class: 'pz-custom-dot' }),
     t('pz.accentCustom'),
   );
+  syncFocus = rovingFocus(swatches, '.pz-swatch');
   paint();
   pc.onDispose(settings.on('accent', paint));
   const note = noteEl(pc);
@@ -518,7 +586,9 @@ export function styleCards(pc, { compact = false } = {}) {
   const { h, t, settings, icon } = pc;
   const grid = h('div', { class: ['pz-style-grid', compact && 'compact'], role: 'radiogroup', 'aria-label': t('pz.style') });
   const cards = [];
+  let syncFocus = null;
   const build = () => {
+    const focused = grid.contains(document.activeElement) ? document.activeElement.dataset?.styleId : null;
     grid.replaceChildren();
     cards.length = 0;
     for (const st of STYLES) {
@@ -539,6 +609,8 @@ export function styleCards(pc, { compact = false } = {}) {
       grid.appendChild(card);
     }
     mark();
+    if (focused) cards.find((c) => c.dataset.styleId === focused)?.focus({ preventScroll: true });
+    syncFocus?.();
   };
   const mark = () => {
     const cur = styleOf(settings.get('style')).id;
@@ -547,8 +619,10 @@ export function styleCards(pc, { compact = false } = {}) {
       c.classList.toggle('selected', on);
       c.setAttribute('aria-checked', String(on));
     }
+    syncFocus?.();
   };
   build();
+  syncFocus = rovingFocus(grid, '.pz-style-card');
   // previews follow the mode, accent, wallpaper and sliders
   let timer = null;
   pc.onDispose(
@@ -596,7 +670,7 @@ async function themeDesigner(pc) {
   const saveBtn = kit.button(t('pz.saveProfile'), () => saveAsProfile(pc), { primary: true, icon: 'save', className: 'pz-save-profile' });
   const resetBtn = kit.button(t('pz.resetLook'), async () => {
     if (!(await ui.confirm(t('pz.resetLookConfirm'), { title: t('pz.resetLook'), okLabel: t('pz.resetLook'), parent: pc.win }))) return;
-    const keys = ['style', 'autoTheme', 'accentFromWallpaper', 'transparencyLevel', 'blur', 'cornerRadius', 'fontFamily', 'taskbar.color', 'taskbar.opacity', 'accent'];
+    const keys = ['style', 'autoTheme', 'accentFromWallpaper', 'transparency', 'transparencyLevel', 'blur', 'cornerRadius', 'fontFamily', 'taskbar.color', 'taskbar.opacity', 'accent'];
     await coreTheme.transition(() => pc.api.invoke('settings:setMany', {}, { reset: keys }));
     pc.toast(t('pz.resetDone'));
   });
@@ -735,7 +809,8 @@ async function profilesPage(pc) {
     const pv = stylePreview(pc, all.style || 'win11', { values: all });
     const sub = p.builtin ? t('pz.builtin') : t('pz.savedOn', { date: pc.i18n.formatDate(p.updated || p.created, { dateStyle: 'medium' }) });
     const swatch = h('span', { class: 'pz-profile-accent', 'aria-hidden': 'true' });
-    swatch.style.background = all.accent || '#0078d4';
+    // the accent the profile really shows (High contrast and Minimal use their own)
+    swatch.style.background = styleAccentVars(all.style, all.accent, all.theme === 'dark' ? 'dark' : 'light')['--accent'];
     return h(
       'div',
       { class: ['pz-profile', isCur && 'current'], dataset: { profileId: p.id } },
@@ -744,7 +819,7 @@ async function profilesPage(pc) {
         'div',
         { class: 'pz-profile-info' },
         swatch,
-        h('div', { class: 'pz-profile-text' }, h('div', { class: 'pz-profile-name ellipsis' }, profiles.label(p)), h('div', { class: 'caption text-2 ellipsis' }, isCur ? t('pz.current') : sub)),
+        h('div', { class: 'pz-profile-text' }, h('div', { class: 'pz-profile-name' }, profiles.label(p)), h('div', { class: 'caption text-2 ellipsis' }, isCur ? t('pz.current') : sub)),
         apply,
         more,
       ),
@@ -866,10 +941,21 @@ async function appThemes(pc) {
   const reset = kit.button(t('pz.resetApps'), async () => {
     if (await ui.confirm(t('pz.resetAppsConfirm'), { title: t('pz.resetApps'), okLabel: t('pz.resetApps'), parent: pc.win })) await settings.set('appThemes', {});
   });
+  // Minimal and High contrast draw every accent with their own palette: say so (the choice is kept for the other styles)
+  const styleNote = noteEl(pc);
+  const paintStyleNote = () => {
+    const st = styleOf(settings.get('style'));
+    const own = st.traits.monochrome || st.traits.contrast;
+    styleNote.hidden = !own;
+    styleNote.textContent = own ? t('pz.accentStyleNote', { style: pc.L(st.name) }) : '';
+  };
+  paintStyleNote();
+  pc.onDispose(settings.on('style', paintStyleNote));
   return h(
     'div',
     { class: 'pz-page' },
     h('p', { class: 'pz-intro text-2' }, t('pz.appThemesIntro')),
+    styleNote,
     h('div', { class: 'pz-toolbar' }, h('div', { class: 'search-box pz-app-search' }, search, pc.icon('search', { size: 16 })), reset),
     h('section', { class: 'st-group' }, list, empty),
   );

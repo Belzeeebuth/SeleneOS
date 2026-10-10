@@ -1,5 +1,6 @@
 // Notifications: toasts (bottom-right, above the taskbar) + history for the notification center.
-//   notify({ title, body, icon, appId, appName, timeout = 6000, silent, onClick, actions: [{ label, onClick }] }) -> id
+//   notify({ title, body, icon, image, appId, appName, timeout = 6000, silent, onClick, actions: [{ label, onClick }] }) -> id
+//   (image: optional preview picture shown under the text — app:, media:, blob: or data: URL)
 //   notifications.list() / notifications.unread() / notifications.markAllRead()
 //   notifications.dismiss(id) / notifications.clear(id?) / notifications.clearApp(appId)
 //   notifications.groups() -> [{ appId, appName, icon, items: [...] }]  (newest first)
@@ -7,7 +8,8 @@
 //   notifications.on('change', fn)
 // Icon may be a Fluent icon name or a URL. If no icon is given, the app icon is used.
 // Do not disturb (settings.notifications.dnd) and notifications.enabled === false keep history but
-// suppress toasts and sounds.
+// suppress toasts and sounds. `urgent: true` (alarms and timers, see reminders.js) still shows its
+// toast with Do not disturb on, like Windows lets alarms through, so a ringing alarm can be stopped.
 import { api, Emitter } from './api.js';
 import { h, icon } from './ui.js';
 import { i18n, t } from './i18n.js';
@@ -102,6 +104,7 @@ export function notify(opts = {}) {
     title: opts.title || '',
     body: opts.body || '',
     icon: opts.icon,
+    image: typeof opts.image === 'string' ? opts.image : null, // optional preview picture (app:, media:, blob:, data: URL)
     appId: opts.appId || 'system',
     appName: opts.appName,
     time: Date.now(),
@@ -113,7 +116,7 @@ export function notify(opts = {}) {
   if (history.length > 100) history.pop();
   emitter.emit('change');
   const prefs = settings.get('notifications') || {};
-  if (prefs.enabled === false || prefs.dnd) return n.id;
+  if (prefs.enabled === false || (prefs.dnd && !opts.urgent)) return n.id;
   if (!opts.silent && prefs.sounds !== false) sounds.play('notify');
   if (!host) return n.id;
 
@@ -161,6 +164,9 @@ export function notify(opts = {}) {
     ),
     h('div', { class: 'toast-title body-strong' }, n.title),
     n.body ? h('div', { class: 'toast-body' }, n.body) : null,
+    n.image && /^(app|media|blob|data):/.test(n.image)
+      ? h('img', { class: 'toast-image', src: n.image, alt: '', style: { display: 'block', width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', marginTop: '10px' } })
+      : null,
     n.actions.length
       ? h(
           'div',

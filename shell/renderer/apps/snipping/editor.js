@@ -170,10 +170,26 @@ export class SnipEditor {
       { passive: false },
     );
     this.el.addEventListener('auxclick', (e) => e.button === 1 && e.preventDefault());
+    // The focus ring around the snip only shows when the user moves the keyboard focus there (Tab),
+    // not when the app parks the focus on the canvas (after a snip, a crop, a closed flyout).
+    this.el.addEventListener('blur', () => this.el.classList.remove('quiet'));
     this._wireRuler();
-    new ResizeObserver(() => {
+    this._ro = new ResizeObserver(() => {
       if (this.fitMode && this.hasImage) this.fit();
-    }).observe(this.el);
+    });
+    this._ro.observe(this.el);
+  }
+
+  /** Give the canvas the keyboard focus (shortcuts, crop keys) without drawing a focus ring. */
+  focusQuiet() {
+    if (document.activeElement === this.el) return;
+    this.el.classList.add('quiet');
+    this.el.focus({ preventScroll: true });
+  }
+  dispose() {
+    this._ro?.disconnect();
+    this._cancelOp();
+    cancelAnimationFrame(this._liveRaf);
   }
 
   // ------------------------------------------------------------------ state
@@ -407,7 +423,7 @@ export class SnipEditor {
     }
     if (e.button !== 0) return;
     e.preventDefault();
-    this.el.focus({ preventScroll: true });
+    this.focusQuiet();
     if (this.tool === 'pen' || this.tool === 'hl') {
       const ink = this.tool === 'hl' ? this.hl : this.pen;
       const p = this._pt(e);
@@ -668,7 +684,7 @@ export class SnipEditor {
       this.cropLayer.addEventListener('pointercancel', (e) => this._cropUp(e));
     }
     this._layoutCrop();
-    this.el.focus({ preventScroll: true }); // Enter applies, Esc cancels
+    this.focusQuiet(); // Enter applies, Esc cancels
     this.onCropChange?.(this.crop);
   }
   _endCrop() {
@@ -718,7 +734,7 @@ export class SnipEditor {
     e.stopPropagation();
     const handle = e.target.closest('.snip-ch')?.dataset.h || (e.target.closest('.snip-crop-box') ? 'move' : null);
     if (!handle) return;
-    this.el.focus({ preventScroll: true });
+    this.focusQuiet();
     this._cropDrag = { handle, pointerId: e.pointerId, x: e.clientX, y: e.clientY, start: { ...this.crop } };
     try {
       this.cropLayer.setPointerCapture(e.pointerId);

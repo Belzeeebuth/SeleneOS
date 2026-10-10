@@ -236,6 +236,7 @@ async function runEnglish() {
       await menuClick(s, 'Tomorrow');
       const chip = await s.page.textContent(`${WIN} .td-add-due .td-add-opt-label`);
       check('due chip shows the chosen date', chip, 'Due Tomorrow');
+      await shot(s, 'add-bar-light-en');
       await s.page.click(`${WIN} .td-add-input`);
       await s.page.keyboard.press('Enter');
       taskA = await until(s, (app) => app.store.data.tasks.find((t) => t.title === 'Water the plants')?.id, { label: 'task added' });
@@ -269,7 +270,12 @@ async function runEnglish() {
       check('not committed during the animation', mid.done, false);
       check('completion chime played', mid.chime, true);
       await until(s, (app, id) => app.store.task(id).done, { arg: id, label: 'task completed' });
-      await sleep(450);
+      // every animation of the row settles (a stuck or infinite animation would time out here)
+      const settled = await until(s, (app, id) => {
+        const row = app.list.rowEl(id);
+        return !!row?.closest('.td-done-rows') && row.getAnimations({ subtree: true }).every((a) => a.playState !== 'running') && 'yes';
+      }, { arg: id, timeout: 2500, label: 'animations settle' }).catch((e) => e.message);
+      check('animations settle', settled, 'yes');
       const end = await TD(s, (app, id) => {
         const row = app.list.rowEl(id);
         return {
@@ -277,7 +283,6 @@ async function runEnglish() {
           cls: row?.className,
           aria: row?.querySelector('.td-check').getAttribute('aria-checked'),
           completing: document.querySelectorAll('.win.app-todo .td-task.completing').length,
-          anims: row ? row.getAnimations({ subtree: true }).filter((a) => a.playState === 'running').map((a) => `${a.animationName || a.transitionProperty || a.constructor.name}:${a.effect?.target?.className?.baseVal ?? a.effect?.target?.className}:${a.effect?.getTiming?.().duration}:${a.effect?.getTiming?.().iterations}`) : -1,
           completedAt: !!app.store.task(id).completedAt,
           count: document.querySelector('.win.app-todo .td-done-head .td-sec-count')?.textContent,
           nav: app.nav.itemFor('completed')?.querySelector('.td-nav-count')?.textContent,
@@ -286,7 +291,6 @@ async function runEnglish() {
       check('row now in the Completed section', end.inDone, true);
       check('row has the done style', /\bdone\b/.test(end.cls), true);
       check('no row left mid-animation', end.completing, 0);
-      check('animations finished', end.anims, []);
       check('checkbox checked', end.aria, 'true');
       check('completion time recorded', end.completedAt, true);
       check('Completed section count', end.count, '1');
@@ -434,6 +438,22 @@ async function runEnglish() {
       const at = await until(s, (app, id) => app.shell.reminders.get(`task-${id}`, 'todo')?.at, { arg: id, label: 'picked reminder' });
       const ad = new Date(at);
       check('picked reminder time', [ad.toISOString().slice(0, 10) === pick || `${ad.getFullYear()}-${String(ad.getMonth() + 1).padStart(2, '0')}-${String(ad.getDate()).padStart(2, '0')}` === pick, ad.getHours(), ad.getMinutes()], [true, 19, 45]);
+      // end to end: the reminder fires from the shell, the toast click opens the task
+      const rid = await TD(s, (app) => {
+        const t = app.addTask({ title: 'Ring soon', listId: 'tasks' });
+        app.remind(t.id, Date.now() + 1500);
+        return t.id;
+      });
+      const toast = await until(s, () => window.__aurora.notifications.list().find((n) => n.title === 'Ring soon'), { timeout: 9000, label: 'reminder notification' });
+      check('notification shows the list', (toast.body || '').includes('Tasks'), true);
+      check('fired one-shot reminder left the schedule', await TD(s, (app, id) => app.shell.reminders.get(`task-${id}`, 'todo'), rid), null);
+      await render(s);
+      check('row bell shows the reminder has passed', await TD(s, (app, id) => !!app.list.rowEl(id)?.querySelector('.td-meta-remind.past'), rid), true);
+      await go(s, 'important');
+      await s.page.evaluate(`(() => { const n = window.__aurora.notifications.list().find((x) => x.title === 'Ring soon'); window.__aurora.notifications.activate(n.id); })()`);
+      await until(s, (app, id) => app.openId === id, { arg: rid, label: 'notification click opens the task' });
+      check('notification click opens the task (in its list)', await TD(s, (app) => app.view), 'list:tasks');
+      await TD(s, (app, id) => app.deleteTasks([id], { confirm: false }), rid);
       // orphan removal at sync
       await TD(s, (app) => {
         app.shell.reminders.set({ id: 'task-ghost', appId: 'todo', at: Date.now() + 3600e3, title: 'ghost', data: { taskId: 'ghost' } });
@@ -758,6 +778,7 @@ async function runEnglish() {
       await s.page.mouse.move(dst.x + 40, dst.y + dst.height / 2, { steps: 12 });
       check('nav item highlights as a drop target', await s.page.evaluate(`!!document.querySelector('.win.app-todo .td-nav-item[data-view="list:tasks"].drop-target')`), true);
       check('ghost follows the pointer', await s.page.evaluate(`!!document.querySelector('.win.app-todo .td-ghost')`), true);
+      await shot(s, 'drag-to-list-light-en');
       await s.page.mouse.up();
       await sleep(300);
       check('dropped onto Tasks', await TD(s, (app, id) => app.store.task(id).listId, remaining[0]), 'tasks');
@@ -765,6 +786,7 @@ async function runEnglish() {
       // drag onto My Day
       await go(s, 'list:tasks');
       await render(s);
+      await sleep(300);
       const src2 = await s.page.locator(rowSel(remaining[0])).boundingBox();
       const dst2 = await s.page.locator(`${WIN} .td-nav-item[data-view="myday"]`).boundingBox();
       await s.page.mouse.move(src2.x + 120, src2.y + src2.height / 2);
@@ -777,6 +799,8 @@ async function runEnglish() {
       // drag to reorder inside a list (Groceries)
       await go(s, `list:${groceries}`);
       await TD(s, (app) => (app.store.setPref('starToTop', true), true));
+      await render(s); // no re-render pending while the rows are measured
+      await sleep(300);
       const order0 = await TD(s, (app) => app.list.visibleIds());
       const last = await s.page.locator(rowSel(order0[order0.length - 1])).boundingBox();
       const first = await s.page.locator(rowSel(order0[0])).boundingBox();
@@ -805,6 +829,75 @@ async function runEnglish() {
       await s.page.keyboard.press('Alt+ArrowDown');
       await sleep(200);
       check('Alt+Down moves the task down', await TD(s, (app) => app.list.visibleIds()[1]), o2[0]);
+    });
+
+    await section('sort, group, copy as text, new list from task, copy to, hide a smart list', async () => {
+      const lid = await TD(s, (app) => {
+        const l = app.store.addList('Sorting');
+        const mk = (title, f = {}, age = 0) => {
+          const t = app.store.addTask({ title, listId: l.id, ...f }, { top: false });
+          t.created -= age * 60000;
+          return t;
+        };
+        mk('banana', { due: '2026-12-01' }, 3);
+        mk('Apple', { important: true }, 2);
+        mk('cherry', { due: '2026-11-01' }, 1);
+        app.go(`list:${l.id}`);
+        return l.id;
+      });
+      const order = () => TD(s, (app) => app.list.visibleIds().map((id) => app.store.task(id).title));
+      await TD(s, (app, v) => (app.store.setPref('starToTop', false), app.store.setViewPref(v, { sort: { by: 'alpha', dir: 'asc' } }), app.renderNow(), true), `list:${lid}`);
+      check('sort alphabetically (case-insensitive)', await order(), ['Apple', 'banana', 'cherry']);
+      check('sort chip shown', await s.page.textContent(`${WIN} .td-sortchip`), 'Sorted by Alphabetically');
+      await s.page.click(`${WIN} .td-chip-main`);
+      await sleep(150);
+      check('chip reverses the order', await order(), ['cherry', 'banana', 'Apple']);
+      await TD(s, (app, v) => (app.store.setViewPref(v, { sort: { by: 'due', dir: 'asc' } }), app.renderNow(), true), `list:${lid}`);
+      check('sort by due date (no date last)', await order(), ['cherry', 'banana', 'Apple']);
+      await TD(s, (app, v) => (app.store.setViewPref(v, { sort: { by: 'importance', dir: 'asc' } }), app.renderNow(), true), `list:${lid}`);
+      check('sort by importance', (await order())[0], 'Apple');
+      await s.page.click(`${WIN} .td-sort-btn`);
+      await menuClick(s, 'Creation date');
+      check('sort menu: creation date (newest first)', await order(), ['cherry', 'Apple', 'banana']);
+      await s.page.click(`${WIN} .td-chip-x`);
+      await sleep(150);
+      check('sort removed', await TD(s, (app, v) => app.store.viewPrefs(v).sort, `list:${lid}`), null);
+      await s.page.click(`${WIN} .td-group-btn`);
+      await menuClick(s, 'Due date');
+      const g = await TD(s, () => [...document.querySelectorAll('.win.app-todo .td-body .td-sec')].map((x) => x.dataset.key));
+      check('group a list by due date (+ "No due date")', g.includes('noDate') && g.length >= 2, true);
+      await TD(s, (app, v) => (app.store.setViewPref(v, { groupBy: 'none' }), app.store.setPref('starToTop', true), true), `list:${lid}`);
+      // smart list grouped by list
+      await go(s, 'important');
+      await TD(s, (app) => (app.store.setViewPref('important', { groupBy: 'list' }), app.renderNow(), true));
+      check('Important grouped by list', await TD(s, () => [...document.querySelectorAll('.win.app-todo .td-body .td-sec-head .td-sec-label')].length > 0), true);
+      await TD(s, (app) => (app.store.setViewPref('important', { groupBy: 'none' }), true));
+      // copy as text -> clipboard
+      await go(s, `list:${lid}`);
+      await TD(s, (app, v) => app.copyListText(v).then(() => true), `list:${lid}`);
+      const clip = await s.page.evaluate(`window.__aurora.api.invoke('clipboard:readText')`);
+      check('list copied as text', clip.startsWith('Sorting\n') && clip.includes('☐ cherry'), true);
+      // new list from a task (its steps become tasks)
+      const nl = await TD(s, (app, lid) => {
+        const t = app.store.addTask({ title: 'Wedding', listId: lid, steps: [{ title: 'Venue' }, { title: 'Rings', done: true }] });
+        app.newListFromTask(t.id);
+        const l = app.store.list(app.view.slice(5));
+        return { name: l.name, tasks: app.store.data.tasks.filter((x) => x.listId === l.id).map((x) => [x.title, x.done]).sort(), gone: !app.store.task(t.id) };
+      }, lid);
+      check('new list from a task', [nl.name, nl.gone], ['Wedding', true]);
+      check('its steps became tasks', nl.tasks, [['Rings', true], ['Venue', false]]);
+      // copy to another list
+      const cp = await TD(s, (app, lid) => {
+        const src = app.store.data.tasks.find((x) => x.listId === lid && x.title === 'cherry');
+        const c = app.store.copy(src.id, 'tasks');
+        return [c.listId, c.title, c.due, app.store.task(src.id).listId === lid];
+      }, lid);
+      check('copy to keeps the original', cp, ['tasks', 'cherry', '2026-11-01', true]);
+      // hide a smart list from its menu
+      await s.page.click(`${WIN} .td-nav-item[data-view="planned"]`, { button: 'right' });
+      await menuClick(s, 'Hide this smart list');
+      check('smart list hidden', await TD(s, (app) => [!!app.nav.itemFor('planned'), app.store.data.prefs.smart.planned]), [false, false]);
+      await TD(s, (app, lid) => (app.store.setPref('smart.planned', true), app.store.deleteList(lid), app.store.deleteList(app.store.userLists().find((l) => l.name === 'Wedding').id), true), lid);
     });
 
     await section('groups: create, rename, move a list in, collapse, ungroup', async () => {
@@ -933,6 +1026,31 @@ async function runEnglish() {
       await TD(s, (app, ids) => (app.store.setMyDay(ids.slice(0, 4), false), true), ids);
     });
 
+    await section('accessibility: every control has a name, checkboxes report their state', async () => {
+      await go(s, 'list:tasks');
+      const id = await TD(s, (app) => app.store.data.tasks.find((t) => t.listId === 'tasks' && !t.done && t.steps.length)?.id || app.list.visibleIds()[0]);
+      await TD(s, (app, id) => (app.openTask(id), true), id);
+      await sleep(300);
+      const r = await s.page.evaluate(`(() => {
+        const win = document.querySelector('.win.app-todo .td');
+        const unnamed = [];
+        for (const el of win.querySelectorAll('button, input, textarea, select, [role="checkbox"], [role="listitem"]')) {
+          if (el.closest('[aria-hidden="true"]') || el.getAttribute('aria-hidden') === 'true' || !el.checkVisibility()) continue;
+          const name = (el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.textContent || '').trim();
+          if (!name) unnamed.push(el.className || el.tagName);
+        }
+        const checks = [...win.querySelectorAll('[role="checkbox"]')].filter((c) => !['true', 'false'].includes(c.getAttribute('aria-checked'))).length;
+        const live = !!win.querySelector('[aria-live]');
+        const landmarks = ['nav', 'main', 'aside'].map((t) => !!win.querySelector(t));
+        return { unnamed: [...new Set(unnamed)], checks, live, landmarks };
+      })()`);
+      check('no unnamed controls', r.unnamed, []);
+      check('checkboxes report aria-checked', r.checks, 0);
+      check('live region for announcements', r.live, true);
+      check('nav / main / aside landmarks', r.landmarks, [true, true, true]);
+      await TD(s, (app) => (app.closeDetail({ focus: false }), true));
+    });
+
     await section('settings: smart lists, confirm before deleting, sound', async () => {
       await s.page.click(`${WIN} .td-settings-btn`);
       await s.page.waitForSelector(`${WIN} .td-settings:not([hidden]) .td-set-row`);
@@ -1018,19 +1136,90 @@ async function runEnglish() {
         return true;
       });
       const before = await TD(s, (app) => ({ tasks: app.store.data.tasks.length, lists: app.store.data.lists.length, version: app.store.data.version }));
-      await TD(s, (app) => (app.win.close(), true));
+      // close the window while a completion animates and a title is being typed: both must be kept
+      const [fastId, editId] = await TD(s, (app) => {
+        app.go('list:tasks');
+        const a = app.addTask({ title: 'Complete then close', listId: 'tasks' });
+        const b = app.addTask({ title: 'Rename then close', listId: 'tasks' });
+        app.renderNow();
+        app.complete([a.id], true);
+        app.openTask(b.id);
+        const ta = app.detail.el.querySelector('[data-key="title"]');
+        ta.focus();
+        ta.value = 'Renamed before closing';
+        app.win.close();
+        return [a.id, b.id];
+      });
       await sleep(800);
       check('window closed', await s.page.evaluate(`!!document.querySelector('.win.app-todo')`), false);
       const file = path.join(s.home, '.config', 'aurora', 'apps', 'todo', 'data.json');
       const disk = JSON.parse(fs.readFileSync(file, 'utf8'));
-      check('stored on disk with the schema version', [disk.version, disk.tasks.length], [2, before.tasks]);
+      check('stored on disk with the schema version', [disk.version, disk.tasks.length], [2, before.tasks + 2]);
       await s.page.evaluate(`window.__aurora.registry.launch('todo')`);
       await s.page.waitForSelector(`${WIN} .td`);
       await until(s, (app) => !!app?.store, { label: 'relaunched' });
       const after = await TD(s, (app) => ({ tasks: app.store.data.tasks.length, lists: app.store.data.lists.length, t: app.store.data.tasks.find((x) => x.title === 'Persist me'), firstRun: app.store.firstRun }));
-      check('same tasks and lists after relaunch', [after.tasks, after.lists], [before.tasks, before.lists]);
+      check('same tasks and lists after relaunch', [after.tasks, after.lists], [before.tasks + 2, before.lists]);
       check('task fields kept', [after.t?.important, after.t?.due, after.t?.note], [true, '2030-05-06', 'n']);
       check('no re-seeding on relaunch', after.firstRun, false);
+      check('completion in flight when closing is kept', await TD(s, (app, id) => app.store.task(id)?.done, fastId), true);
+      check('title typed when closing is kept', await TD(s, (app, id) => app.store.task(id)?.title, editId), 'Renamed before closing');
+    });
+
+    await section('two windows share one store (newWindow)', async () => {
+      await s.page.evaluate(`window.__aurora.registry.launch('todo', { newWindow: true })`);
+      await sleep(800);
+      const r = await s.page.evaluate(`(() => {
+        const wins = [...document.querySelectorAll('.win.app-todo')].map((w) => w.__todo).filter(Boolean);
+        if (wins.length < 2) return { n: wins.length };
+        const [a, b] = wins;
+        const t = b.addTask({ title: 'Added in the second window', listId: 'tasks' });
+        a.go('list:tasks');
+        a.renderNow();
+        return { n: wins.length, same: a.store === b.store, seen: !!a.list.rowEl(t.id), id: t.id };
+      })()`);
+      check('second window opened', r.n, 2);
+      check('both windows use the same store', r.same, true);
+      check('a task added in one window shows in the other', r.seen, true);
+      // close the second window: the first keeps working and saving
+      await s.page.evaluate(`(() => { const w = [...document.querySelectorAll('.win.app-todo')][1]; w.__todo.win.close(); })()`);
+      await sleep(700);
+      const after = await TD(s, async (app, id) => {
+        const t = app.addTask({ title: 'After closing the other window', listId: 'tasks' });
+        await app.store.flush();
+        return { ok: !!app.store.task(id) && !!t, wins: document.querySelectorAll('.win.app-todo').length };
+      }, r.id);
+      check('first window still works', after, { ok: true, wins: 1 });
+      const disk = JSON.parse(fs.readFileSync(path.join(s.home, '.config', 'aurora', 'apps', 'todo', 'data.json'), 'utf8'));
+      check('both windows’ tasks saved', ['Added in the second window', 'After closing the other window'].every((x) => disk.tasks.some((t) => t.title === x)), true);
+    });
+
+    await section('performance: 1500 tasks', async () => {
+      const r = await TD(s, (app) => {
+        const lists = [];
+        for (let i = 0; i < 10; i++) lists.push(app.store.addList(`Perf ${i}`).id);
+        for (let i = 0; i < 1500; i++) app.store.addTask({ title: `Perf task ${i} with a few words`, listId: lists[i % 10], due: i % 3 ? `2026-11-${String(1 + (i % 28)).padStart(2, '0')}` : null, important: i % 7 === 0 }, { top: false });
+        const time = (fn) => {
+          const a = performance.now();
+          fn();
+          return Math.round(performance.now() - a);
+        };
+        app.go('all');
+        const all = time(() => app.renderNow());
+        app.go('planned');
+        const planned = time(() => app.renderNow());
+        app.go(`list:${lists[0]}`);
+        const list = time(() => app.renderNow());
+        app.setSearch('task 14');
+        const search = time(() => app.renderNow());
+        app.setSearch('');
+        return { all, planned, list, search };
+      });
+      console.log(`      render times (ms): ${JSON.stringify(r)}`);
+      check('All view with 1500 tasks renders in < 600 ms', r.all < 600, true);
+      check('Planned with 1000 dated tasks renders in < 600 ms', r.planned < 600, true);
+      check('a 150-task list renders in < 200 ms', r.list < 200, true);
+      check('search renders in < 600 ms', r.search < 600, true);
     });
 
     await section('console: no errors from To Do', async () => {
@@ -1200,9 +1389,47 @@ async function runMigration() {
   }
 }
 
+// ================================================================== launch D: damaged data file
+async function runDamaged() {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-home-'));
+  const dir = path.join(home, '.config', 'aurora', 'apps', 'todo');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'data.json'), '{"version":2,"tasks":[{"id":"x","title":"half writ');
+  const s = await launchShell({ open: ['todo'], lang: 'en', theme: 'dark', home });
+  current = s;
+  try {
+    await s.page.waitForSelector(`${WIN} .td`, { timeout: 20000 });
+    await until(s, (app) => !!app?.store, { label: 'todo ready' });
+    await section('damaged data file: kept aside, user told, app usable', async () => {
+      await s.page.waitForSelector(DLG, { timeout: 5000 });
+      const text = await s.page.textContent(DLG);
+      check('user is told', text.includes('damaged'), true);
+      await shot(s, 'damaged-dark-en');
+      await dialogButton(s, 'OK');
+      const files = fs.readdirSync(dir);
+      const backup = files.find((f) => /^data\.damaged-\d+\.json$/.test(f));
+      check('damaged file kept aside', !!backup, true);
+      check('backup has the original bytes', backup && fs.readFileSync(path.join(dir, backup), 'utf8'), '{"version":2,"tasks":[{"id":"x","title":"half writ');
+      const r = await TD(s, (app) => {
+        const t = app.addTask({ title: 'Fresh start' });
+        return { ok: !!t, seed: app.store.data.tasks.some((x) => x.seed), lists: app.store.data.lists.length };
+      });
+      check('app usable, no examples mixed in', [r.ok, r.seed, r.lists], [true, false, 1]);
+      await TD(s, (app) => app.store.flush().then(() => true));
+      check('new data file written', JSON.parse(fs.readFileSync(path.join(dir, 'data.json'), 'utf8')).tasks[0].title, 'Fresh start');
+      check('no console errors (damaged)', todoErrors(s), []);
+    });
+  } finally {
+    current = null;
+    await s.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
 await runEnglish();
 await runFrench();
 await runMigration();
+await runDamaged();
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   for (const f of failures) console.log(`  ✗ ${f}`);

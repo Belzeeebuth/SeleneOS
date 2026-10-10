@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f0f0f0"/></linearGradient><linearGradient id="pf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ececec"/><stop offset="1" stop-color="#cfcfcf"/></linearGradient><radialGradient id="dk" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#cfd6e2"/><stop offset="1" stop-color="#94a3b8"/></radialGradient><linearGradient id="rb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#c4b5fd"/></linearGradient></defs>
+  <path d="M12.5 4.5h16.2l10.8 10.8v26.2a2.5 2.5 0 0 1-2.5 2.5H12.5a2.5 2.5 0 0 1-2.5-2.5v-34.5a2.5 2.5 0 0 1 2.5-2.5z" fill="url(#pg)" stroke="#000" stroke-opacity=".2"/>
+  <path d="M28.7 4.6v8.4a2.4 2.4 0 0 0 2.4 2.4h8.3" fill="url(#pf)" stroke="#000" stroke-opacity=".16" stroke-linejoin="round"/>
+  <circle cx="24.5" cy="29" r="9" fill="url(#dk)" stroke="#7b8797" stroke-opacity=".6"/>
+  <path d="M24.5 20a9 9 0 0 1 8.4 5.8l-5.5 2.1a3 3 0 0 0-2.9-1.9z" fill="url(#rb)" opacity=".8"/>
+  <circle cx="24.5" cy="29" r="2.6" fill="#fff" stroke="#7b8797" stroke-opacity=".7"/>
+</svg>

@@ -1,0 +1,5 @@
+# Archive Manager (renderer/apps/archive + main/ipc/archive.js)
+# 7-Zip: list/extract/create zip, 7z, cab, tar; AES-256 encrypted zip and 7z (provides /usr/bin/7z)
+7zip
+# libarchive's bsdtar/bsdcat: RAR (v4/v5) extraction, tar.gz/xz/bz2/zst streams, tar rewrite for add/delete
+libarchive-tools

@@ -68,10 +68,15 @@ const DEFAULTS = {
   textScale: 100, // text size % (80–150), independent of the UI scale
   reducedMotion: false, // implies animations off + no animated wallpaper
   appThemes: {}, // { [appId]: { theme: 'system'|'light'|'dark', accent: null|'#rrggbb' } }
-  // Area B1 — wallpaper engine (reserved):
-  wallpaperMode: 'static', // static | animated | dynamic
-  animatedWallpaper: { id: 'aurora', speed: 50 },
-  dynamicWallpaper: { source: 'time', set: 'bloom', location: null }, // location: { name, lat, lon }
+  // Area B1 — wallpaper engine (core/features/wallpaper.js, core/wallpaper/):
+  wallpaperMode: 'static', // static (picture / solid colour) | animated | dynamic | slideshow
+  // effect: aurora | bloom | fluid | bokeh | starfield | waves; speed / intensity 0–100; fps 15 | 30
+  animatedWallpaper: { id: 'aurora', speed: 50, intensity: 50, fps: 30, pauseOnMaximized: true },
+  // source: time (time of day) | weather (time of day + weather overlay); set: bloom | dunes | lake;
+  // location: null (fixed 07:00–19:00 day) | { name, lat, lon }; followTheme: light from sunrise to sunset
+  dynamicWallpaper: { source: 'time', set: 'bloom', location: null, followTheme: false },
+  slideshow: { folder: null, interval: 30, shuffle: true }, // folder null = the built-in pictures; interval in minutes
+  lockScreen: { mode: 'picture', effect: 'aurora' }, // picture (lockWallpaper, null = same as the desktop) | spotlight | animated
   // Area B2 — Start + Focus mode (reserved; taskbar.* additions are merged into `taskbar` below):
   start: { layout: 'default', background: 'acrylic', folders: [], groups: [] },
   focusMode: { active: false, hideNotifications: true, dimDesktop: true, dimLevel: 40, simplifyTaskbar: true, duration: 0 },
@@ -98,10 +103,20 @@ function isObj(v) {
   return v && typeof v === 'object' && !Array.isArray(v);
 }
 
+// Keys that would reach Object.prototype through setPath / delete (prototype pollution of the main process).
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+/** A dotted settings key that is safe to walk: non-empty segments, no prototype names. */
+function validKey(key) {
+  return typeof key === 'string' && key.length > 0 && key.length <= 200 && key.split('.').every((p) => p && !UNSAFE_KEYS.has(p));
+}
+
 function deepMerge(a, b) {
   if (!isObj(b)) return b === undefined ? a : b;
   const out = { ...(isObj(a) ? a : {}) };
-  for (const [k, v] of Object.entries(b)) out[k] = isObj(v) && isObj(out[k]) ? deepMerge(out[k], v) : v;
+  for (const [k, v] of Object.entries(b)) {
+    if (UNSAFE_KEYS.has(k)) continue;
+    out[k] = isObj(v) && isObj(out[k]) ? deepMerge(out[k], v) : v;
+  }
   return out;
 }
 
@@ -126,13 +141,26 @@ function getPath(obj, key) {
 }
 
 function setPath(obj, key, value) {
+  if (!validKey(key)) return;
   const parts = key.split('.');
   let o = obj;
   for (let i = 0; i < parts.length - 1; i++) {
-    if (!isObj(o[parts[i]])) o[parts[i]] = {};
+    if (!Object.prototype.hasOwnProperty.call(o, parts[i]) || !isObj(o[parts[i]])) o[parts[i]] = {};
     o = o[parts[i]];
   }
   o[parts[parts.length - 1]] = value;
+}
+
+/** Remove a user override (dotted key); never walks into inherited properties. */
+function deletePath(obj, key) {
+  if (!validKey(key)) return;
+  const parts = key.split('.');
+  let o = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (!isObj(o) || !Object.prototype.hasOwnProperty.call(o, parts[i])) return;
+    o = o[parts[i]];
+  }
+  if (isObj(o)) delete o[parts[parts.length - 1]];
 }
 
 function safeName(s) {
@@ -160,6 +188,7 @@ module.exports = function register(api) {
   api.settings = {
     get: (key) => getPath(merged(), key),
     set: (key, value) => {
+      if (!validKey(key)) throw api.error('Invalid settings key', 'EINVAL');
       setPath(user, key, value);
       save();
       const all = merged();
@@ -172,7 +201,7 @@ module.exports = function register(api) {
   api.handle('settings:defaults', () => base);
   api.handle('settings:get', (key) => getPath(merged(), key));
   api.handle('settings:set', (key, value) => {
-    if (typeof key !== 'string' || !key) throw api.error('Invalid settings key', 'EINVAL');
+    if (!validKey(key)) throw api.error('Invalid settings key', 'EINVAL');
     setPath(user, key, value);
     save();
     const all = merged();
@@ -185,14 +214,10 @@ module.exports = function register(api) {
     const reset = Array.isArray(opts?.reset) ? opts.reset : [];
     const keys = [];
     for (const key of [...Object.keys(patch), ...reset]) {
-      if (typeof key !== 'string' || !key || key.split('.').some((p) => !p || p === '__proto__' || p === 'constructor' || p === 'prototype')) {
-        throw api.error(`Invalid settings key ${key}`, 'EINVAL');
-      }
+      if (!validKey(key)) throw api.error(`Invalid settings key ${String(key).slice(0, 80)}`, 'EINVAL');
     }
     for (const key of reset) {
-      const parts = key.split('.');
-      const parent = parts.length > 1 ? getPath(user, parts.slice(0, -1).join('.')) : user;
-      if (isObj(parent)) delete parent[parts[parts.length - 1]];
+      deletePath(user, key);
       keys.push(key);
     }
     for (const [key, value] of Object.entries(patch)) {
@@ -206,11 +231,8 @@ module.exports = function register(api) {
   });
   api.handle('settings:reset', (key) => {
     if (!key) user = {};
-    else {
-      const parts = key.split('.');
-      const parent = parts.length > 1 ? getPath(user, parts.slice(0, -1).join('.')) : user;
-      if (isObj(parent)) delete parent[parts[parts.length - 1]];
-    }
+    else if (!validKey(key)) throw api.error('Invalid settings key', 'EINVAL');
+    else deletePath(user, key);
     save();
     const all = merged();
     api.broadcast('settings:changed', { key: key || '*', value: key ? getPath(all, key) : all, all });

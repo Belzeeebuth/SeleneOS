@@ -71,8 +71,11 @@ export function spinner({ h, icon, values, value, wrap = true, label = '', oncha
   const cur = cell('cur');
   const below = cell('below');
   const strip = h('div', { class: 'ck-spin-strip' }, above, cur, below);
-  const up = h('button', { type: 'button', class: 'ck-spin-btn up', tabindex: '-1', 'aria-hidden': 'true', 'data-tip': tipUp || null }, icon('chevron_up', { size: 12 }));
-  const down = h('button', { type: 'button', class: 'ck-spin-btn down', tabindex: '-1', 'aria-hidden': 'true', 'data-tip': tipDown || null }, icon('chevron_down', { size: 12 }));
+  // The chevrons are mouse-only helpers (the spinbutton itself takes the keyboard). They are not
+  // <button>s on purpose: a dialog's Tab trap cycles through every <button>, even tabindex=-1 ones,
+  // and typed digits would then edit the column the chevron belongs to instead of the next one.
+  const up = h('span', { class: 'ck-spin-btn up', 'aria-hidden': 'true', 'data-tip': tipUp || null }, icon('chevron_up', { size: 12 }));
+  const down = h('span', { class: 'ck-spin-btn down', 'aria-hidden': 'true', 'data-tip': tipDown || null }, icon('chevron_down', { size: 12 }));
   const el = h('div', { class: `ck-spin ${className}`, role: 'spinbutton', tabindex: '0', 'aria-label': label }, up, h('div', { class: 'ck-spin-view' }, strip), down);
   const at = (i) => {
     const n = values.length;
@@ -87,8 +90,8 @@ export function spinner({ h, icon, values, value, wrap = true, label = '', oncha
     el.setAttribute('aria-valuenow', String(typeof v.value === 'number' ? v.value : idx));
     el.setAttribute('aria-valuetext', v.text || v.label);
     if (!wrap) {
-      up.disabled = idx >= values.length - 1;
-      down.disabled = idx <= 0;
+      up.classList.toggle('disabled', idx >= values.length - 1);
+      down.classList.toggle('disabled', idx <= 0);
     }
   };
   const step = (d, animate = true) => {
@@ -106,8 +109,18 @@ export function spinner({ h, icon, values, value, wrap = true, label = '', oncha
     }
     onchange?.(values[idx].value);
   };
-  up.addEventListener('click', () => (step(1), el.focus()));
-  down.addEventListener('click', () => (step(-1), el.focus()));
+  const chevron = (btn, d) => {
+    // keep the focus on the spinbutton (pressing a span would otherwise not move it there)
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      el.focus({ preventScroll: true });
+    });
+    btn.addEventListener('click', () => {
+      if (!btn.classList.contains('disabled')) step(d);
+    });
+  };
+  chevron(up, 1);
+  chevron(down, -1);
   above.addEventListener('click', () => step(1));
   below.addEventListener('click', () => step(-1));
   let wheelAcc = 0;
@@ -360,6 +373,16 @@ export function commandBar(h, buttons) {
       return el;
     }),
   );
+}
+
+/**
+ * Ignore pointer input on a dialog for a moment after it opens: the second click of a double click on
+ * the button that opened it (Start, Stop, a card…) must not land on whatever dialog button is under
+ * the pointer (e.g. "Turn on" do not disturb, "End session").
+ */
+export function guardClicks(el, ms = 350) {
+  el.style.pointerEvents = 'none';
+  setTimeout(() => (el.style.pointerEvents = ''), ms);
 }
 
 /** Run a short entrance animation (respects animations off). */

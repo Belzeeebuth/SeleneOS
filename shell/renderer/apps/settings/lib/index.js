@@ -31,10 +31,11 @@ export const PAGES = {
   advancedNetwork: { module: 'network', parent: 'network', icon: 'data_usage', title: { en: 'Advanced network settings', fr: 'Paramètres réseau avancés' }, desc: { en: 'View all network adapters, data usage', fr: 'Afficher toutes les cartes réseau, utilisation des données' } },
   // Personalization
   personalization: { module: 'personalization', icon: 'paint_brush', title: { en: 'Personalization', fr: 'Personnalisation' } },
-  background: { module: 'personalization', parent: 'personalization', icon: 'image', title: { en: 'Background', fr: 'Arrière-plan' }, desc: { en: 'Background image, color, slideshow', fr: 'Image d’arrière-plan, couleur' } },
+  // Background + Lock screen: area B1 (pages/personalization-wallpaper.js)
+  background: { module: 'personalization-wallpaper', parent: 'personalization', icon: 'image', title: { en: 'Background', fr: 'Arrière-plan' }, desc: { en: 'Picture, color, slideshow, animated or dynamic wallpaper', fr: 'Image, couleur, diaporama, fond d’écran animé ou dynamique' } },
   colors: { module: 'personalization', parent: 'personalization', icon: 'color', title: { en: 'Colors', fr: 'Couleurs' }, desc: { en: 'Accent color, transparency effects, color theme', fr: 'Couleur d’accentuation, effets de transparence, thème de couleur' } },
   themes: { module: 'personalization', parent: 'personalization', icon: 'paint_brush_sparkle', title: { en: 'Themes', fr: 'Thèmes' }, desc: { en: 'Install, create, manage, desktop icons', fr: 'Choisir, gérer, icônes du bureau' } },
-  lockscreen: { module: 'personalization', parent: 'personalization', icon: 'lock_closed', title: { en: 'Lock screen', fr: 'Écran de verrouillage' }, desc: { en: 'Lock screen image, screen timeout', fr: 'Image de l’écran de verrouillage, délai d’expiration' } },
+  lockscreen: { module: 'personalization-wallpaper', parent: 'personalization', icon: 'lock_closed', title: { en: 'Lock screen', fr: 'Écran de verrouillage' }, desc: { en: 'Lock screen image, picture of the day, animation, screen timeout', fr: 'Image de l’écran de verrouillage, image du jour, animation, délai d’expiration' } },
   start: { module: 'personalization-taskbar', parent: 'personalization', icon: 'apps', title: { en: 'Start', fr: 'Démarrer' }, desc: { en: 'Recent apps and items, folders', fr: 'Applications et éléments récents, dossiers' } },
   taskbar: { module: 'personalization-taskbar', parent: 'personalization', icon: 'panel_bottom', title: { en: 'Taskbar', fr: 'Barre des tâches' }, desc: { en: 'Taskbar behaviors, items, alignment', fr: 'Comportements, éléments et alignement de la barre des tâches' } },
   // Personalization (docs/PERSONALIZATION.md) — area A: pages/personalization-designer.js
@@ -269,6 +270,14 @@ const ENTRIES = [
   ['appThemes', null, 'window_apps', 'App themes', 'Thèmes des applications', 'per app dark mode light accent', 'par application mode sombre clair accentuation'],
   ['colors', 'mode', 'clock', 'Automatic dark mode', 'Mode sombre automatique', 'auto schedule night time of day', 'auto programmation nuit heure'],
   ['wallpaperEffects', null, 'image_sparkle', 'Animated & dynamic wallpapers', 'Fonds d’écran animés et dynamiques', 'live animated moving dynamic time weather', 'animé dynamique heure météo'],
+  ['wallpaperEffects', 'animated', 'image_sparkle', 'Animated wallpaper', 'Fond d’écran animé', 'live moving aurora bloom fluid gradient bokeh particles stars night sky waves effect', 'animé aurore boréale floraison dégradé fluide bokeh particules étoiles ciel nuit vagues effet'],
+  ['wallpaperEffects', 'fps', 'fps_30', 'Wallpaper frame rate', 'Fréquence d’images du fond d’écran', 'fps frames per second speed performance battery', 'images par seconde vitesse performance batterie'],
+  ['wallpaperEffects', 'dynamic', 'weather_sunny_low', 'Dynamic wallpaper (time of day)', 'Fond d’écran dynamique (heure du jour)', 'sunrise sunset dawn dusk night day', 'lever coucher soleil aube crépuscule nuit jour'],
+  ['wallpaperEffects', 'weather', 'weather_rain', 'Weather wallpaper', 'Fond d’écran météo', 'rain snow clouds fog storm forecast', 'pluie neige nuages brouillard orage prévisions'],
+  ['wallpaperEffects', 'location', 'location', 'Wallpaper location', 'Lieu du fond d’écran', 'city sun times latitude longitude', 'ville heures soleil latitude longitude'],
+  ['wallpaperEffects', 'follow', 'dark_theme', 'Dark mode follows the sun', 'Mode sombre selon le soleil', 'sunset automatic theme', 'coucher automatique thème'],
+  ['background', 'slideshow', 'image_multiple', 'Wallpaper slideshow', 'Diaporama de fonds d’écran', 'rotate pictures folder album interval', 'faire défiler images dossier album intervalle'],
+  ['lockscreen', 'mode', 'image_sparkle', 'Lock screen picture of the day', 'Image du jour de l’écran de verrouillage', 'spotlight daily rotate animated', 'quotidien rotation animé'],
   ['focus', null, 'target', 'Focus mode', 'Mode concentration', 'distraction dim notifications concentrate', 'distraction assombrir notifications'],
   ['cursors', null, 'cursor', 'Cursors', 'Curseurs', 'mouse pointer pack theme', 'pointeur souris pack thème'],
   ['iconPacks', null, 'icons', 'Icon packs', 'Packs d’icônes', 'icons theme pack', 'icônes thème pack'],

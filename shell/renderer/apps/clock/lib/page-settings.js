@@ -162,6 +162,15 @@ export class SettingsPage {
         desc: this.perAppThemes ? t('settings.themeDesc') : t('settings.themeSystemDesc', { mode: sysTheme }),
         control: themeControl,
       }),
+      this.perAppThemes
+        ? this.row({
+            key: 'accent',
+            icon: 'color',
+            title: t('settings.accent'),
+            desc: t('settings.accentDesc'),
+            control: h('button', { type: 'button', class: 'btn', onclick: () => shell.launch('settings', { page: 'appThemes' }) }, t('settings.accentOpen')),
+          })
+        : null,
       this.row({
         key: 'format',
         icon: 'clock',
@@ -185,7 +194,7 @@ export class SettingsPage {
         h('div', { class: 'ck-set-text' }, h('div', null, t('settings.appName')), h('div', { class: 'caption text-2' }, t('settings.version', { v: '1.0' })), h('div', { class: 'caption text-2' }, t('settings.credits'))),
       ),
     ];
-    this.el.replaceChildren(...sections);
+    this.el.replaceChildren(...sections.filter(Boolean));
     if (scroll) this.el.closest('.ck-scroll').scrollTop = scroll;
   }
 

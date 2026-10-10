@@ -42,6 +42,7 @@ const apps = new Map();
 const loadedStyles = new Set();
 const dictCache = new Map();
 const instances = new Map(); // winId -> { appId, hooks }
+const pendingLaunches = new Map(); // appId -> Promise<Win> while a singleInstance app is starting
 let shellServices = null;
 
 export function setShellServices(s) {
@@ -105,7 +106,31 @@ export const registry = {
         }
         return existing;
       }
+      // A launch of this app is already in flight (e.g. two clicks in the same tick): reuse it.
+      if (pendingLaunches.has(id)) {
+        const w = await pendingLaunches.get(id);
+        if (w && !w._closing) {
+          w.focus();
+          try {
+            instances.get(w.id)?.hooks?.onRelaunch?.(args);
+          } catch (err) {
+            console.error(err);
+          }
+        }
+        return w;
+      }
+      const p = registry._open(id, args, m);
+      pendingLaunches.set(id, p);
+      try {
+        return await p;
+      } finally {
+        pendingLaunches.delete(id);
+      }
     }
+    return registry._open(id, args, m);
+  },
+  // Creates the window and runs the app (no single-instance logic).
+  async _open(id, args, m) {
     for (const css of m.styles || []) {
       const href = `app://shell/apps/${id}/${css}`;
       if (!loadedStyles.has(href)) {

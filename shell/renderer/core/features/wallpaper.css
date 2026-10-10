@@ -1,0 +1,30 @@
+/* Wallpaper engine layers (features/wallpaper.js): between the desktop picture (#desktop > .wallpaper) and the icons. */
+#desktop > .wp-engine {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.wp-engine > .wp-scene-host,
+.wp-engine > .wp-fades,
+.wp-engine > .wp-tint,
+.wp-engine > .wp-overlay,
+.wp-engine .wp-fade {
+  position: absolute;
+  inset: 0;
+}
+.wp-engine .wp-fade {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.wp-engine > .wp-tint {
+  transition: background 1.2s ease;
+}
+:root[data-animations='off'] .wp-engine > .wp-tint {
+  transition: none;
+}
+/* static picture: no layers at all */
+.wp-engine[data-mode='static'] > * {
+  display: none;
+}

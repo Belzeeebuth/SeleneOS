@@ -109,18 +109,27 @@ export class FocusPage {
   }
 
   async start() {
-    const { t, ui, win, h, ctx } = this.app;
+    // one start at a time (double click, Space + click…)
+    if (this._starting || this.store.focus.session) return;
+    this._starting = true;
+    try {
+      await this._start();
+    } finally {
+      this._starting = false;
+    }
+  }
+
+  async _start() {
+    const { t, h, ctx } = this.app;
     const f = this.store.prefs.focus;
     let dnd = false;
     const dndOn = !!ctx.settings.get('notifications.dnd');
     if (!dndOn && f.dnd === 'always') dnd = true;
     else if (!dndOn && f.dnd === 'ask') {
       const remember = h('input', { type: 'checkbox' });
-      const v = await ui.dialog({
+      const v = await this.app.dialog({
         title: t('focus.dndTitle'),
         body: h('div', { class: 'ck-dlg' }, h('div', null, t('focus.dndBody')), h('label', { class: 'checkbox' }, remember, h('span', null, t('focus.dndRemember')))),
-        parent: win,
-        className: 'ck-dialog',
         buttons: [
           { label: t('focus.dndYes'), value: 'yes', primary: true },
           { label: t('focus.dndNo'), value: 'no' },
@@ -195,9 +204,15 @@ export class FocusPage {
   }
 
   async stop() {
-    const { t, ui, win } = this.app;
-    const ok = await ui.confirm(t('focus.stopBody'), { title: t('focus.stopTitle'), okLabel: t('focus.stopOk'), parent: win });
-    if (ok) await this.store.stopFocus({ completed: false });
+    const { t } = this.app;
+    if (this._stopping) return;
+    this._stopping = true;
+    try {
+      const ok = await this.app.confirm(t('focus.stopBody'), { title: t('focus.stopTitle'), okLabel: t('focus.stopOk') });
+      if (ok) await this.store.stopFocus({ completed: false });
+    } finally {
+      this._stopping = false;
+    }
   }
 
   // ------------------------------------------------------------------ summary
@@ -272,16 +287,17 @@ export class FocusPage {
     const sel = ui.select({ options: GOALS.map((m) => ({ value: m, label: minutesText(t, m) })), value: GOALS.includes(this.store.prefs.focus.goal) ? this.store.prefs.focus.goal : 60 });
     sel.setAttribute('aria-label', t('focus.goal'));
     sel.style.width = '100%';
-    const v = await ui.dialog({
+    if (this._goalOpen) return;
+    this._goalOpen = true;
+    const v = await this.app.dialog({
       title: t('focus.goalTitle'),
       body: h('div', { class: 'ck-dlg' }, h('div', { class: 'text-2' }, t('focus.goalBody')), sel),
-      parent: win,
-      className: 'ck-dialog',
       buttons: [
         { label: t('common.save'), value: 'save', primary: true },
         { label: t('common.cancel'), value: null },
       ],
     });
+    this._goalOpen = false;
     if (v === 'save') {
       this.store.setPref('focus.goal', Number(sel.value));
       this.render();
@@ -291,8 +307,9 @@ export class FocusPage {
   renderLog(now = Date.now()) {
     const { h, t, icon } = this.app;
     const today = dayKey(now);
-    const items = this.store.focus.log.filter((e) => dayKey(e.start) === today).reverse();
-    const key = items.map((e) => e.start).join() + this.app.lang;
+    // sessions that started or ended today (one that ran past midnight shows on both days)
+    const items = this.store.focus.log.filter((e) => dayKey(e.start) === today || dayKey(e.end) === today).reverse();
+    const key = today + items.map((e) => e.start).join() + this.app.lang;
     if (this.logKey === key) return;
     this.logKey = key;
     this.logCard.replaceChildren(
@@ -321,6 +338,7 @@ export class FocusPage {
       if (this._lastProg !== Math.floor(now / 30000)) {
         this._lastProg = Math.floor(now / 30000);
         this.fillProgress(now);
+        this.renderLog(now); // a new day empties "Today's sessions"
       }
       return;
     }

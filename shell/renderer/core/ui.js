@@ -443,8 +443,12 @@ export const ui = {
       if (mode === 'save') {
         let n = nameInput.value.trim();
         if (!n) return;
-        const exts = filters[filterIdx]?.ext || [];
-        if (exts.length && !exts.some((e) => n.toLowerCase().endsWith(e))) n += exts[0];
+        // Append the selected type's extension only when the name has no extension of ANY offered
+        // type ('photo.jpg' stays .jpg even if PNG is selected); '*' (All files) never appends.
+        const exts = (filters[filterIdx]?.ext || []).filter((e) => e && e !== '*');
+        const known = filters.flatMap((f) => f.ext || []).filter((e) => e && e !== '*');
+        const lower = n.toLowerCase();
+        if (exts.length && !known.some((e) => lower.endsWith(e.toLowerCase()))) n += exts[0];
         return doneFn?.(n.startsWith('/') ? n : `${cwd.replace(/\/$/, '')}/${n}`);
       }
       const files = [...selected].map((i) => entries[i]).filter((e) => e && !e.dir);

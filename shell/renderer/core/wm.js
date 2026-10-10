@@ -16,6 +16,7 @@
 //   win.setTitle(s) win.setIcon(url) win.focus() win.minimize() win.maximize() win.restore()
 //   win.toggleMaximize() win.close(force) win.setSize(w, h) win.center() win.setFullscreen(bool)
 //   win.setProgress(0..1 | null)  win.flash()  win.makeDraggable(el)  win.setMinSize(w, h)
+//   win.setAlwaysOnTop(bool)  win.closed (getter)
 //   win.onBeforeClose(async () => boolean)   -> return false to cancel closing
 //   win.on('focus'|'blur'|'resize'|'move'|'minimize'|'restore'|'maximize'|'close'|'fullscreen'|'snap', fn)
 //   wm.list() wm.focused() wm.get(id) wm.byApp(appId) wm.minimizeAll() wm.toggleDesktop()
@@ -516,6 +517,20 @@ class Win extends Emitter {
     this.focus();
   }
 
+  /** Keep this window above normal windows (e.g. Calculator's compact overlay). */
+  setAlwaysOnTop(on) {
+    this.alwaysOnTop = !!on;
+    if (wm._focused === this) {
+      this.el.classList.remove('active');
+      wm._focused = null;
+    }
+    this.focus();
+    wm.emit('change', this);
+  }
+  /** True once close() has started (the window is animating out or gone). */
+  get closed() {
+    return !!this._closing || !this.el.isConnected;
+  }
   setFullscreen(on) {
     const want = !!on;
     if (want === this.el.classList.contains('fullscreen')) return;

@@ -45,6 +45,20 @@ export class Detail {
     }
   }
 
+  /** Commit the title / step being edited (used when the window closes: no blur event comes then). */
+  commitFocused() {
+    const el = document.activeElement;
+    const task = this.task;
+    if (!task || !el || !this.el.contains(el)) return;
+    const key = el.dataset?.key || '';
+    const v = String(el.value ?? '').replace(/[\r\n]+/g, ' ').trim();
+    if (key === 'title' && v && v !== task.title) this.app.store.update(task.id, { title: v });
+    else if (key.startsWith('step-') && v) {
+      const step = task.steps.find((x) => `step-${x.id}` === key);
+      if (step && step.title !== v) this.app.store.updateStep(task.id, step.id, { title: v });
+    } else if (key === 'addstep' && v) this.app.store.addStep(task.id, v);
+  }
+
   render({ force = false } = {}) {
     const { app } = this;
     const open = !!app.openId && !!app.store.task(app.openId);
@@ -396,7 +410,7 @@ export class Detail {
       },
       icon('more_horizontal'),
     );
-    const el = h('div', { class: ['td-step', s.done && 'done'], role: 'listitem', dataset: { id: s.id } }, check, input, more);
+    const el = h('div', { class: ['td-step', s.done && 'done'], role: 'listitem', 'aria-label': s.done ? `${s.title}, ${t('row.completed')}` : s.title, dataset: { id: s.id } }, check, input, more);
     el.addEventListener('pointerdown', (e) => {
       if (e.target.closest('button') || e.button !== 0) return;
       if (e.target === input && document.activeElement === input) return; // selecting text
