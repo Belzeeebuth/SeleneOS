@@ -112,6 +112,11 @@ export class Omnibox {
     const url = this.bw.tabUrl(tab);
     const text = this.fullText(tab);
     if (!this.editing) this.input.value = text;
+    else if (this.input.value !== text) {
+      // Focused but untouched: follow the navigation and keep it selected.
+      this.input.value = text;
+      this.input.select();
+    }
     clear(this.display);
     if (text) {
       const p = urlParts(url);

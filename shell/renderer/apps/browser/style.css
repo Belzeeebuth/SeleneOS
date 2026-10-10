@@ -1416,10 +1416,22 @@
   margin-bottom: 4px;
 }
 .app-browser .bp-set-nav .nav-item {
-  height: 40px;
+  height: auto;
+  min-height: 40px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 .app-browser .bp-set-nav .nav-item > span {
   line-height: 18px;
+  white-space: normal;
+  overflow: visible;
+}
+.app-browser .bp-set-row .toggle {
+  flex-direction: row-reverse;
+}
+.app-browser .bp-set-row .toggle-label {
+  min-width: 64px;
+  text-align: right;
 }
 .app-browser .bp-settings > .bp-body {
   padding-top: 24px;

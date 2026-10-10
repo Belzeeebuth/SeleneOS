@@ -384,6 +384,7 @@ function historyPage(bw, tab, entry) {
         'aria-label': t('history.remove'),
         'data-tip': t('history.remove'),
         onclick: (ev) => {
+          ev.preventDefault();
           ev.stopPropagation();
           store.removeHistory(e.url);
         },

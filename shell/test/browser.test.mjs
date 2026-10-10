@@ -669,7 +669,10 @@ console.log(`Local test server: ${srv.url}`);
       await test(`real HTTPS site loads with a secure lock (${site})`, async () => {
         assert(/secure/.test(r.site), `lock chip (${r.site})`);
       });
-      await s.page.waitForTimeout(2500);
+      try {
+        await waitFor('!bw.active.web.loading', { timeout: 15000 });
+      } catch {}
+      await s.page.waitForTimeout(1500);
       copyShot(await s.shot('browser-page'), 'browser-page');
       break;
     }
