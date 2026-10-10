@@ -106,6 +106,7 @@ pipewire
 pipewire-pulse
 pipewire-alsa
 wireplumber
+rtkit
 pulseaudio-utils
 alsa-utils
 alsa-ucm-conf

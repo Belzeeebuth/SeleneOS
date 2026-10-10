@@ -483,6 +483,10 @@ export function mount(ctx) {
     hideFlyout();
     endAssist(false);
   });
+  shell.on('lock', () => {
+    hideFlyout();
+    endAssist(false);
+  });
 
   wm.on('drag-move', (win, p) => {
     onDragMove(win, p);

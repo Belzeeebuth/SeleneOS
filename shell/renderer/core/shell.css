@@ -1119,6 +1119,14 @@ body.tb-left #start {
     transform: translateY(12px);
   }
 }
+.start-tile.dragging {
+  opacity: 0.35;
+}
+#taskbar.drop-pin .tb-apps {
+  outline: 2px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
 .start-empty {
   grid-column: 1 / -1;
   padding: 24px 12px;

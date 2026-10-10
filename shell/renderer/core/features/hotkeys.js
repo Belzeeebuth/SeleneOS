@@ -530,8 +530,8 @@ let locked = false;
 function trigger(combo, { repeat = false } = {}) {
   const c = normalize(combo);
   if (repeat && !REPEATABLE.has(c)) return false;
-  // While the lock screen is up only the hardware keys keep working.
-  if (locked && !/^(Audio|Brightness)/.test(c)) return false;
+  // While the lock screen or the Ctrl+Alt+Del screen is up only the hardware keys keep working.
+  if ((locked || document.querySelector('.sec-screen:not(.closing)')) && !/^(Audio|Brightness)/.test(c)) return false;
   const fn = ACTIONS[c];
   if (!fn) return false;
   try {

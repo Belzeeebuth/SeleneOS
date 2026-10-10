@@ -400,6 +400,15 @@ async function unitTests() {
     }
   });
 
+  await test('icons: every Fluent icon the app uses exists', () => {
+    const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'renderer');
+    const src = fs.readFileSync(path.join(root, 'apps/solitaire/main.js'), 'utf8');
+    const map = JSON.parse(fs.readFileSync(path.join(root, 'assets/icons/fluent.json'), 'utf8'));
+    const names = new Set([...src.matchAll(/icon\('([a-z0-9_]+)'/g), ...src.matchAll(/icon: '([a-z0-9_]+)'/g), ...src.matchAll(/tbBtn\('([a-z0-9_]+)'/g)].map((m) => m[1]));
+    assert.ok(names.size >= 10);
+    for (const n of names) assert.ok(map[n], `unknown icon ${n}`);
+  });
+
   await test('artwork: 52 distinct faces and every back render as SVG', () => {
     const faces = new Set();
     for (let c = 0; c < 52; c++) {
@@ -421,6 +430,20 @@ async function uiTests() {
   const SHOTS = path.join(path.dirname(OUT), '..', '..', 'docs', 'screenshots');
   fs.mkdirSync(SHOTS, { recursive: true });
   const publish = (file, name) => fs.copyFileSync(file, path.join(SHOTS, `${name}.png`));
+  // Screenshot of the Solitaire window plus a margin of desktop (full screen when maximized).
+  const winShot = async (sh, name) => {
+    const file = path.join(OUT, `${name}.png`);
+    const clip = await sh.page.evaluate(() => {
+      const el = document.querySelector('.app-solitaire');
+      const r = el.getBoundingClientRect();
+      const m = 24;
+      const x = Math.max(0, r.left - m);
+      const y = Math.max(0, r.top - m);
+      return { x, y, width: Math.min(window.innerWidth, r.right + m) - x, height: Math.min(window.innerHeight, r.bottom + m) - y };
+    });
+    await sh.page.screenshot({ path: file, clip });
+    return file;
+  };
 
   const solErrors = (s) =>
     s.logs.filter((l) => (l.startsWith('[pageerror]') || l.startsWith('[error]')) && !/Failed to load resource/.test(l)).concat(s.logs.filter((l) => /solitaire/i.test(l) && /error|warn/i.test(l)));
@@ -507,7 +530,7 @@ async function uiTests() {
       assert.ok(ok > 0);
     });
     await s.page.mouse.move(5, 5);
-    publish(await s.shot('solitaire-new-deal'), 'solitaire-new-deal');
+    publish(await winShot(s, 'solitaire-new-deal'), 'solitaire-new-deal');
 
     await test('deal: a numbered game reproduces the same layout', async () => {
       await T('deal', 4242);
@@ -647,7 +670,7 @@ async function uiTests() {
       await s.page.keyboard.press('ArrowDown');
       assert.equal((await T('cursor')).pile, 't3');
     });
-    publish(await s.shot('solitaire-keyboard'), 'solitaire-keyboard');
+    publish(await winShot(s, 'solitaire-keyboard'), 'solitaire-keyboard');
 
     await test('click-to-select mode: click a card, then its destination', async () => {
       await T('setPrefs', { clickMove: false });
@@ -729,7 +752,7 @@ async function uiTests() {
       await T('load', desc);
       await s.page.waitForTimeout(350);
       assert.equal(await s.page.locator('.app-solitaire .sol-banner:not([hidden])').count(), 1);
-      publish(await s.shot('solitaire-no-moves'), 'solitaire-no-moves');
+      publish(await winShot(s, 'solitaire-no-moves'), 'solitaire-no-moves');
       await s.page.click('.app-solitaire .sol-banner .btn.primary'); // New game (game not started: no confirmation)
       await s.page.waitForTimeout(300);
       await idle();
@@ -741,10 +764,11 @@ async function uiTests() {
       await T('deal', 7, { draw: 3 });
       const n = await T('autoplay', 30);
       assert.ok(n > 10, `played ${n}`);
+      await T('setElapsed', 134000);
       await s.page.waitForTimeout(300);
     });
     await s.page.mouse.move(5, 5);
-    publish(await s.shot('solitaire-mid-game'), 'solitaire-mid-game');
+    publish(await winShot(s, 'solitaire-mid-game'), 'solitaire-mid-game');
 
     await test('language switch at runtime relabels the toolbar and the cards', async () => {
       await s.page.evaluate(() => window.__aurora.settings.set('lang', 'fr'));
@@ -782,11 +806,11 @@ async function uiTests() {
       assert.equal((await T('state')).won, true);
       assert.equal(await T('cascading'), true, 'cascade running');
       await s.page.waitForTimeout(2600);
-      publish(await s.shot('solitaire-win-cascade'), 'solitaire-win-cascade');
+      publish(await winShot(s, 'solitaire-win-cascade'), 'solitaire-win-cascade');
       await s.page.mouse.click(800, 500); // skip
       await s.page.waitForSelector('.app-solitaire .dialog-title:has-text("You won!")', { timeout: 5000 });
       await s.page.waitForTimeout(400);
-      publish(await s.shot('solitaire-win-dialog'), 'solitaire-win-dialog');
+      publish(await winShot(s, 'solitaire-win-dialog'), 'solitaire-win-dialog');
       const stats = await T('stats');
       assert.equal(stats.draw1.won, 1);
       assert.equal(stats.draw1.played, 1);
@@ -827,7 +851,7 @@ async function uiTests() {
       const txt = await s.page.locator('.app-solitaire .sol-stats-grid').innerText();
       assert.match(txt, /Games played\s+2/);
       assert.match(txt, /Win rate\s+50%/);
-      publish(await s.shot('solitaire-statistics'), 'solitaire-statistics');
+      publish(await winShot(s, 'solitaire-statistics'), 'solitaire-statistics');
       await s.page.keyboard.press('Escape');
       await s.page.waitForTimeout(250);
     });
@@ -872,7 +896,7 @@ async function uiTests() {
       await s.page.selectOption('.app-solitaire .sol-settings select', 'vegas');
       await s.page.click('.app-solitaire .sol-pick[data-value="ocean"]');
       await s.page.waitForTimeout(300);
-      publish(await s.shot('solitaire-settings'), 'solitaire-settings');
+      publish(await winShot(s, 'solitaire-settings'), 'solitaire-settings');
       await s.page.click('.app-solitaire .dialog-footer .btn.primary');
       await s.page.waitForTimeout(400);
       await idle();
@@ -883,6 +907,37 @@ async function uiTests() {
       const st = await T('state');
       assert.equal(st.draw, 3, 'unstarted game re-dealt with the new options');
       assert.equal(st.score, -52);
+    });
+
+    await test('settings: Cancel reverts the live preview of the card back and table', async () => {
+      const look = () => s.page.locator('.app-solitaire .sol-table').evaluate((e) => [e.dataset.bg, e.style.getPropertyValue('--sol-back').length]);
+      const before = await look();
+      await s.page.click('.app-solitaire .sol-toolbar button[aria-label="Settings"]');
+      await s.page.waitForSelector('.app-solitaire .sol-settings');
+      await s.page.click('.app-solitaire .sol-pick[data-value="midnight"]');
+      await s.page.click('.app-solitaire .sol-pick[data-value="aurora"] .sol-pick-table');
+      assert.equal((await look())[0], 'aurora', 'previewed live');
+      await s.page.click('.app-solitaire .dialog-footer .btn:not(.primary)');
+      await s.page.waitForTimeout(300);
+      assert.deepEqual(await look(), before);
+      assert.equal((await T('prefs')).back, 'ocean');
+    });
+
+    await test('statistics: Reset clears the selected mode after confirmation', async () => {
+      await s.page.click('.app-solitaire .sol-tb-btn[aria-label="Statistics"]');
+      await s.page.waitForSelector('.app-solitaire .sol-stats-grid');
+      await s.page.click('.app-solitaire .sol-stats-body .segmented button:has-text("Draw 1")');
+      assert.match(await s.page.locator('.app-solitaire .sol-stats-grid').innerText(), /Games played\s+3/);
+      await s.page.click('.app-solitaire .dialog-footer .btn:has-text("Reset statistics")');
+      await s.page.waitForSelector('.app-solitaire .dialog-title:has-text("Reset statistics")');
+      await s.page.waitForTimeout(250);
+      await s.page.click('.app-solitaire .dialog-layer:last-of-type .dialog-footer .btn.primary');
+      await s.page.waitForTimeout(400);
+      assert.equal((await T('stats')).draw1.played, 0);
+      await s.page.waitForSelector('.app-solitaire .sol-stats-grid');
+      assert.match(await s.page.locator('.app-solitaire .sol-stats-grid').innerText(), /Games played\s+0/);
+      await s.page.keyboard.press('Escape');
+      await s.page.waitForTimeout(300);
     });
 
     await test('animations off: instant deal and the win dialog right away', async () => {
@@ -938,7 +993,7 @@ async function uiTests() {
       assert.ok(r.right <= 0 && r.left <= 0 && r.bottom <= 0, JSON.stringify(r));
     });
     await s.page.mouse.move(5, 5);
-    publish(await s.shot('solitaire-small'), 'solitaire-small');
+    publish(await winShot(s, 'solitaire-small'), 'solitaire-small');
 
     await test('no renderer errors, no missing solitaire resources', async () => {
       const errs = solErrors(s);
@@ -964,6 +1019,7 @@ async function uiTests() {
     await test('fr: labels, card names and toolbar are translated', async () => {
       await H2.T('deal', 7, { draw: 1 });
       await H2.T('autoplay', 24);
+      await H2.T('setElapsed', 212000);
       await d.page.waitForTimeout(300);
       assert.equal(await d.page.locator('.app-solitaire .sol-split-main').getAttribute('aria-label'), 'Nouvelle partie');
       const labels = await d.page.locator('.app-solitaire .sol-card:not(.down)').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));

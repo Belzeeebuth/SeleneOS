@@ -222,20 +222,20 @@ module.exports = function register(api) {
   function hookGuest(wc, partition) {
     const id = wc.id;
     wc.setWindowOpenHandler(({ url, disposition, features, frameName }) => {
+      // Simple pop-up flood protection: at most 3 new tabs per second from one page.
+      const now = Date.now();
+      const times = (popupTimes.get(id) || []).filter((t) => now - t < 1000);
+      if (times.length >= 3) {
+        if (/^(https?|ftp):/i.test(url)) api.broadcast('browser:popup-blocked', { sourceId: id, url });
+        return { action: 'deny' };
+      }
+      times.push(now);
+      popupTimes.set(id, times);
       if (/^(mailto|tel|sms|callto|magnet|webcal|xmpp|sip|irc|ircs):/i.test(url)) {
         api.broadcast('browser:external', { sourceId: id, url });
         return { action: 'deny' };
       }
       if (!/^(https?|ftp|data|about|view-source):/i.test(url) && url !== '') return { action: 'deny' };
-      // Simple pop-up flood protection: at most 3 new tabs per second from one page.
-      const now = Date.now();
-      const times = (popupTimes.get(id) || []).filter((t) => now - t < 1000);
-      if (times.length >= 3) {
-        api.broadcast('browser:popup-blocked', { sourceId: id, url });
-        return { action: 'deny' };
-      }
-      times.push(now);
-      popupTimes.set(id, times);
       api.broadcast('browser:open', { url: url || 'about:blank', disposition, features: features || '', frameName: frameName || '', sourceId: id, partition });
       return { action: 'deny' };
     });
@@ -334,8 +334,10 @@ module.exports = function register(api) {
 
   function onWillDownload(partition, item, wc) {
     const url = item.getURL();
-    const pending = pendingSaveAs.get(url);
-    pendingSaveAs.delete(url);
+    const chain = safe(() => item.getURLChain(), null) || [url];
+    const key = [url, ...chain].find((u) => pendingSaveAs.has(u));
+    const pending = key ? pendingSaveAs.get(key) : null;
+    if (key) pendingSaveAs.delete(key);
     const savePath = pending || uniquePath(xdgDownloads(), item.getFilename());
     item.setSavePath(savePath);
     reservedPaths.add(savePath);
@@ -473,12 +475,18 @@ module.exports = function register(api) {
   }
 
   api.handle('browser:permissionReply', (id, decision) => finishPermission(id, decision || {}));
-  api.handle('browser:sitePermissions', (partition) => (partition && isPrivate(partition) ? privatePerms.get(partition) || {} : sitePerms));
+  // Note: the IPC layer appends the event as the last argument, so optional parameters are type-checked.
+  const optPartition = (p) => (typeof p === 'string' && validPartition(p) ? p : PERSIST);
+  api.handle('browser:sitePermissions', (partition) => {
+    const part = optPartition(partition);
+    return isPrivate(part) ? privatePerms.get(part) || {} : sitePerms;
+  });
   api.handle('browser:resetSitePermissions', (origin, partition) => {
-    const store = permStore(partition && validPartition(partition) ? partition : PERSIST);
-    if (origin) delete store[origin];
+    const part = optPartition(partition);
+    const store = permStore(part);
+    if (typeof origin === 'string' && origin) delete store[origin];
     else for (const k of Object.keys(store)) delete store[k];
-    if (!partition || !isPrivate(partition)) saveSitePerms();
+    if (!isPrivate(part)) saveSitePerms();
     return true;
   });
 
@@ -562,7 +570,8 @@ module.exports = function register(api) {
     return true;
   });
 
-  api.handle('browser:favicon', async (url, partition) => {
+  api.handle('browser:favicon', async (url, partitionArg) => {
+    const partition = typeof partitionArg === 'string' ? partitionArg : PERSIST;
     const u = String(url || '');
     if (/^data:image\//i.test(u)) return u.length < 300000 ? u : null;
     if (!/^https?:\/\//i.test(u)) return null;
@@ -601,7 +610,7 @@ module.exports = function register(api) {
   api.handle('browser:inspect', (sourceId, x, y) => {
     if (!api.DEV) throw api.error('Developer tools are disabled', 'EPERM');
     const wc = guest(sourceId);
-    if (x == null) wc.openDevTools({ mode: 'detach' });
+    if (typeof x !== 'number' || typeof y !== 'number') wc.openDevTools({ mode: 'detach' });
     else wc.inspectElement(Math.round(x), Math.round(y));
     return true;
   });

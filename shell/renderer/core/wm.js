@@ -64,7 +64,7 @@ let dseq = 1;
 const EASE = 'cubic-bezier(0.1, 0.9, 0.2, 1)';
 const EASE_IN = 'cubic-bezier(0.7, 0, 1, 0.5)';
 const EASE_IN_OUT = 'cubic-bezier(0.65, 0, 0.35, 1)';
-const DUR = { open: 260, close: 160, minimize: 250, restore: 300, flip: 260, desktop: 340 };
+const DUR = { open: 260, close: 160, minimize: 240, restore: 300, flip: 260, desktop: 340 };
 
 i18n.extend({
   en: { wm: { desktopN: 'Desktop {n}', maximizeVertically: 'Maximize vertically' } },
@@ -188,6 +188,7 @@ class Win extends Emitter {
     });
     this.iconEl.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (e.detail > 1) return; // second click of a double-click: that one closes the window
       wm.emit('titlebar-menu', this, e);
     });
     this.iconEl.addEventListener('dblclick', (e) => {
@@ -421,9 +422,10 @@ class Win extends Emitter {
       this._minAnim = this.el.animate(
         [
           { transform: 'none', opacity: 1 },
+          { opacity: 1, offset: 0.45 },
           { transform: `translate(${dx}px, ${dy}px) scale(${tg.scale})`, opacity: 0 },
         ],
-        { duration: DUR.minimize, easing: 'cubic-bezier(0.7, 0, 0.84, 0)', fill: 'forwards' },
+        { duration: DUR.minimize, easing: 'cubic-bezier(0.45, 0, 0.7, 0.35)', fill: 'forwards' },
       );
       this._minAnim.finished.then(
         () => {
@@ -440,6 +442,8 @@ class Win extends Emitter {
       this.emit('blur');
       wm.focusTop(this);
     }
+    // Stay above the window that just got focus while flying to the taskbar.
+    if (this._minAnim) this.el.style.zIndex = String(zBase(this) + ++zTop);
     this.emit('minimize');
     wm.emit('change', this);
   }
@@ -630,7 +634,9 @@ class Win extends Emitter {
     let raf = 0;
     const wa = wm.workarea();
     const shake = { dir: 0, lastX: startX, turns: [] };
-    target.setPointerCapture?.(e.pointerId);
+    const pid = e.pointerId;
+    // Capture only once it really is a drag: an immediate capture would retarget plain clicks and
+    // double-clicks (window icon menu / close) to the title bar.
     document.body.classList.add('wm-dragging');
     const frame = () => {
       raf = 0;
@@ -651,9 +657,13 @@ class Win extends Emitter {
       this.emit('move', this.rect());
     };
     const move = (ev) => {
+      if (ev.pointerId !== pid) return;
       if (!moved && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
       if (!moved) {
         moved = true;
+        try {
+          target.setPointerCapture?.(pid);
+        } catch {}
         this._geomAnim?.cancel();
         if (this.state !== 'normal') {
           // Tear off from maximized/snapped state, keeping the cursor at the same relative spot.
@@ -676,9 +686,10 @@ class Win extends Emitter {
       if (!raf) raf = requestAnimationFrame(frame);
     };
     const up = (ev) => {
-      target.removeEventListener('pointermove', move);
-      target.removeEventListener('pointerup', up);
-      target.removeEventListener('pointercancel', up);
+      if (ev && ev.pointerId !== pid) return;
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
       if (raf) {
         cancelAnimationFrame(raf);
         frame();
@@ -691,9 +702,9 @@ class Win extends Emitter {
       wm.dragSnapOverride = null;
       if (moved) wm.emit('drag-end', this, end);
     };
-    target.addEventListener('pointermove', move);
-    target.addEventListener('pointerup', up);
-    target.addEventListener('pointercancel', up);
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
   }
 
   // Aero shake: 4 quick horizontal direction changes within 600ms minimise every other window (again: restore).

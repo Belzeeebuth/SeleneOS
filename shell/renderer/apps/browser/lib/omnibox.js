@@ -161,8 +161,9 @@ export class Omnibox {
     const t = this.bw.t;
     const b = this.siteBtn;
     let state = this.security(tab);
-    if (this.editing && (this.dirty || state === 'internal' || !this.bw.tabUrl(tab) || this.bw.tabUrl(tab) === 'aurora://newtab')) state = 'search';
-    if (!this.editing && this.bw.tabUrl(tab) === 'aurora://newtab') state = 'search';
+    const url = this.bw.tabUrl(tab);
+    // Like Edge: the security chip stays until the user types; the search glyph shows while typing.
+    if ((this.editing && this.dirty) || !url || url === 'aurora://newtab') state = 'search';
     if (b.dataset.state === `${state}:${this.bw.ctx.lang}`) return;
     b.dataset.state = `${state}:${this.bw.ctx.lang}`;
     b.className = `bw-site ${state}`;
@@ -300,7 +301,7 @@ export class Omnibox {
       }
       items.push({ kind: m.kind, url: m.url, title: m.title, text: displayUrl(m.url) });
     }
-    if (c?.type !== 'search') items.push({ kind: 'search', query: q, url: searchUrl(engineId, q), sub: t('omni.searchWith', { engine }) });
+    if (items[0]?.kind !== 'search') items.push({ kind: 'search', query: q, url: searchUrl(engineId, q), sub: t('omni.searchWith', { engine }) });
     this.items = items.slice(0, 8);
     this.sel = 0;
     this.renderSuggest();

@@ -933,6 +933,65 @@ async function part2() {
   }
   await p.keyboard.press('Alt+1');
   await p.waitForTimeout(300);
+  await setSize(340, 560);
+
+  // keyboard focus: Tab reaches the controls (focus ring via :focus-visible)
+  await s.aurora(() => document.querySelector('.app-calculator .calc').focus());
+  await p.keyboard.press('Tab');
+  check('a11y: Tab moves focus to the navigation button', await s.aurora(() => document.activeElement?.dataset?.key), 'nav');
+  await p.keyboard.press('Enter');
+  await p.waitForTimeout(400);
+  check('a11y: Enter on the hamburger opens the navigation pane', await p.$eval(`${A} .calc`, (e) => e.classList.contains('nav-open')), true);
+  check('a11y: keyboard focus lands on the current mode', await s.aurora(() => document.activeElement?.dataset?.mode), 'standard');
+  await p.keyboard.press('ArrowDown');
+  await p.keyboard.press('Enter');
+  await p.waitForTimeout(400);
+  check('a11y: ArrowDown + Enter selects Scientific', await p.$eval(`${A} .calc`, (e) => e.dataset.mode), 'scientific');
+  check('a11y: navigation pane closed after selection', await p.$eval(`${A} .calc`, (e) => e.classList.contains('nav-open')), false);
+  check('a11y: each mode keeps its own pending calculation', await expr(), '1,5 ^ 2 + √(4)');
+  await p.keyboard.press('Escape');
+  await typeSeq('2+2\n');
+  check('a11y: typing works right after keyboard navigation', await display(), '4');
+  await p.keyboard.press('Alt+1');
+  await p.waitForTimeout(300);
+  check('a11y: keys have accessible names', await p.$eval(`${A} [data-key="sqrt"]`, (b) => b.getAttribute('aria-label')), 'Racine carrée');
+  check('a11y: display is a live region', await p.$eval(`${A} .calc-result`, (e) => e.getAttribute('aria-live')), 'polite');
+
+  // a second, independent calculator window
+  await s.aurora(() => window.__aurora.registry.launch('calculator'));
+  await p.waitForTimeout(800);
+  check('multi: two calculator windows', await s.aurora(() => window.__aurora.wm.byApp('calculator').length), 2);
+  await typeSeq('77');
+  const both = await s.aurora(() => window.__aurora.wm.byApp('calculator').map((w) => w.el.querySelector('.calc-result')?.textContent));
+  check('multi: typing only affects the focused window', both[1] === '77' && both[0] !== '77', true);
+  await s.aurora(() => window.__aurora.wm.byApp('calculator')[1].close());
+  await p.waitForTimeout(400);
+
+  // reduced motion: everything still works with animations off
+  await s.aurora(() => window.__aurora.settings.set('animations', false));
+  await p.waitForTimeout(300);
+  check('motion: data-animations="off"', await s.aurora(() => document.documentElement.dataset.animations), 'off');
+  await s.aurora(() => window.__aurora.wm.byApp('calculator')[0].focus());
+  await mode('scientific');
+  await press('trig');
+  check('motion: flyout opens', !!(await p.$(`${A} .calc-flyout`)), true);
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(50);
+  check('motion: flyout closes immediately', await p.$(`${A} .calc-flyout`), null);
+  await mode('standard');
+  check('motion: mode switch', await p.$eval(`${A} .calc`, (e) => e.dataset.mode), 'standard');
+  await s.aurora(() => window.__aurora.settings.set('animations', true));
+
+  // live language switch rebuilds the UI and keeps the state
+  await press('clear');
+  await typeSeq('1234,5');
+  await s.aurora(() => window.__aurora.settings.set('lang', 'en'));
+  await p.waitForTimeout(500);
+  check('lang: switch to English keeps the value, re-formatted', await display(), '1,234.5');
+  check('lang: window title follows', await s.aurora(() => window.__aurora.wm.byApp('calculator')[0].title), 'Calculator');
+  check('lang: decimal key follows', (await p.textContent(`${A} [data-key="decimal"]`)).trim(), '.');
+  await s.aurora(() => window.__aurora.settings.set('lang', 'fr'));
+  await p.waitForTimeout(400);
   const errs2 = errorsOf(s);
   check('console: no calculator errors (FR dark session)', errs2, []);
   const otherErrors = [...s.logs].filter((l) => l.startsWith('[error]') && !/calculator/i.test(l));

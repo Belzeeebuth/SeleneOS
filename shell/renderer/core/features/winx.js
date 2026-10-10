@@ -186,7 +186,10 @@ export function openSysMenu(win, e) {
     e?.stopPropagation?.();
   }
   win.focus();
-  return openAccelMenu(at, items, { prevWin: win, keyboard: !fromMouse });
+  // The menu belongs to the window: it goes away with it (e.g. double-click on the icon closes).
+  // (deferred: ui.menu wires its key handlers on the next tick and must not be closed before that)
+  const off = win.on('close', () => setTimeout(() => ui.closeMenus(), 0));
+  return openAccelMenu(at, items, { prevWin: win, keyboard: !fromMouse }).finally(off);
 }
 
 export function mount(ctx) {

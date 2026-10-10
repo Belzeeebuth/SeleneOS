@@ -23,15 +23,22 @@ OUT="${OUT:-$AURORA_ROOT/out}"            # final ISO
 SUITE="${SUITE:-noble}"
 ARCH="${ARCH:-amd64}"
 COMPONENTS="${COMPONENTS:-main restricted universe multiverse}"
-# Pinned archive snapshot. Bump SNAPSHOT_STAMP deliberately to pick up updates.
-SNAPSHOT_STAMP="${SNAPSHOT_STAMP:-20261001T000000Z}"
+# Pinned archive snapshot (https://snapshot.ubuntu.com). Bump SNAPSHOT_STAMP (alias: STAMP)
+# deliberately to pick up updates; the format is YYYYMMDDTHHMMSSZ.
+#   SNAPSHOT=1     use the snapshot (default, reproducible)
+#   SNAPSHOT=0     use the live archive ($ARCHIVE_MIRROR): newest packages, not reproducible
+#   SNAPSHOT=auto  use the snapshot when it is reachable, otherwise fall back to the archive
+SNAPSHOT_STAMP="${SNAPSHOT_STAMP:-${STAMP:-20261001T000000Z}}"
 SNAPSHOT="${SNAPSHOT:-1}"
-if [[ -z "${MIRROR:-}" ]]; then
-  if [[ "$SNAPSHOT" == 1 ]]; then
-    MIRROR="https://snapshot.ubuntu.com/ubuntu/$SNAPSHOT_STAMP"
-  else
-    MIRROR="http://archive.ubuntu.com/ubuntu"
-  fi
+ARCHIVE_MIRROR="${ARCHIVE_MIRROR:-http://archive.ubuntu.com/ubuntu}"
+SNAPSHOT_MIRROR="${SNAPSHOT_MIRROR:-https://snapshot.ubuntu.com/ubuntu/$SNAPSHOT_STAMP}"
+MIRROR_FROM_ENV=0
+if [[ -n "${MIRROR:-}" ]]; then
+  MIRROR_FROM_ENV=1
+elif [[ "$SNAPSHOT" == 0 ]]; then
+  MIRROR="$ARCHIVE_MIRROR"
+else
+  MIRROR="$SNAPSHOT_MIRROR"
 fi
 # Mirror written into the image for end users (apt update/upgrade after installation).
 FINAL_MIRROR="${FINAL_MIRROR:-http://archive.ubuntu.com/ubuntu}"
@@ -55,6 +62,15 @@ _aurora_json_field() { # file field
 ELECTRON_VERSION="${ELECTRON_VERSION:-$(_aurora_json_field "$SHELL_SRC/package.json" electron)}"
 ELECTRON_VERSION="${ELECTRON_VERSION#^}"; ELECTRON_VERSION="${ELECTRON_VERSION#~}"
 ELECTRON_MIRROR="${ELECTRON_MIRROR:-https://github.com/electron/electron/releases/download}"
+# Known-good SHA256 of electron-v<version>-linux-x64.zip, checked in addition to the release's
+# SHASUMS256.txt (a version without an entry here is verified against SHASUMS256.txt only).
+# Override for a new version with ELECTRON_SHA256=<hex>.
+_aurora_electron_sha256_known() {
+  case "$1" in
+    44.7.0) echo 3ae7d5bdad61c664486c6ab61361dd084d064c8c08af8d13a687096e18ce555a ;;
+  esac
+}
+ELECTRON_SHA256="${ELECTRON_SHA256:-$(_aurora_electron_sha256_known "$ELECTRON_VERSION")}"
 # Electron UI locales kept in the image (others fall back to en-US).
 ELECTRON_LOCALES="${ELECTRON_LOCALES:-en-US en-GB fr}"
 NODE_BIN="${NODE_BIN:-/opt/node22/bin}"

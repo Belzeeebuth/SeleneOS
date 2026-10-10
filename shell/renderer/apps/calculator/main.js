@@ -120,22 +120,22 @@ class CalculatorApp {
     this.titleEl = h('h1', { class: 'calc-title', id: `${this.win.id}-calc-title` });
     this.compactBtn = h(
       'button',
-      { class: 'calc-iconbtn calc-compact-btn', type: 'button', 'data-key': 'compact', 'aria-label': t('compact.enter'), 'data-tip': t('compact.enterTip'), onclick: () => this.setCompact(true) },
+      { class: 'calc-iconbtn calc-compact-btn', type: 'button', 'data-key': 'compact', 'aria-label': t('compact.enter'), 'data-tip': t('compact.enterTip'), onclick: (e) => this.setCompact(true, e.detail === 0) },
       icon('picture_in_picture_enter', { size: 16 }),
     );
     this.backBtn = h(
       'button',
-      { class: 'calc-iconbtn calc-back-full', type: 'button', 'data-key': 'fullview', 'aria-label': t('compact.exit'), 'data-tip': t('compact.exitTip'), onclick: () => this.setCompact(false) },
+      { class: 'calc-iconbtn calc-back-full', type: 'button', 'data-key': 'fullview', 'aria-label': t('compact.exit'), 'data-tip': t('compact.exitTip'), onclick: (e) => this.setCompact(false, e.detail === 0) },
       icon('picture_in_picture_exit', { size: 16 }),
     );
     this.historyBtn = h(
       'button',
-      { class: 'calc-iconbtn calc-history-btn', type: 'button', 'data-key': 'history', 'aria-label': t('history.open'), 'data-tip': t('history.openTip'), onclick: () => this.togglePaneFlyout('history') },
+      { class: 'calc-iconbtn calc-history-btn', type: 'button', 'data-key': 'history', 'aria-label': t('history.open'), 'data-tip': t('history.openTip'), onclick: (e) => this.togglePaneFlyout('history', e.detail === 0) },
       icon('history', { size: 16 }),
     );
     this.hamburger = h(
       'button',
-      { class: 'calc-iconbtn calc-ham', type: 'button', 'data-key': 'nav', 'aria-label': t('nav.open'), 'aria-expanded': 'false', 'data-tip': t('nav.open'), onclick: () => this.openNav() },
+      { class: 'calc-iconbtn calc-ham', type: 'button', 'data-key': 'nav', 'aria-label': t('nav.open'), 'aria-expanded': 'false', 'data-tip': t('nav.open'), onclick: (e) => this.openNav(e.detail === 0) },
       icon('line_horizontal_3', { size: 16 }),
     );
     this.header = h('header', { class: 'calc-header' }, this.backBtn, this.hamburger, this.titleEl, this.compactBtn, h('div', { class: 'grow' }), this.historyBtn);
@@ -175,7 +175,7 @@ class CalculatorApp {
     const about = h('button', { class: 'calc-nav-item', type: 'button', 'data-mode': 'about', onclick: () => (this.closeNav(), this.showAbout()) }, icon('info', { size: 16 }), h('span', { class: 'ellipsis' }, t('nav.about')));
     this.nav = h(
       'nav',
-      { class: 'calc-nav', 'aria-label': t('nav.label'), role: 'menu' },
+      { class: 'calc-nav', 'aria-label': t('nav.label'), role: 'menu', tabindex: '-1' },
       h('div', { class: 'calc-nav-top' }, navHam),
       h(
         'div',
@@ -204,6 +204,7 @@ class CalculatorApp {
   }
 
   rebuild() {
+    this.win.setTitle(this.ctx.t('app.name'));
     this.closeNav(true);
     this.closePaneFlyout(true);
     this.view?.destroy?.();
@@ -285,7 +286,7 @@ class CalculatorApp {
   }
 
   // ------------------------------------------------------------ navigation pane
-  openNav() {
+  openNav(viaKeyboard = false) {
     if (this.navOpen) return this.closeNav();
     this.navOpen = true;
     this.closePaneFlyout(true);
@@ -294,7 +295,8 @@ class CalculatorApp {
     this.hamburger.setAttribute('aria-expanded', 'true');
     const sel = this.navItems.find((i) => i.classList.contains('selected')) || this.navItems[0];
     setTimeout(() => {
-      sel.focus({ preventScroll: true });
+      // keyboard users land on the current mode; a mouse click focuses the pane itself (no focus ring)
+      (viaKeyboard ? sel : this.nav).focus({ preventScroll: true });
       sel.scrollIntoView({ block: 'nearest' });
     }, 30);
   }
@@ -540,12 +542,12 @@ class CalculatorApp {
     return wrap;
   }
 
-  togglePaneFlyout(tab) {
+  togglePaneFlyout(tab, viaKeyboard = false) {
     if (this.paneFly && this.paneFly.tab === tab) return this.closePaneFlyout();
-    this.openPaneFlyout(tab);
+    this.openPaneFlyout(tab, viaKeyboard);
   }
 
-  openPaneFlyout(tab) {
+  openPaneFlyout(tab, viaKeyboard = false) {
     if (!this.paneTabs().includes(tab)) return;
     if (this.isDocked()) {
       this.paneTab = tab;
@@ -565,7 +567,7 @@ class CalculatorApp {
     this.paneFly = { tab, layer, panel };
     this.fillPaneFlyout();
     this.historyBtn.classList.toggle('on', tab === 'history');
-    setTimeout(() => (panel.querySelector('.calc-hitem, .calc-mitem') || panel).focus({ preventScroll: true }), 30);
+    setTimeout(() => ((viaKeyboard && panel.querySelector('.calc-hitem, .calc-mitem')) || panel).focus({ preventScroll: true }), 30);
   }
 
   fillPaneFlyout() {
@@ -588,7 +590,7 @@ class CalculatorApp {
   }
 
   // ------------------------------------------------------------ compact overlay (keep on top)
-  setCompact(on) {
+  setCompact(on, viaKeyboard = false) {
     on = !!on;
     if (on === this.compact) return;
     const win = this.win;
@@ -619,7 +621,7 @@ class CalculatorApp {
     this.renderPane();
     this.view?.refresh?.();
     if (!reduceMotion()) this.view?.el.animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: 200, easing: 'linear' });
-    setTimeout(() => (on ? this.backBtn : this.compactBtn).focus({ preventScroll: true }), 0);
+    setTimeout(() => (viaKeyboard ? (on ? this.backBtn : this.compactBtn) : this.root).focus({ preventScroll: true }), 0);
   }
 
   setOnTop(on) {
@@ -711,12 +713,12 @@ class CalculatorApp {
     if (e.altKey && !e.ctrlKey && !e.metaKey) {
       if (e.key === 'ArrowUp' && this.S.mode === 'standard') {
         e.preventDefault();
-        this.setCompact(true);
+        this.setCompact(true, true);
         return;
       }
       if (e.key === 'ArrowDown' && this.compact) {
         e.preventDefault();
-        this.setCompact(false);
+        this.setCompact(false, true);
         return;
       }
     }
@@ -725,7 +727,7 @@ class CalculatorApp {
       const k = e.key.toLowerCase();
       if (k === 'h' && !e.shiftKey) {
         e.preventDefault();
-        if (this.view?.historyKind && !this.compact) this.togglePaneFlyout('history');
+        if (this.view?.historyKind && !this.compact) this.togglePaneFlyout('history', true);
         return;
       }
       if (k === 'd' && e.shiftKey) {
@@ -753,6 +755,9 @@ class CalculatorApp {
       e.preventDefault();
       return;
     }
+    // Enter / Space activate a focused control (menu button, tab, list item…); on keypad keys Enter is "=".
+    const ctl = tgt?.closest?.('button, [role="button"], [role="tab"], [role="listitem"], [role="menuitemradio"], [role="radio"]');
+    if (ctl && !ctl.classList.contains('ck') && (e.key === 'Enter' || e.key === ' ')) return;
     if (this.view?.handleKey?.(e)) {
       e.preventDefault();
       e.stopPropagation();

@@ -91,6 +91,7 @@ async function render() {
       name = si.fullName || si.user || name;
     } catch {}
   }
+  if (!fly.isOpen) return; // closed while we were waiting for the backend
   const first = String(name).split(/\s+/)[0];
   const clockTime = h('div', { class: 'wg-time' });
   const clockDate = h('div', { class: 'wg-date' });
@@ -167,7 +168,7 @@ async function render() {
       photoBox.appendChild(img);
     };
     show();
-    if (files.length > 1) timers.push(setInterval(show, 7000));
+    if (files.length > 1 && fly.isOpen) timers.push(setInterval(show, 7000));
   })();
 
   // System usage

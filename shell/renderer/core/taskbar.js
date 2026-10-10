@@ -206,6 +206,7 @@ const buttons = new Map(); // appId -> button
 const thumbs = new Map(); // winId -> blob URL
 const status = { net: undefined, audio: undefined, battery: undefined };
 let suppressClick = false;
+let bulk = false; // true while the whole taskbar is rebuilt (no per-button entrance animation)
 
 function visibleWins(appId) {
   const list = wm.listDesktop ? wm.listDesktop() : wm.list();
@@ -545,7 +546,7 @@ function renderApps() {
       let b = buttons.get(id);
       if (!b) {
         b = makeAppButton(id);
-        if (!reduceMotion() && root.classList.contains('ready')) {
+        if (!reduceMotion() && !bulk && root.classList.contains('ready')) {
           b.animate([{ opacity: 0, transform: 'translateY(16px) scale(.8)' }, { opacity: 1, transform: 'none' }], { duration: 300, easing: EASE });
         }
         buttons.set(id, b);
@@ -814,7 +815,9 @@ function renderStatic() {
     h('div', { class: 'tb-showdesk', 'data-tip': t('taskbar.showDesktop'), role: 'button', 'aria-label': t('taskbar.showDesktop'), onclick: () => wm.toggleDesktop() }),
   );
   root.append(leftEl, centerEl, trayEl);
+  bulk = true;
   renderApps();
+  bulk = false;
   renderClock();
   renderBell();
   renderTray();
@@ -845,6 +848,21 @@ export const taskbar = {
     root.addEventListener('focusin', reveal);
     root.addEventListener('focusout', () => scheduleHide());
     root.addEventListener('contextmenu', taskbarMenu);
+    // Dropping an app (e.g. a Start tile) on the taskbar pins it.
+    root.addEventListener('dragover', (e) => {
+      if (![...(e.dataTransfer?.types || [])].includes('application/x-aurora-app')) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      root.classList.add('drop-pin');
+    });
+    root.addEventListener('dragleave', (e) => !root.contains(e.relatedTarget) && root.classList.remove('drop-pin'));
+    root.addEventListener('drop', (e) => {
+      root.classList.remove('drop-pin');
+      const id = e.dataTransfer?.getData('application/x-aurora-app');
+      if (!id || !registry.get(id)) return;
+      e.preventDefault();
+      if (!(settings.get('pinned') || []).includes(id)) setPinned(id, true);
+    });
     root.addEventListener('keydown', onKeyNav);
     flyEvents.on('change', () => {
       if (isFlyoutOpen()) reveal();

@@ -310,7 +310,8 @@ class SolitaireApp {
       const label = h('span', { class: 'sol-stat-label' });
       const value = h('span', { class: 'sol-stat-value' });
       this.bind(label, () => t(key));
-      return { el: h('div', { class: ['sol-stat', `sol-stat-${key}`], role: 'status' }, label, value), value };
+      // Not a live region: the clock ticks every second. Moves are announced through this.live instead.
+      return { el: h('div', { class: ['sol-stat', `sol-stat-${key}`] }, label, value), value };
     };
     this.stScore = stat('score');
     this.stTime = stat('time');
@@ -1721,11 +1722,11 @@ class SolitaireApp {
   }
 
   // ------------------------------------------------------------ dialogs
-  async showStats() {
+  async showStats(initialMode) {
     if (this.modal) return;
     const { h, ui, i18n } = this.ctx;
     const { t } = this;
-    let mode = `draw${this.game.s.draw}`;
+    let mode = initialMode || `draw${this.game.s.draw}`;
     const grid = h('div', { class: 'sol-stats-grid' });
     const fill = () => {
       const st = { ...emptyStats(), ...(this.stats[mode] || {}) };
@@ -1780,7 +1781,7 @@ class SolitaireApp {
       this.stats[mode] = emptyStats();
       this.persist('stats', this.stats);
     }
-    this.showStats();
+    this.showStats(mode);
   }
 
   async showSettings() {

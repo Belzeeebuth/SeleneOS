@@ -7,6 +7,8 @@
 #   sudo ./iso/build.sh --rebuild-packages   ignore the cached package layer
 #   sudo ./iso/build.sh --clean         remove work/ first (keeps cache/)
 #
+# The whole output is also written to work/logs/build-<date>.log (work/logs/latest.log).
+#
 # Stages (each one logs its duration):
 #   base      debootstrap --variant=minbase, cached as cache/base/<key>.tar.zst
 #   packages  apt install of iso/packages.d/*.list into work/layers/packages
@@ -82,12 +84,14 @@ umount_under() { # path: unmount every mount point below (and including) path, d
 }
 
 LOCK_FD=
+LOG_FILE=
 cleanup() {
   local rc=$?
   trap - EXIT INT TERM
   if [[ -d "$WORK" ]]; then umount_under "$WORK"; fi
   if ((rc != 0)); then
     printf '%s[aurora] build FAILED (exit %d) after %ss%s\n' "$C_R" "$rc" "$(( $(date +%s) - BUILD_T0 ))" "$C_0" >&2
+    [[ -n "$LOG_FILE" ]] && printf '[aurora] full log: %s\n' "$LOG_FILE" >&2
   fi
   exit "$rc"
 }
@@ -149,12 +153,51 @@ sha256_of_text() { sha256sum | cut -c1-16; }
 # ---------------------------------------------------------------------------------------
 # preflight
 # ---------------------------------------------------------------------------------------
+start_log() { # tee everything (stdout+stderr) into work/logs/
+  local d="$WORK/logs"
+  mkdir -p "$d"
+  LOG_FILE="$d/build-$(date +%Y%m%d-%H%M%S).log"
+  ln -sfn "$(basename "$LOG_FILE")" "$d/latest.log"
+  # Terminal output keeps its colours; the log file gets plain text.
+  exec > >(tee >(sed -u $'s/\e\\[[0-9;]*m//g' >>"$LOG_FILE")) 2>&1
+  # Keep the 10 most recent logs.
+  find "$d" -maxdepth 1 -name 'build-*.log' -printf '%T@ %p\n' | sort -rn | tail -n +11 | cut -d' ' -f2- \
+    | xargs -r rm -f
+}
+
+# Is the package mirror reachable? (InRelease of the suite)
+mirror_reachable() { # url
+  local opts=(--fail --silent --show-error --location --head --max-time 30 --retry 2 --retry-delay 2)
+  [[ -n "$BUILD_CA_BUNDLE" ]] && opts+=(--cacert "$BUILD_CA_BUNDLE")
+  env ${BUILD_HTTPS_PROXY:+https_proxy="$BUILD_HTTPS_PROXY"} ${BUILD_HTTP_PROXY:+http_proxy="$BUILD_HTTP_PROXY"} \
+    curl "${opts[@]}" -o /dev/null "$1/dists/$SUITE/InRelease"
+}
+
+check_mirror() {
+  if mirror_reachable "$MIRROR"; then
+    ok "mirror reachable: $MIRROR"
+    return
+  fi
+  if [[ "$SNAPSHOT" == auto && "$MIRROR_FROM_ENV" == 0 ]]; then
+    warn "snapshot mirror $MIRROR is not reachable — SNAPSHOT=auto falls back to $ARCHIVE_MIRROR (build not reproducible)"
+    MIRROR="$ARCHIVE_MIRROR"; SNAPSHOT=0
+    mirror_reachable "$MIRROR" || die "the archive mirror $MIRROR is not reachable either (network/proxy?)"
+    return
+  fi
+  # Not fatal yet: cached layers may make the network unnecessary. debootstrap/apt fail
+  # loudly later if packages really have to be downloaded.
+  warn "cannot reach $MIRROR/dists/$SUITE/InRelease — the build fails if packages must be downloaded.
+  Check the network/proxy (https_proxy, BUILD_CA_BUNDLE), or build from the live archive
+  with SNAPSHOT=0 (or SNAPSHOT=auto to fall back automatically)."
+}
+
 preflight() {
-  [[ $EUID -eq 0 ]] || die "run as root: sudo $0"
   [[ "$ARCH" == amd64 ]] || die "only ARCH=amd64 is supported"
+  case "$SNAPSHOT" in 0|1|auto) ;; *) die "SNAPSHOT must be 0, 1 or auto (got '$SNAPSHOT')" ;; esac
+  [[ "$SNAPSHOT_STAMP" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || die "SNAPSHOT_STAMP must look like 20261001T000000Z (got '$SNAPSHOT_STAMP')"
   local missing=() t
-  for t in debootstrap chroot mount findmnt mksquashfs xorriso grub-mkrescue grub-mkfont mformat \
-           rsvg-convert convert unzip curl sha256sum dpkg-deb tar zstd md5sum; do
+  for t in debootstrap chroot mount mountpoint findmnt flock mksquashfs unsquashfs xorriso grub-mkrescue \
+           grub-mkfont mformat rsvg-convert convert unzip curl sha256sum dpkg-deb tar zstd md5sum; do
     command -v "$t" >/dev/null 2>&1 || missing+=("$t")
   done
   [[ -x "$NODE_BIN/npm" ]] || command -v npm >/dev/null 2>&1 || missing+=("npm (node 22)")
@@ -170,18 +213,15 @@ preflight() {
   if [[ "$MIRROR" == https://* && -z "$BUILD_CA_BUNDLE" ]]; then
     die "https mirror $MIRROR needs a CA bundle (set BUILD_CA_BUNDLE) — or use SNAPSHOT=0"
   fi
-  mkdir -p "$WORK" "$CACHE" "$OUT"
   local avail_gb
   avail_gb=$(( $(df -Pk "$WORK" | awk 'NR==2 {print $4}') / 1024 / 1024 ))
   ((avail_gb >= 8)) || die "only ${avail_gb} GB free under $WORK (need ~10 GB for a rebuild, ~20 GB for the first build)"
   ((avail_gb >= 15)) || warn "only ${avail_gb} GB free under $WORK; a first build needs ~20 GB"
-
-  exec {LOCK_FD}>"$WORK/.build.lock"
-  flock -n "$LOCK_FD" || die "another build is running (lock: $WORK/.build.lock)"
   umount_under "$WORK"   # leftovers from an interrupted run
+  if stage_enabled base || stage_enabled packages; then check_mirror; fi
 
   log "Aurora OS $ISO_VERSION  build-id $BUILD_ID"
-  log "suite=$SUITE arch=$ARCH mirror=$MIRROR"
+  log "suite=$SUITE arch=$ARCH mirror=$MIRROR (snapshot=$SNAPSHOT)"
   log "electron=$ELECTRON_VERSION kernel=$KERNEL_PACKAGE firmware=$WITH_FIRMWARE recommends=$INSTALL_RECOMMENDS"
   log "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH ($(date -u -d "@$SOURCE_DATE_EPOCH" '+%F %T') UTC)"
   log "work=$WORK cache=$CACHE out=$OUT"
@@ -492,9 +532,12 @@ EOF
   rm -f "$r"/tmp/aurora-firmware-placeholder_*.deb
   # Packages pulled in only as dependencies of removed lists are cleaned up as well.
   apt_in "$r" autoremove --purge
+  # Unmount the shared .deb cache *before* "apt-get clean", which would otherwise empty it.
+  umount "$r/var/cache/apt/archives" 2>/dev/null || umount -l "$r/var/cache/apt/archives"
   apt_in "$r" clean
   apt_net_off "$r"
   chroot_umount "$r"
+  log "deb cache: $(find "$CACHE/apt/archives" -maxdepth 1 -name '*.deb' | wc -l) packages, $(du -sh "$CACHE/apt/archives" | cut -f1)"
 }
 
 stage_packages() {
@@ -564,6 +607,12 @@ install_electron() {
   local want
   want="$(awk -v n="$name" '$2 == n || $2 == "*" n {print $1}' "$sums")"
   [[ "$want" =~ ^[0-9a-f]{64}$ ]] || die "no checksum for $name in SHASUMS256.txt"
+  if [[ -n "$ELECTRON_SHA256" ]]; then
+    # The pinned checksum (iso/config.sh) must agree with the release's SHASUMS256.txt.
+    [[ "$want" == "$ELECTRON_SHA256" ]] || { rm -f "$sums"; die "SHASUMS256.txt of Electron $v disagrees with the pinned ELECTRON_SHA256 ($ELECTRON_SHA256)"; }
+  else
+    warn "no pinned SHA256 for Electron $v in iso/config.sh — trusting the release's SHASUMS256.txt ($want)"
+  fi
   if [[ ! -s "$zip" ]] || [[ "$(sha256sum "$zip" | cut -d' ' -f1)" != "$want" ]]; then
     log "downloading $name"
     curl "${curl_opts[@]}" -o "$zip.part" "$ELECTRON_MIRROR/v$v/$name"
@@ -635,10 +684,13 @@ install_rootfs_overlay() {
 write_os_identity() {
   # os-release: keep ID=ubuntu / ID_LIKE=debian (and the Ubuntu codename) for compatibility,
   # brand everything users see. A local diversion keeps it across base-files upgrades.
+  # (--no-rename + copy: base-files is Essential, its os-release must never be missing.)
   if ! has_text os-release.ubuntu "$(in_chroot "$ROOT" dpkg-divert --list /usr/lib/os-release)"; then
-    in_chroot "$ROOT" dpkg-divert --local --rename --divert /usr/lib/os-release.ubuntu --add /usr/lib/os-release >/dev/null
+    cp -a "$ROOT/usr/lib/os-release" "$ROOT/usr/lib/os-release.ubuntu"
+    in_chroot "$ROOT" dpkg-divert --local --no-rename --divert /usr/lib/os-release.ubuntu --add /usr/lib/os-release >/dev/null
   fi
   local src="$ROOT/usr/lib/os-release.ubuntu"
+  grep -q '^ID=ubuntu$' "$src" || die "$src is not Ubuntu's os-release"
   {
     echo "PRETTY_NAME=\"$OS_NAME $ISO_VERSION\""
     echo "NAME=\"$OS_NAME\""
@@ -715,9 +767,12 @@ EOF
 }
 
 configure_services() {
-  local u
+  local u f
   in_chroot "$ROOT" systemctl set-default graphical.target >/dev/null
-  for u in greetd.service NetworkManager.service systemd-resolved.service ufw.service apparmor.service; do
+  # aurora-apparmor.service loads the Aurora Shell AppArmor profile in the live session, where
+  # Ubuntu's apparmor.service does not run (Chromium's sandbox needs the profile's userns rule).
+  for u in greetd.service NetworkManager.service systemd-resolved.service ufw.service apparmor.service \
+           aurora-apparmor.service; do
     in_chroot "$ROOT" systemctl enable "$u" >/dev/null 2>&1 || die "cannot enable $u"
   done
   # NetworkManager is the network stack; networkd (and its wait-online) only slow the boot down.
@@ -726,10 +781,15 @@ configure_services() {
   done
   in_chroot "$ROOT" systemctl mask systemd-networkd-wait-online.service >/dev/null
   # Text console on tty1 stays available (Ctrl+Alt+F1); greetd owns tty7.
-  # Optional extra units shipped in rootfs/ (enabled only if present).
-  for u in aurora-firstboot.service; do
-    [[ -f "$ROOT/usr/lib/systemd/system/$u" || -f "$ROOT/etc/systemd/system/$u" ]] && \
-      in_chroot "$ROOT" systemctl enable "$u" >/dev/null
+  # Other aurora-* units shipped in rootfs/ are enabled when they have an [Install] section.
+  for f in "$ROOTFS_SRC"/usr/lib/systemd/system/aurora-* "$ROOTFS_SRC"/etc/systemd/system/aurora-*; do
+    [[ -f "$f" ]] || continue
+    u="$(basename "$f")"
+    case "$u" in *.service|*.timer|*.socket|*.path) ;; *) continue ;; esac
+    [[ "$u" == aurora-apparmor.service ]] && continue
+    grep -q '^\[Install\]' "$f" || continue
+    in_chroot "$ROOT" systemctl enable "$u" >/dev/null 2>&1 || die "cannot enable $u (rootfs/)"
+    log "enabled $u"
   done
 
   # ufw: deny incoming, allow outgoing, enabled at boot.
@@ -738,9 +798,14 @@ configure_services() {
          -e 's/^DEFAULT_FORWARD_POLICY=.*/DEFAULT_FORWARD_POLICY="DROP"/' "$ROOT/etc/default/ufw"
   sed -i 's/^ENABLED=.*/ENABLED=yes/' "$ROOT/etc/ufw/ufw.conf"
 
-  # greetd's system user: Xorg/Electron state lives in /var/lib/aurora-greeter (tmpfiles.d).
+  # greetd's system user runs Xorg + Electron for the sign-in screen. Its home (/etc/greetd by
+  # default) is not writable, which breaks the per-user services logind starts for it
+  # (PipeWire/WirePlumber state): give it /var/lib/aurora-greeter (also created by tmpfiles.d).
   in_chroot "$ROOT" getent passwd _greetd >/dev/null || die "greetd user _greetd does not exist"
   in_chroot "$ROOT" usermod -a -G video,render,input _greetd
+  in_chroot "$ROOT" usermod -d /var/lib/aurora-greeter _greetd
+  install -d -m 0750 "$ROOT/var/lib/aurora-greeter"
+  in_chroot "$ROOT" chown _greetd:_greetd /var/lib/aurora-greeter
 }
 
 configure_plymouth() {
@@ -770,13 +835,17 @@ validate_system() {
   [[ -z "$nf" ]] || die "Electron is missing shared libraries in the image:
 $nf"
   [[ -u "$ROOT/opt/aurora/electron/chrome-sandbox" ]] || die "chrome-sandbox is not setuid"
-  # AppArmor profile must parse.
-  if [[ -f "$ROOT/etc/apparmor.d/aurora-shell" ]]; then
-    in_chroot "$ROOT" apparmor_parser --skip-kernel-load --skip-cache -Q /etc/apparmor.d/aurora-shell \
-      || die "AppArmor profile /etc/apparmor.d/aurora-shell does not parse"
-  else
-    die "AppArmor profile /etc/apparmor.d/aurora-shell is missing (rootfs/)"
-  fi
+  [[ "$(stat -c '%u:%g %a' "$ROOT/opt/aurora/electron/chrome-sandbox")" == "0:0 4755" ]] \
+    || die "chrome-sandbox must be root:root 4755"
+  # AppArmor profile must parse (and be loaded in the live session by aurora-apparmor.service).
+  [[ -f "$ROOT/etc/apparmor.d/aurora-shell" ]] || die "AppArmor profile /etc/apparmor.d/aurora-shell is missing (rootfs/)"
+  local out
+  out="$(in_chroot "$ROOT" apparmor_parser --skip-kernel-load --skip-cache -Q /etc/apparmor.d/aurora-shell 2>&1)" \
+    || die "AppArmor profile /etc/apparmor.d/aurora-shell does not parse:
+$out"
+  grep -q '^profile aurora-shell /opt/aurora/electron/electron ' "$ROOT/etc/apparmor.d/aurora-shell" \
+    || die "the AppArmor profile must attach to /opt/aurora/electron/electron"
+  [[ -f "$ROOT/usr/lib/systemd/system/aurora-apparmor.service" ]] || die "aurora-apparmor.service is missing (rootfs/)"
   # polkit rules are JavaScript: syntax-check them with node on the host.
   local r
   for r in "$ROOT"/etc/polkit-1/rules.d/*aurora*.rules; do
@@ -784,14 +853,32 @@ $nf"
     "$NODE_BIN/node" -e 'new Function(require("fs").readFileSync(process.argv[1], "utf8"))' "$r" \
       || die "polkit rules syntax error: $r"
   done
-  # Session entry points.
-  for r in /usr/bin/aurora-shell /usr/bin/aurora-session /usr/lib/aurora/aurora-greeter /usr/lib/aurora/aurora-xsession; do
+  # Session entry points and helpers: present, executable, valid shell syntax.
+  for r in /usr/bin/aurora-shell /usr/bin/aurora-session /usr/lib/aurora/aurora-greeter /usr/lib/aurora/aurora-xsession \
+           /usr/lib/aurora/aurora-xstart /usr/lib/aurora/aurora-xgreeter; do
     [[ -x "$ROOT$r" ]] || die "$r is missing or not executable (rootfs/)"
-    if head -n1 "$ROOT$r" | grep -q '/sh$\|/bash$'; then
-      in_chroot "$ROOT" /bin/bash -n "$r" || die "shell syntax error in $r"
-    fi
   done
-  grep -q '^user = "_greetd"' "$ROOT/etc/greetd/config.toml" || die "/etc/greetd/config.toml must run the greeter as _greetd"
+  for r in "$ROOT"/usr/bin/aurora-* "$ROOT"/usr/lib/aurora/aurora-* "$ROOT"/usr/lib/aurora/helpers/*; do
+    [[ -f "$r" ]] || continue
+    case "$(head -n1 "$r")" in
+      '#!/bin/sh'*|'#!/usr/bin/sh'*|'# shellcheck shell=sh'*) in_chroot "$ROOT" /bin/sh -n "${r#"$ROOT"}" || die "shell syntax error in ${r#"$ROOT"}" ;;
+      '#!/bin/bash'*|'#!/usr/bin/bash'*|'#!/usr/bin/env bash'*) in_chroot "$ROOT" /bin/bash -n "${r#"$ROOT"}" || die "bash syntax error in ${r#"$ROOT"}" ;;
+      '#!/usr/bin/python3'*|'#!/usr/bin/env python3'*)
+        in_chroot "$ROOT" python3 -c 'import ast,sys; ast.parse(open(sys.argv[1]).read())' "${r#"$ROOT"}" \
+          || die "python syntax error in ${r#"$ROOT"}" ;;
+    esac
+  done
+  # greetd: graphical greeter as _greetd, live user signed in automatically.
+  local gc="$ROOT/etc/greetd/config.toml"
+  grep -q '^user = "_greetd"' "$gc" || die "/etc/greetd/config.toml must run the greeter as _greetd"
+  grep -q '^command = "/usr/lib/aurora/aurora-greeter"' "$gc" || die "/etc/greetd/config.toml must start /usr/lib/aurora/aurora-greeter"
+  awk '/^\[initial_session\]/ {f=1; next} /^\[/ {f=0} f && /^user = / {print}' "$gc" | grep -q "\"$LIVE_USER\"" \
+    || die "/etc/greetd/config.toml: [initial_session] must sign in the live user '$LIVE_USER'"
+  # Units that must start at boot.
+  for r in greetd.service NetworkManager.service ufw.service aurora-apparmor.service; do
+    [[ "$(in_chroot "$ROOT" systemctl is-enabled "$r" 2>/dev/null)" == enabled ]] || die "$r is not enabled"
+  done
+  [[ "$(in_chroot "$ROOT" systemctl get-default)" == graphical.target ]] || die "default target is not graphical.target"
   [[ -f "$ROOT/opt/aurora/shell/renderer/shell.html" ]] || die "shell.html missing from /opt/aurora/shell"
   if [[ ! -f "$ROOT/opt/aurora/shell/renderer/greeter.html" ]]; then
     warn "renderer/greeter.html does not exist yet: the live session autologins, but signing out will show an empty greeter"
@@ -831,6 +918,54 @@ finalize_resolv_conf() {
   else
     : >"$ROOT/etc/resolv.conf"   # NetworkManager fills it in
   fi
+}
+
+# Final hygiene checks on the tree that gets squashed: nothing from the build host leaks in.
+assert_clean_image() {
+  log "checking the image for build leftovers"
+  local f bad=()
+  for f in /etc/apt/aurora-build-ca.crt /etc/apt/apt.conf.d/99aurora-build /usr/sbin/policy-rc.d \
+           /etc/resolv.conf.aurora-build /root/.npm /root/.cache; do
+    [[ -e "$ROOT$f" || -L "$ROOT$f" ]] && bad+=("$f exists")
+  done
+  has_text aurora-build "$(chroot "$ROOT" dpkg-divert --list 2>/dev/null)" && bad+=("build-time dpkg diversion left")
+  # Proxy settings of the build host.
+  local p
+  for p in "$BUILD_HTTPS_PROXY" "$BUILD_HTTP_PROXY"; do
+    [[ -n "$p" ]] || continue
+    if grep -rIlsF -- "$p" "$ROOT/etc" "$ROOT/root" "$ROOT/opt/aurora" "$ROOT/var/lib/apt" "$ROOT/home" >/dev/null 2>&1; then
+      bad+=("build proxy $p referenced in: $(grep -rIlsF -- "$p" "$ROOT/etc" "$ROOT/root" "$ROOT/opt/aurora" "$ROOT/var/lib/apt" "$ROOT/home" | sed "s|^$ROOT||" | head -n5 | tr '\n' ' ')")
+    fi
+  done
+  grep -qis 'proxy' "$ROOT/etc/environment" && bad+=("/etc/environment mentions a proxy")
+  # The build CA bundle (e.g. a TLS-intercepting proxy's CA) must not be shipped.
+  if [[ -n "$BUILD_CA_BUNDLE" && "$(readlink -f "$BUILD_CA_BUNDLE")" != /etc/ssl/certs/ca-certificates.crt ]]; then
+    local sum size
+    sum="$(sha256sum <"$BUILD_CA_BUNDLE" | cut -d' ' -f1)"; size="$(stat -Lc %s "$BUILD_CA_BUNDLE")"
+    while IFS= read -r -d '' f; do
+      [[ "$(sha256sum <"$f" | cut -d' ' -f1)" == "$sum" ]] && bad+=("copy of the build CA bundle: ${f#"$ROOT"}")
+    done < <(find "$ROOT/etc" "$ROOT/usr/local" "$ROOT/usr/share/ca-certificates" "$ROOT/opt/aurora" -xdev -type f -size "${size}c" -print0 2>/dev/null)
+  fi
+  # Per-machine identity.
+  [[ -s "$ROOT/etc/machine-id" ]] && bad+=("/etc/machine-id is not empty")
+  [[ "$(readlink "$ROOT/var/lib/dbus/machine-id")" == /etc/machine-id ]] || bad+=("/var/lib/dbus/machine-id is not a symlink to /etc/machine-id")
+  compgen -G "$ROOT/etc/ssh/ssh_host_*" >/dev/null && bad+=("SSH host keys present")
+  [[ -e "$ROOT/var/lib/systemd/random-seed" ]] && bad+=("systemd random seed present")
+  # Permissions.
+  local ww
+  ww="$(find "$ROOT/opt/aurora" -xdev \( -type f -o -type d \) -perm -0002 | sed "s|^$ROOT||" | head -n5)"
+  [[ -z "$ww" ]] || bad+=("world-writable files under /opt/aurora: $ww")
+  ww="$(find "$ROOT/opt/aurora" -xdev ! -user 0 | sed "s|^$ROOT||" | head -n5)"
+  [[ -z "$ww" ]] || bad+=("files not owned by root under /opt/aurora: $ww")
+  ww="$(find "$ROOT/opt/aurora" -xdev -type f -perm /6000 | sed "s|^$ROOT||")"
+  [[ "$ww" == /opt/aurora/electron/chrome-sandbox ]] || bad+=("unexpected setuid/setgid set under /opt/aurora: $ww")
+  # Final package sources.
+  grep -qF "URIs: $FINAL_MIRROR" "$ROOT/etc/apt/sources.list.d/ubuntu.sources" || bad+=("ubuntu.sources does not point to $FINAL_MIRROR")
+  if ((${#bad[@]})); then
+    printf '  - %s\n' "${bad[@]}" >&2
+    die "the image is not clean (see above)"
+  fi
+  ok "image is clean (no build proxy/CA, no machine-id, no host keys, sane /opt/aurora permissions)"
 }
 
 write_manifests() {
@@ -886,6 +1021,7 @@ EOF
   cleanup_image
   chroot_umount "$ROOT"
   finalize_resolv_conf
+  assert_clean_image
   # Reproducible timestamps, then font caches that match them.
   clamp_mtimes "$ROOT"
   chroot "$ROOT" /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin fc-cache -s -f >/dev/null 2>&1 || warn "fc-cache failed"
@@ -917,6 +1053,7 @@ stage_squashfs() {
   env -u SOURCE_DATE_EPOCH mksquashfs "$ROOT" "$ISO_TREE/casper/filesystem.squashfs" \
     -noappend -no-progress -quiet "${comp[@]}" -b "$SQUASHFS_BLOCK" \
     -mkfs-time "$SOURCE_DATE_EPOCH" -root-time "$SOURCE_DATE_EPOCH" \
+    -xattrs-exclude '^system\.posix_acl_' \
     -wildcards -e 'proc/*' 'sys/*' 'dev/*' 'run/*' 'tmp/*' 'var/tmp/*' 'boot/efi/*' \
     || die "mksquashfs failed"
   log "filesystem.squashfs: $(du -h "$ISO_TREE/casper/filesystem.squashfs" | cut -f1) (uncompressed $(( $(cat "$ISO_TREE/casper/filesystem.size") / 1024 / 1024 )) MiB)"
@@ -947,12 +1084,14 @@ make_grub_theme() {
   regular="$(font_file 'Inter-Regular.*' 'Inter*.ttf' 'Inter*.otf' 'DejaVuSans.ttf')" || die "no font for the GRUB theme"
   bold="$(font_file 'Inter-SemiBold.*' 'Inter-Bold.*' 'DejaVuSans-Bold.ttf')" || bold="$regular"
   # GRUB bitmap fonts (Latin + punctuation + arrows: enough for English and French).
-  : >"$WORK/grub-mkfont.log"
-  local range="0x20-0x7E,0xA0-0x17F,0x2013-0x2026,0x2190-0x2193,0x25B2-0x25BC"
-  grub-mkfont -s 16 -r "$range" -n "Aurora Regular" -o "$t/aurora-16.pf2" "$regular" 2>>"$WORK/grub-mkfont.log"
-  grub-mkfont -s 20 -r "$range" -n "Aurora Regular" -o "$t/aurora-20.pf2" "$regular" 2>>"$WORK/grub-mkfont.log"
-  grub-mkfont -s 22 -r "$range" -n "Aurora Bold"    -o "$t/aurora-bold-22.pf2" "$bold" 2>>"$WORK/grub-mkfont.log"
-  grub-mkfont -s 36 -r "$range" -n "Aurora Bold"    -o "$t/aurora-bold-36.pf2" "$bold" 2>>"$WORK/grub-mkfont.log"
+  # (grub-mkfont prints harmless "unsupported font feature" notes for OpenType fonts.)
+  local range="0x20-0x7E,0xA0-0x17F,0x2013-0x2026,0x2190-0x2193,0x25B2-0x25BC" mk="$WORK/grub-mkfont.log"
+  {
+    grub-mkfont -s 16 -r "$range" -n "Aurora Regular" -o "$t/aurora-16.pf2" "$regular" &&
+    grub-mkfont -s 20 -r "$range" -n "Aurora Regular" -o "$t/aurora-20.pf2" "$regular" &&
+    grub-mkfont -s 22 -r "$range" -n "Aurora Bold"    -o "$t/aurora-bold-22.pf2" "$bold" &&
+    grub-mkfont -s 36 -r "$range" -n "Aurora Bold"    -o "$t/aurora-bold-36.pf2" "$bold"
+  } >"$mk" 2>&1 || { tail -n 20 "$mk" >&2; die "grub-mkfont failed"; }
 
   local png_opts=(-define png:exclude-chunks=date,time +set date:create +set date:modify -strip)
   # Background: deep navy with a soft aurora glow and the logo, 1920x1080.
@@ -1081,13 +1220,13 @@ set menu_color_highlight=white/blue
 
 menuentry "Aurora OS (English)" --class aurora --id aurora-en {
   set gfxpayload=keep
-  linux /casper/vmlinuz $common quiet splash locale=en_US.UTF-8 keyboard-layouts=us keyboard-configuration/layoutcode=us ---
+  linux /casper/vmlinuz $common quiet splash locale=en_US.UTF-8 keyboard-configuration/layoutcode=us ---
   initrd /casper/initrd
 }
 
 menuentry "Aurora OS (Français)" --class aurora --id aurora-fr {
   set gfxpayload=keep
-  linux /casper/vmlinuz $common quiet splash locale=fr_FR.UTF-8 keyboard-layouts=fr keyboard-configuration/layoutcode=fr ---
+  linux /casper/vmlinuz $common quiet splash locale=fr_FR.UTF-8 keyboard-configuration/layoutcode=fr ---
   initrd /casper/initrd
 }
 
@@ -1170,6 +1309,12 @@ stage_iso() {
   mv "$tmp_iso" "$ISO_PATH"
   (cd "$OUT" && sha256sum "$(basename "$ISO_PATH")" >"$(basename "$ISO_PATH").sha256")
   cp "$ISO_TREE/casper/filesystem.manifest" "$OUT/$(basename "$ISO_PATH" .iso).manifest"
+  # Hand the results to the user who started the build (sudo/make iso, or make docker-iso).
+  local owner="${AURORA_OUT_OWNER:-}"
+  [[ -z "$owner" && -n "${SUDO_UID:-}" && "${SUDO_UID}" != 0 ]] && owner="$SUDO_UID:${SUDO_GID:-$SUDO_UID}"
+  if [[ "$owner" =~ ^[0-9]+:[0-9]+$ ]]; then
+    chown "$owner" "$OUT" "$ISO_PATH" "$ISO_PATH.sha256" "$OUT/$(basename "$ISO_PATH" .iso).manifest" || true
+  fi
   ok "ISO: $ISO_PATH ($(du -h "$ISO_PATH" | cut -f1), $(stat -c %s "$ISO_PATH") bytes)"
   ok "sha256: $(cut -d' ' -f1 "$ISO_PATH.sha256")"
   stage_done iso
@@ -1179,11 +1324,17 @@ stage_iso() {
 main() {
   stage_index "$UNTIL" >/dev/null || die "unknown stage '$UNTIL' (stages: ${STAGES[*]})"
   stage_index "$FROM" >/dev/null || die "unknown stage '$FROM' (stages: ${STAGES[*]})"
+  [[ $EUID -eq 0 ]] || die "run as root: sudo $0 (or: make iso)"
+  mkdir -p "$WORK" "$CACHE" "$OUT"
+  exec {LOCK_FD}>"$WORK/.build.lock"
+  flock -n "$LOCK_FD" || die "another build is running (lock: $WORK/.build.lock)"
+  start_log
+  log "logging to $LOG_FILE"
   preflight
   if ((CLEAN)); then
     log "removing $WORK (cache kept)"
     umount_under "$WORK"
-    find "$WORK" -mindepth 1 -maxdepth 1 ! -name .build.lock -exec rm -rf {} +
+    find "$WORK" -mindepth 1 -maxdepth 1 ! -name .build.lock ! -name logs -exec rm -rf {} +
   fi
   stage_enabled base && stage_base
   stage_enabled packages && stage_packages

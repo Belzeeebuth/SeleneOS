@@ -11,11 +11,13 @@
 //     captureAll()          -> Promise; one screenshot of the shell, cropped into a thumbnail for every
 //                              window that is fully visible (not covered by another window / flyout)
 //     get(win)              -> cached ImageBitmap | null
-//     node(win, w, h)       -> element (<canvas> with the thumbnail, or an app-icon placeholder)
+//     node(win, w, h)       -> element fitted in w x h: a fresh screen crop, else a live (inert) copy of the
+//                              window's DOM, else an older crop, else an app-icon placeholder
 //   }
-// Thumbnails come from api.invoke('shell:capture'): the focused window is re-captured shortly after it
-// gets focus (when nothing covers it), and every visible window when the switcher opens. Windows that
-// were never visible get a styled placeholder.
+// Screen crops come from api.invoke('shell:capture'): the focused window is re-captured shortly after it
+// gets focus (when nothing covers it), and every fully visible window when the switcher opens. Covered
+// or minimised windows use the DOM copy (input values and canvas pixels copied; windows showing web
+// content or video keep their last crop instead, since <webview>s cannot be copied).
 import { api } from '../api.js';
 import { h, icon, ui } from '../ui.js';
 import { i18n, t } from '../i18n.js';
@@ -24,8 +26,8 @@ import { registry } from '../registry.js';
 import { shell } from '../services.js';
 
 i18n.extend({
-  en: { alttab: { label: 'Window switcher', closeWindow: 'Close window', noWindows: 'No open windows' } },
-  fr: { alttab: { label: 'Sélecteur de fenêtres', closeWindow: 'Fermer la fenêtre', noWindows: 'Aucune fenêtre ouverte' } },
+  en: { alttab: { label: 'Window switcher', closeWindow: 'Close window' } },
+  fr: { alttab: { label: 'Sélecteur de fenêtres', closeWindow: 'Fermer la fenêtre' } },
 });
 
 // ------------------------------------------------------------------ thumbnails
@@ -56,6 +58,7 @@ function intersects(a, b) {
 
 function visibleRect(win) {
   if (win.minimized || win._closing || !win.isOnCurrentDesktop() || !win.el.isConnected) return null;
+  if (document.body.classList.contains('tv-on')) return null; // Task View has the windows scaled
   if (win.el.getAnimations().length) return null; // mid open/minimize/snap animation
   const r = win.el.getBoundingClientRect();
   if (r.width < 40 || r.height < 30) return null;
@@ -256,7 +259,7 @@ function layoutSize(n) {
   const maxW = window.innerWidth * 0.86;
   let th = 168;
   for (; th > 64; th -= 8) {
-    const widths = state.list.map((w) => Math.round(th * aspectOf(w)) + 16);
+    const widths = state.list.map((w) => Math.max(Math.round(th * aspectOf(w)) + 16, 176));
     let rows = 1;
     let acc = 0;
     for (const cw of widths) {
@@ -537,7 +540,6 @@ export function mount(ctx) {
     const w = wm.focused();
     if (w && !document.hidden && !state && !document.body.classList.contains('wm-dragging')) thumbs.captureOne(w);
   }, 20000);
-  shell.on('flyouts:close', () => {});
   ctx.alttab = alttab;
   ctx.thumbs = thumbs;
 }

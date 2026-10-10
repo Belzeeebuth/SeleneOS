@@ -159,7 +159,7 @@ export function createCalcView(env, kind) {
     app.persist();
   }, { errOff: false, ui: true });
   for (const m of ['mc', 'mr', 'mplus', 'mminus', 'ms']) def(m, () => app.memory(m), { mem: true });
-  def('mlist', () => app.openPaneFlyout('memory'), { ui: true });
+  def('mlist', () => app.openPaneFlyout('memory', lastActivationByKeyboard), { ui: true });
   // programmer
   for (const r of RADIXES) def(`radix-${r.id}`, () => setRadix(r.radix), { errOff: false, ui: true });
   def('word', () => {
@@ -198,13 +198,28 @@ export function createCalcView(env, kind) {
     return grid;
   }
 
+  let lastActivationByKeyboard = false;
   function memRow() {
     const items = isProg ? ['ms', 'mlist'] : ['mc', 'mr', 'mplus', 'mminus', 'ms', 'mlist'];
     return h(
       'div',
       { class: 'calc-memrow', role: 'toolbar', 'aria-label': t('a11y.memoryControls') },
       items.map((id) => {
-        const el = h('button', { class: 'calc-mem', type: 'button', 'data-key': id, 'aria-label': t(`aria.${id}`), 'data-tip': tipFor(id), onclick: () => run(id, el) }, t(`mem.${id}`));
+        const el = h(
+          'button',
+          {
+            class: 'calc-mem',
+            type: 'button',
+            'data-key': id,
+            'aria-label': t(`aria.${id}`),
+            'data-tip': tipFor(id),
+            onclick: (e) => {
+              lastActivationByKeyboard = e.detail === 0;
+              run(id, el);
+            },
+          },
+          t(`mem.${id}`),
+        );
         if (id === 'mlist') el.append(icon('chevron_down', { size: 12 }));
         keyEls.set(id, el);
         return el;
@@ -566,7 +581,7 @@ export function createCalcView(env, kind) {
   }
 
   function fit() {
-    const max = Math.max(28, Math.min(72, Math.round(root.clientHeight * (isStd ? 0.09 : 0.075)) || 46));
+    const max = Math.max(28, Math.min(72, Math.round(root.clientHeight * (isStd ? 0.095 : 0.078)) || 46));
     resultEl.classList.remove('wrap');
     const size = fitText(resultEl, max, isProg ? 14 : 18);
     if (isProg && resultEl.scrollWidth > resultEl.clientWidth + 1 && size <= 14) resultEl.classList.add('wrap');
@@ -584,6 +599,7 @@ export function createCalcView(env, kind) {
       root.style.setProperty('--key-fs-op', `${Math.max(13, Math.min(22, Math.round(base * 0.31)))}px`);
     }
     root.classList.toggle('roomy', r.height > 640);
+    root.classList.toggle('tight', r.height < 440);
     fit();
   }
 

@@ -1350,6 +1350,35 @@
 }
 
 /* ---------------------------------------------------------------- responsive tweaks */
+.app-calculator .calc-nav:focus,
+.app-calculator .calc-panefly-panel:focus {
+  outline: none;
+}
+.app-calculator .calc-view.tight .calc-display {
+  min-height: 60px;
+}
+.app-calculator .calc-view.tight .calc-toolrow {
+  height: 28px;
+}
+.app-calculator .calc-view.tight .calc-memrow {
+  height: 30px;
+}
+.app-calculator .calc-view.tight .calc-drop {
+  height: 30px;
+}
+.app-calculator .calc-view.tight .calc-funcrow {
+  padding-bottom: 2px;
+}
+.app-calculator .calc-programmer.tight .calc-radix {
+  height: 22px;
+}
+.app-calculator .calc-programmer.tight .calc-radixes {
+  padding-bottom: 2px;
+}
+.app-calculator .calc-programmer.tight .calc-expr {
+  height: 18px;
+  line-height: 18px;
+}
 .app-calculator .calc.narrow .calc-toolrow.prog .calc-mem {
   min-width: 36px;
   padding: 0 4px;

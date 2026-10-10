@@ -7,6 +7,17 @@ set -u
 
 aurora_x_setup
 
+# Display settings saved in Settings (resolution, scale, arrangement), applied on top of the
+# defaults above. Owned by the Settings backend; optional.
+if [ -x /usr/lib/aurora/helpers/aurora-apply-display ]; then
+  timeout 20 /usr/lib/aurora/helpers/aurora-apply-display \
+    || aurora_log "aurora-apply-display failed (status $?); keeping the current display mode"
+fi
+
+# User folders (Desktop, Documents, Downloads, Pictures, Music, Videos; see
+# /etc/skel/.config/user-dirs.dirs). Creates whatever is missing, e.g. after a reset.
+xdg-user-dirs-update >/dev/null 2>&1 || true
+
 # Make the display known to D-Bus-activated and systemd user services.
 if command -v dbus-update-activation-environment >/dev/null 2>&1; then
   dbus-update-activation-environment --systemd DISPLAY XAUTHORITY XDG_SESSION_TYPE \

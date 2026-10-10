@@ -2428,6 +2428,21 @@ export async function createPaint(ctx) {
       const r = docCanvas.getBoundingClientRect();
       return { x: r.left + ((x + 0.5) * r.width) / W(), y: r.top + ((y + 0.5) * r.height) / H() };
     },
+    /** Scroll so the given image points are visible (as far as the viewport allows). */
+    reveal(pts) {
+      const xs = pts.map((q) => q[0]);
+      const ys = pts.map((q) => q[1]);
+      const m = 12;
+      const fit = (lo, hi, first, scroll, size, origin) => {
+        const a = origin + lo * L.scale - m;
+        const b = origin + hi * L.scale + m;
+        if (a >= scroll && b <= scroll + size) return scroll;
+        if (b - a <= size) return a < scroll ? a : b - size;
+        return origin + first * L.scale - size / 2;
+      };
+      scroller.scrollLeft = fit(Math.min(...xs), Math.max(...xs), xs[0], scroller.scrollLeft, scroller.clientWidth, L.left);
+      scroller.scrollTop = fit(Math.min(...ys), Math.max(...ys), ys[0], scroller.scrollTop, scroller.clientHeight, L.top);
+    },
     openPath: (p) => openPath(p, { prompt: false }),
     writeFile,
     commitPending,

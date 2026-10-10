@@ -17,6 +17,8 @@ export const shared = {
   downloads: new Map(), // id -> download info (live + persisted)
   info: null,
   privateSeq: 0,
+  privatePartition: null, // shared by every open Private window
+  lastExternal: 0,
   restoredOnce: false,
   dev: false,
 

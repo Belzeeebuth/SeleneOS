@@ -1,0 +1,27 @@
+# Aurora OS: load the Aurora Shell AppArmor profile in the live session.
+#
+# Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor
+# (kernel.apparmor_restrict_unprivileged_userns=1). Chromium/Electron's sandbox needs one, which
+# /etc/apparmor.d/aurora-shell grants. On an installed system apparmor.service loads every
+# profile, but Ubuntu skips that unit on live media (ConditionPathExists=!/rofs/etc/apparmor.d),
+# so without this unit the shell and the sign-in screen abort with
+# "FATAL:credentials.cc ... Permission denied". The profile is "unconfined" apart from the
+# userns rule, so loading it alone is safe on the overlay root of the live session.
+[Unit]
+Description=Load the Aurora Shell AppArmor profile (live session)
+Documentation=man:apparmor_parser(8)
+DefaultDependencies=no
+After=local-fs.target systemd-sysctl.service apparmor.service
+Before=sysinit.target greetd.service display-manager.service
+ConditionSecurity=apparmor
+ConditionPathExists=/etc/apparmor.d/aurora-shell
+# Only where apparmor.service is skipped (live media); installed systems load it there.
+ConditionPathExists=/rofs/etc/apparmor.d
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/apparmor_parser --replace --skip-cache --quiet /etc/apparmor.d/aurora-shell
+
+[Install]
+WantedBy=sysinit.target

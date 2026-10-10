@@ -1,23 +1,32 @@
 # Aurora OS — top-level Makefile.
 #
-#   make iso          build out/aurora-os-<version>-amd64.iso      (runs iso/build.sh as root)
-#   make run          boot the ISO in QEMU (BIOS) with a 32G virtual disk (KVM if available, else TCG)
-#   make run-uefi     same with UEFI firmware (OVMF)
-#   make run-disk     boot the installed virtual disk only
-#   make shell-deps   npm ci in shell/ (Electron + test tooling for development)
-#   make test         shell smoke test under Xvfb
-#   make docker-iso   build the ISO inside a privileged ubuntu:24.04 container
-#   make clean        remove work/ (chroot layers, ISO tree, VM state); keeps cache/ and out/
-#   make distclean    remove work/, cache/ and out/
+#   make iso            build out/aurora-os-<version>-amd64.iso      (runs iso/build.sh as root)
+#   make run            live ISO in QEMU (BIOS) + a 32G virtual disk to install to (created on first use);
+#                       the disk boots first once something is installed on it (KVM if usable, else TCG)
+#   make run-uefi       same with UEFI firmware (OVMF)
+#   make run-disk       boot the installed virtual disk only, BIOS     (run-disk-uefi: UEFI)
+#   make run DRY_RUN=1  print the QEMU command line instead of starting the VM (any run* target)
+#   make smoke-image    run the built image's Electron shell + greeter under Xvfb (no VM; root)
+#   make shell-deps     npm ci in shell/ (Electron + test tooling for development)
+#   make test           shell smoke test under Xvfb
+#   make docker-iso     build the ISO inside a privileged ubuntu:24.04 container (iso/Dockerfile)
+#   make clean          remove the build tree in work/ (chroot layers, ISO tree); keeps cache/, out/
+#                       and the VM disk/state in work/qemu/
+#   make clean-vm       remove the VM disk and UEFI variables (work/qemu/)
+#   make distclean      remove work/, cache/ and out/
 #
 # Variables (make VAR=value ...):
 #   MEM=4096        VM memory in MB            CPUS=4          VM vCPUs
 #   DISK=work/qemu/aurora-disk.qcow2            DISK_SIZE=32G   size of a newly created disk
-#   ISO=out/aurora-os-<version>-amd64.iso       RES=WxH         VM screen mode
-#   VGA=virtio|std  HEADLESS=1 (no window, QMP/serial/guest-agent sockets in work/qemu/)
-#   QEMU_ARGS="..." extra arguments for tools/qemu-run.sh
-#   BUILD_ARGS="--until system" extra arguments for iso/build.sh
-#   Build settings from iso/config.sh can be passed too, e.g. make iso SNAPSHOT=0 WITH_FIRMWARE=1
+#   ISO=out/aurora-os-<version>-amd64.iso       RES=WxH         initial VM screen mode
+#   VGA=virtio|std  display adapter (std = most compatible)     AUDIO=auto|pipewire|pa|sdl|none
+#   BOOT=auto|cd    auto: disk first, CD while the disk is blank; cd: always the live CD first
+#   HEADLESS=1      no window (QMP/serial/guest-agent sockets in work/qemu/)
+#   QEMU_ARGS="..." extra arguments for tools/qemu-run.sh (see tools/qemu-run.sh --help)
+#   BUILD_ARGS="--until system" extra arguments for iso/build.sh (see iso/build.sh --help)
+#   Build settings from iso/config.sh, e.g.:
+#     make iso SNAPSHOT=0              newest packages from archive.ubuntu.com instead of the pinned snapshot
+#     make iso STAMP=20261101T000000Z  another snapshot date      make iso WITH_FIRMWARE=1  (real hardware)
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
@@ -31,7 +40,10 @@ MEM         ?= 4096
 CPUS        ?= 4
 VGA         ?= virtio
 RES         ?=
+AUDIO       ?= auto
+BOOT        ?= auto
 HEADLESS    ?= 0
+DRY_RUN     ?= 0
 QEMU_ARGS   ?=
 BUILD_ARGS  ?=
 NODE_BIN    ?= /opt/node22/bin
@@ -40,13 +52,15 @@ DOCKER_IMAGE ?= aurora-os-builder:24.04
 
 SUDO := $(if $(filter 0,$(shell id -u)),,sudo -E)
 # Settings forwarded to iso/build.sh when given on the make command line or in the environment.
-BUILD_ENV := $(foreach v,SNAPSHOT SNAPSHOT_STAMP MIRROR WITH_FIRMWARE KERNEL_PACKAGE INSTALL_RECOMMENDS \
-  ALLOW_MISSING_PACKAGES ISO_VERSION SQUASHFS_COMP SQUASHFS_LEVEL ELECTRON_VERSION SOURCE_DATE_EPOCH,\
-  $(if $(filter command line environment,$(origin $(v))),$(v)='$($(v))'))
-QEMU_ENV := MEM='$(MEM)' CPUS='$(CPUS)' DISK='$(DISK)' DISK_SIZE='$(DISK_SIZE)' VGA='$(VGA)' RES='$(RES)'
-QEMU_FLAGS := $(if $(filter 1,$(HEADLESS)),--headless)
+BUILD_VARS := SNAPSHOT SNAPSHOT_STAMP STAMP MIRROR ARCHIVE_MIRROR WITH_FIRMWARE KERNEL_PACKAGE \
+  INSTALL_RECOMMENDS ALLOW_MISSING_PACKAGES ISO_VERSION SQUASHFS_COMP SQUASHFS_LEVEL \
+  ELECTRON_VERSION ELECTRON_SHA256 SOURCE_DATE_EPOCH BUILD_CA_BUNDLE
+BUILD_ENV := $(foreach v,$(BUILD_VARS),$(if $(filter command line environment,$(origin $(v))),$(v)='$($(v))'))
+QEMU_ENV := MEM='$(MEM)' CPUS='$(CPUS)' DISK='$(DISK)' DISK_SIZE='$(DISK_SIZE)' VGA='$(VGA)' RES='$(RES)' AUDIO='$(AUDIO)'
+QEMU_FLAGS := $(if $(filter 1,$(HEADLESS)),--headless) $(if $(filter 1,$(DRY_RUN)),--dry-run)
+QEMU_RUN := $(QEMU_ENV) $(ROOT)/tools/qemu-run.sh
 
-.PHONY: help iso run run-uefi run-disk shell-deps test docker-iso clean distclean
+.PHONY: help iso run run-uefi run-disk run-disk-uefi smoke-image shell-deps test docker-iso clean clean-vm distclean
 
 help:
 	@sed -n '1,/^$$/p' $(firstword $(MAKEFILE_LIST)) | sed 's/^# \{0,1\}//'
@@ -55,13 +69,19 @@ iso:
 	$(SUDO) env $(BUILD_ENV) $(ROOT)/iso/build.sh $(BUILD_ARGS)
 
 run:
-	$(QEMU_ENV) $(ROOT)/tools/qemu-run.sh --iso '$(ISO)' $(QEMU_FLAGS) $(QEMU_ARGS)
+	$(QEMU_RUN) --iso '$(ISO)' --boot '$(BOOT)' $(QEMU_FLAGS) $(QEMU_ARGS)
 
 run-uefi:
-	$(QEMU_ENV) $(ROOT)/tools/qemu-run.sh --uefi --iso '$(ISO)' $(QEMU_FLAGS) $(QEMU_ARGS)
+	$(QEMU_RUN) --uefi --iso '$(ISO)' --boot '$(BOOT)' $(QEMU_FLAGS) $(QEMU_ARGS)
 
 run-disk:
-	$(QEMU_ENV) $(ROOT)/tools/qemu-run.sh --boot disk $(QEMU_FLAGS) $(QEMU_ARGS)
+	$(QEMU_RUN) --boot disk $(QEMU_FLAGS) $(QEMU_ARGS)
+
+run-disk-uefi:
+	$(QEMU_RUN) --uefi --boot disk $(QEMU_FLAGS) $(QEMU_ARGS)
+
+smoke-image:
+	$(SUDO) $(ROOT)/tools/smoke-image.sh
 
 shell-deps:
 	cd $(ROOT)/shell && PATH="$(NODE_BIN):$$PATH" npm ci --no-audit --no-fund
@@ -72,14 +92,19 @@ test:
 
 docker-iso:
 	$(DOCKER) build -t $(DOCKER_IMAGE) -f $(ROOT)/iso/Dockerfile $(ROOT)/iso
-	$(DOCKER) run --rm --privileged -v /dev:/dev -v $(ROOT):/src -w /src \
+	$(DOCKER) run --rm --privileged --network host -v /dev:/dev -v $(ROOT):/src -w /src \
+	  -e AURORA_OUT_OWNER=$$(id -u):$$(id -g) \
 	  $(foreach v,https_proxy HTTPS_PROXY http_proxy,$(if $($(v)),-e $(v)='$($(v))')) \
 	  $(DOCKER_IMAGE) env $(BUILD_ENV) ./iso/build.sh $(BUILD_ARGS)
 
 clean:
 	@if [ -d $(ROOT)/work ]; then \
-	  $(SUDO) bash -c 'for m in $$(findmnt -rn -o TARGET | grep "^$(ROOT)/work" | sort -r); do umount "$$m" || umount -l "$$m"; done; rm -rf "$(ROOT)/work"'; \
+	  $(SUDO) bash -c 'for m in $$(findmnt -rn -o TARGET | grep "^$(ROOT)/work/" | sort -r); do umount "$$m" || umount -l "$$m"; done; \
+	    find "$(ROOT)/work" -mindepth 1 -maxdepth 1 ! -name qemu -exec rm -rf {} +'; \
 	fi
 
-distclean: clean
-	$(SUDO) rm -rf $(ROOT)/cache $(ROOT)/out
+clean-vm:
+	rm -rf $(ROOT)/work/qemu
+
+distclean: clean clean-vm
+	$(SUDO) rm -rf $(ROOT)/work $(ROOT)/cache $(ROOT)/out

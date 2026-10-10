@@ -347,17 +347,31 @@ if (!fatal) {
     await H.settle();
     check('F2 rename', H.exists(D('Documents/ideas.md')), true);
     // Rename to an existing name -> error, then cancel
+    await H.select('Alpha');
+    await H.focusView();
+    await H.key('F2');
+    await page.waitForSelector('.app-files .fx-rename');
+    await page.keyboard.type('Letters');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(400);
+    check('conflict dialog', (await H.dialogText()).includes('already a folder'), true);
+    await H.clickDialog('OK');
+    check('still editing after conflict', await page.locator('.app-files .fx-rename').count(), 1);
+    await H.key('Escape');
+    check('no overwrite', H.exists(D('Documents/Alpha')) && H.exists(D('Documents/Letters/letter to Anna.txt')), true);
+    // Changing the extension asks for confirmation
     await H.select('ideas.md');
     await H.focusView();
     await H.key('F2');
     await page.waitForSelector('.app-files .fx-rename');
-    await page.keyboard.type('budget');
+    await page.keyboard.press('Control+a');
+    await page.keyboard.type('ideas.txt');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(400);
-    check('conflict dialog', (await H.dialogText()).includes('already a file'), true);
-    await H.clickDialog('OK');
+    check('extension warning', (await H.dialogText()).includes('extension'), true);
+    await H.clickDialog('No');
     await H.key('Escape');
-    check('no overwrite', H.exists(D('Documents/ideas.md')) && H.exists(D('Documents/budget.csv')), true);
+    check('extension unchanged', H.exists(D('Documents/ideas.md')), true);
     // Undo rename
     await H.focusView();
     await H.key('Control+z');

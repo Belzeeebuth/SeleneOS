@@ -313,6 +313,16 @@ async function scenario(theme, lang) {
     check(await s.aurora(() => document.activeElement?.classList.contains('start-tile')), `[${tag}] ArrowDown moves into the pinned grid`);
     await P.keyboard.press('ArrowRight');
     check(await s.aurora(() => document.activeElement === document.querySelectorAll('.start-tile')[1]), `[${tag}] ArrowRight moves to the next tile`);
+    // drag a pinned tile to reorder; drop one on the taskbar to pin it
+    const pin0 = await s.aurora(() => [...document.querySelectorAll('.start-tile')].map((x) => x.dataset.app));
+    await P.dragAndDrop('.start-tile:nth-child(1)', '.start-tile:nth-child(3)');
+    await sleep(500);
+    const pin1 = await s.aurora(() => [...document.querySelectorAll('.start-tile')].map((x) => x.dataset.app));
+    check(pin1[2] === pin0[0] && pin1[0] === pin0[1], `[${tag}] dragging a pinned tile reorders Start (${pin0.slice(0, 3)} → ${pin1.slice(0, 3)})`);
+    const lastTile = pin1[pin1.length - 1];
+    await P.dragAndDrop(`.start-tile[data-app="${lastTile}"]`, '#taskbar .tb-apps');
+    await sleep(500);
+    check(await s.aurora((id) => window.__aurora.settings.get('pinned').includes(id), lastTile), `[${tag}] dropping a Start tile on the taskbar pins it (${lastTile})`);
     // All apps + jump list
     await P.click('.start-view-pinned .start-head-btn');
     await sleep(600);

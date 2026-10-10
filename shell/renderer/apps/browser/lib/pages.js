@@ -171,8 +171,8 @@ function newTabPage(bw, tab) {
     const custom = store.ntp.shortcuts.map((s) => ({ ...s, custom: true }));
     const have = new Set(custom.map((s) => bareHost(s.url)));
     const out = [...custom];
-    let top = store.topSites(10);
-    if (!top.length && !store.ntp.hidden.length) top = SEED_SITES.map((s) => ({ ...s, host: bareHost(s.url) }));
+    // Most visited sites first, then the suggested defaults to fill the row.
+    const top = [...store.topSites(10), ...SEED_SITES.map((s) => ({ ...s, host: bareHost(s.url) }))];
     for (const s of top) {
       if (out.length >= 8) break;
       if (have.has(s.host) || store.ntp.hidden.includes(s.host)) continue;
@@ -376,7 +376,7 @@ function historyPage(bw, tab, entry) {
   }
 
   function row(e) {
-    const time = shared.ctx.i18n.formatTime(e.last);
+    const time = shared.ctx.i18n.formatTime(e.last, { hour: 'numeric', minute: '2-digit' });
     const del = h(
       'button',
       {

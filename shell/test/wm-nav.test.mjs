@@ -104,7 +104,11 @@ function helpers(s) {
       const w = window.__aurora.wm.get(id);
       return w ? { state: w.state, snap: w.snap, min: w.minimized, rect: w.rect(), desktop: w.desktop, focused: w.isFocused() } : null;
     }, id);
-  async function shot(name, docs = false) {
+  async function shot(name, docs = false, { rest = false } = {}) {
+    if (rest) {
+      await page.mouse.move(1592, 6); // park the pointer where it hovers nothing
+      await sleep(180);
+    }
     const f = await s.shot(name);
     if (docs) fs.copyFileSync(f, path.join(DOCS, `${name}.png`));
     return f;
@@ -300,7 +304,7 @@ async function mainRun() {
       check('Alt+Tab thumbnails are real content (canvas/clone), not placeholders', await A(() => document.querySelectorAll('.alttab-thumb .wthumb-ph').length === 0));
       await T.send([['keyDown', 'Tab', ['alt']], ['keyUp', 'Tab', ['alt']]]);
       await sleep(250);
-      await shot('wm-alttab', true);
+      await shot('wm-alttab', true, { rest: true });
       await T.send([['keyDown', 'Tab', ['alt', 'shift']], ['keyUp', 'Tab', ['alt', 'shift']]]);
       await sleep(120);
       await T.send([['keyDown', 'Tab', ['alt']], ['keyUp', 'Tab', ['alt']]]);
@@ -441,7 +445,7 @@ async function mainRun() {
       check('Task View cards do not overlap and stay on screen', !overlap);
       check('Task View animates the real window elements', await A(() => window.__aurora.wm.list().every((w) => w.el.classList.contains('tv-win') && w.el.style.transform.includes('scale'))));
       await sleep(250);
-      await shot('wm-taskview', true);
+      await shot('wm-taskview', true, { rest: true });
       // Click a card -> focus it and leave.
       const tgt = await A(() => {
         const c = [...document.querySelectorAll('.tv-card')].find((c) => c.getAttribute('aria-label') === 'Project plan');
@@ -528,6 +532,45 @@ async function mainRun() {
       await A(() => window.__aurora.wm.removeDesktop(window.__aurora.wm.desktops[1].id));
       await sleep(450);
       check('closing a desktop moves its windows to the neighbour', await A(() => window.__aurora.wm.list().every((w) => w.desktop === window.__aurora.wm.desktops[0].id && !w.el.classList.contains('off-desktop'))));
+      await closeAll();
+    }
+
+    // -------------------------------------------------------- Task View keyboard
+    if (want('tvkeys')) {
+      await closeAll();
+      for (const t of ['K1', 'K2', 'K3']) await newWin(t, { width: 600, height: 400 });
+      await page.mouse.move(1592, 6); // keyboard-only scenario: no hover previews
+      await sleep(300);
+      const key = (k, o = {}) => A(([k, o]) => document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, ...o })), [k, o]);
+      await hk('Super+Tab');
+      await sleep(450);
+      const sel = () => A(() => document.querySelector('.tv-card.sel')?.getAttribute('aria-label'));
+      check('Task View preselects the active window', (await sel()) === 'K3');
+      await key('ArrowLeft');
+      check('ArrowLeft moves the selection', (await sel()) === 'K2');
+      await key('Tab');
+      check('Tab moves into the desktops strip', await A(() => !!document.querySelector('.tv-desk.sel')));
+      await key('ArrowRight');
+      await key('Enter');
+      await sleep(300);
+      check('Enter on "New desktop" creates one', (await A(() => window.__aurora.wm.desktops.length)) === 2);
+      await key('ArrowLeft');
+      await key('F2');
+      await sleep(100);
+      check('F2 renames the selected desktop', await A(() => document.activeElement?.classList.contains('tv-rename')));
+      await page.hover('.tv-desk:nth-child(2) .tv-desk-thumb');
+      await sleep(450);
+      check('hover previews never destroy an open rename box', await A(() => document.activeElement?.classList.contains('tv-rename')));
+      await page.mouse.move(1592, 6);
+      await sleep(350);
+      await page.keyboard.press('Escape');
+      await sleep(100);
+      check('Esc in the rename box only cancels the rename', await A(() => window.__aurora.taskview.isOpen && !document.querySelector('.tv-rename')));
+      await key('Tab');
+      await key('ArrowRight');
+      await key('Enter');
+      await sleep(450);
+      check('Enter on a card switches to that window', (await focusedTitle()) === 'K2' && !(await A(() => window.__aurora.taskview.isOpen)));
       await closeAll();
     }
 
@@ -636,7 +679,7 @@ async function mainRun() {
       const opts = await A(() => [...document.querySelectorAll('.sec-opt')].map((b) => b.textContent));
       check('security options', ['Lock', 'Switch user', 'Sign out'].every((x) => opts.includes(x)), opts.join(', '));
       check('first option has keyboard focus', await A(() => document.activeElement?.classList.contains('sec-opt')));
-      await shot('wm-security', true);
+      await shot('wm-security', true, { rest: true });
       await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
       await sleep(350);
       check('Esc cancels the security screen', await A(() => !window.__aurora.security.isOpen && !document.querySelector('.sec-screen')));
@@ -779,6 +822,19 @@ async function mainRun() {
       for (const k of ['ArrowRight', 'ArrowRight', 'ArrowRight', 'Enter']) await A((k) => document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })), k);
       st = await winState(id);
       check('keyboard size (right edge) grows the window', st.rect.width === 620);
+      // Window icon: click opens the menu under it, double-click closes the window (Windows behaviour).
+      const ic = await A((id) => {
+        const r = window.__aurora.wm.get(id).iconEl.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      }, id);
+      await page.mouse.click(ic.x, ic.y);
+      await sleep(250);
+      check('clicking the window icon opens the window menu', await A(() => !!document.querySelector('.menu.wm-accel-menu')));
+      await A(() => window.__aurora.ui.closeMenus());
+      await sleep(150);
+      await page.mouse.dblclick(ic.x, ic.y);
+      await sleep(500);
+      check('double-clicking the window icon closes the window (and its menu)', !(await winState(id)) && !(await A(() => !!document.querySelector('.menu.wm-accel-menu'))));
       await closeAll();
     }
 
@@ -944,7 +1000,7 @@ async function frenchDarkRun() {
     await hk('Alt+Tab');
     await page.waitForSelector('.alttab-card', { timeout: 3000 });
     await sleep(300);
-    await shot('wm-alttab-fr-dark', true);
+    await shot('wm-alttab-fr-dark', true, { rest: true });
     await hk('Alt:up');
     await sleep(300);
     await hk('Super+Tab');
@@ -952,7 +1008,7 @@ async function frenchDarkRun() {
     await A(() => window.__aurora.wm.createDesktop());
     await sleep(300);
     check('fr: Task View strings localized', (await A(() => document.querySelector('.tv-new .tv-desk-name').textContent)) === 'Nouveau bureau' && (await A(() => document.querySelector('.tv-desk .tv-desk-name').textContent)) === 'Bureau 1');
-    await shot('wm-taskview-fr-dark', true);
+    await shot('wm-taskview-fr-dark', true, { rest: true });
     await A(() => window.__aurora.taskview.close());
     await sleep(400);
     const w = await A(() => window.__aurora.wm.focused().id);
@@ -965,7 +1021,7 @@ async function frenchDarkRun() {
     const opts = await A(() => [...document.querySelectorAll('.sec-opt')].map((b) => b.textContent));
     check('fr: security screen localized', opts.includes('Verrouiller') && opts.includes("Changer d'utilisateur") && opts.includes('Se déconnecter'), opts.join(', '));
     check('fr: security options not clipped', (await clipped('.sec-opt, .sec-cancel')).length === 0);
-    await shot('wm-security-fr-dark', true);
+    await shot('wm-security-fr-dark', true, { rest: true });
     await A(() => window.__aurora.security.close());
     await sleep(300);
     await hk('Super+R');

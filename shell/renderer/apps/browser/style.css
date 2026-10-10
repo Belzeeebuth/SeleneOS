@@ -1236,6 +1236,11 @@
   width: 280px;
   max-width: 100%;
 }
+.app-browser .bp-history > .bp-head,
+.app-browser .bp-downloads > .bp-head {
+  width: min(100%, 944px);
+  margin: 0 auto;
+}
 .app-browser .bp-search .input {
   width: 100%;
 }
@@ -2010,4 +2015,51 @@
 }
 .app-browser .bp-private-card p {
   margin: 0 0 12px;
+}
+
+/* tab hover card & strip overflow fades */
+.app-browser .bw-hovercard {
+  position: absolute;
+  z-index: 80;
+  max-width: 300px;
+  min-width: 160px;
+  padding: 8px 12px 10px;
+  border-radius: var(--radius);
+  background: var(--bw-flyout);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  pointer-events: none;
+}
+.app-browser .bw-hovercard.in {
+  animation: bw-drop var(--dur) var(--ease);
+}
+.app-browser .bw-hc-title {
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  font-weight: 600;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.app-browser .bw-hc-host {
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-browser .bw-tabs.ov-r {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+.app-browser .bw-tabs.ov-l {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+}
+.app-browser .bw-tabs.ov-l.ov-r {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
 }

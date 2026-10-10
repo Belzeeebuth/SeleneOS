@@ -25,7 +25,9 @@ export class BrowserWindowCtl {
     this.t = ctx.t;
     this.args = ctx.args || {};
     this.private = !!this.args.private;
-    this.partition = this.private ? `browser-private-${Date.now().toString(36)}${++shared.privateSeq}` : 'persist:browser';
+    // All Private windows share one in-memory session (like InPrivate); it is wiped when the last one closes.
+    if (this.private && !shared.privatePartition) shared.privatePartition = `browser-private-${Date.now().toString(36)}${++shared.privateSeq}`;
+    this.partition = this.private ? shared.privatePartition : 'persist:browser';
     this.tabs = [];
     this.active = null;
     this.closedTabs = [];
@@ -72,12 +74,29 @@ export class BrowserWindowCtl {
       this.tabsEl.scrollLeft += e.deltaY || e.deltaX;
     }, { passive: false });
     this.tabsEl.addEventListener('keydown', (e) => this.onStripKey(e));
+    this.tabsEl.addEventListener('scroll', () => this.updateStripOverflow(), { passive: true });
+    new ResizeObserver(() => this.updateStripOverflow()).observe(this.tabsEl);
     this.strip.addEventListener('pointerleave', () => this.unlockTabWidths());
 
     // ---- toolbar
     const tb = (name, ic, onclick, extra = {}) => h('button', { class: ['bw-tbtn', extra.class], 'aria-label': t(name), onclick, ...extra.attrs }, icon(ic, { size: 18 }));
-    this.backBtn = tb('nav.back', 'arrow_left', () => this.goBack(), { attrs: { oncontextmenu: (e) => this.navHistoryMenu(e, -1) } });
-    this.fwdBtn = tb('nav.forward', 'arrow_right', () => this.goForward(), { attrs: { oncontextmenu: (e) => this.navHistoryMenu(e, 1) } });
+    this.backBtn = tb('nav.back', 'arrow_left', (e) => this.navClick(e, -1), { attrs: { oncontextmenu: (e) => this.navHistoryMenu(e, -1) } });
+    this.fwdBtn = tb('nav.forward', 'arrow_right', (e) => this.navClick(e, 1), { attrs: { oncontextmenu: (e) => this.navHistoryMenu(e, 1) } });
+    for (const [btn, dir] of [
+      [this.backBtn, -1],
+      [this.fwdBtn, 1],
+    ]) {
+      // Long press shows the history list, like right-click.
+      btn.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        clearTimeout(this.pressTimer);
+        this.pressTimer = setTimeout(() => {
+          this.longPressed = true;
+          this.navHistoryMenu({ preventDefault() {}, currentTarget: btn, target: btn, clientX: 0, clientY: 0, __el: btn }, dir);
+        }, 550);
+      });
+      for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, () => clearTimeout(this.pressTimer));
+    }
     this.reloadBtn = tb('nav.reload', 'arrow_clockwise', (e) => (this.active?.web.loading && this.isWeb(this.active) ? this.stop() : this.reload(e.shiftKey || e.ctrlKey)));
     this.homeBtn = tb('nav.home', 'home', () => this.goHome());
     this.omni = new Omnibox(this);
@@ -137,7 +156,10 @@ export class BrowserWindowCtl {
     win.on('focus', () => {
       this.lastFocus = Date.now();
     });
-    win.on('blur', () => this.omni.closeSuggest());
+    win.on('blur', () => {
+      this.omni.closeSuggest();
+      this.hideHoverCard();
+    });
     win.on('resize', () => {
       this.favbar.layout();
       this.flyout?.place?.();
@@ -147,7 +169,6 @@ export class BrowserWindowCtl {
       if (!on && this.fs) this.setFullscreen(null, true);
     });
     win.el.addEventListener('keydown', (e) => this.onKeyDown(e));
-    this.win.onBeforeClose(async () => true);
     win.on('close', () => this.onClose());
     this.subs.push(shared.on('downloads', () => this.updateDownloadsButton()));
     this.subs.push(this.store.on('favicons', () => this.favbar.refreshIcons()));
@@ -239,7 +260,8 @@ export class BrowserWindowCtl {
         this.closing = true;
         shared.store.save('session', 0);
       }
-    } else {
+    } else if (!shared.windows.some((w) => w.private && w.partition === this.partition)) {
+      shared.privatePartition = null;
       shared.api.invoke('browser:disposePartition', this.partition).catch(() => {});
     }
     shared.store.flush();
@@ -359,7 +381,12 @@ export class BrowserWindowCtl {
     );
     const el = h('div', { class: 'bw-tab no-drag', role: 'tab', tabindex: '-1', 'aria-selected': 'false', dataset: { tab: tab.id } }, h('div', { class: 'bw-tab-bg' }), iconBox, title, audio, close);
     tab.parts = { iconBox, title, audio, close };
-    el.addEventListener('pointerdown', (e) => this.onTabPointerDown(e, tab));
+    el.addEventListener('pointerdown', (e) => {
+      this.hideHoverCard();
+      this.onTabPointerDown(e, tab);
+    });
+    el.addEventListener('pointerenter', () => this.scheduleHoverCard(tab));
+    el.addEventListener('pointerleave', () => this.hideHoverCard());
     el.addEventListener('mousedown', (e) => {
       if (e.button === 1) e.preventDefault(); // no autoscroll
     });
@@ -397,8 +424,7 @@ export class BrowserWindowCtl {
     }
     const text = this.tabTitle(tab);
     if (title.textContent !== text) title.textContent = text;
-    tab.el.dataset.tip = text;
-    tab.el.dataset.tipPos = 'below';
+    tab.el.setAttribute('aria-label', text);
     const audible = tab.web.audible || tab.muted;
     tab.el.classList.toggle('audible', !!audible);
     if (audible) {
@@ -416,6 +442,42 @@ export class BrowserWindowCtl {
     tab.el.classList.toggle('private', this.private);
   }
 
+  // Edge-style hover card under a tab: title + site.
+  scheduleHoverCard(tab) {
+    clearTimeout(this.hoverTimer);
+    const delay = this.hoverCard?.isConnected ? 60 : 500;
+    this.hoverTimer = setTimeout(() => this.showHoverCard(tab), delay);
+  }
+  showHoverCard(tab) {
+    if (this.tabsEl.classList.contains('dragging') || !tab.el.isConnected || tab.closed) return;
+    const url = this.tabUrl(tab);
+    const host = isInternal(url) ? this.t('site.internal') : hostOf(url) || displayUrl(url);
+    if (!this.hoverCard) this.hoverCard = h('div', { class: 'bw-hovercard', role: 'tooltip' });
+    const card = this.hoverCard;
+    clear(card);
+    card.append(h('div', { class: 'bw-hc-title' }, this.tabTitle(tab)), h('div', { class: 'bw-hc-host' }, host));
+    if (tab.web.audible && this.isWeb(tab)) card.appendChild(h('div', { class: 'bw-hc-host' }, icon(tab.muted ? 'speaker_mute' : 'speaker_2', { size: 12 }), ' ', tab.muted ? this.t('tab.unmute') : this.t('tab.mute')));
+    const fresh = !card.isConnected;
+    if (fresh) this.win.el.appendChild(card);
+    const wr = this.win.el.getBoundingClientRect();
+    const r = tab.el.getBoundingClientRect();
+    const left = Math.max(4, Math.min(r.left - wr.left, wr.width - card.offsetWidth - 4));
+    card.style.left = `${Math.round(left)}px`;
+    card.style.top = `${Math.round(r.bottom - wr.top + 6)}px`;
+    if (fresh) card.classList.add('in');
+  }
+  hideHoverCard() {
+    clearTimeout(this.hoverTimer);
+    this.hoverCard?.remove();
+  }
+
+  updateStripOverflow() {
+    const c = this.tabsEl;
+    const over = c.scrollWidth > c.clientWidth + 1;
+    c.classList.toggle('ov-l', over && c.scrollLeft > 2);
+    c.classList.toggle('ov-r', over && c.scrollLeft + c.clientWidth < c.scrollWidth - 2);
+  }
+
   activate(tab, { focusOmni = false, focusPage = true } = {}) {
     if (!tab || this.closing) return;
     const prev = this.active;
@@ -424,7 +486,7 @@ export class BrowserWindowCtl {
       prev.el.setAttribute('aria-selected', 'false');
       prev.el.tabIndex = -1;
       prev.view.classList.remove('active');
-      prev.omniText = this.omni.editing ? this.omni.input.value : null;
+      prev.omniText = this.omni.editing && this.omni.dirty && this.omni.userText ? this.omni.userText : null;
     }
     this.active = tab;
     tab.lastActive = Date.now();
@@ -445,7 +507,7 @@ export class BrowserWindowCtl {
     if (this.isWeb(tab) && tab.wv && tab.ready) this.refreshZoom(tab);
     if (focusOmni || (this.entry(tab)?.route === 'newtab' && !focusPage)) this.omni.focus();
     else if (focusPage) this.focusPage(tab);
-    if (tab.omniText != null) this.omni.setEditedText(tab.omniText);
+    if (tab.omniText) this.omni.setEditedText(tab.omniText);
     if (tab.perms.length) setTimeout(() => this.showNextPermission(tab), 50);
     this.saveSession();
   }
@@ -464,6 +526,7 @@ export class BrowserWindowCtl {
   }
 
   scrollTabIntoView(tab) {
+    requestAnimationFrame(() => this.updateStripOverflow());
     const el = tab.el;
     const c = this.tabsEl;
     if (c.scrollWidth <= c.clientWidth) return;
@@ -475,6 +538,7 @@ export class BrowserWindowCtl {
 
   closeTab(tab, { byMouse = false, skipStack = false } = {}) {
     if (!tab || !this.tabs.includes(tab)) return;
+    this.hideHoverCard();
     const i = this.tabs.indexOf(tab);
     if (!skipStack && !tab.lazy) {
       const url = this.tabUrl(tab);
@@ -497,6 +561,7 @@ export class BrowserWindowCtl {
       next = sibling || (opener && this.tabs[i + 1]?.openerId !== tab.openerId ? opener : null) || this.tabs[i + 1] || this.tabs[i - 1];
     }
     this.tabs.splice(i, 1);
+    tab.closed = true;
     if (tab.find.open) this.findBar.stop(tab);
     const el = tab.el;
     el.classList.add('closing');
@@ -769,7 +834,7 @@ export class BrowserWindowCtl {
   bindWebview(tab, wv) {
     const on = (ev, fn) =>
       wv.addEventListener(ev, (e) => {
-        if (tab.wv !== wv) return;
+        if (tab.wv !== wv || tab.closed) return;
         try {
           fn(e);
         } catch (err) {
@@ -778,10 +843,15 @@ export class BrowserWindowCtl {
       });
     const isActive = () => this.active === tab;
     on('did-attach', () => {
-      tab.wcId = wv.getWebContentsId();
-      if (tab.muted) wv.setAudioMuted(true);
+      if (tab.closed || !wv.isConnected) return;
+      try {
+        tab.wcId = wv.getWebContentsId();
+      } catch {}
     });
     on('dom-ready', () => {
+      if (tab.closed) return;
+      if (tab.wcId == null) tab.wcId = wv.getWebContentsId();
+      if (!tab.ready && tab.muted) wv.setAudioMuted(true);
       tab.ready = true;
       if (isActive()) this.updateNavButtons();
     });
@@ -806,6 +876,13 @@ export class BrowserWindowCtl {
       tab.errorEl = null;
     });
     on('did-navigate', (e) => {
+      let url = e.url;
+      try {
+        // view-source: pages report the inner URL here; keep the scheme for the omnibox.
+        const cur = wv.getURL();
+        if (cur.startsWith('view-source:') && cur.endsWith(e.url)) url = cur;
+      } catch {}
+      e = { url, httpResponseCode: e.httpResponseCode };
       tab.web.url = e.url;
       tab.web.committed = true;
       tab.web.error = null;
@@ -904,7 +981,7 @@ export class BrowserWindowCtl {
   setMuted(tab, muted) {
     tab.muted = !!muted;
     try {
-      if (tab.wv && tab.wcId != null) tab.wv.setAudioMuted(tab.muted);
+      if (tab.wv && tab.ready) tab.wv.setAudioMuted(tab.muted);
     } catch {}
     this.updateTabEl(tab);
   }
@@ -1005,6 +1082,15 @@ export class BrowserWindowCtl {
     }
   }
 
+  navClick(e, dir) {
+    if (this.longPressed) {
+      this.longPressed = false;
+      return;
+    }
+    if (dir < 0) this.goBack();
+    else this.goForward();
+  }
+
   async navHistoryMenu(e, dir) {
     e.preventDefault();
     const tab = this.active;
@@ -1048,7 +1134,7 @@ export class BrowserWindowCtl {
       }
     }
     if (!items.length) return;
-    ui.menu(e, items, { class: this.menuClass() });
+    ui.menu(e.__el || e, items, { class: this.menuClass() });
   }
 
   reload(ignoreCache = false, tab = this.active) {
@@ -1111,6 +1197,10 @@ export class BrowserWindowCtl {
   }
 
   openExternal(url) {
+    // Pages can trigger these repeatedly: at most one prompt / hand-off every 2 seconds.
+    const now = Date.now();
+    if (now - (shared.lastExternal || 0) < 2000) return;
+    shared.lastExternal = now;
     if (/^mailto:/i.test(url) && shared.shell.registry?.get?.('mail')) {
       shared.shell.launch('mail', { mailto: url, compose: { mailto: url } });
       return;
@@ -1139,7 +1229,6 @@ export class BrowserWindowCtl {
   onDownloadStarted(d, tab) {
     // A tab opened just to start a download (target=_blank link to a file) is closed again.
     if (tab && tab.openedByScript && !tab.web.committed && this.tabs.length > 1) this.closeTab(tab, { skipStack: true });
-    this.win.flash?.();
     if (!this.closing) this.toggleDownloads(true);
   }
 
@@ -1495,8 +1584,9 @@ export class BrowserWindowCtl {
           this.findBar.close();
           return true;
         }
-        if (this.fs === 'user' && !passThrough) {
-          return false;
+        if (this.fs === 'user') {
+          this.setFullscreen(null);
+          return true;
         }
         if (t && this.isWeb(t) && t.web.loading && !passThrough) {
           this.stop();

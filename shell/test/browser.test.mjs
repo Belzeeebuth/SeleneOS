@@ -17,6 +17,27 @@ const results = [];
 const notes = [];
 
 // ------------------------------------------------------------------ local test server
+function wav(seconds = 2, freq = 440) {
+  const rate = 22050;
+  const n = rate * seconds;
+  const b = Buffer.alloc(44 + n * 2);
+  b.write('RIFF', 0);
+  b.writeUInt32LE(36 + n * 2, 4);
+  b.write('WAVEfmt ', 8);
+  b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(1, 20);
+  b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(rate, 24);
+  b.writeUInt32LE(rate * 2, 28);
+  b.writeUInt16LE(2, 32);
+  b.writeUInt16LE(16, 34);
+  b.write('data', 36);
+  b.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(Math.sin((2 * Math.PI * freq * i) / rate) * 6000), 44 + i * 2);
+  return b;
+}
+const TONE = wav();
+
 function startServer() {
   const favicon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" rx="3" fill="#e5533d"/><circle cx="8" cy="8" r="4" fill="#fff"/></svg>';
   const page = (title, body, head = '') =>
@@ -61,6 +82,18 @@ function startServer() {
         }
       }, 40);
       return;
+    }
+    if (url.pathname === '/tone.wav') {
+      res.writeHead(200, { 'content-type': 'audio/wav', 'content-length': TONE.length });
+      return res.end(TONE);
+    }
+    if (url.pathname === '/audio') return html(200, page('Audio page', '<audio id="a" loop controls src="/tone.wav"></audio>'));
+    if (url.pathname === '/perm') return html(200, page('Permission page', `<button id="b" onclick="Notification.requestPermission().then((r) => (document.title = 'perm:' + r))">Ask</button>`));
+    if (url.pathname === '/popups') return html(200, page('Popups page', `<button id="b" onclick="for (let i = 0; i < 5; i++) window.open('/page2?spam=' + i)">Spam</button>`));
+    if (url.pathname === '/auth') {
+      if (req.headers.authorization === `Basic ${Buffer.from('aurora:secret').toString('base64')}`) return html(200, page('Authorized', '<h1>Welcome</h1>'));
+      res.writeHead(401, { 'www-authenticate': 'Basic realm="Aurora test"', 'content-type': 'text/html' });
+      return res.end(page('Denied', 'denied'));
     }
     return html(404, page('Not found', '<h1>404</h1>'));
   });
@@ -308,8 +341,17 @@ console.log(`Local test server: ${srv.url}`);
     await waitFor('bw.active.web.title === "Aurora Test Page" && !bw.active.web.loading');
     const r = await pageJs("(() => { const b = document.getElementById('next').getBoundingClientRect(); return { x: b.left + 10, y: b.top + 8 }; })()");
     const wv = await run('(() => { const b = bw.active.wv.getBoundingClientRect(); return { x: b.left, y: b.top }; })()');
-    await s.page.mouse.click(wv.x + r.x, wv.y + r.y, { button: 'right' });
-    await s.page.waitForSelector('.menu .menu-item');
+    // The first input after a tab becomes visible can race the guest's hit-test setup: retry.
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await s.page.mouse.move(wv.x + r.x, wv.y + r.y);
+      await s.page.mouse.click(wv.x + r.x, wv.y + r.y, { button: 'right' });
+      try {
+        await s.page.waitForSelector('.menu .menu-item', { timeout: 2000 });
+        break;
+      } catch (e) {
+        if (attempt === 3) throw e;
+      }
+    }
     const labels = await s.page.$$eval('.menu .menu-item .label', (els) => els.map((e) => e.textContent));
     for (const l of ['Open link in new tab', 'Open link in Private window', 'Copy link', 'Save link as…', 'View page source']) assert(labels.includes(l), `menu has ${l} (${labels})`);
     const n = await run('bw.tabs.length');
@@ -357,9 +399,11 @@ console.log(`Local test server: ${srv.url}`);
     await waitFor(`bw.store.findBookmark('${srv.url}/').title === 'My test page'`, { msg: 'renamed' });
     await waitFor('[...document.querySelectorAll(".app-browser .bw-favbar .bw-fav-label")].some((x) => x.textContent === "My test page")', { msg: 'shown in favorites bar' });
     // remove via the flyout
+    await waitFor('!document.querySelector(".app-browser .bw-flyout")', { msg: 'previous flyout gone' });
     await s.page.click('.app-browser .bw-star');
-    await s.page.waitForSelector('.app-browser .bw-fav-pop');
-    await s.page.locator('.app-browser .bw-fav-pop .btn', { hasText: 'Remove' }).click();
+    await s.page.waitForSelector('.app-browser .bw-flyout:not(.leaving) .bw-fav-pop');
+    assert(await run('document.querySelector(".app-browser .bw-fav-pop .bw-pop-title").textContent === "Edit favorite"'), 'edit mode for an existing favorite');
+    await s.page.locator('.app-browser .bw-flyout:not(.leaving) .bw-fav-pop .btn', { hasText: 'Remove' }).click();
     await waitFor(`!bw.store.findBookmark('${srv.url}/') && !bw.omni.starBtn.classList.contains('on')`, { msg: 'removed' });
     assert(await run('![...document.querySelectorAll(".app-browser .bw-favbar .bw-fav-label")].some((x) => x.textContent === "My test page")'), 'gone from bar');
   });
@@ -476,8 +520,7 @@ console.log(`Local test server: ${srv.url}`);
     await waitFor('bw.homeBtn.hidden');
     await run('bw.store.setPref("homeButton", true)');
     await waitFor('!bw.homeBtn.hidden');
-    const stored = await run('bw.ctx.storage.get("prefs")');
-    assert(stored && stored.engine === 'duckduckgo', 'prefs persisted');
+    await waitFor('bw.ctx.storage.get("prefs").then((p) => p && p.engine === "duckduckgo" && p.homeButton === true)', { msg: 'prefs persisted' });
   });
 
   await test('clear browsing data dialog clears history', async () => {
@@ -507,6 +550,98 @@ console.log(`Local test server: ${srv.url}`);
     await s.page.waitForTimeout(1200);
     const sess = await run('bw.ctx.storage.get("session")');
     assert(sess?.windows?.[0]?.tabs?.length === (await run('bw.tabs.length')), 'session has every tab');
+  });
+
+  await test('omnibox suggestions: inline completion, arrow keys, search row, Esc restores the URL', async () => {
+    await run(`bw.navigate(bw.active, '${srv.url}/page2')`);
+    await waitFor('bw.active.web.title === "Second Page" && !bw.active.web.loading');
+    await s.page.click('.app-browser .bw-omni-input');
+    await s.page.keyboard.type('127.0');
+    await waitFor('!bw.omni.suggestEl.hidden && bw.omni.items.length >= 2', { msg: 'suggestions' });
+    const r = await run(`({ value: bw.omni.input.value, sel: bw.omni.input.value.slice(bw.omni.input.selectionStart, bw.omni.input.selectionEnd), kinds: bw.omni.items.map((i) => i.kind), last: bw.omni.items[bw.omni.items.length - 1].url })`);
+    assert(r.value.startsWith('127.0') && r.value.length > 5 && r.sel === r.value.slice(5), `inline completion selected (${r.value} / ${r.sel})`);
+    assert(r.kinds.includes('history'), `history suggestions (${r.kinds})`);
+    assert(r.last.startsWith('https://duckduckgo.com/?q=127.0'), `search row last (${r.last})`);
+    await s.page.keyboard.press('ArrowDown');
+    assert(await run('bw.omni.sel === 1 && bw.omni.input.value.includes("127.0.0.1")'), 'arrow selects next suggestion');
+    await s.page.keyboard.press('Escape'); // back to the first suggestion
+    await s.page.keyboard.press('Escape'); // close + restore URL
+    await waitFor(`bw.omni.suggestEl.hidden && bw.omni.input.value === '${srv.url}/page2'`, { msg: 'Esc restores URL' });
+    await s.page.keyboard.press('Escape'); // focus returns to the page
+    await waitFor('!bw.omni.editing');
+    // Text typed but not submitted stays with its tab.
+    await s.page.click('.app-browser .bw-omni-input');
+    await s.page.keyboard.type('draft words');
+    const a = await run('bw.active.id');
+    await run('bw.newTab({ url: "aurora://about" })');
+    await waitFor('bw.omni.input.value === "aurora://about"', { msg: 'other tab shows its URL' });
+    await run(`bw.activate(bw.tabs.find((t) => t.id === '${a}'))`);
+    await waitFor('bw.omni.input.value === "draft words"', { msg: 'typed text restored' });
+    await run(`bw.closeTab(bw.tabs.find((t) => bw.tabUrl(t) === 'aurora://about'))`);
+    await run('bw.omni.reset(); bw.omni.sync(bw.active)');
+  });
+
+  await test('audio indicator on the playing tab, click to mute', async () => {
+    await run(`bw.navigate(bw.active, '${srv.url}/audio')`);
+    await waitFor('bw.active.web.title === "Audio page" && !bw.active.web.loading');
+    const played = await pageJs("document.getElementById('a').play().then(() => 'ok', (e) => e.message)");
+    assert(played === 'ok', `audio plays (${played})`);
+    await waitFor('bw.active.el.classList.contains("audible")', { msg: 'audible tab' });
+    await s.page.click('.app-browser .bw-tab.active .bw-tab-audio');
+    await waitFor('bw.active.muted && bw.active.wv.isAudioMuted()', { msg: 'muted' });
+    await s.page.click('.app-browser .bw-tab.active .bw-tab-audio');
+    await waitFor('!bw.active.muted && !bw.active.wv.isAudioMuted()', { msg: 'unmuted' });
+    await pageJs("document.getElementById('a').pause()");
+    await waitFor('!bw.active.el.classList.contains("audible")', { timeout: 6000, msg: 'indicator goes away' });
+  });
+
+  await test('HTML5 media codecs (H.264/AAC, VP9/Opus, MP3) are supported', async () => {
+    const c = await pageJs(`[document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E, mp4a.40.2"'), MediaSource.isTypeSupported('video/mp4; codecs="avc1.4d401f"'), document.createElement('video').canPlayType('video/webm; codecs="vp9, opus"'), document.createElement('audio').canPlayType('audio/mpeg')]`);
+    assert(c[0] === 'probably' && c[1] === true && c[2] === 'probably' && c[3] === 'probably', JSON.stringify(c));
+  });
+
+  await test('permission request bubble (notifications): Allow is remembered for the site', async () => {
+    await run(`bw.navigate(bw.active, '${srv.url}/perm')`);
+    await waitFor('bw.active.web.title === "Permission page" && !bw.active.web.loading');
+    await pageJs("document.getElementById('b').click()");
+    await s.page.waitForSelector('.app-browser .bw-perm-pop');
+    const text = await s.page.textContent('.app-browser .bw-perm-pop');
+    assert(/127\.0\.0\.1 wants to/.test(text) && /Show notifications/.test(text), text);
+    await s.page.locator('.app-browser .bw-perm-pop .btn', { hasText: 'Allow' }).click();
+    await waitFor('bw.active.web.title === "perm:granted"', { msg: 'granted' });
+    const perms = await run('bw.ctx.api.invoke("browser:sitePermissions")');
+    assert(perms[srv.url]?.notifications === 'allow', JSON.stringify(perms));
+    await run(`bw.ctx.api.invoke('browser:resetSitePermissions', '${srv.url}')`);
+  });
+
+  await test('pop-up flood is limited and the blocked pop-ups chip appears', async () => {
+    await run(`bw.navigate(bw.active, '${srv.url}/popups')`);
+    await waitFor('bw.active.web.title === "Popups page" && !bw.active.web.loading');
+    const src = await run('bw.active.id');
+    const n = await run('bw.tabs.length');
+    await pageJs("document.getElementById('b').click()");
+    await waitFor(`bw.tabs.length === ${n + 3}`, { msg: '3 pop-ups opened' });
+    await s.page.waitForTimeout(500);
+    assert((await run('bw.tabs.length')) === n + 3, 'only 3 opened');
+    await run(`bw.activate(bw.tabs.find((t) => t.id === '${src}'))`);
+    await waitFor('!bw.omni.popupBtn.hidden && bw.active.blockedPopups.length === 2', { msg: 'blocked chip' });
+    await run(`bw.closeOtherTabs(bw.tabs.find((t) => t.id === '${src}'))`);
+  });
+
+  await test('HTTP authentication dialog', async () => {
+    await run(`bw.navigate(bw.active, '${srv.url}/auth')`);
+    await s.page.waitForSelector('.dialog input[autocomplete="username"]');
+    await s.page.fill('.dialog input[autocomplete="username"]', 'aurora');
+    await s.page.fill('.dialog input[type="password"]', 'secret');
+    await s.page.locator('.dialog .btn.primary').click();
+    await waitFor('bw.active.web.title === "Authorized"', { msg: 'authorized' });
+  });
+
+  await test('view page source opens a view-source: tab (Ctrl+U)', async () => {
+    const n = await run('bw.tabs.length');
+    await guestKey('U', ['control']);
+    await waitFor(`bw.tabs.length === ${n + 1} && bw.active.web.url.startsWith('view-source:')`, { msg: 'view-source tab' });
+    await run('bw.closeTab(bw.active)');
   });
 
   await test('no renderer errors', async () => {
@@ -636,6 +771,44 @@ console.log(`Local test server: ${srv.url}`);
     await s.page.waitForTimeout(400);
     await s.shot('browser-maximized-fr-dark');
     assert(await run('bw.win.isMaximized()'), 'maximized');
+  });
+
+  await test('user agent looks like Chrome (no Electron / app tokens)', async () => {
+    const ua = await run(`bw.active.wv ? bw.active.wv.executeJavaScript('navigator.userAgent') : bw.ctx.api.invoke('browser:info').then((i) => i.ua)`);
+    assert(/Chrome\/\d+\.0\.0\.0 Safari\/537\.36$/.test(ua) && !/Electron|aurora/i.test(ua), ua);
+  });
+
+  await test('certificate errors show the "connection isn\'t private" page (no trusted CA in this profile)', async () => {
+    await run(`bw.navigate(bw.active, 'https://ubuntu.com/')`);
+    let r = null;
+    try {
+      r = await waitFor('bw.active.web.error && { cert: bw.active.web.error.cert, name: bw.active.web.error.name }', { timeout: 30000 });
+    } catch {}
+    if (!r) {
+      notes.push('cert-error check skipped: no error and no page (network?)');
+      return;
+    }
+    if (!r.cert) {
+      notes.push(`cert-error check: got ${r.name} instead of a certificate error (network blocked?)`);
+      return;
+    }
+    const title = await run('bw.active.errorEl.querySelector(".bp-err-title").textContent');
+    assert(title === "Votre connexion n'est pas privée", title);
+    const st = await run('({ btn: bw.active.errorEl.querySelector(".btn.primary").textContent, chip: bw.omni.siteBtn.className, editing: bw.omni.editing, dirty: bw.omni.dirty, sec: bw.omni.security(bw.active) })');
+    assert(st.btn === 'Revenir en arrière', `Go back button (${st.btn})`);
+    assert(/danger/.test(st.chip), `danger chip (${JSON.stringify(st)})`);
+    await s.page.waitForTimeout(400);
+    await s.shot('browser-cert-error-fr-dark');
+    await run('bw.navigate(bw.active, "aurora://favorites")');
+  });
+
+  await test('switching the language live updates the browser UI', async () => {
+    await run('bw.navigate(bw.active, "aurora://favorites")');
+    await run('window.__aurora.settings.set("lang", "en")');
+    await waitFor('bw.backBtn.getAttribute("aria-label") === "Back" && bw.tabTitle(bw.active) !== "Favoris"', { msg: 'English labels' });
+    assert(await run('document.querySelector(".app-browser .bw-view.active .bp-title").textContent === "Favorites"'), 'page re-rendered in English');
+    await run('window.__aurora.settings.set("lang", "fr")');
+    await waitFor('bw.backBtn.getAttribute("aria-label") === "Précédent"', { msg: 'French again' });
   });
 
   await test('no renderer errors (session 3)', async () => {

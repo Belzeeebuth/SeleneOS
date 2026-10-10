@@ -119,7 +119,9 @@ function renderNotifs() {
       ),
     );
   }
+  const prevScroll = notifCard.querySelector('.nc-list')?.scrollTop || 0;
   notifCard.replaceChildren(head, list);
+  list.scrollTop = prevScroll;
 }
 
 function notifItem(n) {

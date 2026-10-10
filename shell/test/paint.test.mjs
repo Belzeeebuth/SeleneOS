@@ -44,6 +44,7 @@ async function client(s, x, y, sel) {
   return P(s, (p, el, a) => p.clientPoint(a[0], a[1]), [x, y], sel);
 }
 async function drag(s, pts, { button = 'left', steps = 10, sel, shift = false } = {}) {
+  await P(s, (p, el, a) => p.reveal(a), pts, sel);
   const cps = [];
   for (const [x, y] of pts) cps.push(await client(s, x, y, sel));
   const m = s.page.mouse;
@@ -56,6 +57,7 @@ async function drag(s, pts, { button = 'left', steps = 10, sel, shift = false } 
   await wait(s, 60);
 }
 async function click(s, x, y, opts = {}) {
+  await P(s, (p, el, a) => p.reveal(a), [[x, y]], opts.sel);
   const c = await client(s, x, y, opts.sel);
   await s.page.mouse.click(c.x, c.y, { button: opts.button || 'left', clickCount: opts.clickCount || 1 });
   await wait(s, 60);
@@ -660,6 +662,8 @@ await test('demo drawing + screenshots (light, en)', async () => {
   await s.aurora(() => window.__aurora.registry.launch('paint'));
   await s.page.waitForSelector(`${WIN} .pt-doc`);
   await wait(s, 500);
+  await P(s, (p, el) => window.__aurora.wm.get(el.dataset.id).maximize());
+  await wait(s, 500);
   await demo(s);
   await wait(s, 300);
   await s.shot('paint-light-en');
@@ -728,6 +732,8 @@ await test('French UI strings and dark theme', async () => {
   assert.equal(info.text, 'rgb(255, 255, 255)');
 });
 await test('demo drawing + screenshots (dark, fr) and dialogs in French', async () => {
+  await P(f, (p, el) => window.__aurora.wm.get(el.dataset.id).maximize());
+  await wait(f, 500);
   await demo(f);
   await wait(f, 300);
   await f.shot('paint-dark-fr');
@@ -758,8 +764,8 @@ await f.close();
 // ------------------------------------------------------------------ demo drawing
 async function demo(sx) {
   const set = (fn, a) => P(sx, fn, a);
-  await set((p) => p.setZoom(1));
-  await wait(sx, 100);
+  await set((p) => p.app.cmd('zoomFit'));
+  await wait(sx, 150);
   // sky: fill with light blue, ground: crayon green strokes
   await set((p) => p.app.setColor('primary', '#99d9ea'));
   await tool(sx, 'fill');

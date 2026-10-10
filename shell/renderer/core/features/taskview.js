@@ -145,6 +145,12 @@ function deskThumb(id) {
 
 function renderStrip() {
   if (!tv) return;
+  // Never rebuild under an open rename box (a hover preview or a window event would destroy it).
+  if (tv.strip.querySelector('.tv-rename')) {
+    tv.stripDirty = true;
+    return;
+  }
+  tv.stripDirty = false;
   const desks = wm.desktops.map((d, i) => {
     const current = d.id === wm.currentDesktop;
     const name = h('span', { class: 'tv-desk-name ellipsis' }, wm.desktopName(d.id));
@@ -222,8 +228,9 @@ function renameInline(id, nameEl) {
   const finish = (commit) => {
     if (done) return;
     done = true;
+    input.remove();
     if (commit) wm.renameDesktop(id, input.value);
-    else renderStrip();
+    if (tv && (!commit || tv.stripDirty)) renderStrip();
     tv?.root.focus({ preventScroll: true });
   };
   input.addEventListener('keydown', (e) => {

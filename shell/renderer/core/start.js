@@ -821,6 +821,7 @@ function renderPinnedGrid(gridWrap, dots, animate) {
         {
           class: 'start-tile',
           role: 'listitem',
+          draggable: 'true',
           style: { '--i': String(i) },
           dataset: { app: id },
           onclick: () => launch(id),
@@ -832,12 +833,64 @@ function renderPinnedGrid(gridWrap, dots, animate) {
     );
   });
   if (!ids.length) grid.appendChild(h('div', { class: 'start-empty caption text-2' }, t('start.emptyPinned')));
+  enableReorder(grid, page * per);
   gridWrap.appendChild(grid);
   clear(dots);
   dots.hidden = pages < 2;
   for (let p = 0; p < pages; p++) {
     dots.appendChild(h('button', { class: ['start-dot', p === page && 'on'], 'aria-label': t('start.pageN', { n: p + 1 }), onclick: () => gotoPage(p, gridWrap, dots) }));
   }
+}
+
+// Drag a pinned tile to reorder it (the others glide out of the way); drop it on the taskbar to pin it there.
+const APP_MIME = 'application/x-aurora-app';
+function enableReorder(grid, offset) {
+  let dragged = null;
+  grid.addEventListener('dragstart', (e) => {
+    const tile = e.target.closest?.('.start-tile');
+    if (!tile) return;
+    dragged = tile;
+    e.dataTransfer.effectAllowed = 'copyMove';
+    e.dataTransfer.setData(APP_MIME, tile.dataset.app);
+    e.dataTransfer.setData('text/plain', registry.name(tile.dataset.app));
+    try {
+      e.dataTransfer.setDragImage(tile.querySelector('img'), 16, 16);
+    } catch {}
+    setTimeout(() => tile.classList.add('dragging'), 0);
+  });
+  grid.addEventListener('dragover', (e) => {
+    if (!dragged) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const over = e.target.closest?.('.start-tile');
+    if (!over || over === dragged) return;
+    const tiles = [...grid.querySelectorAll('.start-tile')];
+    const before = new Map(tiles.map((x) => [x, x.getBoundingClientRect()]));
+    const after = tiles.indexOf(over) > tiles.indexOf(dragged);
+    grid.insertBefore(dragged, after ? over.nextSibling : over);
+    if (reduceMotion()) return;
+    for (const [x, r] of before) {
+      if (x === dragged) continue;
+      const n = x.getBoundingClientRect();
+      const dx = r.left - n.left;
+      const dy = r.top - n.top;
+      if (dx || dy) x.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(0.1,0.9,0.2,1)' });
+    }
+  });
+  const finish = () => {
+    if (!dragged) return;
+    dragged.classList.remove('dragging');
+    dragged = null;
+    const pageIds = [...grid.querySelectorAll('.start-tile')].map((x) => x.dataset.app);
+    const all = pinnedIds();
+    const next = [...all.slice(0, offset), ...pageIds, ...all.slice(offset + pageIds.length)];
+    if (next.join() !== all.join()) settings.set('startPinned', [...next, ...(settings.get('startPinned') || []).filter((id) => !next.includes(id))]);
+  };
+  grid.addEventListener('drop', (e) => {
+    if (dragged) e.preventDefault();
+    finish();
+  });
+  grid.addEventListener('dragend', finish);
 }
 
 function gotoPage(p, gridWrap, dots) {
