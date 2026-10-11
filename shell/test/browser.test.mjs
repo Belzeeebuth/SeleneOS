@@ -1081,7 +1081,8 @@ console.log(`Local test server: ${srv.url}`);
     }
     await s.page.waitForTimeout(400);
     const after = await counts();
-    assert(after.app === before.app && after.wm <= before.wm && after.dom === 1, `relaunches released everything (${JSON.stringify(before)} -> ${JSON.stringify(after)})`);
+    // Relative to the start: a flyout or suggestion list left by an earlier test may already be in the DOM.
+    assert(after.app === before.app && after.wm <= before.wm && after.dom >= 1 && after.dom <= Math.max(1, before.dom), `relaunches released everything (${JSON.stringify(before)} -> ${JSON.stringify(after)})`);
   });
 
   await test('no renderer errors', async () => {
