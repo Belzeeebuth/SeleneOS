@@ -233,7 +233,32 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 
 The shell smoke test passes on f0cc7af. Workflows were resumed at 07:10 UTC (resumeFromRunId, cached successes reused).
 
-## Running workflows (resumed 2026-10-11 ~01:00 UTC)
+## Speed-up restructure (2026-10-11 ~08:00 UTC, user asked to cut the 4-5 h estimate)
+
+Cause of the slowness: 4 CPUs, so each workflow runs only 2 agents at a time, and personalization ran
+verify:wallpapers then a long integration agent one after the other (plus a redundant B2 re-check).
+
+- `aurora-personalization-finish` was **stopped**. Kept: finish:wallpapers report and the first B2 verify
+  report (saved in the session scratchpad `handoff/`). Its file edits are all on disk.
+- Replaced by `aurora-personalization-final` (`.claude/wf-scripts/aurora-personalization-final.js`), 2 agents in parallel:
+  - **W**: verify wallpapers + theme designer / 5 styles / typography / per-app themes / profiles; theme.js last-window leak.
+  - **S**: finish B3 (packs, shortcuts, snap presets) + re-confirm B2 + combination stress + core/ui.css fixes
+    (`.btn.danger` contrast, menu ellipsis, `.select:focus` arrow, animations-off iteration count).
+- New `aurora-integration-todo` (2 agents, files nobody else owns):
+  - **T1**: trusted drag paths in Files/Notepad/Mail/Media, ENOTADMIN in Task Manager + installer, `/var/lib/aurora/faces` tmpfiles.
+  - **T2**: DEVELOPING.md API table, README (phase-1 apps + Personalization section), browser omnibox check, app icons.
+- Still running unchanged: `aurora-apps-phase1-a` (verify pdf, archive, then notes) and `aurora-apps-phase1-b` (verify calendar, todo).
+- Agents are told: no full regression sweep (the coordinator runs it once at the end), time box ~60-75 min.
+- ISO package layer pre-built (`./iso/build.sh --until packages`, up to date at 07:57 UTC); the final build only needs `--from system`.
+- New `make test-all` (`shell/test/run-all.mjs -j N --retry`) runs every suite with a summary.
+
+**Final pass when all four workflows are done:**
+1. Commit. Then `cd shell && node test/run-all.mjs -j 3 --retry`; fix real failures (agents per failing area).
+2. Notes and PDF also read `application/x-aurora-paths` without `trustedDragPaths` (their verifiers own them now): switch them.
+3. `./iso/build.sh --from system` (re-run `--until packages` first if iso/packages.d changed), then `make verify-iso` and `make smoke-image`. Never QEMU.
+4. Update PHASEAPP.md (phase 1 done), README, this file; commit and push.
+
+## Running workflows (resumed 2026-10-11 ~01:00 UTC; see the restructure above for the current list)
 
 - `aurora-apps-phase1-a`: notes build (continuing the partial files) and verification of photos, pdf and notes.
 - `aurora-apps-phase1-b`: verification of calendar and todo.

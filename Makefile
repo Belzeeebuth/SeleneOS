@@ -10,6 +10,7 @@
 #   make smoke-image    run the built image's Electron shell + greeter under Xvfb (no VM; root)
 #   make shell-deps     npm ci in shell/ (Electron + test tooling for development)
 #   make test           shell smoke test under Xvfb
+#   make test-all       every shell test suite (TEST_ARGS="-j 3 --retry --only=files,mail")
 #   make docker-iso     build the ISO inside a privileged ubuntu:24.04 container (iso/Dockerfile)
 #   make clean          remove the build tree in work/ (chroot layers, ISO tree); keeps cache/, out/
 #                       and the VM disk/state in work/qemu/
@@ -61,7 +62,7 @@ QEMU_ENV := MEM='$(MEM)' CPUS='$(CPUS)' DISK='$(DISK)' DISK_SIZE='$(DISK_SIZE)' 
 QEMU_FLAGS := $(if $(filter 1,$(HEADLESS)),--headless) $(if $(filter 1,$(DRY_RUN)),--dry-run)
 QEMU_RUN := $(QEMU_ENV) $(ROOT)/tools/qemu-run.sh
 
-.PHONY: help iso run run-uefi run-disk run-disk-uefi verify-iso smoke-image shell-deps test docker-iso clean clean-vm distclean
+.PHONY: help iso run run-uefi run-disk run-disk-uefi verify-iso smoke-image shell-deps test test-all docker-iso clean clean-vm distclean
 
 help:
 	@sed -n '1,/^$$/p' $(firstword $(MAKEFILE_LIST)) | sed 's/^# \{0,1\}//'
@@ -93,6 +94,10 @@ shell-deps:
 test:
 	@test -d $(ROOT)/shell/node_modules/electron || { echo "run 'make shell-deps' first"; exit 1; }
 	cd $(ROOT)/shell && PATH="$(NODE_BIN):$$PATH" xvfb-run -a -s "-screen 0 1600x900x24" node test/smoke.mjs
+
+test-all:
+	@test -d $(ROOT)/shell/node_modules/electron || { echo "run 'make shell-deps' first"; exit 1; }
+	cd $(ROOT)/shell && PATH="$(NODE_BIN):$$PATH" node test/run-all.mjs $(TEST_ARGS)
 
 docker-iso:
 	$(DOCKER) build --network host -t $(DOCKER_IMAGE) -f $(ROOT)/iso/Dockerfile \
