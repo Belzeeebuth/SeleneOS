@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-11 10:00 UTC — app phase 1 and UI/UX personalization done; full test sweep green (34 suites), ISO rebuilt and checked._
+_Last updated: 2026-10-11 14:00 UTC — boot fixed in QEMU (black screen after the splash): live desktop verified by the agent under TCG; verify-iso 118/118, smoke-image passes._
 
 ## What this is
 
@@ -29,7 +29,7 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 |---|---|
 | 1. Questions | done |
 | 2. Architecture | done (docs/DEVELOPING.md) |
-| 3. Core ISO + desktop | done — ISO ≈ 807 MB, `make verify-iso` 114/114, `make smoke-image` passes; QEMU boot left to the user |
+| 3. Core ISO + desktop | done — ISO ≈ 806 MB, `make verify-iso` 118/118, `make smoke-image` passes; live desktop boots in QEMU (checked headless under TCG, 2026-10-11) |
 | 4. Required apps | done — browser, files, mail, paint, calculator, notepad, terminal, media, snipping, taskmgr, settings, 5 games |
 | 5. Installer + QEMU instructions | done — installer app + aurora-install helper; docs/BUILDING.md (EN + FR) |
 | UI/UX personalization (user request #2) | **done** — see docs/PERSONALIZATION.md |
@@ -110,6 +110,8 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
   - virtio-vga without virgl was taken for a 3D GPU (the card's device is the PCI function, driver `virtio-pci`), so
     Electron's GPU process crashed (exit 133). `aurora_gpu_mode` now reads the `virtioN` child's feature bits, and
     aurora-xsession retries the shell with `AURORA_GPU=off` after a crash with the GPU on.
+  - Under TCG, QEMU's emulated AVX2 gather (`vpgatherdd`) faults on masked-off lanes and Skia's software renderer
+    crashed the GPU process ("GPU process isn't usable"). qemu-run.sh uses `-cpu max,avx2=off` for TCG (KVM: `-cpu host`).
   - GRUB theme: PNGs must be 8-bit RGB/RGBA (GRUB drew rainbow rings otherwise) and theme fonts must match the .pf2
     names; verify-iso checks both.
 - The user builds on an Arch-like host with fish (heredocs fail; use `bash` first) and `sudo make docker-iso`.
