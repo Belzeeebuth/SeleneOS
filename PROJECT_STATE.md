@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-11 14:00 UTC — boot fixed in QEMU (black screen after the splash): live desktop verified by the agent under TCG; verify-iso 118/118, smoke-image passes._
+_Last updated: 2026-10-11 17:45 UTC — app phases 3 and 4 done (12 apps), renamed to Selene OS (new crescent-moon logo), ISO selene-os-1.0.0-amd64.iso rebuilt: verify-iso 0 failures, smoke-image passes._
 
 ## What this is
 
@@ -35,7 +35,9 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 | 5. Installer + QEMU instructions | done — installer app + aurora-install helper; docs/BUILDING.md (EN + FR) |
 | UI/UX personalization (user request #2) | **done** — see docs/PERSONALIZATION.md |
 | App phase 1 (PHASEAPP.md) | **done** — photos, calendar, clock, notes, todo, pdf, archive |
-| App phases 2–4 | not started — wait for the user's go (see "Next steps") |
+| App phase 3 (PHASEAPP.md) | **done** — store, disks, backup, passwords, cloud (light), nettools (light) |
+| App phase 4 (PHASEAPP.md) | **done** — weather, maps, contacts, sticky, translate, remote (VNC) |
+| App phase 2 | not started — wait for the user's go; run it like phases 3–4 (one workflow per app, all in parallel) |
 
 ### App / area status (every area has its own test suite in shell/test/)
 
@@ -132,19 +134,15 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 
 ## Next steps (exact)
 
-User decision (2026-10-11 ~15:30 UTC): build app **Phase 4** now, then **Phase 3**, lean (the user does not want
-it to take ~5 h: few tests and screenshots, time-boxed agents). In Phase 3, **Cloud Drive and VPN are heavily
-simplified** (to be improved later). Phase 2 stays for later.
-
-1. Phase 4 (running): weather, maps, contacts, sticky, translate, remote (VNC only). **One workflow per app, all 6 in
-   parallel** (a single workflow only runs 2 agents on this 4-CPU machine; agents mostly write code, so 6 at once is
-   fine): builder + 8-min checker per app, one suite `shell/test/<id>.test.mjs` each, max 2 screenshots. ~40–50 min.
-   The user approved this mode and wants it for Phase 2 too. Scripts: scratchpad phase4.js / phase3.js (args = [id]).
-2. Then: targeted regressions (new suites + mail, wallpapers, smoke), docs (DEVELOPING.md app list, PHASEAPP.md), commit.
-3. Phase 3 the same way, running at the same time as phase 4 (12 workflows, one per app): store (curated APT via aurora-admin), disks (udisks/lsblk; format only removable drives),
-   backup (rsync to a folder/drive), passwords (WebCrypto vault), cloud (light: WebDAV/Nextcloud browse/up/download
-   only), nettools (light: VPN list/connect/import WireGuard via nmcli + ping/DNS lookup).
-4. Rebuild the ISO (`--from system` unless packages changed), verify-iso, smoke-image, push; user tests in QEMU.
+1. Wait for the user's QEMU feedback on the Selene OS ISO (phases 3 + 4 apps, rename, new logo).
+2. Open questions from the user: Snake arrow keys reported as not working (works in the agent's VM with real
+   key events: likely host/QEMU keyboard side; asked the user whether Space works and whether arrows work elsewhere).
+3. App **Phase 2** when the user asks: same mode as phases 3–4 (one workflow per app, all 6 in parallel, builder +
+   8-min checker, lean tests, max 2 screenshots), ~45 min.
+4. Known follow-ups (small): Sticky Notes does not tell the user when it restored notes from a backup; Cloud real
+   client ignores back-pressure and shows 100 % for chunked downloads; Remote Desktop scaled canvas is blurry
+   (image-rendering); Translator MyMemory limit is bytes not characters; weather:current still makes a real request
+   in dev (wallpapers test expects it).
 
 ## Personalization request (verbatim, user request #2)
 
