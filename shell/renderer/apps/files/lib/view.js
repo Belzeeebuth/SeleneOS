@@ -537,7 +537,7 @@ export class ContentView {
         sec.classList.toggle('collapsed', this.collapsed.has(id));
         head.setAttribute('aria-expanded', String(!this.collapsed.has(id)));
       },
-    }, icon('chevron_down', { size: 12 }), h('span', null, title), count != null ? h('span', { class: 'cnt' }, `(${count})`) : null);
+    }, h('span', null, title), count != null ? h('span', { class: 'cnt' }, `(${count})`) : null, icon('chevron_down', { size: 12 }));
     sec.append(head, h('div', { class: ['fx-sec-body', opts.cls] }, content));
     return sec;
   }
@@ -554,12 +554,11 @@ export class ContentView {
       const where = e.missing ? t('home.missing') : T.knownFolder(e.path) && T.knownFolder(e.path) !== 'home' ? t('home.storedLocally') : T.dirname(e.path);
       it.el = h('div', { class: ['fx-item', 'fx-qtile', e.missing && 'missing'], id: it.id, role: 'option', draggable: 'true', dataset: { key: it.key }, title: e.path },
         this.iconNode(e, 40, { thumbs: false }),
-        h('div', { class: 'fx-meta' }, h('span', { class: 'fx-name' }, e.name), h('span', { class: 'fx-sub' }, where)),
-        h('span', { class: 'fx-pin', 'aria-label': t('menu.pinned') }, this.ex.icon('pin', { size: 12 })));
+        h('div', { class: 'fx-meta' }, h('span', { class: 'fx-name' }, e.name), h('span', { class: 'fx-sub' }, where)));
       grid.append(it.el);
     }
     if (!d.quick.length) grid.append(h('div', { class: 'fx-empty-inline' }, t('home.noPins')));
-    wrap.append(this.section('quick', t('home.quickAccess'), null, grid));
+    wrap.append(this.section('quick', t('home.places'), null, grid));
     if (shared.prefs.showFavorites) wrap.append(this.section('fav', t('home.favorites'), null, this.homeTable(d.favorites, 'f', t('home.noFavorites'))));
     if (shared.prefs.showRecent) wrap.append(this.section('recent', t('home.recent'), null, this.homeTable(d.recent, 'r', t('home.noRecent'))));
     this.inner.append(wrap);

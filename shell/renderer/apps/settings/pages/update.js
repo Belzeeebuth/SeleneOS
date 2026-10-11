@@ -1,4 +1,4 @@
-// Settings > Selene Update: check (apt-get update + simulation), install (apt-get upgrade with live
+// Settings > Updates (Mises à jour): check (apt-get update + simulation), install (apt-get upgrade with live
 // progress from APT's status fd), update history (/var/log/apt/history.log).
 import { parseAptSimulation, parseAptStatus, parseAptHistory } from '../lib/parse.js';
 
@@ -128,8 +128,8 @@ async function update(pc) {
     const art = h(
       'div',
       { class: ['st-upd-icon', busy && 'spinning'], 'aria-hidden': 'true' },
-      icon('arrow_sync', { size: 60 }),
-      badge ? h('span', { class: ['st-upd-badge', badge] }, icon(badge === 'ok' ? 'checkmark_circle' : 'arrow_circle_down', { size: 24, filled: true })) : null,
+      icon('arrow_sync', { size: 26 }),
+      badge ? h('span', { class: ['st-upd-badge', badge] }, icon(badge === 'ok' ? 'checkmark_circle' : 'arrow_circle_down', { size: 18, filled: true })) : null,
     );
     const actions = [];
     if (state.reboot && !busy) actions.push(kit.button(t('update.restartNow'), () => pc.shell.reboot().catch(pc.toastError), { primary: true, icon: 'arrow_clockwise' }));

@@ -372,7 +372,9 @@ async function lightEnglish() {
   try {
     await s.page.waitForSelector(S('.st-page[data-page="system"]'), { timeout: 20000 });
     await sleep(700);
-    check((await s.page.locator(S('.st-nav-item')).count()) === 10, 'nav has the 10 categories');
+    check((await s.page.locator(S('.st-nav-item')).count()) === 13, 'nav has the 12 categories and the account row');
+    check(eq(await s.aurora(() => [...document.querySelectorAll('.app-settings .st-nav-heading')].map((e) => e.textContent)), ['Appearance', 'Connections', 'System']), 'nav categories are grouped under Appearance, Connections and System');
+    check(await s.aurora(() => { const p = document.querySelector('.app-settings .st-pane'); const u = p.querySelector('.st-user'); const q = p.querySelector('.st-search'); return !!u && u.dataset.cat === 'accounts' && q.getBoundingClientRect().top < p.querySelector('.st-nav').getBoundingClientRect().top && u.getBoundingClientRect().top > p.querySelector('.st-nav').getBoundingClientRect().bottom - 1; }), 'search on top of the pane, the account row at the bottom');
     check((await s.page.locator(S('.st-title')).innerText()).trim() === 'System', 'opens on System');
     check(await s.page.locator('.app-settings .st-tb-back').isDisabled(), 'back button disabled on the first page');
     await docShot(s, 'system-light-en');
@@ -382,7 +384,7 @@ async function lightEnglish() {
     await s.page.waitForSelector(S('.st-page[data-page="network"]'));
     await s.page.locator(S('.st-row'), { hasText: 'Advanced network settings' }).first().click();
     await s.page.waitForSelector(S('.st-page[data-page="advancedNetwork"]'));
-    check((await s.page.locator(S('.st-title')).innerText()).replace(/\s+/g, ' ').includes('Network & internet Advanced network settings'), 'breadcrumb shows the parent page');
+    check((await s.page.locator(S('.st-title')).innerText()).trim() === 'Advanced network settings' && (await s.page.locator(S('.st-crumbs button.st-crumb')).innerText()).trim() === 'Network', 'the parent page is a link above the page title');
     check((await s.page.locator(S('.st-nav-item.selected')).getAttribute('data-cat')) === 'network', 'nav keeps the category selected on sub pages');
     await s.page.locator('.app-settings .st-tb-back').click();
     await s.page.waitForSelector(S('.st-page[data-page="network"]'));
@@ -653,17 +655,19 @@ async function lightEnglish() {
     await s.page.waitForFunction(() => /up to date/.test(document.querySelector('.app-settings .st-hero-title')?.textContent || ''), null, { timeout: 15000 });
     check(true, 'after installing: "You\'re up to date"');
 
-    // ---- About: rename this PC
+    // ---- About: rename this computer (the device name is edited in place)
     await go(s, 'about');
-    await s.page.locator(S('.btn'), { hasText: 'Rename this computer' }).click();
-    await s.page.locator('.dialog input').fill('bad name!');
-    await s.page.locator('.dialog .dialog-footer .btn.primary').click();
-    check(await s.page.locator('.dialog input.invalid').count(), 'invalid PC names are refused');
-    await s.page.locator('.dialog input').fill('AURORA-LAPTOP');
-    await s.page.locator('.dialog .dialog-footer .btn.primary').click();
+    check((await s.page.locator(S('.st-host-input')).inputValue()) === 'selene', 'device name: the simulated computer is called "selene"');
+    check(await s.page.locator(S('.st-host-save')).isDisabled(), 'Rename stays disabled until the name changes');
+    await s.page.locator(S('.st-host-input')).fill('bad name!');
+    await s.page.locator(S('.st-host-save')).click();
+    check((await s.page.locator(S('.st-host-input.invalid')).count()) === 1 && /letters, numbers or hyphens/.test(await s.page.locator(S('.st-host-hint')).innerText()), 'invalid computer names are refused, with the reason under the field');
+    await s.page.locator(S('.st-host-input')).fill('AURORA-LAPTOP');
+    await s.page.locator(S('.st-host-input')).press('Enter');
     await uac(s);
-    await s.page.waitForFunction(() => document.querySelector('.app-settings .st-hero-title')?.textContent === 'AURORA-LAPTOP', null, { timeout: 8000 });
-    check(true, 'Rename this PC (set-hostname)');
+    await s.page.waitForFunction(() => document.querySelector('.app-settings .st-host-input')?.defaultValue === 'AURORA-LAPTOP', null, { timeout: 8000 });
+    await s.page.waitForSelector(S('.st-errors .st-infobar.success'), { timeout: 5000 });
+    check((await inv(s, 'admin:securityStatus')).hostname === 'AURORA-LAPTOP', 'Rename this computer (set-hostname): the page shows the new name and confirms it');
     await docShot(s, 'about');
 
     // ---- Apps
@@ -801,13 +805,13 @@ async function qaRegressions() {
     const endFocus = await s.aurora(() => document.activeElement?.dataset?.cat);
     await s.page.keyboard.press('Home');
     const homeFocus = await s.aurora(() => document.activeElement?.dataset?.cat);
-    check(endFocus === 'update' && homeFocus === 'system', 'nav: End / Home move to the last / first category');
+    check(endFocus === 'accounts' && homeFocus === 'system', 'nav: End / Home move to the account row / the first category');
     const fill = await s.aurora(() => getComputedStyle(document.querySelector('.app-settings .st-nav-item.selected')).backgroundColor);
     check(fill && fill !== 'rgba(0, 0, 0, 0)' && fill !== 'transparent', `selected category has the selection fill (${fill})`);
 
     // ---- focus stays in the window after a row replaced the page: Alt+Left goes back
-    await s.page.locator(S('.st-row'), { hasText: 'Display' }).first().click();
-    await s.page.waitForSelector(S('.st-page[data-page="display"]'));
+    await s.page.locator(S('.st-row'), { hasText: 'Storage' }).first().click();
+    await s.page.waitForSelector(S('.st-page[data-page="storage"]'));
     await sleep(400);
     check(await s.aurora(() => document.querySelector('.app-settings')?.contains(document.activeElement)), 'after opening a sub page the keyboard focus stays in Settings');
     await s.page.keyboard.press('Alt+ArrowLeft');
@@ -874,7 +878,7 @@ async function qaRegressions() {
     const offline = (await s.page.locator(S('.st-infobar.warning')).count()) > 0 && !(await checkBtn.isEnabled());
     await inv(s, 'net:setAirplane', false);
     await sleep(800);
-    check(enabledBefore && offline && (await checkBtn.isEnabled()), 'Selene Update: going offline disables Check for updates (and back) without leaving the page');
+    check(enabledBefore && offline && (await checkBtn.isEnabled()), 'Updates: going offline disables Check for updates (and back) without leaving the page');
 
     // ---- pointer speed covers the whole libinput range
     await go(s, 'mouse');
@@ -910,9 +914,8 @@ async function qaRegressions() {
     const me = (await inv(s, 'users:current')).name;
     await inv(s, 'admin:run', 'pw', 'user-set-admin', [me, '0']);
     await go(s, 'about');
-    await s.page.locator(S('.btn'), { hasText: 'Rename this computer' }).click();
-    await s.page.locator('.dialog input').fill('NEW-NAME');
-    await s.page.locator('.dialog .dialog-footer .btn.primary').click();
+    await s.page.locator(S('.st-host-input')).fill('NEW-NAME');
+    await s.page.locator(S('.st-host-save')).click();
     await uac(s);
     await sleep(600);
     const uacAgain = await s.page.locator('.uac-dialog').count();

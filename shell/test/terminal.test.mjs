@@ -805,7 +805,10 @@ async function uiTests() {
       check('opacity -> translucent background', (await bg()).view, 'rgba(12, 12, 12, 0.7)');
       await TM(s, (app) => app.prefs.set('acrylic', true));
       await sleep(100);
-      check('acrylic window material', await run(s, `getComputedStyle(document.querySelector('${WIN}')).backdropFilter`), (v) => /blur/.test(v));
+      // Selene windows never blur (blur is reserved for the bar, the Lanceur and the panels): the
+      // acrylic option keeps an opaque window surface.
+      check('acrylic option: no window blur', await run(s, `getComputedStyle(document.querySelector('${WIN}')).backdropFilter`), (v) => !/blur/.test(v));
+      check('acrylic option: opaque window surface', await run(s, `getComputedStyle(document.querySelector('${WIN}')).backgroundColor`), (v) => /^rgb\(/.test(v));
       await TM(s, (app) => {
         app.prefs.set('acrylic', false);
         app.prefs.set('opacity', 100);

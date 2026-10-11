@@ -9,13 +9,14 @@
   --fx-field-stroke: var(--line-soft);
   --fx-hover: var(--subtle-hover);
   --fx-sel: var(--accent-subtle);
-  --fx-sel-hover: color-mix(in srgb, var(--accent-subtle) 100%, var(--subtle-hover));
+  /* Hover on a selected row: the hover overlay laid over the selection (both translucent). */
+  --fx-sel-hover: var(--subtle-hover);
   --fx-sel-stroke: color-mix(in srgb, var(--accent) 45%, transparent);
   --fx-cap-bg: var(--surface-raised);
   --fx-folder: var(--text-2);
   --fx-row-h: 32px;
   --fx-line-h: 28px;
-  --fx-tree-h: 34px;
+  --fx-tree-h: 32px;
 }
 .app-files .fx-root.compact,
 .app-files.compact {
@@ -29,33 +30,28 @@
   display: none !important;
 }
 
-/* ---------------------------------------------------------------- title bar tabs */
-.app-files.tb-tall > .win-titlebar {
-  padding-left: 8px;
-  gap: 0;
-}
-.app-files.tb-tall > .win-titlebar > .win-icon,
-.app-files.tb-tall > .win-titlebar > .win-title {
-  display: none;
-}
+/* ---------------------------------------------------------------- tab strip
+   A light strip under the toolbar, shown only when more than one tab is open. */
 .app-files .fx-tabbar {
+  flex: none;
   display: flex;
-  align-items: flex-end;
-  height: 100%;
-  min-width: 0;
-  max-width: 100%;
-  padding-top: 8px;
+  align-items: center;
   gap: 4px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  background: var(--fx-bar);
+  border-bottom: 1px solid var(--line-soft);
 }
 .app-files .fx-tabs {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  gap: 4px;
   height: 100%;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
-  padding: 0 8px;
 }
 .app-files .fx-tabs::-webkit-scrollbar {
   display: none;
@@ -65,55 +61,23 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 0 1 236px;
+  flex: 0 1 200px;
   min-width: 84px;
-  height: 32px;
-  margin-bottom: 4px;
-  padding: 0 4px 0 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--text);
-  background-image: linear-gradient(var(--stroke-strong), var(--stroke-strong));
-  background-size: 1px 16px;
-  background-position: left center;
-  background-repeat: no-repeat;
-  transition: background-color var(--dur-fast) linear;
-}
-.app-files .fx-tab:first-child,
-.app-files .fx-tab.active + .fx-tab,
-.app-files .fx-tab:hover,
-.app-files .fx-tab:hover + .fx-tab,
-.app-files .fx-tab.active {
-  background-image: none;
+  height: 28px;
+  padding: 0 2px 0 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  transition: background-color var(--dur-fast) linear, color var(--dur-fast) linear;
 }
 .app-files .fx-tab:not(.active):hover {
   background-color: var(--subtle-hover);
+  color: var(--text);
 }
 .app-files .fx-tab.active {
-  height: 36px;
-  margin-bottom: 0;
-  border-radius: 8px 8px 0 0;
-  background-color: var(--fx-bar);
-  box-shadow: 0 -1px 0 var(--stroke) inset, 0 0 0 0 transparent;
-  box-shadow: none;
-  z-index: 1;
-}
-.app-files .fx-tab.active::before,
-.app-files .fx-tab.active::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  width: 8px;
-  height: 8px;
-  pointer-events: none;
-}
-.app-files .fx-tab.active::before {
-  left: -8px;
-  background: radial-gradient(circle at 0 0, transparent 7.5px, var(--fx-bar) 8px);
-}
-.app-files .fx-tab.active::after {
-  right: -8px;
-  background: radial-gradient(circle at 100% 0, transparent 7.5px, var(--fx-bar) 8px);
+  color: var(--text);
+  background-color: var(--subtle-selected);
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 .app-files .fx-tab.dragging {
   z-index: 3;
@@ -124,7 +88,7 @@
   transition: transform var(--dur) var(--ease);
 }
 .app-files .fx-tab:focus-visible {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .app-files .fx-tab.fx-drop {
@@ -146,17 +110,18 @@
   flex: none;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--text-2);
   opacity: 0;
   transition: opacity var(--dur-fast) linear;
 }
 .app-files .fx-tab:hover .fx-tab-x,
-.app-files .fx-tab.active .fx-tab-x {
+.app-files .fx-tab.active .fx-tab-x,
+.app-files .fx-tab-x:focus-visible {
   opacity: 1;
 }
 .app-files .fx-tab-x:hover {
@@ -170,16 +135,16 @@
   flex: none;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  margin-bottom: 4px;
+  width: 28px;
+  height: 28px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text);
+  color: var(--text-2);
 }
 .app-files .fx-newtab:hover {
   background: var(--subtle-hover);
+  color: var(--text);
 }
 .app-files .fx-newtab:active {
   background: var(--subtle-pressed);
@@ -201,15 +166,13 @@
 }
 .app-files .fx-top {
   flex: none;
-  background: var(--fx-bar);
-  border-bottom: 1px solid var(--stroke);
-}
-.app-files .fx-addrrow {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 48px;
+  height: 52px;
   padding: 0 12px 0 8px;
+  background: var(--fx-bar);
+  border-bottom: 1px solid var(--line-soft);
 }
 .app-files .fx-navbtns {
   display: flex;
@@ -474,16 +437,7 @@
   color: var(--text);
 }
 
-/* ---------------------------------------------------------------- command bar */
-.app-files .fx-cmdbar {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  height: 48px;
-  padding: 0 12px 0 10px;
-  border-top: 1px solid var(--stroke);
-  overflow: hidden;
-}
+/* ---------------------------------------------------------------- commands (toolbar, heading) */
 .app-files .fx-cmd-ctx {
   display: flex;
   align-items: center;
@@ -541,13 +495,6 @@
 }
 .app-files .fx-cmd.toggled:hover {
   background: var(--subtle-hover);
-}
-.app-files .fx-cmd-sep {
-  flex: none;
-  width: 1px;
-  height: 24px;
-  margin: 0 6px;
-  background: var(--stroke-strong);
 }
 
 /* ---------------------------------------------------------------- main area */
@@ -778,7 +725,7 @@
   background-color: var(--fx-sel);
 }
 .app-files .fx-item.selected:hover {
-  background-color: var(--fx-sel-hover);
+  background-image: linear-gradient(var(--fx-sel-hover), var(--fx-sel-hover));
 }
 .app-files .fx-item.focused {
   border-color: var(--text-2);
@@ -1194,13 +1141,6 @@
   width: 48px;
   height: 48px;
 }
-.app-files .fx-pin {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  color: var(--text-3);
-  line-height: 0;
-}
 .app-files .fx-pcgrid.drives {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 }
@@ -1595,30 +1535,6 @@
 .app-files .fx-st-sel[hidden] {
   display: none;
 }
-.app-files .fx-st-btn {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 22px;
-  margin-left: 2px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-2);
-}
-.app-files .fx-st-btn:hover {
-  background: var(--subtle-hover);
-  color: var(--text);
-}
-.app-files .fx-st-btn.on {
-  background: var(--fx-sel);
-  color: var(--text);
-}
-.app-files .fx-st-btn:disabled {
-  opacity: 0.4;
-  background: transparent;
-}
-
 /* ---------------------------------------------------------------- menus opened by the app (attached to <body>) */
 .app-files.menu.fx-scroll-menu {
   max-height: min(60vh, 520px);
@@ -2046,7 +1962,7 @@
 /* ---------------------------------------------------------------- narrow windows */
 @container (max-width: 860px) {
   .app-files .fx-cmd-ctx .fx-cmd-label,
-  .app-files .fx-cmd-details .fx-cmd-label {
+  .app-files .fx-cmd-new .fx-cmd-label {
     display: none;
   }
   .app-files .fx-search {
@@ -2071,8 +1987,8 @@
     flex-basis: 150px;
     min-width: 110px;
   }
-  .app-files .fx-cmd-sep {
-    margin: 0 2px;
+  .app-files .fx-head-count {
+    display: none;
   }
 }
 @container (max-width: 560px) {
@@ -2172,13 +2088,6 @@
   font-size: var(--fs-small);
   font-family: var(--font);
 }
-.app-files .fx-top {
-  background: var(--fx-bar);
-  border-bottom: 1px solid var(--line-soft);
-}
-.app-files .fx-cmdbar {
-  border-top: 1px solid var(--line-soft);
-}
 .app-files .fx-cmd,
 .app-files .fx-navbtn,
 .app-files .fx-search-btn {
@@ -2201,10 +2110,6 @@
 }
 .app-files .fx-cmd.toggled {
   background: var(--accent-subtle);
-}
-.app-files .fx-cmd-sep {
-  height: 20px;
-  background: var(--line-soft);
 }
 .app-files .fx-address,
 .app-files .fx-search {
@@ -2284,7 +2189,8 @@
   box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
 }
 .app-files .fx-item.selected:hover {
-  background-color: var(--subtle-pressed);
+  background-color: var(--sel-bg);
+  background-image: linear-gradient(var(--fx-sel-hover), var(--fx-sel-hover));
 }
 .app-files .fx-item.focused {
   border-color: transparent;
@@ -2296,21 +2202,341 @@
   color: var(--text-2);
   font-size: var(--fs-small);
 }
-/* Title-bar tabs: quiet pills instead of tabs merged into the toolbar. */
-.app-files .fx-tab {
-  background-image: none;
+
+/* ---------------------------------------------------------------- Selene layout (phase C)
+   One toolbar row (history, breadcrumb from the home folder, search, list/grid toggle,
+   "New folder", "…"), a large folder heading with the item count and this place's actions,
+   a sidebar in labelled sections with a disk meter, and a quiet status line. */
+.app-files .fx-top .fx-navbtns {
+  gap: 2px;
+}
+.app-files .fx-top .fx-address {
+  height: 34px;
+  padding-left: 4px;
+}
+.app-files .fx-addr-ic,
+.app-files .fx-addr-hist,
+.app-files .fx-crumb-chev[data-i="root"] {
+  display: none;
+}
+.app-files .fx-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
   border-radius: var(--radius-sm);
   font-size: var(--fs-small);
+  color: var(--text-2);
 }
-.app-files .fx-tab.active {
-  height: 32px;
-  margin-bottom: 4px;
+.app-files .fx-crumb.last {
+  color: var(--text);
+  font-weight: 600;
+}
+.app-files .fx-crumb-home {
+  color: var(--text-2);
+}
+.app-files .fx-crumb-chev {
+  width: 16px;
+  height: 26px;
+  color: var(--text-3);
+}
+/* The chevron after the last segment still opens the subfolder list; it only shows on demand. */
+.app-files .fx-crumb.last + .fx-crumb-chev {
+  opacity: 0;
+  transition: opacity var(--dur-fast) linear;
+}
+.app-files .fx-address:hover .fx-crumb.last + .fx-crumb-chev,
+.app-files .fx-crumb.last + .fx-crumb-chev:focus-visible,
+.app-files .fx-crumb.last + .fx-crumb-chev.open {
+  opacity: 1;
+}
+.app-files .fx-crumb:focus-visible,
+.app-files .fx-crumb-chev:focus-visible,
+.app-files .fx-crumb-more:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.app-files .fx-address:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.app-files .fx-top .fx-search {
+  flex: 0 1 260px;
+  height: 34px;
+}
+.app-files .fx-search-input {
+  padding-left: 12px;
+}
+
+/* list / grid toggle */
+.app-files .fx-seg {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  padding: 2px;
   border-radius: var(--radius-sm);
-  background-color: var(--subtle-selected);
-  box-shadow: none;
+  background: var(--fx-field);
+  border: 1px solid var(--fx-field-stroke);
+}
+.app-files .fx-seg-btn,
+.app-files .fx-seg .fx-cmd {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  min-width: 0;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-2);
+  transition: background var(--dur-fast) linear, color var(--dur-fast) linear;
+}
+.app-files .fx-seg .fx-cmd {
+  width: 22px;
+}
+.app-files .fx-seg-btn:hover:not(:disabled),
+.app-files .fx-seg .fx-cmd:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-files .fx-seg-btn.on {
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--line-soft);
+}
+.app-files .fx-seg-btn:disabled {
+  color: var(--text-disabled);
+}
+.app-files .fx-seg-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+/* "New folder": the one labelled action of the toolbar */
+.app-files .fx-cmd-new {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line-soft);
+  background: var(--control);
+  font-size: var(--fs-small);
   font-weight: 500;
 }
-.app-files .fx-tab.active::before,
-.app-files .fx-tab.active::after {
+.app-files .fx-cmd-new:hover:not(:disabled) {
+  background: var(--fx-field-hover);
+}
+.app-files .fx-cmd-new:disabled {
+  border-color: transparent;
+  background: transparent;
+}
+.app-files .fx-cmd-more {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+
+/* folder heading */
+.app-files .fx-center {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-files .fx-center > .fx-content {
+  flex: 1;
+  min-height: 0;
+}
+.app-files .fx-head {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-height: 60px;
+  padding: 14px 20px 6px 24px;
+}
+.app-files .fx-head-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text);
+}
+.app-files .fx-head-count {
+  flex: none;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.app-files .fx-head-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: center;
+}
+.app-files .fx-head-actions .fx-cmd {
+  height: 32px;
+  font-size: var(--fs-small);
+}
+.app-files .fx-head-actions .fx-cmd.has-text {
+  border: 1px solid var(--line-soft);
+}
+.app-files .fx-head-actions .fx-cmd-details {
+  width: 32px;
+  padding: 0;
+}
+.app-files .fx-cmd[aria-pressed="true"],
+.app-files .fx-cmd.toggled {
+  background: var(--accent-subtle);
+}
+.app-files .fx-cmd[aria-pressed="true"] > .icon:first-child {
+  color: var(--accent-text);
+}
+
+/* sidebar sections and disk meter */
+.app-files .fx-nav {
+  display: flex;
+  flex-direction: column;
+}
+.app-files .fx-nav > .fx-tree {
+  flex: 1;
+  min-height: 0;
+}
+.app-files .fx-tsec {
+  padding: 16px 10px 6px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  user-select: none;
+}
+.app-files .fx-tpin {
   display: none;
+}
+.app-files .fx-disk {
+  flex: none;
+  margin: 0 8px;
+  padding: 14px 6px 14px;
+  border-top: 1px solid var(--line-soft);
+  font-size: var(--fs-small);
+}
+.app-files .fx-disk-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text);
+}
+.app-files .fx-disk-pct {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.app-files .fx-disk-bar {
+  height: 4px;
+  margin: 8px 0 6px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.app-files .fx-disk-bar .fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.app-files .fx-disk-bar.full .fill {
+  background: var(--danger);
+}
+.app-files .fx-disk-free {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Home: section titles are plain headings; the collapse chevron follows the title. */
+.app-files .fx-home .fx-sec-head,
+.app-files .fx-thispc .fx-sec-head {
+  width: auto;
+  height: 32px;
+  padding: 0 8px;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+.app-files .fx-home,
+.app-files .fx-thispc {
+  padding: 0 4px 16px;
+}
+.app-files .fx-qtile {
+  padding-right: 12px;
+  border: 1px solid var(--line-soft);
+  background: var(--surface-raised);
+}
+.app-files .fx-qtile:hover {
+  background-color: var(--surface-raised);
+  background-image: linear-gradient(var(--subtle-hover), var(--subtle-hover));
+}
+.app-files .fx-quick {
+  gap: 8px;
+}
+
+/* status line */
+.app-files .fx-status {
+  height: 30px;
+  padding: 0 16px;
+}
+.app-files .fx-st-sel {
+  border-left: 0;
+  margin-left: 0;
+  padding-left: 0;
+}
+.app-files .fx-st-sel::before {
+  content: ", ";
+}
+.app-files .fx-st-note {
+  color: var(--text-2);
+}
+@container (max-width: 700px) {
+  .app-files .fx-head {
+    padding: 10px 12px 4px 14px;
+  }
+  .app-files .fx-seg .fx-cmd {
+    display: none;
+  }
+}
+@container (max-width: 560px) {
+  .app-files .fx-top .fx-search {
+    flex-basis: 120px;
+    min-width: 90px;
+  }
+  .app-files .fx-seg {
+    display: none;
+  }
+}
+/* Column headers: the sort arrow sits after the label; the column dividers only show while the
+   pointer is over the header row (they are also the resize grips). */
+.app-files .fx-sort-ind {
+  position: static;
+  transform: none;
+  margin-left: 6px;
+  flex: none;
+}
+.app-files .fx-dh-cell.end .fx-sort-ind {
+  order: -1;
+  margin: 0 6px 0 0;
+}
+.app-files .fx-dh-cell + .fx-dh-cell::before {
+  opacity: 0;
+  transition: opacity var(--dur-fast) linear;
+}
+.app-files .fx-dh:hover .fx-dh-cell + .fx-dh-cell::before {
+  opacity: 1;
+}
+.app-files .fx-dh-cell.sorted {
+  color: var(--text);
 }

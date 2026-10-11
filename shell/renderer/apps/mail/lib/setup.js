@@ -112,11 +112,14 @@ export class AccountSetup {
 
   monogram(p, size = 40) {
     const { h, icon } = this.ctx;
-    return h(
+    // Monochrome initials on the raised surface; the brand colour is only a small dot.
+    const el = h(
       'span',
-      { class: 'ml-mono', style: { backgroundColor: p.color, color: p.fg || '#fff', width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * (String(p.mono).length > 2 ? 0.3 : String(p.mono).length > 1 ? 0.38 : 0.48))}px` } },
+      { class: 'ml-mono', style: { width: `${size}px`, height: `${size}px`, fontSize: `${Math.round(size * (String(p.mono).length > 2 ? 0.3 : String(p.mono).length > 1 ? 0.36 : 0.44))}px` } },
       p.id === 'other' ? icon('mail', { size: Math.round(size * 0.5) }) : p.mono,
     );
+    if (p.id !== 'other' && p.color) el.style.setProperty('--ml-brand', p.color);
+    return el;
   }
 
   // ------------------------------------------------------------ step 2: form

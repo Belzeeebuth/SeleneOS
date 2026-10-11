@@ -214,7 +214,26 @@ if (!fatal) {
     check('recent files listed', recent.includes('Report 2026.txt') || recent.length > 3, true);
     check('tab title', await page.locator('.app-files .fx-tab.active .fx-tab-title').innerText(), 'Home');
     check('window title', await page.evaluate(() => window.__fx().win.title), 'Home - Files');
-    check('New disabled on Home', await page.locator('.app-files .fx-cmd[aria-label="New"]').isDisabled(), true);
+    check('New folder disabled on Home', await page.locator('.app-files .fx-cmd[aria-label="New folder"]').isDisabled(), true);
+    // Selene layout: one toolbar row, tabs strip hidden with a single tab, heading with the count,
+    // sidebar sections, no Gallery entry, no pin wording on Home.
+    check('one toolbar row', await page.locator('.app-files .fx-top').count(), 1);
+    check('no command strip', await page.locator('.app-files .fx-cmdbar').count(), 0);
+    check('tabs not in the title bar', await page.locator('.app-files .win-titlebar .fx-tab').count(), 0);
+    check('tab strip hidden with one tab', await page.locator('.app-files .fx-tabbar').isHidden(), true);
+    check('heading title', await page.locator('.app-files .fx-head-title').innerText(), 'Home');
+    check('heading count', await page.locator('.app-files .fx-head-count').innerText(), '6 items');
+    check('sidebar sections', await page.locator('.app-files .fx-tsec').allInnerTexts(), (v) => v.includes('Favorites') && v.includes('Places'));
+    check('no Gallery in sidebar', nav.includes('Gallery'), false);
+    check('home folder in sidebar', nav.includes('Home folder'), true);
+    check('Home places section', await page.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Places');
+    check('no pin glyph on Home', await page.locator('.app-files .fx-qtile .fx-pin').count(), 0);
+    // "…" menu holds the file commands.
+    await page.click('.app-files .fx-cmd[aria-label="See more"]');
+    const moreLabels = await page.locator('.menu .menu-item .label').allInnerTexts();
+    check('… menu commands', ['New', 'New tab', 'Cut', 'Copy', 'Paste', 'Rename', 'Delete', 'Refresh', 'Select all', 'Properties'].every((l) => moreLabels.includes(l)), true);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
     await H.shot('files-home');
   });
 
@@ -230,7 +249,9 @@ if (!fatal) {
     check('type: folder', types.Letters, 'File folder');
     check('type: csv', types['budget.csv'], 'CSV File');
     const crumbs = await page.locator('.app-files .fx-crumb:visible').allInnerTexts();
-    check('breadcrumbs', crumbs, ['Computer', 'Documents']);
+    check('breadcrumbs', crumbs, ['Home folder', 'Documents']);
+    check('breadcrumb house glyph', await page.locator('.app-files .fx-crumb').first().locator('.fx-crumb-home').count(), 1);
+    check('heading follows the folder', await page.locator('.app-files .fx-head-title').innerText(), 'Documents');
     const headers = await page.locator('.app-files .fx-dh-cell').allInnerTexts();
     check('detail columns', headers.map((x) => x.trim()), ['Name', 'Date modified', 'Type', 'Size']);
     const size = await page.locator('.app-files .fx-row:has-text("Report 2026.txt") .c-size').innerText();
@@ -420,7 +441,8 @@ if (!fatal) {
       const v = window.__fx().view;
       v.setSel(v.items.filter((i) => ['budget.csv', 'archive-me.txt'].includes(i.entry.name)).map((i) => i.key));
     });
-    await page.click('.app-files .fx-cmd[aria-label="Delete"]');
+    await page.click('.app-files .fx-cmd[aria-label="See more"]');
+    await H.menuClick('Delete');
     await H.settle();
     await page.click('.app-files .fx-tnode:has-text("Recycle Bin")');
     await H.settle();
@@ -591,7 +613,7 @@ if (!fatal) {
     await page.click('.app-files .fx-cmd[aria-label="View"]');
     await H.menuClick('Tiles');
     check('view menu', await page.evaluate(() => window.__fx().vs.mode), 'tiles');
-    await page.click('.app-files .fx-st-btn[aria-label="Details"]');
+    await page.click('.app-files .fx-seg-btn[aria-label="Details"]');
     check('status bar details toggle', await page.evaluate(() => window.__fx().vs.mode), 'details');
     // Compact view
     await page.click('.app-files .fx-cmd[aria-label="View"]');
@@ -666,6 +688,11 @@ if (!fatal) {
     await H.key('Control+t');
     await H.settle();
     check('two tabs', await page.locator('.app-files .fx-tab').count(), 2);
+    check('tab strip shown under the toolbar', await page.evaluate(() => {
+      const bar = document.querySelector('.app-files .fx-tabbar');
+      const top = document.querySelector('.app-files .fx-top');
+      return !bar.hidden && bar.previousElementSibling === top && bar.getBoundingClientRect().top >= top.getBoundingClientRect().bottom - 1;
+    }), true);
     check('new tab on Home', (await H.loc()).type, 'home');
     await H.go(D('Music'));
     await H.go(D('Videos'));
@@ -711,15 +738,15 @@ if (!fatal) {
     check('compact icon bar', iconbar, 4);
     const labels = await page.locator('.menu .menu-item .label').allInnerTexts();
     const hasTerminal = await page.evaluate(() => !!window.__aurora.registry.get('terminal'));
-    check('item menu entries', ['Open', 'Open in new tab', 'Pin to Quick access', 'Copy as path', 'Properties'].every((l) => labels.includes(l)), true);
+    check('item menu entries', ['Open', 'Open in new tab', 'Add to sidebar', 'Copy as path', 'Properties'].every((l) => labels.includes(l)), true);
     check('Open in Terminal only when Terminal is installed', labels.includes('Open in Terminal'), hasTerminal);
-    await H.menuClick('Pin to Quick access');
+    await H.menuClick('Add to sidebar');
     await page.waitForTimeout(300);
     check('pinned in nav', (await page.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts()).includes('Projects'), true);
     const stored = JSON.parse(fs.readFileSync(D('.config/aurora/apps/files/pinned.json'), 'utf8'));
     check('pins persisted', stored.includes(D('Documents/Projects')), true);
     await page.locator('.app-files .fx-tnode:has-text("Projects")').click({ button: 'right' });
-    await H.menuClick('Unpin from Quick access');
+    await H.menuClick('Remove from sidebar');
     await page.waitForTimeout(300);
     check('unpinned', (await page.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts()).includes('Projects'), false);
     // background menu
@@ -830,7 +857,8 @@ if (!fatal) {
   });
 
   await section('Gallery', async () => {
-    await page.click('.app-files .fx-tnode:has-text("Gallery")');
+    // Gallery is no longer in the sidebar; it stays reachable as a location.
+    await H.go({ type: 'gallery' });
     await H.settle();
     check('gallery location', (await H.loc()).type, 'gallery');
     check('gallery photos (recursive)', (await H.names()).sort(), ['beach.png', 'checker.png', 'mountains.png', 'sunset.png']);
@@ -905,7 +933,7 @@ if (!fatal) {
     // Live language switch
     await page.evaluate(() => window.__aurora.settings.set('lang', 'fr'));
     await page.waitForTimeout(600);
-    check('relabel: command bar', await page.locator('.app-files .fx-cmd[aria-label="Nouveau"] .fx-cmd-label').innerText(), 'Nouveau');
+    check('relabel: toolbar', await page.locator('.app-files .fx-cmd[aria-label="Nouveau dossier"] .fx-cmd-label').innerText(), 'Nouveau dossier');
     check('relabel: nav', (await page.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts()).includes('Accueil'), true);
     check('relabel: headers', (await page.locator('.app-files .fx-dh-cell').first().innerText()).trim(), 'Nom');
     check('relabel: tab', await page.locator('.app-files .fx-tab.active .fx-tab-title').innerText(), 'Documents');
@@ -1299,7 +1327,9 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
       const p2 = s2.page;
       const nav = await p2.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts();
       check('fr nav', ['Accueil', 'Bureau', 'Téléchargements', 'Documents', 'Images', 'Ordinateur', 'Corbeille'].every((n) => nav.includes(n)), true);
-      check('fr quick access', await p2.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Accès rapide');
+      check('fr places', await p2.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Emplacements');
+      check('fr sidebar sections', await p2.locator('.app-files .fx-tsec').allInnerTexts(), (v) => v.includes('Favoris') && v.includes('Emplacements'));
+      check('fr home folder', (await p2.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts()).includes('Dossier personnel'), true);
       check('fr title', await p2.evaluate(() => window.__fx().win.title), 'Accueil - Fichiers');
       await H2.go(path.join(home2, 'Documents'));
       const types = await p2.evaluate(() => Object.fromEntries(window.__fx().view.items.map((i) => [i.entry.name, i.type])));

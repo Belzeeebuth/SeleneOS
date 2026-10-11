@@ -1,5 +1,6 @@
-// Task Manager window: title-bar search, collapsible navigation pane, page header with the
-// page's command bar, and the pages themselves. Pages implement:
+// System Monitor window: title-bar search, a tab bar along the top (Processes, Performance, Startup,
+// Users, Services, and Settings as a gear), a quiet toolbar row (the Processes views switch: list,
+// details, history; then the page's commands), and the pages themselves. Pages implement:
 //   { id, icon, title(), needs: { procs, shell }, mount(el), show(), hide(), update(store),
 //     commands() -> [{ id, icon, label, action, disabled, pressed, menu }], onSearch(q), focus(), relabel() }
 import { wm } from '../../../core/wm.js';
@@ -15,10 +16,11 @@ import { DetailsPage } from './pages/details.js';
 import { ServicesPage } from './pages/services.js';
 import { SettingsPage } from './pages/settings.js';
 
-// Like WinUI's NavigationView: the pane is expanded in wide windows, compact (icons) below.
-const NAV_EXPAND_MIN = 1000;
-
 export const PAGE_ORDER = ['processes', 'performance', 'history', 'startup', 'users', 'details', 'services'];
+// Top tabs. History and Details are views of the Processes tab (switch in the toolbar row).
+export const TABS = ['processes', 'performance', 'startup', 'users', 'services'];
+export const PROC_VIEWS = ['processes', 'details', 'history'];
+const tabOf = (id) => (PROC_VIEWS.includes(id) ? 'processes' : id);
 
 const DEFAULT_PREFS = {
   startPage: 'processes',
@@ -115,8 +117,7 @@ export class TaskManager {
       }
     });
 
-    // ---- navigation
-    this.burger = h('button', { class: 'tm-burger btn subtle icon-btn', 'aria-label': t('nav.toggle'), 'data-tip': t('nav.toggle'), onclick: () => this.toggleNav() }, icon('navigation'));
+    // ---- tabs along the top
     this.pages = {
       processes: new ProcessesPage(this),
       performance: new PerformancePage(this),
@@ -127,24 +128,42 @@ export class TaskManager {
       services: new ServicesPage(this),
       settings: new SettingsPage(this),
     };
+    this.lastProcView = 'processes';
     this.navItems = new Map();
-    const mkItem = (id) => {
+    const mkTab = (id) => {
       const p = this.pages[id];
-      const label = h('span', { class: 'tm-nav-label ellipsis' }, p.title());
-      const btn = h('button', { class: 'nav-item tm-nav-item', role: 'tab', 'aria-selected': 'false', dataset: { page: id }, onclick: () => this.go(id, { focus: false }) }, icon(p.icon), label);
+      const gear = id === 'settings';
+      const label = h('span', { class: ['tm-tab-label', gear && 'sr-only'] }, this.tabTitle(id));
+      const btn = h(
+        'button',
+        { class: ['tm-tab', gear && 'tm-tab-gear'], role: 'tab', 'aria-selected': 'false', 'data-tip': gear ? p.title() : null, dataset: { page: id }, onclick: () => this.go(id === 'processes' ? this.lastProcView : id, { focus: false }) },
+        gear ? icon(p.icon) : null,
+        label,
+      );
       btn._label = label;
       this.navItems.set(id, btn);
       return btn;
     };
-    this.navList = h('div', { class: 'tm-nav-list', role: 'tablist', 'aria-orientation': 'vertical' }, PAGE_ORDER.map(mkItem));
-    this.nav = h('nav', { class: 'tm-nav', 'aria-label': t('nav.label') }, h('div', { class: 'tm-nav-top' }, this.burger), this.navList, h('div', { class: 'tm-nav-foot' }, mkItem('settings')));
+    this.navList = h('div', { class: 'tm-tablist', role: 'tablist', 'aria-label': t('nav.label') }, TABS.map(mkTab), h('span', { class: 'tm-tab-gap', 'aria-hidden': 'true' }), mkTab('settings'));
+    this.nav = h('nav', { class: 'tm-tabbar', 'aria-label': t('nav.label') }, this.navList);
     this.navList.addEventListener('keydown', (e) => this._navKeys(e));
-    this.nav.querySelector('.tm-nav-foot').addEventListener('keydown', (e) => this._navKeys(e));
+
+    // ---- Processes views: list, details, history
+    this.viewBtns = new Map();
+    this.views = h(
+      'div',
+      { class: 'tm-views', role: 'group', 'aria-label': t('views.label') },
+      PROC_VIEWS.map((id) => {
+        const b = h('button', { class: 'tm-view', 'aria-pressed': 'false', dataset: { view: id }, onclick: () => this.go(id, { focus: false }) }, t(`views.${id}`));
+        this.viewBtns.set(id, b);
+        return b;
+      }),
+    );
 
     // ---- main area
     this.titleEl = h('h1', { class: 'tm-title ellipsis' });
     this.cmdBar = h('div', { class: 'tm-cmds', role: 'toolbar', 'aria-label': t('cmd.toolbar') });
-    this.head = h('header', { class: 'tm-head' }, this.titleEl, this.cmdBar);
+    this.head = h('header', { class: 'tm-head' }, this.titleEl, this.views, this.cmdBar);
     this.pageHost = h('div', { class: 'tm-pages' });
     this.errorText = h('div', { class: 'caption grow' });
     this.errorBar = h(
@@ -155,8 +174,7 @@ export class TaskManager {
       h('button', { class: 'btn small', onclick: () => this.store.refresh() }, t('common.retry')),
     );
     this.main = h('main', { class: 'tm-main' }, this.head, this.errorBar, this.pageHost);
-    this.scrim = h('div', { class: 'tm-scrim', onclick: () => this.toggleNav(false) });
-    this.root = h('div', { class: 'tm-root' }, this.nav, this.scrim, this.main);
+    this.root = h('div', { class: 'tm-root' }, this.nav, this.main);
     win.body.appendChild(this.root);
 
     for (const [id, p] of Object.entries(this.pages)) {
@@ -210,10 +228,17 @@ export class TaskManager {
         void p.el.offsetWidth;
         p.el.classList.add('enter');
       }
+      const tab = tabOf(id);
+      if (tab === 'processes') this.lastProcView = id;
       for (const [k, b] of this.navItems) {
+        b.classList.toggle('selected', k === tab);
+        b.setAttribute('aria-selected', String(k === tab));
+        b.tabIndex = k === tab ? 0 : -1;
+      }
+      this.views.hidden = tab !== 'processes';
+      for (const [k, b] of this.viewBtns) {
         b.classList.toggle('selected', k === id);
-        b.setAttribute('aria-selected', String(k === id));
-        b.tabIndex = k === id ? 0 : -1;
+        b.setAttribute('aria-pressed', String(k === id));
       }
       this.titleEl.textContent = p.title();
       this.store.setNeeds(p.needs || {});
@@ -221,7 +246,6 @@ export class TaskManager {
       p.show?.();
       if (this.store.perf) p.update?.(this.store);
       this.renderCommands();
-      if (this.navOverlay) this.toggleNav(false);
     }
     if (select != null) p.reveal?.(select);
     if (focus) setTimeout(() => p.focus?.(), 0);
@@ -288,36 +312,14 @@ export class TaskManager {
     if (need > this.cmdBar.clientWidth + 1) this.head.classList.add('compact');
   }
 
-  // ------------------------------------------------------------------ navigation pane
-  applyNav() {
-    const narrow = this.root.clientWidth > 0 && this.root.clientWidth < NAV_EXPAND_MIN;
-    this.root.classList.toggle('narrow', narrow);
-    const expanded = narrow ? !!this.navOverlay : this.prefs.navExpanded;
-    this.root.classList.toggle('nav-expanded', expanded);
-    this.root.classList.toggle('nav-overlay', narrow && !!this.navOverlay);
-    for (const b of this.navItems.values()) {
-      if (expanded) b.removeAttribute('data-tip');
-      else b.setAttribute('data-tip', b._label.textContent);
-    }
-    this.burger.setAttribute('aria-expanded', String(expanded));
+  // ------------------------------------------------------------------ tabs
+  tabTitle(id) {
+    return this.t(id === 'startup' ? 'nav.startupTab' : `nav.${id}`);
   }
-  toggleNav(force) {
-    if (this.root.classList.contains('narrow')) {
-      this.navOverlay = force ?? !this.navOverlay;
-    } else {
-      this.prefs.navExpanded = force ?? !this.prefs.navExpanded;
-      this.savePrefs();
-    }
-    this.applyNav();
-    this._fitCommands();
-  }
+  // Kept for callers of the old navigation pane: the tab bar has no collapsed state.
+  applyNav() {}
+  toggleNav() {}
   _layout() {
-    const wasNarrow = this.root.classList.contains('narrow');
-    const narrow = this.root.clientWidth < NAV_EXPAND_MIN;
-    if (wasNarrow !== narrow) {
-      this.navOverlay = false;
-      this.applyNav();
-    }
     this._fitCommands();
   }
   _navKeys(e) {
@@ -326,8 +328,8 @@ export class TaskManager {
     const i = items.indexOf(document.activeElement);
     if (i < 0) return;
     let j = null;
-    if (e.key === 'ArrowDown') j = (i + 1) % items.length;
-    else if (e.key === 'ArrowUp') j = (i - 1 + items.length) % items.length;
+    if (e.key === 'ArrowRight') j = (i + 1) % items.length;
+    else if (e.key === 'ArrowLeft') j = (i - 1 + items.length) % items.length;
     else if (e.key === 'Home') j = 0;
     else if (e.key === 'End') j = items.length - 1;
     if (j == null) return;
@@ -412,19 +414,22 @@ export class TaskManager {
     const { t } = this;
     this.search.placeholder = t('search.placeholder');
     this.search.setAttribute('aria-label', t('search.label'));
-    this.burger.setAttribute('aria-label', t('nav.toggle'));
-    this.burger.dataset.tip = t('nav.toggle');
     this.nav.setAttribute('aria-label', t('nav.label'));
+    this.navList.setAttribute('aria-label', t('nav.label'));
+    this.views.setAttribute('aria-label', t('views.label'));
+    for (const [id, b] of this.viewBtns) b.textContent = t(`views.${id}`);
     this.cmdBar.setAttribute('aria-label', t('cmd.toolbar'));
     this.errorBar.querySelector('.btn').textContent = t('common.retry');
     this.searchBox.querySelector('.tm-search-clear').setAttribute('aria-label', t('search.clear'));
-    for (const [id, b] of this.navItems) b._label.textContent = this.pages[id].title();
+    for (const [id, b] of this.navItems) {
+      b._label.textContent = this.tabTitle(id);
+      if (id === 'settings') b.dataset.tip = this.pages[id].title();
+    }
     for (const p of Object.values(this.pages)) {
       p.el.setAttribute('aria-label', p.title());
       p.relabel?.();
     }
     if (this.current) this.titleEl.textContent = this.current.title();
-    this.applyNav();
     this._cmdSig = null;
     this.renderCommands();
   }

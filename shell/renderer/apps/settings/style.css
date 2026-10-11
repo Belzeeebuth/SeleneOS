@@ -1,6 +1,6 @@
 /* Paramètres (Settings). Everything is scoped under .app-settings; colours come from the tokens. */
 .app-settings {
-  --st-pane-w: 300px;
+  --st-pane-w: 280px;
 }
 
 /* ---------- title bar additions ---------- */
@@ -39,7 +39,7 @@
   display: inline-grid;
 }
 
-/* ---------- layout ---------- */
+/* ---------- layout: two calm panes ---------- */
 .app-settings .st-root {
   position: relative;
   display: flex;
@@ -51,72 +51,14 @@
   width: var(--st-pane-w);
   display: flex;
   flex-direction: column;
-  padding: 4px 8px 12px 12px;
+  padding: 12px 10px 10px 12px;
   min-height: 0;
   background: var(--bg-alt);
   border-right: 1px solid var(--line-soft);
 }
-.app-settings .st-nav-item.selected .st-nav-icon {
-  color: var(--accent-text);
-}
-.app-settings .st-user {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin: 8px 0 14px;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
-  text-align: left;
-  transition: background var(--dur-fast) linear;
-}
-.app-settings .st-user:hover {
-  background: var(--subtle-hover);
-}
-.app-settings .st-user:active {
-  background: var(--subtle-pressed);
-}
-.app-settings .st-user-text {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.app-settings .st-user-name {
-  font-weight: 600;
-  font-size: 14px;
-}
-.app-settings .st-user-kind {
-  color: var(--text-2);
-}
-.app-settings .st-avatar {
-  --size: 60px;
-  flex: none;
-  width: var(--size);
-  height: var(--size);
-  border-radius: 50%;
-  overflow: hidden;
-  display: grid;
-  place-items: center;
-  color: var(--on-accent);
-  background: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--line-soft);
-}
-.app-settings .st-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.app-settings .st-initials {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: calc(var(--size) * 0.36);
-  letter-spacing: 0.02em;
-}
 .app-settings .st-search {
   position: relative;
-  margin: 0 4px 12px 0;
+  margin: 0 2px 6px 0;
 }
 .app-settings .st-search input::-webkit-search-cancel-button {
   appearance: none;
@@ -148,27 +90,52 @@
 .app-settings .st-nav {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
-  gap: 4px;
-  padding: 2px 4px 2px 0;
+  padding: 2px 2px 8px 0;
+}
+.app-settings .st-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.app-settings .st-nav-heading {
+  margin: 14px 10px 4px;
+  font-family: var(--font);
+  font-size: var(--fs-small);
+  line-height: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-3);
 }
 .app-settings .st-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
+  height: 32px;
+  padding: 0 10px;
   border: 0;
+  border-radius: var(--radius-sm);
   background: transparent;
+  color: var(--text-2);
   text-align: left;
-  font-size: 14px;
+  font: inherit;
+  font-size: var(--fs-body);
   flex: none;
-  transition: background var(--dur-fast) linear;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 /* (the transparent reset above would otherwise also hide ui.css's hover / selected fills) */
 .app-settings .st-nav-item:hover {
   background: var(--subtle-hover);
+  color: var(--text);
 }
 .app-settings .st-nav-item.selected {
   background: var(--sel-bg);
   box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
+  color: var(--text);
   font-weight: 600;
 }
 .app-settings .st-nav-item.selected:hover {
@@ -176,16 +143,78 @@
 }
 .app-settings .st-nav-item:active {
   background: var(--subtle-pressed);
-  color: var(--text-2);
+}
+.app-settings .st-nav-item:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
 }
 .app-settings .st-nav-icon {
+  flex: none;
   color: var(--text-2);
   display: inline-grid;
   place-items: center;
   width: 20px;
   height: 20px;
 }
+.app-settings .st-nav-item.selected .st-nav-icon {
+  color: var(--accent-text);
+}
 
+/* the account, at the bottom of the pane */
+.app-settings .st-pane-foot {
+  flex: none;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+.app-settings .st-user.st-nav-item {
+  height: auto;
+  min-height: 48px;
+  padding: 6px 10px;
+  gap: 10px;
+  font-weight: 400;
+}
+.app-settings .st-user-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-settings .st-user-name {
+  font-size: var(--fs-body);
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+.app-settings .st-user-kind {
+  font-size: var(--fs-small);
+  line-height: 17px;
+  color: var(--text-2);
+}
+.app-settings .st-avatar {
+  --size: 32px;
+  flex: none;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: var(--on-accent);
+  background: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.app-settings .st-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.app-settings .st-initials {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: calc(var(--size) * 0.38);
+  letter-spacing: 0.02em;
+}
+
+/* ---------- page area ---------- */
 .app-settings .st-main {
   flex: 1;
   min-width: 0;
@@ -194,19 +223,28 @@
 }
 .app-settings .st-header {
   flex: none;
-  padding: 14px 40px 20px 20px;
+  padding: 22px 40px 18px 40px;
+}
+.app-settings .st-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  margin: 0 0 2px;
+  font-size: var(--fs-small);
+  line-height: 18px;
+}
+.app-settings .st-crumbs[hidden] {
+  display: none;
 }
 .app-settings .st-title {
   margin: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  row-gap: 2px;
   font-family: var(--font-display);
   font-size: var(--fs-title);
-  line-height: 40px;
+  line-height: 34px;
   font-weight: 600;
-  min-height: 40px;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
 }
 .app-settings .st-crumb {
   border: 0;
@@ -214,26 +252,30 @@
   background: transparent;
   font: inherit;
   color: var(--text-2);
-  transition: color var(--dur-fast) linear;
+  border-radius: var(--radius-xs);
+  transition: color var(--dur-fast) var(--ease);
 }
 .app-settings button.st-crumb:hover {
-  color: var(--text);
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.app-settings button.st-crumb:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .app-settings .st-crumb.current {
   color: var(--text);
 }
 .app-settings .st-crumb-sep {
-  display: inline-grid;
-  place-items: center;
-  margin: 2px 12px 0;
-  color: var(--text-2);
+  color: var(--text-3);
 }
 .app-settings .st-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 28px 36px 20px;
+  padding: 0 32px 40px 40px;
   scrollbar-gutter: stable;
 }
 /* the page area takes the keyboard focus after a navigation (main.js): no ring around everything */
@@ -242,7 +284,7 @@
   outline: none;
 }
 .app-settings .st-content-wrap {
-  max-width: 1000px;
+  max-width: 880px;
   container-type: inline-size;
 }
 .app-settings .st-errors:empty {
@@ -297,51 +339,93 @@
 }
 .app-settings .st-root.compact .st-header {
   padding-left: 24px;
+  padding-right: 20px;
 }
 .app-settings .st-root.compact .st-scroll {
   padding-left: 24px;
   padding-right: 20px;
 }
 
-/* ---------- groups & rows (SettingsCard) ---------- */
+/* ---------- grouped lists: one block per group, rows separated by hairlines ---------- */
 .app-settings .st-group-title {
   margin: 0 0 8px 2px;
-  font-size: 14px;
-  line-height: 20px;
+  font-family: var(--font);
+  font-size: var(--fs-small);
+  line-height: 18px;
   font-weight: 600;
+  color: var(--text-2);
 }
 .app-settings .st-group-rows {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 0;
+  border: 1px solid var(--stroke-card);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.app-settings .st-group-rows > * + * {
+  border-top: 1px solid var(--line-soft);
 }
 .app-settings .st-row {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   width: 100%;
-  min-height: 66px;
-  padding: 11px 16px;
+  min-height: 60px;
+  padding: 10px 16px;
   border: 1px solid var(--stroke-card);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--card);
   color: var(--text);
   text-align: left;
-  font-size: 14px;
-  transition: background var(--dur-fast) linear;
+  font-size: var(--fs-body);
+  transition: background var(--dur-fast) var(--ease);
+}
+/* inside a group the block draws the frame: rows are plain lines */
+.app-settings .st-group .st-group-rows > .st-row,
+.app-settings .st-group .st-group-rows > .st-expander > .st-exp-head,
+.app-settings .st-group .st-group-rows > .pz-ctl,
+.app-settings .st-group .st-group-rows > .pz-auto {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.app-settings .st-group .st-group-rows > * + .st-row,
+.app-settings .st-group .st-group-rows > * + .st-expander,
+.app-settings .st-group .st-group-rows > * + .pz-ctl,
+.app-settings .st-group .st-group-rows > * + .pz-auto {
+  border-top: 1px solid var(--line-soft);
+}
+.app-settings .st-group .st-group-rows > :first-child,
+.app-settings .st-group .st-group-rows > .st-expander:first-child > .st-exp-head {
+  border-top-left-radius: calc(var(--radius) - 1px);
+  border-top-right-radius: calc(var(--radius) - 1px);
+}
+.app-settings .st-group .st-group-rows > :last-child,
+.app-settings .st-group .st-group-rows > .st-expander:last-child:not(.open) > .st-exp-head,
+.app-settings .st-group .st-group-rows > .st-expander:last-child > .st-exp-body {
+  border-bottom-left-radius: calc(var(--radius) - 1px);
+  border-bottom-right-radius: calc(var(--radius) - 1px);
 }
 .app-settings button.st-row {
   font: inherit;
 }
-.app-settings .st-row.clickable:hover {
-  background: var(--card-hover);
+.app-settings .st-row.clickable {
+  cursor: default;
 }
-.app-settings .st-row.clickable:active {
-  background: var(--control-pressed);
+.app-settings .st-row.clickable:hover,
+.app-settings .st-group .st-group-rows > .st-row.clickable:hover,
+.app-settings .st-group .st-group-rows > .st-expander > .st-exp-head:hover {
+  background: var(--subtle-hover);
 }
-.app-settings .st-row.clickable:active > .st-row-text {
-  opacity: 0.8;
+.app-settings .st-row.clickable:active,
+.app-settings .st-group .st-group-rows > .st-row.clickable:active {
+  background: var(--subtle-pressed);
+}
+.app-settings .st-row.clickable:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
 }
 .app-settings .st-row.disabled {
   color: var(--text-disabled);
@@ -354,7 +438,7 @@
   display: inline-grid;
   place-items: center;
   width: 24px;
-  color: var(--text);
+  color: var(--text-2);
 }
 .app-settings .st-row-icon img {
   width: 24px;
@@ -369,8 +453,9 @@
   overflow-wrap: anywhere;
 }
 .app-settings .st-row-desc {
-  font-size: var(--fs-caption);
-  line-height: 16px;
+  margin-top: 1px;
+  font-size: var(--fs-small);
+  line-height: 18px;
   color: var(--text-2);
   overflow-wrap: anywhere;
 }
@@ -385,9 +470,17 @@
 .app-settings .st-chev {
   display: inline-grid;
   place-items: center;
-  color: var(--text-2);
+  color: var(--text-3);
   margin-left: 4px;
-  transition: transform var(--dur-slow) var(--ease);
+  transition: transform var(--dur-slow) var(--ease), opacity var(--dur-fast) var(--ease);
+}
+/* rows that open a page: the arrow only shows on hover and keyboard focus */
+.app-settings .st-chev-go {
+  opacity: 0;
+}
+.app-settings .st-row:hover .st-chev-go,
+.app-settings .st-row:focus-visible .st-chev-go {
+  opacity: 1;
 }
 .app-settings .st-row-value {
   color: var(--text-2);
@@ -399,10 +492,10 @@
 @keyframes st-flash {
   0%,
   35% {
-    box-shadow: 0 0 0 2px var(--accent);
+    box-shadow: inset 0 0 0 2px var(--accent);
   }
   100% {
-    box-shadow: 0 0 0 2px transparent;
+    box-shadow: inset 0 0 0 2px transparent;
   }
 }
 
@@ -416,6 +509,12 @@
 }
 .app-settings .st-expander.open .st-exp-chev {
   transform: rotate(180deg);
+}
+.app-settings .st-group .st-group-rows > .st-expander > .st-exp-body {
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  border-radius: 0;
+  background: var(--bg-alt);
 }
 .app-settings .st-exp-body {
   border: 1px solid var(--stroke-card);
@@ -635,53 +734,6 @@
   flex-wrap: wrap;
   align-items: center;
 }
-.app-settings .st-device-pic {
-  flex: none;
-  width: 168px;
-  height: 104px;
-  border-radius: 6px;
-  border: 4px solid #1b1b1b;
-  border-bottom-width: 7px;
-  background: var(--wallpaper) center / cover, #333;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
-  position: relative;
-}
-.app-settings .st-device-pic::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -17px;
-  width: 44px;
-  height: 10px;
-  margin-left: -22px;
-  border-radius: 0 0 4px 4px;
-  background: linear-gradient(#2a2a2a, #3a3a3a);
-}
-.app-settings .st-quick-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 8px;
-}
-.app-settings .st-qcard {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  min-height: 64px;
-  border-radius: var(--radius);
-  border: 1px solid var(--stroke-card);
-  background: var(--card);
-  color: var(--text);
-  text-align: left;
-  font: inherit;
-  transition: background var(--dur-fast) linear;
-}
-.app-settings button.st-qcard:hover {
-  background: var(--card-hover);
-}
-.app-settings .st-qcard .icon {
-  color: var(--accent-text);
-}
 .app-settings .st-kv {
   display: grid;
   grid-template-columns: minmax(140px, 220px) 1fr;
@@ -694,6 +746,73 @@
 }
 .app-settings .st-kv > .v {
   user-select: text;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- System summary (System and About) ---------- */
+.app-settings .st-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 18px 20px;
+  border: 1px solid var(--stroke-card);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.app-settings .st-sum-label {
+  display: block;
+  font-size: var(--fs-small);
+  line-height: 18px;
+  color: var(--text-2);
+}
+.app-settings .st-host-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.app-settings .st-host-input {
+  flex: 0 1 320px;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle);
+  font-weight: 600;
+  height: 40px;
+}
+.app-settings .st-host-input.invalid {
+  border-color: var(--danger);
+  box-shadow: inset 0 -2px 0 var(--danger);
+}
+.app-settings .st-host-hint {
+  margin-top: 6px;
+  font-size: var(--fs-small);
+  line-height: 18px;
+  color: var(--text-2);
+}
+.app-settings .st-host-hint.error {
+  color: var(--danger);
+}
+.app-settings .st-sum-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+.app-settings .st-sum-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.app-settings .st-sum-cell > .st-bar {
+  align-self: stretch;
+  margin-top: 4px;
+}
+.app-settings .st-sum-value {
+  font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 
@@ -1292,33 +1411,45 @@
 
 /* ---------- Update ---------- */
 .app-settings .st-upd-hero {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
+  gap: 14px 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--stroke-card);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.app-settings .st-upd-hero > .st-upd-progress,
+.app-settings .st-upd-hero > .st-hero-actions {
+  grid-column: 2;
+  min-width: 0;
 }
 .app-settings .st-upd-icon {
   position: relative;
   flex: none;
-  width: 72px;
-  height: 72px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
-  color: var(--accent);
+  color: var(--accent-text);
+  background: var(--accent-subtle);
 }
 .app-settings .st-upd-icon .st-upd-badge {
   position: absolute;
-  right: 2px;
-  bottom: 4px;
+  right: -2px;
+  bottom: -2px;
   border-radius: 50%;
-  background: var(--solid);
+  background: var(--bg);
+  box-shadow: 0 0 0 2px var(--bg);
   line-height: 0;
 }
 .app-settings .st-upd-icon .st-upd-badge.ok {
   color: var(--success);
 }
 .app-settings .st-upd-icon .st-upd-badge.pending {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .app-settings .st-upd-icon.spinning > .icon:first-child {
   animation: ui-spin 1.6s linear infinite;
@@ -1327,8 +1458,6 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 260px;
-  flex: 1;
 }
 .app-settings .st-pkg-list {
   display: flex;
@@ -1467,4 +1596,8 @@
   .app-settings .st-sub {
     padding-left: 16px;
   }
+}
+.app-settings .st-sum-cell .st-link {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }

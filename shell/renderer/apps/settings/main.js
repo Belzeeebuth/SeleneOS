@@ -1,8 +1,9 @@
-// Aurora Settings — Windows 11 style Settings app.
+// Paramètres (Settings).
 //   shell.launch('settings', { page, section })   deep link (see lib/index.js for page ids and aliases)
-// Layout: left pane (account card, "Find a setting", category nav) + page area (breadcrumb title,
-// scrolling content). Pages live in pages/<module>.js: `export default { pageId: async (pc) => Node }`.
-import { NAV, PAGES, resolvePage, crumbs, categoryOf, searchIndex } from './lib/index.js';
+// Layout: two panes. Left: "Find a setting", then the categories grouped under small headings, and the
+// account as a small row at the bottom. Right: the parent pages as a small line above the page title, then
+// the scrolling content. Pages live in pages/<module>.js: `export default { pageId: async (pc) => Node }`.
+import { NAV_GROUPS, NAV_ACCOUNT, PAGES, resolvePage, crumbs, categoryOf, searchIndex } from './lib/index.js';
 import { createKit } from './lib/kit.js';
 
 const MODULES = {
@@ -26,16 +27,18 @@ const MODULES = {
 };
 
 const NAV_ICONS = {
-  system: 'desktop',
-  bluetooth: 'bluetooth',
-  network: 'globe',
+  system: 'desktop_tower',
   personalization: 'paint_brush',
+  display: 'desktop',
+  network: 'globe',
+  bluetooth: 'bluetooth',
+  sound: 'speaker_2',
   apps: 'apps_list',
-  accounts: 'person',
   timeLanguage: 'local_language',
   accessibility: 'accessibility',
   privacy: 'shield',
   update: 'arrow_sync',
+  about: 'info',
 };
 
 export default {
@@ -112,9 +115,19 @@ export default {
     const avatar = h('div', { class: 'st-avatar', 'aria-hidden': 'true' });
     const userName = h('div', { class: 'st-user-name ellipsis' });
     const userKind = h('div', { class: 'st-user-kind caption ellipsis' });
+    // The account: a small row at the bottom of the pane. It is the "accounts" category of the navigation
+    // (same keyboard list, selected on the account pages).
     const userCard = h(
       'button',
-      { class: 'st-user', type: 'button', onclick: () => navigate('yourInfo') },
+      {
+        class: 'st-user nav-item st-nav-item',
+        type: 'button',
+        dataset: { page: NAV_ACCOUNT, cat: NAV_ACCOUNT },
+        onclick: () => {
+          setPaneOpen(false);
+          navigate(NAV_ACCOUNT);
+        },
+      },
       avatar,
       h('div', { class: 'st-user-text' }, userName, userKind),
     );
@@ -122,9 +135,10 @@ export default {
     const suggest = h('div', { class: 'st-suggest menu', role: 'listbox', hidden: true });
     const searchBox = h('div', { class: 'st-search search-box' }, searchInput, icon('search', { size: 16 }), suggest);
     const nav = h('nav', { class: 'st-nav nav', 'aria-label': t('settings.navigation') });
-    const pane = h('aside', { class: 'st-pane' }, userCard, searchBox, nav);
+    const pane = h('aside', { class: 'st-pane' }, searchBox, nav, h('div', { class: 'st-pane-foot' }, userCard));
     const titleEl = h('h1', { class: 'st-title' });
-    const header = h('header', { class: 'st-header' }, titleEl);
+    const crumbsEl = h('nav', { class: 'st-crumbs', 'aria-label': t('settings.navigation'), hidden: true });
+    const header = h('header', { class: 'st-header' }, crumbsEl, titleEl);
     const errorHost = h('div', { class: 'st-errors' });
     const content = h('div', { class: 'st-content' });
     const scroller = h('div', { class: 'st-scroll', tabindex: '-1' }, h('div', { class: 'st-content-wrap' }, errorHost, content));
@@ -133,7 +147,7 @@ export default {
     const root = h('div', { class: 'st-root' }, pane, main, scrim);
     win.body.appendChild(root);
 
-    // Title bar: back arrow (and the nav button when the window is narrow), like Windows 11 Settings.
+    // Title bar: back arrow (and the nav button when the window is narrow).
     const backBtn = h('button', { class: 'st-tb-btn st-tb-back', type: 'button', 'aria-label': t('common.back'), 'data-tip': t('common.back'), disabled: true, onclick: () => goBack() }, icon('arrow_left', { size: 16 }));
     const menuBtn = h('button', { class: 'st-tb-btn st-tb-menu', type: 'button', 'aria-label': t('settings.navigation'), onclick: () => setPaneOpen(!root.classList.contains('pane-open')) }, icon('line_horizontal_3', { size: 16 }));
     const tbHost = win.titlebar || win.el?.querySelector('.win-titlebar');
@@ -144,7 +158,7 @@ export default {
 
     function setPaneOpen(open) {
       root.classList.toggle('pane-open', !!open);
-      if (open) setTimeout(() => nav.querySelector('.selected')?.focus(), 50);
+      if (open) setTimeout(() => pane.querySelector('.st-nav-item.selected')?.focus(), 50);
     }
     const ro = new ResizeObserver(() => {
       const compact = win.body.clientWidth < 860;
@@ -155,57 +169,69 @@ export default {
     globalDisposers.push(() => ro.disconnect());
 
     // ---------------------------------------------------------------- nav
+    function navButton(id) {
+      return h(
+        'button',
+        {
+          class: 'nav-item st-nav-item',
+          type: 'button',
+          dataset: { page: id, cat: id },
+          onclick: () => {
+            setPaneOpen(false);
+            navigate(id);
+          },
+        },
+        h('span', { class: 'st-nav-icon' }, icon(NAV_ICONS[id] || PAGES[id].icon, { size: 18 })),
+        h('span', { class: 'ellipsis' }, L(PAGES[id].title)),
+      );
+    }
+    const navItems = () => [...pane.querySelectorAll('.st-nav-item')];
     function buildNav() {
       ui.clear(nav);
-      for (const id of NAV) {
+      for (const g of NAV_GROUPS) {
+        const headId = `st-nav-h-${g.id}`;
         nav.appendChild(
           h(
-            'button',
-            {
-              class: 'nav-item st-nav-item',
-              type: 'button',
-              dataset: { page: id, cat: id },
-              onclick: () => {
-                setPaneOpen(false);
-                navigate(id);
-              },
-            },
-            h('span', { class: 'st-nav-icon' }, icon(NAV_ICONS[id], { size: 18, filled: true })),
-            h('span', { class: 'ellipsis' }, L(PAGES[id].title)),
+            'div',
+            { class: 'st-nav-group', role: 'group', 'aria-labelledby': g.title ? headId : null },
+            g.title ? h('h2', { class: 'st-nav-heading', id: headId }, L(g.title)) : null,
+            g.items.map(navButton),
           ),
         );
       }
-      // One tab stop for the whole list (the selected category); arrow keys, Home and End move
-      // between categories, Enter / Space opens one.
-      nav.onkeydown = (e) => {
+      // One tab stop for the whole list (the selected category, the account row included); arrow keys,
+      // Home and End move between categories, Enter / Space opens one.
+      pane.onkeydown = (e) => {
         if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
-        const items = [...nav.querySelectorAll('.st-nav-item')];
+        const items = navItems();
         const i = items.indexOf(document.activeElement);
+        if (i < 0) return;
         const n = e.key === 'Home' ? items[0] : e.key === 'End' ? items[items.length - 1] : items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
         e.preventDefault();
         if (!n) return;
         for (const el of items) el.tabIndex = el === n ? 0 : -1;
         n.focus();
+        n.scrollIntoView({ block: 'nearest' });
       };
-      nav.onfocusout = (e) => {
-        if (!nav.contains(e.relatedTarget)) rovingReset();
+      pane.onfocusout = (e) => {
+        if (!navItems().includes(e.relatedTarget)) rovingReset();
       };
       rovingReset();
     }
     function rovingReset() {
-      const items = [...nav.querySelectorAll('.st-nav-item')];
+      const items = navItems();
       const sel = items.find((el) => el.classList.contains('selected')) || items[0];
       for (const el of items) el.tabIndex = el === sel ? 0 : -1;
     }
     function markNav(page) {
       const cat = page === 'search' ? null : categoryOf(page);
-      for (const el of nav.querySelectorAll('.st-nav-item')) {
+      for (const el of navItems()) {
         const on = el.dataset.cat === cat;
         el.classList.toggle('selected', on);
         if (on) el.setAttribute('aria-current', 'page');
         else el.removeAttribute('aria-current');
       }
-      if (!nav.contains(document.activeElement)) rovingReset();
+      if (!navItems().includes(document.activeElement)) rovingReset();
     }
 
     // ---------------------------------------------------------------- account card
@@ -215,7 +241,7 @@ export default {
       const name = u?.fullName || u?.name || ctx.env.user;
       userName.textContent = name;
       userKind.textContent = `${t('settings.localAccount')}${st?.isAdmin ? ` · ${t('settings.administrator')}` : ''}`;
-      paintAvatar(avatar, u, 60);
+      paintAvatar(avatar, u, 32);
     }
     function paintAvatar(el, u, size) {
       ui.clear(el);
@@ -262,22 +288,23 @@ export default {
     const history = [];
     let navSeq = 0;
 
+    // Page title (Manrope) with its parent pages as a small line of links above it.
     function renderTitle(page) {
       ui.clear(titleEl);
+      ui.clear(crumbsEl);
       if (page === 'search') {
+        crumbsEl.hidden = true;
         titleEl.appendChild(h('span', { class: 'st-crumb current' }, t('settings.searchResultsFor', { q: lastQuery })));
         return;
       }
       const chain = crumbs(page);
-      chain.forEach((id, i) => {
-        const last = i === chain.length - 1;
-        if (i > 0) titleEl.appendChild(h('span', { class: 'st-crumb-sep', 'aria-hidden': 'true' }, icon('chevron_right', { size: 16 })));
-        titleEl.appendChild(
-          last
-            ? h('span', { class: 'st-crumb current', 'aria-current': 'page' }, L(PAGES[id].title))
-            : h('button', { class: 'st-crumb', type: 'button', onclick: () => navigate(id) }, L(PAGES[id].title)),
-        );
+      const parents = chain.slice(0, -1);
+      crumbsEl.hidden = !parents.length;
+      parents.forEach((id, i) => {
+        if (i > 0) crumbsEl.appendChild(h('span', { class: 'st-crumb-sep', 'aria-hidden': 'true' }, '/'));
+        crumbsEl.appendChild(h('button', { class: 'st-crumb', type: 'button', onclick: () => navigate(id) }, L(PAGES[id].title)));
       });
+      titleEl.appendChild(h('span', { class: 'st-crumb current', 'aria-current': 'page' }, L(PAGES[page].title)));
     }
 
     async function navigate(page, { section = null, push = true, animate = true, keepScroll = false } = {}) {
@@ -330,8 +357,8 @@ export default {
       if (keepScroll) scroller.scrollTop = prevScroll;
       else scroller.scrollTop = 0;
       if (animate && !kit.reduceMotion()) {
-        pageEl.animate([{ opacity: 0, transform: 'translateY(18px)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'cubic-bezier(0.1, 0.9, 0.2, 1)' });
-        titleEl.animate([{ opacity: 0, transform: 'translateX(-8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(0.1, 0.9, 0.2, 1)' });
+        pageEl.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'ease-out' });
+        titleEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-out' });
       }
       if (r.section) revealSection(r.section);
     }
@@ -454,6 +481,7 @@ export default {
     ctx.onLangChange(() => {
       searchInput.placeholder = t('settings.findSetting');
       searchInput.setAttribute('aria-label', t('settings.findSetting'));
+      crumbsEl.setAttribute('aria-label', t('settings.navigation'));
       backBtn.setAttribute('aria-label', t('common.back'));
       backBtn.dataset.tip = t('common.back');
       buildNav();

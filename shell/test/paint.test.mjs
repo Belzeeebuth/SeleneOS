@@ -219,7 +219,14 @@ await test('boots with an untitled 1152×648 white canvas and the command bar', 
   const info = await P(s, (p, el) => ({
     size: p.size,
     title: el.querySelector('.pt-doctitle').textContent,
-    groups: [...el.querySelectorAll('.pt-g-label')].map((x) => x.textContent),
+    groups: [...el.querySelectorAll('.pt-g')].map((x) => x.getAttribute('aria-label')),
+    captions: el.querySelectorAll('.pt-g-label, .pt-rainbow').length,
+    palette: (() => {
+      const box = el.querySelector('.pt-toolbox').getBoundingClientRect();
+      const main = el.querySelector('.pt-main').getBoundingClientRect();
+      const bar = el.querySelector('.pt-cmdbar').getBoundingClientRect();
+      return { left: box.right <= main.left + 1 && box.height > box.width, tools: el.querySelectorAll('.pt-toolbox [data-tool]').length, barH: bar.height };
+    })(),
     shapes: el.querySelectorAll('.pt-gallery [data-shape]').length,
     swatches: [...el.querySelectorAll('.pt-palette:not(.custom) .pt-sw')].map((b) => getComputedStyle(b).backgroundColor),
     status: el.querySelector('.pt-st-item.size').textContent,
@@ -227,7 +234,10 @@ await test('boots with an untitled 1152×648 white canvas and the command bar', 
   }));
   assert.deepEqual(info.size, { w: 1152, h: 648 });
   assert.equal(info.title, 'Untitled - Draw');
-  assert.deepEqual(info.groups, ['Clipboard', 'Image', 'Tools', 'Brushes', 'Shapes', 'Size', 'Colors']);
+  // Options bar along the top (no captions), then the tool palette on the left.
+  assert.deepEqual(info.groups, ['Clipboard', 'Image', 'Outline and fill', 'Size', 'Colors', 'Tools', 'Brushes', 'Shapes']);
+  assert.equal(info.captions, 0, 'no group captions, no rainbow colour wheel');
+  assert.ok(info.palette.left && info.palette.tools === 6 && info.palette.barH <= 56, `left tool palette + slim options bar: ${JSON.stringify(info.palette)}`);
   assert.ok(info.shapes >= 23, 'at least 23 shapes');
   assert.equal(info.swatches.length, 20);
   assert.equal(info.swatches[3], 'rgb(237, 28, 36)', 'palette red');
@@ -410,10 +420,10 @@ await test('all shapes render, Shift constrains, outline/fill styles apply', asy
   assert.equal(sel, '141 × 141px', 'constrained to a circle (cells 60…200 inclusive)');
   await P(s, (p) => p.commitPending());
   // outline/fill styles through the menus
-  await s.page.click(`${WIN} .pt-g[data-g="shapes"] .pt-col .pt-b:nth-child(1)`);
+  await s.page.click(`${WIN} .pt-g[data-g="shapeopts"] .pt-col .pt-b:nth-child(1)`);
   await s.page.locator('.menu .menu-item', { hasText: 'Crayon' }).click();
   assert.equal(await P(s, (p) => p.S.outline), 'crayon');
-  await s.page.click(`${WIN} .pt-g[data-g="shapes"] .pt-col .pt-b:nth-child(2)`);
+  await s.page.click(`${WIN} .pt-g[data-g="shapeopts"] .pt-col .pt-b:nth-child(2)`);
   await s.page.locator('.menu .menu-item', { hasText: 'Watercolor' }).click();
   assert.equal(await P(s, (p) => p.S.fill), 'watercolor');
   await shape(s, 'heart');
@@ -1427,14 +1437,14 @@ await wait(f, 600);
 await test('French UI strings and dark theme', async () => {
   const info = await P(f, (p, el) => ({
     title: el.querySelector('.pt-doctitle').textContent,
-    groups: [...el.querySelectorAll('.pt-g-label')].map((x) => x.textContent),
+    groups: [...el.querySelectorAll('.pt-g')].map((x) => x.getAttribute('aria-label')),
     menus: [...el.querySelectorAll('.pt-menu-btn')].map((x) => x.textContent),
     tip: el.querySelector('[data-tool="fill"]').dataset.tip,
     ws: getComputedStyle(el.querySelector('.pt-main')).backgroundColor,
     text: getComputedStyle(el).color,
   }));
   assert.equal(info.title, 'Sans titre - Dessin');
-  assert.deepEqual(info.groups, ['Presse-papiers', 'Image', 'Outils', 'Pinceaux', 'Formes', 'Taille', 'Couleurs']);
+  assert.deepEqual(info.groups, ['Presse-papiers', 'Image', 'Contour et remplissage', 'Taille', 'Couleurs', 'Outils', 'Pinceaux', 'Formes']);
   assert.deepEqual(info.menus, ['Fichier', 'Modifier', 'Affichage']);
   assert.equal(info.tip, 'Remplissage (F)');
   assert.equal(info.ws, 'rgb(14, 19, 31)', 'dark workspace (--bg-alt, cold ambiance)');

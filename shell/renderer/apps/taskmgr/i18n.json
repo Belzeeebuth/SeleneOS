@@ -10,6 +10,7 @@
       "performance": "Performance",
       "history": "App history",
       "startup": "Startup apps",
+      "startupTab": "Startup",
       "users": "Users",
       "details": "Details",
       "services": "Services",
@@ -23,10 +24,10 @@
     },
     "cmd": {
       "toolbar": "Commands",
-      "run": "Run new task",
-      "endTask": "End task",
+      "run": "Run a command",
+      "endTask": "Stop process",
       "endTree": "End process tree",
-      "efficiency": "Efficiency mode",
+      "efficiency": "Low priority",
       "view": "View",
       "properties": "Properties",
       "more": "See more",
@@ -88,7 +89,7 @@
       "running": "Running",
       "suspended": "Suspended",
       "zombie": "Terminated",
-      "efficiency": "Efficiency mode"
+      "efficiency": "Low priority"
     },
     "prio": {
       "realtime": "Realtime",
@@ -187,10 +188,10 @@
       "wait": "Wait"
     },
     "eff": {
-      "title": "Turn on Efficiency mode?",
-      "body": "Efficiency mode lowers the process priority so other apps stay responsive and the system uses less power. Some processes may run slower.",
+      "title": "Turn on low priority?",
+      "body": "Low priority keeps the other apps responsive and saves energy. This process may run slower.",
       "dontAsk": "Don't show this again",
-      "turnOn": "Turn on Efficiency mode"
+      "turnOn": "Turn on low priority"
     },
     "props": {
       "title": "{name} Properties",
@@ -391,7 +392,7 @@
       "showFullName": "Show full account name",
       "historyAll": "Show history for all processes",
       "kernelThreads": "Show kernel threads in Details",
-      "effConfirm": "Show efficiency mode confirmation dialog",
+      "effConfirm": "Ask before turning on low priority",
       "about": "About",
       "aboutDesc": "Selene OS System Monitor · reads live data from the Linux kernel"
     },
@@ -411,6 +412,12 @@
       "Gbps": "Gbps",
       "GHz": "GHz",
       "ms": "ms"
+    },
+    "views": {
+      "label": "Process views",
+      "processes": "List",
+      "details": "Details",
+      "history": "History"
     }
   },
   "fr": {
@@ -424,6 +431,7 @@
       "performance": "Performances",
       "history": "Historique des applications",
       "startup": "Applications de démarrage",
+      "startupTab": "Démarrage",
       "users": "Utilisateurs",
       "details": "Détails",
       "services": "Services",
@@ -437,10 +445,10 @@
     },
     "cmd": {
       "toolbar": "Commandes",
-      "run": "Exécuter une nouvelle tâche",
-      "endTask": "Fin de tâche",
+      "run": "Lancer une commande",
+      "endTask": "Arrêter le processus",
       "endTree": "Terminer l'arborescence du processus",
-      "efficiency": "Mode efficacité",
+      "efficiency": "Priorité basse",
       "view": "Affichage",
       "properties": "Propriétés",
       "more": "Voir plus",
@@ -502,7 +510,7 @@
       "running": "En cours d'exécution",
       "suspended": "Suspendu",
       "zombie": "Terminé",
-      "efficiency": "Mode efficacité"
+      "efficiency": "Priorité basse"
     },
     "prio": {
       "realtime": "Temps réel",
@@ -601,10 +609,10 @@
       "wait": "Attendre"
     },
     "eff": {
-      "title": "Activer le mode efficacité ?",
-      "body": "Le mode efficacité réduit la priorité du processus pour que les autres applications restent réactives et que le système consomme moins d'énergie. Certains processus peuvent ralentir.",
+      "title": "Activer la priorité basse ?",
+      "body": "La priorité basse garde les autres applications réactives et économise de l'énergie. Ce processus peut ralentir.",
       "dontAsk": "Ne plus afficher ce message",
-      "turnOn": "Activer le mode efficacité"
+      "turnOn": "Activer la priorité basse"
     },
     "props": {
       "title": "Propriétés de {name}",
@@ -805,7 +813,7 @@
       "showFullName": "Afficher le nom complet du compte",
       "historyAll": "Afficher l'historique de tous les processus",
       "kernelThreads": "Afficher les threads du noyau dans Détails",
-      "effConfirm": "Afficher la confirmation du mode efficacité",
+      "effConfirm": "Demander avant d'activer la priorité basse",
       "about": "À propos",
       "aboutDesc": "Moniteur système de Selene OS · lit les données en direct depuis le noyau Linux"
     },
@@ -825,6 +833,12 @@
       "Gbps": "Gbit/s",
       "GHz": "GHz",
       "ms": "ms"
+    },
+    "views": {
+      "label": "Vues des processus",
+      "processes": "Liste",
+      "details": "Détails",
+      "history": "Historique"
     }
   }
 }

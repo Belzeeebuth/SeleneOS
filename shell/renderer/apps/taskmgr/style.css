@@ -1,44 +1,33 @@
-/* Task Manager — Windows 11 22H2 look: Mica navigation pane, layered content area with a
-   rounded top-left corner, heat-mapped resource columns and device-coloured charts. */
+/* System Monitor: tabs along the top, a quiet toolbar row, flat tables on the window surface,
+   resource columns tinted with the accent (stronger with use), graphs in the accent colour. */
 .app-taskmgr {
-  --tm-c-cpu: #117dbb;
-  --tm-c-mem: #8b12ae;
-  --tm-c-disk: #4da60c;
-  --tm-c-net: #a74f01;
-  --tm-c-gpu: #0f7f8c;
-  --tm-chart-bg: rgba(255, 255, 255, 0.55);
-  --tm-sel: color-mix(in srgb, var(--accent) 17%, transparent);
-  --tm-sel-hover: color-mix(in srgb, var(--accent) 22%, transparent);
-  --tm-heat-sep: rgba(255, 255, 255, 0.85);
-  --heat-0: #fff4c4;
-  --heat-1: #ffefb4;
-  --heat-2: #ffe6a0;
-  --heat-3: #ffda8b;
-  --heat-4: #ffcb76;
-  --heat-5: #fdb560;
-  --heat-6: #f99b49;
-  --heat-7: #f27e33;
-  --heat-text: rgba(0, 0, 0, 0.9);
+  --tm-c-cpu: var(--accent);
+  --tm-c-mem: var(--accent);
+  --tm-c-disk: var(--accent);
+  --tm-c-net: var(--accent);
+  --tm-c-gpu: var(--accent);
+  --tm-chart-bg: var(--bg-alt);
+  --tm-sel: var(--sel-bg);
+  --tm-sel-hover: color-mix(in srgb, var(--sel-bg) 100%, var(--subtle-hover));
+  --tm-heat-sep: var(--line-soft);
+  /* Usage tints: the accent over the surface, from barely there to a soft wash. */
+  --heat-0: color-mix(in srgb, var(--accent) 3%, transparent);
+  --heat-1: color-mix(in srgb, var(--accent) 6%, transparent);
+  --heat-2: color-mix(in srgb, var(--accent) 9%, transparent);
+  --heat-3: color-mix(in srgb, var(--accent) 12%, transparent);
+  --heat-4: color-mix(in srgb, var(--accent) 16%, transparent);
+  --heat-5: color-mix(in srgb, var(--accent) 20%, transparent);
+  --heat-6: color-mix(in srgb, var(--accent) 25%, transparent);
+  --heat-7: color-mix(in srgb, var(--accent) 30%, transparent);
+  --heat-text: var(--text);
 }
-:root[data-theme="dark"] .app-taskmgr {
-  --tm-c-cpu: #3d9fe2;
-  --tm-c-mem: #b665e3;
-  --tm-c-disk: #6cb63f;
-  --tm-c-net: #d98a3a;
-  --tm-c-gpu: #2fb3c2;
-  --tm-chart-bg: rgba(0, 0, 0, 0.18);
-  --tm-sel: color-mix(in srgb, var(--accent) 26%, transparent);
-  --tm-sel-hover: color-mix(in srgb, var(--accent) 32%, transparent);
-  --tm-heat-sep: rgba(0, 0, 0, 0.35);
-  --heat-0: #39352a;
-  --heat-1: #423b25;
-  --heat-2: #4e4423;
-  --heat-3: #5b4b21;
-  --heat-4: #6b521e;
-  --heat-5: #7d561b;
-  --heat-6: #925818;
-  --heat-7: #a85716;
-  --heat-text: #ffffff;
+.app-taskmgr .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------------------------ title bar search */
@@ -106,144 +95,139 @@
   flex: 1;
   min-height: 0;
   display: flex;
-}
-.app-taskmgr .tm-nav {
-  flex: none;
-  width: 52px;
-  display: flex;
   flex-direction: column;
-  padding: 2px 6px 6px;
-  gap: 2px;
-  z-index: 21;
-}
-.app-taskmgr .tm-root.nav-expanded .tm-nav {
-  width: auto;
-  min-width: 212px;
-  max-width: 300px;
 }
 .app-taskmgr [hidden] {
   display: none !important;
 }
-.app-taskmgr .tm-nav-top {
-  padding: 0 0 4px;
-}
-.app-taskmgr .tm-burger {
-  width: 40px;
-  height: 36px;
-  min-height: 36px;
-}
-.app-taskmgr .tm-nav-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  flex: 1;
-  min-height: 0;
-}
-.app-taskmgr .tm-nav-foot {
-  padding-top: 4px;
-}
-.app-taskmgr .tm-nav-item {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  text-align: left;
-  font-size: 14px;
-  gap: 14px;
-  padding: 0 12px;
+/* Tabs along the top: text only, the selected one underlined in the accent. */
+.app-taskmgr .tm-tabbar {
   flex: none;
-  transition: background var(--dur-fast) linear;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--titlebar-bg);
 }
-.app-taskmgr .tm-nav-item:active {
-  background: var(--subtle-pressed);
+.app-taskmgr .tm-tablist {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
 }
-.app-taskmgr .tm-nav-item.selected:hover {
+.app-taskmgr .tm-tab-gap {
+  flex: 1;
+}
+.app-taskmgr .tm-tab {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-body);
+  white-space: nowrap;
+  cursor: default;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.app-taskmgr .tm-tab:hover {
+  color: var(--text);
   background: var(--subtle-hover);
 }
-.app-taskmgr .tm-nav-item .icon {
-  width: 16px;
-  height: 16px;
+.app-taskmgr .tm-tab.selected {
+  color: var(--text);
+  font-weight: 600;
 }
-.app-taskmgr .tm-root:not(.nav-expanded) .tm-nav-item {
-  width: 40px;
-}
-.app-taskmgr .tm-root:not(.nav-expanded) .tm-nav-label {
-  display: none;
-}
-.app-taskmgr .tm-root.nav-expanded .tm-nav-label {
-  animation: tm-fade var(--dur-slow) var(--ease);
-}
-@keyframes tm-fade {
-  from {
-    opacity: 0;
-  }
-}
-/* Narrow windows: the pane floats over the content. */
-.app-taskmgr .tm-root.narrow .tm-nav {
+.app-taskmgr .tm-tab.selected::after {
+  content: "";
   position: absolute;
-  left: 0;
-  top: 0;
+  left: 10px;
+  right: 10px;
   bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
 }
-.app-taskmgr .tm-root.narrow .tm-main {
-  margin-left: 52px;
+.app-taskmgr .tm-tab:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
 }
-.app-taskmgr .tm-root.nav-overlay .tm-nav {
-  background: var(--surface-raised);
-  border-right: 1px solid var(--window-stroke);
-  border-radius: 0 var(--radius) var(--radius) 0;
-  box-shadow: var(--shadow-flyout);
-  animation: tm-nav-in var(--dur-slow) var(--ease);
+.app-taskmgr .tm-tab-gear {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
 }
-@keyframes tm-nav-in {
-  from {
-    transform: translateX(-16px);
-    opacity: 0.4;
-  }
-}
-.app-taskmgr .tm-scrim {
-  display: none;
-}
-.app-taskmgr .tm-root.nav-overlay .tm-scrim {
-  display: block;
-  position: absolute;
-  inset: 0;
-  z-index: 20;
+.app-taskmgr .tm-tab-gear.selected::after {
+  left: 8px;
+  right: 8px;
 }
 
 .app-taskmgr .tm-main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--layer);
-  border: 1px solid var(--stroke-card);
-  border-right: 0;
-  border-bottom: 0;
-  border-top-left-radius: var(--radius);
+  background: var(--bg);
   overflow: hidden;
 }
-.app-taskmgr .win.maximized .tm-main,
-.app-taskmgr.maximized .tm-main {
-  border-bottom: 0;
-}
+/* Quiet toolbar row: the Processes views on the left, the page's commands on the right. */
 .app-taskmgr .tm-head {
   display: flex;
   align-items: center;
-  gap: 16px;
-  min-height: 60px;
-  padding: 10px 12px 8px 24px;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 12px 6px 16px;
   flex: none;
 }
 .app-taskmgr .tm-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 20px;
-  line-height: 28px;
+}
+.app-taskmgr .tm-views {
+  flex: none;
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: var(--radius);
+  background: var(--bg-alt);
+  border: 1px solid var(--line-soft);
+}
+.app-taskmgr .tm-view {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-small);
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.app-taskmgr .tm-view:hover {
+  color: var(--text);
+  background: var(--subtle-hover);
+}
+.app-taskmgr .tm-view.selected {
+  color: var(--text);
+  background: var(--surface-raised);
+  box-shadow: 0 0 0 1px var(--line-soft);
   font-weight: 600;
-  flex: 0 1 auto;
-  min-width: 60px;
+}
+.app-taskmgr .tm-view:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 .app-taskmgr .tm-cmds {
   flex: 1;
@@ -256,14 +240,21 @@
 }
 .app-taskmgr .tm-cmd {
   flex: none;
-  gap: 8px;
-  padding: 5px 11px 6px;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 10px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.app-taskmgr .tm-cmd:not(:disabled):hover {
+  color: var(--text);
 }
 .app-taskmgr .tm-cmd[aria-pressed="true"] {
-  background: var(--subtle-selected);
+  background: var(--accent-subtle);
+  color: var(--text);
 }
 .app-taskmgr .tm-cmd[aria-pressed="true"] .icon {
-  color: var(--success);
+  color: var(--accent-text);
 }
 .app-taskmgr .tm-cmd .tm-cmd-chev {
   width: 12px;
@@ -275,7 +266,7 @@
   display: none;
 }
 .app-taskmgr .tm-head.compact .tm-cmd {
-  padding: 0 9px;
+  padding: 0 8px;
   gap: 4px;
 }
 .app-taskmgr .tm-pages {
@@ -420,7 +411,7 @@
   color: var(--text);
 }
 .app-taskmgr .tm-th.hot {
-  background: var(--heat-7);
+  background: var(--heat-6);
   color: var(--heat-text);
 }
 .app-taskmgr .tm-th.hot .tm-th-top {

@@ -327,7 +327,7 @@
    "failed": "failed",
    "installedPkg": "installed",
    "removedPkg": "removed",
-   "title": "Selene Update"
+   "title": "Updates"
   },
   "a11y": {
    "vision": "Vision",
@@ -437,6 +437,12 @@
    "reasonHostname": "Settings wants to change the name of this device.",
    "renamed": "This computer is now called {name}.",
    "updateCard": "Check for updates",
+   "summaryLabel": "Summary of this computer",
+   "deviceNameHint": "Letters, numbers and hyphens",
+   "version": "Selene version",
+   "memory": "Memory",
+   "sections": "System settings",
+   "allSpecs": "All specifications",
    "recommended": "Recommended",
    "custom": "Custom",
    "keepTitle": "Keep these display settings?",
@@ -1453,7 +1459,7 @@
    "failed": "échec",
    "installedPkg": "installé",
    "removedPkg": "supprimé",
-   "title": "Selene Update"
+   "title": "Mises à jour"
   },
   "a11y": {
    "vision": "Vision",
@@ -1563,6 +1569,12 @@
    "reasonHostname": "Paramètres veut modifier le nom de cet appareil.",
    "renamed": "Cet ordinateur s’appelle maintenant {name}.",
    "updateCard": "Rechercher des mises à jour",
+   "summaryLabel": "Résumé de cet ordinateur",
+   "deviceNameHint": "Lettres, chiffres et tirets",
+   "version": "Version de Selene",
+   "memory": "Mémoire",
+   "sections": "Réglages du système",
+   "allSpecs": "Toutes les caractéristiques",
    "recommended": "Recommandé",
    "custom": "Personnalisé",
    "keepTitle": "Conserver ces paramètres d’affichage ?",

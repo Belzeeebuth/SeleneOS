@@ -1,7 +1,7 @@
-// Settings app — Windows 11 Settings building blocks (cards, rows, expanders, combo boxes, toggles).
+// Settings app — building blocks (grouped lists of rows, expanders, combo boxes, toggles).
 // createKit(pc) is called once per window; pc = page context (h, icon, ui, t, settings, …).
 //
-//   kit.group(title, ...rows)                         titled stack of rows
+//   kit.group(title, ...rows)                         titled list of rows (one block, hairlines between rows)
 //   kit.row({ icon, title, desc, control, onClick, chevron, section, disabled, badge })
 //   kit.expander({ icon, title, desc, control, body: () => Node, open, section })
 //   kit.subRow({ title, desc, control })              a line inside an expander
@@ -38,7 +38,7 @@ export function createKit(pc) {
 
   function row({ icon: ic, iconFilled, title, desc, control, onClick, chevron, section, disabled, className, badge, ariaLabel } = {}) {
     const clickable = typeof onClick === 'function' && !disabled;
-    const right = h('div', { class: 'st-row-right' }, badge || null, control || null, clickable && chevron !== false ? h('span', { class: 'st-chev' }, icon(chevron === 'external' ? 'open' : 'chevron_right', { size: 16 })) : null);
+    const right = h('div', { class: 'st-row-right' }, badge || null, control || null, clickable && chevron !== false ? h('span', { class: ['st-chev', chevron === 'external' ? 'st-chev-ext' : 'st-chev-go'], 'aria-hidden': 'true' }, icon(chevron === 'external' ? 'open' : 'chevron_right', { size: 16 })) : null);
     // A row holding its own control can't be a <button> (no nested interactive content): use role=button.
     const asButton = clickable && !control;
     const el = h(

@@ -352,7 +352,7 @@ try {
   await page.waitForSelector('.menu', { timeout: 2000 }).catch(() => null);
   await sleep(150); // the menu starts listening to the keyboard on the next task
   const menuItems = await page.$$eval('.menu .menu-item', (els) => els.map((e) => e.innerText.trim()));
-  check('Shift+F10 opens the row context menu', menuItems.includes('End task') && menuItems.includes('Switch to'), menuItems);
+  check('Shift+F10 opens the row context menu', menuItems.includes('Stop process') && menuItems.includes('Switch to'), menuItems);
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Escape');
@@ -507,13 +507,13 @@ try {
   await page.click('.app-taskmgr .tm-cmd[data-cmd="eff"]');
   await page.waitForSelector(DLG, { timeout: 3000 });
   const effTitle = await page.$eval(`${DLG} .dialog-title`, (e) => e.textContent);
-  check('efficiency confirmation dialog', effTitle === 'Turn on Efficiency mode?', effTitle);
+  check('efficiency confirmation dialog', effTitle === 'Turn on low priority?', effTitle);
   await page.click(`${DLG} .btn.primary`);
   await waitFor(() => niceOf(eff.pid) === 19, { timeout: 3000 });
   check('efficiency mode sets nice 19', niceOf(eff.pid) === 19, niceOf(eff.pid));
-  await waitFor(() => page.$eval('.app-taskmgr .tm-page-processes .tm-row.sel:not([hidden])', (e) => e.innerText.includes('Efficiency mode')), { timeout: 3000 });
-  check('status column shows Efficiency mode', await page.$eval('.app-taskmgr .tm-page-processes .tm-row.sel:not([hidden])', (e) => e.innerText.includes('Efficiency mode')));
-  check('Efficiency mode button pressed', await page.$eval('.app-taskmgr .tm-cmd[data-cmd="eff"]', (b) => b.getAttribute('aria-pressed') === 'true'));
+  await waitFor(() => page.$eval('.app-taskmgr .tm-page-processes .tm-row.sel:not([hidden])', (e) => e.innerText.includes('Low priority')), { timeout: 3000 });
+  check('status column shows Low priority', await page.$eval('.app-taskmgr .tm-page-processes .tm-row.sel:not([hidden])', (e) => e.innerText.includes('Low priority')));
+  check('Low priority button pressed', await page.$eval('.app-taskmgr .tm-cmd[data-cmd="eff"]', (b) => b.getAttribute('aria-pressed') === 'true'));
   eff.kill('SIGKILL');
   await page.keyboard.press('Escape');
 
@@ -946,8 +946,12 @@ try {
   const ftm = (fn, arg) => f.aurora(fn, arg);
   await waitFor(() => ftm(() => window.__aurora.wm.byApp('taskmgr')[0]?.taskmgr?.store.procs?.length > 0));
   await sleep(2200);
-  const nav = await fp.$$eval('.app-taskmgr .tm-nav-item .tm-nav-label', (els) => els.map((e) => e.textContent));
-  check('French navigation', nav.join('|') === 'Processus|Performances|Historique des applications|Applications de démarrage|Utilisateurs|Détails|Services|Paramètres', nav);
+  const nav = await fp.$$eval('.app-taskmgr .tm-tab .tm-tab-label', (els) => els.map((e) => e.textContent));
+  check('French tabs', nav.join('|') === 'Processus|Performances|Démarrage|Utilisateurs|Services|Paramètres', nav);
+  const views = await fp.$$eval('.app-taskmgr .tm-views .tm-view', (els) => els.map((e) => e.textContent));
+  check('French Processes views', views.join('|') === 'Liste|Détails|Historique', views);
+  const cmdLabels = await fp.$$eval('.app-taskmgr .tm-cmd', (els) => els.map((e) => e.getAttribute('aria-label')));
+  check('French toolbar commands', cmdLabels.includes('Lancer une commande') && cmdLabels.includes('Arrêter le processus') && cmdLabels.includes('Priorité basse'), cmdLabels);
   const heads = await fp.$$eval('.app-taskmgr .tm-page-processes .tm-th', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
   check('French headers', heads.some((x) => /^\d+ % Processeur$/.test(x)) && heads.some((x) => /Mémoire$/.test(x)), heads);
   const tops = await fp.$$eval('.app-taskmgr .tm-page-processes .tm-th-top', (els) => els.map((e) => e.textContent));
@@ -1039,33 +1043,56 @@ try {
   let r = await box();
   await fp.screenshot({ path: path.join(DOCS, 'taskmgr-processes-dark-fr.png'), clip: { x: r.x - 16, y: r.y - 16, width: r.width + 32, height: r.height + 32 } });
 
-  // Minimum size: compact navigation, icon-only commands, nothing cut off.
+  // Minimum size: every tab visible, icon-only commands, nothing cut off.
   await ftm(() => window.__aurora.wm.byApp('taskmgr')[0].setSize(600, 420));
   await sleep(700);
   r = await box();
   check('minimum size 600×420', Math.round(r.width) === 600 && Math.round(r.height) === 420, r);
   const small = await fp.$eval('.app-taskmgr', (el) => ({
-    compactNav: !el.querySelector('.tm-root').classList.contains('nav-expanded'),
+    tabsFit: (() => {
+      const l = el.querySelector('.tm-tablist');
+      return l.scrollWidth <= l.clientWidth + 1 && [...l.querySelectorAll('.tm-tab')].every((t) => t.offsetWidth > 0 && t.scrollWidth <= t.clientWidth + 1);
+    })(),
     compactCmds: el.querySelector('.tm-head').classList.contains('compact'),
-    titleVisible: el.querySelector('.tm-title').offsetWidth > 40,
+    viewsVisible: el.querySelector('.tm-views').offsetWidth > 120,
     searchW: el.querySelector('.tm-search').offsetWidth,
   }));
-  check('min size: compact nav + icon commands', small.compactNav && small.compactCmds && small.titleVisible && small.searchW > 120, small);
+  check('min size: all tabs fit + icon commands', small.tabsFit && small.compactCmds && small.viewsVisible && small.searchW > 120, small);
   await fp.screenshot({ path: path.join(DOCS, 'taskmgr-minsize-dark-fr.png'), clip: { x: r.x - 16, y: r.y - 16, width: r.width + 32, height: r.height + 32 } });
-  // Hamburger opens the pane as an overlay in compact mode.
-  await fp.click('.app-taskmgr .tm-burger');
-  await sleep(400);
-  check('hamburger opens the overlay pane', await fp.$eval('.app-taskmgr .tm-root', (e) => e.classList.contains('nav-overlay') && e.classList.contains('nav-expanded')));
-  await fp.click('.app-taskmgr .tm-nav-item[data-page="details"]');
+  // The Processes tab holds three views (list, details, history) behind a switch in the toolbar.
+  await fp.click('.app-taskmgr .tm-view[data-view="details"]');
   await sleep(500);
-  check('choosing a page closes the overlay', await fp.$eval('.app-taskmgr .tm-root', (e) => !e.classList.contains('nav-overlay')) && (await fp.$eval('.app-taskmgr .tm-title', (e) => e.textContent)) === 'Détails');
+  const viewState = async () =>
+    fp.$eval('.app-taskmgr', (el) => ({
+      page: el.querySelector('.tm-page:not([hidden])')?.className,
+      title: el.querySelector('.tm-title').textContent,
+      tab: el.querySelector('.tm-tab.selected')?.dataset.page,
+      pressed: el.querySelector('.tm-view[aria-pressed="true"]')?.dataset.view,
+    }));
+  let vs = await viewState();
+  check('Details view: Processes tab stays selected', /tm-page-details/.test(vs.page) && vs.title === 'Détails' && vs.tab === 'processes' && vs.pressed === 'details', vs);
+  // Arrow keys move between tabs; the Processes tab reopens the last view used.
+  await fp.click('.app-taskmgr .tm-tab[data-page="performance"]');
+  await sleep(400);
+  check('views switch hidden outside the Processes tab', await fp.$eval('.app-taskmgr .tm-views', (e) => e.hidden));
+  await fp.focus('.app-taskmgr .tm-tab[data-page="performance"]');
+  await fp.keyboard.press('ArrowLeft');
+  check('ArrowLeft moves focus to the previous tab', await fp.evaluate(() => document.activeElement?.dataset?.page === 'processes'));
+  await fp.keyboard.press('Enter');
+  await sleep(500);
+  vs = await viewState();
+  check('Processes tab reopens the last view', /tm-page-details/.test(vs.page) && vs.tab === 'processes', vs);
   await ftm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.go('performance', { focus: false }));
   await sleep(1500);
   await fp.screenshot({ path: path.join(DOCS, 'taskmgr-performance-minsize-dark-fr.png'), clip: { x: r.x - 16, y: r.y - 16, width: r.width + 32, height: r.height + 32 } });
   // Maximized: expanded navigation pane.
   await ftm(() => window.__aurora.wm.byApp('taskmgr')[0].maximize());
   await sleep(900);
-  check('maximized: navigation pane expanded', await fp.$eval('.app-taskmgr .tm-root', (e) => e.classList.contains('nav-expanded') && !e.classList.contains('narrow')));
+  check('maximized: tab bar across the top', await fp.$eval('.app-taskmgr', (e) => {
+    const bar = e.querySelector('.tm-tabbar').getBoundingClientRect();
+    const main = e.querySelector('.tm-main').getBoundingClientRect();
+    return bar.width > 1000 && bar.bottom <= main.top + 1;
+  }));
   await ftm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.go('processes', { focus: false }));
   await sleep(1500);
   await fp.mouse.move(300, 885);

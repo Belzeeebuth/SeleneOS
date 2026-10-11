@@ -105,21 +105,26 @@ export class Explorer {
   build() {
     const { h } = this;
     this.root = h('div', { class: 'fx-root' });
-    // Tabs live in the tall title bar.
+    // Tabs are a light strip under the toolbar, shown only when more than one tab is open.
     this.tabStrip = h('div', { class: 'fx-tabs', role: 'tablist' });
-    this.newTabBtn = h('button', { class: 'fx-newtab', 'data-no-drag': '', onclick: () => this.newTab() }, this.icon('add', { size: 14 }));
-    this.tabBar = h('div', { class: 'fx-tabbar' }, this.tabStrip, this.newTabBtn);
-    this.win.titlebarSlot.appendChild(this.tabBar);
+    this.newTabBtn = h('button', { class: 'fx-newtab', onclick: () => this.newTab() }, this.icon('add', { size: 14 }));
+    this.tabBar = h('div', { class: 'fx-tabbar', hidden: true }, this.tabStrip, this.newTabBtn);
     this.tabStrip.addEventListener('wheel', (e) => {
       if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) this.tabStrip.scrollLeft += e.deltaY;
     }, { passive: true });
 
     this.navSplit = h('div', { class: 'fx-split', role: 'separator', 'aria-orientation': 'vertical' });
     this.paneSplit = h('div', { class: 'fx-split', role: 'separator', 'aria-orientation': 'vertical' });
-    this.main = h('div', { class: 'fx-main' }, this.nav.el, this.navSplit, this.view.el, this.paneSplit, this.side.el);
+    // Folder heading: a large title with the item count, then the actions that belong to this place.
+    this.headTitle = h('h2', { class: 'fx-head-title ellipsis' });
+    this.headCount = h('span', { class: 'fx-head-count' });
+    this.headActions = h('div', { class: 'fx-head-actions' });
+    this.head = h('div', { class: 'fx-head' }, this.headTitle, this.headCount, h('div', { class: 'grow' }), this.headActions);
+    this.center = h('div', { class: 'fx-center' }, this.head, this.view.el);
+    this.main = h('div', { class: 'fx-main' }, this.nav.el, this.navSplit, this.center, this.paneSplit, this.side.el);
     this.buildTop();
     this.buildStatus();
-    this.root.append(this.top, this.main, this.status);
+    this.root.append(this.top, this.tabBar, this.main, this.status);
     this.win.body.appendChild(this.root);
     this.splitter(this.navSplit, 'navWidth', this.nav.el, 1, 140, 480);
     this.splitter(this.paneSplit, 'paneWidth', this.side.el, -1, 200, 640);
@@ -127,6 +132,7 @@ export class Explorer {
     this.relabelStatic();
   }
 
+  // One toolbar row: history, breadcrumb, search, list/grid toggle, "New folder" and the "…" menu.
   buildTop() {
     const { h, t } = this;
     const navBtn = (ic, label, key, fn) =>
@@ -134,6 +140,7 @@ export class Explorer {
     this.btnBack = navBtn('arrow_left', t('nav.back'), 'Alt+Left', () => this.goBack());
     this.btnFwd = navBtn('arrow_right', t('nav.forward'), 'Alt+Right', () => this.goForward());
     this.btnUp = navBtn('arrow_up', t('nav.up'), 'Alt+Up', () => this.goUp());
+    // Refresh lives in the "…" menu and on F5; the button is kept off-screen for its spin feedback.
     this.btnRefresh = navBtn('arrow_clockwise', t('nav.refresh'), 'F5', () => this.refresh());
     for (const b of [this.btnBack, this.btnFwd]) {
       b.addEventListener('contextmenu', (e) => {
@@ -144,12 +151,16 @@ export class Explorer {
     const oldAddress = this.address;
     this.address = new AddressBar(this);
     this.search = new SearchBox(this);
-    const addrRow = h('div', { class: 'fx-addrrow' },
-      h('div', { class: 'fx-navbtns' }, this.btnBack, this.btnFwd, this.btnUp, this.btnRefresh),
-      this.address.el,
-      this.search.el);
     this.buildCommandBar();
-    const top = h('div', { class: 'fx-top' }, addrRow, this.cmdBar);
+    const c = this.cmd;
+    const seg = h('div', { class: 'fx-seg', role: 'group', 'aria-label': t('cmd.view') }, this.segDetails, this.segLarge, c.view);
+    const top = h('div', { class: 'fx-top fx-toolbar', role: 'toolbar', 'aria-label': t('cmd.label') },
+      h('div', { class: 'fx-navbtns' }, this.btnBack, this.btnFwd, this.btnUp),
+      this.address.el,
+      this.search.el,
+      seg,
+      c.new,
+      c.more);
     if (this.top) this.top.replaceWith(top);
     this.top = top;
     if (oldAddress && this.tab) {
@@ -175,33 +186,37 @@ export class Explorer {
     return b;
   }
 
+  // The command objects. Only "New folder", "…", the view menu, "Sort" and the details pane toggle
+  // are on screen; cut / copy / paste / rename / delete live in the "…" menu, the context menu and
+  // on their shortcuts (their detached buttons still carry the enabled state).
   buildCommandBar() {
     const { h, t } = this;
     const c = (this.cmd = {});
-    c.new = this.cmdButton('add_circle', t('cmd.new'), { text: t('cmd.new'), menu: true, cls: 'accent-icon', onclick: (e) => this.newMenu(e.currentTarget) });
+    c.new = this.cmdButton('folder_add', t('cmd.newFolder'), { text: t('cmd.newFolder'), key: 'Ctrl+Shift+N', cls: 'fx-cmd-new', onclick: () => this.newFolder() });
     c.cut = this.cmdButton('cut', t('cmd.cut'), { key: 'Ctrl+X', onclick: () => this.clip('cut') });
     c.copy = this.cmdButton('copy', t('cmd.copy'), { key: 'Ctrl+C', onclick: () => this.clip('copy') });
     c.paste = this.cmdButton('clipboard_paste', t('cmd.paste'), { key: 'Ctrl+V', onclick: () => this.paste() });
     c.rename = this.cmdButton('rename', t('cmd.rename'), { key: 'F2', onclick: () => this.rename() });
     c.del = this.cmdButton('delete', t('cmd.delete'), { key: 'Del', onclick: () => this.del(false) });
-    c.sort = this.cmdButton('arrow_sort', t('cmd.sort'), { text: t('cmd.sort'), menu: true, onclick: (e) => this.sortMenu(e.currentTarget) });
-    c.view = this.cmdButton('apps_list_detail', t('cmd.view'), { text: t('cmd.view'), menu: true, onclick: (e) => this.viewMenu(e.currentTarget) });
-    c.more = this.cmdButton('more_horizontal', t('cmd.more'), { onclick: (e) => this.moreMenu(e.currentTarget) });
-    c.details = this.cmdButton('panel_right', t('cmd.detailsPane'), { text: t('cmd.details'), cls: 'fx-cmd-details', onclick: () => this.togglePane('details') });
+    c.sort = this.cmdButton('arrow_sort', t('cmd.sort'), { text: t('cmd.sort'), menu: true, cls: 'fx-cmd-sort', onclick: (e) => this.sortMenu(e.currentTarget) });
+    c.view = this.cmdButton('chevron_down', t('cmd.view'), { cls: 'fx-cmd-view', onclick: (e) => this.viewMenu(e.currentTarget) });
+    c.view.setAttribute('aria-haspopup', 'menu');
+    c.more = this.cmdButton('more_horizontal', t('cmd.more'), { cls: 'fx-cmd-more', onclick: (e) => this.moreMenu(e.currentTarget) });
+    c.more.setAttribute('aria-haspopup', 'menu');
+    c.details = this.cmdButton('panel_right', t('cmd.detailsPane'), { cls: 'fx-cmd-details', onclick: () => this.togglePane('details') });
+    const segBtn = (mode, ic, label, tip) => h('button', { class: 'fx-seg-btn', 'aria-label': label, 'aria-pressed': 'false', 'data-tip': tip, 'data-tip-pos': 'below', onclick: () => this.setMode(mode) }, this.icon(ic, { size: 16 }));
+    this.segDetails = segBtn('details', 'list-bullets', t('view.details'), t('view.detailsTip'));
+    this.segLarge = segBtn('large', 'grid-four', t('view.large'), t('view.largeTip'));
     this.ctxCmds = h('div', { class: 'fx-cmd-ctx' });
-    const sep = () => h('div', { class: 'fx-cmd-sep' });
-    this.cmdBar = h('div', { class: 'fx-cmdbar', role: 'toolbar', 'aria-label': t('cmd.label') },
-      c.new, sep(), c.cut, c.copy, c.paste, c.rename, c.del, sep(), c.sort, c.view, this.ctxCmds, sep(), c.more,
-      h('div', { class: 'grow' }), c.details);
+    this.headActions?.replaceChildren(this.ctxCmds, c.sort, c.details);
   }
 
   buildStatus() {
-    const { h, t } = this;
-    this.stCount = h('span');
+    const { h } = this;
+    this.stCount = h('span', { class: 'fx-st-count' });
     this.stSel = h('span', { class: 'fx-st-sel' });
-    this.stDetails = h('button', { class: 'fx-st-btn', 'aria-label': t('view.details'), 'data-tip': t('view.detailsTip'), onclick: () => this.setMode('details') }, this.icon('apps_list_detail', { size: 14 }));
-    this.stLarge = h('button', { class: 'fx-st-btn', 'aria-label': t('view.large'), 'data-tip': t('view.largeTip'), onclick: () => this.setMode('large') }, this.icon('grid', { size: 14 }));
-    const st = h('div', { class: 'fx-status', role: 'status' }, this.stCount, this.stSel, h('div', { class: 'grow' }), this.stDetails, this.stLarge);
+    this.stNote = h('span', { class: 'fx-st-note' });
+    const st = h('div', { class: 'fx-status', role: 'status' }, this.stCount, this.stSel, h('div', { class: 'grow' }), this.stNote);
     if (this.status) this.status.replaceWith(st);
     this.status = st;
   }
@@ -287,6 +302,8 @@ export class Explorer {
       this.view.setViewSettings(this.vs);
     }));
     this.offs.push(shared.events.on('drives', () => {
+      this.nav.render();
+      if (this.tab) this.nav.sync(this.tab.loc);
       if (this.nav.expanded.has('thispc')) this.nav.loadChildren({ id: 'thispc' }).then(() => this.nav.render());
       if (this.tab?.loc.type === 'thispc') this.refresh({ quiet: true });
     }));
@@ -558,7 +575,7 @@ export class Explorer {
     const els = this.tabs.map((x) => x.el);
     const kids = [...this.tabStrip.children];
     if (kids.length !== els.length || els.some((el, i) => kids[i] !== el)) this.tabStrip.replaceChildren(...els);
-    this.tabBar.classList.toggle('single', this.tabs.length === 1);
+    this.tabBar.hidden = this.tabs.length < 2;
     if (hadFocus && !this.tabStrip.contains(document.activeElement)) this.tab?.el?.focus();
   }
 
@@ -968,10 +985,27 @@ export class Explorer {
       this.stSel.hidden = true;
     }
     const custom = this.tab && (this.tab.loc.type === 'home' || this.tab.loc.type === 'thispc');
-    this.stDetails.classList.toggle('on', !custom && this.vs.mode === 'details');
-    this.stLarge.classList.toggle('on', !custom && this.vs.mode === 'large');
-    this.stDetails.disabled = custom;
-    this.stLarge.disabled = custom;
+    for (const [b, m] of [[this.segDetails, 'details'], [this.segLarge, 'large']]) {
+      if (!b) continue;
+      const on = !custom && this.vs.mode === m;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+      b.disabled = custom;
+    }
+    this.updateHead();
+    const loc = this.tab?.loc;
+    const sortable = loc && !custom;
+    this.stNote.textContent = sortable && this.vs?.sort ? t('status.sortedBy', { col: t(`cols.${this.vs.sort}`).toLowerCase() }) : '';
+  }
+
+  // The large heading above the items: the place's name and how many items it holds.
+  updateHead() {
+    if (!this.headTitle || !this.tab) return;
+    const loc = this.tab.loc;
+    const title = loc.type === 'search' ? this.tabTitle(this.tab) : this.locName(loc);
+    this.headTitle.textContent = title;
+    this.headTitle.title = loc.type === 'dir' ? loc.path : title;
+    this.headCount.textContent = this.t('status.items', { count: this.view.items.length });
   }
 
   selectionInfo() {
@@ -1004,8 +1038,9 @@ export class Explorer {
     c.del.disabled = !((s.canModify && !prot) || (s.trash && s.items.length));
     const custom = s.loc.type === 'home' || s.loc.type === 'thispc';
     c.sort.disabled = custom;
+    c.sort.hidden = custom;
     c.details.classList.toggle('toggled', shared.prefs.pane === 'details');
-    c.view.querySelector('.icon').replaceWith(this.icon(custom ? 'apps_list_detail' : MODE_ICONS[this.vs.mode] || 'apps_list_detail', { size: 16 }));
+    c.details.setAttribute('aria-pressed', String(shared.prefs.pane === 'details'));
     // Context-specific commands (like Windows' Recycle Bin / picture / archive tools).
     const { h, t } = this;
     const ctx = [];
@@ -1028,7 +1063,6 @@ export class Explorer {
       btn('info', t('menu.properties'), () => this.properties({ drive: d }));
     }
     if (s.loc.type === 'search') btn('dismiss', t('search.close'), () => this.cancelSearch());
-    if (ctx.length) ctx.unshift(h('div', { class: 'fx-cmd-sep' }));
     this.ctxCmds.replaceChildren(...ctx);
   }
 
@@ -1139,8 +1173,20 @@ export class Explorer {
     const t = this.t;
     const s = this.selectionInfo();
     const op = peekUndo();
+    const c = this.cmd;
+    const item = (b, label, icon, shortcut, fn) => ({ label, icon, shortcut, disabled: b.disabled, action: fn });
     this.menu(btn, [
+      { label: t('cmd.new'), icon: 'add_circle', submenu: this.newItems() },
+      { label: t('tabs.new'), icon: 'tab_add', shortcut: 'Ctrl+T', action: () => this.newTab() },
+      '-',
+      item(c.cut, t('cmd.cut'), 'cut', 'Ctrl+X', () => this.clip('cut')),
+      item(c.copy, t('cmd.copy'), 'copy', 'Ctrl+C', () => this.clip('copy')),
+      item(c.paste, t('cmd.paste'), 'clipboard_paste', 'Ctrl+V', () => this.paste()),
+      item(c.rename, t('cmd.rename'), 'rename', 'F2', () => this.rename()),
+      item(c.del, t('cmd.delete'), 'delete', 'Del', () => this.del(false)),
+      '-',
       { label: ops.undoLabel(this), icon: 'arrow_undo', shortcut: 'Ctrl+Z', disabled: !op, action: () => ops.undo(this) },
+      { label: t('nav.refresh'), icon: 'arrow_clockwise', shortcut: 'F5', action: () => this.refresh() },
       '-',
       { label: t('more.selectAll'), icon: 'select_all_on', shortcut: 'Ctrl+A', disabled: !this.view.items.length, action: () => this.view.selectAll() },
       { label: t('more.selectNone'), icon: 'select_all_off', disabled: !s.items.length, action: () => this.view.selectNone() },

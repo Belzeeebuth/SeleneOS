@@ -1615,16 +1615,32 @@
   white-space: nowrap;
 }
 .app-mail .ml-mono {
+  position: relative;
   flex: none;
   display: inline-grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-soft);
+  background: var(--surface-raised);
+  color: var(--text);
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1;
-  background-image: linear-gradient(150deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.12));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 1px 3px rgba(0, 0, 0, 0.16);
+}
+/* The provider's brand colour, reduced to a thin dot in the corner. */
+.app-mail .ml-mono::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ml-brand, transparent);
+}
+.app-mail .ml-mono .icon {
+  color: var(--text-2);
 }
 .app-mail .ml-setup-foot {
   display: flex;
@@ -2021,12 +2037,12 @@
 }
 
 /* Dark theme: the danger color is a light red there, so destructive buttons (Delete forever, Empty
-   folder, Remove account…) get dark text, like Fluent's critical buttons. */
+   folder, Remove account…) use the matching on-danger text colour. */
 :root[data-theme="dark"] .app-mail .btn.danger {
-  color: #1b1b1b;
+  color: var(--on-danger);
 }
 :root[data-theme="dark"] .app-mail .btn.danger:hover {
-  background: color-mix(in srgb, var(--danger) 90%, #fff);
+  background: color-mix(in srgb, var(--danger) 90%, var(--text));
 }
 
 /* Focus sentinel at the end of each Mail window (see trapFocus in lib/base.js). */

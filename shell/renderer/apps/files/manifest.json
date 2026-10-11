@@ -5,7 +5,7 @@
   "icon": "icon.svg",
   "entry": "main.js",
   "styles": ["style.css"],
-  "window": { "width": 1100, "height": 700, "minWidth": 520, "minHeight": 360, "titlebar": "tall", "background": "mica" },
+  "window": { "width": 1100, "height": 700, "minWidth": 520, "minHeight": 360, "titlebar": "default", "background": "mica" },
   "category": "system",
   "keywords": {
     "en": ["explorer", "files", "folders", "documents", "browse", "file manager", "this pc", "recycle bin"],

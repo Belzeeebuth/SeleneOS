@@ -14,13 +14,15 @@
   display: none !important;
 }
 
-/* ------------------------------------------------------------------ acrylic window */
+/* ------------------------------------------------------------------ "acrylic" window
+   Windows are flat in Selene (blur is kept for the bar, the Lanceur and the panels): the old
+   acrylic option now gives an opaque window surface, under the scheme's own opacity setting. */
 .win.app-terminal.tm-acrylic {
-  background: transparent;
-  backdrop-filter: blur(28px) saturate(140%);
+  background: var(--bg);
+  backdrop-filter: none;
 }
 .win.app-terminal.tm-acrylic > .win-titlebar {
-  background: var(--acrylic-strong);
+  background: var(--titlebar-bg);
 }
 
 /* ------------------------------------------------------------------ title bar + tabs */

@@ -38,7 +38,8 @@
    "rename": "Rename",
    "setBackground": "Set as background",
    "sort": "Sort",
-   "view": "View"
+   "view": "View",
+   "newFolder": "New folder"
   },
   "cols": {
    "name": "Name",
@@ -150,11 +151,12 @@
    "favorites": "Favorites",
    "missing": "Location not available",
    "noFavorites": "After you've favorited some files, we'll show them here.",
-   "noPins": "Pin folders to Quick access to show them here.",
+   "noPins": "Add folders to the sidebar to show them here.",
    "noRecent": "After you've opened some files, we'll show the most recent ones here.",
    "quickAccess": "Quick access",
    "recent": "Recent",
-   "storedLocally": "Stored locally"
+   "storedLocally": "On this computer",
+   "places": "Places"
   },
   "keys": {
    "shift": "Shift",
@@ -177,13 +179,13 @@
    "openTerminal": "Open in Terminal",
    "openWith": "Open with",
    "pasteInto": "Paste into folder",
-   "pin": "Pin to Quick access",
-   "pinned": "Pinned",
+   "pin": "Add to sidebar",
+   "pinned": "In the sidebar",
    "properties": "Properties",
    "removeRecent": "Remove from Recent",
    "sortBy": "Sort by",
    "unfavorite": "Remove from Favorites",
-   "unpin": "Unpin from Quick access"
+   "unpin": "Remove from sidebar"
   },
   "more": {
    "invert": "Invert selection",
@@ -200,7 +202,13 @@
    "refresh": "Refresh",
    "resize": "Resize navigation pane",
    "up": "Up",
-   "upTo": "Up to \"{name}\""
+   "upTo": "Up to \"{name}\"",
+   "favorites": "Favorites",
+   "places": "Places",
+   "devices": "Devices",
+   "disk": "System disk",
+   "diskFree": "{free} free of {size}",
+   "diskUsed": "{pct} % used"
   },
   "new": {
    "empty": "Empty file",
@@ -280,7 +288,8 @@
    "videos": "Videos",
    "thisPc": "Computer",
    "trash": "Recycle Bin",
-   "gallery": "Gallery"
+   "gallery": "Gallery",
+   "personal": "Home folder"
   },
   "progress": {
    "calculating": "Calculating…",
@@ -386,8 +395,9 @@
    "items_other": "{count} items",
    "selected_one": "{count} item selected",
    "selected_other": "{count} items selected",
-   "selectedSize_one": "{count} item selected   {size}",
-   "selectedSize_other": "{count} items selected   {size}"
+   "selectedSize_one": "{count} item selected ({size})",
+   "selectedSize_other": "{count} items selected ({size})",
+   "sortedBy": "Sorted by {col}"
   },
   "tabs": {
    "close": "Close tab",
@@ -520,7 +530,8 @@
    "rename": "Renommer",
    "setBackground": "Choisir comme arrière-plan",
    "sort": "Trier",
-   "view": "Afficher"
+   "view": "Afficher",
+   "newFolder": "Nouveau dossier"
   },
   "cols": {
    "name": "Nom",
@@ -632,11 +643,12 @@
    "favorites": "Favoris",
    "missing": "Emplacement non disponible",
    "noFavorites": "Une fois que vous aurez ajouté des fichiers aux favoris, ils s’afficheront ici.",
-   "noPins": "Épinglez des dossiers à Accès rapide pour les afficher ici.",
+   "noPins": "Ajoutez des dossiers à la barre latérale pour les afficher ici.",
    "noRecent": "Une fois que vous aurez ouvert des fichiers, les plus récents s’afficheront ici.",
    "quickAccess": "Accès rapide",
    "recent": "Récent",
-   "storedLocally": "Stocké localement"
+   "storedLocally": "Sur cet ordinateur",
+   "places": "Emplacements"
   },
   "keys": {
    "shift": "Maj",
@@ -659,13 +671,13 @@
    "openTerminal": "Ouvrir dans le Terminal",
    "openWith": "Ouvrir avec",
    "pasteInto": "Coller dans le dossier",
-   "pin": "Épingler à Accès rapide",
-   "pinned": "Épinglé",
+   "pin": "Ajouter à la barre latérale",
+   "pinned": "Dans la barre latérale",
    "properties": "Propriétés",
    "removeRecent": "Supprimer de Récent",
    "sortBy": "Trier par",
    "unfavorite": "Supprimer des favoris",
-   "unpin": "Désépingler d'Accès rapide"
+   "unpin": "Retirer de la barre latérale"
   },
   "more": {
    "invert": "Inverser la sélection",
@@ -682,7 +694,13 @@
    "refresh": "Actualiser",
    "resize": "Redimensionner le volet de navigation",
    "up": "Dossier parent",
-   "upTo": "Remonter à « {name} »"
+   "upTo": "Remonter à « {name} »",
+   "favorites": "Favoris",
+   "places": "Emplacements",
+   "devices": "Appareils",
+   "disk": "Disque système",
+   "diskFree": "{free} libres sur {size}",
+   "diskUsed": "{pct} % utilisés"
   },
   "new": {
    "empty": "Fichier vide",
@@ -762,7 +780,8 @@
    "videos": "Vidéos",
    "thisPc": "Ordinateur",
    "trash": "Corbeille",
-   "gallery": "Galerie"
+   "gallery": "Galerie",
+   "personal": "Dossier personnel"
   },
   "progress": {
    "calculating": "Calcul en cours…",
@@ -836,7 +855,7 @@
    "close": "Fermer la recherche",
    "label": "Rechercher",
    "noResults": "Aucun élément ne correspond à votre recherche.",
-   "placeholder": "Rechercher dans : {name}",
+   "placeholder": "Rechercher dans {name}",
    "resultsIn": "Résultats de recherche dans {name}",
    "searching": "Recherche en cours…"
   },
@@ -868,8 +887,9 @@
    "items_other": "{count} éléments",
    "selected_one": "{count} élément sélectionné",
    "selected_other": "{count} éléments sélectionnés",
-   "selectedSize_one": "{count} élément sélectionné   {size}",
-   "selectedSize_other": "{count} éléments sélectionnés   {size}"
+   "selectedSize_one": "{count} élément sélectionné ({size})",
+   "selectedSize_other": "{count} éléments sélectionnés ({size})",
+   "sortedBy": "Trié par {col}"
   },
   "tabs": {
    "close": "Fermer l'onglet",

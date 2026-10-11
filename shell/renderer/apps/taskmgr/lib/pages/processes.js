@@ -178,7 +178,7 @@ export class ProcessesPage {
     const { t } = this.app;
     if (!procs.length) return '';
     if (procs.every((p) => p.state === 'T' || p.state === 't')) return { text: t('status.suspended'), icon: { name: 'pause', tone: 'muted', filled: true } };
-    if (procs.every((p) => p.nice >= 19)) return { text: t('status.efficiency'), icon: { name: 'leaf_one', tone: 'eff', filled: true } };
+    if (procs.every((p) => p.nice >= 19)) return { text: t('status.efficiency'), icon: { name: 'arrow-down', tone: 'eff', filled: true } };
     return '';
   }
 
@@ -617,7 +617,7 @@ export class ProcessesPage {
       ],
     });
     items.push('-');
-    items.push({ label: t('cmd.efficiency'), icon: 'leaf_one', checked: eff.on, disabled: !eff.enabled, action: () => this.toggleEfficiency(r) });
+    items.push({ label: t('cmd.efficiency'), icon: 'arrow-down', checked: eff.on, disabled: !eff.enabled, action: () => this.toggleEfficiency(r) });
     items.push('-');
     items.push({ label: t('menu.goToDetails'), disabled: !this.detailsPid(d), action: () => this.goToDetails(r) });
     const pid = d.type === 'proc' || d.type === 'pgroup' || d.type === 'shell' ? d.pid : null;
@@ -634,7 +634,7 @@ export class ProcessesPage {
     return [
       { id: 'run', icon: 'window_new', label: t('cmd.run'), action: () => this.app.actions.runNewTask() },
       { id: 'end', icon: 'prohibited', label: t('cmd.endTask'), disabled: !this.canEnd(r), action: () => this.endTask(this.selected()) },
-      { id: 'eff', icon: 'leaf_one', label: t('cmd.efficiency'), disabled: !eff.enabled, pressed: eff.on, action: () => this.toggleEfficiency(this.selected()) },
+      { id: 'eff', icon: 'arrow-down', label: t('cmd.efficiency'), disabled: !eff.enabled, pressed: eff.on, action: () => this.toggleEfficiency(this.selected()) },
       {
         id: 'view',
         icon: 'eye',

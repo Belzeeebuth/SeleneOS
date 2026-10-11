@@ -248,7 +248,7 @@ export class DetailsPage {
       { label: t('cmd.endTask'), icon: 'prohibited', disabled: !this.canEnd(r), action: () => this.endTask(r) },
       { label: t('cmd.endTree'), disabled: !this.canEnd(r), action: () => this.endTree(r) },
       '-',
-      { label: t('cmd.efficiency'), icon: 'leaf_one', checked: d.nice >= 19, disabled: !this.canEff(r), action: () => this.toggleEff(r) },
+      { label: t('cmd.efficiency'), icon: 'arrow-down', checked: d.nice >= 19, disabled: !this.canEff(r), action: () => this.toggleEff(r) },
       { label: t('menu.setPriority'), disabled: !this.canEnd(r), submenu: A.priorityMenu(d.pid, d.nice, d.label, d.uid) },
       { label: suspended ? t('menu.resume') : t('menu.suspend'), disabled: !this.canEnd(r) || d.pid === this.app.store.shellInfo?.mainPid, action: () => A.suspend([d.pid], !suspended, d.label) },
       '-',
@@ -267,7 +267,7 @@ export class DetailsPage {
     return [
       { id: 'run', icon: 'window_new', label: t('cmd.run'), action: () => this.app.actions.runNewTask() },
       { id: 'end', icon: 'prohibited', label: t('cmd.endTask'), disabled: !this.canEnd(r), action: () => this.endTask(this.selected()) },
-      { id: 'eff', icon: 'leaf_one', label: t('cmd.efficiency'), disabled: !this.canEff(r), pressed: !!r && r.data.nice >= 19, action: () => this.toggleEff(this.selected()) },
+      { id: 'eff', icon: 'arrow-down', label: t('cmd.efficiency'), disabled: !this.canEff(r), pressed: !!r && r.data.nice >= 19, action: () => this.toggleEff(this.selected()) },
       { id: 'props', icon: 'info', label: t('cmd.properties'), disabled: !r, action: () => this.properties(this.selected()) },
       { id: 'more', icon: 'more_horizontal', label: t('cmd.more'), menu: () => this.moreItems(this.selected()) },
     ];

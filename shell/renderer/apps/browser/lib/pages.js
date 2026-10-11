@@ -4,7 +4,7 @@
 import { h, icon, ui, clear } from './dom.js';
 import { shared } from './shared.js';
 import { SEED_SITES } from './store.js';
-import { ENGINES, engineOf, displayUrl, bareHost, hostOf, siteLabel, colorFor, monogram, classify, isWebUrl, uid } from './util.js';
+import { ENGINES, engineOf, displayUrl, bareHost, hostOf, siteLabel, monogram, classify, isWebUrl, uid } from './util.js';
 import * as panels from './panels.js';
 import { barMode } from './favbar.js';
 import { showMenu } from './menu.js';
@@ -186,7 +186,7 @@ function newTabPage(bw, tab) {
 
   function tileEl(s) {
     const fav = store.favicon(s.url);
-    const art = fav ? h('img', { src: fav, alt: '', draggable: false }) : h('span', { class: 'bp-mono', style: { background: colorFor(bareHost(s.url)) } }, monogram(s.title, s.url));
+    const art = fav ? h('img', { src: fav, alt: '', draggable: false }) : h('span', { class: 'bp-mono' }, monogram(s.title, s.url));
     const more = h('button', {
       class: 'bp-tile-more',
       'aria-label': t('ntp.tileOptions'),

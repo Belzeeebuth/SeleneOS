@@ -55,7 +55,7 @@
       "fullscreen": "Full screen",
       "exitFullscreen": "Exit full screen"
     },
-    "groups": { "clipboard": "Clipboard", "image": "Image", "tools": "Tools", "brushes": "Brushes", "shapes": "Shapes", "size": "Size", "colors": "Colors" },
+    "groups": { "clipboard": "Clipboard", "image": "Image", "tools": "Tools", "brushes": "Brushes", "shapes": "Shapes", "size": "Size", "colors": "Colors", "shapeopts": "Outline and fill" },
     "clip": { "pasteOptions": "Paste options" },
     "image": {
       "select": "Select",
@@ -290,7 +290,7 @@
       "fullscreen": "Plein écran",
       "exitFullscreen": "Quitter le plein écran"
     },
-    "groups": { "clipboard": "Presse-papiers", "image": "Image", "tools": "Outils", "brushes": "Pinceaux", "shapes": "Formes", "size": "Taille", "colors": "Couleurs" },
+    "groups": { "clipboard": "Presse-papiers", "image": "Image", "tools": "Outils", "brushes": "Pinceaux", "shapes": "Formes", "size": "Taille", "colors": "Couleurs", "shapeopts": "Contour et remplissage" },
     "clip": { "pasteOptions": "Options de collage" },
     "image": {
       "select": "Sélectionner",

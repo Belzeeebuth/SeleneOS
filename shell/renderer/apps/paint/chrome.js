@@ -1,5 +1,6 @@
-// Paint chrome: title bar menus, the Windows 11-style command bar (grouped sections with labels),
-// the contextual text/fill bar, flyouts and the status bar.
+// Drawing app chrome: title bar menus, a vertical tool palette on the left (selection, tools,
+// brushes, shapes), a slim options bar along the top (clipboard, image, shape outline and fill,
+// size, colours), the contextual text/fill bar, flyouts and the status bar.
 // The controller (app.js) owns all state; chrome reads it through `app` and calls app.cmd()/setters.
 import { BRUSHES, createEngine } from './lib/brushes.js';
 import { SHAPES, OUTLINES, FILLS, shapeIcon } from './lib/shapes.js';
@@ -22,7 +23,7 @@ export const TOOLS = [
 ];
 
 const SIZES = [1, 2, 3, 5, 8, 12, 16, 24, 32, 50];
-const COLLAPSE_ORDER = ['clipboard', 'image', 'shapes', 'colors', 'tools'];
+const COLLAPSE_ORDER = ['clipboard', 'image', 'shapeopts', 'colors'];
 const SVGNS = 'http://www.w3.org/2000/svg';
 
 export function createChrome(app) {
@@ -274,8 +275,8 @@ export function createChrome(app) {
   // ------------------------------------------------------------ command bar
   const groups = {};
 
+  // A group has no visible caption (its name is the aria-label and the compact button's tooltip).
   function group(id, body, compactIcon) {
-    const label = h('div', { class: 'pt-g-label' }, t(`groups.${id}`));
     const compact = btn({
       ic: compactIcon,
       label: t(`groups.${id}`),
@@ -284,7 +285,7 @@ export function createChrome(app) {
       size: 24,
       onclick: (e) => openCompact(id, e.currentTarget),
     });
-    const el = h('div', { class: 'pt-g', role: 'group', 'aria-label': t(`groups.${id}`), dataset: { g: id } }, h('div', { class: 'pt-g-main' }, body, compact), label);
+    const el = h('div', { class: 'pt-g', role: 'group', 'aria-label': t(`groups.${id}`), dataset: { g: id } }, h('div', { class: 'pt-g-main' }, body, compact));
     groups[id] = { el, body, compact };
     return el;
   }
@@ -358,18 +359,14 @@ export function createChrome(app) {
     refs.select = h(
       'div',
       { class: 'pt-split big' },
-      (refs.selectMain = btn({ ic: 'select_object', label: t('image.select'), key: 'S', cls: 'pt-split-main', size: 24, onclick: () => app.setTool('select') })),
+      (refs.selectMain = btn({ ic: 'select_object', label: t('image.select'), key: 'S', cls: 'pt-split-main', size: 20, onclick: () => app.setTool('select') })),
       btn({ ic: icon('chevron_down', { size: 10 }), label: t('image.selectOptions'), cls: 'pt-split-arrow', onclick: (e) => selectMenu(e.currentTarget) }),
     );
     refs.crop = btn({ ic: 'crop', label: t('edit.crop'), key: 'Ctrl+Shift+X', cls: 'sm', onclick: () => app.cmd('crop') });
     refs.resize = btn({ ic: 'resize_image', label: t('image.resize'), key: 'Ctrl+W', cls: 'sm', onclick: () => app.cmd('resize') });
     refs.rotate = btn({ ic: 'arrow_rotate_clockwise', label: t('image.rotate'), cls: 'sm wide', chevron: true, onclick: (e) => rotateMenu(e.currentTarget) });
     refs.flip = btn({ ic: 'flip_horizontal', label: t('image.flip'), cls: 'sm wide', chevron: true, onclick: (e) => flipMenu(e.currentTarget) });
-    return group(
-      'image',
-      h('div', { class: 'pt-g-body' }, refs.select, h('div', { class: 'pt-grid2' }, refs.crop, refs.resize, refs.rotate, refs.flip)),
-      'image',
-    );
+    return group('image', h('div', { class: 'pt-g-body' }, refs.crop, refs.resize, refs.rotate, refs.flip), 'image');
   }
 
   function buildTools() {
@@ -381,7 +378,7 @@ export function createChrome(app) {
       refs.tools[id] = b;
       grid.appendChild(b);
     }
-    gridNav(grid, 3);
+    gridNav(grid, 2);
     return group('tools', h('div', { class: 'pt-g-body' }, grid), 'edit');
   }
 
@@ -417,9 +414,9 @@ export function createChrome(app) {
       ic: 'paint_brush',
       label: t('groups.brushes'),
       key: 'B',
-      cls: 'big tool',
+      cls: 'sm tool pt-brushes',
       chevron: true,
-      size: 24,
+      size: 20,
       onclick: (e) => {
         app.setTool('brush');
         brushFlyout(e.currentTarget);
@@ -437,7 +434,7 @@ export function createChrome(app) {
       refs.shapes[id] = b;
       gal.appendChild(b);
     }
-    gridNav(gal, 8);
+    gridNav(gal, 2);
     refs.outline = btn({
       ic: 'color_line',
       label: t('shapeopts.outline'),
@@ -460,7 +457,8 @@ export function createChrome(app) {
           FILLS.map((o) => ({ label: t(`fillstyle.${o}`), checked: S.fill === o, action: () => app.setFillStyle(o) })),
         ),
     });
-    return group('shapes', h('div', { class: 'pt-g-body' }, gal, h('div', { class: 'pt-col' }, refs.outline, refs.fillStyle)), 'shapes');
+    refs.shapeOpts = group('shapeopts', h('div', { class: 'pt-g-body' }, h('div', { class: 'pt-col' }, refs.outline, refs.fillStyle)), 'shapes');
+    return group('shapes', h('div', { class: 'pt-g-body' }, gal), 'shapes');
   }
 
   function sizeFlyout(anchor) {
@@ -506,7 +504,7 @@ export function createChrome(app) {
   }
 
   function buildSize() {
-    refs.size = btn({ ic: 'line_thickness', label: t('groups.size'), cls: 'big', chevron: true, size: 24, onclick: (e) => sizeFlyout(e.currentTarget) });
+    refs.size = btn({ ic: 'line_thickness', label: t('groups.size'), cls: 'sm wide', chevron: true, size: 20, onclick: (e) => sizeFlyout(e.currentTarget) });
     return group('size', h('div', { class: 'pt-g-body' }, refs.size), 'line_thickness');
   }
 
@@ -552,12 +550,9 @@ export function createChrome(app) {
     for (const [c, n] of PALETTE) refs.palette.appendChild(swatch(c, t(`colors.${n}`)));
     renderCustom();
     refs.palWrap = h('div', { class: 'pt-pal-wrap' }, refs.palette, refs.custom);
-    gridNav(refs.palWrap, 10);
-    refs.edit = h(
-      'button',
-      { type: 'button', class: 'pt-b big pt-edit-colors', 'data-tip': t('colors.edit'), 'aria-label': t('colors.edit'), onclick: () => app.cmd('editColors') },
-      h('span', { class: 'pt-rainbow' }, icon('add', { size: 12 })),
-    );
+    gridNav(refs.palWrap, 20);
+    // Custom colour picker: a plain icon button (no rainbow wheel).
+    refs.edit = btn({ ic: 'palette', label: t('colors.edit'), cls: 'sm pt-edit-colors', size: 18, onclick: () => app.cmd('editColors') });
     refs.miniCur = h('span', { class: 'pt-mini-cur', 'aria-hidden': 'true' }, h('i', { class: 'b' }), h('i', { class: 'a' }));
     return group(
       'colors',
@@ -573,17 +568,23 @@ export function createChrome(app) {
   }
 
   function buildCmdbar() {
-    const bar = h(
+    const clipboard = buildClipboard();
+    const image = buildImage();
+    // Left palette: selection, the tools, brushes, then the shapes.
+    const tools = buildTools();
+    const brushes = buildBrushes();
+    const shapes = buildShapes();
+    refs.toolbox = h(
       'div',
-      { class: 'pt-cmdbar', role: 'toolbar', 'aria-label': t('cmdbar') },
-      buildClipboard(),
-      buildImage(),
-      buildTools(),
-      buildBrushes(),
-      buildShapes(),
-      buildSize(),
-      buildColors(),
+      { class: 'pt-toolbox', role: 'toolbar', 'aria-orientation': 'vertical', 'aria-label': t('groups.tools') },
+      h('div', { class: 'pt-tb-select' }, refs.select),
+      tools,
+      brushes,
+      h('div', { class: 'pt-box-sep', 'aria-hidden': 'true' }),
+      shapes,
     );
+    // Options bar along the top.
+    const bar = h('div', { class: 'pt-cmdbar', role: 'toolbar', 'aria-label': t('cmdbar') }, clipboard, image, refs.shapeOpts, buildSize(), buildColors());
     refs.bar = bar;
     return bar;
   }
@@ -777,12 +778,14 @@ export function createChrome(app) {
   // ------------------------------------------------------------ public API
   const api = {
     titlebar: null,
+    toolbox: null,
     cmdbar: null,
     ctxbar: null,
     status: null,
     build() {
       api.titlebar = buildTitlebar();
       api.cmdbar = buildCmdbar();
+      api.toolbox = refs.toolbox;
       api.ctxbar = buildCtxbar();
       api.status = buildStatus();
       return api;
@@ -829,7 +832,7 @@ export function createChrome(app) {
       refs.selectMain.classList.toggle('on', S.tool === 'select');
       if (refs.selectMain.dataset.mode !== S.selMode) {
         refs.selectMain.dataset.mode = S.selMode;
-        refs.selectMain.replaceChildren(icon(S.selMode === 'free' ? 'lasso' : 'select_object', { size: 24 }));
+        refs.selectMain.replaceChildren(icon(S.selMode === 'free' ? 'lasso' : 'select_object', { size: 20 }));
       }
       refs.brushes.classList.toggle('on', S.tool === 'brush');
       for (const [id, b] of Object.entries(refs.shapes || {})) {

@@ -1,5 +1,6 @@
-// Navigation pane: Home, pinned Quick access folders, This PC (user folders + drives, expandable
-// tree) and the Recycle Bin. Keyboard navigable tree, drop targets with spring-loaded expansion.
+// Navigation pane (sidebar): Home, then three labelled sections — Favorites (pinned folders),
+// Places (home folder, Computer as an expandable tree, Trash) and Devices (drives) — and a
+// system-disk usage meter at the bottom. Keyboard navigable tree, drop targets with spring-loaded expansion.
 import { shared, isPinned, pin, unpin, movePin } from './shared.js';
 import * as T from './types.js';
 import * as ops from './ops.js';
@@ -16,7 +17,8 @@ export class NavPane {
     const { h, t } = ex;
     this.uid = `fxt${++treeSeq}`;
     this.tree = h('div', { class: 'fx-tree', role: 'tree', tabindex: '0', 'aria-label': t('nav.label') });
-    this.el = h('nav', { class: 'fx-nav' }, this.tree);
+    this.disk = h('div', { class: 'fx-disk', hidden: true });
+    this.el = h('nav', { class: 'fx-nav' }, this.tree, this.disk);
     this.expanded = new Set();
     this.children = new Map(); // node id -> [node]
     this.loading = new Set();
@@ -35,15 +37,31 @@ export class NavPane {
     const t = this.ex.t;
     const nodes = [
       { id: 'home', label: t('places.home'), icon: T.iconPath('home'), loc: { type: 'home' }, level: 1 },
-      { id: 'gallery', label: t('places.gallery'), icon: T.iconPath('gallery'), loc: { type: 'gallery' }, level: 1 },
-      { sep: true },
     ];
+    if (shared.pinned.length) nodes.push({ section: t('nav.favorites') });
     shared.pinned.forEach((p, i) => {
       nodes.push(this.folderNode(`pin${i}`, p, 1, { pinned: true, label: this.knownLabel(p) }));
     });
-    if (shared.pinned.length) nodes.push({ sep: true });
+    nodes.push({ section: t('nav.places') });
+    nodes.push(this.folderNode('loc', shared.home, 1, { label: t('places.personal'), icon: T.iconPath('folder-home') }));
     nodes.push({ id: 'thispc', label: t('places.thisPc'), icon: T.THIS_PC_ICON, loc: { type: 'thispc' }, level: 1, expandable: true });
     nodes.push({ id: 'trash', label: t('places.trash'), icon: this.trashFull ? T.iconPath('trash-full') : T.TRASH_ICON, loc: { type: 'trash' }, level: 1, trash: true });
+    // Devices: the drives other than the system disk (the meter at the bottom covers that one).
+    const devices = shared.drives.filter((d) => d.mountpoint !== '/' && d.kind !== 'system');
+    if (devices.length) nodes.push({ section: t('nav.devices') });
+    for (const d of devices) {
+      nodes.push({
+        id: `dev|${d.id}`,
+        prefix: 'dev',
+        label: T.driveName(d, t),
+        icon: T.driveIcon(d),
+        loc: d.mountpoint ? { type: 'dir', path: d.mountpoint } : null,
+        path: d.mountpoint || null,
+        drive: d,
+        level: 1,
+        expandable: !!d.mountpoint,
+      });
+    }
     return nodes;
   }
 
@@ -152,8 +170,8 @@ export class NavPane {
     let n = 0;
     const walk = (nodes) => {
       for (const node of nodes) {
-        if (node.sep) {
-          frag.append(h('div', { class: 'fx-tsep', role: 'separator' }));
+        if (node.section) {
+          frag.append(h('div', { class: 'fx-tsec', role: 'presentation' }, node.section));
           continue;
         }
         const open = this.expanded.has(node.id);
@@ -185,8 +203,30 @@ export class NavPane {
     walk(this.roots());
     this.tree.replaceChildren(frag);
     this.tree.scrollTop = scroll;
+    this.renderDisk();
     const f = this.rows.find((r) => r.node.id === this.focusId);
     if (f) this.tree.setAttribute('aria-activedescendant', f.id);
+  }
+
+  // Usage of the disk that holds the home folder: a thin meter and "x free of y".
+  renderDisk() {
+    const { h, t } = this.ex;
+    const drives = shared.drives.filter((d) => d.mounted !== false && d.mountpoint && d.size);
+    const d = drives.filter((x) => shared.home === x.mountpoint || T.isInside(shared.home, x.mountpoint) || x.mountpoint === '/')
+      .sort((a, b) => b.mountpoint.length - a.mountpoint.length)[0];
+    if (!d || d.free == null) {
+      this.disk.hidden = true;
+      return;
+    }
+    const used = Math.max(0, d.size - d.free);
+    const pct = Math.round((used / d.size) * 100);
+    const label = t('nav.disk');
+    this.disk.hidden = false;
+    this.disk.replaceChildren(
+      h('div', { class: 'fx-disk-head' }, h('span', { class: 'fx-disk-name' }, label), h('span', { class: 'fx-disk-pct' }, `${pct} %`)),
+      h('div', { class: ['fx-disk-bar', pct > 90 && 'full'], role: 'meter', 'aria-label': label, 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(pct), 'aria-valuetext': t('nav.diskUsed', { pct }) },
+        h('div', { class: 'fill', style: { width: `${Math.max(1, pct)}%` } })),
+      h('div', { class: 'fx-disk-free' }, t('nav.diskFree', { free: T.humanSize(d.free, t), size: T.humanSize(d.size, t) })));
   }
 
   // Highlight the node of the current location.

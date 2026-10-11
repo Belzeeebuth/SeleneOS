@@ -1,7 +1,9 @@
-// Settings > System: home, Display, Sound, Notifications, Power, Storage, Multitasking, Clipboard, About.
+// Settings > System: summary (System), Display, Sound, Notifications, Power, Storage, Window management
+// (multitasking), Clipboard, About. Display, Sound and About are their own entries in the navigation.
 import { PAGES } from '../lib/index.js';
 
-const SUBPAGES = ['display', 'sound', 'notifications', 'power', 'storage', 'multitasking', 'clipboard', 'about'];
+const SUBPAGES = ['notifications', 'power', 'storage', 'multitasking', 'clipboard'];
+const HOST_RE = /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
 
 function subpageRows(pc, ids) {
   const { kit, L } = pc;
@@ -14,62 +16,106 @@ function machineName(pc, info) {
   return info.machine === 'Virtual machine' ? pc.t('system.virtualMachine') : info.machine;
 }
 
-// Device "monitor" picture showing the current wallpaper (System home, About).
-function devicePic(pc) {
-  return pc.h('div', { class: 'st-device-pic', 'aria-hidden': 'true' });
-}
-
-async function renameFlow(pc, current) {
-  const { t, ui } = pc;
-  const name = await ui.prompt({
-    title: t('system.renameTitle'),
-    label: t('system.renameLabel', { name: current }),
-    value: current,
-    okLabel: t('system.renameOk'),
-    parent: pc.win,
-    validate: (v) => (/^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(v.trim()) ? null : t('system.renameInvalid')),
-  });
-  if (!name || name.trim() === current) return false;
-  try {
-    await pc.runAdmin('set-hostname', [name.trim()], 'system.reasonHostname');
-    pc.toast(t('system.renamed', { name: name.trim() }));
-    return true;
-  } catch (err) {
-    pc.toastError(err);
-    return false;
-  }
-}
-
+// The real host name. The developer simulation starts with a placeholder name: show "selene" for it.
 async function hostname(pc) {
   const sec = await pc.tryInvoke('admin:securityStatus');
-  if (sec?.hostname) return sec.hostname;
+  if (sec?.hostname) return sec.simulated && sec.hostname === 'AURORA-PC' ? 'selene' : sec.hostname;
   const info = await pc.tryInvoke('sys:info');
   return info?.hostname || pc.env.hostname || 'selene';
 }
 
-// ------------------------------------------------------------------ System home
+// Device name, edited in place: a field and a Rename button (enabled once the name changed).
+function nameEditor(pc, host, info, adm) {
+  const { h, t, kit } = pc;
+  const uid = Math.random().toString(36).slice(2, 8);
+  const hintId = `st-host-hint-${uid}`;
+  const baseHint = `${machineName(pc, info)} · ${t('system.deviceNameHint')}`;
+  const hint = h('div', { class: 'st-host-hint', id: hintId }, baseHint);
+  const input = h('input', { class: 'input st-host-input', type: 'text', value: host, spellcheck: false, autocomplete: 'off', maxlength: 63, id: `st-host-${uid}`, 'aria-describedby': hintId });
+  const btn = kit.button(t('system.rename'), () => save(), { className: 'st-host-save', icon: adm && !adm.isAdmin ? 'shield_keyhole' : null, disabled: true });
+  const sync = () => {
+    const v = input.value.trim();
+    btn.disabled = !v || v === host;
+    input.classList.remove('invalid');
+    input.removeAttribute('aria-invalid');
+    hint.classList.remove('error');
+    hint.textContent = baseHint;
+  };
+  input.addEventListener('input', sync);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      save();
+    } else if (e.key === 'Escape' && input.value !== host) {
+      e.stopPropagation();
+      input.value = host;
+      sync();
+    }
+  });
+  async function save() {
+    const v = input.value.trim();
+    if (!v || v === host) return;
+    if (!HOST_RE.test(v)) {
+      input.classList.add('invalid');
+      input.setAttribute('aria-invalid', 'true');
+      hint.classList.add('error');
+      hint.textContent = t('system.renameInvalid');
+      input.focus();
+      return;
+    }
+    btn.disabled = true;
+    try {
+      await pc.runAdmin('set-hostname', [v], 'system.reasonHostname');
+      await pc.refresh();
+      pc.toast(t('system.renamed', { name: v }));
+    } catch (err) {
+      pc.toastError(err);
+      btn.disabled = false;
+    }
+  }
+  return h(
+    'div',
+    { class: 'st-host', dataset: { section: 'rename' } },
+    h('label', { class: 'st-sum-label', for: `st-host-${uid}` }, t('about.deviceName')),
+    h('div', { class: 'st-host-edit' }, input, btn),
+    hint,
+  );
+}
+
+function meter(pc, label, used, total) {
+  const { h, t } = pc;
+  const pct = total ? Math.min(1, used / total) : 0;
+  return h(
+    'div',
+    { class: 'st-sum-cell' },
+    h('div', { class: 'st-sum-label' }, label),
+    h('div', { class: 'st-sum-value' }, total ? t('storage.usedOf', { used: pc.fmtSize(used), total: pc.fmtSize(total) }) : '—'),
+    h('div', { class: ['st-bar', pct > 0.9 && 'warn'], role: 'meter', 'aria-label': label, 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(pct * 100)) }, h('i', { style: { width: `${(pct * 100).toFixed(1)}%` } })),
+  );
+}
+
+// ------------------------------------------------------------------ System (summary)
 async function system(pc) {
   const { h, t, kit } = pc;
-  const [host, info] = await Promise.all([hostname(pc), pc.tryInvoke('sys:info')]);
-  const hero = h(
-    'div',
-    { class: 'st-hero' },
-    devicePic(pc),
+  const [host, info, adm, usage, stats] = await Promise.all([hostname(pc), pc.tryInvoke('sys:info'), pc.adminStatus(), pc.tryInvoke('fs:usage', '/'), pc.tryInvoke('sys:stats')]);
+  const i = info || {};
+  const mem = stats?.mem || (i.memTotal ? { total: i.memTotal, used: 0 } : null);
+  const summary = h(
+    'section',
+    { class: 'st-summary', 'aria-label': t('system.summaryLabel') },
+    nameEditor(pc, host, i, adm),
     h(
       'div',
-      { class: 'st-hero-text' },
-      h('div', { class: 'st-hero-title' }, host),
-      h('div', { class: 'st-hero-sub' }, machineName(pc, info)),
-      h('div', { class: 'st-hero-actions', style: { marginTop: '6px' } }, kit.link(t('system.rename'), async () => (await renameFlow(pc, host)) && pc.refresh())),
-    ),
-    h(
-      'button',
-      { class: 'st-qcard', type: 'button', style: { width: '260px' }, onclick: () => pc.go('update') },
-      pc.icon('arrow_sync', { size: 24 }),
-      h('div', null, h('div', null, t('update.title')), h('div', { class: 'caption text-2' }, t('system.updateCard'))),
+      { class: 'st-sum-facts' },
+      h('div', { class: 'st-sum-cell' }, h('div', { class: 'st-sum-label' }, t('system.version')), h('div', { class: 'st-sum-value' }, `${i.osName || 'Selene OS'} ${i.version || pc.env.version || ''}`.trim()), kit.link(t('system.allSpecs'), () => pc.go('about'))),
+      meter(pc, L(pc, 'storage'), usage?.used || 0, usage?.size || 0),
+      meter(pc, t('system.memory'), mem?.used || 0, mem?.total || 0),
     ),
   );
-  return h('div', null, hero, kit.group(null, ...subpageRows(pc, SUBPAGES)));
+  return h('div', null, summary, kit.group(t('system.sections'), ...subpageRows(pc, SUBPAGES)));
+}
+function L(pc, id) {
+  return pc.L(PAGES[id].title);
 }
 
 // ------------------------------------------------------------------ Display
@@ -807,17 +853,7 @@ async function about(pc) {
       b.replaceChildren(icon('checkmark', { size: 16 }), t('about.copied'));
       setTimeout(() => b.isConnected && b.replaceChildren(t('about.copy')), 1600);
     });
-  const hero = h(
-    'div',
-    { class: 'st-hero', dataset: { section: 'rename' } },
-    devicePic(pc),
-    h('div', { class: 'st-hero-text' }, h('div', { class: 'st-hero-title' }, host), h('div', { class: 'st-hero-sub' }, machineName(pc, i))),
-    h(
-      'div',
-      { class: 'st-hero-actions' },
-      kit.button(t('system.renamePc'), async () => (await renameFlow(pc, host)) && pc.refresh(), { icon: adm?.isAdmin ? null : 'shield_keyhole' }),
-    ),
-  );
+  const hero = h('section', { class: 'st-summary st-summary-about' }, nameEditor(pc, host, i, adm));
   return h(
     'div',
     null,

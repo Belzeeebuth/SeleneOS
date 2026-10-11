@@ -62,12 +62,19 @@ export class AddressBar {
       return [...this.segmentsFor(loc.root), { label: t('search.resultsIn', { name: this.ex.locName(loc.root) }), loc }];
     }
     const p = loc.path;
-    // Known folders are shown directly under This PC, like Windows libraries.
+    // Inside the home folder the path starts at "Home folder" (with a house glyph); known folders
+    // keep their translated names.
     let base = null;
-    for (const k of ['desktop', 'documents', 'downloads', 'pictures', 'music', 'videos']) {
-      if (x[k] && (p === x[k] || T.isInside(p, x[k]))) base = { path: x[k], label: t(`places.${k}`) };
+    if (p === shared.home || T.isInside(p, shared.home)) {
+      const segs = [{ label: t('places.personal'), loc: { type: 'dir', path: shared.home }, home: true }];
+      let cur = shared.home;
+      for (const part of p.slice(shared.home.length + 1).split('/').filter(Boolean)) {
+        cur = T.joinPath(cur, part);
+        const k = Object.keys(x).find((key) => ['desktop', 'documents', 'downloads', 'pictures', 'music', 'videos'].includes(key) && x[key] === cur);
+        segs.push({ label: k ? t(`places.${k}`) : part, loc: { type: 'dir', path: cur } });
+      }
+      return segs;
     }
-    if (!base && (p === shared.home || T.isInside(p, shared.home))) base = { path: shared.home, label: T.basename(shared.home) };
     if (!base) {
       const mp = shared.drives.filter((d) => d.mountpoint && d.mountpoint !== '/' && (p === d.mountpoint || T.isInside(p, d.mountpoint))).sort((a, b) => b.mountpoint.length - a.mountpoint.length)[0];
       if (mp) base = { path: mp.mountpoint, label: T.driveName(mp, t) };
@@ -109,7 +116,7 @@ export class AddressBar {
           e.stopPropagation();
           this.ex.navigate(s.loc);
         },
-      }, s.label);
+      }, s.home ? icon('home', { size: 14, class: 'fx-crumb-home' }) : null, s.label);
       if (s.loc.type === 'dir') this.ex.dnd.dropTarget(seg, () => s.loc.path);
       this.crumbs.appendChild(seg);
       if (s.loc.type !== 'search') this.crumbs.appendChild(this.chevron(s, i));
