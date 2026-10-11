@@ -480,8 +480,9 @@ function register(api) {
     if (!e) e = scan().byId.get(id); // just installed: the watcher may not have fired yet
     if (!e) throw api.error(`Unknown application ${id}`, 'ENOENT');
     const o = opts && typeof opts === 'object' ? opts : {};
-    const files = (Array.isArray(o.files) ? o.files : []).filter((f) => typeof f === 'string' && f).slice(0, 100);
-    const urls = (Array.isArray(o.urls) ? o.urls : []).filter((u) => typeof u === 'string' && u).slice(0, 100);
+    // Files must be absolute paths: a relative "--option" would otherwise reach the program as an option.
+    const files = (Array.isArray(o.files) ? o.files : []).filter((f) => typeof f === 'string' && path.isAbsolute(f)).slice(0, 100);
+    const urls = (Array.isArray(o.urls) ? o.urls : []).filter((u) => typeof u === 'string' && /^[a-z][a-z0-9+.-]*:/i.test(u)).slice(0, 100);
     const argvs = buildArgv({ exec: e._exec, icon: e._icon, name: e.name.en, file: e._file }, { files, urls });
     const dry = dryRunAll || (DEV && !e._fixture && process.env.AURORA_XWM !== '1');
     if (dry) return { dryRun: true, argv: argvs[0], argvs };
