@@ -1,16 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="tr-a" x1="4" y1="34" x2="28" y2="4" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0f5bd6"/>
-      <stop offset="1" stop-color="#3aa0ff"/>
-    </linearGradient>
-    <linearGradient id="tr-b" x1="18" y1="46" x2="44" y2="16" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0b8a7e"/>
-      <stop offset="1" stop-color="#3fd3b6"/>
-    </linearGradient>
-  </defs>
-  <path d="M8 4h18a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H15l-6 5v-5H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" fill="url(#tr-a)"/>
-  <path d="M11 20.5l5-12 5 12M12.8 16.5h6.4" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M40 18H22a4 4 0 0 0-4 4v14a4 4 0 0 0 4 4h11l6 5v-5h1a4 4 0 0 0 4-4V22a4 4 0 0 0-4-4z" fill="url(#tr-b)" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/>
-  <path d="M24.5 25h14M31.5 22.5V25M35.5 25c-1 4.6-4.2 8.2-9 10.5M28.6 28.4c1.6 2.8 4.3 5.3 8.4 7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="translate-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="translate-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="translate-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#add1d8"/><stop offset="1" stop-color="#86bcc6"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#translate-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#translate-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#translate-f)"><path d="M250.73,210.63l-56-112a12,12,0,0,0-21.46,0l-20.52,41A84.2,84.2,0,0,1,114,126.22,107.48,107.48,0,0,0,139.33,68H160a12,12,0,0,0,0-24H108V32a12,12,0,0,0-24,0V44H32a12,12,0,0,0,0,24h83.13A83.69,83.69,0,0,1,96,110.35,84,84,0,0,1,83.6,91a12,12,0,1,0-21.81,10A107.55,107.55,0,0,0,78,126.24,83.54,83.54,0,0,1,32,140a12,12,0,0,0,0,24,107.47,107.47,0,0,0,64-21.07,108.4,108.4,0,0,0,45.39,19.44l-24.13,48.26a12,12,0,1,0,21.46,10.73L151.41,196h65.17l12.68,25.36a12,12,0,1,0,21.47-10.73ZM163.41,172,184,130.83,204.58,172Z"/></g>
 </svg>

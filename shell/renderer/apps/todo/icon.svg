@@ -1,32 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="card" x1="10" y1="7" x2="34" y2="43" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#d6e4f8"/>
-    </linearGradient>
-    <linearGradient id="short" x1="13" y1="25" x2="23" y2="37" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1a4cc4"/>
-      <stop offset="1" stop-color="#2a63de"/>
-    </linearGradient>
-    <linearGradient id="long" x1="20" y1="37" x2="43" y2="8" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2f6ff0"/>
-      <stop offset="0.55" stop-color="#3b9af5"/>
-      <stop offset="1" stop-color="#6fd6f7"/>
-    </linearGradient>
-    <radialGradient id="shine" cx="13" cy="10" r="20" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" stop-opacity=".9"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect x="5" y="8.6" width="31" height="34.4" rx="6.5" fill="#0a2f78" opacity=".16"/>
-  <rect x="5" y="7" width="31" height="34.4" rx="6.5" fill="url(#card)"/>
-  <rect x="5.5" y="7.5" width="30" height="33.4" rx="6" fill="none" stroke="#8fb1e3" stroke-opacity=".55"/>
-  <rect x="5" y="7" width="31" height="20" rx="6.5" fill="url(#shine)" opacity=".7"/>
-  <rect x="10.5" y="13.5" width="13" height="3" rx="1.5" fill="#b4cbee"/>
-  <rect x="10.5" y="19.5" width="8.5" height="3" rx="1.5" fill="#c6d8f3"/>
-  <path d="M15.2 27.6l6.6 6.7" fill="none" stroke="#0b3a9e" stroke-opacity=".25" stroke-width="7.4" stroke-linecap="round" transform="translate(0 1.1)"/>
-  <path d="M21.8 34.3L40.6 11.4" fill="none" stroke="#0b3a9e" stroke-opacity=".22" stroke-width="7.4" stroke-linecap="round" transform="translate(0 1.1)"/>
-  <path d="M15.2 27.6l6.6 6.7" fill="none" stroke="url(#short)" stroke-width="7" stroke-linecap="round"/>
-  <path d="M21.8 34.3L40.6 11.4" fill="none" stroke="url(#long)" stroke-width="7" stroke-linecap="round"/>
-  <path d="M23.4 31.2L38.7 12.6" fill="none" stroke="#ffffff" stroke-opacity=".38" stroke-width="1.6" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="todo-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="todo-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="todo-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b6c6e7"/><stop offset="1" stop-color="#93abdb"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#todo-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#todo-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#todo-f)"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm45.66,85.66-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32Z"/></g>
 </svg>

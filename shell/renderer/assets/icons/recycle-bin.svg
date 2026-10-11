@@ -1,8 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e9f1fb" stop-opacity=".95"/><stop offset="1" stop-color="#a9bfdb" stop-opacity=".9"/></linearGradient>
-  </defs>
-  <path d="M10 13h28l-2.6 27.2A3 3 0 0 1 32.4 43H15.6a3 3 0 0 1-3-2.8z" fill="url(#g)" stroke="#7d93b3" stroke-width="1.2"/>
-  <rect x="8" y="9" width="32" height="5" rx="2" fill="#d6e2f2" stroke="#7d93b3" stroke-width="1.2"/>
-  <path d="M19 19v18M24 19v18M29 19v18" stroke="#7d93b3" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="special-trash-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="special-trash-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="special-trash-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d8deea"/><stop offset="1" stop-color="#c5cee0"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#special-trash-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#special-trash-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#special-trash-f)"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM112,168a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm0-120H96V40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8Z"/></g>
 </svg>

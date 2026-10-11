@@ -338,7 +338,7 @@ try {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-weather-mock-'));
   const MOCK = path.join(tmp, 'mock.json');
   fs.writeFileSync(MOCK, JSON.stringify({ offline: true }));
-  s = await launchShell({ open: ['weather'], lang: 'en', theme: 'light', settings: { dynamicWallpaper: { source: 'time', set: 'bloom', location: { name: 'Rennes', lat: 48.1173, lon: -1.6778 }, followTheme: false } }, env: { AURORA_WEATHER_MOCK: MOCK, AURORA_WEATHER_TIMEOUT: '1500' } });
+  s = await launchShell({ open: ['weather'], lang: 'en', theme: 'light', settings: { dynamicWallpaper: { source: 'time', set: 'lake', location: { name: 'Rennes', lat: 48.1173, lon: -1.6778 }, followTheme: false } }, env: { AURORA_WEATHER_MOCK: MOCK, AURORA_WEATHER_TIMEOUT: '1500' } });
   const A = (fn, a) => s.aurora(fn, a);
   await waitFor(() => A((q) => !!document.querySelector(q + ' .wx-error'), W), 15000);
   check((await all(s, `${W} .wx-place .wx-place-name`)).join() === 'Rennes' && (await text(s, `${W} .wx-title`)) === 'Rennes', 'first run starts with the place of the dynamic wallpaper');

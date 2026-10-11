@@ -29,7 +29,7 @@ const setMany = (pc, patch) => pc.api.invoke('settings:setMany', patch);
 const reduced = () => document.documentElement.dataset.reducedMotion === 'on' || document.documentElement.dataset.animations === 'off';
 const modeOf = (pc) => (pc.settings.get('theme') === 'dark' ? 'dark' : 'light');
 const anim = (pc) => ({ id: 'aurora', speed: 50, intensity: 50, fps: 30, pauseOnMaximized: true, ...(pc.settings.get('animatedWallpaper') || {}) });
-const dyn = (pc) => ({ source: 'time', set: 'bloom', location: null, followTheme: false, ...(pc.settings.get('dynamicWallpaper') || {}) });
+const dyn = (pc) => ({ source: 'time', set: 'lake', location: null, followTheme: false, ...(pc.settings.get('dynamicWallpaper') || {}) });
 const slide = (pc) => ({ folder: null, interval: 30, shuffle: true, ...(pc.settings.get('slideshow') || {}) });
 const lockCfg = (pc) => ({ mode: 'picture', effect: 'aurora', ...(pc.settings.get('lockScreen') || {}) });
 const engine = (pc) => pc.shell.wallpaperEngine || null;
@@ -241,7 +241,7 @@ export function kindControl(pc, { onKind } = {}) {
         patch.wallpaperMode = 'static';
         const solid = !!solidColorOf(settings.get('wallpaper'));
         if (v === 'solid' && !solid) patch.wallpaper = solidWallpaper(SOLIDS[0]);
-        if (v === 'picture' && solid) patch.wallpaper = 'builtin:bloom';
+        if (v === 'picture' && solid) patch.wallpaper = 'builtin:nocturne';
       } else patch.wallpaperMode = v;
       await setMany(pc, patch);
       onKind?.(v);

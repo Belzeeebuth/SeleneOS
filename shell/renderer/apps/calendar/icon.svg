@@ -1,56 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="cal-page" x1="10" y1="12" x2="38" y2="44" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset=".55" stop-color="#eef3fb"/>
-      <stop offset="1" stop-color="#cdd9ec"/>
-    </linearGradient>
-    <linearGradient id="cal-band" x1="6" y1="8" x2="40" y2="20" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#55b9ff"/>
-      <stop offset=".5" stop-color="#2b86ee"/>
-      <stop offset="1" stop-color="#1557c7"/>
-    </linearGradient>
-    <linearGradient id="cal-ring" x1="0" y1="3" x2="0" y2="14" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#f6f8fb"/>
-      <stop offset=".55" stop-color="#c3cedc"/>
-      <stop offset="1" stop-color="#7d8ba0"/>
-    </linearGradient>
-    <linearGradient id="cal-cell" x1="0" y1="22" x2="0" y2="38" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#a9bcd8"/>
-      <stop offset="1" stop-color="#8ea4c6"/>
-    </linearGradient>
-    <linearGradient id="cal-today" x1="20" y1="29" x2="28" y2="37" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#3a9bff"/>
-      <stop offset="1" stop-color="#1557c7"/>
-    </linearGradient>
-    <linearGradient id="cal-shade" x1="0" y1="32" x2="0" y2="43" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1b3a66" stop-opacity="0"/>
-      <stop offset="1" stop-color="#1b3a66" stop-opacity=".12"/>
-    </linearGradient>
-  </defs>
-  <!-- soft drop shadow -->
-  <rect x="6.6" y="9.6" width="36" height="34" rx="6" fill="#0b2a55" opacity=".2"/>
-  <!-- page -->
-  <rect x="6" y="8.5" width="36" height="34" rx="6" fill="url(#cal-page)"/>
-  <rect x="6" y="32" width="36" height="10.5" rx="6" fill="url(#cal-shade)"/>
-  <rect x="6.4" y="8.9" width="35.2" height="33.2" rx="5.6" fill="none" stroke="#2c4f80" stroke-opacity=".14" stroke-width=".8"/>
-  <!-- header band -->
-  <path d="M12 8.5h24a6 6 0 0 1 6 6v5.5H6v-5.5a6 6 0 0 1 6-6z" fill="url(#cal-band)"/>
-  <path d="M12 9.2h24a5.3 5.3 0 0 1 5.2 4.3H6.8A5.3 5.3 0 0 1 12 9.2z" fill="#fff" opacity=".22"/>
-  <!-- binding rings -->
-  <rect x="14.5" y="3.5" width="4.4" height="10" rx="2.2" fill="url(#cal-ring)"/>
-  <rect x="29.1" y="3.5" width="4.4" height="10" rx="2.2" fill="url(#cal-ring)"/>
-  <rect x="15.4" y="4.4" width="1.2" height="4.6" rx=".6" fill="#fff" opacity=".8"/>
-  <rect x="30" y="4.4" width="1.2" height="4.6" rx=".6" fill="#fff" opacity=".8"/>
-  <!-- days -->
-  <g fill="url(#cal-cell)">
-    <rect x="11" y="23.5" width="7" height="5.6" rx="1.6"/>
-    <rect x="20.5" y="23.5" width="7" height="5.6" rx="1.6"/>
-    <rect x="30" y="23.5" width="7" height="5.6" rx="1.6"/>
-    <rect x="11" y="31.6" width="7" height="5.6" rx="1.6"/>
-    <rect x="30" y="31.6" width="7" height="5.6" rx="1.6"/>
-  </g>
-  <!-- today -->
-  <rect x="20.5" y="31.6" width="7" height="5.6" rx="1.6" fill="url(#cal-today)"/>
-  <rect x="21.3" y="32.2" width="5.4" height="1.6" rx=".8" fill="#fff" opacity=".35"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="calendar-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="calendar-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="calendar-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e4bcc1"/><stop offset="1" stop-color="#d89ca4"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#calendar-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#calendar-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#calendar-f)"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM84,184a12,12,0,1,1,12-12A12,12,0,0,1,84,184Zm44,0a12,12,0,1,1,12-12A12,12,0,0,1,128,184Zm0-40a12,12,0,1,1,12-12A12,12,0,0,1,128,144Zm44,40a12,12,0,1,1,12-12A12,12,0,0,1,172,184Zm0-40a12,12,0,1,1,12-12A12,12,0,0,1,172,144Zm36-64H48V48H72v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24Z"/></g>
 </svg>

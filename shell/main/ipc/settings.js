@@ -24,11 +24,11 @@ const FILE = path.join(CONFIG_DIR, 'settings.json');
 const SYSTEM_FILE = '/etc/aurora/settings.json';
 
 const DEFAULTS = {
-  theme: 'light', // 'light' | 'dark'
-  accent: '#0078d4',
+  theme: 'dark', // 'light' | 'dark'
+  accent: '#c9d3e6', // '#rrggbb'; the four Selene accents: #c9d3e6 silver, #6f8de6 night blue, #a58bf2 violet, #e9b566 amber (core/theme.js ACCENT_PRESETS)
   transparency: true,
   animations: true,
-  wallpaper: 'builtin:bloom', // 'builtin:<id>' or absolute image path
+  wallpaper: 'builtin:nocturne', // 'builtin:<id>' or absolute image path (each style has its own: nocturne | eclipse | clairdelune)
   wallpaperFit: 'fill', // fill | fit | stretch | center | tile
   lang: null, // null -> follow system ($LANG); 'en' | 'fr'
   clock24h: null, // null -> locale default
@@ -58,7 +58,8 @@ const DEFAULTS = {
   mouse: { speed: 0, leftHanded: false }, // pointer acceleration -1..1 and primary button (applied with xinput, main/ipc/locale.js)
 
   // ---- Personalization (docs/PERSONALIZATION.md). Area A — theme engine (core/theme.js):
-  style: 'win11', // visual style: win11 | minimal | glass | retro | contrast
+  style: 'nocturne', // visual style: nocturne | eclipse | clairdelune | contrast (older ids are migrated, see migrate())
+  ambiance: 'cold', // colour ambiance: cold | neutral | warm (follows the style unless the user picks one: core/theme.js styleChoicePatch)
   autoTheme: { enabled: false, light: '07:00', dark: '19:00' }, // "Auto" mode: theme follows the time of day
   accentFromWallpaper: false, // pick the accent colour from the wallpaper
   transparencyLevel: 50, // 0 opaque … 50 Windows 11 look … 100 most see-through (windows, flyouts, taskbar)
@@ -74,7 +75,7 @@ const DEFAULTS = {
   animatedWallpaper: { id: 'aurora', speed: 50, intensity: 50, fps: 30, pauseOnMaximized: true },
   // source: time (time of day) | weather (time of day + weather overlay); set: bloom | dunes | lake;
   // location: null (fixed 07:00–19:00 day) | { name, lat, lon }; followTheme: light from sunrise to sunset
-  dynamicWallpaper: { source: 'time', set: 'bloom', location: null, followTheme: false },
+  dynamicWallpaper: { source: 'time', set: 'lake', location: null, followTheme: false },
   slideshow: { folder: null, interval: 30, shuffle: true }, // folder null = the built-in pictures; interval in minutes
   lockScreen: { mode: 'picture', effect: 'aurora' }, // picture (lockWallpaper, null = same as the desktop) | spotlight | animated
   // Area B2 — Start (core/start.js) + Focus mode (core/features/focus.js); taskbar.* additions are merged into `taskbar` below:
@@ -90,7 +91,7 @@ const DEFAULTS = {
   // Area B3 — packs (core/packs.js, core/sounds.js) + input (core/shortcuts.js, features/hotkeys.js, features/snaplayouts.js):
   cursorPack: 'default', // default (system) | classic | midnight | accent | large | highvis | retro
   cursorSize: 100, // 100–300 (%): size of the pointer (the system pack is drawn as "Selene light" when > 100)
-  iconPack: 'fluent', // fluent (the apps' own icons) | tiles | accent | graphite | mono | outline | glass | retro
+  iconPack: 'selene', // selene (the apps' own icons; 'fluent' before the redesign) | tiles | accent | graphite | mono | outline | glass | retro
   soundPack: 'aurora', // aurora | chimes | retro | soft | silent
   soundEvents: { notification: null, startup: null, shutdown: null }, // null = pack sound, 'none' = silent, '<pack>.<sound>', '/abs/file.ogg'
   soundVolume: 100, // 0–100: volume of the system sounds (multiplies every pack sound and sound file)
@@ -183,10 +184,42 @@ function safeName(s) {
   return String(s).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || '_';
 }
 
+// Values saved by older releases (redesign of 2026-10): the Windows-like styles become Nocturne (High
+// contrast stays), an unknown style too; the 'fluent' icon pack is now 'selene'. Returns true when it changed
+// something. Used on the user file, on /etc/aurora/settings.json and by core/profiles.js for saved profiles.
+const STYLE_IDS = ['nocturne', 'eclipse', 'clairdelune', 'contrast'];
+const AMBIANCE_IDS = ['cold', 'neutral', 'warm'];
+function migrate(obj) {
+  if (!isObj(obj)) return false;
+  let changed = false;
+  if ('style' in obj && !STYLE_IDS.includes(obj.style)) {
+    obj.style = 'nocturne';
+    changed = true;
+  }
+  if ('ambiance' in obj && !AMBIANCE_IDS.includes(obj.ambiance)) {
+    delete obj.ambiance;
+    changed = true;
+  }
+  if (obj.iconPack === 'fluent') {
+    obj.iconPack = 'selene';
+    changed = true;
+  }
+  return changed;
+}
+
 module.exports = function register(api) {
-  const base = deepMerge(DEFAULTS, readJson(SYSTEM_FILE, {}));
+  const system = readJson(SYSTEM_FILE, {});
+  migrate(system);
+  const base = deepMerge(DEFAULTS, system);
   // user overrides only (so new defaults reach existing users)
   let user = readJson(FILE, {});
+  if (migrate(user)) {
+    try {
+      writeJsonAtomic(FILE, user);
+    } catch (err) {
+      console.error('[settings] migration not saved', err);
+    }
+  }
   const merged = () => deepMerge(base, user);
   let saveTimer = null;
   const save = () => {
@@ -275,3 +308,4 @@ module.exports = function register(api) {
 };
 
 module.exports.DEFAULTS = DEFAULTS;
+module.exports.migrate = migrate;

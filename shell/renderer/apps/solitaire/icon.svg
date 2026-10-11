@@ -1,32 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="bk" x1="6" y1="8" x2="30" y2="42" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#5cc2ff"/>
-      <stop offset=".55" stop-color="#2486f0"/>
-      <stop offset="1" stop-color="#1450c8"/>
-    </linearGradient>
-    <linearGradient id="fc" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#e3e9f2"/>
-    </linearGradient>
-    <linearGradient id="ht" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ff7086"/>
-      <stop offset="1" stop-color="#d4173a"/>
-    </linearGradient>
-    <filter id="sh" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="-0.6" dy="1.4" stdDeviation="1.3" flood-color="#0a2552" flood-opacity=".38"/>
-    </filter>
-  </defs>
-  <g transform="rotate(-13 18 26)">
-    <rect x="6" y="9" width="23" height="32" rx="4" fill="url(#bk)"/>
-    <rect x="6" y="9" width="23" height="32" rx="4" fill="#fff" fill-opacity=".08"/>
-    <rect x="8.6" y="11.6" width="17.8" height="26.8" rx="2.3" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="1.2"/>
-    <path d="M11.5 31c2.9-.5 4.4-4.3 6.6-8.4.8-1.4 2.1-1.4 2.9 0 1.9 3.6 2.7 6 3.8 8.4" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
-  </g>
-  <g transform="rotate(9 31 26)" filter="url(#sh)">
-    <rect x="18.5" y="8" width="23.5" height="32.5" rx="4" fill="url(#fc)"/>
-    <path d="M18.5 12a4 4 0 0 1 4-4h15.5a4 4 0 0 1 4 4v2c-7-2.5-16-2.5-23.5 1.5z" fill="#fff" fill-opacity=".7"/>
-    <path transform="translate(22.6 17.2) scale(.152)" d="M50 94C44 86 6 63 6 33C6 17 18 6 31 6C40 6 46 11 50 19C54 11 60 6 69 6C82 6 94 17 94 33C94 63 56 86 50 94Z" fill="url(#ht)"/>
-    <path transform="translate(25.5 19.4) scale(.05)" d="M31 6C18 6 6 17 6 33c0 10 5 19 11 26C19 40 30 24 50 19 46 11 40 6 31 6Z" fill="#fff" fill-opacity=".45"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="solitaire-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="solitaire-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="solitaire-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d8deea"/><stop offset="1" stop-color="#c5cee0"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#solitaire-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#solitaire-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#solitaire-f)"><path d="M232,136a56,56,0,0,1-83.4,48.82l11.06,36.88A8,8,0,0,1,152,232H104a8,8,0,0,1-7.66-10.3l11.06-36.88A56,56,0,0,1,24,136c0-32,17.65-62.84,51-89.27a234.14,234.14,0,0,1,49.89-30.11,7.93,7.93,0,0,1,6.16,0A234.14,234.14,0,0,1,181,46.73C214.35,73.16,232,104,232,136Z"/></g>
 </svg>

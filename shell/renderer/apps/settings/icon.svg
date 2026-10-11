@@ -1,21 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-  <defs>
-    <linearGradient id="g" x1="8" y1="4" x2="40" y2="46" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#8ea3bd"/>
-      <stop offset="0.55" stop-color="#5d7290"/>
-      <stop offset="1" stop-color="#3b4c66"/>
-    </linearGradient>
-    <linearGradient id="r" x1="16" y1="16" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2c3a50"/>
-      <stop offset="1" stop-color="#1f2a3b"/>
-    </linearGradient>
-    <linearGradient id="hl" x1="24" y1="2" x2="24" y2="30" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" stop-opacity=".35"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </linearGradient>
-  </defs>
-  <path d="M17.42 8.11 A17.2 17.2 0 0 1 17.46 8.09 L18.06 3.34 A21.5 21.5 0 0 1 29.94 3.34 L30.54 8.09 A17.2 17.2 0 0 1 30.58 8.11 A17.2 17.2 0 0 1 30.63 8.13 L34.41 5.19 A21.5 21.5 0 0 1 42.81 13.59 L39.87 17.37 A17.2 17.2 0 0 1 39.89 17.42 A17.2 17.2 0 0 1 39.91 17.46 L44.66 18.06 A21.5 21.5 0 0 1 44.66 29.94 L39.91 30.54 A17.2 17.2 0 0 1 39.89 30.58 A17.2 17.2 0 0 1 39.87 30.63 L42.81 34.41 A21.5 21.5 0 0 1 34.41 42.81 L30.63 39.87 A17.2 17.2 0 0 1 30.58 39.89 A17.2 17.2 0 0 1 30.54 39.91 L29.94 44.66 A21.5 21.5 0 0 1 18.06 44.66 L17.46 39.91 A17.2 17.2 0 0 1 17.42 39.89 A17.2 17.2 0 0 1 17.37 39.87 L13.59 42.81 A21.5 21.5 0 0 1 5.19 34.41 L8.13 30.63 A17.2 17.2 0 0 1 8.11 30.58 A17.2 17.2 0 0 1 8.09 30.54 L3.34 29.94 A21.5 21.5 0 0 1 3.34 18.06 L8.09 17.46 A17.2 17.2 0 0 1 8.11 17.42 A17.2 17.2 0 0 1 8.13 17.37 L5.19 13.59 A21.5 21.5 0 0 1 13.59 5.19 L17.37 8.13 A17.2 17.2 0 0 1 17.42 8.11 Z" fill="url(#g)"/>
-  <path d="M17.42 8.11 A17.2 17.2 0 0 1 17.46 8.09 L18.06 3.34 A21.5 21.5 0 0 1 29.94 3.34 L30.54 8.09 A17.2 17.2 0 0 1 30.58 8.11 A17.2 17.2 0 0 1 30.63 8.13 L34.41 5.19 A21.5 21.5 0 0 1 42.81 13.59 L39.87 17.37 A17.2 17.2 0 0 1 39.89 17.42 A17.2 17.2 0 0 1 39.91 17.46 L44.66 18.06 A21.5 21.5 0 0 1 44.66 29.94 L39.91 30.54 A17.2 17.2 0 0 1 39.89 30.58 A17.2 17.2 0 0 1 39.87 30.63 L42.81 34.41 A21.5 21.5 0 0 1 34.41 42.81 L30.63 39.87 A17.2 17.2 0 0 1 30.58 39.89 A17.2 17.2 0 0 1 30.54 39.91 L29.94 44.66 A21.5 21.5 0 0 1 18.06 44.66 L17.46 39.91 A17.2 17.2 0 0 1 17.42 39.89 A17.2 17.2 0 0 1 17.37 39.87 L13.59 42.81 A21.5 21.5 0 0 1 5.19 34.41 L8.13 30.63 A17.2 17.2 0 0 1 8.11 30.58 A17.2 17.2 0 0 1 8.09 30.54 L3.34 29.94 A21.5 21.5 0 0 1 3.34 18.06 L8.09 17.46 A17.2 17.2 0 0 1 8.11 17.42 A17.2 17.2 0 0 1 8.13 17.37 L5.19 13.59 A21.5 21.5 0 0 1 13.59 5.19 L17.37 8.13 A17.2 17.2 0 0 1 17.42 8.11 Z" fill="url(#hl)"/>
-  <circle cx="24" cy="24" r="8.6" fill="url(#r)"/>
-  <circle cx="24" cy="24" r="8.6" fill="none" stroke="#ffffff" stroke-opacity=".18" stroke-width="1"/>
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="settings-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="settings-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="settings-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d8deea"/><stop offset="1" stop-color="#c5cee0"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#settings-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#settings-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#settings-f)"><path d="M237.94,107.21a8,8,0,0,0-3.89-5.4l-29.83-17-.12-33.62a8,8,0,0,0-2.83-6.08,111.91,111.91,0,0,0-36.72-20.67,8,8,0,0,0-6.46.59L128,41.85,97.88,25a8,8,0,0,0-6.47-.6A111.92,111.92,0,0,0,54.73,45.15a8,8,0,0,0-2.83,6.07l-.15,33.65-29.83,17a8,8,0,0,0-3.89,5.4,106.47,106.47,0,0,0,0,41.56,8,8,0,0,0,3.89,5.4l29.83,17,.12,33.63a8,8,0,0,0,2.83,6.08,111.91,111.91,0,0,0,36.72,20.67,8,8,0,0,0,6.46-.59L128,214.15,158.12,231a7.91,7.91,0,0,0,3.9,1,8.09,8.09,0,0,0,2.57-.42,112.1,112.1,0,0,0,36.68-20.73,8,8,0,0,0,2.83-6.07l.15-33.65,29.83-17a8,8,0,0,0,3.89-5.4A106.47,106.47,0,0,0,237.94,107.21ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z"/></g>
 </svg>

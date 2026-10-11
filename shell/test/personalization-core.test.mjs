@@ -163,7 +163,7 @@ console.log('\n# Every key applies live');
   const a0 = await alphaAt(0);
   const a50 = await alphaAt(50);
   const a100 = await alphaAt(100);
-  check(a0.tb === 1 && a0.mica === 1 && a50.tb < 0.9 && a50.tb > 0.75 && a100.tb < a50.tb && a100.mica < 0.65, `transparencyLevel: taskbar alpha ${a0.tb} → ${a50.tb.toFixed(2)} → ${a100.tb.toFixed(2)}, window tint ${a0.mica} → ${a100.mica.toFixed(2)}`);
+  check(a0.tb === 1 && a0.mica === 1 && a50.tb <= 0.92 && a50.tb >= 0.8 && a100.tb <= a50.tb && a100.tb >= 0.8 && a100.mica === 1, `transparencyLevel (glass stays 80–92 % opaque, windows opaque): taskbar alpha ${a0.tb} → ${a50.tb.toFixed(2)} → ${a100.tb.toFixed(2)}, window tint ${a0.mica} → ${a100.mica.toFixed(2)}`);
   await setKey(s, 'transparencyLevel', 50);
   await setKey(s, 'transparency', false);
   const off = await T(s, () => ({ attr: document.documentElement.dataset.transparency, bf: window.__t.cs('#taskbar', 'backdropFilter'), a: window.__t.alpha(window.__t.cs('#taskbar', 'backgroundColor')) }));
@@ -174,7 +174,7 @@ console.log('\n# Every key applies live');
   const b0 = await T(s, () => window.__t.cs('#taskbar', 'backdropFilter'));
   await setKey(s, 'blur', 100);
   const b100 = await T(s, () => ({ tb: window.__t.cs('#taskbar', 'backdropFilter'), menu: window.__t.cs(window.__t.probe('<div class="menu"></div>'), 'backdropFilter'), start: window.__t.cs('#start', 'backdropFilter') }));
-  check(/blur\(0px\)/.test(b0) && /blur\(80px\)/.test(b100.tb) && /blur\(60px\)/.test(b100.menu) && /blur\(80px\)/.test(b100.start), `blur intensity: taskbar ${b0} → ${b100.tb}; menu ${b100.menu}`);
+  check(/blur\(0px\)/.test(b0) && /blur\(56px\)/.test(b100.tb) && /blur\(42px\)/.test(b100.menu), `blur intensity: taskbar ${b0} → ${b100.tb}; menu ${b100.menu}`);
   await setKey(s, 'blur', 50);
   // corner radius
   const radius = async (v) => {
@@ -186,7 +186,7 @@ console.log('\n# Every key applies live');
   };
   const r0 = await radius(0);
   const r200 = await radius(200);
-  check(r0.btn === '0px' && r0.win === '0px' && r200.btn === '8px' && r200.win === '16px', `corner radius 0 % → 200 %: button ${r0.btn} → ${r200.btn}, window ${r0.win} → ${r200.win}`);
+  check(r0.btn === '0px' && r0.win === '0px' && r200.btn === '12px' && r200.win === '16px', `corner radius 0 % → 200 %: button ${r0.btn} → ${r200.btn}, window ${r0.win} → ${r200.win}`);
   await setKey(s, 'cornerRadius', 100);
   // font family
   await setKey(s, 'fontFamily', 'dejavu-serif');
@@ -226,7 +226,7 @@ console.log('\n# Every key applies live');
   // taskbar colour + opacity
   await setKey(s, 'taskbar.color', '#101820');
   const tbDark = await T(s, () => ({ theme: document.getElementById('taskbar').dataset.theme, bg: window.__t.cs('#taskbar', 'backgroundColor'), text: window.__t.cs('#taskbar .tb-btn', 'color') }));
-  check(tbDark.theme === 'dark' && /^rgba?\(16, 24, 32/.test(tbDark.bg) && tbDark.text === 'rgb(255, 255, 255)', `taskbar colour: custom dark colour, light icons/text (${tbDark.bg})`);
+  check(tbDark.theme === 'dark' && /^rgba?\(16, 24, 32/.test(tbDark.bg) && tbDark.text === 'rgb(230, 234, 242)', `taskbar colour: custom dark colour, light icons/text (${tbDark.bg})`);
   await setKey(s, 'taskbar.color', '#f4e8c1');
   check((await T(s, () => document.getElementById('taskbar').dataset.theme)) === 'light', 'taskbar colour: light custom colour keeps dark text');
   await setKey(s, 'taskbar.color', 'accent');
@@ -236,14 +236,14 @@ console.log('\n# Every key applies live');
   await setKey(s, 'taskbar.opacity', null);
   await setKey(s, 'taskbar.color', null);
   const tbDef = await T(s, () => ({ theme: document.getElementById('taskbar').dataset.theme || null, bg: window.__t.cs('#taskbar', 'backgroundColor') }));
-  check(/^rgba?\(\d+, \d+, \d+/.test(tbAcc) && !/^rgba?\(238, 238, 238/.test(tbAcc) && Math.abs(tbOp - 0.3) < 0.01 && tbDef.theme === null && /^rgba?\(238, 238, 238/.test(tbDef.bg), `taskbar accent colour (${tbAcc}), opacity 30 % (${tbOp}), back to default`);
+  check(/^rgba?\(\d+, \d+, \d+/.test(tbAcc) && !/^rgba?\(243, 246, 251/.test(tbAcc) && Math.abs(tbOp - 0.3) < 0.01 && tbDef.theme === null && /^rgba?\(243, 246, 251/.test(tbDef.bg), `taskbar accent colour (${tbAcc}), opacity 30 % (${tbOp}), back to default`);
   // accent + light/dark
   await setKey(s, 'accent', '#e3008c', 600);
   await waitTransitions(s);
   check((await T(s, () => window.__t.root('--accent-base'))) === '#e3008c', 'accent colour');
   await setKey(s, 'theme', 'dark', 600);
   await waitTransitions(s);
-  check((await T(s, () => window.__t.cs(document.body, 'color'))) === 'rgb(255, 255, 255)', 'dark mode');
+  check((await T(s, () => window.__t.cs(document.body, 'color'))) === 'rgb(230, 234, 242)', 'dark mode (Nocturne ink text #e6eaf2)');
   await setKey(s, 'theme', 'light', 600);
   await waitTransitions(s);
   // Auto mode drives `theme`
@@ -278,7 +278,7 @@ console.log('\n# Every key applies live');
   check(/^#[0-9a-f]{6}$/.test(fw) && fw !== '#e3008c' && hue > 160 && hue < 200, `accent picked from the wallpaper (${fw}, hue ${hue}°)`);
   await setKey(s, 'accentFromWallpaper', false);
   await T(s, () => window.__aurora.settings.set('wallpaper', 'builtin:bloom'));
-  await setKey(s, 'accent', '#0078d4', 800);
+  await setKey(s, 'accent', '#c9d3e6', 800);
   await waitTransitions(s);
 }
 
@@ -303,18 +303,76 @@ console.log('\n# Visual styles');
       };
     });
   const res = {};
-  for (const st of ['win11', 'minimal', 'glass', 'retro', 'contrast']) {
+  const hooks = () =>
+    T(s, () => {
+      const v = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+      return { bar: v('--bar-mode'), align: v('--bar-apps-align'), margin: v('--bar-margin'), winBw: v('--win-border-w'), sel: v('--sel-bar-w'), grain: v('--panel-grain') !== 'none', amb: document.documentElement.dataset.ambiance, acc: document.documentElement.dataset.accent, mica: v('--mica-image') };
+    });
+  for (const st of ['nocturne', 'eclipse', 'clairdelune', 'contrast']) {
     await setKey(s, 'style', st, 700);
     await waitTransitions(s);
-    res[st] = await sample();
+    res[st] = { ...(await sample()), ...(await hooks()) };
   }
-  const w = res.win11;
+  const w = res.nocturne;
   check(Object.entries(res).every(([k, v]) => v.style === k), 'data-style follows the setting');
-  check(w.btnRadius === '4px' && /blur\(40px\)/.test(w.tbBlur) && w.transp === 'on' && w.tbAlpha < 1, `Fluent: 4 px buttons, acrylic taskbar (${w.tbBlur})`);
-  check(res.minimal.btnRadius === '6px' && res.minimal.tbBlur === 'none' && res.minimal.tbAlpha === 1 && res.minimal.winShadow !== w.winShadow && res.minimal.accent === '#262626', 'Minimal: flat, opaque, no blur, softer shadows, graphite accent');
-  check(res.glass.btnRadius === '8px' && /blur\(50px\)/.test(res.glass.tbBlur) && res.glass.tbAlpha < w.tbAlpha && /inset/.test(res.glass.winShadow) && /inset/.test(res.glass.btnShadow), `Glass: rounder, stronger blur (${res.glass.tbBlur}), more translucent taskbar (${res.glass.tbAlpha.toFixed(2)}), highlights`);
-  check(res.retro.btnRadius === '0px' && /inset/.test(res.retro.btnShadow) && /linear-gradient/.test(res.retro.titleBg) && res.retro.tbBlur === 'none' && res.retro.tbAlpha === 1, 'Retro: square bevelled buttons, gradient title bars, opaque taskbar');
+  check(w.btnRadius === '6px' && w.winBw === '1px' && w.bar === 'islands' && w.margin === '12px' && /blur\(28px\)/.test(w.tbBlur) && w.tbAlpha >= 0.8 && w.transp === 'on' && w.mica === 'none', `Nocturne: 6 px controls, hairline windows, floating islands, glass bar ${w.tbBlur} at ${w.tbAlpha.toFixed(2)}, no Mica`);
+  check(res.eclipse.bar === 'full' && res.eclipse.margin === '0px' && res.eclipse.winBw === '0px' && res.eclipse.sel === '3px', `Éclipse: full-width bar, borderless windows, accent bar on selected rows (${JSON.stringify(res.eclipse)})`);
+  check(res.clairdelune.bar === 'pills' && res.clairdelune.winBw === '0px' && res.clairdelune.grain, 'Clair de lune: three pills, borderless windows, grain on the panels');
+  check(Object.values(res).every((v) => v.align === 'center'), 'every style centres the bar’s app icons');
+  // the follow rule: a plain settings.set('style') brings the style's ambiance and accent (they were defaults)
+  check(res.eclipse.amb === 'neutral' && res.eclipse.acc === 'amber' && res.clairdelune.amb === 'warm' && res.clairdelune.acc === 'violet', `choosing a style brings its ambiance and accent (${res.eclipse.amb}/${res.eclipse.acc}, ${res.clairdelune.amb}/${res.clairdelune.acc})`);
   check(res.contrast.btnBorder === '2px' && res.contrast.winBorder === '2px' && res.contrast.winShadow === 'none' && res.contrast.tbAlpha === 1 && res.contrast.transp === 'off', 'High contrast: thick borders, no shadows, no transparency');
+  // an explicit ambiance survives a style change
+  await setKey(s, 'style', 'nocturne', 700);
+  await setKey(s, 'ambiance', 'warm', 700);
+  await setKey(s, 'style', 'eclipse', 700);
+  const kept = await hooks();
+  check(kept.amb === 'warm' && kept.acc === 'amber', `an ambiance you chose stays when the style changes (${kept.amb}, accent ${kept.acc})`);
+  await T(s, () => window.__aurora.api.invoke('settings:setMany', {}, { reset: ['ambiance', 'accent', 'wallpaper'] }));
+  await setKey(s, 'style', 'contrast', 700);
+  await waitTransitions(s);
+
+  // palettes: every text token ≥ 4.5:1 on every surface, and the four accents, in 3 ambiances × 2 modes
+  const pal = await T(s, async () => {
+    const th = await import('app://shell/core/theme.js');
+    const lum = (c) => {
+      const p = c.match(/[\d.]+/g).map(Number);
+      const f = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * f(p[0]) + 0.7152 * f(p[1]) + 0.0722 * f(p[2]);
+    };
+    const cr = (a, b) => {
+      const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+      return (x + 0.05) / (y + 0.05);
+    };
+    const out = [];
+    for (const amb of ['cold', 'neutral', 'warm']) {
+      for (const mode of ['dark', 'light']) {
+        for (const acc of th.ACCENT_PRESETS) {
+          const host = window.__t.probe(`<div data-style="nocturne" data-ambiance="${amb}" data-theme-scope data-theme="${mode}"><i></i></div>`);
+          const el = host.matches('[data-ambiance]') ? host : host.querySelector('[data-ambiance]');
+          for (const [k, v] of Object.entries(th.accentVars(acc.hex, mode))) el.style.setProperty(k, v);
+          const col = (n) => {
+            el.firstElementChild.style.color = `var(${n})`;
+            return getComputedStyle(el.firstElementChild).color;
+          };
+          let min = 99;
+          let worst = '';
+          for (const bg of ['--bg', '--bg-alt', '--surface-raised']) {
+            for (const fg of ['--text', '--text-2', '--text-3', '--accent-text']) {
+              const r = cr(col(fg), col(bg));
+              if (r < min) [min, worst] = [r, `${fg} on ${bg}`];
+            }
+          }
+          const on = cr(col('--on-accent'), col('--accent'));
+          out.push({ amb, mode, acc: acc.id, min: Math.round(min * 10) / 10, worst, on: Math.round(on * 10) / 10 });
+          el.remove();
+        }
+      }
+    }
+    return out;
+  });
+  const lowPal = pal.filter((x) => !(x.min >= 4.5 && x.on >= 4.5));
+  check(pal.length === 24 && !lowPal.length, `palettes: text and accent text ≥ 4.5:1 on every surface, text on accent ≥ 4.5:1, 3 ambiances × 2 modes × 4 accents (lowest ${Math.min(...pal.map((x) => x.min))}:1)${lowPal.length ? ` — LOW: ${JSON.stringify(lowPal)}` : ''}`);
 
   // contrast ≥ 7:1 on key surfaces, light and dark
   const ratios = async () =>
@@ -383,7 +441,7 @@ console.log('\n# Visual styles');
     check(!low.length, `High contrast (${mode}): every key text ≥ 7:1 — ${r.map((x) => `${x.name} ${x.ratio}`).join(', ')}${low.length ? ` — LOW: ${low.map((x) => x.name).join(', ')}` : ''}`);
   }
   await setKey(s, 'theme', 'light', 800);
-  await setKey(s, 'style', 'win11', 800);
+  await setKey(s, 'style', 'nocturne', 800);
   await waitTransitions(s);
 }
 
@@ -407,9 +465,9 @@ console.log('\n# Per-app themes');
       root: document.documentElement.dataset.theme,
     };
   });
-  check(r.calcTheme === 'dark' && r.calcText === 'rgb(255, 255, 255)' && r.calcBg === 'rgb(32, 32, 32)' && r.calcAccent === '#e81123', `Calculator alone is dark with its own accent (${JSON.stringify(r)})`);
+  check(r.calcTheme === 'dark' && r.calcText === 'rgb(230, 234, 242)' && r.calcBg === 'rgb(18, 24, 38)' && r.calcAccent === '#e81123', `Calculator alone is dark with its own accent (${JSON.stringify(r)})`);
   check(r.calcAppVar.replace(/\s/g, '') === 'rgba(255,255,255,0.0837)', `the app's own dark rules follow its window (--ck-num ${r.calcAppVar})`);
-  check(r.npTheme === null && r.npText !== 'rgb(255, 255, 255)' && r.npAccent === '#0078d4' && r.root === 'light', 'Notepad and the shell keep the system theme');
+  check(r.npTheme === null && r.npText !== 'rgb(230, 234, 242)' && r.npAccent === '#c9d3e6' && r.root === 'light', 'Notepad and the shell keep the system theme');
   // a menu opened from the calculator matches it
   const m = await T(s, async () => {
     const calc = document.querySelector('#windows > .win.app-calculator');
@@ -422,7 +480,7 @@ console.log('\n# Per-app themes');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     return out;
   });
-  check(m.theme === 'dark' && /^rgba?\(44, 44, 44/.test(m.bg), 'a menu opened from that app uses its theme');
+  check(m.theme === 'dark' && /^rgba?\(15, 20, 33/.test(m.bg), 'a menu opened from that app uses its theme');
   // new window of a themed app, and system dark + app forced light
   await T(s, () => window.__aurora.settings.set('appThemes', { notepad: { theme: 'light', accent: null } }));
   await setKey(s, 'theme', 'dark', 900);
@@ -432,7 +490,7 @@ console.log('\n# Per-app themes');
     const np = document.querySelector('#windows > .win.app-notepad');
     return { calc: calc.dataset.theme || null, calcText: getComputedStyle(calc).color, np: np.dataset.theme, npText: getComputedStyle(np).color, npAccent: getComputedStyle(np).getPropertyValue('--on-accent').trim() };
   });
-  check(r2.calc === null && r2.calcText === 'rgb(255, 255, 255)' && r2.np === 'light' && r2.npText !== 'rgb(255, 255, 255)' && r2.npAccent === '#ffffff', `system dark + Notepad forced light: only Notepad is light (light accent shades); Calculator back to the system theme (${JSON.stringify(r2)})`);
+  check(r2.calc === null && r2.calcText === 'rgb(230, 234, 242)' && r2.np === 'light' && r2.npText !== 'rgb(230, 234, 242)' && r2.npAccent === '#ffffff', `system dark + Notepad forced light: only Notepad is light (light accent shades); Calculator back to the system theme (${JSON.stringify(r2)})`);
   await T(s, () => window.__aurora.registry.launch('calculator', { newWindow: true }));
   await sleep(800);
   await T(s, () => window.__aurora.settings.set('appThemes', { calculator: { theme: 'light', accent: null } }));
@@ -458,7 +516,7 @@ console.log('\n# Profiles');
       vt++;
       return orig(cb);
     };
-    await profiles.apply('retro');
+    await profiles.apply('contrast');
     document.startViewTransition = orig;
     await new Promise((r) => setTimeout(r, 300));
     const A = window.__aurora.settings;
@@ -474,8 +532,8 @@ console.log('\n# Profiles');
       textScale: A.get('textScale'),
     };
   });
-  check(['aurora-light', 'aurora-dark', 'glass', 'minimal', 'retro', 'contrast', 'night-owl'].every((id) => r.builtins.includes(id)), `built-in profiles (${r.builtins.join(', ')})`);
-  check(r.style === 'retro' && r.font === 'liberation-sans' && r.wall && r.attr === 'retro' && r.current === 'retro', 'one click applies a built-in profile (style, font, wallpaper)');
+  check(['aurora-light', 'aurora-dark', 'eclipse', 'clairdelune', 'contrast'].every((id) => r.builtins.includes(id)) && !r.builtins.some((id) => ['glass', 'minimal', 'retro', 'night-owl'].includes(id)), `built-in profiles (${r.builtins.join(', ')})`);
+  check(r.style === 'contrast' && r.font === 'inter' && r.wall && r.attr === 'contrast' && r.current === 'contrast', 'one click applies a built-in profile (style, font, wallpaper)');
   check(r.vt === 1 && !r.switching, `apply cross-fades the whole UI once and ends cleanly (${r.vt} view transition)`);
   // user profiles: save, change, re-apply, rename, duplicate, export/import, delete
   await T(s, () => window.__aurora.settings.set('textScale', 110));
@@ -507,8 +565,8 @@ console.log('\n# Profiles');
     return { name: savedName, afterDark, back, dup: dup.name, imp: imp.name, impSame: JSON.stringify(imp.values) === JSON.stringify((await profiles.get(p.id)).values), errs, listed, stored: stored?.profiles?.length, after, id: p.id, jsonOk: JSON.parse(json).format === 'aurora-profile' };
   });
   check(u.name === 'My <b>retro</b> look', `saved profile name is cleaned (“${u.name}”)`);
-  check(u.afterDark.style === 'win11' && u.afterDark.theme === 'dark' && u.afterDark.textScale === 110, 'built-in profiles change the look but keep accessibility choices (text size)');
-  check(u.back.style === 'retro' && u.back.theme === 'light' && u.back.textScale === 110 && u.back.corner === 100 && u.back.cur === u.id, 'a saved profile restores the whole look (keys missing from it go back to their defaults)');
+  check(u.afterDark.style === 'nocturne' && u.afterDark.theme === 'dark' && u.afterDark.textScale === 110, 'built-in profiles change the look but keep accessibility choices (text size)');
+  check(u.back.style === 'contrast' && u.back.theme === 'dark' && u.back.textScale === 110 && u.back.corner === 100 && u.back.cur === u.id, 'a saved profile restores the whole look (keys missing from it go back to their defaults)');
   check(u.dup === 'Renamed (copy)' && u.imp === 'Renamed' && u.impSame && u.jsonOk, 'rename, duplicate, export → import round trip');
   check(u.errs.every((e) => e === 'EINVAL'), `invalid profile files are refused (${u.errs.join(', ')})`);
   check(u.stored === 3 && u.after === 1, 'profiles persist in storage (shell/profiles) and can be deleted');
@@ -522,9 +580,9 @@ console.log('\n# Profiles');
   check(fm === true, 'applying a profile keeps the runtime focus-mode state');
   await T(s, () => window.__aurora.settings.set('focusMode.active', false));
   // shell event
-  await T(s, () => window.__aurora.shell.emit('profiles:apply', { id: 'minimal' }));
+  await T(s, () => window.__aurora.shell.emit('profiles:apply', { id: 'eclipse' }));
   await sleep(1200);
-  check((await T(s, () => window.__t.get('style'))) === 'minimal', "shell.emit('profiles:apply', { id }) applies a profile from anywhere");
+  check((await T(s, () => window.__t.get('style'))) === 'eclipse', "shell.emit('profiles:apply', { id }) applies a profile from anywhere");
   await T(s, () => window.__aurora.theme.profiles.apply('aurora-light'));
   await setKey(s, 'textScale', 100, 300);
 }
@@ -571,7 +629,7 @@ console.log('\n# Security (settings backend + profile import)');
     await profiles.remove(p.id);
     return p.values;
   });
-  check(!('cursorPack' in v) && v.iconPack === 'fluent' && !('soundPack' in v) && !('taskbar.position' in v) && v['taskbar.size'] === 'large' && JSON.stringify(v['taskbar.widgets']) === '["weather"]' && !('start.background' in v) && JSON.stringify(v['start.folders']) === '["documents"]', 'import: pack ids, taskbar and Start values are strictly validated (no CSS / HTML injection, no path tricks)');
+  check(!('cursorPack' in v) && ['fluent', 'selene'].includes(v.iconPack) && !('soundPack' in v) && !('taskbar.position' in v) && v['taskbar.size'] === 'large' && JSON.stringify(v['taskbar.widgets']) === '["weather"]' && !('start.background' in v) && JSON.stringify(v['start.folders']) === '["documents"]', 'import: pack ids, taskbar and Start values are strictly validated (no CSS / HTML injection, no path tricks)');
   check(JSON.stringify(v['start.groups'][0].apps) === '["files"]' && v['start.groups'][0].name.length <= 60 && !/[<>]/.test(v['start.groups'][0].name) && JSON.stringify(v.snapPresets[0].zones) === '[{"x":0,"y":0,"w":0.5,"h":1}]', 'import: Start groups and snap layout zones are validated (bounded names, zones inside the screen)');
   check(JSON.stringify(v.shortcuts) === '{"start":"Super+S","search":null}' && JSON.stringify(v.soundEvents) === '{"shutdown":"/usr/share/sounds/x.ogg"}' && JSON.stringify(v.focusMode) === '{"duration":30}', `import: shortcuts, sound files and focus mode values are validated (${JSON.stringify(v.shortcuts)} ${JSON.stringify(v.soundEvents)})`);
   check(!('wallpaperMode' in v) && !('animatedWallpaper' in v) && v.dynamicWallpaper?.location?.lat === 48.8 && JSON.stringify(Object.keys(v.appThemes)) === '["calculator"]' && !('wallpaper' in v) && !('lockWallpaper' in v), `import: wallpaper values validated; no prototype keys; remote pictures (tracking) refused (${JSON.stringify(v.dynamicWallpaper)})`);
@@ -636,15 +694,16 @@ console.log('\n# Title bars, clock, tooltips, motion, Mica');
       return Math.round(((a + 0.05) / (b + 0.05)) * 10) / 10;
     });
   const ratios = {};
-  for (const [st, mode] of [['retro', 'light'], ['retro', 'dark'], ['contrast', 'dark'], ['contrast', 'light']]) {
+  // only High contrast recolours the title bar (the Selene styles keep it in the window's own colours)
+  for (const [st, mode] of [['contrast', 'dark'], ['contrast', 'light']]) {
     await T(s, ([a, b]) => window.__aurora.api.invoke('settings:setMany', { style: a, theme: b }), [st, mode]);
     await sleep(900);
     await waitTransitions(s);
     ratios[`${st}-${mode}`] = await tabRatio();
   }
-  check(Object.entries(ratios).every(([k, x]) => x >= (k.startsWith('contrast') ? 7 : 4.5)), `Notepad's tab in the title bar is readable in Retro and High contrast (${JSON.stringify(ratios)})`);
+  check(Object.entries(ratios).every(([k, x]) => x >= (k.startsWith('contrast') ? 7 : 4.5)), `Notepad's tab in the title bar is readable in High contrast (${JSON.stringify(ratios)})`);
   // the taskbar clock fits the taskbar at the largest text size
-  await T(s, () => window.__aurora.api.invoke('settings:setMany', { style: 'retro', theme: 'light', textScale: 150 }));
+  await T(s, () => window.__aurora.api.invoke('settings:setMany', { style: 'eclipse', theme: 'light', textScale: 150 }));
   await sleep(900);
   const clock = await T(s, () => {
     const c = document.querySelector('#taskbar .tb-clock-text').getBoundingClientRect();
@@ -693,7 +752,8 @@ console.log('\n# Title bars, clock, tooltips, motion, Mica');
     await window.__aurora.settings.set('blur', 50);
     return n;
   });
-  check(mica >= 1 && mica <= 2, `blur slider drag: the wallpaper copy is re-blurred ${mica}× for 12 steps`);
+  const micaImg = await T(s, () => document.documentElement.style.getPropertyValue('--mica-image'));
+  check(mica === 0 && micaImg === 'none', `blur slider drag: flat windows (no Mica), so no blurred wallpaper copy is ever computed (${mica}× for 12 steps, --mica-image ${micaImg})`);
   await sleep(500);
 }
 
@@ -704,13 +764,13 @@ console.log('\n# Leaks');
     const A = window.__aurora;
     const count = () => ({ nodes: document.getElementsByTagName('*').length, head: document.head.children.length, sheets: document.styleSheets.length });
     const before = count();
-    const styles = ['win11', 'minimal', 'glass', 'retro', 'contrast'];
+    const styles = ['nocturne', 'eclipse', 'clairdelune', 'contrast'];
     for (let i = 0; i < 20; i++) {
       await A.settings.set('style', styles[i % 5]);
       await A.settings.set('theme', i % 2 ? 'dark' : 'light');
       await new Promise((res) => setTimeout(res, 50));
     }
-    await A.api.invoke('settings:setMany', { style: 'win11', theme: 'light' });
+    await A.api.invoke('settings:setMany', { style: 'nocturne', theme: 'light' });
     window.__leakBefore = before;
   });
   await sleep(1200);
@@ -725,7 +785,7 @@ console.log('\n# Leaks');
       switching: document.documentElement.classList.contains('theme-switching'),
     })),
   );
-  check(r.after.head === r.before.head && r.after.sheets === r.before.sheets && Math.abs(r.after.nodes - r.before.nodes) < 10 && r.style === 'win11' && r.theme === 'light' && !r.switching, `20 rapid style + mode switches: no leaked nodes / style sheets, screen in sync (${JSON.stringify(r.before)} → ${JSON.stringify(r.after)}, ${r.style}/${r.theme}${r.switching ? ', still switching' : ''})`);
+  check(r.after.head === r.before.head && r.after.sheets === r.before.sheets && Math.abs(r.after.nodes - r.before.nodes) < 10 && r.style === 'nocturne' && r.theme === 'light' && !r.switching, `20 rapid style + mode switches: no leaked nodes / style sheets, screen in sync (${JSON.stringify(r.before)} → ${JSON.stringify(r.after)}, ${r.style}/${r.theme}${r.switching ? ', still switching' : ''})`);
   // Settings pages release their settings listeners
   await T(s, async () => {
     const m = await import('app://shell/core/settings.js');
@@ -775,11 +835,11 @@ console.log('\n# Settings pages');
   // Theme designer
   await go('themeDesigner');
   check((await s.page.locator(S('.pz-mock .win')).count()) === 1 && (await s.page.locator(S('.pz-mock-taskbar')).count()) === 1 && (await s.page.locator(S('.pz-mock-start')).count()) === 1 && (await s.page.locator(S('.pz-mock-qs')).count()) === 1, 'Theme designer: live preview with a window, Start, a flyout and the taskbar');
-  await s.page.locator(S('.pz-style-card[data-style-id="glass"]')).first().click();
+  await s.page.locator(S('.pz-style-card[data-style-id="eclipse"]')).first().click();
   await sleep(900);
   await waitTransitions(s);
   const pvGlass = await T(s, () => ({ style: window.__t.get('style'), pv: getComputedStyle(document.querySelector('.app-settings .pz-mock .win-ctl')).width, radius: getComputedStyle(document.querySelector('.app-settings .pz-mock .win')).borderTopLeftRadius }));
-  check(pvGlass.style === 'glass' && pvGlass.radius === '14px', 'Theme designer: style card applies the style, the preview follows (14 px glass windows)');
+  check(pvGlass.style === 'eclipse' && pvGlass.radius === '8px', `Theme designer: style card applies the style, the preview follows (8 px Éclipse windows, ${pvGlass.radius})`);
   for (const [key, val] of [['blur', 20], ['cornerRadius', 150], ['textScale', 120], ['transparencyLevel', 70]]) {
     await s.page.evaluate(([k, v]) => {
       const inp = document.querySelector(`.app-settings .pz-slider[data-key="${k}"] input.slider`);
@@ -792,7 +852,7 @@ console.log('\n# Settings pages');
   const vals = await T(s, () => ['blur', 'cornerRadius', 'textScale', 'transparencyLevel'].map((k) => window.__t.get(k)));
   check(JSON.stringify(vals) === JSON.stringify([20, 150, 120, 70]), `Theme designer sliders write the settings (${vals})`);
   const mockR = await T(s, () => getComputedStyle(document.querySelector('.app-settings .pz-mock .win')).borderTopLeftRadius);
-  check(mockR === '21px', `the preview reflects the corner radius instantly (${mockR})`);
+  check(mockR === '12px', `the preview reflects the corner radius instantly (8 px × 150 % = ${mockR})`);
   await s.page.locator(S('.pz-mode button'), { hasText: 'Dark' }).click();
   await sleep(900);
   await waitTransitions(s);
@@ -802,9 +862,9 @@ console.log('\n# Settings pages');
   check((await T(s, () => window.__t.get('autoTheme').enabled)) === true && (await s.page.locator(S('.pz-auto')).first().isVisible()), 'Theme designer: Auto mode shows the light / dark times');
   await s.page.locator(S('.pz-mode button'), { hasText: 'Dark' }).click();
   await sleep(700);
-  await s.page.locator(S('.pz-swatches .pz-swatch[aria-label="#00b294"]')).first().click();
+  await s.page.locator(S('.pz-swatches .pz-swatch[aria-label="Violet"]')).first().click();
   await sleep(700);
-  check((await T(s, () => window.__t.get('accent'))) === '#00b294', 'Theme designer: accent swatch');
+  check((await T(s, () => window.__t.get('accent'))) === '#a58bf2' && (await T(s, () => document.documentElement.dataset.accent)) === 'violet', 'Theme designer: named accent swatch (Violet → data-accent="violet")');
   // keyboard: the style cards and the swatches are one Tab stop each; arrows move, Enter picks, focus stays
   const kb = await T(s, async () => {
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -827,8 +887,8 @@ console.log('\n# Settings pages');
     await wait(800);
     return { cardStops, right, end, home, swStops, next, accent: window.__aurora.settings.get('accent'), focused: document.activeElement.getAttribute('aria-label'), selected: document.activeElement.getAttribute('aria-selected') };
   });
-  check(kb.cardStops.length === 1 && kb.right !== kb.cardStops[0] && kb.end === 'contrast' && kb.home === 'win11', `keyboard: style cards are one Tab stop, arrows / Home / End move between them (${JSON.stringify(kb.cardStops)} → ${kb.right}, ${kb.end}, ${kb.home})`);
-  check(kb.swStops.length === 1 && kb.swStops[0] === '#00b294' && kb.next === '#038387' && kb.accent === '#038387' && kb.focused === '#038387' && kb.selected === 'true', `keyboard: accent swatches — one Tab stop on the selected colour, arrows move, Enter picks and the focus stays (${JSON.stringify(kb)})`);
+  check(kb.cardStops.length === 1 && kb.right !== kb.cardStops[0] && kb.end === 'contrast' && kb.home === 'nocturne', `keyboard: style cards are one Tab stop, arrows / Home / End move between them (${JSON.stringify(kb.cardStops)} → ${kb.right}, ${kb.end}, ${kb.home})`);
+  check(kb.swStops.length === 1 && kb.swStops[0] === 'Violet' && kb.next === 'Amber' && kb.accent === '#e9b566' && kb.focused === 'Amber' && kb.selected === 'true', `keyboard: accent swatches — one Tab stop on the selected colour, arrows move, Enter picks and the focus stays (${JSON.stringify(kb)})`);
   await s.page.locator(S('.st-combo[data-key="fontFamily"]')).click();
   await s.page.locator('.menu.st-combo-menu .menu-item', { hasText: 'DejaVu Sans' }).first().click();
   await sleep(400);
@@ -854,20 +914,20 @@ console.log('\n# Settings pages');
   await s.page.locator('.dialog input').press('Enter');
   await s.page.waitForFunction(async () => (await window.__aurora.theme.profiles.list()).some((p) => p.name === 'Designer test'), null, { timeout: 5000 }).catch(() => {});
   const saved = await T(s, async () => (await window.__aurora.theme.profiles.list()).find((p) => p.name === 'Designer test'));
-  check(!!saved && saved.values.style === 'glass' && saved.values.fontFamily === 'dejavu-sans' && saved.values['taskbar.color'] === 'accent', 'Theme designer: “Save as profile” stores the current look');
+  check(!!saved && saved.values.style === 'eclipse' && saved.values.fontFamily === 'dejavu-sans' && saved.values['taskbar.color'] === 'accent', 'Theme designer: “Save as profile” stores the current look');
   // Profiles page
   await go('profiles');
-  check((await s.page.locator(S('.pz-profile')).count()) >= 8 && (await s.page.locator(S('.pz-profile.current')).count()) === 1, 'Profiles page: built-in + saved profiles, the current one marked');
+  check((await s.page.locator(S('.pz-profile')).count()) >= 6 && (await s.page.locator(S('.pz-profile.current')).count()) === 1, 'Profiles page: built-in + saved profiles, the current one marked');
   const cards = await T(s, () => ({
     cut: [...document.querySelectorAll('.app-settings .pz-profile-name')].filter((e) => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent),
     hc: getComputedStyle(document.querySelector('.app-settings .pz-profile[data-profile-id="contrast"] .pz-profile-accent')).backgroundColor,
   }));
   check(!cards.cut.length && cards.hc === 'rgb(255, 255, 0)', `Profiles page: names are never cut; the colour dot shows the accent the profile really uses (High contrast ${cards.hc}) ${cards.cut.join(', ')}`);
   await docShot(s, 'profiles-dark-en');
-  await s.page.locator(S('.pz-profile[data-profile-id="minimal"] .pz-apply')).click();
+  await s.page.locator(S('.pz-profile[data-profile-id="clairdelune"] .pz-apply')).click();
   await sleep(1500);
   await waitTransitions(s);
-  check((await T(s, () => window.__t.get('style'))) === 'minimal' && (await s.page.locator(S('.pz-profile[data-profile-id="minimal"].current')).count()) === 1, 'Profiles page: Apply (one click) and the card becomes current');
+  check((await T(s, () => window.__t.get('style'))) === 'clairdelune' && (await s.page.locator(S('.pz-profile[data-profile-id="clairdelune"].current')).count()) === 1, 'Profiles page: Apply (one click) and the card becomes current');
   await s.page.locator(S('.pz-profile'), { hasText: 'Designer test' }).first().locator('.pz-more').click({ timeout: 8000 });
   await s.page.locator('body > .menu .menu-item', { hasText: 'Delete' }).click();
   await s.page.waitForSelector('.dialog .btn.primary', { timeout: 4000 });
@@ -876,9 +936,18 @@ console.log('\n# Settings pages');
   check(!(await T(s, async () => (await window.__aurora.theme.profiles.list()).some((p) => p.name === 'Designer test'))), 'Profiles page: delete from the … menu (with confirmation)');
   // Visual style page
   await go('visualStyle');
-  check((await s.page.locator(S('.pz-style-card')).count()) === 5 && (await s.page.locator(S('.pz-style-card .pz-spv[data-style="retro"] .win-titlebar')).count()) === 1, 'Visual style page: five cards with real mini renderings');
-  const cardTitle = await T(s, () => getComputedStyle(document.querySelector('.app-settings .pz-spv[data-style="retro"] .win-titlebar')).backgroundImage);
-  check(/linear-gradient/.test(cardTitle), 'the Retro card is rendered in the Retro style while the desktop uses another style');
+  check((await s.page.locator(S('.pz-style-card')).count()) === 4 && (await s.page.locator(S('.pz-style-card .pz-spv[data-style="clairdelune"] .win-titlebar')).count()) === 1 && (await s.page.locator(S('.pz-style-card .pz-spv .pz-spv-bar')).count()) === 4, 'Visual style page: four cards with real mini renderings (window + bar)');
+  const card = await T(s, () => {
+    const pv = document.querySelector('.app-settings .pz-spv[data-style="clairdelune"]');
+    const seg = pv.querySelector('.pz-spv-seg.c');
+    return { mode: getComputedStyle(pv).getPropertyValue('--bar-mode').trim(), amb: pv.dataset.ambiance, segBg: getComputedStyle(seg).backgroundColor, root: document.documentElement.dataset.style };
+  });
+  check(card.mode === 'pills' && card.amb === 'warm' && card.segBg !== 'rgba(0, 0, 0, 0)' && card.root !== 'clairdelune', `the Clair de lune card is drawn as Clair de lune (pills, warm) while the desktop uses another style (${JSON.stringify(card)})`);
+  const ambUi = await T(s, () => [...document.querySelectorAll('.app-settings .pz-style-colors .pz-ambiance')].map((b) => `${b.dataset.ambiance}:${b.getAttribute('aria-checked')}`).join(','));
+  check(/^cold:\w+,neutral:\w+,warm:\w+$/.test(ambUi) && (ambUi.match(/true/g) || []).length === 1, `Visual style page: ambiance radio group, one checked (${ambUi})`);
+  await s.page.locator(S('.pz-style-colors .pz-ambiance[data-ambiance="warm"]')).click();
+  await sleep(700);
+  check((await T(s, () => document.documentElement.dataset.ambiance)) === 'warm', 'Visual style page: picking an ambiance applies it');
   await s.page.locator(S('.pz-style-card[data-style-id="contrast"]')).click();
   await sleep(900);
   await waitTransitions(s);
@@ -965,7 +1034,7 @@ if (!ARGS.has('--no-shots')) {
   for (const [mode, lang] of [['light', 'en'], ['dark', 'fr']]) {
     await setKey(s, 'lang', lang, 500);
     await setKey(s, 'theme', mode, 600);
-    for (const st of ['win11', 'minimal', 'glass', 'retro', 'contrast']) {
+    for (const st of ['nocturne', 'eclipse', 'clairdelune', 'contrast']) {
       await setKey(s, 'style', st, 900);
       await waitTransitions(s);
       await T(s, () => window.__aurora.wm.byApp('calculator')[0]?.focus());
@@ -979,7 +1048,7 @@ if (!ARGS.has('--no-shots')) {
       await sleep(400);
     }
   }
-  await setKey(s, 'style', 'win11', 600);
+  await setKey(s, 'style', 'nocturne', 600);
   await setKey(s, 'theme', 'light', 600);
   await setKey(s, 'lang', 'en', 500);
   check(true, 'style screenshots written to docs/screenshots/style-*.png');
@@ -992,7 +1061,7 @@ await s.close();
 // ===================================================================== launches 2–3: 1280×720 and 1920×1080
 for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'light', 'en']]) {
   console.log(`\n# ${size} ${theme} ${lang}`);
-  const t = await launchShell({ size, theme, lang, settings: { style: theme === 'dark' ? 'glass' : 'win11' } });
+  const t = await launchShell({ size, theme, lang, settings: { style: theme === 'dark' ? 'clairdelune' : 'nocturne' } });
   await install(t);
   await T(t, () => window.__aurora.registry.launch('settings', { page: 'themeDesigner' }));
   await sleep(1800);
@@ -1031,7 +1100,7 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
 {
   console.log('\n# Persistence');
   const home = fs.mkdtempSync(path.join(OUT, 'pz-home-'));
-  const t1 = await launchShell({ home, settings: { style: 'retro', textScale: 120, blur: 20, cornerRadius: 150, fontFamily: 'dejavu-serif', accent: '#e3008c', reducedMotion: true, taskbar: { color: '#101820' }, appThemes: { notepad: { theme: 'dark', accent: null } } }, open: ['notepad'] });
+  const t1 = await launchShell({ home, settings: { style: 'eclipse', textScale: 120, blur: 20, cornerRadius: 150, fontFamily: 'dejavu-serif', accent: '#e3008c', reducedMotion: true, taskbar: { color: '#101820' }, appThemes: { notepad: { theme: 'dark', accent: null } } }, open: ['notepad'] });
   const r = await T(t1, () => ({
     style: document.documentElement.dataset.style,
     body: getComputedStyle(document.body).fontSize,
@@ -1044,7 +1113,7 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
     tbColor: document.getElementById('taskbar').style.getPropertyValue('--taskbar-rgb').trim(),
     tbAlign: window.__aurora.settings.get('taskbar.align'),
   }));
-  check(r.style === 'retro' && r.body === '16.8px' && r.np === 'dark' && r.tb === 'none', `settings are restored at boot (style ${r.style}, text ${r.body}, Notepad ${r.np})`);
+  check(r.style === 'eclipse' && r.body === '16.8px' && r.np === 'dark' && r.tb === 'none', `settings are restored at boot (style ${r.style}, text ${r.body}, Notepad ${r.np})`);
   check(r.corner === '1.500' && /DejaVu Serif/.test(r.font) && r.accent === '#e3008c' && r.motion === 'on' && r.tbColor === '16 24 32' && r.tbAlign === 'center', `every personalization key is applied at boot (corners ${r.corner}, accent ${r.accent}, reduced motion ${r.motion}, taskbar ${r.tbColor})`);
   await T(t1, () => window.__aurora.theme.profiles.saveCurrent('Persisted'));
   await t1.close();
@@ -1057,7 +1126,7 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
   // the sign-in screen gets the visual style
   const g = await launchShell({ home, mode: 'greeter' });
   await sleep(1500);
-  check((await g.page.evaluate(() => document.documentElement.dataset.style)) === 'retro', 'sign-in screen: data-style applied');
+  check((await g.page.evaluate(() => document.documentElement.dataset.style)) === 'eclipse', 'sign-in screen: data-style applied');
   await g.close();
   fs.rmSync(home, { recursive: true, force: true });
 }
@@ -1185,7 +1254,7 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
     // the five visual styles (Visual style page)
     await go('visualStyle');
     const seen = {};
-    for (const id of ['minimal', 'glass', 'retro', 'contrast', 'win11']) {
+    for (const id of ['clairdelune', 'eclipse', 'contrast', 'nocturne']) {
       await e.page.locator(S(`.pz-style-card[data-style-id="${id}"]`)).first().click();
       await sleep(700);
       await waitTransitions(e);
@@ -1222,7 +1291,7 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
       const pr = await import('app://shell/core/profiles.js');
       return Object.fromEntries(pr.PROFILE_KEYS.map((k) => [k, pr.stableJson(window.__aurora.settings.get(k))]));
     });
-    await T(e, () => window.__aurora.theme.profiles.apply('retro'));
+    await T(e, () => window.__aurora.theme.profiles.apply('eclipse'));
     await sleep(900);
     await setMany(e, { cornerRadius: 180, 'taskbar.position': 'top', 'animatedWallpaper.id': 'bokeh', iconPack: 'graphite' });
     await e.page.locator(S('.pz-profile'), { hasText: 'Mon thème' }).first().locator('.pz-apply').click();
@@ -1241,7 +1310,7 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
       const pr = await import('app://shell/core/profiles.js');
       const A = window.__aurora;
       const ALT = {
-        style: 'retro', theme: 'dark', autoTheme: { enabled: false, light: '06:30', dark: '20:15' }, accent: '#c239b3', accentFromWallpaper: true,
+        style: 'clairdelune', theme: 'dark', autoTheme: { enabled: false, light: '06:30', dark: '20:15' }, accent: '#c239b3', accentFromWallpaper: true,
         transparency: false, transparencyLevel: 80, blur: 20, cornerRadius: 150, fontFamily: 'dejavu-sans', textScale: 110, scale: 110,
         reducedMotion: true, animations: false, 'taskbar.color': '#203040', 'taskbar.opacity': 70, appThemes: { notepad: { theme: 'dark', accent: '#112233' } },
         wallpaper: 'builtin:dunes', wallpaperFit: 'fit', lockWallpaper: 'builtin:glow', wallpaperMode: 'animated',
@@ -1308,7 +1377,7 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
     check(!rt.missing.length && !rt.unchanged.length, `profile round trip: all ${rt.n} PROFILE_KEYS keys were changed (${[...rt.missing, ...rt.unchanged].join(', ') || 'none left at its default'})`);
     check(!rt.notReset.length, `profile round trip: resetting every key really changed them back (${rt.notReset.join(', ') || 'ok'})`);
     check(!rt.diff.length, `profile round trip: applying the saved profile restores all ${rt.n} keys identically${rt.diff.length ? `: ${rt.diff.slice(0, 4).join(' | ')}` : ''}`);
-    check(rt.live.style === 'retro' && rt.live.mode === 'animated' && rt.live.effect === 'waves' && rt.live.cur === rt.id, `profile round trip: applied live (style ${rt.live.style}, wallpaper ${rt.live.mode}/${rt.live.effect}, current profile marked)`);
+    check(rt.live.style === 'clairdelune' && rt.live.mode === 'animated' && rt.live.effect === 'waves' && rt.live.cur === rt.id, `profile round trip: applied live (style ${rt.live.style}, wallpaper ${rt.live.mode}/${rt.live.effect}, current profile marked)`);
     check(rt.impSame, 'profile round trip: export → import keeps every value');
 
     // ---- import hardening: unknown keys, CSS / HTML injection through colours, fonts, names, ids
@@ -1348,7 +1417,7 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
       return out;
     });
     check(!inj.keys.includes('unknownKey') && !inj.keys.includes('evil') && !inj.keys.includes('taskbar.evil') && !inj.unknown && !inj.polluted, `import: unknown keys are dropped (${inj.keys.join(', ')})`);
-    check(inj.accent === '#0078d4' && inj.font === 'inter' && inj.tbColor === null && !inj.injected && !inj.hidden, `import: no CSS injection through colours, font names or the taskbar colour (accent ${inj.accent}, font ${inj.font})`);
+    check(inj.accent === '#c9d3e6' && inj.font === 'inter' && inj.tbColor === null && !inj.injected && !inj.hidden, `import: no CSS injection through colours, font names or the taskbar colour (accent ${inj.accent}, font ${inj.font})`);
     check(JSON.stringify(inj.appThemes) === '{"calculator":{"theme":"light","accent":"#123456"}}', `import: per-app themes keep only valid app ids and colours (${JSON.stringify(inj.appThemes)})`);
     // (profile names keep their text as typed and are always shown with textContent: see "saved profile name is cleaned")
     check(!/[<>]/.test(`${inj.group}${inj.preset}`) && inj.dynKeys === 'followTheme,location,set,source' && inj.wall === 'builtin:bloom', `import: names lose markup ("${inj.group}", "${inj.preset}", "${inj.name}"), unknown sub-keys and scripted SVG pictures are dropped`);

@@ -1,17 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="cb" x1="6" y1="40" x2="40" y2="8" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1f5fd6"/>
-      <stop offset="1" stop-color="#4fb3ff"/>
-    </linearGradient>
-    <linearGradient id="cf" x1="10" y1="38" x2="38" y2="12" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#e8f3ff"/>
-      <stop offset="1" stop-color="#ffffff"/>
-    </linearGradient>
-  </defs>
-  <path d="M14 38a10 10 0 0 1-1.6-19.9A13 13 0 0 1 37.3 16 11 11 0 0 1 35 38z" fill="url(#cb)"/>
-  <path d="M14 38a10 10 0 0 1-1.6-19.9A13 13 0 0 1 37.3 16 11 11 0 0 1 35 38z" fill="none" stroke="#0b3f9e" stroke-opacity=".25" stroke-width="1"/>
-  <path d="M24 34V22.5" stroke="url(#cf)" stroke-width="3.4" stroke-linecap="round"/>
-  <path d="M18.5 27.5 24 22l5.5 5.5" fill="none" stroke="url(#cf)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
-  <ellipse cx="21" cy="17" rx="7" ry="2.6" fill="#fff" fill-opacity=".22" transform="rotate(-14 21 17)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="cloud-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="cloud-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="cloud-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b6c6e7"/><stop offset="1" stop-color="#93abdb"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#cloud-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#cloud-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#cloud-f)"><path d="M160.06,40A88.1,88.1,0,0,0,81.29,88.67h0A87.48,87.48,0,0,0,72,127.73,8.18,8.18,0,0,1,64.57,136,8,8,0,0,1,56,128a103.66,103.66,0,0,1,5.34-32.92,4,4,0,0,0-4.75-5.18A64.09,64.09,0,0,0,8,152c0,35.19,29.75,64,65,64H160a88.09,88.09,0,0,0,87.93-91.48C246.11,77.54,207.07,40,160.06,40Z"/></g>
 </svg>

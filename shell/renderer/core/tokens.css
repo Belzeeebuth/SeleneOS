@@ -1,6 +1,11 @@
-/* Aurora design tokens — Fluent / Windows 11 inspired. See docs/PERSONALIZATION.md.
-   <html> attributes: data-theme="light|dark", data-style="win11|minimal|glass|retro|contrast",
-   data-transparency="on|off", data-animations="on|off", data-reduced-motion="on|off".
+/* Selene design tokens. The contract for every component is docs/design/SYSTEM.md; the settings are in
+   docs/PERSONALIZATION.md.
+   <html> attributes (set by core/theme.js):
+     data-theme="light|dark"            colour mode
+     data-style="nocturne|eclipse|clairdelune|contrast"   style layer core/styles/<style>.css (shape hooks)
+     data-ambiance="cold|neutral|warm"  palette of the surfaces and text
+     data-accent="silver|night|violet|amber|custom"       accent preset (values set inline by theme.js)
+     data-transparency="on|off", data-animations="on|off", data-reduced-motion="on|off".
    theme.js sets inline: --accent, --accent-hover, --accent-pressed, --accent-text, --accent-subtle,
    --on-accent, --accent-base, --mica-image, --wallpaper; and, in <style id="aurora-theme-vars"> (":root"
    specificity, so a style layer can override them): --tp (transparency factor, 0 = opaque), --blur-px,
@@ -8,63 +13,136 @@
 
    Per-element theming: any element with  data-theme-scope data-theme="light|dark"  (an app window with
    a per-app theme, #taskbar with a custom colour, previews in Settings) gets the full colour token set of
-   that mode. Elements with data-style get the shape / transparency tokens recomputed for that style. */
-:root {
-  --font: "Segoe UI Variable Text", "Segoe UI", "Inter", "Noto Sans", "DejaVu Sans", system-ui, sans-serif;
-  --font-display: "Segoe UI Variable Display", "Segoe UI", "Inter Display", "Inter", sans-serif;
-  --font-mono: "Cascadia Code", "Cascadia Mono", "DejaVu Sans Mono", "Noto Sans Mono", monospace;
-  --font-emoji: "Noto Color Emoji", "Segoe UI Emoji", sans-serif;
+   that mode, in the ambiance of its closest data-ambiance ancestor (or itself). Elements with data-style
+   get the shape / transparency tokens recomputed for that style. */
 
-  /* text size (Settings > Text size): every font-size / line-height token follows --text-scale */
+/* ---- fonts (vendored, OFL: assets/fonts/LICENSE-*.txt). Variable weights, latin + latin-ext. ---- */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url("../assets/fonts/inter-latin-wght-normal.woff2") format("woff2-variations"), url("../assets/fonts/inter-latin-wght-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url("../assets/fonts/inter-latin-ext-wght-normal.woff2") format("woff2-variations"), url("../assets/fonts/inter-latin-ext-wght-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: block;
+  src: url("../assets/fonts/manrope-latin-wght-normal.woff2") format("woff2-variations"), url("../assets/fonts/manrope-latin-wght-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: block;
+  src: url("../assets/fonts/manrope-latin-ext-wght-normal.woff2") format("woff2-variations"), url("../assets/fonts/manrope-latin-ext-wght-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  --font: "Inter", "Noto Sans", "DejaVu Sans", system-ui, sans-serif;
+  --font-display: "Manrope", "Inter", "Noto Sans", sans-serif;
+  --font-mono: "Cascadia Code", "Cascadia Mono", "DejaVu Sans Mono", "Noto Sans Mono", monospace;
+  --font-emoji: "Noto Color Emoji", sans-serif;
+
+  /* text size (Settings > Text size): every font-size / line-height token follows --text-scale.
+     13 px is the smallest size for text people read (captions); 14 px is the body. */
   --text-scale: 1;
   --fs-caption: calc(12px * var(--text-scale));
+  --fs-small: calc(13px * var(--text-scale));
   --fs-body: calc(14px * var(--text-scale));
-  --fs-body-large: calc(18px * var(--text-scale));
+  --fs-body-large: calc(17px * var(--text-scale));
   --fs-subtitle: calc(20px * var(--text-scale));
-  --fs-title: calc(28px * var(--text-scale));
-  --fs-title-large: calc(40px * var(--text-scale));
-  --fs-display: calc(68px * var(--text-scale));
+  --fs-title: calc(26px * var(--text-scale));
+  --fs-title-large: calc(36px * var(--text-scale));
+  --fs-display: calc(64px * var(--text-scale));
   --lh-caption: calc(16px * var(--text-scale));
+  --lh-small: calc(18px * var(--text-scale));
   --lh-body: calc(20px * var(--text-scale));
   --lh-body-large: calc(24px * var(--text-scale));
   --lh-subtitle: calc(28px * var(--text-scale));
-  --lh-title: calc(36px * var(--text-scale));
-  --lh-title-large: calc(52px * var(--text-scale));
-  --lh-display: calc(92px * var(--text-scale));
+  --lh-title: calc(34px * var(--text-scale));
+  --lh-title-large: calc(46px * var(--text-scale));
+  --lh-display: calc(80px * var(--text-scale));
 
-  /* shape: a style sets the base radii (--r-*), Settings > rounded corners sets --corner (0–2) */
-  --r-xs: 2px;
-  --r-sm: 4px;
+  /* spacing scale (4 px grid) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-12: 48px;
+
+  /* shape: a style sets the base radii (--r-*), Settings > rounded corners sets --corner (0–2).
+     Slightly rounded: 6 px controls, 8 px cards / menus, 10 px windows. */
+  --r-xs: 4px;
+  --r-sm: 6px;
   --r: 8px;
-  --r-lg: 12px;
+  --r-lg: 10px;
+  --r-float: 16px; /* floating bar islands / pills, the Lanceur, panels */
   --corner: 1;
 
-  /* transparency + blur: --tp from transparencyLevel (theme.js), --tp-k / --blur-k from the style */
+  /* transparency + blur: --tp from transparencyLevel (theme.js), --tp-k / --blur-k from the style.
+     Blur is allowed ONLY on the bar, the Lanceur and the panels (docs/design/SYSTEM.md). */
   --tp: 1;
   --tp-k: 1;
-  --blur-px: 40px;
+  --blur-px: 28px;
   --blur-k: 1;
-  --blur-sat: 160%;
+  --blur-sat: 140%;
 
-  --ease: cubic-bezier(0.1, 0.9, 0.2, 1); /* decelerate – things arriving */
-  --ease-in: cubic-bezier(0.7, 0, 1, 0.5); /* accelerate – things leaving */
-  --ease-std: cubic-bezier(0.33, 0, 0.67, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --dur-fast: 83ms;
-  --dur: 167ms;
-  --dur-slow: 250ms;
-  --dur-slower: 333ms;
+  /* motion: discreet and fast, ease-out. Reduced motion → data-animations="off" (below). */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1); /* ease-out – things arriving */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1); /* things leaving */
+  --ease-std: cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring: cubic-bezier(0.2, 0.8, 0.2, 1); /* no overshoot in Selene: same as --ease */
+  --dur-fast: 120ms;
+  --dur: 150ms;
+  --dur-slow: 180ms;
+  --dur-slower: 240ms;
 
   --taskbar-h: 48px;
-  --titlebar-h: 32px;
+  --titlebar-h: 36px;
   --titlebar-tall-h: 44px;
 
-  --accent: #005fb8;
-  --accent-hover: #1a6fc0;
-  --accent-pressed: #2a77c0;
-  --accent-text: #003e92;
-  --accent-subtle: rgba(0, 95, 184, 0.12);
-  --on-accent: #ffffff;
+  /* ---- structural hooks: plain lengths / keywords set by each style (core/styles/<style>.css) and read by
+     the components (docs/design/SYSTEM.md §4). Colour-carrying hooks (--win-border, --bar-border…) are
+     composed below on every theme scope, so a per-app themed window gets its own colours. ---- */
+  --bar-mode: islands; /* islands | full | pills (read with getComputedStyle) */
+  --bar-apps-align: center; /* every style: the bar's app icons are centred */
+  --bar-h: 48px;
+  --bar-margin: 12px; /* gap between the bar and the screen edge (0 = docked) */
+  --bar-radius: 16px;
+  --bar-gap: 8px; /* gap between islands / pills */
+  --bar-border-w: 1px;
+  --bar-indicator: dot; /* dot | top-line : running / active app marker */
+  --bar-blur: 1; /* 1 = the bar may blur (backdrop-filter), 0 = opaque bar (Éclipse) */
+  --win-border-w: 1px; /* hairline (Nocturne) | 0 (Éclipse, Clair de lune) */
+  --win-shadow-y: 28px;
+  --win-shadow-blur: 64px;
+  --win-shadow-k: 1; /* multiplier of the window shadow alpha */
+  --sel-mode: fill; /* fill | bar : selected list rows */
+  --sel-bar-w: 0px; /* width of the accent bar on selected rows (Éclipse: 3px) */
+  --panel-grain: none; /* background-image layered on blurred panels (Clair de lune: a light grain) */
+
+  --accent: #c9d3e6;
+  --accent-hover: #d7dfed;
+  --accent-pressed: #b9c4da;
+  --accent-text: #c9d3e6;
+  --accent-subtle: rgba(201, 211, 230, 0.13);
+  --on-accent: #101624;
 
   --danger: #c42b1c;
   --danger-bg: #fde7e9;
@@ -76,6 +154,104 @@
   --close-hover: #c42b1c;
 }
 
+/* ---- ambiances: raw palettes for both modes (--amb-d-* dark, --amb-l-* light). The semantic tokens
+   below read them, so an element with data-ambiance (a preview) re-colours its subtree. Every text /
+   surface pair is ≥ 4.5:1 (checked in test/personalization-core.test.mjs). ---- */
+:root,
+[data-ambiance] {
+  /* cold — ink blue / slate (Nocturne) */
+  --amb-d-desk: #0a0e18;
+  --amb-d-bg: #121826;
+  --amb-d-sunken: #0e131f;
+  --amb-d-raised: #1a2133;
+  --amb-d-title: #121826;
+  --amb-d-line: #2a3349;
+  --amb-d-line-soft: #1f2739;
+  --amb-d-text: #e6eaf2;
+  --amb-d-text-2: #a9b2c5;
+  --amb-d-text-3: #8d97ac;
+  --amb-d-tint: 205 216 238; /* hover / press overlays */
+  --amb-d-glass: 15 20 33; /* bar, Lanceur, panels (rgb triplet, alpha from --a-*) */
+  --amb-d-bar: 15 20 33;
+  --amb-d-shadow: 1 3 9;
+  --amb-l-desk: #dce3ee;
+  --amb-l-bg: #fbfcfe;
+  --amb-l-sunken: #f1f4f9;
+  --amb-l-raised: #ffffff;
+  --amb-l-title: #fbfcfe;
+  --amb-l-line: #cdd5e2;
+  --amb-l-line-soft: #e2e7ef;
+  --amb-l-text: #141a26;
+  --amb-l-text-2: #475165;
+  --amb-l-text-3: #5a6478;
+  --amb-l-tint: 28 40 66;
+  --amb-l-glass: 243 246 251;
+  --amb-l-bar: 243 246 251;
+  --amb-l-shadow: 28 38 60;
+}
+[data-ambiance="neutral"] {
+  /* neutral — graphite (Éclipse) */
+  --amb-d-desk: #09090a;
+  --amb-d-bg: #18181b;
+  --amb-d-sunken: #131315;
+  --amb-d-raised: #222226;
+  --amb-d-title: #131315;
+  --amb-d-line: #2a2a30;
+  --amb-d-line-soft: #222227;
+  --amb-d-text: #ededef;
+  --amb-d-text-2: #a9a9b2;
+  --amb-d-text-3: #93939c;
+  --amb-d-tint: 228 228 235;
+  --amb-d-glass: 20 20 23;
+  --amb-d-bar: 15 15 17;
+  --amb-d-shadow: 0 0 0;
+  --amb-l-desk: #e4e4e7;
+  --amb-l-bg: #ffffff;
+  --amb-l-sunken: #f4f4f5;
+  --amb-l-raised: #ffffff;
+  --amb-l-title: #f4f4f5;
+  --amb-l-line: #d4d4d8;
+  --amb-l-line-soft: #e4e4e7;
+  --amb-l-text: #141416;
+  --amb-l-text-2: #55555e;
+  --amb-l-text-3: #63636c;
+  --amb-l-tint: 24 24 27;
+  --amb-l-glass: 244 244 245;
+  --amb-l-bar: 244 244 245;
+  --amb-l-shadow: 9 9 11;
+}
+[data-ambiance="warm"] {
+  /* warm — brown-black / cream (Clair de lune) */
+  --amb-d-desk: #15110e;
+  --amb-d-bg: #1f1a16;
+  --amb-d-sunken: #1b1613;
+  --amb-d-raised: #2a231e;
+  --amb-d-title: #2a231e;
+  --amb-d-line: #3a3029;
+  --amb-d-line-soft: #2c251f;
+  --amb-d-text: #f3eadf;
+  --amb-d-text-2: #c4b7a7;
+  --amb-d-text-3: #a89a8a;
+  --amb-d-tint: 243 226 205;
+  --amb-d-glass: 30 24 20;
+  --amb-d-bar: 26 21 18;
+  --amb-d-shadow: 8 5 2;
+  --amb-l-desk: #e9dfd2;
+  --amb-l-bg: #fffcf8;
+  --amb-l-sunken: #f1e9dd;
+  --amb-l-raised: #fffcf8;
+  --amb-l-title: #f7f1e8;
+  --amb-l-line: #ded2c3;
+  --amb-l-line-soft: #ebe2d6;
+  --amb-l-text: #2a211b;
+  --amb-l-text-2: #5a4d42;
+  --amb-l-text-3: #6b5d51;
+  --amb-l-tint: 60 40 24;
+  --amb-l-glass: 247 241 232;
+  --amb-l-bar: 247 241 232;
+  --amb-l-shadow: 60 40 20;
+}
+
 /* Derived tokens: recomputed on every element that sets its own style (data-style), so a style preview
    inside Settings gets that style's radii, blur and transparency. */
 :root,
@@ -84,131 +260,193 @@
   --radius-sm: calc(var(--r-sm) * var(--corner));
   --radius: calc(var(--r) * var(--corner));
   --radius-lg: calc(var(--r-lg) * var(--corner));
+  --radius-float: calc(var(--r-float) * var(--corner));
   --blur: calc(var(--blur-px) * var(--blur-k));
   --blur-sm: calc(var(--blur) * 0.5);
   --blur-md: calc(var(--blur) * 0.75);
-  --blur-lg: calc(var(--blur) * 1.5);
-  /* alpha of the translucent surfaces: 1 = opaque */
-  --a-mica: clamp(0.3, calc(1 - 0.15 * var(--tp) * var(--tp-k)), 1);
-  --a-acrylic: clamp(0.3, calc(1 - 0.15 * var(--tp) * var(--tp-k)), 1);
-  --a-acrylic-strong: clamp(0.4, calc(1 - 0.09 * var(--tp) * var(--tp-k)), 1);
-  --a-fly: clamp(0.3, calc(1 - 0.17 * var(--tp) * var(--tp-k)), 1);
-  --a-tb: var(--a-taskbar, clamp(0.25, calc(1 - 0.17 * var(--tp) * var(--tp-k)), 1));
+  --blur-lg: calc(var(--blur) * 1.25);
+  /* alpha of the surfaces. Windows and content are always opaque (--a-mica = 1). The blurred surfaces
+     (bar, Lanceur, panels) stay 80–92 % opaque: blur silently fails in software rendering. */
+  --a-mica: 1;
+  --a-acrylic: clamp(0.8, calc(1 - 0.12 * var(--tp) * var(--tp-k)), 1);
+  --a-acrylic-strong: clamp(0.86, calc(1 - 0.08 * var(--tp) * var(--tp-k)), 1);
+  --a-fly: clamp(0.8, calc(1 - 0.14 * var(--tp) * var(--tp-k)), 1);
+  --a-tb: var(--a-taskbar, clamp(0.8, calc(1 - 0.14 * var(--tp) * var(--tp-k)), 1));
+  --glass-a: var(--a-acrylic);
+  --glass-blur: var(--blur);
+}
+
+:root,
+[data-style],
+[data-theme-scope],
+[data-ambiance] {
+  /* composite hooks (colours resolved on each theme scope) */
+  --win-radius: var(--radius-lg);
+  --win-border: var(--win-border-w) solid var(--window-stroke);
+  --win-shadow: var(--shadow-window);
+  --win-shadow-inactive: var(--shadow-window-inactive);
+  --bar-border: var(--bar-border-w) solid var(--glass-line);
+  --bar-shadow: var(--shadow-float);
+  --bar-bg: var(--taskbar-bg);
+  --float-radius: var(--radius-float);
+  --sel-bg: var(--subtle-selected);
+  --sel-bar: var(--accent);
+  --focus: var(--focus-ring);
+  --accent-soft: var(--accent-subtle);
+  --accent-strong: var(--accent-hover);
 }
 
 :root[data-theme="light"],
-[data-theme-scope][data-theme="light"] {
+[data-theme-scope][data-theme="light"],
+[data-ambiance][data-theme="light"] {
   color-scheme: light;
-  --text: rgba(0, 0, 0, 0.896);
-  --text-2: rgba(0, 0, 0, 0.606);
-  --text-3: rgba(0, 0, 0, 0.446);
-  --text-disabled: rgba(0, 0, 0, 0.361);
+  --desk: var(--amb-l-desk);
+  --surface: var(--amb-l-bg);
+  --surface-sunken: var(--amb-l-sunken);
+  --surface-raised: var(--amb-l-raised);
+  --titlebar-bg: var(--amb-l-title);
+  --line: var(--amb-l-line);
+  --line-soft: var(--amb-l-line-soft);
+  --tint: var(--amb-l-tint);
+  --glass-rgb: var(--amb-l-glass);
+  --bar-rgb: var(--amb-l-bar);
+  --shadow-rgb: var(--amb-l-shadow);
 
-  --bg: #f3f3f3;
-  --bg-alt: #eeeeee;
-  --mica-tint: rgb(243 243 243 / var(--a-mica));
-  --mica-tint-alt: rgb(232 232 232 / var(--a-mica));
-  --solid: #f9f9f9;
-  --layer: rgba(255, 255, 255, 0.5);
-  --layer-alt: rgba(255, 255, 255, 0.7);
-  --card: rgba(255, 255, 255, 0.7);
-  --card-hover: rgba(249, 249, 249, 0.5);
-  --card-solid: #fbfbfb;
-  --control: rgba(255, 255, 255, 0.7);
-  --control-hover: rgba(249, 249, 249, 0.5);
-  --control-pressed: rgba(249, 249, 249, 0.3);
-  --control-disabled: rgba(249, 249, 249, 0.3);
-  --control-strong: rgba(0, 0, 0, 0.446);
-  --control-stroke: rgba(0, 0, 0, 0.0578);
-  --control-stroke-bottom: rgba(0, 0, 0, 0.1622);
-  --stroke: rgba(0, 0, 0, 0.0803);
-  --stroke-strong: rgba(0, 0, 0, 0.1);
-  --stroke-card: rgba(0, 0, 0, 0.0578);
-  --subtle-hover: rgba(0, 0, 0, 0.0373);
-  --subtle-pressed: rgba(0, 0, 0, 0.0241);
-  --subtle-selected: rgba(0, 0, 0, 0.0373);
-  --input-bg: rgba(255, 255, 255, 0.7);
-  --input-focus-bg: #ffffff;
-  --acrylic: rgb(252 252 252 / var(--a-acrylic));
-  --acrylic-solid: #f9f9f9;
-  --acrylic-strong: rgb(243 243 243 / var(--a-acrylic-strong));
-  --taskbar-bg: rgb(var(--taskbar-rgb, 238 238 238) / var(--a-tb));
-  --scrim: rgba(0, 0, 0, 0.3);
-  --shadow-flyout: 0 8px 16px rgba(0, 0, 0, 0.14);
-  --shadow-dialog: 0 32px 64px rgba(0, 0, 0, 0.1876), 0 2px 21px rgba(0, 0, 0, 0.1474);
-  --shadow-window: 0 32px 64px rgba(0, 0, 0, 0.1876), 0 2px 21px rgba(0, 0, 0, 0.1474);
-  --shadow-window-inactive: 0 16px 32px rgba(0, 0, 0, 0.12), 0 2px 10px rgba(0, 0, 0, 0.08);
-  --shadow-tooltip: 0 4px 8px rgba(0, 0, 0, 0.14);
-  --window-stroke: rgba(0, 0, 0, 0.1);
-  --scrollbar: rgba(0, 0, 0, 0.42);
+  --text: var(--amb-l-text);
+  --text-2: var(--amb-l-text-2);
+  --text-3: var(--amb-l-text-3);
+  --text-disabled: color-mix(in srgb, var(--amb-l-text) 42%, var(--amb-l-bg));
 
-  --danger: #c42b1c;
+  --bg: var(--amb-l-bg);
+  --bg-alt: var(--amb-l-sunken);
+  --mica-tint: var(--amb-l-bg);
+  --mica-tint-alt: var(--amb-l-sunken);
+  --solid: var(--amb-l-bg);
+  --layer: rgb(var(--amb-l-tint) / 0.025);
+  --layer-alt: rgb(var(--amb-l-tint) / 0.04);
+  --card: var(--amb-l-raised);
+  --card-hover: color-mix(in srgb, var(--amb-l-raised) 94%, var(--amb-l-text));
+  --card-solid: var(--amb-l-raised);
+  --control: var(--amb-l-raised);
+  --control-hover: color-mix(in srgb, var(--amb-l-raised) 95%, var(--amb-l-text));
+  --control-pressed: color-mix(in srgb, var(--amb-l-raised) 91%, var(--amb-l-text));
+  --control-disabled: rgb(var(--amb-l-tint) / 0.04);
+  --control-strong: var(--amb-l-text-3);
+  --control-stroke: var(--amb-l-line);
+  --control-stroke-bottom: var(--amb-l-line);
+  --stroke: var(--amb-l-line-soft);
+  --stroke-strong: var(--amb-l-line);
+  --stroke-card: var(--amb-l-line-soft);
+  --subtle-hover: rgb(var(--amb-l-tint) / 0.055);
+  --subtle-pressed: rgb(var(--amb-l-tint) / 0.09);
+  --subtle-selected: rgb(var(--amb-l-tint) / 0.075);
+  --input-bg: var(--amb-l-raised);
+  --input-focus-bg: var(--amb-l-raised);
+  --acrylic: rgb(var(--amb-l-glass) / var(--a-acrylic));
+  --acrylic-solid: rgb(var(--amb-l-glass));
+  --acrylic-strong: rgb(var(--amb-l-glass) / var(--a-acrylic-strong));
+  --glass: rgb(var(--amb-l-glass) / var(--a-acrylic));
+  --glass-strong: rgb(var(--amb-l-glass) / var(--a-acrylic-strong));
+  --glass-line: rgb(var(--amb-l-tint) / 0.12);
+  --glass-fill: rgb(var(--amb-l-tint) / 0.06);
+  --taskbar-bg: rgb(var(--taskbar-rgb, var(--amb-l-bar)) / var(--a-tb));
+  --scrim: rgb(var(--amb-l-shadow) / 0.3);
+  --shadow-flyout: 0 16px 44px rgb(var(--amb-l-shadow) / 0.2), 0 2px 6px rgb(var(--amb-l-shadow) / 0.08);
+  --shadow-float: var(--shadow-flyout);
+  --shadow-dialog: 0 24px 56px rgb(var(--amb-l-shadow) / 0.2), 0 2px 6px rgb(var(--amb-l-shadow) / 0.1);
+  --shadow-window: 0 calc(var(--win-shadow-y) * 0.86) calc(var(--win-shadow-blur) * 0.88) rgb(var(--amb-l-shadow) / calc(0.2 * var(--win-shadow-k))), 0 2px 6px rgb(var(--amb-l-shadow) / 0.1);
+  --shadow-window-inactive: 0 12px 32px rgb(var(--amb-l-shadow) / 0.14), 0 1px 3px rgb(var(--amb-l-shadow) / 0.08);
+  --shadow-tooltip: 0 4px 12px rgb(var(--amb-l-shadow) / 0.16);
+  --window-stroke: var(--amb-l-line);
+  --scrollbar: var(--amb-l-text-3);
+  --focus-ring: var(--amb-l-text);
+
+  --danger: #b42318;
   --danger-bg: #fde7e9;
   --on-danger: #ffffff; /* text on a --danger fill (.btn.danger) */
-  --success: #0f7b0f;
-  --success-bg: #dff6dd;
-  --warning: #9d5d00;
-  --warning-bg: #fff4ce;
-  --info-bg: rgba(246, 246, 246, 0.5);
+  --success: #1a6b3c;
+  --success-bg: #ddf3e4;
+  --warning: #8a5200;
+  --warning-bg: #fff2d6;
+  --info-bg: rgb(var(--amb-l-tint) / 0.04);
 }
 
 :root[data-theme="dark"],
-[data-theme-scope][data-theme="dark"] {
+[data-theme-scope][data-theme="dark"],
+[data-ambiance][data-theme="dark"] {
   color-scheme: dark;
-  --text: #ffffff;
-  --text-2: rgba(255, 255, 255, 0.786);
-  --text-3: rgba(255, 255, 255, 0.544);
-  --text-disabled: rgba(255, 255, 255, 0.363);
+  --desk: var(--amb-d-desk);
+  --surface: var(--amb-d-bg);
+  --surface-sunken: var(--amb-d-sunken);
+  --surface-raised: var(--amb-d-raised);
+  --titlebar-bg: var(--amb-d-title);
+  --line: var(--amb-d-line);
+  --line-soft: var(--amb-d-line-soft);
+  --tint: var(--amb-d-tint);
+  --glass-rgb: var(--amb-d-glass);
+  --bar-rgb: var(--amb-d-bar);
+  --shadow-rgb: var(--amb-d-shadow);
 
-  --bg: #202020;
-  --bg-alt: #1c1c1c;
-  --mica-tint: rgb(32 32 32 / var(--a-mica));
-  --mica-tint-alt: rgb(26 26 26 / var(--a-mica));
-  --solid: #272727;
-  --layer: rgba(58, 58, 58, 0.3);
-  --layer-alt: rgba(255, 255, 255, 0.0538);
-  --card: rgba(255, 255, 255, 0.0512);
-  --card-hover: rgba(255, 255, 255, 0.0837);
-  --card-solid: #2b2b2b;
-  --control: rgba(255, 255, 255, 0.0605);
-  --control-hover: rgba(255, 255, 255, 0.0837);
-  --control-pressed: rgba(255, 255, 255, 0.0326);
-  --control-disabled: rgba(255, 255, 255, 0.0419);
-  --control-strong: rgba(255, 255, 255, 0.544);
-  --control-stroke: rgba(255, 255, 255, 0.0698);
-  --control-stroke-bottom: rgba(255, 255, 255, 0.0465);
-  --stroke: rgba(255, 255, 255, 0.0837);
-  --stroke-strong: rgba(255, 255, 255, 0.12);
-  --stroke-card: rgba(0, 0, 0, 0.1);
-  --subtle-hover: rgba(255, 255, 255, 0.0605);
-  --subtle-pressed: rgba(255, 255, 255, 0.0419);
-  --subtle-selected: rgba(255, 255, 255, 0.0605);
-  --input-bg: rgba(255, 255, 255, 0.0605);
-  --input-focus-bg: rgba(30, 30, 30, 0.7);
-  --acrylic: rgb(44 44 44 / var(--a-acrylic));
-  --acrylic-solid: #2c2c2c;
-  --acrylic-strong: rgb(32 32 32 / var(--a-acrylic-strong));
-  --taskbar-bg: rgb(var(--taskbar-rgb, 28 28 28) / var(--a-tb));
-  --scrim: rgba(0, 0, 0, 0.3);
-  --shadow-flyout: 0 8px 16px rgba(0, 0, 0, 0.26);
-  --shadow-dialog: 0 32px 64px rgba(0, 0, 0, 0.56), 0 2px 21px rgba(0, 0, 0, 0.55);
-  --shadow-window: 0 32px 64px rgba(0, 0, 0, 0.56), 0 2px 21px rgba(0, 0, 0, 0.55);
-  --shadow-window-inactive: 0 16px 32px rgba(0, 0, 0, 0.37), 0 2px 10px rgba(0, 0, 0, 0.37);
-  --shadow-tooltip: 0 4px 8px rgba(0, 0, 0, 0.26);
-  --window-stroke: rgba(255, 255, 255, 0.08);
-  --scrollbar: rgba(255, 255, 255, 0.5);
+  --text: var(--amb-d-text);
+  --text-2: var(--amb-d-text-2);
+  --text-3: var(--amb-d-text-3);
+  --text-disabled: color-mix(in srgb, var(--amb-d-text) 42%, var(--amb-d-bg));
 
-  --danger: #ff99a4;
-  --danger-bg: #442726;
-  --on-danger: #000000; /* black on the light dark-mode red: 10:1 (white was 2:1) */
-  --success: #6ccb5f;
-  --success-bg: #393d1b;
-  --warning: #fce100;
-  --warning-bg: #433519;
-  --info-bg: rgba(255, 255, 255, 0.0326);
+  --bg: var(--amb-d-bg);
+  --bg-alt: var(--amb-d-sunken);
+  --mica-tint: var(--amb-d-bg);
+  --mica-tint-alt: var(--amb-d-sunken);
+  --solid: var(--amb-d-bg);
+  --layer: rgb(var(--amb-d-tint) / 0.025);
+  --layer-alt: rgb(var(--amb-d-tint) / 0.045);
+  --card: rgb(var(--amb-d-tint) / 0.045);
+  --card-hover: rgb(var(--amb-d-tint) / 0.075);
+  --card-solid: var(--amb-d-raised);
+  --control: var(--amb-d-raised);
+  --control-hover: color-mix(in srgb, var(--amb-d-raised) 93%, var(--amb-d-text));
+  --control-pressed: color-mix(in srgb, var(--amb-d-raised) 96%, var(--amb-d-text));
+  --control-disabled: rgb(var(--amb-d-tint) / 0.04);
+  --control-strong: var(--amb-d-text-3);
+  --control-stroke: var(--amb-d-line);
+  --control-stroke-bottom: var(--amb-d-line);
+  --stroke: var(--amb-d-line-soft);
+  --stroke-strong: var(--amb-d-line);
+  --stroke-card: var(--amb-d-line-soft);
+  --subtle-hover: rgb(var(--amb-d-tint) / 0.07);
+  --subtle-pressed: rgb(var(--amb-d-tint) / 0.11);
+  --subtle-selected: rgb(var(--amb-d-tint) / 0.09);
+  --input-bg: var(--amb-d-raised);
+  --input-focus-bg: var(--amb-d-sunken);
+  --acrylic: rgb(var(--amb-d-glass) / var(--a-acrylic));
+  --acrylic-solid: rgb(var(--amb-d-glass));
+  --acrylic-strong: rgb(var(--amb-d-glass) / var(--a-acrylic-strong));
+  --glass: rgb(var(--amb-d-glass) / var(--a-acrylic));
+  --glass-strong: rgb(var(--amb-d-glass) / var(--a-acrylic-strong));
+  --glass-line: rgb(var(--amb-d-tint) / 0.13);
+  --glass-fill: rgb(var(--amb-d-tint) / 0.07);
+  --taskbar-bg: rgb(var(--taskbar-rgb, var(--amb-d-bar)) / var(--a-tb));
+  --scrim: rgb(var(--amb-d-shadow) / 0.5);
+  --shadow-flyout: 0 16px 48px rgb(var(--amb-d-shadow) / 0.5), 0 2px 6px rgb(var(--amb-d-shadow) / 0.3);
+  --shadow-float: var(--shadow-flyout);
+  --shadow-dialog: 0 28px 64px rgb(var(--amb-d-shadow) / 0.55), 0 2px 8px rgb(var(--amb-d-shadow) / 0.35);
+  --shadow-window: 0 var(--win-shadow-y) var(--win-shadow-blur) rgb(var(--amb-d-shadow) / calc(0.55 * var(--win-shadow-k))), 0 2px 8px rgb(var(--amb-d-shadow) / 0.35);
+  --shadow-window-inactive: 0 16px 40px rgb(var(--amb-d-shadow) / 0.45), 0 1px 4px rgb(var(--amb-d-shadow) / 0.3);
+  --shadow-tooltip: 0 4px 12px rgb(var(--amb-d-shadow) / 0.4);
+  --window-stroke: var(--amb-d-line);
+  --scrollbar: var(--amb-d-text-3);
+  --focus-ring: var(--amb-d-text);
+
+  --danger: #ff9b8f;
+  --danger-bg: #3d1f1c;
+  --on-danger: #1a0705; /* dark text on the light dark-mode red */
+  --success: #7fd3a0;
+  --success-bg: #17301f;
+  --warning: #f2c46b;
+  --warning-bg: #352813;
+  --info-bg: rgb(var(--amb-d-tint) / 0.035);
 }
 
-/* Transparency off: every translucent surface becomes opaque (theme.js sets --tp: 0), no blur, no Mica. */
+/* Transparency off: every translucent surface becomes opaque (theme.js sets --tp: 0), no blur. */
 :root[data-transparency="off"] {
   --mica-image: none !important;
   --tp: 0 !important;
@@ -223,4 +461,18 @@
   animation-iteration-count: 1 !important;
   transition-duration: 1ms !important;
   transition-delay: 0ms !important;
+}
+:root[data-animations="off"] {
+  --dur-fast: 0ms;
+  --dur: 0ms;
+  --dur-slow: 0ms;
+  --dur-slower: 0ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-slow: 0ms;
+    --dur-slower: 0ms;
+  }
 }

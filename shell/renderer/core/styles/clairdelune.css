@@ -1,0 +1,40 @@
+/* Visual style "Clair de lune": warm night (brown-black and cream), violet accent, three floating pills
+   for the bar, soft wide shadows, 8 px windows, a subtle grain on the blurred panels.
+   Defaults: ambiance warm, accent violet (core/theme.js STYLES). Tokens and hooks only
+   (docs/design/SYSTEM.md §4). */
+@scope ([data-style="clairdelune"]) to ([data-style]:not([data-style="clairdelune"])) {
+  :scope {
+    --r-xs: 4px;
+    --r-sm: 6px;
+    --r: 8px;
+    --r-lg: 8px;
+    --r-float: 20px;
+    --tp-k: 1;
+    --blur-k: 1;
+    --blur-sat: 130%;
+    --titlebar-h: 36px;
+    --titlebar-tall-h: 44px;
+
+    /* bar: three floating pills 12 px from the bottom (Lanceur + search | apps, centred | status + clock) */
+    --bar-mode: pills;
+    --bar-apps-align: center;
+    --bar-h: 48px;
+    --bar-margin: 12px;
+    --bar-radius: 24px;
+    --bar-gap: 12px;
+    --bar-border-w: 1px;
+    --bar-indicator: dot;
+    --bar-blur: 1;
+
+    /* windows: solid colour, no border, a large soft shadow */
+    --win-border-w: 0px;
+    --win-shadow-y: 32px;
+    --win-shadow-blur: 80px;
+    --win-shadow-k: 0.8;
+
+    --sel-mode: fill;
+    --sel-bar-w: 0px;
+    /* light grain (static SVG noise, rasterised once) layered over the panels' tint */
+    --panel-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.45 0 0 0 0 0.4 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}

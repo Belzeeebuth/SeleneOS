@@ -145,8 +145,8 @@ async function checklistPart() {
     await spyAudio(s);
     // ---------------- 1. Theme designer
     await go(s, 'themeDesigner');
-    const sw = s.page.locator(S('[data-section="accent"] .pz-swatch')).nth(4);
-    const swColor = await sw.getAttribute('aria-label');
+    const sw = s.page.locator(S('[data-section="accent"] .pz-swatch')).nth(2);
+    const swColor = await sw.getAttribute('data-hex');
     await sw.click();
     await sleep(500);
     const acc = await A(() => ({ set: window.__aurora.settings.get('accent'), css: document.documentElement.style.getPropertyValue('--accent-base') || getComputedStyle(document.documentElement).getPropertyValue('--accent') }));
@@ -182,12 +182,12 @@ async function checklistPart() {
     // ---------------- 2. Visual styles
     await go(s, 'visualStyle');
     const styles = {};
-    for (const id of ['minimal', 'glass', 'retro', 'contrast', 'win11']) {
+    for (const id of ['eclipse', 'clairdelune', 'contrast', 'nocturne']) {
       await s.page.locator(S(`.pz-style-card[data-style-id="${id}"]`)).first().click();
       await sleep(500);
       styles[id] = await A(() => document.documentElement.dataset.style);
     }
-    item('Visual styles', 'Windows 11-like, minimal, glassmorphism, retro, high contrast', Object.entries(styles).every(([k, v]) => k === v), JSON.stringify(styles));
+    item('Visual styles', 'Nocturne, Éclipse, Clair de lune, high contrast', Object.entries(styles).every(([k, v]) => k === v), JSON.stringify(styles));
 
     // ---------------- 3. Animated + dynamic wallpapers
     await go(s, 'background');
@@ -388,10 +388,10 @@ async function checklistPart() {
     await go(s, 'iconPacks');
     await s.page.locator(S('.pzs-card[data-pack="tiles"]')).click();
     await sleep(600);
-    const ic = await A(() => ({ tb: document.querySelector('#taskbar .tb-app img')?.getAttribute('src').slice(0, 26), win: window.__aurora.wm.byApp('notepad')[0]?.iconEl?.getAttribute('src').slice(0, 26), pack: document.documentElement.dataset.iconPack, fluentCard: document.querySelector('.app-settings .pzs-card[data-pack="fluent"] img')?.getAttribute('src').slice(0, 12) }));
+    const ic = await A(() => ({ tb: document.querySelector('#taskbar .tb-app img')?.getAttribute('src').slice(0, 26), win: window.__aurora.wm.byApp('notepad')[0]?.iconEl?.getAttribute('src').slice(0, 26), pack: document.documentElement.dataset.iconPack, fluentCard: document.querySelector('.app-settings .pzs-card[data-pack="selene"] img')?.getAttribute('src').slice(0, 12) }));
     item('Packs', 'icon packs', ic.tb?.startsWith('data:image/svg+xml,%3Csvg') && ic.win?.startsWith('data:image/svg+xml,%3Csvg') && ic.pack === 'tiles' && ic.fluentCard === 'app://shell/', JSON.stringify(ic));
     await docShot(s, 'pzs-icon-packs-tiles');
-    await s.page.locator(S('.pzs-card[data-pack="fluent"]')).click();
+    await s.page.locator(S('.pzs-card[data-pack="selene"]')).click();
     await sleep(400);
     await go(s, 'soundPacks');
     await s.page.locator(S('.pzs-card[data-pack="retro"]')).click();
@@ -591,7 +591,7 @@ async function checklistPart() {
 // =====================================================================================================================
 // Every PROFILE_KEYS key changed, saved, reset, re-applied with one click → identical settings.
 const NONDEFAULT = {
-  style: 'retro', theme: 'dark', autoTheme: { enabled: true, light: '06:30', dark: '20:15' }, accent: '#c239b3', accentFromWallpaper: true,
+  style: 'clairdelune', ambiance: 'neutral', theme: 'dark', autoTheme: { enabled: true, light: '06:30', dark: '20:15' }, accent: '#c239b3', accentFromWallpaper: true,
   transparency: false, transparencyLevel: 80, blur: 25, cornerRadius: 150, fontFamily: 'dejavu-sans', textScale: 115, scale: 100, reducedMotion: true, animations: false,
   'taskbar.color': '#123456', 'taskbar.opacity': 70, appThemes: { notepad: { theme: 'dark', accent: '#ff8c00' } },
   wallpaper: 'builtin:glow', wallpaperFit: 'fit', lockWallpaper: 'builtin:flow', wallpaperMode: 'animated',
@@ -642,7 +642,7 @@ async function profilesPart() {
     item('Profiles', 'save and switch between complete UI themes with one click (every key)', !diff.length, diff.length ? `different after apply: ${diff.map((k) => `${k}=${JSON.stringify(got[k])} vs ${JSON.stringify(want[k])}`).join('; ')}` : `${keys.length} keys identical after save → reset → apply`);
     // the look really follows: taskbar on top, small, retro style, large cursors, graphite icons
     const live = await A(() => ({ pos: document.documentElement.dataset.tbPos, size: document.documentElement.dataset.tbSize, style: document.documentElement.dataset.style, cur: document.documentElement.dataset.cursorPack, ic: document.documentElement.dataset.iconPack, startBg: document.getElementById('start').dataset.bg }));
-    check(live.pos === 'top' && live.size === 'small' && live.style === 'retro' && live.cur === 'large' && live.ic === 'graphite' && live.startBg === 'accent', `profile applied live: ${JSON.stringify(live)}`);
+    check(live.pos === 'top' && live.size === 'small' && live.style === 'clairdelune' && live.cur === 'large' && live.ic === 'graphite' && live.startBg === 'accent', `profile applied live: ${JSON.stringify(live)}`);
     // export → import round trip keeps the B2/B3 keys
     const rt = await A(async (id) => {
       const pr = window.__aurora.theme.profiles;
@@ -678,7 +678,7 @@ async function stressPart() {
     for (const id of builtins) {
       await A((x) => window.__aurora.theme.profiles.apply(x), id);
       await sleep(450);
-      for (const style of ['win11', 'minimal', 'glass', 'retro', 'contrast']) {
+      for (const style of ['nocturne', 'eclipse', 'clairdelune', 'contrast']) {
         await setMany(s, { style });
         for (const pos of ['bottom', 'top', 'left', 'right']) {
           await setMany(s, { 'taskbar.position': pos });
@@ -700,7 +700,7 @@ async function stressPart() {
     check(!bad.length, `${combos} combinations: taskbar on its edge, work area beside it${bad.length ? ` — ${bad.slice(0, 3).join(' ; ')}` : ''}`);
     // flyouts on every edge, for two looks; screenshots
     bad = [];
-    for (const [pid, style] of [['aurora-dark', 'glass'], ['retro', 'retro'], ['contrast', 'contrast'], ['aurora-light', 'win11']]) {
+    for (const [pid, style] of [['aurora-dark', 'clairdelune'], ['eclipse', 'eclipse'], ['contrast', 'contrast'], ['aurora-light', 'nocturne']]) {
       await A((x) => window.__aurora.theme.profiles.apply(x), pid);
       await setMany(s, { style });
       for (const pos of ['bottom', 'top', 'left', 'right']) {

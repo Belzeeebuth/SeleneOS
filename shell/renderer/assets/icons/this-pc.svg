@@ -1,11 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4fb3ff"/><stop offset="1" stop-color="#1167d6"/></linearGradient>
-    <linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfd8e3"/><stop offset="1" stop-color="#8d9bb0"/></linearGradient>
-  </defs>
-  <rect x="5" y="7" width="38" height="27" rx="3" fill="#2f3a4a"/>
-  <rect x="7" y="9" width="34" height="23" rx="1.5" fill="url(#s)"/>
-  <path d="M7 26c8-6 18-9 34-8v12.5c0 .8-.7 1.5-1.5 1.5h-31C7.7 32 7 31.3 7 30.5z" fill="#fff" opacity=".18"/>
-  <rect x="20" y="34" width="8" height="5" fill="url(#b)"/>
-  <rect x="13" y="38.5" width="22" height="3.5" rx="1.75" fill="url(#b)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="special-thispc-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="special-thispc-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="special-thispc-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b6c6e7"/><stop offset="1" stop-color="#93abdb"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#special-thispc-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#special-thispc-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#special-thispc-f)"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24h72v16H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16H136V200h72a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm0,144H48a8,8,0,0,1-8-8V160H216v16A8,8,0,0,1,208,184Z"/></g>
 </svg>

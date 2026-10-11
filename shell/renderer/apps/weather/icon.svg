@@ -1,27 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <radialGradient id="sun" cx="17" cy="15" r="12" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffe680"/>
-      <stop offset="0.6" stop-color="#ffc21a"/>
-      <stop offset="1" stop-color="#f59a0b"/>
-    </radialGradient>
-    <linearGradient id="cloud" x1="16" y1="20" x2="34" y2="42" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#cfe0f5"/>
-    </linearGradient>
-    <linearGradient id="drop" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#58b4f8"/>
-      <stop offset="1" stop-color="#1f74d6"/>
-    </linearGradient>
-  </defs>
-  <g stroke="#f7b21a" stroke-width="2.6" stroke-linecap="round">
-    <path d="M17 2.8v3.4M5.2 14.6H1.8M8.6 6.2l2.3 2.3M25.4 6.2l-2.3 2.3M8.6 23l2.3-2.3"/>
-  </g>
-  <circle cx="17" cy="14.6" r="8.6" fill="url(#sun)"/>
-  <circle cx="14.6" cy="12" r="3.2" fill="#ffffff" opacity=".35"/>
-  <path d="M15.4 40.4a7.4 7.4 0 0 1-.9-14.7 10.4 10.4 0 0 1 19.8-2.6 8.7 8.7 0 0 1 1.4 17.3z" fill="#0b3a7e" opacity=".14" transform="translate(0 1.4)"/>
-  <path d="M15.4 40.4a7.4 7.4 0 0 1-.9-14.7 10.4 10.4 0 0 1 19.8-2.6 8.7 8.7 0 0 1 1.4 17.3z" fill="url(#cloud)"/>
-  <path d="M15.4 40.4a7.4 7.4 0 0 1-.9-14.7 10.4 10.4 0 0 1 19.8-2.6 8.7 8.7 0 0 1 1.4 17.3z" fill="none" stroke="#9bbbe3" stroke-opacity=".6"/>
-  <path d="M20 26.5a6.6 6.6 0 0 1 11.6-2.2" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" opacity=".9"/>
-  <path d="M21 42.4l-1.6 3.2M28 42.4l-1.6 3.2M35 42.4l-1.6 3.2" stroke="url(#drop)" stroke-width="2.6" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="weather-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="weather-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="weather-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e7cea7"/><stop offset="1" stop-color="#dcb77e"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#weather-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#weather-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#weather-f)"><path d="M164,72a76.2,76.2,0,0,0-20.26,2.73,55.63,55.63,0,0,0-9.41-11.54l9.51-13.57a8,8,0,1,0-13.11-9.18L121.22,54A55.9,55.9,0,0,0,96,48c-.59,0-1.16,0-1.74,0L91.37,31.71a8,8,0,1,0-15.75,2.77L78.5,50.82A56.1,56.1,0,0,0,55.23,65.67L41.61,56.14a8,8,0,1,0-9.17,13.11L46,78.77A55.55,55.55,0,0,0,40,104c0,.57,0,1.15,0,1.72L23.71,108.6a8,8,0,0,0,1.38,15.88,8.24,8.24,0,0,0,1.39-.12l16.32-2.88a55.74,55.74,0,0,0,5.86,12.42A52,52,0,0,0,84,224h80a76,76,0,0,0,0-152ZM92.92,120.76a52.14,52.14,0,0,0-31,4.17,40,40,0,0,1,66.62-44.17A76.26,76.26,0,0,0,92.92,120.76Z"/></g>
 </svg>

@@ -42,9 +42,10 @@ function svgCursor(svg, hx, hy, fallback = 'crosshair') {
 
 function glyphCursor(name, hot, { flip = false } = {}) {
   const px = 24;
-  const k = px / 22; // viewBox -1..21
-  const tr = flip ? ' transform="translate(20 0) scale(-1 1)"' : '';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="-1 -1 22 22"><g${tr} fill="#000" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" paint-order="stroke">${inner(name)}</g></svg>`;
+  const k = px / 22; // viewBox -1..21 (in 20-unit glyph space; u scales it to the icon set's own viewBox)
+  const u = Number(/viewBox="0 0 (\d+)/.exec(iconSvg(name))?.[1] || 20) / 20;
+  const tr = flip ? ` transform="translate(${20 * u} 0) scale(-1 1)"` : '';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="${-u} ${-u} ${22 * u} ${22 * u}"><g${tr} fill="#000" stroke="#fff" stroke-width="${1.5 * u}" stroke-linejoin="round" paint-order="stroke">${inner(name)}</g></svg>`;
   return svgCursor(svg, (hot[0] + 1) * k, (hot[1] + 1) * k);
 }
 

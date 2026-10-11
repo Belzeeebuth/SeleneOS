@@ -23,43 +23,123 @@
 import { api, Emitter } from './api.js';
 import { settings } from './settings.js';
 
+// Selene wallpapers (one per style, light + dark; drawn by tools/gen-wallpapers.mjs), then the other lunar scenes.
+// Ids of the retired set (bloom, glow, flow, sunrise, aurora, dunes) are unknown here and resolve to the first entry.
 export const WALLPAPERS = [
-  { id: 'bloom', name: { en: 'Bloom', fr: 'Floraison' }, light: 'bloom-light.jpg', dark: 'bloom-dark.jpg' },
-  { id: 'glow', name: { en: 'Glow', fr: 'Lueur' }, light: 'glow-light.jpg', dark: 'glow-dark.jpg' },
-  { id: 'flow', name: { en: 'Flow', fr: 'Flux' }, light: 'flow-light.jpg', dark: 'flow-dark.jpg' },
-  { id: 'sunrise', name: { en: 'Sunrise', fr: 'Aurore' }, light: 'sunrise.jpg', dark: 'sunrise.jpg' },
-  { id: 'aurora', name: { en: 'Northern lights', fr: 'Aurore boréale' }, light: 'aurora.jpg', dark: 'aurora.jpg' },
-  { id: 'dunes', name: { en: 'Dunes', fr: 'Dunes' }, light: 'dunes.jpg', dark: 'dunes.jpg' },
+  { id: 'nocturne', name: { en: 'Nocturne', fr: 'Nocturne' }, light: 'nocturne-light.jpg', dark: 'nocturne-dark.jpg' },
+  { id: 'eclipse', name: { en: 'Eclipse', fr: 'Éclipse' }, light: 'eclipse-light.jpg', dark: 'eclipse-dark.jpg' },
+  { id: 'clairdelune', name: { en: 'Moonlight', fr: 'Clair de lune' }, light: 'clairdelune-light.jpg', dark: 'clairdelune-dark.jpg' },
+  { id: 'forest', name: { en: 'Pine forest', fr: 'Forêt de pins' }, light: 'forest-light.jpg', dark: 'forest-dark.jpg' },
+  { id: 'peaks', name: { en: 'Peaks', fr: 'Cimes' }, light: 'peaks-light.jpg', dark: 'peaks-dark.jpg' },
+  { id: 'milkyway', name: { en: 'Milky Way', fr: 'Voie lactée' }, light: 'milkyway.jpg', dark: 'milkyway.jpg' },
 ];
 
-export const ACCENTS = [
-  '#0078d4', '#0063b1', '#8764b8', '#b146c2', '#e3008c', '#c30052', '#e81123', '#da3b01',
-  '#ca5010', '#ff8c00', '#986f0b', '#498205', '#107c10', '#00b294', '#038387', '#2d7d9a',
-  '#5d5a58', '#68768a',
+// The four Selene accents. `hex` is the value stored in settings.accent (every consumer keeps reading a
+// plain '#rrggbb'); `dark` / `light` are the curated tokens of each mode. Contrast (docs/design/SYSTEM.md §3):
+// --on-accent on --accent ≥ 5:1 and --accent-text on every surface of the three ambiances ≥ 4.8:1.
+export const ACCENT_PRESETS = [
+  {
+    id: 'silver',
+    name: { en: 'Lunar silver', fr: 'Argent lunaire' },
+    hex: '#c9d3e6',
+    dark: { accent: '#c9d3e6', hover: '#d7dfed', pressed: '#b9c4da', text: '#c9d3e6', on: '#101624' },
+    light: { accent: '#55637e', hover: '#4a5770', pressed: '#3e4a62', text: '#4a5770', on: '#ffffff' },
+  },
+  {
+    id: 'night',
+    name: { en: 'Night blue', fr: 'Bleu nuit' },
+    hex: '#6f8de6',
+    dark: { accent: '#8ba3ec', hover: '#9db2f0', pressed: '#7a95e6', text: '#9db2f0', on: '#0b1020' },
+    light: { accent: '#3756b8', hover: '#3150ae', pressed: '#2a4699', text: '#3150ae', on: '#ffffff' },
+  },
+  {
+    id: 'violet',
+    name: { en: 'Violet', fr: 'Violet' },
+    hex: '#a58bf2',
+    dark: { accent: '#b9a4f2', hover: '#c3b1f5', pressed: '#a993ec', text: '#c3b1f5', on: '#160f2b' },
+    light: { accent: '#6a4bc3', hover: '#6143b8', pressed: '#553aa5', text: '#6143b8', on: '#ffffff' },
+  },
+  {
+    id: 'amber',
+    name: { en: 'Amber', fr: 'Ambre' },
+    hex: '#e9b566',
+    dark: { accent: '#f2a63a', hover: '#f2b45e', pressed: '#e0952a', text: '#f2b45e', on: '#1a1206' },
+    light: { accent: '#a65a06', hover: '#995204', pressed: '#874803', text: '#995204', on: '#ffffff' },
+  },
 ];
+export const DEFAULT_ACCENT = ACCENT_PRESETS[0].hex;
+export const ACCENTS = ACCENT_PRESETS.map((a) => a.hex);
+/** The preset of a stored accent hex ('silver' …), or null for a custom colour. */
+export function accentPreset(hex) {
+  const v = String(hex || '').toLowerCase();
+  return ACCENT_PRESETS.find((a) => a.hex === v) || null;
+}
 
-// Visual styles. `traits` are what CSS alone cannot do (or what must beat the user's sliders):
+// Colour ambiances (palettes of tokens.css, <html data-ambiance>).
+export const AMBIANCES = [
+  { id: 'cold', name: { en: 'Cold', fr: 'Froide' }, desc: { en: 'Ink blue and slate', fr: 'Bleu encre et ardoise' }, swatch: { dark: '#121826', light: '#f1f4f9' } },
+  { id: 'neutral', name: { en: 'Neutral', fr: 'Neutre' }, desc: { en: 'Pure greys', fr: 'Gris purs' }, swatch: { dark: '#18181b', light: '#f4f4f5' } },
+  { id: 'warm', name: { en: 'Warm', fr: 'Chaude' }, desc: { en: 'Warm blacks and cream', fr: 'Noirs chauds et crème' }, swatch: { dark: '#1f1a16', light: '#f7f1e8' } },
+];
+const AMBIANCE_IDS = AMBIANCES.map((a) => a.id);
+
+// Visual styles. `defaults` are the ambiance, accent and wallpaper a style brings (they follow the style
+// unless the user changed them: styleChoicePatch). `traits` are what CSS alone cannot do (or what must beat
+// the user's sliders):
 //   opaque: no translucency (transparency level ignored)   noBlur: no backdrop blur
-//   monochrome: graphite accent instead of the user's colour   tpK: transparency multiplier
-//   micaBlur / micaSat: multipliers of the pre-blurred wallpaper   noTaskbarColor: ignore taskbar.color
+//   noMica: windows are flat (no pre-blurred wallpaper is computed)   noTaskbarColor: ignore taskbar.color
+//   contrast: its own palette (ambiance and accent ignored)
 export const STYLES = [
-  { id: 'win11', name: { en: 'Fluent', fr: 'Fluent' }, desc: { en: 'The default Windows 11-like look', fr: 'L’apparence par défaut, proche de Windows 11' }, traits: {} },
-  { id: 'minimal', name: { en: 'Minimal', fr: 'Minimal' }, desc: { en: 'Flat and calm: no blur, thin lines, monochrome accents', fr: 'Plat et sobre : sans flou, traits fins, accents monochromes' }, traits: { opaque: true, noBlur: true, monochrome: true } },
-  { id: 'glass', name: { en: 'Glass', fr: 'Verre' }, desc: { en: 'Frosted translucent panels, bright edges, rounder corners', fr: 'Panneaux translucides givrés, bords lumineux, coins plus ronds' }, traits: { tpK: 2.3, micaBlur: 0.8, micaSat: 1.9 } },
-  { id: 'retro', name: { en: 'Retro', fr: 'Rétro' }, desc: { en: 'Classic desktop: bevelled buttons, gradient title bars, square corners', fr: 'Bureau classique : boutons en relief, barres de titre en dégradé, coins carrés' }, traits: { opaque: true, noBlur: true } },
-  { id: 'contrast', name: { en: 'High contrast', fr: 'Contraste élevé' }, desc: { en: 'Maximum legibility: solid colours, thick borders, AAA contrast', fr: 'Lisibilité maximale : couleurs pleines, bordures épaisses, contraste AAA' }, traits: { opaque: true, noBlur: true, noTaskbarColor: true, contrast: true } },
+  { id: 'nocturne', name: { en: 'Nocturne', fr: 'Nocturne' }, desc: { en: 'Ink-blue night, silver accent, floating bar islands', fr: 'Nuit bleu encre, accent argenté, barre en îlots flottants' }, defaults: { ambiance: 'cold', accent: '#c9d3e6', wallpaper: 'builtin:nocturne' }, traits: { noMica: true } },
+  { id: 'eclipse', name: { en: 'Eclipse', fr: 'Éclipse' }, desc: { en: 'Graphite, amber accent, full-width opaque bar', fr: 'Graphite, accent ambre, barre opaque sur toute la largeur' }, defaults: { ambiance: 'neutral', accent: '#e9b566', wallpaper: 'builtin:eclipse' }, traits: { noMica: true } },
+  { id: 'clairdelune', name: { en: 'Moonlight', fr: 'Clair de lune' }, desc: { en: 'Warm night and cream, violet accent, three floating pills', fr: 'Nuit chaude et crème, accent violet, trois pastilles flottantes' }, defaults: { ambiance: 'warm', accent: '#a58bf2', wallpaper: 'builtin:clairdelune' }, traits: { noMica: true } },
+
+  { id: 'contrast', name: { en: 'High contrast', fr: 'Contraste élevé' }, desc: { en: 'Maximum legibility: solid colours, thick borders, AAA contrast', fr: 'Lisibilité maximale : couleurs pleines, bordures épaisses, contraste AAA' }, defaults: null, traits: { opaque: true, noBlur: true, noMica: true, noTaskbarColor: true, contrast: true } },
 ];
 const styleOf = (id) => STYLES.find((s) => s.id === id) || STYLES[0];
+/** Style ids of older releases: they all become Nocturne (settings.js migrates saved settings too). */
+export const LEGACY_STYLES = ['win11', 'minimal', 'glass', 'retro'];
+/** The ambiance in effect: the setting, else the style's default. */
+export function ambianceOf(all = settings.all()) {
+  if (AMBIANCE_IDS.includes(all.ambiance)) return all.ambiance;
+  return styleOf(all.style).defaults?.ambiance || 'cold';
+}
+/** { ambiance, accent, wallpaper } a style brings (Contraste élevé: null, it keeps the user's choices). */
+export function styleDefaults(id) {
+  return styleOf(id).defaults || null;
+}
+/**
+ * The settings patch for choosing a style: the ambiance, the accent and the wallpaper follow the new style's
+ * defaults unless the user changed them (their value differs from the previous style's default).
+ * Use it with settings:setMany (chooseStyle does).
+ */
+export function styleChoicePatch(id, all = settings.all()) {
+  const next = styleOf(id);
+  const patch = { style: next.id };
+  if (!next.defaults) return patch;
+  const same = (a, b) => String(a ?? '').toLowerCase() === String(b ?? '').toLowerCase();
+  // coming from a style without defaults (High contrast): the values count as defaults when they are exactly
+  // one style's pair (ambiance + accent), i.e. the user did not pick them separately
+  const prev = styleOf(all.style).defaults || STYLES.find((st) => st.defaults && same(st.defaults.ambiance, all.ambiance ?? 'cold') && same(st.defaults.accent, all.accent))?.defaults || STYLES[0].defaults;
+  if (all.ambiance == null || same(all.ambiance, prev.ambiance)) patch.ambiance = next.defaults.ambiance;
+  if (!all.accentFromWallpaper && (all.accent == null || same(all.accent, prev.accent))) patch.accent = next.defaults.accent;
+  if (all.wallpaper == null || same(all.wallpaper, prev.wallpaper)) patch.wallpaper = next.defaults.wallpaper;
+  return patch;
+}
+/** Choose a style the way Settings does (one atomic settings:setMany, one cross-fade). */
+export function chooseStyle(id) {
+  return api.invoke('settings:setMany', styleChoicePatch(id));
+}
 
 // Curated fonts (installed in the image: fonts-inter, fonts-noto-core, fonts-dejavu-core, fonts-liberation2,
 // fonts-cascadia-code, fonts-unifont — see iso/packages.d/personalization.list).
 export const FONTS = [
   {
     id: 'inter',
-    name: { en: 'Inter (default)', fr: 'Inter (par défaut)' },
+    name: { en: 'Inter and Manrope (default)', fr: 'Inter et Manrope (par défaut)' },
     probe: 'Inter',
-    font: '"Segoe UI Variable Text", "Segoe UI", "Inter", "Noto Sans", "DejaVu Sans", system-ui, sans-serif',
-    display: '"Segoe UI Variable Display", "Segoe UI", "Inter Display", "Inter", sans-serif',
+    font: '"Inter", "Noto Sans", "DejaVu Sans", system-ui, sans-serif',
+    display: '"Manrope", "Inter", "Noto Sans", sans-serif',
   },
   { id: 'system', name: { en: 'System default', fr: 'Police du système' }, probe: null, font: 'system-ui, sans-serif', display: 'system-ui, sans-serif' },
   { id: 'noto-sans', name: 'Noto Sans', probe: 'Noto Sans', font: '"Noto Sans", "Inter", "DejaVu Sans", sans-serif' },
@@ -102,7 +182,10 @@ export const theme = {
     return document.documentElement.dataset.theme || 'light';
   },
   get style() {
-    return document.documentElement.dataset.style || 'win11';
+    return document.documentElement.dataset.style || 'nocturne';
+  },
+  get ambiance() {
+    return document.documentElement.dataset.ambiance || 'cold';
   },
   get profiles() {
     return profilesApi;
@@ -165,7 +248,21 @@ export function luminance(hex) {
 }
 
 export function accentVars(hex, mode) {
-  hex = HEX.test(hex || '') ? hex : '#0078d4';
+  hex = HEX.test(hex || '') ? hex : DEFAULT_ACCENT;
+  const preset = accentPreset(hex);
+  if (preset) {
+    const p = preset[mode === 'dark' ? 'dark' : 'light'];
+    const [r, g, b] = hexToRgb(p.accent);
+    return {
+      '--accent': p.accent,
+      '--accent-hover': p.hover,
+      '--accent-pressed': p.pressed,
+      '--accent-text': p.text,
+      '--accent-subtle': `rgba(${r}, ${g}, ${b}, ${mode === 'dark' ? 0.16 : 0.12})`,
+      '--on-accent': p.on,
+      '--accent-base': hex,
+    };
+  }
   const [h, s, l] = rgbToHsl(hexToRgb(hex));
   if (mode === 'dark') {
     const L = Math.max(66, Math.min(78, l + 30));
@@ -191,20 +288,15 @@ export function accentVars(hex, mode) {
   };
 }
 
-// Accent variables of a style: Minimal uses a graphite accent; High contrast its own palette (yellow on
-// black in dark mode, dark blue on white in light mode — both ≥ 7:1 against the background).
+// Accent variables of a style: High contrast uses its own palette (yellow on black in dark mode, dark blue
+// on white in light mode — both ≥ 7:1 against the background).
 const ACCENT_KEYS = ['--accent', '--accent-hover', '--accent-pressed', '--accent-text', '--accent-subtle', '--on-accent', '--accent-base'];
 export function styleAccentVars(styleId, hex, mode) {
   const st = styleOf(styleId);
   if (st.traits.contrast) {
     return mode === 'dark'
-      ? { '--accent': '#ffff00', '--accent-hover': '#ffff66', '--accent-pressed': '#e6e600', '--accent-text': '#ffff00', '--accent-subtle': 'rgba(255, 255, 0, 0.22)', '--on-accent': '#000000', '--accent-base': HEX.test(hex || '') ? hex : '#0078d4' }
-      : { '--accent': '#1c0aa8', '--accent-hover': '#2a17c4', '--accent-pressed': '#13077a', '--accent-text': '#1c0aa8', '--accent-subtle': 'rgba(28, 10, 168, 0.14)', '--on-accent': '#ffffff', '--accent-base': HEX.test(hex || '') ? hex : '#0078d4' };
-  }
-  if (st.traits.monochrome) {
-    return mode === 'dark'
-      ? { '--accent': '#e6e6e6', '--accent-hover': '#d0d0d0', '--accent-pressed': '#bcbcbc', '--accent-text': '#f2f2f2', '--accent-subtle': 'rgba(255, 255, 255, 0.12)', '--on-accent': '#111111', '--accent-base': HEX.test(hex || '') ? hex : '#0078d4' }
-      : { '--accent': '#262626', '--accent-hover': '#3a3a3a', '--accent-pressed': '#4d4d4d', '--accent-text': '#1a1a1a', '--accent-subtle': 'rgba(0, 0, 0, 0.08)', '--on-accent': '#ffffff', '--accent-base': HEX.test(hex || '') ? hex : '#0078d4' };
+      ? { '--accent': '#ffff00', '--accent-hover': '#ffff66', '--accent-pressed': '#e6e600', '--accent-text': '#ffff00', '--accent-subtle': 'rgba(255, 255, 0, 0.22)', '--on-accent': '#000000', '--accent-base': HEX.test(hex || '') ? hex : DEFAULT_ACCENT }
+      : { '--accent': '#1c0aa8', '--accent-hover': '#2a17c4', '--accent-pressed': '#13077a', '--accent-text': '#1c0aa8', '--accent-subtle': 'rgba(28, 10, 168, 0.14)', '--on-accent': '#ffffff', '--accent-base': HEX.test(hex || '') ? hex : DEFAULT_ACCENT };
   }
   return accentVars(hex, mode);
 }
@@ -212,7 +304,7 @@ export function styleAccentVars(styleId, hex, mode) {
 // The result is used inside CSS `url("…")`: quotes, backslashes and line breaks are percent-encoded and
 // only image-safe schemes are accepted (anything else falls back to the default wallpaper).
 export function resolveWallpaper(value, mode) {
-  const v = typeof value === 'string' && value ? value : 'builtin:bloom';
+  const v = typeof value === 'string' && value ? value : STYLES[0].defaults.wallpaper;
   const builtin = (id) => {
     const w = WALLPAPERS.find((x) => x.id === id) || WALLPAPERS[0];
     return `app://shell/assets/wallpapers/${mode === 'dark' ? w.dark : w.light}`;
@@ -221,7 +313,7 @@ export function resolveWallpaper(value, mode) {
   const safe = (u) => u.replace(/["\\\n\r\f]/g, (c) => encodeURIComponent(c));
   if (v.startsWith('/')) return safe(api.mediaUrl(v));
   if (/^(app|media|blob|https?):/i.test(v) || /^data:image\//i.test(v)) return safe(v);
-  return builtin('bloom');
+  return builtin(WALLPAPERS[0].id);
 }
 
 // The wallpaper is decoded once and kept as a small (≤ 640 px) canvas: the Mica copy (320 px) and the
@@ -272,7 +364,7 @@ async function makeMica(url, { blur = 18, sat = 1.4 } = {}) {
 const accentCache = new Map();
 export async function wallpaperAccent(url) {
   if (accentCache.has(url)) return accentCache.get(url);
-  let out = '#0078d4';
+  let out = DEFAULT_ACCENT;
   try {
     const img = await loadImage(url);
     const w = 64;
@@ -365,10 +457,11 @@ export function styleVars(styleId, all = settings.all()) {
   const out = {};
   const on = all.transparency !== false && !tr.opaque;
   const level = clampNum(all.transparencyLevel, 0, 100, 50);
-  // 0 → opaque, 50 → 1 (the Windows 11 look), 100 → 3.2 (very see-through; alpha is clamped in tokens.css)
+  // 0 → opaque, 50 → 1 (default), 100 → 3.2 (very see-through; alpha is clamped in tokens.css)
   out['--tp'] = on ? (level <= 50 ? level / 50 : 1 + ((level - 50) / 50) * 2.2).toFixed(3) : '0';
   const blur = clampNum(all.blur, 0, 100, 50);
-  out['--blur-px'] = `${tr.noBlur ? 0 : Math.round(blur * 0.8)}px`;
+  // 0–100 → 0–56 px; 28 px at the default 50 (the mockups' panels)
+  out['--blur-px'] = `${tr.noBlur ? 0 : Math.round(blur * 0.56)}px`;
   out['--corner'] = (clampNum(all.cornerRadius, 0, 200, 100) / 100).toFixed(3);
   out['--text-scale'] = (clampNum(all.textScale, 80, 150, 100) / 100).toFixed(3);
   const f = fontOf(all.fontFamily);
@@ -397,6 +490,8 @@ function writeVars(vars) {
 export async function applyVisualStyle(all = settings.all(), root = document.documentElement) {
   const st = styleOf(all.style);
   root.dataset.style = st.id;
+  root.dataset.ambiance = ambianceOf(all);
+  root.dataset.accent = accentPreset(all.accent)?.id || 'custom';
   writeVars(styleVars(st.id, all));
   await loadStyleSheets();
   return st.id;
@@ -408,8 +503,7 @@ function taskbarColor(all, mode) {
   const c = all.taskbar?.color;
   if (!c || st.traits.noTaskbarColor) return null;
   if (c === 'accent') {
-    if (st.traits.monochrome) return mode === 'dark' ? '#141414' : '#2b2b2b';
-    const [h, s] = rgbToHsl(hexToRgb(HEX.test(all.accent || '') ? all.accent : '#0078d4'));
+    const [h, s] = rgbToHsl(hexToRgb(HEX.test(all.accent || '') ? all.accent : DEFAULT_ACCENT));
     return rgbToHex(hslToRgb(h, Math.min(s, 80), mode === 'dark' ? 18 : 32));
   }
   return HEX.test(c) ? (c.length === 4 ? rgbToHex(hexToRgb(c)) : c.toLowerCase()) : null;
@@ -689,6 +783,8 @@ function applyColors(all) {
   const prevStyle = root.dataset.style;
   root.dataset.theme = mode;
   root.dataset.style = st.id;
+  root.dataset.ambiance = ambianceOf(all);
+  root.dataset.accent = accentPreset(all.accent)?.id || 'custom';
   root.dataset.transparency = all.transparency === false || st.traits.opaque ? 'off' : 'on';
   const reduced = !!all.reducedMotion;
   root.dataset.reducedMotion = reduced ? 'on' : 'off';
@@ -771,9 +867,10 @@ export async function applyTheme(all = settings.all()) {
   latest = all;
   const prevMode = root.dataset.theme;
   const nextMode = all.theme === 'dark' ? 'dark' : 'light';
-  const accentChanged = root.style.getPropertyValue('--accent-base') !== (HEX.test(all.accent || '') ? all.accent : '#0078d4');
-  const styleChanged = (root.dataset.style || 'win11') !== styleOf(all.style).id;
-  const animate = applied && motionOn(all) && (prevMode !== nextMode || accentChanged || styleChanged);
+  const accentChanged = root.style.getPropertyValue('--accent-base') !== (HEX.test(all.accent || '') ? all.accent : DEFAULT_ACCENT);
+  const styleChanged = (root.dataset.style || 'nocturne') !== styleOf(all.style).id;
+  const ambianceChanged = !!root.dataset.ambiance && root.dataset.ambiance !== ambianceOf(all);
+  const animate = applied && motionOn(all) && (prevMode !== nextMode || accentChanged || styleChanged || ambianceChanged);
   if (!applied) await loadStyleSheets();
   let mode;
   // Light/dark, accent and style switches cross-fade the whole screen for a short moment. Only one
@@ -821,7 +918,18 @@ export async function applyTheme(all = settings.all()) {
       if (latest?.accentFromWallpaper && lastWallpaper === wp && String(settings.get('accent') || '').toLowerCase() !== hex) settings.set('accent', hex).catch(() => {});
     });
   }
-  if (micaKey !== lastMicaKey) {
+  if (st.traits.noMica) {
+    // flat windows: no pre-blurred wallpaper to compute (cheaper, and no Mica look)
+    if (lastMicaKey) {
+      lastMicaKey = '';
+      clearTimeout(micaTimer);
+      if (lastMica) URL.revokeObjectURL(lastMica);
+      lastMica = '';
+      theme.micaUrl = '';
+      root.style.setProperty('--mica-image', 'none');
+      emitter.emit('mica', '');
+    } else root.style.setProperty('--mica-image', 'none');
+  } else if (micaKey !== lastMicaKey) {
     // same picture, other blur / style: wait until the slider rests (one re-blur instead of one per step)
     const sameWall = lastMicaKey.startsWith(`${wp}|`);
     lastMicaKey = micaKey;
@@ -884,10 +992,26 @@ function checkAutoTheme() {
 
 const THEME_KEYS = [
   'theme', 'accent', 'transparency', 'animations', 'wallpaper', 'wallpaperFit', 'nightLight', 'nightLightStrength', 'scale', '*',
-  'style', 'accentFromWallpaper', 'transparencyLevel', 'blur', 'cornerRadius', 'fontFamily', 'textScale', 'reducedMotion', 'taskbar', 'appThemes',
+  'style', 'ambiance', 'accentFromWallpaper', 'transparencyLevel', 'blur', 'cornerRadius', 'fontFamily', 'textScale', 'reducedMotion', 'taskbar', 'appThemes',
 ];
+let lastStyleId = null; // style of the last settings snapshot seen by watchTheme (follow rule below)
 export function watchTheme() {
+  lastStyleId = styleOf(settings.get('style')).id;
   settings.on('*', (_v, key) => {
+    // A plain settings.set('style', id) (quick settings, a script) gets the same follow rule as Settings:
+    // the ambiance, accent and wallpaper that were the old style's defaults follow the new style.
+    // settings:setMany callers (profiles, chooseStyle) send their own complete patch.
+    const nowStyle = styleOf(settings.get('style')).id;
+    if (nowStyle !== lastStyleId) {
+      const prev = lastStyleId;
+      lastStyleId = nowStyle;
+      if (key === 'style' && prev) {
+        const all = settings.all();
+        const { style, ...rest } = styleChoicePatch(nowStyle, { ...all, style: prev });
+        const patch = Object.fromEntries(Object.entries(rest).filter(([k, v]) => String(all[k] ?? '').toLowerCase() !== String(v).toLowerCase()));
+        if (Object.keys(patch).length) api.invoke('settings:setMany', patch).catch(() => {});
+      }
+    }
     if (key && !THEME_KEYS.includes(String(key).split('.')[0])) return;
     if (key === 'autoTheme' || key === '*') checkAutoTheme();
     if (pending) return;

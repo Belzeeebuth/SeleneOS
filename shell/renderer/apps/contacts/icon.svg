@@ -1,25 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="ctBook" x1="8" y1="5" x2="40" y2="44" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#36b6f0"/>
-      <stop offset="1" stop-color="#1265c9"/>
-    </linearGradient>
-    <linearGradient id="ctPage" x1="14" y1="9" x2="36" y2="40" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#dce9f9"/>
-    </linearGradient>
-    <linearGradient id="ctPerson" x1="18" y1="14" x2="32" y2="36" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffb35c"/>
-      <stop offset="1" stop-color="#f0782a"/>
-    </linearGradient>
-  </defs>
-  <rect x="8" y="6.6" width="32" height="37.4" rx="6" fill="#0a3a80" opacity=".18"/>
-  <rect x="8" y="5" width="32" height="37.4" rx="6" fill="url(#ctBook)"/>
-  <rect x="12" y="8.5" width="25" height="30.5" rx="3.5" fill="url(#ctPage)"/>
-  <rect x="5" y="12" width="6" height="3.4" rx="1.7" fill="#0e4fa8"/>
-  <rect x="5" y="21.3" width="6" height="3.4" rx="1.7" fill="#0e4fa8"/>
-  <rect x="5" y="30.6" width="6" height="3.4" rx="1.7" fill="#0e4fa8"/>
-  <circle cx="24.5" cy="19.5" r="5.2" fill="url(#ctPerson)"/>
-  <path d="M15.5 33.5c0-4.6 4-7.6 9-7.6s9 3 9 7.6v.5c0 .8-.7 1.5-1.5 1.5h-15c-.8 0-1.5-.7-1.5-1.5z" fill="url(#ctPerson)"/>
-  <path d="M40 5h0v37.4" stroke="#ffffff" stroke-opacity=".25"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="contacts-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="contacts-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="contacts-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c8bee9"/><stop offset="1" stop-color="#ae9fdf"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#contacts-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#contacts-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#contacts-f)"><path d="M160,112a24,24,0,1,1-24-24A24,24,0,0,1,160,112Zm64-72V216a16,16,0,0,1-16,16H64a16,16,0,0,1-16-16V192H32a8,8,0,0,1,0-16H48V136H32a8,8,0,0,1,0-16H48V80H32a8,8,0,0,1,0-16H48V40A16,16,0,0,1,64,24H208A16,16,0,0,1,224,40ZM190.4,163.2A67.88,67.88,0,0,0,163,141.51a40,40,0,1,0-53.94,0A67.88,67.88,0,0,0,81.6,163.2a8,8,0,1,0,12.8,9.6,52,52,0,0,1,83.2,0,8,8,0,1,0,12.8-9.6Z"/></g>
 </svg>

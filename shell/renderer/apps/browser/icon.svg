@@ -1,36 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="bg" x1="11" y1="5" x2="37" y2="44" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#3fd0f5"/>
-      <stop offset="0.5" stop-color="#2b6cf6"/>
-      <stop offset="1" stop-color="#4a3cd6"/>
-    </linearGradient>
-    <radialGradient id="hl" cx="17" cy="11" r="24" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.5"/>
-      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0.08"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="sw" x1="6" y1="33" x2="43" y2="16" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#7be3c6"/>
-      <stop offset="0.45" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#dff6ff"/>
-    </linearGradient>
-    <linearGradient id="sw2" x1="10" y1="40" x2="40" y2="28" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#7be3c6" stop-opacity="0.9"/>
-      <stop offset="1" stop-color="#b9f3ff" stop-opacity="0.35"/>
-    </linearGradient>
-    <clipPath id="clip"><circle cx="24" cy="24" r="20"/></clipPath>
-  </defs>
-  <ellipse cx="24" cy="44.2" rx="14" ry="1.8" fill="#0b1c5c" opacity="0.16"/>
-  <circle cx="24" cy="24" r="20" fill="url(#bg)"/>
-  <g clip-path="url(#clip)" fill="none" stroke="#ffffff" stroke-opacity="0.26" stroke-width="1.5">
-    <ellipse cx="24" cy="24" rx="8.6" ry="20"/>
-    <path d="M4 24h40M6.5 14.5h35M6.5 33.5h35"/>
-  </g>
-  <circle cx="24" cy="24" r="20" fill="url(#hl)"/>
-  <g clip-path="url(#clip)">
-    <path d="M8 39.5c7-5 17-7.8 33-8.4" fill="none" stroke="url(#sw2)" stroke-width="2.6" stroke-linecap="round"/>
-  </g>
-  <path d="M5.2 31.6c8.2-8 20-12.2 37.6-13" fill="none" stroke="#0b1c5c" stroke-opacity="0.22" stroke-width="6" stroke-linecap="round" transform="translate(0 1.4)" clip-path="url(#clip)"/>
-  <path d="M5.2 31.6c8.2-8 20-12.2 37.6-13" fill="none" stroke="url(#sw)" stroke-width="5.4" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="browser-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="browser-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="browser-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b6c6e7"/><stop offset="1" stop-color="#93abdb"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#browser-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#browser-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#browser-f)"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm51.58,57.79-32,64a4.08,4.08,0,0,1-1.79,1.79l-64,32a4,4,0,0,1-5.37-5.37l32-64a4.08,4.08,0,0,1,1.79-1.79l64-32A4,4,0,0,1,179.58,81.79Z"/></g>
 </svg>

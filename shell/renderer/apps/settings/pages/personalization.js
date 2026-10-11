@@ -1,20 +1,20 @@
 // Settings > Personalization: preview + themes and the index of every personalization page, Background,
 // Colors, Themes, Lock screen. (Taskbar + Start: personalization-taskbar.js; Theme designer, Visual style,
 // Profiles, App themes: personalization-designer.js; see docs/PERSONALIZATION.md.)
-import { WALLPAPERS, ACCENTS, resolveWallpaper, theme as coreTheme } from '../../../core/theme.js';
+import { WALLPAPERS, ACCENTS, ACCENT_PRESETS, accentPreset, resolveWallpaper, theme as coreTheme } from '../../../core/theme.js';
 import { PAGES } from '../lib/index.js';
-import { modeControl, accentControls, taskbarColorControls, rovingFocus } from './personalization-designer.js';
+import { modeControl, accentControls, taskbarColorControls, rovingFocus, ambianceControl } from './personalization-designer.js';
 import { ensureStrings } from './personalization-strings.js';
 
 ensureStrings();
 
 export const THEMES = [
-  { id: 'light', name: { en: 'Selene Light', fr: 'Selene clair' }, wallpaper: 'builtin:bloom', theme: 'light', accent: '#0078d4' },
-  { id: 'dark', name: { en: 'Selene Dark', fr: 'Selene sombre' }, wallpaper: 'builtin:bloom', theme: 'dark', accent: '#0078d4' },
-  { id: 'glow', name: { en: 'Glow', fr: 'Lueur' }, wallpaper: 'builtin:glow', theme: 'dark', accent: '#8764b8' },
-  { id: 'flow', name: { en: 'Flow', fr: 'Flux' }, wallpaper: 'builtin:flow', theme: 'light', accent: '#0063b1' },
-  { id: 'sunrise', name: { en: 'Sunrise', fr: 'Aurore' }, wallpaper: 'builtin:sunrise', theme: 'light', accent: '#da3b01' },
-  { id: 'northern', name: { en: 'Northern lights', fr: 'Aurore boréale' }, wallpaper: 'builtin:aurora', theme: 'dark', accent: '#00b294' },
+  { id: 'dark', name: { en: 'Nocturne', fr: 'Nocturne' }, wallpaper: 'builtin:nocturne', theme: 'dark', accent: '#c9d3e6' },
+  { id: 'light', name: { en: 'Nocturne, light', fr: 'Nocturne clair' }, wallpaper: 'builtin:nocturne', theme: 'light', accent: '#c9d3e6' },
+  { id: 'eclipse', name: { en: 'Eclipse', fr: 'Éclipse' }, wallpaper: 'builtin:eclipse', theme: 'dark', accent: '#e9b566' },
+  { id: 'eclipse-light', name: { en: 'Eclipse, light', fr: 'Éclipse clair' }, wallpaper: 'builtin:eclipse', theme: 'light', accent: '#e9b566' },
+  { id: 'clairdelune', name: { en: 'Moonlight', fr: 'Clair de lune' }, wallpaper: 'builtin:clairdelune', theme: 'dark', accent: '#a58bf2' },
+  { id: 'clairdelune-light', name: { en: 'Moonlight, dawn', fr: 'Clair de lune, aube' }, wallpaper: 'builtin:clairdelune', theme: 'light', accent: '#6f8de6' },
 ];
 
 const SOLIDS = ['#0b5394', '#1e3a5f', '#004e8c', '#0063b1', '#2d7d9a', '#038387', '#107c10', '#498205', '#5c2e91', '#8764b8', '#881798', '#c30052', '#a4262c', '#ca5010', '#986f0b', '#7a7574', '#4c4a48', '#1f1f1f'];
@@ -76,7 +76,7 @@ function preview(pc, { start = false, big = false } = {}) {
     const mode = all.theme === 'dark' ? 'dark' : 'light';
     el.dataset.mode = mode;
     el.dataset.fit = all.wallpaperFit || 'fill';
-    el.style.setProperty('--pv-accent', all.accent || '#0078d4');
+    el.style.setProperty('--pv-accent', all.accent || ACCENTS[0]);
     el.style.backgroundImage = `url("${resolveWallpaper(all.wallpaper, mode)}")`;
   };
   paint();
@@ -286,7 +286,7 @@ async function background(pc) {
     onChange: async (v) => {
       kind = v;
       if (v === 'solid' && !isSolid()) await settings.set('wallpaper', solidWallpaper(SOLIDS[0]));
-      if (v === 'picture' && isSolid()) await settings.set('wallpaper', 'builtin:bloom');
+      if (v === 'picture' && isSolid()) await settings.set('wallpaper', 'builtin:nocturne');
       paintBody();
     },
   });
@@ -328,22 +328,25 @@ async function colors(pc) {
   const { seg: mode, autoRow } = modeControl(pc);
   const { fromRow } = accentControls(pc);
   const { colorRow } = taskbarColorControls(pc);
+  const amb = ambianceControl(pc);
+  const modeNow = () => (settings.get('theme') === 'dark' ? 'dark' : 'light');
 
+  // the four Selene accents, named (lunar silver, night blue, violet, amber), drawn as they look in this mode
   const swatches = h(
     'div',
     { class: 'st-swatches', role: 'listbox', 'aria-label': t('pers.accent') },
-    ACCENTS.map((c) => {
-      const b = h('button', { class: 'st-swatch', type: 'button', role: 'option', 'aria-label': c, 'data-tip': c, onclick: () => pickAccent(c) });
-      b.style.setProperty('--sw', c);
-      return b;
+    ACCENT_PRESETS.map((a) => {
+      const name = L(pc, a.name);
+      return h('button', { class: 'st-swatch', type: 'button', role: 'option', 'aria-label': name, 'data-tip': name, dataset: { hex: a.hex, accent: a.id }, onclick: () => pickAccent(a.hex) });
     }),
   );
   const syncFocus = rovingFocus(swatches, '.st-swatch');
   // updated in place (rebuilding the buttons would drop the keyboard focus)
   const paintSw = () => {
-    const cur = String(settings.get('accent') || '#0078d4').toLowerCase();
+    const cur = String(settings.get('accent') || ACCENTS[0]).toLowerCase();
     for (const b of swatches.children) {
-      const on = b.getAttribute('aria-label') === cur;
+      b.style.setProperty('--sw', accentPreset(b.dataset.hex)?.[modeNow()].accent || b.dataset.hex);
+      const on = b.dataset.hex === cur;
       b.classList.toggle('selected', on);
       b.setAttribute('aria-selected', String(on));
     }
@@ -356,6 +359,7 @@ async function colors(pc) {
   }
   paintSw();
   pc.onDispose(settings.on('accent', paintSw));
+  pc.onDispose(settings.on('theme', paintSw));
   return h(
     'div',
     null,
@@ -364,6 +368,7 @@ async function colors(pc) {
       null,
       kit.row({ icon: 'dark_theme', title: t('pers.mode'), desc: t('pers.modeDesc'), section: 'mode', control: mode }),
       autoRow,
+      amb.row,
       kit.settingToggleRow({ icon: 'blur', title: t('pers.transparency'), desc: t('pers.transparencyDesc'), key: 'transparency', def: true, section: 'transparency' }),
       kit.expander({
         icon: 'color',
@@ -382,7 +387,7 @@ async function colors(pc) {
               { class: 'row', style: { gap: '12px' } },
               h('span', null, t('pers.customColors')),
               kit.button(t('pers.viewColors'), async () => {
-                const c = await pickColor(pc, settings.get('accent') || '#0078d4');
+                const c = await pickColor(pc, settings.get('accent') || ACCENTS[0]);
                 if (c) pickAccent(c);
               }),
             ),

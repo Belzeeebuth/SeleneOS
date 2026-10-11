@@ -1,0 +1,41 @@
+/* Visual style "Éclipse": graphite, amber accent used sparingly, a full-width opaque bar docked to the
+   bottom edge, borderless windows with a soft shadow, an accent bar on selected list rows.
+   Defaults: ambiance neutral, accent amber (core/theme.js STYLES). Tokens and hooks only
+   (docs/design/SYSTEM.md §4). */
+@scope ([data-style="eclipse"]) to ([data-style]:not([data-style="eclipse"])) {
+  :scope {
+    --r-xs: 4px;
+    --r-sm: 6px;
+    --r: 8px;
+    --r-lg: 8px;
+    --r-float: 12px;
+    --tp-k: 1;
+    --blur-k: 0.86; /* Lanceur and panels: 24 px */
+    --blur-sat: 120%;
+    --titlebar-h: 36px;
+    --titlebar-tall-h: 44px;
+
+    /* bar: opaque, full width, docked (no margin, no radius, no blur); a hairline on its top edge */
+    --bar-mode: full;
+    --bar-apps-align: center;
+    --bar-h: 48px;
+    --bar-margin: 0px;
+    --bar-radius: 0px;
+    --bar-gap: 0px;
+    --bar-border-w: 1px;
+    --bar-indicator: top-line;
+    --bar-blur: 0;
+    --a-taskbar: 1;
+
+    /* windows: no visible border, soft shadow, 8 px corners */
+    --win-border-w: 0px;
+    --win-shadow-y: 18px;
+    --win-shadow-blur: 48px;
+    --win-shadow-k: 0.85;
+
+    /* selected list rows: a 3 px accent bar on the left; keyboard focus: 2 px accent outline */
+    --sel-mode: bar;
+    --sel-bar-w: 3px;
+    --panel-grain: none;
+  }
+}

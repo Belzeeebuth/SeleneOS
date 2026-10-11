@@ -1,38 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="bg" x1="7" y1="4" x2="41" y2="44" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ff9a62"/>
-      <stop offset=".48" stop-color="#f4436f"/>
-      <stop offset="1" stop-color="#a62fb0"/>
-    </linearGradient>
-    <linearGradient id="gloss" x1="0" y1="4" x2="0" y2="25" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fff" stop-opacity=".34"/>
-      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-    </linearGradient>
-    <linearGradient id="mark" x1="12" y1="11" x2="36" y2="37" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fff"/>
-      <stop offset="1" stop-color="#ffe0ea"/>
-    </linearGradient>
-    <radialGradient id="lens" cx="22.4" cy="22.2" r="7" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ff8f7a"/>
-      <stop offset="1" stop-color="#d6266c"/>
-    </radialGradient>
-    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="1" stdDeviation=".8" flood-color="#6a0d4a" flood-opacity=".35"/>
-    </filter>
-  </defs>
-  <rect x="4" y="4" width="40" height="40" rx="10" fill="url(#bg)"/>
-  <path d="M14 4h20a10 10 0 0 1 10 10v5.5C33 15.8 15 15.8 4 19.5V14A10 10 0 0 1 14 4z" fill="url(#gloss)"/>
-  <rect x="4.5" y="4.5" width="39" height="39" rx="9.5" fill="none" stroke="#fff" stroke-opacity=".18"/>
-  <g filter="url(#sh)" fill="none" stroke="url(#mark)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M12.5 19.5v-3.5a3.5 3.5 0 0 1 3.5-3.5h3.5"/>
-    <path d="M28.5 12.5h3.5a3.5 3.5 0 0 1 3.5 3.5v3.5"/>
-    <path d="M35.5 28.5v3.5a3.5 3.5 0 0 1-3.5 3.5h-3.5"/>
-    <path d="M19.5 35.5h-3.5a3.5 3.5 0 0 1-3.5-3.5v-3.5"/>
-  </g>
-  <g filter="url(#sh)">
-    <circle cx="24" cy="24" r="6.2" fill="url(#mark)"/>
-    <circle cx="24" cy="24" r="3.3" fill="url(#lens)"/>
-    <circle cx="22.9" cy="22.8" r="1" fill="#fff" fill-opacity=".85"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="snipping-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="snipping-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="snipping-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e4bcc1"/><stop offset="1" stop-color="#d89ca4"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#snipping-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#snipping-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#snipping-f)"><path d="M228,40V80a12,12,0,0,1-24,0V52H176a12,12,0,0,1,0-24h40A12,12,0,0,1,228,40ZM80,204H52V176a12,12,0,0,0-24,0v40a12,12,0,0,0,12,12H80a12,12,0,0,0,0-24Zm136-40a12,12,0,0,0-12,12v28H176a12,12,0,0,0,0,24h40a12,12,0,0,0,12-12V176A12,12,0,0,0,216,164ZM40,92A12,12,0,0,0,52,80V52H80a12,12,0,0,0,0-24H40A12,12,0,0,0,28,40V80A12,12,0,0,0,40,92ZM84,72h88a12,12,0,0,1,12,12v88a12,12,0,0,1-12,12H84a12,12,0,0,1-12-12V84A12,12,0,0,1,84,72Zm12,88h64V96H96Z"/></g>
 </svg>

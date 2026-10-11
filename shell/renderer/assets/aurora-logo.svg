@@ -1,26 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <!-- Selene OS logo: crescent moon and a four-point star, silver-white to indigo. -->
-  <defs>
-    <radialGradient id="moon" cx="10" cy="13" r="40" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#f4f6ff"/>
-      <stop offset=".32" stop-color="#b6c3ff"/>
-      <stop offset=".68" stop-color="#6c7cf4"/>
-      <stop offset="1" stop-color="#3b33b5"/>
-    </radialGradient>
-    <linearGradient id="rim" x1="40" y1="31" x2="20" y2="7" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
-      <stop offset=".5" stop-color="#fff" stop-opacity=".5"/>
-      <stop offset="1" stop-color="#fff" stop-opacity=".15"/>
-    </linearGradient>
-    <linearGradient id="star" x1="34" y1="5" x2="43" y2="14" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#e3e8ff"/>
-      <stop offset="1" stop-color="#6d7cf6"/>
-    </linearGradient>
-    <clipPath id="crescent">
-      <path d="M18.33 7.36A19 19 0 1 0 40.04 31.96A16.5 16.5 0 0 1 18.33 7.36Z"/>
-    </clipPath>
-  </defs>
-  <path d="M18.33 7.36A19 19 0 1 0 40.04 31.96A16.5 16.5 0 0 1 18.33 7.36Z" fill="url(#moon)" stroke="url(#moon)" stroke-width="1" stroke-linejoin="round"/>
-  <path d="M40.04 31.96A16.5 16.5 0 0 1 18.33 7.36" fill="none" stroke="url(#rim)" stroke-width="1.6" clip-path="url(#crescent)"/>
-  <path d="M38.5 4Q39.8 8.2 44 9.5Q39.8 10.8 38.5 15Q37.2 10.8 33 9.5Q37.2 8.2 38.5 4Z" fill="url(#star)" stroke="url(#star)" stroke-width=".6" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene logo: a slim crescent and a round dot-star (tools/gen-app-icons.mjs). Silver with a slate rim, so it
+     reads on dark and light surfaces alike. Geometry (48 grid) is shared with the installer art and the winver icon. -->
+<defs>
+<linearGradient id="selene-logo-m" x1="10" y1="10" x2="26" y2="44" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f4f6fb"/><stop offset="1" stop-color="#a9b4ca"/></linearGradient>
+</defs>
+<path d="M15.04 10.58A17 17 0 1 0 36.92 32.46A15.6 15.6 0 0 1 15.04 10.58Z" fill="url(#selene-logo-m)" stroke="#4d5a75" stroke-opacity=".85" stroke-width=".9" stroke-linejoin="round"/>
+<circle cx="37.2" cy="10.6" r="2.7" fill="#dfe5f0" stroke="#4d5a75" stroke-opacity=".85" stroke-width=".9"/>
 </svg>

@@ -20,9 +20,10 @@ const svg = (body, cls = '') => `<svg class="ins-svg ${cls}" viewBox="0 0 240 24
 const LOGO = (x, y, s) => `
   <g transform="translate(${x} ${y}) scale(${s / 48})">
     <rect x="3" y="3" width="42" height="42" rx="12" fill="url(#ins-g)"/>
-    <g transform="translate(9 10) scale(.62)" fill="#fff">
-      <path d="M18.33 7.36A19 19 0 1 0 40.04 31.96A16.5 16.5 0 0 1 18.33 7.36Z" fill-opacity=".95"/>
-      <path d="M38.5 4Q39.8 8.2 44 9.5Q39.8 10.8 38.5 15Q37.2 10.8 33 9.5Q37.2 8.2 38.5 4Z" fill-opacity=".85"/>
+    <g transform="translate(10.4 8.1) scale(.62)" fill="#fff">
+      <!-- Selene logo (crescent and dot-star, 48 grid): LOGO in core/app-glyphs.js, tools/gen-app-icons.mjs -->
+      <path d="M15.04 10.58A17 17 0 1 0 36.92 32.46A15.6 15.6 0 0 1 15.04 10.58Z" fill-opacity=".95"/>
+      <circle cx="37.2" cy="10.6" r="2.7" fill-opacity=".9"/>
     </g>
   </g>`;
 

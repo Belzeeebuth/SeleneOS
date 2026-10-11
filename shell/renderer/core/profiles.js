@@ -16,7 +16,7 @@
 // "look" that the built-in profiles reset, to LOOK_KEYS) and add a validator to VALIDATORS.
 import { api, Emitter } from './api.js';
 import { settings } from './settings.js';
-import { theme, STYLES, FONTS } from './theme.js';
+import { theme, STYLES, FONTS, AMBIANCES, LEGACY_STYLES } from './theme.js';
 import { EFFECT_IDS, SET_IDS } from './wallpaper/dynamic.js';
 import { i18n } from './i18n.js';
 import { SHORTCUT_IDS, isAppAction, validCombo } from './shortcuts.js';
@@ -24,7 +24,7 @@ import { SHORTCUT_IDS, isAppAction, validCombo } from './shortcuts.js';
 /** Every settings key a profile saves and restores (dotted keys are sub-keys). */
 export const PROFILE_KEYS = [
   // Area A — theme engine
-  'style', 'theme', 'autoTheme', 'accent', 'accentFromWallpaper', 'transparency', 'transparencyLevel', 'blur',
+  'style', 'ambiance', 'theme', 'autoTheme', 'accent', 'accentFromWallpaper', 'transparency', 'transparencyLevel', 'blur',
   'cornerRadius', 'fontFamily', 'textScale', 'scale', 'reducedMotion', 'animations', 'taskbar.color', 'taskbar.opacity', 'appThemes',
   // wallpapers (B1)
   'wallpaper', 'wallpaperFit', 'lockWallpaper', 'wallpaperMode', 'animatedWallpaper', 'dynamicWallpaper', 'slideshow', 'lockScreen',
@@ -43,20 +43,18 @@ export const PROFILE_KEYS = [
 export const PROFILE_EXCLUDE = ['focusMode.active', 'focusMode.endsAt', 'focusMode.prevDnd'];
 /** The "look": what a built-in profile sets (every other key is left alone — text size, scale, layout…). */
 export const LOOK_KEYS = [
-  'style', 'theme', 'autoTheme', 'accent', 'accentFromWallpaper', 'transparencyLevel', 'blur', 'cornerRadius', 'fontFamily',
+  'style', 'ambiance', 'theme', 'autoTheme', 'accent', 'accentFromWallpaper', 'transparencyLevel', 'blur', 'cornerRadius', 'fontFamily',
   'taskbar.color', 'taskbar.opacity', 'wallpaper', 'wallpaperFit', 'wallpaperMode', 'cursorPack', 'iconPack', 'soundPack',
 ];
 
 const solid = (c) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="10"><rect width="16" height="10" fill="${c}"/></svg>`)}`;
 
 export const BUILTIN_PROFILES = [
-  { id: 'aurora-light', name: { en: 'Selene Light', fr: 'Selene clair' }, values: { style: 'win11', theme: 'light', accent: '#0078d4', wallpaper: 'builtin:bloom' } },
-  { id: 'aurora-dark', name: { en: 'Selene Dark', fr: 'Selene sombre' }, values: { style: 'win11', theme: 'dark', accent: '#0078d4', wallpaper: 'builtin:bloom' } },
-  { id: 'glass', name: { en: 'Glass', fr: 'Verre' }, values: { style: 'glass', theme: 'dark', accent: '#b146c2', wallpaper: 'builtin:glow', transparencyLevel: 60, blur: 60 } },
-  { id: 'minimal', name: { en: 'Minimal', fr: 'Minimal' }, values: { style: 'minimal', theme: 'light', accent: '#5d5a58', wallpaper: solid('#d9d6cf'), cornerRadius: 75 } },
-  { id: 'retro', name: { en: 'Retro', fr: 'Rétro' }, values: { style: 'retro', theme: 'light', accent: '#1f3f99', wallpaper: solid('#2a7c7a'), fontFamily: 'liberation-sans', cursorPack: 'retro', soundPack: 'retro' } },
-  { id: 'contrast', name: { en: 'High Contrast', fr: 'Contraste élevé' }, values: { style: 'contrast', theme: 'dark', accent: '#0078d4', wallpaper: solid('#000000'), cursorPack: 'highvis' } },
-  { id: 'night-owl', name: { en: 'Night Owl', fr: 'Oiseau de nuit' }, values: { style: 'win11', theme: 'dark', accent: '#6b69d6', wallpaper: 'builtin:aurora', transparencyLevel: 65, blur: 70, 'taskbar.color': 'accent' } },
+  { id: 'aurora-dark', name: { en: 'Nocturne', fr: 'Nocturne' }, values: { style: 'nocturne', ambiance: 'cold', theme: 'dark', accent: '#c9d3e6', wallpaper: 'builtin:nocturne' } },
+  { id: 'aurora-light', name: { en: 'Nocturne, light', fr: 'Nocturne clair' }, values: { style: 'nocturne', ambiance: 'cold', theme: 'light', accent: '#c9d3e6', wallpaper: 'builtin:nocturne' } },
+  { id: 'eclipse', name: { en: 'Eclipse', fr: 'Éclipse' }, values: { style: 'eclipse', ambiance: 'neutral', theme: 'dark', accent: '#e9b566', wallpaper: 'builtin:eclipse' } },
+  { id: 'clairdelune', name: { en: 'Moonlight', fr: 'Clair de lune' }, values: { style: 'clairdelune', ambiance: 'warm', theme: 'dark', accent: '#a58bf2', wallpaper: 'builtin:clairdelune' } },
+  { id: 'contrast', name: { en: 'High Contrast', fr: 'Contraste élevé' }, values: { style: 'contrast', theme: 'dark', accent: '#c9d3e6', wallpaper: solid('#000000'), cursorPack: 'highvis' } },
 ];
 
 // ---------------------------------------------------------------- helpers
@@ -148,7 +146,9 @@ function decodeURIComponentSafe(s) {
 }
 /** Validators: return the (normalised) value, or undefined when invalid. */
 export const VALIDATORS = {
-  style: oneOf(...STYLES.map((s) => s.id)),
+  // older releases' styles (win11, minimal, glass, retro) become Nocturne
+  style: (v) => (LEGACY_STYLES.includes(v) ? 'nocturne' : oneOf(...STYLES.map((s) => s.id))(v)),
+  ambiance: oneOf(...AMBIANCES.map((a) => a.id)),
   theme: oneOf('light', 'dark'),
   autoTheme: (v) => (isObj(v) && typeof v.enabled === 'boolean' && TIME.test(v.light || '') && TIME.test(v.dark || '') ? { enabled: v.enabled, light: v.light, dark: v.dark } : undefined),
   accent: hex,
@@ -196,7 +196,7 @@ export const VALIDATORS = {
           ? { name: String(loc.name ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 120), lat: loc.lat, lon: loc.lon }
           : undefined;
     if (place === undefined) return undefined;
-    return { source: v.source === 'weather' ? 'weather' : 'time', set: SET_IDS.includes(v.set) ? v.set : 'bloom', location: place, followTheme: v.followTheme === true };
+    return { source: v.source === 'weather' ? 'weather' : 'time', set: SET_IDS.includes(v.set) ? v.set : SET_IDS[0], location: place, followTheme: v.followTheme === true };
   },
   slideshow: (v) => {
     if (!isObj(v)) return undefined;
@@ -238,7 +238,7 @@ export const VALIDATORS = {
   // so this module does not import the shell runtime)
   cursorPack: oneOf('default', 'classic', 'midnight', 'accent', 'large', 'highvis', 'retro'),
   cursorSize: int(100, 300),
-  iconPack: oneOf('fluent', 'tiles', 'accent', 'glass', 'graphite', 'mono', 'outline', 'retro'),
+  iconPack: oneOf('selene', 'fluent', 'tiles', 'accent', 'glass', 'graphite', 'mono', 'outline', 'retro'),
   soundPack: oneOf('aurora', 'chimes', 'retro', 'soft', 'silent'),
   soundEvents: shape({ notification: soundRef, startup: soundRef, shutdown: soundRef }),
   soundVolume: int(0, 100),

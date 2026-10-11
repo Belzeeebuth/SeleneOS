@@ -1,34 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="pwShield" x1="10" y1="4" x2="36" y2="40" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#4fb6f4"/>
-      <stop offset="0.55" stop-color="#2878e0"/>
-      <stop offset="1" stop-color="#1a4fb8"/>
-    </linearGradient>
-    <linearGradient id="pwLock" x1="27" y1="24" x2="42" y2="44" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffd56a"/>
-      <stop offset="1" stop-color="#f0a21c"/>
-    </linearGradient>
-    <linearGradient id="pwShackle" x1="29" y1="17" x2="40" y2="28" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#c9d3e0"/>
-      <stop offset="1" stop-color="#8794a8"/>
-    </linearGradient>
-    <radialGradient id="pwShine" cx="14" cy="8" r="20" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" stop-opacity=".55"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <path d="M22 5.6c4.6 3 9.4 4.4 14.6 4.6v12.6c0 9.3-5.6 15.6-14.6 19.6C13 37.8 7.4 31.5 7.4 22.2V10.2C12.6 10 17.4 8.6 22 5.6z" fill="#0b2f78" opacity=".18" transform="translate(0 1.2)"/>
-  <path d="M22 5.6c4.6 3 9.4 4.4 14.6 4.6v12.6c0 9.3-5.6 15.6-14.6 19.6C13 37.8 7.4 31.5 7.4 22.2V10.2C12.6 10 17.4 8.6 22 5.6z" fill="url(#pwShield)"/>
-  <path d="M22 5.6c4.6 3 9.4 4.4 14.6 4.6v12.6c0 9.3-5.6 15.6-14.6 19.6C13 37.8 7.4 31.5 7.4 22.2V10.2C12.6 10 17.4 8.6 22 5.6z" fill="url(#pwShine)"/>
-  <rect x="11.5" y="17.5" width="21" height="8" rx="4" fill="#ffffff" opacity=".95"/>
-  <circle cx="16" cy="21.5" r="1.6" fill="#1f5fcf"/>
-  <circle cx="20.5" cy="21.5" r="1.6" fill="#1f5fcf"/>
-  <circle cx="25" cy="21.5" r="1.6" fill="#1f5fcf"/>
-  <path d="M30.5 29v-3.2a4 4 0 0 1 8 0V29" fill="none" stroke="url(#pwShackle)" stroke-width="2.6" stroke-linecap="round"/>
-  <rect x="26.5" y="28" width="16" height="13.5" rx="3" fill="#7a4a00" opacity=".22" transform="translate(0 1)"/>
-  <rect x="26.5" y="28" width="16" height="13.5" rx="3" fill="url(#pwLock)"/>
-  <rect x="27" y="28.5" width="15" height="12.5" rx="2.6" fill="none" stroke="#ffffff" stroke-opacity=".45"/>
-  <circle cx="34.5" cy="33.6" r="1.8" fill="#7a4a00"/>
-  <rect x="33.7" y="34.4" width="1.6" height="3.6" rx=".8" fill="#7a4a00"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="passwords-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="passwords-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="passwords-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e7cea7"/><stop offset="1" stop-color="#dcb77e"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#passwords-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#passwords-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#passwords-f)"><path d="M216.57,39.43A80,80,0,0,0,83.91,120.78L28.69,176A15.86,15.86,0,0,0,24,187.31V216a16,16,0,0,0,16,16H72a8,8,0,0,0,8-8V208H96a8,8,0,0,0,8-8V184h16a8,8,0,0,0,5.66-2.34l9.56-9.57A79.73,79.73,0,0,0,160,176h.1A80,80,0,0,0,216.57,39.43ZM180,92a16,16,0,1,1,16-16A16,16,0,0,1,180,92Z"/></g>
 </svg>

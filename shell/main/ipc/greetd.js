@@ -449,7 +449,7 @@ function createState(api) {
 // ------------------------------------------------------------------ dev mock
 const MOCK_USERS = [
   { name: 'alex', fullName: 'Alex Morgan', uid: 1000 },
-  { name: 'camille', fullName: 'Camille Laurent', uid: 1001, avatar: 'app://shell/assets/wallpapers/sunrise.jpg' },
+  { name: 'camille', fullName: 'Camille Laurent', uid: 1001, avatar: 'app://shell/assets/wallpapers/clairdelune-light.jpg' },
   { name: 'sam', fullName: 'Sam Rivera', uid: 1002 },
 ];
 

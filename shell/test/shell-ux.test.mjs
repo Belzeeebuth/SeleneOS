@@ -143,9 +143,9 @@ function seedHome(home) {
   for (const n of ['Budget 2026.xlsx', 'Meeting notes.txt', 'Report.pdf', 'Holiday playlist.mp3']) fs.writeFileSync(path.join(home, 'Desktop', n), 'x');
   for (const n of ['Project plan.docx', 'Quarterly review.pptx', 'Invoice 0425.pdf', 'Recipes.txt']) fs.writeFileSync(path.join(home, 'Documents', n), 'x');
   const wp = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'renderer', 'assets', 'wallpapers');
-  fs.copyFileSync(path.join(wp, 'dunes.jpg'), path.join(home, 'Desktop', 'Dunes.jpg'));
-  fs.copyFileSync(path.join(wp, 'aurora.jpg'), path.join(home, 'Pictures', 'Northern lights.jpg'));
-  fs.copyFileSync(path.join(wp, 'glow-light.jpg'), path.join(home, 'Pictures', 'Glow.jpg'));
+  fs.copyFileSync(path.join(wp, 'clairdelune-dark.jpg'), path.join(home, 'Desktop', 'Dunes.jpg'));
+  fs.copyFileSync(path.join(wp, 'milkyway.jpg'), path.join(home, 'Pictures', 'Northern lights.jpg'));
+  fs.copyFileSync(path.join(wp, 'eclipse-light.jpg'), path.join(home, 'Pictures', 'Glow.jpg'));
 }
 
 // ------------------------------------------------------------------------------------------ units
@@ -162,9 +162,9 @@ async function unitTests() {
       out.accentDarkHasOnAccent = dark['--on-accent'] === '#000000';
       out.accentLightOnAccent = light['--on-accent'] === '#ffffff';
       out.accentFallback = th.accentVars('not-a-colour', 'light')['--accent-base'] === '#0078d4';
-      out.wpLight = th.resolveWallpaper('builtin:bloom', 'light').endsWith('bloom-light.jpg');
-      out.wpDark = th.resolveWallpaper('builtin:bloom', 'dark').endsWith('bloom-dark.jpg');
-      out.wpUnknown = th.resolveWallpaper('builtin:nope', 'light').endsWith('bloom-light.jpg');
+      out.wpLight = th.resolveWallpaper('builtin:nocturne', 'light').endsWith('nocturne-light.jpg');
+      out.wpDark = th.resolveWallpaper('builtin:nocturne', 'dark').endsWith('nocturne-dark.jpg');
+      out.wpUnknown = th.resolveWallpaper('builtin:nope', 'light').endsWith('nocturne-light.jpg');
       out.allWallpapers = await Promise.all(th.WALLPAPERS.flatMap((w) => [w.light, w.dark]).map((f) => fetch(`app://shell/assets/wallpapers/${f}`).then((x) => x.ok)));
       const sets = st.search.settings('wifi');
       out.settingsWifi = sets[0]?.page === 'wifi';
@@ -174,7 +174,7 @@ async function unitTests() {
       // hostile values never escape CSS url("…") or reach a non-image scheme
       const evil = th.resolveWallpaper('/tmp/a") ; background:red; ("b.jpg', 'light');
       out.wpQuoteSafe = !evil.includes('"') && evil.startsWith('media://');
-      out.wpScheme = th.resolveWallpaper('javascript:alert(1)', 'light').endsWith('bloom-light.jpg') && th.resolveWallpaper('https://example.com/a.jpg', 'dark') === 'https://example.com/a.jpg';
+      out.wpScheme = th.resolveWallpaper('javascript:alert(1)', 'light').endsWith('nocturne-light.jpg') && th.resolveWallpaper('https://example.com/a.jpg', 'dark') === 'https://example.com/a.jpg';
       const tick = () => new Promise((r) => setTimeout(r, 80));
       await window.__aurora.settings.set('searchEngine', 'javascript:alert(1)//');
       await tick();

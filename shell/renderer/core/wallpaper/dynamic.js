@@ -4,18 +4,20 @@
 //   variantUrl(setId, phase) -> app:// URL of a variant
 //   spotlightList()         every built-in picture (Lock screen "Spotlight" rotation)
 //   spotlightPick(date)     -> { url, name } of the day (fixed order: two consecutive days never share a family)
-//   pictureFamily(url)      -> 'bloom' | 'dunes' | 'lake' | 'glow' | 'flow' | 'sunrise'
+//   pictureFamily(url)      -> 'lake' | 'dunes' | 'peaks' | 'eclipse' | 'forest' | 'milkyway'
 import { phaseAt } from './solar.js';
 
 const BASE = 'app://shell/assets/wallpapers/';
 /** Ids of the animated effects (effects/index.js) and of the time-of-day sets — light constants for validators. */
 export const EFFECT_IDS = ['aurora', 'bloom', 'fluid', 'bokeh', 'starfield', 'waves'];
-export const SET_IDS = ['bloom', 'dunes', 'lake'];
+export const SET_IDS = ['lake', 'dunes', 'peaks'];
 
+// Lunar sets. Dawn and night reuse the static picture of the same scene (core/theme.js WALLPAPERS); day and dusk
+// are rendered into dynamic/<set>-<phase>.jpg by tools/gen-wallpapers.mjs --only=dynamic.
 export const DYNAMIC_SETS = [
-  { id: 'bloom', name: { en: 'Bloom', fr: 'Floraison' }, variants: { dawn: 'dynamic/bloom-dawn.jpg', day: 'dynamic/bloom-day.jpg', dusk: 'dynamic/bloom-dusk.jpg', night: 'dynamic/bloom-night.jpg' } },
-  { id: 'dunes', name: { en: 'Dunes', fr: 'Dunes' }, variants: { dawn: 'dynamic/dunes-dawn.jpg', day: 'dynamic/dunes-day.jpg', dusk: 'dynamic/dunes-dusk.jpg', night: 'dynamic/dunes-night.jpg' } },
-  { id: 'lake', name: { en: 'Lakeside', fr: 'Bord du lac' }, variants: { dawn: 'dynamic/lake-dawn.jpg', day: 'dynamic/lake-day.jpg', dusk: 'dynamic/lake-dusk.jpg', night: 'aurora.jpg' } },
+  { id: 'lake', name: { en: 'Moonlit lake', fr: 'Lac sous la lune' }, variants: { dawn: 'nocturne-light.jpg', day: 'dynamic/lake-day.jpg', dusk: 'dynamic/lake-dusk.jpg', night: 'nocturne-dark.jpg' } },
+  { id: 'dunes', name: { en: 'Moon over the dunes', fr: 'Dunes sous la lune' }, variants: { dawn: 'clairdelune-light.jpg', day: 'dynamic/dunes-day.jpg', dusk: 'dynamic/dunes-dusk.jpg', night: 'clairdelune-dark.jpg' } },
+  { id: 'peaks', name: { en: 'Peaks', fr: 'Cimes' }, variants: { dawn: 'peaks-light.jpg', day: 'dynamic/peaks-day.jpg', dusk: 'dynamic/peaks-dusk.jpg', night: 'peaks-dark.jpg' } },
 ];
 
 export const PHASE_NAMES = {
@@ -35,33 +37,32 @@ export function dynamicPick(setId, date = new Date(), location = null) {
 }
 
 // Built-in pictures for the Spotlight rotation: the static wallpapers and every time-of-day variant, ordered so that
-// two consecutive days (including the wrap-around) never show the same family (Bloom, Dunes, Lakeside, Glow, Flow…).
+// two consecutive days (including the wrap-around) never show the same family (Nocturne/lake, Clair de lune/dunes,
+// Peaks, Eclipse, Forest, Milky Way).
 const SPOT = [
-  ['bloom-light.jpg', { en: 'Bloom', fr: 'Floraison' }],
-  ['dynamic/dunes-day.jpg', { en: 'Dunes at noon', fr: 'Dunes à midi' }],
-  ['aurora.jpg', { en: 'Northern lights', fr: 'Aurore boréale' }],
-  ['glow-dark.jpg', { en: 'Glow', fr: 'Lueur' }],
-  ['dynamic/bloom-dusk.jpg', { en: 'Bloom at dusk', fr: 'Floraison au crépuscule' }],
-  ['dynamic/lake-dawn.jpg', { en: 'Lake at dawn', fr: 'Lac à l’aube' }],
-  ['dynamic/dunes-night.jpg', { en: 'Moonlit dunes', fr: 'Dunes au clair de lune' }],
-  ['flow-light.jpg', { en: 'Flow', fr: 'Flux' }],
-  ['dynamic/bloom-day.jpg', { en: 'Bloom by day', fr: 'Floraison de jour' }],
-  ['sunrise.jpg', { en: 'Sunrise', fr: 'Aurore' }],
-  ['dynamic/dunes-dawn.jpg', { en: 'Dunes at dawn', fr: 'Dunes à l’aube' }],
-  ['dynamic/lake-day.jpg', { en: 'Mountain lake', fr: 'Lac de montagne' }],
-  ['bloom-dark.jpg', { en: 'Bloom (dark)', fr: 'Floraison (sombre)' }],
-  ['glow-light.jpg', { en: 'Glow (light)', fr: 'Lueur (clair)' }],
+  ['nocturne-dark.jpg', { en: 'Moon over the lake', fr: 'Lune sur le lac' }],
+  ['dynamic/dunes-day.jpg', { en: 'Dunes by day', fr: 'Dunes de jour' }],
+  ['eclipse-dark.jpg', { en: 'Eclipse', fr: 'Éclipse' }],
+  ['forest-dark.jpg', { en: 'Pines by moonlight', fr: 'Pins au clair de lune' }],
+  ['dynamic/peaks-dusk.jpg', { en: 'Peaks at dusk', fr: 'Cimes au crépuscule' }],
+  ['clairdelune-dark.jpg', { en: 'Phases of the moon', fr: 'Phases de la lune' }],
+  ['milkyway.jpg', { en: 'Milky Way', fr: 'Voie lactée' }],
+  ['dynamic/lake-day.jpg', { en: 'Lake by day', fr: 'Lac de jour' }],
+  ['peaks-light.jpg', { en: 'Peaks at dawn', fr: 'Cimes à l’aube' }],
+  ['eclipse-light.jpg', { en: 'Eclipse (light)', fr: 'Éclipse (clair)' }],
   ['dynamic/dunes-dusk.jpg', { en: 'Dunes at dusk', fr: 'Dunes au crépuscule' }],
-  ['dynamic/bloom-night.jpg', { en: 'Bloom by night', fr: 'Floraison de nuit' }],
+  ['forest-light.jpg', { en: 'Pines in the mist', fr: 'Pins dans la brume' }],
+  ['nocturne-light.jpg', { en: 'Lake at dawn', fr: 'Lac à l’aube' }],
+  ['peaks-dark.jpg', { en: 'Crescent over the peaks', fr: 'Croissant sur les cimes' }],
+  ['clairdelune-light.jpg', { en: 'Dunes at dawn', fr: 'Dunes à l’aube' }],
   ['dynamic/lake-dusk.jpg', { en: 'Lake at dusk', fr: 'Lac au crépuscule' }],
-  ['flow-dark.jpg', { en: 'Flow (dark)', fr: 'Flux (sombre)' }],
-  ['dynamic/bloom-dawn.jpg', { en: 'Bloom at dawn', fr: 'Floraison à l’aube' }],
-  ['dunes.jpg', { en: 'Dunes', fr: 'Dunes' }],
+  ['dynamic/peaks-day.jpg', { en: 'Peaks by day', fr: 'Cimes de jour' }],
 ];
 /** Picture family of a built-in file (consecutive Spotlight days differ in family). */
+const FAMILY = { nocturne: 'lake', clairdelune: 'dunes' };
 export const pictureFamily = (url) => {
-  const f = String(url).split('/').pop().replace(/\.jpg$/, '');
-  return f === 'aurora' ? 'lake' : f.split('-')[0];
+  const f = String(url).split('/').pop().replace(/\.jpg$/, '').split('-')[0];
+  return FAMILY[f] || f;
 };
 export function spotlightList() {
   return SPOT.map(([file, name]) => ({ url: BASE + file, name }));

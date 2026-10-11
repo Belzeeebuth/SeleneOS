@@ -271,7 +271,7 @@ async function iconsPart() {
   const A = (fn, a) => s.aurora(fn, a);
   try {
     const ids = await A(() => import('app://shell/core/packs.js').then((m) => m.ICON_PACKS.map((p) => p.id)));
-    check(['fluent', 'mono', 'glass', 'retro', 'graphite', 'tiles'].every((x) => ids.includes(x)), `icon packs: ${ids.join(', ')}`);
+    check(['selene', 'mono', 'glass', 'retro', 'graphite', 'tiles'].every((x) => ids.includes(x)), `icon packs: ${ids.join(', ')}`);
     await A(() => window.__aurora.notify({ title: 'Icon test', body: 'toast', appId: 'notepad' }));
     await sleep(300);
     const where = () =>
@@ -292,10 +292,10 @@ async function iconsPart() {
         };
       });
     const f0 = await where();
-    check(f0.taskbar?.startsWith('app://shell/apps/notepad/') && f0.title?.startsWith('app://shell/apps/notepad/') && f0.pack === 'fluent' && (f0.thisPc === 'normal' || f0.thisPc === 'none' || !f0.thisPc?.startsWith('url')), `Fluent color: the apps' own icons (${f0.taskbar})`);
+    check(f0.taskbar?.startsWith('app://shell/apps/notepad/') && f0.title?.startsWith('app://shell/apps/notepad/') && f0.pack === 'selene' && (f0.thisPc === 'normal' || f0.thisPc === 'none' || !f0.thisPc?.startsWith('url')), `Selene: the apps' own icons (${f0.taskbar})`);
     await go(s, 'iconPacks', { maximize: false });
     const seen = {};
-    for (const id of ids.filter((x) => x !== 'fluent')) {
+    for (const id of ids.filter((x) => x !== 'selene')) {
       await s.page.locator(S(`.pzs-card[data-pack="${id}"]`)).click();
       // (a toast only lives a few seconds: post a fresh one for every pack)
       await A(() => window.__aurora.notify({ title: 'Icon test', body: 'toast', appId: 'notepad' }));
@@ -349,12 +349,12 @@ async function iconsPart() {
     await sleep(500);
     const ac2 = await A(() => document.querySelector('#taskbar .tb-app[data-app="notepad"] img').getAttribute('src'));
     check(ac1 !== ac2 && decodeURIComponent(ac2).includes('#107c10'), 'Accent tiles are redrawn when the accent changes');
-    // back to Fluent: everything back to the apps' own files, the CSS hook removed
-    await s.page.locator(S('.pzs-card[data-pack="fluent"]')).click();
+    // back to Selene: everything back to the apps' own files, the CSS hook removed
+    await s.page.locator(S('.pzs-card[data-pack="selene"]')).click();
     await A(() => window.__aurora.notify({ title: 'Icon test', body: 'toast', appId: 'notepad' }));
     await sleep(500);
     const f1 = await where();
-    check(f1.taskbar?.startsWith('app://') && f1.title?.startsWith('app://') && f1.toast?.startsWith('app://') && !(await A(() => !!document.getElementById('aurora-iconpack-css'))), `back to Fluent: the apps’ own icons everywhere, no icon style sheet (${f1.taskbar?.slice(0, 30)}, ${f1.title?.slice(0, 30)}, ${f1.toast?.slice(0, 30)})`);
+    check(f1.taskbar?.startsWith('app://') && f1.title?.startsWith('app://') && f1.toast?.startsWith('app://') && !(await A(() => !!document.getElementById('aurora-iconpack-css'))), `back to Selene: the apps’ own icons everywhere, no icon style sheet (${f1.taskbar?.slice(0, 30)}, ${f1.title?.slice(0, 30)}, ${f1.toast?.slice(0, 30)})`);
     // the Settings previews never swap
     const fixed = await A(() => [...document.querySelectorAll('.app-settings .pzs-card[data-pack="glass"] img')].every((i) => i.getAttribute('src').startsWith('data:image/svg')));
     check(fixed, 'pack previews keep their own pictures (data-icon-fixed)');
@@ -1005,7 +1005,7 @@ async function perfPart() {
       return Math.round((performance.now() - t0) / 21);
     });
     const ic = await A(async () => {
-      const packs = ['tiles', 'accent', 'glass', 'graphite', 'mono', 'outline', 'retro', 'fluent'];
+      const packs = ['tiles', 'accent', 'glass', 'graphite', 'mono', 'outline', 'retro', 'selene'];
       const t0 = performance.now();
       for (let i = 0; i < 24; i++) await window.__aurora.settings.set('iconPack', packs[i % packs.length]);
       return Math.round((performance.now() - t0) / 24);

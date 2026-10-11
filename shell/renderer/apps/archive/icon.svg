@@ -1,43 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="body" x1="6" y1="44" x2="42" y2="14" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2459e0"/>
-      <stop offset="0.55" stop-color="#1798e6"/>
-      <stop offset="1" stop-color="#3cc8d8"/>
-    </linearGradient>
-    <linearGradient id="lid" x1="4" y1="19" x2="44" y2="7" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#4a8cf8"/>
-      <stop offset="0.6" stop-color="#43b8f0"/>
-      <stop offset="1" stop-color="#78e2d6"/>
-    </linearGradient>
-    <linearGradient id="shade" x1="0" y1="19" x2="0" y2="24" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0b2f86" stop-opacity=".35"/>
-      <stop offset="1" stop-color="#0b2f86" stop-opacity="0"/>
-    </linearGradient>
-    <linearGradient id="pull" x1="0" y1="26" x2="0" y2="41" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffd768"/>
-      <stop offset="1" stop-color="#f29d1c"/>
-    </linearGradient>
-    <linearGradient id="gloss" x1="0" y1="8" x2="0" y2="14" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" stop-opacity=".55"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </linearGradient>
-  </defs>
-  <rect x="6" y="15" width="36" height="28" rx="5" fill="url(#body)"/>
-  <rect x="6" y="18.5" width="36" height="6" fill="url(#shade)"/>
-  <rect x="4" y="7.5" width="40" height="12" rx="4.5" fill="url(#lid)"/>
-  <rect x="4.6" y="8.1" width="38.8" height="6" rx="4" fill="url(#gloss)"/>
-  <rect x="21" y="7.5" width="6" height="35.5" fill="#ffffff" opacity=".16"/>
-  <g fill="#ffffff" opacity=".92">
-    <rect x="21.6" y="9.4" width="2.6" height="1.9" rx=".6"/>
-    <rect x="23.8" y="12.1" width="2.6" height="1.9" rx=".6"/>
-    <rect x="21.6" y="14.8" width="2.6" height="1.9" rx=".6"/>
-    <rect x="23.8" y="17.5" width="2.6" height="1.9" rx=".6"/>
-    <rect x="21.6" y="20.2" width="2.6" height="1.9" rx=".6"/>
-    <rect x="23.8" y="22.9" width="2.6" height="1.9" rx=".6"/>
-  </g>
-  <rect x="19.6" y="25.4" width="8.8" height="6.4" rx="2.2" fill="url(#pull)"/>
-  <path d="M21.3 30.6h5.4a.9.9 0 0 1 .9.9v7.6a2.6 2.6 0 0 1-2.6 2.6h-2a2.6 2.6 0 0 1-2.6-2.6v-7.6a.9.9 0 0 1 .9-.9z" fill="url(#pull)"/>
-  <rect x="22.7" y="35" width="2.6" height="4.2" rx="1.3" fill="#1b5fd8" opacity=".85"/>
-  <path d="M20.4 26.3h7.2" stroke="#ffffff" stroke-opacity=".6" stroke-width=".9" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="archive-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="archive-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="archive-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dcd2bc"/><stop offset="1" stop-color="#cbbd9d"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#archive-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#archive-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#archive-f)"><path d="M224,48H32A16,16,0,0,0,16,64V88a16,16,0,0,0,16,16v88a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V104a16,16,0,0,0,16-16V64A16,16,0,0,0,224,48Zm-72,96H104a8,8,0,0,1,0-16h48a8,8,0,0,1,0,16Zm72-56H32V64H224V88Z"/></g>
 </svg>

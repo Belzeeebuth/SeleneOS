@@ -28,10 +28,11 @@ Rules for every key:
 
 | Key | Type / range | Default | Effect |
 |---|---|---|---|
-| `style` | `'win11' \| 'minimal' \| 'glass' \| 'retro' \| 'contrast'` | `'win11'` | Visual style: `<html data-style>` plus the style layer `core/styles/<style>.css` |
-| `theme` | `'light' \| 'dark'` | `'light'` | Colour mode: `<html data-theme>` |
+| `style` | `'nocturne' \| 'eclipse' \| 'clairdelune' \| 'contrast'` | `'nocturne'` | Visual style: `<html data-style>` plus the style layer `core/styles/<style>.css`. Older ids (`win11`, `minimal`, `glass`, `retro`) and unknown ids are migrated to `nocturne` (settings.js `migrate()`, profile import) |
+| `ambiance` | `'cold' \| 'neutral' \| 'warm'` | `'cold'` | Colour mood of the surfaces and text: `<html data-ambiance>`. Follows the style (Nocturne cold, Éclipse neutral, Clair de lune warm) unless the user picked another one |
+| `theme` | `'light' \| 'dark'` | `'dark'` | Colour mode: `<html data-theme>` |
 | `autoTheme` | `{ enabled: bool, light: 'HH:MM', dark: 'HH:MM' }` | `{ enabled:false, light:'07:00', dark:'19:00' }` | **Auto** mode. theme.js writes `theme` at the two times, so every consumer keeps reading plain `'light'`/`'dark'`. It also applies the schedule when Auto is turned on (or its times change) and at boot. In between, a manual light/dark choice (quick settings, a profile) is kept until the next boundary |
-| `accent` | `'#rrggbb'` | `'#0078d4'` | Accent colour → `--accent*` (shades depend on the mode) |
+| `accent` | `'#rrggbb'` | `'#c9d3e6'` | Accent colour → `--accent*` and `<html data-accent>`. The four Selene accents are `#c9d3e6` silver, `#6f8de6` night blue, `#a58bf2` violet, `#e9b566` amber, with curated dark / light values (`ACCENT_PRESETS`); any other hex is a custom colour (`data-accent="custom"`, computed shades). Follows the style unless the user picked another one |
 | `accentFromWallpaper` | bool | `false` | When on, theme.js picks the most vivid colour of the wallpaper and writes it to `accent` |
 | `transparency` | bool | `true` | `false` = every surface opaque, no backdrop blur, no Mica (`<html data-transparency="off">`) |
 | `transparencyLevel` | 0–100 | `50` | 0 = opaque … 50 = Windows 11 look … 100 = most see-through. Sets `--tp`, the alpha factor of `--mica-tint*`, `--acrylic*`, `--fly-bg` and `--taskbar-bg` |
@@ -48,11 +49,14 @@ Rules for every key:
 
 Notes:
 
-- **Visual styles have traits** (`STYLES` in theme.js):
-  - `minimal`: opaque, no blur, graphite accent.
-  - `glass`: transparency ×2.3, Mica pre-blur ×0.8 and saturation ×1.9.
-  - `retro`: opaque, no blur.
-  - `contrast`: opaque, no blur, its own palette, ignores `taskbar.color`.
+- **Visual styles have defaults and traits** (`STYLES` in theme.js):
+  - every style: `noMica` (windows are flat; no blurred wallpaper copy is computed).
+  - `nocturne`, `eclipse`, `clairdelune`: `defaults` = the ambiance, accent and wallpaper they bring. Choosing a style
+    (`styleChoicePatch` / `chooseStyle`, or a plain `settings.set('style')`) moves each of them to the new style's
+    default only if it still had the previous style's default value.
+  - `contrast`: opaque, no blur, its own palette (ambiance and accent ignored), ignores `taskbar.color`.
+- **Glass stays readable:** the alpha of the bar, the Lanceur and the panels is clamped to 80–92 % whatever
+  `transparencyLevel` says (blur fails silently in software rendering); windows are always opaque.
 - **Traits beat the sliders**, e.g. *transparency* has no effect in High contrast. Settings shows a note when a
   control is overridden by the style.
 
@@ -97,7 +101,7 @@ Notes:
 |---|---|---|---|
 | `cursorPack` | `'default' \| 'classic' \| 'midnight' \| 'accent' \| 'large' \| 'highvis' \| 'retro'` | `'default'` | Mouse pointer pack (`default` = the system cursors) |
 | `cursorSize` | 100–300 (%) | `100` | Pointer size for every pack; the system pack cannot grow, so above 100 % it is drawn as "Selene light" |
-| `iconPack` | `'fluent' \| 'tiles' \| 'accent' \| 'glass' \| 'graphite' \| 'mono' \| 'outline' \| 'retro'` | `'fluent'` | App icons everywhere in the shell (+ This PC / Recycle Bin, file-type icon tints; `fluent` = the apps' own icons) |
+| `iconPack` | `'selene' \| 'tiles' \| 'accent' \| 'glass' \| 'graphite' \| 'mono' \| 'outline' \| 'retro'` | `'selene'` | App icons everywhere in the shell (+ Ordinateur / Corbeille, file-type icon tints; `selene` = the apps' own icons; a saved `fluent`, the old id, is read as and migrated to `selene`) |
 | `soundPack` | `'aurora' \| 'chimes' \| 'retro' \| 'soft' \| 'silent'` | `'aurora'` | Scheme of every system sound (`silent`: only alarms ring) |
 | `soundEvents` | `{ notification, startup, shutdown }`, each `null \| 'none' \| '<pack>.<sound>' \| '/abs/file.ogg'` | all `null` | Per-event sound. `null` = the pack's sound. Files: `.ogg .oga .opus .wav .mp3 .flac .m4a .webm` |
 | `soundVolume` | 0–100 | `100` | Volume of the system sounds (pack tones and sound files) |
@@ -158,7 +162,8 @@ still override them:
 
 ### Performance
 
-- The Mica copy of the wallpaper is computed once per wallpaper, blur or style change, on a 320 px
+- The Selene styles have no Mica (`noMica`): no blurred copy of the wallpaper is computed and `--mica-image` is
+  `none`. For a style without that trait, the Mica copy is computed once per wallpaper, blur or style change, on a 320 px
   canvas. The wallpaper is decoded once and cached as a ≤ 640 px canvas. A blur or style change on the same
   picture re-blurs it 160 ms after the last change, so dragging the blur slider costs one re-blur, not one per step.
 - Real `backdrop-filter` is used only on small surfaces (taskbar, flyouts, menus, toasts). Windows
@@ -188,22 +193,33 @@ theme.js watches `#windows` (MutationObserver) and decorates every `.win[data-ap
 
 ## 4. Visual styles (`core/styles/<style>.css`)
 
-All style sheets are loaded at boot by theme.js, along with `base.css`, which holds the shared effects:
+The token contract for components is [design/SYSTEM.md](design/SYSTEM.md). theme.js loads every style sheet at boot,
+along with `base.css`, which holds the shared effects:
 
 - blur intensity on the feature surfaces;
 - line heights scaled by `--text-scale`.
 
 Each style is written inside `@scope ([data-style="<id>"])`, so it applies to `<html>` and to any element
 carrying `data-style`. The style cards in Settings use this to render real mini-previews. The closest
-`data-style` wins (scope proximity).
+`data-style` wins (scope proximity). The three Selene styles set **tokens and structural hooks only**
+(`--bar-mode`, `--bar-margin`, `--win-border-w`, `--sel-bar-w`, `--panel-grain`…; SYSTEM.md §3); the
+components read them.
 
-| Style | Look |
-|---|---|
-| `win11` | The default Fluent / Windows 11 look; no overrides |
-| `minimal` | Flat, opaque, no blur, thin 1 px strokes, soft shadows, more whitespace, monochrome accent |
-| `glass` | Glassmorphism: very translucent frosted panels (windows included), bright borders and highlights, larger radii, colourful backdrop glow |
-| `retro` | Original 90s/2000s desktop: bevelled 3D buttons, gradient title bars, square corners, teal and grey palette, crisp text |
-| `contrast` | High contrast. Dark: black, white text, yellow and cyan focus and links. Light: white, black text, dark blue and purple. Opaque, thick borders, text contrast ≥ 7:1 (WCAG AAA) |
+| Style | Look | Defaults |
+|---|---|---|
+| `nocturne` (default) | Ink-blue night, floating bar islands, hairline window borders, 10 px windows | cold, silver, `builtin:nocturne` |
+| `eclipse` | Graphite, full-width opaque bar, borderless windows with a soft shadow, accent bar on selected rows, 8 px windows | neutral, amber, `builtin:eclipse` |
+| `clairdelune` | Warm night and cream, three floating pills, soft wide shadows, 8 px windows, light grain on the panels | warm, violet, `builtin:clairdelune` |
+| `contrast` | High contrast. Dark: black, white text, yellow and cyan focus and links. Light: white, black text, dark blue and purple. Opaque, thick borders, text contrast ≥ 7:1 (WCAG AAA) | its own |
+
+In every style, the bar's app icons are centred. The ambiances (cold, neutral, warm) are palettes of
+`tokens.css` (`--amb-d-*` / `--amb-l-*`), independent of the style. Every text / surface pair is ≥ 4.5:1,
+checked by `test/personalization-core.test.mjs` for 3 ambiances × 2 modes × 4 accents.
+
+Settings: the Visual style page shows the four styles as cards with a CSS-drawn preview (window, bar shape,
+accent), then the ambiance (Froide, Neutre, Chaude) and the four accent swatches (+ custom colour). The Theme
+designer and the Colors page have the same ambiance and accent controls. All are keyboard accessible (one Tab
+stop per group, arrows move).
 
 The lock screen (shell) and the sign-in screen (`greeter.js`) also get `data-style`. High contrast puts a 74 %
 black veil over the lock-screen picture so that its white text and links stay ≥ 7:1 on any wallpaper.
@@ -249,13 +265,12 @@ call runs inside `theme.transition()`, a ~300 ms cross-fade.
 **Built-in profiles** only set the *look* keys (`LOOK_KEYS`). They never touch accessibility (`textScale`,
 `scale`, `reducedMotion`, `animations`) or layout keys. The built-ins are:
 
-- Selene Light
-- Selene Dark
-- Glass
-- Minimal
-- Retro
-- High Contrast
-- Night Owl
+- Nocturne (`aurora-dark`) and Nocturne clair (`aurora-light`)
+- Éclipse (`eclipse`)
+- Clair de lune (`clairdelune`)
+- Contraste élevé (`contrast`)
+
+A saved or imported profile with an older style (`win11`, `minimal`, `glass`, `retro`) gets `nocturne`.
 
 **Export and import:**
 
@@ -379,7 +394,7 @@ Animated wallpapers, dynamic wallpapers (time of day and weather), the slideshow
 |---|---|---|---|
 | `wallpaperMode` | `'static' \| 'animated' \| 'dynamic' \| 'slideshow'` | `'static'` | `static` = the picture or solid colour of `wallpaper` (drawn by `core/desktop.js`); the other modes are drawn by `core/features/wallpaper.js` |
 | `animatedWallpaper` | `{ id, speed 0–100, intensity 0–100, fps 15\|30, pauseOnMaximized }` | `{ id:'aurora', speed:50, intensity:50, fps:30, pauseOnMaximized:true }` | `id`: `aurora`, `bloom`, `fluid`, `bokeh`, `starfield`, `waves`. Speed 50 = ×1 (0 = ×0.2, 100 = ×2.5). Intensity = brightness / amount of detail of the effect |
-| `dynamicWallpaper` | `{ source: 'time'\|'weather', set: 'bloom'\|'dunes'\|'lake', location: null\|{ name, lat, lon }, followTheme }` | `{ source:'time', set:'bloom', location:null, followTheme:false }` | Time-of-day set; `weather` adds the current weather; `location: null` = fixed day 07:00–19:00; `followTheme` writes `theme` (light from sunrise to sunset) unless `autoTheme.enabled` |
+| `dynamicWallpaper` | `{ source: 'time'\|'weather', set: 'lake'\|'dunes'\|'peaks', location: null\|{ name, lat, lon }, followTheme }` | `{ source:'time', set:'lake', location:null, followTheme:false }` | Time-of-day set; `weather` adds the current weather; `location: null` = fixed day 07:00–19:00; `followTheme` writes `theme` (light from sunrise to sunset) unless `autoTheme.enabled` |
 | `slideshow` | `{ folder: null\|'/abs/path', interval 1–1440 (min), shuffle }` | `{ folder:null, interval:30, shuffle:true }` | `folder: null` = the built-in pictures (every static and time-of-day picture) |
 | `lockScreen` | `{ mode: 'picture'\|'spotlight'\|'animated', effect }` | `{ mode:'picture', effect:'aurora' }` | `picture` = `lockWallpaper` (null = same as the desktop, including the animated / dynamic / slideshow picture); `spotlight` = a different built-in picture every day; `animated` = the `effect` scene, lightweight |
 | `wallpaper`, `wallpaperFit`, `lockWallpaper` | pre-existing | | Static picture, its fit, and the lock screen picture |
@@ -423,9 +438,11 @@ built-in profiles go back to a static picture.
 
 ### 9.3 Dynamic wallpaper
 
-- **Sets** (`core/wallpaper/dynamic.js` `DYNAMIC_SETS`): Bloom, Dunes and Lakeside, each with dawn / day / dusk / night
-  pictures in `renderer/assets/wallpapers/dynamic/` (original art, `xvfb-run -a node tools/gen-wallpapers.mjs --only=dynamic`;
-  the Lakeside night is `aurora.jpg`).
+- **Sets** (`core/wallpaper/dynamic.js` `DYNAMIC_SETS`): `lake` (Lac sous la lune), `dunes` (Dunes sous la lune) and
+  `peaks` (Cimes), each with dawn / day / dusk / night pictures. Dawn and night are the static pictures of the same scene
+  (`nocturne-light/-dark`, `clairdelune-light/-dark`, `peaks-light/-dark`); day and dusk are
+  `renderer/assets/wallpapers/dynamic/<set>-<phase>.jpg` (`xvfb-run -a node tools/gen-wallpapers.mjs --only=dynamic`).
+  An unknown set id (for example the retired `bloom`) falls back to `lake`. See §9.9 for the whole picture set.
 - **Sun maths** (`core/wallpaper/solar.js`, no network): NOAA solar calculator — `sunTimes(date, lat, lon)` (sunrise /
   sunset at −0.833°, civil dawn / dusk, solar noon, polar day / night), `phaseAt(date, location)`:
   dawn = sunrise −40 min … +80 min, day, dusk = sunset −80 min … +40 min, night (shortened on short days). Without a
@@ -480,9 +497,9 @@ await api.invoke('weather:stats')               // { requests, cacheHits, failur
 - **Slideshow**: the pictures of `slideshow.folder` (jpg, png, webp, avif, gif, bmp; sorted, or shuffled once a day), a new
   one every `interval` minutes with the 4 s cross-fade; `shell.emit('wallpaper:next')` skips to the next one (Settings
   "Next picture"). An empty or missing folder falls back to the built-in pictures.
-- **Picture of the day** (`spotlightPick(date)` in `core/wallpaper/dynamic.js`): the 20 built-in pictures in a fixed
-  order in which two consecutive days — wrap-around included — never show the same family (Bloom, Dunes, Lakeside,
-  Glow, Flow, Sunrise).
+- **Picture of the day** (`spotlightPick(date)` in `core/wallpaper/dynamic.js`): the 17 built-in pictures in a fixed
+  order in which two consecutive days — wrap-around included — never show the same family (lake, dunes, peaks,
+  eclipse, forest, Milky Way).
 - **Lock screen** (`core/wallpaper/lock.js`): `core/features/lock.js` asks `ctx.wallpaperEngine.lockWallpaperUrl()` for the
   picture and calls `ctx.wallpaperEngine.attachLock(ls)` (both additive). Animated mode (or "same as the desktop" while
   the desktop is animated) runs the scene inside the lock screen's picture; it stops on the sign-in view, when the screen
@@ -519,6 +536,28 @@ Shell events: `wallpaper:changed` `{ mode, url }`, `wallpaper:weather` `{ weathe
 - The sign-in screen cannot read the user's settings: its lock screen mode is the system-wide one.
 - Weather needs network access to api.open-meteo.com; it was only tested with the mock in the build container.
 - "Pause when apps are maximized" does not detect a desktop entirely covered by several non-maximized windows.
+
+### 9.9 Built-in pictures (Selene lunar set)
+
+Original artwork drawn procedurally by `shell/tools/gen-wallpapers.mjs` (Canvas 2D in an offscreen Electron window,
+seeded, no external images): `xvfb-run -a node tools/gen-wallpapers.mjs` renders every picture and the contact sheet
+`docs/design/wallpapers-sheet.jpg`; `--only=<name,…>`, `--only=dynamic`, `--scale=0.5 --out=<dir>` and `--sheet-only`
+are available. Every file is a 2560×1440 JPEG (q 0.88, under 1.2 MB, checked by `test/wallpapers.test.mjs`), with a
+fine grain on every gradient so nothing bands. The bottom of each picture stays calm and dark (or evenly light) where the
+bar sits.
+
+| Id (`builtin:<id>`) | Name (fr / en) | Light | Dark |
+|---|---|---|---|
+| `nocturne` (Nocturne style) | Nocturne | `nocturne-light.jpg`: the lake at dawn, a pale full moon setting | `nocturne-dark.jpg`: full moon low over a calm lake, reflection, faint stars |
+| `eclipse` (Éclipse style) | Éclipse / Eclipse | `eclipse-light.jpg`: white disc and amber halo on a pale sky | `eclipse-dark.jpg`: black disc, thin cream ring, amber corona, fine grain |
+| `clairdelune` (Clair de lune style) | Clair de lune / Moonlight | `clairdelune-light.jpg`: phases arc over dunes, lavender and peach dawn | `clairdelune-dark.jpg`: phases arc over dunes, warm night |
+| `forest` | Forêt de pins / Pine forest | `forest-light.jpg`: pines in the morning mist | `forest-dark.jpg`: moonlit pine forest |
+| `peaks` | Cimes / Peaks | `peaks-light.jpg`: alpenglow at dawn | `peaks-dark.jpg`: mountains under a crescent with earthshine |
+| `milkyway` | Voie lactée / Milky Way | `milkyway.jpg` | `milkyway.jpg` |
+
+The ids of the retired set (`bloom`, `glow`, `flow`, `sunrise`, `aurora`, `dunes`) are no longer in `WALLPAPERS`:
+`resolveWallpaper('builtin:<old id>')` returns the first entry (Nocturne), so old settings and profiles still show a
+picture. The moons follow the real near side (maria kept low in contrast and broken up, so no face appears).
 
 ## 10. Taskbar, Start and Focus mode (area B2)
 
@@ -688,14 +727,15 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 
 ### 11.2 Icon packs (`core/packs.js`)
 
-- **Packs:** Fluent (`fluent`, the apps' own icons), Selene tiles (glyph on a coloured rounded tile, one colour per
-  app), Accent tiles (every tile in the accent colour, redrawn when it changes), Glass (glyph on a frosted rounded
+- **Packs:** Selene (`selene`, the apps' own icons: one symbol per app in a muted colour on a common night-blue
+  rounded square, generated by `tools/gen-app-icons.mjs`; the old id `fluent` maps to it), Selene tiles (the same
+  symbol in white on a tile of the app's colour, darkened so white stays >= 4.5:1), Accent tiles (every tile in the accent colour, redrawn when it changes; the glyph is white or night blue #161d30, whichever contrasts more, since the Selene accents are light), Glass (glyph on a frosted rounded
   square), Graphite (monochrome tiles), Monochrome (`mono`, single-colour glyphs drawn for the system mode and inverted
   inside a window of the other mode), Outline (line glyphs, no tile), Retro pixel (48 px pixel-art PNG).
 - **Special icons:** This PC and the Recycle Bin (desktop, File Explorer) follow the pack through a style sheet
   (`img[src$="this-pc.svg"] { content: url(…) }`), so pictures drawn from the apps' own icon files follow too.
 - **How:** `registry.iconResolver(appId, manifest)` (an additive hook of `core/registry.js`) returns an SVG data URL
-  built from the app's Fluent glyph, so every `registry.iconUrl()` caller (taskbar, Start, search, Alt+Tab, Task view,
+  built from the app's symbol (`core/app-glyphs.js`, generated with the icons; Phosphor 2.1.1, MIT), so every `registry.iconUrl()` caller (taskbar, Start, search, Alt+Tab, Task view,
   window title bars, Settings › Apps…) gets the pack's icon. Icons already on screen are swapped in
   place, and windows get `win.setIcon()`. File-type icons are tinted per pack with `<html data-icon-pack>`
   (`shell-personalize.css`).

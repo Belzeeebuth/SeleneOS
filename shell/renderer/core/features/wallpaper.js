@@ -57,7 +57,7 @@ export async function mount(ctx) {
   const now = () => (clock ? new Date(clock.base + (Date.now() - clock.at)) : new Date());
   const cfg = (key, def) => ({ ...def, ...(settings.get(key) || {}) });
   const animCfg = () => cfg('animatedWallpaper', { id: 'aurora', speed: 50, intensity: 50, fps: 30, pauseOnMaximized: true });
-  const dynCfg = () => cfg('dynamicWallpaper', { source: 'time', set: 'bloom', location: null, followTheme: false });
+  const dynCfg = () => cfg('dynamicWallpaper', { source: 'time', set: 'lake', location: null, followTheme: false });
   const slideCfg = () => cfg('slideshow', { folder: null, interval: 30, shuffle: true });
   const modeOf = () => (['animated', 'dynamic', 'slideshow'].includes(settings.get('wallpaperMode')) ? settings.get('wallpaperMode') : 'static');
   const themeMode = () => (settings.get('theme') === 'dark' ? 'dark' : 'light');

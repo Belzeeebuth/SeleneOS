@@ -1,0 +1,40 @@
+/* Visual style "Nocturne" (default): ink-blue night, silver accent, floating bar islands, hairline window
+   borders. Defaults: ambiance cold, accent silver (core/theme.js STYLES).
+   Like every style, this layer only sets tokens and structural hooks (docs/design/SYSTEM.md §4); the
+   components read them. Scoped `to` any element with another data-style, so previews in Settings are never
+   touched by the global style. */
+@scope ([data-style="nocturne"]) to ([data-style]:not([data-style="nocturne"])) {
+  :scope {
+    --r-xs: 4px;
+    --r-sm: 6px;
+    --r: 8px;
+    --r-lg: 10px;
+    --r-float: 16px;
+    --tp-k: 1;
+    --blur-k: 1;
+    --blur-sat: 140%;
+    --titlebar-h: 36px;
+    --titlebar-tall-h: 44px;
+
+    /* bar: two floating islands 12 px from the edges (Lanceur + search | apps, centred | status + clock) */
+    --bar-mode: islands;
+    --bar-apps-align: center;
+    --bar-h: 48px;
+    --bar-margin: 12px;
+    --bar-radius: 16px;
+    --bar-gap: 8px;
+    --bar-border-w: 1px;
+    --bar-indicator: dot;
+    --bar-blur: 1;
+
+    /* windows: flat, 10 px corners, a 1 px hairline a little lighter than the surface */
+    --win-border-w: 1px;
+    --win-shadow-y: 28px;
+    --win-shadow-blur: 64px;
+    --win-shadow-k: 1;
+
+    --sel-mode: fill;
+    --sel-bar-w: 0px;
+    --panel-grain: none;
+  }
+}

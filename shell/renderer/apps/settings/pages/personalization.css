@@ -326,17 +326,6 @@
   inset: 0;
   background: #1b1b1b center / cover no-repeat;
 }
-:root[data-style="glass"] .app-settings .pz-mock-wall::after,
-.app-settings [data-style="glass"] .pz-spv-wall::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(60% 55% at 12% 18%, color-mix(in srgb, var(--accent-base, #0078d4) 55%, transparent), transparent 70%),
-    radial-gradient(50% 50% at 88% 22%, rgba(255, 64, 160, 0.38), transparent 70%),
-    radial-gradient(55% 60% at 70% 92%, rgba(0, 200, 220, 0.34), transparent 70%);
-  mix-blend-mode: soft-light;
-}
 .app-settings .pz-mock-win {
   left: 30px;
   top: 30px;
@@ -647,27 +636,152 @@
 .app-settings .pz-spv-body .input {
   width: 150px;
 }
-.app-settings .pz-spv-taskbar {
+/* the mini bar: drawn with the style's hooks (tokens.css): --bar-mode (style queries), --bar-margin,
+   --bar-radius, --bar-gap. Islands: a wide island (Lanceur, search, apps centred) + the status island;
+   full: one docked opaque bar; pills: three separate pills. App icons are centred in every style. */
+.app-settings .pz-spv .pz-mock-win {
+  border: var(--win-border);
+  border-radius: var(--win-radius);
+  box-shadow: var(--win-shadow);
+}
+.app-settings .pz-spv-bar {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: calc(var(--bar-margin) / 2);
+  right: calc(var(--bar-margin) / 2);
+  bottom: calc(var(--bar-margin) / 2);
+  height: 24px;
+}
+.app-settings .pz-spv-seg {
+  position: absolute;
+  top: 0;
   bottom: 0;
-  height: 9%;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 4%;
-  background: var(--taskbar-bg);
-  border-top: 1px solid var(--window-stroke);
+  gap: 5px;
+  padding: 0 8px;
+  border-radius: calc(var(--bar-radius) / 2);
 }
-.app-settings .pz-spv-taskbar i {
-  width: 4.5%;
-  height: 56%;
-  border-radius: var(--radius-xs);
-  background: color-mix(in srgb, var(--text) 35%, transparent);
+.app-settings .pz-spv-seg.l {
+  left: 0;
 }
-.app-settings .pz-spv-taskbar i:first-child {
+.app-settings .pz-spv-seg.c {
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 6px;
+}
+.app-settings .pz-spv-seg.r {
+  right: 0;
+  width: 56px;
+  justify-content: flex-end;
+}
+.app-settings .pz-spv-seg b {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: inset -3px -1px 0 0 var(--accent);
+}
+.app-settings .pz-spv-seg i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text) 32%, transparent);
+}
+.app-settings .pz-spv-seg i.on {
   background: var(--accent);
+}
+.app-settings .pz-spv-seg i.search {
+  width: 36px;
+  height: 10px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--text) 16%, transparent);
+}
+.app-settings .pz-spv-seg i.clock {
+  width: 26px;
+  height: 8px;
+  background: color-mix(in srgb, var(--text) 45%, transparent);
+}
+@container style(--bar-mode: full) {
+  .app-settings .pz-spv-bar {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgb(var(--bar-rgb));
+    border-top: var(--bar-border);
+  }
+}
+@container style(--bar-mode: islands) {
+  .app-settings .pz-spv-seg.l,
+  .app-settings .pz-spv-seg.r {
+    background: var(--taskbar-bg);
+    border: var(--bar-border);
+  }
+  .app-settings .pz-spv-seg.l {
+    right: calc(56px + var(--bar-gap) / 2);
+  }
+}
+@container style(--bar-mode: pills) {
+  .app-settings .pz-spv-seg {
+    background: var(--taskbar-bg);
+    border: var(--bar-border);
+  }
+  .app-settings .pz-spv-bar {
+    left: calc(var(--bar-margin) / 2 + 24px);
+    right: calc(var(--bar-margin) / 2 + 24px);
+  }
+}
+
+/* ambiance: three radio cards (cold / neutral / warm) with a dark + light swatch */
+.app-settings .pz-ambiances {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  gap: 8px;
+}
+.app-settings .pz-ambiance {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 10px;
+  text-align: start;
+  color: var(--text);
+  background: var(--control);
+  border: 1px solid var(--control-stroke);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.app-settings .pz-ambiance:hover {
+  background: var(--control-hover);
+}
+.app-settings .pz-ambiance.selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.app-settings .pz-ambiance:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--text));
+  outline-offset: 2px;
+}
+.app-settings .pz-ambiance-sw {
+  display: flex;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--stroke-strong);
+}
+.app-settings .pz-ambiance-sw i {
+  flex: 1;
+}
+.app-settings .pz-ambiance-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.app-settings .pz-ambiance-name {
+  font-weight: 600;
+}
+.app-settings .pz-style-colors {
+  margin-top: 16px;
 }
 
 /* ---------- profiles ---------- */

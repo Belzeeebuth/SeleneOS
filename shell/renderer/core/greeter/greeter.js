@@ -49,7 +49,7 @@ async function main() {
   await applyVisualStyle(settings.all()).catch((err) => console.warn('[greeter] visual style:', err.message));
 
   // settings.lockScreen: picture (lockWallpaper or the desktop picture), daily Spotlight picture, or animated scene
-  const fallbackWall = resolveWallpaper(settings.get('lockWallpaper') || settings.get('wallpaper') || 'builtin:bloom', 'dark');
+  const fallbackWall = resolveWallpaper(settings.get('lockWallpaper') || settings.get('wallpaper') || 'builtin:nocturne', 'dark');
   const wallpaper = (await withTimeout(lockScreenWallpaper(settings.all(), 'dark').catch(() => null), 2000, null)) || fallbackWall;
   const [rawUsers, kbInfo] = await Promise.all([
     api.invoke('greeter:users').catch((err) => {

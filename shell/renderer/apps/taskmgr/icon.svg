@@ -1,28 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="tmFrame" x1="6" y1="5" x2="42" y2="43" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#38a8ff"/>
-      <stop offset="0.55" stop-color="#1677e8"/>
-      <stop offset="1" stop-color="#0b4fb8"/>
-    </linearGradient>
-    <linearGradient id="tmPanel" x1="0" y1="14" x2="0" y2="38" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#e4f0fb"/>
-    </linearGradient>
-    <linearGradient id="tmArea" x1="0" y1="18" x2="0" y2="37" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2fd38a" stop-opacity=".55"/>
-      <stop offset="1" stop-color="#2fd38a" stop-opacity=".08"/>
-    </linearGradient>
-    <linearGradient id="tmLine" x1="9" y1="0" x2="39" y2="0" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#12b07a"/>
-      <stop offset="1" stop-color="#0a8f62"/>
-    </linearGradient>
-  </defs>
-  <rect x="4" y="6" width="40" height="36" rx="7" fill="url(#tmFrame)"/>
-  <path d="M11 6.6h26a6.4 6.4 0 0 1 6.4 6.4v.6H4.6V13A6.4 6.4 0 0 1 11 6.6z" fill="#fff" opacity=".16"/>
-  <circle cx="10" cy="10.2" r="1.3" fill="#fff" opacity=".85"/>
-  <circle cx="14.2" cy="10.2" r="1.3" fill="#fff" opacity=".6"/>
-  <rect x="8" y="14" width="32" height="24" rx="3.5" fill="url(#tmPanel)"/>
-  <path d="M8 31.5l5.5-2.8 4 3.2 5.2-11.4 4.6 8.6 3.4-4.3 4 3.4L40 25.6V34.5a3.5 3.5 0 0 1-3.5 3.5h-25A3.5 3.5 0 0 1 8 34.5z" fill="url(#tmArea)"/>
-  <path d="M8.8 31.1l4.7-2.4 4 3.2 5.2-11.4 4.6 8.6 3.4-4.3 4 3.4 4.6-2.6" fill="none" stroke="url(#tmLine)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="taskmgr-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="taskmgr-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="taskmgr-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b6d6c3"/><stop offset="1" stop-color="#94c3a7"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#taskmgr-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#taskmgr-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#taskmgr-f)"><path d="M244,128a12,12,0,0,1-12,12H207.42l-36.69,73.37A12,12,0,0,1,160,220h-.6a12,12,0,0,1-10.61-7.72L95,71.15,66.92,133A12,12,0,0,1,56,140H24a12,12,0,0,1,0-24H48.27L85.08,35a12,12,0,0,1,22.13.7l54.28,142.46,27.78-55.56A12,12,0,0,1,200,116h32A12,12,0,0,1,244,128Z"/></g>
 </svg>

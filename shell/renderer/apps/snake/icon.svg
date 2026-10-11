@@ -1,21 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="b" x1="8" y1="40" x2="38" y2="8" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0b8a5e"/>
-      <stop offset="0.5" stop-color="#23b26b"/>
-      <stop offset="1" stop-color="#8be05a"/>
-    </linearGradient>
-    <radialGradient id="h" cx="0.4" cy="0.32" r="0.8">
-      <stop offset="0" stop-color="#b6f07a"/>
-      <stop offset="0.6" stop-color="#5cc95e"/>
-      <stop offset="1" stop-color="#239a55"/>
-    </radialGradient>
-  </defs>
-  <path d="M8.5 38.5H29a6.75 6.75 0 0 0 0-13.5H19a6.75 6.75 0 0 1 0-13.5h11" fill="none" stroke="url(#b)" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M10 36.6H29a5 5 0 0 0 3.4-1.4M17.4 23.4A5.2 5.2 0 0 1 15.4 14.2" fill="none" stroke="#fff" stroke-opacity=".32" stroke-width="1.6" stroke-linecap="round"/>
-  <path d="M41.4 11.5h2.6M44 11.5l1.6-1.6M44 11.5l1.6 1.6" stroke="#e8414b" stroke-width="1.5" stroke-linecap="round" fill="none"/>
-  <ellipse cx="34.6" cy="11.5" rx="7.4" ry="6.4" fill="url(#h)"/>
-  <ellipse cx="33" cy="8.6" rx="3.6" ry="1.6" fill="#fff" opacity=".35"/>
-  <circle cx="36.4" cy="9.6" r="2.1" fill="#fff"/>
-  <circle cx="37" cy="9.7" r="1.15" fill="#14301f"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="snake-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="snake-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="snake-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b6d6c3"/><stop offset="1" stop-color="#94c3a7"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#snake-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#snake-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#snake-f)"><path d="M247.44,173.75a.68.68,0,0,0,0-.14L231.05,89.44c0-.06,0-.12,0-.18A60.08,60.08,0,0,0,172,40H83.89a59.88,59.88,0,0,0-59,49.52L8.58,173.61a.68.68,0,0,0,0,.14,36,36,0,0,0,60.9,31.71l.35-.37L109.52,160h37l39.71,45.09c.11.13.23.25.35.37A36.08,36.08,0,0,0,212,216a36,36,0,0,0,35.43-42.25ZM104,112H96v8a8,8,0,0,1-16,0v-8H72a8,8,0,0,1,0-16h8V88a8,8,0,0,1,16,0v8h8a8,8,0,0,1,0,16Zm40-8a8,8,0,0,1,8-8h24a8,8,0,0,1,0,16H152A8,8,0,0,1,144,104Zm84.37,87.47a19.84,19.84,0,0,1-12.9,8.23A20.09,20.09,0,0,1,198,194.31L167.8,160H172a60,60,0,0,0,51-28.38l8.74,45A19.82,19.82,0,0,1,228.37,191.47Z"/></g>
 </svg>

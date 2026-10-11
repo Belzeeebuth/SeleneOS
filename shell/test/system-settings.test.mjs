@@ -579,7 +579,7 @@ async function lightEnglish() {
 
     // ---- account picture + custom wallpaper through the file picker
     // a real photo (one of the bundled wallpapers) as the account picture and a custom wallpaper
-    fs.copyFileSync(path.join(ROOT, 'renderer/assets/wallpapers/aurora.jpg'), path.join(s.home, 'Pictures', 'portrait.jpg'));
+    fs.copyFileSync(path.join(ROOT, 'renderer/assets/wallpapers/milkyway.jpg'), path.join(s.home, 'Pictures', 'portrait.jpg'));
     await go(s, 'yourInfo');
     await s.page.locator(S('.btn'), { hasText: 'Browse files' }).click();
     await s.page.waitForSelector('.fp-dialog .fp-row');
@@ -899,7 +899,7 @@ async function qaRegressions() {
 
     // ---- XSS: file names are text, never markup
     const evil = '<img src=x onerror="window.__xss=1">.png';
-    fs.copyFileSync(path.join(ROOT, 'renderer/assets/wallpapers/aurora.jpg'), path.join(s.home, 'Pictures', evil));
+    fs.copyFileSync(path.join(ROOT, 'renderer/assets/wallpapers/milkyway.jpg'), path.join(s.home, 'Pictures', evil));
     await inv(s, 'storage:set', 'settings', 'recent-wallpapers', [path.join(s.home, 'Pictures', evil)]);
     await go(s, 'background');
     await s.page.locator(S(`.st-wall[aria-label="${evil.replace(/"/g, '\\"')}"]`)).hover();

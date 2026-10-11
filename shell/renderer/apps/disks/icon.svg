@@ -1,32 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="dkBody" x1="8" y1="14" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#eef3fa"/>
-      <stop offset="1" stop-color="#b9c7d9"/>
-    </linearGradient>
-    <linearGradient id="dkTop" x1="8" y1="8" x2="40" y2="22" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#d9e3f0"/>
-    </linearGradient>
-    <linearGradient id="dkPie" x1="16" y1="10" x2="34" y2="22" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2f6ff0"/>
-      <stop offset="1" stop-color="#5fc4f5"/>
-    </linearGradient>
-    <linearGradient id="dkLed" x1="33" y1="31" x2="37" y2="35" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#5ee08a"/>
-      <stop offset="1" stop-color="#1fa652"/>
-    </linearGradient>
-  </defs>
-  <path d="M6 22.5 10.6 11A4 4 0 0 1 14.3 8.5h19.4a4 4 0 0 1 3.7 2.5L42 22.5V36a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4z" fill="#21324d" opacity=".14" transform="translate(0 1.4)"/>
-  <path d="M6 22.5 10.6 11A4 4 0 0 1 14.3 8.5h19.4a4 4 0 0 1 3.7 2.5L42 22.5z" fill="url(#dkTop)"/>
-  <rect x="6" y="22.5" width="36" height="17.5" rx="4" fill="url(#dkBody)"/>
-  <path d="M6.5 23h35" stroke="#ffffff" stroke-opacity=".9"/>
-  <rect x="6.5" y="23" width="35" height="16.5" rx="3.5" fill="none" stroke="#8597b0" stroke-opacity=".55"/>
-  <path d="M6.6 22.3 11 11.3A3.5 3.5 0 0 1 14.3 9h19.4a3.5 3.5 0 0 1 3.3 2.3l4.4 11" fill="none" stroke="#8597b0" stroke-opacity=".45"/>
-  <ellipse cx="24" cy="16" rx="11" ry="4.6" fill="#c9d6e8"/>
-  <path d="M24 16V11.4a11 4.6 0 0 1 10.6 3.3z" fill="url(#dkPie)"/>
-  <path d="M24 16 34.6 14.7A11 4.6 0 0 1 24 20.6 11 4.6 0 0 1 13 16z" fill="#3b82f0" opacity=".28"/>
-  <ellipse cx="24" cy="16" rx="1.6" ry=".8" fill="#ffffff"/>
-  <rect x="11" y="29.5" width="16" height="3" rx="1.5" fill="#8597b0" opacity=".6"/>
-  <circle cx="35" cy="31" r="2.4" fill="url(#dkLed)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="disks-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="disks-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="disks-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d8deea"/><stop offset="1" stop-color="#c5cee0"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#disks-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#disks-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#disks-f)"><path d="M208,40H48A16,16,0,0,0,32,56v48a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40ZM180,92a12,12,0,1,1,12-12A12,12,0,0,1,180,92Z"/><path d="M208,136H48a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V152A16,16,0,0,0,208,136Zm-28,52a12,12,0,1,1,12-12A12,12,0,0,1,180,188Z"/></g>
 </svg>

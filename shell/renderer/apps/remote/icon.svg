@@ -1,23 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="rd-frame" x1="4" y1="6" x2="40" y2="36" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#3b4a63"/>
-      <stop offset="1" stop-color="#1e2738"/>
-    </linearGradient>
-    <linearGradient id="rd-screen" x1="7" y1="9" x2="37" y2="31" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2fb3f0"/>
-      <stop offset="1" stop-color="#0a5ccf"/>
-    </linearGradient>
-    <linearGradient id="rd-badge" x1="28" y1="26" x2="46" y2="44" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#7cd992"/>
-      <stop offset="1" stop-color="#159a5a"/>
-    </linearGradient>
-  </defs>
-  <rect x="3" y="6" width="38" height="28" rx="3.5" fill="url(#rd-frame)"/>
-  <rect x="6" y="9" width="32" height="22" rx="1.5" fill="url(#rd-screen)"/>
-  <path d="M6 24l9-7 7 5 7-6 9 7v6.5A1.5 1.5 0 0 1 36.5 31h-29A1.5 1.5 0 0 1 6 29.5z" fill="#fff" fill-opacity=".22"/>
-  <path d="M17 34h10l1.5 5h-13z" fill="#2c374b"/>
-  <rect x="12" y="38.5" width="20" height="3" rx="1.5" fill="#3b4a63"/>
-  <circle cx="37" cy="35" r="9" fill="url(#rd-badge)" stroke="#fff" stroke-width="1.6"/>
-  <path d="M32.5 33.5h7.5m-2.6-2.8 2.8 2.8-2.8 2.8M41.5 37h-7.5m2.6 2.8-2.8-2.8 2.8-2.8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="remote-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="remote-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="remote-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b6c6e7"/><stop offset="1" stop-color="#93abdb"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#remote-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#remote-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#remote-f)"><path d="M56,208a8,8,0,0,1-8.24,8A8.28,8.28,0,0,1,40,207.76,8,8,0,0,0,32.24,200,8.28,8.28,0,0,1,24,192.24,8,8,0,0,1,32,184,24,24,0,0,1,56,208ZM32,152a8,8,0,0,0-8,8.65A8.17,8.17,0,0,0,32.24,168,40,40,0,0,1,72,207.76,8.17,8.17,0,0,0,79.36,216,8,8,0,0,0,88,208,56.06,56.06,0,0,0,32,152Zm0-32a8,8,0,0,0-8,8.6,8.22,8.22,0,0,0,8.3,7.4A72.08,72.08,0,0,1,104,207.68a8.22,8.22,0,0,0,7.4,8.3,8,8,0,0,0,8.6-8A88.1,88.1,0,0,0,32,120ZM216,40H40A16,16,0,0,0,24,56v44.08a4,4,0,0,0,4.15,4A104.11,104.11,0,0,1,135.93,211.85a4,4,0,0,0,4,4.15H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Z"/></g>
 </svg>

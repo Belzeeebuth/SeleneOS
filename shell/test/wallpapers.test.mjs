@@ -149,19 +149,43 @@ async function unit() {
         }
         i += 2 + len;
       }
-      if (!jpeg || w !== 2560 || h !== 1600 || buf.length > 700 * 1024) {
+      if (!jpeg || w !== 2560 || h !== 1440 || buf.length > 1200 * 1024) {
         allOk = false;
         console.log(`    ${file}: jpeg ${jpeg} ${w}x${h} ${buf?.length}`);
       }
     }
   }
-  check(allOk, 'every time-of-day variant exists (3 sets × 4 phases), JPEG 2560×1600, < 700 KB');
-  check(dyn.dynamicPick('lake', new Date('2026-06-21T19:30:00Z'), PARIS).url.endsWith('dynamic/lake-dusk.jpg') && dyn.dynamicPick('lake', new Date('2026-06-21T22:00:00Z'), PARIS).url.endsWith('/aurora.jpg') && dyn.dynamicPick('dunes', new Date('2026-06-21T03:30:00Z'), PARIS).url.endsWith('dunes-dawn.jpg'), 'dynamicPick: the right variant for given times and a location');
+  check(allOk, 'every time-of-day variant exists (3 sets × 4 phases), JPEG 2560×1440, < 1.2 MB');
+  {
+    // static pictures (core/theme.js WALLPAPERS): every file exists at 2560×1440, < 1.2 MB, and nothing in
+    // assets/wallpapers is left unreferenced (the retired Bloom/Glow/Flow… pictures are gone)
+    const src = fs.readFileSync(path.join(ROOT, 'renderer/core/theme.js'), 'utf8');
+    const block = src.slice(src.indexOf('export const WALLPAPERS'), src.indexOf('];', src.indexOf('export const WALLPAPERS')));
+    const statics = [...block.matchAll(/(?:light|dark): '([^']+\.jpg)'/g)].map((m) => m[1]);
+    const dims = (buf) => {
+      for (let i = 2; i < buf.length - 9; ) {
+        if (buf[i] !== 0xff) break;
+        if (buf[i + 1] === 0xc0 || buf[i + 1] === 0xc2) return [buf.readUInt16BE(i + 7), buf.readUInt16BE(i + 5)];
+        i += 2 + buf.readUInt16BE(i + 2);
+      }
+      return [0, 0];
+    };
+    const dir = path.join(ROOT, 'renderer/assets/wallpapers');
+    const bad = [...new Set(statics)].filter((f) => {
+      const buf = fs.existsSync(path.join(dir, f)) ? fs.readFileSync(path.join(dir, f)) : null;
+      return !buf || dims(buf).join('x') !== '2560x1440' || buf.length > 1200 * 1024;
+    });
+    const used = new Set([...statics, ...dyn.DYNAMIC_SETS.flatMap((x) => Object.values(x.variants))]);
+    const onDisk = [...fs.readdirSync(dir).filter((f) => f.endsWith('.jpg')), ...fs.readdirSync(path.join(dir, 'dynamic')).map((f) => `dynamic/${f}`)];
+    const orphans = onDisk.filter((f) => !used.has(f));
+    check(statics.length >= 12 && !bad.length && !orphans.length, `static wallpapers: ${new Set(statics).size} pictures, 2560×1440, < 1.2 MB, no orphan file${bad.length ? ` bad: ${bad}` : ''}${orphans.length ? ` orphans: ${orphans}` : ''}`);
+  }
+  check(dyn.dynamicPick('lake', new Date('2026-06-21T19:30:00Z'), PARIS).url.endsWith('dynamic/lake-dusk.jpg') && dyn.dynamicPick('lake', new Date('2026-06-21T22:00:00Z'), PARIS).url.endsWith('/nocturne-dark.jpg') && dyn.dynamicPick('dunes', new Date('2026-06-21T03:30:00Z'), PARIS).url.endsWith('/clairdelune-light.jpg'), 'dynamicPick: the right variant for given times and a location');
   const spots = dyn.spotlightList();
   const d0 = dyn.spotlightPick(new Date(2026, 9, 10, 9));
   const d0b = dyn.spotlightPick(new Date(2026, 9, 10, 23));
   const d1 = dyn.spotlightPick(new Date(2026, 9, 11, 9));
-  check(spots.length >= 20 && spots.every((x) => fs.existsSync(path.join(ROOT, 'renderer/assets/wallpapers', x.url.replace('app://shell/assets/wallpapers/', '')))), `spotlight: ${spots.length} built-in pictures, every file exists`);
+  check(spots.length >= 17 && spots.every((x) => fs.existsSync(path.join(ROOT, 'renderer/assets/wallpapers', x.url.replace('app://shell/assets/wallpapers/', '')))), `spotlight: ${spots.length} built-in pictures, every file exists`);
   check(d0.url === d0b.url && d0.url !== d1.url && dyn.spotlightPick(new Date(2026, 9, 10), 1).url === d1.url, 'spotlight: one picture per calendar day, a new one the next day');
   const fam = spots.map((x) => dyn.pictureFamily(x.url));
   const repeats = fam.filter((f, i) => f === fam[(i + 1) % fam.length]);
@@ -517,7 +541,7 @@ async function effectsAndEngine() {
     // ---- slideshow
     const dir = path.join(s.home, 'Pictures', 'Slides');
     fs.mkdirSync(dir, { recursive: true });
-    for (const [f, src] of [['b-dunes.jpg', 'dunes.jpg'], ['a-sunrise.jpg', 'sunrise.jpg'], ['c-flow.jpg', 'flow-light.jpg']]) fs.copyFileSync(path.join(ROOT, 'renderer/assets/wallpapers', src), path.join(dir, f));
+    for (const [f, src] of [['b-dunes.jpg', 'peaks-dark.jpg'], ['a-sunrise.jpg', 'forest-light.jpg'], ['c-flow.jpg', 'eclipse-light.jpg']]) fs.copyFileSync(path.join(ROOT, 'renderer/assets/wallpapers', src), path.join(dir, f));
     fs.writeFileSync(path.join(dir, 'notes.txt'), 'not a picture');
     await setMany(s, { wallpaperMode: 'slideshow', slideshow: { folder: dir, interval: 1, shuffle: false } });
     await waitFor(async () => (await state(s)).slideshow.count === 3, 4000);
@@ -538,7 +562,7 @@ async function effectsAndEngine() {
     await sleep(500);
 
     // ---- lock screen modes (shell)
-    await setMany(s, { wallpaperMode: 'static', wallpaper: 'builtin:bloom', 'lockScreen.mode': 'spotlight' });
+    await setMany(s, { wallpaperMode: 'static', wallpaper: 'builtin:nocturne', 'lockScreen.mode': 'spotlight' });
     await sleep(500);
     await A(() => window.__aurora.shell.lock());
     await sleep(700);
@@ -567,10 +591,10 @@ async function effectsAndEngine() {
     check(signin, 'the lock screen moves to the sign-in view');
     await A(() => window.__aurora.shell.emit('unlock'));
     await sleep(800);
-    await setMany(s, { 'lockScreen.mode': 'picture', lockWallpaper: 'builtin:dunes' });
+    await setMany(s, { 'lockScreen.mode': 'picture', lockWallpaper: 'builtin:peaks' });
     await A(() => window.__aurora.shell.lock());
     await sleep(600);
-    check((await A(() => document.querySelector('.lockui').style.getPropertyValue('--lk-wall-img'))).includes('dunes.jpg'), 'lock screen "picture" keeps using lockWallpaper');
+    check((await A(() => document.querySelector('.lockui').style.getPropertyValue('--lk-wall-img'))).includes('peaks-'), 'lock screen "picture" keeps using lockWallpaper');
     await A(() => window.__aurora.shell.emit('unlock'));
     await sleep(600);
     await set(s, 'lockWallpaper', null);
@@ -589,14 +613,15 @@ async function dynamicAndWeather() {
   try {
     const A = (fn, a) => s.aurora(fn, a);
     const clock = (iso) => A((d) => window.__aurora.wallpaperEngine.setClock(d), iso);
+    const DUNES = { night: 'clairdelune-dark.jpg', dawn: 'clairdelune-light.jpg', day: 'dynamic/dunes-day.jpg', dusk: 'dynamic/dunes-dusk.jpg' };
     const expect = [['2026-06-21T02:00:00Z', 'night'], ['2026-06-21T03:30:00Z', 'dawn'], ['2026-06-21T12:00:00Z', 'day'], ['2026-06-21T19:30:00Z', 'dusk'], ['2026-06-21T21:30:00Z', 'night']];
     for (const [iso, ph] of expect) {
       await clock(iso);
-      await waitFor(async () => (await A(() => window.__aurora.theme.wallpaperUrl)).endsWith(`dynamic/dunes-${ph}.jpg`), 5000);
+      await waitFor(async () => (await A(() => window.__aurora.theme.wallpaperUrl)).endsWith(`/${DUNES[ph]}`), 5000);
       await sleep(300);
       const st = await state(s);
       const wp = await A(() => window.__aurora.theme.wallpaperUrl);
-      check(st.dynamic?.phase === ph && wp.endsWith(`dynamic/dunes-${ph}.jpg`) && st.dynamic.source === 'sun', `Paris ${iso.slice(11, 16)} UTC → ${ph} (${wp.split('/').pop()})`);
+      check(st.dynamic?.phase === ph && wp.endsWith(`/${DUNES[ph]}`) && st.dynamic.source === 'sun', `Paris ${iso.slice(11, 16)} UTC → ${ph} (${wp.split('/').pop()})`);
       if ((ph === 'dawn' || ph === 'dusk') && !NO_SHOTS) {
         // the 4 s cross-fade still shows the previous variant at first: shoot the settled picture
         await waitFor(async () => (await A(() => document.querySelectorAll('#desktop .wp-fades .wp-fade').length)) === 0, 6000);
@@ -831,9 +856,11 @@ async function settingsUi({ theme, lang, size = '1600x900', shots = true }) {
     await s.page.waitForSelector(S('.wp-sets .wp-set'), { timeout: 5000 });
     check((await get(s, 'wallpaperMode')) === 'dynamic' && (await s.page.locator(S('.wp-sets .wp-set')).count()) === 3, 'Background → Dynamic: 3 picture sets');
     await s.page.locator(S('.wp-set[data-set="dunes"]')).click();
-    // the engine decodes the 2560×1600 variant before showing it: wait for it rather than a fixed delay
-    await waitFor(async () => (await A(() => window.__aurora.theme.wallpaperUrl)).includes('dynamic/dunes-'), 5000);
-    check((await get(s, 'dynamicWallpaper.set')) === 'dunes' && (await A(() => window.__aurora.theme.wallpaperUrl)).includes('dynamic/dunes-'), 'clicking a set applies it');
+    // the engine decodes the 2560×1440 variant before showing it: wait for it rather than a fixed delay (dawn and
+    // night of the dunes set are the Clair de lune pictures)
+    const isDunes = (u) => /(dynamic\/dunes-|\/clairdelune-)/.test(u);
+    await waitFor(async () => isDunes(await A(() => window.__aurora.theme.wallpaperUrl)), 5000);
+    check((await get(s, 'dynamicWallpaper.set')) === 'dunes' && isDunes(await A(() => window.__aurora.theme.wallpaperUrl)), 'clicking a set applies it');
     // source: time + weather
     await s.page.locator(S('.wp-source button'), { hasText: L('Time of day and weather', 'L’heure du jour et la météo') }).click();
     await sleep(400);
@@ -924,8 +951,8 @@ async function settingsUi({ theme, lang, size = '1600x900', shots = true }) {
     check((await state(s)).slideshow.index === i0 + 1, '"Next picture" button');
     const dir = path.join(s.home, 'Pictures', 'Album');
     fs.mkdirSync(dir, { recursive: true });
-    fs.copyFileSync(path.join(ROOT, 'renderer/assets/wallpapers/dunes.jpg'), path.join(dir, 'one.jpg'));
-    fs.copyFileSync(path.join(ROOT, 'renderer/assets/wallpapers/glow-dark.jpg'), path.join(dir, 'two.jpg'));
+    fs.copyFileSync(path.join(ROOT, 'renderer/assets/wallpapers/peaks-dark.jpg'), path.join(dir, 'one.jpg'));
+    fs.copyFileSync(path.join(ROOT, 'renderer/assets/wallpapers/eclipse-dark.jpg'), path.join(dir, 'two.jpg'));
     await (await rowOf(s, L('Picture album for your slideshow', 'Album d’images pour votre diaporama'))).locator('.btn', { hasText: L('Browse', 'Parcourir') }).click();
     await s.page.waitForSelector('.fp-dialog');
     await s.page.locator('.fp-dialog .fp-row', { hasText: 'Album' }).first().dblclick().catch(() => {});
@@ -947,14 +974,14 @@ async function settingsUi({ theme, lang, size = '1600x900', shots = true }) {
     // Picture / Solid still work (picture tiles, solid swatches)
     await pickCombo(s, L('Personalize your background', 'Personnaliser votre arrière-plan'), L('Picture', 'Image'));
     await sleep(600);
-    await s.page.locator(S('.st-wall[aria-label="Flow"], .st-wall[aria-label="Flux"]')).first().click();
+    await s.page.locator(S('.st-wall[aria-label="Peaks"], .st-wall[aria-label="Cimes"]')).first().click();
     await sleep(400);
-    check((await get(s, 'wallpaperMode')) === 'static' && (await get(s, 'wallpaper')) === 'builtin:flow', 'Background → Picture: a static picture');
+    check((await get(s, 'wallpaperMode')) === 'static' && (await get(s, 'wallpaper')) === 'builtin:peaks', 'Background → Picture: a static picture');
     await pickCombo(s, L('Personalize your background', 'Personnaliser votre arrière-plan'), L('Solid color', 'Couleur unie'));
     await s.page.locator(S('.st-solid-grid .st-swatch')).nth(3).click();
     await sleep(400);
     check(String(await get(s, 'wallpaper')).startsWith('data:image/svg+xml') && (await get(s, 'wallpaperMode')) === 'static', 'Background → Solid color');
-    await setMany(s, { wallpaper: 'builtin:bloom', wallpaperMode: 'static' });
+    await setMany(s, { wallpaper: 'builtin:nocturne', wallpaperMode: 'static' });
 
     // ---- Animated & dynamic wallpapers page
     await go(s, 'wallpaperEffects');
@@ -1006,10 +1033,11 @@ async function settingsUi({ theme, lang, size = '1600x900', shots = true }) {
     check((await s.page.locator(S('.wp-lock-pv .wp-mini[data-effect="starfield"]')).count()) === 1, 'the lock preview shows the animated scene');
     if (shots) await docShot(s, `wallpaper-settings-lock-animated-${theme}-${lang}`);
     await pickCombo(s, lockRow, L('Picture', 'Image'));
-    await s.page.waitForSelector(S('.st-wall[aria-label="Dunes"]'));
-    await s.page.locator(S('.st-wall[aria-label="Dunes"]')).click();
+    const forestName = L('Pine forest', 'Forêt de pins');
+    await s.page.waitForSelector(S(`.st-wall[aria-label="${forestName}"]`));
+    await s.page.locator(S(`.st-wall[aria-label="${forestName}"]`)).click();
     await sleep(400);
-    check((await get(s, 'lockScreen.mode')) === 'picture' && (await get(s, 'lockWallpaper')) === 'builtin:dunes', 'Lock screen → Picture: the picture grid');
+    check((await get(s, 'lockScreen.mode')) === 'picture' && (await get(s, 'lockWallpaper')) === 'builtin:forest', 'Lock screen → Picture: the picture grid');
     await set(s, 'lockWallpaper', null);
     // search
     const found = await A((q) => import('app://shell/apps/settings/lib/index.js').then((m) => m.searchIndex(q[0], q[1]).map((e) => `${e.page}/${e.section}`)), [L('weather', 'météo'), lang]);
@@ -1068,14 +1096,14 @@ async function restartAndGreeter() {
   mock({ ...WX(71), geocoding: GEO });
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-wp-home-'));
   const s1 = await launchShell({ home, theme: 'dark', env: ENV, settings: {} });
-  await setMany(s1, { wallpaperMode: 'dynamic', dynamicWallpaper: { source: 'weather', set: 'bloom', location: PARIS, followTheme: false }, 'animatedWallpaper.id': 'bokeh', 'lockScreen.mode': 'animated', 'lockScreen.effect': 'aurora' });
+  await setMany(s1, { wallpaperMode: 'dynamic', dynamicWallpaper: { source: 'weather', set: 'peaks', location: PARIS, followTheme: false }, 'animatedWallpaper.id': 'bokeh', 'lockScreen.mode': 'animated', 'lockScreen.effect': 'aurora' });
   await sleep(1200);
   await s1.close();
   const s2 = await launchShell({ home, env: ENV });
   try {
     await waitFor(async () => (await state(s2)).weather?.kind === 'snow', 6000);
     const st = await state(s2);
-    check(st.mode === 'dynamic' && st.dynamic?.set === 'bloom' && st.weather?.kind === 'snow' && (await get(s2, 'animatedWallpaper.id')) === 'bokeh' && (await get(s2, 'lockScreen.mode')) === 'animated', 'wallpaper settings are restored at boot (dynamic + weather, effect, lock screen)');
+    check(st.mode === 'dynamic' && st.dynamic?.set === 'peaks' && st.weather?.kind === 'snow' && (await get(s2, 'animatedWallpaper.id')) === 'bokeh' && (await get(s2, 'lockScreen.mode')) === 'animated', 'wallpaper settings are restored at boot (dynamic + weather, effect, lock screen)');
     await s2.aurora(() => window.__aurora.wallpaperEngine.setClock(new Date('2026-10-10T20:30:00')));
     await sleep(1200);
     await docShot(s2, 'wallpaper-weather-snow-night');

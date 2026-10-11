@@ -2,8 +2,8 @@
 // Also exports the control builders that other pages reuse, so every setting has one source of truth:
 //   modeControl(pc)  accentControls(pc)  taskbarColorControls(pc)  transparencyControls(pc)
 //   textSizeControls(pc)  motionControls(pc)  styleCards(pc, { compact })  stylePreview(pc, styleId, opts)
-//   pickColorDialog(pc, initial, { title, allowDefault })  livePreview(pc)
-import { ACCENTS, STYLES, FONTS, fontInstalled, resolveWallpaper, styleVars, styleAccentVars, theme as coreTheme } from '../../../core/theme.js';
+//   pickColorDialog(pc, initial, { title, allowDefault })  livePreview(pc)  ambianceControl(pc)
+import { ACCENTS, ACCENT_PRESETS, AMBIANCES, STYLES, FONTS, fontInstalled, resolveWallpaper, styleVars, styleAccentVars, styleChoicePatch, ambianceOf, accentPreset, theme as coreTheme } from '../../../core/theme.js';
 import { profiles, LOOK_KEYS } from '../../../core/profiles.js';
 import { ensureStrings } from './personalization-strings.js';
 import { PAGES } from '../lib/index.js';
@@ -189,14 +189,15 @@ export function rovingFocus(container, selector) {
 // ------------------------------------------------------------------ colour picker dialog
 export async function pickColorDialog(pc, initial, { title, allowDefault = false } = {}) {
   const { h, t, ui } = pc;
-  let value = HEX.test(initial || '') ? initial.toLowerCase() : '#0078d4';
+  let value = HEX.test(initial || '') ? initial.toLowerCase() : ACCENTS[0];
   const input = h('input', { type: 'color', value, class: 'pz-color-input', 'aria-label': t('pz.pickColor') });
   const hex = h('input', { class: 'input pz-hex', value, maxLength: 7, spellcheck: false, 'aria-label': t('pz.hex') });
   const sw = h(
     'div',
     { class: 'pz-swatches small', role: 'listbox', 'aria-label': t('pz.accent') },
     ACCENTS.map((c) => {
-      const b = h('button', { type: 'button', class: 'pz-swatch', role: 'option', 'aria-label': c, 'data-tip': c, onclick: () => set(c) });
+      const name = pc.L(accentPreset(c)?.name) || c;
+      const b = h('button', { type: 'button', class: 'pz-swatch', role: 'option', 'aria-label': name, 'data-tip': name, dataset: { hex: c }, onclick: () => set(c) });
       b.style.setProperty('--sw', c);
       return b;
     }),
@@ -206,7 +207,7 @@ export async function pickColorDialog(pc, initial, { title, allowDefault = false
     input.value = value;
     hex.value = value;
     for (const b of sw.children) {
-      const on = b.getAttribute('aria-label') === value;
+      const on = b.dataset.hex === value;
       b.classList.toggle('selected', on);
       b.setAttribute('aria-selected', String(on));
     }
@@ -276,19 +277,22 @@ export function accentControls(pc, { compact = false } = {}) {
   const { h, t, settings, kit } = pc;
   const swatches = h(
     'div',
-    { class: ['pz-swatches', compact && 'small'], role: 'listbox', 'aria-label': t('pz.accent') },
-    ACCENTS.map((c) => {
-      const b = h('button', { class: 'pz-swatch', type: 'button', role: 'option', 'aria-label': c, 'data-tip': c, onclick: () => setAccent(c) });
-      b.style.setProperty('--sw', c);
+    { class: ['pz-swatches', 'pz-accent-presets', compact && 'small'], role: 'listbox', 'aria-label': t('pz.accent') },
+    ACCENT_PRESETS.map((a) => {
+      const name = pc.L(a.name);
+      const b = h('button', { class: 'pz-swatch', type: 'button', role: 'option', 'aria-label': name, 'data-tip': name, dataset: { hex: a.hex, accent: a.id }, onclick: () => setAccent(a.hex) });
+      // the swatch shows the accent as it looks in the current mode
+      b.style.setProperty('--sw', a[modeOf(pc)].accent);
       return b;
     }),
   );
   let syncFocus = null;
   const paint = () => {
-    const cur = String(settings.get('accent') || '#0078d4').toLowerCase();
+    const cur = String(settings.get('accent') || ACCENTS[0]).toLowerCase();
     // updated in place: rebuilding the buttons would drop the keyboard focus
     for (const b of swatches.children) {
-      const on = b.getAttribute('aria-label') === cur;
+      b.style.setProperty('--sw', accentPreset(b.dataset.hex)?.[modeOf(pc)].accent || b.dataset.hex);
+      const on = b.dataset.hex === cur;
       b.classList.toggle('selected', on);
       b.setAttribute('aria-selected', String(on));
     }
@@ -317,10 +321,11 @@ export function accentControls(pc, { compact = false } = {}) {
   syncFocus = rovingFocus(swatches, '.pz-swatch');
   paint();
   pc.onDispose(settings.on('accent', paint));
+  pc.onDispose(settings.on('theme', paint));
   const note = noteEl(pc);
   const paintNote = () => {
     const st = styleOf(settings.get('style'));
-    const own = st.traits.monochrome || st.traits.contrast;
+    const own = st.traits.contrast;
     note.hidden = !own;
     note.textContent = own ? t('pz.accentStyleNote', { style: pc.L(st.name) }) : '';
   };
@@ -339,6 +344,43 @@ export function accentControls(pc, { compact = false } = {}) {
 }
 
 // ------------------------------------------------------------------ taskbar colour + opacity
+// ------------------------------------------------------------------ ambiance: cold / neutral / warm
+const AMB_STR = {
+  title: { en: 'Colour mood', fr: 'Ambiance' },
+  desc: { en: 'The tint of windows, panels and the bar. Each style has its own; you can choose another one.', fr: 'La teinte des fenêtres, des panneaux et de la barre. Chaque style a la sienne ; vous pouvez en choisir une autre.' },
+};
+/** Radio group of the three ambiances (keyboard: one Tab stop, arrows move). Returns { el, row }. */
+export function ambianceControl(pc) {
+  const { h, settings } = pc;
+  const group = h('div', { class: 'pz-ambiances', role: 'radiogroup', 'aria-label': pc.L(AMB_STR.title) });
+  const btns = AMBIANCES.map((a) =>
+    h(
+      'button',
+      { type: 'button', class: 'pz-ambiance', role: 'radio', dataset: { ambiance: a.id }, onclick: () => settings.set('ambiance', a.id) },
+      h('span', { class: 'pz-ambiance-sw', 'aria-hidden': 'true' }, h('i', { style: { background: a.swatch.dark } }), h('i', { style: { background: a.swatch.light } })),
+      h('span', { class: 'pz-ambiance-text' }, h('span', { class: 'pz-ambiance-name' }, pc.L(a.name)), h('span', { class: 'caption text-2' }, pc.L(a.desc))),
+    ),
+  );
+  group.append(...btns);
+  let syncFocus = null;
+  const paint = () => {
+    const cur = ambianceOf(settings.all());
+    for (const b of btns) {
+      const on = b.dataset.ambiance === cur;
+      b.classList.toggle('selected', on);
+      b.setAttribute('aria-checked', String(on));
+    }
+    syncFocus?.();
+  };
+  syncFocus = rovingFocus(group, '.pz-ambiance');
+  paint();
+  pc.onDispose(settings.on('ambiance', paint));
+  pc.onDispose(settings.on('style', paint));
+  const row = ctl(pc, { icon: 'color_background', title: pc.L(AMB_STR.title), desc: pc.L(AMB_STR.desc), control: group, stacked: true, section: 'ambiance' });
+  row.dataset.key = 'ambiance';
+  return { el: group, row };
+}
+
 export function taskbarColorControls(pc) {
   const { h, t, settings, kit } = pc;
   const kind = () => {
@@ -564,16 +606,26 @@ export function livePreview(pc) {
 }
 
 /** Mini rendering of a visual style (real classes inside data-style=<id>). */
-export function stylePreview(pc, styleId, { mode, values } = {}) {
+// `choose`: preview what choosing the style would bring (its ambiance / accent / wallpaper unless the user
+// changed them, core/theme.js styleChoicePatch). Without it, `values` are shown as they are (profiles).
+export function stylePreview(pc, styleId, { mode, values, choose = false } = {}) {
   const { h, settings, t } = pc;
-  const all = { ...settings.all(), ...(values || {}) };
+  let all = { ...settings.all(), ...(values || {}) };
+  if (choose) all = { ...all, ...styleChoicePatch(styleId, all) };
   const m = mode || (all.theme === 'dark' ? 'dark' : 'light');
+  // the bar, drawn with the style's hooks (--bar-mode, --bar-margin, --bar-radius…): islands, full or pills
+  const bar = h(
+    'div',
+    { class: 'pz-spv-bar' },
+    h('span', { class: 'pz-spv-seg l' }, h('b'), h('i', { class: 'search' })),
+    h('span', { class: 'pz-spv-seg c' }, h('i', { class: 'on' }), h('i'), h('i'), h('i')),
+    h('span', { class: 'pz-spv-seg r' }, h('i', { class: 'clock' })),
+  );
   const el = h(
     'div',
-    { class: 'pz-spv', inert: '', 'aria-hidden': 'true', 'data-style': styleId, 'data-theme-scope': '', 'data-theme': m },
+    { class: 'pz-spv', inert: '', 'aria-hidden': 'true', 'data-style': styleId, 'data-ambiance': ambianceOf({ ...all, style: styleId }), 'data-theme-scope': '', 'data-theme': m },
     h('div', { class: 'pz-spv-wall' }),
-    h('div', { class: 'pz-spv-stage' }, mockWindow(pc, { title: pc.L(styleOf(styleId).name), body: h('div', { class: 'pz-spv-body' }, h('div', { class: 'row' }, h('span', { class: 'btn primary' }, t('pz.previewPrimary')), h('span', { class: 'btn' }, t('pz.previewButton'))), h('div', { class: 'row' }, h('label', { class: 'toggle' }, h('input', { type: 'checkbox', checked: true, tabindex: '-1' })), h('input', { class: 'input', placeholder: t('pz.previewInput'), tabindex: '-1' }))) })),
-    h('div', { class: 'pz-spv-taskbar' }, h('i'), h('i'), h('i'), h('i')),
+    h('div', { class: 'pz-spv-stage' }, mockWindow(pc, { title: pc.L(styleOf(styleId).name), body: h('div', { class: 'pz-spv-body' }, h('div', { class: 'row' }, h('span', { class: 'btn primary' }, t('pz.previewPrimary')), h('span', { class: 'btn' }, t('pz.previewButton'))), h('div', { class: 'row' }, h('label', { class: 'toggle' }, h('input', { type: 'checkbox', checked: true, tabindex: '-1' })), h('input', { class: 'input', placeholder: t('pz.previewInput'), tabindex: '-1' }))) }), bar),
   );
   for (const [k, v] of Object.entries(styleVars(styleId, all))) el.style.setProperty(k, v);
   for (const [k, v] of Object.entries(styleAccentVars(styleId, all.accent, m))) el.style.setProperty(k, v);
@@ -599,9 +651,10 @@ export function styleCards(pc, { compact = false } = {}) {
           class: 'pz-style-card',
           role: 'radio',
           dataset: { styleId: st.id },
-          onclick: () => settings.set('style', st.id),
+          // one atomic change: the ambiance, accent and wallpaper follow the style unless you changed them
+          onclick: () => styleOf(settings.get('style')).id !== st.id && pc.api.invoke('settings:setMany', styleChoicePatch(st.id, settings.all())),
         },
-        stylePreview(pc, st.id),
+        stylePreview(pc, st.id, { choose: true }),
         h('span', { class: 'pz-style-meta' }, h('span', { class: 'pz-style-name' }, pc.L(st.name)), compact ? null : h('span', { class: 'pz-style-desc caption text-2' }, pc.L(st.desc))),
         h('span', { class: 'pz-style-check' }, icon('checkmark', { size: 12 })),
       );
@@ -651,6 +704,7 @@ async function themeDesigner(pc) {
   setup(pc);
   const { h, t, kit, settings, ui } = pc;
   const mode = modeControl(pc);
+  const amb = ambianceControl(pc);
   const accent = accentControls(pc, { compact: true });
   const tbc = taskbarColorControls(pc);
   const tr = transparencyControls(pc);
@@ -670,7 +724,7 @@ async function themeDesigner(pc) {
   const saveBtn = kit.button(t('pz.saveProfile'), () => saveAsProfile(pc), { primary: true, icon: 'save', className: 'pz-save-profile' });
   const resetBtn = kit.button(t('pz.resetLook'), async () => {
     if (!(await ui.confirm(t('pz.resetLookConfirm'), { title: t('pz.resetLook'), okLabel: t('pz.resetLook'), parent: pc.win }))) return;
-    const keys = ['style', 'autoTheme', 'accentFromWallpaper', 'transparency', 'transparencyLevel', 'blur', 'cornerRadius', 'fontFamily', 'taskbar.color', 'taskbar.opacity', 'accent'];
+    const keys = ['style', 'ambiance', 'autoTheme', 'accentFromWallpaper', 'transparency', 'transparencyLevel', 'blur', 'cornerRadius', 'fontFamily', 'taskbar.color', 'taskbar.opacity', 'accent'];
     await coreTheme.transition(() => pc.api.invoke('settings:setMany', {}, { reset: keys }));
     pc.toast(t('pz.resetDone'));
   });
@@ -684,6 +738,7 @@ async function themeDesigner(pc) {
       null,
       ctl(pc, { icon: 'dark_theme', title: t('pz.mode'), desc: t('pz.modeDesc'), control: mode.seg, stacked: true, section: 'mode' }),
       mode.autoRow,
+      amb.row,
       ctl(pc, { icon: 'color', title: t('pz.accent'), desc: t('pz.accentDesc'), control: accent.body, stacked: true, section: 'accent' }),
       accent.fromRow,
     ),
@@ -710,12 +765,14 @@ async function themeDesigner(pc) {
 async function visualStyle(pc) {
   setup(pc);
   const { h, t } = pc;
+  const accent = accentControls(pc);
   return h(
     'div',
     { class: 'pz-page' },
-    h('p', { class: 'pz-intro text-2' }, t('pz.styleIntro')),
+    h('p', { class: 'pz-intro text-2' }, pc.L({ en: 'A style sets the shape of the bar, the windows and the panels, with its own colour mood and accent. You can then change the mood and the accent below.', fr: 'Un style définit la forme de la barre, des fenêtres et des panneaux, avec son ambiance et son accent. Vous pouvez ensuite changer l’ambiance et l’accent ci-dessous.' })),
     styleCards(pc),
     h('p', { class: 'caption text-2 pz-after' }, t('pz.styleModeNote')),
+    h('section', { class: 'pz-card pz-style-colors' }, ambianceControl(pc).row, ctl(pc, { icon: 'color', title: t('pz.accent'), desc: t('pz.accentDesc'), control: accent.body, stacked: true, section: 'accent' })),
     pc.kit.related([{ icon: 'window_brush', title: pc.pageTitle('themeDesigner'), desc: pc.L(PAGES.themeDesigner.desc), onClick: () => pc.go('themeDesigner') }]),
   );
 }
@@ -806,7 +863,7 @@ async function profilesPage(pc) {
       icon('more_horizontal', { size: 16 }),
     );
     const all = expandValues(settings.all(), values);
-    const pv = stylePreview(pc, all.style || 'win11', { values: all });
+    const pv = stylePreview(pc, all.style || 'nocturne', { values: all });
     const sub = p.builtin ? t('pz.builtin') : t('pz.savedOn', { date: pc.i18n.formatDate(p.updated || p.created, { dateStyle: 'medium' }) });
     const swatch = h('span', { class: 'pz-profile-accent', 'aria-hidden': 'true' });
     // the accent the profile really shows (High contrast and Minimal use their own)
@@ -945,7 +1002,7 @@ async function appThemes(pc) {
   const styleNote = noteEl(pc);
   const paintStyleNote = () => {
     const st = styleOf(settings.get('style'));
-    const own = st.traits.monochrome || st.traits.contrast;
+    const own = st.traits.contrast;
     styleNote.hidden = !own;
     styleNote.textContent = own ? t('pz.accentStyleNote', { style: pc.L(st.name) }) : '';
   };

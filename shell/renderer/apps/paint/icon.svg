@@ -1,57 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <linearGradient id="pal" x1="8" y1="6" x2="40" y2="43" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fffaf2"/>
-      <stop offset=".55" stop-color="#f7e5c4"/>
-      <stop offset="1" stop-color="#e3bf88"/>
-    </linearGradient>
-    <linearGradient id="palhl" x1="10" y1="7" x2="26" y2="26" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fff" stop-opacity=".9"/>
-      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-    </linearGradient>
-    <radialGradient id="dr" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#ff8f7a"/><stop offset="1" stop-color="#e3262f"/></radialGradient>
-    <radialGradient id="dy" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#ffe680"/><stop offset="1" stop-color="#f2a400"/></radialGradient>
-    <radialGradient id="dg" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#8ce68a"/><stop offset="1" stop-color="#1e9e48"/></radialGradient>
-    <radialGradient id="db" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#7cc4ff"/><stop offset="1" stop-color="#1764e0"/></radialGradient>
-    <linearGradient id="handle" x1="-2.6" y1="0" x2="2.6" y2="0" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#5cb0ff"/>
-      <stop offset=".45" stop-color="#2a7bf0"/>
-      <stop offset="1" stop-color="#174fc4"/>
-    </linearGradient>
-    <linearGradient id="ferrule" x1="-3.2" y1="0" x2="3.2" y2="0" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#f6f8fb"/>
-      <stop offset=".5" stop-color="#cfd6df"/>
-      <stop offset="1" stop-color="#8f9aa9"/>
-    </linearGradient>
-    <linearGradient id="hair" x1="0" y1="-9" x2="0" y2="0.6" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#f3b26b"/>
-      <stop offset=".45" stop-color="#ef6a5a"/>
-      <stop offset="1" stop-color="#d81f3c"/>
-    </linearGradient>
-  </defs>
-  <path fill="url(#pal)" fill-rule="evenodd" d="M24 5.5c11.3 0 20 7.5 20 17 0 5.1-3.4 7.9-7.6 7.5-3.2-.3-5.2 1.6-4.8 4.6.5 4.4-3.1 7.9-8.6 7.9C12 42.5 4 34.6 4 24 4 13.4 12.8 5.5 24 5.5zM14 27.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z"/>
-  <path fill="none" stroke="#a2692c" stroke-opacity=".5" stroke-width=".8" d="M24 5.9c11.1 0 19.6 7.3 19.6 16.6 0 4.8-3.2 7.4-7.2 7.1-3.5-.3-5.6 1.8-5.2 5.1.4 4.1-3 7.4-8.2 7.4C12.3 42.1 4.4 34.4 4.4 24 4.4 13.6 13 5.9 24 5.9zM14 28a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/>
-  <path fill="url(#palhl)" opacity=".7" d="M9 20.5C10.6 12.6 17 8 24 8c3.6 0 6.9 1 9.6 2.7C29.9 9.6 25.6 9.7 21.3 11.4 15.9 13.6 11.6 17.6 9 20.5z"/>
-  <circle cx="11.8" cy="20.6" r="3.6" fill="url(#dr)"/>
-  <circle cx="17.6" cy="13.2" r="3.6" fill="url(#dy)"/>
-  <circle cx="25.6" cy="10.4" r="3.6" fill="url(#dg)"/>
-  <circle cx="33.4" cy="12.8" r="3.6" fill="url(#db)"/>
-  <g fill="#fff" opacity=".6">
-    <ellipse cx="10.7" cy="19.4" rx="1.2" ry=".8"/>
-    <ellipse cx="16.5" cy="12" rx="1.2" ry=".8"/>
-    <ellipse cx="24.5" cy="9.2" rx="1.2" ry=".8"/>
-    <ellipse cx="32.3" cy="11.6" rx="1.2" ry=".8"/>
-  </g>
-  <g transform="translate(25.7 35.6) rotate(36.87)" fill="#5a3a12" opacity=".16">
-    <path d="M-3 -9C-3 -4 -1.2 -1.5 0 .6 1.2 -1.5 3 -4 3 -9z"/>
-    <rect x="-3.2" y="-14.2" width="6.4" height="5.6" rx=".8"/>
-    <path d="M-2.6 -14 -2 -30Q0 -32.2 2 -30L2.6 -14z"/>
-  </g>
-  <g transform="translate(24.4 34.2) rotate(36.87)">
-    <path fill="url(#handle)" d="M-2.6 -14 -2 -30Q0 -32.2 2 -30L2.6 -14z"/>
-    <path fill="#fff" opacity=".35" d="M-1.6 -15 -1.2 -29.4Q-.6 -30.4 -.2 -30.2L-.4 -15z"/>
-    <rect x="-3.2" y="-14.2" width="6.4" height="5.6" rx=".8" fill="url(#ferrule)"/>
-    <path fill="url(#hair)" d="M-3 -9C-3 -4 -1.2 -1.5 0 .6 1.2 -1.5 3 -4 3 -9z"/>
-    <path fill="#fff" opacity=".3" d="M-1.9 -8.6C-1.9 -5 -1 -3 -.3 -1.6 -.6 -4 -.8 -6.4 -.7 -8.6z"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
+<style>@media (max-width:26px){.hl{display:none}.s{transform:translate(6px,6px) scale(.140625)}}@media (max-width:18px){.s{transform:translate(5px,5px) scale(.1484)}}</style>
+<defs>
+<linearGradient id="paint-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#222c45"/><stop offset="1" stop-color="#161d30"/></linearGradient>
+<linearGradient id="paint-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+<linearGradient id="paint-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c8bee9"/><stop offset="1" stop-color="#ae9fdf"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#paint-b)"/>
+<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#paint-h)"/>
+<g class="s" transform="translate(8 8) scale(.125)" fill="url(#paint-f)"><path d="M200.77,53.89A103.27,103.27,0,0,0,128,24h-1.07A104,104,0,0,0,24,128c0,43,26.58,79.06,69.36,94.17A32,32,0,0,0,136,192a16,16,0,0,1,16-16h46.21a31.81,31.81,0,0,0,31.2-24.88,104.43,104.43,0,0,0,2.59-24A103.28,103.28,0,0,0,200.77,53.89ZM84,168a12,12,0,1,1,12-12A12,12,0,0,1,84,168Zm0-56a12,12,0,1,1,12-12A12,12,0,0,1,84,112Zm44-24a12,12,0,1,1,12-12A12,12,0,0,1,128,88Zm44,24a12,12,0,1,1,12-12A12,12,0,0,1,172,112Z"/></g>
 </svg>
