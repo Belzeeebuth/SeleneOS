@@ -77,16 +77,20 @@ const DEFAULTS = {
   dynamicWallpaper: { source: 'time', set: 'bloom', location: null, followTheme: false },
   slideshow: { folder: null, interval: 30, shuffle: true }, // folder null = the built-in pictures; interval in minutes
   lockScreen: { mode: 'picture', effect: 'aurora' }, // picture (lockWallpaper, null = same as the desktop) | spotlight | animated
-  // Area B2 — Start + Focus mode (reserved; taskbar.* additions are merged into `taskbar` below):
+  // Area B2 — Start (core/start.js) + Focus mode (core/features/focus.js); taskbar.* additions are merged into `taskbar` below:
+  // layout: default | morePins | moreRecommended | list; background: acrylic | solid | accent | wallpaper;
+  // folders: shortcuts next to the power button (documents, downloads, music, pictures, videos, files, settings, home, network);
+  // groups: app folders in Pinned [{ id: 'g-…', name, apps: [appId] }]
   start: { layout: 'default', background: 'acrylic', folders: [], groups: [] },
+  // active is runtime state (never in profiles; a new session starts with it off); dimLevel 0–100; duration in minutes (0 = until off)
   focusMode: { active: false, hideNotifications: true, dimDesktop: true, dimLevel: 40, simplifyTaskbar: true, duration: 0 },
-  // Area B3 — packs + input (reserved):
-  cursorPack: 'default',
-  iconPack: 'fluent',
-  soundPack: 'aurora',
-  soundEvents: { notification: null, startup: null, shutdown: null }, // null = pack sound, 'none' = silent
+  // Area B3 — packs (core/packs.js, core/sounds.js) + input (core/shortcuts.js, features/hotkeys.js, features/snaplayouts.js):
+  cursorPack: 'default', // default (system) | classic | midnight | accent | large | highvis | retro
+  iconPack: 'fluent', // fluent (the apps' own icons) | tiles | accent | graphite | outline
+  soundPack: 'aurora', // aurora | chimes | retro | soft | silent
+  soundEvents: { notification: null, startup: null, shutdown: null }, // null = pack sound, 'none' = silent, '<pack>.<sound>', '/abs/file.ogg'
   snapPresets: [], // [{ id, name, zones: [{ x, y, w, h }] }] (fractions of the work area)
-  shortcuts: {}, // { [actionId]: 'Super+K' | null }
+  shortcuts: {}, // { [actionId]: 'Super+K' | null } — overrides of core/shortcuts.js SHORTCUTS (null = turned off)
 };
 // Personalization keys of the taskbar (Area A: color/opacity; Area B2: the rest), merged into DEFAULTS.taskbar.
 Object.assign(DEFAULTS.taskbar, {
@@ -94,9 +98,10 @@ Object.assign(DEFAULTS.taskbar, {
   opacity: null, // null = follows transparencyLevel | 0–100
   size: 'medium', // small | medium | large
   position: 'bottom', // bottom | top | left | right
-  showLabels: false,
-  combine: 'always', // always | whenFull | never
-  widgets: [], // tray mini widgets ('weather', 'cpu', …)
+  showLabels: false, // app names next to the icons (horizontal taskbars)
+  combine: 'always', // always | whenFull | never (one button per window)
+  widgets: [], // tray mini widgets: 'weather' | 'cpu' | 'memory' | 'network'
+  search: null, // null = follows showSearch | 'hidden' | 'icon' | 'box'
 });
 
 function isObj(v) {

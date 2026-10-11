@@ -40,6 +40,20 @@ export const LAYOUTS = [
   ['quarter-l', 'half-c', 'quarter-r'],
 ];
 
+// The user's own layouts (settings snapPresets: [{ id, name, zones: [{ x, y, w, h }] }], fractions of the work area,
+// edited in Settings > Personalization > Snap layouts) come after the built-in ones, as 'z:x,y,w,h' zones (wm.zoneRect).
+const frac = (n) => String(Math.round(Math.max(0, Math.min(1, Number(n) || 0)) * 10000) / 10000);
+export function presetZones(p) {
+  return (p?.zones || [])
+    .filter((z) => z && z.w > 0 && z.h > 0 && z.x >= 0 && z.y >= 0 && z.x + z.w <= 1.001 && z.y + z.h <= 1.001)
+    .slice(0, 16)
+    .map((z) => `z:${frac(z.x)},${frac(z.y)},${frac(z.w)},${frac(z.h)}`);
+}
+export function allLayouts() {
+  const custom = (Array.isArray(settings.get('snapPresets')) ? settings.get('snapPresets') : []).map(presetZones).filter((zs) => zs.length);
+  return [...LAYOUTS, ...custom.slice(0, 12)];
+}
+
 // What Snap Assist offers after a snap that did not come from a layout.
 const COMPLEMENT = {
   left: ['right'],
@@ -119,9 +133,10 @@ function onOutside(e) {
 
 function pick(z, li) {
   const win = fly?.win;
+  const layouts = fly?.layouts || LAYOUTS;
   hideFlyout();
   if (!win || win._closing) return;
-  pendingLayout = LAYOUTS[li];
+  pendingLayout = layouts[li];
   if (win.minimized) win.restoreFromMinimize();
   win.focus();
   win.snapTo(z, { source: 'layout' });
@@ -138,6 +153,7 @@ function paintSel() {
 
 function onFlyKey(e) {
   if (!fly) return;
+  const LAYOUTS = fly.layouts;
   const [li, zi] = fly.sel;
   const k = e.key;
   let handled = true;
@@ -201,21 +217,23 @@ export function openFlyout(win, { keyboard = false, anchor } = {}) {
     },
     grid,
   );
-  LAYOUTS.forEach((zones, i) =>
+  const layouts = allLayouts();
+  layouts.forEach((zones, i) =>
     grid.appendChild(
       layoutTile(zones, {
         index: i,
-        numbered: keyboard,
+        numbered: keyboard && i < 9,
         onZone: pick,
         onHover: (z, li) => {
           if (fly) {
-            fly.sel = [li, LAYOUTS[li].indexOf(z)];
+            fly.sel = [li, layouts[li].indexOf(z)];
             paintSel();
           }
         },
       }),
     ),
   );
+  for (const tile of [...grid.children].slice(LAYOUTS.length)) tile.classList.add('custom');
   document.getElementById('overlays').appendChild(el);
   // Under the maximize button, kept on screen.
   const b = (anchor || win.btnMax).getBoundingClientRect();
@@ -231,7 +249,7 @@ export function openFlyout(win, { keyboard = false, anchor } = {}) {
   if (y + r.height > window.innerHeight - 8) y = Math.max(8, b.top - r.height - 6);
   el.style.left = `${Math.round(x)}px`;
   el.style.top = `${Math.round(y)}px`;
-  fly = { win, el, kb: keyboard, sel: [0, 0], digits: null };
+  fly = { win, el, kb: keyboard, sel: [0, 0], digits: null, layouts };
   setTimeout(() => document.addEventListener('pointerdown', onOutside, true));
   if (keyboard) {
     document.addEventListener('keydown', onFlyKey, true);
@@ -416,9 +434,10 @@ function hideBar() {
 
 function showBar(win) {
   const el = h('div', { class: 'snapl-bar' });
-  LAYOUTS.forEach((zones, i) => el.appendChild(layoutTile(zones, { index: i })));
+  const layouts = allLayouts();
+  layouts.forEach((zones, i) => el.appendChild(layoutTile(zones, { index: i })));
   document.getElementById('overlays').appendChild(el);
-  bar = { el, win, zone: null, layout: null };
+  bar = { el, win, zone: null, layout: null, layouts };
 }
 
 function onDragMove(win, { x, y }) {
@@ -441,7 +460,7 @@ function onDragMove(win, { x, y }) {
     if (on) hit = z;
   }
   bar.zone = hit ? hit.dataset.zone : null;
-  bar.layout = hit ? LAYOUTS[Number(hit.dataset.layout)] : null;
+  bar.layout = hit ? bar.layouts[Number(hit.dataset.layout)] : null;
   wm.dragSnapOverride = bar.zone;
 }
 
@@ -533,6 +552,7 @@ export function mount(ctx) {
     assist: startAssist,
     endAssist,
     layouts: LAYOUTS,
+    allLayouts,
     get flyoutOpen() {
       return !!fly;
     },

@@ -1,0 +1,630 @@
+/* Shell personalization (docs/PERSONALIZATION.md §10): taskbar size, screen edge, app labels, mini widgets; Start
+   background, layout and app folders; Focus mode.
+   core/taskbar.js sets on <html>:
+     data-tb-pos="bottom|top|left|right"   data-tb-size="small|medium|large"   data-tb-labels="on|off"
+     --taskbar-h  the taskbar's thickness (its height, or its width when it stands on the left / right edge)
+   core/features/focus.js sets  data-focus="on"  data-focus-simple="on"  data-focus-dim="on"  (+ --focus-dim).
+   Every rule is prefixed with :root[data-tb-*] so it beats the shell and visual-style rules it adapts. */
+
+/* ------------------------------------------------------------------ sizes */
+:root[data-tb-size="small"] #taskbar .tb-btn {
+  height: 32px;
+  min-width: 32px;
+}
+:root[data-tb-size="small"] #taskbar .tb-btn > img {
+  width: 20px;
+  height: 20px;
+}
+:root[data-tb-size="small"] #taskbar .tb-start > img {
+  width: 21px;
+  height: 21px;
+}
+:root[data-tb-size="small"] #taskbar .tb-btn > .icon {
+  width: 16px !important;
+  height: 16px !important;
+}
+:root[data-tb-size="small"] #taskbar .tb-clock {
+  line-height: 14px;
+}
+:root[data-tb-size="small"] #taskbar .tb-searchbox {
+  height: 28px;
+}
+:root[data-tb-size="large"] #taskbar .tb-btn {
+  height: 52px;
+  min-width: 52px;
+}
+:root[data-tb-size="large"] #taskbar .tb-btn > img {
+  width: 32px;
+  height: 32px;
+}
+:root[data-tb-size="large"] #taskbar .tb-start > img {
+  width: 34px;
+  height: 34px;
+}
+:root[data-tb-size="large"] #taskbar .tb-btn > .icon {
+  width: 24px !important;
+  height: 24px !important;
+}
+:root[data-tb-size="large"] #taskbar .tb-quick .icon {
+  width: 18px !important;
+  height: 18px !important;
+}
+:root[data-tb-size="large"] #taskbar .tb-clock {
+  font-size: calc(13px * var(--text-scale, 1));
+  line-height: 18px;
+}
+:root[data-tb-size="large"] #taskbar .tb-searchbox {
+  height: 40px;
+  border-radius: 20px;
+}
+
+/* ------------------------------------------------------------------ app labels (Windows 10 style) */
+#taskbar .tb-app .tb-label {
+  display: none;
+}
+:root[data-tb-labels="on"] #taskbar .tb-app {
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 10px 0 8px;
+  max-width: 168px;
+}
+:root[data-tb-labels="on"] #taskbar .tb-app .tb-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-caption);
+}
+:root[data-tb-labels="on"] #taskbar .tb-app:not(.running) {
+  max-width: none;
+  padding: 0;
+  justify-content: center;
+}
+:root[data-tb-labels="on"] #taskbar .tb-app:not(.running) .tb-label {
+  display: none;
+}
+:root[data-tb-labels="on"] #taskbar .tb-app.running {
+  min-width: 132px;
+}
+:root[data-tb-labels="on"][data-tb-pos="left"] #taskbar .tb-app,
+:root[data-tb-labels="on"][data-tb-pos="right"] #taskbar .tb-app {
+  min-width: 40px;
+  max-width: none;
+  padding: 0;
+  justify-content: center;
+}
+:root[data-tb-labels="on"][data-tb-pos="left"] #taskbar .tb-app .tb-label,
+:root[data-tb-labels="on"][data-tb-pos="right"] #taskbar .tb-app .tb-label {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ mini widgets in the tray */
+#taskbar .tb-minis {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+#taskbar .tb-minis[hidden] {
+  display: none;
+}
+#taskbar .tb-mini {
+  gap: 6px;
+  padding: 0 8px;
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+#taskbar .tb-mini .tb-mini-val {
+  min-width: 3ch;
+  text-align: right;
+}
+#taskbar .tb-mini .tb-meter {
+  position: relative;
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text) 18%, transparent);
+  overflow: hidden;
+}
+#taskbar .tb-mini .tb-meter > i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--v, 0%);
+  background: var(--accent);
+  transition: height var(--dur-slow) var(--ease);
+}
+#taskbar .tb-mini[data-level="high"] .tb-meter > i {
+  background: #e8a33b;
+}
+#taskbar .tb-mini[data-level="max"] .tb-meter > i {
+  background: var(--danger);
+}
+#taskbar .tb-mini-net {
+  flex-direction: column;
+  gap: 0;
+  line-height: 14px;
+  align-items: flex-end;
+}
+#taskbar .tb-focus-pill {
+  gap: 6px;
+  padding: 0 10px;
+  font-size: var(--fs-caption);
+  color: var(--accent-text);
+}
+#taskbar .tb-focus-pill[hidden] {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ top edge */
+:root[data-tb-pos="top"] #taskbar {
+  top: 0;
+  bottom: auto;
+  border-top: 0;
+  border-bottom: var(--tb-edge-border, 1px solid var(--window-stroke));
+}
+:root[data-tb-pos="top"] #taskbar .tb-ind {
+  bottom: auto;
+  top: 1px;
+}
+:root[data-tb-pos="top"] #taskbar.autohide.hidden,
+:root[data-tb-pos="top"] body.has-fullscreen #taskbar {
+  transform: translateY(calc(-100% - 1px));
+}
+:root[data-tb-pos="top"] .tb-hotzone {
+  top: 0;
+  bottom: auto;
+}
+
+/* ------------------------------------------------------------------ left / right edges (vertical taskbar) */
+:root[data-tb-pos="left"] #taskbar,
+:root[data-tb-pos="right"] #taskbar {
+  top: 0;
+  bottom: 0;
+  height: auto;
+  width: var(--taskbar-h);
+  flex-direction: column;
+  border-top: 0;
+}
+:root[data-tb-pos="left"] #taskbar {
+  left: 0;
+  right: auto;
+  border-right: var(--tb-edge-border, 1px solid var(--window-stroke));
+}
+:root[data-tb-pos="right"] #taskbar {
+  left: auto;
+  right: 0;
+  border-left: var(--tb-edge-border, 1px solid var(--window-stroke));
+}
+:root[data-tb-pos="left"] #taskbar .tb-left,
+:root[data-tb-pos="right"] #taskbar .tb-left {
+  display: none;
+}
+/* (a vertical taskbar always starts at the top, like Windows 10: the tray needs the bottom) */
+:root[data-tb-pos="left"] #taskbar .tb-center,
+:root[data-tb-pos="right"] #taskbar .tb-center {
+  left: 0;
+  right: 0;
+  top: 6px;
+  height: auto;
+  width: 100%;
+  flex-direction: column;
+  transform: none;
+}
+:root[data-tb-pos="left"] #taskbar .tb-apps,
+:root[data-tb-pos="right"] #taskbar .tb-apps {
+  flex-direction: column;
+}
+:root[data-tb-pos="left"] #taskbar .tb-btn,
+:root[data-tb-pos="right"] #taskbar .tb-btn {
+  width: calc(var(--taskbar-h) - 12px);
+  min-width: 0;
+}
+:root[data-tb-pos="left"] #taskbar .tb-searchbox,
+:root[data-tb-pos="right"] #taskbar .tb-searchbox {
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  justify-content: center;
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+}
+:root[data-tb-pos="left"] #taskbar .tb-searchbox > span:not(.icon),
+:root[data-tb-pos="right"] #taskbar .tb-searchbox > span:not(.icon) {
+  display: none;
+}
+:root[data-tb-pos="left"] #taskbar .tb-tray,
+:root[data-tb-pos="right"] #taskbar .tb-tray {
+  margin: auto 0 0;
+  flex-direction: column;
+  height: auto;
+  width: 100%;
+  gap: 4px;
+  padding: 0 0 2px;
+}
+:root[data-tb-pos="left"] #taskbar .tb-quick,
+:root[data-tb-pos="right"] #taskbar .tb-quick {
+  flex-direction: column;
+  height: auto;
+  min-height: 40px;
+  padding: 8px 0;
+  gap: 8px;
+}
+:root[data-tb-pos="left"] #taskbar .tb-clock,
+:root[data-tb-pos="right"] #taskbar .tb-clock {
+  flex-direction: column;
+  height: auto;
+  min-height: 40px;
+  gap: 4px;
+  padding: 6px 0;
+}
+:root[data-tb-pos="left"] #taskbar .tb-clock-text,
+:root[data-tb-pos="right"] #taskbar .tb-clock-text {
+  align-items: center;
+  text-align: center;
+  white-space: normal;
+}
+:root[data-tb-pos="left"] #taskbar .tb-date,
+:root[data-tb-pos="right"] #taskbar .tb-date {
+  display: none;
+}
+:root[data-tb-pos="left"] #taskbar .tb-minis,
+:root[data-tb-pos="right"] #taskbar .tb-minis {
+  flex-direction: column;
+  width: 100%;
+  align-items: center;
+}
+:root[data-tb-pos="left"] #taskbar .tb-mini,
+:root[data-tb-pos="right"] #taskbar .tb-mini {
+  flex-direction: column;
+  height: auto;
+  min-height: 36px;
+  padding: 4px 0;
+  gap: 2px;
+  font-size: 11px;
+}
+:root[data-tb-pos="left"] #taskbar .tb-mini .tb-mini-val,
+:root[data-tb-pos="right"] #taskbar .tb-mini .tb-mini-val {
+  min-width: 0;
+  text-align: center;
+}
+:root[data-tb-pos="left"] #taskbar .tb-mini .tb-meter,
+:root[data-tb-pos="right"] #taskbar .tb-mini .tb-meter {
+  display: none;
+}
+:root[data-tb-pos="left"] #taskbar .tb-mini-net,
+:root[data-tb-pos="right"] #taskbar .tb-mini-net {
+  align-items: center;
+  line-height: 13px;
+}
+:root[data-tb-pos="left"] #taskbar .tb-focus-pill,
+:root[data-tb-pos="right"] #taskbar .tb-focus-pill {
+  flex-direction: column;
+  height: auto;
+  padding: 6px 0;
+  gap: 2px;
+}
+:root[data-tb-pos="left"] #taskbar .tb-showdesk,
+:root[data-tb-pos="right"] #taskbar .tb-showdesk {
+  width: 100%;
+  height: 10px;
+  margin: 2px 0 0;
+}
+:root[data-tb-pos="left"] #taskbar .tb-showdesk::before,
+:root[data-tb-pos="right"] #taskbar .tb-showdesk::before {
+  left: 14px;
+  right: 14px;
+  top: 4px;
+  bottom: auto;
+  width: auto;
+  height: 1px;
+}
+/* running / active indicator on the screen-edge side of the button */
+:root[data-tb-pos="left"] #taskbar .tb-ind,
+:root[data-tb-pos="right"] #taskbar .tb-ind {
+  bottom: auto;
+  top: 50%;
+  width: 3px;
+  height: 6px;
+  margin: -3px 0 0;
+}
+:root[data-tb-pos="left"] #taskbar .tb-ind {
+  left: 1px;
+}
+:root[data-tb-pos="right"] #taskbar .tb-ind {
+  left: auto;
+  right: 1px;
+}
+:root[data-tb-pos="left"] #taskbar .tb-app.active .tb-ind,
+:root[data-tb-pos="right"] #taskbar .tb-app.active .tb-ind,
+:root[data-tb-pos="left"] #taskbar .tb-ovf-item.active .tb-ind,
+:root[data-tb-pos="right"] #taskbar .tb-ovf-item.active .tb-ind {
+  width: 3px;
+  height: 16px;
+  margin: -8px 0 0;
+}
+:root[data-tb-pos="left"] #taskbar.autohide.hidden,
+:root[data-tb-pos="left"] body.has-fullscreen #taskbar {
+  transform: translateX(calc(-100% - 1px));
+}
+:root[data-tb-pos="right"] #taskbar.autohide.hidden,
+:root[data-tb-pos="right"] body.has-fullscreen #taskbar {
+  transform: translateX(calc(100% + 1px));
+}
+:root[data-tb-pos] body.has-fullscreen #taskbar.fly-open {
+  transform: none;
+}
+:root[data-tb-pos="left"] .tb-hotzone,
+:root[data-tb-pos="right"] .tb-hotzone {
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  height: auto;
+}
+:root[data-tb-pos="left"] .tb-hotzone {
+  right: auto;
+}
+:root[data-tb-pos="right"] .tb-hotzone {
+  left: auto;
+}
+
+/* ------------------------------------------------------------------ work area: windows, desktop icons, toasts */
+:root[data-tb-pos="top"] #windows,
+:root[data-tb-pos="left"] #windows,
+:root[data-tb-pos="right"] #windows {
+  bottom: 0;
+}
+:root[data-tb-pos="top"] .desk-icons {
+  inset: var(--taskbar-h) 0 0 0;
+}
+:root[data-tb-pos="left"] .desk-icons {
+  inset: 0 0 0 var(--taskbar-h);
+}
+:root[data-tb-pos="right"] .desk-icons {
+  inset: 0 var(--taskbar-h) 0 0;
+}
+:root[data-tb-pos] body.tb-autohide .desk-icons {
+  inset: 0;
+}
+:root[data-tb-pos="top"] #toasts,
+:root[data-tb-pos="left"] #toasts {
+  padding-bottom: 12px;
+}
+:root[data-tb-pos="right"] #toasts {
+  padding: 0 calc(var(--taskbar-h) + 12px) 12px 0;
+}
+:root[data-tb-pos="right"] body.tb-autohide #toasts {
+  padding-right: 12px;
+}
+:root[data-tb-pos="top"] .osd,
+:root[data-tb-pos="left"] .osd,
+:root[data-tb-pos="right"] .osd {
+  bottom: 48px;
+}
+:root[data-tb-pos="top"] .tv-pill,
+:root[data-tb-pos="left"] .tv-pill,
+:root[data-tb-pos="right"] .tv-pill {
+  bottom: 40px;
+}
+
+/* ------------------------------------------------------------------ flyouts follow the taskbar's edge */
+/* top: they drop down from under the taskbar */
+:root[data-tb-pos="top"] #start,
+:root[data-tb-pos="top"] #search-panel,
+:root[data-tb-pos="top"] #quick-settings,
+:root[data-tb-pos="top"] #calendar-center {
+  --fly-from: -24px;
+  top: calc(var(--taskbar-h) + 12px);
+  bottom: auto;
+}
+:root[data-tb-pos="top"] #widgets-board {
+  top: calc(var(--taskbar-h) + 12px);
+  bottom: 12px;
+}
+:root[data-tb-pos="top"] .tb-preview,
+:root[data-tb-pos="top"] .tb-ovf {
+  top: calc(var(--taskbar-h) + 8px);
+  bottom: auto;
+}
+:root[data-tb-pos="top"] #calendar-center {
+  justify-content: flex-start;
+}
+/* left / right: they open beside the taskbar, from the bottom of the screen */
+:root[data-tb-pos="left"] #start,
+:root[data-tb-pos="left"] #search-panel {
+  left: calc(var(--taskbar-h) + 12px);
+  margin-left: 0;
+  bottom: 12px;
+}
+:root[data-tb-pos="right"] #start,
+:root[data-tb-pos="right"] #search-panel {
+  left: auto;
+  right: calc(var(--taskbar-h) + 12px);
+  margin-left: 0;
+  bottom: 12px;
+}
+:root[data-tb-pos="left"] #quick-settings,
+:root[data-tb-pos="left"] #calendar-center {
+  right: auto;
+  left: calc(var(--taskbar-h) + 12px);
+  bottom: 12px;
+}
+:root[data-tb-pos="right"] #quick-settings,
+:root[data-tb-pos="right"] #calendar-center {
+  right: calc(var(--taskbar-h) + 12px);
+  bottom: 12px;
+}
+:root[data-tb-pos="left"] #widgets-board {
+  left: calc(var(--taskbar-h) + 12px);
+  bottom: 12px;
+}
+:root[data-tb-pos="right"] #widgets-board {
+  bottom: 12px;
+}
+:root[data-tb-pos="left"] .tb-preview,
+:root[data-tb-pos="left"] .tb-ovf,
+:root[data-tb-pos="right"] .tb-preview,
+:root[data-tb-pos="right"] .tb-ovf {
+  bottom: auto;
+}
+:root[data-tb-pos="left"] .tb-preview,
+:root[data-tb-pos="right"] .tb-preview {
+  flex-direction: column;
+  max-height: calc(100vh - 16px);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+/* (closed state only: an open flyout gets .flyout.open { transform: none }) */
+:root[data-tb-pos="left"] #start:not(.open),
+:root[data-tb-pos="left"] #search-panel:not(.open),
+:root[data-tb-pos="left"] #quick-settings:not(.open),
+:root[data-tb-pos="left"] #calendar-center:not(.open) {
+  transform: translateX(-24px);
+}
+:root[data-tb-pos="right"] #start:not(.open),
+:root[data-tb-pos="right"] #search-panel:not(.open),
+:root[data-tb-pos="right"] #quick-settings:not(.open),
+:root[data-tb-pos="right"] #calendar-center:not(.open) {
+  transform: translateX(24px);
+}
+
+/* ------------------------------------------------------------------ the edge border of each visual style */
+:root[data-style="contrast"] {
+  --tb-edge-border: 2px solid var(--hc-fg);
+}
+:root[data-style="glass"] {
+  --tb-edge-border: 1px solid var(--glass-hi);
+}
+:root[data-style="minimal"] {
+  --tb-edge-border: 1px solid var(--stroke);
+}
+:root[data-style="retro"] {
+  --tb-edge-border: 2px solid var(--face-hi, #fff);
+}
+:root[data-style="retro"][data-tb-pos="top"] #taskbar,
+:root[data-style="retro"][data-tb-pos="left"] #taskbar,
+:root[data-style="retro"][data-tb-pos="right"] #taskbar {
+  box-shadow: none;
+}
+
+/* ------------------------------------------------------------------ Start menu background style (start.background) */
+#start[data-bg="solid"] {
+  background: var(--solid);
+  backdrop-filter: none;
+}
+#start[data-bg="accent"] {
+  background: color-mix(in srgb, var(--accent-base, var(--accent)) 30%, var(--fly-bg));
+}
+/* "Wallpaper": the pre-blurred desktop picture (Mica), like the windows, instead of a live blur */
+#start[data-bg="wallpaper"] {
+  background: linear-gradient(var(--mica-tint-alt), var(--mica-tint-alt)), var(--mica-image, none) center / cover fixed, var(--bg-alt);
+  backdrop-filter: none;
+}
+
+/* ------------------------------------------------------------------ Focus mode */
+.focus-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: #000;
+  opacity: 0;
+  transition: opacity 600ms var(--ease-std);
+}
+:root[data-focus-dim="on"] .focus-dim {
+  opacity: var(--focus-dim, 0.4);
+}
+:root[data-animations="off"] .focus-dim {
+  transition: none;
+}
+:root[data-focus-simple="on"] #taskbar .tb-search,
+:root[data-focus-simple="on"] #taskbar .tb-taskview,
+:root[data-focus-simple="on"] #taskbar .tb-widgets,
+:root[data-focus-simple="on"] #taskbar .tb-left,
+:root[data-focus-simple="on"] #taskbar .tb-minis,
+:root[data-focus-simple="on"] #taskbar .tb-bell .tb-count {
+  display: none;
+}
+:root[data-focus-simple="on"] #taskbar .tb-quick > span:not(.tb-qs-fallback) {
+  opacity: 0.7;
+}
+
+/* ------------------------------------------------------------------ Start: layouts, app folders, folder shortcuts */
+#start .start-recs {
+  grid-auto-rows: 56px;
+}
+#start .start-view-list .start-all-wrap {
+  flex: 1;
+  min-height: 0;
+}
+#start .start-view-list .start-pinned {
+  flex: none;
+}
+.start-group-icons {
+  display: grid;
+  grid-template-columns: repeat(2, 15px);
+  grid-auto-rows: 15px;
+  gap: 2px;
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  margin-top: -2px;
+  place-content: center;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border: 1px solid var(--control-stroke);
+}
+.start-tile .start-group-icons img {
+  width: 15px;
+  height: 15px;
+}
+.start-group.drop-into {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+}
+.start-folder {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  padding: 0 32px 12px;
+  background: none;
+}
+/* the flyout background can be translucent: hide what the open folder covers */
+.start-body.has-folder > :not(.start-folder) {
+  visibility: hidden;
+}
+.start-folder-grid {
+  grid-auto-rows: 84px;
+  overflow: auto;
+}
+.start-folders {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  margin-right: 4px;
+}
+.start-folders:empty {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ icon packs: file-type colours (core/packs.js) */
+:root[data-icon-pack="graphite"] :is(.ft-txt, .ft-dir, .ft-doc, .ft-xls, .ft-ppt, .ft-pdf, .ft-img, .ft-audio, .ft-video, .ft-zip, .ft-code),
+:root[data-icon-pack="outline"] :is(.ft-txt, .ft-dir, .ft-doc, .ft-xls, .ft-ppt, .ft-pdf, .ft-img, .ft-audio, .ft-video, .ft-zip, .ft-code) {
+  color: var(--text-2);
+}
+:root[data-icon-pack="accent"] :is(.ft-txt, .ft-dir, .ft-doc, .ft-xls, .ft-ppt, .ft-pdf, .ft-img, .ft-audio, .ft-video, .ft-zip, .ft-code) {
+  color: var(--accent-text);
+}
+:root[data-icon-pack="graphite"] .folder-icon,
+:root[data-icon-pack="outline"] .folder-icon {
+  color: var(--text-2);
+}
+:root[data-icon-pack="accent"] .folder-icon {
+  color: var(--accent-text);
+}

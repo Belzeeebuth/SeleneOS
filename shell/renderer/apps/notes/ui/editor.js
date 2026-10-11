@@ -65,6 +65,7 @@ export class Editor {
     const group = (name, ...kids) => h('div', { class: 'nt-group', dataset: { g: name } }, ...kids, h('div', { class: 'nt-group-sep', 'aria-hidden': 'true' }));
 
     this.styleLabel = h('span', { class: 'nt-style-label ellipsis' }, t('ed.style.normal'));
+    this.styleIcon = h('span', { class: 'nt-style-icon' }, icon('text_paragraph', { size: 16 }));
     this.styleBtn = h(
       'button',
       {
@@ -79,6 +80,7 @@ export class Editor {
         onmousedown: (e) => e.preventDefault(),
         onclick: (e) => this.command('style', e),
       },
+      this.styleIcon,
       this.styleLabel,
       icon('chevron_down', { size: 12 }),
     );
@@ -310,7 +312,11 @@ export class Editor {
     const order = ['clear', 'insert', 'blocks', 'color', 'lists', 'style', 'format', 'history'];
     for (const g of this.groups) g.hidden = false;
     this.overflowBtn.hidden = true;
+    this.cmdbar.classList.remove('compact');
     const fits = () => this.groupsEl.scrollWidth <= this.groupsEl.clientWidth + 1;
+    if (fits()) return this.fixTabStop();
+    // first step: the text style menu shrinks to an icon
+    this.cmdbar.classList.add('compact');
     if (fits()) return this.fixTabStop();
     this.overflowBtn.hidden = false;
     for (const name of order) {

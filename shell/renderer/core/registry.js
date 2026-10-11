@@ -68,8 +68,13 @@ export const registry = {
   },
   iconUrl(id) {
     const m = apps.get(id);
+    // Icon packs (core/packs.js, settings iconPack) may provide another picture for the app.
+    const packed = m && registry.iconResolver ? registry.iconResolver(id, m) : null;
+    if (packed) return packed;
     return m?.icon ? `app://shell/apps/${id}/${m.icon}` : 'app://shell/assets/app-default.svg';
   },
+  /** (appId, manifest) -> URL | null — set by core/packs.js for icon packs. */
+  iconResolver: null,
   running(id) {
     return wm.byApp(id);
   },

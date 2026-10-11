@@ -246,3 +246,22 @@ export function modeString(mode, dir) {
   const r = (b, c) => (mode & b ? c : '-');
   return t + r(0o400, 'r') + r(0o200, 'w') + r(0o100, 'x') + r(0o40, 'r') + r(0o20, 'w') + r(0o10, 'x') + r(4, 'r') + r(2, 'w') + r(1, 'x');
 }
+
+/** A shortcut in the UI language: key names come from t('keys.*') ("Shift" -> "Maj", "Del" -> "Suppr"). */
+export function keyLabel(combo, t) {
+  const names = { Ctrl: 'ctrl', Shift: 'shift', Alt: 'alt', Del: 'del', Enter: 'enter', Backspace: 'backspace' };
+  return String(combo)
+    .split('+')
+    .map((k) => (names[k] ? t(`keys.${names[k]}`) : k))
+    .join('+');
+}
+
+/** Compression method as 7-Zip names it, with "Store" / "Copy" (no compression) in the UI language. */
+export function methodName(m, t) {
+  return String(m || '').replace(/\b(Store|Copy)\b/g, () => t('props.stored'));
+}
+
+/** "3 files, 1 folder" with the right plurals. */
+export function containsText(files, dirs, t, i18n) {
+  return `${t('props.nFiles', { count: files, n: i18n.formatNumber(files) })}, ${t('props.nDirs', { count: dirs, n: i18n.formatNumber(dirs) })}`;
+}

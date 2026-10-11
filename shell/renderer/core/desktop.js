@@ -1001,6 +1001,11 @@ export const desktop = {
       clearTimeout(rt);
       rt = setTimeout(render, 150);
     });
+    // The taskbar moved to another edge or changed size (personalization): the icon area changed too.
+    shell.on('taskbar:layout', () => {
+      clearTimeout(rt);
+      rt = setTimeout(render, 60);
+    });
   },
   refresh: render,
   select(ids) {

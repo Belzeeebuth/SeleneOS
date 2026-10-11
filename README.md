@@ -21,6 +21,19 @@ available in **English and French**, in light and dark themes.
 - Login screen and lock screen with PAM authentication, "User Account Control" prompts for admin
   actions, firewall (ufw) enabled by default
 
+**Personalization** (details in [docs/PERSONALIZATION.md](docs/PERSONALIZATION.md))
+- Theme designer: accent color, wallpaper, lock screen, taskbar color, window transparency and blur intensity
+- Visual styles: Windows 11, Minimal, Glass, Retro and High contrast; per-app light / dark / accent themes
+- Animated wallpapers and dynamic wallpapers that follow the time of day and the weather; slideshow
+- Taskbar: size, position (bottom, top, left, right), search box, app names, button combining, mini widgets
+  (weather, CPU, memory, network), transparency, auto-hide
+- Start menu: layouts, pinned apps, app folders, recommended files, folders next to power, background style
+- Cursor, icon and sound packs, with custom notification, startup and shutdown sounds
+- Font and text size, rounded corners, UI scale, reduced motion
+- Custom snap layouts and fully customizable keyboard shortcuts
+- Focus mode: hides notifications, dims the desktop and simplifies the taskbar, with a session timer
+- Profiles: save the whole look and switch themes in one click; export and import
+
 **Apps**
 
 | App | Highlights |

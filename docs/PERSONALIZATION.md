@@ -7,8 +7,11 @@ keys here when it implements them.
 - **Area A:** theme engine, visual styles, typography, shape, scale, per-app themes, profiles and the
   Theme designer.
 - **Area B1:** wallpaper engine — animated, dynamic (time of day, weather), slideshow, lock screen (§9).
-- **Area B2:** taskbar, Start and Focus mode.
-- **Area B3:** packs and input.
+- **Area B2:** taskbar, Start and Focus mode (§10).
+- **Area B3:** cursor, icon and sound packs (§11); keyboard shortcuts and snap layout presets (§12).
+
+Every area is implemented. §13 maps each item of the original request to the place that implements it and the test
+that checks it; §14 is a French summary.
 
 Rules for every key:
 
@@ -53,42 +56,45 @@ Notes:
 - **Traits beat the sliders**, e.g. *transparency* has no effect in High contrast. Settings shows a note when a
   control is overridden by the style.
 
-### 1.2 Reserved keys (defaults exist; implemented by later areas)
+### 1.2 Areas B1–B3 keys
 
-The pages that will host them are already registered in Settings as stubs.
+**B1 — wallpaper engine:** see §9 (`wallpaperMode`, `animatedWallpaper`, `dynamicWallpaper`, `slideshow`, `lockScreen`).
 
-**B1 — wallpaper engine**: implemented, see §9 (`wallpaperMode`, `animatedWallpaper`, `dynamicWallpaper`, `slideshow`,
-`lockScreen`).
+**B2 — taskbar, Start, Focus mode** (§10; pages `taskbar`, `start` in `pages/personalization-taskbar.js`, `focus` in
+`pages/personalization-focus.js`)
 
-**B2 — taskbar, Start, Focus mode** (pages `taskbar`, `start` in `pages/personalization-taskbar.js`;
-`focus` in `pages/personalization-focus.js`)
-
-| Key | Type | Default | Meaning |
+| Key | Type | Default | Effect |
 |---|---|---|---|
-| `taskbar.size` | `'small' \| 'medium' \| 'large'` | `'medium'` | Taskbar height and icon size |
-| `taskbar.position` | `'bottom' \| 'top' \| 'left' \| 'right'` | `'bottom'` | Screen edge |
-| `taskbar.showLabels` | bool | `false` | Show app names next to icons |
-| `taskbar.combine` | `'always' \| 'whenFull' \| 'never'` | `'always'` | Combine buttons of the same app |
-| `taskbar.widgets` | `string[]` | `[]` | Mini widgets in the tray (e.g. `'weather'`, `'cpu'`) |
-| `taskbar.align`, `taskbar.autohide`, `taskbar.showSearch`, `taskbar.showTaskView`, `taskbar.showWidgets` | pre-existing | | |
-| `start.layout` | `'default' \| 'morePins' \| 'moreRecommended' \| 'list'` | `'default'` | Start layout |
-| `start.background` | `'acrylic' \| 'solid' \| 'accent' \| 'wallpaper'` | `'acrylic'` | Start background style |
-| `start.folders` | `string[]` | `[]` | Folders next to the power button (`documents`, `downloads`, `music`, `pictures`, `videos`, `files`, `settings`) |
-| `start.groups` | `{ id, name, apps: string[] }[]` | `[]` | App folders inside Pinned |
-| `startShowRecent`, `startPinned`, `pinned` | pre-existing | | Pinned lists are *content* and are **not** part of profiles |
-| `focusMode` | `{ active, hideNotifications, dimDesktop, dimLevel (0–100), simplifyTaskbar, duration (min, 0 = until off) }` | `{ active:false, hideNotifications:true, dimDesktop:true, dimLevel:40, simplifyTaskbar:true, duration:0 }` | Focus mode. `active` is runtime state and is excluded from profiles |
+| `taskbar.size` | `'small' \| 'medium' \| 'large'` | `'medium'` | Thickness 40 / 48 / 60 px (vertical: 52 / 60 / 72 px), button size 32 / 40 / 52 px |
+| `taskbar.position` | `'bottom' \| 'top' \| 'left' \| 'right'` | `'bottom'` | Screen edge. Window insets, maximize / snap areas, flyouts, menus, toasts and desktop icons follow it |
+| `taskbar.align` | `'center' \| 'left'` | `'center'` | Pre-existing. A vertical taskbar is always top-aligned |
+| `taskbar.search` | `null \| 'hidden' \| 'icon' \| 'box'` | `null` | `null` = follows the older `taskbar.showSearch` (icon / hidden). `box` = Windows 11 search box (an icon on a vertical taskbar) |
+| `taskbar.showSearch`, `taskbar.showTaskView`, `taskbar.showWidgets` | bool | `true`, `true`, `false` | Pre-existing buttons. Widgets moves to the start of a horizontal taskbar, as in Windows 11 |
+| `taskbar.showLabels` | bool | `false` | App names next to the icons (running apps, horizontal taskbars) |
+| `taskbar.combine` | `'always' \| 'whenFull' \| 'never'` | `'always'` | `always` = one button per app; `never` = one button per window; `whenFull` = one per window while they fit |
+| `taskbar.widgets` | `('weather' \| 'cpu' \| 'memory' \| 'network')[]` | `[]` | Mini widgets in the tray, in this order |
+| `taskbar.autohide` | bool | `false` | Pre-existing; now works on every edge |
+| `taskbar.color`, `taskbar.opacity` | | | Area A (§1.1) |
+| `start.layout` | `'default' \| 'morePins' \| 'moreRecommended' \| 'list'` | `'default'` | Pinned rows / recommended items: 3 / 6, 4 / 2, 2 / 8; `list` = one row of pins + the A–Z list of all apps |
+| `start.background` | `'acrylic' \| 'solid' \| 'accent' \| 'wallpaper'` | `'acrylic'` | Start background: translucent (follows transparency), opaque, tinted with the accent, or the blurred wallpaper (Mica) |
+| `start.folders` | `string[]` | `[]` | Folder buttons next to the power button: `documents`, `downloads`, `music`, `pictures`, `videos`, `files`, `settings`, `home`, `network` |
+| `start.groups` | `{ id: 'g-…', name, apps: appId[] }[]` | `[]` | App folders inside Pinned (shown first in the grid) |
+| `startShowRecent` | bool | `true` | Pre-existing: the Recommended section |
+| `startPinned`, `pinned` | `appId[]` | | Pre-existing pinned lists (Start, taskbar). They are *content*, edited on the pages, and **not** part of profiles |
+| `focusMode` | `{ active, hideNotifications, dimDesktop, dimLevel 0–100 (applied up to 90), simplifyTaskbar, duration 0–1440 min (0 = until off) }` | `{ active:false, hideNotifications:true, dimDesktop:true, dimLevel:40, simplifyTaskbar:true, duration:0 }` | Focus mode (§10.3). `active` is runtime state, excluded from profiles and reset at sign-in |
 
-**B3 — packs and input** (pages `cursors`, `iconPacks`, `soundPacks` in `pages/personalization-packs.js`;
+**B3 — packs and input** (§11, §12; pages `cursors`, `iconPacks`, `soundPacks` in `pages/personalization-packs.js`;
 `shortcuts`, `snapPresets` in `pages/personalization-input.js`)
 
-| Key | Type | Default | Meaning |
+| Key | Type | Default | Effect |
 |---|---|---|---|
-| `cursorPack` | string | `'default'` | Cursor theme |
-| `iconPack` | string | `'fluent'` | App / file icon pack |
-| `soundPack` | string | `'aurora'` | System sound scheme |
-| `soundEvents` | `{ notification, startup, shutdown }`, each `null \| 'none' \| soundId \| path` | all `null` | Per-event overrides. `null` = the pack's sound. **Not `sounds.*`:** `sounds` is the existing on/off boolean |
-| `snapPresets` | `{ id, name, zones: [{x,y,w,h}] (fractions 0–1) }[]` | `[]` | Custom snap layouts shown next to the built-in ones |
-| `shortcuts` | `{ [actionId]: combo \| null }` | `{}` | Overrides of the shell shortcuts (combo syntax of `main/lib/hotkeys.js`, `null` = disabled) |
+| `cursorPack` | `'default' \| 'classic' \| 'midnight' \| 'accent' \| 'large' \| 'highvis' \| 'retro'` | `'default'` | Mouse pointer pack (`default` = the system cursors) |
+| `iconPack` | `'fluent' \| 'tiles' \| 'accent' \| 'graphite' \| 'outline'` | `'fluent'` | App icons everywhere in the shell + file-type icon tints (`fluent` = the apps' own icons) |
+| `soundPack` | `'aurora' \| 'chimes' \| 'retro' \| 'soft' \| 'silent'` | `'aurora'` | Scheme of every system sound (`silent`: only alarms ring) |
+| `soundEvents` | `{ notification, startup, shutdown }`, each `null \| 'none' \| '<pack>.<sound>' \| '/abs/file.ogg'` | all `null` | Per-event sound. `null` = the pack's sound. Files: `.ogg .oga .opus .wav .mp3 .flac .m4a .webm` |
+| `sounds` | bool | `true` | Pre-existing master switch of system sounds (**not** `sounds.*`) |
+| `snapPresets` | `{ id, name, zones: [{ x, y, w, h }] }[]` (fractions 0–1 of the work area, ≤ 16 zones) | `[]` | Custom snap layouts, after the built-in ones (§12.2) |
+| `shortcuts` | `{ [actionId]: combo \| null }` | `{}` | Overrides of the shell shortcuts (§12.1). Missing = default combo, `null` = turned off |
 
 ## 2. Theme engine (`core/theme.js`, `core/tokens.css`)
 
@@ -282,8 +288,14 @@ shell.emit('profiles:apply', { id });  // also window.__aurora.theme.profiles
 - Themes;
 - Lock screen (module `personalization-wallpaper.js`, area B1);
 - **Animated & dynamic wallpapers** (`wallpaperEffects`, area B1);
-- **Taskbar** and **Start** (module `personalization-taskbar.js`, owned by B2);
-- the stubs: `focus`, `cursors`, `iconPacks`, `soundPacks`, `shortcuts`, `snapPresets`.
+- **Taskbar** and **Start** (module `personalization-taskbar.js`, area B2, §10.4);
+- **Focus mode** (`focus`, module `personalization-focus.js`, §10.3);
+- **Cursors**, **Icon packs**, **Sound packs** (`cursors`, `iconPacks`, `soundPacks`, module `personalization-packs.js`, §11);
+- **Keyboard shortcuts** and **Snap layouts** (`shortcuts`, `snapPresets`, module `personalization-input.js`, §12).
+
+No page is a stub any more. The B2/B3 pages share `pages/personalization-shell-kit.js` (`setupShellPages`, `boundCombo`,
+`boundSeg`, `boundToggle`, `orderedList`, `appIcon`) and `pages/personalization-shell.css` (classes `pzs-*`), with
+their strings in `apps/settings/i18n.json` → `pzs` (English and French).
 
 **Accessibility** reuses the same control builders (`textSizeControls`, `motionControls` exported by
 `pages/personalization-designer.js`), so each setting has a single source of truth:
@@ -291,9 +303,9 @@ shell.emit('profiles:apply', { id });  // also window.__aurora.theme.profiles
 - **Text size** has the text size and the UI scale.
 - **Visual effects** has transparency, animations and reduced motion.
 
-### Replacing a stub (areas B1–B3)
+### Adding a personalization page or key
 
-1. Replace the module (`pages/personalization-wallpaper.js`, `personalization-taskbar.js`, `personalization-focus.js`,
+1. Add or extend the module (`pages/personalization-wallpaper.js`, `personalization-taskbar.js`, `personalization-focus.js`,
    `personalization-packs.js` or `personalization-input.js`). Keep the page ids listed in `lib/index.js` → `PAGES`,
    which also feed the search index and `manifest.json` → `searchIndex`. **Regenerate** `manifest.json` → `searchIndex`
    whenever you add `ENTRIES`; test/system-settings.test.mjs checks the two match.
@@ -328,7 +340,9 @@ api.invoke('settings:setMany', { 'style': 'retro', 'taskbar.color': null, … },
 - **App-specific colours.** The visual styles restyle every shared token and class. An app's own hard-coded
   colours (`--fx-*`, `--ck-*`…) are unchanged; in High contrast these may stay below 7:1 inside some apps.
 - **The sign-in screen** (greeter) runs before login, so it applies the style of the settings it can read: the system
-  defaults (`/etc/aurora/settings.json`), not the user's.
+  defaults (`/etc/aurora/settings.json`), not the user's. The same holds for its cursors, icons and sounds.
+- Limitations of the wallpaper engine: §9.8; of the taskbar, Start and Focus mode: §10.5; of the packs: §11.4; of
+  shortcuts and snap layouts: §12.3.
 
 ## 9. Wallpaper engine (area B1)
 
@@ -459,3 +473,242 @@ Shell events: `wallpaper:changed` `{ mode, url }`, `wallpaper:weather` `{ weathe
 - The sign-in screen cannot read the user's settings: its lock screen mode is the system-wide one.
 - Weather needs network access to api.open-meteo.com; it was only tested with the mock in the build container.
 - "Pause when apps are maximized" does not detect a desktop entirely covered by several non-maximized windows.
+
+## 10. Taskbar, Start and Focus mode (area B2)
+
+### 10.1 Taskbar (`core/taskbar.js`, layout CSS `core/shell-personalize.css`)
+
+- **Layout attributes.** `applyLayout()` sets `<html data-tb-pos="bottom|top|left|right" data-tb-size="small|medium|large"
+  data-tb-labels="on|off">` and `--taskbar-h` (the thickness), then tells the window manager the reserved edge with
+  `wm.setInsets({ top, bottom, left, right })`. Maximized and snapped windows, the snap zones, the desktop icons, toasts,
+  the volume / brightness OSD, the Task view pill and every flyout (Start, Search, Quick settings, Calendar, Widgets)
+  follow the edge. Flyouts slide in from it; menus and the window picker open above, below or beside the button
+  (`menuPointFor(el)`, `placePopup()`); Win+X opens next to the Start button.
+- **Vertical taskbar** (left / right): the buttons stack from the top (the Start button first, then search, task view,
+  widgets, apps), the tray and the clock sit at the bottom, arrow keys move Up/Down, the search box becomes an icon and
+  app names are hidden.
+- **Buttons per app or per window.** Every button has a key `appId` (combined) or `appId::winId` (one per window).
+  `whenFull` keeps one button per window while `capacity(keys)` says they fit, then combines. Dragging buttons to
+  reorder the pinned apps works when buttons are combined (`always`). The overflow ("…") flyout and the keyboard
+  navigation use the same keys.
+- **Labels.** `showLabels` shows the window title (or the app name) of running apps in a 132–168 px button with an
+  ellipsis (pinned apps that are not running stay icons). The running / active indicator always sits on the side of the
+  button that faces the screen edge (below, above or beside it).
+- **Mini widgets** (`taskbar.widgets`, before the tray icons): `cpu` and `memory` (meter + %, `sys:stats` every 3 s),
+  `network` (↓/↑ throughput computed from `sys:stats` byte counters), `weather` (temperature and condition icon from
+  `weather:current` with the place of *Animated & dynamic wallpapers*, refreshed every 15 min). Polling stops while the
+  window is hidden or no widget is shown. Clicking a meter opens Task Manager (Performance); the weather opens the
+  widgets board.
+- **Auto-hide** works on each edge: the bar slides out of the screen, a 3 px hot zone on that edge brings it back, it
+  stays visible while a menu or flyout of it is open, and the work area takes the whole screen.
+- **API:** `taskbar.layout()` → `{ position, size, vertical, thickness, combine }`; `taskbar.setStatusItem(id, { icon,
+  text, tip, onClick } | null)` adds a tray pill (Focus mode uses it); `taskbar.refreshWidgets()`. Event
+  `taskbar:layout` (payload `layout()`) after any change of edge, size or alignment; `core/desktop.js` re-lays the
+  desktop icons on it.
+
+### 10.2 Start (`core/start.js`)
+
+- **Layout** (`start.layout`): rows of pinned apps / number of recommended items — `default` 3 / 6, `morePins` 4 / 2,
+  `moreRecommended` 2 / 8; `list` shows one row of pins and the A–Z list of all apps instead of Recommended.
+- **Pinned apps** (`startPinned`): right-click → Move to front / Unpin / Add to folder; drag a tile onto another one to
+  reorder, onto a folder to put it inside. The Start page in Settings has the same list with Up / Down / Remove and
+  "Pin an app".
+- **App folders** (`start.groups`): shown first in the Pinned grid with a 2 × 2 icon preview; opening one shows its apps
+  over the Start body (Back or Esc closes it); right-click on a folder → Open / Rename / Remove folder (the apps go back to
+  Pinned). Settings → Start → *App folders* creates and edits them (name + check list of apps).
+- **Recommended** (`startShowRecent`): show / hide; Settings → *Clear recommended files* calls `recent.clearFiles()`.
+- **Folders next to the power button** (`start.folders`): Documents, Downloads, Music, Pictures, Videos, File Explorer,
+  Settings, Personal folder, Network; each opens File Explorer at the place (or Settings).
+- **Background** (`start.background`, `#start[data-bg]`): `acrylic` (default, follows transparency and blur), `solid`
+  (opaque `--solid`), `accent` (translucent accent tint), `wallpaper` (the Mica copy of the wallpaper, with a veil for
+  contrast). High contrast keeps its own palette.
+
+### 10.3 Focus mode (`core/features/focus.js`)
+
+- **Turning it on / off:** Settings → Focus mode (Start session / End session), the *Focus* tile of Quick settings,
+  Win+Shift+F (customizable action `focusMode`), the tray pill menu (End session), or the shell events `focus:start`
+  (`{ minutes }` optional), `focus:stop`, `focus:toggle`. API: `shell.focus` / `window.__aurora.focus` = `{ start(minutes?),
+  stop(), toggle(), state }`. It emits `focus:changed` `{ active, endsAt }`.
+- **What it does** (each part can be turned off on the page):
+  - `hideNotifications` → `<html data-focus-quiet="on">`: `core/notify.js` keeps new notifications in the notification
+    center without a banner or sound and closes the banners on screen; the bell shows the snoozed glyph. Urgent
+    notifications (alarms, timers) still ring.
+  - `dimDesktop` → `<html data-focus-dim="on">` + `--focus-dim` (`dimLevel` / 100, max 0.9): a black veil over the
+    wallpaper and desktop icons; windows stay bright. With animations on, the veil fades in.
+  - `simplifyTaskbar` → `<html data-focus-simple="on">`: no search, task view, widgets button or mini widgets; only Start,
+    the running apps (pinned apps that are not running are hidden), the tray and the clock.
+- **Session length** (`duration`, minutes; 0 = until turned off): the tray pill shows the minutes left, a notification
+  says when the session is over, and everything comes back. `active` is stored in the settings so every part of the
+  shell (and Settings) sees it, but the shell turns it off when it starts — a new session never starts in Focus mode —
+  and it is never part of a profile.
+
+### 10.4 Settings pages
+
+- **Taskbar** (`taskbar`): live preview of the bar (edge, size, alignment, labels, colour); *Taskbar items*: Search
+  (Hide / Search icon only / Search box), Task view, Widgets; *Pinned apps* (order, remove, "Pin an app"); *Taskbar
+  widgets* (weather, processor, memory, network speed); *Taskbar behaviors*: position, size, alignment (disabled when
+  vertical), app names, combine buttons, auto-hide; *Taskbar color* (Default / Accent / custom colour + opacity slider,
+  shared with the Theme designer); *Reset the taskbar*.
+- **Start** (`start`): live preview; *Layout* and *Background style*; *Pinned apps*; *App folders*; *Recommended files*
+  (show + clear); *Folders next to the power button* (toggles); *Reset Start*.
+- **Focus mode** (`focus`): status ring with Start / End session and time left; the three parts and the dimming slider;
+  session length (until off, 15, 25, 30, 45, 60, 90, 120 min); a link to the shortcut.
+
+### 10.5 Known limitations
+
+- A vertical taskbar is always top-aligned and shows icons only (no app names, search box as an icon).
+- The weather widget needs a place (Settings → Animated & dynamic wallpapers) and network access to api.open-meteo.com;
+  it was only tested with `AURORA_WEATHER_MOCK`.
+- The network widget shows the whole machine's throughput (all interfaces), as reported by `sys:stats`.
+
+## 11. Cursor, icon and sound packs (area B3)
+
+### 11.1 Cursor packs (`core/packs.js`)
+
+- **Packs:** System (`default`, the platform cursors), Aurora light (`classic`, white with a black outline, 24 px),
+  Midnight (black, white outline), Accent color (filled with the current accent, redrawn when it changes), Large (40 px),
+  High visibility (yellow, black outline, 32 px), Retro pixel (pixel-art upscaled, 32 px).
+- **How:** the first time a pack other than System is chosen, every plain cursor keyword of the loaded style sheets
+  (`cursor: pointer`, `text`, `move`, `*-resize`, `grab`, `wait`, `not-allowed`…) is rewritten once through the CSSOM to
+  `var(--cur-<keyword>, <keyword>)`; style sheets loaded later are rewritten too (MutationObserver on `<head>`). A pack
+  only sets those variables in `style#aurora-cursor-vars` as PNG data URLs drawn on a canvas (with the right hot spot),
+  plus the arrow on the root, an I-beam on editable fields and the hand on links. System = no variables, so switching is
+  instant and free.
+- **API:** `packs.cursorPreview(packId, shape)` → data URL (Settings cards); `<html data-cursor-pack>`.
+
+### 11.2 Icon packs (`core/packs.js`)
+
+- **Packs:** Fluent (`fluent`, the apps' own icons), Aurora tiles (glyph on a coloured rounded tile, one colour per
+  app), Accent tiles (every tile in the accent colour), Graphite (monochrome tiles), Outline (line glyphs, no tile).
+- **How:** `registry.iconResolver(appId, manifest)` (an additive hook of `core/registry.js`) returns an SVG data URL
+  built from the app's Fluent glyph, so every `registry.iconUrl()` caller (taskbar, Start, search, Alt+Tab, Task view,
+  window title bars, Settings › Apps…) gets the pack's icon. Icons already on screen are swapped in
+  place, and windows get `win.setIcon()`. File-type icons are tinted per pack with `<html data-icon-pack>`
+  (`shell-personalize.css`).
+- **API:** `packs.appIcon(packId, appId)` → URL (Settings previews).
+
+### 11.3 Sound packs and event sounds (`core/sounds.js`)
+
+- **Packs** (WebAudio synthesis, no audio files): Aurora (the original sounds), Chimes (bell tones), Retro 8-bit
+  (square waves), Soft (low triangle waves), Silent (nothing except alarms). Every system sound follows the pack:
+  `notify`, `startup` (at sign-in, `core/boot.js`), `shutdown` (sign out / restart / shut down wait for it, max 1 s,
+  `core/services.js`), `error`, `click`, `logon`, `unlock`, `screenshot`, `alarm`.
+- **Per event** (`soundEvents.notification | startup | shutdown`): the pack's sound (`null`), None (`'none'`), the sound of
+  another pack (`'chimes.notify'`), or an audio file chosen with the file picker (an absolute path, played with
+  `<audio>` through `api.mediaUrl`). The `sounds` switch still turns every system sound off.
+- **API:** `sounds.play(name | pattern)`, `await sounds.playAndWait(name, maxMs)`, `sounds.preview(ref, name)` (plays
+  even when sounds are off, for Settings), `sounds.choices(event)`, `SOUND_PACKS`, `SOUND_EVENTS`. `sounds.play()` keeps
+  its old signature (apps pass tone patterns; `sanitizePattern` is unchanged).
+
+### 11.4 Known limitations
+
+- Cursor packs do not apply inside web pages (browser tabs, `<webview>`) or to cursors set from JavaScript as inline
+  styles; those keep the system cursor.
+- Icon packs change the icons the shell draws from the registry; an app that draws its own icons inside its window
+  (e.g. a toolbar) keeps them.
+- Sounds were checked by counting oscillators in tests (the build container has no audio device); they were not listened
+  to there.
+
+## 12. Input: keyboard shortcuts and snap layouts (area B3)
+
+### 12.1 Keyboard shortcuts (`core/shortcuts.js`, `core/features/hotkeys.js`, `main/lib/hotkeys.js`)
+
+- **Catalog** (`SHORTCUTS`, 37 actions in 4 groups):
+  - *Desktop and Start:* start (Win), search (Win+S), quickSettings (Win+A), notifications (Win+N), widgets (Win+W),
+    showDesktop (Win+D), lock (Win+L), run (Win+R), powerMenu (Win+X), clipboard (Win+V), focusMode (Win+Shift+F),
+    screenshot (Win+Shift+S).
+  - *Windows:* taskView (Win+Tab), snapLayouts (Win+Z), snapLeft / snapRight (Win+←/→), maximize (Win+↑),
+    minimize (Win+↓), maximizeVertically (Win+Shift+↑), minimizeAll (Win+M), restoreAll (Win+Shift+M),
+    minimizeOthers (Win+Home), windowMenu (Alt+Space), closeWindow (Alt+F4).
+  - *Virtual desktops:* newDesktop (Win+Ctrl+D), closeDesktop (Win+Ctrl+F4), prevDesktop / nextDesktop
+    (Win+Ctrl+←/→).
+  - *Apps:* files (Win+E), settings (Win+I), terminal (Ctrl+Alt+T), taskManager (Ctrl+Shift+Esc), browser, notepad,
+    calculator (no default), accessibility (Win+U), display (Win+P).
+- **Fixed combos** (never rebound or taken): Alt+Tab, Alt+Shift+Tab, Ctrl+Alt+Tab, Ctrl+Alt+Delete, PrintScreen, the
+  volume / brightness keys, Win+1…9.
+- **Valid combos** (`comboProblem(combo)`): modifiers in the order Super, Ctrl, Alt, Shift, then one key; at least Win,
+  Ctrl or Alt (Shift alone would steal typing) except F13–F24; "Win" alone is allowed.
+- **Live map:** `features/hotkeys.js` rebuilds combo → action from `effectiveShortcuts(settings.shortcuts)` whenever the
+  key changes. Combos containing Win are always forwarded by the main process; other custom combos (e.g. Ctrl+Alt+E) are
+  sent to it with `hotkeys:setCustom` (the main process accepts only combos with Ctrl or Alt, or F13–F24) so they also
+  work while a browser tab has the focus.
+- **Settings → Keyboard shortcuts:** search box, the four groups with key caps (French names: Maj, Échap, Suppr…),
+  *Change* opens a recorder: `shell.hotkeys.capture(fn)` receives the next key combination before any shortcut runs
+  (keys without Ctrl, Alt or Win keep working in the dialog — Tab, Enter, Esc to cancel — and a letter alone is shown
+  with "Add Win, Ctrl or Alt to the key"). The combo is checked live; one already used by another action shows "Already used by
+  …: saving turns it off there". The *…* menu turns a shortcut off or restores its default; *Restore all shortcuts*;
+  the fixed shortcuts are listed for reference.
+
+### 12.2 Snap layout presets (`core/features/snaplayouts.js`, `core/wm.js`)
+
+- A preset is `{ id, name, zones: [{ x, y, w, h }] }` in fractions of the work area (up to 16 zones, inside the
+  screen). `presetZones(p)` turns it into zone names `z:x,y,w,h`, which `wm.zoneRect()` understands (additive), so a
+  custom zone snaps like a built-in one (keyboard, Snap Assist, restore).
+- Custom layouts (up to 12) appear after the built-in ones in the maximize-button flyout, the Win+Z keyboard flyout
+  (numbered) and the snap bar at the top of the screen when dragging a window.
+- **Settings → Snap layouts:** your layouts as cards (Edit / Delete), *New layout*: name + kind (Columns, Rows, Main +
+  side, Grid) with sliders (count, width of the main area, side) and a live numbered preview; built-in layouts for
+  reference; *Show snap layouts* opens the flyout on the Settings window to try them.
+
+### 12.3 Known limitations
+
+- Turning off a shortcut that the main process always captures (any Win combo, Alt+F4, Alt+Space, Ctrl+Shift+Esc…)
+  makes it do nothing; the key press is still swallowed and does not reach the app.
+- Shortcuts apply to the shell session; the sign-in screen keeps its own keys.
+
+## 13. Feature map and tests
+
+| Request | Where | Checked by |
+|---|---|---|
+| Theme designer: accent, wallpaper, lock screen, taskbar colour, transparency, blur | §1.1, §2, §9, `personalization-designer.js` | `personalization-core`, `personalization-shell` (checklist) |
+| Visual styles: Windows 11-like, minimal, glassmorphism, retro, high contrast | §4 | both |
+| Animated and dynamic wallpapers (time of day, weather) | §9 | `wallpapers`, `personalization-shell` |
+| Taskbar: size, position, icons, widgets, transparency, auto-hide | §10.1 | `personalization-shell` |
+| Start: layout, pinned apps, folders, recommended files, background style | §10.2 | `personalization-shell` |
+| Cursor packs, icon packs, sound packs, notification / startup / shutdown sounds | §11 | `personalization-shell` |
+| Font and text size, rounded corners, UI scale, reduced motion | §1.1 | `personalization-core`, `personalization-shell` |
+| Per-app themes (light, dark, system, custom accent) | §3 | both |
+| Snap layout presets, customizable keyboard shortcuts | §12 | `personalization-shell` |
+| Focus mode | §10.3 | `personalization-shell` |
+| Profiles: save and switch complete UI themes with one click | §5 | both (`personalization-shell` round-trips every `PROFILE_KEYS` key) |
+
+`shell/test/personalization-shell.test.mjs` drives each item through the Settings UI of the real shell, round-trips a
+profile with a non-default value for every key in `PROFILE_KEYS` (save → reset → apply → identical; export → import),
+applies each built-in profile × each visual style × each taskbar edge with Start and Quick settings open (no console
+errors, flyouts on screen), checks English / French, light / dark at 1280×720 and 1920×1080, and restarts the shell to
+check persistence. It writes `test/out/personalization-checklist.json` and the `docs/screenshots/pzs-*.png` pictures
+(`--no-shots` skips them).
+
+```sh
+cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/personalization-shell.test.mjs
+```
+
+## 14. Résumé en français
+
+La personnalisation d’Aurora est complète et pilotée par des clés de paramètres (toutes appliquées en direct,
+persistées dans `~/.config/aurora/settings.json`, avec une valeur par défaut dans `main/ipc/settings.js`, accessibles
+depuis Paramètres › Personnalisation en anglais et en français, et enregistrées par les profils) :
+
+- **Concepteur de thème** : couleur d’accentuation, fond d’écran, écran de verrouillage, couleur de la barre des tâches,
+  transparence des fenêtres et intensité du flou (§1.1).
+- **Styles visuels** : Windows 11, minimal, verre (glassmorphism), rétro et contraste élevé (§4).
+- **Fonds d’écran animés et dynamiques** : six scènes animées (30 i/s max., en pause quand elles sont cachées ou avec
+  « réduire les animations »), images qui suivent l’heure du jour et la météo, diaporama, écran de verrouillage (§9).
+- **Barre des tâches** : taille, position (bas, haut, gauche, droite), icônes, recherche (icône ou zone), noms des
+  applications, regroupement des boutons, mini-widgets (météo, processeur, mémoire, réseau), transparence, masquage
+  automatique (§10.1).
+- **Menu Démarrer** : disposition, applications épinglées, dossiers d’applications, fichiers recommandés (afficher,
+  effacer), dossiers à côté du bouton d’alimentation, style d’arrière-plan (§10.2).
+- **Mode concentration** : masque les notifications (les alarmes sonnent toujours), assombrit le bureau, simplifie la
+  barre des tâches ; durée de session, Win+Maj+F, vignette des paramètres rapides (§10.3).
+- **Packs** : sept packs de curseurs, cinq packs d’icônes, cinq packs de sons, et un son au choix pour les
+  notifications, le démarrage et l’arrêt (son d’un autre pack, aucun, ou fichier audio) (§11).
+- **Police et taille du texte, arrondi des coins, échelle de l’interface, mode « réduire les animations »** (§1.1).
+- **Thèmes par application** : clair, sombre, système ou accent personnalisé (§3).
+- **Dispositions d’ancrage personnalisées** et **raccourcis clavier modifiables** (enregistrement d’une combinaison,
+  conflits résolus, désactivation, restauration) (§12).
+- **Profils** : enregistrer l’apparence complète et passer d’un thème à l’autre en un clic ; export / import validé (§5).
+
+Limites connues : les curseurs ne s’appliquent pas dans les pages web ; les packs d’icônes ne changent pas les icônes
+dessinées par les applications elles-mêmes ; un raccourci système désactivé reste intercepté ; l’écran de connexion
+utilise les paramètres système ; la météo nécessite un accès réseau (testée avec une simulation).

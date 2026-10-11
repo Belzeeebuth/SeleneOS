@@ -203,6 +203,7 @@ export function heroPreview(pc, { tryWeather = null } = {}) {
   pc.onDispose(settings.on('*', () => queueMicrotask(paint)));
   pc.onDispose(pc.shell.on?.('wallpaper:changed', () => setTimeout(paint, 50)));
   pc.onDispose(pc.shell.on?.('wallpaper:weather', () => paint()));
+  pc.onDispose(pc.shell.on?.('wallpaper:paused', () => (status.textContent = heroStatus(pc))));
   pc.every(5000, () => (status.textContent = heroStatus(pc)));
   const root = h('div', { class: 'st-pers-hero wp-hero-row' }, pv, side);
   root.repaint = paint;
@@ -235,12 +236,13 @@ export function kindControl(pc, { onKind } = {}) {
       onKind?.(v);
     },
   });
+  // The settings broadcast can arrive after settings:setMany resolves (the cache is still the old kind when
+  // onChange calls onKind): repaint on every change; onKind is a no-op when the kind did not change.
   pc.onDispose(
     settings.on('*', () => {
-      if (combo.getValue() !== kindOf(pc)) {
-        combo.setValue(kindOf(pc));
-        onKind?.(kindOf(pc));
-      }
+      const k = kindOf(pc);
+      if (combo.getValue() !== k) combo.setValue(k);
+      onKind?.(k);
     }),
   );
   return kit.row({ icon: 'image', title: t('pers.personalizeBg'), desc: t('wp.kindDesc'), control: combo, section: 'mode' });

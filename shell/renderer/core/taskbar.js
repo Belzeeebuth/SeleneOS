@@ -1,8 +1,17 @@
 // Taskbar: Start, Search, Task view, Widgets, pinned + running apps, system tray, clock.
 //   taskbar.mount(el)   taskbar.anchorFor(appId) -> DOMRect of the app's button (for animations)
 //   taskbar.reveal()    show the taskbar when it is auto-hidden
+//   taskbar.layout()    -> { position: 'bottom'|'top'|'left'|'right', size, vertical, thickness, combine }
+//   taskbar.setStatusItem(id, { icon, text, tip, onClick } | null)   extra tray button (Focus mode)
 //   Emits through the shell event bus: 'start:toggle', 'search:toggle', 'taskview:toggle',
-//   'widgets:toggle', 'quick:toggle', 'calendar:toggle', 'osd'.
+//   'widgets:toggle', 'quick:toggle', 'calendar:toggle', 'osd', 'taskbar:layout' (layout()).
+//
+// Personalization (docs/PERSONALIZATION.md §10), all live: taskbar.size (small | medium | large),
+// taskbar.position (bottom | top | left | right: wm insets, flyouts and menus follow the edge),
+// taskbar.showLabels (app names), taskbar.combine (always | whenFull | never: one button per window),
+// taskbar.widgets (tray mini widgets: weather, cpu, memory, network), taskbar.search (hidden | icon | box),
+// taskbar.autohide, Focus mode's simplified taskbar (<html data-focus-simple="on">: running apps only).
+// Layout CSS: core/shell-personalize.css.
 //
 // Flyout manager (shared by Start, Search, Quick settings, Calendar and Widgets):
 //   const fly = createFlyout({ id: 'quick', el, button: '.tb-quick', onOpen, onClose, onKey, onEscape, focus });
@@ -32,6 +41,20 @@ const STRINGS = {
       dndOn: 'Do not disturb is on',
       closeWindowTip: 'Close',
       moreApps: 'Show more apps',
+      closeThisWindow: 'Close window',
+    },
+    tbmini: {
+      cpu: 'CPU',
+      memory: 'RAM',
+      cpuTip: 'Processor: {value}%',
+      memoryTip: 'Memory: {used} of {total} in use ({value}%)',
+      netTip: 'Network\nDownload: {down}/s\nUpload: {up}/s',
+      weatherTip: '{place}\n{temp} — {describe}',
+      weatherNoPlace: 'Weather\nChoose a location in Settings > Personalization > Animated & dynamic wallpapers',
+      weatherOffline: 'Weather\nNo connection',
+      w_clear: 'Clear', w_mainlyClear: 'Mostly clear', w_partlyCloudy: 'Partly cloudy', w_overcast: 'Overcast', w_fog: 'Fog',
+      w_drizzle: 'Drizzle', w_freezingDrizzle: 'Freezing drizzle', w_rain: 'Rain', w_freezingRain: 'Freezing rain', w_snow: 'Snow',
+      w_snowGrains: 'Snow grains', w_showers: 'Showers', w_snowShowers: 'Snow showers', w_thunderstorm: 'Thunderstorm', w_hail: 'Hail',
     },
     notif: { system: 'System' },
     tray: {
@@ -59,6 +82,20 @@ const STRINGS = {
       dndOn: 'Ne pas déranger est activé',
       closeWindowTip: 'Fermer',
       moreApps: 'Afficher plus d’applications',
+      closeThisWindow: 'Fermer la fenêtre',
+    },
+    tbmini: {
+      cpu: 'Proc.',
+      memory: 'RAM',
+      cpuTip: 'Processeur : {value} %',
+      memoryTip: 'Mémoire : {used} sur {total} utilisés ({value} %)',
+      netTip: 'Réseau\nRéception : {down}/s\nEnvoi : {up}/s',
+      weatherTip: '{place}\n{temp} — {describe}',
+      weatherNoPlace: 'Météo\nChoisissez un lieu dans Paramètres > Personnalisation > Fonds d’écran animés et dynamiques',
+      weatherOffline: 'Météo\nPas de connexion',
+      w_clear: 'Ciel dégagé', w_mainlyClear: 'Plutôt dégagé', w_partlyCloudy: 'Partiellement nuageux', w_overcast: 'Couvert', w_fog: 'Brouillard',
+      w_drizzle: 'Bruine', w_freezingDrizzle: 'Bruine verglaçante', w_rain: 'Pluie', w_freezingRain: 'Pluie verglaçante', w_snow: 'Neige',
+      w_snowGrains: 'Neige en grains', w_showers: 'Averses', w_snowShowers: 'Averses de neige', w_thunderstorm: 'Orage', w_hail: 'Grêle',
     },
     notif: { system: 'Système' },
     tray: {
@@ -221,11 +258,35 @@ let trayEl;
 let leftEl;
 let hotzone;
 let previewEl = null;
-const buttons = new Map(); // appId -> button
+let minisEl = null;
+const buttons = new Map(); // key -> button (key = appId, or appId::winId for a window of its own: combine never / whenFull)
 const thumbs = new Map(); // winId -> blob URL
 const status = { net: undefined, audio: undefined, battery: undefined };
+const statusItems = new Map(); // id -> { icon, text, tip, onClick } (extra tray buttons, e.g. Focus mode)
 let suppressClick = false;
 let bulk = false; // true while the whole taskbar is rebuilt (no per-button entrance animation)
+
+// ---------------------------------------------------------------- layout (personalization)
+const THICK = { small: 40, medium: 48, large: 60 }; // height of a horizontal taskbar
+const THICK_V = { small: 52, medium: 60, large: 72 }; // width of a vertical one (room for the clock)
+const BTN = { small: 32, medium: 40, large: 52 };
+const tbCfg = () => settings.get('taskbar') || {};
+function tbPos() {
+  const p = tbCfg().position;
+  return p === 'top' || p === 'left' || p === 'right' ? p : 'bottom';
+}
+const isVertical = () => tbPos() === 'left' || tbPos() === 'right';
+function tbSize() {
+  const s = tbCfg().size;
+  return THICK[s] ? s : 'medium';
+}
+const thickness = () => (isVertical() ? THICK_V : THICK)[tbSize()];
+function combineMode() {
+  const c = tbCfg().combine;
+  return c === 'never' || c === 'whenFull' ? c : 'always';
+}
+const labelsOn = () => !!tbCfg().showLabels && !isVertical();
+const focusSimple = () => document.documentElement.dataset.focusSimple === 'on';
 
 function visibleWins(appId) {
   const list = wm.listDesktop ? wm.listDesktop() : wm.list();
@@ -233,12 +294,42 @@ function visibleWins(appId) {
 }
 
 function appOrder() {
-  const pinned = (settings.get('pinned') || []).filter((id) => registry.get(id));
+  // Focus mode's simplified taskbar keeps only the apps that are running.
+  const pinned = focusSimple() ? [] : (settings.get('pinned') || []).filter((id) => registry.get(id));
   const running = [];
-  for (const w of [...visibleWins()].sort((a, b) => a.createdAt - b.createdAt)) {
+  const wins = [...visibleWins()].sort((a, b) => a.createdAt - b.createdAt);
+  if (focusSimple()) {
+    for (const id of (settings.get('pinned') || []).filter((x) => registry.get(x))) if (wins.some((w) => w.appId === id)) pinned.push(id);
+  }
+  for (const w of wins) {
     if (!pinned.includes(w.appId) && !running.includes(w.appId)) running.push(w.appId);
   }
   return [...pinned, ...running];
+}
+
+// Buttons: one per app ("combine always"), or one per window ("never", or "when the taskbar is full" while they fit).
+const keyOf = (appId, win) => (win ? `${appId}::${win.id}` : appId);
+function parseKey(key) {
+  const i = String(key).indexOf('::');
+  return i < 0 ? { appId: key, winId: null } : { appId: key.slice(0, i), winId: key.slice(i + 2) };
+}
+function winsOfKey(key) {
+  const { appId, winId } = parseKey(key);
+  const all = visibleWins(appId);
+  return winId ? all.filter((w) => String(w.id) === winId) : all;
+}
+function entries() {
+  const order = appOrder();
+  const mode = combineMode();
+  if (mode === 'always') return order;
+  const out = [];
+  for (const id of order) {
+    const wins = visibleWins(id).sort((a, b) => a.createdAt - b.createdAt);
+    if (!wins.length) out.push(id);
+    else for (const w of wins) out.push(keyOf(id, w));
+  }
+  if (mode === 'whenFull' && out.length > order.length && out.length > capacity(out)) return order;
+  return out;
 }
 
 function setPinned(appId, pin) {
@@ -250,39 +341,69 @@ function setPinned(appId, pin) {
 // FLIP: animate taskbar buttons from their old to their new positions (smooth re-centering).
 function flip(mutate) {
   if (reduceMotion() || !centerEl) return mutate();
+  const v = isVertical();
+  const at = (e) => (v ? e.getBoundingClientRect().top : e.getBoundingClientRect().left);
   const els = [...centerEl.querySelectorAll(':scope > .tb-btn, .tb-apps > .tb-btn:not(.leaving)')];
-  const before = new Map(els.filter((e) => !e.hidden).map((e) => [e, e.getBoundingClientRect().left]));
+  const before = new Map(els.filter((e) => !e.hidden).map((e) => [e, at(e)]));
   mutate();
-  for (const [e, left] of before) {
+  for (const [e, was] of before) {
     if (!e.isConnected || e.hidden || e.classList.contains('dragging')) continue;
-    const dx = left - e.getBoundingClientRect().left;
-    if (Math.abs(dx) > 0.5) e.animate([{ transform: `translateX(${dx}px)` }, { transform: 'none' }], { duration: 320, easing: EASE });
+    const d = was - at(e);
+    if (Math.abs(d) > 0.5) e.animate([{ transform: v ? `translateY(${d}px)` : `translateX(${d}px)` }, { transform: 'none' }], { duration: 320, easing: EASE });
   }
 }
 
+// Where a menu / picker opens next to a taskbar element (above it, below it, or beside a vertical taskbar).
+function menuPointFor(el) {
+  const r = el.getBoundingClientRect();
+  const p = tbPos();
+  if (p === 'top') return { at: { x: r.left, y: r.bottom + 4, anchor: r }, above: false };
+  if (p === 'left') return { at: { x: r.right + 8, y: r.top }, above: false };
+  if (p === 'right') return { at: { x: r.left - 8, y: r.top, sub: new DOMRect(r.left - 4, r.top, 1, 1) }, above: false };
+  return { at: el, above: true };
+}
+// A popup (window picker, overflow) beside the button on a vertical taskbar, centred on it otherwise.
+function placePopup(pop, btn) {
+  const r = btn.getBoundingClientRect();
+  const pr = pop.getBoundingClientRect();
+  const p = tbPos();
+  if (p === 'left' || p === 'right') {
+    const th = thickness();
+    pop.style.left = `${p === 'left' ? th + 8 : Math.max(8, window.innerWidth - th - 8 - pr.width)}px`;
+    pop.style.top = `${Math.max(8, Math.min(window.innerHeight - pr.height - 8, r.top + r.height / 2 - pr.height / 2))}px`;
+    return;
+  }
+  pop.style.left = `${Math.max(8, Math.min(window.innerWidth - pr.width - 8, r.left + r.width / 2 - pr.width / 2))}px`;
+}
+
 // ---------------------------------------------------------------- app buttons
-function appMenu(e, appId) {
+function appMenu(e, key) {
   e.preventDefault();
   hidePreview(true);
-  const wins = visibleWins(appId);
+  const { appId, winId } = parseKey(key);
+  const wins = winsOfKey(key);
   const pinned = (settings.get('pinned') || []).includes(appId);
   const m = registry.get(appId);
-  const anchor = visibleButton(appId) || e.currentTarget;
+  const anchor = visibleButton(key) || e.currentTarget;
+  const place = menuPointFor(anchor);
+  const closeLabel = winId ? t('taskbar.closeThisWindow') : wins.length > 1 ? t('taskbar.closeAll') : t('taskbar.closeWindow');
   const p = ui.menu(
-    anchor,
+    place.at,
     [
       { label: registry.name(appId), icon: 'app_generic', action: () => registry.launch(appId, { newWindow: true }) },
       m ? { label: pinned ? t('taskbar.unpin') : t('taskbar.pin'), icon: pinned ? 'pin_off' : 'pin', action: () => setPinned(appId, !pinned) } : null,
-      wins.length ? { label: wins.length > 1 ? t('taskbar.closeAll') : t('taskbar.closeWindow'), icon: 'dismiss', action: () => wins.forEach((w) => w.close()) } : null,
+      wins.length ? { label: closeLabel, icon: 'dismiss', action: () => wins.forEach((w) => w.close()) } : null,
     ].filter(Boolean),
-    { above: true, class: 'tb-jump' },
+    { above: place.above, class: 'tb-jump' },
   );
-  // Centre the jump list over the button and show the real app icon (Windows 11 style).
+  // Centre the jump list over (or under) the button and show the real app icon (Windows 11 style).
   const menu = [...document.querySelectorAll('.menu.tb-jump')].pop();
   if (menu) {
-    const r = anchor.getBoundingClientRect();
-    const mr = menu.getBoundingClientRect();
-    menu.style.left = `${Math.max(8, Math.min(window.innerWidth - mr.width - 8, r.left + r.width / 2 - mr.width / 2))}px`;
+    if (!isVertical()) {
+      const r = anchor.getBoundingClientRect();
+      const mr = menu.getBoundingClientRect();
+      menu.style.left = `${Math.max(8, Math.min(window.innerWidth - mr.width - 8, r.left + r.width / 2 - mr.width / 2))}px`;
+    }
     const first = menu.querySelector('.menu-item .icon');
     if (first) first.replaceWith(h('img', { class: 'icon', src: registry.iconUrl(appId), alt: '', draggable: false }));
   }
@@ -335,12 +456,13 @@ function schedulePreview(appId) {
   const delay = previewEl ? 60 : 480;
   previewTimer = setTimeout(() => showPreview(appId), delay);
 }
-function showPreview(appId, pinned = false) {
-  const wins = visibleWins(appId);
-  const btn = buttons.get(appId);
+function showPreview(key, pinned = false) {
+  const { appId } = parseKey(key);
+  const wins = winsOfKey(key);
+  const btn = buttons.get(key);
   if (!wins.length || !btn || document.querySelector('.menu.tb-jump')) return hidePreview(true);
   hidePreview(true);
-  previewApp = appId;
+  previewApp = key;
   previewPinned = pinned;
   const items = wins.map((w) => {
     const img = h('div', { class: 'tb-pv-thumb' }, h('img', { class: 'tb-pv-ph', src: registry.iconUrl(appId), alt: '', draggable: false }));
@@ -421,9 +543,7 @@ function showPreview(appId, pinned = false) {
 function placePreview() {
   const btn = buttons.get(previewApp);
   if (!previewEl || !btn) return;
-  const r = btn.getBoundingClientRect();
-  const pr = previewEl.getBoundingClientRect();
-  previewEl.style.left = `${Math.max(8, Math.min(window.innerWidth - pr.width - 8, r.left + r.width / 2 - pr.width / 2))}px`;
+  placePopup(previewEl, btn);
 }
 
 // Close the picker when clicking elsewhere.
@@ -435,12 +555,13 @@ document.addEventListener(
   true,
 );
 
-async function clickApp(appId, btn) {
+async function clickApp(key, btn) {
   if (suppressClick) {
     suppressClick = false;
     return;
   }
-  const wins = visibleWins(appId);
+  const { appId } = parseKey(key);
+  const wins = winsOfKey(key);
   if (!wins.length) {
     if (!reduceMotion()) btn.querySelector('img')?.animate([{ transform: 'none' }, { transform: 'translateY(-6px)' }, { transform: 'none' }], { duration: 420, easing: 'ease-out' });
     hidePreview(true);
@@ -457,22 +578,25 @@ async function clickApp(appId, btn) {
     return;
   }
   // Several windows: show the window picker (or close it when it is already pinned open).
-  if (previewEl && previewApp === appId && previewPinned) hidePreview(true);
-  else showPreview(appId, true);
+  if (previewEl && previewApp === key && previewPinned) hidePreview(true);
+  else showPreview(key, true);
 }
 
 function startDrag(e, appId, btn) {
-  if (e.button !== 0) return;
+  // Pinned buttons are reordered by dragging them along the taskbar (one button per app only).
+  if (e.button !== 0 || combineMode() !== 'always' || focusSimple() || btn.dataset.key !== appId) return;
   const pinned = (settings.get('pinned') || []).filter((id) => registry.get(id));
   const from = pinned.indexOf(appId);
   if (from < 0) return;
-  const sx = e.clientX;
+  const v = isVertical();
+  const TR = v ? 'translateY' : 'translateX';
+  const sx = v ? e.clientY : e.clientX;
   let dragging = false;
   let slots = [];
   let to = from;
-  const step = () => btn.getBoundingClientRect().width + 4;
+  const step = () => (v ? btn.getBoundingClientRect().height : btn.getBoundingClientRect().width) + 4;
   const move = (ev) => {
-    const dx = ev.clientX - sx;
+    const dx = (v ? ev.clientY : ev.clientX) - sx;
     if (!dragging) {
       if (Math.abs(dx) < 6) return;
       dragging = true;
@@ -483,13 +607,13 @@ function startDrag(e, appId, btn) {
     }
     const w = step();
     to = Math.max(0, Math.min(pinned.length - 1, from + Math.round(dx / w)));
-    btn.style.transform = `translateX(${Math.max(-from * w, Math.min((pinned.length - 1 - from) * w, dx))}px)`;
+    btn.style.transform = `${TR}(${Math.max(-from * w, Math.min((pinned.length - 1 - from) * w, dx))}px)`;
     slots.forEach((b, i) => {
       if (!b || b === btn) return;
       let shift = 0;
       if (from < to && i > from && i <= to) shift = -w;
       if (from > to && i < from && i >= to) shift = w;
-      b.style.transform = shift ? `translateX(${shift}px)` : '';
+      b.style.transform = shift ? `${TR}(${shift}px)` : '';
     });
   };
   const up = () => {
@@ -513,16 +637,17 @@ function startDrag(e, appId, btn) {
   btn.addEventListener('pointercancel', up);
 }
 
-function makeAppButton(id) {
+function makeAppButton(key) {
+  const { appId: id, winId } = parseKey(key);
   let dragTimer = null;
   const b = h(
     'button',
     {
       class: 'tb-btn tb-app',
-      dataset: { app: id },
+      dataset: winId ? { app: id, key, win: winId } : { app: id, key },
       'aria-label': registry.name(id),
-      onclick: () => clickApp(id, b),
-      oncontextmenu: (e) => appMenu(e, id),
+      onclick: () => clickApp(key, b),
+      oncontextmenu: (e) => appMenu(e, key),
       onpointerdown: (e) => {
         b.classList.add('pressed');
         startDrag(e, id, b);
@@ -533,7 +658,7 @@ function makeAppButton(id) {
         if (!previewPinned) hidePreview();
       },
       onpointerenter: () => {
-        if (visibleWins(id).length) schedulePreview(id);
+        if (winsOfKey(key).length) schedulePreview(key);
       },
       onauxclick: (e) => {
         if (e.button === 1) registry.launch(id, { newWindow: true });
@@ -541,12 +666,13 @@ function makeAppButton(id) {
       // Dragging files over a button brings that app forward (like Windows).
       ondragenter: () => {
         clearTimeout(dragTimer);
-        dragTimer = setTimeout(() => visibleWins(id)[0]?.focus(), 650);
+        dragTimer = setTimeout(() => winsOfKey(key)[0]?.focus(), 650);
       },
       ondragleave: () => clearTimeout(dragTimer),
       ondrop: () => clearTimeout(dragTimer),
     },
     h('img', { src: registry.iconUrl(id), alt: '', draggable: false }),
+    h('span', { class: 'tb-label' }, registry.name(id)),
     h('span', { class: 'tb-ind' }),
     h('span', { class: 'tb-progress' }),
   );
@@ -555,7 +681,7 @@ function makeAppButton(id) {
 
 function renderApps() {
   if (!appsBox) return;
-  const order = appOrder();
+  const order = entries();
   const ids = [...buttons.keys()];
   const changed = order.length !== ids.length || order.some((id, i) => ids[i] !== id);
   const apply = () => {
@@ -594,8 +720,9 @@ function renderApps() {
   if (changed) flip(apply);
   else apply();
   const focused = wm.focused();
-  for (const [id, b] of buttons) {
-    const wins = visibleWins(id);
+  for (const [key, b] of buttons) {
+    const id = parseKey(key).appId;
+    const wins = winsOfKey(key);
     b.classList.toggle('running', wins.length > 0);
     b.classList.toggle('active', wins.some((w) => w === focused && !w.minimized));
     b.classList.toggle('multi', wins.length > 1);
@@ -611,12 +738,15 @@ function renderApps() {
     // Running apps show the window picker instead of a tooltip.
     if (wins.length) delete b.dataset.tip;
     else b.dataset.tip = registry.name(id);
-    b.setAttribute('aria-label', wins.length === 1 ? wins[0].title || registry.name(id) : registry.name(id));
+    const label = wins.length === 1 ? wins[0].title || registry.name(id) : registry.name(id);
+    b.setAttribute('aria-label', label);
+    const lab = b.querySelector('.tb-label');
+    if (lab && lab.textContent !== label) lab.textContent = label;
   }
-  if (previewEl && previewApp && !visibleWins(previewApp).length) hidePreview(true);
+  if (previewEl && previewApp && !winsOfKey(previewApp).length) hidePreview(true);
   if (overflowBtn && !overflowBtn.hidden) {
-    overflowBtn.classList.toggle('running', hiddenApps.some((id) => visibleWins(id).length));
-    overflowBtn.classList.toggle('flashing', hiddenApps.some((id) => visibleWins(id).some((w) => w.flashing)));
+    overflowBtn.classList.toggle('running', hiddenApps.some((k) => winsOfKey(k).length));
+    overflowBtn.classList.toggle('flashing', hiddenApps.some((k) => winsOfKey(k).some((w) => w.flashing)));
   }
 }
 
@@ -626,31 +756,65 @@ function renderApps() {
 let overflowBtn = null;
 let hiddenApps = [];
 let ovfEl = null;
-const visibleButton = (id) => {
-  const b = buttons.get(id);
-  return b && !b.hidden ? b : overflowBtn && !overflowBtn.hidden && hiddenApps.includes(id) ? overflowBtn : b;
+const visibleButton = (key) => {
+  const b = buttons.get(key);
+  return b && !b.hidden ? b : overflowBtn && !overflowBtn.hidden && hiddenApps.includes(key) ? overflowBtn : b;
 };
+/** The button that stands for a window (its own button, else its app's), for anchors and animations. */
+function buttonFor(appId, win) {
+  if (win && buttons.has(keyOf(appId, win))) return visibleButton(keyOf(appId, win));
+  if (buttons.has(appId)) return visibleButton(appId);
+  const first = [...buttons.keys()].find((k) => parseKey(k).appId === appId);
+  return first ? visibleButton(first) : null;
+}
+// Room left for app buttons along the taskbar (px), or null before the first layout.
+function availSpace() {
+  if (!root?.isConnected || !trayEl || !centerEl) return null;
+  const v = isVertical();
+  const W = v ? root.clientHeight : root.clientWidth;
+  if (!W) return null;
+  const tr = trayEl.getBoundingClientRect();
+  const trayW = v ? tr.height : tr.width;
+  const leftW = !v && leftEl?.children.length ? leftEl.getBoundingClientRect().width + 12 : 0;
+  const avail = v || root.classList.contains('left') ? W - trayW - 24 : W - 2 * (Math.max(trayW, leftW) + 12);
+  const fixed = [...centerEl.children]
+    .filter((c) => c !== appsBox)
+    .reduce((sum, c) => {
+      const r = c.getBoundingClientRect();
+      return sum + (v ? r.height : r.width) + 4;
+    }, 0);
+  return avail - fixed;
+}
+// Length a button takes along the bar: a labelled running button is wider (Windows 10 style).
+const slotOf = (key) => (labelsOn() && winsOfKey(key).length ? 172 : BTN[tbSize()] + 4);
+function capacity(keys) {
+  const space = availSpace();
+  if (space == null) return Infinity;
+  let used = 0;
+  let n = 0;
+  for (const k of keys) {
+    used += slotOf(k);
+    if (used > space) break;
+    n++;
+  }
+  return n;
+}
 function fitApps() {
   if (!appsBox || !root?.isConnected) return;
   const btns = [...appsBox.querySelectorAll(':scope > .tb-app:not(.leaving)')];
-  const W = root.clientWidth;
-  if (!W) return;
-  const trayW = trayEl.getBoundingClientRect().width;
-  const leftW = leftEl.children.length ? leftEl.getBoundingClientRect().width + 12 : 0;
-  const avail = root.classList.contains('left') ? W - trayW - 24 : W - 2 * (Math.max(trayW, leftW) + 12);
-  const fixed = [...centerEl.children].filter((c) => c !== appsBox).reduce((sum, c) => sum + c.getBoundingClientRect().width + 4, 0);
-  const SLOT = 44; // 40px button + 4px gap
-  const cap = Math.max(1, Math.floor((avail - fixed) / SLOT));
-  let visible = btns.map((b) => b.dataset.app);
+  if (availSpace() == null) return;
+  const keys = btns.map((b) => b.dataset.key);
+  const cap = Math.max(1, capacity(keys));
+  let visible = keys;
   if (btns.length > cap) {
     visible = visible.slice(0, Math.max(1, cap - 1)); // one slot for the overflow button
     const focused = wm.focused();
-    const activeId = focused && !focused.minimized ? focused.appId : null;
-    if (activeId && buttons.has(activeId) && !visible.includes(activeId)) visible[visible.length - 1] = activeId;
+    const activeKey = focused && !focused.minimized ? (buttons.has(keyOf(focused.appId, focused)) ? keyOf(focused.appId, focused) : focused.appId) : null;
+    if (activeKey && buttons.has(activeKey) && !visible.includes(activeKey)) visible[visible.length - 1] = activeKey;
   }
   const keep = new Set(visible);
-  hiddenApps = btns.map((b) => b.dataset.app).filter((id) => !keep.has(id));
-  for (const b of btns) b.hidden = !keep.has(b.dataset.app);
+  hiddenApps = keys.filter((k) => !keep.has(k));
+  for (const b of btns) b.hidden = !keep.has(b.dataset.key);
   if (hiddenApps.length) {
     if (!overflowBtn) {
       overflowBtn = h(
@@ -662,8 +826,8 @@ function fitApps() {
     }
     overflowBtn.dataset.tip = t('taskbar.moreApps');
     overflowBtn.setAttribute('aria-label', t('taskbar.moreApps'));
-    overflowBtn.classList.toggle('running', hiddenApps.some((id) => visibleWins(id).length));
-    overflowBtn.classList.toggle('flashing', hiddenApps.some((id) => visibleWins(id).some((w) => w.flashing)));
+    overflowBtn.classList.toggle('running', hiddenApps.some((k) => winsOfKey(k).length));
+    overflowBtn.classList.toggle('flashing', hiddenApps.some((k) => winsOfKey(k).some((w) => w.flashing)));
     if (overflowBtn.parentElement !== appsBox || appsBox.lastElementChild !== overflowBtn) appsBox.appendChild(overflowBtn);
     overflowBtn.hidden = false;
     if (ovfEl) renderOverflow();
@@ -673,9 +837,9 @@ function fitApps() {
   }
 }
 
-function activateApp(id) {
-  const wins = visibleWins(id);
-  if (!wins.length) return registry.launch(id);
+function activateApp(key) {
+  const wins = winsOfKey(key);
+  if (!wins.length) return registry.launch(parseKey(key).appId);
   const w = wins.find((x) => x.isFocused()) || wins[wins.length - 1];
   if (w.isFocused() && !w.minimized && wins.length === 1) w.minimize();
   else w.focus();
@@ -711,22 +875,24 @@ function closeOverflow() {
 function renderOverflow() {
   const focused = wm.focused();
   ovfEl.replaceChildren(
-    ...hiddenApps.map((id) => {
-      const wins = visibleWins(id);
+    ...hiddenApps.map((key) => {
+      const id = parseKey(key).appId;
+      const wins = winsOfKey(key);
+      const name = parseKey(key).winId && wins[0]?.title ? wins[0].title : registry.name(id);
       return h(
         'button',
         {
           class: ['tb-ovf-item', wins.length && 'running', wins.some((w) => w === focused && !w.minimized) && 'active'],
           role: 'menuitem',
-          dataset: { app: id, tip: registry.name(id) },
-          'aria-label': registry.name(id),
+          dataset: { app: id, key, tip: name },
+          'aria-label': name,
           onclick: () => {
             closeOverflow();
-            activateApp(id);
+            activateApp(key);
           },
           oncontextmenu: (e) => {
             closeOverflow();
-            appMenu(e, id);
+            appMenu(e, key);
           },
         },
         h('img', { src: registry.iconUrl(id), alt: '', draggable: false }),
@@ -734,10 +900,8 @@ function renderOverflow() {
       );
     }),
   );
-  ovfEl.style.setProperty('--cols', String(Math.max(1, Math.min(6, hiddenApps.length))));
-  const r = overflowBtn.getBoundingClientRect();
-  const pr = ovfEl.getBoundingClientRect();
-  ovfEl.style.left = `${Math.max(8, Math.min(window.innerWidth - pr.width - 8, r.left + r.width / 2 - pr.width / 2))}px`;
+  ovfEl.style.setProperty('--cols', String(Math.max(1, Math.min(isVertical() ? 3 : 6, hiddenApps.length))));
+  placePopup(ovfEl, overflowBtn);
 }
 function toggleOverflow() {
   if (ovfEl) return closeOverflow();
@@ -778,7 +942,7 @@ function renderBell() {
   const bell = clockEl?.querySelector('.tb-bell');
   if (!bell) return;
   const n = notifications.unread();
-  const dnd = !!settings.get('notifications.dnd');
+  const dnd = !!settings.get('notifications.dnd') || document.documentElement.dataset.focusQuiet === 'on';
   clear(bell);
   if (n > 0 && !dnd) {
     bell.append(h('span', { class: 'tb-count' }, n > 99 ? '99+' : String(n)));
@@ -885,24 +1049,169 @@ function taskbarMenu(e) {
   if (e.target.closest('.tb-app, .tb-preview')) return;
   e.preventDefault();
   e.stopPropagation();
-  // Opens just above the taskbar, like Windows (a point with an anchor rect = the taskbar's top edge).
-  const top = root.getBoundingClientRect().top;
-  const at = e.clientX || e.clientY ? { x: e.clientX, y: e.clientY, anchor: { left: e.clientX, right: e.clientX, top, bottom: top } } : e;
+  // Opens just above the taskbar, like Windows (a point with an anchor rect = the taskbar's top edge);
+  // under a top taskbar, beside a vertical one.
+  const tr = root.getBoundingClientRect();
+  const p = tbPos();
+  const point = e.clientX || e.clientY;
+  let at = e;
+  if (point && p === 'bottom') at = { x: e.clientX, y: e.clientY, anchor: { left: e.clientX, right: e.clientX, top: tr.top, bottom: tr.top } };
+  else if (point && p === 'top') at = { x: e.clientX, y: tr.bottom + 4 };
+  else if (point && p === 'left') at = { x: tr.right + 4, y: e.clientY };
+  else if (point && p === 'right') at = { x: tr.left - 4, y: e.clientY, sub: new DOMRect(tr.left - 4, e.clientY, 1, 1) };
   ui.menu(at, [
     registry.get('taskmgr') ? { label: t('taskbar.taskManager'), icon: 'data_histogram', action: () => shell.launch('taskmgr') } : null,
     '-',
     { label: t('taskbar.settings'), icon: 'settings', action: () => shell.launch('settings', { page: 'taskbar' }) },
-  ].filter((x, i, arr) => x && !(x === '-' && (i === 0 || !arr[i - 1]))), { above: true });
+  ].filter((x, i, arr) => x && !(x === '-' && (i === 0 || !arr[i - 1]))), { above: p === 'bottom' });
 }
 
 function onKeyNav(e) {
-  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
+  const v = isVertical();
+  const fwd = v ? 'ArrowDown' : 'ArrowRight';
+  const back = v ? 'ArrowUp' : 'ArrowLeft';
+  if (e.key !== fwd && e.key !== back && e.key !== 'Home' && e.key !== 'End') return;
   const all = [...root.querySelectorAll('.tb-btn:not([hidden]):not(.leaving)')].filter((b) => b.offsetParent);
   const i = all.indexOf(document.activeElement);
   if (i < 0) return;
   e.preventDefault();
-  const next = e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + all.length) % all.length;
+  const next = e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : (i + (e.key === fwd ? 1 : -1) + all.length) % all.length;
   all[next].focus();
+}
+
+// ---------------------------------------------------------------- tray: status items + mini widgets
+function renderStatusItems() {
+  const box = trayEl?.querySelector('.tb-status');
+  if (!box) return;
+  box.replaceChildren(
+    ...[...statusItems].map(([id, it]) =>
+      h(
+        'button',
+        { class: 'tb-btn tb-focus-pill', dataset: { status: id, tip: it.tip || it.text || '' }, 'aria-label': it.tip || it.text || id, onclick: (e) => it.onClick?.(e) },
+        icon(it.icon || 'target', { size: 16 }),
+        it.text ? h('span', { class: 'tb-status-text' }, it.text) : null,
+      ),
+    ),
+  );
+}
+
+// Mini widgets (taskbar.widgets): live values in the tray, refreshed every 3 s while visible.
+export const MINI_WIDGETS = ['weather', 'cpu', 'memory', 'network'];
+const mini = { timer: 0, net: null, weather: null, weatherAt: 0, weatherErr: null, busy: false };
+function miniIds() {
+  return (tbCfg().widgets || []).filter((x, i, a) => MINI_WIDGETS.includes(x) && a.indexOf(x) === i);
+}
+const fmtRate = (bps) => {
+  const n = Math.max(0, Number(bps) || 0);
+  if (n < 1024) return `${Math.round(n)} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`;
+  return `${(n / 1048576).toFixed(1)} MB`;
+};
+const WEATHER_ICON = { clear: 'weather_sunny', clouds: 'weather_cloudy', fog: 'weather_fog', rain: 'weather_rain', snow: 'weather_snow', storm: 'weather_thunderstorm' };
+function renderMinis() {
+  if (!minisEl) return;
+  const ids = focusSimple() ? [] : miniIds();
+  minisEl.hidden = !ids.length;
+  const open = (id) => (id === 'weather' ? shell.emit('widgets:toggle') : registry.get('taskmgr') ? shell.launch('taskmgr', { page: 'performance' }) : shell.emit('widgets:toggle'));
+  minisEl.replaceChildren(
+    ...ids.map((id) =>
+      h(
+        'button',
+        { class: ['tb-btn tb-mini', `tb-mini-${id}`], dataset: { mini: id }, 'aria-label': id, onclick: () => open(id) },
+        id === 'weather'
+          ? [icon('weather_partly_cloudy_day', { size: 16 }), h('span', { class: 'tb-mini-val' }, '—')]
+          : id === 'network'
+            ? [h('span', { class: 'tb-mini-val tb-mini-down' }, '↓ —'), h('span', { class: 'tb-mini-val tb-mini-up' }, '↑ —')]
+            : [h('span', { class: 'tb-meter' }, h('i')), h('span', { class: 'tb-mini-lbl' }, t(`tbmini.${id}`)), h('span', { class: 'tb-mini-val' }, '—')],
+      ),
+    ),
+  );
+  for (const b of minisEl.querySelectorAll('.tb-mini-network')) b.classList.add('tb-mini-net');
+  clearInterval(mini.timer);
+  mini.timer = 0;
+  if (ids.length) {
+    paintMinis();
+    pollMinis();
+    mini.timer = setInterval(pollMinis, 3000);
+  }
+}
+async function pollMinis() {
+  if (mini.busy || document.hidden || !minisEl || minisEl.hidden) return;
+  const ids = miniIds();
+  mini.busy = true;
+  try {
+    if (ids.some((x) => x !== 'weather')) {
+      const st = await api.invoke('sys:stats').catch(() => null);
+      if (st) {
+        const now = Date.now();
+        const prev = mini.net;
+        mini.stats = st;
+        if (st.net && prev && now > prev.at) {
+          const dt = (now - prev.at) / 1000;
+          mini.rate = { down: Math.max(0, (st.net.rx - prev.rx) / dt), up: Math.max(0, (st.net.tx - prev.tx) / dt) };
+        }
+        if (st.net) mini.net = { rx: st.net.rx, tx: st.net.tx, at: now };
+      }
+    }
+    if (ids.includes('weather') && Date.now() - mini.weatherAt > 15 * 60000) {
+      mini.weatherAt = Date.now();
+      try {
+        mini.weather = await api.invoke('weather:current');
+        mini.weatherErr = null;
+      } catch (err) {
+        mini.weatherErr = err?.code || 'ERR';
+      }
+    }
+  } finally {
+    mini.busy = false;
+  }
+  paintMinis();
+}
+function paintMinis() {
+  if (!minisEl) return;
+  const st = mini.stats;
+  for (const b of minisEl.querySelectorAll('.tb-mini')) {
+    const id = b.dataset.mini;
+    if (id === 'cpu' || id === 'memory') {
+      let v = null;
+      let tip = '';
+      if (st && id === 'cpu') {
+        v = Math.round(st.cpu || 0);
+        tip = t('tbmini.cpuTip', { value: v });
+      } else if (st?.mem?.total) {
+        const used = st.mem.used ?? st.mem.total - (st.mem.available || 0);
+        v = Math.round((used / st.mem.total) * 100);
+        tip = t('tbmini.memoryTip', { value: v, used: i18n.formatSize(used), total: i18n.formatSize(st.mem.total) });
+      }
+      b.querySelector('.tb-mini-val').textContent = v == null ? '—' : `${v}%`;
+      b.querySelector('.tb-meter > i')?.style.setProperty('--v', `${v ?? 0}%`);
+      b.dataset.level = v >= 90 ? 'max' : v >= 70 ? 'high' : 'ok';
+      b.dataset.tip = tip || t(`tbmini.${id}`);
+      b.setAttribute('aria-label', b.dataset.tip);
+    } else if (id === 'network') {
+      const r = mini.rate;
+      b.querySelector('.tb-mini-down').textContent = `↓ ${r ? fmtRate(r.down) : '—'}`;
+      b.querySelector('.tb-mini-up').textContent = `↑ ${r ? fmtRate(r.up) : '—'}`;
+      b.dataset.tip = t('tbmini.netTip', { down: r ? fmtRate(r.down) : '—', up: r ? fmtRate(r.up) : '—' });
+      b.setAttribute('aria-label', b.dataset.tip);
+    } else if (id === 'weather') {
+      const w = mini.weather;
+      const val = b.querySelector('.tb-mini-val');
+      if (w && Number.isFinite(w.temperature)) {
+        const name = WEATHER_ICON[w.kind] || 'weather_partly_cloudy_day';
+        const ic = b.querySelector('.icon');
+        if (ic?.dataset.icon !== name) ic?.replaceWith(icon(w.isDay === false && w.kind === 'clear' ? 'weather_moon' : name, { size: 16 }));
+        val.textContent = `${Math.round(w.temperature)}°`;
+        const dk = `tbmini.w_${w.describe}`;
+        const describe = t(dk);
+        b.dataset.tip = t('tbmini.weatherTip', { place: w.location?.name || '', temp: `${Math.round(w.temperature)} ${w.unit || '°C'}`, describe: describe === dk ? w.kind : describe });
+      } else {
+        val.textContent = '—';
+        b.dataset.tip = mini.weatherErr === 'ENOLOCATION' || !mini.weatherErr ? t('tbmini.weatherNoPlace') : t('tbmini.weatherOffline');
+      }
+      b.setAttribute('aria-label', b.dataset.tip);
+    }
+  }
 }
 
 // ---------------------------------------------------------------- auto-hide
@@ -918,7 +1227,8 @@ function scheduleHide(ms = 600) {
   clearTimeout(hideTimer);
   if (!autohideOn()) return;
   hideTimer = setTimeout(() => {
-    const busy = isFlyoutOpen() || root.matches(':hover') || root.contains(document.activeElement) || document.querySelector('.menu') || previewEl;
+    // (only open popup menus count: Settings keeps hidden `.menu` elements, e.g. its search suggestions)
+    const busy = isFlyoutOpen() || root.matches(':hover') || root.contains(document.activeElement) || document.querySelector('body > .menu') || previewEl;
     if (busy) return scheduleHide(ms);
     root.classList.add('hidden');
   }, ms);
@@ -928,9 +1238,30 @@ function applyAutohide() {
   root.classList.toggle('autohide', on);
   document.body.classList.toggle('tb-autohide', on);
   hotzone.hidden = !on;
-  wm.setInsets({ bottom: on ? 0 : 48 });
+  // The work area loses the taskbar's thickness on the edge it stands on (nothing when it auto-hides).
+  const insets = { top: 0, bottom: 0, left: 0, right: 0 };
+  if (!on) insets[tbPos()] = thickness();
+  const cur = wm.insets || {};
+  if (['top', 'bottom', 'left', 'right'].some((k) => cur[k] !== insets[k])) wm.setInsets(insets);
   if (on) scheduleHide(900);
   else reveal();
+}
+
+// Size, edge and labels: <html data-tb-pos / data-tb-size / data-tb-labels> + --taskbar-h (core/shell-personalize.css).
+let layoutKey = '';
+function applyLayout() {
+  const de = document.documentElement;
+  const p = tbPos();
+  const key = `${p}|${tbSize()}|${labelsOn()}`;
+  de.dataset.tbPos = p;
+  de.dataset.tbSize = tbSize();
+  de.dataset.tbLabels = labelsOn() ? 'on' : 'off';
+  de.style.setProperty('--taskbar-h', `${thickness()}px`);
+  root.classList.toggle('vertical', isVertical());
+  root.setAttribute('aria-orientation', isVertical() ? 'vertical' : 'horizontal');
+  const changed = key !== layoutKey;
+  layoutKey = key;
+  return changed;
 }
 
 // ---------------------------------------------------------------- static layout
@@ -941,9 +1272,11 @@ function renderStatic() {
   buttons.clear();
   const tb = settings.get('taskbar') || {};
   const align = tb.align === 'left' ? 'left' : 'center';
+  const vertical = isVertical();
   root.classList.toggle('left', align === 'left');
   document.body.classList.toggle('tb-left', align === 'left');
-  const searchMode = tb.search || (tb.showSearch === false ? 'hidden' : 'icon');
+  let searchMode = ['hidden', 'icon', 'box'].includes(tb.search) ? tb.search : tb.showSearch === false ? 'hidden' : 'icon';
+  if (vertical && searchMode === 'box') searchMode = 'icon';
   const widgetsBtn = (withLabel) =>
     h(
       'button',
@@ -951,7 +1284,7 @@ function renderStatic() {
       icon('board', { size: 20 }),
       withLabel ? h('span', { class: 'tb-label' }, t('taskbar.widgets')) : null,
     );
-  leftEl = h('div', { class: 'tb-left' }, tb.showWidgets && align === 'center' ? widgetsBtn(true) : null);
+  leftEl = h('div', { class: 'tb-left' }, tb.showWidgets && align === 'center' && !vertical ? widgetsBtn(true) : null);
   centerEl = h(
     'div',
     { class: 'tb-center' },
@@ -968,12 +1301,14 @@ function renderStatic() {
     tb.showTaskView !== false
       ? h('button', { class: 'tb-btn tb-taskview', 'data-tip': t('taskbar.taskView'), 'aria-label': t('taskbar.taskView'), onclick: () => shell.emit('taskview:toggle') }, icon('task_list_square_ltr', { size: 20 }))
       : null,
-    tb.showWidgets && align === 'left' ? widgetsBtn(false) : null,
+    tb.showWidgets && (align === 'left' || vertical) ? widgetsBtn(false) : null,
     (appsBox = h('div', { class: 'tb-apps' })),
   );
   trayEl = h(
     'div',
     { class: 'tb-tray' },
+    h('div', { class: 'tb-status' }),
+    (minisEl = h('div', { class: 'tb-minis', hidden: true })),
     h(
       'button',
       { class: 'tb-btn tb-quick', 'aria-label': t('taskbar.quickSettings'), onclick: () => shell.emit('quick:toggle') },
@@ -991,6 +1326,8 @@ function renderStatic() {
     h('div', { class: 'tb-showdesk', 'data-tip': t('taskbar.showDesktop'), role: 'button', 'aria-label': t('taskbar.showDesktop'), onclick: () => wm.toggleDesktop() }),
   );
   root.append(leftEl, centerEl, trayEl);
+  renderStatusItems();
+  renderMinis();
   bulk = true;
   renderApps();
   bulk = false;
@@ -1002,12 +1339,16 @@ function renderStatic() {
 function applyAlign() {
   const tb = settings.get('taskbar') || {};
   const wantLeft = tb.align === 'left';
-  if (wantLeft === root.classList.contains('left') || !centerEl || reduceMotion()) return renderStatic();
+  const layoutChanged = applyLayout();
+  if (layoutChanged) shell.emit('taskbar:layout', taskbar.layout());
+  if (layoutChanged || wantLeft === root.classList.contains('left') || !centerEl || reduceMotion()) return renderStatic();
   // Glide the whole group to its new home instead of jumping.
-  const before = centerEl.getBoundingClientRect().left;
+  const v = isVertical();
+  const at = () => (v ? centerEl.getBoundingClientRect().top : centerEl.getBoundingClientRect().left);
+  const before = at();
   renderStatic();
-  const after = centerEl.getBoundingClientRect().left;
-  centerEl.animate([{ transform: `translateX(${before - after}px)` }, { transform: 'none' }], { duration: 420, easing: EASE, composite: 'add' });
+  const after = at();
+  centerEl.animate([{ transform: `${v ? 'translateY' : 'translateX'}(${before - after}px)` }, { transform: 'none' }], { duration: 420, easing: EASE, composite: 'add' });
 }
 
 export const taskbar = {
@@ -1016,6 +1357,7 @@ export const taskbar = {
     i18n.extend(STRINGS);
     root.setAttribute('role', 'toolbar');
     notifications.setNameResolver?.((id) => (registry.get(id) ? registry.name(id) : id === 'system' ? t('notif.system') : id));
+    applyLayout();
     renderStatic();
     hotzone = h('div', { class: 'tb-hotzone', hidden: true, onpointerenter: () => (reveal(), scheduleHide(1600)) });
     document.body.appendChild(hotzone);
@@ -1065,6 +1407,15 @@ export const taskbar = {
       applyAlign();
       applyAutohide();
     });
+    // Focus mode (features/focus.js) toggles <html data-focus-simple>: running apps only, no extras.
+    new MutationObserver((recs) => {
+      if (recs.some((r) => r.attributeName === 'data-focus-quiet')) renderBell();
+      if (recs.some((r) => r.attributeName === 'data-focus-simple')) {
+        renderMinis();
+        renderApps();
+      }
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-focus-simple', 'data-focus-quiet'] });
+    document.addEventListener('visibilitychange', () => !document.hidden && minisEl && !minisEl.hidden && pollMinis());
     settings.on('clock24h', tickClock);
     settings.on('showSeconds', tickClock);
     settings.on('notifications', renderBell);
@@ -1110,10 +1461,26 @@ export const taskbar = {
       fitApps();
     });
 
-    wm.anchorProvider = (win) => visibleButton(win.appId)?.getBoundingClientRect() || null;
+    wm.anchorProvider = (win) => buttonFor(win.appId, win)?.getBoundingClientRect() || null;
   },
   anchorFor(appId) {
-    return visibleButton(appId)?.getBoundingClientRect() || null;
+    return buttonFor(appId)?.getBoundingClientRect() || null;
+  },
+  /** { position, size, vertical, thickness, combine, labels } of the current taskbar layout. */
+  layout() {
+    return { position: tbPos(), size: tbSize(), vertical: isVertical(), thickness: thickness(), combine: combineMode(), labels: labelsOn() };
+  },
+  /** Extra tray button (e.g. the Focus mode timer): { icon, text, tip, onClick }, or null to remove it. */
+  setStatusItem(id, item) {
+    if (item) statusItems.set(id, item);
+    else statusItems.delete(id);
+    renderStatusItems();
+    fitApps();
+  },
+  /** Mini widget values (tests / Settings): refresh now. */
+  refreshWidgets() {
+    mini.weatherAt = 0;
+    return pollMinis();
   },
   setTrayIcon(kind, iconName) {
     const span = trayEl?.querySelector(kind === 'net' ? '.tb-net' : '.tb-vol');

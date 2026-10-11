@@ -142,7 +142,9 @@ export function createKit(pc) {
       text.textContent = v ? t('common.on') : t('common.off');
       try {
         const r = await onChange?.(v);
-        if (r === false) throw new Error('canceled');
+        // `false` cancels turning a switch on. Turning it off may legitimately resolve to false: many
+        // callers return settings.set(key, v), which resolves to the stored value.
+        if (r === false && v) throw new Error('canceled');
       } catch (err) {
         // revert on failure / cancel
         input.checked = !v;

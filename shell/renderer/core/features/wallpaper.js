@@ -107,6 +107,7 @@ export async function mount(ctx) {
     }
   };
   const locked = () => !!ctx.lockScreen?.locked || document.body.classList.contains('aurora-locked');
+  let pausedKey = '';
   function syncPause() {
     const motion = motionOff();
     for (const r of [st.renderer, st.weatherRenderer]) {
@@ -117,6 +118,12 @@ export async function mount(ctx) {
       const was = r.paused.has('motion');
       r.setPaused('motion', motion);
       if (motion && !was) r.renderStill(r.effect.heroTime ?? 12);
+    }
+    // Settings (hero status) shows why the scene is paused: tell it when that changes.
+    const key = st.renderer ? [...st.renderer.paused].sort().join(',') : '';
+    if (key !== pausedKey) {
+      pausedKey = key;
+      shell.emit('wallpaper:paused', { paused: key ? key.split(',') : [] });
     }
   }
   document.addEventListener('visibilitychange', syncPause);

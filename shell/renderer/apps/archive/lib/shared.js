@@ -4,11 +4,11 @@ import { Emitter } from '../../../core/api.js';
 
 const DEFAULT_PREFS = {
   sort: { key: 'name', dir: 'asc' },
-  widths: { name: 300, type: 150, packed: 110, size: 100, ratio: 70, mtime: 160, location: 220 },
+  widths: { name: 260, type: 132, packed: 124, size: 86, ratio: 62, mtime: 150, location: 200 },
   nav: true,
-  preview: true,
-  navWidth: 220,
-  previewWidth: 300,
+  preview: false,
+  navWidth: 200,
+  previewWidth: 280,
   compact: false,
   overwrite: 'rename',
   showWhenDone: true,
@@ -31,7 +31,9 @@ class Shared extends Emitter {
 
   init(ctx) {
     if (!this.ready) {
-      this.ctx = ctx;
+      // only what outlives a window: keeping the first window's whole ctx would keep that window (and its
+      // DOM) alive after it closes
+      this.ctx = { storage: ctx.storage, api: ctx.api };
       this.ready = (async () => {
         const [prefs, recent, tools] = await Promise.all([
           ctx.storage.get('prefs', null).catch(() => null),

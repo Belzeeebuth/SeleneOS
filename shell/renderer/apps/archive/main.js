@@ -21,7 +21,9 @@ export default {
     await shared.init(ctx);
     const w = new ArchiveWindow(ctx);
     ctx.win.el.__archive = w; // tests / debugging
-    await w.init(ctx.args || {});
+    // Not awaited: opening may wait on a password prompt or a long listing, and callers of
+    // shell.openFile()/launch() must not be blocked by that (the window is usable meanwhile).
+    w.ready = w.init(ctx.args || {}).catch((err) => console.error('[archive] init failed', err));
     return { archive: w };
   },
 };

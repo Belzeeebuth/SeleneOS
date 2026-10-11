@@ -29,7 +29,7 @@ export const PROFILE_KEYS = [
   'wallpaper', 'wallpaperFit', 'lockWallpaper', 'wallpaperMode', 'animatedWallpaper', 'dynamicWallpaper', 'slideshow', 'lockScreen',
   // taskbar + Start + Focus mode (B2)
   'taskbar.align', 'taskbar.autohide', 'taskbar.showSearch', 'taskbar.showTaskView', 'taskbar.showWidgets',
-  'taskbar.size', 'taskbar.position', 'taskbar.showLabels', 'taskbar.combine', 'taskbar.widgets',
+  'taskbar.size', 'taskbar.position', 'taskbar.showLabels', 'taskbar.combine', 'taskbar.widgets', 'taskbar.search',
   'start.layout', 'start.background', 'start.folders', 'start.groups', 'startShowRecent', 'focusMode',
   // packs + input (B3)
   'cursorPack', 'iconPack', 'soundPack', 'soundEvents', 'snapPresets', 'shortcuts',
@@ -51,8 +51,8 @@ export const BUILTIN_PROFILES = [
   { id: 'aurora-dark', name: { en: 'Aurora Dark', fr: 'Aurora sombre' }, values: { style: 'win11', theme: 'dark', accent: '#0078d4', wallpaper: 'builtin:bloom' } },
   { id: 'glass', name: { en: 'Glass', fr: 'Verre' }, values: { style: 'glass', theme: 'dark', accent: '#b146c2', wallpaper: 'builtin:glow', transparencyLevel: 60, blur: 60 } },
   { id: 'minimal', name: { en: 'Minimal', fr: 'Minimal' }, values: { style: 'minimal', theme: 'light', accent: '#5d5a58', wallpaper: solid('#d9d6cf'), cornerRadius: 75 } },
-  { id: 'retro', name: { en: 'Retro', fr: 'Rétro' }, values: { style: 'retro', theme: 'light', accent: '#1f3f99', wallpaper: solid('#2a7c7a'), fontFamily: 'liberation-sans' } },
-  { id: 'contrast', name: { en: 'High Contrast', fr: 'Contraste élevé' }, values: { style: 'contrast', theme: 'dark', accent: '#0078d4', wallpaper: solid('#000000') } },
+  { id: 'retro', name: { en: 'Retro', fr: 'Rétro' }, values: { style: 'retro', theme: 'light', accent: '#1f3f99', wallpaper: solid('#2a7c7a'), fontFamily: 'liberation-sans', cursorPack: 'retro', soundPack: 'retro' } },
+  { id: 'contrast', name: { en: 'High Contrast', fr: 'Contraste élevé' }, values: { style: 'contrast', theme: 'dark', accent: '#0078d4', wallpaper: solid('#000000'), cursorPack: 'highvis' } },
   { id: 'night-owl', name: { en: 'Night Owl', fr: 'Oiseau de nuit' }, values: { style: 'win11', theme: 'dark', accent: '#6b69d6', wallpaper: 'builtin:aurora', transparencyLevel: 65, blur: 70, 'taskbar.color': 'accent' } },
 ];
 
@@ -215,10 +215,12 @@ export const VALIDATORS = {
   'start.groups': arrayOf(shape({ id: slug, name: text(60), apps: arrayOf(slug, 200) }, { required: ['id'] }), 64),
   startShowRecent: bool,
   focusMode: shape({ active: bool, hideNotifications: bool, dimDesktop: bool, dimLevel: int(0, 100), simplifyTaskbar: bool, duration: int(0, 1440) }),
-  // B3 — packs and input
-  cursorPack: slug,
-  iconPack: slug,
-  soundPack: slug,
+  'taskbar.search': (v) => (v === null || ['hidden', 'icon', 'box'].includes(v) ? v : undefined),
+  // B3 — packs and input (ids of core/packs.js CURSOR_PACKS / ICON_PACKS and core/sounds.js SOUND_PACKS; listed here
+  // so this module does not import the shell runtime)
+  cursorPack: oneOf('default', 'classic', 'midnight', 'accent', 'large', 'highvis', 'retro'),
+  iconPack: oneOf('fluent', 'tiles', 'accent', 'graphite', 'outline'),
+  soundPack: oneOf('aurora', 'chimes', 'retro', 'soft', 'silent'),
   soundEvents: shape({ notification: soundRef, startup: soundRef, shutdown: soundRef }),
   snapPresets: arrayOf(shape({ id: slug, name: text(60), zones: arrayOf((z) => { const o = zone(z); return o && o.x + o.w <= 1.001 && o.y + o.h <= 1.001 ? o : undefined; }, 16) }, { required: ['id', 'zones'] }), 32),
   shortcuts: (v) => {

@@ -7,12 +7,33 @@ import { DetailsList } from './list.js';
 import { NavTree } from './navtree.js';
 import { PreviewPane } from './preview.js';
 import { Welcome } from './welcome.js';
-import { withProgress, errorInfo } from './ops.js';
+import { withProgress, tracked, errorInfo } from './ops.js';
 import * as D from './dialogs.js';
-import { buildTree, search, makeSorter, basename, dirname, joinPath, stemOf, splitExt, isArchiveName, ancestors, ratioOf } from './util.js';
+import { buildTree, search, makeSorter, basename, dirname, joinPath, stemOf, splitExt, isArchiveName, ancestors, ratioOf, keyLabel } from './util.js';
 import { trustedDragPaths } from '../../../core/desktop.js';
 
 const DND_MIME = 'application/x-aurora-paths';
+
+/** Keyboard-focusable controls of root in Tab order (DOM order; no positive tabindex is used). */
+function tabStops(root) {
+  return [...root.querySelectorAll('button, input, textarea, select, [tabindex]')].filter(
+    (el) => !el.disabled && el.tabIndex >= 0 && !el.closest('[hidden], .dialog-layer') && el.getClientRects().length > 0,
+  );
+}
+/** Wrap Tab at the ends of the window's Tab order. */
+function wrapTab(e, root) {
+  const stops = tabStops(root);
+  if (!stops.length) return;
+  const a = document.activeElement;
+  const i = stops.findIndex((x) => x === a || x.contains(a));
+  let next = null;
+  if (!e.shiftKey && (i === stops.length - 1 || (i < 0 && !root.contains(a)))) next = stops[0];
+  else if (e.shiftKey && i === 0) next = stops[stops.length - 1];
+  if (!next) return;
+  e.preventDefault();
+  e.stopPropagation();
+  next.focus();
+}
 let uidSeq = 0;
 const canceled = (e) => e?.code === 'ECANCELED';
 
@@ -39,10 +60,16 @@ export class ArchiveWindow {
     this.busy = 0;
     this.offs = [];
     this.dragSeq = 0;
+    this.activeOps = new Set(); // backend operations of this window (canceled when it closes)
+    this.opening = null; // { path, promise } while an archive is being opened
   }
 
   get appName() {
     return this.i18n.name(this.ctx.manifest.name);
+  }
+  /** A keyboard shortcut in the UI language ("Ctrl+Shift+E" -> "Ctrl+Maj+E", "Del" -> "Suppr"). */
+  kb(combo) {
+    return keyLabel(combo, this.t);
   }
 
   // ================================================================== layout
@@ -90,33 +117,41 @@ export class ArchiveWindow {
       );
     this.cmds = {
       new: cmd('new', 'add', t('cmd.new'), (e) => this.newMenu(e), { chev: true }),
-      extractAll: cmd('extractAll', 'folder_arrow_up', t('cmd.extractAll'), () => this.extractAll(), { accent: true, tip: `${t('cmd.extractAll')} (Ctrl+Shift+E)` }),
+      extractAll: cmd('extractAll', 'folder_arrow_up', t('cmd.extractAll'), () => this.extractAll(), { accent: true, tip: `${t('cmd.extractAll')} (${this.kb('Ctrl+Shift+E')})` }),
       extractSel: cmd('extractSel', 'folder_arrow_right', t('cmd.extractSel'), () => this.extractSelected()),
       add: cmd('add', 'document_add', t('cmd.add'), () => this.addFiles()),
-      delete: cmd('delete', 'delete', t('cmd.delete'), () => this.deleteSelected(), { text: false, tip: `${t('cmd.delete')} (Del)` }),
-      copy: cmd('copy', 'copy', t('cmd.copy'), () => this.copySelection(), { text: false, tip: `${t('cmd.copy')} (Ctrl+C)` }),
+      delete: cmd('delete', 'delete', t('cmd.delete'), () => this.deleteSelected(), { text: false, tip: `${t('cmd.delete')} (${this.kb('Del')})` }),
+      copy: cmd('copy', 'copy', t('cmd.copy'), () => this.copySelection(), { text: false, tip: `${t('cmd.copy')} (${this.kb('Ctrl+C')})` }),
       test: cmd('test', 'shield_checkmark', t('cmd.test'), () => this.testArchive()),
-      props: cmd('props', 'info', t('cmd.props'), () => this.properties(), { text: false, tip: `${t('cmd.props')} (Alt+Enter)` }),
+      props: cmd('props', 'info', t('cmd.props'), () => this.properties(), { text: false, tip: `${t('cmd.props')} (${this.kb('Alt+Enter')})` }),
       sort: cmd('sort', 'arrow_sort', t('cmd.sort'), (e) => this.sortMenu(e), { chev: true }),
       view: cmd('view', 'apps_list', t('cmd.view'), (e) => this.viewMenu(e), { chev: true }),
-      preview: cmd('preview', 'panel_right', t('cmd.previewPane'), () => this.togglePreview(), { text: false, tip: `${t('cmd.previewPane')} (Alt+P)` }),
+      preview: cmd('preview', 'panel_right', t('cmd.previewPane'), () => this.togglePreview(), { text: false, tip: `${t('cmd.previewPane')} (${this.kb('Alt+P')})` }),
+      more: cmd('more', 'more_horizontal', t('cmd.more'), (e) => this.moreMenu(e), { text: false }),
     };
     const sep = () => h('div', { class: 'arc-cmd-sep', role: 'separator' });
     const C = this.cmds;
     this.cmdbar = h(
       'div',
       { class: 'arc-cmdbar', role: 'toolbar', 'aria-label': t('cmd.toolbar') },
-      C.new, sep(), C.extractAll, C.extractSel, sep(), C.add, C.copy, C.delete, sep(), C.test, C.props,
+      C.new, sep(), C.extractAll, C.extractSel, sep(), C.add, C.copy, C.delete, h('div', { class: 'arc-cmd-sep arc-wide', role: 'separator' }), C.test, C.props,
       h('div', { class: 'grow' }),
-      C.sort, C.view, sep(), C.preview,
+      C.sort, C.view, C.more, sep(), C.preview,
     );
+    // One Tab stop for the whole command bar, arrows inside it (Explorer's command bar is a toolbar)
     this.cmdbar.addEventListener('keydown', (e) => {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      const btns = [...this.cmdbar.querySelectorAll('.arc-cmd:not(:disabled)')];
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+      const btns = [...this.cmdbar.querySelectorAll('.arc-cmd:not(:disabled)')].filter((b) => b.getClientRects().length);
       const i = btns.indexOf(document.activeElement);
       if (i < 0) return;
       e.preventDefault();
-      btns[(i + (e.key === 'ArrowRight' ? 1 : -1) + btns.length) % btns.length].focus();
+      const j = e.key === 'Home' ? 0 : e.key === 'End' ? btns.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + btns.length) % btns.length;
+      this.rovingCmd(btns[j]);
+      btns[j].focus();
+    });
+    this.cmdbar.addEventListener('focusin', (e) => {
+      const b = e.target.closest?.('.arc-cmd');
+      if (b) this.rovingCmd(b);
     });
     this.top = h('div', { class: 'arc-top' }, addrRow, this.cmdbar);
     this.infobar = h('div', { class: 'arc-infos' });
@@ -140,7 +175,8 @@ export class ArchiveWindow {
     this.root = h('div', { class: 'arc-root' }, this.view, this.welcome.el, this.task, this.toast, this.dropEl);
     this.win.body.appendChild(this.root);
     this.applyPanes();
-    this.wire();
+    this.updateCommands();
+    this.updateNavButtons();
   }
 
   applyPanes() {
@@ -189,8 +225,14 @@ export class ArchiveWindow {
     win.on('resize', () => {
       this.applyPanes();
       this.fitCrumbs();
+      this.rovingCmd(); // narrow windows hide some commands
     });
     win.body.addEventListener('keydown', (e) => this.onKey(e));
+    // Tab / Shift+Tab cycle inside the window like a Windows app instead of walking out to the taskbar
+    // (dialogs trap Tab themselves)
+    win.el.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey && !this.dialogOpen()) wrapTab(e, win.el);
+    });
     this.offs.push(shared.on('prefs', (k) => {
       if (k === 'nav' || k === 'preview' || k === 'compact') {
         this.applyPanes();
@@ -235,21 +277,34 @@ export class ArchiveWindow {
   }
 
   relabel() {
-    // Rebuild every label in the new language (state is kept).
+    // Rebuild every label in the new language (state is kept). The short-lived compact flow windows keep
+    // their task panel as it is.
+    if (this.compactMode) {
+      if (this.compactTitle) this.win.setTitle(this.compactTitle());
+      return;
+    }
     const keepFolder = this.folder?.path;
     const sel = [...this.list.selected];
-    this.win.body.replaceChildren();
+    const query = this.searchInput.value;
+    const busy = this.busy;
+    const hadFocus = this.root.contains(document.activeElement);
     this.list.destroy();
     this.welcome.destroy();
-    for (const off of this.offs) off();
-    this.offs = [];
+    this.win.body.replaceChildren();
     this.build();
+    this.busy = busy;
+    this.onBusy();
     if (this.listing) {
+      this.searchInput.value = query;
+      this.searchBox.classList.toggle('has-text', !!query);
+      this.searchInput.placeholder = this.t('search.placeholder', { name: this.listing.name });
       this.showView();
       this.nav.setRoot(this.tree.root, this.listing.name);
       this.navigate(this.tree.all.get(keepFolder) || this.tree.root, { history: false, select: sel });
       this.renderInfos();
       this.setTitle();
+      // the old DOM (and the focused element) is gone: keep the keyboard in the window
+      if (hadFocus && !this.dialogOpen()) this.list.el.focus({ preventScroll: true });
     } else this.showWelcome();
   }
 
@@ -258,7 +313,7 @@ export class ArchiveWindow {
   }
   showDrop(on) {
     if (on) {
-      this.dropText.textContent = this.listing ? (this.listing.canAdd ? this.t('drop.add', { name: this.listing.name }) : this.t('drop.readOnly')) : this.t('drop.welcome');
+      this.dropText.textContent = this.listing ? (this.listing.canAdd ? this.t('drop.add', { name: this.listing.name }) : this.readOnlyText()) : this.t('drop.welcome');
       this.dropEl.classList.toggle('blocked', !!this.listing && !this.listing.canAdd);
     }
     if (!!on === !this.dropEl.hidden) return;
@@ -269,6 +324,7 @@ export class ArchiveWindow {
   async init(args = {}) {
     shared.windows.add(this);
     this.build();
+    this.wire(); // once: window / prefs / drag & drop / language listeners (build() can run again on relabel)
     this.api.invoke('archive:tempDir', this.session).then((d) => (this.tempDir = d)).catch(() => {});
     if (args.extract) return this.extractFlow(args);
     if (args.compress) return this.compressFlow(args);
@@ -291,7 +347,6 @@ export class ArchiveWindow {
     this.task.hidden = true;
     this.welcome.show();
     this.win.setTitle(this.appName);
-    setTimeout(() => this.welcome.el.querySelector('.arc-wcard')?.focus({ preventScroll: true }), 60);
   }
   showView(loading = false) {
     this.welcome.hide();
@@ -320,18 +375,35 @@ export class ArchiveWindow {
   }
 
   /** Load (or reload) an archive; prompts for a password when its file names are encrypted. */
-  async openPath(path, { keepFolder = null, select = null } = {}) {
+  async openPath(path, opts = {}) {
+    // One opening at a time: a double-click on a Recent row, or Enter pressed twice, must not list the archive
+    // twice (two password prompts). The same archive again joins the running attempt; another one waits.
+    if (this.opening) {
+      if (this.opening.path === path) return this.opening.promise;
+      await this.opening.promise.catch(() => {});
+      if (this.win.closed) return false;
+    }
+    const promise = this.doOpenPath(path, opts);
+    const mine = { path, promise };
+    this.opening = mine;
+    try {
+      return await promise;
+    } finally {
+      if (this.opening === mine) this.opening = null;
+    }
+  }
+  async doOpenPath(path, { keepFolder = null, select = null, password = null } = {}) {
     const { t } = this;
     const other = shared.findOpen(path);
     if (other && other !== this) {
       other.win.focus();
       return true;
     }
-    if (this.listing?.path !== path) this.password = null;
+    if (this.listing?.path !== path) this.password = password;
     this.root.classList.add('loading');
     let listing;
     try {
-      listing = await this.withPassword((password) => this.api.invoke('archive:list', path, { password }), { name: basename(path), needed: false, silentFirst: true });
+      listing = await this.withPassword((password) => this.listArchive(path, password), { name: basename(path), needed: false, silentFirst: true });
     } catch (e) {
       this.root.classList.remove('loading');
       if (canceled(e)) return false;
@@ -342,6 +414,11 @@ export class ArchiveWindow {
     this.setListing(listing, { keepFolder, select });
     shared.recentAdd(listing);
     return true;
+  }
+
+  /** archive:list with a (delayed) progress dialog and Cancel: reading a large .tar.xz means decompressing it. */
+  listArchive(path, password) {
+    return withProgress(this, { title: this.t('prog.reading'), line: basename(path), delay: 700 }, (opId) => this.api.invoke('archive:list', path, { password, opId }));
   }
 
   setListing(listing, { keepFolder = null, select = null } = {}) {
@@ -379,7 +456,7 @@ export class ArchiveWindow {
     const folder = keep ? this.folder?.path : null;
     const sel = select || (keep ? [...this.list.selected] : null);
     try {
-      const listing = await this.withPassword((password) => this.api.invoke('archive:list', this.listing.path, { password }), { needed: false, silentFirst: true });
+      const listing = await this.withPassword((password) => this.listArchive(this.listing.path, password), { needed: false, silentFirst: true });
       this.setListing(listing, { keepFolder: folder, select: sel });
     } catch (e) {
       if (canceled(e)) return;
@@ -415,6 +492,7 @@ export class ArchiveWindow {
     if (this.query && history) {
       this.query = '';
       this.searchInput.value = '';
+      this.searchBox.classList.remove('has-text');
     }
     this.renderCrumbs();
     this.nav.select(node);
@@ -454,7 +532,10 @@ export class ArchiveWindow {
 
   renderCrumbs() {
     const { h, icon, t } = this;
+    // the clicked crumb is about to be replaced: keep the keyboard in the window (on the list, like Explorer)
+    const hadFocus = this.crumbs.contains(document.activeElement);
     this.crumbs.replaceChildren();
+    if (hadFocus) this.list.el.focus({ preventScroll: true });
     const chain = ancestors(this.folder);
     const items = [];
     chain.forEach((n, i) => {
@@ -503,12 +584,14 @@ export class ArchiveWindow {
     this.more.hidden = true;
     const hidden = [];
     let i = 0;
+    this.crumbs.classList.add('measuring'); // natural widths while deciding what collapses into "…"
     while (this.crumbs.scrollWidth > this.crumbs.clientWidth + 1 && i < all.length - 2) {
       this.more.hidden = false;
       all[i].hidden = true;
       if (all[i].classList.contains('arc-crumb')) hidden.push(all[i]);
       i++;
     }
+    this.crumbs.classList.remove('measuring');
     if (hidden.length) {
       this.more.onclick = (e) => this.ui.menu(e.currentTarget, hidden.map((c) => ({ label: c.textContent, icon: 'folder', action: () => this.navigate(this.tree.all.get(c.dataset.path) || this.tree.root) })));
     } else this.more.hidden = true;
@@ -559,6 +642,14 @@ export class ArchiveWindow {
     this.updateStatus();
     if (!this.preview.el.hidden) this.preview.update(this.list.selectedNodes());
   }
+  /** Roving tabindex of the command bar: the given (or the current, or the first usable) button is the stop. */
+  rovingCmd(cur = null) {
+    if (!this.cmdbar) return;
+    const btns = [...this.cmdbar.querySelectorAll('.arc-cmd')];
+    const usable = (b) => !b.disabled && b.getClientRects().length > 0;
+    cur = (cur && usable(cur) && cur) || btns.find((b) => b.tabIndex === 0 && usable(b)) || btns.find(usable) || null;
+    for (const b of btns) b.tabIndex = b === cur ? 0 : -1;
+  }
   updateCommands() {
     const L = this.listing;
     const sel = this.list?.selected.size || 0;
@@ -568,13 +659,23 @@ export class ArchiveWindow {
     C.extractAll.disabled = !L || busy;
     C.extractSel.disabled = !L || busy || !sel;
     C.add.disabled = !L || busy || !L.canAdd;
-    C.add.dataset.tip = L && !L.canAdd ? this.t('cmd.readOnlyTip', { fmt: (L.format || '').toUpperCase() }) : this.t('cmd.add');
+    C.add.dataset.tip = L && !L.canAdd ? this.readOnlyText() : this.t('cmd.add');
     C.delete.disabled = !L || busy || !L.canDelete || !sel;
     C.copy.disabled = !L || busy || !sel;
     C.test.disabled = !L || busy;
     C.props.disabled = !L;
     C.sort.disabled = !L;
     this.btnRefresh.disabled = !L || busy;
+    this.rovingCmd();
+  }
+  /** Why items can't be added to / deleted from this archive (format, permissions, damaged, truncated). */
+  readOnlyText() {
+    const L = this.listing;
+    if (!L) return '';
+    if (L.readOnly === 'perm') return this.t('cmd.noPermissionTip');
+    if (L.readOnly === 'damaged') return this.t('cmd.damagedTip');
+    if (L.readOnly === 'truncated') return this.t('cmd.truncatedTip');
+    return this.t('cmd.readOnlyTip', { fmt: (L.format || '').toUpperCase() });
   }
   updateStatus() {
     const { t, i18n, h, icon } = this;
@@ -591,11 +692,13 @@ export class ArchiveWindow {
     this.statusLeft.replaceChildren(...parts);
     const ratio = ratioOf(L.totalSize, L.size);
     this.statusRight.replaceChildren(
-      L.encrypted ? h('span', { class: 'arc-status-lock', 'data-tip': L.headersEncrypted ? t('props.encHeaders') : t('props.encData') }, icon('lock_closed', { size: 12, filled: true })) : null,
-      h('span', { class: 'arc-fmt-badge' }, (L.format || '').toUpperCase()),
-      h('span', null, i18n.formatSize(L.size)),
-      ratio != null && L.totalSize ? h('span', { class: 'text-2' }, t('status.ratio', { pct: i18n.formatNumber(Math.round(ratio * 100)) })) : null,
-      !L.canAdd ? h('span', { class: 'text-2' }, t('status.readOnly')) : null,
+      ...[
+        L.encrypted ? h('span', { class: 'arc-status-lock', 'data-tip': L.headersEncrypted ? t('props.encHeaders') : t('props.encData') }, icon('lock_closed', { size: 12, filled: true })) : null,
+        h('span', { class: 'arc-fmt-badge' }, (L.format || '').toUpperCase()),
+        h('span', null, i18n.formatSize(L.size)),
+        ratio != null && ratio > 0 && L.totalSize ? h('span', { class: 'text-2' }, t('status.ratio', { pct: i18n.formatNumber(Math.round(ratio * 100)) })) : null,
+        !L.canAdd ? h('span', { class: 'text-2', 'data-tip': this.readOnlyText() }, t('status.readOnly')) : null,
+      ].filter(Boolean),
     );
   }
 
@@ -610,6 +713,7 @@ export class ArchiveWindow {
     let error = false;
     for (let tries = 0; tries < 8; tries++) {
       if (needed && this.password == null) {
+        this.roomForDialog();
         const pw = await D.passwordDialog(this, { name: name || this.listing?.name || '', error });
         if (pw == null) {
           const e = new Error('canceled');
@@ -715,7 +819,7 @@ export class ArchiveWindow {
       e.code = 'EPASSWORD';
       throw e;
     }
-    return call(this.password, undefined);
+    return tracked(this, (opId) => call(this.password, opId));
   }
 
   async openNode(n) {
@@ -750,7 +854,7 @@ export class ArchiveWindow {
     const L = this.listing;
     if (!L || this.busy) return;
     if (!L.canAdd) {
-      await ui.alert(t('cmd.readOnlyTip', { fmt: (L.format || '').toUpperCase() }), { title: t('cmd.add'), parent: this.win });
+      await ui.alert(this.readOnlyText(), { title: t('cmd.add'), parent: this.win });
       return;
     }
     if (!paths) {
@@ -827,7 +931,15 @@ export class ArchiveWindow {
   }
 
   async newArchive(sources = []) {
-    const opts = await D.newArchiveDialog(this, { sources });
+    // the dialog opens after an async call (user folders): a fast double-click / Ctrl+N twice must not open two
+    if (this.newOpen) return;
+    this.newOpen = true;
+    let opts;
+    try {
+      opts = await D.newArchiveDialog(this, { sources });
+    } finally {
+      this.newOpen = false;
+    }
     if (!opts) return;
     const { t, i18n } = this;
     try {
@@ -838,8 +950,7 @@ export class ArchiveWindow {
         this.shell.launch('archive', { file: res.path });
         this.showToast(t('done.created', { name: basename(res.path), size: i18n.formatSize(res.size) }));
       } else {
-        if (opts.password) this.password = opts.password;
-        await this.openPath(res.path);
+        await this.openPath(res.path, { password: opts.password || null });
       }
     } catch (e) {
       if (canceled(e)) return;
@@ -885,14 +996,21 @@ export class ArchiveWindow {
     }
     const sub = `d${++this.dragSeq}`;
     const dir = `${this.tempDir}/x-${sub}`;
-    const paths = nodes.map((n) => `${dir}/${n.name}`);
+    // Same names (search results from several folders) land as "name (2).ext"… like the backend names them.
+    const seen = new Map();
+    const paths = nodes.map((n) => {
+      const k = (seen.get(n.name) || 0) + 1;
+      seen.set(n.name, k);
+      const [stem, ext] = splitExt(n.name);
+      return `${dir}/${k === 1 ? n.name : `${stem} (${k})${ext}`}`;
+    });
     const dt = e.dataTransfer;
     dt.effectAllowed = 'copy';
     dt.setData(DND_MIME, JSON.stringify(paths));
     dt.setData('text/uri-list', paths.map((p) => `file://${p.split('/').map(encodeURIComponent).join('/')}`).join('\r\n'));
     dt.setData('text/plain', paths.join('\n'));
     this.draggingOut = true;
-    this.api.invoke('archive:extractTemp', L.path, { entries: nodes.map((n) => n.path), password: this.password, session: this.session, sub }).catch(() => {});
+    tracked(this, (opId) => this.api.invoke('archive:extractTemp', L.path, { entries: nodes.map((n) => n.path), password: this.password, session: this.session, sub, opId })).catch(() => {});
     const ghost = this.h('div', { class: 'app-archive arc-drag-ghost' }, this.h('img', { src: `app://shell/apps/archive/icons/${nodes[0].dir ? 'folder' : 'file'}.svg`, alt: '' }), nodes.length > 1 ? this.h('span', null, String(nodes.length)) : null);
     document.body.appendChild(ghost);
     try {
@@ -919,7 +1037,7 @@ export class ArchiveWindow {
       return;
     }
     if (!this.listing.canAdd) {
-      await this.ui.alert(this.t('cmd.readOnlyTip', { fmt: (this.listing.format || '').toUpperCase() }), { title: this.t('cmd.add'), parent: this.win });
+      await this.ui.alert(this.readOnlyText(), { title: this.t('cmd.add'), parent: this.win });
       return;
     }
     await this.addFiles(paths);
@@ -929,8 +1047,8 @@ export class ArchiveWindow {
   newMenu(e) {
     const { t } = this;
     this.ui.menu(e.currentTarget, [
-      { label: t('menu.newArchive'), icon: 'folder_zip', shortcut: 'Ctrl+N', action: () => this.newArchive() },
-      { label: t('menu.openArchive'), icon: 'folder_open', shortcut: 'Ctrl+O', action: () => this.openDialog() },
+      { label: t('menu.newArchive'), icon: 'folder_zip', shortcut: this.kb('Ctrl+N'), action: () => this.newArchive() },
+      { label: t('menu.openArchive'), icon: 'folder_open', shortcut: this.kb('Ctrl+O'), action: () => this.openDialog() },
       '-',
       { label: t('menu.newWindow'), icon: 'window_new', action: () => this.shell.launch('archive', {}) },
     ]);
@@ -953,7 +1071,41 @@ export class ArchiveWindow {
       { label: t('view.compact'), checked: !!p.compact, action: () => shared.setPref('compact', !p.compact) },
       '-',
       { label: t('view.nav'), checked: !!p.nav, action: () => shared.setPref('nav', !p.nav) },
-      { label: t('view.preview'), checked: !!p.preview, shortcut: 'Alt+P', action: () => this.togglePreview() },
+      { label: t('view.preview'), checked: !!p.preview, shortcut: this.kb('Alt+P'), action: () => this.togglePreview() },
+    ]);
+  }
+  /** "See more" (narrow windows): the commands the command bar had to hide. */
+  moreMenu(e) {
+    const { t } = this;
+    const L = this.listing;
+    const p = shared.prefs;
+    const s = p.sort;
+    const sel = this.list.selected.size;
+    this.ui.menu(e.currentTarget, [
+      { label: t('cmd.copy'), icon: 'copy', shortcut: this.kb('Ctrl+C'), disabled: !L || !sel || this.busy > 0, action: () => this.copySelection() },
+      { label: t('cmd.test'), icon: 'shield_checkmark', disabled: !L || this.busy > 0, action: () => this.testArchive() },
+      { label: t('cmd.props'), icon: 'info', shortcut: this.kb('Alt+Enter'), disabled: !L, action: () => this.properties() },
+      '-',
+      {
+        label: t('cmd.sort'),
+        icon: 'arrow_sort',
+        disabled: !L,
+        submenu: [
+          ...['name', 'type', 'size', ...(L?.perEntryPacked ? ['packed', 'ratio'] : []), 'mtime'].map((k) => ({ label: t(`col.${k}`), checked: s.key === k, action: () => shared.setPref('sort', { key: k, dir: s.dir }) })),
+          '-',
+          { label: t('sort.asc'), checked: s.dir === 'asc', action: () => shared.setPref('sort', { key: s.key, dir: 'asc' }) },
+          { label: t('sort.desc'), checked: s.dir === 'desc', action: () => shared.setPref('sort', { key: s.key, dir: 'desc' }) },
+        ],
+      },
+      {
+        label: t('cmd.view'),
+        icon: 'apps_list',
+        submenu: [
+          { label: t('view.compact'), checked: !!p.compact, action: () => shared.setPref('compact', !p.compact) },
+          { label: t('view.nav'), checked: !!p.nav, action: () => shared.setPref('nav', !p.nav) },
+          { label: t('view.preview'), checked: !!p.preview, action: () => this.togglePreview() },
+        ],
+      },
     ]);
   }
   togglePreview() {
@@ -965,16 +1117,16 @@ export class ArchiveWindow {
     const L = this.listing;
     const one = nodes.length === 1 ? nodes[0] : null;
     this.ui.menu(at, [
-      { label: one?.dir ? t('menu.openFolder') : t('menu.open'), icon: 'open', shortcut: 'Enter', action: () => this.openMany(nodes), disabled: this.busy > 0 },
+      { label: one?.dir ? t('menu.openFolder') : t('menu.open'), icon: 'open', shortcut: this.kb('Enter'), action: () => this.openMany(nodes), disabled: this.busy > 0 },
       '-',
       { label: t('menu.extractTo'), icon: 'folder_arrow_right', action: () => this.extractSelected(nodes), disabled: this.busy > 0 },
       { label: t('menu.extractHere'), icon: 'folder_arrow_up', action: () => this.runExtract({ nodes, dest: dirname(L.path), overwrite: shared.prefs.overwrite }), disabled: this.busy > 0 },
-      { label: t('cmd.copy'), icon: 'copy', shortcut: 'Ctrl+C', action: () => this.copySelection(), disabled: this.busy > 0 },
+      { label: t('cmd.copy'), icon: 'copy', shortcut: this.kb('Ctrl+C'), action: () => this.copySelection(), disabled: this.busy > 0 },
       '-',
-      { label: t('cmd.delete'), icon: 'delete', shortcut: 'Del', action: () => this.deleteSelected(), disabled: !L.canDelete || this.busy > 0 },
+      { label: t('cmd.delete'), icon: 'delete', shortcut: this.kb('Del'), action: () => this.deleteSelected(), disabled: !L.canDelete || this.busy > 0 },
       '-',
       { label: t('menu.copyPath'), icon: 'document_copy', action: () => this.api.invoke('clipboard:writeText', nodes.map((n) => n.path).join('\n')) },
-      { label: t('cmd.props'), icon: 'info', shortcut: 'Alt+Enter', action: () => this.properties() },
+      { label: t('cmd.props'), icon: 'info', shortcut: this.kb('Alt+Enter'), action: () => this.properties() },
     ]);
   }
   backgroundMenu(at) {
@@ -983,13 +1135,13 @@ export class ArchiveWindow {
     const clip = this.shell.clipboard.getFiles();
     this.ui.menu(at, [
       { label: t('cmd.sort'), icon: 'arrow_sort', submenu: ['name', 'type', 'size', ...(L.perEntryPacked ? ['packed', 'ratio'] : []), 'mtime'].map((k) => ({ label: t(`col.${k}`), checked: shared.prefs.sort.key === k, action: () => shared.setPref('sort', { key: k, dir: shared.prefs.sort.dir }) })) },
-      { label: t('nav.refresh'), icon: 'arrow_clockwise', shortcut: 'F5', action: () => this.reload({ keep: true, spin: true }) },
+      { label: t('nav.refresh'), icon: 'arrow_clockwise', shortcut: this.kb('F5'), action: () => this.reload({ keep: true, spin: true }) },
       '-',
-      { label: t('menu.paste'), icon: 'clipboard_paste', shortcut: 'Ctrl+V', disabled: !clip?.paths?.length || !L.canAdd || this.busy > 0, action: () => this.paste() },
+      { label: t('menu.paste'), icon: 'clipboard_paste', shortcut: this.kb('Ctrl+V'), disabled: !clip?.paths?.length || !L.canAdd || this.busy > 0, action: () => this.paste() },
       { label: t('cmd.add'), icon: 'document_add', disabled: !L.canAdd || this.busy > 0, action: () => this.addFiles() },
       '-',
       { label: t('cmd.extractAll'), icon: 'folder_arrow_up', disabled: this.busy > 0, action: () => this.extractAll() },
-      { label: t('cmd.props'), icon: 'info', shortcut: 'Alt+Enter', action: () => D.propertiesDialog(this, []) },
+      { label: t('cmd.props'), icon: 'info', shortcut: this.kb('Alt+Enter'), action: () => D.propertiesDialog(this, []) },
     ]);
   }
   columnMenu(e) {
@@ -998,8 +1150,15 @@ export class ArchiveWindow {
 
   // ================================================================== keyboard
   onKey(e) {
-    if (this.dialogOpen()) return;
+    if (this.dialogOpen() || this.compactMode) return;
     const inField = e.target.closest?.('input, textarea, select, [contenteditable="true"]');
+    // Keys that act on the list's selection are left alone in the panes that have their own meaning for
+    // them (tree, preview text) and while some text is selected (Ctrl+C copies the text).
+    const inPane = !!e.target.closest?.('.arc-tree, .arc-preview, .arc-crumbs, .arc-infos');
+    const textSelected = () => {
+      const sel = window.getSelection();
+      return !!sel && !sel.isCollapsed && this.root.contains(sel.anchorNode);
+    };
     const k = e.key;
     const ctrl = e.ctrlKey && !e.altKey;
     if (ctrl && !e.shiftKey && (k === 'o' || k === 'O')) {
@@ -1057,11 +1216,12 @@ export class ArchiveWindow {
       e.preventDefault();
       return this.goUp();
     }
-    if (k === 'Delete') {
+    if (k === 'Delete' && !inPane) {
       e.preventDefault();
       return this.deleteSelected();
     }
     if (ctrl && (k === 'c' || k === 'C') && !e.shiftKey) {
+      if (textSelected() || inPane) return; // the browser copies the selected text
       e.preventDefault();
       return this.copySelection();
     }
@@ -1075,7 +1235,7 @@ export class ArchiveWindow {
   showToast(text, action = null) {
     const { h } = this;
     clearTimeout(this.toastTimer);
-    this.toast.replaceChildren(h('span', { class: 'grow' }, text), action ? h('button', { class: 'btn subtle small', onclick: () => (action.action(), this.hideToast()) }, action.label) : null);
+    this.toast.replaceChildren(...[h('span', { class: 'grow' }, text), action ? h('button', { class: 'btn subtle small', onclick: () => (action.action(), this.hideToast()) }, action.label) : null].filter(Boolean));
     this.toast.hidden = false;
     this.toast.classList.remove('out');
     this.toastTimer = setTimeout(() => this.hideToast(), action ? 7000 : 4000);
@@ -1093,6 +1253,9 @@ export class ArchiveWindow {
 
   // ================================================================== headless flows (args.extract / args.compress)
   compact(title) {
+    this.compactMode = true;
+    this.compactTitle = typeof title === 'function' ? title : () => title;
+    title = this.compactTitle();
     this.view.hidden = true;
     this.welcome.hide();
     this.task.hidden = false;
@@ -1101,6 +1264,21 @@ export class ArchiveWindow {
     this.win.btnMax && (this.win.btnMax.hidden = true);
     this.win.el.classList.add('arc-compact-win');
     this.win.setSize(480, 230);
+    this.win.center();
+  }
+  /** Grow the compact window when its panel doesn't fit (long paths, French, error details). */
+  fitTask() {
+    if (!this.compactMode || this.task.hidden || this.win.closed) return;
+    const last = this.task.querySelector('.arc-prog-actions') || this.task.firstElementChild?.lastElementChild;
+    if (!last) return;
+    const pad = parseFloat(getComputedStyle(this.task).paddingBottom) || 0;
+    const over = last.getBoundingClientRect().bottom + pad - this.task.getBoundingClientRect().bottom;
+    if (over > 0.5) this.win.setSize(this.win.w, Math.min(Math.ceil(this.win.h + over), Math.max(this.win.h, window.innerHeight - 80)));
+  }
+  /** The compact flow window is too small for a dialog: grow it first. */
+  roomForDialog() {
+    if (!this.compactMode || this.win.h >= 440) return;
+    this.win.setSize(Math.max(this.win.w, 560), 440);
     this.win.center();
   }
   taskError(title, e) {
@@ -1117,16 +1295,20 @@ export class ArchiveWindow {
       ),
     );
     this.task.querySelector('.btn.primary')?.focus();
+    requestAnimationFrame(() => this.fitTask());
   }
 
   async extractFlow(args) {
     const { t } = this;
     const file = String(args.extract);
-    this.compact(t('flow.extractTitle', { name: basename(file) }));
-    this.task.replaceChildren(this.h('div', { class: 'arc-prog' }, this.h('div', { class: 'arc-prog-title' }, t('prog.reading')), this.h('div', { class: 'progress indeterminate' }, this.h('div', { class: 'bar' }))));
+    this.compact(() => this.t('flow.extractTitle', { name: basename(file) }));
     let listing;
     try {
-      listing = await this.withPassword((password) => this.api.invoke('archive:list', file, { password }), { name: basename(file), silentFirst: true });
+      // reading a big .tar.xz means decompressing it: show it, with Cancel
+      listing = await this.withPassword(
+        (password) => withProgress(this, { mode: 'inline', host: this.task, title: t('prog.reading'), line: basename(file) }, (opId) => this.api.invoke('archive:list', file, { password, opId })),
+        { name: basename(file), silentFirst: true },
+      );
     } catch (e) {
       if (canceled(e)) return this.win.close(true);
       return this.taskError(t('err.openTitle', { name: basename(file) }), e);
@@ -1141,11 +1323,13 @@ export class ArchiveWindow {
     }
     let skipUnsafe = false;
     if (listing.unsafe.length) {
+      this.roomForDialog();
       if (!(await D.unsafeDialog(this, listing.unsafe))) return this.win.close(true);
       skipUnsafe = true;
     }
     let allowBomb = false;
     if (listing.bomb) {
+      this.roomForDialog();
       if (!(await D.bombDialog(this, listing.bomb))) return this.win.close(true);
       allowBomb = true;
     }
@@ -1182,7 +1366,7 @@ export class ArchiveWindow {
     const dir = args.dest ? dirname(String(args.dest)) : dirname(paths[0]);
     const name = args.dest ? basename(String(args.dest)) : `${paths.length === 1 ? stemOf(basename(paths[0])) || basename(paths[0]) : basename(dirname(paths[0])) || 'Archive'}${ext}`;
     const dest = await this.uniquePath(dir, name);
-    this.compact(t('flow.compressTitle', { name: basename(dest) }));
+    this.compact(() => this.t('flow.compressTitle', { name: basename(dest) }));
     try {
       await withProgress(this, { mode: 'inline', host: this.task, title: t('prog.creating'), line: t('prog.createLine', { name: basename(dest) }) }, (opId) =>
         this.api.invoke('archive:create', paths, dest, { format: fmt, level: Number.isFinite(Number(args.level)) ? Number(args.level) : 5, opId }),
@@ -1208,6 +1392,9 @@ export class ArchiveWindow {
   // ================================================================== teardown
   destroy() {
     shared.windows.delete(this);
+    // "Closing the window cancels the current operation": stop everything this window started
+    for (const opId of this.activeOps) this.api.invoke('archive:cancel', opId).catch(() => {});
+    this.activeOps.clear();
     for (const off of this.offs) off();
     this.list?.destroy();
     this.welcome?.destroy();

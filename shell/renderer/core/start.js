@@ -32,6 +32,26 @@ const STRINGS = {
       copyPath: 'Copy as path',
       pinnedFull: 'Pinned',
       emptyPinned: 'Pin apps here from All apps.',
+      addToFolder: 'Add to folder',
+      newFolder: 'New folder…',
+      newFolderTitle: 'New folder',
+      folderName: 'Folder name',
+      defaultFolderName: 'Folder',
+      renameFolder: 'Rename folder',
+      deleteFolder: 'Remove folder',
+      removeFromFolder: 'Move out of the folder',
+      folderApps_one: '{count} app',
+      folderApps_other: '{count} apps',
+      closeFolder: 'Close folder',
+      folder_documents: 'Documents',
+      folder_downloads: 'Downloads',
+      folder_music: 'Music',
+      folder_pictures: 'Pictures',
+      folder_videos: 'Videos',
+      folder_files: 'File Explorer',
+      folder_settings: 'Settings',
+      folder_home: 'Personal folder',
+      folder_network: 'Network',
     },
     search: {
       all: 'All',
@@ -115,6 +135,26 @@ const STRINGS = {
       copyPath: 'Copier en tant que chemin d’accès',
       pinnedFull: 'Épinglé',
       emptyPinned: 'Épinglez des applications ici depuis Toutes les applications.',
+      addToFolder: 'Ajouter au dossier',
+      newFolder: 'Nouveau dossier…',
+      newFolderTitle: 'Nouveau dossier',
+      folderName: 'Nom du dossier',
+      defaultFolderName: 'Dossier',
+      renameFolder: 'Renommer le dossier',
+      deleteFolder: 'Supprimer le dossier',
+      removeFromFolder: 'Sortir du dossier',
+      folderApps_one: '{count} application',
+      folderApps_other: '{count} applications',
+      closeFolder: 'Fermer le dossier',
+      folder_documents: 'Documents',
+      folder_downloads: 'Téléchargements',
+      folder_music: 'Musique',
+      folder_pictures: 'Images',
+      folder_videos: 'Vidéos',
+      folder_files: 'Explorateur de fichiers',
+      folder_settings: 'Paramètres',
+      folder_home: 'Dossier personnel',
+      folder_network: 'Réseau',
     },
     search: {
       all: 'Tout',
@@ -269,6 +309,12 @@ export const recent = {
   },
   clearSearches() {
     usage.searches = [];
+    saveUsage();
+  },
+  /** Forget the recently opened files (Settings > Start > Clear). */
+  async clearFiles() {
+    await loadUsage();
+    usage.files = [];
     saveUsage();
   },
   searches: () => [...usage.searches],
@@ -774,9 +820,32 @@ let userInfo = null;
 let recentFiles = [];
 
 const COLS = 6;
-function rows() {
-  return settings.get('startShowRecent') === false ? 6 : 3;
+// Start layouts (settings start.layout): rows of pins per page and recommended items shown.
+const START_LAYOUTS = { default: { rows: 3, recs: 6 }, morePins: { rows: 4, recs: 2 }, moreRecommended: { rows: 2, recs: 8 }, list: { rows: 1, recs: 0 } };
+const startCfg = () => settings.get('start') || {};
+function layoutName() {
+  const l = startCfg().layout;
+  return START_LAYOUTS[l] ? l : 'default';
 }
+const showRecs = () => settings.get('startShowRecent') !== false && layoutName() !== 'list';
+function rows() {
+  const L = layoutName();
+  if (L === 'list') return 1;
+  return showRecs() ? START_LAYOUTS[L].rows : 6;
+}
+const recCount = () => START_LAYOUTS[layoutName()].recs;
+// App folders inside Pinned (settings start.groups): [{ id, name, apps }]
+const GROUP_ID = /^g-[a-z0-9]{3,24}$/;
+function groups() {
+  const list = Array.isArray(startCfg().groups) ? startCfg().groups : [];
+  return list.filter((g) => g && typeof g.id === 'string' && Array.isArray(g.apps)).map((g) => ({ ...g, apps: g.apps.filter((id) => registry.get(id)) }));
+}
+function saveGroups(list) {
+  return settings.set('start.groups', list.filter((g) => g.apps.length).map((g) => ({ id: g.id, name: String(g.name || '').slice(0, 60), apps: [...new Set(g.apps)] })));
+}
+const groupedApps = () => new Set(groups().flatMap((g) => g.apps));
+// Folders next to the power button (settings start.folders)
+export const START_FOLDERS = { documents: 'document', downloads: 'arrow_download', music: 'music_note_2', pictures: 'image', videos: 'video', files: 'folder', settings: 'settings', home: 'person', network: 'globe' };
 
 function launch(id, args) {
   fly.close('launch');
@@ -797,8 +866,132 @@ function tileMenu(e, id) {
       : null,
     { label: t('start.unpinStart'), icon: 'pin_off', action: () => togglePinStart(id) },
     { label: isPinnedTaskbar(id) ? t('taskbar.unpin') : t('taskbar.pin'), icon: isPinnedTaskbar(id) ? 'pin_off' : 'pin', action: () => togglePinTaskbar(id) },
+    '-',
+    {
+      label: t('start.addToFolder'),
+      icon: 'folder_add',
+      submenu: [
+        ...groups().map((g) => ({ label: g.name || t('start.defaultFolderName'), icon: 'folder', action: () => addToGroup(g.id, id) })),
+        { label: t('start.newFolder'), icon: 'add', action: () => newGroup([id]) },
+      ],
+    },
   ].filter(Boolean));
 }
+
+async function newGroup(apps) {
+  const name = await ui.prompt({ title: t('start.newFolderTitle'), label: t('start.folderName'), value: t('start.defaultFolderName') });
+  if (name == null) return null;
+  const id = `g-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+  const list = groups().map((g) => ({ ...g, apps: g.apps.filter((a) => !apps.includes(a)) }));
+  list.unshift({ id, name: String(name).trim().slice(0, 60) || t('start.defaultFolderName'), apps });
+  await saveGroups(list);
+  return id;
+}
+function addToGroup(gid, appId) {
+  const list = groups().map((g) => ({ ...g, apps: g.id === gid ? [...g.apps.filter((a) => a !== appId), appId] : g.apps.filter((a) => a !== appId) }));
+  return saveGroups(list);
+}
+function removeFromGroup(gid, appId) {
+  const list = groups().map((g) => (g.id === gid ? { ...g, apps: g.apps.filter((a) => a !== appId) } : g));
+  // an app taken out of a folder goes back to Pinned
+  if (!(settings.get('startPinned') || []).includes(appId)) settings.set('startPinned', [...(settings.get('startPinned') || []), appId]);
+  return saveGroups(list);
+}
+function groupMenu(e, g) {
+  ui.menu(e, [
+    { label: t('start.open'), icon: 'folder_open', action: () => openFolder(g.id) },
+    {
+      label: t('start.renameFolder'),
+      icon: 'rename',
+      action: async () => {
+        const name = await ui.prompt({ title: t('start.renameFolder'), label: t('start.folderName'), value: g.name || '' });
+        if (name == null) return;
+        await saveGroups(groups().map((x) => (x.id === g.id ? { ...x, name: String(name).trim().slice(0, 60) || x.name } : x)));
+      },
+    },
+    {
+      label: t('start.deleteFolder'),
+      icon: 'delete',
+      action: async () => {
+        const pinned = settings.get('startPinned') || [];
+        await settings.set('startPinned', [...pinned, ...g.apps.filter((a) => !pinned.includes(a))]);
+        await settings.set('start.groups', groups().filter((x) => x.id !== g.id));
+      },
+    },
+  ]);
+}
+
+// A folder of apps opened over the Start body (Esc or the back button closes it).
+let folderEl = null;
+function closeFolder() {
+  if (!folderEl) return false;
+  const el = folderEl;
+  folderEl = null;
+  el.remove();
+  bodyEl?.classList.remove('has-folder');
+  bodyEl?.querySelector(`.start-group[data-group]`)?.focus?.({ preventScroll: true });
+  return true;
+}
+function openFolder(gid) {
+  closeFolder();
+  const g = groups().find((x) => x.id === gid);
+  if (!g || !root) return;
+  const grid = h('div', { class: 'start-grid start-folder-grid', role: 'list' });
+  g.apps.forEach((id, i) =>
+    grid.appendChild(
+      h(
+        'button',
+        {
+          class: 'start-tile',
+          role: 'listitem',
+          style: { '--i': String(i) },
+          dataset: { app: id },
+          onclick: () => launch(id),
+          oncontextmenu: (e) =>
+            ui.menu(e, [
+              { label: t('start.open'), icon: 'open', action: () => launch(id) },
+              { label: t('start.removeFromFolder'), icon: 'arrow_exit', action: () => removeFromGroup(g.id, id).then(() => openFolder(g.id)) },
+            ]),
+        },
+        h('img', { src: registry.iconUrl(id), alt: '', draggable: false }),
+        h('span', { class: 'start-tile-label' }, registry.name(id)),
+      ),
+    ),
+  );
+  rove(grid, '.start-tile');
+  folderEl = h(
+    'div',
+    { class: 'start-folder', role: 'dialog', 'aria-label': g.name || t('start.defaultFolderName'), dataset: { group: g.id } },
+    h(
+      'div',
+      { class: 'start-section-head' },
+      h('span', { class: 'start-section-title' }, g.name || t('start.defaultFolderName')),
+      h('button', { class: 'btn small start-head-btn start-folder-close', onclick: () => closeFolder() }, icon('chevron_left', { size: 12 }), h('span', null, t('start.back'))),
+    ),
+    grid,
+  );
+  bodyEl.appendChild(folderEl);
+  bodyEl.classList.add('has-folder');
+  if (!reduceMotion()) folderEl.animate([{ opacity: 0, transform: 'scale(.96)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(0.1,0.9,0.2,1)' });
+  setTimeout(() => grid.querySelector('.start-tile')?.focus({ preventScroll: true }), 30);
+}
+function groupTile(g, i) {
+  return h(
+    'button',
+    {
+      class: 'start-tile start-group',
+      role: 'listitem',
+      style: { '--i': String(i) },
+      dataset: { group: g.id },
+      'aria-label': `${g.name || t('start.defaultFolderName')} (${t('start.folderApps', { count: g.apps.length })})`,
+      onclick: () => openFolder(g.id),
+      oncontextmenu: (e) => groupMenu(e, g),
+    },
+    h('span', { class: 'start-group-icons' }, g.apps.slice(0, 4).map((id) => h('img', { src: registry.iconUrl(id), alt: '', draggable: false }))),
+    h('span', { class: 'start-tile-label' }, g.name || t('start.defaultFolderName')),
+  );
+}
+
 
 function allAppMenu(e, id) {
   ui.menu(e, [
@@ -823,17 +1016,28 @@ function rove(container, selector) {
 }
 
 function pinnedIds() {
-  return (settings.get('startPinned') || []).filter((id) => registry.get(id));
+  const inGroups = groupedApps();
+  return (settings.get('startPinned') || []).filter((id) => registry.get(id) && !inGroups.has(id));
+}
+// Pinned grid items: app folders first, then the pinned apps.
+function pinnedItems() {
+  return [...groups().filter((g) => g.apps.length).map((g) => ({ group: g })), ...pinnedIds().map((id) => ({ app: id }))];
 }
 
 function renderPinnedGrid(gridWrap, dots, animate) {
+  const items = pinnedItems();
   const ids = pinnedIds();
   const per = rows() * COLS;
-  const pages = Math.max(1, Math.ceil(ids.length / per));
+  const pages = Math.max(1, Math.ceil(items.length / per));
   page = Math.max(0, Math.min(page, pages - 1));
   clear(gridWrap);
   const grid = h('div', { class: ['start-grid', animate && 'stagger'], role: 'list', style: { gridTemplateRows: `repeat(${rows()}, 84px)` } });
-  ids.slice(page * per, page * per + per).forEach((id, i) => {
+  const slice = items.slice(page * per, page * per + per);
+  const appsBefore = items.slice(0, page * per).filter((x) => x.app).length;
+  slice.filter((x) => x.group).forEach((x, i) => grid.appendChild(groupTile(x.group, i)));
+  const groupCount = slice.filter((x) => x.group).length;
+  slice.filter((x) => x.app).map((x) => x.app).forEach((id, j) => {
+    const i = j + groupCount;
     grid.appendChild(
       h(
         'button',
@@ -851,9 +1055,9 @@ function renderPinnedGrid(gridWrap, dots, animate) {
       ),
     );
   });
-  if (!ids.length) grid.appendChild(h('div', { class: 'start-empty caption text-2' }, t('start.emptyPinned')));
+  if (!items.length) grid.appendChild(h('div', { class: 'start-empty caption text-2' }, t('start.emptyPinned')));
   rove(grid, '.start-tile');
-  enableReorder(grid, page * per);
+  enableReorder(grid, appsBefore);
   gridWrap.appendChild(grid);
   clear(dots);
   dots.hidden = pages < 2;
@@ -867,7 +1071,7 @@ const APP_MIME = 'application/x-aurora-app';
 function enableReorder(grid, offset) {
   let dragged = null;
   grid.addEventListener('dragstart', (e) => {
-    const tile = e.target.closest?.('.start-tile');
+    const tile = e.target.closest?.('.start-tile[data-app]');
     if (!tile) return;
     dragged = tile;
     e.dataTransfer.effectAllowed = 'copyMove';
@@ -883,6 +1087,11 @@ function enableReorder(grid, offset) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     const over = e.target.closest?.('.start-tile');
+    for (const x of grid.querySelectorAll('.start-group.drop-into')) if (x !== over) x.classList.remove('drop-into');
+    if (over?.classList.contains('start-group')) {
+      over.classList.add('drop-into'); // dropping an app on a folder puts it inside
+      return;
+    }
     if (!over || over === dragged) return;
     const tiles = [...grid.querySelectorAll('.start-tile')];
     const before = new Map(tiles.map((x) => [x, x.getBoundingClientRect()]));
@@ -900,8 +1109,16 @@ function enableReorder(grid, offset) {
   const finish = () => {
     if (!dragged) return;
     dragged.classList.remove('dragging');
+    const into = grid.querySelector('.start-group.drop-into');
+    if (into) {
+      into.classList.remove('drop-into');
+      const app = dragged.dataset.app;
+      dragged = null;
+      if (app) addToGroup(into.dataset.group, app);
+      return;
+    }
     dragged = null;
-    const pageIds = [...grid.querySelectorAll('.start-tile')].map((x) => x.dataset.app);
+    const pageIds = [...grid.querySelectorAll('.start-tile[data-app]')].map((x) => x.dataset.app);
     const all = pinnedIds();
     const next = [...all.slice(0, offset), ...pageIds, ...all.slice(offset + pageIds.length)];
     if (next.join() !== all.join()) settings.set('startPinned', [...next, ...(settings.get('startPinned') || []).filter((id) => !next.includes(id))]);
@@ -914,7 +1131,7 @@ function enableReorder(grid, offset) {
 }
 
 function gotoPage(p, gridWrap, dots) {
-  const pages = Math.max(1, Math.ceil(pinnedIds().length / (rows() * COLS)));
+  const pages = Math.max(1, Math.ceil(pinnedItems().length / (rows() * COLS)));
   p = Math.max(0, Math.min(pages - 1, p));
   if (p === page) return;
   const dir = p > page ? 1 : -1;
@@ -968,7 +1185,7 @@ function viewPinned(animate) {
     {
       class: 'start-pinned',
       onwheel: (e) => {
-        const pages = Math.ceil(pinnedIds().length / (rows() * COLS));
+        const pages = Math.ceil(pinnedItems().length / (rows() * COLS));
         if (pages < 2 || Math.abs(e.deltaY) < 4) return;
         e.preventDefault();
         if (pinnedArea._wheelLock) return;
@@ -981,23 +1198,43 @@ function viewPinned(animate) {
     dots,
   );
   renderPinnedGrid(gridWrap, dots, animate);
-  const v = h('div', { class: 'start-view start-view-pinned' }, sectionHead(t('start.pinned'), t('start.allApps'), () => setView('all')), pinnedArea);
-  if (settings.get('startShowRecent') !== false) {
-    const recBox = h('div', { class: 'start-recs' });
-    const fill = () => {
+  const L = layoutName();
+  if (L === 'list') {
+    // "List" layout: one row of pins, then every app A–Z (Windows 10 style).
+    return h('div', { class: 'start-view start-view-pinned start-view-list', dataset: { layout: L } }, sectionHead(t('start.pinned')), pinnedArea, sectionHead(t('start.allApps')), allAppsList());
+  }
+  const v = h('div', { class: 'start-view start-view-pinned', dataset: { layout: L } }, sectionHead(t('start.pinned'), t('start.allApps'), () => setView('all')), pinnedArea);
+  if (showRecs()) {
+    const n = recCount();
+    const recBox = h('div', { class: 'start-recs', style: { gridTemplateRows: `repeat(${Math.ceil(n / 2)}, 56px)` } });
+    let head = sectionHead(t('start.recommended'), null);
+    v.append(head, recBox);
+    // (re)filled when the recent files arrive; "More" only when there are more than the layout shows
+    v._fillRecent = () => {
       clear(recBox);
       if (!recentFiles.length) recBox.appendChild(h('div', { class: 'start-rec-empty caption text-2' }, t('start.noRecent')));
-      for (const e of recentFiles.slice(0, 6)) recBox.appendChild(recItem(e));
+      for (const e of recentFiles.slice(0, n)) recBox.appendChild(recItem(e));
       rove(recBox, '.start-rec');
+      const fresh = sectionHead(t('start.recommended'), recentFiles.length > n ? t('start.more') : null, () => setView('recommended'));
+      head.replaceWith(fresh);
+      head = fresh;
     };
-    fill();
-    v._fillRecent = fill;
-    v.append(sectionHead(t('start.recommended'), recentFiles.length > 6 ? t('start.more') : null, () => setView('recommended')), recBox);
+    v._fillRecent();
   }
   return v;
 }
 
 function viewAll() {
+  return h(
+    'div',
+    { class: 'start-view start-view-all' },
+    sectionHead(t('start.allApps'), t('start.back'), () => setView('pinned'), 'chevron_left', true),
+    allAppsList(),
+  );
+}
+
+// The A–Z list of every app with its letter-jump grid (All apps view, and the "List" layout).
+function allAppsList() {
   const list = h('div', { class: 'start-all', role: 'list' });
   const groups = new Map();
   for (const m of registry.list()) {
@@ -1054,12 +1291,7 @@ function viewAll() {
       jump.hidden = true;
     }
   });
-  return h(
-    'div',
-    { class: 'start-view start-view-all' },
-    sectionHead(t('start.allApps'), t('start.back'), () => setView('pinned'), 'chevron_left', true),
-    h('div', { class: 'start-all-wrap' }, h('div', { class: 'start-all-scroll' }, list), jump),
-  );
+  return h('div', { class: 'start-all-wrap' }, h('div', { class: 'start-all-scroll' }, list), jump);
 }
 
 function viewRecommended() {
@@ -1082,6 +1314,7 @@ function viewSearch() {
 }
 
 function setView(next, { animate = true } = {}) {
+  closeFolder();
   const prev = view;
   view = next;
   const old = bodyEl.firstElementChild;
@@ -1191,6 +1424,7 @@ function renderFooter() {
       avatar,
       h('span', { class: 'ellipsis' }, name),
     ),
+    h('div', { class: 'start-folders', role: 'toolbar' }, folderButtons()),
     h(
       'button',
       {
@@ -1214,8 +1448,36 @@ function renderFooter() {
   );
 }
 
+// Folder shortcuts next to the power button (Settings > Personalization > Start > Folders).
+function openStartFolder(id) {
+  fly.close('launch');
+  const x = shell.xdg || {};
+  if (id === 'settings') return shell.launch('settings');
+  if (id === 'network') return shell.launch('settings', { page: 'network' });
+  if (id === 'files') return shell.launch('files');
+  const path = id === 'home' ? x.home || env.home : x[id];
+  return path ? shell.launch('files', { path }) : shell.launch('files');
+}
+function folderButtons() {
+  const list = (Array.isArray(startCfg().folders) ? startCfg().folders : []).filter((id, i, a) => START_FOLDERS[id] && a.indexOf(id) === i);
+  return list.map((id) =>
+    h(
+      'button',
+      { class: 'start-power start-folder-btn', dataset: { folder: id, tip: t(`start.folder_${id}`) }, 'aria-label': t(`start.folder_${id}`), onclick: () => openStartFolder(id) },
+      icon(START_FOLDERS[id], { size: 18 }),
+    ),
+  );
+}
+function applyBackground() {
+  const bg = startCfg().background;
+  if (['solid', 'accent', 'wallpaper'].includes(bg)) root.dataset.bg = bg;
+  else delete root.dataset.bg;
+  root.dataset.layout = layoutName();
+}
+
 function render() {
   clear(root);
+  closeFolder();
   input = h('input', {
     class: 'start-search',
     type: 'text',
@@ -1308,7 +1570,9 @@ export const start = {
       },
       onClose: () => {
         ui.closeMenus?.();
+        closeFolder();
       },
+      onEscape: () => closeFolder(),
       onKey,
     });
     shell.on('start:toggle', () => fly.toggle());
@@ -1322,6 +1586,15 @@ export const start = {
     i18n.on('change', () => render());
     settings.on('startPinned', () => view === 'pinned' && fly.isOpen && setView('pinned', { animate: false }));
     settings.on('startShowRecent', () => view === 'pinned' && setView('pinned', { animate: false }));
+    // Start personalization (layout, folders, app folders, background): applied live.
+    applyBackground();
+    settings.on('start', () => {
+      applyBackground();
+      renderFooter();
+      const open = folderEl?.dataset.group;
+      if (view === 'pinned') setView('pinned', { animate: false });
+      if (open) openFolder(open);
+    });
     // Usage statistics for "Top apps" and recently opened files for "Recommended".
     wm.on('open', (w) => {
       if (!w?.appId || !registry.get(w.appId)) return;

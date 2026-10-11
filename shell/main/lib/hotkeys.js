@@ -54,9 +54,18 @@ function comboOf(input) {
   return [...parts, key].join('+');
 }
 
+// Extra combos the user bound to shell actions (Settings > Keyboard shortcuts, e.g. "Ctrl+Alt+T"), sent by the
+// shell renderer with hotkeys:setCustom. Each needs Ctrl or Alt (Shift alone would steal typing) or is F13–F24.
+const CUSTOM = new Set();
+const CUSTOM_RE = /^(Ctrl\+)?(Alt\+)?(Shift\+)?([A-Z0-9]|[-=;/[\]]|F([1-9]|1[0-9]|2[0-4])|Arrow(Left|Right|Up|Down)|Home|End|PageUp|PageDown|Insert|Delete|Space|Tab|Escape|Enter|Backspace|Period|Comma|Pause)$/;
+function validCustom(c) {
+  if (typeof c !== 'string' || c.length > 48 || !CUSTOM_RE.test(c)) return false;
+  return /^(Ctrl|Alt)\+/.test(c) || /\bAlt\+/.test(c) || /^F(1[3-9]|2[0-4])$/.test(c);
+}
+
 // Is this combo a system hotkey (forwarded to the shell)?
 function isSystem(combo, input) {
-  return SYSTEM.has(combo) || (!!input.meta && combo.startsWith('Super+'));
+  return SYSTEM.has(combo) || CUSTOM.has(combo) || (!!input.meta && combo.startsWith('Super+'));
 }
 
 let rulesRegistered = false;
@@ -65,7 +74,13 @@ function installHotkeys(contents, ipc, mode) {
   if (!rulesRegistered && ipc?.handle) {
     rulesRegistered = true;
     // The shell renderer cancels these in its own page (see above).
-    ipc.handle('hotkeys:rules', () => ({ system: [...SYSTEM], superPrefix: true }));
+    ipc.handle('hotkeys:rules', () => ({ system: [...SYSTEM], custom: [...CUSTOM], superPrefix: true }));
+    // The user's own shortcuts (combos without Super): replaces the list; returns the accepted combos.
+    ipc.handle('hotkeys:setCustom', (list) => {
+      CUSTOM.clear();
+      for (const c of Array.isArray(list) ? list.slice(0, 64) : []) if (validCustom(c) && !SYSTEM.has(c)) CUSTOM.add(c);
+      return [...CUSTOM];
+    });
   }
   const isShellPage = contents.getType?.() === 'window';
   let superDown = false;
@@ -101,4 +116,4 @@ function installHotkeys(contents, ipc, mode) {
   });
 }
 
-module.exports = { installHotkeys, comboOf, isSystem, SYSTEM };
+module.exports = { installHotkeys, comboOf, isSystem, SYSTEM, CUSTOM, validCustom };

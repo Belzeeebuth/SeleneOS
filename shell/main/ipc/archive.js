@@ -17,7 +17,8 @@
 //   archive:tempDir (session)                 -> the window's private temp folder (0700, removed on cleanup/quit)
 //   archive:preview (path, entry, {password, session, opId, text: maxBytes}) -> { path, size, text?, binary?,
 //                    truncated? }   one entry extracted to the window's private temp folder (cached)
-//   archive:cleanup (session)                 -> true  (deletes that window's temp files)
+//   archive:cleanup (session)                 -> true  (stops that window's previews / temp extractions, then
+//                                                deletes its temp files)
 //   archive:create (srcPaths, destPath, {format: zip|7z|tar|tar.gz|tar.xz|tar.zst, level 0-9, password,
 //                   encryptNames, opId})      -> { path, size }
 //   archive:add (path, srcPaths, {base, password, opId}) -> { added }      (zip, 7z, tar family)
@@ -30,7 +31,7 @@
 //   entries: [{ path, raw, name, dir, size, packed, mtime, mode, encrypted, link, hardlink, method }],
 //   count, files, dirs, totalSize, totalPacked, perEntryPacked, truncated, encrypted, headersEncrypted,
 //   unsafe: [{ path, reason: 'absolute'|'parent'|'link'|'special' }], bomb: null | { reason, total, ratio },
-//   canAdd, canDelete, canEncrypt }
+//   canAdd, canDelete, canEncrypt, readOnly: null | 'format' | 'damaged' | 'truncated' | 'perm' }
 //   `path` is normalised ("./a//b/" -> "a/b"), `raw` is the name stored in the archive.
 //
 // Safe extraction: entries with an absolute path, a '..' component, a link pointing outside the
@@ -113,6 +114,38 @@ async function exists(p) {
     return true;
   } catch {
     return false;
+  }
+}
+/**
+ * mkdir -p without fs.mkdir({recursive}): Node's recursive mkdir never settles for a path under a pseudo
+ * file system (e.g. "/proc/x": mkdir says ENOENT, the parent exists, and it retries forever). Walk up to the
+ * nearest existing ancestor, then create each missing component with a plain mkdir.
+ */
+async function mkdirp(dir, mode) {
+  const missing = [];
+  let cur = path.resolve(dir);
+  for (;;) {
+    let st = null;
+    try {
+      st = await fsp.stat(cur);
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
+    if (st) {
+      if (!st.isDirectory()) throw Object.assign(new Error(`Not a folder: ${cur}`), { code: 'ENOTDIR' });
+      break;
+    }
+    missing.push(cur);
+    const up = path.dirname(cur);
+    if (up === cur) break;
+    cur = up;
+  }
+  for (const d of missing.reverse()) {
+    try {
+      await fsp.mkdir(d, mode);
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+    }
   }
 }
 async function uniqueName(dir, name) {
@@ -252,7 +285,7 @@ async function detect(file) {
     }
   }
   if (kind === 'zip' && /\.jar$/i.test(name)) format = 'jar';
-  return { file, name, size: st.size, mtime: st.mtimeMs, kind, format, filter };
+  return { file, name, size: st.size, mtime: st.mtimeMs, mode: st.mode, kind, format, filter };
 }
 
 // ------------------------------------------------------------------ processes
@@ -274,6 +307,16 @@ function makeOp(opId, sender, sendTo, phase) {
     current: '',
     cleanup: [],
     lastSent: 0,
+    started: 0,
+    session: null,
+    settled: null,
+    /** The tools print an item's name when they START it: done = items finished = started - 1 (the last
+     *  one is counted when the whole operation succeeds). */
+    tick(name) {
+      op.started++;
+      op.done = Math.max(0, Math.min(op.total > 0 ? op.total : Infinity, op.started - 1));
+      op.current = name;
+    },
     emit(force = false) {
       const now = Date.now();
       if (!force && now - op.lastSent < 80) return;
@@ -341,6 +384,8 @@ function lineSplitter(onLine) {
  */
 function pipeline(op, stages, { input = null, inputFile = null, onOut = null, outFd = null, onErr = null, collect = false, timeout = 0 } = {}) {
   return new Promise((resolve, reject) => {
+    // canceled between two steps of an operation: don't start the next tool at all
+    if (op?.canceled) return reject(err('The operation was canceled', 'ECANCELED'));
     const children = [];
     const stderr = stages.map(() => '');
     const codes = stages.map(() => null);
@@ -581,7 +626,9 @@ function sevenError(text, { password, prompt } = {}) {
   if (/Can ?not open the file as archive|Is not archive|Can not open file as archive/i.test(t)) return err('This file is not an archive, or the format is not supported', 'EFORMAT');
   if (/Unsupported Method|Unsupported feature/i.test(t)) return err(`This archive uses a compression method that is not supported${firstError(t)}`, 'ENOTSUP');
   if (/There is not enough space|No space left/i.test(t)) return err('There is not enough space on the disk', 'ENOSPC');
-  if (/Permission denied|Access is denied|Can ?not open output file/i.test(t)) return err(`Access denied${firstError(t)}`, 'EACCES');
+  if (/Permission denied|Access is denied|Can ?not open output file|Read-only file system/i.test(t)) return err(`Access denied${firstError(t)}`, 'EACCES');
+  // "cannot open file <path> errno=2" when the output folder can't be written (7-Zip prints it on 3 lines)
+  if (/cannot open file/i.test(t) && /errno=(2|13|30)\b/.test(t)) return err('Cannot write to the destination folder', 'EACCES');
   if (/Data Error|CRC Failed|Headers Error|Unexpected end of (archive|data)|Unavailable data|There are data after the end|is not supported archive/i.test(t)) {
     return err(`The archive is damaged${firstError(t)}`, 'ECORRUPT');
   }
@@ -617,7 +664,7 @@ async function listArchive(file, { password = null, op = null } = {}) {
   const info = await detect(file);
   const key = `${info.size}|${info.mtime}`;
   const hit = listCache.get(file);
-  if (hit && hit.key === key && (!hit.listing.headersEncrypted || hit.password === password)) return { info, listing: hit.listing };
+  if (hit && hit.key === key && (!hit.listing.headersEncrypted || hit.password === password)) return { info, listing: await withAccess(info, hit.listing) };
   const t = tools();
   const raws = [];
   let props = {};
@@ -677,6 +724,8 @@ async function listArchive(file, { password = null, op = null } = {}) {
       if (e.code === 'ECORRUPT') damaged = e.message;
     }
   } else if (t.sz && info.kind === 'tar') {
+    // a tar is listed by reading it whole: report progress by bytes (big .tar.xz can take a while)
+    if (op) op.totalBytes = info.size;
     const p = sltParser();
     let buf = '';
     const stages = [];
@@ -821,7 +870,30 @@ async function listArchive(file, { password = null, op = null } = {}) {
   };
   if (listCache.size > 12) listCache.delete(listCache.keys().next().value);
   listCache.set(file, { key, listing, password: headersEncrypted ? password : null });
-  return { info, listing };
+  return { info, listing: await withAccess(info, listing) };
+}
+
+/** Can this process rewrite the archive? (the file and its folder writable, the file not marked read-only:
+ *  7-Zip refuses to update a file without write bits even as root). Checked on every listing, not cached. */
+async function writable(info) {
+  if (!(info.mode & 0o222)) return false;
+  try {
+    await fsp.access(info.file, fs.constants.W_OK);
+    await fsp.access(path.dirname(info.file), fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+/** The listing with canAdd / canDelete for the current permissions, and why it is read-only:
+ *  readOnly = null | 'format' (rar, cab, single .gz…, or a missing tool) | 'damaged' | 'truncated' | 'perm'. */
+async function withAccess(info, listing) {
+  let readOnly = null;
+  if (!canWrite(info, tools())) readOnly = 'format';
+  else if (listing.damaged) readOnly = 'damaged';
+  else if (listing.truncated) readOnly = 'truncated';
+  else if (!(await writable(info))) readOnly = 'perm';
+  return { ...listing, canAdd: !readOnly, canDelete: !readOnly, readOnly };
 }
 
 // ------------------------------------------------------------------ extraction
@@ -887,6 +959,43 @@ async function sanitizeTree(root, skipped) {
     }
   }
   return { files, dirs: dirsN, bytes };
+}
+
+/**
+ * Defense in depth for "skip the unsafe items" (archives that HAVE unsafe entries only): the tools strip '/'
+ * and '..' and write such entries inside the staging folder, and the exclusion list is a newline-separated
+ * file that can't name an entry whose name holds a line break (7-Zip's listing can't even show it). So only
+ * what the listing says is safe survives: anything else in the staging folder is removed (never following a
+ * link) and reported as skipped.
+ */
+async function dropUnlisted(stage, listing, skipped) {
+  const safe = new Set();
+  for (const e of listing.entries) {
+    for (let p = e.path; p; p = p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '') safe.add(p);
+  }
+  const walk = async (dir, rel) => {
+    let names;
+    try {
+      names = await fsp.readdir(dir);
+    } catch {
+      return;
+    }
+    for (const n of names) {
+      const r = rel ? `${rel}/${n}` : n;
+      const p = path.join(dir, n);
+      if (!safe.has(r)) {
+        await fsp.rm(p, { recursive: true, force: true }).catch(() => {}); // rm -r removes links, never follows them
+        skipped.push({ path: r, reason: 'unsafe' });
+        continue;
+      }
+      let st = null;
+      try {
+        st = await fsp.lstat(p);
+      } catch {}
+      if (st?.isDirectory()) await walk(p, r);
+    }
+  };
+  await walk(stage, '');
 }
 
 async function moveInto(src, dst, policy, stats) {
@@ -980,10 +1089,7 @@ async function runExtract(op, info, listing, stage, { targets, all, password, sk
       const m = /^\s*(\d+)%/.exec(l);
       if (m && info.kind !== 'tar') op.percent = Number(m[1]) / 100;
       const f = /^- (.+)$/.exec(l);
-      if (f) {
-        op.done = Math.min(op.total, op.done + 1);
-        op.current = f[1];
-      }
+      if (f) op.tick(f[1]);
       op.emit();
     });
     const errSplit = lineSplitter((l) => {
@@ -1032,8 +1138,7 @@ async function runBsdtarExtract(op, info, stage, { targets, all, unsafeRaw, tmp,
   const split = lineSplitter((l) => {
     const m = /^x (.+)$/.exec(l);
     if (m) {
-      op.done = Math.min(op.total, op.done + 1);
-      op.current = m[1];
+      op.tick(m[1]);
       op.emit();
     }
   });
@@ -1083,24 +1188,32 @@ async function doExtract(op, file, dest, opts = {}) {
   if (targets.some((e) => e.encrypted) && opts.password == null) throw err('A password is required', 'EPASSWORD');
   if (info.kind === 'rar' && targets.some((e) => e.encrypted)) throw err('Encrypted RAR archives are not supported', 'ENOTSUP');
   // destination
+  checkCanceled(op);
   try {
-    await fsp.mkdir(dest, { recursive: true });
+    await mkdirp(dest);
   } catch (e) {
-    throw err(`Cannot create the destination folder: ${e.message}`, e.code === 'EACCES' || e.code === 'EROFS' ? 'EACCES' : 'EARCHIVE');
+    if (e.code === 'ENOTDIR') throw err('The destination is not a folder', 'EINVAL');
+    throw err(`Cannot create the destination folder: ${e.message}`, 'EACCES');
   }
   const dst = await fsp.stat(dest);
   if (!dst.isDirectory()) throw err('The destination is not a folder', 'EINVAL');
-  if (total > (await freeSpace(dest))) throw err('There is not enough space on the disk', 'ENOSPC');
+  // The staging folder first: a folder that can't be written to (read-only, /proc, /sys…) is reported as
+  // such, not as a full disk (pseudo file systems report 0 bytes free).
   let stage;
   try {
     stage = await fsp.mkdtemp(path.join(dest, '.aurora-extract-'));
   } catch (e) {
-    throw err(`Cannot write to the destination folder: ${e.message}`, e.code === 'EACCES' || e.code === 'EROFS' ? 'EACCES' : 'EARCHIVE');
+    throw err(`Cannot write to the destination folder: ${e.message}`, e.code === 'ENOSPC' ? 'ENOSPC' : 'EACCES');
   }
   await fsp.chmod(stage, 0o700).catch(() => {});
+  if (total > (await freeSpace(dest))) {
+    await fsp.rm(stage, { recursive: true, force: true }).catch(() => {});
+    throw err('There is not enough space on the disk', 'ENOSPC');
+  }
   try {
     await runExtract(op, info, listing, stage, { targets, all: !sel, password: opts.password ?? null, skipped });
     checkCanceled(op);
+    if (!sel && listing.unsafe.length) await dropUnlisted(stage, listing, skipped);
     op.phase = 'finishing';
     op.percent = 1;
     op.emit(true);
@@ -1177,10 +1290,7 @@ async function sevenProgress(op, args, { input, cwd }) {
     const m = /^\s*(\d+)%/.exec(l);
     if (m) op.percent = Number(m[1]) / 100;
     const f = /^([-+U=RTD]) (.+)$/.exec(l);
-    if (f) {
-      op.done++;
-      op.current = f[2];
-    }
+    if (f) op.tick(f[2]);
     op.emit();
   });
   const res = await pipeline(op, [{ bin: need(t.sz, '7-Zip'), args, cwd }], { input, onOut: (d) => split.push(d) });
@@ -1195,6 +1305,8 @@ async function doCreate(op, srcPaths, destPath, opts) {
   const password = opts.password ? String(opts.password) : null;
   if (password && /[\r\n\0]/.test(password)) throw err('The password cannot contain line breaks', 'EINVAL');
   if (password && !(format === 'zip' || format === '7z')) throw err('Only ZIP and 7z archives can be encrypted', 'ENOTSUP');
+  // 7-Zip's ZIP AES encoder only takes printable ASCII passwords (7z archives accept any Unicode).
+  if (password && format === 'zip' && !/^[\x20-\x7e]+$/.test(password)) throw err('ZIP passwords can only contain ASCII letters, digits and symbols', 'EZIPPASSWORD');
   for (const s of srcPaths) {
     if (!(await exists(s))) throw err(`Item not found: ${s}`, 'ENOENT');
     if (s === destPath) throw err('An archive cannot contain itself', 'EINVAL');
@@ -1210,6 +1322,16 @@ async function doCreate(op, srcPaths, destPath, opts) {
   const tmpOut = path.join(workDir, `.aurora-new-${crypto.randomBytes(5).toString('hex')}${ext}`);
   op.cleanup.push(() => fsp.rm(tmpOut, { force: true }));
   if (insideSrc) op.cleanup.push(() => fsp.rm(workDir, { recursive: true, force: true }));
+  // Can the archive be written there at all? (a clear "access denied" instead of a tool error later)
+  for (const d of new Set([workDir, dir])) {
+    const probe = path.join(d, `.aurora-probe-${crypto.randomBytes(4).toString('hex')}`);
+    try {
+      await (await fsp.open(probe, 'wx', 0o600)).close();
+      await fsp.unlink(probe).catch(() => {});
+    } catch (e) {
+      throw err(`Cannot write to the destination folder: ${e.message}`, e.code === 'ENOSPC' ? 'ENOSPC' : 'EACCES');
+    }
+  }
   const counted = await countTree(srcPaths);
   op.total = counted.count;
   op.emit(true);
@@ -1238,8 +1360,7 @@ async function doCreate(op, srcPaths, destPath, opts) {
     const split = lineSplitter((l) => {
       const m = /^a (.+)$/.exec(l);
       if (m) {
-        op.done++;
-        op.current = m[1];
+        op.tick(m[1]);
         op.emit();
       }
     });
@@ -1291,8 +1412,7 @@ async function rewriteTar(op, info, listing, { exclude = [], addBase = null, add
   const split = lineSplitter((l) => {
     const m = /^a (.+)$/.exec(l);
     if (m) {
-      op.done = Math.min(op.total || Infinity, op.done + 1);
-      op.current = m[1];
+      op.tick(m[1]);
       op.emit();
     }
   });
@@ -1329,6 +1449,7 @@ async function rewriteTar(op, info, listing, { exclude = [], addBase = null, add
 
 async function doAdd(op, file, srcPaths, opts) {
   const { info, listing } = await listArchive(file, { password: opts.password ?? null, op });
+  if (listing.readOnly === 'perm') throw err('You do not have permission to change this archive', 'EACCES');
   if (!listing.canAdd) throw err('Files cannot be added to this type of archive', 'ENOTSUP');
   const base = normEntry(opts.base || '').path;
   for (const s of srcPaths) {
@@ -1376,6 +1497,7 @@ async function doAdd(op, file, srcPaths, opts) {
 
 async function doDelete(op, file, entries, opts) {
   const { info, listing } = await listArchive(file, { password: opts.password ?? null, op });
+  if (listing.readOnly === 'perm') throw err('You do not have permission to change this archive', 'EACCES');
   if (!listing.canDelete) throw err('Items cannot be deleted from this type of archive', 'ENOTSUP');
   const sel = [...new Set(entries.map((s) => normEntry(String(s)).path).filter(Boolean))];
   const targets = selectEntries(listing, sel);
@@ -1429,8 +1551,7 @@ async function doTest(op, file, opts) {
     const split = lineSplitter((l) => {
       const m = /^x (.+)$/.exec(l);
       if (m) {
-        op.done++;
-        op.current = m[1];
+        op.tick(m[1]);
         op.emit();
       }
     });
@@ -1453,22 +1574,30 @@ async function doTest(op, file, opts) {
 
 // ------------------------------------------------------------------ registration
 module.exports = function register(api) {
-  const run = async (opts, sender, phase, fn) => {
+  // session: the window's temp-folder session for operations that write there (preview, extractTemp), so
+  // archive:cleanup can stop them before deleting the folder.
+  const run = (opts, sender, phase, fn, session = null) => {
     const op = makeOp(opts?.opId, sender, api.sendTo, phase);
-    try {
-      const res = await fn(op);
-      checkCanceled(op);
-      op.percent = 1;
-      op.emit(true);
-      return res;
-    } catch (e) {
-      if (op.canceled) throw err('The operation was canceled', 'ECANCELED');
-      throw e;
-    } finally {
-      for (const c of op.children) killTree(c);
-      for (const fn2 of op.cleanup.reverse()) await Promise.resolve().then(fn2).catch(() => {});
-      endOp(op);
-    }
+    op.session = session;
+    const p = (async () => {
+      try {
+        const res = await fn(op);
+        checkCanceled(op);
+        op.percent = 1;
+        if (op.total > 0) op.done = op.total;
+        op.emit(true);
+        return res;
+      } catch (e) {
+        if (op.canceled) throw err('The operation was canceled', 'ECANCELED');
+        throw e;
+      } finally {
+        for (const c of op.children) killTree(c);
+        for (const fn2 of op.cleanup.reverse()) await Promise.resolve().then(fn2).catch(() => {});
+        endOp(op);
+      }
+    })();
+    op.settled = p.then(() => {}, () => {});
+    return p;
   };
   const optsOf = (o) => (o && typeof o === 'object' ? o : {});
   const pathsOf = (list, what) => {
@@ -1522,7 +1651,7 @@ module.exports = function register(api) {
         await fsp.mkdir(d, { mode: 0o700 });
       } else d = await fsp.mkdtemp(path.join(sd, 'x-'));
       return doExtract(op, p, d, { ...o, overwrite: 'rename', skipUnsafe: true });
-    });
+    }, String(o.session || 'default'));
   });
 
   // The window's private temp folder (to build drag & drop paths before extracting).
@@ -1570,13 +1699,18 @@ module.exports = function register(api) {
         await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
         throw err2;
       }
-    });
+    }, String(o.session || 'default'));
   });
 
   api.handle('archive:cleanup', async (session) => {
     const s = String(session || '');
-    if (!/^[\w.-]{1,64}$/.test(s) || s.startsWith('.') || !tmpRoot) return true;
-    await fsp.rm(path.join(tmpRoot, s), { recursive: true, force: true }).catch(() => {});
+    if (!/^[\w.-]{1,64}$/.test(s) || s.startsWith('.')) return true;
+    // stop what is still writing into that folder (a preview, a drag & drop extraction) first, or it could
+    // recreate files after the folder is gone
+    const pending = [...ops.values()].filter((op) => op.session === s);
+    for (const op of pending) cancelOp(op);
+    if (pending.length) await Promise.race([Promise.all(pending.map((op) => op.settled)), new Promise((r) => setTimeout(r, 5000).unref?.())]);
+    if (tmpRoot) await fsp.rm(path.join(tmpRoot, s), { recursive: true, force: true }).catch(() => {});
     return true;
   });
 

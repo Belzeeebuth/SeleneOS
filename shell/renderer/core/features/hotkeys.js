@@ -19,6 +19,10 @@
 //   'snaplayouts:open' (win)  'taskview:toggle'
 // Test hook: window.__aurora.hotkeys.trigger('Super+D') runs exactly what the IPC event runs;
 //   hotkeys.normalize(combo) gives the canonical form (modifiers ordered Super, Ctrl, Alt, Shift).
+// Customizable shortcuts (settings.shortcuts, catalog in core/shortcuts.js, docs/PERSONALIZATION.md §12.1): the live
+//   combo -> action map is rebuilt when they change; non-Super combos are sent to main (hotkeys:setCustom) so they
+//   are captured everywhere. hotkeys.capture(fn) -> stop(): Settings records a new combo (no action runs meanwhile).
+//   hotkeys.combos() -> { [actionId]: combo | null } in effect.
 import { api } from '../api.js';
 import { wm } from '../wm.js';
 import { shell } from '../services.js';
@@ -29,6 +33,7 @@ import { i18n, t } from '../i18n.js';
 import { alttab } from './alttab.js';
 import { exit as exitTaskView, isOpen as taskViewOpen } from './taskview.js';
 import { isFlyoutOpen } from '../taskbar.js';
+import { SHORTCUTS, effectiveShortcuts, FIXED_COMBOS } from '../shortcuts.js';
 
 i18n.extend({
   en: {
@@ -105,9 +110,10 @@ let systemCombos = new Set([
   'Alt+Tab', 'Alt+Shift+Tab', 'Ctrl+Alt+Tab', 'Alt+F4', 'Alt+Space', 'Ctrl+Alt+Delete', 'Ctrl+Shift+Escape', 'PrintScreen',
   'AudioVolumeUp', 'AudioVolumeDown', 'AudioVolumeMute', 'BrightnessUp', 'BrightnessDown',
 ]);
+let customCombos = new Set(); // the user's own non-Super shortcuts, also captured by main (hotkeys:setCustom)
 function isSystemEvent(e) {
   const c = comboOfEvent(e);
-  return !!c && (systemCombos.has(c) || (e.metaKey && c.startsWith('Super+')));
+  return !!c && (systemCombos.has(c) || customCombos.has(c) || (e.metaKey && c.startsWith('Super+')));
 }
 
 const warned = new Set();
@@ -170,7 +176,8 @@ function snapKey(dir) {
 // ------------------------------------------------------------------ Super+1..9
 function taskbarApps() {
   const btns = [...document.querySelectorAll('#taskbar .tb-app[data-app]')].filter((b) => !b.classList.contains('leaving') && b.offsetParent !== null);
-  if (btns.length) return btns.map((b) => b.dataset.app);
+  // (one button per window when the taskbar does not combine them: Super+n counts apps, not windows)
+  if (btns.length) return [...new Set(btns.map((b) => b.dataset.app))];
   const pinned = (settings.get('pinned') || []).filter((id) => registry.get(id));
   const running = [];
   for (const w of wm.listDesktop().sort((a, b) => a.createdAt - b.createdAt)) if (!pinned.includes(w.appId) && !running.includes(w.appId)) running.push(w.appId);
@@ -368,6 +375,43 @@ const ACTIONS = {
 };
 for (let n = 1; n <= 9; n++) ACTIONS[`Super+${n}`] = () => activateNth(n);
 
+// ------------------------------------------------------------------ customizable shortcuts
+// Action of each catalog entry: the default combo's action above, or one of these (no default binding).
+const EXTRA_ACTIONS = {
+  focusMode: () => shell.emit('focus:toggle'),
+  terminal: () => launch('terminal'),
+  browser: () => launch('browser'),
+  notepad: () => launch('notepad'),
+  calculator: () => launch('calculator'),
+};
+const actionOf = (s) => EXTRA_ACTIONS[s.id] || (s.combo ? ACTIONS[normalize(s.combo)] : null);
+let effective = { ...ACTIONS }; // combo -> fn in effect
+let customSent = '';
+function rebuild() {
+  const combos = effectiveShortcuts(settings.get('shortcuts') || {});
+  const map = { ...ACTIONS };
+  // free the default combos of every catalog action first (another action may take them over)…
+  for (const s of SHORTCUTS) if (s.combo && map[normalize(s.combo)] === actionOf(s)) delete map[normalize(s.combo)];
+  // …then bind each action to its combo in effect
+  for (const s of SHORTCUTS) {
+    const c = combos[s.id];
+    const fn = actionOf(s);
+    if (c && fn && !FIXED_COMBOS.has(normalize(c))) map[normalize(c)] = fn;
+  }
+  effective = map;
+  // main only forwards Super+… and its built-in system combos: tell it about the others (e.g. Ctrl+Alt+T)
+  const extra = Object.keys(map).filter((c) => !c.startsWith('Super') && !systemCombos.has(c) && c !== 'Alt:up').sort();
+  const key = extra.join('|');
+  if (key !== customSent) {
+    customSent = key;
+    api
+      .invoke('hotkeys:setCustom', extra)
+      .then((r) => (customCombos = new Set(Array.isArray(r) ? r : [])))
+      .catch(() => {});
+  }
+}
+let capturing = null; // fn(combo) while Settings records a shortcut
+
 // ------------------------------------------------------------------ Super+V clipboard history
 const clip = (() => {
   let items = []; // [{ text, pinned, at }]
@@ -553,10 +597,14 @@ const isLocked = () => locked || document.body.classList.contains('aurora-locked
 
 function trigger(combo, { repeat = false } = {}) {
   const c = normalize(combo);
+  if (capturing) {
+    if (!repeat && c !== 'Alt:up') capturing(c);
+    return true;
+  }
   if (repeat && !REPEATABLE.has(c)) return false;
   // While the lock screen or the Ctrl+Alt+Del screen is up only the hardware keys keep working.
   if ((isLocked() || document.querySelector('.sec-screen:not(.closing)')) && !/^(Audio|Brightness)/.test(c)) return false;
-  const fn = ACTIONS[c];
+  const fn = effective[c];
   if (!fn) return false;
   try {
     fn();
@@ -566,7 +614,44 @@ function trigger(combo, { repeat = false } = {}) {
   return true;
 }
 
-export const hotkeys = { trigger, normalize, actions: ACTIONS, snapKey, comboOfEvent, isSystemEvent };
+/** Record the next key combination (Settings > Keyboard shortcuts): fn(combo) for each one; returns stop(). */
+function capture(fn) {
+  capturing = typeof fn === 'function' ? fn : null;
+  const onKey = (e) => {
+    if (!capturing) return;
+    // system combos also come through IPC (trigger); others only as DOM events
+    if (isSystemEvent(e)) return;
+    const c = comboOfEvent(e);
+    if (!c || c.split('+').every((p) => ['Super', 'Ctrl', 'Alt', 'Shift'].includes(p))) return;
+    // keys without Ctrl / Alt / Win keep working in the dialog (Tab, Enter, Esc…); F13–F24 may stand alone
+    if (!e.ctrlKey && !e.altKey && !e.metaKey && !/^F(1[3-9]|2[0-4])$/.test(e.key)) {
+      if (e.key.length === 1 || /^F\d+$/.test(e.key)) capturing(normalize(c)); // shown with "add Ctrl, Alt or Win"
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.repeat) capturing(normalize(c));
+  };
+  window.addEventListener('keydown', onKey, true);
+  return () => {
+    capturing = null;
+    window.removeEventListener('keydown', onKey, true);
+  };
+}
+
+export const hotkeys = {
+  trigger,
+  normalize,
+  actions: ACTIONS,
+  snapKey,
+  comboOfEvent,
+  isSystemEvent,
+  capture,
+  combos: () => effectiveShortcuts(settings.get('shortcuts') || {}),
+  get effective() {
+    return effective;
+  },
+};
 
 export function mount(ctx) {
   api.on('shell:hotkey', (p) => trigger(p?.combo, { repeat: !!p?.repeat }));
@@ -587,7 +672,10 @@ export function mount(ctx) {
     .then((r) => {
       if (Array.isArray(r?.system)) systemCombos = new Set(r.system);
     })
-    .catch(() => {});
+    .catch(() => {})
+    .finally(rebuild);
+  settings.on('shortcuts', rebuild);
+  shell.hotkeys = hotkeys;
   api.on('audio:changed', () => (volCache = null));
   shell.on('lock', () => {
     locked = true;

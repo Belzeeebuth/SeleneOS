@@ -1,6 +1,6 @@
 // Preview pane (Explorer's preview + details panes in one): pictures and text files are extracted on demand
 // to the window's private temp folder and shown inline; other items show their icon and properties.
-import { iconUrl, typeName, previewKind, ratioOf, extOf } from './util.js';
+import { iconUrl, typeName, previewKind, ratioOf, extOf, containsText } from './util.js';
 
 const IMAGE_MAX = 40 * 1024 * 1024;
 const TEXT_MAX = 16 * 1024 * 1024;
@@ -55,10 +55,10 @@ export class PreviewPane {
     if (n.dir) {
       const rows = [
         [t('preview.type'), isRoot ? t('props.archiveType', { fmt: (L.format || '').toUpperCase() }) : typeName(n, t)],
-        [t('preview.contains'), t('props.containsVal', { files: i18n.formatNumber(n.files), dirs: i18n.formatNumber(n.dirs) })],
+        [t('preview.contains'), containsText(n.files, n.dirs, t, i18n)],
         [t('preview.size'), size(n.tsize)],
         L.perEntryPacked || isRoot ? [t('preview.packed'), size(isRoot ? L.size : n.tpacked)] : null,
-        L.perEntryPacked || isRoot ? [t('preview.ratio'), pct(i18n, ratioOf(n.tsize, isRoot ? L.size : n.tpacked))] : null,
+        L.perEntryPacked || isRoot ? [t('preview.ratio'), pct(this.w, ratioOf(n.tsize, isRoot ? L.size : n.tpacked))] : null,
         [t('preview.modified'), date(isRoot ? L.mtime : n.mtime)],
         isRoot && L.encrypted ? [t('props.encrypted'), L.headersEncrypted ? t('props.encHeaders') : t('props.encData')] : null,
       ];
@@ -74,7 +74,7 @@ export class PreviewPane {
       [t('preview.type'), typeName(n, t)],
       [t('preview.size'), size(n.size)],
       L.perEntryPacked && n.packed != null ? [t('preview.packed'), size(n.packed)] : null,
-      L.perEntryPacked && n.packed != null ? [t('preview.ratio'), pct(i18n, ratioOf(n.size, n.packed))] : null,
+      L.perEntryPacked && n.packed != null ? [t('preview.ratio'), pct(this.w, ratioOf(n.size, n.packed))] : null,
       [t('preview.modified'), date(n.mtime)],
       n.link ? [t('props.linkTarget'), n.link] : null,
       n.encrypted ? [t('props.encrypted'), t('common.yes')] : null,
@@ -85,7 +85,7 @@ export class PreviewPane {
     this.el.replaceChildren(stage, h('div', { class: 'arc-pv-title subtitle', 'data-tip': n.name }, n.name), this.meta(rows), h('div', { class: 'arc-pv-actions' }, openBtn, extractBtn));
     const showIcon = (msg) => {
       stage.classList.remove('loading');
-      stage.replaceChildren(h('img', { class: 'arc-pv-icon', src: iconUrl(n), alt: '' }), msg ? h('div', { class: 'caption text-2 arc-pv-msg' }, msg) : null);
+      stage.replaceChildren(...[h('img', { class: 'arc-pv-icon', src: iconUrl(n), alt: '' }), msg ? h('div', { class: 'caption text-2 arc-pv-msg' }, msg) : null].filter(Boolean));
     };
     if (!kind) return showIcon();
     if ((kind === 'image' && n.size > IMAGE_MAX) || (kind === 'text' && n.size > TEXT_MAX)) return showIcon(t('preview.tooBig'));
@@ -113,7 +113,7 @@ export class PreviewPane {
         } else if (res.binary) showIcon(t('preview.binary'));
         else {
           const pre = h('pre', { class: ['arc-pv-text', 'selectable', extOf(n.name) === '.md' && 'md'], tabindex: '0', 'aria-label': n.name }, res.text || '');
-          stage.replaceChildren(pre, res.truncated ? h('div', { class: 'caption text-2 arc-pv-trunc' }, t('preview.truncated')) : null);
+          stage.replaceChildren(...[pre, res.truncated ? h('div', { class: 'caption text-2 arc-pv-trunc' }, t('preview.truncated')) : null].filter(Boolean));
         }
       })
       .catch((e) => {
@@ -129,6 +129,6 @@ export class PreviewPane {
   }
 }
 
-function pct(i18n, r) {
-  return r == null ? '' : `${i18n.formatNumber(Math.round(r * 100))} %`;
+function pct(w, r) {
+  return r == null ? '' : w.t('fmt.pct', { n: w.i18n.formatNumber(Math.round(r * 100)) });
 }

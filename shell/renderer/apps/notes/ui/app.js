@@ -315,7 +315,7 @@ export class NotesApp {
         actions || null,
       );
     const kids = [
-      item('all', { kind: 'all' }, 'notebook_section', t('view.all'), counts.all, { drop: (ids) => this.restoreIfDeleted(ids) }),
+      item('all', { kind: 'all' }, 'document_multiple', t('view.all'), counts.all, { drop: (ids) => this.restoreIfDeleted(ids) }),
       item('pinned', { kind: 'pinned' }, 'pin', t('view.pinned'), counts.pinned, { drop: (ids) => this.store.setMeta(ids, { pinned: true, pinnedAt: Date.now(), deletedAt: null }) }),
       item('deleted', { kind: 'deleted' }, 'delete', t('view.deleted'), counts.deleted, { drop: (ids) => this.deleteNotes(ids) }),
     ];

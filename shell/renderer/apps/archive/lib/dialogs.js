@@ -1,6 +1,6 @@
 // Dialogs of the Archive Manager: extract, new archive, password, unsafe items, zip bomb, properties,
 // test results and errors. Every dialog is scoped to its window (parent: win) and keyboard accessible.
-import { FORMATS, LEVELS, basename, dirname, joinPath, withFormatExt, formatOfName, splitExt, typeName, ratioOf, modeString, iconUrl } from './util.js';
+import { FORMATS, LEVELS, basename, dirname, joinPath, withFormatExt, formatOfName, splitExt, typeName, ratioOf, modeString, iconUrl, methodName, containsText } from './util.js';
 import { shared } from './shared.js';
 import { errorInfo } from './ops.js';
 
@@ -92,7 +92,7 @@ function existingParent(p) {
 // ------------------------------------------------------------------ new archive
 /** -> { sources, dest, format, level, password, encryptNames } | null */
 export async function newArchiveDialog(w, { sources = [], dir = null, name = null } = {}) {
-  const { h, t, ui, icon, api, i18n } = w;
+  const { h, t, ui, icon, api } = w;
   const xdg = await api.invoke('fs:xdg').catch(() => ({ documents: '/' }));
   let srcs = [...sources];
   let location = dir || (srcs[0] ? dirname(srcs[0]) : xdg.documents);
@@ -165,7 +165,7 @@ export async function newArchiveDialog(w, { sources = [], dir = null, name = nul
         h(
           'div',
           { class: 'arc-src', role: 'listitem', 'data-tip': p },
-          h('img', { src: iconUrl({ name: basename(p), dir: !/\.[^/]+$/.test(basename(p)) && false }), alt: '', class: 'arc-src-ic', dataset: { path: p } }),
+          h('img', { src: iconUrl({ name: basename(p), dir: false }), alt: '', class: 'arc-src-ic', dataset: { path: p } }),
           h('span', { class: 'ellipsis grow' }, basename(p)),
           h('button', { class: 'btn subtle icon-btn small', 'aria-label': t('newArc.removeItem', { name: basename(p) }), 'data-tip': t('newArc.removeItem', { name: basename(p) }), onclick: () => ((srcs = srcs.filter((x) => x !== p)), renderSources()) }, icon('dismiss', { size: 12 })),
         ),
@@ -237,6 +237,7 @@ export async function newArchiveDialog(w, { sources = [], dir = null, name = nul
         let password = null;
         if (f?.encrypt && pw1.value) {
           if (/[\r\n]/.test(pw1.value)) return fail(t('newArc.badPassword'), pw1);
+          if (format === 'zip' && !/^[\x20-\x7e]+$/.test(pw1.value)) return fail(t('newArc.asciiOnly'), pw1);
           if (pw1.value !== pw2.value) return fail(t('newArc.mismatch'), pw2);
           password = pw1.value;
         }
@@ -253,7 +254,6 @@ export async function newArchiveDialog(w, { sources = [], dir = null, name = nul
     const ok = await ui.confirm(t('newArc.replaceBody', { name: basename(result.dest) }), { title: t('newArc.replaceTitle'), okLabel: t('newArc.replaceOk'), parent: w.win });
     if (!ok) return newArchiveDialog(w, { sources: result.sources, dir: dirname(result.dest), name: basename(result.dest) });
   }
-  void i18n;
   return result;
 }
 
@@ -323,7 +323,7 @@ export async function unsafeDialog(w, unsafe) {
     h(
       'ul',
       { class: 'arc-unsafe-list' },
-      shown.map((u) => h('li', null, h('span', { class: 'mono ellipsis selectable' }, u.path), h('span', { class: 'caption text-2' }, t(`unsafe.${u.reason}`)))),
+      shown.map((u) => h('li', null, h('span', { class: 'mono ellipsis selectable', 'data-tip': u.link ? `${u.path} → ${u.link}` : u.path }, u.link ? `${u.path} → ${u.link}` : u.path), h('span', { class: 'caption text-2' }, t(`unsafe.${u.reason}`)))),
       unsafe.length > shown.length ? h('li', { class: 'caption text-2' }, t('unsafe.more', { n: i18n.formatNumber(unsafe.length - shown.length) })) : null,
     ),
   );
@@ -415,16 +415,16 @@ export async function propertiesDialog(w, nodes) {
   const rows = [];
   const row = (k, v) => v !== '' && v != null && rows.push(h('div', { class: 'arc-prop' }, h('div', { class: 'arc-prop-k text-2' }, k), h('div', { class: 'arc-prop-v selectable' }, v)));
   const fmtDate = (ms) => (ms ? i18n.formatDate(ms, { dateStyle: 'long', timeStyle: 'short' }) : '');
-  const pct = (r) => (r == null ? '' : `${i18n.formatNumber(Math.round(r * 100))} %`);
+  const pct = (r) => (r == null ? '' : t('fmt.pct', { n: i18n.formatNumber(Math.round(r * 100)) }));
   let head;
   if (!nodes.length) {
     head = { icon: iconUrl({ name: L.name }), name: L.name, sub: t('props.archiveType', { fmt: (L.format || '').toUpperCase() }) };
     row(t('props.location'), dirname(L.path));
     row(t('props.sizeOnDisk'), `${i18n.formatSize(L.size)} (${t('props.bytes', { n: i18n.formatNumber(L.size) })})`);
-    row(t('props.contains'), t('props.containsVal', { files: i18n.formatNumber(L.files), dirs: i18n.formatNumber(L.dirs) }));
+    row(t('props.contains'), containsText(L.files, L.dirs, t, i18n));
     row(t('props.uncompressed'), `${i18n.formatSize(L.totalSize)} (${t('props.bytes', { n: i18n.formatNumber(L.totalSize) })})`);
     row(t('props.ratio'), L.totalSize ? pct(ratioOf(L.totalSize, L.size)) : '');
-    row(t('props.method'), L.method || '');
+    row(t('props.method'), methodName(L.method, t));
     if (L.kind === '7z') row(t('props.solid'), L.solid ? t('common.yes') : t('common.no'));
     row(t('props.encrypted'), L.headersEncrypted ? t('props.encHeaders') : L.encrypted ? t('props.encData') : t('common.no'));
     row(t('props.modified'), fmtDate(L.mtime));
@@ -435,7 +435,7 @@ export async function propertiesDialog(w, nodes) {
     head = { icon: iconUrl(n), name: n.name, sub: typeName(n, t) };
     row(t('props.locationIn'), `${L.name}/${n.parent?.path ? `${n.parent.path}/` : ''}`);
     if (n.dir) {
-      row(t('props.contains'), t('props.containsVal', { files: i18n.formatNumber(n.files), dirs: i18n.formatNumber(n.dirs) }));
+      row(t('props.contains'), containsText(n.files, n.dirs, t, i18n));
       row(t('props.size'), i18n.formatSize(n.tsize));
       if (L.perEntryPacked) row(t('props.packed'), i18n.formatSize(n.tpacked));
     } else {
@@ -444,7 +444,7 @@ export async function propertiesDialog(w, nodes) {
         row(t('props.packed'), i18n.formatSize(n.packed));
         row(t('props.ratio'), pct(ratioOf(n.size, n.packed)));
       }
-      if (n.method) row(t('props.method'), n.method);
+      if (n.method) row(t('props.method'), methodName(n.method, t));
       if (n.link) row(t('props.linkTarget'), n.link);
     }
     row(t('props.modified'), fmtDate(n.mtime));
@@ -454,7 +454,8 @@ export async function propertiesDialog(w, nodes) {
     const files = nodes.reduce((s, n) => s + (n.dir ? n.files : 1), 0);
     const size = nodes.reduce((s, n) => s + (n.dir ? n.tsize : n.size), 0);
     head = { icon: iconUrl({ dir: false, name: '' }), name: t('props.multi', { count: nodes.length, n: i18n.formatNumber(nodes.length) }), sub: '' };
-    row(t('props.locationIn'), `${L.name}/${w.folder?.path ? `${w.folder.path}/` : ''}`);
+    const parents = new Set(nodes.map((n) => n.parent?.path ?? ''));
+    if (parents.size === 1) row(t('props.locationIn'), `${L.name}/${[...parents][0] ? `${[...parents][0]}/` : ''}`);
     row(t('props.contains'), t('props.filesVal', { count: files, n: i18n.formatNumber(files) }));
     row(t('props.size'), i18n.formatSize(size));
   }

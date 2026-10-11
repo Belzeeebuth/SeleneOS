@@ -24,8 +24,12 @@ export function errorInfo(t, e) {
     EINVAL: 'err.invalid',
     EEXIST: 'err.exists',
     ETIMEDOUT: 'err.timeout',
+    EZIPPASSWORD: 'err.zipPassword',
   };
-  return { message: t(known[code] || 'err.generic'), details: String(e?.message || e || ''), code };
+  // The backend's own (English) text is worth showing only when it adds something: tool output for
+  // damaged archives, unsupported methods, permissions or unexpected failures.
+  const withDetails = !known[code] || ['ECORRUPT', 'ENOTSUP', 'EACCES', 'EPERM', 'EROFS', 'ETOOL', 'EINVAL'].includes(code);
+  return { message: t(known[code] || 'err.generic'), details: withDetails ? String(e?.message || e || '') : '', code };
 }
 
 /**
@@ -52,6 +56,7 @@ export class Progress {
     if (mode === 'inline') {
       this.body.appendChild(h('div', { class: 'arc-prog-actions' }, this.cancelBtn));
       host.replaceChildren(this.body);
+      requestAnimationFrame(() => w.fitTask?.()); // the compact window grows if the panel doesn't fit
     } else {
       this.timer = setTimeout(() => this.open(), delay);
     }
@@ -92,7 +97,7 @@ export class Progress {
       this.pctEl.textContent = t('prog.percent', { pct: Math.floor(pct * 100) });
       this.w.win.setProgress?.(pct);
     }
-    if (p.total > 0) this.countEl.textContent = t('prog.items', { done: i18n.formatNumber(Math.min(p.done, p.total)), total: i18n.formatNumber(p.total) });
+    if (p.total > 0) this.countEl.textContent = t('prog.items', { count: p.total, done: i18n.formatNumber(Math.min(p.done, p.total)), total: i18n.formatNumber(p.total) });
     else if (p.done > 0) this.countEl.textContent = t('prog.itemsDone', { count: p.done, n: i18n.formatNumber(p.done) });
     if (p.current) {
       this.curEl.textContent = p.current;
@@ -112,7 +117,7 @@ export class Progress {
     this.closed = true;
     clearTimeout(this.timer);
     this.dialogDone?.(null);
-    this.w.win.setProgress?.(null);
+    if (!this.w.win.closed) this.w.win.setProgress?.(null);
   }
 }
 
@@ -128,12 +133,25 @@ export async function withProgress(w, opts, fn) {
   });
   w.busy = (w.busy || 0) + 1;
   w.onBusy?.();
+  w.activeOps?.add(opId); // canceled if the window closes
   try {
     return await fn(opId);
   } finally {
+    w.activeOps?.delete(opId);
     off();
     prog.close();
     w.busy--;
     w.onBusy?.();
+  }
+}
+
+/** Run fn(opId) for a background operation (no progress UI) that the window cancels when it closes. */
+export async function tracked(w, fn) {
+  const opId = newOpId();
+  w.activeOps?.add(opId);
+  try {
+    return await fn(opId);
+  } finally {
+    w.activeOps?.delete(opId);
   }
 }

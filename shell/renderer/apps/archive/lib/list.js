@@ -41,6 +41,7 @@ export class DetailsList {
     });
     this.el.addEventListener('contextmenu', (e) => this.onContext(e));
     this.el.addEventListener('dragstart', (e) => {
+      this.dropPendingUp(); // a drag swallows the pointerup: the "collapse on release" must not fire later
       const i = this.indexAt(e);
       if (i < 0) return e.preventDefault();
       if (!this.selected.has(this.items[i].path)) this.selectOnly(i);
@@ -52,7 +53,10 @@ export class DetailsList {
       this.w.dragEnd?.();
     });
     this.el.addEventListener('focus', () => this.el.classList.toggle('kb', true));
-    this.ro = new ResizeObserver(() => this.schedule(true));
+    this.ro = new ResizeObserver(() => {
+      this.fit();
+      this.schedule();
+    });
     this.ro.observe(this.el);
   }
 
@@ -63,11 +67,43 @@ export class DetailsList {
   // ---------------------------------------------------------------- columns
   setColumns(cols) {
     this.columns = cols;
+    for (const c of cols) c.eff = c.width;
     this.renderHead();
+    this.fit();
     this.schedule(true);
   }
   totalWidth() {
-    return this.columns.reduce((s, c) => s + c.width, 0) + 16;
+    return this.columns.reduce((s, c) => s + (c.eff ?? c.width), 0);
+  }
+  /** Avoid a horizontal scrollbar when it can be: when the columns don't fit, they give up width (Name
+   *  first, then Type, Date modified, Folder, Compressed size, Size, Ratio) down to their minimum widths.
+   *  Columns the user resized by hand keep their width. */
+  fit() {
+    const avail = Math.max(0, this.el.clientWidth - 16);
+    if (!avail || !this.columns.length || this.userSized) return;
+    const MIN = { name: 132, type: 84, mtime: 120, location: 110, packed: 96, size: 68, ratio: 50 };
+    const ORDER = ['name', 'type', 'mtime', 'location', 'packed', 'size', 'ratio'];
+    const eff = new Map(this.columns.map((c) => [c, c.width]));
+    let excess = this.columns.reduce((t, c) => t + c.width, 0) - avail;
+    for (const key of ORDER) {
+      if (excess <= 0) break;
+      const c = this.columns.find((x) => x.key === key);
+      if (!c) continue;
+      const give = Math.max(0, Math.min(excess, c.width - Math.min(c.width, MIN[key] || 60)));
+      eff.set(c, c.width - give);
+      excess -= give;
+    }
+    let changed = false;
+    for (const c of this.columns) {
+      if (eff.get(c) !== c.eff) {
+        c.eff = eff.get(c);
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    [...this.head.children].forEach((cell, i) => this.columns[i] && (cell.style.width = `${this.columns[i].eff}px`));
+    this.inner.style.setProperty('--w-total', `${this.totalWidth()}px`);
+    this.applyWidths();
   }
   renderHead() {
     const { h, icon } = this.w;
@@ -79,9 +115,8 @@ export class DetailsList {
         {
           class: ['arc-dh-cell', c.align === 'end' && 'end', sort.key === c.key && 'sorted'],
           role: 'columnheader',
-          tabindex: '-1',
           'aria-sort': sort.key === c.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none',
-          style: { width: `${c.width}px` },
+          style: { width: `${c.eff ?? c.width}px` },
           dataset: { key: c.key },
           onclick: (e) => {
             if (e.target.closest('.arc-col-resize')) return;
@@ -100,12 +135,12 @@ export class DetailsList {
     e.preventDefault();
     e.stopPropagation();
     const x0 = e.clientX;
-    const w0 = col.width;
+    const w0 = col.eff ?? col.width;
     const target = e.currentTarget;
     target.setPointerCapture?.(e.pointerId);
     this.inner.classList.add('resizing');
     const move = (ev) => {
-      col.width = Math.max(col.min || 56, Math.min(900, Math.round(w0 + ev.clientX - x0)));
+      col.width = col.eff = Math.max(col.min || 56, Math.min(900, Math.round(w0 + ev.clientX - x0)));
       cell.style.width = `${col.width}px`;
       this.inner.style.setProperty('--w-total', `${this.totalWidth()}px`);
       this.applyWidths();
@@ -115,6 +150,7 @@ export class DetailsList {
       target.removeEventListener('pointerup', up);
       target.removeEventListener('pointercancel', up);
       this.inner.classList.remove('resizing');
+      this.userSized = true; // the user's widths win over auto-fitting from now on
       shared.setPref('widths', { ...shared.prefs.widths, [col.key]: col.width });
     };
     target.addEventListener('pointermove', move);
@@ -124,7 +160,7 @@ export class DetailsList {
   applyWidths() {
     for (const row of this.rowEls.values()) {
       [...row.children].forEach((cell, i) => {
-        if (this.columns[i]) cell.style.width = `${this.columns[i].width}px`;
+        if (this.columns[i]) cell.style.width = `${this.columns[i].eff ?? this.columns[i].width}px`;
       });
     }
   }
@@ -225,17 +261,17 @@ export class DetailsList {
           break;
         case 'ratio': {
           const r = n.dir ? null : ratioOf(n.size, n.packed);
-          content = r == null ? '' : `${i18n.formatNumber(Math.round(r * 100))} %`;
+          content = r == null ? '' : t('fmt.pct', { n: i18n.formatNumber(Math.round(r * 100)) });
           break;
         }
         case 'mtime':
-          content = n.mtime ? i18n.formatDate(n.mtime, { dateStyle: 'short', timeStyle: 'short' }) : '';
+          content = n.mtime ? i18n.formatDate(n.mtime, { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }).replace(',', '') : '';
           break;
         case 'location':
           content = n.parent?.path ? `${L?.name || ''}/${n.parent.path}` : L?.name || '';
           break;
       }
-      return h('div', { class: ['arc-cell', `c-${c.key}`, c.align === 'end' && 'end'], role: 'gridcell', style: { width: `${c.width}px` } }, content);
+      return h('div', { class: ['arc-cell', `c-${c.key}`, c.align === 'end' && 'end'], role: 'gridcell', style: { width: `${c.eff ?? c.width}px` } }, content);
     });
     const row = h(
       'div',
@@ -328,7 +364,12 @@ export class DetailsList {
   }
 
   // ---------------------------------------------------------------- input
+  dropPendingUp() {
+    if (this.pendingUp) this.el.removeEventListener('pointerup', this.pendingUp);
+    this.pendingUp = null;
+  }
   onPointerDown(e) {
+    this.dropPendingUp();
     if (e.target.closest('.arc-dh')) return;
     if (e.button !== 0 && e.button !== 2) return;
     const i = this.indexAt(e);
@@ -353,9 +394,10 @@ export class DetailsList {
       // click inside a multi-selection: keep it for dragging, collapse on release without a drag
       this.focusIndex = i;
       const up = () => {
-        this.el.removeEventListener('pointerup', up);
+        this.dropPendingUp();
         if (!this.dragging) this.selectOnly(i);
       };
+      this.pendingUp = up;
       this.el.addEventListener('pointerup', up);
       this.paintState();
     }
@@ -474,5 +516,7 @@ export class DetailsList {
   destroy() {
     this.ro.disconnect();
     cancelAnimationFrame(this.raf);
+    clearTimeout(this.typeTimer);
+    this.dropPendingUp();
   }
 }

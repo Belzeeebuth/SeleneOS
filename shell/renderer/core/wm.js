@@ -38,6 +38,7 @@
 //   win.desktop               -> id of the virtual desktop the window lives on
 //   wm.mru({ desktop, includeMinimized = true }) -> windows, most recently focused first (Alt+Tab order)
 //   wm.zoneRect(zone, win?)   -> {x, y, width, height} of a snap zone in the current work area
+//       (also 'z:x,y,w,h' = a custom zone in fractions of the work area, from the user's snap layouts)
 //   Virtual desktops:
 //     wm.desktops             -> [{ id, name }]  (name null = default "Desktop N"; use wm.desktopName(id))
 //     wm.currentDesktop       -> id of the active desktop
@@ -1013,8 +1014,14 @@ class WindowManager extends Emitter {
         const width = win ? win.w : hw;
         return R(Math.max(wa.x, Math.min(x, wa.x + wa.width - width)), wa.y, Math.min(width, wa.width), wa.height);
       }
-      default:
-        return null;
+      default: {
+        // Custom zone of a user snap layout (settings snapPresets): 'z:x,y,w,h', fractions of the work area.
+        const m = /^z:(0|1|0?\.\d{1,4}),(0|1|0?\.\d{1,4}),(0|1|0?\.\d{1,4}),(0|1|0?\.\d{1,4})$/.exec(String(zone || ''));
+        if (!m) return null;
+        const [fx, fy, fw, fh] = m.slice(1).map(Number);
+        if (fw <= 0 || fh <= 0 || fx + fw > 1.001 || fy + fh > 1.001) return null;
+        return R(wa.x + fx * wa.width, wa.y + fy * wa.height, fw * wa.width, fh * wa.height);
+      }
     }
   }
   create(opts = {}) {

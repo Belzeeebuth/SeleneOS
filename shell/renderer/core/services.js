@@ -100,12 +100,20 @@ export const shell = {
   lock() {
     emitter.emit('lock');
   },
+  // The shutdown sound (sound pack / soundEvents.shutdown) plays before the session ends (at most ~1 s).
   async logout() {
     emitter.emit('logout');
+    await sounds.playAndWait?.('shutdown', 1000);
     await api.invoke('session:logout');
   },
-  shutdown: () => api.invoke('power:shutdown'),
-  reboot: () => api.invoke('power:reboot'),
+  async shutdown() {
+    await sounds.playAndWait?.('shutdown', 1000);
+    return api.invoke('power:shutdown');
+  },
+  async reboot() {
+    await sounds.playAndWait?.('shutdown', 1000);
+    return api.invoke('power:reboot');
+  },
   suspend: () => api.invoke('power:suspend'),
 };
 

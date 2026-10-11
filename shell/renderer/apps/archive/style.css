@@ -1,0 +1,1410 @@
+/* Archive Manager — Windows 11 File Explorer "compressed folder" look. Colours come from the theme tokens
+   (core/tokens.css), so visual styles, per-app themes and high contrast apply automatically.
+   Every rule is scoped under .app-archive. */
+
+.app-archive {
+  --arc-content: var(--card-solid);
+  --arc-field: var(--input-focus-bg);
+  --arc-hover: var(--subtle-hover);
+  --arc-sel: color-mix(in srgb, var(--accent) 15%, transparent);
+  --arc-sel-hover: color-mix(in srgb, var(--accent) 21%, transparent);
+  --arc-sel-stroke: color-mix(in srgb, var(--accent) 38%, transparent);
+  --arc-row-h: 30px;
+}
+:root[data-theme="dark"] .app-archive {
+  --arc-content: color-mix(in srgb, var(--bg-alt), black 14%);
+  --arc-field: var(--control);
+  --arc-sel: color-mix(in srgb, var(--accent) 26%, transparent);
+  --arc-sel-hover: color-mix(in srgb, var(--accent) 32%, transparent);
+  --arc-sel-stroke: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.app-archive [hidden] {
+  display: none !important;
+}
+.app-archive .arc-root {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--fs-caption);
+  line-height: var(--lh-caption);
+  container-type: inline-size;
+}
+.app-archive .arc-root.busy,
+.app-archive .arc-root.busy .arc-row,
+.app-archive .arc-root.loading .arc-scroll {
+  cursor: progress;
+}
+.app-archive .arc-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------------------------------------------------------- address row */
+.app-archive .arc-top {
+  flex: none;
+}
+.app-archive .arc-addrrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 12px 0 8px;
+}
+.app-archive .arc-navbtns {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+.app-archive .arc-navbtn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  transition: background var(--dur-fast) linear;
+}
+.app-archive .arc-navbtn:hover {
+  background: var(--subtle-hover);
+}
+.app-archive .arc-navbtn:active {
+  background: var(--subtle-pressed);
+}
+.app-archive .arc-navbtn .icon {
+  transition: transform var(--dur) var(--ease);
+}
+.app-archive .arc-navbtn:active .icon {
+  transform: scale(0.88);
+}
+.app-archive .arc-navbtn:disabled {
+  color: var(--text-disabled);
+  background: transparent;
+}
+.app-archive .arc-navbtn.spin .icon {
+  animation: arc-spin 0.5s var(--ease);
+}
+@keyframes arc-spin {
+  from {
+    transform: rotate(-200deg);
+  }
+}
+.app-archive .arc-address {
+  position: relative;
+  flex: 1;
+  min-width: 100px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--control-stroke);
+  background: var(--arc-field);
+  overflow: hidden;
+}
+.app-archive .arc-root.loading .arc-address::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 18%, transparent), transparent) no-repeat;
+  background-size: 40% 100%;
+  animation: arc-busy 1.2s linear infinite;
+  pointer-events: none;
+}
+@keyframes arc-busy {
+  from {
+    background-position: -60% 0;
+  }
+  to {
+    background-position: 160% 0;
+  }
+}
+.app-archive .arc-crumbs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  overflow: hidden;
+}
+.app-archive .arc-crumb,
+.app-archive .arc-crumb-chev,
+.app-archive .arc-crumb-more {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+.app-archive .arc-crumb {
+  max-width: 260px;
+  padding: 0 6px;
+  min-width: 0;
+  flex: 0 1 auto; /* what is left after collapsing into "…" shrinks with an ellipsis (narrow windows) */
+}
+.app-archive .arc-crumb > .ellipsis {
+  min-width: 0;
+}
+.app-archive .arc-crumbs.measuring .arc-crumb {
+  flex: none;
+}
+.app-archive .arc-crumb.search {
+  color: var(--text-2);
+  padding: 0 6px;
+}
+.app-archive .arc-crumb-chev,
+.app-archive .arc-crumb-more {
+  width: 20px;
+  justify-content: center;
+  color: var(--text-2);
+}
+.app-archive .arc-crumb-chev .icon {
+  transition: transform var(--dur) var(--ease);
+}
+.app-archive .arc-crumb-chev.open .icon {
+  transform: rotate(90deg);
+}
+.app-archive .arc-crumb-chev:disabled {
+  opacity: 0.5;
+}
+.app-archive .arc-crumb:hover,
+.app-archive .arc-crumb-chev:not(:disabled):hover,
+.app-archive .arc-crumb-more:hover,
+.app-archive .arc-crumb-chev.open {
+  background: var(--subtle-hover);
+}
+.app-archive .arc-crumb:active {
+  background: var(--subtle-pressed);
+}
+.app-archive .arc-crumb-ic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.app-archive .arc-search {
+  position: relative;
+  flex: 0 1 260px;
+  min-width: 140px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--control-stroke);
+  background: var(--arc-field);
+  transition: background var(--dur-fast) linear;
+}
+.app-archive .arc-search:focus-within {
+  border-bottom: 2px solid var(--accent);
+}
+.app-archive .arc-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0 4px 0 11px;
+  font-size: var(--fs-caption);
+  color: var(--text);
+  outline: none;
+  text-overflow: ellipsis; /* "Search <long archive name>" in a narrow window */
+}
+.app-archive .arc-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+.app-archive .arc-search-input::placeholder {
+  color: var(--text-3);
+}
+.app-archive .arc-search-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 26px;
+  margin-right: 2px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  pointer-events: none;
+}
+.app-archive .arc-search.has-text .arc-search-btn {
+  pointer-events: auto;
+}
+.app-archive .arc-search.has-text .arc-search-btn:hover {
+  background: var(--subtle-hover);
+}
+
+/* ---------------------------------------------------------------- command bar */
+.app-archive .arc-cmdbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 48px;
+  padding: 0 10px;
+  border-top: 1px solid var(--stroke);
+  overflow: hidden;
+}
+.app-archive .arc-cmd {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 32px;
+  min-width: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+  transition: background var(--dur-fast) linear;
+}
+.app-archive .arc-cmd.has-text {
+  padding: 0 10px;
+}
+.app-archive .arc-cmd:hover {
+  background: var(--subtle-hover);
+}
+.app-archive .arc-cmd:active {
+  background: var(--subtle-pressed);
+}
+.app-archive .arc-cmd > .icon:first-child {
+  transition: transform var(--dur) var(--ease);
+}
+.app-archive .arc-cmd:active > .icon:first-child {
+  transform: scale(0.9);
+}
+.app-archive .arc-cmd:disabled {
+  color: var(--text-disabled);
+  background: transparent;
+}
+.app-archive .arc-cmd:disabled .icon {
+  opacity: 0.55;
+}
+.app-archive .arc-cmd.accent-icon:not(:disabled) > .icon:first-child {
+  color: var(--accent);
+}
+.app-archive .arc-cmd .arc-cmd-chev {
+  color: var(--text-2);
+  margin-left: -2px;
+  width: 12px;
+  height: 12px;
+}
+.app-archive .arc-cmd.toggled {
+  background: var(--subtle-selected);
+}
+.app-archive .arc-cmd-sep {
+  flex: none;
+  width: 1px;
+  height: 24px;
+  margin: 0 6px;
+  background: var(--stroke-strong);
+}
+
+/* ---------------------------------------------------------------- main area */
+.app-archive .arc-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: var(--arc-content);
+  border-top: 1px solid var(--stroke);
+}
+.app-archive .arc-navpane {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.app-archive .arc-split {
+  position: relative;
+  flex: none;
+  width: 5px;
+  margin: 0 -2px;
+  z-index: 4;
+  cursor: col-resize;
+}
+.app-archive .arc-split::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--stroke);
+  transition: background var(--dur-fast) linear;
+}
+.app-archive .arc-split:hover::after,
+.app-archive .arc-split.active::after {
+  left: 1px;
+  width: 3px;
+  background: var(--accent);
+  opacity: 0.6;
+}
+.app-archive .arc-content {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* navigation tree */
+.app-archive .arc-tree {
+  flex: 1;
+  overflow: auto;
+  overflow-x: hidden;
+  padding: 6px 6px 16px;
+  outline: none;
+}
+.app-archive .arc-tnode {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding-right: 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  white-space: nowrap;
+}
+.app-archive .arc-tnode:hover {
+  background: var(--arc-hover);
+}
+.app-archive .arc-tnode:active {
+  background: var(--subtle-pressed);
+}
+.app-archive .arc-tnode.selected {
+  background: var(--subtle-selected);
+}
+.app-archive .arc-tnode.selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: arc-pill var(--dur-slow) var(--ease);
+}
+@keyframes arc-pill {
+  from {
+    transform: scaleY(0);
+  }
+}
+.app-archive .arc-tree:focus-visible .arc-tnode.focused {
+  outline: 1px solid var(--text-2);
+  outline-offset: -1px;
+}
+.app-archive .arc-tchev {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-xs);
+  color: var(--text-2);
+  opacity: 0;
+  transition: transform var(--dur) var(--ease), opacity var(--dur-fast) linear;
+}
+.app-archive .arc-navpane:hover .arc-tchev,
+.app-archive .arc-tree:focus-within .arc-tchev,
+.app-archive .arc-tchev.open {
+  opacity: 1;
+}
+.app-archive .arc-tchev.open {
+  transform: rotate(90deg);
+}
+.app-archive .arc-tchev.none {
+  visibility: hidden;
+}
+.app-archive .arc-tchev:hover {
+  background: var(--subtle-hover);
+}
+.app-archive .arc-tic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.app-archive .arc-tlabel {
+  min-width: 0;
+}
+
+/* infobars */
+.app-archive .arc-infos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 4px;
+}
+.app-archive .arc-info {
+  align-items: center;
+  padding: 8px 12px;
+  font-size: var(--fs-caption);
+  animation: arc-drop-in var(--dur-slow) var(--ease);
+}
+.app-archive .arc-info > .icon {
+  margin-top: 0;
+}
+@keyframes arc-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+/* ---------------------------------------------------------------- details list */
+.app-archive .arc-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+  position: relative;
+}
+.app-archive .arc-scroll.enter .arc-rows,
+.app-archive .arc-scroll.enter .arc-empty {
+  animation: arc-enter 0.22s var(--ease);
+}
+@keyframes arc-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.app-archive .arc-inner {
+  position: relative;
+  min-height: 100%;
+  width: max(100%, calc(var(--w-total, 0px) + 16px));
+  padding: 0 8px 24px;
+}
+.app-archive .arc-dh {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: stretch;
+  height: 32px;
+  margin: 0 -8px 2px;
+  padding: 0 8px;
+  background: var(--arc-content);
+}
+.app-archive .arc-dh-cell {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  color: var(--text-2);
+  transition: background var(--dur-fast) linear;
+}
+.app-archive .arc-dh-cell + .arc-dh-cell::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--stroke-strong);
+}
+.app-archive .arc-dh-cell:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-archive .arc-dh-cell:active {
+  background: var(--subtle-pressed);
+}
+.app-archive .arc-dh-cell.end {
+  justify-content: flex-end;
+}
+.app-archive .arc-sort-ind {
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--text-2);
+  line-height: 0;
+}
+.app-archive .arc-col-resize {
+  position: absolute;
+  right: -5px;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  z-index: 2;
+  cursor: col-resize;
+}
+.app-archive .arc-inner.resizing,
+.app-archive .arc-inner.resizing * {
+  cursor: col-resize !important;
+}
+.app-archive .arc-rows {
+  position: relative;
+}
+.app-archive .arc-row {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  min-width: 100%;
+  width: var(--w-total);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  transition: background-color var(--dur-fast) linear;
+}
+.app-archive .arc-row:hover {
+  background-color: var(--arc-hover);
+}
+.app-archive .arc-row.selected {
+  background-color: var(--arc-sel);
+}
+.app-archive .arc-row.selected:hover {
+  background-color: var(--arc-sel-hover);
+}
+.app-archive .arc-scroll:focus-visible .arc-row.focused,
+.app-archive .arc-scroll.kb:focus .arc-row.focused {
+  border-color: var(--text-2);
+}
+.app-archive .arc-scroll:focus .arc-row.selected.focused {
+  border-color: var(--arc-sel-stroke);
+}
+.app-archive .arc-scroll:focus-visible .arc-row.selected.focused {
+  border-color: var(--text-2);
+}
+.app-archive .arc-cell {
+  flex: none;
+  padding: 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-2);
+}
+.app-archive .arc-cell.end {
+  text-align: right;
+}
+.app-archive .arc-cell.c-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+.app-archive .arc-ic {
+  position: relative;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+}
+.app-archive .arc-ic > img {
+  width: 16px;
+  height: 16px;
+}
+.app-archive .arc-ic > img.arc-link-ov {
+  position: absolute;
+  left: -1px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+}
+.app-archive .arc-name {
+  min-width: 0;
+}
+.app-archive .arc-lock {
+  flex: none;
+  display: inline-grid;
+  color: var(--text-2);
+}
+.app-archive .arc-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text-2);
+}
+
+/* ---------------------------------------------------------------- preview pane */
+.app-archive .arc-preview {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 16px 20px;
+  overflow: auto;
+  outline: none;
+}
+.app-archive .arc-pv-hero,
+.app-archive .arc-pv-stage {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  border-radius: var(--radius);
+  animation: arc-fade var(--dur-slow) var(--ease);
+}
+@keyframes arc-fade {
+  from {
+    opacity: 0;
+  }
+}
+.app-archive .arc-pv-stage {
+  position: relative;
+  max-height: 58%;
+  min-height: 170px;
+  overflow: hidden;
+}
+.app-archive .arc-pv-stage.loading {
+  background: var(--subtle-hover);
+}
+.app-archive .arc-pv-icon {
+  width: 96px;
+  height: 96px;
+}
+.app-archive .arc-pv-stack {
+  position: relative;
+  width: 120px;
+  height: 104px;
+}
+.app-archive .arc-pv-stack img {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  left: 20px;
+  top: 12px;
+}
+.app-archive .arc-pv-stack img:nth-child(2) {
+  transform: translate(-14px, 8px) rotate(-8deg);
+  opacity: 0.85;
+}
+.app-archive .arc-pv-stack img:nth-child(3) {
+  transform: translate(14px, 8px) rotate(8deg);
+  opacity: 0.7;
+}
+.app-archive .arc-pv-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-tooltip);
+  opacity: 0;
+  transform: scale(0.98);
+  transition: opacity var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease);
+}
+.app-archive .arc-pv-stage.ready .arc-pv-img {
+  opacity: 1;
+  transform: none;
+}
+.app-archive .arc-pv-stage:has(.arc-pv-text) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  place-items: stretch;
+  max-height: 64%;
+  min-height: 200px;
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+}
+.app-archive .arc-pv-text {
+  flex: 1;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-caption);
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+  outline: none;
+}
+.app-archive .arc-pv-trunc {
+  padding: 4px 12px 8px;
+}
+.app-archive .arc-pv-msg {
+  margin-top: -36px;
+  text-align: center;
+  max-width: 90%;
+}
+.app-archive .arc-pv-lock {
+  color: var(--text-3);
+}
+.app-archive .arc-pv-stage:has(.arc-pv-lock) {
+  gap: 6px;
+  align-content: center;
+}
+.app-archive .arc-pv-stage:has(.arc-pv-lock) .arc-pv-msg {
+  margin-top: 0;
+}
+.app-archive .arc-pv-title {
+  font-size: var(--fs-body-large);
+  line-height: var(--lh-body-large);
+  word-break: break-word;
+}
+.app-archive .arc-pv-meta {
+  display: grid;
+  gap: 8px;
+}
+.app-archive .arc-pv-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 40%) 1fr;
+  gap: 8px;
+}
+.app-archive .arc-pv-v {
+  word-break: break-word;
+}
+.app-archive .arc-pv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------------------------------------------------------------- status bar & toast */
+.app-archive .arc-status {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 28px;
+  padding: 0 14px;
+  background: var(--arc-content);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.app-archive .arc-status-l,
+.app-archive .arc-status-r {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.app-archive .arc-status-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--stroke-strong);
+}
+.app-archive .arc-fmt-badge {
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  background: var(--subtle-selected);
+  border: 1px solid var(--stroke);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.app-archive .arc-status-lock {
+  display: inline-grid;
+  color: var(--text-2);
+}
+.app-archive .arc-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 40px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(560px, calc(100% - 32px));
+  min-height: 40px;
+  padding: 6px 8px 6px 16px;
+  border-radius: var(--radius);
+  background: var(--acrylic-solid);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  font-size: var(--fs-caption);
+  transform: translateX(-50%);
+  animation: arc-toast-in var(--dur-slow) var(--ease);
+}
+.app-archive .arc-toast.out {
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition: opacity var(--dur) var(--ease-in), transform var(--dur) var(--ease-in);
+}
+@keyframes arc-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
+
+/* ---------------------------------------------------------------- drag & drop */
+.app-archive .arc-drop {
+  position: absolute;
+  inset: 6px;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  pointer-events: none;
+  animation: arc-fade var(--dur) linear;
+}
+.app-archive .arc-drop.blocked {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+}
+.app-archive .arc-drop-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 80%;
+  padding: 14px 20px;
+  border-radius: var(--radius);
+  background: var(--acrylic-solid);
+  border: 1px solid var(--window-stroke);
+  box-shadow: var(--shadow-flyout);
+  font-size: var(--fs-body);
+  color: var(--text);
+}
+.app-archive .arc-drop-card .icon {
+  color: var(--accent);
+}
+.arc-drag-ghost {
+  position: fixed;
+  left: -200px;
+  top: -200px;
+  width: 48px;
+  height: 48px;
+}
+.arc-drag-ghost img {
+  width: 48px;
+  height: 48px;
+}
+.arc-drag-ghost span {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: 600 11px/18px var(--font);
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- welcome */
+.app-archive .arc-welcome {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--arc-content);
+}
+.app-archive .arc-welcome-inner {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 40px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: arc-enter var(--dur-slower) var(--ease);
+}
+.app-archive .arc-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.app-archive .arc-hero .title {
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+}
+.app-archive .arc-hero .text-2 {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.app-archive .arc-wcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.app-archive .arc-wcard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 76px;
+  padding: 14px 16px;
+  text-align: left;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+  color: var(--text);
+  font-size: var(--fs-body);
+  transition: background var(--dur-fast) linear, transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.app-archive .arc-wcard:hover {
+  background: var(--card-hover);
+  box-shadow: var(--shadow-tooltip);
+}
+.app-archive .arc-wcard:active {
+  transform: scale(0.985);
+  background: var(--subtle-pressed);
+}
+.app-archive .arc-wcard-ic {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-archive .arc-wcard.create .arc-wcard-ic {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.app-archive .arc-wcard-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-archive .arc-wcard-key {
+  align-self: flex-start;
+}
+.app-archive .arc-wdrop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.app-archive .arc-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-archive .arc-recent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  font-size: var(--fs-body);
+}
+.app-archive .arc-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-archive .arc-recent-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto auto 32px;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 4px 4px 4px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+  font-size: var(--fs-body);
+  outline: none;
+  transition: background var(--dur-fast) linear;
+}
+.app-archive .arc-recent-row:hover {
+  background: var(--card-hover);
+}
+.app-archive .arc-recent-row:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--text));
+  outline-offset: -2px;
+}
+.app-archive .arc-recent-row.missing {
+  opacity: 0.6;
+}
+.app-archive .arc-recent-ic {
+  width: 24px;
+  height: 24px;
+}
+.app-archive .arc-recent-text {
+  min-width: 0;
+}
+.app-archive .arc-recent-x {
+  opacity: 0;
+}
+.app-archive .arc-recent-row:hover .arc-recent-x,
+.app-archive .arc-recent-row:focus-within .arc-recent-x {
+  opacity: 1;
+}
+.app-archive .arc-recent-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--stroke-strong);
+  color: var(--text-3);
+  font-size: var(--fs-body);
+}
+.app-archive .arc-formats {
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- compact task window */
+.app-archive.arc-compact-win .win-resize {
+  display: none;
+}
+.app-archive .arc-task {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 24px 20px;
+  background: var(--arc-content);
+}
+.app-archive .arc-task .arc-prog {
+  flex: 1;
+}
+.app-archive .arc-task-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--danger);
+}
+.app-archive .arc-task-head .arc-prog-title {
+  color: var(--text);
+}
+
+/* ---------------------------------------------------------------- progress (dialog + task) */
+.app-archive .arc-prog-dialog {
+  width: 480px;
+}
+.app-archive .arc-prog {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--fs-body);
+}
+.app-archive .arc-prog-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle);
+  line-height: var(--lh-subtitle);
+  font-weight: 600;
+}
+.app-archive .arc-task .arc-prog-title {
+  font-size: var(--fs-body-large);
+  line-height: var(--lh-body-large);
+}
+.app-archive .arc-prog-line {
+  color: var(--text-2);
+}
+.app-archive .arc-prog-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.app-archive .arc-prog-pct {
+  font-weight: 600;
+  min-height: var(--lh-body);
+}
+.app-archive .arc-prog-bar {
+  height: 6px;
+  border-radius: 3px;
+}
+.app-archive .arc-prog-bar > .bar {
+  border-radius: 3px;
+}
+.app-archive .arc-prog-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--lh-caption);
+}
+.app-archive .arc-prog-cur {
+  min-height: var(--lh-caption);
+}
+.app-archive .arc-prog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+.app-archive .arc-prog-actions .btn {
+  min-width: 100px;
+}
+
+/* ---------------------------------------------------------------- dialogs */
+.app-archive .arc-dlg {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.app-archive .arc-dlg .field {
+  margin: 0;
+}
+.app-archive .arc-dlg .row > .input {
+  min-width: 0;
+}
+.app-archive .arc-dlg-intro {
+  margin-top: -4px;
+}
+.app-archive .arc-err {
+  color: var(--danger);
+  min-height: 16px;
+}
+.app-archive .arc-err:empty {
+  display: none;
+}
+.app-archive .arc-src-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.app-archive .arc-src-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 132px;
+  overflow: auto;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+}
+.app-archive .arc-src {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 4px 0 8px;
+  border-radius: var(--radius-sm);
+}
+.app-archive .arc-src:hover {
+  background: var(--subtle-hover);
+}
+.app-archive .arc-src-ic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.app-archive .arc-src-empty {
+  padding: 8px;
+}
+.app-archive .arc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.app-archive .arc-fmt {
+  flex: none;
+  width: 116px;
+}
+.app-archive .arc-sep {
+  height: 1px;
+  background: var(--stroke);
+}
+.app-archive .arc-enc {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px 12px;
+}
+.app-archive .arc-enc .input {
+  width: 100%;
+  min-width: 0;
+}
+.app-archive .arc-dlg-new {
+  gap: 10px;
+}
+.app-archive .arc-dlg-new .field {
+  gap: 4px;
+}
+.app-archive .arc-dlg-new .arc-src-list {
+  max-height: 106px;
+}
+.app-archive .arc-enc > .field:first-child .row .input {
+  flex: 1;
+}
+.app-archive .arc-enc > .checkbox,
+.app-archive .arc-enc > .field-hint {
+  grid-column: 1 / -1;
+}
+.app-archive .arc-pw-head,
+.app-archive .arc-warn-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.app-archive .arc-pw-ic {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-archive .arc-warn-ic {
+  flex: none;
+  color: var(--warning);
+}
+.app-archive .arc-dlg-warn .arc-warn-head > div:last-child {
+  padding-top: 4px;
+}
+.app-archive .arc-unsafe-list {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+  max-height: 200px;
+  overflow: auto;
+}
+.app-archive .arc-unsafe-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 6px;
+}
+.app-archive .arc-unsafe-list li .mono {
+  font-size: var(--fs-caption);
+  min-width: 0;
+}
+.app-archive .arc-unsafe-list li .caption {
+  flex: none;
+}
+.app-archive .arc-details {
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+  font-size: var(--fs-caption);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.app-archive .arc-details-toggle {
+  align-self: flex-start;
+  margin-left: -8px;
+}
+.app-archive .arc-test-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.app-archive .arc-test-head.ok .arc-test-ic {
+  color: var(--success);
+}
+.app-archive .arc-test-head.bad .arc-test-ic {
+  color: var(--danger);
+}
+.app-archive .arc-props-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--stroke);
+}
+.app-archive .arc-props-head .subtitle {
+  max-width: 380px;
+}
+.app-archive .arc-props {
+  display: grid;
+  gap: 8px;
+  font-size: var(--fs-body);
+}
+.app-archive .arc-prop {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 12px;
+}
+.app-archive .arc-prop-v {
+  word-break: break-word;
+}
+
+/* ---------------------------------------------------------------- compact density */
+.app-archive .arc-root.compact .arc-tnode {
+  height: 26px;
+}
+.app-archive .arc-root.compact .arc-addrrow,
+.app-archive .arc-root.compact .arc-cmdbar {
+  height: 42px;
+}
+
+/* ---------------------------------------------------------------- narrow windows */
+.app-archive .arc-cmd[data-cmd="more"] {
+  display: none;
+}
+@container (max-width: 620px) {
+  .app-archive .arc-cmd[data-cmd="copy"],
+  .app-archive .arc-cmd[data-cmd="test"],
+  .app-archive .arc-cmd[data-cmd="props"],
+  .app-archive .arc-cmd[data-cmd="sort"],
+  .app-archive .arc-cmd[data-cmd="view"],
+  .app-archive .arc-cmd-sep.arc-wide {
+    display: none;
+  }
+  .app-archive .arc-cmd[data-cmd="more"] {
+    display: inline-flex;
+  }
+}
+@container (max-width: 900px) {
+  .app-archive .arc-cmd[data-cmd="test"] .arc-cmd-label,
+  .app-archive .arc-cmd[data-cmd="sort"] .arc-cmd-label,
+  .app-archive .arc-cmd[data-cmd="view"] .arc-cmd-label {
+    display: none;
+  }
+  .app-archive .arc-cmd[data-cmd="test"],
+  .app-archive .arc-cmd[data-cmd="sort"],
+  .app-archive .arc-cmd[data-cmd="view"] {
+    padding: 0 8px;
+  }
+}
+@container (max-width: 700px) {
+  .app-archive .arc-cmd .arc-cmd-label {
+    display: none;
+  }
+  .app-archive .arc-cmd.has-text {
+    padding: 0 8px;
+  }
+  .app-archive .arc-search {
+    flex-basis: 150px;
+    min-width: 110px;
+  }
+  .app-archive .arc-navbtn.refresh {
+    display: none;
+  }
+  .app-archive .arc-status-r > :not(.arc-fmt-badge):not(.arc-status-lock) {
+    display: none;
+  }
+}
+@container (max-width: 520px) {
+  .app-archive .arc-navbtn.fwd {
+    display: none;
+  }
+  .app-archive .arc-cmd-sep {
+    margin: 0 2px;
+  }
+  .app-archive .arc-welcome-inner {
+    padding: 24px 16px;
+  }
+  .app-archive .arc-recent-row {
+    grid-template-columns: 24px minmax(0, 1fr) 32px;
+  }
+  .app-archive .arc-recent-size,
+  .app-archive .arc-recent-date {
+    display: none;
+  }
+}

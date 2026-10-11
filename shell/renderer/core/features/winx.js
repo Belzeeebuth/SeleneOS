@@ -155,11 +155,16 @@ export async function toggleWinX() {
   // Above the Start button with the same gap as the Start menu (never touching the taskbar).
   const barTop = Math.min(r?.top ?? Infinity, document.getElementById('taskbar')?.getBoundingClientRect().top ?? Infinity, window.innerHeight - wm.insets.bottom);
   const lift = Number.isFinite(barTop) ? barTop - 8 : window.innerHeight - 56;
-  const at = r && r.width ? { x: r.left, y: lift, anchor: new DOMRect(r.left, lift, r.width, 1) } : { x: 12, y: lift, anchor: new DOMRect(12, lift, 40, 1) };
+  let at = r && r.width ? { x: r.left, y: lift, anchor: new DOMRect(r.left, lift, r.width, 1) } : { x: 12, y: lift, anchor: new DOMRect(12, lift, 40, 1) };
+  // Taskbar on another edge (personalization, taskbar.position): under / beside the Start button.
+  const pos = document.documentElement.dataset.tbPos || 'bottom';
+  if (r && r.width && pos === 'top') at = { x: r.left, y: r.bottom + 8 };
+  else if (r && r.width && pos === 'left') at = { x: r.right + 8, y: r.top };
+  else if (r && r.width && pos === 'right') at = { x: r.left - 8, y: r.top, sub: new DOMRect(r.left - 4, r.top, 1, 1) };
   winxOpen = true;
   start?.classList.add('open');
   try {
-    await openAccelMenu(at, winxItems(), { prevWin: wm.focused(), above: true });
+    await openAccelMenu(at, winxItems(), { prevWin: wm.focused(), above: pos === 'bottom' });
   } finally {
     winxOpen = false;
     start?.classList.remove('open');

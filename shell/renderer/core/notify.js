@@ -7,8 +7,8 @@
 //   notifications.activate(id)  -> runs the notification's onClick and removes it
 //   notifications.on('change', fn)
 // Icon may be a Fluent icon name or a URL. If no icon is given, the app icon is used.
-// Do not disturb (settings.notifications.dnd) and notifications.enabled === false keep history but
-// suppress toasts and sounds. `urgent: true` (alarms and timers, see reminders.js) still shows its
+// Do not disturb (settings.notifications.dnd), Focus mode's quiet (<html data-focus-quiet="on">) and
+// notifications.enabled === false keep history but suppress toasts and sounds. `urgent: true` (alarms and timers, see reminders.js) still shows its
 // toast with Do not disturb on, like Windows lets alarms through, so a ringing alarm can be stopped.
 import { api, Emitter } from './api.js';
 import { h, icon } from './ui.js';
@@ -116,7 +116,9 @@ export function notify(opts = {}) {
   if (history.length > 100) history.pop();
   emitter.emit('change');
   const prefs = settings.get('notifications') || {};
-  if (prefs.enabled === false || (prefs.dnd && !opts.urgent)) return n.id;
+  // Focus mode (features/focus.js, "hide notifications") is a temporary Do not disturb.
+  const focusQuiet = document.documentElement.dataset.focusQuiet === 'on';
+  if (prefs.enabled === false || ((prefs.dnd || focusQuiet) && !opts.urgent)) return n.id;
   if (!opts.silent && prefs.sounds !== false) sounds.play('notify');
   if (!host) return n.id;
 
@@ -206,9 +208,12 @@ export function notify(opts = {}) {
   return n.id;
 }
 
-// Hide toasts as soon as Do not disturb turns on.
+// Hide toasts as soon as Do not disturb (or Focus mode's quiet) turns on.
 settings.on('notifications', (v) => {
   if (v?.dnd) for (const close of [...toasts.values()]) close();
 });
+new MutationObserver(() => {
+  if (document.documentElement.dataset.focusQuiet === 'on') for (const close of [...toasts.values()]) close();
+}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-focus-quiet'] });
 
 export { i18n };

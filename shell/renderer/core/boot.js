@@ -16,6 +16,7 @@ import { desktop } from './desktop.js';
 import { sounds } from './sounds.js';
 import { reminders } from './reminders.js';
 import { h, ui } from './ui.js';
+import { packs } from './packs.js';
 
 // Feature modules in core/features/ are discovered at runtime; FEATURES only fixes the load order.
 // A broken feature is logged and skipped — it never blocks the desktop.
@@ -35,6 +36,12 @@ async function main() {
   setShellServices(shell);
   await registry.load();
   reminders.init(registry).catch((err) => console.error('[boot] reminders failed', err));
+  // cursor + icon packs (personalization) before the taskbar, Start and desktop draw any app icon
+  try {
+    packs.init();
+  } catch (err) {
+    console.error('[boot] packs failed', err);
+  }
 
   const $ = (id) => document.getElementById(id);
   wm.mount($('windows'));
@@ -44,7 +51,7 @@ async function main() {
   taskbar.mount($('taskbar'));
   start.mount($('start'));
 
-  const ctx = { api, env, i18n, t, settings, theme, wm, registry, shell, notify, notifications, taskbar, start, desktop, sounds, h, ui };
+  const ctx = { api, env, i18n, t, settings, theme, wm, registry, shell, notify, notifications, taskbar, start, desktop, sounds, packs, h, ui };
   window.__aurora = ctx; // handy for debugging & tests
   const available = new Set(await api.invoke('shell:features').catch(() => []));
   const ordered = [...FEATURES.filter((f) => available.has(f)), ...[...available].filter((f) => !FEATURES.includes(f)).sort()];

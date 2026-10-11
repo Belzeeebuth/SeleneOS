@@ -23,6 +23,7 @@ const STRINGS = {
       nightLight: 'Night light',
       darkMode: 'Dark mode',
       dnd: 'Do not disturb',
+      focus: 'Focus',
       accessibility: 'Accessibility',
       brightness: 'Brightness',
       volume: 'Volume',
@@ -70,6 +71,7 @@ const STRINGS = {
       nightLight: 'Éclairage nocturne',
       darkMode: 'Mode sombre',
       dnd: 'Ne pas déranger',
+      focus: 'Concentration',
       accessibility: 'Accessibilité',
       brightness: 'Luminosité',
       volume: 'Volume',
@@ -230,6 +232,8 @@ function renderMain() {
     tile({ key: 'nightLight', label: t('quick.nightLight'), iconName: 'weather_moon', on: !!s.nightLight, onToggle: (v) => settings.set('nightLight', v) }),
     tile({ key: 'darkMode', label: t('quick.darkMode'), iconName: 'dark_theme', on: s.theme === 'dark', onToggle: (v) => settings.set('theme', v ? 'dark' : 'light') }),
     tile({ key: 'dnd', label: t('quick.dnd'), iconName: 'alert_snooze', on: !!s.notifications?.dnd, onToggle: (v) => settings.set('notifications.dnd', v) }),
+    // Focus mode (features/focus.js): hides notifications, dims the desktop, simplifies the taskbar
+    tile({ key: 'focus', label: t('quick.focus'), iconName: 'target', on: !!s.focusMode?.active, onToggle: (v) => shell.emit(v ? 'focus:start' : 'focus:stop') }),
     tile({ key: 'accessibility', label: t('quick.accessibility'), iconName: 'accessibility', on: a11yActive, onMore: () => showPage('a11y') }),
   );
 
