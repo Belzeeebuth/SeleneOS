@@ -174,7 +174,11 @@ export class NotesStore {
         }
       }
       const html = sanitizeHtml(f.html || '', { attachments: true, allowMedia: true, allowRemote: true });
-      this.notes.set(f.id, this.withBody(meta, html));
+      const note = this.withBody(meta, html);
+      // a note file too large to be read (edited outside the app) is listed but never rewritten from the
+      // empty body we have in memory: that would destroy its content
+      if (f.tooBig) note.tooBig = true;
+      this.notes.set(f.id, note);
     }
     if (Object.keys(idxNotes).some((id) => !this.notes.has(id))) dirty = true; // folders deleted outside the app
     if (!this.notebooks.length) {
@@ -254,7 +258,7 @@ export class NotesStore {
   /** Write a note file (serialized per note). Resolves when the bytes are on disk. */
   writeNote(id) {
     const n = this.notes.get(id);
-    if (!n) return Promise.resolve();
+    if (!n || n.tooBig) return Promise.resolve();
     const payload = { html: n.html, meta: this.metaForFile(n), title: n.title || n.firstLine || '', lang: this.locale.slice(0, 2) };
     const prev = this.noteChains.get(id) || Promise.resolve();
     const next = prev
@@ -307,6 +311,7 @@ export class NotesStore {
     const n = this.notes.get(id);
     if (!n) return null;
     const next = this.withBody({ ...n, title: title !== undefined ? String(title).slice(0, 500) : n.title, modified: touch ? Date.now() : n.modified }, html !== undefined ? html : n.html);
+    if (n.tooBig) next.tooBig = true;
     this.notes.set(id, next);
     const p = this.writeNote(id);
     this.saveIndex();

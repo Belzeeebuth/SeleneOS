@@ -8,6 +8,7 @@
 import { sanitizeFragment, sanitizeHtml, TEXT_COLORS, HIGHLIGHTS, ATTACHMENT_RE, safeLinkUrl, inertDocument } from '../lib/sanitize.js';
 import { plainText, countWords, countChars, findRanges, foldText } from '../lib/text.js';
 import { History } from './history.js';
+import { trustedDragPaths } from '../../../core/desktop.js';
 import { popover, closePopover, arrowNav } from './popover.js';
 import {
   closestBlock, topBlock, closest, editorRange, normalizeRoot, emptyLine, isEmptyBlock, blocksInRange, retag, unwrap,
@@ -1784,17 +1785,10 @@ export class Editor {
       window.getSelection().removeAllRanges();
       window.getSelection().addRange(pos);
     } else this.focusBody();
-    // files from File Explorer / the desktop
-    let paths = [];
-    try {
-      paths = JSON.parse(dt.getData('application/x-aurora-paths') || '[]');
-    } catch {}
-    if (!paths.length) {
-      paths = (dt.getData('text/uri-list') || '')
-        .split(/\r?\n/)
-        .filter((l) => l.startsWith('file://'))
-        .map((l) => decodeURIComponent(l.slice(7)));
-    }
+    // Files from File Explorer / the desktop. Security: the shell's paths format (and file:// links) only
+    // count when the drag started in the shell itself; a web page (browser tab, mail body) can forge them
+    // to make the note copy any local picture. Real dropped files still arrive through dt.files.
+    const paths = trustedDragPaths(dt);
     const files = imageFiles(dt);
     if (paths.length) {
       const imgs = paths.filter((p) => IMAGE_EXT.test(p));

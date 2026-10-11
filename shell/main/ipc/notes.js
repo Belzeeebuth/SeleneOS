@@ -35,6 +35,8 @@ const ID_RE = /^[A-Za-z0-9_-]{6,64}$/;
 const ATT_RE = /^att-[a-z0-9]{8}(?:-[a-z0-9-]{1,40})?\.[a-z0-9]{2,5}$/;
 const MAX_ATTACHMENT = 50 * 1024 * 1024;
 const MAX_NOTE = 32 * 1024 * 1024;
+const MAX_INDEX = 64 * 1024 * 1024;
+const MAX_IDS = 10000;
 const BODY_START = '<!--aurora:body-->';
 const BODY_END = '<!--/aurora:body-->';
 
@@ -74,6 +76,15 @@ function err(message, code) {
 function noteDir(id) {
   if (typeof id !== 'string' || !ID_RE.test(id)) throw err('Invalid note id', 'EINVAL');
   return path.join(rootDir(), id);
+}
+
+// The note's folder, refusing one that was replaced by a symlink or a file: writes, collections and exports
+// must never follow a link out of the notes folder. (The Notes folder itself may be a link: that's the user's.)
+async function safeNoteDir(id) {
+  const dir = noteDir(id);
+  const st = await fsp.lstat(dir).catch(() => null);
+  if (st && !st.isDirectory()) throw err('The note folder is not a folder', 'EACCES');
+  return dir;
 }
 
 // ---------------------------------------------------------------- atomic, serialized writes
@@ -178,7 +189,10 @@ function parsePage(text) {
   const a = text.indexOf(BODY_START);
   const b = text.lastIndexOf(BODY_END);
   if (a >= 0 && b > a) html = text.slice(a + BODY_START.length, b);
-  else {
+  else if (a >= 0) {
+    // truncated file (disk full / copied while being written elsewhere): keep everything after the marker
+    html = text.slice(a + BODY_START.length).replace(/<\/body>\s*(<\/html>\s*)?$/i, '');
+  } else {
     // edited by hand / another program: take the <body> (the renderer sanitizes it anyway)
     const body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(text);
     html = body ? body[1] : text;
@@ -205,6 +219,13 @@ function sniff(buf) {
   const head = b.toString('utf8', 0, Math.min(b.length, 512)).trimStart().toLowerCase();
   if (head.startsWith('<svg') || (head.startsWith('<?xml') && head.includes('<svg'))) return 'svg';
   return null;
+}
+
+// An SVG is a document that can carry scripts: they never run inside <img> (how notes show pictures), but the
+// file could be opened on its own later (File Explorer -> browser). Refuse anything active.
+function unsafeSvg(buf) {
+  const s = buf.toString('utf8');
+  return /<\s*(script|foreignobject|iframe|embed|object|handler|use\b[^>]*href\s*=\s*["']?\s*(?!#))|\son[a-z]+\s*=|(java|vb)script\s*:|data\s*:\s*text\/html|<!entity|xlink:href\s*=\s*["']?\s*(?!#|data:image\/)/i.test(s);
 }
 
 function slugOf(name) {
@@ -242,26 +263,54 @@ async function fetchImage(url) {
     if (!res.ok) throw err(`HTTP ${res.status}`, 'EHTTP');
     const len = Number(res.headers.get('content-length') || 0);
     if (len > MAX_ATTACHMENT) throw err('Picture is too large', 'ETOOBIG');
-    const buf = Buffer.from(await res.arrayBuffer());
+    // read with a cap (a server can lie about / omit Content-Length)
+    const chunks = [];
+    let total = 0;
+    if (res.body && typeof res.body.getReader === 'function') {
+      const reader = res.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.length;
+        if (total > MAX_ATTACHMENT) {
+          ctl.abort();
+          throw err('Picture is too large', 'ETOOBIG');
+        }
+        chunks.push(Buffer.from(value));
+      }
+    } else chunks.push(Buffer.from(await res.arrayBuffer()));
+    const buf = Buffer.concat(chunks);
     if (buf.length > MAX_ATTACHMENT) throw err('Picture is too large', 'ETOOBIG');
-    return { buf, mime: String(res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase(), name: decodeURIComponent(new URL(url).pathname.split('/').pop() || '') };
+    let fileName = '';
+    try {
+      fileName = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
+    } catch {}
+    return { buf, mime: String(res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase(), name: fileName };
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function attach(id, src = {}) {
-  const dir = noteDir(id);
+async function attach(id, src) {
+  const dir = await safeNoteDir(id);
+  if (!src || typeof src !== 'object') throw err('Nothing to attach', 'EINVAL');
   let buf = null;
-  let name = src.name || '';
+  let name = typeof src.name === 'string' ? src.name : '';
   let mime = '';
   if (src.bytes) {
+    if (!(src.bytes instanceof Uint8Array || src.bytes instanceof ArrayBuffer || Array.isArray(src.bytes))) throw err('Invalid picture data', 'EINVAL');
+    if ((src.bytes.byteLength ?? src.bytes.length) > MAX_ATTACHMENT) throw err('Picture is too large', 'ETOOBIG');
     buf = Buffer.from(src.bytes instanceof ArrayBuffer ? new Uint8Array(src.bytes) : src.bytes);
   } else if (typeof src.dataUrl === 'string') {
+    if (src.dataUrl.length > MAX_ATTACHMENT * 1.4) throw err('Picture is too large', 'ETOOBIG');
     const m = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(src.dataUrl);
     if (!m) throw err('Invalid data URL', 'EINVAL');
     mime = (m[1] || '').toLowerCase();
-    buf = m[2] ? Buffer.from(m[3], 'base64') : Buffer.from(decodeURIComponent(m[3]), 'utf8');
+    try {
+      buf = m[2] ? Buffer.from(m[3], 'base64') : Buffer.from(decodeURIComponent(m[3]), 'utf8');
+    } catch {
+      throw err('Invalid data URL', 'EINVAL');
+    }
   } else if (typeof src.path === 'string' && path.isAbsolute(src.path)) {
     const st = await fsp.stat(src.path);
     if (!st.isFile()) throw err('Not a file', 'EISDIR');
@@ -278,10 +327,18 @@ async function attach(id, src = {}) {
   // the bytes decide the type (a declared MIME type / extension is never trusted)
   const ext = sniff(buf);
   if (!ext) throw err(mime && !MIME_EXT[mime] ? `Unsupported picture type (${mime})` : 'This file is not a supported picture', 'ENOTIMAGE');
-  await fsp.mkdir(dir, { recursive: true });
-  const file = await freeAttachmentName(dir, slugOf(name), ext);
-  await atomicWrite(path.join(dir, file), buf);
-  return { name: file, path: path.join(dir, file), size: buf.length, mime: IMAGE_TYPES[ext] };
+  if (ext === 'svg' && unsafeSvg(buf)) throw err('This SVG picture contains scripts or external content', 'ENOTIMAGE');
+  // serialized with notes:gc of the same note: a collection never runs while a picture is being written
+  return serialize(attKey(id), async () => {
+    await fsp.mkdir(dir, { recursive: true });
+    const file = await freeAttachmentName(dir, slugOf(name), ext);
+    await atomicWrite(path.join(dir, file), buf);
+    return { name: file, path: path.join(dir, file), size: buf.length, mime: IMAGE_TYPES[ext] };
+  });
+}
+
+function attKey(id) {
+  return `${noteDir(id)}#attachments`;
 }
 
 // ---------------------------------------------------------------- open
@@ -331,7 +388,7 @@ async function open() {
     if (!e.isDirectory() || !ID_RE.test(e.name)) continue;
     const file = path.join(root, e.name, 'note.html');
     try {
-      const st = await fsp.stat(file);
+      const st = await fsp.lstat(file); // a symlinked note.html is not followed
       if (!st.isFile()) continue;
       await cleanTemps(path.join(root, e.name));
       if (st.size > MAX_NOTE) {
@@ -346,12 +403,18 @@ async function open() {
 }
 
 async function removeDirs(ids) {
+  const list = Array.isArray(ids) ? ids : [ids];
+  if (list.length > MAX_IDS) throw err('Too many notes', 'EINVAL');
+  const dirs = list.map(noteDir); // validate every id before deleting anything
   let n = 0;
-  for (const id of Array.isArray(ids) ? ids : [ids]) {
-    const dir = noteDir(id);
-    await serialize(path.join(dir, 'note.html'), async () => {
-      await fsp.rm(dir, { recursive: true, force: true });
-    });
+  for (let i = 0; i < dirs.length; i++) {
+    const dir = dirs[i];
+    // after pending writes of the note file and of its pictures
+    await serialize(path.join(dir, 'note.html'), () =>
+      serialize(attKey(list[i]), async () => {
+        await fsp.rm(dir, { recursive: true, force: true });
+      }),
+    );
     n++;
   }
   return n;
@@ -419,11 +482,27 @@ function insideRoot(p) {
   return abs === root || abs.startsWith(root + path.sep);
 }
 
+// Real path (symlinks resolved) of an attachment inside the notes folder, or null.
+async function realAttachment(p) {
+  if (typeof p !== 'string' || !path.isAbsolute(p) || !insideRoot(p)) return null;
+  try {
+    const [real, root] = await Promise.all([fsp.realpath(p), fsp.realpath(rootDir())]);
+    if (!real.startsWith(root + path.sep)) return null;
+    const st = await fsp.stat(real);
+    return st.isFile() ? { real, size: st.size } : null;
+  } catch {
+    return null;
+  }
+}
+
 module.exports = function register(api) {
   api.handle('notes:open', () => open());
 
-  api.handle('notes:writeNote', async (id, data = {}) => {
-    const file = path.join(noteDir(id), 'note.html');
+  api.handle('notes:writeNote', async (id, data) => {
+    const file = path.join(await safeNoteDir(id), 'note.html');
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw api.error('Invalid note', 'EINVAL');
+    if (data.html != null && typeof data.html !== 'string') throw api.error('Invalid note', 'EINVAL');
+    if (typeof data.html === 'string' && data.html.length > MAX_NOTE) throw api.error('This note is too large to be saved', 'ETOOBIG');
     const text = buildPage(data);
     if (Buffer.byteLength(text) > MAX_NOTE) throw api.error('This note is too large to be saved', 'ETOOBIG');
     return serialize(file, async () => {
@@ -434,13 +513,19 @@ module.exports = function register(api) {
   });
 
   api.handle('notes:writeIndex', async (index) => {
-    if (!index || typeof index !== 'object') throw api.error('Invalid index', 'EINVAL');
+    if (!index || typeof index !== 'object' || Array.isArray(index)) throw api.error('Invalid index', 'EINVAL');
+    if (index.notes != null && (typeof index.notes !== 'object' || Array.isArray(index.notes))) throw api.error('Invalid index', 'EINVAL');
+    if (index.notebooks != null && !Array.isArray(index.notebooks)) throw api.error('Invalid index', 'EINVAL');
     const file = path.join(rootDir(), 'notes.json');
     const text = JSON.stringify(index, null, 1);
+    if (Buffer.byteLength(text) > MAX_INDEX) throw api.error('The notes index is too large', 'ETOOBIG');
     return serialize(file, async () => {
-      // keep the previous good version as a backup (used when notes.json is unreadable)
+      // keep the previous good version as a backup (used when notes.json is unreadable). Only a readable
+      // index is copied: a damaged notes.json must never replace the good backup it is recovered from.
       try {
-        await fsp.copyFile(file, `${file}.bak`);
+        const prev = await fsp.readFile(file, 'utf8');
+        const v = JSON.parse(prev);
+        if (v && typeof v === 'object' && !Array.isArray(v)) await atomicWrite(`${file}.bak`, prev);
       } catch {}
       await atomicWrite(file, text);
       return true;
@@ -450,41 +535,56 @@ module.exports = function register(api) {
   api.handle('notes:remove', (ids) => removeDirs(ids));
 
   api.handle('notes:duplicate', async (srcId, dstId) => {
-    const src = noteDir(srcId);
+    const src = await safeNoteDir(srcId);
     const dst = noteDir(dstId);
-    if (fs.existsSync(dst)) throw api.error('Target exists', 'EEXIST');
-    await copyDir(src, dst);
+    if (src === dst) throw api.error('Same note', 'EINVAL');
+    const st = await fsp.lstat(src).catch(() => null);
+    if (!st || !st.isDirectory()) throw api.error('Note not found', 'ENOENT');
+    if (await fsp.lstat(dst).then(() => true, () => false)) throw api.error('Target exists', 'EEXIST');
+    // wait for pending writes of the source (its note file and pictures)
+    await serialize(path.join(src, 'note.html'), () => serialize(attKey(srcId), () => copyDir(src, dst))).catch(async (e) => {
+      await fsp.rm(dst, { recursive: true, force: true }).catch(() => {});
+      throw e;
+    });
     return true;
   });
 
   api.handle('notes:attach', (id, src) => attach(id, src));
 
-  api.handle('notes:gc', async (id, keep = []) => {
-    const dir = noteDir(id);
-    const keepSet = new Set(Array.isArray(keep) ? keep : []);
-    let n = 0;
-    let names = [];
-    try {
-      names = await fsp.readdir(dir);
-    } catch {
-      return 0;
-    }
-    for (const name of names) {
-      if (!ATT_RE.test(name) || keepSet.has(name)) continue;
-      await fsp.rm(path.join(dir, name), { force: true }).catch(() => {});
-      n++;
-    }
-    return n;
+  api.handle('notes:gc', async (id, keep) => {
+    const dir = await safeNoteDir(id);
+    if (keep != null && !Array.isArray(keep)) throw api.error('Invalid list', 'EINVAL');
+    const keepSet = new Set((keep || []).filter((k) => typeof k === 'string'));
+    return serialize(attKey(id), async () => {
+      let n = 0;
+      let entries = [];
+      try {
+        entries = await fsp.readdir(dir, { withFileTypes: true });
+      } catch {
+        return 0;
+      }
+      for (const e of entries) {
+        if (!ATT_RE.test(e.name) || keepSet.has(e.name) || e.isDirectory()) continue;
+        try {
+          await fsp.rm(path.join(dir, e.name), { force: true });
+          n++;
+        } catch {}
+      }
+      return n;
+    });
   });
 
-  api.handle('notes:exportAssets', async (id, names = [], destDir) => {
-    const dir = noteDir(id);
-    if (typeof destDir !== 'string' || !path.isAbsolute(destDir)) throw api.error('Invalid folder', 'EINVAL');
+  api.handle('notes:exportAssets', async (id, names, destDir) => {
+    const dir = await safeNoteDir(id);
+    if (typeof destDir !== 'string' || !path.isAbsolute(destDir) || destDir.includes('\0')) throw api.error('Invalid folder', 'EINVAL');
+    if (!Array.isArray(names) || names.length > MAX_IDS) throw api.error('Invalid list', 'EINVAL');
     let n = 0;
-    for (const name of names) {
-      if (typeof name !== 'string' || name.includes('/') || name.startsWith('.')) continue;
+    for (const name of new Set(names)) {
+      // attachment names only (no path separators, no dot files, no note.html): and never through a symlink
+      if (typeof name !== 'string' || !ATT_RE.test(name)) continue;
       const src = path.join(dir, name);
-      if (!fs.existsSync(src)) continue;
+      const st = await fsp.lstat(src).catch(() => null);
+      if (!st || !st.isFile()) continue;
       await fsp.mkdir(destDir, { recursive: true });
       await fsp.copyFile(src, path.join(destDir, name));
       n++;
@@ -493,8 +593,10 @@ module.exports = function register(api) {
   });
 
   api.handle('notes:dataUrl', async (p) => {
-    if (!insideRoot(p)) throw api.error('Not a notes attachment', 'EACCES');
-    const buf = await fsp.readFile(p);
+    const at = await realAttachment(p);
+    if (!at) throw api.error('Not a notes attachment', 'EACCES');
+    if (at.size > MAX_ATTACHMENT) throw api.error('Picture is too large', 'ETOOBIG');
+    const buf = await fsp.readFile(at.real);
     const ext = sniff(buf);
     if (!ext) throw api.error('Not a picture', 'ENOTIMAGE');
     return `data:${IMAGE_TYPES[ext]};base64,${buf.toString('base64')}`;
@@ -510,3 +612,4 @@ module.exports = function register(api) {
 module.exports.parsePage = parsePage;
 module.exports.buildPage = buildPage;
 module.exports.sniff = sniff;
+module.exports.unsafeSvg = unsafeSvg;

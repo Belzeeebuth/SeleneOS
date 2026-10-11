@@ -200,6 +200,8 @@ export async function importFiles(app, paths) {
       if (!st || st.dir) throw new Error(t('errors.notAFile'));
       if (st.size > 8 * 1024 * 1024) throw new Error(t('errors.tooBig'));
       const raw = await api.invoke('fs:readText', p);
+      // a picture, archive... renamed .md / .txt: refuse it instead of filling a note with garbage
+      if (/\0/.test(raw.slice(0, 8192)) || (raw.slice(0, 8192).match(/\uFFFD/g) || []).length > 8) throw new Error(t('errors.notText'));
       const fileTitle = p.split('/').pop().replace(/\.(md|markdown|txt)$/i, '');
       const isMd = /\.(md|markdown)$/i.test(p);
       let title = fileTitle;

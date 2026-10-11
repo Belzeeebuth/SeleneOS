@@ -299,7 +299,11 @@ export const ui = {
       // Esc while focus is outside the topmost dialog (e.g. right after it opened) still closes it,
       // and keys never reach the app behind a modal dialog.
       const outsideKeys = (e) => {
-        if (closed || openDialogs[openDialogs.length - 1] !== dlg || layer.contains(e.target)) return;
+        if (closed) return;
+        // The window holding the dialog is gone (closed or removed without its 'close' event): cancel it
+        // so its promise settles and these document handlers don't keep eating Tab / Esc for every app.
+        if (mounted && !layer.isConnected) return done(null);
+        if (openDialogs[openDialogs.length - 1] !== dlg || layer.contains(e.target)) return;
         if (e.key === 'Escape' && closeOnEsc) {
           e.preventDefault();
           e.stopPropagation();
@@ -311,6 +315,9 @@ export const ui = {
         }
       };
       document.addEventListener('keydown', outsideKeys, true);
+      // Closing the parent window cancels its dialogs (the awaiting code gets null, like Esc).
+      const offParentClose = typeof parent?.on === 'function' ? parent.on('close', () => done(null)) : null;
+      let mounted = false;
       const opener = document.activeElement;
       openDialogs.push(dlg);
       layer.addEventListener('pointerdown', (e) => {
@@ -324,6 +331,7 @@ export const ui = {
         if (v !== null && dlg._validate && dlg._validate(v) === false) return;
         closed = true;
         document.removeEventListener('keydown', outsideKeys, true);
+        offParentClose?.();
         const idx = openDialogs.indexOf(dlg);
         if (idx >= 0) openDialogs.splice(idx, 1);
         layer.classList.add('closing');
@@ -338,6 +346,7 @@ export const ui = {
       }
       dlg._done = done;
       host.appendChild(layer);
+      mounted = true;
       const focusTarget = dlg.querySelector('input, textarea, select, [autofocus]') || btns.find((b) => b.classList.contains('primary')) || btns[0];
       focusTarget?.focus({ preventScroll: true }); // synchronously: an early key press must land in the dialog
       setTimeout(() => {

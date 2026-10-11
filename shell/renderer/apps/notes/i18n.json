@@ -141,6 +141,7 @@
       "paste": "The clipboard couldn't be read.\n\n{message}",
       "saveImage": "The picture couldn't be saved.\n\n{message}",
       "notAFile": "not a file",
+      "notText": "not a text file",
       "tooBig": "the file is larger than 8 MB"
     },
     "keys": {
@@ -380,6 +381,7 @@
       "paste": "Impossible de lire le presse-papiers.\n\n{message}",
       "saveImage": "Impossible d’enregistrer l’image.\n\n{message}",
       "notAFile": "ce n’est pas un fichier",
+      "notText": "ce n’est pas un fichier texte",
       "tooBig": "le fichier dépasse 8 Mo"
     },
     "keys": {

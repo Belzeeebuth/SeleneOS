@@ -648,13 +648,32 @@ await section('pictures: paste, drop, pasted HTML pictures -> attachments', asyn
   const picPath = path.join(home, 'Pictures', 'holiday.png');
   fs.writeFileSync(picPath, PNG_ORANGE);
   fs.writeFileSync(path.join(home, 'Pictures', 'readme.txt'), 'not a picture');
+  // security: the same payload from web content (no 'dragstart' in the shell: a browser tab or a mail body
+  // forging the shell's format, or a file:// link) must not make the note copy a local picture
   await run(
     s,
     `(() => {
+      window.dispatchEvent(new PointerEvent('pointerdown'));
+      const dt = new DataTransfer();
+      dt.setData('application/x-aurora-paths', JSON.stringify([${JSON.stringify(picPath)}]));
+      dt.setData('text/uri-list', 'file://' + ${JSON.stringify(picPath)});
+      const b = document.querySelector('${BODY}');
+      const opts = { dataTransfer: dt, bubbles: true, cancelable: true, clientX: ${Math.round(target.x + target.w - 12)}, clientY: ${Math.round(target.y + 10)} };
+      b.dispatchEvent(new DragEvent('dragover', opts));
+      b.dispatchEvent(new DragEvent('drop', opts));
+    })()`,
+  );
+  await sleep(700);
+  check('forged paths drop (not started in the shell) adds no picture', [await run(s, `document.querySelectorAll('${BODY} img').length`), fs.readdirSync(path.join(notesDir(home), id)).filter((f) => f.startsWith('att-')).length], [2, 2]);
+  await run(
+    s,
+    `(() => {
+      document.dispatchEvent(new DragEvent('dragstart', { bubbles: true }));
       const dt = new DataTransfer();
       dt.setData('application/x-aurora-paths', JSON.stringify([${JSON.stringify(picPath)}, ${JSON.stringify(path.join(home, 'Pictures', 'readme.txt'))}]));
       const b = document.querySelector('${BODY}');
       b.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true, clientX: ${Math.round(target.x + target.w - 12)}, clientY: ${Math.round(target.y + 10)} }));
+      document.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
     })()`,
   );
   await until(() => run(s, `document.querySelectorAll('${BODY} img[data-att]').length === 3`), { label: 'explorer drop stored' });
@@ -882,6 +901,8 @@ await section('notebooks: create, rename, colour, emoji, move (menu + drag), del
   workId = nb?.id;
   check('notebook created with colour + emoji', nb && [nb.color, nb.emoji], ['green', '💼']);
   check('new notebook view selected', await run(s, `document.querySelector('${WIN} .nt-list-title').textContent`), 'Work');
+  // the element that opened the dialog was re-rendered: the keyboard must still be in the window (Ctrl+N works)
+  check('focus stays in the window after the notebook dialog', await until(() => run(s, `(() => { const a = document.activeElement; return !!a && a !== document.body && !!a.closest('${WIN}') && !a.closest('.dialog-layer'); })()`), { label: 'focus after create' }), true);
   // a note created here belongs to it
   await newNote(s, 'Meeting notes');
   await s.page.keyboard.type('Agenda #work', { delay: 5 });
@@ -894,6 +915,17 @@ await section('notebooks: create, rename, colour, emoji, move (menu + drag), del
   await s.page.fill(`${DLG} input`, 'Work stuff');
   await dialogButton(s, 'Save');
   check('renamed', await N(s, (app, id) => app.store.notebook(id).name, workId), 'Work stuff');
+  // keyboard rename (F2 on the notebook row): focus comes back to that row once the pane is rebuilt
+  await s.page.focus(`${WIN} .nt-nav-item[data-key="nb:${workId}"]`);
+  await s.page.keyboard.press('F2');
+  await until(() => dialogOpen(s), { label: 'F2 edit dialog' });
+  await sleep(100);
+  await s.page.keyboard.press('End');
+  await s.page.keyboard.type('!', { delay: 5 });
+  await s.page.keyboard.press('Enter');
+  await until(() => N(s, (app, id) => app.store.notebook(id).name === 'Work stuff!', workId), { label: 'F2 rename' });
+  check('F2 rename: focus back on the notebook row', await until(() => run(s, `document.activeElement?.dataset?.key || ''`).then((k) => k === `nb:${workId}` && k), { label: 'focus after F2' }), `nb:${workId}`);
+  await N(s, (app, id) => app.store.updateNotebook(id, { name: 'Work stuff' }), workId);
   check('index updated on disk', await until(async () => {
     await flush(s);
     return JSON.parse(fs.readFileSync(path.join(notesDir(home), 'notes.json'), 'utf8')).notebooks.some((b) => b.name === 'Work stuff');
@@ -919,6 +951,7 @@ await section('notebooks: create, rename, colour, emoji, move (menu + drag), del
   check('notebook removed', await N(s, (app, id) => !!app.store.notebook(id), workId), false);
   check('its note is in Recently deleted', !!(await byTitle(s, 'Meeting notes')).deletedAt, true);
   check('view back to All notes', await run(s, `document.querySelector('${WIN} .nt-list-title').textContent`), 'All notes');
+  check('focus stays in the window after deleting the notebook', await until(() => run(s, `(() => { const a = document.activeElement; return !!a && a !== document.body && !!a.closest('${WIN}') && !a.closest('.dialog-layer'); })()`), { label: 'focus after delete' }), true);
   await N(s, async (app) => {
     const id = app.store.all().find((n) => n.title === 'Meeting notes').id;
     await app.restoreNotes([id], { reveal: false });
@@ -996,6 +1029,14 @@ await section('export (.md + pictures, .txt, .html) and import roundtrip', async
   check('md import: checklist + table + picture', trip && [trip.title, trip.html.includes('<ul data-type="checklist"><li data-checked="true">Book train</li>'), trip.html.includes('<th>Day</th>'), /<img src="att-[a-z0-9]{8}-map\.png"/.test(trip.html), /<script/i.test(trip.html)], ['Trip to Lyon', true, true, true, false]);
   const txtNote = (await notes(s)).find((n) => n.id === ids2[1]);
   check('txt import keeps lines and escapes markup', txtNote && [txtNote.title, txtNote.text], ['todo', 'First line\n\nThird <line>']);
+  // a binary file renamed .md is refused with a message instead of becoming a note full of garbage
+  const bin = path.join(mdDir, 'photo.md');
+  fs.writeFileSync(bin, Buffer.concat([PNG_BLUE, Buffer.from([0, 0, 0xff, 0xfe, 0, 1, 2])]));
+  const nBefore = (await notes(s)).length;
+  const ids3 = await N(s, (app, p) => import('app://shell/apps/notes/ui/dialogs.js').then((d) => d.importFiles(app, [p])), bin);
+  await until(() => dialogOpen(s), { label: 'binary import error' });
+  check('binary file refused', [ids3.length, (await notes(s)).length - nBefore, await run(s, `document.querySelector('${DLG}').textContent`)], (v) => v[0] === 0 && v[1] === 0 && v[2].includes('photo.md: not a text file'));
+  await dialogButton(s, 'OK');
 });
 
 await section('open a .md file with Notes (single instance relaunch)', async () => {
@@ -1053,6 +1094,40 @@ await section('keyboard: list navigation, F2, duplicate', async () => {
   const dup = await byTitle(s, 'Groceries (copy)');
   check('duplicate', dup && dup.text, g.text);
   check('duplicate opened', await selectedId(s), dup?.id);
+});
+
+await section('races: Ctrl+N held down, Delete pressed quickly', async () => {
+  await s.page.click(`${WIN} .nt-nav-item[data-key="all"]`);
+  await sleep(200);
+  const empties = () => N(s, (app) => app.store.all().filter((n) => !n.title && !n.text.trim() && !n.html.includes('<img')).length);
+  const before = await N(s, (app) => app.store.all().length);
+  const empty0 = await empties();
+  await N(s, (app) => app.focusList());
+  for (let i = 0; i < 6; i++) await s.page.keyboard.press('Control+n');
+  await until(() => N(s, (app) => !app.newP && document.activeElement === app.editor.title && !app.editor.title.value), { label: 'new note ready' });
+  await s.page.keyboard.type('Race note', { delay: 5 });
+  await flush(s);
+  check('Ctrl+N x6: one new note, typed title in one piece, no empty notes left behind', [(await N(s, (app) => app.store.all().length)) - before, (await N(s, (app) => app.store.all().filter((n) => n.title === 'Race note').length)), (await empties()) - empty0], [1, 1, 0]);
+  const race = await byTitle(s, 'Race note');
+  const dirs = fs.readdirSync(notesDir(home)).filter((d) => !d.startsWith('notes.json'));
+  check('no stray note folders on disk', dirs.length, await N(s, (app) => app.store.all().length));
+  // Delete pressed 3 times quickly in the list: three notes go to Recently deleted, never a "delete
+  // permanently" prompt for the row that was just deleted
+  const t0 = Date.now();
+  const live0 = await N(s, (app) => app.store.live().length);
+  await N(s, (app) => app.focusList());
+  for (let i = 0; i < 3; i++) await s.page.keyboard.press('Delete');
+  await until(() => N(s, (app, l) => app.store.live().length === l - 3, live0), { label: 'three notes deleted' });
+  await sleep(400);
+  check('Delete x3: no permanent-delete prompt', await run(s, `!!document.querySelector('${DLG}')`), false);
+  check('Delete x3: still three in the list less, focus in the list', [await N(s, (app, l) => l - app.store.live().length, live0), await run(s, `!!document.activeElement?.closest('${WIN} .nt-list')`)], [3, true]);
+  const gone = await N(s, (app, t) => app.store.all().filter((n) => n.deletedAt && n.deletedAt >= t).map((n) => n.id), t0);
+  await N(s, async (app, a) => {
+    await app.restoreNotes(a.gone.filter((id) => id !== a.race), { reveal: false });
+    await app.store.purge([a.race]);
+  }, { gone, race: race.id });
+  await flush(s);
+  check('restored', await N(s, (app, l) => app.store.live().length, live0), live0 - 1);
 });
 
 await section('save failure: error state, background retry, Retry button, close prompt', async () => {

@@ -1608,16 +1608,25 @@ await test('minimum window size (500×460): compact layout still works', async (
   const r = await M(f, (a) => a.win.rect());
   assert.deepEqual([r.width, r.height], [500, 460], 'manifest minimum size');
   await M(f, (a) => a.go({ name: 'music' }));
-  await wait(f, 700);
-  const info = await M(f, (a) => ({ minimal: a.root.classList.contains('nav-minimal'), tiny: a.root.classList.contains('w-tiny'), navVisible: getComputedStyle(a.navEl).visibility }));
+  // The pane hides at the end of a CSS transition: poll (up to 5 s) instead of a fixed wait, so a loaded machine doesn't fail it.
+  const readInfo = () => M(f, (a) => ({ minimal: a.root.classList.contains('nav-minimal'), tiny: a.root.classList.contains('w-tiny'), navVisible: getComputedStyle(a.navEl).visibility }));
+  let info = await readInfo();
+  for (let i = 0; i < 50 && !(info.minimal && info.tiny && info.navVisible === 'hidden'); i++) {
+    await wait(f, 100);
+    info = await readInfo();
+  }
   assert.equal(info.minimal, true);
   assert.equal(info.tiny, true);
   assert.equal(info.navVisible, 'hidden');
   assert.deepEqual(await overflowCheck(f), []);
   await shot(f, 'min-size', true);
   await f.page.click(`${WIN} .mp-float-menu`);
-  await wait(f, 300);
-  assert.equal(await M(f, (a) => getComputedStyle(a.navEl).visibility), 'visible');
+  let navVis = '';
+  for (let i = 0; i < 50 && navVis !== 'visible'; i++) {
+    await wait(f, 100);
+    navVis = await M(f, (a) => getComputedStyle(a.navEl).visibility);
+  }
+  assert.equal(navVis, 'visible');
   await shot(f, 'min-size-nav');
   await f.page.click(`${WIN} [data-nav="videos"]`);
   await wait(f, 300);

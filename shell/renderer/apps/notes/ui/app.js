@@ -30,6 +30,63 @@ export class NotesApp {
     this.selToken = 0;
     this.offs = [];
     this.ready = false;
+    this.opChain = Promise.resolve();
+    // Dialogs give focus back to the element that opened them, but that element is often re-rendered
+    // meanwhile (a notebook created / renamed / deleted rebuilds the navigation pane and the list): keep
+    // the keyboard inside the window instead of dropping it on <body> (where Ctrl+N would do nothing).
+    // ctx is this window's own object, so the wrapper never affects other apps.
+    const base = ctx.ui;
+    const keep = (name) => async (...args) => {
+      const where = this.focusSpot();
+      try {
+        return await base[name].apply(base, args);
+      } finally {
+        this.recoverFocus(where);
+        setTimeout(() => this.recoverFocus(where), 220); // after the closing dialog layer is removed
+      }
+    };
+    ctx.ui = Object.assign(Object.create(base), Object.fromEntries(['dialog', 'alert', 'confirm', 'prompt', 'filePicker'].filter((k) => typeof base[k] === 'function').map((k) => [k, keep(k)])));
+  }
+
+  /** Where the keyboard is now, as something that survives a re-render. */
+  focusSpot() {
+    const a = document.activeElement;
+    if (!a || !this.root?.contains(a)) return null;
+    if (this.navList?.contains(a)) return { zone: 'nav', key: a.dataset.key || null };
+    if (this.listEl?.contains(a)) return { zone: 'list', id: a.closest('.nt-item')?.dataset.id || null };
+    if (a === this.editor?.body || this.editor?.body?.contains(a)) return { zone: 'body' };
+    if (a === this.editor?.title) return { zone: 'title' };
+    if (a === this.searchInput) return { zone: 'search' };
+    return { zone: 'el', el: a };
+  }
+
+  /** Focus fell on <body> (or into a dialog that is going away): put it back somewhere sensible. */
+  recoverFocus(where) {
+    if (!this.win?.el?.isConnected || this.win.el.classList.contains('closing')) return;
+    const a = document.activeElement;
+    const lost = !a || a === document.body || !a.isConnected || !!a.closest?.('.dialog-layer.closing');
+    if (!lost || document.querySelector('.dialog-layer:not(.closing)')) return;
+    const z = where?.zone;
+    if (z === 'el' && where.el.isConnected && !where.el.closest('[hidden]')) return where.el.focus({ preventScroll: true });
+    if (z === 'nav') {
+      const el = (where.key && this.navList.querySelector(`.nt-nav-item[data-key="${CSS.escape(where.key)}"]`)) || this.navList.querySelector('.nt-nav-item.selected') || this.navList.querySelector('.nt-nav-item');
+      if (el && el.offsetParent) return el.focus({ preventScroll: true });
+    }
+    if (z === 'body' && this.editor?.note && !this.editor.readOnly) return this.editor.focusBody();
+    if (z === 'title' && this.editor?.note && !this.editor.readOnly) return this.editor.title.focus({ preventScroll: true });
+    if (z === 'search') return this.searchInput.focus({ preventScroll: true });
+    if (where?.id && z === 'list') {
+      const el = this.listEl.querySelector(`.nt-item[data-id="${CSS.escape(where.id)}"]`);
+      if (el) return el.focus({ preventScroll: true });
+    }
+    this.focusList();
+  }
+
+  /** Run list actions one after the other (key repeat on Delete, Ctrl+N held down...). */
+  queue(fn) {
+    const p = this.opChain.then(fn);
+    this.opChain = p.catch(() => {});
+    return p;
   }
 
   get locale() {
@@ -284,7 +341,9 @@ export class NotesApp {
     const { h, icon } = this.ctx;
     const t = this.t;
     const counts = this.store.counts();
-    const focusedKey = this.navList.contains(document.activeElement) ? document.activeElement.dataset.key : null;
+    const navFocus = this.navList.contains(document.activeElement) ? document.activeElement : null;
+    const focusedKey = navFocus?.dataset.key || null;
+    const focusedSection = !focusedKey && navFocus ? `${navFocus.closest('.nt-nav-section')?.dataset.section}|${navFocus.className}` : null;
     const cur = this.viewKey(this.view);
     const item = (key, view, ic, label, count, extra = {}) => {
       const el = h(
@@ -362,7 +421,21 @@ export class NotesApp {
     }
     this.navList.replaceChildren(...kids);
     if (!this.navList.querySelector('[tabindex="0"]')) this.navList.querySelector('.nt-nav-item')?.setAttribute('tabindex', '0');
-    if (focusedKey) this.navList.querySelector(`[data-key="${CSS.escape(focusedKey)}"]`)?.focus({ preventScroll: true });
+    if (navFocus) {
+      // the focused row was rebuilt: focus its new copy (or the selected view when it is gone, e.g. a deleted notebook)
+      let el = focusedKey ? this.navList.querySelector(`[data-key="${CSS.escape(focusedKey)}"]`) : null;
+      if (!el && focusedSection) {
+        const [sec, cls] = focusedSection.split('|');
+        el = [...this.navList.querySelectorAll(`.nt-nav-section[data-section="${CSS.escape(sec)}"] button`)].find((b) => b.className === cls);
+      }
+      el ||= this.navList.querySelector('.nt-nav-item.selected') || this.navList.querySelector('.nt-nav-item[tabindex="0"]');
+      if (el) {
+        if (el.classList.contains('nt-nav-item')) {
+          for (const x of this.navList.querySelectorAll('.nt-nav-item')) x.tabIndex = x === el ? 0 : -1;
+        }
+        el.focus({ preventScroll: true });
+      }
+    }
   }
 
   viewKey(v) {
@@ -522,7 +595,8 @@ export class NotesApp {
       kids.push(this.itemFor(n, { showNb, force }));
     }
     const scroll = this.listEl.scrollTop;
-    const hadFocus = this.listEl.contains(document.activeElement) ? document.activeElement.dataset.id : null;
+    const listFocus = this.listEl.contains(document.activeElement) || document.activeElement === this.listEl;
+    const hadFocus = listFocus ? document.activeElement.dataset.id || null : null;
     this.listEl.replaceChildren(...kids);
     // drop cached items of notes that are no longer listed
     if (this.itemCache.size > notes.length * 2 + 50) {
@@ -531,7 +605,11 @@ export class NotesApp {
     }
     this.listEl.scrollTop = resetScroll ? 0 : scroll;
     this.updateSelection();
-    if (hadFocus) this.listEl.querySelector(`.nt-item[data-id="${CSS.escape(hadFocus)}"]`)?.focus({ preventScroll: true });
+    if (listFocus) {
+      // the focused note left the list (other view, deleted, moved): keep the keyboard in the list
+      const el = (hadFocus && this.listEl.querySelector(`.nt-item[data-id="${CSS.escape(hadFocus)}"]`)) || this.listEl.querySelector('.nt-item.selected') || this.listEl.querySelector('.nt-item');
+      (el || this.listEl).focus({ preventScroll: true });
+    }
     // empty states
     this.listEmpty.hidden = notes.length > 0;
     if (!notes.length) {
@@ -720,9 +798,19 @@ export class NotesApp {
       this.select(cur.dataset.id, { focus: true, fromList: true });
     } else if (e.key === 'Delete' && cur) {
       e.preventDefault();
-      const n = this.store.get(cur.dataset.id);
-      if (n?.deletedAt) this.purgeNotes([n.id]);
-      else this.deleteNotes([cur.dataset.id]);
+      if (e.repeat && this.view.kind === 'deleted') return;
+      const id = cur.dataset.id;
+      // Queued: a fast second Delete acts on the note that is selected once the first one is done (the
+      // row it was pressed on may already be in Recently deleted). Only the Recently deleted view ever
+      // deletes for good (with a confirmation).
+      this.queue(async () => {
+        const inTrash = this.view.kind === 'deleted';
+        let n = this.store.get(id);
+        if (!n || !!n.deletedAt !== inTrash) n = this.selectedId && this.store.get(this.selectedId);
+        if (!n || !!n.deletedAt !== inTrash) return;
+        if (inTrash) await this.purgeNotes([n.id]);
+        else await this.deleteNotes([n.id]);
+      });
     } else if ((e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) && cur) {
       e.preventDefault();
       this.noteMenu(this.store.get(cur.dataset.id), cur);
@@ -886,8 +974,20 @@ export class NotesApp {
   }
 
   // ------------------------------------------------------------------ actions
-  async newNote({ title = '', text = '', notebookId } = {}) {
-    if (!this.ready) return null;
+  newNote(opts = {}) {
+    // One at a time (concurrent creations would each leave the previous empty note behind), and a Ctrl+N
+    // pressed again while a note is being created (key repeat, double click) gives that same note, so
+    // the text typed right after never ends up split across several notes.
+    if (this.newP) return this.newP;
+    const p = this.queue(() => this.createNote(opts)).finally(() => {
+      if (this.newP === p) this.newP = null;
+    });
+    this.newP = p;
+    return p;
+  }
+
+  async createNote({ title = '', text = '', notebookId } = {}) {
+    if (!this.ready || !this.win.el.isConnected) return null;
     await this.saveCurrent();
     let nbId = notebookId || (this.view.kind === 'notebook' ? this.view.id : this.prefs.lastNotebook);
     if (!this.store.notebook(nbId)) nbId = this.store.notebooks[0]?.id;

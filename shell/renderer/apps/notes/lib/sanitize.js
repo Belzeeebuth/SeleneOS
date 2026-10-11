@@ -13,7 +13,7 @@
 //   - allowed tags are mapped to a small vocabulary (strong -> b, h4-h6 -> h3, font -> span, ...)
 //   - unknown tags are unwrapped (their text is kept); dangerous ones are dropped with their content
 //     (script, style, iframe, object, embed, svg, math, template, form controls, media, ...)
-//   - attributes: only a[href,title], img[src,alt,width,data-att], ol[start], ul[data-type], li[data-checked],
+//   - attributes: only a[href,title], img[src,alt,width,data-att (opts.attachments only)], ol[start], ul[data-type], li[data-checked],
 //     td/th[colspan,rowspan], span[data-color], mark[data-hl]; no style, no class, no id, no on*
 //   - URLs: links http(s)/mailto/tel only; pictures data:image/*, media: (opts.allowMedia), http(s)
 //     (opts.allowRemote) or a bare attachment name (opts.attachments)
@@ -209,8 +209,10 @@ export function sanitizeFragment(html, opts = {}) {
         if (alt) el.setAttribute('alt', alt.slice(0, 500));
         const w = parseInt(attr('width') || '', 10);
         if (w >= 16 && w <= 4000) el.setAttribute('width', String(w));
+        // an attachment name only means something inside the note it was read from: pasted / dropped HTML
+        // (copied from another note) must not keep it, or the picture would point at the other note's file
         const att = attr('data-att');
-        if (att && ATTACHMENT_RE.test(att)) el.setAttribute('data-att', att);
+        if (opts.attachments && att && ATTACHMENT_RE.test(att)) el.setAttribute('data-att', att);
         break;
       }
       case 'ol': {
