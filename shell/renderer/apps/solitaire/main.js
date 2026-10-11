@@ -22,8 +22,8 @@ import {
 } from './rules.mjs';
 import { faceSvg, backSvg, svgUrl, BACKS, CARD_W, CARD_H } from './cards.mjs';
 
-const DEFAULTS = { draw: 1, scoring: 'standard', timed: true, cumulative: false, bank: 0, back: 'aurora', table: 'felt', clickMove: true, sound: true };
-const TABLES = ['felt', 'blue', 'aurora'];
+const DEFAULTS = { draw: 1, scoring: 'standard', timed: true, cumulative: false, bank: 0, back: 'aurora', table: 'aurora', clickMove: true, sound: true };
+const TABLES = ['aurora', 'felt', 'blue'];
 const RATIO = CARD_H / CARD_W;
 const MOVE_MS = 260;
 const DEAL_STAGGER = 34;
@@ -469,14 +469,14 @@ class SolitaireApp {
   }
 
   applyLook(p = this.prefs) {
-    const accent = this.ctx.settings.get('accent') || '#0078d4';
+    const accent = this.ctx.settings.get('accent') || '#c9d3e6';
     const back = BACKS.includes(p.back) ? p.back : 'aurora';
     const key = `${back}|${accent}`;
     if (this._backKey !== key) {
       this._backKey = key;
       this.table.style.setProperty('--sol-back', `url("${svgUrl(backSvg(back, accent))}")`);
     }
-    this.table.dataset.bg = TABLES.includes(p.table) ? p.table : 'felt';
+    this.table.dataset.bg = TABLES.includes(p.table) ? p.table : 'aurora';
   }
 
   // ------------------------------------------------------------ layout
@@ -1947,7 +1947,7 @@ class SolitaireApp {
       cumRow.classList.toggle('disabled', draft.scoring !== 'vegas');
     };
     sync();
-    const accent = this.ctx.settings.get('accent') || '#0078d4';
+    const accent = this.ctx.settings.get('accent') || '#c9d3e6';
     const picker = (items, current, render, onpick, labelKey) => {
       const wrap = h('div', { class: 'sol-picker', role: 'radiogroup' });
       wrap.setAttribute('aria-label', t(labelKey));

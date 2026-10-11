@@ -177,7 +177,7 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
   const home = s.home;
   const pics = path.join(home, 'Pictures', 'Screenshots');
 
-  await test('launches as the compact Windows 11 toolbar window (not resizable)', async () => {
+  await test('launches as the compact toolbar window (not resizable)', async () => {
     await s.page.mouse.click(1500, 400); // a pointer interaction first, as a real user would (no focus ring)
     await openSnipping(s);
     const info = await S(s, (app, el) => ({
@@ -207,7 +207,7 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     assert.equal(info.newText, 'New');
     assert.match(info.delay, /No delay/);
     assert.match(info.hint, /Print Screen/);
-    assert.equal(info.title, 'Snipping Tool');
+    assert.equal(info.title, 'Screenshot');
     assert.equal(info.visible, 'visible');
     await s.shot('snipping-compact-light-en');
     fs.copyFileSync(path.join(here, 'out', 'snipping-compact-light-en.png'), path.join(DOCS, 'snipping-compact.png'));
@@ -772,7 +772,7 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     });
     assert.equal(toast.title, 'Snip copied to clipboard');
     assert.equal(toast.body, 'Select here to mark up and share the image');
-    assert.match(toast.app, /Snipping Tool/);
+    assert.match(toast.app, /Screenshot/);
     // Like Windows 11, the toast shows the snip itself.
     const thumb = await waitFor(s, () => {
       const img = [...document.querySelectorAll('#toasts .toast')].pop()?.querySelector('img.snip-toast-img');
@@ -900,7 +900,7 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     await newSnip(s);
     await s.page.waitForSelector('.snip-countdown');
     const pill = await A(s, () => document.querySelector('.snip-countdown').textContent);
-    assert.match(pill, /Snipping in 3/);
+    assert.match(pill, /Capturing in 3/);
     await s.shot('snipping-countdown-light-en');
     await overlayUp(s);
     const dt = Date.now() - t0;
@@ -1080,7 +1080,7 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     await s.page.click(`${WIN} .snip-more`);
     await s.page.locator('.menu .menu-item', { hasText: 'About' }).click();
     await s.page.waitForSelector('.snip-about-dialog');
-    assert.match(await A(s, () => document.querySelector('.snip-about-dialog').textContent), /About Snipping Tool.*Version/s);
+    assert.match(await A(s, () => document.querySelector('.snip-about-dialog').textContent), /About Screenshot.*Version/s);
     assert.equal(await A(s, () => document.querySelector('.snip-about-dialog').classList.contains('app-snipping')), true, 'dialog styles are scoped to the app');
     await s.page.locator('.snip-about-dialog .btn.primary').click();
     await A(s, () => window.__aurora.settings.set('lang', 'fr'));
@@ -1163,7 +1163,7 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
     assert.equal(info.newText, 'Nouveau');
     assert.match(info.delay, /Aucun délai/);
     assert.match(info.hint, /Impr\. écran/);
-    assert.equal(info.title, 'Outil Capture');
+    assert.equal(info.title, "Capture d'écran");
     assert.equal(info.clipped, 0, 'no clipped text');
     assert.ok(info.hintBox, 'hint inside the window');
     await s.shot('snipping-compact-dark-fr');
@@ -1311,7 +1311,7 @@ const PROBE2 = { x: 900, y: 220, width: 400, height: 300, color: 'rgb(0, 0, 255)
       }, file);
       await s.page.waitForSelector(DLG);
       const text = await A(s, (q) => [...document.querySelector(q).querySelectorAll('.dialog-title, .dialog-body > :not(.dialog-title)')].map((e) => e.textContent), DLG);
-      assert.deepEqual(text, ['Outil Capture', `Impossible d'ouvrir cette image. ${reason}`], 'no English system text');
+      assert.deepEqual(text, ["Capture d'écran", `Impossible d'ouvrir cette image. ${reason}`], 'no English system text');
       await s.page.locator(`${DLG} .btn.primary`).click();
       await sleep(250);
     }

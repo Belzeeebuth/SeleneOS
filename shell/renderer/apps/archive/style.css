@@ -1,9 +1,9 @@
-/* Archive Manager — Windows 11 File Explorer "compressed folder" look. Colours come from the theme tokens
+/* Archives: browse, extract and create archives. Flat surfaces from the theme tokens
    (core/tokens.css), so visual styles, per-app themes and high contrast apply automatically.
    Every rule is scoped under .app-archive. */
 
 .app-archive {
-  --arc-content: var(--card-solid);
+  --arc-content: var(--bg);
   --arc-field: var(--input-focus-bg);
   --arc-hover: var(--subtle-hover);
   --arc-sel: color-mix(in srgb, var(--accent) 15%, transparent);
@@ -12,7 +12,7 @@
   --arc-row-h: 30px;
 }
 :root[data-theme="dark"] .app-archive {
-  --arc-content: color-mix(in srgb, var(--bg-alt), black 14%);
+  --arc-content: var(--bg);
   --arc-field: var(--control);
   --arc-sel: color-mix(in srgb, var(--accent) 26%, transparent);
   --arc-sel-hover: color-mix(in srgb, var(--accent) 32%, transparent);
@@ -251,7 +251,7 @@
   gap: 2px;
   height: 48px;
   padding: 0 10px;
-  border-top: 1px solid var(--stroke);
+  border-top: 1px solid var(--line-soft);
   overflow: hidden;
 }
 .app-archive .arc-cmd {
@@ -319,9 +319,10 @@
   min-height: 0;
   display: flex;
   background: var(--arc-content);
-  border-top: 1px solid var(--stroke);
+  border-top: 1px solid var(--line-soft);
 }
 .app-archive .arc-navpane {
+  background: var(--bg-alt);
   flex: none;
   display: flex;
   flex-direction: column;

@@ -309,7 +309,7 @@ console.log(`Local test server: ${srv.url}`);
     assert(/DuckDuckGo/.test(info.placeholder), 'NTP placeholder mentions DuckDuckGo');
     assert(info.omniFocused, 'omnibox focused on a new tab');
     for (const f of ['Wikipedia', 'DuckDuckGo', 'OpenStreetMap', 'MDN Web Docs', 'Ubuntu', 'Selene OS']) assert(info.favs.includes(f), `seed favorite ${f}`);
-    assert(/New tab - Selene Browser/.test(info.title), `window title (${info.title})`);
+    assert(/New tab - Browser/.test(info.title), `window title (${info.title})`);
     await s.page.waitForTimeout(400);
     copyShot(await s.shot('browser-newtab'), 'browser-newtab');
   });
@@ -1121,7 +1121,7 @@ console.log(`Local test server: ${srv.url}`);
     assert(/bw-private/.test(r.cls), 'private class');
     assert(r.badge === 'Private', `badge (${r.badge})`);
     assert(/^browser-private-/.test(r.part), r.part);
-    assert(/Private - Selene Browser/.test(r.title), r.title);
+    assert(/Private - Browser/.test(r.title), r.title);
     assert(r.ntp, 'private new tab page explainer');
     await run(`bw.navigate(bw.active, '${srv.url}/page2?private=1')`, 1);
     await waitFor('bw.active.web.title === "Second Page" && !bw.active.web.loading', { i: 1, msg: 'private page load' });
@@ -1232,7 +1232,7 @@ console.log(`Local test server: ${srv.url}`);
     assert(/Rechercher avec DuckDuckGo/.test(r.ph), r.ph);
     assert(r.tab === 'Nouvel onglet', r.tab);
     assert(r.back === 'Précédent', r.back);
-    const pages = { history: 'Historique', favorites: 'Favoris', downloads: 'Téléchargements', settings: 'Paramètres', about: 'À propos du Navigateur Selene' };
+    const pages = { history: 'Historique', favorites: 'Favoris', downloads: 'Téléchargements', settings: 'Paramètres', about: 'À propos du Navigateur' };
     for (const [route, title] of Object.entries(pages)) {
       await run(`bw.navigate(bw.active, 'aurora://${route}')`);
       await waitFor(`document.querySelector('.app-browser .bw-view.active .bp-title')?.textContent === ${JSON.stringify(title)}`, { msg: `${route} title in French` });
@@ -1352,7 +1352,7 @@ console.log(`Local test server: ${srv.url}`);
     assert(!Object.keys(found).length, `English strings in the French UI: ${JSON.stringify(found)}`);
     // First-run favorites are localized too.
     const seeds = await run('bw.store.bookmarks.bar.children.find((n) => n.title === "Selene OS").children.map((n) => n.title)');
-    assert(seeds.includes('Paramètres du Navigateur Selene'), `French seed favorites (${seeds})`);
+    assert(seeds.includes('Paramètres du Navigateur'), `French seed favorites (${seeds})`);
     assert((await run(`shared.errorText({ code: 'ENOSPC' })`)) === "L'espace disque est insuffisant.", 'French error text');
   });
 

@@ -984,11 +984,11 @@ await test('mini player shrinks the window and restores it', async () => {
   const before = await M(s, (a) => ({ ...a.win.rect(), state: a.win.state }));
   await s.page.click(`${WIN} .mp-bar .mp-mini`);
   await wait(s, 400);
-  const mini = await M(s, (a) => ({ ...a.win.rect(), mini: a.mini, top: a.win.alwaysOnTop, cls: a.root.classList.contains('mini'), video: a.isVideo() }));
+  const mini = await M(s, (a) => ({ ...a.win.rect(), mini: a.mini, top: a.win.alwaysOnTop, cls: a.root.classList.contains('mini'), video: a.isVideo(), tb: a.win.titlebar?.offsetHeight }));
   assert.equal(mini.mini, true);
   assert.equal(mini.cls, true);
   assert.equal(mini.video, true, 'the intro video is still playing');
-  assert.deepEqual([mini.width, mini.height], [400, 225 + 32], '16:9 mini player for video');
+  assert.deepEqual([mini.width, mini.height], [400, 225 + mini.tb], '16:9 mini player for video (plus the title bar)');
   assert.equal(mini.top, true, 'mini player stays on top');
   await s.page.hover(`${WIN} .mp-stage`);
   await wait(s, 300);

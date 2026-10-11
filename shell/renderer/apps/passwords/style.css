@@ -1,9 +1,9 @@
 /* Passwords: every rule is scoped under .app-passwords. Light + dark via tokens; a few accent hues for avatars. */
 .app-passwords .pw {
-  --pw-weak: #c42b1c;
-  --pw-fair: #b35c00;
-  --pw-good: #0f7b0f;
-  --pw-gold: #b7791f;
+  --pw-weak: var(--danger);
+  --pw-fair: var(--warning);
+  --pw-good: var(--success);
+  --pw-gold: var(--warning);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -12,12 +12,6 @@
   color: var(--text);
   font-size: var(--fs-body);
   outline: none;
-}
-:root[data-theme="dark"] .app-passwords .pw {
-  --pw-weak: #ff99a4;
-  --pw-fair: #fcc062;
-  --pw-good: #6ccb5f;
-  --pw-gold: #ffd56a;
 }
 
 /* ------------------------------------------------------------------ setup / locked */
@@ -208,8 +202,11 @@
   display: grid;
   place-items: center;
   font-weight: 600;
-  color: #fff;
-  background: #2b6fd8;
+  /* Identity hues, kept muted: a tint of the hue on the raised surface, with normal text on top. */
+  --pw-hue: var(--accent-base);
+  color: var(--text);
+  background: color-mix(in srgb, var(--pw-hue) 28%, var(--surface-raised));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pw-hue) 40%, transparent);
 }
 .app-passwords .pw-avatar.big {
   width: 48px;
@@ -217,11 +214,11 @@
   font-size: 20px;
   border-radius: var(--radius);
 }
-.app-passwords .pw-avatar[data-hue="1"] { background: #0f7b6c; }
-.app-passwords .pw-avatar[data-hue="2"] { background: #8a4fd0; }
-.app-passwords .pw-avatar[data-hue="3"] { background: #c2410c; }
-.app-passwords .pw-avatar[data-hue="4"] { background: #b0306e; }
-.app-passwords .pw-avatar[data-hue="5"] { background: #4b5c70; }
+.app-passwords .pw-avatar[data-hue="1"] { --pw-hue: #2a9d8f; }
+.app-passwords .pw-avatar[data-hue="2"] { --pw-hue: #8a6fd0; }
+.app-passwords .pw-avatar[data-hue="3"] { --pw-hue: #d07a3c; }
+.app-passwords .pw-avatar[data-hue="4"] { --pw-hue: #c0567f; }
+.app-passwords .pw-avatar[data-hue="5"] { --pw-hue: #6b7c93; }
 
 /* detail */
 .app-passwords .pw-detail {

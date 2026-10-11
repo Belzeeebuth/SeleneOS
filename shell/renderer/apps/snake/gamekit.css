@@ -1,4 +1,4 @@
-/* Aurora game kit — shared Fluent chrome for the classic games. Identical in apps/minesweeper,
+/* Selene game kit: shared chrome (toolbar, score chips, dialogs) for the classic games. Identical in apps/minesweeper,
    apps/snake and apps/game2048 except for the scope class (.app-<id>); see gamekit.js. */
 
 /* ---------- Toolbar ---------- */
@@ -60,9 +60,8 @@
   height: 40px;
   padding: 0 14px 0 12px;
   border-radius: var(--radius);
-  background: var(--card);
-  border: 1px solid var(--stroke-card);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
   white-space: nowrap;
 }
 .app-snake .gk-chip-icon,
@@ -83,12 +82,10 @@
   gap: 0;
 }
 .app-snake .gk-chip-label {
-  font-size: 11px;
+  font-size: var(--fs-caption);
   line-height: 14px;
   color: var(--text-2);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-weight: 500;
 }
 .app-snake .gk-chip-value {
   display: inline-block;
@@ -108,7 +105,7 @@
   display: grid;
   place-items: center;
   padding: 16px;
-  background: color-mix(in srgb, var(--bg) 40%, transparent);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
   border-radius: inherit;
   animation: gk-fade var(--dur) linear;
 }
@@ -129,16 +126,12 @@
   width: 300px;
   max-width: 100%;
   padding: 24px 24px 20px;
-  border-radius: var(--radius);
-  background: var(--acrylic);
-  border: 1px solid var(--window-stroke);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
   box-shadow: var(--shadow-dialog);
-  backdrop-filter: blur(30px) saturate(150%);
   text-align: center;
   animation: gk-card-in var(--dur-slower) var(--ease);
-}
-:root[data-transparency="off"] .app-snake .gk-overlay-card {
-  backdrop-filter: none;
 }
 .app-snake .gk-overlay-icon,
 .app-snake .gk-overlay-art {
@@ -149,8 +142,8 @@
   margin-bottom: 4px;
   border-radius: 50%;
   background: var(--accent-subtle);
-  color: var(--accent);
-  animation: gk-icon-in 520ms var(--ease-spring) 80ms both;
+  color: var(--accent-text);
+  animation: gk-icon-in var(--dur-slow) var(--ease) 60ms both;
 }
 .app-snake .gk-overlay-art {
   background: transparent;
@@ -195,12 +188,9 @@
   border-radius: 12px;
   font-size: var(--fs-caption);
   font-weight: 600;
-  background: color-mix(in srgb, #ffb900 22%, transparent);
-  color: #8a5300;
-  animation: gk-badge-in 600ms var(--ease-spring) 250ms both;
-}
-:root[data-theme="dark"] .app-snake .gk-badge {
-  color: #ffd66b;
+  background: var(--warning-bg);
+  color: var(--warning);
+  animation: gk-badge-in var(--dur-slow) var(--ease) 120ms both;
 }
 .app-snake .gk-confetti {
   position: absolute;
@@ -238,8 +228,8 @@
 .app-snake .gk-stat {
   padding: 8px 12px 10px;
   border-radius: var(--radius);
-  background: var(--card);
-  border: 1px solid var(--stroke-card);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
   min-width: 0;
 }
 .app-snake .gk-stat-value {
@@ -268,8 +258,8 @@
   display: flex;
   flex-direction: column;
   border-radius: var(--radius);
-  border: 1px solid var(--stroke-card);
-  background: var(--card);
+  border: 1px solid var(--line-soft);
+  background: var(--surface-raised);
   overflow: hidden;
 }
 .app-snake .gk-rank {
@@ -289,10 +279,7 @@
   font-weight: 600;
 }
 .app-snake .gk-rank:first-child .gk-rank-pos {
-  color: #9a6a00;
-}
-:root[data-theme="dark"] .app-snake .gk-rank:first-child .gk-rank-pos {
-  color: #ffc83d;
+  color: var(--accent-text);
 }
 .app-snake .gk-rank-date {
   color: var(--text-2);
@@ -341,8 +328,8 @@
   flex-direction: column;
   gap: 2px;
   border-radius: var(--radius);
-  border: 1px solid var(--stroke-card);
-  background: var(--card);
+  border: 1px solid var(--line-soft);
+  background: var(--surface-raised);
   padding: 4px 12px;
 }
 .app-snake .gk-key-row {
@@ -375,9 +362,8 @@
   min-width: 26px;
   padding: 1px 7px 2px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--control-stroke);
-  border-bottom: 2px solid var(--control-stroke-bottom);
-  background: var(--control);
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
   font: 600 12px/18px var(--font);
   text-align: center;
   color: var(--text);
@@ -396,7 +382,7 @@
 @keyframes gk-card-in {
   from {
     opacity: 0;
-    transform: translateY(16px) scale(0.96);
+    transform: translateY(8px) scale(0.98);
   }
 }
 @keyframes gk-card-out {
@@ -408,12 +394,12 @@
 @keyframes gk-icon-in {
   from {
     opacity: 0;
-    transform: scale(0.4) rotate(-20deg);
+    transform: scale(0.8);
   }
 }
 @keyframes gk-badge-in {
   from {
     opacity: 0;
-    transform: scale(0.6);
+    transform: scale(0.9);
   }
 }

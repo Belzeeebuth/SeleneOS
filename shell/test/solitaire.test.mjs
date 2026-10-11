@@ -1014,8 +1014,8 @@ async function uiTests() {
       await s.page.click('.app-solitaire .sol-toolbar button[aria-label="Settings"]');
       await s.page.waitForSelector('.app-solitaire .sol-settings');
       await s.page.click('.app-solitaire .sol-pick[data-value="midnight"]');
-      await s.page.click('.app-solitaire .sol-pick[data-value="aurora"] .sol-pick-table');
-      assert.equal((await look())[0], 'aurora', 'previewed live');
+      await s.page.click('.app-solitaire .sol-pick[data-value="felt"] .sol-pick-table');
+      assert.equal((await look())[0], 'felt', 'previewed live');
       await s.page.click('.app-solitaire .dialog-footer .btn:not(.primary)');
       await s.page.waitForTimeout(300);
       assert.deepEqual(await look(), before);
@@ -1338,7 +1338,7 @@ async function uiTests() {
       assert.equal(ui.toolbar, 'Score 0 Time 0:00 Moves 0');
       assert.equal(ui.footer, 'Game #1 Draw 1 · Standard scoring');
       assert.equal(ui.imgs, 0);
-      assert.deepEqual(await H4.T('prefs'), { draw: 1, scoring: 'standard', timed: true, cumulative: false, bank: 0, back: 'aurora', table: 'felt', clickMove: true, sound: true });
+      assert.deepEqual(await H4.T('prefs'), { draw: 1, scoring: 'standard', timed: true, cumulative: false, bank: 0, back: 'aurora', table: 'aurora', clickMove: true, sound: true });
       const st = await H4.T('state');
       assert.deepEqual(st.t, Klondike.deal(77).s.t, 'the cards of the saved game are kept');
       assert.equal(await H4.T('history'), 0, 'corrupt undo steps dropped');

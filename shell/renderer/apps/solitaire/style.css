@@ -139,11 +139,9 @@
   background-image: var(--sol-noise), radial-gradient(130% 95% at 50% 18%, #3a86cf 0%, #2565a8 48%, #17457c 100%);
 }
 .app-solitaire [data-bg="aurora"] {
-  background-color: #0d1b36;
-  background-image: radial-gradient(90% 75% at 12% 0%, color-mix(in srgb, var(--accent-base, #0078d4) 85%, transparent) 0%, transparent 72%),
-    radial-gradient(80% 70% at 100% 100%, rgba(72, 214, 184, 0.5) 0%, transparent 70%),
-    radial-gradient(60% 50% at 85% 10%, color-mix(in srgb, var(--accent-base, #0078d4) 40%, #b46cff) 0%, transparent 70%),
-    linear-gradient(160deg, #0b1a36 0%, #142a52 55%, #0b1630 100%);
+  /* Selene (default): a night table, lit from above in the accent colour. Same in light and dark. */
+  background-color: #0f1626;
+  background-image: var(--sol-noise), radial-gradient(120% 85% at 50% 0%, color-mix(in srgb, var(--accent-base, #c9d3e6) 18%, #1b2640) 0%, #131b2e 55%, #0b111e 100%);
 }
 :root[data-theme="dark"] .app-solitaire .sol-table[data-bg="felt"] {
   background-image: var(--sol-noise), radial-gradient(130% 95% at 50% 18%, #2a8a53 0%, #1c6c3d 48%, #114a2b 100%);
@@ -391,13 +389,13 @@
   max-width: calc(100% - 24px);
   padding: 8px 8px 8px 14px;
   border-radius: var(--radius);
-  border: 1px solid var(--window-stroke);
-  background: var(--acrylic-solid);
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
   color: var(--text);
   box-shadow: var(--shadow-flyout);
 }
 .app-solitaire .sol-banner > .icon {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .app-solitaire .sol-cascade {
   position: absolute;
@@ -464,14 +462,13 @@
   height: 52px;
   flex: none;
   border-radius: 50%;
-  color: #fff;
-  background: linear-gradient(145deg, #ffcf5c, #e89a1c);
-  box-shadow: 0 4px 12px rgba(232, 154, 28, 0.35);
-  animation: sol-pop 520ms var(--ease-spring);
+  color: var(--warning);
+  background: var(--warning-bg);
+  animation: sol-pop var(--dur-slow) var(--ease);
 }
 @keyframes sol-pop {
   from {
-    transform: scale(0.4) rotate(-20deg);
+    transform: scale(0.8);
     opacity: 0;
   }
 }

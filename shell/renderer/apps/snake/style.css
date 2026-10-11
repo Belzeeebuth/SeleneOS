@@ -54,10 +54,7 @@
   min-width: 96px;
 }
 .app-snake .sn-best.record .gk-chip-value {
-  color: #9a6a00;
-}
-:root[data-theme="dark"] .app-snake .sn-best.record .gk-chip-value {
-  color: #ffd66b;
+  color: var(--warning);
 }
 .app-snake .sn-mode {
   color: var(--text-2);
@@ -78,12 +75,13 @@
 .app-snake .sn-board {
   position: relative;
   border-radius: var(--radius-lg);
-  box-shadow: 0 0 0 1px var(--stroke-card), 0 4px 14px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 0 0 1px var(--line-soft), 0 4px 14px rgb(var(--shadow-rgb) / 0.1);
   outline: none;
   touch-action: none;
 }
 .app-snake .sn-board:focus-visible {
-  box-shadow: 0 0 0 1px var(--stroke-card), 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent), 0 4px 14px rgba(0, 0, 0, 0.08);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .app-snake .sn-canvas {
   display: block;

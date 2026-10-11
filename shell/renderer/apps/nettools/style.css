@@ -93,7 +93,7 @@
 }
 .app-nettools .nt-vpn.active .nt-vpn-icon {
   background: var(--accent);
-  color: var(--text-on-accent, #fff);
+  color: var(--on-accent);
 }
 .app-nettools .nt-vpn-text {
   overflow: hidden;
@@ -105,7 +105,7 @@
   white-space: nowrap;
 }
 .app-nettools .nt-status.on {
-  color: var(--success, #0f7b0f);
+  color: var(--success);
 }
 .app-nettools .nt-empty {
   display: flex;
@@ -156,10 +156,10 @@
   color: var(--text-2);
 }
 .app-nettools .nt-status-line.ok {
-  color: var(--success, #0f7b0f);
+  color: var(--success);
 }
 .app-nettools .nt-status-line.bad {
-  color: var(--danger, #c42b1c);
+  color: var(--danger);
 }
 .app-nettools .nt-out {
   flex: 1;
@@ -170,7 +170,7 @@
   background: var(--card);
   border: 1px solid var(--stroke);
   border-radius: var(--radius, 8px);
-  font: 13px/1.5 "Cascadia Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+  font: 13px/1.5 var(--font-mono);
   white-space: pre-wrap;
   word-break: break-all;
   color: var(--text);
@@ -205,14 +205,7 @@
 .app-nettools .nt-rvalue {
   flex: 1;
   min-width: 0;
-  font-family: "Cascadia Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   overflow-wrap: anywhere;
-}
-:root[data-theme="dark"] .app-nettools .nt-status.on,
-:root[data-theme="dark"] .app-nettools .nt-status-line.ok {
-  color: var(--success, #6ccb5f);
-}
-:root[data-theme="dark"] .app-nettools .nt-status-line.bad {
-  color: var(--danger, #ff99a4);
 }

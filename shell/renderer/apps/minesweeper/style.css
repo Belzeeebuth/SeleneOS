@@ -1,19 +1,20 @@
 /* Minesweeper — board, cells and status row. Shared chrome is in gamekit.css. */
 .app-minesweeper {
-  --ms-tile-a: color-mix(in srgb, var(--accent) 13%, #ffffff);
-  --ms-tile-b: color-mix(in srgb, var(--accent) 24%, #ffffff);
-  --ms-tile-hover-a: color-mix(in srgb, var(--accent) 7%, #ffffff);
-  --ms-tile-hover-b: color-mix(in srgb, var(--accent) 16%, #ffffff);
-  --ms-tile-pressed: color-mix(in srgb, var(--accent) 30%, #ffffff);
-  --ms-tile-hi: rgba(255, 255, 255, 0.85);
-  --ms-tile-lo: rgba(0, 0, 0, 0.13);
-  --ms-open: rgba(0, 0, 0, 0.04);
-  --ms-open-stroke: rgba(0, 0, 0, 0.05);
-  --ms-mine: #1f2328;
-  --ms-glint: rgba(255, 255, 255, 0.75);
+  /* Tiles and frame follow the system (surface + accent); the numbers, flag and mine keep the game's own palette. */
+  --ms-tile-a: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+  --ms-tile-b: color-mix(in srgb, var(--accent) 22%, var(--surface-raised));
+  --ms-tile-hover-a: color-mix(in srgb, var(--accent) 6%, var(--surface-raised));
+  --ms-tile-hover-b: color-mix(in srgb, var(--accent) 15%, var(--surface-raised));
+  --ms-tile-pressed: color-mix(in srgb, var(--accent) 28%, var(--surface-raised));
+  --ms-tile-hi: color-mix(in srgb, var(--surface-raised) 85%, transparent);
+  --ms-tile-lo: rgb(var(--shadow-rgb) / 0.14);
+  --ms-open: rgb(var(--tint) / 0.05);
+  --ms-open-stroke: rgb(var(--tint) / 0.07);
+  --ms-mine: var(--text);
+  --ms-glint: color-mix(in srgb, var(--surface-raised) 75%, transparent);
   --ms-flag: #e0313b;
-  --ms-pole: #3b3f46;
-  --ms-cross: #c42b1c;
+  --ms-pole: var(--text-2);
+  --ms-cross: var(--danger);
   --ms-question: var(--accent-text);
   --ms-explode: #e5484d;
   --ms-n1: #1565d8;
@@ -26,20 +27,17 @@
   --ms-n8: #767676;
 }
 :root[data-theme="dark"] .app-minesweeper {
-  --ms-tile-a: color-mix(in srgb, var(--accent) 36%, #3c3c3c);
-  --ms-tile-b: color-mix(in srgb, var(--accent) 27%, #303030);
-  --ms-tile-hover-a: color-mix(in srgb, var(--accent) 46%, #444444);
-  --ms-tile-hover-b: color-mix(in srgb, var(--accent) 35%, #383838);
-  --ms-tile-pressed: color-mix(in srgb, var(--accent) 16%, #262626);
-  --ms-tile-hi: rgba(255, 255, 255, 0.14);
-  --ms-tile-lo: rgba(0, 0, 0, 0.4);
-  --ms-open: rgba(255, 255, 255, 0.035);
-  --ms-open-stroke: rgba(255, 255, 255, 0.04);
-  --ms-mine: #e9ebee;
-  --ms-glint: rgba(0, 0, 0, 0.35);
+  --ms-tile-a: color-mix(in srgb, var(--accent) 30%, var(--surface-raised));
+  --ms-tile-b: color-mix(in srgb, var(--accent) 22%, var(--surface-raised));
+  --ms-tile-hover-a: color-mix(in srgb, var(--accent) 40%, var(--surface-raised));
+  --ms-tile-hover-b: color-mix(in srgb, var(--accent) 30%, var(--surface-raised));
+  --ms-tile-pressed: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+  --ms-tile-hi: rgb(var(--tint) / 0.16);
+  --ms-tile-lo: rgb(var(--shadow-rgb) / 0.45);
+  --ms-open: rgb(var(--tint) / 0.035);
+  --ms-open-stroke: rgb(var(--tint) / 0.05);
+  --ms-glint: rgb(var(--shadow-rgb) / 0.35);
   --ms-flag: #ff5c5c;
-  --ms-pole: #d6d9de;
-  --ms-cross: #ff99a4;
   --ms-explode: #d13438;
   --ms-n1: #6cb6ff;
   --ms-n2: #6fd68a;
@@ -107,8 +105,8 @@
 .app-minesweeper .ms-face svg {
   width: 32px;
   height: 32px;
-  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.22));
-  animation: ms-face-in 320ms var(--ease-spring);
+  filter: drop-shadow(0 1px 1.5px rgb(var(--shadow-rgb) / 0.22));
+  animation: ms-face-in var(--dur-slow) var(--ease);
 }
 .app-minesweeper .ms-face:focus-visible {
   outline-offset: 2px;
@@ -129,9 +127,8 @@
   position: relative;
   padding: 8px;
   border-radius: var(--radius-lg);
-  background: var(--card);
-  border: 1px solid var(--stroke-card);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05), 0 1px 1px rgba(0, 0, 0, 0.03);
+  background: var(--bg-alt);
+  border: 1px solid var(--line-soft);
 }
 .app-minesweeper .ms-frame.shake {
   animation: ms-shake 460ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
@@ -180,7 +177,7 @@
 }
 .app-minesweeper .ms-cell.closed.pressed {
   background: var(--ms-tile-pressed);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 1px 2px rgb(var(--shadow-rgb) / 0.2);
   transform: scale(0.92);
 }
 .app-minesweeper .ms-board.over .ms-cell.closed:hover,

@@ -209,7 +209,7 @@ export function faceSvg(c) {
 
 // ---------------------------------------------------------------- backs
 function clampHex(hex) {
-  return /^#[0-9a-f]{6}$/i.test(hex || '') ? hex : '#0078d4';
+  return /^#[0-9a-f]{6}$/i.test(hex || '') ? hex : '#c9d3e6';
 }
 function mix(hex, other, t) {
   const a = parseInt(clampHex(hex).slice(1), 16);
@@ -231,19 +231,27 @@ function backFrame(inner, { frame = '#ffffff', line = 'rgba(255,255,255,.55)' } 
 }
 
 function auroraBack(accent) {
+  // Selene: a night sky tinted with the accent, a few stars and the crescent-and-dot logo.
   const a = clampHex(accent);
-  const dark = mix(a, '#06142e', 0.55);
-  const light = mix(a, '#7be3c6', 0.55);
+  const top = mix(a, '#16203a', 0.72);
+  const bottom = mix(a, '#0a0f1c', 0.86);
+  const moon = mix(a, '#f4f6fb', 0.7);
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  let stars = '';
+  for (let i = 0; i < 34; i++) {
+    const x = 16 + rnd() * 218;
+    const y = 16 + rnd() * 318;
+    if (Math.abs(x - 125) < 60 && Math.abs(y - 175) < 60) continue;
+    stars += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(0.6 + rnd() * 1.1).toFixed(2)}" fill="#fff" fill-opacity="${(0.25 + rnd() * 0.45).toFixed(2)}"/>`;
+  }
   return backFrame(
-    `<defs><linearGradient id="g" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="${dark}"/><stop offset=".55" stop-color="${a}"/><stop offset="1" stop-color="${light}"/></linearGradient>` +
-      `<pattern id="d" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V14" stroke="#fff" stroke-opacity=".07" stroke-width="5"/></pattern>` +
-      `<radialGradient id="glow" cx=".5" cy=".42" r=".55"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>` +
-      `<rect width="250" height="350" fill="url(#g)"/><rect width="250" height="350" fill="url(#d)"/><rect width="250" height="350" fill="url(#glow)"/>` +
-      `<path d="M-10 250C40 240 80 200 125 130C150 92 175 70 260 60" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="18" stroke-linecap="round"/>` +
-      `<path d="M-10 290C50 280 100 250 140 200C170 165 200 150 260 145" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="10" stroke-linecap="round"/>` +
-      `<g transform="translate(125 175)"><rect x="-42" y="-42" width="84" height="84" rx="22" fill="#fff" fill-opacity=".16" stroke="#fff" stroke-opacity=".45" stroke-width="2"/>` +
-      `<path d="M-26 16C-17 14.5 -12.5 2.5 -5 -11C-2.6 -15.4 1.6 -15.4 4 -11C10 0.4 12.4 7.9 16 16" transform="scale(1.15) translate(4 0)" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>` +
-      `<path d="M-13 6C-6.7 3.9 1.7 3.6 9.5 6" transform="scale(1.15) translate(4 0)" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="4.5" stroke-linecap="round"/></g>`,
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bottom}"/></linearGradient>` +
+      `<radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="${moon}" stop-opacity=".22"/><stop offset="1" stop-color="${moon}" stop-opacity="0"/></radialGradient></defs>` +
+      `<rect width="250" height="350" fill="url(#g)"/>${stars}<circle cx="125" cy="175" r="78" fill="url(#glow)"/>` +
+      `<g transform="translate(125 175) scale(2.3) translate(-24 -24)"><path d="M15.04 10.58A17 17 0 1 0 36.92 32.46A15.6 15.6 0 0 1 15.04 10.58Z" fill="${moon}"/>` +
+      `<circle cx="37.2" cy="10.6" r="2.7" fill="${moon}"/></g>`,
+    { line: `${moon}55` },
   );
 }
 

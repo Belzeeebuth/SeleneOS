@@ -1195,7 +1195,13 @@ async function runMain() {
   await section('per-app theme and visual styles', async () => {
     await s.aurora(() => window.__aurora.settings.set('appThemes', { pdf: { theme: 'dark', accent: null } }));
     await until(() => run(s, `document.querySelector('${WIN}').dataset.theme === 'dark'`), { label: 'window dark', timeout: 4000 });
-    check('theme: dark tokens inside the window', await run(s, `getComputedStyle(document.querySelector('${WIN} .pdf-root')).getPropertyValue('--text').trim().toLowerCase()`), (v) => v === '#ffffff' || v === '#fff' || v === 'white');
+    check('theme: dark tokens inside the window', await run(s, `getComputedStyle(document.querySelector('${WIN} .pdf-root')).getPropertyValue('--text').trim().toLowerCase()`), (v) => {
+      // dark mode text is a light tone of the ambiance (#e6eaf2 in Nocturne), not the light-mode ink
+      const m = /^#([0-9a-f]{6})$/.exec(v);
+      if (!m) return v === 'white';
+      const n = parseInt(m[1], 16);
+      return ((n >> 16) + ((n >> 8) & 255) + (n & 255)) / 3 > 200;
+    });
     check('theme: shell stays light', await run(s, `document.documentElement.dataset.theme`), 'light');
     await shotDoc(s, 'pdf-app-theme-dark');
     await s.aurora(() => window.__aurora.settings.set('appThemes', {}));
