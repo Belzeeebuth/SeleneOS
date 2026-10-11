@@ -45,7 +45,7 @@ The redesign gives Selene its own identity.
 - "Vous" everywhere. Buttons are verbs in the infinitive (« Enregistrer », « Installer »).
 - Warm means polite and calm, not familiar.
 
-## Proposed names (to be validated)
+## Names (validated by the user on 2026-10-11)
 
 | Today | Proposed |
 |---|---|
@@ -76,3 +76,33 @@ The redesign gives Selene its own identity.
 
 - **Fonts:** `docs/design/mockups/assets/fonts/` holds Manrope and Inter as variable woff2 files (OFL).
 - **Icons:** Phosphor 2.1.1 (MIT), with the regular, light, bold, fill, duotone and thin weights. They are in the build machine's scratchpad, and the redesign will vendor them into the shell.
+
+## Decisions after the mockups (2026-10-11)
+
+### Styles
+
+The three mockups (`docs/design/mockups/{nocturne,eclipse,clairdelune}`) all become styles that the user picks in
+Paramètres > Personnalisation. The new list replaces the old one (Windows 11, Minimal, Glass, Retro):
+
+| Style | Default ambiance | Default accent | Bar |
+|---|---|---|---|
+| Nocturne (default) | cold | silver | Floating islands. |
+| Éclipse | neutral | amber | Full width, opaque. |
+| Clair de lune | warm | violet | Three floating pills. |
+| Contraste élevé | (its own) | (its own) | Kept for accessibility. |
+
+- The ambiance (cold, neutral, warm) and the accent (silver, night blue, violet, amber) can be chosen
+  independently of the style. Each style only sets their defaults.
+- In every style, **the bar's app icons are centred**. This is the user's choice. The Lanceur and its search
+  stay on the left, and status and the clock on the right.
+
+### Other decisions
+
+| Item | Decision |
+|---|---|
+| App icons | Rounded square on a **common night-blue base**, with a symbol in **muted** colours, so not saturated iOS-style gradients. It applies to all 37 apps plus the default icon for Linux apps, and replaces the old Fluent icon pack. |
+| Logo | Crescent plus a **small round dot-star**. The four-point sparkle is dropped. |
+| Names | The table above is validated as is. |
+| Font | Manrope for titles, Inter for text (variable woff2 vendored in the shell; OFL). |
+| UI icons | Phosphor (regular weight; fill for active states), replacing Fluent everywhere. |
+| Glass | Blurred surfaces (bar, Lanceur, panels) stay 80–92 % opaque, because blur silently fails in software rendering. |
