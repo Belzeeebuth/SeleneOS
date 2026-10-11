@@ -36,6 +36,7 @@ class BackupApp {
     this.offProgress = this.api.on('backup:progress', (p) => this.onProgress(p));
     win.on?.('close', () => {
       this.closed = true;
+      clearInterval(this.attachTimer);
       if (typeof this.offProgress === 'function') this.offProgress();
     });
     this.root.addEventListener('keydown', (e) => this.onKey(e));
@@ -57,6 +58,7 @@ class BackupApp {
       this.home = c.home;
       this.excludes = c.excludes || [];
       this.rsync = c.rsync !== false;
+      if (c.running && !this.run) this.attach(c.running);
     } catch (e) {
       this.cfg = this.cfg || { sources: [], dest: null, keep: 0, reminder: 'off', lastRun: null };
       this.setMessage('error', this.errText(e));
@@ -374,6 +376,20 @@ class BackupApp {
     this.run = null;
     this.render();
   }
+  // A backup started from a window that was closed since: show its progress here and follow it until it ends.
+  attach(opId) {
+    this.run = { opId, phase: 'scan', percent: 0, bytes: 0, speed: '', attached: true };
+    clearInterval(this.attachTimer);
+    this.attachTimer = setInterval(async () => {
+      if (this.closed) return clearInterval(this.attachTimer);
+      const c = await this.api.invoke('backup:config').catch(() => null);
+      if (!c || c.running === opId) return;
+      clearInterval(this.attachTimer);
+      this.run = null;
+      await this.load();
+      if (!this.closed) this.render();
+    }, 1500);
+  }
   async cancel() {
     if (!this.run) return;
     await this.api.invoke('backup:cancel', this.run.opId).catch(() => {});
@@ -408,9 +424,8 @@ class BackupApp {
     return ok;
   }
   async removeSource(p) {
-    const sources = this.cfg.sources.filter((s) => s !== p);
-    // removing never needs the other folders to exist: save without the strict check failing on a missing one
-    const ok = await this.saveConfig({ sources: sources.filter((s) => !this.missing.has(s)) });
+    // folders already in the list may be missing ("Not found"): the backend keeps them, only new ones must exist
+    const ok = await this.saveConfig({ sources: this.cfg.sources.filter((s) => s !== p) });
     if (ok) {
       await this.checkSources();
       this.render();

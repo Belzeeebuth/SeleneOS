@@ -401,7 +401,9 @@ module.exports = function register(api) {
       next.reminder = patch.reminder;
     }
     if ('sources' in patch || 'dest' in patch) {
-      const errors = await validate({ sources: 'sources' in patch ? next.sources : [], dest: 'dest' in patch ? next.dest : null }, { strictSources: 'sources' in patch });
+      const errors = (await validate({ sources: 'sources' in patch ? next.sources : [], dest: 'dest' in patch ? next.dest : null }, { strictSources: 'sources' in patch }))
+        // a folder that was already in the list may be missing for now (unplugged drive, deleted): keep it; only new ones must exist
+        .filter((e) => !(e.code === 'ESOURCE' && cfg.sources.includes(e.path)));
       // the destination must also stay outside every (old or new) source
       if ('dest' in patch && !('sources' in patch) && next.dest) errors.push(...(await validate({ sources: next.sources, dest: next.dest }, { strictSources: false })).filter((e) => e.code === 'EINSIDE'));
       if (errors.length) {

@@ -105,6 +105,16 @@ await section('path validation', async () => {
   check('home itself refused', r.code, 'EOUTSIDE');
   r = await invoke(s, 'backup:setConfig', { sources: [`${home}/Nope`] });
   check('missing source refused', r.code, 'ESOURCE');
+  // a folder already in the list that goes missing stays when another one is removed
+  fs.mkdirSync(path.join(home, 'Gone'), { recursive: true });
+  const before = (await invoke(s, 'backup:config')).v.config.sources;
+  r = await invoke(s, 'backup:setConfig', { sources: [...before, `${home}/Gone`] });
+  check('existing folder added', r.ok, true);
+  fs.rmSync(path.join(home, 'Gone'), { recursive: true, force: true });
+  r = await invoke(s, 'backup:setConfig', { sources: [...before.slice(1), `${home}/Gone`] });
+  check('a missing folder already in the list is kept when another is removed', r.ok && r.v.sources.includes(`${home}/Gone`), true);
+  r = await invoke(s, 'backup:setConfig', { sources: before });
+  check('sources restored', r.ok, true);
   r = await invoke(s, 'backup:setConfig', { dest: path.join(dest, 'missing') });
   check('missing destination refused', r.code, 'EDEST');
   r = await invoke(s, 'backup:setConfig', { dest: path.join(home, 'Documents') });
