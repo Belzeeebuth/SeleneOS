@@ -390,7 +390,10 @@ apt-upgrade)
 #   store-install <package>    apt-get -y install --no-install-recommends; APT status lines on stdout
 #   store-remove <package>     apt-get -y remove; APT status lines on stdout. Refused for catalog entries with
 #                              "removable": false and when apt would also remove other packages.
-# Only packages listed as "apt": "<name>" in the root-owned catalog /usr/share/aurora/store/catalog.json.
+# Only packages listed as "apt": "<name>" in the root-owned catalog /usr/share/aurora/store/catalog.json, or
+# (Store source "ubuntu") listed as a desktop application in the archive's AppStream data that apt downloads into
+# /var/lib/apt/lists (root-owned regular *_dep11_Components-<arch>.yml.gz files; the "appstream" package makes apt
+# fetch them). store-install runs "apt-get update" once when such a package is not found on the first try.
 store-install | store-remove)
   need_args $# 1
   pkg=$1
@@ -404,7 +407,49 @@ for it in json.load(open(sys.argv[1])).get("items", []):
     if isinstance(it, dict) and it.get("apt") == sys.argv[2]:
         print("fixed" if it.get("removable") is False else "removable")
         sys.exit(0)
-sys.exit(1)' "$STORE_CATALOG" "$pkg") || die 4 "this package is not in the store catalog: $pkg"
+sys.exit(1)' "$STORE_CATALOG" "$pkg") || store_kind=""
+  # store_dep11_has <package> <lists dir>: true when a root-owned regular DEP-11 Components file of <lists dir>
+  # lists <package> as a desktop application (shell/test/store-ubuntu.test.mjs runs this function on a test dir).
+  store_dep11_has() {
+    python3 -I -c 'import glob, gzip, os, stat, sys
+pkg, top = sys.argv[1], sys.argv[2]
+for path in sorted(glob.glob(os.path.join(top, "*_dep11_Components-*.yml.gz"))):
+    try:
+        st = os.lstat(path)
+    except OSError:
+        continue
+    if not stat.S_ISREG(st.st_mode) or st.st_uid != 0:
+        continue
+    kind = name = None
+    try:
+        with gzip.open(path, "rt", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if line.startswith("---"):
+                    kind = name = None
+                    continue
+                if line.startswith("Type: "):
+                    kind = line[6:].strip()
+                elif line.startswith("Package: "):
+                    name = line[9:].strip()
+                else:
+                    continue
+                if kind == "desktop-application" and name == pkg:
+                    sys.exit(0)
+    except (OSError, EOFError, ValueError):
+        continue
+sys.exit(1)' "$1" "$2"
+  }
+  STORE_APT_LISTS=/var/lib/apt/lists
+  if [ -z "$store_kind" ]; then
+    if store_dep11_has "$pkg" "$STORE_APT_LISTS"; then
+      store_kind=removable
+    elif [ "$ACTION" = store-install ]; then
+      # Missing or stale lists (fresh install): refresh them once and look again.
+      apt-get -q -o DPkg::Lock::Timeout=120 update >&2 || die 5 "could not refresh the package lists (check the network connection)"
+      store_dep11_has "$pkg" "$STORE_APT_LISTS" && store_kind=removable
+    fi
+    [ -n "$store_kind" ] || die 4 "this package is not in the store catalog: $pkg"
+  fi
   export DEBIAN_FRONTEND=noninteractive
   if [ "$ACTION" = store-install ]; then
     store_apt_install() {

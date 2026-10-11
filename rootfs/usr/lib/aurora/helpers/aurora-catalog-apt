@@ -1,0 +1,331 @@
+#!/usr/bin/python3 -I
+"""aurora-catalog-apt — builds the Store's Ubuntu catalogue cache from AppStream DEP-11 data (no root needed).
+
+Run as the user by shell/main/lib/sources/ubuntu.js:
+
+    aurora-catalog-apt build --out DIR --source COMPONENTS.yml.gz ICONS.tar.gz [--source ...]
+
+Each --source is one suite/component pair as published by the archive (dists/<suite>/<comp>/dep11/
+Components-<arch>.yml.gz and icons-64x64.tar.gz; ICONS may be "-"). Sources are given from the oldest suite to the
+newest: a later source replaces the entry of the same package.
+
+Only "Type: desktop-application" components are kept. Output (written atomically):
+    DIR/catalog.json   {"version": 1, "count": n, "items": [{package, id, name{C,fr}, summary{C,fr}, ...}]}
+    DIR/icons/<name>.png   the 64x64 cached icons the catalogue references (nothing else is extracted)
+Progress on stdout: "progress <phase> <percent>" lines, then "done <count>". Errors on stderr, exit 1.
+"""
+import gzip
+import json
+import os
+import re
+import sys
+import tarfile
+import time
+import xml.etree.ElementTree as ET
+
+import yaml
+
+try:
+    Loader = yaml.CSafeLoader  # libyaml (the ISO): ~10x faster
+except AttributeError:  # pure-python fallback
+    Loader = yaml.SafeLoader
+
+ICON_NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._+-]{0,200}\.png$')
+PKG = re.compile(r'^[a-z0-9][a-z0-9+.-]{1,62}$')
+DESKTOP_ID = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,200}$')
+MAX_ICON = 512 * 1024
+LANGS = ('fr', 'fr_FR', 'fr-FR')
+
+
+def say(*parts):
+    print(*parts, flush=True)
+
+
+def text(v, limit=4000):
+    return v.strip()[:limit] if isinstance(v, str) else ''
+
+
+def loc(d, limit=400):
+    """{C: .., fr: ..} -> {'C': .., 'fr': ..} (only the languages the shell has)."""
+    out = {}
+    if isinstance(d, dict):
+        c = text(d.get('C') or d.get('en') or d.get('en_US'), limit)
+        if c:
+            out['C'] = c
+        for k in LANGS:
+            fr = text(d.get(k), limit)
+            if fr:
+                out['fr'] = fr
+                break
+    elif isinstance(d, str):
+        out['C'] = text(d, limit)
+    return out
+
+
+def markup_to_text(markup):
+    """AppStream description markup (<p>, <ul>/<ol><li>, <em>, <code>) -> plain text, paragraphs split by \\n\\n."""
+    if not isinstance(markup, str):
+        return ''
+    try:
+        root = ET.fromstring('<r>' + markup + '</r>')
+    except ET.ParseError:
+        return re.sub(r'\s+', ' ', re.sub(r'<[^>]*>', ' ', markup)).strip()[:6000]
+    blocks = []
+
+    def flat(el):
+        return re.sub(r'\s+', ' ', ''.join(el.itertext())).strip()
+
+    for el in root:
+        if el.tag in ('ul', 'ol'):
+            items = [flat(li) for li in el if li.tag == 'li']
+            items = [i for i in items if i]
+            if items:
+                blocks.append('\n'.join('• ' + i for i in items))
+        else:
+            t = flat(el)
+            if t:
+                blocks.append(t)
+    if not blocks and root.text and root.text.strip():
+        blocks.append(re.sub(r'\s+', ' ', root.text).strip())
+    return '\n\n'.join(blocks)[:6000]
+
+
+def loc_desc(d):
+    out = {}
+    if isinstance(d, dict):
+        c = markup_to_text(d.get('C') or d.get('en'))
+        if c:
+            out['C'] = c
+        for k in LANGS:
+            fr = markup_to_text(d.get(k))
+            if fr:
+                out['fr'] = fr
+                break
+    return out
+
+
+def keywords(d):
+    out = []
+    if isinstance(d, dict):
+        for k in ('C',) + LANGS:
+            v = d.get(k)
+            if isinstance(v, list):
+                out.extend(text(x, 60) for x in v if isinstance(x, str))
+    seen = set()
+    return [k for k in out if k and not (k.lower() in seen or seen.add(k.lower()))][:40]
+
+
+def icon_name(icon):
+    """The cached 64x64 icon file name (falls back to any cached size: the 64x64 tarball usually has it)."""
+    if not isinstance(icon, dict):
+        return None
+    cached = [c for c in (icon.get('cached') or []) if isinstance(c, dict) and isinstance(c.get('name'), str)]
+    for c in sorted(cached, key=lambda c: (c.get('width') != 64, int(c.get('scale') or 1) != 1)):
+        if ICON_NAME.match(c['name']):
+            return c['name']
+    return None
+
+
+def screenshots(shots, base):
+    out = []
+    if not isinstance(shots, list):
+        return out
+    shots = sorted((s for s in shots if isinstance(s, dict)), key=lambda s: not s.get('default'))
+    for s in shots:
+        src = s.get('source-image')
+        url = src.get('url') if isinstance(src, dict) else None
+        if not isinstance(url, str):
+            continue
+        if not re.match(r'^https?://', url):
+            if not base:
+                continue
+            url = base.rstrip('/') + '/' + url.lstrip('/')
+        if url.startswith('https://') and len(url) < 1000:
+            out.append(url)
+        if len(out) >= 4:
+            break
+    return out
+
+
+def component(doc, base):
+    if not isinstance(doc, dict) or doc.get('Type') != 'desktop-application':
+        return None
+    pkg = doc.get('Package')
+    cid = doc.get('ID')
+    if not isinstance(pkg, str) or not PKG.match(pkg) or not isinstance(cid, str):
+        return None
+    name = loc(doc.get('Name'), 120)
+    if not name.get('C'):
+        return None
+    launch = doc.get('Launchable') if isinstance(doc.get('Launchable'), dict) else {}
+    desktop = next((d for d in (launch.get('desktop-id') or []) if isinstance(d, str) and DESKTOP_ID.match(d)), None)
+    url = doc.get('Url') if isinstance(doc.get('Url'), dict) else {}
+    homepage = url.get('homepage') if isinstance(url.get('homepage'), str) and re.match(r'^https?://', url.get('homepage')) else ''
+    cats = [c for c in (doc.get('Categories') or []) if isinstance(c, str) and re.match(r'^[A-Za-z0-9-]{1,40}$', c)][:12]
+    app_id = re.sub(r'\.desktop$', '', cid.strip())[:255]
+    return {
+        'package': pkg,
+        'id': app_id,
+        'name': name,
+        'summary': loc(doc.get('Summary'), 300),
+        'categories': cats,
+        'keywords': keywords(doc.get('Keywords')),
+        'icon': icon_name(doc.get('Icon')),
+        'description': loc_desc(doc.get('Description')),
+        'homepage': homepage[:500],
+        'license': text(doc.get('ProjectLicense'), 200),
+        'developer': loc(doc.get('DeveloperName'), 120).get('C', ''),
+        'screenshots': screenshots(doc.get('Screenshots'), base),
+        'desktopId': desktop if desktop and desktop.endswith('.desktop') else (desktop + '.desktop' if desktop else None),
+    }
+
+
+def documents(path):
+    """Yield the YAML text of each document of a DEP-11 file. Documents that are not desktop applications are
+    skipped before they reach the (slow) YAML parser."""
+    with gzip.open(path, 'rt', encoding='utf-8', errors='replace') as f:
+        buf = []
+        for line in f:
+            if line.startswith('---'):
+                if buf:
+                    yield ''.join(buf)
+                buf = []
+            else:
+                buf.append(line)
+        if buf:
+            yield ''.join(buf)
+
+
+def parse_file(path, on_doc=None):
+    base = ''
+    apps = []
+    first = True
+    for raw in documents(path):
+        if first:
+            first = False
+            try:
+                head = yaml.load(raw, Loader=Loader)
+            except yaml.YAMLError:
+                head = None
+            if isinstance(head, dict) and head.get('File') == 'DEP-11':
+                mb = head.get('MediaBaseUrl')
+                base = mb if isinstance(mb, str) and mb.startswith('https://') else ''
+                continue
+        if not raw.startswith('Type: desktop-application') and '\nType: desktop-application\n' not in raw:
+            continue
+        try:
+            doc = yaml.load(raw, Loader=Loader)
+        except yaml.YAMLError:
+            continue
+        app = component(doc, base)
+        if app:
+            apps.append(app)
+        if on_doc:
+            on_doc()
+    return apps
+
+
+def extract_icons(tar_path, wanted, outdir):
+    """Extract only the wanted icon files (flat names, regular members, size-capped): no path traversal."""
+    got = set()
+    if not tar_path or tar_path == '-' or not os.path.isfile(tar_path) or not wanted:
+        return got
+    try:
+        with tarfile.open(tar_path, 'r:gz') as tar:
+            for m in tar:
+                name = m.name[2:] if m.name.startswith('./') else m.name
+                if name not in wanted or not m.isreg() or m.size > MAX_ICON:
+                    continue
+                if '/' in name or name in ('.', '..') or not ICON_NAME.match(name):
+                    continue
+                src = tar.extractfile(m)
+                if src is None:
+                    continue
+                data = src.read(MAX_ICON + 1)
+                if len(data) > MAX_ICON or not data.startswith(b'\x89PNG'):
+                    continue
+                dest = os.path.join(outdir, name)
+                tmp = dest + '.tmp'
+                with open(tmp, 'wb') as out:
+                    out.write(data)
+                os.replace(tmp, dest)
+                got.add(name)
+    except (tarfile.TarError, OSError, EOFError) as e:
+        print('aurora-catalog-apt: icons: %s: %s' % (tar_path, e), file=sys.stderr)
+    return got
+
+
+def build(out, sources):
+    t0 = time.time()
+    icondir = os.path.join(out, 'icons')
+    os.makedirs(icondir, exist_ok=True)
+    by_pkg = {}
+    n = len(sources)
+    for i, (comp, icons) in enumerate(sources):
+        say('progress parse %d' % int(i * 80 / max(n, 1)))
+        if not os.path.isfile(comp):
+            continue
+        apps = parse_file(comp)
+        local = {}
+        for a in apps:
+            prev = local.get(a['package'])
+            # One entry per package: prefer the component named like the package.
+            if prev is None or (a['id'].split('.')[-1].lower() == a['package'] and prev['id'].split('.')[-1].lower() != a['package']):
+                local[a['package']] = a
+        wanted = {a['icon'] for a in local.values() if a['icon']}
+        say('progress icons %d' % int(i * 80 / max(n, 1) + 40 / max(n, 1)))
+        got = extract_icons(icons, wanted, icondir)
+        for a in local.values():
+            old = by_pkg.get(a['package'])
+            if a['icon'] not in got:
+                # keep an icon an older suite already provided
+                a['icon'] = old['icon'] if old and old.get('icon') and os.path.isfile(os.path.join(icondir, old['icon'])) else (a['icon'] if a['icon'] and os.path.isfile(os.path.join(icondir, a['icon'])) else None)
+            by_pkg[a['package']] = a
+    say('progress write 90')
+    items = sorted(by_pkg.values(), key=lambda a: a['name']['C'].lower())
+    used = {a['icon'] for a in items if a['icon']}
+    for f in os.listdir(icondir):
+        if f not in used:
+            try:
+                os.unlink(os.path.join(icondir, f))
+            except OSError:
+                pass
+    data = {'version': 1, 'generated': int(time.time()), 'count': len(items), 'items': items}
+    tmp = os.path.join(out, 'catalog.json.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, separators=(',', ':'))
+    os.replace(tmp, os.path.join(out, 'catalog.json'))
+    print('aurora-catalog-apt: %d apps in %.1f s (%s)' % (len(items), time.time() - t0, Loader.__name__), file=sys.stderr)
+    say('done %d' % len(items))
+
+
+def main(argv):
+    if len(argv) < 2 or argv[1] != 'build':
+        print(__doc__, file=sys.stderr)
+        return 2
+    out = None
+    sources = []
+    i = 2
+    while i < len(argv):
+        if argv[i] == '--out' and i + 1 < len(argv):
+            out = argv[i + 1]
+            i += 2
+        elif argv[i] == '--source' and i + 2 < len(argv):
+            sources.append((argv[i + 1], argv[i + 2]))
+            i += 3
+        else:
+            print('aurora-catalog-apt: bad argument: %s' % argv[i], file=sys.stderr)
+            return 2
+    if not out or not sources:
+        print('aurora-catalog-apt: --out and at least one --source are required', file=sys.stderr)
+        return 2
+    try:
+        build(out, sources)
+    except (OSError, ValueError) as e:
+        print('aurora-catalog-apt: %s' % e, file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))

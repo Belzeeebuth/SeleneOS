@@ -76,6 +76,18 @@ The `ubuntu` module installs and removes through the existing admin path, using 
   must handle.
 - **Theme.** Flatpak apps follow the light or dark theme through xdg-desktop-portal-gtk:
   `gsettings set org.gnome.desktop.interface color-scheme prefer-dark|default`, also set by `xapps.js`.
+- **Details of the implementation** (added by the flathub track):
+  - Helper: `/usr/lib/aurora/helpers/aurora-catalog-flathub --xml <appstream.xml[.gz]> [--icons DIR] --out FILE|-`
+    writes `~/.cache/aurora/store/flathub.json`. It takes about 1 s for 4,400 components. When flatpak's AppStream
+    file is newer than the cache, the next read rebuilds the cache, with no network.
+  - `status()` also returns `errorCode` (`ENET` | `ENOSPC` | `EFLATPAK`) next to `error` (a localised message), and
+    `simulated: true` in dev. `search()` accepts an optional `lang`. `details()` adds `installedVersion`.
+  - Error codes: `EINVAL` (bad id), `ENOENT` (not in the catalogue), `EBUSY` (an operation is already running for
+    this app), `ENET`, `ENOSPC`, `EFLATPAK` (flatpak is missing or failed, or remote-add failed).
+  - Dev: `AURORA_STORE_DEV_FAIL=<id>[:ENET|ENOSPC|EFLATPAK][,…]`, `AURORA_STORE_DEV_DELAY=<ms>` (the delay between
+    simulated progress steps, 40 by default). Tests: `AURORA_FLATPAK=<path>` replaces the flatpak binary with a stub.
+  - xapps.js drops an empty `@@u @@` / `@@ @@` pair from the argv when no file is given. When a missing applications
+    directory appears, xapps.js sees it, because it watches the nearest existing ancestor, up to 4 levels up.
 
 ## Ubuntu (`ubuntu.js`)
 
@@ -91,6 +103,23 @@ The `ubuntu` module installs and removes through the existing admin path, using 
   `/var/lib/apt/lists/`. The ISO ships `appstream`, so apt downloads those files.
 - **Remove.** It keeps the existing safety rule: it never removes other packages, and Selene's fixed packages are
   never removed.
+- **Details of the implementation** (added by the ubuntu track):
+  - Helper: `/usr/lib/aurora/helpers/aurora-catalog-apt build --out DIR --source COMPONENTS.yml.gz ICONS.tar.gz …`
+    (sources oldest suite first: release, -backports, -security, -updates; a later suite replaces the entry of the
+    same package). It writes `DIR/catalog.json` and `DIR/icons/*.png` (only the referenced 64×64 icons). It prints
+    `progress <parse|icons|write> <percent>` lines, so `refresh()` reports the phases `download`, `parse`, `icons`,
+    `write` and `done`. With libyaml (`CSafeLoader`, as in the ISO) the parse is fast. The pure-python fallback takes
+    about 25 s for noble main + universe (1,928 apps). The helper runs at nice 10.
+  - Install and remove: `ubuntu` is an admin source, like `selene`. The renderer runs
+    `shell.runAdmin('store-install' | 'store-remove', [item.id])`, and `ubuntu.adminAction(op, id)` returns that
+    `{ action, args }`. Outside dev, the module's `install()`/`remove()` reject with code `EADMIN` and
+    `err.admin = { action, args }`, because only the renderer can show the UAC prompt. In dev, they run the admin.js
+    simulation (`dev.storeRun`), and admin.js accepts the fixture's packages.
+  - `status()` also returns `refreshing` and `phase` while a refresh runs. `search()` and `details()` accept an
+    optional `lang` ('en' | 'fr'). Without it, the module uses the shell setting, then `env.lang`, then `$LANG`.
+  - Outside dev, `status().ready` is false until the first `refresh()`, and store.js decides when to call it. In dev,
+    the fixture catalogue is built on first use, and `details().screenshots` points to two local stand-ins
+    (`shell/test/fixtures/store-ubuntu/screenshot-{1,2}.png`), so the dev UI never fetches the archive's images.
 
 ## Store app
 
@@ -103,3 +132,24 @@ Three views draw on the merged catalogue: Home (featured and per-category rows),
 - The Installed and Updates pages cover all sources.
 - In the live session, a note says that installed apps are kept in memory and lost at restart. This matters
   most for Flatpak runtimes, which are large.
+
+### Aggregator (`shell/main/ipc/store.js`)
+
+The channels are documented in the header of `store.js`: `store:sources`, `store:setEnabled` (Flathub on/off,
+saved in `~/.config/aurora/store-sources.json`), `store:refresh` (+`store:progress` `{ kind: 'refresh' }`),
+`store:home`, `store:search` (pages of at most 60), `store:details`, `store:install` / `store:remove`
+(+`store:progress`), `store:installedAll`, `store:invalidate` and the `store:changed` broadcast. The older
+`store:catalog` and `store:installed` channels still work.
+- **Merge key.** The key is the `appId` in lower case. The aggregator keeps `appId` exactly as the module gives
+  it and never strips `.desktop` itself, because `org.telegram.desktop` is a real id. Curated GUI apps get their
+  AppStream id from `catalog.json` (optional `appId` field), then from a small table in `store.js`
+  (`gimp` → `org.gimp.GIMP`…), then from their `.desktop` file name.
+- **Admin sources.** For `selene` and `ubuntu`, the Store app installs through the renderer's UAC prompt with
+  `shell.runAdmin('store-install' | 'store-remove', [package])`, then calls `store:invalidate`.
+  `store:install` refuses these sources with `EADMIN`. Only `flathub` installs through `store:install`.
+- **Errors.** The app shows `ENET` / `ENETWORK` as "no network", and `EAUTH` / `ENOTADMIN` / `EPERM` as
+  "administrator permission refused".
+- **First run.** When the app opens and an enabled source reports `available && !ready`, the app starts
+  `store:refresh` for that source.
+- **UI stubs.** In DEV only, `AURORA_STORE_SOURCES_DIR=<absolute dir>` loads `ubuntu.js` and `flathub.js` from
+  that directory instead. `test/store.test.mjs` uses the tiny stubs in `shell/test/fixtures/store-ui-sources/`.

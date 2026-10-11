@@ -1,0 +1,293 @@
+#!/usr/bin/python3
+# Selene OS: Flathub AppStream collection -> compact JSON catalogue for the Store (docs/STORE-SOURCES.md).
+# Runs as the user, no privileges, python3 stdlib only. The XML is streamed with iterparse and every component is
+# cleared once read, so memory stays flat on the full Flathub catalogue.
+#
+#   aurora-catalog-flathub --xml <appstream.xml[.gz]> [--icons <dir>] --out <cache.json | ->
+#
+#   --xml    flatpak's appstream/flathub/<arch>/active/appstream.xml.gz (gzip detected by its magic, so a plain
+#            appstream.xml works too)
+#   --icons  the icons dir next to it (default: <dir of --xml>/icons, with 128x128/ and 64x64/ subdirs)
+#   --out    the JSON file to write (atomically, tmp + rename), or '-' for stdout
+#
+# Keeps components of type desktop-application / desktop with a valid flatpak app id; skips runtimes, addons,
+# console apps, merge components and end-of-life entries. Output:
+#   { "version": 1, "source": "flathub", "generated": <unix s>, "count": N,
+#     "apps": [ { id, appId, name:{en,fr?}, summary:{en,fr?}, description:{en,fr?}, keywords:[], categories:[],
+#                 icon: media://local/... | https://... | null, developer, license, homepage, screenshots:[https],
+#                 version } ] }
+# A summary line {"count": N} goes to stderr. Exit 2 on bad arguments / unreadable input.
+import gzip
+import json
+import os
+import re
+import sys
+import time
+import xml.etree.ElementTree as ET
+from urllib.parse import quote
+
+XML_LANG = '{http://www.w3.org/XML/1998/namespace}lang'
+APP_ID = re.compile(r'^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+){2,}$')
+ICON_NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._+-]{0,250}\.png$')
+MAIN_CATEGORIES = ['AudioVideo', 'Development', 'Education', 'Game', 'Graphics', 'Network', 'Office', 'Science',
+                   'Settings', 'System', 'Utility']
+CATEGORY_ALIASES = {'Audio': 'AudioVideo', 'Video': 'AudioVideo'}
+KEEP_TYPES = ('desktop-application', 'desktop')
+EOL_KEY = re.compile(r'(^|::)(eol|end[-_]?of[-_]?life)$', re.I)
+MAX_DESC = 3000
+
+
+def media_url(path):
+    """Same encoding as xapps.js / preload mediaUrl: encodeURIComponent on each path segment."""
+    return 'media://local' + '/'.join(quote(s, safe="!'()*-._~") for s in path.split('/'))
+
+
+def lang_of(el, inherited=None):
+    """'en' for the untranslated text, 'fr' for fr / fr_FR / fr-FR, None for any other language."""
+    lang = el.get(XML_LANG, inherited)
+    if not lang or lang in ('C', 'en'):
+        return 'en'
+    if re.match(r'^fr([_-][A-Za-z]+)?$', lang):
+        return 'fr'
+    return None
+
+
+def text_of(el):
+    return re.sub(r'\s+', ' ', ''.join(el.itertext())).strip()
+
+
+def localized(comp, tag, maxlen=300):
+    out = {}
+    for el in comp.findall(tag):
+        lang = lang_of(el)
+        t = text_of(el)
+        if lang and t and lang not in out:
+            out[lang] = t[:maxlen]
+    return out
+
+
+def description(comp):
+    """<p> and <ul>/<ol><li> to plain text per language, paragraphs separated by blank lines."""
+    paras = {}
+    for desc in comp.findall('description'):
+        dlang = desc.get(XML_LANG)
+        for child in desc:
+            if child.tag == 'p':
+                lang = lang_of(child, dlang)
+                t = text_of(child)
+                if lang and t:
+                    paras.setdefault(lang, []).append(t)
+            elif child.tag in ('ul', 'ol'):
+                items = {}
+                for li in child.findall('li'):
+                    lang = lang_of(li, child.get(XML_LANG, dlang))
+                    t = text_of(li)
+                    if lang and t:
+                        items.setdefault(lang, []).append('• ' + t)
+                for lang, lis in items.items():
+                    paras.setdefault(lang, []).append('\n'.join(lis))
+    out = {}
+    for lang, ps in paras.items():
+        t = '\n\n'.join(ps)
+        if len(t) > MAX_DESC:
+            t = t[:MAX_DESC - 1].rstrip() + '…'
+        out[lang] = t
+    return out
+
+
+def categories(comp):
+    seen = []
+    for el in comp.findall('categories/category'):
+        c = CATEGORY_ALIASES.get((el.text or '').strip(), (el.text or '').strip())
+        if c in MAIN_CATEGORIES and c not in seen:
+            seen.append(c)
+    return seen
+
+
+def keywords(comp):
+    out = []
+    for el in comp.findall('keywords/keyword'):
+        k = (el.text or '').strip().lower()[:60]
+        if k and k not in out:
+            out.append(k)
+    return out[:30]
+
+
+def icon(comp, icons_dir):
+    cached = {}
+    remote = None
+    for el in comp.findall('icon'):
+        kind = el.get('type')
+        name = (el.text or '').strip()
+        if kind == 'cached' and ICON_NAME.match(name) and '..' not in name:
+            try:
+                w = int(el.get('width') or 64)
+            except ValueError:
+                w = 64
+            cached.setdefault(w, name)
+        elif kind == 'remote' and name.startswith('https://') and remote is None:
+            remote = name[:1000]
+    for size in (128, 64):
+        name = cached.get(size)
+        candidates = [name] if name else []
+        candidates += [n for n in cached.values() if n != name]
+        for n in candidates:
+            f = os.path.join(icons_dir, '%dx%d' % (size, size), n)
+            if os.path.isfile(f):
+                return media_url(os.path.abspath(f))
+    return remote
+
+
+def screenshots(comp):
+    out = []
+    for shot in comp.findall('screenshots/screenshot'):
+        best = None
+        best_w = -1
+        source = None
+        for img in shot.findall('image'):
+            url = (img.text or '').strip()
+            if not url.startswith('https://'):
+                continue
+            if img.get('type') == 'thumbnail':
+                try:
+                    w = int(img.get('width') or 0)
+                except ValueError:
+                    w = 0
+                if w <= 1280 and w > best_w:
+                    best, best_w = url, w
+            elif source is None:
+                source = url
+        url = best if best_w >= 400 else (source or best)
+        if url and url not in out:
+            out.append(url[:1000])
+        if len(out) >= 4:
+            break
+    return out
+
+
+def is_eol(comp):
+    for el in comp.findall('custom/value') + comp.findall('metadata/value'):
+        if EOL_KEY.search(el.get('key') or ''):
+            return True
+    return False
+
+
+def app_of(comp, icons_dir):
+    if comp.get('type') not in KEEP_TYPES or comp.get('merge'):
+        return None
+    cid = (comp.findtext('id') or '').strip()
+    app_id = cid[:-8] if cid.endswith('.desktop') else cid
+    flatpak_id = app_id
+    bundle = comp.find("bundle[@type='flatpak']")
+    if bundle is not None and bundle.text:
+        parts = bundle.text.strip().split('/')
+        if len(parts) == 4 and parts[0] == 'app':
+            flatpak_id = parts[1]
+    if not (APP_ID.match(flatpak_id) and len(flatpak_id) <= 255):
+        return None
+    if is_eol(comp):
+        return None
+    name = localized(comp, 'name', 120)
+    if 'en' not in name:
+        return None
+    rel_version = None
+    best_ts = -1
+    for rel in comp.findall('releases/release'):
+        try:
+            ts = int(rel.get('timestamp') or 0)
+        except ValueError:
+            ts = 0
+        if rel.get('version') and ts > best_ts:
+            best_ts, rel_version = ts, rel.get('version')[:60]
+    developer = (comp.findtext('developer/name') or comp.findtext('developer_name') or '').strip()[:120]
+    homepage = ''
+    for u in comp.findall('url'):
+        if u.get('type') == 'homepage' and (u.text or '').strip().startswith(('https://', 'http://')):
+            homepage = u.text.strip()[:500]
+            break
+    return {
+        'id': flatpak_id,
+        'appId': app_id if APP_ID.match(app_id) else flatpak_id,
+        'name': name,
+        'summary': localized(comp, 'summary', 300),
+        'description': description(comp),
+        'keywords': keywords(comp),
+        'categories': categories(comp),
+        'icon': icon(comp, icons_dir),
+        'developer': developer,
+        'license': (comp.findtext('project_license') or '').strip()[:200],
+        'homepage': homepage,
+        'screenshots': screenshots(comp),
+        'version': rel_version,
+    }
+
+
+def open_xml(path):
+    f = open(path, 'rb')
+    magic = f.read(2)
+    f.seek(0)
+    if magic == b'\x1f\x8b':
+        return gzip.GzipFile(fileobj=f, mode='rb')
+    return f
+
+
+def parse(xml_path, icons_dir):
+    apps = []
+    seen = set()
+    depth = 0
+    root = None
+    with open_xml(xml_path) as f:
+        for event, el in ET.iterparse(f, events=('start', 'end')):
+            if event == 'start':
+                if root is None:
+                    root = el
+                depth += 1
+                continue
+            depth -= 1
+            if depth == 1 and el.tag == 'component':
+                app = app_of(el, icons_dir)
+                if app and app['id'] not in seen:
+                    seen.add(app['id'])
+                    apps.append(app)
+                el.clear()
+                root.clear()
+    return apps
+
+
+def main(argv):
+    args = {'--xml': None, '--icons': None, '--out': None}
+    i = 0
+    while i < len(argv):
+        if argv[i] in args and i + 1 < len(argv):
+            args[argv[i]] = argv[i + 1]
+            i += 2
+        else:
+            sys.stderr.write('usage: aurora-catalog-flathub --xml FILE [--icons DIR] --out FILE|-\n')
+            return 2
+    if not args['--xml'] or not args['--out']:
+        sys.stderr.write('usage: aurora-catalog-flathub --xml FILE [--icons DIR] --out FILE|-\n')
+        return 2
+    icons_dir = args['--icons'] or os.path.join(os.path.dirname(os.path.abspath(args['--xml'])), 'icons')
+    try:
+        apps = parse(args['--xml'], icons_dir)
+    except (OSError, ET.ParseError, EOFError) as e:
+        sys.stderr.write('error: %s\n' % e)
+        return 2
+    doc = {'version': 1, 'source': 'flathub', 'generated': int(time.time()), 'count': len(apps), 'apps': apps}
+    data = json.dumps(doc, ensure_ascii=False, separators=(',', ':'))
+    if args['--out'] == '-':
+        sys.stdout.write(data)
+        sys.stdout.flush()
+    else:
+        out = args['--out']
+        os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+        tmp = '%s.tmp-%d' % (out, os.getpid())
+        with open(tmp, 'w', encoding='utf-8') as f:
+            f.write(data)
+        os.replace(tmp, out)
+    sys.stderr.write(json.dumps({'count': len(apps)}) + '\n')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

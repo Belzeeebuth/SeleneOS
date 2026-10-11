@@ -21,6 +21,9 @@
 //
 // Theme: ~/.config/gtk-3.0/settings.ini and gtk-4.0/settings.ini get gtk-application-prefer-dark-theme following the
 // "theme" setting (outside dev, or in dev with AURORA_XAPPS_DIRS / AURORA_XWM=1 so a developer's HOME is untouched).
+// Same rule: gsettings org.gnome.desktop.interface color-scheme (prefer-dark / default) and gtk-theme (Adwaita-dark /
+// Adwaita), which Flatpak apps read through xdg-desktop-portal-gtk. Flatpak Exec lines (@@u %U @@ / @@ %F @@ markers)
+// keep their markers around the expanded files; an empty marker pair is dropped.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -189,8 +192,25 @@ function buildArgv(app, { files = [], urls = [] } = {}) {
     }
     return argv;
   };
-  if (wantsOne && !wantsList && items.length > 1) return items.map((it) => expand(it));
-  return [expand(items[0] ?? null)];
+  if (wantsOne && !wantsList && items.length > 1) return items.map((it) => dropEmptyMarkers(expand(it)));
+  return [dropEmptyMarkers(expand(items[0] ?? null))];
+}
+/**
+ * Flatpak exports Exec=flatpak run ... --file-forwarding <app> @@u %U @@ (or @@ %F @@): the files between the markers
+ * go through the document portal. A marker pair left empty (no file given) is removed. Files are absolute paths and
+ * URLs have a scheme, so an expanded file can never be a marker.
+ */
+function dropEmptyMarkers(argv) {
+  if (!argv.includes('@@')) return argv;
+  const out = [];
+  for (let i = 0; i < argv.length; i++) {
+    if ((argv[i] === '@@u' || argv[i] === '@@') && argv[i + 1] === '@@') {
+      i++;
+      continue;
+    }
+    out.push(argv[i]);
+  }
+  return out;
 }
 
 /** Desktop id (relative path, '/' -> '-', without .desktop) -> registry id 'linux.<sanitized>' (max 64 chars). */
@@ -266,6 +286,14 @@ function setIniDark(text, dark) {
   if (k >= 0) lines[k] = val;
   else lines.splice(start + 1, 0, val);
   return `${lines.join('\n')}\n`;
+}
+
+/** gsettings argv lists for the theme (Flatpak apps follow color-scheme through xdg-desktop-portal-gtk). */
+function gsettingsArgs(dark) {
+  return [
+    ['set', 'org.gnome.desktop.interface', 'color-scheme', dark ? 'prefer-dark' : 'default'],
+    ['set', 'org.gnome.desktop.interface', 'gtk-theme', dark ? 'Adwaita-dark' : 'Adwaita'],
+  ];
 }
 
 // ------------------------------------------------------------------ module
@@ -379,19 +407,30 @@ function register(api) {
     }, 400);
   };
   const watchers = new Map();
+  function nearestDir(d) {
+    let t = d;
+    for (let i = 0; i <= 4; i++, t = path.dirname(t)) {
+      try {
+        if (fs.statSync(t).isDirectory()) return t;
+      } catch {}
+      if (path.dirname(t) === t) break;
+    }
+    return null;
+  }
   function watchDirs() {
     for (const d of appDirs) {
       if (watchers.has(d)) continue;
-      // A missing directory is watched through its parent until it appears.
-      const target = fs.existsSync(d) ? d : fs.existsSync(path.dirname(d)) ? path.dirname(d) : null;
+      // A missing directory is watched through its nearest existing ancestor (up to 4 levels: a fresh
+      // ~/.local/share/flatpak/exports/share/applications appears with the first Flatpak install) until it appears.
+      const target = nearestDir(d);
       if (!target) continue;
       try {
-        const w = fs.watch(target, { persistent: false }, (_ev, f) => {
+        const w = fs.watch(target, { persistent: false }, () => {
           if (target === d) changed();
-          else if (f === path.basename(d) && fs.existsSync(d)) {
+          else if (nearestDir(d) !== target) {
             w.close();
             watchers.delete(d);
-            changed();
+            if (fs.existsSync(d)) changed();
             watchDirs();
           }
         });
@@ -426,6 +465,33 @@ function register(api) {
         console.warn('[xapps] gtk settings', f, err?.message || err);
       }
     }
+    syncGsettings(dark);
+  }
+  // Same rule as settings.ini (mayWriteHome); one gsettings run at a time, the latest theme wins.
+  let gsBusy = false;
+  let gsWanted = null;
+  function syncGsettings(dark) {
+    gsWanted = dark;
+    if (gsBusy) return;
+    gsBusy = true;
+    const runAll = (list, done) => {
+      if (!list.length) return done();
+      let child;
+      try {
+        child = spawn('gsettings', list[0], { stdio: 'ignore' });
+      } catch {
+        return done();
+      }
+      // A missing gsettings emits 'error' then 'close': only the first one counts.
+      let ended = false;
+      child.once('error', () => !ended && ((ended = true), done()));
+      child.once('close', () => !ended && ((ended = true), runAll(list.slice(1), done)));
+    };
+    const want = gsWanted;
+    runAll(gsettingsArgs(want), () => {
+      gsBusy = false;
+      if (gsWanted !== want) syncGsettings(gsWanted);
+    });
   }
   let lastDark = isDark();
   syncGtk(lastDark);
@@ -532,4 +598,4 @@ function register(api) {
 }
 
 module.exports = register;
-module.exports.parsers = { parseDesktop, splitList, unescapeValue, localized, splitExec, buildArgv, appIdOf, toEntry, setIniDark };
+module.exports.parsers = { parseDesktop, splitList, unescapeValue, localized, splitExec, buildArgv, appIdOf, toEntry, setIniDark, gsettingsArgs, dropEmptyMarkers };

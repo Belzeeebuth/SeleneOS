@@ -117,3 +117,83 @@
   .app-store .st-page { padding: 12px 16px 24px; }
   .app-store .st-detail-head { flex-direction: column; }
 }
+
+/* ------------------------------------------------------------------ multi-source catalogue */
+.app-store .st-icon { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; border-radius: 8px; }
+.app-store .st-icon.small { width: 36px; height: 36px; }
+.app-store .st-icon.large { width: 96px; height: 96px; border-radius: 16px; }
+.app-store .st-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.app-store .st-card-foot { flex-wrap: wrap; gap: 6px; }
+.app-store .st-badges { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.app-store .st-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.01em; flex-shrink: 0;
+  color: var(--st-badge-fg); background: var(--st-badge-bg); border: 1px solid var(--st-badge-bd); }
+.app-store .src-selene { --st-badge-fg: #5b2fb8; --st-badge-bg: #efe8fc; --st-badge-bd: #d9c9f6; --st-dot: #7a4fe0; }
+.app-store .src-ubuntu { --st-badge-fg: #a8410f; --st-badge-bg: #fdeee6; --st-badge-bd: #f6d0bb; --st-dot: #e95420; }
+.app-store .src-flathub { --st-badge-fg: #1f5aa8; --st-badge-bg: #e6f0fc; --st-badge-bd: #c3d9f5; --st-dot: #4a90d9; }
+:root[data-theme="dark"] .app-store .src-selene { --st-badge-fg: #d5c2ff; --st-badge-bg: rgba(122, 79, 224, 0.22); --st-badge-bd: rgba(122, 79, 224, 0.45); }
+:root[data-theme="dark"] .app-store .src-ubuntu { --st-badge-fg: #ffc2a3; --st-badge-bg: rgba(233, 84, 32, 0.2); --st-badge-bd: rgba(233, 84, 32, 0.45); }
+:root[data-theme="dark"] .app-store .src-flathub { --st-badge-fg: #b8d6ff; --st-badge-bg: rgba(74, 144, 217, 0.2); --st-badge-bd: rgba(74, 144, 217, 0.45); }
+.app-store .st-cat-AudioVideo { --st-tile: linear-gradient(135deg, #d6408a, #a01f5f); }
+.app-store .st-cat-Development { --st-tile: linear-gradient(135deg, #3b6fe0, #2347b0); }
+.app-store .st-cat-Education { --st-tile: linear-gradient(135deg, #2f9e6e, #1a6e4b); }
+.app-store .st-cat-Game { --st-tile: linear-gradient(135deg, #e0a03b, #b2701d); }
+.app-store .st-cat-Graphics { --st-tile: linear-gradient(135deg, #e0613b, #b23a1d); }
+.app-store .st-cat-Network { --st-tile: linear-gradient(135deg, #1c9fb8, #0d6c80); }
+.app-store .st-cat-Office { --st-tile: linear-gradient(135deg, #2b7cd3, #185aa8); }
+.app-store .st-cat-Science { --st-tile: linear-gradient(135deg, #2aa198, #16716a); }
+.app-store .st-cat-System { --st-tile: linear-gradient(135deg, #4b5566, #262c36); }
+.app-store .st-cat-Utility { --st-tile: linear-gradient(135deg, #8a5cd6, #5d34a8); }
+:root[data-theme="dark"] .app-store .st-cat-System { --st-tile: linear-gradient(135deg, #5d687b, #343b48); }
+
+/* categories page */
+.app-store .st-cats { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.app-store .st-cat-tile { flex: 1; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; padding: 14px 16px; text-align: start; font: inherit; color: inherit; cursor: default;
+  background: var(--card); border: 1px solid var(--stroke-card, var(--stroke)); border-radius: 8px; }
+.app-store .st-cat-tile:hover { background: var(--card-hover, var(--subtle-hover)); }
+.app-store .st-cat-tile:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 1px; }
+.app-store .st-cat-ic { grid-row: span 2; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; color: #fff; background: var(--st-tile); }
+.app-store .st-cat-ic .icon { width: 22px; height: 22px; }
+.app-store .st-cat-name { font-weight: 600; }
+.app-store .st-cat-count { color: var(--text-2); }
+
+/* lists */
+.app-store .st-more-wrap { display: flex; justify-content: center; }
+.app-store .st-more { display: inline-flex; align-items: center; gap: 8px; min-width: 200px; justify-content: center; }
+.app-store .st-refreshing { align-items: center; }
+.app-store .st-nav-spin { margin-inline-start: auto; }
+
+/* detail: source picker, hints, screenshots */
+.app-store .st-dev { font-size: 13px; }
+.app-store .st-summary { max-width: 640px; }
+.app-store .st-head-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.app-store .st-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.app-store .st-picker > .caption { margin-inline-end: 4px; }
+.app-store .st-src-opt { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 15px; font: inherit; font-size: 13px; color: var(--text); cursor: default;
+  background: var(--control, var(--card)); border: 1px solid var(--stroke); }
+.app-store .st-src-opt:hover:not([disabled]) { background: var(--subtle-hover); }
+.app-store .st-src-opt.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 600; }
+.app-store .st-src-opt:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
+.app-store .st-src-opt[disabled] { opacity: 0.6; }
+.app-store .st-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--st-dot); }
+.app-store .st-src-inst { color: var(--text-2); font-weight: 400; }
+.app-store .st-hint { flex-basis: 100%; }
+.app-store .st-shots { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
+.app-store .st-shot { height: 200px; max-width: 360px; object-fit: cover; border-radius: 8px; border: 1px solid var(--stroke); flex-shrink: 0; background: var(--card); }
+.app-store .st-desc + .st-desc { margin-top: 8px; }
+.app-store .st-link { color: var(--accent-text, var(--accent)); overflow-wrap: anywhere; }
+.app-store .st-live b { font-weight: 600; }
+
+/* sources page */
+.app-store .st-srcs { display: flex; flex-direction: column; gap: 10px; }
+.app-store .st-src { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px; }
+.app-store .st-src-head { display: flex; align-items: center; gap: 12px; }
+.app-store .st-src-title { min-width: 0; }
+.app-store .st-src-info { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 20px; margin: 0; }
+.app-store .st-src-info dd { margin: 0; }
+.app-store .st-src-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.app-store .st-src-actions .btn { display: inline-flex; align-items: center; gap: 6px; margin-inline-start: auto; }
+.app-store .st-src-actions .btn .icon { width: 16px; height: 16px; }
+.app-store .st-more[aria-busy="true"] { opacity: 0.7; }
+.app-store .st-grid { align-items: stretch; }
+.app-store .st-grid-cell { align-items: stretch; }
+.app-store .st-grid-cell > .st-card { align-self: stretch; height: auto; }

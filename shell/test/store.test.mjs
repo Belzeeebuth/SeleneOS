@@ -1,6 +1,10 @@
-// Store tests — catalog JSON, backend parsers, admin action validation, helper syntax, and the real Electron shell
-// (dev mode, simulated apt): home / categories / search / detail / Installed views, install + remove through the UAC
-// prompt with progress, cancel, failure, Open in Terminal, keyboard, French + dark theme, narrow window, console errors.
+// Store tests — catalog JSON, aggregator parsers (sanitize / merge / rank), admin action validation, helper syntax, and
+// the real Electron shell (dev mode) with the multi-source catalogue (docs/STORE-SOURCES.md): stub Ubuntu + Flathub
+// modules from test/fixtures/store-ui-sources (AURORA_STORE_SOURCES_DIR), simulated apt through the UAC prompt.
+// Home / featured / categories / search merge + badges / Load more / details + source picker / install from a
+// non-default source with progress / Open / Installed / Sources (refresh, Flathub on/off, no-network error) /
+// French + dark + live note / narrow window / console errors. When shell/main/lib/sources/{ubuntu,flathub}.js exist,
+// a last run checks the Store against their own dev fixtures.
 //   Documentation screenshots: aurora-os/docs/screenshots/store-light-en.png, store-dark-fr.png
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/store.test.mjs
 import fs from 'node:fs';
@@ -13,6 +17,8 @@ const require = createRequire(import.meta.url);
 const DOCS = path.join(ROOT, '..', 'docs', 'screenshots');
 const CATALOG = path.join(ROOT, '..', 'rootfs', 'usr', 'share', 'aurora', 'store', 'catalog.json');
 const HELPER = path.join(ROOT, '..', 'rootfs', 'usr', 'lib', 'aurora', 'helpers', 'aurora-admin');
+const STUBS = path.join(ROOT, 'test', 'fixtures', 'store-ui-sources');
+const REAL_SOURCES = ['ubuntu', 'flathub'].every((id) => fs.existsSync(path.join(ROOT, 'main', 'lib', 'sources', `${id}.js`)));
 fs.mkdirSync(DOCS, { recursive: true });
 
 let passed = 0;
@@ -95,128 +101,218 @@ const W = '.app-store';
   };
   check('helper filter: listed packages accepted', ['htop', 'fd-find', 'p7zip-full', 'openssh-server'].every(filter), true);
   check('helper filter: unlisted packages refused', ['sudo', 'bash', 'htop2', 'htop;id'].some(filter), false);
+  // aggregator parsers
+  check('parseCatalog: curated GUI apps carry their AppStream id', parsed.find((i) => i.id === 'gimp')?.appId, 'org.gimp.GIMP');
+  check('parseCatalog: CLI tools have no AppStream id', parsed.find((i) => i.id === 'htop')?.appId, null);
+  const sItem = parsers.sanitizeItem({ id: 'org.gimp.GIMP', appId: 'org.gimp.GIMP', name: 'GIMP', icon: 'javascript:alert(1)', categories: ['Graphics', 'Bogus'], desktopId: 'org.gimp.GIMP.desktop' }, 'flathub');
+  check('sanitizeItem: appId kept as given (org.telegram.desktop is a real id)', [sItem?.appId, parsers.sanitizeItem({ id: 'org.telegram.desktop', appId: 'org.telegram.desktop', name: 'Telegram' }, 'flathub')?.appId], ['org.gimp.GIMP', 'org.telegram.desktop']);
+  check('sanitizeItem: unsafe icon URL dropped, unknown categories dropped', [sItem?.icon, sItem?.categories], [null, ['Graphics']]);
+  check('sanitizeItem: invalid flatpak id refused', parsers.sanitizeItem({ id: 'gimp;rm -rf', name: 'x' }, 'flathub'), null);
+  const merged = parsers.mergeItems([
+    parsers.sanitizeItem({ id: 'org.gnome.Chess', appId: 'org.gnome.Chess', name: 'Chess', summary: 'flat', icon: 'https://x/y.png', categories: ['Game'] }, 'flathub'),
+    parsers.sanitizeItem({ id: 'gnome-chess', appId: 'org.gnome.Chess', name: 'Chess', summary: 'ubuntu', categories: ['Game'], installed: true, desktopId: 'org.gnome.Chess.desktop' }, 'ubuntu'),
+    parsers.sanitizeItem({ id: 'geany', appId: 'org.geany.Geany', name: 'Geany', categories: ['Development'] }, 'ubuntu'),
+  ]);
+  const chess = merged.get('org.gnome.chess');
+  check('mergeItems: one entry per AppStream id', merged.size, 2);
+  check('mergeItems: sources ordered ubuntu > flathub, default ubuntu', [chess?.sources.map((x) => x.source), chess?.defaultSource], [['ubuntu', 'flathub'], 'ubuntu']);
+  check('mergeItems: icon taken from any source, installed state kept', [chess?.icon, chess?.installed, chess?.installedSource, chess?.desktopId], ['https://x/y.png', true, 'ubuntu', 'org.gnome.Chess.desktop']);
+  const ranked = parsers.rankEntries([{ key: 'b', name: 'Super Chess', sources: [1], icon: 'x' }, { key: 'a', name: 'Chessboard', sources: [1], icon: 'x' }, { key: 'c', name: 'Other', sources: [1, 2], icon: null }], 'chess');
+  check('rankEntries: name prefix first, then name match, then others', ranked.map((e) => e.key), ['a', 'b', 'c']);
+  check('featured list: the 12 well-known ids', parsers.FEATURED.length, 12);
+  const ui = await import(path.join(ROOT, 'renderer', 'apps', 'store', 'main.js'));
+  check('parseStatus: dlstatus line', ui.parseStatus('dlstatus:1:33.3333:Retrieving file 1 of 3'), { phase: 'download', percent: 33.3333, pkg: '', message: 'Retrieving file 1 of 3' });
+  check('formatSize: EN and FR units', [ui.formatSize(52428800, 'en'), ui.formatSize(1536, 'fr')], ['50 MB', '1,5 Ko']);
+  const i18n = JSON.parse(fs.readFileSync(path.join(ROOT, 'renderer', 'apps', 'store', 'i18n.json'), 'utf8'));
+  check('i18n: same keys in EN and FR', Object.keys(i18n.en).sort(), Object.keys(i18n.fr).sort());
 }
 
-// ------------------------------------------------------------------ English, light
-let s = await launchShell({ open: ['store'], lang: 'en', theme: 'light', env: { AURORA_STORE_DEV_FAIL: 'btop' } });
+// ------------------------------------------------------------------ English, light (stub sources)
+const ENV = { AURORA_STORE_SOURCES_DIR: STUBS, AURORA_STORE_DEV_FAIL: 'btop', AURORA_STORE_STUB_OFFLINE: 'flathub' };
+const keys = (page, sel = `${W} .st-card`) => page.locator(sel).evaluateAll((els) => els.map((e) => e.dataset.key));
+const view = (page) => page.locator(`${W} .st-page`).getAttribute('data-view');
+async function search(page, q) {
+  await page.fill(`${W} .st-search-input`, q);
+  await until(async () => (await view(page)) === 'search' && (await page.locator(`${W} .st-page-title`).innerText()).includes(q) && (await page.locator(`${W} .st-loading`).count()) === 0, { timeout: 8000 });
+}
+let s = await launchShell({ open: ['store'], lang: 'en', theme: 'light', env: ENV });
 const errors = [];
 s.page.on('pageerror', (e) => errors.push(e.message));
 s.page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 try {
   const { page } = s;
   await page.waitForSelector(`${W} .st-card`, { timeout: 30000 });
-  check('home: hero title', (await page.locator(`${W} .st-hero h1`).innerText()).trim(), 'Apps and tools for Selene');
-  check('home: notice explains graphical apps and Terminal tools', await page.locator(`${W} .st-notice`).innerText(), (v) => /Graphical apps open in their own window/.test(v));
-  check('home: one section per category', await page.locator(`${W} .st-section[data-category]`).count(), 9);
-  check('nav: home + installed + 9 categories', await page.locator(`${W} .st-nav-item`).count(), 11);
+  check('home: hero title', (await page.locator(`${W} .st-hero h1`).innerText()).trim(), 'Apps for Selene');
+  check('home: no live note outside the live session', await page.locator(`${W} .st-live`).count(), 0);
+  const featured = await keys(page, `${W} .st-section[data-row=featured] .st-card`);
+  check('home: featured row in the fixed order, only apps a source has', featured.slice(0, 4), ['org.mozilla.firefox', 'org.gimp.gimp', 'org.videolan.vlc', 'org.libreoffice.libreoffice']);
+  check('home: all 12 featured apps exist in the stubs', featured.length, 12);
+  check('card: GIMP merged from three sources (three badges)', await page.locator(`${W} .st-section[data-row=featured] .st-card[data-key="org.gimp.gimp"] .st-badge`).allInnerTexts(), ['Selene', 'Ubuntu', 'Flathub']);
+  check('card: Firefox is Flathub only', await page.locator(`${W} .st-section[data-row=featured] .st-card[data-key="org.mozilla.firefox"] .st-badge`).allInnerTexts(), ['Flathub']);
+  check('card: real icon shown when a source has one', await page.locator(`${W} .st-section[data-row=featured] .st-card[data-key="org.mozilla.firefox"] img.st-icon`).count(), 1);
+  check('home: per-category rows', await page.locator(`${W} .st-section[data-category]`).evaluateAll((els) => els.map((e) => e.dataset.category)), (v) => ['Game', 'Graphics', 'Office', 'Science'].every((c) => v.includes(c)));
+  check('home: command-line tools row', await page.locator(`${W} .st-section[data-row=tools] .st-card`).count(), (n) => n > 0);
+  check('nav: Home, Categories, Installed, Sources + categories', await page.locator(`${W} .st-nav-item`).evaluateAll((els) => els.map((e) => e.dataset.nav).slice(0, 4)), ['home', 'categories', 'installed', 'sources']);
   check('nav: installed count badge (5 simulated)', (await page.locator(`${W} [data-nav=installed] .st-count`).innerText()).trim(), '5');
-  check('card: git shows Installed', await page.locator(`${W} .st-card[data-id=git] .st-chip`).innerText(), (v) => /Installed/.test(v));
-  check('card: htop shows Free', (await page.locator(`${W} .st-card[data-id=htop] .st-chip`).innerText()).trim(), 'Free');
-  check('home: no null/undefined text', await page.locator(W).innerText(), (v) => !/\bundefined\b|\bnull\b/.test(v));
+  check('home: no null/undefined text', await page.locator(W).innerText(), (v) => !/\bundefined\b|\bnull\b|NaN/.test(v));
   await s.shot('store-home-en');
   fs.copyFileSync(path.join(ROOT, 'test', 'out', 'store-home-en.png'), path.join(DOCS, 'store-light-en.png'));
 
   // categories
-  await page.click(`${W} [data-nav="cat:multimedia"]`);
-  check('category: Multimedia lists its tools and apps', await page.locator(`${W} .st-card`).evaluateAll((els) => els.map((e) => e.dataset.id).sort()), ['audacity', 'ffmpeg', 'imagemagick', 'kdenlive', 'obs-studio', 'vlc']);
-  check('category: nav item selected', await page.locator(`${W} [data-nav="cat:multimedia"]`).getAttribute('aria-current'), 'page');
-  await page.click(`${W} [data-nav=home]`);
-  await page.click(`${W} .st-section[data-category=editors] .st-see-all`);
-  check('see all: Editors page', await page.locator(`${W} .st-page`).getAttribute('data-view'), 'category');
+  await page.click(`${W} [data-nav=categories]`);
+  check('Categories page: one tile per category + tools', await page.locator(`${W} .st-cat-tile`).evaluateAll((els) => els.map((e) => e.dataset.category)), (v) => v.includes('Game') && v.includes('tools') && v.length >= 8);
+  await page.click(`${W} .st-cat-tile[data-category=Game]`);
+  await until(async () => (await page.locator(`${W} .st-results .st-card`).count()) > 0);
+  check('category Games: merged entries', (await keys(page)).sort(), ['net.supertuxkart.supertuxkart', 'org.gnome.chess']);
+  check('category: nav item selected', await page.locator(`${W} [data-nav="cat:Game"]`).getAttribute('aria-current'), 'page');
+  // Load more (30 command-line tools, pages of 24)
+  await page.click(`${W} [data-nav=categories]`);
+  await page.click(`${W} .st-cat-tile[data-category=tools]`);
+  await until(async () => (await page.locator(`${W} .st-results .st-card`).count()) > 0);
+  check('tools: first page of 24', await page.locator(`${W} .st-results .st-card`).count(), 24);
+  check('tools: Load more shows the count', (await page.locator(`${W} .st-more`).innerText()).trim(), 'Load more (24 of 30)');
+  await page.locator(`${W} .st-more`).focus();
+  await page.keyboard.press('Enter');
+  await until(async () => (await page.locator(`${W} .st-results .st-card`).count()) === 30);
+  check('Load more: next page appended', await page.locator(`${W} .st-results .st-card`).count(), 30);
+  check('Load more: button gone at the end', await page.locator(`${W} .st-more`).count(), 0);
+  check('Load more: focus moves to the first new card', await page.evaluate(() => [...document.querySelectorAll('.app-store .st-results .st-card')].indexOf(document.activeElement)), 24);
 
-  // search
+  // search merges an app present in two sources
   await page.keyboard.press('Control+f');
   check('Ctrl+F focuses search', await page.evaluate(() => document.activeElement?.classList.contains('st-search-input')), true);
-  await page.keyboard.type('rip');
-  await until(async () => (await page.locator(`${W} .st-page`).getAttribute('data-view')) === 'search');
-  check('search "rip": ripgrep ranked first', (await page.locator(`${W} .st-card`).evaluateAll((els) => els.map((e) => e.dataset.id)))[0], 'ripgrep');
-  await page.fill(`${W} .st-search-input`, 'json');
-  check('search in descriptions: "json" finds jq', await page.locator(`${W} .st-card`).evaluateAll((els) => els.map((e) => e.dataset.id)), ['jq']);
-  await page.fill(`${W} .st-search-input`, 'nvim');
-  check('search by command "nvim": Neovim', await page.locator(`${W} .st-card`).evaluateAll((els) => els.map((e) => e.dataset.id)), ['neovim']);
-  await page.fill(`${W} .st-search-input`, 'zzzqqq');
+  await search(page, 'chess');
+  check('search "chess": one merged card', await keys(page), ['org.gnome.chess']);
+  check('search: card shows Ubuntu + Flathub badges', await page.locator(`${W} .st-card[data-key="org.gnome.chess"] .st-badge`).allInnerTexts(), ['Ubuntu', 'Flathub']);
+  await search(page, 'nvim');
+  check('search finds curated tools by command', await keys(page), ['selene:neovim']);
+  await search(page, 'zzzqqq');
   check('search: empty state', await page.locator(`${W} .st-empty`).innerText(), (v) => /No results/.test(v));
   await page.press(`${W} .st-search-input`, 'Escape');
-  check('Escape clears search', await page.locator(`${W} .st-search-input`).inputValue(), '');
-  check('Escape: window still open', await page.locator(W).count(), 1);
+  check('Escape clears search and leaves the results', [await page.locator(`${W} .st-search-input`).inputValue(), await view(page)], ['', 'tools']);
 
-  // detail + install canceled
-  await page.click(`${W} [data-nav="cat:system"]`);
-  await page.click(`${W} .st-card[data-id=ncdu]`);
+  // details + source picker + install from a non-default source (Flathub) with progress
+  await search(page, 'chess');
+  await page.click(`${W} .st-card[data-key="org.gnome.chess"]`);
+  await page.waitForSelector(`${W} .st-detail-head .st-picker`, { timeout: 8000 });
+  check('detail: title', (await page.locator(`${W} .st-detail-title h1`).innerText()).trim(), 'Chess');
+  check('picker: two sources, Ubuntu selected by default', await page.locator(`${W} .st-src-opt`).evaluateAll((els) => els.map((e) => `${e.dataset.source}:${e.getAttribute('aria-checked')}`)), ['ubuntu:true', 'flathub:false']);
+  check('detail: apt source says it needs admin + size', await page.locator(`${W} .st-hint`).innerText(), (v) => /Requires administrator permission/.test(v) && /50 MB to download/.test(v));
+  check('detail: Install from Ubuntu', (await page.locator(`${W} .st-install`).innerText()).trim(), 'Install from Ubuntu');
+  check('detail: description paragraphs', await page.locator(`${W} .st-desc`).count(), 2);
+  check('detail: screenshots strip (https + data URLs)', await page.locator(`${W} .st-shots`).count(), 1);
+  await page.locator(`${W} .st-src-opt[data-source=ubuntu]`).focus();
+  await page.keyboard.press('ArrowRight');
+  await until(async () => (await page.locator(`${W} .st-src-opt[data-source=flathub]`).getAttribute('aria-checked')) === 'true');
+  check('picker: arrow keys choose Flathub', await page.locator(`${W} .st-src-opt[data-source=flathub]`).getAttribute('aria-checked'), 'true');
+  check('picker: focus follows', await page.evaluate(() => document.activeElement?.dataset?.source), 'flathub');
+  check('detail (Flathub): per-user hint', await page.locator(`${W} .st-hint`).innerText(), (v) => /no administrator permission/.test(v));
+  check('detail (Flathub): App ID in the information', await page.locator(`${W} .st-info`).innerText(), (v) => /App ID\s+org\.gnome\.Chess/.test(v) && /GPL-3\.0/.test(v));
+  await page.click(`${W} .st-install`);
+  check('install (Flathub): no UAC prompt', await page.locator('.uac-dialog').count(), 0);
+  const sawProgress = await until(async () => (await page.locator(`${W} .st-actions .st-progress`).count()) > 0, { timeout: 5000, every: 30 });
+  check('install: progress bar shown', !!sawProgress, true);
+  const pct = await until(async () => Number((await page.locator(`${W} .st-actions .st-progress`).getAttribute('aria-valuenow').catch(() => '0')) || 0) || 0, { timeout: 5000, every: 30 });
+  check('install: progress advances', pct, (v) => v > 0);
+  check('install: picker locked while busy', await page.locator(`${W} .st-src-opt[disabled]`).count(), 2);
+  await page.waitForSelector(`${W} .st-detail-head .st-open`, { timeout: 20000 });
+  check('install: Installed chip', await page.locator(`${W} .st-detail-head .st-chip.ok`).count(), 1);
+  check('install: picker marks the installed source', await page.locator(`${W} .st-src-opt[data-source=flathub] .st-src-inst`).count(), 1);
+  check('install: badge now 6', (await page.locator(`${W} [data-nav=installed] .st-count`).innerText()).trim(), '6');
+  check('install: notification', await page.evaluate(() => window.__aurora.notifications.list().some((n) => /Chess is installed/.test(n.title))), true);
+  // Open launches the Linux app through the registry
+  await page.evaluate(() => {
+    const reg = window.__aurora.shell.registry;
+    window.__storeLaunches = [];
+    reg.__get = reg.get;
+    reg.__launch = reg.launch;
+    reg.get = (id) => (String(id).startsWith('linux.org.gnome.Chess') ? { id } : reg.__get(id));
+    reg.launch = (id, args) => (window.__storeLaunches.push({ id, args }), String(id).startsWith('linux.') || id === 'terminal' ? null : reg.__launch(id, args));
+  });
+  await page.click(`${W} .st-detail-head .st-open`);
+  check('Open: launches linux.<desktop id>', await page.evaluate(() => window.__storeLaunches.map((l) => l.id)), ['linux.org.gnome.Chess']);
+
+  // keyboard back + focus
+  await page.locator(`${W} .st-back`).focus();
+  await page.keyboard.press('Alt+ArrowLeft');
+  check('Alt+Left: back to the results', await view(page), 'search');
+  check('back: focus returns to the card that was open', await page.evaluate(() => document.activeElement?.dataset?.key || ''), 'org.gnome.chess');
+  await page.keyboard.press('Enter');
   await page.waitForSelector(`${W} .st-detail-head`);
-  check('detail: title', (await page.locator(`${W} .st-detail-title h1`).innerText()).trim(), 'ncdu');
-  check('detail: info shows package + not installed', await page.locator(`${W} .st-info`).innerText(), (v) => /ncdu/.test(v) && /Not installed/.test(v));
-  check('detail: how-to shows the command', (await page.locator(`${W} .st-cmd`).innerText()).trim(), 'ncdu');
-  check('detail: window title', await page.evaluate(() => window.__aurora.wm.byApp('store')[0]?.title || document.querySelector('.app-store')?.closest('.window')?.querySelector('.title, .win-title')?.textContent || ''), (v) => /ncdu/.test(v));
+  check('Enter on a card opens its page', (await page.locator(`${W} .st-detail-title h1`).innerText().catch(() => '')).trim(), 'Chess');
+
+  // curated CLI tool through the UAC prompt (cancel, then install with progress)
+  await search(page, 'ncdu');
+  await page.click(`${W} .st-card[data-key="selene:ncdu"]`);
+  await page.waitForSelector(`${W} .st-install`);
+  check('selene detail: single source, how-to command', [(await page.locator(`${W} .st-single-src`).innerText()).trim(), (await page.locator(`${W} .st-cmd`).innerText()).trim()], ['From Selene', 'ncdu']);
   await page.click(`${W} .st-install`);
   await page.waitForSelector('.uac-dialog', { timeout: 10000 });
   check('UAC: reason names the package', await page.locator('.uac-dialog').innerText(), (v) => /install ncdu \(ncdu\)/.test(v));
   await page.keyboard.press('Escape');
   await page.waitForSelector('.uac-dialog', { state: 'detached', timeout: 8000 }).catch(() => {});
-  await sleep(300);
+  await until(async () => (await page.locator(`${W} .st-install`).count()) === 1);
   check('cancel: Install button back, no error', (await page.locator(`${W} .st-install`).count()) === 1 && (await page.locator(`${W} .st-error`).count()) === 0, true);
-
-  // install with progress
   await page.click(`${W} .st-install`);
   await uac(s);
-  const sawProgress = await until(async () => (await page.locator(`${W} .st-progress`).count()) > 0, { timeout: 5000, every: 50 });
-  check('install: progress bar shown', !!sawProgress, true);
-  const pct = await until(async () => Number((await page.locator(`${W} .st-progress`).getAttribute('aria-valuenow').catch(() => '0')) || 0) > 0 && Number(await page.locator(`${W} .st-progress`).getAttribute('aria-valuenow')), { timeout: 5000, every: 50 });
-  check('install: progress advances', pct, (v) => v > 0);
+  check('apt install: progress bar', !!(await until(async () => (await page.locator(`${W} .st-actions .st-progress`).count()) > 0, { timeout: 5000, every: 30 })), true);
   await page.waitForSelector(`${W} .st-detail-head .st-open`, { timeout: 20000 });
-  check('install: Installed chip', await page.locator(`${W} .st-detail-head .st-chip.ok`).count(), 1);
-  check('install: version shown', await page.locator(`${W} .st-info`).innerText(), (v) => !/Not installed/.test(v));
-  check('install: badge now 6', (await page.locator(`${W} [data-nav=installed] .st-count`).innerText()).trim(), '6');
-  check('install: notification', await page.evaluate(() => window.__aurora.notifications.list().some((n) => /ncdu is installed/.test(n.title))), true);
-
-  // Open in Terminal (launch intercepted)
-  await page.evaluate(() => {
-    window.__storeLaunches = [];
-    const sh = window.__aurora.shell;
-    sh.__origLaunch = sh.launch;
-    sh.launch = (id, args) => (window.__storeLaunches.push({ id, args }), null);
-  });
   await page.click(`${W} .st-detail-head .st-open`);
-  check('Open in Terminal: runs ncdu', await page.evaluate(() => window.__storeLaunches), [{ id: 'terminal', args: { command: 'ncdu' } }]);
-
-  // keyboard back
-  await page.locator(`${W} .st-back`).focus();
-  await page.keyboard.press('Alt+ArrowLeft');
-  check('Alt+Left: back to the category', await page.locator(`${W} .st-page`).getAttribute('data-view'), 'category');
-  await page.locator(`${W} .st-card[data-id=ncdu]`).focus();
-  await page.keyboard.press('Enter');
-  check('Enter on a card opens its page', (await page.locator(`${W} .st-detail-title h1`).innerText().catch(() => '')).trim(), 'ncdu');
-  await page.keyboard.press('Backspace');
-  check('Backspace: back', await page.locator(`${W} .st-page`).getAttribute('data-view'), 'category');
-  check('back: focus returns to the card that was open', await page.evaluate(() => document.activeElement?.dataset?.id || ''), 'ncdu');
+  check('Open in Terminal: runs ncdu', await page.evaluate(() => window.__storeLaunches.at(-1)), { id: 'terminal', args: { command: 'ncdu' } });
 
   // failure (simulated for btop)
-  await page.click(`${W} .st-card[data-id=btop]`);
+  await search(page, 'btop');
+  await page.click(`${W} .st-card[data-key="selene:btop"]`);
   await page.click(`${W} .st-install`);
   await uac(s);
   await page.waitForSelector(`${W} .st-error`, { timeout: 15000 }).catch(() => {});
   check('failure: error infobar', await page.locator(`${W} .st-error`).innerText().catch(() => ''), (v) => /could not install btop/.test(v));
   check('failure: Install offered again', await page.locator(`${W} .st-install`).count(), 1);
 
-  // Installed view + remove from a row
+  // Installed page across sources
   await page.click(`${W} [data-nav=installed]`);
-  check('Installed: rows', await page.locator(`${W} .st-row`).evaluateAll((els) => els.map((e) => e.dataset.id).sort()), ['curl', 'git', 'ncdu', 'rsync', 'unzip', 'wget']);
-  check('Installed: tools shipped with Selene OS have no Remove button', await page.locator(`${W} .st-row[data-id=git] .st-remove`).count(), 0);
-  check('Installed: shipped tools say so', (await page.locator(`${W} .st-row[data-id=git] .st-builtin`).innerText().catch(() => '')).trim(), 'Included with Selene OS');
-  await page.click(`${W} .st-row[data-id=git] .st-open`);
-  check('Installed: Open on a CLI tool opens a plain Terminal', await page.evaluate(() => window.__storeLaunches.at(-1)), { id: 'terminal', args: {} });
-  await page.click(`${W} .st-row[data-id=ncdu] .st-remove`);
-  check('UAC: remove reason', await page.locator('.uac-dialog').innerText().catch(() => ''), (v) => /remove ncdu/.test(v));
-  await uac(s);
-  await until(async () => (await page.locator(`${W} .st-row[data-id=ncdu]`).count()) === 0, { timeout: 15000 });
-  check('remove: row gone', await page.locator(`${W} .st-row[data-id=ncdu]`).count(), 0);
-  check('remove: badge back to 5', (await page.locator(`${W} [data-nav=installed] .st-count`).innerText()).trim(), '5');
+  await until(async () => (await page.locator(`${W} .st-row`).count()) > 0);
+  check('Installed: rows from every source', (await keys(page, `${W} .st-row`)).sort(), ['org.gnome.chess', 'selene:curl', 'selene:git', 'selene:ncdu', 'selene:rsync', 'selene:unzip', 'selene:wget']);
+  check('Installed: source badge on the row', (await page.locator(`${W} .st-row[data-key="org.gnome.chess"] .st-badge`).innerText()).trim(), 'Flathub');
+  check('Installed: shipped tools say so', (await page.locator(`${W} .st-row[data-key="selene:git"] .st-builtin`).innerText().catch(() => '')).trim(), 'Included with Selene OS');
+  await page.click(`${W} .st-row[data-key="org.gnome.chess"] .st-remove`);
+  check('remove (Flathub): no UAC prompt', await page.locator('.uac-dialog').count(), 0);
+  await until(async () => (await page.locator(`${W} .st-row[data-key="org.gnome.chess"]`).count()) === 0, { timeout: 15000 });
+  check('remove: row gone', await page.locator(`${W} .st-row[data-key="org.gnome.chess"]`).count(), 0);
+  check('remove: badge back to 6', (await page.locator(`${W} [data-nav=installed] .st-count`).innerText()).trim(), '6');
 
-  // backend refuses packages that are not in the catalog
-  const refused = await page.evaluate(() => window.__aurora.api.invoke('admin:run', 'pw', 'store-install', ['sudo']).then(() => 'ok', (e) => e.code || e.message));
-  check('backend: unlisted package refused', refused, (v) => /EPERM|not in the store catalog/.test(String(v)));
-  const bad = await page.evaluate(() => window.__aurora.api.invoke('admin:run', 'pw', 'store-install', ['a b']).then(() => 'ok', (e) => e.code || e.message));
-  check('backend: invalid name refused', bad, (v) => /EINVAL|invalid argument/.test(String(v)));
+  // Sources page: status, refresh, no-network error, Flathub on/off
+  await page.click(`${W} [data-nav=sources]`);
+  await page.waitForSelector(`${W} .st-src`);
+  check('Sources: three sources', await page.locator(`${W} .st-src`).evaluateAll((els) => els.map((e) => e.dataset.source)), ['selene', 'ubuntu', 'flathub']);
+  check('Sources: Ubuntu ready with its count', (await page.locator(`${W} .st-src[data-source=ubuntu] .st-src-state`).innerText()).trim(), 'Ready · 10 apps');
+  check('Sources: only Flathub can be turned off', [await page.locator(`${W} .st-src[data-source=selene] input`).count(), await page.locator(`${W} .st-src[data-source=flathub] .st-src-toggle input`).count()], [0, 1]);
+  const before = await page.locator(`${W} .st-src[data-source=ubuntu] .st-src-updated`).innerText();
+  await page.click(`${W} .st-src[data-source=ubuntu] .st-refresh`);
+  await until(async () => (await page.locator(`${W} .st-src[data-source=ubuntu] .st-refresh[disabled]`).count()) === 0 && (await page.locator(`${W} .st-src[data-source=ubuntu] .st-src-updated`).innerText()) !== before, { timeout: 8000 });
+  check('Refresh: last refresh updated, no error', [(await page.locator(`${W} .st-src[data-source=ubuntu] .st-src-updated`).innerText()) !== before, await page.locator(`${W} .st-src[data-source=ubuntu] .st-error`).count()], [true, 0]);
+  await page.click(`${W} .st-src[data-source=flathub] .st-refresh`);
+  await page.waitForSelector(`${W} .st-src[data-source=flathub] .st-error`, { timeout: 8000 }).catch(() => {});
+  check('Refresh offline: clear no-network error', await page.locator(`${W} .st-src[data-source=flathub] .st-error`).innerText().catch(() => ''), (v) => /No network connection/.test(v));
+  await page.click(`${W} .st-src[data-source=flathub] .st-src-toggle input`);
+  await until(async () => /Turned off/.test(await page.locator(`${W} .st-src[data-source=flathub] .st-src-state`).innerText()));
+  check('Flathub off: state', (await page.locator(`${W} .st-src[data-source=flathub] .st-src-state`).innerText()).trim(), 'Turned off');
+  await search(page, 'firefox');
+  check('Flathub off: its apps are hidden', await page.locator(`${W} .st-empty`).count(), 1);
+  await page.press(`${W} .st-search-input`, 'Escape');
+  await page.click(`${W} [data-nav=sources]`);
+  await page.click(`${W} .st-src[data-source=flathub] .st-src-toggle input`);
+  await until(async () => !/Turned off/.test(await page.locator(`${W} .st-src[data-source=flathub] .st-src-state`).innerText()));
+  await search(page, 'firefox');
+  check('Flathub on again: Firefox back', await keys(page), ['org.mozilla.firefox']);
+  await page.press(`${W} .st-search-input`, 'Escape');
+
+  // backend validation
+  const inv = (...a) => page.evaluate((a) => window.__aurora.api.invoke(...a).then((r) => r, (e) => ({ code: e.code })), a);
+  check('backend: invalid flatpak id refused', (await inv('store:install', 'flathub', 'bad id; rm')).code, 'EINVAL');
+  check('backend: apt sources only through the UAC prompt', (await inv('store:install', 'ubuntu', 'geany')).code, 'EADMIN');
+  check('backend: pages capped at 60', (await inv('store:search', { query: '', category: '', limit: 1000 })).items?.length, (n) => n > 0 && n <= 60);
+  check('backend: unlisted apt package still refused by the dev helper', (await inv('admin:run', 'pw', 'store-install', ['sudo'])).code, 'EPERM');
 
   // narrow window: compact navigation, no horizontal overflow
   await page.evaluate(() => window.__aurora.wm.byApp('store')[0].setSize(560, 520));
@@ -224,46 +320,94 @@ try {
   await page.click(`${W} [data-nav=home]`);
   check('narrow: nav labels hidden', await page.locator(`${W} [data-nav=home] .st-nav-label`).isVisible(), false);
   check('narrow: no horizontal overflow', await page.locator(`${W} .st-content`).evaluate((el) => el.scrollWidth <= el.clientWidth + 1), true);
-  await page.evaluate(() => {
-    const sh = window.__aurora.shell;
-    if (sh.__origLaunch) sh.launch = sh.__origLaunch;
-  });
 } catch (e) {
   failures.push(`EN run crashed: ${e.stack || e.message}`);
 } finally {
-  check('EN: no console errors', errors.filter((e) => !/favicon|ResizeObserver/.test(e)), []);
+  check('EN: no console errors', errors.filter((e) => !/favicon|ResizeObserver|ERR_NAME_NOT_RESOLVED|example\.invalid|net::/.test(e)), []);
   await s.close();
 }
 
-// ------------------------------------------------------------------ French, dark
-s = await launchShell({ lang: 'fr', theme: 'dark' });
+// ------------------------------------------------------------------ French, dark, live session
+s = await launchShell({ lang: 'fr', theme: 'dark', live: true, env: { AURORA_STORE_SOURCES_DIR: STUBS } });
 try {
   const { page } = s;
-  await page.evaluate(() => window.__aurora.registry.launch('store', { id: 'tmux' }));
-  await page.waitForSelector(`${W} .st-detail-head`, { timeout: 30000 });
-  check('FR: launch args open the detail page', (await page.locator(`${W} .st-detail-title h1`).innerText()).trim(), 'tmux');
-  check('FR: French description', await page.locator(`${W} .st-desc`).innerText(), (v) => /Multiplexeur de terminal/.test(v));
-  check('FR: Install button', (await page.locator(`${W} .st-install`).innerText()).trim(), 'Installer');
+  await page.evaluate(() => window.__aurora.registry.launch('store', { id: 'org.gimp.GIMP' }));
+  await page.waitForSelector(`${W} .st-detail-head .st-picker`, { timeout: 30000 });
+  check('FR: launch args open the detail page', (await page.locator(`${W} .st-detail-title h1`).innerText()).trim(), 'GIMP');
+  check('FR: three sources, Selene by default', await page.locator(`${W} .st-src-opt`).evaluateAll((els) => els.map((e) => `${e.dataset.source}:${e.getAttribute('aria-checked')}`)), ['selene:true', 'ubuntu:false', 'flathub:false']);
+  check('FR: French description', await page.locator(`${W} .st-desc`).first().innerText(), (v) => /retouche|image/i.test(v));
+  check('FR: Install button', (await page.locator(`${W} .st-install`).innerText()).trim(), 'Installer depuis Selene');
+  check('FR: admin hint', await page.locator(`${W} .st-hint`).innerText(), (v) => /Nécessite l'autorisation d'un administrateur/.test(v));
   check('FR: dark theme', await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
-  await page.click(`${W} .st-back`);
-  check('FR: back to home', await page.locator(`${W} .st-page`).getAttribute('data-view'), 'home');
-  check('FR: nav in French', await page.locator(`${W} .st-nav`).innerText(), (v) => /Accueil/.test(v) && /Installés/.test(v) && /Développement/.test(v));
-  check('FR: notice in French', await page.locator(`${W} .st-notice`).innerText(), (v) => /applications graphiques s'ouvrent dans leur propre fenêtre/.test(v));
-  check('FR: no English leftovers', await page.locator(W).innerText(), (v) => !/\b(Home|Installed|See all|Free|Graphical)\b/.test(v) && !/\bundefined\b|\bnull\b/.test(v));
+  await page.click(`${W} .st-src-opt[data-source=flathub]`);
+  await until(async () => (await page.locator(`${W} .st-src-opt[data-source=flathub]`).getAttribute('aria-checked')) === 'true');
+  check('FR live: Flathub detail warns about the live session', await page.locator(`${W} .st-live`).innerText().catch(() => ''), (v) => /Session live/.test(v) && /perdues au redémarrage/.test(v));
+  await page.click(`${W} .st-src-opt[data-source=selene]`);
+  await until(async () => (await page.locator(`${W} .st-src-opt[data-source=selene]`).getAttribute('aria-checked')) === 'true');
+  await sleep(300);
+  await s.shot('store-dark-fr');
+  fs.copyFileSync(path.join(ROOT, 'test', 'out', 'store-dark-fr.png'), path.join(DOCS, 'store-dark-fr.png'));
+  await page.click(`${W} .st-back`).catch(() => {});
+  await page.click(`${W} [data-nav=home]`);
+  await page.waitForSelector(`${W} .st-section[data-row=featured]`);
+  check('FR: home live note', await page.locator(`${W} .st-live`).innerText(), (v) => /Session live/.test(v));
+  check('FR: nav in French', await page.locator(`${W} .st-nav`).innerText(), (v) => /Accueil/.test(v) && /Installés/.test(v) && /Catégories/.test(v) && /Jeux/.test(v));
+  check('FR: featured row title', (await page.locator(`${W} .st-section[data-row=featured] h2`).innerText()).trim(), 'À la une');
+  check('FR: localised summary from a source', await page.locator(`${W} .st-section[data-row=featured] .st-card[data-key="org.mozilla.firefox"] .st-card-desc`).innerText(), 'Navigateur web rapide, privé et sûr');
+  check('FR: no English leftovers', await page.locator(W).innerText(), (v) => !/\b(Home|Installed|See all|Featured|Load more|Requires|Install from|Command-line)\b/.test(v) && !/\bundefined\b|\bnull\b|NaN/.test(v));
   const fg = await page.locator(`${W} .st-card-name`).first().evaluate((el) => getComputedStyle(el).color);
   check('FR dark: card text is light', fg, (v) => {
     const m = v.match(/\d+/g).map(Number);
     return m[0] > 180 && m[1] > 180 && m[2] > 180;
   });
-  await page.click(`${W} .st-card[data-id=btop]`);
-  await page.waitForSelector(`${W} .st-detail-head`);
-  await s.shot('store-dark-fr');
-  fs.copyFileSync(path.join(ROOT, 'test', 'out', 'store-dark-fr.png'), path.join(DOCS, 'store-dark-fr.png'));
+  await page.click(`${W} [data-nav=sources]`);
+  await page.waitForSelector(`${W} .st-src`);
+  check('FR: Sources page in French', await page.locator(`${W} .st-page`).innerText(), (v) => /Archive Ubuntu/.test(v) && /Dernière actualisation/.test(v) && /Actualiser/.test(v) && /Prêt · 16 applications/.test(v));
 } catch (e) {
   failures.push(`FR run crashed: ${e.stack || e.message}`);
 } finally {
   await s.close();
 }
+
+// ------------------------------------------------------------------ the real source modules (their own dev fixtures)
+if (REAL_SOURCES) {
+  s = await launchShell({ open: ['store'], lang: 'en', theme: 'light' });
+  const errs = [];
+  s.page.on('pageerror', (e) => errs.push(e.message));
+  s.page.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  try {
+    const { page } = s;
+    await page.waitForSelector(`${W} .st-card`, { timeout: 30000 });
+    const st = await page.evaluate(() => window.__aurora.api.invoke('store:sources'));
+    check('real modules: ubuntu + flathub loaded', st.sources.filter((x) => !x.missing).map((x) => x.id), ['selene', 'ubuntu', 'flathub']);
+    await until(async () => (await page.evaluate(() => window.__aurora.api.invoke('store:sources'))).sources.every((x) => x.ready || !x.enabled), { timeout: 30000, every: 500 });
+    const r = await page.evaluate(() => window.__aurora.api.invoke('store:search', { query: '', limit: 60 }));
+    check('real modules: merged catalogue has apps from both sources', [r.total > 40, r.items.some((e) => e.sources.some((x) => x.source === 'flathub')), r.items.some((e) => e.sources.some((x) => x.source === 'ubuntu'))], [true, true, true]);
+    await page.click(`${W} [data-nav=home]`);
+    await page.waitForSelector(`${W} .st-section[data-row=featured] .st-card`, { timeout: 15000 });
+    check('real modules: featured row', await page.locator(`${W} .st-section[data-row=featured] .st-card`).count(), (n) => n >= 3);
+    await page.locator(`${W} .st-section[data-row=featured] .st-card`).first().click();
+    await page.waitForSelector(`${W} .st-detail-head .st-actions .btn`, { timeout: 15000 });
+    check('real modules: details open with an action', await page.locator(`${W} .st-detail-head .st-actions .btn`).count(), (n) => n >= 1);
+    check('real modules: no null/undefined text', await page.locator(W).innerText(), (v) => !/\bundefined\b|\bnull\b|NaN/.test(v));
+    // an Ubuntu-only app installs through the UAC prompt (admin.js simulation) and shows up as installed
+    const ub = (await page.evaluate(() => window.__aurora.api.invoke('store:search', { source: 'ubuntu', limit: 60 }))).items.find((e) => e.sources.length === 1 && !e.installed);
+    if (check('real modules: an Ubuntu-only app exists', !!ub, true)) {
+      await page.evaluate((id) => window.__aurora.registry.launch('store', { id }), ub.key);
+      await page.waitForSelector(`${W} .st-detail-head .st-install`, { timeout: 15000 });
+      check('real modules (Ubuntu): Install from Ubuntu', (await page.locator(`${W} .st-install`).innerText()).trim(), 'Install from Ubuntu');
+      await page.click(`${W} .st-install`);
+      await uac(s);
+      await page.waitForSelector(`${W} .st-detail-head .st-chip.ok`, { timeout: 20000 }).catch(() => {});
+      check('real modules (Ubuntu): installed through the admin path', [await page.locator(`${W} .st-detail-head .st-chip.ok`).count(), await page.locator(`${W} .st-error`).count()], [1, 0]);
+    }
+  } catch (e) {
+    failures.push(`real-modules run crashed: ${e.stack || e.message}`);
+  } finally {
+    check('real modules: no console errors', errs.filter((e) => !/favicon|ResizeObserver|net::|ERR_/.test(e)), []);
+    await s.close();
+  }
+} else console.log('(real source modules not found: their run is skipped)');
 
 console.log(`\n${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log(`  FAIL ${f}`);

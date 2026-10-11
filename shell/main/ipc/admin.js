@@ -199,7 +199,15 @@ async function devStoreRun(action, args, onLine) {
   try {
     items = (JSON.parse(fs.readFileSync(storeCatalogFile(), 'utf8')).items || []).filter((i) => i && typeof i === 'object');
   } catch {}
-  const entry = items.find((i) => i.apt === pkg);
+  let entry = items.find((i) => i.apt === pkg);
+  // Like the helper's DEP-11 check: desktop applications of the Ubuntu catalogue (dev: its fixture) are accepted too.
+  if (!entry) {
+    let ubuntu = new Set();
+    try {
+      ubuntu = require('../lib/sources/ubuntu').devPackages();
+    } catch {}
+    if (ubuntu.has(pkg)) entry = { apt: pkg, removable: true };
+  }
   if (!entry) throw err(`this package is not in the store catalog: ${pkg}`, 'EPERM');
   // Like the helper: tools shipped with Selene OS ("removable": false) cannot be removed from the Store.
   if (action === 'store-remove' && entry.removable === false) throw err(`${pkg} is part of Selene OS and cannot be removed from the Store`, 'EPERM');
@@ -223,6 +231,7 @@ async function devStoreRun(action, args, onLine) {
   dev.changed('store');
   return 'done\n';
 }
+dev.storeRun = devStoreRun; // main/lib/sources/ubuntu.js: simulated install / remove in dev
 // ------------------------------------------------------------------ END store actions
 
 async function devRun(action, args, secret, onLine) {

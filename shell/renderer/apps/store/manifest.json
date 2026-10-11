@@ -1,15 +1,60 @@
 {
   "id": "store",
-  "name": { "en": "Store", "fr": "Store" },
-  "description": { "en": "Install command-line tools and services to use from the Terminal", "fr": "Installez des outils en ligne de commande et des services à utiliser depuis le Terminal" },
+  "name": {
+    "en": "Store",
+    "fr": "Store"
+  },
+  "description": {
+    "en": "Install apps from Selene picks, the Ubuntu archive and Flathub",
+    "fr": "Installez des applications de la sélection Selene, de l'archive Ubuntu et de Flathub"
+  },
   "icon": "icon.svg",
   "entry": "main.js",
-  "styles": ["style.css"],
-  "window": { "width": 1100, "height": 720, "minWidth": 560, "minHeight": 460, "background": "mica" },
+  "styles": [
+    "style.css"
+  ],
+  "window": {
+    "width": 1100,
+    "height": 720,
+    "minWidth": 560,
+    "minHeight": 460,
+    "background": "mica"
+  },
   "category": "system",
   "keywords": {
-    "en": ["store", "app store", "install", "apps", "packages", "apt", "software", "tools", "command line", "terminal"],
-    "fr": ["store", "boutique", "magasin", "installer", "applications", "paquets", "apt", "logiciels", "outils", "ligne de commande", "terminal"]
+    "en": [
+      "store",
+      "app store",
+      "install",
+      "apps",
+      "packages",
+      "apt",
+      "software",
+      "tools",
+      "command line",
+      "terminal",
+      "flatpak",
+      "flathub",
+      "ubuntu",
+      "games"
+    ],
+    "fr": [
+      "store",
+      "boutique",
+      "magasin",
+      "installer",
+      "applications",
+      "paquets",
+      "apt",
+      "logiciels",
+      "outils",
+      "ligne de commande",
+      "terminal",
+      "flatpak",
+      "flathub",
+      "ubuntu",
+      "jeux"
+    ]
   },
   "singleInstance": true
 }
