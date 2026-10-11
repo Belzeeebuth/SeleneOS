@@ -1,0 +1,11 @@
+# Linux GUI applications inside Selene Shell (docs/XWINDOWS.md): the aurora-xwm window manager helper
+# (python3 + python3-xlib), the GTK themes and icon themes that GTK 2/3/4 applications installed from
+# the Store need to look right in light and dark mode, xdg-utils (xdg-open from applications) and
+# x11-utils (xprop/xwininfo, for diagnostics).
+python3
+python3-xlib
+gnome-themes-extra
+adwaita-icon-theme
+hicolor-icon-theme
+xdg-utils
+x11-utils

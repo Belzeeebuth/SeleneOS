@@ -188,6 +188,14 @@ if [[ -n "$helpers" ]]; then
 else
   warn "no helpers in /usr/lib/aurora/helpers yet"
 fi
+# Linux GUI applications (docs/XWINDOWS.md): the window manager helper and its Python X library.
+if [[ -x "$S/usr/lib/aurora/helpers/aurora-xwm" ]]; then
+  pass "image has the aurora-xwm window manager helper"
+  if compgen -G "$S/usr/lib/python3/dist-packages/Xlib/display.py" >/dev/null; then pass "python3-xlib is installed (aurora-xwm)"
+  else fail "python3-xlib is missing: Linux applications cannot be shown (rebuild with --from packages)"; fi
+else
+  fail "image lacks /usr/lib/aurora/helpers/aurora-xwm (Linux applications)"
+fi
 bad="$(find "$S/usr/bin" "$S/usr/lib/aurora" -maxdepth 1 -name 'aurora-*' -type f ! -perm -0755 ! -name aurora-common | sed "s|^$S||")"
 [[ -z "$bad" ]] && pass "session entry points are executable" || fail "not executable: $bad"
 
