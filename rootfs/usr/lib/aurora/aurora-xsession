@@ -39,6 +39,12 @@ while :; do
   if [ $((now - window)) -gt 120 ]; then crashes=0; window=$now; fi
   crashes=$((crashes + 1))
   aurora_log "aurora-shell exited with status $rc (failure $crashes)"
+  # A GPU driver that crashes the shell (e.g. a VM without 3D acceleration that looks like a GPU):
+  # retry with software rendering, unless the user forced the GPU on (AURORA_GPU / aurora.gpu=).
+  if [ -z "${AURORA_GPU:-}" ] && ! aurora_cmdline aurora.gpu >/dev/null && [ "$(aurora_gpu_mode)" = on ]; then
+    export AURORA_GPU=off
+    aurora_log "retrying the shell with software rendering (AURORA_GPU=off)"
+  fi
   if [ "$crashes" -ge 3 ]; then
     aurora_log "aurora-shell keeps failing; ending the session"
     exit "$rc"

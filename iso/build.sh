@@ -853,7 +853,8 @@ configure_services() {
     in_chroot "$ROOT" systemctl disable "$u" >/dev/null 2>&1 || true
   done
   in_chroot "$ROOT" systemctl mask systemd-networkd-wait-online.service >/dev/null
-  # Text console on tty1 stays available (Ctrl+Alt+F1); greetd owns tty7.
+  # Text console on tty1 stays available (Ctrl+Alt+F1); greetd owns tty7. Plymouth must quit normally
+  # (no --retain-splash): a console left in graphics mode makes the kernel ignore greetd's switch to tty7.
   # Other aurora-* units shipped in rootfs/ are enabled when they have an [Install] section.
   for f in "$ROOTFS_SRC"/usr/lib/systemd/system/aurora-* "$ROOTFS_SRC"/etc/systemd/system/aurora-*; do
     [[ -f "$f" ]] || continue

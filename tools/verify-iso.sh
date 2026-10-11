@@ -162,6 +162,15 @@ for f in /opt/aurora/electron/electron /opt/aurora/electron/chrome-sandbox /opt/
          /etc/skel/Desktop/Welcome.txt /etc/skel/.config/user-dirs.dirs /boot/vmlinuz /var/lib/aurora-greeter; do
   must "$f"
 done
+# Boot hand-over: 'plymouth quit --retain-splash' leaves tty1 in graphics mode, and the kernel then ignores every
+# VT switch, so greetd waits forever for its VT (greetd.toml 'vt') and the screen stays on the splash / black.
+gvt="$(sed -nE 's/^ *vt *= *([0-9]+).*/\1/p' "$S/etc/greetd/config.toml" | head -1)"
+if grep -rqs -- '--retain-splash' "$S"/etc/systemd/system/plymouth-quit*.service.d "$S"/usr/lib/systemd/system/plymouth-quit*.service \
+   && [[ "$gvt" != 1 ]]; then
+  fail "plymouth quits with --retain-splash but greetd runs on vt $gvt: the VT switch is refused (black screen after the splash)"
+else
+  pass "boot hand-over: Plymouth leaves the console in text mode, so greetd can switch to vt ${gvt:-?}"
+fi
 for d in Desktop Documents Downloads Pictures Music Videos; do [[ -d "$S/etc/skel/$d" ]] || fail "skel lacks $d"; done
 pass "skel folders: Desktop Documents Downloads Pictures Music Videos"
 if [[ -f "$S/opt/aurora/shell/renderer/greeter.html" ]]; then pass "image has /opt/aurora/shell/renderer/greeter.html"
