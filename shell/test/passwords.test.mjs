@@ -317,7 +317,7 @@ try {
     const csvIn = path.join(home, 'Documents', 'import.csv');
     fs.writeFileSync(csvIn, 'name,url,username,password,note\n"Cloud, Inc.",https://cloud.example,carol,"pa""ss",multi\nForum,forum.example,dave,d4ve!,\nBank,https://bank.example,alice-bank,b4nk-Pass!word,\n');
     const res = await P(s, (app, p) => app.importCsv(p), csvIn);
-    check('CSV import adds the new rows', res?.added, 3);
+    check('CSV import adds the new rows and skips duplicates', [res?.added, res?.skipped], [2, 1]);
     check('imported values kept (quotes, commas)', await P(s, (app) => app.model.entries.find((e) => e.title === 'Cloud, Inc.')?.password), 'pa"ss');
     const out = path.join(home, 'Documents', 'export.csv');
     s.page.evaluate(`document.querySelector('${WIN}').__passwords.exportCsv(${JSON.stringify(out)})`).catch(() => {});
@@ -327,7 +327,8 @@ try {
     await sleep(500);
     const text = fs.existsSync(out) ? fs.readFileSync(out, 'utf8') : '';
     check('export file written with a header', text.split(/\r?\n/)[0], 'title,username,password,url,notes,favorite');
-    check('export contains every entry', text.trim().split(/\r?\n/).length, 7);
+    check('export contains every entry', text.trim().split(/\r?\n/).length, 6);
+    check('export keeps quotes escaped', text.includes('"Cloud, Inc.",carol,"pa""ss"'), true);
     await P(s, (app) => app.saving);
   });
 
@@ -343,7 +344,7 @@ try {
     await s.page.fill(`${WIN} #pw-master`, MASTER);
     await s.page.keyboard.press('Enter');
     await until(s, (app) => app.state === 'open', { label: 'unlocked', timeout: 30000 });
-    check('entries back after unlock', await P(s, (app) => app.model.entries.length), 6);
+    check('entries back after unlock', await P(s, (app) => app.model.entries.length), 5);
     await s.page.focus(`${WIN} .pw-search`);
     await s.page.keyboard.press('Control+l');
     await until(s, (app) => app.state === 'locked', { label: 'Ctrl+L locked' });
@@ -392,7 +393,7 @@ try {
     await s2.page.fill(`${WIN} #pw-master`, MASTER);
     await s2.page.click(`${WIN} .pw-go`);
     await until(s2, (app) => app.state === 'open', { label: 'unlocked', timeout: 30000 });
-    check('entries persisted across relaunch', await P(s2, (app) => app.model.entries.length), 6);
+    check('entries persisted across relaunch', await P(s2, (app) => app.model.entries.length), 5);
     check('auto-lock preference persisted', await P(s2, (app) => app.prefs.autoLockMinutes), 15);
     check('toolbar in French', await s2.page.textContent(`${WIN} .pw-new`), 'Nouvelle entrée');
     await s2.page.click(`${WIN} .pw-item:has-text("Example Mail")`);

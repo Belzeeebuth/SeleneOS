@@ -392,7 +392,7 @@ class PasswordsApp {
       }
     });
     this.root.replaceChildren(h('div', { class: 'pw-gate' }, form));
-    setTimeout(() => !this.win.closed && pw.input.focus(), 30);
+    pw.input.focus();
   }
 
   renderToolbar() {
@@ -577,7 +577,7 @@ class PasswordsApp {
     const e = id ? this.entry(id) : null;
     this.editing = e ? { ...e } : { id: newId(), title: '', username: '', password: '', url: '', notes: '', favorite: false, isNew: true };
     this.render();
-    setTimeout(() => this.root.querySelector('#pw-f-title')?.focus(), 20);
+    this.root.querySelector('#pw-f-title')?.focus();
   }
 
   cancelEdit() {
