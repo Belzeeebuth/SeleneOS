@@ -248,7 +248,7 @@ HDMI-1 connected 1080x1920+1920+0 left (normal left inverted right x axis y axis
     check(enX.every((k) => frX.has(k)) && frX.size === enX.length, `${x}: every extended string exists in English and French (${enX.length})`);
     extended.push(...enX);
   }
-  const missing = [...used].filter((k) => !en.includes(k) && !en.includes(`${k}_one`) && !core.includes(k) && !extended.includes(k));
+  const missing = [...used].filter((k) => !en.includes(k) && !en.includes(`${k}_one`) && !core.includes(k) && !extended.includes(k) && !extended.includes(`${k}_one`));
   check(!missing.length, `no missing string keys${missing.length ? `: ${missing.join(' ')}` : ''}`);
 }
 

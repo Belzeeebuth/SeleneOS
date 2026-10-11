@@ -693,7 +693,10 @@ npm_ci_runtime() { # dir  (runs in a subshell through run_bg)
   cd "$1" || return 1
   export PATH="$NODE_BIN:$PATH" npm_config_cache="$CACHE/npm" npm_config_update_notifier=false
   if [[ -n "$BUILD_CA_BUNDLE" ]]; then export NODE_EXTRA_CA_CERTS="$BUILD_CA_BUNDLE"; fi
-  npm ci --omit=dev --ignore-scripts --no-audit --no-fund --prefer-offline --loglevel=error
+  npm ci --omit=dev --ignore-scripts --no-audit --no-fund --prefer-offline --loglevel=error || return 1
+  # npm cannot always tell glibc from musl here and then also installs the musl builds of prebuilt
+  # native modules (e.g. @napi-rs/canvas, an optional dependency of pdfjs-dist). The image is glibc.
+  find node_modules -mindepth 1 -maxdepth 2 -type d -name '*-linux-*-musl*' -prune -exec rm -rf {} +
 }
 
 install_shell() {
