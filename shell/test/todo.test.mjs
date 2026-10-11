@@ -1966,6 +1966,202 @@ async function runBadData() {
   }
 }
 
+// ================================================================== launch H: QA, second pass (English, light)
+// Keyboard focus after flyouts anchored to non-focusable elements (list icon), the list icon as a keyboard button,
+// narrow-layout search (Ctrl+F types into the overlay's box, ↓ / Enter / Esc close it and focus the results),
+// shortcuts sheet at the minimum size, ellipsis of long list names in suggestions, 4.5:1 contrast of the white
+// header text on light pictures (pixels captured from the real window), emoji detection of list names.
+async function runQA2() {
+  const s = await launchShell({ open: ['todo'], lang: 'en', theme: 'light' });
+  current = s;
+  const active = () => s.page.evaluate(`(() => { const a = document.activeElement; const w = document.querySelector(${JSON.stringify(WIN)}); return { inWin: !!w && w.contains(a), cls: String(a?.className || '') }; })()`);
+  try {
+    await s.page.waitForSelector(`${WIN} .td`, { timeout: 20000 });
+    await until(s, (app) => !!app?.store, { label: 'todo ready' });
+    await TD(s, (app) => (app.win.restore?.(), app.win.setSize?.(1180, 760), true));
+    await sleep(300);
+
+    await section('QA2: the list icon is a keyboard button; the focus comes back after the emoji picker', async () => {
+      const id = await TD(s, (app) => {
+        const l = app.store.addList('🏠 Home');
+        app.go(`list:${l.id}`);
+        app.renderNow();
+        return l.id;
+      });
+      const attrs = await TD(s, (app) => {
+        const e = app.list.titleIcon;
+        return [e.tabIndex, e.getAttribute('role'), e.getAttribute('aria-label'), e.getAttribute('aria-hidden')];
+      });
+      check('user list icon: focusable button with a name', attrs, [0, 'button', 'Change icon', null]);
+      await TD(s, (app) => (app.list.titleIcon.focus(), true));
+      await s.page.keyboard.press('Enter');
+      await s.page.waitForSelector(`${WIN} .td-pop-emoji`, { timeout: 3000 });
+      await sleep(250);
+      await s.page.keyboard.press('Escape');
+      await sleep(300);
+      check('Esc in the emoji picker: focus back on the icon (not on <body>)', await active(), { inWin: true, cls: 'td-title-icon emoji clickable' });
+      // mouse: pick an emoji, then the window shortcuts still work (the focus stayed in the window)
+      await s.page.click(`${WIN} .td-title-icon`);
+      await s.page.waitForSelector(`${WIN} .td-pop-emoji`, { timeout: 3000 });
+      await sleep(250);
+      await s.page.locator(`${WIN} .td-emoji`, { hasText: '💼' }).first().click();
+      await sleep(300);
+      check('emoji picked with the mouse', await TD(s, (app, id) => app.store.list(id).emoji, id), '💼');
+      check('focus still in the window after picking', (await active()).inWin, true);
+      await s.page.keyboard.press('Control+Shift+?');
+      await s.page.waitForSelector(DLG, { timeout: 3000 });
+      check('Ctrl+Shift+? works right after (keys reach the window)', await s.page.evaluate(`document.querySelectorAll(${JSON.stringify(DLG)}).length`), 1);
+      await s.page.keyboard.press('Escape');
+      await sleep(300);
+      // any flyout whose anchor cannot take the focus falls back to the task list
+      await TD(s, (app) => (app.pickDue(app.list.subtitle, null), true));
+      await s.page.waitForSelector(`${WIN} .td-pop`, { timeout: 3000 });
+      await sleep(250);
+      await s.page.keyboard.press('Escape');
+      await sleep(300);
+      check('flyout anchored to a plain element: focus lands in the window', (await active()).inWin, true);
+      const smart = await TD(s, (app) => {
+        app.go('important');
+        app.renderNow();
+        const e = app.list.titleIcon;
+        return [e.hasAttribute('tabindex'), e.getAttribute('role'), e.getAttribute('aria-hidden')];
+      });
+      check('smart list icon: decorative, not a tab stop', smart, [false, null, 'true']);
+    });
+
+    await section('QA2: narrow layout — Ctrl+F searches from the overlay; ↓ / Esc close it and focus the results', async () => {
+      await TD(s, (app) => (app.go('myday'), app.renderNow(), app.win.setSize(600, 600), true));
+      await sleep(500);
+      await TD(s, (app) => (app.list.focusList(), true));
+      const st = () => TD(s, (app) => ({ view: app.view, nav: app.root.classList.contains('nav-open'), input: document.activeElement === app.nav.search, row: !!document.activeElement.closest?.('.td-task') }));
+      await s.page.keyboard.press('Control+f');
+      await sleep(300);
+      check('Ctrl+F: overlay open, focus in the search box', await st(), { view: 'myday', nav: true, input: true, row: false });
+      await s.page.keyboard.type('milk', { delay: 30 });
+      await sleep(400);
+      check('typing searches and keeps the box (and the overlay) under the caret', await st(), { view: 'search', nav: true, input: true, row: false });
+      for (let i = 0; i < 4; i++) await s.page.keyboard.press('Backspace');
+      await sleep(400);
+      check('clearing the box keeps the overlay and the focus', await st(), { view: 'myday', nav: true, input: true, row: false });
+      await s.page.keyboard.type('bread', { delay: 30 });
+      await s.page.keyboard.press('ArrowDown');
+      await sleep(400);
+      check('↓: overlay closed, focus on the first result', await st(), { view: 'search', nav: false, input: false, row: true });
+      await s.page.keyboard.press('Control+f');
+      await sleep(300);
+      await s.page.keyboard.press('Escape');
+      await sleep(400);
+      check('Esc in the box: search cleared, overlay closed, focus in the list', await st(), { view: 'myday', nav: false, input: false, row: true });
+      await TD(s, (app) => (app.toggleNav(true), true));
+      await sleep(400);
+      await s.page.click(`${WIN} .td-nav-item[data-view="list:tasks"]`);
+      await sleep(400);
+      const r = await TD(s, (app) => ({ view: app.view, nav: app.root.classList.contains('nav-open'), inWin: app.root.contains(document.activeElement) }));
+      check('picking a list in the overlay: overlay closed, focus in the window', r, { view: 'list:tasks', nav: false, inWin: true });
+    });
+
+    await section('QA2: the keyboard shortcuts sheet fits the window at the minimum size', async () => {
+      await TD(s, (app) => (app.win.setSize(400, 480), app.list.focusList(), true));
+      await sleep(500);
+      await s.page.keyboard.press('Control+Shift+?');
+      await s.page.waitForSelector(`${DLG} .td-keys`, { timeout: 3000 });
+      await sleep(300);
+      const r = await s.page.evaluate(`(() => {
+        const d = document.querySelector(${JSON.stringify(DLG)});
+        const b = d.querySelector('.dialog-body');
+        const dr = d.getBoundingClientRect();
+        const out = [...d.querySelectorAll('.td-kbd')].filter((k) => { const r = k.getBoundingClientRect(); return r.right > dr.right - 4 || r.left < dr.left; }).length;
+        return { hScroll: b.scrollWidth > b.clientWidth + 1, keysOutside: out };
+      })()`);
+      check('no horizontal scrolling, every key chip inside the dialog', r, { hScroll: false, keysOutside: 0 });
+      await shot(s, 'shortcuts-minsize-light-en');
+      await s.page.keyboard.press('Escape');
+      await sleep(300);
+      await TD(s, (app) => (app.win.setSize(1180, 760), true));
+      await sleep(400);
+    });
+
+    await section('QA2: suggestions — a long list name ends with an ellipsis', async () => {
+      const id = await TD(s, (app) => {
+        const l = app.store.addList(`📚 ${'Supercalifragilistic'.repeat(8)}`);
+        const t = app.addTask({ title: 'Short', listId: l.id });
+        app.go('myday');
+        app.renderNow();
+        app.toggleSuggestions(true);
+        return t.id;
+      });
+      await sleep(500);
+      const r = await TD(s, (app, id) => {
+        const row = app.suggest.el.querySelector(`.td-sg-row[data-id="${id}"]`);
+        const name = row?.querySelector('.td-meta-list');
+        if (!name) return null;
+        const cs = getComputedStyle(name);
+        const rr = row.getBoundingClientRect();
+        const nr = name.getBoundingClientRect();
+        return { ellipsis: cs.textOverflow, nowrap: cs.whiteSpace, cut: name.scrollWidth > name.clientWidth, inside: nr.right <= rr.right + 1, oneLine: nr.height < 24 };
+      }, id);
+      check('list name: one line, ellipsis, inside the row', r, { ellipsis: 'ellipsis', nowrap: 'nowrap', cut: true, inside: true, oneLine: true });
+      await TD(s, (app) => (app.toggleSuggestions(false), true));
+    });
+
+    await section('QA2: white header text on light pictures keeps a 4.5:1 contrast (captured pixels)', async () => {
+      // background under a text element = median of its non-text pixels, captured from the real window
+      const contrast = async (sel) => {
+        const rect = await s.page.evaluate(`(() => {
+          const el = document.querySelector(${JSON.stringify(WIN)} + ' ' + ${JSON.stringify(sel)});
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const r = range.getBoundingClientRect();
+          return { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) };
+        })()`);
+        const px = await s.app.evaluate(async ({ BrowserWindow }, rect) => {
+          const img = await BrowserWindow.getAllWindows()[0].webContents.capturePage(rect);
+          return { size: img.getSize(), data: [...img.toBitmap()] };
+        }, rect);
+        const lin = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+        const L = [];
+        for (let i = 0; i + 3 < px.data.length; i += 4) L.push(0.2126 * lin(px.data[i + 2]) + 0.7152 * lin(px.data[i + 1]) + 0.0722 * lin(px.data[i]));
+        const bg = L.filter((l) => l < 0.6).sort((a, b) => a - b);
+        const med = bg[Math.floor(bg.length / 2)] ?? 1;
+        return Math.round((1.05 / (med + 0.05)) * 100) / 100;
+      };
+      await TD(s, (app) => (app.win.maximize(), app.store.setTheme('myday', { color: 'accent', bg: 'dawn' }), app.go('myday'), app.renderNow(), true));
+      await sleep(700);
+      const day = await contrast('.td-subtitle');
+      const tools = await contrast('.td-sort-btn .td-tool-label');
+      const id = await TD(s, (app) => {
+        const l = app.store.addList('Mist');
+        app.store.setTheme(`list:${l.id}`, { bg: 'mist' });
+        app.go(`list:${l.id}`);
+        app.renderNow();
+        return l.id;
+      });
+      await sleep(700);
+      const mist = await contrast('.td-sort-btn .td-tool-label');
+      check(`My Day date on Dawn ≥ 4.5 (${day})`, day >= 4.5, true);
+      check(`toolbar labels on Dawn ≥ 4.5 (${tools})`, tools >= 4.5, true);
+      check(`toolbar labels on Mist ≥ 4.5 (${mist})`, mist >= 4.5, true);
+      await TD(s, (app, id) => (app.store.setTheme(`list:${id}`, { bg: null }), app.win.restore?.(), app.win.setSize(1180, 760), true), id);
+      await sleep(400);
+    });
+
+    await section('QA2: list icons — emoji, flags and keycaps become icons; © ® ™ stay in the name', async () => {
+      const r = await TD(s, async () => {
+        const { splitEmoji } = await import('app://shell/apps/todo/lib/store.js');
+        return ['🛒 Groceries', '🇫🇷 France', '1️⃣ Top', '✏️ Write', '© Legal', '® Brand', '™ Stuff', '‼ Urgent'].map((x) => splitEmoji(x).emoji);
+      });
+      check('leading characters taken as icons', r, ['🛒', '🇫🇷', '1️⃣', '✏️', null, null, null, null]);
+    });
+
+    await section('QA2: console', async () => {
+      check('no console errors from To Do', todoErrors(s), []);
+    });
+  } finally {
+    current = null;
+    await s.close();
+  }
+}
+
 await runEnglish();
 await runFrench();
 await runMigration();
@@ -1973,6 +2169,7 @@ await runDamaged();
 await runQA();
 await runFrenchWide();
 await runBadData();
+await runQA2();
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   for (const f of failures) console.log(`  ✗ ${f}`);
