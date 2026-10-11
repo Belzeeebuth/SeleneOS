@@ -276,6 +276,23 @@ await section('RFB client against the fake server (Node, 3.3 + None, 3.8 + VNC a
   check('not a VNC server -> EPROTO', bad.err?.code, 'EPROTO');
 });
 
+await section('RFB client rejects bogus sizes early (Node)', async () => {
+  const feed = (bytes) => {
+    const ev = { errors: [], raws: 0 };
+    const c = new RfbClient({ write: () => {}, onRaw: () => ev.raws++, onError: (e) => ev.errors.push(e) });
+    c.receive(new TextEncoder().encode('RFB 003.008\n'));
+    c.receive(Uint8Array.of(1, 1, 0, 0, 0, 0)); // security: None, result OK
+    c.receive(bytes);
+    return { c, ev };
+  };
+  const init = (w, h) => Uint8Array.of(w >> 8, w & 255, h >> 8, h & 255, ...new Array(16).fill(0), 0, 0, 0, 0);
+  check('0x0 ServerInit -> EPROTO', feed(init(0, 0)).ev.errors[0]?.code, 'EPROTO');
+  const big = feed(Uint8Array.of(...init(4, 4), 0, 0, 0, 1, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0));
+  check('huge Raw rect header fails before its pixels arrive', big.ev.errors[0]?.code, 'EPROTO');
+  const empty = feed(Uint8Array.of(...init(4, 4), 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0));
+  check('empty Raw rect is skipped without error', [empty.ev.errors.length, empty.ev.raws, empty.c.state], [0, 0, 'connected']);
+});
+
 await section('backend helpers', async () => {
   const m = require('../main/ipc/remote.js').__test;
   check('hosts', ['example.com', '192.168.1.2', '::1', 'a b', '-oX', 'x;rm', '999.1.1.1', '', 'http://x'].map((x) => m.hostKind(x)), ['hostname', 'ipv4', 'ipv6', null, null, null, null, null, null]);

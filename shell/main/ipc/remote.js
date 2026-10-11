@@ -119,7 +119,7 @@ async function writeStore(list) {
   await fsp.writeFile(tmp, JSON.stringify({ version: 1, connections: list }, null, 2), { mode: 0o600 });
   await fsp.rename(tmp, storeFile());
 }
-const publicEntry = (c) => ({ id: c.id, name: c.name, host: c.host, port: c.port, remember: !!c.secret });
+const publicEntry = (c) => ({ id: c.id, name: typeof c.name === 'string' && c.name ? c.name : c.host, host: c.host, port: validPort(c.port), remember: !!c.secret });
 function err(message, code) {
   const e = new Error(message);
   e.code = code;
@@ -176,6 +176,10 @@ module.exports = function register(api) {
         reject(err(e.message, e.code || 'EFAIL'));
       });
     });
+    if (sender?.isDestroyed?.()) {
+      socket.destroy();
+      throw err('The window was closed.', 'ECLOSED');
+    }
     const id = `r${++seq}`;
     conns.set(id, { socket, sender, key });
     socket.setNoDelay(true);
@@ -192,9 +196,13 @@ module.exports = function register(api) {
     socket.on('close', () => closeConn(id, null));
     if (sender && !watched.has(sender)) {
       watched.add(sender);
-      sender.once('destroyed', () => {
+      const dropAll = () => {
         for (const [cid, c] of [...conns]) if (c.sender === sender) closeConn(cid, null);
-      });
+      };
+      sender.once('destroyed', dropAll);
+      // A reload or a renderer crash keeps the same webContents: its connections belong to the old page.
+      sender.on?.('did-navigate', dropAll);
+      sender.on?.('render-process-gone', dropAll);
     }
     return { id, remoteAddress: socket.remoteAddress || host };
   });

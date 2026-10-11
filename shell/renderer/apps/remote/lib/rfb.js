@@ -152,6 +152,7 @@ export class RfbClient {
         const b = q.read(24 + len);
         this.width = u16(b, 0);
         this.height = u16(b, 2);
+        if (!this.width || !this.height || this.width > MAX_FB || this.height > MAX_FB) throw new Error('bad desktop size');
         this.name = new TextDecoder('utf-8').decode(b.subarray(24));
         this.sendPixelFormat();
         this.sendEncodings();
@@ -270,12 +271,15 @@ export class RfbClient {
     }
     const r = this.rect;
     if (r.enc === ENC.RAW) {
+      // Checked before waiting for the pixels, so a bogus header cannot make us buffer gigabytes.
+      if (r.x + r.w > this.width || r.y + r.h > this.height) throw new Error('rectangle outside the screen');
       const n = r.w * r.h * 4;
       if (q.length < n) return false;
-      const px = q.read(n);
-      for (let i = 3; i < n; i += 4) px[i] = 255;
-      if (r.x + r.w > this.width || r.y + r.h > this.height) throw new Error('rectangle outside the screen');
-      this.o.onRaw?.(r.x, r.y, r.w, r.h, px);
+      if (n) {
+        const px = q.read(n);
+        for (let i = 3; i < n; i += 4) px[i] = 255;
+        this.o.onRaw?.(r.x, r.y, r.w, r.h, px);
+      }
     } else if (r.enc === ENC.COPYRECT) {
       if (q.length < 4) return false;
       const b = q.read(4);
