@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-11 00:55 UTC (session 1, after a usage-limit interruption)._
+_Last updated: 2026-10-11 07:10 UTC (session 1, after usage-limit + weekly-limit interruptions)._
 
 ## What this is
 
@@ -216,6 +216,22 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 - **Integration agent:** stopped during the regression sweep and docs update. **Rerun it at the end.**
 
 **Media test:** "files opened while the window is still starting" failed once in a full run under heavy load, then passed alone. Recheck in the final sweep.
+
+## Second interruption (weekly limit, 2026-10-11 ~02:00 UTC) — state at 07:10 UTC (commit f0cc7af)
+
+**Finished since the first interruption**
+- notes: built.
+- photos: verified.
+- clock: re-verified.
+- B2 (taskbar, Start, focus mode): verified. 257 checks in `test/taskbar-start-focus.test.mjs`.
+
+**Cut mid-way, now relaunched**
+- Verification of calendar, pdf, archive (second pass), todo and notes.
+- B1: wallpapers finish + verify.
+- B3: packs/shortcuts verify.
+- Personalization integration checklist.
+
+The shell smoke test passes on f0cc7af. Workflows were resumed at 07:10 UTC (resumeFromRunId, cached successes reused).
 
 ## Running workflows (resumed 2026-10-11 ~01:00 UTC)
 
