@@ -245,7 +245,7 @@ export default {
       if (code === 'EAUTH' || code === 'ENOTADMIN' || code === 'EPERM') return t('errAdmin');
       if (code === 'ENETWORK' || code === 'ENET' || /network|resolve|unreachable|timed? ?out/i.test(e?.message || '')) return t('errNetwork');
       if (code === 'EBUSY') return t('waitOther');
-      return t(action === 'install' ? 'errInstall' : 'errRemove', { name, msg: e?.message || String(e) });
+      return t(action === 'install' ? 'errInstall' : action === 'refresh' ? 'errRefresh' : 'errRemove', { name, msg: e?.message || String(e) });
     }
     async function runOp(entry, source, action) {
       if (op) return;
@@ -516,7 +516,7 @@ export default {
         else if (!s.available) state = t('srcUnavailable');
         else if (!s.ready) state = t('srcNotReady');
         else state = t('srcReady', { count: s.count });
-        const err = refreshErr.get(s.id) || (s.error && s.enabled ? errorText({ message: s.error }, 'refresh', srcLabel(s.id)) : '');
+        const err = refreshErr.get(s.id) || (s.error && s.enabled ? errorText({ message: s.error, code: s.errorCode }, 'refresh', srcLabel(s.id)) : '');
         const toggle = s.toggleable
           ? ctx.ui.toggle({
               checked: s.enabled,
@@ -726,6 +726,8 @@ export default {
       searchInput.setAttribute('aria-label', t('searchPlaceholder'));
       navEl.setAttribute('aria-label', t('navLabel'));
       render();
+      // Summaries come localised from the sources: rebuild the merged index (store:changed reloads the view).
+      api.invoke('store:invalidate').catch(() => {});
     });
     void offLang;
     let changeTimer = 0;

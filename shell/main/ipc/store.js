@@ -19,7 +19,7 @@
 //             (ordered selene > ubuntu > flathub), defaultSource, installed, installedSource, desktopId,
 //             selene?: { apt, command, interactive, removable, gui, linuxId, category } }
 //   store:sources ()                    -> { sources: [{ id, label, admin, enabled, toggleable, available, ready,
-//                                            updatedAt, count, error, refreshing }], live }
+//                                            updatedAt, count, error, errorCode, refreshing }], live }
 //   store:setEnabled (id, on)           -> same as store:sources (only toggleable sources: flathub)
 //   store:refresh (id)                  -> { ok } ; (+store:progress { kind: 'refresh', source, phase, percent })
 //   store:home ()                       -> { featured: [Entry], picks: [Entry], tools: [Entry], toolsTotal,
@@ -274,8 +274,9 @@ function register(api) {
   } catch {}
   const enabled = (id) => id === 'selene' || (modules.has(id) && !prefs.disabled.includes(id));
   const refreshing = new Map(); // id -> promise
-  const lastError = new Map(); // id -> message of the last failed refresh
-  const lang = () => (api.env?.lang === 'fr' ? 'fr' : 'en');
+  const lastError = new Map(); // id -> { message, code } of the last failed refresh
+  // Same order as the source modules: the shell setting, then env.lang.
+  const lang = () => ((api.settings?.get?.('lang') || api.env?.lang) === 'fr' ? 'fr' : 'en');
   const quiet = (msg, code) => Object.assign(new Error(msg), { code, quiet: true });
 
   async function fetchAll(mod, source, params) {
@@ -295,12 +296,15 @@ function register(api) {
   }
 
   // Merged index of every enabled source (rebuilt after installs, refreshes and source changes).
+  // gen counts invalidations: a build that started before an invalidation never becomes the cached index.
   let index = null;
   let building = null;
+  let gen = 0;
   async function getIndex() {
     if (index) return index;
-    if (building) return building;
-    building = (async () => {
+    if (building && building.gen === gen) return building.p;
+    const myGen = gen;
+    const p = (async () => {
       const packages = await installedPackages();
       const all = seleneItems(loadCatalog(), packages);
       const dev = useMock ? require('./admin').dev.storeState() : null;
@@ -318,13 +322,18 @@ function register(api) {
         }
       }
       const map = mergeItems(all, { lang: lang() });
-      index = { map, list: [...map.values()] };
-      return index;
-    })().finally(() => (building = null));
-    return building;
+      const built = { map, list: [...map.values()] };
+      if (myGen === gen) index = built;
+      return built;
+    })().finally(() => {
+      if (building?.p === p) building = null;
+    });
+    building = { gen: myGen, p };
+    return p;
   }
   const searches = new Map(); // signature -> ranked keys (Load more without searching again)
   function invalidate(payload = {}) {
+    gen++;
     index = null;
     searches.clear();
     api.broadcast('store:changed', payload);
@@ -354,7 +363,8 @@ function register(api) {
         ready: !!st.ready,
         updatedAt: Number(st.updatedAt) || null,
         count: Number(st.count) || 0,
-        error: lastError.get(id) || (st.error ? str(String(st.error), 300) : null),
+        error: lastError.has(id) ? lastError.get(id).message : st.error ? str(String(st.error), 300) : null,
+        errorCode: lastError.has(id) ? lastError.get(id).code : /^E[A-Z]{2,15}$/.test(st.errorCode || '') ? st.errorCode : null,
         refreshing: refreshing.has(id),
       });
     }
@@ -385,7 +395,7 @@ function register(api) {
           await mod.refresh((ev) => api.broadcast('store:progress', { kind: 'refresh', source: id, phase: str(ev?.phase, 40), percent: Math.max(0, Math.min(100, Number(ev?.percent) || 0)) }));
           lastError.delete(id);
         } catch (e) {
-          lastError.set(id, str(e?.message || String(e), 300));
+          lastError.set(id, { message: str(e?.message || String(e), 300), code: /^E[A-Z]{2,15}$/.test(e?.code || '') ? e.code : null });
           throw quiet(e?.message || String(e), e?.code || 'EREFRESH');
         } finally {
           refreshing.delete(id);
@@ -423,6 +433,7 @@ function register(api) {
     const tools = opts?.tools === true;
     const sig = JSON.stringify([query, category, source, tools]);
     const idx = await getIndex();
+    const myGen = gen;
     let keys = searches.get(sig);
     if (!keys) {
       let list;
@@ -449,7 +460,7 @@ function register(api) {
       }
       keys = rankEntries(list, query).map((e) => e.key);
       if (searches.size > 20) searches.delete(searches.keys().next().value);
-      searches.set(sig, keys);
+      if (myGen === gen) searches.set(sig, keys);
     }
     const p = page(keys, opts?.offset, opts?.limit);
     return { ...p, items: p.items.map((k) => idx.map.get(k)).filter(Boolean) };
