@@ -1,0 +1,24 @@
+# Fixture: localized keys, escapes, quoting and field codes
+[Desktop Entry]
+Version=1.5
+Type=Application
+Name=Fixture Paint
+Name[fr]=Peinture (fr)
+Name[fr_FR]=Peinture test
+Name[de]=Malen
+GenericName=Image Editor
+GenericName[fr]=Éditeur d'images
+Comment=Draw\spictures\nwith a fixture
+Comment[fr]=Dessinez des images
+Keywords=draw;sketch;semi\;colon;
+Keywords[fr]=dessin;croquis;
+Icon=selene-fixture
+TryExec=selene-fixture-record
+Exec=selene-fixture-record --title "Fixture \\"Paint\\" \\$HOME" %F --pct=100%% %c %d
+StartupWMClass=FixturePaint
+Categories=Graphics;2DGraphics;
+MimeType=image/png;
+
+[Desktop Action new]
+Name=New window
+Exec=selene-fixture-record --new

@@ -113,8 +113,10 @@ Rules:
 - The renderer computes the holes and sends `xwin:shape` (a list of CSS rects):
   `hole(W) = contentRect(W) − ⋃ rect(every visible element above W)`, where W is each visible,
   non-minimised external window on the current desktop.
-- Main converts the holes and sets `setShape(screen − holes)`. With no holes it calls
-  `setShape([])`, which makes the window rectangular again.
+- Main converts the holes and sets `setShape(screen − holes)`. With no holes it sets the full window
+  rectangle (`setShape([])` does not give the area back on X11: the old hole kept showing the client),
+  then calls `webContents.invalidate()` so that areas given back to the shell are repainted. A window
+  that was never shaped is left alone, and the shape is rebuilt when the window is resized.
 - The holes are recomputed:
   - on every wm change (move, resize, focus, stack, minimise, desktop switch);
   - on flyout, menu and toast changes;

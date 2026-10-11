@@ -58,6 +58,7 @@ function intersects(a, b) {
 
 function visibleRect(win) {
   if (win.minimized || win._closing || !win.isOnCurrentDesktop() || !win.el.isConnected) return null;
+  if (win.xwin != null) return null; // external X11 window: the shell's pixels hold no content (icon placeholder instead)
   if (document.body.classList.contains('tv-on')) return null; // Task View has the windows scaled
   if (win.el.getAnimations().length) return null; // mid open/minimize/snap animation
   const r = win.el.getBoundingClientRect();

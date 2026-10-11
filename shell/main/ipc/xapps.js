@@ -124,7 +124,8 @@ function splitExec(exec) {
   return out;
 }
 
-const toUrl = (f) => (/^[a-z][a-z0-9+.-]*:/i.test(f) ? f : `file://${encodeURI(path.resolve(f))}`);
+// (per segment: encodeURI would leave '#' and '?' in file names, which then read as a fragment / query)
+const toUrl = (f) => (/^[a-z][a-z0-9+.-]*:/i.test(f) ? f : `file://${path.resolve(f).split('/').map(encodeURIComponent).join('/')}`);
 const toPath = (u) => {
   if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) return u;
   if (/^file:\/\//i.test(u)) {

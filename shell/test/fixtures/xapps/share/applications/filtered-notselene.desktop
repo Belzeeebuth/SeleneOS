@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Filtered notselene
+Exec=selene-fixture-record notselene
+NotShowIn=Selene;

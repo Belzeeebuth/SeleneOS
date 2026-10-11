@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Filtered terminal
+Exec=selene-fixture-record terminal
+Terminal=true

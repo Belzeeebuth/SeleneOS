@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Image Editor Fixture
+Name[fr]=Éditeur d'images (test)
+Comment=Stands in for GIMP in the Store tests
+Icon=selene-fixture
+Exec=selene-fixture-record gimp %U

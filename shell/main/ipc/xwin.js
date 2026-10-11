@@ -199,9 +199,13 @@ module.exports = function register(api) {
     });
   }
 
+  let lastHolesCss = [];
   function applyShape(holesCss) {
     const w = win();
-    if (!w) return;
+    if (!w || !enabled) return;
+    lastHolesCss = Array.isArray(holesCss) ? holesCss : [];
+    // Never shaped yet and nothing to cut: leave the window alone.
+    if (!lastShape && !lastHolesCss.length) return;
     const f = factors();
     const k = f.zoom; // setShape works in window DIPs
     const cb = w.getContentBounds();
@@ -210,10 +214,14 @@ module.exports = function register(api) {
     lastHoles = holes;
     if (lastShape && region.equal(lastShape, shape)) return;
     // Keep at least one pixel so a fully-covered screen never turns into "no shape" (= rectangular).
-    const out = holes.length && !shape.length ? [{ x: 0, y: 0, width: 1, height: 1 }] : shape;
+    // No holes: the full window rect. (setShape([]) does not reliably give the area back on X11: the
+    // old hole kept showing the client.)
+    const out = !holes.length ? [{ x: 0, y: 0, width: cb.width, height: cb.height }] : shape.length ? shape : [{ x: 0, y: 0, width: 1, height: 1 }];
     lastShape = shape;
     try {
       w.setShape(out);
+      // Areas given back to the shell are exposed with stale client pixels: repaint the whole page.
+      w.webContents.invalidate();
     } catch (err) {
       log(`setShape failed: ${err.message}`);
     }
@@ -258,6 +266,12 @@ module.exports = function register(api) {
     return;
   }
   app.on('browser-window-created', (_e, w) => {
+    // The shape is in window coordinates: rebuild it when the window changes size.
+    w.on('resize', () => {
+      if (w !== win() || !lastShape) return;
+      lastShape = [];
+      applyShape(lastHolesCss);
+    });
     w.once('show', () => setTimeout(() => {
       if (w === win()) start();
     }, 100));

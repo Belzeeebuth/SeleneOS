@@ -53,7 +53,7 @@ const W = '.app-store';
   check('catalog: EN + FR descriptions everywhere', items.every((i) => i.description?.en && i.description?.fr), true);
   const icons = require(path.join(ROOT, 'renderer', 'assets', 'icons', 'fluent.json'));
   check('catalog: every icon is a Fluent icon', items.filter((i) => !icons[i.icon]).map((i) => i.id), []);
-  check('catalog: no graphical (X11) apps', items.some((i) => /^(firefox|gimp|vlc|libreoffice|thunderbird)/.test(i.apt)), false);
+  check('catalog: graphical apps declare gui + their .desktop file, no snaps', items.filter((i) => i.gui).every((i) => /^[A-Za-z0-9][A-Za-z0-9._-]*\.desktop$/.test(i.desktop) && !/^(firefox|chromium|thunderbird)/.test(i.apt)) && items.some((i) => i.gui), true);
   const { parsers } = require(path.join(ROOT, 'main', 'ipc', 'store.js'));
   const parsed = parsers.parseCatalog({ items: [...items, { id: 'bad', apt: '-oops' }, { id: 'git', apt: 'git' }, null, { apt: 'x;rm' }] });
   check('parseCatalog drops invalid / duplicate entries', parsed.length, items.length);
@@ -105,10 +105,10 @@ s.page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 try {
   const { page } = s;
   await page.waitForSelector(`${W} .st-card`, { timeout: 30000 });
-  check('home: hero title', (await page.locator(`${W} .st-hero h1`).innerText()).trim(), 'Tools for your Terminal');
-  check('home: says graphical apps come later', await page.locator(`${W} .st-notice`).innerText(), (v) => /Graphical apps are coming later/.test(v));
-  check('home: one section per category', await page.locator(`${W} .st-section[data-category]`).count(), 7);
-  check('nav: home + installed + 7 categories', await page.locator(`${W} .st-nav-item`).count(), 9);
+  check('home: hero title', (await page.locator(`${W} .st-hero h1`).innerText()).trim(), 'Apps and tools for Selene');
+  check('home: notice explains graphical apps and Terminal tools', await page.locator(`${W} .st-notice`).innerText(), (v) => /Graphical apps open in their own window/.test(v));
+  check('home: one section per category', await page.locator(`${W} .st-section[data-category]`).count(), 9);
+  check('nav: home + installed + 9 categories', await page.locator(`${W} .st-nav-item`).count(), 11);
   check('nav: installed count badge (5 simulated)', (await page.locator(`${W} [data-nav=installed] .st-count`).innerText()).trim(), '5');
   check('card: git shows Installed', await page.locator(`${W} .st-card[data-id=git] .st-chip`).innerText(), (v) => /Installed/.test(v));
   check('card: htop shows Free', (await page.locator(`${W} .st-card[data-id=htop] .st-chip`).innerText()).trim(), 'Free');
@@ -118,7 +118,7 @@ try {
 
   // categories
   await page.click(`${W} [data-nav="cat:multimedia"]`);
-  check('category: Multimedia lists ffmpeg + imagemagick', await page.locator(`${W} .st-card`).evaluateAll((els) => els.map((e) => e.dataset.id).sort()), ['ffmpeg', 'imagemagick']);
+  check('category: Multimedia lists its tools and apps', await page.locator(`${W} .st-card`).evaluateAll((els) => els.map((e) => e.dataset.id).sort()), ['audacity', 'ffmpeg', 'imagemagick', 'kdenlive', 'obs-studio', 'vlc']);
   check('category: nav item selected', await page.locator(`${W} [data-nav="cat:multimedia"]`).getAttribute('aria-current'), 'page');
   await page.click(`${W} [data-nav=home]`);
   await page.click(`${W} .st-section[data-category=editors] .st-see-all`);
@@ -248,7 +248,7 @@ try {
   await page.click(`${W} .st-back`);
   check('FR: back to home', await page.locator(`${W} .st-page`).getAttribute('data-view'), 'home');
   check('FR: nav in French', await page.locator(`${W} .st-nav`).innerText(), (v) => /Accueil/.test(v) && /Installés/.test(v) && /Développement/.test(v));
-  check('FR: notice in French', await page.locator(`${W} .st-notice`).innerText(), (v) => /applications graphiques arriveront plus tard/.test(v));
+  check('FR: notice in French', await page.locator(`${W} .st-notice`).innerText(), (v) => /applications graphiques s'ouvrent dans leur propre fenêtre/.test(v));
   check('FR: no English leftovers', await page.locator(W).innerText(), (v) => !/\b(Home|Installed|See all|Free|Graphical)\b/.test(v) && !/\bundefined\b|\bnull\b/.test(v));
   const fg = await page.locator(`${W} .st-card-name`).first().evaluate((el) => getComputedStyle(el).color);
   check('FR dark: card text is light', fg, (v) => {

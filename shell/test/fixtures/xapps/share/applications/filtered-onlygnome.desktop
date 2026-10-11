@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Filtered onlygnome
+Exec=selene-fixture-record onlygnome
+OnlyShowIn=GNOME;KDE;

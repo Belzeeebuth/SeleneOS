@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Filtered tryexec
+Exec=selene-fixture-record tryexec
+TryExec=selene-definitely-missing-xyz

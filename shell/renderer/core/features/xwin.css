@@ -1,0 +1,44 @@
+/* External X11 windows (core/features/xwin.js): the frame is drawn here, the content area stays
+   empty and transparent — the shell window has a hole there and the client shows through it. */
+.win.xwin {
+  border: 1px solid var(--window-stroke);
+  border-radius: 0;
+  box-shadow: var(--shadow-window, 0 8px 32px rgba(0, 0, 0, 0.28));
+}
+.win.xwin > .win-titlebar {
+  background: var(--solid);
+  border-radius: 0;
+}
+.win.xwin.maximized,
+.win.xwin.fullscreen {
+  border: 0;
+  box-shadow: none;
+}
+.win.xwin > .win-body.xwin-content {
+  background: transparent;
+  overflow: hidden;
+}
+/* No title bar of ours when the client draws its own (GTK header bars): thin border only. */
+.win.xwin-undecorated > .win-controls.floating {
+  display: none;
+}
+/* Icon placeholder: shown where the client cannot be (Task view, Alt+Tab live copies, animations). */
+.xwin-ph {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  background: var(--solid);
+}
+.xwin-ph img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+body.tv-on .win.xwin .xwin-ph,
+.wthumb-clone .win.xwin .xwin-ph,
+.win.xwin.minimized .xwin-ph,
+.win.xwin.closing .xwin-ph {
+  display: flex;
+}

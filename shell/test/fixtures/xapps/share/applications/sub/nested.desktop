@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Nested App
+Icon=selene-svg
+Exec=selene-fixture-record nested %f
+Path=/tmp

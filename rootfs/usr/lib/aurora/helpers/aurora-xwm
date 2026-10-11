@@ -1,0 +1,968 @@
+#!/usr/bin/python3 -I
+"""aurora-xwm: the small X11 window manager that lets Selene Shell show real Linux GUI programs.
+
+Usage: aurora-xwm --shell-xid <XID>        (decimal or 0x hex)
+
+See docs/XWINDOWS.md for the design and the exact protocol. In short:
+  - it takes SubstructureRedirect on the root window and never reparents;
+  - the shell window (--shell-xid) is never managed: its requests are granted and it is kept above
+    every client; every other top-level that asks to be mapped is a client, mapped BELOW the shell;
+  - it talks to the shell's main process with JSON lines: events on stdout ({"ev": ...}),
+    commands on stdin ({"cmd": ...});
+  - while a client has X focus it holds passive key grabs for the system shortcuts.
+
+Exit status: 0 when stdin closes (or on SIGTERM), 3 when another window manager is running
+(fatal EOTHERWM), 4 when python3-xlib is missing (fatal ENOXLIB), 1 when the display cannot be
+opened or is lost (fatal ENODISPLAY), 2 on a usage error.
+"""
+import json
+import os
+import select
+import signal
+import struct
+import sys
+import time
+import zlib
+import base64
+
+VERSION = '1.0'
+DRAG_INTERVAL = 1.0 / 60   # drag events are throttled to about 60 Hz
+MAX_LINE = 1 << 20         # longest accepted command line
+
+
+def emit(ev, **fields):
+    """Write one event as a JSON line (ASCII only, so the locale never matters)."""
+    fields = dict(ev=ev, **fields)
+    try:
+        sys.stdout.write(json.dumps(fields, separators=(',', ':')) + '\n')
+        sys.stdout.flush()
+    except (BrokenPipeError, OSError):
+        os._exit(0)  # the main process is gone
+
+
+def log(level, message):
+    emit('log', level=level, message=str(message)[:2000])
+
+
+def fatal(code, message, status):
+    emit('fatal', code=code, message=message)
+    sys.exit(status)
+
+
+def parse_args(argv):
+    xid = None
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == '--shell-xid' and i + 1 < len(argv):
+            xid = argv[i + 1]
+            i += 2
+        elif a.startswith('--shell-xid='):
+            xid = a.split('=', 1)[1]
+            i += 1
+        else:
+            i += 1
+    try:
+        return int(xid, 0) if xid is not None else None
+    except ValueError:
+        return None
+
+
+try:
+    from Xlib import X, XK, Xatom, Xutil, display, error
+    from Xlib.protocol import event as xevent
+except ImportError as exc:  # pragma: no cover - depends on the system
+    if __name__ == '__main__':
+        fatal('ENOXLIB', 'python3-xlib is not installed (%s)' % exc, 4)
+    raise
+
+XK.load_keysym_group('xf86')
+XK.load_keysym_group('xkb')
+
+# Key names, as shell/main/lib/hotkeys.js spells them (KeyboardEvent.key, letters upper-cased).
+KEY_NAMES = {
+    XK.XK_Tab: 'Tab', XK.XK_ISO_Left_Tab: 'Tab', XK.XK_Return: 'Enter', XK.XK_KP_Enter: 'Enter',
+    XK.XK_Escape: 'Escape', XK.XK_Delete: 'Delete', XK.XK_KP_Delete: 'Delete', XK.XK_BackSpace: 'Backspace',
+    XK.XK_Insert: 'Insert', XK.XK_Home: 'Home', XK.XK_End: 'End', XK.XK_Prior: 'PageUp', XK.XK_Next: 'PageDown',
+    XK.XK_Left: 'ArrowLeft', XK.XK_Right: 'ArrowRight', XK.XK_Up: 'ArrowUp', XK.XK_Down: 'ArrowDown',
+    XK.XK_space: 'Space', XK.XK_period: 'Period', XK.XK_comma: 'Comma', XK.XK_Print: 'PrintScreen',
+    XK.XK_Pause: 'Pause', XK.XK_Menu: 'ContextMenu',
+    0x1008FF13: 'AudioVolumeUp', 0x1008FF11: 'AudioVolumeDown', 0x1008FF12: 'AudioVolumeMute',
+    0x1008FF02: 'BrightnessUp', 0x1008FF03: 'BrightnessDown',
+}
+for _n in range(1, 25):
+    KEY_NAMES[XK.XK_F1 + _n - 1] = 'F%d' % _n
+MODIFIER_KEYSYMS = {getattr(XK, 'XK_' + n) for n in (
+    'Shift_L', 'Shift_R', 'Control_L', 'Control_R', 'Alt_L', 'Alt_R', 'Meta_L', 'Meta_R', 'Super_L',
+    'Super_R', 'Hyper_L', 'Hyper_R', 'ISO_Level3_Shift', 'Caps_Lock', 'Num_Lock', 'Mode_switch')}
+SUPER_KEYSYMS = (XK.XK_Super_L, XK.XK_Super_R)
+ALT_KEYSYMS = (XK.XK_Alt_L, XK.XK_Alt_R, XK.XK_Meta_L, XK.XK_Meta_R)
+# Combos without Super that the helper forwards (Super combos are always forwarded).
+SYSTEM_COMBOS = {'Alt+Tab', 'Alt+Shift+Tab', 'Ctrl+Alt+Tab', 'Alt+F4', 'Ctrl+Alt+Delete', 'Ctrl+Shift+Escape',
+                 'PrintScreen', 'AudioVolumeUp', 'AudioVolumeDown', 'AudioVolumeMute', 'BrightnessUp',
+                 'BrightnessDown'}
+# For these the shell gets X focus before the event, so the Alt / Super release reaches its page.
+FOCUS_SHELL_FIRST = {'Alt+Tab', 'Alt+Shift+Tab', 'Super', 'Super+Tab'}
+
+WINDOW_TYPES = {'_NET_WM_WINDOW_TYPE_NORMAL': 'normal', '_NET_WM_WINDOW_TYPE_DIALOG': 'dialog',
+                '_NET_WM_WINDOW_TYPE_UTILITY': 'utility', '_NET_WM_WINDOW_TYPE_SPLASH': 'splash',
+                '_NET_WM_WINDOW_TYPE_TOOLBAR': 'toolbar'}
+SUPPORTED = ['_NET_SUPPORTED', '_NET_SUPPORTING_WM_CHECK', '_NET_ACTIVE_WINDOW', '_NET_CLIENT_LIST',
+             '_NET_CLIENT_LIST_STACKING', '_NET_CLOSE_WINDOW', '_NET_WM_MOVERESIZE', '_NET_MOVERESIZE_WINDOW',
+             '_NET_REQUEST_FRAME_EXTENTS', '_NET_FRAME_EXTENTS', '_NET_WM_NAME', '_NET_WM_ICON', '_NET_WM_PID',
+             '_NET_WM_STATE', '_NET_WM_STATE_FULLSCREEN', '_NET_WM_STATE_MAXIMIZED_VERT',
+             '_NET_WM_STATE_MAXIMIZED_HORZ', '_NET_WM_STATE_HIDDEN', '_NET_WM_STATE_MODAL',
+             '_NET_WM_WINDOW_TYPE', '_NET_NUMBER_OF_DESKTOPS', '_NET_CURRENT_DESKTOP'] + list(WINDOW_TYPES)
+# _NET_WM_MOVERESIZE directions: which edges move (left, top, right, bottom).
+MOVERESIZE_EDGES = {0: (1, 1, 0, 0), 1: (0, 1, 0, 0), 2: (0, 1, 1, 0), 3: (0, 0, 1, 0),
+                    4: (0, 0, 1, 1), 5: (0, 0, 0, 1), 6: (1, 0, 0, 1), 7: (1, 0, 0, 0)}
+MOVERESIZE_MOVE, MOVERESIZE_CANCEL = 8, 11
+BUTTONS_MASK = X.Button1Mask | X.Button2Mask | X.Button3Mask | X.Button4Mask | X.Button5Mask
+WITHDRAWN, NORMAL, ICONIC = 0, 1, 3
+
+
+def png_data_url(width, height, argb):
+    """Encode ARGB cardinals (as in _NET_WM_ICON) as a PNG data URL, with zlib and struct only."""
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)  # filter: none
+        for p in argb[y * width:(y + 1) * width]:
+            raw += bytes(((p >> 16) & 255, (p >> 8) & 255, p & 255, (p >> 24) & 255))
+
+    def chunk(kind, data):
+        body = kind + data
+        return struct.pack('>I', len(data)) + body + struct.pack('>I', zlib.crc32(body) & 0xffffffff)
+
+    png = (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0))
+           + chunk(b'IDAT', zlib.compress(bytes(raw), 9)) + chunk(b'IEND', b''))
+    return 'data:image/png;base64,' + base64.b64encode(png).decode('ascii')
+
+
+def pick_icon(values, want=32):
+    """Choose the size closest to `want` (preferring the larger one) from a _NET_WM_ICON array."""
+    best = None
+    i, n = 0, len(values)
+    while i + 2 <= n:
+        w, h = int(values[i]), int(values[i + 1])
+        if w <= 0 or h <= 0 or w > 1024 or h > 1024 or i + 2 + w * h > n:
+            break
+        score = (abs(w - want), -w)
+        if best is None or score < best[0]:
+            best = (score, w, h, i + 2)
+        i += 2 + w * h
+    if best is None:
+        return None
+    _, w, h, start = best
+    return png_data_url(w, h, [int(v) & 0xffffffff for v in values[start:start + w * h]])
+
+
+class Client(object):
+    def __init__(self, window):
+        self.window = window
+        self.id = window.id
+        self.protocols = set()
+        self.accepts_input = True
+        self.state = set()      # _NET_WM_STATE atoms
+        self.title = None
+        self.hints = None
+
+
+class XWM(object):
+    def __init__(self, shell_xid):
+        try:
+            self.d = display.Display()
+        except Exception as exc:
+            fatal('ENODISPLAY', 'cannot open display %r: %s' % (os.environ.get('DISPLAY'), exc), 1)
+        self.d.set_error_handler(self.on_xerror)
+        self.screen = self.d.screen()
+        self.root = self.screen.root
+        self.shell_id = shell_xid
+        self.shell = self.d.create_resource_object('window', shell_xid)
+        self.clients = {}       # id -> Client
+        self.order = []         # managed ids, bottom -> top
+        self.focused = None     # focused client id (None: the shell or nothing)
+        self.focus_known = False
+        self.keys_grabbed = False
+        self.super_down = False
+        self.super_used = False
+        self.last_release = {}
+        self.drag = None
+        self.last_time = X.CurrentTime
+        self.stdin_buf = b''
+        self.atoms = {}
+        self.check = None
+
+    # ---- small X helpers -------------------------------------------------------------------
+    def atom(self, name):
+        a = self.atoms.get(name)
+        if a is None:
+            a = self.atoms[name] = self.d.intern_atom(name)
+        return a
+
+    def atom_name(self, atom):
+        try:
+            return self.d.get_atom_name(atom)
+        except Exception:
+            return ''
+
+    def on_xerror(self, err, request):
+        # Asynchronous errors: BadWindow / BadMatch races with clients going away are normal.
+        log('debug', 'X error %s' % err.__class__.__name__)
+
+    def prop(self, window, name, ptype=X.AnyPropertyType):
+        try:
+            p = window.get_full_property(self.atom(name), ptype)
+        except error.XError:
+            return None
+        return p.value if p is not None else None
+
+    def prop_text(self, window, name):
+        v = self.prop(window, name)
+        if v is None or isinstance(v, (int, float)):
+            return None
+        if not isinstance(v, (bytes, str)):
+            return None
+        if isinstance(v, bytes):
+            v = v.decode('utf-8', 'replace')
+        return v.split('\0')[0]
+
+    def prop_cards(self, window, name, ptype=X.AnyPropertyType):
+        v = self.prop(window, name, ptype)
+        if v is None or isinstance(v, (bytes, str)):
+            return []
+        return [int(x) for x in v]
+
+    def geometry(self, window):
+        g = window.get_geometry()
+        return g.x, g.y, g.width, g.height
+
+    # ---- startup ---------------------------------------------------------------------------
+    def become_wm(self):
+        catch = error.CatchError(error.BadAccess)
+        self.root.change_attributes(event_mask=X.SubstructureRedirectMask | X.SubstructureNotifyMask
+                                    | X.PropertyChangeMask, onerror=catch)
+        self.d.sync()
+        if catch.get_error():
+            fatal('EOTHERWM', 'another window manager is already running', 3)
+        self.check = self.root.create_window(-10, -10, 1, 1, 0, X.CopyFromParent, override_redirect=True)
+        utf8 = self.atom('UTF8_STRING')
+        for w in (self.check, self.root):
+            w.change_property(self.atom('_NET_SUPPORTING_WM_CHECK'), Xatom.WINDOW, 32, [self.check.id])
+        self.check.change_property(self.atom('_NET_WM_NAME'), utf8, 8, b'aurora-xwm')
+        self.root.change_property(self.atom('_NET_SUPPORTED'), Xatom.ATOM, 32, [self.atom(n) for n in SUPPORTED])
+        self.root.change_property(self.atom('_NET_NUMBER_OF_DESKTOPS'), Xatom.CARDINAL, 32, [1])
+        self.root.change_property(self.atom('_NET_CURRENT_DESKTOP'), Xatom.CARDINAL, 32, [0])
+        self.update_client_list()
+        self.set_active(None)
+        try:
+            self.shell.change_attributes(event_mask=X.FocusChangeMask)
+        except Exception:
+            pass
+        self.compute_modifiers()
+        self.d.sync()
+        emit('ready', screen={'width': self.screen.width_in_pixels, 'height': self.screen.height_in_pixels},
+             version=VERSION)
+        # Adopt the top-levels that are already mapped.
+        try:
+            children = self.root.query_tree().children
+        except error.XError:
+            children = []
+        for w in children:
+            if w.id in (self.shell_id, self.check.id):
+                continue
+            try:
+                attrs = w.get_attributes()
+                if attrs.override_redirect or attrs.map_state != X.IsViewable:
+                    continue
+                self.manage(w, adopt=True)
+            except error.XError:
+                continue
+        self.raise_shell()
+        self.refresh_focus()
+
+    def compute_modifiers(self):
+        mapping = self.d.get_modifier_mapping()
+
+        def mask_of(names, fallback):
+            codes = {self.d.keysym_to_keycode(XK.string_to_keysym(n)) for n in names} - {0}
+            for i, keycodes in enumerate(mapping):
+                if codes & set(keycodes):
+                    return 1 << i
+            return fallback
+        self.super_mask = mask_of(['Super_L', 'Super_R'], X.Mod4Mask)
+        self.alt_mask = mask_of(['Alt_L', 'Alt_R', 'Meta_L'], X.Mod1Mask)
+        num = mask_of(['Num_Lock'], 0)
+        scroll = mask_of(['Scroll_Lock'], 0)
+        locks = [m for m in (X.LockMask, num, scroll) if m]
+        self.lock_variants = sorted({sum(m for j, m in enumerate(locks) if k & (1 << j))
+                                     for k in range(1 << len(locks))})
+        self.ignored_mods = X.LockMask | num | scroll
+
+    # ---- client list / stacking ------------------------------------------------------------
+    def update_client_list(self):
+        try:  # mapping order (dicts keep insertion order), then stacking order
+            self.root.change_property(self.atom('_NET_CLIENT_LIST'), Xatom.WINDOW, 32, list(self.clients))
+            self.root.change_property(self.atom('_NET_CLIENT_LIST_STACKING'), Xatom.WINDOW, 32, list(self.order))
+        except error.XError:
+            pass
+
+    def raise_shell(self):
+        try:
+            self.shell.configure(stack_mode=X.Above)
+        except error.XError:
+            pass
+
+    def restack(self):
+        """Put the managed clients, in self.order (bottom -> top), just below the shell."""
+        above = self.shell
+        for cid in reversed(self.order):
+            c = self.clients.get(cid)
+            if not c:
+                continue
+            try:
+                c.window.configure(sibling=above, stack_mode=X.Below)
+            except error.XError:
+                pass
+            above = c.window
+        self.update_client_list()
+
+    def set_active(self, wid):
+        try:
+            self.root.change_property(self.atom('_NET_ACTIVE_WINDOW'), Xatom.WINDOW, 32, [wid or 0])
+        except error.XError:
+            pass
+
+    # ---- managing clients ------------------------------------------------------------------
+    def read_info(self, c):
+        w = c.window
+        title = self.prop_text(w, '_NET_WM_NAME')
+        if not title:
+            try:
+                t = w.get_wm_name()
+            except error.XError:
+                t = None
+            if isinstance(t, bytes):
+                t = t.decode('latin-1', 'replace')
+            title = t or ''
+        c.title = title
+        try:
+            cls = w.get_wm_class()
+        except error.XError:
+            cls = None
+        c.wm_class = [cls[0], cls[1]] if cls else ['', '']
+        c.protocols = set(self.prop_cards(w, 'WM_PROTOCOLS', Xatom.ATOM))
+        try:
+            h = w.get_wm_hints()
+            c.accepts_input = not (h and h.flags & Xutil.InputHint and not h.input)
+        except error.XError:
+            c.accepts_input = True
+        c.state = set(self.prop_cards(w, '_NET_WM_STATE', Xatom.ATOM))
+        return c
+
+    def size_hints(self, c):
+        mn = [0, 0]
+        mx = [0, 0]
+        try:
+            h = c.window.get_wm_normal_hints()
+        except error.XError:
+            h = None
+        if h:
+            if h.flags & Xutil.PMinSize:
+                mn = [max(0, h.min_width), max(0, h.min_height)]
+            elif h.flags & Xutil.PBaseSize:
+                mn = [max(0, h.base_width), max(0, h.base_height)]
+            if h.flags & Xutil.PMaxSize:
+                mx = [max(0, h.max_width), max(0, h.max_height)]
+                if mx[0] >= 32767:
+                    mx[0] = 0
+                if mx[1] >= 32767:
+                    mx[1] = 0
+        motif = self.prop_cards(c.window, '_MOTIF_WM_HINTS')
+        decorated = not (len(motif) >= 3 and motif[0] & 2 and motif[2] == 0)
+        c.hints = dict(minWidth=mn[0], minHeight=mn[1], maxWidth=mx[0], maxHeight=mx[1], decorated=decorated)
+        return c.hints
+
+    def icon(self, c):
+        values = self.prop_cards(c.window, '_NET_WM_ICON', Xatom.CARDINAL)
+        try:
+            return pick_icon(values) if values else None
+        except Exception as exc:
+            log('warn', 'bad _NET_WM_ICON on 0x%x: %s' % (c.id, exc))
+            return None
+
+    def manage(self, w, adopt=False):
+        if w.id in self.clients:
+            try:
+                w.map()
+            except error.XError:
+                pass
+            return
+        c = self.read_info(Client(w))
+        x, y, width, height = self.geometry(w)
+        transient = None
+        try:
+            t = w.get_wm_transient_for()
+            transient = t.id if t else None
+        except error.XError:
+            pass
+        types = [self.atom_name(a) for a in self.prop_cards(w, '_NET_WM_WINDOW_TYPE', Xatom.ATOM)]
+        wtype = next((WINDOW_TYPES[t] for t in types if t in WINDOW_TYPES), 'dialog' if transient else 'normal')
+        if not adopt and x == 0 and y == 0:
+            sx, sy, sw, sh = 0, 0, self.screen.width_in_pixels, self.screen.height_in_pixels
+            if transient in self.clients:
+                try:
+                    sx, sy, sw, sh = self.geometry(self.clients[transient].window)
+                except error.XError:
+                    pass
+            x = max(0, sx + (sw - width) // 2)
+            y = max(0, sy + (sh - height) // 2)
+        w.change_attributes(event_mask=X.PropertyChangeMask | X.StructureNotifyMask | X.FocusChangeMask)
+        w.configure(x=x, y=y, width=width, height=height, border_width=0)
+        w.change_property(self.atom('WM_STATE'), self.atom('WM_STATE'), 32, [NORMAL, X.NONE])
+        w.change_property(self.atom('_NET_FRAME_EXTENTS'), Xatom.CARDINAL, 32, [0, 0, 0, 0])
+        w.grab_button(X.AnyButton, X.AnyModifier, False, X.ButtonPressMask, X.GrabModeSync, X.GrabModeAsync,
+                      X.NONE, X.NONE)
+        self.clients[c.id] = c
+        self.order.append(c.id)
+        self.restack()
+        if not adopt:
+            w.map()
+        pid = self.prop_cards(w, '_NET_WM_PID', Xatom.CARDINAL)
+        hints = self.size_hints(c)
+        emit('new', id=c.id, title=c.title, wmClass=c.wm_class, pid=pid[0] if pid else None, type=wtype,
+             transientFor=transient, modal=self.atom('_NET_WM_STATE_MODAL') in c.state,
+             x=x, y=y, width=width, height=height, minWidth=hints['minWidth'], minHeight=hints['minHeight'],
+             maxWidth=hints['maxWidth'], maxHeight=hints['maxHeight'], decorated=hints['decorated'],
+             fullscreen=self.atom('_NET_WM_STATE_FULLSCREEN') in c.state, icon=self.icon(c),
+             startupId=self.prop_text(w, '_NET_STARTUP_ID'), gtkAppId=self.prop_text(w, '_GTK_APPLICATION_ID'))
+
+    def unmanage(self, wid, destroyed):
+        c = self.clients.pop(wid, None)
+        if not c:
+            return
+        if wid in self.order:
+            self.order.remove(wid)
+        if not destroyed:
+            try:
+                c.window.change_property(self.atom('WM_STATE'), self.atom('WM_STATE'), 32, [WITHDRAWN, X.NONE])
+                c.window.ungrab_button(X.AnyButton, X.AnyModifier)
+                c.window.change_attributes(event_mask=0)
+            except error.XError:
+                pass
+        if self.drag and self.drag['id'] == wid:
+            self.d.ungrab_pointer(X.CurrentTime)
+            self.drag = None
+        self.update_client_list()
+        emit('gone', id=wid)
+        if self.focused == wid:
+            self.d.sync()
+            self.refresh_focus()
+            if self.focused is None:
+                self.focus_shell()
+
+    # ---- focus -----------------------------------------------------------------------------
+    def toplevel_of(self, wid):
+        for _ in range(64):
+            if wid in (0, 1, self.root.id) or wid in self.clients or wid == self.shell_id:
+                return wid
+            try:
+                parent = self.d.create_resource_object('window', wid).query_tree().parent
+            except error.XError:
+                return 0
+            pid = parent.id if hasattr(parent, 'id') else int(parent)
+            if pid == self.root.id:
+                return wid
+            wid = pid
+        return 0
+
+    def refresh_focus(self):
+        try:
+            f = self.d.get_input_focus().focus
+        except error.XError:
+            return
+        fid = f.id if hasattr(f, 'id') else int(f)
+        top = self.toplevel_of(fid)
+        new = top if top in self.clients else None
+        if new is not None:
+            self.grab_keys()
+        else:
+            self.ungrab_keys()
+        if new != self.focused or not self.focus_known:
+            self.focused = new
+            self.focus_known = True
+            self.set_active(new if new is not None else (self.shell_id if top == self.shell_id else None))
+            emit('focus', id=new)
+
+    def focus_shell(self):
+        try:
+            self.shell.set_input_focus(X.RevertToParent, X.CurrentTime)
+            self.set_active(self.shell_id)
+        except error.XError:
+            pass
+
+    def focus_client(self, c):
+        if c.accepts_input:
+            c.window.set_input_focus(X.RevertToParent, X.CurrentTime)
+        if self.atom('WM_TAKE_FOCUS') in c.protocols:
+            self.send_protocol(c, 'WM_TAKE_FOCUS')
+        self.set_active(c.id)
+
+    def send_protocol(self, c, name):
+        ev = xevent.ClientMessage(window=c.window, client_type=self.atom('WM_PROTOCOLS'),
+                                  data=(32, [self.atom(name), self.last_time, 0, 0, 0]))
+        c.window.send_event(ev, event_mask=X.NoEventMask)
+
+    # ---- keyboard --------------------------------------------------------------------------
+    def grab_keys(self):
+        if self.keys_grabbed:
+            return
+        self.keys_grabbed = True
+        kc = lambda ks: self.d.keysym_to_keycode(ks)
+        alt, sup = self.alt_mask, self.super_mask
+        specs = []
+        for extra in range(8):  # Super with any of Shift, Ctrl, Alt
+            mods = sup | (X.ShiftMask if extra & 1 else 0) | (X.ControlMask if extra & 2 else 0) | (alt if extra & 4 else 0)
+            specs.append(('any', mods))
+        specs += [(kc(XK.XK_Tab), alt), (kc(XK.XK_Tab), alt | X.ShiftMask), (kc(XK.XK_Tab), alt | X.ControlMask),
+                  (kc(XK.XK_F4), alt), (kc(XK.XK_Delete), X.ControlMask | alt),
+                  (kc(XK.XK_Escape), X.ControlMask | X.ShiftMask), (kc(XK.XK_Print), 0)]
+        for ks in (0x1008FF13, 0x1008FF11, 0x1008FF12, 0x1008FF02, 0x1008FF03):
+            specs.append((kc(ks), 0))
+        for keycode, mods in specs:
+            if keycode == 'any':
+                keycode = X.AnyKey
+            elif not keycode:
+                continue  # key not on this keyboard (keycode 0 would mean AnyKey)
+            for lock in self.lock_variants:
+                self.root.grab_key(keycode, mods | lock, True, X.GrabModeAsync, X.GrabModeAsync)
+        for ks in SUPER_KEYSYMS:  # Super alone (sent on release)
+            if kc(ks):
+                self.root.grab_key(kc(ks), X.AnyModifier, True, X.GrabModeAsync, X.GrabModeAsync)
+
+    def ungrab_keys(self):
+        if not self.keys_grabbed:
+            return
+        self.keys_grabbed = False
+        self.root.ungrab_key(X.AnyKey, X.AnyModifier)
+
+    def combo_of(self, keycode, state):
+        ks = self.d.keycode_to_keysym(keycode, 0)
+        if ks in MODIFIER_KEYSYMS or ks == 0:
+            return None
+        name = KEY_NAMES.get(ks)
+        if name is None:
+            if 0x20 < ks < 0x7f:
+                name = chr(ks).upper()
+            else:
+                name = XK.keysym_to_string(ks) or 'Unknown'
+        parts = []
+        if state & self.super_mask:
+            parts.append('Super')
+        if state & X.ControlMask:
+            parts.append('Ctrl')
+        if state & self.alt_mask:
+            parts.append('Alt')
+        if state & X.ShiftMask:
+            parts.append('Shift')
+        return '+'.join(parts + [name])
+
+    def on_key(self, e, press):
+        ks = self.d.keycode_to_keysym(e.detail, 0)
+        if not press:
+            self.last_release[e.detail] = e.time
+            if ks in SUPER_KEYSYMS:
+                if self.super_down and not self.super_used:
+                    self.focus_shell()
+                    emit('key', combo='Super', repeat=False)
+                self.super_down = self.super_used = False
+            elif ks in ALT_KEYSYMS:
+                emit('key', combo='Alt:up', repeat=False)
+            return
+        repeat = self.last_release.get(e.detail) == e.time
+        if ks in SUPER_KEYSYMS:
+            if not repeat:
+                self.super_down, self.super_used = True, False
+            return
+        if self.super_down or e.state & self.super_mask:
+            self.super_used = True
+        combo = self.combo_of(e.detail, e.state & ~self.ignored_mods)
+        if not combo or not (combo.startswith('Super') or combo in SYSTEM_COMBOS):
+            return
+        if combo in FOCUS_SHELL_FIRST:
+            self.focus_shell()
+        emit('key', combo=combo, repeat=repeat)
+
+    # ---- interactive move / resize ---------------------------------------------------------
+    def start_drag(self, c, x_root, y_root, direction):
+        if self.drag:
+            self.end_drag()
+        if direction == MOVERESIZE_CANCEL:
+            return
+        if direction != MOVERESIZE_MOVE and direction not in MOVERESIZE_EDGES:
+            log('debug', 'unsupported _NET_WM_MOVERESIZE direction %d' % direction)
+            return
+        try:
+            geom = self.geometry(c.window)
+        except error.XError:
+            return
+        status = self.root.grab_pointer(False, X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask,
+                                        X.GrabModeAsync, X.GrabModeAsync, X.NONE, X.NONE, X.CurrentTime)
+        if status != X.GrabSuccess:
+            log('debug', 'drag: pointer grab failed (%d)' % status)
+            return
+        hints = c.hints or self.size_hints(c)
+        self.drag = dict(id=c.id, ax=x_root, ay=y_root, geom=geom, dir=direction, hints=hints,
+                         cur=geom, pending=None, last=0.0)
+        p = self.root.query_pointer()
+        if not p.mask & BUTTONS_MASK:  # the button was already released: nothing to drag
+            self.end_drag()
+
+    def drag_geometry(self, rx, ry):
+        dr = self.drag
+        gx, gy, gw, gh = dr['geom']
+        dx, dy = rx - dr['ax'], ry - dr['ay']
+        if dr['dir'] == MOVERESIZE_MOVE:
+            return gx + dx, gy + dy, gw, gh
+        left, top, right, bottom = MOVERESIZE_EDGES[dr['dir']]
+        h = dr['hints']
+
+        def clamp(v, lo, hi):
+            v = max(v, lo or 1, 1)
+            return min(v, hi) if hi else v
+        w = clamp(gw - dx if left else gw + dx if right else gw, h['minWidth'], h['maxWidth'])
+        ht = clamp(gh - dy if top else gh + dy if bottom else gh, h['minHeight'], h['maxHeight'])
+        x = gx + gw - w if left else gx
+        y = gy + gh - ht if top else gy
+        return x, y, w, ht
+
+    def apply_drag(self, done=False):
+        dr = self.drag
+        if dr['pending'] is not None:
+            x, y, w, h = dr['cur'] = dr['pending']
+            dr['pending'] = None
+            c = self.clients.get(dr['id'])
+            if c:
+                c.window.configure(x=x, y=y, width=w, height=h)
+        dr['last'] = time.monotonic()
+        x, y, w, h = dr['cur']
+        emit('drag', id=dr['id'], x=x, y=y, width=w, height=h, done=done)
+
+    def end_drag(self):
+        if not self.drag:
+            return
+        self.d.ungrab_pointer(X.CurrentTime)
+        self.apply_drag(done=True)
+        self.drag = None
+
+    def drag_timeout(self):
+        if not self.drag or self.drag['pending'] is None:
+            return None
+        return max(0.0, self.drag['last'] + DRAG_INTERVAL - time.monotonic())
+
+    # ---- X events --------------------------------------------------------------------------
+    def handle(self, e):
+        t = e.type
+        if hasattr(e, 'time') and e.time:
+            self.last_time = e.time
+        if t == X.MapRequest:
+            if e.window.id == self.shell_id:
+                e.window.map()
+                self.raise_shell()
+            else:
+                self.manage(e.window)
+        elif t == X.ConfigureRequest:
+            self.on_configure_request(e)
+        elif t == X.UnmapNotify:
+            if e.window.id in self.clients:
+                self.unmanage(e.window.id, destroyed=False)
+        elif t == X.DestroyNotify:
+            self.unmanage(e.window.id, destroyed=True)
+        elif t == X.PropertyNotify:
+            self.on_property(e)
+        elif t == X.ClientMessage:
+            self.on_client_message(e)
+        elif t in (X.FocusIn, X.FocusOut):
+            self.refresh_focus()
+        elif t == X.ButtonPress:
+            if self.drag:
+                return
+            wid = e.window.id
+            try:
+                c = self.clients.get(wid)
+                if c:
+                    self.focus_client(c)
+            finally:
+                self.d.allow_events(X.ReplayPointer, e.time)
+            if wid in self.clients:
+                emit('click', id=wid)
+        elif t == X.ButtonRelease:
+            if self.drag:
+                self.drag['pending'] = self.drag_geometry(e.root_x, e.root_y)
+                self.end_drag()
+        elif t == X.MotionNotify:
+            if self.drag:
+                self.drag['pending'] = self.drag_geometry(e.root_x, e.root_y)
+                if self.drag_timeout() == 0:
+                    self.apply_drag()
+        elif t in (X.KeyPress, X.KeyRelease):
+            self.on_key(e, t == X.KeyPress)
+        elif t == X.MappingNotify:
+            self.d.refresh_keyboard_mapping(e)
+            if e.request in (X.MappingKeyboard, X.MappingModifier):
+                self.compute_modifiers()
+                if self.keys_grabbed:
+                    self.ungrab_keys()
+                    self.grab_keys()
+
+    def on_configure_request(self, e):
+        m = e.value_mask
+        if e.window.id in self.clients:
+            req = {}
+            for bit, key in ((X.CWX, 'x'), (X.CWY, 'y'), (X.CWWidth, 'width'), (X.CWHeight, 'height')):
+                if m & bit:
+                    req[key] = getattr(e, key)
+            if req:
+                emit('configure-request', id=e.window.id, **req)
+            return
+        # The shell and windows we do not manage get what they ask for (except stacking for the shell).
+        kw = {}
+        for bit, key in ((X.CWX, 'x'), (X.CWY, 'y'), (X.CWWidth, 'width'), (X.CWHeight, 'height'),
+                         (X.CWBorderWidth, 'border_width')):
+            if m & bit:
+                kw[key] = getattr(e, key)
+        if e.window.id == self.shell_id:
+            kw['stack_mode'] = X.Above
+        elif m & X.CWStackMode:
+            kw['stack_mode'] = e.stack_mode
+            if m & X.CWSibling:
+                kw['sibling'] = e.sibling
+        if kw:
+            e.window.configure(**kw)
+
+    def on_property(self, e):
+        c = self.clients.get(e.window.id)
+        if not c:
+            return
+        name = self.atom_name(e.atom)
+        if name in ('_NET_WM_NAME', 'WM_NAME'):
+            old = c.title
+            self.read_info(c)
+            if c.title != old:
+                emit('title', id=c.id, title=c.title)
+        elif name == '_NET_WM_ICON':
+            emit('icon', id=c.id, icon=self.icon(c))
+        elif name in ('WM_NORMAL_HINTS', '_MOTIF_WM_HINTS'):
+            old = c.hints
+            hints = self.size_hints(c)
+            if hints != old:
+                emit('hints', id=c.id, **hints)
+        elif name in ('WM_PROTOCOLS', 'WM_HINTS', '_NET_WM_STATE'):
+            title = c.title
+            self.read_info(c)
+            c.title = title
+
+    def on_client_message(self, e):
+        name = self.atom_name(e.client_type)
+        data = list(e.data[1]) if e.format == 32 else []
+        wid = e.window.id
+        c = self.clients.get(wid)
+        if name == '_NET_ACTIVE_WINDOW':
+            if wid == self.shell_id:
+                self.focus_shell()
+            elif c:
+                emit('state-request', id=wid, activate=True)
+        elif name == '_NET_WM_STATE' and len(data) >= 3:
+            self.on_state_message(wid, c, data)
+        elif name == 'WM_CHANGE_STATE' and c and data and data[0] == ICONIC:
+            emit('state-request', id=wid, minimized=True)
+        elif name == '_NET_CLOSE_WINDOW' and c:
+            self.close(c)
+        elif name == '_NET_WM_MOVERESIZE' and c and len(data) >= 3:
+            self.start_drag(c, data[0], data[1], data[2])
+        elif name == '_NET_MOVERESIZE_WINDOW' and c and len(data) >= 5:
+            req = {k: data[i + 1] for i, k in enumerate(('x', 'y', 'width', 'height')) if data[0] & (1 << (8 + i))}
+            if req:
+                emit('configure-request', id=wid, **req)
+        elif name == '_NET_REQUEST_FRAME_EXTENTS':
+            e.window.change_property(self.atom('_NET_FRAME_EXTENTS'), Xatom.CARDINAL, 32, [0, 0, 0, 0])
+
+    def on_state_message(self, wid, c, data):
+        action, props = data[0], [p for p in data[1:3] if p]
+        names = {self.atom_name(p): p for p in props}
+        if wid == self.shell_id:
+            current = set(self.prop_cards(self.shell, '_NET_WM_STATE', Xatom.ATOM))
+            for p in props:
+                on = action == 1 or (action == 2 and p not in current)
+                current = current | {p} if on else current - {p}
+            self.shell.change_property(self.atom('_NET_WM_STATE'), Xatom.ATOM, 32, sorted(current))
+            if '_NET_WM_STATE_FULLSCREEN' in names and self.atom('_NET_WM_STATE_FULLSCREEN') in current:
+                self.shell.configure(x=0, y=0, width=self.screen.width_in_pixels,
+                                     height=self.screen.height_in_pixels, stack_mode=X.Above)
+            return
+        if not c:
+            return
+
+        def wanted(atom):
+            return action == 1 or (action == 2 and atom not in c.state)
+        if '_NET_WM_STATE_FULLSCREEN' in names:
+            emit('state-request', id=wid, fullscreen=wanted(names['_NET_WM_STATE_FULLSCREEN']))
+        mx = [names[n] for n in ('_NET_WM_STATE_MAXIMIZED_VERT', '_NET_WM_STATE_MAXIMIZED_HORZ') if n in names]
+        if mx:
+            emit('state-request', id=wid, maximized=wanted(mx[0]))
+        if '_NET_WM_STATE_HIDDEN' in names and wanted(names['_NET_WM_STATE_HIDDEN']):
+            emit('state-request', id=wid, minimized=True)
+
+    def close(self, c):
+        if self.atom('WM_DELETE_WINDOW') in c.protocols:
+            self.send_protocol(c, 'WM_DELETE_WINDOW')
+        else:
+            self.d.kill_client(c.id)
+
+    # ---- commands --------------------------------------------------------------------------
+    def read_stdin(self):
+        try:
+            chunk = os.read(0, 65536)
+        except (BlockingIOError, InterruptedError):
+            return
+        if not chunk:
+            raise SystemExit(0)  # the main process closed our stdin: clean exit
+        self.stdin_buf += chunk
+        while b'\n' in self.stdin_buf:
+            line, self.stdin_buf = self.stdin_buf.split(b'\n', 1)
+            if line.strip():
+                self.on_line(line)
+        if len(self.stdin_buf) > MAX_LINE:
+            log('warn', 'command line too long, dropped')
+            self.stdin_buf = b''
+
+    def on_line(self, line):
+        try:
+            msg = json.loads(line.decode('utf-8'))
+            if not isinstance(msg, dict) or not isinstance(msg.get('cmd'), str):
+                raise ValueError('not a command object')
+        except (ValueError, UnicodeDecodeError) as exc:
+            log('warn', 'malformed command ignored: %s' % exc)
+            return
+        try:
+            self.on_command(msg['cmd'], msg)
+        except error.XError as exc:
+            log('debug', 'command %s: X error %s' % (msg['cmd'], exc.__class__.__name__))
+        except (TypeError, ValueError, KeyError) as exc:
+            log('warn', 'bad %s command: %s' % (msg['cmd'], exc))
+
+    def num(self, v):
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ValueError('expected a number, got %r' % (v,))
+        return int(round(v))
+
+    def on_command(self, cmd, msg):
+        if cmd == 'ping':
+            emit('pong', seq=msg.get('seq'))
+            return
+        if cmd == 'focus' and msg.get('id') is None:
+            self.focus_shell()
+            return
+        if cmd == 'stack':
+            ids = [i for i in (msg.get('ids') or []) if isinstance(i, int) and i in self.clients]
+            self.order = [i for i in self.order if i not in ids] + ids
+            self.restack()
+            return
+        if cmd not in ('place', 'focus', 'close', 'kill', 'state'):
+            log('warn', 'unknown command %r ignored' % cmd)
+            return
+        c = self.clients.get(msg.get('id'))
+        if not c:
+            log('debug', '%s: unknown window %r' % (cmd, msg.get('id')))
+            return
+        if cmd == 'place':
+            x, y = self.num(msg['x']), self.num(msg['y'])
+            w, h = max(1, self.num(msg['width'])), max(1, self.num(msg['height']))
+            if self.geometry(c.window) == (x, y, w, h):
+                ev = xevent.ConfigureNotify(window=c.window, event=c.window, above_sibling=X.NONE, x=x, y=y,
+                                            width=w, height=h, border_width=0, override=0)
+                c.window.send_event(ev, event_mask=X.StructureNotifyMask)
+            else:
+                c.window.configure(x=x, y=y, width=w, height=h)
+        elif cmd == 'focus':
+            self.focus_client(c)
+        elif cmd == 'close':
+            self.close(c)
+        elif cmd == 'kill':
+            self.d.kill_client(c.id)
+        elif cmd == 'state':
+            managed = {self.atom(n): k for n, k in (
+                ('_NET_WM_STATE_FULLSCREEN', 'fullscreen'), ('_NET_WM_STATE_MAXIMIZED_VERT', 'maximized'),
+                ('_NET_WM_STATE_MAXIMIZED_HORZ', 'maximized'), ('_NET_WM_STATE_HIDDEN', 'minimized'))}
+            state = set(c.state)
+            for atom, key in managed.items():
+                if key in msg:
+                    state = state | {atom} if msg[key] else state - {atom}
+            c.state = state
+            c.window.change_property(self.atom('_NET_WM_STATE'), Xatom.ATOM, 32, sorted(state))
+            iconic = self.atom('_NET_WM_STATE_HIDDEN') in state
+            c.window.change_property(self.atom('WM_STATE'), self.atom('WM_STATE'), 32,
+                                     [ICONIC if iconic else NORMAL, X.NONE])
+
+    # ---- main loop -------------------------------------------------------------------------
+    def shutdown(self, status=0):
+        try:
+            if self.drag:
+                self.d.ungrab_pointer(X.CurrentTime)
+            self.ungrab_keys()
+            self.root.delete_property(self.atom('_NET_SUPPORTING_WM_CHECK'))
+            if self.check:
+                self.check.destroy()
+            self.d.close()
+        except Exception:
+            pass
+        sys.exit(status)
+
+    def run(self):
+        self.become_wm()
+        self.d.flush()
+        xfd = self.d.fileno()
+        while True:
+            try:
+                while self.d.pending_events():
+                    e = self.d.next_event()
+                    try:
+                        self.handle(e)
+                    except error.XError as exc:
+                        log('debug', 'event %d: X error %s' % (e.type, exc.__class__.__name__))
+                    except (SystemExit, KeyboardInterrupt, error.ConnectionClosedError):
+                        raise
+                    except Exception as exc:  # never die on one bad event
+                        log('error', 'event %d: %s: %s' % (e.type, exc.__class__.__name__, exc))
+                if self.drag and self.drag['pending'] is not None and self.drag_timeout() == 0:
+                    self.apply_drag()
+                self.d.flush()
+                ready, _, _ = select.select([xfd, 0], [], [], self.drag_timeout())
+                if 0 in ready:
+                    self.read_stdin()
+            except error.ConnectionClosedError as exc:
+                fatal('ENODISPLAY', 'lost the X connection: %s' % exc, 1)
+            except InterruptedError:
+                continue
+
+
+def main(argv):
+    shell_xid = parse_args(argv)
+    if not shell_xid:
+        sys.stderr.write('usage: aurora-xwm --shell-xid <XID>\n')
+        return 2
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
+    if not os.environ.get('DISPLAY'):
+        fatal('ENODISPLAY', 'DISPLAY is not set', 1)
+    wm = XWM(shell_xid)
+    try:
+        wm.run()
+    except SystemExit as exc:
+        if exc.code in (None, 0):
+            wm.shutdown(0)
+        raise
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

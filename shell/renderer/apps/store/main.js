@@ -1,10 +1,10 @@
 // Aurora Store — curated command-line tools and services (apt packages) to use from the Terminal.
 // Catalog + installed state: main/ipc/store.js (store:catalog, store:installed). Install / remove: the
 // elevation prompt, shell.runAdmin('store-install' | 'store-remove', [apt]), with APT progress lines on
-// admin:progress. Graphical apps will come later (the shell cannot show external X11 windows yet).
+// admin:progress. Graphical apps (gui: true) open as Linux apps through the registry (id it.linuxId, kind 'linux').
 //   shell.launch('store', { id: 'htop' })  opens a detail page ;  { view: 'installed' }  the Installed page
-const CATEGORIES = ['development', 'editors', 'shells', 'system', 'utilities', 'multimedia', 'network'];
-const CAT_ICON = { development: 'code', editors: 'document_edit', shells: 'window_console', system: 'gauge', utilities: 'toolbox', multimedia: 'video_clip', network: 'globe' };
+const CATEGORIES = ['graphics', 'office', 'multimedia', 'development', 'editors', 'shells', 'system', 'utilities', 'network'];
+const CAT_ICON = { development: 'code', editors: 'document_edit', shells: 'window_console', system: 'gauge', utilities: 'toolbox', multimedia: 'video_clip', network: 'globe', graphics: 'paint_brush', office: 'document' };
 
 /** APT status line -> { phase: 'download'|'install'|'error', percent, pkg, message } | null */
 export function parseStatus(line) {
@@ -127,7 +127,7 @@ export default {
         if (win.closed) return;
         ctx.shell.notify({
           title: t(action === 'install' ? 'doneInstallTitle' : 'doneRemoveTitle', { name: it.name }),
-          body: action === 'install' ? (it.command ? t('doneInstallBody', { cmd: it.command }) : t('doneInstallService')) : '',
+          body: action === 'install' ? (it.gui ? t('doneInstallGui') : it.command ? t('doneInstallBody', { cmd: it.command }) : t('doneInstallService')) : '',
           appId: 'store',
           silent: true,
         });
@@ -140,6 +140,20 @@ export default {
       }
       if (!win.closed) render();
     }
+
+    // Graphical app: launch the Linux app (.desktop entry) through the registry; reload once if it is not known yet.
+    async function openApp(it) {
+      const reg = ctx.shell.registry;
+      if (!reg.get(it.linuxId)) await reg.load().catch(() => {});
+      if (reg.get(it.linuxId)) {
+        errors.delete(it.apt);
+        reg.launch(it.linuxId);
+        return;
+      }
+      errors.set(it.apt, t('openFailed', { name: it.name }));
+      render();
+    }
+    const openBtn = (it, cls) => h('button', { class: ['btn', cls, 'st-open'], dataset: { gui: '1' }, 'aria-label': t('openAppName', { name: it.name }), onclick: () => openApp(it) }, icon('open'), t('openApp'));
 
     function openTerminal(it) {
       const args = it.interactive && it.command ? { command: it.command } : {};
@@ -241,7 +255,7 @@ export default {
           { class: 'st-row card', dataset: { id: it.id } },
           h('button', { class: 'st-row-main', onclick: () => go({ kind: 'detail', id: it.id }), 'aria-label': it.name }, tile(it, 'small'), h('div', { class: 'st-row-text' }, h('div', { class: 'st-row-name' }, it.name), h('div', { class: 'caption text-2' }, `${it.apt} · ${installed[it.apt] || ''}`))),
           op?.apt === it.apt ? statusChip(it) : null,
-          it.command ? h('button', { class: 'btn st-open', onclick: () => openTerminal(it) }, icon('window_console'), t('openTerminal')) : null,
+          it.gui ? openBtn(it, '') : it.command ? h('button', { class: 'btn st-open', onclick: () => openTerminal(it) }, icon('window_console'), t('openTerminal')) : null,
           it.removable === false
             ? h('span', { class: 'caption text-2 st-builtin' }, t('builtIn'))
             : h('button', { class: 'btn subtle st-remove', disabled: !!op, 'aria-label': t('removeName', { name: it.name }), title: t('remove'), onclick: () => runOp(it, 'remove') }, icon('delete')),
@@ -258,7 +272,8 @@ export default {
       if (busy) {
         actions.append(h('div', { class: 'st-progress-wrap' }, h('div', { class: 'progress st-progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(op.percent), 'aria-label': op.step }, h('div', { class: 'bar', style: { width: `${op.percent}%` } })), h('div', { class: 'caption text-2 st-step', 'aria-live': 'polite' }, op.step)));
       } else if (inst) {
-        if (it.command) actions.append(h('button', { class: 'btn primary st-open', onclick: () => openTerminal(it) }, icon('window_console'), t('openTerminal')));
+        if (it.gui) actions.append(openBtn(it, 'primary'));
+        else if (it.command) actions.append(h('button', { class: 'btn primary st-open', onclick: () => openTerminal(it) }, icon('window_console'), t('openTerminal')));
         if (it.removable === false) actions.append(h('span', { class: 'caption text-2 st-builtin' }, t('builtIn')));
         else actions.append(h('button', { class: 'btn st-remove', disabled: !!op, onclick: () => runOp(it, 'remove') }, t('remove')));
       } else {
@@ -282,7 +297,9 @@ export default {
         ),
         err ? h('div', { class: 'infobar error st-error', role: 'alert' }, icon('error_circle'), h('div', null, h('b', null, t('failed')), ' ', err)) : null,
         h('section', { class: 'st-section' }, h('h2', { class: 'subtitle' }, t('about')), h('p', { class: 'st-desc' }, desc(it))),
-        it.command
+        it.gui
+          ? h('section', { class: 'st-section' }, h('h2', { class: 'subtitle' }, t('howTo')), h('p', { class: 'text-2' }, t('howToGui')))
+          : it.command
           ? h('section', { class: 'st-section' }, h('h2', { class: 'subtitle' }, t('howTo')), h('p', { class: 'text-2' }, t(it.interactive ? 'howToInteractive' : 'howToCli')), h('pre', { class: 'st-cmd' }, it.interactive ? it.command : `${it.command} --help`))
           : h('section', { class: 'st-section' }, h('h2', { class: 'subtitle' }, t('howTo')), h('p', { class: 'text-2' }, t('howToService'))),
         h('section', { class: 'st-section' }, h('h2', { class: 'subtitle' }, t('information')), h('dl', { class: 'st-info card' }, info.map(([k, v]) => [h('dt', { class: 'text-2' }, k), h('dd', null, v)]))),

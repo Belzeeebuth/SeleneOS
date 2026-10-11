@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Only Selene
+OnlyShowIn=GNOME;X-Selene;
+Icon=selene-pix
+Exec=selene-fixture-record --hold %u
