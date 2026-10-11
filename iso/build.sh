@@ -244,6 +244,7 @@ preflight() {
            usr/lib/aurora/aurora-xstart usr/lib/aurora/aurora-xgreeter; do
     [[ -f "$ROOTFS_SRC/$f" ]] || { bad+=("$f (missing)"); continue; }
     [[ -x "$ROOTFS_SRC/$f" ]] || bad+=("$f (not executable)")
+    [[ "$(head -c 2 "$ROOTFS_SRC/$f")" == '#!' ]] || bad+=("$f (the first line must start with #!)")
   done
   ((${#bad[@]} == 0)) || die "incomplete rootfs/ in $ROOTFS_SRC: ${bad[*]} — update the checkout (git pull) or run: chmod +x rootfs/usr/bin/* rootfs/usr/lib/aurora/aurora-*"
   ((${#missing[@]} == 0)) || die "missing build tools: ${missing[*]}
