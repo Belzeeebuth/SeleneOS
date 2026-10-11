@@ -242,7 +242,9 @@ export default {
           h('button', { class: 'st-row-main', onclick: () => go({ kind: 'detail', id: it.id }), 'aria-label': it.name }, tile(it, 'small'), h('div', { class: 'st-row-text' }, h('div', { class: 'st-row-name' }, it.name), h('div', { class: 'caption text-2' }, `${it.apt} · ${installed[it.apt] || ''}`))),
           op?.apt === it.apt ? statusChip(it) : null,
           it.command ? h('button', { class: 'btn st-open', onclick: () => openTerminal(it) }, icon('window_console'), t('openTerminal')) : null,
-          h('button', { class: 'btn subtle st-remove', disabled: !!op, 'aria-label': t('removeName', { name: it.name }), title: t('remove'), onclick: () => runOp(it, 'remove') }, icon('delete')),
+          it.removable === false
+            ? h('span', { class: 'caption text-2 st-builtin' }, t('builtIn'))
+            : h('button', { class: 'btn subtle st-remove', disabled: !!op, 'aria-label': t('removeName', { name: it.name }), title: t('remove'), onclick: () => runOp(it, 'remove') }, icon('delete')),
         ),
       );
       return [h('h1', { class: 'title st-page-title' }, t('installedTitle')), h('div', { class: 'text-2 st-page-sub' }, t('installedSub')), list.length ? h('div', { class: 'st-rows' }, rows) : empty('apps_list', t('noneInstalled'), t('noneInstalledBody'))];
@@ -257,7 +259,8 @@ export default {
         actions.append(h('div', { class: 'st-progress-wrap' }, h('div', { class: 'progress st-progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(op.percent), 'aria-label': op.step }, h('div', { class: 'bar', style: { width: `${op.percent}%` } })), h('div', { class: 'caption text-2 st-step', 'aria-live': 'polite' }, op.step)));
       } else if (inst) {
         if (it.command) actions.append(h('button', { class: 'btn primary st-open', onclick: () => openTerminal(it) }, icon('window_console'), t('openTerminal')));
-        actions.append(h('button', { class: 'btn st-remove', disabled: !!op, onclick: () => runOp(it, 'remove') }, t('remove')));
+        if (it.removable === false) actions.append(h('span', { class: 'caption text-2 st-builtin' }, t('builtIn')));
+        else actions.append(h('button', { class: 'btn st-remove', disabled: !!op, onclick: () => runOp(it, 'remove') }, t('remove')));
       } else {
         actions.append(h('button', { class: 'btn primary st-install', disabled: !!op, onclick: () => runOp(it, 'install') }, icon('arrow_download'), t('install')));
       }

@@ -41,6 +41,7 @@ function parseCatalog(json) {
       icon: /^[a-z0-9_]{1,64}$/.test(it.icon || '') ? it.icon : 'apps',
       command: /^[A-Za-z0-9][A-Za-z0-9+._-]{0,63}$/.test(it.command || '') ? it.command : '',
       interactive: it.interactive === true,
+      removable: it.removable !== false,
       description: { en: str(d.en), fr: str(d.fr) || str(d.en) },
     });
   }

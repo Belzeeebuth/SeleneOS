@@ -388,7 +388,8 @@ apt-upgrade)
 
 # ------------------------------------------------------------------ BEGIN store actions (Store app)
 #   store-install <package>    apt-get -y install --no-install-recommends; APT status lines on stdout
-#   store-remove <package>     apt-get -y remove; APT status lines on stdout
+#   store-remove <package>     apt-get -y remove; APT status lines on stdout. Refused for catalog entries with
+#                              "removable": false and when apt would also remove other packages.
 # Only packages listed as "apt": "<name>" in the root-owned catalog /usr/share/aurora/store/catalog.json.
 store-install | store-remove)
   need_args $# 1
@@ -397,8 +398,13 @@ store-install | store-remove)
   STORE_CATALOG=/usr/share/aurora/store/catalog.json
   { [ -f "$STORE_CATALOG" ] && [ ! -L "$STORE_CATALOG" ]; } || die 3 "the store catalog is missing"
   [ "$(stat -c %u -- "$STORE_CATALOG")" = 0 ] || die 4 "the store catalog is not owned by root"
-  grep -Eo '"apt"[[:space:]]*:[[:space:]]*"[a-z0-9][a-z0-9+.-]{1,62}"' "$STORE_CATALOG" |
-    sed -E 's/.*"([^"]+)"$/\1/' | grep -qxF -- "$pkg" || die 4 "this package is not in the store catalog: $pkg"
+  # "removable" or "fixed" (shipped with Aurora OS: "removable": false); not in the catalog -> refused.
+  store_kind=$(python3 -I -c 'import json, sys
+for it in json.load(open(sys.argv[1])).get("items", []):
+    if isinstance(it, dict) and it.get("apt") == sys.argv[2]:
+        print("fixed" if it.get("removable") is False else "removable")
+        sys.exit(0)
+sys.exit(1)' "$STORE_CATALOG" "$pkg") || die 4 "this package is not in the store catalog: $pkg"
   export DEBIAN_FRONTEND=noninteractive
   if [ "$ACTION" = store-install ]; then
     store_apt_install() {
@@ -412,6 +418,10 @@ store-install | store-remove)
       store_apt_install || die 5 "could not install $pkg (see the system journal)"
     fi
   else
+    [ "$store_kind" = fixed ] && die 6 "$pkg is part of Aurora OS and cannot be removed from the Store"
+    # Never take other packages along (apt removes everything that depends on $pkg without asking).
+    store_others=$(apt-get -s -q -o DPkg::Lock::Timeout=120 remove "$pkg" 2>/dev/null | awk -v p="$pkg" '$1 == "Remv" && $2 != p { printf "%s ", $2 }') || true
+    [ -z "$store_others" ] || die 6 "removing $pkg would also remove: ${store_others% }"
     apt-get -q -y -o DPkg::Lock::Timeout=120 -o APT::Status-Fd=3 remove "$pkg" 3>&1 1>&2 || die 5 "could not remove $pkg (see the system journal)"
   fi
   echo "done"

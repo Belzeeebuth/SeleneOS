@@ -142,15 +142,15 @@ try {
 
   // detail + install canceled
   await page.click(`${W} [data-nav="cat:system"]`);
-  await page.click(`${W} .st-card[data-id=htop]`);
+  await page.click(`${W} .st-card[data-id=ncdu]`);
   await page.waitForSelector(`${W} .st-detail-head`);
-  check('detail: title', (await page.locator(`${W} .st-detail-title h1`).innerText()).trim(), 'htop');
-  check('detail: info shows package + not installed', await page.locator(`${W} .st-info`).innerText(), (v) => /htop/.test(v) && /Not installed/.test(v));
-  check('detail: how-to shows the command', (await page.locator(`${W} .st-cmd`).innerText()).trim(), 'htop');
-  check('detail: window title', await page.evaluate(() => window.__aurora.wm.byApp('store')[0]?.title || document.querySelector('.app-store')?.closest('.window')?.querySelector('.title, .win-title')?.textContent || ''), (v) => /htop/.test(v));
+  check('detail: title', (await page.locator(`${W} .st-detail-title h1`).innerText()).trim(), 'ncdu');
+  check('detail: info shows package + not installed', await page.locator(`${W} .st-info`).innerText(), (v) => /ncdu/.test(v) && /Not installed/.test(v));
+  check('detail: how-to shows the command', (await page.locator(`${W} .st-cmd`).innerText()).trim(), 'ncdu');
+  check('detail: window title', await page.evaluate(() => window.__aurora.wm.byApp('store')[0]?.title || document.querySelector('.app-store')?.closest('.window')?.querySelector('.title, .win-title')?.textContent || ''), (v) => /ncdu/.test(v));
   await page.click(`${W} .st-install`);
   await page.waitForSelector('.uac-dialog', { timeout: 10000 });
-  check('UAC: reason names the package', await page.locator('.uac-dialog').innerText(), (v) => /install htop \(htop\)/.test(v));
+  check('UAC: reason names the package', await page.locator('.uac-dialog').innerText(), (v) => /install ncdu \(ncdu\)/.test(v));
   await page.keyboard.press('Escape');
   await page.waitForSelector('.uac-dialog', { state: 'detached', timeout: 8000 }).catch(() => {});
   await sleep(300);
@@ -167,7 +167,7 @@ try {
   check('install: Installed chip', await page.locator(`${W} .st-detail-head .st-chip.ok`).count(), 1);
   check('install: version shown', await page.locator(`${W} .st-info`).innerText(), (v) => !/Not installed/.test(v));
   check('install: badge now 6', (await page.locator(`${W} [data-nav=installed] .st-count`).innerText()).trim(), '6');
-  check('install: notification', await page.evaluate(() => window.__aurora.notifications.list().some((n) => /htop is installed/.test(n.title))), true);
+  check('install: notification', await page.evaluate(() => window.__aurora.notifications.list().some((n) => /ncdu is installed/.test(n.title))), true);
 
   // Open in Terminal (launch intercepted)
   await page.evaluate(() => {
@@ -177,7 +177,7 @@ try {
     sh.launch = (id, args) => (window.__storeLaunches.push({ id, args }), null);
   });
   await page.click(`${W} .st-detail-head .st-open`);
-  check('Open in Terminal: runs htop', await page.evaluate(() => window.__storeLaunches), [{ id: 'terminal', args: { command: 'htop' } }]);
+  check('Open in Terminal: runs ncdu', await page.evaluate(() => window.__storeLaunches), [{ id: 'terminal', args: { command: 'ncdu' } }]);
 
   // keyboard back
   await page.locator(`${W} .st-back`).focus();
@@ -200,14 +200,16 @@ try {
 
   // Installed view + remove from a row
   await page.click(`${W} [data-nav=installed]`);
-  check('Installed: rows', await page.locator(`${W} .st-row`).evaluateAll((els) => els.map((e) => e.dataset.id).sort()), ['curl', 'git', 'htop', 'rsync', 'unzip', 'wget']);
+  check('Installed: rows', await page.locator(`${W} .st-row`).evaluateAll((els) => els.map((e) => e.dataset.id).sort()), ['curl', 'git', 'ncdu', 'rsync', 'unzip', 'wget']);
+  check('Installed: tools shipped with Aurora OS have no Remove button', await page.locator(`${W} .st-row[data-id=git] .st-remove`).count(), 0);
+  check('Installed: shipped tools say so', (await page.locator(`${W} .st-row[data-id=git] .st-builtin`).innerText().catch(() => '')).trim(), 'Included with Aurora OS');
   await page.click(`${W} .st-row[data-id=git] .st-open`);
   check('Installed: Open on a CLI tool opens a plain Terminal', await page.evaluate(() => window.__storeLaunches.at(-1)), { id: 'terminal', args: {} });
-  await page.click(`${W} .st-row[data-id=htop] .st-remove`);
-  check('UAC: remove reason', await page.locator('.uac-dialog').innerText().catch(() => ''), (v) => /remove htop/.test(v));
+  await page.click(`${W} .st-row[data-id=ncdu] .st-remove`);
+  check('UAC: remove reason', await page.locator('.uac-dialog').innerText().catch(() => ''), (v) => /remove ncdu/.test(v));
   await uac(s);
-  await until(async () => (await page.locator(`${W} .st-row[data-id=htop]`).count()) === 0, { timeout: 15000 });
-  check('remove: row gone', await page.locator(`${W} .st-row[data-id=htop]`).count(), 0);
+  await until(async () => (await page.locator(`${W} .st-row[data-id=ncdu]`).count()) === 0, { timeout: 15000 });
+  check('remove: row gone', await page.locator(`${W} .st-row[data-id=ncdu]`).count(), 0);
   check('remove: badge back to 5', (await page.locator(`${W} [data-nav=installed] .st-count`).innerText()).trim(), '5');
 
   // backend refuses packages that are not in the catalog
