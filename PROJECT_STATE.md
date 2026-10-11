@@ -169,6 +169,9 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
    - Rebuild the ISO (`sudo make iso`), run `make verify-iso` + `make smoke-image`.
    - Update README and this file.
 4. Then wait for the user to request app Phase 2 (PHASEAPP.md).
+   **Phase 2 mode (user decision, 2026-10-11):** extra usage on, ultracode OFF. Lean: one builder + one
+   verifier per app, 2 apps at a time, time box per agent, key screenshots only, one `make test-all` at
+   the end; small fixes done directly without agents.
 
 ## Personalization request (verbatim, user request #2)
 

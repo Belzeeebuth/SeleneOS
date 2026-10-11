@@ -621,6 +621,8 @@ async function mainRun() {
       // Drag to the top centre: layouts bar.
       await A((id) => window.__aurora.wm.get(id).restore(), id);
       await sleep(300);
+      // (on a loaded machine the restore animation can outlast the sleep: grab the title bar where it ends up)
+      await A((id) => Promise.race([Promise.all(window.__aurora.wm.get(id).el.getAnimations().map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, 3000))]), id);
       const tb = await A((id) => {
         const r = window.__aurora.wm.get(id).titlebar.getBoundingClientRect();
         return { x: r.left + 200, y: r.top + 14 };
@@ -646,6 +648,8 @@ async function mainRun() {
       // Classic edge snapping still works.
       await A((id) => window.__aurora.wm.get(id).restore(), id);
       await sleep(300);
+      // (on a loaded machine the restore animation can outlast the sleep: grab the title bar where it ends up)
+      await A((id) => Promise.race([Promise.all(window.__aurora.wm.get(id).el.getAnimations().map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, 3000))]), id);
       const tb2 = await A((id) => {
         const r = window.__aurora.wm.get(id).titlebar.getBoundingClientRect();
         return { x: r.left + 150, y: r.top + 14 };
