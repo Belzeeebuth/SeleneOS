@@ -1,0 +1,15 @@
+{
+  "id": "backup",
+  "name": { "en": "Backup", "fr": "Sauvegarde" },
+  "description": { "en": "Incremental backups of your folders to a drive, with snapshots you can browse and restore", "fr": "Sauvegardes incrémentielles de vos dossiers sur un disque, avec des instantanés à parcourir et restaurer" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 980, "height": 680, "minWidth": 520, "minHeight": 440, "background": "mica" },
+  "category": "system",
+  "keywords": {
+    "en": ["backup", "back up", "restore", "snapshot", "rsync", "file history", "copy", "drive"],
+    "fr": ["sauvegarde", "sauvegarder", "restaurer", "instantané", "rsync", "historique des fichiers", "copie", "disque"]
+  },
+  "singleInstance": true
+}

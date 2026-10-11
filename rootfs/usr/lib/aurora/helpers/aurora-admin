@@ -386,6 +386,126 @@ apt-upgrade)
   echo "done"
   ;;
 
+# ------------------------------------------------------------------ BEGIN store actions (Store app)
+#   store-install <package>    apt-get -y install --no-install-recommends; APT status lines on stdout
+#   store-remove <package>     apt-get -y remove; APT status lines on stdout
+# Only packages listed as "apt": "<name>" in the root-owned catalog /usr/share/aurora/store/catalog.json.
+store-install | store-remove)
+  need_args $# 1
+  pkg=$1
+  [[ $pkg =~ ^[a-z0-9][a-z0-9+.-]{1,62}$ ]] || die 2 "invalid package name"
+  STORE_CATALOG=/usr/share/aurora/store/catalog.json
+  { [ -f "$STORE_CATALOG" ] && [ ! -L "$STORE_CATALOG" ]; } || die 3 "the store catalog is missing"
+  [ "$(stat -c %u -- "$STORE_CATALOG")" = 0 ] || die 4 "the store catalog is not owned by root"
+  grep -Eo '"apt"[[:space:]]*:[[:space:]]*"[a-z0-9][a-z0-9+.-]{1,62}"' "$STORE_CATALOG" |
+    sed -E 's/.*"([^"]+)"$/\1/' | grep -qxF -- "$pkg" || die 4 "this package is not in the store catalog: $pkg"
+  export DEBIAN_FRONTEND=noninteractive
+  if [ "$ACTION" = store-install ]; then
+    store_apt_install() {
+      apt-get -q -y -o DPkg::Lock::Timeout=120 --no-install-recommends \
+        -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold \
+        -o APT::Status-Fd=3 install "$pkg" 3>&1 1>&2
+    }
+    # Stale or missing package lists (fresh install): refresh them once and retry.
+    if ! store_apt_install; then
+      apt-get -q -o DPkg::Lock::Timeout=120 update >&2 || die 5 "could not refresh the package lists (check the network connection)"
+      store_apt_install || die 5 "could not install $pkg (see the system journal)"
+    fi
+  else
+    apt-get -q -y -o DPkg::Lock::Timeout=120 -o APT::Status-Fd=3 remove "$pkg" 3>&1 1>&2 || die 5 "could not remove $pkg (see the system journal)"
+  fi
+  echo "done"
+  ;;
+# ------------------------------------------------------------------ END store actions
+
+# ------------------------------------------------------------------ BEGIN disks (Disks app)
+#   format-removable <device> <vfat|exfat|ext4> <label>
+#       Erases a whole REMOVABLE disk (USB stick, SD card: /sys/block/<dev>/removable = 1 or TRAN = usb), then creates
+#       one msdos partition covering it and one file system. Refused: a partition or a non-removable disk, a disk that
+#       holds /, /boot, /usr, /var, /home, the live medium (/cdrom, /run/live, /rofs), active swap, a partition used by
+#       LVM / encryption / RAID, or a mounted partition that cannot be unmounted. Prints "ok <partition>".
+format-removable)
+  need_args $# 3
+  dev=$1 fstype=$2 label=$3
+  [[ $dev =~ ^/dev/(sd[a-z]{1,2}|mmcblk[0-9]{1,2})$ ]] || die 2 "expected a whole disk such as /dev/sdb or /dev/mmcblk0"
+  case $fstype in vfat | exfat | ext4) ;; *) die 2 "expected vfat, exfat or ext4" ;; esac
+  [[ $label =~ ^[A-Za-z0-9_\ -]{0,16}$ ]] || die 2 "invalid label (letters, digits, spaces, - and _)"
+  case $fstype in
+  vfat) label=${label^^}; [ ${#label} -le 11 ] || die 2 "FAT labels are limited to 11 characters" ;;
+  exfat) [ ${#label} -le 15 ] || die 2 "exFAT labels are limited to 15 characters" ;;
+  esac
+  dname=${dev#/dev/}
+  [ -b "$dev" ] || die 3 "no such disk: $dev"
+  [ -d "/sys/block/$dname" ] || die 2 "$dev is not a whole disk"
+  [ "$(lsblk -dno TYPE -- "$dev" 2>/dev/null | tr -d '[:space:]')" = disk ] || die 2 "$dev is not a disk"
+  rm_flag=$(cat "/sys/block/$dname/removable" 2>/dev/null || echo 0)
+  tran=$(lsblk -dno TRAN -- "$dev" 2>/dev/null | tr -d '[:space:]')
+  [ "$rm_flag" = 1 ] || [ "$tran" = usb ] || die 4 "$dev is not a removable drive"
+  [ "$(cat "/sys/block/$dname/ro" 2>/dev/null || echo 0)" = 0 ] || die 4 "$dev is write-protected"
+  # Never the disk that holds the running system or the live medium.
+  for target in / /boot /boot/efi /usr /var /home /cdrom /run/live/medium /rofs; do
+    src=$(findmnt -no SOURCE --target "$target" 2>/dev/null | head -n1) || true
+    [ -n "$src" ] && [ -b "$src" ] || continue
+    if lsblk -nso NAME -- "$src" 2>/dev/null | sed 's/^[^[:alnum:]]*//' | grep -qx -- "$dname"; then
+      die 4 "$dev holds the system or the live medium"
+    fi
+  done
+  mapfile -t fr_nodes < <(lsblk -lnpo NAME -- "$dev" 2>/dev/null)
+  for node in "${fr_nodes[@]}"; do
+    [ "$node" = "$dev" ] && continue
+    if swapon --show=NAME --noheadings --raw 2>/dev/null | grep -qxF -- "$node"; then die 4 "$node is in use as swap"; fi
+    base=${node##*/}
+    if [ -d "/sys/block/$dname/$base/holders" ] && [ -n "$(ls -A "/sys/block/$dname/$base/holders" 2>/dev/null)" ]; then
+      die 4 "$node is in use (LVM, encryption or RAID)"
+    fi
+    while IFS= read -r target; do
+      [ -n "$target" ] || continue
+      case $target in / | /boot* | /usr | /var | /home | /cdrom* | /run/live* | /rofs) die 4 "$dev holds the system or the live medium" ;; esac
+    done < <(findmnt -rno TARGET -S "$node" 2>/dev/null)
+  done
+  # Unmount whatever is still mounted (most recent mount first); give up if it stays busy.
+  for node in "${fr_nodes[@]}"; do
+    for _ in 1 2 3 4 5; do
+      findmnt -rno TARGET -S "$node" >/dev/null 2>&1 || break
+      umount -- "$node" 2>/dev/null || { sleep 1; umount -- "$node" 2>/dev/null || die 4 "could not unmount $node (a program is using it)"; }
+    done
+    if findmnt -rno TARGET -S "$node" >/dev/null 2>&1; then die 4 "could not unmount $node (a program is using it)"; fi
+  done
+  case $fstype in
+  vfat) mkfs_bin=mkfs.vfat parted_fs=fat32 ;;
+  exfat) mkfs_bin=mkfs.exfat parted_fs=ntfs ;; # MBR type 0x07 (exFAT / NTFS)
+  ext4) mkfs_bin=mkfs.ext4 parted_fs=ext4 ;;
+  esac
+  command -v "$mkfs_bin" >/dev/null 2>&1 || die 3 "$mkfs_bin is not installed"
+  command -v parted >/dev/null 2>&1 || die 3 "parted is not installed"
+  log "user=$CALLER formatting $dev ($fstype, label '$label')"
+  wipefs -a -q -- "$dev" >/dev/null 2>&1 || true
+  run_or_die "could not create the partition table on $dev" parted -s -a optimal -- "$dev" mklabel msdos mkpart primary "$parted_fs" 1MiB 100%
+  partprobe -- "$dev" >/dev/null 2>&1 || true
+  udevadm settle --timeout=10 >/dev/null 2>&1 || true
+  case $dname in mmcblk*) part=${dev}p1 ;; *) part=${dev}1 ;; esac
+  for _ in $(seq 1 20); do [ -b "$part" ] && break; sleep 0.5; done
+  [ -b "$part" ] || die 5 "the new partition $part did not appear"
+  wipefs -a -q -- "$part" >/dev/null 2>&1 || true
+  case $fstype in
+  vfat) mkfs_args=(-F 32) ; [ -n "$label" ] && mkfs_args+=(-n "$label") ;;
+  exfat) mkfs_args=() ; [ -n "$label" ] && mkfs_args+=(-L "$label") ;;
+  ext4)
+    mkfs_args=(-F -q)
+    [ -n "$label" ] && mkfs_args+=(-L "$label")
+    # The person formatting it owns the new file system's root folder (else only root could write to the stick).
+    if [ "$CALLER" != unknown ] && owner_uid=$(id -u -- "$CALLER" 2>/dev/null) && owner_gid=$(id -g -- "$CALLER" 2>/dev/null); then
+      mkfs_args+=(-E "root_owner=$owner_uid:$owner_gid")
+    fi
+    ;;
+  esac
+  run_or_die "could not create the $fstype file system on $part" "$mkfs_bin" "${mkfs_args[@]}" -- "$part" >&2
+  udevadm settle --timeout=10 >/dev/null 2>&1 || true
+  log "user=$CALLER formatted $dev ($fstype)"
+  echo "ok $part"
+  ;;
+# ------------------------------------------------------------------ END disks
+
 *)
   die 2 "unknown action: $ACTION"
   ;;

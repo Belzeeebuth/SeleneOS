@@ -1,0 +1,204 @@
+/* Network tools — scoped under .app-nettools */
+.app-nettools .nt-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--text);
+}
+.app-nettools .nt-tabs {
+  padding: 0 16px;
+  flex: none;
+}
+.app-nettools .nt-tabs .tab:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: -2px;
+}
+.app-nettools .nt-panels {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.app-nettools .nt-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+.app-nettools .nt-panel[hidden] {
+  display: none;
+}
+.app-nettools .nt-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.app-nettools .nt-toolbar .grow,
+.app-nettools .grow {
+  flex: 1;
+  min-width: 0;
+}
+.app-nettools .nt-h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+.app-nettools .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.app-nettools .nt-vpn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-nettools .nt-vpn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius, 8px);
+  padding: 10px 12px;
+}
+.app-nettools .nt-vpn-icon {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--subtle-hover);
+  color: var(--text-2);
+  flex: none;
+}
+.app-nettools .nt-vpn.active .nt-vpn-icon {
+  background: var(--accent);
+  color: var(--text-on-accent, #fff);
+}
+.app-nettools .nt-vpn-text {
+  overflow: hidden;
+}
+.app-nettools .nt-vpn-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-nettools .nt-status.on {
+  color: var(--success, #0f7b0f);
+}
+.app-nettools .nt-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 32px 12px;
+  text-align: center;
+  color: var(--text-2);
+}
+.app-nettools .nt-empty .icon {
+  font-size: 32px;
+  width: 32px;
+  height: 32px;
+}
+.app-nettools .nt-empty-title {
+  color: var(--text);
+  font-weight: 600;
+}
+.app-nettools .nt-later {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+}
+.app-nettools .nt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-nettools .nt-label {
+  font-size: 14px;
+}
+.app-nettools .nt-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.app-nettools .nt-row {
+  flex-wrap: wrap;
+}
+.app-nettools .nt-row .input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.app-nettools .nt-status-line {
+  min-height: 20px;
+  color: var(--text-2);
+}
+.app-nettools .nt-status-line.ok {
+  color: var(--success, #0f7b0f);
+}
+.app-nettools .nt-status-line.bad {
+  color: var(--danger, #c42b1c);
+}
+.app-nettools .nt-out {
+  flex: 1;
+  min-height: 140px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius, 8px);
+  font: 13px/1.5 "Cascadia Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text);
+}
+.app-nettools .nt-out:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.app-nettools .nt-records {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-nettools .nt-record {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm, 4px);
+}
+.app-nettools .nt-rtype {
+  flex: none;
+  min-width: 48px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-text, var(--accent));
+}
+.app-nettools .nt-rvalue {
+  flex: 1;
+  min-width: 0;
+  font-family: "Cascadia Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+:root[data-theme="dark"] .app-nettools .nt-status.on,
+:root[data-theme="dark"] .app-nettools .nt-status-line.ok {
+  color: var(--success, #6ccb5f);
+}
+:root[data-theme="dark"] .app-nettools .nt-status-line.bad {
+  color: var(--danger, #ff99a4);
+}

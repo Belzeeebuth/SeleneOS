@@ -1,0 +1,15 @@
+{
+  "id": "cloud",
+  "name": { "en": "Cloud", "fr": "Cloud" },
+  "description": { "en": "Browse, upload and download your Nextcloud and WebDAV files", "fr": "Parcourez, envoyez et téléchargez vos fichiers Nextcloud et WebDAV" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 960, "height": 640, "minWidth": 420, "minHeight": 420, "background": "mica" },
+  "category": "productivity",
+  "keywords": {
+    "en": ["cloud", "nextcloud", "webdav", "online storage", "sync", "upload", "download", "server"],
+    "fr": ["cloud", "nuage", "nextcloud", "webdav", "stockage en ligne", "envoyer", "télécharger", "serveur"]
+  },
+  "singleInstance": true
+}

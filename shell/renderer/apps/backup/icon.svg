@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="bk-drive" x1="6" y1="26" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4f5b6e"/>
+      <stop offset="1" stop-color="#2b3443"/>
+    </linearGradient>
+    <linearGradient id="bk-top" x1="6" y1="24" x2="42" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8a97ab"/>
+      <stop offset="1" stop-color="#5d6a80"/>
+    </linearGradient>
+    <linearGradient id="bk-arrow" x1="14" y1="4" x2="36" y2="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3bd2a6"/>
+      <stop offset="1" stop-color="#0f8f6e"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="28.6" width="36" height="15" rx="4" fill="#0b1a2e" opacity=".18"/>
+  <rect x="6" y="27" width="36" height="15" rx="4" fill="url(#bk-drive)"/>
+  <rect x="6" y="27" width="36" height="5" rx="2.5" fill="url(#bk-top)" opacity=".55"/>
+  <rect x="11" y="35.5" width="14" height="2.4" rx="1.2" fill="#a9b6c9" opacity=".7"/>
+  <circle cx="36" cy="36.7" r="2" fill="#3bd2a6"/>
+  <path d="M24 4.5a10.5 10.5 0 1 0 10.1 13.4" fill="none" stroke="url(#bk-arrow)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M30.2 8.4l5.6-.6-.9 5.6z" fill="#0f8f6e" stroke="#0f8f6e" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M24 9.5v5.6l3.4 2.2" fill="none" stroke="#1d7c63" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

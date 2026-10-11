@@ -58,6 +58,12 @@ const ACTIONS = {
   'apt-upgrade': { args: [], timeout: 0, stream: true },
 };
 
+// ---- BEGIN disks (Disks app: renderer/apps/disks, main/ipc/disks.js) ----
+// format-removable <whole removable disk> <vfat|exfat|ext4> <label>: one msdos partition + mkfs (helper re-checks
+// that the disk is removable, not the system / live medium, and unmounts its partitions).
+ACTIONS['format-removable'] = { args: [/^\/dev\/(sd[a-z]{1,2}|mmcblk[0-9]{1,2})$/, oneOf('vfat', 'exfat', 'ext4'), /^[A-Za-z0-9_ -]{0,16}$/], timeout: 15 * 60 * 1000 };
+// ---- END disks ----
+
 function err(message, code) {
   const e = new Error(message);
   e.code = code;
@@ -167,7 +173,58 @@ const dev = {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ------------------------------------------------------------------ BEGIN store actions (Store app)
+// store-install <pkg> / store-remove <pkg>: apt install/remove of a package listed in the root-owned
+// catalog /usr/share/aurora/store/catalog.json (the helper checks the list; streams APT status lines).
+// Dev: simulated against dev.storeState() (read by main/ipc/store.js); AURORA_STORE_DEV_FAIL=<pkg> makes it fail.
+const STORE_PKG = /^[a-z0-9][a-z0-9+.-]{1,62}$/;
+Object.assign(ACTIONS, {
+  'store-install': { args: [STORE_PKG], timeout: 0, stream: true },
+  'store-remove': { args: [STORE_PKG], timeout: 0, stream: true },
+});
+function storeCatalogFile() {
+  const sys = '/usr/share/aurora/store/catalog.json';
+  if (fs.existsSync(sys)) return sys;
+  return require('path').join(__dirname, '..', '..', '..', 'rootfs', 'usr', 'share', 'aurora', 'store', 'catalog.json');
+}
+dev.storeState = () => {
+  if (!dev.store) {
+    dev.store = { installed: new Map([['git', '1:2.43.0-1ubuntu7.1'], ['curl', '8.5.0-2ubuntu10.4'], ['wget', '1.21.4-1ubuntu4.1'], ['rsync', '3.2.7-1ubuntu1'], ['unzip', '6.0-28ubuntu4']]) };
+  }
+  return dev.store;
+};
+async function devStoreRun(action, args, onLine) {
+  const pkg = args[0];
+  let listed = [];
+  try {
+    listed = (JSON.parse(fs.readFileSync(storeCatalogFile(), 'utf8')).items || []).map((i) => i && i.apt);
+  } catch {}
+  if (!listed.includes(pkg)) throw err(`this package is not in the store catalog: ${pkg}`, 'EPERM');
+  const st = dev.storeState();
+  const emit = (l) => onLine?.(`${l}\n`);
+  const install = action === 'store-install';
+  if (install) {
+    for (let i = 1; i <= 3; i++) {
+      emit(`dlstatus:${i}:${((i / 3) * 100).toFixed(4)}:Retrieving file ${i} of 3`);
+      await sleep(150);
+    }
+  }
+  const steps = install ? ['Preparing', 'Unpacking', 'Configuring', 'Installed'] : ['Preparing for removal of', 'Removing', 'Removed'];
+  for (let k = 0; k < steps.length; k++) {
+    if (process.env.AURORA_STORE_DEV_FAIL === pkg && k === 1) throw err(`could not ${install ? 'install' : 'remove'} ${pkg} (see the system journal)`, 'ECMD');
+    emit(`pmstatus:${pkg}:${(((k + 1) / steps.length) * 100).toFixed(4)}:${steps[k]} ${pkg}`);
+    await sleep(150);
+  }
+  if (install) st.installed.set(pkg, '1.0.0-1ubuntu1');
+  else st.installed.delete(pkg);
+  dev.changed('store');
+  return 'done\n';
+}
+// ------------------------------------------------------------------ END store actions
+
 async function devRun(action, args, secret, onLine) {
+  if (action.startsWith('store-')) return devStoreRun(action, args, onLine); // store actions (Store app)
+  if (action === 'format-removable') return require('./disks').devFormat(args); // disks (Disks app): simulated in disks.js
   const users = dev.users || [];
   const find = (n) => users.find((u) => u.name === n);
   const need = (n) => {

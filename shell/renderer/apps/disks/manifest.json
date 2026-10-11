@@ -1,0 +1,15 @@
+{
+  "id": "disks",
+  "name": { "en": "Disks", "fr": "Disques" },
+  "description": { "en": "See drives and partitions, mount, eject and format USB sticks and SD cards", "fr": "Voir les lecteurs et partitions, monter, éjecter et formater clés USB et cartes SD" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1040, "height": 700, "minWidth": 560, "minHeight": 440, "background": "mica" },
+  "category": "system",
+  "keywords": {
+    "en": ["disks", "drives", "partitions", "format", "usb", "sd card", "mount", "eject", "storage", "disk management"],
+    "fr": ["disques", "lecteurs", "partitions", "formater", "usb", "carte sd", "monter", "éjecter", "stockage", "gestion des disques"]
+  },
+  "singleInstance": true
+}

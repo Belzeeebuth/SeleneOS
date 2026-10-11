@@ -1,0 +1,15 @@
+{
+  "id": "nettools",
+  "name": { "en": "Network tools", "fr": "Outils réseau" },
+  "description": { "en": "VPN and WireGuard connections, ping and DNS lookup", "fr": "Connexions VPN et WireGuard, ping et recherche DNS" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 720, "height": 560, "minWidth": 420, "minHeight": 400, "background": "mica" },
+  "category": "system",
+  "keywords": {
+    "en": ["network", "vpn", "wireguard", "ping", "dns", "lookup", "nslookup", "dig", "connection"],
+    "fr": ["réseau", "vpn", "wireguard", "ping", "dns", "recherche", "nslookup", "dig", "connexion"]
+  },
+  "singleInstance": true
+}
