@@ -2178,14 +2178,11 @@
 }
 .app-files .fx-cmdbar {
   border-top: 1px solid var(--line-soft);
-  height: 44px;
-  gap: 4px;
 }
 .app-files .fx-cmd,
 .app-files .fx-navbtn,
 .app-files .fx-search-btn {
   border-radius: var(--radius-sm);
-  font-size: var(--fs-small);
 }
 .app-files .fx-cmd:focus-visible,
 .app-files .fx-navbtn:focus-visible,

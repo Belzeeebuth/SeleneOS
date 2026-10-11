@@ -480,9 +480,9 @@ async function lightEnglish() {
     // ---- Personalization
     await go(s, 'personalization');
     await docShot(s, 'personalization-light-en');
-    await s.page.locator(S('.st-theme[data-theme="glow"]')).first().click();
+    await s.page.locator(S('.st-theme[data-theme="clairdelune"]')).first().click();
     await sleep(900);
-    check((await get(s, 'wallpaper')) === 'builtin:glow' && (await get(s, 'theme')) === 'dark' && (await get(s, 'accent')) === '#8764b8' && (await s.aurora(() => document.documentElement.dataset.theme)) === 'dark', 'theme preset applies wallpaper + dark mode + accent to the shell');
+    check((await get(s, 'wallpaper')) === 'builtin:clairdelune' && (await get(s, 'theme')) === 'dark' && (await get(s, 'accent')) === '#a58bf2' && (await s.aurora(() => document.documentElement.dataset.theme)) === 'dark', 'theme preset applies wallpaper + dark mode + accent to the shell');
     await go(s, 'colors');
     await s.page.locator(S('.segmented button'), { hasText: 'Light' }).click();
     await sleep(600);
