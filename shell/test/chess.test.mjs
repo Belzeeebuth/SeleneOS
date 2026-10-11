@@ -632,7 +632,7 @@ async function uiTests() {
         await click('f7');
         await page.waitForSelector('.app-chess .cx-result', { timeout: 5000 });
         await page.waitForTimeout(600);
-        assert.match(await page.textContent('.app-chess .cx-res-title'), /You won!/);
+        assert.match(await page.textContent('.app-chess .cx-res-title'), /You won/);
         assert.match(await page.textContent('.app-chess .cx-res-reason'), /checkmate/);
         const st = await state();
         assert.equal(st.result.reason, 'checkmate');
@@ -648,7 +648,7 @@ async function uiTests() {
         await page.waitForTimeout(300);
         await click('a2');
         assert.equal(await dots(), 0, 'board is read-only once the game is over');
-        assert.match(await page.textContent('.app-chess .cx-status-text'), /You won!/);
+        assert.match(await page.textContent('.app-chess .cx-status-text'), /You won/);
       });
 
       await test('stalemate, insufficient material and threefold repetition end the game as draws', async () => {

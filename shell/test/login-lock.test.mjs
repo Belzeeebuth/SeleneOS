@@ -500,6 +500,12 @@ async function greeterTests() {
   const { page } = s;
   check(await visible(page, '.lk-curtain'), 'starts on the lock-screen picture');
   const time = await text(page, '.lk-time');
+  const moon = await text(page, '.lk-moon');
+  check(/lune|quartier|croissant|moon|quarter|crescent|gibbous/i.test(moon || ''), `curtain shows today's moon phase ("${moon}")`);
+  check(await page.evaluate(() => {
+    const c = document.querySelector('.lk-clock').getBoundingClientRect();
+    return c.left < innerWidth * 0.25 && c.top > innerHeight * 0.4 && getComputedStyle(document.querySelector('.lk-time')).textAlign === 'left';
+  }), 'clock and date sit in the lower-left corner');
   check(/^\d{1,2}[:.h]\d{2}$/.test(time), `big clock shows the time (${time})`);
   check(/day/.test(await text(page, '.lk-date')), 'date with weekday');
   // Which modules does the sign-in screen load? (reload with request tracking: app:// loads are not in Resource Timing)
@@ -1339,7 +1345,8 @@ async function lockQaTests() {
     const b = document.querySelector('.lockui .lk-blur');
     return { ready: b?.classList.contains('ready'), bg: (b?.style.backgroundImage || '').slice(0, 12), light: document.querySelector('.lockui')?.classList.contains('lk-light-wall') };
   });
-  check(blur.ready && blur.bg.startsWith('url("blob:'), `a wallpaper from the user's files gets its pre-blurred copy (was a tainted canvas: ${JSON.stringify(blur)})`);
+  check(blur.ready && blur.bg.startsWith('url("') && !blur.bg.startsWith('url("blob:'), `a wallpaper from the user's files shows as is under the scrim, never blurred (${JSON.stringify(blur)})`);
+  check(await page.evaluate(() => getComputedStyle(document.querySelector('.lockui .lk-blur')).filter === 'none'), 'sign-in backdrop: no CSS blur');
   check(blur.light === true, 'light picture: deeper shade behind the white clock');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(900);

@@ -405,10 +405,23 @@ async function scenario(theme, lang) {
     await P.keyboard.press('ArrowDown');
     await sleep(200);
     await shot(s, `search-${tag}`, docName('shell-search', tag));
-    // categories
-    await P.click('#search-panel .sv-tab:nth-child(4)');
+    // one list grouped by kind (no pivot tabs, no tiles); a group heading narrows the list to its kind
+    const groups = await s.aurora(() => ({
+      tabs: document.querySelectorAll('#search-panel .sv-tab, #search-panel .sv-topapp').length,
+      kinds: [...document.querySelectorAll('#search-panel .sv-group-head')].map((x) => x.dataset.cat),
+      selected: document.querySelectorAll('#search-panel .sv-row.selected').length,
+    }));
+    check(groups.tabs === 0 && groups.kinds.includes('documents') && groups.kinds.at(-1) === 'web' && groups.selected === 1, `[${tag}] results grouped by kind, web last, one row selected ${JSON.stringify(groups)}`);
+    await P.click('#search-panel button.sv-group-head[data-cat="documents"]');
     await sleep(300);
-    check(await s.aurora(() => document.querySelector('#search-panel .sv-tab.selected')?.textContent === window.__aurora.t('search.settings')), `[${tag}] category pivot switches to Settings`);
+    const narrowed = await s.aurora(() => ({ cat: window.__aurora.search.view.cat, kinds: [...new Set([...document.querySelectorAll('#search-panel .sv-row')].map((r) => r.dataset.kind))], back: !!document.querySelector('#search-panel .sv-back'), focus: document.activeElement?.classList.contains('sp-input') }));
+    check(narrowed.cat === 'documents' && narrowed.kinds.join() === 'file' && narrowed.back && narrowed.focus, `[${tag}] a group heading narrows the list to its kind ${JSON.stringify(narrowed)}`);
+    await P.keyboard.press('Control+Tab');
+    await sleep(200);
+    check(await s.aurora(() => window.__aurora.search.view.cat === 'settings'), `[${tag}] Ctrl+Tab moves to the next kind`);
+    await P.click('#search-panel .sv-back');
+    await sleep(200);
+    check(await s.aurora(() => window.__aurora.search.view.cat === 'all'), `[${tag}] « All results » brings every group back`);
     await P.keyboard.press('Escape');
     await sleep(300);
     await P.click('.tb-search');
@@ -611,7 +624,7 @@ async function scenario(theme, lang) {
     check(await s.aurora(() => !document.getElementById('taskbar').classList.contains('hidden')), `[${tag}] bottom-edge hover reveals the taskbar`);
     await s.aurora(() => window.__aurora.settings.set('taskbar.autohide', false));
     await sleep(300);
-    check(await s.aurora(() => window.__aurora.wm.workarea().height === 852), `[${tag}] turning auto-hide off restores the work area`);
+    check(await s.aurora(() => window.__aurora.wm.workarea().height === window.innerHeight - window.__aurora.taskbar.layout().thickness), `[${tag}] turning auto-hide off restores the work area`);
     // close the test windows
     await s.aurora(() => window.__aurora.wm.list().forEach((w) => w.close(true)));
     await sleep(500);

@@ -220,9 +220,9 @@
   transform: scale(1.08);
   transition: transform 900ms cubic-bezier(0.1, 0.8, 0.2, 1);
 }
-/* Until the pre-blurred copy is ready (a few ms), blur the picture live. */
+/* The wallpaper itself, never blurred: a flat scrim darkens it (cheap, and not the Windows look). */
 .lk-blur:not(.ready) {
-  filter: blur(36px) brightness(0.72);
+  background-image: none;
 }
 .lockui.stage-signin .lk-blur {
   transform: scale(1);
@@ -895,5 +895,144 @@ body.aurora-locked .tooltip,
   .lk-user {
     min-width: 0;
     height: 48px;
+  }
+}
+
+/* ------------------------------------------------------------------ Selene layout (phase C)
+   Lock: clock, date, moon phase and next event in the lower-left corner (Manrope); the unlock card rises
+   from the same corner. Sign-in: the wallpaper under a flat scrim, a centred card with the user list as a
+   column of avatars on its left. */
+.lk-shade {
+  background: radial-gradient(130% 110% at 0% 100%, rgb(var(--shadow-rgb) / var(--lk-shade-a, 0.32)) 0%, rgb(var(--shadow-rgb) / calc(var(--lk-shade-a, 0.32) * 0.9)) 38%, rgb(var(--shadow-rgb) / 0) 78%);
+}
+.lockui.lk-light-wall .lk-shade {
+  background: radial-gradient(130% 110% at 0% 100%, color-mix(in srgb, var(--desk) 58%, transparent) 0%, color-mix(in srgb, var(--desk) 46%, transparent) 38%, transparent 78%);
+}
+.lk-clock {
+  left: max(40px, 5vw);
+  right: auto;
+  top: auto;
+  bottom: max(88px, 12vh);
+  max-width: calc(100vw - 80px);
+  text-align: left;
+}
+.lockui.stage-signin .lk-clock {
+  transform: translateY(-24px);
+}
+.lk-time {
+  font-size: clamp(64px, 12vh, 152px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.lk-date {
+  font-size: clamp(17px, 2.4vh, 26px);
+  font-weight: 600;
+}
+.lk-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: 20px;
+  font-weight: 500;
+}
+.lk-moon,
+.lk-next {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.lk-moon svg {
+  flex: none;
+}
+.lk-next[hidden] {
+  display: none;
+}
+.lk-next-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lk-badges {
+  left: max(40px, 5vw);
+  bottom: max(32px, 4.5vh);
+  transform: none;
+}
+.lk-status {
+  top: 24px;
+  bottom: auto;
+}
+/* The picture fades away instead of sliding up. */
+.lk-curtain {
+  transition: transform 620ms var(--lk-slide), opacity 320ms var(--ease);
+}
+.lockui.stage-signin .lk-curtain {
+  transform: none;
+  opacity: 0;
+}
+.lk-blur,
+.lockui.stage-signin .lk-blur {
+  transform: none;
+  transition: none;
+}
+.lk-scrim {
+  background: rgb(var(--shadow-rgb) / 0.62);
+}
+.lk-center {
+  gap: 24px;
+  padding: 0 16px;
+}
+.lk-card {
+  --lk-shadow-text: none;
+  width: min(380px, 100%);
+  padding: 28px 32px 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-float, 16px);
+  background: var(--bg);
+  box-shadow: var(--shadow-dialog);
+}
+.lk-avatar-slot .lk-avatar {
+  --lk-av: clamp(72px, 12vh, 104px);
+}
+.lk-name {
+  margin-top: 14px;
+  font-size: var(--fs-subtitle);
+}
+/* Lock: the card sits in the clock's corner and rises from it. */
+.lk-lock .lk-center {
+  justify-content: flex-start;
+  align-items: flex-end;
+  padding: 0 16px max(88px, 12vh) max(40px, 5vw);
+}
+.lk-lock .lk-users {
+  top: 16px;
+  bottom: auto;
+}
+/* Sign-in: the accounts as a column of avatars on the card's left. */
+.lk-greeter .lk-users {
+  position: static;
+  align-self: center;
+  max-height: min(64vh, calc(100vh - 160px));
+  max-width: 240px;
+  padding: 8px;
+  border-radius: var(--radius-lg);
+  background: rgb(var(--shadow-rgb) / 0.28);
+}
+.lk-greeter .lk-user {
+  min-width: 200px;
+}
+@media (max-width: 760px) {
+  .lk-greeter .lk-center {
+    flex-direction: column-reverse;
+    justify-content: center;
+    gap: 12px;
+  }
+  .lk-greeter .lk-users {
+    max-height: 28vh;
+    max-width: min(380px, 100%);
   }
 }

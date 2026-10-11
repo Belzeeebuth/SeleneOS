@@ -974,6 +974,7 @@ await test('video playback, full screen (double-click, F, Esc) and auto-hiding c
   // single click toggles playback
   await s.page.click(`${WIN} .mp-video-host`);
   await waitFor(s, (a) => a.player.paused, null, { what: 'click pauses' });
+  await wait(s, 600); // outside the double-click interval, or the second click toggles full screen
   await s.page.click(`${WIN} .mp-video-host`);
   await waitFor(s, (a) => !a.player.paused, null, { what: 'click resumes' });
   await s.page.click(`${WIN} .mp-stage-back`);

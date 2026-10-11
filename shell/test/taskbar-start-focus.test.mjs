@@ -158,7 +158,10 @@ async function geometryPart(size) {
   const s = await launchShell({ size, open: ['notepad', 'calculator'], settle: 1500 });
   const A = (fn, a) => s.aurora(fn, a);
   try {
-    const THICK = { small: 40, medium: 48, large: 56 };
+    // A horizontal bar reserves the button size + 8 px; the floating islands (Nocturne, the default style) reserve their
+    // 52 px island (medium) + the 12 px margin.
+    const islands = (await A(() => getComputedStyle(document.documentElement).getPropertyValue('--bar-mode').trim())) === 'islands';
+    const THICK = islands ? { small: 56, medium: 64, large: 72 } : { small: 40, medium: 48, large: 56 };
     const THICK_V = { small: 52, medium: 60, large: 72 };
     for (const pos of ['bottom', 'top', 'left', 'right']) {
       for (const sz of ['small', 'medium', 'large']) {
@@ -420,8 +423,8 @@ async function autohidePart() {
     }
     await setMany(s, {}, ['taskbar.position', 'taskbar.autohide', 'taskbar.hideDelay']);
     await sleep(500);
-    const back = await A(() => ({ hidden: document.getElementById('taskbar').classList.contains('hidden'), wa: window.__aurora.wm.workarea(), hz: document.querySelector('.tb-hotzone').hidden }));
-    check(!back.hidden && back.wa.height === 672 && back.hz, `auto-hide off: bar back, work area ${JSON.stringify(back.wa)}`);
+    const back = await A(() => ({ hidden: document.getElementById('taskbar').classList.contains('hidden'), wa: window.__aurora.wm.workarea(), hz: document.querySelector('.tb-hotzone').hidden, thick: window.__aurora.taskbar.layout().thickness }));
+    check(!back.hidden && back.wa.height === 720 - back.thick && back.hz, `auto-hide off: bar back, work area ${JSON.stringify(back.wa)}`);
     check(!errorsOf(s).length, `no console errors (${errorsOf(s).slice(0, 3).join(' | ')})`);
   } finally {
     await s.close();

@@ -637,3 +637,18 @@
 #desktop .desk-icon:hover .desk-label {
   text-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.9);
 }
+/* Readable on the light wallpapers too: the label sits on a soft plate of the ambiance's shadow tone — subtle over the
+   night wallpapers, denser in light mode (dawn and pale wallpapers), where white text alone would fade (≥ 4.5:1 over
+   a white wallpaper at 0.7). */
+#desktop .desk-label {
+  background: rgb(var(--shadow-rgb) / 0.32);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+:root[data-theme="light"] #desktop .desk-label {
+  background: rgb(var(--shadow-rgb) / 0.7);
+  text-shadow: none;
+}
+#desktop .desk-icon.selected .desk-label {
+  background: transparent;
+}

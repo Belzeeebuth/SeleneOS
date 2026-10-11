@@ -1,6 +1,6 @@
 // Menu rapide (Super+X, or right-click on the Lanceur button) and the window menu
 // (right-click on a title bar, click on the window icon, or Alt+Space).
-// Both menus support accelerator keys (the underlined letter).
+// Both menus support access keys; their underlines show only while Alt is held.
 //   shell.on('winx:toggle')          shell.on('sysmenu:open', win)
 //   wm.on('titlebar-menu', (win, event))
 import { h, ui } from '../ui.js';
@@ -13,44 +13,46 @@ import { powerAction } from './security.js';
 i18n.extend({
   en: {
     winx: {
-      apps: 'Installed a&pps',
-      power: 'P&ower Options',
-      system: 'S&ystem',
-      network: 'Net&work Connections',
-      disks: 'Dis&ks',
-      terminal: 'Term&inal',
+      gSystem: 'System',
+      gSession: 'Session',
+      gShortcuts: 'Shortcuts',
+      settings: '&Settings',
       taskmgr: 'System &Monitor',
-      settings: 'Setti&ngs',
+      disks: '&Disks',
+      network: '&Network',
+      lock: '&Lock',
+      signOut: 'Sign &out',
+      shutdownMenu: 'Sh&ut down or restart',
+      terminal: '&Terminal',
       files: '&Files',
-      search: '&Search',
+      search: 'S&earch',
       run: '&Run',
-      shutdownMenu: 'Sh&ut down or sign out',
-      desktop: '&Desktop',
-      signOut: 'S&ign out',
+      desktop: 'Des&ktop',
       sleep: '&Sleep',
-      shutdown: 'Sh&ut down',
+      shutdown: 'Shut &down',
       restart: '&Restart',
     },
     sysmenu: { restore: '&Restore', move: '&Move', size: '&Size', minimize: 'Mi&nimize', maximize: 'Ma&ximize', close: '&Close' },
   },
   fr: {
     winx: {
-      apps: '&Applications installées',
-      power: "&Options d'alimentation",
-      system: 'S&ystème',
-      network: 'Connexions &réseau',
-      disks: '&Disques',
-      terminal: '&Terminal',
-      taskmgr: '&Moniteur système',
+      gSystem: 'Système',
+      gSession: 'Session',
+      gShortcuts: 'Raccourcis',
       settings: '&Paramètres',
+      taskmgr: '&Moniteur système',
+      disks: '&Disques',
+      network: '&Réseau',
+      lock: '&Verrouiller',
+      signOut: 'Se dé&connecter',
+      shutdownMenu: 'Éteindre o&u redémarrer',
+      terminal: '&Terminal',
       files: '&Fichiers',
-      search: 'Re&chercher',
+      search: 'Rec&hercher',
       run: 'E&xécuter',
-      shutdownMenu: 'Arrêter o&u se déconnecter',
       desktop: '&Bureau',
-      signOut: 'Se &déconnecter',
       sleep: 'Mettre en &veille',
-      shutdown: '&Arrêter',
+      shutdown: '&Éteindre',
       restart: '&Redémarrer',
     },
     sysmenu: { restore: '&Restaurer', move: '&Déplacer', size: '&Taille', minimize: 'Réd&uire', maximize: '&Agrandir', close: '&Fermer' },
@@ -65,9 +67,21 @@ function accel(key) {
   return h('span', { class: 'accel-label' }, text.slice(0, i), h('u', null, text[i + 1]), text.slice(i + 2));
 }
 
-// Pressing an underlined letter activates that item in the top-most open menu.
+// Pressing an access key (alone or with Alt) activates that item in the top-most open menu.
+// The underlines stay hidden and show only while Alt is held (.alt-keys on the open menus).
+function showAccels(on) {
+  for (const m of document.querySelectorAll('body > .menu.wm-accel-menu')) m.classList.toggle('alt-keys', on);
+}
+function onAltUp(e) {
+  if (e.key === 'Alt') showAccels(false);
+}
 function onAccelKey(e) {
-  if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1) return;
+  if (e.key === 'Alt') {
+    e.preventDefault();
+    showAccels(true);
+    return;
+  }
+  if (e.ctrlKey || e.metaKey || e.key.length !== 1) return;
   const menus = document.querySelectorAll('body > .menu');
   const top = menus[menus.length - 1];
   if (!top) return;
@@ -94,18 +108,27 @@ function tidy(items) {
     out.push(it.submenu ? { ...it, submenu: tidy(it.submenu) } : it);
   }
   while (out[out.length - 1] === '-') out.pop();
-  return out;
+  // A section header with nothing under it goes too.
+  return out.filter((it, i) => !it.header || (out[i + 1] && out[i + 1] !== '-' && !out[i + 1].header));
+}
+
+function onBlurAccels() {
+  showAccels(false);
 }
 
 async function openAccelMenu(at, items, { prevWin, keyboard = true, above = false } = {}) {
   items = tidy(items);
   document.addEventListener('keydown', onAccelKey, true);
+  document.addEventListener('keyup', onAltUp, true);
+  window.addEventListener('blur', onBlurAccels);
   const p = ui.menu(at, items, { class: ['wm-accel-menu', keyboard ? 'kbd' : ''].join(' '), above });
   // Put the keyboard in the menu (it may have been inside a webview).
   const el = [...document.querySelectorAll('body > .menu')].pop();
   el?.focus({ preventScroll: true });
   const res = await p;
   document.removeEventListener('keydown', onAccelKey, true);
+  document.removeEventListener('keyup', onAltUp, true);
+  window.removeEventListener('blur', onBlurAccels);
   if (!res && prevWin && wm.focused() === prevWin) prevWin.focusContent();
   return res;
 }
@@ -113,33 +136,36 @@ async function openAccelMenu(at, items, { prevWin, keyboard = true, above = fals
 // ------------------------------------------------------------------ Win+X
 let winxOpen = false;
 
+// Grouped sections (Système, Session, Raccourcis), each item with a Phosphor icon.
 function winxItems() {
   const has = (id) => !!registry.get(id);
   return [
-    { label: accel('winx.apps'), hidden: !has('settings'), action: () => launch('settings', { page: 'installedApps' }) },
-    { label: accel('winx.power'), hidden: !has('settings'), action: () => launch('settings', { page: 'power' }) },
-    { label: accel('winx.system'), hidden: !has('settings'), action: () => launch('settings', { page: 'about' }) },
-    { label: accel('winx.network'), hidden: !has('settings'), action: () => launch('settings', { page: 'network' }) },
-    { label: accel('winx.disks'), hidden: !has('files'), action: () => launch('files', { path: 'thispc' }) },
+    { header: t('winx.gSystem') },
+    { label: accel('winx.settings'), icon: 'gear-six', hidden: !has('settings'), action: () => launch('settings') },
+    { label: accel('winx.taskmgr'), icon: 'chart-line', hidden: !has('taskmgr'), action: () => launch('taskmgr') },
+    { label: accel('winx.disks'), icon: 'hard-drives', hidden: !has('files'), action: () => launch('files', { path: 'thispc' }) },
+    { label: accel('winx.network'), icon: 'wifi-high', hidden: !has('settings'), action: () => launch('settings', { page: 'network' }) },
     '-',
-    { label: accel('winx.terminal'), hidden: !has('terminal'), action: () => launch('terminal') },
-    { label: accel('winx.taskmgr'), hidden: !has('taskmgr'), action: () => launch('taskmgr') },
-    { label: accel('winx.settings'), hidden: !has('settings'), action: () => launch('settings') },
-    { label: accel('winx.files'), hidden: !has('files'), action: () => launch('files') },
-    { label: accel('winx.search'), action: () => shell.emit('search:open', { query: '' }) },
-    { label: accel('winx.run'), action: () => shell.emit('run:open') },
-    '-',
+    { header: t('winx.gSession') },
+    { label: accel('winx.lock'), icon: 'lock-simple', action: () => powerAction('lock') },
+    // Same path as the Ctrl+Alt+Del / Alt+F4 power options: apps get to veto (unsaved work), errors are shown.
+    { label: accel('winx.signOut'), icon: 'sign-out', action: () => powerAction('signOut') },
     {
       label: accel('winx.shutdownMenu'),
+      icon: 'power',
       submenu: [
-        // Same path as the Ctrl+Alt+Del / Alt+F4 power options: apps get to veto (unsaved work), errors are shown.
-        { label: accel('winx.signOut'), action: () => powerAction('signOut') },
-        { label: accel('winx.sleep'), action: () => powerAction('sleep') },
-        { label: accel('winx.shutdown'), action: () => powerAction('shutdown') },
-        { label: accel('winx.restart'), action: () => powerAction('restart') },
+        { label: accel('winx.sleep'), icon: 'moon', action: () => powerAction('sleep') },
+        { label: accel('winx.shutdown'), icon: 'power', action: () => powerAction('shutdown') },
+        { label: accel('winx.restart'), icon: 'arrow-clockwise', action: () => powerAction('restart') },
       ],
     },
-    { label: accel('winx.desktop'), action: () => wm.toggleDesktop() },
+    '-',
+    { header: t('winx.gShortcuts') },
+    { label: accel('winx.terminal'), icon: 'terminal-window', hidden: !has('terminal'), action: () => launch('terminal') },
+    { label: accel('winx.files'), icon: 'folder-simple', hidden: !has('files'), action: () => launch('files') },
+    { label: accel('winx.search'), icon: 'magnifying-glass', action: () => shell.emit('search:open', { query: '' }) },
+    { label: accel('winx.run'), icon: 'play', action: () => shell.emit('run:open') },
+    { label: accel('winx.desktop'), icon: 'desktop', action: () => wm.toggleDesktop() },
   ];
 }
 

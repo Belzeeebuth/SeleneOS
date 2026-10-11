@@ -77,6 +77,26 @@ export async function mount(ctx) {
     user = { name: info.name || env.user, fullName: info.fullName || info.name || env.user, avatarUrl };
   }
 
+  // Next calendar event (today's next one, or tomorrow's first) from the Calendar app's data, read
+  // lazily; the lock screen shows nothing when the app or its data is missing.
+  async function nextEvent() {
+    try {
+      const { loadData, visibleOccurrences } = await import('../../apps/calendar/lib/store.mjs');
+      const lang = i18n.lang === 'fr' ? 'fr' : 'en';
+      const data = await loadData(api, lang);
+      const now = Date.now();
+      const d0 = new Date();
+      const start = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate()).getTime();
+      const end = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + 2).getTime();
+      const occ = visibleOccurrences(data, start, end, lang)
+        .filter((o) => !o.holiday && (o.allDay ? o.start < start + 86400000 && o.end > now : o.start > now))
+        .sort((a, b) => (a.allDay === b.allDay ? a.start - b.start : a.allDay ? 1 : -1))[0];
+      return occ ? { title: occ.title || '', at: occ.allDay ? now : occ.start, allDay: !!occ.allDay } : null;
+    } catch {
+      return null;
+    }
+  }
+
   function badges() {
     try {
       return notifications
@@ -157,6 +177,7 @@ export async function mount(ctx) {
       selected: user.name,
       wallpaper,
       clock24h: () => settings.get('clock24h') ?? null,
+      nextEvent,
       onAuth,
       onSuccess: () => unlock(),
       onPower: (action) => (action === 'sleep' ? shell.suspend() : action === 'shutdown' ? shell.shutdown() : shell.reboot()),

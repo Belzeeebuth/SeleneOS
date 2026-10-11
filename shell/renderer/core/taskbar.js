@@ -31,6 +31,7 @@ import { shell } from './services.js';
 import { notifications } from './notify.js';
 import { api, Emitter } from './api.js';
 import { LOGO } from './app-glyphs.js';
+import { theme } from './theme.js';
 
 // ---------------------------------------------------------------- strings
 const STRINGS = {
@@ -264,6 +265,11 @@ let bulk = false; // true while the whole taskbar is rebuilt (no per-button entr
 // ---------------------------------------------------------------- layout (personalization)
 const THICK = { small: 40, medium: 48, large: 56 }; // height of a horizontal taskbar
 const THICK_V = { small: 52, medium: 60, large: 72 }; // width of a vertical one (room for the clock)
+// Floating islands (--bar-mode: islands, Nocturne): each island is the button height + 12 px, and floats 12 px above
+// the screen edge, so the reserved band is taller (52 px islands + 12 px margin at the medium size).
+const THICK_ISLANDS = { small: 56, medium: 64, large: 72 };
+/** The bar layout of the current style (docs/design/SYSTEM.md §3): 'islands' | 'full' | 'pills'. */
+const barMode = () => getComputedStyle(document.documentElement).getPropertyValue('--bar-mode').trim() || 'islands';
 const BTN = { small: 32, medium: 40, large: 48 };
 const tbCfg = () => settings.get('taskbar') || {};
 function tbPos() {
@@ -275,12 +281,14 @@ function tbSize() {
   const s = tbCfg().size;
   return THICK[s] ? s : 'medium';
 }
-const thickness = () => (isVertical() ? THICK_V : THICK)[tbSize()];
+const thickness = () => (isVertical() ? THICK_V : barMode() === 'islands' ? THICK_ISLANDS : THICK)[tbSize()];
 function combineMode() {
   const c = tbCfg().combine;
   return c === 'never' || c === 'whenFull' ? c : 'always';
 }
 const labelsOn = () => !!tbCfg().showLabels && !isVertical();
+// A docked full-width bar (Éclipse) names its running apps beside their icon, whatever taskbar.showLabels says.
+const runningLabels = () => labelsOn() || (!isVertical() && barMode() === 'full');
 // Tray items (taskbar.tray: { network, volume, battery }), app badges (taskbar.badges), widgets button place
 // (taskbar.widgetsPos: auto | start | inline | end) and the auto-hide delay (taskbar.hideDelay, ms).
 const trayCfg = () => {
@@ -826,7 +834,7 @@ function availSpace() {
   return avail - fixed;
 }
 // Length a button takes along the bar: a labelled running button is wider (Windows 10 style).
-const slotOf = (key) => (labelsOn() && winsOfKey(key).length ? 172 : BTN[tbSize()] + 4);
+const slotOf = (key) => (runningLabels() && winsOfKey(key).length ? 172 : BTN[tbSize()] + 4);
 function capacity(keys) {
   const space = availSpace();
   if (space == null) return Infinity;
@@ -971,7 +979,10 @@ function renderClock() {
   if (isVertical() && timeOpts.second) time = time.replace(/([:.]\d{2})(\D*)$/, '\u200b$1$2');
   clockEl.querySelector('.tb-time').textContent = time;
   // "dim. 11 oct." beside the time; a vertical bar (narrow) keeps the short numeric date.
-  clockEl.querySelector('.tb-date').textContent = isVertical() ? i18n.formatDate(now, { day: '2-digit', month: '2-digit' }) : i18n.formatDate(now, { weekday: 'short', day: 'numeric', month: 'short' });
+  clockEl.querySelector('.tb-date-short').textContent = isVertical() ? i18n.formatDate(now, { day: '2-digit', month: '2-digit' }) : i18n.formatDate(now, { weekday: 'short', day: 'numeric', month: 'short' });
+  // The docked bar (Éclipse) shows the date on two lines beside a larger clock: "dimanche" / "11 octobre".
+  clockEl.querySelector('.tb-date-wd').textContent = i18n.formatDate(now, { weekday: 'long' });
+  clockEl.querySelector('.tb-date-dm').textContent = i18n.formatDate(now, { day: 'numeric', month: 'long' });
   const full = i18n.formatDate(now, { dateStyle: 'full' });
   clockEl.dataset.tip = full.charAt(0).toUpperCase() + full.slice(1);
 }
@@ -998,11 +1009,13 @@ function renderBell() {
   const n = notifications.unread();
   const dnd = !!settings.get('notifications.dnd') || document.documentElement.dataset.focusQuiet === 'on';
   clear(bell);
+  // The bell is always there; the unread count follows it as a small accent pill (the floating bars show the count in
+  // place of the bell, core/taskbar-start.css).
+  bell.append(icon(dnd ? 'bell-slash' : 'bell', { size: 16 }));
   if (n > 0 && !dnd) {
     bell.append(h('span', { class: 'tb-count' }, n > 99 ? '99+' : String(n)));
     clockEl.setAttribute('aria-label', t('taskbar.notifications', { count: n }));
   } else {
-    bell.append(icon(dnd ? 'bell-slash' : 'bell', { size: 16 }));
     clockEl.setAttribute('aria-label', dnd ? t('taskbar.dndOn') : t('taskbar.noNotifications'));
   }
   bell.classList.toggle('dnd', dnd);
@@ -1313,7 +1326,7 @@ let layoutKey = '';
 function applyLayout() {
   const de = document.documentElement;
   const p = tbPos();
-  const key = `${p}|${tbSize()}|${labelsOn()}`;
+  const key = `${p}|${tbSize()}|${labelsOn()}|${barMode()}`;
   de.dataset.tbPos = p;
   de.dataset.tbSize = tbSize();
   de.dataset.tbLabels = labelsOn() ? 'on' : 'off';
@@ -1348,19 +1361,36 @@ function renderStatic() {
     );
   // Left: the Lanceur and its search (+ Overview, Dashboard at the start). Centre: the apps (centred on the screen in
   // every style; taskbar.align = left puts them right after the left part). Right: status, clock, notifications.
+  // The Lanceur and its search form one control (.tb-launch): the crescent, then the search button. The docked bar
+  // (Éclipse) draws it as a single field « Rechercher … Super »; the floating bars as two round buttons.
+  const searchBtn =
+    searchMode === 'hidden'
+      ? null
+      : h(
+          'button',
+          {
+            class: ['tb-btn tb-search', searchMode === 'box' && 'tb-searchbox'],
+            'data-tip': searchMode === 'box' ? null : t('taskbar.search'),
+            'aria-label': t('taskbar.search'),
+            onclick: () => shell.emit('search:toggle'),
+          },
+          icon('magnifying-glass', { size: searchMode === 'box' ? 16 : 20 }),
+          h('span', { class: 'tb-search-text' }, t('taskbar.searchBox')),
+          h('kbd', { class: 'tb-search-key', 'aria-hidden': 'true' }, 'Super'),
+        );
   leftEl = h(
     'div',
     { class: 'tb-left tb-part' },
     h(
-      'button',
-      { class: 'tb-btn tb-start', 'data-tip': t('taskbar.start'), 'aria-label': t('taskbar.start'), onclick: () => shell.emit('start:toggle') },
-      h('span', { class: 'icon tb-logo', html: logoSvg() }),
+      'div',
+      { class: ['tb-launch', searchBtn && 'with-search'], role: 'group', 'aria-label': t('taskbar.start') },
+      h(
+        'button',
+        { class: 'tb-btn tb-start', 'data-tip': t('taskbar.start'), 'aria-label': t('taskbar.start'), onclick: () => shell.emit('start:toggle') },
+        h('span', { class: 'icon tb-logo', html: logoSvg() }),
+      ),
+      searchBtn,
     ),
-    searchMode === 'box'
-      ? h('button', { class: 'tb-btn tb-search tb-searchbox', 'aria-label': t('taskbar.search'), onclick: () => shell.emit('search:toggle') }, icon('magnifying-glass', { size: 16 }), h('span', null, t('taskbar.searchBox')))
-      : searchMode !== 'hidden'
-        ? h('button', { class: 'tb-btn tb-search', 'data-tip': t('taskbar.search'), 'aria-label': t('taskbar.search'), onclick: () => shell.emit('search:toggle') }, icon('magnifying-glass', { size: 20 }))
-        : null,
     tb.showTaskView !== false
       ? h('button', { class: 'tb-btn tb-taskview', 'data-tip': t('taskbar.taskView'), 'aria-label': t('taskbar.taskView'), onclick: () => shell.emit('taskview:toggle') }, icon('rows', { size: 20 }))
       : null,
@@ -1384,7 +1414,7 @@ function renderStatic() {
     (clockEl = h(
       'button',
       { class: 'tb-btn tb-clock', onclick: () => shell.emit('calendar:toggle') },
-      h('span', { class: 'tb-clock-text' }, h('span', { class: 'tb-time' }), h('span', { class: 'tb-date' })),
+      h('span', { class: 'tb-clock-text' }, h('span', { class: 'tb-time' }), h('span', { class: 'tb-date' }, h('span', { class: 'tb-date-short' }), h('span', { class: 'tb-date-long', 'aria-hidden': 'true' }, h('span', { class: 'tb-date-wd' }), h('span', { class: 'tb-date-dm' })))),
       h('span', { class: 'tb-bell' }),
     )),
     h('div', { class: 'tb-showdesk', 'data-tip': t('taskbar.showDesktop'), role: 'button', 'aria-label': t('taskbar.showDesktop'), onclick: () => wm.toggleDesktop() }),
@@ -1471,6 +1501,14 @@ export const taskbar = {
       document.body.classList.toggle('has-fullscreen', !!(f && f.fullscreen && !f.minimized));
     });
     settings.on('pinned', () => renderApps());
+    // A new visual style can change the bar mode: the band's thickness (work area), the labels and the fit follow.
+    theme.on?.('style', () =>
+      requestAnimationFrame(() => {
+        applyAlign();
+        applyAutohide();
+        fitApps();
+      }),
+    );
     // (settings:setMany of other keys reaches every listener: only a real change of taskbar.* re-lays the bar)
     let tbSig = JSON.stringify(settings.get('taskbar') || {});
     settings.on('taskbar', () => {

@@ -277,37 +277,30 @@
   }
 }
 
-/* ---- floating modes (islands, pills), horizontal bar: the parts float with a margin, rounded, on glass */
+/* ---- floating modes (islands, pills), horizontal bar: the parts float with a margin, rounded, on glass.
+   Islands (Nocturne): three compact islands, 12 px from the screen edge — Lanceur + search | the apps, only as wide as
+   their content and centred on the screen | status + clock. The band (taskbar.js THICK_ISLANDS) is the island height
+   (the button size + 12 px: 52 px at the medium size) plus the 12 px margin. */
 @container style(--bar-mode: islands) {
   :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar {
     --tb-mx: var(--bar-margin);
-    --tb-it: 1px;
-    --tb-ib: 5px;
-    --tb-part-gap: var(--bar-gap);
-    --tb-pad: 4px;
+    --tb-it: 0px;
+    --tb-ib: var(--bar-margin);
+    --tb-part-gap: var(--bar-margin);
+    --tb-pad: 6px;
+    --tb-btn-h: calc(var(--taskbar-h) - var(--tb-it) - var(--tb-ib) - 12px);
     background: transparent;
     border: 0;
   }
-  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar::before,
-  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar > .tb-tray {
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar > .tb-part {
     background: var(--taskbar-bg);
     border: var(--bar-border);
     border-radius: var(--bar-radius);
     box-shadow: var(--bar-shadow);
     backdrop-filter: blur(calc(var(--blur) * var(--bar-blur))) saturate(var(--blur-sat));
   }
-  /* the first island spans from the left margin to the status island; the apps stay centred on the screen */
-  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar::before {
-    content: "";
-    position: absolute;
-    left: var(--tb-mx);
-    right: calc(var(--tb-mx) + var(--tb-tray-w, 280px) + var(--bar-gap));
-    top: var(--tb-it);
-    bottom: var(--tb-ib);
-    pointer-events: none;
-  }
-  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-start {
-    margin-right: 2px;
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-btn {
+    border-radius: calc(var(--bar-radius) - 6px);
   }
 }
 @container style(--bar-mode: pills) {
@@ -338,8 +331,8 @@
 }
 @container style(--bar-mode: islands) {
   :root[data-tb-pos="top"] #taskbar {
-    --tb-it: 5px;
-    --tb-ib: 1px;
+    --tb-it: var(--bar-margin);
+    --tb-ib: 0px;
   }
 }
 @container style(--bar-mode: pills) {
@@ -949,4 +942,152 @@
 /* ------------------------------------------------------------------ bar: leftovers of the old look, tokenised */
 #taskbar .tb-overflow.flashing {
   background: var(--warning-bg, color-mix(in srgb, var(--warning) 22%, transparent));
+}
+
+/* ================================================================== bar layout, phase C
+   The Lanceur + search control (.tb-launch), the two-line date and the unread pill. The floating bars (islands, pills)
+   keep two round buttons and the short date; the docked bar (full, Éclipse) draws one field « Rechercher … Super » on
+   the left, names its running apps, and shows « dimanche / 11 octobre » beside a larger clock. */
+#taskbar .tb-launch {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+:root[data-tb-pos="left"] #taskbar .tb-launch,
+:root[data-tb-pos="right"] #taskbar .tb-launch {
+  flex-direction: column;
+}
+#taskbar .tb-search-text,
+#taskbar .tb-search-key,
+#taskbar .tb-date-long {
+  display: none;
+}
+#taskbar .tb-searchbox > .tb-search-text {
+  display: block;
+}
+/* floating bars: the unread count stands in for the bell */
+#taskbar .tb-bell:has(.tb-count) > .icon {
+  display: none;
+}
+
+@container style(--bar-mode: full) {
+  /* one field: the crescent opens the Lanceur, the rest opens the search */
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-launch.with-search {
+    height: calc(var(--tb-btn-h) - 4px);
+    gap: 0;
+    padding: 0 3px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    background: var(--input-bg);
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-launch.with-search > .tb-btn {
+    height: calc(var(--tb-btn-h) - 10px);
+    min-width: calc(var(--tb-btn-h) - 10px);
+    margin: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-launch.with-search > .tb-btn:hover,
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-launch.with-search > .tb-btn.open {
+    background: var(--subtle-hover);
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-launch.with-search > .tb-search {
+    width: clamp(160px, 16vw, 220px);
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0 4px 0 6px;
+    color: var(--text-2);
+    font-size: var(--fs-small);
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-launch.with-search > .tb-search > .icon {
+    display: none;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-launch.with-search .tb-search-text {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-align: start;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-launch.with-search .tb-search-key {
+    display: block;
+    padding: 1px 6px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-xs);
+    background: var(--subtle-hover);
+    color: var(--text-2);
+    font: 500 var(--fs-caption) / 16px var(--font);
+  }
+  /* running apps carry their name; pinned ones stay icons. The group stays centred on the screen. */
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-app.running {
+    justify-content: flex-start;
+    gap: 8px;
+    min-width: 128px;
+    max-width: 168px;
+    padding: 0 12px 0 10px;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-app.running .tb-label {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--fs-small);
+    font-weight: 500;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-app.running .tb-badge {
+    left: 22px;
+  }
+  /* « dimanche / 11 octobre » beside a larger clock, then the bell and its unread pill */
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock {
+    gap: 14px;
+    padding: 0 8px 0 10px;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock-text {
+    align-items: center;
+    gap: 10px;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-date-short {
+    display: none;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-date-long {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-size: var(--fs-caption);
+    line-height: 1.3;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-date-dm {
+    color: var(--text);
+    font-weight: 600;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-time {
+    font: 600 calc(var(--fs-subtitle) + 2px) / 1 var(--font-display);
+    letter-spacing: -0.01em;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-bell {
+    order: -1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: auto;
+    padding: 0;
+    border: 0;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-bell:has(.tb-count) > .icon {
+    display: inline-flex;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-count {
+    position: static;
+    min-width: 20px;
+    height: 20px;
+    margin: 0;
+    line-height: 20px;
+  }
+}
+:root[data-tb-size="small"]:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-time {
+  font-size: min(var(--fs-body), 16px);
 }

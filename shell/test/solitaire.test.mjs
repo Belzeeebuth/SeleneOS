@@ -907,7 +907,7 @@ async function uiTests() {
       await s.page.waitForTimeout(2600);
       publish(await winShot(s, 'solitaire-win-cascade'), 'solitaire-win-cascade');
       await s.page.mouse.click(800, 500); // skip
-      await s.page.waitForSelector('.app-solitaire .dialog-title:has-text("You won!")', { timeout: 5000 });
+      await s.page.waitForSelector('.app-solitaire .dialog-title:has-text("You won")', { timeout: 5000 });
       await s.page.waitForTimeout(400);
       publish(await winShot(s, 'solitaire-win-dialog'), 'solitaire-win-dialog');
       const stats = await T('stats');
@@ -1047,7 +1047,7 @@ async function uiTests() {
       await T('load', NEAR_WIN);
       await s.page.locator('.app-solitaire .sol-table').focus();
       await s.page.keyboard.press('a');
-      await s.page.waitForSelector('.app-solitaire .dialog-title:has-text("You won!")', { timeout: 3000 });
+      await s.page.waitForSelector('.app-solitaire .dialog-title:has-text("You won")', { timeout: 3000 });
       assert.equal(await T('cascading'), false);
       await s.page.click('.app-solitaire .dialog-footer .btn:not(.primary)'); // Close
       await s.page.waitForTimeout(300);
@@ -1136,7 +1136,7 @@ async function uiTests() {
       assert.equal((await T('state')).won, true);
       for (let i = 0; i < 30 && !(await T('cascading')); i++) await s.page.waitForTimeout(100);
       await T('stopCascade');
-      await s.page.waitForSelector('.app-solitaire .dialog-title:has-text("You won!")', { timeout: 5000 });
+      await s.page.waitForSelector('.app-solitaire .dialog-title:has-text("You won")', { timeout: 5000 });
       await s.page.click('.app-solitaire .dialog-footer .btn.primary');
       await s.page.waitForTimeout(300);
       await idle();
@@ -1249,7 +1249,7 @@ async function uiTests() {
       await d.page.waitForTimeout(3500);
       publish(await d.shot('solitaire-win-cascade-dark'), 'solitaire-win-cascade-dark');
       await d.page.keyboard.press('Space');
-      await d.page.waitForSelector('.app-solitaire .dialog-title:has-text("Vous avez gagné !")', { timeout: 5000 });
+      await d.page.waitForSelector('.app-solitaire .dialog-title:has-text("Vous avez gagné")', { timeout: 5000 });
       await d.page.waitForTimeout(400);
       publish(await d.shot('solitaire-win-dialog-dark-fr'), 'solitaire-win-dialog-dark-fr');
       await d.page.click('.app-solitaire .dialog-footer .btn:not(.primary)');

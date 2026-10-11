@@ -249,6 +249,7 @@ function auroraBack(accent) {
     `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bottom}"/></linearGradient>` +
       `<radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="${moon}" stop-opacity=".22"/><stop offset="1" stop-color="${moon}" stop-opacity="0"/></radialGradient></defs>` +
       `<rect width="250" height="350" fill="url(#g)"/>${stars}<circle cx="125" cy="175" r="78" fill="url(#glow)"/>` +
+      `<circle cx="125" cy="175" r="64" fill="none" stroke="${a}" stroke-opacity=".45" stroke-width="1.5"/>` +
       `<g transform="translate(125 175) scale(2.3) translate(-24 -24)"><path d="M15.04 10.58A17 17 0 1 0 36.92 32.46A15.6 15.6 0 0 1 15.04 10.58Z" fill="${moon}"/>` +
       `<circle cx="37.2" cy="10.6" r="2.7" fill="${moon}"/></g>`,
     { line: `${moon}55` },

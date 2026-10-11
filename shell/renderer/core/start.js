@@ -88,6 +88,13 @@ const STRINGS = {
       pinTaskbar: 'Pin to taskbar',
       unpinTaskbar: 'Unpin from taskbar',
       typeToSearch: 'Type to search apps, settings and files',
+      results: 'Results',
+      groupApps: 'Apps',
+      groupFiles: 'Files',
+      groupSettings: 'Settings',
+      allResults: 'All results',
+      onlyKind: 'Show only {name} ({count})',
+      recentItems: 'Recent',
     },
     settingsIndex: {
       system: 'System',
@@ -196,6 +203,13 @@ const STRINGS = {
       pinTaskbar: 'Épingler à la barre des tâches',
       unpinTaskbar: 'Détacher de la barre des tâches',
       typeToSearch: 'Tapez pour rechercher des applications, des paramètres et des fichiers',
+      results: 'Résultats',
+      groupApps: 'Applications',
+      groupFiles: 'Fichiers',
+      groupSettings: 'Réglages',
+      allResults: 'Tous les résultats',
+      onlyKind: 'Afficher seulement : {name} ({count})',
+      recentItems: 'Récents',
     },
     settingsIndex: {
       system: 'Système',
@@ -518,7 +532,11 @@ function prettyPath(p) {
 }
 
 // ---------------------------------------------------------------- SearchView (shared UI)
-// Results list on the left, preview pane on the right (Windows 11 search experience).
+// One results list grouped by kind (Applications, Fichiers, Réglages, Web), most relevant group first, with the first
+// result selected for the keyboard. A preview pane opens on the right only while an app or a file is selected. A group
+// heading narrows the list to that kind (setCategory; Ctrl+Tab in the search panel). With no query: recent items and
+// common settings as one plain list (arrow keys move through it too).
+const SV_GROUPS = { apps: 'search.groupApps', documents: 'search.groupFiles', settings: 'search.groupSettings', web: 'search.web' };
 export class SearchView {
   constructor({ variant = 'panel', onDone } = {}) {
     this.variant = variant;
@@ -528,44 +546,21 @@ export class SearchView {
     this.items = [];
     this.sel = 0;
     this.seq = 0;
+    this.homeSeq = 0;
     this.fileTimer = null;
     this.res = { apps: [], settings: [], files: [] };
     this.filesPending = false;
-    this.list = h('div', { class: 'sv-list', role: 'listbox' });
+    this.list = h('div', { class: 'sv-list', role: 'listbox', 'aria-label': t('search.results') });
     this.preview = h('div', { class: 'sv-preview' });
-    this.tabs = h('div', { class: 'sv-tabs', role: 'tablist' });
-    this.el = h('div', { class: ['sv', `sv-${variant}`] }, variant === 'panel' ? this.tabs : null, h('div', { class: 'sv-main' }, this.list, this.preview));
-    this.renderTabs();
+    this.el = h('div', { class: ['sv', `sv-${variant}`] }, h('div', { class: 'sv-main' }, this.list, this.preview));
   }
-  renderTabs() {
-    clear(this.tabs);
-    for (const c of ['all', 'apps', 'documents', 'settings', 'web']) {
-      this.tabs.appendChild(
-        h(
-          'button',
-          {
-            class: ['sv-tab', this.cat === c && 'selected'],
-            role: 'tab',
-            'aria-selected': String(this.cat === c),
-            onclick: () => {
-              this.setCategory(c);
-              this.onCategory?.();
-            },
-          },
-          t(`search.${c}`),
-        ),
-      );
-    }
-  }
+  /** (kept for callers of the old pivot; the kinds are now group headings in the list) */
+  renderTabs() {}
   setCategory(c) {
-    if (this.cat === c) return;
+    if (!['all', 'apps', 'documents', 'settings', 'web'].includes(c) || this.cat === c) return;
     this.cat = c;
-    this.renderTabs();
     this.sel = 0;
-    if (c === 'web' && this.q) {
-      this.render();
-      return;
-    }
+    this.touched = false;
     this.render();
   }
   setQuery(q) {
@@ -599,26 +594,23 @@ export class SearchView {
     const text = this.q.trim();
     const { apps, settings: sets, files } = this.res;
     const web = { kind: 'web', id: `web:${text}`, title: text };
-    const sections = [];
-    if (this.cat === 'apps') sections.push(['apps', apps]);
-    else if (this.cat === 'documents') sections.push(['documents', files]);
-    else if (this.cat === 'settings') sections.push(['settings', sets]);
-    else if (this.cat === 'web') sections.push(['web', [web]]);
-    else {
-      const all = [...apps, ...sets, ...files].sort((a, b) => b.score - a.score);
-      const best = all[0];
-      if (best) sections.push(['bestMatch', [best]]);
-      const rest = (arr, n) => arr.filter((x) => x !== best).slice(0, n);
-      if (rest(apps, 6).length) sections.push(['apps', rest(apps, 6)]);
-      if (rest(sets, 4).length) sections.push(['settings', rest(sets, 4)]);
-      if (rest(files, 6).length) sections.push(['documents', rest(files, 6)]);
-      sections.push(['web', [web]]);
-    }
-    return sections;
+    if (this.cat === 'apps') return [['apps', apps]];
+    if (this.cat === 'documents') return [['documents', files]];
+    if (this.cat === 'settings') return [['settings', sets]];
+    if (this.cat === 'web') return [['web', [web]]];
+    // The group holding the best match comes first; the web search always closes the list.
+    const groups = [
+      ['apps', apps.slice(0, 5), apps.length],
+      ['documents', files.slice(0, 6), files.length],
+      ['settings', sets.slice(0, 4), sets.length],
+    ].filter(([, arr]) => arr.length);
+    groups.sort((x, y) => (y[1][0]?.score || 0) - (x[1][0]?.score || 0));
+    return [...groups, ['web', [web], 1]];
   }
   iconFor(item, size) {
     if (item.kind === 'app') return h('img', { class: 'sv-ico', src: registry.iconUrl(item.id), alt: '', width: size, height: size, draggable: false });
     if (item.kind === 'setting') return h('span', { class: 'sv-ico sv-ico-set' }, icon(item.icon || 'settings', { size: Math.round(size * 0.62) }));
+    if (item.kind === 'search') return h('span', { class: 'sv-ico sv-ico-hist' }, icon('history', { size: Math.round(size * 0.66) }));
     if (item.kind === 'file') {
       const e = item.entry;
       if (!e.dir && ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'].includes((e.ext || '').toLowerCase()) && size > 32) {
@@ -634,14 +626,57 @@ export class SearchView {
     if (item.kind === 'file') return item.entry.dir ? t('search.folder') : `${fileKind(item.entry)} · ${prettyPath(parentDir(item.entry.path))}`;
     return t('search.webResult');
   }
+  row(item, i, sub) {
+    return h(
+      'div',
+      {
+        class: ['sv-row', i === this.sel && 'selected'],
+        role: 'option',
+        'aria-selected': String(i === this.sel),
+        dataset: { i: String(i), kind: item.kind },
+        onclick: () => {
+          this.select(i, false);
+          this.activate(item);
+        },
+        oncontextmenu: (e) => item.kind !== 'search' && this.contextMenu(e, item),
+      },
+      this.iconFor(item, 24),
+      h(
+        'div',
+        { class: 'sv-row-text' },
+        h('div', { class: 'sv-title ellipsis' }, item.kind === 'web' ? t('search.searchWebFor', { q: item.title }) : item.title),
+        sub ? h('div', { class: 'sv-sub caption ellipsis' }, sub) : null,
+      ),
+    );
+  }
+  groupHead(name, count) {
+    const label = t(SV_GROUPS[name]);
+    if (this.cat !== 'all' || name === 'web') return h('div', { class: 'sv-head sv-group-head', role: 'presentation', dataset: { cat: name } }, label);
+    // A heading narrows the list to its kind (and says how many results it holds).
+    return h(
+      'button',
+      {
+        class: 'sv-head sv-group-head',
+        dataset: { cat: name },
+        'aria-label': t('search.onlyKind', { name: label, count }),
+        onclick: () => {
+          this.setCategory(name);
+          this.onCategory?.();
+        },
+      },
+      h('span', null, label),
+      h('span', { class: 'sv-count' }, String(count)),
+      icon('caret-right', { size: 12 }),
+    );
+  }
   render(keep) {
     clear(this.list);
     const text = this.q.trim();
     if (!text) {
-      this.items = [];
       this.renderHome();
       return;
     }
+    this.el.classList.remove('home');
     const sections = this.buildItems();
     this.items = sections.flatMap(([, arr]) => arr);
     // Late results (file search) keep the user's selection only if they moved it themselves.
@@ -650,130 +685,107 @@ export class SearchView {
       if (i >= 0) this.sel = i;
     } else if (keep) this.sel = 0;
     this.sel = Math.max(0, Math.min(this.sel, this.items.length - 1));
+    if (this.cat !== 'all') {
+      this.list.appendChild(
+        h(
+          'button',
+          {
+            class: 'sv-back',
+            onclick: () => {
+              this.setCategory('all');
+              this.onCategory?.();
+            },
+          },
+          icon('caret-left', { size: 12 }),
+          h('span', null, t('search.allResults')),
+        ),
+      );
+    }
     let idx = 0;
     const realResults = this.items.some((x) => x.kind !== 'web');
-    for (const [name, arr] of sections) {
+    for (const [name, arr, count] of sections) {
       if (!arr.length) continue;
-      this.list.appendChild(h('div', { class: 'sv-head' }, t(`search.${name}`)));
-      for (const item of arr) {
-        const i = idx++;
-        const big = name === 'bestMatch';
-        const row = h(
-          'div',
-          {
-            class: ['sv-row', big && 'big', i === this.sel && 'selected'],
-            role: 'option',
-            'aria-selected': String(i === this.sel),
-            dataset: { i: String(i) },
-            onclick: (e) => {
-              // The chevron shows the details pane; the row itself opens the result.
-              if (e.target.closest('.sv-chev')) {
-                this.touched = true;
-                this.select(i, false);
-                return;
-              }
-              this.select(i, false);
-              this.activate(item);
-            },
-            oncontextmenu: (e) => this.contextMenu(e, item),
-          },
-          this.iconFor(item, big ? 32 : 24),
-          h(
-            'div',
-            { class: 'sv-row-text' },
-            h('div', { class: 'sv-title ellipsis' }, item.kind === 'web' ? t('search.searchWebFor', { q: item.title }) : item.title),
-            big || item.kind === 'file' ? h('div', { class: 'sv-sub caption ellipsis' }, this.subtitle(item)) : null,
-          ),
-          !big && item.kind !== 'file' && item.kind !== 'web' ? h('span', { class: 'sv-kind caption' }, this.subtitle(item)) : null,
-          h('span', { class: 'sv-chev' }, icon('chevron_right', { size: 12 })),
-        );
-        this.list.appendChild(row);
-      }
-      if (name === 'documents' && this.filesPending) this.list.appendChild(h('div', { class: 'sv-pending caption' }, h('span', { class: 'spinner small' }), t('search.searching')));
+      const group = h('div', { class: 'sv-group', role: 'group', 'aria-label': t(SV_GROUPS[name]) }, this.groupHead(name, count ?? arr.length));
+      for (const item of arr) group.appendChild(this.row(item, idx++, item.kind === 'file' ? this.subtitle(item) : null));
+      if (name === 'documents' && this.filesPending) group.appendChild(h('div', { class: 'sv-pending caption' }, h('span', { class: 'spinner small' }), t('search.searching')));
+      this.list.appendChild(group);
     }
     if (this.filesPending && !sections.some(([n]) => n === 'documents') && (this.cat === 'all' || this.cat === 'documents')) {
-      this.list.appendChild(h('div', { class: 'sv-pending caption' }, h('span', { class: 'spinner small' }), t('search.searching')));
+      const pending = h('div', { class: 'sv-pending caption' }, h('span', { class: 'spinner small' }), t('search.searching'));
+      const webGroup = this.list.querySelector('.sv-group:last-child');
+      if (webGroup && this.cat === 'all') this.list.insertBefore(pending, webGroup);
+      else this.list.appendChild(pending);
     }
     if (!realResults && !this.filesPending && this.cat !== 'web') {
       this.list.prepend(h('div', { class: 'sv-empty' }, h('div', { class: 'body-strong' }, t('search.noResults', { q: text })), h('div', { class: 'caption text-2' }, t('search.noResultsHint'))));
     }
     this.renderPreview();
   }
+  // No query: what you opened recently (searches, apps, files), then common settings. One list, no grid.
   renderHome() {
     clear(this.preview);
     this.el.classList.add('home');
-    const top = recent.topApps(this.variant === 'panel' ? 6 : 6);
-    const home = h('div', { class: 'sv-home' });
-    home.appendChild(h('div', { class: 'sv-head' }, t('search.topApps')));
-    home.appendChild(
-      h(
-        'div',
-        { class: 'sv-topapps' },
-        top.map((id) =>
-          h(
-            'button',
-            { class: 'sv-topapp', onclick: () => this.launchApp(id), oncontextmenu: (e) => this.contextMenu(e, { kind: 'app', id }) },
-            h('img', { src: registry.iconUrl(id), alt: '', draggable: false }),
-            h('span', null, registry.name(id)),
-          ),
-        ),
-      ),
-    );
-    const searches = recent.searches();
-    if (searches.length) {
-      home.appendChild(
-        h(
-          'div',
-          { class: 'sv-head row' },
-          h('span', { class: 'grow' }, t('search.recent')),
-          h(
-            'button',
-            {
-              class: 'btn subtle small',
-              onclick: () => {
-                recent.clearSearches();
-                this.render();
+    this.el.classList.remove('with-preview');
+    this.sel = -1;
+    const recentItems = [
+      ...recent
+        .searches()
+        .slice(0, 3)
+        .map((q) => ({ kind: 'search', id: `q:${q}`, title: q })),
+      ...recent.topApps(4).map((id) => ({ kind: 'app', id, title: registry.name(id) })),
+    ];
+    const common = ['display', 'sound', 'wifi', 'background', 'time', 'about']
+      .map((page) => settingsIndex().find((e) => e.page === page))
+      .filter(Boolean)
+      .map((e) => ({ kind: 'setting', id: `${e.page}#${e.section || ''}`, title: e.name, icon: e.icon, page: e.page, section: e.section }));
+    const draw = (files) => {
+      clear(this.list);
+      const fileItems = files.map((e) => ({ kind: 'file', id: e.path, title: e.name, entry: e }));
+      const recents = [...recentItems, ...fileItems];
+      this.items = [...recents, ...common];
+      let i = 0;
+      const home = h('div', { class: 'sv-home' });
+      if (recents.length) {
+        const head = h('div', { class: 'sv-head row' }, h('span', { class: 'grow' }, t('search.recentItems')));
+        if (recent.searches().length) {
+          head.appendChild(
+            h(
+              'button',
+              {
+                class: 'btn subtle small',
+                onclick: () => {
+                  recent.clearSearches();
+                  this.render();
+                },
               },
-            },
-            t('search.clearRecent'),
-          ),
-        ),
-      );
-      for (const s of searches.slice(0, 6)) {
-        home.appendChild(
-          h(
-            'div',
-            { class: 'sv-row', onclick: () => this.onPickRecent?.(s) },
-            h('span', { class: 'sv-ico sv-ico-hist' }, icon('history', { size: 16 })),
-            h('div', { class: 'sv-row-text' }, h('div', { class: 'sv-title ellipsis' }, s)),
-          ),
-        );
+              t('search.clearRecent'),
+            ),
+          );
+        }
+        home.appendChild(h('div', { class: 'sv-group', role: 'group', 'aria-label': t('search.recentItems') }, head, recents.map((it) => this.row(it, i++, it.kind === 'file' ? prettyPath(parentDir(it.entry.path)) : null))));
       }
-    }
-    this.list.appendChild(home);
-    // Right side: quick searches into Settings
-    const quick = ['display', 'sound', 'wifi', 'background', 'time', 'about'].map((page) => settingsIndex().find((e) => e.page === page)).filter(Boolean);
-    this.preview.appendChild(
-      h(
-        'div',
-        { class: 'sv-quick' },
-        h('div', { class: 'sv-head' }, t('search.quickSearches')),
-        quick.map((e) =>
-          h(
-            'button',
-            { class: 'sv-quick-item', onclick: () => this.activate({ kind: 'setting', page: e.page, section: e.section, title: e.name }) },
-            h('span', { class: 'sv-ico sv-ico-set' }, icon(e.icon, { size: 16 })),
-            h('span', { class: 'ellipsis' }, e.name),
-          ),
-        ),
-      ),
-    );
+      home.appendChild(h('div', { class: 'sv-group', role: 'group', 'aria-label': t('search.quickSearches') }, h('div', { class: 'sv-head' }, t('search.quickSearches')), common.map((it) => this.row(it, i++))));
+      this.list.appendChild(home);
+    };
+    draw([]);
+    const my = ++this.homeSeq;
+    recent
+      .files(3)
+      .then((files) => {
+        if (my !== this.homeSeq || this.q.trim() || !files?.length) return;
+        const sel = this.sel;
+        draw(files.slice(0, 3));
+        if (sel >= 0) this.select(sel, false);
+      })
+      .catch(() => {});
   }
   renderPreview() {
-    this.el.classList.remove('home');
     clear(this.preview);
     const item = this.items[this.sel];
-    if (!item) return;
+    // The preview only earns its place for an app or a file; settings and the web search use the whole width.
+    const show = !!item && (item.kind === 'app' || item.kind === 'file') && !this.el.classList.contains('home');
+    this.el.classList.toggle('with-preview', show);
+    if (!show) return;
     const actions = this.actionsFor(item);
     let meta = null;
     if (item.kind === 'file') {
@@ -790,7 +802,7 @@ export class SearchView {
       h(
         'div',
         { class: 'sv-pv', key: item.id },
-        h('div', { class: 'sv-pv-top' }, this.iconFor(item, 64), h('div', { class: 'sv-pv-title' }, item.kind === 'web' ? item.title : item.title), h('div', { class: 'caption text-2' }, this.subtitle(item))),
+        h('div', { class: 'sv-pv-top' }, this.iconFor(item, 64), h('div', { class: 'sv-pv-title' }, item.title), h('div', { class: 'caption text-2' }, this.subtitle(item))),
         h('div', { class: 'sv-pv-sep' }),
         h(
           'div',
@@ -838,17 +850,23 @@ export class SearchView {
   select(i, scroll = true) {
     if (!this.items.length) return;
     this.sel = (i + this.items.length) % this.items.length;
+    const home = this.el.classList.contains('home');
     for (const row of this.list.querySelectorAll('.sv-row[data-i]')) {
       const on = Number(row.dataset.i) === this.sel;
       row.classList.toggle('selected', on);
       row.setAttribute('aria-selected', String(on));
       if (on && scroll) row.scrollIntoView({ block: 'nearest' });
     }
-    this.renderPreview();
+    if (!home) this.renderPreview();
   }
   move(delta) {
     this.touched = true;
-    this.select(this.sel + delta);
+    // (with no query nothing is selected at first: Down picks the first item, Up the last)
+    this.select(this.sel < 0 ? (delta > 0 ? 0 : -1) : this.sel + delta);
+  }
+  /** True when Enter has something to open (a result, or an item picked with the arrows on the empty view). */
+  hasSelection() {
+    return this.sel >= 0 && !!this.items[this.sel] && (!!this.q.trim() || !!this.touched);
   }
   launchApp(id) {
     this.onDone();
@@ -856,6 +874,10 @@ export class SearchView {
   }
   activate(item = this.items[this.sel]) {
     if (!item) return false;
+    if (item.kind === 'search') {
+      this.onPickRecent?.(item.title);
+      return true;
+    }
     if (this.q.trim()) recent.addSearch(this.q);
     this.onDone();
     if (item.kind === 'app') registry.launch(item.id);

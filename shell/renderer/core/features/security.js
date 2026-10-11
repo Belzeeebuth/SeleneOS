@@ -1,11 +1,11 @@
 // Ctrl+Alt+Delete security screen and the Alt+F4 "Shut Down Selene" dialog (Alt+F4 on the desktop).
-//   shell.on('security:open')      fullscreen blurred overlay: Lock, Switch user, Sign out,
-//                                  Change a password, Task Manager, Cancel; network / accessibility /
-//                                  power buttons bottom-right.
+//   shell.on('security:open')      a centred card on the dimmed wallpaper: the user's avatar and name,
+//                                  icon tiles (Lock, Switch user, Sign out, Change a password, System
+//                                  Monitor), and a footer with network / accessibility / power and Cancel.
 //   shell.on('shutdown:dialog')    Windows-style dialog with a dropdown (Switch user, Sign out, Sleep,
 //                                  Shut down, Restart) and a description of the selected action.
 // Sign out / Shut down / Restart close every window first (apps may veto, e.g. unsaved documents).
-import { api } from '../api.js';
+import { api, env } from '../api.js';
 import { h, icon, ui } from '../ui.js';
 import { i18n, t } from '../i18n.js';
 import { wm } from '../wm.js';
@@ -23,6 +23,7 @@ i18n.extend({
       changePassword: 'Change a password',
       taskManager: 'System Monitor',
       cancel: 'Cancel',
+      question: 'What would you like to do?',
       network: 'Network',
       accessibility: 'Accessibility',
       power: 'Power',
@@ -51,6 +52,7 @@ i18n.extend({
       changePassword: 'Modifier un mot de passe',
       taskManager: 'Moniteur système',
       cancel: 'Annuler',
+      question: 'Que souhaitez-vous faire ?',
       network: 'Réseau',
       accessibility: 'Accessibilité',
       power: 'Marche/Arrêt',
@@ -97,46 +99,48 @@ export async function powerAction(kind) {
 
 // ------------------------------------------------------------------ security screen
 let screen = null;
+const COLS = 3; // tiles per row on the card
 
-// The wallpaper, blurred and darkened once on a small canvas (no live CSS blur: cheap in a VM).
-let blurCache = { src: '', url: '' };
-let blurJob = null; // { src, promise } while a blur is being computed
-function blurredWallpaper() {
-  const src = theme.wallpaperUrl;
-  if (!src) return Promise.resolve('');
-  if (blurCache.src === src) return Promise.resolve(blurCache.url);
-  if (blurJob?.src === src) return blurJob.promise;
-  const promise = computeBlur(src).finally(() => {
-    if (blurJob?.promise === promise) blurJob = null;
-  });
-  blurJob = { src, promise };
-  return promise;
-}
-async function computeBlur(src) {
+// The signed-in user (name and picture), read once and cached for the card's header.
+let userCache = null;
+async function loadUser() {
+  if (userCache) return userCache;
+  let info = null;
   try {
-    const img = new Image();
-    img.src = src;
-    await img.decode();
-    const w = 640;
-    const hgt = Math.round((w * window.innerHeight) / Math.max(1, window.innerWidth));
-    const c = document.createElement('canvas');
-    c.width = w;
-    c.height = hgt;
-    const g = c.getContext('2d');
-    const k = Math.max(w / img.naturalWidth, hgt / img.naturalHeight) * 1.08;
-    g.filter = 'blur(16px) saturate(1.6) brightness(0.68)';
-    g.drawImage(img, (w - img.naturalWidth * k) / 2, (hgt - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
-    const url = await new Promise((res) => c.toBlob((b) => res(b ? URL.createObjectURL(b) : ''), 'image/jpeg', 0.9));
-    if (theme.wallpaperUrl !== src) {
-      if (url) URL.revokeObjectURL(url);
-      return blurCache.src === theme.wallpaperUrl ? blurCache.url : '';
-    }
-    if (blurCache.url && !screen) URL.revokeObjectURL(blurCache.url);
-    blurCache = { src, url };
-    return url;
-  } catch {
-    return '';
+    info = await api.invoke('users:current');
+  } catch {}
+  if (!info) {
+    try {
+      const si = await api.invoke('sys:info');
+      info = { name: si.user, fullName: si.fullName };
+    } catch {}
   }
+  info = info || { name: env.user };
+  let picture = info.picture || info.avatar || null;
+  const home = shell.xdg?.home || env.home;
+  if (!picture && home) {
+    for (const f of [`${home}/.face`, `${home}/.face.icon`, `${home}/.config/aurora/avatar.png`]) {
+      if (await api.invoke('fs:exists', f).catch(() => false)) {
+        picture = f;
+        break;
+      }
+    }
+  }
+  const url = picture ? (/^(app|media|data|blob|https?):/.test(picture) ? picture : api.mediaUrl(picture)) : null;
+  userCache = { name: info.fullName || info.name || env.user || '', url };
+  return userCache;
+}
+const initials = (name) =>
+  String(name || '?')
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('') || '?';
+function avatarEl(u) {
+  const fallback = () => h('span', { class: 'sec-avatar', 'aria-hidden': 'true' }, initials(u.name));
+  if (!u.url) return fallback();
+  return h('img', { class: 'sec-avatar', src: u.url, alt: '', draggable: false, onerror: (e) => e.target.replaceWith(fallback()) });
 }
 
 function netIcon(st) {
@@ -203,17 +207,20 @@ async function buildSecurity() {
   wm.endKeyboardMove?.(false);
   const go = (fn) => () => closeScreen(fn);
   const opts = [
-    { key: 'lock', icon: 'lock_closed', action: go(() => shell.lock()) },
-    { key: 'switchUser', icon: 'person_swap', action: go(() => shell.lock()) },
-    { key: 'signOut', icon: 'sign_out', action: go(() => powerAction('signOut')) },
+    { key: 'lock', icon: 'lock-simple', action: go(() => shell.lock()) },
+    { key: 'switchUser', icon: 'user-switch', action: go(() => shell.lock()) },
+    { key: 'signOut', icon: 'sign-out', action: go(() => powerAction('signOut')) },
     { key: 'changePassword', icon: 'password', hidden: !registry.get('settings'), action: go(() => shell.launch('settings', { page: 'accounts', section: 'password' })) },
-    { key: 'taskManager', icon: 'task_list_ltr', hidden: !registry.get('taskmgr'), action: go(() => shell.launch('taskmgr')) },
+    { key: 'taskManager', icon: 'chart-line', hidden: !registry.get('taskmgr'), action: go(() => shell.launch('taskmgr')) },
   ].filter((o) => !o.hidden);
-  const buttons = opts.map((o) => h('button', { class: 'sec-opt', dataset: { key: o.key }, onclick: o.action }, t(`security.${o.key}`)));
+  // Icon tiles: the label is the button's only text (tests and screen readers read it as is).
+  const buttons = opts.map((o) =>
+    h('button', { class: 'sec-opt', role: 'menuitem', dataset: { key: o.key }, onclick: o.action }, h('span', { class: 'sec-opt-ic', 'aria-hidden': 'true' }, icon(o.icon, { size: 22 })), h('span', { class: 'sec-opt-label' }, t(`security.${o.key}`))),
+  );
   const cancel = h('button', { class: 'sec-cancel', onclick: () => closeScreen() }, t('security.cancel'));
-  const netBtn = h('button', { class: 'sec-tray-btn', hidden: true, 'aria-label': t('security.network'), 'data-tip': t('security.network') }, icon('wifi_1', { size: 20 }));
-  const a11yBtn = h('button', { class: 'sec-tray-btn', 'aria-label': t('security.accessibility'), 'data-tip': t('security.accessibility') }, icon('accessibility', { size: 20 }));
-  const powerBtn = h('button', { class: 'sec-tray-btn', 'aria-label': t('security.power'), 'data-tip': t('security.power') }, icon('power', { size: 20 }));
+  const netBtn = h('button', { class: 'sec-tray-btn', hidden: true, 'aria-label': t('security.network'), 'data-tip': t('security.network') }, icon('wifi-high', { size: 18 }));
+  const a11yBtn = h('button', { class: 'sec-tray-btn', 'aria-label': t('security.accessibility'), 'data-tip': t('security.accessibility') }, icon('accessibility', { size: 18 }));
+  const powerBtn = h('button', { class: 'sec-tray-btn', 'aria-label': t('security.power'), 'data-tip': t('security.power') }, icon('power', { size: 18 }));
   let netState = null;
   netBtn.addEventListener('click', (e) =>
     ui.menu(
@@ -248,30 +255,40 @@ async function buildSecurity() {
       { above: true },
     ),
   );
-  // The screen comes up at once; the blurred wallpaper (normally precomputed while idle) fades in when ready.
+  // The wallpaper itself (already decoded for the desktop), dimmed by a flat scrim: no blur.
   const img = h('div', { class: 'sec-bg-img' });
+  if (theme.wallpaperUrl) img.style.backgroundImage = `url("${String(theme.wallpaperUrl).replace(/"/g, '%22')}")`;
   const bg = h('div', { class: 'sec-bg' }, img);
-  const showBlur = (url) => {
-    if (!url) return;
-    img.style.backgroundImage = `url("${url}")`;
-    img.classList.add('ready');
-  };
-  if (blurCache.src && blurCache.src === theme.wallpaperUrl) showBlur(blurCache.url);
-  else blurredWallpaper().then(showBlur);
+  const who = h('div', { class: 'sec-who' }, avatarEl({ name: env.user, url: null }), h('div', { class: 'sec-who-text' }, h('div', { class: 'sec-name' }, env.user || ''), h('div', { class: 'sec-q' }, t('security.question'))));
+  loadUser().then((u) => {
+    if (!who.isConnected && screen?.el !== el) return;
+    who.firstChild.replaceWith(avatarEl(u));
+    who.querySelector('.sec-name').textContent = u.name;
+  });
   const el = h(
     'div',
     {
       class: 'sec-screen wm-keep-focus kbd',
       role: 'dialog',
       'aria-modal': 'true',
+      'aria-label': t('security.question'),
       tabindex: '-1',
-      // Opened from the keyboard: the focused option shows its focus rectangle (like Windows) until the mouse is used.
+      // Opened from the keyboard: the focused option shows its focus ring until the mouse is used.
       onpointerdown: (e) => e.currentTarget.classList.remove('kbd'),
       onkeydown: (e) => e.currentTarget.classList.add('kbd'),
     },
     bg,
-    h('div', { class: 'sec-center' }, h('div', { class: 'sec-list', role: 'menu' }, buttons), cancel),
-    h('div', { class: 'sec-tray' }, netBtn, a11yBtn, powerBtn),
+    h(
+      'div',
+      { class: 'sec-center' },
+      h(
+        'div',
+        { class: 'sec-card' },
+        who,
+        h('div', { class: 'sec-list', role: 'menu', style: `--sec-cols:${COLS}` }, buttons),
+        h('div', { class: 'sec-foot' }, h('div', { class: 'sec-tray' }, netBtn, a11yBtn, powerBtn), cancel),
+      ),
+    ),
   );
   const focusables = () => [...buttons, cancel];
   const onKey = (e) => {
@@ -281,11 +298,19 @@ async function buildSecurity() {
       e.preventDefault();
       e.stopPropagation();
       closeScreen();
-    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    } else if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      if (e.target.closest?.('.sec-tray')) return;
       e.preventDefault();
       const list = focusables();
       const i = list.indexOf(document.activeElement);
-      list[(i + (e.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length].focus();
+      const n = buttons.length;
+      let j;
+      if (i < 0) j = 0;
+      else if (e.key === 'ArrowRight') j = (i + 1) % list.length;
+      else if (e.key === 'ArrowLeft') j = (i - 1 + list.length) % list.length;
+      else if (e.key === 'ArrowDown') j = i >= n ? 0 : i + COLS < n ? i + COLS : n; // last row -> Cancel
+      else j = i >= n ? Math.max(0, n - 1) : i - COLS >= 0 ? i - COLS : n; // first row -> Cancel
+      list[j].focus();
     }
   };
   screen = { el, onKey, prevWin: wm.focused() };
@@ -295,7 +320,7 @@ async function buildSecurity() {
   setTimeout(() => buttons[0]?.focus(), 40);
   try {
     netState = await api.invoke('net:status');
-    netBtn.replaceChildren(icon(netIcon(netState), { size: 20 }));
+    netBtn.replaceChildren(icon(netIcon(netState), { size: 18 }));
     netBtn.dataset.tip = netLabel(netState);
     netBtn.hidden = false;
   } catch {
@@ -351,11 +376,8 @@ export function mount(ctx) {
   shell.on('security:open', () => openSecurity());
   shell.on('shutdown:dialog', () => openShutdownDialog());
   shell.on('lock', () => closeScreen(() => {}));
-  // Precompute the blurred wallpaper while the shell is idle (and again when the wallpaper changes), so the
-  // screen never waits for it.
-  const warm = () => (window.requestIdleCallback || setTimeout)(() => blurredWallpaper(), { timeout: 4000 });
-  setTimeout(warm, 3000);
-  theme.on('wallpaper', () => setTimeout(warm, 1000));
+  // Read the user's name and picture while the shell is idle, so the card shows them at once.
+  setTimeout(() => (window.requestIdleCallback || setTimeout)(() => loadUser(), { timeout: 4000 }), 3000);
   ctx.security = {
     open: openSecurity,
     close: () => closeScreen(),

@@ -90,7 +90,7 @@
     "thisApp": "Cette application",
     "password": "Mot de passe",
     "question": "Autoriser cette application à modifier le système ?",
-    "publisher": "Éditeur vérifié : Selene OS",
+    "publisher": "Fourni par Selene OS",
     "enterPassword": "Pour continuer, entrez le mot de passe de {user}."
   },
   "taskbar": {

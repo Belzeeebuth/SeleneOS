@@ -1,7 +1,7 @@
-// Search flyout (taskbar search button, Win+S): Windows 11 search panel above the taskbar.
-//   Big search box, category pivot (All / Apps / Documents / Settings / Web), top apps + recent
-//   searches + quick searches when empty, results list with a preview pane for the selection
-//   (app: Open / Pin; file: Open / Open file location / Copy path; settings; web).
+// Search flyout (the bar's search button, Win+S): a search field over one results list grouped by kind
+//   (Applications, Fichiers, Réglages, Web), the best group first and its first result selected; a preview pane on the
+//   right only for an app or a file (Open / Pin; Open / Open file location / Copy path). Empty: recent items and
+//   common settings as one list. Keys: Up/Down move, Enter opens, Ctrl+Tab / Alt+Left/Right narrow to one kind.
 //   Shell events: 'search:toggle', 'search:open' ({ query }), 'search:close'.
 import { createFlyout } from '../taskbar.js';
 import { SearchView } from '../start.js';
@@ -51,7 +51,7 @@ function render() {
     else if (e.key === 'ArrowUp') (e.preventDefault(), sv.move(-1));
     else if (e.key === 'Enter') {
       e.preventDefault();
-      if (!input.value.trim()) return;
+      if (!input.value.trim() && !sv.hasSelection()) return;
       sv.activate();
     } else if ((e.key === 'Tab' && e.ctrlKey) || (e.altKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft'))) {
       e.preventDefault();

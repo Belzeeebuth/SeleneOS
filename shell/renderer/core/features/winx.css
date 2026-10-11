@@ -1,15 +1,30 @@
 /* Menu rapide (Super+X) and window menu (Alt+Space). */
 .menu.wm-accel-menu {
-  min-width: 248px;
+  min-width: 240px;
 }
+.menu.wm-accel-menu .menu-header {
+  padding: 8px 12px 4px;
+  color: var(--text-2);
+  font-family: var(--font-display);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.menu.wm-accel-menu .menu-header:first-child {
+  padding-top: 4px;
+}
+.menu.wm-accel-menu .menu-item .icon {
+  color: var(--text-2);
+}
+/* Access keys work at any time; the letters are underlined only while Alt is held. */
 .accel-label u {
+  text-decoration: none;
+}
+.menu.wm-accel-menu.alt-keys .accel-label u {
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-thickness: 1px;
-}
-/* Opened with the mouse: no underlines (they show only for keyboard use). */
-.menu.wm-accel-menu:not(.kbd) .accel-label u {
-  text-decoration: none;
 }
 .tb-start.open {
   background: var(--subtle-hover);

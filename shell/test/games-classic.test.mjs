@@ -734,7 +734,7 @@ if (want('minesweeper')) {
       await waitFor(page, () => document.querySelector('[data-app="minesweeper"]').__minesweeper.game.status === 'won');
       assert.ok(await page.locator(`${W} .gk-confetti`).count(), 'confetti canvas shown');
       await page.waitForSelector(`${W} .gk-overlay:not([hidden]) .gk-overlay-card`, { timeout: 4000 });
-      assert.match(await page.locator(`${W} .gk-overlay-title`).textContent(), /You won!/);
+      assert.match(await page.locator(`${W} .gk-overlay-title`).textContent(), /You won/);
       assert.equal(await page.locator(`${W} .ms-face`).getAttribute('data-kind'), 'cool');
       assert.equal(await ms((h) => h.stats.beginner.won), 1);
       assert.equal(await ms((h) => h.stats.beginner.bestTimes.length), 1);

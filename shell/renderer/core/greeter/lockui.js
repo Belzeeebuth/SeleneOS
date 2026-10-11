@@ -1,4 +1,4 @@
-// Windows 11 style lock / sign-in screen, shared by the sign-in screen (core/greeter/greeter.js,
+// Selene lock / sign-in screen, shared by the sign-in screen (core/greeter/greeter.js,
 // greeter mode) and the desktop lock screen (core/features/lock.js).
 //
 //   const ls = new LockScreen({
@@ -6,6 +6,7 @@
 //     users: [{ name, fullName, avatarUrl, passwordless }],  selected: 'name',
 //     wallpaper: url,                               // sharp picture of the first ("curtain") view
 //     clock24h: () => true|false|null,             // null = locale default
+//     nextEvent: async () => ({ title, at, allDay } | null),   // lock: next calendar event, shown under the date
 //     onAuth: async (user, password) => ({ ok: true } | { error: 'auth'|'rate'|'expired'|'other', retryAfter, message, detail }),
 //     onSuccess: (user) => {},                     // the screen stays in its "Welcome" state; the owner dismisses it
 //     onPower: async ('sleep'|'shutdown'|'restart') => {},   confirmPower: bool | () => bool (warn that apps are open)
@@ -23,10 +24,32 @@
 // (one stop: arrow keys / Home / End move inside it), the tray buttons.
 import { h, icon, ui } from '../ui.js';
 import { i18n, t } from '../i18n.js';
-import { blurredImage, topLuminance } from './backdrop.js';
+import { topLuminance } from './backdrop.js';
 import { KB_CODES, LANG_CODES } from './strings.js';
 
 const IDLE_COVER_MS = 60000;
+
+// Moon phase, computed locally: age in the synodic month from a known new moon (2000-01-06 18:14 UTC).
+const SYNODIC = 29.530588853;
+export function moonPhase(date = new Date()) {
+  const days = (date.getTime() - Date.UTC(2000, 0, 6, 18, 14)) / 86400000;
+  const f = (((days / SYNODIC) % 1) + 1) % 1; // 0 = new, 0.5 = full
+  return { fraction: f, index: Math.round(f * 8) % 8 };
+}
+// A small moon glyph: the dark disc, then the lit part bounded by the limb and the terminator (an ellipse).
+function moonSvg(f, size = 18) {
+  const r = 9;
+  const c = 10;
+  const k = Math.cos(2 * Math.PI * f); // 1 = new, -1 = full
+  const rx = Math.abs(k) * r;
+  const waxing = f < 0.5;
+  // Limb: the lit half (right while waxing, left while waning); terminator back to the top.
+  const limb = `M${c} ${c - r}A${r} ${r} 0 0 ${waxing ? 1 : 0} ${c} ${c + r}`;
+  const crescent = k > 0; // less than half lit
+  const term = `A${rx.toFixed(2)} ${r} 0 0 ${waxing === crescent ? 0 : 1} ${c} ${c - r}Z`;
+  const lit = f < 0.02 || f > 0.98 ? '' : `<path d="${limb}${term}" fill="currentColor"/>`;
+  return `<svg viewBox="0 0 20 20" width="${size}" height="${size}" aria-hidden="true"><circle cx="${c}" cy="${c}" r="${r}" fill="currentColor" opacity="0.22"/><circle cx="${c}" cy="${c}" r="${r - 0.5}" fill="none" stroke="currentColor" stroke-opacity="0.5"/>${lit}</svg>`;
+}
 
 export function initials(name) {
   const parts = String(name || '')
@@ -120,7 +143,7 @@ export class LockScreen {
     this.retryUntil = 0;
     this.revealed = false;
     this.disposers = [];
-    this.timers = { clock: 0, idle: 0, retry: 0 };
+    this.timers = { clock: 0, idle: 0, retry: 0, next: 0 };
     this.net = null;
     this.battery = null;
     this.badges = [];
@@ -181,12 +204,17 @@ export class LockScreen {
     this.usersEl = h('div', { class: 'lk-users', role: 'listbox' });
     this.usersEl.addEventListener('scroll', () => this._usersScrolled(), { passive: true });
     this.tray = h('div', { class: 'lk-tray' });
-    this.signin = h('div', { class: 'lk-signin' }, this.blur, h('div', { class: 'lk-scrim' }), h('div', { class: 'lk-center' }, this.card), this.usersEl, this.tray);
+    // Sign-in screen: the user list is a column of avatars beside the centred card. Lock screen: the card
+    // rises from the clock's corner and the list (Switch user) stays apart.
+    const side = this.mode === 'greeter';
+    this.signin = h('div', { class: 'lk-signin' }, this.blur, h('div', { class: 'lk-scrim' }), h('div', { class: 'lk-center' }, side ? this.usersEl : null, this.card), side ? null : this.usersEl, this.tray);
 
     // ---- curtain (clock)
     this.wall = h('div', { class: 'lk-wall' });
     this.timeEl = h('div', { class: 'lk-time' });
     this.dateEl = h('div', { class: 'lk-date' });
+    this.moonEl = h('div', { class: 'lk-moon' });
+    this.nextEl = h('div', { class: 'lk-next', hidden: true });
     this.badgesEl = h('div', { class: 'lk-badges', hidden: true });
     this.statusEl = h('div', { class: 'lk-status', 'aria-hidden': 'true' });
     this.hintEl = h('div', { class: 'lk-sr' });
@@ -195,7 +223,7 @@ export class LockScreen {
       { class: 'lk-curtain', 'data-theme-scope': '', 'data-theme': 'dark' },
       this.wall,
       h('div', { class: 'lk-shade' }),
-      h('div', { class: 'lk-clock' }, this.timeEl, this.dateEl),
+      h('div', { class: 'lk-clock' }, this.timeEl, this.dateEl, h('div', { class: 'lk-extra' }, this.moonEl, this.nextEl)),
       this.badgesEl,
       this.statusEl,
       this.hintEl,
@@ -254,11 +282,13 @@ export class LockScreen {
       this.el.style.setProperty('--lk-shade-a', (light ? 0.42 : Math.max(0.24, veil(lum || 0))).toFixed(2));
       this.el.style.setProperty('--lk-veil', Math.max(0.12, veil((lum || 0) * 0.48)).toFixed(2));
     });
-    const blurred = await blurredImage(url, { blur: 30, brightness: 0.72, saturate: 1.3 });
-    if (blurred) {
-      this.blur.style.backgroundImage = `url("${blurred}")`;
+    // The sign-in view shows the wallpaper itself under a flat scrim: no blur (costly in a VM).
+    const img = new Image();
+    img.onload = () => {
+      this.blur.style.backgroundImage = `url("${String(url).replace(/"/g, '%22')}")`;
       this.blur.classList.add('ready');
-    }
+    };
+    img.src = url;
   }
 
   // ---------------------------------------------------------------- texts (language switch)
@@ -316,7 +346,39 @@ export class LockScreen {
     let date = i18n.formatDate(now, { weekday: 'long', month: 'long', day: 'numeric' });
     date = date.charAt(0).toUpperCase() + date.slice(1);
     if (force || this.timeEl.textContent !== time) this.timeEl.textContent = time;
-    if (force || this.dateEl.textContent !== date) this.dateEl.textContent = date;
+    if (force || this.dateEl.textContent !== date) {
+      this.dateEl.textContent = date;
+      const m = moonPhase(now);
+      this.moonEl.innerHTML = `${moonSvg(m.fraction)}<span>${t(`lockui.moon${m.index}`)}</span>`;
+      this._renderNext();
+    }
+  }
+
+  // Next calendar event (lock screen): today's next one, or tomorrow's first.
+  async _loadNext() {
+    if (!this.o.nextEvent) return;
+    try {
+      this.next = (await this.o.nextEvent()) || null;
+    } catch {
+      this.next = null;
+    }
+    this._renderNext();
+  }
+
+  _renderNext() {
+    const ev = this.next;
+    if (!ev || !ev.title || !(ev.at > Date.now() - (ev.allDay ? 86400000 : 0))) {
+      this.nextEl.hidden = true;
+      return;
+    }
+    const d = new Date(ev.at);
+    const today = new Date();
+    const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    const h24 = this.o.clock24h?.();
+    const time = i18n.formatTime(d, h24 == null ? { hour: 'numeric', minute: '2-digit' } : { hour: 'numeric', minute: '2-digit', hour12: !h24 });
+    const key = ev.allDay ? 'lockui.nextAllDay' : d.toDateString() === tomorrow.toDateString() ? 'lockui.nextTomorrow' : 'lockui.nextToday';
+    this.nextEl.replaceChildren(icon('calendar-blank', { size: 16 }), h('span', { class: 'lk-next-text' }, t(key, { title: ev.title, time })));
+    this.nextEl.hidden = false;
   }
 
   // ---------------------------------------------------------------- lifecycle
@@ -325,6 +387,9 @@ export class LockScreen {
     this._tick(true);
     clearInterval(this.timers.clock);
     this.timers.clock = setInterval(() => this._tick(false), 1000);
+    this._loadNext();
+    clearInterval(this.timers.next);
+    if (this.o.nextEvent) this.timers.next = setInterval(() => this._loadNext(), 5 * 60000);
     if (animate && !reduceMotion()) {
       this.el.classList.add('lk-entering');
       setTimeout(() => this.el.classList.remove('lk-entering'), 1500);
@@ -354,6 +419,7 @@ export class LockScreen {
       } catch {}
     }
     clearInterval(this.timers.clock);
+    clearInterval(this.timers.next);
     clearTimeout(this.timers.idle);
     clearInterval(this.timers.retry);
     ui.closeMenus?.();

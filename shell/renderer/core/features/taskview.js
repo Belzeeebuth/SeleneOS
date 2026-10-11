@@ -1,10 +1,12 @@
 // Task View (Super+Tab, taskbar button) and virtual desktops.
 //   The REAL window elements are scaled/translated (CSS transform, no cloning, content stays live) into a
-//   non-overlapping grid with icon + title above each; click to switch (animated back), X to close,
-//   right-click for Snap / Move to desktop / Close; arrow keys + Enter / Delete, Esc or Super+Tab exits.
-//   Bottom strip: one tile per desktop (live miniature of its windows) + "New desktop". Hover a tile to
-//   preview that desktop's windows, click to switch, double-click the name (or right-click) to rename,
-//   X to close it (its windows move to the neighbour). Drag a window onto a tile to move it there.
+//   non-overlapping grid with icon + title UNDER each; click to switch (animated back), a small round
+//   close button on hover, right-click for Snap / Move to desktop / Close; arrow keys + Enter / Delete,
+//   Esc or Super+Tab exits.
+//   Top strip: one card per desktop (live miniature of its windows, name under it, the current one
+//   highlighted) and a discreet round "+" at the end. Hover a card to preview that desktop's windows,
+//   click to switch, click the name (or right-click) to rename inline, X to close it (its windows move to
+//   the neighbour). Drag a window onto a desktop card (or the "+") to move it there.
 //   Super+Ctrl+←/→ switch desktops (with a slide animation and a name pill), Super+Ctrl+D new desktop,
 //   Super+Ctrl+F4 closes the current one. Desktop names persist in storage 'shell' / 'desktops'.
 //   Shell bus: 'taskview:toggle' 'taskview:open' 'taskview:close'; closes itself on 'start:toggle',
@@ -50,8 +52,8 @@ i18n.extend({
 
 const DUR = 300;
 const EASE = 'cubic-bezier(0.1, 0.9, 0.2, 1)';
-const TITLE = 36;
-const STRIP_H = 178;
+const TITLE = 34; // room for the icon + title under each thumbnail
+const STRIP_H = 156; // the desktops strip at the top
 const reduceMotion = () => document.documentElement.dataset.animations === 'off';
 const dur = () => (reduceMotion() ? 0 : DUR);
 
@@ -102,7 +104,8 @@ export function computeLayout(items, area, { gapX = 28, gapY = 24, title = TITLE
     let x = area.x + (area.width - rowW) / 2;
     const maxIh = rowHs[ri] - title;
     for (const s of r) {
-      out.set(s.id, { x: Math.round(x), y: Math.round(y + title + (maxIh - s.ih) / 2), width: Math.round(s.iw), height: Math.round(s.ih) });
+      // Thumbnails share the row's bottom line; the title sits under each one.
+      out.set(s.id, { x: Math.round(x), y: Math.round(y + (maxIh - s.ih)), width: Math.round(s.iw), height: Math.round(s.ih) });
       x += s.iw + gapX;
     }
     y += rowHs[ri] + gapY;
@@ -117,7 +120,7 @@ function elementBox(win) {
 
 function gridArea() {
   const L = wm.layer.getBoundingClientRect();
-  return { x: 56, y: 48, width: L.width - 112, height: L.height - STRIP_H - 48 - 24 };
+  return { x: 56, y: STRIP_H + 28, width: L.width - 112, height: L.height - STRIP_H - 28 - 32 };
 }
 
 // ------------------------------------------------------------------ desktops strip
@@ -198,8 +201,8 @@ function renderStrip() {
       },
       h(
         'div',
-        { class: 'tv-desk-head' },
-        name,
+        { class: 'tv-desk-pic' },
+        deskThumb(d.id),
         wm.desktops.length > 1
           ? h(
               'button',
@@ -213,13 +216,13 @@ function renderStrip() {
                   wm.removeDesktop(d.id, { animate: false });
                 },
               },
-              icon('dismiss', { size: 12 }),
+              icon('x', { size: 12 }),
             )
           : null,
       ),
-      deskThumb(d.id),
+      h('div', { class: 'tv-desk-head' }, name),
     );
-    // Like Windows 11: clicking the name renames, clicking the picture switches.
+    // Clicking the name renames it inline; clicking the picture switches.
     name.title = t('taskview.rename');
     name.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -234,13 +237,13 @@ function renderStrip() {
       role: 'button',
       tabindex: '-1',
       'aria-label': t('taskview.newDesktop'),
+      'data-tip': t('taskview.newDesktop'),
       dataset: { desk: '__new' },
       onclick: () => {
         wm.createDesktop();
       },
     },
-    h('div', { class: 'tv-desk-head' }, h('span', { class: 'tv-desk-name ellipsis' }, t('taskview.newDesktop'))),
-    h('div', { class: 'tv-desk-thumb tv-new-thumb', style: { aspectRatio: String(wm.layer.clientWidth / Math.max(1, wm.layer.clientHeight)) } }, icon('add', { size: 24 })),
+    h('span', { class: 'tv-new-btn', 'aria-hidden': 'true' }, icon('plus', { size: 18 })),
   );
   tv.strip.replaceChildren(h('div', { class: 'tv-desks', role: 'list', 'aria-label': t('taskview.desktops') }, desks, add));
 }
@@ -333,28 +336,23 @@ function buildCard(win) {
       dataset: { id: win.id },
       oncontextmenu: (e) => cardMenu(e, win),
     },
-    h(
-      'div',
-      { class: 'tv-head' },
-      h('img', { class: 'tv-icon', src: win.iconUrl || registry.iconUrl(win.appId), alt: '', draggable: false }),
-      titleEl,
-      h(
-        'button',
-        {
-          class: 'tv-x',
-          tabindex: '-1',
-          'aria-label': t('taskview.close'),
-          'data-tip': t('taskview.close'),
-          onpointerdown: (e) => e.stopPropagation(),
-          onclick: (e) => {
-            e.stopPropagation();
-            closeWin(win);
-          },
-        },
-        icon('dismiss', { size: 12 }),
-      ),
-    ),
     h('div', { class: 'tv-hit' }),
+    h(
+      'button',
+      {
+        class: 'tv-x',
+        tabindex: '-1',
+        'aria-label': t('taskview.close'),
+        'data-tip': t('taskview.close'),
+        onpointerdown: (e) => e.stopPropagation(),
+        onclick: (e) => {
+          e.stopPropagation();
+          closeWin(win);
+        },
+      },
+      icon('x', { size: 12 }),
+    ),
+    h('div', { class: 'tv-head' }, h('img', { class: 'tv-icon', src: win.iconUrl || registry.iconUrl(win.appId), alt: '', draggable: false }), titleEl),
   );
   const plate = h('div', { class: 'tv-plate' });
   card.addEventListener('pointerenter', () => plate.classList.add('hover'));
@@ -414,7 +412,7 @@ function layout({ instant = false, appear = false } = {}) {
     el.style.transform = T;
     el.style.opacity = '';
     const pad = 8;
-    const box = { left: r.x - pad, top: r.y - TITLE, width: r.width + pad * 2, height: r.height + TITLE + pad };
+    const box = { left: r.x - pad, top: r.y - pad, width: r.width + pad * 2, height: r.height + pad + TITLE };
     for (const node of [c.card, c.plate]) {
       Object.assign(node.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
     }
@@ -442,7 +440,7 @@ function layout({ instant = false, appear = false } = {}) {
 }
 
 function preview(deskId) {
-  if (!tv || tv.shown === deskId || tv.exiting) return;
+  if (!tv || tv.shown === deskId || tv.exiting || tv.drag) return;
   tv.shown = deskId;
   layout();
 }
@@ -468,7 +466,7 @@ function startCardDrag(e, win, card) {
   let dragging = false;
   let over = null;
   card.setPointerCapture?.(e.pointerId);
-  const stripTop = tv.strip.getBoundingClientRect().top;
+  const stripBottom = tv.strip.getBoundingClientRect().bottom;
   const move = (ev) => {
     const dx = ev.clientX - sx;
     const dy = ev.clientY - sy;
@@ -483,7 +481,7 @@ function startCardDrag(e, win, card) {
       win.el.style.transition = 'transform 90ms linear';
       win.el.style.zIndex = String(Number(win.el.style.zIndex || 0) + 1000000);
     }
-    const small = ev.clientY > stripTop - 30;
+    const small = ev.clientY < stripBottom + 30;
     const s = small ? Math.min(base.s, 150 / Math.max(1, elementBox(win).width)) : base.s;
     const gx = (sx - base.tx) / base.s;
     const gy = (sy - base.ty) / base.s;
@@ -542,7 +540,7 @@ function moveSel(dx, dy) {
         }
       });
       if (bi >= 0) sel.index = bi;
-      else if (dy > 0) {
+      else if (dy < 0) {
         sel.area = 'desks';
         sel.index = Math.max(0, wm.desktopIndex(tv.shown));
       }
@@ -550,7 +548,7 @@ function moveSel(dx, dy) {
   } else if (sel.area === 'desks') {
     const n = wm.desktops.length + 1;
     if (dx) sel.index = (sel.index + dx + n) % n;
-    if (dy < 0 && tv.order.length) {
+    if (dy > 0 && tv.order.length) {
       sel.area = 'cards';
       sel.index = 0;
     }
@@ -626,9 +624,9 @@ export function open() {
         if (e.target === root || e.target === cardsLayer) exit(null);
       },
     },
+    strip,
     cardsLayer,
     empty,
-    strip,
   );
   tv = { root, backdrop, plates, cardsLayer, strip, empty, cards: new Map(), shown: wm.currentDesktop, order: [], sel: null, prevFocus: wm.focused(), exiting: false };
   document.body.classList.add('tv-on');

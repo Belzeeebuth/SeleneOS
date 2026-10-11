@@ -1038,10 +1038,12 @@ class WindowManager extends Emitter {
       if (x + w > wa.x + wa.width) x = wa.x + 8;
       if (y + hgt > wa.y + wa.height) y = wa.y + 8;
     }
-    win.x = Math.round(x);
-    win.y = Math.round(y);
-    win.w = Math.round(Math.max(win.opts.minWidth, w));
-    win.h = Math.round(Math.max(win.opts.minHeight, hgt));
+    // A new window always opens inside the work area (beside / above the bar in every bar style), even when its minimum
+    // size or the position it asked for would put part of it under the bar or off screen.
+    win.w = Math.round(Math.min(Math.max(win.opts.minWidth, w), wa.width));
+    win.h = Math.round(Math.min(Math.max(win.opts.minHeight, hgt), wa.height));
+    win.x = Math.round(Math.max(wa.x, Math.min(x, wa.x + wa.width - win.w)));
+    win.y = Math.round(Math.max(wa.y, Math.min(y, wa.y + wa.height - win.h)));
     if (opts.maximized && win.opts.maximizable) {
       // Open straight into the maximized state (no open + maximize double animation).
       win.restoreRect = win.rect();

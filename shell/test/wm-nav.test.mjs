@@ -479,7 +479,9 @@ async function mainRun() {
       await page.click('.tv-new');
       await sleep(300);
       check('"New desktop" adds a desktop tile', (await A(() => window.__aurora.wm.desktops.length)) === 2 && (await A(() => document.querySelectorAll('.tv-desk:not(.tv-new)').length)) === 2);
-      // Drag a window card onto Desktop 2.
+      // Drag a window card onto Desktop 2 (first leave the top strip, where "+" was clicked, so no hover preview runs).
+      await page.mouse.move(24, 600);
+      await sleep(450);
       const drag = await A(() => {
         const c = document.querySelector('.tv-card[aria-label="Project plan"]').getBoundingClientRect();
         const d = document.querySelectorAll('.tv-desk:not(.tv-new)')[1].getBoundingClientRect();
@@ -492,7 +494,7 @@ async function mainRun() {
       check('dragging a card highlights the desktop tile', await A(() => !!document.querySelector('.tv-desk.drop')));
       await shot('wm-taskview-drag');
       await page.mouse.up();
-      await page.mouse.move(drag.sx, 120, { steps: 3 }); // off the strip: back to the current desktop
+      await page.mouse.move(24, 600, { steps: 3 }); // off the top strip: back to the current desktop
       await sleep(700);
       const moved = await A(() => window.__aurora.wm.list().find((w) => w.title === 'Project plan')?.desktop);
       const d2 = await A(() => window.__aurora.wm.desktops[1].id);
@@ -542,7 +544,7 @@ async function mainRun() {
     if (want('tvkeys')) {
       await closeAll();
       for (const t of ['K1', 'K2', 'K3']) await newWin(t, { width: 600, height: 400 });
-      await page.mouse.move(1592, 6); // keyboard-only scenario: no hover previews
+      await page.mouse.move(1592, 450); // keyboard-only scenario: no hover previews (off the top strip)
       await sleep(300);
       const key = (k, o = {}) => A(([k, o]) => document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, ...o })), [k, o]);
       await hk('Super+Tab');
@@ -564,7 +566,7 @@ async function mainRun() {
       await page.hover('.tv-desk:nth-child(2) .tv-desk-thumb');
       await sleep(450);
       check('hover previews never destroy an open rename box', await A(() => document.activeElement?.classList.contains('tv-rename')));
-      await page.mouse.move(1592, 6);
+      await page.mouse.move(1592, 450); // leave the top strip: the preview goes back to the current desktop
       await sleep(350);
       await page.keyboard.press('Escape');
       await sleep(100);
@@ -778,7 +780,7 @@ async function mainRun() {
       await shot('wm-winx', true);
       await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'u', bubbles: true })));
       await sleep(350);
-      check('accelerator opens "Shut down or sign out" submenu', await A(() => document.querySelectorAll('body > .menu').length === 2));
+      check('accelerator U opens the "Shut down or restart" submenu', await A(() => document.querySelectorAll('body > .menu').length === 2));
       await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
       await A(() => window.__aurora.ui.closeMenus());
       await sleep(200);
@@ -1015,7 +1017,7 @@ async function frenchDarkRun() {
     await sleep(600);
     await A(() => window.__aurora.wm.createDesktop());
     await sleep(300);
-    check('fr: Task View strings localized', (await A(() => document.querySelector('.tv-new .tv-desk-name').textContent)) === 'Nouveau bureau' && (await A(() => document.querySelector('.tv-desk .tv-desk-name').textContent)) === 'Bureau 1');
+    check('fr: Task View strings localized', (await A(() => document.querySelector('.tv-new').getAttribute('aria-label'))) === 'Nouveau bureau' && (await A(() => document.querySelector('.tv-desk .tv-desk-name').textContent)) === 'Bureau 1');
     await shot('wm-taskview-fr-dark', true, { rest: true });
     await A(() => window.__aurora.taskview.close());
     await sleep(400);
@@ -1048,7 +1050,15 @@ async function frenchDarkRun() {
     await sleep(300);
     const winx = await A(() => [...document.querySelectorAll('.menu.wm-accel-menu .menu-item .label')].map((l) => l.textContent));
     const hasTm = await A(() => !!window.__aurora.registry.get('taskmgr'));
-    check('fr: Win+X localized', (!hasTm || winx.includes('Moniteur système')) && winx.includes('Fichiers') && winx.includes('Exécuter') && winx.includes('Bureau') && winx.includes('Arrêter ou se déconnecter'), winx.join(', '));
+    check('fr: Win+X localized', (!hasTm || winx.includes('Moniteur système')) && winx.includes('Fichiers') && winx.includes('Exécuter') && winx.includes('Bureau') && winx.includes('Éteindre ou redémarrer') && winx.includes('Verrouiller') && winx.includes('Paramètres'), winx.join(', '));
+    check('fr: Win+X grouped in sections', (await A(() => [...document.querySelectorAll('.menu.wm-accel-menu .menu-header')].map((x) => x.textContent).join('|'))) === 'Système|Session|Raccourcis');
+    check('fr: Win+X items carry icons', await A(() => [...document.querySelectorAll('.menu.wm-accel-menu .menu-item')].every((r) => !!r.querySelector('.icon svg'))));
+    check('fr: Win+X access keys not underlined until Alt is held', await A(() => getComputedStyle(document.querySelector('.menu.wm-accel-menu .accel-label u')).textDecorationLine === 'none'));
+    await page.keyboard.down('Alt');
+    await sleep(80);
+    check('fr: holding Alt shows the access keys', await A(() => getComputedStyle(document.querySelector('.menu.wm-accel-menu .accel-label u')).textDecorationLine === 'underline'));
+    await page.keyboard.up('Alt');
+    await sleep(50);
     check('fr: Win+X labels not clipped', (await clipped('.menu.wm-accel-menu .menu-item .label')).length === 0);
     await shot('wm-winx-fr-dark', true);
     await A(() => window.__aurora.ui.closeMenus());
@@ -1488,7 +1498,8 @@ async function sizesRun(size, lang, theme) {
     await sleep(500);
     await A(() => window.__aurora.wm.createDesktop());
     await sleep(250);
-    check(`${tag}: Task View cards and desktop tiles on screen, above the strip`, (await offscreen('.tv-card, .tv-desk')) === 0 && (await A(() => [...document.querySelectorAll('.tv-card')].every((c) => c.getBoundingClientRect().bottom <= document.querySelector('.tv-strip').getBoundingClientRect().top))));
+    check(`${tag}: Task View cards and desktop cards on screen, below the top strip`, (await offscreen('.tv-card, .tv-desk')) === 0 && (await A(() => [...document.querySelectorAll('.tv-card')].every((c) => c.getBoundingClientRect().top >= document.querySelector('.tv-strip').getBoundingClientRect().bottom))));
+    check(`${tag}: Task View titles sit under the thumbnails`, await A(() => [...document.querySelectorAll('.tv-card')].every((c) => c.querySelector('.tv-head').getBoundingClientRect().top >= c.querySelector('.tv-hit').getBoundingClientRect().bottom - 1)));
     check(`${tag}: desktop names not cut`, (await clipped('.tv-desk-name')).length === 0);
     await hk('Super+Tab');
     await sleep(450);

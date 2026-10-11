@@ -1,4 +1,4 @@
-/* Search flyout (features/search.js); the results view (.sv-*) is styled in shell.css.
+/* Search flyout (features/search.js); the results view (.sv-*) is styled in shell.css, its grouped-list layout below.
    Same glass surface as the Lanceur; it opens on the left, above the Lanceur's search button
    (core/taskbar-start.css places it for every bar edge). */
 #search-panel {
@@ -13,7 +13,10 @@
   bottom: calc(var(--taskbar-h) + 12px);
   width: 800px;
   max-width: calc(100vw - 24px);
-  height: min(700px, calc(100vh - var(--taskbar-h) - 24px));
+  /* as tall as the list needs (up to 700 px): no empty well under a short list */
+  height: auto;
+  min-height: min(440px, calc(100vh - var(--taskbar-h) - 24px));
+  max-height: min(700px, calc(100vh - var(--taskbar-h) - 24px));
   margin-left: -400px;
   display: flex;
   flex-direction: column;
@@ -97,11 +100,107 @@ body.tb-left #search-panel {
 .sp-body {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding: 0 20px 16px;
 }
 #search-panel.open .sv-main {
   animation: start-fade-up 360ms var(--ease) 40ms backwards;
 }
-#search-panel .sv-topapps {
-  grid-template-columns: repeat(3, 1fr);
+
+/* ---- results view (core/start.js SearchView, also used by the Lanceur's inline search): one list grouped by kind,
+   a preview pane on the right only while an app or a file is selected. */
+.sv .sv-main {
+  grid-template-columns: minmax(0, 1fr);
+}
+.sv.with-preview .sv-main {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+}
+.sv:not(.with-preview) .sv-preview {
+  display: none;
+}
+.sv .sv-group + .sv-group,
+.sv .sv-pending + .sv-group {
+  margin-top: 6px;
+}
+.sv .sv-head {
+  padding: 8px 12px 4px;
+  color: var(--text-2);
+  font: 600 var(--fs-small) / 1.3 var(--font);
+}
+.sv button.sv-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: start;
+}
+.sv button.sv-group-head:hover {
+  color: var(--text);
+  background: var(--subtle-hover);
+}
+.sv button.sv-group-head .icon {
+  margin-inline-start: auto;
+  opacity: 0;
+  transition: opacity var(--dur-fast) linear;
+}
+.sv button.sv-group-head:hover .icon,
+.sv button.sv-group-head:focus-visible .icon {
+  opacity: 1;
+}
+.sv .sv-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--subtle-hover);
+  color: var(--text-2);
+  font: 500 var(--fs-caption) / 18px var(--font);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.sv .sv-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin: 0 0 4px 4px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-small);
+}
+.sv .sv-back:hover {
+  background: var(--subtle-hover);
+}
+.sv .sv-group-head:focus-visible,
+.sv .sv-back:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.sv .sv-row {
+  min-height: 40px;
+  border: 0;
+  transition: background var(--dur-fast) var(--ease);
+}
+.sv .sv-row:hover {
+  background: var(--subtle-hover);
+}
+.sv .sv-row.selected {
+  background: var(--sel-bg);
+  box-shadow: inset var(--sel-bar-w, 0) 0 0 var(--sel-bar, var(--accent));
+}
+.sv .sv-row.selected::before {
+  content: none;
+}
+.sv .sv-sub {
+  color: var(--text-2);
+}
+.sv .sv-preview {
+  background: var(--card);
+  border: 1px solid var(--line-soft);
 }
