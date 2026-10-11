@@ -323,6 +323,9 @@ function request(acc, password, method, p, { headers = {}, body = null, bodyFile
         if (status === 404) return reject(err('This item does not exist', 'ENOENT'));
         if (status === 405 && method === 'MKCOL') return reject(err('This name is already taken', 'EEXIST'));
         if (status >= 400) return reject(err(`The server answered ${status}`, 'EHTTP'));
+        // Redirects are not followed: a GET would otherwise "succeed" with an empty body (empty file saved).
+        // HEAD keeps its answer (a 3xx there still means the name exists).
+        if (status >= 300 && method !== 'HEAD') return reject(err(`The server answered ${status}`, 'EHTTP'));
         resolve({ status, text });
       });
       res.on('error', (e) => reject(err(e.message, 'ENET')));
@@ -471,7 +474,11 @@ module.exports = function register(api) {
     return true;
   });
 
-  api.handle('cloud:download', async (id, p, opts = {}, event) => {
+  // The IPC event is always the last argument: when the renderer omits opts, it lands in opts.
+  const split = (opts, event) => (opts && typeof opts.sender === 'object' && !event ? [{}, opts] : [opts || {}, event]);
+
+  api.handle('cloud:download', async (id, p, rawOpts, rawEvent) => {
+    const [opts, event] = split(rawOpts, rawEvent);
     const acc = await account(id);
     const remote = cleanPath(p);
     const name = checkName(remote.split('/').pop()).replace(/^\.+/, '_');
@@ -482,8 +489,9 @@ module.exports = function register(api) {
       if (opts.keepBoth) dest = await uniqueLocal(dir, name);
       else if (!opts.overwrite) throw err(`"${name}" is already in Downloads`, 'EEXIST');
     }
-    const part = path.join(dir, `.${path.basename(dest)}.${process.pid}.part`);
-    const fh = await fsp.open(part, 'w', 0o644);
+    // Unique temp name + 'wx': two downloads of the same file at once must not share (and corrupt) one .part file.
+    const part = path.join(dir, `.${path.basename(dest)}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.part`);
+    const fh = await fsp.open(part, 'wx', 0o644);
     const tick = progress(event, opts.opId, 'download');
     let done = 0;
     let writing = Promise.resolve();
@@ -505,7 +513,8 @@ module.exports = function register(api) {
     }
   });
 
-  api.handle('cloud:upload', async (id, localPath, remoteDir, opts = {}, event) => {
+  api.handle('cloud:upload', async (id, localPath, remoteDir, rawOpts, rawEvent) => {
+    const [opts, event] = split(rawOpts, rawEvent);
     const acc = await account(id);
     const st = await fsp.stat(String(localPath)).catch(() => null);
     if (!st || !st.isFile()) throw err('This file cannot be read', 'EREAD');
