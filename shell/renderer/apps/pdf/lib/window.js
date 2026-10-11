@@ -484,6 +484,8 @@ export class PdfWindow {
     }
     const prev = this.activeTab;
     this.closeFlyout();
+    // The floating sidebar of a narrow window is a light-dismiss panel: it does not follow to another tab.
+    if (this.narrowSidebar && this.isNarrow()) this.narrowSidebar = false;
     if (prev) {
       prev.el.classList.remove('active');
       prev.el.setAttribute('aria-selected', 'false');

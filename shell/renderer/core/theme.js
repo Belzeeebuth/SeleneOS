@@ -905,7 +905,14 @@ export function watchTheme() {
   if (winRoot) {
     new MutationObserver((recs) => {
       const all = settings.all();
-      for (const r of recs) for (const n of r.addedNodes) if (n.nodeType === 1 && n.classList.contains('win')) decorateWindow(n, all);
+      for (const r of recs) {
+        for (const n of r.addedNodes) if (n.nodeType === 1 && n.classList.contains('win')) decorateWindow(n, all);
+        // a closed window must not stay referenced (it would keep its whole DOM and app alive)
+        for (const n of r.removedNodes) {
+          if (n === lastPointerWin) lastPointerWin = null;
+          if (n === hoverWin) hoverWin = null;
+        }
+      }
     }).observe(winRoot, { childList: true });
   }
   watchAppSheets();

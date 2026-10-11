@@ -1155,6 +1155,30 @@ if (!unitOnly) {
     check('picked Jan 15 through the year view', await CAL(s, (app) => app.state.date.toDateString()), 'Thu Jan 15 2026');
   });
 
+  await section('QA3: switching the language live re-labels everything and keeps the view', async () => {
+    const start = await run(s, `(() => { const d = new Date(); d.setDate(d.getDate() + 5); d.setHours(14, 0, 0, 0); return d.getTime(); })()`);
+    await seed(s, [{ id: 'lang1', title: 'Language check', start, end: start + 3600000, reminder: 30, location: 'Lyon' }]);
+    await CAL(s, (app, start) => {
+      app.state.date = new Date(start);
+      app.state.view = 'week';
+      app.render();
+      app.viewEl.querySelector('.ac-tg-scroll').scrollTop = 10 * 48;
+    }, start);
+    await sleep(300);
+    const sc0 = await run(s, `document.querySelector('${WIN} .ac-tg-scroll').scrollTop`);
+    await run(s, `window.__aurora.settings.set('lang', 'fr'); 0`);
+    await until(async () => (await run(s, `document.querySelector('${WIN} .ac-new-label')?.textContent`)) === 'Nouvel événement', { label: 'French labels' });
+    await sleep(300);
+    check('window title in French', await run(s, `document.querySelector('${WIN} .win-title, ${WIN} .win-titlebar .title')?.textContent || window.__aurora.wm.list().find((w) => w.appId === 'calendar')?.title`), 'Calendrier');
+    check('time grid keeps its scroll position', [sc0, await run(s, `document.querySelector('${WIN} .ac-tg-scroll').scrollTop`)], [10 * 48, 10 * 48]);
+    check('24-hour labels', await run(s, `[...document.querySelectorAll('${WIN} .ac-tg-hour')][13].textContent`), '14:00');
+    check('reminder text re-written in French', await run(s, `window.__aurora.shell.reminders.list('calendar').find((r) => r.data?.eventId === 'lang1')?.body || ''`), (b) => /14:00 – 15:00 · Lyon$/.test(b) && /^[a-zé]+\./.test(b));
+    await run(s, `window.__aurora.settings.set('lang', 'en'); 0`);
+    await until(async () => (await run(s, `document.querySelector('${WIN} .ac-new-label')?.textContent`)) === 'New event', { label: 'English labels' });
+    check('back in English', await run(s, `window.__aurora.wm.list().find((w) => w.appId === 'calendar')?.title`), 'Calendar');
+    await CAL(s, async (app) => app.commit(app.data.events.filter((e) => e.id !== 'lang1')));
+  });
+
   await section('QA: no listener or node leaks when the app is opened and closed', async () => {
     const cdp = await s.page.context().newCDPSession(s.page);
     const counts = async () => {

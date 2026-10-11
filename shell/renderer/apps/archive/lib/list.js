@@ -371,6 +371,8 @@ export class DetailsList {
   onPointerDown(e) {
     this.dropPendingUp();
     if (e.target.closest('.arc-dh')) return;
+    // the list's own scrollbars: scrolling must not clear the selection or start a rubber band
+    if (e.target === this.el && (e.offsetX >= this.el.clientWidth || e.offsetY >= this.el.clientHeight)) return;
     if (e.button !== 0 && e.button !== 2) return;
     const i = this.indexAt(e);
     if (i < 0) {

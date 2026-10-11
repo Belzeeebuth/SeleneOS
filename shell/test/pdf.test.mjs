@@ -1240,6 +1240,11 @@ async function runMain() {
   const errorLogs = (from) => s.logs.slice(from).filter((l) => /^\[(error|pageerror)\]/.test(l) && !/Failed to load resource/.test(l));
 
   await section('qa: close prompts are never stacked', async () => {
+    // (a regular window size: the earlier size checks leave it at its minimum)
+    await W(s, (w) => {
+      if (w) w.win.setSize(1100, 760);
+    });
+    await sleep(400);
     // (two documents: closing the last tab would close the window)
     await openFile(s, f.guide);
     await ready(s);
@@ -1349,6 +1354,26 @@ async function runMain() {
     await focusDoc(s);
   });
 
+  await section('qa: the floating sidebar of a narrow window closes on tab switch', async () => {
+    await openFile(s, f.second);
+    await ready(s);
+    await W(s, (w) => w.win.setSize(600, 500));
+    await until(() => run(s, `document.querySelector('${WIN} .pdf-root').classList.contains('narrow')`), { label: 'narrow layout' });
+    await focusDoc(s);
+    await s.page.keyboard.press('F4');
+    await until(() => run(s, `!document.querySelector('${WIN} .pdf-sidebar').hidden`), { label: 'floating sidebar open' });
+    await s.page.keyboard.press('Control+Tab');
+    await until(() => W(s, (w) => w.active?.name !== 'Second document.pdf'), { label: 'other tab' });
+    check('qa: floating sidebar closed after a tab switch', await run(s, `document.querySelector('${WIN} .pdf-sidebar').hidden`), true);
+    await W(s, (w) => {
+      w.win.setSize(1100, 760);
+      w.activate(w.tabs.find((t) => t.doc?.ready));
+      w.toggleSidebar(true);
+    });
+    await sleep(400);
+    check('qa: docked sidebar back in a wide window', await run(s, `!document.querySelector('${WIN} .pdf-sidebar').hidden && getComputedStyle(document.querySelector('${WIN} .pdf-sidebar')).position !== 'absolute'`), true);
+  });
+
   await section('qa: crash-safe save', async () => {
     const docs = path.join(s.home, 'Documents');
     const real = path.join(docs, 'Real target.pdf');
@@ -1357,10 +1382,15 @@ async function runMain() {
     fs.symlinkSync(real, link);
     await openFile(s, link);
     await ready(s);
+    await W(s, (w) => w.active.goToPage(1));
+    await sleep(300);
     await s.page.click(`${WIN} [data-cmd="highlight"]`);
     await until(async () => (await state(s)).mode === 9, { label: 'highlight mode' });
-    await dragText(s, 1, 'test document', 0.9);
-    await until(async () => (await state(s)).dirty, { label: 'dirty' });
+    const box = await dragText(s, 1, 'test document', 0.9);
+    await until(async () => (await state(s)).dirty, { label: 'dirty' }).catch(async (err) => {
+      const info = await run(s, `(() => { const e = document.elementFromPoint(${box.x + 4}, ${box.y}); return { at: e?.className + ' / ' + e?.parentElement?.className, sel: String(document.getSelection()), path: document.querySelector('${WIN}').__pdf.active.path, layout: document.querySelector('${WIN}').__pdf.active.layout }; })()`);
+      throw new Error(`${err.message} ${JSON.stringify({ box, info, st: await state(s) })}`);
+    });
     await s.page.keyboard.press('Escape');
     await until(async () => (await state(s)).mode === 0, { label: 'tool off' });
     const before = fs.statSync(real).size;
@@ -1451,18 +1481,24 @@ async function runMain() {
         await shared.init({ api: window.aurora, storage: { get: (n, fb) => window.aurora.invoke('storage:get', 'pdf', n, fb) } });
       })()`,
     );
-    await s.page.keyboard.press('Control+t');
+    await W(s, (w) => {
+      w.newTab();
+    });
     await until(() => run(s, `document.querySelectorAll('${WIN} .pdf-start:not([hidden]) .pdf-recent-row').length === 5`), { label: 'start page with the sanitized list' });
     check('qa: rows of a tampered list', await run(s, `[...document.querySelectorAll('${WIN} .pdf-start:not([hidden]) .pdf-recent-name')].map((e) => e.textContent)`), ['Bad date', 'Huge', 'Tracker', '<img src=x onerror=alert(1)>', 'noname.pdf']);
     check('qa: no remote thumbnail', await run(s, `[...document.querySelectorAll('${WIN} .pdf-recent-row img')].filter((i) => !i.src.startsWith('data:')).length`), 0);
     check('qa: no markup injected', await run(s, `document.querySelectorAll('img[src="x"]').length`), 0);
     check('qa: no errors from a tampered list', errorLogs(from), []);
     await run(s, `(async () => { const { shared } = await import('app://shell/apps/pdf/lib/shared.js'); shared.recent = ${JSON.stringify(saved)}; shared.saveRecent(); })()`);
-    await s.page.keyboard.press('Control+w');
+    await W(s, (w) => {
+      w.closeTab();
+    });
     await sleep(300);
   });
 
   await section('qa: open with lists apps that open files', async () => {
+    await openFile(s, f.guide);
+    await ready(s);
     await W(s, (w) => {
       w.openWith();
     });

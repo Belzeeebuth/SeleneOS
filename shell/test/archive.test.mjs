@@ -661,6 +661,95 @@ async function backendTests() {
     }
     check('symlink chains: nothing outside any destination', outsideEvil(), []);
   });
+
+  await section('backend: QA2 regressions (flattened links, link targets, add base, symlink loops, Windows zips)', async () => {
+    // A link that stays inside the archive's tree ("a/b/c/d/host.txt -> ../../../../etc/hostname" is "etc/hostname")
+    // points far outside once it is extracted alone (its parent folders dropped): the preview must not read
+    // /etc/hostname, Copy / drag-out must not hand out a link to it, Extract must not write it.
+    const fl = path.join(O, 'flat.tar');
+    fs.writeFileSync(fl, makeTar([
+      { name: 'a/b/c/d/host.txt', type: 'symlink', link: '../../../../etc/hostname' },
+      { name: 'a/b/c/d/up', type: 'symlink', link: '../../../..' },
+      { name: 'etc/hostname', data: 'inside copy' },
+    ]));
+    check('flattened links: safe inside the archive', (await call('archive:list', fl, {})).unsafe, []);
+    check('preview of a link: its target, never the file it points to', await call('archive:preview', fl, 'a/b/c/d/host.txt', { session: 'qa2', text: 4096 }), { link: '../../../../etc/hostname', size: 0 });
+    const tx = await call('archive:extractTemp', fl, { entries: ['a/b/c/d/host.txt', 'a/b/c/d/up'], session: 'qa2', sub: 'flat' });
+    check('copy / drag-out: links that would escape are dropped', [tx.ERR, tx.items, tx.skipped?.map((x) => x.reason)], [undefined, [], ['link', 'link']]);
+    const fd = path.join(O, 'flat-out', 'dest');
+    const fr = await call('archive:extract', fl, fd, { entries: ['a/b/c/d/host.txt', 'a/b/c/d/up'] });
+    check('extract selected: no link leading outside the destination', fs.existsSync(fd) ? fs.readdirSync(fd) : [], []);
+    check('extract selected: reported as skipped links', fr.skipped?.map((x) => path.basename(x.path)).sort(), ['host.txt', 'up']);
+    const lt = path.join(O, 'links.tar');
+    fs.writeFileSync(lt, makeTar([{ name: 'lib/', type: 'dir' }, { name: 'lib/libfoo.so.1', data: 'real' }, { name: 'lib/libfoo.so', type: 'symlink', link: 'libfoo.so.1' }]));
+    const ld = path.join(O, 'links-out');
+    await call('archive:extract', lt, ld, { entries: ['lib'] });
+    check('a link that stays inside the extracted folder is kept', fs.readlinkSync(path.join(ld, 'lib', 'libfoo.so')), 'libfoo.so.1');
+    // link targets of zip / 7z entries (7-Zip's listing doesn't show them)
+    run('7z', ['a', '-t7z', '-snl', '-bd', path.join(O, 'links.7z'), 'code', 'docs'], { cwd: SRC });
+    check('zip link: target returned by the preview', (await call('archive:preview', fx('t.zip'), 'code/readme-link', { session: 'qa2' })).link, '../docs/readme.txt');
+    check('7z link: target returned by the preview', (await call('archive:preview', path.join(O, 'links.7z'), 'code/readme-link', { session: 'qa2' })).link, '../docs/readme.txt');
+    check('preview of an item that is not in the archive: ENOENTRY', (await call('archive:preview', fx('t.zip'), 'nope.txt', { session: 'qa2' })).ERR, 'ENOENTRY');
+    // archive:add's "base" (the folder inside the archive) can't climb out of the staging folder
+    const planted = path.join(FIX, `planted-${TAG}`);
+    for (const f of ['t.zip', 't.tar.gz']) {
+      const copy = path.join(O, `base-${f}`);
+      fs.copyFileSync(fx(f), copy);
+      const r = await call('archive:add', copy, [path.join(SRC, 'data.bin')], { base: `../../../../../../../../..${planted}` });
+      check(`${f}: add with a "../.." folder is refused`, [r.ERR, fs.existsSync(planted)], ['EINVAL', false]);
+    }
+    // links inside compressed folders are stored as links, never followed ("up -> .." would loop forever)
+    const loop = path.join(O, 'loop');
+    fs.mkdirSync(loop);
+    fs.writeFileSync(path.join(loop, 'f.txt'), 'f');
+    fs.symlinkSync('..', path.join(loop, 'up'));
+    for (const fmt of ['zip', '7z', 'tar.gz']) {
+      const out = path.join(O, `loop.${fmt}`);
+      const r = await call('archive:create', [loop], out, { format: fmt });
+      const l = await call('archive:list', out, {});
+      check(`${fmt}: a symlink loop is stored as a link`, [r.ERR, names(l), l.entries?.find((e) => e.path === 'loop/up')?.link != null], [undefined, ['loop/', 'loop/f.txt', 'loop/up'], true]);
+    }
+    fs.mkdirSync(path.join(O, 'a-folder.zip'));
+    check('create over an existing folder: EEXIST', (await call('archive:create', [path.join(SRC, 'data.bin')], path.join(O, 'a-folder.zip'), { format: 'zip' })).ERR, 'EEXIST');
+    check('create from a missing item: ENOITEM', (await call('archive:create', [path.join(O, 'nope')], path.join(O, 'nope.zip'), { format: 'zip' })).ERR, 'ENOITEM');
+    // add a folder (holding a link to its parent) into a sub-folder, and items from two folders at the root
+    const addSrc = path.join(O, 'addsrc');
+    fs.mkdirSync(path.join(addSrc, 'pkg'), { recursive: true });
+    fs.writeFileSync(path.join(addSrc, 'pkg', 'a.txt'), 'a');
+    fs.symlinkSync('..', path.join(addSrc, 'pkg', 'up'));
+    fs.writeFileSync(path.join(addSrc, 'root-add.txt'), 'r');
+    for (const fmt of ['zip', '7z', 'tar.gz']) {
+      const f = path.join(O, `addsub.${fmt}`);
+      fs.copyFileSync(fx(`t.${fmt}`), f);
+      const r = await call('archive:add', f, [path.join(addSrc, 'pkg')], { base: 'docs/notes' });
+      const l = await call('archive:list', f, {});
+      const has = (p) => l.entries.some((e) => e.path === p);
+      check(`${fmt}: added into a sub-folder, the link inside stored as a link`, [r.ERR, has('docs/notes/pkg/a.txt'), l.entries.find((e) => e.path === 'docs/notes/pkg/up')?.link != null, l.entries.some((e) => e.path.startsWith('docs/notes/pkg/up/')), has('docs/readme.txt')], [undefined, true, true, false, true]);
+      const r2 = await call('archive:add', f, [path.join(addSrc, 'root-add.txt'), path.join(SRC, 'docs', 'readme.txt')], {});
+      const l2 = await call('archive:list', f, {});
+      check(`${fmt}: items from two folders added at the root`, [r2.ERR, ['root-add.txt', 'readme.txt', 'docs/readme.txt'].every((p) => l2.entries.some((e) => e.path === p))], [undefined, true]);
+    }
+    check('no staging folder left next to the archives', fs.readdirSync(O).filter((n) => n.startsWith('.aurora-')), []);
+    // zips made on Windows (Windows PowerShell's Compress-Archive) use '\' between folders
+    const wz = path.join(O, 'win.zip');
+    fs.writeFileSync(wz, makeZip([
+      { name: 'ok.txt', data: 'ok' },
+      { name: 'dir\\sub\\file.txt', data: 'deep' },
+      { name: `..\\evil-win-${TAG}.txt`, data: 'x' },
+      { name: `\\tmp\\aurora-evil-win-${TAG}.txt`, data: 'y' },
+    ]));
+    const wl = await call('archive:list', wz, {});
+    check('Windows zip: "\\" separates folders', names(wl), ['dir/sub/file.txt', 'ok.txt']);
+    check('Windows zip: "..\\x" and "\\abs" are unsafe', wl.unsafe?.map((u) => u.reason).sort(), ['absolute', 'parent']);
+    const wd = path.join(O, 'win-out');
+    const wr = await call('archive:extract', wz, wd, { skipUnsafe: true });
+    check('Windows zip: extracted into folders', [wr.ERR, listTree(wd)], [undefined, ['dir/', 'dir/sub/', 'dir/sub/file.txt', 'ok.txt']]);
+    check('Windows zip: preview of a nested file', (await call('archive:preview', wz, 'dir/sub/file.txt', { session: 'qa2', text: 100 })).text, 'deep');
+    const ws = await call('archive:extract', wz, path.join(O, 'win-sel'), { entries: ['dir/sub'] });
+    check('Windows zip: extract a sub-folder', [ws.ERR, listTree(path.join(O, 'win-sel'))], [undefined, ['sub/', 'sub/file.txt']]);
+    await call('archive:cleanup', 'qa2');
+    check('QA2: nothing outside any destination', outsideEvil(), []);
+  });
 }
 
 // ================================================================== part 2: UI
@@ -694,6 +783,8 @@ async function openArchive(file) {
 }
 async function shotDoc(name) {
   await sleep(400);
+  // a shell notification left by an earlier step ("No app to open data.bin") doesn't belong in the docs
+  await evalJs(`document.querySelectorAll('.toast').forEach((t) => (t.style.visibility = 'hidden'))`);
   const f = await s.shot(name);
   fs.copyFileSync(f, path.join(DOCS, `${name}.png`));
 }
@@ -1330,6 +1421,158 @@ async function uiTests() {
     check('shared state keeps no window ctx', after.ctx, 'api,storage');
   });
 
+  await section('ui: QA2 regressions (links, preview password, marquee, dates, recent focus, names)', async () => {
+    const escAll = async () => {
+      for (let i = 0; i < 5 && (await dialogOpen()); i++) {
+        await s.page.keyboard.press('Escape');
+        await sleep(250);
+      }
+    };
+    // a link inside the archive opens its target, like a shortcut (extracted alone, it would dangle)
+    await closeAll();
+    const lt = fx('links-ui.tar');
+    fs.writeFileSync(lt, makeTar([
+      { name: 'lib/', type: 'dir' },
+      { name: 'lib/libfoo.so.1', data: 'real library' },
+      { name: 'lib/libfoo.so', type: 'symlink', link: 'libfoo.so.1' },
+      { name: 'notes.txt', data: 'the notes' },
+      { name: 'current.txt', type: 'symlink', link: 'notes.txt' },
+      { name: 'docs', type: 'symlink', link: 'lib' },
+    ]));
+    await openArchive(lt);
+    await s.aurora(() => {
+      window.__opened = [];
+      const sh = window.__aurora.shell;
+      sh.__origOpenFile ||= sh.openFile;
+      sh.openFile = (p) => (window.__opened.push(p), Promise.resolve(true));
+    });
+    await dblRow('current.txt');
+    await until(async () => (await evalJs('window.__opened.length')) > 0, { label: 'link opened' });
+    check('link to a file: its target is opened', await evalJs('window.__opened[0]'), (p) => /\/notes\.txt$/.test(p));
+    check('link to a file: no error', await dialogOpen(), false);
+    await dblRow('docs');
+    await until(async () => (await W((w) => w.folder.path)) === 'lib', { label: 'folder link entered' });
+    check('link to a folder: the folder is entered', await W((w) => w.folder.path), 'lib');
+    await s.aurora(() => {
+      const sh = window.__aurora.shell;
+      sh.openFile = sh.__origOpenFile;
+    });
+    // preview of a zip link: shows the target's text and, once known, the target
+    await closeAll();
+    await openArchive(fx('t.zip'));
+    await W((w) => {
+      if (w.preview.el.hidden) w.togglePreview();
+      w.navigate(w.tree.all.get('code'));
+      w.list.selectPaths(['code/readme-link']);
+    });
+    await until(async () => (await W((w) => w.preview.el.innerText)).includes('Hello from the Aurora'), { label: 'link preview shows the target' });
+    check('link preview: target row', await W((w) => w.preview.el.innerText), (t) => /Link target\s+\.\.\/docs\/readme\.txt/.test(t));
+    // the date column: Explorer's format
+    check('date column (en)', await evalJs(`document.querySelector('${WIN} .arc-row .c-mtime').textContent`), (t) => /^\d{1,2}\/\d{1,2}\/\d{4} \d{1,2}:\d\d [AP]M$/.test(t));
+    // wrong password typed from the preview pane: said so, asked again
+    await closeAll();
+    await openArchive(fx('enc.zip'));
+    await W((w) => {
+      if (w.preview.el.hidden) w.togglePreview();
+      w.navigate(w.tree.all.get('docs'));
+      w.list.selectPaths(['docs/readme.txt']);
+    });
+    await until(() => evalJs(`!!document.querySelector('${WIN} .arc-preview .arc-pv-lock')`), { label: 'locked preview' });
+    await s.page.locator(`${WIN} .arc-preview .arc-pv-stage .btn`).click();
+    await until(() => dialogOpen(), { label: 'password dialog' });
+    await s.page.keyboard.type('nope');
+    await s.page.keyboard.press('Enter');
+    await until(async () => /incorrect/.test(await W((w) => w.preview.el.innerText)), { label: 'wrong password shown in the preview' });
+    check('preview, wrong password: forgotten', await W((w) => w.password), null);
+    await s.page.locator(`${WIN} .arc-preview .arc-pv-stage .btn`).click();
+    await until(() => dialogOpen(), { label: 'password dialog again' });
+    check('password dialog: the last one was wrong', await dialogText(), (t) => /incorrect/.test(t));
+    await s.page.keyboard.type('secret');
+    await s.page.keyboard.press('Enter');
+    await until(async () => (await W((w) => w.preview.el.innerText)).includes('Hello from the Aurora'), { label: 'preview after the right password' });
+    await W((w) => w.togglePreview());
+    // rubber-band selection from the empty space under the rows
+    await closeAll();
+    await openArchive(fx('t.zip'));
+    const sc = await s.page.locator(`${WIN} .arc-scroll`).boundingBox();
+    const rb = await evalJs(`(() => { const r = document.querySelector('${WIN} .arc-rows').getBoundingClientRect(); return { top: r.top, left: r.left }; })()`);
+    const rowH = await W((w) => w.list.rowH);
+    await s.page.mouse.move(rb.left + 320, sc.y + sc.height - 24);
+    await s.page.mouse.down();
+    await s.page.mouse.move(rb.left + 180, rb.top + 2.5 * rowH, { steps: 10 });
+    check('marquee drawn', await evalJs(`!!document.querySelector('${WIN} .arc-marquee')`), true);
+    await s.page.mouse.up();
+    check('marquee: rows it touched are selected', await W((w) => w.list.selectedNodes().map((n) => n.name)), ['empty', 'images', '[weird] *name?.txt', 'data.bin', UNI]);
+    check('marquee removed on release', await evalJs(`!!document.querySelector('${WIN} .arc-marquee')`), false);
+    check('status follows the marquee', await evalJs(`document.querySelector('${WIN} .arc-status-l').innerText`), (t) => /5 items selected/.test(t));
+    await s.page.keyboard.down('Control');
+    await s.page.mouse.move(rb.left + 320, sc.y + sc.height - 24);
+    await s.page.mouse.down();
+    await s.page.mouse.move(rb.left + 180, rb.top + 5.5 * rowH, { steps: 8 });
+    await s.page.mouse.up();
+    await s.page.keyboard.up('Control');
+    check('Ctrl + marquee toggles', await W((w) => w.list.selectedNodes().map((n) => n.name)), ['empty', 'images', '[weird] *name?.txt']);
+    await s.page.mouse.click(rb.left + 300, sc.y + sc.height - 24);
+    check('click on the empty space clears the selection', await W((w) => w.list.selected.size), 0);
+    // a click on the list's scrollbar scrolls; it doesn't clear the selection or start a rubber band
+    await closeAll();
+    await openArchive(fx('huge.tar'));
+    await dblRow('many');
+    await until(async () => (await W((w) => w.list.items.length)) === 20000, { label: 'huge folder' });
+    await W((w) => w.list.selectPaths(['many/file-00003.txt']));
+    const bar = await evalJs(`(() => { const el = document.querySelector('${WIN} .arc-scroll'); const r = el.getBoundingClientRect(); return { w: el.offsetWidth - el.clientWidth, x: r.right - 4, y: r.top + r.height / 2 }; })()`);
+    check('the list has a vertical scrollbar', bar.w > 0, true);
+    await s.page.mouse.move(bar.x, bar.y);
+    await s.page.mouse.down();
+    await s.page.mouse.move(bar.x - 40, bar.y + 60, { steps: 5 });
+    await s.page.mouse.up();
+    check('scrollbar click: selection kept, no rubber band', [await W((w) => [...w.list.selected]), await evalJs(`!!document.querySelector('${WIN} .arc-marquee')`)], [['many/file-00003.txt'], false]);
+    await closeAll();
+    await openArchive(fx('t.zip'));
+    // Ctrl+A with Caps Lock on
+    await s.page.locator(`${WIN} .arc-scroll`).focus();
+    await evalJs(`document.querySelector('${WIN} .arc-scroll').dispatchEvent(new KeyboardEvent('keydown', { key: 'A', ctrlKey: true, bubbles: true }))`);
+    check('Ctrl+A with Caps Lock selects everything', await W((w) => w.list.selected.size), 7);
+    // Recent list: Delete keeps the keyboard on the list
+    await closeAll();
+    await s.aurora(() => window.__aurora.shell.launch('archive', {}));
+    await until(async () => (await evalJs(`document.querySelectorAll('${WIN} .arc-recent-row').length`)) >= 2, { label: 'recent rows' });
+    const n0 = await evalJs(`document.querySelectorAll('${WIN} .arc-recent-row').length`);
+    await s.page.locator(`${WIN} .arc-recent-row`).first().focus();
+    await s.page.keyboard.press('Delete');
+    await until(async () => (await evalJs(`document.querySelectorAll('${WIN} .arc-recent-row').length`)) === n0 - 1, { label: 'recent entry removed' });
+    check('Recent: focus stays on the list after Delete', await evalJs(`document.activeElement?.classList.contains('arc-recent-row')`), true);
+    // welcome hints readable in the light theme (secondary text, not tertiary)
+    const ratio = await evalJs(`(() => {
+      const rgb = (c) => c.match(/[\\d.]+/g).map(Number);
+      const lum = ([r, g, b]) => [r, g, b].map((v) => (v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+      const el = document.querySelector('${WIN} .arc-formats');
+      let bg = null;
+      for (let e = el; e && !bg; e = e.parentElement) { const c = rgb(getComputedStyle(e).backgroundColor); if (c.length < 4 || c[3] === 1) bg = c; }
+      const fg = rgb(getComputedStyle(el).color);
+      const a = fg[3] ?? 1;
+      const mix = fg.slice(0, 3).map((v, i) => v * a + bg[i] * (1 - a));
+      const [l1, l2] = [lum(mix), lum(bg)].sort((x, y) => y - x);
+      return (l1 + 0.05) / (l2 + 0.05);
+    })()`);
+    check('welcome hints: contrast ≥ 4.5:1 (light)', ratio, (r) => r >= 4.5);
+    // "Compress": a folder keeps its whole name (Windows: "photos.2024" -> "photos.2024.zip")
+    await closeAll();
+    const dotted = path.join(FIX, 'flow-dot', 'photos.2024');
+    fs.mkdirSync(dotted, { recursive: true });
+    fs.writeFileSync(path.join(dotted, 'a.txt'), 'a');
+    await s.aurora((p) => window.__aurora.shell.launch('archive', { compress: [p], format: 'zip' }), dotted);
+    await until(() => fs.existsSync(path.join(FIX, 'flow-dot', 'photos.2024.zip')), { label: 'compress a folder with a dot in its name', timeout: 15000 });
+    await until(async () => (await winCount()) === 0, { label: 'compress window closed' });
+    // a missing item: "can't be found" about the item, not about an archive
+    await s.aurora((p) => window.__aurora.shell.launch('archive', { compress: [p], format: 'zip' }), path.join(FIX, 'flow-dot', 'nope'));
+    await until(() => evalJs(`!!document.querySelector('${WIN} .arc-task-error')`), { label: 'compress error' });
+    check('missing item: the message names the item', await evalJs(`document.querySelector('${WIN} .arc-task-error').innerText`), (t) => /One of the items can't be found/.test(t));
+    await escAll();
+    await closeAll();
+    check('QA2 ui: no console errors', s.errors(), []);
+  });
+
   await section('ui: sizes (minimum, maximized) + no console errors', async () => {
     await closeAll();
     await openArchive(fx('t.zip'));
@@ -1363,6 +1606,7 @@ async function uiTests() {
     await openArchive(fx('t.zip'));
     check('fr columns', await evalJs(`[...document.querySelectorAll('${WIN} .arc-dh-cell')].map((c) => c.textContent)`), ['Nom', 'Type', 'Taille compressée', 'Taille', 'Taux', 'Modifié le']);
     check('fr types', await evalJs(`document.querySelector('${WIN} .arc-row .c-type').textContent`), 'Dossier de fichiers');
+    check('fr date column (Explorer: 11/10/2026 07:10)', await evalJs(`document.querySelector('${WIN} .arc-row .c-mtime').textContent`), (t) => /^\d\d\/\d\d\/\d{4} \d\d:\d\d$/.test(t));
     check('fr status', await evalJs(`document.querySelector('${WIN} .arc-status-l').innerText`), (t) => /7 éléments/.test(t));
     await s.page.keyboard.press('Alt+p');
     await dblRow('images');

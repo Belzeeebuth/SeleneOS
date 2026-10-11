@@ -73,9 +73,12 @@ export class CalendarApp {
     this.offs.push(() => clearInterval(tick));
     this.offs.push(ctx.settings.on('clock24h', () => this.render({ animate: false, keepScroll: true })));
     ctx.onLangChange(() => {
+      // (the time grid is rebuilt: keep its scroll position, read before the old view is removed)
+      const scrollTop = this.viewHandle?.scrollTop?.();
       this.fmt = createFmt(ctx);
+      this.win.setTitle?.(this.t('appName'));
       this.build();
-      this.render({ animate: false, keepScroll: true });
+      this.render({ animate: false, scrollTop });
       this.syncReminders();
     });
     this.offs.push(
@@ -662,7 +665,7 @@ export class CalendarApp {
     this.titleBtn.title = this.state.view === 'month' || this.state.search ? '' : `${this.fmt.dayMed(a)} – ${this.fmt.dayMed(last)}`;
   }
 
-  render({ animate = false, keepScroll = false } = {}) {
+  render({ animate = false, keepScroll = false, scrollTop = null } = {}) {
     const { ui } = this.ctx;
     // flyouts point at elements of the old view
     closeAllPopovers('render');
@@ -680,7 +683,8 @@ export class CalendarApp {
     this.fitToolbar();
     this.mini?.setState({ month: this.state.date, selected: this.state.date, range: this.miniRange() });
 
-    if (!keepScroll) this.tgScroll = null;
+    if (scrollTop != null) this.tgScroll = scrollTop;
+    else if (!keepScroll) this.tgScroll = null;
     else if (this.viewHandle?.scrollTop != null) this.tgScroll = this.viewHandle.scrollTop();
     const hadFocus = this.viewEl.contains(document.activeElement);
     this.viewHandle?.destroy?.();

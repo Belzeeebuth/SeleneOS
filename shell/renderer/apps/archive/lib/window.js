@@ -290,6 +290,7 @@ export class ArchiveWindow {
     const hadFocus = this.root.contains(document.activeElement);
     this.list.destroy();
     this.welcome.destroy();
+    this.preview.clear(); // stops its extraction: the pane is rebuilt
     this.win.body.replaceChildren();
     this.build();
     this.busy = busy;

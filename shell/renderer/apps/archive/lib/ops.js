@@ -67,6 +67,12 @@ export class Progress {
   }
   open() {
     if (this.closed || this.dialogDone) return;
+    // Never on top of another dialog of the window (the "Close anyway?" confirmation of a close clicked right
+    // after starting the operation would end up hidden under it): wait until that one is answered.
+    if (this.w.dialogOpen?.()) {
+      this.timer = setTimeout(() => this.open(), 200);
+      return;
+    }
     const { ui, t } = this.w;
     ui.dialog({
       body: this.body,
