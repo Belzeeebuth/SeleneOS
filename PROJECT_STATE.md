@@ -122,6 +122,12 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
     display, with a restart without 3D if QEMU refuses it at startup. The user confirmed virtio-gl is much smoother.
   - GRUB theme: PNGs must be 8-bit RGB/RGBA (GRUB drew rainbow rings otherwise) and theme fonts must match the .pf2
     names; verify-iso checks both.
+- Build chroot /dev (fixed 2026-10-11): the packages stage used to bind the host's /dev, and systemd-tmpfiles'
+  static-nodes-permissions.conf in the chroot chown'd the HOST's /dev/kvm to the image's kvm GID (994) 0660, so the
+  user lost KVM after every packages stage. build.sh now gives the chroot a private tmpfs /dev (mount_private_dev).
+  Recovery on the host: `sudo udevadm trigger --action=add --sysname-match=kvm` (or reboot).
+- Linux GUI apps checked in the real ISO under QEMU (2026-10-11): aurora-xwm starts with the shell ("helper ready"),
+  an xmessage window shows inside a Selene frame with taskbar entry.
 - The user builds on an Arch-like host with fish (heredocs fail; use `bash` first) and `sudo make docker-iso`.
 - Browser: pop-ups open as tabs (`window.opener` missing); real sites blocked by the build container's proxy.
 - Mail: no OAuth2; passwords are obfuscated, not encrypted (no keyring).
