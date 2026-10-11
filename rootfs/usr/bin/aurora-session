@@ -1,0 +1,29 @@
+#!/bin/sh
+# Aurora OS desktop session. greetd starts it for the user who signed in (and, in the live
+# image, automatically for the live user through [initial_session]). It prepares the user
+# environment, then runs X + /usr/lib/aurora/aurora-xsession on the session's VT. When the
+# shell exits (sign out), the session ends and greetd shows the sign-in screen again.
+set -eu
+. /usr/lib/aurora/aurora-common
+
+cd "$HOME" 2>/dev/null || cd /
+aurora_locale_env
+
+# Language chosen in Settings (the shell reads AURORA_LANG; keep LANG consistent with it).
+if [ -z "${AURORA_LANG:-}" ]; then
+  _lang="$(aurora_user_setting lang || true)"
+  case "$_lang" in en|fr) export AURORA_LANG="$_lang" ;; esac
+fi
+case "${AURORA_LANG:-}:${LANG:-}" in
+  fr:fr*|en:en*|:*) ;;
+  fr:*) export LANG=fr_FR.UTF-8 ;;
+  en:*) export LANG=en_US.UTF-8 ;;
+esac
+
+export XDG_SESSION_TYPE=x11
+export XDG_CURRENT_DESKTOP=Aurora
+export XDG_SESSION_DESKTOP=aurora
+export DESKTOP_SESSION=aurora
+
+exec systemd-cat --identifier=aurora-session --stderr-priority=warning \
+  /usr/lib/aurora/aurora-xstart /usr/lib/aurora/aurora-xsession

@@ -1,0 +1,15 @@
+#!/bin/sh
+# Aurora Shell — the desktop (fullscreen Electron app). Started by aurora-xsession inside the
+# user's X session; extra arguments are passed to the shell (e.g. --open=calculator).
+# GPU: software rendering is used automatically without a 3D-capable GPU (see
+# /usr/lib/aurora/aurora-common; override with AURORA_GPU=on|off or aurora.gpu= on the
+# kernel command line).
+set -eu
+. /usr/lib/aurora/aurora-common
+if [ -z "${DISPLAY:-}" ]; then
+  aurora_log "aurora-shell needs an X display (DISPLAY is not set); the desktop is started by aurora-session"
+  exit 1
+fi
+aurora_electron_setup
+# shellcheck disable=SC2086
+exec /opt/aurora/electron/electron $AURORA_FLAGS /opt/aurora/shell --mode=shell "$@"

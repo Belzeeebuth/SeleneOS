@@ -6,3 +6,7 @@ node_modules/
 *.qcow2
 *.img
 /shell/test/out/
+
+# The repository root ignores every "bin/" directory (generic template): keep the image's
+# /usr/bin scripts (aurora-shell, aurora-session) in git.
+!/rootfs/usr/bin/

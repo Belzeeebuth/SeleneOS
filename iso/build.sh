@@ -237,6 +237,15 @@ preflight() {
   [[ -x "$NODE_BIN/npm" ]] || command -v npm >/dev/null 2>&1 || missing+=("npm (node 22)")
   [[ -d /usr/lib/grub/i386-pc ]] || missing+=("grub-pc-bin")
   [[ -d /usr/lib/grub/x86_64-efi ]] || missing+=("grub-efi-amd64-bin")
+  # The session scripts must be in the checkout (a download that lost them or their executable bit
+  # would otherwise fail only at the end of the system stage, half an hour later).
+  local f bad=()
+  for f in usr/bin/aurora-shell usr/bin/aurora-session usr/lib/aurora/aurora-greeter usr/lib/aurora/aurora-xsession \
+           usr/lib/aurora/aurora-xstart usr/lib/aurora/aurora-xgreeter; do
+    [[ -f "$ROOTFS_SRC/$f" ]] || { bad+=("$f (missing)"); continue; }
+    [[ -x "$ROOTFS_SRC/$f" ]] || bad+=("$f (not executable)")
+  done
+  ((${#bad[@]} == 0)) || die "incomplete rootfs/ in $ROOTFS_SRC: ${bad[*]} — update the checkout (git pull) or run: chmod +x rootfs/usr/bin/* rootfs/usr/lib/aurora/aurora-*"
   ((${#missing[@]} == 0)) || die "missing build tools: ${missing[*]}
   On Ubuntu/Debian: apt-get install debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin \\
     grub-common mtools dosfstools librsvg2-bin imagemagick unzip curl zstd  (+ Node.js 22)"
