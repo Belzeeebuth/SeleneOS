@@ -166,6 +166,12 @@ def pick_icon(values, want=32):
     return png_data_url(w, h, [int(v) & 0xffffffff for v in values[start:start + w * h]])
 
 
+def clamp_geometry(x, y, w, h):
+    """Keep a geometry inside what the X protocol can carry (INT16 position, CARD16 size)."""
+    return (min(max(x, -32768), 32767), min(max(y, -32768), 32767),
+            min(max(w, 1), 32767), min(max(h, 1), 32767))
+
+
 class Client(object):
     def __init__(self, window):
         self.window = window
@@ -220,8 +226,12 @@ class XWM(object):
             return ''
 
     def on_xerror(self, err, request):
-        # Asynchronous errors: BadWindow / BadMatch races with clients going away are normal.
-        log('debug', 'X error %s' % err.__class__.__name__)
+        # Asynchronous errors: BadWindow / BadMatch races with clients going away are normal. This runs
+        # inside python-xlib's reply parser, so only record the error here (log() would flush the
+        # display from within it); the main loop reports them.
+        errs = self.__dict__.setdefault('xerrors', [])
+        if len(errs) < 50:
+            errs.append(err.__class__.__name__)
 
     def prop(self, window, name, ptype=X.AnyPropertyType):
         try:
@@ -641,7 +651,7 @@ class XWM(object):
         gx, gy, gw, gh = dr['geom']
         dx, dy = rx - dr['ax'], ry - dr['ay']
         if dr['dir'] == MOVERESIZE_MOVE:
-            return gx + dx, gy + dy, gw, gh
+            return clamp_geometry(gx + dx, gy + dy, gw, gh)
         left, top, right, bottom = MOVERESIZE_EDGES[dr['dir']]
         h = dr['hints']
 
@@ -652,7 +662,7 @@ class XWM(object):
         ht = clamp(gh - dy if top else gh + dy if bottom else gh, h['minHeight'], h['maxHeight'])
         x = gx + gw - w if left else gx
         y = gy + gh - ht if top else gy
-        return x, y, w, ht
+        return clamp_geometry(x, y, w, ht)
 
     def apply_drag(self, done=False):
         dr = self.drag
@@ -669,9 +679,11 @@ class XWM(object):
     def end_drag(self):
         if not self.drag:
             return
-        self.d.ungrab_pointer(X.CurrentTime)
-        self.apply_drag(done=True)
-        self.drag = None
+        try:
+            self.d.ungrab_pointer(X.CurrentTime)
+            self.apply_drag(done=True)
+        finally:
+            self.drag = None  # a failed last step must not leave a stale drag (clicks would be swallowed)
 
     def drag_timeout(self):
         if not self.drag or self.drag['pending'] is None:
@@ -705,16 +717,16 @@ class XWM(object):
                 log('debug', 'focus%s 0x%x detail=%d mode=%d' % ('in' if t == X.FocusIn else 'out', e.window.id, e.detail, e.mode))
             self.refresh_focus()
         elif t == X.ButtonPress:
-            if self.drag:
-                return
             wid = e.window.id
+            c = None if self.drag else self.clients.get(wid)
             try:
-                c = self.clients.get(wid)
                 if c:
                     self.focus_client(c)
             finally:
+                # Always: a press from a client's sync button grab freezes the pointer until this
+                # (it has no effect on the drag's own async grab).
                 self.d.allow_events(X.ReplayPointer, e.time)
-            if wid in self.clients:
+            if c:
                 emit('click', id=wid)
         elif t == X.ButtonRelease:
             if self.drag:
@@ -901,8 +913,8 @@ class XWM(object):
             log('debug', '%s: unknown window %r' % (cmd, msg.get('id')))
             return
         if cmd == 'place':
-            x, y = self.num(msg['x']), self.num(msg['y'])
-            w, h = max(1, self.num(msg['width'])), max(1, self.num(msg['height']))
+            x, y, w, h = clamp_geometry(self.num(msg['x']), self.num(msg['y']),
+                                        self.num(msg['width']), self.num(msg['height']))
             if self.geometry(c.window) == (x, y, w, h):
                 ev = xevent.ConfigureNotify(window=c.window, event=c.window, above_sibling=X.NONE, x=x, y=y,
                                             width=w, height=h, border_width=0, override=0)
@@ -959,10 +971,17 @@ class XWM(object):
                         raise
                     except Exception as exc:  # never die on one bad event
                         log('error', 'event %d: %s: %s' % (e.type, exc.__class__.__name__, exc))
+                errs = self.__dict__.get('xerrors')
+                if errs:
+                    self.xerrors = []
+                    log('debug', 'X errors: %s' % ', '.join(errs))
                 if self.drag and self.drag['pending'] is not None and self.drag_timeout() == 0:
                     self.apply_drag()
                 self.d.flush()
-                ready, _, _ = select.select([xfd, 0], [], [], self.drag_timeout())
+                # flush() also reads whatever the server has sent into Xlib's own queue: never block in
+                # select() while events wait there (that lost a grabbed Alt+Tab until the next X event).
+                timeout = 0 if self.d.pending_events() else self.drag_timeout()
+                ready, _, _ = select.select([xfd, 0], [], [], timeout)
                 if 0 in ready:
                     self.read_stdin()
             except error.ConnectionClosedError as exc:

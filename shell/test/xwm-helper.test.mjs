@@ -11,7 +11,16 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const HELPER = path.join(here, '..', '..', 'rootfs', 'usr', 'lib', 'aurora', 'helpers', 'aurora-xwm');
 const FIXTURE = path.join(here, 'fixtures', 'xwm', 'xclient.py');
-const SCREEN = { width: 1600, height: 900 };
+// The real screen size (xvfb-run's -screen option differs between run-all.mjs and a manual run).
+const SCREEN = (() => {
+  try {
+    const out = execFileSync('xwininfo', ['-root'], { encoding: 'utf8' });
+    const w = Number(/Width:\s*(\d+)/.exec(out)?.[1]);
+    const h = Number(/Height:\s*(\d+)/.exec(out)?.[1]);
+    if (w > 0 && h > 0) return { width: w, height: h };
+  } catch {}
+  return { width: 1600, height: 900 };
+})();
 
 let passed = 0;
 const failures = [];

@@ -66,7 +66,7 @@ The prototype under Xvfb verified the following:
 | `hints` | `id`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `decorated` | `WM_NORMAL_HINTS` or Motif hints changed. |
 | `configure-request` | `id`, plus any of `x`, `y`, `width`, `height` | The client wants another geometry. The shell decides and answers with `place`. |
 | `state-request` | `id`, `fullscreen` (true/false), or `maximized`, or `minimized: true`, or `activate: true` | `_NET_WM_STATE`, `WM_CHANGE_STATE` or `_NET_ACTIVE_WINDOW` from a client. |
-| `drag` | `id`, `x`, `y`, `width`, `height`, `done` (bool) | Interactive move or resize that the helper runs itself (`_NET_WM_MOVERESIZE` from a client-side title bar, or Alt+drag). The shell moves the frame to follow, without sending `place` back during the drag. |
+| `drag` | `id`, `x`, `y`, `width`, `height`, `done` (bool) | Interactive move or resize that the helper runs itself (`_NET_WM_MOVERESIZE` from a client-side title bar; Alt+drag is not implemented yet). The shell moves the frame to follow, without sending `place` back during the drag. |
 | `focus` | `id` (XID, or null when the shell or nothing has focus) | X input focus changed. |
 | `click` | `id` | A button press reached a client. The helper has already focused it and replayed the click. The shell raises the frame. |
 | `key` | `combo`, `repeat` | A grabbed system shortcut while a client has focus. Same names as `shell/main/lib/hotkeys.js` (`Super`, `Alt+Tab`, `Alt+Shift+Tab`, `Alt+F4`, `Super+D`, `AudioVolumeUp`…), plus `Alt:up`. |

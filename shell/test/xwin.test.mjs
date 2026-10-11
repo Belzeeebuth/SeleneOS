@@ -86,6 +86,12 @@ const XID = 4194305;
 const s = await launchShell({ env: { AURORA_XWM: '1', AURORA_XWM_HELPER: FAKE, AURORA_XWM_FAKE_LOG: LOG, AURORA_XWM_FAKE_CTL: CTL } });
 const { page } = s;
 try {
+  // Device px = CSS px + the shell window's content origin (zoom and scale are 1 here). The dev window is centred
+  // by Electron, so the origin is not (0,0) when the Xvfb screen is larger than the window (run-all uses 1920x1080).
+  const O = await s.app.evaluate(({ BrowserWindow }) => {
+    const b = BrowserWindow.getAllWindows()[0].getContentBounds();
+    return { x: b.x, y: b.y };
+  });
   const st = await waitFor(() => page.evaluate(() => window.__aurora.api.invoke('xwin:status')).then((x) => x?.ready && x));
   check('helper started and ready', !!st?.ready && st.enabled, JSON.stringify(st));
   await waitFor(() => page.evaluate(() => !!window.__aurora.xwin));
@@ -125,7 +131,7 @@ try {
     const b = w.body.getBoundingClientRect();
     return { x: Math.round(b.left), y: Math.round(b.top), width: Math.round(b.width), height: Math.round(b.height) };
   }, XID);
-  const p1 = await waitFor(() => lastCmd((c) => c.cmd === 'place' && c.id === XID && c.x === moved.x && c.y === moved.y));
+  const p1 = await waitFor(() => lastCmd((c) => c.cmd === 'place' && c.id === XID && c.x === moved.x + O.x && c.y === moved.y + O.y));
   check('move -> place with the content origin', !!p1, `${JSON.stringify(moved)} last=${JSON.stringify(lastCmd((c) => c.cmd === 'place'))}`);
   await page.evaluate((id) => window.__aurora.xwin.frames.get(id).win.setRect({ width: 700, height: 500 }), XID);
   const p2 = await waitFor(() => lastCmd((c) => c.cmd === 'place' && c.id === XID && c.width === 698));
@@ -139,7 +145,7 @@ try {
     const b = w.body.getBoundingClientRect();
     return { x: Math.round(b.left), y: Math.round(b.top), width: Math.round(b.width), height: Math.round(b.height), wa: window.__aurora.wm.workarea() };
   }, XID);
-  const p3 = await waitFor(() => lastCmd((c) => c.cmd === 'place' && c.id === XID && c.width === mx.width && c.height === mx.height && c.y === mx.y));
+  const p3 = await waitFor(() => lastCmd((c) => c.cmd === 'place' && c.id === XID && c.width === mx.width && c.height === mx.height && c.y === mx.y + O.y));
   check('maximize -> place fills the work area', !!p3 && mx.width >= mx.wa.width - 2, `${JSON.stringify(mx)} ${JSON.stringify(lastCmd((c) => c.cmd === 'place'))}`);
   check('maximize -> state command', !!(await waitFor(() => lastCmd((c) => c.cmd === 'state' && c.id === XID && c.maximized === true))));
 
@@ -215,14 +221,14 @@ try {
   await page.evaluate((id) => window.__aurora.xwin.frames.get(id).win.restore(), XID);
   await sleep(500);
   const nPlace = cmds().filter((c) => c.cmd === 'place').length;
-  emit({ ev: 'drag', id: XID, x: 300, y: 260, width: 698, height: 467, done: false });
+  emit({ ev: 'drag', id: XID, x: 300 + O.x, y: 260 + O.y, width: 698, height: 467, done: false });
   const dr = await waitFor(() => page.evaluate((id) => {
     const b = window.__aurora.xwin.frames.get(id).win.body.getBoundingClientRect();
     return Math.round(b.left) === 300 && Math.round(b.top) === 260 && { x: b.left, y: b.top };
   }, XID));
   check('drag event moves the frame onto the client', !!dr);
   check('no place sent back during a helper drag', cmds().filter((c) => c.cmd === 'place').length === nPlace);
-  emit({ ev: 'drag', id: XID, x: 320, y: 260, width: 698, height: 467, done: true });
+  emit({ ev: 'drag', id: XID, x: 320 + O.x, y: 260 + O.y, width: 698, height: 467, done: true });
   await sleep(300);
   // configure-request
   emit({ ev: 'configure-request', id: XID, width: 500, height: 300 });
