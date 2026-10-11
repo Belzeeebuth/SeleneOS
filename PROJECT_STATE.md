@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-10 (session 1)._
+_Last updated: 2026-10-11 00:55 UTC (session 1, after a usage-limit interruption)._
 
 ## What this is
 
@@ -183,6 +183,39 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 - Snap layout presets and customizable keyboard shortcuts.
 - Optional "Focus mode": hides notifications, dims desktop, and simplifies the taskbar.
 - Profile system: save and switch between complete UI themes with one click.
+
+## Interruption log
+
+**2026-10-10 ~23:00 UTC:** the usage limit stopped several agents mid-task. State afterwards (all committed in e1132ab):
+
+**Phase 1 apps**
+
+| App | State | Still to do |
+|---|---|---|
+| photos | built (37 tests) | verify |
+| pdf | built | verify |
+| archive | built + verified | — |
+| calendar | built (281 checks) | verify |
+| clock | built + verified | — |
+| todo | built | verify |
+| notes | backend (`main/ipc/notes.js`) and pure libs done; UI (`apps/notes/ui/*`) partial | finish the build, then verify |
+
+**Personalization**
+- **Core (A):** built and verified. Style engine, 5 styles, profiles, Theme designer, app themes, `docs/PERSONALIZATION.md`.
+- **B2 (taskbar/Start/focus) and B3 (packs/shortcuts):** their builders failed. The integration agent then implemented them:
+  - taskbar size, position, labels and auto-hide;
+  - Start layouts, folders and background;
+  - focus mode (`core/features/focus.js`);
+  - cursor/icon/sound packs (`core/packs.js`, `sounds.js`);
+  - snap presets and customizable shortcuts (`core/shortcuts.js`, `hotkeys.js`);
+  - Settings pages `personalization-{taskbar,focus,packs,input}.js`;
+  - test `personalization-shell.test.mjs`.
+
+  These are **not independently verified yet**.
+- **B1 (wallpapers):** partially built. `core/wallpaper/{engine,dynamic,solar,cities,lock}.js` + `effects/`, `features/wallpaper.js`, `main/ipc/weather.js`, `assets/wallpapers/dynamic/`, `test/wallpapers.test.mjs`. Needs finishing, then verify.
+- **Integration agent:** stopped during the regression sweep and docs update. **Rerun it at the end.**
+
+**Media test:** "files opened while the window is still starting" failed once in a full run under heavy load, then passed alone. Recheck in the final sweep.
 
 ## Running workflows (session 1)
 
