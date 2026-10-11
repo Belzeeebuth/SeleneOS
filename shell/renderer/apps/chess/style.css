@@ -50,7 +50,7 @@
   transition: transform var(--dur-slow) var(--ease);
 }
 .app-chess .cx-tb-btn[data-cmd="new"] .icon {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .app-chess .cx-tb-btn[data-cmd="flip"]:active .icon {
   transform: rotate(180deg);
@@ -458,7 +458,7 @@
 }
 .app-chess .cb-promo-btn:hover,
 .app-chess .cb-promo-btn:focus-visible {
-  background: color-mix(in srgb, var(--accent-base, var(--accent)) 16%, var(--surface-raised));
+  background: color-mix(in srgb, var(--accent-base, var(--accent)) 16%, #fff);
 }
 .app-chess .cb-promo-btn:focus-visible::after {
   content: "";
@@ -1232,7 +1232,7 @@
 }
 @keyframes cx-pop {
   from {
-    transform: scale(0.4);
+    transform: scale(0.8);
     opacity: 0;
   }
 }

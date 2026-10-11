@@ -2,20 +2,16 @@
 .app-disks {
   --dk-seg: color-mix(in srgb, var(--accent) 14%, var(--card));
   --dk-seg-used: color-mix(in srgb, var(--accent) 34%, transparent);
-  --dk-seg-sys: color-mix(in srgb, #8a63d2 16%, var(--card));
-  --dk-seg-sys-used: color-mix(in srgb, #8a63d2 38%, transparent);
-  --dk-seg-swap: color-mix(in srgb, #c47f17 16%, var(--card));
-  --dk-free-a: rgba(0, 0, 0, 0.04);
-  --dk-free-b: rgba(0, 0, 0, 0.09);
+  --dk-seg-sys: color-mix(in srgb, var(--text-2) 14%, var(--card));
+  --dk-seg-sys-used: color-mix(in srgb, var(--text-2) 34%, transparent);
+  --dk-seg-swap: color-mix(in srgb, var(--warning) 16%, var(--card));
+  --dk-free-a: rgb(var(--tint) / 0.035);
+  --dk-free-b: rgb(var(--tint) / 0.08);
 }
 :root[data-theme="dark"] .app-disks {
   --dk-seg: color-mix(in srgb, var(--accent) 20%, var(--card));
   --dk-seg-used: color-mix(in srgb, var(--accent) 45%, transparent);
-  --dk-seg-sys: color-mix(in srgb, #b393f0 20%, var(--card));
-  --dk-seg-sys-used: color-mix(in srgb, #b393f0 45%, transparent);
-  --dk-seg-swap: color-mix(in srgb, #e3a64a 20%, var(--card));
-  --dk-free-a: rgba(255, 255, 255, 0.03);
-  --dk-free-b: rgba(255, 255, 255, 0.08);
+  --dk-seg-sys-used: color-mix(in srgb, var(--text-2) 42%, transparent);
 }
 .app-disks .disks {
   display: grid;
@@ -71,24 +67,15 @@
   background: var(--subtle-hover);
 }
 .app-disks .dk-drive.selected {
-  background: var(--subtle-hover);
-}
-.app-disks .dk-drive.selected::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 3px;
-  height: 16px;
-  margin-top: -8px;
-  border-radius: 2px;
-  background: var(--accent);
+  background: var(--sel-bg);
+  box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
 }
 .app-disks .dk-drive:focus-visible {
-  box-shadow: 0 0 0 2px var(--focus, var(--accent));
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
 }
 .app-disks .dk-drive-icon {
-  color: var(--accent);
+  color: var(--accent-text);
   display: flex;
 }
 .app-disks .dk-drive-text {
@@ -127,7 +114,7 @@
 }
 .app-disks .dk-head-icon {
   display: flex;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .app-disks .dk-head-text {
   flex: 1 1 200px;
@@ -263,10 +250,10 @@
 }
 .app-disks .dk-seg.selected {
   border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
 }
 .app-disks .dk-seg:focus-visible {
-  box-shadow: 0 0 0 2px var(--focus, var(--accent));
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .app-disks .dk-empty {
   margin: auto;

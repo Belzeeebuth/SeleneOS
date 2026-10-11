@@ -56,7 +56,8 @@ export default {
     const g = canvas.getContext('2d', { alpha: false });
     const overlayText = h('div', { class: 'rd-overlay-text' });
     const overlay = h('div', { class: 'rd-overlay', role: 'status' }, h('div', { class: 'spinner' }), overlayText);
-    const viewport = h('div', { class: 'rd-viewport' }, canvas, overlay);
+    // The remote screen sits on a dark well in both modes (dark theme scope: --desk / --text come from the dark palette).
+    const viewport = h('div', { class: 'rd-viewport', 'data-theme-scope': '', 'data-theme': 'dark' }, canvas, overlay);
     const sessTitle = h('div', { class: 'rd-sess-title ellipsis' });
     const sessStatus = h('div', { class: 'rd-sess-status caption text-2 ellipsis' });
     const scaleBtns = {};

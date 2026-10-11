@@ -1191,8 +1191,9 @@ async function uiTests() {
       await waitText(s, /^>>> *$/m, { timeout: 10000 });
       check('Ctrl+Shift+2 opens Python', (await tabInfo(s)).titles[1], 'Python 3');
       // many tabs: the strip scrolls, with arrows, and the active tab stays visible
-      for (let i = 0; i < 12; i++) await TM(s, (app) => app.newTab());
-      await until(async () => (await tabInfo(s)).count === 14, { label: '14 tabs' });
+      // (enough tabs that their 48 px minimum width overflows the strip whatever the caption buttons take)
+      for (let i = 0; i < 20; i++) await TM(s, (app) => app.newTab());
+      await until(async () => (await tabInfo(s)).count === 22, { label: '22 tabs' });
       await sleep(400);
       const strip = await TM(s, (app) => {
         const t = app.tabsEl;

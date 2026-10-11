@@ -25,7 +25,7 @@
   background: var(--subtle-hover);
 }
 .app-nettools .nt-tabs .tab:focus-visible {
-  outline: 2px solid var(--focus, var(--accent));
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .app-nettools .nt-panels {
@@ -176,7 +176,7 @@
   color: var(--text);
 }
 .app-nettools .nt-out:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
 }
 .app-nettools .nt-records {
   list-style: none;
@@ -200,7 +200,7 @@
   min-width: 48px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--accent-text, var(--accent));
+  color: var(--accent-text);
 }
 .app-nettools .nt-rvalue {
   flex: 1;

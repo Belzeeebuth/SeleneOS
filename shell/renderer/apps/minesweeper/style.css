@@ -1,11 +1,11 @@
 /* Minesweeper — board, cells and status row. Shared chrome is in gamekit.css. */
 .app-minesweeper {
-  /* Tiles and frame follow the system (surface + accent); the numbers, flag and mine keep the game's own palette. */
-  --ms-tile-a: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
-  --ms-tile-b: color-mix(in srgb, var(--accent) 22%, var(--surface-raised));
-  --ms-tile-hover-a: color-mix(in srgb, var(--accent) 6%, var(--surface-raised));
-  --ms-tile-hover-b: color-mix(in srgb, var(--accent) 15%, var(--surface-raised));
-  --ms-tile-pressed: color-mix(in srgb, var(--accent) 28%, var(--surface-raised));
+  /* Tiles and frame follow the system (surface tones; the accent only marks the hovered tile); the numbers, flag and mine keep the game's own palette. */
+  --ms-tile-a: color-mix(in srgb, var(--text) 5%, var(--surface-raised));
+  --ms-tile-b: color-mix(in srgb, var(--text) 11%, var(--surface-raised));
+  --ms-tile-hover-a: color-mix(in srgb, var(--accent) 8%, var(--surface-raised));
+  --ms-tile-hover-b: color-mix(in srgb, var(--accent) 18%, var(--surface-raised));
+  --ms-tile-pressed: color-mix(in srgb, var(--text) 16%, var(--surface-raised));
   --ms-tile-hi: color-mix(in srgb, var(--surface-raised) 85%, transparent);
   --ms-tile-lo: rgb(var(--shadow-rgb) / 0.14);
   --ms-open: rgb(var(--tint) / 0.05);
@@ -27,11 +27,11 @@
   --ms-n8: #767676;
 }
 :root[data-theme="dark"] .app-minesweeper {
-  --ms-tile-a: color-mix(in srgb, var(--accent) 30%, var(--surface-raised));
-  --ms-tile-b: color-mix(in srgb, var(--accent) 22%, var(--surface-raised));
-  --ms-tile-hover-a: color-mix(in srgb, var(--accent) 40%, var(--surface-raised));
-  --ms-tile-hover-b: color-mix(in srgb, var(--accent) 30%, var(--surface-raised));
-  --ms-tile-pressed: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+  --ms-tile-a: color-mix(in srgb, var(--text) 20%, var(--surface-raised));
+  --ms-tile-b: color-mix(in srgb, var(--text) 14%, var(--surface-raised));
+  --ms-tile-hover-a: color-mix(in srgb, var(--accent) 34%, var(--surface-raised));
+  --ms-tile-hover-b: color-mix(in srgb, var(--accent) 24%, var(--surface-raised));
+  --ms-tile-pressed: color-mix(in srgb, var(--text) 8%, var(--surface-raised));
   --ms-tile-hi: rgb(var(--tint) / 0.16);
   --ms-tile-lo: rgb(var(--shadow-rgb) / 0.45);
   --ms-open: rgb(var(--tint) / 0.035);

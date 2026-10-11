@@ -77,6 +77,9 @@
   margin-bottom: 10px;
   min-height: 32px;
 }
+.app-remote .rd-form-head .btn[hidden] {
+  display: none;
+}
 .app-remote .grow {
   flex: 1;
 }
@@ -170,7 +173,7 @@
   display: grid;
   place-items: center;
   background: var(--subtle-hover);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .app-remote .rd-item-text {
   flex: 1;
@@ -230,7 +233,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #1b1b1f;
+  background: var(--desk);
 }
 .app-remote .rd-viewport.actual {
   overflow: auto;
@@ -247,7 +250,8 @@
   touch-action: none;
 }
 .app-remote .rd-canvas:focus-visible {
-  box-shadow: 0 0 0 2px var(--accent);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
 }
 .app-remote .rd-overlay {
   position: absolute;
@@ -257,8 +261,8 @@
   align-items: center;
   justify-content: center;
   gap: 14px;
-  color: #f3f3f3;
-  font-size: 14px;
+  color: var(--text);
+  font-size: var(--fs-body);
 }
 .app-remote .rd-hint {
   flex: none;

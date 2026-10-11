@@ -487,9 +487,9 @@ async function lightEnglish() {
     await s.page.locator(S('.segmented button'), { hasText: 'Light' }).click();
     await sleep(600);
     check((await s.aurora(() => document.documentElement.dataset.theme)) === 'light', 'Light / Dark mode switch');
-    await s.page.locator(S('.st-swatch[aria-label="#e3008c"]')).click();
+    await s.page.locator(S('.st-swatch[data-accent="night"]')).click();
     await sleep(500);
-    check((await get(s, 'accent')) === '#e3008c' && (await s.aurora(() => getComputedStyle(document.documentElement).getPropertyValue('--accent-base').trim())) === '#e3008c', 'accent color swatch recolors the shell');
+    check((await get(s, 'accent')) === '#6f8de6' && (await s.aurora(() => getComputedStyle(document.documentElement).getPropertyValue('--accent-base').trim())) === '#6f8de6', 'accent color swatch recolors the shell');
     await (await rowControl(s, 'Transparency effects')).locator('.toggle input').click();
     await sleep(300);
     check((await s.aurora(() => document.documentElement.dataset.transparency)) === 'off', 'transparency effects off');
@@ -522,7 +522,7 @@ async function lightEnglish() {
     await pickCombo(s, 'Lock the screen after', '5 minutes');
     check((await get(s, 'lockTimeout')) === 5, 'screen lock timeout (settings.lockTimeout)');
     await go(s, 'colors');
-    await s.page.locator(S('.st-swatch[aria-label="#0078d4"]')).click();
+    await s.page.locator(S('.st-swatch[data-accent="silver"]')).click();
     await go(s, 'background');
     await sleep(300);
 

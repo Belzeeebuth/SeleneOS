@@ -31,7 +31,7 @@
 .app-translate .tr-tabs .tab:focus-visible,
 .app-translate .tr-hist-btn:focus-visible,
 .app-translate .tr-output:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .app-translate .tr-panels {
@@ -92,13 +92,14 @@
   display: flex;
   flex-direction: column;
   min-height: 180px;
-  background: var(--card);
-  border: 1px solid var(--stroke-card, var(--stroke));
-  border-radius: var(--radius, 8px);
+  background: var(--input-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   overflow: hidden;
 }
 .app-translate .tr-dst {
-  background: var(--layer-alt, var(--card));
+  background: var(--bg-alt);
+  border-color: var(--line-soft);
 }
 .app-translate .tr-input {
   flex: 1;
@@ -115,7 +116,7 @@
 }
 .app-translate .tr-src:focus-within {
   border-color: var(--accent);
-  box-shadow: inset 0 -2px 0 var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 .app-translate .tr-output {
   flex: 1;
@@ -207,7 +208,7 @@
   font: inherit;
   color: var(--text);
   background: var(--card);
-  border: 1px solid var(--stroke-card, var(--stroke));
+  border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm, 4px);
   padding: 8px 12px;
   cursor: default;
@@ -216,7 +217,7 @@
   background: var(--card-hover, var(--subtle-hover));
 }
 .app-translate .tr-hist-langs {
-  color: var(--accent-text, var(--accent));
+  color: var(--accent-text);
   font-weight: 600;
   min-width: 64px;
 }
@@ -278,13 +279,13 @@
 .app-translate .tr-meaning {
   padding: 12px 16px;
   background: var(--card);
-  border: 1px solid var(--stroke-card, var(--stroke));
+  border: 1px solid var(--line-soft);
   border-radius: var(--radius, 8px);
 }
 .app-translate .tr-pos {
   font-style: italic;
   font-weight: 600;
-  color: var(--accent-text, var(--accent));
+  color: var(--accent-text);
   margin-bottom: 4px;
 }
 .app-translate .tr-defs {
@@ -320,7 +321,7 @@
   gap: 12px;
   padding: 10px 14px;
   background: var(--card);
-  border: 1px solid var(--stroke-card, var(--stroke));
+  border: 1px solid var(--line-soft);
   border-radius: var(--radius, 8px);
 }
 .app-translate .tr-radio input {

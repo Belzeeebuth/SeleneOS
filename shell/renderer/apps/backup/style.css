@@ -27,7 +27,7 @@
 .app-backup .bk-nav .nav-item:focus-visible,
 .app-backup .bk-entry:focus-visible,
 .app-backup .bk-crumb:focus-visible {
-  outline: 2px solid var(--focus, var(--accent));
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .app-backup .bk-main {
@@ -79,7 +79,7 @@
   height: 56px;
   border-radius: 50%;
   background: var(--subtle-hover);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .app-backup .bk-line {
   margin-top: 2px;
