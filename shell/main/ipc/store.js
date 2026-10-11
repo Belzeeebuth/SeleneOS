@@ -4,7 +4,9 @@
 // (actions of main/ipc/admin.js + the aurora-admin helper, which only accept packages of this catalog).
 //
 //   store:catalog ()   -> { items: [{ id, apt, name, category, icon, command, interactive,
-//                                     description: { en, fr } }], simulated }
+//                                     description: { en, fr }, gui, desktop, linuxId }], simulated }
+//                         gui: true for graphical apps; desktop = their .desktop file in the package, linuxId = the
+//                         registry id of the matching Linux app ('linux.<desktop id>', main/ipc/xapps.js).
 //                         from /usr/share/aurora/store/catalog.json (dev: the copy in rootfs/ of the repo)
 //   store:installed () -> { packages: { [apt]: version }, simulated }   (dpkg-query; only catalog packages)
 //
@@ -18,7 +20,8 @@ const SYS_CATALOG = '/usr/share/aurora/store/catalog.json';
 const DEV_CATALOG = path.join(__dirname, '..', '..', '..', 'rootfs', 'usr', 'share', 'aurora', 'store', 'catalog.json');
 const PKG = /^[a-z0-9][a-z0-9+.-]{1,62}$/;
 const ID = /^[a-z0-9][a-z0-9+._-]{0,62}$/;
-const CATEGORIES = new Set(['development', 'editors', 'shells', 'system', 'utilities', 'multimedia', 'network']);
+const CATEGORIES = new Set(['development', 'editors', 'shells', 'system', 'utilities', 'multimedia', 'network', 'graphics', 'office']);
+const DESKTOP = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.desktop$/;
 
 const str = (v, max = 400) => (typeof v === 'string' ? v.slice(0, max) : '');
 
@@ -33,6 +36,7 @@ function parseCatalog(json) {
     if (!PKG.test(apt) || !ID.test(id) || seen.has(id)) continue;
     seen.add(id);
     const d = it.description && typeof it.description === 'object' ? it.description : {};
+    const gui = it.gui === true && DESKTOP.test(it.desktop || '');
     items.push({
       id,
       apt,
@@ -43,6 +47,9 @@ function parseCatalog(json) {
       interactive: it.interactive === true,
       removable: it.removable !== false,
       description: { en: str(d.en), fr: str(d.fr) || str(d.en) },
+      gui,
+      desktop: gui ? it.desktop : '',
+      linuxId: gui ? require('./xapps').parsers.appIdOf(it.desktop.replace(/\.desktop$/, '')) : '',
     });
   }
   return items;

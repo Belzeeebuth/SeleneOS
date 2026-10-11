@@ -1,0 +1,73 @@
+#!/usr/bin/env node
+// Fake aurora-xwm for tests (docs/XWINDOWS.md protocol), selected with AURORA_XWM_HELPER=<this file>.
+//   - announces { ev: 'ready' } at start;
+//   - appends every command line it receives to $AURORA_XWM_FAKE_LOG;
+//   - copies every new line appended to $AURORA_XWM_FAKE_CTL to stdout (the test scripts the events);
+//   - answers ping with pong; 'close' / 'kill' end the client ('gone') unless the client was
+//     marked stubborn with the control line {"fake":"stubborn","id":N} (then only 'kill' ends it);
+//   - exits when stdin closes.
+'use strict';
+const fs = require('fs');
+const LOG = process.env.AURORA_XWM_FAKE_LOG || '';
+const CTL = process.env.AURORA_XWM_FAKE_CTL || '';
+const stubborn = new Set();
+const out = (o) => process.stdout.write(`${JSON.stringify(o)}\n`);
+
+out({ ev: 'ready', screen: { width: 1600, height: 900 }, version: 'fake-1' });
+
+let buf = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (d) => {
+  buf += d;
+  let i;
+  while ((i = buf.indexOf('\n')) >= 0) {
+    const line = buf.slice(0, i);
+    buf = buf.slice(i + 1);
+    if (LOG) fs.appendFileSync(LOG, `${line}\n`);
+    let m;
+    try {
+      m = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (m.cmd === 'ping') out({ ev: 'pong', seq: m.seq });
+    if (m.cmd === 'kill' || (m.cmd === 'close' && !stubborn.has(m.id))) out({ ev: 'gone', id: m.id });
+  }
+});
+process.stdin.on('end', () => process.exit(0));
+
+if (CTL) {
+  let pos = 0;
+  try {
+    pos = fs.statSync(CTL).size;
+  } catch {}
+  setInterval(() => {
+    let size = 0;
+    try {
+      size = fs.statSync(CTL).size;
+    } catch {
+      return;
+    }
+    if (size <= pos) return;
+    const fd = fs.openSync(CTL, 'r');
+    const b = Buffer.alloc(size - pos);
+    fs.readSync(fd, b, 0, b.length, pos);
+    fs.closeSync(fd);
+    const text = b.toString('utf8');
+    const last = text.lastIndexOf('\n');
+    if (last < 0) return;
+    pos += Buffer.byteLength(text.slice(0, last + 1));
+    for (const line of text.slice(0, last + 1).split('\n')) {
+      if (!line.trim()) continue;
+      try {
+        const m = JSON.parse(line);
+        if (m.fake === 'stubborn') {
+          stubborn.add(m.id);
+          continue;
+        }
+        if (m.fake === 'exit') process.exit(Number(m.code) || 0);
+      } catch {}
+      process.stdout.write(`${line}\n`);
+    }
+  }, 40);
+}

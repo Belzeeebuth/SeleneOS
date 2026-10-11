@@ -44,6 +44,8 @@ const dictCache = new Map();
 const instances = new Map(); // winId -> { appId, hooks }
 const pendingLaunches = new Map(); // appId -> Promise<Win> while a singleInstance app is starting
 let shellServices = null;
+let xappsWatch = false;
+i18n.extend({ en: { registry: { linuxFailed: '{app} could not be started' } }, fr: { registry: { linuxFailed: "Impossible de démarrer {app}" } } });
 
 export function setShellServices(s) {
   shellServices = s;
@@ -52,8 +54,24 @@ export function setShellServices(s) {
 export const registry = {
   async load() {
     const list = await api.invoke('apps:list');
+    // Linux applications (.desktop entries, main/ipc/xapps.js): kind 'linux', ids 'linux.<desktop id>', so they
+    // never clash with built-in apps; merged after them. Missing backend (greeter) -> none.
+    const linux = await api.invoke('xapps:list').catch(() => []);
+    const transient = [...apps.values()].filter((m) => m.transient);
     apps.clear();
     for (const m of list) apps.set(m.id, m);
+    for (const m of Array.isArray(linux) ? linux : []) if (m?.id && !apps.has(m.id)) apps.set(m.id, { ...m, kind: 'linux' });
+    for (const m of transient) if (!apps.has(m.id)) apps.set(m.id, m);
+    if (!xappsWatch) {
+      xappsWatch = true;
+      // Newly installed / removed Linux apps: reload, then tell Start, search and the Store.
+      api.on?.('xapps:changed', () => {
+        registry
+          .load()
+          .then(() => window.dispatchEvent(new CustomEvent('aurora:apps-changed')))
+          .catch((err) => console.warn('[registry] reload failed', err));
+      });
+    }
     return list;
   },
   list({ includeHidden = false } = {}) {
@@ -68,6 +86,8 @@ export const registry = {
   },
   iconUrl(id) {
     const m = apps.get(id);
+    // Linux apps carry their own icon (a media:// URL resolved in the icon theme by main/ipc/xapps.js).
+    if (m?.kind === 'linux') return m.iconUrl || 'app://shell/assets/app-default.svg';
     // Icon packs (core/packs.js, settings iconPack) may provide another picture for the app.
     const packed = m && registry.iconResolver ? registry.iconResolver(id, m) : null;
     if (packed) return packed;
@@ -75,6 +95,26 @@ export const registry = {
   },
   /** (appId, manifest) -> URL | null — set by core/packs.js for icon packs. */
   iconResolver: null,
+  /**
+   * Register a hidden, session-only entry (external X11 window of an app with no manifest, see
+   * core/features/xwin.js) so the taskbar, Alt+Tab and Task view show its name and icon.
+   * manifest: { id, name: string | {en, fr}, icon: absolute URL (data:, media:, app:) | null }.
+   * Never launchable; an existing entry with the same id is left alone. Returns the stored manifest.
+   */
+  addTransient(manifest) {
+    const id = manifest && String(manifest.id || '');
+    if (!id) return null;
+    if (apps.has(id)) return apps.get(id);
+    const m = { category: 'utilities', ...manifest, id, hidden: true, transient: true };
+    apps.set(id, m);
+    // Absolute icon URLs are served as-is (wraps the icon-pack resolver, which still wins for its own apps).
+    if (!registry._transientIcons) {
+      registry._transientIcons = true;
+      const prev = registry.iconResolver;
+      registry.iconResolver = (appId, man) => (man?.transient && /^(data|media|app|file):/i.test(man.icon || '') ? man.icon : prev ? prev(appId, man) : null);
+    }
+    return m;
+  },
   running(id) {
     return wm.byApp(id);
   },
@@ -96,6 +136,19 @@ export const registry = {
     const m = apps.get(id);
     if (!m) {
       console.error(`[registry] unknown app ${id}`);
+      return null;
+    }
+    if (m.kind === 'linux') {
+      // An external program: its window arrives later through core/features/xwin.js (matched by xapps:match).
+      const a = args && typeof args === 'object' ? args : {};
+      const files = [...(typeof a.file === 'string' && a.file ? [a.file] : []), ...(Array.isArray(a.files) ? a.files : [])];
+      const urls = [...(typeof a.url === 'string' && a.url ? [a.url] : []), ...(Array.isArray(a.urls) ? a.urls : [])];
+      try {
+        await api.invoke('xapps:launch', id, { files, urls });
+      } catch (err) {
+        console.warn(`[registry] launching ${id} failed`, err);
+        shellServices?.notify?.({ title: i18n.t('registry.linuxFailed', { app: i18n.name(m.name) }), body: String(err?.message || err), appId: id });
+      }
       return null;
     }
     if (m.singleInstance && !args?.newWindow) {

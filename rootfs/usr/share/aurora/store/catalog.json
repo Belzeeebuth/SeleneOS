@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Selene Store catalog: command-line tools and services installable from the Store (apt, Ubuntu 24.04 noble). Root-owned; aurora-admin store-install/store-remove only accept the \"apt\" packages listed here. command = program to run in the Terminal; interactive = full-screen tool worth opening directly.",
+  "about": "Selene Store catalog: command-line tools, services and graphical apps (gui = true, desktop = the .desktop file of the package) installable from the Store (apt, Ubuntu 24.04 noble). Root-owned; aurora-admin store-install/store-remove only accept the \"apt\" packages listed here. command = program to run in the Terminal; interactive = full-screen tool worth opening directly.",
   "items": [
     { "id": "git", "apt": "git", "removable": false, "name": "Git", "category": "development", "icon": "branch", "command": "git", "interactive": false,
       "description": { "en": "Distributed version control: track changes, branch, merge and share code.", "fr": "Gestion de versions distribuée : suivez les modifications, créez des branches, fusionnez et partagez du code." } },
@@ -61,6 +61,30 @@
     { "id": "rsync", "apt": "rsync", "removable": false, "name": "rsync", "category": "network", "icon": "arrow_sync", "command": "rsync", "interactive": false,
       "description": { "en": "Fast, incremental file copying and backups, locally or over SSH.", "fr": "Copie de fichiers et sauvegardes rapides et incrémentielles, en local ou par SSH." } },
     { "id": "openssh-server", "apt": "openssh-server", "name": "OpenSSH Server", "category": "network", "icon": "server", "command": "", "interactive": false,
-      "description": { "en": "Lets you sign in to this computer remotely and securely with SSH. The service starts automatically.", "fr": "Permet de vous connecter à cet ordinateur à distance et en toute sécurité avec SSH. Le service démarre automatiquement." } }
+      "description": { "en": "Lets you sign in to this computer remotely and securely with SSH. The service starts automatically.", "fr": "Permet de vous connecter à cet ordinateur à distance et en toute sécurité avec SSH. Le service démarre automatiquement." } },
+    { "id": "gimp", "apt": "gimp", "name": "GIMP", "category": "graphics", "icon": "image_edit", "command": "", "interactive": false, "gui": true, "desktop": "gimp.desktop",
+      "description": { "en": "Photo retouching and image editing with layers, masks, filters and brushes.", "fr": "Retouche photo et édition d'images avec calques, masques, filtres et pinceaux." } },
+    { "id": "inkscape", "apt": "inkscape", "name": "Inkscape", "category": "graphics", "icon": "draw_shape", "command": "", "interactive": false, "gui": true, "desktop": "org.inkscape.Inkscape.desktop",
+      "description": { "en": "Vector drawing for illustrations, logos, diagrams and SVG files.", "fr": "Dessin vectoriel pour les illustrations, les logos, les diagrammes et les fichiers SVG." } },
+    { "id": "krita", "apt": "krita", "name": "Krita", "category": "graphics", "icon": "paint_brush", "command": "", "interactive": false, "gui": true, "desktop": "org.kde.krita.desktop",
+      "description": { "en": "Digital painting with natural brushes, layers and animation.", "fr": "Peinture numérique avec des pinceaux naturels, des calques et de l'animation." } },
+    { "id": "libreoffice-writer", "apt": "libreoffice-writer", "name": "LibreOffice Writer", "category": "office", "icon": "document_text", "command": "", "interactive": false, "gui": true, "desktop": "libreoffice-writer.desktop",
+      "description": { "en": "Word processor that opens and saves Microsoft Word and OpenDocument files.", "fr": "Traitement de texte qui ouvre et enregistre les fichiers Microsoft Word et OpenDocument." } },
+    { "id": "libreoffice-calc", "apt": "libreoffice-calc", "name": "LibreOffice Calc", "category": "office", "icon": "table", "command": "", "interactive": false, "gui": true, "desktop": "libreoffice-calc.desktop",
+      "description": { "en": "Spreadsheets with formulas, charts and pivot tables; opens Excel files.", "fr": "Feuilles de calcul avec formules, graphiques et tableaux croisés dynamiques ; ouvre les fichiers Excel." } },
+    { "id": "libreoffice-impress", "apt": "libreoffice-impress", "name": "LibreOffice Impress", "category": "office", "icon": "slide_text", "command": "", "interactive": false, "gui": true, "desktop": "libreoffice-impress.desktop",
+      "description": { "en": "Presentations with slides, transitions and PowerPoint compatibility.", "fr": "Présentations avec diapositives et transitions, compatibles avec PowerPoint." } },
+    { "id": "vlc", "apt": "vlc", "name": "VLC media player", "category": "multimedia", "icon": "movies_and_tv", "command": "", "interactive": false, "gui": true, "desktop": "vlc.desktop",
+      "description": { "en": "Plays almost every video and audio format, DVDs and network streams.", "fr": "Lit presque tous les formats vidéo et audio, les DVD et les flux réseau." } },
+    { "id": "audacity", "apt": "audacity", "name": "Audacity", "category": "multimedia", "icon": "mic", "command": "", "interactive": false, "gui": true, "desktop": "audacity.desktop",
+      "description": { "en": "Record and edit audio: cut, mix, remove noise and apply effects.", "fr": "Enregistrez et modifiez de l'audio : coupez, mixez, réduisez le bruit et appliquez des effets." } },
+    { "id": "obs-studio", "apt": "obs-studio", "name": "OBS Studio", "category": "multimedia", "icon": "video_recording", "command": "", "interactive": false, "gui": true, "desktop": "com.obsproject.Studio.desktop",
+      "description": { "en": "Record your screen and stream live with scenes and sources.", "fr": "Enregistrez votre écran et diffusez en direct avec des scènes et des sources." } },
+    { "id": "kdenlive", "apt": "kdenlive", "name": "Kdenlive", "category": "multimedia", "icon": "video_clip", "command": "", "interactive": false, "gui": true, "desktop": "org.kde.kdenlive.desktop",
+      "description": { "en": "Video editor with a multitrack timeline, effects and transitions.", "fr": "Éditeur vidéo avec une timeline multipiste, des effets et des transitions." } },
+    { "id": "filezilla", "apt": "filezilla", "name": "FileZilla", "category": "network", "icon": "folder_arrow_up", "command": "", "interactive": false, "gui": true, "desktop": "filezilla.desktop",
+      "description": { "en": "Transfer files to and from servers over FTP and SFTP.", "fr": "Transférez des fichiers vers et depuis des serveurs en FTP et SFTP." } },
+    { "id": "remmina", "apt": "remmina", "name": "Remmina", "category": "network", "icon": "remote", "command": "", "interactive": false, "gui": true, "desktop": "org.remmina.Remmina.desktop",
+      "description": { "en": "Remote desktop client for RDP, VNC and SSH connections.", "fr": "Client de bureau à distance pour les connexions RDP, VNC et SSH." } }
   ]
 }
