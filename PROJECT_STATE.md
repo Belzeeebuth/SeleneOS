@@ -140,7 +140,7 @@ simplified** (to be improved later). Phase 2 stays for later.
    fine): builder + 8-min checker per app, one suite `shell/test/<id>.test.mjs` each, max 2 screenshots. ~40–50 min.
    The user approved this mode and wants it for Phase 2 too. Scripts: scratchpad phase4.js / phase3.js (args = [id]).
 2. Then: targeted regressions (new suites + mail, wallpapers, smoke), docs (DEVELOPING.md app list, PHASEAPP.md), commit.
-3. Phase 3 the same way, started AFTER phase 4 finishes (the user stopped a launch alongside phase 4): store (curated APT via aurora-admin), disks (udisks/lsblk; format only removable drives),
+3. Phase 3 the same way, running at the same time as phase 4 (12 workflows, one per app): store (curated APT via aurora-admin), disks (udisks/lsblk; format only removable drives),
    backup (rsync to a folder/drive), passwords (WebCrypto vault), cloud (light: WebDAV/Nextcloud browse/up/download
    only), nettools (light: VPN list/connect/import WireGuard via nmcli + ping/DNS lookup).
 4. Rebuild the ISO (`--from system` unless packages changed), verify-iso, smoke-image, push; user tests in QEMU.
