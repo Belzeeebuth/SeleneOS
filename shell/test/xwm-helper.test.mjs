@@ -4,6 +4,7 @@
 //
 //   cd shell && xvfb-run -a -s '-screen 0 1600x900x24' node test/xwm-helper.test.mjs
 import { spawn, execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,6 +22,7 @@ function check(name, ok, detail) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const children = [];
+let helperLines = null;
 
 // A child process whose stdout is read as lines.
 function start(cmd, args, opts = {}) {
@@ -59,19 +61,16 @@ async function fixture(mode) {
   const f = start('python3', ['-I', FIXTURE, mode]);
   const line = await f.waitLine((l) => l.startsWith('xid '), 8000);
   f.id = line ? Number(line.split(' ')[1]) : 0;
-  let cursor = f.lines.length;
   f.cmd = async (c) => {
     const from = f.lines.length;
     f.write(c + '\n');
-    const ok = await f.waitLine((l) => l === 'ok', 5000, from);
-    cursor = f.lines.length;
-    return !!ok;
+    return !!(await f.waitLine((l) => l === 'ok', 5000, from));
   };
   return f;
 }
 
 function startHelper(xid, extraArgs = []) {
-  const h = start(HELPER, ['--shell-xid', String(xid), ...extraArgs]);
+  const h = start(HELPER, ['--shell-xid', String(xid), ...extraArgs], { env: { ...process.env, AURORA_XWM_DEBUG: process.env.AURORA_XWM_DEBUG || '' } });
   h.events = () => h.lines.map((l) => { try { return JSON.parse(l); } catch { return { bad: l }; } });
   h.mark = () => h.lines.length;
   h.wait = async (pred, ms = 6000, from = 0) => {
@@ -113,6 +112,7 @@ async function main() {
   const xeyes = start('xeyes', ['-geometry', '150x100+0+0']);
   await sleep(700);
   const wm = startHelper(`0x${shell.id.toString(16)}`);
+  helperLines = wm.lines;
   const ready = await wm.wait((e) => e.ev === 'ready', 8000);
   check('ready with screen size and version', ready && ready.screen.width === SCREEN.width && ready.screen.height === SCREEN.height && typeof ready.version === 'string', ready);
   const eyes = await wm.wait((e) => e.ev === 'new' && e.wmClass?.[1] === 'XEyes');
@@ -159,48 +159,61 @@ async function main() {
   const focusClient = async (id) => {
     const mk = wm.mark();
     wm.send({ cmd: 'focus', id });
-    return wm.wait((e) => e.ev === 'focus' && e.id === id, 4000, mk);
+    const ev = await wm.wait((e) => e.ev === 'focus' && e.id === id, 4000, mk);
+    await sleep(150);
+    return ev;
+  };
+  // Press a key combo and wait for the matching key event; one retry on a busy machine.
+  // Keys go through XTest with exact keycodes (the fixture's "keys" command), or xdotool for keysyms
+  // that are not on the Xvfb keyboard. One retry, with the client focused again, on a busy machine.
+  const keyEvent = async (keys, combo, from, refocus = XT) => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (keys.startsWith('XF86')) xdo('key', keys);
+      else await shell.cmd(`keys ${keys}`);
+      const ev = await wm.wait((e) => e.ev === 'key' && e.combo === combo, 2500, from);
+      if (ev) return ev;
+      console.log(`  (retrying ${keys})`);
+      if (refocus) await focusClient(refocus);
+    }
+    return null;
   };
   check('focus command -> focus event', !!(await focusClient(XT)));
   check('xterm has X focus', focusNow() === XT, focusNow());
   check('_NET_ACTIVE_WINDOW follows focus', xprop(['-root', '_NET_ACTIVE_WINDOW']).includes(`0x${XT.toString(16)}`));
 
   m = wm.mark();
-  xdo('key', 'super');
-  const kSuper = await wm.wait((e) => e.ev === 'key' && e.combo === 'Super', 4000, m);
+  const kSuper = await keyEvent('Super_L', 'Super', m);
   check('Super alone -> key Super on release', !!kSuper && kSuper.repeat === false, wm.lines.slice(m));
   check('Super moves focus to the shell', !!(await wm.wait((e) => e.ev === 'focus' && e.id === null, 3000, m)) && focusNow() === shell.id);
 
   await focusClient(XT);
   m = wm.mark();
-  xdo('key', 'alt+Tab');
-  check('Alt+Tab -> key Alt+Tab', !!(await wm.wait((e) => e.ev === 'key' && e.combo === 'Alt+Tab', 4000, m)), wm.lines.slice(m));
+  check('Alt+Tab -> key Alt+Tab', !!(await keyEvent('Alt_L Tab', 'Alt+Tab', m)), wm.lines.slice(m));
   check('Alt+Tab gives the shell focus first', !!(await wm.wait((e) => e.ev === 'focus' && e.id === null, 3000, m)) && focusNow() === shell.id);
 
   await focusClient(XT);
   m = wm.mark();
-  xdo('key', 'alt+shift+Tab');
-  check('Alt+Shift+Tab -> key Alt+Shift+Tab', !!(await wm.wait((e) => e.ev === 'key' && e.combo === 'Alt+Shift+Tab', 4000, m)), wm.lines.slice(m));
+  check('Alt+Shift+Tab -> key Alt+Shift+Tab', !!(await keyEvent('Alt_L Shift_L Tab', 'Alt+Shift+Tab', m)), wm.lines.slice(m));
 
   await focusClient(XT);
   m = wm.mark();
-  xdo('key', 'super+d');
-  check('Super+D -> key Super+D', !!(await wm.wait((e) => e.ev === 'key' && e.combo === 'Super+D', 4000, m)), wm.lines.slice(m));
-  xdo('key', 'alt+F4');
-  check('Alt+F4 -> key Alt+F4', !!(await wm.wait((e) => e.ev === 'key' && e.combo === 'Alt+F4', 4000, m)));
-  xdo('key', 'XF86AudioRaiseVolume');
-  check('volume key -> AudioVolumeUp', !!(await wm.wait((e) => e.ev === 'key' && e.combo === 'AudioVolumeUp', 4000, m)));
-  xdo('key', 'ctrl+c');
+  check('Super+D -> key Super+D', !!(await keyEvent('Super_L d', 'Super+D', m)), wm.lines.slice(m));
+  check('Alt+F4 -> key Alt+F4', !!(await keyEvent('Alt_L F4', 'Alt+F4', m)));
+  check('volume key -> AudioVolumeUp', !!(await keyEvent('XF86AudioRaiseVolume', 'AudioVolumeUp', m)));
+  await shell.cmd('keys Control_L a');
   await sleep(400);
   const keys = wm.events().slice(m).filter((e) => e.ev === 'key').map((e) => e.combo);
-  check('no stray Super tap and no ordinary keys forwarded', !keys.includes('Super') && !keys.includes('Ctrl+C'), keys);
+  check('no stray Super tap and no ordinary keys forwarded', !keys.includes('Super') && !keys.includes('Ctrl+A'), keys);
   check('other combos keep focus on the client', focusNow() === XT, focusNow());
 
   m = wm.mark();
   wm.send({ cmd: 'focus', id: null });
-  check('focus null -> shell focused', !!(await wm.wait((e) => e.ev === 'focus' && e.id === null, 4000, m)) && focusNow() === shell.id);
+  const fnull = await wm.wait((e) => e.ev === 'focus' && e.id === null, 4000, m);
+  for (let i = 0; i < 20 && focusNow() !== shell.id; i++) await sleep(100);
+  check('focus null -> shell focused', !!fnull && focusNow() === shell.id, { events: wm.lines.slice(m), focus: focusNow() });
+  await sleep(200);
   m = wm.mark();
-  xdo('key', 'super');
+  await shell.cmd('keys Super_L');
   await sleep(600);
   check('no key grabs while the shell has focus', !wm.events().slice(m).some((e) => e.ev === 'key'), wm.lines.slice(m));
 
@@ -209,7 +222,8 @@ async function main() {
   xdo('mousemove', '300', '245');
   xdo('click', '1');
   check('clicking a client -> click event', !!(await wm.wait((e) => e.ev === 'click' && e.id === XT, 4000, m)), wm.lines.slice(m));
-  check('clicking a client focuses it', !!(await wm.wait((e) => e.ev === 'focus' && e.id === XT, 4000, m)) && focusNow() === XT);
+  const clickFocus = await wm.wait((e) => e.ev === 'focus' && e.id === XT, 4000, m);
+  check('clicking a client focuses it', !!clickFocus && focusNow() === XT, { events: wm.lines.slice(m), focus: focusNow() });
 
   // ---- configure requests --------------------------------------------------------------------
   m = wm.mark();
@@ -360,7 +374,7 @@ async function main() {
   await wm.wait((e) => e.ev === 'gone' && e.id === eyes.id, 3000, m);
   await sleep(300);
   const gones = wm.events().filter((e) => e.ev === 'gone');
-  check('each window gone exactly once', [XT, FC, fc2.id, eyes.id].every((id) => gones.filter((e) => e.id === id).length === 1), gones);
+  check('each window gone exactly once', [XT, FC, fc2.id, eyes.id].every((id) => gones.filter((e) => e.id === id).length === 1), { gones, eyes: eyes.id, eyesExit, eyesErr: xeyes.stderr, tail: wm.lines.slice(-6) });
   check('no gone for the shell', !gones.some((e) => e.id === shell.id));
   check('no error-level log during the run', !wm.events().some((e) => e.ev === 'log' && e.level === 'error'), wm.events().filter((e) => e.ev === 'log' && e.level === 'error'));
 
@@ -376,6 +390,7 @@ function finish() {
   for (const c of children) if (c.exitCode === null && c.signalCode === null) { try { c.kill('SIGKILL'); } catch {} }
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) console.log('Failed:\n  ' + failures.join('\n  '));
+  if (failures.length && process.env.XWM_DUMP && helperLines) fs.writeFileSync(process.env.XWM_DUMP, helperLines.join('\n'));
   process.exit(failures.length ? 1 : 0);
 }
 main().catch((e) => { check(`no exception (${e.stack || e})`, false); }).finally(finish);

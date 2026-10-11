@@ -11,6 +11,8 @@ See docs/XWINDOWS.md for the design and the exact protocol. In short:
     commands on stdin ({"cmd": ...});
   - while a client has X focus it holds passive key grabs for the system shortcuts.
 
+AURORA_XWM_DEBUG=1 adds 'log' events (level debug) for every focus and key event.
+
 Exit status: 0 when stdin closes (or on SIGTERM), 3 when another window manager is running
 (fatal EOTHERWM), 4 when python3-xlib is missing (fatal ENOXLIB), 1 when the display cannot be
 opened or is lost (fatal ENODISPLAY), 2 on a usage error.
@@ -30,9 +32,17 @@ DRAG_INTERVAL = 1.0 / 60   # drag events are throttled to about 60 Hz
 MAX_LINE = 1 << 20         # longest accepted command line
 
 
+BEFORE_EMIT = []  # callbacks run before each event is written (flush pending X requests)
+
+
 def emit(ev, **fields):
     """Write one event as a JSON line (ASCII only, so the locale never matters)."""
     fields = dict(ev=ev, **fields)
+    try:
+        for fn in BEFORE_EMIT:
+            fn()
+    except Exception:
+        pass
     try:
         sys.stdout.write(json.dumps(fields, separators=(',', ':')) + '\n')
         sys.stdout.flush()
@@ -174,6 +184,10 @@ class XWM(object):
         except Exception as exc:
             fatal('ENODISPLAY', 'cannot open display %r: %s' % (os.environ.get('DISPLAY'), exc), 1)
         self.d.set_error_handler(self.on_xerror)
+        # Requests made before an event (key grabs, focus, configure) reach the server before the
+        # main process can react to that event.
+        BEFORE_EMIT.append(self.d.flush)
+        self.debug = os.environ.get('AURORA_XWM_DEBUG') == '1'
         self.screen = self.d.screen()
         self.root = self.screen.root
         self.shell_id = shell_xid
@@ -483,11 +497,14 @@ class XWM(object):
         fid = f.id if hasattr(f, 'id') else int(f)
         top = self.toplevel_of(fid)
         new = top if top in self.clients else None
+        if self.debug:
+            log('debug', 'input focus 0x%x top 0x%x (was %r)' % (fid, top, self.focused))
         if new is not None:
             self.grab_keys()
         else:
             self.ungrab_keys()
         if new != self.focused or not self.focus_known:
+            self.d.sync()  # the grabs are in place before the shell hears about the change
             self.focused = new
             self.focus_known = True
             self.set_active(new if new is not None else (self.shell_id if top == self.shell_id else None))
@@ -568,6 +585,8 @@ class XWM(object):
 
     def on_key(self, e, press):
         ks = self.d.keycode_to_keysym(e.detail, 0)
+        if self.debug:
+            log('debug', 'key%s %d state=0x%x time=%d' % ('press' if press else 'release', e.detail, e.state, e.time))
         if not press:
             self.last_release[e.detail] = e.time
             if ks in SUPER_KEYSYMS:
@@ -682,6 +701,8 @@ class XWM(object):
         elif t == X.ClientMessage:
             self.on_client_message(e)
         elif t in (X.FocusIn, X.FocusOut):
+            if self.debug:
+                log('debug', 'focus%s 0x%x detail=%d mode=%d' % ('in' if t == X.FocusIn else 'out', e.window.id, e.detail, e.mode))
             self.refresh_focus()
         elif t == X.ButtonPress:
             if self.drag:

@@ -37,6 +37,7 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 | App phase 1 (PHASEAPP.md) | **done** — photos, calendar, clock, notes, todo, pdf, archive |
 | App phase 3 (PHASEAPP.md) | **done** — store, disks, backup, passwords, cloud (light), nettools (light) |
 | App phase 4 (PHASEAPP.md) | **done** — weather, maps, contacts, sticky, translate, remote (VNC) |
+| Linux GUI apps (external X11 windows) | **done** — aurora-xwm helper (python3-xlib) + shaped shell window + frames, .desktop entries in Start/search, 12 GUI apps in the Store; see docs/XWINDOWS.md |
 | App phase 2 | not started — wait for the user's go; run it like phases 3–4 (one workflow per app, all in parallel) |
 
 ### App / area status (every area has its own test suite in shell/test/)
@@ -50,6 +51,7 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 | Phase 1 apps | photos 46, pdf 244, archive 468, notes 262 + 156 unit, calendar 378 + 131 unit, clock 448, todo 361 |
 | Personalization | personalization-core 144, personalization-shell 90, taskbar-start-focus 269, packs-input 148, wallpapers 300 |
 | Core | smoke, core-dialogs 6 |
+| Linux GUI apps | xwm-helper 78, xwin 63 (incl. real xterm end-to-end), xapps 71, store 74 |
 
 Last full sweep (2026-10-11): 34/34 suites green; wallpapers and wm-nav needed one retry on the loaded 4-CPU build machine (timing only).
 
@@ -130,6 +132,10 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 - Cursor packs don't apply inside web pages; Busy/Working cursors are static.
 - Some tests are timing-sensitive on a loaded 4-CPU machine; `make test-all --retry` separates those from real failures.
 - ISO not bit-for-bit reproducible (grub-mkrescue date + volume UUID).
+- Linux GUI apps (first version, docs/XWINDOWS.md): no live thumbnails of X windows in Alt+Tab / Task view (app icon
+  instead); no hole while a frame animates; max-size hints not enforced; modal X dialogs don't block their parent;
+  no Alt+drag move; Firefox/Chromium/Thunderbird are snaps on noble (not offered; Mozilla's APT repo would be needed).
+  Store installs use --no-install-recommends (LibreOffice without libreoffice-gtk3 uses its plain X11 look).
 - Build host leftovers: empty /cdrom and /usr/lib/aurora (harmless).
 
 ## Next steps (exact)

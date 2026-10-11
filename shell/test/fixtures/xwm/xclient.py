@@ -14,13 +14,16 @@ Prints "xid <XID>" once mapped, then reads commands on stdin (one per line) and 
   title <text>                           change _NET_WM_NAME
   minsize <w> <h>                        change WM_NORMAL_HINTS
   unmap                                  withdraw the window
+  keys <keysym>...                       press the keys in order with XTest, release them in reverse
+                                         (exact keycodes: xdotool sometimes adds Shift to Tab)
 Prints "delete" and exits when it receives WM_DELETE_WINDOW.
 """
 import os
 import select
 import sys
 
-from Xlib import X, Xatom, display
+from Xlib import X, XK, Xatom, display
+from Xlib.ext import xtest
 from Xlib.protocol import event
 
 mode = sys.argv[1] if len(sys.argv) > 1 else 'client'
@@ -82,6 +85,14 @@ def command(line):
         w.change_property(A('_NET_WM_NAME'), A('UTF8_STRING'), 8, ' '.join(parts[1:]).encode())
     elif c == 'minsize':
         w.set_wm_normal_hints(flags=16, min_width=int(parts[1]), min_height=int(parts[2]))
+    elif c == 'keys':
+        codes = [d.keysym_to_keycode(XK.string_to_keysym(k)) for k in parts[1:]]
+        for kc in codes:
+            xtest.fake_input(d, X.KeyPress, kc)
+            d.sync()
+        for kc in reversed(codes):
+            xtest.fake_input(d, X.KeyRelease, kc)
+            d.sync()
     elif c == 'unmap':
         w.unmap()
         # ICCCM: a synthetic UnmapNotify on the root tells the WM the window is withdrawn.

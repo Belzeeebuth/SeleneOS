@@ -18,6 +18,8 @@ available in **English and French**, in light and dark themes.
 - Windows 11-like visuals: Mica windows, acrylic blur, accent colors, original wallpapers, light/dark mode
 - Keyboard shortcuts: Win, Win+D/E/I/L/A/N/S/R/X, Win+Tab, Win+arrows, Alt+Tab, Alt+F4,
   Ctrl+Shift+Esc, Ctrl+Alt+Del, PrintScreen / Win+Shift+S
+- Regular Linux applications (GIMP, LibreOffice, VLC, Inkscape…) open in Selene windows with taskbar, Alt+Tab,
+  snapping and the light/dark theme; installed programs appear in Start and search ([docs/XWINDOWS.md](docs/XWINDOWS.md))
 - Login screen and lock screen with PAM authentication, "User Account Control" prompts for admin
   actions, firewall (ufw) enabled by default
 
@@ -61,7 +63,7 @@ available in **English and French**, in light and dark themes.
 | Sticky Notes | Colourful notes that can stay on top, saved as you type, copy to Notes |
 | Translator | Seven languages (MyMemory or your LibreTranslate server), English dictionary, offline EN↔FR glossary |
 | Remote Desktop | VNC client (RDP later) |
-| Store | Command-line tools and services installed with apt (curated list) |
+| Store | Graphical Linux apps (GIMP, Inkscape, Krita, LibreOffice, VLC, Audacity, OBS Studio…), command-line tools and services, installed with apt (curated list) |
 | Disks | Drives and partitions, mount and eject, format USB sticks and SD cards |
 | Backup | Incremental snapshots of your folders to a drive; browse and restore |
 | Passwords | Encrypted password vault with a generator |
