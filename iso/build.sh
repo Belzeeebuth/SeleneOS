@@ -1176,6 +1176,8 @@ make_grub_theme() {
   regular="$(font_file 'Inter-Regular.*' 'Inter*.ttf' 'Inter*.otf' 'DejaVuSans.ttf')" || die "no font for the GRUB theme"
   bold="$(font_file 'Inter-SemiBold.*' 'Inter-Bold.*' 'DejaVuSans-Bold.ttf')" || bold="$regular"
   # GRUB bitmap fonts (Latin + punctuation + arrows: enough for English and French).
+  # grub-mkfont names them "<-n> <style> <size>", e.g. "Aurora Regular Regular 20": theme.txt must use
+  # exactly these names, or GRUB silently falls back to the first loaded font.
   # (grub-mkfont prints harmless "unsupported font feature" notes for OpenType fonts.)
   local range="0x20-0x7E,0xA0-0x17F,0x2013-0x2026,0x2190-0x2193,0x25B2-0x25BC" mk="$WORK/grub-mkfont.log"
   {
@@ -1186,37 +1188,40 @@ make_grub_theme() {
   } >"$mk" 2>&1 || { tail -n 20 "$mk" >&2; die "grub-mkfont failed"; }
 
   # shellcheck disable=SC2054  # ImageMagick option values contain commas
-  local png_opts=(-define png:exclude-chunks=date,time +set date:create +set date:modify -strip)
+  # GRUB's PNG reader only handles 8-bit RGB/RGBA (no 16-bit, palette or grey+alpha images): ImageMagick
+  # writes gradients as 16-bit and tiny shapes as palette/grey PNGs unless told otherwise (PNG24:/PNG32:).
+  local png_opts=(-depth 8 -define png:exclude-chunks=date,time +set date:create +set date:modify -strip)
   # Background: deep navy with a soft aurora glow and the logo, 1920x1080.
   rsvg-convert -w 168 -h 168 "$logo" -o "$tmp/logo.png"
+  # The glows fade to fully transparent, so their bounding boxes never show as rectangles.
   convert -size 1920x1080 xc:'#070b16' \
-    \( -size 1500x700 radial-gradient:'#173a6b-#070b16' -alpha set -channel A -evaluate set 70% +channel \) \
-      -gravity north -geometry +0+40 -compose over -composite \
-    \( -size 900x420 radial-gradient:'#0f6d74-#070b16' -alpha set -channel A -evaluate set 35% +channel \) \
-      -gravity north -geometry +260+160 -compose screen -composite \
+    \( -size 1800x1000 -define gradient:radii=900,500 radial-gradient:'rgba(30,72,140,0.85)-rgba(7,11,22,0)' \) \
+      -gravity north -geometry +0-120 -compose over -composite \
+    \( -size 1100x620 -define gradient:radii=550,310 radial-gradient:'rgba(16,120,128,0.40)-rgba(7,11,22,0)' \) \
+      -gravity north -geometry +320+60 -compose screen -composite \
     "$tmp/logo.png" -gravity north -geometry +0+150 -compose over -composite \
     -font "$bold" -pointsize 54 -fill '#f4f7fc' -gravity north -annotate +0+340 "$OS_NAME" \
     -font "$regular" -pointsize 22 -fill '#8fa2c2' -gravity north -annotate +0+412 "$ISO_VERSION" \
-    "${png_opts[@]}" "$t/background.png"
+    "${png_opts[@]}" "PNG24:$t/background.png"
   # Selected-entry highlight (9-slice: corners/edges/center).
   local s=8 fill='#2f6fe0'
   convert -size $((s*2+1))x$((s*2+1)) xc:none -fill "$fill" -draw "roundrectangle 0,0 $((s*2)),$((s*2)) $s,$s" "$tmp/hl.png"
-  convert "$tmp/hl.png" -crop "${s}x${s}+0+0"         +repage "${png_opts[@]}" "$t/select_nw.png"
-  convert "$tmp/hl.png" -crop "1x${s}+${s}+0"         +repage "${png_opts[@]}" "$t/select_n.png"
-  convert "$tmp/hl.png" -crop "${s}x${s}+$((s+1))+0"  +repage "${png_opts[@]}" "$t/select_ne.png"
-  convert "$tmp/hl.png" -crop "${s}x1+0+${s}"         +repage "${png_opts[@]}" "$t/select_w.png"
-  convert "$tmp/hl.png" -crop "1x1+${s}+${s}"         +repage "${png_opts[@]}" "$t/select_c.png"
-  convert "$tmp/hl.png" -crop "${s}x1+$((s+1))+${s}"  +repage "${png_opts[@]}" "$t/select_e.png"
-  convert "$tmp/hl.png" -crop "${s}x${s}+0+$((s+1))"  +repage "${png_opts[@]}" "$t/select_sw.png"
-  convert "$tmp/hl.png" -crop "1x${s}+${s}+$((s+1))"  +repage "${png_opts[@]}" "$t/select_s.png"
-  convert "$tmp/hl.png" -crop "${s}x${s}+$((s+1))+$((s+1))" +repage "${png_opts[@]}" "$t/select_se.png"
+  convert "$tmp/hl.png" -crop "${s}x${s}+0+0"         +repage "${png_opts[@]}" "PNG32:$t/select_nw.png"
+  convert "$tmp/hl.png" -crop "1x${s}+${s}+0"         +repage "${png_opts[@]}" "PNG32:$t/select_n.png"
+  convert "$tmp/hl.png" -crop "${s}x${s}+$((s+1))+0"  +repage "${png_opts[@]}" "PNG32:$t/select_ne.png"
+  convert "$tmp/hl.png" -crop "${s}x1+0+${s}"         +repage "${png_opts[@]}" "PNG32:$t/select_w.png"
+  convert "$tmp/hl.png" -crop "1x1+${s}+${s}"         +repage "${png_opts[@]}" "PNG32:$t/select_c.png"
+  convert "$tmp/hl.png" -crop "${s}x1+$((s+1))+${s}"  +repage "${png_opts[@]}" "PNG32:$t/select_e.png"
+  convert "$tmp/hl.png" -crop "${s}x${s}+0+$((s+1))"  +repage "${png_opts[@]}" "PNG32:$t/select_sw.png"
+  convert "$tmp/hl.png" -crop "1x${s}+${s}+$((s+1))"  +repage "${png_opts[@]}" "PNG32:$t/select_s.png"
+  convert "$tmp/hl.png" -crop "${s}x${s}+$((s+1))+$((s+1))" +repage "${png_opts[@]}" "PNG32:$t/select_se.png"
   # Menu panel (translucent card behind the entries).
   local m=12
   convert -size $((m*2+1))x$((m*2+1)) xc:none -fill '#ffffff14' -draw "roundrectangle 0,0 $((m*2)),$((m*2)) $m,$m" "$tmp/panel.png"
   local spec
   for spec in "nw ${m}x${m}+0+0" "n 1x${m}+${m}+0" "ne ${m}x${m}+$((m+1))+0" "w ${m}x1+0+${m}" "c 1x1+${m}+${m}" \
               "e ${m}x1+$((m+1))+${m}" "sw ${m}x${m}+0+$((m+1))" "s 1x${m}+${m}+$((m+1))" "se ${m}x${m}+$((m+1))+$((m+1))"; do
-    convert "$tmp/panel.png" -crop "${spec#* }" +repage "${png_opts[@]}" "$t/menu_${spec%% *}.png"
+    convert "$tmp/panel.png" -crop "${spec#* }" +repage "${png_opts[@]}" "PNG32:$t/menu_${spec%% *}.png"
   done
 
   cat >"$t/theme.txt" <<'EOF'
@@ -1227,7 +1232,7 @@ desktop-image-scale-method: "crop"
 desktop-image-h-align: "center"
 desktop-image-v-align: "center"
 desktop-color: "#070b16"
-terminal-font: "Aurora Regular 16"
+terminal-font: "Aurora Regular Regular 16"
 terminal-box: "menu_*.png"
 terminal-left: "10%"
 terminal-top: "10%"
@@ -1235,14 +1240,14 @@ terminal-width: "80%"
 terminal-height: "80%"
 
 + boot_menu {
-  left = 50%-330
+  left = 50%-380
   top = 50%+30
-  width = 660
-  height = 300
+  width = 760
+  height = 262
   menu_pixmap_style = "menu_*.png"
-  item_font = "Aurora Regular 20"
+  item_font = "Aurora Regular Regular 20"
   item_color = "#c9d4e8"
-  selected_item_font = "Aurora Bold 22"
+  selected_item_font = "Aurora Bold Regular 22"
   selected_item_color = "#ffffff"
   selected_item_pixmap_style = "select_*.png"
   item_height = 42
@@ -1263,7 +1268,7 @@ terminal-height: "80%"
   height = 24
   align = "right"
   color = "#8fa2c2"
-  font = "Aurora Regular 16"
+  font = "Aurora Regular Regular 16"
   text = "Starting in %d s"
 }
 
@@ -1275,7 +1280,7 @@ terminal-height: "80%"
   height = 24
   align = "left"
   color = "#8fa2c2"
-  font = "Aurora Regular 16"
+  font = "Aurora Regular Regular 16"
   text = "Démarrage dans %d s"
 }
 
@@ -1286,7 +1291,7 @@ terminal-height: "80%"
   height = 24
   align = "center"
   color = "#5f6f8c"
-  font = "Aurora Regular 16"
+  font = "Aurora Regular Regular 16"
   text = "↑ ↓ choose / choisir   ·   Enter / Entrée: start / démarrer   ·   e: edit / modifier"
 }
 EOF
@@ -1342,7 +1347,7 @@ menuentry "Safe graphics / Mode graphique sûr" --class aurora --id aurora-safe 
   initrd /casper/initrd
 }
 
-menuentry "Boot from first hard disk / Démarrer sur le disque dur" --class disk --id hdd {
+menuentry "Hard disk / Disque dur" --class disk --id hdd {
   if [ "\$grub_platform" = "efi" ]; then
     # Chainload an installed system's boot loader; fall back to the firmware boot order.
     for f in /EFI/aurora/shimx64.efi /EFI/aurora/grubx64.efi /EFI/ubuntu/shimx64.efi /EFI/ubuntu/grubx64.efi /EFI/Microsoft/Boot/bootmgfw.efi; do
@@ -1364,20 +1369,20 @@ menuentry "Boot from first hard disk / Démarrer sur le disque dur" --class disk
 }
 
 submenu "Advanced options / Options avancées" --class advanced {
-  menuentry "Aurora OS — debug (serial console, verbose) / débogage" --id aurora-debug {
+  menuentry "Debug mode / Mode débogage" --id aurora-debug {
     linux /casper/vmlinuz $common locale=en_US.UTF-8 console=tty1 console=ttyS0,115200n8 systemd.journald.forward_to_console=1 systemd.show_status=1 aurora.debug ---
     initrd /casper/initrd
   }
-  menuentry "Aurora OS — copy to RAM / copier en mémoire" --id aurora-toram {
+  menuentry "Copy to RAM / Copier en mémoire" --id aurora-toram {
     linux /casper/vmlinuz $common toram quiet splash locale=en_US.UTF-8 ---
     initrd /casper/initrd
   }
-  menuentry "Check disc for defects / Vérifier le disque" --id check {
+  menuentry "Check the disc / Vérifier le disque" --id check {
     linux /casper/vmlinuz $common integrity-check quiet splash locale=en_US.UTF-8 ---
     initrd /casper/initrd
   }
   if [ "\$grub_platform" = "efi" ]; then
-    menuentry "UEFI firmware settings / Paramètres UEFI" --id uefi-firmware {
+    menuentry "UEFI settings / Paramètres UEFI" --id uefi-firmware {
       fwsetup
     }
   fi

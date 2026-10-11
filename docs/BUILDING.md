@@ -296,7 +296,7 @@ Write the ISO to a USB stick (all its data is erased) with
 
 1. **Boot menu** (themed GRUB, 8 s timeout): *Aurora OS (English)*, *Aurora OS (Français)*
    (French UI and French keyboard), *Safe graphics / Mode graphique sûr* (`nomodeset`, software
-   rendering), *Boot from first hard disk / Démarrer sur le disque dur*, and *Advanced options*:
+   rendering), *Hard disk / Disque dur*, and *Advanced options*:
    *debug* (verbose boot, serial console on ttyS0, `aurora.debug`), *copy to RAM*, *check disc
    for defects*, *UEFI firmware settings* (UEFI only), *Restart*, *Shut down*.
 2. **Splash screen** (Aurora logo + spinner), then the **desktop of the live user `aurora`**,
@@ -604,7 +604,7 @@ et construisez avec `WITH_FIRMWARE=1`.
 
 1. **Menu de démarrage** (GRUB thématisé, 8 s) : *Aurora OS (English)*, *Aurora OS (Français)*
    (interface et clavier français), *Safe graphics / Mode graphique sûr* (`nomodeset`, rendu
-   logiciel), *Démarrer sur le disque dur*, et *Options avancées* : *débogage* (démarrage
+   logiciel), *Disque dur*, et *Options avancées* : *débogage* (démarrage
    détaillé, console série ttyS0, `aurora.debug`), *copier en mémoire*, *vérifier le disque*,
    *paramètres UEFI*, *redémarrer*, *arrêter*.
 2. **Écran de démarrage** (logo Aurora), puis le **bureau de l'utilisateur live `aurora`**, connecté
