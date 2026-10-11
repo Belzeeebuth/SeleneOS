@@ -8,7 +8,7 @@
 //   xapps:match ({ wmClass:[instance,class], gtkAppId, pid }) -> id | null
 //   (+xapps:changed)                 the application directories changed (fs.watch, debounced)
 //
-// Directories: $AURORA_XAPPS_DIRS (dir1:dir2, tests) or ~/.local/share/applications, /usr/local/share/applications,
+// Directories (none in dev unless AURORA_XWM / AURORA_XAPPS_HOST / AURORA_REAL_BACKENDS is 1): $AURORA_XAPPS_DIRS (dir1:dir2, tests) or ~/.local/share/applications, /usr/local/share/applications,
 // /usr/share/applications, /var/lib/flatpak/exports/share/applications (the first desktop id found wins, so a
 // Hidden=true copy in ~/.local masks the system entry). Icons: <data dir>/icons next to each applications dir plus the
 // system icon dirs, themes hicolor / Adwaita / Yaru, then /usr/share/pixmaps, absolute Icon= paths; media:// URLs.
@@ -301,9 +301,14 @@ function register(api) {
   const DEV = !!api.DEV;
   const fixtureDirs = (process.env.AURORA_XAPPS_DIRS || '').split(':').filter(Boolean).map((d) => path.resolve(d));
   const home = os.homedir();
+  // Dev without fixtures and without the X window manager: no host applications, so the shell (and its tests) do not
+  // depend on whatever the development machine has installed. AURORA_XAPPS_HOST=1 lists them anyway.
+  const hostInDev = process.env.AURORA_XWM === '1' || process.env.AURORA_XAPPS_HOST === '1' || process.env.AURORA_REAL_BACKENDS === '1';
   const appDirs = fixtureDirs.length
     ? fixtureDirs
-    : [path.join(process.env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'applications'), '/usr/local/share/applications', '/usr/share/applications', '/var/lib/flatpak/exports/share/applications', path.join(home, '.local', 'share', 'flatpak', 'exports', 'share', 'applications')];
+    : DEV && !hostInDev
+      ? []
+      : [path.join(process.env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'applications'), '/usr/local/share/applications', '/usr/share/applications', '/var/lib/flatpak/exports/share/applications', path.join(home, '.local', 'share', 'flatpak', 'exports', 'share', 'applications')];
   const iconBases = [...new Set([...appDirs.map((d) => path.join(path.dirname(d), 'icons')), path.join(home, '.local', 'share', 'icons'), path.join(home, '.icons'), '/usr/local/share/icons', '/usr/share/icons'])];
   const pixmaps = [...appDirs.map((d) => path.join(path.dirname(d), 'pixmaps')), '/usr/share/pixmaps'];
   const mayWriteHome = !DEV || fixtureDirs.length > 0 || process.env.AURORA_XWM === '1';
