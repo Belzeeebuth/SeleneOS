@@ -217,8 +217,11 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 
 **Media test:** "files opened while the window is still starting" failed once in a full run under heavy load, then passed alone. Recheck in the final sweep.
 
-## Running workflows (session 1)
+## Running workflows (resumed 2026-10-11 ~01:00 UTC)
 
-aurora-iso-noqemu, aurora-apps-internet (files/mail verify), aurora-apps-productivity (remaining verifies),
-aurora-apps-phase1-a (photos, pdf, archive, notes), aurora-apps-phase1-b (calendar, clock, todo),
-aurora-personalization. Finished: aurora-shell, aurora-apps-games.
+- `aurora-apps-phase1-a`: notes build (continuing the partial files) and verification of photos, pdf and notes.
+- `aurora-apps-phase1-b`: verification of calendar and todo.
+- `aurora-personalization-finish`: finish the wallpapers and verify them; verify B2 and B3; then the integration checklist, regression sweep and docs.
+
+If these die too, recheck the state with `git log`, the files listed above, and `node test/<area>.test.mjs`. Then continue the same steps.
+
