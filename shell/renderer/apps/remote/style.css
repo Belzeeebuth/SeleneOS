@@ -1,0 +1,274 @@
+/* Remote Desktop — scoped under .app-remote */
+.app-remote .rd-root {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+}
+.app-remote .rd-home {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.app-remote .rd-home[hidden],
+.app-remote .rd-session[hidden],
+.app-remote .rd-overlay[hidden],
+.app-remote .rd-canvas[hidden] {
+  display: none;
+}
+.app-remote .rd-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.app-remote .rd-hero-icon {
+  width: 48px;
+  height: 48px;
+  flex: none;
+}
+.app-remote .rd-h1 {
+  margin: 0 0 2px;
+  font-size: 24px;
+  font-weight: 600;
+}
+.app-remote .rd-hero p {
+  margin: 0;
+  max-width: 640px;
+}
+.app-remote .rd-h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.app-remote .rd-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(260px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+@container (max-width: 700px) {
+  .app-remote .rd-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.app-remote .rd-home {
+  container-type: inline-size;
+}
+.app-remote .rd-form,
+.app-remote .rd-saved {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.app-remote .rd-form .field {
+  margin-bottom: 8px;
+}
+.app-remote .rd-form-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  min-height: 32px;
+}
+.app-remote .grow {
+  flex: 1;
+}
+.app-remote .rd-label {
+  font-size: var(--fs-body, 14px);
+}
+.app-remote .rd-proto {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.app-remote .rd-proto-badge {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+.app-remote .rd-row {
+  display: flex;
+  gap: 10px;
+}
+.app-remote .rd-row > .field {
+  flex: 1;
+  min-width: 0;
+}
+.app-remote .rd-port {
+  width: 96px;
+  flex: none;
+}
+.app-remote .rd-form .input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.app-remote .input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+.app-remote .rd-remember {
+  margin: 0 0 10px;
+}
+.app-remote .rd-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.app-remote .rd-actions .btn,
+.app-remote .rd-bar .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-remote .rd-saved-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+.app-remote .rd-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 8px;
+  text-align: center;
+  color: var(--text-2);
+}
+.app-remote .rd-empty .icon {
+  width: 32px;
+  height: 32px;
+  opacity: 0.7;
+}
+.app-remote .rd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 10px;
+  border-radius: 6px;
+  transition: background var(--dur-fast, 0.12s) var(--ease);
+}
+.app-remote .rd-item:hover,
+.app-remote .rd-item:focus-within {
+  background: var(--subtle-hover);
+}
+.app-remote .rd-item-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: var(--subtle-hover);
+  color: var(--accent);
+}
+.app-remote .rd-item-text {
+  flex: 1;
+  min-width: 0;
+}
+.app-remote .rd-item-name {
+  font-weight: 600;
+}
+.app-remote .rd-info:empty {
+  display: none;
+}
+.app-remote .rd-info .infobar {
+  margin: 0;
+}
+
+/* ---------- session ---------- */
+.app-remote .rd-session {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-remote .rd-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--stroke);
+  background: var(--card);
+  flex: none;
+  flex-wrap: wrap;
+}
+.app-remote .rd-sess-id {
+  min-width: 0;
+  max-width: 45%;
+  padding: 0 6px;
+}
+.app-remote .rd-sess-title {
+  font-weight: 600;
+}
+.app-remote .rd-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--subtle-hover);
+}
+.app-remote .rd-seg .btn.selected {
+  background: var(--card);
+  box-shadow: 0 0 0 1px var(--stroke);
+}
+.app-remote .rd-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1b1b1f;
+}
+.app-remote .rd-viewport.actual {
+  overflow: auto;
+  display: block;
+}
+.app-remote .rd-viewport.actual .rd-canvas {
+  margin: 0 auto;
+}
+.app-remote .rd-canvas {
+  display: block;
+  flex: none;
+  cursor: default;
+  outline: none;
+  touch-action: none;
+}
+.app-remote .rd-canvas:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.app-remote .rd-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: #f3f3f3;
+  font-size: 14px;
+}
+.app-remote .rd-hint {
+  flex: none;
+  padding: 4px 12px;
+  border-top: 1px solid var(--stroke);
+  background: var(--card);
+}
+.app-remote .rd-root.fullscreen .rd-hint {
+  display: none;
+}
+:root[data-animations='off'] .app-remote .rd-item {
+  transition: none;
+}

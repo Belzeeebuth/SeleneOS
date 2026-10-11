@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="rd-frame" x1="4" y1="6" x2="40" y2="36" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3b4a63"/>
+      <stop offset="1" stop-color="#1e2738"/>
+    </linearGradient>
+    <linearGradient id="rd-screen" x1="7" y1="9" x2="37" y2="31" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2fb3f0"/>
+      <stop offset="1" stop-color="#0a5ccf"/>
+    </linearGradient>
+    <linearGradient id="rd-badge" x1="28" y1="26" x2="46" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7cd992"/>
+      <stop offset="1" stop-color="#159a5a"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="6" width="38" height="28" rx="3.5" fill="url(#rd-frame)"/>
+  <rect x="6" y="9" width="32" height="22" rx="1.5" fill="url(#rd-screen)"/>
+  <path d="M6 24l9-7 7 5 7-6 9 7v6.5A1.5 1.5 0 0 1 36.5 31h-29A1.5 1.5 0 0 1 6 29.5z" fill="#fff" fill-opacity=".22"/>
+  <path d="M17 34h10l1.5 5h-13z" fill="#2c374b"/>
+  <rect x="12" y="38.5" width="20" height="3" rx="1.5" fill="#3b4a63"/>
+  <circle cx="37" cy="35" r="9" fill="url(#rd-badge)" stroke="#fff" stroke-width="1.6"/>
+  <path d="M32.5 33.5h7.5m-2.6-2.8 2.8 2.8-2.8 2.8M41.5 37h-7.5m2.6 2.8-2.8-2.8 2.8-2.8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

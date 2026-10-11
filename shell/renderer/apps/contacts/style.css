@@ -1,0 +1,332 @@
+/* Contacts — scoped under .app-contacts */
+.app-contacts .ct {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) 1fr;
+  height: 100%;
+  min-height: 0;
+  color: var(--text);
+  font-size: 14px;
+}
+.app-contacts .ct-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--stroke);
+  background: var(--layer, transparent);
+}
+.app-contacts .ct-bar {
+  display: flex;
+  gap: 6px;
+  padding: 12px 12px 8px;
+  align-items: center;
+}
+.app-contacts .ct-search {
+  flex: 1;
+  min-width: 0;
+}
+.app-contacts .ct-bar .btn {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+}
+.app-contacts .ct-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 6px 8px;
+  outline: none;
+}
+.app-contacts .ct-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 10px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-text, var(--accent));
+}
+.app-contacts .ct-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  margin: 1px 0;
+  border-radius: 4px;
+  cursor: default;
+  position: relative;
+  outline: none;
+}
+.app-contacts .ct-row:hover {
+  background: var(--subtle-hover);
+}
+.app-contacts .ct-row.selected {
+  background: var(--subtle-hover);
+}
+.app-contacts .ct-row.selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.app-contacts .ct-row:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus, var(--accent));
+}
+.app-contacts .ct-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.app-contacts .ct-row-star {
+  color: #e8a400;
+  display: flex;
+}
+.app-contacts .ct-group .icon {
+  color: #e8a400;
+}
+.app-contacts .ct-count {
+  padding: 6px 16px 10px;
+}
+.app-contacts .ct-avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  overflow: hidden;
+  color: #fff;
+  font-weight: 600;
+  background: var(--accent);
+  user-select: none;
+}
+.app-contacts .ct-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.app-contacts .ct-main {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 32px;
+}
+.app-contacts .ct-empty {
+  height: 100%;
+}
+.app-contacts .ct-empty-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.app-contacts .ct-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.app-contacts .ct-head-text {
+  min-width: 0;
+}
+.app-contacts .ct-name,
+.app-contacts .ct-form-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.app-contacts .ct-form-title {
+  font-size: 20px;
+  margin-bottom: 16px;
+}
+.app-contacts .ct-back {
+  display: none;
+}
+.app-contacts .ct-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+.app-contacts .ct-fav.on .icon {
+  color: #e8a400;
+}
+.app-contacts .ct-card {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+.app-contacts .ct-card:empty {
+  display: none;
+}
+.app-contacts .ct-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 16px;
+}
+.app-contacts .ct-field + .ct-field {
+  border-top: 1px solid var(--stroke);
+}
+.app-contacts .ct-field > .icon {
+  margin-top: 4px;
+  color: var(--text-2);
+}
+.app-contacts .ct-field-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-contacts .ct-value,
+.app-contacts .ct-link {
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.app-contacts .ct-pre {
+  white-space: pre-wrap;
+}
+.app-contacts .ct-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--accent-text, var(--accent));
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.app-contacts .ct-link:hover {
+  text-decoration: underline;
+}
+.app-contacts .ct-link:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.app-contacts .ct-form {
+  max-width: 640px;
+}
+.app-contacts .ct-photo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.app-contacts .ct-photo-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.app-contacts .ct-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+.app-contacts .ct-input {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.app-contacts .ct-input .input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.app-contacts .ct-input textarea {
+  resize: vertical;
+  min-height: 60px;
+  font: inherit;
+}
+.app-contacts .ct-wide {
+  grid-column: 1 / -1;
+}
+.app-contacts .ct-multi {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-contacts .ct-multi-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.app-contacts .ct-multi-row .input {
+  min-width: 0;
+}
+.app-contacts .ct-type {
+  flex: none;
+  width: 120px;
+}
+.app-contacts .ct-add {
+  align-self: flex-start;
+}
+.app-contacts .ct-form-error {
+  margin-top: 12px;
+  color: var(--danger, #c42b1c);
+}
+.app-contacts .ct-form-foot {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+.app-contacts .ct-status {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--card-solid, var(--card));
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-8, 0 4px 12px rgba(0, 0, 0, 0.14));
+  animation: ct-in var(--dur-fast, 150ms) var(--ease) both;
+  z-index: 5;
+}
+.app-contacts .ct-status.error {
+  border-color: var(--danger, #c42b1c);
+}
+@keyframes ct-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+[data-animations='off'] .app-contacts .ct-status {
+  animation: none;
+}
+:root[data-theme='dark'] .app-contacts .ct-row-star,
+:root[data-theme='dark'] .app-contacts .ct-group .icon,
+:root[data-theme='dark'] .app-contacts .ct-fav.on .icon {
+  color: #fcc93a;
+}
+:root[data-theme='dark'] .app-contacts .ct-form-error {
+  color: var(--danger, #ff99a4);
+}
+/* Narrow: one pane at a time */
+.app-contacts .ct.narrow {
+  grid-template-columns: 1fr;
+}
+.app-contacts .ct.narrow .ct-main {
+  display: none;
+  padding: 16px;
+}
+.app-contacts .ct.narrow.show-detail .ct-side {
+  display: none;
+}
+.app-contacts .ct.narrow.show-detail .ct-main {
+  display: block;
+}
+.app-contacts .ct.narrow .ct-back {
+  display: inline-flex;
+}
+.app-contacts .ct.narrow .ct-grid {
+  grid-template-columns: 1fr;
+}

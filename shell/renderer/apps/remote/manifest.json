@@ -1,0 +1,14 @@
+{
+  "id": "remote",
+  "name": { "en": "Remote Desktop", "fr": "Bureau à distance" },
+  "description": { "en": "Connect to another computer's desktop with VNC", "fr": "Se connecter au bureau d'un autre ordinateur avec VNC" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1000, "height": 700, "minWidth": 480, "minHeight": 420, "background": "mica" },
+  "category": "system",
+  "keywords": {
+    "en": ["remote desktop", "vnc", "rfb", "remote", "screen sharing", "remote control", "viewer", "connection"],
+    "fr": ["bureau à distance", "vnc", "rfb", "à distance", "partage d'écran", "contrôle à distance", "visionneuse", "connexion"]
+  }
+}

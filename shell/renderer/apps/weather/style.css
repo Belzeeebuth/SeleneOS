@@ -1,0 +1,526 @@
+/* Weather — Fluent tokens only; every rule is scoped under .app-weather.
+   The hero card is tinted by the condition (--wx-tint, light and dark variants) mixed into the card colour. */
+.app-weather [hidden] {
+  display: none !important;
+}
+.app-weather .wx {
+  --wx-tint: #3b8eea;
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  container-type: inline-size;
+  color: var(--text);
+}
+.app-weather .wx-layout {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+.app-weather .wx[data-kind="clear"] { --wx-tint: #f2a900; }
+.app-weather .wx[data-kind="clear"][data-day="night"] { --wx-tint: #5b5fd6; }
+.app-weather .wx[data-kind="clouds"] { --wx-tint: #6f8aa6; }
+.app-weather .wx[data-kind="fog"] { --wx-tint: #8c96a3; }
+.app-weather .wx[data-kind="rain"] { --wx-tint: #2f7fd6; }
+.app-weather .wx[data-kind="snow"] { --wx-tint: #7cc4f2; }
+.app-weather .wx[data-kind="storm"] { --wx-tint: #7a4fd1; }
+:root[data-theme="dark"] .app-weather .wx[data-kind="clear"] { --wx-tint: #ffc83d; }
+:root[data-theme="dark"] .app-weather .wx[data-kind="rain"] { --wx-tint: #5aa2f0; }
+:root[data-theme="dark"] .app-weather .wx[data-kind="storm"] { --wx-tint: #a487f0; }
+
+.app-weather .wx-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* ------------------------------------------------------------------ side pane */
+.app-weather .wx-side {
+  width: 280px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px 8px 12px 12px;
+  gap: 6px;
+}
+.app-weather .wx-search {
+  position: relative;
+}
+.app-weather .wx-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-2);
+  pointer-events: none;
+  display: flex;
+}
+.app-weather .wx-search-input {
+  width: 100%;
+  padding-left: 34px;
+}
+.app-weather .wx-results {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 320px;
+  overflow: auto;
+  background: var(--acrylic-solid, var(--solid));
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-flyout);
+}
+.app-weather .wx-result,
+.app-weather .wx-result-empty {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  border-radius: var(--r);
+}
+.app-weather .wx-result {
+  cursor: default;
+}
+.app-weather .wx-result:hover,
+.app-weather .wx-result.active {
+  background: var(--subtle-hover);
+}
+.app-weather .wx-result-empty,
+.app-weather .wx-result-sub {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+.app-weather .wx-side-title {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  margin: 10px 6px 2px;
+}
+.app-weather .wx-places {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+.app-weather .wx-places-empty {
+  padding: 8px 6px;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+.app-weather .wx-place {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: var(--r);
+  margin: 1px 0;
+}
+.app-weather .wx-place:hover {
+  background: var(--subtle-hover);
+}
+.app-weather .wx-place.selected {
+  background: var(--subtle-selected);
+}
+.app-weather .wx-place.selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 16px;
+  width: 3px;
+  margin-top: -8px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.app-weather .wx-place-btn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  border-radius: var(--r);
+}
+.app-weather .wx-place-btn:focus-visible,
+.app-weather .wx-hours:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+.app-weather .wx-place-icon {
+  display: flex;
+  font-size: 20px;
+  color: var(--text-2);
+}
+.app-weather .wx-place-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-weather .wx-place-name,
+.app-weather .wx-place-sub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-weather .wx-place-sub {
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+.app-weather .wx-place-temp {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.app-weather .wx-place-del {
+  opacity: 0;
+  margin-right: 4px;
+  padding: 4px;
+  min-width: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.app-weather .wx-place:hover .wx-place-del,
+.app-weather .wx-place:focus-within .wx-place-del {
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------------ main pane */
+.app-weather .wx-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.app-weather .wx-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 12px 16px 8px;
+}
+.app-weather .wx-title {
+  flex: 1;
+  min-width: 120px;
+  margin: 0;
+  font-size: var(--fs-subtitle);
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-weather .wx-bar-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.app-weather .wx-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app-weather .wx-hero {
+  border-radius: var(--r-lg);
+  border: 1px solid var(--stroke-card);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--wx-tint) 24%, var(--card-solid, var(--card))) 0%, var(--card) 70%);
+  padding: 20px 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: wx-in var(--dur) var(--ease);
+}
+@keyframes wx-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+:root[data-animations="off"] .app-weather .wx-hero {
+  animation: none;
+}
+.app-weather .wx-hero-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+.app-weather .wx-hero-icon {
+  display: flex;
+  font-size: 72px;
+  color: var(--wx-tint);
+}
+.app-weather .wx-hero-icon .icon,
+.app-weather .wx-hero-icon svg {
+  width: 72px;
+  height: 72px;
+}
+.app-weather .wx-hero-temp {
+  display: flex;
+  align-items: flex-start;
+  line-height: 1;
+}
+.app-weather .wx-temp-val {
+  font-size: 64px;
+  font-weight: 600;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+.app-weather .wx-temp-unit {
+  font-size: 20px;
+  margin-top: 6px;
+  color: var(--text-2);
+}
+.app-weather .wx-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-weather .wx-hero-desc {
+  font-size: var(--fs-subtitle);
+  font-weight: 600;
+}
+.app-weather .wx-hero-feels,
+.app-weather .wx-hero-range {
+  color: var(--text-2);
+}
+.app-weather .wx-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.app-weather .wx-stat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r);
+  background: var(--layer, var(--card));
+  border: 1px solid var(--stroke-card);
+}
+.app-weather .wx-stat-icon {
+  display: flex;
+  font-size: 20px;
+  color: var(--accent-text);
+}
+.app-weather .wx-stat-label {
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+.app-weather .wx-stat-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.app-weather .wx-hero-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.app-weather .wx-updated {
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+.app-weather .wx-updated.stale {
+  color: var(--warning);
+}
+.app-weather .wx-wallpaper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-weather .wx-wallpaper.on {
+  color: var(--accent-text);
+}
+
+.app-weather .wx-section-title {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.app-weather .wx-hours {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  border-radius: var(--r-lg);
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+  scroll-behavior: smooth;
+}
+:root[data-animations="off"] .app-weather .wx-hours {
+  scroll-behavior: auto;
+}
+.app-weather .wx-hour {
+  flex: none;
+  width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 2px;
+  border-radius: var(--r);
+}
+.app-weather .wx-hour:first-child {
+  background: var(--subtle-selected);
+}
+.app-weather .wx-hour-time,
+.app-weather .wx-hour-precip {
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.app-weather .wx-hour-precip {
+  min-height: 16px;
+  color: var(--accent-text);
+}
+.app-weather .wx-hour-icon {
+  display: flex;
+  font-size: 24px;
+}
+.app-weather .wx-hour-temp {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-weather .wx-days {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  border-radius: var(--r-lg);
+  background: var(--card);
+  border: 1px solid var(--stroke-card);
+}
+.app-weather .wx-day {
+  display: grid;
+  grid-template-columns: 110px 28px minmax(0, 1fr) 64px 40px minmax(60px, 160px) 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+}
+.app-weather .wx-day + .wx-day {
+  border-top: 1px solid var(--stroke);
+}
+.app-weather .wx-day-name {
+  font-weight: 600;
+}
+.app-weather .wx-day-icon {
+  display: flex;
+  font-size: 22px;
+}
+.app-weather .wx-day-desc {
+  color: var(--text-2);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-weather .wx-day-precip {
+  font-size: var(--fs-caption);
+  color: var(--accent-text);
+  white-space: nowrap;
+}
+.app-weather .wx-day-precip > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.app-weather .wx-day-min,
+.app-weather .wx-day-max {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+.app-weather .wx-day-min {
+  color: var(--text-2);
+}
+.app-weather .wx-day-max {
+  font-weight: 600;
+  text-align: start;
+}
+.app-weather .wx-day-bar {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--control-strong, var(--stroke-strong));
+  opacity: 0.9;
+}
+.app-weather .wx-day-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #4aa3f0, #f2a900);
+}
+:root[data-theme="dark"] .app-weather .wx-day-fill {
+  background: linear-gradient(90deg, #6cb8ff, #ffc83d);
+}
+
+.app-weather .wx-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  color: var(--text-2);
+  padding: 32px 16px;
+}
+.app-weather .wx-state h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-subtitle);
+}
+.app-weather .wx-state p {
+  margin: 0;
+  max-width: 360px;
+}
+.app-weather .wx-state-art {
+  display: flex;
+  font-size: 56px;
+  color: var(--accent-text);
+}
+
+/* ------------------------------------------------------------------ narrow windows */
+@container (max-width: 720px) {
+  .app-weather .wx-layout {
+    flex-direction: column;
+    overflow: auto;
+  }
+  .app-weather .wx-side {
+    width: auto;
+    padding: 12px 12px 0;
+  }
+  .app-weather .wx-places {
+    flex: none;
+    max-height: 132px;
+  }
+  .app-weather .wx-main {
+    min-height: auto;
+    flex: none;
+  }
+  .app-weather .wx-content {
+    overflow: visible;
+  }
+  .app-weather .wx-day {
+    grid-template-columns: 76px 24px minmax(0, 1fr) 36px minmax(40px, 1fr) 36px;
+  }
+  .app-weather .wx-day-desc {
+    display: none;
+  }
+}

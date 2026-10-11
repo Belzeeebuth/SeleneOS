@@ -1,0 +1,90 @@
+{
+ "en": {
+  "app": "Maps",
+  "search": {
+   "placeholder": "Search for a place or address",
+   "label": "Search places",
+   "go": "Search",
+   "clear": "Clear search",
+   "searching": "Searching…",
+   "none": "No places found for “{q}”",
+   "error": "Search is unavailable. Check your connection and try again.",
+   "results_one": "{count} result",
+   "results_other": "{count} results",
+   "hint": "Type a city, an address or a landmark, then press Enter."
+  },
+  "tabs": { "label": "Side panel", "results": "Results", "places": "My places" },
+  "places": {
+   "empty": "No saved places yet. Search for a place and select Save.",
+   "save": "Save",
+   "saved": "Saved",
+   "saveTip": "Save to My places",
+   "remove": "Remove",
+   "removeTip": "Remove “{name}” from My places",
+   "rename": "Rename",
+   "renameTitle": "Rename place",
+   "nameLabel": "Name",
+   "savedToast": "“{name}” saved to My places",
+   "error": "Could not update My places."
+  },
+  "map": {
+   "label": "Map. Use the arrow keys to move and plus or minus to zoom.",
+   "zoomIn": "Zoom in",
+   "zoomOut": "Zoom out",
+   "togglePanel": "Show or hide the side panel",
+   "attribution": "© OpenStreetMap contributors",
+   "attributionTip": "Map data © OpenStreetMap contributors (ODbL)",
+   "zoomLevel": "Zoom {z}",
+   "tileError": "Some map tiles could not be loaded.",
+   "selected": "Selected place",
+   "close": "Close",
+   "center": "Show on map"
+  },
+  "scale": { "m": "{n} m", "km": "{n} km" },
+  "dir": { "n": "N", "s": "S", "e": "E", "w": "W" }
+ },
+ "fr": {
+  "app": "Cartes",
+  "search": {
+   "placeholder": "Rechercher un lieu ou une adresse",
+   "label": "Rechercher des lieux",
+   "go": "Rechercher",
+   "clear": "Effacer la recherche",
+   "searching": "Recherche…",
+   "none": "Aucun lieu trouvé pour « {q} »",
+   "error": "La recherche n’est pas disponible. Vérifiez votre connexion et réessayez.",
+   "results_one": "{count} résultat",
+   "results_other": "{count} résultats",
+   "hint": "Saisissez une ville, une adresse ou un monument, puis appuyez sur Entrée."
+  },
+  "tabs": { "label": "Volet latéral", "results": "Résultats", "places": "Mes lieux" },
+  "places": {
+   "empty": "Aucun lieu enregistré. Recherchez un lieu et sélectionnez Enregistrer.",
+   "save": "Enregistrer",
+   "saved": "Enregistré",
+   "saveTip": "Enregistrer dans Mes lieux",
+   "remove": "Supprimer",
+   "removeTip": "Supprimer « {name} » de Mes lieux",
+   "rename": "Renommer",
+   "renameTitle": "Renommer le lieu",
+   "nameLabel": "Nom",
+   "savedToast": "« {name} » enregistré dans Mes lieux",
+   "error": "Impossible de mettre à jour Mes lieux."
+  },
+  "map": {
+   "label": "Carte. Utilisez les flèches pour vous déplacer et plus ou moins pour zoomer.",
+   "zoomIn": "Zoom avant",
+   "zoomOut": "Zoom arrière",
+   "togglePanel": "Afficher ou masquer le volet latéral",
+   "attribution": "© les contributeurs d’OpenStreetMap",
+   "attributionTip": "Données cartographiques © les contributeurs d’OpenStreetMap (ODbL)",
+   "zoomLevel": "Zoom {z}",
+   "tileError": "Certaines tuiles de la carte n’ont pas pu être chargées.",
+   "selected": "Lieu sélectionné",
+   "close": "Fermer",
+   "center": "Afficher sur la carte"
+  },
+  "scale": { "m": "{n} m", "km": "{n} km" },
+  "dir": { "n": "N", "s": "S", "e": "E", "w": "O" }
+ }
+}

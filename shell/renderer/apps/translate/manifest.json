@@ -1,0 +1,15 @@
+{
+  "id": "translate",
+  "name": { "en": "Translator", "fr": "Traducteur" },
+  "description": { "en": "Translate text between seven languages and look up English words in the dictionary", "fr": "Traduisez du texte entre sept langues et cherchez des mots anglais dans le dictionnaire" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 900, "height": 680, "minWidth": 420, "minHeight": 480, "background": "mica" },
+  "category": "productivity",
+  "keywords": {
+    "en": ["translate", "translator", "translation", "language", "dictionary", "definition", "french", "english", "spanish", "german", "italian", "portuguese", "dutch"],
+    "fr": ["traduire", "traducteur", "traduction", "langue", "dictionnaire", "définition", "français", "anglais", "espagnol", "allemand", "italien", "portugais", "néerlandais"]
+  },
+  "singleInstance": true
+}

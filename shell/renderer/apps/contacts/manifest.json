@@ -1,0 +1,17 @@
+{
+  "id": "contacts",
+  "name": { "en": "Contacts", "fr": "Contacts" },
+  "description": { "en": "People you know: e-mails, phone numbers, addresses, birthdays, favourites and vCard import / export", "fr": "Les personnes que vous connaissez : e-mails, téléphones, adresses, anniversaires, favoris et import / export vCard" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 980, "height": 680, "minWidth": 420, "minHeight": 440, "background": "mica" },
+  "category": "productivity",
+  "keywords": {
+    "en": ["contacts", "people", "address book", "phone", "e-mail", "vcard", "vcf", "birthday"],
+    "fr": ["contacts", "personnes", "carnet d'adresses", "téléphone", "e-mail", "vcard", "vcf", "anniversaire"]
+  },
+  "fileTypes": [".vcf"],
+  "defaultFor": [".vcf"],
+  "singleInstance": true
+}

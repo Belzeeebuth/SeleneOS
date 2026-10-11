@@ -1,0 +1,15 @@
+{
+  "id": "weather",
+  "name": { "en": "Weather", "fr": "Météo" },
+  "description": { "en": "Current conditions, hourly and 7-day forecasts for the places you follow", "fr": "Conditions actuelles, prévisions heure par heure et sur 7 jours pour les lieux que vous suivez" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1040, "height": 720, "minWidth": 420, "minHeight": 520, "background": "mica" },
+  "category": "utilities",
+  "keywords": {
+    "en": ["weather", "forecast", "temperature", "rain", "wind", "humidity", "city"],
+    "fr": ["météo", "prévisions", "température", "pluie", "vent", "humidité", "ville"]
+  },
+  "singleInstance": true
+}

@@ -1,0 +1,76 @@
+/* Sticky Notes — hub list + note windows. Scoped under .app-sticky. */
+.app-sticky {
+  --sk-yellow: #fff4b8; --sk-yellow-head: #fbe58a; --sk-yellow-dot: #e8b800;
+  --sk-green: #d9f5d0; --sk-green-head: #bdeaae; --sk-green-dot: #4caf50;
+  --sk-pink: #ffd9ec; --sk-pink-head: #ffc0dd; --sk-pink-dot: #e3488f;
+  --sk-purple: #e8dcff; --sk-purple-head: #d6c3ff; --sk-purple-dot: #8a5cf6;
+  --sk-blue: #d7ecff; --sk-blue-head: #bcdcff; --sk-blue-dot: #2f86e6;
+  --sk-gray: #e9e9ec; --sk-gray-head: #d6d6db; --sk-gray-dot: #6b6b75;
+  --sk-ink: #1b1b1f;
+}
+:root[data-theme="dark"] .app-sticky {
+  --sk-yellow: #4a4220; --sk-yellow-head: #5c5222; --sk-yellow-dot: #f2cf3a;
+  --sk-green: #213d27; --sk-green-head: #2a4d31; --sk-green-dot: #6fd07a;
+  --sk-pink: #4a2234; --sk-pink-head: #5c2a41; --sk-pink-dot: #f27ab3;
+  --sk-purple: #33284d; --sk-purple-head: #40325f; --sk-purple-dot: #b39cf8;
+  --sk-blue: #1f3550; --sk-blue-head: #284363; --sk-blue-dot: #6fb2f6;
+  --sk-gray: #2f2f34; --sk-gray-head: #3b3b42; --sk-gray-dot: #a5a5b0;
+  --sk-ink: #f3f3f5;
+}
+.app-sticky [data-color="yellow"] { --sk-bg: var(--sk-yellow); --sk-head: var(--sk-yellow-head); --sk-dot: var(--sk-yellow-dot); }
+.app-sticky [data-color="green"] { --sk-bg: var(--sk-green); --sk-head: var(--sk-green-head); --sk-dot: var(--sk-green-dot); }
+.app-sticky [data-color="pink"] { --sk-bg: var(--sk-pink); --sk-head: var(--sk-pink-head); --sk-dot: var(--sk-pink-dot); }
+.app-sticky [data-color="purple"] { --sk-bg: var(--sk-purple); --sk-head: var(--sk-purple-head); --sk-dot: var(--sk-purple-dot); }
+.app-sticky [data-color="blue"] { --sk-bg: var(--sk-blue); --sk-head: var(--sk-blue-head); --sk-dot: var(--sk-blue-dot); }
+.app-sticky [data-color="gray"] { --sk-bg: var(--sk-gray); --sk-head: var(--sk-gray-head); --sk-dot: var(--sk-gray-dot); }
+
+.app-sticky .sk-icon-btn {
+  min-width: 32px; width: 32px; height: 32px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.app-sticky .sk-grow { flex: 1; }
+
+/* ------------------------------------------------------------ hub */
+.app-sticky .sk-hub { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px 16px 12px; gap: 10px; color: var(--text); }
+.app-sticky .sk-hub-head { display: flex; align-items: center; gap: 8px; }
+.app-sticky .sk-hub-title { flex: 1; font-size: 20px; font-weight: 600; }
+.app-sticky .sk-search-row { position: relative; display: flex; align-items: center; }
+.app-sticky .sk-search-row > .icon { position: absolute; left: 10px; color: var(--text-2); pointer-events: none; }
+.app-sticky .sk-search { width: 100%; padding-left: 34px; }
+.app-sticky .sk-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 2px; margin: -2px; }
+.app-sticky .sk-card {
+  position: relative; display: grid; grid-template-columns: 4px 1fr auto; grid-template-rows: auto auto; column-gap: 10px;
+  padding: 10px 10px 10px 0; border-radius: var(--radius, 8px); background: var(--card); border: 1px solid var(--stroke-card, var(--stroke));
+  cursor: pointer; overflow: hidden; outline: none;
+  transition: background var(--dur-fast, 120ms) var(--ease);
+}
+.app-sticky .sk-card:hover { background: var(--subtle-hover); }
+.app-sticky .sk-card:focus-visible { box-shadow: 0 0 0 2px var(--focus, var(--accent)); }
+.app-sticky .sk-dot { grid-row: 1 / span 2; width: 4px; align-self: stretch; margin: -10px 0; background: var(--sk-dot); }
+.app-sticky .sk-card-main { grid-row: 1 / span 2; min-width: 0; }
+.app-sticky .sk-card-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-sticky .sk-card-title.sk-muted { color: var(--text-2); font-weight: 400; font-style: italic; }
+.app-sticky .sk-card-preview { color: var(--text-2); font-size: 12px; line-height: 16px; max-height: 32px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; margin-top: 2px; }
+.app-sticky .sk-card-date { color: var(--text-2); white-space: nowrap; align-self: start; }
+.app-sticky .sk-card-more { justify-self: end; width: 28px; min-width: 28px; height: 24px; opacity: 0; }
+.app-sticky .sk-card:hover .sk-card-more, .app-sticky .sk-card:focus-within .sk-card-more { opacity: 1; }
+.app-sticky .sk-empty { flex: 1; text-align: center; padding: 24px 12px; }
+.app-sticky .sk-undo { align-items: center; padding: 8px 12px; }
+.app-sticky .sk-undo[hidden], .app-sticky .sk-error[hidden] { display: none; }
+.app-sticky .sk-undo-text { flex: 1; }
+.app-sticky .sk-error { align-items: center; padding: 8px 12px; }
+
+/* ------------------------------------------------------------ note window */
+.app-sticky .sk-note { display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--sk-bg); color: var(--sk-ink); }
+.app-sticky .sk-note-head { display: flex; align-items: center; gap: 2px; padding: 2px 4px; background: var(--sk-head); }
+.app-sticky .sk-note .btn.subtle { color: var(--sk-ink); }
+.app-sticky .sk-note .btn.subtle:hover { background: color-mix(in srgb, var(--sk-ink) 10%, transparent); }
+.app-sticky .sk-note .btn.subtle.on { background: color-mix(in srgb, var(--sk-ink) 16%, transparent); }
+.app-sticky .sk-editor {
+  flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px; outline: none; font-size: 15px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word; cursor: text; user-select: text;
+}
+.app-sticky .sk-editor:empty::before { content: attr(data-placeholder); color: color-mix(in srgb, var(--sk-ink) 55%, transparent); pointer-events: none; }
+.app-sticky .sk-editor ul { margin: 2px 0; padding-left: 22px; }
+.app-sticky .sk-format { display: flex; gap: 2px; padding: 4px; border-top: 1px solid color-mix(in srgb, var(--sk-ink) 10%, transparent); }
+[data-animations="off"] .app-sticky .sk-card { transition: none; }

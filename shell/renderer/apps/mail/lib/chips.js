@@ -207,6 +207,28 @@ export class AddressField {
     this.suggestions = q.length >= 1 ? store.suggest(q, this.chips.map((c) => c.address)) : [];
     this.active = this.suggestions.length ? 0 : -1;
     this.renderPopup();
+    if (q) this.addContactSuggestions(q);
+  }
+
+  // People saved in the Contacts app (main/ipc/contacts.js) join the suggestions once they arrive.
+  async addContactSuggestions(q) {
+    const seq = (this._contactSeq = (this._contactSeq || 0) + 1);
+    let found = [];
+    try {
+      found = await this.ctx.api.invoke('contacts:search', q, { limit: 8 });
+    } catch {
+      return; // Contacts backend not loaded
+    }
+    if (seq !== this._contactSeq || this.input.value.trim() !== q || !Array.isArray(found) || !found.length) return;
+    const taken = new Set([...this.chips.map((c) => c.address.toLowerCase()), ...this.suggestions.map((s) => s.address.toLowerCase())]);
+    const extra = found.filter((f) => f && f.address && !taken.has(String(f.address).toLowerCase())).map((f) => ({ address: String(f.address), name: String(f.name || ''), contact: true }));
+    if (!extra.length) return;
+    const activeAddr = this.suggestions[this.active]?.address;
+    // Known contacts first (favourites already lead), then addresses seen in mail.
+    this.suggestions = [...extra, ...this.suggestions].slice(0, 8);
+    const keep = this.suggestions.findIndex((s) => s.address === activeAddr);
+    this.active = keep >= 0 && activeAddr ? keep : 0;
+    this.renderPopup();
   }
 
   renderPopup() {

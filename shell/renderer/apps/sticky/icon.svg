@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="sk-back" x1="14" y1="4" x2="40" y2="34" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff9ccb"/>
+      <stop offset="1" stop-color="#e3488f"/>
+    </linearGradient>
+    <linearGradient id="sk-front" x1="8" y1="12" x2="36" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff6c2"/>
+      <stop offset="0.6" stop-color="#ffe46b"/>
+      <stop offset="1" stop-color="#f5c400"/>
+    </linearGradient>
+    <linearGradient id="sk-fold" x1="30" y1="34" x2="38" y2="42" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e0ae00"/>
+      <stop offset="1" stop-color="#fff0a0"/>
+    </linearGradient>
+    <linearGradient id="sk-pin" x1="30" y1="4" x2="40" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6fb2f6"/>
+      <stop offset="1" stop-color="#1a5fc4"/>
+    </linearGradient>
+  </defs>
+  <rect x="15" y="5" width="27" height="27" rx="4" fill="url(#sk-back)" transform="rotate(8 28 18)"/>
+  <path d="M10 13h24a4 4 0 0 1 4 4v15l-10 11H10a4 4 0 0 1-4-4V17a4 4 0 0 1 4-4z" fill="url(#sk-front)"/>
+  <path d="M38 32l-10 11v-7a4 4 0 0 1 4-4z" fill="url(#sk-fold)"/>
+  <rect x="12" y="21" width="16" height="2.5" rx="1.25" fill="#8a6a00" opacity=".55"/>
+  <rect x="12" y="27" width="20" height="2.5" rx="1.25" fill="#8a6a00" opacity=".4"/>
+  <rect x="12" y="33" width="11" height="2.5" rx="1.25" fill="#8a6a00" opacity=".4"/>
+  <circle cx="35" cy="10" r="4.5" fill="url(#sk-pin)"/>
+  <circle cx="33.6" cy="8.6" r="1.4" fill="#ffffff" opacity=".7"/>
+</svg>
