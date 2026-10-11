@@ -1045,14 +1045,20 @@ async function stylesPart() {
       await sleep(1200);
       await A(() => window.__aurora.shell.emit('start:toggle'));
       await sleep(700);
-      const r = await A(() => {
+      const read = () => A(() => {
         const imgs = [...document.querySelectorAll('#taskbar img, #start img')].filter((i) => i.offsetParent);
         const broken = imgs.filter((i) => i.complete && !i.naturalWidth).length;
         const sp = document.querySelector('#start');
         const sr = sp.getBoundingClientRect();
         return { n: imgs.length, broken, start: sr.width > 0 && sr.left >= 0 && sr.right <= innerWidth + 1 && sr.bottom <= innerHeight + 1, cur: getComputedStyle(document.body).cursor.slice(0, 10) };
       });
-      check(r.n > 4 && !r.broken && r.start && r.cur.startsWith('url('), `${c.style} + ${c.iconPack} icons + ${c.cursorPack} cursors + ${c['taskbar.position']} taskbar (${c.theme}): ${r.n} icons drawn, Start on screen`);
+      // Poll (up to ~3 s): on a loaded machine Start may still be sliding in, or a pack icon still loading.
+      let r = await read();
+      for (let i = 0; i < 15 && !(r.n > 4 && !r.broken && r.start && r.cur.startsWith('url(')); i++) {
+        await sleep(200);
+        r = await read();
+      }
+      check(r.n > 4 && !r.broken && r.start && r.cur.startsWith('url('), `${c.style} + ${c.iconPack} icons + ${c.cursorPack} cursors + ${c['taskbar.position']} taskbar (${c.theme}): ${r.n} icons drawn, Start on screen${r.n > 4 && !r.broken && r.start && r.cur.startsWith('url(') ? '' : ` ${JSON.stringify(r)}`}`);
       await docShot(s, `packs-style-${c.style}-${c.iconPack}`);
       await A(() => window.__aurora.shell.emit('start:close'));
       await sleep(300);
@@ -1104,7 +1110,8 @@ async function uiPart() {
       const box = document.createElement('div');
       box.id = 'ui-probe';
       box.style.cssText = 'position:fixed;left:20px;top:20px;z-index:99999;display:flex;gap:8px;padding:8px';
-      box.innerHTML = '<button class="btn danger">Delete</button><select class="select"><option>One</option><option>Two</option></select>';
+      // No transitions on the probe: on a loaded machine the colours would be read mid-way from the previous style/theme.
+      box.innerHTML = '<button class="btn danger" style="transition:none">Delete</button><select class="select" style="transition:none"><option>One</option><option>Two</option></select>';
       document.body.append(box);
     });
     const bad = [];

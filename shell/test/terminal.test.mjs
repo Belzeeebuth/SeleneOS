@@ -190,6 +190,30 @@ async function helperTests() {
       });
     check('background and foreground jobs got SIGHUP', left, []);
   });
+  await section('helper', 'a shell killed before it passes the hang-up on still has its background jobs hung up', async () => {
+    // On a loaded machine the shell may not exit within the grace period, and once it is killed it can no longer
+    // send SIGHUP to its background jobs: the helper must. A zero grace period makes that case deterministic.
+    const procs = (re) =>
+      fs.readdirSync('/proc').filter((d) => {
+        if (!/^\d+$/.test(d)) return false;
+        try {
+          return re.test(fs.readFileSync(`/proc/${d}/cmdline`, 'utf8'));
+        } catch {
+          return false;
+        }
+      });
+    const p = pty(BASH, { env: { AURORA_PTY_HANGUP_GRACE: '0' } });
+    await p.waitFor(/[$#] $/);
+    p.write('sleep 302 & sleep 303\r');
+    for (let i = 0; i < 40 && !(procs(/^sleep\x00302\x00$/).length && procs(/^sleep\x00303\x00$/).length); i++) await sleep(50);
+    check('background and foreground jobs started', procs(/^sleep\x00302\x00$/).length === 1 && procs(/^sleep\x00303\x00$/).length === 1, true);
+    p.child.stdin.end();
+    await p.done;
+    for (let i = 0; i < 30 && procs(/^sleep\x00(302|303)\x00$/).length; i++) await sleep(50);
+    const left = procs(/^sleep\x00(302|303)\x00$/);
+    for (const d of left) try { process.kill(Number(d), 'SIGKILL'); } catch {}
+    check('jobs of a killed shell got SIGHUP', left, []);
+  });
   await section('helper', 'login shell, cwd and environment', async () => {
     const p = pty(['--cwd', '/tmp'], { env: { HOME: os.tmpdir() } });
     await sleep(600);

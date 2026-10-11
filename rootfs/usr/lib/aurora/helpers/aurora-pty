@@ -43,7 +43,11 @@ OUT_HIGH = 1 << 20       # stop reading the terminal while this much output wait
 IN_HIGH = 4 << 20        # stop reading stdin while this much input waits for the terminal
 DRAIN_QUIET = 0.05       # after the program exits: stop once the terminal is quiet this long
 DRAIN_MAX = 2.0          # ... or after this long at most (background jobs still writing)
-HANGUP_GRACE = 1.5       # seconds between SIGHUP and SIGKILL
+HANGUP_GRACE = 1.5       # seconds between SIGHUP and SIGKILL (AURORA_PTY_HANGUP_GRACE overrides it, for tests)
+try:
+    HANGUP_GRACE = min(max(float(os.environ.get("AURORA_PTY_HANGUP_GRACE", HANGUP_GRACE)), 0.0), 10.0)
+except ValueError:
+    pass
 
 
 def usage(msg):
@@ -418,6 +422,24 @@ class Relay:
             except OSError:
                 pass
 
+    def hangup_session_jobs(self, done):
+        """SIGHUP + SIGCONT every other process group of the program's session (its background jobs)."""
+        groups = set()
+        for entry in os.listdir("/proc"):
+            if not entry.isdigit():
+                continue
+            try:
+                if os.getsid(int(entry)) == self.pid:
+                    groups.add(os.getpgid(int(entry)))
+            except OSError:
+                continue
+        for pg in groups - set(done) - {0}:
+            for sig in (signal.SIGHUP, signal.SIGCONT):
+                try:
+                    os.killpg(pg, sig)
+                except OSError:
+                    pass
+
     def hangup(self):
         """Like closing a terminal window: SIGHUP the session, close the terminal, then insist."""
         fg = self.fg_pgrp()
@@ -432,6 +454,10 @@ class Relay:
         while not self.reap() and time.monotonic() < deadline:
             time.sleep(0.02)
         if self.status is None:
+            # The shell did not exit in time (a loaded machine), so it may never have passed the hang-up
+            # on to its background jobs, as an interactive shell does: do it for it before killing it.
+            # Jobs that ignore SIGHUP (nohup) still survive, as in any terminal.
+            self.hangup_session_jobs({fg, self.pid})
             for target in {fg, self.pid} - {0}:
                 try:
                     os.killpg(target, signal.SIGKILL)

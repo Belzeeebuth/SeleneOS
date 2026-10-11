@@ -235,7 +235,20 @@ HDMI-1 connected 1080x1920+1920+0 left (normal left inverted right x axis y axis
   const used = new Set();
   for (const f of ['main.js', 'lib/kit.js', ...fs.readdirSync(path.join(ROOT, 'renderer/apps/settings/pages')).map((x) => `pages/${x}`)]) for (const m of fs.readFileSync(path.join(ROOT, 'renderer/apps/settings', f), 'utf8').matchAll(/\bt\('([a-zA-Z0-9_.]+)'/g)) used.add(m[1]);
   const core = flat(JSON.parse(fs.readFileSync(path.join(ROOT, 'renderer/core/i18n/en.json'), 'utf8')));
-  const missing = [...used].filter((k) => !en.includes(k) && !en.includes(`${k}_one`) && !core.includes(k));
+  // Pages may also add strings to the core dictionary with i18n.extend({...}) (e.g. personalization-b3-strings.js):
+  // evaluate that object literal on its own (the module itself needs the browser) and count its keys too.
+  const extended = [];
+  for (const x of fs.readdirSync(path.join(ROOT, 'renderer/apps/settings/pages'))) {
+    const src = fs.readFileSync(path.join(ROOT, 'renderer/apps/settings/pages', x), 'utf8');
+    if (!/^i18n\.extend\(/m.test(src)) continue;
+    const body = src.replace(/^import .*$/gm, '').replace(/^i18n\.extend\(/m, 'export default (');
+    const dict = (await import(`data:text/javascript,${encodeURIComponent(body)}`)).default;
+    const enX = flat(dict.en || {});
+    const frX = new Set(flat(dict.fr || {}));
+    check(enX.every((k) => frX.has(k)) && frX.size === enX.length, `${x}: every extended string exists in English and French (${enX.length})`);
+    extended.push(...enX);
+  }
+  const missing = [...used].filter((k) => !en.includes(k) && !en.includes(`${k}_one`) && !core.includes(k) && !extended.includes(k));
   check(!missing.length, `no missing string keys${missing.length ? `: ${missing.join(' ')}` : ''}`);
 }
 
