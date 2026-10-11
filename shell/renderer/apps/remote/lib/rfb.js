@@ -303,8 +303,8 @@ export class RfbClient {
     const dv = new DataView(b.buffer);
     b[0] = 5;
     b[1] = mask & 0xff;
-    dv.setUint16(2, Math.max(0, Math.min(this.width - 1, Math.round(x))));
-    dv.setUint16(4, Math.max(0, Math.min(this.height - 1, Math.round(y))));
+    dv.setUint16(2, Math.max(0, Math.min(this.width - 1, Math.floor(x))));
+    dv.setUint16(4, Math.max(0, Math.min(this.height - 1, Math.floor(y))));
     this.send(b);
   }
   key(keysym, down) {

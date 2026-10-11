@@ -268,10 +268,12 @@ await section('vCard import + export', async () => {
   check('re-import updates, no duplicates', (await names(s)).length, 8);
   for (const [label, ver] of [['Export all (vCard 3.0)', '3.0'], ['Export all (vCard 4.0)', '4.0']]) {
     const out = path.join(docs, `all-${ver}.vcf`);
-    await CT(s, (app, p) => ((app.ctx.ui.filePicker = async () => p), true), out);
+    // Clear the previous export's toast so the wait below sees this export's own result.
+    await CT(s, (app, p) => ((app.ctx.ui.filePicker = async () => p), (app.status.textContent = ''), true), out);
     await s.page.click(`${WIN} .ct-more`);
     await s.page.locator('.menu .menu-item', { hasText: label }).click();
     await until(s, () => /Exported 7 contacts/.test(document.querySelector('.win.app-contacts .ct-status')?.textContent || ''), { label: `export ${ver}` });
+    for (let i = 0; i < 50 && !fs.existsSync(out); i++) await sleep(100);
     const txt = fs.readFileSync(out, 'utf8');
     check(`export ${ver}: 7 cards`, (txt.match(/BEGIN:VCARD/g) || []).length, 7);
     check(`export ${ver}: version`, (txt.match(new RegExp(`VERSION:${ver.replace('.', '\\.')}`, 'g')) || []).length, 7);

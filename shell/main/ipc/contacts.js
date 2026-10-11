@@ -392,6 +392,7 @@ function register(api) {
   api.handle('contacts:photo', async (p) => {
     const file = str(p);
     const ext = path.extname(file).slice(1).toLowerCase();
+    if (!path.isAbsolute(file)) throw api.error('Invalid path', 'EINVAL');
     if (!IMG[ext]) throw api.error('Not a picture', 'EINVAL');
     const st = await fsp.stat(file);
     if (!st.isFile() || st.size > MAX_PHOTO) throw api.error('Picture too large', 'EFBIG');
@@ -403,7 +404,9 @@ function register(api) {
       let text;
       if (src && typeof src === 'object' && typeof src.text === 'string') text = src.text;
       else {
+        if (!path.isAbsolute(str(src))) throw api.error('Invalid path', 'EINVAL');
         const st = await fsp.stat(str(src));
+        if (!st.isFile()) throw api.error('Not a file', 'EINVAL');
         if (st.size > MAX_VCF) throw api.error('File too large', 'EFBIG');
         text = await fsp.readFile(str(src), 'utf8');
       }

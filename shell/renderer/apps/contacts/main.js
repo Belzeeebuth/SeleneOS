@@ -630,7 +630,7 @@ class ContactsApp {
   async exportPick(ids, version, name) {
     const { ui, win, api } = this.ctx;
     const safe = text(name || this.t('appName')).replace(/[\\/:*?"<>|]+/g, '_').trim() || 'contacts';
-    const dest = await ui.filePicker({ mode: 'save', title: this.t('exportOne'), name: `${safe}.vcf`, filters: [{ name: this.t('vcards'), ext: ['.vcf'] }], parent: win });
+    const dest = await ui.filePicker({ mode: 'save', title: ids ? this.t('exportOne') : this.t('exportAll'), name: `${safe}.vcf`, filters: [{ name: this.t('vcards'), ext: ['.vcf'] }], parent: win });
     if (!dest || win.closed) return;
     try {
       const res = await api.invoke('contacts:exportVcf', ids, dest, { version });

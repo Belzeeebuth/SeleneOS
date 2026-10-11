@@ -17,6 +17,7 @@
 //   remote:secret (id) -> string ('' when none is stored)
 //   remote:storage () -> { file, secure }
 // Fire-and-forget (api.send):
+//   remote:resume (id)          start receiving: the socket is paused until then (no data before the connect reply)
 //   remote:write (id, Uint8Array)
 // Events (only to the window that owns the connection):
 //   remote:data   { id, data: Uint8Array }
@@ -180,9 +181,13 @@ module.exports = function register(api) {
     socket.setNoDelay(true);
     socket.setKeepAlive(true, 30000);
     socket.setTimeout(IDLE_MS, () => closeConn(id, { code: 'ETIMEDOUT', message: 'idle' }));
-    socket.on('data', (buf) => {
-      if (conns.has(id)) api.sendTo(sender, 'remote:data', { id, data: new Uint8Array(buf.buffer, buf.byteOffset, buf.length) });
-    });
+    // The socket stays paused (bytes buffered by Node) until the window knows the id and sends remote:resume,
+    // so no data event can reach the renderer before the remote:connect reply.
+    conns.get(id).start = () => {
+      socket.on('data', (buf) => {
+        if (conns.has(id)) api.sendTo(sender, 'remote:data', { id, data: new Uint8Array(buf.buffer, buf.byteOffset, buf.length) });
+      });
+    };
     socket.on('error', (e) => closeConn(id, { code: e.code || 'EFAIL', message: e.message }));
     socket.on('close', () => closeConn(id, null));
     if (sender && !watched.has(sender)) {
@@ -192,6 +197,14 @@ module.exports = function register(api) {
       });
     }
     return { id, remoteAddress: socket.remoteAddress || host };
+  });
+
+  api.on('remote:resume', (id, event) => {
+    const c = conns.get(id);
+    if (!c || c.sender !== event?.sender || !c.start) return;
+    const start = c.start;
+    c.start = null;
+    start();
   });
 
   api.on('remote:write', (id, data, event) => {

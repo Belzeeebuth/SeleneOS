@@ -305,6 +305,7 @@ export default {
         },
         onError: (e) => fail(e),
       });
+      api.send('remote:resume', id);
       clearTimeout(handshakeTimer);
       handshakeTimer = setTimeout(() => {
         if (connId === id && state !== 'connected') fail({ code: 'ETIMEDOUT' });

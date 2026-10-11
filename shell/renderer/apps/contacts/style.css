@@ -304,10 +304,20 @@
 }
 :root[data-theme='dark'] .app-contacts .ct-row-star,
 :root[data-theme='dark'] .app-contacts .ct-group .icon,
-:root[data-theme='dark'] .app-contacts .ct-fav.on .icon {
+:root[data-theme='dark'] .app-contacts .ct-fav.on .icon,
+.app-contacts[data-theme-scope][data-theme='dark'] .ct-row-star,
+.app-contacts[data-theme-scope][data-theme='dark'] .ct-group .icon,
+.app-contacts[data-theme-scope][data-theme='dark'] .ct-fav.on .icon {
   color: #fcc93a;
 }
-:root[data-theme='dark'] .app-contacts .ct-form-error {
+/* A per-app light theme inside a dark desktop keeps the light-mode star colour. */
+.app-contacts[data-theme-scope][data-theme='light'] .ct-row-star,
+.app-contacts[data-theme-scope][data-theme='light'] .ct-group .icon,
+.app-contacts[data-theme-scope][data-theme='light'] .ct-fav.on .icon {
+  color: #e8a400;
+}
+:root[data-theme='dark'] .app-contacts .ct-form-error,
+.app-contacts[data-theme-scope][data-theme='dark'] .ct-form-error {
   color: var(--danger, #ff99a4);
 }
 /* Narrow: one pane at a time */

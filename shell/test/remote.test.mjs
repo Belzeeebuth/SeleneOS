@@ -455,7 +455,7 @@ await section('saved connections', async () => {
   await until(() => q(`${WIN} .rd-item-addr`).then((x) => (x || '').includes('password saved')), 5000);
   j = JSON.parse(fs.readFileSync(file, 'utf8'));
   check('still one entry (updated)', j.connections.length, 1);
-  check('secret stored obfuscated', !!j.connections[0].secret?.v && !fs.readFileSync(file, 'utf8').includes('"secret"') && !JSON.stringify(j.connections[0].secret).includes('secret"'), true);
+  check('secret stored obfuscated', [j.connections[0].secret?.m, Buffer.from(j.connections[0].secret?.v || '', 'base64').toString('latin1').includes('secret'), /:\s*"secret"/.test(fs.readFileSync(file, 'utf8'))], ['obf', false, false]);
   check('list shows password saved', (await q(`${WIN} .rd-item-addr`)).includes('password saved'), true);
   await page.click(`${WIN} [data-act=connect-saved]`);
   check('connects with the remembered password', await connected(), true);
