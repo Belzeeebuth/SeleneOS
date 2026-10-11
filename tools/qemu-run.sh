@@ -223,7 +223,9 @@ fi
 MACHINE="q35,vmport=off"
 case "$ACCEL" in
   kvm) ACCEL_ARGS=(-accel kvm -cpu host) ;;
-  tcg) ACCEL_ARGS=(-accel "tcg,thread=multi,tb-size=1024" -cpu max) ;;
+  # No AVX2 under TCG: QEMU's emulated vpgather can fault on masked-off lanes, which crashes
+  # Chromium's software renderer (Skia) in the shell ("GPU process isn't usable").
+  tcg) ACCEL_ARGS=(-accel "tcg,thread=multi,tb-size=1024" -cpu max,avx2=off) ;;
   *) die "unknown --accel $ACCEL (kvm|tcg)" ;;
 esac
 HOST_CPUS="$(nproc 2>/dev/null || echo 1)"

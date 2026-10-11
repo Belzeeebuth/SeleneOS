@@ -233,7 +233,8 @@ The serial console is written to `work/qemu/aurora.serial.log` (`tail -f` it aft
 ### Plain QEMU commands
 
 The same thing without the helper script (KVM; for TCG replace `-accel kvm -cpu host` with
-`-accel tcg,thread=multi -cpu max`):
+`-accel tcg,thread=multi -cpu max,avx2=off`; without `avx2=off`, QEMU's emulated AVX2 can crash the
+shell's software renderer):
 
 ```sh
 ISO=out/aurora-os-1.0.0-amd64.iso
