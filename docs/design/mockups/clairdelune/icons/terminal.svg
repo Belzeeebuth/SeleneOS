@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="te-bg" x1="0" y1="4" x2="0" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3E3530"/><stop offset="1" stop-color="#1E1815"/></linearGradient>
+    <linearGradient id="te-rim" x1="0" y1="4" x2="0" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".34"/><stop offset=".45" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#000" stop-opacity=".12"/></linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="15" fill="url(#te-bg)"/>
+  <rect x="4.5" y="4.5" width="55" height="55" rx="14.5" fill="none" stroke="url(#te-rim)"/>
+  
+    <path d="M19 23.5l8 7.5-8 7.5" fill="none" stroke="#FFF7EC" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M31.5 41h13" stroke="#B9A4F2" stroke-width="3.4" stroke-linecap="round"/>
+</svg>

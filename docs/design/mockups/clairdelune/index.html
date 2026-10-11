@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clair de lune</title>
+<style>
+/* Clair de lune: warm blacks, cream text, violet accent. Inlined into index.html by build.mjs. */
+@font-face { font-family: 'Manrope'; src: url(../assets/fonts/manrope-latin-wght-normal.woff2) format('woff2'); font-weight: 200 800; font-display: block; }
+@font-face { font-family: 'Manrope'; src: url(../assets/fonts/manrope-latin-ext-wght-normal.woff2) format('woff2'); font-weight: 200 800; font-display: block; unicode-range: U+0100-02AF, U+1E00-1EFF, U+2020, U+20A0-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'Inter'; src: url(../assets/fonts/inter-latin-wght-normal.woff2) format('woff2'); font-weight: 100 900; font-display: block; }
+@font-face { font-family: 'Inter'; src: url(../assets/fonts/inter-latin-ext-wght-normal.woff2) format('woff2'); font-weight: 100 900; font-display: block; unicode-range: U+0100-02AF, U+1E00-1EFF, U+2020, U+20A0-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+:root {
+  /* dark, warm ambiance, violet accent */
+  --wall: url(wallpaper-nuit.svg);
+  --win-title: #2A231E;
+  --win-content: #1F1A16;
+  --win-side: #1B1613;
+  --card: rgba(255, 238, 218, .055);
+  --field: rgba(255, 238, 218, .065);
+  --hover: rgba(255, 238, 218, .07);
+  --pressed: rgba(255, 238, 218, .11);
+  --hairline: rgba(255, 238, 218, .085);
+  --hairline-strong: rgba(255, 238, 218, .14);
+  --text: #F3EADF;
+  --text-2: #C4B7A7;
+  --text-3: #A69888;
+  --accent: #B9A4F2;
+  --accent-tint: rgba(185, 164, 242, .15);
+  --accent-line: rgba(185, 164, 242, .45);
+  --on-accent: #1D1530;
+  --track: rgba(255, 238, 218, .16);
+  --thumb: #F3EADF;
+  --glass: rgba(31, 25, 21, .9);
+  --glass-border: rgba(255, 238, 218, .11);
+  --glass-shadow: 0 10px 32px rgba(0, 0, 0, .38), 0 1px 3px rgba(0, 0, 0, .3);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .94 0 0 0 0 .86 .13 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --win-shadow: 0 28px 72px -12px rgba(0, 0, 0, .62), 0 10px 24px rgba(0, 0, 0, .28), 0 0 0 1px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 238, 218, .06);
+  --win-shadow-back: 0 16px 48px -12px rgba(0, 0, 0, .55), 0 0 0 1px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 238, 218, .05);
+  --icon-shadow: drop-shadow(0 1px 2px rgba(0, 0, 0, .35));
+  --t-dir: #E5AE5F; --t-pdf: #EE9A85; --t-ods: #A6CE90; --t-odt: #AABDF5; --t-img: #7FC8C0; --t-zip: #D8BE91;
+  --ev-a: #C9B8F6; --ev-b: #AFC2F4; --ev-g: #A6CE90; --ev-r: #EEA58F;
+  --lg-a: #FFF6E8; --lg-b: #C3AEF4;
+  color-scheme: dark;
+}
+:root[data-mode='light'] {
+  --wall: url(wallpaper-aube.svg);
+  --win-title: #FFFCF8;
+  --win-content: #F7F1E8;
+  --win-side: #F1E9DD;
+  --card: rgba(80, 52, 30, .055);
+  --field: rgba(80, 52, 30, .06);
+  --hover: rgba(80, 52, 30, .06);
+  --pressed: rgba(80, 52, 30, .1);
+  --hairline: rgba(80, 52, 30, .11);
+  --hairline-strong: rgba(80, 52, 30, .18);
+  --text: #2A211B;
+  --text-2: #5A4D42;
+  --text-3: #6B5D51;
+  --accent: #6A4BC3;
+  --accent-tint: rgba(106, 75, 195, .12);
+  --accent-line: rgba(106, 75, 195, .45);
+  --on-accent: #FFFFFF;
+  --track: rgba(80, 52, 30, .16);
+  --thumb: #FFFFFF;
+  --glass: rgba(253, 248, 241, .9);
+  --glass-border: rgba(80, 52, 30, .12);
+  --glass-shadow: 0 10px 30px rgba(90, 55, 30, .2), 0 1px 3px rgba(90, 55, 30, .14);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .2 0 0 0 0 .12 .09 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --win-shadow: 0 28px 64px -14px rgba(80, 45, 20, .38), 0 8px 20px rgba(80, 45, 20, .12), 0 0 0 1px rgba(80, 45, 20, .14);
+  --win-shadow-back: 0 16px 40px -14px rgba(80, 45, 20, .32), 0 0 0 1px rgba(80, 45, 20, .14);
+  --icon-shadow: drop-shadow(0 1px 2px rgba(80, 45, 20, .22));
+  --t-dir: #B0711C; --t-pdf: #BC4A33; --t-ods: #4A7A36; --t-odt: #3F5DB5; --t-img: #26746C; --t-zip: #866838;
+  --ev-a: #5A3DB0; --ev-b: #3A55A8; --ev-g: #335A24; --ev-r: #8F3621;
+  --lg-a: #8466DE; --lg-b: #3A2964;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1600px; height: 900px; overflow: hidden; }
+body {
+  font: 400 14px/20px 'Inter', sans-serif; color: var(--text); background: #120D0B;
+  font-feature-settings: 'cv11', 'ss03'; -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: default; display: inline-flex; align-items: center; }
+ul, ol { list-style: none; }
+h1, h2, h3 { font-family: 'Manrope', sans-serif; font-weight: 650; }
+.ph { width: 18px; height: 18px; flex: none; }
+.lg-a { stop-color: var(--lg-a); } .lg-b { stop-color: var(--lg-b); }
+.appicon { display: block; flex: none; filter: var(--icon-shadow); }
+
+/* views */
+.sheet { display: none; }
+:root[data-view='icons'] .desktop { display: none; }
+:root[data-view='icons'] .sheet { display: grid; }
+:root:not([data-view='launcher']) .launcher { display: none; }
+:root:not([data-view='panel']) .side-stack { display: none; }
+
+.desktop { position: fixed; inset: 0; background: var(--wall) center / cover no-repeat; }
+
+/* blurred surfaces: bar pills, launcher, panels (with grain) */
+.glass {
+  background: var(--grain), linear-gradient(var(--glass), var(--glass));
+  -webkit-backdrop-filter: blur(28px) saturate(1.2); backdrop-filter: blur(28px) saturate(1.2);
+  border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow);
+}
+
+/* ------------------------------------------------------------- bar */
+.bar { position: absolute; left: 12px; right: 12px; bottom: 12px; height: 48px; display: flex; justify-content: space-between; }
+.pill { height: 48px; border-radius: 24px; display: flex; align-items: center; padding: 3px; gap: 4px; }
+.pill-apps { position: absolute; left: 50%; transform: translateX(-50%); }
+.launcher-btn { width: 40px; height: 40px; border-radius: 20px; justify-content: center; }
+.launcher-btn .logo { width: 26px; height: 26px; }
+:root[data-view='launcher'] .launcher-btn { background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.bar-search { height: 40px; width: 216px; border-radius: 20px; padding: 0 14px; gap: 10px; background: var(--field); color: var(--text-2); }
+.dock-app { position: relative; width: 40px; height: 40px; border-radius: 12px; justify-content: center; }
+.dock-app .appicon { width: 32px; height: 32px; }
+.dock-app .dot { position: absolute; left: 50%; bottom: -1px; width: 4px; height: 4px; margin-left: -2px; border-radius: 2px; }
+.dock-app.running .dot { background: var(--text-2); }
+.dock-app.active { background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.dock-app.active .dot { background: var(--accent); }
+.tray { height: 40px; padding: 0 12px; gap: 10px; border-radius: 20px; }
+.tray .pct { font-variant-numeric: tabular-nums; color: var(--text); margin-left: -4px; }
+.clock { height: 40px; padding: 0 12px; gap: 8px; border-radius: 20px; font-variant-numeric: tabular-nums; }
+.clock .date { color: var(--text-2); }
+.clock .time { font-weight: 600; }
+.bell { position: relative; width: 40px; height: 40px; border-radius: 20px; justify-content: center; }
+.bell .badge { position: absolute; top: 9px; right: 10px; width: 8px; height: 8px; border-radius: 4px; background: var(--accent); box-shadow: 0 0 0 2px var(--win-content); }
+:root[data-view='panel'] .tray, :root[data-view='panel'] .clock { background: var(--pressed); }
+
+/* --------------------------------------------------------- windows */
+.win { position: absolute; display: flex; flex-direction: column; border-radius: 8px; overflow: hidden; background: var(--win-content); box-shadow: var(--win-shadow); }
+.win-files { left: 104px; top: 260px; width: 1000px; height: 556px; }
+.win-cal { left: 1040px; top: 164px; width: 504px; height: 440px; box-shadow: var(--win-shadow-back); }
+.titleband { flex: none; height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 14px; background: var(--win-title); border-bottom: 1px solid var(--hairline); }
+.titleband .ti { width: 20px; height: 20px; filter: none; }
+.titleband h2 { font-size: 14px; line-height: 20px; letter-spacing: .005em; }
+.titleband .app-name { color: var(--text-2); font-size: 13px; }
+.titleband .app-name::before { content: '·'; margin-right: 10px; color: var(--text-3); }
+.win-cal .titleband h2 { color: var(--text-2); font-weight: 600; }
+.wbtns { margin-left: auto; display: flex; gap: 2px; }
+.wbtns button { width: 36px; height: 32px; border-radius: 6px; justify-content: center; color: var(--text-2); }
+.wbtns .ph { width: 16px; height: 16px; }
+.win-cal .wbtns button { color: var(--text-3); }
+
+.ib { width: 32px; height: 32px; border-radius: 6px; justify-content: center; color: var(--text-2); flex: none; }
+.ib[disabled] { opacity: .45; }
+.btn { height: 32px; padding: 0 12px; gap: 8px; border-radius: 8px; border: 1px solid var(--hairline-strong); background: var(--card); white-space: nowrap; flex: none; }
+.btn .ph { width: 16px; height: 16px; color: var(--text-2); }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; font-weight: 600; }
+.field { display: flex; align-items: center; gap: 8px; background: var(--field); border: 1px solid var(--hairline); color: var(--text-2); }
+.field.small { height: 32px; width: 240px; padding: 0 10px; border-radius: 8px; margin-left: auto; flex: none; }
+.field.small .ph { width: 16px; height: 16px; }
+
+.toolbar { flex: none; height: 52px; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--hairline); }
+.crumbs { display: flex; align-items: center; margin-left: 8px; }
+.crumbs button { height: 32px; padding: 0 8px; gap: 8px; border-radius: 6px; color: var(--text-2); }
+.crumbs .ph { width: 16px; height: 16px; }
+.crumbs .sep { color: var(--text-3); display: flex; }
+.crumbs .sep .ph { width: 14px; height: 14px; }
+.crumbs .cur { color: var(--text); font-weight: 600; }
+.seg { display: flex; padding: 2px; gap: 2px; border-radius: 8px; background: var(--field); margin: 0 4px 0 8px; }
+.seg button { width: 32px; height: 28px; border-radius: 6px; justify-content: center; color: var(--text-2); }
+.seg .on { background: var(--win-title); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .18), 0 0 0 1px var(--hairline); }
+.seg .ph { width: 16px; height: 16px; }
+
+.fbody { flex: 1; display: flex; min-height: 0; }
+.sidebar { width: 200px; flex: none; display: flex; flex-direction: column; padding: 8px 8px 12px; background: var(--win-side); border-right: 1px solid var(--hairline); }
+.sidebar h3 { font: 600 13px/20px 'Inter', sans-serif; color: var(--text-2); padding: 8px 10px 4px; }
+.sidebar ul + h3 { padding-top: 12px; }
+.sidebar li { height: 32px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 6px; color: var(--text); }
+.sidebar li .ph { color: var(--text-2); }
+.sidebar li.sel { background: var(--accent-tint); font-weight: 600; }
+.sidebar li.sel .ph { color: var(--accent); }
+.storage { margin-top: auto; padding: 12px 10px 4px; }
+.st-row { display: flex; justify-content: space-between; font-size: 13px; }
+.st-row span:last-child { color: var(--text-2); }
+.meter { height: 4px; border-radius: 2px; background: var(--track); margin: 8px 0 0; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+.st-sub { font-size: 13px; color: var(--text-2); }
+
+.listing { flex: 1; display: flex; flex-direction: column; min-width: 0; padding-top: 0; }
+.lrow { display: grid; grid-template-columns: 1fr 172px 132px 80px; column-gap: 16px; align-items: center; height: 36px; margin: 0 8px; padding: 0 16px; border-radius: 6px; flex: none; }
+.lrow + .lrow { margin-top: 0; }
+.lrow.lhead { height: 36px; margin: 0 0 4px; padding: 0 24px; border-bottom: 1px solid var(--hairline); font-size: 13px; font-weight: 600; color: var(--text-2); }
+.lhead .sort { width: 12px; height: 12px; margin-left: 4px; vertical-align: -1px; color: var(--accent); }
+.c-name { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.c-name .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-date, .c-type, .c-size { color: var(--text-2); white-space: nowrap; }
+.c-size { text-align: right; font-variant-numeric: tabular-nums; }
+.lhead .c-name { gap: 0; }
+.ft { width: 20px; height: 20px; }
+.t-dir { color: var(--t-dir); } .t-pdf { color: var(--t-pdf); } .t-ods { color: var(--t-ods); } .t-odt { color: var(--t-odt); }
+.t-img { color: var(--t-img); } .t-txt { color: var(--text-2); } .t-zip { color: var(--t-zip); }
+.lrow.sel { background: var(--accent-tint); }
+.lrow.sel .c-date, .lrow.sel .c-type, .lrow.sel .c-size { color: var(--text); }
+.focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+:root[data-view='launcher'] .lrow.focus, :root[data-view='panel'] .lrow.focus { outline: none; }
+.mood.focus { outline-offset: 2px; }
+.statusline { margin-top: auto; height: 32px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-top: 1px solid var(--hairline); font-size: 13px; color: var(--text-2); }
+
+/* calendar */
+.cal-tools { flex: none; height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 12px 0 20px; }
+.cal-tools h3 { font-size: 18px; line-height: 24px; margin-right: auto; }
+.cal-tools .btn { margin-left: 8px; }
+.cal-grid { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: 28px repeat(5, 1fr); padding: 0 12px 12px; }
+.cal-wd { font-size: 13px; font-weight: 600; color: var(--text-2); padding: 4px 8px; }
+.cal-cell { border-top: 1px solid var(--hairline); padding: 6px 4px 4px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cal-cell + .cal-cell:not(:nth-child(7n + 1)) { border-left: 1px solid var(--hairline); }
+.cal-cell .num { font-size: 13px; line-height: 24px; width: 24px; height: 24px; text-align: center; border-radius: 12px; font-variant-numeric: tabular-nums; }
+.cal-cell.out .num { color: var(--text-3); }
+.cal-cell.today .num { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+.ev { font-size: 13px; line-height: 20px; padding: 0 6px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: color-mix(in srgb, currentColor 16%, transparent); }
+.ev-a { color: var(--ev-a); } .ev-b { color: var(--ev-b); } .ev-g { color: var(--ev-g); } .ev-r { color: var(--ev-r); }
+
+/* --------------------------------------------------------- launcher */
+.launcher { position: absolute; left: 12px; bottom: 68px; width: 640px; border-radius: 12px; padding: 20px 24px 0; display: flex; flex-direction: column; }
+.l-search { height: 44px; border-radius: 22px; padding: 0 16px; gap: 12px; font-size: 15px; color: var(--text-2); background: var(--field); }
+.l-search .ph { width: 20px; height: 20px; color: var(--text); }
+.l-search.focus { outline-offset: 2px; border-color: transparent; }
+.l-search span::before { content: ''; display: inline-block; width: 2px; height: 20px; background: var(--accent); vertical-align: -5px; margin-right: 2px; }
+.l-head { display: flex; align-items: center; justify-content: space-between; margin: 20px 0 8px; }
+.l-head h2 { font-size: 15px; line-height: 20px; padding-left: 4px; }
+.link { height: 32px; padding: 0 6px 0 10px; gap: 4px; border-radius: 8px; color: var(--text-2); font-size: 14px; }
+.link .ph { width: 14px; height: 14px; }
+.l-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px 0; }
+.l-app { height: 92px; flex-direction: column; justify-content: flex-start; gap: 8px; padding: 10px 4px 0; border-radius: 10px; }
+.l-app .appicon { width: 40px; height: 40px; }
+.l-app span { font-size: 13px; line-height: 16px; text-align: center; max-width: 92px; }
+.l-recs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+.rec { height: 52px; padding: 0 10px; gap: 12px; border-radius: 10px; min-width: 0; text-align: left; }
+.ficon { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; flex: none; background: color-mix(in srgb, currentColor 14%, transparent); }
+.ficon .ph { width: 20px; height: 20px; }
+.thumb { width: 36px; height: 36px; border-radius: 8px; flex: none; background:
+  radial-gradient(circle at 70% 34%, #FBE3B5 0 4px, transparent 5px),
+  linear-gradient(180deg, #F0B27A 0%, #D98466 42%, #6E5A7E 43%, #4C4466 70%, #3A3350 100%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.rt { display: flex; flex-direction: column; min-width: 0; }
+.rn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd { font-size: 13px; line-height: 18px; color: var(--text-2); }
+.l-foot { margin: 16px -24px 0; height: 64px; padding: 0 16px 0 18px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--hairline); background: var(--card); border-radius: 0 0 11px 11px; }
+.user { height: 44px; padding: 0 12px 0 6px; gap: 10px; border-radius: 22px; font-weight: 500; }
+.avatar { width: 32px; height: 32px; border-radius: 16px; display: grid; place-items: center; font-size: 13px; font-weight: 700; color: #241A33; background: linear-gradient(135deg, #D9CBF8, #E9B98A); }
+.l-actions { display: flex; gap: 4px; }
+.l-actions .ib { width: 36px; height: 36px; border-radius: 18px; color: var(--text); }
+
+/* ------------------------------------------------- notifications + quick settings */
+.side-stack { position: absolute; right: 12px; bottom: 68px; width: 384px; display: flex; flex-direction: column; gap: 8px; }
+.notifs, .qs { border-radius: 12px; padding: 16px; }
+.n-head { display: flex; align-items: center; justify-content: space-between; margin: -4px -6px 8px 0; }
+.n-head h2 { font-size: 15px; line-height: 20px; }
+.note { display: flex; gap: 12px; padding: 12px; border-radius: 10px; background: var(--card); }
+.note .ni { width: 32px; height: 32px; }
+.note > div { flex: 1; min-width: 0; }
+.n-meta { display: flex; font-size: 13px; line-height: 18px; }
+.n-meta b { font-weight: 600; }
+.n-meta span { margin-left: auto; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.note p { margin-top: 2px; }
+.n-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+.qs-head { display: flex; align-items: center; gap: 8px; margin: -4px -6px 12px 0; }
+.qs-head h2 { font-size: 15px; line-height: 20px; margin-right: auto; }
+.qs-head .ib { color: var(--text); }
+.qs-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tile { display: flex; height: 60px; border-radius: 10px; background: var(--card); border: 1px solid transparent; overflow: hidden; }
+.t-main { flex: 1; min-width: 0; gap: 12px; padding: 0 0 0 12px; text-align: left; }
+.t-main .ph { width: 22px; height: 22px; color: var(--text-2); }
+.tt { display: flex; flex-direction: column; min-width: 0; }
+.tt b { font-weight: 600; }
+.tt span { font-size: 13px; line-height: 18px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t-more { width: 32px; justify-content: center; color: var(--text-2); border-left: 1px solid var(--hairline); flex: none; }
+.t-more .ph { width: 14px; height: 14px; }
+.tile.on { background: var(--accent-tint); border-color: var(--accent-line); }
+.tile.on .t-main .ph { color: var(--accent); }
+.tile.on .t-more { border-left-color: var(--accent-line); }
+.slider { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.slider:first-of-type { margin-top: 16px; }
+.slider .ib { color: var(--text); }
+.track { position: relative; flex: 1; height: 4px; border-radius: 2px; background: var(--track); }
+.track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; background: var(--accent); }
+.track b { position: absolute; top: 50%; width: 18px; height: 18px; border-radius: 9px; transform: translate(-50%, -50%); background: var(--thumb); box-shadow: 0 0 0 1px rgba(0, 0, 0, .18), 0 1px 4px rgba(0, 0, 0, .3), inset 0 0 0 5px var(--accent); }
+.val { width: 40px; text-align: right; font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.qs hr { border: 0; border-top: 1px solid var(--hairline); margin: 16px 0 14px; }
+.qs h3 { font: 600 13px/18px 'Inter', sans-serif; color: var(--text-2); margin: 0 0 8px 2px; }
+.accents { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.chip { height: 40px; border-radius: 20px; padding: 0 12px 0 6px; gap: 10px; background: var(--card); border: 1px solid transparent; }
+.chip.on { background: var(--accent-tint); border-color: var(--accent-line); font-weight: 600; }
+.sw { width: 28px; height: 28px; border-radius: 14px; display: grid; place-items: center; flex: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .18); }
+.sw .ph { width: 16px; height: 16px; color: #1D1530; }
+.sw-argent { background: radial-gradient(circle at 35% 30%, #FAFBFD, #A7ACBA); }
+.sw-nuit { background: radial-gradient(circle at 35% 30%, #8EA3E8, #2D3F8E); }
+.sw-violet { background: radial-gradient(circle at 35% 30%, #DCD0FB, #8F6EE2); }
+.sw-ambre { background: radial-gradient(circle at 35% 30%, #F8D79C, #C7832C); }
+.moods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mood { height: 68px; flex-direction: column; justify-content: center; gap: 8px; border-radius: 10px; background: var(--card); border: 1px solid transparent; }
+.mood.on { background: var(--accent-tint); border-color: var(--accent-line); font-weight: 600; }
+.mv { display: flex; width: 64px; height: 18px; border-radius: 5px; overflow: hidden; box-shadow: 0 0 0 1px var(--hairline-strong); }
+.mv b { flex: 1; }
+.mv b:nth-child(1) { background: var(--m1); } .mv b:nth-child(2) { background: var(--m2); } .mv b:nth-child(3) { background: var(--m3); }
+.mv-froide { --m1: #161C27; --m2: #2B3850; --m3: #D3DCEC; }
+.mv-neutre { --m1: #19191A; --m2: #3A3A3B; --m3: #E6E6E6; }
+.mv-chaude { --m1: #1F1A16; --m2: #3E3129; --m3: #F3EADF; }
+:root[data-mode='light'] .mv-froide { --m1: #EEF2F8; --m2: #C9D3E3; --m3: #1F2A3D; }
+:root[data-mode='light'] .mv-neutre { --m1: #F4F4F4; --m2: #D7D7D7; --m3: #222222; }
+:root[data-mode='light'] .mv-chaude { --m1: #F7F1E8; --m2: #E3D5C2; --m3: #2A211B; }
+.qs-foot { margin: 16px -16px -16px; height: 52px; padding: 0 10px 0 16px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--hairline); background: var(--card); border-radius: 0 0 11px 11px; }
+.batt { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 16px; background: var(--card); }
+.batt .ph { width: 18px; height: 18px; color: var(--text-2); }
+.batt b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.batt span { font-size: 13px; color: var(--text-2); }
+.qs-foot .ib { color: var(--text); }
+
+/* ------------------------------------------------------- icon sheet */
+.sheet { width: 1600px; height: 900px; grid-template-rows: 1fr 1fr; }
+.sheet-half { display: flex; flex-direction: column; justify-content: center; gap: 28px; padding: 0 176px; }
+.sh-dark { background: #17120F; color: #F3EADF; --text-2: #C4B7A7; --icon-shadow: drop-shadow(0 2px 4px rgba(0, 0, 0, .4)); }
+.sh-light { background: #F7F1E8; color: #2A211B; --text-2: #5A4D42; --icon-shadow: drop-shadow(0 2px 4px rgba(90, 55, 30, .2)); }
+.sh-logo { display: flex; align-items: center; gap: 14px; }
+.sh-logo img { width: 56px; height: 56px; }
+.sh-logo em { font-style: normal; font-size: 14px; color: var(--text-2); margin-left: auto; }
+.sh-logo span { font: 700 30px/1 'Manrope', sans-serif; letter-spacing: .01em; }
+.sh-row { display: flex; gap: 32px; align-items: flex-start; }
+.sh-row figure { width: 96px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.sh-row.small { gap: 32px; }
+.sh-row.small figure { width: 96px; }
+.appicon.big { width: 96px; height: 96px; }
+.appicon.mid { width: 56px; height: 56px; }
+figcaption { font-size: 13px; line-height: 16px; color: var(--text-2); text-align: center; white-space: nowrap; }
+
+</style>
+<script>
+  const q = new URLSearchParams(location.search);
+  document.documentElement.dataset.view = q.get('view') || 'desktop';
+  document.documentElement.dataset.mode = q.get('mode') || 'dark';
+</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="logo-grad" x1="6" y1="10" x2="34" y2="44" gradientUnits="userSpaceOnUse"><stop offset="0" class="lg-a"/><stop offset="1" class="lg-b"/></linearGradient>
+</defs></svg>
+<main class="desktop">
+  
+<section class="win win-cal" aria-label="Calendrier">
+  <header class="titleband"><img class="appicon ti" src="icons/calendrier.svg" alt=""><h2>Calendrier</h2><div class="wbtns">
+  <button aria-label="Réduire"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128Z"/></svg></button>
+  <button aria-label="Agrandir"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208Z"/></svg></button>
+  <button class="close" aria-label="Fermer"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg></button></div></header>
+  <div class="cal-tools">
+    <h3>Octobre 2026</h3>
+    <button class="ib" aria-label="Mois précédent"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"/></svg></button><button class="ib" aria-label="Mois suivant"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg></button>
+    <button class="btn">Aujourd'hui</button>
+  </div>
+  <div class="cal-grid">
+    <div class="cal-wd">lun.</div><div class="cal-wd">mar.</div><div class="cal-wd">mer.</div><div class="cal-wd">jeu.</div><div class="cal-wd">ven.</div><div class="cal-wd">sam.</div><div class="cal-wd">dim.</div>
+    <div class="cal-cell out "><span class="num">28</span></div><div class="cal-cell out "><span class="num">29</span></div><div class="cal-cell out "><span class="num">30</span></div><div class="cal-cell  "><span class="num">1</span></div><div class="cal-cell  "><span class="num">2</span></div><div class="cal-cell  "><span class="num">3</span></div><div class="cal-cell  "><span class="num">4</span></div><div class="cal-cell  "><span class="num">5</span></div><div class="cal-cell  "><span class="num">6</span><span class="ev ev-b">Yoga</span></div><div class="cal-cell  "><span class="num">7</span></div><div class="cal-cell  "><span class="num">8</span></div><div class="cal-cell  "><span class="num">9</span><span class="ev ev-g">Piscine</span></div><div class="cal-cell  "><span class="num">10</span></div><div class="cal-cell  today"><span class="num">11</span></div><div class="cal-cell  "><span class="num">12</span></div><div class="cal-cell  "><span class="num">13</span><span class="ev ev-a">Cinéma</span></div><div class="cal-cell  "><span class="num">14</span></div><div class="cal-cell  "><span class="num">15</span></div><div class="cal-cell  "><span class="num">16</span><span class="ev ev-g">Piscine</span></div><div class="cal-cell  "><span class="num">17</span><span class="ev ev-r">Dîner</span></div><div class="cal-cell  "><span class="num">18</span></div><div class="cal-cell  "><span class="num">19</span></div><div class="cal-cell  "><span class="num">20</span></div><div class="cal-cell  "><span class="num">21</span></div><div class="cal-cell  "><span class="num">22</span></div><div class="cal-cell  "><span class="num">23</span><span class="ev ev-g">Piscine</span></div><div class="cal-cell  "><span class="num">24</span><span class="ev ev-b">Train</span></div><div class="cal-cell  "><span class="num">25</span></div><div class="cal-cell  "><span class="num">26</span></div><div class="cal-cell  "><span class="num">27</span></div><div class="cal-cell  "><span class="num">28</span></div><div class="cal-cell  "><span class="num">29</span></div><div class="cal-cell  "><span class="num">30</span></div><div class="cal-cell  "><span class="num">31</span></div><div class="cal-cell out "><span class="num">1</span></div>
+  </div>
+</section>
+  
+<section class="win win-files active" aria-label="Fichiers">
+  <header class="titleband"><img class="appicon ti" src="icons/fichiers.svg" alt=""><h2>Documents</h2><span class="app-name">Fichiers</span><div class="wbtns">
+  <button aria-label="Réduire"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128Z"/></svg></button>
+  <button aria-label="Agrandir"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208Z"/></svg></button>
+  <button class="close" aria-label="Fermer"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg></button></div></header>
+  <div class="toolbar">
+    <button class="ib" aria-label="Précédent"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"/></svg></button>
+    <button class="ib" disabled aria-label="Suivant"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></button>
+    <button class="ib" aria-label="Dossier parent"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,117.66a8,8,0,0,1-11.32,0L136,59.31V216a8,8,0,0,1-16,0V59.31L61.66,117.66a8,8,0,0,1-11.32-11.32l72-72a8,8,0,0,1,11.32,0l72,72A8,8,0,0,1,205.66,117.66Z"/></svg></button>
+    <ol class="crumbs"><li><button><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z"/></svg>Dossier personnel</button></li><li class="sep"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg></li><li><button class="cur">Documents</button></li></ol>
+    <div class="field small"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg><span>Rechercher dans Documents</span></div>
+    <div class="seg" role="group" aria-label="Affichage"><button class="on" aria-label="Liste"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M80,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H88A8,8,0,0,1,80,64Zm136,56H88a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Zm0,64H88a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16ZM44,52A12,12,0,1,0,56,64,12,12,0,0,0,44,52Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,116Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,180Z"/></svg></button><button aria-label="Grille"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M104,40H56A16,16,0,0,0,40,56v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,104,40Zm0,64H56V56h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,64H152V56h48v48Zm-96,32H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm0,64H56V152h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,200,136Zm0,64H152V152h48v48Z"/></svg></button></div>
+    <button class="btn"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM92.69,56l16,16H40V56ZM216,200H40V88H216Zm-88-88a8,8,0,0,1,8,8v16h16a8,8,0,0,1,0,16H136v16a8,8,0,0,1-16,0V152H104a8,8,0,0,1,0-16h16V120A8,8,0,0,1,128,112Z"/></svg>Nouveau dossier</button>
+  </div>
+  <div class="fbody">
+    <aside class="sidebar">
+      <h3>Emplacements</h3><ul><li class=""><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z"/></svg><span>Dossier personnel</span></li><li class=""><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24h72v16H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16H136V200h72a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40ZM48,56H208a8,8,0,0,1,8,8v80H40V64A8,8,0,0,1,48,56ZM208,184H48a8,8,0,0,1-8-8V160H216v16A8,8,0,0,1,208,184Z"/></svg><span>Bureau</span></li><li class="sel"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,176H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Zm0-32H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Zm-8-56V44l44,44Z"/></svg><span>Documents</span></li><li class=""><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z"/></svg><span>Téléchargements</span></li><li class=""><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z"/></svg><span>Images</span></li><li class=""><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M212.92,17.69a8,8,0,0,0-6.86-1.45l-128,32A8,8,0,0,0,72,56V166.08A36,36,0,1,0,88,196V110.25l112-28v51.83A36,36,0,1,0,216,164V24A8,8,0,0,0,212.92,17.69ZM52,216a20,20,0,1,1,20-20A20,20,0,0,1,52,216ZM88,93.75V62.25l112-28v31.5ZM180,184a20,20,0,1,1,20-20A20,20,0,0,1,180,184Z"/></svg><span>Musique</span></li><li class=""><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM40,88h80v80H40Zm96-16V56h32V72Zm-16,0H88V56h32Zm0,112v16H88V184Zm16,0h32v16H136Zm0-16V88h80v80Zm80-96H184V56h32ZM72,56V72H40V56ZM40,184H72v16H40Zm176,16H184V184h32v16Z"/></svg><span>Vidéos</span></li></ul><h3>Appareils</h3><ul><li class=""><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,136H48a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V152A16,16,0,0,0,208,136Zm0,64H48V152H208v48Zm0-160H48A16,16,0,0,0,32,56v48a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40Zm0,64H48V56H208v48ZM192,80a12,12,0,1,1-12-12A12,12,0,0,1,192,80Zm0,96a12,12,0,1,1-12-12A12,12,0,0,1,192,176Z"/></svg><span>Ordinateur</span></li><li class=""><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M252.44,121.34l-48-32A8,8,0,0,0,192,96v24H72V72h33a32,32,0,1,0,0-16H72A16,16,0,0,0,56,72v48H8a8,8,0,0,0,0,16H56v48a16,16,0,0,0,16,16h32v8a16,16,0,0,0,16,16h32a16,16,0,0,0,16-16V176a16,16,0,0,0-16-16H120a16,16,0,0,0-16,16v8H72V136H192v24a8,8,0,0,0,12.44,6.66l48-32a8,8,0,0,0,0-13.32ZM136,48a16,16,0,1,1-16,16A16,16,0,0,1,136,48ZM120,176h32v32H120Zm88-30.95V111l25.58,17Z"/></svg><span>Clé USB (16 Go)</span></li><li class=""><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg><span>Corbeille</span></li></ul>
+      <div class="storage"><div class="st-row"><span>Ordinateur</span><span>182 Go libres</span></div><div class="meter" role="img" aria-label="330 Go utilisés sur 512 Go"><i style="width:64%"></i></div></div>
+    </aside>
+    <div class="listing" role="grid" aria-label="Contenu de Documents">
+      <div class="lrow lhead"><span class="c-name">Nom <svg class="ph sort" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216.49,168.49a12,12,0,0,1-17,0L128,97,56.49,168.49a12,12,0,0,1-17-17l80-80a12,12,0,0,1,17,0l80,80A12,12,0,0,1,216.49,168.49Z"/></svg></span><span class="c-date">Modifié le</span><span class="c-type">Type</span><span class="c-size">Taille</span></div>
+      <div class="lrow "><span class="c-name"><svg class="ph ft t-dir" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,88V200.89A15.13,15.13,0,0,1,216.89,216H40a16,16,0,0,1-16-16V64A16,16,0,0,1,40,48H93.33a16.12,16.12,0,0,1,9.6,3.2L130.67,72H216A16,16,0,0,1,232,88Z"/></svg><span class="nm">Administratif</span></span><span class="c-date">3 oct. 2026 à 17:52</span><span class="c-type">Dossier</span><span class="c-size">14 éléments</span></div><div class="lrow "><span class="c-name"><svg class="ph ft t-dir" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,88V200.89A15.13,15.13,0,0,1,216.89,216H40a16,16,0,0,1-16-16V64A16,16,0,0,1,40,48H93.33a16.12,16.12,0,0,1,9.6,3.2L130.67,72H216A16,16,0,0,1,232,88Z"/></svg><span class="nm">Factures</span></span><span class="c-date">28 sept. 2026 à 09:10</span><span class="c-type">Dossier</span><span class="c-size">32 éléments</span></div><div class="lrow "><span class="c-name"><svg class="ph ft t-dir" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,88V200.89A15.13,15.13,0,0,1,216.89,216H40a16,16,0,0,1-16-16V64A16,16,0,0,1,40,48H93.33a16.12,16.12,0,0,1,9.6,3.2L130.67,72H216A16,16,0,0,1,232,88Z"/></svg><span class="nm">Voyage à Lisbonne</span></span><span class="c-date">5 oct. 2026 à 22:31</span><span class="c-type">Dossier</span><span class="c-size">9 éléments</span></div><div class="lrow sel focus"><span class="c-name"><svg class="ph ft t-pdf" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,152a8,8,0,0,1-8,8H192v16h16a8,8,0,0,1,0,16H192v16a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8h32A8,8,0,0,1,224,152ZM92,172a28,28,0,0,1-28,28H56v8a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8H64A28,28,0,0,1,92,172Zm-16,0a12,12,0,0,0-12-12H56v24h8A12,12,0,0,0,76,172Zm88,8a36,36,0,0,1-36,36H112a8,8,0,0,1-8-8V152a8,8,0,0,1,8-8h16A36,36,0,0,1,164,180Zm-16,0a20,20,0,0,0-20-20h-8v40h8A20,20,0,0,0,148,180ZM40,112V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88v24a8,8,0,0,1-16,0V96H152a8,8,0,0,1-8-8V40H56v72a8,8,0,0,1-16,0ZM160,80h28.69L160,51.31Z"/></svg><span class="nm">Attestation d'assurance habitation.pdf</span></span><span class="c-date">Hier à 18:12</span><span class="c-type">Document PDF</span><span class="c-size">214 Ko</span></div><div class="lrow "><span class="c-name"><svg class="ph ft t-ods" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M156,208a8,8,0,0,1-8,8H120a8,8,0,0,1-8-8V152a8,8,0,0,1,16,0v48h20A8,8,0,0,1,156,208ZM92.65,145.49a8,8,0,0,0-11.16,1.86L68,166.24,54.51,147.35a8,8,0,1,0-13,9.3L58.17,180,41.49,203.35a8,8,0,0,0,13,9.3L68,193.76l13.49,18.89a8,8,0,0,0,13-9.3L77.83,180l16.68-23.35A8,8,0,0,0,92.65,145.49Zm98.94,25.82c-4-1.16-8.14-2.35-10.45-3.84-1.25-.82-1.23-1-1.12-1.9a4.54,4.54,0,0,1,2-3.67c4.6-3.12,15.34-1.72,19.82-.56a8,8,0,0,0,4.07-15.48c-2.11-.55-21-5.22-32.83,2.76a20.58,20.58,0,0,0-8.95,14.95c-2,15.88,13.65,20.41,23,23.11,12.06,3.49,13.12,4.92,12.78,7.59-.31,2.41-1.26,3.33-2.15,3.93-4.6,3.06-15.16,1.55-19.54.35A8,8,0,0,0,173.93,214a60.63,60.63,0,0,0,15.19,2c5.82,0,12.3-1,17.49-4.46a20.81,20.81,0,0,0,9.18-15.23C218,179,201.48,174.17,191.59,171.31ZM40,112V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88v24a8,8,0,1,1-16,0V96H152a8,8,0,0,1-8-8V40H56v72a8,8,0,0,1-16,0ZM160,80h28.68L160,51.31Z"/></svg><span class="nm">Budget familial 2026.ods</span></span><span class="c-date">8 oct. 2026 à 21:05</span><span class="c-type">Feuille de calcul</span><span class="c-size">48 Ko</span></div><div class="lrow "><span class="c-name"><svg class="ph ft t-odt" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M52,144H36a8,8,0,0,0-8,8v56a8,8,0,0,0,8,8H52a36,36,0,0,0,0-72Zm0,56H44V160h8a20,20,0,0,1,0,40Zm169.53-4.91a8,8,0,0,1,.25,11.31A30.06,30.06,0,0,1,200,216c-17.65,0-32-16.15-32-36s14.35-36,32-36a30.06,30.06,0,0,1,21.78,9.6,8,8,0,0,1-11.56,11.06A14.24,14.24,0,0,0,200,160c-8.82,0-16,9-16,20s7.18,20,16,20a14.24,14.24,0,0,0,10.22-4.66A8,8,0,0,1,221.53,195.09ZM128,144c-17.65,0-32,16.15-32,36s14.35,36,32,36,32-16.15,32-36S145.65,144,128,144Zm0,56c-8.82,0-16-9-16-20s7.18-20,16-20,16,9,16,20S136.82,200,128,200ZM48,120a8,8,0,0,0,8-8V40h88V88a8,8,0,0,0,8,8h48v16a8,8,0,0,0,16,0V88a8,8,0,0,0-2.34-5.66l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40v72A8,8,0,0,0,48,120ZM160,51.31,188.69,80H160Z"/></svg><span class="nm">Compte rendu copropriété.odt</span></span><span class="c-date">6 oct. 2026 à 20:47</span><span class="c-type">Document texte</span><span class="c-size">31 Ko</span></div><div class="lrow "><span class="c-name"><svg class="ph ft t-img" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M110.66,147.56a8,8,0,0,0-13.32,0L76.49,178.85l-9.76-15.18a8,8,0,0,0-13.46,0l-36,56A8,8,0,0,0,24,232H152a8,8,0,0,0,6.66-12.44ZM38.65,216,60,182.79l9.63,15a8,8,0,0,0,13.39.11l21-31.47L137.05,216Zm175-133.66-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40v88a8,8,0,0,0,16,0V40h88V88a8,8,0,0,0,8,8h48V216h-8a8,8,0,0,0,0,16h8a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160Z"/></svg><span class="nm">Photo d'identité.jpg</span></span><span class="c-date">29 sept. 2026 à 14:02</span><span class="c-type">Image JPEG</span><span class="c-size">1,2 Mo</span></div><div class="lrow "><span class="c-name"><svg class="ph ft t-txt" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-32-80a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,136Zm0,32a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,168Z"/></svg><span class="nm">Recette tarte aux pommes.txt</span></span><span class="c-date">Aujourd'hui à 19:20</span><span class="c-type">Texte brut</span><span class="c-size">2 Ko</span></div><div class="lrow "><span class="c-name"><svg class="ph ft t-pdf" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,152a8,8,0,0,1-8,8H192v16h16a8,8,0,0,1,0,16H192v16a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8h32A8,8,0,0,1,224,152ZM92,172a28,28,0,0,1-28,28H56v8a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8H64A28,28,0,0,1,92,172Zm-16,0a12,12,0,0,0-12-12H56v24h8A12,12,0,0,0,76,172Zm88,8a36,36,0,0,1-36,36H112a8,8,0,0,1-8-8V152a8,8,0,0,1,8-8h16A36,36,0,0,1,164,180Zm-16,0a20,20,0,0,0-20-20h-8v40h8A20,20,0,0,0,148,180ZM40,112V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88v24a8,8,0,0,1-16,0V96H152a8,8,0,0,1-8-8V40H56v72a8,8,0,0,1-16,0ZM160,80h28.69L160,51.31Z"/></svg><span class="nm">Relevé de compte septembre.pdf</span></span><span class="c-date">2 oct. 2026 à 09:31</span><span class="c-type">Document PDF</span><span class="c-size">86 Ko</span></div><div class="lrow "><span class="c-name"><svg class="ph ft t-zip" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M184,144H168a8,8,0,0,0-8,8v56a8,8,0,0,0,16,0v-8h8a28,28,0,0,0,0-56Zm0,40h-8V160h8a12,12,0,0,1,0,24Zm-48-32v56a8,8,0,0,1-16,0V152a8,8,0,0,1,16,0ZM96,208a8,8,0,0,1-8,8H56a8,8,0,0,1-7-12l25.16-44H56a8,8,0,0,1,0-16H88a8,8,0,0,1,7,12L69.79,200H88A8,8,0,0,1,96,208ZM213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40v72a8,8,0,0,0,16,0V40h88V88a8,8,0,0,0,8,8h48v16a8,8,0,0,0,16,0V88A8,8,0,0,0,213.66,82.34ZM160,80V51.31L188.69,80Z"/></svg><span class="nm">Sauvegarde contacts.zip</span></span><span class="c-date">21 sept. 2026 à 11:48</span><span class="c-type">Archive ZIP</span><span class="c-size">3,4 Mo</span></div>
+      <div class="statusline"><span>10 éléments, 1 sélectionné (214 Ko)</span><span>182 Go disponibles</span></div>
+    </div>
+  </div>
+</section>
+  
+<section class="launcher glass" aria-label="Lanceur">
+  <div class="l-search field focus"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg><span>Rechercher une application, un fichier ou un réglage</span></div>
+  <div class="l-head"><h2>Épinglées</h2><button class="link">Toutes les applications<svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg></button></div>
+  <div class="l-grid"><button class="l-app"><img class="appicon " src="icons/navigateur.svg" alt=""><span>Navigateur</span></button><button class="l-app"><img class="appicon " src="icons/courrier.svg" alt=""><span>Courrier</span></button><button class="l-app"><img class="appicon " src="icons/fichiers.svg" alt=""><span>Fichiers</span></button><button class="l-app"><img class="appicon " src="icons/calendrier.svg" alt=""><span>Calendrier</span></button><button class="l-app"><img class="appicon " src="icons/photos.svg" alt=""><span>Photos</span></button><button class="l-app"><img class="appicon " src="icons/lecteur.svg" alt=""><span>Lecteur</span></button><button class="l-app"><img class="appicon " src="icons/logitheque.svg" alt=""><span>Logithèque</span></button><button class="l-app"><img class="appicon " src="icons/parametres.svg" alt=""><span>Paramètres</span></button><button class="l-app"><img class="appicon " src="icons/terminal.svg" alt=""><span>Terminal</span></button><button class="l-app"><img class="appicon " src="icons/calculatrice.svg" alt=""><span>Calculatrice</span></button><button class="l-app"><img class="appicon " src="icons/editeur.svg" alt=""><span>Éditeur de texte</span></button><button class="l-app"><img class="appicon " src="icons/notes.svg" alt=""><span>Notes</span></button><button class="l-app"><img class="appicon " src="icons/horloge.svg" alt=""><span>Horloge</span></button><button class="l-app"><img class="appicon " src="icons/meteo.svg" alt=""><span>Météo</span></button><button class="l-app"><img class="appicon " src="icons/moniteur.svg" alt=""><span>Moniteur système</span></button><button class="l-app"><img class="appicon " src="icons/capture.svg" alt=""><span>Capture d'écran</span></button><button class="l-app"><img class="appicon " src="icons/archives.svg" alt=""><span>Archives</span></button><button class="l-app"><img class="appicon " src="icons/echecs.svg" alt=""><span>Échecs</span></button></div>
+  <div class="l-head"><h2>Récents</h2><button class="link">Afficher plus<svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg></button></div>
+  <div class="l-recs"><button class="rec"><span class="ficon t-pdf"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,152a8,8,0,0,1-8,8H192v16h16a8,8,0,0,1,0,16H192v16a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8h32A8,8,0,0,1,224,152ZM92,172a28,28,0,0,1-28,28H56v8a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8H64A28,28,0,0,1,92,172Zm-16,0a12,12,0,0,0-12-12H56v24h8A12,12,0,0,0,76,172Zm88,8a36,36,0,0,1-36,36H112a8,8,0,0,1-8-8V152a8,8,0,0,1,8-8h16A36,36,0,0,1,164,180Zm-16,0a20,20,0,0,0-20-20h-8v40h8A20,20,0,0,0,148,180ZM40,112V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88v24a8,8,0,0,1-16,0V96H152a8,8,0,0,1-8-8V40H56v72a8,8,0,0,1-16,0ZM160,80h28.69L160,51.31Z"/></svg></span><span class="rt"><span class="rn">Attestation d'assurance habitation.pdf</span><span class="rd">Hier à 18:12</span></span></button><button class="rec"><span class="thumb"></span><span class="rt"><span class="rn">IMG_0412.jpg</span><span class="rd">5 oct. à 16:40</span></span></button><button class="rec"><span class="ficon t-ods"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M156,208a8,8,0,0,1-8,8H120a8,8,0,0,1-8-8V152a8,8,0,0,1,16,0v48h20A8,8,0,0,1,156,208ZM92.65,145.49a8,8,0,0,0-11.16,1.86L68,166.24,54.51,147.35a8,8,0,1,0-13,9.3L58.17,180,41.49,203.35a8,8,0,0,0,13,9.3L68,193.76l13.49,18.89a8,8,0,0,0,13-9.3L77.83,180l16.68-23.35A8,8,0,0,0,92.65,145.49Zm98.94,25.82c-4-1.16-8.14-2.35-10.45-3.84-1.25-.82-1.23-1-1.12-1.9a4.54,4.54,0,0,1,2-3.67c4.6-3.12,15.34-1.72,19.82-.56a8,8,0,0,0,4.07-15.48c-2.11-.55-21-5.22-32.83,2.76a20.58,20.58,0,0,0-8.95,14.95c-2,15.88,13.65,20.41,23,23.11,12.06,3.49,13.12,4.92,12.78,7.59-.31,2.41-1.26,3.33-2.15,3.93-4.6,3.06-15.16,1.55-19.54.35A8,8,0,0,0,173.93,214a60.63,60.63,0,0,0,15.19,2c5.82,0,12.3-1,17.49-4.46a20.81,20.81,0,0,0,9.18-15.23C218,179,201.48,174.17,191.59,171.31ZM40,112V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88v24a8,8,0,1,1-16,0V96H152a8,8,0,0,1-8-8V40H56v72a8,8,0,0,1-16,0ZM160,80h28.68L160,51.31Z"/></svg></span><span class="rt"><span class="rn">Budget familial 2026.ods</span><span class="rd">Jeudi à 21:05</span></span></button><button class="rec"><span class="ficon t-txt"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-32-80a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,136Zm0,32a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,168Z"/></svg></span><span class="rt"><span class="rn">Recette tarte aux pommes.txt</span><span class="rd">Aujourd'hui à 19:20</span></span></button><button class="rec"><span class="ficon t-odt"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M52,144H36a8,8,0,0,0-8,8v56a8,8,0,0,0,8,8H52a36,36,0,0,0,0-72Zm0,56H44V160h8a20,20,0,0,1,0,40Zm169.53-4.91a8,8,0,0,1,.25,11.31A30.06,30.06,0,0,1,200,216c-17.65,0-32-16.15-32-36s14.35-36,32-36a30.06,30.06,0,0,1,21.78,9.6,8,8,0,0,1-11.56,11.06A14.24,14.24,0,0,0,200,160c-8.82,0-16,9-16,20s7.18,20,16,20a14.24,14.24,0,0,0,10.22-4.66A8,8,0,0,1,221.53,195.09ZM128,144c-17.65,0-32,16.15-32,36s14.35,36,32,36,32-16.15,32-36S145.65,144,128,144Zm0,56c-8.82,0-16-9-16-20s7.18-20,16-20,16,9,16,20S136.82,200,128,200ZM48,120a8,8,0,0,0,8-8V40h88V88a8,8,0,0,0,8,8h48v16a8,8,0,0,0,16,0V88a8,8,0,0,0-2.34-5.66l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40v72A8,8,0,0,0,48,120ZM160,51.31,188.69,80H160Z"/></svg></span><span class="rt"><span class="rn">Compte rendu copropriété.odt</span><span class="rd">6 oct. à 20:47</span></span></button><button class="rec"><span class="ficon t-pdf"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,152a8,8,0,0,1-8,8H192v16h16a8,8,0,0,1,0,16H192v16a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8h32A8,8,0,0,1,224,152ZM92,172a28,28,0,0,1-28,28H56v8a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8H64A28,28,0,0,1,92,172Zm-16,0a12,12,0,0,0-12-12H56v24h8A12,12,0,0,0,76,172Zm88,8a36,36,0,0,1-36,36H112a8,8,0,0,1-8-8V152a8,8,0,0,1,8-8h16A36,36,0,0,1,164,180Zm-16,0a20,20,0,0,0-20-20h-8v40h8A20,20,0,0,0,148,180ZM40,112V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88v24a8,8,0,0,1-16,0V96H152a8,8,0,0,1-8-8V40H56v72a8,8,0,0,1-16,0ZM160,80h28.69L160,51.31Z"/></svg></span><span class="rt"><span class="rn">Relevé de compte septembre.pdf</span><span class="rd">2 oct. à 09:31</span></span></button></div>
+  <footer class="l-foot">
+    <button class="user"><span class="avatar">CD</span><span>Camille Durand</span></button>
+    <div class="l-actions"><button class="ib" aria-label="Verrouiller"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Z"/></svg></button><button class="ib" aria-label="Éteindre ou redémarrer"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M120,128V48a8,8,0,0,1,16,0v80a8,8,0,0,1-16,0Zm60.37-78.7a8,8,0,0,0-8.74,13.4C194.74,77.77,208,101.57,208,128a80,80,0,0,1-160,0c0-26.43,13.26-50.23,36.37-65.3a8,8,0,0,0-8.74-13.4C47.9,67.38,32,96.06,32,128a96,96,0,0,0,192,0C224,96.06,208.1,67.38,180.37,49.3Z"/></svg></button></div>
+  </footer>
+</section>
+  
+<div class="side-stack">
+  <section class="notifs glass" aria-label="Notifications">
+    <div class="n-head"><h2>Notifications</h2><button class="link">Tout effacer</button></div>
+    <article class="note"><img class="appicon ni" src="icons/logitheque.svg" alt=""><div><div class="n-meta"><b>Logithèque</b><span>20:05</span></div><p>3 mises à jour sont disponibles.</p><div class="n-actions"><button class="btn primary">Installer</button><button class="btn">Plus tard</button></div></div></article>
+  </section>
+  <section class="qs glass" aria-label="Réglages rapides">
+    <div class="qs-head"><h2>Réglages rapides</h2><span class="batt" title="Batterie"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M200,56H32A24,24,0,0,0,8,80v96a24,24,0,0,0,24,24H200a24,24,0,0,0,24-24V80A24,24,0,0,0,200,56Zm8,120a8,8,0,0,1-8,8H32a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H200a8,8,0,0,1,8,8ZM144,96v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0Zm-40,0v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0ZM64,96v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0Zm192,0v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0Z"/></svg><b>82&nbsp;%</b><span>environ 4&nbsp;h&nbsp;10</span></span><button class="ib" aria-label="Ouvrir les Paramètres"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm109.94-52.79a8,8,0,0,0-3.89-5.4l-29.83-17-.12-33.62a8,8,0,0,0-2.83-6.08,111.91,111.91,0,0,0-36.72-20.67,8,8,0,0,0-6.46.59L128,41.85,97.88,25a8,8,0,0,0-6.47-.6A112.1,112.1,0,0,0,54.73,45.15a8,8,0,0,0-2.83,6.07l-.15,33.65-29.83,17a8,8,0,0,0-3.89,5.4,106.47,106.47,0,0,0,0,41.56,8,8,0,0,0,3.89,5.4l29.83,17,.12,33.62a8,8,0,0,0,2.83,6.08,111.91,111.91,0,0,0,36.72,20.67,8,8,0,0,0,6.46-.59L128,214.15,158.12,231a7.91,7.91,0,0,0,3.9,1,8.09,8.09,0,0,0,2.57-.42,112.1,112.1,0,0,0,36.68-20.73,8,8,0,0,0,2.83-6.07l.15-33.65,29.83-17a8,8,0,0,0,3.89-5.4A106.47,106.47,0,0,0,237.94,107.21Zm-15,34.91-28.57,16.25a8,8,0,0,0-3,3c-.58,1-1.19,2.06-1.81,3.06a7.94,7.94,0,0,0-1.22,4.21l-.15,32.25a95.89,95.89,0,0,1-25.37,14.3L134,199.13a8,8,0,0,0-3.91-1h-.19c-1.21,0-2.43,0-3.64,0a8.08,8.08,0,0,0-4.1,1l-28.84,16.1A96,96,0,0,1,67.88,201l-.11-32.2a8,8,0,0,0-1.22-4.22c-.62-1-1.23-2-1.8-3.06a8.09,8.09,0,0,0-3-3.06l-28.6-16.29a90.49,90.49,0,0,1,0-28.26L61.67,97.63a8,8,0,0,0,3-3c.58-1,1.19-2.06,1.81-3.06a7.94,7.94,0,0,0,1.22-4.21l.15-32.25a95.89,95.89,0,0,1,25.37-14.3L122,56.87a8,8,0,0,0,4.1,1c1.21,0,2.43,0,3.64,0a8.08,8.08,0,0,0,4.1-1l28.84-16.1A96,96,0,0,1,188.12,55l.11,32.2a8,8,0,0,0,1.22,4.22c.62,1,1.23,2,1.8,3.06a8.09,8.09,0,0,0,3,3.06l28.6,16.29A90.49,90.49,0,0,1,222.9,142.12Z"/></svg></button></div>
+    <div class="qs-tiles"><div class="tile on"><button class="t-main"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M244.35,92.8l-104,125.43A15.93,15.93,0,0,1,128,224h0a15.93,15.93,0,0,1-12.31-5.77L11.65,92.8A15.65,15.65,0,0,1,8.11,80.91,15.93,15.93,0,0,1,14.28,70.1,186.67,186.67,0,0,1,128,32,186.67,186.67,0,0,1,241.72,70.1a15.93,15.93,0,0,1,6.17,10.81A15.65,15.65,0,0,1,244.35,92.8Z"/></svg><span class="tt"><b>Wi-Fi</b><span>Maison</span></span></button><button class="t-more" aria-label="Choisir"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg></button></div><div class="tile on"><button class="t-main"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M200,176a8,8,0,0,1-3.2,6.4l-64,48A8,8,0,0,1,128,232a8,8,0,0,1-8-8V144L68.8,182.4a8,8,0,0,1-9.6-12.8L114.67,128,59.2,86.4a8,8,0,0,1,9.6-12.8L120,112V32a8,8,0,0,1,12.8-6.4l64,48a8,8,0,0,1,0,12.8L141.33,128l55.47,41.6A8,8,0,0,1,200,176Z"/></svg><span class="tt"><b>Bluetooth</b><span>1 appareil</span></span></button><button class="t-more" aria-label="Choisir"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg></button></div><div class="tile "><button class="t-main"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M240,96a8,8,0,0,1-8,8H216v16a8,8,0,0,1-16,0V104H184a8,8,0,0,1,0-16h16V72a8,8,0,0,1,16,0V88h16A8,8,0,0,1,240,96ZM144,56h8v8a8,8,0,0,0,16,0V56h8a8,8,0,0,0,0-16h-8V32a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16Zm72.77,97a8,8,0,0,1,1.43,8A96,96,0,1,1,95.07,37.8a8,8,0,0,1,10.6,9.06A88.07,88.07,0,0,0,209.14,150.33,8,8,0,0,1,216.77,153Zm-19.39,14.88c-1.79.09-3.59.14-5.38.14A104.11,104.11,0,0,1,88,64c0-1.79,0-3.59.14-5.38A80,80,0,1,0,197.38,167.86Z"/></svg><span class="tt"><b>Concentration</b><span>Désactivée</span></span></button></div><div class="tile on dm"><button class="t-main"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24ZM40,128a88.1,88.1,0,0,1,88-88V216A88.1,88.1,0,0,1,40,128Z"/></svg><span class="tt"><b>Mode sombre</b><span>Activé</span></span></button></div></div>
+    <div class="slider"><button class="ib" aria-label="Couper le son"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M155.51,24.81a8,8,0,0,0-8.42.88L77.25,80H32A16,16,0,0,0,16,96v64a16,16,0,0,0,16,16H77.25l69.84,54.31A8,8,0,0,0,160,224V32A8,8,0,0,0,155.51,24.81ZM32,96H72v64H32ZM144,207.64,88,164.09V91.91l56-43.55Zm54-106.08a40,40,0,0,1,0,52.88,8,8,0,0,1-12-10.58,24,24,0,0,0,0-31.72,8,8,0,0,1,12-10.58ZM248,128a79.9,79.9,0,0,1-20.37,53.34,8,8,0,0,1-11.92-10.67,64,64,0,0,0,0-85.33,8,8,0,1,1,11.92-10.67A79.83,79.83,0,0,1,248,128Z"/></svg></button><div class="track"><i style="width:64%"></i><b style="left:64%"></b></div><span class="val">64&nbsp;%</span></div>
+    <div class="slider"><button class="ib" aria-label="Luminosité"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm72,88a64,64,0,1,1-64-64A64.07,64.07,0,0,1,192,128Zm-16,0a48,48,0,1,0-48,48A48.05,48.05,0,0,0,176,128ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z"/></svg></button><div class="track"><i style="width:80%"></i><b style="left:80%"></b></div><span class="val">80&nbsp;%</span></div>
+    <hr>
+    <h3>Couleur d'accent</h3>
+    <div class="accents"><button class="chip "><i class="sw sw-argent"></i>Argent lunaire</button><button class="chip "><i class="sw sw-nuit"></i>Bleu nuit</button><button class="chip on"><i class="sw sw-violet"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></i>Violet</button><button class="chip "><i class="sw sw-ambre"></i>Ambre</button></div>
+    <h3>Ambiance</h3>
+    <div class="moods"><button class="mood  "><i class="mv mv-froide"><b></b><b></b><b></b></i>Froide</button><button class="mood  "><i class="mv mv-neutre"><b></b><b></b><b></b></i>Neutre</button><button class="mood on focus"><i class="mv mv-chaude"><b></b><b></b><b></b></i>Chaude</button></div>
+  </section>
+</div>
+  
+<nav class="bar" aria-label="Barre">
+  <div class="pill glass pill-left">
+    <button class="launcher-btn" aria-label="Lanceur"><svg class="logo " viewBox="0 0 48 48" aria-hidden="true"><path d="M19,8.25 A18 18 0 1 0 39.01,31.9 A15.5 15.5 0 0 1 19,8.25Z" fill="url(#logo-grad)"/><path d="M39.5 4.3Q40.75 8.25 44.7 9.5Q40.75 10.75 39.5 14.7Q38.25 10.75 34.3 9.5Q38.25 8.25 39.5 4.3Z" fill="url(#logo-grad)"/></svg></button>
+    <button class="bar-search"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg><span>Rechercher</span></button>
+  </div>
+  <div class="pill glass pill-apps" role="toolbar" aria-label="Applications">
+    <button class="dock-app active" aria-label="Fichiers"><img class="appicon " src="icons/fichiers.svg" alt=""><i class="dot"></i></button><button class="dock-app running" aria-label="Navigateur"><img class="appicon " src="icons/navigateur.svg" alt=""><i class="dot"></i></button><button class="dock-app " aria-label="Courrier"><img class="appicon " src="icons/courrier.svg" alt=""><i class="dot"></i></button><button class="dock-app running" aria-label="Calendrier"><img class="appicon " src="icons/calendrier.svg" alt=""><i class="dot"></i></button><button class="dock-app running" aria-label="Lecteur"><img class="appicon " src="icons/lecteur.svg" alt=""><i class="dot"></i></button><button class="dock-app " aria-label="Photos"><img class="appicon " src="icons/photos.svg" alt=""><i class="dot"></i></button><button class="dock-app " aria-label="Terminal"><img class="appicon " src="icons/terminal.svg" alt=""><i class="dot"></i></button><button class="dock-app " aria-label="Logithèque"><img class="appicon " src="icons/logitheque.svg" alt=""><i class="dot"></i></button><button class="dock-app " aria-label="Paramètres"><img class="appicon " src="icons/parametres.svg" alt=""><i class="dot"></i></button>
+  </div>
+  <div class="pill glass pill-status">
+    <button class="tray"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M140,204a12,12,0,1,1-12-12A12,12,0,0,1,140,204ZM237.08,87A172,172,0,0,0,18.92,87,8,8,0,0,0,29.08,99.37a156,156,0,0,1,197.84,0A8,8,0,0,0,237.08,87ZM205,122.77a124,124,0,0,0-153.94,0A8,8,0,0,0,61,135.31a108,108,0,0,1,134.06,0,8,8,0,0,0,11.24-1.3A8,8,0,0,0,205,122.77Zm-32.26,35.76a76.05,76.05,0,0,0-89.42,0,8,8,0,0,0,9.42,12.94,60,60,0,0,1,70.58,0,8,8,0,1,0,9.42-12.94Z"/></svg><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M155.51,24.81a8,8,0,0,0-8.42.88L77.25,80H32A16,16,0,0,0,16,96v64a16,16,0,0,0,16,16H77.25l69.84,54.31A8,8,0,0,0,160,224V32A8,8,0,0,0,155.51,24.81ZM32,96H72v64H32ZM144,207.64,88,164.09V91.91l56-43.55Zm54-106.08a40,40,0,0,1,0,52.88,8,8,0,0,1-12-10.58,24,24,0,0,0,0-31.72,8,8,0,0,1,12-10.58ZM248,128a79.9,79.9,0,0,1-20.37,53.34,8,8,0,0,1-11.92-10.67,64,64,0,0,0,0-85.33,8,8,0,1,1,11.92-10.67A79.83,79.83,0,0,1,248,128Z"/></svg><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M200,56H32A24,24,0,0,0,8,80v96a24,24,0,0,0,24,24H200a24,24,0,0,0,24-24V80A24,24,0,0,0,200,56Zm8,120a8,8,0,0,1-8,8H32a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H200a8,8,0,0,1,8,8ZM144,96v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0Zm-40,0v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0ZM64,96v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0Zm192,0v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0Z"/></svg><span class="pct">82&nbsp;%</span></button>
+    <button class="clock"><span class="date">dim. 11 oct.</span><span class="time">21:40</span></button>
+    <button class="bell" aria-label="Notifications, 1 nouvelle"><svg class="ph " viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216ZM48,184c7.7-13.24,16-43.92,16-80a64,64,0,1,1,128,0c0,36.05,8.28,66.73,16,80Z"/></svg><i class="badge"></i></button>
+  </div>
+</nav>
+</main>
+<div class="sheet">
+<div class="sheet-half sh-dark">
+  <div class="sh-logo"><img src="icons/selene-logo-dark.svg" alt=""><span>Selene</span><em>Icônes d'applications sur fond sombre, 96 px et 56 px</em></div>
+  <div class="sh-row"><figure><img class="appicon big" src="icons/fichiers.svg" alt=""><figcaption>Fichiers</figcaption></figure><figure><img class="appicon big" src="icons/navigateur.svg" alt=""><figcaption>Navigateur</figcaption></figure><figure><img class="appicon big" src="icons/courrier.svg" alt=""><figcaption>Courrier</figcaption></figure><figure><img class="appicon big" src="icons/parametres.svg" alt=""><figcaption>Paramètres</figcaption></figure><figure><img class="appicon big" src="icons/terminal.svg" alt=""><figcaption>Terminal</figcaption></figure><figure><img class="appicon big" src="icons/logitheque.svg" alt=""><figcaption>Logithèque</figcaption></figure><figure><img class="appicon big" src="icons/photos.svg" alt=""><figcaption>Photos</figcaption></figure><figure><img class="appicon big" src="icons/calendrier.svg" alt=""><figcaption>Calendrier</figcaption></figure><figure><img class="appicon big" src="icons/lecteur.svg" alt=""><figcaption>Lecteur</figcaption></figure><figure><img class="appicon big" src="icons/calculatrice.svg" alt=""><figcaption>Calculatrice</figcaption></figure></div>
+  <div class="sh-row small"><figure><img class="appicon mid" src="icons/editeur.svg" alt=""><figcaption>Éditeur de texte</figcaption></figure><figure><img class="appicon mid" src="icons/notes.svg" alt=""><figcaption>Notes</figcaption></figure><figure><img class="appicon mid" src="icons/horloge.svg" alt=""><figcaption>Horloge</figcaption></figure><figure><img class="appicon mid" src="icons/meteo.svg" alt=""><figcaption>Météo</figcaption></figure><figure><img class="appicon mid" src="icons/moniteur.svg" alt=""><figcaption>Moniteur système</figcaption></figure><figure><img class="appicon mid" src="icons/capture.svg" alt=""><figcaption>Capture d'écran</figcaption></figure><figure><img class="appicon mid" src="icons/archives.svg" alt=""><figcaption>Archives</figcaption></figure><figure><img class="appicon mid" src="icons/echecs.svg" alt=""><figcaption>Échecs</figcaption></figure></div>
+</div>
+<div class="sheet-half sh-light">
+  <div class="sh-logo"><img src="icons/selene-logo-light.svg" alt=""><span>Selene</span><em>Icônes d'applications sur fond clair, 96 px et 56 px</em></div>
+  <div class="sh-row"><figure><img class="appicon big" src="icons/fichiers.svg" alt=""><figcaption>Fichiers</figcaption></figure><figure><img class="appicon big" src="icons/navigateur.svg" alt=""><figcaption>Navigateur</figcaption></figure><figure><img class="appicon big" src="icons/courrier.svg" alt=""><figcaption>Courrier</figcaption></figure><figure><img class="appicon big" src="icons/parametres.svg" alt=""><figcaption>Paramètres</figcaption></figure><figure><img class="appicon big" src="icons/terminal.svg" alt=""><figcaption>Terminal</figcaption></figure><figure><img class="appicon big" src="icons/logitheque.svg" alt=""><figcaption>Logithèque</figcaption></figure><figure><img class="appicon big" src="icons/photos.svg" alt=""><figcaption>Photos</figcaption></figure><figure><img class="appicon big" src="icons/calendrier.svg" alt=""><figcaption>Calendrier</figcaption></figure><figure><img class="appicon big" src="icons/lecteur.svg" alt=""><figcaption>Lecteur</figcaption></figure><figure><img class="appicon big" src="icons/calculatrice.svg" alt=""><figcaption>Calculatrice</figcaption></figure></div>
+  <div class="sh-row small"><figure><img class="appicon mid" src="icons/editeur.svg" alt=""><figcaption>Éditeur de texte</figcaption></figure><figure><img class="appicon mid" src="icons/notes.svg" alt=""><figcaption>Notes</figcaption></figure><figure><img class="appicon mid" src="icons/horloge.svg" alt=""><figcaption>Horloge</figcaption></figure><figure><img class="appicon mid" src="icons/meteo.svg" alt=""><figcaption>Météo</figcaption></figure><figure><img class="appicon mid" src="icons/moniteur.svg" alt=""><figcaption>Moniteur système</figcaption></figure><figure><img class="appicon mid" src="icons/capture.svg" alt=""><figcaption>Capture d'écran</figcaption></figure><figure><img class="appicon mid" src="icons/archives.svg" alt=""><figcaption>Archives</figcaption></figure><figure><img class="appicon mid" src="icons/echecs.svg" alt=""><figcaption>Échecs</figcaption></figure></div>
+</div></div>
+<script>
+  // Light mode: the "Mode sombre" tile is off.
+  if (document.documentElement.dataset.mode === 'light') {
+    const t = document.querySelector('.tile.dm');
+    t.classList.remove('on');
+    t.querySelector('.tt span').textContent = 'Désactivé';
+  }
+</script>
+</body>
+</html>

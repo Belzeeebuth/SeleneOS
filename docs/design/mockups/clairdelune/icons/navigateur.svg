@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="na-bg" x1="0" y1="4" x2="0" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#5674D8"/><stop offset="1" stop-color="#2A3A87"/></linearGradient>
+    <linearGradient id="na-rim" x1="0" y1="4" x2="0" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".34"/><stop offset=".45" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#000" stop-opacity=".12"/></linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="15" fill="url(#na-bg)"/>
+  <rect x="4.5" y="4.5" width="55" height="55" rx="14.5" fill="none" stroke="url(#na-rim)"/>
+  
+    <defs><clipPath id="na-c"><circle cx="32" cy="32" r="16"/></clipPath></defs>
+    <circle cx="32" cy="32" r="16" fill="#FFF7EC"/>
+    <g clip-path="url(#na-c)" fill="none" stroke="#3B54B0" stroke-width="2.2">
+      <ellipse cx="32" cy="32" rx="6.6" ry="16"/><path d="M14 32h36M16 24.5h32M16 39.5h32"/>
+    </g>
+</svg>

@@ -1,0 +1,11 @@
+# Clair de lune
+
+- Ambiance chaude : noirs bruns et texte crème. En sombre, contenu des fenêtres #1F1A16, bande de titre #2A231E, barre latérale #1B1613, texte #F3EADF, texte secondaire #C4B7A7. En clair, #F7F1E8 / #FFFCF8 / #F1E9DD, texte #2A211B et #5A4D42.
+- Accent violet : #B9A4F2 en sombre, #6A4BC3 en clair. Nous l'avons préféré au bleu nuit. Sur un noir brun, un bleu sombre a peu d'écart de luminosité et tourne au gris. Le violet clair garde un contraste de 7,9:1 et s'accorde avec le crème. Le bleu nuit reste proposé dans les Réglages rapides.
+- Polices : Manrope pour les titres (fenêtres, sections), Inter pour le texte. 13 px minimum, chiffres tabulaires pour l'heure et les tailles de fichiers.
+- Barre : trois pastilles flottantes à 12 px du bas. À gauche, le Lanceur (le croissant) et la recherche. Au centre, les applications ; un point marque celles qui sont ouvertes ; l'application active a en plus un fond et un contour violets. À droite, l'état du système, la date, l'heure et les notifications.
+- Fenêtres : couleur unie, sans flou, coins de 8 px, ombre large et douce. La bande de titre est un ton plus clair que le contenu, les boutons sont à droite. Le focus clavier est un contour violet de 2 px.
+- Lanceur : ancré au-dessus de la pastille de gauche, avec le contenu actuel (recherche, 18 applications épinglées, récents, utilisateur, verrouillage et arrêt). Les notifications et les Réglages rapides s'ouvrent à droite ; l'en-tête des Réglages rapides porte la batterie et l'accès aux Paramètres. On y choisit l'accent (4 couleurs) et l'ambiance (froide, neutre, chaude).
+- Le flou (28 px, avec un grain très léger) est réservé à la barre, au Lanceur et aux panneaux. Rien d'autre n'est flouté, pour que l'interface reste fluide dans une machine virtuelle sans 3D.
+- Fond d'écran : les phases de la lune sur un arc, au-dessus de dunes aux tons de nuit chaude. Une variante d'aube, lavande et pêche, sert au mode clair. Les deux sont dessinées en SVG par gen-assets.mjs.
+- Ce qui l'éloigne de Windows : la barre n'occupe pas toute la largeur et le bouton n'est pas un logo à quatre carrés. Pas d'effet Mica. Les icônes viennent de Phosphor et non de Fluent, les polices sont Manrope et Inter et non Segoe. La palette brune et crème remplace le bleu de Windows.

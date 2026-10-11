@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="ca-bg" x1="0" y1="4" x2="0" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FCF6EE"/><stop offset="1" stop-color="#E6D9C7"/></linearGradient>
+    <linearGradient id="ca-rim" x1="0" y1="4" x2="0" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".34"/><stop offset=".45" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#000" stop-opacity=".12"/></linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="15" fill="url(#ca-bg)"/>
+  <rect x="4.5" y="4.5" width="55" height="55" rx="14.5" fill="none" stroke="url(#ca-rim)"/>
+  
+    <path d="M4 19V19a15 15 0 0 1 15-15h26a15 15 0 0 1 15 15v0H4z" fill="#8F6FDC"/>
+    <path d="M4 19h56v3H4z" fill="#7A5BCB" opacity=".35"/>
+    <circle cx="20" cy="31" r="2.3" fill="#8D7E70"/><circle cx="28" cy="31" r="2.3" fill="#8D7E70"/><circle cx="36" cy="31" r="2.3" fill="#8D7E70"/><circle cx="44" cy="31" r="2.3" fill="#8D7E70"/><circle cx="20" cy="39" r="2.3" fill="#8D7E70"/><circle cx="28" cy="39" r="2.3" fill="#8D7E70"/><circle cx="44" cy="39" r="2.3" fill="#8D7E70"/><circle cx="20" cy="47" r="2.3" fill="#8D7E70"/><circle cx="28" cy="47" r="2.3" fill="#8D7E70"/><circle cx="36" cy="47" r="2.3" fill="#8D7E70"/>
+    <circle cx="36" cy="39" r="4.3" fill="#8F6FDC"/>
+</svg>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="cl-bg" x1="0" y1="4" x2="0" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#8DAE74"/><stop offset="1" stop-color="#4C6941"/></linearGradient>
+    <linearGradient id="cl-rim" x1="0" y1="4" x2="0" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".34"/><stop offset=".45" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#000" stop-opacity=".12"/></linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="15" fill="url(#cl-bg)"/>
+  <rect x="4.5" y="4.5" width="55" height="55" rx="14.5" fill="none" stroke="url(#cl-rim)"/>
+  
+    <g stroke="#FFF7EC" stroke-width="3.2" stroke-linecap="round" fill="none">
+      <path d="M24 19.5v9M19.5 24h9"/><path d="M35.5 24h9"/>
+      <path d="M20.8 36.8l6.4 6.4M27.2 36.8l-6.4 6.4"/><path d="M35.5 37.5h9M35.5 42.5h9"/>
+    </g>
+</svg>
