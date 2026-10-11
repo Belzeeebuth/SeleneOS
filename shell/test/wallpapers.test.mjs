@@ -597,7 +597,11 @@ async function dynamicAndWeather() {
       const st = await state(s);
       const wp = await A(() => window.__aurora.theme.wallpaperUrl);
       check(st.dynamic?.phase === ph && wp.endsWith(`dynamic/dunes-${ph}.jpg`) && st.dynamic.source === 'sun', `Paris ${iso.slice(11, 16)} UTC → ${ph} (${wp.split('/').pop()})`);
-      if (ph === 'dawn' || ph === 'dusk') await docShot(s, `wallpaper-dynamic-dunes-${ph}`);
+      if ((ph === 'dawn' || ph === 'dusk') && !NO_SHOTS) {
+        // the 4 s cross-fade still shows the previous variant at first: shoot the settled picture
+        await waitFor(async () => (await A(() => document.querySelectorAll('#desktop .wp-fades .wp-fade').length)) === 0, 6000);
+        await docShot(s, `wallpaper-dynamic-dunes-${ph}`);
+      }
     }
     // cross-fade on change
     await clock('2026-06-21T12:00:00Z');
@@ -666,7 +670,9 @@ async function dynamicAndWeather() {
     await docShot(s, 'wallpaper-weather-rain');
     const urls = (await inv(s, 'weather:stats')).v.urls;
     check(urls.some((u) => u.startsWith('https://api.open-meteo.com/v1/forecast?latitude=48.8566&longitude=2.3522&current=weather_code,is_day,temperature_2m')), 'the Open-Meteo forecast URL is requested for the location');
-    // cache: a second request within the TTL is served from memory
+    // cache: a second request within the TTL is served from memory (the test TTL is 2.5 s, so warm the cache first:
+    // the screenshot above may take longer than that on a loaded machine)
+    await inv(s, 'weather:current', PARIS);
     const s1 = (await inv(s, 'weather:stats')).v;
     const again = (await inv(s, 'weather:current', PARIS)).v;
     const s2 = (await inv(s, 'weather:stats')).v;

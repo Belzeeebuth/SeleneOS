@@ -38,7 +38,18 @@ const speedFactor = (v) => {
   const s = Number.isFinite(Number(v)) ? Math.max(0, Math.min(100, Number(v))) : 50;
   return s <= 50 ? 0.2 + (0.8 * s) / 50 : 1 + (1.5 * (s - 50)) / 50;
 };
-const fmtTime = (pc, d) => (d ? pc.i18n.formatTime(new Date(d), { hour: 'numeric', minute: '2-digit', hour12: pc.settings.get('clock24h') == null ? undefined : !pc.settings.get('clock24h') }) : '');
+// "6:04 AM" / "06:04": two-digit hours with a 24-hour clock, like the taskbar clock
+const fmtTime = (pc, d) => {
+  if (!d) return '';
+  const h24 = pc.settings.get('clock24h');
+  let two = !!h24;
+  if (h24 == null) {
+    try {
+      two = ['h23', 'h24'].includes(new Intl.DateTimeFormat(pc.i18n.locale, { hour: 'numeric' }).resolvedOptions().hourCycle);
+    } catch {}
+  }
+  return pc.i18n.formatTime(new Date(d), { hour: two ? '2-digit' : 'numeric', minute: '2-digit', ...(h24 != null ? { hour12: !h24 } : {}) });
+};
 const clockText = (pc, hhmm) => {
   const [h, m] = String(hhmm).split(':').map(Number);
   const d = new Date();
@@ -301,7 +312,6 @@ function pictureBody(pc, refresh) {
   const body = h('div');
   (async () => {
     const grid = await wallGrid(pc, { key: 'wallpaper' });
-    const fitOpts = ['fill', 'fit', 'stretch', 'center', 'tile'].map((v) => ({ value: v, label: t(`pers.fit_${v}`) }));
     body.append(
       kit.group(
         null,
@@ -364,10 +374,12 @@ export function slideshowControls(pc) {
   const folderText = h('span', { class: 'wp-folder ellipsis' });
   const countText = h('span', { class: 'caption text-2' });
   const note = h('div', { class: 'caption text-2 wp-note', hidden: true });
+  let builtin = null;
   const paintFolder = async () => {
     const f = slide(pc).folder;
     folderText.textContent = f || t('wp.slideBuiltin');
     folderText.title = f || '';
+    if (builtin) builtin.hidden = !f;
     if (!f) {
       countText.textContent = '';
       note.hidden = true;
@@ -379,20 +391,21 @@ export function slideshowControls(pc) {
     note.textContent = t('wp.slideEmpty');
     note.hidden = n > 0;
   };
-  paintFolder();
-  pc.onDispose(settings.on('slideshow.folder', paintFolder));
   const browse = kit.button(t('wp.slideBrowse'), async () => {
     const dir = await pc.ui.filePicker({ mode: 'folder', title: t('wp.slideFolder'), path: slide(pc).folder || pc.shell.xdg?.pictures, parent: pc.win });
     if (dir) await settings.set('slideshow.folder', dir);
   });
-  const builtin = kit.button(t('wp.slideUseBuiltin'), () => settings.set('slideshow.folder', null));
+  // shown only while a folder is chosen (kept in the row so it appears / disappears live)
+  builtin = kit.button(t('wp.slideUseBuiltin'), () => settings.set('slideshow.folder', null));
+  paintFolder();
+  pc.onDispose(settings.on('slideshow.folder', paintFolder));
   const fmtInterval = (m) => (m >= 1440 ? t('wp.day', { count: m / 1440 }) : m >= 60 ? t('power.h', { count: m / 60 }) : t('power.m', { count: m }));
   const every = kit.combo({ options: INTERVALS.map((m) => ({ value: m, label: fmtInterval(m) })), value: INTERVALS.includes(Number(slide(pc).interval)) ? Number(slide(pc).interval) : 30, label: t('wp.slideEvery'), onChange: (v) => settings.set('slideshow.interval', Number(v)) });
   const shuffle = kit.toggle({ value: slide(pc).shuffle !== false, label: t('wp.shuffle'), onChange: (v) => settings.set('slideshow.shuffle', v) });
   pc.onDispose(settings.on('slideshow', () => shuffle.set(slide(pc).shuffle !== false)));
   return kit.group(
     null,
-    kit.row({ icon: 'image_multiple', title: t('wp.slideFolder'), desc: h('span', { class: 'wp-folder-line' }, folderText, countText), section: 'slideshow', control: h('div', { class: 'row wp-btns' }, slide(pc).folder ? builtin : null, browse) }),
+    kit.row({ icon: 'image_multiple', title: t('wp.slideFolder'), desc: h('span', { class: 'wp-folder-line' }, folderText, countText), section: 'slideshow', control: h('div', { class: 'row wp-btns' }, builtin, browse) }),
     note,
     kit.row({ icon: 'timer', title: t('wp.slideEvery'), control: every }),
     kit.row({ icon: 'arrow_shuffle', title: t('wp.shuffle'), control: shuffle }),

@@ -202,6 +202,9 @@
 .app-settings .wp-btns {
   gap: 8px;
 }
+.app-settings .wp-btns > [hidden] {
+  display: none;
+}
 .app-settings .wp-folder-line {
   display: inline-flex;
   flex-wrap: wrap;

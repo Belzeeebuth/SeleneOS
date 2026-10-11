@@ -118,6 +118,7 @@ What you can use:
 | system | `sys:info` `sys:stats` `power:shutdown` `power:reboot` `power:suspend` `session:logout` `apps:list` |
 | shell | `shell:zoom` `shell:capture(rect)` `shell:screenSize` `clipboard:readText` `clipboard:writeText` `clipboard:writeImage` `clipboard:readImage` |
 | settings | `settings:all` `settings:get` `settings:set` `settings:reset` (+`settings:changed`), `storage:get` `storage:set` `storage:delete` `storage:dir` |
+| weather | `weather:current(place?, { force })` `weather:search(query, { lang, count })` `weather:stats` (+`weather:changed`) — Open-Meteo, cached 30 min, offline fallback; see docs/PERSONALIZATION.md §9.4 |
 
 New backend areas go in a **new file** `main/ipc/<area>.js`:
 
