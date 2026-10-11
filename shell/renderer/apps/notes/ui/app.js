@@ -988,6 +988,15 @@ export class NotesApp {
 
   async createNote({ title = '', text = '', notebookId } = {}) {
     if (!this.ready || !this.win.el.isConnected) return null;
+    // Ctrl+N again on the brand-new note that is still blank (key repeat, a second click): stay on it
+    // rather than piling up empty notes (and splitting what is typed next across them)
+    const ed = this.editor;
+    const cur = ed.note && ed.note.id === this.selectedId ? this.store.get(ed.note.id) : null;
+    if (!title && !text && cur && this.sessionNew.has(cur.id) && !cur.deletedAt && !ed.readOnly && (!notebookId || cur.notebookId === notebookId) && this.view.kind !== 'tag' && !ed.title.value.trim() && !ed.body.textContent.trim() && !ed.body.querySelector('img, hr, table')) {
+      if (this.mode === 'narrow') this.root.classList.add('show-editor');
+      ed.title.focus();
+      return cur;
+    }
     await this.saveCurrent();
     let nbId = notebookId || (this.view.kind === 'notebook' ? this.view.id : this.prefs.lastNotebook);
     if (!this.store.notebook(nbId)) nbId = this.store.notebooks[0]?.id;

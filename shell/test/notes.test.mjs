@@ -1105,6 +1105,11 @@ await section('races: Ctrl+N held down, Delete pressed quickly', async () => {
   await N(s, (app) => app.focusList());
   for (let i = 0; i < 6; i++) await s.page.keyboard.press('Control+n');
   await until(() => N(s, (app) => !app.newP && document.activeElement === app.editor.title && !app.editor.title.value), { label: 'new note ready' });
+  const blankId = await selectedId(s);
+  await N(s, (app) => app.focusList());
+  await s.page.keyboard.press('Control+n');
+  await until(() => N(s, (app) => !app.newP && document.activeElement === app.editor.title), { label: 'title focused again' });
+  check('Ctrl+N on the blank new note stays on it (title focused)', await selectedId(s), blankId);
   await s.page.keyboard.type('Race note', { delay: 5 });
   await flush(s);
   check('Ctrl+N x6: one new note, typed title in one piece, no empty notes left behind', [(await N(s, (app) => app.store.all().length)) - before, (await N(s, (app) => app.store.all().filter((n) => n.title === 'Race note').length)), (await empties()) - empty0], [1, 1, 0]);
