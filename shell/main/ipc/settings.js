@@ -204,8 +204,21 @@ function migrate(obj) {
     obj.iconPack = 'selene';
     changed = true;
   }
+  // Wallpapers of the Windows-like set (removed in the redesign) -> the Nocturne picture / the lake set.
+  for (const k of ['wallpaper', 'lockWallpaper']) {
+    if (typeof obj[k] === 'string' && RETIRED_WALLPAPERS.has(obj[k])) {
+      obj[k] = 'builtin:nocturne';
+      changed = true;
+    }
+  }
+  if (isObj(obj.dynamicWallpaper) && RETIRED_DYNAMIC_SETS.has(obj.dynamicWallpaper.set)) {
+    obj.dynamicWallpaper.set = 'lake';
+    changed = true;
+  }
   return changed;
 }
+const RETIRED_WALLPAPERS = new Set(['builtin:bloom', 'builtin:glow', 'builtin:flow', 'builtin:sunrise', 'builtin:aurora', 'builtin:dunes']);
+const RETIRED_DYNAMIC_SETS = new Set(['bloom']);
 
 module.exports = function register(api) {
   const system = readJson(SYSTEM_FILE, {});

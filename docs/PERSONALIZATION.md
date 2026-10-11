@@ -44,7 +44,7 @@ Rules for every key:
 | `reducedMotion` | bool | `false` | Implies `data-animations="off"`. Also sets `<html data-reduced-motion="on">`: no animated wallpaper, no cross-fades, no parallax |
 | `animations` | bool | `true` | Animation effects; pre-existing. `false` = `data-animations="off"` |
 | `taskbar.color` | `null \| 'accent' \| '#rrggbb'` | `null` | `null` = theme default. Otherwise `#taskbar` gets `--taskbar-rgb` plus `data-theme-scope` and `data-theme` light/dark (from the colour's luminance), so icons and text stay readable. `'accent'` uses a deep shade of the accent |
-| `taskbar.opacity` | `null \| 0–100` | `null` | `null` = follows `transparencyLevel`; a number fixes the taskbar alpha (`--a-taskbar`) |
+| `taskbar.opacity` | `null \| 0–100` | `null` | `null` = follows `transparencyLevel`; a number fixes the taskbar alpha (`--a-taskbar`), clamped to 0.80–1 like all glass |
 | `appThemes` | `{ [appId]: { theme: 'system'\|'light'\|'dark', accent: null\|'#rrggbb' } }` | `{}` | Per-app theme: see §3 |
 
 Notes:

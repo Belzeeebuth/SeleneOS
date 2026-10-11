@@ -236,7 +236,7 @@ console.log('\n# Every key applies live');
   await setKey(s, 'taskbar.opacity', null);
   await setKey(s, 'taskbar.color', null);
   const tbDef = await T(s, () => ({ theme: document.getElementById('taskbar').dataset.theme || null, bg: window.__t.cs('#taskbar', 'backgroundColor') }));
-  check(/^rgba?\(\d+, \d+, \d+/.test(tbAcc) && !/^rgba?\(243, 246, 251/.test(tbAcc) && Math.abs(tbOp - 0.3) < 0.01 && tbDef.theme === null && /^rgba?\(243, 246, 251/.test(tbDef.bg), `taskbar accent colour (${tbAcc}), opacity 30 % (${tbOp}), back to default`);
+  check(/^rgba?\(\d+, \d+, \d+/.test(tbAcc) && !/^rgba?\(243, 246, 251/.test(tbAcc) && Math.abs(tbOp - 0.8) < 0.01 && tbDef.theme === null && /^rgba?\(243, 246, 251/.test(tbDef.bg), `taskbar accent colour (${tbAcc}), opacity 30 % clamped to the 0.80 glass floor (${tbOp}), back to default`);
   // accent + light/dark
   await setKey(s, 'accent', '#e3008c', 600);
   await waitTransitions(s);
