@@ -196,6 +196,12 @@ if [[ -x "$S/usr/lib/aurora/helpers/aurora-xwm" ]]; then
 else
   fail "image lacks /usr/lib/aurora/helpers/aurora-xwm (Linux applications)"
 fi
+# Store sources (docs/STORE-SOURCES.md): Flatpak for Flathub, AppStream metadata for the Ubuntu catalogue.
+for b in /usr/bin/flatpak /usr/libexec/xdg-desktop-portal /usr/libexec/xdg-desktop-portal-gtk /usr/bin/appstreamcli /usr/bin/gsettings; do
+  [[ -x "$S$b" ]] && pass "image has $b (Store sources)" || fail "image lacks $b (Store sources: rebuild with --from packages)"
+done
+[[ -f "$S/etc/apt/apt.conf.d/50appstream" ]] && pass "apt downloads AppStream metadata (50appstream)" || fail "apt.conf.d/50appstream missing: the Store cannot verify Ubuntu catalogue packages"
+compgen -G "$S/usr/lib/python3/dist-packages/yaml/__init__.py" >/dev/null && pass "python3-yaml is installed (Ubuntu catalogue)" || fail "python3-yaml is missing (Ubuntu catalogue)"
 bad="$(find "$S/usr/bin" "$S/usr/lib/aurora" -maxdepth 1 -name 'aurora-*' -type f ! -perm -0755 ! -name aurora-common | sed "s|^$S||")"
 [[ -z "$bad" ]] && pass "session entry points are executable" || fail "not executable: $bad"
 

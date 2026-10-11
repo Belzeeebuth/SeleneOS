@@ -1,0 +1,15 @@
+# Store sources (docs/STORE-SOURCES.md):
+#  - Flathub: flatpak (per-user installs, no root) and the desktop portals that Flatpak apps use for file
+#    dialogs, opening links and the light/dark preference (xdg-desktop-portal-gtk reads the GSettings
+#    color-scheme that the shell sets through gsettings + dconf).
+#  - Ubuntu catalogue: appstream makes apt download the DEP-11 metadata (Components-*.yml.gz) that
+#    aurora-admin checks before installing a package that is not in the curated catalog; python3-yaml
+#    parses that metadata for the Store's catalogue cache.
+flatpak
+xdg-desktop-portal
+xdg-desktop-portal-gtk
+appstream
+python3-yaml
+libglib2.0-bin
+dconf-gsettings-backend
+dconf-service
