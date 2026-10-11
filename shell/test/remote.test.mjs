@@ -51,7 +51,7 @@ const th = (b) => Buffer.from(b).toString('hex');
 
 // ---------------------------------------------------------------- fake RFB server
 // Framebuffer: left half red, right half blue. Records every client message.
-function fakeServer({ password = 'secret', width = 64, height = 48, version = '003.008', security = [2], name = 'Fake VNC' } = {}) {
+function fakeServer({ password = 'secret', width = 64, height = 48, version = '003.008', security = [2], name = 'Fake VNC', desktop = false } = {}) {
   const rec = { versions: [], pixelFormats: [], encodings: [], requests: [], keys: [], pointers: [], conns: 0, authFails: 0 };
   const sockets = new Set();
   let fb = { w: width, h: height, px: null };
@@ -61,6 +61,18 @@ function fakeServer({ password = 'secret', width = 64, height = 48, version = '0
     return { w, h, px };
   };
   fb = paint(width, height, (x) => (x < width / 2 ? [255, 0, 0] : [0, 0, 255]));
+  // A small fake desktop for the screenshot: gradient wallpaper, a window with a title bar, a taskbar.
+  if (desktop)
+    fb = paint(width, height, (x, y) => {
+      if (y >= height - 14) return x > width / 2 - 30 && x < width / 2 + 30 && y > height - 11 && y < height - 3 ? [90, 160, 230] : [32, 36, 44];
+      const wx0 = width * 0.18, wx1 = width * 0.7, wy0 = height * 0.14, wy1 = height * 0.72;
+      if (x >= wx0 && x < wx1 && y >= wy0 && y < wy1) {
+        if (y < wy0 + 12) return [235, 238, 243];
+        if ((y - wy0 - 22) % 12 < 4 && x > wx0 + 10 && x < wx1 - 30 - ((y * 7) % 40)) return [180, 186, 196];
+        return [250, 250, 252];
+      }
+      return [20 + Math.round((x / width) * 40), 70 + Math.round((y / height) * 60), 150 + Math.round((x / width) * 70)];
+    });
   const u32 = (n) => {
     const b = Buffer.alloc(4);
     b.writeUInt32BE(n >>> 0);
@@ -498,19 +510,20 @@ await s.close();
 
 // ---------------------------------------------------------------- French + dark
 await section('French + dark', async () => {
+  const srv2 = await fakeServer({ password: 'secret', width: 320, height: 200, desktop: true, name: 'Bureau de test' });
   s = await launchShell({ open: ['remote'], lang: 'fr', theme: 'dark' });
   page = s.page;
   check('window opened', await until(() => page.evaluate(`!!document.querySelector('${WIN} .rd-form')`), 20000), true);
   check('FR title', await q(`${WIN} .rd-h1`), 'Bureau à distance');
   check('FR connect button', await q(`${WIN} [data-act=connect]`), 'Se connecter');
   check('FR RDP note', (await q(`${WIN} .rd-proto`)).includes('RDP : dans une version ultérieure'), true);
-  await fillForm({ host: '', port: srv.port });
+  await fillForm({ host: '', port: srv2.port });
   await page.click(`${WIN} [data-act=connect]`);
   check('FR empty host message', await infoText(), "Saisissez le nom ou l'adresse IP de l'ordinateur.");
-  await fillForm({ password: 'mauvais' });
+  await fillForm({ port: srv2.port, password: 'mauvais' });
   await page.click(`${WIN} [data-act=connect]`);
   check('FR wrong password', await until(() => infoText().then((x) => x === "Mot de passe incorrect : l'ordinateur distant l'a refusé."), 10000), true);
-  await fillForm({ name: 'Serveur de test', password: 'secret' });
+  await fillForm({ port: srv2.port, name: 'Serveur de test', password: 'secret' });
   await page.click(`${WIN} [data-act=connect]`);
   check('FR connected', await connected(), true);
   check('FR toolbar', [await q(`${WIN} [data-act=cad]`), await q(`${WIN} [data-act=disconnect]`), await q(`${WIN} [data-scale=fit]`)], ['Ctrl+Alt+Suppr', 'Se déconnecter', 'Ajuster à la fenêtre']);
@@ -519,6 +532,7 @@ await section('French + dark', async () => {
   await sleep(300);
   fs.copyFileSync(await s.shot('remote-dark-fr'), path.join(DOCS, 'remote-dark-fr.png'));
   await s.close();
+  await srv2.close();
 });
 await srv.close();
 

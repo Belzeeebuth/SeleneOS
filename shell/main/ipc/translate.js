@@ -171,6 +171,8 @@ function libreBase(u) {
   try {
     const url = new URL(String(u || '').trim());
     if (!/^https?:$/.test(url.protocol) || url.username || url.password) return null;
+    url.search = '';
+    url.hash = '';
     return url.href.replace(/\/+$/, '');
   } catch {
     return null;
@@ -191,7 +193,10 @@ function parseDictionary(json, word) {
         const definition = txt(d?.definition);
         if (definition && slot.definitions.length < 6) slot.definitions.push({ definition, example: txt(d?.example) });
       }
-      for (const s of Array.isArray(m?.synonyms) ? m.synonyms : []) if (typeof s === 'string' && slot.synonyms.length < 8 && !slot.synonyms.includes(s)) slot.synonyms.push(txt(s, 60));
+      for (const s of Array.isArray(m?.synonyms) ? m.synonyms : []) {
+        const syn = txt(s, 60);
+        if (syn && slot.synonyms.length < 8 && !slot.synonyms.includes(syn)) slot.synonyms.push(syn);
+      }
       byPos.set(pos, slot);
     }
   }

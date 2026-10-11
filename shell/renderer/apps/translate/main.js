@@ -38,7 +38,7 @@ export default {
     let history = (Array.isArray(rawHistory) ? rawHistory : [])
       .filter((x) => x && typeof x.text === 'string' && typeof x.result === 'string' && LANGS.includes(x.target) && (x.source === 'auto' || LANGS.includes(x.source)))
       .slice(0, HISTORY_MAX)
-      .map((x) => ({ id: String(x.id || Math.random().toString(36).slice(2)), source: x.source, detected: LANGS.includes(x.detected) ? x.detected : '', target: x.target, text: x.text.slice(0, 5000), result: x.result.slice(0, 20000), offline: !!x.offline, at: Number(x.at) || 0 }));
+      .map((x) => ({ id: String(x.id || Math.random().toString(36).slice(2)), source: x.source, detected: LANGS.includes(x.detected) ? x.detected : '', provider: ['mymemory', 'libre', 'glossary', 'mock'].includes(x.provider) ? x.provider : '', target: x.target, text: x.text.slice(0, 5000), result: x.result.slice(0, 20000), offline: !!x.offline, at: Number(x.at) || 0 }));
     const savePrefs = () => save('prefs', { source, target, tab });
     const limit = () => LIMITS[settings.provider];
     const langName = (l) => t(`lang.${l}`);
@@ -216,11 +216,11 @@ export default {
         const n = Array.isArray(res.unknown) ? res.unknown.length : 0;
         setNotice('warning', t('tr.offline'), n ? t(n === 1 ? 'tr.unknown_one' : 'tr.unknown_other', { count: n }) : '');
       } else setNotice(null);
-      addHistory({ source, detected: res?.detected || '', target, text, result: String(res?.text ?? ''), offline: !!res?.offline });
+      addHistory({ source, detected: res?.detected || '', provider: String(res?.provider || ''), target, text, result: String(res?.text ?? ''), offline: !!res?.offline });
     }
     function swap() {
       const from = source === 'auto' ? lastDetected || (target === 'en' ? 'fr' : 'en') : source;
-      if (from === target && source !== 'auto') return;
+      if (from === target) return;
       const out = output.textContent;
       setLangs(target, from);
       if (out) {
@@ -278,7 +278,7 @@ export default {
       setLangs(x.source, x.target);
       input.value = x.text;
       onInput();
-      setOutput(x.result, { provider: x.offline ? 'glossary' : settings.provider, detected: x.detected });
+      setOutput(x.result, { provider: x.provider || (x.offline ? 'glossary' : settings.provider), detected: x.detected });
       setNotice(null);
       input.focus();
     }
