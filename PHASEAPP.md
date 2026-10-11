@@ -22,7 +22,7 @@ light and dark themes, and a Playwright test in `shell/test/<id>.test.mjs`.
 All seven are built and independently verified, each with its own test suite (`shell/test/<id>.test.mjs`;
 Calendar and Notes also have `*.unit.mjs`).
 
-## Phase 2 — Media and productivity (next — waits for the user's go)
+## Phase 2 — Media and productivity (waits for the user's go)
 
 | App | id (planned) | Notes for later |
 |---|---|---|
@@ -33,18 +33,18 @@ Calendar and Notes also have `*.unit.mjs`).
 | Video Editor | `videoeditor` | Timeline (trim, split, text, transitions) → export via WebCodecs/MediaRecorder or ffmpeg in the image |
 | Code Editor | `code` | Monaco or CodeMirror (new npm dependency), file tree, tabs, terminal panel (reuse pty backend), git status |
 
-## Phase 3 — System and connectivity
+## Phase 3 — System and connectivity (done, 2026-10-11)
 
 | App | id (planned) | Notes for later |
 |---|---|---|
-| App Store | `store` | Curated catalog of Flatpak/APT apps installed through `aurora-admin` (allow-listed); updates view |
-| Disk Utility | `disks` | udisks2 over D-Bus or `udisksctl`/`lsblk`/`parted`: partitions, format, SMART, mount options |
-| Backup | `backup` | rsync/restic snapshots of the home folder to a drive or folder; schedule via `shell.reminders` or a systemd user timer |
-| Password Manager | `passwords` | Encrypted vault (WebCrypto AES-GCM + Argon2/PBKDF2), generator, browser autofill hook |
-| Cloud Drive | `cloud` | rclone-backed mounts (Google Drive, OneDrive, Nextcloud/WebDAV) shown in File Explorer |
-| VPN / Network tools | `nettools` | NetworkManager VPN (WireGuard/OpenVPN import), ping/traceroute/DNS lookup/port check, speed test |
+| App Store | `store` | Curated catalog of command-line tools/services installed with APT through `aurora-admin` (allow-listed; tools shipped with the image cannot be removed). Later: graphical apps, Flatpak, updates view |
+| Disk Utility | `disks` | `lsblk`/`udisksctl`: drives, partitions, mount, eject; format removable drives only (`aurora-admin format-removable`). Later: SMART |
+| Backup | `backup` | rsync snapshots (`--link-dest`) of chosen home folders to a drive/folder, browse, restore, keep last N, reminders |
+| Password Manager | `passwords` | Encrypted vault (WebCrypto AES-GCM + PBKDF2 600k), auto-lock, generator, CSV import/export. Later: browser autofill |
+| Cloud Drive | `cloud` | **Light version:** Nextcloud/WebDAV browse, upload, download. Later: rclone mounts (Google Drive, OneDrive) in File Explorer |
+| VPN / Network tools | `nettools` | **Light version:** NetworkManager VPN/WireGuard list, connect, WireGuard import; ping; DNS lookup. Later: OpenVPN, traceroute, port check, speed test |
 
-## Phase 4 — Extras
+## Phase 4 — Extras (in progress)
 
 | App | id (planned) | Notes for later |
 |---|---|---|

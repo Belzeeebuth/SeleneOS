@@ -191,26 +191,32 @@ Tests live in `shell/test/<id>.test.mjs`; Minesweeper, Snake and 2048 share `gam
 Settings uses `system-settings.test.mjs`.
 
 - `archive` - Archive Manager: open, extract and create ZIP, 7z, RAR and TAR archives
+- `backup` - Backup: incremental rsync snapshots of your folders to a drive; browse and restore
 - `browser` - Aurora Browser: Chromium `<webview>` tabs, favorites, history, downloads, private windows
 - `calculator` - Calculator: standard, scientific, programmer, date calculation, unit converters
 - `calendar` - Calendar: month/week/day/agenda views, recurring events, reminders, holidays, .ics import/export
 - `chess` - Chess against the computer or a friend
 - `clock` - Clock: alarms, timers, stopwatch, world clock, focus sessions
+- `cloud` - Cloud: browse, upload and download Nextcloud / WebDAV files (other services later)
+- `disks` - Disks: drives and partitions, mount, eject; format removable drives only
 - `files` - File Explorer: tabs, drives, Recycle Bin, search, properties
 - `game2048` - 2048
 - `installer` - Install Aurora OS (live session only): language, keyboard, disk, account, time zone
 - `mail` - Mail: IMAP/SMTP accounts, compose, attachments
 - `media` - Media Player: music and video libraries, queue, playlists
 - `minesweeper` - Minesweeper
+- `nettools` - Network tools: VPN / WireGuard connections (NetworkManager), ping, DNS lookup
 - `notepad` - Notepad: plain text with tabs, find/replace, encodings
 - `notes` - Notes: notebooks, rich text, checklists, pictures and tags, saved as you type
 - `paint` - Paint: draw and edit pictures
+- `passwords` - Passwords: encrypted vault (AES-GCM, PBKDF2), generator, CSV import/export
 - `pdf` - PDF Reader: read, search, annotate and present PDFs
 - `photos` - Photos: gallery, viewer, slideshow and editor
 - `settings` - Settings: system, devices, network, personalization, accounts, time and language, updates
 - `snake` - Snake
 - `snipping` - Snipping Tool: screen captures with markup
 - `solitaire` - Solitaire (Klondike)
+- `store` - Store: curated command-line tools and services installed with apt (through aurora-admin)
 - `taskmgr` - Task Manager: processes, performance, users, details, services
 - `terminal` - Terminal: real PTY, tabs, split panes, profiles
 - `todo` - To Do: lists, My Day, reminders, due dates, steps
