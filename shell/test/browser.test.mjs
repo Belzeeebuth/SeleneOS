@@ -988,7 +988,9 @@ console.log(`Local test server: ${srv.url}`);
       await s.page.keyboard.press('Control+a');
       await s.page.keyboard.type(u);
       await s.page.keyboard.press('Delete'); // drop any inline completion
-      await s.page.keyboard.press('Enter');
+      // Enter through the omnibox key handler: a real key press can lose its input ack under load when the
+      // navigation moves the focus into the page (Playwright then waits forever).
+      await run(`(bw.omni.input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })), 0)`);
     };
     const clickTab = async (i) => {
       const box = await s.page.locator('.app-browser .bw-tab').nth(i).boundingBox();

@@ -788,12 +788,12 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 | Theme designer: accent, wallpaper, lock screen, taskbar colour, transparency, blur | §1.1, §2, §9, `personalization-designer.js` | `personalization-core` (`--only=e2e`: real clicks in Settings, 1280×720 FR), `personalization-shell` (checklist) |
 | Visual styles: Windows 11-like, minimal, glassmorphism, retro, high contrast | §4 | both |
 | Animated and dynamic wallpapers (time of day, weather) | §9 | `wallpapers` (`--only=perf`: per-effect CPU budget, pauses, 20-toggle leak check), `personalization-shell` |
-| Taskbar: size, position, icons, widgets, transparency, auto-hide | §10.1 | `taskbar-start-focus` (geometry, taskbar, autohide), `personalization-shell` |
-| Start: layout, pinned apps, folders, recommended files, background style | §10.2 | `taskbar-start-focus` (start, folders), `personalization-shell` |
-| Cursor packs, icon packs, sound packs, notification / startup / shutdown sounds | §11 | `personalization-shell` |
+| Taskbar: size, position, icons, widgets, transparency, auto-hide | §10.1 | `taskbar-start-focus` (geometry, taskbar, autohide, fit), `personalization-shell` |
+| Start: layout, pinned apps, folders, recommended files, background style | §10.2 | `taskbar-start-focus` (start, folders, labels: whole words on every tile in every style), `personalization-shell` |
+| Cursor packs, icon packs, sound packs, notification / startup / shutdown sounds | §11 | `packs-input` (cursors, icons, sounds, profiles, restart), `personalization-shell` |
 | Font and text size, rounded corners, UI scale, reduced motion | §1.1 | `personalization-core`, `personalization-shell` |
 | Per-app themes (light, dark, system, custom accent) | §3 | both |
-| Snap layout presets, customizable keyboard shortcuts | §12 | `personalization-shell` |
+| Snap layout presets, customizable keyboard shortcuts | §12 | `packs-input` (snap, shortcuts: rebinding end to end, conflicts, refused combos, persistence), `wm-nav` (snap, snapkeys), `personalization-shell` |
 | Focus mode | §10.3 | `taskbar-start-focus` (focus, restart), `personalization-shell` |
 | Profiles: save and switch complete UI themes with one click | §5 | both (`personalization-shell` and `personalization-core --only=e2e` round-trip every `PROFILE_KEYS` key; the latter also checks import hardening and that every documented key is saved) |
 

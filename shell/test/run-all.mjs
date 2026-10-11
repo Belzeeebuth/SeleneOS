@@ -67,11 +67,11 @@ function runSuite(file, attempt = 1) {
       const secs = Math.round((Date.now() - t0) / 1000);
       const text = fs.readFileSync(log, 'utf8');
       const tail = text.trim().split('\n').slice(-40);
-      const counts = [...text.matchAll(/(\d+)\s+passed,\s+(\d+)\s+failed/g)].pop();
+      const counts = [...text.matchAll(/(\d+)\s+(?:checks?\s+)?passed,\s+(\d+)\s+failed/g)].pop();
       const ok = code === 0 && !timedOut;
       resolve({
         file, name, ok, code, signal, timedOut, secs, log,
-        counts: counts ? `${counts[1]} passed, ${counts[2]} failed` : '',
+        counts: counts ? `${counts[1]} passed, ${counts[2]} failed` : (text.match(/\d+\/\d+ (?:tests )?passed/g) || []).pop() || '',
         tail: ok ? [] : tail,
       });
     });
