@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="fr" data-view="desktop" data-mode="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1600, initial-scale=1">
+<title>Selene Éclipse</title>
+<style>
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: block;
+  src: url(../assets/fonts/inter-latin-wght-normal.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: block;
+  src: url(../assets/fonts/inter-latin-ext-wght-normal.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+/* ---------- Tokens: ambiance neutre, accent ambre ---------- */
+:root {
+  --desk: #09090A;
+  --wall: url(wallpaper-dark.jpg);
+  --bar: #0F0F11;
+  --bar-line: #26262B;
+  --bar-hover: #1A1A1E;
+  --bar-on: #1F1F24;
+  --surface: #18181B;
+  --surface-2: #131315;
+  --raised: #212125;
+  --sel: #26262B;
+  --line: #2A2A30;
+  --field: #1F1F23;
+  --text: #EDEDEF;
+  --text-2: #A9A9B2;
+  --text-3: #8E8E98;
+  --ico: #B4B4BD;
+  --folder: #C9C9D0;
+  --accent: #F2A63A;
+  --accent-fill: #F2A63A;
+  --accent-ink: #1A1206;
+  --glass: rgba(21, 21, 24, 0.84);
+  --glass-edge: rgba(255, 255, 255, 0.07);
+  --glass-tile: rgba(255, 255, 255, 0.055);
+  --glass-tile-on: rgba(255, 255, 255, 0.10);
+  --shadow-win: 0 32px 80px -16px rgba(0, 0, 0, .70), 0 10px 28px rgba(0, 0, 0, .45), 0 0 0 1px rgba(0, 0, 0, .55);
+  --shadow-win-back: 0 20px 56px -16px rgba(0, 0, 0, .60), 0 6px 18px rgba(0, 0, 0, .40), 0 0 0 1px rgba(0, 0, 0, .55);
+  --shadow-pop: 0 28px 72px -12px rgba(0, 0, 0, .70), 0 0 0 1px rgba(0, 0, 0, .5);
+  --close-hover: #C4352B;
+  color-scheme: dark;
+}
+:root[data-mode="light"] {
+  --desk: #E6EAEE;
+  --wall: url(wallpaper-light.jpg);
+  --bar: #F4F4F5;
+  --bar-line: #D9D9DE;
+  --bar-hover: #E9E9EC;
+  --bar-on: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface-2: #F4F4F5;
+  --raised: #EDEDF0;
+  --sel: #EBEBEE;
+  --line: #E3E3E7;
+  --field: #E8E8EC;
+  --text: #141416;
+  --text-2: #55555E;
+  --text-3: #63636C;
+  --ico: #5C5C66;
+  --folder: #6E6E78;
+  --accent: #A65A06;
+  --accent-fill: #F0A43A;
+  --accent-ink: #1A1206;
+  --glass: rgba(249, 249, 250, 0.82);
+  --glass-edge: rgba(20, 20, 30, 0.08);
+  --glass-tile: rgba(20, 20, 30, 0.05);
+  --glass-tile-on: rgba(255, 255, 255, 0.95);
+  --shadow-win: 0 30px 70px -14px rgba(24, 28, 36, .32), 0 6px 18px rgba(24, 28, 36, .10), 0 0 0 1px rgba(24, 28, 36, .06);
+  --shadow-win-back: 0 18px 48px -14px rgba(24, 28, 36, .26), 0 4px 12px rgba(24, 28, 36, .08), 0 0 0 1px rgba(24, 28, 36, .06);
+  --shadow-pop: 0 26px 64px -12px rgba(24, 28, 36, .32), 0 0 0 1px rgba(24, 28, 36, .08);
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1600px; height: 900px; overflow: hidden; background: var(--desk); }
+body {
+  font-family: "Inter", sans-serif; font-size: 14px; line-height: 20px; color: var(--text);
+  font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1; -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: default; }
+.i { width: 20px; height: 20px; flex: none; fill: currentColor; display: block; }
+.i16 { width: 16px; height: 16px; } .i18 { width: 18px; height: 18px; } .i24 { width: 24px; height: 24px; }
+.num { font-variant-numeric: tabular-nums; }
+.focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.screen { position: relative; width: 1600px; height: 900px; overflow: hidden; background: var(--desk) var(--wall) center / cover no-repeat; }
+
+/* ---------- Windows: flat, no border, soft shadow ---------- */
+.win { position: absolute; background: var(--surface); border-radius: 8px; box-shadow: var(--shadow-win); overflow: hidden; display: flex; flex-direction: column; }
+.win.back { box-shadow: var(--shadow-win-back); }
+.titlebar { height: 36px; flex: none; display: flex; align-items: center; gap: 8px; padding-left: 12px; background: var(--surface-2); }
+.titlebar img { width: 16px; height: 16px; }
+.titlebar .t { font-size: 13px; font-weight: 600; letter-spacing: .005em; flex: 1; }
+.win.back .titlebar .t { color: var(--text-2); font-weight: 500; }
+.wbtns { display: flex; height: 36px; }
+.wbtn { width: 44px; height: 36px; display: grid; place-items: center; color: var(--text-2); }
+.win.back .wbtn { color: var(--text-3); }
+
+/* Fichiers */
+.files { left: 48px; top: 48px; width: 920px; height: 640px; z-index: 3; }
+.toolbar { height: 52px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--line); }
+.tbtn { width: 32px; height: 32px; border-radius: 6px; display: grid; place-items: center; color: var(--text-2); }
+.tbtn.dis { color: var(--text-3); opacity: .55; }
+.crumbs { display: flex; align-items: center; gap: 2px; margin-left: 8px; height: 32px; flex: 1; }
+.crumb { height: 32px; padding: 0 8px; border-radius: 6px; display: flex; align-items: center; color: var(--text-2); font-size: 14px; }
+.crumb.cur { color: var(--text); font-weight: 600; }
+.crumbs .sep { color: var(--text-3); }
+.field { height: 32px; border-radius: 6px; background: var(--field); display: flex; align-items: center; gap: 8px; padding: 0 10px; color: var(--text-2); font-size: 13px; }
+.seg { display: flex; height: 32px; border-radius: 6px; background: var(--field); padding: 2px; gap: 2px; margin-left: 8px; }
+.seg .tbtn { width: 28px; height: 28px; border-radius: 4px; }
+.seg .tbtn.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+
+.fbody { flex: 1; display: flex; min-height: 0; }
+.side { width: 216px; flex: none; background: var(--surface-2); padding: 8px 8px 12px; display: flex; flex-direction: column; }
+.side h4 { font-size: 13px; font-weight: 600; color: var(--text-2); padding: 12px 12px 4px; line-height: 20px; }
+.nav { position: relative; height: 32px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-radius: 6px; font-size: 14px; }
+.nav .i { width: 18px; height: 18px; color: var(--ico); }
+.nav .end { margin-left: auto; color: var(--text-3); font-size: 13px; }
+.nav.sel, .row.sel { background: var(--sel); }
+.nav.sel::before, .row.sel::before { content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 3px; border-radius: 0 2px 2px 0; background: var(--accent); }
+.nav.sel { font-weight: 600; }
+.nav.sel .i { color: var(--accent); }
+.store { margin-top: auto; padding: 12px; }
+.store .lbl { font-size: 13px; line-height: 20px; color: var(--text); font-weight: 600; }
+.store .sub { font-size: 13px; line-height: 16px; color: var(--text-2); margin-top: 8px; }
+.meter { height: 4px; border-radius: 2px; background: var(--line); margin-top: 8px; overflow: hidden; }
+.meter i { display: block; height: 100%; width: 59%; background: var(--text-2); border-radius: 2px; }
+
+.content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.chead { height: 64px; flex: none; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 20px 12px; }
+.chead h1 { font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -.02em; }
+.chead .meta { font-size: 13px; color: var(--text-2); }
+.cols, .row { display: grid; grid-template-columns: 1fr 144px 112px 88px; align-items: center; column-gap: 12px; padding: 0 12px; }
+.cols { height: 32px; flex: none; font-size: 13px; color: var(--text-2); font-weight: 500; border-bottom: 1px solid var(--line); margin: 0 8px; padding: 0 12px; }
+.cols span { display: flex; align-items: center; gap: 4px; }
+.cols .r, .row .r { justify-content: flex-end; text-align: right; }
+.list { padding: 4px 8px; }
+.row { position: relative; height: 36px; border-radius: 6px; padding: 0 12px; font-size: 14px; }
+.row .n { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.row .n span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .i { color: var(--ico); }
+.row .i.fold { color: var(--folder); }
+.row .d, .row .ty, .row .s { color: var(--text-2); font-size: 13px; white-space: nowrap; }
+.row.sel .n span { font-weight: 600; }
+.row.sel .d, .row.sel .ty, .row.sel .s { color: var(--text); }
+.row.focus { outline-offset: -2px; }
+:root[data-view="launcher"] .row.focus, :root[data-view="panel"] .row.focus { outline: none; }
+.status { height: 32px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--text-2); background: var(--surface); }
+.status b { color: var(--text); font-weight: 600; }
+
+/* Calendrier (fenêtre d'arrière-plan) */
+.cal { left: 956px; top: 412px; width: 476px; height: 380px; z-index: 2; }
+.cal .titlebar { padding-left: 24px; }
+.calhead { height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 12px 0 24px; }
+.calhead h2 { font-size: 18px; font-weight: 700; letter-spacing: -.015em; flex: 1; }
+.btn { height: 32px; padding: 0 12px; border-radius: 6px; background: var(--raised); font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.dow, .grid { display: grid; grid-template-columns: repeat(7, 1fr); padding: 0 12px 0 24px; }
+.wk { border-top: 1px solid var(--line); padding-top: 6px; font-size: 13px; color: var(--text-3); text-align: center; }
+.dow .wk { border: 0; padding: 0; }
+.dow { height: 28px; align-items: center; font-size: 13px; color: var(--text-2); text-align: center; }
+.grid { grid-auto-rows: 48px; }
+.day { border-top: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding-top: 6px; gap: 4px; font-size: 13px; font-weight: 500; }
+.day.out { color: var(--text-3); font-weight: 400; }
+.day b { width: 26px; height: 26px; margin-top: -3px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; }
+.day.today b { background: var(--accent-fill); color: var(--accent-ink); }
+.dots { display: flex; gap: 4px; height: 6px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); }
+.dots i.a { background: var(--accent); }
+
+/* ---------- Barre: opaque, pleine largeur, collée au bord ---------- */
+.bar { position: absolute; left: 0; right: 0; bottom: 0; height: 48px; z-index: 20; background: var(--bar); box-shadow: inset 0 1px 0 var(--bar-line); display: flex; align-items: stretch; }
+.launch { align-self: center; width: 264px; height: 36px; margin: 0 8px 0 8px; padding: 0 8px 0 6px; border-radius: 8px; background: var(--field); display: flex; align-items: center; gap: 10px; position: relative; }
+.launch img { width: 26px; height: 26px; flex: none; }
+.launch .lt { flex: 1; font-size: 13px; color: var(--text-2); }
+.launch kbd { font: inherit; font-size: 13px; line-height: 20px; color: var(--text-2); padding: 0 6px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--bar-line); }
+.vsep { width: 1px; background: var(--bar-line); margin: 12px 4px; }
+.tasks { display: flex; align-items: stretch; margin-left: 4px; }
+.task { position: relative; height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 12px; }
+.task img { width: 24px; height: 24px; }
+.task.pin { width: 48px; padding: 0; justify-content: center; }
+.task .lbl { font-size: 13px; font-weight: 500; color: var(--text-2); white-space: nowrap; }
+.task.run { min-width: 144px; }
+.task.run::before { content: ""; position: absolute; top: 0; left: 12px; width: 24px; height: 3px; border-radius: 0 0 2px 2px; background: var(--text-3); }
+.task.on { background: var(--bar-on); }
+.task.on::before { left: 0; right: 0; width: auto; top: 0; height: 3px; border-radius: 0; background: var(--accent); }
+.task.on .lbl { color: var(--text); font-weight: 600; }
+.tray { margin-left: auto; display: flex; align-items: center; gap: 4px; padding-right: 4px; }
+.tbtn2 { height: 36px; min-width: 36px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center; gap: 10px; color: var(--text); position: relative; }
+.tbtn2 .i { width: 18px; height: 18px; }
+.tbtn2 .pct { font-size: 13px; font-weight: 500; color: var(--text-2); }
+.tbtn2.on { background: var(--bar-on); box-shadow: inset 0 0 0 1px var(--bar-line); }
+.badge { min-width: 20px; height: 20px; border-radius: 10px; background: var(--accent-fill); color: var(--accent-ink); font-size: 13px; font-weight: 700; line-height: 20px; text-align: center; padding: 0 6px; margin-left: -4px; }
+.clock { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px 0 12px; }
+.clock .date { text-align: right; font-size: 13px; line-height: 16px; color: var(--text-2); }
+.clock .date b { display: block; color: var(--text); font-weight: 600; }
+.clock .time { font-size: 26px; line-height: 32px; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+
+/* ---------- Lanceur et Réglages rapides: seules surfaces floues ---------- */
+.glass { position: absolute; z-index: 30; background: var(--glass); -webkit-backdrop-filter: blur(24px) saturate(1.2); backdrop-filter: blur(24px) saturate(1.2); border-radius: 12px; box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--glass-edge); display: none; }
+.launcher { left: 8px; bottom: 56px; width: 608px; height: 712px; flex-direction: column; }
+:root[data-view="launcher"] .launcher { display: flex; }
+.lpad { padding: 24px 24px 0; flex: 1; }
+.lsearch { height: 44px; border-radius: 8px; background: var(--glass-tile); display: flex; align-items: center; gap: 12px; padding: 0 14px; font-size: 14px; color: var(--text-2); box-shadow: 0 0 0 2px var(--accent); }
+.lsearch .caret { width: 1.5px; height: 20px; background: var(--text); margin-right: -8px; }
+.lsearch .i { color: var(--text); }
+.shead { display: flex; align-items: center; justify-content: space-between; height: 32px; margin-top: 24px; }
+.shead h3 { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.chip { height: 32px; padding: 0 8px 0 12px; border-radius: 6px; background: var(--glass-tile); font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 4px; }
+.chip .i { width: 16px; height: 16px; color: var(--text-2); }
+.apps { display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: 92px; margin: 12px -4px 0; }
+.app { display: flex; flex-direction: column; align-items: center; padding: 8px 4px 0; gap: 8px; border-radius: 8px; font-size: 13px; line-height: 16px; text-align: center; }
+.app img { width: 44px; height: 44px; }
+.app span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.recent { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 52px; column-gap: 8px; margin: 8px -8px 0; }
+.rec { display: flex; align-items: center; gap: 12px; padding: 0 8px; border-radius: 8px; min-width: 0; }
+.rec .tile { width: 36px; height: 36px; border-radius: 8px; background: var(--glass-tile); display: grid; place-items: center; flex: none; color: var(--ico); }
+.rec .tx { min-width: 0; }
+.rec .tx b { display: block; font-weight: 500; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec .tx small { display: block; font-size: 13px; line-height: 16px; color: var(--text-2); }
+.lfoot { height: 64px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 16px 0 24px; border-top: 1px solid var(--glass-edge); }
+.avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(160deg, #3A3A41, #24242A); color: #EDEDEF; display: grid; place-items: center; font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+:root[data-mode="light"] .avatar { background: linear-gradient(160deg, #4A4A52, #2B2B31); }
+.lfoot .who { flex: 1; font-weight: 600; }
+.ibtn { width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; color: var(--text); }
+.ibtn .i { width: 20px; height: 20px; }
+:root[data-view="launcher"] .launch { background: var(--bar-on); box-shadow: inset 0 0 0 1px var(--accent); }
+
+.qs { right: 8px; bottom: 56px; width: 392px; flex-direction: column; padding: 20px 20px 0; }
+:root[data-view="panel"] .qs { display: flex; }
+.toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tog { position: relative; height: 64px; border-radius: 8px; background: var(--glass-tile); display: flex; align-items: center; gap: 12px; padding: 0 8px 0 16px; overflow: hidden; }
+.tog .i { color: var(--text-2); }
+.tog .tx { flex: 1; min-width: 0; }
+.tog .tx b { display: block; font-weight: 600; font-size: 14px; }
+.tog .tx small { display: block; font-size: 13px; line-height: 16px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tog .more { width: 32px; height: 48px; display: grid; place-items: center; color: var(--text-2); border-left: 1px solid var(--glass-edge); margin-left: 4px; }
+.tog.on { background: var(--glass-tile-on); }
+.tog.on::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 2px 2px 0; background: var(--accent); }
+.tog.on .i { color: var(--accent); }
+.sliders { margin-top: 16px; display: grid; gap: 8px; }
+.sl { height: 40px; display: flex; align-items: center; gap: 12px; }
+.sl .i { color: var(--text); }
+.sl .nm { width: 80px; font-size: 14px; }
+.track { flex: 1; height: 4px; border-radius: 2px; background: var(--line); position: relative; }
+:root[data-mode="light"] .track { background: #D6D6DB; }
+.track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; background: var(--accent); }
+.track b { position: absolute; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 3px var(--accent) inset, 0 1px 3px rgba(0,0,0,.4); }
+:root[data-mode="light"] .track b { background: #FFFFFF; }
+.sl .v { width: 40px; text-align: right; font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.hr { height: 1px; background: var(--glass-edge); margin: 16px -20px 0; }
+.qs h5 { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top: 16px; line-height: 20px; display: flex; justify-content: space-between; }
+.qs h5 span { font-weight: 500; }
+.swatches { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.sw { position: relative; height: 40px; border-radius: 8px; background: var(--glass-tile); display: flex; align-items: center; gap: 10px; padding: 0 12px; font-size: 14px; }
+.sw .dot { width: 20px; height: 20px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
+.sw .ck { margin-left: auto; color: var(--accent); }
+.sw.sel { background: var(--glass-tile-on); font-weight: 600; }
+.amb { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; margin-top: 8px; height: 44px; border-radius: 8px; background: var(--glass-tile); }
+.amb button { position: relative; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; color: var(--text-2); }
+.amb .pair { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); }
+:root[data-mode="light"] .amb .pair { box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); }
+.amb button.sel { background: var(--glass-tile-on); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.amb button.sel::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 16px; margin-left: -8px; height: 2px; border-radius: 1px; background: var(--accent); }
+.qfoot { height: 56px; margin: 20px -20px 0; padding: 0 12px 0 20px; display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--glass-edge); }
+.qfoot .tx { flex: 1; font-size: 13px; color: var(--text-2); line-height: 16px; }
+.qfoot .tx b { color: var(--text); font-size: 14px; font-weight: 600; display: block; line-height: 20px; }
+
+/* ---------- Planche d'icônes ---------- */
+.sheet { display: none; position: absolute; inset: 0; z-index: 50; flex-direction: column; }
+:root[data-view="icons"] .sheet { display: flex; }
+:root[data-view="icons"] .bar, :root[data-view="icons"] .win { display: none; }
+.band { flex: 1; display: flex; align-items: center; gap: 48px; padding: 0 56px; }
+.band.dk { background: #0F0F11; color: #EDEDEF; }
+.band.lt { background: #F4F4F5; color: #141416; }
+.brand { width: 216px; flex: none; display: flex; flex-direction: column; gap: 16px; }
+.brand .row1 { display: flex; align-items: center; gap: 16px; }
+.brand .row1 img { width: 96px; height: 96px; }
+.brand .word { font-size: 30px; font-weight: 700; letter-spacing: -.03em; }
+.brand .sizes { display: flex; align-items: flex-end; gap: 16px; }
+.brand small { font-size: 13px; line-height: 18px; }
+.band.dk small { color: #A9A9B2; } .band.lt small { color: #55555E; }
+.igrid { flex: 1; display: grid; grid-template-columns: repeat(9, 1fr); row-gap: 24px; }
+.ic { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 13px; line-height: 16px; text-align: center; }
+.ic img { width: 96px; height: 96px; }
+.bsep { width: 1px; align-self: stretch; margin: 72px 0; }
+.band.dk .bsep { background: #26262B; } .band.lt .bsep { background: #DCDCE0; }
+</style>
+</head>
+<body>
+<!--SPRITE:START (Phosphor 2.1.1, MIT)-->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="ph-arrow-left" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"/></symbol>
+<symbol id="ph-arrow-right" viewBox="0 0 256 256"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></symbol>
+<symbol id="ph-arrow-up" viewBox="0 0 256 256"><path d="M205.66,117.66a8,8,0,0,1-11.32,0L136,59.31V216a8,8,0,0,1-16,0V59.31L61.66,117.66a8,8,0,0,1-11.32-11.32l72-72a8,8,0,0,1,11.32,0l72,72A8,8,0,0,1,205.66,117.66Z"/></symbol>
+<symbol id="ph-battery-high" viewBox="0 0 256 256"><path d="M200,56H32A24,24,0,0,0,8,80v96a24,24,0,0,0,24,24H200a24,24,0,0,0,24-24V80A24,24,0,0,0,200,56Zm8,120a8,8,0,0,1-8,8H32a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H200a8,8,0,0,1,8,8ZM144,96v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0Zm-40,0v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0ZM64,96v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0Zm192,0v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0Z"/></symbol>
+<symbol id="ph-bell" viewBox="0 0 256 256"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216ZM48,184c7.7-13.24,16-43.92,16-80a64,64,0,1,1,128,0c0,36.05,8.28,66.73,16,80Z"/></symbol>
+<symbol id="ph-bluetooth" viewBox="0 0 256 256"><path d="M196.8,169.6,141.33,128,196.8,86.4a8,8,0,0,0,0-12.8l-64-48A8,8,0,0,0,120,32v80L68.8,73.6a8,8,0,0,0-9.6,12.8L114.67,128,59.2,169.6a8,8,0,1,0,9.6,12.8L120,144v80a8,8,0,0,0,12.8,6.4l64-48a8,8,0,0,0,0-12.8ZM136,48l42.67,32L136,112Zm0,160V144l42.67,32Z"/></symbol>
+<symbol id="ph-caret-left" viewBox="0 0 256 256"><path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"/></symbol>
+<symbol id="ph-caret-right" viewBox="0 0 256 256"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></symbol>
+<symbol id="ph-caret-up" viewBox="0 0 256 256"><path d="M213.66,165.66a8,8,0,0,1-11.32,0L128,91.31,53.66,165.66a8,8,0,0,1-11.32-11.32l80-80a8,8,0,0,1,11.32,0l80,80A8,8,0,0,1,213.66,165.66Z"/></symbol>
+<symbol id="ph-check-bold" viewBox="0 0 256 256"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></symbol>
+<symbol id="ph-desktop" viewBox="0 0 256 256"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24h72v16H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16H136V200h72a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40ZM48,56H208a8,8,0,0,1,8,8v80H40V64A8,8,0,0,1,48,56ZM208,184H48a8,8,0,0,1-8-8V160H216v16A8,8,0,0,1,208,184Z"/></symbol>
+<symbol id="ph-download-simple" viewBox="0 0 256 256"><path d="M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z"/></symbol>
+<symbol id="ph-file-archive" viewBox="0 0 256 256"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H112V200h8a8,8,0,0,0,0-16h-8V168h8a8,8,0,0,0,0-16h-8V136h8a8,8,0,0,0,0-16h-8v-8a8,8,0,0,0-16,0v8H88a8,8,0,0,0,0,16h8v16H88a8,8,0,0,0,0,16h8v16H88a8,8,0,0,0,0,16h8v16H56V40h88V88a8,8,0,0,0,8,8h48V216Z"/></symbol>
+<symbol id="ph-file-image" viewBox="0 0 256 256"><path d="M110.66,147.56a8,8,0,0,0-13.32,0L76.49,178.85l-9.76-15.18a8,8,0,0,0-13.46,0l-36,56A8,8,0,0,0,24,232H152a8,8,0,0,0,6.66-12.44ZM38.65,216,60,182.79l9.63,15a8,8,0,0,0,13.39.11l21-31.47L137.05,216Zm175-133.66-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40v88a8,8,0,0,0,16,0V40h88V88a8,8,0,0,0,8,8h48V216h-8a8,8,0,0,0,0,16h8a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160Z"/></symbol>
+<symbol id="ph-file-pdf" viewBox="0 0 256 256"><path d="M224,152a8,8,0,0,1-8,8H192v16h16a8,8,0,0,1,0,16H192v16a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8h32A8,8,0,0,1,224,152ZM92,172a28,28,0,0,1-28,28H56v8a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8H64A28,28,0,0,1,92,172Zm-16,0a12,12,0,0,0-12-12H56v24h8A12,12,0,0,0,76,172Zm88,8a36,36,0,0,1-36,36H112a8,8,0,0,1-8-8V152a8,8,0,0,1,8-8h16A36,36,0,0,1,164,180Zm-16,0a20,20,0,0,0-20-20h-8v40h8A20,20,0,0,0,148,180ZM40,112V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88v24a8,8,0,0,1-16,0V96H152a8,8,0,0,1-8-8V40H56v72a8,8,0,0,1-16,0ZM160,80h28.69L160,51.31Z"/></symbol>
+<symbol id="ph-file-text" viewBox="0 0 256 256"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-32-80a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,136Zm0,32a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,168Z"/></symbol>
+<symbol id="ph-file-text-fill" viewBox="0 0 256 256"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,176H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Zm0-32H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Zm-8-56V44l44,44Z"/></symbol>
+<symbol id="ph-file-txt" viewBox="0 0 256 256"><path d="M48,120a8,8,0,0,0,8-8V40h88V88a8,8,0,0,0,8,8h48v16a8,8,0,0,0,16,0V88a8,8,0,0,0-2.34-5.66l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40v72A8,8,0,0,0,48,120ZM160,51.31,188.69,80H160Zm-5.49,105.34L137.83,180l16.68,23.35a8,8,0,0,1-13,9.3L128,193.76l-13.49,18.89a8,8,0,1,1-13-9.3L118.17,180l-16.68-23.35a8,8,0,1,1,13-9.3L128,166.24l13.49-18.89a8,8,0,0,1,13,9.3ZM92,152a8,8,0,0,1-8,8H72v48a8,8,0,0,1-16,0V160H44a8,8,0,0,1,0-16H84A8,8,0,0,1,92,152Zm128,0a8,8,0,0,1-8,8H200v48a8,8,0,0,1-16,0V160H172a8,8,0,0,1,0-16h40A8,8,0,0,1,220,152Z"/></symbol>
+<symbol id="ph-film-strip" viewBox="0 0 256 256"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM40,88h80v80H40Zm96-16V56h32V72Zm-16,0H88V56h32Zm0,112v16H88V184Zm16,0h32v16H136Zm0-16V88h80v80Zm80-96H184V56h32ZM72,56V72H40V56ZM40,184H72v16H40Zm176,16H184V184h32v16Z"/></symbol>
+<symbol id="ph-folder-fill" viewBox="0 0 256 256"><path d="M216,72H131.31L104,44.69A15.88,15.88,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.41,15.41,0,0,0,39.39,216h177.5A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40Z"/></symbol>
+<symbol id="ph-gear-six" viewBox="0 0 256 256"><path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm109.94-52.79a8,8,0,0,0-3.89-5.4l-29.83-17-.12-33.62a8,8,0,0,0-2.83-6.08,111.91,111.91,0,0,0-36.72-20.67,8,8,0,0,0-6.46.59L128,41.85,97.88,25a8,8,0,0,0-6.47-.6A112.1,112.1,0,0,0,54.73,45.15a8,8,0,0,0-2.83,6.07l-.15,33.65-29.83,17a8,8,0,0,0-3.89,5.4,106.47,106.47,0,0,0,0,41.56,8,8,0,0,0,3.89,5.4l29.83,17,.12,33.62a8,8,0,0,0,2.83,6.08,111.91,111.91,0,0,0,36.72,20.67,8,8,0,0,0,6.46-.59L128,214.15,158.12,231a7.91,7.91,0,0,0,3.9,1,8.09,8.09,0,0,0,2.57-.42,112.1,112.1,0,0,0,36.68-20.73,8,8,0,0,0,2.83-6.07l.15-33.65,29.83-17a8,8,0,0,0,3.89-5.4A106.47,106.47,0,0,0,237.94,107.21Zm-15,34.91-28.57,16.25a8,8,0,0,0-3,3c-.58,1-1.19,2.06-1.81,3.06a7.94,7.94,0,0,0-1.22,4.21l-.15,32.25a95.89,95.89,0,0,1-25.37,14.3L134,199.13a8,8,0,0,0-3.91-1h-.19c-1.21,0-2.43,0-3.64,0a8.08,8.08,0,0,0-4.1,1l-28.84,16.1A96,96,0,0,1,67.88,201l-.11-32.2a8,8,0,0,0-1.22-4.22c-.62-1-1.23-2-1.8-3.06a8.09,8.09,0,0,0-3-3.06l-28.6-16.29a90.49,90.49,0,0,1,0-28.26L61.67,97.63a8,8,0,0,0,3-3c.58-1,1.19-2.06,1.81-3.06a7.94,7.94,0,0,0,1.22-4.21l.15-32.25a95.89,95.89,0,0,1,25.37-14.3L122,56.87a8,8,0,0,0,4.1,1c1.21,0,2.43,0,3.64,0a8.08,8.08,0,0,0,4.1-1l28.84-16.1A96,96,0,0,1,188.12,55l.11,32.2a8,8,0,0,0,1.22,4.22c.62,1,1.23,2,1.8,3.06a8.09,8.09,0,0,0,3,3.06l28.6,16.29A90.49,90.49,0,0,1,222.9,142.12Z"/></symbol>
+<symbol id="ph-hard-drives" viewBox="0 0 256 256"><path d="M208,136H48a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V152A16,16,0,0,0,208,136Zm0,64H48V152H208v48Zm0-160H48A16,16,0,0,0,32,56v48a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40Zm0,64H48V56H208v48ZM192,80a12,12,0,1,1-12-12A12,12,0,0,1,192,80Zm0,96a12,12,0,1,1-12-12A12,12,0,0,1,192,176Z"/></symbol>
+<symbol id="ph-house" viewBox="0 0 256 256"><path d="M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z"/></symbol>
+<symbol id="ph-image" viewBox="0 0 256 256"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z"/></symbol>
+<symbol id="ph-list-bullets" viewBox="0 0 256 256"><path d="M80,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H88A8,8,0,0,1,80,64Zm136,56H88a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Zm0,64H88a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16ZM44,52A12,12,0,1,0,56,64,12,12,0,0,0,44,52Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,116Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,180Z"/></symbol>
+<symbol id="ph-magnifying-glass" viewBox="0 0 256 256"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></symbol>
+<symbol id="ph-minus" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128Z"/></symbol>
+<symbol id="ph-moon" viewBox="0 0 256 256"><path d="M233.54,142.23a8,8,0,0,0-8-2,88.08,88.08,0,0,1-109.8-109.8,8,8,0,0,0-10-10,104.84,104.84,0,0,0-52.91,37A104,104,0,0,0,136,224a103.09,103.09,0,0,0,62.52-20.88,104.84,104.84,0,0,0,37-52.91A8,8,0,0,0,233.54,142.23ZM188.9,190.34A88,88,0,0,1,65.66,67.11a89,89,0,0,1,31.4-26A106,106,0,0,0,96,56,104.11,104.11,0,0,0,200,160a106,106,0,0,0,14.92-1.06A89,89,0,0,1,188.9,190.34Z"/></symbol>
+<symbol id="ph-music-notes" viewBox="0 0 256 256"><path d="M212.92,17.69a8,8,0,0,0-6.86-1.45l-128,32A8,8,0,0,0,72,56V166.08A36,36,0,1,0,88,196V110.25l112-28v51.83A36,36,0,1,0,216,164V24A8,8,0,0,0,212.92,17.69ZM52,216a20,20,0,1,1,20-20A20,20,0,0,1,52,216ZM88,93.75V62.25l112-28v31.5ZM180,184a20,20,0,1,1,20-20A20,20,0,0,1,180,184Z"/></symbol>
+<symbol id="ph-power" viewBox="0 0 256 256"><path d="M120,128V48a8,8,0,0,1,16,0v80a8,8,0,0,1-16,0Zm60.37-78.7a8,8,0,0,0-8.74,13.4C194.74,77.77,208,101.57,208,128a80,80,0,0,1-160,0c0-26.43,13.26-50.23,36.37-65.3a8,8,0,0,0-8.74-13.4C47.9,67.38,32,96.06,32,128a96,96,0,0,0,192,0C224,96.06,208.1,67.38,180.37,49.3Z"/></symbol>
+<symbol id="ph-presentation-chart" viewBox="0 0 256 256"><path d="M216,40H136V24a8,8,0,0,0-16,0V40H40A16,16,0,0,0,24,56V176a16,16,0,0,0,16,16H79.36L57.75,219a8,8,0,0,0,12.5,10l29.59-37h56.32l29.59,37a8,8,0,1,0,12.5-10l-21.61-27H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,136H40V56H216V176ZM104,120v24a8,8,0,0,1-16,0V120a8,8,0,0,1,16,0Zm32-16v40a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm32-16v56a8,8,0,0,1-16,0V88a8,8,0,0,1,16,0Z"/></symbol>
+<symbol id="ph-speaker-high" viewBox="0 0 256 256"><path d="M155.51,24.81a8,8,0,0,0-8.42.88L77.25,80H32A16,16,0,0,0,16,96v64a16,16,0,0,0,16,16H77.25l69.84,54.31A8,8,0,0,0,160,224V32A8,8,0,0,0,155.51,24.81ZM32,96H72v64H32ZM144,207.64,88,164.09V91.91l56-43.55Zm54-106.08a40,40,0,0,1,0,52.88,8,8,0,0,1-12-10.58,24,24,0,0,0,0-31.72,8,8,0,0,1,12-10.58ZM248,128a79.9,79.9,0,0,1-20.37,53.34,8,8,0,0,1-11.92-10.67,64,64,0,0,0,0-85.33,8,8,0,1,1,11.92-10.67A79.83,79.83,0,0,1,248,128Z"/></symbol>
+<symbol id="ph-square" viewBox="0 0 256 256"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208Z"/></symbol>
+<symbol id="ph-squares-four" viewBox="0 0 256 256"><path d="M104,40H56A16,16,0,0,0,40,56v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,104,40Zm0,64H56V56h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,64H152V56h48v48Zm-96,32H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm0,64H56V152h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,200,136Zm0,64H152V152h48v48Z"/></symbol>
+<symbol id="ph-sun" viewBox="0 0 256 256"><path d="M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm72,88a64,64,0,1,1-64-64A64.07,64.07,0,0,1,192,128Zm-16,0a48,48,0,1,0-48,48A48.05,48.05,0,0,0,176,128ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z"/></symbol>
+<symbol id="ph-table" viewBox="0 0 256 256"><path d="M224,48H32a8,8,0,0,0-8,8V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A8,8,0,0,0,224,48ZM40,112H80v32H40Zm56,0H216v32H96ZM216,64V96H40V64ZM40,160H80v32H40Zm176,32H96V160H216v32Z"/></symbol>
+<symbol id="ph-target" viewBox="0 0 256 256"><path d="M221.87,83.16A104.1,104.1,0,1,1,195.67,49l22.67-22.68a8,8,0,0,1,11.32,11.32l-96,96a8,8,0,0,1-11.32-11.32l27.72-27.72a40,40,0,1,0,17.87,31.09,8,8,0,1,1,16-.9,56,56,0,1,1-22.38-41.65L184.3,60.39a87.88,87.88,0,1,0,23.13,29.67,8,8,0,0,1,14.44-6.9Z"/></symbol>
+<symbol id="ph-trash" viewBox="0 0 256 256"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></symbol>
+<symbol id="ph-usb" viewBox="0 0 256 256"><path d="M252.44,121.34l-48-32A8,8,0,0,0,192,96v24H72V72h33a32,32,0,1,0,0-16H72A16,16,0,0,0,56,72v48H8a8,8,0,0,0,0,16H56v48a16,16,0,0,0,16,16h32v8a16,16,0,0,0,16,16h32a16,16,0,0,0,16-16V176a16,16,0,0,0-16-16H120a16,16,0,0,0-16,16v8H72V136H192v24a8,8,0,0,0,12.44,6.66l48-32a8,8,0,0,0,0-13.32ZM136,48a16,16,0,1,1-16,16A16,16,0,0,1,136,48ZM120,176h32v32H120Zm88-30.95V111l25.58,17Z"/></symbol>
+<symbol id="ph-wifi-high" viewBox="0 0 256 256"><path d="M140,204a12,12,0,1,1-12-12A12,12,0,0,1,140,204ZM237.08,87A172,172,0,0,0,18.92,87,8,8,0,0,0,29.08,99.37a156,156,0,0,1,197.84,0A8,8,0,0,0,237.08,87ZM205,122.77a124,124,0,0,0-153.94,0A8,8,0,0,0,61,135.31a108,108,0,0,1,134.06,0,8,8,0,0,0,11.24-1.3A8,8,0,0,0,205,122.77Zm-32.26,35.76a76.05,76.05,0,0,0-89.42,0,8,8,0,0,0,9.42,12.94,60,60,0,0,1,70.58,0,8,8,0,1,0,9.42-12.94Z"/></symbol>
+<symbol id="ph-x" viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></symbol>
+</svg>
+<!--SPRITE:END-->
+
+<div class="screen">
+
+  <!-- Calendrier, fenêtre en arrière-plan -->
+  <section class="win back cal" aria-label="Calendrier">
+    <div class="titlebar">
+      <img src="icons/calendrier.svg" alt="">
+      <span class="t">Calendrier</span>
+      <div class="wbtns">
+        <span class="wbtn"><svg class="i i16"><use href="#ph-minus"/></svg></span>
+        <span class="wbtn"><svg class="i i16"><use href="#ph-square"/></svg></span>
+        <span class="wbtn"><svg class="i i16"><use href="#ph-x"/></svg></span>
+      </div>
+    </div>
+    <div class="calhead">
+      <h2>octobre 2026</h2>
+      <span class="tbtn"><svg class="i i18"><use href="#ph-caret-left"/></svg></span>
+      <span class="tbtn"><svg class="i i18"><use href="#ph-caret-right"/></svg></span>
+      <span class="btn" style="margin-left:4px">Aujourd’hui</span>
+    </div>
+    <div class="dow"><span>lun.</span><span>mar.</span><span>mer.</span><span>jeu.</span><span>ven.</span><span>sam.</span><span>dim.</span></div>
+    <div class="grid" id="calgrid"></div>
+  </section>
+
+  <!-- Fichiers, fenêtre active -->
+  <section class="win files" aria-label="Fichiers">
+    <div class="titlebar">
+      <img src="icons/fichiers.svg" alt="">
+      <span class="t">Fichiers</span>
+      <div class="wbtns">
+        <span class="wbtn" title="Réduire"><svg class="i i16"><use href="#ph-minus"/></svg></span>
+        <span class="wbtn" title="Agrandir"><svg class="i i16"><use href="#ph-square"/></svg></span>
+        <span class="wbtn" title="Fermer"><svg class="i i16"><use href="#ph-x"/></svg></span>
+      </div>
+    </div>
+    <div class="toolbar">
+      <span class="tbtn" title="Précédent"><svg class="i"><use href="#ph-arrow-left"/></svg></span>
+      <span class="tbtn dis" title="Suivant"><svg class="i"><use href="#ph-arrow-right"/></svg></span>
+      <div class="crumbs">
+        <span class="crumb"><svg class="i i18" style="margin-right:8px"><use href="#ph-house"/></svg>Dossier personnel</span><svg class="i i16 sep"><use href="#ph-caret-right"/></svg>
+        <span class="crumb">Documents</span><svg class="i i16 sep"><use href="#ph-caret-right"/></svg>
+        <span class="crumb cur">Projets 2026</span>
+      </div>
+      <div class="field" style="width:240px"><svg class="i i18"><use href="#ph-magnifying-glass"/></svg>Rechercher dans Projets 2026</div>
+      <div class="seg">
+        <span class="tbtn on" title="Liste"><svg class="i i18"><use href="#ph-list-bullets"/></svg></span>
+        <span class="tbtn" title="Grille"><svg class="i i18"><use href="#ph-squares-four"/></svg></span>
+      </div>
+    </div>
+    <div class="fbody">
+      <nav class="side">
+        <h4>Favoris</h4>
+        <div class="nav"><svg class="i"><use href="#ph-house"/></svg>Dossier personnel</div>
+        <div class="nav"><svg class="i"><use href="#ph-desktop"/></svg>Bureau</div>
+        <div class="nav sel"><svg class="i"><use href="#ph-file-text-fill"/></svg>Documents</div>
+        <div class="nav"><svg class="i"><use href="#ph-download-simple"/></svg>Téléchargements</div>
+        <div class="nav"><svg class="i"><use href="#ph-image"/></svg>Images</div>
+        <div class="nav"><svg class="i"><use href="#ph-music-notes"/></svg>Musique</div>
+        <div class="nav"><svg class="i"><use href="#ph-film-strip"/></svg>Vidéos</div>
+        <h4>Emplacements</h4>
+        <div class="nav"><svg class="i"><use href="#ph-hard-drives"/></svg>Ordinateur</div>
+        <div class="nav"><svg class="i"><use href="#ph-usb"/></svg>Clé USB<span class="end">32 Go</span></div>
+        <div class="nav"><svg class="i"><use href="#ph-trash"/></svg>Corbeille</div>
+        <div class="store">
+          <div class="lbl">Disque système</div>
+          <div class="meter"><i></i></div>
+          <div class="sub num">212 Go libres sur 512 Go</div>
+        </div>
+      </nav>
+      <div class="content">
+        <div class="chead">
+          <h1>Projets 2026</h1>
+          <span class="meta">11 éléments</span>
+        </div>
+        <div class="cols">
+          <span>Nom <svg class="i i16"><use href="#ph-caret-up"/></svg></span><span>Modification</span><span>Type</span><span class="r">Taille</span>
+        </div>
+        <div class="list" id="rows"></div>
+      </div>
+    </div>
+    <div class="status"><span>11 éléments, <b>1 sélectionné</b> (1,2 Mo)</span><span>Trié par nom</span></div>
+  </section>
+
+  <!-- Lanceur -->
+  <div class="glass launcher" role="dialog" aria-label="Lanceur">
+    <div class="lpad">
+      <div class="lsearch"><svg class="i"><use href="#ph-magnifying-glass"/></svg><span class="caret"></span>Rechercher une application, un fichier ou un réglage</div>
+      <div class="shead"><h3>Épinglées</h3><span class="chip">Toutes les applications<svg class="i"><use href="#ph-caret-right"/></svg></span></div>
+      <div class="apps" id="apps"></div>
+      <div class="shead" style="margin-top:20px"><h3>Récents</h3><span class="chip">Tout afficher<svg class="i"><use href="#ph-caret-right"/></svg></span></div>
+      <div class="recent" id="recent"></div>
+    </div>
+    <div class="lfoot">
+      <span class="avatar">CF</span>
+      <span class="who">Camille Fontaine</span>
+      <span class="ibtn" title="Paramètres"><svg class="i"><use href="#ph-gear-six"/></svg></span>
+      <span class="ibtn" title="Éteindre"><svg class="i"><use href="#ph-power"/></svg></span>
+    </div>
+  </div>
+
+  <!-- Réglages rapides -->
+  <div class="glass qs" role="dialog" aria-label="Réglages rapides">
+    <div class="toggles">
+      <div class="tog on"><svg class="i"><use href="#ph-wifi-high"/></svg><div class="tx"><b>Wi-Fi</b><small>Maison-5G</small></div><span class="more"><svg class="i i16"><use href="#ph-caret-right"/></svg></span></div>
+      <div class="tog on"><svg class="i"><use href="#ph-bluetooth"/></svg><div class="tx"><b>Bluetooth</b><small>1 appareil</small></div><span class="more"><svg class="i i16"><use href="#ph-caret-right"/></svg></span></div>
+      <div class="tog on" id="tog-dark"><svg class="i"><use href="#ph-moon"/></svg><div class="tx"><b>Mode sombre</b><small>Activé</small></div></div>
+      <div class="tog"><svg class="i"><use href="#ph-target"/></svg><div class="tx"><b>Concentration</b><small>Désactivée</small></div></div>
+    </div>
+    <div class="sliders">
+      <div class="sl"><svg class="i"><use href="#ph-speaker-high"/></svg><span class="nm">Son</span><div class="track"><i style="width:64%"></i><b style="left:64%"></b></div><span class="v">64 %</span></div>
+      <div class="sl"><svg class="i"><use href="#ph-sun"/></svg><span class="nm">Luminosité</span><div class="track"><i style="width:80%"></i><b style="left:80%"></b></div><span class="v">80 %</span></div>
+    </div>
+    <div class="hr"></div>
+    <h5>Couleur d’accent</h5>
+    <div class="swatches">
+      <div class="sw"><span class="dot" style="background:linear-gradient(150deg,#E4E7EC,#A9B0BC)"></span>Argent lunaire</div>
+      <div class="sw"><span class="dot" style="background:linear-gradient(150deg,#7E9BE4,#3E5DB0)"></span>Bleu nuit</div>
+      <div class="sw"><span class="dot" style="background:linear-gradient(150deg,#B9A2FB,#7B5BE0)"></span>Violet</div>
+      <div class="sw sel focus"><span class="dot" style="background:linear-gradient(150deg,#F7BE68,#E08E1E)"></span>Ambre<svg class="i i18 ck"><use href="#ph-check-bold"/></svg></div>
+    </div>
+    <h5>Ambiance</h5>
+    <div class="amb">
+      <button><span class="pair" style="background:linear-gradient(135deg,#1A2130 50%,#8FA3BF 50%)"></span>Froide</button>
+      <button class="sel"><span class="pair" style="background:linear-gradient(135deg,#18181B 50%,#A9A9B2 50%)"></span>Neutre</button>
+      <button><span class="pair" style="background:linear-gradient(135deg,#221C15 50%,#E6D8BF 50%)"></span>Chaude</button>
+    </div>
+    <div class="qfoot">
+      <svg class="i"><use href="#ph-battery-high"/></svg>
+      <div class="tx"><b class="num">Batterie 78 %</b>Environ 4 h 10 restantes</div>
+      <span class="ibtn" title="Paramètres"><svg class="i"><use href="#ph-gear-six"/></svg></span>
+      <span class="ibtn" title="Éteindre"><svg class="i"><use href="#ph-power"/></svg></span>
+    </div>
+  </div>
+
+  <!-- Barre -->
+  <footer class="bar">
+    <span class="launch" title="Lanceur"><img class="logo" src="logo.svg" alt="Lanceur"><span class="lt">Rechercher</span><kbd>Super</kbd></span>
+    <span class="vsep"></span>
+    <div class="tasks">
+      <span class="task run on"><img src="icons/fichiers.svg" alt=""><span class="lbl">Fichiers</span></span>
+      <span class="task run"><img src="icons/navigateur.svg" alt=""><span class="lbl">Navigateur</span></span>
+      <span class="task run"><img src="icons/calendrier.svg" alt=""><span class="lbl">Calendrier</span></span>
+      <span class="task pin" title="Courrier"><img src="icons/courrier.svg" alt=""></span>
+      <span class="task pin" title="Terminal"><img src="icons/terminal.svg" alt=""></span>
+      <span class="task pin" title="Logithèque"><img src="icons/logitheque.svg" alt=""></span>
+      <span class="task pin" title="Lecteur"><img src="icons/lecteur.svg" alt=""></span>
+    </div>
+    <div class="tray">
+      <span class="tbtn2" id="status" title="Réglages rapides">
+        <svg class="i"><use href="#ph-wifi-high"/></svg>
+        <svg class="i"><use href="#ph-speaker-high"/></svg>
+        <svg class="i"><use href="#ph-battery-high"/></svg><span class="pct num">78 %</span>
+      </span>
+      <span class="tbtn2" title="Notifications, 2 non lues"><svg class="i"><use href="#ph-bell"/></svg><span class="badge num">2</span></span>
+      <span class="clock"><span class="date">dimanche<b>11 octobre</b></span><span class="time">14:32</span></span>
+    </div>
+  </footer>
+
+  <!-- Planche d'icônes (vue icons) -->
+  <div class="sheet">
+    <section class="band dk" id="band-dk"></section>
+    <section class="band lt" id="band-lt"></section>
+  </div>
+</div>
+
+<script>
+const q = new URLSearchParams(location.search);
+document.documentElement.dataset.view = q.get('view') || 'desktop';
+document.documentElement.dataset.mode = q.get('mode') || 'dark';
+const light = document.documentElement.dataset.mode === 'light';
+if (light) {
+  document.querySelectorAll('img.logo').forEach((i) => (i.src = 'logo-light.svg'));
+  const dm = document.getElementById('tog-dark');
+  dm.classList.remove('on'); dm.querySelector('small').textContent = 'Désactivé';
+}
+if (document.documentElement.dataset.view === 'panel') document.getElementById('status').classList.add('on');
+// Icônes utilisées par le script (pour le sprite): #ph-folder-fill #ph-table #ph-file-text #ph-file-pdf #ph-file-txt #ph-file-image #ph-presentation-chart #ph-file-archive
+const ic = (n, cls = '') => `<svg class="i ${cls}"><use href="#ph-${n}"/></svg>`;
+
+// Liste de fichiers
+const rows = [
+  ['folder-fill', 'Archives clients', '2 oct. 2026, 09:14', 'Dossier', '8 éléments', 1],
+  ['folder-fill', 'Maquettes', '9 oct. 2026, 17:40', 'Dossier', '23 éléments', 1],
+  ['folder-fill', 'Photos chantier', '28 sept. 2026, 11:02', 'Dossier', '146 éléments', 1],
+  ['table', 'Budget prévisionnel 2026.ods', 'Hier, 18:22', 'Classeur', '84 Ko'],
+  ['file-text', 'Compte rendu réunion 07-10.odt', '7 oct. 2026, 16:05', 'Document texte', '32 Ko'],
+  ['file-pdf', 'Devis menuiserie Lefèvre.pdf', '5 oct. 2026, 10:48', 'Document PDF', '1,2 Mo', 0, 1],
+  ['file-txt', 'Notes de chantier.txt', 'Aujourd’hui, 09:03', 'Texte brut', '6 Ko'],
+  ['file-image', 'Plan rez-de-chaussée.png', '3 oct. 2026, 14:31', 'Image PNG', '3,8 Mo'],
+  ['table', 'Planning travaux.ods', 'Hier, 21:17', 'Classeur', '56 Ko'],
+  ['presentation-chart', 'Présentation association.odp', '1 oct. 2026, 08:55', 'Présentation', '4,6 Mo'],
+  ['file-archive', 'Sauvegarde contacts.zip', '22 sept. 2026, 19:40', 'Archive ZIP', '12,4 Mo'],
+];
+document.getElementById('rows').innerHTML = rows.map(([i, n, d, t, s, fold, sel]) =>
+  `<div class="row${sel ? ' sel focus' : ''}"><span class="n">${ic(i, fold ? 'fold' : '')}<span>${n}</span></span><span class="d num">${d}</span><span class="ty">${t}</span><span class="s r num">${s}</span></div>`).join('');
+
+// Calendrier: octobre 2026 (le 1er est un jeudi)
+const cells = [];
+[28, 29, 30].forEach((d) => cells.push({ d, out: 1 }));
+for (let d = 1; d <= 31; d++) cells.push({ d });
+cells.push({ d: 1, out: 1 });
+const ev = { 2: ['n'], 7: ['n', 'n'], 11: ['a'], 14: ['n'], 16: ['n'], 21: ['n', 'n'], 27: ['n'], 30: ['n'] };
+document.getElementById('calgrid').innerHTML = cells.map((c, k) => {
+  const wk = '';
+  const dots = !c.out && ev[c.d] ? ev[c.d].map((k) => `<i class="${k === 'a' ? 'a' : ''}"></i>`).join('') : '';
+  return wk + `<div class="day${c.out ? ' out' : ''}${!c.out && c.d === 11 ? ' today' : ''}"><b class="num">${c.d}</b><span class="dots">${dots}</span></div>`;
+}).join('');
+
+// Lanceur
+const apps = [
+  ['fichiers', 'Fichiers'], ['navigateur', 'Navigateur'], ['courrier', 'Courrier'], ['calendrier', 'Calendrier'], ['photos', 'Photos'], ['lecteur', 'Lecteur'],
+  ['terminal', 'Terminal'], ['parametres', 'Paramètres'], ['logitheque', 'Logithèque'], ['calculatrice', 'Calculatrice'], ['notes', 'Notes'], ['taches', 'Tâches'],
+  ['editeur', 'Éditeur de texte'], ['moniteur', 'Moniteur système'], ['capture', 'Capture d’écran'], ['horloge', 'Horloge'], ['meteo', 'Météo'], ['dessin', 'Dessin'],
+];
+document.getElementById('apps').innerHTML = apps.map(([id, n]) => `<div class="app"><img src="icons/${id}.svg" alt=""><span>${n}</span></div>`).join('');
+const recent = [
+  ['file-txt', 'Notes de chantier.txt', 'Aujourd’hui, 09:03'],
+  ['table', 'Planning travaux.ods', 'Hier, 21:17'],
+  ['table', 'Budget prévisionnel 2026.ods', 'Hier, 18:22'],
+  ['file-text', 'Compte rendu réunion 07-10.odt', '7 oct., 16:05'],
+  ['file-pdf', 'Devis menuiserie Lefèvre.pdf', '5 oct., 10:48'],
+  ['file-image', 'Plan rez-de-chaussée.png', '3 oct., 14:31'],
+];
+document.getElementById('recent').innerHTML = recent.map(([i, n, m]) => `<div class="rec"><span class="tile">${ic(i)}</span><span class="tx"><b>${n}</b><small class="num">${m}</small></span></div>`).join('');
+
+// Planche d'icônes
+const band = (dk) => `
+  <div class="brand">
+    <div class="row1"><img src="${dk ? 'logo.svg' : 'logo-light.svg'}" alt="Selene"><span class="word">Selene</span></div>
+    <div class="sizes">
+      <img src="${dk ? 'logo.svg' : 'logo-light.svg'}" width="48" height="48" alt="">
+      <img src="${dk ? 'logo.svg' : 'logo-light.svg'}" width="32" height="32" alt="">
+      <img src="${dk ? 'logo.svg' : 'logo-light.svg'}" width="24" height="24" alt="">
+    </div>
+    <small>Logo : ${dk ? 'version claire' : 'version graphite'}<br>96, 48, 32 et 24 px<br>Icônes : tuiles de 96 px</small>
+  </div>
+  <span class="bsep"></span>
+  <div class="igrid">${apps.map(([id, n]) => `<div class="ic"><img src="icons/${id}.svg" alt=""><span>${n}</span></div>`).join('')}</div>`;
+document.getElementById('band-dk').innerHTML = band(true);
+document.getElementById('band-lt').innerHTML = band(false);
+</script>
+</body>
+</html>

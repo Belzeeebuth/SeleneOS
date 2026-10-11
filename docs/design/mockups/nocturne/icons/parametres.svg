@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="parametres-bg" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#9AA4BA"/><stop offset="1" stop-color="#555E76"/></linearGradient>
+    <linearGradient id="parametres-hi" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.2"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect x="3" y="3.6" width="58" height="58" rx="14" fill="#000" opacity="0.18"/>
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="url(#parametres-bg)"/>
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="url(#parametres-hi)"/>
+  <rect x="3.5" y="3.5" width="57" height="57" rx="13.5" fill="none" stroke="#fff" stroke-opacity="0.14"/>
+  
+    <path d="M29.2 20.33L29.25 16.24L34.75 16.24L34.8 20.33L38.27 21.77L41.2 18.91L45.09 22.8L42.23 25.73L43.67 29.2L47.76 29.25L47.76 34.75L43.67 34.8L42.23 38.27L45.09 41.2L41.2 45.09L38.27 42.23L34.8 43.67L34.75 47.76L29.25 47.76L29.2 43.67L25.73 42.23L22.8 45.09L18.91 41.2L21.77 38.27L20.33 34.8L16.24 34.75L16.24 29.25L20.33 29.2L21.77 25.73L18.91 22.8L22.8 18.91L25.73 21.77ZM37 32A5 5 0 1 0 27 32A5 5 0 1 0 37 32Z" fill="rgba(255,255,255,1)" fill-rule="evenodd" stroke="rgba(255,255,255,1)" stroke-width="1.2" stroke-linejoin="round"/>
+</svg>

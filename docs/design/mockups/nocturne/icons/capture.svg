@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="capture-bg" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#EF7589"/><stop offset="1" stop-color="#B73F59"/></linearGradient>
+    <linearGradient id="capture-hi" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.2"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect x="3" y="3.6" width="58" height="58" rx="14" fill="#000" opacity="0.18"/>
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="url(#capture-bg)"/>
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="url(#capture-hi)"/>
+  <rect x="3.5" y="3.5" width="57" height="57" rx="13.5" fill="none" stroke="#fff" stroke-opacity="0.14"/>
+  
+    <g fill="none" stroke="rgba(255,255,255,1)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M16 24v-5a3 3 0 0 1 3-3h5M40 16h5a3 3 0 0 1 3 3v5M48 40v5a3 3 0 0 1-3 3h-5M24 48h-5a3 3 0 0 1-3-3v-5"/>
+    </g>
+    <circle cx="32" cy="32" r="6.5" fill="rgba(255,255,255,1)"/>
+</svg>

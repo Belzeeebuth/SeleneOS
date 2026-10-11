@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <title>Météo</title>
+  <defs>
+    <linearGradient id="g" x1="0" y1="4" x2="0" y2="92" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#62BEF0"/><stop offset="1" stop-color="#2C86C6"/></linearGradient>
+    <linearGradient id="h" x1="0" y1="4" x2="0" y2="92" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".5" stop-color="#fff" stop-opacity=".04"/><stop offset="1" stop-color="#000" stop-opacity=".12"/></linearGradient>
+    <clipPath id="c"><rect x="4" y="4" width="88" height="88" rx="24"/></clipPath>
+  </defs>
+  <rect x="4" y="4" width="88" height="88" rx="24" fill="url(#g)"/>
+  <circle cx="80" cy="16" r="34" fill="#fff" fill-opacity=".09" clip-path="url(#c)"/>
+  <rect x="4.75" y="4.75" width="86.5" height="86.5" rx="23.25" fill="none" stroke="url(#h)" stroke-width="1.5"/>
+  <path d="M36 66a13 13 0 0 1-1.5-25.9A16 16 0 0 1 65 43a11.5 11.5 0 0 1-1 23z" fill="#FFFFFF"/>
+</svg>

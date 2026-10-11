@@ -1,0 +1,74 @@
+[
+  {
+    "id": "fichiers",
+    "name": "Fichiers"
+  },
+  {
+    "id": "navigateur",
+    "name": "Navigateur"
+  },
+  {
+    "id": "courrier",
+    "name": "Courrier"
+  },
+  {
+    "id": "calendrier",
+    "name": "Calendrier"
+  },
+  {
+    "id": "photos",
+    "name": "Photos"
+  },
+  {
+    "id": "lecteur",
+    "name": "Lecteur"
+  },
+  {
+    "id": "parametres",
+    "name": "Paramètres"
+  },
+  {
+    "id": "terminal",
+    "name": "Terminal"
+  },
+  {
+    "id": "logitheque",
+    "name": "Logithèque"
+  },
+  {
+    "id": "calculatrice",
+    "name": "Calculatrice"
+  },
+  {
+    "id": "editeur",
+    "name": "Éditeur de texte"
+  },
+  {
+    "id": "notes",
+    "name": "Notes"
+  },
+  {
+    "id": "horloge",
+    "name": "Horloge"
+  },
+  {
+    "id": "meteo",
+    "name": "Météo"
+  },
+  {
+    "id": "capture",
+    "name": "Capture d'écran"
+  },
+  {
+    "id": "moniteur",
+    "name": "Moniteur système"
+  },
+  {
+    "id": "motsdepasse",
+    "name": "Mots de passe"
+  },
+  {
+    "id": "dessin",
+    "name": "Dessin"
+  }
+]

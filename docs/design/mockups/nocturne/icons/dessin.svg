@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="dessin-bg" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#B6D766"/><stop offset="1" stop-color="#77A02A"/></linearGradient>
+    <linearGradient id="dessin-hi" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.2"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect x="3" y="3.6" width="58" height="58" rx="14" fill="#000" opacity="0.18"/>
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="url(#dessin-bg)"/>
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="url(#dessin-hi)"/>
+  <rect x="3.5" y="3.5" width="57" height="57" rx="13.5" fill="none" stroke="#fff" stroke-opacity="0.14"/>
+  
+    <path d="M32 15.5c-9.4 0-17 7-17 16 0 8.4 6.7 16 15.5 16 2.6 0 3.6-1.6 3.6-3.4 0-2.1-1.6-2.7-1.6-4.6 0-1.8 1.4-3 3.3-3h4.2c5.4 0 9-3.4 9-8.3 0-7.3-7.4-12.7-17-12.7z" fill="rgba(255,255,255,1)"/>
+    <circle cx="23.5" cy="32" r="2.9" fill="#E2625F"/><circle cx="26" cy="24" r="2.9" fill="#EEA43E"/>
+    <circle cx="34" cy="21" r="2.9" fill="#5C8DEB"/><circle cx="41.5" cy="25" r="2.9" fill="#8C6BE6"/>
+</svg>

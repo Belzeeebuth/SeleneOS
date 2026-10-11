@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="editeur-bg" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#52C9B8"/><stop offset="1" stop-color="#22877F"/></linearGradient>
+    <linearGradient id="editeur-hi" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.2"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect x="3" y="3.6" width="58" height="58" rx="14" fill="#000" opacity="0.18"/>
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="url(#editeur-bg)"/>
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="url(#editeur-hi)"/>
+  <rect x="3.5" y="3.5" width="57" height="57" rx="13.5" fill="none" stroke="#fff" stroke-opacity="0.14"/>
+  
+    <path d="M20.5 14h15.5l10 10v23.5a3 3 0 0 1-3 3h-22.5a3 3 0 0 1-3-3V17a3 3 0 0 1 3-3z" fill="rgba(255,255,255,1)"/>
+    <path d="M36 14v7a3 3 0 0 0 3 3h7z" fill="#22877F" opacity="0.3"/>
+    <path d="M23 31h17M23 36.5h17M23 42h10" stroke="#22877F" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

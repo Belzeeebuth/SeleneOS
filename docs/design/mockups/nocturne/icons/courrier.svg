@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="courrier-bg" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#F68E70"/><stop offset="1" stop-color="#CF5440"/></linearGradient>
+    <linearGradient id="courrier-hi" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.2"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect x="3" y="3.6" width="58" height="58" rx="14" fill="#000" opacity="0.18"/>
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="url(#courrier-bg)"/>
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="url(#courrier-hi)"/>
+  <rect x="3.5" y="3.5" width="57" height="57" rx="13.5" fill="none" stroke="#fff" stroke-opacity="0.14"/>
+  
+    <rect x="14.5" y="19.5" width="35" height="25" rx="4" fill="rgba(255,255,255,1)"/>
+    <path d="M17.5 23l14.5 11 14.5-11" fill="none" stroke="#D0583F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

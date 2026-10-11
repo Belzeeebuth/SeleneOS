@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <title>Selene</title>
+  <defs>
+    <linearGradient id="m" x1="8" y1="8" x2="36" y2="42" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4A4B52"/><stop offset=".55" stop-color="#2B2C31"/><stop offset="1" stop-color="#141416"/></linearGradient>
+  </defs>
+  <path d="M21.29 6.21 A18 18 0 1 0 41.79 26.71 A14.5 14.5 0 0 1 21.29 6.21 Z" fill="url(#m)"/>
+  <path d="M35.5 7.3Q36.75 12.25 41.7 13.5Q36.75 14.75 35.5 19.7Q34.25 14.75 29.3 13.5Q34.25 12.25 35.5 7.3Z" fill="#B8680C"/>
+</svg>

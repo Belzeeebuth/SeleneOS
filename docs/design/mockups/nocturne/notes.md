@@ -1,0 +1,11 @@
+# Nocturne
+
+- **Palette (ambiance froide, accent argent lunaire)** : fenêtres #121826, barres latérales #0E131F, champs #1A2133, filets #2A3349, texte #E6EAF2, #A9B2C5 et #8D97AC, accent #C9D3E6. Les autres accents sont le bleu nuit #6F8DE6, le violet #A58BF2 et l'ambre #E9B566. En mode clair, les surfaces passent à #FBFCFE et #F1F4F9, le texte à #141A26, et l'argent est foncé en #55637E pour rester lisible.
+- **Polices** : Manrope pour les titres et l'heure, Inter pour le texte courant, en 14 px (13 px au minimum).
+- **Barre** : deux îlots flottants, à 12 px des bords. À gauche se trouvent le bouton du Lanceur (le croissant), la recherche et les applications, alignées à gauche. À droite se trouvent le réseau, le son, la batterie, la date, l'heure et les notifications. Un petit trait signale une application ouverte ; il devient plus long et argenté pour la fenêtre active.
+- **Fenêtres** : opaques et sans flou, coins de 10 px, filet de 1 px un peu plus clair que la surface. La barre de titre a la même teinte que la fenêtre, avec le titre à gauche et trois boutons discrets à droite (glyphes Phosphor, sans pastilles de couleur).
+- **Lanceur** : il s'ouvre au-dessus de son bouton, en bas à gauche. Il contient la recherche, 18 applications épinglées, les fichiers récents, l'utilisateur et l'alimentation. Les réglages rapides regroupent les tuiles, la luminosité, le son, la couleur d'accent et l'ambiance (froide, neutre, chaude).
+- **Flou** : seulement sur la barre, le Lanceur et les panneaux (24 à 32 px). Tout le reste est en aplat, pour rester fluide dans une machine virtuelle sans 3D.
+- **Fonds d'écran** : « Lune sur le lac » est une pleine lune basse avec son reflet sur l'eau calme et quelques étoiles. « Phases » est un arc des phases de la lune, en version claire et sombre. Les deux sont dessinés par `build/make-assets.mjs`.
+- **Ce qui l'éloigne de Windows** : pas de barre centrée ni de logo à quatre carreaux, pas de Mica ni de bleu par défaut. On retrouve à la place l'argent, l'encre bleutée, Manrope, les icônes Phosphor et un croissant dont la partie sombre reste visible (la lumière cendrée).
+- **Accessibilité** : le texte tertiaire atteint 6:1 sur les fenêtres sombres et 5,4:1 en clair. Les cibles font au moins 32 px. L'anneau de focus est visible sur la ligne sélectionnée, sur le champ du Lanceur et sur la pastille d'accent.

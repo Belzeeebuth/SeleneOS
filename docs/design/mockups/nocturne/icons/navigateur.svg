@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="navigateur-bg" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#52BCE3"/><stop offset="1" stop-color="#2470B3"/></linearGradient>
+    <linearGradient id="navigateur-hi" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.2"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect x="3" y="3.6" width="58" height="58" rx="14" fill="#000" opacity="0.18"/>
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="url(#navigateur-bg)"/>
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="url(#navigateur-hi)"/>
+  <rect x="3.5" y="3.5" width="57" height="57" rx="13.5" fill="none" stroke="#fff" stroke-opacity="0.14"/>
+  
+    <circle cx="32" cy="32" r="14" fill="rgba(255,255,255,1)"/>
+    <g fill="none" stroke="#2A78B8" stroke-width="2.4" stroke-linecap="round">
+      <ellipse cx="32" cy="32" rx="6.5" ry="14"/><path d="M18.5 32h27"/>
+    </g>
+    <ellipse cx="32" cy="32" rx="22.5" ry="7" fill="none" stroke="rgba(255,255,255,1)" stroke-opacity="0.8" stroke-width="2.4" transform="rotate(-22 32 32)"/>
+</svg>

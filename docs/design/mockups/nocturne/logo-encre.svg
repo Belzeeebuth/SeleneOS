@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Selene logo, Nocturne: crescent and four-point star. -->
+  <defs>
+    <linearGradient id="le-m" x1="34" y1="8" x2="8" y2="40" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4A5671"/><stop offset="1" stop-color="#1C2335"/></linearGradient>
+  </defs>
+  <circle cx="22" cy="26" r="17" fill="#2A3348" opacity="0.14"/>
+  <path d="M20.11 9.11A17 17 0 1 0 37.8 32.28A14.6 14.6 0 0 1 20.11 9.11Z" fill="url(#le-m)"/>
+  <path d="M37.5 5.9Q38.4 9.6 42.1 10.5Q38.4 11.4 37.5 15.1Q36.6 11.4 32.9 10.5Q36.6 9.6 37.5 5.9Z" fill="#3A4560"/>
+</svg>
