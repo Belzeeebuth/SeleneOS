@@ -1018,7 +1018,8 @@ async function perfPart() {
       await new Promise((r) => setTimeout(r, 0));
       return performance.now() - t0;
     });
-    check(drag < 60, `300 style changes with a cursor pack: ${drag.toFixed(1)} ms`);
+    // (an idle machine measures ~7 ms; several Electron suites at once can take 10×)
+    check(drag < 150, `300 style changes with a cursor pack: ${drag.toFixed(1)} ms`);
     await set(s, 'cursorPack', 'default');
     check(!errorsOf(s).length, `no console errors (${errorsOf(s).join(' | ')})`);
   } finally {

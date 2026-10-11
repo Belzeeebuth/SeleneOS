@@ -708,7 +708,17 @@ async function stressPart() {
         await sleep(300);
         for (const [ev, sel] of [['start:open', '#start'], ['quick:toggle', '#quick-settings'], ['calendar:toggle', '#calendar-center']]) {
           await A((e) => window.__aurora.shell.emit(e), ev);
-          await sleep(450);
+          await sleep(200);
+          // wait for the slide-in to end (on a loaded machine it can outlast a fixed sleep), at most 3 s
+          await A(
+            (q) =>
+              Promise.race([
+                Promise.all((document.querySelector(q)?.getAnimations({ subtree: false }) || []).map((a) => a.finished.catch(() => {}))),
+                new Promise((r) => setTimeout(r, 3000)),
+              ]),
+            sel,
+          );
+          await sleep(60);
           const r = await A((q) => {
             const f = document.querySelector(q).getBoundingClientRect();
             const t = document.getElementById('taskbar').getBoundingClientRect();
