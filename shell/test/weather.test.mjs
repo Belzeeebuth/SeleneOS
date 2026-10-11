@@ -148,6 +148,16 @@ try {
   const dup = await all(s, `${W} .wx-place .wx-place-name`);
   check(dup.length === 2 && (await text(s, `${W} .wx-place.selected .wx-place-name`)) === 'Lyon', `an existing city is selected, not duplicated (${dup}; ${await text(s, `${W} .wx-title`)})`);
 
+  // Enter before the results arrive picks the first one
+  await s.page.fill(`${W} .wx-search-input`, 'Berl');
+  await s.page.press(`${W} .wx-search-input`, 'Enter');
+  check(!!(await waitFor(async () => (await text(s, `${W} .wx-title`)) === 'Berlin')), 'Enter typed before the results arrive picks the first city');
+  await s.page.focus(`${W} .wx-place[data-key="52.52,13.41"] .wx-place-btn`);
+  await s.page.keyboard.press('Delete');
+  await waitFor(async () => (await all(s, `${W} .wx-place`)).length === 2);
+  await s.page.click(`${W} .wx-place[data-key="45.75,4.85"] .wx-place-btn`);
+  await waitFor(async () => (await text(s, `${W} .wx-title`)) === 'Lyon');
+
   // no result + Escape
   await s.page.fill(`${W} .wx-search-input`, 'zzzz');
   check(!!(await waitFor(async () => (await text(s, `${W} .wx-result-empty`)) === 'No city found')), 'unknown city → "No city found"');
@@ -236,6 +246,8 @@ try {
   await sleep(400);
   const errs = consoleErrors(s);
   check(errs.length === 0, `no console errors${errs.length ? `: ${errs.slice(0, 3).join(' | ')}` : ''}`);
+  await A((q) => (document.querySelector(q + ' .wx-content').scrollTop = 0, document.querySelector(q + ' .wx-hours').scrollLeft = 0, true), W);
+  await sleep(300);
   const shot = await s.page.locator(W).screenshot();
   fs.writeFileSync(path.join(DOCS, 'weather-light-en.png'), shot);
   // set units again so the relaunch checks restore °F / mph
@@ -278,7 +290,8 @@ try {
   }, W);
   check(fr.sections.join('|') === 'Prochaines 24 heures|Prévisions sur 7 jours' && fr.now === 'Maintenant' && fr.today === 'Aujourd’hui', `French sections (${fr.sections.join(', ')}, ${fr.now}, ${fr.today})`);
   check(/^\d{1,2}\sh$/.test(fr.h1 || ''), `French hours (${fr.h1})`);
-  check(fr.wp === 'Utilisé pour le fond d’écran et les widgets' && fr.ph === 'Rechercher une ville' && fr.places === 'Lieux' && /^Ressenti -?\d+°$/.test(fr.feels || ''), `French labels (${fr.wp}; ${fr.feels})`);
+  // (launchShell rewrites settings.json with the theme / language, so the wallpaper place is not set any more)
+  check(fr.wp === 'Utiliser pour le fond d’écran et les widgets' && fr.ph === 'Rechercher une ville' && fr.places === 'Lieux' && /^Ressenti -?\d+°$/.test(fr.feels || ''), `French labels (${fr.wp}; ${fr.feels})`);
   check(fr.labels.slice(0, 3).join('|') === 'Vent|Humidité|Risque de pluie', `French stats (${fr.labels.join(', ')})`);
   const desc = await text(s, `${W} .wx-hero-desc`);
   const { WEATHER_TEXT } = await import(pathToFileURL(path.join(ROOT, 'renderer/core/wallpaper/weather-text.js')).href);

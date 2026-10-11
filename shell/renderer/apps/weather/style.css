@@ -524,3 +524,12 @@
     display: none;
   }
 }
+
+/* icon sizes (core icon() spans are 1em-agnostic: size them explicitly) */
+.app-weather .wx-hour-icon .icon { width: 28px; height: 28px; }
+.app-weather .wx-day-icon .icon { width: 24px; height: 24px; }
+.app-weather .wx-place-icon .icon,
+.app-weather .wx-stat-icon .icon { width: 20px; height: 20px; }
+.app-weather .wx-state-art .icon { width: 56px; height: 56px; }
+.app-weather .wx-hour-icon,
+.app-weather .wx-day-icon { color: var(--accent-text); }

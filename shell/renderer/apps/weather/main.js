@@ -205,6 +205,7 @@ class WeatherApp {
   // ------------------------------------------------------------------ search
   onSearchInput() {
     clearTimeout(this.searchTimer);
+    this.pickOnResults = false;
     const q = this.input.value.trim();
     if (q.length < 2) {
       this.searchSeq++;
@@ -226,6 +227,11 @@ class WeatherApp {
     }
     if (seq !== this.searchSeq || this.win.closed) return;
     this.showResults(Array.isArray(results) ? results : [], state);
+    // Enter pressed before the results arrived: take the first one
+    if (this.pickOnResults) {
+      this.pickOnResults = false;
+      if (this.results.length) this.pick(0);
+    }
   }
 
   showResults(list, state) {
@@ -270,6 +276,8 @@ class WeatherApp {
   closeResults() {
     if (!this.resultsEl) return;
     this.resultsEl.hidden = true;
+    this.resultsEl.replaceChildren();
+    this.pickOnResults = false;
     this.results = [];
     this.active = -1;
     this.input.setAttribute('aria-expanded', 'false');
@@ -291,6 +299,7 @@ class WeatherApp {
       if (open && this.active >= 0) this.pick(this.active);
       else if (this.input.value.trim().length >= 2) {
         clearTimeout(this.searchTimer);
+        this.pickOnResults = true;
         this.search(this.input.value.trim());
       }
     } else if (e.key === 'Escape') {

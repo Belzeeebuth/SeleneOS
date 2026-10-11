@@ -593,6 +593,13 @@ export default {
       } catch {
         status.textContent = t('places.error');
       }
+      if (closed) return;
+      // keep the selection card in step with the renamed place
+      const renamed = places.find((x) => x.id === p.id);
+      if (renamed && selected && Math.abs(selected.lat - renamed.lat) < 1e-5 && Math.abs(selected.lon - renamed.lon) < 1e-5) {
+        selected = { ...selected, name: renamed.name };
+        renderCard();
+      }
       renderList();
       scheduleRender();
     }
