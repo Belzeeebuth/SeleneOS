@@ -12,8 +12,8 @@ export const STRINGS = {
       reveal: 'Show password',
       conceal: 'Hide password',
       forgot: 'I forgot my password',
-      forgotHelp: 'Ask an administrator of this PC to reset your password in Settings > Accounts.',
-      forgotHelpLock: 'If you can’t remember your password, choose Switch user to sign out, then ask an administrator of this PC to reset it.',
+      forgotHelp: 'Ask an administrator of this computer to reset your password in Settings > Accounts.',
+      forgotHelpLock: 'If you can’t remember your password, choose Switch user to sign out, then ask an administrator of this computer to reset it.',
       wrong: 'The password is incorrect. Try again.',
       wrongUser: 'The user name or password is incorrect. Try again.',
       rate_one: 'Too many attempts. Try again in {count} second.',
@@ -25,7 +25,7 @@ export const STRINGS = {
       welcome: 'Welcome',
       otherUser: 'Other user',
       username: 'User name',
-      noUsers: 'No user account was found on this PC.',
+      noUsers: 'No user account was found on this computer.',
       users: 'User accounts',
       inputIndicator: 'Input language: {lang}. Keyboard: {kb}',
       language: 'Display language',
@@ -51,7 +51,7 @@ export const STRINGS = {
       powerBody: 'If you shut down or restart now, apps that are still open will close and unsaved work may be lost.',
       shutdownAnyway: 'Shut down anyway',
       restartAnyway: 'Restart anyway',
-      powerError: 'The PC couldn’t do that. Try again.',
+      powerError: 'The computer couldn’t do that. Try again.',
       notifications_one: '{count} new notification',
       notifications_other: '{count} new notifications',
       notifFrom_one: '{app}: {count} notification',
@@ -79,8 +79,8 @@ export const STRINGS = {
       reveal: 'Afficher le mot de passe',
       conceal: 'Masquer le mot de passe',
       forgot: 'J’ai oublié mon mot de passe',
-      forgotHelp: 'Demandez à un administrateur de ce PC de réinitialiser votre mot de passe dans Paramètres > Comptes.',
-      forgotHelpLock: 'Si vous ne vous souvenez plus de votre mot de passe, choisissez Changer d’utilisateur pour vous déconnecter, puis demandez à un administrateur de ce PC de le réinitialiser.',
+      forgotHelp: 'Demandez à un administrateur de cet ordinateur de réinitialiser votre mot de passe dans Paramètres > Comptes.',
+      forgotHelpLock: 'Si vous ne vous souvenez plus de votre mot de passe, choisissez Changer d’utilisateur pour vous déconnecter, puis demandez à un administrateur de cet ordinateur de le réinitialiser.',
       wrong: 'Le mot de passe est incorrect. Réessayez.',
       wrongUser: 'Le nom d’utilisateur ou le mot de passe est incorrect. Réessayez.',
       rate_one: 'Trop de tentatives. Réessayez dans {count} seconde.',
@@ -92,7 +92,7 @@ export const STRINGS = {
       welcome: 'Bienvenue',
       otherUser: 'Autre utilisateur',
       username: 'Nom d’utilisateur',
-      noUsers: 'Aucun compte d’utilisateur n’a été trouvé sur ce PC.',
+      noUsers: 'Aucun compte d’utilisateur n’a été trouvé sur cet ordinateur.',
       users: 'Comptes d’utilisateur',
       inputIndicator: 'Langue de saisie : {lang}. Clavier : {kb}',
       language: 'Langue d’affichage',
@@ -118,7 +118,7 @@ export const STRINGS = {
       powerBody: 'Si vous arrêtez ou redémarrez maintenant, les applications encore ouvertes seront fermées et les modifications non enregistrées risquent d’être perdues.',
       shutdownAnyway: 'Arrêter quand même',
       restartAnyway: 'Redémarrer quand même',
-      powerError: 'Le PC n’a pas pu effectuer cette action. Réessayez.',
+      powerError: 'L’ordinateur n’a pas pu effectuer cette action. Réessayez.',
       notifications_one: '{count} nouvelle notification',
       notifications_other: '{count} nouvelles notifications',
       notifFrom_one: '{app} : {count} notification',
@@ -137,7 +137,7 @@ export const STRINGS = {
   },
 };
 
-// Short codes shown in the input indicator (Windows style: "ENG" over "US").
+// Short codes shown in the input indicator ("ENG" over "US").
 export const LANG_CODES = { en: 'ENG', fr: 'FRA' };
 export const KB_CODES = { us: 'US', gb: 'UK', fr: 'FR', be: 'BE', ca: 'CA', 'ch:fr': 'CH', de: 'DE' };
 

@@ -65,7 +65,7 @@ export function avatar(user, cls = '') {
   return el;
 }
 
-/** The Windows "orbiting dots" progress indicator. */
+/** The "orbiting dots" progress indicator. */
 export function spinner(cls = '') {
   return h('div', { class: ['lk-spinner', cls], role: 'progressbar', 'aria-label': t('common.loading') }, [0, 1, 2, 3, 4].map((i) => h('i', { style: `--i:${i}` })));
 }
