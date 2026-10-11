@@ -596,6 +596,7 @@
 }
 /* narrow windows: the sidebar floats over the document */
 .app-pdf .pdf-root.narrow .pdf-sidebar {
+  isolation: isolate; /* keeps the paint order the removed backdrop-filter gave */
   position: absolute;
   top: 0;
   bottom: 0;
@@ -607,6 +608,7 @@
   animation: pdf-side-in var(--dur-slow) var(--ease);
 }
 :root[data-transparency="off"] .app-pdf .pdf-root.narrow .pdf-sidebar {
+  isolation: isolate; /* keeps the paint order the removed backdrop-filter gave */
   background: var(--solid);
 }
 @keyframes pdf-side-in {

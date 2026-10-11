@@ -714,6 +714,11 @@ if (!unitOnly) {
     await until(() => popOpen(s, '.ac-pop-peek'), { label: 'peek from flyout' });
     check('clicking opens the event in Calendar', await run(s, `document.querySelector('.ac-pop-peek .ac-peek-title').textContent`), 'Flyout check');
     await closeFlyouts(s);
+    // the Tableau de bord shows the same agenda in its own card
+    await run(s, `window.__aurora.shell.emit('widgets:open'); 0`);
+    await until(() => run(s, `!!document.querySelector('#widgets-board .wg-agenda .acf-item[data-event-id="fly1"]')`), { label: 'dashboard agenda' });
+    check('dashboard agenda lists the event', await run(s, `document.querySelector('#widgets-board .wg-agenda .acf-item[data-event-id="fly1"]').textContent`), (t) => t.includes('Flyout check'));
+    await run(s, `window.__aurora.shell.emit('flyouts:close'); 0`);
   });
 
   await section('robustness: invalid .ics, unreadable file, many events', async () => {

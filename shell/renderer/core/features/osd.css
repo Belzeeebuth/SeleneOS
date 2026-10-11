@@ -3,9 +3,9 @@
   position: fixed;
   left: 50%;
   bottom: calc(var(--taskbar-h) + var(--bar-margin, 0px) + 20px);
-  width: 220px;
+  width: 232px;
   height: 48px;
-  margin-left: -110px;
+  margin-left: -116px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -71,7 +71,8 @@ body.tb-autohide .osd {
   color: var(--text-2);
 }
 .osd-value {
-  min-width: 28px;
+  min-width: 40px;
+  white-space: nowrap;
   text-align: right;
   font-size: var(--fs-small);
   font-weight: 600;

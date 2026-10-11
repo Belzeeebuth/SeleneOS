@@ -132,6 +132,7 @@ const flyState = (s) =>
     search: !!document.getElementById('search-panel')?.classList.contains('open'),
     quick: !!document.getElementById('quick-settings')?.classList.contains('open'),
     calendar: !!document.getElementById('calendar-center')?.classList.contains('open'),
+    notifications: !!document.getElementById('notif-center')?.classList.contains('open'),
     widgets: !!document.getElementById('widgets-board')?.classList.contains('open'),
   }));
 const openCount = (st) => Object.values(st).filter(Boolean).length;
@@ -515,33 +516,62 @@ async function scenario(theme, lang) {
     await sleep(500);
     const badge = await s.aurora(() => document.querySelector('.tb-count')?.textContent);
     check(badge === '3', `[${tag}] taskbar shows the unread badge (${badge})`);
-    await P.click('.tb-clock');
+    // the clock opens « Aujourd'hui » (date, agenda, month); the bell opens the notifications, in their own panel
+    await P.click('.tb-clock .tb-time');
     await sleep(900);
     const cal = await s.aurora(() => ({
-      groups: document.querySelectorAll('.nc-group').length,
-      items: document.querySelectorAll('.nc-item').length,
+      open: document.getElementById('calendar-center').classList.contains('open'),
+      notifsInside: !!document.querySelector('#calendar-center .nc-item'),
       today: document.querySelector('.cal-day.today')?.textContent,
+      head: document.querySelector('#calendar-center .td-date')?.textContent,
+      link: document.querySelector('#calendar-center .td-notifs')?.textContent,
     }));
-    check(cal.groups === 2 && cal.items === 3, `[${tag}] notification center groups by app (${cal.groups} groups, ${cal.items} items)`);
+    check(cal.open && !cal.notifsInside && !!cal.head, `[${tag}] the clock opens the Today panel with the date, without the notifications (${cal.head})`);
     check(cal.today === String(new Date().getDate()), `[${tag}] today is highlighted`);
+    check(/3/.test(cal.link || ''), `[${tag}] the Today panel links to the 3 notifications (${cal.link})`);
     await shot(s, `calendar-${tag}`, docName('shell-calendar', tag));
-    check(await s.aurora(() => window.__aurora.notifications.unread() === 0), `[${tag}] opening the center marks notifications read`);
+    check(await s.aurora(() => window.__aurora.notifications.unread() === 3), `[${tag}] the Today panel leaves the notifications unread`);
     const m0 = await s.aurora(() => document.querySelector('.cal-month').textContent);
     await P.click('.cal-nav .cal-icon-btn:last-child');
     await sleep(400);
     const m1 = await s.aurora(() => document.querySelector('.cal-month').textContent);
     check(m0 !== m1, `[${tag}] month navigation (${m0} → ${m1})`);
+    const r = await s.aurora(() => JSON.parse(JSON.stringify(document.querySelector('#calendar-center .td-month').getBoundingClientRect())));
+    check(r.width >= 280, `[${tag}] the month keeps its size (${Math.round(r.width)} px)`);
+    // the link at the bottom (keyboard path) opens the notifications panel
+    await P.click('#calendar-center .td-notifs');
+    await sleep(900);
+    const nc = await s.aurora(() => ({
+      st: { cal: document.getElementById('calendar-center').classList.contains('open'), nc: document.getElementById('notif-center').classList.contains('open') },
+      groups: document.querySelectorAll('#notif-center .nc-group').length,
+      items: document.querySelectorAll('#notif-center .nc-item').length,
+      focusFirst: document.querySelector('#notif-center .nc-modes > :first-child')?.classList.contains('nc-focus'),
+    }));
+    check(nc.st.nc && !nc.st.cal, `[${tag}] the Today link swaps to the notifications panel (${JSON.stringify(nc.st)})`);
+    check(nc.groups === 2 && nc.items === 3, `[${tag}] notifications are grouped by app (${nc.groups} groups, ${nc.items} items)`);
+    check(nc.focusFirst, `[${tag}] the Concentration switch sits at the top of the notifications`);
+    await shot(s, `notifications-${tag}`, docName('shell-notifications', tag));
+    check(await s.aurora(() => window.__aurora.notifications.unread() === 0), `[${tag}] opening the notifications marks them read`);
+    await P.keyboard.press('Escape');
+    await sleep(300);
+    // the bell opens them directly
+    await P.click('.tb-bell');
+    await sleep(700);
+    check(await s.aurora(() => document.getElementById('notif-center').classList.contains('open') && !document.getElementById('calendar-center').classList.contains('open')), `[${tag}] the bell opens the notifications panel`);
     await P.hover('.nc-item');
     await P.click('.nc-item .nc-item-x');
     await sleep(500);
     check(await s.aurora(() => document.querySelectorAll('.nc-item').length === 2), `[${tag}] dismiss removes one notification`);
+    await P.click('.nc-group[data-app="winver"] .nc-group-clear');
+    await sleep(600);
+    check(await s.aurora(() => document.querySelectorAll('.nc-item').length === 1 && !document.querySelector('.nc-group[data-app="winver"]')), `[${tag}] Clear on a group clears that app only`);
     await P.click('.nc-clear');
     await sleep(700);
     check(await s.aurora(() => !!document.querySelector('.nc-empty')), `[${tag}] Clear all shows the empty state`);
-    await P.click('.cal-collapse');
-    await sleep(400);
-    check(await s.aurora(() => document.querySelector('.cal-card').classList.contains('collapsed')), `[${tag}] calendar collapses`);
-    await P.click('.cal-collapse');
+    await P.click('#notif-center .nc-dnd');
+    await sleep(300);
+    check(await s.aurora(() => window.__aurora.settings.get('notifications.dnd') === true && document.querySelector('#notif-center .nc-dnd').getAttribute('aria-checked') === 'true'), `[${tag}] Do not disturb switch in the notifications panel`);
+    await P.click('#notif-center .nc-dnd');
     await sleep(300);
     await P.keyboard.press('Escape');
     await sleep(300);
@@ -773,7 +803,7 @@ async function adversarial(theme, lang) {
     await scan('taskbar', ['#taskbar']);
 
     // ---- every flyout fits on a 1280x720 screen, above the taskbar
-    for (const [ev, sel] of [['start:toggle', '#start'], ['search:toggle', '#search-panel'], ['quick:toggle', '#quick-settings'], ['calendar:toggle', '#calendar-center'], ['widgets:toggle', '#widgets-board']]) {
+    for (const [ev, sel] of [['start:toggle', '#start'], ['search:toggle', '#search-panel'], ['quick:toggle', '#quick-settings'], ['calendar:toggle', '#calendar-center'], ['notifications:toggle', '#notif-center'], ['widgets:toggle', '#widgets-board']]) {
       await A((ev) => window.__aurora.shell.emit(ev), ev);
       await sleep(800);
       const r = await A((sel) => JSON.parse(JSON.stringify(document.querySelector(sel).getBoundingClientRect())), sel);
@@ -894,7 +924,7 @@ async function adversarial(theme, lang) {
 
     // ---- XSS: file names and notification text are rendered as text
     await A(() => window.__aurora.notify({ appId: 'winver', title: '<img src=x onerror="window.__xss=2">', body: '<b>bold</b>', silent: true, timeout: 1 }));
-    await P.click('.tb-clock');
+    await P.click('.tb-bell');
     await sleep(800);
     await P.click('.tb-start');
     await sleep(800);
@@ -926,13 +956,13 @@ async function adversarial(theme, lang) {
     await A(() => {
       for (let i = 0; i < 4; i++) window.__aurora.notify({ appId: 'winver', title: `N${i}`, body: 'b', silent: true, timeout: 1 });
     });
-    await P.click('.tb-clock');
+    await P.click('.tb-bell');
     await sleep(800);
     await A(() => document.querySelector('.nc-item')?.focus());
     await P.keyboard.press('Delete');
     await sleep(700);
     check(await A(() => document.querySelectorAll('.nc-item').length === 3 && document.activeElement?.classList.contains('nc-item')), `[${tag}] Delete dismisses a notification and focus stays in the list (${await active()})`);
-    await scan('notification center', ['#calendar-center']);
+    await scan('notification center', ['#notif-center']);
     await P.keyboard.press('Escape');
     await A(() => window.__aurora.notifications.clear());
 
@@ -997,7 +1027,7 @@ async function adversarial(theme, lang) {
 
     // ---- listener / DOM leaks: 20 open/close cycles of every flyout
     const cdp = await P.context().newCDPSession(P);
-    const evs = ['start:toggle', 'search:toggle', 'quick:toggle', 'calendar:toggle', 'widgets:toggle'];
+    const evs = ['start:toggle', 'search:toggle', 'quick:toggle', 'calendar:toggle', 'notifications:toggle', 'widgets:toggle'];
     for (const ev of evs) {
       await A((ev) => window.__aurora.shell.emit(ev), ev);
       await sleep(250);

@@ -205,14 +205,12 @@ async function geometryPart(size) {
       await setMany(s, { 'taskbar.size': 'medium' });
       await sleep(400);
       const tb = await rect(s, '#taskbar');
-      // (quick.css / calendar.css still add --bar-margin above the band, which in islands mode already holds it)
-      const islandGap = islands ? 12 : 0;
       for (const f of Object.keys(FLY)) {
         const r = await openFly(s, f);
         const onScreen = r && r.x >= 0 && r.y >= 0 && r.r <= W && r.b <= H;
         const beside = !r ? false : pos === 'bottom' ? r.b <= tb.y : pos === 'top' ? r.y >= tb.b : pos === 'left' ? r.x >= tb.r : r.r <= tb.x || f === 'widgets';
         // Start / Search open next to the Start button: at the top of a vertical bar
-        const anchored = !r ? false : (f === 'start' || f === 'search') && (pos === 'left' || pos === 'right') ? r.y <= 16 : f === 'quick' || f === 'calendar' ? (pos === 'top' ? r.y <= tb.b + 16 + islandGap : r.b >= H - (pos === 'bottom' ? tb.h : 0) - 16 - islandGap) : true;
+        const anchored = !r ? false : (f === 'start' || f === 'search') && (pos === 'left' || pos === 'right') ? r.y <= 16 : f === 'quick' || f === 'calendar' ? (pos === 'top' ? r.y <= tb.b + 16 : r.b >= H - (pos === 'bottom' ? tb.h : 0) - 16) : true;
         check(onScreen && beside && anchored && !overlap(r, tb), `[${size}] ${pos}: ${f} opens beside the bar (${r ? `${r.x},${r.y} ${r.w}×${r.h}` : 'missing'})`);
         if (size === '1920x1080' && f === 'start' && (pos === 'left' || pos === 'top')) await docShot(s, `taskbar-${pos}-start-open`);
       }
@@ -375,7 +373,8 @@ async function taskbarPart() {
     check((await get(s, 'taskbar.widgetsPos')) === 'end', 'widgetsPos saved');
     await s.page.locator(S('[data-section="size"] [data-value="large"]')).click();
     await sleep(500);
-    check((await get(s, 'taskbar.size')) === 'large' && (await rect(s, '#taskbar')).h === 56, 'Settings: size Large → 56 px bar');
+    const large = await A(() => window.__aurora.taskbar.layout().thickness);
+    check((await get(s, 'taskbar.size')) === 'large' && (await rect(s, '#taskbar')).h === large && [56, 72].includes(large), `Settings: size Large → ${large} px bar (56, or 72 for the floating islands)`);
     await clickToggle(s, '[data-section="autohide"]');
     const delayEnabled = await A(() => !document.querySelector('.app-settings [data-section="hideDelay"] .st-combo').disabled);
     check(delayEnabled && (await pick(s, '[data-section="hideDelay"]', '1.2 s')), 'Settings: hide delay (enabled with auto-hide)');
@@ -528,7 +527,8 @@ async function startPart() {
     }
     check(pos.center.start.x <= 16 && pos.center.btn.x <= 24, `centred apps: the Lanceur and its panel stay on the left (${pos.center.start.x}, button ${pos.center.btn.x})`);
     check(pos.left.start.x <= 16, `left-aligned taskbar: Start at the left (${pos.left.start.x})`);
-    check(pos.top.start.y >= 48 && pos.top.start.y <= 64, `top taskbar: Start drops from it (${pos.top.start.y})`);
+    const topThick = await A(() => window.__aurora.taskbar.layout().thickness);
+    check(pos.top.start.y >= 48 && pos.top.start.y <= topThick + 16, `top taskbar: Start drops from it (${pos.top.start.y}, bar ${topThick})`);
     check(pos['left-edge'].start.x >= 60 && pos['left-edge'].start.y <= 16, `left taskbar: Start beside it, at the top next to the Start button (${pos['left-edge'].start.x},${pos['left-edge'].start.y})`);
     check(pos['right-edge'].start.r <= 1920 - 60 && pos['right-edge'].start.y <= 16, `right taskbar: Start beside it (${pos['right-edge'].start.r},${pos['right-edge'].start.y})`);
     await setMany(s, {}, ['taskbar.align', 'taskbar.position']);

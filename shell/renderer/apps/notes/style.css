@@ -1139,6 +1139,7 @@
 
 /* ---------------------------------------------------------------- popovers */
 .app-notes .nt-pop {
+  isolation: isolate; /* keeps the paint order the removed backdrop-filter gave */
   position: absolute;
   z-index: 4000;
   padding: 8px;
@@ -1150,6 +1151,7 @@
   outline: none;
 }
 :root[data-transparency="off"] .app-notes .nt-pop {
+  isolation: isolate; /* keeps the paint order the removed backdrop-filter gave */
   background: var(--surface-raised);
 }
 .app-notes .nt-pop.closing {
@@ -1252,6 +1254,7 @@
   pointer-events: none;
 }
 .app-notes .nt-toast {
+  isolation: isolate; /* keeps the paint order the removed backdrop-filter gave */
   pointer-events: auto;
   display: flex;
   align-items: center;
@@ -1422,6 +1425,7 @@
 }
 .app-notes .nt-root[data-layout="medium"] .nt-nav,
 .app-notes .nt-root[data-layout="narrow"] .nt-nav {
+  isolation: isolate; /* keeps the paint order the removed backdrop-filter gave */
   position: absolute;
   z-index: 40;
   left: 0;

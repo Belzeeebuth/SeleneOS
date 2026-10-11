@@ -139,9 +139,9 @@
   padding: 0 8px 0 10px;
   text-align: left;
 }
+/* Wi-Fi: one tile; its caret is a small round button inside it (no split segment line) */
 .qs-tile.split .qs-tile-main {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
+  padding-right: 42px;
 }
 .qs-tile-ico {
   flex: none;
@@ -178,13 +178,19 @@
   color: var(--text-2);
 }
 .qs-tile-more {
-  flex: none;
-  width: 32px;
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  margin-top: -14px;
   display: grid;
   place-items: center;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  border-left: 1px solid var(--glass-line);
+  border-radius: 50%;
+  color: var(--text-2);
+}
+.qs-tile.on .qs-tile-more {
+  color: inherit;
 }
 .qs-tile-main:hover,
 .qs-tile-more:hover {
@@ -194,9 +200,14 @@
 .qs-tile-more:active {
   background: var(--subtle-pressed);
 }
-.qs-tile-main:focus-visible,
-.qs-tile-more:focus-visible {
-  outline-offset: -2px;
+/* Focus: a ring outside the tile, so it shows on an accent-filled tile too */
+#quick-settings .qs-tile-main:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+#quick-settings .qs-tile-more:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 .qs-tile.on {
   background: var(--accent);
@@ -207,14 +218,10 @@
   color: inherit;
   opacity: 0.86;
 }
-.qs-tile.on .qs-tile-more {
-  border-left-color: color-mix(in srgb, var(--on-accent) 22%, transparent);
-}
 .qs-tile.on .qs-tile-main:hover,
 .qs-tile.on .qs-tile-more:hover {
   background: color-mix(in srgb, var(--on-accent) 10%, transparent);
 }
-#quick-settings .qs-tile.on .qs-tile-main:focus-visible,
 #quick-settings .qs-tile.on .qs-tile-more:focus-visible {
   outline-color: var(--on-accent);
 }
@@ -232,9 +239,6 @@
   .qs-tile.on .qs-tile-sub {
     color: var(--text-2);
     opacity: 1;
-  }
-  .qs-tile.on .qs-tile-more {
-    border-left-color: var(--glass-line);
   }
   .qs-tile.on .qs-tile-main:hover,
   .qs-tile.on .qs-tile-more:hover {

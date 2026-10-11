@@ -97,7 +97,7 @@
 .app-weather .wx-result-empty,
 .app-weather .wx-result-sub {
   color: var(--text-2);
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
 }
 .app-weather .wx-side-title {
   font-size: var(--fs-body);
@@ -115,7 +115,7 @@
 .app-weather .wx-places-empty {
   padding: 8px 6px;
   color: var(--text-2);
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
 }
 .app-weather .wx-place {
   position: relative;

@@ -1,4 +1,4 @@
-// On-screen display for volume / brightness (Windows 11 pill above the taskbar).
+// On-screen display for volume / brightness (a small pill above the bar).
 //   shell.emit('osd', { kind: 'volume' | 'brightness', value: 0-100, muted })
 //   Also reacts to audio:changed coming from elsewhere (hardware keys, other apps) unless the change
 //   came from the shell's own UI: features emit 'osd:suppress' (ms) while the user drags a slider.
@@ -13,8 +13,9 @@ let lastOsdAt = 0;
 let suppressUntil = 0;
 
 const STRINGS = {
-  en: { osd: { volume: 'Volume', brightness: 'Brightness', muted: 'Muted' } },
-  fr: { osd: { volume: 'Volume', brightness: 'Luminosité', muted: 'Son coupé' } },
+  // The value carries its unit the same way as Réglages rapides (quick.batteryChip): "48%" / "48 %".
+  en: { osd: { volume: 'Volume', brightness: 'Brightness', muted: 'Muted', value: '{v}%' } },
+  fr: { osd: { volume: 'Volume', brightness: 'Luminosité', muted: 'Son coupé', value: '{v} %' } },
 };
 
 function volIcon(v, muted) {
@@ -30,8 +31,9 @@ function show({ kind = 'volume', value = 0, muted = false } = {}) {
   iconEl.replaceChildren(icon(kind === 'brightness' ? 'sun' : volIcon(v, muted), { size: 20 }));
   el.classList.toggle('muted', kind === 'volume' && !!muted);
   bar.style.setProperty('--v', `${v}%`);
-  valueEl.textContent = String(v);
-  el.setAttribute('aria-label', `${kind === 'brightness' ? ctx.t('osd.brightness') : ctx.t('osd.volume')} ${v}${muted ? ` (${ctx.t('osd.muted')})` : ''}`);
+  const shown = ctx.t('osd.value', { v });
+  valueEl.textContent = shown;
+  el.setAttribute('aria-label', `${kind === 'brightness' ? ctx.t('osd.brightness') : ctx.t('osd.volume')} ${shown}${muted ? ` (${ctx.t('osd.muted')})` : ''}`);
   el.hidden = false;
   el.classList.remove('hiding');
   void el.offsetWidth;

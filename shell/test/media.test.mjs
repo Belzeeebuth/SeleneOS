@@ -994,6 +994,9 @@ await test('mini player shrinks the window and restores it', async () => {
   await s.page.hover(`${WIN} .mp-stage`);
   await wait(s, 300);
   await shot(s, 'mini-player', true); // hover: the mini controls are visible
+  // the 12 s intro may have ended on a slow machine: make sure it plays, so the click has something to pause
+  await M(s, (a) => (a.player.paused && a.togglePlay(), true));
+  await waitFor(s, (a) => !a.player.paused, null, { what: 'playing before the mini play/pause click' });
   await s.page.click(`${WIN} .mp-mini-play`);
   await waitFor(s, (a) => a.player.paused, null, { what: 'mini play/pause' });
   await s.page.click(`${WIN} .mp-mini-play`);

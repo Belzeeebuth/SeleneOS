@@ -1014,6 +1014,7 @@ body.aurora-locked .tooltip,
 }
 /* Sign-in: the accounts as a column of avatars on the card's left. */
 .lk-greeter .lk-users {
+  order: -1; /* shown on the card's left, but after it in the Tab order */
   position: static;
   align-self: center;
   max-height: min(64vh, calc(100vh - 160px));

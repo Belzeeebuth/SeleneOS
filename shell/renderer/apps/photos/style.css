@@ -449,6 +449,7 @@
 }
 
 .app-photos .ph-sticky {
+  isolation: isolate; /* keeps the paint order the removed backdrop-filter gave */
   position: absolute;
   top: 8px;
   left: 16px;
@@ -690,7 +691,7 @@
   visibility: hidden;
 }
 .app-photos .ph-folder-ic {
-  color: #e8b33b; /* folder glyph colour, same as the shell's file picker */
+  color: var(--text-2); /* neutral folder glyph, like the redrawn Files icons (no yellow Explorer folder) */
 }
 .app-photos .ph-tree-add {
   margin-top: 8px;
@@ -886,6 +887,7 @@
 .app-photos .ph-film,
 .app-photos .ph-chev,
 .app-photos .ph-ss-controls {
+  isolation: isolate; /* keeps the paint order the removed backdrop-filter gave */
   background: var(--surface-raised);
   border: 1px solid var(--stroke);
   box-shadow: var(--shadow-flyout);

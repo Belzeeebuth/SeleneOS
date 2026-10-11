@@ -421,6 +421,7 @@
   #widgets-board,
   #calendar-center .nc-card,
   #calendar-center .cal-card,
+  #notif-center .nc-card,
   #toasts .toast,
   .osd {
     background: var(--hc-bg);

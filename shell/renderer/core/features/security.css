@@ -32,7 +32,6 @@
   position: absolute;
   inset: 0;
   background: center / cover no-repeat;
-  filter: saturate(0.7);
 }
 .sec-bg::after {
   content: '';

@@ -207,7 +207,7 @@ export class LockScreen {
     // Sign-in screen: the user list is a column of avatars beside the centred card. Lock screen: the card
     // rises from the clock's corner and the list (Switch user) stays apart.
     const side = this.mode === 'greeter';
-    this.signin = h('div', { class: 'lk-signin' }, this.blur, h('div', { class: 'lk-scrim' }), h('div', { class: 'lk-center' }, side ? this.usersEl : null, this.card), side ? null : this.usersEl, this.tray);
+    this.signin = h('div', { class: 'lk-signin' }, this.blur, h('div', { class: 'lk-scrim' }), h('div', { class: 'lk-center' }, this.card, side ? this.usersEl : null), side ? null : this.usersEl, this.tray);
 
     // ---- curtain (clock)
     this.wall = h('div', { class: 'lk-wall' });
@@ -272,9 +272,8 @@ export class LockScreen {
     // Contrast >= 4.5:1 for every text over the picture, from the mean luminance (linear) of its top part:
     //  - curtain: a light picture gets dark text (light tokens) on a light veil; a dark one keeps light
     //    text under a night shade dense enough to bring the background to L <= 0.15 (white text >= 5:1);
-    //  - sign-in: light text over the pre-blurred copy (brightness 0.72, about x0.48 in linear light),
-    //    under a night veil computed the same way.
-    topLuminance(url).then((lum) => {
+    //  - sign-in: the text sits on the opaque card; the picture around it is darkened by a flat scrim.
+    const lumDone = topLuminance(url).then((lum) => {
       const light = lum != null && lum > 0.28;
       this.el.classList.toggle('lk-light-wall', light);
       this.curtain.dataset.theme = light ? 'light' : 'dark';
@@ -283,12 +282,12 @@ export class LockScreen {
       this.el.style.setProperty('--lk-veil', Math.max(0.12, veil((lum || 0) * 0.48)).toFixed(2));
     });
     // The sign-in view shows the wallpaper itself under a flat scrim: no blur (costly in a VM).
+    // 'ready' once the picture is decoded and the text contrast (shade) is known.
     const img = new Image();
-    img.onload = () => {
-      this.blur.style.backgroundImage = `url("${String(url).replace(/"/g, '%22')}")`;
-      this.blur.classList.add('ready');
-    };
     img.src = url;
+    await Promise.all([img.decode().catch(() => {}), lumDone.catch(() => {})]);
+    this.blur.style.backgroundImage = `url("${String(url).replace(/"/g, '%22')}")`;
+    this.blur.classList.add('ready');
   }
 
   // ---------------------------------------------------------------- texts (language switch)

@@ -1,53 +1,70 @@
-/* Tableau de bord (features/widgets.js): one glass panel on the left, flat cards inside. Tokens only. */
+/* Tableau de bord (features/widgets.js): one glass overlay centred above the bar, flat cards of different sizes
+   inside (weather + moon, agenda, photos, system, notes). No clock: the bar has it. Tokens only. */
 #widgets-board {
-  --fly-from: 0px;
-  left: max(var(--bar-margin, 0px), 8px);
-  top: 12px;
-  bottom: calc(var(--taskbar-h) + var(--bar-margin, 0px) + 10px);
+  --fly-from: 12px;
+  /* centred in the work area (above the bar), sized to its content */
+  inset: 24px 0 calc(var(--taskbar-h) + var(--bar-margin, 0px) + 24px) 0;
+  margin: auto;
+  width: min(880px, calc(100vw - 32px));
+  height: fit-content;
+  max-height: calc(100vh - var(--taskbar-h) - var(--bar-margin, 0px) - 48px);
   background-color: var(--glass);
   background-image: var(--panel-grain);
   border: 1px solid var(--glass-line);
   border-radius: var(--radius-float);
-  box-shadow: var(--shadow-flyout);
+  box-shadow: var(--shadow-dialog, var(--shadow-flyout));
   backdrop-filter: blur(var(--blur)) saturate(var(--blur-sat, 140%));
-  width: min(760px, calc(100vw - 24px));
   display: flex;
   flex-direction: column;
   overflow: auto;
-  padding: 0 24px 24px;
-  transform: translateX(-32px);
+  padding: 0 20px 20px;
+  transform: translateY(12px) scale(0.98);
 }
 #widgets-board.open {
   transform: none;
-  transition: transform var(--dur-slower) var(--ease), opacity var(--dur-fast) linear, visibility 0s;
+  transition: transform var(--dur-slow) var(--ease), opacity var(--dur-fast) linear, visibility 0s;
 }
 :root[data-transparency="off"] #widgets-board {
   background-color: var(--glass-strong);
   backdrop-filter: none;
 }
 #widgets-board button:focus-visible,
-#widgets-board a:focus-visible {
+#widgets-board a:focus-visible,
+#widgets-board textarea:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
-:root[data-animations="off"] #widgets-board {
+:root[data-animations="off"] #widgets-board,
+:root[data-animations="off"] #widgets-board .wg-card {
   transform: none;
+  animation: none;
 }
 .wg-top {
   display: flex;
   align-items: center;
-  height: 52px;
+  gap: 4px;
+  height: 56px;
   flex: none;
 }
 .wg-title {
-  flex: 1;
   font-family: var(--font-display);
-  font-size: var(--fs-body);
+  font-size: var(--fs-body-large);
   font-weight: 700;
+}
+.wg-today {
+  flex: 1;
+  min-width: 0;
+  margin-left: 12px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .wg-icon-btn {
   width: 32px;
   height: 32px;
+  flex: none;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -58,42 +75,39 @@
 .wg-icon-btn:hover {
   background: var(--subtle-hover);
 }
-.wg-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 8px 4px 20px;
-  flex: none;
-}
-.wg-time {
-  font-family: var(--font-display);
-  font-size: 44px;
-  line-height: 52px;
-  font-weight: 600;
-}
-.wg-date {
-  color: var(--text-2);
-}
-.wg-greet {
-  font-family: var(--font-display);
-  font-size: var(--fs-subtitle);
-  line-height: 28px;
-  font-weight: 600;
-  text-align: right;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
+/* varied card sizes: the weather is wide, the agenda and the photos are tall */
 .wg-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    "weather weather agenda"
+    "photos  system  agenda"
+    "photos  notes   notes";
   gap: 12px;
 }
-.wg-col {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
+.wg-weather {
+  grid-area: weather;
+}
+.wg-agenda-card {
+  grid-area: agenda;
+}
+.wg-photos {
+  grid-area: photos;
+}
+.wg-sys {
+  grid-area: system;
+}
+.wg-notes-card {
+  grid-area: notes;
+}
+@media (max-width: 760px) {
+  .wg-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "weather weather"
+      "agenda  photos"
+      "system  notes";
+  }
 }
 .wg-card {
   display: flex;
@@ -106,10 +120,16 @@
   min-width: 0;
 }
 #widgets-board.open .wg-card {
-  animation: start-fade-up 380ms var(--ease) backwards;
+  animation: wg-in var(--dur-slow) var(--ease) backwards;
 }
-#widgets-board.open .wg-col:last-child .wg-card {
-  animation-delay: 50ms;
+#widgets-board.open .wg-card:nth-child(2n) {
+  animation-delay: 40ms;
+}
+@keyframes wg-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }
 .wg-card-head {
   display: flex;
@@ -134,8 +154,9 @@
 }
 .wg-notes {
   width: 100%;
-  min-height: 150px;
-  resize: vertical;
+  min-height: 72px;
+  flex: 1;
+  resize: none;
   font: inherit;
 }
 .wg-saved {
@@ -143,7 +164,8 @@
 }
 .wg-photo {
   position: relative;
-  height: 196px;
+  flex: 1;
+  min-height: 180px;
   border-radius: var(--radius-sm);
   overflow: hidden;
   background: color-mix(in srgb, var(--text) 6%, transparent);
@@ -214,4 +236,118 @@
 .wg-weather[data-kind='clouds'] .wg-weather-art,
 .wg-weather[data-kind='fog'] .wg-weather-art {
   color: var(--accent-text);
+}
+
+/* the lunar touch: the moon phase of the day, drawn in the theme colours */
+.wg-weather-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.wg-weather-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.wg-moon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 10px 10px;
+  border-radius: var(--radius);
+  background: var(--subtle-hover);
+}
+.wg-moon-art {
+  display: inline-flex;
+}
+.wg-moon-dark {
+  fill: rgb(var(--tint) / 0.14);
+}
+.wg-moon-lit {
+  fill: var(--text);
+}
+.wg-moon-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wg-moon-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+.wg-moon-pct {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+/* the agenda (apps/calendar/flyout.js) */
+.wg-agenda {
+  margin: 0 -8px;
+}
+.wg-agenda .acf-head {
+  display: none;
+}
+.wg-agenda .acf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wg-agenda .acf-item {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.wg-agenda .acf-item:hover {
+  background: var(--subtle-hover);
+}
+.wg-agenda .acf-bar {
+  flex: none;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--ev);
+}
+.wg-agenda .acf-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.wg-agenda .acf-title,
+.wg-agenda .acf-when {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wg-agenda .acf-when,
+.wg-agenda .acf-empty {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.wg-agenda .acf-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 8px 0;
+}
+.wg-agenda .acf-link {
+  border: 0;
+  padding: 4px 6px;
+  margin: 0 -6px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent-text);
+  font-size: var(--fs-small);
+}
+.wg-agenda .acf-link:hover {
+  background: var(--subtle-hover);
+  text-decoration: underline;
 }

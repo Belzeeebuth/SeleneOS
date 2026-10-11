@@ -1060,7 +1060,8 @@ async function uiTests() {
       const played = await T('autoplay', 6);
       const before = await T('state');
       await win('close');
-      await s.page.waitForTimeout(700);
+      // the window's close animation and the save can take longer on a loaded machine: poll instead of a fixed wait
+      for (let i = 0; i < 40 && (await s.page.locator('.app-solitaire').count()); i++) await s.page.waitForTimeout(100);
       assert.equal(await s.page.locator('.app-solitaire').count(), 0);
       await s.page.evaluate(() => window.__aurora.registry.launch('solitaire'));
       await s.page.waitForSelector('.app-solitaire .sol-card');
@@ -1110,7 +1111,7 @@ async function uiTests() {
       const k = await center('KS');
       await s.page.mouse.click(k.x, k.y);
       await win('close');
-      await s.page.waitForTimeout(700);
+      for (let i = 0; i < 40 && (await s.page.locator('.app-solitaire').count()); i++) await s.page.waitForTimeout(100);
       await s.page.evaluate(() => window.__aurora.registry.launch('solitaire'));
       await s.page.waitForSelector('.app-solitaire .sol-card');
       await s.page.waitForTimeout(500);

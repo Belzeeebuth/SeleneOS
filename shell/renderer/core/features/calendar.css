@@ -1,21 +1,27 @@
-/* Notifications + calendar (features/calendar.js) and the toasts (core/notify.js).
-   Two glass cards: tokens and hooks only (docs/design/SYSTEM.md). Clair de lune adds its grain through
-   --panel-grain; blur stays on these panels. */
-#calendar-center {
-  --fly-from: 16px;
+/* « Aujourd'hui » and « Notifications » (features/calendar.js), and the toasts (core/notify.js).
+   Two separate glass panels at the right end of the bar: tokens and hooks only (docs/design/SYSTEM.md).
+   Clair de lune adds its grain through --panel-grain; blur stays on these panels. */
+#calendar-center,
+#notif-center {
   right: max(var(--bar-margin, 0px), 8px);
   bottom: calc(var(--taskbar-h) + var(--bar-margin, 0px) + 10px);
-  width: 380px;
   max-height: calc(100vh - var(--taskbar-h) - var(--bar-margin, 0px) - 20px);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 12px;
   background: transparent;
   border: 0;
   box-shadow: none;
   backdrop-filter: none;
   border-radius: 0;
+}
+#calendar-center {
+  --fly-from: 12px;
+  width: min(624px, calc(100vw - 16px));
+}
+#notif-center {
+  --fly-from: 12px;
+  width: min(392px, calc(100vw - 16px));
 }
 .nc-card,
 .cal-card {
@@ -34,234 +40,159 @@
   backdrop-filter: none;
 }
 #calendar-center button:focus-visible,
-#calendar-center .nc-item:focus-visible {
+#notif-center button:focus-visible,
+#notif-center .nc-item:focus-visible {
   outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+#calendar-center .cal-day:focus-visible {
+  outline-offset: 1px;
+}
+#notif-center .nc-item:focus-visible {
   outline-offset: -2px;
+  border-radius: var(--radius-sm);
 }
-.nc-card {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 0 1 auto;
-}
-#calendar-center.open .nc-card {
-  animation: cal-card-in var(--dur-slow) var(--ease) backwards;
-}
-#calendar-center.open .cal-card {
-  animation: cal-card-in var(--dur-slow) var(--ease) 40ms backwards;
-}
-@keyframes cal-card-in {
-  from {
-    transform: translateY(12px);
-    opacity: 0;
-  }
-}
-:root[data-animations="off"] #calendar-center .nc-card,
-:root[data-animations="off"] #calendar-center .cal-card,
 :root[data-animations="off"] .nc-item {
   animation: none;
 }
-.nc-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 10px 8px 16px;
-  flex: none;
-}
-.nc-title {
-  flex: 1;
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
-  line-height: 22px;
-  font-weight: 700;
-}
-#calendar-center .nc-clear {
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-2);
-  font-size: var(--fs-small);
-}
-#calendar-center .nc-clear:hover {
-  background: var(--subtle-hover);
-  color: var(--text);
-}
-.nc-dnd {
-  width: 32px;
-  height: 32px;
+
+/* ---------------------------------------------------------------- Aujourd'hui */
+.td-card {
   display: grid;
-  place-items: center;
-  border: 1px solid transparent;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 0;
+}
+.td-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 20px 16px 12px 22px;
+}
+.td-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-bottom: 12px;
+}
+.td-weekday {
+  font-family: var(--font-display);
+  font-size: var(--fs-body-large);
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.td-date {
+  margin: 0 -6px;
+  padding: 0 6px;
+  border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  white-space: nowrap;
 }
-.nc-dnd:hover {
+.td-date:hover {
   background: var(--subtle-hover);
 }
-.nc-dnd.on {
-  background: var(--accent);
-  color: var(--on-accent);
+.td-week {
+  margin-top: 2px;
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
 }
-.nc-dnd.on:hover {
-  background: var(--accent-hover);
-}
-.nc-list {
+.td-agenda {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 0 12px 12px;
+  margin: 0 -8px;
+}
+/* the Calendar app's agenda (apps/calendar/flyout.js): a plain list here, no separator line */
+#calendar-center .td-agenda .acf {
+  padding: 0 0 4px;
+  border-top: 0;
+  margin-top: 0;
+}
+#calendar-center .td-agenda .acf-head {
+  padding: 4px 8px 6px;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--text-2);
+}
+#calendar-center .td-agenda .acf-item {
+  padding: 8px;
+}
+#calendar-center .td-agenda .acf-foot {
+  padding: 4px 8px 0;
+}
+#calendar-center .td-agenda .acf-empty {
+  font-size: var(--fs-small);
+}
+#calendar-center .td-agenda .acf-link {
+  font-size: var(--fs-small);
+}
+.td-notifs {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 10px;
-}
-.nc-empty {
-  padding: 48px 16px 52px;
-  text-align: center;
-  color: var(--text-2);
-}
-.nc-hint {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--glass-fill);
-  color: var(--text-2);
-}
-.nc-hint .icon {
-  margin-top: 1px;
-}
-.nc-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.nc-group-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 28px;
-  padding: 0 0 0 4px;
-  color: var(--text-2);
-}
-.nc-items {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.nc-item {
-  position: relative;
-  padding: 10px 12px 12px;
-  border-radius: var(--radius-lg);
-  background: var(--glass-fill);
-  border: 1px solid var(--glass-line);
-  outline-offset: -2px;
-  animation: nc-in var(--dur-slow) var(--ease);
-}
-@keyframes nc-in {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-}
-.nc-item:hover {
-  background: var(--subtle-hover);
-}
-.nc-item-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 22px;
-}
-.nc-item-title {
-  flex: 1;
-  min-width: 0;
-}
-.nc-time {
-  color: var(--text-2);
   flex: none;
-}
-.nc-x {
-  width: 24px;
-  height: 24px;
-  flex: none;
-  display: grid;
-  place-items: center;
+  height: 40px;
+  margin: 8px -8px 0;
+  padding: 0 10px;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-top: 1px solid var(--glass-line);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   background: transparent;
   color: var(--text-2);
-  opacity: 0;
-  transition: opacity var(--dur-fast) linear;
+  font-size: var(--fs-small);
+  text-align: left;
 }
-.nc-group-head:hover .nc-x,
-.nc-item:hover .nc-x,
-.nc-x:focus-visible {
-  opacity: 1;
-}
-.nc-item:hover .nc-time {
-  display: none;
-}
-.nc-x:hover {
+.td-notifs:hover {
   background: var(--subtle-hover);
   color: var(--text);
 }
-.nc-body {
-  margin-top: 2px;
-  color: var(--text-2);
-  overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.td-notifs.unread {
+  color: var(--text);
 }
-.nc-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-}
-.nc-actions .btn {
-  flex: 1;
-  min-width: 0;
+.td-notifs.unread > .icon:first-child {
+  color: var(--accent-text);
 }
 
-/* calendar */
-.cal-card {
-  flex: none;
+/* the month: an inset well at a fixed size, so it never squeezes */
+.td-month {
+  width: 284px;
+  margin: 8px;
+  padding: 8px 10px 12px;
+  border-radius: calc(var(--radius-float) - 6px);
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-line);
 }
-.cal-head {
+.cal-nav {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 48px;
-  padding: 0 12px 0 8px;
-  border-bottom: 1px solid var(--glass-line);
+  gap: 2px;
+  height: 36px;
+  padding-left: 6px;
 }
-.cal-card.collapsed .cal-head {
-  border-bottom-color: transparent;
-}
-.cal-date {
+.cal-month {
   flex: 1;
   min-width: 0;
-  height: 32px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
   font-family: var(--font-display);
+  font-size: var(--fs-small);
   font-weight: 700;
-  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.cal-date:hover {
-  background: var(--subtle-hover);
-}
 .cal-icon-btn {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   flex: none;
   display: grid;
   place-items: center;
@@ -276,35 +207,20 @@
 .cal-icon-btn:active {
   background: var(--subtle-pressed);
 }
-.cal-body {
-  padding: 8px 12px 14px;
-}
-.cal-card.collapsed .cal-body {
-  display: none;
-}
-.cal-nav {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  height: 40px;
-  padding-left: 8px;
-}
-.cal-month {
-  flex: 1;
-  font-family: var(--font-display);
-  font-weight: 650;
-}
 .cal-weekdays,
 .cal-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, 36px);
+  justify-content: space-between;
   justify-items: center;
 }
 .cal-weekdays {
-  height: 32px;
+  height: 28px;
   align-items: center;
   font-size: var(--fs-caption);
+  font-weight: 600;
   color: var(--text-2);
+  text-transform: capitalize;
 }
 .cal-viewport {
   position: relative;
@@ -320,16 +236,17 @@
 }
 .cal-day {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 34px;
+  padding: 0;
   border: 1px solid transparent;
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   display: grid;
   place-items: center;
-  outline-offset: -2px;
   transition: background-color var(--dur-fast) var(--ease);
 }
 .cal-day:hover {
@@ -339,12 +256,12 @@
   color: var(--text-3);
 }
 .cal-day.selected {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
 }
 .cal-day.today {
   background: var(--accent);
   color: var(--on-accent);
-  font-weight: 600;
+  font-weight: 700;
 }
 .cal-day.today:hover {
   background: var(--accent-hover);
@@ -353,13 +270,367 @@
   box-shadow: inset 0 0 0 2px var(--glass-strong);
 }
 
-/* ---------------- Toasts (core/notify.js): the same glass card as the panels ---------------- */
+/* ---------------------------------------------------------------- Notifications */
+.nc-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 0 1 auto;
+}
+.nc-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 12px 8px 20px;
+  flex: none;
+}
+.nc-title {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle);
+  line-height: 28px;
+  font-weight: 700;
+}
+.nc-clear {
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent-text);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+.nc-clear:hover {
+  background: var(--subtle-hover);
+}
+.nc-icon-btn {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+}
+.nc-icon-btn:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+/* Concentration and Ne pas déranger: two switch rows at the top */
+.nc-modes {
+  display: flex;
+  flex-direction: column;
+  margin: 0 12px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--glass-line);
+  background: var(--glass-fill);
+  flex: none;
+}
+.nc-mode {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.nc-mode:first-child {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.nc-mode + .nc-mode {
+  border-top: 1px solid var(--glass-line);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.nc-mode:hover {
+  background: var(--subtle-hover);
+}
+.nc-mode-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--subtle-hover);
+  color: var(--text-2);
+}
+.nc-mode.on .nc-mode-ico {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.nc-mode-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.nc-mode-label {
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+.nc-mode-sub {
+  font-size: var(--fs-small);
+  line-height: 18px;
+  color: var(--text-2);
+}
+.nc-switch {
+  flex: none;
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  border: 1px solid var(--text-2);
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.nc-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-2);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.nc-mode.on .nc-switch {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.nc-mode.on .nc-switch-knob {
+  background: var(--on-accent);
+  transform: translateX(16px);
+}
+.nc-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.nc-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-2);
+}
+.nc-empty .icon {
+  margin-bottom: 4px;
+  color: var(--text-3);
+}
+.nc-empty-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--text);
+}
+.nc-empty-sub {
+  font-size: var(--fs-small);
+}
+/* one card per app: a header (icon, name, count, Effacer) and its notifications as rows */
+.nc-group {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  border: 1px solid var(--glass-line);
+  background: var(--glass-fill);
+  overflow: hidden;
+  flex: none;
+}
+.nc-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--glass-line);
+}
+.nc-group-head img,
+.nc-group-ico {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+}
+.nc-group-name {
+  min-width: 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+.nc-group-count {
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--subtle-hover);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  line-height: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.nc-group-clear {
+  margin-left: auto;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.nc-group-clear:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.nc-items {
+  display: flex;
+  flex-direction: column;
+}
+.nc-item {
+  position: relative;
+  padding: 10px 12px 12px;
+  animation: nc-in var(--dur-slow) var(--ease);
+}
+.nc-item + .nc-item {
+  border-top: 1px solid var(--glass-line);
+}
+@keyframes nc-in {
+  from {
+    opacity: 0;
+  }
+}
+.nc-item:hover {
+  background: var(--subtle-hover);
+}
+.nc-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+.nc-item-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+.nc-time {
+  flex: none;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.nc-x {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  opacity: 0;
+  transition: opacity var(--dur-fast) linear;
+}
+.nc-item:hover .nc-x,
+.nc-item:focus-within .nc-x,
+.nc-x:focus-visible {
+  opacity: 1;
+}
+.nc-item:hover .nc-time,
+.nc-item:focus-within .nc-time {
+  display: none;
+}
+.nc-x:hover {
+  background: var(--subtle-pressed);
+  color: var(--text);
+}
+.nc-body {
+  margin-top: 2px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.nc-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.nc-actions .btn {
+  flex: 0 1 auto;
+  min-width: 96px;
+}
+
+/* the bar at the top or on a side: both panels follow its edge */
+:root[data-tb-pos="top"] #calendar-center,
+:root[data-tb-pos="top"] #notif-center {
+  --fly-from: -12px;
+  top: calc(var(--taskbar-h) + 12px);
+  bottom: auto;
+  justify-content: flex-start;
+}
+:root[data-tb-pos="left"] #notif-center {
+  right: auto;
+  left: calc(var(--taskbar-h) + 12px);
+  bottom: 12px;
+}
+:root[data-tb-pos="right"] #notif-center {
+  right: calc(var(--taskbar-h) + 12px);
+  bottom: 12px;
+}
+:root[data-tb-pos="left"] #notif-center:not(.open) {
+  transform: translateX(-24px);
+}
+:root[data-tb-pos="right"] #notif-center:not(.open) {
+  transform: translateX(24px);
+}
+/* a narrow work area: the month goes under the agenda instead of shrinking */
+@media (max-width: 660px) {
+  .td-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .td-month {
+    justify-self: center;
+  }
+}
+
+/* ---------------- Toasts (core/notify.js): top-right, under the screen edge, stacking downwards ---------------- */
 #toasts {
-  padding-right: max(var(--bar-margin, 0px), 8px);
-  padding-bottom: calc(var(--taskbar-h) + var(--bar-margin, 0px) + 10px);
+  justify-content: flex-start;
+  padding: max(var(--bar-margin, 0px), 12px) max(var(--bar-margin, 0px), 12px) 12px 0;
+}
+:root[data-tb-pos="top"] #toasts {
+  padding-top: calc(var(--taskbar-h) + var(--bar-margin, 0px) + 12px);
+}
+:root[data-tb-pos="right"] #toasts {
+  padding-top: 12px;
+}
+body.tb-autohide #toasts {
+  padding-top: 12px;
 }
 #toasts .toast {
-  width: 380px;
+  width: 372px;
+  max-width: calc(100vw - 24px);
   padding: 12px 14px 14px;
   color: var(--text);
   background-color: var(--glass);
@@ -376,7 +647,7 @@
 @keyframes nc-toast-in {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(-12px);
   }
 }
 @keyframes nc-toast-out {
@@ -408,8 +679,7 @@
   gap: 8px;
   margin-top: 12px;
 }
-#toasts .toast-actions .btn,
-.nc-actions .btn {
+#toasts .toast-actions .btn {
   flex: 0 1 auto;
   min-width: 96px;
 }

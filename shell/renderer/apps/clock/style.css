@@ -144,6 +144,7 @@
   margin-left: 48px;
 }
 .app-clock .ck.narrow.nav-open .ck-nav {
+  isolation: isolate; /* keeps the paint order the removed backdrop-filter gave */
   width: var(--nav-w);
   max-width: calc(100% - 24px);
   background: var(--surface-raised);
@@ -286,6 +287,7 @@
 
 /* floating command bar (Edit / Add) */
 .app-clock .ck-cmdbar {
+  isolation: isolate; /* keeps the paint order the removed backdrop-filter gave */
   position: sticky;
   bottom: 20px;
   z-index: 4;

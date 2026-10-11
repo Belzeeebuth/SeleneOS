@@ -1091,3 +1091,15 @@
 :root[data-tb-size="small"]:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-time {
   font-size: min(var(--fs-body), 16px);
 }
+/* The islands' band already holds the 12 px margin under them: the panels anchored to the bottom bar (quick settings,
+   calendar and notifications, OSD, dashboard) sit 10 px above the islands instead of adding --bar-margin again. */
+@container style(--bar-mode: islands) {
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]):not([data-tb-pos="top"]) #quick-settings,
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]):not([data-tb-pos="top"]) #calendar-center {
+    bottom: calc(var(--taskbar-h) + 10px);
+    max-height: calc(100vh - var(--taskbar-h) - 20px);
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]):not([data-tb-pos="top"]) body:not(.tb-autohide) .osd {
+    bottom: calc(var(--taskbar-h) + 20px);
+  }
+}

@@ -317,7 +317,9 @@ async function buildSecurity() {
   document.addEventListener('keydown', onKey, true);
   document.getElementById('overlays').appendChild(el);
   screen.release = isolate(el);
-  setTimeout(() => buttons[0]?.focus(), 40);
+  // Keyboard into the screen at once (and again next tick, in case the hotkey's own handling moved it).
+  buttons[0]?.focus({ preventScroll: true });
+  setTimeout(() => el.contains(document.activeElement) || buttons[0]?.focus(), 40);
   try {
     netState = await api.invoke('net:status');
     netBtn.replaceChildren(icon(netIcon(netState), { size: 18 }));

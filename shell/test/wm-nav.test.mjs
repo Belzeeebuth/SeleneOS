@@ -1083,8 +1083,9 @@ async function frenchDarkRun() {
     await sleep(300);
     await A(() => window.__aurora.wm.switchDesktop(window.__aurora.wm.desktops[1].id));
     await sleep(500);
+    const pillName = await A(() => document.querySelector('.tv-pill-name')?.textContent); // read before the (slow) screenshot: the pill fades
     await shot('wm-desktop-pill-fr-dark');
-    check('fr: desktop pill localized', (await A(() => document.querySelector('.tv-pill-name')?.textContent)) === 'Bureau 2');
+    check('fr: desktop pill localized', pillName === 'Bureau 2', String(pillName));
   } finally {
     const mine = T.myErrors();
     check('fr/dark: no renderer errors from wm-nav code', mine.length === 0, mine.map((e) => e.text).join(' | '));
@@ -1315,18 +1316,14 @@ async function qaRun() {
     await hk('Super+X');
     await sleep(300);
     check('qa: Win+X menu sits above the taskbar with a gap', await A(() => document.querySelector('body > .menu').getBoundingClientRect().bottom <= document.getElementById('taskbar').getBoundingClientRect().top - 8));
-    await key('u');
-    await sleep(300);
-    await key('i');
+    await key('o'); // Session > Sign out (no submenu any more)
     await sleep(500);
     check('qa: Win+X sign out is cancelled by an app with unsaved work', (await A(() => window.__loggedOut)) === 0 && !!(await winState(vetoId)));
     await A(async (id) => window.__aurora.wm.get(id).close(true), vetoId);
     await sleep(250);
     await hk('Super+X');
     await sleep(300);
-    await key('u');
-    await sleep(300);
-    await key('i');
+    await key('o'); // Session > Sign out (no submenu any more)
     await sleep(500);
     check('qa: … and signs out when nothing objects', (await A(() => window.__loggedOut)) === 1);
 

@@ -1,8 +1,9 @@
-// Tableau de bord (Super+W / the bar's dashboard button when settings.taskbar.showWidgets): left-side panel
-// with a greeting + clock, a weather card (current conditions from 'weather:current' at the place chosen for the
-// dynamic wallpaper — main/ipc/weather.js; offline / no place: a placeholder with a link),
-// quick notes (persisted per user), a photo slideshow from ~/Pictures and live system usage.
-// Shell events: 'widgets:toggle', 'widgets:open', 'widgets:close'.
+// Tableau de bord (Super+W / the bar's dashboard button when settings.taskbar.showWidgets): a centred overlay of
+// cards of different sizes (no clock: the bar has it): the weather with the moon phase of the day (current
+// conditions from 'weather:current' at the place chosen for the dynamic wallpaper — main/ipc/weather.js; offline /
+// no place: a placeholder with a link), the agenda of the day (apps/calendar/flyout.js), a photo slideshow from
+// ~/Pictures, live system usage and quick notes (persisted per user). Escape, a click outside or the close button
+// closes it. Shell events: 'widgets:toggle', 'widgets:open', 'widgets:close'.
 import { createFlyout } from '../taskbar.js';
 import { weatherDescribe, weatherIconName, formatTemperature } from '../wallpaper/weather-text.js';
 
@@ -37,6 +38,18 @@ const STRINGS = {
       uptime: 'Up for {time}',
       saved: 'Saved',
       settings: 'Dashboard settings',
+      close: 'Close the dashboard',
+      agenda: 'Agenda',
+      moon: 'Moon',
+      moonLit: '{value}% lit',
+      phase0: 'New moon',
+      phase1: 'Waxing crescent',
+      phase2: 'First quarter',
+      phase3: 'Waxing gibbous',
+      phase4: 'Full moon',
+      phase5: 'Waning gibbous',
+      phase6: 'Last quarter',
+      phase7: 'Waning crescent',
     },
   },
   fr: {
@@ -63,15 +76,43 @@ const STRINGS = {
       uptime: 'Allumé depuis {time}',
       saved: 'Enregistré',
       settings: 'Paramètres du tableau de bord',
+      close: 'Fermer le tableau de bord',
+      agenda: 'Agenda',
+      moon: 'Lune',
+      moonLit: 'Éclairée à {value} %',
+      phase0: 'Nouvelle lune',
+      phase1: 'Premier croissant',
+      phase2: 'Premier quartier',
+      phase3: 'Gibbeuse croissante',
+      phase4: 'Pleine lune',
+      phase5: 'Gibbeuse décroissante',
+      phase6: 'Dernier quartier',
+      phase7: 'Dernier croissant',
     },
   },
 };
 
 const IMG = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.avif'];
 
-function greeting() {
-  const hr = new Date().getHours();
-  return ctx.t(hr < 12 ? 'widgets.morning' : hr < 18 ? 'widgets.afternoon' : 'widgets.evening');
+// Moon phase of a day: age in the synodic month (0 = new moon, 0.5 = full moon) and the lit fraction.
+const SYNODIC = 29.530588853;
+export function moonPhase(date = new Date()) {
+  const jd = date.getTime() / 86400000 + 2440587.5;
+  const age = ((((jd - 2451550.1) / SYNODIC) % 1) + 1) % 1;
+  return { age, lit: (1 - Math.cos(2 * Math.PI * age)) / 2, index: Math.round(age * 8) % 8 };
+}
+
+// The moon drawn in the theme colours: a dim disc and its lit part (terminator as a half ellipse).
+function moonSvg(age, size = 64) {
+  const r = 28;
+  const c = 32;
+  const k = Math.cos(2 * Math.PI * age);
+  const rx = Math.max(0.01, Math.abs(k) * r).toFixed(2);
+  const waxing = age < 0.5;
+  const outer = waxing ? 1 : 0;
+  const term = waxing ? (k > 0 ? 0 : 1) : k > 0 ? 1 : 0;
+  const lit = `M ${c} ${c - r} A ${r} ${r} 0 0 ${outer} ${c} ${c + r} A ${rx} ${r} 0 0 ${term} ${c} ${c - r} Z`;
+  return `<svg class="wg-moon-svg" viewBox="0 0 64 64" width="${size}" height="${size}" aria-hidden="true"><circle class="wg-moon-dark" cx="${c}" cy="${c}" r="${r}"/><path class="wg-moon-lit" d="${lit}"/></svg>`;
 }
 
 function card(cls, title, iconName, ...children) {
@@ -91,30 +132,8 @@ async function render() {
   const icon = ctx.ui.icon;
   timers.forEach(clearInterval);
   timers = [];
-  let name = shell.env?.user || '';
-  try {
-    const u = await api.invoke('users:current');
-    name = u?.fullName || u?.name || name;
-  } catch {
-    try {
-      const si = await api.invoke('sys:info');
-      name = si.fullName || si.user || name;
-    } catch {}
-  }
-  if (!fly.isOpen) return; // closed while we were waiting for the backend
-  const first = String(name).split(/\s+/)[0];
-  const clockTime = h('div', { class: 'wg-time' });
-  const clockDate = h('div', { class: 'wg-date' });
-  const tick = () => {
-    const now = new Date();
-    clockTime.textContent = i18n.formatTime(now, { hour: 'numeric', minute: '2-digit' });
-    const d = i18n.formatDate(now, { weekday: 'long', day: 'numeric', month: 'long' });
-    clockDate.textContent = d.charAt(0).toUpperCase() + d.slice(1);
-  };
-  tick();
-  timers.push(setInterval(tick, 10000));
-
-  const header = h('div', { class: 'wg-header' }, h('div', null, clockTime, clockDate), h('div', { class: 'wg-greet' }, `${greeting()}${first ? `, ${first}` : ''}`));
+  if (!fly.isOpen) return;
+  const now = new Date();
 
   // Weather: current conditions (main/ipc/weather.js, place of the dynamic wallpaper); placeholder offline / without a place
   const wxBody = h(
@@ -125,7 +144,16 @@ async function render() {
   );
   let wxAction = () => shell.openUrl('https://wttr.in/');
   const wxBtn = h('button', { class: 'btn small', onclick: () => (fly.close('launch'), wxAction()) }, t('widgets.weatherOpen'));
-  const weather = card('wg-weather', t('widgets.weather'), 'cloud-sun', wxBody, wxBtn);
+  const moon = moonPhase(now);
+  const moonArt = h('span', { class: 'wg-moon-art' });
+  moonArt.innerHTML = moonSvg(moon.age); // numbers only, built above
+  const moonBox = h(
+    'div',
+    { class: 'wg-moon', dataset: { phase: String(moon.index) } },
+    moonArt,
+    h('div', { class: 'wg-moon-text' }, h('div', { class: 'wg-moon-name' }, t(`widgets.phase${moon.index}`)), h('div', { class: 'wg-moon-pct' }, t('widgets.moonLit', { value: Math.round(moon.lit * 100) }))),
+  );
+  const weather = card('wg-weather', t('widgets.weather'), 'cloud-sun', h('div', { class: 'wg-weather-row' }, h('div', { class: 'wg-weather-main' }, wxBody, wxBtn), moonBox));
   api.invoke('weather:current').then(
     (w) => {
       if (!w) return;
@@ -239,15 +267,24 @@ async function render() {
   poll();
   timers.push(setInterval(() => fly.isOpen && poll(), 2000));
 
+  // Agenda of the day, from the Calendar app (optional: the card stays empty if the module is missing)
+  const agendaSlot = h('div', { class: 'wg-agenda' });
+  const agendaCard = card('wg-agenda-card', t('widgets.agenda'), 'calendar-blank', agendaSlot);
+  import('../../apps/calendar/flyout.js')
+    .then((m) => fly.isOpen && m?.renderAgenda?.(agendaSlot, { ctx, date: now, close: () => fly.close('launch') }))
+    .catch(() => {});
+
+  const dateLine = i18n.formatDate(now, { weekday: 'long', day: 'numeric', month: 'long' });
   root.replaceChildren(
     h(
       'div',
       { class: 'wg-top' },
       h('div', { class: 'wg-title' }, t('widgets.title')),
+      h('div', { class: 'wg-today' }, dateLine.charAt(0).toUpperCase() + dateLine.slice(1)),
       h('button', { class: 'wg-icon-btn', 'aria-label': t('widgets.settings'), 'data-tip': t('widgets.settings'), onclick: () => (fly.close('launch'), shell.launch('settings', { page: 'taskbar' })) }, icon('gear-six', { size: 16 })),
+      h('button', { class: 'wg-icon-btn wg-close', 'aria-label': t('widgets.close'), 'data-tip': t('widgets.close'), onclick: () => fly.close('button') }, icon('x', { size: 16 })),
     ),
-    header,
-    h('div', { class: 'wg-grid' }, h('div', { class: 'wg-col' }, weather, sysCard), h('div', { class: 'wg-col' }, photosCard, notesCard)),
+    h('div', { class: 'wg-grid' }, weather, agendaCard, photosCard, sysCard, notesCard),
   );
 }
 
