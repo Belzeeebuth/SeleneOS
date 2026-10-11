@@ -534,8 +534,10 @@ class WeatherApp {
       }
     });
     const daily = f.daily || [];
-    const lo = Math.min(...daily.map((d) => d.min).filter(Number.isFinite));
-    const hi = Math.max(...daily.map((d) => d.max).filter(Number.isFinite));
+    const mins = daily.map((d) => d.min).filter(Number.isFinite);
+    const maxs = daily.map((d) => d.max).filter(Number.isFinite);
+    const lo = mins.length ? Math.min(...mins) : 0;
+    const hi = maxs.length ? Math.max(...maxs) : lo + 1;
     const span = hi - lo || 1;
     const wdFmt = new Intl.DateTimeFormat(this.locale, { weekday: 'short', timeZone: 'UTC' });
     const days = h(
@@ -543,7 +545,7 @@ class WeatherApp {
       { class: 'wx-days', 'aria-label': t('daily') },
       ...daily.map((d, i) => {
         const dt = wall(d.date);
-        const label = i === 0 ? t('today') : `${wdFmt.format(dt)} ${dt.getUTCDate()}`;
+        const label = i === 0 ? t('today') : dt ? `${wdFmt.format(dt)} ${dt.getUTCDate()}` : '';
         return h(
           'li',
           { class: 'wx-day' },

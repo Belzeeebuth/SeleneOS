@@ -371,7 +371,9 @@ function register(api) {
   async function search(query, { lang = 'en', count = 8 } = {}) {
     const q = String(query ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 80);
     if (q.length < 2) return [];
-    const key = `${lang === 'fr' ? 'fr' : 'en'}|${q.toLowerCase()}|${count}`;
+    lang = lang === 'fr' ? 'fr' : 'en';
+    count = Math.max(1, Math.min(20, Math.round(Number(count)) || 8));
+    const key = `${lang}|${q.toLowerCase()}|${count}`;
     const hit = searches.get(key);
     if (hit && Date.now() - hit.at < SEARCH_TTL) {
       stats.cacheHits++;
