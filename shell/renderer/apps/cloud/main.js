@@ -1,7 +1,7 @@
 // Cloud: a light Nextcloud / WebDAV client. Account setup, a file list with a breadcrumb, upload / download with
 // progress, new folder and delete. Backend: main/ipc/cloud.js (an in-memory mock server in dev / tests).
 // Tests drive it through the window element: document.querySelector('.win.app-cloud').__cloud
-const ERR_CODES = new Set(['EURL', 'EINSECURE', 'EAUTH', 'ENET', 'EUSER', 'EPASS', 'ENAME', 'EEXIST', 'ENOENT']);
+const ERR_CODES = new Set(['EURL', 'EINSECURE', 'EAUTH', 'ENET', 'EUSER', 'EPASS', 'ENAME', 'EEXIST', 'ENOENT', 'EPATH', 'EREAD', 'ENOTDIR', 'ENOACCOUNT']);
 
 class CloudApp {
   constructor(ctx) {
@@ -29,6 +29,7 @@ class CloudApp {
 
   errText(e) {
     const code = e?.code;
+    if (code === 'EHTTP') return this.t('err_EHTTP', { status: /\b\d{3}\b/.exec(String(e?.message || ''))?.[0] || '?' });
     return ERR_CODES.has(code) ? this.t(`err_${code}`) : this.t('err_other', { msg: String(e?.message || e || '').replace(/^Error:\s*/, '') });
   }
 
@@ -61,9 +62,21 @@ class CloudApp {
 
   // ---------------------------------------------------------------- rendering
   render() {
-    const focusInList = this.root.querySelector('.cl-list')?.contains(document.activeElement);
+    // Keep keyboard focus across re-renders (toolbar buttons, crumbs and the list are rebuilt).
+    const a = document.activeElement;
+    let keep = null;
+    if (a && this.root.contains(a) && a !== this.root) {
+      if (a.closest('.cl-list')) keep = '.cl-list';
+      else if (a.id) keep = `#${a.id}`;
+      else if (a.matches('.cl-crumb')) keep = `.cl-crumb[data-path="${CSS.escape(a.dataset.path || '/')}"]`;
+      else keep = [...a.classList].filter((c) => c.startsWith('cl-')).map((c) => `.${c}`).join('') || null;
+    }
     this.root.replaceChildren(this.mode === 'setup' ? this.renderSetup() : this.renderBrowser(), this.renderTransfers() || '');
-    if (focusInList) this.root.querySelector('.cl-list')?.focus({ preventScroll: true });
+    if (keep) {
+      const el = this.root.querySelector(keep);
+      if (el && !el.disabled) el.focus({ preventScroll: true });
+      else this.root.querySelector('.cl-list, #cl-server')?.focus({ preventScroll: true });
+    }
     this.win.setTitle(this.mode === 'browser' && this.account ? `${this.t('title')} - ${this.account.label}` : this.t('title'));
   }
 
@@ -394,6 +407,11 @@ class CloudApp {
     if ((e.altKey && e.key === 'ArrowUp') || (inList && e.key === 'Backspace')) {
       e.preventDefault();
       this.up();
+      return;
+    }
+    if (e.key === 'Delete' && !inList && this.selectedEntry()) {
+      e.preventDefault();
+      this.remove(this.selectedEntry());
       return;
     }
     if (!inList) return;

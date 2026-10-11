@@ -64,6 +64,11 @@
     "err_ENAME": "This name is not valid.",
     "err_EEXIST": "This name is already taken.",
     "err_ENOENT": "This item no longer exists.",
+    "err_EPATH": "This path is not valid.",
+    "err_EREAD": "This file cannot be read.",
+    "err_ENOTDIR": "This is not a folder.",
+    "err_ENOACCOUNT": "This account no longer exists.",
+    "err_EHTTP": "The server returned an error ({status}).",
     "err_other": "Something went wrong: {msg}",
     "nameRequired": "Enter a name.",
     "nameInvalid": "A name cannot contain / or \\."
@@ -133,6 +138,11 @@
     "err_ENAME": "Ce nom n'est pas valide.",
     "err_EEXIST": "Ce nom est déjà utilisé.",
     "err_ENOENT": "Cet élément n'existe plus.",
+    "err_EPATH": "Ce chemin n'est pas valide.",
+    "err_EREAD": "Ce fichier ne peut pas être lu.",
+    "err_ENOTDIR": "Ceci n'est pas un dossier.",
+    "err_ENOACCOUNT": "Ce compte n'existe plus.",
+    "err_EHTTP": "Le serveur a renvoyé une erreur ({status}).",
     "err_other": "Une erreur s'est produite : {msg}",
     "nameRequired": "Entrez un nom.",
     "nameInvalid": "Un nom ne peut pas contenir / ou \\."
