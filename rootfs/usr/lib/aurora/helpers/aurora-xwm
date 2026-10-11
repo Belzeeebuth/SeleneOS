@@ -763,7 +763,8 @@ class XWM(object):
 
     def on_client_message(self, e):
         name = self.atom_name(e.client_type)
-        data = list(e.data[1]) if e.format == 32 else []
+        fmt, payload = e.data
+        data = [int(v) for v in payload] if fmt == 32 else []
         wid = e.window.id
         c = self.clients.get(wid)
         if name == '_NET_ACTIVE_WINDOW':
@@ -816,7 +817,7 @@ class XWM(object):
         if self.atom('WM_DELETE_WINDOW') in c.protocols:
             self.send_protocol(c, 'WM_DELETE_WINDOW')
         else:
-            self.d.kill_client(c.id)
+            c.window.kill_client()
 
     # ---- commands --------------------------------------------------------------------------
     def read_stdin(self):
@@ -849,6 +850,10 @@ class XWM(object):
             log('debug', 'command %s: X error %s' % (msg['cmd'], exc.__class__.__name__))
         except (TypeError, ValueError, KeyError) as exc:
             log('warn', 'bad %s command: %s' % (msg['cmd'], exc))
+        except error.ConnectionClosedError:
+            raise
+        except Exception as exc:  # never die on one bad command
+            log('error', 'command %s: %s: %s' % (msg['cmd'], exc.__class__.__name__, exc))
 
     def num(self, v):
         if isinstance(v, bool) or not isinstance(v, (int, float)):
@@ -888,7 +893,7 @@ class XWM(object):
         elif cmd == 'close':
             self.close(c)
         elif cmd == 'kill':
-            self.d.kill_client(c.id)
+            c.window.kill_client()
         elif cmd == 'state':
             managed = {self.atom(n): k for n, k in (
                 ('_NET_WM_STATE_FULLSCREEN', 'fullscreen'), ('_NET_WM_STATE_MAXIMIZED_VERT', 'maximized'),

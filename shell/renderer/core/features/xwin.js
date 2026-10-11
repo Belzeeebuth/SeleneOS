@@ -268,11 +268,13 @@ export async function mount(ctx) {
         title: t('xwin.notResponding', { name }),
         body: t('xwin.notRespondingBody'),
         className: 'xwin-stuck',
+        onOpen: (_dlg, done) => (rec.dialog = { close: () => done(null) }),
         buttons: [
           { label: t('xwin.endTask'), value: 'kill', danger: true },
           { label: t('xwin.wait'), value: 'wait', primary: true },
         ],
       });
+      rec.dialog = null;
       if (v === 'kill' && !rec.gone) send({ cmd: 'kill', id: rec.id });
     }, STUCK_MS);
   }

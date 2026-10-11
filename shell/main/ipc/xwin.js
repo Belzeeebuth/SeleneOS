@@ -200,6 +200,7 @@ module.exports = function register(api) {
   }
 
   let lastHolesCss = [];
+  let shapeStale = false; // window resized: the last shape (even the full rect) no longer fits
   function applyShape(holesCss) {
     const w = win();
     if (!w || !enabled) return;
@@ -212,7 +213,8 @@ module.exports = function register(api) {
     const holes = (Array.isArray(holesCss) ? holesCss : []).map((r) => region.norm({ x: r.x * k, y: r.y * k, width: r.width * k, height: r.height * k })).filter(Boolean);
     const shape = holes.length ? region.complement({ x: 0, y: 0, width: cb.width, height: cb.height }, holes, { max: 250 }) : [];
     lastHoles = holes;
-    if (lastShape && region.equal(lastShape, shape)) return;
+    if (lastShape && !shapeStale && region.equal(lastShape, shape)) return;
+    shapeStale = false;
     // Keep at least one pixel so a fully-covered screen never turns into "no shape" (= rectangular).
     // No holes: the full window rect. (setShape([]) does not reliably give the area back on X11: the
     // old hole kept showing the client.)
@@ -269,7 +271,7 @@ module.exports = function register(api) {
     // The shape is in window coordinates: rebuild it when the window changes size.
     w.on('resize', () => {
       if (w !== win() || !lastShape) return;
-      lastShape = [];
+      shapeStale = true;
       applyShape(lastHolesCss);
     });
     w.once('show', () => setTimeout(() => {
