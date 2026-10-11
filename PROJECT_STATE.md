@@ -131,11 +131,17 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 
 ## Next steps (exact)
 
-1. Wait for the user's QEMU feedback on the boot fixes (no screenshots unless asked).
-2. App **Phase 2** (PHASEAPP.md) only when the user asks.
-   **Mode (user decision, 2026-10-11):** extra usage on, ultracode OFF. Lean: one builder + one verifier per app,
-   2 apps at a time, time box per agent, key screenshots only, one `make test-all` at the end; small fixes done
-   directly without agents.
+User decision (2026-10-11 ~15:30 UTC): build app **Phase 4** now, then **Phase 3**, lean (the user does not want
+it to take ~5 h: few tests and screenshots, time-boxed agents). In Phase 3, **Cloud Drive and VPN are heavily
+simplified** (to be improved later). Phase 2 stays for later.
+
+1. Phase 4 (running as workflow `aurora-phase4-apps`): weather, maps, contacts, sticky, translate, remote (VNC only).
+   One builder + one 8-min checker per app, 2 at a time, one suite `shell/test/<id>.test.mjs` each, max 2 screenshots.
+2. Then: targeted regressions (new suites + mail, wallpapers, smoke), docs (DEVELOPING.md app list, PHASEAPP.md), commit.
+3. Phase 3 the same way: store (curated APT via aurora-admin), disks (udisks/lsblk; format only removable drives),
+   backup (rsync to a folder/drive), passwords (WebCrypto vault), cloud (light: WebDAV/Nextcloud browse/up/download
+   only), nettools (light: VPN list/connect/import WireGuard via nmcli + ping/DNS lookup).
+4. Rebuild the ISO (`--from system` unless packages changed), verify-iso, smoke-image, push; user tests in QEMU.
 
 ## Personalization request (verbatim, user request #2)
 
