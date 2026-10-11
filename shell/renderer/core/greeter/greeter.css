@@ -1017,13 +1017,13 @@ body.aurora-locked .tooltip,
   position: static;
   align-self: center;
   max-height: min(64vh, calc(100vh - 160px));
-  max-width: 240px;
+  max-width: 264px;
   padding: 8px;
   border-radius: var(--radius-lg);
   background: rgb(var(--shadow-rgb) / 0.28);
 }
 .lk-greeter .lk-user {
-  min-width: 200px;
+  min-width: 232px;
 }
 @media (max-width: 760px) {
   .lk-greeter .lk-center {

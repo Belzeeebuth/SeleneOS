@@ -401,9 +401,14 @@ async function scenario(theme, lang) {
     }));
     check(srch.open && srch.value === 'pro', `[${tag}] search:open {query} opens with the query`);
     check(srch.rows.some((x) => x.includes('Project plan.docx')), `[${tag}] file search finds ~/Documents/Project plan.docx`);
-    check(srch.preview, `[${tag}] preview pane shows the selected result`);
-    await P.keyboard.press('ArrowDown');
-    await sleep(200);
+    // the preview pane is there only while an app or a file is selected: walk down to the file with the keyboard
+    const fileIdx = await s.aurora(() => [...document.querySelectorAll('#search-panel .sv-row')].findIndex((r) => r.textContent.includes('Project plan.docx')));
+    const firstKind = await s.aurora(() => document.querySelector('#search-panel .sv-row.selected')?.dataset.kind);
+    check(srch.preview === (firstKind === 'app' || firstKind === 'file'), `[${tag}] the first result is selected, with a preview only for an app or a file (${firstKind})`);
+    for (let i = 0; i < fileIdx; i++) await P.keyboard.press('ArrowDown');
+    await sleep(250);
+    const pv = await s.aurora(() => ({ sel: document.querySelector('#search-panel .sv-row.selected')?.textContent, pv: document.querySelector('#search-panel .sv-pv-title')?.textContent }));
+    check(fileIdx >= 0 && pv.sel?.includes('Project plan.docx') && pv.pv === 'Project plan.docx', `[${tag}] arrow keys select the file and the preview pane shows it ${JSON.stringify(pv)}`);
     await shot(s, `search-${tag}`, docName('shell-search', tag));
     // one list grouped by kind (no pivot tabs, no tiles); a group heading narrows the list to its kind
     const groups = await s.aurora(() => ({

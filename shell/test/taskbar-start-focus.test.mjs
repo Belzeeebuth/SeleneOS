@@ -205,12 +205,14 @@ async function geometryPart(size) {
       await setMany(s, { 'taskbar.size': 'medium' });
       await sleep(400);
       const tb = await rect(s, '#taskbar');
+      // (quick.css / calendar.css still add --bar-margin above the band, which in islands mode already holds it)
+      const islandGap = islands ? 12 : 0;
       for (const f of Object.keys(FLY)) {
         const r = await openFly(s, f);
         const onScreen = r && r.x >= 0 && r.y >= 0 && r.r <= W && r.b <= H;
         const beside = !r ? false : pos === 'bottom' ? r.b <= tb.y : pos === 'top' ? r.y >= tb.b : pos === 'left' ? r.x >= tb.r : r.r <= tb.x || f === 'widgets';
         // Start / Search open next to the Start button: at the top of a vertical bar
-        const anchored = !r ? false : (f === 'start' || f === 'search') && (pos === 'left' || pos === 'right') ? r.y <= 16 : f === 'quick' || f === 'calendar' ? (pos === 'top' ? r.y <= tb.b + 16 : r.b >= H - (pos === 'bottom' ? tb.h : 0) - 16) : true;
+        const anchored = !r ? false : (f === 'start' || f === 'search') && (pos === 'left' || pos === 'right') ? r.y <= 16 : f === 'quick' || f === 'calendar' ? (pos === 'top' ? r.y <= tb.b + 16 + islandGap : r.b >= H - (pos === 'bottom' ? tb.h : 0) - 16 - islandGap) : true;
         check(onScreen && beside && anchored && !overlap(r, tb), `[${size}] ${pos}: ${f} opens beside the bar (${r ? `${r.x},${r.y} ${r.w}×${r.h}` : 'missing'})`);
         if (size === '1920x1080' && f === 'start' && (pos === 'left' || pos === 'top')) await docShot(s, `taskbar-${pos}-start-open`);
       }
