@@ -13,12 +13,17 @@
 //   QA launches: no listener leaks over 15 open / close cycles, untrusted text never parsed as HTML, repeat rules
 //   following a moved due date, double submits and rapid clicks, Tab kept in the window / flyouts, F6, Delete and F2
 //   in the navigation pane, save failure + Retry, 1280x720 and 1920x1080 maximized layouts, wrapped steps,
-//   keyboard-reachable suggestions, corrupt / unreadable / newer-version data files.
+//   keyboard-reachable suggestions, corrupt / unreadable / newer-version data files, a damaged file that cannot be
+//   moved aside (never overwritten). Second QA pass: focus after flyouts anchored to non-focusable elements, the list
+//   icon as a keyboard button, narrow-layout search from the navigation overlay, shortcuts sheet at the minimum size,
+//   ellipsis of long list names in suggestions, 4.5:1 contrast of the header text on light pictures (captured
+//   pixels), emoji detection of list names.
 //   Documentation screenshots: aurora-os/docs/screenshots/todo-*.png
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/todo.test.mjs [--only=steps]
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { launchShell, ROOT } from './lib.mjs';
 
 const DOCS = path.join(ROOT, '..', 'docs', 'screenshots');
@@ -1964,6 +1969,47 @@ async function runBadData() {
       fs.rmSync(home, { recursive: true, force: true });
     }
   }
+  // 4. a damaged file that cannot be moved aside (folder made immutable: rename and new files both fail, even for
+  //    root): To Do must not claim a backup it could not make, nor write over the damaged file later
+  {
+    const damaged = '{"version":2,"tasks":[{"id":"precious","title":"Keep me"'; // truncated JSON
+    const { home, dir } = mk(damaged);
+    let locked = false;
+    try {
+      execFileSync('chattr', ['+i', dir], { stdio: 'ignore' });
+      locked = true;
+    } catch {}
+    if (!locked) {
+      console.log('  - damaged file that cannot be moved aside: skipped (chattr +i not available here)');
+      fs.rmSync(home, { recursive: true, force: true });
+      return;
+    }
+    const s = await launchShell({ open: ['todo'], lang: 'en', theme: 'light', home });
+    current = s;
+    try {
+      await s.page.waitForSelector(`${WIN} .td`, { timeout: 20000 });
+      await until(s, (app) => !!app?.store, { label: 'todo ready' });
+      await section('damaged file that cannot be moved aside: never overwritten, read-only session', async () => {
+        await s.page.waitForSelector(DLG, { timeout: 5000 });
+        const text = await s.page.textContent(DLG);
+        check('user told the file could not be loaded nor moved aside', [text.includes('couldn’t be loaded'), text.includes('couldn’t be moved aside or copied')], [true, true]);
+        await dialogButton(s, 'OK');
+        await TD(s, (app) => (app.addTask({ title: 'Not saved' }), app.renderNow(), true));
+        await sleep(500);
+        const r = await TD(s, (app) => ({ ro: app.store.readOnly, banner: !!app.list.bannerSlot.querySelector('.td-readonly-banner'), recovered: app.recoveredFrom || null }));
+        check('read-only session with its banner, no backup claimed', r, { ro: true, banner: true, recovered: null });
+        check('the damaged file is still there, byte for byte, and nothing else was written', [fs.readFileSync(path.join(dir, 'data.json'), 'utf8'), fs.readdirSync(dir)], [damaged, ['data.json']]);
+        check('no console errors (damaged + locked)', todoErrors(s), []);
+      });
+    } finally {
+      current = null;
+      await s.close();
+      try {
+        execFileSync('chattr', ['-i', dir], { stdio: 'ignore' });
+      } catch {}
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  }
 }
 
 // ================================================================== launch H: QA, second pass (English, light)
@@ -2151,6 +2197,22 @@ async function runQA2() {
         return ['🛒 Groceries', '🇫🇷 France', '1️⃣ Top', '✏️ Write', '© Legal', '® Brand', '™ Stuff', '‼ Urgent'].map((x) => splitEmoji(x).emoji);
       });
       check('leading characters taken as icons', r, ['🛒', '🇫🇷', '1️⃣', '✏️', null, null, null, null]);
+    });
+
+    await section('QA2: list ids from a data file never collide with group markers when lists are reordered', async () => {
+      const r = await TD(s, (app) => {
+        const a = app.store.addList('Weird');
+        a.id = 'g:weird'; // as a hand-edited data file could have it
+        const b = app.store.addList('Plain');
+        app.renderNow();
+        const flat = app.nav._flatOrder();
+        const i = flat.findIndex((x) => x.list === 'g:weird');
+        const j = flat.findIndex((x) => x.list === b.id);
+        [flat[i], flat[j]] = [flat[j], flat[i]];
+        app.nav._applyFlatOrder(flat, {});
+        return app.store.list('g:weird').order > app.store.list(b.id).order;
+      });
+      check('a list whose id starts with "g:" is reordered like any list', r, true);
     });
 
     await section('QA2: console', async () => {

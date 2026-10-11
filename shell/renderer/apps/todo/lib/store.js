@@ -58,8 +58,8 @@ export function uid(prefix = '') {
 const PICTO = /\p{Extended_Pictographic}|\p{Regional_Indicator}/u;
 // drawn as an emoji (not text symbols such as © ® ™ ‼ that are "pictographic" too): emoji presentation,
 // an explicit emoji variation selector, a flag, or a pictograph of the emoji planes
-const EMOJI_LOOK = /\p{Emoji_Presentation}|️|\p{Regional_Indicator}/u;
-const isEmoji = (g) => (PICTO.test(g) && (EMOJI_LOOK.test(g) || g.codePointAt(0) >= 0x1f000)) || /️?⃣/.test(g); // (+ keycaps 1️⃣)
+const EMOJI_LOOK = /\p{Emoji_Presentation}|\uFE0F|\p{Regional_Indicator}/u;
+const isEmoji = (g) => (PICTO.test(g) && (EMOJI_LOOK.test(g) || g.codePointAt(0) >= 0x1f000)) || /\uFE0F?\u20E3/u.test(g); // (+ keycaps such as 1 + U+FE0F + U+20E3)
 /** "🛒 Groceries" -> { emoji: '🛒', name: 'Groceries' } (like Microsoft To Do: a leading emoji becomes the list icon). */
 export function splitEmoji(raw) {
   const s = String(raw ?? '').trim();

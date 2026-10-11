@@ -264,9 +264,9 @@ export class Nav {
         // new order of top-level entries + lists inside groups
         const tgtId = target.el.dataset.listId;
         const tgt = app.store.list(tgtId);
-        const ordered = this._flatOrder().filter((x) => x !== l.id);
-        const i = ordered.indexOf(tgtId) + (target.mode === 'after' ? 1 : 0);
-        ordered.splice(i, 0, l.id);
+        const ordered = this._flatOrder().filter((x) => x.list !== l.id);
+        const i = ordered.findIndex((x) => x.list === tgtId) + (target.mode === 'after' ? 1 : 0);
+        ordered.splice(i, 0, { list: l.id });
         this._applyFlatOrder(ordered, { [l.id]: tgt?.groupId || null });
         return null;
       },
@@ -278,30 +278,31 @@ export class Nav {
     });
   }
 
-  /** Lists (and group markers 'g:<id>') in on-screen order. */
+  /** Lists and groups in on-screen order: [{ list: id } | { group: id }] (ids from the data file may contain
+   *  anything, so lists and groups are told apart by key, not by an id prefix). */
   _flatOrder() {
     const out = [];
     for (const n of this.listsEl.querySelectorAll('.td-nav-item[data-list-id], .td-group')) {
-      if (n.classList.contains('td-group')) out.push(`g:${n.dataset.groupId}`);
-      else out.push(n.dataset.listId);
+      if (n.classList.contains('td-group')) out.push({ group: n.dataset.groupId });
+      else out.push({ list: n.dataset.listId });
     }
     return out;
   }
 
-  _applyFlatOrder(ids, groupOf) {
+  _applyFlatOrder(entries, groupOf) {
     const store = this.app.store;
     let i = 1;
-    for (const id of ids) {
-      if (id.startsWith('g:')) {
-        const g = store.group(id.slice(2));
+    for (const e of entries) {
+      if (e.group != null) {
+        const g = store.group(e.group);
         if (g) g.order = i++;
       } else {
-        const l = store.list(id);
+        const l = store.list(e.list);
         if (!l) continue;
         l.order = i++;
-        if (id in groupOf) l.groupId = groupOf[id];
+        if (Object.hasOwn(groupOf, e.list)) l.groupId = groupOf[e.list];
       }
     }
-    store.commit('lists', { reordered: ids });
+    store.commit('lists', { reordered: entries.filter((e) => e.list != null).map((e) => e.list) });
   }
 }

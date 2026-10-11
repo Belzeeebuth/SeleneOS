@@ -1057,15 +1057,24 @@ async function runMain() {
     await W(s, (w) => {
       w.closeTab();
     });
-    await s.page.evaluate(
-      ({ sel, p }) => {
-        const el = document.querySelector(sel);
-        const dt = new DataTransfer();
-        dt.setData('application/x-aurora-paths', JSON.stringify([p]));
-        for (const type of ['dragenter', 'dragover', 'drop']) el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt }));
-      },
-      { sel: `${WIN} .pdf-root`, p: f.other },
-    );
+    const dropPaths = (shellStart) =>
+      s.page.evaluate(
+        ({ sel, p, shellStart }) => {
+          // A shell drag fires 'dragstart' in the shell document first; a drag from web content does not.
+          window.dispatchEvent(new PointerEvent('pointerdown'));
+          if (shellStart) document.dispatchEvent(new DragEvent('dragstart', { bubbles: true }));
+          const el = document.querySelector(sel);
+          const dt = new DataTransfer();
+          dt.setData('application/x-aurora-paths', JSON.stringify([p]));
+          for (const type of ['dragenter', 'dragover', 'drop']) el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt }));
+          if (shellStart) document.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
+        },
+        { sel: `${WIN} .pdf-root`, p: f.other, shellStart },
+      );
+    await dropPaths(false);
+    await sleep(600);
+    check('drop: forged paths from web content ignored', (await state(s))?.path === f.other, false);
+    await dropPaths(true);
     await until(async () => (await state(s))?.path === f.other, { label: 'dropped file opened' });
     await ready(s);
     check('drop: overlay hidden', await run(s, `document.querySelector('${WIN} .pdf-drop').hidden`), true);

@@ -321,3 +321,13 @@
   color: var(--accent-text);
   background: var(--accent-subtle);
 }
+
+/* ------------------------------------------------------------------ Start: tile labels use the whole tile width
+   (a one-word name such as "Minesweeper" in the Retro font was broken mid-word on a 6-column grid at 1280×720) */
+.start-tile {
+  padding-left: 1px;
+  padding-right: 1px;
+}
+.start-tile-label {
+  padding: 0;
+}

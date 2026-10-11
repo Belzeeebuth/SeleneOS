@@ -1054,6 +1054,47 @@ async function perfPart() {
 // =====================================================================================================================
 // QA pass 2: a narrow work area (1024×768 at 125 %: 819×614 CSS px) with a vertical bar, the clock with large text and
 // seconds on every size / edge, Focus mode hiding badges and flashing, the banner giving way to Start.
+// Start tile names are never broken in the middle of a word (each word fits its tile) in every style, 1280×720, EN + FR.
+async function labelsPart() {
+  console.log('\n# Start tile names: whole words in every visual style (1280x720)');
+  for (const lang of ['en', 'fr']) {
+    const s = await launchShell({ size: '1280x720', lang, settle: 1200 });
+    const A = (fn, a) => s.aurora(fn, a);
+    try {
+      const bad = [];
+      for (const style of ['win11', 'minimal', 'glass', 'retro', 'contrast']) {
+        await setMany(s, { style });
+        await sleep(300);
+        await A(() => window.__aurora.shell.emit('start:open'));
+        await sleep(800);
+        const r = await A(() => {
+          const out = [];
+          for (const l of document.querySelectorAll('#start .start-tile-label')) {
+            const cs = getComputedStyle(l);
+            const inner = l.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+            for (const word of l.textContent.split(/\s+/).filter(Boolean)) {
+              const sp = document.createElement('span');
+              sp.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap';
+              sp.textContent = word;
+              l.append(sp);
+              if (sp.offsetWidth > inner + 0.5) out.push(`${word} ${sp.offsetWidth}>${inner}`);
+              sp.remove();
+            }
+          }
+          return out;
+        });
+        bad.push(...r.map((x) => `${style}: ${x}`));
+        await A(() => window.__aurora.shell.emit('start:close'));
+        await sleep(250);
+      }
+      check(!bad.length, `${lang}: every word of every pinned app name fits its Start tile (${bad.join('; ') || 'ok'})`);
+      check(!errorsOf(s).length, `no console errors (${errorsOf(s).slice(0, 3).join(' | ')})`);
+    } finally {
+      await s.close();
+    }
+  }
+}
+
 async function fitPart() {
   console.log('\n# Narrow work area, large text, focus quiet badges, banner vs Start');
   const s = await launchShell({ size: '1024x768', open: ['notepad'], settle: 1500, lang: 'fr', settings: { scale: 125 } });
@@ -1186,6 +1227,7 @@ const parts = [
   ['security', securityPart],
   ['perf', perfPart],
   ['fit', fitPart],
+  ['labels', labelsPart],
 ];
 for (const [name, fn] of parts) {
   if (!run(name)) continue;

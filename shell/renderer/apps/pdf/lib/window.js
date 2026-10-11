@@ -7,6 +7,7 @@ import { StartPage } from './start.js';
 import { shared, HIGHLIGHT_COLORS, PEN_COLORS, saveErrorText } from './shared.js';
 import { engine, acquireWorker, releaseWorker } from './engine.js';
 import * as dlg from './dialogs.js';
+import { trustedDragPaths } from '../../../core/desktop.js';
 
 const DND_MIME = 'application/x-aurora-paths';
 const EASE = 'cubic-bezier(0.1, 0.9, 0.2, 1)';
@@ -861,11 +862,8 @@ export class PdfWindow {
   }
 
   async dropFiles(dt) {
-    let paths = [];
-    try {
-      const raw = dt.getData(DND_MIME);
-      if (raw) paths = JSON.parse(raw);
-    } catch {}
+    // Shell paths only from drags that started in the shell (a web page can forge the MIME type).
+    let paths = trustedDragPaths(dt);
     if (!paths.length) paths = [...(dt.files || [])].map((f) => this.ctx.api.pathForFile(f)).filter(Boolean);
     const pdfs = paths.filter((p) => typeof p === 'string' && /\.pdf$/i.test(p)).slice(0, 32);
     if (!pdfs.length) {
