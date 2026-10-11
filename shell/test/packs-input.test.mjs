@@ -218,7 +218,13 @@ async function cursorsPart() {
     const sl = s.page.locator(S('[data-section="cursorSize"] input.slider')).first();
     await sl.scrollIntoViewIfNeeded();
     await sl.focus();
-    for (let i = 0; i < 4; i++) await s.page.keyboard.press('ArrowRight');
+    // One step per key press (100 → 200 % in 4 steps); wait for each to apply so none is lost on a loaded machine.
+    for (let i = 0; i < 4; i++) {
+      const was = await A(() => window.__aurora.settings.get('cursorSize'));
+      if (!(await sl.evaluate((el) => el === document.activeElement))) await sl.focus();
+      await s.page.keyboard.press('ArrowRight');
+      for (let k = 0; k < 20 && (await A(() => window.__aurora.settings.get('cursorSize'))) === was; k++) await sleep(50);
+    }
     await sleep(600);
     const sz = await A(() => ({ v: window.__aurora.settings.get('cursorSize'), css: getComputedStyle(document.body).cursor }));
     const big = await imgSize(s, sz.css.match(/url\("([^"]+)"\)/)[1]);
