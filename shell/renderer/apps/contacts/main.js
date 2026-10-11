@@ -417,11 +417,14 @@ class ContactsApp {
     if (!c) return;
     this.mode = 'edit';
     let { first, last } = c;
-    if (!first && !last && c.name) {
+    // A display name that is really an e-mail, a phone number or the company is not split into first/last names.
+    const derived = c.name === c.company || c.emails.some((e) => e.value === c.name) || c.phones.some((p) => p.value === c.name);
+    if (!first && !last && c.name && !derived) {
       const p = c.name.split(/\s+/);
       last = p.length > 1 ? p.pop() : '';
       first = p.join(' ');
     }
+    this.draftNames = { first: (first || '').trim(), last: (last || '').trim() };
     this.draft = JSON.parse(JSON.stringify({ ...c, first, last }));
     if (!this.draft.emails.length) this.draft.emails.push({ type: 'home', value: '' });
     if (!this.draft.phones.length) this.draft.phones.push({ type: 'mobile', value: '' });
@@ -567,8 +570,8 @@ class ContactsApp {
     this.saving = true;
     try {
       const prev = this.mode === 'edit' ? this.byId(this.selectedId) : null;
-      // Keep a custom display name only when the edited parts still produce it.
-      const keepName = prev && prev.name && !prev.first && !prev.last && prev.name === name;
+      // Keep the display name (vCard FN, e.g. "Dr. John Smith") unless the first or last name was edited.
+      const keepName = !!(prev?.name && this.draftNames && first === this.draftNames.first && last === this.draftNames.last);
       const saved = await this.ctx.api.invoke('contacts:save', { ...(prev || {}), id: prev?.id, name: keepName ? prev.name : name, first, last, company: d.company, emails, phones, address: d.address, birthday: d.birthday, notes: d.notes, photo: d.photo, favorite: !!d.favorite });
       this.mode = 'view';
       this.draft = null;

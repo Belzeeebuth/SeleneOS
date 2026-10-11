@@ -232,10 +232,23 @@ await section('edit + cancel with discard prompt', async () => {
   await s.page.click(`${WIN} .ct-row[data-id="c-num"]`);
   await s.page.keyboard.press('Control+e');
   await s.page.waitForSelector(`${WIN} .ct-form`);
-  check('name split into first / last', [await s.page.inputValue(`${WIN} input[name="first"]`), await s.page.inputValue(`${WIN} input[name="last"]`)], ['42', 'Pizza']);
+  // A display name that is the company is not split into first / last names.
+  check('company name not split into first / last', [await s.page.inputValue(`${WIN} input[name="first"]`), await s.page.inputValue(`${WIN} input[name="last"]`)], ['', '']);
   await s.page.keyboard.press('Escape');
   await s.page.waitForSelector(`${WIN} .ct-detail`);
   check('Esc leaves an unchanged form', await s.page.textContent(`${WIN} .ct-name`), '42 Pizza');
+  // An imported display name (vCard FN) that differs from first + last survives an edit of other fields.
+  const dr = await s.page.evaluate(`window.__aurora.api.invoke('contacts:save', { name: 'Dr. John Smith', first: 'John', last: 'Smith', emails: [{ type: 'work', value: 'john@smith.example' }], phones: [] })`);
+  await s.page.waitForSelector(`${WIN} .ct-row[data-id="${dr.id}"]`);
+  await s.page.click(`${WIN} .ct-row[data-id="${dr.id}"]`);
+  await s.page.keyboard.press('Control+e');
+  await s.page.waitForSelector(`${WIN} .ct-form`);
+  await s.page.fill(`${WIN} input[name="company"]`, 'Contoso');
+  await s.page.click(`${WIN} .ct-save`);
+  await s.page.waitForSelector(`${WIN} .ct-detail`);
+  check('display name kept when only other fields change', await s.page.textContent(`${WIN} .ct-name`), 'Dr. John Smith');
+  await s.page.evaluate(`window.__aurora.api.invoke('contacts:delete', [${JSON.stringify(dr.id)}])`);
+  await until(s, (app, id) => !app.contacts.some((c) => c.id === id), { arg: dr.id, label: 'temporary contact removed' });
 });
 
 await section('delete with confirmation', async () => {
