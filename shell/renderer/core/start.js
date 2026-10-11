@@ -1290,7 +1290,7 @@ function renderPinnedGrid(gridWrap, dots, animate) {
   const pages = Math.max(1, Math.ceil(items.length / per));
   page = Math.max(0, Math.min(page, pages - 1));
   clear(gridWrap);
-  const grid = h('div', { class: ['start-grid', animate && 'stagger'], role: 'list', style: { gridTemplateRows: `repeat(${rows()}, 84px)` } });
+  const grid = h('div', { class: ['start-grid', animate && 'stagger'], role: 'list', style: { gridTemplateRows: `repeat(${rows()}, 92px)` } });
   items.slice(page * per, page * per + per).forEach((x, i) => {
     if (x.group) {
       grid.appendChild(groupTile(x.group, i));

@@ -725,13 +725,13 @@ function showPage(name) {
     pagesEl.appendChild(next);
     const h1 = next.offsetHeight;
     pagesEl.style.height = `${h0}px`;
-    old.animate([{ transform: 'none', opacity: 1 }, { transform: `translateX(${fwd ? -40 : 40}%)`, opacity: 0 }], { duration: 200, easing: 'cubic-bezier(0.7,0,1,0.5)', fill: 'forwards' }).finished.then(
+    old.animate([{ transform: 'none', opacity: 1 }, { transform: `translateX(${fwd ? -24 : 24}px)`, opacity: 0 }], { duration: 140, easing: 'cubic-bezier(0.4,0,1,1)', fill: 'forwards' }).finished.then(
       () => old.remove(),
       () => old.remove(),
     );
-    next.animate([{ transform: `translateX(${fwd ? 40 : -40}%)`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 300, easing: 'cubic-bezier(0.1,0.9,0.2,1)' });
+    next.animate([{ transform: `translateX(${fwd ? 24 : -24}px)`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 180, easing: 'cubic-bezier(0.2,0.8,0.2,1)' });
     pagesEl
-      .animate([{ height: `${h0}px` }, { height: `${h1}px` }], { duration: 300, easing: 'cubic-bezier(0.1,0.9,0.2,1)' })
+      .animate([{ height: `${h0}px` }, { height: `${h1}px` }], { duration: 180, easing: 'cubic-bezier(0.2,0.8,0.2,1)' })
       .finished.then(
         () => (pagesEl.style.height = ''),
         () => (pagesEl.style.height = ''),

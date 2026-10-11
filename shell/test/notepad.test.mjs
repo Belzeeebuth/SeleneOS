@@ -178,7 +178,7 @@ async function mainRun() {
 
     await section('opens with an Untitled tab, tall title bar and menu bar', async () => {
       check('one window', await winCount(s), 1);
-      check('window title', await run(s, `window.__aurora.wm.byApp('notepad')[0].title`), 'Untitled - Notepad');
+      check('window title', await run(s, `window.__aurora.wm.byApp('notepad')[0].title`), 'Untitled - Text Editor');
       check('tab title', (await tabs(s))[0].title, 'Untitled');
       check('tall title bar', await run(s, `document.querySelector('${WIN}').classList.contains('tb-tall')`), true);
       check('tabs live in the title bar', await run(s, `!!document.querySelector('${WIN} .win-titlebar .np-tabs .np-tab')`), true);
@@ -198,7 +198,7 @@ async function mainRun() {
       check('chars', (await status(s)).chars, '23 characters');
       check('dirty tab', (await tabs(s))[0].dirty, true);
       check('dirty dot shown', await run(s, `document.querySelector('${WIN} .np-tab.active').classList.contains('dirty')`), true);
-      check('title has *', await run(s, `window.__aurora.wm.byApp('notepad')[0].title`), '*Untitled - Notepad');
+      check('title has *', await run(s, `window.__aurora.wm.byApp('notepad')[0].title`), '*Untitled - Text Editor');
       await s.page.keyboard.down('Shift');
       await s.page.keyboard.press('Home');
       await s.page.keyboard.up('Shift');
@@ -445,7 +445,7 @@ async function mainRun() {
       check('active is crlf.txt', t.find((x) => x.active)?.title, 'crlf.txt');
       check('eol detected', (await status(s)).eol, 'Windows (CRLF)');
       check('text normalised', await text(s), 'first line\nsecond line\nthird line\n');
-      check('title', await run(s, `window.__aurora.wm.byApp('notepad')[0].title`), 'crlf.txt - Notepad');
+      check('title', await run(s, `window.__aurora.wm.byApp('notepad')[0].title`), 'crlf.txt - Text Editor');
       await focusEditor(s);
       await s.page.keyboard.press('Control+End');
       await s.page.keyboard.type('fourth line');
@@ -942,7 +942,7 @@ async function mainRun() {
       await s.page.click(`${WIN} .np-set-card[data-key="theme"] input[value="dark"]`);
       await sleep(150);
       check('app theme dark while system light', await run(s, `document.querySelector('${WIN}').classList.contains('np-theme-dark')`), true);
-      check('dark text color', await run(s, `getComputedStyle(document.querySelector('${WIN} .np-set-title')).color`), 'rgb(255, 255, 255)');
+      check('dark text color', await run(s, `getComputedStyle(document.querySelector('${WIN} .np-set-title')).color`), 'rgb(230, 234, 242)');
       await shot(s, 'settings-app-dark', true);
       await s.page.click(`${WIN} .np-set-card[data-key="theme"] input[value="system"]`);
       await sleep(100);
@@ -1134,7 +1134,7 @@ async function mainRun() {
       await sleep(200);
       await s.page.hover(`${WIN} .np-gear`);
       await until(() => run(s, `!!document.querySelector('.tooltip')`), { label: 'tooltip', timeout: 4000 });
-      check('tooltip gets the dark theme', await run(s, `(() => { const t = document.querySelector('.tooltip'); return t.classList.contains('np-theme-dark') && getComputedStyle(t).color; })()`), 'rgb(255, 255, 255)');
+      check('tooltip gets the dark theme', await run(s, `(() => { const t = document.querySelector('.tooltip'); return t.classList.contains('np-theme-dark') && getComputedStyle(t).color; })()`), 'rgb(230, 234, 242)');
       await s.page.mouse.move(5, 5);
       await NP(s, (np) => np.shared.setPref('theme', 'system'));
       await sleep(200);
@@ -1150,7 +1150,7 @@ async function mainRun() {
       await until(() => run(s, `!!document.querySelector('#overlays > .dialog-layer.global:not(.closing) .np-font-dlg')`), { label: 'screen-level font dialog' });
       await sleep(350);
       const g = await run(s, `(() => { const d = document.querySelector('#overlays > .dialog-layer.global:not(.closing) .np-font-dlg'); const r = d.getBoundingClientRect(); const w = document.querySelector('${WIN}').getBoundingClientRect(); return { themed: d.classList.contains('np-theme-dark'), color: getComputedStyle(d).color, onScreen: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, overlaps: r.left < w.right && r.right > w.left && r.top < w.bottom && r.bottom > w.top, preview: d.querySelector('.np-font-preview').getBoundingClientRect().bottom <= r.bottom }; })()`);
-      check('font dialog keeps the app theme', [g.themed, g.color], [true, 'rgb(255, 255, 255)']);
+      check('font dialog keeps the app theme', [g.themed, g.color], [true, 'rgb(230, 234, 242)']);
       check('font dialog on screen, over the window, preview visible', [g.onScreen, g.overlaps, g.preview], [true, true, true]);
       await s.page.keyboard.press('Escape');
       await sleep(300);
@@ -1239,14 +1239,14 @@ async function frenchDarkRun() {
   try {
     await openNotepad(s);
     await section('French labels, plurals and dark theme', async () => {
-      check('window title', await run(s, `window.__aurora.wm.byApp('notepad')[0].title`), 'Sans titre - Bloc-notes');
+      check('window title', await run(s, `window.__aurora.wm.byApp('notepad')[0].title`), 'Sans titre - Éditeur de texte');
       check('menus', await run(s, `[...document.querySelectorAll('${WIN} .np-menu-btn .np-menu-label')].map((b) => b.textContent)`), ['Fichier', 'Modifier', 'Affichage']);
       check('status FR', await status(s), { pos: 'Ln 1, col 1', chars: '0 caractère', zoom: '100 %', eol: 'Unix (LF)', enc: 'UTF-8' });
       await focusEditor(s);
       await s.page.keyboard.type('Bonjour');
       await sleep(80);
       check('plural', (await status(s)).chars, '7 caractères');
-      check('dark text color', await NP(s, (np) => getComputedStyle(np.active.ta).color), 'rgb(255, 255, 255)');
+      check('dark text color', await NP(s, (np) => getComputedStyle(np.active.ta).color), 'rgb(230, 234, 242)');
       await s.page.keyboard.press('Alt+m');
       await sleep(150);
       check('Alt+M opens Modifier', await run(s, `document.querySelector('${WIN} .np-menu-btn[data-menu="edit"]').classList.contains('open')`), true);

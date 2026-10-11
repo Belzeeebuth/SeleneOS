@@ -1,30 +1,6 @@
-/* Aurora Settings — Windows 11 Settings look. Everything is scoped under .app-settings. */
+/* Paramètres (Settings). Everything is scoped under .app-settings; colours come from the tokens. */
 .app-settings {
   --st-pane-w: 300px;
-  --st-nav-system: #0067c0;
-  --st-nav-bluetooth: #1a73e8;
-  --st-nav-network: #0f6cbd;
-  --st-nav-personalization: #c74e23;
-  --st-nav-apps: #5b57d1;
-  --st-nav-accounts: #1f8a43;
-  --st-nav-timeLanguage: #0b7f90;
-  --st-nav-accessibility: #0067c0;
-  --st-nav-privacy: #56616f;
-  --st-nav-update: #0067c0;
-  --st-selected-hover: rgba(0, 0, 0, 0.06); /* selected nav item under the pointer */
-}
-:root[data-theme="dark"] .app-settings {
-  --st-selected-hover: rgba(255, 255, 255, 0.084);
-  --st-nav-system: #4cc2ff;
-  --st-nav-bluetooth: #6cb8ff;
-  --st-nav-network: #60cdff;
-  --st-nav-personalization: #ff9a73;
-  --st-nav-apps: #aaa7ff;
-  --st-nav-accounts: #6ccb5f;
-  --st-nav-timeLanguage: #4fd1e0;
-  --st-nav-accessibility: #4cc2ff;
-  --st-nav-privacy: #a6b1bf;
-  --st-nav-update: #4cc2ff;
 }
 
 /* ---------- title bar additions ---------- */
@@ -75,8 +51,13 @@
   width: var(--st-pane-w);
   display: flex;
   flex-direction: column;
-  padding: 4px 8px 12px 16px;
+  padding: 4px 8px 12px 12px;
   min-height: 0;
+  background: var(--bg-alt);
+  border-right: 1px solid var(--line-soft);
+}
+.app-settings .st-nav-item.selected .st-nav-icon {
+  color: var(--accent-text);
 }
 .app-settings .st-user {
   display: flex;
@@ -118,9 +99,9 @@
   overflow: hidden;
   display: grid;
   place-items: center;
-  color: #fff;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-base, #0078d4) 85%, #fff), color-mix(in srgb, var(--accent-base, #0078d4) 80%, #000));
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+  color: var(--on-accent);
+  background: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
 }
 .app-settings .st-avatar img {
   width: 100%;
@@ -182,33 +163,28 @@
   transition: background var(--dur-fast) linear;
 }
 /* (the transparent reset above would otherwise also hide ui.css's hover / selected fills) */
-.app-settings .st-nav-item:hover,
-.app-settings .st-nav-item.selected {
+.app-settings .st-nav-item:hover {
   background: var(--subtle-hover);
 }
+.app-settings .st-nav-item.selected {
+  background: var(--sel-bg);
+  box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
+  font-weight: 600;
+}
 .app-settings .st-nav-item.selected:hover {
-  background: var(--st-selected-hover);
+  background: var(--subtle-pressed);
 }
 .app-settings .st-nav-item:active {
   background: var(--subtle-pressed);
   color: var(--text-2);
 }
 .app-settings .st-nav-icon {
+  color: var(--text-2);
   display: inline-grid;
   place-items: center;
   width: 20px;
   height: 20px;
 }
-.app-settings .st-nav-item[data-cat="system"] .st-nav-icon { color: var(--st-nav-system); }
-.app-settings .st-nav-item[data-cat="bluetooth"] .st-nav-icon { color: var(--st-nav-bluetooth); }
-.app-settings .st-nav-item[data-cat="network"] .st-nav-icon { color: var(--st-nav-network); }
-.app-settings .st-nav-item[data-cat="personalization"] .st-nav-icon { color: var(--st-nav-personalization); }
-.app-settings .st-nav-item[data-cat="apps"] .st-nav-icon { color: var(--st-nav-apps); }
-.app-settings .st-nav-item[data-cat="accounts"] .st-nav-icon { color: var(--st-nav-accounts); }
-.app-settings .st-nav-item[data-cat="timeLanguage"] .st-nav-icon { color: var(--st-nav-timeLanguage); }
-.app-settings .st-nav-item[data-cat="accessibility"] .st-nav-icon { color: var(--st-nav-accessibility); }
-.app-settings .st-nav-item[data-cat="privacy"] .st-nav-icon { color: var(--st-nav-privacy); }
-.app-settings .st-nav-item[data-cat="update"] .st-nav-icon { color: var(--st-nav-update); }
 
 .app-settings .st-main {
   flex: 1;
@@ -300,18 +276,12 @@
   bottom: 0;
   left: 0;
   width: min(var(--st-pane-w), 86%);
-  background: var(--acrylic-strong);
-  backdrop-filter: blur(30px) saturate(150%);
-  border-right: 1px solid var(--window-stroke);
+  background: var(--bg-alt);
+  border-right: 1px solid var(--line);
   box-shadow: var(--shadow-flyout);
   transform: translateX(-104%);
   visibility: hidden;
-  box-shadow: 8px 0 28px rgba(0, 0, 0, 0.2);
   transition: transform var(--dur-slow) var(--ease), visibility 0s linear var(--dur-slow);
-}
-:root[data-transparency="off"] .app-settings .st-root.compact .st-pane {
-  backdrop-filter: none;
-  background: var(--solid);
 }
 .app-settings .st-root.compact.pane-open .st-pane {
   transform: none;

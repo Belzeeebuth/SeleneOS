@@ -179,7 +179,7 @@
     opacity: 0;
   }
 }
-/* Narrow windows: the pane floats over the content (acrylic), like Windows. */
+/* Narrow windows: the pane floats over the content. */
 .app-taskmgr .tm-root.narrow .tm-nav {
   position: absolute;
   left: 0;
@@ -190,15 +190,11 @@
   margin-left: 52px;
 }
 .app-taskmgr .tm-root.nav-overlay .tm-nav {
-  background: var(--acrylic);
-  backdrop-filter: blur(30px) saturate(150%);
+  background: var(--surface-raised);
   border-right: 1px solid var(--window-stroke);
   border-radius: 0 var(--radius) var(--radius) 0;
   box-shadow: var(--shadow-flyout);
   animation: tm-nav-in var(--dur-slow) var(--ease);
-}
-:root[data-transparency="off"] .app-taskmgr .tm-root.nav-overlay .tm-nav {
-  backdrop-filter: none;
 }
 @keyframes tm-nav-in {
   from {
@@ -267,10 +263,7 @@
   background: var(--subtle-selected);
 }
 .app-taskmgr .tm-cmd[aria-pressed="true"] .icon {
-  color: #2b9a3a;
-}
-:root[data-theme="dark"] .app-taskmgr .tm-cmd[aria-pressed="true"] .icon {
-  color: #6ccb5f;
+  color: var(--success);
 }
 .app-taskmgr .tm-cmd .tm-cmd-chev {
   width: 12px;
@@ -655,19 +648,19 @@
 }
 /* Icon tones for processes without their own artwork. */
 .app-taskmgr .tone-user {
-  color: #3a7bd5;
+  color: var(--accent-text);
 }
 .app-taskmgr .tone-system {
-  color: #6f7a87;
+  color: var(--text-2);
 }
 .app-taskmgr .tone-console {
-  color: #4f5560;
+  color: var(--text-2);
 }
 .app-taskmgr .tone-kernel {
-  color: #b07a12;
+  color: var(--warning);
 }
 .app-taskmgr .tone-eff {
-  color: #2b9a3a;
+  color: var(--success);
 }
 .app-taskmgr .tone-muted,
 .app-taskmgr .tone-svc-off {
@@ -681,19 +674,19 @@
   color: var(--text-2);
 }
 :root[data-theme="dark"] .app-taskmgr .tone-user {
-  color: #6aa8f0;
+  color: var(--accent-text);
 }
 :root[data-theme="dark"] .app-taskmgr .tone-system {
-  color: #a5afbb;
+  color: var(--text-2);
 }
 :root[data-theme="dark"] .app-taskmgr .tone-console {
-  color: #c4c8ce;
+  color: var(--text-2);
 }
 :root[data-theme="dark"] .app-taskmgr .tone-kernel {
-  color: #e2b04a;
+  color: var(--warning);
 }
 :root[data-theme="dark"] .app-taskmgr .tone-eff {
-  color: #6ccb5f;
+  color: var(--success);
 }
 :root[data-theme="dark"] .app-taskmgr .tone-svc-on,
 :root[data-theme="dark"] .app-taskmgr .tone-accent {

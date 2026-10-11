@@ -1,18 +1,14 @@
-/* Aurora Paint — Windows 11 Paint-style chrome. Every rule is scoped under .app-paint. */
+/* Dessin (Draw). Every rule is scoped under .app-paint; chrome colours come from the design tokens.
+   The marquee dash stays a plain grey so it reads on any picture. */
 .app-paint {
-  --pt-ws: #e9e9ea;
-  --pt-page-shadow: 0 0 0 1px rgba(0, 0, 0, 0.07), 0 2px 10px rgba(0, 0, 0, 0.13);
-  --pt-sw-ring: rgba(0, 0, 0, 0.16);
-  --pt-gallery-bg: rgba(255, 255, 255, 0.55);
-  --pt-ruler-bg: #f5f5f5;
+  --pt-ws: var(--bg-alt);
+  --pt-page-shadow: 0 0 0 1px var(--line-soft), var(--shadow-tooltip);
+  --pt-sw-ring: var(--line);
+  --pt-gallery-bg: var(--bg);
+  --pt-ruler-bg: var(--bg);
   --pt-dash: #3a3a3a;
 }
 :root[data-theme="dark"] .app-paint {
-  --pt-ws: #1b1b1b;
-  --pt-page-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 4px 18px rgba(0, 0, 0, 0.55);
-  --pt-sw-ring: rgba(255, 255, 255, 0.24);
-  --pt-gallery-bg: rgba(255, 255, 255, 0.03);
-  --pt-ruler-bg: #262626;
   --pt-dash: #d6d6d6;
 }
 
@@ -781,7 +777,7 @@
   gap: 8px;
   padding: 20px 28px;
   border-radius: var(--radius);
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   box-shadow: var(--shadow-flyout);
   color: var(--text);
 }
@@ -907,14 +903,10 @@
   padding: 6px;
   border: 1px solid var(--window-stroke);
   border-radius: var(--radius);
-  background: var(--acrylic);
+  background: var(--surface-raised);
   box-shadow: var(--shadow-flyout);
-  backdrop-filter: blur(30px) saturate(150%);
   outline: none;
   animation: pt-fly-in var(--dur-slow) var(--ease);
-}
-:root[data-transparency="off"] .app-paint .pt-flyout {
-  backdrop-filter: none;
 }
 .app-paint .pt-flyout.up {
   animation-name: pt-fly-up;

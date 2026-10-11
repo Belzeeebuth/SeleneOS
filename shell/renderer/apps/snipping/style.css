@@ -332,7 +332,7 @@
   z-index: 5;
   padding: 7px 14px 8px;
   border-radius: var(--radius);
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
   font-size: var(--fs-caption);
@@ -657,17 +657,13 @@
   width: 276px;
   padding: 14px 16px 12px;
   border-radius: var(--radius);
-  background: var(--acrylic);
-  backdrop-filter: blur(30px) saturate(150%);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
   color: var(--text);
   outline: none;
   animation: snip-fl-in var(--dur-slow) var(--ease);
   transform-origin: top center;
-}
-:root[data-transparency="off"] .app-snipping.snip-flyout {
-  backdrop-filter: none;
 }
 .app-snipping.snip-flyout.closing {
   animation: snip-fade-out 120ms linear forwards;
@@ -733,8 +729,7 @@
   gap: 10px;
   padding: 6px 6px 6px 6px;
   border-radius: 999px;
-  background: var(--acrylic);
-  backdrop-filter: blur(30px) saturate(150%);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
   color: var(--text);
@@ -850,7 +845,7 @@
   top: 0;
   padding: 3px 8px 4px;
   border-radius: var(--radius-sm);
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-tooltip);
   color: var(--text);
@@ -874,18 +869,13 @@
   gap: 2px;
   padding: 4px;
   border-radius: var(--radius);
-  background: var(--acrylic);
-  backdrop-filter: blur(30px) saturate(150%);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
   cursor: default;
   transform: translateX(-50%);
   transition: opacity var(--dur) linear, transform var(--dur-slow) var(--ease);
   animation: snip-bar-in var(--dur-slower) var(--ease);
-}
-:root[data-transparency="off"] .app-snipping .snip-bar,
-:root[data-transparency="off"] .app-snipping.snip-countdown {
-  backdrop-filter: none;
 }
 .app-snipping.snip-overlay.dragging .snip-bar {
   opacity: 0;

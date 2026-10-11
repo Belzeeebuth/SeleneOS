@@ -1,28 +1,13 @@
-/* Aurora Mail — Windows 11 Mail / Outlook (new) look. Every rule is scoped under .app-mail. */
+/* Courrier (Mail). Every rule is scoped under .app-mail; colours come from the design tokens. */
 
 .app-mail {
-  --ml-card: rgba(255, 255, 255, 0.72);
-  --ml-card-solid: #fbfbfb;
-  --ml-sel: color-mix(in srgb, var(--accent) 13%, transparent);
-  --ml-sel-hover: color-mix(in srgb, var(--accent) 18%, transparent);
-  --ml-flag: #c42b1c;
-  --ml-pane-stroke: rgba(0, 0, 0, 0.06);
-  --ml-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-:root[data-theme="dark"] .app-mail {
-  --ml-card: rgba(255, 255, 255, 0.045);
-  --ml-card-solid: #272727;
-  --ml-sel: color-mix(in srgb, var(--accent) 24%, transparent);
-  --ml-sel-hover: color-mix(in srgb, var(--accent) 30%, transparent);
-  --ml-flag: #ff99a4;
-  --ml-pane-stroke: rgba(255, 255, 255, 0.06);
-  --ml-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-:root[data-transparency="off"][data-theme="light"] .app-mail {
-  --ml-card: #fbfbfb;
-}
-:root[data-transparency="off"][data-theme="dark"] .app-mail {
-  --ml-card: #282828;
+  --ml-card: var(--surface-raised);
+  --ml-card-solid: var(--surface-raised);
+  --ml-sel: var(--sel-bg);
+  --ml-sel-hover: var(--subtle-pressed);
+  --ml-flag: var(--danger);
+  --ml-pane-stroke: var(--line-soft);
+  --ml-shadow: none;
 }
 .app-mail [hidden] {
   display: none !important;
@@ -216,8 +201,7 @@
   left: 0;
   width: 280px;
   padding: 0 6px 8px 8px;
-  background: var(--acrylic-strong);
-  backdrop-filter: blur(30px) saturate(150%);
+  background: var(--surface-raised);
   border-right: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
   border-radius: 0 var(--radius) var(--radius) 0;
@@ -1308,7 +1292,7 @@
   width: min(380px, calc(100% - 48px));
   padding: 4px;
   border-radius: var(--radius);
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
   animation: ui-menu-in var(--dur-slow) var(--ease);
@@ -1502,7 +1486,7 @@
   min-height: 44px;
   padding: 6px 6px 6px 14px;
   border-radius: var(--radius);
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
   pointer-events: auto;

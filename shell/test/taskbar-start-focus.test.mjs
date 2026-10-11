@@ -506,7 +506,8 @@ async function startPart() {
     await setMany(s, { blur: 100 });
     await sleep(300);
     const g1 = await A(() => getComputedStyle(document.getElementById('start')).backdropFilter);
-    check(/blur\(0px\)/.test(g0) && /blur\((\d+)px\)/.test(g1) && +g1.match(/blur\((\d+)px\)/)[1] >= 80, `glass honours the blur intensity (blur 0 → ${g0}; blur 100 → ${g1})`);
+    // (the Selene glass caps the blur at --blur-lg, 70 px at intensity 100: smooth in a VM without 3D)
+    check(/blur\(0px\)/.test(g0) && /blur\((\d+)px\)/.test(g1) && +g1.match(/blur\((\d+)px\)/)[1] >= 60, `glass honours the blur intensity (blur 0 → ${g0}; blur 100 → ${g1})`);
     await setMany(s, { transparency: false });
     await sleep(300);
     const g2 = await A(() => getComputedStyle(document.getElementById('start')).backdropFilter);
@@ -650,7 +651,7 @@ async function foldersPart() {
     await sleep(300);
     await P.locator('.menu .menu-item', { hasText: 'New folder with' }).hover();
     await sleep(300);
-    await P.locator('.menu .menu-item', { hasText: 'Notepad' }).last().click();
+    await P.locator('.menu .menu-item', { hasText: await A(() => window.__aurora.registry.name('notepad')) }).last().click();
     await sleep(900);
     groups = await get(s, 'start.groups');
     const renaming = await A(() => document.activeElement?.classList.contains('start-folder-name'));

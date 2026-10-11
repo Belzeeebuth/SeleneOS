@@ -711,19 +711,12 @@ button.qs-slider-icon:active,
   background: var(--subtle-hover);
 }
 .qs-out.selected {
-  background: var(--glass-fill);
-  border-color: var(--glass-line);
+  background: var(--sel-bg);
+  border-color: transparent;
+  box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
 }
-.qs-out.selected::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 3px;
-  height: 16px;
-  margin-top: -8px;
-  border-radius: 2px;
-  background: var(--accent);
+.qs-out.selected .icon:last-child {
+  color: var(--accent-text);
 }
 .qs-a11y-row {
   display: flex;

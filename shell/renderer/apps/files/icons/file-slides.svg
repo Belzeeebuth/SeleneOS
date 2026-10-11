@@ -1,8 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f0f0f0"/></linearGradient><linearGradient id="pf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ececec"/><stop offset="1" stop-color="#cfcfcf"/></linearGradient><linearGradient id="sl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8a4c"/><stop offset="1" stop-color="#d4471a"/></linearGradient></defs>
-  <path d="M12.5 4.5h16.2l10.8 10.8v26.2a2.5 2.5 0 0 1-2.5 2.5H12.5a2.5 2.5 0 0 1-2.5-2.5v-34.5a2.5 2.5 0 0 1 2.5-2.5z" fill="url(#pg)" stroke="#000" stroke-opacity=".2"/>
-  <path d="M28.7 4.6v8.4a2.4 2.4 0 0 0 2.4 2.4h8.3" fill="url(#pf)" stroke="#000" stroke-opacity=".16" stroke-linejoin="round"/>
-  <g stroke="#b9c2cd" stroke-width="2" stroke-linecap="round"><path d="M26 22h7M26 27h7M26 32h7"/></g>
-  <rect x="6.5" y="24.5" width="17" height="15" rx="3" fill="url(#sl)"/>
-  <path d="M15 27.5a4.5 4.5 0 1 0 4.5 4.5H15z" fill="#fff"/><path d="M16 26.5v4.5h4.5a4.5 4.5 0 0 0-4.5-4.5z" fill="#fff" opacity=".7"/>
+  <path d="M12.5 4.5h16.2l10.8 10.8v26.2a2.5 2.5 0 0 1-2.5 2.5H12.5a2.5 2.5 0 0 1-2.5-2.5v-34.5a2.5 2.5 0 0 1 2.5-2.5z" fill="#eef1f7" stroke="#0b1020" stroke-opacity=".28"/>
+  <path d="M28.7 4.6v8.4a2.4 2.4 0 0 0 2.4 2.4h8.3" fill="#d3dae7" stroke="#0b1020" stroke-opacity=".22" stroke-linejoin="round"/>
+  <g transform="translate(16.2 20.5) scale(0.06640625)" fill="#b0712a"><path d="M216,40H136V24a8,8,0,0,0-16,0V40H40A16,16,0,0,0,24,56V176a16,16,0,0,0,16,16H79.36L57.75,219a8,8,0,0,0,12.5,10l29.59-37h56.32l29.59,37a8,8,0,1,0,12.5-10l-21.61-27H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,136H40V56H216V176Z"/></g>
 </svg>

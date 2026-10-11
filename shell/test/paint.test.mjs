@@ -215,7 +215,7 @@ await wait(s, 600);
 const home = s.home;
 const pics = path.join(home, 'Pictures');
 
-await test('boots with an untitled 1152×648 white canvas and the Windows 11 command bar', async () => {
+await test('boots with an untitled 1152×648 white canvas and the command bar', async () => {
   const info = await P(s, (p, el) => ({
     size: p.size,
     title: el.querySelector('.pt-doctitle').textContent,
@@ -226,7 +226,7 @@ await test('boots with an untitled 1152×648 white canvas and the Windows 11 com
     dirty: p.dirty(),
   }));
   assert.deepEqual(info.size, { w: 1152, h: 648 });
-  assert.equal(info.title, 'Untitled - Paint');
+  assert.equal(info.title, 'Untitled - Draw');
   assert.deepEqual(info.groups, ['Clipboard', 'Image', 'Tools', 'Brushes', 'Shapes', 'Size', 'Colors']);
   assert.ok(info.shapes >= 23, 'at least 23 shapes');
   assert.equal(info.swatches.length, 20);
@@ -238,7 +238,7 @@ await test('boots with an untitled 1152×648 white canvas and the Windows 11 com
   const st = await P(s, (p, el) => [...el.querySelectorAll('.pt-st-item')].map((x) => Math.round(x.getBoundingClientRect().height)));
   assert.ok(st.every((hgt) => hgt <= 24), `status item heights ${st}`);
   const title = await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'paint').title);
-  assert.equal(title, 'Untitled - Paint');
+  assert.equal(title, 'Untitled - Draw');
 });
 
 await test('pencil draws aliased pixels in color 1; title gets a *', async () => {
@@ -248,7 +248,7 @@ await test('pencil draws aliased pixels in color 1; title gets a *', async () =>
   assert.deepEqual(await px(s, 200, 100), [0, 0, 0, 255]);
   assert.ok(isWhite(await px(s, 200, 103)));
   const t = await P(s, (p, el) => el.querySelector('.pt-doctitle').textContent);
-  assert.equal(t, '*Untitled - Paint');
+  assert.equal(t, '*Untitled - Draw');
   assert.equal((await P(s, (p) => p.history)).undo, 1);
 });
 
@@ -508,7 +508,7 @@ await test('Save as PNG through the File menu, then reopen from args with identi
   assert.deepEqual(pngSize(savedPng), { w: 1152, h: 648 });
   savedHash = await hash(s);
   const t = await P(s, (p, el) => el.querySelector('.pt-doctitle').textContent);
-  assert.equal(t, 'paint-test.png - Paint');
+  assert.equal(t, 'paint-test.png - Draw');
   const status = await P(s, (p, el) => el.querySelector('.pt-st-item.file').textContent);
   assert.match(status, /^Size: \d/);
   // open from args in a second window
@@ -890,9 +890,9 @@ await test('polygon vertices stay editable; text box can be resized before commi
 });
 
 await test('About dialog, recent files menu, zoom slider, middle-button pan, inches in properties', async () => {
-  await menu(s, 'file', 'About Paint');
+  await menu(s, 'file', 'About Draw');
   await s.page.waitForSelector(`${WIN} .pt-about`);
-  assert.match(await s.page.locator(`${WIN} .pt-about`).textContent(), /Paint/);
+  assert.match(await s.page.locator(`${WIN} .pt-about`).textContent(), /Draw/);
   await s.page.click(`${WIN} .dialog-footer .btn.primary`);
   await wait(s, 250);
   await s.page.click(`${WIN} .pt-menu-btn:nth-child(1)`);
@@ -1102,10 +1102,10 @@ await test('error paths show localized explanations (undecodable, empty, folder,
   fs.writeFileSync(path.join(pics, 'empty.png'), '');
   fs.mkdirSync(path.join(pics, 'folder.png'), { recursive: true });
   const cases = [
-    ['garbage.png', "Paint can't open garbage.png.", "The file isn't a picture, or it is damaged."],
-    ['empty.png', "Paint can't open empty.png.", "The file isn't a picture, or it is damaged."],
-    ['folder.png', "Paint can't open folder.png.", 'This is a folder, not a picture.'],
-    ['missing.png', "Paint can't open missing.png.", "The file doesn't exist anymore."],
+    ['garbage.png', "Draw can't open garbage.png.", "The file isn't a picture, or it is damaged."],
+    ['empty.png', "Draw can't open empty.png.", "The file isn't a picture, or it is damaged."],
+    ['folder.png', "Draw can't open folder.png.", 'This is a folder, not a picture.'],
+    ['missing.png', "Draw can't open missing.png.", "The file doesn't exist anymore."],
   ];
   const h0 = await hash(s);
   for (const [name, first, why] of cases) {
@@ -1250,7 +1250,7 @@ await test('shell launch arguments: wrong types ignored, relative paths refused,
     const resolved = await s.aurora(() => Promise.race([window.__aurora.registry.launch('paint', { file: '../../etc/x.png' }).then(() => 'resolved'), new Promise((r) => setTimeout(() => r('blocked'), 4000))]));
     assert.equal(resolved, 'resolved', 'launch() returns while the error message is shown');
     const d = await waitDialog(s);
-    assert.ok(d.some((x) => x.includes("Paint can't open x.png.")), d.join('|'));
+    assert.ok(d.some((x) => x.includes("Draw can't open x.png.")), d.join('|'));
   } finally {
     await dismissDialogs(s);
     await s.aurora((ids) => {
@@ -1433,12 +1433,12 @@ await test('French UI strings and dark theme', async () => {
     ws: getComputedStyle(el.querySelector('.pt-main')).backgroundColor,
     text: getComputedStyle(el).color,
   }));
-  assert.equal(info.title, 'Sans titre - Paint');
+  assert.equal(info.title, 'Sans titre - Dessin');
   assert.deepEqual(info.groups, ['Presse-papiers', 'Image', 'Outils', 'Pinceaux', 'Formes', 'Taille', 'Couleurs']);
   assert.deepEqual(info.menus, ['Fichier', 'Modifier', 'Affichage']);
   assert.equal(info.tip, 'Remplissage (F)');
-  assert.equal(info.ws, 'rgb(27, 27, 27)', 'dark workspace');
-  assert.equal(info.text, 'rgb(255, 255, 255)');
+  assert.equal(info.ws, 'rgb(14, 19, 31)', 'dark workspace (--bg-alt, cold ambiance)');
+  assert.equal(info.text, 'rgb(230, 234, 242)');
 });
 await test('demo drawing + screenshots (dark, fr) and dialogs in French', async () => {
   await P(f, (p, el) => window.__aurora.wm.get(el.dataset.id).maximize());

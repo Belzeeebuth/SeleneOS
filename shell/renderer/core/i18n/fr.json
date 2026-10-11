@@ -117,8 +117,8 @@
     "searchWeb": "Rechercher « {q} » sur le web",
     "allApps": "Toutes les applications",
     "back": "Retour",
-    "pinned": "Épinglé",
-    "recommended": "Recommandations",
+    "pinned": "Épinglées",
+    "recommended": "Récents",
     "searchPlaceholder": "Rechercher une application, un fichier ou un réglage",
     "accountSettings": "Modifier les paramètres du compte"
   },

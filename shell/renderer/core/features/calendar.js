@@ -233,7 +233,7 @@ function animateOut(els, done) {
   if (reduceMotion() || !els.length) return done();
   let left = els.length;
   els.forEach((el, i) => {
-    el.animate([{ transform: 'none', opacity: 1 }, { transform: 'translateX(110%)', opacity: 0 }], { duration: 220, delay: i * 30, easing: 'cubic-bezier(0.7,0,1,0.5)', fill: 'forwards' }).finished.then(() => --left === 0 && done(), () => --left === 0 && done());
+    el.animate([{ transform: 'none', opacity: 1 }, { transform: 'translateX(24px)', opacity: 0 }], { duration: 160, delay: i * 20, easing: 'cubic-bezier(0.4,0,1,1)', fill: 'forwards' }).finished.then(() => --left === 0 && done(), () => --left === 0 && done());
   });
 }
 

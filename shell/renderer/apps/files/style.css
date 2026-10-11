@@ -1,38 +1,21 @@
-/* File Explorer — Windows 11 (22H2/23H2) layout. Every rule is scoped under .app-files. */
+/* Fichiers (Files). Every rule is scoped under .app-files. */
 
+/* Selene: every colour comes from the design tokens (docs/design/SYSTEM.md). */
 .app-files {
-  --fx-bar: rgba(255, 255, 255, 0.66);
-  --fx-content: #ffffff;
-  --fx-field: rgba(255, 255, 255, 0.92);
-  --fx-field-hover: #ffffff;
-  --fx-field-stroke: rgba(0, 0, 0, 0.08);
-  --fx-hover: color-mix(in srgb, var(--accent-base, #0078d4) 8%, transparent);
-  --fx-sel: color-mix(in srgb, var(--accent-base, #0078d4) 18%, transparent);
-  --fx-sel-hover: color-mix(in srgb, var(--accent-base, #0078d4) 24%, transparent);
-  --fx-sel-stroke: color-mix(in srgb, var(--accent-base, #0078d4) 30%, transparent);
-  --fx-cap-bg: #e2e2e2;
-  --fx-folder: #e8a92c;
-  --fx-row-h: 30px;
-  --fx-line-h: 26px;
-  --fx-tree-h: 30px;
-}
-:root[data-theme="dark"] .app-files {
-  --fx-bar: rgba(255, 255, 255, 0.055);
-  --fx-content: #1b1b1b;
-  --fx-field: rgba(255, 255, 255, 0.06);
-  --fx-field-hover: rgba(255, 255, 255, 0.09);
-  --fx-field-stroke: rgba(255, 255, 255, 0.07);
-  --fx-hover: rgba(255, 255, 255, 0.06);
-  --fx-sel: color-mix(in srgb, var(--accent-base, #0078d4) 30%, rgba(255, 255, 255, 0.06));
-  --fx-sel-hover: color-mix(in srgb, var(--accent-base, #0078d4) 36%, rgba(255, 255, 255, 0.08));
-  --fx-sel-stroke: color-mix(in srgb, var(--accent-base, #0078d4) 45%, transparent);
-  --fx-cap-bg: #3b3b3b;
-}
-:root[data-transparency="off"][data-theme="light"] .app-files {
-  --fx-bar: #f9f9f9;
-}
-:root[data-transparency="off"][data-theme="dark"] .app-files {
-  --fx-bar: #2b2b2b;
+  --fx-bar: var(--titlebar-bg);
+  --fx-content: var(--bg);
+  --fx-field: var(--bg-alt);
+  --fx-field-hover: var(--surface-raised);
+  --fx-field-stroke: var(--line-soft);
+  --fx-hover: var(--subtle-hover);
+  --fx-sel: var(--accent-subtle);
+  --fx-sel-hover: color-mix(in srgb, var(--accent-subtle) 100%, var(--subtle-hover));
+  --fx-sel-stroke: color-mix(in srgb, var(--accent) 45%, transparent);
+  --fx-cap-bg: var(--surface-raised);
+  --fx-folder: var(--text-2);
+  --fx-row-h: 32px;
+  --fx-line-h: 28px;
+  --fx-tree-h: 34px;
 }
 .app-files .fx-root.compact,
 .app-files.compact {
@@ -414,7 +397,7 @@
   overflow: auto;
   padding: 4px;
   border-radius: 8px;
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
   animation: fx-pop var(--dur-slow) var(--ease);
@@ -656,9 +639,6 @@
 }
 .app-files .fx-tnode.selected {
   background: var(--subtle-selected);
-}
-:root[data-theme="light"] .app-files .fx-tnode.selected {
-  background: rgba(0, 0, 0, 0.06);
 }
 .app-files .fx-tnode.selected::before {
   content: "";
@@ -1327,7 +1307,7 @@
   max-width: 280px;
   padding: 6px 10px;
   border-radius: 4px;
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   border-left: 3px solid var(--warning);
   box-shadow: var(--shadow-tooltip);
@@ -1352,7 +1332,7 @@
   padding: 3px 8px 4px;
   border-radius: 4px;
   font-size: 12px;
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-tooltip);
   white-space: nowrap;
@@ -1409,7 +1389,7 @@
   min-width: 280px;
   padding: 6px 6px 6px 12px;
   border-radius: 8px;
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
   animation: fx-toast-in var(--dur-slow) var(--ease);
@@ -1497,7 +1477,7 @@
   max-width: 100%;
   max-height: 200px;
   border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-tooltip);
 }
 .app-files .fx-dp-stack {
   position: relative;
@@ -1552,7 +1532,7 @@
   border-radius: 4px;
 }
 .app-files .fx-pv-img {
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-tooltip);
 }
 .app-files .fx-pv-audio {
   margin: auto;
@@ -2183,4 +2163,157 @@
 .app-files .fx-gtile.fx-drop,
 .app-files .fx-gtile.focused {
   border-color: var(--text-2);
+}
+
+/* ---------------------------------------------------------------- Selene look
+   Flat opaque window (no Mica), sunken navigation pane, quiet toolbar, rows that are
+   selected with --sel-bg (plus the --sel-bar edge in Éclipse). See docs/design/SYSTEM.md §4. */
+.app-files .fx-root {
+  font-size: var(--fs-small);
+  font-family: var(--font);
+}
+.app-files .fx-top {
+  background: var(--fx-bar);
+  border-bottom: 1px solid var(--line-soft);
+}
+.app-files .fx-cmdbar {
+  border-top: 1px solid var(--line-soft);
+  height: 44px;
+  gap: 4px;
+}
+.app-files .fx-cmd,
+.app-files .fx-navbtn,
+.app-files .fx-search-btn {
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-small);
+}
+.app-files .fx-cmd:focus-visible,
+.app-files .fx-navbtn:focus-visible,
+.app-files .fx-search-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.app-files .fx-cmd > .icon:first-child {
+  color: var(--text-2);
+}
+.app-files .fx-cmd:disabled > .icon:first-child {
+  color: var(--text-disabled);
+}
+.app-files .fx-cmd.accent-icon:not(:disabled) > .icon:first-child {
+  color: var(--accent-text);
+}
+.app-files .fx-cmd.toggled {
+  background: var(--accent-subtle);
+}
+.app-files .fx-cmd-sep {
+  height: 20px;
+  background: var(--line-soft);
+}
+.app-files .fx-address,
+.app-files .fx-search {
+  border-radius: var(--radius-sm);
+  background: var(--fx-field);
+  border: 1px solid var(--fx-field-stroke);
+}
+.app-files .fx-address:hover,
+.app-files .fx-search:hover {
+  background: var(--fx-field-hover);
+}
+.app-files .fx-address.editing,
+.app-files .fx-search:focus-within {
+  background: var(--input-bg);
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.app-files .fx-address.error {
+  border: 1px solid var(--danger);
+}
+.app-files .fx-search-input,
+.app-files .fx-addr-input {
+  font-size: var(--fs-small);
+}
+.app-files .fx-search-input::placeholder {
+  color: var(--text-3);
+}
+.app-files .fx-main {
+  background: var(--fx-content);
+}
+.app-files .fx-nav {
+  background: var(--bg-alt);
+}
+.app-files .fx-split::after {
+  background: var(--line-soft);
+}
+.app-files .fx-tree {
+  padding: 8px 8px 16px;
+}
+.app-files .fx-tnode {
+  border-radius: var(--radius-sm);
+  gap: 10px;
+  font-size: var(--fs-body);
+  padding-left: calc(6px + var(--lvl, 0) * 16px);
+}
+.app-files .fx-tnode .fx-tic {
+  width: 18px;
+  height: 18px;
+}
+.app-files .fx-tnode.selected {
+  background: var(--sel-bg);
+  box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
+  font-weight: 500;
+}
+.app-files .fx-tnode.selected::before {
+  display: none;
+}
+.app-files .fx-tnode.focused,
+.app-files .fx-tree:focus-visible .fx-tnode.selected:not(.focused):only-child {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.app-files .fx-tsep {
+  background: var(--line-soft);
+  margin: 8px 10px;
+}
+.app-files .fx-tpin {
+  color: var(--text-3);
+}
+.app-files .fx-item {
+  border-radius: var(--radius-sm);
+}
+.app-files .fx-item.selected {
+  background-color: var(--sel-bg);
+}
+.app-files .fx-row.selected {
+  box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
+}
+.app-files .fx-item.selected:hover {
+  background-color: var(--subtle-pressed);
+}
+.app-files .fx-item.focused {
+  border-color: transparent;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.app-files .fx-status {
+  border-top: 1px solid var(--line-soft);
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+/* Title-bar tabs: quiet pills instead of tabs merged into the toolbar. */
+.app-files .fx-tab {
+  background-image: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-small);
+}
+.app-files .fx-tab.active {
+  height: 32px;
+  margin-bottom: 4px;
+  border-radius: var(--radius-sm);
+  background-color: var(--subtle-selected);
+  box-shadow: none;
+  font-weight: 500;
+}
+.app-files .fx-tab.active::before,
+.app-files .fx-tab.active::after {
+  display: none;
 }

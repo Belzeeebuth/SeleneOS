@@ -372,7 +372,7 @@ async function lightEnglish() {
   try {
     await s.page.waitForSelector(S('.st-page[data-page="system"]'), { timeout: 20000 });
     await sleep(700);
-    check((await s.page.locator(S('.st-nav-item')).count()) === 10, 'nav has the 10 Windows 11 categories');
+    check((await s.page.locator(S('.st-nav-item')).count()) === 10, 'nav has the 10 categories');
     check((await s.page.locator(S('.st-title')).innerText()).trim() === 'System', 'opens on System');
     check(await s.page.locator('.app-settings .st-tb-back').isDisabled(), 'back button disabled on the first page');
     await docShot(s, 'system-light-en');
@@ -803,7 +803,7 @@ async function qaRegressions() {
     const homeFocus = await s.aurora(() => document.activeElement?.dataset?.cat);
     check(endFocus === 'update' && homeFocus === 'system', 'nav: End / Home move to the last / first category');
     const fill = await s.aurora(() => getComputedStyle(document.querySelector('.app-settings .st-nav-item.selected')).backgroundColor);
-    check(fill && fill !== 'rgba(0, 0, 0, 0)' && fill !== 'transparent', `selected category has the subtle fill like Windows 11 (${fill})`);
+    check(fill && fill !== 'rgba(0, 0, 0, 0)' && fill !== 'transparent', `selected category has the selection fill (${fill})`);
 
     // ---- focus stays in the window after a row replaced the page: Alt+Left goes back
     await s.page.locator(S('.st-row'), { hasText: 'Display' }).first().click();

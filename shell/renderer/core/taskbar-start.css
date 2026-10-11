@@ -664,8 +664,8 @@
 }
 .start-folder-grid {
   padding: 0;
-  grid-auto-rows: 84px;
-  max-height: calc(3 * 84px);
+  grid-auto-rows: 92px;
+  max-height: calc(3 * 92px);
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -796,8 +796,8 @@
   gap: 2px 4px;
 }
 #start .start-tile {
-  gap: 8px;
-  padding: 8px 2px 0;
+  gap: 6px;
+  padding: 6px 2px 0;
   border: 0;
   border-radius: var(--radius-lg);
   font-size: var(--fs-small);

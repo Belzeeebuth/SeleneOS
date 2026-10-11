@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs><linearGradient id="rf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3d9bff"/><stop offset="1" stop-color="#1663d0"/></linearGradient><linearGradient id="wl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e3e9f1"/></linearGradient></defs>
-  <path d="M10 22.5L24 11l14 11.5V39a2.5 2.5 0 0 1-2.5 2.5h-23A2.5 2.5 0 0 1 10 39z" fill="url(#wl)" stroke="#000" stroke-opacity=".16"/>
-  <path d="M5.6 23.4L22.4 9.6a2.5 2.5 0 0 1 3.2 0l16.8 13.8a1.7 1.7 0 0 1-2.2 2.6L24 12.7 7.8 26a1.7 1.7 0 0 1-2.2-2.6z" fill="url(#rf)"/>
-  <rect x="20" y="28.5" width="8" height="13" rx="1.5" fill="url(#rf)"/>
+  <rect x="5" y="9" width="38" height="30" rx="7" fill="#26324d"/>
+  <rect x="5.5" y="9.5" width="37" height="29" rx="6.5" fill="none" stroke="#c9d3e6" stroke-opacity=".22"/>
+  <g transform="translate(14 14) scale(0.078125)" fill="#c9d3e6"><path d="M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8H216a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H48V120l80-80,80,80Z"/></g>
 </svg>

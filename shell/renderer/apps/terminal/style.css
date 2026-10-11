@@ -481,10 +481,9 @@ html[data-animations="off"] .app-terminal .tm-tab-progress.s3 {
   max-width: min(520px, 90%);
   padding: 6px 10px 7px;
   border-radius: var(--radius-sm);
-  background: var(--acrylic);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-tooltip);
-  backdrop-filter: blur(30px);
   font-size: var(--fs-caption);
   line-height: 16px;
   pointer-events: none;
@@ -513,10 +512,9 @@ html[data-animations="off"] .app-terminal .tm-tab-progress.s3 {
   transform: translateX(-50%);
   padding: 6px 14px;
   border-radius: 16px;
-  background: var(--acrylic);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
-  backdrop-filter: blur(30px);
   font-size: var(--fs-caption);
   pointer-events: none;
   animation: tm-toast-in var(--dur-slow) var(--ease);
@@ -544,10 +542,9 @@ html[data-animations="off"] .app-terminal .tm-tab-progress.s3 {
   padding: 4px;
   max-width: calc(100% - 28px);
   border-radius: var(--radius);
-  background: var(--acrylic);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
-  backdrop-filter: blur(30px) saturate(150%);
   color: var(--text);
   animation: tm-find-in var(--dur-slow) var(--ease);
 }

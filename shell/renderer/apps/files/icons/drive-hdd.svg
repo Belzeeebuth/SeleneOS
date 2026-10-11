@@ -1,7 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs><linearGradient id="st" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3f5f8"/><stop offset="1" stop-color="#d3d8df"/></linearGradient><linearGradient id="sf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9c0ca"/><stop offset="1" stop-color="#8f98a6"/></linearGradient></defs>
-  <rect x="4.5" y="21" width="39" height="17" rx="3.5" fill="url(#sf)"/>
-  <rect x="4.5" y="21" width="39" height="11.5" rx="3.5" fill="url(#st)"/>
-  <rect x="34" y="34.2" width="5.5" height="1.8" rx=".9" fill="#2bd46a"/>
-  <path d="M8 21.6h32" stroke="#fff" stroke-linecap="round" opacity=".9"/>
+  <rect x="5" y="9" width="38" height="30" rx="7" fill="#26324d"/>
+  <rect x="5.5" y="9.5" width="37" height="29" rx="6.5" fill="none" stroke="#c9d3e6" stroke-opacity=".22"/>
+  <g transform="translate(14 14) scale(0.078125)" fill="#c9d3e6"><path d="M224,64H32A16,16,0,0,0,16,80v96a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V80A16,16,0,0,0,224,64Zm0,112H32V80H224v96Zm-24-48a12,12,0,1,1-12-12A12,12,0,0,1,200,128Z"/></g>
 </svg>

@@ -1,7 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6cc0ff"/><stop offset="1" stop-color="#2a84e0"/></linearGradient><linearGradient id="hill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#43c27a"/><stop offset="1" stop-color="#1f9a55"/></linearGradient></defs>
-  <rect x="9" y="6" width="32" height="26" rx="4" fill="#cfe6ff" transform="rotate(-8 25 19)"/>
-  <rect x="6" y="13" width="34" height="27" rx="4" fill="url(#sky)" stroke="#fff" stroke-width="1.5"/>
-  <path d="M6.8 34.5l9.2-9.2a2 2 0 0 1 2.8 0l6.4 6.4 3.6-3.6a2 2 0 0 1 2.8 0l7.6 7.6V36a3.2 3.2 0 0 1-3.2 3.2H10a3.2 3.2 0 0 1-3.2-3.2z" fill="url(#hill)"/>
-  <circle cx="31" cy="21" r="3.2" fill="#ffe36b"/>
+  <rect x="5" y="9" width="38" height="30" rx="7" fill="#26324d"/>
+  <rect x="5.5" y="9.5" width="37" height="29" rx="6.5" fill="none" stroke="#c9d3e6" stroke-opacity=".22"/>
+  <g transform="translate(14 14) scale(0.078125)" fill="#c9d3e6"><path d="M216,40H72A16,16,0,0,0,56,56V72H40A16,16,0,0,0,24,88V200a16,16,0,0,0,16,16H184a16,16,0,0,0,16-16V184h16a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM72,56H216v62.75l-10.07-10.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L72,109.37ZM184,200H40V88H56v80a16,16,0,0,0,16,16H184Zm32-32H72V132l36-36,49.66,49.66a8,8,0,0,0,11.31,0L194.63,120,216,141.38V168ZM160,84a12,12,0,1,1,12,12A12,12,0,0,1,160,84Z"/></g>
 </svg>

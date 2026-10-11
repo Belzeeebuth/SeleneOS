@@ -1,75 +1,107 @@
-/* Aurora Browser — Windows 11 / Microsoft Edge look. Every rule is scoped under .app-browser
+/* Navigateur (Browser). Every rule is scoped under .app-browser
    (the window, and the menus / flyouts the app creates carry that class too). */
 
 /* ------------------------------------------------------------------ tokens */
 .app-browser {
-  --bw-toolbar: var(--layer-alt);
-  --bw-omni: color-mix(in srgb, var(--text) 6%, transparent);
-  --bw-omni-hover: color-mix(in srgb, var(--text) 9%, transparent);
-  --bw-omni-focus: var(--input-focus-bg);
+  --bw-toolbar: var(--titlebar-bg);
+  --bw-omni: var(--bg-alt);
+  --bw-omni-hover: var(--surface-raised);
+  --bw-omni-focus: var(--input-bg);
   --bw-page: var(--bg);
-  --bw-flyout: var(--acrylic-solid);
-  --bw-private-accent: #3b6df0;
+  --bw-flyout: var(--surface-raised);
+  --bw-private-accent: var(--accent);
 }
-:root[data-theme="dark"] .app-browser {
-  --bw-flyout: #2c2c2c;
-}
-/* Private windows: always dark, with their own palette and a "Private" badge. */
+/* Private windows: always dark, in the cold ambiance with the violet accent, plus a "Private" badge.
+   The colour set is copied from the [data-theme-scope][data-theme="dark"] block of core/tokens.css. */
 .app-browser.bw-private {
   color-scheme: dark;
-  color: #fff;
-  --text: #ffffff;
-  --text-2: rgba(255, 255, 255, 0.786);
-  --text-3: rgba(255, 255, 255, 0.544);
-  --text-disabled: rgba(255, 255, 255, 0.363);
-  --bg: #1d1d22;
-  --bg-alt: #19191d;
-  --solid: #232329;
-  --mica-image: none;
-  --mica-tint: #17171b;
-  --mica-tint-alt: #17171b;
-  --layer: rgba(58, 58, 64, 0.3);
-  --layer-alt: rgba(255, 255, 255, 0.07);
-  --card: rgba(255, 255, 255, 0.05);
-  --card-hover: rgba(255, 255, 255, 0.08);
-  --card-solid: #2b2b31;
-  --control: rgba(255, 255, 255, 0.06);
-  --control-hover: rgba(255, 255, 255, 0.084);
-  --control-pressed: rgba(255, 255, 255, 0.033);
-  --control-disabled: rgba(255, 255, 255, 0.042);
-  --control-strong: rgba(255, 255, 255, 0.544);
-  --control-stroke: rgba(255, 255, 255, 0.07);
-  --control-stroke-bottom: rgba(255, 255, 255, 0.047);
-  --stroke: rgba(255, 255, 255, 0.084);
-  --stroke-strong: rgba(255, 255, 255, 0.12);
-  --stroke-card: rgba(0, 0, 0, 0.1);
-  --subtle-hover: rgba(255, 255, 255, 0.06);
-  --subtle-pressed: rgba(255, 255, 255, 0.042);
-  --subtle-selected: rgba(255, 255, 255, 0.06);
-  --input-bg: rgba(255, 255, 255, 0.06);
-  --input-focus-bg: #1b1b20;
-  --acrylic: rgba(44, 44, 50, 0.97);
-  --acrylic-solid: #2c2c32;
-  --window-stroke: rgba(255, 255, 255, 0.08);
-  --scrollbar: rgba(255, 255, 255, 0.5);
-  --shadow-flyout: 0 8px 16px rgba(0, 0, 0, 0.4);
-  --accent: #8ab4ff;
-  --accent-hover: #7ea9f5;
-  --accent-pressed: #729deb;
-  --accent-text: #a9c8ff;
-  --accent-subtle: rgba(138, 180, 255, 0.16);
-  --on-accent: #000000;
-  --danger: #ff99a4;
-  --danger-bg: #442726;
-  --success: #6ccb5f;
-  --success-bg: #393d1b;
-  --warning: #fce100;
-  --warning-bg: #433519;
-  --bw-flyout: #2c2c32;
-  --bw-toolbar: #2a2a30;
+  --desk: var(--amb-d-desk);
+  --surface: var(--amb-d-bg);
+  --surface-sunken: var(--amb-d-sunken);
+  --surface-raised: var(--amb-d-raised);
+  --titlebar-bg: var(--amb-d-title);
+  --line: var(--amb-d-line);
+  --line-soft: var(--amb-d-line-soft);
+  --tint: var(--amb-d-tint);
+  --glass-rgb: var(--amb-d-glass);
+  --bar-rgb: var(--amb-d-bar);
+  --shadow-rgb: var(--amb-d-shadow);
+
+  --text: var(--amb-d-text);
+  --text-2: var(--amb-d-text-2);
+  --text-3: var(--amb-d-text-3);
+  --text-disabled: color-mix(in srgb, var(--amb-d-text) 42%, var(--amb-d-bg));
+
+  --bg: var(--amb-d-bg);
+  --bg-alt: var(--amb-d-sunken);
+  --mica-tint: var(--amb-d-bg);
+  --mica-tint-alt: var(--amb-d-sunken);
+  --solid: var(--amb-d-bg);
+  --layer: rgb(var(--amb-d-tint) / 0.025);
+  --layer-alt: rgb(var(--amb-d-tint) / 0.045);
+  --card: rgb(var(--amb-d-tint) / 0.045);
+  --card-hover: rgb(var(--amb-d-tint) / 0.075);
+  --card-solid: var(--amb-d-raised);
+  --control: var(--amb-d-raised);
+  --control-hover: color-mix(in srgb, var(--amb-d-raised) 93%, var(--amb-d-text));
+  --control-pressed: color-mix(in srgb, var(--amb-d-raised) 96%, var(--amb-d-text));
+  --control-disabled: rgb(var(--amb-d-tint) / 0.04);
+  --control-strong: var(--amb-d-text-3);
+  --control-stroke: var(--amb-d-line);
+  --control-stroke-bottom: var(--amb-d-line);
+  --stroke: var(--amb-d-line-soft);
+  --stroke-strong: var(--amb-d-line);
+  --stroke-card: var(--amb-d-line-soft);
+  --subtle-hover: rgb(var(--amb-d-tint) / 0.07);
+  --subtle-pressed: rgb(var(--amb-d-tint) / 0.11);
+  --subtle-selected: rgb(var(--amb-d-tint) / 0.09);
+  --input-bg: var(--amb-d-raised);
+  --input-focus-bg: var(--amb-d-sunken);
+  --acrylic: rgb(var(--amb-d-glass) / var(--a-acrylic));
+  --acrylic-solid: rgb(var(--amb-d-glass));
+  --acrylic-strong: rgb(var(--amb-d-glass) / var(--a-acrylic-strong));
+  --glass: rgb(var(--amb-d-glass) / var(--a-acrylic));
+  --glass-strong: rgb(var(--amb-d-glass) / var(--a-acrylic-strong));
+  --glass-line: rgb(var(--amb-d-tint) / 0.13);
+  --glass-fill: rgb(var(--amb-d-tint) / 0.07);
+  --taskbar-bg: rgb(var(--taskbar-rgb, var(--amb-d-bar)) / var(--a-tb));
+  --scrim: rgb(var(--amb-d-shadow) / 0.5);
+  --shadow-flyout: 0 16px 48px rgb(var(--amb-d-shadow) / 0.5), 0 2px 6px rgb(var(--amb-d-shadow) / 0.3);
+  --shadow-float: var(--shadow-flyout);
+  --shadow-dialog: 0 28px 64px rgb(var(--amb-d-shadow) / 0.55), 0 2px 8px rgb(var(--amb-d-shadow) / 0.35);
+  --shadow-window: 0 var(--win-shadow-y) var(--win-shadow-blur) rgb(var(--amb-d-shadow) / calc(0.55 * var(--win-shadow-k))), 0 2px 8px rgb(var(--amb-d-shadow) / 0.35);
+  --shadow-window-inactive: 0 16px 40px rgb(var(--amb-d-shadow) / 0.45), 0 1px 4px rgb(var(--amb-d-shadow) / 0.3);
+  --shadow-tooltip: 0 4px 12px rgb(var(--amb-d-shadow) / 0.4);
+  --window-stroke: var(--amb-d-line);
+  --scrollbar: var(--amb-d-text-3);
+  --focus-ring: var(--amb-d-text);
+
+  --danger: #ff9b8f;
+  --danger-bg: #3d1f1c;
+  --on-danger: #1a0705; /* dark text on the light dark-mode red */
+  --success: #7fd3a0;
+  --success-bg: #17301f;
+  --warning: #f2c46b;
+  --warning-bg: #352813;
+  --info-bg: rgb(var(--amb-d-tint) / 0.035);
+  --accent: #b9a4f2;
+  --accent-hover: #c8b8f5;
+  --accent-pressed: #a990ee;
+  --accent-text: #c3b1f4;
+  --accent-subtle: rgba(185, 164, 242, 0.16);
+  --on-accent: #160f2b;
+  --focus-ring: #e6eaf2;
+  --bw-toolbar: var(--titlebar-bg);
+  --bw-omni: var(--bg-alt);
+  --bw-omni-hover: var(--surface-raised);
+  --bw-omni-focus: var(--surface-raised);
+  --bw-page: var(--bg);
+  --bw-flyout: var(--surface-raised);
+  --bw-private-accent: var(--accent);
+  color: var(--text);
 }
 .app-browser.bw-private.win {
-  background: #17171b;
+  background: var(--bg);
 }
 
 /* ------------------------------------------------------------------ title bar & tab strip */
@@ -97,7 +129,7 @@
   padding: 0 10px 0 8px;
   border-radius: 6px;
   background: var(--bw-private-accent);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 12px;
   font-weight: 600;
   flex: none;
@@ -924,9 +956,10 @@
   transform: translateX(-50%);
   padding: 8px 16px;
   border-radius: var(--radius);
-  background: rgba(30, 30, 30, 0.92);
-  color: #fff;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-flyout);
   pointer-events: none;
   animation: bw-hint-in var(--dur-slow) var(--ease);
   transition: opacity 0.3s linear;
@@ -1658,11 +1691,11 @@
 /* new tab page */
 .app-browser .bp-ntp {
   background: radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
-    radial-gradient(900px 500px at 110% 110%, color-mix(in srgb, #7be3c6 16%, transparent), transparent 60%), var(--bw-page);
+    radial-gradient(900px 500px at 110% 110%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%), var(--bw-page);
   overflow: auto;
 }
 .app-browser .bp-ntp.with-bg {
-  background: var(--wallpaper, none) center / cover no-repeat, linear-gradient(135deg, #2b5cae, #6aa7e8);
+  background: var(--wallpaper, none) center / cover no-repeat, var(--desk);
   color: #fff;
 }
 .app-browser .bp-ntp.with-bg::before {
@@ -1749,12 +1782,6 @@
   color: var(--text);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--stroke);
   transition: box-shadow var(--dur) var(--ease);
-}
-:root[data-theme="dark"] .app-browser .bp-ntp-search {
-  background: #2b2b2b;
-}
-.app-browser.bw-private .bp-ntp-search {
-  background: #2c2c32;
 }
 .app-browser .bp-ntp-search:focus-within {
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18), 0 0 0 2px var(--accent);

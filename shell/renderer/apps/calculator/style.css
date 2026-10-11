@@ -615,16 +615,11 @@
   padding: 4px;
   border-radius: var(--radius);
   border: 1px solid var(--window-stroke);
-  background: var(--acrylic);
-  backdrop-filter: blur(30px) saturate(150%);
+  background: var(--surface-raised);
   box-shadow: var(--shadow-flyout);
   outline: none;
   animation: calc-fly-in var(--dur-slow) var(--ease);
   transform-origin: top center;
-}
-:root[data-transparency="off"] .app-calculator .calc-flyout {
-  backdrop-filter: none;
-  background: var(--acrylic-solid);
 }
 .app-calculator .calc-flyout.up {
   transform-origin: bottom center;
@@ -722,18 +717,13 @@
   display: flex;
   flex-direction: column;
   padding: 2px 4px 4px;
-  background: var(--acrylic);
-  backdrop-filter: blur(40px) saturate(150%);
+  background: var(--surface-raised);
   border-right: 1px solid var(--window-stroke);
   border-radius: 0 var(--radius) var(--radius) 0;
   box-shadow: var(--shadow-flyout);
   transform: translateX(calc(-100% - 24px));
   visibility: hidden;
   transition: transform var(--dur-slower) var(--ease), visibility 0s linear var(--dur-slower);
-}
-:root[data-transparency="off"] .app-calculator .calc-nav {
-  backdrop-filter: none;
-  background: var(--acrylic-solid);
 }
 .app-calculator .calc.nav-open .calc-navlayer {
   pointer-events: auto;
@@ -1013,15 +1003,10 @@
   padding: 4px 4px 0;
   border-radius: var(--radius) var(--radius) 0 0;
   border-top: 1px solid var(--window-stroke);
-  background: var(--acrylic-strong);
-  backdrop-filter: blur(40px) saturate(150%);
+  background: var(--surface-raised);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.14);
   outline: none;
   animation: calc-panefly-in var(--dur-slower) var(--ease);
-}
-:root[data-transparency="off"] .app-calculator .calc-panefly-panel {
-  backdrop-filter: none;
-  background: var(--acrylic-solid);
 }
 .app-calculator .calc-panefly.closing .calc-panefly-panel {
   animation: calc-panefly-out 160ms var(--ease-in) forwards;
