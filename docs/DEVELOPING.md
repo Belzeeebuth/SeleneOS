@@ -30,6 +30,7 @@ cd aurora-os/shell
 npm install
 npx electron . --dev --no-sandbox                 # windowed desktop (needs an X display)
 xvfb-run -a -s "-screen 0 1600x900x24" node test/smoke.mjs --lang=fr --theme=dark
+node test/run-all.mjs -j 2 --retry          # every suite (= make test-all), summary + logs in test/out/logs/
 ```
 
 `--open=calculator,files` launches apps at startup; `--mode=greeter` shows the login screen.

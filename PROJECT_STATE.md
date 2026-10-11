@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-11 09:20 UTC — app phase 1 and UI/UX personalization done; final checks below._
+_Last updated: 2026-10-11 10:00 UTC — app phase 1 and UI/UX personalization done; full test sweep green (34 suites), ISO rebuilt and checked._
 
 ## What this is
 
@@ -28,7 +28,7 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 |---|---|
 | 1. Questions | done |
 | 2. Architecture | done (docs/DEVELOPING.md) |
-| 3. Core ISO + desktop | done — ISO ≈ 818 MB, `make verify-iso` 114/114; QEMU boot left to the user |
+| 3. Core ISO + desktop | done — ISO ≈ 807 MB, `make verify-iso` 114/114, `make smoke-image` passes; QEMU boot left to the user |
 | 4. Required apps | done — browser, files, mail, paint, calculator, notepad, terminal, media, snipping, taskmgr, settings, 5 games |
 | 5. Installer + QEMU instructions | done — installer app + aurora-install helper; docs/BUILDING.md (EN + FR) |
 | UI/UX personalization (user request #2) | **done** — see docs/PERSONALIZATION.md |
@@ -39,13 +39,15 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 
 | Area | Checks in the last full run |
 |---|---|
-| Shell UX, window management, login/lock, Settings | shell-ux 375, wm-nav 241, login-lock 302, system-settings 157 |
+| Shell UX, window management, login/lock, Settings | shell-ux 375, wm-nav 241, login-lock 302, system-settings 158 |
 | Browser, Files, Mail | browser 67 tests, files 274, mail 44 |
-| Paint, Calculator, Notepad, Terminal, Media, Snipping, Task Manager, Installer | paint 51 tests, calculator 672, notepad 289, terminal 245, media 48, snipping 40, taskmgr 173, installer 161 |
+| Paint, Calculator, Notepad, Terminal, Media, Snipping, Task Manager, Installer | paint 51 tests, calculator 672, notepad 289, terminal 246, media 48, snipping 40, taskmgr 173, installer 161 |
 | Games | games-classic 85, solitaire 72, chess 68 |
 | Phase 1 apps | photos 46, pdf 244, archive 468, notes 262 + 156 unit, calendar 378 + 131 unit, clock 448, todo 361 |
 | Personalization | personalization-core 144, personalization-shell 90, taskbar-start-focus 269, packs-input 148, wallpapers 300 |
 | Core | smoke, core-dialogs 6 |
+
+Last full sweep (2026-10-11): 34/34 suites green; wallpapers and wm-nav needed one retry on the loaded 4-CPU build machine (timing only).
 
 ## File structure
 
