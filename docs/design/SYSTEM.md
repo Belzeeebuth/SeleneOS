@@ -85,11 +85,11 @@ Components never read them directly.
 
 | Ambiance | Dark: surface / sunken / raised / text / text-2 / text-3 | Light: surface / sunken / text / text-2 / text-3 |
 |---|---|---|
-| cold (Nocturne) | #121826 / #0E131F / #1A2133 / #E6EAF2 / #A9B2C5 / #8D97AC | #FBFCFE / #F1F4F9 / #141A26 / #475165 / #5A6478 |
-| neutral (Éclipse) | #18181B / #131315 / #222226 / #EDEDEF / #A9A9B2 / #93939C | #FFFFFF / #F4F4F5 / #141416 / #55555E / #63636C |
-| warm (Clair de lune) | #1F1A16 / #1B1613 / #2A231E / #F3EADF / #C4B7A7 / #A89A8A | #FFFCF8 / #F1E9DD / #2A211B / #5A4D42 / #6B5D51 |
+| cold (Nocturne) | #121826 / #0E131F / #1A2133 / #E6EAF2 / #A9B2C5 / #959FB4 | #FBFCFE / #F1F4F9 / #141A26 / #475165 / #5A6478 |
+| neutral (Éclipse) | #18181B / #131315 / #222226 / #EDEDEF / #A9A9B2 / #A0A0A9 | #FFFFFF / #F4F4F5 / #141416 / #55555E / #63636C |
+| warm (Clair de lune) | #1F1A16 / #1B1613 / #2A231E / #F3EADF / #C4B7A7 / #B0A292 | #FFFCF8 / #F1E9DD / #2A211B / #5A4D42 / #6B5D51 |
 
-The lowest ratio is tertiary text, which is 5.8:1 or more in every combination.
+The lowest ratio is tertiary text, which is 5.8:1 or more on the plain surfaces and 4.7:1 or more on a selected row (`--sel-bg` over `--surface-raised`). On the glass at its default alpha (0.92), `--text-3` and `--accent-text` stay ≥ 4.5:1 even over a black or white wallpaper; at the 0.80 floor (maximum transparency, chosen by the user) only `--text` is guaranteed over such extremes.
 
 ### 2.3 Accent
 
@@ -125,7 +125,7 @@ The accent marks things: selection, focus, the active app, a primary action. It 
 | `--dur-fast` 120 ms, `--dur` 150 ms, `--dur-slow` 180 ms, `--dur-slower` 240 ms | Durations. They become 0 with reduced motion. |
 | `--ease` (ease-out), `--ease-in`, `--ease-std` | Easing. `--ease-spring` has no overshoot any more. |
 | `--blur`, `--blur-sm/-md/-lg` | Backdrop blur, 28 px by default, for the allowed surfaces only (§5) |
-| `--a-acrylic`, `--a-fly`, `--a-tb` | Alpha of the glass. It is clamped to 0.80–1. |
+| `--a-acrylic`, `--a-fly`, `--a-tb` | Alpha of the glass: 0.92 at the default transparency, never below 0.80 (the taskbar opacity setting is clamped too), 1 with transparency off. |
 
 ## 3. Structural hooks (one set per style)
 

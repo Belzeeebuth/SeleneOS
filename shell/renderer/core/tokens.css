@@ -169,7 +169,7 @@
   --amb-d-line-soft: #1f2739;
   --amb-d-text: #e6eaf2;
   --amb-d-text-2: #a9b2c5;
-  --amb-d-text-3: #8d97ac;
+  --amb-d-text-3: #959fb4;
   --amb-d-tint: 205 216 238; /* hover / press overlays */
   --amb-d-glass: 15 20 33; /* bar, Lanceur, panels (rgb triplet, alpha from --a-*) */
   --amb-d-bar: 15 20 33;
@@ -200,7 +200,7 @@
   --amb-d-line-soft: #222227;
   --amb-d-text: #ededef;
   --amb-d-text-2: #a9a9b2;
-  --amb-d-text-3: #93939c;
+  --amb-d-text-3: #a0a0a9;
   --amb-d-tint: 228 228 235;
   --amb-d-glass: 20 20 23;
   --amb-d-bar: 15 15 17;
@@ -231,7 +231,7 @@
   --amb-d-line-soft: #2c251f;
   --amb-d-text: #f3eadf;
   --amb-d-text-2: #c4b7a7;
-  --amb-d-text-3: #a89a8a;
+  --amb-d-text-3: #b0a292;
   --amb-d-tint: 243 226 205;
   --amb-d-glass: 30 24 20;
   --amb-d-bar: 26 21 18;
@@ -266,12 +266,14 @@
   --blur-md: calc(var(--blur) * 0.75);
   --blur-lg: calc(var(--blur) * 1.25);
   /* alpha of the surfaces. Windows and content are always opaque (--a-mica = 1). The blurred surfaces
-     (bar, Lanceur, panels) stay 80–92 % opaque: blur silently fails in software rendering. */
+     (bar, Lanceur, panels) stay 80–92 % opaque: blur silently fails in software rendering. 0.92 at the default
+     transparency (text-3 and accent text stay ≥ 4.5:1 over any wallpaper), 0.80 at most; the taskbar opacity
+     setting is clamped the same way. */
   --a-mica: 1;
-  --a-acrylic: clamp(0.8, calc(1 - 0.12 * var(--tp) * var(--tp-k)), 1);
-  --a-acrylic-strong: clamp(0.86, calc(1 - 0.08 * var(--tp) * var(--tp-k)), 1);
-  --a-fly: clamp(0.8, calc(1 - 0.14 * var(--tp) * var(--tp-k)), 1);
-  --a-tb: var(--a-taskbar, clamp(0.8, calc(1 - 0.14 * var(--tp) * var(--tp-k)), 1));
+  --a-acrylic: clamp(0.8, calc(1 - 0.08 * var(--tp) * var(--tp-k)), 1);
+  --a-acrylic-strong: clamp(0.86, calc(1 - 0.05 * var(--tp) * var(--tp-k)), 1);
+  --a-fly: clamp(0.8, calc(1 - 0.08 * var(--tp) * var(--tp-k)), 1);
+  --a-tb: clamp(0.8, var(--a-taskbar, calc(1 - 0.08 * var(--tp) * var(--tp-k))), 1);
   --glass-a: var(--a-acrylic);
   --glass-blur: var(--blur);
 }

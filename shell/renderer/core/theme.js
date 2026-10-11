@@ -64,7 +64,7 @@ export const ACCENT_PRESETS = [
     name: { en: 'Amber', fr: 'Ambre' },
     hex: '#e9b566',
     dark: { accent: '#f2a63a', hover: '#f2b45e', pressed: '#e0952a', text: '#f2b45e', on: '#1a1206' },
-    light: { accent: '#a65a06', hover: '#995204', pressed: '#874803', text: '#995204', on: '#ffffff' },
+    light: { accent: '#a65a06', hover: '#995204', pressed: '#874803', text: '#8f4c03', on: '#ffffff' },
   },
 ];
 export const DEFAULT_ACCENT = ACCENT_PRESETS[0].hex;
