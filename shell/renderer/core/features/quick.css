@@ -208,7 +208,7 @@
   opacity: 0.86;
 }
 .qs-tile.on .qs-tile-more {
-  border-left-color: color-mix(in srgb, var(--on-accent) 22%, transparent);
+  border-left-color: color-mix(in srgb, var(--on-accent) 16%, var(--accent));
 }
 .qs-tile.on .qs-tile-main:hover,
 .qs-tile.on .qs-tile-more:hover {

@@ -314,8 +314,17 @@ try {
     check('FR format tooltip', await s.page.getAttribute(`${NOTE} .sk-fmt[data-cmd="bold"]`, 'aria-label'), 'Gras');
     const bg = await s.page.$eval(`${NOTE} .sk-note`, (e) => getComputedStyle(e).backgroundColor);
     check('dark green note background', bg, 'rgb(33, 61, 39)');
-    const ink = await s.page.$eval(`${NOTE} .sk-editor`, (e) => getComputedStyle(e).color);
-    check('dark ink is light', ink, 'rgb(243, 243, 245)');
+    // the ink is the theme's text colour (--text), light in dark mode
+    const [ink, themeText] = await s.page.$eval(`${NOTE} .sk-editor`, (e) => {
+      const p = document.createElement('span');
+      p.style.color = 'var(--text)';
+      e.parentElement.appendChild(p);
+      const t = getComputedStyle(p).color;
+      p.remove();
+      return [getComputedStyle(e).color, t];
+    });
+    check('dark ink is the theme text colour', ink, themeText);
+    check('dark ink is light', ink, (v) => v.match(/\d+/g).slice(0, 3).map(Number).reduce((a, b) => a + b, 0) / 3 > 200);
     const file = await s.shot('sticky-dark-fr');
     fs.copyFileSync(file, path.join(DOCS, 'sticky-dark-fr.png'));
   });

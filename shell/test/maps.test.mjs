@@ -346,7 +346,18 @@ try {
     check('FR attribution', await text(s, `${WIN} .mp-attrib`), '© les contributeurs d’OpenStreetMap');
     check('FR placeholder', await s.page.getAttribute(`${WIN} .mp-input`, 'placeholder'), 'Rechercher un lieu ou une adresse');
     check('dark theme applied', await s.page.evaluate(`document.documentElement.dataset.theme`), 'dark');
-    check('dark map background', await s.page.evaluate(`getComputedStyle(document.querySelector('.win.app-maps .mp-map')).backgroundColor`), 'rgb(43, 45, 49)');
+    // the empty map shows the theme's sunken surface (--bg-alt), dark in dark mode
+    const [mapBg, sunken] = await s.page.evaluate(() => {
+      const m = document.querySelector('.win.app-maps .mp-map');
+      const p = document.createElement('div');
+      p.style.background = 'var(--bg-alt)';
+      m.parentElement.appendChild(p);
+      const t = getComputedStyle(p).backgroundColor;
+      p.remove();
+      return [getComputedStyle(m).backgroundColor, t];
+    });
+    check('dark map background is the sunken surface', mapBg, sunken);
+    check('dark map background is dark', mapBg, (v) => v.match(/\d+/g).slice(0, 3).map(Number).reduce((a, b) => a + b, 0) / 3 < 60);
     await s.page.fill(`${WIN} .mp-input`, 'tour eiffel');
     await s.page.press(`${WIN} .mp-input`, 'Enter');
     await until(s, (m) => m.selected && m.selected.name === 'Tour Eiffel', { label: 'Tour Eiffel' });
