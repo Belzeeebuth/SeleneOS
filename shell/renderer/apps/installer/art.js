@@ -1,6 +1,6 @@
 // Installer illustrations (inline SVG, 240x240). Shapes use classes styled in style.css
 // (.s-surface, .s-line, .s-soft, .s-accent…) so they follow the light/dark theme; the brand
-// gradient is the Aurora logo's (blue -> cyan -> mint).
+// tile gradient is blue -> cyan -> mint; LOGO draws the Selene OS crescent and star on it.
 const GRAD = `
   <defs>
     <linearGradient id="ins-g" x1="0" y1="1" x2="1" y2="0">
@@ -20,8 +20,10 @@ const svg = (body, cls = '') => `<svg class="ins-svg ${cls}" viewBox="0 0 240 24
 const LOGO = (x, y, s) => `
   <g transform="translate(${x} ${y}) scale(${s / 48})">
     <rect x="3" y="3" width="42" height="42" rx="12" fill="url(#ins-g)"/>
-    <path d="M10 33c5-9 9-19 14-19s9 10 14 19" fill="none" stroke="#fff" stroke-opacity=".95" stroke-width="3.4" stroke-linecap="round"/>
-    <path d="M14 36c4-5 6.5-9 10-9s6 4 10 9" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="3" stroke-linecap="round"/>
+    <g transform="translate(9 10) scale(.62)" fill="#fff">
+      <path d="M18.33 7.36A19 19 0 1 0 40.04 31.96A16.5 16.5 0 0 1 18.33 7.36Z" fill-opacity=".95"/>
+      <path d="M38.5 4Q39.8 8.2 44 9.5Q39.8 10.8 38.5 15Q37.2 10.8 33 9.5Q37.2 8.2 38.5 4Z" fill-opacity=".85"/>
+    </g>
   </g>`;
 
 export const ART = {

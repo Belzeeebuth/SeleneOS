@@ -330,7 +330,7 @@ export class SettingsPage {
       el.style.lineHeight = String(prefs.get('lineHeight'));
       const sp = (color, text, bold) => h('span', { style: { color, fontWeight: bold ? '700' : null } }, text);
       const user = this.app.env?.user || 'user';
-      const host = this.app.env?.hostname || 'aurora';
+      const host = this.app.env?.hostname || 'selene';
       const root = user === 'root';
       const shape = prefs.get('cursorShape');
       // The Aurora prompt: green user@host (red for root), blue folder.
@@ -430,7 +430,7 @@ export class SettingsPage {
       return h(
         'div',
         { class: 'tm-scheme-sample', style: { background: c.background, color: c.foreground } },
-        h('div', null, h('span', { style: { color: c.green } }, 'user@aurora'), ':', h('span', { style: { color: c.blue } }, '~'), '$ ls'),
+        h('div', null, h('span', { style: { color: c.green } }, 'user@selene'), ':', h('span', { style: { color: c.blue } }, '~'), '$ ls'),
         h('div', null, h('span', { style: { color: c.blue } }, 'docs'), ' ', h('span', { style: { color: c.red } }, 'a.zip'), ' ', h('span', { style: { color: c.yellow } }, 'b.c')),
         swatches(sc),
       );

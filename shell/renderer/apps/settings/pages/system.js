@@ -44,7 +44,7 @@ async function hostname(pc) {
   const sec = await pc.tryInvoke('admin:securityStatus');
   if (sec?.hostname) return sec.hostname;
   const info = await pc.tryInvoke('sys:info');
-  return info?.hostname || pc.env.hostname || 'aurora';
+  return info?.hostname || pc.env.hostname || 'selene';
 }
 
 // ------------------------------------------------------------------ System home

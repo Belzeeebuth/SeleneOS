@@ -1,16 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Selene OS logo: crescent moon and a four-point star, silver-white to indigo. -->
   <defs>
-    <linearGradient id="g" x1="4" y1="44" x2="44" y2="4" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2b6cf6"/>
-      <stop offset="0.5" stop-color="#18b6e8"/>
-      <stop offset="1" stop-color="#7be3c6"/>
+    <radialGradient id="moon" cx="10" cy="13" r="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f4f6ff"/>
+      <stop offset=".32" stop-color="#b6c3ff"/>
+      <stop offset=".68" stop-color="#6c7cf4"/>
+      <stop offset="1" stop-color="#3b33b5"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="40" y1="31" x2="20" y2="7" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#fff" stop-opacity=".15"/>
     </linearGradient>
-    <linearGradient id="h" x1="8" y1="40" x2="40" y2="10" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" stop-opacity=".95"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity=".55"/>
+    <linearGradient id="star" x1="34" y1="5" x2="43" y2="14" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e3e8ff"/>
+      <stop offset="1" stop-color="#6d7cf6"/>
     </linearGradient>
+    <clipPath id="crescent">
+      <path d="M18.33 7.36A19 19 0 1 0 40.04 31.96A16.5 16.5 0 0 1 18.33 7.36Z"/>
+    </clipPath>
   </defs>
-  <rect x="3" y="3" width="42" height="42" rx="11" fill="url(#g)"/>
-  <path d="M10 34c6-1 9-9 14-18 1.6-2.9 4.4-2.9 6 0 4 7.6 5.6 12.6 8 18" fill="none" stroke="url(#h)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M16.5 27.5c4.2-1.4 9.8-1.6 15 0" fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="3" stroke-linecap="round"/>
+  <path d="M18.33 7.36A19 19 0 1 0 40.04 31.96A16.5 16.5 0 0 1 18.33 7.36Z" fill="url(#moon)" stroke="url(#moon)" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M40.04 31.96A16.5 16.5 0 0 1 18.33 7.36" fill="none" stroke="url(#rim)" stroke-width="1.6" clip-path="url(#crescent)"/>
+  <path d="M38.5 4Q39.8 8.2 44 9.5Q39.8 10.8 38.5 15Q37.2 10.8 33 9.5Q37.2 8.2 38.5 4Z" fill="url(#star)" stroke="url(#star)" stroke-width=".6" stroke-linejoin="round"/>
 </svg>

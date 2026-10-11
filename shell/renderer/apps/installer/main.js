@@ -38,7 +38,7 @@ export function deriveUsername(fullName) {
 
 export function deriveHostname(user) {
   const base = String(user || '').replace(/_/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^-+/, '').slice(0, 59).replace(/-+$/, '');
-  return base ? `${base}-pc` : 'aurora-pc';
+  return base ? `${base}-pc` : 'selene-pc';
 }
 
 export function passwordStrength(pw) {
