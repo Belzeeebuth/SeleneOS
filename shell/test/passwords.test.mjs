@@ -54,6 +54,16 @@ async function until(s, fn, { timeout = 15000, step = 80, label = 'condition', a
   }
   throw new Error(`timed out waiting for ${label} (last: ${JSON.stringify(last)})`);
 }
+async function waitText(s, sel, re, timeout = 8000) {
+  const t0 = Date.now();
+  let last = '';
+  while (Date.now() - t0 < timeout) {
+    last = await s.page.evaluate(`document.querySelector(${JSON.stringify(sel)})?.textContent || ''`).catch(() => '');
+    if (re.test(last)) return last;
+    await sleep(80);
+  }
+  throw new Error(`timed out waiting for ${sel} to match ${re} (last: ${JSON.stringify(last)})`);
+}
 const clipboard = (s) => s.app.evaluate(({ clipboard: c }) => c.readText());
 const setClipboard = (s, text) => s.app.evaluate(({ clipboard: c }, t) => c.writeText(t), text);
 const vaultPath = (home) => path.join(home, '.local', 'share', 'aurora', 'passwords.vault');
@@ -166,13 +176,13 @@ try {
     await s.page.fill(`${WIN} #pw-confirm`, 'short');
     check('strength meter reacts', await s.page.getAttribute(`${WIN} .pw-meter`, 'data-score'), '0');
     await s.page.click(`${WIN} .pw-go`);
-    await s.page.waitForFunction(`document.querySelector('${WIN} .pw-error')?.textContent.length > 0`, null, { timeout: 8000 });
+    await waitText(s, `${WIN} .pw-error`, /./, 8000);
     check('too short master password refused', await s.page.textContent(`${WIN} .pw-error`), (v) => v.includes('at least 8'));
     await s.page.fill(`${WIN} #pw-master`, MASTER);
     await s.page.fill(`${WIN} #pw-confirm`, MASTER + 'x');
     check('strength meter shows a strong master password', Number(await s.page.getAttribute(`${WIN} .pw-meter`, 'data-score')), (v) => v >= 3);
     await s.page.click(`${WIN} .pw-go`);
-    await s.page.waitForFunction(`/match/.test(document.querySelector('${WIN} .pw-error')?.textContent || '')`, null, { timeout: 8000 });
+    await waitText(s, `${WIN} .pw-error`, /match/, 8000);
     check('mismatched confirmation refused', true, true);
     check('nothing written yet', fs.existsSync(vaultPath(home)), false);
     await s.page.fill(`${WIN} #pw-confirm`, MASTER);
@@ -328,7 +338,7 @@ try {
     check('locked screen shown', await s.page.textContent(`${WIN} .pw-gate-card h1`), 'Passwords are locked');
     await s.page.fill(`${WIN} #pw-master`, 'not-the-password');
     await s.page.click(`${WIN} .pw-go`);
-    await s.page.waitForFunction(`/Wrong master password/.test(document.querySelector('${WIN} .pw-error')?.textContent || '')`, null, { timeout: 30000 });
+    await waitText(s, `${WIN} .pw-error`, /Wrong master password/, 30000);
     check('wrong master password refused', await P(s, (app) => app.state), 'locked');
     await s.page.fill(`${WIN} #pw-master`, MASTER);
     await s.page.keyboard.press('Enter');
