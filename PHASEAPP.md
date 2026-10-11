@@ -44,13 +44,13 @@ Calendar and Notes also have `*.unit.mjs`).
 | Cloud Drive | `cloud` | **Light version:** Nextcloud/WebDAV browse, upload, download. Later: rclone mounts (Google Drive, OneDrive) in File Explorer |
 | VPN / Network tools | `nettools` | **Light version:** NetworkManager VPN/WireGuard list, connect, WireGuard import; ping; DNS lookup. Later: OpenVPN, traceroute, port check, speed test |
 
-## Phase 4 — Extras (in progress)
+## Phase 4 — Extras (done, 2026-10-11)
 
 | App | id (planned) | Notes for later |
 |---|---|---|
-| Weather | `weather` | Open-Meteo (no API key), city search, hourly/daily; feeds the weather-based dynamic wallpaper and widgets |
-| Maps | `maps` | OpenStreetMap tiles (Leaflet-like custom viewer), search via Nominatim, routes via OSRM |
-| Contacts | `contacts` | vCard storage, shared with Mail autocomplete |
-| Sticky Notes | `sticky` | Desktop sticky notes (always-on-top small windows), synced with Notes |
-| Dictionary / Translator | `translate` | Offline dictionary (wordlists) + online translation provider (configurable) |
-| Remote Desktop | `remote` | VNC/RDP client (noVNC-style in the shell, or FreeRDP in the image) |
+| Weather | `weather` | Open-Meteo (no API key), city search, 24 h + 7-day forecast, saved places, °C/°F; sets the dynamic wallpaper location |
+| Maps | `maps` | OpenStreetMap tiles in a custom viewer, Nominatim search, saved places. Later: routes (OSRM) |
+| Contacts | `contacts` | JSON store, vCard 3.0/4.0 import/export, favourites, Mail recipient suggestions |
+| Sticky Notes | `sticky` | Small always-on-top note windows, 6 colours, formatting, reopened at start, "Copy to Notes" |
+| Dictionary / Translator | `translate` | MyMemory (default) or LibreTranslate, English dictionary (dictionaryapi.dev), offline EN↔FR glossary |
+| Remote Desktop | `remote` | VNC client in the shell (TCP bridged by the main process). Later: RDP, clipboard, more encodings |

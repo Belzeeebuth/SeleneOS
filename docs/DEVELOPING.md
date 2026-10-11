@@ -198,11 +198,13 @@ Settings uses `system-settings.test.mjs`.
 - `chess` - Chess against the computer or a friend
 - `clock` - Clock: alarms, timers, stopwatch, world clock, focus sessions
 - `cloud` - Cloud: browse, upload and download Nextcloud / WebDAV files (other services later)
+- `contacts` - Contacts: people, e-mails, phones, addresses, birthdays, vCard import/export; feeds Mail's recipient suggestions
 - `disks` - Disks: drives and partitions, mount, eject; format removable drives only
 - `files` - File Explorer: tabs, drives, Recycle Bin, search, properties
 - `game2048` - 2048
 - `installer` - Install Aurora OS (live session only): language, keyboard, disk, account, time zone
 - `mail` - Mail: IMAP/SMTP accounts, compose, attachments
+- `maps` - Maps: OpenStreetMap tiles, place search (Nominatim), saved places
 - `media` - Media Player: music and video libraries, queue, playlists
 - `minesweeper` - Minesweeper
 - `nettools` - Network tools: VPN / WireGuard connections (NetworkManager), ping, DNS lookup
@@ -212,14 +214,18 @@ Settings uses `system-settings.test.mjs`.
 - `passwords` - Passwords: encrypted vault (AES-GCM, PBKDF2), generator, CSV import/export
 - `pdf` - PDF Reader: read, search, annotate and present PDFs
 - `photos` - Photos: gallery, viewer, slideshow and editor
+- `remote` - Remote Desktop: VNC client (RFB 3.8, None / VNC authentication); RDP later
 - `settings` - Settings: system, devices, network, personalization, accounts, time and language, updates
 - `snake` - Snake
 - `snipping` - Snipping Tool: screen captures with markup
 - `solitaire` - Solitaire (Klondike)
+- `sticky` - Sticky Notes: small always-on-top notes, colours, basic formatting, copy to Notes
 - `store` - Store: curated command-line tools and services installed with apt (through aurora-admin)
 - `taskmgr` - Task Manager: processes, performance, users, details, services
 - `terminal` - Terminal: real PTY, tabs, split panes, profiles
 - `todo` - To Do: lists, My Day, reminders, due dates, steps
+- `translate` - Translator: MyMemory or LibreTranslate, English dictionary, offline EN↔FR glossary
+- `weather` - Weather: Open-Meteo current conditions, 24 h and 7-day forecasts; sets the dynamic wallpaper location
 - `winver` - About Aurora: version and license information
 
 ## Rules for parallel work
