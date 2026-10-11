@@ -133,13 +133,32 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# A private, minimal /dev for the build chroot. Never bind the host's /dev: maintainer scripts
+# (systemd-tmpfiles' static-nodes-permissions.conf, udev) would then chown/chmod the HOST's device
+# nodes with the image's group IDs — e.g. /dev/kvm became root:994 0660, and on an Arch host
+# (where 994 is not the kvm group) the user lost KVM after every packages stage.
+mount_private_dev() { # dir
+  local d="$1" n
+  mount -t tmpfs -o mode=0755,nosuid tmpfs "$d"
+  for n in "null 1 3" "zero 1 5" "full 1 7" "random 1 8" "urandom 1 9" "tty 5 0"; do
+    set -- $n
+    # mknod needs CAP_MKNOD; without it, bind the single host node (only these harmless ones).
+    mknod -m 666 "$d/$1" c "$2" "$3" 2>/dev/null || { : >"$d/$1"; mount --bind "/dev/$1" "$d/$1"; }
+  done
+  mkdir -p "$d/pts" "$d/shm"
+  mount -t devpts -o newinstance,ptmxmode=0666,mode=0620 devpts "$d/pts"
+  ln -s pts/ptmx "$d/ptmx"
+  mount -t tmpfs -o mode=1777,nosuid,nodev tmpfs "$d/shm"
+  ln -s /proc/self/fd "$d/fd"
+  ln -s /proc/self/fd/0 "$d/stdin"; ln -s /proc/self/fd/1 "$d/stdout"; ln -s /proc/self/fd/2 "$d/stderr"
+}
+
 chroot_mount() { # root
   local r="$1"
   mkdir -p "$r/proc" "$r/sys" "$r/dev" "$r/run" "$r/tmp"
   mountpoint -q "$r/proc" || mount -t proc proc "$r/proc"
   mountpoint -q "$r/sys" || mount -t sysfs sysfs "$r/sys" 2>/dev/null || mount --rbind -o ro /sys "$r/sys"
-  mountpoint -q "$r/dev" || mount --bind /dev "$r/dev"
-  mountpoint -q "$r/dev/pts" || mount --bind /dev/pts "$r/dev/pts"
+  mountpoint -q "$r/dev" || mount_private_dev "$r/dev"
   mountpoint -q "$r/run" || mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs "$r/run"
   mkdir -p "$r/run/lock" "$r/run/systemd"
   # Let maintainer scripts know they run in a build chroot; never start services.
@@ -161,7 +180,8 @@ chroot_umount() { # root
     mv "$r/etc/resolv.conf.aurora-build" "$r/etc/resolv.conf"
   fi
   local m
-  for m in var/cache/apt/archives run dev/pts dev sys proc; do
+  umount_under "$r/dev"  # the private /dev's pts, shm and any bound nodes
+  for m in var/cache/apt/archives run dev sys proc; do
     if mountpoint -q "$r/$m"; then umount "$r/$m" 2>/dev/null || umount -l "$r/$m"; fi
   done
   umount_under "$r/sys"
