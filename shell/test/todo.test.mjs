@@ -224,7 +224,7 @@ async function runEnglish() {
       check('smart list labels', r.labels, ['My Day', 'Important', 'Planned', 'All', 'Completed', 'Tasks']);
       check('example tasks', r.seed, 8);
       check('example list with an emoji icon', r.lists, [['🛒', 'Groceries']]);
-      check('examples are in English', r.titles.some((x) => x.startsWith('Welcome to To Do')), true);
+      check('examples are in English', r.titles.some((x) => x.startsWith('Welcome to Tasks')), true);
       check('examples banner shown in My Day', r.banner, true);
       check('opens on My Day', r.view, 'myday');
       check('first run detected', r.firstRun, true);

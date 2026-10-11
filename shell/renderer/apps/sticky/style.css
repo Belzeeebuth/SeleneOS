@@ -6,7 +6,7 @@
   --sk-purple: #e8dcff; --sk-purple-head: #d6c3ff; --sk-purple-dot: #8a5cf6;
   --sk-blue: #d7ecff; --sk-blue-head: #bcdcff; --sk-blue-dot: #2f86e6;
   --sk-gray: #e9e9ec; --sk-gray-head: #d6d6db; --sk-gray-dot: #6b6b75;
-  --sk-ink: #1b1b1f;
+  --sk-ink: var(--text);
 }
 :root[data-theme="dark"] .app-sticky {
   --sk-yellow: #4a4220; --sk-yellow-head: #5c5222; --sk-yellow-dot: #f2cf3a;
@@ -15,7 +15,7 @@
   --sk-purple: #33284d; --sk-purple-head: #40325f; --sk-purple-dot: #b39cf8;
   --sk-blue: #1f3550; --sk-blue-head: #284363; --sk-blue-dot: #6fb2f6;
   --sk-gray: #2f2f34; --sk-gray-head: #3b3b42; --sk-gray-dot: #a5a5b0;
-  --sk-ink: #f3f3f5;
+  --sk-ink: var(--text);
 }
 .app-sticky [data-color="yellow"] { --sk-bg: var(--sk-yellow); --sk-head: var(--sk-yellow-head); --sk-dot: var(--sk-yellow-dot); }
 .app-sticky [data-color="green"] { --sk-bg: var(--sk-green); --sk-head: var(--sk-green-head); --sk-dot: var(--sk-green-dot); }

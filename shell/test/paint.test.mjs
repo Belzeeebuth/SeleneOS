@@ -1123,7 +1123,7 @@ await test('error paths show localized explanations (undecodable, empty, folder,
     p.writeFile(a, 'png');
   }, path.join(pics, 'garbage.png', 'x.png'));
   let [d] = await waitDialog(s);
-  assert.ok(d.includes("Paint can't save x.png.") && d.includes("The folder doesn't exist and can't be created there."), d);
+  assert.ok(d.includes("Draw can't save x.png.") && d.includes("The folder doesn't exist and can't be created there."), d);
   await dismissDialogs(s);
   P(s, (p) => {
     p.writeFile('/proc/aurora-paint-test.png', 'png');
@@ -1153,7 +1153,7 @@ await test('file names are shown as text, never as HTML (title, Recent menu, err
   fs.writeFileSync(file, makePng(30, 20, [10, 200, 30, 255]));
   await P(s, (p, el, a) => p.openPath(a), file);
   const t = await P(s, (p, el) => el.querySelector('.pt-doctitle').textContent);
-  assert.equal(t, `${evil} - Paint`);
+  assert.equal(t, `${evil} - Draw`);
   await s.page.click(`${WIN} .pt-menu-btn:nth-child(1)`);
   await wait(s, 250);
   await s.page.locator('.menu .menu-item', { hasText: 'Recent' }).hover();

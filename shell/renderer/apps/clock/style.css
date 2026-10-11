@@ -19,6 +19,7 @@
 
 /* ------------------------------------------------------------------ navigation pane */
 .app-clock .ck-nav {
+  background: var(--bg-alt);
   position: relative;
   z-index: 6;
   flex: none;
@@ -120,10 +121,10 @@
   position: absolute;
   left: 0;
   top: 0;
-  width: 3px;
+  width: var(--sel-bar-w);
   height: 16px;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--sel-bar);
   pointer-events: none;
 }
 .app-clock .ck.compact .ck-nav {
@@ -145,17 +146,13 @@
 .app-clock .ck.narrow.nav-open .ck-nav {
   width: var(--nav-w);
   max-width: calc(100% - 24px);
-  background: var(--acrylic);
-  backdrop-filter: blur(30px) saturate(150%);
+  background: var(--surface-raised);
   border-right: 1px solid var(--window-stroke);
   border-radius: 0 var(--radius) var(--radius) 0;
   box-shadow: var(--shadow-flyout);
 }
 .app-clock .ck.narrow.nav-open .ck-nav-label {
   opacity: 1;
-}
-:root[data-transparency="off"] .app-clock .ck.narrow.nav-open .ck-nav {
-  backdrop-filter: none;
 }
 .app-clock .ck-scrim {
   display: none;
@@ -174,11 +171,9 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--layer);
-  border: 1px solid var(--stroke-card);
-  border-right: 0;
-  border-bottom: 0;
-  border-top-left-radius: var(--radius);
+  background: var(--bg);
+  border: 0;
+  border-left: 1px solid var(--line-soft);
 }
 .app-clock .ck-info-slot:empty {
   display: none;
@@ -238,7 +233,7 @@
   background: var(--card-hover);
 }
 .app-clock .ck-card:focus-visible {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 .app-clock .ck-card.flash {
@@ -301,13 +296,9 @@
   padding: 4px;
   transform: translateY(4px);
   border-radius: var(--radius);
-  background: var(--acrylic);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
-  backdrop-filter: blur(30px) saturate(150%);
-}
-:root[data-transparency="off"] .app-clock .ck-cmdbar {
-  backdrop-filter: none;
 }
 /* keep the floating bar from covering the last row of cards */
 .app-clock .ck-alarms > .ck-grid,
@@ -443,7 +434,7 @@
   touch-action: none;
 }
 .app-clock .ck-spin:focus-visible {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 .app-clock .ck-spin-view {
@@ -1147,7 +1138,7 @@
   line-height: 14px;
   padding: 2px 6px 3px;
   border-radius: var(--radius-sm);
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-tooltip);
 }
@@ -1297,11 +1288,11 @@
   position: absolute;
   left: 0;
   top: 50%;
-  width: 3px;
+  width: var(--sel-bar-w);
   height: 16px;
   margin-top: -8px;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--sel-bar);
 }
 .app-clock .ck-search-item > .icon {
   color: var(--text-2);

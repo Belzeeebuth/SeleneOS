@@ -389,7 +389,7 @@ export function aboutDialog(app) {
       'div',
       { class: 'pt-about' },
       h('img', { src: app.ctx.appUrl('icon.svg'), width: 64, height: 64, alt: '' }),
-      h('div', null, h('div', { class: 'subtitle' }, 'Paint'), h('div', { class: 'text-2' }, t('about.version', { v: app.ctx.env?.version || '1.0' })), h('div', { class: 'caption text-2 pt-about-desc' }, t('about.desc'))),
+      h('div', null, h('div', { class: 'subtitle' }, app.ctx.i18n?.name?.(app.ctx.manifest?.name) || 'Draw'), h('div', { class: 'text-2' }, t('about.version', { v: app.ctx.env?.version || '1.0' })), h('div', { class: 'caption text-2 pt-about-desc' }, t('about.desc'))),
     ),
     buttons: [{ label: t('common.ok'), value: true, primary: true }],
   });

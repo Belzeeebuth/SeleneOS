@@ -13,8 +13,8 @@ let input;
 let sv;
 
 const STRINGS = {
-  en: { searchPanel: { title: 'Search', placeholder: 'Type here to search', clear: 'Clear' } },
-  fr: { searchPanel: { title: 'Rechercher', placeholder: 'Tapez ici pour effectuer une recherche', clear: 'Effacer' } },
+  en: { searchPanel: { title: 'Search', placeholder: 'Search for an app, a file or a setting', clear: 'Clear' } },
+  fr: { searchPanel: { title: 'Rechercher', placeholder: 'Rechercher une application, un fichier ou un réglage', clear: 'Effacer' } },
 };
 
 function render() {

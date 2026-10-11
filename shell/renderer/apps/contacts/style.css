@@ -12,8 +12,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-right: 1px solid var(--stroke);
-  background: var(--layer, transparent);
+  border-right: 1px solid var(--line-soft);
+  background: var(--bg-alt);
 }
 .app-contacts .ct-bar {
   display: flex;
@@ -71,9 +71,9 @@
   left: 0;
   top: 25%;
   bottom: 25%;
-  width: 3px;
+  width: var(--sel-bar-w);
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--sel-bar);
 }
 .app-contacts .ct-row:focus-visible {
   box-shadow: 0 0 0 2px var(--focus, var(--accent));
@@ -85,11 +85,11 @@
   flex: 1;
 }
 .app-contacts .ct-row-star {
-  color: #e8a400;
+  color: var(--warning);
   display: flex;
 }
 .app-contacts .ct-group .icon {
-  color: #e8a400;
+  color: var(--warning);
 }
 .app-contacts .ct-count {
   padding: 6px 16px 10px;
@@ -101,7 +101,7 @@
   justify-content: center;
   border-radius: 50%;
   overflow: hidden;
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
   background: var(--accent);
   user-select: none;
@@ -156,7 +156,7 @@
   margin: 16px 0;
 }
 .app-contacts .ct-fav.on .icon {
-  color: #e8a400;
+  color: var(--warning);
 }
 .app-contacts .ct-card {
   display: flex;
@@ -269,7 +269,7 @@
 }
 .app-contacts .ct-form-error {
   margin-top: 12px;
-  color: var(--danger, #c42b1c);
+  color: var(--danger);
 }
 .app-contacts .ct-form-foot {
   display: flex;
@@ -286,12 +286,12 @@
   border-radius: 8px;
   background: var(--card-solid, var(--card));
   border: 1px solid var(--stroke);
-  box-shadow: var(--shadow-8, 0 4px 12px rgba(0, 0, 0, 0.14));
+  box-shadow: var(--shadow-flyout);
   animation: ct-in var(--dur-fast, 150ms) var(--ease) both;
   z-index: 5;
 }
 .app-contacts .ct-status.error {
-  border-color: var(--danger, #c42b1c);
+  border-color: var(--danger);
 }
 @keyframes ct-in {
   from {
@@ -308,17 +308,17 @@
 .app-contacts[data-theme-scope][data-theme='dark'] .ct-row-star,
 .app-contacts[data-theme-scope][data-theme='dark'] .ct-group .icon,
 .app-contacts[data-theme-scope][data-theme='dark'] .ct-fav.on .icon {
-  color: #fcc93a;
+  color: var(--warning);
 }
 /* A per-app light theme inside a dark desktop keeps the light-mode star colour. */
 .app-contacts[data-theme-scope][data-theme='light'] .ct-row-star,
 .app-contacts[data-theme-scope][data-theme='light'] .ct-group .icon,
 .app-contacts[data-theme-scope][data-theme='light'] .ct-fav.on .icon {
-  color: #e8a400;
+  color: var(--warning);
 }
 :root[data-theme='dark'] .app-contacts .ct-form-error,
 .app-contacts[data-theme-scope][data-theme='dark'] .ct-form-error {
-  color: var(--danger, #ff99a4);
+  color: var(--danger);
 }
 /* Narrow: one pane at a time */
 .app-contacts .ct.narrow {

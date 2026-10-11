@@ -38,6 +38,8 @@
 
 /* ------------------------------------------------------------------ side pane */
 .app-weather .wx-side {
+  background: var(--bg-alt);
+  border-right: 1px solid var(--line-soft);
   width: 280px;
   flex: none;
   display: flex;
@@ -73,7 +75,7 @@
   list-style: none;
   max-height: 320px;
   overflow: auto;
-  background: var(--acrylic-solid, var(--solid));
+  background: var(--surface-raised);
   border: 1px solid var(--stroke);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-flyout);
@@ -134,10 +136,10 @@
   left: 0;
   top: 50%;
   height: 16px;
-  width: 3px;
+  width: var(--sel-bar-w);
   margin-top: -8px;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--sel-bar);
 }
 .app-weather .wx-place-btn {
   flex: 1;

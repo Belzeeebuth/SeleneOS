@@ -84,6 +84,8 @@ const polyD = (pts, close) => (pts.length ? `M${pts.map(([x, y]) => `${+x.toFixe
 export async function createPaint(ctx) {
   const { win, h, ui, api, shell } = ctx;
   const t = (k, v) => ctx.t(k, v);
+  // The app's own name (« Dessin » / “Draw”), for dialog titles.
+  const appName = () => ctx.i18n?.name?.(ctx.manifest?.name) || 'Draw';
   const i18n = ctx.i18n;
 
   // ------------------------------------------------------------------ state
@@ -307,7 +309,7 @@ export async function createPaint(ctx) {
       nudgeModal();
       return alertOpen;
     }
-    alertOpen = ui.alert(text, { title: 'Paint', parent: win }).finally(() => (alertOpen = null));
+    alertOpen = ui.alert(text, { title: appName(), parent: win }).finally(() => (alertOpen = null));
     return alertOpen;
   }
   async function showError(msg, err, { saving = false } = {}) {
@@ -2022,7 +2024,7 @@ export async function createPaint(ctx) {
 
   function askSave() {
     return ui.dialog({
-      title: 'Paint',
+      title: appName(),
       body: t('ask.save', { name: file.name || t('untitled') }),
       parent: win,
       className: 'pt-ask',
@@ -2046,7 +2048,7 @@ export async function createPaint(ctx) {
   async function setWallpaper(fit) {
     commitPending();
     if (!file.path || isDirty()) {
-      const ok = await ui.confirm(t('wp.mustSave'), { title: 'Paint', okLabel: t('file.save'), parent: win });
+      const ok = await ui.confirm(t('wp.mustSave'), { title: appName(), okLabel: t('file.save'), parent: win });
       if (!ok || !(await save())) return;
     }
     await ctx.settings.set('wallpaperFit', fit === 'tile' ? 'tile' : fit === 'center' ? 'center' : 'fill');

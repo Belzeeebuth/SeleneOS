@@ -1273,12 +1273,12 @@ await test('viewer: "…" menu sets the desktop background and the lock screen',
   await s.page.locator('.menu .menu-item', { hasText: 'Lock screen' }).click();
   await s.page.waitForFunction((f) => window.__aurora.settings.get('lockWallpaper') === f, p);
   assert.ok(st.name);
-  // Open with ▸ lists Paint for PNG/JPEG.
+  // Open with ▸ lists Draw (app id paint) for PNG/JPEG.
   await s.page.locator('.app-photos .ph-tb[data-cmd="more"]').last().click();
   await s.page.locator('.menu .menu-item', { hasText: 'Open with' }).hover();
   await s.page.waitForTimeout(300);
   const items = await s.page.locator('.menu .menu-item').allTextContents();
-  assert.ok(items.some((x) => x.includes('Paint')), items.join(' | '));
+  assert.ok(items.some((x) => x.includes('Draw')), items.join(' | '));
   await s.page.keyboard.press('Escape'); // closes the submenu
   await s.page.keyboard.press('Escape'); // closes the menu
   assert.equal(await s.page.locator('.menu').count(), 0);
@@ -1289,7 +1289,7 @@ await test('viewer: "…" menu sets the desktop background and the lock screen',
   }, prev);
 });
 
-await test('viewer: Save as converts formats, Open with ▸ Paint, F2 renames and keeps favorites', async () => {
+await test('viewer: Save as converts formats, Open with ▸ Draw, F2 renames and keeps favorites', async () => {
   const src = path.join(home, 'Pictures', 'photo-03.png');
   await ensurePhotos({ file: src });
   await appEval((a, p) => a.openFile(p), src);
@@ -1309,10 +1309,10 @@ await test('viewer: Save as converts formats, Open with ▸ Paint, F2 renames an
   const px = await pixelOf(s, out, 0.5, 0.5);
   const orig = await pixelOf(s, src, 0.5, 0.5);
   assert.deepEqual([px.w, px.h], [orig.w, orig.h]);
-  // Open with ▸ Paint
+  // Open with ▸ Draw (app id paint)
   await s.page.locator('.app-photos .ph-tb[data-cmd="more"]').last().click();
   await s.page.locator('.menu .menu-item', { hasText: 'Open with' }).hover();
-  await s.page.locator('.menu .menu-item', { hasText: 'Paint' }).click();
+  await s.page.locator('.menu .menu-item', { hasText: 'Draw' }).click();
   await s.page.waitForFunction(() => window.__aurora.wm.byApp('paint').length === 1, null, { timeout: 15000 });
   await s.aurora(async () => {
     for (const w of window.__aurora.wm.byApp('paint')) await w.close(true);

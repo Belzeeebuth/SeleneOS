@@ -19,7 +19,7 @@ export const COLORS = ['accent', 'blue', 'purple', 'rose', 'red', 'orange', 'gre
 export const BACKGROUNDS = ['dawn', 'ocean', 'forest', 'dusk', 'aurora', 'sunset', 'mist', 'night'];
 export const SORTS = ['importance', 'due', 'myDay', 'alpha', 'created'];
 export const DEFAULT_THEMES = {
-  myday: { color: 'accent', bg: 'dawn' },
+  myday: { color: 'accent', bg: null },
   important: { color: 'rose', bg: null },
   planned: { color: 'teal', bg: null },
   assigned: { color: 'green', bg: null },

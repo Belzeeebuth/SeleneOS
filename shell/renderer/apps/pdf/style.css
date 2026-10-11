@@ -144,7 +144,7 @@
   opacity: 0;
 }
 .app-pdf .pdf-tab:focus-visible .pdf-tab-bg {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .app-pdf .pdf-tab-icon {
@@ -601,17 +601,13 @@
   bottom: 0;
   left: 0;
   z-index: 20;
-  background: var(--acrylic);
-  -webkit-backdrop-filter: blur(var(--blur, 30px)) saturate(150%);
-  backdrop-filter: blur(var(--blur, 30px)) saturate(150%);
+  background: var(--surface-raised);
   box-shadow: var(--shadow-flyout);
   border-right: 1px solid var(--window-stroke);
   animation: pdf-side-in var(--dur-slow) var(--ease);
 }
 :root[data-transparency="off"] .app-pdf .pdf-root.narrow .pdf-sidebar {
   background: var(--solid);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
 }
 @keyframes pdf-side-in {
   from {
@@ -702,7 +698,7 @@
   font-weight: 600;
 }
 .app-pdf .pdf-thumbs:focus-visible .pdf-thumb.selected {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 
@@ -749,12 +745,12 @@
   top: 50%;
   height: 16px;
   margin-top: -8px;
-  width: 3px;
+  width: var(--sel-bar-w);
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--sel-bar);
 }
 .app-pdf .pdf-ol-item:focus-visible > .pdf-ol-row {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .app-pdf .pdf-ol-chev {
@@ -801,7 +797,7 @@
   background: var(--subtle-hover);
 }
 .app-pdf .pdf-att:focus-visible {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .app-pdf .pdf-att-text {
@@ -860,7 +856,7 @@
 }
 /* Editor toolbars (selected annotation) in the Fluent style */
 .app-pdf .pdf-scroller .annotationEditorLayer .editToolbar {
-  --editor-toolbar-bg-color: var(--acrylic-solid, var(--solid));
+  --editor-toolbar-bg-color: var(--surface-raised);
   --editor-toolbar-fg-color: var(--text);
   --editor-toolbar-border-color: var(--window-stroke);
   --editor-toolbar-hover-bg-color: var(--subtle-hover);
@@ -952,7 +948,7 @@
   max-width: calc(100% - 32px);
   padding: 4px;
   border-radius: var(--radius);
-  background: var(--acrylic-solid, var(--solid));
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
 }
@@ -1029,7 +1025,7 @@
   min-width: 220px;
   padding: 12px 14px 14px;
   border-radius: var(--radius);
-  background: var(--acrylic-solid, var(--solid));
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
   animation: pdf-fly-in var(--dur-slow) var(--ease);
@@ -1080,7 +1076,7 @@
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18), 0 0 0 2px var(--solid), 0 0 0 4px var(--accent);
 }
 .app-pdf .pdf-swatch:focus-visible {
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18), 0 0 0 2px var(--solid), 0 0 0 4px var(--text);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18), 0 0 0 2px var(--solid), 0 0 0 4px var(--focus-ring);
 }
 .app-pdf .pdf-swatch-check {
   opacity: 0;
@@ -1208,7 +1204,7 @@
   background: var(--subtle-pressed);
 }
 .app-pdf .pdf-recent-row:focus-visible {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .app-pdf .pdf-recent-row.missing {
@@ -1297,7 +1293,7 @@
   gap: 12px;
   padding: 14px 22px;
   border-radius: var(--radius);
-  background: var(--acrylic-solid, var(--solid));
+  background: var(--surface-raised);
   box-shadow: var(--shadow-flyout);
   color: var(--text);
 }
@@ -1312,7 +1308,7 @@
   transform: translate(-50%, 0);
   padding: 8px 16px;
   border-radius: var(--radius);
-  background: var(--acrylic-solid, var(--solid));
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
   font-size: var(--fs-caption);
@@ -1471,7 +1467,7 @@
   outline: none;
 }
 .app-pdf .pdf-apps:focus-visible {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .app-pdf .pdf-apps-head {
@@ -1518,7 +1514,7 @@
   --editor-toolbar-vert-offset: 8px;
 }
 .app-pdf .pdf-scroller .editToolbar {
-  --editor-toolbar-bg-color: var(--acrylic-solid, var(--solid));
+  --editor-toolbar-bg-color: var(--surface-raised);
   --editor-toolbar-fg-color: var(--text);
   --editor-toolbar-border-color: var(--window-stroke);
   --editor-toolbar-hover-border-color: var(--window-stroke);

@@ -394,11 +394,11 @@
   position: absolute;
   left: 0;
   top: 50%;
-  width: 3px;
+  width: var(--sel-bar-w);
   height: 16px;
   margin-top: -8px;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--sel-bar);
   animation: arc-pill var(--dur-slow) var(--ease);
 }
 @keyframes arc-pill {
@@ -834,7 +834,7 @@
   min-height: 40px;
   padding: 6px 8px 6px 16px;
   border-radius: var(--radius);
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
   font-size: var(--fs-caption);
@@ -877,7 +877,7 @@
   max-width: 80%;
   padding: 14px 20px;
   border-radius: var(--radius);
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   box-shadow: var(--shadow-flyout);
   font-size: var(--fs-body);

@@ -508,4 +508,17 @@
     outline: 3px solid #1aebff;
     outline-offset: 1px;
   }
+  /* Notes and Tasks (apps2): highlights, text colours and list colours use the contrast pairs */
+  /* :scope[…] keeps these above the apps' own colour rules (which load later) */
+  :scope[data-style="contrast"] .app-notes .nt-body mark,
+  :scope[data-style="contrast"] .app-notes .nt-item mark {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  :scope[data-style="contrast"] .app-notes .nt-body span[data-color] {
+    color: var(--text);
+    text-decoration: underline dotted;
+  }
+  :scope[data-style="contrast"][data-theme] .app-todo [class*="td-c-"] { --td-c: var(--accent-text); --td-on: var(--on-accent); }
+  :scope[data-style="contrast"] .app-todo .td-main.has-bg > .td-main-bg { display: none; }
 }

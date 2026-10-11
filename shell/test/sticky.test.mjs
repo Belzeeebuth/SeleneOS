@@ -81,7 +81,7 @@ try {
   await s.page.waitForSelector(HUB, { timeout: 30000 });
 
   await section('hub: empty state, title, keyboard focus', async () => {
-    check('hub title', await s.page.textContent(`${HUB} .sk-hub-title`), 'Sticky Notes');
+    check('hub title', await s.page.textContent(`${HUB} .sk-hub-title`), 'Memos');
     check('empty state', await s.page.isVisible(`${HUB} .sk-empty`), true);
     check('empty text', await s.page.textContent(`${HUB} .sk-empty .subtitle`), 'No notes yet');
     check('no data file yet', readData(home), null);
@@ -309,7 +309,7 @@ try {
     check('one note window reopened', await s.page.$$eval(NOTE, (e) => e.length), 1);
     check('reopened note is the open one', await s.page.getAttribute(`${NOTE} .sk-note`, 'data-id'), id1);
     check('reopened on top', await SK(s, (S, id) => S.wins.notes.get(id).win.alwaysOnTop, id1), true);
-    check('FR hub title', await s.page.textContent(`${HUB} .sk-hub-title`), 'Pense-bêtes');
+    check('FR hub title', await s.page.textContent(`${HUB} .sk-hub-title`), 'Mémos');
     check('FR search placeholder', await s.page.getAttribute(`${HUB} .sk-search`, 'placeholder'), 'Rechercher dans les notes');
     check('FR format tooltip', await s.page.getAttribute(`${NOTE} .sk-fmt[data-cmd="bold"]`, 'aria-label'), 'Gras');
     const bg = await s.page.$eval(`${NOTE} .sk-note`, (e) => getComputedStyle(e).backgroundColor);

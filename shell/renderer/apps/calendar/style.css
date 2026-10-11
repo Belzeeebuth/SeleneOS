@@ -1,4 +1,5 @@
-/* Calendar — Windows 11 / Outlook look. Every rule is scoped under .app-calendar (the window, and the
+/* Calendar (Selene). Flat, opaque surfaces from the tokens; the month grid follows the approved mockup
+   (hairline grid, short weekday names, today as an accent disc). Every rule is scoped under .app-calendar (the window, and the
    flyouts the app puts in <body>, which also carry .app-calendar). Colours come from the theme tokens;
    event colours (--ev) are user data and are tinted against --card-solid so they work in both modes. */
 .app-calendar {
@@ -6,7 +7,7 @@
   --ac-gutter: 56px;
   --ac-hour: 48px;
   --ac-off: color-mix(in srgb, var(--text) 3.5%, transparent);
-  --ac-line: var(--stroke);
+  --ac-line: var(--line-soft);
   --ac-now: var(--danger);
   --ac-tint: 22%;
   --ac-tint-hover: 30%;
@@ -164,11 +165,10 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--layer);
-  border: 1px solid var(--stroke-card);
-  border-right: 0;
-  border-bottom: 0;
-  border-top-left-radius: var(--radius);
+  background: var(--bg);
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  border-left: 1px solid var(--line-soft);
   overflow: hidden;
 }
 .app-calendar .ac-view {
@@ -185,6 +185,7 @@
 
 /* ---------------------------------------------------------------- left pane */
 .app-calendar .ac-pane {
+  background: var(--bg-alt);
   flex: none;
   width: var(--ac-pane-w);
   display: flex;
@@ -210,8 +211,7 @@
   bottom: 0;
   left: 0;
   padding-top: 8px;
-  background: var(--acrylic-strong);
-  backdrop-filter: blur(30px) saturate(150%);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   border-left: 0;
   border-radius: 0 var(--radius) var(--radius) 0;
@@ -219,9 +219,6 @@
   transform: translateX(-104%);
   visibility: hidden;
   transition: transform var(--dur-slow) var(--ease), visibility 0s linear var(--dur-slow);
-}
-:root[data-transparency="off"] .app-calendar .ac-root.pane-overlay .ac-pane {
-  backdrop-filter: none;
 }
 .app-calendar .ac-root.pane-overlay.pane-open-overlay .ac-pane {
   transform: none;
@@ -316,7 +313,7 @@
   transform: translateY(-1px) rotate(-45deg);
 }
 .app-calendar .ac-cal-check input:focus-visible {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 .app-calendar .ac-cal-row.off .ac-cal-name {
@@ -480,7 +477,7 @@
   outline: none;
 }
 .app-calendar .ac-mini-month:focus-visible > span {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 0;
 }
 .app-calendar .ac-mini-day {
@@ -541,7 +538,7 @@
   outline: none;
 }
 .app-calendar .ac-mini-day:focus-visible > span {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 0;
 }
 
@@ -566,8 +563,8 @@
 }
 .app-calendar .ac-chip.bar {
   background: color-mix(in srgb, var(--ev) var(--ac-tint), var(--card-solid));
-  box-shadow: inset 3px 0 0 var(--ev);
-  padding-left: 9px;
+  box-shadow: inset 2px 0 0 var(--ev);
+  padding-left: 8px;
 }
 .app-calendar .ac-chip.bar:hover {
   background: color-mix(in srgb, var(--ev) var(--ac-tint-hover), var(--card-solid));
@@ -594,7 +591,7 @@
   background: color-mix(in srgb, var(--ev) var(--ac-tint), var(--card-solid));
 }
 .app-calendar .ac-chip:focus-visible {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .app-calendar .ac-chip .ac-chip-dot {
@@ -669,14 +666,14 @@
 }
 .app-calendar .ac-mo-head {
   flex: none;
-  height: 34px;
+  height: 30px;
   align-items: center;
   border-bottom: 1px solid var(--ac-line);
 }
 .app-calendar .ac-mo-wd {
   padding: 0 10px;
-  font-size: var(--fs-caption);
-  color: var(--text-2);
+  font-size: var(--fs-small);
+  color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -732,10 +729,11 @@
   border-right: 0;
 }
 .app-calendar .ac-mo-cell.other {
-  background: var(--ac-off);
+  background: none;
 }
 .app-calendar .ac-mo-cell.selected {
-  background: var(--accent-subtle);
+  background: var(--sel-bg);
+  box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
 }
 .app-calendar .ac-mo-cell.in-sel {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
@@ -751,8 +749,8 @@
   border: 0;
   border-radius: 12px;
   background: transparent;
-  color: var(--text);
-  font-size: 13px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
   line-height: 24px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -1083,7 +1081,7 @@
 }
 .app-calendar .ac-ev:focus-visible {
   z-index: 3;
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 .app-calendar .ac-ev.cont-top {
@@ -1277,7 +1275,7 @@
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 .app-calendar .ac-ag-row:focus-visible {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 .app-calendar .ac-ag-when {
@@ -1373,7 +1371,7 @@
   padding: 6px 6px 6px 16px;
   border-radius: var(--radius);
   border: 1px solid var(--window-stroke);
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   box-shadow: var(--shadow-flyout);
   transform: translate(-50%, 16px);
   opacity: 0;
@@ -1395,8 +1393,7 @@
   position: fixed;
   z-index: 99000;
   color: var(--text);
-  background: var(--acrylic);
-  backdrop-filter: blur(30px) saturate(150%);
+  background: var(--surface-raised);
   border: 1px solid var(--window-stroke);
   border-radius: var(--radius);
   box-shadow: var(--shadow-flyout);
@@ -1407,8 +1404,7 @@
   animation: ac-pop-in var(--dur-slow) var(--ease);
 }
 :root[data-transparency="off"] .app-calendar.ac-pop {
-  backdrop-filter: none;
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
 }
 .app-calendar.ac-pop.up {
   animation-name: ac-pop-in-up;
@@ -1489,10 +1485,10 @@
   content: "";
   position: absolute;
   left: 4px;
-  width: 3px;
+  width: var(--sel-bar-w);
   height: 16px;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--sel-bar);
 }
 .app-calendar .ac-timeopt {
   position: relative;
@@ -2054,6 +2050,7 @@
 
 /* ---------------------------------------------------------------- responsive */
 /* toolbar levels (set by fitToolbar from the real overflow) */
+.app-calendar .ac-views .icon,
 .app-calendar .ac-root.tb-noicons .ac-views .icon {
   display: none;
 }

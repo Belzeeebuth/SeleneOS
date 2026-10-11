@@ -813,7 +813,7 @@ async function uiTests() {
   await section('ui: welcome page', async () => {
     await until(async () => evalJs(`!!document.querySelector('${WIN} .arc-welcome:not([hidden])')`), { label: 'welcome' });
     check('two action cards', await evalJs(`document.querySelectorAll('${WIN} .arc-wcard').length`), 2);
-    check('title', await evalJs(`document.querySelector('${WIN} .arc-hero .title').textContent`), 'Archive Manager');
+    check('title', await evalJs(`document.querySelector('${WIN} .arc-hero .title').textContent`), 'Archives');
     check('empty recent list', await evalJs(`!!document.querySelector('${WIN} .arc-recent-empty')`), true);
     await shotDoc('archive-welcome-en-light');
   });
@@ -821,7 +821,7 @@ async function uiTests() {
   await section('ui: open and browse a zip (navigation, breadcrumb, keyboard)', async () => {
     await closeAll();
     await openArchive(fx('t.zip'));
-    check('window title', await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'archive')?.title), 't.zip - Archive Manager');
+    check('window title', await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'archive')?.title), 't.zip - Archives');
     check('root rows (folders first, sorted)', await rows(), ['code', 'docs', 'empty', 'images', '[weird] *name?.txt', 'data.bin', UNI]);
     check('rows rendered', (await visibleRows()).includes(UNI), true);
     check('compressed size column for zip', await evalJs(`[...document.querySelectorAll('${WIN} .arc-dh-cell')].map((c) => c.dataset.key)`), ['name', 'type', 'packed', 'size', 'ratio', 'mtime']);
@@ -1616,7 +1616,7 @@ async function uiTests() {
   await section('ui: French + dark', async () => {
     await s.aurora(() => window.__aurora.shell.launch('archive', {}));
     await until(async () => evalJs(`!!document.querySelector('${WIN} .arc-welcome:not([hidden])')`), { label: 'welcome' });
-    check('fr title', await evalJs(`document.querySelector('${WIN} .arc-hero .title').textContent`), "Gestionnaire d'archives");
+    check('fr title', await evalJs(`document.querySelector('${WIN} .arc-hero .title').textContent`), 'Archives');
     await shotDoc('archive-welcome-fr-dark');
     await closeAll();
     await openArchive(fx('t.zip'));

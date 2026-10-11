@@ -56,6 +56,7 @@
   container-name: phgallery;
 }
 .app-photos .ph-nav {
+  background: var(--bg-alt);
   width: 248px;
   flex: none;
   display: flex;
@@ -112,10 +113,8 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--layer);
-  border-top: 1px solid var(--stroke-card);
-  border-left: 1px solid var(--stroke-card);
-  border-top-left-radius: var(--radius);
+  background: var(--bg);
+  border-left: 1px solid var(--line-soft);
   container-type: inline-size;
   container-name: phmain;
 }
@@ -457,8 +456,7 @@
   pointer-events: none;
   padding: 4px 12px;
   border-radius: var(--radius);
-  background: var(--acrylic);
-  backdrop-filter: blur(24px) saturate(1.3);
+  background: var(--surface-raised);
   border: 1px solid var(--stroke);
   box-shadow: var(--shadow-flyout);
   font-weight: 600;
@@ -506,7 +504,7 @@
   transform: translateY(-50%);
   padding: 0 6px;
   border-radius: var(--radius-sm);
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   border: 1px solid var(--stroke);
   color: var(--text-2);
   white-space: nowrap;
@@ -526,7 +524,7 @@
   transform: translateY(-50%);
   padding: 6px 12px;
   border-radius: var(--radius);
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   border: 1px solid var(--stroke);
   box-shadow: var(--shadow-flyout);
   font-weight: 600;
@@ -666,9 +664,9 @@
   left: 0;
   top: 8px;
   bottom: 8px;
-  width: 3px;
+  width: var(--sel-bar-w);
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--sel-bar);
 }
 .app-photos .ph-tree-row:focus-visible {
   box-shadow: inset 0 0 0 2px var(--text);
@@ -888,8 +886,7 @@
 .app-photos .ph-film,
 .app-photos .ph-chev,
 .app-photos .ph-ss-controls {
-  background: var(--acrylic);
-  backdrop-filter: blur(30px) saturate(1.25);
+  background: var(--surface-raised);
   border: 1px solid var(--stroke);
   box-shadow: var(--shadow-flyout);
 }
@@ -959,7 +956,7 @@
   opacity: 1;
 }
 .app-photos .ph-chev:hover {
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
 }
 .app-photos .ph-chev:active {
   transform: scale(0.94);
@@ -1761,7 +1758,7 @@
   padding: 10px 16px;
   border-radius: var(--radius);
   border: 1px solid var(--stroke);
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   box-shadow: var(--shadow-flyout);
   color: var(--text);
   text-align: center;
@@ -1786,7 +1783,7 @@
   gap: 8px;
   padding: 20px 28px;
   border-radius: var(--radius-lg);
-  background: var(--acrylic-solid);
+  background: var(--surface-raised);
   box-shadow: var(--shadow-flyout);
   color: var(--accent-text);
 }

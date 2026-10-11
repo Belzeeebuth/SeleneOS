@@ -132,9 +132,15 @@
   height: 24px;
   border-radius: 6px;
 }
+/* dot marker: lift the icon so the dot sits below it instead of touching its edge (horizontal bars, icons only) */
+@container style(--bar-indicator: dot) {
+  :root:not([data-tb-labels="on"]) #taskbar .tb-app > img {
+    translate: 0 -2px;
+  }
+}
 #taskbar .tb-ind,
 .tb-ovf-item .tb-ind {
-  bottom: 2px;
+  bottom: 1px;
   left: 50%;
   width: 4px;
   height: 4px;
