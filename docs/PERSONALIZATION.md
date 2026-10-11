@@ -96,11 +96,16 @@ Notes:
 | Key | Type | Default | Effect |
 |---|---|---|---|
 | `cursorPack` | `'default' \| 'classic' \| 'midnight' \| 'accent' \| 'large' \| 'highvis' \| 'retro'` | `'default'` | Mouse pointer pack (`default` = the system cursors) |
-| `iconPack` | `'fluent' \| 'tiles' \| 'accent' \| 'graphite' \| 'outline'` | `'fluent'` | App icons everywhere in the shell + file-type icon tints (`fluent` = the apps' own icons) |
+| `cursorSize` | 100–300 (%) | `100` | Pointer size for every pack; the system pack cannot grow, so above 100 % it is drawn as "Aurora light" |
+| `iconPack` | `'fluent' \| 'tiles' \| 'accent' \| 'glass' \| 'graphite' \| 'mono' \| 'outline' \| 'retro'` | `'fluent'` | App icons everywhere in the shell (+ This PC / Recycle Bin, file-type icon tints; `fluent` = the apps' own icons) |
 | `soundPack` | `'aurora' \| 'chimes' \| 'retro' \| 'soft' \| 'silent'` | `'aurora'` | Scheme of every system sound (`silent`: only alarms ring) |
 | `soundEvents` | `{ notification, startup, shutdown }`, each `null \| 'none' \| '<pack>.<sound>' \| '/abs/file.ogg'` | all `null` | Per-event sound. `null` = the pack's sound. Files: `.ogg .oga .opus .wav .mp3 .flac .m4a .webm` |
+| `soundVolume` | 0–100 | `100` | Volume of the system sounds (pack tones and sound files) |
+| `startupSound` | bool | `true` | Play the startup sound when the session starts |
 | `sounds` | bool | `true` | Pre-existing master switch of system sounds (**not** `sounds.*`) |
-| `snapPresets` | `{ id, name, zones: [{ x, y, w, h }] }[]` (fractions 0–1 of the work area, ≤ 16 zones) | `[]` | Custom snap layouts, after the built-in ones (§12.2) |
+| `snapPresets` | `{ id, name, zones: [{ x, y, w, h }], spec? }[]` (fractions 0–1 of the work area, ≤ 16 zones; `spec` = how the editor built it) | `[]` | Custom snap layouts (§12.2); a preset with no valid zone is dropped on profile import |
+| `snapLayouts` | `null \| id[]` (built-in ids and preset ids) | `null` | Which layouts the snap flyouts show, in order (≤ 18). `null` = the six Windows 11 layouts, then every preset |
+| `multitasking.snapBar` | bool | `true` | Layouts bar when a window is dragged to the top of the screen (next to the pre-existing `multitasking.snap / snapLayouts / snapAssist`) |
 | `shortcuts` | `{ [actionId]: combo \| null }` | `{}` | Overrides of the shell shortcuts (§12.1). Missing = default combo, `null` = turned off |
 
 ## 2. Theme engine (`core/theme.js`, `core/tokens.css`)
@@ -159,6 +164,9 @@ still override them:
 - Real `backdrop-filter` is used only on small surfaces (taskbar, flyouts, menus, toasts). Windows
   never use a live backdrop blur, even in the Glass style: their translucency shows the pre-blurred
   wallpaper (Mica).
+- theme.js remembers the window last clicked / hovered (so menus and tooltips get its per-app theme) and forgets it as
+  soon as that window leaves `#windows`: a closed window is never kept alive (checked with a forced GC in
+  `test/personalization-core.test.mjs --only=e2e`).
 
 ## 3. Per-app themes
 
@@ -226,6 +234,12 @@ key in `PROFILE_KEYS` to its value:
 `PROFILE_EXCLUDE` lists sub-keys that are never saved (`focusMode.active`, `focusMode.endsAt`, `focusMode.prevDnd`). **Later areas append their new keys to
 `PROFILE_KEYS`.**
 
+**Complete round trip** (`test/personalization-core.test.mjs --only=e2e`): every `PROFILE_KEYS` key is changed, saved
+as a profile, reset to its default, then the profile is applied with one click: all keys come back identical (with
+`accentFromWallpaper` on, the accent is derived from the picture on screen, so it is compared once the wallpaper rests).
+The same test checks that every key listed in the tables of §1 and §9.1 is in `PROFILE_KEYS` (except the pinned lists
+and the `sounds` master switch, which are content / a system switch, not part of a look).
+
 **Storage:** user profiles are stored with `storage:get/set('shell', 'profiles')` as
 `{ version: 1, profiles: [...] }`.
 
@@ -252,7 +266,11 @@ call runs inside `theme.transition()`, a ~300 ms cross-fade.
   - every value is checked against the key's type and range. Every key in `PROFILE_KEYS` has a validator in
     `VALIDATORS`:
     - identifiers (pack, widget, app, folder ids) must be slugs (`[a-z0-9._-]`);
-    - names are bounded and stripped of control characters and `<>`;
+    - names inside values (Start app folders, snap layouts, the location) are bounded and stripped of control characters
+      and `<>`; the profile's own name keeps the text as typed (bounded, no control characters) and is only ever shown
+      with `textContent`;
+    - colours must be `#rrggbb` and fonts / styles / effects one of the known ids, so nothing imported can reach CSS
+      as free text (checked: an accent `#fff;}*{display:none}` or a font `Inter";}…` is dropped);
     - snap zones must lie inside the screen;
     - shortcuts must be combos without quotes or brackets;
     - sound files must be absolute paths to audio files;
@@ -392,9 +410,16 @@ built-in profiles go back to a static picture.
   lake, with reflection), `bloom` (the Aurora flower: petals sway and breathe, a light band glides over the glass; in the
   accent colour), `fluid` (mesh gradient in the accent colour), `bokeh` (drifting soft lights with parallax), `starfield`
   (Milky Way, twinkling stars, shooting stars), `waves` (layered swells in the accent colour). Light and dark variants.
-- **Measured cost** (1600×900, software rendering, busy 4-core container): 1–3 ms per frame (fluid, bokeh, night sky,
-  waves), 7–9 ms (bloom, aurora) — 30 fps aurora ≈ 25 % of one core; 15 fps halves it; 0 when paused. Waves draws each
-  swell as one smooth path (quadratic curves through 48 points), ≈ 0.2 ms per frame.
+- **Measured cost** (1600×900 desktop, software rendering, 4-core container shared with other test runs; checked by
+  `test/wallpapers.test.mjs --only=perf`, budget 18 ms per frame and 40 % of the main thread): fluid, bokeh, night sky and
+  waves 0.1–0.7 ms per frame (≈ 1 %); bloom ≈ 12 ms (≈ 27 %); aurora ≈ 18 ms (≈ 33 %) at the frame rate the loaded
+  machine reached. Aurora draws its curtains at ⅓ of the screen resolution with ≈ 250 additive sprite draws per frame and
+  bloom at 0.4 (before: ½ resolution, 77 ms and 38 ms per frame on the same machine). 15 fps halves the cost; 0 when
+  paused. Waves draws each swell as one smooth path (quadratic curves through 48 points).
+- **No leaks** (same test): 20 switches between static and animated, effect changes and lock / unlock leave one scene,
+  the same number of canvases and DOM elements, the same requestAnimationFrame rate, a stable JS heap after GC, and every
+  replaced still frame (blob: URL) revoked. Lock-screen still frames are cached for the 4 most recent effect / accent /
+  size combinations; older ones are revoked.
 
 ### 9.3 Dynamic wallpaper
 
@@ -653,14 +678,22 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
   (`cursor: pointer`, `text`, `move`, `*-resize`, `grab`, `wait`, `not-allowed`…) is rewritten once through the CSSOM to
   `var(--cur-<keyword>, <keyword>)`; style sheets loaded later are rewritten too (MutationObserver on `<head>`). A pack
   only sets those variables in `style#aurora-cursor-vars` as PNG data URLs drawn on a canvas (with the right hot spot),
-  plus the arrow on the root, an I-beam on editable fields and the hand on links. System = no variables, so switching is
-  instant and free.
+  plus the arrow on the root, an I-beam on editable fields and the hand on links. Buttons and form controls get the
+  pack's arrow through a zero-specificity `:where(button, select, input[type=checkbox]…)` rule (Chromium's own style
+  sheet gives them the system arrow; any author `cursor:` on them still wins). Cursors set from JavaScript as inline
+  styles (`el.style.cursor = 'grabbing'`) are mapped to the same variables by a MutationObserver while a pack is drawn.
+  System = no variables, so switching is instant and free.
+- **Size:** `cursorSize` (100–300 %) scales every pack (slider on the Cursors page, live).
 - **API:** `packs.cursorPreview(packId, shape)` → data URL (Settings cards); `<html data-cursor-pack>`.
 
 ### 11.2 Icon packs (`core/packs.js`)
 
 - **Packs:** Fluent (`fluent`, the apps' own icons), Aurora tiles (glyph on a coloured rounded tile, one colour per
-  app), Accent tiles (every tile in the accent colour), Graphite (monochrome tiles), Outline (line glyphs, no tile).
+  app), Accent tiles (every tile in the accent colour, redrawn when it changes), Glass (glyph on a frosted rounded
+  square), Graphite (monochrome tiles), Monochrome (`mono`, single-colour glyphs drawn for the system mode and inverted
+  inside a window of the other mode), Outline (line glyphs, no tile), Retro pixel (48 px pixel-art PNG).
+- **Special icons:** This PC and the Recycle Bin (desktop, File Explorer) follow the pack through a style sheet
+  (`img[src$="this-pc.svg"] { content: url(…) }`), so pictures drawn from the apps' own icon files follow too.
 - **How:** `registry.iconResolver(appId, manifest)` (an additive hook of `core/registry.js`) returns an SVG data URL
   built from the app's Fluent glyph, so every `registry.iconUrl()` caller (taskbar, Start, search, Alt+Tab, Task view,
   window title bars, Settings › Apps…) gets the pack's icon. Icons already on screen are swapped in
@@ -672,8 +705,10 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 
 - **Packs** (WebAudio synthesis, no audio files): Aurora (the original sounds), Chimes (bell tones), Retro 8-bit
   (square waves), Soft (low triangle waves), Silent (nothing except alarms). Every system sound follows the pack:
-  `notify`, `startup` (at sign-in, `core/boot.js`), `shutdown` (sign out / restart / shut down wait for it, max 1 s,
-  `core/services.js`), `error`, `click`, `logon`, `unlock`, `screenshot`, `alarm`.
+  `notify`, `startup` (at sign-in, `core/boot.js`; `startupSound` off skips it), `shutdown` (sign out / restart / shut
+  down wait for it, max 1 s, `core/services.js`), `logon`, `unlock`, `error`, `warning`, `click`, `screenshot`, `alarm`,
+  `deviceConnect` / `deviceDisconnect` (drives plugged / unplugged), `emptyTrash` — 13 sounds × 5 packs.
+- **Volume:** `soundVolume` (0–100 %) multiplies every pack tone and sound file.
 - **Per event** (`soundEvents.notification | startup | shutdown`): the pack's sound (`null`), None (`'none'`), the sound of
   another pack (`'chimes.notify'`), or an audio file chosen with the file picker (an absolute path, played with
   `<audio>` through `api.mediaUrl`). The `sounds` switch still turns every system sound off.
@@ -683,8 +718,8 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 
 ### 11.4 Known limitations
 
-- Cursor packs do not apply inside web pages (browser tabs, `<webview>`) or to cursors set from JavaScript as inline
-  styles; those keep the system cursor.
+- Cursor packs do not apply inside web pages (browser tabs, `<webview>`); those keep the system cursor. CSS cursors
+  cannot be animated, so *Busy* / *Working* are a static frame.
 - Icon packs change the icons the shell draws from the registry; an app that draws its own icons inside its window
   (e.g. a toolbar) keeps them.
 - Sounds were checked by counting oscillators in tests (the build container has no audio device); they were not listened
@@ -694,7 +729,7 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 
 ### 12.1 Keyboard shortcuts (`core/shortcuts.js`, `core/features/hotkeys.js`, `main/lib/hotkeys.js`)
 
-- **Catalog** (`SHORTCUTS`, 37 actions in 4 groups):
+- **Catalog** (`SHORTCUTS`, 46 actions in 5 groups, plus the user's own "open this app" actions `app:<appId>`, ≤ 40):
   - *Desktop and Start:* start (Win), search (Win+S), quickSettings (Win+A), notifications (Win+N), widgets (Win+W),
     showDesktop (Win+D), lock (Win+L), run (Win+R), powerMenu (Win+X), clipboard (Win+V), focusMode (Win+Shift+F),
     screenshot (Win+Shift+S).
@@ -703,16 +738,20 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
     minimizeOthers (Win+Home), windowMenu (Alt+Space), closeWindow (Alt+F4).
   - *Virtual desktops:* newDesktop (Win+Ctrl+D), closeDesktop (Win+Ctrl+F4), prevDesktop / nextDesktop
     (Win+Ctrl+←/→).
+  - *Taskbar apps:* taskbarApp1…9 (Win+1…9: open or switch to the n-th taskbar app).
   - *Apps:* files (Win+E), settings (Win+I), terminal (Ctrl+Alt+T), taskManager (Ctrl+Shift+Esc), browser, notepad,
-    calculator (no default), accessibility (Win+U), display (Win+P).
+    calculator (no default), accessibility (Win+U), display (Win+P); *Add an app* creates `app:<appId>` (open the app,
+    or switch to its latest window).
 - **Fixed combos** (never rebound or taken): Alt+Tab, Alt+Shift+Tab, Ctrl+Alt+Tab, Ctrl+Alt+Delete, PrintScreen, the
-  volume / brightness keys, Win+1…9.
-- **Valid combos** (`comboProblem(combo)`): modifiers in the order Super, Ctrl, Alt, Shift, then one key; at least Win,
-  Ctrl or Alt (Shift alone would steal typing) except F13–F24; "Win" alone is allowed.
+  volume / brightness keys. **Reserved** (the X server takes them): Ctrl+Alt+F1…F12, Ctrl+Alt+Backspace.
+- **Valid combos** (`comboProblem(combo)`): modifiers in the order Super, Ctrl, Alt, Shift, then one key; it must
+  contain Win, or Ctrl+Alt together, or be F13–F24 — so Ctrl+C, Alt+F or Shift+A always keep reaching the apps. The
+  catalog's own defaults (Alt+Space, Alt+F4, Ctrl+Shift+Esc) stay allowed; "Win" alone is allowed. Rebinding an
+  action frees its default combo (e.g. taskbarApp1 on Ctrl+Alt+1 leaves Win+1 unbound).
 - **Live map:** `features/hotkeys.js` rebuilds combo → action from `effectiveShortcuts(settings.shortcuts)` whenever the
   key changes. Combos containing Win are always forwarded by the main process; other custom combos (e.g. Ctrl+Alt+E) are
-  sent to it with `hotkeys:setCustom` (the main process accepts only combos with Ctrl or Alt, or F13–F24) so they also
-  work while a browser tab has the focus.
+  sent to it with `hotkeys:setCustom` (the main process accepts only Ctrl+Alt combos or F13–F24) so they also work
+  while a browser tab has the focus.
 - **Settings → Keyboard shortcuts:** search box, the four groups with key caps (French names: Maj, Échap, Suppr…),
   *Change* opens a recorder: `shell.hotkeys.capture(fn)` receives the next key combination before any shortcut runs
   (keys without Ctrl, Alt or Win keep working in the dialog — Tab, Enter, Esc to cancel — and a letter alone is shown
@@ -725,11 +764,16 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 - A preset is `{ id, name, zones: [{ x, y, w, h }] }` in fractions of the work area (up to 16 zones, inside the
   screen). `presetZones(p)` turns it into zone names `z:x,y,w,h`, which `wm.zoneRect()` understands (additive), so a
   custom zone snaps like a built-in one (keyboard, Snap Assist, restore).
-- Custom layouts (up to 12) appear after the built-in ones in the maximize-button flyout, the Win+Z keyboard flyout
-  (numbered) and the snap bar at the top of the screen when dragging a window.
-- **Settings → Snap layouts:** your layouts as cards (Edit / Delete), *New layout*: name + kind (Columns, Rows, Main +
-  side, Grid) with sliders (count, width of the main area, side) and a live numbered preview; built-in layouts for
-  reference; *Show snap layouts* opens the flyout on the Settings window to try them.
+- **Built-in catalog** (`BUILTIN_LAYOUTS`, 14): the six Windows 11 layouts (halves, twoThirds, thirds, mainStack, quad,
+  wideCenter 25/50/25) shown by default, plus 70/30, 30/70, one third + two thirds, two quarters + half, 4 columns,
+  2 rows, 3 rows, 6 tiles.
+- **What the flyouts show:** `snapLayouts` = ordered ids (built-in and custom, ≤ 18; `null` = the six defaults then
+  every preset) — the maximize-button flyout, the Win+Z keyboard flyout (numbered: Win+Z, 5, 2 = layout 5, zone 2) and
+  the snap bar at the top of the screen when dragging a window (`multitasking.snapBar`).
+- **Settings → Snap layouts:** show / hide and reorder every layout, Snap Assist / hover / drag-bar switches, your
+  layouts as cards (Edit / Delete), *New layout*: name + kind (Columns, Rows, Main + side, Grid, or Custom: select a
+  zone and split it side by side / top and bottom, drag the dividers) with a live numbered preview; *Restore the default
+  layouts*; *Show snap layouts* opens the flyout on the Settings window to try them.
 
 ### 12.3 Known limitations
 
@@ -741,9 +785,9 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 
 | Request | Where | Checked by |
 |---|---|---|
-| Theme designer: accent, wallpaper, lock screen, taskbar colour, transparency, blur | §1.1, §2, §9, `personalization-designer.js` | `personalization-core`, `personalization-shell` (checklist) |
+| Theme designer: accent, wallpaper, lock screen, taskbar colour, transparency, blur | §1.1, §2, §9, `personalization-designer.js` | `personalization-core` (`--only=e2e`: real clicks in Settings, 1280×720 FR), `personalization-shell` (checklist) |
 | Visual styles: Windows 11-like, minimal, glassmorphism, retro, high contrast | §4 | both |
-| Animated and dynamic wallpapers (time of day, weather) | §9 | `wallpapers`, `personalization-shell` |
+| Animated and dynamic wallpapers (time of day, weather) | §9 | `wallpapers` (`--only=perf`: per-effect CPU budget, pauses, 20-toggle leak check), `personalization-shell` |
 | Taskbar: size, position, icons, widgets, transparency, auto-hide | §10.1 | `taskbar-start-focus` (geometry, taskbar, autohide), `personalization-shell` |
 | Start: layout, pinned apps, folders, recommended files, background style | §10.2 | `taskbar-start-focus` (start, folders), `personalization-shell` |
 | Cursor packs, icon packs, sound packs, notification / startup / shutdown sounds | §11 | `personalization-shell` |
@@ -751,7 +795,7 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 | Per-app themes (light, dark, system, custom accent) | §3 | both |
 | Snap layout presets, customizable keyboard shortcuts | §12 | `personalization-shell` |
 | Focus mode | §10.3 | `taskbar-start-focus` (focus, restart), `personalization-shell` |
-| Profiles: save and switch complete UI themes with one click | §5 | both (`personalization-shell` round-trips every `PROFILE_KEYS` key) |
+| Profiles: save and switch complete UI themes with one click | §5 | both (`personalization-shell` and `personalization-core --only=e2e` round-trip every `PROFILE_KEYS` key; the latter also checks import hardening and that every documented key is saved) |
 
 `shell/test/personalization-shell.test.mjs` drives each item through the Settings UI of the real shell, round-trips a
 profile with a non-default value for every key in `PROFILE_KEYS` (save → reset → apply → identical; export → import),
@@ -790,12 +834,15 @@ depuis Paramètres › Personnalisation en anglais et en français, et enregistr
   avec une puce du temps restant ; durée de session (25, 50, 90 min…), bannière,
   notification de fin, survit à un redémarrage ; Win+Maj+F, vignette des paramètres rapides, sessions de l’Horloge
   (§10.3).
-- **Packs** : sept packs de curseurs, cinq packs d’icônes, cinq packs de sons, et un son au choix pour les
-  notifications, le démarrage et l’arrêt (son d’un autre pack, aucun, ou fichier audio) (§11).
+- **Packs** : sept packs de curseurs (avec une taille de 100 à 300 %), huit packs d’icônes (dont Verre, Monochrome et
+  Pixel rétro, appliqués aussi à Ce PC et à la Corbeille), cinq packs de sons (13 sons chacun), le volume des sons
+  système, et un son au choix pour les notifications, le démarrage et l’arrêt (son d’un autre pack, aucun, ou fichier
+  audio) (§11).
 - **Police et taille du texte, arrondi des coins, échelle de l’interface, mode « réduire les animations »** (§1.1).
 - **Thèmes par application** : clair, sombre, système ou accent personnalisé (§3).
-- **Dispositions d’ancrage personnalisées** et **raccourcis clavier modifiables** (enregistrement d’une combinaison,
-  conflits résolus, désactivation, restauration) (§12).
+- **Dispositions d’ancrage personnalisées** (14 dispositions intégrées à afficher et réordonner, éditeur par découpage
+  de zones) et **raccourcis clavier modifiables** (46 actions + « ouvrir cette application » ; enregistrement d’une
+  combinaison avec Win, Ctrl + Alt ou F13–F24, conflits résolus, désactivation, restauration) (§12).
 - **Profils** : enregistrer l’apparence complète et passer d’un thème à l’autre en un clic ; export / import validé (§5).
 
 Limites connues : les curseurs ne s’appliquent pas dans les pages web ; les packs d’icônes ne changent pas les icônes

@@ -237,11 +237,22 @@ export class TodoApp {
     this.root.classList.toggle('scrim-on', !!(navOverlay || paneOverlay));
   }
 
-  toggleNav(force) {
-    const open = force ?? !this.root.classList.contains('nav-open');
+  toggleNav(force, { focus = true } = {}) {
+    const was = this.root.classList.contains('nav-open');
+    const open = force ?? !was;
     this.root.classList.toggle('nav-open', open);
     this._syncScrim();
-    if (open) setTimeout(() => this.nav.focusCurrent(), 30);
+    if (open && focus) setTimeout(() => this.nav.focusCurrent(), 30);
+    // the overlay hides with the focus inside it: move the focus to the main pane (never to <body>)
+    else if (!open && was && this.nav.el.contains(document.activeElement)) this._focusMain();
+  }
+
+  _focusMain() {
+    if (this.view === 'settings') {
+      const f = focusable(this.settingsView.el)[0];
+      if (f) return f.focus({ preventScroll: true });
+    }
+    this.list.focusList();
   }
 
   closeOverlays() {
@@ -379,7 +390,9 @@ export class TodoApp {
       this.store._schedule();
     }
     this.root.dataset.view = v.startsWith('list:') ? 'list' : v;
-    if (this.root.classList.contains('narrow')) this.toggleNav(false);
+    // narrow layout: picking a list closes the navigation overlay — but not while the user is typing a search
+    // in it (the box would disappear under the caret); Enter / ↓ / Esc in the box close it then
+    if (this.root.classList.contains('narrow') && !((v === 'search' || keepSearch) && this.nav.search === document.activeElement)) this.toggleNav(false);
     this._syncScrim();
     this.list.viewChanged(changed);
     this.renderNow();
@@ -1051,7 +1064,8 @@ export class TodoApp {
       }
       if (lk === 'f') {
         e.preventDefault();
-        if (this.root.classList.contains('narrow')) this.toggleNav(true);
+        // (the overlay must not move the focus to the current list: it belongs in the search box)
+        if (this.root.classList.contains('narrow')) this.toggleNav(true, { focus: false });
         this.nav.focusSearch();
         return;
       }
@@ -1086,6 +1100,7 @@ export class TodoApp {
         e.preventDefault();
         this.nav.clearSearch();
         this.setSearch('');
+        if (this.root.classList.contains('nav-open')) this.toggleNav(false);
         this.list.focusList();
         return;
       }

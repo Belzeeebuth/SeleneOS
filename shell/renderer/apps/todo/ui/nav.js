@@ -27,13 +27,20 @@ export class Nav {
         this._st = setTimeout(() => this.app.setSearch(this.search.value), 120);
       },
       onkeydown: (e) => {
+        // to the results: in the narrow layout the navigation overlay closes so they can be seen
+        const toResults = () => {
+          if (this.app.root.classList.contains('narrow')) this.app.toggleNav(false);
+          this.app.list.focusList();
+        };
         if (e.key === 'Enter') {
           clearTimeout(this._st);
           this.app.setSearch(this.search.value);
-          if (this.search.value.trim()) this.app.list.focusList();
+          if (this.search.value.trim()) toResults();
         } else if (e.key === 'ArrowDown' && this.search.value.trim()) {
           e.preventDefault();
-          this.app.list.focusList();
+          clearTimeout(this._st);
+          this.app.setSearch(this.search.value);
+          toResults();
         }
       },
     });
