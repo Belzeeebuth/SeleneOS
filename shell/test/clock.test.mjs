@@ -765,7 +765,7 @@ async function runEnglish() {
       await until(s, (app) => !app.ctx.settings.get('notifications.dnd'), { label: 'DND restored just before the end', timeout: 6000 });
       check('still running when DND comes back', await CK(s, (app) => !!app.store.focus.session), true);
       await until(s, (app) => !app.store.focus.session, { label: 'session completed', timeout: 6000 });
-      check('completed summary', await s.page.textContent(`${WIN} .ck-focus-done .subtitle`), 'Well done!');
+      check('completed summary', await s.page.textContent(`${WIN} .ck-focus-done .subtitle`), 'Well done');
       check('30 focus minutes recorded (split at midnight if needed)', (await histSum()) - before, 30);
       check('today counts the part done today', await CK(s, (app) => app.store.todayMinutes()), (v) => v >= 1 && v <= 30 + 60);
       check('completion notification visible (DND was off again)', await s.page.locator('#toasts .toast', { hasText: 'Focus session complete' }).count(), 1);
@@ -1774,7 +1774,7 @@ async function runReconcile() {
       check('reminders re-registered', r.rems, ['alarm-arep', 'alarm-snz', 'timer-tlive']);
       await go(s, 'focus');
       // (the session that completed while Clock was closed shows its summary first)
-      check('summary of the session that ended while closed', await s.page.textContent(`${WIN} .ck-focus-done .subtitle`), 'Well done!');
+      check('summary of the session that ended while closed', await s.page.textContent(`${WIN} .ck-focus-done .subtitle`), 'Well done');
       await s.page.click(`${WIN} .ck-focus-done .btn`);
       check('the focus picker shows the stored length', await s.page.getAttribute(`${WIN} .ck-focus-spin`, 'aria-valuenow'), '15');
       await go(s, 'world');

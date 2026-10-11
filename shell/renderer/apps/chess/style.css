@@ -59,10 +59,7 @@
   transform: translateX(-2px);
 }
 .app-chess .cx-tb-btn[data-cmd="hint"]:not(:disabled) .icon {
-  color: #e8a400;
-}
-:root[data-theme="dark"] .app-chess .cx-tb-btn[data-cmd="hint"]:not(:disabled) .icon {
-  color: #ffc83d;
+  color: var(--warning);
 }
 .app-chess .cx-tb-btn.busy .icon {
   animation: cx-pulse 1s ease-in-out infinite;
@@ -461,7 +458,7 @@
 }
 .app-chess .cb-promo-btn:hover,
 .app-chess .cb-promo-btn:focus-visible {
-  background: color-mix(in srgb, var(--accent-base, var(--accent)) 16%, #fff);
+  background: color-mix(in srgb, var(--accent-base, var(--accent)) 16%, var(--surface-raised));
 }
 .app-chess .cb-promo-btn:focus-visible::after {
   content: "";
@@ -515,7 +512,7 @@
   right: 0;
   top: 50%;
   height: 1px;
-  background: rgba(232, 17, 35, 0.6);
+  background: color-mix(in srgb, var(--danger) 60%, transparent);
 }
 /* the score sits at the end of the side that is better (white part: dark text, black part: light) */
 .app-chess .cx-eval-text {
@@ -582,14 +579,9 @@
 .app-chess .cx-info,
 .app-chess .cx-moves-card {
   border-radius: var(--radius);
-  background: var(--card);
-  border: 1px solid var(--stroke-card);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
   background-clip: padding-box;
-}
-:root[data-theme="dark"] .app-chess .cx-player,
-:root[data-theme="dark"] .app-chess .cx-info,
-:root[data-theme="dark"] .app-chess .cx-moves-card {
-  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .app-chess .cx-player {
@@ -631,8 +623,8 @@
   box-shadow: inset 0 0 0 1px var(--stroke);
 }
 .app-chess .cx-player.is-ai .cx-avatar {
-  color: #fff;
-  background: linear-gradient(135deg, #46b0ff, var(--accent-base, #1767d9) 70%);
+  color: var(--on-accent);
+  background: var(--accent);
   box-shadow: none;
 }
 .app-chess .cx-player.thinking .cx-avatar::after {
@@ -808,12 +800,12 @@
   color: var(--danger);
 }
 .app-chess .cx-clock.low.running {
-  color: #fff;
-  background: #c42b1c;
+  color: var(--on-danger);
+  background: var(--danger);
 }
 .app-chess .cx-clock.flagged {
-  color: #fff;
-  background: #c42b1c;
+  color: var(--on-danger);
+  background: var(--danger);
 }
 
 /* status card */
@@ -843,10 +835,10 @@
   color: var(--danger);
 }
 .app-chess .cx-status[data-tone="good"] .cx-status-icon {
-  color: #e8a400;
+  color: var(--warning);
 }
 .app-chess .cx-status[data-tone="accent"] .cx-status-icon {
-  color: #e8a400;
+  color: var(--accent-text);
 }
 .app-chess .cx-status-text {
   min-width: 0;
@@ -1226,18 +1218,17 @@
   height: 64px;
   margin-bottom: 10px;
   border-radius: 50%;
-  color: #fff;
-  background: linear-gradient(140deg, #ffd34e, #f0a500);
-  box-shadow: 0 6px 18px rgba(240, 165, 0, 0.35);
-  animation: cx-pop 520ms var(--ease-spring);
+  color: var(--warning);
+  background: var(--warning-bg);
+  animation: cx-pop var(--dur-slow) var(--ease);
 }
 .app-chess .cx-result.is-loss .cx-res-icon {
-  background: linear-gradient(140deg, #8a94a6, #5a6476);
-  box-shadow: 0 6px 18px rgba(60, 70, 90, 0.3);
+  color: var(--text-2);
+  background: var(--subtle-hover);
 }
 .app-chess .cx-result.is-draw .cx-res-icon {
-  background: linear-gradient(140deg, #6cc4ff, var(--accent-base, #0f6cbd));
-  box-shadow: 0 6px 18px rgba(15, 108, 189, 0.3);
+  color: var(--accent-text);
+  background: var(--accent-subtle);
 }
 @keyframes cx-pop {
   from {
