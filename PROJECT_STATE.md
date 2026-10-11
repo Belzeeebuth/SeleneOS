@@ -18,7 +18,8 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 - Web-tech shell (Electron).
 - Name "Aurora OS".
 - Target QEMU first; `WITH_FIRMWARE=1` adds linux-firmware for real hardware.
-- **No QEMU testing by the agent:** the user tests in QEMU personally.
+- **QEMU testing:** the user tests in QEMU personally; since 2026-10-11 the agent may also boot it headless here
+  (`make run HEADLESS=1`, TCG) to debug boot problems.
 - **Do not send screenshots** unless the user asks.
 - **Arch Linux variant:** discussed and deferred. A possible later `make iso-arch` (archiso profile), but Arch mirrors are blocked in the build container.
 
@@ -102,7 +103,16 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 
 ## Known issues / limitations
 
-- QEMU boot of the latest ISO is untested by the agent (user's choice). Sounds were never heard (no audio device).
+- Sounds were never heard (no audio device in the build container).
+- Boot fixes (2026-10-11, after the user saw a black screen after the splash in QEMU):
+  - Plymouth used to quit with `--retain-splash`, which left tty1 in graphics mode, so greetd's switch to vt7 was refused.
+    The override is gone; verify-iso rejects it.
+  - virtio-vga without virgl was taken for a 3D GPU (the card's device is the PCI function, driver `virtio-pci`), so
+    Electron's GPU process crashed (exit 133). `aurora_gpu_mode` now reads the `virtioN` child's feature bits, and
+    aurora-xsession retries the shell with `AURORA_GPU=off` after a crash with the GPU on.
+  - GRUB theme: PNGs must be 8-bit RGB/RGBA (GRUB drew rainbow rings otherwise) and theme fonts must match the .pf2
+    names; verify-iso checks both.
+- The user builds on an Arch-like host with fish (heredocs fail; use `bash` first) and `sudo make docker-iso`.
 - Browser: pop-ups open as tabs (`window.opener` missing); real sites blocked by the build container's proxy.
 - Mail: no OAuth2; passwords are obfuscated, not encrypted (no keyring).
 - Wi-Fi key passed on the `nmcli` command line (briefly visible in /proc to other local users).
@@ -116,7 +126,7 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 
 ## Next steps (exact)
 
-1. Wait for the user. They test the ISO in QEMU themselves (never run QEMU; no screenshots unless asked).
+1. Wait for the user's QEMU feedback on the boot fixes (no screenshots unless asked).
 2. App **Phase 2** (PHASEAPP.md) only when the user asks.
    **Mode (user decision, 2026-10-11):** extra usage on, ultracode OFF. Lean: one builder + one verifier per app,
    2 apps at a time, time box per agent, key screenshots only, one `make test-all` at the end; small fixes done
