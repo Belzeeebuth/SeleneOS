@@ -8,6 +8,7 @@ import * as dlg from './dialogs.js';
 import { decode, decodeAs, encode, unencodable, ENCODINGS, EOLS, normalizeEol } from './codec.js';
 import { shared, ZOOM_MIN, ZOOM_MAX } from './shared.js';
 import * as coreTheme from '../../../core/theme.js';
+import { trustedDragPaths } from '../../../core/desktop.js';
 
 const WARN_SIZE = 16 * 1024 * 1024;
 const MAX_SIZE = 64 * 1024 * 1024;
@@ -1039,12 +1040,9 @@ export class NotepadWindow {
   }
 
   async dropFiles(dt) {
-    let paths = [];
-    try {
-      const raw = dt.getData(DND_MIME);
-      if (raw) paths = JSON.parse(raw);
-    } catch {}
-    if (!Array.isArray(paths)) paths = [];
+    // Security: the shell's paths format only counts when the drag started in the shell (Files, the
+    // desktop…); a web page (browser tab, mail body) can forge it. Real files keep working via dt.files.
+    let paths = trustedDragPaths(dt);
     if (!paths.length) paths = [...(dt.files || [])].map((f) => this.api.pathForFile(f));
     paths = paths.map((p) => normalizePath(p)).filter(Boolean);
     for (const p of paths.slice(0, 32)) {

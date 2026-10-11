@@ -1464,6 +1464,7 @@ async function runMain() {
   });
 
   await section('qa: tampered Recent list', async () => {
+    await sleep(1500); // let the previous documents' Recent updates (debounced save, thumbnails) land first
     const from = s.logs.length;
     const saved = await run(s, `(async () => (await import('app://shell/apps/pdf/lib/shared.js')).shared.recent.slice())()`);
     await run(
@@ -1484,8 +1485,17 @@ async function runMain() {
     await W(s, (w) => {
       w.newTab();
     });
-    await until(() => run(s, `document.querySelectorAll('${WIN} .pdf-start:not([hidden]) .pdf-recent-row').length === 5`), { label: 'start page with the sanitized list' });
-    check('qa: rows of a tampered list', await run(s, `[...document.querySelectorAll('${WIN} .pdf-start:not([hidden]) .pdf-recent-name')].map((e) => e.textContent)`), ['Bad date', 'Huge', 'Tracker', '<img src=x onerror=alert(1)>', 'noname.pdf']);
+    const expected = ['Bad date', 'Huge', 'Tracker', '<img src=x onerror=alert(1)>', 'noname.pdf'];
+    const names = () => run(s, `[...document.querySelectorAll('${WIN} .pdf-start:not([hidden]) .pdf-recent-name')].map((e) => e.textContent)`);
+    await until(
+      async () => {
+        const shown = await names();
+        return expected.every((n) => shown.includes(n));
+      },
+      { label: 'start page with the sanitized list' },
+    );
+    check('qa: rows of a tampered list (bad entries dropped, the rest kept in order)', (await names()).filter((n) => expected.includes(n)), expected);
+    check('qa: no row for the relative path or junk values', (await names()).filter((n) => /relative|^5$|^null$/.test(n)), []);
     check('qa: no remote thumbnail', await run(s, `[...document.querySelectorAll('${WIN} .pdf-recent-row img')].filter((i) => !i.src.startsWith('data:')).length`), 0);
     check('qa: no markup injected', await run(s, `document.querySelectorAll('img[src="x"]').length`), 0);
     check('qa: no errors from a tampered list', errorLogs(from), []);

@@ -1021,19 +1021,43 @@ await test('opening files: shell.openFile / relaunch with {file} and {files}', a
 });
 
 await test('drag and drop: files are queued, unsupported items are reported', async () => {
-  const drop = (paths) =>
+  // Shell drags (Files, the desktop) fire 'dragstart' in the shell document first; drags started in web
+  // content (a browser tab, a mail body) never do, so their forged payloads are ignored.
+  const drop = (paths, { forged = false } = {}) =>
     M(
       s,
-      (a, p) => {
+      (a, [p, forged]) => {
+        window.dispatchEvent(new PointerEvent('pointerdown'));
+        if (!forged) document.dispatchEvent(new DragEvent('dragstart', { bubbles: true }));
         const dt = new DataTransfer();
         dt.setData('application/x-aurora-paths', JSON.stringify(p));
+        if (forged) dt.setData('text/uri-list', p.map((x) => `file://${x}`).join('\r\n'));
         const target = a.root;
         for (const type of ['dragenter', 'dragover', 'drop']) target.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }));
+        if (!forged) document.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
         return true;
       },
-      paths,
+      [paths, forged],
     );
   const len = (await state(s)).len;
+  await M(s, (a) => a.toasts.replaceChildren());
+  await drop([path.join(D, 'hello.wav')], { forged: true });
+  await wait(s, 600);
+  assert.equal((await state(s)).len, len, 'forged drop (not started in the shell) queues nothing');
+  // forged row payload (our own format) onto the "Play queue" navigation item: no row drag is running
+  await M(
+    s,
+    (a, p) => {
+      window.dispatchEvent(new PointerEvent('pointerdown'));
+      const dt = new DataTransfer();
+      dt.setData('application/x-aurora-media', JSON.stringify({ paths: p, list: 'queue', from: -1 }));
+      for (const type of ['dragenter', 'dragover', 'drop']) a.navItems.queue.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }));
+    },
+    [path.join(D, 'hello.wav')],
+  );
+  await wait(s, 600);
+  assert.equal((await state(s)).len, len, 'forged row payload queues nothing');
+  await M(s, (a) => a.toasts.replaceChildren());
   await drop([path.join(home, 'Videos', 'Aurora Intro.webm'), path.join(MUSIC, 'Tests')]);
   await waitFor(s, (a, n) => a.queue.length === n + 2, len, { what: 'dropped items queued (file + folder)' });
   await s.page.waitForSelector(`${WIN} .mp-toast.success`);
@@ -1045,10 +1069,12 @@ await test('drag and drop: files are queued, unsupported items are reported', as
   await M(
     s,
     (a, p) => {
+      document.dispatchEvent(new DragEvent('dragstart', { bubbles: true }));
       const dt = new DataTransfer();
       dt.setData('application/x-aurora-paths', JSON.stringify(p));
       const el = a.navItems.queue;
       for (const type of ['dragenter', 'dragover', 'drop']) el.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }));
+      document.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
     },
     [path.join(D, 'hello.wav')],
   );

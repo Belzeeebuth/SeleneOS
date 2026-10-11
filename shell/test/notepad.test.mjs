@@ -828,7 +828,23 @@ async function mainRun() {
     });
 
     await section('drag & drop files onto the window', async () => {
+      // A drag started in web content (forged paths payload, no 'dragstart' in the shell) is ignored.
+      const forged = path.join(docs, 'forged.txt');
+      fs.writeFileSync(forged, 'forged');
       await run(s, `(() => {
+        window.dispatchEvent(new PointerEvent('pointerdown'));
+        const el = [...document.querySelectorAll('${WIN}')].pop();
+        const target = el.querySelector('.np-text:not([hidden])') || el;
+        const dt = new DataTransfer();
+        dt.setData('application/x-aurora-paths', JSON.stringify([${JSON.stringify(forged)}]));
+        for (const type of ['dragenter', 'dragover', 'drop']) target.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }));
+      })()`);
+      await sleep(600);
+      check('forged drop (not started in the shell) opens nothing', await NP(s, (np) => np.docs.some((d) => d.title === 'forged.txt')), false);
+      fs.rmSync(forged);
+      // A real shell drag (Files, the desktop): 'dragstart' fired in the shell document first.
+      await run(s, `(() => {
+        document.dispatchEvent(new DragEvent('dragstart', { bubbles: true }));
         const el = [...document.querySelectorAll('${WIN}')].pop();
         const target = el.querySelector('.np-text:not([hidden])') || el;
         const dt = new DataTransfer();
@@ -837,6 +853,7 @@ async function mainRun() {
         target.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
         window.__npDropShown = !el.querySelector('.np-drop').hidden;
         target.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+        document.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
       })()`);
       check('drop overlay shown while dragging', await run(s, 'window.__npDropShown'), true);
       await until(() => NP(s, (np) => np.docs.some((d) => d.title === 'groceries.txt') && np.docs.some((d) => d.title === 'notes.md')), { label: 'dropped files' });

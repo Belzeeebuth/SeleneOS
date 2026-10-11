@@ -22,14 +22,13 @@ available in **English and French**, in light and dark themes.
   actions, firewall (ufw) enabled by default
 
 **Personalization** (details in [docs/PERSONALIZATION.md](docs/PERSONALIZATION.md))
-- Theme designer: accent color, wallpaper, lock screen, taskbar color, window transparency and blur intensity
-- Visual styles: Windows 11, Minimal, Glass, Retro and High contrast; per-app light / dark / accent themes
-- Animated wallpapers and dynamic wallpapers that follow the time of day and the weather; slideshow
-- Taskbar: size, position (bottom, top, left, right), search box, app names, button combining, mini widgets
-  (weather, CPU, memory, network), transparency, auto-hide
-- Start menu: layouts, pinned apps, app folders, recommended files, folders next to power, background style
+- Theme designer: accent color, wallpaper, lock screen, taskbar color, window transparency and blur intensity;
+  font, text size, rounded corners, UI scale and reduced motion
+- Five visual styles (Windows 11, Minimal, Glass, Retro, High contrast) and per-app light / dark / accent themes
+- Animated wallpapers, and dynamic wallpapers that follow the time of day and the weather; slideshow
+- Taskbar (size, position, icons, mini widgets, transparency, auto-hide) and Start menu (layouts, pinned apps,
+  folders, recommended files, background style)
 - Cursor, icon and sound packs, with custom notification, startup and shutdown sounds
-- Font and text size, rounded corners, UI scale, reduced motion
 - Custom snap layouts and fully customizable keyboard shortcuts
 - Focus mode: hides notifications, dims the desktop and simplifies the taskbar, with a session timer
 - Profiles: save the whole look and switch themes in one click; export and import
@@ -46,6 +45,13 @@ available in **English and French**, in light and dark themes.
 | Notepad | Tabs, find/replace, go to line, word wrap, encodings and line endings |
 | Terminal | Real PTY with Bash, tabs, split panes, color schemes |
 | Media Player | Music and video libraries, queue, playlists, audio visualizer, sample media included |
+| Photos | Gallery by date, folders, favorites and albums; viewer with zoom and filmstrip, slideshow; editor with crop, straighten, adjustments and filters |
+| PDF Reader | Tabs, page thumbnails and outline, find, zoom and page layouts, highlight and draw, presentation mode |
+| Archive Manager | Browse, extract and create ZIP, 7z, RAR and TAR archives, password-protected archives, test and preview |
+| Notes | Notebooks, rich text, checklists, pictures and tags, Markdown import/export, saved as you type |
+| Calendar | Day, work week, week, month and agenda views, recurring events, reminders, holidays, .ics import/export |
+| Clock | Alarms, timers, stopwatch, world clock and focus sessions; alarms ring even when the app is closed |
+| To Do | Lists, My Day, reminders, due dates, repeats and steps |
 | Snipping Tool | Rectangle/window/full-screen/free-form captures, markup, save and copy |
 | Task Manager | Processes with heat map, live performance graphs, users, details, services |
 | Settings | System, network, personalization, apps, accounts, time & language, accessibility, privacy & security, updates |
@@ -111,7 +117,8 @@ aurora-os/
   rootfs/     files copied into the OS image (session scripts, helpers, configs)
   iso/        ISO build scripts (debootstrap -> squashfs -> hybrid BIOS/UEFI ISO)
   tools/      QEMU launcher and helpers
-  docs/       BUILDING.md (build, run, install), DEVELOPING.md (architecture, app API)
+  docs/       BUILDING.md (build, run, install), DEVELOPING.md (architecture, app API),
+              PERSONALIZATION.md (themes, styles, wallpapers, taskbar, packs, profiles)
 ```
 
 **Architecture:**

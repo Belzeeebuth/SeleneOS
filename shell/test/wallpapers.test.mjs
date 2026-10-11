@@ -2,7 +2,7 @@
 // maths + weather), slideshow, lock screen / sign-in screen backgrounds, Settings pages (Background, Lock screen,
 // Animated & dynamic wallpapers), profiles. See docs/PERSONALIZATION.md §9.
 //
-//   xvfb-run -a -s "-screen 0 1600x900x24" node test/wallpapers.test.mjs [--no-shots] [--only=unit,engine,dynamic,ui,lock,sizes,restart]
+//   xvfb-run -a -s "-screen 0 1600x900x24" node test/wallpapers.test.mjs [--no-shots] [--only=unit,engine,dynamic,ui,sizes,restart,net,perf]
 //
 // Weather is tested with the mock backend (AURORA_WEATHER_MOCK) — the build container has no access to Open-Meteo;
 // a real request is attempted at the end and reported (not required).
@@ -1129,6 +1129,147 @@ async function realNetwork() {
   }
 }
 
+// =====================================================================================================================
+// Every effect on the real desktop: CPU budget, pause when covered / reduced motion; then 20 toggles without leaks.
+async function perfAndLeaks() {
+  console.log('\n# Per-effect budget + pauses, and no leaks after 20 toggles (dark, en, 1600x900)');
+  const s = await launchShell({ theme: 'dark', lang: 'en', env: ENV, settings: { wallpaperMode: 'animated' }, open: ['notepad'] });
+  const cdp = await s.app.context().newCDPSession(s.page).catch(() => null);
+  const gc = async () => {
+    for (let i = 0; i < 3 && cdp; i++) {
+      await cdp.send('HeapProfiler.collectGarbage');
+      await sleep(200);
+    }
+  };
+  try {
+    const A = (fn, a) => s.aurora(fn, a);
+    await waitFor(async () => (await state(s)).running, 8000);
+    await A(() => window.__aurora.wm.byApp('notepad')[0].minimize());
+    await sleep(500);
+    const table = [];
+    for (const id of ['aurora', 'bloom', 'fluid', 'bokeh', 'starfield', 'waves']) {
+      await set(s, 'animatedWallpaper.id', id);
+      await waitFor(async () => (await state(s)).effect === id && (await state(s)).running, 5000);
+      await sleep(600);
+      // main-thread cost of the scene: time spent drawing frames over 2 s of wall clock
+      const m = await A(async () => {
+        const r = window.__aurora.wallpaperEngine.renderer;
+        const f0 = r.frames;
+        let draw = 0;
+        const orig = r.inst.frame;
+        const inst = r.inst;
+        inst.frame = function (...x) {
+          const t = performance.now();
+          const v = orig.apply(this, x);
+          draw += performance.now() - t;
+          return v;
+        };
+        const t0 = performance.now();
+        await new Promise((res) => setTimeout(res, 2000));
+        const el = performance.now() - t0;
+        inst.frame = orig;
+        return { fps: ((r.frames - f0) * 1000) / el, ms: draw / Math.max(1, r.frames - f0), busy: draw / el };
+      });
+      // a maximized window covers the desktop: no frame
+      await A(() => {
+        const w = window.__aurora.wm.byApp('notepad')[0];
+        w.restoreFromMinimize?.({ animate: false });
+        w.maximize();
+      });
+      await sleep(500);
+      let g0 = await frames(s);
+      await sleep(800);
+      const covered = (await frames(s)) - g0;
+      const pausedCovered = (await state(s)).paused.includes('covered');
+      await A(() => window.__aurora.wm.byApp('notepad')[0].minimize());
+      await sleep(400);
+      // reduced motion: a still frame, no loop
+      await set(s, 'reducedMotion', true);
+      await sleep(500);
+      g0 = await frames(s);
+      await sleep(800);
+      const reduced = (await frames(s)) - g0;
+      const pausedMotion = (await state(s)).paused.includes('motion');
+      await set(s, 'reducedMotion', false);
+      await waitFor(async () => (await state(s)).running, 3000);
+      table.push({ id, ...m, covered, reduced });
+      check(m.fps > 3 && m.fps <= 31.5, `${id}: renders on the desktop (${m.fps.toFixed(1)} fps, cap 30)`);
+      check(m.ms < 18 && m.busy < 0.4, `${id}: CPU budget — ${m.ms.toFixed(2)} ms per frame, ${(m.busy * 100).toFixed(1)} % of the main thread at 1600×900 (budget 18 ms, 40 %)`);
+      check(pausedCovered && covered <= 1, `${id}: paused while a maximized window covers the desktop (${covered} frames in 0.8 s)`);
+      check(pausedMotion && reduced === 0, `${id}: reduced motion shows a still frame (${reduced} frames)`);
+    }
+    console.log(`  info: ${table.map((r) => `${r.id} ${r.ms.toFixed(1)} ms/${(r.busy * 100).toFixed(0)} %`).join(', ')}`);
+
+    // ---- 20 toggles: mode animated ⇄ static, effect changes, lock / unlock; nothing piles up
+    await set(s, 'animatedWallpaper.id', 'aurora');
+    await waitFor(async () => (await state(s)).effect === 'aurora' && (await state(s)).running, 5000);
+    await sleep(800);
+    await A(() => {
+      const c = { created: 0, revoked: 0 };
+      const oc = URL.createObjectURL;
+      const or = URL.revokeObjectURL;
+      URL.createObjectURL = function (...x) {
+        c.created++;
+        return oc.apply(this, x);
+      };
+      URL.revokeObjectURL = function (...x) {
+        c.revoked++;
+        return or.apply(this, x);
+      };
+      window.__blobs = c;
+      const raf = window.requestAnimationFrame.bind(window);
+      window.__raf = 0;
+      window.requestAnimationFrame = (fn) => {
+        window.__raf++;
+        return raf(fn);
+      };
+    });
+    const sample = () =>
+      A(async () => {
+        const r0 = window.__raf;
+        const t0 = performance.now();
+        await new Promise((res) => setTimeout(res, 1500));
+        return {
+          raf: ((window.__raf - r0) * 1000) / (performance.now() - t0),
+          scenes: document.querySelectorAll('#desktop .wp-scene').length,
+          canvases: document.querySelectorAll('canvas').length,
+          heap: performance.memory?.usedJSHeapSize || 0,
+          nodes: document.getElementsByTagName('*').length,
+        };
+      });
+    await gc();
+    const base = await sample();
+    const ids = ['bloom', 'fluid', 'bokeh', 'starfield', 'waves', 'aurora'];
+    for (let i = 0; i < 20; i++) {
+      if (i % 2) await setMany(s, { wallpaperMode: 'animated', 'animatedWallpaper.id': ids[i % ids.length] });
+      else await set(s, 'wallpaperMode', 'static');
+      await sleep(250);
+      if (i % 5 === 4) {
+        await A(() => window.__aurora.shell.lock());
+        await sleep(300);
+        await A(() => window.__aurora.shell.emit('unlock'));
+        await sleep(300);
+      }
+    }
+    await setMany(s, { wallpaperMode: 'animated', 'animatedWallpaper.id': 'aurora' });
+    await waitFor(async () => (await state(s)).effect === 'aurora' && (await state(s)).running, 5000);
+    await sleep(9500); // replaced still frames are revoked 8 s after they leave the screen
+    await gc();
+    const after = await sample();
+    const blobs = await A(() => window.__blobs);
+    check(after.scenes === 1 && after.canvases <= base.canvases, `20 toggles: one scene left on the desktop, no extra canvas (${base.canvases} → ${after.canvases} canvases)`);
+    check(after.raf <= base.raf * 1.3 + 6, `20 toggles: no animation loop left behind (${base.raf.toFixed(0)} → ${after.raf.toFixed(0)} requestAnimationFrame/s)`);
+    check(blobs.created - blobs.revoked <= 3, `20 toggles: still frames are released (${blobs.created} blob URLs created, ${blobs.revoked} revoked)`);
+    check(!base.heap || after.heap - base.heap < 12e6, `20 toggles: JS heap stable after GC (${(base.heap / 1e6).toFixed(1)} → ${(after.heap / 1e6).toFixed(1)} MB)`);
+    check(after.nodes <= base.nodes + 30, `20 toggles: DOM size stable (${base.nodes} → ${after.nodes} elements)`);
+    const errs = errorsOf(s);
+    check(!errs.length, `no console errors (budget + leaks)${errs.length ? `: ${errs.slice(0, 3).join(' | ')}` : ''}`);
+  } finally {
+    await cdp?.detach().catch(() => {});
+    await s.close();
+  }
+}
+
 try {
   if (run('unit')) await unit();
   if (run('engine')) await effectsAndEngine();
@@ -1140,6 +1281,7 @@ try {
   if (run('sizes')) await sizes();
   if (run('restart')) await restartAndGreeter();
   if (run('net')) await realNetwork();
+  if (run('perf')) await perfAndLeaks();
 } catch (err) {
   failures.push(`crash: ${err.stack || err}`);
   console.log(err);

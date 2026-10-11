@@ -178,7 +178,9 @@ export class ServicesPage {
     try {
       await this.app.ctx.shell.runAdmin('service', [verb, s.unit], { reason: t(`svc.reason.${verb}`, { name: s.name }), appId: 'taskmgr' });
     } catch (err) {
-      if (err?.code !== 'ECANCELED') await this.app.actions.alertErr(t('svc.failed', { name: s.name, msg: errText(t, err) }));
+      // A dismissed UAC prompt is not an error; a standard account gets a clear explanation.
+      if (err?.code === 'ENOTADMIN') await this.app.actions.alertErr(t('err.notAdmin'), t('err.notAdminTitle'));
+      else if (err?.code !== 'ECANCELED') await this.app.actions.alertErr(t('svc.failed', { name: s.name, msg: errText(t, err) }));
     } finally {
       this.busy.delete(s.unit);
     }

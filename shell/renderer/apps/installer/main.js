@@ -746,7 +746,7 @@ export default {
         S.dryRun = !!r?.dryRun;
       } catch (e) {
         S.phase = 'error';
-        S.error = { message: t('error.start', { error: e.message }) };
+        S.error = e?.code === 'ENOTADMIN' || e?.code === 'EAUTH' ? { code: e.code, message: e.message } : { message: t('error.start', { error: e.message }) };
         render();
       }
     }
@@ -899,7 +899,8 @@ export default {
       const cancelled = S.cancelled;
       setHeader(null, cancelled ? t('error.cancelledTitle') : t('error.title'), cancelled ? t('error.cancelledSubtitle') : t('error.subtitle'));
       const raw = String(S.error?.message || '');
-      const msg = S.error?.code === 'EAUTH' ? t('error.auth') : raw;
+      // sudo refused: a standard account (ENOTADMIN) or one that needs a password (EAUTH).
+      const msg = S.error?.code === 'ENOTADMIN' ? t('error.notAdmin') : S.error?.code === 'EAUTH' ? t('error.auth') : raw;
       const excerpt = S.log.slice(-40).join('\n');
       content.replaceChildren(
         ...[

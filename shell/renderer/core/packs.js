@@ -279,8 +279,11 @@ function applyCursors() {
   const arrow = drawCursor(pack, 'arrow', k);
   const beam = drawCursor(pack, 'text', k);
   const hand = drawCursor(pack, 'hand', k);
+  // (Chromium's own style sheet gives buttons and form controls `cursor: default`, the system arrow: the :where() rule
+  // gives them the pack's arrow with no specificity, so any author `cursor:` on them still wins)
   el.textContent = `:root { ${decl.join(' ')} }
 :root, :root body { cursor: url("${arrow.url}") ${arrow.x} ${arrow.y}, default; }
+:where(button, select, input:is([type=button], [type=checkbox], [type=radio], [type=range], [type=color], [type=submit], [type=reset], [type=file], [type=image])) { cursor: url("${arrow.url}") ${arrow.x} ${arrow.y}, default; }
 :root :is(input:not([type=button], [type=checkbox], [type=radio], [type=range], [type=color], [type=submit], [type=reset], [type=file], [type=image]), textarea, [contenteditable=""], [contenteditable="true"]) { cursor: url("${beam.url}") ${beam.x} ${beam.y}, text; }
 :root a[href] { cursor: url("${hand.url}") ${hand.x} ${hand.y}, pointer; }`;
 }

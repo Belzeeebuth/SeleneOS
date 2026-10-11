@@ -28,8 +28,10 @@ export function createActions(app) {
       await shell.runAdmin(action, args.map(String), { reason, appId: 'taskmgr' });
       return true;
     } catch (err) {
-      if (err?.code === 'ECANCELED') return false;
-      await alertErr(t('err.admin', { msg: msgOf(err) }));
+      if (err?.code === 'ECANCELED') return false; // UAC prompt dismissed: not an error
+      // Standard account: sudo refuses it whatever the password, so say why instead of a raw error.
+      if (err?.code === 'ENOTADMIN') await alertErr(t('err.notAdmin'), t('err.notAdminTitle'));
+      else await alertErr(t('err.admin', { msg: msgOf(err) }));
       return false;
     }
   }

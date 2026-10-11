@@ -16,6 +16,7 @@
 //       events 'installer:progress' (to the window that started it):
 //         { type: 'progress', stage, progress, message }   stage: partition|format|copy|configure|bootloader|cleanup|done
 //         { type: 'log', line }      { type: 'error', message, stage, code }      { type: 'done' }
+//                                    code: EAUTH (sudo wants a password), ENOTADMIN (sudo refuses this account), exit code
 //         { type: 'exit', code, cancelled }
 //   installer:cancel               -> true when a running installation was signalled (SIGTERM; the helper cleans up)
 //   installer:log                  -> last lines of the installation log (string)
@@ -23,7 +24,8 @@
 //
 // Outside the live session, and always in --dev mode, the helper runs with --dry-run (it only simulates
 // the stages: nothing is written) and the disk list is simulated (AURORA_REAL_BACKENDS=1: real lsblk).
-// Test hooks (dev only): AURORA_INSTALLER_DRYRUN_DELAY=<seconds per step>, AURORA_INSTALLER_FAIL_AT=<stage>.
+// Test hooks (dev only): AURORA_INSTALLER_DRYRUN_DELAY=<seconds per step>, AURORA_INSTALLER_FAIL_AT=<stage>
+// (or 'notadmin': sudo refuses the account, as for a standard user; error code ENOTADMIN).
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -282,7 +284,11 @@ function register(api) {
     if (!fs.existsSync(helper)) throw api.error(`The installer helper is missing (${helper})`, 'ENOENT');
     let cmd;
     let argv;
-    if (dryRun) {
+    if (DEV && failAt === 'notadmin') {
+      // Simulates sudo refusing a standard account (same stderr as the real sudo; nothing runs).
+      cmd = which('bash') || '/bin/bash';
+      argv = ['-c', 'echo "sudo: $1 is not in the sudoers file." >&2; exit 1', 'sudo', String(opts?.user || 'user')];
+    } else if (dryRun) {
       cmd = which('bash') || '/bin/bash';
       argv = [helper, ...args];
     } else {
@@ -299,6 +305,7 @@ function register(api) {
     let sawDone = false;
     let sawError = false;
     let authError = false;
+    let notAdmin = false;
     const out = lineSplitter((line) => {
       if (!line.trim()) return;
       let ev = null;
@@ -321,7 +328,8 @@ function register(api) {
       }
     });
     const err = lineSplitter((line) => {
-      if (/^sudo: .*(password is required|a terminal is required|not allowed|not in the sudoers)/i.test(line)) authError = true;
+      if (/^sudo: .*(not allowed|not in the sudoers|may not run sudo)/i.test(line)) notAdmin = true;
+      else if (/^sudo: .*(password is required|a terminal is required)/i.test(line)) authError = true;
       pushLog(line);
       send({ type: 'log', line });
     });
@@ -342,12 +350,14 @@ function register(api) {
       const rc = code ?? (signal ? 128 : 1);
       if (rc === 0 && sawDone) finished = true;
       else if (!sawError) {
-        const message = authError
-          ? 'Administrator rights are required to install (sudo refused the request)'
-          : cancelled
-            ? 'installation cancelled'
-            : `the installer stopped unexpectedly (exit ${rc})`;
-        send({ type: 'error', message, stage: null, code: authError ? 'EAUTH' : rc });
+        const message = notAdmin
+          ? 'This account is not allowed to make administrator changes (sudo refused it)'
+          : authError
+            ? 'Administrator rights are required to install (sudo refused the request)'
+            : cancelled
+              ? 'installation cancelled'
+              : `the installer stopped unexpectedly (exit ${rc})`;
+        send({ type: 'error', message, stage: null, code: notAdmin ? 'ENOTADMIN' : authError ? 'EAUTH' : rc });
       }
       send({ type: 'exit', code: rc, cancelled });
     });

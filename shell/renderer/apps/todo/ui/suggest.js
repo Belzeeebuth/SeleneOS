@@ -54,7 +54,8 @@ export class Suggest {
       any = true;
       const rows = list.map((task) => {
         const l = app.store.list(task.listId);
-        const meta = [h('span', null, l?.emoji ? `${l.emoji} ` : '', app.listName(l))];
+        // (td-meta-list: a long list name ends with an ellipsis instead of being cut / wrapping its emoji)
+        const meta = [h('span', { class: 'td-meta-list' }, l?.emoji ? `${l.emoji} ` : '', app.listName(l))];
         if (task.due) meta.push(h('span', { class: ['td-meta-due', key === 'overdue' && 'overdue', key === 'today' && 'today'] }, icon('calendar_ltr', { size: 12 }), app.fmt.dueShort(task.due)));
         if ((key === 'yesterday' || key === 'earlier') && task.myDay) meta.push(h('span', null, icon('weather_sunny', { size: 12 }), app.fmt.dayName(task.myDay)));
         const row = h(

@@ -10,6 +10,7 @@ import { Transport } from './transport.js';
 import { Stage } from './stage.js';
 import { ROW_MIME } from './components.js';
 import * as V from './views.js';
+import { trustedDragPaths } from '../../../core/desktop.js';
 
 const FILES_MIME = 'application/x-aurora-paths';
 const EASE = 'cubic-bezier(0.1, 0.9, 0.2, 1)';
@@ -1175,37 +1176,19 @@ export class MediaApp {
   // ================================================================== drag & drop
   _dragHasMedia(e) {
     const types = [...(e.dataTransfer?.types || [])];
-    return types.includes('Files') || types.includes(FILES_MIME) || types.includes(ROW_MIME) || types.includes('text/uri-list');
+    return types.includes('Files') || types.includes(FILES_MIME) || types.includes(ROW_MIME);
   }
+  // Security: web content (a browser tab, a mail body) can start a drag that carries the shell's paths
+  // format, our row format or file:// URIs. Only trust what the shell itself started: our own row drag
+  // (its paths are kept in this.dragPaths while it runs), drags from Files / the desktop (through
+  // core/desktop.js trustedDragPaths) and real files (dt.files). Every shell drag source also sets
+  // 'application/x-aurora-paths', so file:// URI lists are not needed.
   async _dropPaths(e) {
     const dt = e.dataTransfer;
     let paths = [];
-    try {
-      const own = dt.getData(ROW_MIME);
-      if (own) paths = JSON.parse(own).paths || [];
-    } catch {}
-    if (!paths.length) {
-      try {
-        const files = dt.getData(FILES_MIME);
-        if (files) paths = JSON.parse(files);
-      } catch {}
-    }
+    if (this.dragPaths?.length && [...(dt.types || [])].includes(ROW_MIME)) paths = [...this.dragPaths];
+    if (!paths.length) paths = trustedDragPaths(dt);
     if (!paths.length && dt.files?.length) paths = [...dt.files].map((f) => this.api.pathForFile(f)).filter(Boolean);
-    if (!paths.length) {
-      const uris = dt.getData('text/uri-list');
-      if (uris)
-        paths = uris
-          .split(/\r?\n/)
-          .filter((u) => u.startsWith('file://'))
-          .map((u) => {
-            try {
-              return decodeURIComponent(new URL(u).pathname);
-            } catch {
-              return null;
-            }
-          })
-          .filter(Boolean);
-    }
     return this._expand(paths.filter((p) => typeof p === 'string'));
   }
   /** Files stay as-is, folders are walked; only playable media is kept. */

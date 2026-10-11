@@ -96,6 +96,20 @@ function startServer() {
         page('Data page', `<button id="html" onclick="window.open('data:text/html,<title>phish</title><h1>Sign in</h1>')">html</button><button id="img" onclick="window.open('data:image/png;base64,iVBORw0KGgo=')">img</button>`),
       );
     }
+    if (url.pathname === '/nav') {
+      return html(
+        200,
+        page(
+          'Nav page',
+          `<a id="p2" href="/page2?from=nav">Second page</a><a id="redir" href="/redirect">Redirect</a><a id="hash" href="#sec">Section</a><button id="push" onclick="history.pushState({}, '', '/pushed?x=1')">pushState</button><h2 id="sec">Section</h2>`,
+        ),
+      );
+    }
+    if (url.pathname === '/redirect') {
+      res.writeHead(302, { location: '/page2?from=redirect' });
+      return res.end();
+    }
+    if (url.pathname === '/jsredirect') return html(200, page('JS redirect', `<script>location.replace('/page2?from=js')</script>`));
     if (url.pathname === '/xss') return html(200, page('&lt;img src=x onerror="window.top.__pwned=1"&gt;', '<a id="a" href="/">home</a>'));
     if (url.pathname === '/dialogs') {
       return html(
@@ -956,6 +970,83 @@ console.log(`Local test server: ${srv.url}`);
     await run('(bw.createWebview = bw.__cw, 0)');
     assert(created === 0, `no webview created while closing the other tabs (${created})`);
     assert((await run('bw.tabs.length')) === 1 && (await run('bw.active === bw.tabs[0]')), 'one tab left, active');
+  });
+
+  await test('address bar always shows the active tab URL (typed, link, back/forward, redirects, in-page, tab switches)', async () => {
+    const shows = async (url, label) => {
+      const want = JSON.stringify(url);
+      try {
+        await waitFor(`bw.omni.input.value === ${want} && (bw.omni.display.hidden || bw.omni.display.textContent === ${want})`, { timeout: 5000 });
+      } catch {
+        const got = await run('({ input: bw.omni.input.value, display: bw.omni.display.hidden ? null : bw.omni.display.textContent, active: bw.tabUrl(bw.active) })');
+        throw new Error(`${label}: address bar should show ${url} (${JSON.stringify(got)})`);
+      }
+    };
+    const settled = (cond, msg) => waitFor(`(${cond}) && !bw.active.web.loading`, { msg });
+    const typeUrl = async (u) => {
+      await s.page.click('.app-browser .bw-omni-input');
+      await s.page.keyboard.press('Control+a');
+      await s.page.keyboard.type(u);
+      await s.page.keyboard.press('Delete'); // drop any inline completion
+      await s.page.keyboard.press('Enter');
+    };
+    const clickTab = async (i) => {
+      const box = await s.page.locator('.app-browser .bw-tab').nth(i).boundingBox();
+      await s.page.mouse.click(box.x + 30, box.y + box.height / 2);
+      await waitFor(`bw.tabs.indexOf(bw.active) === ${i}`, { msg: `tab ${i} active` });
+    };
+    // Typed URL, link click, back / forward.
+    await typeUrl(`${srv.url}/nav`);
+    await settled(`bw.active.web.title === 'Nav page'`, 'typed /nav');
+    await shows(`${srv.url}/nav`, 'typed URL');
+    await pageJs("document.getElementById('p2').click()");
+    await settled(`bw.active.web.url === '${srv.url}/page2?from=nav'`, 'link click');
+    await shows(`${srv.url}/page2?from=nav`, 'link click');
+    await run('bw.goBack()');
+    await settled(`bw.active.web.title === 'Nav page'`, 'back');
+    await shows(`${srv.url}/nav`, 'back');
+    await run('bw.goForward()');
+    await settled(`bw.active.web.url.endsWith('from=nav')`, 'forward');
+    await shows(`${srv.url}/page2?from=nav`, 'forward');
+    await run('bw.goBack()');
+    await settled(`bw.active.web.title === 'Nav page'`, 'back again');
+    // Redirects: HTTP 302 from a link, client-side location.replace from a typed URL, back across them.
+    await pageJs("document.getElementById('redir').click()");
+    await settled(`bw.active.web.url.endsWith('from=redirect')`, '302 redirect');
+    await shows(`${srv.url}/page2?from=redirect`, 'HTTP redirect');
+    await typeUrl(`${srv.url}/jsredirect`);
+    await settled(`bw.active.web.url.endsWith('from=js')`, 'JS redirect');
+    await shows(`${srv.url}/page2?from=js`, 'typed URL + script redirect');
+    await run('bw.goBack()');
+    await settled(`bw.active.web.url.endsWith('from=redirect')`, 'back over the redirect');
+    await shows(`${srv.url}/page2?from=redirect`, 'back over a redirect');
+    // In-page navigations (fragment link, history.pushState).
+    await run(`bw.navigate(bw.active, '${srv.url}/nav')`);
+    await settled(`bw.active.web.title === 'Nav page'`, '/nav again');
+    await pageJs("document.getElementById('hash').click()");
+    await shows(`${srv.url}/nav#sec`, 'fragment link');
+    await pageJs("document.getElementById('push').click()");
+    await shows(`${srv.url}/pushed?x=1`, 'pushState');
+    // Tab switches: each tab shows its own URL, background navigations never leak into the bar.
+    await run(`(bw.openUrl('${srv.url}/page2?tab=b'), 0)`);
+    await settled(`bw.tabs.length === 2 && bw.active.web.url.endsWith('tab=b')`, 'tab B');
+    await shows(`${srv.url}/page2?tab=b`, 'new foreground tab');
+    await clickTab(0);
+    await shows(`${srv.url}/pushed?x=1`, 'switch to tab A');
+    await clickTab(1);
+    await shows(`${srv.url}/page2?tab=b`, 'switch to tab B');
+    await run(`bw.tabs[0].wv.loadURL('${srv.url}/redirect')`);
+    await waitFor(`bw.tabs[0].web.url.endsWith('from=redirect') && !bw.tabs[0].web.loading`, { msg: 'background tab navigated' });
+    await shows(`${srv.url}/page2?tab=b`, 'background navigation in another tab');
+    await clickTab(0);
+    await shows(`${srv.url}/page2?from=redirect`, 'switch to the tab that navigated in the background');
+    await run('bw.newTab()');
+    await waitFor('bw.tabs.length === 3 && bw.entry(bw.active)?.route === "newtab"', { msg: 'new tab page' });
+    await shows('', 'new tab page');
+    await clickTab(1);
+    await shows(`${srv.url}/page2?tab=b`, 'leave the new tab page');
+    await run('(bw.closeOtherTabs(bw.tabs[0]), bw.omni.input.blur(), 0)');
+    await shows(`${srv.url}/page2?from=redirect`, 'close the other tabs');
   });
 
   await test('translated errors for failed backend calls', async () => {

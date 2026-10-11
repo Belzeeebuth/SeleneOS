@@ -147,6 +147,8 @@
       "end": "Unable to end “{name}”: {msg}",
       "priority": "Unable to change the priority of “{name}”: {msg}",
       "admin": "The operation couldn't be completed: {msg}",
+      "notAdminTitle": "Administrator rights required",
+      "notAdmin": "Only an administrator can do this. Sign in with an administrator account, or ask an administrator to make your account one.",
       "gone": "The process has already ended.",
       "noLocation": "The file location of this process isn't available.",
       "noService": "“{name}” isn't part of a service.",
@@ -160,7 +162,8 @@
         "timeout": "The operation took too long and was stopped.",
         "readOnly": "The file system is read-only.",
         "noSpace": "There isn't enough disk space.",
-        "unavailable": "This feature isn't available on this computer."
+        "unavailable": "This feature isn't available on this computer.",
+        "notAdmin": "Only an administrator can do this."
       }
     },
     "uac": {
@@ -558,6 +561,8 @@
       "end": "Impossible de terminer « {name} » : {msg}",
       "priority": "Impossible de modifier la priorité de « {name} » : {msg}",
       "admin": "L'opération n'a pas pu aboutir : {msg}",
+      "notAdminTitle": "Droits d'administrateur requis",
+      "notAdmin": "Seul un administrateur peut effectuer cette action. Connectez-vous avec un compte administrateur ou demandez à un administrateur de modifier le type de votre compte.",
       "gone": "Le processus est déjà terminé.",
       "noLocation": "L'emplacement du fichier de ce processus n'est pas disponible.",
       "noService": "« {name} » ne fait partie d'aucun service.",
@@ -571,7 +576,8 @@
         "timeout": "L'opération a pris trop de temps et a été interrompue.",
         "readOnly": "Le système de fichiers est en lecture seule.",
         "noSpace": "L'espace disque est insuffisant.",
-        "unavailable": "Cette fonctionnalité n'est pas disponible sur cet ordinateur."
+        "unavailable": "Cette fonctionnalité n'est pas disponible sur cet ordinateur.",
+        "notAdmin": "Seul un administrateur peut effectuer cette action."
       }
     },
     "uac": {

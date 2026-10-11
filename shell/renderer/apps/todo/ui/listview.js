@@ -48,9 +48,17 @@ export class ListView {
         this.editTitle(true);
       }
     });
-    this.titleIcon.addEventListener('click', (e) => {
+    const pickIcon = () => {
       const v = this.app.view;
-      if (v.startsWith('list:') && v !== `list:${DEFAULT_LIST}`) this.app.changeEmoji(e.currentTarget, v.slice(5));
+      if (v.startsWith('list:') && v !== `list:${DEFAULT_LIST}`) this.app.changeEmoji(this.titleIcon, v.slice(5));
+    };
+    this.titleIcon.addEventListener('click', pickIcon);
+    // keyboard: the icon of a user list is a button (Enter / Space open the emoji picker, focus comes back to it)
+    this.titleIcon.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && this.titleIcon.classList.contains('clickable')) {
+        e.preventDefault();
+        pickIcon();
+      }
     });
     this.chipSlot = h('div', { class: 'td-chip-slot' });
     this.bannerSlot = h('div', { class: 'td-banner-slot' });
@@ -225,8 +233,19 @@ export class ListView {
       this.titleIcon.className = 'td-title-icon';
       this.titleIcon.append(app.icon('search'));
     } else this.titleIcon.className = 'td-title-icon empty';
-    if (isUser) this.titleIcon.dataset.tip = t('menu.changeIcon');
-    else delete this.titleIcon.dataset.tip;
+    if (isUser) {
+      this.titleIcon.dataset.tip = t('menu.changeIcon');
+      this.titleIcon.setAttribute('role', 'button');
+      this.titleIcon.setAttribute('aria-label', t('menu.changeIcon'));
+      this.titleIcon.removeAttribute('aria-hidden');
+      this.titleIcon.tabIndex = 0;
+    } else {
+      delete this.titleIcon.dataset.tip;
+      this.titleIcon.removeAttribute('role');
+      this.titleIcon.removeAttribute('aria-label');
+      this.titleIcon.removeAttribute('tabindex');
+      this.titleIcon.setAttribute('aria-hidden', 'true');
+    }
     this.titleIcon.classList.toggle('clickable', isUser);
     this.subtitle.textContent = v === 'myday' ? app.fmt.longToday() : '';
     this.subtitle.hidden = v !== 'myday';

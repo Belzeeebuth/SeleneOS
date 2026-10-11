@@ -61,6 +61,8 @@ export class Welcome {
 
   renderRecent() {
     const { h, t, icon, i18n } = this.w;
+    // a re-render (missing files found, an entry removed in another window) keeps the keyboard on its row
+    const focused = this.list.contains(document.activeElement) ? document.activeElement.closest('.arc-recent-row')?.dataset.path : null;
     this.list.replaceChildren();
     this.clearBtn.hidden = !shared.recent.length;
     if (!shared.recent.length) {
@@ -114,6 +116,8 @@ export class Welcome {
       const rows = this.list.querySelectorAll('.arc-recent-row');
       (rows[Math.min(this.refocus, rows.length - 1)] || this.el.querySelector('.arc-wcard'))?.focus();
       this.refocus = null;
+    } else if (focused) {
+      this.list.querySelector(`[data-path="${CSS.escape(focused)}"]`)?.focus();
     }
   }
   /** Remove a Recent entry; the keyboard focus moves to the next row (not lost to the page). */

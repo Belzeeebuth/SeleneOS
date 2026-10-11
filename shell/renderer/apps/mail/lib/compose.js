@@ -8,6 +8,7 @@ import { AddressField } from './chips.js';
 import { sanitizeForCompose, plainToComposeHtml } from './sanitize.js';
 import { errorText } from './setup.js';
 import { escapeHtml, textToHtml, htmlToText, fullDate, addressText, displayName, sameAddress, prefixSubject, fileKind, isEmail, shortTime } from './util.js';
+import { trustedDragPaths } from '../../../core/desktop.js';
 
 const BIG_ATTACHMENTS = 25 * 1024 * 1024;
 
@@ -521,29 +522,23 @@ export class Composer {
   }
 
   // ------------------------------------------------------------ attachments
+  // Security: a web page (browser tab, the sandboxed message body) can start a drag carrying the
+  // shell's paths format or file:// URIs; dropping it here must not attach (and send) local files.
+  // Only drags that started in the shell (Files, the desktop…) and real files (dt.files) count. Every
+  // shell drag source also sets 'application/x-aurora-paths', so file:// URI lists are not needed.
   dropPaths(e) {
     const dt = e.dataTransfer;
     if (!dt) return [];
-    try {
-      const raw = dt.getData('application/x-aurora-paths');
-      if (raw) {
-        const list = JSON.parse(raw);
-        if (Array.isArray(list)) return list.filter((p) => typeof p === 'string' && p.startsWith('/'));
-      }
-    } catch {}
-    const files = [...(dt.files || [])].map((f) => this.ctx.api.pathForFile(f)).filter(Boolean);
-    if (files.length) return files;
-    return (dt.getData('text/uri-list') || '')
-      .split(/\r?\n/)
-      .filter((l) => l.startsWith('file://'))
-      .map((l) => decodeURIComponent(l.slice(7)));
+    const own = trustedDragPaths(dt);
+    if (own.length) return own;
+    return [...(dt.files || [])].map((f) => this.ctx.api.pathForFile(f)).filter(Boolean);
   }
 
   wireDrop() {
     let depth = 0;
     const hasFiles = (e) => {
       const types = [...(e.dataTransfer?.types || [])];
-      return types.includes('Files') || types.includes('application/x-aurora-paths') || types.includes('text/uri-list');
+      return types.includes('Files') || types.includes('application/x-aurora-paths');
     };
     this.el.addEventListener('dragenter', (e) => {
       if (!hasFiles(e)) return;

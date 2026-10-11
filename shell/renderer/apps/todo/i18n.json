@@ -367,6 +367,7 @@
    "damaged": "Your task data was damaged and couldn’t be read, so To Do started with empty lists. The damaged file was kept as {file} in the To Do settings folder.",
    "newer": "Your tasks were saved by a newer version of To Do. A copy of the original file was kept as {file} in the To Do settings folder.",
    "newerNoBackup": "your tasks were saved by a newer version of To Do and a safety copy couldn’t be made ({msg})",
+   "damagedNoBackup": "your task file is damaged and couldn’t be moved aside or copied ({msg})",
    "readOnlyTitle": "Changes aren’t being saved",
    "readOnlyBody": "Your task file couldn’t be read, so To Do won’t overwrite it. Close To Do and fix or move the file, then open To Do again.",
    "stepLimit": "A task can have up to {max} steps. Split it into several tasks, or turn a few steps into tasks."
@@ -740,6 +741,7 @@
    "damaged": "Vos données de tâches étaient endommagées et n’ont pas pu être lues : Tâches a démarré avec des listes vides. Le fichier endommagé a été conservé sous le nom {file} dans le dossier de paramètres de Tâches.",
    "newer": "Vos tâches ont été enregistrées par une version plus récente de Tâches. Une copie du fichier d’origine a été conservée sous le nom {file} dans le dossier de paramètres de Tâches.",
    "newerNoBackup": "vos tâches ont été enregistrées par une version plus récente de Tâches et une copie de sécurité n’a pas pu être faite ({msg})",
+   "damagedNoBackup": "votre fichier de tâches est endommagé et n’a pas pu être mis de côté ni copié ({msg})",
    "readOnlyTitle": "Les modifications ne sont pas enregistrées",
    "readOnlyBody": "Votre fichier de tâches n’a pas pu être lu : Tâches ne l’écrasera pas. Fermez Tâches, réparez ou déplacez le fichier, puis rouvrez Tâches.",
    "stepLimit": "Une tâche peut avoir au plus {max} étapes. Divisez-la en plusieurs tâches ou transformez quelques étapes en tâches."

@@ -836,11 +836,26 @@ export async function runTests() {
     await p.keyboard.type(' inside.');
     assert(await p.$(`${M} .ml-editor b, ${M} .ml-editor strong`), 'bold text in editor');
     assert((await p.textContent(`${M} .ml-editor`)).includes('Sent from Aurora OS'), 'default signature');
+    // A drag started in web content (a browser tab, a message body) never fires 'dragstart' in the shell:
+    // its forged paths payload / file:// list must not attach local files.
     await p.$eval(`${M} .ml-compose`, (el, file) => {
+      window.dispatchEvent(new PointerEvent('pointerdown'));
+      const dt = new DataTransfer();
+      dt.setData('application/x-aurora-paths', JSON.stringify([file]));
+      dt.setData('text/uri-list', `file://${file}`);
+      el.dispatchEvent(new DragEvent('dragenter', { dataTransfer: dt, bubbles: true, cancelable: true }));
+      el.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    }, attach);
+    await sleep(500);
+    assert(!(await p.$(`${M} .ml-attach-row .ml-att`)), 'forged drop (not started in the shell) attaches nothing');
+    // A real shell drag (Files, the desktop): 'dragstart' fired in the shell document first.
+    await p.$eval(`${M} .ml-compose`, (el, file) => {
+      document.dispatchEvent(new DragEvent('dragstart', { bubbles: true }));
       const dt = new DataTransfer();
       dt.setData('application/x-aurora-paths', JSON.stringify([file]));
       el.dispatchEvent(new DragEvent('dragenter', { dataTransfer: dt, bubbles: true, cancelable: true }));
       el.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+      document.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
     }, attach);
     await p.waitForSelector(`${M} .ml-attach-row .ml-att[data-name="notes.txt"]`);
     await sleep(300);

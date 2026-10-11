@@ -545,6 +545,41 @@ try {
   });
   check('EPERM -> elevation (kill-process <pid> TERM)', elev.length === 1 && elev[0].action === 'kill-process' && elev[0].args.join(' ') === '424242 TERM' && elev[0].appId === 'taskmgr' && /demo/.test(elev[0].reason), elev);
 
+  // ---- elevation refused: a standard account (ENOTADMIN) gets one clear localized message (no generic
+  //      "couldn't be completed", no second UAC prompt for the next PID); a dismissed UAC prompt
+  //      (ECANCELED) is not an error at all. Both with runAdmin stubbed.
+  const stubElevation = (code) =>
+    tm((code) => {
+      const T = window.__aurora.wm.byApp('taskmgr')[0].taskmgr;
+      const api = T.ctx.api;
+      const sh = T.ctx.shell;
+      const st = (window.__tmElev = { inv: api.invoke, runAdmin: sh.runAdmin, calls: 0, done: false });
+      api.invoke = (ch, ...a) => {
+        if (ch === 'proc:kill') return Promise.reject(Object.assign(new Error('Access is denied'), { code: 'EPERM' }));
+        if (ch === 'proc:alive') return Promise.resolve(Object.fromEntries(a[0].map((p) => [p, false])));
+        return st.inv(ch, ...a);
+      };
+      sh.runAdmin = async () => {
+        st.calls++;
+        throw Object.assign(new Error(code === 'ENOTADMIN' ? 'This account is not allowed to make administrator changes' : 'Canceled'), { code });
+      };
+      T.actions.endProcesses([424242, 424243], { name: 'demo' }).finally(() => {
+        api.invoke = st.inv;
+        sh.runAdmin = st.runAdmin;
+        st.done = true;
+      });
+    }, code);
+  await stubElevation('ENOTADMIN');
+  await page.waitForSelector(DLG, { timeout: 4000 }).catch(() => null);
+  const notAdminTxt = await page.$eval(DLG, (e) => e.innerText).catch(() => '');
+  check('ENOTADMIN -> clear localized message', /Administrator rights required/.test(notAdminTxt) && /Only an administrator can do this/.test(notAdminTxt) && !/couldn't be completed/.test(notAdminTxt), notAdminTxt);
+  await page.click(`${DLG} .btn.primary`).catch(() => {});
+  check('ENOTADMIN -> one prompt for several PIDs', await waitFor(() => tm(() => window.__tmElev.done && window.__tmElev.calls === 1), { timeout: 4000 }), await tm(() => window.__tmElev.calls));
+  await stubElevation('ECANCELED');
+  await waitFor(() => tm(() => window.__tmElev.done), { timeout: 4000 });
+  await sleep(300);
+  check('dismissed UAC prompt -> no error dialog', (await page.$$(DLG)).length === 0, await page.$eval(DLG, (e) => e.innerText).catch(() => ''));
+
   // ---- Details: reveal a PID, sort, end process tree
   const tree = spawnSleep('sh', ['-c', 'sleep 1000 & sleep 1000 & wait']);
   await sleep(400);
@@ -669,6 +704,27 @@ try {
   });
   check('service restart -> runAdmin("service", ["restart", unit])', svcCall?.action === 'service' && svcCall.args[0] === 'restart' && /\.service$/.test(svcCall.args[1]) && svcCall.appId === 'taskmgr', svcCall);
   check('repeated service actions -> one UAC prompt, commands disabled meanwhile', svcCall?.n === 1 && svcCall.busyCmd === true, svcCall);
+  // A standard account starting a service: the clear "administrator" message, not "Couldn't change".
+  await tm(() => {
+    const p = window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.services;
+    const sh = p.app.ctx.shell;
+    const st = (window.__tmSvc = { runAdmin: sh.runAdmin, mock: p.data.mock, done: false });
+    sh.runAdmin = async () => {
+      throw Object.assign(new Error('This account is not allowed to make administrator changes'), { code: 'ENOTADMIN' });
+    };
+    p.data.mock = false;
+    const s = p.data.services.find((x) => x.name === 'cron') || p.data.services[0];
+    p.act('restart', s).finally(() => {
+      sh.runAdmin = st.runAdmin;
+      if (p.data) p.data.mock = st.mock;
+      st.done = true;
+    });
+  });
+  await page.waitForSelector(DLG, { timeout: 4000 }).catch(() => null);
+  const svcNotAdmin = await page.$eval(DLG, (e) => e.innerText).catch(() => '');
+  check('service action as a standard account -> clear message', /Only an administrator can do this/.test(svcNotAdmin) && !/Couldn't change/.test(svcNotAdmin), svcNotAdmin);
+  await page.click(`${DLG} .btn.primary`).catch(() => {});
+  await waitFor(() => tm(() => window.__tmSvc.done), { timeout: 6000 });
 
   // ---- Users
   await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.go('users', { focus: false }));

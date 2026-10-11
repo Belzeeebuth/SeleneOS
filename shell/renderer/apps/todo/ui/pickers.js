@@ -65,8 +65,12 @@ export function popover(app, anchor, content, { className = '', onClose, width, 
       else el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 100 }).finished.then(() => el.remove(), () => el.remove());
       onClose?.(v);
       resolveFn(v);
-      if (anchor?.isConnected && (!app.root.contains(document.activeElement) || el.contains(document.activeElement))) anchor.focus?.({ preventScroll: true });
-      else if (!anchor?.isConnected && !app.root.contains(document.activeElement)) app.list.focusList();
+      // give the keyboard focus back to the anchor; when it cannot take it (gone, hidden, or not focusable)
+      // fall back to the task list, so the focus never ends up on <body> outside the window
+      const lost = !app.root.contains(document.activeElement) || el.contains(document.activeElement);
+      if (!lost || app.closed) return;
+      if (anchor?.isConnected && anchor.matches?.('button, input, select, textarea, a[href], [tabindex]')) anchor.focus({ preventScroll: true });
+      if (!app.root.contains(document.activeElement) || el.contains(document.activeElement)) app.list.focusList();
     },
   };
   setTimeout(() => !handle.closed && document.addEventListener('pointerdown', outside, true));

@@ -55,6 +55,12 @@ export function effectStill(effectId, { mode = 'dark', accent = '#0078d4', inten
         return '';
       }),
     );
+    // keep a few recent stills (accent / size changes make new ones): release the oldest once nothing shows it
+    while (stills.size > 4) {
+      const [oldKey, oldUrl] = stills.entries().next().value;
+      stills.delete(oldKey);
+      setTimeout(() => oldUrl.then((u) => u && URL.revokeObjectURL(u)), 10000);
+    }
   }
   return stills.get(key);
 }

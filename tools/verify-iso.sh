@@ -201,6 +201,8 @@ if [[ -f "$au" ]]; then
 fi
 [[ "$(stat -c '%U %a' "$S/var/lib/aurora-greeter")" == "_greetd 750" || "$(stat -c '%u %a' "$S/var/lib/aurora-greeter")" =~ ^[0-9]+\ 750$ ]] \
   && pass "/var/lib/aurora-greeter: $(stat -c '%u:%g %a' "$S/var/lib/aurora-greeter")" || fail "/var/lib/aurora-greeter has wrong mode"
+grep -qx 'd /var/lib/aurora/faces 1733 root root -' "$S/usr/lib/tmpfiles.d/aurora.conf" \
+  && pass "tmpfiles.d: /var/lib/aurora/faces 1733 (account pictures for the sign-in screen)" || fail "tmpfiles.d: /var/lib/aurora/faces entry missing"
 
 # Configuration.
 gc="$S/etc/greetd/config.toml"

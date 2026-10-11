@@ -3,6 +3,8 @@
 // the undo stack and the drag & drop payload in flight. Persisted through ctx.storage.
 import { Emitter } from '../../../core/api.js';
 
+// Written when dragging out; read ONLY through core/desktop.js trustedDragPaths(dt) (drags that
+// started in the shell), never with dt.getData(DND_MIME): web content can forge that format.
 export const DND_MIME = 'application/x-aurora-paths';
 
 export const PREF_DEFAULTS = {

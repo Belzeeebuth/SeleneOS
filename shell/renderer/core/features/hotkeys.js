@@ -404,7 +404,9 @@ function rebuild() {
   const map = { ...ACTIONS };
   const ids = {};
   // free the default combos of every catalog action first (another action may take them over)…
-  for (const s of SHORTCUTS) if (s.combo && map[normalize(s.combo)] === actionOf(s)) delete map[normalize(s.combo)];
+  // (ACTIONS may hold its own closure for that combo, e.g. Super+1 → activateNth(1) for 'taskbarApp1': not identical
+  // to actionOf(), yet the same action, so the default combo is freed whenever the action exists)
+  for (const s of SHORTCUTS) if (s.combo && actionOf(s)) delete map[normalize(s.combo)];
   // …then bind each action to its combo in effect
   for (const s of SHORTCUTS) {
     const c = combos[s.id];

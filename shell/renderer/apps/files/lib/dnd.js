@@ -6,6 +6,7 @@
 // Default effect follows Windows: same drive -> move, other drive -> copy; Ctrl forces copy,
 // Shift forces move. Dropping on the Recycle Bin moves to the trash.
 import { shared, DND_MIME, mountOf } from './shared.js';
+import { trustedDragPaths } from '../../../core/desktop.js';
 import * as T from './types.js';
 import * as ops from './ops.js';
 
@@ -14,7 +15,9 @@ export const TRASH_TARGET = '\u0000trash';
 // Security (same rule as core/desktop.js): the internal paths format and file:// URI lists are only
 // trusted when the drag started in the shell's own document (Files, the desktop, other apps). A drag
 // coming out of web content (<webview> tab, sandboxed mail iframe) never fires 'dragstart' here, so a
-// page can't forge a payload that makes Explorer move, copy or trash arbitrary files.
+// page can't forge a payload that makes Explorer move, copy or trash arbitrary files. The paths
+// payload itself is read through core/desktop.js trustedDragPaths(); the flag below only gates the
+// drop feedback (dragover) and the text/uri-list fallback.
 let shellDrag = false;
 document.addEventListener('dragstart', () => (shellDrag = true), true);
 document.addEventListener('dragend', () => (shellDrag = false), true);
@@ -147,15 +150,8 @@ export class DnD {
   readPaths(e) {
     const dt = e.dataTransfer;
     const valid = (p) => typeof p === 'string' && p.startsWith('/') && !p.includes('\0');
-    if (shellDrag) {
-      try {
-        const raw = dt.getData(DND_MIME);
-        if (raw) {
-          const list = JSON.parse(raw);
-          if (Array.isArray(list)) return [...new Set(list.filter(valid))];
-        }
-      } catch {}
-    }
+    const own = trustedDragPaths(dt);
+    if (own.length) return [...new Set(own.filter(valid))];
     // Real files dragged in from outside the shell (Electron gives their paths).
     const files = [...(dt.files || [])].map((f) => this.ex.api.pathForFile(f)).filter(valid);
     if (files.length) return files;

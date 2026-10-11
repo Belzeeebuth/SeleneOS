@@ -163,7 +163,17 @@ export class TodoApp {
       data = JSON.parse(text);
     } catch {
       const backup = file.replace(/data\.json$/, `data.damaged-${Date.now()}.json`);
-      await api.invoke('fs:rename', file, backup).catch(() => {});
+      try {
+        await api.invoke('fs:rename', file, backup);
+      } catch (err) {
+        // the damaged file could not be moved aside: keep a copy, and if even that fails never write over it
+        // (read-only session) — the user is told, and the file is still there for a later start
+        try {
+          await api.invoke('fs:writeText', backup, text);
+        } catch {
+          throw new Error(this.t('errors.damagedNoBackup', { msg: err?.message || String(err) }));
+        }
+      }
       this.recoveredFrom = backup;
       return {};
     }

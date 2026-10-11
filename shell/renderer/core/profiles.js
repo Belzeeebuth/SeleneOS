@@ -248,7 +248,8 @@ export const VALIDATORS = {
       {
         id: slug,
         name: text(60),
-        zones: arrayOf((z) => { const o = zone(z); return o && o.x + o.w <= 1.001 && o.y + o.h <= 1.001 ? o : undefined; }, 16),
+        // (a layout left with no valid zone is dropped, not kept as an empty tile)
+        zones: (v) => { const zs = arrayOf((z) => { const o = zone(z); return o && o.x + o.w <= 1.001 && o.y + o.h <= 1.001 ? o : undefined; }, 16)(v); return zs?.length ? zs : undefined; },
         spec: shape({ kind: oneOf('columns', 'rows', 'main', 'grid', 'custom'), count: int(1, 6), ratio: int(10, 90), side: oneOf('left', 'right'), rows: int(1, 6), tree: splitTree }),
       },
       { required: ['id', 'zones'] },

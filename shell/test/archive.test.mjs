@@ -1409,11 +1409,15 @@ async function uiTests() {
     await closeAll();
     // open / close 15 times: no window, listener or DOM growth
     const snap = () => evalJs(`import('app://shell/apps/archive/lib/shared.js').then((m) => ({ windows: m.shared.windows.size, prefs: m.shared._h.get('prefs')?.size || 0, recent: m.shared._h.get('recent')?.size || 0, nodes: document.getElementsByTagName('*').length, ctx: Object.keys(m.shared.ctx || {}).sort().join(',') }))`);
+    // closing windows (their close animation) are still in the DOM for a moment: wait until they're gone
+    const settled = () => until(() => evalJs(`!document.querySelector('.win.app-archive, .win.app-files')`), { label: 'closed windows removed' });
+    await settled();
     const before = await snap();
     for (let i = 0; i < 15; i++) {
       await openArchive(fx('t.zip'));
       await closeAll();
     }
+    await settled();
     await sleep(500);
     const after = await snap();
     check('15 open/close: no leaked windows or listeners', [after.windows, after.prefs, after.recent], [0, 0, 0]);
@@ -1533,11 +1537,23 @@ async function uiTests() {
     await s.page.locator(`${WIN} .arc-scroll`).focus();
     await evalJs(`document.querySelector('${WIN} .arc-scroll').dispatchEvent(new KeyboardEvent('keydown', { key: 'A', ctrlKey: true, bubbles: true }))`);
     check('Ctrl+A with Caps Lock selects everything', await W((w) => w.list.selected.size), 7);
-    // Recent list: Delete keeps the keyboard on the list
+    // Recent list: Delete keeps the keyboard on the list, also when the rows are re-rendered meanwhile (the
+    // check for missing archives runs right after the page shows: a deleted archive is in the list here)
     await closeAll();
+    const gone = fx('gone-soon.zip');
+    fs.copyFileSync(fx('t.zip'), gone);
+    await openArchive(gone);
+    await closeAll();
+    fs.rmSync(gone);
     await s.aurora(() => window.__aurora.shell.launch('archive', {}));
-    await until(async () => (await evalJs(`document.querySelectorAll('${WIN} .arc-recent-row').length`)) >= 2, { label: 'recent rows' });
+    await until(async () => (await evalJs(`document.querySelectorAll('${WIN} .arc-recent-row').length`)) >= 3, { label: 'recent rows' });
     const n0 = await evalJs(`document.querySelectorAll('${WIN} .arc-recent-row').length`);
+    await until(() => evalJs(`!!document.querySelector('${WIN} .arc-recent-row.missing')`), { label: 'missing archive flagged (rows re-rendered)' });
+    await s.page.locator(`${WIN} .arc-recent-row`).nth(1).focus();
+    const focusedPath = await evalJs(`document.activeElement.dataset.path`);
+    // the list changes under the keyboard (another window opened an archive): rows are rebuilt
+    await evalJs(`import('app://shell/apps/archive/lib/shared.js').then((m) => m.shared.emit('recent'))`);
+    check('Recent: focus kept on its row across a re-render', await evalJs(`document.activeElement?.dataset?.path ?? null`), focusedPath);
     await s.page.locator(`${WIN} .arc-recent-row`).first().focus();
     await s.page.keyboard.press('Delete');
     await until(async () => (await evalJs(`document.querySelectorAll('${WIN} .arc-recent-row').length`)) === n0 - 1, { label: 'recent entry removed' });

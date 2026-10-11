@@ -65,6 +65,11 @@ Each launch gets a throwaway `$HOME`, so tests never touch real data.
 }
 ```
 
+`fileTypes` lists the extensions the app can open (it gets `ctx.args.file`). `defaultFor` lists the ones it
+opens by default: it beats apps that only list them in `fileTypes`, and the user's choice in Settings
+(`settings.defaultApps`) beats both. Other fields: `singleInstance` (a relaunch focuses the window and calls
+`onRelaunch`), `hidden` (not in Start), `liveOnly` (live session only).
+
 `main.js`:
 
 ```js
@@ -81,23 +86,41 @@ export default {
 What you can use:
 
 - **`ctx.win`** (window): `body`, `titlebarSlot` (for tabs in a `"titlebar": "tall"` window), `setTitle`,
-  `setIcon`, `close`, `minimize`, `maximize`, `focus`, `setFullscreen`, `setProgress`, `flash`,
-  `onBeforeClose`, `on('resize'|'focus'|'blur'|'close'|…)`. All windows get the title bar, controls,
-  resize handles, snapping and animations for free.
+  `setIcon`, `close`, `minimize`, `maximize`, `focus`, `setSize`, `setFullscreen`, `setProgress`, `flash`,
+  `setMinSize(w, h)` (grows the window if needed), `setAlwaysOnTop(bool)`, `closed` (true once closed: check
+  it after an `await`), `onBeforeClose`, `on('resize'|'focus'|'blur'|'close'|…)`. All windows get the title
+  bar, controls, resize handles, snapping and animations for free (full list in the header of `core/wm.js`).
 - **`ctx.ui`** (UI kit): `menu`, `dialog`, `alert`, `confirm`, `prompt`, `filePicker`, `toggle`, `slider`,
-  `select`, `segmented`, `fileIcon`, `loadCss`. **`ctx.h`** builds DOM; **`ctx.icon(name)`** draws a Fluent
-  icon. Check that a name exists with
+  `select`, `segmented`, `fileIcon`, `loadCss(href)` (adds a stylesheet once). **`ctx.h`** builds DOM;
+  **`ctx.icon(name)`** draws a Fluent icon. Check that a name exists with
   `node -e 'console.log(Object.keys(require("./renderer/assets/icons/fluent.json")).filter(k=>k.includes("arrow")).join(" "))'`.
 - **`ctx.t(key, vars)`**: looks in `apps/<id>/i18n.json` (`{ "en": {…}, "fr": {…} }`), then in the core
   dictionary (`common.ok`, `common.cancel`, `common.save`, …). Plurals use the `key_one` / `key_other`
   forms with `{ count }`. **Every visible string must exist in English and French.**
-- **`ctx.shell`** (shell services): `launch(appId, args)`, `openFile(path)`, `openUrl(url)`,
-  `notify({title, body, icon, appId})`, `runAdmin(action, args, {reason, appId})` (shows a UAC prompt),
-  `clipboard.setFiles/getFiles`, `xdg` (user folders), `lock()`, `logout()`.
-- **`ctx.storage.get/set(name, value)`**: per-app JSON in `~/.config/aurora/apps/<id>/`.
-- **`ctx.api.invoke(channel, …args)`**: the backend (list below). `ctx.api.mediaUrl(path)` turns a local
+- **`ctx.shell`** (shell services, `core/services.js`): `launch(appId, args)`, `openFile(path, {appId})`,
+  `openUrl(url)`, `notify(…)`, `runAdmin(action, args, {reason, appId})` (shows a UAC prompt; throws
+  `ECANCELED` if dismissed, `ENOTADMIN` for a standard user), `reminders` (below), `clipboard.setFiles/getFiles`,
+  `xdg` (user folders), `sounds.play(name | tonePattern)`, `lock()`, `logout()`, `shutdown()`, `reboot()`,
+  `suspend()`, `on('lock'|'unlock'|'files-clipboard', fn)`.
+- **`shell.notify({ title, body, icon, image, appId, actions: [{label, onClick}], onClick, timeout, silent, urgent })`**
+  (`core/notify.js`): `image` is a preview picture (`app:`, `media:`, `blob:` or `data:` URL); `urgent: true`
+  still shows the toast with Do not disturb or Focus mode on (alarms and timers only).
+- **`shell.reminders`** (`core/reminders.js`): one scheduler for alarms, reminders and events that fires
+  while the app is closed. `set({ id, appId, at, title, body, repeat, kind: 'reminder'|'alarm', snoozeMinutes,
+  sound, data })`, `remove(id, appId)`, `get(id, appId)`, `list(appId)`, `snooze(id, appId, min)`,
+  `on('fire'|'change', fn)`. `repeat`: `null`, `'daily'`, `'weekdays'`, `'weekly'` or `{ days: [0..6] }`.
+  Clicking the notification launches the app with `{ reminder: { id, data } }`. Missed reminders fire at the
+  next start if under 6 hours late. Used by Clock, To Do and Calendar.
+- **`ctx.storage`**: `get(name, fallback)`, `set(name, value)`, `delete(name)`: per-app JSON in `~/.config/aurora/apps/<id>/`.
+- **`ctx.api.invoke(channel, …args)`**: the backend (list below). `ctx.api.on(channel, fn)` receives its
+  events, `ctx.api.send(channel, …args)` is fire-and-forget. `ctx.api.mediaUrl(path)` turns a local
   file into a URL for `<img>`, `<video>` and `<audio>`, with seeking support.
 - **`ctx.settings`**: `get('theme')`, `on('theme', fn)`.
+- **`ctx.i18n.extend({ en: {…}, fr: {…} })`** adds strings to the core dictionary (core features use it).
+- **Personalization** (visual styles, per-app themes, `effectiveTheme(el)` for canvas apps, theme events,
+  wallpaper, taskbar/Start, packs, shortcuts, profiles, settings keys): see
+  [PERSONALIZATION.md](PERSONALIZATION.md). Apps that follow the tokens and `:root[data-theme="dark"] .app-x`
+  selectors need no extra work.
 
 ### Visual rules (Windows 11 / Fluent)
 
@@ -112,13 +135,36 @@ What you can use:
 
 ### Backend API (`api.invoke`)
 
-| Area | Channels |
+One file per area in `main/ipc/`, the source of truth: each file's header documents arguments and results.
+`(+x)` is an event the renderer receives with `api.on('x', fn)`; progress and watch events go only to the
+window that asked. In greeter mode (`--mode=greeter`) only `settings`, `sys`, `greetd`, `net` and
+`power-ext` are loaded.
+
+| Area (file) | Channels |
 |---|---|
-| files | `fs:home` `fs:xdg` `fs:list` `fs:stat` `fs:exists` `fs:readText` `fs:writeText` `fs:readBytes` `fs:writeBytes` `fs:mkdir` `fs:uniqueName` `fs:rename` `fs:copy` (+`fs:progress` events) `fs:trash` `fs:trashList` `fs:trashRestore` `fs:trashEmpty` `fs:delete` `fs:search` `fs:watch`/`fs:unwatch` (+`fs:changed`) `fs:drives` `fs:mount` `fs:unmount` `fs:eject` `fs:usage` `fs:dirSize` |
-| system | `sys:info` `sys:stats` `power:shutdown` `power:reboot` `power:suspend` `session:logout` `apps:list` |
-| shell | `shell:zoom` `shell:capture(rect)` `shell:screenSize` `clipboard:readText` `clipboard:writeText` `clipboard:writeImage` `clipboard:readImage` |
-| settings | `settings:all` `settings:get` `settings:set` `settings:reset` (+`settings:changed`), `storage:get` `storage:set` `storage:delete` `storage:dir` |
-| weather | `weather:current(place?, { force })` `weather:search(query, { lang, count })` `weather:stats` (+`weather:changed`) — Open-Meteo, cached 30 min, offline fallback; see docs/PERSONALIZATION.md §9.4 |
+| files (`fs.js`) | `fs:home` `fs:xdg` `fs:list` `fs:stat` `fs:exists` `fs:readText` `fs:writeText` `fs:readBytes` `fs:writeBytes` `fs:mkdir` `fs:uniqueName` `fs:rename` `fs:copy` (+`fs:progress`) `fs:trash` `fs:trashList` `fs:trashRestore` `fs:trashEmpty` (+`fs:trash-changed`) `fs:delete` `fs:search` `fs:watch`/`fs:unwatch` (+`fs:changed`) `fs:drives` `fs:mount` `fs:unmount` `fs:eject` `fs:usage` `fs:dirSize` |
+| File Explorer (`files.js`) | `files:transfer` (+`files:progress`) `files:cancel` `files:dirStats` (+`files:dirStats`) `files:props` `files:chmod` `files:compress` `files:extract` `files:head` `files:thumb` `files:media` `files:recent` `files:mounts` `files:drivesWatch` (+`files:drives-changed`) |
+| system (`sys.js`, `power-ext.js`) | `sys:info` `sys:stats` `power:shutdown` `power:reboot` `power:suspend` `power:battery` (+`power:changed`) `session:logout` `apps:list` |
+| shell (`sys.js`) | `shell:zoom` `shell:capture(rect)` `shell:screenSize` `shell:features` `shell:devtools` `clipboard:readText` `clipboard:writeText` `clipboard:readImage` `clipboard:writeImage`; `hotkeys:rules` `hotkeys:setCustom` (`main/lib/hotkeys.js`, custom shortcuts); events from `main/`: `shell:hotkey` `shell:open-url` `shell:open-mailto` |
+| settings (`settings.js`) | `settings:all` `settings:get` `settings:set` `settings:setMany` `settings:defaults` `settings:reset` (+`settings:changed`), `storage:get` `storage:set` `storage:delete` `storage:dir` |
+| admin (`admin.js`) | `admin:needsPassword` `admin:status` `admin:securityStatus` `admin:run(password, action, args)` (+`admin:progress` `admin:devChanged`) — apps use `shell.runAdmin` |
+| auth, users (`auth.js`, `users.js`) | `auth:status` `auth:verify` `auth:setLocked` `auth:idle` (+`auth:suspend`), `users:list` `users:current` `users:changePassword` `users:setPicture` `users:removePicture` (+`users:changed`) |
+| net (`net.js`) | `net:status` `net:details` `net:usage` `net:known` `net:setWifi` `net:setAirplane` `net:wifiList` `net:wifiConnect` `net:wifiDisconnect` `net:wifiForget` (+`net:changed`) |
+| audio (`audio.js`) | `audio:status` `audio:setVolume` `audio:setMuted` `audio:setOutput` `audio:setInput` `audio:setInputVolume` `audio:setInputMuted` (+`audio:changed`) |
+| display (`display.js`) | `display:status` `display:setMode` `display:setBrightness` `display:save` `display:saved` `display:applySaved` (+`display:changed`) |
+| locale, input (`locale.js`) | `locale:status` `locale:timezones` `locale:setKeyboard` `input:mouse` `input:setMouse` |
+| greetd (`greetd.js`, login screen) | `greeter:info` `greeter:users` `greeter:login` `greeter:power` `greeter:keyboard` `greeter:setKeyboard` `greeter:a11y` `greeter:setA11y` `session:welcome` |
+| installer (`installer.js`) | `installer:disks` `installer:keyboards` `installer:timezones` `installer:applyKeyboard` `installer:start` `installer:status` `installer:cancel` `installer:log` `installer:reboot` (+`installer:progress`) |
+| processes (`taskmgr.js`) | `proc:list` `proc:info` `proc:alive` `proc:kill` `proc:killTree` `proc:setPriority` `proc:spawn` `proc:shell` `perf:snapshot` `perf:users` `perf:services` `perf:startup` `perf:startupSet` |
+| pty (`pty.js`, Terminal) | `pty:spawn` `pty:resize` `pty:signal` `pty:kill` `pty:info` `pty:env` `pty:fonts` `pty:primaryRead` `pty:primaryWrite`, `api.send('pty:write')` `api.send('pty:ack')` (+`pty:data` `pty:proc` `pty:exit`) |
+| browser (`browser.js`) | `browser:initPartition` `browser:disposePartition` `browser:setPrefs` `browser:info` `browser:favicon` `browser:navHistory` `browser:inspect` `browser:copyImageAt` `browser:clearData` `browser:sitePermissions` `browser:resetSitePermissions` `browser:permissionReply` `browser:authReply` `browser:jsDialogReply` `browser:downloads` `browser:downloadUrl` `browser:downloadPause` `browser:downloadResume` `browser:downloadCancel` (+`browser:open` `browser:download` `browser:permission` `browser:permission-done` `browser:auth` `browser:auth-done` `browser:js-dialog` `browser:js-dialog-done` `browser:context-menu` `browser:shortcut` `browser:external` `browser:popup-blocked`) |
+| mail (`mail.js`) | `mail:presets` `mail:autodetect` `mail:storage` `mail:accounts` `mail:testAccount` `mail:addAccount` `mail:updateAccount` `mail:removeAccount` `mail:folders` `mail:list` `mail:message` `mail:attachment` `mail:parseFile` `mail:setFlags` `mail:move` `mail:archive` `mail:delete` `mail:emptyFolder` `mail:markAllRead` `mail:tempDir` `mail:send` `mail:saveDraft` `mail:source` `mail:saveSource` `mail:watch` `mail:status` (+`mail:changed` `mail:new` `mail:status`) |
+| photos (`photos.js`) | `photos:scan` `photos:items` `photos:meta` `photos:folder` `photos:thumbDir` `photos:thumbPut` `photos:rotate` `photos:write` `photos:copyFile` `photos:watch`/`photos:unwatch` (+`photos:changed`) |
+| notes (`notes.js`) | `notes:root` `notes:open` `notes:writeIndex` `notes:writeNote` `notes:remove` `notes:duplicate` `notes:attach` `notes:dataUrl` `notes:exportAssets` `notes:gc` `notes:clipboard` `notes:clipboardWriteImage` |
+| archive (`archive.js`) | `archive:tools` `archive:list` `archive:preview` `archive:test` `archive:extract` `archive:extractTemp` `archive:create` `archive:add` `archive:delete` `archive:cancel` `archive:tempDir` `archive:cleanup` (+`archive:progress`) |
+| pdf (`pdf.js`) | `pdf:save(path, bytes)` |
+| weather (`weather.js`) | `weather:current(place?, { force })` `weather:search(query, { lang, count })` `weather:stats` (+`weather:changed`) — Open-Meteo, cached 30 min, offline fallback; see docs/PERSONALIZATION.md §9.4 |
+| app helpers | `notepad:fonts` `paint:fonts`; legacy `paint:clipboard*Image` and `snipping:clipboard*Image` (new code uses `clipboard:*Image`) |
 
 New backend areas go in a **new file** `main/ipc/<area>.js`:
 
@@ -137,6 +183,37 @@ when `api.DEV` is true. Never let it throw unhandled.
 Privileged actions go through `admin:run(password, action, args)`, which runs
 `/usr/lib/aurora/helpers/aurora-admin <action> …` through sudo. The helper is an allow-list of
 actions. Never expose a generic "run this command as root" path.
+
+## Built-in apps (`renderer/apps/<id>/`)
+
+Tests live in `shell/test/<id>.test.mjs`; Minesweeper, Snake and 2048 share `games-classic.test.mjs`,
+Settings uses `system-settings.test.mjs`.
+
+- `archive` - Archive Manager: open, extract and create ZIP, 7z, RAR and TAR archives
+- `browser` - Aurora Browser: Chromium `<webview>` tabs, favorites, history, downloads, private windows
+- `calculator` - Calculator: standard, scientific, programmer, date calculation, unit converters
+- `calendar` - Calendar: month/week/day/agenda views, recurring events, reminders, holidays, .ics import/export
+- `chess` - Chess against the computer or a friend
+- `clock` - Clock: alarms, timers, stopwatch, world clock, focus sessions
+- `files` - File Explorer: tabs, drives, Recycle Bin, search, properties
+- `game2048` - 2048
+- `installer` - Install Aurora OS (live session only): language, keyboard, disk, account, time zone
+- `mail` - Mail: IMAP/SMTP accounts, compose, attachments
+- `media` - Media Player: music and video libraries, queue, playlists
+- `minesweeper` - Minesweeper
+- `notepad` - Notepad: plain text with tabs, find/replace, encodings
+- `notes` - Notes: notebooks, rich text, checklists, pictures and tags, saved as you type
+- `paint` - Paint: draw and edit pictures
+- `pdf` - PDF Reader: read, search, annotate and present PDFs
+- `photos` - Photos: gallery, viewer, slideshow and editor
+- `settings` - Settings: system, devices, network, personalization, accounts, time and language, updates
+- `snake` - Snake
+- `snipping` - Snipping Tool: screen captures with markup
+- `solitaire` - Solitaire (Klondike)
+- `taskmgr` - Task Manager: processes, performance, users, details, services
+- `terminal` - Terminal: real PTY, tabs, split panes, profiles
+- `todo` - To Do: lists, My Day, reminders, due dates, steps
+- `winver` - About Aurora: version and license information
 
 ## Rules for parallel work
 

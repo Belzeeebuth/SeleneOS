@@ -199,6 +199,7 @@ const ERR_KEYS = {
   EROFS: 'err.code.readOnly',
   ENOSPC: 'err.code.noSpace',
   ENOHANDLER: 'err.code.unavailable',
+  ENOTADMIN: 'err.code.notAdmin',
 };
 export function errText(t, err) {
   const key = ERR_KEYS[err?.code];

@@ -2,7 +2,7 @@
 //   background (full res, static) = night sky + stars;  animated canvas (½ res) = curtains + their reflection;
 //   foreground (full res, static) = mountain ranges, translucent lake, shoreline.
 // Curtains are columns of a pre-rendered gradient sprite whose base line, height and brightness follow slowly
-// drifting sums of sines — a few thousand Math.sin and ~500 drawImage calls per frame, no allocations.
+// drifting sums of sines — a few thousand Math.sin and ~250 drawImage calls per frame, no allocations.
 import { rng, canvas, rgba, hexRgb } from '../engine.js';
 
 const HORIZON = 0.73;
@@ -23,7 +23,9 @@ export default {
   id: 'aurora',
   name: { en: 'Aurora', fr: 'Aurore boréale' },
   desc: { en: 'Northern lights flowing over a mountain lake', fr: 'Des aurores boréales ondulent au-dessus d’un lac de montagne' },
-  scale: 0.5,
+  // the curtains are soft gradients: a third of the screen resolution looks the same once upscaled and halves the
+  // fill cost of the ~250 additive sprite draws per frame (software rendering)
+  scale: 0.34,
   layered: true,
   heroTime: 40,
   create(env) {
@@ -67,7 +69,7 @@ export default {
       resize(W, Hh) {
         w = W;
         h = Hh;
-        cols = Math.max(24, Math.min(170, Math.round(w / 5)));
+        cols = Math.max(24, Math.min(120, Math.round(w / 6.5)));
         colW = w / cols;
         sprites = CURTAINS.map(curtainSprite);
         const r = rng(7);

@@ -26,7 +26,7 @@ export default {
   id: 'bloom',
   name: { en: 'Bloom', fr: 'Floraison' },
   desc: { en: 'The Aurora flower breathes, sways and shimmers in your accent color', fr: 'La fleur d’Aurora respire, ondule et scintille dans votre couleur d’accentuation' },
-  scale: 0.5,
+  scale: 0.4, // every layer is redrawn each frame: 0.4 of the screen resolution keeps the petals crisp enough when upscaled
   heroTime: 0,
   create(env) {
     const dark = env.mode === 'dark';

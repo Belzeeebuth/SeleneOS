@@ -294,8 +294,9 @@
   content: "";
   position: absolute;
   inset: 0 0 auto 0;
-  height: 190px;
-  background: linear-gradient(rgba(0, 0, 0, 0.36), rgba(0, 0, 0, 0.2) 55%, rgba(0, 0, 0, 0));
+  height: 200px;
+  /* dark enough under the date (≈ 70 px) for 4.5:1 white text on the lightest pictures (Dawn, Mist) */
+  background: linear-gradient(rgba(0, 0, 0, 0.46), rgba(0, 0, 0, 0.42) 42%, rgba(0, 0, 0, 0.16) 72%, rgba(0, 0, 0, 0));
 }
 .app-todo .td-head {
   padding: 22px 32px 6px;
@@ -411,7 +412,7 @@
 .app-todo .td-main.has-bg .td-subtitle,
 .app-todo .td-main.has-bg .td-head .btn.subtle {
   color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 .app-todo .td-main.has-bg .td-head .btn.subtle:hover {
   background: rgba(255, 255, 255, 0.16);
@@ -1683,17 +1684,22 @@
 .app-todo .td-keys {
   display: grid;
   gap: 2px;
-  min-width: 420px;
+  /* 420 px wide, but never wider than the dialog: in a small window the labels wrap and the keys stay visible */
+  width: 420px;
   max-width: 100%;
 }
 .app-todo .td-keys-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 16px;
   min-height: 32px;
   padding: 2px 4px;
   border-bottom: 1px solid var(--stroke);
+}
+.app-todo .td-keys-row > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .app-todo .td-kbd {
   display: inline-flex;

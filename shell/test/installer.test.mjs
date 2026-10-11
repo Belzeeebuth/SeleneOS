@@ -418,6 +418,16 @@ async function uiTests() {
     check('failure: log excerpt shown (ends with the error)', (await text(page, '.ins-log-excerpt'))?.includes('Updating the initramfs') && (await text(page, '.ins-log-excerpt')).includes('ERROR: simulated failure'), await text(page, '.ins-log-excerpt'));
     await page.click('.app-installer [data-act="retry"]');
     check('failure: Try again returns to the summary with the choices kept', (await stepIs(page, 'summary')) && (await state(page)).disk === '/dev/vda' && (await state(page)).user === 'jane');
+    // sudo refuses a standard account (simulated: same stderr as sudo) -> ENOTADMIN, clear localized message.
+    await s.app.evaluate(() => {
+      process.env.AURORA_INSTALLER_FAIL_AT = 'notadmin';
+    });
+    await clickNext(page);
+    await page.waitForSelector('.dialog');
+    await page.click('.dialog .btn.danger');
+    check('not admin: error phase with code ENOTADMIN', (await phaseIs(page, 'error', 15000)) && (await state(page)).error?.code === 'ENOTADMIN', (await state(page)).error);
+    check('not admin: clear message instead of the raw sudo error', (await text(page, '.ins-error-msg')) === "This account isn't an administrator, so it can't install Aurora OS. Sign in with an administrator account, or ask an administrator to make your account one.", await text(page, '.ins-error-msg'));
+    check('not admin: not shown as cancelled', (await text(page, '.ins-title')) === 'The installation failed');
     await s.close();
   }
   {

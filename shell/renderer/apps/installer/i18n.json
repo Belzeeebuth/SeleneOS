@@ -165,6 +165,7 @@
       "logFile": "Full log: /var/log/aurora-install.log",
       "retry": "Try again",
       "auth": "Administrator rights are required to install Aurora OS.",
+      "notAdmin": "This account isn't an administrator, so it can't install Aurora OS. Sign in with an administrator account, or ask an administrator to make your account one.",
       "start": "The installation could not start: {error}"
     }
   },
@@ -334,6 +335,7 @@
       "logFile": "Journal complet : /var/log/aurora-install.log",
       "retry": "Réessayer",
       "auth": "Des droits d'administrateur sont nécessaires pour installer Aurora OS.",
+      "notAdmin": "Ce compte n'est pas administrateur : il ne peut pas installer Aurora OS. Connectez-vous avec un compte administrateur ou demandez à un administrateur de modifier le type de votre compte.",
       "start": "L'installation n'a pas pu démarrer : {error}"
     }
   }

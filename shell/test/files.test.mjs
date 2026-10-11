@@ -1005,6 +1005,19 @@ if (!fatal) {
     const accepted = await drop([path.join(dir, 'victim')], false);
     check('forged payload refused (dragover not accepted)', accepted, false);
     check('forged payload moved nothing', H.exists(path.join(dir, 'victim')) && !H.exists(path.join(dir, 'target/victim')), true);
+    // The paths payload alone (no file:// list) goes through core/desktop.js trustedDragPaths().
+    const read = await page.evaluate((p) => {
+      const dt = new DataTransfer();
+      dt.setData('application/x-aurora-paths', JSON.stringify([p]));
+      window.dispatchEvent(new PointerEvent('pointerdown'));
+      const forged = window.__fx().dnd.readPaths({ dataTransfer: dt });
+      document.dispatchEvent(new DragEvent('dragstart', { bubbles: true }));
+      const shell = window.__fx().dnd.readPaths({ dataTransfer: dt });
+      document.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
+      return { forged, shell };
+    }, path.join(dir, 'victim'));
+    check('forged paths payload read as nothing', read.forged, []);
+    check('shell paths payload read', read.shell, [path.join(dir, 'victim')]);
     await drop([path.join(dir, 'victim')], true);
     await H.settle();
     check('shell drags still work', H.exists(path.join(dir, 'target/victim')), true);
