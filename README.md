@@ -63,7 +63,7 @@ available in **English and French**, in light and dark themes.
 | Sticky Notes | Colourful notes that can stay on top, saved as you type, copy to Notes |
 | Translator | Seven languages (MyMemory or your LibreTranslate server), English dictionary, offline EN↔FR glossary |
 | Remote Desktop | VNC client (RDP later) |
-| Store | Graphical Linux apps (GIMP, Inkscape, Krita, LibreOffice, VLC, Audacity, OBS Studio…), command-line tools and services, installed with apt (curated list) |
+| Store | The whole Flathub catalogue (Firefox, Spotify, Discord, Steam, Blender…) and every desktop app of the Ubuntu archive, with icons, search, categories and screenshots; plus curated tools and services ([docs/STORE-SOURCES.md](docs/STORE-SOURCES.md)) |
 | Disks | Drives and partitions, mount and eject, format USB sticks and SD cards |
 | Backup | Incremental snapshots of your folders to a drive; browse and restore |
 | Passwords | Encrypted password vault with a generator |

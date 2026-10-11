@@ -38,6 +38,7 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 | App phase 3 (PHASEAPP.md) | **done** — store, disks, backup, passwords, cloud (light), nettools (light) |
 | App phase 4 (PHASEAPP.md) | **done** — weather, maps, contacts, sticky, translate, remote (VNC) |
 | Linux GUI apps (external X11 windows) | **done** — aurora-xwm helper (python3-xlib) + shaped shell window + frames, .desktop entries in Start/search, 12 GUI apps in the Store; see docs/XWINDOWS.md |
+| Store sources (Flathub + Ubuntu AppStream) | **done** — per-user Flatpak installs from Flathub (no root), full Ubuntu desktop-app catalogue from DEP-11 (apt installs through aurora-admin, verified against root-owned DEP-11 lists; image packages never removable); merged catalogue UI; see docs/STORE-SOURCES.md |
 | App phase 2 | not started — wait for the user's go; run it like phases 3–4 (one workflow per app, all in parallel) |
 
 ### App / area status (every area has its own test suite in shell/test/)
@@ -51,7 +52,7 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 | Phase 1 apps | photos 46, pdf 244, archive 468, notes 262 + 156 unit, calendar 378 + 131 unit, clock 448, todo 361 |
 | Personalization | personalization-core 144, personalization-shell 90, taskbar-start-focus 269, packs-input 148, wallpapers 300 |
 | Core | smoke, core-dialogs 6 |
-| Linux GUI apps | xwm-helper 78, xwin 63 (incl. real xterm end-to-end), xapps 71, store 74 |
+| Linux GUI apps + Store sources | xwm-helper 78, xwin 63 (incl. real xterm end-to-end), xapps 71, store 128, store-flathub 83, store-ubuntu 84 |
 
 Last full sweep (2026-10-11): 34/34 suites green; wallpapers and wm-nav needed one retry on the loaded 4-CPU build machine (timing only).
 
@@ -142,6 +143,9 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
   instead); no hole while a frame animates; max-size hints not enforced; modal X dialogs don't block their parent;
   no Alt+drag move; Firefox/Chromium/Thunderbird are snaps on noble (not offered; Mozilla's APT repo would be needed).
   Store installs use --no-install-recommends (LibreOffice without libreoffice-gtk3 uses its plain X11 look).
+- Store sources (first version): Flathub could not be reached from the build container (proxy 403), so Flathub was
+  developed against a fixture catalogue; the real `flatpak remote-add/update --appstream/install` runs only in the VM.
+  No Updates page yet, no install cancel, Flatpak runtimes are big (live session keeps them in RAM).
 - Build host leftovers: empty /cdrom and /usr/lib/aurora (harmless).
 
 ## Next steps (exact)
