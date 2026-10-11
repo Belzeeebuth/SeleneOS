@@ -543,7 +543,9 @@ class PasswordsApp {
       this.render();
       this.root.querySelector('.pw-reveal')?.focus();
     };
-    const url = e.url ? (/^[a-z][a-z0-9+.-]*:/i.test(e.url) ? e.url : `https://${e.url}`) : '';
+    // Only http(s) links open in the browser; any other scheme (javascript:, file:, …) stays plain text.
+    const raw = e.url.trim();
+    const url = !raw ? '' : /^https?:\/\//i.test(raw) ? raw : /^[a-z][a-z0-9+.-]*:/i.test(raw) && !/^[^:]+:\d/.test(raw) ? '' : `https://${raw}`;
     const { score } = strength(e.password);
     return h(
       'div',
@@ -564,7 +566,7 @@ class PasswordsApp {
         row(t('password'), h('div', { class: 'pw-pwline' }, pwText, e.password ? h('span', { class: 'pw-chip', dataset: { score: String(score) } }, t(`strength.${score}`)) : null), reveal, copyBtn('password', t('copyPassword'))),
         row(
           t('website'),
-          url ? h('a', { class: 'pw-link ellipsis', href: '#', onclick: (ev) => (ev.preventDefault(), ctx.shell.openUrl(url)) }, e.url) : h('span', { class: 'text-2' }, '—'),
+          url ? h('a', { class: 'pw-link ellipsis', href: '#', onclick: (ev) => (ev.preventDefault(), ctx.shell.openUrl(url)) }, e.url) : h('span', { class: ['selectable ellipsis', !e.url && 'text-2'] }, e.url || '—'),
         ),
         e.notes ? row(t('notes'), h('div', { class: 'pw-notes selectable' }, e.notes)) : null,
       ),

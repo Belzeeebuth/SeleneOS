@@ -138,6 +138,12 @@ try {
       try { await v.openVault(JSON.stringify(tampered), 'master-pass'); out.tampered = 'opened'; } catch (e) { out.tampered = e.code; }
       const newer = JSON.parse(b1); newer.version = 99;
       try { await v.openVault(JSON.stringify(newer), 'master-pass'); out.newer = 'opened'; } catch (e) { out.newer = e.code; }
+      const huge = JSON.parse(b1); huge.kdf.iterations = 1e12;
+      const t0 = performance.now();
+      try { await v.openVault(JSON.stringify(huge), 'master-pass'); out.huge = 'opened'; } catch (e) { out.huge = e.code; }
+      out.hugeFast = performance.now() - t0 < 2000;
+      const badSalt = JSON.parse(b1); badSalt.kdf.salt = '%%not base64%%';
+      try { await v.openVault(JSON.stringify(badSalt), 'master-pass'); out.badSalt = 'opened'; } catch (e) { out.badSalt = e.code; }
       return out;
     })()`);
     check('generated passwords have the requested length', r.len, true);
@@ -157,6 +163,8 @@ try {
     check('wrong master password -> EBADPASS', r.wrong, 'EBADPASS');
     check('tampered header -> EBADPASS (bound as additional data)', r.tampered, 'EBADPASS');
     check('vault from a newer version -> ENEWER', r.newer, 'ENEWER');
+    check('absurd PBKDF2 iteration count refused fast -> EFORMAT', [r.huge, r.hugeFast], ['EFORMAT', true]);
+    check('non-base64 salt -> EFORMAT (not a generic error)', r.badSalt, 'EFORMAT');
   });
 
   await section('backend validation', async () => {
@@ -218,6 +226,22 @@ try {
     check('hide again', await s.page.textContent(`${WIN} .pw-secret`), (v) => !v.includes(SECRET));
     check('notes shown', await s.page.textContent(`${WIN} .pw-notes`), 'Recovery codes in the safe');
     check('host shown for a URL without scheme', await s.page.textContent(`${WIN} .pw-view-title .caption`), 'mail.example.com');
+    check('a URL without scheme is a link', await s.page.textContent(`${WIN} .pw-link`), 'mail.example.com');
+    const unsafe = await P(s, (app) => {
+      const e = app.entry(app.selectedId);
+      const keep = e.url;
+      const out = {};
+      for (const u of ['javascript:alert(1)', 'file:///etc/passwd', 'example.com:8080/x']) {
+        e.url = u;
+        app.render();
+        const a = app.root.querySelector('.pw-link');
+        out[u] = a ? 'link' : app.root.querySelector('.pw-row .selectable.ellipsis')?.textContent || 'none';
+      }
+      e.url = keep;
+      app.render();
+      return out;
+    });
+    check('javascript: / file: URLs are plain text, host:port stays a link', unsafe, { 'javascript:alert(1)': 'javascript:alert(1)', 'file:///etc/passwd': 'file:///etc/passwd', 'example.com:8080/x': 'link' });
     // Edit
     await s.page.click(`${WIN} .pw-edit`);
     await s.page.fill(`${WIN} #pw-f-username`, 'alice2@example.com');
@@ -405,6 +429,7 @@ try {
   });
 } finally {
   await s2.close();
+  fs.rmSync(home, { recursive: true, force: true });
 }
 
 console.log(`\n${passed} passed, ${failures.length} failed`);

@@ -10,6 +10,7 @@
 export const FORMAT = 'aurora-vault';
 export const VERSION = 1;
 export const ITERATIONS = 600000;
+export const MAX_ITERATIONS = 10000000;
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -68,7 +69,10 @@ export function parseBlob(text) {
   }
   if (!v || v.format !== FORMAT || !Number.isInteger(v.version)) throw Object.assign(new Error('Damaged vault'), { code: 'EFORMAT' });
   if (v.version > VERSION) throw Object.assign(new Error('Vault from a newer version'), { code: 'ENEWER' });
-  if (v.kdf?.name !== 'PBKDF2' || v.kdf?.hash !== 'SHA-256' || !(v.kdf?.iterations >= 1) || v.cipher?.name !== 'AES-GCM') {
+  // Iterations are capped so a tampered header cannot freeze the window in PBKDF2; salt/iv/data must be base64.
+  const b64ok = (x) => typeof x === 'string' && /^[A-Za-z0-9+/]*={0,2}$/.test(x) && x.length % 4 === 0;
+  if (v.kdf?.name !== 'PBKDF2' || v.kdf?.hash !== 'SHA-256' || !Number.isInteger(v.kdf?.iterations) || v.kdf.iterations < 1 || v.kdf.iterations > MAX_ITERATIONS ||
+      v.cipher?.name !== 'AES-GCM' || !b64ok(v.kdf.salt) || !b64ok(v.cipher.iv) || !b64ok(v.data)) {
     throw Object.assign(new Error('Damaged vault'), { code: 'EFORMAT' });
   }
   return v;
