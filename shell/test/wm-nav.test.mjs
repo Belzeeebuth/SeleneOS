@@ -1283,7 +1283,9 @@ async function qaRun() {
     await sleep(500);
     await page.fill('.run-input', 'no');
     await sleep(250);
-    check('qa: Run suggestions are ranked (name matches before keyword matches)', (await A(() => document.querySelector('.run-opt')?.dataset.value)) === 'notepad');
+    // Both Notepad and Notes match "no" by name; either may come first, but a name match must beat keyword-only matches.
+    const runOpts = await A(() => [...document.querySelectorAll('.run-opt')].map((o) => o.dataset.value));
+    check('qa: Run suggestions are ranked (name matches before keyword matches)', ['notepad', 'notes'].includes(runOpts[0]) && runOpts.indexOf('notepad') >= 0 && runOpts.indexOf('notepad') <= 1);
     await A(() => window.__aurora.wm.list().find((w) => w.appId === 'run')?.close());
     await sleep(250);
 

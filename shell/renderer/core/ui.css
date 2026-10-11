@@ -282,6 +282,10 @@ svg {
   appearance: none;
   padding-right: 32px;
 }
+/* Room for the arrow in every visual style (styles/*.css reset the padding of fields; doubled class = wins over them). */
+.select.select {
+  padding-right: 32px;
+}
 /* The dropdown arrow stays visible on hover and focus too (the `background:` shorthands above reset the image). */
 .select,
 .select:hover,

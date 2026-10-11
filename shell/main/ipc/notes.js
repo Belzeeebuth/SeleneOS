@@ -225,7 +225,8 @@ function sniff(buf) {
 // file could be opened on its own later (File Explorer -> browser). Refuse anything active.
 function unsafeSvg(buf) {
   const s = buf.toString('utf8');
-  return /<\s*(script|foreignobject|iframe|embed|object|handler|use\b[^>]*href\s*=\s*["']?\s*(?!#))|\son[a-z]+\s*=|(java|vb)script\s*:|data\s*:\s*text\/html|<!entity|xlink:href\s*=\s*["']?\s*(?!#|data:image\/)/i.test(s);
+  // (the negative look-aheads also exclude quotes / spaces, so backtracking can't skip the opening quote)
+  return /<\s*(script|foreignobject|iframe|embed|object|handler|use\b[^>]*href\s*=\s*["']?\s*(?![\s#"']))|\son[a-z]+\s*=|(java|vb)script\s*:|data\s*:\s*text\/html|<!entity|xlink:href\s*=\s*["']?\s*(?![\s#"']|data:image\/)/i.test(s);
 }
 
 function slugOf(name) {
@@ -292,7 +293,7 @@ async function fetchImage(url) {
 }
 
 async function attach(id, src) {
-  const dir = await safeNoteDir(id);
+  const dir = noteDir(id);
   if (!src || typeof src !== 'object') throw err('Nothing to attach', 'EINVAL');
   let buf = null;
   let name = typeof src.name === 'string' ? src.name : '';
@@ -330,6 +331,7 @@ async function attach(id, src) {
   if (ext === 'svg' && unsafeSvg(buf)) throw err('This SVG picture contains scripts or external content', 'ENOTIMAGE');
   // serialized with notes:gc of the same note: a collection never runs while a picture is being written
   return serialize(attKey(id), async () => {
+    await safeNoteDir(id);
     await fsp.mkdir(dir, { recursive: true });
     const file = await freeAttachmentName(dir, slugOf(name), ext);
     await atomicWrite(path.join(dir, file), buf);
@@ -499,13 +501,15 @@ module.exports = function register(api) {
   api.handle('notes:open', () => open());
 
   api.handle('notes:writeNote', async (id, data) => {
-    const file = path.join(await safeNoteDir(id), 'note.html');
+    // everything up to serialize() is synchronous: writes / removals of a note run in the order they were asked
+    const file = path.join(noteDir(id), 'note.html');
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw api.error('Invalid note', 'EINVAL');
     if (data.html != null && typeof data.html !== 'string') throw api.error('Invalid note', 'EINVAL');
     if (typeof data.html === 'string' && data.html.length > MAX_NOTE) throw api.error('This note is too large to be saved', 'ETOOBIG');
     const text = buildPage(data);
     if (Buffer.byteLength(text) > MAX_NOTE) throw api.error('This note is too large to be saved', 'ETOOBIG');
     return serialize(file, async () => {
+      await safeNoteDir(id);
       await atomicWrite(file, text);
       const st = await fsp.stat(file);
       return { mtime: st.mtimeMs };
@@ -552,10 +556,11 @@ module.exports = function register(api) {
   api.handle('notes:attach', (id, src) => attach(id, src));
 
   api.handle('notes:gc', async (id, keep) => {
-    const dir = await safeNoteDir(id);
+    const dir = noteDir(id);
     if (keep != null && !Array.isArray(keep)) throw api.error('Invalid list', 'EINVAL');
     const keepSet = new Set((keep || []).filter((k) => typeof k === 'string'));
     return serialize(attKey(id), async () => {
+      await safeNoteDir(id);
       let n = 0;
       let entries = [];
       try {

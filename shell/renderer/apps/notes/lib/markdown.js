@@ -16,9 +16,17 @@ function escText(s, { table = false } = {}) {
   return out;
 }
 
+// characters a Markdown link / picture destination can't hold as such: ( ) < > and whitespace
+// (encodeURIComponent leaves parentheses alone, so they are mapped by hand)
+function escUrl(u) {
+  return String(u).replace(/[()<>\s]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`);
+}
+
 function escLineStart(s) {
-  // block markers at the start of a line would change the structure on import
+  // block markers at the start of a line would change the structure on import; so would leading
+  // indentation (4 spaces / a tab start an indented code block), which Markdown can't keep anyway
   return s
+    .replace(/^[ \t]+/, '')
     .replace(/^(\s*)(\d+)([.)])(\s|$)/, '$1$2\\$3$4')
     .replace(/^(\s*)(#{1,6}(?:\s|$)|>|[-+](?:\s|$)|-{3,}\s*$)/, (m, sp, mk) => `${sp}\\${mk}`);
 }
@@ -71,12 +79,12 @@ export function htmlToMarkdown(root, opts = {}) {
         case 'A': {
           const href = n.getAttribute('href') || '';
           const text = inner();
-          out += href ? `[${text || href}](${href.replace(/[()\s]/g, (c) => encodeURIComponent(c))})` : text;
+          out += href ? `[${text || escText(href)}](${escUrl(href)})` : text;
           break;
         }
         case 'IMG': {
           const src = image(n);
-          if (src) out += `![${escText(n.getAttribute('alt') || '')}](${src.replace(/[()\s]/g, (c) => encodeURIComponent(c))})`;
+          if (src) out += `![${escText(n.getAttribute('alt') || '')}](${escUrl(src)})`;
           break;
         }
         default:
@@ -108,8 +116,9 @@ export function htmlToMarkdown(root, opts = {}) {
       flushInline();
       const tag = n.tagName;
       if (tag === 'H1' || tag === 'H2' || tag === 'H3') {
-        const t = inline(n).trim();
-        if (t) parts.push(`${'#'.repeat(Number(tag[1]))} ${t.replace(/\n/g, ' ')}`);
+        // a trailing # would be read back as a closing sequence: escape it
+        const t = inline(n).trim().replace(/\n/g, ' ').replace(/#$/, '\\#');
+        if (t) parts.push(`${'#'.repeat(Number(tag[1]))} ${t}`);
       } else if (tag === 'P' || tag === 'DIV') {
         if (hasBlockChild(n)) {
           const inner = blocks(n, indent);
@@ -433,8 +442,8 @@ export function inlineMd(src) {
   const slots = [];
   const keep = (html) => `\u0002${slots.push(html) - 1}\u0003`;
   let s = String(src || '');
-  // code spans
-  s = s.replace(/(`+)(?!`)([\s\S]*?[^`])\1(?!`)/g, (m, ticks, code) => keep(`<code>${escapeHtml(code.replace(/^ (.*) $/, '$1'))}</code>`));
+  // code spans (scanned: a backslash-escaped backtick never opens one; inside a span backslashes are literal)
+  s = codeSpans(s, (code) => keep(`<code>${escapeHtml(code.replace(/^ (.*) $/, '$1'))}</code>`));
   // backslash escapes
   s = s.replace(/\\([\\`*_[\]{}()#+\-.!<>~=|])/g, (m, c) => keep(escapeHtml(c)));
   // table-cell line breaks
@@ -446,6 +455,49 @@ export function inlineMd(src) {
   // the few raw inline tags we accept
   s = s.replace(/<(\/?)(u|mark|br|sub|sup)\s*\/?>/gi, (m, close, tag) => keep(`<${close}${tag.toLowerCase()}>`));
   return inlineRest(s, keep, slots);
+}
+
+function codeSpans(s, make) {
+  let out = '';
+  let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '\\') {
+      out += s.slice(i, i + 2);
+      i += 2;
+      continue;
+    }
+    if (c !== '`') {
+      out += c;
+      i++;
+      continue;
+    }
+    let j = i;
+    while (s[j] === '`') j++;
+    const ticks = s.slice(i, j);
+    // closing run of exactly the same length
+    let k = j;
+    let end = -1;
+    while (k < s.length) {
+      const at = s.indexOf(ticks, k);
+      if (at < 0) break;
+      let e = at;
+      while (s[e] === '`') e++;
+      if (e - at === ticks.length) {
+        end = at;
+        break;
+      }
+      k = e;
+    }
+    if (end > j) {
+      out += make(s.slice(j, end));
+      i = end + ticks.length;
+    } else {
+      out += ticks;
+      i = j;
+    }
+  }
+  return out;
 }
 
 function decodeSafe(u) {

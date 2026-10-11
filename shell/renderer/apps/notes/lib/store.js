@@ -104,8 +104,19 @@ export class NotesStore {
     }, delay);
   }
 
+  /** Nothing is pending any more: stop the background retries (a stale timer would fire later, fail if the
+   * disk broke again meanwhile and emit errors while the user is already retrying by hand). */
+  clearRetry() {
+    clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    this.retryCount = 0;
+  }
+
   /** Write again everything that failed. Resolves true when it all reached the disk. */
   async retryNow() {
+    // a manual retry replaces the scheduled one (a failure below schedules the next attempt)
+    clearTimeout(this.retryTimer);
+    this.retryTimer = null;
     let ok = true;
     for (const id of [...this.failed]) {
       if (!this.notes.has(id)) {
@@ -125,8 +136,9 @@ export class NotesStore {
         ok = false;
       }
     }
-    if (ok) this.retryCount = 0;
-    return ok;
+    if (ok && !this.pending) this.clearRetry();
+    else if (this.pending) this.scheduleRetry();
+    return ok && !this.pending;
   }
 
   dispose() {
@@ -229,6 +241,7 @@ export class NotesStore {
         (v) => {
           if (this.indexFailed) {
             this.indexFailed = false;
+            if (!this.pending) this.clearRetry();
             this.emit('saved', { index: true });
           }
           return v;
@@ -266,7 +279,10 @@ export class NotesStore {
       .then(() => this.api.invoke('notes:writeNote', id, payload))
       .then(
         (v) => {
-          if (this.failed.delete(id)) this.emit('saved', { id });
+          if (this.failed.delete(id)) {
+            if (!this.pending) this.clearRetry();
+            this.emit('saved', { id });
+          }
           return v;
         },
         (err) => {

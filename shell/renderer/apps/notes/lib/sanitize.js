@@ -259,12 +259,30 @@ export function sanitizeFragment(html, opts = {}) {
 
 // Structural clean-up so the editor and the Markdown exporter always see a sane tree:
 // orphan <li> -> <div>, <tr>/<td> outside a table -> unwrapped, top-level inline runs wrapped in <div>.
+// Also keeps the output stable when it is parsed again (innerHTML): nothing the HTML parser would move
+// (foster-parenting out of tables, a <p> closed by a block) is left in place.
+const TABLE_KIDS = { table: ['thead', 'tbody', 'tr'], thead: ['tr'], tbody: ['tr'], tr: ['td', 'th'] };
 function fixStructure(root, opts) {
   const doc = root.ownerDocument || document;
   const walk = (parent) => {
     for (const el of [...parent.children]) {
       const tag = el.tagName.toLowerCase();
       const ptag = parent.nodeType === 1 ? parent.tagName.toLowerCase() : '';
+      if (TABLE_KIDS[ptag] && !TABLE_KIDS[ptag].includes(tag)) {
+        // e.g. a <caption> (-> div) inside <table>: the parser would hoist it before the table
+        const table = parent.closest('table') || parent;
+        table.before(el);
+        walk(el);
+        continue;
+      }
+      if (tag === 'p' && [...el.children].some((c) => isBlock(c))) {
+        // a block inside <p> would close the paragraph when re-parsed: make it a <div>
+        const div = doc.createElement('div');
+        while (el.firstChild) div.appendChild(el.firstChild);
+        el.replaceWith(div);
+        walk(div);
+        continue;
+      }
       if (tag === 'li' && ptag !== 'ul' && ptag !== 'ol') {
         const div = doc.createElement('div');
         while (el.firstChild) div.appendChild(el.firstChild);

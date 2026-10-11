@@ -115,7 +115,19 @@ function buildMenu(items, pt, level, resolve, opts = {}) {
       { class: ['menu-item', it.disabled && 'disabled', it.danger && 'danger'], role: 'menuitem' },
       it.checked !== undefined ? h('span', { class: 'check' }, it.checked ? icon('checkmark', { size: 16 }) : null) : null,
       it.icon ? icon(it.icon, { filled: it.iconFilled }) : opts.hasIcons ? h('span', { class: 'icon' }) : null,
-      h('span', { class: 'label' }, it.label),
+      h(
+        'span',
+        {
+          class: 'label',
+          // Long labels are cut with an ellipsis (ui.css): show the full text as a tooltip only then.
+          onpointerenter: (e) => {
+            const l = e.currentTarget;
+            if (l.scrollWidth > l.clientWidth + 1) l.title = l.textContent;
+            else l.removeAttribute('title');
+          },
+        },
+        it.label,
+      ),
       it.shortcut ? h('span', { class: 'shortcut' }, it.shortcut) : null,
       it.submenu ? icon('chevron_right', { size: 12 }) : null,
     );

@@ -1,7 +1,7 @@
 // Personalization area B3 — cursor packs, icon packs, sound packs (notification / startup / shutdown sounds), snap
 // layout presets and customizable keyboard shortcuts (docs/PERSONALIZATION.md §11, §12). Drives the real shell.
 //
-//   xvfb-run -a -s "-screen 0 1600x900x24" node test/packs-input.test.mjs [--no-shots] [--only=cursors,icons,sounds,snap,shortcuts,profiles,i18n,perf,styles,restart]
+//   xvfb-run -a -s "-screen 0 1600x900x24" node test/packs-input.test.mjs [--no-shots] [--only=ui,cursors,icons,sounds,snap,shortcuts,profiles,i18n,perf,styles,restart]
 //
 // Screenshots: docs/screenshots/packs-*.png, shortcuts-*.png, snap-presets-*.png
 import { launchShell, ROOT } from './lib.mjs';
@@ -1092,7 +1092,80 @@ async function restartPart() {
 }
 
 // =====================================================================================================================
-const PARTS = { cursors: cursorsPart, icons: iconsPart, sounds: soundsPart, snap: snapPart, shortcuts: shortcutsPart, profiles: profilesPart, i18n: i18nPart, perf: perfPart, styles: stylesPart, restart: restartPart };
+// Core controls (core/ui.css) in every visual style × light / dark: .btn.danger text contrast ≥ 4.5:1, the .select
+// arrow kept (and room for it) on focus, long menu labels cut with an ellipsis, infinite animations played once when
+// animations are off or motion is reduced.
+async function uiPart() {
+  console.log('\n# Core controls: danger button contrast, select arrow, menu ellipsis, animations off');
+  const s = await launchShell({ theme: 'light', lang: 'en', size: '1280x720' });
+  const A = (fn, a) => s.aurora(fn, a);
+  try {
+    await A(() => {
+      const box = document.createElement('div');
+      box.id = 'ui-probe';
+      box.style.cssText = 'position:fixed;left:20px;top:20px;z-index:99999;display:flex;gap:8px;padding:8px';
+      box.innerHTML = '<button class="btn danger">Delete</button><select class="select"><option>One</option><option>Two</option></select>';
+      document.body.append(box);
+    });
+    const bad = [];
+    for (const style of ['win11', 'minimal', 'glass', 'retro', 'contrast']) {
+      for (const theme of ['light', 'dark']) {
+        await setMany(s, { style, theme });
+        await sleep(300);
+        const r = await A(() => {
+          const lum = (c) => {
+            const m = c.match(/[\d.]+/g).map(Number);
+            const f = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+            return 0.2126 * f(m[0]) + 0.7152 * f(m[1]) + 0.0722 * f(m[2]);
+          };
+          const b = getComputedStyle(document.querySelector('#ui-probe .btn.danger'));
+          const x = lum(b.color);
+          const y = lum(b.backgroundColor);
+          const sel = document.querySelector('#ui-probe .select');
+          sel.focus();
+          const cs = getComputedStyle(sel);
+          const out = { ratio: (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05), arrow: cs.backgroundImage.startsWith('url('), pad: parseFloat(cs.paddingRight) };
+          sel.blur();
+          return out;
+        });
+        if (r.ratio < 4.5 || !r.arrow || r.pad < 28) bad.push(`${style}/${theme}: ${JSON.stringify(r)}`);
+      }
+    }
+    check(!bad.length, `5 styles × light/dark: danger button ≥ 4.5:1, select arrow visible with room on focus (${bad.join('; ') || 'ok'})`);
+    await A(() => void window.__aurora.ui.menu({ x: 200, y: 200 }, [{ label: 'A very long menu label '.repeat(12), action: () => {} }, { label: 'Short', action: () => {} }]));
+    await sleep(300);
+    const m = await A(() => {
+      const l = document.querySelector('body > .menu .menu-item .label');
+      const cs = getComputedStyle(l);
+      return { w: Math.round(l.getBoundingClientRect().width), ov: cs.textOverflow, ws: cs.whiteSpace, cut: l.scrollWidth > l.clientWidth, h: Math.round(l.getBoundingClientRect().height) };
+    });
+    await A(() => window.__aurora.ui.closeMenus?.());
+    check(m.ov === 'ellipsis' && m.ws === 'nowrap' && m.cut && m.w <= 360 && m.h < 30, `a long menu label is one line cut with an ellipsis (${JSON.stringify(m)})`);
+    const once = [];
+    for (const p of [{ animations: false, reducedMotion: false }, { animations: true, reducedMotion: true }]) {
+      await setMany(s, p);
+      await sleep(250);
+      once.push(
+        await A(() => {
+          const e = document.createElement('div');
+          e.style.animation = 'spin 1s linear infinite';
+          document.body.append(e);
+          const v = getComputedStyle(e).animationIterationCount;
+          e.remove();
+          return v;
+        }),
+      );
+    }
+    check(once.every((v) => v === '1'), `animations off / reduced motion: an infinite spinner plays once (${once.join(', ')})`);
+    await setMany(s, {}, ['style', 'theme', 'animations', 'reducedMotion']);
+    check(!errorsOf(s).length, `no console errors (${errorsOf(s).join(' | ')})`);
+  } finally {
+    await s.close();
+  }
+}
+
+// =====================================================================================================================
+const PARTS = { ui: uiPart, cursors: cursorsPart, icons: iconsPart, sounds: soundsPart, snap: snapPart, shortcuts: shortcutsPart, profiles: profilesPart, i18n: i18nPart, perf: perfPart, styles: stylesPart, restart: restartPart };
 for (const [name, fn] of Object.entries(PARTS)) {
   if (!run(name)) continue;
   try {
