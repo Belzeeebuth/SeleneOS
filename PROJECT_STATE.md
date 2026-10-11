@@ -135,10 +135,12 @@ User decision (2026-10-11 ~15:30 UTC): build app **Phase 4** now, then **Phase 3
 it to take ~5 h: few tests and screenshots, time-boxed agents). In Phase 3, **Cloud Drive and VPN are heavily
 simplified** (to be improved later). Phase 2 stays for later.
 
-1. Phase 4 (running as workflow `aurora-phase4-apps`): weather, maps, contacts, sticky, translate, remote (VNC only).
-   One builder + one 8-min checker per app, 2 at a time, one suite `shell/test/<id>.test.mjs` each, max 2 screenshots.
+1. Phase 4 (running): weather, maps, contacts, sticky, translate, remote (VNC only). **One workflow per app, all 6 in
+   parallel** (a single workflow only runs 2 agents on this 4-CPU machine; agents mostly write code, so 6 at once is
+   fine): builder + 8-min checker per app, one suite `shell/test/<id>.test.mjs` each, max 2 screenshots. ~40–50 min.
+   The user approved this mode and wants it for Phase 2 too. Scripts: scratchpad phase4.js / phase3.js (args = [id]).
 2. Then: targeted regressions (new suites + mail, wallpapers, smoke), docs (DEVELOPING.md app list, PHASEAPP.md), commit.
-3. Phase 3 the same way: store (curated APT via aurora-admin), disks (udisks/lsblk; format only removable drives),
+3. Phase 3 the same way, started AFTER phase 4 finishes (the user stopped a launch alongside phase 4): store (curated APT via aurora-admin), disks (udisks/lsblk; format only removable drives),
    backup (rsync to a folder/drive), passwords (WebCrypto vault), cloud (light: WebDAV/Nextcloud browse/up/download
    only), nettools (light: VPN list/connect/import WireGuard via nmcli + ping/DNS lookup).
 4. Rebuild the ISO (`--from system` unless packages changed), verify-iso, smoke-image, push; user tests in QEMU.
