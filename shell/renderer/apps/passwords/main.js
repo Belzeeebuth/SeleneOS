@@ -324,7 +324,7 @@ class PasswordsApp {
 
   meter(pw) {
     const { h, t } = this;
-    const el = h('div', { class: 'pw-meter', role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': '4' }, h('div', { class: 'pw-meter-bars' }, [0, 1, 2, 3].map(() => h('span'))), h('span', { class: 'pw-meter-label caption' }));
+    const el = h('div', { class: 'pw-meter', role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': '4' }, h('div', { class: 'pw-meter-bars' }, [0, 1, 2, 3, 4].map(() => h('span'))), h('span', { class: 'pw-meter-label caption' }));
     el.update = (v) => {
       const { score, bits } = strength(v);
       el.dataset.score = v ? String(score) : '';

@@ -37,6 +37,9 @@ class CloudApp {
     this.win.on('close', () => typeof offProgress === 'function' && offProgress());
     this.ctx.onLangChange?.(() => this.render());
     this.root.addEventListener('keydown', (e) => this.onKey(e));
+    const ro = new ResizeObserver(() => this.win.el.classList.toggle('cl-narrow', this.root.clientWidth > 0 && this.root.clientWidth < 640));
+    ro.observe(this.root);
+    this.win.on('close', () => ro.disconnect());
     this.accounts = await this.ctx.api.invoke('cloud:accounts').catch(() => []);
     const last = await Promise.resolve(this.ctx.storage.get('state', {})).catch(() => ({}));
     this.accountId = this.accounts.find((a) => a.id === last?.accountId)?.id || this.accounts[0]?.id || null;
@@ -57,12 +60,10 @@ class CloudApp {
 
   // ---------------------------------------------------------------- rendering
   render() {
-    const { h } = this.ctx;
     const focusInList = this.root.querySelector('.cl-list')?.contains(document.activeElement);
     this.root.replaceChildren(this.mode === 'setup' ? this.renderSetup() : this.renderBrowser(), this.renderTransfers() || '');
     if (focusInList) this.root.querySelector('.cl-list')?.focus({ preventScroll: true });
     this.win.setTitle(this.mode === 'browser' && this.account ? `${this.t('title')} - ${this.account.label}` : this.t('title'));
-    void h;
   }
 
   renderSetup() {
@@ -89,6 +90,7 @@ class CloudApp {
       'form',
       {
         class: 'cl-form',
+        novalidate: true,
         onsubmit: (e) => {
           e.preventDefault();
           this.connect();

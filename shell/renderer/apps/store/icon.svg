@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <defs>
+    <linearGradient id="st-bag" x1="6" y1="12" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4f8ef7"/>
+      <stop offset="0.55" stop-color="#3a5fdc"/>
+      <stop offset="1" stop-color="#5b3cc4"/>
+    </linearGradient>
+    <linearGradient id="st-handle" x1="16" y1="4" x2="32" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2d4fb8"/>
+      <stop offset="1" stop-color="#43319c"/>
+    </linearGradient>
+    <linearGradient id="st-screen" x1="14" y1="20" x2="34" y2="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1b2233"/>
+      <stop offset="1" stop-color="#0e1320"/>
+    </linearGradient>
+  </defs>
+  <path d="M16 15v-3a8 8 0 0 1 16 0v3" fill="none" stroke="url(#st-handle)" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M8.6 14h30.8a2 2 0 0 1 2 1.86l1.5 24A3 3 0 0 1 39.9 43H8.1a3 3 0 0 1-3-3.14l1.5-24A2 2 0 0 1 8.6 14z" fill="url(#st-bag)"/>
+  <path d="M8.6 14h30.8a2 2 0 0 1 2 1.86l.2 3.14H6.4l.2-3.14A2 2 0 0 1 8.6 14z" fill="#fff" fill-opacity="0.22"/>
+  <rect x="13" y="21.5" width="22" height="16" rx="2.5" fill="url(#st-screen)"/>
+  <path d="M17 26.5l3.5 3-3.5 3" fill="none" stroke="#7ee2a8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M23 33h7" stroke="#e8eefc" stroke-width="1.9" stroke-linecap="round"/>
+</svg>

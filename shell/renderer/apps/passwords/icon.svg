@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="pwShield" x1="10" y1="4" x2="36" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4fb6f4"/>
+      <stop offset="0.55" stop-color="#2878e0"/>
+      <stop offset="1" stop-color="#1a4fb8"/>
+    </linearGradient>
+    <linearGradient id="pwLock" x1="27" y1="24" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffd56a"/>
+      <stop offset="1" stop-color="#f0a21c"/>
+    </linearGradient>
+    <linearGradient id="pwShackle" x1="29" y1="17" x2="40" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c9d3e0"/>
+      <stop offset="1" stop-color="#8794a8"/>
+    </linearGradient>
+    <radialGradient id="pwShine" cx="14" cy="8" r="20" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <path d="M22 5.6c4.6 3 9.4 4.4 14.6 4.6v12.6c0 9.3-5.6 15.6-14.6 19.6C13 37.8 7.4 31.5 7.4 22.2V10.2C12.6 10 17.4 8.6 22 5.6z" fill="#0b2f78" opacity=".18" transform="translate(0 1.2)"/>
+  <path d="M22 5.6c4.6 3 9.4 4.4 14.6 4.6v12.6c0 9.3-5.6 15.6-14.6 19.6C13 37.8 7.4 31.5 7.4 22.2V10.2C12.6 10 17.4 8.6 22 5.6z" fill="url(#pwShield)"/>
+  <path d="M22 5.6c4.6 3 9.4 4.4 14.6 4.6v12.6c0 9.3-5.6 15.6-14.6 19.6C13 37.8 7.4 31.5 7.4 22.2V10.2C12.6 10 17.4 8.6 22 5.6z" fill="url(#pwShine)"/>
+  <rect x="11.5" y="17.5" width="21" height="8" rx="4" fill="#ffffff" opacity=".95"/>
+  <circle cx="16" cy="21.5" r="1.6" fill="#1f5fcf"/>
+  <circle cx="20.5" cy="21.5" r="1.6" fill="#1f5fcf"/>
+  <circle cx="25" cy="21.5" r="1.6" fill="#1f5fcf"/>
+  <path d="M30.5 29v-3.2a4 4 0 0 1 8 0V29" fill="none" stroke="url(#pwShackle)" stroke-width="2.6" stroke-linecap="round"/>
+  <rect x="26.5" y="28" width="16" height="13.5" rx="3" fill="#7a4a00" opacity=".22" transform="translate(0 1)"/>
+  <rect x="26.5" y="28" width="16" height="13.5" rx="3" fill="url(#pwLock)"/>
+  <rect x="27" y="28.5" width="15" height="12.5" rx="2.6" fill="none" stroke="#ffffff" stroke-opacity=".45"/>
+  <circle cx="34.5" cy="33.6" r="1.8" fill="#7a4a00"/>
+  <rect x="33.7" y="34.4" width="1.6" height="3.6" rx=".8" fill="#7a4a00"/>
+</svg>

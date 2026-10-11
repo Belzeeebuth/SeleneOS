@@ -10,6 +10,20 @@
   padding: 0 16px;
   flex: none;
 }
+.app-nettools .nt-tabs .tab {
+  appearance: none;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: var(--text-2);
+  cursor: default;
+}
+.app-nettools .nt-tabs .tab.selected {
+  color: var(--text);
+}
+.app-nettools .nt-tabs .tab:hover {
+  background: var(--subtle-hover);
+}
 .app-nettools .nt-tabs .tab:focus-visible {
   outline: 2px solid var(--focus, var(--accent));
   outline-offset: -2px;

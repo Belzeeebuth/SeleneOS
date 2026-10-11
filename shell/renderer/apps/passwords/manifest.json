@@ -1,0 +1,15 @@
+{
+  "id": "passwords",
+  "name": { "en": "Passwords", "fr": "Mots de passe" },
+  "description": { "en": "An encrypted vault for your logins, with a password generator", "fr": "Un coffre chiffré pour vos identifiants, avec un générateur de mots de passe" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 980, "height": 660, "minWidth": 640, "minHeight": 460, "background": "mica" },
+  "category": "utilities",
+  "keywords": {
+    "en": ["passwords", "password manager", "vault", "logins", "keys", "generator", "security"],
+    "fr": ["mots de passe", "gestionnaire de mots de passe", "coffre", "identifiants", "clés", "générateur", "sécurité"]
+  },
+  "singleInstance": true
+}

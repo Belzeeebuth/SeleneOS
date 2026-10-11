@@ -1,0 +1,302 @@
+/* Disks — drive list (left), selected drive: header, partition bar to scale, volume + drive details. */
+.app-disks {
+  --dk-seg: color-mix(in srgb, var(--accent) 14%, var(--card));
+  --dk-seg-used: color-mix(in srgb, var(--accent) 34%, transparent);
+  --dk-seg-sys: color-mix(in srgb, #8a63d2 16%, var(--card));
+  --dk-seg-sys-used: color-mix(in srgb, #8a63d2 38%, transparent);
+  --dk-seg-swap: color-mix(in srgb, #c47f17 16%, var(--card));
+  --dk-free-a: rgba(0, 0, 0, 0.04);
+  --dk-free-b: rgba(0, 0, 0, 0.09);
+}
+:root[data-theme="dark"] .app-disks {
+  --dk-seg: color-mix(in srgb, var(--accent) 20%, var(--card));
+  --dk-seg-used: color-mix(in srgb, var(--accent) 45%, transparent);
+  --dk-seg-sys: color-mix(in srgb, #b393f0 20%, var(--card));
+  --dk-seg-sys-used: color-mix(in srgb, #b393f0 45%, transparent);
+  --dk-seg-swap: color-mix(in srgb, #e3a64a 20%, var(--card));
+  --dk-free-a: rgba(255, 255, 255, 0.03);
+  --dk-free-b: rgba(255, 255, 255, 0.08);
+}
+.app-disks .disks {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  color: var(--text);
+  font-size: 14px;
+}
+.app-disks .dk-side {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 8px;
+  min-height: 0;
+  overflow: hidden;
+}
+.app-disks .dk-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 0 8px;
+}
+.app-disks .dk-refresh {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+}
+.app-disks .dk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+  min-height: 0;
+  outline: none;
+}
+.app-disks .dk-list-empty {
+  padding: 8px;
+}
+.app-disks .dk-drive {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 4px);
+  cursor: default;
+  outline: none;
+  transition: background-color var(--dur-fast, 0.1s) var(--ease);
+}
+.app-disks .dk-drive:hover {
+  background: var(--subtle-hover);
+}
+.app-disks .dk-drive.selected {
+  background: var(--subtle-hover);
+}
+.app-disks .dk-drive.selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.app-disks .dk-drive:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus, var(--accent));
+}
+.app-disks .dk-drive-icon {
+  color: var(--accent);
+  display: flex;
+}
+.app-disks .dk-drive-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.app-disks .dk-drive-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-disks .dk-sim {
+  margin-top: auto;
+  padding: 8px;
+}
+.app-disks .dk-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 24px 24px;
+  background: var(--layer, transparent);
+  border-top-left-radius: 8px;
+  border-left: 1px solid var(--stroke);
+  border-top: 1px solid var(--stroke);
+  outline: none;
+}
+.app-disks .dk-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.app-disks .dk-head-icon {
+  display: flex;
+  color: var(--accent);
+}
+.app-disks .dk-head-text {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.app-disks .dk-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-disks .dk-head-actions,
+.app-disks .dk-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.app-disks .dk-head-actions .btn,
+.app-disks .dk-actions .btn {
+  gap: 6px;
+}
+.app-disks .dk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  min-width: 0;
+}
+.app-disks .dk-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.app-disks .dk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.app-disks .dk-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 40%) minmax(0, 1fr);
+  gap: 12px;
+  font-size: 13px;
+  line-height: 20px;
+}
+.app-disks .dk-row-v {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.app-disks .dk-usage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+}
+.app-disks .dk-busy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* Partition bar: segments grow with their size (flex-grow = size / disk size), with a minimum width to stay clickable. */
+.app-disks .dk-bar {
+  display: flex;
+  gap: 3px;
+  height: 64px;
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--stroke);
+  background: var(--subtle-hover);
+}
+.app-disks .dk-seg {
+  position: relative;
+  flex: 0 1 0;
+  min-width: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0 8px;
+  overflow: hidden;
+  border-radius: 5px;
+  border: 1px solid var(--stroke);
+  background: var(--dk-seg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: default;
+  outline: none;
+}
+.app-disks .dk-seg.system {
+  background: var(--dk-seg-sys);
+}
+.app-disks .dk-seg.swap {
+  background: var(--dk-seg-swap);
+}
+.app-disks .dk-seg.free {
+  background: repeating-linear-gradient(135deg, var(--dk-free-a) 0 6px, var(--dk-free-b) 6px 12px);
+  color: var(--text-2);
+  border-style: dashed;
+}
+.app-disks .dk-seg-used {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 5px;
+  background: var(--dk-seg-used);
+  transform-origin: left center;
+}
+.app-disks .dk-seg.system .dk-seg-used {
+  background: var(--dk-seg-sys-used);
+}
+.app-disks .dk-seg-name,
+.app-disks .dk-seg-size {
+  position: relative;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-disks .dk-seg-size {
+  color: var(--text-2);
+}
+.app-disks button.dk-seg:hover {
+  filter: brightness(0.97);
+}
+:root[data-theme="dark"] .app-disks button.dk-seg:hover {
+  filter: brightness(1.12);
+}
+.app-disks .dk-seg.selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.app-disks .dk-seg:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus, var(--accent));
+}
+.app-disks .dk-empty {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+}
+.app-disks .dk-smart {
+  font-style: italic;
+}
+.app-disks .dk-format-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-disks .dk-format-body .infobar {
+  margin-bottom: 8px;
+}
+.app-disks .dk-format-body .select,
+.app-disks .dk-format-body .input {
+  width: 100%;
+}
+.app-disks .dk-format-err {
+  color: var(--danger);
+  min-height: 16px;
+}
+@media (max-width: 720px) {
+  .app-disks .disks {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+}

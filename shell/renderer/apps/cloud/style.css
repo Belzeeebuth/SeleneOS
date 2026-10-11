@@ -1,0 +1,70 @@
+/* Cloud — scoped under .app-cloud */
+.app-cloud .cloud { display: flex; flex-direction: column; height: 100%; min-height: 0; color: var(--text); font-size: 14px; }
+
+/* ---------- setup */
+.app-cloud .cl-setup { flex: 1; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 32px 16px; }
+.app-cloud .cl-setup-card { width: 100%; max-width: 460px; padding: 24px 28px; display: flex; flex-direction: column; gap: 6px; }
+.app-cloud .cl-logo { width: 56px; height: 56px; margin-bottom: 4px; }
+.app-cloud .cl-setup-card h1 { margin: 0; font-size: 20px; font-weight: 600; }
+.app-cloud .cl-setup-card p { margin: 0 0 8px; line-height: 1.45; }
+.app-cloud .cl-form { display: flex; flex-direction: column; gap: 10px; }
+.app-cloud .cl-form .field { display: flex; flex-direction: column; gap: 4px; margin: 0; }
+.app-cloud .cl-form .field > label { font-size: 13px; font-weight: 500; }
+.app-cloud .cl-form .input { width: 100%; box-sizing: border-box; }
+.app-cloud .cl-form .segmented { align-self: flex-start; }
+.app-cloud .cl-more { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 6px 10px; border-radius: 4px; }
+.app-cloud .cl-error { color: var(--danger); font-size: 12px; min-height: 16px; }
+.app-cloud .cl-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.app-cloud .cl-actions .btn { min-width: 110px; }
+
+/* ---------- browser */
+.app-cloud .cl-browser { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.app-cloud .cl-bar { display: flex; align-items: center; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--stroke); flex-wrap: nowrap; overflow: hidden; }
+.app-cloud .cl-bar .btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0; }
+.app-cloud .cl-account { max-width: 240px; flex-shrink: 1 !important; min-width: 0; }
+.app-cloud .cl-account-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.app-cloud .cl-sep { width: 1px; height: 20px; background: var(--stroke); margin: 0 4px; flex-shrink: 0; }
+.app-cloud .cl-crumbs { display: flex; align-items: center; gap: 2px; padding: 6px 12px; min-height: 36px; overflow-x: auto; white-space: nowrap; color: var(--text-2); }
+.app-cloud .cl-crumb { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 0; color: var(--text); font: inherit; padding: 4px 8px; border-radius: 4px; cursor: default; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.app-cloud .cl-crumb:hover { background: var(--subtle-hover); }
+.app-cloud .cl-crumb[aria-current="page"] { font-weight: 600; }
+.app-cloud .cl-crumb:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.app-cloud .cl-table { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 0 8px; }
+.app-cloud .cl-head, .app-cloud .cl-row { display: grid; grid-template-columns: minmax(0, 1fr) 170px 90px; align-items: center; gap: 12px; padding: 0 10px; }
+.app-cloud .cl-head { height: 30px; border-bottom: 1px solid var(--stroke); }
+.app-cloud .cl-list { flex: 1; overflow: auto; outline: none; padding: 2px 0; border-radius: 4px; }
+.app-cloud .cl-list:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.app-cloud .cl-row { height: 36px; border-radius: 4px; cursor: default; position: relative; }
+.app-cloud .cl-row:hover { background: var(--subtle-hover); }
+.app-cloud .cl-row.selected { background: var(--subtle-active, var(--subtle-hover)); }
+.app-cloud .cl-row.selected::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--accent); }
+.app-cloud .cl-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.app-cloud .cl-name svg { flex-shrink: 0; }
+.app-cloud .cl-row[data-dir="1"] .cl-name svg { color: #e8b04a; }
+.app-cloud .cl-text, .app-cloud .cl-mtime { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-cloud .cl-size { text-align: right; }
+.app-cloud .cl-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 48px 16px; color: var(--text-2); text-align: center; }
+.app-cloud .cl-status { display: flex; gap: 16px; align-items: center; padding: 6px 16px; border-top: 1px solid var(--stroke); min-height: 28px; }
+.app-cloud .cl-status .cl-error { min-height: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- transfers */
+.app-cloud .cl-transfers { border-top: 1px solid var(--stroke); background: var(--card); max-height: 34%; display: flex; flex-direction: column; min-height: 0; }
+.app-cloud .cl-tr-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px 2px; }
+.app-cloud .cl-tr-list { overflow: auto; padding: 0 8px 8px; }
+.app-cloud .cl-tr { display: flex; align-items: center; gap: 10px; padding: 6px 4px; }
+.app-cloud .cl-tr-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.app-cloud .cl-tr-name, .app-cloud .cl-tr-status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-cloud .cl-bar-track { height: 4px; border-radius: 2px; background: var(--stroke); overflow: hidden; }
+.app-cloud .cl-bar-fill { height: 100%; width: 100%; background: var(--accent); transform-origin: left center; transition: transform var(--dur-fast, 150ms) var(--ease); }
+.app-cloud .cl-tr.done .cl-bar-fill { background: var(--success, #3a9a3a); }
+.app-cloud .cl-tr.error .cl-bar-fill { background: var(--danger); }
+.app-cloud .cl-tr.error .cl-tr-status { color: var(--danger); }
+[data-animations="off"] .app-cloud .cl-bar-fill { transition: none; }
+
+:root[data-theme="dark"] .app-cloud .cl-row[data-dir="1"] .cl-name svg { color: #f2c35f; }
+
+/* narrow windows (class set by main.js): icon-only toolbar, no Modified column */
+.app-cloud.cl-narrow .cl-lbl { display: none; }
+.app-cloud.cl-narrow .cl-head, .app-cloud.cl-narrow .cl-row { grid-template-columns: minmax(0, 1fr) 80px; }
+.app-cloud.cl-narrow .cl-mtime, .app-cloud.cl-narrow .cl-head span:nth-child(2) { display: none; }

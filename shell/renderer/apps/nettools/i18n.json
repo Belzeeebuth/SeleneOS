@@ -25,7 +25,9 @@
    "unavailable": "NetworkManager (nmcli) isn’t available, so VPN connections can’t be managed.",
    "later": "OpenVPN and a speed test are coming later.",
    "wgFiles": "WireGuard configuration",
-   "failed": "The operation failed: {msg}"
+   "failed": "The operation failed: {msg}",
+   "badFile": "choose a WireGuard .conf file (64 KB at most).",
+   "fileMissing": "the file wasn’t found."
   },
   "ping": {
    "host": "Host name or IP address",
@@ -81,7 +83,9 @@
    "unavailable": "NetworkManager (nmcli) n’est pas disponible : impossible de gérer les connexions VPN.",
    "later": "OpenVPN et un test de débit arriveront plus tard.",
    "wgFiles": "Configuration WireGuard",
-   "failed": "L’opération a échoué : {msg}"
+   "failed": "L’opération a échoué : {msg}",
+   "badFile": "choisissez un fichier .conf WireGuard (64 Ko au maximum).",
+   "fileMissing": "le fichier est introuvable."
   },
   "ping": {
    "host": "Nom d’hôte ou adresse IP",

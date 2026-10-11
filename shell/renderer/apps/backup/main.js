@@ -370,9 +370,8 @@ class BackupApp {
       if (e?.code === 'ECANCELED') this.setMessage('warning', this.t('home.canceled'));
       else this.setMessage('error', this.errText(e));
     }
+    if (!this.closed) await this.load();
     this.run = null;
-    if (this.closed) return;
-    await this.load();
     this.render();
   }
   async cancel() {

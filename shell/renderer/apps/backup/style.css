@@ -1,0 +1,256 @@
+/* Backup — scoped under .app-backup */
+.app-backup .bk {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  color: var(--text);
+  font-size: 14px;
+  container-type: inline-size;
+}
+.app-backup .bk-nav {
+  flex: 0 0 200px;
+  padding: 12px 8px;
+  gap: 4px;
+  border-right: 1px solid var(--stroke);
+}
+.app-backup .bk-nav .nav-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.app-backup .bk-nav .nav-item.selected {
+  background: var(--subtle-selected);
+}
+.app-backup .bk-nav .nav-item:focus-visible,
+.app-backup .bk-entry:focus-visible,
+.app-backup .bk-crumb:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: -2px;
+}
+.app-backup .bk-main {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 20px 28px 28px;
+  outline: none;
+}
+.app-backup .bk-page {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 920px;
+}
+.app-backup .bk-page > h1 {
+  margin: 0 0 8px;
+}
+.app-backup .bk-msg {
+  max-width: 920px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+.app-backup .bk-msg .grow {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.app-backup .bk-msg .bk-msg-close {
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+}
+.app-backup .bk-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+}
+.app-backup .bk-status .grow,
+.app-backup .card-row .grow {
+  flex: 1;
+  min-width: 0;
+}
+.app-backup .bk-status-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--subtle-hover);
+  color: var(--accent);
+}
+.app-backup .bk-line {
+  margin-top: 2px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.app-backup .bk-progress {
+  margin-top: 10px;
+}
+.app-backup .bk-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 16px;
+}
+.app-backup .bk-h2 {
+  margin: 0;
+  font-size: 14px;
+}
+.app-backup .bk-hint {
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+.app-backup .card-row {
+  min-height: 60px;
+  padding: 10px 16px;
+}
+.app-backup .card-row .caption {
+  color: var(--text-2);
+}
+.app-backup .bk-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-backup .bk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.app-backup .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.app-backup .bk-remove,
+.app-backup .bk-delete,
+.app-backup .bk-refresh,
+.app-backup .bk-back,
+.app-backup .bk-up {
+  min-width: 32px;
+  padding: 0 8px;
+  justify-content: center;
+}
+.app-backup .bk-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.app-backup .bk-head h1 {
+  margin: 0;
+}
+.app-backup .bk-head .bk-actions {
+  margin: 0;
+}
+.app-backup .bk-list {
+  display: flex;
+  flex-direction: column;
+}
+.app-backup .bk-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 16px;
+  color: var(--text-2);
+  text-align: center;
+}
+.app-backup .bk-empty-row {
+  color: var(--text-2);
+}
+.app-backup .bk-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--stroke);
+}
+.app-backup .bk-toolbar .grow {
+  flex: 1;
+}
+.app-backup .bk-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.app-backup .bk-crumb {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-backup .bk-crumb:hover {
+  background: var(--subtle-hover);
+}
+.app-backup .bk-sep {
+  color: var(--text-2);
+}
+.app-backup .bk-entries {
+  margin-top: 4px;
+}
+.app-backup .bk-entry {
+  cursor: default;
+  outline: none;
+}
+.app-backup .bk-entry .icon {
+  flex: 0 0 auto;
+  color: var(--text-2);
+}
+.app-backup .bk-col {
+  flex: 0 0 auto;
+  color: var(--text-2);
+  min-width: 70px;
+  text-align: right;
+}
+.app-backup .bk-col-date {
+  min-width: 150px;
+}
+.app-backup .bk-excl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+  max-width: 50%;
+}
+.app-backup .bk-excl code {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-backup .bk-settings .bk-hint {
+  margin-top: 8px;
+}
+@container (max-width: 720px) {
+  .app-backup .bk-nav {
+    flex-basis: 56px;
+  }
+  .app-backup .bk-nav .nav-item span {
+    display: none;
+  }
+  .app-backup .bk-col-date {
+    display: none;
+  }
+  .app-backup .bk-main {
+    padding: 16px;
+  }
+}

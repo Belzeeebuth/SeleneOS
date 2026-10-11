@@ -7,7 +7,7 @@
 // snapshot, so every snapshot is a complete tree but only new data takes space. A run writes to "<stamp>.partial"
 // and renames it when rsync succeeds; a canceled or failed run removes it. Caches are excluded (.cache, Trash,
 // .local/share/Trash, .Trash-*, node_modules). Each snapshot holds ".aurora-snapshot.json" (date, sources, files,
-// bytes, newBytes, durationMs, warnings).
+// bytes, newBytes, durationMs, warnings). AURORA_BACKUP_BWLIMIT (KB/s, tests only) slows rsync down.
 //
 // Settings: ~/.config/aurora/backup.json  { sources: [abs paths], dest: abs path | null, keep: N (0 = all),
 //   reminder: 'off' | 'daily' | 'weekly', lastRun: ms | null }
@@ -293,6 +293,9 @@ module.exports = function register(api) {
       emit({ phase: 'scan', percent: 0, bytes: 0 });
       const args = ['-a', '--relative', '--no-inc-recursive', '--info=progress2', '--stats', '--no-human-readable'];
       for (const x of EXCLUDES) args.push(`--exclude=${x}`);
+      // tests only: slow the copy down so progress and cancel can be observed
+      const bw = Number(process.env.AURORA_BACKUP_BWLIMIT);
+      if (bw > 0) args.push(`--bwlimit=${Math.round(bw)}`);
       if (prev) args.push(`--link-dest=${path.join(root, prev.id)}`);
       args.push('--', ...srcs.map((r) => `${h}/./${r}`), `${partial}/`);
       let last = 0;

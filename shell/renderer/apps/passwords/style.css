@@ -1,0 +1,436 @@
+/* Passwords: every rule is scoped under .app-passwords. Light + dark via tokens; a few accent hues for avatars. */
+.app-passwords .pw {
+  --pw-weak: #c42b1c;
+  --pw-fair: #b35c00;
+  --pw-good: #0f7b0f;
+  --pw-gold: #b7791f;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--text);
+  font-size: var(--fs-body);
+  outline: none;
+}
+:root[data-theme="dark"] .app-passwords .pw {
+  --pw-weak: #ff99a4;
+  --pw-fair: #fcc062;
+  --pw-good: #6ccb5f;
+  --pw-gold: #ffd56a;
+}
+
+/* ------------------------------------------------------------------ setup / locked */
+.app-passwords .pw-gate {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: auto;
+}
+.app-passwords .pw-gate-card {
+  width: min(400px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px 28px 24px;
+  border-radius: var(--radius-lg);
+}
+.app-passwords .pw-gate-icon {
+  width: 56px;
+  height: 56px;
+  align-self: center;
+}
+.app-passwords .pw-gate-card h1 {
+  margin: 0;
+  text-align: center;
+}
+.app-passwords .pw-gate-sub {
+  margin: -6px 0 4px;
+  text-align: center;
+}
+.app-passwords .pw-forget {
+  font-size: var(--fs-caption);
+  padding: 8px 12px;
+}
+.app-passwords .pw-error {
+  min-height: 18px;
+  color: var(--pw-weak);
+  font-size: var(--fs-caption);
+}
+.app-passwords .pw-error:empty {
+  min-height: 0;
+  display: none;
+}
+.app-passwords .pw-go {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.app-passwords .pw-spin {
+  width: 14px;
+  height: 14px;
+}
+
+/* password field with show / generate buttons */
+.app-passwords .pw-pwfield {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.app-passwords .pw-pwfield > .input {
+  flex: 1;
+  min-width: 0;
+}
+.app-passwords .pw-eye {
+  min-width: 32px;
+  padding: 0 6px;
+}
+
+/* strength meter */
+.app-passwords .pw-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-passwords .pw-meter-bars {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.app-passwords .pw-meter-bars > span {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--stroke-strong);
+  opacity: 0.45;
+  transition: background var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+}
+.app-passwords .pw-meter-label {
+  min-width: 132px;
+  text-align: right;
+  color: var(--text-2);
+}
+.app-passwords .pw-meter[data-score="0"] { --pw-c: var(--pw-weak); }
+.app-passwords .pw-meter[data-score="1"] { --pw-c: var(--pw-weak); }
+.app-passwords .pw-meter[data-score="2"] { --pw-c: var(--pw-fair); }
+.app-passwords .pw-meter[data-score="3"] { --pw-c: var(--pw-good); }
+.app-passwords .pw-meter[data-score="4"] { --pw-c: var(--pw-good); }
+.app-passwords .pw-meter[data-score="0"] .pw-meter-bars > span:nth-child(-n + 1),
+.app-passwords .pw-meter[data-score="1"] .pw-meter-bars > span:nth-child(-n + 2),
+.app-passwords .pw-meter[data-score="2"] .pw-meter-bars > span:nth-child(-n + 3),
+.app-passwords .pw-meter[data-score="3"] .pw-meter-bars > span:nth-child(-n + 4),
+.app-passwords .pw-meter[data-score="4"] .pw-meter-bars > span {
+  background: var(--pw-c);
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------------ main layout */
+.app-passwords .pw-toolbar {
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--stroke);
+  flex-wrap: nowrap;
+}
+.app-passwords .pw-searchbox {
+  width: 260px;
+  min-width: 140px;
+  flex-shrink: 1;
+}
+.app-passwords .pw-search::-webkit-search-cancel-button {
+  display: none;
+}
+.app-passwords .pw-filter {
+  flex-shrink: 0;
+}
+.app-passwords .pw-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.app-passwords .pw-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) 1fr;
+}
+.app-passwords .pw-list {
+  overflow-y: auto;
+  padding: 6px;
+  border-right: 1px solid var(--stroke);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-passwords .pw-item {
+  border-radius: var(--radius-sm);
+  cursor: default;
+  outline: none;
+  padding: 6px 10px;
+}
+.app-passwords .pw-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--text);
+}
+.app-passwords .pw-item-text {
+  flex: 1;
+  min-width: 0;
+}
+.app-passwords .pw-item-title {
+  font-weight: 500;
+}
+.app-passwords .pw-fav-mark {
+  color: var(--pw-gold);
+  display: inline-flex;
+}
+.app-passwords .pw-empty,
+.app-passwords .pw-detail-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-2);
+}
+
+/* avatars */
+.app-passwords .pw-avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  color: #fff;
+  background: #2b6fd8;
+}
+.app-passwords .pw-avatar.big {
+  width: 48px;
+  height: 48px;
+  font-size: 20px;
+  border-radius: var(--radius);
+}
+.app-passwords .pw-avatar[data-hue="1"] { background: #0f7b6c; }
+.app-passwords .pw-avatar[data-hue="2"] { background: #8a4fd0; }
+.app-passwords .pw-avatar[data-hue="3"] { background: #c2410c; }
+.app-passwords .pw-avatar[data-hue="4"] { background: #b0306e; }
+.app-passwords .pw-avatar[data-hue="5"] { background: #4b5c70; }
+
+/* detail */
+.app-passwords .pw-detail {
+  min-width: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.app-passwords .pw-view,
+.app-passwords .pw-editor {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 720px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.app-passwords .pw-view-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.app-passwords .pw-view-title {
+  flex: 1;
+  min-width: 0;
+}
+.app-passwords .pw-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-passwords .pw-star.on {
+  color: var(--pw-gold);
+}
+.app-passwords .pw-card {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-passwords .pw-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 10px 16px;
+}
+.app-passwords .pw-row + .pw-row {
+  border-top: 1px solid var(--stroke);
+}
+.app-passwords .pw-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+.app-passwords .pw-row-main > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.app-passwords .pw-row-actions {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+.app-passwords .pw-row-actions:empty {
+  display: none;
+}
+.app-passwords .pw-pwline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.app-passwords .pw-secret {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 1px;
+}
+.app-passwords .pw-secret.shown {
+  user-select: text;
+  letter-spacing: 0;
+}
+.app-passwords .pw-chip {
+  flex: none;
+  font-size: var(--fs-caption);
+  padding: 1px 8px;
+  border-radius: 10px;
+  border: 1px solid currentColor;
+  color: var(--pw-good);
+}
+.app-passwords .pw-chip[data-score="0"],
+.app-passwords .pw-chip[data-score="1"] {
+  color: var(--pw-weak);
+}
+.app-passwords .pw-chip[data-score="2"] {
+  color: var(--pw-fair);
+}
+.app-passwords .pw-link {
+  color: var(--accent-text);
+  text-decoration: none;
+}
+.app-passwords .pw-link:hover {
+  text-decoration: underline;
+}
+.app-passwords .pw-notes {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 4px 0;
+}
+.app-passwords .pw-user {
+  display: block;
+}
+
+/* editor */
+.app-passwords .pw-editor .textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.app-passwords .pw-f-gen {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.app-passwords .pw-editor-actions {
+  display: flex;
+  gap: 8px;
+}
+.app-passwords .pw-editor-actions .btn {
+  min-width: 100px;
+}
+
+/* status + toast */
+.app-passwords .pw-status:empty {
+  display: none;
+}
+.app-passwords .pw-status {
+  padding: 8px 12px;
+  border-top: 1px solid var(--stroke);
+}
+.app-passwords .pw-save-error {
+  align-items: center;
+}
+.app-passwords .pw-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  background: var(--solid, var(--card-solid));
+  border: 1px solid var(--stroke-card);
+  box-shadow: var(--shadow-flyout);
+  animation: pw-toast-in var(--dur) var(--ease);
+  z-index: 5;
+}
+.app-passwords .pw-toast > .icon {
+  color: var(--success);
+}
+@keyframes pw-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+:root[data-animations="off"] .app-passwords .pw-toast {
+  animation: none;
+}
+:root[data-animations="off"] .app-passwords .pw-meter-bars > span {
+  transition: none;
+}
+
+/* generator dialog (rendered inside the window's dialog layer) */
+.app-passwords .pw-gen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+.app-passwords .pw-gen-row {
+  display: flex;
+  gap: 4px;
+}
+.app-passwords .pw-gen-out {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+}
+.app-passwords .pw-gen-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.app-passwords .pw-gen-slider {
+  display: grid;
+  grid-template-columns: 90px 1fr 32px;
+  align-items: center;
+  gap: 10px;
+}
+.app-passwords .pw-gen-val {
+  text-align: right;
+}
+.app-passwords .pw-gen-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}

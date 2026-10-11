@@ -185,7 +185,7 @@ function register(api) {
       c.device = up ? (c.type === 'wireguard' ? c.name.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 12) || 'wg0' : 'tun0') : '';
       return { ok: true };
     }
-    await nmcli(['connection', up ? 'up' : 'down', 'uuid', uuid]);
+    await nmcli(['--wait', '25', 'connection', up ? 'up' : 'down', 'uuid', uuid]); // nmcli times out before run()'s 30 s kill
     return { ok: true };
   }
   api.handle('nettools:vpnUp', (uuid) => setActive(uuid, true));

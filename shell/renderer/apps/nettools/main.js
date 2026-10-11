@@ -93,6 +93,7 @@ export default {
       }
       if (seq !== vpnSeq || win.closed) return;
       if (!res.available) infobar('warning', t('vpn.unavailable'));
+      else if (vpnInfo.querySelector('.infobar.warning')) vpnInfo.replaceChildren();
       importBtn.disabled = !res.available;
       vpnItems = Array.isArray(res.items) ? res.items : [];
       renderVpn();
@@ -157,7 +158,8 @@ export default {
         if (win.closed) return;
         infobar('success', t('vpn.imported', { name }));
       } catch (e) {
-        if (!win.closed) infobar('error', t('vpn.failed', { msg: errMsg(e) }));
+        const msg = e?.code === 'EINVAL' ? t('vpn.badFile') : e?.code === 'ENOENT' ? t('vpn.fileMissing') : errMsg(e);
+        if (!win.closed) infobar('error', t('vpn.failed', { msg }));
       }
       if (!win.closed) await loadVpn();
     }
