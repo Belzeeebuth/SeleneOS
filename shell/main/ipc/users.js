@@ -149,7 +149,7 @@ function register(api) {
     if (!dev.users) {
       const name = me.username === 'root' ? 'aurora' : me.username;
       const gecos = (readText('/etc/passwd').split('\n').find((l) => l.startsWith(`${me.username}:`)) || '').split(':')[4];
-      const fullName = me.username === 'root' ? 'Aurora User' : (gecos || '').split(',')[0] || name;
+      const fullName = me.username === 'root' ? 'Selene User' : (gecos || '').split(',')[0] || name;
       dev.users = [
         { name, fullName, uid: me.uid >= 1000 ? me.uid : 1000, admin: true, current: true, home },
         { name: 'marie', fullName: 'Marie Dupont', uid: 1001, admin: false, current: false, home: '/home/marie' },

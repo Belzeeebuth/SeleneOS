@@ -892,7 +892,7 @@ if (!fatal) {
     await H.menuClick('Choose another app');
     await page.waitForSelector('.dialog-layer .fx-apps');
     check('choose app dialog title', await page.locator('.dialog-layer .dialog-title').innerText(), 'Select an app to open this .md file');
-    const target = hasNotepad ? 'Notepad' : 'About Aurora';
+    const target = hasNotepad ? 'Notepad' : 'About Selene OS';
     await page.locator(`.dialog-layer .fx-app-row:has-text("${target}")`).click();
     await H.clickDialog('Always');
     await page.waitForTimeout(800);

@@ -791,7 +791,7 @@ async function about(pc) {
   ];
   const upMin = Math.round((i.uptime || 0) / 60);
   const osSpecs = [
-    [t('about.edition'), i.osName || 'Aurora OS'],
+    [t('about.edition'), i.osName || 'Selene OS'],
     [t('about.version'), i.version || pc.env.version || '—'],
     [t('about.build'), i.buildId || 'dev'],
     [t('about.base'), i.distro || 'Linux'],

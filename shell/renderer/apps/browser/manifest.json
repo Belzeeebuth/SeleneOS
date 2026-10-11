@@ -1,6 +1,6 @@
 {
   "id": "browser",
-  "name": { "en": "Aurora Browser", "fr": "Navigateur Aurora" },
+  "name": { "en": "Selene Browser", "fr": "Navigateur Selene" },
   "description": { "en": "Browse the web with tabs, favorites and private windows", "fr": "Naviguez sur le Web avec des onglets, des favoris et des fenêtres privées" },
   "icon": "icon.svg",
   "entry": "main.js",

@@ -54,7 +54,7 @@ const LIST = [
   ['settings', 'apps', 'Super+I', 'Settings', 'Paramètres'],
   ['terminal', 'apps', 'Ctrl+Alt+T', 'Terminal', 'Terminal'],
   ['taskManager', 'apps', 'Ctrl+Shift+Escape', 'Task Manager', 'Gestionnaire des tâches'],
-  ['browser', 'apps', null, 'Aurora Browser', 'Navigateur Aurora'],
+  ['browser', 'apps', null, 'Selene Browser', 'Navigateur Selene'],
   ['notepad', 'apps', null, 'Notepad', 'Bloc-notes'],
   ['calculator', 'apps', null, 'Calculator', 'Calculatrice'],
   ['accessibility', 'apps', 'Super+U', 'Accessibility settings', 'Paramètres d’accessibilité'],

@@ -1,6 +1,6 @@
 #!/bin/sh
-# greetd greeter for Aurora OS (default_session in /etc/greetd/config.toml).
-# Runs as greetd's "_greetd" user: starts Xorg on greetd's VT and shows the Aurora sign-in
+# greetd greeter for Selene OS (default_session in /etc/greetd/config.toml).
+# Runs as greetd's "_greetd" user: starts Xorg on greetd's VT and shows the Selene sign-in
 # screen (Electron, --mode=greeter). The greeter talks to greetd over $GREETD_SOCK, asks it to
 # start /usr/bin/aurora-session for the user who signed in, and exits; greetd then starts
 # that session on the same VT.

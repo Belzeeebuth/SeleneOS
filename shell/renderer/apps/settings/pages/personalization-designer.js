@@ -521,7 +521,7 @@ export function livePreview(pc) {
       { class: 'pz-mock-grid' },
       [...apps, 'calculator', 'paint', 'media'].filter((id) => reg?.get?.(id)).slice(0, 8).map((id) => h('div', { class: 'pz-mock-tile' }, h('img', { src: icon(id), alt: '' }), h('span', { class: 'caption ellipsis' }, reg.name(id)))),
     ),
-    h('div', { class: 'pz-mock-start-foot' }, h('span', { class: 'avatar pz-mock-avatar' }, 'AU'), h('span', { class: 'caption' }, 'Aurora'), pc.icon('power', { size: 14 })),
+    h('div', { class: 'pz-mock-start-foot' }, h('span', { class: 'avatar pz-mock-avatar' }, 'SE'), h('span', { class: 'caption' }, 'Selene'), pc.icon('power', { size: 14 })),
   );
   const fly = h(
     'div',

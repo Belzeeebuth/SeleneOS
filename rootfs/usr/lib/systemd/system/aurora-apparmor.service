@@ -1,4 +1,4 @@
-# Aurora OS: load the Aurora Shell AppArmor profile in the live session.
+# Selene OS: load the Selene Shell AppArmor profile in the live session.
 #
 # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor
 # (kernel.apparmor_restrict_unprivileged_userns=1). Chromium/Electron's sandbox needs one, which
@@ -8,7 +8,7 @@
 # "FATAL:credentials.cc ... Permission denied". The profile is "unconfined" apart from the
 # userns rule, so loading it alone is safe on the overlay root of the live session.
 [Unit]
-Description=Load the Aurora Shell AppArmor profile (live session)
+Description=Load the Selene Shell AppArmor profile (live session)
 Documentation=file:/etc/apparmor.d/aurora-shell
 DefaultDependencies=no
 After=local-fs.target systemd-sysctl.service apparmor.service

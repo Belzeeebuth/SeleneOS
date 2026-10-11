@@ -1,4 +1,4 @@
-# Aurora Terminal: the PTY helper (aurora-pty), its fonts and the everyday command-line tools.
+# Selene Terminal: the PTY helper (aurora-pty), its fonts and the everyday command-line tools.
 python3
 bash
 bash-completion

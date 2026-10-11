@@ -1,7 +1,7 @@
-Aurora OS — automated installation (live medium only)
+Selene OS — automated installation (live medium only)
 =====================================================
 
-Booting the live ISO with  aurora.autoinstall=1  on the kernel command line installs Aurora OS
+Booting the live ISO with  aurora.autoinstall=1  on the kernel command line installs Selene OS
 without any interaction: aurora-autoinstall.service runs /usr/lib/aurora/autoinstall/aurora-autoinstall,
 which runs the same root helper as the graphical installer (/usr/lib/aurora/helpers/aurora-install),
 then powers the machine off. Meant for virtual machines and labs: THE TARGET DISK IS ERASED.
@@ -19,16 +19,16 @@ Kernel parameters
   aurora.autoinstall.password=aurora     account password (default: aurora). It is readable by every
                                          local user in /proc/cmdline during the live session: use
                                          test passwords only, change it after the first sign-in
-  aurora.autoinstall.fullname=Jane+Doe   full name; "+" or "%20" for spaces (default: Aurora User)
+  aurora.autoinstall.fullname=Jane+Doe   full name; "+" or "%20" for spaces (default: Selene User)
   aurora.autoinstall.hostname=aurora-pc  computer name (default: <user>-pc)
   aurora.autoinstall.lang=en|fr          language (default: en)
   aurora.autoinstall.keyboard=fr(oss)    keyboard layout (default: us; fr with lang=fr)
   aurora.autoinstall.timezone=Europe/Paris  time zone (default: UTC; Europe/Paris with lang=fr)
   aurora.autoinstall.autologin=1         sign the account in automatically
   aurora.autoinstall.finish=poweroff     after success: poweroff (default), reboot or none
-  aurora.autoinstall.force=1             install even if the disk already holds Aurora OS
+  aurora.autoinstall.force=1             install even if the disk already holds Selene OS
 
-When the disk already holds a complete Aurora OS installation (ext4 file system labelled AURORA
+When the disk already holds a complete Selene OS installation (ext4 file system labelled AURORA
 whose /etc/aurora/install-info has the AURORA_INSTALL_COMPLETE line the installer writes last),
 the installation is skipped unless aurora.autoinstall.force=1 is given, so a VM that boots the
 ISO again never reinstalls in a loop; an interrupted installation is simply retried. On failure

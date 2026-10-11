@@ -1744,7 +1744,7 @@ class ChessApp {
   pgnText() {
     const { t } = this;
     const name = (c) => {
-      if (this.setup.mode === 'ai') return c === this.human ? this.ctx.env.user || t('player.you') : `Aurora Chess (${t(`level.${this.setup.level}`)})`;
+      if (this.setup.mode === 'ai') return c === this.human ? this.ctx.env.user || t('player.you') : `Selene Chess (${t(`level.${this.setup.level}`)})`;
       return this.headers[c === 'w' ? 'White' : 'Black'] || this.sideName(c);
     };
     const headers = { ...this.headers, White: name('w'), Black: name('b') };

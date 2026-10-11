@@ -18,7 +18,7 @@ export const PAGES = {
   storage: { module: 'system', parent: 'system', icon: 'hard_drive', title: { en: 'Storage', fr: 'Stockage' }, desc: { en: 'Storage space, drives, recycle bin', fr: 'Espace de stockage, lecteurs, corbeille' } },
   multitasking: { module: 'system', parent: 'system', icon: 'window_multiple', title: { en: 'Multitasking', fr: 'Multitâche' }, desc: { en: 'Snap windows, desktops, task switching', fr: 'Ancrer les fenêtres, bureaux, basculement entre les tâches' } },
   clipboard: { module: 'system', parent: 'system', icon: 'clipboard_paste', title: { en: 'Clipboard', fr: 'Presse-papiers' }, desc: { en: 'Cut and copy history', fr: 'Historique du couper et copier' } },
-  about: { module: 'system', parent: 'system', icon: 'info', title: { en: 'About', fr: 'Informations système' }, desc: { en: 'Device specifications, rename PC, Aurora OS specifications', fr: 'Caractéristiques de l’appareil, renommer le PC, caractéristiques d’Aurora OS' } },
+  about: { module: 'system', parent: 'system', icon: 'info', title: { en: 'About', fr: 'Informations système' }, desc: { en: 'Device specifications, rename PC, Selene OS specifications', fr: 'Caractéristiques de l’appareil, renommer le PC, caractéristiques de Selene OS' } },
   // Bluetooth & devices
   bluetooth: { module: 'devices', icon: 'bluetooth', title: { en: 'Bluetooth & devices', fr: 'Bluetooth et appareils' } },
   mouse: { module: 'devices', parent: 'bluetooth', icon: 'cursor', title: { en: 'Mouse', fr: 'Souris' }, desc: { en: 'Buttons, mouse pointer speed', fr: 'Boutons, vitesse du pointeur de la souris' } },
@@ -67,12 +67,12 @@ export const PAGES = {
   keyboard: { module: 'time', parent: 'timeLanguage', icon: 'keyboard', title: { en: 'Keyboard', fr: 'Clavier' }, desc: { en: 'Keyboard layout for this session and for new sessions', fr: 'Disposition du clavier pour cette session et les nouvelles sessions' } },
   // Accessibility
   accessibility: { module: 'accessibility', icon: 'accessibility', title: { en: 'Accessibility', fr: 'Accessibilité' } },
-  textSize: { module: 'accessibility', parent: 'accessibility', icon: 'text_font_size', title: { en: 'Text size', fr: 'Taille du texte' }, desc: { en: 'Text size throughout Aurora and your apps', fr: 'Taille du texte dans Aurora et vos applications' } },
+  textSize: { module: 'accessibility', parent: 'accessibility', icon: 'text_font_size', title: { en: 'Text size', fr: 'Taille du texte' }, desc: { en: 'Text size throughout Selene and your apps', fr: 'Taille du texte dans Selene et vos applications' } },
   visualEffects: { module: 'accessibility', parent: 'accessibility', icon: 'eye', title: { en: 'Visual effects', fr: 'Effets visuels' }, desc: { en: 'Transparency, animations', fr: 'Transparence, animations' } },
   // Privacy & security
   privacy: { module: 'privacy', icon: 'shield', title: { en: 'Privacy & security', fr: 'Confidentialité et sécurité' } },
   // Update
-  update: { module: 'update', icon: 'arrow_sync', title: { en: 'Aurora Update', fr: 'Aurora Update' } },
+  update: { module: 'update', icon: 'arrow_sync', title: { en: 'Selene Update', fr: 'Selene Update' } },
   updateHistory: { module: 'update', parent: 'update', icon: 'history', title: { en: 'Update history', fr: 'Historique des mises à jour' }, desc: { en: 'Installed updates', fr: 'Mises à jour installées' } },
   // Search results (pseudo page)
   search: { module: null, icon: 'search', title: { en: 'Search results', fr: 'Résultats de la recherche' } },
@@ -332,7 +332,7 @@ const ENTRIES = [
   ['privacy', null, 'shield', 'Privacy & security', 'Confidentialité et sécurité', 'security permissions', 'sécurité autorisations'],
   ['privacy', 'firewall', 'shield_globe', 'Firewall & network protection', 'Pare-feu et protection du réseau', 'ufw firewall', 'ufw pare-feu'],
   ['privacy', 'device', 'shield_checkmark', 'Device security', 'Sécurité de l’appareil', 'apparmor secure boot tpm', 'apparmor démarrage sécurisé tpm'],
-  ['update', null, 'arrow_sync', 'Aurora Update', 'Aurora Update', 'updates upgrade patches apt check', 'mises à jour correctifs apt rechercher'],
+  ['update', null, 'arrow_sync', 'Selene Update', 'Selene Update', 'updates upgrade patches apt check', 'mises à jour correctifs apt rechercher'],
   ['updateHistory', null, 'history', 'Update history', 'Historique des mises à jour', 'installed updates log', 'mises à jour installées journal'],
 ];
 

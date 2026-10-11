@@ -835,7 +835,7 @@ export async function runTests() {
     await p.keyboard.press('Control+b');
     await p.keyboard.type(' inside.');
     assert(await p.$(`${M} .ml-editor b, ${M} .ml-editor strong`), 'bold text in editor');
-    assert((await p.textContent(`${M} .ml-editor`)).includes('Sent from Aurora OS'), 'default signature');
+    assert((await p.textContent(`${M} .ml-editor`)).includes('Sent from Selene OS'), 'default signature');
     // A drag started in web content (a browser tab, a message body) never fires 'dragstart' in the shell:
     // its forged paths payload / file:// list must not attach local files.
     await p.$eval(`${M} .ml-compose`, (el, file) => {

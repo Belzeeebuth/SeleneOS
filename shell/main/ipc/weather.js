@@ -323,7 +323,7 @@ function register(api) {
       const { net } = require('electron');
       let res;
       try {
-        res = await net.fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json', 'User-Agent': `AuroraOS/${api.env?.version || '1'}` } });
+        res = await net.fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json', 'User-Agent': `SeleneOS/${api.env?.version || '1'}` } });
       } catch (e) {
         throw ctrl.signal.aborted ? err('Weather request timed out', 'ETIMEDOUT') : err(`Network unreachable (${e.message})`, 'EOFFLINE');
       }

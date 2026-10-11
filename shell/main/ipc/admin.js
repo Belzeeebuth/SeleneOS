@@ -201,8 +201,8 @@ async function devStoreRun(action, args, onLine) {
   } catch {}
   const entry = items.find((i) => i.apt === pkg);
   if (!entry) throw err(`this package is not in the store catalog: ${pkg}`, 'EPERM');
-  // Like the helper: tools shipped with Aurora OS ("removable": false) cannot be removed from the Store.
-  if (action === 'store-remove' && entry.removable === false) throw err(`${pkg} is part of Aurora OS and cannot be removed from the Store`, 'EPERM');
+  // Like the helper: tools shipped with Selene OS ("removable": false) cannot be removed from the Store.
+  if (action === 'store-remove' && entry.removable === false) throw err(`${pkg} is part of Selene OS and cannot be removed from the Store`, 'EPERM');
   const st = dev.storeState();
   const emit = (l) => onLine?.(`${l}\n`);
   const install = action === 'store-install';

@@ -1,4 +1,4 @@
-// "Bloom": the default Aurora rosette of glass petals, alive — every petal sways around the heart on its own
+// "Bloom": the default Selene rosette of glass petals, alive — every petal sways around the heart on its own
 // rhythm, the flower slowly breathes and turns, and a band of light glides across the glass. Petals are rendered
 // once into sprites (the same geometry as tools/gen-wallpapers.mjs) in the accent colour; a frame is a background
 // blit, ~19 transformed petal blits, a glow and a shimmer pass on a small flower layer.
@@ -25,7 +25,7 @@ function palette(mode, accent) {
 export default {
   id: 'bloom',
   name: { en: 'Bloom', fr: 'Floraison' },
-  desc: { en: 'The Aurora flower breathes, sways and shimmers in your accent color', fr: 'La fleur d’Aurora respire, ondule et scintille dans votre couleur d’accentuation' },
+  desc: { en: 'The Selene flower breathes, sways and shimmers in your accent color', fr: 'La fleur de Selene respire, ondule et scintille dans votre couleur d’accentuation' },
   scale: 0.4, // every layer is redrawn each frame: 0.4 of the screen resolution keeps the petals crisp enough when upscaled
   heroTime: 0,
   create(env) {

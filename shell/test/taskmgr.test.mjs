@@ -274,9 +274,9 @@ try {
   const rows = () => tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes.table.rows.map((r) => ({ key: r.key, kind: r.kind, label: r.label, name: r.data?.name, type: r.data?.type, cpu: r.data?.cpu, depth: r.depth, parentKey: r.parentKey, pid: r.data?.pid })));
   let R = await rows();
   const groups = R.filter((r) => r.kind === 'group').map((r) => r.label);
-  check('Apps / Background / Aurora groups', groups.some((g) => /^Apps \(2\)$/.test(g)) && groups.some((g) => /^Background processes \(\d+\)$/.test(g)) && groups.some((g) => /^Aurora processes \(\d+\)$/.test(g)), groups);
+  check('Apps / Background / Selene groups', groups.some((g) => /^Apps \(2\)$/.test(g)) && groups.some((g) => /^Background processes \(\d+\)$/.test(g)) && groups.some((g) => /^Selene processes \(\d+\)$/.test(g)), groups);
   check('app rows for open windows', R.some((r) => r.type === 'app' && r.name === 'Calculator') && R.some((r) => r.type === 'app' && r.name === 'Task Manager'));
-  check('Aurora Shell row', R.some((r) => r.type === 'shell' && /^Aurora Shell \(\d+\)$/.test(r.name)), R.filter((r) => r.type === 'shell'));
+  check('Selene Shell row', R.some((r) => r.type === 'shell' && /^Selene Shell \(\d+\)$/.test(r.name)), R.filter((r) => r.type === 'shell'));
   check('Linux kernel row', R.some((r) => r.type === 'kernel'));
   const imgs = await page.$$eval('.app-taskmgr img', (els) => els.map((e) => ({ src: e.getAttribute('src'), ok: e.complete && e.naturalWidth > 0 })));
   check("Task Manager's images all load", imgs.length > 0 && imgs.every((i) => i.ok), imgs.filter((i) => !i.ok));
@@ -284,15 +284,15 @@ try {
   check('column headers with totals', heads.some((x) => /^\d+% CPU$/.test(x)) && heads.some((x) => /^\d+% Memory$/.test(x)) && heads.some((x) => /^\d+% Disk$/.test(x)), heads);
   const heat = await page.$$eval('.app-taskmgr .tm-page-processes .tm-td[data-h]', (els) => els.length);
   check('heat-map cells rendered', heat > 10, heat);
-  // The Aurora processes group is far down the (virtualized) list: bring the row into view first.
+  // The Selene processes group is far down the (virtualized) list: bring the row into view first.
   await tm(() => {
     const t = window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes.table;
     t.select('shell');
     t._render();
   });
   await sleep(300);
-  const shellCells = await page.$eval('.app-taskmgr .tm-page-processes .tm-row:not([hidden]):has(.tm-tx:text-matches("^Aurora Shell"))', (el) => [...el.querySelectorAll('.tm-td')].map((c) => c.innerText.trim()));
-  check('Aurora Shell row shows CPU % and memory MB', shellCells.some((c) => /^\d+(\.\d)?%$/.test(c)) && shellCells.some((c) => /^[\d,.]+\sMB$/.test(c)), shellCells);
+  const shellCells = await page.$eval('.app-taskmgr .tm-page-processes .tm-row:not([hidden]):has(.tm-tx:text-matches("^Selene Shell"))', (el) => [...el.querySelectorAll('.tm-td')].map((c) => c.innerText.trim()));
+  check('Selene Shell row shows CPU % and memory MB', shellCells.some((c) => /^\d+(\.\d)?%$/.test(c)) && shellCells.some((c) => /^[\d,.]+\sMB$/.test(c)), shellCells);
   const rendered = await page.$$eval('.app-taskmgr .tm-page-processes .tm-row:not([hidden])', (els) => els.length);
   check('virtualized rendering (only visible rows in the DOM)', rendered < R.length + 1 && rendered < 60, { rendered, total: R.length });
 
@@ -302,7 +302,7 @@ try {
     p.toggle(p.table.rows.find((r) => r.key === 'shell'));
   });
   R = await rows();
-  check('expanding Aurora Shell lists its processes', R.filter((r) => r.parentKey === 'shell').length >= 2, R.filter((r) => r.parentKey === 'shell').map((r) => r.name));
+  check('expanding Selene Shell lists its processes', R.filter((r) => r.parentKey === 'shell').length >= 2, R.filter((r) => r.parentKey === 'shell').map((r) => r.name));
 
   // ---- search
   await page.click('.app-taskmgr .tm-search-input');
@@ -313,7 +313,7 @@ try {
   await page.fill('.app-taskmgr .tm-search-input', String(info.sh.mainPid));
   await sleep(400);
   R = await rows();
-  check('search by PID finds Aurora Shell', R.some((r) => r.type === 'shell' || r.pid === info.sh.mainPid), R.map((r) => r.name || r.label));
+  check('search by PID finds Selene Shell', R.some((r) => r.type === 'shell' || r.pid === info.sh.mainPid), R.map((r) => r.name || r.label));
   await page.fill('.app-taskmgr .tm-search-input', 'zzzz-no-such-process');
   await sleep(400);
   const emptyTxt = await page.$eval('.app-taskmgr .tm-page-processes .tm-empty', (e) => (e.hidden ? '' : e.textContent));
@@ -961,7 +961,7 @@ try {
     t._render();
   });
   await sleep(300);
-  const memCell = await fp.$eval('.app-taskmgr .tm-page-processes .tm-row:not([hidden]):has(.tm-tx:text-matches("^Aurora Shell")) .c-mem', (e) => e.textContent).catch(() => '');
+  const memCell = await fp.$eval('.app-taskmgr .tm-page-processes .tm-row:not([hidden]):has(.tm-tx:text-matches("^Selene Shell")) .c-mem', (e) => e.textContent).catch(() => '');
   check('French number/unit formatting', /^\d[\d\u202f\u00a0]*,\d\u00a0Mo$/.test(memCell), memCell);
   // Every page: no untranslated keys or truncated header buttons in French.
   const dict = JSON.parse(fs.readFileSync(path.join(ROOT, 'renderer/apps/taskmgr/i18n.json'), 'utf8'));

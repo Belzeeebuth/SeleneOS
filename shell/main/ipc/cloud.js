@@ -312,7 +312,7 @@ function request(acc, password, method, p, { headers = {}, body = null, bodyFile
   const lib = u.protocol === 'https:' ? https : http;
   const auth = Buffer.from(`${acc.user}:${password}`).toString('base64');
   return new Promise((resolve, reject) => {
-    const req = lib.request(u, { method, headers: { Authorization: `Basic ${auth}`, 'User-Agent': 'AuroraCloud/1.0', ...headers }, timeout }, (res) => {
+    const req = lib.request(u, { method, headers: { Authorization: `Basic ${auth}`, 'User-Agent': 'SeleneCloud/1.0', ...headers }, timeout }, (res) => {
       const chunks = [];
       const total = Number(res.headers['content-length']) || 0;
       res.on('data', (c) => (onData && res.statusCode < 300 ? onData(c, total) : chunks.push(c)));

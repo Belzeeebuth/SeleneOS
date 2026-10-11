@@ -7,7 +7,7 @@ export default {
       h('div', { class: 'winver' },
         h('div', { class: 'winver-brand' },
           h('img', { src: ctx.appUrl('icon.svg'), alt: '' }),
-          h('div', null, h('div', { class: 'title' }, 'Aurora OS'), h('div', { class: 'text-2' }, info.distro))),
+          h('div', null, h('div', { class: 'title' }, 'Selene OS'), h('div', { class: 'text-2' }, info.distro))),
         h('hr', { class: 'hsep' }),
         h('div', null, t('version', { v: info.version }), ' · ', t('build', { b: info.buildId })),
         h('div', { class: 'text-2' }, t('kernel', { k: info.kernel })),

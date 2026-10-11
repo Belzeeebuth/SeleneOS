@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Aurora OS — runtime smoke test of the built image, without a virtual machine.
+# Selene OS — runtime smoke test of the built image, without a virtual machine.
 #
-#   sudo tools/smoke-image.sh                 test the newest out/aurora-os-*.iso
+#   sudo tools/smoke-image.sh                 test the newest out/selene-os-*.iso
 #   sudo tools/smoke-image.sh --iso PATH      test another ISO
 #   sudo tools/smoke-image.sh --squashfs work/iso/casper/filesystem.squashfs
 #   options: --secs N (time each mode keeps running, default 20)  --ready-timeout N (default 90)
@@ -58,7 +58,7 @@ done
 
 if [[ -z "$SQUASHFS" ]]; then
   if [[ -z "$ISO" ]]; then
-    ISO="$(find "$ROOT/out" -maxdepth 1 -name 'aurora-os-*.iso' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n '1s/^[^ ]* //p')"
+    ISO="$(find "$ROOT/out" -maxdepth 1 -name 'selene-os-*.iso' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n '1s/^[^ ]* //p')"
   fi
   [[ -n "$ISO" && -f "$ISO" ]] || die "no ISO found (make iso, or pass --iso / --squashfs)"
   ISO="$(readlink -f "$ISO")"
@@ -159,7 +159,7 @@ for f in $native; do
 done
 
 # ---- test user + X server ------------------------------------------------------------------
-chroot "$R" useradd -m -s /bin/bash -c "Aurora smoke test" "$TEST_USER"
+chroot "$R" useradd -m -s /bin/bash -c "Selene smoke test" "$TEST_USER"
 chroot "$R" usermod -a -G video,audio "$TEST_USER" 2>/dev/null || true
 TUID="$(chroot "$R" id -u "$TEST_USER")"
 install -d -m 0700 -o "$TUID" -g "$TUID" "$R/run/user/$TUID"

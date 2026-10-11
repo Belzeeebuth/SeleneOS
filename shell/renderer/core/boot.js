@@ -78,5 +78,5 @@ async function main() {
 
 main().catch((err) => {
   console.error('[boot] fatal', err);
-  document.body.innerHTML = `<pre style="color:#fff;padding:24px;white-space:pre-wrap">Aurora shell failed to start:\n${err?.stack || err}</pre>`;
+  document.body.innerHTML = `<pre style="color:#fff;padding:24px;white-space:pre-wrap">Selene shell failed to start:\n${err?.stack || err}</pre>`;
 });

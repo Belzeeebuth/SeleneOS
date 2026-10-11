@@ -1,7 +1,7 @@
 {
   "id": "installer",
-  "name": { "en": "Install Aurora OS", "fr": "Installer Aurora OS" },
-  "description": { "en": "Install Aurora OS on this computer's disk", "fr": "Installer Aurora OS sur le disque de cet ordinateur" },
+  "name": { "en": "Install Selene OS", "fr": "Installer Selene OS" },
+  "description": { "en": "Install Selene OS on this computer's disk", "fr": "Installer Selene OS sur le disque de cet ordinateur" },
   "icon": "icon.svg",
   "entry": "main.js",
   "styles": ["style.css"],

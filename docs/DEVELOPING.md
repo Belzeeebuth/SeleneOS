@@ -1,6 +1,6 @@
-# Aurora OS developer guide
+# Selene OS developer guide
 
-Aurora OS is Ubuntu 24.04 with a custom desktop. The desktop ("Aurora Shell") is one fullscreen
+Selene OS is Ubuntu 24.04 with a custom desktop. The desktop ("Selene Shell") is one fullscreen
 Electron app that draws the wallpaper, taskbar, Start menu and **all windows** itself. Every
 built-in app is an ES module loaded into that shell. System access goes through a small IPC API
 in the Electron main process.
@@ -192,7 +192,7 @@ Settings uses `system-settings.test.mjs`.
 
 - `archive` - Archive Manager: open, extract and create ZIP, 7z, RAR and TAR archives
 - `backup` - Backup: incremental rsync snapshots of your folders to a drive; browse and restore
-- `browser` - Aurora Browser: Chromium `<webview>` tabs, favorites, history, downloads, private windows
+- `browser` - Selene Browser: Chromium `<webview>` tabs, favorites, history, downloads, private windows
 - `calculator` - Calculator: standard, scientific, programmer, date calculation, unit converters
 - `calendar` - Calendar: month/week/day/agenda views, recurring events, reminders, holidays, .ics import/export
 - `chess` - Chess against the computer or a friend
@@ -202,7 +202,7 @@ Settings uses `system-settings.test.mjs`.
 - `disks` - Disks: drives and partitions, mount, eject; format removable drives only
 - `files` - File Explorer: tabs, drives, Recycle Bin, search, properties
 - `game2048` - 2048
-- `installer` - Install Aurora OS (live session only): language, keyboard, disk, account, time zone
+- `installer` - Install Selene OS (live session only): language, keyboard, disk, account, time zone
 - `mail` - Mail: IMAP/SMTP accounts, compose, attachments
 - `maps` - Maps: OpenStreetMap tiles, place search (Nominatim), saved places
 - `media` - Media Player: music and video libraries, queue, playlists
@@ -226,7 +226,7 @@ Settings uses `system-settings.test.mjs`.
 - `todo` - To Do: lists, My Day, reminders, due dates, steps
 - `translate` - Translator: MyMemory or LibreTranslate, English dictionary, offline EN↔FR glossary
 - `weather` - Weather: Open-Meteo current conditions, 24 h and 7-day forecasts; sets the dynamic wallpaper location
-- `winver` - About Aurora: version and license information
+- `winver` - About Selene OS: version and license information
 
 ## Rules for parallel work
 

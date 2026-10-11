@@ -717,7 +717,7 @@ function imapOptions(acc, pass, { idle = false } = {}) {
     auth: { user: s.user || acc.email, pass },
     tls: tlsOptions(s),
     logger: false, // imapflow logs can contain message data; we log short, secret-free lines ourselves
-    clientInfo: { name: 'Aurora Mail', vendor: 'Aurora OS', version: '1.0' },
+    clientInfo: { name: 'Selene Mail', vendor: 'Selene OS', version: '1.0' },
     connectionTimeout: CONNECT_TIMEOUT,
     greetingTimeout: 15000,
     socketTimeout: idle ? 10 * 60 * 1000 : 5 * 60 * 1000,
@@ -1330,7 +1330,7 @@ function compose(acc, msg, { keepBcc = false, messageId, date } = {}) {
     subject: String(msg.subject || ''),
     messageId,
     date,
-    headers: { 'X-Mailer': 'Aurora Mail' },
+    headers: { 'X-Mailer': 'Selene Mail' },
     attachments: [],
   };
   if (msg.html) mail.html = String(msg.html);

@@ -760,7 +760,7 @@ async function uiTests() {
 
       await test('themes: all five board themes through the More menu', async () => {
         await T('setup', START_FEN, { mode: 'ai', side: 'w', level: 'medium', time: 'none' });
-        const ids = { green: 'Green', blue: 'Blue', aurora: 'Aurora (accent color)', dark: 'Dark', wood: 'Classic wood' };
+        const ids = { green: 'Green', blue: 'Blue', aurora: 'Selene (accent color)', dark: 'Dark', wood: 'Classic wood' };
         for (const [id, label] of Object.entries(ids)) {
           await page.click('.app-chess [data-cmd="more"]');
           await page.waitForSelector('.menu');

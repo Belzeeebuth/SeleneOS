@@ -229,11 +229,11 @@ async function cursorsPart() {
     const sz = await A(() => ({ v: window.__aurora.settings.get('cursorSize'), css: getComputedStyle(document.body).cursor }));
     const big = await imgSize(s, sz.css.match(/url\("([^"]+)"\)/)[1]);
     check(sz.v === 200 && before?.w === 24 && big?.w === 48, `size slider: cursorSize ${sz.v}% → arrow ${before?.w}px → ${big?.w}px, live`);
-    // the system pack cannot grow: it is drawn as Aurora light when bigger
+    // the system pack cannot grow: it is drawn as Selene light when bigger
     await s.page.locator(S('.pzs-card[data-pack="default"]')).click();
     await sleep(400);
     const sys = await A(() => ({ body: getComputedStyle(document.body).cursor.slice(0, 26), drawn: window.__aurora.packs.cursorDrawn, attr: document.documentElement.dataset.cursorPack }));
-    check(sys.body.startsWith('url("data:image/png') && sys.drawn === 'classic' && sys.attr === 'default', `System pack at 200 % is drawn as Aurora light (${JSON.stringify(sys)})`);
+    check(sys.body.startsWith('url("data:image/png') && sys.drawn === 'classic' && sys.attr === 'default', `System pack at 200 % is drawn as Selene light (${JSON.stringify(sys)})`);
     // the preview grid shows every pointer and is hoverable
     const grid = await A(() => ({ n: document.querySelectorAll('.app-settings .pzb-cursor-cell').length, imgs: document.querySelectorAll('.app-settings .pzb-cursor-cell img').length, cur: getComputedStyle(document.querySelector('.app-settings .pzb-cursor-cell[data-kw="wait"]')).cursor.slice(0, 20) }));
     check(grid.n >= 16 && grid.imgs === grid.n && grid.cur.startsWith('url('), `preview grid: ${grid.n} pointers with names; hovering "Busy" shows it (${grid.cur})`);

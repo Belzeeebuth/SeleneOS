@@ -308,7 +308,7 @@
    "examplesDesc": "A few tasks and a list that show what To Do can do",
    "addExamples": "Add examples",
    "help": "Help",
-   "about": "To Do for Aurora OS. Your tasks are stored on this device only."
+   "about": "To Do for Selene OS. Your tasks are stored on this device only."
   },
   "keys": {
    "title": "Keyboard shortcuts",
@@ -682,7 +682,7 @@
    "examplesDesc": "Quelques tâches et une liste qui montrent ce que Tâches sait faire",
    "addExamples": "Ajouter les exemples",
    "help": "Aide",
-   "about": "Tâches pour Aurora OS. Vos tâches sont enregistrées uniquement sur cet appareil."
+   "about": "Tâches pour Selene OS. Vos tâches sont enregistrées uniquement sur cet appareil."
   },
   "keys": {
    "title": "Raccourcis clavier",

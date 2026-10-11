@@ -158,6 +158,6 @@ main().catch((err) => {
   console.error('[greeter] fatal', err);
   const pre = document.createElement('pre');
   pre.style.cssText = 'color:#fff;padding:24px;white-space:pre-wrap;font:14px monospace';
-  pre.textContent = `Aurora sign-in screen failed to start:\n${err?.stack || err}`;
+  pre.textContent = `Selene sign-in screen failed to start:\n${err?.stack || err}`;
   document.body.replaceChildren(pre);
 });

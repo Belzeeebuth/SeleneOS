@@ -212,7 +212,7 @@
     "fmt": { "all": "All pictures", "png": "PNG picture", "jpeg": "JPEG picture", "bmp": "Bitmap picture", "gif": "GIF picture", "webp": "WebP picture" },
     "ask": { "save": "Do you want to save changes to {name}?", "saveBtn": "Save", "dontSave": "Don't save" },
     "wp": { "mustSave": "Before you can set this picture as your desktop background, you must save it." },
-    "about": { "version": "Version {v}", "desc": "Draw, paint, edit pictures and add shapes and text. Part of Aurora OS." },
+    "about": { "version": "Version {v}", "desc": "Draw, paint, edit pictures and add shapes and text. Part of Selene OS." },
     "err": {
       "open": "Paint can't open {name}.",
       "notFound": "The file doesn't exist anymore.",
@@ -447,7 +447,7 @@
     "fmt": { "all": "Toutes les images", "png": "Image PNG", "jpeg": "Image JPEG", "bmp": "Image bitmap", "gif": "Image GIF", "webp": "Image WebP" },
     "ask": { "save": "Voulez-vous enregistrer les modifications apportées à {name} ?", "saveBtn": "Enregistrer", "dontSave": "Ne pas enregistrer" },
     "wp": { "mustSave": "Vous devez enregistrer cette image avant de pouvoir la définir comme arrière-plan du Bureau." },
-    "about": { "version": "Version {v}", "desc": "Dessinez, peignez, retouchez des images et ajoutez-y des formes et du texte. Fait partie d'Aurora OS." },
+    "about": { "version": "Version {v}", "desc": "Dessinez, peignez, retouchez des images et ajoutez-y des formes et du texte. Fait partie de Selene OS." },
     "err": {
       "open": "Paint ne peut pas ouvrir {name}.",
       "notFound": "Le fichier n'existe plus.",

@@ -489,14 +489,14 @@ function mockBackend(onChange) {
     airplane: false,
     eth: mode === 'both' || mode === 'ethernet',
     networks: [
-      { ssid: 'Aurora-Home', signal: 86, security: 'WPA2', saved: true, key: 'aurora', bssid: 'A4:3E:51:0C:22:10', freq: 5180, chan: 36, rate: '540 Mbit/s' },
+      { ssid: 'Selene-Home', signal: 86, security: 'WPA2', saved: true, key: 'aurora', bssid: 'A4:3E:51:0C:22:10', freq: 5180, chan: 36, rate: '540 Mbit/s' },
       { ssid: 'Livebox-4F2A', signal: 67, security: 'WPA2', saved: false, bssid: '7C:26:64:4F:2A:01', freq: 2437, chan: 6, rate: '195 Mbit/s' },
       { ssid: 'SFR_9C3E', signal: 54, security: 'WPA3', saved: false, bssid: '00:24:D4:9C:3E:7B', freq: 5240, chan: 48, rate: '270 Mbit/s' },
       { ssid: 'FreeWifi_secure', signal: 41, security: 'WPA2 802.1X', saved: false, bssid: '68:A3:78:11:90:3C', freq: 2412, chan: 1, rate: '130 Mbit/s' },
       { ssid: 'Café du Coin', signal: 33, security: '', saved: false, bssid: 'C0:4A:00:55:21:9E', freq: 2462, chan: 11, rate: '65 Mbit/s' },
       { ssid: 'Bbox-12AB34', signal: 18, security: 'WPA1 WPA2', saved: false, bssid: '30:7C:B2:12:AB:34', freq: 2422, chan: 3, rate: '54 Mbit/s' },
     ],
-    active: mode === 'none' || mode === 'ethernet' ? null : 'Aurora-Home',
+    active: mode === 'none' || mode === 'ethernet' ? null : 'Selene-Home',
   };
   const jitter = () => {
     for (const n of st.networks) n.signal = Math.max(5, Math.min(99, n.signal + Math.round((Math.random() - 0.5) * 4)));

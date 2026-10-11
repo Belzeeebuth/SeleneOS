@@ -163,7 +163,7 @@ const PACKS = { aurora: AURORA, chimes: CHIMES, retro: RETRO, soft: SOFT, silent
 const PRESETS = AURORA;
 
 export const SOUND_PACKS = [
-  { id: 'aurora', name: { en: 'Aurora', fr: 'Aurora' } },
+  { id: 'aurora', name: { en: 'Selene', fr: 'Selene' } },
   { id: 'chimes', name: { en: 'Chimes', fr: 'Carillons' } },
   { id: 'retro', name: { en: 'Retro 8-bit', fr: 'Rétro 8 bits' } },
   { id: 'soft', name: { en: 'Soft', fr: 'Doux' } },

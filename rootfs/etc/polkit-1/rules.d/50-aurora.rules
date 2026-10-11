@@ -1,7 +1,7 @@
-// Aurora OS polkit policy.
+// Selene OS polkit policy.
 //
 // * Administrators (group "sudo") using a local, active session manage networks and
-//   mount/unlock/eject internal drives without a password prompt (Aurora OS has no polkit
+//   mount/unlock/eject internal drives without a password prompt (Selene OS has no polkit
 //   authentication agent: an "auth_admin" answer would simply fail).
 // * Standard users keep the packages' defaults: their own removable drives (udisks2) and, with
 //   group "netdev", system-wide network connections (Ubuntu's NetworkManager rule). They cannot

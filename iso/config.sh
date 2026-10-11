@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # variables are used by iso/build.sh, which sources this file
-# Aurora OS — pinned build configuration.
+# Selene OS — pinned build configuration.
 #
 # Sourced by iso/build.sh (and the Makefile/tools). Every value can be overridden from the
 # environment, e.g.:   sudo SNAPSHOT=0 WITH_FIRMWARE=1 ./iso/build.sh
@@ -78,9 +78,9 @@ NODE_BIN="${NODE_BIN:-/opt/node22/bin}"
 
 ISO_VERSION="${ISO_VERSION:-$(_aurora_json_field "$SHELL_SRC/package.json" version)}"
 ISO_VERSION="${ISO_VERSION:-1.0.0}"
-OS_NAME="${OS_NAME:-Aurora OS}"
-ISO_VOLID="${ISO_VOLID:-AURORA_OS}"
-ISO_NAME="${ISO_NAME:-aurora-os-$ISO_VERSION-$ARCH.iso}"
+OS_NAME="${OS_NAME:-Selene OS}"
+ISO_VOLID="${ISO_VOLID:-SELENE_OS}"
+ISO_NAME="${ISO_NAME:-selene-os-$ISO_VERSION-$ARCH.iso}"
 ISO_PATH="${ISO_PATH:-$OUT/$ISO_NAME}"
 
 # SOURCE_DATE_EPOCH: time of the last commit (falls back to "now" outside git).
@@ -98,9 +98,12 @@ BUILD_DATE="$(date -u -d "@$SOURCE_DATE_EPOCH" +%Y%m%d)"
 BUILD_ID="${BUILD_ID:-$ISO_VERSION-$BUILD_DATE-$GIT_REV$GIT_DIRTY}"
 
 # ---- live session ----------------------------------------------------------------------
+# The live account keeps its internal name "aurora" (not shown on screen: the sign-in screen shows
+# LIVE_USER_FULLNAME). rootfs/etc/greetd/config.toml, tools/verify-iso.sh, aurora-install and the
+# shell's development greeter refer to it by name.
 LIVE_USER="${LIVE_USER:-aurora}"
-LIVE_USER_FULLNAME="${LIVE_USER_FULLNAME:-Aurora Live}"
-LIVE_HOSTNAME="${LIVE_HOSTNAME:-aurora}"
+LIVE_USER_FULLNAME="${LIVE_USER_FULLNAME:-Selene Live}"
+LIVE_HOSTNAME="${LIVE_HOSTNAME:-selene}"
 DEFAULT_LOCALE="${DEFAULT_LOCALE:-en_US.UTF-8}"
 LOCALES="${LOCALES:-en_US.UTF-8 fr_FR.UTF-8}"
 TIMEZONE="${TIMEZONE:-Etc/UTC}"

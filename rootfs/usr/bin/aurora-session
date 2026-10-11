@@ -1,5 +1,5 @@
 #!/bin/sh
-# Aurora OS desktop session. greetd starts it for the user who signed in (and, in the live
+# Selene OS desktop session. greetd starts it for the user who signed in (and, in the live
 # image, automatically for the live user through [initial_session]). It prepares the user
 # environment, then runs X + /usr/lib/aurora/aurora-xsession on the session's VT. When the
 # shell exits (sign out), the session ends and greetd shows the sign-in screen again.

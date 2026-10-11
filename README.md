@@ -1,11 +1,11 @@
-# Aurora OS
+# Selene OS
 
 A Windows 11–style desktop operating system you can boot live from an ISO and install in a virtual
 machine. It is built on **Ubuntu 24.04 LTS**, with a fully custom desktop: the shell, the window
-manager, the login screen and every app are written from scratch for Aurora. Everything is
+manager, the login screen and every app are written from scratch for Selene OS. Everything is
 available in **English and French**, in light and dark themes.
 
-![Aurora desktop](docs/screenshots/shell-desktop.png)
+![Selene OS desktop](docs/screenshots/shell-desktop.png)
 
 ## Features
 
@@ -37,7 +37,7 @@ available in **English and French**, in light and dark themes.
 
 | App | Highlights |
 |---|---|
-| Aurora Browser | Chromium engine, tabs, bookmarks bar and manager, history, downloads, private windows, find, zoom |
+| Selene Browser | Chromium engine, tabs, bookmarks bar and manager, history, downloads, private windows, find, zoom |
 | File Explorer | Tabs, breadcrumb bar, copy/cut/paste, rename, delete to Recycle Bin, search, drives (mount/eject), properties |
 | Mail | IMAP/SMTP accounts with provider presets (Gmail, Outlook, Yahoo, iCloud, Orange, Free…), compose, attachments, webmail shortcut |
 | Paint | Brushes, shapes, fill, text, eraser, color picker, selection, undo/redo, PNG/JPEG/BMP/WebP save |
@@ -80,7 +80,7 @@ space and **Node.js 22**. Full details are in [docs/BUILDING.md](docs/BUILDING.m
 sudo apt-get install debootstrap ubuntu-keyring squashfs-tools xorriso mtools dosfstools \
      grub-common grub-pc-bin grub-efi-amd64-bin librsvg2-bin imagemagick unzip curl zstd git
 
-# 2. Build the ISO  ->  out/aurora-os-<version>-amd64.iso
+# 2. Build the ISO  ->  out/selene-os-<version>-amd64.iso
 cd aurora-os
 sudo make iso
 
@@ -102,7 +102,7 @@ exact command it uses):
 qemu-img create -f qcow2 aurora-disk.qcow2 32G
 qemu-system-x86_64 -enable-kvm -machine q35 -cpu host -m 4096 -smp 4 \
   -drive file=aurora-disk.qcow2,if=none,id=hd0,format=qcow2 -device virtio-blk-pci,drive=hd0,bootindex=1 \
-  -drive file=out/aurora-os-1.0.0-amd64.iso,if=none,id=cd0,media=cdrom,readonly=on -device ide-cd,drive=cd0,bootindex=2 \
+  -drive file=out/selene-os-1.0.0-amd64.iso,if=none,id=cd0,media=cdrom,readonly=on -device ide-cd,drive=cd0,bootindex=2 \
   -vga none -device virtio-vga -device qemu-xhci -device usb-tablet \
   -nic user,model=virtio-net-pci \
   -audiodev pipewire,id=snd0 -device intel-hda -device hda-duplex,audiodev=snd0
@@ -113,8 +113,8 @@ installation, the installed system starts even with the ISO attached.
 
 ## Installing in QEMU
 
-1. Run `make run` and pick **Aurora OS (English)** or **Aurora OS (Français)** in the boot menu.
-2. The live session signs in automatically. Open **Install Aurora OS** from the desktop.
+1. Run `make run` and pick **Selene OS (English)** or **Selene OS (Français)** in the boot menu.
+2. The live session signs in automatically. Open **Install Selene OS** from the desktop.
 3. Choose language, keyboard, the virtual disk (it will be **erased**), your account and time zone,
    then click **Install**.
 4. When it finishes, click **Restart now**. `make run` boots the installed disk first, so the ISO
@@ -135,7 +135,7 @@ aurora-os/
 
 **Architecture:**
 - Ubuntu 24.04 base (pinned archive snapshot for reproducible builds) with casper for the live session.
-- greetd starts the Aurora login screen. After sign-in, Xorg runs the fullscreen Electron shell, which
+- greetd starts the Selene login screen. After sign-in, Xorg runs the fullscreen Electron shell, which
   draws the taskbar, the Start menu and every window.
 - System features use standard Linux services: NetworkManager, PipeWire, udisks2, systemd-logind and
   ufw.
@@ -155,7 +155,7 @@ for the app contract, the UI kit and the backend API.
 
 ## License
 
-The Aurora shell, apps, scripts and artwork are released under the MIT license. Icons come from
+The Selene shell, apps, scripts and artwork are released under the MIT license. Icons come from
 Microsoft's Fluent UI System Icons (MIT). The base system is Ubuntu, and its components keep their
-own licenses. Aurora OS is not affiliated with Microsoft. "Windows" is a trademark of Microsoft
+own licenses. Selene OS is not affiliated with Microsoft. "Windows" is a trademark of Microsoft
 Corporation.

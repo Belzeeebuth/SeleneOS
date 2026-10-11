@@ -1,10 +1,10 @@
-# Building and running Aurora OS
+# Building and running Selene OS
 
 *Version française : [plus bas](#version-française).*
 
-Aurora OS is shipped as one hybrid ISO image (`out/aurora-os-<version>-amd64.iso`) that boots
+Selene OS is shipped as one hybrid ISO image (`out/selene-os-<version>-amd64.iso`) that boots
 on BIOS and UEFI machines, from a DVD or a USB stick, and in virtual machines. It starts a live
-session (nothing is written to the disk) from which Aurora OS can be installed.
+session (nothing is written to the disk) from which Selene OS can be installed.
 
 - [Prerequisites](#prerequisites)
 - [Build the ISO](#build-the-iso) — **`make iso`**
@@ -14,7 +14,7 @@ session (nothing is written to the disk) from which Aurora OS can be installed.
 - [Check the image without a VM](#check-the-image-without-a-vm)
 - [Try it in QEMU](#try-it-in-qemu) (live session, installation, BIOS and UEFI)
 - [What to expect](#what-to-expect)
-- [Install Aurora OS](#install-aurora-os) (graphical installer, testing it without a VM)
+- [Install Selene OS](#install-selene-os) (graphical installer, testing it without a VM)
 - [Automated install](#automated-install) (`aurora.autoinstall=1`)
 - [Troubleshooting](#troubleshooting)
 
@@ -54,9 +54,9 @@ That is the whole build (it runs `sudo ./iso/build.sh`). Results, in `out/`:
 
 | File | Content |
 |---|---|
-| `aurora-os-1.0.0-amd64.iso` | the bootable, installable hybrid ISO (BIOS + UEFI, DVD + USB) |
-| `aurora-os-1.0.0-amd64.iso.sha256` | its SHA-256 (`sha256sum -c` in `out/`) |
-| `aurora-os-1.0.0-amd64.manifest` | every Debian package in the image, with its version |
+| `selene-os-1.0.0-amd64.iso` | the bootable, installable hybrid ISO (BIOS + UEFI, DVD + USB) |
+| `selene-os-1.0.0-amd64.iso.sha256` | its SHA-256 (`sha256sum -c` in `out/`) |
+| `selene-os-1.0.0-amd64.manifest` | every Debian package in the image, with its version |
 
 The output files are handed back to the user who ran `sudo`/`make`. The complete build log is
 in `work/logs/latest.log`.
@@ -67,7 +67,7 @@ How the build works (`iso/build.sh`, configuration in `iso/config.sh`):
 |---|---|---|
 | `base` | `debootstrap --variant=minbase noble` from the pinned snapshot | `cache/base/*.tar.zst` |
 | `packages` | apt installs every `iso/packages.d/*.list` (plus the kernel), unknown package names stop the build with a clear report | `work/layers/packages`, `.deb`s in `cache/apt` |
-| `system` | overlay on top: Electron (SHA-256 checked, `chrome-sandbox` setuid, AppArmor profile), Aurora Shell in `/opt/aurora/shell` (`npm ci --omit=dev`), `rootfs/` overlay, locales en_US/fr_FR, live user, greetd, services, firewall, Plymouth splash, initramfs, image validation | rebuilt each time (~1 min) |
+| `system` | overlay on top: Electron (SHA-256 checked, `chrome-sandbox` setuid, AppArmor profile), Selene Shell in `/opt/aurora/shell` (`npm ci --omit=dev`), `rootfs/` overlay, locales en_US/fr_FR, live user, greetd, services, firewall, Plymouth splash, initramfs, image validation | rebuilt each time (~1 min) |
 | `squashfs` | package manifests + `casper/filesystem.squashfs` (zstd) | |
 | `iso` | themed GRUB menu, hybrid BIOS+UEFI ISO (`grub-mkrescue`/xorriso), checksum | |
 
@@ -159,7 +159,7 @@ makes it several times faster for development builds, at the cost of a bigger IS
 
 | Output | Size |
 |---|---|
-| ISO (`aurora-os-1.0.0-amd64.iso`) | **778 MiB** (815,919,104 bytes) |
+| ISO (`selene-os-1.0.0-amd64.iso`) | **778 MiB** (815,919,104 bytes) |
 | `casper/filesystem.squashfs` (zstd 19, 1 MiB blocks) | 691 MiB |
 | Root file system, uncompressed | 1730 MiB |
 | Debian packages in the image | 620 |
@@ -215,7 +215,7 @@ make run DRY_RUN=1    # only print the QEMU command line
 
 `make run` creates `work/qemu/aurora-disk.qcow2` (32 GB, thin-provisioned) on first use and
 gives it boot priority over the CD: while the disk is blank the firmware falls through to the
-live ISO; once Aurora OS is installed, the next boot starts the installed system even though the
+live ISO; once Selene OS is installed, the next boot starts the installed system even though the
 ISO is still attached ("boot once from the CD"). `make run BOOT=cd` forces the live CD first.
 In UEFI mode a private copy of the firmware variables is kept in `work/qemu/` so the boot entry
 created by the firmware survives. The installer writes both a BIOS and a UEFI boot loader, so the
@@ -238,11 +238,11 @@ The same thing without the helper script (KVM; for TCG replace `-accel kvm -cpu 
 shell's software renderer):
 
 ```sh
-ISO=out/aurora-os-1.0.0-amd64.iso
+ISO=out/selene-os-1.0.0-amd64.iso
 qemu-img create -f qcow2 aurora-disk.qcow2 32G          # once: the disk to install to
 
 # BIOS: live session + installation. The disk comes first in the boot order: while it is blank
-# the firmware falls through to the CD; once Aurora OS is installed, the disk boots.
+# the firmware falls through to the CD; once Selene OS is installed, the disk boots.
 # (bootindex starts at 1: with -kernel QEMU reserves bootindex 0 for its own kernel loader.)
 qemu-system-x86_64 -machine q35,vmport=off -accel kvm -cpu host -m 4096 -smp 4 \
   -drive file=aurora-disk.qcow2,if=none,id=hd0,format=qcow2,discard=unmap \
@@ -290,23 +290,23 @@ The ISO's boot loader is not signed for Secure Boot: use OVMF without Secure Boo
 ### On a real PC
 
 Write the ISO to a USB stick (all its data is erased) with
-`sudo dd if=out/aurora-os-1.0.0-amd64.iso of=/dev/sdX bs=4M status=progress oflag=sync`
+`sudo dd if=out/selene-os-1.0.0-amd64.iso of=/dev/sdX bs=4M status=progress oflag=sync`
 (or Ventoy, balenaEtcher, Rufus in DD mode), disable Secure Boot, and build with
 `WITH_FIRMWARE=1` for Wi-Fi and GPU firmware.
 
 ## What to expect
 
-1. **Boot menu** (themed GRUB, 8 s timeout): *Aurora OS (English)*, *Aurora OS (Français)*
+1. **Boot menu** (themed GRUB, 8 s timeout): *Selene OS (English)*, *Selene OS (Français)*
    (French UI and French keyboard), *Safe graphics / Mode graphique sûr* (`nomodeset`, software
    rendering), *Hard disk / Disque dur*, and *Advanced options*:
    *debug* (verbose boot, serial console on ttyS0, `aurora.debug`), *copy to RAM*, *check disc
    for defects*, *UEFI firmware settings* (UEFI only), *Restart*, *Shut down*.
-2. **Splash screen** (Aurora logo + spinner), then the **desktop of the live user `aurora`**,
+2. **Splash screen** (Selene OS logo + spinner), then the **desktop of the live user `aurora`**,
    signed in automatically (no password; administrator rights without password in the live
    session). Nothing is saved across reboots.
 3. On the desktop: **This PC**, **Recycle Bin**, `Welcome.txt` (English/French) and the
-   **Install Aurora OS** icon (live session only, see [Install Aurora OS](#install-aurora-os)),
-   the taskbar and the Start menu. Signing out shows the Aurora sign-in screen.
+   **Install Selene OS** icon (live session only, see [Install Selene OS](#install-selene-os)),
+   the taskbar and the Start menu. Signing out shows the Selene sign-in screen.
 4. In the VM, the screen switches to 1920x1080 (KVM) or 1600x900 (TCG) automatically; the
    network works out of the box (QEMU user networking, NAT).
 
@@ -314,16 +314,16 @@ Boot time: with KVM, expect well under a minute to the desktop. Under TCG emulat
 4 vCPUs) an earlier test reached the automatic sign-in after about 2.5 minutes and the desktop
 about 30 seconds later.
 
-## Install Aurora OS
+## Install Selene OS
 
-In the live session, open **Install Aurora OS** (desktop icon, or Start → All apps). The installer
+In the live session, open **Install Selene OS** (desktop icon, or Start → All apps). The installer
 looks like Windows 11 Setup, speaks English and French (the language chosen on the first page
 switches it at once and becomes the installed system's language) and follows the light/dark theme.
 
 1. **Language** — English or Français.
 2. **Keyboard** — the layout is applied to the live session right away, so the test field shows
    what your keys produce.
-3. **Disk** — Aurora OS uses a **whole disk, which is erased**. Disks smaller than 12 GB are shown
+3. **Disk** — Selene OS uses a **whole disk, which is erased**. Disks smaller than 12 GB are shown
    but cannot be chosen; the live medium, read-only, loop, zram and in-use disks are not listed.
 4. **Account** — your name, a user name (derived from the first name, editable), password +
    confirmation (with a strength hint), computer name, and *Sign in automatically*. The account
@@ -348,7 +348,7 @@ line):
 | partition | `wipefs`, then GPT: 1 MiB BIOS boot partition, 512 MiB EFI System Partition (FAT32, label `EFI`), the rest ext4 (label `AURORA`) |
 | copy | `unsquashfs` of `/cdrom/casper/filesystem.squashfs` (or `rsync` of `/rofs`), with progress |
 | configure | `/etc/fstab` by UUID; host name; live user, casper's sudo rule and `/etc/casper.conf` removed; live-only packages (`casper/filesystem.manifest-remove`: casper, user-setup, …) purged offline with `dpkg --purge`; locale, keyboard (`/etc/default/keyboard`), time zone; the account (groups sudo, adm, users, netdev, audio, video, plugdev) and its `~/.config/aurora/settings.json` (language); greetd without the live autologin (or `[initial_session]` for the account); new machine-id; initramfs regenerated without casper |
-| bootloader | GRUB for **BIOS** on the disk **and** for **UEFI** on the ESP: Ubuntu's signed shim + GRUB in `EFI/ubuntu` and on the removable path `EFI/BOOT/BOOTX64.EFI` (no NVRAM writes, so the disk boots on any UEFI machine); Aurora GRUB theme; `/etc/default/grub.d/50-aurora.cfg` (`GRUB_DISTRIBUTOR="Aurora OS"`, `quiet splash`, 3 s menu); `update-grub` |
+| bootloader | GRUB for **BIOS** on the disk **and** for **UEFI** on the ESP: Ubuntu's signed shim + GRUB in `EFI/ubuntu` and on the removable path `EFI/BOOT/BOOTX64.EFI` (no NVRAM writes, so the disk boots on any UEFI machine); Selene OS GRUB theme; `/etc/default/grub.d/50-aurora.cfg` (`GRUB_DISTRIBUTOR="Selene OS"`, `quiet splash`, 3 s menu); `update-grub` |
 | cleanup | log copied to the installed system, `sync`, unmount |
 
 Logs: `/var/log/aurora-install.log` in the live session, copied to `/var/log/aurora-install.log`
@@ -391,7 +391,7 @@ before the sign-in screen, then powers the machine off. **The target disk is era
 | `aurora.autoinstall.disk=/dev/vda` | the only eligible disk | disk to erase; refused when several disks qualify |
 | `aurora.autoinstall.user=` | `aurora` | account name |
 | `aurora.autoinstall.password=` | `aurora` | password (`%20` for a space). Readable in `/proc/cmdline` during the live session: **test passwords only** |
-| `aurora.autoinstall.fullname=` | `Aurora User` | full name, `+` or `%20` for spaces |
+| `aurora.autoinstall.fullname=` | `Selene User` | full name, `+` or `%20` for spaces |
 | `aurora.autoinstall.hostname=` | `<user>-pc` | computer name |
 | `aurora.autoinstall.lang=` | `en` | `en` or `fr` |
 | `aurora.autoinstall.keyboard=` | `us` (`fr` with lang=fr) | e.g. `fr(oss)`, `ch(fr)`, `de` |
@@ -407,7 +407,7 @@ make run-disk            # or: make run-disk-uefi (the disk has BIOS and UEFI bo
 make run DRY_RUN=1 QEMU_ARGS="--kernel 'aurora.autoinstall=1'"   # just print the QEMU command
 ```
 
-From the boot menu instead: highlight *Aurora OS (English)*, press `e`, add the parameters before
+From the boot menu instead: highlight *Selene OS (English)*, press `e`, add the parameters before
 `---` on the `linux` line and press Ctrl+X (or F10). Progress appears on the boot splash, on the
 VM screen, on the serial console (`tail -f work/qemu/aurora.serial.log`; `--kernel` adds
 `console=ttyS0`) and in `journalctl -u aurora-autoinstall`; the full log is
@@ -415,7 +415,7 @@ VM screen, on the serial console (`tail -f work/qemu/aurora.serial.log`; `--kern
 
 Safety: the unit only runs when the command line has `aurora.autoinstall=1` **and** `boot=casper`
 **and** `/cdrom/casper` exists (live medium); the script checks the live medium again, and the
-installer removes the unit from the installed system, so an installed Aurora OS can never
+installer removes the unit from the installed system, so an installed Selene OS can never
 reinstall itself. If the disk already holds a complete installation (ext4 labelled `AURORA` whose
 `/etc/aurora/install-info` has the `AURORA_INSTALL_COMPLETE` line the installer writes last), the
 automated installation is skipped unless `aurora.autoinstall.force=1` — a VM that keeps booting
@@ -447,9 +447,9 @@ installation is retried. On failure the live session starts and the error stays 
 
 ## Version française
 
-Aurora OS est livré sous la forme d'une image ISO hybride (`out/aurora-os-<version>-amd64.iso`)
+Selene OS est livré sous la forme d'une image ISO hybride (`out/selene-os-<version>-amd64.iso`)
 qui démarre en BIOS et en UEFI, depuis un DVD, une clé USB ou une machine virtuelle. Elle lance
-une session live (rien n'est écrit sur le disque) depuis laquelle on peut installer Aurora OS.
+une session live (rien n'est écrit sur le disque) depuis laquelle on peut installer Selene OS.
 
 ### Prérequis
 
@@ -480,14 +480,14 @@ make iso
 ```
 
 C'est toute la construction (elle lance `sudo ./iso/build.sh`). Résultats dans `out/` : l'ISO
-`aurora-os-1.0.0-amd64.iso`, sa somme `…iso.sha256` (`sha256sum -c` dans `out/`) et la liste des
+`selene-os-1.0.0-amd64.iso`, sa somme `…iso.sha256` (`sha256sum -c` dans `out/`) et la liste des
 paquets `…manifest`. Les fichiers appartiennent à l'utilisateur qui a lancé `make`. Le journal
 complet est dans `work/logs/latest.log`.
 
 Étapes (`iso/build.sh`, réglages dans `iso/config.sh`) : `base` (debootstrap depuis l'instantané
 figé, mis en cache), `packages` (installation de toutes les listes `iso/packages.d/*.list` ; un nom
 de paquet inconnu arrête la construction avec un rapport clair), `system` (Electron vérifié par
-SHA-256, `chrome-sandbox` setuid, profil AppArmor, Aurora Shell dans `/opt/aurora/shell` avec
+SHA-256, `chrome-sandbox` setuid, profil AppArmor, Selene Shell dans `/opt/aurora/shell` avec
 `npm ci --omit=dev`, recopie de `rootfs/`, langues en_US/fr_FR, utilisateur live, greetd,
 services, pare-feu, écran de démarrage Plymouth, initramfs, vérifications), `squashfs`, puis
 `iso` (menu GRUB thématisé, ISO hybride BIOS+UEFI).
@@ -585,7 +585,7 @@ make run DRY_RUN=1    # affiche seulement la commande QEMU
 ```
 
 `make run` crée `work/qemu/aurora-disk.qcow2` (32 Go, alloué à la demande) et lui donne la
-priorité de démarrage : tant qu'il est vide, le micrologiciel passe au CD live ; une fois Aurora OS
+priorité de démarrage : tant qu'il est vide, le micrologiciel passe au CD live ; une fois Selene OS
 installé, la VM démarre sur le disque même si l'ISO est encore branchée (« démarrage unique sur le
 CD »). `make run BOOT=cd` force le CD. En UEFI, une copie privée des variables du micrologiciel
 est gardée dans `work/qemu/`. L'installateur écrit un chargeur de démarrage BIOS **et** UEFI : le
@@ -606,16 +606,16 @@ et construisez avec `WITH_FIRMWARE=1`.
 
 ### Ce que vous verrez
 
-1. **Menu de démarrage** (GRUB thématisé, 8 s) : *Aurora OS (English)*, *Aurora OS (Français)*
+1. **Menu de démarrage** (GRUB thématisé, 8 s) : *Selene OS (English)*, *Selene OS (Français)*
    (interface et clavier français), *Safe graphics / Mode graphique sûr* (`nomodeset`, rendu
    logiciel), *Disque dur*, et *Options avancées* : *débogage* (démarrage
    détaillé, console série ttyS0, `aurora.debug`), *copier en mémoire*, *vérifier le disque*,
    *paramètres UEFI*, *redémarrer*, *arrêter*.
-2. **Écran de démarrage** (logo Aurora), puis le **bureau de l'utilisateur live `aurora`**, connecté
+2. **Écran de démarrage** (logo Selene OS), puis le **bureau de l'utilisateur live `aurora`**, connecté
    automatiquement (sans mot de passe ; droits d'administrateur sans mot de passe en session live).
    Rien n'est conservé au redémarrage.
 3. Sur le bureau : **Ce PC**, **Corbeille**, `Welcome.txt` (anglais/français) et l'icône
-   **Installer Aurora OS** (session live uniquement, voir [Installer Aurora OS](#installer-aurora-os)),
+   **Installer Selene OS** (session live uniquement, voir [Installer Selene OS](#installer-selene-os)),
    la barre des tâches et le menu Démarrer. Se déconnecter affiche l'écran de connexion.
 4. Dans la VM, l'écran passe en 1920x1080 (KVM) ou 1600x900 (TCG) ; le réseau fonctionne
    directement (NAT de QEMU).
@@ -624,9 +624,9 @@ Durée de démarrage : avec KVM, nettement moins d'une minute jusqu'au bureau. E
 (sans KVM, 4 vCPU), un essai précédent a atteint la connexion automatique en 2 min 30 environ et
 le bureau une trentaine de secondes plus tard.
 
-### Installer Aurora OS
+### Installer Selene OS
 
-Dans la session live, ouvrez **Installer Aurora OS** (icône du bureau, ou Démarrer → Toutes les
+Dans la session live, ouvrez **Installer Selene OS** (icône du bureau, ou Démarrer → Toutes les
 applications). L'installateur ressemble au programme d'installation de Windows 11, parle anglais et
 français (la langue choisie en première page change l'interface immédiatement et devient celle du
 système installé) et suit le thème clair/sombre.
@@ -634,7 +634,7 @@ système installé) et suit le thème clair/sombre.
 1. **Langue** — English ou Français.
 2. **Clavier** — la disposition est appliquée tout de suite à la session live : le champ de test
    montre ce que produisent vos touches.
-3. **Disque** — Aurora OS utilise un **disque entier, qui est effacé**. Les disques de moins de
+3. **Disque** — Selene OS utilise un **disque entier, qui est effacé**. Les disques de moins de
    12 Go sont affichés mais pas sélectionnables ; le support live, les disques en lecture seule,
    loop, zram ou utilisés ne sont pas proposés.
 4. **Compte** — votre nom, un nom d'utilisateur (déduit du prénom, modifiable), mot de passe +
@@ -661,7 +661,7 @@ standard, jamais par la ligne de commande) :
 | partition | `wipefs`, puis GPT : partition BIOS boot de 1 Mio, partition système EFI de 512 Mio (FAT32, étiquette `EFI`), le reste en ext4 (étiquette `AURORA`) |
 | copy | `unsquashfs` de `/cdrom/casper/filesystem.squashfs` (ou `rsync` de `/rofs`), avec progression |
 | configure | `/etc/fstab` par UUID ; nom d'hôte ; suppression de l'utilisateur live, de la règle sudo de casper et de `/etc/casper.conf` ; purge hors ligne (`dpkg --purge`) des paquets propres au live (`casper/filesystem.manifest-remove` : casper, user-setup…) ; langue, clavier (`/etc/default/keyboard`), fuseau ; le compte (groupes sudo, adm, users, netdev, audio, video, plugdev) et son `~/.config/aurora/settings.json` (langue) ; greetd sans la connexion automatique du live (ou `[initial_session]` pour le compte) ; nouveau machine-id ; initramfs régénéré sans casper |
-| bootloader | GRUB pour le **BIOS** sur le disque **et** pour l'**UEFI** sur l'ESP : shim + GRUB signés d'Ubuntu dans `EFI/ubuntu` et sur le chemin amovible `EFI/BOOT/BOOTX64.EFI` (sans écrire dans la NVRAM : le disque démarre sur toute machine UEFI) ; thème GRUB Aurora ; `/etc/default/grub.d/50-aurora.cfg` (`GRUB_DISTRIBUTOR="Aurora OS"`, `quiet splash`, menu 3 s) ; `update-grub` |
+| bootloader | GRUB pour le **BIOS** sur le disque **et** pour l'**UEFI** sur l'ESP : shim + GRUB signés d'Ubuntu dans `EFI/ubuntu` et sur le chemin amovible `EFI/BOOT/BOOTX64.EFI` (sans écrire dans la NVRAM : le disque démarre sur toute machine UEFI) ; thème GRUB Selene OS ; `/etc/default/grub.d/50-aurora.cfg` (`GRUB_DISTRIBUTOR="Selene OS"`, `quiet splash`, menu 3 s) ; `update-grub` |
 | cleanup | copie du journal sur le système installé, `sync`, démontage |
 
 Journal : `/var/log/aurora-install.log` dans la session live, copié dans `/var/log/aurora-install.log`
@@ -687,7 +687,7 @@ programme avant l'écran de connexion, puis éteint la machine. **Le disque cibl
 | `aurora.autoinstall.disk=/dev/vda` | le seul disque éligible | disque à effacer ; refusé si plusieurs disques conviennent |
 | `aurora.autoinstall.user=` | `aurora` | nom du compte |
 | `aurora.autoinstall.password=` | `aurora` | mot de passe (`%20` pour une espace). Lisible dans `/proc/cmdline` pendant la session live : **mots de passe de test uniquement** |
-| `aurora.autoinstall.fullname=` | `Aurora User` | nom complet, `+` ou `%20` pour les espaces |
+| `aurora.autoinstall.fullname=` | `Selene User` | nom complet, `+` ou `%20` pour les espaces |
 | `aurora.autoinstall.hostname=` | `<user>-pc` | nom de l'ordinateur |
 | `aurora.autoinstall.lang=` | `en` | `en` ou `fr` |
 | `aurora.autoinstall.keyboard=` | `us` (`fr` si lang=fr) | par ex. `fr(oss)`, `ch(fr)`, `de` |
@@ -703,14 +703,14 @@ make run-disk            # ou : make run-disk-uefi (le disque a les chargeurs BI
 make run DRY_RUN=1 QEMU_ARGS="--kernel 'aurora.autoinstall=1'"   # affiche seulement la commande QEMU
 ```
 
-Depuis le menu de démarrage : sélectionnez *Aurora OS (Français)*, appuyez sur `e`, ajoutez les
+Depuis le menu de démarrage : sélectionnez *Selene OS (Français)*, appuyez sur `e`, ajoutez les
 paramètres avant `---` sur la ligne `linux`, puis Ctrl+X (ou F10). La progression s'affiche sur
 l'écran de démarrage, l'écran de la VM, la console série (`tail -f work/qemu/aurora.serial.log`) et
 dans `journalctl -u aurora-autoinstall` ; le journal complet est `/var/log/aurora-install.log`.
 
 Sécurité : le service ne s'exécute que si la ligne de commande contient `aurora.autoinstall=1`
 **et** `boot=casper` **et** que `/cdrom/casper` existe (support live) ; le script revérifie le
-support live et l'installateur retire le service du système installé : un Aurora OS installé ne
+support live et l'installateur retire le service du système installé : un Selene OS installé ne
 peut jamais se réinstaller. Si le disque contient déjà une installation complète (ext4 étiqueté
 `AURORA` dont `/etc/aurora/install-info` contient la ligne `AURORA_INSTALL_COMPLETE` écrite en
 dernier par l'installateur), l'installation automatisée est ignorée sauf avec

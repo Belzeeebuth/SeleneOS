@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Aurora OS — static verification of a built ISO (no virtual machine is started).
+# Selene OS — static verification of a built ISO (no virtual machine is started).
 #
-#   sudo tools/verify-iso.sh [--iso PATH]     (default: newest out/aurora-os-*.iso)
+#   sudo tools/verify-iso.sh [--iso PATH]     (default: newest out/selene-os-*.iso)
 #
 # Checks the boot structure (El Torito BIOS + UEFI images, GPT/MBR hybrid, EFI loader), the GRUB
 # menu (syntax and kernel parameters), the casper live files and md5sum.txt, then mounts the
@@ -26,7 +26,7 @@ for t in xorriso unsquashfs mount findmnt md5sum sha256sum mdir grub-script-chec
   command -v "$t" >/dev/null 2>&1 || { echo "verify-iso: $t is required (xorriso squashfs-tools mtools grub-common)" >&2; exit 1; }
 done
 if [[ -z "$ISO" ]]; then
-  ISO="$(find "$ROOT/out" -maxdepth 1 -name 'aurora-os-*.iso' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n '1s/^[^ ]* //p')"
+  ISO="$(find "$ROOT/out" -maxdepth 1 -name 'selene-os-*.iso' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n '1s/^[^ ]* //p')"
 fi
 [[ -n "$ISO" && -f "$ISO" ]] || { echo "verify-iso: no ISO found (make iso or --iso PATH)" >&2; exit 1; }
 ISO="$(readlink -f "$ISO")"
@@ -119,7 +119,7 @@ check_entry aurora-fr "French entry" locale=fr_FR.UTF-8 keyboard-configuration/l
 check_entry aurora-safe "safe graphics entry" nomodeset
 check_entry aurora-debug "debug entry (serial console)" console=ttyS0,115200n8 aurora.debug
 grep -q -- '--id hdd' "$cfg" && grep -q 'chainloader' "$cfg" && pass "grub.cfg: boot-from-disk entry (BIOS chainload / EFI loaders)" || fail "grub.cfg: no boot-from-disk entry"
-grep -q 'set theme=' "$cfg" && pass "grub.cfg: Aurora theme loaded when the fonts load" || fail "grub.cfg: no theme"
+grep -q 'set theme=' "$cfg" && pass "grub.cfg: Selene OS theme loaded when the fonts load" || fail "grub.cfg: no theme"
 # GRUB decodes only 8-bit, non-interlaced RGB/RGBA PNGs (16-bit, palette or grey images show as garbage).
 bad_png=""
 for png in "$I"/boot/grub/themes/aurora/*.png; do
@@ -214,7 +214,7 @@ nopw="$(grep -rhs 'NOPASSWD' "$S/etc/sudoers" "$S/etc/sudoers.d" | grep -v '^[[:
 if [[ -n "$nopw" ]]; then fail "a NOPASSWD sudo rule is shipped in the image: $nopw"
 else pass "no NOPASSWD sudo rule in the image (/etc/sudoers.d: $sd)"; fi
 [[ ! -e "$S/etc/sudoers.d/casper" ]] && pass "/etc/sudoers.d/casper is not in the image (casper writes it in the live session only)" || fail "/etc/sudoers.d/casper shipped"
-# polkit: the Aurora rule grants nothing to non-administrators beyond power actions.
+# polkit: the Selene OS rule grants nothing to non-administrators beyond power actions.
 pr="$S/etc/polkit-1/rules.d/50-aurora.rules"
 if grep -q 'isInGroup("netdev")' "$pr"; then warn "50-aurora.rules grants actions to the netdev group (standard users)"
 else pass "polkit 50-aurora.rules: network/drive grants limited to administrators (group sudo)"; fi
@@ -242,7 +242,7 @@ grep -q 'export USERNAME="aurora"' "$S/etc/casper.conf" && pass "casper.conf: li
 grep -q '^ENABLED=yes' "$S/etc/ufw/ufw.conf" && pass "ufw: ENABLED=yes" || fail "ufw not enabled"
 grep -q '^DEFAULT_INPUT_POLICY="DROP"' "$S/etc/default/ufw" && pass "ufw: incoming DROP by default" || fail "ufw default input policy"
 pn="$(sed -n 's/^PRETTY_NAME=//p' "$S/usr/lib/os-release")"
-[[ "$pn" == '"Aurora OS '* ]] && pass "os-release PRETTY_NAME=$pn, $(grep -E '^(ID|ID_LIKE|VERSION_CODENAME)=' "$S/usr/lib/os-release" | tr '\n' ' ')" || fail "os-release PRETTY_NAME=$pn"
+[[ "$pn" == '"Selene OS '* ]] && pass "os-release PRETTY_NAME=$pn, $(grep -E '^(ID|ID_LIKE|VERSION_CODENAME)=' "$S/usr/lib/os-release" | tr '\n' ' ')" || fail "os-release PRETTY_NAME=$pn"
 pass "build id: $(cat "$S/etc/aurora/build-id")"
 for u in greetd NetworkManager systemd-resolved ufw apparmor aurora-apparmor; do
   st="$(systemctl --root="$S" is-enabled "$u.service" 2>/dev/null || true)"
@@ -283,13 +283,13 @@ leftover="$(find "$S/var/log" -type f -size +0 -printf '/var/log/%P ' 2>/dev/nul
 nlists="$(find "$S/var/lib/apt/lists" -type f ! -name lock 2>/dev/null | wc -l)"; ndebs="$(find "$S/var/cache/apt/archives" -name '*.deb' 2>/dev/null | wc -l)"
 ((nlists == 0 && ndebs == 0)) && pass "apt lists and .deb cache are empty" || fail "apt caches not cleaned ($nlists list files, $ndebs debs)"
 
-# initramfs: casper + Aurora splash.
+# initramfs: casper + Selene OS splash.
 if [[ -x "$S/usr/bin/lsinitramfs" ]]; then
   mount -t tmpfs tmpfs "$S/tmp" && mount -t tmpfs tmpfs "$S/var/tmp" && mount -t proc proc "$S/proc" && mount --bind /dev "$S/dev"
   cp "$I/casper/initrd" "$S/tmp/initrd"
   lst="$(chroot "$S" lsinitramfs /tmp/initrd 2>/dev/null || true)"
   grep -q 'scripts/casper-bottom/25adduser' <<<"$lst" && pass "initrd: casper scripts" || fail "initrd: no casper scripts"
-  grep -q 'usr/share/plymouth/themes/aurora/aurora.plymouth' <<<"$lst" && pass "initrd: Aurora Plymouth theme" || warn "initrd: no Aurora Plymouth theme"
+  grep -q 'usr/share/plymouth/themes/aurora/aurora.plymouth' <<<"$lst" && pass "initrd: Selene OS Plymouth theme" || warn "initrd: no Selene OS Plymouth theme"
   grep -Eq 'virtio-gpu\.ko|virtio_gpu' <<<"$lst" && pass "initrd: virtio-gpu driver" || warn "initrd: no virtio-gpu module"
   if out="$(chroot "$S" apparmor_parser --skip-kernel-load --skip-cache -Q /etc/apparmor.d/aurora-shell 2>&1)"; then
     pass "AppArmor profile /etc/apparmor.d/aurora-shell parses (apparmor_parser -Q in the image)"

@@ -171,7 +171,7 @@ export async function exportNote(app, note, format) {
         }
         img.removeAttribute('data-att');
       }
-      text = `<!doctype html>\n<html lang="${app.ctx.lang}">\n<head>\n<meta charset="utf-8">\n<meta name="generator" content="Aurora Notes">\n<title>${escapeHtml(title)}</title>\n<style>${EXPORT_CSS}</style>\n</head>\n<body>\n<h1 class="title">${escapeHtml(title)}</h1>\n<p class="meta">${escapeHtml(app.fmtDate(note.modified, true))}</p>\n${box.innerHTML}\n</body>\n</html>\n`;
+      text = `<!doctype html>\n<html lang="${app.ctx.lang}">\n<head>\n<meta charset="utf-8">\n<meta name="generator" content="Selene Notes">\n<title>${escapeHtml(title)}</title>\n<style>${EXPORT_CSS}</style>\n</head>\n<body>\n<h1 class="title">${escapeHtml(title)}</h1>\n<p class="meta">${escapeHtml(app.fmtDate(note.modified, true))}</p>\n${box.innerHTML}\n</body>\n</html>\n`;
     }
     await api.invoke('fs:writeText', dest, text);
     app.toast(t('export.done', { name: dest.split('/').pop() }));

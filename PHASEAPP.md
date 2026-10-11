@@ -1,4 +1,4 @@
-# Aurora OS — app roadmap
+# Selene OS — app roadmap
 
 Apps are added phase by phase. Only one phase is built at a time; the next one starts when the
 user asks for it. Status is also tracked in [PROJECT_STATE.md](PROJECT_STATE.md).

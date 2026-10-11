@@ -1,4 +1,4 @@
-# Aurora OS — project state
+# Selene OS — project state
 
 > **Resuming work? Read this file first** and continue from "Next steps". Do not restart the
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
@@ -11,12 +11,13 @@ _Last updated: 2026-10-11 14:00 UTC — boot fixed in QEMU (black screen after t
 A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 - **Base:** Ubuntu 24.04 (noble), pinned via snapshot.ubuntu.com.
 - **Live session:** casper.
-- **Login and session:** greetd → Electron login screen → Xorg → fullscreen Electron "Aurora Shell", which draws the taskbar, Start menu, windows and all apps.
+- **Login and session:** greetd → Electron login screen → Xorg → fullscreen Electron "Selene Shell", which draws the taskbar, Start menu, windows and all apps.
 - **Languages:** English and French everywhere.
 
 **Decisions taken with the user:**
 - Web-tech shell (Electron).
-- Name "Aurora OS".
+- Name "Selene OS".
+- Renamed Aurora OS -> Selene OS on 2026-10-11 (visible branding; internal aurora-* names kept)
 - Target QEMU first; `WITH_FIRMWARE=1` adds linux-firmware for real hardware.
 - **QEMU testing:** the user tests in QEMU personally; since 2026-10-11 the agent may also boot it headless here
   (`make run HEADLESS=1`, TCG) to debug boot problems.
@@ -82,7 +83,7 @@ aurora-os/
 ## Commands
 
 ```sh
-sudo make iso                      # build out/aurora-os-<ver>-amd64.iso (needs root, Node 22, build tools)
+sudo make iso                      # build out/selene-os-<ver>-amd64.iso (needs root, Node 22, build tools)
 sudo ./iso/build.sh --from system  # fast rebuild when only the shell/rootfs changed (package layer cached)
 make run | run-uefi | run-disk     # QEMU (the user tests these; the agent uses DRY_RUN=1 only)
 make verify-iso                    # static ISO checks (no VM)

@@ -1,5 +1,5 @@
 'use strict';
-// Aurora Shell — Electron main process.
+// Selene Shell — Electron main process.
 // Modes:  --mode=shell (desktop session, default) | --mode=greeter (login screen)
 // Flags:  --dev (windowed, mock backends where system tools are missing)
 //         --open=<appId>[,<appId>]  launch apps at startup (testing)
@@ -38,7 +38,7 @@ if (MODE === 'greeter') {
 } else {
   app.setPath('userData', path.join(os.homedir(), '.config', 'aurora', 'electron'));
 }
-app.setName('Aurora Shell');
+app.setName('Selene Shell');
 
 registerSchemes(protocol);
 
@@ -67,7 +67,7 @@ const env = {
   hostname: os.hostname(),
   live: isLive() || process.env.AURORA_LIVE === '1',
   version: require(path.join(ROOT, 'package.json')).version,
-  osName: 'Aurora OS',
+  osName: 'Selene OS',
   rendererRoot: RENDERER,
 };
 
@@ -117,7 +117,7 @@ function createWindow() {
     show: false,
     frame: false,
     backgroundColor: '#000000',
-    title: MODE === 'greeter' ? 'Aurora Sign-in' : 'Aurora Shell',
+    title: MODE === 'greeter' ? 'Selene Sign-in' : 'Selene Shell',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(ROOT, 'preload', 'preload.js'),

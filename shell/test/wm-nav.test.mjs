@@ -286,7 +286,7 @@ async function mainRun() {
     // -------------------------------------------------------- Alt+Tab
     if (want('alttab')) {
       if (!(await launchIf('calculator'))) await newWin('Calculator', { width: 360, height: 540 });
-      if (!(await launchIf('winver'))) await newWin('About Aurora', { width: 460, height: 420 });
+      if (!(await launchIf('winver'))) await newWin('About Selene OS', { width: 460, height: 420 });
       await sleep(400);
       await newWin('Report.txt — Notes', { width: 720, height: 480 });
       await newWin('Budget 2026', { width: 760, height: 500 });
@@ -854,7 +854,7 @@ async function mainRun() {
       check('Alt+F4 closes the focused window (real key path)', !(await winState(id)));
       await A(() => window.__aurora.wm.focusTop());
       await press('Alt+F4', 500);
-      check('Alt+F4 with no window shows "Shut Down Aurora"', await A(() => !!document.querySelector('.sd-dialog')));
+      check('Alt+F4 with no window shows "Shut Down Selene"', await A(() => !!document.querySelector('.sd-dialog')));
       check('default action is Shut down', (await A(() => document.querySelector('.sd-select').value)) === 'shutdown');
       await A(() => {
         const s = document.querySelector('.sd-select');
@@ -1066,7 +1066,7 @@ async function frenchDarkRun() {
     await hk('Alt+F4');
     await page.waitForSelector('.sd-dialog', { timeout: 2000 }).catch(() => {});
     await sleep(300);
-    check('fr: Shut Down dialog localized', (await A(() => document.querySelector('.sd-hero span')?.textContent)) === 'Arrêter Aurora');
+    check('fr: Shut Down dialog localized', (await A(() => document.querySelector('.sd-hero span')?.textContent)) === 'Arrêter Selene');
     check('fr: Shut Down dialog not clipped', (await clipped('.sd-dialog .btn, .sd-select')).length === 0);
     await shot('wm-shutdown-fr-dark', true);
     await hk('Alt+F4');

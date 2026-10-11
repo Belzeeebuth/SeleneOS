@@ -1,4 +1,4 @@
-# Aurora OS: administrators (group sudo) run the privileged helpers behind the shell's
+# Selene OS: administrators (group sudo) run the privileged helpers behind the shell's
 # elevation prompt (shell/main/lib/exec.js sudoRun). The password is always required here;
 # the live user additionally has NOPASSWD rights from casper (/etc/sudoers.d/casper).
 Cmnd_Alias AURORA_HELPERS = /usr/lib/aurora/helpers/*

@@ -89,7 +89,7 @@ const DEFAULTS = {
   focusMode: { active: false, hideNotifications: true, dimDesktop: true, dimLevel: 40, hideIcons: false, simplifyTaskbar: true, duration: 0, endsAt: 0, prevDnd: null },
   // Area B3 — packs (core/packs.js, core/sounds.js) + input (core/shortcuts.js, features/hotkeys.js, features/snaplayouts.js):
   cursorPack: 'default', // default (system) | classic | midnight | accent | large | highvis | retro
-  cursorSize: 100, // 100–300 (%): size of the pointer (the system pack is drawn as "Aurora light" when > 100)
+  cursorSize: 100, // 100–300 (%): size of the pointer (the system pack is drawn as "Selene light" when > 100)
   iconPack: 'fluent', // fluent (the apps' own icons) | tiles | accent | graphite | mono | outline | glass | retro
   soundPack: 'aurora', // aurora | chimes | retro | soft | silent
   soundEvents: { notification: null, startup: null, shutdown: null }, // null = pack sound, 'none' = silent, '<pack>.<sound>', '/abs/file.ogg'

@@ -1,4 +1,4 @@
-# Aurora Browser (renderer/apps/browser + main/ipc/browser.js).
+# Selene Browser (renderer/apps/browser + main/ipc/browser.js).
 # Web rendering, media codecs and TLS come with Electron/Chromium; these provide trust anchors,
 # common web fonts (metric-compatible Arial/Times/Courier, CJK, emoji) and the user Downloads folder.
 ca-certificates

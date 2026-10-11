@@ -1,4 +1,4 @@
-// Installer tests ("Install Aurora OS": renderer/apps/installer, main/ipc/installer.js,
+// Installer tests ("Install Selene OS": renderer/apps/installer, main/ipc/installer.js,
 // rootfs/usr/lib/aurora/helpers/aurora-install, rootfs/usr/lib/aurora/autoinstall).
 //   Part 1 (pure Node): lsblk / zone.tab parsers, option validation -> helper argv, keyboard ids against
 //          xkb, EN/FR dictionaries, the helper's --dry-run JSON protocol, argument validation and
@@ -117,7 +117,7 @@ async function waitFor(fn, { timeout = 10000, step = 100 } = {}) {
   check('i18n: EN and FR have the same keys', JSON.stringify(en) === JSON.stringify(fr), { onlyEn: en.filter((k) => !fr.includes(k)), onlyFr: fr.filter((k) => !en.includes(k)) });
   check('i18n: no empty strings', [...keys(dict.en).map((k) => k.split('.').reduce((o, x) => o[x], dict.en)), ...keys(dict.fr).map((k) => k.split('.').reduce((o, x) => o[x], dict.fr))].every((v) => typeof v === 'string' && v.trim()));
   const man = JSON.parse(fs.readFileSync(path.join(ROOT, 'renderer/apps/installer/manifest.json'), 'utf8'));
-  check('manifest: liveOnly, names, entry', man.liveOnly === true && man.name.en === 'Install Aurora OS' && man.name.fr === 'Installer Aurora OS' && man.id === 'installer' && man.entry === 'main.js', man);
+  check('manifest: liveOnly, names, entry', man.liveOnly === true && man.name.en === 'Install Selene OS' && man.name.fr === 'Installer Selene OS' && man.id === 'installer' && man.entry === 'main.js', man);
 
   // ---- the root helper: syntax, dry-run protocol, validation (never a real installation here)
   check('helper: bash -n', spawnSync('bash', ['-n', HELPER]).status === 0);
@@ -215,22 +215,22 @@ async function uiTests() {
     const icon404 = await page.evaluate(() => fetch('app://shell/apps/installer/icon.svg').then((r) => r.status));
     check('installer icon, styles and strings load', icon404 === 200 && (await page.evaluate(() => [...document.styleSheets].some((ss) => (ss.href || '').includes('/apps/installer/style.css')))));
     check('installer registered (liveOnly app visible in the live session)', await s.aurora(() => !!window.__aurora.registry.get('installer')));
-    check('desktop shows the "Install Aurora OS" icon in the live session', await waitFor(() => page.evaluate(() => !!document.querySelector('.desk-icon[data-id="special:installer"]'))));
-    check('window title EN', (await page.locator('.app-installer .win-title').textContent()) === 'Install Aurora OS');
-    check('welcome title EN', (await text(page, '.ins-title')) === 'Welcome to Aurora OS');
+    check('desktop shows the "Install Selene OS" icon in the live session', await waitFor(() => page.evaluate(() => !!document.querySelector('.desk-icon[data-id="special:installer"]'))));
+    check('window title EN', (await page.locator('.app-installer .win-title').textContent()) === 'Install Selene OS');
+    check('welcome title EN', (await text(page, '.ins-title')) === 'Welcome to Selene OS');
     check('dry-run badge shown in dev mode', !!(await text(page, '.ins-badge'))?.includes('Simulation'));
     check('welcome: Back hidden, Next enabled', (await page.locator('.app-installer [data-act="back"]').count()) === 0 && (await nextDisabled(page)) === false);
     check('footer has no stray text', (await page.evaluate(() => document.querySelector('.app-installer .ins-foot-right').textContent)) === 'Next');
 
     // language switches the installer live
     await page.click('.app-installer .ins-option[data-lang="fr"]');
-    check('FR: title switches live', (await text(page, '.ins-title')) === 'Bienvenue dans Aurora OS', await text(page, '.ins-title'));
-    check('FR: window title + Next label', (await page.locator('.app-installer .win-title').textContent()) === 'Installer Aurora OS' && (await text(page, '[data-act="next"]')) === 'Suivant');
+    check('FR: title switches live', (await text(page, '.ins-title')) === 'Bienvenue dans Selene OS', await text(page, '.ins-title'));
+    check('FR: window title + Next label', (await page.locator('.app-installer .win-title').textContent()) === 'Installer Selene OS' && (await text(page, '[data-act="next"]')) === 'Suivant');
     check('FR: stepper translated', (await text(page, '.ins-step:nth-child(5) .ins-step-label')) === 'Fuseau horaire');
     check('FR: defaults follow the language (fr keyboard, Europe/Paris)', (await state(page)).keyboard === 'fr' && (await state(page)).timezone === 'Europe/Paris');
     check('FR option is checked', (await page.getAttribute('.app-installer .ins-option[data-lang="fr"]', 'aria-checked')) === 'true');
     await page.click('.app-installer .ins-option[data-lang="en"]');
-    check('EN again', (await text(page, '.ins-title')) === 'Welcome to Aurora OS' && (await state(page)).keyboard === 'us' && (await state(page)).timezone === 'America/New_York');
+    check('EN again', (await text(page, '.ins-title')) === 'Welcome to Selene OS' && (await state(page)).keyboard === 'us' && (await state(page)).timezone === 'America/New_York');
 
     // Enter = Next
     await page.focus('.app-installer .ins-option[data-lang="en"]');
@@ -377,7 +377,7 @@ async function uiTests() {
     check('events: the password never appears', !JSON.stringify(evs).includes('S3cret'));
     const st = await state(page);
     check('done: ring at 100%', (await text(page, '.ins-ring-pct')) === null && st.progress === 100);
-    check('done page: title + remove-media reminder', (await text(page, '.ins-title')) === 'Aurora OS is installed' && (await page.textContent('.app-installer .ins-content'))?.includes('Remove the installation media'));
+    check('done page: title + remove-media reminder', (await text(page, '.ins-title')) === 'Selene OS is installed' && (await page.textContent('.app-installer .ins-content'))?.includes('Remove the installation media'));
     check('done page: account reminder', (await text(page, '.ins-done-account'))?.includes('Jane Doe (jane)'));
     check('done page: stepper all done', (await page.locator('.app-installer .ins-step.done').count()) === 7);
     await page.click('.app-installer [data-act="restart"]');
@@ -426,7 +426,7 @@ async function uiTests() {
     await page.waitForSelector('.dialog');
     await page.click('.dialog .btn.danger');
     check('not admin: error phase with code ENOTADMIN', (await phaseIs(page, 'error', 15000)) && (await state(page)).error?.code === 'ENOTADMIN', (await state(page)).error);
-    check('not admin: clear message instead of the raw sudo error', (await text(page, '.ins-error-msg')) === "This account isn't an administrator, so it can't install Aurora OS. Sign in with an administrator account, or ask an administrator to make your account one.", await text(page, '.ins-error-msg'));
+    check('not admin: clear message instead of the raw sudo error', (await text(page, '.ins-error-msg')) === "This account isn't an administrator, so it can't install Selene OS. Sign in with an administrator account, or ask an administrator to make your account one.", await text(page, '.ins-error-msg'));
     check('not admin: not shown as cancelled', (await text(page, '.ins-title')) === 'The installation failed');
     await s.close();
   }
@@ -449,7 +449,7 @@ async function uiTests() {
     const s = await launchShell({ open: ['installer'], live: true, lang: 'fr', theme: 'dark', env: { AURORA_INSTALLER_DRYRUN_DELAY: '0.02' } });
     const { page } = s;
     await page.waitForSelector('.app-installer .ins[data-step="welcome"]', { timeout: 20000 });
-    check('FR: installer starts in French', (await text(page, '.ins-title')) === 'Bienvenue dans Aurora OS');
+    check('FR: installer starts in French', (await text(page, '.ins-title')) === 'Bienvenue dans Selene OS');
     const st = await state(page);
     check('FR: defaults fr keyboard + Europe/Paris', st.lang === 'fr' && st.keyboard === 'fr' && st.timezone === 'Europe/Paris', st);
     const rawKeys = [];
@@ -483,7 +483,7 @@ async function uiTests() {
     const s = await launchShell({ live: false, lang: 'en' });
     const { page } = s;
     await sleep(500);
-    check('not live: no "Install Aurora OS" desktop icon', !(await page.evaluate(() => !!document.querySelector('.desk-icon[data-id="special:installer"]'))));
+    check('not live: no "Install Selene OS" desktop icon', !(await page.evaluate(() => !!document.querySelector('.desk-icon[data-id="special:installer"]'))));
     await s.close();
   }
 }

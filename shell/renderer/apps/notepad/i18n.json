@@ -191,7 +191,7 @@
       "startupNewDesc": "Ask to save unsaved changes when you close Notepad",
       "about": "About this app",
       "version": "Version {v}",
-      "legal": "Notepad for Aurora OS. Free software released under the MIT license."
+      "legal": "Notepad for Selene OS. Free software released under the MIT license."
     }
   },
   "fr": {
@@ -386,7 +386,7 @@
       "startupNewDesc": "Proposer d'enregistrer les modifications à la fermeture du Bloc-notes",
       "about": "À propos de cette application",
       "version": "Version {v}",
-      "legal": "Bloc-notes pour Aurora OS. Logiciel libre publié sous licence MIT."
+      "legal": "Bloc-notes pour Selene OS. Logiciel libre publié sous licence MIT."
     }
   }
 }

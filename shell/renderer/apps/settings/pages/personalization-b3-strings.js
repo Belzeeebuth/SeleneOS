@@ -8,7 +8,7 @@ i18n.extend({
   en: {
     pzx: {
       cursorSize: 'Size',
-      cursorSizeDesc: 'Makes every pointer bigger. The system pointers can’t grow, so above 100 % they are drawn as “Aurora light”.',
+      cursorSizeDesc: 'Makes every pointer bigger. The system pointers can’t grow, so above 100 % they are drawn as “Selene light”.',
       cursorPreview: 'Every pointer of this pack',
       cursorPreviewDesc: 'Point at a pointer to try it',
       cursorSystemNote: 'The system pointers come from the desktop theme (DMZ white); point at a pointer to see it.',
@@ -33,7 +33,7 @@ i18n.extend({
       iconSpecialNote: 'This PC and the Recycle Bin follow the pack too, on the desktop and in File Explorer.',
       volume: 'Volume of system sounds',
       volumeDesc: 'Notifications, startup, shutdown and the other system sounds (alarms included)',
-      startupSound: 'Play the Aurora startup sound',
+      startupSound: 'Play the Selene startup sound',
       startupSoundDesc: 'When you sign in',
       otherSound: 'Another sound…',
       chooseSound: 'Choose a sound',
@@ -83,7 +83,7 @@ i18n.extend({
   fr: {
     pzx: {
       cursorSize: 'Taille',
-      cursorSizeDesc: 'Agrandit tous les pointeurs. Les pointeurs du système ne peuvent pas grandir : au-delà de 100 %, ils sont dessinés comme « Aurora clair ».',
+      cursorSizeDesc: 'Agrandit tous les pointeurs. Les pointeurs du système ne peuvent pas grandir : au-delà de 100 %, ils sont dessinés comme « Selene clair ».',
       cursorPreview: 'Tous les pointeurs de ce pack',
       cursorPreviewDesc: 'Survolez un pointeur pour l’essayer',
       cursorSystemNote: 'Les pointeurs du système viennent du thème du bureau (DMZ blanc) ; survolez un pointeur pour le voir.',
@@ -108,7 +108,7 @@ i18n.extend({
       iconSpecialNote: 'Ce PC et la Corbeille suivent aussi le pack, sur le bureau et dans l’Explorateur de fichiers.',
       volume: 'Volume des sons système',
       volumeDesc: 'Notifications, démarrage, arrêt et les autres sons système (alarmes comprises)',
-      startupSound: 'Jouer le son de démarrage d’Aurora',
+      startupSound: 'Jouer le son de démarrage de Selene',
       startupSoundDesc: 'À l’ouverture de session',
       otherSound: 'Un autre son…',
       chooseSound: 'Choisir un son',

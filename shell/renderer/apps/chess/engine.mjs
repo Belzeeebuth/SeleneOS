@@ -965,7 +965,7 @@ export class Chess {
     const res = result || headers.Result || this.status()?.result || '*';
     const h = {
       Event: 'Casual game',
-      Site: 'Aurora OS',
+      Site: 'Selene OS',
       Date: formatPgnDate(new Date()),
       Round: '-',
       White: '?',

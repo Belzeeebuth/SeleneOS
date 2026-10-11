@@ -1,4 +1,4 @@
-// Settings > Aurora Update: check (apt-get update + simulation), install (apt-get upgrade with live
+// Settings > Selene Update: check (apt-get update + simulation), install (apt-get upgrade with live
 // progress from APT's status fd), update history (/var/log/apt/history.log).
 import { parseAptSimulation, parseAptStatus, parseAptHistory } from '../lib/parse.js';
 
@@ -193,7 +193,7 @@ async function update(pc) {
               'div',
               { class: 'st-kv st-sub-pad' },
               [
-                [t('about.edition'), info?.osName || 'Aurora OS'],
+                [t('about.edition'), info?.osName || 'Selene OS'],
                 [t('about.version'), info?.version || pc.env.version || '—'],
                 [t('about.build'), info?.buildId || 'dev'],
                 [t('about.base'), info?.distro || '—'],

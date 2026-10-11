@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Aurora Store catalog: command-line tools and services installable from the Store (apt, Ubuntu 24.04 noble). Root-owned; aurora-admin store-install/store-remove only accept the \"apt\" packages listed here. command = program to run in the Terminal; interactive = full-screen tool worth opening directly.",
+  "about": "Selene Store catalog: command-line tools and services installable from the Store (apt, Ubuntu 24.04 noble). Root-owned; aurora-admin store-install/store-remove only accept the \"apt\" packages listed here. command = program to run in the Terminal; interactive = full-screen tool worth opening directly.",
   "items": [
     { "id": "git", "apt": "git", "removable": false, "name": "Git", "category": "development", "icon": "branch", "command": "git", "interactive": false,
       "description": { "en": "Distributed version control: track changes, branch, merge and share code.", "fr": "Gestion de versions distribuée : suivez les modifications, créez des branches, fusionnez et partagez du code." } },

@@ -1,4 +1,4 @@
-# Install Aurora OS (shell/renderer/apps/installer, shell/main/ipc/installer.js,
+# Install Selene OS (shell/renderer/apps/installer, shell/main/ipc/installer.js,
 # /usr/lib/aurora/helpers/aurora-install, /usr/lib/aurora/autoinstall).
 # Partitioning and file systems: wipefs, sfdisk, partx, lsblk, blkid (util-linux, fdisk),
 # mkfs.vfat (dosfstools), mkfs.ext4 (e2fsprogs), partprobe (parted).

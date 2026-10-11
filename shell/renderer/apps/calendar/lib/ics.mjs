@@ -432,7 +432,7 @@ function alarmLines(minutes, title) {
 
 export function serializeIcs({ name = '', events = [], now = Date.now(), color = null } = {}) {
   const evs = events.map(sanitizeEvent).filter(Boolean);
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Aurora OS//Calendar 1.0//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Selene OS//Calendar 1.0//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
   if (name) lines.push(`X-WR-CALNAME:${escapeText(name)}`);
   if (color) lines.push(`X-APPLE-CALENDAR-COLOR:${color}`);
   lines.push(`X-WR-TIMEZONE:${systemTz()}`);

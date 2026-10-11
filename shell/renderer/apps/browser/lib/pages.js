@@ -126,7 +126,7 @@ function newTabPage(bw, tab) {
   const box = h('div', { class: 'bp-ntp-search' }, icon('search', { size: 20, class: 'bp-ntp-sicon' }), input, searchBtn);
   const customize = h('button', { class: 'bp-ntp-tool', 'aria-haspopup': 'menu', onclick: () => customizeMenu() }, icon('settings', { size: 18 }));
   tools.appendChild(customize);
-  const brand = h('div', { class: 'bp-ntp-brand' }, h('img', { src: APP_ICON, alt: '', draggable: false }), h('span', { class: 'bp-ntp-name' }, 'Aurora'));
+  const brand = h('div', { class: 'bp-ntp-brand' }, h('img', { src: APP_ICON, alt: '', draggable: false }), h('span', { class: 'bp-ntp-name' }, 'Selene'));
   if (bw.private) {
     // Private windows: an explainer instead of shortcuts and background (like InPrivate).
     el.classList.remove('with-bg');

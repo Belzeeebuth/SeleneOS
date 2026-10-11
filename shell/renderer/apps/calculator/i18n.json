@@ -64,7 +64,7 @@
   "about": {
    "title": "About Calculator",
    "version": "Version {v}",
-   "text": "Exact decimal arithmetic, scientific functions, programmer integers, date calculation and unit converters. Part of Aurora OS, released under the MIT license."
+   "text": "Exact decimal arithmetic, scientific functions, programmer integers, date calculation and unit converters. Part of Selene OS, released under the MIT license."
   },
   "err": {
    "divzero": "Cannot divide by zero",
@@ -380,7 +380,7 @@
   "about": {
    "title": "À propos de la Calculatrice",
    "version": "Version {v}",
-   "text": "Arithmétique décimale exacte, fonctions scientifiques, entiers pour programmeurs, calcul de dates et convertisseurs d'unités. Fait partie d'Aurora OS, publié sous licence MIT."
+   "text": "Arithmétique décimale exacte, fonctions scientifiques, entiers pour programmeurs, calcul de dates et convertisseurs d'unités. Fait partie de Selene OS, publié sous licence MIT."
   },
   "err": {
    "divzero": "Impossible de diviser par zéro",

@@ -1,4 +1,4 @@
-// Ctrl+Alt+Delete security screen and the Alt+F4 "Shut Down Aurora" dialog (Alt+F4 on the desktop).
+// Ctrl+Alt+Delete security screen and the Alt+F4 "Shut Down Selene" dialog (Alt+F4 on the desktop).
 //   shell.on('security:open')      fullscreen blurred overlay: Lock, Switch user, Sign out,
 //                                  Change a password, Task Manager, Cancel; network / accessibility /
 //                                  power buttons bottom-right.
@@ -34,7 +34,7 @@ i18n.extend({
       animations: 'Animation effects',
       transparency: 'Transparency effects',
       accessibilitySettings: 'Accessibility settings',
-      shutdownTitle: 'Shut Down Aurora',
+      shutdownTitle: 'Shut Down Selene',
       shutdownQuestion: 'What do you want the computer to do?',
       d_switchUser: 'Locks the PC so another person can sign in. Your apps stay open.',
       d_signOut: 'Closes all apps and signs you out.',
@@ -62,7 +62,7 @@ i18n.extend({
       animations: "Effets d'animation",
       transparency: 'Effets de transparence',
       accessibilitySettings: "Paramètres d'accessibilité",
-      shutdownTitle: 'Arrêter Aurora',
+      shutdownTitle: 'Arrêter Selene',
       shutdownQuestion: "Que voulez-vous que l'ordinateur fasse ?",
       d_switchUser: "Verrouille le PC pour qu'une autre personne puisse se connecter. Vos applications restent ouvertes.",
       d_signOut: 'Ferme toutes les applications et vous déconnecte.',

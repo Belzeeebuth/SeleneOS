@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""aurora-checkpass: verify the calling user's password with PAM (Aurora lock screen).
+"""aurora-checkpass: verify the calling user's password with PAM (Selene lock screen).
 
 Usage: aurora-checkpass [--user NAME] [--service NAME] [--confdir DIR]
 

@@ -1,6 +1,6 @@
 {
   "en": {
-    "title": "Install Aurora OS",
+    "title": "Install Selene OS",
     "next": "Next",
     "back": "Back",
     "install": "Install",
@@ -21,13 +21,13 @@
       "install": "Install"
     },
     "welcome": {
-      "title": "Welcome to Aurora OS",
-      "subtitle": "Let's install Aurora OS on this computer. First, choose your language: it is used by this installer and by the installed system.",
+      "title": "Welcome to Selene OS",
+      "subtitle": "Let's install Selene OS on this computer. First, choose your language: it is used by this installer and by the installed system.",
       "enName": "English",
       "enRegion": "United States",
       "frName": "Français",
       "frRegion": "France",
-      "note": "You can keep using the live session while Aurora OS is being installed."
+      "note": "You can keep using the live session while Selene OS is being installed."
     },
     "keyboard": {
       "title": "Is this the right keyboard layout?",
@@ -38,15 +38,15 @@
       "none": "No layout matches “{q}”."
     },
     "disk": {
-      "title": "Where do you want to install Aurora OS?",
-      "subtitle": "Aurora OS uses a whole disk. Choose the disk to install it on.",
+      "title": "Where do you want to install Selene OS?",
+      "subtitle": "Selene OS uses a whole disk. Choose the disk to install it on.",
       "warning": "Everything on the selected disk will be erased: partitions, files and any other operating system.",
       "empty": "No partitions",
       "partitions_one": "{count} partition",
       "partitions_other": "{count} partitions",
       "tooSmall": "Too small: at least {size} needed",
       "removable": "Removable",
-      "none": "No disk was found where Aurora OS can be installed.",
+      "none": "No disk was found where Selene OS can be installed.",
       "noneHint": "Connect a disk of at least {size}, then select Refresh.",
       "loading": "Looking for disks…",
       "unknownModel": "Disk",
@@ -85,7 +85,7 @@
     },
     "tz": {
       "title": "Choose your time zone",
-      "subtitle": "Aurora OS uses it for the clock and the calendar.",
+      "subtitle": "Selene OS uses it for the clock and the calendar.",
       "search": "Search for a city or a region",
       "none": "No time zone matches “{q}”.",
       "utc": "Coordinated Universal Time",
@@ -125,12 +125,12 @@
       "ok": "Erase and install"
     },
     "installing": {
-      "title": "Installing Aurora OS",
+      "title": "Installing Selene OS",
       "subtitle": "This takes a few minutes. You can keep using the live session in the meantime.",
       "details": "Show details",
       "hideDetails": "Hide details",
       "cancelTitle": "Cancel the installation?",
-      "cancelBody": "The selected disk will be left unusable until Aurora OS is installed on it again.",
+      "cancelBody": "The selected disk will be left unusable until Selene OS is installed on it again.",
       "cancelOk": "Cancel installation",
       "continue": "Continue installing",
       "cancelling": "Cancelling…",
@@ -145,8 +145,8 @@
       "cleanup": "Finishing up"
     },
     "done": {
-      "title": "Aurora OS is installed",
-      "subtitle": "Restart your computer to start using Aurora OS.",
+      "title": "Selene OS is installed",
+      "subtitle": "Restart your computer to start using Selene OS.",
       "removeMedia": "Remove the installation media (ISO file or USB stick) before the computer restarts, so that it starts from the disk.",
       "account": "Sign in as {name} ({user}).",
       "restart": "Restart now",
@@ -157,20 +157,20 @@
     },
     "error": {
       "title": "The installation failed",
-      "subtitle": "Aurora OS could not be installed. Nothing else on this computer was changed, but the selected disk may be unusable until the installation succeeds.",
+      "subtitle": "Selene OS could not be installed. Nothing else on this computer was changed, but the selected disk may be unusable until the installation succeeds.",
       "cancelledTitle": "Installation cancelled",
       "cancelledSubtitle": "The installation was stopped. Start it again to make the selected disk usable.",
       "details": "What happened",
       "log": "Last lines of the log",
       "logFile": "Full log: /var/log/aurora-install.log",
       "retry": "Try again",
-      "auth": "Administrator rights are required to install Aurora OS.",
-      "notAdmin": "This account isn't an administrator, so it can't install Aurora OS. Sign in with an administrator account, or ask an administrator to make your account one.",
+      "auth": "Administrator rights are required to install Selene OS.",
+      "notAdmin": "This account isn't an administrator, so it can't install Selene OS. Sign in with an administrator account, or ask an administrator to make your account one.",
       "start": "The installation could not start: {error}"
     }
   },
   "fr": {
-    "title": "Installer Aurora OS",
+    "title": "Installer Selene OS",
     "next": "Suivant",
     "back": "Précédent",
     "install": "Installer",
@@ -191,13 +191,13 @@
       "install": "Installation"
     },
     "welcome": {
-      "title": "Bienvenue dans Aurora OS",
-      "subtitle": "Installons Aurora OS sur cet ordinateur. Choisissez d'abord votre langue : elle sera utilisée par ce programme d'installation et par le système installé.",
+      "title": "Bienvenue dans Selene OS",
+      "subtitle": "Installons Selene OS sur cet ordinateur. Choisissez d'abord votre langue : elle sera utilisée par ce programme d'installation et par le système installé.",
       "enName": "English",
       "enRegion": "États-Unis",
       "frName": "Français",
       "frRegion": "France",
-      "note": "Vous pouvez continuer à utiliser la session live pendant l'installation d'Aurora OS."
+      "note": "Vous pouvez continuer à utiliser la session live pendant l'installation de Selene OS."
     },
     "keyboard": {
       "title": "Est-ce la bonne disposition de clavier ?",
@@ -208,15 +208,15 @@
       "none": "Aucune disposition ne correspond à « {q} »."
     },
     "disk": {
-      "title": "Où voulez-vous installer Aurora OS ?",
-      "subtitle": "Aurora OS utilise un disque entier. Choisissez le disque sur lequel l'installer.",
+      "title": "Où voulez-vous installer Selene OS ?",
+      "subtitle": "Selene OS utilise un disque entier. Choisissez le disque sur lequel l'installer.",
       "warning": "Tout le contenu du disque sélectionné sera effacé : partitions, fichiers et tout autre système d'exploitation.",
       "empty": "Aucune partition",
       "partitions_one": "{count} partition",
       "partitions_other": "{count} partitions",
       "tooSmall": "Trop petit : {size} minimum",
       "removable": "Amovible",
-      "none": "Aucun disque permettant d'installer Aurora OS n'a été trouvé.",
+      "none": "Aucun disque permettant d'installer Selene OS n'a été trouvé.",
       "noneHint": "Branchez un disque d'au moins {size}, puis sélectionnez Actualiser.",
       "loading": "Recherche des disques…",
       "unknownModel": "Disque",
@@ -255,7 +255,7 @@
     },
     "tz": {
       "title": "Choisissez votre fuseau horaire",
-      "subtitle": "Aurora OS l'utilise pour l'horloge et le calendrier.",
+      "subtitle": "Selene OS l'utilise pour l'horloge et le calendrier.",
       "search": "Rechercher une ville ou une région",
       "none": "Aucun fuseau horaire ne correspond à « {q} ».",
       "utc": "Temps universel coordonné",
@@ -295,12 +295,12 @@
       "ok": "Effacer et installer"
     },
     "installing": {
-      "title": "Installation d'Aurora OS",
+      "title": "Installation de Selene OS",
       "subtitle": "Cela prend quelques minutes. Vous pouvez continuer à utiliser la session live en attendant.",
       "details": "Afficher les détails",
       "hideDetails": "Masquer les détails",
       "cancelTitle": "Annuler l'installation ?",
-      "cancelBody": "Le disque sélectionné restera inutilisable tant qu'Aurora OS n'y aura pas été réinstallé.",
+      "cancelBody": "Le disque sélectionné restera inutilisable tant que Selene OS n'y aura pas été réinstallé.",
       "cancelOk": "Annuler l'installation",
       "continue": "Poursuivre l'installation",
       "cancelling": "Annulation…",
@@ -315,8 +315,8 @@
       "cleanup": "Finalisation"
     },
     "done": {
-      "title": "Aurora OS est installé",
-      "subtitle": "Redémarrez l'ordinateur pour commencer à utiliser Aurora OS.",
+      "title": "Selene OS est installé",
+      "subtitle": "Redémarrez l'ordinateur pour commencer à utiliser Selene OS.",
       "removeMedia": "Retirez le support d'installation (fichier ISO ou clé USB) avant le redémarrage, pour que l'ordinateur démarre sur le disque.",
       "account": "Connectez-vous en tant que {name} ({user}).",
       "restart": "Redémarrer maintenant",
@@ -327,15 +327,15 @@
     },
     "error": {
       "title": "L'installation a échoué",
-      "subtitle": "Aurora OS n'a pas pu être installé. Rien d'autre n'a été modifié sur cet ordinateur, mais le disque sélectionné restera peut-être inutilisable tant que l'installation n'aura pas réussi.",
+      "subtitle": "Selene OS n'a pas pu être installé. Rien d'autre n'a été modifié sur cet ordinateur, mais le disque sélectionné restera peut-être inutilisable tant que l'installation n'aura pas réussi.",
       "cancelledTitle": "Installation annulée",
       "cancelledSubtitle": "L'installation a été interrompue. Relancez-la pour rendre le disque sélectionné utilisable.",
       "details": "Ce qui s'est passé",
       "log": "Dernières lignes du journal",
       "logFile": "Journal complet : /var/log/aurora-install.log",
       "retry": "Réessayer",
-      "auth": "Des droits d'administrateur sont nécessaires pour installer Aurora OS.",
-      "notAdmin": "Ce compte n'est pas administrateur : il ne peut pas installer Aurora OS. Connectez-vous avec un compte administrateur ou demandez à un administrateur de modifier le type de votre compte.",
+      "auth": "Des droits d'administrateur sont nécessaires pour installer Selene OS.",
+      "notAdmin": "Ce compte n'est pas administrateur : il ne peut pas installer Selene OS. Connectez-vous avec un compte administrateur ou demandez à un administrateur de modifier le type de votre compte.",
       "start": "L'installation n'a pas pu démarrer : {error}"
     }
   }

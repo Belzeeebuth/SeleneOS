@@ -64,7 +64,7 @@
       "wood": "Classic wood",
       "green": "Green",
       "blue": "Blue",
-      "aurora": "Aurora (accent color)",
+      "aurora": "Selene (accent color)",
       "dark": "Dark"
     },
     "status": {
@@ -346,7 +346,7 @@
       "wood": "Bois classique",
       "green": "Vert",
       "blue": "Bleu",
-      "aurora": "Aurora (couleur d'accentuation)",
+      "aurora": "Selene (couleur d'accentuation)",
       "dark": "Sombre"
     },
     "status": {

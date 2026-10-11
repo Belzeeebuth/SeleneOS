@@ -90,7 +90,7 @@
     "thisApp": "Cette application",
     "password": "Mot de passe",
     "question": "Voulez-vous autoriser cette application à apporter des modifications à votre appareil ?",
-    "publisher": "Éditeur vérifié : Aurora OS",
+    "publisher": "Éditeur vérifié : Selene OS",
     "enterPassword": "Pour continuer, entrez le mot de passe de {user}."
   },
   "taskbar": {
@@ -134,7 +134,7 @@
   "desktop": {
     "thisPc": "Ce PC",
     "recycleBin": "Corbeille",
-    "installAurora": "Installer Aurora OS",
+    "installAurora": "Installer Selene OS",
     "open": "Ouvrir",
     "newTextDoc": "Nouveau document texte",
     "view": "Affichage",

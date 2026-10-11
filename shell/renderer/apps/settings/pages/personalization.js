@@ -9,8 +9,8 @@ import { ensureStrings } from './personalization-strings.js';
 ensureStrings();
 
 export const THEMES = [
-  { id: 'light', name: { en: 'Aurora Light', fr: 'Aurora clair' }, wallpaper: 'builtin:bloom', theme: 'light', accent: '#0078d4' },
-  { id: 'dark', name: { en: 'Aurora Dark', fr: 'Aurora sombre' }, wallpaper: 'builtin:bloom', theme: 'dark', accent: '#0078d4' },
+  { id: 'light', name: { en: 'Selene Light', fr: 'Selene clair' }, wallpaper: 'builtin:bloom', theme: 'light', accent: '#0078d4' },
+  { id: 'dark', name: { en: 'Selene Dark', fr: 'Selene sombre' }, wallpaper: 'builtin:bloom', theme: 'dark', accent: '#0078d4' },
   { id: 'glow', name: { en: 'Glow', fr: 'Lueur' }, wallpaper: 'builtin:glow', theme: 'dark', accent: '#8764b8' },
   { id: 'flow', name: { en: 'Flow', fr: 'Flux' }, wallpaper: 'builtin:flow', theme: 'light', accent: '#0063b1' },
   { id: 'sunrise', name: { en: 'Sunrise', fr: 'Aurore' }, wallpaper: 'builtin:sunrise', theme: 'light', accent: '#da3b01' },

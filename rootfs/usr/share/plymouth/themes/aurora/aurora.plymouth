@@ -1,11 +1,11 @@
 [Plymouth Theme]
-Name=Aurora OS
-Name[fr]=Aurora OS
-Description=Aurora OS boot splash: logo and spinner on black.
-Description[fr]=Écran de démarrage d'Aurora OS : logo et indicateur de chargement sur fond noir.
+Name=Selene OS
+Name[fr]=Selene OS
+Description=Selene OS boot splash: logo and spinner on black.
+Description[fr]=Écran de démarrage de Selene OS : logo et indicateur de chargement sur fond noir.
 ModuleName=two-step
 
-# Images: watermark.png (Aurora logo, rendered from shell/renderer/assets/aurora-logo.svg)
+# Images: watermark.png (Selene OS logo, rendered from shell/renderer/assets/aurora-logo.svg)
 # and the spinner/dialog images of Ubuntu's "spinner" theme, copied by iso/build.sh.
 [two-step]
 Font=Ubuntu 12
@@ -47,7 +47,7 @@ SubTitle=Do not turn off your computer / N'éteignez pas votre ordinateur
 SuppressMessages=true
 ProgressBarShowPercentComplete=true
 UseProgressBar=true
-Title=Upgrading Aurora OS... / Mise à niveau d'Aurora OS...
+Title=Upgrading Selene OS... / Mise à niveau de Selene OS...
 SubTitle=Do not turn off your computer / N'éteignez pas votre ordinateur
 
 [firmware-upgrade]
@@ -61,5 +61,5 @@ SubTitle=Do not turn off your computer / N'éteignez pas votre ordinateur
 SuppressMessages=true
 ProgressBarShowPercentComplete=true
 UseProgressBar=true
-Title=Resetting Aurora OS... / Réinitialisation d'Aurora OS...
+Title=Resetting Selene OS... / Réinitialisation de Selene OS...
 SubTitle=Do not turn off your computer / N'éteignez pas votre ordinateur

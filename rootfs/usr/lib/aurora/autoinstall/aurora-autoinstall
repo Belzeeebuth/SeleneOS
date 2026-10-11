@@ -1,5 +1,5 @@
 #!/bin/bash
-# aurora-autoinstall — unattended installation of Aurora OS from the live medium (VM testing, labs).
+# aurora-autoinstall — unattended installation of Selene OS from the live medium (VM testing, labs).
 #
 # Started at boot by aurora-autoinstall.service when the kernel command line contains
 # aurora.autoinstall=1. LIVE MEDIA ONLY: the unit requires boot=casper on the command line and
@@ -11,7 +11,7 @@
 #   aurora.autoinstall.disk=/dev/vda       disk to ERASE (default: the only eligible disk; refused if several)
 #   aurora.autoinstall.user=aurora         account name                       (default: aurora)
 #   aurora.autoinstall.password=aurora     account password — readable in /proc/cmdline, testing only (default: aurora)
-#   aurora.autoinstall.fullname=Jane+Doe   full name, "+" or "%20" for spaces  (default: Aurora User)
+#   aurora.autoinstall.fullname=Jane+Doe   full name, "+" or "%20" for spaces  (default: Selene User)
 #   aurora.autoinstall.hostname=aurora-pc  computer name                      (default: <user>-pc)
 #   aurora.autoinstall.lang=en|fr          system language                    (default: en)
 #   aurora.autoinstall.keyboard=us|fr|...  keyboard layout, e.g. fr(oss)      (default: us; fr when lang=fr)
@@ -65,7 +65,7 @@ urldecode() { local s=${1//+/ }; printf '%b' "${s//%/\\x}"; }
 # ---- live medium only (defence in depth: the unit checks the same conditions)
 [[ " $CMDLINE " == *" aurora.autoinstall=1 "* ]] || { echo "aurora.autoinstall=1 is not set: nothing to do"; exit 0; }
 if [[ " $CMDLINE " != *" boot=casper "* || ! -d /cdrom/casper ]]; then
-  echo "not running from the Aurora OS live medium: automated installation refused"
+  echo "not running from the Selene OS live medium: automated installation refused"
   exit 0
 fi
 [[ -x "$HELPER" ]] || fail "$HELPER is missing"
@@ -74,7 +74,7 @@ LANG_ID=$(param lang en)
 case "$LANG_ID" in fr) DEF_KBD=fr DEF_TZ=Europe/Paris ;; *) LANG_ID=en DEF_KBD=us DEF_TZ=UTC ;; esac
 USER_NAME=$(param user aurora)
 PASSWORD=$(urldecode "$(param password aurora)")
-FULLNAME=$(urldecode "$(param fullname 'Aurora+User')")
+FULLNAME=$(urldecode "$(param fullname 'Selene+User')")
 HOST_NAME=$(param hostname "$USER_NAME-pc")
 KEYBOARD=$(param keyboard "$DEF_KBD")
 TIMEZONE=$(param timezone "$DEF_TZ")
@@ -110,7 +110,7 @@ else
 fi
 
 # ---- never reinstall in a loop (direct kernel boot restarts the live system after a reboot)
-has_aurora() { # the disk holds a COMPLETE Aurora OS installation (an interrupted one is retried)
+has_aurora() { # the disk holds a COMPLETE Selene OS installation (an interrupted one is retried)
   local p info
   for p in $(lsblk -nrpo NAME,TYPE "$1" 2>/dev/null | awk '$2 == "part" {print $1}'); do
     info=" $(blkid -p -o export "$p" 2>/dev/null | tr '\n' ' ') "   # probed, not udev's cache
@@ -121,13 +121,13 @@ has_aurora() { # the disk holds a COMPLETE Aurora OS installation (an interrupte
   return 1
 }
 if [[ "$(param force 0)" != 1 ]] && has_aurora "$DISK"; then
-  say "Aurora OS is already installed on $DISK: automated installation skipped (add aurora.autoinstall.force=1 to reinstall)."
+  say "Selene OS is already installed on $DISK: automated installation skipped (add aurora.autoinstall.force=1 to reinstall)."
   exit 0
 fi
 
 AUTOLOGIN=()
 [[ "$(param autologin 0)" == 1 ]] && AUTOLOGIN=(--autologin)
-say "Installing Aurora OS on $DISK (user $USER_NAME, $LANG_ID, keyboard $KEYBOARD, $TIMEZONE)…"
+say "Installing Selene OS on $DISK (user $USER_NAME, $LANG_ID, keyboard $KEYBOARD, $TIMEZONE)…"
 ERRFILE=/run/aurora-autoinstall.error
 rm -f "$ERRFILE"
 progress_reader() { # JSON lines of aurora-install -> console + boot splash
@@ -140,7 +140,7 @@ progress_reader() { # JSON lines of aurora-install -> console + boot splash
       [[ "$line" =~ \"message\":\"(([^\"\\]|\\.)*)\" ]] && msg=${BASH_REMATCH[1]}
       if [[ -n "$msg" ]] || ((pct >= last + 5)); then
         last=$pct
-        say "Installing Aurora OS… ${pct}%${msg:+ — $msg}"
+        say "Installing Selene OS… ${pct}%${msg:+ — $msg}"
       fi
     fi
   done
@@ -157,8 +157,8 @@ if ((rc != 0)); then
 fi
 
 case "$FINISH" in
-  poweroff) say "Aurora OS is installed on $DISK. Powering off…"; sleep 3; systemctl --no-block poweroff ;;
-  reboot) say "Aurora OS is installed on $DISK. Restarting…"; sleep 3; systemctl --no-block reboot ;;
-  none) say "Aurora OS is installed on $DISK." ;;
+  poweroff) say "Selene OS is installed on $DISK. Powering off…"; sleep 3; systemctl --no-block poweroff ;;
+  reboot) say "Selene OS is installed on $DISK. Restarting…"; sleep 3; systemctl --no-block reboot ;;
+  none) say "Selene OS is installed on $DISK." ;;
 esac
 exit 0

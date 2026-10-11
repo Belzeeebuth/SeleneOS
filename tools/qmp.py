@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aurora OS — small QMP / QEMU guest agent client for automated VM testing (stdlib only).
+"""Selene OS — small QMP / QEMU guest agent client for automated VM testing (stdlib only).
 
 QMP (machine monitor, --sock work/qemu/aurora.qmp):
   qmp.py screendump out.png               save the screen as PNG

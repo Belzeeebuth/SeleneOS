@@ -1,4 +1,4 @@
-# Aurora OS — Personalization
+# Selene OS — Personalization
 
 This document is the contract for every personalization feature: the settings keys, what applies them,
 how visual styles and per-app themes work, and the profile system. Each area appends its
@@ -96,7 +96,7 @@ Notes:
 | Key | Type | Default | Effect |
 |---|---|---|---|
 | `cursorPack` | `'default' \| 'classic' \| 'midnight' \| 'accent' \| 'large' \| 'highvis' \| 'retro'` | `'default'` | Mouse pointer pack (`default` = the system cursors) |
-| `cursorSize` | 100–300 (%) | `100` | Pointer size for every pack; the system pack cannot grow, so above 100 % it is drawn as "Aurora light" |
+| `cursorSize` | 100–300 (%) | `100` | Pointer size for every pack; the system pack cannot grow, so above 100 % it is drawn as "Selene light" |
 | `iconPack` | `'fluent' \| 'tiles' \| 'accent' \| 'glass' \| 'graphite' \| 'mono' \| 'outline' \| 'retro'` | `'fluent'` | App icons everywhere in the shell (+ This PC / Recycle Bin, file-type icon tints; `fluent` = the apps' own icons) |
 | `soundPack` | `'aurora' \| 'chimes' \| 'retro' \| 'soft' \| 'silent'` | `'aurora'` | Scheme of every system sound (`silent`: only alarms ring) |
 | `soundEvents` | `{ notification, startup, shutdown }`, each `null \| 'none' \| '<pack>.<sound>' \| '/abs/file.ogg'` | all `null` | Per-event sound. `null` = the pack's sound. Files: `.ogg .oga .opus .wav .mp3 .flac .m4a .webm` |
@@ -249,8 +249,8 @@ call runs inside `theme.transition()`, a ~300 ms cross-fade.
 **Built-in profiles** only set the *look* keys (`LOOK_KEYS`). They never touch accessibility (`textScale`,
 `scale`, `reducedMotion`, `animations`) or layout keys. The built-ins are:
 
-- Aurora Light
-- Aurora Dark
+- Selene Light
+- Selene Dark
 - Glass
 - Minimal
 - Retro
@@ -407,7 +407,7 @@ built-in profiles go back to a static picture.
   when `pauseOnMaximized`), `locked` (lock screen), `hidden` (document hidden), `motion` (`reducedMotion` or animation
   effects off: a still frame, no loop). Nothing is scheduled while paused.
 - **Effects** (`core/wallpaper/effects/*.js`, contract in `engine.js`): `aurora` (northern-lights curtains over a mountain
-  lake, with reflection), `bloom` (the Aurora flower: petals sway and breathe, a light band glides over the glass; in the
+  lake, with reflection), `bloom` (the Selene flower: petals sway and breathe, a light band glides over the glass; in the
   accent colour), `fluid` (mesh gradient in the accent colour), `bokeh` (drifting soft lights with parallax), `starfield`
   (Milky Way, twinkling stars, shooting stars), `waves` (layered swells in the accent colour). Light and dark variants.
 - **Measured cost** (1600×900 desktop, software rendering, 4-core container shared with other test runs; checked by
@@ -494,7 +494,7 @@ await api.invoke('weather:stats')               // { requests, cacheHits, failur
 
 - **Background** (`background`): live desktop preview and status ("On your desktop now"), and *Personalize your
   background*: Picture / Solid color / Slideshow / Animated / Dynamic (time of day), each with its own controls.
-  Slideshow: album folder (Browse, and *Use Aurora pictures* while a folder is chosen), interval, shuffle, *Next
+  Slideshow: album folder (Browse, and *Use Selene pictures* while a folder is chosen), interval, shuffle, *Next
   picture*, fit. Sun times use the taskbar clock's format (two-digit hours with a 24-hour clock: "Lever 06:04").
 - **Animated & dynamic wallpapers** (`wallpaperEffects`): effect gallery with live mini previews (15 fps, only while
   visible), speed, intensity, frame rate, pause when apps are maximized; picture sets with their four phases; changes with
@@ -671,7 +671,7 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 
 ### 11.1 Cursor packs (`core/packs.js`)
 
-- **Packs:** System (`default`, the platform cursors), Aurora light (`classic`, white with a black outline, 24 px),
+- **Packs:** System (`default`, the platform cursors), Selene light (`classic`, white with a black outline, 24 px),
   Midnight (black, white outline), Accent color (filled with the current accent, redrawn when it changes), Large (40 px),
   High visibility (yellow, black outline, 32 px), Retro pixel (pixel-art upscaled, 32 px).
 - **How:** the first time a pack other than System is chosen, every plain cursor keyword of the loaded style sheets
@@ -688,7 +688,7 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 
 ### 11.2 Icon packs (`core/packs.js`)
 
-- **Packs:** Fluent (`fluent`, the apps' own icons), Aurora tiles (glyph on a coloured rounded tile, one colour per
+- **Packs:** Fluent (`fluent`, the apps' own icons), Selene tiles (glyph on a coloured rounded tile, one colour per
   app), Accent tiles (every tile in the accent colour, redrawn when it changes), Glass (glyph on a frosted rounded
   square), Graphite (monochrome tiles), Monochrome (`mono`, single-colour glyphs drawn for the system mode and inverted
   inside a window of the other mode), Outline (line glyphs, no tile), Retro pixel (48 px pixel-art PNG).
@@ -703,7 +703,7 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 
 ### 11.3 Sound packs and event sounds (`core/sounds.js`)
 
-- **Packs** (WebAudio synthesis, no audio files): Aurora (the original sounds), Chimes (bell tones), Retro 8-bit
+- **Packs** (WebAudio synthesis, no audio files): Selene (the original sounds), Chimes (bell tones), Retro 8-bit
   (square waves), Soft (low triangle waves), Silent (nothing except alarms). Every system sound follows the pack:
   `notify`, `startup` (at sign-in, `core/boot.js`; `startupSound` off skips it), `shutdown` (sign out / restart / shut
   down wait for it, max 1 s, `core/services.js`), `logon`, `unlock`, `error`, `warning`, `click`, `screenshot`, `alarm`,
@@ -810,7 +810,7 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/personalization-she
 
 ## 14. Résumé en français
 
-La personnalisation d’Aurora est complète et pilotée par des clés de paramètres (toutes appliquées en direct,
+La personnalisation de Selene OS est complète et pilotée par des clés de paramètres (toutes appliquées en direct,
 persistées dans `~/.config/aurora/settings.json`, avec une valeur par défaut dans `main/ipc/settings.js`, accessibles
 depuis Paramètres › Personnalisation en anglais et en français, et enregistrées par les profils) :
 

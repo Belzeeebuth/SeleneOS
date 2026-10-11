@@ -234,7 +234,7 @@ function register(api) {
       const { net } = require('electron');
       let res;
       try {
-        res = await net.fetch(url, { ...init, signal: ctrl.signal, headers: { Accept: 'application/json', 'User-Agent': `AuroraOS/${api.env?.version || '1'}`, ...(init.headers || {}) } });
+        res = await net.fetch(url, { ...init, signal: ctrl.signal, headers: { Accept: 'application/json', 'User-Agent': `SeleneOS/${api.env?.version || '1'}`, ...(init.headers || {}) } });
       } catch (e) {
         throw ctrl.signal.aborted ? err('The request timed out', 'ETIMEDOUT') : err(`Network unreachable (${e.message})`, 'EOFFLINE');
       }

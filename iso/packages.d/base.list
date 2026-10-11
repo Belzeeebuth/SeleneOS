@@ -1,4 +1,4 @@
-# Aurora OS base system (owned by the ISO build).
+# Selene OS base system (owned by the ISO build).
 # One package per line; blank lines and # comments are ignored. Packages are installed
 # WITHOUT Recommends: list everything you need explicitly.
 # The kernel is added by iso/build.sh ($KERNEL_PACKAGE, plus linux-firmware when WITH_FIRMWARE=1).

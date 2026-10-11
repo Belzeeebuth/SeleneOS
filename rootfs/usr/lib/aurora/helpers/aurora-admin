@@ -1,5 +1,5 @@
 #!/bin/bash
-# aurora-admin — the privileged actions behind Aurora Shell's elevation prompt (UAC).
+# aurora-admin — the privileged actions behind Selene Shell's elevation prompt (UAC).
 #
 # Run as root through sudo by the shell (shell/main/ipc/admin.js -> lib/exec.js sudoRun):
 #     sudo -S -k -p '' -- /usr/lib/aurora/helpers/aurora-admin <action> [args...]
@@ -398,7 +398,7 @@ store-install | store-remove)
   STORE_CATALOG=/usr/share/aurora/store/catalog.json
   { [ -f "$STORE_CATALOG" ] && [ ! -L "$STORE_CATALOG" ]; } || die 3 "the store catalog is missing"
   [ "$(stat -c %u -- "$STORE_CATALOG")" = 0 ] || die 4 "the store catalog is not owned by root"
-  # "removable" or "fixed" (shipped with Aurora OS: "removable": false); not in the catalog -> refused.
+  # "removable" or "fixed" (shipped with Selene OS: "removable": false); not in the catalog -> refused.
   store_kind=$(python3 -I -c 'import json, sys
 for it in json.load(open(sys.argv[1])).get("items", []):
     if isinstance(it, dict) and it.get("apt") == sys.argv[2]:
@@ -418,7 +418,7 @@ sys.exit(1)' "$STORE_CATALOG" "$pkg") || die 4 "this package is not in the store
       store_apt_install || die 5 "could not install $pkg (see the system journal)"
     fi
   else
-    [ "$store_kind" = fixed ] && die 6 "$pkg is part of Aurora OS and cannot be removed from the Store"
+    [ "$store_kind" = fixed ] && die 6 "$pkg is part of Selene OS and cannot be removed from the Store"
     # Never take other packages along (apt removes everything that depends on $pkg without asking).
     store_others=$(apt-get -s -q -o DPkg::Lock::Timeout=120 remove "$pkg" 2>/dev/null | awk -v p="$pkg" '$1 == "Remv" && $2 != p { printf "%s ", $2 }') || true
     [ -z "$store_others" ] || die 6 "removing $pkg would also remove: ${store_others% }"

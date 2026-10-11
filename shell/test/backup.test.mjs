@@ -64,7 +64,7 @@ async function dialogButton(s, label) {
   await sleep(300);
 }
 const ino = (p) => fs.statSync(p).ino;
-const snapRoot = (dest) => path.join(dest, 'AuroraBackup');
+const snapRoot = (dest) => path.join(dest, 'SeleneBackup');
 const snaps = (dest) => (fs.existsSync(snapRoot(dest)) ? fs.readdirSync(snapRoot(dest)).sort() : []);
 
 // ---------------------------------------------------------------- fixtures

@@ -57,7 +57,7 @@
     "grp": {
       "apps": "Apps ({count})",
       "background": "Background processes ({count})",
-      "system": "Aurora processes ({count})"
+      "system": "Selene processes ({count})"
     },
     "col": {
       "name": "Name",
@@ -99,8 +99,8 @@
       "low": "Low"
     },
     "shell": {
-      "name": "Aurora Shell",
-      "main": "Aurora Shell (main process)",
+      "name": "Selene Shell",
+      "main": "Selene Shell (main process)",
       "desktop": "Desktop and apps",
       "gpu": "GPU process",
       "utility": "Utility",
@@ -114,7 +114,7 @@
       "tab": "Web content ({name})"
     },
     "tip": {
-      "inShell": "This app runs inside Aurora Shell; its usage is included in Aurora Shell."
+      "inShell": "This app runs inside Selene Shell; its usage is included in Selene Shell."
     },
     "menu": {
       "expand": "Expand",
@@ -152,7 +152,7 @@
       "gone": "The process has already ended.",
       "noLocation": "The file location of this process isn't available.",
       "noService": "“{name}” isn't part of a service.",
-      "priorityAdmin": "Raising the priority of “{name}” needs administrator rights, which this version of Aurora can't grant for priorities. You can still lower it.",
+      "priorityAdmin": "Raising the priority of “{name}” needs administrator rights, which this version of Selene can't grant for priorities. You can still lower it.",
       "priorityOther": "Only an administrator can change the priority of “{name}”, which belongs to another user.",
       "code": {
         "denied": "Access is denied.",
@@ -196,7 +196,7 @@
       "title": "{name} Properties",
       "process": "Process",
       "kernelThread": "Kernel thread",
-      "auroraApp": "Aurora app",
+      "auroraApp": "Selene app",
       "location": "Location",
       "cmdline": "Command line",
       "parent": "Parent process",
@@ -211,7 +211,7 @@
       "windows": "Windows",
       "openedAt": "Opened",
       "host": "Process",
-      "inShell": "Runs inside Aurora Shell (PID {pid})",
+      "inShell": "Runs inside Selene Shell (PID {pid})",
       "ownProcesses": "Own processes: {pids}",
       "na": "Not available",
       "none": "None",
@@ -220,12 +220,12 @@
     },
     "run": {
       "title": "Create new task",
-      "intro": "Type the name of a program, folder, document, or Internet resource, and Aurora will open it for you.",
+      "intro": "Type the name of a program, folder, document, or Internet resource, and Selene will open it for you.",
       "open": "Open:",
       "browse": "Browse…",
       "browseTitle": "Browse",
-      "notFound": "Aurora can't find “{cmd}”. Make sure you typed the name correctly, and then try again.",
-      "noExec": "Aurora can't run “{cmd}”. It isn't a program, or you don't have permission to run it.",
+      "notFound": "Selene can't find “{cmd}”. Make sure you typed the name correctly, and then try again.",
+      "noExec": "Selene can't run “{cmd}”. It isn't a program, or you don't have permission to run it.",
       "recent": "Show recent tasks"
     },
     "perf": {
@@ -393,7 +393,7 @@
       "kernelThreads": "Show kernel threads in Details",
       "effConfirm": "Show efficiency mode confirmation dialog",
       "about": "About",
-      "aboutDesc": "Aurora OS Task Manager · reads live data from the Linux kernel"
+      "aboutDesc": "Selene OS Task Manager · reads live data from the Linux kernel"
     },
     "u": {
       "pct": "%",
@@ -471,7 +471,7 @@
     "grp": {
       "apps": "Applications ({count})",
       "background": "Processus en arrière-plan ({count})",
-      "system": "Processus Aurora ({count})"
+      "system": "Processus Selene ({count})"
     },
     "col": {
       "name": "Nom",
@@ -513,8 +513,8 @@
       "low": "Basse"
     },
     "shell": {
-      "name": "Aurora Shell",
-      "main": "Aurora Shell (processus principal)",
+      "name": "Selene Shell",
+      "main": "Selene Shell (processus principal)",
       "desktop": "Bureau et applications",
       "gpu": "Processus GPU",
       "utility": "Utilitaire",
@@ -528,7 +528,7 @@
       "tab": "Contenu web ({name})"
     },
     "tip": {
-      "inShell": "Cette application s'exécute dans Aurora Shell ; sa consommation est comprise dans celle d'Aurora Shell."
+      "inShell": "Cette application s'exécute dans Selene Shell ; sa consommation est comprise dans celle de Selene Shell."
     },
     "menu": {
       "expand": "Développer",
@@ -566,7 +566,7 @@
       "gone": "Le processus est déjà terminé.",
       "noLocation": "L'emplacement du fichier de ce processus n'est pas disponible.",
       "noService": "« {name} » ne fait partie d'aucun service.",
-      "priorityAdmin": "Augmenter la priorité de « {name} » nécessite des droits d'administrateur, qu'Aurora ne peut pas encore accorder pour les priorités. Vous pouvez toujours la diminuer.",
+      "priorityAdmin": "Augmenter la priorité de « {name} » nécessite des droits d'administrateur, que Selene ne peut pas encore accorder pour les priorités. Vous pouvez toujours la diminuer.",
       "priorityOther": "Seul un administrateur peut modifier la priorité de « {name} », qui appartient à un autre utilisateur.",
       "code": {
         "denied": "Accès refusé.",
@@ -610,7 +610,7 @@
       "title": "Propriétés de {name}",
       "process": "Processus",
       "kernelThread": "Thread du noyau",
-      "auroraApp": "Application Aurora",
+      "auroraApp": "Application Selene",
       "location": "Emplacement",
       "cmdline": "Ligne de commande",
       "parent": "Processus parent",
@@ -625,7 +625,7 @@
       "windows": "Fenêtres",
       "openedAt": "Ouverte le",
       "host": "Processus",
-      "inShell": "S'exécute dans Aurora Shell (PID {pid})",
+      "inShell": "S'exécute dans Selene Shell (PID {pid})",
       "ownProcesses": "Processus propres : {pids}",
       "na": "Non disponible",
       "none": "Aucun",
@@ -634,12 +634,12 @@
     },
     "run": {
       "title": "Créer une tâche",
-      "intro": "Entrez le nom d'un programme, dossier, document ou ressource Internet, et Aurora l'ouvrira pour vous.",
+      "intro": "Entrez le nom d'un programme, dossier, document ou ressource Internet, et Selene l'ouvrira pour vous.",
       "open": "Ouvrir :",
       "browse": "Parcourir…",
       "browseTitle": "Parcourir",
-      "notFound": "Aurora ne trouve pas « {cmd} ». Vérifiez que le nom est correct, puis réessayez.",
-      "noExec": "Aurora ne peut pas exécuter « {cmd} ». Ce n'est pas un programme, ou vous n'avez pas l'autorisation de l'exécuter.",
+      "notFound": "Selene ne trouve pas « {cmd} ». Vérifiez que le nom est correct, puis réessayez.",
+      "noExec": "Selene ne peut pas exécuter « {cmd} ». Ce n'est pas un programme, ou vous n'avez pas l'autorisation de l'exécuter.",
       "recent": "Afficher les tâches récentes"
     },
     "perf": {
@@ -807,7 +807,7 @@
       "kernelThreads": "Afficher les threads du noyau dans Détails",
       "effConfirm": "Afficher la confirmation du mode efficacité",
       "about": "À propos",
-      "aboutDesc": "Gestionnaire des tâches d'Aurora OS · lit les données en direct depuis le noyau Linux"
+      "aboutDesc": "Gestionnaire des tâches de Selene OS · lit les données en direct depuis le noyau Linux"
     },
     "u": {
       "pct": " %",

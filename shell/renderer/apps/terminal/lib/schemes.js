@@ -1,6 +1,6 @@
 // Colour schemes (the classic Windows Terminal set) and their xterm.js themes.
 //   SCHEMES: [{ id, name, dark, colors: { background, foreground, cursor, selection, black … brightWhite } }]
-//   resolveScheme(prefs.scheme, uiMode) -> scheme   ('system' follows the Aurora light/dark theme)
+//   resolveScheme(prefs.scheme, uiMode) -> scheme   ('system' follows the Selene light/dark theme)
 //   xtermTheme(scheme, opacity) -> ITheme
 const S = (id, name, dark, c) => ({ id, name, dark, colors: c });
 

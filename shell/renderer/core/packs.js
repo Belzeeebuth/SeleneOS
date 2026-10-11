@@ -14,7 +14,7 @@
 // so the system pack ("default") at 100 % is simply "no variables". Inline cursors set from JS (el.style.cursor =
 // 'grabbing') are mapped to the same variables. The root gets the pack's arrow, editable fields its I-beam. Cursors
 // inside web pages (browser tabs) stay the page's own. settings.cursorSize (100–300 %) scales every pack; the system
-// pack cannot be scaled, so above 100 % it is drawn as "Aurora light".
+// pack cannot be scaled, so above 100 % it is drawn as "Selene light".
 // Icons: registry.iconUrl() asks packs for the icon of the current pack (an SVG or PNG built from the app's Fluent
 // glyph); images already on screen are swapped in place (taskbar, Start, windows, desktop…), and a style sheet maps
 // the apps' own icon files and the This PC / Recycle Bin pictures to the pack (`img[src=…] { content: url(…) }`),
@@ -29,8 +29,8 @@ import { sounds } from './sounds.js';
 // ------------------------------------------------------------------ cursors
 export const CURSOR_PACKS = [
   { id: 'default', name: { en: 'System', fr: 'Système' } },
-  { id: 'classic', name: { en: 'Aurora light', fr: 'Aurora clair' }, fill: '#ffffff', stroke: '#000000', size: 24 },
-  { id: 'midnight', name: { en: 'Aurora dark', fr: 'Aurora sombre' }, fill: '#161616', stroke: '#ffffff', size: 24 },
+  { id: 'classic', name: { en: 'Selene light', fr: 'Selene clair' }, fill: '#ffffff', stroke: '#000000', size: 24 },
+  { id: 'midnight', name: { en: 'Selene dark', fr: 'Selene sombre' }, fill: '#161616', stroke: '#ffffff', size: 24 },
   { id: 'accent', name: { en: 'Accent color', fr: 'Couleur d’accentuation' }, fill: 'accent', stroke: '#ffffff', size: 24 },
   { id: 'large', name: { en: 'Large', fr: 'Grand' }, fill: '#ffffff', stroke: '#000000', size: 40 },
   { id: 'highvis', name: { en: 'High visibility', fr: 'Haute visibilité' }, fill: '#ffeb00', stroke: '#000000', size: 32 },
@@ -249,7 +249,7 @@ const cursorPackId = () => {
   const id = settings.get('cursorPack');
   return CURSOR_PACKS.some((p) => p.id === id) ? id : 'default';
 };
-/** The pack actually drawn: the system pack cannot be scaled, so a larger size draws "Aurora light". */
+/** The pack actually drawn: the system pack cannot be scaled, so a larger size draws "Selene light". */
 const drawnPack = () => {
   const id = cursorPackId();
   return CURSOR_PACKS.find((p) => p.id === (id === 'default' && cursorScale() > 1 ? 'classic' : id));
@@ -291,7 +291,7 @@ function applyCursors() {
 // ------------------------------------------------------------------ icon packs
 export const ICON_PACKS = [
   { id: 'fluent', name: { en: 'Fluent color (app icons)', fr: 'Fluent couleur (icônes des applications)' } },
-  { id: 'tiles', name: { en: 'Aurora tiles', fr: 'Tuiles Aurora' } },
+  { id: 'tiles', name: { en: 'Selene tiles', fr: 'Tuiles Selene' } },
   { id: 'accent', name: { en: 'Accent tiles', fr: 'Tuiles d’accentuation' } },
   { id: 'glass', name: { en: 'Glass', fr: 'Verre' } },
   { id: 'graphite', name: { en: 'Graphite', fr: 'Graphite' } },

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2054  # QEMU option values contain commas
-# Aurora OS — QEMU launcher for the live ISO and for installed virtual disks.
+# Selene OS — QEMU launcher for the live ISO and for installed virtual disks.
 #
-#   tools/qemu-run.sh                    live session from the newest out/aurora-os-*.iso (BIOS),
+#   tools/qemu-run.sh                    live session from the newest out/selene-os-*.iso (BIOS),
 #                                        with a 32G virtual disk to install to (created if missing)
 #   tools/qemu-run.sh --uefi             same with UEFI firmware (OVMF)
 #   tools/qemu-run.sh --boot disk        boot the installed disk only (add --uefi if it was
@@ -11,13 +11,13 @@
 #
 # Boot order (--boot):
 #   auto  (default with an ISO) virtual disk first, then the CD. Firmware skips a blank disk, so
-#         the first boot starts the live ISO (install from there); once Aurora OS is installed
+#         the first boot starts the live ISO (install from there); once Selene OS is installed
 #         the VM boots the disk even though the ISO is still attached: a "boot once from CD".
 #   cd    CD first (to use the live session again with an installed disk)
 #   disk  installed disk only, no ISO attached
 #
 # Options (environment variables in brackets):
-#   --iso PATH           ISO to boot [ISO]               (default: newest out/aurora-os-*.iso)
+#   --iso PATH           ISO to boot [ISO]               (default: newest out/selene-os-*.iso)
 #   --disk PATH          qcow2 disk [DISK]               (default: work/qemu/aurora-disk.qcow2)
 #   --disk-size SIZE     size of a new disk [DISK_SIZE]  (default: 32G, thin-provisioned qcow2)
 #   --no-disk            no virtual disk
@@ -182,7 +182,7 @@ case "$BOOT" in auto|cd|disk) ;; *) die "--boot must be auto, cd or disk (got '$
 if ((DIRECT_KERNEL)) && [[ "$BOOT" == disk ]]; then die "--kernel boots the ISO; it cannot be combined with --boot disk"; fi
 if [[ "$BOOT" != disk ]]; then
   if [[ -z "$ISO" ]]; then
-    ISO="$(find "$ROOT/out" -maxdepth 1 -name 'aurora-os-*.iso' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n '1s/^[^ ]* //p')"
+    ISO="$(find "$ROOT/out" -maxdepth 1 -name 'selene-os-*.iso' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n '1s/^[^ ]* //p')"
   fi
   [[ -n "$ISO" && -f "$ISO" ]] || die "no ISO found${ISO:+ at $ISO} (build one with 'make iso' or pass --iso PATH)"
   ISO="$(readlink -f "$ISO")"
@@ -194,8 +194,8 @@ if ((NO_DISK == 0)); then
   DISK="${DISK:-$STATE/aurora-disk.qcow2}"
   if [[ ! -f "$DISK" ]]; then
     if [[ "$BOOT" == disk ]]; then
-      ((DRY_RUN)) || die "disk $DISK does not exist (install Aurora OS first: make run)"
-      note "warning: disk $DISK does not exist yet (install Aurora OS first: make run)"
+      ((DRY_RUN)) || die "disk $DISK does not exist (install Selene OS first: make run)"
+      note "warning: disk $DISK does not exist yet (install Selene OS first: make run)"
     fi
     if [[ "$BOOT" != disk ]]; then
       command -v "$QEMU_IMG" >/dev/null 2>&1 || ((DRY_RUN)) || die "$QEMU_IMG not found (Ubuntu/Debian: sudo apt install qemu-utils)"
@@ -435,7 +435,7 @@ case "$AUDIO" in
 esac
 args+=(-device intel-hda -device hda-duplex,audiodev=snd0)
 
-# Guest agent channel (qemu-guest-agent runs in Aurora OS) and optional clipboard sharing.
+# Guest agent channel (qemu-guest-agent runs in Selene OS) and optional clipboard sharing.
 QGA_SOCK="$STATE/$VM_NAME.qga"
 QMP_SOCK="$STATE/$VM_NAME.qmp"
 args+=(-device virtio-serial-pci

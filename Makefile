@@ -1,6 +1,6 @@
-# Aurora OS — top-level Makefile.
+# Selene OS — top-level Makefile.
 #
-#   make iso            build out/aurora-os-<version>-amd64.iso      (runs iso/build.sh as root)
+#   make iso            build out/selene-os-<version>-amd64.iso      (runs iso/build.sh as root)
 #   make run            live ISO in QEMU (BIOS) + a 32G virtual disk to install to (created on first use);
 #                       the disk boots first once something is installed on it (KVM if usable, else TCG)
 #   make run-uefi       same with UEFI firmware (OVMF)
@@ -20,7 +20,7 @@
 # Variables (make VAR=value ...):
 #   MEM=4096        VM memory in MB            CPUS=4          VM vCPUs
 #   DISK=work/qemu/aurora-disk.qcow2            DISK_SIZE=32G   size of a newly created disk
-#   ISO=out/aurora-os-<version>-amd64.iso       RES=WxH         initial VM screen mode
+#   ISO=out/selene-os-<version>-amd64.iso       RES=WxH         initial VM screen mode
 #   VGA=auto|virtio|virtio-gl|std  display adapter (auto = 3D when the host can; std = most compatible)
 #   AUDIO=auto|pipewire|pa|sdl|none
 #   BOOT=auto|cd    auto: disk first, CD while the disk is blank; cd: always the live CD first
@@ -36,7 +36,7 @@ SHELL := /bin/bash
 
 ROOT        := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 VERSION     := $(shell sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' $(ROOT)/shell/package.json | head -n1)
-ISO         ?= $(ROOT)/out/aurora-os-$(VERSION)-amd64.iso
+ISO         ?= $(ROOT)/out/selene-os-$(VERSION)-amd64.iso
 DISK        ?= $(ROOT)/work/qemu/aurora-disk.qcow2
 DISK_SIZE   ?= 32G
 MEM         ?= 4096

@@ -177,7 +177,7 @@
     {"page":"privacy","icon":"shield","name":{"en":"Privacy & security","fr":"Confidentialité et sécurité"},"keywords":{"en":["security","permissions"],"fr":["sécurité","autorisations"]}},
     {"page":"privacy","section":"firewall","icon":"shield_globe","name":{"en":"Firewall & network protection","fr":"Pare-feu et protection du réseau"},"keywords":{"en":["ufw","firewall"],"fr":["ufw","pare-feu"]}},
     {"page":"privacy","section":"device","icon":"shield_checkmark","name":{"en":"Device security","fr":"Sécurité de l’appareil"},"keywords":{"en":["apparmor","secure","boot","tpm"],"fr":["apparmor","démarrage","sécurisé","tpm"]}},
-    {"page":"update","icon":"arrow_sync","name":{"en":"Aurora Update","fr":"Aurora Update"},"keywords":{"en":["updates","upgrade","patches","apt","check"],"fr":["mises","à","jour","correctifs","apt","rechercher"]}},
+    {"page":"update","icon":"arrow_sync","name":{"en":"Selene Update","fr":"Selene Update"},"keywords":{"en":["updates","upgrade","patches","apt","check"],"fr":["mises","à","jour","correctifs","apt","rechercher"]}},
     {"page":"updateHistory","icon":"history","name":{"en":"Update history","fr":"Historique des mises à jour"},"keywords":{"en":["installed","updates","log"],"fr":["mises","à","jour","installées","journal"]}}
   ]
 }

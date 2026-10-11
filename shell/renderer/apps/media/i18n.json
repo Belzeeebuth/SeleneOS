@@ -77,12 +77,12 @@
       "remove": "Remove folder", "removeFolderTitle": "Remove folder from library?", "removeFolderConfirm": "“{name}” won't appear in your library anymore. The files themselves won't be deleted.",
       "rescan": "Refresh library", "rescanHint": "Look again for new, changed or removed files.",
       "playback": "Playback", "visualizer": "Visualizer", "visualizerHint": "Animation shown behind music in the now playing view.",
-      "vizAnimOff": "Animation effects are turned off in Aurora Settings, so the visualizer is hidden.", "viz": { "bars": "Bars", "wave": "Wave", "off": "Off" },
+      "vizAnimOff": "Animation effects are turned off in Selene Settings, so the visualizer is hidden.", "viz": { "bars": "Bars", "wave": "Wave", "off": "Off" },
       "resume": "Resume where I left off", "resumeHint": "Restore the play queue and position the next time Media Player starts.",
       "videoStage": "Open videos in the player", "videoStageHint": "Switch to the full video view when a video starts playing.",
       "about": "About", "cache": "Thumbnails and artwork cache", "cacheHint": "Remove cached artwork, video thumbnails and song information. They're rebuilt automatically.",
       "cacheConfirm": "Clear the cache? Artwork, thumbnails and song information will be read again from your files.", "cacheCleared": "Cache cleared",
-      "clear": "Clear", "version": "Version {v}", "aboutBody": "Plays music and videos from your PC. Sample media © Aurora OS, public domain (CC0)."
+      "clear": "Clear", "version": "Version {v}", "aboutBody": "Plays music and videos from your PC. Sample media © Selene OS, public domain (CC0)."
     },
     "shortcuts": {
       "title": "Keyboard shortcuts", "show": "Show", "play": "Play or pause", "seek5": "Back or forward 5 seconds", "seek10": "Back or forward 10 seconds",
@@ -169,12 +169,12 @@
       "remove": "Supprimer le dossier", "removeFolderTitle": "Retirer le dossier de la bibliothèque ?", "removeFolderConfirm": "« {name} » n'apparaîtra plus dans votre bibliothèque. Les fichiers eux-mêmes ne seront pas supprimés.",
       "rescan": "Actualiser la bibliothèque", "rescanHint": "Rechercher à nouveau les fichiers ajoutés, modifiés ou supprimés.",
       "playback": "Lecture", "visualizer": "Visualiseur", "visualizerHint": "Animation affichée derrière la musique dans la vue En cours de lecture.",
-      "vizAnimOff": "Les effets d'animation sont désactivés dans les Paramètres d'Aurora : le visualiseur est masqué.", "viz": { "bars": "Barres", "wave": "Onde", "off": "Désactivé" },
+      "vizAnimOff": "Les effets d'animation sont désactivés dans les Paramètres de Selene : le visualiseur est masqué.", "viz": { "bars": "Barres", "wave": "Onde", "off": "Désactivé" },
       "resume": "Reprendre là où je m'étais arrêté", "resumeHint": "Restaurer la file d'attente et la position au prochain démarrage du Lecteur multimédia.",
       "videoStage": "Ouvrir les vidéos dans le lecteur", "videoStageHint": "Passer à la vue vidéo quand la lecture d'une vidéo commence.",
       "about": "À propos", "cache": "Cache des miniatures et pochettes", "cacheHint": "Supprimer les pochettes, miniatures vidéo et informations de titres en cache. Elles sont recréées automatiquement.",
       "cacheConfirm": "Vider le cache ? Les pochettes, miniatures et informations des titres seront relues depuis vos fichiers.", "cacheCleared": "Cache vidé",
-      "clear": "Vider", "version": "Version {v}", "aboutBody": "Lit la musique et les vidéos de votre PC. Médias d'exemple © Aurora OS, domaine public (CC0)."
+      "clear": "Vider", "version": "Version {v}", "aboutBody": "Lit la musique et les vidéos de votre PC. Médias d'exemple © Selene OS, domaine public (CC0)."
     },
     "shortcuts": {
       "title": "Raccourcis clavier", "show": "Afficher", "play": "Lecture ou pause", "seek5": "Reculer ou avancer de 5 secondes", "seek10": "Reculer ou avancer de 10 secondes",

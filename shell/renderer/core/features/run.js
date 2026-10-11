@@ -16,10 +16,10 @@ i18n.extend({
   en: {
     run: {
       title: 'Run',
-      intro: 'Type the name of a program, folder, document, or Internet resource, and Aurora will open it for you.',
+      intro: 'Type the name of a program, folder, document, or Internet resource, and Selene will open it for you.',
       open: 'Open:',
       browse: 'Browse…',
-      notFound: "Aurora can't find '{cmd}'. Make sure you typed the name correctly, and then try again.",
+      notFound: "Selene can't find '{cmd}'. Make sure you typed the name correctly, and then try again.",
       noBrowser: 'No web browser is installed.',
       history: 'Recent',
       apps: 'Apps',
@@ -29,10 +29,10 @@ i18n.extend({
   fr: {
     run: {
       title: 'Exécuter',
-      intro: "Entrez le nom d'un programme, dossier, document ou ressource Internet, et Aurora l'ouvrira pour vous.",
+      intro: "Entrez le nom d'un programme, dossier, document ou ressource Internet, et Selene l'ouvrira pour vous.",
       open: 'Ouvrir :',
       browse: 'Parcourir…',
-      notFound: 'Aurora ne trouve pas « {cmd} ». Vérifiez que le nom est correct, puis réessayez.',
+      notFound: 'Selene ne trouve pas « {cmd} ». Vérifiez que le nom est correct, puis réessayez.',
       noBrowser: "Aucun navigateur web n'est installé.",
       history: 'Récents',
       apps: 'Applications',
@@ -47,7 +47,7 @@ const RUN_ICON =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ec8ff"/><stop offset="1" stop-color="#0063b8"/></linearGradient></defs><rect x="2.5" y="4.5" width="27" height="23" rx="4" fill="url(#g)"/><rect x="5" y="10" width="22" height="15" rx="2" fill="#fff"/><path d="M10.5 17.5h9.5m-3.5-3.5 3.5 3.5-3.5 3.5" stroke="#0067c0" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7.3" r="1" fill="#fff"/><circle cx="10" cy="7.3" r="1" fill="#fff" opacity=".7"/></svg>`,
   );
 
-// Classic Windows / Linux command names -> Aurora app ids.
+// Classic Windows / Linux command names -> Selene app ids.
 const ALIASES = {
   calc: 'calculator', 'calc.exe': 'calculator', calculator: 'calculator', 'gnome-calculator': 'calculator',
   notepad: 'notepad', 'notepad.exe': 'notepad', gedit: 'notepad', write: 'notepad', wordpad: 'notepad',

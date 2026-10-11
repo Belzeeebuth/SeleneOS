@@ -1,4 +1,4 @@
-# Aurora OS build environment: everything iso/build.sh needs on an Ubuntu 24.04 host.
+# Selene OS build environment: everything iso/build.sh needs on an Ubuntu 24.04 host.
 #   docker build -t aurora-os-builder:24.04 -f iso/Dockerfile iso
 #   docker run --rm --privileged --network host -v /dev:/dev -v "$PWD":/src -w /src \
 #     -e AURORA_OUT_OWNER="$(id -u):$(id -g)" aurora-os-builder:24.04 ./iso/build.sh

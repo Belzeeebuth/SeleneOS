@@ -1,5 +1,5 @@
 # shellcheck shell=sh
-# Aurora OS session helpers — sourced by aurora-greeter, aurora-session, aurora-xstart,
+# Selene OS session helpers — sourced by aurora-greeter, aurora-session, aurora-xstart,
 # aurora-xgreeter, aurora-xsession and aurora-shell. POSIX sh.
 #
 # Tunables (environment, /etc/aurora/session.conf or the kernel command line):

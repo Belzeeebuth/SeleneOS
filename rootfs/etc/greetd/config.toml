@@ -1,4 +1,4 @@
-# Aurora OS — greetd configuration (live image).
+# Selene OS — greetd configuration (live image).
 # The installer rewrites this file on the installed system (it removes [initial_session],
 # or points it at the autologin user when automatic sign-in is chosen).
 
@@ -6,7 +6,7 @@
 # VT used by the sign-in screen and the desktop session (tty1 keeps a text console).
 vt = 7
 
-# Sign-in screen: Xorg + Aurora Shell in greeter mode, as greetd's system user.
+# Sign-in screen: Xorg + Selene Shell in greeter mode, as greetd's system user.
 [default_session]
 command = "/usr/lib/aurora/aurora-greeter"
 user = "_greetd"

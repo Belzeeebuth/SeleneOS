@@ -456,7 +456,7 @@ const MOCK_USERS = [
 function mockUsers() {
   const n = Number(process.env.AURORA_MOCK_USERS);
   let list = MOCK_USERS.map((u) => ({ ...u, avatar: u.avatar || null, passwordless: false, live: false }));
-  if (process.env.AURORA_LIVE === '1') list.unshift({ name: 'aurora', fullName: 'Aurora Live', uid: 999, avatar: null, passwordless: true, live: true });
+  if (process.env.AURORA_LIVE === '1') list.unshift({ name: 'aurora', fullName: 'Selene Live', uid: 999, avatar: null, passwordless: true, live: true });
   if (Number.isInteger(n) && n >= 0) list = list.slice(0, n);
   return list;
 }

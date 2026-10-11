@@ -92,7 +92,7 @@ await section('geo math', async () => {
 
 await section('backend helpers', async () => {
   const m = require('../main/ipc/maps.js');
-  check('User-Agent', m.USER_AGENT, 'AuroraOS-Maps/1.0');
+  check('User-Agent', m.USER_AGENT, 'SeleneOS-Maps/1.0');
   check('normTile ok', m.normTile(3, 7, 0), { z: 3, x: 7, y: 0 });
   check('normTile x out of range', m.normTile(3, 8, 0), null);
   check('normTile z too high', m.normTile(20, 0, 0), null);
@@ -302,7 +302,7 @@ try {
     check('rename unknown', (await invoke(s, 'maps:renamePlace', 'nope', 'x')).code, 'ENOENT');
     check('search too short', (await invoke(s, 'maps:search', 'a')).value, []);
     const st = (await invoke(s, 'maps:stats')).value;
-    check('User-Agent reported', st.userAgent, 'AuroraOS-Maps/1.0');
+    check('User-Agent reported', st.userAgent, 'SeleneOS-Maps/1.0');
   });
 
   await section('keyboard: Ctrl+F, tabs, panel toggle', async () => {

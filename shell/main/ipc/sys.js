@@ -93,7 +93,7 @@ module.exports = function register(api) {
     const cpus = os.cpus();
     return {
       hostname: os.hostname(),
-      osName: 'Aurora OS',
+      osName: 'Selene OS',
       version: env.version,
       distro: rel.PRETTY_NAME || 'Linux',
       kernel: os.release(),

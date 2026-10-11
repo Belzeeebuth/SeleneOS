@@ -1,5 +1,5 @@
 #!/bin/bash
-# aurora-install — installs Aurora OS from the live medium onto a whole disk.
+# aurora-install — installs Selene OS from the live medium onto a whole disk.
 #
 # Run as root. The graphical installer (shell/main/ipc/installer.js) starts it as
 #     sudo -n /usr/lib/aurora/helpers/aurora-install --json --password-stdin --disk /dev/vda ...
@@ -40,7 +40,7 @@
 # removed, live-only packages purged offline from filesystem.manifest-remove, locale, keyboard, time
 # zone, user + password, per-user settings, greetd, machine-id, initramfs), bootloader (GRUB for BIOS
 # on the disk AND UEFI on the ESP: EFI/ubuntu + removable EFI/BOOT/BOOTX64.EFI via shim, no NVRAM
-# writes; /etc/default/grub.d/50-aurora.cfg, Aurora GRUB theme, update-grub), cleanup (sync, unmount).
+# writes; /etc/default/grub.d/50-aurora.cfg, Selene OS GRUB theme, update-grub), cleanup (sync, unmount).
 #
 # Re-running on the same disk is safe: leftovers of an interrupted run (mounts under
 # /run/aurora-install) are unmounted first and the disk is partitioned and formatted again.
@@ -209,7 +209,7 @@ if ((DRY_RUN)); then
     progress "$st" "$to" ""
   }
   pp=""; [[ "$DISK" =~ [0-9]$ ]] && pp=p   # partition names: sda2, nvme0n1p2, loop0p2
-  sim partition 1 4 "Partitioning $DISK" "\$ wipefs --all $DISK" "\$ sfdisk --label gpt $DISK (BIOS boot 1 MiB, EFI System 512 MiB, Aurora OS ext4)"
+  sim partition 1 4 "Partitioning $DISK" "\$ wipefs --all $DISK" "\$ sfdisk --label gpt $DISK (BIOS boot 1 MiB, EFI System 512 MiB, Selene OS ext4)"
   sim format 4 7 "Formatting the partitions" "\$ mkfs.vfat -F 32 -n EFI ${DISK}${pp}2" "\$ mkfs.ext4 -L AURORA ${DISK}${pp}3"
   maybe_fail copy
   progress copy 7 "Copying the system files"
@@ -226,7 +226,7 @@ if ((DRY_RUN)); then
   progress bootloader 97 "Writing the boot menu"; dsleep
   sim cleanup 98 99 "Finishing" "sync; unmounting $TARGET"
   DONE=1
-  progress "done" 100 "Aurora OS has been installed (simulation: nothing was written)"
+  progress "done" 100 "Selene OS has been installed (simulation: nothing was written)"
   exit 0
 fi
 
@@ -394,7 +394,7 @@ resolve_source() {
   if [[ -z "$SOURCE" ]]; then
     if [[ -f /cdrom/casper/filesystem.squashfs ]]; then SOURCE=/cdrom/casper/filesystem.squashfs
     elif mountpoint -q /rofs; then SOURCE=/rofs
-    else die 3 "no installation source: not running from the Aurora OS live medium (use --source)"; fi
+    else die 3 "no installation source: not running from the Selene OS live medium (use --source)"; fi
   fi
   [[ "$SOURCE" != / ]] || die 2 "--source / is the running system; use the read-only live root (/rofs)"
   if [[ -f "$SOURCE" ]]; then
@@ -407,14 +407,14 @@ resolve_source() {
   else
     die 3 "installation source $SOURCE not found"
   fi
-  # The source must be an Aurora OS system.
+  # The source must be a Selene OS system.
   local osr
   if [[ "$SOURCE_KIND" == squashfs ]]; then
     osr=$(unsquashfs -cat "$SOURCE" usr/lib/os-release 2>/dev/null || true)
   else
     osr=$(cat "$SOURCE/usr/lib/os-release" 2>/dev/null || true)
   fi
-  grep -q '^IMAGE_ID=aurora-os' <<<"$osr" || die 3 "$SOURCE is not an Aurora OS system image"
+  grep -q '^IMAGE_ID=aurora-os' <<<"$osr" || die 3 "$SOURCE is not a Selene OS system image"
   log "source: $SOURCE ($SOURCE_KIND), medium: $MEDIUM"
 }
 
@@ -545,7 +545,7 @@ stage_partition() {
 label: gpt
 size=1MiB, type=21686148-6449-6E6F-744E-656564454649, name="BIOS boot"
 size=512MiB, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI System"
-type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Aurora OS"
+type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Selene OS"
 EOF
   blockdev --rereadpt "$DISK" >/dev/null 2>&1 || partx -u "$DISK" >/dev/null 2>&1 || true
   wait_for_partitions
@@ -716,7 +716,7 @@ stage_configure() {
   chroot_mount
 
   write_file "$TARGET/etc/fstab" 0644 <<EOF
-# /etc/fstab: static file system information (written by the Aurora OS installer).
+# /etc/fstab: static file system information (written by the Selene OS installer).
 # Use 'blkid' to print the UUID of a device. Swap: compressed RAM (zram), see /etc/systemd/zram-generator.conf.
 # <file system>                            <mount point>  <type>  <options>          <dump>  <pass>
 UUID=$ROOT_UUID  /              ext4    errors=remount-ro  0       1
@@ -749,7 +749,7 @@ EOF
   run "could not set the system language" in_target update-locale --reset "LANG=$LOCALE"
   [[ -f "$TARGET/usr/share/X11/xkb/symbols/$XKB_LAYOUT" ]] || die 2 "unknown keyboard layout: $XKB_LAYOUT"
   write_file "$TARGET/etc/default/keyboard" 0644 <<EOF
-# KEYBOARD CONFIGURATION FILE (written by the Aurora OS installer)
+# KEYBOARD CONFIGURATION FILE (written by the Selene OS installer)
 # Consult the keyboard(5) manual page.
 
 XKBMODEL="pc105"
@@ -785,7 +785,7 @@ EOF
   local uid gid home
   uid=$(in_target id -u "$USERNAME") gid=$(in_target id -g "$USERNAME")
   home=$(in_target getent passwd "$USERNAME" | cut -d: -f6)
-  # Per-user Aurora settings: the shell's language follows the installation language.
+  # Per-user Selene OS settings: the shell's language follows the installation language.
   install -d -m 0755 -o "$uid" -g "$gid" "$TARGET$home/.config" "$TARGET$home/.config/aurora"
   local sf="$TARGET$home/.config/aurora/settings.json"
   if [[ -s "$sf" ]]; then
@@ -800,14 +800,14 @@ EOF
   # Sign-in screen (greetd): no live autologin; the new account when --autologin is set.
   {
     cat <<'EOF'
-# Aurora OS — greetd configuration (written by the Aurora OS installer).
+# Selene OS — greetd configuration (written by the Selene OS installer).
 # Automatic sign-in: Settings > Accounts > Sign-in options (aurora-admin set-autologin).
 
 [terminal]
 # VT used by the sign-in screen and the desktop session (tty1 keeps a text console).
 vt = 7
 
-# Sign-in screen: Xorg + Aurora Shell in greeter mode, as greetd's system user.
+# Sign-in screen: Xorg + Selene Shell in greeter mode, as greetd's system user.
 [default_session]
 command = "/usr/lib/aurora/aurora-greeter"
 user = "_greetd"
@@ -846,7 +846,7 @@ stage_bootloader() {
   maybe_fail bootloader
   progress bootloader 87 "Installing the boot loader (BIOS)"
   # GRUB settings (Ubuntu's /etc/default/grub stays untouched; this drop-in overrides it).
-  local theme_src="$MEDIUM/boot/grub/themes/aurora" theme_line="#GRUB_THEME= (no Aurora theme on the installation medium)"
+  local theme_src="$MEDIUM/boot/grub/themes/aurora" theme_line="#GRUB_THEME= (no Selene OS theme on the installation medium)"
   [[ -f "$TARGET/usr/share/grub/themes/aurora/theme.txt" ]] && theme_src="$TARGET/usr/share/grub/themes/aurora"
   if [[ -f "$theme_src/theme.txt" ]]; then
     rm -rf "$TARGET/boot/grub/themes/aurora"
@@ -858,9 +858,9 @@ stage_bootloader() {
     log "warning: no GRUB theme at $theme_src; using the plain menu"
   fi
   write_file "$TARGET/etc/default/grub.d/50-aurora.cfg" 0644 <<EOF
-# Aurora OS boot menu (written by the Aurora OS installer). Sourced after /etc/default/grub;
+# Selene OS boot menu (written by the Selene OS installer). Sourced after /etc/default/grub;
 # run 'sudo update-grub' after changing it.
-GRUB_DISTRIBUTOR="Aurora OS"
+GRUB_DISTRIBUTOR="Selene OS"
 GRUB_TIMEOUT_STYLE=menu
 GRUB_TIMEOUT=3
 GRUB_RECORDFAIL_TIMEOUT=10
@@ -949,5 +949,5 @@ stage_configure
 stage_bootloader
 stage_cleanup
 DONE=1
-progress "done" 100 "Aurora OS has been installed on $DISK"
+progress "done" 100 "Selene OS has been installed on $DISK"
 exit 0

@@ -201,8 +201,8 @@ try {
   // Installed view + remove from a row
   await page.click(`${W} [data-nav=installed]`);
   check('Installed: rows', await page.locator(`${W} .st-row`).evaluateAll((els) => els.map((e) => e.dataset.id).sort()), ['curl', 'git', 'ncdu', 'rsync', 'unzip', 'wget']);
-  check('Installed: tools shipped with Aurora OS have no Remove button', await page.locator(`${W} .st-row[data-id=git] .st-remove`).count(), 0);
-  check('Installed: shipped tools say so', (await page.locator(`${W} .st-row[data-id=git] .st-builtin`).innerText().catch(() => '')).trim(), 'Included with Aurora OS');
+  check('Installed: tools shipped with Selene OS have no Remove button', await page.locator(`${W} .st-row[data-id=git] .st-remove`).count(), 0);
+  check('Installed: shipped tools say so', (await page.locator(`${W} .st-row[data-id=git] .st-builtin`).innerText().catch(() => '')).trim(), 'Included with Selene OS');
   await page.click(`${W} .st-row[data-id=git] .st-open`);
   check('Installed: Open on a CLI tool opens a plain Terminal', await page.evaluate(() => window.__storeLaunches.at(-1)), { id: 'terminal', args: {} });
   await page.click(`${W} .st-row[data-id=ncdu] .st-remove`);

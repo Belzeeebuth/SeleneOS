@@ -1,7 +1,7 @@
 // Notes editor pane: command bar, title, contenteditable body, find bar, status bar.
 //   Rich text: paragraph / heading 1-3 / quote / code block, bold, italic, underline, strikethrough, inline
 //   code, highlight + text colour (theme-aware palette stored as data-hl / data-color), bullet / numbered /
-//   check lists (clickable boxes), divider, links (Ctrl+click opens Aurora Browser), tables, pictures
+//   check lists (clickable boxes), divider, links (Ctrl+click opens Selene Browser), tables, pictures
 //   (insert / paste / drop -> attachments next to the note), clear formatting, snapshot undo / redo.
 //   Markdown while typing: "# " "## " "### " "- " "* " "1. " "[] " "[x] " "> " "```" "---" **b** *i* ~~s~~ `c` ==h==
 //   Paste / drop are sanitized (lib/sanitize.js); pictures in pasted HTML are copied into the note.

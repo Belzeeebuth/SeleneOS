@@ -28,7 +28,7 @@ export const SEED_SITES = [
   { title: 'Ubuntu', url: 'https://ubuntu.com/' },
 ];
 
-/** Default favorites; `t` localizes the titles of the Aurora OS folder (first run only). */
+/** Default favorites; `t` localizes the titles of the Selene OS folder (first run only). */
 function seedBookmarks(t = null) {
   const now = Date.now();
   const tr = (key, fallback) => {
@@ -47,9 +47,9 @@ function seedBookmarks(t = null) {
         {
           id: uid('f'),
           type: 'folder',
-          title: 'Aurora OS',
+          title: 'Selene OS',
           added: now,
-          children: [mk(tr('seed.docs', 'Aurora OS — documentation'), 'aurora://about'), mk(tr('seed.settings', 'Aurora Browser settings'), 'aurora://settings')],
+          children: [mk(tr('seed.docs', 'Selene OS — documentation'), 'aurora://about'), mk(tr('seed.settings', 'Selene Browser settings'), 'aurora://settings')],
         },
       ],
     },

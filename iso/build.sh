@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Aurora OS — live/installable ISO builder.
+# Selene OS — live/installable ISO builder.
 #
-#   sudo ./iso/build.sh                 full build -> out/aurora-os-<version>-amd64.iso
+#   sudo ./iso/build.sh                 full build -> out/selene-os-<version>-amd64.iso
 #   sudo ./iso/build.sh --until system  stop after a stage (base|packages|system|squashfs|iso)
 #   sudo ./iso/build.sh --from squashfs start at a stage (earlier stages must have run before)
 #   sudo ./iso/build.sh --rebuild-packages   ignore the cached package layer
@@ -13,7 +13,7 @@
 #   base      debootstrap --variant=minbase, cached as cache/base/<key>.tar.zst
 #   packages  apt install of iso/packages.d/*.list into work/layers/packages
 #             (reused while its inputs are unchanged; package additions are applied in place)
-#   system    overlay on top of the package layer: Electron, Aurora Shell, rootfs/ overlay,
+#   system    overlay on top of the package layer: Electron, Selene Shell, rootfs/ overlay,
 #             system configuration, casper, Plymouth theme, initramfs, cleanup
 #   squashfs  manifests + casper/filesystem.squashfs
 #   iso       ISO tree, themed GRUB menu, hybrid BIOS+UEFI image (grub-mkrescue/xorriso)
@@ -264,7 +264,7 @@ preflight() {
   umount_under "$WORK"   # leftovers from an interrupted run
   if stage_enabled base || stage_enabled packages; then check_mirror; fi
 
-  log "Aurora OS $ISO_VERSION  build-id $BUILD_ID"
+  log "$OS_NAME $ISO_VERSION  build-id $BUILD_ID"
   log "suite=$SUITE arch=$ARCH mirror=$MIRROR (snapshot=$SNAPSHOT)"
   log "electron=$ELECTRON_VERSION kernel=$KERNEL_PACKAGE firmware=$WITH_FIRMWARE recommends=$INSTALL_RECOMMENDS"
   log "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH ($(date -u -d "@$SOURCE_DATE_EPOCH" '+%F %T') UTC)"
@@ -353,7 +353,7 @@ KEEP_MANPAGES=0
 write_dpkg_excludes() { # file keep-manpages(0|1)
   {
     cat <<'EOF'
-# Aurora OS: keep the image small (documentation, manual pages and translations other than
+# Selene OS: keep the image small (documentation, manual pages and translations other than
 # English/French are not installed). Copyright files are kept.
 # Remove this file and reinstall packages to get the full content back.
 path-exclude=/usr/share/doc/*
@@ -385,7 +385,7 @@ write_build_sources() { # root
   rm -f "$r/etc/apt/sources.list"
   mkdir -p "$r/etc/apt/sources.list.d"
   cat >"$r/etc/apt/sources.list.d/ubuntu.sources" <<EOF
-# Aurora OS build-time sources (replaced by the final archive sources before squashing)
+# Selene OS build-time sources (replaced by the final archive sources before squashing)
 Types: deb
 URIs: $MIRROR
 Suites: $SUITE $SUITE-updates $SUITE-security
@@ -420,7 +420,7 @@ EOF
 apt_net_on() { # root
   local r="$1"
   {
-    echo '// Aurora OS build-time apt settings — removed before the image is squashed'
+    echo '// Selene OS build-time apt settings — removed before the image is squashed'
     echo 'Acquire::Retries "5";'
     echo 'Acquire::Languages "none";'
     echo 'Acquire::http::Timeout "60";'
@@ -451,7 +451,7 @@ divert_initramfs() { # root
     in_chroot "$r" dpkg-divert --local --rename --divert /usr/sbin/update-initramfs.aurora-build \
       --add /usr/sbin/update-initramfs >/dev/null
   fi
-  printf '#!/bin/sh\necho "update-initramfs: deferred by the Aurora OS build" >&2\nexit 0\n' >"$r/usr/sbin/update-initramfs"
+  printf '#!/bin/sh\necho "update-initramfs: deferred by the Selene OS build" >&2\nexit 0\n' >"$r/usr/sbin/update-initramfs"
   chmod 755 "$r/usr/sbin/update-initramfs"
 }
 
@@ -471,16 +471,16 @@ build_firmware_placeholder() { # -> path of .deb
 Package: aurora-firmware-placeholder
 Version: 1.0
 Architecture: all
-Maintainer: Aurora OS <aurora-os@localhost>
+Maintainer: Selene OS <aurora-os@localhost>
 Provides: linux-firmware
 Section: kernel
 Priority: optional
-Description: placeholder for linux-firmware (Aurora OS build without firmware)
- This Aurora OS image was built with WITH_FIRMWARE=0 for virtual machines and does not
+Description: placeholder for linux-firmware (Selene OS build without firmware)
+ This Selene OS image was built with WITH_FIRMWARE=0 for virtual machines and does not
  ship the large linux-firmware collection. Install the real "linux-firmware" package
  for physical hardware (Wi-Fi, GPUs...); this placeholder can then be removed.
 EOF
-  printf 'Aurora OS firmware placeholder. Public domain.\n' >"$d/usr/share/doc/aurora-firmware-placeholder/copyright"
+  printf 'Selene OS firmware placeholder. Public domain.\n' >"$d/usr/share/doc/aurora-firmware-placeholder/copyright"
   find "$d" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
   dpkg-deb --root-owner-group -Zxz --build "$d" "$WORK/debs/aurora-firmware-placeholder_1.0_all.deb" >/dev/null
   echo "$WORK/debs/aurora-firmware-placeholder_1.0_all.deb"
@@ -553,9 +553,9 @@ install_packages() { # root mode(full|incremental) pkg-tsv [layer-stamp]
   apt_net_on "$r"
   divert_initramfs "$r"
   write_dpkg_excludes "$r/etc/dpkg/dpkg.cfg.d/aurora-excludes" "$KEEP_MANPAGES"
-  # Snaps are not part of Aurora OS: never let a transitional package pull snapd in.
+  # Snaps are not part of Selene OS: never let a transitional package pull snapd in.
   cat >"$r/etc/apt/preferences.d/aurora-no-snap.pref" <<'EOF'
-# Aurora OS does not use snaps.
+# Selene OS does not use snaps.
 Package: snapd
 Pin: release a=*
 Pin-Priority: -10
@@ -711,7 +711,7 @@ npm_ci_runtime() { # dir  (runs in a subshell through run_bg)
 
 install_shell() {
   local stage_dir="$WORK/staging/shell" dest="$ROOT/opt/aurora/shell"
-  log "staging Aurora Shell and installing runtime npm dependencies (npm ci --omit=dev)"
+  log "staging Selene Shell and installing runtime npm dependencies (npm ci --omit=dev)"
   rm -rf "$stage_dir"; mkdir -p "$stage_dir"
   local p
   for p in package.json package-lock.json main preload renderer; do
@@ -829,20 +829,20 @@ configure_skel() {
 
 configure_casper() {
   cat >"$ROOT/etc/casper.conf" <<EOF
-# Aurora OS live session (read by casper in the initramfs)
+# Selene OS live session (read by casper in the initramfs)
 export USERNAME="$LIVE_USER"
 export USERFULLNAME="$LIVE_USER_FULLNAME"
 export HOST="$LIVE_HOSTNAME"
 export BUILD_SYSTEM="Ubuntu"
 # A non-empty FLAVOUR makes casper honour USERNAME and HOST above.
-export FLAVOUR="Aurora"
+export FLAVOUR="Selene"
 EOF
 }
 
 configure_services() {
   local u f
   in_chroot "$ROOT" systemctl set-default graphical.target >/dev/null
-  # aurora-apparmor.service loads the Aurora Shell AppArmor profile in the live session, where
+  # aurora-apparmor.service loads the Selene Shell AppArmor profile in the live session, where
   # Ubuntu's apparmor.service does not run (Chromium's sandbox needs the profile's userns rule).
   for u in greetd.service NetworkManager.service systemd-resolved.service ufw.service apparmor.service \
            aurora-apparmor.service; do
@@ -885,7 +885,7 @@ configure_services() {
 configure_plymouth() {
   local theme="$ROOT/usr/share/plymouth/themes/aurora" logo="$SHELL_SRC/renderer/assets/aurora-logo.svg"
   [[ -f "$theme/aurora.plymouth" ]] || { warn "no Plymouth theme in rootfs/, keeping the default"; return; }
-  [[ -d "$ROOT/usr/share/plymouth/themes/spinner" ]] || die "plymouth-theme-spinner is required for the Aurora theme"
+  [[ -d "$ROOT/usr/share/plymouth/themes/spinner" ]] || die "plymouth-theme-spinner is required for the Selene OS theme"
   # Spinner frames, dialog and keyboard images come from Ubuntu's spinner theme;
   # the logo (watermark) is rendered from the shell's SVG.
   local f
@@ -1096,7 +1096,7 @@ stage_system() {
 
   log "generating the initramfs"
   cat >"$ROOT/etc/initramfs-tools/conf.d/aurora.conf" <<'EOF'
-# Aurora OS: zstd is fast to decompress; keep every storage/graphics driver for live boots.
+# Selene OS: zstd is fast to decompress; keep every storage/graphics driver for live boots.
 COMPRESS=zstd
 MODULES=most
 EOF
@@ -1227,7 +1227,7 @@ make_grub_theme() {
   done
 
   cat >"$t/theme.txt" <<'EOF'
-# Aurora OS GRUB theme (generated by iso/build.sh)
+# Selene OS GRUB theme (generated by iso/build.sh)
 title-text: ""
 desktop-image: "background.png"
 desktop-image-scale-method: "crop"
@@ -1302,7 +1302,7 @@ EOF
 write_grub_cfg() {
   local common="boot=casper"
   cat >"$ISO_TREE/boot/grub/grub.cfg" <<EOF
-# Aurora OS $ISO_VERSION live media ($BUILD_ID) — generated by iso/build.sh
+# Selene OS $ISO_VERSION live media ($BUILD_ID) — generated by iso/build.sh
 set default=0
 set timeout=8
 set timeout_style=menu
@@ -1331,13 +1331,13 @@ fi
 set menu_color_normal=light-gray/black
 set menu_color_highlight=white/blue
 
-menuentry "Aurora OS (English)" --class aurora --id aurora-en {
+menuentry "$OS_NAME (English)" --class aurora --id aurora-en {
   set gfxpayload=keep
   linux /casper/vmlinuz $common quiet splash locale=en_US.UTF-8 keyboard-configuration/layoutcode=us ---
   initrd /casper/initrd
 }
 
-menuentry "Aurora OS (Français)" --class aurora --id aurora-fr {
+menuentry "$OS_NAME (Français)" --class aurora --id aurora-fr {
   set gfxpayload=keep
   linux /casper/vmlinuz $common quiet splash locale=fr_FR.UTF-8 keyboard-configuration/layoutcode=fr ---
   initrd /casper/initrd

@@ -56,14 +56,14 @@ async function installMock(s) {
         connectivity: 'full',
         wifiEnabled: true,
         airplane: false,
-        primary: { type: 'wifi', name: 'Aurora-5G', strength: 82 },
+        primary: { type: 'wifi', name: 'Selene-5G', strength: 82 },
         devices: [
-          { device: 'wlp2s0', type: 'wifi', state: 'connected', connection: 'Aurora-5G' },
+          { device: 'wlp2s0', type: 'wifi', state: 'connected', connection: 'Selene-5G' },
           { device: 'enp0s3', type: 'ethernet', state: 'unavailable', connection: '' },
         ],
       },
       wifi: [
-        { ssid: 'Aurora-5G', signal: 82, security: 'WPA2', active: true, saved: true },
+        { ssid: 'Selene-5G', signal: 82, security: 'WPA2', active: true, saved: true },
         { ssid: 'Livebox-8F21', signal: 64, security: 'WPA2', active: false, saved: false },
         { ssid: 'Café du Coin', signal: 41, security: '', active: false, saved: false },
         { ssid: 'FreeWifi_secure', signal: 30, security: 'WPA2 802.1X', active: false, saved: false },
@@ -490,9 +490,9 @@ async function scenario(theme, lang) {
     // ---- Notifications + calendar
     await s.aurora(() => {
       const { notify } = window.__aurora;
-      notify({ appId: 'winver', title: 'Aurora OS is up to date', body: 'You have the latest features and security fixes.', silent: true, timeout: 1 });
+      notify({ appId: 'winver', title: 'Selene OS is up to date', body: 'You have the latest features and security fixes.', silent: true, timeout: 1 });
       notify({ appId: 'system', title: 'Low disk space', body: 'Free up space on “Local Disk (/)”.', silent: true, timeout: 1, actions: [{ label: 'Open Storage' }, { label: 'Dismiss' }] });
-      notify({ appId: 'winver', title: 'Welcome to Aurora', body: 'Press the Start button to begin.', silent: true, timeout: 1 });
+      notify({ appId: 'winver', title: 'Welcome to Selene', body: 'Press the Start button to begin.', silent: true, timeout: 1 });
     });
     await sleep(500);
     const badge = await s.aurora(() => document.querySelector('.tb-count')?.textContent);
@@ -541,9 +541,9 @@ async function scenario(theme, lang) {
     const apps = await s.aurora(() => {
       const { wm, registry } = window.__aurora;
       const make = (appId, title, opts = {}) => wm.create({ appId, title, icon: registry.iconUrl(appId), width: 520, height: 340, ...opts });
-      const a = make('winver', 'About Aurora — 1');
-      const b = make('winver', 'About Aurora — 2');
-      make('winver', 'About Aurora — 3');
+      const a = make('winver', 'About Selene OS — 1');
+      const b = make('winver', 'About Selene OS — 2');
+      make('winver', 'About Selene OS — 3');
       const c = make('explorer-test', 'Downloads');
       c.setProgress(0.6);
       const d = make('mail-test', 'Inbox');
@@ -573,7 +573,7 @@ async function scenario(theme, lang) {
     if (theme === 'light' && lang === 'en') await shot(s, `picker-${tag}`, 'shell-taskbar-picker');
     await P.click('.tb-preview .tb-pv-item:nth-child(3)');
     await sleep(400);
-    check(await s.aurora(() => window.__aurora.wm.focused()?.title === 'About Aurora — 3'), `[${tag}] picking a thumbnail focuses that window`);
+    check(await s.aurora(() => window.__aurora.wm.focused()?.title === 'About Selene OS — 3'), `[${tag}] picking a thumbnail focuses that window`);
     await P.click('.tb-app[data-app="winver"]', { button: 'right' });
     await sleep(400);
     const jump = await s.aurora(() => [...document.querySelectorAll('.menu.tb-jump .menu-item .label')].map((x) => x.textContent));

@@ -168,7 +168,7 @@ async function unitTests() {
       'root:x:0:0:root:/root:/bin/bash',
       'daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin',
       '_greetd:x:998:998::/var/lib/aurora-greeter:/usr/sbin/nologin',
-      'aurora:x:999:999:Aurora Live,,,:/home/aurora:/bin/bash',
+      'aurora:x:999:999:Selene Live,,,:/home/aurora:/bin/bash',
       'marie:x:1000:1000:Marie Curie,Lab 3,,:/home/marie:/bin/bash',
       'leo:x:1001:1001::/home/leo:/usr/bin/zsh',
       'svc:x:1002:1002:Service:/srv:/usr/sbin/nologin',
@@ -667,7 +667,7 @@ async function greeterVariants() {
     const s = await greeter({ live: true, env: { AURORA_MOCK_USERS: '2' } });
     await s.page.keyboard.press('Enter');
     await s.page.waitForTimeout(900);
-    check((await text(s.page, '.lk-name')) === 'Aurora Live', 'live user first');
+    check((await text(s.page, '.lk-name')) === 'Selene Live', 'live user first');
     check(await visible(s.page, '.lk-signin-btn'), '"Sign in" button instead of a password box');
     check(!(await visible(s.page, '.lk-pw-field')), 'no password box for the live user');
     await shot(s.page, 'login-live-en');
@@ -1212,7 +1212,7 @@ const XDOTOOL = !!process.env.DISPLAY && spawnSync('sh', ['-c', 'command -v xdot
 function xkey(app, keys) {
   const pid = String(app.process().pid);
   let ids = spawnSync('xdotool', ['search', '--onlyvisible', '--pid', pid], { encoding: 'utf8' }).stdout.trim().split('\n').filter(Boolean);
-  if (!ids.length) ids = spawnSync('xdotool', ['search', '--onlyvisible', '--name', 'Aurora'], { encoding: 'utf8' }).stdout.trim().split('\n').filter(Boolean);
+  if (!ids.length) ids = spawnSync('xdotool', ['search', '--onlyvisible', '--name', 'Selene'], { encoding: 'utf8' }).stdout.trim().split('\n').filter(Boolean);
   if (!ids.length) return false;
   spawnSync('xdotool', ['windowfocus', '--sync', ids.at(-1)], { timeout: 5000 });
   return spawnSync('xdotool', ['key', ...keys], { timeout: 5000 }).status === 0;

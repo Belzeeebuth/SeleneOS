@@ -158,7 +158,7 @@ function buildPage({ html, meta, title, lang }) {
     `<html lang="${escAttr(lang === 'fr' ? 'fr' : 'en')}">`,
     '<head>',
     '<meta charset="utf-8">',
-    '<meta name="generator" content="Aurora Notes">',
+    '<meta name="generator" content="Selene Notes">',
     `<meta name="aurora-note" content="${escAttr(JSON.stringify(meta || {}))}">`,
     `<title>${escAttr(t || 'Note')}</title>`,
     `<style>${PAGE_CSS}</style>`,

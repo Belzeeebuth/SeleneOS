@@ -2,7 +2,7 @@
 // Backup backend (renderer/apps/backup): incremental snapshots of home folders with rsync (no root).
 //
 // Each run copies the chosen sources (folders inside the home folder) into
-//   <dest>/AuroraBackup/<YYYY-MM-DD_HHMMSS>/<path relative to home>/…
+//   <dest>/SeleneBackup/<YYYY-MM-DD_HHMMSS>/<path relative to home>/…
 // with `rsync -a --relative --link-dest=<previous snapshot>`: unchanged files are hard links to the previous
 // snapshot, so every snapshot is a complete tree but only new data takes space. A run writes to "<stamp>.partial"
 // and renames it when rsync succeeds; a canceled or failed run removes it. Caches are excluded (.cache, Trash,
@@ -32,7 +32,7 @@ const path = require('path');
 const os = require('os');
 const { spawn } = require('child_process');
 
-const ROOT_NAME = 'AuroraBackup';
+const ROOT_NAME = 'SeleneBackup';
 const MANIFEST = '.aurora-snapshot.json';
 const STAMP_RE = /^\d{4}-\d{2}-\d{2}_\d{6}(-\d+)?$/;
 const EXCLUDES = ['.cache', 'Trash', '.local/share/Trash', '.Trash-*', 'node_modules'];
@@ -299,7 +299,7 @@ module.exports = function register(api) {
       for (const s of cfg.sources) {
         const r = await realOr(s);
         const st = await fsp.stat(r).catch(() => null);
-        // a source inside <dest>/AuroraBackup would back the backups up again on every run
+        // a source inside <dest>/SeleneBackup would back the backups up again on every run
         if (st?.isDirectory() && inside(r, h) && r !== h && !inside(r, backupRoot)) srcs.push(path.relative(h, r));
       }
       if (!srcs.length) throw err('None of the folders to back up exist', 'ESOURCE');

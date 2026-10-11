@@ -100,7 +100,7 @@
     "secAbout": "About this app",
     "version": "Version {v}",
     "aboutDesc": "Capture any part of your screen, then mark it up and share it.",
-    "aboutLicense": "Part of Aurora OS. Released under the MIT license.",
+    "aboutLicense": "Part of Selene OS. Released under the MIT license.",
     "aboutTitle": "About Snipping Tool",
     "colorNames": {
       "black": "Black",
@@ -239,7 +239,7 @@
     "secAbout": "À propos de cette application",
     "version": "Version {v}",
     "aboutDesc": "Capturez n'importe quelle partie de votre écran, puis annotez-la et partagez-la.",
-    "aboutLicense": "Fait partie d'Aurora OS. Publié sous licence MIT.",
+    "aboutLicense": "Fait partie de Selene OS. Publié sous licence MIT.",
     "aboutTitle": "À propos de l'Outil Capture",
     "colorNames": {
       "black": "Noir",

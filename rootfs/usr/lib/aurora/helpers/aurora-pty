@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""aurora-pty: run a program on a new pseudo-terminal and relay it over pipes (Aurora Terminal).
+"""aurora-pty: run a program on a new pseudo-terminal and relay it over pipes (Selene Terminal).
 
 Usage: aurora-pty [--cwd DIR] [--cols N] [--rows N] [--] [COMMAND [ARG...]]
 

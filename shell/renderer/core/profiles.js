@@ -50,8 +50,8 @@ export const LOOK_KEYS = [
 const solid = (c) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="10"><rect width="16" height="10" fill="${c}"/></svg>`)}`;
 
 export const BUILTIN_PROFILES = [
-  { id: 'aurora-light', name: { en: 'Aurora Light', fr: 'Aurora clair' }, values: { style: 'win11', theme: 'light', accent: '#0078d4', wallpaper: 'builtin:bloom' } },
-  { id: 'aurora-dark', name: { en: 'Aurora Dark', fr: 'Aurora sombre' }, values: { style: 'win11', theme: 'dark', accent: '#0078d4', wallpaper: 'builtin:bloom' } },
+  { id: 'aurora-light', name: { en: 'Selene Light', fr: 'Selene clair' }, values: { style: 'win11', theme: 'light', accent: '#0078d4', wallpaper: 'builtin:bloom' } },
+  { id: 'aurora-dark', name: { en: 'Selene Dark', fr: 'Selene sombre' }, values: { style: 'win11', theme: 'dark', accent: '#0078d4', wallpaper: 'builtin:bloom' } },
   { id: 'glass', name: { en: 'Glass', fr: 'Verre' }, values: { style: 'glass', theme: 'dark', accent: '#b146c2', wallpaper: 'builtin:glow', transparencyLevel: 60, blur: 60 } },
   { id: 'minimal', name: { en: 'Minimal', fr: 'Minimal' }, values: { style: 'minimal', theme: 'light', accent: '#5d5a58', wallpaper: solid('#d9d6cf'), cornerRadius: 75 } },
   { id: 'retro', name: { en: 'Retro', fr: 'Rétro' }, values: { style: 'retro', theme: 'light', accent: '#1f3f99', wallpaper: solid('#2a7c7a'), fontFamily: 'liberation-sans', cursorPack: 'retro', soundPack: 'retro' } },
@@ -510,7 +510,7 @@ export const profiles = {
     } catch {
       throw Object.assign(new Error('Not a JSON file'), { code: 'EINVAL' });
     }
-    if (!isObj(data) || data.format !== 'aurora-profile' || data.version !== 1 || !isObj(data.values)) throw Object.assign(new Error('Not an Aurora profile'), { code: 'EINVAL' });
+    if (!isObj(data) || data.format !== 'aurora-profile' || data.version !== 1 || !isObj(data.values)) throw Object.assign(new Error('Not a Selene profile'), { code: 'EINVAL' });
     const values = sanitizeValues(data.values, await defaults());
     if (!Object.keys(values).length) throw Object.assign(new Error('The profile has no usable settings'), { code: 'EINVAL' });
     const s = await load();

@@ -480,7 +480,7 @@ async function unitTests() {
     }
     assert.equal(faces.size, 52);
     for (const b of BACKS) assert.match(backSvg(b, '#e3008c'), /<\/svg>$/);
-    assert.notEqual(backSvg('aurora', '#e3008c'), backSvg('aurora', '#0078d4'), 'Aurora back follows the accent colour');
+    assert.notEqual(backSvg('aurora', '#e3008c'), backSvg('aurora', '#0078d4'), 'Selene back follows the accent colour');
   });
 }
 
@@ -881,7 +881,7 @@ async function uiTests() {
       assert.equal(await s.page.locator('.app-solitaire .sol-stat-moves .sol-stat-label').textContent(), 'Moves');
     });
 
-    await test('accent colour change repaints the Aurora card back', async () => {
+    await test('accent colour change repaints the Selene card back', async () => {
       const back = () => s.page.locator('.app-solitaire .sol-table').evaluate((e) => e.style.getPropertyValue('--sol-back'));
       const before = await back();
       await s.page.evaluate(() => window.__aurora.settings.set('accent', '#e3008c'));

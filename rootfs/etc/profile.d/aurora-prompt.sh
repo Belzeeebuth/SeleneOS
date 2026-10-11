@@ -1,6 +1,6 @@
-# /etc/profile.d/aurora-prompt.sh - Aurora OS: coloured bash prompt and a short greeting.
+# /etc/profile.d/aurora-prompt.sh - Selene OS: coloured bash prompt and a short greeting.
 #
-# Sourced by login shells (/etc/profile); Aurora Terminal starts login shells. Only interactive bash
+# Sourced by login shells (/etc/profile); Selene Terminal starts login shells. Only interactive bash
 # on a colour terminal is touched. The prompt is replaced at the first prompt (after ~/.bashrc ran),
 # and only while it is still a stock one, so a PS1 customised in ~/.bashrc always wins.
 # Opt out: AURORA_PROMPT=0 in ~/.profile. No greeting: touch ~/.hushlogin.
@@ -64,7 +64,7 @@ __aurora_greeting() {
   local mark="${XDG_RUNTIME_DIR:-/tmp}/aurora-terminal-greeted-${EUID:-0}"
   [ -e "$mark" ] && return 0
   : > "$mark" 2>/dev/null
-  local name="Aurora OS"
+  local name="Selene OS"
   if [ -r /etc/os-release ]; then
     name=$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-$NAME}")
   fi

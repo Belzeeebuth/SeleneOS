@@ -1,7 +1,7 @@
 #!/usr/bin/python3 -I
 """aurora-xresize XID X Y WIDTH HEIGHT
 
-Moves/resizes an X11 window directly through Xlib (no window manager runs under Aurora Shell).
+Moves/resizes an X11 window directly through Xlib (no window manager runs under Selene Shell).
 
 Used by the shell (shell/main/index.js) to make its window cover the display exactly: Chromium
 never creates a window exactly as large as a display (it subtracts one pixel so that window

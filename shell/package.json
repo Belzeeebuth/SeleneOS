@@ -1,7 +1,7 @@
 {
   "name": "aurora-shell",
   "version": "1.0.0",
-  "description": "Aurora OS desktop shell, login screen and built-in apps",
+  "description": "Selene OS desktop shell, login screen and built-in apps",
   "main": "main/index.js",
   "scripts": {
     "start": "electron . --dev --no-sandbox",
@@ -9,7 +9,7 @@
     "vendor-icons": "node tools/vendor-icons.mjs",
     "test": "node test/smoke.mjs"
   },
-  "author": "Aurora OS contributors",
+  "author": "Selene OS contributors",
   "license": "MIT",
   "devDependencies": {
     "@fluentui/svg-icons": "1.1.344",

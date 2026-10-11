@@ -621,10 +621,10 @@ async function lightEnglish() {
     await sleep(500);
     check((await get(s, 'keyboardLayout')) === 'fr' && (await inv(s, 'locale:status')).keyboard === 'fr', 'keyboard layout applies to the session and persists');
     await go(s, 'language');
-    await pickCombo(s, 'Aurora display language', 'Français');
+    await pickCombo(s, 'Selene display language', 'Français');
     await sleep(700);
     check((await get(s, 'lang')) === 'fr' && (await s.page.locator(S('.st-nav-item[data-cat="system"]')).innerText()).includes('Système'), 'display language switches the shell to French live');
-    await pickCombo(s, 'Langue d’affichage d’Aurora', 'English');
+    await pickCombo(s, 'Langue d’affichage de Selene', 'English');
     await sleep(700);
     check((await s.page.locator(S('.st-nav-item[data-cat="system"]')).innerText()).includes('System'), 'and back to English');
 
@@ -874,7 +874,7 @@ async function qaRegressions() {
     const offline = (await s.page.locator(S('.st-infobar.warning')).count()) > 0 && !(await checkBtn.isEnabled());
     await inv(s, 'net:setAirplane', false);
     await sleep(800);
-    check(enabledBefore && offline && (await checkBtn.isEnabled()), 'Aurora Update: going offline disables Check for updates (and back) without leaving the page');
+    check(enabledBefore && offline && (await checkBtn.isEnabled()), 'Selene Update: going offline disables Check for updates (and back) without leaving the page');
 
     // ---- pointer speed covers the whole libinput range
     await go(s, 'mouse');

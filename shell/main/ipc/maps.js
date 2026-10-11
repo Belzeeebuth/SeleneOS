@@ -4,7 +4,7 @@
 //
 // Channels:
 //   maps:tile (z, x, y) -> { url: data URL, mock, cached }   z 0..19, 0 <= x,y < 2^z (rejects EINVAL otherwise)
-//        Real: https://tile.openstreetmap.org/z/x/y.png with User-Agent "AuroraOS-Maps/1.0", at most 2 requests in
+//        Real: https://tile.openstreetmap.org/z/x/y.png with User-Agent "SeleneOS-Maps/1.0", at most 2 requests in
 //        flight (queued), memory LRU + disk cache ~/.cache/aurora/maps-tiles/z/x/y.png (7 days; stale copy when offline).
 //        Dev/tests (api.DEV unless AURORA_REAL_BACKENDS=1): a locally generated SVG tile (grid + "z/x/y"), never network.
 //   maps:search (query, { lang: 'en'|'fr' }) -> [{ id, name, display, type, lat, lon, bbox: [s, n, w, e] | null }]
@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const USER_AGENT = 'AuroraOS-Maps/1.0';
+const USER_AGENT = 'SeleneOS-Maps/1.0';
 const TILE_URL = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 const SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
 const MAX_PARALLEL = 2;
