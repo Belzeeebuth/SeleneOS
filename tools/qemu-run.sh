@@ -197,13 +197,14 @@ if ((NO_DISK == 0)); then
     fi
     if [[ "$BOOT" != disk ]]; then
       command -v "$QEMU_IMG" >/dev/null 2>&1 || ((DRY_RUN)) || die "$QEMU_IMG not found (Ubuntu/Debian: sudo apt install qemu-utils)"
+      ((DRY_RUN)) || { mkdir -p "$(dirname "$DISK")" 2>/dev/null && [[ -w "$(dirname "$DISK")" ]]; } || die "cannot create $(dirname "$DISK") (work/ belongs to root after a build). Fix: sudo mkdir -p '$(dirname "$DISK")' && sudo chown \"\$USER:\" '$(dirname "$DISK")'"
       run_or_print mkdir -p "$(dirname "$DISK")"
       run_or_print "$QEMU_IMG" create -q -f qcow2 "$DISK" "$DISK_SIZE"
       ((DRY_RUN)) || note "created $DISK ($DISK_SIZE, grows on demand)"
     fi
   fi
 fi
-((DRY_RUN)) || mkdir -p "$STATE"
+((DRY_RUN)) || { mkdir -p "$STATE" 2>/dev/null && [[ -w "$STATE" ]]; } || die "cannot create $STATE (work/ belongs to root after a build). Fix: sudo mkdir -p '$STATE' && sudo chown \"\$USER:\" '$STATE'"
 
 # ---- accelerator -------------------------------------------------------------------------
 if [[ -z "$ACCEL" ]]; then

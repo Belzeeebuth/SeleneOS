@@ -1420,6 +1420,10 @@ stage_iso() {
   [[ -z "$owner" && -n "${SUDO_UID:-}" && "${SUDO_UID}" != 0 ]] && owner="$SUDO_UID:${SUDO_GID:-$SUDO_UID}"
   if [[ "$owner" =~ ^[0-9]+:[0-9]+$ ]]; then
     chown "$owner" "$OUT" "$ISO_PATH" "$ISO_PATH.sha256" "$OUT/$(basename "$ISO_PATH" .iso).manifest" || true
+    # make run (as the user) keeps the VM disk and state in work/qemu/, but work/ belongs to root.
+    if [[ ! -e "$WORK/qemu" || "$(stat -c %u "$WORK/qemu")" == 0 ]]; then
+      mkdir -p "$WORK/qemu" && chown "$owner" "$WORK/qemu" || true
+    fi
   fi
   ok "ISO: $ISO_PATH ($(du -h "$ISO_PATH" | cut -f1), $(stat -c %s "$ISO_PATH") bytes)"
   ok "sha256: $(cut -d' ' -f1 "$ISO_PATH.sha256")"
