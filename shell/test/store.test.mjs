@@ -129,7 +129,9 @@ try {
   check('Ctrl+F focuses search', await page.evaluate(() => document.activeElement?.classList.contains('st-search-input')), true);
   await page.keyboard.type('rip');
   await until(async () => (await page.locator(`${W} .st-page`).getAttribute('data-view')) === 'search');
-  check('search "rip": ripgrep only', await page.locator(`${W} .st-card`).evaluateAll((els) => els.map((e) => e.dataset.id)), ['ripgrep']);
+  check('search "rip": ripgrep ranked first', (await page.locator(`${W} .st-card`).evaluateAll((els) => els.map((e) => e.dataset.id)))[0], 'ripgrep');
+  await page.fill(`${W} .st-search-input`, 'json');
+  check('search in descriptions: "json" finds jq', await page.locator(`${W} .st-card`).evaluateAll((els) => els.map((e) => e.dataset.id)), ['jq']);
   await page.fill(`${W} .st-search-input`, 'nvim');
   check('search by command "nvim": Neovim', await page.locator(`${W} .st-card`).evaluateAll((els) => els.map((e) => e.dataset.id)), ['neovim']);
   await page.fill(`${W} .st-search-input`, 'zzzqqq');

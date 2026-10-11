@@ -91,6 +91,7 @@ export default {
       render();
       content.scrollTop = 0;
       if (next.kind === 'detail') content.querySelector('.st-back')?.focus();
+      else if (!root.contains(document.activeElement)) content.focus();
     }
     function back() {
       if (!history.length) return false;
@@ -159,8 +160,8 @@ export default {
         h('div', { class: 'st-card-foot' }, statusChip(it)),
       );
     }
-    function grid(list) {
-      return h('div', { class: 'st-grid', role: 'list' }, list.map((it) => h('div', { role: 'listitem', class: 'st-grid-cell' }, card(it))));
+    function grid(list, row = false) {
+      return h('div', { class: ['st-grid', row && 'row'], role: 'list' }, list.map((it) => h('div', { role: 'listitem', class: 'st-grid-cell' }, card(it))));
     }
     function notice() {
       return h('div', { class: 'infobar st-notice' }, icon('info'), h('div', null, h('b', null, t('noticeTitle')), ' ', t('noticeBody')));
@@ -190,7 +191,7 @@ export default {
         navBtn('home', 'home', t('home'), sel === 'home', () => go({ kind: 'home' })),
         h('button', { class: ['nav-item', 'st-nav-item', sel === 'installed' && 'selected'], dataset: { nav: 'installed' }, 'aria-current': sel === 'installed' ? 'page' : null, onclick: () => go({ kind: 'installed' }) }, icon('apps_list'), h('span', { class: 'st-nav-label' }, t('installedNav')), nInst ? h('span', { class: 'st-count caption' }, String(nInst)) : null),
         h('div', { class: 'st-nav-sep caption' }, t('categories')),
-        CATEGORIES.filter((c) => items.some((i) => i.category === c)).map((c) => navBtn(`cat:${c}`, CAT_ICON[c], t(`cat.${c}`), sel === `cat:${c}`, () => go({ kind: 'category', category: c }))),
+        ...CATEGORIES.filter((c) => items.some((i) => i.category === c)).map((c) => navBtn(`cat:${c}`, CAT_ICON[c], t(`cat.${c}`), sel === `cat:${c}`, () => go({ kind: 'category', category: c }))),
       );
     }
 
@@ -202,7 +203,7 @@ export default {
           'section',
           { class: 'st-section', dataset: { category: c } },
           h('div', { class: 'st-section-head' }, h('h2', { class: 'subtitle' }, t(`cat.${c}`)), h('button', { class: 'btn subtle st-see-all', onclick: () => go({ kind: 'category', category: c }) }, t('seeAll'), icon('chevron_right'))),
-          grid(list.slice(0, 4)),
+          grid(list.slice(0, 4), true),
         );
       });
       return [
@@ -218,7 +219,10 @@ export default {
     }
 
     function renderSearch() {
-      const list = items.filter((i) => matches(i, query));
+      // Name / package / command hits first, then description-only hits.
+      const q = query.toLowerCase();
+      const rank = (i) => ([i.name, i.apt, i.command].some((v) => String(v || '').toLowerCase().startsWith(q)) ? 0 : [i.name, i.apt, i.command].some((v) => String(v || '').toLowerCase().includes(q)) ? 1 : 2);
+      const list = items.filter((i) => matches(i, query)).sort((a, b) => rank(a) - rank(b));
       return [
         h('h1', { class: 'title st-page-title' }, t('resultsFor', { q: query })),
         list.length ? [h('div', { class: 'text-2 st-page-sub' }, t('appsCount', { count: list.length })), grid(list)] : empty('search', t('noResults'), t('noResultsBody')),
@@ -293,6 +297,7 @@ export default {
     function render() {
       if (win.closed) return;
       const hadFocus = content.contains(document.activeElement);
+      const navFocus = navEl.contains(document.activeElement) ? document.activeElement.closest('[data-nav]')?.dataset.nav : null;
       const focusedId = hadFocus ? document.activeElement.closest('[data-id]')?.dataset.id : null;
       renderNav();
       let body;
@@ -307,6 +312,8 @@ export default {
       // Keep keyboard focus on the same card / row after a re-render (install state changes).
       if (focusedId) content.querySelector(`button[data-id="${CSS.escape(focusedId)}"], [data-id="${CSS.escape(focusedId)}"] .st-row-main`)?.focus();
       else if (view.kind === 'detail' && hadFocus && !root.contains(document.activeElement)) content.querySelector('.st-actions .btn:not([disabled]), .st-back')?.focus();
+      if (navFocus) navEl.querySelector(`[data-nav="${CSS.escape(navFocus)}"]`)?.focus();
+      if (hadFocus && !root.contains(document.activeElement)) content.focus();
     }
 
     // ------------------------------------------------------------------ keyboard

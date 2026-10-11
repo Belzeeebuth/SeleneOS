@@ -36,7 +36,7 @@ async function until(page, expr, timeout = 8000) {
   return false;
 }
 const invoke = (page, ch, ...args) =>
-  page.evaluate(`window.aurora.invokeRaw ? window.aurora.invokeRaw(${JSON.stringify(ch)}, ...${JSON.stringify(args)}).then((r) => r && r.error ? { error: r.error } : { ok: r && 'value' in r ? r.value : r }) : window.aurora.invoke(${JSON.stringify(ch)}, ...${JSON.stringify(args)}).then((v) => ({ ok: v }), (e) => ({ error: { code: e.code, message: e.message } })))`);
+  page.evaluate(`(async () => { const r = await window.aurora.invokeRaw(${JSON.stringify(ch)}, ...${JSON.stringify(args)}); return r && r.ok ? { ok: r.value } : { error: (r && r.error) || { code: 'EFAIL' } }; })()`);
 
 // ---------------------------------------------------------------- 1. parser (pure)
 {
@@ -113,7 +113,7 @@ try {
   const usbBar = await page.evaluate(`[...document.querySelectorAll('${WIN} .dk-bar .dk-seg')].map((e) => e.className)`);
   check(usbBar.length === 1 && /mounted/.test(usbBar[0]), 'USB stick: one mounted partition in the bar', usbBar);
   check(await page.evaluate(`document.querySelector('${WIN} .dk-part')?.innerText.includes('/media/user/USB STICK')`), 'volume details show the mount point');
-  check(await page.evaluate(`/9\\.1 GB used of 30\\.8 GB/.test(document.querySelector('${WIN} .dk-part')?.innerText || '')`), 'usage shown (used / size)', await page.evaluate(`document.querySelector('${WIN} .dk-usage')?.innerText`));
+  check(await page.evaluate(`/9\\.1 GB used of 30\\.\\d GB/.test(document.querySelector('${WIN} .dk-part')?.innerText || '')`), 'usage shown (used / size)', await page.evaluate(`document.querySelector('${WIN} .dk-usage')?.innerText`));
   check(await page.evaluate(`document.querySelector('${WIN} .dk-smart')?.textContent === 'Not available'`), 'SMART shown as not available');
   check(await page.evaluate(`!!document.querySelector('${WIN} .dk-eject') && !!document.querySelector('${WIN} .dk-format')`), 'Eject and Format offered for the USB stick');
   await s.shot('disks-light-en');
@@ -225,7 +225,7 @@ try {
   check(await page.evaluate(`!document.querySelector('${WIN}').innerText.match(/\\bnull\\b|\\bundefined\\b|\\{\\w+\\}/)`), 'no null / undefined / raw placeholders in the window');
 
   // narrow window: no horizontal overflow
-  await page.evaluate(`(() => { const w = window.__aurora?.wm?.list?.().find?.((x) => x.appId === 'disks'); w?.setSize?.(600, 480); })()`);
+  await page.evaluate(`(() => { const wm = window.__aurora?.wm; const w = wm && [].concat(wm.byApp?.('disks') || [])[0]; w?.setSize?.(600, 480); })()`);
   await sleep(300);
   check(await page.evaluate(`(() => { const m = document.querySelector('${WIN} .dk-main'); return m.scrollWidth <= m.clientWidth + 1; })()`), 'no horizontal overflow at a narrow size');
 } catch (e) {

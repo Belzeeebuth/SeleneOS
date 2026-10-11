@@ -40,6 +40,8 @@
 .app-store .st-see-all .icon { width: 14px; height: 14px; }
 .app-store .st-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
 .app-store .st-grid-cell { display: flex; min-width: 0; }
+/* home: one row per category (four cards fill the row; narrower windows scroll it sideways) */
+.app-store .st-grid.row { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(180px, calc((100% - 36px) / 4)); overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
 .app-store .st-card { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; padding: 16px; text-align: start; font: inherit; color: inherit; cursor: default;
   background: var(--card); border: 1px solid var(--stroke-card, var(--stroke)); border-radius: 8px; transition: transform var(--dur-fast, 0.1s) var(--ease), background var(--dur-fast, 0.1s) var(--ease); }
 .app-store .st-card:hover { background: var(--card-hover, var(--subtle-hover)); }
@@ -99,7 +101,7 @@
 .app-store .st-actions .btn .icon { width: 16px; height: 16px; }
 .app-store .st-progress-wrap { display: flex; flex-direction: column; gap: 6px; width: min(360px, 100%); }
 .app-store .st-desc { margin: 0; line-height: 20px; max-width: 760px; }
-.app-store .st-cmd { margin: 0; padding: 10px 14px; border-radius: 4px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; background: var(--control-strong, var(--subtle-hover)); color: var(--text); overflow-x: auto; align-self: flex-start; max-width: 100%; }
+.app-store .st-cmd { margin: 0; padding: 10px 14px; border-radius: 4px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; background: var(--card); border: 1px solid var(--stroke); color: var(--text); overflow-x: auto; align-self: flex-start; max-width: 100%; }
 .app-store .st-info { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 24px; margin: 0; padding: 16px 20px; }
 .app-store .st-info dd { margin: 0; overflow-wrap: anywhere; }
 .app-store .st-empty { padding: 60px 0; }

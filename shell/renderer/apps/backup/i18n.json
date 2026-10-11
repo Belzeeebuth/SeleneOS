@@ -84,6 +84,9 @@
       "ENODEST": "Choose a destination first.",
       "ENORSYNC": "rsync is not installed.",
       "EBUSY": "A backup is already running.",
+      "ENOENT": "This backup or item can no longer be found.",
+      "EINVAL": "This path is not allowed.",
+      "ERSYNC": "The copy failed: {path}",
       "generic": "Something went wrong: {msg}"
     }
   },
@@ -172,6 +175,9 @@
       "ENODEST": "Choisissez d'abord une destination.",
       "ENORSYNC": "rsync n'est pas installé.",
       "EBUSY": "Une sauvegarde est déjà en cours.",
+      "ENOENT": "Cette sauvegarde ou cet élément est introuvable.",
+      "EINVAL": "Ce chemin n'est pas autorisé.",
+      "ERSYNC": "La copie a échoué : {path}",
       "generic": "Une erreur s'est produite : {msg}"
     }
   }

@@ -57,6 +57,25 @@ function inside(child, parent) {
 }
 const realOr = async (p) => fsp.realpath(p).catch(() => path.resolve(p));
 const isAbs = (p) => typeof p === 'string' && p.length < 4096 && !p.includes('\0') && path.isAbsolute(p);
+/** Real path of `p`, or of its deepest existing ancestor joined with the rest (symlinks resolved). */
+async function realDeep(p) {
+  let cur = path.resolve(p);
+  const rest = [];
+  for (;;) {
+    try {
+      return path.join(await fsp.realpath(cur), ...rest);
+    } catch {
+      const up = path.dirname(cur);
+      if (up === cur) return path.resolve(p);
+      rest.unshift(path.basename(cur));
+      cur = up;
+    }
+  }
+}
+/** Throws EINVAL when `p` (after resolving symlinks) leaves `root` — e.g. a symlink stored in a snapshot. */
+async function assertInside(p, root) {
+  if (!inside(await realDeep(p), await realOr(root))) throw err('Invalid path', 'EINVAL');
+}
 
 /** A relative path inside a snapshot: no '..', not absolute. Returns the normalised form or null. */
 function safeRel(rel) {
@@ -272,13 +291,16 @@ module.exports = function register(api) {
     try {
       const cfg = await readConfig();
       const errors = await validate(cfg, { needDest: true, strictSources: false });
-      if (errors.length) throw err(`Invalid backup settings: ${errors.map((e) => `${e.code} ${e.path}`).join(', ')}`, errors[0].code === 'ENODEST' ? 'ENODEST' : errors[0].code.startsWith('EDEST') || errors[0].code === 'EINSIDE' ? 'EDEST' : 'ESOURCE');
+      // keep the precise code (the app has a message for each one); "<code>: <path>" so the UI can show the path
+      if (errors.length) throw err(`${errors[0].code}: ${errors[0].path}`, errors[0].code);
       const h = await realOr(home());
+      const backupRoot = path.join(await realOr(cfg.dest), ROOT_NAME);
       const srcs = [];
       for (const s of cfg.sources) {
         const r = await realOr(s);
         const st = await fsp.stat(r).catch(() => null);
-        if (st?.isDirectory() && inside(r, h) && r !== h) srcs.push(path.relative(h, r));
+        // a source inside <dest>/AuroraBackup would back the backups up again on every run
+        if (st?.isDirectory() && inside(r, h) && r !== h && !inside(r, backupRoot)) srcs.push(path.relative(h, r));
       }
       if (!srcs.length) throw err('None of the folders to back up exist', 'ESOURCE');
       const root = await snapshotsRoot(await realOr(cfg.dest));
@@ -410,6 +432,7 @@ module.exports = function register(api) {
     const r = safeRel(rel);
     if (r === null) throw err('Invalid path', 'EINVAL');
     const base = path.join(dir, r);
+    await assertInside(base, dir); // a symlink kept in the snapshot must not list folders outside it
     const ents = await fsp.readdir(base, { withFileTypes: true }).catch(() => {
       throw err('Folder not found', 'ENOENT');
     });
@@ -442,10 +465,13 @@ module.exports = function register(api) {
     const plan = [];
     for (const r of items) {
       const src = path.join(dir, r);
+      // the item itself may be a symlink (copied as a link), but the folders leading to it must stay in the snapshot
+      await assertInside(path.dirname(src), dir);
       const st = await fsp.lstat(src).catch(() => null);
       if (!st) throw err(`Not in the snapshot: ${r}`, 'ENOENT');
       const target = to === 'folder' ? path.join(folder, path.basename(r)) : path.join(h, r);
       if (to === 'original' && !inside(path.resolve(target), h)) throw err('Invalid path', 'EINVAL');
+      if (to === 'original') await assertInside(path.dirname(target), h); // no writing through a symlink out of home
       plan.push({ rel: r, src, target, dir: st.isDirectory() });
     }
     const conflicts = [];

@@ -155,7 +155,7 @@ class BackupApp {
     if (this.closed) return;
     const { h, t, icon } = this;
     const items = [
-      ['home', 'archive_clock'],
+      ['home', 'arrow_sync_circle'],
       ['snapshots', 'history'],
       ['settings', 'settings'],
     ];
@@ -206,7 +206,7 @@ class BackupApp {
     const status = h(
       'section',
       { class: 'card bk-status' },
-      h('div', { class: 'bk-status-icon' }, icon(running ? 'arrow_sync' : last ? 'checkmark_circle' : 'archive_clock', { size: 32 })),
+      h('div', { class: 'bk-status-icon' }, icon(running ? 'arrow_sync' : last ? 'checkmark_circle' : 'arrow_sync_circle', { size: 32 })),
       h(
         'div',
         { class: 'grow' },

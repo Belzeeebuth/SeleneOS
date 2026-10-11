@@ -141,7 +141,7 @@ function parseLsblk(json, df = new Map()) {
     const tran = str(d.tran).toLowerCase();
     const removable = !!(d.rm || d.hotplug || tran === 'usb' || tran === 'mmc' || /^mmcblk/.test(d.name || ''));
     const system = all.some((p) => p.system) || mountsOf(d).some((m) => SYSTEM_MOUNT_RE.test(m));
-    const vendor = /^0x/i.test(str(d.vendor)) ? '' : str(d.vendor);
+    const vendor = /^(0x|ata$|scsi$)/i.test(str(d.vendor)) ? '' : str(d.vendor);
     let model = str(d.model).replace(/_/g, ' ');
     if (vendor && model && !model.toLowerCase().startsWith(vendor.toLowerCase())) model = `${vendor} ${model}`;
     drives.push({
@@ -236,6 +236,9 @@ function register(api) {
       changed();
       return true;
     }
+    // Same rule as the mock: never unmount the running system (/, /boot, live medium…) or active swap.
+    const { drives } = await list();
+    for (const d of drives) for (const p of d.fs ? [d.fs] : d.partitions) if (p.path === dev && p.system) throw err('target is busy', 'EBUSY');
     await udisks('unmount', dev);
     changed();
     return true;
@@ -255,6 +258,7 @@ function register(api) {
     const d = drives.find((x) => x.path === dev);
     if (!d) throw err('Invalid device', 'EINVAL');
     if (d.system) throw err('The system drive cannot be ejected', 'EBUSY');
+    if (!d.removable) throw err('Only removable drives can be ejected', 'EINVAL');
     for (const p of d.fs ? [d.fs] : d.partitions) if (p.mountpoints.length && !p.swap) await udisks('unmount', p.path);
     await udisks('power-off', dev);
     changed();

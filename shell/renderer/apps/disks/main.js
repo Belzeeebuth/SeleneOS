@@ -249,7 +249,7 @@ export default {
 
     function renderMain() {
       const d = selDrive();
-      const focusPath = mainEl.contains(document.activeElement) ? document.activeElement.className : '';
+      const segFocused = mainEl.contains(document.activeElement) && !!document.activeElement.classList?.contains('dk-seg');
       if (state.error) {
         mainEl.replaceChildren(h('div', { class: 'infobar error dk-error', role: 'alert' }, icon('error_circle'), h('div', null, state.error)), h('div', { class: 'dk-actions' }, h('button', { class: 'btn', onclick: () => load() }, t('refresh'))));
         return;
@@ -282,7 +282,7 @@ export default {
         h('div', { class: 'dk-grid' }, partDetails(d, selPart()), driveDetails(d)),
       ].filter(Boolean);
       mainEl.replaceChildren(...parts);
-      if (focusPath.includes('dk-seg')) mainEl.querySelector('.dk-seg.selected')?.focus();
+      if (segFocused) mainEl.querySelector('.dk-seg.selected')?.focus();
     }
 
     // ------------------------------------------------------------ actions
