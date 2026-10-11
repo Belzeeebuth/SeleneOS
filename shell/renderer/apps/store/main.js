@@ -95,8 +95,12 @@ export default {
     }
     function back() {
       if (!history.length) return false;
+      const left = view.kind === 'detail' ? view.id : null;
       view = history.pop();
       render();
+      const prev = left && content.querySelector(`button.st-card[data-id="${CSS.escape(left)}"], [data-id="${CSS.escape(left)}"] .st-row-main`);
+      if (prev) prev.focus();
+      else if (!root.contains(document.activeElement)) (content.querySelector('.st-card, .st-row-main') || content).focus();
       return true;
     }
 
@@ -237,7 +241,7 @@ export default {
           { class: 'st-row card', dataset: { id: it.id } },
           h('button', { class: 'st-row-main', onclick: () => go({ kind: 'detail', id: it.id }), 'aria-label': it.name }, tile(it, 'small'), h('div', { class: 'st-row-text' }, h('div', { class: 'st-row-name' }, it.name), h('div', { class: 'caption text-2' }, `${it.apt} · ${installed[it.apt] || ''}`))),
           op?.apt === it.apt ? statusChip(it) : null,
-          h('button', { class: 'btn st-open', disabled: !it.command || !!op, onclick: () => openTerminal(it) }, icon('window_console'), t('openTerminal')),
+          it.command ? h('button', { class: 'btn st-open', onclick: () => openTerminal(it) }, icon('window_console'), t('openTerminal')) : null,
           h('button', { class: 'btn subtle st-remove', disabled: !!op, 'aria-label': t('removeName', { name: it.name }), title: t('remove'), onclick: () => runOp(it, 'remove') }, icon('delete')),
         ),
       );
@@ -252,7 +256,7 @@ export default {
       if (busy) {
         actions.append(h('div', { class: 'st-progress-wrap' }, h('div', { class: 'progress st-progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(op.percent), 'aria-label': op.step }, h('div', { class: 'bar', style: { width: `${op.percent}%` } })), h('div', { class: 'caption text-2 st-step', 'aria-live': 'polite' }, op.step)));
       } else if (inst) {
-        if (it.command) actions.append(h('button', { class: 'btn primary st-open', disabled: !!op, onclick: () => openTerminal(it) }, icon('window_console'), t('openTerminal')));
+        if (it.command) actions.append(h('button', { class: 'btn primary st-open', onclick: () => openTerminal(it) }, icon('window_console'), t('openTerminal')));
         actions.append(h('button', { class: 'btn st-remove', disabled: !!op, onclick: () => runOp(it, 'remove') }, t('remove')));
       } else {
         actions.append(h('button', { class: 'btn primary st-install', disabled: !!op, onclick: () => runOp(it, 'install') }, icon('arrow_download'), t('install')));
@@ -324,16 +328,18 @@ export default {
         searchInput.focus();
         searchInput.select();
       } else if ((e.altKey && e.key === 'ArrowLeft') || (e.key === 'Backspace' && !inField) || (e.key === 'Escape' && !inField && view.kind === 'detail')) {
-        if (back()) {
-          e.preventDefault();
-          content.querySelector('.st-card, .nav-item.selected')?.focus();
-        }
+        if (back()) e.preventDefault();
       } else if (e.key === 'F5') {
         e.preventDefault();
         load().then(render);
       }
     });
-    const offLang = ctx.onLangChange?.(() => render());
+    const offLang = ctx.onLangChange?.(() => {
+      searchInput.placeholder = t('searchPlaceholder');
+      searchInput.setAttribute('aria-label', t('searchPlaceholder'));
+      navEl.setAttribute('aria-label', t('navLabel'));
+      render();
+    });
     const offDev = api.on('admin:devChanged', ({ what } = {}) => {
       if (what === 'store' && !op) refreshInstalled().then(render);
     });

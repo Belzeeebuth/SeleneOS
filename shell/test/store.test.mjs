@@ -188,6 +188,7 @@ try {
   check('Enter on a card opens its page', (await page.locator(`${W} .st-detail-title h1`).innerText().catch(() => '')).trim(), 'ncdu');
   await page.keyboard.press('Backspace');
   check('Backspace: back', await page.locator(`${W} .st-page`).getAttribute('data-view'), 'category');
+  check('back: focus returns to the card that was open', await page.evaluate(() => document.activeElement?.dataset?.id || ''), 'ncdu');
 
   // failure (simulated for btop)
   await page.click(`${W} .st-card[data-id=btop]`);

@@ -615,12 +615,12 @@ class PasswordsApp {
     fav.classList.add('pw-f-fav');
     const form = h(
       'form',
-      { class: 'pw-editor', autocomplete: 'off' },
+      { class: 'pw-editor', autocomplete: 'off', novalidate: true },
       h('div', { class: 'subtitle' }, d.isNew ? t('newEntry') : t('editEntry')),
       input('title', t('title'), { attrs: { maxlength: 500 } }),
       input('username', t('username')),
       h('div', { class: 'field' }, h('label', { for: 'pw-f-password' }, t('password')), pw.wrap, meter),
-      input('url', t('website'), { attrs: { placeholder: 'https://', type: 'url' } }),
+      input('url', t('website'), { attrs: { placeholder: 'https://', inputmode: 'url' } }),
       input('notes', t('notes'), { multiline: true }),
       fav,
       h('div', { class: 'pw-editor-actions' }, h('button', { class: 'btn primary pw-save', type: 'submit' }, t('save')), h('button', { class: 'btn pw-cancel', type: 'button', onclick: () => this.cancelEdit() }, t('cancel'))),
