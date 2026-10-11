@@ -72,7 +72,7 @@ async function privacy(pc) {
         kit.row({ icon: 'data_usage', title: t('priv.diagnostics'), desc: t('priv.diagnosticsDesc'), control: h('span', { class: 'st-pill' }, t('priv.noTelemetry')) }),
         kit.row({ icon: 'folder_person', title: t('priv.files'), desc: t('priv.filesDesc') }),
       ),
-      adm?.simulated ? kit.infobar({ kind: 'info', message: t('settings.simulated') }) : null,
+      adm?.simulated ? kit.infobar({ kind: 'info', message: t('settings.simulated') }) : '',
     );
   }
   paint();

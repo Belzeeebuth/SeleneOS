@@ -221,7 +221,7 @@ async function wifi(pc) {
       const auto = h('input', { type: 'checkbox', checked: autoOf(n.ssid), onchange: (e) => autoFor.set(n.ssid, e.target.checked) });
       form.append(
         h('label', { class: 'checkbox' }, auto, h('span', null, t('net.connectAuto'))),
-        errFor?.ssid === n.ssid ? kit.infobar({ kind: 'error', message: errFor.code === 'ENOTFOUND' ? t('net.notInRange') : t('net.cantConnect', { msg: errFor.msg }) }) : null,
+        errFor?.ssid === n.ssid ? kit.infobar({ kind: 'error', message: errFor.code === 'ENOTFOUND' ? t('net.notInRange') : t('net.cantConnect', { msg: errFor.msg }) }) : '',
         h(
           'div',
           { class: 'row' },

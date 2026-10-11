@@ -2070,7 +2070,7 @@ export class Editor {
             h('span', { class: 'ellipsis' }, nb.name),
             this.readOnly ? null : icon('chevron_down', { size: 12 }),
           )
-        : null,
+        : '',
     );
   }
 

@@ -119,7 +119,7 @@ export class SidePane {
       const types = new Set(items.map((i) => i.type));
       wrap.append(h('div', { class: 'fx-dp-sec caption text-2' }, t('pane.properties')),
         this.prop(t('props.type'), types.size === 1 ? [...types][0] : t('props.multipleTypes')),
-        files.length ? this.prop(t('props.size'), T.humanSize(total)) : null,
+        files.length ? this.prop(t('props.size'), T.humanSize(total)) : '',
         this.prop(t('cols.mtime'), (() => {
           const ms = items.map((i) => i.entry?.mtime).filter(Boolean);
           if (!ms.length) return '';

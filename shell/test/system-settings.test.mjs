@@ -740,8 +740,11 @@ async function darkFrench() {
     check((await s.page.locator(S('.st-title')).innerText()).trim() === 'Système', 'opens in French');
     const pages = ['system', 'display', 'sound', 'network', 'wifi', 'personalization', 'colors', 'background', 'accounts', 'users', 'time', 'language', 'keyboard', 'privacy', 'update', 'about', 'installedApps', 'power', 'storage'];
     const over = [];
+    const stray = [];
     for (const p of pages) {
       await go(s, p);
+      // A null/undefined child passed to a native DOM append() shows up as the text "null"/"undefined".
+      if (await s.aurora(() => { const w = document.createTreeWalker(document.querySelector('.app-settings .st-scroll'), NodeFilter.SHOW_TEXT); while (w.nextNode()) if (/^\s*(null|undefined)\s*$/.test(w.currentNode.data)) return true; return false; })) stray.push(p);
       const o = await s.aurora(() => {
         const sc = document.querySelector('.app-settings .st-scroll');
         const clipped = [...document.querySelectorAll('.app-settings .st-row-right')].filter((r) => r.getBoundingClientRect().right > sc.getBoundingClientRect().right + 1).length;
@@ -751,6 +754,7 @@ async function darkFrench() {
       if (['personalization', 'network', 'display', 'accounts', 'update', 'about', 'system', 'time'].includes(p)) await docShot(s, `${p}-dark-fr`);
     }
     check(!over.length, `French text fits (no overflow) on every page${over.length ? `: ${over.join(', ')}` : ''}`);
+    check(!stray.length, `no stray "null"/"undefined" text on any page${stray.length ? `: ${stray.join(', ')}` : ''}`);
     const untranslated = await s.aurora(() => {
       const bad = [];
       for (const el of document.querySelectorAll('.app-settings .st-row-title, .app-settings .st-group-title, .app-settings .btn, .app-settings .st-nav-item')) {
@@ -983,12 +987,37 @@ async function qaRegressions() {
   }
 }
 
+// Real system (not simulated, as in the ISO): pages build different content, e.g. Privacy drops the
+// "simulated" banner. A null child there used to show as the text "null".
+async function realSystemPages() {
+  console.log('Real backends (not simulated)');
+  const s = await launchShell({ open: ['settings'], env: { AURORA_REAL_BACKENDS: '1' } });
+  try {
+    await s.page.waitForSelector(S('.st-page'), { timeout: 20000 });
+    const stray = [];
+    for (const p of ['privacy', 'about', 'system']) {
+      await go(s, p);
+      if (await s.aurora(() => { const w = document.createTreeWalker(document.querySelector('.app-settings .st-scroll'), NodeFilter.SHOW_TEXT); while (w.nextNode()) if (/^\s*(null|undefined)\s*$/.test(w.currentNode.data)) return true; return false; })) stray.push(p);
+    }
+    check(!stray.length, `real system: no stray "null"/"undefined" text${stray.length ? `: ${stray.join(', ')}` : ''}`);
+  } catch (err) {
+    check(false, `real-system flow crashed: ${err.stack || err}`);
+  } finally {
+    await s.close();
+  }
+}
+
 if (ARGS.has('--qa')) {
   await qaRegressions();
   finish();
 }
+if (ARGS.has('--real')) {
+  await realSystemPages();
+  finish();
+}
 await lightEnglish();
 if (!ARGS.has('--skip-dark')) await darkFrench();
+await realSystemPages();
 await qaRegressions();
 finish();
 
