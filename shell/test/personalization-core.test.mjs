@@ -938,11 +938,13 @@ console.log('\n# Settings pages');
   await go('visualStyle');
   check((await s.page.locator(S('.pz-style-card')).count()) === 4 && (await s.page.locator(S('.pz-style-card .pz-spv[data-style="clairdelune"] .win-titlebar')).count()) === 1 && (await s.page.locator(S('.pz-style-card .pz-spv .pz-spv-bar')).count()) === 4, 'Visual style page: four cards with real mini renderings (window + bar)');
   const card = await T(s, () => {
-    const pv = document.querySelector('.app-settings .pz-spv[data-style="clairdelune"]');
+    const id = document.documentElement.dataset.style === 'clairdelune' ? 'eclipse' : 'clairdelune';
+    const pv = document.querySelector(`.app-settings .pz-spv[data-style="${id}"]`);
     const seg = pv.querySelector('.pz-spv-seg.c');
-    return { mode: getComputedStyle(pv).getPropertyValue('--bar-mode').trim(), amb: pv.dataset.ambiance, segBg: getComputedStyle(seg).backgroundColor, root: document.documentElement.dataset.style };
+    return { id, mode: getComputedStyle(pv).getPropertyValue('--bar-mode').trim(), amb: pv.dataset.ambiance, segBg: getComputedStyle(id === 'eclipse' ? pv.querySelector('.pz-spv-bar') : seg).backgroundColor, root: document.documentElement.dataset.style };
   });
-  check(card.mode === 'pills' && card.amb === 'warm' && card.segBg !== 'rgba(0, 0, 0, 0)' && card.root !== 'clairdelune', `the Clair de lune card is drawn as Clair de lune (pills, warm) while the desktop uses another style (${JSON.stringify(card)})`);
+  const want = card.id === 'eclipse' ? ['full', 'neutral'] : ['pills', 'warm'];
+  check(card.mode === want[0] && card.amb === want[1] && card.segBg !== 'rgba(0, 0, 0, 0)' && card.root !== card.id, `a style card is drawn in its own style (bar ${want[0]}, ${want[1]} mood) while the desktop uses another style (${JSON.stringify(card)})`);
   const ambUi = await T(s, () => [...document.querySelectorAll('.app-settings .pz-style-colors .pz-ambiance')].map((b) => `${b.dataset.ambiance}:${b.getAttribute('aria-checked')}`).join(','));
   check(/^cold:\w+,neutral:\w+,warm:\w+$/.test(ambUi) && (ambUi.match(/true/g) || []).length === 1, `Visual style page: ambiance radio group, one checked (${ambUi})`);
   await s.page.locator(S('.pz-style-colors .pz-ambiance[data-ambiance="warm"]')).click();
@@ -1015,7 +1017,7 @@ console.log('\n# French');
   await docShot(s, 'theme-designer-light-fr');
   await T(s, () => window.__aurora.registry.launch('settings', { page: 'profiles' }));
   await sleep(1200);
-  check((await s.page.locator(S('.pz-profile-name'), { hasText: 'Oiseau de nuit' }).count()) === 1, 'French: built-in profile names');
+  check((await s.page.locator(S('.pz-profile-name'), { hasText: 'Éclipse' }).count()) === 1, 'French: built-in profile names');
   await docShot(s, 'profiles-light-fr');
   await setKey(s, 'lang', 'en', 800);
 }
@@ -1103,6 +1105,7 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
   const t1 = await launchShell({ home, settings: { style: 'eclipse', textScale: 120, blur: 20, cornerRadius: 150, fontFamily: 'dejavu-serif', accent: '#e3008c', reducedMotion: true, taskbar: { color: '#101820' }, appThemes: { notepad: { theme: 'dark', accent: null } } }, open: ['notepad'] });
   const r = await T(t1, () => ({
     style: document.documentElement.dataset.style,
+    amb: document.documentElement.dataset.ambiance,
     body: getComputedStyle(document.body).fontSize,
     np: document.querySelector('#windows > .win.app-notepad')?.dataset.theme,
     tb: getComputedStyle(document.getElementById('taskbar')).backdropFilter,
@@ -1113,7 +1116,7 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
     tbColor: document.getElementById('taskbar').style.getPropertyValue('--taskbar-rgb').trim(),
     tbAlign: window.__aurora.settings.get('taskbar.align'),
   }));
-  check(r.style === 'eclipse' && r.body === '16.8px' && r.np === 'dark' && r.tb === 'none', `settings are restored at boot (style ${r.style}, text ${r.body}, Notepad ${r.np})`);
+  check(r.style === 'eclipse' && r.amb === 'neutral' && r.body === '16.8px' && r.np === 'dark', `settings are restored at boot (style ${r.style}, ambiance ${r.amb} from the style, text ${r.body}, Notepad ${r.np})`);
   check(r.corner === '1.500' && /DejaVu Serif/.test(r.font) && r.accent === '#e3008c' && r.motion === 'on' && r.tbColor === '16 24 32' && r.tbAlign === 'center', `every personalization key is applied at boot (corners ${r.corner}, accent ${r.accent}, reduced motion ${r.motion}, taskbar ${r.tbColor})`);
   await T(t1, () => window.__aurora.theme.profiles.saveCurrent('Persisted'));
   await t1.close();
@@ -1258,11 +1261,11 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
       await e.page.locator(S(`.pz-style-card[data-style-id="${id}"]`)).first().click();
       await sleep(700);
       await waitTransitions(e);
-      seen[id] = await T(e, () => ({ attr: document.documentElement.dataset.style, v: window.__t.get('style'), radius: getComputedStyle(document.querySelector('#windows > .win.app-notepad')).borderTopLeftRadius, title: getComputedStyle(document.querySelector('#windows > .win.app-notepad .win-titlebar')).backgroundImage.slice(0, 15), tb: getComputedStyle(document.getElementById('taskbar')).backgroundColor }));
+      seen[id] = await T(e, () => ({ attr: document.documentElement.dataset.style, v: window.__t.get('style'), radius: getComputedStyle(document.querySelector('#windows > .win.app-notepad')).borderTopLeftRadius, title: getComputedStyle(document.querySelector('#windows > .win.app-notepad .win-titlebar')).backgroundImage.slice(0, 15), tb: getComputedStyle(document.getElementById('taskbar')).backgroundColor, bar: getComputedStyle(document.documentElement).getPropertyValue('--bar-mode').trim(), win: getComputedStyle(document.documentElement).getPropertyValue('--win-border-w').trim(), amb: document.documentElement.dataset.ambiance }));
     }
-    const sig = Object.values(seen).map((x) => `${x.radius}|${x.title}|${x.tb}`);
+    const sig = Object.values(seen).map((x) => `${x.radius}|${x.title}|${x.tb}|${x.bar}|${x.win}|${x.amb}`);
     check(Object.entries(seen).every(([id, x]) => x.attr === id && x.v === id), `E2E five visual styles applied from their cards (${Object.keys(seen).join(', ')})`);
-    check(new Set(sig).size === 5, `E2E each style looks different (window radius / title bar / taskbar: ${sig.join(' ; ')})`);
+    check(new Set(sig).size === 4, `E2E each style looks different (window radius / title bar / taskbar: ${sig.join(' ; ')})`);
 
     // per-app themes: light / dark / system / custom accent
     await go('appThemes');
@@ -1310,7 +1313,7 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
       const pr = await import('app://shell/core/profiles.js');
       const A = window.__aurora;
       const ALT = {
-        style: 'clairdelune', theme: 'dark', autoTheme: { enabled: false, light: '06:30', dark: '20:15' }, accent: '#c239b3', accentFromWallpaper: true,
+        style: 'clairdelune', ambiance: 'neutral', theme: 'light', autoTheme: { enabled: false, light: '06:30', dark: '20:15' }, accent: '#c239b3', accentFromWallpaper: true,
         transparency: false, transparencyLevel: 80, blur: 20, cornerRadius: 150, fontFamily: 'dejavu-sans', textScale: 110, scale: 110,
         reducedMotion: true, animations: false, 'taskbar.color': '#203040', 'taskbar.opacity': 70, appThemes: { notepad: { theme: 'dark', accent: '#112233' } },
         wallpaper: 'builtin:dunes', wallpaperFit: 'fit', lockWallpaper: 'builtin:glow', wallpaperMode: 'animated',
@@ -1420,7 +1423,7 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
     check(inj.accent === '#c9d3e6' && inj.font === 'inter' && inj.tbColor === null && !inj.injected && !inj.hidden, `import: no CSS injection through colours, font names or the taskbar colour (accent ${inj.accent}, font ${inj.font})`);
     check(JSON.stringify(inj.appThemes) === '{"calculator":{"theme":"light","accent":"#123456"}}', `import: per-app themes keep only valid app ids and colours (${JSON.stringify(inj.appThemes)})`);
     // (profile names keep their text as typed and are always shown with textContent: see "saved profile name is cleaned")
-    check(!/[<>]/.test(`${inj.group}${inj.preset}`) && inj.dynKeys === 'followTheme,location,set,source' && inj.wall === 'builtin:bloom', `import: names lose markup ("${inj.group}", "${inj.preset}", "${inj.name}"), unknown sub-keys and scripted SVG pictures are dropped`);
+    check(!/[<>]/.test(`${inj.group}${inj.preset}`) && inj.dynKeys === 'followTheme,location,set,source' && inj.wall === 'builtin:nocturne', `import: names lose markup ("${inj.group}", "${inj.preset}", "${inj.name}"), unknown sub-keys and scripted SVG pictures are dropped`);
 
     // ---- documentation contract: every key documented in PERSONALIZATION.md §1 / §9.1 is saved by profiles
     const doc = fs.readFileSync(path.join(ROOT, '..', 'docs', 'PERSONALIZATION.md'), 'utf8');

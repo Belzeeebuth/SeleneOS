@@ -161,7 +161,7 @@ async function unitTests() {
       const light = th.accentVars('#0078d4', 'light');
       out.accentDarkHasOnAccent = dark['--on-accent'] === '#000000';
       out.accentLightOnAccent = light['--on-accent'] === '#ffffff';
-      out.accentFallback = th.accentVars('not-a-colour', 'light')['--accent-base'] === '#0078d4';
+      out.accentFallback = th.accentVars('not-a-colour', 'light')['--accent-base'] === th.DEFAULT_ACCENT;
       out.wpLight = th.resolveWallpaper('builtin:nocturne', 'light').endsWith('nocturne-light.jpg');
       out.wpDark = th.resolveWallpaper('builtin:nocturne', 'dark').endsWith('nocturne-dark.jpg');
       out.wpUnknown = th.resolveWallpaper('builtin:nope', 'light').endsWith('nocturne-light.jpg');
@@ -228,7 +228,7 @@ async function unitTests() {
         }
         i += 2 + len;
       }
-      check(dims && dims[0] === 2560 && dims[1] === 1600, `${f} is 2560x1600 (${dims})`);
+      check(dims && dims[0] === 2560 && dims[1] === 1440, `${f} is 2560x1440 (${dims})`);
     }
     // French calendar starts on Monday
     await s.aurora(() => window.__aurora.settings.set('lang', 'fr'));
@@ -671,7 +671,7 @@ async function scenario(theme, lang) {
     await s.aurora((m) => window.__aurora.settings.set('theme', m), other);
     await sleep(2000);
     const th = await s.aurora(() => ({ mode: document.documentElement.dataset.theme, layers: document.querySelectorAll('.wallpaper-layer').length, wp: getComputedStyle(document.querySelector('.wallpaper-layer')).backgroundImage }));
-    check(th.mode === other && th.layers === 1 && th.wp.includes(`bloom-${other}`), `[${tag}] theme switch swaps the wallpaper with a cross-fade (${JSON.stringify(th)})`);
+    check(th.mode === other && th.layers === 1 && th.wp.includes(`nocturne-${other}`), `[${tag}] theme switch swaps the wallpaper with a cross-fade (${JSON.stringify(th)})`);
     await s.aurora(() => window.__aurora.settings.set('transparency', false));
     await sleep(400);
     check(await s.aurora(() => document.documentElement.dataset.transparency === 'off' && getComputedStyle(document.getElementById('taskbar')).backdropFilter === 'none'), `[${tag}] transparency off removes acrylic`);
@@ -952,7 +952,7 @@ async function adversarial(theme, lang) {
     for (let i = 0; i < 7; i++) await A((m) => window.__aurora.settings.set('theme', m), i % 2 ? theme : theme === 'dark' ? 'light' : 'dark');
     await sleep(1800);
     const th = await A(() => ({ dom: document.documentElement.dataset.theme, set: window.__aurora.settings.get('theme'), wp: getComputedStyle(document.querySelector('.wallpaper-layer:last-child')).backgroundImage }));
-    check(th.dom === th.set && th.wp.includes(`bloom-${th.set}`), `[${tag}] rapid light/dark toggling ends in the right theme (${JSON.stringify(th)})`);
+    check(th.dom === th.set && th.wp.includes(`nocturne-${th.set}`), `[${tag}] rapid light/dark toggling ends in the right theme (${JSON.stringify(th)})`);
 
     // ---- desktop rename to “..” is refused with the right message
     await P.click('.desk-icon[data-id$="Meeting notes.txt"]');

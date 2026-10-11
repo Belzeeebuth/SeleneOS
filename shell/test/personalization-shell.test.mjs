@@ -455,7 +455,7 @@ async function checklistPart() {
     await sleep(500);
     await row.locator('.pz-app-accent').click();
     await s.page.waitForSelector('.dialog .pz-color-dialog', { timeout: 5000 });
-    await s.page.locator('.dialog .pz-color-dialog .pz-swatch').nth(7).click();
+    await s.page.locator('.dialog .pz-color-dialog .pz-swatch').nth(3).click();
     await s.page.locator('.dialog .btn.primary').last().click();
     await sleep(500);
     const pa = await A(() => {

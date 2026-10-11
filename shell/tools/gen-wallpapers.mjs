@@ -408,7 +408,8 @@ function render({ id, W, H, quality }) {
       const n = smooth(100 + i * 13, 3, 0.7 + i * 0.25);
       const n2 = smooth(200 + i * 7, 2, 2.4);
       const fy = (x) => Ly.y - Ly.amp * (0.65 * n(x) + 0.35 * Math.abs(n2(x)));
-      mist(Ly.y - Ly.amp * 0.4, 70, P.mist, P.mistA);
+      // no mist in front of the last dune: the bottom stays calm under the bar
+      if (i < P.layers.length - 1) mist(Ly.y - Ly.amp * 0.4, 70, P.mist, P.mistA);
       ridge(fy, vgrad(g, Ly.y - Ly.amp, HH, [[0, Ly.top], [0.35, Ly.mid], [1, Ly.bottom]]), Ly.rim, Ly.rimA, 3);
     });
   }

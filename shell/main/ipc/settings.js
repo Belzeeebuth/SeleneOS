@@ -59,7 +59,7 @@ const DEFAULTS = {
 
   // ---- Personalization (docs/PERSONALIZATION.md). Area A — theme engine (core/theme.js):
   style: 'nocturne', // visual style: nocturne | eclipse | clairdelune | contrast (older ids are migrated, see migrate())
-  ambiance: 'cold', // colour ambiance: cold | neutral | warm (follows the style unless the user picks one: core/theme.js styleChoicePatch)
+  ambiance: null, // colour ambiance: null = the style's own (Nocturne cold, Éclipse neutral, Clair de lune warm) | cold | neutral | warm (core/theme.js ambianceOf, styleChoicePatch)
   autoTheme: { enabled: false, light: '07:00', dark: '19:00' }, // "Auto" mode: theme follows the time of day
   accentFromWallpaper: false, // pick the accent colour from the wallpaper
   transparencyLevel: 50, // 0 opaque … 50 Windows 11 look … 100 most see-through (windows, flyouts, taskbar)

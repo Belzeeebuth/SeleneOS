@@ -371,7 +371,9 @@ async function effectsAndEngine() {
     const th = await A(() => ({ wp: window.__aurora.theme.wallpaperUrl, ov: window.__aurora.theme.wallpaperOverride, mica: window.__aurora.theme.micaUrl, layer: document.querySelector('#desktop .wallpaper-layer:last-child')?.style.backgroundImage || '' }));
     check(st.overrideUrl.startsWith('blob:') && th.wp === st.overrideUrl && th.ov === st.overrideUrl && th.layer.includes(st.overrideUrl), 'a still frame of the scene is the desktop picture (theme.setWallpaperOverride)');
     await waitFor(async () => (await A(() => window.__aurora.theme.micaUrl)) !== th.mica || th.mica, 3000);
-    check(!!(await A(() => window.__aurora.theme.micaUrl)) && (await A(() => getComputedStyle(document.documentElement).getPropertyValue('--mica-image'))).includes('blob:'), 'Mica is derived from the still frame');
+    // the Selene styles (Nocturne, Éclipse, Clair de lune) have flat windows (trait noMica): no Mica copy to derive
+    const noMica = await A(async () => (await import('app://shell/core/theme.js')).STYLES.find((x) => x.id === window.__aurora.theme.style)?.traits?.noMica === true);
+    check(noMica || (!!(await A(() => window.__aurora.theme.micaUrl)) && (await A(() => getComputedStyle(document.documentElement).getPropertyValue('--mica-image'))).includes('blob:')), noMica ? 'Mica: none for a flat-window style' : 'Mica is derived from the still frame');
     const f0 = await frames(s);
     await sleep(1500);
     const f1 = await frames(s);
@@ -557,7 +559,7 @@ async function effectsAndEngine() {
     check((await state(s)).slideshow.index === 1 && /b-dunes\.jpg/.test(nextUrl) && fade === 1, 'next picture with a cross-fade');
     await set(s, 'slideshow.folder', path.join(s.home, 'Pictures', 'Empty'));
     await waitFor(async () => (await state(s)).slideshow.count > 3, 4000);
-    check((await state(s)).slideshow.count >= 20, `an empty / missing folder falls back to the built-in pictures (${(await state(s)).slideshow.count})`);
+    check((await state(s)).slideshow.count >= 17, `an empty / missing folder falls back to the built-in pictures (${(await state(s)).slideshow.count})`);
     await set(s, 'slideshow.folder', null);
     await sleep(500);
 
@@ -638,10 +640,12 @@ async function dynamicAndWeather() {
     await docShot(s, 'wallpaper-dynamic-dunes-day');
     // the set changes live; Mica follows the variant
     const mica0 = await A(() => window.__aurora.theme.micaUrl);
+    // flat-window styles (trait noMica) compute no Mica copy at all
+    const noMica = await A(async () => (await import('app://shell/core/theme.js')).STYLES.find((x) => x.id === window.__aurora.theme.style)?.traits?.noMica === true);
     await set(s, 'dynamicWallpaper.set', 'lake');
     await waitFor(async () => (await A(() => window.__aurora.theme.wallpaperUrl)).endsWith('lake-day.jpg'), 4000);
-    await waitFor(async () => (await A(() => window.__aurora.theme.micaUrl)) !== mica0, 4000);
-    check((await A(() => window.__aurora.theme.wallpaperUrl)).endsWith('lake-day.jpg') && (await A(() => window.__aurora.theme.micaUrl)) !== mica0, 'changing the set applies live; Mica follows the picture');
+    if (!noMica) await waitFor(async () => (await A(() => window.__aurora.theme.micaUrl)) !== mica0, 4000);
+    check((await A(() => window.__aurora.theme.wallpaperUrl)).endsWith('lake-day.jpg') && (noMica || (await A(() => window.__aurora.theme.micaUrl)) !== mica0), noMica ? 'changing the set applies live (flat-window style: no Mica)' : 'changing the set applies live; Mica follows the picture');
     // fixed hours without a location
     await set(s, 'dynamicWallpaper.location', null);
     for (const [h, ph] of [[6, 'dawn'], [13, 'day'], [18, 'dusk'], [23, 'night']]) {

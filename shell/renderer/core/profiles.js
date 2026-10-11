@@ -148,7 +148,8 @@ function decodeURIComponentSafe(s) {
 export const VALIDATORS = {
   // older releases' styles (win11, minimal, glass, retro) become Nocturne
   style: (v) => (LEGACY_STYLES.includes(v) ? 'nocturne' : oneOf(...STYLES.map((s) => s.id))(v)),
-  ambiance: oneOf(...AMBIANCES.map((a) => a.id)),
+  // null = the style's own ambiance (the default)
+  ambiance: (v) => (v === null ? null : oneOf(...AMBIANCES.map((a) => a.id))(v)),
   theme: oneOf('light', 'dark'),
   autoTheme: (v) => (isObj(v) && typeof v.enabled === 'boolean' && TIME.test(v.light || '') && TIME.test(v.dark || '') ? { enabled: v.enabled, light: v.light, dark: v.dark } : undefined),
   accent: hex,

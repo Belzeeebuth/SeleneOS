@@ -495,9 +495,9 @@ async function lightEnglish() {
     check((await s.aurora(() => document.documentElement.dataset.transparency)) === 'off', 'transparency effects off');
     await (await rowControl(s, 'Transparency effects')).locator('.toggle input').click();
     await go(s, 'background');
-    await s.page.locator(S('.st-wall[aria-label="Flow"]')).click();
+    await s.page.locator(S('.st-wall[aria-label="Peaks"]')).click();
     await sleep(400);
-    check((await get(s, 'wallpaper')) === 'builtin:flow', 'background picture tile');
+    check((await get(s, 'wallpaper')) === 'builtin:peaks', 'background picture tile');
     await pickCombo(s, 'Choose a fit for your desktop image', 'Fit');
     check((await get(s, 'wallpaperFit')) === 'fit', 'background fit');
     await pickCombo(s, 'Personalize your background', 'Solid color');
@@ -505,7 +505,7 @@ async function lightEnglish() {
     await sleep(500);
     check(String(await get(s, 'wallpaper')).startsWith('data:image/svg+xml') && (await s.aurora(() => document.querySelector('.wallpaper-layer:last-child')?.style.backgroundImage.includes('data:image/svg+xml'))), 'solid color background reaches the desktop');
     await pickCombo(s, 'Personalize your background', 'Picture');
-    await s.page.locator(S('.st-wall[aria-label="Bloom"]')).click();
+    await s.page.locator(S('.st-wall[aria-label="Nocturne"]')).click();
     await pickCombo(s, 'Choose a fit for your desktop image', 'Fill');
     await go(s, 'taskbar');
     await pickCombo(s, 'Taskbar alignment', 'Left');
@@ -516,9 +516,9 @@ async function lightEnglish() {
     check((await get(s, 'taskbar.showWidgets')) === true, 'taskbar Widgets button toggle');
     await (await rowControl(s, 'Widgets')).locator('.toggle input').click();
     await go(s, 'lockscreen');
-    await s.page.locator(S('.st-wall[aria-label="Dunes"]')).click();
+    await s.page.locator(S('.st-wall[aria-label="Pine forest"]')).click();
     await sleep(300);
-    check((await get(s, 'lockWallpaper')) === 'builtin:dunes', 'lock screen picture (settings.lockWallpaper)');
+    check((await get(s, 'lockWallpaper')) === 'builtin:forest', 'lock screen picture (settings.lockWallpaper)');
     await pickCombo(s, 'Lock the screen after', '5 minutes');
     check((await get(s, 'lockTimeout')) === 5, 'screen lock timeout (settings.lockTimeout)');
     await go(s, 'colors');
@@ -596,7 +596,7 @@ async function lightEnglish() {
     await s.page.locator('.fp-dialog .dialog-footer .btn.primary').click();
     await sleep(800);
     check((await get(s, 'wallpaper')) === path.join(s.home, 'Pictures', 'portrait.jpg') && (await s.page.locator(S('.st-wall[aria-label="portrait.jpg"].selected')).count()) === 1, 'custom wallpaper from Pictures (and listed in recent images)');
-    await s.page.locator(S('.st-wall[aria-label="Bloom"]')).click();
+    await s.page.locator(S('.st-wall[aria-label="Nocturne"]')).click();
     await sleep(300);
 
     // ---- Time & language
