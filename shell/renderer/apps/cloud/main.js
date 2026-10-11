@@ -46,6 +46,7 @@ class CloudApp {
     this.mode = this.accountId ? 'browser' : 'setup';
     this.render();
     if (this.accountId) await this.open('/');
+    else setTimeout(() => this.root.querySelector('#cl-server')?.focus(), 60);
   }
 
   get account() {
@@ -82,6 +83,12 @@ class CloudApp {
           autocomplete: 'off',
           spellcheck: false,
           oninput: (e) => (st[key] = e.target.value),
+          onkeydown: (e) => {
+            if (e.key === 'Enter' && !e.isComposing) {
+              e.preventDefault();
+              this.connect();
+            }
+          },
           ...attrs,
         }),
         hint ? h('div', { class: 'field-hint caption text-2' }, hint) : '',
@@ -109,7 +116,7 @@ class CloudApp {
           },
         })),
       h('div', { class: 'infobar cl-more', role: 'note' }, icon('cloud_add', { size: 16 }), h('span', null, this.t('moreServices'))),
-      field('server', this.t('server'), { type: 'url', placeholder: 'https://', autofocus: true }, st.kind === 'webdav' ? this.t('serverHintWebdav') : this.t('serverHintNextcloud')),
+      field('server', this.t('server'), { type: 'url', placeholder: 'https://' }, st.kind === 'webdav' ? this.t('serverHintWebdav') : this.t('serverHintNextcloud')),
       field('user', this.t('user'), { type: 'text' }),
       field('password', this.t('password'), { type: 'password' }, this.t('passwordHint')),
       h('div', { class: 'cl-error', role: 'alert' }, st.error || ''),
@@ -272,7 +279,7 @@ class CloudApp {
     this.setup = null;
     this.mode = 'setup';
     this.render();
-    this.root.querySelector('#cl-server')?.focus();
+    setTimeout(() => this.root.querySelector('#cl-server')?.focus(), 60);
   }
 
   async accountMenu(e) {

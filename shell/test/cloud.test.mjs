@@ -92,6 +92,7 @@ async function runEnglish() {
       const seg = await s.page.$$eval(`${WIN} .segmented button`, (b) => b.map((x) => x.textContent));
       check('services', seg, ['Nextcloud', 'WebDAV']);
       check('more services later', await s.page.textContent(`${WIN} .cl-more`), (t) => /more services later/i.test(t));
+      await sleep(200);
       check('server field focused', await s.page.evaluate(`document.activeElement && document.activeElement.id`), 'cl-server');
       check('no cancel without accounts', await s.page.$$eval(`${WIN} .cl-actions .btn`, (b) => b.length), 1);
       await s.page.click(`${WIN} .segmented button:has-text("WebDAV")`);

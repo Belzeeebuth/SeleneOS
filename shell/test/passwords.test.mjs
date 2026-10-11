@@ -235,7 +235,7 @@ try {
         e.url = u;
         app.render();
         const a = app.root.querySelector('.pw-link');
-        out[u] = a ? 'link' : app.root.querySelector('.pw-row .selectable.ellipsis')?.textContent || 'none';
+        out[u] = a ? 'link' : app.root.querySelector('.pw-url-text')?.textContent || 'none';
       }
       e.url = keep;
       app.render();

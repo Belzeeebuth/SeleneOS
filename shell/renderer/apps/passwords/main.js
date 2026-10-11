@@ -566,7 +566,7 @@ class PasswordsApp {
         row(t('password'), h('div', { class: 'pw-pwline' }, pwText, e.password ? h('span', { class: 'pw-chip', dataset: { score: String(score) } }, t(`strength.${score}`)) : null), reveal, copyBtn('password', t('copyPassword'))),
         row(
           t('website'),
-          url ? h('a', { class: 'pw-link ellipsis', href: '#', onclick: (ev) => (ev.preventDefault(), ctx.shell.openUrl(url)) }, e.url) : h('span', { class: ['selectable ellipsis', !e.url && 'text-2'] }, e.url || '—'),
+          url ? h('a', { class: 'pw-link ellipsis', href: '#', onclick: (ev) => (ev.preventDefault(), ctx.shell.openUrl(url)) }, e.url) : h('span', { class: ['pw-url-text selectable ellipsis', !e.url && 'text-2'] }, e.url || '—'),
         ),
         e.notes ? row(t('notes'), h('div', { class: 'pw-notes selectable' }, e.notes)) : null,
       ),
