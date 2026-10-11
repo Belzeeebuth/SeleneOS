@@ -930,7 +930,8 @@ await test('About dialog, recent files menu, zoom slider, middle-button pan, inc
   await wait(s, 200);
   assert.equal((await P(s, (p) => p.size)).w, 960, '10 in = 960 px');
   await s.page.keyboard.press('Control+z');
-  await wait(s, 100);
+  // Undo restores the canvas asynchronously (~60 ms fresh, longer with a long history): wait for it.
+  for (let i = 0; i < 60 && (await P(s, (p) => p.size)).w !== 1152; i++) await wait(s, 50);
   assert.equal((await P(s, (p) => p.size)).w, 1152);
 });
 

@@ -2410,13 +2410,16 @@ export async function createPaint(ctx) {
   win.el.addEventListener('keydown', (e) => {
     if (e.defaultPrevented || e.target.closest?.('.dialog-layer, .pt-flyout')) return;
     const inText = e.target.matches?.('input, textarea, select, [contenteditable="true"]');
+    // Controls with no text of their own (zoom slider, check boxes…) leave Ctrl+Z / C / V… to the picture,
+    // as in Windows Paint; arrow keys still go to them (inText below).
+    const editsText = inText && !e.target.matches?.('input[type="range"], input[type="checkbox"], input[type="radio"], input[type="button"], input[type="color"]');
     const k = e.key;
     const kl = k.length === 1 ? k.toLowerCase() : k;
     const ctrl = e.ctrlKey || e.metaKey;
     let done = true;
     if (gesture && k === 'Escape') cancelGesture();
     else if (ctrl && !e.altKey) {
-      if (inText && ['a', 'c', 'x', 'v', 'z', 'y'].includes(kl)) return;
+      if (editsText && ['a', 'c', 'x', 'v', 'z', 'y'].includes(kl)) return;
       if (kl === 's') cmd(e.shiftKey ? 'saveAs' : 'save');
       else if (kl === 'o') cmd('open');
       else if (kl === 'n') cmd('new');
