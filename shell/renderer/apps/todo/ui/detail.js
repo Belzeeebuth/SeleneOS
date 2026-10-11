@@ -2,6 +2,7 @@
 // reorder by drag or Alt+arrows / delete / promote to task), Add to My Day, Remind me, Add due date, Repeat,
 // note (autosaved), created / completed footer, delete.
 import * as D from '../lib/dates.js';
+import { MAX_STEPS } from '../lib/store.js';
 import { checkSvg } from './listview.js';
 import { beginDrag, liveReorder } from './drag.js';
 import { reduceMotion, EASE } from './anim.js';
@@ -214,7 +215,10 @@ export class Detail {
       onkeydown: (e) => {
         if (e.key === 'Enter' && addStep.value.trim()) {
           e.preventDefault();
-          app.store.addStep(id, addStep.value);
+          if (!app.store.addStep(id, addStep.value)) {
+            app.ui.alert(t('errors.stepLimit', { max: MAX_STEPS }), { title: t('app'), parent: app.win });
+            return;
+          }
           addStep.value = '';
           // the pane re-renders and keeps the focus in "Next step"
         } else if (e.key === 'Escape' && addStep.value) {
@@ -342,7 +346,13 @@ export class Detail {
     const { app } = this;
     const { h, t, icon } = app;
     const id = task.id;
-    const input = h('input', { class: 'td-step-input', value: s.title, maxlength: '400', 'aria-label': t('detail.stepN', { n: i + 1 }), dataset: { key: `step-${s.id}` }, spellcheck: true });
+    // a one-line text area that grows (field-sizing): long steps wrap like in To Do instead of being cut
+    const input = h('textarea', { class: 'td-step-input', rows: 1, maxlength: '400', 'aria-label': t('detail.stepN', { n: i + 1 }), dataset: { key: `step-${s.id}` }, spellcheck: true });
+    input.value = s.title;
+    input.addEventListener('input', () => {
+      const v = input.value.replace(/[\r\n]+/g, ' ');
+      if (v !== input.value) input.value = v; // pasted line breaks
+    });
     const commit = () => {
       const v = input.value.trim();
       if (!v) input.value = s.title;

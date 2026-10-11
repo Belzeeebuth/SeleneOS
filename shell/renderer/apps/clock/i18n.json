@@ -40,7 +40,8 @@
    "sound": "Alarm sound",
    "toggle": "Turn the alarm on or off",
    "turnOff": "Turn off",
-   "turnOn": "Turn on"
+   "turnOn": "Turn on",
+   "snoozedUntil": "Snoozed until {time}"
   },
   "timer": {
    "add": "Add new timer",
@@ -134,7 +135,8 @@
    "sunset": "Sunset",
    "dayLength": "Daylight",
    "polarDay": "The sun doesn't set today",
-   "polarNight": "The sun doesn't rise today"
+   "polarNight": "The sun doesn't rise today",
+   "limit": "You can add up to {n} cities. Remove one to add another."
   },
   "focus": {
    "backBody": "Time to focus again.",
@@ -268,7 +270,19 @@
    "copy": "Couldn't copy the laps: {msg}",
    "saveTitle": "Changes not saved.",
    "saveBody": "Clock couldn't save your alarms and timers. They keep working until you sign out.",
-   "schedule": "Couldn't schedule it: {msg}"
+   "schedule": "Couldn't schedule it: {msg}",
+   "loadTitle": "Some of your Clock data couldn't be read ({what}).",
+   "loadKept": "The damaged file was kept as a backup: {files}.",
+   "loadLost": "It will be replaced when you make changes.",
+   "dismiss": "Dismiss",
+   "part": {
+    "alarms": "alarms",
+    "timers": "timers",
+    "stopwatch": "stopwatch",
+    "cities": "cities",
+    "focus": "focus sessions",
+    "prefs": "settings"
+   }
   }
  },
  "fr": {
@@ -312,7 +326,8 @@
    "sound": "Son de l’alarme",
    "toggle": "Activer ou désactiver l’alarme",
    "turnOff": "Désactiver",
-   "turnOn": "Activer"
+   "turnOn": "Activer",
+   "snoozedUntil": "Sonnera de nouveau à {time}"
   },
   "timer": {
    "add": "Ajouter un minuteur",
@@ -406,7 +421,8 @@
    "sunset": "Coucher du soleil",
    "dayLength": "Durée du jour",
    "polarDay": "Le soleil ne se couche pas aujourd’hui",
-   "polarNight": "Le soleil ne se lève pas aujourd’hui"
+   "polarNight": "Le soleil ne se lève pas aujourd’hui",
+   "limit": "Vous pouvez ajouter jusqu’à {n} villes. Supprimez-en une pour en ajouter une autre."
   },
   "focus": {
    "backBody": "C’est reparti pour une période de concentration.",
@@ -540,7 +556,19 @@
    "copy": "Impossible de copier les tours : {msg}",
    "saveTitle": "Modifications non enregistrées.",
    "saveBody": "L’Horloge n’a pas pu enregistrer vos alarmes et minuteurs. Ils continuent de fonctionner jusqu’à votre déconnexion.",
-   "schedule": "Impossible de programmer : {msg}"
+   "schedule": "Impossible de programmer : {msg}",
+   "loadTitle": "Certaines données de l’Horloge n’ont pas pu être lues ({what}).",
+   "loadKept": "Le fichier endommagé a été conservé : {files}.",
+   "loadLost": "Il sera remplacé à votre prochaine modification.",
+   "dismiss": "Ignorer",
+   "part": {
+    "alarms": "alarmes",
+    "timers": "minuteurs",
+    "stopwatch": "chronomètre",
+    "cities": "villes",
+    "focus": "sessions de concentration",
+    "prefs": "paramètres"
+   }
   }
  }
 }

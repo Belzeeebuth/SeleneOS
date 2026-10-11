@@ -990,10 +990,26 @@
   outline: none;
   transition: background var(--dur-fast) linear, box-shadow var(--dur-fast) linear, opacity var(--dur-fast) linear;
 }
-/* the padding lives on an inner box so very narrow events (many overlaps) can shrink below it */
+/* the padding lives on an inner box so very narrow events (many overlaps) can shrink below it.
+   Lines that don't fit entirely (time, place) wrap into a hidden second column instead of showing
+   half a line at the bottom of the block (the title always stays). */
 .app-calendar .ac-ev-in {
+  box-sizing: border-box;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  column-gap: 24px; /* pushes the overflow column completely out of the block */
   padding: 3px 6px 2px 9px;
   min-width: 0;
+}
+.app-calendar .ac-ev-in > * {
+  flex: none;
+  width: 100%;
+}
+.app-calendar .ac-ev.resizing .ac-ev-meta:not(.ac-resize-label) {
+  display: none;
 }
 .app-calendar .ac-ev:hover {
   background: color-mix(in srgb, var(--ev) var(--ac-tint-hover), var(--card-solid));
@@ -1267,6 +1283,12 @@
 .app-calendar .ac-root.compact .ac-ag-row {
   grid-template-columns: 76px 4px minmax(0, 1fr);
   padding: 6px 10px;
+}
+/* "Toute la journée" / "jusqu'à 14:00" wrap on two lines instead of being cut */
+.app-calendar .ac-root.compact .ac-ag-when {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 16px;
 }
 .app-calendar .ac-root.compact .ac-ag-icons {
   display: none;
@@ -1842,6 +1864,12 @@
 .app-calendar .ac-caldlg .ac-ed-error {
   padding-left: 0;
 }
+.app-calendar .ac-settings .ac-ed-error:empty {
+  display: none;
+}
+.app-calendar .ac-settings-dialog {
+  max-width: none;
+}
 
 /* other dialogs */
 .app-calendar .ac-del-body {
@@ -1857,7 +1885,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: min(540px, 100%);
+  min-width: 0;
 }
 .app-calendar .ac-set-head {
   margin: 12px 0 4px;

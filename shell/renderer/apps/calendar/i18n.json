@@ -261,7 +261,18 @@
     "start": "Start",
     "end": "End",
     "importTitle": "Import a calendar",
-    "importTarget": "Add the events to"
+    "importTarget": "Add the events to",
+    "key": {
+      "enter": "Enter",
+      "delete": "Delete",
+      "esc": "Esc",
+      "pageUp": "Page Up",
+      "pageDown": "Page Down",
+      "ctrl": "Ctrl",
+      "alt": "Alt",
+      "shift": "Shift"
+    },
+    "dataDamaged": "Some calendar data couldn’t be read. A copy was kept as {name}."
   },
   "fr": {
     "appName": "Calendrier",
@@ -525,6 +536,17 @@
     "start": "Début",
     "end": "Fin",
     "importTitle": "Importer un calendrier",
-    "importTarget": "Ajouter les événements à"
+    "importTarget": "Ajouter les événements à",
+    "key": {
+      "enter": "Entrée",
+      "delete": "Suppr",
+      "esc": "Échap",
+      "pageUp": "Pg préc",
+      "pageDown": "Pg suiv",
+      "ctrl": "Ctrl",
+      "alt": "Alt",
+      "shift": "Maj"
+    },
+    "dataDamaged": "Des données du calendrier n’ont pas pu être lues. Une copie a été conservée sous le nom {name}."
   }
 }

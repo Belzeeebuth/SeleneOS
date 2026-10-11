@@ -10,7 +10,7 @@ import { PALETTE } from '../lib/store.mjs';
 import { newId, sanitizeEvent } from '../lib/events.mjs';
 import { addDays, startOfDay, localKey, localFromKey, sameDay, weekdayPosition } from '../lib/dates.mjs';
 import { systemTz } from '../lib/tz.mjs';
-import { parseByday, formatByday } from '../lib/rrule.mjs';
+import { parseByday, formatByday, sanitizeRule } from '../lib/rrule.mjs';
 import { css } from './util.js';
 
 const WD = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
@@ -101,13 +101,18 @@ export function quickCreate(app, draft, anchor, onClose) {
   const calSel = calendarSelect(app, draft.calendarId);
   const loc = h('input', { class: 'input ac-quick-loc', type: 'text', placeholder: t('addLocation'), 'aria-label': t('location') });
   let pop;
+  let done = false; // Enter pressed twice / a double click on Save must create one event
   const save = async () => {
+    if (done) return;
+    done = true;
     const ev = buildNew(app, { ...draft, title: title.value.trim(), location: loc.value.trim(), calendarId: calSel.value });
     pop.close('save');
     await app.upsert(ev);
     app.toast(t('eventCreated', { title: ev.title || t('noTitle') }));
   };
   const more = () => {
+    if (done) return;
+    done = true;
     pop.close('more');
     openEditor(app, { draft: { ...draft, title: title.value.trim(), location: loc.value.trim(), calendarId: calSel.value } });
   };
@@ -167,6 +172,19 @@ function buildNew(app, d) {
   };
   if (allDay && ev.end <= ev.start) ev.end = localKey(addDays(localFromKey(ev.start), 1));
   return sanitizeEvent(ev);
+}
+
+// Do two recurrence rules describe the same series? (UNTIL compared by day)
+function sameRule(a, b) {
+  const norm = (r) => {
+    const x = sanitizeRule(r);
+    if (!x) return null;
+    if (typeof x.until === 'number') x.until = localKey(x.until);
+    for (const k of ['byday', 'bymonthday', 'bymonth', 'bysetpos']) if (x[k]) x[k] = [...x[k]].map(String).sort();
+    if (!x.byday || x.freq !== 'WEEKLY' || x.interval === 1) x.wkst = 'MO'; // WKST only matters for multi-week rules
+    return JSON.stringify(Object.keys(x).sort().map((k) => [k, x[k]]));
+  };
+  return norm(a) === norm(b);
 }
 
 // ------------------------------------------------------------------ prompts
@@ -533,8 +551,12 @@ export function openEditor(app, { ev = null, occ = null, mode = 'series', draft 
     } else {
       rule = { freq: rs.freq, interval: rs.interval };
       const wd = WD[f.start.getDay()];
-      if (rs.freq === 'WEEKLY') rule.byday = [...rs.days].sort((a, b) => ((a - app.firstDay() + 7) % 7) - ((b - app.firstDay() + 7) % 7)).map((d) => WD[d]);
-      else if (rs.freq === 'MONTHLY') {
+      if (rs.freq === 'WEEKLY') {
+        rule.byday = [...rs.days].sort((a, b) => ((a - app.firstDay() + 7) % 7) - ((b - app.firstDay() + 7) % 7)).map((d) => WD[d]);
+        // "every 2 weeks on Sun + Mon" groups the days by the user's week (Outlook writes WKST the same way)
+        // (an existing multi-week rule keeps its own WKST)
+        if (rs.interval > 1) rule.wkst = !isNew && ev.rrule?.freq === 'WEEKLY' && ev.rrule.interval > 1 && ev.rrule.wkst ? ev.rrule.wkst : WD[app.firstDay()];
+      } else if (rs.freq === 'MONTHLY') {
         const pos = weekdayPosition(f.start.getFullYear(), f.start.getMonth(), f.start.getDate());
         if (rs.monthMode === 'nth') rule.byday = [formatByday({ n: pos.n, wd: f.start.getDay() })];
         else if (rs.monthMode === 'last') rule.byday = [`-1${wd}`];
@@ -608,15 +630,24 @@ export function openEditor(app, { ev = null, occ = null, mode = 'series', draft 
   const dirty = () => JSON.stringify(f) !== initial || (rs.preset !== presetOf(f.rule, f.start) && !single);
 
   // ---- save
+  // a time typed but not yet committed (Save clicked / Ctrl+S right after typing) counts
+  function commitTimes() {
+    if (f.allDay) return true;
+    const okS = sTime.commit?.() !== false;
+    const okE = eTime.commit?.() !== false;
+    return okS && okE;
+  }
   async function save() {
-    if (!validate()) return false;
-    sTime.commit?.();
-    eTime.commit?.();
+    if (!commitTimes() || !validate()) return false;
     let start = new Date(f.start);
     let end = new Date(f.end);
     let rule = single ? undefined : currentRule();
-    // weekly rules that skip the start day move the start to the first matching day (Outlook)
-    if (rule?.freq === 'WEEKLY' && rule.byday?.length) {
+    // the same rule written differently (key order, end-of-day UNTIL…) is not a change: keeping the stored
+    // object keeps the series' exceptions (edited / deleted occurrences)
+    if (!isNew && !single && ev.rrule && rule && sameRule(rule, ev.rrule)) rule = ev.rrule;
+    // weekly rules that skip the start day move the start to the first matching day (Outlook) — not for
+    // an unchanged stored rule (an imported series may start outside its BYDAY: DTSTART still counts)
+    if (rule?.freq === 'WEEKLY' && rule.byday?.length && (isNew || rule !== ev.rrule)) {
       const wds = rule.byday.map((b) => WD.indexOf(b));
       let guard = 0;
       while (!wds.includes(start.getDay()) && guard++ < 7) {
@@ -683,7 +714,7 @@ export function openEditor(app, { ev = null, occ = null, mode = 'series', draft 
       dlg._validate = (v) => {
         if (v === 'save') {
           if (busy) return false;
-          if (!validate()) return false;
+          if (!commitTimes() || !validate()) return false;
           busy = true;
           save().then(
             (ok) => {

@@ -3,11 +3,12 @@
 // export / share, responsive layout (three panes -> overlay navigation -> one pane at a time).
 import { NotesStore, displayTitle, PURGE_DAYS } from '../lib/store.js';
 import { parseQuery, snippet, dateGroup, plainText } from '../lib/text.js';
-import { sanitizeFragment } from '../lib/sanitize.js';
+import { sanitizeFragment, inertDocument } from '../lib/sanitize.js';
 import { Editor } from './editor.js';
 import { closePopover } from './popover.js';
 import { notebookDialog, exportNote, importFiles, shortcutsDialog } from './dialogs.js';
 import { welcomeSeed } from './welcome.js';
+import { keyLabel } from './keys.js';
 
 const NOTE_MIME = 'application/x-aurora-note';
 const SORTS = ['modified', 'created', 'title'];
@@ -50,7 +51,7 @@ export class NotesApp {
     try {
       await this.store.load({ seed: welcomeSeed(ctx.lang) });
     } catch (err) {
-      console.error('[notes] load failed', err);
+      console.warn('[notes] load failed', err);
       this.setLoading(false);
       await ctx.ui.alert(this.t('errors.load', { message: err.message }), { title: this.t('appName'), parent: this.win });
     }
@@ -70,11 +71,15 @@ export class NotesApp {
     ctx.onLangChange(() => this.relocalize());
     ctx.onClose(() => this.destroy());
     await this.handleArgs(ctx.args || {});
-    if (!this.selectedId) this.listEl.focus({ preventScroll: true });
+    // the window manager focused win.body before the (asynchronous) list existed: start in the list, as
+    // Windows apps do, unless the keyboard is already elsewhere
+    const a = document.activeElement;
+    if (this.win.isFocused?.() !== false && (!a || a === document.body || a === this.win.body || a === this.win.el)) this.focusList();
   }
 
   destroy() {
     closePopover();
+    this.store.dispose();
     this.editor?.destroy();
     for (const off of this.offs) {
       try {
@@ -92,7 +97,8 @@ export class NotesApp {
       if (args.noteId && this.store.get(args.noteId)) this.reveal(args.noteId);
       if (args.newNote) await this.newNote({ title: args.title || '', text: args.text || '' });
     } catch (err) {
-      console.error('[notes] args failed', err);
+      console.warn('[notes] args failed', err);
+      this.error(this.t('errors.import') + (err?.message ? `\n\n${err.message}` : ''));
     }
   }
 
@@ -147,7 +153,7 @@ export class NotesApp {
     this.win.titlebarSlot.appendChild(h('div', { class: 'nt-tb-search' }, h('div', { class: 'nt-search' }, icon('search', { size: 16 }), this.searchInput, this.searchClear)));
 
     // navigation pane
-    this.newBtn = h('button', { type: 'button', class: 'btn primary nt-new', 'data-tip': `${t('newNote')} (Ctrl+N)`, onclick: () => this.newNote() }, icon('note_add', { size: 16 }), h('span', { class: 'ellipsis' }, t('newNote')));
+    this.newBtn = h('button', { type: 'button', class: 'btn primary nt-new', 'data-tip': `${t('newNote')} (${this.kl('Ctrl+N')})`, onclick: () => this.newNote() }, icon('note_add', { size: 16 }), h('span', { class: 'ellipsis' }, t('newNote')));
     this.navList = h('div', { class: 'nt-nav-list', role: 'tree', 'aria-label': t('navLabel') });
     this.navList.addEventListener('keydown', (e) => this.navKeys(e));
     this.nav = h(
@@ -169,8 +175,8 @@ export class NotesApp {
     this.listCount = h('div', { class: 'nt-list-count caption ellipsis' });
     this.sortBtn = h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-haspopup': 'menu', 'aria-label': t('sort.label'), 'data-tip': t('sort.label'), onclick: (e) => this.sortMenu(e.currentTarget) }, icon('arrow_sort', { size: 16 }));
     this.listMoreBtn = h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-haspopup': 'menu', 'aria-label': t('moreOptions'), 'data-tip': t('moreOptions'), onclick: (e) => this.listMenu(e.currentTarget) }, icon('more_horizontal', { size: 16 }));
-    this.listNewBtn = h('button', { type: 'button', class: 'btn subtle icon-btn nt-list-new', 'aria-label': t('newNote'), 'data-tip': `${t('newNote')} (Ctrl+N)`, onclick: () => this.newNote() }, icon('note_add', { size: 16 }));
-    this.listEl = h('div', { class: 'nt-list', role: 'listbox', tabindex: '0', 'aria-label': t('notesList') });
+    this.listNewBtn = h('button', { type: 'button', class: 'btn subtle icon-btn nt-list-new', 'aria-label': t('newNote'), 'data-tip': `${t('newNote')} (${this.kl('Ctrl+N')})`, onclick: () => this.newNote() }, icon('note_add', { size: 16 }));
+    this.listEl = h('div', { class: 'nt-list', role: 'listbox', tabindex: '0', autofocus: true, 'aria-label': t('notesList') });
     this.listEl.addEventListener('keydown', (e) => this.listKeys(e));
     this.listEl.addEventListener('focus', (e) => {
       if (e.target === this.listEl) this.listEl.querySelector('.nt-item[tabindex="0"]')?.focus({ preventScroll: true });
@@ -194,7 +200,13 @@ export class NotesApp {
     if (this.prefs.listW) this.root.style.setProperty('--nt-list-w', `${this.prefs.listW}px`);
     this.root.classList.toggle('nav-collapsed', !!this.prefs.navCollapsed);
     this.win.body.appendChild(this.root);
-    this.root.addEventListener('keydown', (e) => this.onKey(e));
+    if (!this._keysBound) {
+      // the window manager focuses win.body (or [autofocus]) on activation: listen there, and in the title
+      // bar (search box), never on win.el (dialogs live there)
+      this._keysBound = true;
+      this.win.body.addEventListener('keydown', (e) => this.onKey(e));
+      this.win.titlebarSlot.addEventListener('keydown', (e) => this.onKey(e));
+    }
     this.ro?.disconnect();
     this.ro = new ResizeObserver(() => this.layout());
     this.ro.observe(this.win.body);
@@ -221,6 +233,7 @@ export class NotesApp {
       this.mode = mode;
       this.root.dataset.layout = mode;
       this.toggleNav(false, { silent: true });
+      this.searchInput.placeholder = mode === 'narrow' ? this.t('searchShort') : this.t('searchPlaceholder');
     }
     const navShown = mode === 'wide' ? !this.root.classList.contains('nav-collapsed') : this.root.classList.contains('nav-open');
     this.navToggle.setAttribute('aria-expanded', String(navShown));
@@ -325,7 +338,7 @@ export class NotesApp {
         'notebooks',
         t('notebooks'),
         nbOpen,
-        h('button', { type: 'button', class: 'btn subtle icon-btn nt-nav-add', 'aria-label': t('newNotebook'), 'data-tip': `${t('newNotebook')} (Ctrl+Shift+N)`, onclick: () => this.newNotebook() }, icon('add', { size: 14 })),
+        h('button', { type: 'button', class: 'btn subtle icon-btn nt-nav-add', 'aria-label': t('newNotebook'), 'data-tip': `${t('newNotebook')} (${this.kl('Ctrl+Shift+N')})`, onclick: () => this.newNotebook() }, icon('add', { size: 14 })),
       ),
     );
     if (nbOpen) {
@@ -547,7 +560,7 @@ export class NotesApp {
     if (cached && cached._sig === sig && !force) return cached;
     const title = displayTitle(n);
     const searching = this.query.terms.length > 0;
-    const segs = searching ? snippet(`${n.title ? `${n.firstLine} ` : ''}${n.text}`, this.query.terms, 160) : null;
+    const segs = searching ? snippet(n.text, this.query.terms, 160) : null;
     const date = this.listDate(this.view.kind === 'deleted' ? n.deletedAt : this.sort === 'created' ? n.created : n.modified);
     const titleEl = h('div', { class: ['nt-item-title ellipsis', !title && 'untitled'] });
     if (searching && title) this.fillHighlighted(titleEl, title);
@@ -645,6 +658,25 @@ export class NotesApp {
   refreshDates() {
     this.renderList({ force: true });
     this.editor.renderEdited();
+    // the window may stay open for days: purge notes deleted more than 30 days ago once an hour
+    if (Date.now() - (this._purgedAt || 0) > 3600000) {
+      this._purgedAt = Date.now();
+      this.purgeExpired();
+    }
+  }
+
+  async purgeExpired() {
+    const n = await this.store.purgeExpired();
+    if (!n) return 0;
+    await this.store.saveIndex(true).catch(() => {});
+    if (this.selectedId && !this.store.get(this.selectedId)) {
+      this.selectedId = null;
+      this.editor.load(null);
+      this.updateWindowTitle();
+    }
+    this.renderNav();
+    this.renderList({ force: true });
+    return n;
   }
 
   updateSelection() {
@@ -740,6 +772,19 @@ export class NotesApp {
     this.select(id, { focus: true, fromList: true });
   }
 
+  /** While the title is typed (before the debounced save): the list item and the window title follow it. */
+  previewTitle(id, title) {
+    if (!id || id !== this.selectedId) return;
+    const n = this.store.get(id);
+    const shown = title || n?.firstLine || '';
+    const el = this.listEl.querySelector(`.nt-item[data-id="${CSS.escape(id)}"] .nt-item-title`);
+    if (el && !this.query.terms.length) {
+      el.textContent = shown || this.t('untitled');
+      el.classList.toggle('untitled', !shown);
+    }
+    this.win.setTitle(`${shown || this.t('untitled')} - ${this.t('appName')}`);
+  }
+
   updateWindowTitle() {
     const n = this.selectedId && this.store.get(this.selectedId);
     const title = n ? displayTitle(n) || this.t('untitled') : '';
@@ -778,6 +823,18 @@ export class NotesApp {
     const html = ed.serialize();
     const title = ed.title.value.replace(/\s+/g, ' ').trim();
     if (cur.html === html && cur.title === title) {
+      // unchanged in memory, but the last write of this note failed: write it again (Retry, closing)
+      if (this.store.failed.has(note.id)) {
+        ed.setSaved('saving');
+        try {
+          await this.store.writeNote(note.id);
+          if (ed.note?.id === note.id) ed.setSaved('saved');
+          return true;
+        } catch (err) {
+          if (ed.note?.id === note.id) ed.setSaved('error', err);
+          return false;
+        }
+      }
       if (ed.savedState === 'pending' || ed.savedState === 'saving') ed.setSaved('saved');
       return true;
     }
@@ -792,7 +849,7 @@ export class NotesApp {
       }
       return true;
     } catch (err) {
-      console.error('[notes] save failed', err);
+      console.warn('[notes] save failed', err?.message || err);
       if (ed.note?.id === note.id) ed.setSaved('error', err);
       return false;
     }
@@ -800,10 +857,17 @@ export class NotesApp {
 
   onStoreChange(what, data) {
     if (what === 'error') {
-      if (!this._errShown) {
-        this._errShown = true;
-        this.error(this.t('errors.save', { message: data?.message || '' }), { after: () => (this._errShown = false) });
+      // one dialog per failure streak (the store retries in the background; the status bar shows the state)
+      if (!this._errNotified) {
+        this._errNotified = true;
+        this.error(this.t('errors.save', { message: data?.message || '' }));
       }
+      return;
+    }
+    if (what === 'saved') {
+      if (!this.store.pending) this._errNotified = false;
+      const ed = this.editor;
+      if (data?.id && ed.note?.id === data.id && ed.savedState === 'error') ed.setSaved('saved');
       return;
     }
     cancelAnimationFrame(this._renderRaf);
@@ -951,7 +1015,7 @@ export class NotesApp {
 
   moveMenu(ids, anchor) {
     const cur = ids.length === 1 ? this.store.get(ids[0])?.notebookId : null;
-    this.ctx.ui.menu(anchor, [
+    this.menu(anchor, [
       { header: this.t('moveTo') },
       ...this.store.notebooks.map((nb) => ({ label: nb.emoji ? `${nb.emoji}  ${nb.name}` : nb.name, icon: nb.emoji ? null : 'notebook', checked: nb.id === cur, action: () => this.moveNotes(ids, nb.id) })),
       '-',
@@ -975,8 +1039,9 @@ export class NotesApp {
   async share(note) {
     await this.saveCurrent();
     const n = this.store.get(note.id) || note;
-    const box = document.createElement('div');
-    box.appendChild(sanitizeFragment(n.html, { attachments: true, allowRemote: true, allowMedia: true }));
+    const doc = inertDocument();
+    const box = doc.createElement('div');
+    box.appendChild(sanitizeFragment(n.html, { attachments: true, allowRemote: true, allowMedia: true, doc }));
     try {
       await this.ctx.shell.launch('mail', { subject: displayTitle(n) || this.t('untitled'), body: plainText(box, { bullets: true, checklistMarks: true }) });
     } catch (err) {
@@ -988,7 +1053,7 @@ export class NotesApp {
     if (!note) return;
     const t = this.t;
     if (note.deletedAt) {
-      this.ctx.ui.menu(anchor, [
+      this.menu(anchor, [
         { label: t('restore'), icon: 'arrow_undo', action: () => this.restoreNotes([note.id]) },
         { label: t('moveTo'), icon: 'folder_arrow_right', submenu: this.store.notebooks.map((nb) => ({ label: nb.name, action: () => this.moveNotes([note.id], nb.id) })) },
         '-',
@@ -996,7 +1061,7 @@ export class NotesApp {
       ]);
       return;
     }
-    this.ctx.ui.menu(anchor, [
+    this.menu(anchor, [
       { label: note.pinned ? t('unpin') : t('pin'), icon: note.pinned ? 'pin_off' : 'pin', shortcut: 'Ctrl+P', action: () => this.togglePin(note.id) },
       { label: t('moveTo'), icon: 'folder_arrow_right', submenu: this.store.notebooks.map((nb) => ({ label: nb.emoji ? `${nb.emoji}  ${nb.name}` : nb.name, checked: nb.id === note.notebookId, action: () => this.moveNotes([note.id], nb.id) })) },
       { label: t('duplicate'), icon: 'copy', action: () => this.duplicate(note.id) },
@@ -1019,7 +1084,7 @@ export class NotesApp {
 
   sortMenu(anchor) {
     const t = this.t;
-    this.ctx.ui.menu(anchor, [
+    this.menu(anchor, [
       { header: t('sort.label') },
       ...SORTS.map((s) => ({
         label: t(`sort.${s}`),
@@ -1036,7 +1101,7 @@ export class NotesApp {
   listMenu(anchor) {
     const t = this.t;
     const hasDeleted = this.store.counts().deleted > 0;
-    this.ctx.ui.menu(anchor, [
+    this.menu(anchor, [
       { label: t('newNote'), icon: 'note_add', shortcut: 'Ctrl+N', action: () => this.newNote() },
       { label: t('newNotebookEllipsis'), icon: 'notebook_add', shortcut: 'Ctrl+Shift+N', action: () => this.newNotebook() },
       { label: t('import.menu'), icon: 'arrow_import', action: () => this.importNotes() },
@@ -1108,7 +1173,7 @@ export class NotesApp {
       [ids[idx], ids[j]] = [ids[j], ids[idx]];
       this.store.reorderNotebooks(ids);
     };
-    this.ctx.ui.menu(e, [
+    this.menu(e, [
       { label: t('newNoteHere'), icon: 'note_add', action: () => this.newNote({ notebookId: nb.id }) },
       '-',
       { label: t('nb.edit'), icon: 'edit', shortcut: 'F2', action: () => this.editNotebook(nb) },
@@ -1173,6 +1238,26 @@ export class NotesApp {
     if (e.key === 'Escape' && this.root.classList.contains('nav-open')) return go(() => this.toggleNav(false));
   }
 
+  /** A key combination with the key names of the UI language ("Ctrl+Maj+N"). */
+  kl(combo) {
+    return keyLabel(combo, this.ctx.lang);
+  }
+
+  /** ui.menu + localized shortcut labels + focus back where it was when the menu closes. */
+  async menu(anchor, items, opts) {
+    const prev = document.activeElement;
+    const loc = (list) => list.map((it) => (it && typeof it === 'object' ? { ...it, shortcut: it.shortcut && this.kl(it.shortcut), submenu: Array.isArray(it.submenu) ? loc(it.submenu) : it.submenu } : it));
+    const res = await this.ctx.ui.menu(anchor, loc(items), opts);
+    setTimeout(() => {
+      const a = document.activeElement;
+      if ((!a || a === document.body) && prev?.isConnected && this.win.el.contains(prev) && !prev.closest('[hidden]')) {
+        if (prev === this.editor.body) this.editor.focusBody();
+        else prev.focus({ preventScroll: true });
+      }
+    });
+    return res;
+  }
+
   // ------------------------------------------------------------------ feedback
   toast(text, { action, onAction, timeout = 4500 } = {}) {
     const { h, icon } = this.ctx;
@@ -1208,10 +1293,12 @@ export class NotesApp {
 
   // ------------------------------------------------------------------ closing
   async beforeClose() {
-    const ok = await this.saveCurrent();
+    let ok = await this.saveCurrent();
     try {
       await this.store.flush();
     } catch {}
+    // something only lives in memory (a write failed): one more attempt, then ask
+    if (ok && this.store.pending) ok = await this.store.retryNow().catch(() => false);
     if (!ok) {
       const v = await this.ctx.ui.confirm(this.t('confirm.closeUnsaved'), { title: this.t('errors.title'), okLabel: this.t('closeAnyway'), danger: true, parent: this.win });
       if (!v) return false;

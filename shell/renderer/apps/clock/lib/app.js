@@ -2,7 +2,7 @@
 // page routing with Fluent entrance animations, the frame/second render loop, keyboard shortcuts,
 // relaunch arguments (notification clicks) and the taskbar progress of running timers / focus sessions.
 import { getStore } from './store.js';
-import { loadCities } from './cities.js';
+import { loadCities, cityById } from './cities.js';
 import { reduceMotion, EASE, guardClicks } from './widgets.js';
 import { timeParts } from './time.js';
 import { AlarmPage } from './page-alarm.js';
@@ -54,6 +54,8 @@ export class ClockApp {
     await this.store.ready;
     try {
       await loadCities(this.ctx.appUrl);
+      // stored ids that are not (or no longer) in the bundled list would shift the reorder indexes
+      this.store.pruneCities((id) => !!cityById(id));
     } catch (err) {
       console.error('[clock] city list failed to load', err);
       this.citiesError = err;
@@ -281,10 +283,26 @@ export class ClockApp {
   _renderSaveError() {
     const { h, t, icon } = this;
     this.infoSlot.replaceChildren();
-    if (!this.store.saveError) return;
-    this.infoSlot.appendChild(
-      h('div', { class: 'infobar error ck-infobar', role: 'alert' }, icon('error_circle', { filled: true }), h('div', { class: 'grow' }, h('b', null, t('errors.saveTitle')), ' ', t('errors.saveBody'))),
-    );
+    if (this.store.saveError) {
+      this.infoSlot.appendChild(
+        h('div', { class: 'infobar error ck-infobar', role: 'alert' }, icon('error_circle', { filled: true }), h('div', { class: 'grow' }, h('b', null, t('errors.saveTitle')), ' ', t('errors.saveBody'))),
+      );
+    }
+    // stored files that could not be read at startup (set aside as <name>.unreadable-<date>.json)
+    const lost = this.store.loadErrors || [];
+    if (lost.length) {
+      const what = lost.map((e) => t(`errors.part.${e.name}`)).join(t('units.sep'));
+      const kept = lost.filter((e) => e.backup).map((e) => e.backup);
+      this.infoSlot.appendChild(
+        h(
+          'div',
+          { class: 'infobar warning ck-infobar ck-load-error', role: 'alert' },
+          icon('warning', { filled: true }),
+          h('div', { class: 'grow' }, h('b', null, t('errors.loadTitle', { what })), ' ', kept.length ? t('errors.loadKept', { files: kept.join(', ') }) : t('errors.loadLost')),
+          h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-label': t('errors.dismiss'), 'data-tip': t('errors.dismiss'), onclick: () => this.store.dismissLoadErrors() }, icon('dismiss')),
+        ),
+      );
+    }
   }
 
   _updateDots(now = Date.now()) {

@@ -69,6 +69,9 @@ export async function renderAgenda(slot, { ctx, date = new Date(), close } = {})
 }
 
 export async function resync(ctx) {
+  // the open app keeps the reminders in sync itself, from its in-memory data (the file may lag behind
+  // an edit that is still being saved)
+  if (typeof document !== 'undefined' && document.querySelector('.win.app-calendar')) return { set: 0, removed: 0, skipped: true };
   const lang = ctx.i18n?.lang === 'fr' ? 'fr' : 'en';
   const data = await loadData(ctx.api, lang);
   return syncReminders({ reminders: ctx.shell?.reminders, events: data.events, lang, hour12: hour12(ctx.settings, lang) });

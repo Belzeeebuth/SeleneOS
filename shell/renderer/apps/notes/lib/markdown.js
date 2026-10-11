@@ -25,6 +25,8 @@ function escLineStart(s) {
 
 export function htmlToMarkdown(root, opts = {}) {
   const image = opts.image || ((img) => img.getAttribute('src') || '');
+  // scratch elements live in the root's document (an inert one for exports: pictures are never fetched)
+  const doc = root.ownerDocument || document;
 
   const inline = (node, ctx = {}) => {
     let out = '';
@@ -97,7 +99,7 @@ export function htmlToMarkdown(root, opts = {}) {
     };
     for (let n = node.firstChild; n; n = n.nextSibling) {
       if (n.nodeType === 3 || (n.nodeType === 1 && !isBlockEl(n))) {
-        const box = document.createElement('span');
+        const box = doc.createElement('span');
         box.appendChild(n.cloneNode(true));
         pendingInline = (pendingInline || '') + inline(box);
         continue;
@@ -152,12 +154,12 @@ export function htmlToMarkdown(root, opts = {}) {
       const box = check ? (li.dataset.checked === 'true' ? '[x] ' : '[ ] ') : '';
       const pad = ' '.repeat(marker.length + 1);
       // the item's own text (paragraph children joined by line breaks), then nested lists / blocks
-      const own = document.createElement('div');
+      const own = doc.createElement('div');
       const nested = [];
       for (const c of li.childNodes) {
         if (c.nodeType === 1 && (c.tagName === 'UL' || c.tagName === 'OL')) nested.push(list(c, indent + pad));
         else if (c.nodeType === 1 && /^(P|DIV|H[1-6])$/.test(c.tagName) && !hasBlockChild(c)) {
-          if (own.childNodes.length) own.appendChild(document.createElement('br'));
+          if (own.childNodes.length) own.appendChild(doc.createElement('br'));
           for (const k of c.childNodes) own.appendChild(k.cloneNode(true));
         } else if (c.nodeType === 1 && isBlockEl(c)) {
           const b = blocks(wrapIn(c), indent + pad);
@@ -185,7 +187,7 @@ export function htmlToMarkdown(root, opts = {}) {
 }
 
 function wrapIn(el) {
-  const d = document.createElement('div');
+  const d = (el.ownerDocument || document).createElement('div');
   d.appendChild(el.cloneNode(true));
   return d;
 }
@@ -209,7 +211,7 @@ function hasBlockChild(n) {
 // ---------------------------------------------------------------- Markdown -> HTML
 export function markdownTitle(text) {
   const src = String(text || '').replace(/^\ufeff/, '');
-  const m = /^\s*#\s+(.+?)\s*#*\s*(?:\n|$)/.exec(src);
+  const m = /^\s*#[ \t]+(.+?)[ \t]*#*[ \t]*(?:\n|$)/.exec(src);
   if (!m) return { title: '', body: src };
   return { title: m[1].replace(/\\([\\`*_[\]{}()#+\-.!<>~=|])/g, '$1').trim(), body: src.slice(m[0].length) };
 }

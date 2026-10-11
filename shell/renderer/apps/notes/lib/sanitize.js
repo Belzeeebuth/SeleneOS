@@ -1,8 +1,11 @@
 // HTML sanitizer for Notes: every piece of HTML that reaches the editor (pasted, dropped, imported, or
 // read back from a note file) goes through here.
 //
-//   sanitizeFragment(html, opts) -> DocumentFragment (built in the current document, inert until inserted)
-//   sanitizeHtml(html, opts)     -> string
+//   sanitizeFragment(html, opts) -> DocumentFragment built in opts.doc (default: the live document; pass
+//                                   inertDocument() when the tree is only analysed: <img> elements of the live
+//                                   document start loading as soon as they get a src, even detached)
+//   sanitizeHtml(html, opts)     -> string (always built in the inert document: nothing is fetched)
+//   inertDocument()              -> a document without a browsing context (no loads, no scripts)
 //
 // How it works: the input is parsed into an *inert* document (DOMParser: no scripts run, no images load,
 // no event handlers fire), then a brand-new tree is rebuilt node by node in the live document from an
@@ -16,7 +19,7 @@
 //     (opts.allowRemote) or a bare attachment name (opts.attachments)
 //   - pasted inline styles (font-weight / font-style / text-decoration) become b / i / u / s
 //   - GitHub-style task lists (<li><input type=checkbox checked>) become checklist items
-// Options: { attachments, allowMedia, allowRemote, collapseWhitespace, maxDepth }
+// Options: { attachments, allowMedia, allowRemote, collapseWhitespace, maxDepth, doc }
 export const TEXT_COLORS = ['red', 'orange', 'green', 'blue', 'purple', 'gray'];
 export const HIGHLIGHTS = ['yellow', 'green', 'blue', 'pink', 'orange', 'purple'];
 export const ATTACHMENT_RE = /^att-[a-z0-9]{8}(?:-[a-z0-9-]{1,40})?\.[a-z0-9]{2,5}$/;
@@ -115,8 +118,14 @@ function collapseWs(s) {
   return s.replace(/[\t\n\r\f ]+/g, ' ');
 }
 
+let inert = null;
+export function inertDocument() {
+  inert ||= document.implementation.createHTMLDocument('');
+  return inert;
+}
+
 export function sanitizeFragment(html, opts = {}) {
-  const doc = document;
+  const doc = opts.doc || document;
   const maxDepth = opts.maxDepth || 64;
   const src = new DOMParser().parseFromString(`<!doctype html><html><body>${String(html ?? '')}</body></html>`, 'text/html');
   const frag = doc.createDocumentFragment();
@@ -249,7 +258,7 @@ export function sanitizeFragment(html, opts = {}) {
 // Structural clean-up so the editor and the Markdown exporter always see a sane tree:
 // orphan <li> -> <div>, <tr>/<td> outside a table -> unwrapped, top-level inline runs wrapped in <div>.
 function fixStructure(root, opts) {
-  const doc = document;
+  const doc = root.ownerDocument || document;
   const walk = (parent) => {
     for (const el of [...parent.children]) {
       const tag = el.tagName.toLowerCase();
@@ -319,7 +328,7 @@ function lastText(b) {
 }
 
 function wrapInlineRuns(root) {
-  const doc = document;
+  const doc = root.ownerDocument || document;
   let run = null;
   for (const n of [...root.childNodes]) {
     if (isBlock(n)) {
@@ -350,8 +359,9 @@ function wrapInlineRuns(root) {
 }
 
 export function sanitizeHtml(html, opts = {}) {
-  const box = document.createElement('div');
-  box.appendChild(sanitizeFragment(html, opts));
+  const doc = inertDocument();
+  const box = doc.createElement('div');
+  box.appendChild(sanitizeFragment(html, { ...opts, doc }));
   return box.innerHTML;
 }
 

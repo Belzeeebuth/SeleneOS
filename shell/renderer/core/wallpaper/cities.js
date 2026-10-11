@@ -1,6 +1,8 @@
 // Offline list of cities for the dynamic wallpaper location (works without network; the online Open-Meteo
 // geocoding search, weather:search, finds every other place).
 //   searchCities(query, lang) -> [{ name, country, lat, lon }]   (accent- and case-insensitive prefix/substring match)
+//   samePlace(a, b)            -> true when two results name the same town (same name, within ~25 km): merges the
+//                                 built-in list with the online results without showing a city twice
 //   CITIES                     [[name en, name fr, country en, country fr, lat, lon], …]
 export const CITIES = [
   ['Paris', 'Paris', 'France', 'France', 48.8566, 2.3522],
@@ -120,4 +122,10 @@ export function searchCities(query, lang = 'en', limit = 8) {
   }
   scored.sort((a, b) => b.score - a.score || a.c[0].localeCompare(b.c[0]));
   return scored.slice(0, limit).map(({ c }) => ({ name: fr ? c[1] : c[0], country: fr ? c[3] : c[2], lat: c[4], lon: c[5] }));
+}
+
+/** Same town in two result lists (online geocoding vs the built-in list): same name and close coordinates. */
+export function samePlace(a, b) {
+  if (!a || !b || norm(a.name) !== norm(b.name)) return false;
+  return Math.abs(Number(a.lat) - Number(b.lat)) < 0.25 && Math.abs(Number(a.lon) - Number(b.lon)) < 0.25;
 }

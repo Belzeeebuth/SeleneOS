@@ -4,7 +4,7 @@
 import { addDays, sameDay, localKey, localDayNum, weekNumber, localFromKey } from '../lib/dates.mjs';
 import { packLanes } from '../lib/layout.mjs';
 import { track } from './drag.js';
-import { openPopover } from './pickers.js';
+import { openPopover, gridPointerAllowed } from './pickers.js';
 import { chipLabel } from './agenda.js';
 import { css } from './util.js';
 
@@ -197,7 +197,7 @@ export function renderMonth(app) {
   const dateOfCell = (c) => localFromKey(c.dataset.date);
 
   function onCellDown(e, d) {
-    if (e.button !== 0 || e.target.closest('.ac-chip, .ac-more-btn, .ac-mo-num')) return;
+    if (e.button !== 0 || e.target.closest('.ac-chip, .ac-more-btn, .ac-mo-num') || !gridPointerAllowed()) return;
     e.preventDefault();
     app.viewEl.focus({ preventScroll: true });
     let from = d;

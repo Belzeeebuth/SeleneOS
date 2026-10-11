@@ -239,7 +239,8 @@
    "upcoming": "Upcoming",
    "recent": "Recently added",
    "emptyTitle": "You’re all caught up",
-   "empty": "Suggestions for your day show up here."
+   "empty": "Suggestions for your day show up here.",
+   "open": "Open the details of “{title}”"
   },
   "picker": {
    "prevMonth": "Previous month",
@@ -327,7 +328,9 @@
    "delete": "Delete the selected tasks",
    "selectAll": "Select all tasks",
    "close": "Close the details or clear the search",
-   "help": "Show keyboard shortcuts"
+   "help": "Show keyboard shortcuts",
+   "pane": "Move between panes",
+   "deleteList": "Delete the list (in the navigation pane)"
   },
   "kbd": {
    "Ctrl": "Ctrl",
@@ -361,7 +364,12 @@
    "saveTitle": "Changes couldn’t be saved",
    "copy": "Couldn’t copy the list: {msg}",
    "taskGone": "This task no longer exists. It may have been deleted.",
-   "damaged": "Your task data was damaged and couldn’t be read, so To Do started with empty lists. The damaged file was kept as {file} in the To Do settings folder."
+   "damaged": "Your task data was damaged and couldn’t be read, so To Do started with empty lists. The damaged file was kept as {file} in the To Do settings folder.",
+   "newer": "Your tasks were saved by a newer version of To Do. A copy of the original file was kept as {file} in the To Do settings folder.",
+   "newerNoBackup": "your tasks were saved by a newer version of To Do and a safety copy couldn’t be made ({msg})",
+   "readOnlyTitle": "Changes aren’t being saved",
+   "readOnlyBody": "Your task file couldn’t be read, so To Do won’t overwrite it. Close To Do and fix or move the file, then open To Do again.",
+   "stepLimit": "A task can have up to {max} steps. Split it into several tasks, or turn a few steps into tasks."
   }
  },
  "fr": {
@@ -604,7 +612,8 @@
    "upcoming": "À venir",
    "recent": "Ajoutées récemment",
    "emptyTitle": "Vous êtes à jour",
-   "empty": "Les suggestions pour votre journée apparaissent ici."
+   "empty": "Les suggestions pour votre journée apparaissent ici.",
+   "open": "Ouvrir les détails de « {title} »"
   },
   "picker": {
    "prevMonth": "Mois précédent",
@@ -692,7 +701,9 @@
    "delete": "Supprimer les tâches sélectionnées",
    "selectAll": "Sélectionner toutes les tâches",
    "close": "Fermer les détails ou effacer la recherche",
-   "help": "Afficher les raccourcis clavier"
+   "help": "Afficher les raccourcis clavier",
+   "pane": "Passer d’un volet à l’autre",
+   "deleteList": "Supprimer la liste (dans le volet de navigation)"
   },
   "kbd": {
    "Ctrl": "Ctrl",
@@ -726,7 +737,12 @@
    "saveTitle": "Impossible d’enregistrer les modifications",
    "copy": "Impossible de copier la liste : {msg}",
    "taskGone": "Cette tâche n’existe plus. Elle a peut-être été supprimée.",
-   "damaged": "Vos données de tâches étaient endommagées et n’ont pas pu être lues : Tâches a démarré avec des listes vides. Le fichier endommagé a été conservé sous le nom {file} dans le dossier de paramètres de Tâches."
+   "damaged": "Vos données de tâches étaient endommagées et n’ont pas pu être lues : Tâches a démarré avec des listes vides. Le fichier endommagé a été conservé sous le nom {file} dans le dossier de paramètres de Tâches.",
+   "newer": "Vos tâches ont été enregistrées par une version plus récente de Tâches. Une copie du fichier d’origine a été conservée sous le nom {file} dans le dossier de paramètres de Tâches.",
+   "newerNoBackup": "vos tâches ont été enregistrées par une version plus récente de Tâches et une copie de sécurité n’a pas pu être faite ({msg})",
+   "readOnlyTitle": "Les modifications ne sont pas enregistrées",
+   "readOnlyBody": "Votre fichier de tâches n’a pas pu être lu : Tâches ne l’écrasera pas. Fermez Tâches, réparez ou déplacez le fichier, puis rouvrez Tâches.",
+   "stepLimit": "Une tâche peut avoir au plus {max} étapes. Divisez-la en plusieurs tâches ou transformez quelques étapes en tâches."
   }
  }
 }

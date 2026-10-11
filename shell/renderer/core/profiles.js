@@ -31,13 +31,14 @@ export const PROFILE_KEYS = [
   'taskbar.align', 'taskbar.autohide', 'taskbar.showSearch', 'taskbar.showTaskView', 'taskbar.showWidgets',
   'taskbar.size', 'taskbar.position', 'taskbar.showLabels', 'taskbar.combine', 'taskbar.widgets', 'taskbar.search',
   'start.layout', 'start.background', 'start.folders', 'start.groups', 'startShowRecent', 'focusMode',
+  'taskbar.tray', 'taskbar.badges', 'taskbar.widgetsPos', 'taskbar.hideDelay', 'showSeconds', 'start.showRecentApps', 'start.showMostUsed',
   // packs + input (B3)
   'cursorPack', 'iconPack', 'soundPack', 'soundEvents', 'snapPresets', 'shortcuts',
   // desktop
   'desktopIconSize',
 ];
 /** Sub-keys never saved in a profile (runtime state). */
-export const PROFILE_EXCLUDE = ['focusMode.active'];
+export const PROFILE_EXCLUDE = ['focusMode.active', 'focusMode.endsAt', 'focusMode.prevDnd'];
 /** The "look": what a built-in profile sets (every other key is left alone — text size, scale, layout…). */
 export const LOOK_KEYS = [
   'style', 'theme', 'autoTheme', 'accent', 'accentFromWallpaper', 'transparencyLevel', 'blur', 'cornerRadius', 'fontFamily',
@@ -210,11 +211,18 @@ export const VALIDATORS = {
   'taskbar.combine': oneOf('always', 'whenFull', 'never'),
   'taskbar.widgets': arrayOf(slug, 16),
   'start.layout': oneOf('default', 'morePins', 'moreRecommended', 'list'),
-  'start.background': oneOf('acrylic', 'solid', 'accent', 'wallpaper'),
+  'start.background': oneOf('acrylic', 'glass', 'solid', 'accent', 'wallpaper'),
   'start.folders': arrayOf(slug, 16),
   'start.groups': arrayOf(shape({ id: slug, name: text(60), apps: arrayOf(slug, 200) }, { required: ['id'] }), 64),
   startShowRecent: bool,
-  focusMode: shape({ active: bool, hideNotifications: bool, dimDesktop: bool, dimLevel: int(0, 100), simplifyTaskbar: bool, duration: int(0, 1440) }),
+  focusMode: shape({ active: bool, hideNotifications: bool, dimDesktop: bool, dimLevel: int(0, 100), hideIcons: bool, simplifyTaskbar: bool, duration: int(0, 1440), endsAt: int(0, 8.64e15), prevDnd: (v) => (v === null || typeof v === 'boolean' ? v : undefined) }),
+  'taskbar.tray': shape({ network: bool, volume: bool, battery: bool }),
+  'taskbar.badges': bool,
+  'taskbar.widgetsPos': oneOf('auto', 'start', 'inline', 'end'),
+  'taskbar.hideDelay': int(0, 5000),
+  showSeconds: bool,
+  'start.showRecentApps': bool,
+  'start.showMostUsed': bool,
   'taskbar.search': (v) => (v === null || ['hidden', 'icon', 'box'].includes(v) ? v : undefined),
   // B3 — packs and input (ids of core/packs.js CURSOR_PACKS / ICON_PACKS and core/sounds.js SOUND_PACKS; listed here
   // so this module does not import the shell runtime)

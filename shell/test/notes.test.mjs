@@ -2,12 +2,14 @@
 //   Sanitizer against XSS payloads (and nothing executes when the output is inserted), Markdown import /
 //   export, first-run welcome note (EN / FR), create + edit + autosave + persistence across a restart (files on
 //   disk, crash-safe writes), Markdown shortcuts while typing (+ undo back to the literal text), checklist
-//   toggles, toolbar formatting (bold, highlight, colour, style, link, table, clear), picture paste / drop /
-//   pasted HTML pictures stored as attachments, paste sanitization in the editor, search (accent-insensitive,
-//   #tags, highlights), pin + sort, delete / restore / purge / 30-day auto purge, notebooks (create, rename,
-//   colour, delete) + move (menu and drag & drop), export (.md with pictures, .txt, .html) + import roundtrip,
-//   share by Mail, keyboard shortcuts, find in note, responsive layouts, light / dark, English / French,
-//   minimum and maximized sizes, console errors.
+//   toggles, lists (Tab / Shift+Tab nesting, separate list kinds, toolbar toggles, Markdown export of nesting),
+//   toolbar formatting (bold, highlight, colour, style, link + link card, table, clear), picture paste / drop /
+//   insert / pasted HTML pictures stored as attachments, paste sanitization in the editor (lines -> list items in
+//   a list), search (accent-insensitive, #tags, highlights), pin + sort, delete / restore / purge / 30-day auto
+//   purge, notebooks (create, rename, colour, delete) + move (menu and drag & drop), export (.md with pictures,
+//   .txt, .html) + import roundtrip, opening a .md with Notes, share by Mail, keyboard shortcuts, find in note,
+//   save failures (error state, background retry, Retry, close prompt), responsive layouts, light / dark,
+//   English / French (key names too), minimum and maximized sizes, console errors.
 //   Documentation screenshots: aurora-os/docs/screenshots/notes-*.png
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/notes.test.mjs [--only=name]
 import fs from 'node:fs';
@@ -92,8 +94,10 @@ async function focusBodyEnd(s) {
   await run(`(() => { const b = document.querySelector(${JSON.stringify(BODY)}); b.focus(); const r = document.createRange(); r.selectNodeContents(b.lastElementChild || b); r.collapse(false); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); })()`.replace(/^/, '') && s, `(() => { const b = document.querySelector(${JSON.stringify(BODY)}); b.focus(); const r = document.createRange(); r.selectNodeContents(b.lastElementChild || b); r.collapse(false); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); })()`);
 }
 async function newNote(s, title) {
+  const before = await N(s, (app) => app.selectedId);
   await s.page.keyboard.press('Control+n');
-  await until(() => run(s, `document.activeElement?.classList.contains('nt-title')`), { label: 'title focused' });
+  // the new note is selected and its (empty) title focused
+  await until(() => N(s, (app, prev) => app.selectedId !== prev && document.activeElement === app.editor.title && !app.editor.title.value, before), { label: 'title focused' });
   if (title) await s.page.keyboard.type(title, { delay: 5 });
   await s.page.keyboard.press('Enter');
   await until(() => run(s, `document.activeElement === document.querySelector(${JSON.stringify(BODY)})`), { label: 'body focused' });
@@ -227,6 +231,9 @@ await section('sanitizer: XSS payloads', async () => {
         '<img src="x" srcset="javascript:alert(1)" data-att="../../etc/passwd">',
         '<a href="https://ok.example" xlink:href="javascript:1" formaction="javascript:1">x</a>',
         '<svg><a href="javascript:window.__xss=1"><text>svg link</text></a></svg>',
+        '<a href="javascript&colon;window.__xss=1">colon</a><a href="file:///etc/passwd">file</a>',
+        '<math><mtext><table><mglyph><style><img src=x onerror="window.__xss=1"></style></mglyph></table></mtext></math>',
+        '<form><math><mtext></form><form><mglyph><svg><mtext><style><path id="</style><img onerror=window.__xss=1 src>">',
       ];
       const out = payloads.map((p) => sanitizeHtml(p, { collapseWhitespace: true, allowRemote: false, allowMedia: true }));
       const box = document.createElement('div');
@@ -274,6 +281,8 @@ await section('sanitizer: XSS payloads', async () => {
   check('table kept with colspan only', res.out[26], '<table><tbody><tr><td colspan="2">cell</td></tr></tbody></table>');
   check('srcset / bad data-att dropped', res.out[27], '');
   check('svg link dropped', res.out[29], '');
+  check('entity-encoded javascript: and file: links lose the link', res.out[30], '<div>colonfile</div>');
+  check('math / mglyph / style mutation vectors removed', [res.out[31], res.out[32].includes('<img')], ['', false]);
   check('deep nesting does not crash', res.deepKept, true);
   check('Google Docs paste: wrapper bold ignored, styles -> b / i', res.googleDocs, '<p><b>Hello</b> <i>world</i></p>');
   check('GitHub task list -> checklist', res.tasks, '<ul data-type="checklist"><li data-checked="true">done</li><li data-checked="false">todo</li></ul>');
@@ -292,11 +301,12 @@ await section('markdown: import and export', async () => {
         '<ul data-type="checklist"><li data-checked="true">done</li><li data-checked="false">todo</li></ul>' +
         '<blockquote>quoted</blockquote><pre>let a = 1;\\n  let b = "*x*";</pre><hr><table><tbody><tr><th>K</th><th>V</th></tr><tr><td>a|b</td><td>2</td></tr></tbody></table>' +
         '<div>1. not a list</div><div># not a heading</div><div>snake_case *star*</div><div><img src="att-abcdefgh-pic.png" alt="pic"></div>';
-      const box = document.createElement('div');
-      box.appendChild(sanitizeFragment(html, { attachments: true }));
+      const doc = document.implementation.createHTMLDocument(''); // inert: attachment names are never fetched
+      const box = doc.createElement('div');
+      box.appendChild(sanitizeFragment(html, { attachments: true, doc }));
       const text = md.htmlToMarkdown(box, { image: (img) => 'Note_files/' + img.getAttribute('src') });
-      const back = document.createElement('div');
-      back.appendChild(sanitizeFragment(md.markdownToHtml(text), { attachments: true, allowRemote: true }));
+      const back = doc.createElement('div');
+      back.appendChild(sanitizeFragment(md.markdownToHtml(text), { attachments: true, allowRemote: true, doc }));
       return { text, back: back.innerHTML, title: md.markdownTitle('# My *title*\\n\\nBody'), setext: md.markdownToHtml('Title\\n=====\\n\\ntext') };
     })()`,
   );
@@ -351,7 +361,8 @@ await section('create, edit, autosave, saved indicator', async () => {
   await flush(s);
   const index = JSON.parse(fs.readFileSync(path.join(notesDir(home), 'notes.json'), 'utf8'));
   check('index has the note', index.notes[n.id]?.title, 'Groceries');
-  check('word / character count', await run(s, `document.querySelector('${WIN} .nt-count').textContent`), '8 words · 52 characters');
+  // title + body: 1 + 3 + 5 words; characters without line breaks
+  check('word / character count', await run(s, `document.querySelector('${WIN} .nt-count').textContent`), '9 words · 48 characters');
   check('last edited', await run(s, `document.querySelector('${WIN} .nt-edited').textContent`), 'Last edited just now');
   check('list item shows title + preview', await run(s, `(() => { const el = document.querySelector('${WIN} .nt-item.selected'); return el && [el.querySelector('.nt-item-title').textContent, el.querySelector('.nt-item-preview').textContent]; })()`), ['Groceries', 'Milk and eggs Café crème for the morning']);
   check('no console errors', errorsSince(s, mark), []);
@@ -401,6 +412,7 @@ await section('markdown shortcuts while typing (+ undo to literal)', async () =>
   check('typing continues outside the format', /<\/mark>​? ok/.test(html), true);
   check('``` -> code block with lines', html.includes('<pre>code line\nsecond</pre>'), true);
   check('--- -> divider', /<hr><div>after rule<\/div>/.test(html), true);
+  check('body stays flat after leaving lists', await run(s, `[...document.querySelector('${BODY}').children].map((c) => c.tagName).join(' ')`), 'H1 H2 UL OL UL BLOCKQUOTE DIV PRE HR DIV');
   // undo turns a shortcut back into the typed characters
   await s.page.keyboard.press('Enter');
   await s.page.keyboard.type('### ', { delay: 10 });
@@ -435,6 +447,74 @@ await section('checklist: click and Ctrl+Enter toggle, persisted', async () => {
   check('checked state saved', (await byTitle(s, 'Shortcuts')).html.includes('<li data-checked="true">task two</li>'), true);
   await s.page.keyboard.press('Control+z');
   check('undo unticks', await run(s, `document.querySelectorAll('${li}')[1].dataset.checked`), 'false');
+});
+
+await section('lists: Tab / Shift+Tab, separate kinds, toolbar toggles, export of nesting', async () => {
+  mark = s.logs.length;
+  await newNote(s, 'Lists');
+  const k = s.page.keyboard;
+  check('title previewed live in the list', await run(s, `document.querySelector('${WIN} .nt-item.selected .nt-item-title').textContent`), 'Lists');
+  await k.type('- one', { delay: 5 });
+  await k.press('Enter');
+  await k.press('Tab');
+  await k.type('nested', { delay: 5 });
+  await k.press('Enter');
+  await k.press('Tab');
+  await k.type('deeper', { delay: 5 });
+  check('Tab nests inside the item above (li > ul)', await bodyHtml(s), '<ul><li>one<ul><li>nested<ul><li>deeper</li></ul></li></ul></li></ul>');
+  await k.press('Shift+Tab');
+  await k.press('Shift+Tab');
+  check('Shift+Tab back to the top level', await bodyHtml(s), '<ul><li>one<ul><li>nested</li></ul></li><li>deeper</li></ul>');
+  await k.press('Enter');
+  await k.press('Enter');
+  check('Enter on an empty item leaves the list', await run(s, `document.querySelector('${BODY}').lastElementChild.tagName`), 'DIV');
+  await k.type('[] milk', { delay: 5 });
+  await k.press('Enter');
+  await k.type('bread', { delay: 5 });
+  const html = await bodyHtml(s);
+  check('a checklist under a bullet list stays a separate list', html, '<ul><li>one<ul><li>nested</li></ul></li><li>deeper</li></ul><ul data-type="checklist"><li data-checked="false">milk</li><li data-checked="false">bread</li></ul>');
+  // toolbar: checklist -> numbers -> off
+  await N(s, (app) => app.editor.command('ol'));
+  check('toolbar switches the list kind', await run(s, `document.querySelector('${BODY}').lastElementChild.outerHTML`), '<ol><li>milk</li><li>bread</li></ol>');
+  check('numbers button pressed', await run(s, `document.querySelector('${WIN} .nt-cmd[data-cmd="ol"]').getAttribute('aria-pressed')`), 'true');
+  await N(s, (app) => app.editor.command('ol'));
+  check('toggle off: the item becomes a line, the list splits', await run(s, `[...document.querySelector('${BODY}').children].slice(-2).map((e) => e.outerHTML)`), ['<ol><li>milk</li></ol>', '<div>bread</div>']);
+  await N(s, (app) => app.editor.command('ul'));
+  check('a line under a numbered list becomes a separate bullet list', await run(s, `[...document.querySelector('${BODY}').children].slice(-2).map((e) => e.outerHTML)`), ['<ol><li>milk</li></ol>', '<ul><li>bread</li></ul>']);
+  await N(s, (app) => app.editor.command('ol'));
+  check('same kind as the list above: it joins it', await run(s, `document.querySelector('${BODY}').lastElementChild.outerHTML`), '<ol><li>milk</li><li>bread</li></ol>');
+  // undo restores the previous structure
+  await k.press('Control+z');
+  check('undo of a list command', await run(s, `document.querySelector('${BODY}').lastElementChild.outerHTML`), '<ul><li>bread</li></ul>');
+  await k.press('Control+y');
+  await flush(s);
+  const n = await byTitle(s, 'Lists');
+  const md = await N(s, (app, html) => import('app://shell/apps/notes/lib/markdown.js').then((m) => {
+    const doc = document.implementation.createHTMLDocument('');
+    const box = doc.createElement('div');
+    box.innerHTML = html;
+    return m.htmlToMarkdown(box);
+  }), n.html);
+  check('nested items exported as indented Markdown', md, '- one\n  - nested\n- deeper\n\n1. milk\n2. bread\n');
+  // keyboard shortcuts on a new line
+  await focusBodyEnd(s);
+  await k.press('Enter');
+  await k.press('Enter');
+  await k.type('keys', { delay: 5 });
+  const last = () => run(s, `document.querySelector('${BODY}').lastElementChild.outerHTML`);
+  await k.press('Control+Shift+8');
+  check('Ctrl+Shift+8: bullets', await last(), '<ul><li>keys</li></ul>');
+  await k.press('Control+Shift+C');
+  check('Ctrl+Shift+C: checklist', await last(), '<ul data-type="checklist"><li data-checked="false">keys</li></ul>');
+  await k.press('Control+Enter');
+  check('Ctrl+Enter ticks it', await last(), '<ul data-type="checklist"><li data-checked="true">keys</li></ul>');
+  await k.press('Control+Shift+C');
+  check('Ctrl+Shift+C again: back to a line', await last(), '<div>keys</div>');
+  await k.press('Tab');
+  check('Tab in text inserts a tab', await last(), '<div>keys\t</div>');
+  await k.press('Shift+Tab');
+  check('Shift+Tab in text leaves the body (no keyboard trap)', await run(s, `document.activeElement?.classList.contains('nt-title')`), true);
+  check('no console errors', errorsSince(s, mark), []);
 });
 
 await section('toolbar: bold, highlight, colour, style, link, table, clear', async () => {
@@ -543,6 +623,7 @@ await section('pictures: paste, drop, pasted HTML pictures -> attachments', asyn
   );
   await until(() => run(s, `!!document.querySelector('${BODY} img[data-att]')`), { label: 'pasted picture stored' });
   const att = await run(s, `document.querySelector('${BODY} img[data-att]').dataset.att`);
+  check('a picture gets a line of its own', await run(s, `(() => { const i = document.querySelector('${BODY} img[data-att]'); return [i.parentElement.tagName, i.parentElement.childNodes.length, i.parentElement.previousElementSibling?.textContent]; })()`), ['DIV', 1, 'Here is a picture:']);
   check('attachment named att-…', /^att-[a-z0-9]{8}-shot\.png$/.test(att), true);
   check('attachment file next to the note', fs.existsSync(path.join(notesDir(home), id, att)) && fs.readFileSync(path.join(notesDir(home), id, att)).equals(PNG_BLUE), true);
   check('shown through media://', await run(s, `document.querySelector('${BODY} img[data-att]').src`), (v) => v.startsWith('media://local/'));
@@ -557,7 +638,7 @@ await section('pictures: paste, drop, pasted HTML pictures -> attachments', asyn
       const dt = new DataTransfer();
       dt.items.add(new File([bytes], 'dropped.png', { type: 'image/png' }));
       const b = document.querySelector('${BODY}');
-      const opts = { dataTransfer: dt, bubbles: true, cancelable: true, clientX: ${Math.round(target.x + 40)}, clientY: ${Math.round(target.y + 10)} };
+      const opts = { dataTransfer: dt, bubbles: true, cancelable: true, clientX: ${Math.round(target.x + target.w - 12)}, clientY: ${Math.round(target.y + 10)} };
       b.dispatchEvent(new DragEvent('dragover', opts));
       b.dispatchEvent(new DragEvent('drop', opts));
     })()`,
@@ -573,7 +654,7 @@ await section('pictures: paste, drop, pasted HTML pictures -> attachments', asyn
       const dt = new DataTransfer();
       dt.setData('application/x-aurora-paths', JSON.stringify([${JSON.stringify(picPath)}, ${JSON.stringify(path.join(home, 'Pictures', 'readme.txt'))}]));
       const b = document.querySelector('${BODY}');
-      b.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true, clientX: ${Math.round(target.x + 40)}, clientY: ${Math.round(target.y + 10)} }));
+      b.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true, clientX: ${Math.round(target.x + target.w - 12)}, clientY: ${Math.round(target.y + 10)} }));
     })()`,
   );
   await until(() => run(s, `document.querySelectorAll('${BODY} img[data-att]').length === 3`), { label: 'explorer drop stored' });
@@ -605,6 +686,19 @@ await section('pictures: paste, drop, pasted HTML pictures -> attachments', asyn
   await until(() => fs.readdirSync(path.join(notesDir(home), id)).filter((f) => f.startsWith('att-')).length === 3, { label: 'orphan attachment collected' });
   check('orphan attachment collected', true, true);
   await N(s, (app, pid) => app.select(pid, { focus: false }), id);
+  // toolbar: Insert picture -> file picker
+  await focusBodyEnd(s);
+  const pickPath = path.join(home, 'Pictures', 'picked.png');
+  fs.writeFileSync(pickPath, PNG_BLUE);
+  const imgBtn = `${WIN} .nt-cmd[data-cmd="image"]`;
+  if (await run(s, `!!document.querySelector('${imgBtn}')?.offsetParent`)) await s.page.click(imgBtn);
+  else N(s, (app) => app.editor.command('image')).catch(() => {});
+  await until(() => run(s, `!!document.querySelector('${DLG}.fp-dialog .fp-bottom input')`), { label: 'open picker' });
+  await sleep(150);
+  await s.page.fill(`${DLG}.fp-dialog .fp-bottom input`, pickPath);
+  await s.page.keyboard.press('Enter');
+  await until(() => run(s, `document.querySelectorAll('${BODY} img[data-att]').length === 4`), { label: 'picked picture inserted' });
+  check('picked picture stored as an attachment', await run(s, `[...document.querySelectorAll('${BODY} img[data-att]')].some((i) => /-picked\\.png$/.test(i.dataset.att))`), true);
   await shot(s, 'pictures-light-en');
 });
 
@@ -633,7 +727,23 @@ await section('paste sanitization in the editor (plain text, rich HTML)', async 
     })()`,
   );
   await sleep(200);
-  check('plain text lines become lines, markup stays text', await bodyHtml(s), (h) => h.includes('<div>line B</div>') && h.includes('&lt;b&gt;not html&lt;/b&gt;'));
+  // the caret was at the end of the pasted list: lines become list items
+  check('plain text lines pasted in a list item become items', await bodyHtml(s), (h) => h.includes('<li><b>strong</b> itemline A</li><li>line B</li><li>&lt;b&gt;not html&lt;/b&gt;</li></ul>'));
+  check('caret after the pasted text', await run(s, `(() => { const n = getSelection().anchorNode; return (n?.nodeType === 1 ? n : n?.parentElement)?.closest('li')?.textContent; })()`), '<b>not html</b>');
+  // leave the list (Enter on an empty item) and paste again on a normal line
+  await s.page.keyboard.press('Enter');
+  await s.page.keyboard.press('Enter');
+  await run(
+    s,
+    `(() => {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', 'line A\\nline B\\n<b>not html</b>');
+      document.querySelector('${BODY}').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    })()`,
+  );
+  await sleep(200);
+  check('plain text lines become lines, markup stays text', await bodyHtml(s), (h) => h.includes('</ul><div>line A</div><div>line B</div><div>&lt;b&gt;not html&lt;/b&gt;</div>'));
+  check('body stays flat (no nested lines)', await run(s, `[...document.querySelector('${BODY}').children].some((c) => c.tagName === 'DIV' && c.querySelector('div, ul, ol, h1, h2, h3, pre, blockquote, table'))`), false);
 });
 
 await section('search: full text, accents, #tags, highlights', async () => {
@@ -644,6 +754,7 @@ await section('search: full text, accents, #tags, highlights', async () => {
   check('accent-insensitive full-text match', await run(s, `[...document.querySelectorAll('${WIN} .nt-item .nt-item-title')].map((e) => e.textContent)`), ['Groceries']);
   check('list title is Search results', await run(s, `document.querySelector('${WIN} .nt-list-title').textContent`), 'Search results');
   check('snippet highlights the match', await run(s, `document.querySelector('${WIN} .nt-item mark')?.textContent`), 'crème');
+  check('snippet text (no repeated first line)', await run(s, `document.querySelector('${WIN} .nt-item .nt-item-preview').textContent`), 'Milk and eggs Café crème for the morning');
   check('the result opens', await selectedId(s), groceriesId);
   check('editor highlights matches', await run(s, `CSS.highlights.get('nt-match')?.size || 0`), 1);
   await shot(s, 'search-light-en');
@@ -762,6 +873,7 @@ await section('notebooks: create, rename, colour, emoji, move (menu + drag), del
   await s.page.keyboard.press('Enter');
   check('duplicate name refused', await run(s, `document.querySelector('${DLG} .nt-field-error').textContent`), (v) => v.includes('already'));
   await s.page.fill(`${DLG} input`, 'Work');
+  check('error cleared while typing', await run(s, `[document.querySelector('${DLG} .nt-field-error').textContent, document.querySelector('${DLG} input').classList.contains('invalid')]`), ['', false]);
   await s.page.click(`${DLG} .nt-color-dot[data-color="green"]`);
   await s.page.click(`${DLG} .nt-emoji-btn[data-emoji="💼"]`);
   await shot(s, 'notebook-dialog');
@@ -839,9 +951,9 @@ await section('export (.md + pictures, .txt, .html) and import roundtrip', async
   await until(() => fs.existsSync(out), { label: 'exported md' });
   await sleep(300);
   const md = fs.readFileSync(out, 'utf8');
-  check('md: title + text', md.startsWith('# Pictures\n\nHere is a picture:'), true);
+  check('md: title + text', md.slice(0, 30), '# Pictures\n\nHere is a picture:');
   const refs = [...md.matchAll(/!\[\]\((Pictures%20note_files\/att-[^)]+)\)/g)].map((m) => decodeURI(m[1]));
-  check('md: pictures referenced in a _files folder', refs.length, 3);
+  check('md: pictures referenced in a _files folder', refs.length, 4);
   check('md: pictures copied', refs.every((r) => fs.existsSync(path.join(home, 'Documents', r))), true);
   // txt and html through the export API (same picker flow)
   const exportVia = async (fmt, file) => {
@@ -849,6 +961,7 @@ await section('export (.md + pictures, .txt, .html) and import roundtrip', async
       const n = app.store.all().find((x) => x.title === a.title);
       return import('app://shell/apps/notes/ui/dialogs.js').then((d) => d.exportNote(app, n, a.fmt));
     }, { title: 'Shortcuts', fmt });
+    p.catch(() => {}); // reported when awaited below
     await until(() => run(s, `!!document.querySelector('${DLG}.fp-dialog .fp-bottom input')`), { label: 'picker' });
     await sleep(150);
     await s.page.fill(`${DLG}.fp-dialog .fp-bottom input`, file);
@@ -869,8 +982,8 @@ await section('export (.md + pictures, .txt, .html) and import roundtrip', async
   check('one note imported', ids.length, 1);
   const imported = (await notes(s)).find((n) => n.id === ids[0]);
   check('imported title from # heading', imported?.title, 'Pictures');
-  check('imported text', imported?.text.startsWith('Here is a picture:'), true);
-  check('imported pictures copied into the note', fs.readdirSync(path.join(notesDir(home), ids[0])).filter((f) => f.startsWith('att-')).length, 3);
+  check('imported text', imported?.text.slice(0, 18), 'Here is a picture:');
+  check('imported pictures copied into the note', fs.readdirSync(path.join(notesDir(home), ids[0])).filter((f) => f.startsWith('att-')).length, 4);
   check('note count +1', (await notes(s)).length, before + 1);
   // Markdown file from elsewhere (with a task list, table and a relative picture)
   const mdDir = path.join(home, 'Downloads', 'trip');
@@ -880,9 +993,25 @@ await section('export (.md + pictures, .txt, .html) and import roundtrip', async
   fs.writeFileSync(path.join(mdDir, 'todo.txt'), 'First line\n\nThird <line>');
   const ids2 = await N(s, (app, ps) => import('app://shell/apps/notes/ui/dialogs.js').then((d) => d.importFiles(app, ps)), [path.join(mdDir, 'Trip plan.md'), path.join(mdDir, 'todo.txt')]);
   const trip = (await notes(s)).find((n) => n.id === ids2[0]);
-  check('md import: checklist + table + picture', trip && [trip.title, trip.html.includes('<ul data-type="checklist"><li data-checked="true">Book train</li>'), trip.html.includes('<th>Day</th>'), /<img src="att-[a-z0-9]{8}-map\.png"/.test(trip.html), trip.html.includes('script')], ['Trip to Lyon', true, true, true, false]);
+  check('md import: checklist + table + picture', trip && [trip.title, trip.html.includes('<ul data-type="checklist"><li data-checked="true">Book train</li>'), trip.html.includes('<th>Day</th>'), /<img src="att-[a-z0-9]{8}-map\.png"/.test(trip.html), /<script/i.test(trip.html)], ['Trip to Lyon', true, true, true, false]);
   const txtNote = (await notes(s)).find((n) => n.id === ids2[1]);
   check('txt import keeps lines and escapes markup', txtNote && [txtNote.title, txtNote.text], ['todo', 'First line\n\nThird <line>']);
+});
+
+await section('open a .md file with Notes (single instance relaunch)', async () => {
+  const file = path.join(home, 'Downloads', 'Ideas.md');
+  fs.writeFileSync(file, '# Ideas for the weekend\n\n- [ ] Hike\n- [x] Call Sam\n');
+  const before = (await notes(s)).length;
+  await run(s, `window.__aurora.registry.launch('notes', { file: ${JSON.stringify(file)} })`);
+  const id = await until(async () => {
+    const n = (await notes(s)).find((x) => x.title === 'Ideas for the weekend');
+    return n && n.id;
+  }, { label: 'imported from launch args' });
+  check('one window only', await run(s, `window.__aurora.wm.list().filter((w) => w.appId === 'notes').length`), 1);
+  check('imported note opened', await until(async () => (await selectedId(s)) === id && id, { label: 'imported note selected' }).catch(() => selectedId(s)), id);
+  check('note count +1', (await notes(s)).length, before + 1);
+  check('checklist kept', (await notes(s)).find((x) => x.id === id).html, '<ul data-type="checklist"><li data-checked="false">Hike</li><li data-checked="true">Call Sam</li></ul>');
+  check('Notes offered for .md (Notepad stays the default)', await run(s, `[window.__aurora.registry.get('notes').fileTypes.includes('.md'), window.__aurora.registry.handlerFor('/x/a.md')]`), [true, 'notepad']);
 });
 
 await section('share by Mail', async () => {
@@ -924,6 +1053,61 @@ await section('keyboard: list navigation, F2, duplicate', async () => {
   const dup = await byTitle(s, 'Groceries (copy)');
   check('duplicate', dup && dup.text, g.text);
   check('duplicate opened', await selectedId(s), dup?.id);
+});
+
+await section('save failure: error state, background retry, Retry button, close prompt', async () => {
+  const k = s.page.keyboard;
+  const state = () => run(s, `document.querySelector('${WIN} .nt-saved').dataset.state`);
+  await newNote(s, 'Fragile');
+  await k.type('first text', { delay: 5 });
+  await until(async () => (await state()) === 'saved', { label: 'saved' });
+  const id = await selectedId(s);
+  const dir = path.join(notesDir(home), id);
+  const file = path.join(dir, 'note.html');
+  // running as root, permissions can't make a write fail: replace the note folder with a file (ENOTDIR)
+  const breakIt = () => {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.writeFileSync(dir, 'not a folder');
+  };
+  const fixIt = () => fs.rmSync(dir, { force: true });
+  breakIt();
+  await k.type(' more', { delay: 5 });
+  await until(async () => (await state()) === 'error', { label: 'error state' });
+  check('error shown in the status bar', await run(s, `document.querySelector('${WIN} .nt-saved').textContent`), 'Not saved — retry');
+  await until(() => dialogOpen(s), { label: 'error dialog' });
+  check('one error dialog', await run(s, `document.querySelectorAll('${DLG}').length`), 1);
+  await dialogButton(s, 'OK');
+  fixIt();
+  await until(async () => (await state()) === 'saved', { timeout: 8000, label: 'background retry' });
+  check('the background retry wrote the note', fs.readFileSync(file, 'utf8').includes('first text more'), true);
+  // second failure: the Retry button
+  breakIt();
+  await N(s, (app) => app.editor.focusBody());
+  await k.press('End');
+  await k.type(' again', { delay: 5 });
+  await until(async () => (await state()) === 'error', { label: 'error state 2' });
+  await until(() => dialogOpen(s), { label: 'error dialog 2' });
+  await dialogButton(s, 'OK');
+  fixIt();
+  await s.page.click(`${WIN} .nt-retry`);
+  await until(async () => (await state()) === 'saved', { label: 'retry button' });
+  check('Retry wrote the note', fs.readFileSync(file, 'utf8').includes('first text more again'), true);
+  // closing while a write fails asks before losing anything
+  breakIt();
+  await N(s, (app) => app.editor.focusBody());
+  await k.type('!', { delay: 5 });
+  await until(async () => (await state()) === 'error', { label: 'error state 3' });
+  await until(() => dialogOpen(s), { label: 'error dialog 3' });
+  await dialogButton(s, 'OK');
+  N(s, (app) => app.win.close()).catch(() => {});
+  await until(() => run(s, `document.querySelector('${DLG} .dialog-footer')?.textContent || ''`), { label: 'close prompt' });
+  check('close prompt', await run(s, `document.querySelector('${DLG}').innerText`), (v) => v.includes("couldn't be saved") && v.includes('Close anyway'));
+  await dialogButton(s, 'Cancel');
+  check('window stays open', await run(s, `!!document.querySelector('${WIN}')`), true);
+  fixIt();
+  await s.page.click(`${WIN} .nt-retry`);
+  await until(async () => (await state()) === 'saved', { label: 'saved again' });
+  check('nothing lost', fs.readFileSync(file, 'utf8').includes('first text more again!'), true);
 });
 
 await section('persistence across restart + recovery from a lost index', async () => {
@@ -1023,6 +1207,11 @@ if (!only || 'french dark fr'.includes(only) || only.includes('fr')) {
     await flush(s);
     check('saved (FR)', await run(s, `document.querySelector('${WIN} .nt-saved').textContent`), 'Enregistrée');
     await shot(s, 'editor-dark-fr');
+    await s.page.keyboard.press('F1');
+    await until(() => dialogOpen(s), { label: 'shortcuts (fr)' });
+    check('French key names', await run(s, `[...document.querySelectorAll('${DLG} kbd')].map((k) => k.textContent)`), (v) => v.includes('Ctrl+Maj+N') && v.includes('Suppr') && !v.some((x) => /Shift|Delete/.test(x)));
+    check('French key names in tooltips', await run(s, `document.querySelector('${WIN} .nt-nav-add').dataset.tip`), 'Nouveau carnet (Ctrl+Maj+N)');
+    await dialogButton(s, 'Fermer');
     await s.page.keyboard.press('Control+Shift+N');
     await until(() => dialogOpen(s), { label: 'dialog (fr)' });
     check('dialog FR', await run(s, `document.querySelector('${DLG} .dialog-title').textContent`), 'Nouveau carnet');
@@ -1039,7 +1228,10 @@ if (!only || 'french dark fr'.includes(only) || only.includes('fr')) {
     check('bannière FR', await run(s, `document.querySelector('${WIN} .nt-deleted-bar').innerText`), (v) => v.includes('Restaurez-la pour la modifier') && v.includes('30 jours'));
     await shot(s, 'deleted-dark-fr');
     await setWinSize(s, 480, 400);
+    await N(s, (app) => app.toast('Note déplacée dans Supprimées récemment', { action: 'Annuler', onAction: () => {} }));
     await shot(s, 'min-size-dark-fr');
+    check('toast text on one line at the minimum size', await run(s, `document.querySelector('${WIN} .nt-toast').getBoundingClientRect().height`), (v) => v < 60);
+    check('short search placeholder when narrow', await run(s, `document.querySelector('${WIN} .nt-search-input').placeholder`), 'Rechercher');
     check('narrow FR: nothing overflows the list header', await run(s, `(() => { const h = document.querySelector('${WIN} .nt-list-head'); return h.scrollWidth <= h.clientWidth + 1; })()`), true);
     await N(s, (app) => app.win.maximize());
     await sleep(400);

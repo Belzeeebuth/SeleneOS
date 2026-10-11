@@ -3,7 +3,8 @@
 //   rich text editor with Markdown shortcuts, checklists, tables and pictures, autosave, export / import.
 //   Storage: ~/Documents/Notes (notes.json index + <id>/note.html + attachments), see main/ipc/notes.js.
 //   Launch args: { noteId } opens a note; { newNote: true, title, text } creates one; { file: '/a.md' } imports.
-//   Code: lib/ (sanitizer, Markdown, text, data model), ui/ (app controller, editor, dialogs, popovers).
+//   Code: lib/ (sanitizer, Markdown, text, data model + retrying writes), ui/ (app controller, editor, lists,
+//   DOM helpers, undo history, dialogs, popovers, key names).
 import { NotesApp } from './ui/app.js';
 
 export default {

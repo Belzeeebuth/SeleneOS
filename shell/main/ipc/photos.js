@@ -115,7 +115,9 @@ function parseExif(buf, start, full = false) {
   const v = (map, tag) => map.get(tag)?.value ?? null;
   const out = { o: 1, oOffset: null, le: r.le, taken: null };
   const ot = ifd0.get(0x0112);
-  if (ot && ot.type === 3) {
+  // Only a well-formed tag (one SHORT, stored inline in its entry) is used — and may be rewritten in place by
+  // a lossless rotation; a malformed one is ignored rather than trusted to point somewhere in the file.
+  if (ot && ot.type === 3 && ot.count === 1 && ot.valueOffset === ot.entry + 8) {
     const o = ot.value;
     if (o >= 1 && o <= 8) out.o = o;
     out.oOffset = ot.valueOffset - start; // relative to the TIFF header
@@ -636,6 +638,7 @@ module.exports = function register(api) {
   });
 
   api.handle('photos:meta', async (p) => {
+    if (typeof p !== 'string' || !path.isAbsolute(p)) throw api.error('Invalid path', 'EINVAL');
     const st = await fsp.stat(p);
     const ext = path.extname(p).toLowerCase();
     const info = await imageInfo(p, ext, true);

@@ -74,6 +74,17 @@ class Library {
         this.folders = (Array.isArray(folders) ? folders : []).filter((p) => typeof p === 'string' && p.startsWith('/'));
         if (prefs && typeof prefs === 'object') {
           for (const k of Object.keys(DEFAULT_PREFS)) if (prefs[k] !== undefined && typeof prefs[k] === typeof DEFAULT_PREFS[k]) this.prefs[k] = prefs[k];
+          // Values out of range (hand-edited or corrupted file) fall back to sane ones.
+          const p = this.prefs;
+          const pick = (k, allowed) => !allowed.includes(p[k]) && (p[k] = DEFAULT_PREFS[k]);
+          pick('thumbSize', ['small', 'medium', 'large']);
+          pick('layout', ['justified', 'square']);
+          pick('slideshowTransition', ['crossfade', 'kenburns']);
+          pick('viewerBackground', ['dark', 'theme']);
+          if (!Number.isFinite(p.jpegQuality)) p.jpegQuality = DEFAULT_PREFS.jpegQuality;
+          p.jpegQuality = Math.round(Math.min(100, Math.max(50, p.jpegQuality)));
+          if (!Number.isFinite(p.slideshowInterval)) p.slideshowInterval = DEFAULT_PREFS.slideshowInterval;
+          p.slideshowInterval = Math.min(60, Math.max(1, p.slideshowInterval));
         }
       })();
     }

@@ -92,6 +92,7 @@ export class PhotosApp {
     win.onBeforeClose(async () => {
       if (this.mode === 'editor' && this.editor?.dirty) {
         this.win.focus();
+        // A second click on the close button while the prompt is open reuses the same prompt.
         return this.editor.confirmLeave();
       }
       return true;
@@ -106,6 +107,7 @@ export class PhotosApp {
     this.ctx.onLangChange?.(() => this._langChanged());
     this.loading.remove();
     const file = typeof this.ctx.args?.file === 'string' ? this.ctx.args.file : null;
+    // (openFile never waits for its "can't open" alert: launching must not block on a dialog)
     if (file) await this.openFile(file);
     else this.showGallery();
     return { onRelaunch: (args) => args?.file && this.openFile(args.file) };
@@ -266,10 +268,10 @@ export class PhotosApp {
     let items = sortByName((res?.items || []).map((it) => this.lib.get(it.path) || it));
     let idx = items.findIndex((it) => it.path === path);
     if (idx < 0) {
-      const [one] = await this.api.invoke('photos:items', [path]).catch(() => []);
+      const [one] = isImage(path) ? await this.api.invoke('photos:items', [path]).catch(() => []) : [];
       if (!one) {
-        await this.ui.alert(this.t('cantOpenBody', { name: baseName(path) }), { title: this.t('cantOpenTitle'), parent: this.win });
         if (!this.mode) this.showGallery();
+        this.ui.alert(this.t('cantOpenBody', { name: baseName(path) }), { title: this.t('cantOpenTitle'), parent: this.win });
         return;
       }
       items = [one];
@@ -334,7 +336,8 @@ export class PhotosApp {
   startSlideshow(list, index = 0) {
     if (!list?.length) return;
     const s = this._ensure('slideshow');
-    this._slideReturn = this.mode;
+    // Starting again while a slideshow runs restarts it; it must not forget where to return to.
+    if (this.mode !== 'slideshow') this._slideReturn = this.mode;
     this._setMode('slideshow');
     this.win.setFullscreen(true);
     s.start(list, index);
@@ -346,17 +349,24 @@ export class PhotosApp {
     const cur = s.current;
     s.stop();
     this.win.setFullscreen(false);
-    const back = this._slideReturn || 'gallery';
+    const back = this._slideReturn === 'viewer' || !this.gallery ? 'viewer' : 'gallery';
     if (back === 'viewer' && this.viewer) {
       this._setMode('viewer');
       const i = this.viewer.list.indexOf(cur);
       if (i >= 0) this.viewer.show(i, 0);
       setTimeout(() => this.viewer.stage.focus({ preventScroll: true }), 30);
-    } else {
+    } else if (!this.gallery) this.showGallery();
+    else {
       this._setMode('gallery');
-      if (cur && this.gallery) this.gallery.grid.scrollToPath(cur.path);
-      this.gallery?.grid.scroll.focus({ preventScroll: true });
+      if (cur) this.gallery.grid.scrollToPath(cur.path);
+      this.gallery.grid.scroll.focus({ preventScroll: true });
     }
+  }
+
+  /** The slideshow could not show any picture of its list. */
+  slideshowFailed() {
+    this.stopSlideshow();
+    this.ui.alert(this.t('slideshowNone'), { title: this.t('errorTitle'), parent: this.win });
   }
 
   // ================================================================== feedback
@@ -377,9 +387,38 @@ export class PhotosApp {
     setTimeout(() => (this.live.textContent = msg), 30);
   }
   error(msg, err) {
-    console.warn('[photos]', msg, err);
-    const detail = err?.message && err.message !== 'decode' ? `\n\n${err.message}` : '';
-    return this.ui.alert(`${msg}${detail}`, { title: this.t('errorTitle'), parent: this.win });
+    console.warn('[photos]', msg, err?.code || err?.message || err);
+    const detail = this.errorText(err);
+    return this.ui.alert(`${msg}${detail ? `\n\n${detail}` : ''}`, { title: this.t('errorTitle'), parent: this.win });
+  }
+
+  /** A short, translated explanation of a failure (system error codes → plain words). */
+  errorText(err) {
+    if (!err) return '';
+    const code = err.code || '';
+    const msg = String(err.message || err);
+    const has = (c) => code === c || new RegExp(`\\b${c}\\b`).test(msg);
+    if (has('ENOENT') || has('ENOTDIR') || /\bHTTP 404\b/.test(msg)) return this.t('err.notFound');
+    if (has('EACCES') || has('EPERM')) return this.t('err.denied');
+    if (has('ENOSPC') || has('EDQUOT')) return this.t('err.noSpace');
+    if (has('EROFS')) return this.t('err.readOnly');
+    if (has('EEXIST')) return this.t('err.exists');
+    if (has('EISDIR')) return this.t('err.isDir');
+    if (msg === 'decode' || msg === 'encode' || msg === 'empty' || (code === 'EINVAL' && /JPEG|image/i.test(msg))) return this.t('err.invalid');
+    return msg;
+  }
+
+  /** Items whose file still exists (fresh metadata); the others are reported once. */
+  async existing(items) {
+    const got = await this.api.invoke('photos:items', items.map((x) => x.path)).catch(() => items.map(() => null));
+    const ok = items.filter((_, i) => got[i]);
+    const gone = items.filter((_, i) => !got[i]);
+    if (gone.length) {
+      // (a rescan drops them from the gallery; favorites / albums are kept in case the files come back)
+      if (gone.some((x) => this.lib.get(x.path))) this.lib.scan();
+      this.ui.alert(this.t('missingFile', { name: gone[0].name }), { title: this.t('errorTitle'), parent: this.win });
+    }
+    return ok;
   }
 
   // ================================================================== commands
@@ -414,8 +453,19 @@ export class PhotosApp {
   }
 
   async deleteItems(items) {
-    items = items.filter(Boolean);
+    // Files already being deleted (double click, key repeat) are skipped instead of failing twice.
+    const busy = (this._deleting ||= new Set());
+    items = items.filter((x) => x && !busy.has(x.path));
     if (!items.length) return false;
+    for (const x of items) busy.add(x.path);
+    try {
+      return await this._deleteItems(items);
+    } finally {
+      for (const x of items) busy.delete(x.path);
+    }
+  }
+
+  async _deleteItems(items) {
     const { t, h } = this;
     if (this.lib.prefs.confirmDelete) {
       const dont = this.ui.toggle ? h('label', { class: 'checkbox ph-dont-ask' }, h('input', { type: 'checkbox' }), h('span', null, t('dontAskAgain'))) : null;
@@ -451,6 +501,8 @@ export class PhotosApp {
   async copyItems(items) {
     items = items.filter(Boolean);
     if (!items.length) return;
+    items = await this.existing(items);
+    if (!items.length) return;
     this.shell.clipboard.setFiles(items.map((x) => x.path), 'copy');
     // A single photo also goes to the system clipboard as a picture (paste into other apps).
     if (items.length === 1 && extOf(items[0].path) !== '.svg') {
@@ -474,6 +526,9 @@ export class PhotosApp {
   async setAs(kind, item) {
     const key = kind === 'lock' ? 'lockWallpaper' : 'wallpaper';
     try {
+      // Never point the background at a file that is gone (it would show a blank desktop).
+      const [n] = await this.api.invoke('photos:items', [item.path]).catch(() => [null]);
+      if (!n) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
       await this.shell.settings.set(key, item.path);
       this.toast(kind === 'lock' ? this.t('setLockDone') : this.t('setDesktopDone'));
     } catch (err) {
@@ -637,7 +692,7 @@ export class PhotosApp {
     const canRotate = ROTATABLE.includes(extOf(item.path));
     const grid = this.gallery?.grid;
     const menu = [
-      !viewer && single ? { label: t('open'), icon: 'open', shortcut: 'Enter', action: () => grid && this.openViewer(grid.flat, grid.pos.get(item.path) ?? 0, { from: 'gallery' }) } : null,
+      !viewer && single ? { label: t('open'), icon: 'open', shortcut: t('key.enter'), action: () => grid && this.openViewer(grid.flat, grid.pos.get(item.path) ?? 0, { from: 'gallery' }) } : null,
       single ? { label: t('openWith'), icon: 'apps_list', submenu: this.openWithItems(item) } : null,
       !viewer && single ? '-' : null,
       { label: allFav ? t('unfavorite') : t('favorite'), icon: 'heart', shortcut: 'Ctrl+D', action: () => this.lib.toggleFavorite(paths) },
@@ -658,7 +713,7 @@ export class PhotosApp {
           }
         : null,
       { label: t('copy'), icon: 'copy', shortcut: 'Ctrl+C', action: () => this.copyItems(items) },
-      viewer ? { label: t('saveAs'), icon: 'save', shortcut: 'Ctrl+Shift+S', action: () => this.saveAs(item) } : null,
+      viewer ? { label: t('saveAs'), icon: 'save', shortcut: `Ctrl+${t('key.shift')}+S`, action: () => this.saveAs(item) } : null,
       single ? { label: t('rename'), icon: 'rename', shortcut: 'F2', action: () => this.renameItem(item) } : null,
       { label: t('openFileLocation'), icon: 'folder_open', action: () => this.showInFolder(item) },
       viewer ? '-' : null,
@@ -666,7 +721,7 @@ export class PhotosApp {
       viewer ? { label: t('fileInfo'), icon: 'info', shortcut: 'I', action: () => this.viewer.toggleInfo() } : null,
       !viewer ? { label: t('selectMode'), icon: 'multiselect_ltr', action: () => grid && (grid.selectPaths([...new Set([...grid.selected, ...paths])]), grid.setSelectMode(true), this.gallery._renderSelbar()) } : null,
       '-',
-      { label: t('delete'), icon: 'delete', shortcut: 'Del', action: () => this.deleteItems(items) },
+      { label: t('delete'), icon: 'delete', shortcut: t('key.del'), action: () => this.deleteItems(items) },
     ];
     // Collapse separators.
     const clean = [];
@@ -711,6 +766,8 @@ export class PhotosApp {
         if (typing) return;
         if (tgt.closest?.('.ph-info') && !['Escape'].includes(e.key) && !e.ctrlKey) return;
         if ((e.key === 'Enter' || e.key === ' ') && tgt.closest?.('button, a, .ph-film-item')) return;
+        // The zoom slider keeps its own arrow / Home / End / Page keys (they must not browse photos).
+        if (tgt.matches?.('input[type="range"]') && /^(Arrow|Home$|End$|Page)/.test(e.key) && !e.ctrlKey) return;
         handled = this.viewer.onKey(e);
       } else if (this.mode === 'gallery') handled = this._galleryKey(e, typing);
       if (handled) {

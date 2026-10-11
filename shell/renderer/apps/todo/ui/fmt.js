@@ -47,8 +47,11 @@ export class Fmt {
     return d ? this.dtf({ weekday: 'short' }).format(d) : '';
   }
 
+  /** '9:00 AM' / '09:00' (24-hour clocks pad the hour, like Windows and the taskbar clock) */
   time(ms) {
-    return this.dtf({ hour: 'numeric', minute: '2-digit', hour12: this.app.h12 }).format(new Date(ms));
+    if (D.validTs(ms) == null) return '';
+    const h12 = this.app.h12;
+    return this.dtf({ hour: h12 ? 'numeric' : '2-digit', minute: '2-digit', hour12: h12 }).format(new Date(ms));
   }
 
   /** Row label of a due date (overdue rows are red; the aria label says "Overdue") */
@@ -80,10 +83,11 @@ export class Fmt {
     return this.t('remind.at', { time: this.time(ms) });
   }
   reminderSub(ms) {
-    return this.dayName(D.ymd(ms));
+    return D.validTs(ms) == null ? '' : this.dayName(D.ymd(ms));
   }
   /** Compact reminder text for rows: '9:00 AM' today, else 'Tomorrow, 9:00 AM' */
   reminderShort(ms) {
+    if (D.validTs(ms) == null) return '';
     const day = D.ymd(ms);
     return day === this.app.today() ? this.time(ms) : `${this.dayName(day)}, ${this.time(ms)}`;
   }
@@ -113,11 +117,13 @@ export class Fmt {
   }
 
   createdOn(ms) {
+    if (D.validTs(ms) == null) return '';
     const day = D.ymd(ms);
     if (day === this.app.today()) return this.t('detail.createdToday');
     return this.t('detail.createdOn', { date: this.date(day) });
   }
   completedOn(ms) {
+    if (D.validTs(ms) == null) return '';
     const day = D.ymd(ms);
     if (day === this.app.today()) return this.t('detail.completedToday');
     return this.t('detail.completedOn', { date: this.date(day) });

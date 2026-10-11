@@ -65,23 +65,30 @@ Notes:
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `taskbar.size` | `'small' \| 'medium' \| 'large'` | `'medium'` | Thickness 40 / 48 / 60 px (vertical: 52 / 60 / 72 px), button size 32 / 40 / 52 px |
+| `taskbar.size` | `'small' \| 'medium' \| 'large'` | `'medium'` | Thickness 40 / 48 / 56 px (vertical: 52 / 60 / 72 px), button size 32 / 40 / 48 px; icons and the clock scale |
 | `taskbar.position` | `'bottom' \| 'top' \| 'left' \| 'right'` | `'bottom'` | Screen edge. Window insets, maximize / snap areas, flyouts, menus, toasts and desktop icons follow it |
 | `taskbar.align` | `'center' \| 'left'` | `'center'` | Pre-existing. A vertical taskbar is always top-aligned |
 | `taskbar.search` | `null \| 'hidden' \| 'icon' \| 'box'` | `null` | `null` = follows the older `taskbar.showSearch` (icon / hidden). `box` = Windows 11 search box (an icon on a vertical taskbar) |
-| `taskbar.showSearch`, `taskbar.showTaskView`, `taskbar.showWidgets` | bool | `true`, `true`, `false` | Pre-existing buttons. Widgets moves to the start of a horizontal taskbar, as in Windows 11 |
+| `taskbar.showSearch`, `taskbar.showTaskView`, `taskbar.showWidgets` | bool | `true`, `true`, `false` | Pre-existing buttons |
+| `taskbar.widgetsPos` | `'auto' \| 'start' \| 'inline' \| 'end'` | `'auto'` | Widgets button: `start` = left end of a centred bar (with the "Widgets" label), `inline` = after Task view, `end` = before the tray. `auto` = `start` when centred, `end` when left-aligned (Windows 11 23H2). `start` falls back to `inline` on a left-aligned or vertical bar |
+| `taskbar.tray` | `{ network, volume, battery }` (bool) | all `true` | Status icons next to the clock. With all three off the Quick settings button keeps a glyph |
+| `showSeconds` | bool | `false` | Pre-existing (seconds in the taskbar clock); now also on the Taskbar page and in profiles |
+| `taskbar.badges` | bool | `true` | Number of unread notifications of an app on its (first) button; cleared when they are read |
+| `taskbar.hideDelay` | 0–5000 (ms) | `600` | How long an auto-hidden bar stays after the pointer leaves it (Settings: 0.3 / 0.6 / 1.2 / 2.5 s) |
 | `taskbar.showLabels` | bool | `false` | App names next to the icons (running apps, horizontal taskbars) |
 | `taskbar.combine` | `'always' \| 'whenFull' \| 'never'` | `'always'` | `always` = one button per app; `never` = one button per window; `whenFull` = one per window while they fit |
 | `taskbar.widgets` | `('weather' \| 'cpu' \| 'memory' \| 'network')[]` | `[]` | Mini widgets in the tray, in this order |
 | `taskbar.autohide` | bool | `false` | Pre-existing; now works on every edge |
 | `taskbar.color`, `taskbar.opacity` | | | Area A (§1.1) |
 | `start.layout` | `'default' \| 'morePins' \| 'moreRecommended' \| 'list'` | `'default'` | Pinned rows / recommended items: 3 / 6, 4 / 2, 2 / 8; `list` = one row of pins + the A–Z list of all apps |
-| `start.background` | `'acrylic' \| 'solid' \| 'accent' \| 'wallpaper'` | `'acrylic'` | Start background: translucent (follows transparency), opaque, tinted with the accent, or the blurred wallpaper (Mica) |
+| `start.background` | `'acrylic' \| 'glass' \| 'solid' \| 'accent' \| 'wallpaper'` | `'acrylic'` | Start background: translucent (follows transparency and blur), transparent glass (light veil + `--blur-lg`: follows the blur intensity; opaque with transparency off), opaque, tinted with the accent, or the blurred wallpaper (Mica) |
 | `start.folders` | `string[]` | `[]` | Folder buttons next to the power button: `documents`, `downloads`, `music`, `pictures`, `videos`, `files`, `settings`, `home`, `network` |
-| `start.groups` | `{ id: 'g-…', name, apps: appId[] }[]` | `[]` | App folders inside Pinned (shown first in the grid) |
-| `startShowRecent` | bool | `true` | Pre-existing: the Recommended section |
+| `start.groups` | `{ id: 'g-…', name, apps: appId[] }[]` | `[]` | App folders inside Pinned (two apps or more). A folder's place is its id inside `startPinned`; folders not placed there come first |
+| `start.showRecentApps` | bool | `true` | Recommended shows apps added in the last 7 days (first seen by Start, `storage shell/start-usage.json` → `seen`); All apps marks them "New" |
+| `start.showMostUsed` | bool | `false` | Recommended shows the apps launched most (two launches or more; launch counts in the same file) |
+| `startShowRecent` | bool | `true` | Pre-existing: recently opened files in Recommended. The section is hidden when this is off and there is no app to recommend |
 | `startPinned`, `pinned` | `appId[]` | | Pre-existing pinned lists (Start, taskbar). They are *content*, edited on the pages, and **not** part of profiles |
-| `focusMode` | `{ active, hideNotifications, dimDesktop, dimLevel 0–100 (applied up to 90), simplifyTaskbar, duration 0–1440 min (0 = until off) }` | `{ active:false, hideNotifications:true, dimDesktop:true, dimLevel:40, simplifyTaskbar:true, duration:0 }` | Focus mode (§10.3). `active` is runtime state, excluded from profiles and reset at sign-in |
+| `focusMode` | `{ active, hideNotifications, dimDesktop, dimLevel 0–100 (applied up to 90), hideIcons, simplifyTaskbar, duration 0–1440 min (0 = until off), endsAt (ms, 0 = until off), prevDnd (null \| bool) }` | `{ active:false, hideNotifications:true, dimDesktop:true, dimLevel:40, hideIcons:false, simplifyTaskbar:true, duration:0, endsAt:0, prevDnd:null }` | Focus mode (§10.3). `active`, `endsAt` and `prevDnd` are runtime state (excluded from profiles); a session survives a restart until `endsAt` |
 
 **B3 — packs and input** (§11, §12; pages `cursors`, `iconPacks`, `soundPacks` in `pages/personalization-packs.js`;
 `shortcuts`, `snapPresets` in `pages/personalization-input.js`)
@@ -213,10 +220,10 @@ key in `PROFILE_KEYS` to its value:
 - the Area A keys;
 - `wallpaper`, `wallpaperFit`, `lockWallpaper` and the B1 keys;
 - the taskbar and Start layout keys;
-- `focusMode` (without `active`);
+- `focusMode` (without `active`, `endsAt`, `prevDnd`);
 - packs, `soundEvents`, `snapPresets`, `shortcuts`, `desktopIconSize`, `appThemes`.
 
-`PROFILE_EXCLUDE` lists sub-keys that are never saved (`focusMode.active`). **Later areas append their new keys to
+`PROFILE_EXCLUDE` lists sub-keys that are never saved (`focusMode.active`, `focusMode.endsAt`, `focusMode.prevDnd`). **Later areas append their new keys to
 `PROFILE_KEYS`.**
 
 **Storage:** user profiles are stored with `storage:get/set('shell', 'profiles')` as
@@ -386,7 +393,8 @@ built-in profiles go back to a static picture.
   accent colour), `fluid` (mesh gradient in the accent colour), `bokeh` (drifting soft lights with parallax), `starfield`
   (Milky Way, twinkling stars, shooting stars), `waves` (layered swells in the accent colour). Light and dark variants.
 - **Measured cost** (1600×900, software rendering, busy 4-core container): 1–3 ms per frame (fluid, bokeh, night sky,
-  waves), 7–9 ms (bloom, aurora) — 30 fps aurora ≈ 25 % of one core; 15 fps halves it; 0 when paused.
+  waves), 7–9 ms (bloom, aurora) — 30 fps aurora ≈ 25 % of one core; 15 fps halves it; 0 when paused. Waves draws each
+  swell as one smooth path (quadratic curves through 48 points), ≈ 0.2 ms per frame.
 
 ### 9.3 Dynamic wallpaper
 
@@ -429,7 +437,15 @@ await api.invoke('weather:stats')               // { requests, cacheHits, failur
 - WMO code mapping (`weatherKind(code)`, exported for tests): 0–1 clear, 2 clouds (light), 3 clouds (heavy), 45/48 fog,
   51–57 and 61–67 and 80–82 rain, 71–77 and 85–86 snow, 95 storm, 96/99 storm with hail.
 - Offline city list for the location picker: `core/wallpaper/cities.js` (`searchCities(query, lang)`), merged with the
-  online results.
+  online results; `samePlace(a, b)` (same name, within ~25 km) keeps a built-in city that the online search already
+  lists from appearing twice.
+- Words and icons for conditions: `core/wallpaper/weather-text.js` — `weatherDescribe(conditions, lang)` (EN / FR),
+  `weatherIconName(conditions)` (Fluent icon, day / night aware), `formatTemperature(conditions, formatNumber)`. Use it
+  in any new consumer instead of copying the strings.
+- **Consumers today:** the dynamic wallpaper (§9.3); the taskbar weather mini-widget (`core/taskbar.js`, area B2);
+  the **widgets board** weather card (`core/features/widgets.js`: temperature, description, place and update time from
+  `weather:current` with no place = the dynamic wallpaper's location; without a location it offers "Choose a location",
+  which opens Settings > Animated & dynamic wallpapers > Location; offline it keeps its placeholder).
 - **Testing without network**: `AURORA_WEATHER_MOCK=/path/mock.json` replaces the HTTP requests; the file is re-read on
   every request: `{ "offline": false, "delayMs": 0, "current": { "weather_code": 61, "is_day": 1, "temperature_2m": 12 },
   "geocoding": [ … ] }`. `AURORA_WEATHER_TIMEOUT` (ms) shortens the timeout.
@@ -439,6 +455,9 @@ await api.invoke('weather:stats')               // { requests, cacheHits, failur
 - **Slideshow**: the pictures of `slideshow.folder` (jpg, png, webp, avif, gif, bmp; sorted, or shuffled once a day), a new
   one every `interval` minutes with the 4 s cross-fade; `shell.emit('wallpaper:next')` skips to the next one (Settings
   "Next picture"). An empty or missing folder falls back to the built-in pictures.
+- **Picture of the day** (`spotlightPick(date)` in `core/wallpaper/dynamic.js`): the 20 built-in pictures in a fixed
+  order in which two consecutive days — wrap-around included — never show the same family (Bloom, Dunes, Lakeside,
+  Glow, Flow, Sunrise).
 - **Lock screen** (`core/wallpaper/lock.js`): `core/features/lock.js` asks `ctx.wallpaperEngine.lockWallpaperUrl()` for the
   picture and calls `ctx.wallpaperEngine.attachLock(ls)` (both additive). Animated mode (or "same as the desktop" while
   the desktop is animated) runs the scene inside the lock screen's picture; it stops on the sign-in view, when the screen
@@ -476,83 +495,131 @@ Shell events: `wallpaper:changed` `{ mode, url }`, `wallpaper:weather` `{ weathe
 
 ## 10. Taskbar, Start and Focus mode (area B2)
 
-### 10.1 Taskbar (`core/taskbar.js`, layout CSS `core/shell-personalize.css`)
+Runtime: `core/taskbar.js`, `core/start.js`, `core/features/focus.js`; CSS: `core/shell-personalize.css` (layout, shared),
+`core/taskbar-start.css` (B2: badges, widgets place, vertical flyout anchoring, Start glass, folder popup, recommended
+apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray chip). Test: `test/taskbar-start-focus.test.mjs`.
+
+### 10.1 Taskbar (`core/taskbar.js`)
 
 - **Layout attributes.** `applyLayout()` sets `<html data-tb-pos="bottom|top|left|right" data-tb-size="small|medium|large"
-  data-tb-labels="on|off">` and `--taskbar-h` (the thickness), then tells the window manager the reserved edge with
-  `wm.setInsets({ top, bottom, left, right })`. Maximized and snapped windows, the snap zones, the desktop icons, toasts,
-  the volume / brightness OSD, the Task view pill and every flyout (Start, Search, Quick settings, Calendar, Widgets)
-  follow the edge. Flyouts slide in from it; menus and the window picker open above, below or beside the button
-  (`menuPointFor(el)`, `placePopup()`); Win+X opens next to the Start button.
+  data-tb-labels="on|off">` and `--taskbar-h` (the thickness: 40 / 48 / 56 px, vertical 52 / 60 / 72 px), then tells the
+  window manager the reserved edge with `wm.setInsets({ top, bottom, left, right })`. Maximized and snapped windows, the
+  snap zones, the desktop icons, toasts, the volume / brightness OSD, the Task view pill and every flyout (Start, Search,
+  Quick settings, Calendar, Widgets) follow the edge. Flyouts slide in from it; on a vertical bar Start and Search open
+  at the top (next to the Start button) and Quick settings / Calendar at the bottom (next to the tray), using the whole
+  screen height. Menus and the window picker open above, below or beside the button (`menuPointFor(el)`,
+  `placePopup()`); Win+X opens next to the Start button.
 - **Vertical taskbar** (left / right): the buttons stack from the top (the Start button first, then search, task view,
-  widgets, apps), the tray and the clock sit at the bottom, arrow keys move Up/Down, the search box becomes an icon and
-  app names are hidden.
+  widgets, apps), the tray and a compact clock (time only) sit at the bottom, arrow keys move Up/Down, the search box
+  becomes an icon and app names are hidden.
 - **Buttons per app or per window.** Every button has a key `appId` (combined) or `appId::winId` (one per window).
   `whenFull` keeps one button per window while `capacity(keys)` says they fit, then combines. Dragging buttons to
   reorder the pinned apps works when buttons are combined (`always`). The overflow ("…") flyout and the keyboard
   navigation use the same keys.
 - **Labels.** `showLabels` shows the window title (or the app name) of running apps in a 132–168 px button with an
-  ellipsis (pinned apps that are not running stay icons). The running / active indicator always sits on the side of the
-  button that faces the screen edge (below, above or beside it).
+  ellipsis; with `combine: 'never'` this is Windows 11 23H2's "Never combine". The running / active indicator always sits
+  on the side of the button that faces the screen edge.
+- **Badges** (`taskbar.badges`): the number of unread notifications of an app (1–9, "9+") on its first button, in the
+  accent colour (High contrast: its highlight colours); also read by screen readers in the button name.
+- **Tray icons** (`taskbar.tray.network|volume|battery`, `showSeconds`).
+- **Widgets button** (`taskbar.widgetsPos`): see §1.2.
 - **Mini widgets** (`taskbar.widgets`, before the tray icons): `cpu` and `memory` (meter + %, `sys:stats` every 3 s),
   `network` (↓/↑ throughput computed from `sys:stats` byte counters), `weather` (temperature and condition icon from
   `weather:current` with the place of *Animated & dynamic wallpapers*, refreshed every 15 min). Polling stops while the
   window is hidden or no widget is shown. Clicking a meter opens Task Manager (Performance); the weather opens the
   widgets board.
-- **Auto-hide** works on each edge: the bar slides out of the screen, a 3 px hot zone on that edge brings it back, it
-  stays visible while a menu or flyout of it is open, and the work area takes the whole screen.
-- **API:** `taskbar.layout()` → `{ position, size, vertical, thickness, combine }`; `taskbar.setStatusItem(id, { icon,
-  text, tip, onClick } | null)` adds a tray pill (Focus mode uses it); `taskbar.refreshWidgets()`. Event
+- **Auto-hide** works on each edge: the bar slides out of the screen after `taskbar.hideDelay` ms, a 3 px hot zone on
+  that edge brings it back, it stays visible while a menu or flyout of it is open or it has the keyboard focus, and the
+  work area takes the whole screen.
+- **Right-click** on an empty part of the bar: Task Manager, **Taskbar settings** (Settings → Taskbar).
+- **Only real changes re-lay the bar.** A `settings:setMany` of other keys (profiles, Focus mode, theme) reaches every
+  listener; taskbar.js compares the `taskbar` object and rebuilds only when it changed.
+- **API:** `taskbar.layout()` → `{ position, size, vertical, thickness, combine, labels }`; `taskbar.setStatusItem(id, {
+  icon, text, tip, onClick } | null)` adds a tray chip (Focus mode uses it); `taskbar.refreshWidgets()`. Event
   `taskbar:layout` (payload `layout()`) after any change of edge, size or alignment; `core/desktop.js` re-lays the
   desktop icons on it.
+- **Clock:** a 24-hour clock always shows two-digit hours ("00:55", like Windows in French); 12-hour stays "12:55 AM".
 
 ### 10.2 Start (`core/start.js`)
 
 - **Layout** (`start.layout`): rows of pinned apps / number of recommended items — `default` 3 / 6, `morePins` 4 / 2,
-  `moreRecommended` 2 / 8; `list` shows one row of pins and the A–Z list of all apps instead of Recommended.
-- **Pinned apps** (`startPinned`): right-click → Move to front / Unpin / Add to folder; drag a tile onto another one to
-  reorder, onto a folder to put it inside. The Start page in Settings has the same list with Up / Down / Remove and
-  "Pin an app".
-- **App folders** (`start.groups`): shown first in the Pinned grid with a 2 × 2 icon preview; opening one shows its apps
-  over the Start body (Back or Esc closes it); right-click on a folder → Open / Rename / Remove folder (the apps go back to
-  Pinned). Settings → Start → *App folders* creates and edits them (name + check list of apps).
-- **Recommended** (`startShowRecent`): show / hide; Settings → *Clear recommended files* calls `recent.clearFiles()`.
+  `moreRecommended` 2 / 8; `list` shows one row of pins and the A–Z list of all apps instead of Recommended. Without a
+  Recommended section the grid gets 6 rows.
+- **Pinned apps** (`startPinned`): right-click → Move to front / Unpin / Pin to taskbar / Add to folder; drag a tile and
+  *rest* over the edge of another one to make room (reorder), drop it on the taskbar to pin it there. Sweeping across
+  tiles does nothing: the pointer must rest 160 ms (reorder) or 450 ms (folder) within 6 px. The Start page in Settings has
+  the same list with Up / Down / Remove and "Pin an app" (moving an app keeps folders where they are).
+- **App folders** (`start.groups`, Windows 11 22H2):
+  - **create:** hold a dragged app over the middle of another app → the target shows a folder frame → drop: a folder
+    "Folder" with both apps takes the target's place. Keyboard: right-click / menu key → Add to folder › New folder with ›
+    app (opens the new folder with its name selected). Settings → Start → App folders → New folder (two apps or more).
+  - **tile:** a 2 × 2 mini grid of the first four apps; drop an app on it to put it inside; folders can be dragged to
+    reorder them; F2 renames.
+  - **open:** click / Enter → a popup over the Pinned page that grows out of the tile (the page is dimmed and inert, so
+    Tab stays in the popup); arrows move between its apps, Up from the first row reaches the name; Esc, the ✕ or a click
+    outside closes it; typing a letter goes to the search box.
+  - **rename inline:** the folder name is an editable field at the top of the popup (Enter or leaving it saves, Esc
+    restores; `<`, `>` and control characters are removed, 60 characters max).
+  - **reorder / drag out:** drag inside the popup to reorder; drag an app *out* of the popup to take it out of the
+    folder (it lands right after the folder).
+  - **dissolve:** a folder needs two apps; when one is left it dissolves and that app takes the folder's place. Removing a
+    folder (menu or Settings) puts its apps back where the folder was. Apps inside a folder stay in `startPinned` (hidden
+    from the grid), so no pin is ever lost, even when a profile changes `start.groups`.
+  - **API** (Settings uses it): `start.folders.list() / create(name, apps) / update(id, { name, apps }) / rename(id, name)
+    / remove(id) / add(id, appId) / take(id, appId) / open(id, { rename }) / close()`.
+- **Recommended:** recently added apps (`start.showRecentApps`), most used apps (`start.showMostUsed`) — at most half of
+  the slots — then recently opened files (`startShowRecent`); "More" opens the full list. Settings → *Clear the list of
+  recently opened files* calls `recent.clearFiles()`. `recent.markAdded(appId)` lets an installer mark a new app.
 - **Folders next to the power button** (`start.folders`): Documents, Downloads, Music, Pictures, Videos, File Explorer,
   Settings, Personal folder, Network; each opens File Explorer at the place (or Settings).
-- **Background** (`start.background`, `#start[data-bg]`): `acrylic` (default, follows transparency and blur), `solid`
-  (opaque `--solid`), `accent` (translucent accent tint), `wallpaper` (the Mica copy of the wallpaper, with a veil for
-  contrast). High contrast keeps its own palette.
+- **Background** (`start.background`, `#start[data-bg]`): `acrylic` (default, follows transparency and blur), `glass`
+  (transparent glass: light veil, `--blur-lg`, highlight edge; follows the blur intensity, opaque with transparency off),
+  `solid` (opaque `--solid`), `accent` (translucent accent tint), `wallpaper` (the Mica copy of the wallpaper, with a veil
+  for contrast). High contrast keeps its own palette whatever the style.
+- **Position:** centred over a centred bottom bar, at the left of a left-aligned one, under a top bar, beside a vertical
+  bar at the top of the screen.
+- **One re-render per change:** `startPinned`, `start` and `startShowRecent` share one refresh (skipped when none of them
+  changed); an open folder stays open and the keyboard stays on the same tile.
 
 ### 10.3 Focus mode (`core/features/focus.js`)
 
 - **Turning it on / off:** Settings → Focus mode (Start session / End session), the *Focus* tile of Quick settings,
-  Win+Shift+F (customizable action `focusMode`), the tray pill menu (End session), or the shell events `focus:start`
-  (`{ minutes }` optional), `focus:stop`, `focus:toggle`. API: `shell.focus` / `window.__aurora.focus` = `{ start(minutes?),
-  stop(), toggle(), state }`. It emits `focus:changed` `{ active, endsAt }`.
+  Win+Shift+F (customizable action `focusMode`), the tray chip menu (End session, Add 10 minutes), or the shell events
+  `focus:start` (`{ minutes }` optional), `focus:stop`, `focus:toggle`. API: `shell.focus` / `window.__aurora.focus` =
+  `{ start(minutes?), stop(), extend(minutes), toggle(), state }`. It emits `focus:changed` `{ active, endsAt }`. A
+  banner says "Focus session started — until 10:45 · notifications silenced" for 3.6 s.
 - **What it does** (each part can be turned off on the page):
-  - `hideNotifications` → `<html data-focus-quiet="on">`: `core/notify.js` keeps new notifications in the notification
-    center without a banner or sound and closes the banners on screen; the bell shows the snoozed glyph. Urgent
-    notifications (alarms, timers) still ring.
+  - `hideNotifications` → **Do not disturb is turned on** (`notifications.dnd`, its previous value saved in
+    `focusMode.prevDnd` and put back at the end — also when the option is switched off during a session) and `<html
+    data-focus-quiet="on">`: `core/notify.js` keeps new notifications in the notification center without a banner or
+    sound; the bell shows the snoozed glyph. Urgent notifications (alarms, timers) still ring.
   - `dimDesktop` → `<html data-focus-dim="on">` + `--focus-dim` (`dimLevel` / 100, max 0.9): a black veil over the
-    wallpaper and desktop icons; windows stay bright. With animations on, the veil fades in.
+    wallpaper and desktop icons, faded in / out; windows stay bright.
+  - `hideIcons` → `<html data-focus-noicons="on">`: the desktop icons fade away.
   - `simplifyTaskbar` → `<html data-focus-simple="on">`: no search, task view, widgets button or mini widgets; only Start,
-    the running apps (pinned apps that are not running are hidden), the tray and the clock.
-- **Session length** (`duration`, minutes; 0 = until turned off): the tray pill shows the minutes left, a notification
-  says when the session is over, and everything comes back. `active` is stored in the settings so every part of the
-  shell (and Settings) sees it, but the shell turns it off when it starts — a new session never starts in Focus mode —
-  and it is never part of a profile.
+    the running apps (pinned apps that are not running are hidden), the focus chip, the tray and the clock.
+- **Session length** (`duration`, minutes; 0 = until turned off; Settings offers 15, 25, 30, 45, 50, 60, 90, 120): the
+  tray chip shows the minutes left, a notification says when the session is over, and everything comes back.
+  **Restarts:** `active`, `endsAt` and `prevDnd` are stored, so a session goes on after the shell restarts; one whose end
+  time passed while the shell was not running is closed at start-up (Do not disturb restored, end notification). They are
+  never part of a profile.
+- **Clock app:** the Focus page shows the Clock app's focus sessions (running / paused session and today's focus
+  minutes, read from `storage clock/focus.json`; nothing is shown when the app or the file is missing) with an *Open
+  Clock* button.
 
 ### 10.4 Settings pages
 
-- **Taskbar** (`taskbar`): live preview of the bar (edge, size, alignment, labels, colour); *Taskbar items*: Search
-  (Hide / Search icon only / Search box), Task view, Widgets; *Pinned apps* (order, remove, "Pin an app"); *Taskbar
-  widgets* (weather, processor, memory, network speed); *Taskbar behaviors*: position, size, alignment (disabled when
-  vertical), app names, combine buttons, auto-hide; *Taskbar color* (Default / Accent / custom colour + opacity slider,
-  shared with the Theme designer); *Reset the taskbar*.
-- **Start** (`start`): live preview; *Layout* and *Background style*; *Pinned apps*; *App folders*; *Recommended files*
-  (show + clear); *Folders next to the power button* (toggles); *Reset Start*.
-- **Focus mode** (`focus`): status ring with Start / End session and time left; the three parts and the dimming slider;
-  session length (until off, 15, 25, 30, 45, 60, 90, 120 min); a link to the shortcut.
+- **Taskbar** (`taskbar`): live preview; *Taskbar items*: Search (Hide / Search icon only / Search box), Task view,
+  Widgets, Widgets button position; *Pinned apps* (order, remove, "Pin an app"); *System tray icons* (network, volume,
+  battery, clock seconds); *Taskbar widgets* (weather, processor, memory, network speed); *Taskbar behaviors*: position,
+  size, alignment (disabled when vertical), app names, combine buttons, badges, auto-hide, hide after (enabled with
+  auto-hide); *Taskbar color* (Default / Accent / custom colour + opacity slider, shared with the Theme designer);
+  *Reset the taskbar*. Right-click on the taskbar → Taskbar settings opens it.
+- **Start** (`start`): live preview; *Layout* and *Background style*; *Pinned apps*; *App folders* (new / edit / remove,
+  two apps or more); *Recommended*: recently added apps, most used apps, recently opened files, clear the list; *Folders
+  next to the power button* (toggles); *Reset Start*.
+- **Focus mode** (`focus`): status ring with Start / End session, time left and end time; hide notifications, dim the
+  desktop + dimming slider, hide desktop icons, simplify the taskbar; session length; Clock focus sessions; the shortcut.
 
 ### 10.5 Known limitations
 
@@ -560,6 +627,10 @@ Shell events: `wallpaper:changed` `{ mode, url }`, `wallpaper:weather` `{ weathe
 - The weather widget needs a place (Settings → Animated & dynamic wallpapers) and network access to api.open-meteo.com;
   it was only tested with `AURORA_WEATHER_MOCK`.
 - The network widget shows the whole machine's throughput (all interfaces), as reported by `sys:stats`.
+- "Recently added" knows the apps Start has seen: on the first start every app counts as old; apps that arrive later (an
+  update, `recent.markAdded`) are new for a week.
+- Badges count shell notifications; apps cannot set a badge of their own yet.
+- Start folders are created by drag-and-drop with the mouse or from the tile menu; touch drag is not supported.
 
 ## 11. Cursor, icon and sound packs (area B3)
 
@@ -663,13 +734,13 @@ Shell events: `wallpaper:changed` `{ mode, url }`, `wallpaper:weather` `{ weathe
 | Theme designer: accent, wallpaper, lock screen, taskbar colour, transparency, blur | §1.1, §2, §9, `personalization-designer.js` | `personalization-core`, `personalization-shell` (checklist) |
 | Visual styles: Windows 11-like, minimal, glassmorphism, retro, high contrast | §4 | both |
 | Animated and dynamic wallpapers (time of day, weather) | §9 | `wallpapers`, `personalization-shell` |
-| Taskbar: size, position, icons, widgets, transparency, auto-hide | §10.1 | `personalization-shell` |
-| Start: layout, pinned apps, folders, recommended files, background style | §10.2 | `personalization-shell` |
+| Taskbar: size, position, icons, widgets, transparency, auto-hide | §10.1 | `taskbar-start-focus` (geometry, taskbar, autohide), `personalization-shell` |
+| Start: layout, pinned apps, folders, recommended files, background style | §10.2 | `taskbar-start-focus` (start, folders), `personalization-shell` |
 | Cursor packs, icon packs, sound packs, notification / startup / shutdown sounds | §11 | `personalization-shell` |
 | Font and text size, rounded corners, UI scale, reduced motion | §1.1 | `personalization-core`, `personalization-shell` |
 | Per-app themes (light, dark, system, custom accent) | §3 | both |
 | Snap layout presets, customizable keyboard shortcuts | §12 | `personalization-shell` |
-| Focus mode | §10.3 | `personalization-shell` |
+| Focus mode | §10.3 | `taskbar-start-focus` (focus, restart), `personalization-shell` |
 | Profiles: save and switch complete UI themes with one click | §5 | both (`personalization-shell` round-trips every `PROFILE_KEYS` key) |
 
 `shell/test/personalization-shell.test.mjs` drives each item through the Settings UI of the real shell, round-trips a
@@ -694,13 +765,20 @@ depuis Paramètres › Personnalisation en anglais et en français, et enregistr
 - **Styles visuels** : Windows 11, minimal, verre (glassmorphism), rétro et contraste élevé (§4).
 - **Fonds d’écran animés et dynamiques** : six scènes animées (30 i/s max., en pause quand elles sont cachées ou avec
   « réduire les animations »), images qui suivent l’heure du jour et la météo, diaporama, écran de verrouillage (§9).
-- **Barre des tâches** : taille, position (bas, haut, gauche, droite), icônes, recherche (icône ou zone), noms des
-  applications, regroupement des boutons, mini-widgets (météo, processeur, mémoire, réseau), transparence, masquage
-  automatique (§10.1).
-- **Menu Démarrer** : disposition, applications épinglées, dossiers d’applications, fichiers recommandés (afficher,
-  effacer), dossiers à côté du bouton d’alimentation, style d’arrière-plan (§10.2).
-- **Mode concentration** : masque les notifications (les alarmes sonnent toujours), assombrit le bureau, simplifie la
-  barre des tâches ; durée de session, Win+Maj+F, vignette des paramètres rapides (§10.3).
+  La météo du lieu choisi s’affiche aussi dans le panneau Widgets et la barre des tâches.
+- **Barre des tâches** : taille (40 / 48 / 56 px), position (bas, haut, gauche, droite), icônes, recherche (icône ou
+  zone), noms des applications et regroupement des boutons (« Ne jamais combiner »), badges de notifications, icônes de la
+  zone de notification et secondes, position du bouton Widgets, mini-widgets (météo, processeur, mémoire, réseau),
+  couleur et transparence, masquage automatique avec délai ; clic droit → Paramètres de la barre des tâches (§10.1).
+- **Menu Démarrer** : disposition, applications épinglées, dossiers d’applications à la Windows 11 (glisser une
+  application sur une autre, ouvrir, renommer sur place, sortir une application en la faisant glisser, un dossier d’une
+  seule application disparaît), recommandations (applications récemment ajoutées, les plus utilisées, fichiers ouverts
+  récemment), dossiers à côté du bouton d’alimentation, style d’arrière-plan (acrylique, verre transparent, uni, couleur
+  d’accentuation, fond d’écran) ; il suit l’alignement et le bord de la barre (§10.2).
+- **Mode concentration** : active « Ne pas déranger » (rétabli ensuite), assombrit le bureau, peut masquer les icônes du
+  bureau, simplifie la barre des tâches avec une puce du temps restant ; durée de session (25, 50, 90 min…), bannière,
+  notification de fin, survit à un redémarrage ; Win+Maj+F, vignette des paramètres rapides, sessions de l’Horloge
+  (§10.3).
 - **Packs** : sept packs de curseurs, cinq packs d’icônes, cinq packs de sons, et un son au choix pour les
   notifications, le démarrage et l’arrêt (son d’un autre pack, aucun, ou fichier audio) (§11).
 - **Police et taille du texte, arrondi des coins, échelle de l’interface, mode « réduire les animations »** (§1.1).

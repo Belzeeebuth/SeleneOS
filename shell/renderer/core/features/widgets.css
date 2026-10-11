@@ -178,3 +178,23 @@
   background: var(--accent);
   transition: width 600ms var(--ease);
 }
+/* weather card with live conditions (main/ipc/weather.js) */
+.wg-weather-now {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.wg-weather-temp {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 38px;
+  font-weight: 600;
+}
+.wg-weather[data-kind='rain'] .wg-weather-art,
+.wg-weather[data-kind='storm'] .wg-weather-art,
+.wg-weather[data-kind='snow'] .wg-weather-art,
+.wg-weather[data-kind='clouds'] .wg-weather-art,
+.wg-weather[data-kind='fog'] .wg-weather-art {
+  color: #5aa7ff;
+}

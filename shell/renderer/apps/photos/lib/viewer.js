@@ -43,7 +43,7 @@ export class Viewer {
     this.btnEdit = h('button', { class: 'btn subtle ph-tb ph-tb-edit', 'data-tip': `${t('editImage')} (Ctrl+E)`, 'data-tip-pos': 'below', 'aria-label': t('editImage'), onclick: () => this.edit() }, icon('image_edit'), h('span', { class: 'ph-tb-label' }, t('edit')));
     this.btnRotate = tb('arrow_rotate_clockwise', t('rotate'), 'Ctrl+R', () => this.rotate(), { dataset: { cmd: 'rotate' } });
     this.btnFav = tb('heart', t('favorite'), 'Ctrl+D', () => this.toggleFavorite(), { dataset: { cmd: 'favorite' } });
-    this.btnDelete = tb('delete', t('delete'), 'Del', () => this.deleteCurrent(), { dataset: { cmd: 'delete' } });
+    this.btnDelete = tb('delete', t('delete'), t('key.del'), () => this.deleteCurrent(), { dataset: { cmd: 'delete' } });
     this.btnInfo = tb('info', t('fileInfo'), 'I', () => this.toggleInfo(), { dataset: { cmd: 'info' } });
     this.btnMore = tb('more_horizontal', t('more'), null, (e) => this.moreMenu(e), { dataset: { cmd: 'more' } });
     this.tools = h('div', { class: 'ph-vtools', role: 'toolbar', 'aria-label': t('imageTools') }, this.btnEdit, h('div', { class: 'vsep' }), this.btnRotate, this.btnFav, this.btnDelete, h('div', { class: 'vsep' }), this.btnInfo, this.btnMore);
@@ -115,7 +115,7 @@ export class Viewer {
     this.from = from;
     this.el.classList.toggle('standalone', from !== 'gallery');
     this.backBtn.querySelector('.ph-vback-label').textContent = from === 'gallery' ? this.t('nav.gallery') : this.t('seeAll');
-    const lab = from === 'gallery' ? `${this.t('backToGallery')} (Esc)` : this.t('seeAll');
+    const lab = from === 'gallery' ? `${this.t('backToGallery')} (${this.t('key.esc')})` : this.t('seeAll');
     this.backBtn.dataset.tip = lab;
     this.backBtn.setAttribute('aria-label', lab);
     this.applyPrefs();

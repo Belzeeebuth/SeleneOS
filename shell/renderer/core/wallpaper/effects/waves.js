@@ -1,5 +1,6 @@
 // "Waves": layered translucent swells in the accent colour rolling under a soft sky, with light on the crests.
-// Each layer is one path (48 points) filled with a pre-built gradient; no allocations per frame.
+// Each layer is one smooth path (48 points joined by quadratic curves) filled with a pre-built gradient, with a light
+// crest line on top; no allocations per frame.
 import { canvas, rgba, hexRgb, rgbToHsl, hsl } from '../engine.js';
 
 const LAYERS = 6;
@@ -26,6 +27,13 @@ export default {
     const spd = new Float32Array(LAYERS);
     const phase = new Float32Array(LAYERS);
     let crest = '';
+    const ys = new Float32Array(PTS + 1);
+    const crestPath = (g, step) => {
+      g.beginPath();
+      g.moveTo(0, ys[0]);
+      for (let j = 1; j < PTS; j++) g.quadraticCurveTo(j * step, ys[j], (j + 0.5) * step, (ys[j] + ys[j + 1]) / 2);
+      g.lineTo(PTS * step, ys[PTS]);
+    };
     return {
       resize(W, H) {
         w = W;
@@ -78,27 +86,29 @@ export default {
         g.drawImage(bg, 0, 0);
         g.lineWidth = Math.max(1, h * 0.0025);
         g.strokeStyle = crest;
+        const step = w / PTS;
         for (let i = 0; i < LAYERS; i++) {
           const b = base[i];
           const a = amp[i];
           const f = freq[i];
           const ph = phase[i] + t * spd[i];
-          g.beginPath();
           for (let j = 0; j <= PTS; j++) {
-            const x = (j / PTS) * w;
-            const y = b + a * Math.sin(x * f + ph) + a * 0.45 * Math.sin(x * f * 2.3 - ph * 1.4 + i) + a * 0.2 * Math.sin(x * f * 5.1 + ph * 2.1);
-            if (j === 0) g.moveTo(x, y);
-            else g.lineTo(x, y);
+            const x = j * step;
+            ys[j] = b + a * Math.sin(x * f + ph) + a * 0.45 * Math.sin(x * f * 2.3 - ph * 1.4 + i) + a * 0.14 * Math.sin(x * f * 5.1 + ph * 2.1);
           }
-          g.globalAlpha = 0.55 + 0.25 * (i / LAYERS);
-          g.stroke();
+          // body of the swell, then its crest line on top (smooth: quadratic curves through the midpoints)
+          crestPath(g, step);
           g.lineTo(w, h);
           g.lineTo(0, h);
           g.closePath();
           g.globalAlpha = 1;
           g.fillStyle = fills[i];
           g.fill();
+          crestPath(g, step);
+          g.globalAlpha = 0.45 + 0.3 * (i / LAYERS);
+          g.stroke();
         }
+        g.globalAlpha = 1;
       },
     };
   },

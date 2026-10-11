@@ -462,7 +462,7 @@ export class Gallery {
     try {
       res = await this.app.api.invoke('photos:folder', dir);
     } catch (err) {
-      res = { items: [], dirs: [], error: err.message };
+      res = { items: [], dirs: [], error: this.app.errorText(err) };
     }
     if (this.route.page !== 'folders' || this.folderSel !== dir) return;
     const items = sortItems(res.items.map((it) => this.lib.get(it.path) || it));
@@ -470,7 +470,7 @@ export class Gallery {
     const cmds = this._gridCmds(items, { folder: true });
     cmds.push(this._cmd('folder_open', t('openInFiles'), () => this.app.shell.launch('files', { path: dir }), { id: 'open-folder', compact: true }));
     if (isRoot) cmds.push(this._cmd('folder_prohibited', t('removeFolder'), () => this.app.removeFolder(dir), { id: 'remove-folder', compact: true }));
-    this._setHeader(baseName(dir), items.length, cmds);
+    this._setHeader(this.folderLabel(dir), items.length, cmds);
     this.ui.clear(this.subEl);
     this.subEl.hidden = !res.dirs.length;
     for (const d of res.dirs) {
@@ -568,7 +568,7 @@ export class Gallery {
       rows.push(row);
       if (n.open && n.children) for (const c of n.children) await add(c.path, depth + 1, c.name, false);
     };
-    for (const r of this.lib.roots()) await add(r, 0, r === this.lib.pictures ? t('pictures') : baseName(r), true);
+    for (const r of this.lib.roots()) await add(r, 0, this.folderLabel(r), true);
     if (!this.treeEl || this.treeEl !== el) return;
     const focused = el.contains(document.activeElement) ? document.activeElement?.dataset?.path : null;
     this.ui.clear(el);
@@ -720,5 +720,10 @@ export class Gallery {
 
   folderOf(item) {
     return dirName(item.path);
+  }
+
+  /** Display name of a folder (the Pictures library folder is shown under its translated name). */
+  folderLabel(dir) {
+    return dir === this.lib.pictures ? this.t('pictures') : baseName(dir);
   }
 }

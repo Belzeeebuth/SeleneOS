@@ -213,7 +213,7 @@ async function checklistPart() {
     await s.page.locator(S('[data-section="size"] .segmented button[data-value="large"]')).click();
     await sleep(600);
     const tl = await A(() => ({ size: document.documentElement.dataset.tbSize, h: Math.round(document.getElementById('taskbar').getBoundingClientRect().height), wa: window.__aurora.wm.workarea() }));
-    item('Taskbar', 'size', tl.size === 'large' && tl.h === 60 && tl.wa.height === 900 - 60, `data-tb-size ${tl.size}, height ${tl.h}px, work area ${tl.wa.height}px`);
+    item('Taskbar', 'size', tl.size === 'large' && tl.h === 56 && tl.wa.height === 900 - 56, `data-tb-size ${tl.size}, height ${tl.h}px, work area ${tl.wa.height}px`);
     await pick(s, '[data-section="position"]', 'Left');
     await sleep(800);
     const tp = await A(() => {
@@ -338,8 +338,8 @@ async function checklistPart() {
     await s.page.locator('#start .start-group').first().click();
     await sleep(500);
     const gapps = await A(() => [...document.querySelectorAll('#start .start-folder .start-tile')].map((x) => x.dataset.app).join(','));
-    // what the open folder covers is hidden (the Start background may be translucent)
-    check(await A(() => [...document.querySelectorAll('#start .start-body > :not(.start-folder)')].every((el) => getComputedStyle(el).visibility === 'hidden')), 'open folder hides the Start page under it');
+    // the open folder is a popup over the dimmed, inert Start page (core/taskbar-start.css)
+    check(await A(() => [...document.querySelectorAll('#start .start-body > .start-view')].every((el) => el.inert && Number(getComputedStyle(el).opacity) < 0.5)), 'open folder dims the Start page under it and keeps the keyboard in the popup');
     await docShot(s, 'pzs-start-app-folder');
     await A(() => window.__aurora.shell.emit('start:close'));
     item('Start', 'folders of apps', groups?.length === 1 && gtile === 'Games' && gapps === 'chess,snake,solitaire', `start.groups ${JSON.stringify(groups?.map((g) => g.name))}, tile "${gtile}", opens ${gapps}`);
@@ -600,7 +600,9 @@ const NONDEFAULT = {
   'taskbar.align': 'left', 'taskbar.autohide': true, 'taskbar.showSearch': false, 'taskbar.showTaskView': false, 'taskbar.showWidgets': true,
   'taskbar.size': 'small', 'taskbar.position': 'top', 'taskbar.showLabels': true, 'taskbar.combine': 'whenFull', 'taskbar.widgets': ['cpu', 'network'], 'taskbar.search': 'box',
   'start.layout': 'moreRecommended', 'start.background': 'accent', 'start.folders': ['downloads', 'music'], 'start.groups': [{ id: 'g-tools1', name: 'Tools', apps: ['calculator', 'notepad'] }],
-  startShowRecent: false, focusMode: { hideNotifications: false, dimDesktop: true, dimLevel: 65, simplifyTaskbar: false, duration: 45 },
+  startShowRecent: false, focusMode: { hideNotifications: false, dimDesktop: true, dimLevel: 65, hideIcons: true, simplifyTaskbar: false, duration: 45 },
+  'taskbar.tray': { network: false, volume: true, battery: false }, 'taskbar.badges': false, 'taskbar.widgetsPos': 'end', 'taskbar.hideDelay': 1200, showSeconds: true,
+  'start.showRecentApps': false, 'start.showMostUsed': true,
   cursorPack: 'large', iconPack: 'graphite', soundPack: 'chimes', soundEvents: { notification: 'retro.notify', startup: 'none', shutdown: 'soft.shutdown' },
   snapPresets: [{ id: 's-p1', name: 'Wide', zones: [{ x: 0, y: 0, w: 0.7, h: 1 }, { x: 0.7, y: 0, w: 0.3, h: 1 }] }],
   shortcuts: { files: 'Ctrl+Alt+E', lock: null }, desktopIconSize: 'large',
@@ -784,12 +786,14 @@ async function restartPart() {
       wa: window.__aurora.wm.workarea(),
       bg: document.getElementById('start').dataset.bg,
       cur: getComputedStyle(document.body).cursor.slice(0, 20),
-      icon: document.querySelector('#taskbar .tb-app img')?.getAttribute('src').slice(0, 19),
+      // (Focus mode survives the restart and hides pinned apps that are not running: read a Start tile then)
+      icon: document.querySelector('#taskbar .tb-app img, #start .start-tile img')?.getAttribute('src').slice(0, 19),
       sc: window.__aurora.hotkeys.effective['Ctrl+Alt+K'] ? 'bound' : 'unbound',
       focus: !!document.documentElement.dataset.focus,
       focusActive: window.__aurora.settings.get('focusMode.active'),
     }));
-    item('Persistence', 'every setting restored after a restart', st.pos === 'right' && st.size === 'large' && st.wa.width === 1600 - 72 && st.bg === 'solid' && st.cur.startsWith('url(') && st.icon?.startsWith('data:image/svg+xml') && st.sc === 'bound' && !st.focus && st.focusActive === false, JSON.stringify(st));
+    // (a Focus session survives a restart of the shell — docs/PERSONALIZATION.md §10.3)
+    item('Persistence', 'every setting restored after a restart', st.pos === 'right' && st.size === 'large' && st.wa.width === 1600 - 72 && st.bg === 'solid' && st.cur.startsWith('url(') && st.icon?.startsWith('data:image/svg+xml') && st.sc === 'bound' && st.focus && st.focusActive === true, JSON.stringify(st));
     const errs = errorsOf(s);
     check(!errs.length, `no console errors after the restart${errs.length ? `: ${errs.slice(0, 3).join(' | ')}` : ''}`);
   } finally {

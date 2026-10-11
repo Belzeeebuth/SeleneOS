@@ -10,6 +10,10 @@
 //   (arrows, Enter, Space, Delete, Ctrl+D / T / N / L / F, Ctrl+Shift+?), multi-select, settings, seed removal,
 //   persistence across relaunch, migration of an old data file + reminder sync at launch, French + dark theme,
 //   minimum and maximized sizes, overflow, console errors.
+//   QA launches: no listener leaks over 15 open / close cycles, untrusted text never parsed as HTML, repeat rules
+//   following a moved due date, double submits and rapid clicks, Tab kept in the window / flyouts, F6, Delete and F2
+//   in the navigation pane, save failure + Retry, 1280x720 and 1920x1080 maximized layouts, wrapped steps,
+//   keyboard-reachable suggestions, corrupt / unreadable / newer-version data files.
 //   Documentation screenshots: aurora-os/docs/screenshots/todo-*.png
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/todo.test.mjs [--only=steps]
 import fs from 'node:fs';
@@ -1426,10 +1430,549 @@ async function runDamaged() {
   }
 }
 
+// ================================================================== launch E: QA (adversarial), English, light, 1280x720
+// Listener leaks over 15 open / close cycles, untrusted text never parsed as HTML, repeat rule follows a moved
+// due date, example copies, double submits / rapid clicks, Tab / F6 / Delete / F2 keyboard rules, save failure +
+// retry, 1280x720 maximized layout (meta separators, option rows), wrapped steps, keyboard-reachable suggestions.
+async function runQA() {
+  const s = await launchShell({ open: [], lang: 'en', theme: 'light', size: '1280x720' });
+  current = s;
+  const ev = (fn, arg) => s.page.evaluate(`(async () => (${fn.toString()})(${JSON.stringify(arg ?? null)}))()`);
+  try {
+    await section('QA: no listener leaks after 15 open / close cycles (with flyouts and details open)', async () => {
+      await ev(() => {
+        const track = (target, name) => {
+          const add = target.addEventListener.bind(target);
+          const rem = target.removeEventListener.bind(target);
+          const live = new Set();
+          const key = (t, fn, o) => `${t}|${fn && (fn.__lk ??= Math.random())}|${typeof o === 'object' ? !!o?.capture : !!o}`;
+          target.addEventListener = (t, fn, o) => (live.add(key(t, fn, o)), add(t, fn, o));
+          target.removeEventListener = (t, fn, o) => (live.delete(key(t, fn, o)), rem(t, fn, o));
+          window[`__live_${name}`] = live;
+        };
+        track(document, 'doc');
+        track(window, 'win');
+        const A = window.__aurora;
+        window.__subs = { reminders: 0, settings: 0, i18n: 0 };
+        for (const [obj, name] of [[A.shell.reminders, 'reminders'], [A.settings, 'settings'], [A.i18n, 'i18n']]) {
+          const on = obj.on.bind(obj);
+          obj.on = (k, fn) => {
+            window.__subs[name]++;
+            const off = on(k, fn);
+            let done = false;
+            return () => (done || ((done = true), window.__subs[name]--), off());
+          };
+        }
+        return true;
+      });
+      const counts = () => ev(() => ({ doc: window.__live_doc.size, win: window.__live_win.size, subs: { ...window.__subs }, todo: document.querySelectorAll('.td').length, pops: document.querySelectorAll('.td-pop, .td-ghost').length }));
+      const base = await counts();
+      for (let i = 0; i < 15; i++) {
+        await ev(() => window.__aurora.registry.launch('todo'));
+        await s.page.waitForSelector(`${WIN} .td`, { timeout: 15000 });
+        await until(s, (app) => !!app?.store, { label: 'todo ready' });
+        if (i % 3 === 0) await TD(s, (app) => (app.go('list:tasks'), app.renderNow(), app.changeTheme(app.list.moreBtn, app.view), true));
+        else if (i % 3 === 1) await TD(s, (app) => (app.openTask(app.store.data.tasks[0].id), app.pickDue(app.list.moreBtn, null), true));
+        else await TD(s, (app) => (app.nav.search.value = 'x', app.nav.search.dispatchEvent(new Event('input')), true)); // search debounce pending
+        await sleep(200);
+        await ev(() => (window.__aurora.wm.byApp('todo').forEach((w) => w.close(true)), true));
+        await sleep(450);
+      }
+      const after = await counts();
+      check('document listeners back to baseline', after.doc, base.doc);
+      check('window listeners back to baseline', after.win, base.win);
+      check('reminders / settings / language subscriptions released', after.subs, base.subs);
+      check('no To Do DOM or flyout left behind', [after.todo, after.pops], [0, 0]);
+      check('no console errors while cycling', todoErrors(s), []);
+    });
+    // (outside the section so that --only=<name> runs of the other QA sections get a window too)
+    await ev(() => window.__aurora.registry.launch('todo'));
+    await s.page.waitForSelector(`${WIN} .td`, { timeout: 15000 });
+    await until(s, (app) => !!app?.store, { label: 'todo ready' });
+    await TD(s, (app) => (app.win.maximize(), true));
+    await sleep(500);
+
+    await section('QA: untrusted text (titles, list / group names, steps, notes) is never parsed as HTML', async () => {
+      const X = '<img src=x onerror="window.__xss=(window.__xss||0)+1"><b>bold</b>';
+      const ids = await TD(
+        s,
+        (app, X) => {
+          window.__xss = 0;
+          const l = app.store.addList(`${X} list`);
+          app.store.addGroup(`${X} group`);
+          const t = app.addTask({ title: X, listId: l.id, note: `${X} note`, steps: [`${X} step`], due: app.today() });
+          app.addTask({ title: `${X} 2`, myDay: true });
+          app.go(`list:${l.id}`);
+          app.renderNow();
+          app.openTask(t.id);
+          return { list: l.id, task: t.id };
+        },
+        X,
+      );
+      await sleep(300);
+      await s.page.click(`${rowSel(ids.task)}`, { button: 'right' });
+      await sleep(250);
+      await s.page.locator('.menu .menu-item', { hasText: 'Move to' }).first().hover();
+      await sleep(400);
+      const menuHtml = await ev(() => document.querySelectorAll('.menu img, .menu b').length);
+      await s.page.keyboard.press('Escape');
+      await s.page.keyboard.press('Escape');
+      await sleep(200);
+      await s.page.hover(`${WIN} .td-nav-item[data-list-id="${ids.list}"]`);
+      await sleep(1100);
+      const tipHtml = await ev(() => document.querySelectorAll('.tooltip img, .tooltip b').length);
+      await TD(s, (app) => (app.deleteTasks([app.openId]), true));
+      await s.page.waitForSelector(DLG);
+      const dlgHtml = await ev(() => document.querySelectorAll('.dialog img, .dialog b').length);
+      await s.page.keyboard.press('Escape');
+      await sleep(250);
+      await TD(s, (app) => (app.setSearch('img'), app.renderNow(), true));
+      await sleep(200);
+      await TD(s, (app) => (app.setSearch(''), app.go('myday'), app.toggleSuggestions(true), app.renderNow(), true));
+      await sleep(250);
+      // a reminder that fires now: the notification shows the title as text
+      await TD(s, (app, id) => (app.store.update(id, { remindAt: Date.now() + 1200 }), app.applyReminder(id, { reset: true }), true), ids.task);
+      await sleep(3000);
+      const r = await ev(() => ({ fired: window.__xss, html: document.querySelectorAll('.win.app-todo .td img, .win.app-todo .td b, #toasts b, #toasts img[src="x"]').length, toast: [...document.querySelectorAll('#toasts *')].some((n) => n.textContent.includes('<img src=x')) }));
+      check('no markup in menus, tooltips or dialogs', [menuHtml, tipHtml, dlgHtml], [0, 0, 0]);
+      check('payload never executed', r.fired, 0);
+      check('no elements created from task / list text', r.html, 0);
+      check('notification shows the title as plain text', r.toast, true);
+      await TD(s, (app) => (app.toggleSuggestions(false), true));
+    });
+
+    await section('QA: a repeating task follows its moved due date (Weekly, Monthly, add bar)', async () => {
+      const r = await TD(s, (app) => {
+        const sun = '2026-10-11'; // a Sunday
+        const w = app.addTask({ title: 'QA weekly', due: sun });
+        app.setRepeat(w.id, { kind: 'weekly', freq: 'week', interval: 1, days: [0] });
+        app.setDue([w.id], '2026-10-16'); // Friday
+        const wRule = app.store.task(w.id).repeat;
+        const wNext = app.store.setDone(w.id, true).next;
+        const m = app.addTask({ title: 'QA monthly', due: '2026-10-31' });
+        app.setRepeat(m.id, { kind: 'monthly', freq: 'month', interval: 1, anchorDay: 31 });
+        app.setDue([m.id], '2026-11-15');
+        const mNext = app.store.setDone(m.id, true).next;
+        const c = app.addTask({ title: 'QA custom 2 months', due: '2026-10-31', repeat: { kind: 'custom', freq: 'month', interval: 2, anchorDay: 31 } });
+        app.setDue([c.id], '2026-11-10');
+        const cNext = app.store.setDone(c.id, true).next;
+        const cw = app.addTask({ title: 'QA custom weekdays', due: '2026-10-12', repeat: { kind: 'custom', freq: 'week', interval: 2, days: [1, 3] } });
+        app.setDue([cw.id], '2026-10-14');
+        const cwRule = app.store.task(cw.id).repeat;
+        // add bar: "Weekly" picked before the due date (the rule is built from today), then the due date
+        const a = app.addTask({ title: 'QA add bar', due: '2026-10-15', repeat: { kind: 'weekly', freq: 'week', interval: 1, days: [0] } });
+        for (const t of [w, wNext, m, mNext, c, cNext, cw, a]) if (t) app.store.remove(t.id);
+        return { wDays: wRule.days, wNext: wNext?.due, mNext: mNext?.due, cNext: cNext?.due, cwDays: cwRule.days, addDays: a.repeat.days };
+      });
+      check('Weekly moved to a Friday repeats on Fridays', [r.wDays, r.wNext], [[5], '2026-10-23']);
+      check('Monthly moved from the 31st to the 15th comes back on the 15th', r.mNext, '2026-12-15');
+      check('custom "every 2 months" takes the new day of the month', r.cNext, '2027-01-10');
+      check('custom weekdays picked by the user are kept', r.cwDays, [1, 3]);
+      check('add bar: Weekly follows the due date picked afterwards', r.addDays, [4]);
+    });
+
+    await section('QA: example copies, emoji-only names, double-clicked "New list"', async () => {
+      const r = await TD(s, (app) => {
+        if (!app.store.hasSeed()) app.settingsView.addExamples();
+        const ex = app.store.data.tasks.find((t) => t.seed);
+        const target = app.store.addList('QA target');
+        const copy = app.store.copy(ex.id, target.id);
+        app.store.removeSeed();
+        return { copySurvives: !!app.store.task(copy.id), copySeed: !!app.store.task(copy.id)?.seed, target: target.id };
+      });
+      check('a copy of an example task is the user’s own task', [r.copySurvives, r.copySeed], [true, false]);
+      await go(s, 'list:tasks');
+      const n0 = await TD(s, (app) => app.store.data.lists.length);
+      await s.page.dblclick(`${WIN} .td-newlist`);
+      await sleep(500);
+      check('double-clicking "New list" creates one list', (await TD(s, (app) => app.store.data.lists.length)) - n0, 1);
+      await s.page.keyboard.press('Escape');
+      const emoji = await TD(s, (app) => {
+        const t = app.addTask({ title: '🎉', listId: 'tasks' });
+        app.newListFromTask(t.id);
+        const l = app.store.list(app.view.slice(5));
+        return [l.emoji, l.name];
+      });
+      check('a list made from an emoji-only task gets the emoji and the localized default name', emoji, ['🎉', 'Untitled list']);
+    });
+
+    await section('QA: keyboard — Tab stays in the window, flyouts trap Tab, F6 cycles panes, Delete / F2 in the nav', async () => {
+      await go(s, 'list:tasks');
+      const id = await TD(s, (app) => app.addTask({ title: 'QA keyboard', listId: 'tasks' }).id);
+      await render(s);
+      await TD(s, (app, id) => (app.openTask(id), true), id);
+      await sleep(300);
+      // last Tab stop -> Tab wraps to the first one (never the taskbar / desktop)
+      await TD(s, () => {
+        const root = document.querySelector('.win.app-todo .td');
+        const stops = [...root.querySelectorAll('button, input, textarea, select, [tabindex]')].filter((x) => !x.disabled && x.tabIndex >= 0 && x.checkVisibility({ checkVisibilityCSS: true, visibilityProperty: true }));
+        stops[stops.length - 1].focus();
+        window.__firstStop = stops[0];
+        window.__lastStop = stops[stops.length - 1];
+        return true;
+      });
+      await s.page.keyboard.press('Tab');
+      let r = await ev(() => ({ inWin: !!document.activeElement.closest('.win.app-todo'), first: document.activeElement === window.__firstStop }));
+      check('Tab after the last control wraps to the first one', [r.inWin, r.first], [true, true]);
+      await s.page.keyboard.press('Shift+Tab');
+      r = await ev(() => document.activeElement === window.__lastStop);
+      check('Shift+Tab from the first control wraps to the last one', r, true);
+      const outside = [];
+      for (let i = 0; i < 45; i++) {
+        await s.page.keyboard.press('Tab');
+        if (!(await ev(() => !!document.activeElement.closest('.win.app-todo')))) outside.push(i);
+      }
+      check('45 Tabs never leave the window', outside, []);
+      // flyout: Tab cycles inside it
+      await TD(s, (app) => (app.pickDue(app.list.moreBtn, null), true));
+      await s.page.waitForSelector(`${WIN} .td-pop`);
+      await sleep(150);
+      let escaped = 0;
+      for (let i = 0; i < 12; i++) {
+        await s.page.keyboard.press('Tab');
+        if (!(await ev(() => !!document.activeElement.closest('.td-pop')))) escaped++;
+      }
+      check('Tab stays inside the date flyout', escaped, 0);
+      await s.page.keyboard.press('Escape');
+      await sleep(250);
+      // F6: list -> details -> navigation -> list
+      await TD(s, (app, id) => (app.list.focusRow(id), true), id);
+      const panes = [];
+      for (let i = 0; i < 3; i++) {
+        await s.page.keyboard.press('F6');
+        await sleep(80);
+        panes.push(await ev(() => (document.activeElement.closest('.td-detail') ? 'detail' : document.activeElement.closest('.td-nav') ? 'nav' : document.activeElement.closest('.td-main') ? 'list' : 'other')));
+      }
+      check('F6 cycles details -> navigation -> list', panes, ['detail', 'nav', 'list']);
+      // Delete / F2 on a list in the navigation pane act on that list, not on the selected task
+      const lid = await TD(s, (app, id) => {
+        const l = app.store.addList('QA nav list');
+        app.go('list:tasks');
+        app.renderNow();
+        app.select(id);
+        app.nav.itemFor(`list:${l.id}`).focus();
+        return l.id;
+      }, id);
+      await s.page.keyboard.press('F2');
+      await s.page.waitForSelector(DLG);
+      check('F2 on a nav list renames that list', await s.page.inputValue(`${DLG} input`), 'QA nav list');
+      await s.page.keyboard.press('Escape');
+      await sleep(250);
+      await TD(s, (app, lid) => (app.nav.itemFor(`list:${lid}`).focus(), true), lid);
+      await s.page.keyboard.press('Delete');
+      await s.page.waitForSelector(DLG);
+      const txt = await s.page.textContent(DLG);
+      check('Delete on a nav list asks to delete the list', txt.includes('QA nav list') && !txt.includes('QA keyboard'), true);
+      await dialogButton(s, 'Delete list');
+      r = await TD(s, (app, [lid, id]) => ({ list: !!app.store.list(lid), task: !!app.store.task(id) }), [lid, id]);
+      check('the list is deleted, the selected task is kept', r, { list: false, task: true });
+      await TD(s, (app) => (app.nav.itemFor('important').focus(), true));
+      await s.page.keyboard.press('Delete');
+      await sleep(300);
+      check('Delete on a smart list does nothing', await ev(() => !!document.querySelector('.win.app-todo .dialog-layer:not(.closing)')), false);
+      await TD(s, (app) => (app.closeDetail({ focus: false }), true));
+    });
+
+    await section('QA: rapid input — Enter spam, double Delete, rapid clicks on a repeating task', async () => {
+      await go(s, 'list:tasks');
+      const n0 = await TD(s, (app) => app.store.data.tasks.length);
+      await TD(s, (app) => (app.list.focusAdd(), true));
+      await s.page.keyboard.type('QA spam');
+      await Promise.all([1, 2, 3, 4, 5].map(() => s.page.keyboard.press('Enter')));
+      await sleep(300);
+      check('Enter pressed 5 times adds one task', (await TD(s, (app) => app.store.data.tasks.length)) - n0, 1);
+      const id = await TD(s, (app) => app.store.data.tasks.find((t) => t.title === 'QA spam').id);
+      await TD(s, (app, id) => (app.renderNow(), app.list.focusRow(id), true), id);
+      await s.page.keyboard.press('Delete');
+      await s.page.keyboard.press('Delete');
+      await sleep(400);
+      check('a second Delete does not open a second dialog', await ev(() => document.querySelectorAll('.win.app-todo .dialog-layer:not(.closing)').length), 1);
+      await s.page.keyboard.press('Escape');
+      await sleep(300);
+      const rid = await TD(s, (app) => app.addTask({ title: 'QA rapid repeat', listId: 'tasks', due: app.today(), repeat: { kind: 'daily', freq: 'day', interval: 1 } }).id);
+      await render(s);
+      const circle = s.page.locator(`${rowSel(rid)} .td-check`);
+      await circle.click();
+      await circle.click();
+      await circle.click();
+      await sleep(900);
+      const r = await TD(s, (app) => app.store.data.tasks.filter((t) => t.title === 'QA rapid repeat').map((t) => t.done).sort());
+      check('three quick clicks: completed once, exactly one next instance', r, [false, true]);
+    });
+
+    await section('QA: saving fails (file replaced by a folder), banner, Retry', async () => {
+      const file = path.join(s.home, '.config', 'aurora', 'apps', 'todo', 'data.json');
+      await TD(s, (app) => app.store.flush().then(() => true));
+      fs.rmSync(file, { force: true });
+      fs.mkdirSync(file);
+      await TD(s, (app) => (app.addTask({ title: 'QA unsaved', listId: 'tasks' }), true));
+      await until(s, (app) => !!app.store.saveError, { label: 'save error' });
+      await render(s);
+      const r = await TD(s, (app) => ({ banner: !!app.list.bannerSlot.querySelector('.infobar.error'), retry: !!app.list.bannerSlot.querySelector('.infobar.error .btn') }));
+      check('save error banner with Retry', r, { banner: true, retry: true });
+      fs.rmSync(file, { recursive: true, force: true });
+      await s.page.click(`${WIN} .td-banner-slot .infobar.error .btn`);
+      await until(s, (app) => !app.store.saveError, { label: 'saved again' });
+      await render(s);
+      check('banner gone after Retry', await TD(s, (app) => !!app.list.bannerSlot.querySelector('.infobar.error')), false);
+      check('data written on Retry', JSON.parse(fs.readFileSync(file, 'utf8')).tasks.some((t) => t.title === 'QA unsaved'), true);
+    });
+
+    await section('QA: 1280x720 maximized — no overflow, meta separators, option rows', async () => {
+      const id = await TD(s, (app) => {
+        const l = app.store.addList('📚 A list with a really very long name to check the ellipsis in the rows');
+        const t = app.addTask({ title: 'Prepare the quarterly presentation for the steering committee with the consolidated numbers', listId: l.id, due: app.today(), remindAt: Date.now() + 3 * 86400e3, repeat: { kind: 'custom', freq: 'week', interval: 2, days: [1, 2, 3, 4, 5] }, note: 'n', steps: ['a', 'b'], myDay: true, important: true });
+        app.go('myday');
+        app.renderNow();
+        app.openTask(t.id);
+        return t.id;
+      });
+      await sleep(500);
+      check('no overflow (1280x720 maximized, My Day + details)', await overflowProbe(s), []);
+      const r = await TD(s, (app, id) => {
+        const row = app.list.rowEl(id);
+        const meta = row.querySelector('.td-row-meta');
+        const title = row.querySelector('.td-row-title').getBoundingClientRect();
+        const sep = parseFloat(getComputedStyle(meta).getPropertyValue('--td-sep'));
+        const listChip = meta.querySelector('.td-meta-list');
+        const lines = new Map();
+        for (const sp of meta.children) {
+          const top = Math.round(sp.getBoundingClientRect().top);
+          if (!lines.has(top)) lines.set(top, sp.getBoundingClientRect().left);
+        }
+        const opts = [...app.detail.el.querySelectorAll('.td-opt-row')].filter((x) => x.querySelector('.td-opt-clear')).map((x) => x.querySelector('.td-opt-label').getBoundingClientRect().right <= x.querySelector('.td-opt-clear').getBoundingClientRect().left + 0.5);
+        return {
+          aligned: Math.abs(meta.getBoundingClientRect().left + sep - title.left) <= 1,
+          clipped: getComputedStyle(meta).clipPath.startsWith('inset'),
+          lineStarts: [...lines.values()].every((x) => Math.abs(x - meta.getBoundingClientRect().left) <= 1),
+          ellipsis: getComputedStyle(listChip).textOverflow === 'ellipsis' && listChip.scrollWidth > listChip.clientWidth,
+          opts,
+        };
+      }, id);
+      check('meta text lines up with the title; the separator strip is clipped', [r.aligned, r.clipped, r.lineStarts], [true, true, true]);
+      check('a long list name is cut with an ellipsis', r.ellipsis, true);
+      check('option labels stop before their × button', r.opts.length >= 3 && r.opts.every(Boolean), true);
+      await shot(s, 'maximized-1280-light-en', { clip: false });
+    });
+
+    await section('QA: long steps wrap; Enter does not insert a line break', async () => {
+      const id = await TD(s, (app) => {
+        const t = app.addTask({ title: 'QA steps', listId: 'tasks', steps: ['A very long step title that has to wrap on several lines in the details pane instead of being cut off'] });
+        app.go('list:tasks');
+        app.renderNow();
+        app.openTask(t.id);
+        return t.id;
+      });
+      await sleep(400);
+      const r = await TD(s, (app) => {
+        const st = app.detail.el.querySelector('.td-step');
+        const input = st.querySelector('.td-step-input');
+        const check = st.querySelector('.td-check').getBoundingClientRect();
+        return { tag: input.tagName, h: input.getBoundingClientRect().height, wrapped: input.scrollHeight <= input.clientHeight + 1, checkTop: Math.round(check.top - st.getBoundingClientRect().top) };
+      });
+      check('step editor grows to show the whole title', [r.tag, r.h > 40, r.wrapped], ['TEXTAREA', true, true]);
+      check('the circle stays on the first line', r.checkTop <= 8, true);
+      await s.page.locator(`${WIN} .td-step-input`).first().click();
+      await s.page.keyboard.press('Control+End');
+      await s.page.keyboard.type(' x');
+      await s.page.keyboard.press('Enter');
+      await sleep(200);
+      const t = await TD(s, (app, id) => app.store.task(id).steps[0].title, id);
+      check('Enter commits the step without a line break', [/\n/.test(t), t.endsWith('cut off x')], [false, true]);
+      await TD(s, (app) => (app.closeDetail({ focus: false }), true));
+    });
+
+    await section('QA: suggestions are keyboard accessible', async () => {
+      const id = await TD(s, (app) => {
+        const t = app.addTask({ title: 'QA suggestion', listId: 'tasks', due: app.today() });
+        app.go('myday');
+        app.toggleSuggestions(true);
+        app.renderNow();
+        return t.id;
+      });
+      await sleep(400);
+      await s.page.focus(`${WIN} .td-sg-row[data-id="${id}"] .td-sg-main`);
+      await s.page.keyboard.press('Enter');
+      await sleep(400);
+      check('Enter on a suggestion opens its details', await TD(s, (app) => [app.openId === app.store.data.tasks.find((t) => t.title === 'QA suggestion').id, !!document.activeElement.closest('.td-detail')]), [true, true]);
+    });
+
+    await section('QA: console', async () => {
+      check('no console errors (QA)', todoErrors(s), []);
+    });
+  } finally {
+    current = null;
+    await s.close();
+  }
+}
+
+// ================================================================== launch F: French, dark, 1920x1080 maximized
+async function runFrenchWide() {
+  const s = await launchShell({ open: ['todo'], lang: 'fr', theme: 'dark', size: '1920x1080' });
+  current = s;
+  try {
+    await s.page.waitForSelector(`${WIN} .td`, { timeout: 20000 });
+    await until(s, (app) => !!app?.store, { label: 'todo ready' });
+    await section('French 1920x1080: maximized layout, 24-hour times, localized default names', async () => {
+      await TD(s, (app) => (app.win.maximize(), true));
+      await sleep(500);
+      const id = await TD(s, (app) => {
+        const l = app.store.addList('📚 Une liste au nom vraiment très très long pour vérifier les points de suspension');
+        const g = app.store.addGroup('Un groupe au nom extrêmement long qui ne tient pas');
+        app.store.moveListToGroup(l.id, g.id);
+        const at = new Date(app.now());
+        at.setDate(at.getDate() + 2);
+        at.setHours(9, 5, 0, 0);
+        const t = app.addTask({ title: 'Préparer la présentation trimestrielle pour le comité de direction avec les chiffres consolidés', listId: l.id, due: app.today(), remindAt: at.getTime(), repeat: { kind: 'custom', freq: 'week', interval: 2, days: [1, 2, 3, 4, 5] }, steps: ['Rassembler les chiffres consolidés de toutes les filiales européennes et asiatiques', 'b'], note: 'x', myDay: true });
+        for (let i = 0; i < 12; i++) app.addTask({ title: `${i} Relancer le fournisseur pour la facture en attente`, listId: l.id, due: app.today() });
+        app.go(`list:${l.id}`);
+        app.renderNow();
+        app.openTask(t.id);
+        return t.id;
+      });
+      await sleep(600);
+      check('no overflow (1920x1080 maximized, French)', await overflowProbe(s), []);
+      const r = await TD(s, (app) => app.detail.el.querySelector('[data-key="remind"] .td-opt-label').textContent);
+      check('24-hour reminder time with a two-digit hour', r, 'Me le rappeler à 09:05');
+      await shot(s, 'maximized-1920-dark-fr', { clip: false });
+      await TD(s, (app) => (app.go('planned'), app.renderNow(), true));
+      await sleep(300);
+      check('no overflow (Planned, 1920x1080)', await overflowProbe(s), []);
+      const names = await TD(s, (app) => {
+        const t = app.addTask({ title: '🎉' });
+        app.newListFromTask(t.id);
+        const l = app.store.list(app.view.slice(5));
+        const g = app.newGroup();
+        return [l.name, app.store.group(g.id).name];
+      });
+      await s.page.keyboard.press('Escape');
+      check('default names in French', names, ['Liste sans titre', 'Groupe sans titre']);
+      check('no console errors (French wide)', todoErrors(s), []);
+    });
+  } finally {
+    current = null;
+    await s.close();
+  }
+}
+
+// ================================================================== launch G: corrupt / unreadable / newer data files
+async function runBadData() {
+  const mk = (data) => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-home-'));
+    const dir = path.join(home, '.config', 'aurora', 'apps', 'todo');
+    fs.mkdirSync(dir, { recursive: true });
+    if (data === 'dir') fs.mkdirSync(path.join(dir, 'data.json'));
+    else fs.writeFileSync(path.join(dir, 'data.json'), typeof data === 'string' ? data : JSON.stringify(data));
+    return { home, dir };
+  };
+  // 1. corrupt values: quotes in ids, absurd timestamps
+  {
+    const { home } = mk({
+      version: 2,
+      groups: [{ id: 'g"]x', name: 'Bad group' }],
+      lists: [{ id: 'l"]y', name: 'Bad list', groupId: 'g"]x' }],
+      tasks: [
+        { id: 't1', title: 'Huge reminder', remindAt: 1e20, due: '2026-10-12', created: 1e20, completedAt: 'x', myDayAt: -5 },
+        { id: 't"]2', title: 'Quote id', listId: 'l"]y', created: -1e20, done: true, completedAt: 9e15 },
+      ],
+      prefs: { lastView: 'list:l"]y' },
+    });
+    const s = await launchShell({ open: ['todo'], lang: 'en', theme: 'light', home });
+    current = s;
+    try {
+      await s.page.waitForSelector(`${WIN} .td`, { timeout: 20000 });
+      await until(s, (app) => !!app?.store, { label: 'todo ready' });
+      await section('corrupt values in the data file: every view still renders', async () => {
+        const r = await TD(s, (app) => {
+          const errs = [];
+          const tryIt = (name, fn) => {
+            try {
+              fn();
+            } catch (e) {
+              errs.push(`${name}: ${e.message}`);
+            }
+          };
+          tryIt('lastView', () => app.renderNow());
+          for (const v of ['myday', 'planned', 'all', 'completed', 'list:tasks']) tryIt(v, () => (app.go(v), app.renderNow()));
+          tryIt('details', () => (app.go('all'), app.renderNow(), app.openTask('t1'), app.renderNow()));
+          tryIt('details of the quoted id', () => (app.go('completed'), app.renderNow(), app.openTask('t"]2'), app.renderNow()));
+          tryIt('nav focus', () => (app.nav.el.querySelector('.td-group-head').focus(), app.renderNow()));
+          return { errs, remindAt: app.store.task('t1').remindAt, created: app.store.task('t1').created > 0, rows: app.list.visibleIds().length };
+        });
+        check('no exception in any view', r.errs, []);
+        check('impossible timestamps dropped or replaced', [r.remindAt, r.created], [null, true]);
+        await TD(s, (app) => (app.nav.editGroup('g"]x'), true));
+        await sleep(150);
+        check('a group with a quote in its id can be renamed', await TD(s, () => !!document.querySelector('.win.app-todo .td-group-edit')), true);
+        await s.page.keyboard.press('Escape');
+        check('no console errors (corrupt values)', todoErrors(s), []);
+      });
+    } finally {
+      current = null;
+      await s.close();
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  }
+  // 2. unreadable file (a folder): read-only, told at start and by a banner that stays (French, dark)
+  {
+    const { home, dir } = mk('dir');
+    const s = await launchShell({ open: ['todo'], lang: 'fr', theme: 'dark', home });
+    current = s;
+    try {
+      await s.page.waitForSelector(`${WIN} .td`, { timeout: 20000 });
+      await until(s, (app) => !!app?.store, { label: 'todo ready' });
+      await section('unreadable data file: read-only, alert and a lasting banner (French)', async () => {
+        await s.page.waitForSelector(DLG, { timeout: 5000 });
+        check('user is told at start', (await s.page.textContent(DLG)).includes('Impossible de charger vos tâches'), true);
+        await dialogButton(s, 'OK');
+        await TD(s, (app) => (app.addTask({ title: 'Pas enregistrée' }), app.renderNow(), true));
+        await sleep(400);
+        const r = await TD(s, (app) => ({ ro: app.store.readOnly, banner: app.list.bannerSlot.querySelector('.td-readonly-banner')?.textContent || '' }));
+        check('read-only banner stays visible', [r.ro, r.banner.startsWith('Les modifications ne sont pas enregistrées')], [true, true]);
+        check('nothing written over the unreadable file', fs.statSync(path.join(dir, 'data.json')).isDirectory() && fs.readdirSync(dir).length, 1);
+        await shot(s, 'readonly-dark-fr');
+        check('no console errors (unreadable)', todoErrors(s), []);
+      });
+    } finally {
+      current = null;
+      await s.close();
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  }
+  // 3. data saved by a newer To Do: the original is kept before this version writes its own format
+  {
+    const original = JSON.stringify({ version: 7, lists: [], tasks: [{ id: 'a', title: 'From the future', fancy: { x: 1 } }], newThing: [1, 2, 3] });
+    const { home, dir } = mk(original);
+    const s = await launchShell({ open: ['todo'], lang: 'en', theme: 'light', home });
+    current = s;
+    try {
+      await s.page.waitForSelector(`${WIN} .td`, { timeout: 20000 });
+      await until(s, (app) => !!app?.store, { label: 'todo ready' });
+      await section('data from a newer version: original kept, user told, tasks usable', async () => {
+        await s.page.waitForSelector(DLG, { timeout: 5000 });
+        check('user is told', (await s.page.textContent(DLG)).includes('newer version'), true);
+        await dialogButton(s, 'OK');
+        const backup = fs.readdirSync(dir).find((f) => /^data\.v7-\d+\.json$/.test(f));
+        check('original file kept byte for byte', backup && fs.readFileSync(path.join(dir, backup), 'utf8'), original);
+        const r = await TD(s, (app) => ({ title: app.store.task('a')?.title, fancy: app.store.task('a')?.fancy }));
+        check('tasks loaded, unknown fields kept', r, { title: 'From the future', fancy: { x: 1 } });
+        check('no console errors (newer data)', todoErrors(s), []);
+      });
+    } finally {
+      current = null;
+      await s.close();
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  }
+}
+
 await runEnglish();
 await runFrench();
 await runMigration();
 await runDamaged();
+await runQA();
+await runFrenchWide();
+await runBadData();
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   for (const f of failures) console.log(`  ✗ ${f}`);

@@ -41,8 +41,11 @@ export const DEFAULT_PREFS = {
 
 const MAX_TITLE = 400;
 const MAX_NOTE = 20000;
+export const MAX_STEPS = 200; // normalize() keeps this many: adding more would silently lose them on the next start
 const str = (v, max = MAX_TITLE) => (typeof v === 'string' ? v : v == null ? '' : String(v)).replace(/[\r\n]+/g, ' ').slice(0, max);
 const num = (v, def = null) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : def);
+// timestamps must be dates Intl can format (a corrupt 1e20 would make every render throw "Invalid time value")
+const ts = (v, def = null) => D.validTs(v) ?? def;
 const bool = (v) => v === true;
 
 let idSeq = 0;
@@ -154,7 +157,7 @@ export function normalize(raw, now = Date.now()) {
       name: isDefault ? null : str(l.name, 255) || 'Untitled list',
       emoji: isDefault ? null : typeof l.emoji === 'string' && l.emoji ? l.emoji.slice(0, 16) : null,
       theme: normTheme(l.theme, isDefault ? DEFAULT_THEMES.tasks : null),
-      created: num(l.created, now),
+      created: ts(l.created, now),
       order: num(l.order, lists.length),
       groupId: !isDefault && groupIds.has(l.groupId) ? l.groupId : null,
       sort: normSort(l.sort),
@@ -177,7 +180,7 @@ export function normalize(raw, now = Date.now()) {
     let id = str(t.id, 64) || uid('t');
     if (taskIds.has(id)) id = uid('t');
     taskIds.add(id);
-    const created = num(t.created, now);
+    const created = ts(t.created, now);
     const done = bool(t.done);
     tasks.push({
       ...t,
@@ -185,21 +188,21 @@ export function normalize(raw, now = Date.now()) {
       listId: listIds.has(t.listId) ? t.listId : DEFAULT_LIST,
       title,
       done,
-      completedAt: done ? num(t.completedAt, now) : null,
+      completedAt: done ? ts(t.completedAt, now) : null,
       important: bool(t.important),
       myDay: D.isYmd(t.myDay) ? t.myDay : null,
-      myDayAt: num(t.myDayAt, null),
+      myDayAt: ts(t.myDayAt, null),
       myDayOrder: num(t.myDayOrder, 0),
       due: D.isYmd(t.due) ? t.due : null,
-      remindAt: num(t.remindAt, null),
+      remindAt: ts(t.remindAt, null),
       repeat: D.normalizeRepeat(t.repeat),
       steps: (Array.isArray(t.steps) ? t.steps : [])
         .filter((s) => s && typeof s === 'object' && str(s.title).trim())
-        .slice(0, 200)
+        .slice(0, MAX_STEPS)
         .map((s) => ({ id: str(s.id, 64) || uid('s'), title: str(s.title).trim(), done: bool(s.done) })),
       note: typeof t.note === 'string' ? t.note.slice(0, MAX_NOTE) : '',
       created,
-      modified: num(t.modified, created),
+      modified: ts(t.modified, created),
       order: num(t.order, tasks.length),
     });
   }
@@ -556,9 +559,9 @@ export class TodoStore {
       myDayAt: fields.myDay ? now : null,
       myDayOrder: 0,
       due: D.isYmd(fields.due) ? fields.due : null,
-      remindAt: Number.isFinite(fields.remindAt) ? fields.remindAt : null,
+      remindAt: D.validTs(fields.remindAt),
       repeat: D.normalizeRepeat(fields.repeat),
-      steps: (fields.steps || []).map((s) => ({ id: uid('s'), title: str(s.title ?? s).trim(), done: !!s.done })).filter((s) => s.title),
+      steps: (fields.steps || []).map((s) => ({ id: uid('s'), title: str(s.title ?? s).trim(), done: !!s.done })).filter((s) => s.title).slice(0, MAX_STEPS),
       note: typeof fields.note === 'string' ? fields.note : '',
       created: now,
       modified: now,
@@ -566,6 +569,7 @@ export class TodoStore {
     };
     if (t.myDay) t.myDayOrder = this._myDayEdge(top);
     if (t.repeat && !t.due) t.due = D.alignDue(this.today(), t.repeat, this.weekStart);
+    else if (t.repeat && t.due) t.repeat = D.normalizeRepeat(D.rebaseRepeat(t.repeat, t.due)); // e.g. "Weekly" picked before the due date
     if (fields.seed) t.seed = true;
     this.data.tasks.push(t);
     this.commit('tasks', { added: [t.id] });
@@ -589,12 +593,14 @@ export class TodoStore {
     }
     if ('note' in p) p.note = String(p.note ?? '').slice(0, MAX_NOTE);
     if ('due' in p && !D.isYmd(p.due)) p.due = null;
-    if ('remindAt' in p && !Number.isFinite(p.remindAt)) p.remindAt = null;
+    if ('remindAt' in p) p.remindAt = D.validTs(p.remindAt);
     if ('repeat' in p) {
       p.repeat = D.normalizeRepeat(p.repeat);
       if (p.repeat && !(p.due ?? t.due)) p.due = D.alignDue(this.today(), p.repeat, this.weekStart);
     }
     if ('due' in p && !p.due && t.repeat && !('repeat' in p)) p.repeat = null; // no due date -> no repeat
+    // the user moved the due date: "Weekly" now repeats on the new weekday, "Monthly" on the new day of the month
+    else if ('due' in p && p.due && p.due !== t.due && t.repeat && !('repeat' in p)) p.repeat = D.normalizeRepeat(D.rebaseRepeat(t.repeat, p.due));
     if ('myDay' in p) {
       const on = !!p.myDay;
       p.myDay = on ? this.today() : null;
@@ -681,7 +687,7 @@ export class TodoStore {
   copy(id, listId) {
     const t = this.task(id);
     if (!t || !this.list(listId)) return null;
-    const c = this.addTask({ ...t, listId, myDay: false, steps: t.steps, remindAt: null }, { top: this.data.prefs.addOnTop });
+    const c = this.addTask({ ...t, listId, myDay: false, steps: t.steps, remindAt: null, seed: false }, { top: this.data.prefs.addOnTop });
     if (c && t.done) this.setDone(c.id, true);
     return c;
   }
@@ -721,7 +727,7 @@ export class TodoStore {
   addStep(taskId, title) {
     const t = this.task(taskId);
     const s = str(title).trim();
-    if (!t || !s) return null;
+    if (!t || !s || t.steps.length >= MAX_STEPS) return null;
     const step = { id: uid('s'), title: s, done: false };
     t.steps.push(step);
     t.modified = this.now();
@@ -778,10 +784,10 @@ export class TodoStore {
   _nextOrder() {
     return Math.max(0, ...this.data.lists.map((l) => l.order), ...this.data.groups.map((g) => g.order)) + 1;
   }
-  addList(rawName, { groupId = null, theme } = {}) {
+  addList(rawName, { groupId = null, theme, fallbackName = 'Untitled list' } = {}) {
     const { emoji, name } = splitEmoji(rawName);
     const order = this._nextOrder();
-    const l = { id: uid('l'), name: str(name, 255) || 'Untitled list', emoji, theme: normTheme(theme, { color: 'accent' }), created: this.now(), order, groupId: this.group(groupId) ? groupId : null, sort: null, groupBy: 'none', showCompleted: true, completedOpen: true };
+    const l = { id: uid('l'), name: str(name, 255) || str(fallbackName, 255) || 'Untitled list', emoji, theme: normTheme(theme, { color: 'accent' }), created: this.now(), order, groupId: this.group(groupId) ? groupId : null, sort: null, groupBy: 'none', showCompleted: true, completedOpen: true };
     this.data.lists.push(l);
     this.commit('lists', { added: l.id });
     return l;
@@ -815,10 +821,10 @@ export class TodoStore {
     Object.assign(target, patch);
     this.commit('views', { changed: view });
   }
-  duplicateList(id, nameFor) {
+  duplicateList(id, nameFor, { fallbackName } = {}) {
     const src = this.list(id);
     if (!src) return null;
-    const copy = this.addList(`${src.emoji ? `${src.emoji} ` : ''}${nameFor(src)}`, { groupId: src.groupId, theme: src.theme });
+    const copy = this.addList(`${src.emoji ? `${src.emoji} ` : ''}${nameFor(src)}`, { groupId: src.groupId, theme: src.theme, fallbackName });
     // place right after the source
     for (const l of this.data.lists) if (l !== copy && l.order > src.order) l.order += 1;
     copy.order = src.order + 1;
@@ -860,8 +866,8 @@ export class TodoStore {
     });
     this.commit('lists', { reordered: ids });
   }
-  addGroup(name) {
-    const g = { id: uid('g'), name: str(name, 255) || 'Untitled group', collapsed: false, order: this._nextOrder() };
+  addGroup(name, { fallbackName = 'Untitled group' } = {}) {
+    const g = { id: uid('g'), name: str(name, 255).trim() || str(fallbackName, 255) || 'Untitled group', collapsed: false, order: this._nextOrder() };
     this.data.groups.push(g);
     this.commit('lists', { addedGroup: g.id });
     return g;

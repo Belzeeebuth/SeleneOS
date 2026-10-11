@@ -189,6 +189,16 @@
 .app-settings .pzs-start-pv[data-mode="dark"][data-bg="wallpaper"] .pzs-sm {
   background: rgba(30, 30, 30, 0.55);
 }
+/* transparent glass (B2) */
+.app-settings .pzs-start-pv[data-bg="glass"] .pzs-sm {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.14));
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(4px) saturate(180%);
+}
+.app-settings .pzs-start-pv[data-mode="dark"][data-bg="glass"] .pzs-sm {
+  background: linear-gradient(160deg, rgba(40, 40, 48, 0.42), rgba(20, 20, 26, 0.24));
+  border-color: rgba(255, 255, 255, 0.16);
+}
 .app-settings .pzs-sm-search {
   height: 6%;
   min-height: 6px;

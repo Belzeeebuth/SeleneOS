@@ -82,11 +82,11 @@ export async function settingsDialog(app) {
     h('h3', { class: 'ac-set-head' }, t('timeZone')),
     h('div', { class: 'ac-set-row' }, h('div', { class: 'ac-set-text' }, h('div', { class: 'selectable' }, `${tz} (${offsetLabel(Date.now(), tz)})`), h('div', { class: 'caption text-2' }, t('timeZoneHint')))),
   );
+  let offResize = null;
   const v = await ui.dialog({
     title: t('settings'),
     body,
     parent: app.win,
-    width: 620,
     className: 'ac-settings-dialog',
     buttons: [
       { label: t('save'), value: 'save', primary: true },
@@ -94,8 +94,13 @@ export async function settingsDialog(app) {
     ],
     onOpen: (dlg) => {
       dlg._validate = (val) => (val === 'save' ? check() : true);
+      // 620 px, or the window width in a small window (a dialog lives inside the window)
+      const fit = () => (dlg.style.width = `${Math.max(300, Math.min(620, (app.win.body.clientWidth || 620) - 24))}px`);
+      fit();
+      offResize = app.win.on('resize', fit);
     },
   });
+  offResize?.();
   if (v !== 'save') return false;
   Object.assign(app.data.prefs, p);
   app.mini.setState({});
@@ -228,6 +233,7 @@ export async function importFlow(app, path = null, calendarId = null) {
   if (v !== 'ok') return false;
   const before = app.snapshot();
   let calId = sel.value;
+  const created = calId === NEW;
   if (calId === NEW) {
     calId = newId('c');
     const used = new Set(app.data.calendars.map((c) => c.color));
@@ -259,7 +265,17 @@ export async function importFlow(app, path = null, calendarId = null) {
     }
     imported.push(ev);
   }
-  await app.commit(list, { select: null, before, undoLabel: t('importDone', { count: added + updated }) });
+  // Undo also removes the calendar the import created
+  const onUndo = created
+    ? async () => {
+        if (app.data.events.some((e) => e.calendarId === calId)) return;
+        app.data.calendars = app.data.calendars.filter((c) => c.id !== calId);
+        app.renderCalendars();
+        app.render({ animate: false, keepScroll: true });
+        await app.saveCalendars();
+      }
+    : null;
+  await app.commit(list, { select: null, before, undoLabel: t('importDone', { count: added + updated }), onUndo });
   // show the first upcoming imported event (or the latest one)
   const now = Date.now();
   let best = null;
@@ -300,28 +316,36 @@ export async function exportFlow(app, calendarId = null) {
 export function shortcutsDialog(app) {
   const { h, ui } = app.ctx;
   const t = app.t;
+  const k = (name) => t(`key.${name}`);
+  // each row: key groups separated by "/" (alternatives) or "–" (range); keys inside a group joined by "+"
   const rows = [
-    ['N', t('ks.new')],
-    ['T', t('ks.today')],
-    ['1 – 5', t('ks.views')],
-    ['← → ↑ ↓', t('ks.arrows')],
-    ['Page Up / Page Down', t('ks.period')],
-    ['Enter', t('ks.open')],
-    ['Delete', t('ks.delete')],
-    ['Alt + ↑ / ↓', t('ks.nudge')],
-    ['Ctrl + F, /', t('ks.search')],
-    ['Ctrl + S', t('ks.save')],
-    ['Esc', t('ks.escape')],
+    [[['N']], t('ks.new')],
+    [[['T']], t('ks.today')],
+    [[['1'], '–', ['5']], t('ks.views')],
+    [[['←'], ['→'], ['↑'], ['↓']], t('ks.arrows')],
+    [[[k('pageUp')], '/', [k('pageDown')]], t('ks.period')],
+    [[[k('enter')]], t('ks.open')],
+    [[[k('delete')]], t('ks.delete')],
+    [[[k('alt'), '↑'], '/', ['↓']], t('ks.nudge')],
+    [[[k('ctrl'), 'F'], '/', ['/']], t('ks.search')],
+    [[[k('ctrl'), 'S']], t('ks.save')],
+    [[[k('esc')]], t('ks.escape')],
   ];
+  const keys = (groups) =>
+    groups.flatMap((g, i) => {
+      if (typeof g === 'string') return [` ${g} `];
+      const parts = g.flatMap((key, j) => (j ? [' + ', h('kbd', null, key)] : [h('kbd', null, key)]));
+      return i && typeof groups[i - 1] !== 'string' ? [' ', ...parts] : parts;
+    });
   return ui.dialog({
     title: t('shortcuts'),
     parent: app.win,
-    width: 480,
+    width: Math.min(480, Math.max(300, (app.win.body.clientWidth || 480) - 32)),
     className: 'ac-keys-dialog',
     body: h(
       'table',
       { class: 'ac-keys' },
-      rows.map(([k, label]) => h('tr', null, h('td', null, k.split(/(\s\+\s|,\s|\s\/\s|\s–\s)/).map((part) => (/^\s|^,/.test(part) ? part : h('kbd', null, part)))), h('td', null, label))),
+      rows.map(([groups, label]) => h('tr', null, h('td', null, keys(groups)), h('td', null, label))),
     ),
     buttons: [{ label: t('close'), value: true, primary: true }],
   });

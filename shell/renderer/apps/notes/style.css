@@ -3,8 +3,8 @@
    user colours (notebooks, highlights, text colours) use light-dark() so they follow the window's own
    colour scheme, including per-app themes. */
 .app-notes {
-  --nt-nav-w: 248px;
-  --nt-list-w: 320px;
+  --nt-nav-w: 240px;
+  --nt-list-w: 304px;
   --nt-sel: color-mix(in srgb, var(--accent) 12%, transparent);
   --nt-sel-hover: color-mix(in srgb, var(--accent) 17%, transparent);
   --nt-pane: var(--card);
@@ -559,7 +559,7 @@
 .app-notes .nt-group-sep {
   width: 1px;
   height: 20px;
-  margin: 0 6px;
+  margin: 0 4px;
   background: var(--stroke);
 }
 .app-notes .nt-group:not(:has(~ .nt-group:not([hidden]))) .nt-group-sep {
@@ -580,7 +580,7 @@
   background: transparent;
 }
 .app-notes .nt-style-btn {
-  width: 136px;
+  width: 124px;
   justify-content: space-between;
   padding: 0 8px 0 10px;
   gap: 6px;
@@ -1004,6 +1004,10 @@
 .app-notes .nt-body img.nt-sel {
   outline-color: var(--accent);
 }
+/* a picture on a line of its own gets some air above and below */
+.app-notes .nt-body > :is(div, p) > img:only-child {
+  margin: 4px 0;
+}
 .app-notes .nt-body img.nt-pending {
   opacity: 0.55;
 }
@@ -1248,15 +1252,14 @@
 /* ---------------------------------------------------------------- toasts */
 .app-notes .nt-toasts {
   position: absolute;
-  left: 50%;
+  left: 16px;
+  right: 16px;
   bottom: 24px;
-  transform: translateX(-50%);
   z-index: 3000;
   display: flex;
   flex-direction: column;
   align-items: center;
   pointer-events: none;
-  max-width: calc(100% - 32px);
 }
 .app-notes .nt-toast {
   pointer-events: auto;
@@ -1288,7 +1291,12 @@
     transform: translateY(8px);
   }
 }
+.app-notes .nt-toast > .grow {
+  min-width: 0;
+  padding: 6px 0;
+}
 .app-notes .nt-toast-action {
+  flex: none;
   color: var(--accent-text);
   font-weight: 600;
 }

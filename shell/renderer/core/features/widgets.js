@@ -1,8 +1,10 @@
 // Widgets board (Win+W / taskbar Widgets button when settings.taskbar.showWidgets): left-side panel
-// with a greeting + clock, a weather card (offline placeholder with a link to a forecast site),
+// with a greeting + clock, a weather card (current conditions from 'weather:current' at the place chosen for the
+// dynamic wallpaper — main/ipc/weather.js; offline / no place: a placeholder with a link),
 // quick notes (persisted per user), a photo slideshow from ~/Pictures and live system usage.
 // Shell events: 'widgets:toggle', 'widgets:open', 'widgets:close'.
 import { createFlyout } from '../taskbar.js';
+import { weatherDescribe, weatherIconName, formatTemperature } from '../wallpaper/weather-text.js';
 
 let ctx;
 let fly;
@@ -20,6 +22,10 @@ const STRINGS = {
       weather: 'Weather',
       weatherOffline: 'Forecasts need an internet connection.',
       weatherOpen: 'See forecast',
+      weatherWhere: '{place} · updated {time}',
+      weatherStale: '{place} · last known at {time}',
+      weatherNoPlace: 'Choose a location to see the weather here.',
+      weatherSetPlace: 'Choose a location',
       notes: 'Quick notes',
       notesPlaceholder: 'Write something down…',
       photos: 'Photos',
@@ -42,6 +48,10 @@ const STRINGS = {
       weather: 'Météo',
       weatherOffline: 'Les prévisions nécessitent une connexion Internet.',
       weatherOpen: 'Voir les prévisions',
+      weatherWhere: '{place} · mis à jour à {time}',
+      weatherStale: '{place} · dernières données à {time}',
+      weatherNoPlace: 'Choisissez un lieu pour voir la météo ici.',
+      weatherSetPlace: 'Choisir un lieu',
       notes: 'Notes rapides',
       notesPlaceholder: 'Notez quelque chose…',
       photos: 'Photos',
@@ -106,18 +116,40 @@ async function render() {
 
   const header = h('div', { class: 'wg-header' }, h('div', null, clockTime, clockDate), h('div', { class: 'wg-greet' }, `${greeting()}${first ? `, ${first}` : ''}`));
 
-  // Weather (offline placeholder)
-  const weather = card(
-    'wg-weather',
-    t('widgets.weather'),
-    'weather_partly_cloudy_day',
-    h(
-      'div',
-      { class: 'wg-weather-body' },
-      h('div', { class: 'wg-weather-art' }, icon('weather_partly_cloudy_day', { size: 56, filled: true })),
-      h('div', { class: 'caption text-2' }, t('widgets.weatherOffline')),
-    ),
-    h('button', { class: 'btn small', onclick: () => (fly.close('launch'), shell.openUrl('https://wttr.in/')) }, t('widgets.weatherOpen')),
+  // Weather: current conditions (main/ipc/weather.js, place of the dynamic wallpaper); placeholder offline / without a place
+  const wxBody = h(
+    'div',
+    { class: 'wg-weather-body' },
+    h('div', { class: 'wg-weather-art' }, icon('weather_partly_cloudy_day', { size: 56, filled: true })),
+    h('div', { class: 'caption text-2' }, t('widgets.weatherOffline')),
+  );
+  let wxAction = () => shell.openUrl('https://wttr.in/');
+  const wxBtn = h('button', { class: 'btn small', onclick: () => (fly.close('launch'), wxAction()) }, t('widgets.weatherOpen'));
+  const weather = card('wg-weather', t('widgets.weather'), 'weather_partly_cloudy_day', wxBody, wxBtn);
+  api.invoke('weather:current').then(
+    (w) => {
+      if (!w) return;
+      const time = i18n.formatTime(new Date(w.fetchedAt || Date.now()), { hour: 'numeric', minute: '2-digit' });
+      const place = w.location?.name || '';
+      weather.dataset.kind = w.kind || '';
+      wxBody.replaceChildren(
+        h('div', { class: 'wg-weather-art' }, icon(weatherIconName(w), { size: 56, filled: true })),
+        h(
+          'div',
+          { class: 'wg-weather-now' },
+          h('div', { class: 'wg-weather-temp' }, formatTemperature(w, (n) => i18n.formatNumber(n)) || '—'),
+          h('div', { class: 'body-strong' }, weatherDescribe(w, i18n.lang)),
+          h('div', { class: 'caption text-2 ellipsis' }, t(w.stale ? 'widgets.weatherStale' : 'widgets.weatherWhere', { place, time }).replace(/^ · /, '')),
+        ),
+      );
+      if (place) wxAction = () => shell.openUrl(`https://wttr.in/${encodeURIComponent(place)}`);
+    },
+    (err) => {
+      if (err?.code !== 'ENOLOCATION') return;
+      wxBody.lastChild.textContent = t('widgets.weatherNoPlace');
+      wxBtn.textContent = t('widgets.weatherSetPlace');
+      wxAction = () => shell.launch('settings', { page: 'wallpaperEffects', section: 'location' });
+    },
   );
 
   // Notes

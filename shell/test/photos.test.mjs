@@ -541,6 +541,25 @@ await test('unit: EXIF orientation table and header parsers', async () => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
+await test('unit: a malformed EXIF orientation tag is never trusted for an in-place rewrite', async () => {
+  const B = require('../main/ipc/photos.js');
+  const ex = exifApp1({ orientation: 6 });
+  const tiff = Buffer.from(ex.subarray(10)); // after APP1 header + "Exif\0\0"
+  // Find the orientation entry (tag 0x0112) and make its count 2: its "value" would then live elsewhere.
+  const n = tiff.readUInt16BE(8);
+  let entry = -1;
+  for (let i = 0; i < n; i++) if (tiff.readUInt16BE(10 + i * 12) === 0x0112) entry = 10 + i * 12;
+  assert.ok(entry > 0);
+  assert.equal(B.parseExif(tiff, 0).oOffset, entry + 8, 'well-formed tag: rewritable inline value');
+  tiff.writeUInt32BE(2, entry + 4);
+  const bad = B.parseExif(tiff, 0);
+  assert.equal(bad.oOffset, null, 'count != 1: not rewritable');
+  assert.equal(bad.o, 1);
+  tiff.writeUInt32BE(1, entry + 4);
+  tiff.writeUInt16BE(4, entry + 2); // LONG instead of SHORT
+  assert.equal(B.parseExif(tiff, 0).oOffset, null, 'wrong type: not rewritable');
+});
+
 // ================================================================== shell tests
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-photos-'));
 let s = await launchShell({ home, keepHome: true, theme: 'light', lang: 'en' });
@@ -1032,6 +1051,8 @@ await test('gallery: Ctrl/Shift multi-select, bulk favorite and copy, Esc clears
   const favs = await appEval((a) => [...a.lib.favorites]);
   assert.equal(favs.length, 4);
   await s.page.locator('.app-photos .ph-selbar [data-cmd="sel-copy"]').last().click();
+  // (the files are checked first: copy reports pictures that were moved or deleted)
+  await s.page.waitForFunction(() => window.__aurora.shell.clipboard.getFiles()?.paths?.length === 4, null, { timeout: 5000 });
   const clip = await s.aurora(() => window.__aurora.shell.clipboard.getFiles());
   assert.equal(clip.paths.length, 4);
   assert.equal(clip.mode, 'copy');
@@ -1242,6 +1263,7 @@ await test('viewer: "…" menu sets the desktop background and the lock screen',
   await ensureViewer();
   const st = await viewerState();
   const p = await appEval((a) => a.viewer.item.path);
+  const prev = await s.aurora(() => ({ wallpaper: window.__aurora.settings.get('wallpaper'), lockWallpaper: window.__aurora.settings.get('lockWallpaper') }));
   await s.page.locator('.app-photos .ph-tb[data-cmd="more"]').last().click();
   await s.page.locator('.menu .menu-item', { hasText: 'Set as' }).hover();
   await s.page.locator('.menu .menu-item', { hasText: 'Desktop background' }).click();
@@ -1260,6 +1282,11 @@ await test('viewer: "…" menu sets the desktop background and the lock screen',
   await s.page.keyboard.press('Escape'); // closes the submenu
   await s.page.keyboard.press('Escape'); // closes the menu
   assert.equal(await s.page.locator('.menu').count(), 0);
+  // Put the shell's own backgrounds back (later screenshots would show a stretched fixture picture).
+  await s.aurora(async (v) => {
+    await window.__aurora.settings.set('wallpaper', v.wallpaper);
+    await window.__aurora.settings.set('lockWallpaper', v.lockWallpaper ?? null);
+  }, prev);
 });
 
 await test('viewer: Save as converts formats, Open with ▸ Paint, F2 renames and keeps favorites', async () => {
@@ -1463,7 +1490,19 @@ await test('live language switch keeps the current photo; right-click menus', as
   assert.equal(await s.page.locator('.app-photos .ph-search').count(), 1, 'one search box in the title bar');
   await s.page.locator('.app-photos .ph-stage').last().focus();
   await s.page.keyboard.press('Escape');
-  await s.page.waitForFunction(() => document.querySelector('.app-photos .ph-title')?.textContent === 'Galerie');
+  const back = await s.page
+    .waitForFunction(() => document.querySelector('.app-photos .ph-title')?.textContent === 'Galerie', null, { timeout: 10000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!back) {
+    // Diagnose instead of a bare timeout (this step was seen flaking once under heavy load).
+    const dbg = await s.page.evaluate(() => {
+      const a = [...document.querySelectorAll('.win.app-photos')].pop()?.__photos;
+      const el = document.activeElement;
+      return { mode: a?.mode, from: a?.viewer?.from, viewerFrom: a?.viewerFrom, active: el ? `${el.tagName}.${el.className}` : null, menus: document.querySelectorAll('.menu').length, dialogs: document.querySelectorAll('.dialog-layer').length, wins: window.__aurora.wm.list().map((w) => w.appId), titles: [...document.querySelectorAll('.app-photos .ph-title')].map((x) => x.textContent) };
+    });
+    assert.fail(`Esc did not return to the gallery: ${JSON.stringify(dbg)}`);
+  }
   await s.aurora(() => window.__aurora.settings.set('lang', 'en'));
   await s.page.waitForFunction(() => document.querySelector('.app-photos .ph-title')?.textContent === 'Gallery');
   assert.equal(await s.page.locator('.app-photos .ph-search').count(), 1);
@@ -1587,6 +1626,39 @@ await test('FR + dark: gallery, viewer, editor and settings are translated and f
   assert.equal(await appEval((a) => a.root.dataset.bg), 'dark');
 });
 
+await test('FR: Pictures folder header, menu key names and tooltips are French', async () => {
+  await toGallery();
+  await nav('folders');
+  await s.page.waitForFunction(() => document.querySelector('.app-photos .ph-tree-row.selected'));
+  await s.page.waitForTimeout(400);
+  assert.equal(await s.page.locator('.app-photos .ph-title').last().textContent(), 'Images', 'Pictures root shown as "Images"');
+  assert.equal(await s.page.locator('.app-photos .ph-tree-row').first().textContent(), 'Images');
+  await nav('gallery');
+  await waitTiles(s, 3);
+  const tile = await s.page.locator('.app-photos .ph-gallery .ph-tile').first().boundingBox();
+  await s.page.mouse.click(tile.x + 20, tile.y + 20, { button: 'right' });
+  await s.page.waitForSelector('.menu .menu-item');
+  const shortcuts = await s.page.locator('.menu .menu-item .shortcut').allTextContents();
+  await s.page.keyboard.press('Escape');
+  assert.ok(shortcuts.includes('Entrée') && shortcuts.includes('Suppr'), shortcuts.join(' | '));
+  assert.ok(!shortcuts.some((k) => /^(Enter|Del)$/.test(k)), 'no English key names');
+  await s.page.locator('.app-photos .ph-gallery .ph-tile').first().click();
+  await s.page.waitForFunction(() => [...document.querySelectorAll('.win.app-photos')].pop().__photos.mode === 'viewer');
+  assert.equal(await s.page.locator('.app-photos [data-cmd="delete"]').last().getAttribute('data-tip'), 'Supprimer (Suppr)');
+  assert.match(await s.page.locator('.app-photos .ph-vback').last().getAttribute('data-tip'), /\(Échap\)$/);
+  const st = await s.page.locator('.app-photos .ph-stage').last().boundingBox();
+  await s.page.mouse.click(st.x + st.width / 2, st.y + st.height / 2, { button: 'right' });
+  await s.page.waitForSelector('.menu .menu-item');
+  const vk = await s.page.locator('.menu .menu-item .shortcut').allTextContents();
+  await s.page.keyboard.press('Escape');
+  assert.ok(vk.includes('Ctrl+Maj+S'), vk.join(' | '));
+  await appEval((a) => a.startSlideshow(a.viewer.list, a.viewer.index));
+  await s.page.waitForTimeout(400);
+  assert.equal(await s.page.locator('.app-photos [data-cmd="ss-play"]').last().getAttribute('data-tip'), 'Pause (Espace)');
+  await appEval((a) => a.stopSlideshow());
+  await appEval((a) => a.closeViewer());
+});
+
 errs = consoleErrors(s);
 await test('no console errors in French / dark', async () => {
   assert.deepEqual(errs, []);
@@ -1594,6 +1666,272 @@ await test('no console errors in French / dark', async () => {
 await s.close();
 if (!KEEP) fs.rmSync(home, { recursive: true, force: true });
 else console.log(`kept: ${home}`);
+
+// ------------------------------------------------------------------ QA hardening: hostile data, error paths, races, leaks
+{
+  const qhome = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-photos-qa-'));
+  const qpics = path.join(qhome, 'Pictures');
+  fs.mkdirSync(qpics, { recursive: true });
+  const put = (dir, name, buf, ms = NOW) => {
+    fs.mkdirSync(dir, { recursive: true });
+    const p = path.join(dir, name);
+    fs.writeFileSync(p, buf);
+    setTime(p, ms);
+    return p;
+  };
+  const HOSTILE = ['<img src=x onerror="window.__phx=1">.png', '"q\' & <b>bold.png', 'new\nline.png', '#hash?query%2e.png', `${'long-name-'.repeat(23)}end.png`];
+  HOSTILE.forEach((n, i) => put(qpics, n, png(320, 200, i), NOW - i * 3600e3));
+  const evilDir = path.join(qpics, '<svg onload="window.__phx3=1">');
+  put(evilDir, 'inside.png', png(200, 300, 3), NOW - 86400e3);
+  for (let i = 0; i < 12; i++) put(path.join(qpics, 'Batch'), `b${String(i).padStart(2, '0')}.png`, png(400, 300, i), NOW - 40 * 86400e3 - i * 1000);
+  put(qpics, 'hostile.svg', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" onload="window.top.__phx4=1"><script>window.top.__phx5=1</script><rect width="300" height="200" fill="teal"/></svg>'), NOW - 5 * 86400e3);
+  s = await launchShell({ home: qhome, keepHome: true, theme: 'light', lang: 'en' });
+  current = s;
+  const jpg = Buffer.from(
+    await s.page.evaluate(async () => {
+      const c = document.createElement('canvas');
+      c.width = 400;
+      c.height = 300;
+      c.getContext('2d').fillRect(0, 0, 400, 300);
+      const b = new Uint8Array(await (await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9))).arrayBuffer());
+      let bin = '';
+      for (const v of b) bin += String.fromCharCode(v);
+      return btoa(bin);
+    }),
+    'base64',
+  );
+  put(qpics, 'exif-evil.jpg', withExif(jpg, { make: '<img src=x onerror="window.__phx2=1">', model: '<script>window.__phx6=1</script>Z9', date: '2024:01:02 03:04:05' }), NOW - 2 * 86400e3);
+  const dialogs = () => s.page.evaluate(() => [...document.querySelectorAll('.dialog-layer:not(.closing)')].map((d) => d.textContent));
+  const dismiss = async () => {
+    for (let i = 0; i < 4 && (await dialogs()).length; i++) {
+      await s.page.keyboard.press('Escape');
+      await s.page.waitForTimeout(250);
+    }
+  };
+
+  await test('security: hostile file / folder names and EXIF text are shown as text, never run as HTML', async () => {
+    await launchPhotos(s);
+    await waitTiles(s, 10);
+    const names = await appEval((a) => a.lib.items.map((x) => x.name));
+    for (const n of HOSTILE) assert.ok(names.includes(n), `listed: ${JSON.stringify(n)}`);
+    // Viewer + info pane for every picture, folders page with the hostile folder, an album with a hostile name, search.
+    await appEval(async (a) => {
+      for (let i = 0; i < a.lib.items.length; i++) {
+        a.openViewer(a.lib.items, i, { from: 'gallery' });
+        a.viewer.toggleInfo(true);
+        await new Promise((r) => setTimeout(r, 120));
+      }
+    });
+    await s.page.waitForTimeout(500);
+    const info = await appEval(async (a) => {
+      a.viewer.show(a.lib.items.findIndex((x) => x.name === 'exif-evil.jpg'));
+      await new Promise((r) => setTimeout(r, 700));
+      return a.viewer.info.textContent;
+    });
+    assert.match(info, /<img src=x onerror="window.__phx2=1"> <script>window.__phx6=1<\/script>Z9/, 'EXIF camera text shown literally');
+    await appEval((a) => (a.closeViewer(), a.gallery.navigate({ page: 'folders' })));
+    await s.page.waitForTimeout(500);
+    await appEval((a, d) => a.gallery._selectFolder(d), evilDir);
+    await s.page.waitForTimeout(600);
+    assert.equal(await s.page.locator('.app-photos .ph-title').last().textContent(), path.basename(evilDir));
+    await appEval((a) => {
+      a.lib.createAlbum('<img src=x onerror="window.__phx7=1">', a.lib.items.slice(0, 2).map((x) => x.path));
+      a.gallery.navigate({ page: 'albums' });
+    });
+    await s.page.waitForTimeout(400);
+    await appEval((a) => {
+      a.gallery.navigate({ page: 'gallery' });
+      a.gallery.searchInput.value = '<img src=x onerror=window.__phx8=1>';
+      a.gallery.search(a.gallery.searchInput.value);
+    });
+    await s.page.waitForTimeout(400);
+    const flags = await s.page.evaluate(() => Object.keys(window).filter((k) => k.startsWith('__phx')));
+    assert.deepEqual(flags, [], 'no injected script ran');
+    assert.equal(await s.page.locator('.app-photos b, .app-photos script, .app-photos img[src="x"], .app-photos svg[onload]').count(), 0, 'no injected elements');
+    await appEval((a) => (a.gallery.searchInput.value = '', a.gallery.search('')));
+  });
+
+  await test('errors: a missing file never blocks the launch; background / copy refuse missing files; plain-word messages', async () => {
+    await closePhotos(s);
+    const t0 = Date.now();
+    await s.aurora(async () => {
+      await window.__aurora.registry.launch('photos', { file: '/nonexistent/dir/ghost.png' });
+    });
+    assert.ok(Date.now() - t0 < 8000, 'launch() resolves without waiting for the alert');
+    await s.page.waitForFunction(() => document.querySelector('.app-photos .dialog-layer'));
+    assert.match((await dialogs()).join(' '), /ghost\.png/);
+    assert.equal(await appEval((a) => a.mode), 'gallery', 'gallery underneath the message');
+    await dismiss();
+    // A picture deleted behind Photos' back.
+    const victim = put(qpics, 'victim.png', png(300, 200, 9), NOW + 1000);
+    await closePhotos(s);
+    await launchPhotos(s, { file: victim });
+    await s.page.waitForFunction(() => [...document.querySelectorAll('.win.app-photos')].pop().__photos.viewer?.img?.complete);
+    fs.unlinkSync(victim);
+    const wp0 = await s.aurora(() => window.__aurora.settings.get('wallpaper'));
+    await appEval((a) => a.setAs('desktop', a.viewer.item));
+    await s.page.waitForFunction(() => document.querySelector('.app-photos .dialog-layer'));
+    assert.match((await dialogs()).join(' '), /background[\s\S]*moved or deleted/, 'plain explanation');
+    assert.equal(await s.aurora(() => window.__aurora.settings.get('wallpaper')), wp0, 'wallpaper unchanged');
+    await dismiss();
+    await s.aurora(() => window.__aurora.shell.clipboard.setFiles(['/tmp/marker'], 'copy'));
+    await appEval((a) => a.copyItems([a.viewer.item]));
+    await s.page.waitForTimeout(400);
+    assert.deepEqual((await s.aurora(() => window.__aurora.shell.clipboard.getFiles())).paths, ['/tmp/marker'], 'clipboard untouched');
+    assert.match((await dialogs()).join(' '), /victim\.png” was moved or deleted/);
+    await dismiss();
+    await appEval((a) => a.rotateFile(a.viewer.item, 1).catch((err) => void a.error(a.t('rotateFailed'), err)));
+    await s.page.waitForFunction(() => document.querySelector('.app-photos .dialog-layer'));
+    const msg = (await dialogs()).join(' ');
+    assert.match(msg, /Couldn’t rotate this photo[\s\S]*The file was moved or deleted\./);
+    assert.doesNotMatch(msg, /HTTP|ENOENT/, 'no raw error codes');
+    await dismiss();
+    // A save that fails for lack of permission says so in plain words.
+    const ok = await appEval((a) => [a.errorText({ code: 'EACCES', message: "EACCES: permission denied, open '/x'" }), a.errorText({ code: 'ENOSPC', message: 'ENOSPC' }), a.errorText(new Error('decode'))]);
+    assert.deepEqual(ok, ['You don’t have permission to use this location.', 'There isn’t enough space on the disk.', 'This file isn’t a valid picture.']);
+  });
+
+  await test('races: double close, double save, double delete and restarting a slideshow stay single and consistent', async () => {
+    await closePhotos(s);
+    const target = path.join(qpics, 'Batch', 'b03.png');
+    await launchPhotos(s, { file: target });
+    await waitViewerImage('b03.png');
+    await appEval((a) => a.openEditor(a.viewer.item));
+    await s.page.waitForFunction(() => [...document.querySelectorAll('.win.app-photos')].pop().__photos.editor?.preview);
+    await appEval((a) => a.editor.setEdit({ rot: 1 }));
+    // Close button clicked twice: one prompt.
+    await s.aurora(() => {
+      const w = window.__aurora.wm.byApp('photos').at(-1);
+      w.close();
+      setTimeout(() => w.close(), 30);
+    });
+    await s.page.waitForTimeout(700);
+    assert.equal((await dialogs()).length, 1, 'one unsaved-changes prompt');
+    await dismiss();
+    assert.equal(await s.aurora(() => window.__aurora.wm.byApp('photos').length), 1, 'Cancel keeps the window');
+    // Save twice in a row (double click / Ctrl+S repeat): one save picker.
+    await s.aurora(() => {
+      const a = [...document.querySelectorAll('.win.app-photos')].pop().__photos;
+      a.editor.save('copy');
+      a.editor.save('copy');
+    });
+    await s.page.waitForTimeout(700);
+    assert.equal((await dialogs()).length, 1, 'one save picker');
+    await dismiss();
+    await appEval((a) => a.closeEditor({ force: true }));
+    await s.page.waitForFunction(() => [...document.querySelectorAll('.win.app-photos')].pop().__photos.mode === 'viewer');
+    // Double click on Delete (no confirmation): the file is trashed once, no error.
+    await appEval((a) => a.lib.setPref('confirmDelete', false));
+    const before = await appEval((a) => a.viewer.list.length);
+    await s.page.locator('.app-photos [data-cmd="delete"]').last().dblclick();
+    await s.page.waitForTimeout(1200);
+    assert.deepEqual(await dialogs(), [], 'no "couldn’t delete" error');
+    assert.equal(await appEval((a) => a.viewer.list.length), before - 1, 'one file deleted');
+    assert.equal(fs.existsSync(target), false);
+    await appEval((a) => a.lib.setPref('confirmDelete', true));
+    // Starting a slideshow twice from a viewer opened from a file: Esc returns to that viewer.
+    await appEval((a) => {
+      a.startSlideshow(a.viewer.list, a.viewer.index);
+      a.startSlideshow(a.viewer.list, a.viewer.index);
+    });
+    await s.page.waitForTimeout(600);
+    await s.page.keyboard.press('Escape');
+    await s.page.waitForFunction(() => [...document.querySelectorAll('.win.app-photos')].pop().__photos.mode === 'viewer');
+    assert.equal(await appEval((a) => !a.viewer.el.hidden && !!a.viewer.item), true, 'viewer shown again');
+  });
+
+  await test('slideshow: unreadable pictures are skipped, an all-unreadable list stops with a message; paused browsing stays still', async () => {
+    await appEval((a) => {
+      a.lib.setPref('slideshowLoop', true);
+      const bad = ['/nope/a.png', '/nope/b.png'].map((p) => ({ path: p, name: p.slice(6), ext: '.png', mtime: 1, size: 1 }));
+      a.startSlideshow(bad, 0);
+    });
+    await s.page.waitForFunction(() => [...document.querySelectorAll('.win.app-photos')].pop().__photos.mode === 'viewer', null, { timeout: 8000 });
+    assert.match((await dialogs()).join(' '), /None of these pictures can be shown/);
+    await dismiss();
+    // Ken Burns: browsing while paused shows the next photo without starting its motion.
+    await appEval((a) => {
+      a.lib.setPref('slideshowTransition', 'kenburns');
+      a.startSlideshow(a.viewer.list, 0);
+    });
+    await s.page.waitForTimeout(900);
+    await s.page.keyboard.press(' ');
+    await s.page.keyboard.press('ArrowRight');
+    await s.page.waitForTimeout(1300);
+    const running = await s.page.evaluate(() =>
+      [...document.querySelectorAll('.app-photos .ph-ss-img')].flatMap((i) => i.getAnimations()).filter((x) => x.playState === 'running').length,
+    );
+    assert.equal(running, 0, 'no Ken Burns motion while paused');
+    assert.equal(await appEval((a) => a.slideshow.pos), 1);
+    await s.page.keyboard.press('Escape');
+    await appEval((a) => a.lib.setPref('slideshowTransition', 'crossfade'));
+  });
+
+  await test('thumbnails: a late answer from a slow worker is never used for another picture', async () => {
+    const r = await appEval(async (a) => {
+      const T = a.thumbs;
+      const item = a.lib.items.find((x) => x.name === 'b05.png');
+      T.forget(item);
+      T.failed.delete(item.key);
+      const posted = [];
+      const slot = { busy: false, cb: null, w: { postMessage: (m) => posted.push(m), terminate() {} } };
+      const job = { item, resolve() {}, prio: 0, seq: 4242 };
+      const run = T._run(job, slot);
+      // A stale answer (another job's id) arrives first: it must be ignored...
+      const stale = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' });
+      slot.cb?.({ id: 4241, blob: stale, w: 1, h: 1 });
+      const stillWaiting = !!slot.cb;
+      // ...then this job's own failure: the main-thread fallback makes the real thumbnail.
+      slot.cb?.({ id: 4242, error: 'boom' });
+      await run;
+      const url = T.url(item);
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      return { posted: posted.length, stillWaiting, w: img.naturalWidth, h: img.naturalHeight };
+    });
+    assert.equal(r.posted, 1);
+    assert.equal(r.stillWaiting, true, 'stale message ignored');
+    assert.ok(r.w > 100 && r.h > 50, `real thumbnail ${r.w}x${r.h}`);
+  });
+
+  await test('keyboard: arrows on the focused zoom slider zoom instead of browsing photos', async () => {
+    await appEval((a) => a.viewer.go(2));
+    await s.page.waitForTimeout(400);
+    const i0 = await appEval((a) => a.viewer.index);
+    const s0 = await appEval((a) => a.viewer.z.s);
+    await s.page.locator('.app-photos .ph-zoom-slider').last().focus();
+    for (let k = 0; k < 6; k++) await s.page.keyboard.press('ArrowRight');
+    await s.page.waitForTimeout(200);
+    assert.equal(await appEval((a) => a.viewer.index), i0, 'same photo');
+    assert.ok((await appEval((a) => a.viewer.z.s)) > s0, 'zoomed in');
+    await s.page.locator('.app-photos .ph-stage').last().focus();
+    await s.page.keyboard.press('Control+0');
+  });
+
+  await test('leaks: opening and closing Photos 15 times leaves no window, listener or folder watcher behind', async () => {
+    await closePhotos(s);
+    const nodes0 = await s.page.evaluate(() => document.getElementsByTagName('*').length);
+    for (let i = 0; i < 15; i++) {
+      await launchPhotos(s, i % 3 === 1 ? { file: path.join(qpics, 'Batch', 'b01.png') } : undefined);
+      if (i % 5 === 2) await appEval((a) => a.openEditor(a.lib.items.find((x) => x.name === 'b02.png')));
+      await s.page.waitForTimeout(250);
+      await closePhotos(s);
+    }
+    await s.page.waitForTimeout(600);
+    const st = await s.page.evaluate(async () => {
+      const L = (await import('app://shell/apps/photos/lib/library.js')).sharedLibrary();
+      const T = (await import('app://shell/apps/photos/lib/thumbs.js')).sharedThumbs();
+      return { subs: L.subs.size, users: L.users, watch: L._watchId, thumbListeners: T.listeners.size, queue: T.queue.length, pending: T.pending.size, nodes: document.getElementsByTagName('*').length, menus: document.querySelectorAll('.menu, .dialog-layer').length };
+    });
+    assert.deepEqual({ subs: st.subs, users: st.users, watch: st.watch, thumbListeners: st.thumbListeners, menus: st.menus }, { subs: 0, users: 0, watch: null, thumbListeners: 0, menus: 0 });
+    assert.ok(st.nodes <= nodes0 + 5, `DOM back to its size (${nodes0} -> ${st.nodes})`);
+    assert.deepEqual(consoleErrors(s).filter((l) => !/404 \(Not Found\)/.test(l)), [], 'no console errors (404s are the deliberately missing files)');
+  });
+
+  await s.close();
+  if (!KEEP) fs.rmSync(qhome, { recursive: true, force: true });
+}
 
 // ------------------------------------------------------------------ performance: 1000 pictures
 await test('performance: 1000 pictures — first paint, virtualization, scroll frame times, warm start', async () => {

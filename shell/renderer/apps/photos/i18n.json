@@ -293,7 +293,25 @@
       "16c60c": "Green",
       "0078d4": "Blue",
       "886ce4": "Purple"
-    }
+    },
+    "key": {
+      "enter": "Enter",
+      "del": "Del",
+      "space": "Space",
+      "esc": "Esc",
+      "shift": "Shift"
+    },
+    "err": {
+      "notFound": "The file was moved or deleted.",
+      "denied": "You don’t have permission to use this location.",
+      "noSpace": "There isn’t enough space on the disk.",
+      "readOnly": "This location is read-only.",
+      "exists": "A file with this name already exists.",
+      "invalid": "This file isn’t a valid picture.",
+      "isDir": "This is a folder, not a picture."
+    },
+    "missingFile": "“{name}” was moved or deleted.",
+    "slideshowNone": "None of these pictures can be shown."
   },
   "fr": {
     "appName": "Photos",
@@ -589,6 +607,24 @@
       "16c60c": "Vert",
       "0078d4": "Bleu",
       "886ce4": "Violet"
-    }
+    },
+    "key": {
+      "enter": "Entrée",
+      "del": "Suppr",
+      "space": "Espace",
+      "esc": "Échap",
+      "shift": "Maj"
+    },
+    "err": {
+      "notFound": "Le fichier a été déplacé ou supprimé.",
+      "denied": "Vous n’avez pas l’autorisation d’utiliser cet emplacement.",
+      "noSpace": "L’espace disque est insuffisant.",
+      "readOnly": "Cet emplacement est en lecture seule.",
+      "exists": "Un fichier portant ce nom existe déjà.",
+      "invalid": "Ce fichier n’est pas une image valide.",
+      "isDir": "Il s’agit d’un dossier, pas d’une image."
+    },
+    "missingFile": "« {name} » a été déplacé ou supprimé.",
+    "slideshowNone": "Aucune de ces images ne peut être affichée."
   }
 }

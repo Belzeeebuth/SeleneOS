@@ -46,9 +46,12 @@ export function popover(app, anchor, content, { className = '', onClose, width, 
       e.preventDefault();
       e.stopPropagation();
       handle.close(null);
+    } else if (e.key === 'Tab' && openPop === handle && !document.querySelector('.menu') && !app.win.el.querySelector('.dialog-layer:not(.closing)')) {
+      trapPopoverTab(e);
     }
   };
   const handle = {
+    app,
     el,
     done,
     closed: false,
@@ -73,8 +76,25 @@ export function popover(app, anchor, content, { className = '', onClose, width, 
   return handle;
 }
 
-export function closePopover() {
-  openPop?.close(null);
+/** Close the open flyout (only if it belongs to `app` when one is given: a closing window must not take its
+ *  document listeners and a reference to itself along, nor close another To Do window's flyout). */
+export function closePopover(app) {
+  if (!openPop || (app && openPop.app !== app)) return;
+  openPop.close(null);
+}
+
+/** Tab / Shift+Tab stay inside the open flyout (a WinUI flyout keeps the keyboard focus until it is dismissed). */
+export function trapPopoverTab(e) {
+  if (!openPop || e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey) return false;
+  const stops = [...openPop.el.querySelectorAll('button, input, select, textarea, [tabindex]')].filter((x) => !x.disabled && x.tabIndex >= 0 && x.getClientRects().length);
+  if (!stops.length) return false;
+  const i = stops.indexOf(document.activeElement);
+  const next = e.shiftKey ? (i <= 0 ? stops[stops.length - 1] : null) : i < 0 || i === stops.length - 1 ? stops[0] : null;
+  if (!next && openPop.el.contains(document.activeElement)) return false;
+  e.preventDefault();
+  e.stopPropagation();
+  (next || stops[0]).focus();
+  return true;
 }
 
 // ------------------------------------------------------------------ calendar grid
@@ -412,7 +432,9 @@ export function shortcutsHelp(app) {
     ['Space', 'keys.toggle'],
     ['Enter', 'keys.open'],
     ['Delete', 'keys.delete'],
+    ['Delete', 'keys.deleteList'],
     ['Ctrl+A', 'keys.selectAll'],
+    ['F6', 'keys.pane'],
     ['Esc', 'keys.close'],
     ['Ctrl+Shift+?', 'keys.help'],
   ];

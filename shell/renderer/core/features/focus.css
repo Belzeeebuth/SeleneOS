@@ -1,0 +1,107 @@
+/* Focus mode (features/focus.js; docs/PERSONALIZATION.md §10.3). The veil (.focus-dim) and the simplified taskbar
+   rules live in core/shell-personalize.css; this file has the desktop icons, the start banner and the tray chip. */
+
+/* hideIcons: the desktop icons fade away (and cannot be clicked) during a session */
+.desk-icons {
+  transition: opacity 420ms var(--ease-std, ease);
+}
+:root[data-focus-noicons="on"] .desk-icons {
+  opacity: 0;
+  pointer-events: none;
+}
+:root[data-animations="off"] .desk-icons {
+  transition: none;
+}
+
+/* the banner shown when a session starts */
+.focus-banner {
+  position: fixed;
+  left: 50%;
+  top: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(480px, calc(100vw - 32px));
+  padding: 10px 18px 10px 12px;
+  border-radius: var(--radius-lg, 8px);
+  background: var(--fly-bg, var(--solid));
+  border: 1px solid var(--fly-stroke, var(--stroke));
+  box-shadow: var(--fly-shadow, var(--shadow-flyout));
+  backdrop-filter: blur(var(--blur, 40px)) saturate(var(--blur-sat, 160%));
+  color: var(--text);
+  transform: translateX(-50%);
+  animation: focus-banner-in 320ms var(--ease, ease) both;
+  cursor: default;
+}
+.focus-banner.leaving {
+  animation: focus-banner-out 200ms var(--ease-in, ease-in) both;
+}
+:root[data-tb-pos="top"] .focus-banner {
+  top: calc(var(--taskbar-h) + 16px);
+}
+:root[data-transparency="off"] .focus-banner {
+  backdrop-filter: none;
+}
+.focus-banner-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--on-accent, #fff);
+  background: var(--accent);
+}
+.focus-banner-text {
+  min-width: 0;
+}
+.focus-banner-title {
+  font-weight: 600;
+  line-height: 20px;
+}
+.focus-banner-sub {
+  font-size: var(--fs-caption);
+  line-height: 16px;
+  color: var(--text-2);
+}
+@keyframes focus-banner-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -16px);
+  }
+}
+@keyframes focus-banner-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -12px);
+  }
+}
+:root[data-animations="off"] .focus-banner,
+:root[data-animations="off"] .focus-banner.leaving {
+  animation: none;
+}
+:root[data-style="contrast"] .focus-banner {
+  border: 2px solid var(--hc-fg);
+  background: var(--hc-bg);
+}
+:root[data-style="retro"] .focus-banner {
+  border-radius: 0;
+  border: 0;
+  box-shadow: var(--bevel-out), var(--fly-shadow, none);
+}
+
+/* the tray chip: accent text, a subtle accent fill so it reads as "on" */
+#taskbar .tb-focus-pill {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+#taskbar .tb-focus-pill:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+:root[data-style="contrast"] #taskbar .tb-focus-pill {
+  background: transparent;
+  border: 2px solid var(--hc-fg);
+}

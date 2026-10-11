@@ -1,0 +1,5 @@
+# Notes: notebook icons and the welcome note use emoji (colour emoji font); code blocks and inline code use the
+# monospace token (Cascadia Code, DejaVu Sans Mono fallback). Storage, sanitizer and Markdown are pure JS.
+fonts-noto-color-emoji
+fonts-cascadia-code
+fonts-dejavu-core

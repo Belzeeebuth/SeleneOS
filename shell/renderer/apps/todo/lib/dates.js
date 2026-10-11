@@ -10,6 +10,7 @@
 //   shiftReminder(remindAt, oldDue, newDue) -> same wall-clock time, moved by the due-date delta
 //   reminderPresets(now) -> { laterToday | null, tomorrow, nextWeek }   duePresets(now) -> { today, tomorrow, nextWeek }
 //   makeRepeat(kind, due, extra) -> repeat rule   repeatKey(repeat) -> preset kind or 'custom'
+//   rebaseRepeat(repeat, newDue) -> rule after the due date moved   validTs(v) -> sane epoch ms or null
 //
 // A repeat rule is { kind, freq: 'day'|'week'|'month'|'year', interval >= 1, days?: [0..6] (week),
 // anchorDay?: 1..31 (month / year: the day of month to come back to, e.g. 31 -> Jan 31, Feb 28, Mar 31) }.
@@ -151,6 +152,22 @@ export function nextDue(due, r, weekStart = 0) {
     default:
       return null;
   }
+}
+
+/** The rule after the user moves the due date to `due`: the presets follow the new date (Weekly repeats on the
+ *  new weekday, Monthly / Yearly on the new day of the month), custom monthly / yearly rules take the new day
+ *  of the month, custom weekly rules keep the weekdays the user picked. */
+export function rebaseRepeat(r, due) {
+  if (!r || !isYmd(due)) return r;
+  if (r.kind === 'weekly' || r.kind === 'monthly' || r.kind === 'yearly') return { ...makeRepeat(r.kind, due), interval: r.interval || 1 };
+  if (r.freq === 'month' || r.freq === 'year') return { ...r, anchorDay: parseYmd(due).getDate() };
+  return r;
+}
+
+/** A plausible epoch-ms timestamp (Date accepts it and it is after 1970), else null. */
+export function validTs(v) {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
+  return Number.isFinite(n) && n > 0 && n < 8.64e15 ? n : null;
 }
 
 /** First due date on or after `day` that matches the rule (weekly rules on specific days). */

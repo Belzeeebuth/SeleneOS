@@ -3,7 +3,7 @@
 // timegrid.js and agenda.js; the editor / peek / quick-create flyouts in editor.js; dialogs in dialogs.js.
 import { createFmt } from './fmt.js';
 import { miniMonth } from './minical.js';
-import { openPopover, closeAllPopovers } from './pickers.js';
+import { openPopover, closeAllPopovers, wrapTab } from './pickers.js';
 import { renderMonth } from './month.js';
 import { renderTimeGrid } from './timegrid.js';
 import { renderAgenda, renderSearch } from './agenda.js';
@@ -55,10 +55,12 @@ export class CalendarApp {
     } catch (err) {
       console.error('[calendar] load failed', err);
     }
+    await this.backupDamaged();
     this.state.view = this.prefs.view;
     this.build();
     this.render({ animate: false });
     this.syncReminders();
+    if (this._damaged) this.toast(this.t('dataDamaged', { name: this._damaged }));
     // keep "now" fresh: red line every 30 s, today highlight after midnight
     let lastDay = localKey(new Date());
     const tick = setInterval(() => {
@@ -83,6 +85,11 @@ export class CalendarApp {
     );
     // shortcuts work wherever the focus is in the window body (not in dialogs, which live beside it)
     this.win.body.addEventListener('keydown', (e) => this.onKey(e));
+    // Tab / Shift+Tab cycle inside the window like a Windows app instead of walking out to the taskbar
+    // (dialogs trap Tab themselves)
+    this.win.el.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab' && !e.target.closest?.('.dialog-layer') && !this.win.el.querySelector('.dialog-layer:not(.closing)')) wrapTab(e, this.win.el);
+    });
     const ro = new ResizeObserver(() => this.onResize());
     ro.observe(this.win.body);
     this.offs.push(() => ro.disconnect());
@@ -96,6 +103,34 @@ export class CalendarApp {
     });
     await this.handleArgs(ctx.args || {});
     if (!this.win.el.contains(document.activeElement) || document.activeElement === this.win.body) this.viewEl.focus({ preventScroll: true });
+  }
+
+  // A data file that can't be read at all loads as empty (storage:get falls back): keep a copy of it
+  // (events.damaged-<time>.json) before the next save replaces it, so nothing is lost for good.
+  async backupDamaged() {
+    const { api } = this.ctx;
+    try {
+      const dir = await api.invoke('storage:dir', APP_ID);
+      for (const name of ['events', 'calendars', 'prefs']) {
+        const file = `${dir}/${name}.json`;
+        if (!(await api.invoke('fs:exists', file))) continue;
+        let bad = false;
+        try {
+          const v = JSON.parse(await api.invoke('fs:readText', file, { maxBytes: 64 * 1024 * 1024 }));
+          bad = name === 'events' && !Array.isArray(v);
+        } catch (err) {
+          bad = err instanceof SyntaxError;
+        }
+        if (bad) {
+          const copy = `${name}.damaged-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+          await api.invoke('fs:rename', file, copy);
+          console.warn(`[calendar] ${name}.json could not be read; a copy was kept next to it`);
+          this._damaged = copy;
+        }
+      }
+    } catch (err) {
+      console.warn('[calendar] data check failed', err?.message || err);
+    }
   }
 
   async handleArgs(args = {}) {
@@ -483,7 +518,8 @@ export class CalendarApp {
       case 'day':
         return [d, addDays(d, 1)];
       case 'workweek': {
-        const ws = startOfWeek(d, 1);
+        // the work days of the week (as the Week view shows it) that contains the date
+        const ws = startOfWeek(d, this.firstDay());
         const days = this.workDays(ws);
         return [days[0], addDays(days[days.length - 1], 1)];
       }
@@ -510,7 +546,7 @@ export class CalendarApp {
     return this.visibleRange();
   }
 
-  // Work week days starting at the Monday-based week of `ws`, in display order from the first day.
+  // Work week days of the week that starts at `ws` (first day of the week), in display order.
   workDays(ws) {
     const wd = this.prefs.workDays.length ? this.prefs.workDays : [1, 2, 3, 4, 5];
     const first = this.firstDay();
@@ -753,22 +789,33 @@ export class CalendarApp {
     return JSON.parse(JSON.stringify(this.data.events));
   }
 
-  async commit(events, { undoLabel = null, before = null, select = undefined, render = true } = {}) {
+  async commit(events, { undoLabel = null, before = null, select = undefined, render = true, onUndo = null } = {}) {
     this.data.events = events;
     if (select !== undefined) this.state.selected = select;
     if (render) this.render({ animate: false, keepScroll: true });
     if (undoLabel && before) {
       this.toast(undoLabel, async () => {
-        await this.commit(before, { render: true });
+        await this.commit(before, { render: true, select: null });
+        await onUndo?.();
       });
     }
     await this.saveEvents();
   }
 
   // Create or replace an event (from the editor or quick create).
+  // An event created in (or moved to) a hidden calendar would vanish from the screen: show that calendar.
+  showCalendarOf(calendarId) {
+    const c = this.calendar(calendarId);
+    if (!c || c.visible) return;
+    c.visible = true;
+    this.renderCalendars();
+    this.saveCalendars();
+  }
+
   async upsert(ev, { toastLabel } = {}) {
     const clean = sanitizeEvent(ev);
     if (!clean) return null;
+    this.showCalendarOf(clean.calendarId);
     const before = this.snapshot();
     const list = this.data.events.filter((e) => e.id !== clean.id);
     list.push(clean);
@@ -780,6 +827,7 @@ export class CalendarApp {
   async applyOccurrenceEdit(o, changes) {
     const ev = this.data.events.find((e) => e.id === o.eventId);
     if (!ev) return;
+    if (changes.calendarId) this.showCalendarOf(changes.calendarId);
     const before = this.snapshot();
     const next = updateOccurrence(ev, o.key, changes);
     const list = this.data.events.map((e) => (e.id === ev.id ? next : e));
@@ -787,6 +835,7 @@ export class CalendarApp {
   }
 
   async applySeriesEdit(ev, changes) {
+    if (changes.calendarId) this.showCalendarOf(changes.calendarId);
     const before = this.snapshot();
     const next = updateSeries(ev, changes);
     if (!next) return;
@@ -946,9 +995,10 @@ export class CalendarApp {
     } else if (k === 't' || k === 'T') {
       handled();
       this.goToday();
-    } else if (/^[1-5]$/.test(k)) {
+    } else if (/^[1-5]$/.test(k) || /^(Digit|Numpad)[1-5]$/.test(e.code || '')) {
+      // e.code too: on a French (AZERTY) keyboard the digit row types & é " ' ( without Shift
       handled();
-      this.setView(VIEWS[Number(k) - 1]);
+      this.setView(VIEWS[Number(/^[1-5]$/.test(k) ? k : e.code.slice(-1)) - 1]);
     } else if (k === '/') {
       handled();
       this.searchInput.focus();
@@ -958,7 +1008,8 @@ export class CalendarApp {
     } else if (k === 'PageUp' || k === 'PageDown') {
       handled();
       this.step(k === 'PageUp' ? -1 : 1);
-    } else if (k === 'Delete' || k === 'Backspace') {
+    } else if ((k === 'Delete' || k === 'Backspace') && !e.target.closest('.ac-pane, .ac-toolbar')) {
+      // (not while a pane / toolbar control has the focus: Delete there must not remove the event)
       const o = this.selectedOccurrence();
       if (o && !o.readOnly) {
         handled();

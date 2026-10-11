@@ -155,14 +155,23 @@ export class Thumbs {
     let res = null;
     if (slot) {
       slot.busy = true;
+      const id = job.seq;
       res = await new Promise((resolve) => {
-        const timer = setTimeout(() => resolve({ error: 'timeout' }), 30000);
+        const timer = setTimeout(() => {
+          // A worker stuck on a huge / hostile file is replaced: its late answer must never be taken for
+          // the next job's thumbnail (it would be cached and saved under the wrong key).
+          slot.cb = null;
+          slot.w.terminate();
+          this.workers = this.workers.filter((x) => x !== slot);
+          resolve({ error: 'timeout' });
+        }, 30000);
         slot.cb = (d) => {
+          if (d?.id !== id && d?.error !== 'worker') return; // stale answer
           clearTimeout(timer);
           slot.cb = null;
           resolve(d);
         };
-        slot.w.postMessage({ id: job.seq, url: this.api.mediaUrl(item.path), height: TH_HEIGHT, maxWidth: TH_MAXW });
+        slot.w.postMessage({ id, url: this.api.mediaUrl(item.path), height: TH_HEIGHT, maxWidth: TH_MAXW });
       });
     }
     if (!res || res.error) res = await this._mainThread(item).catch((err) => ({ error: String(err?.message || err) }));

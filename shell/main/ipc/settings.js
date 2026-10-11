@@ -81,9 +81,12 @@ const DEFAULTS = {
   // layout: default | morePins | moreRecommended | list; background: acrylic | solid | accent | wallpaper;
   // folders: shortcuts next to the power button (documents, downloads, music, pictures, videos, files, settings, home, network);
   // groups: app folders in Pinned [{ id: 'g-…', name, apps: [appId] }]
-  start: { layout: 'default', background: 'acrylic', folders: [], groups: [] },
+  // showRecentApps / showMostUsed: apps in Recommended (recently added for a week / launched most)
+  start: { layout: 'default', background: 'acrylic', folders: [], groups: [], showRecentApps: true, showMostUsed: false },
   // active is runtime state (never in profiles; a new session starts with it off); dimLevel 0–100; duration in minutes (0 = until off)
-  focusMode: { active: false, hideNotifications: true, dimDesktop: true, dimLevel: 40, simplifyTaskbar: true, duration: 0 },
+  // endsAt (ms, 0 = until turned off) and prevDnd (Do not disturb before the session) are runtime state too: a session
+  // survives a restart of the shell until endsAt; hideIcons fades the desktop icons
+  focusMode: { active: false, hideNotifications: true, dimDesktop: true, dimLevel: 40, hideIcons: false, simplifyTaskbar: true, duration: 0, endsAt: 0, prevDnd: null },
   // Area B3 — packs (core/packs.js, core/sounds.js) + input (core/shortcuts.js, features/hotkeys.js, features/snaplayouts.js):
   cursorPack: 'default', // default (system) | classic | midnight | accent | large | highvis | retro
   iconPack: 'fluent', // fluent (the apps' own icons) | tiles | accent | graphite | outline
@@ -102,6 +105,10 @@ Object.assign(DEFAULTS.taskbar, {
   combine: 'always', // always | whenFull | never (one button per window)
   widgets: [], // tray mini widgets: 'weather' | 'cpu' | 'memory' | 'network'
   search: null, // null = follows showSearch | 'hidden' | 'icon' | 'box'
+  tray: { network: true, volume: true, battery: true }, // status icons shown next to the clock
+  badges: true, // unread-notification counts on app buttons
+  widgetsPos: 'auto', // auto (start when centered, end when left-aligned) | start | inline (after Task view) | end (before the tray)
+  hideDelay: 600, // ms an auto-hidden taskbar stays after the pointer leaves it
 });
 
 function isObj(v) {

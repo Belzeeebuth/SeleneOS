@@ -91,11 +91,14 @@ export function saveRefs(root) {
   return { an: sel.anchorNode, ao: sel.anchorOffset, fn: sel.focusNode, fo: sel.focusOffset };
 }
 export function restoreRefs(root, r) {
-  if (!r || !root.contains(r.an) || !root.contains(r.fn)) return;
+  if (!r || !root.contains(r.an) || !root.contains(r.fn)) return false;
   const clamp = (n, o) => Math.min(o, n.nodeType === 3 ? n.length : n.childNodes.length);
   try {
     window.getSelection().setBaseAndExtent(r.an, clamp(r.an, r.ao), r.fn, clamp(r.fn, r.fo));
-  } catch {}
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function caretAtEnd(el) {
@@ -200,6 +203,45 @@ export function normalizeRoot(root) {
     run.appendChild(n);
   }
   if (!root.firstChild) root.appendChild(emptyLine());
+}
+
+/**
+ * Keep the body flat: Chromium's list commands can leave blocks nested in a top-level line
+ * (<div><ul>…</ul><div>…</div></div>). Such wrappers are unwrapped; their inline runs become lines of their own.
+ * Nodes are moved, never recreated, so node-based selections (saveRefs) survive. Returns true when changed.
+ */
+export function flattenRoot(root) {
+  let changed = false;
+  for (let guard = 0; guard < 50; guard++) {
+    const host = [...root.children].find((n) => (n.tagName === 'DIV' || n.tagName === 'P') && [...n.children].some(isBlock));
+    if (!host) break;
+    changed = true;
+    const out = [];
+    let run = null;
+    for (const k of [...host.childNodes]) {
+      if (isBlock(k)) {
+        run = null;
+        out.push(k);
+        continue;
+      }
+      if (k.nodeType === 3 && !k.data.trim() && !run) continue;
+      if (!run) {
+        run = host.cloneNode(false);
+        out.push(run);
+      }
+      run.appendChild(k);
+      if (k.nodeName === 'BR') run = null;
+    }
+    host.replaceWith(...out);
+  }
+  return changed;
+}
+
+/** Deepest last block where a caret can go at the end of el (last list item, last table cell...). */
+export function lastLeaf(el) {
+  let n = el;
+  while (n?.nodeType === 1 && n.lastElementChild && (CONTAINERS.has(n.tagName) || LEAF_BLOCKS.has(n.lastElementChild.tagName) || CONTAINERS.has(n.lastElementChild.tagName))) n = n.lastElementChild;
+  return n;
 }
 
 export function emptyLine(tag = 'div') {
@@ -389,6 +431,10 @@ export function insertFragment(root, range, frag) {
   range.deleteContents();
   const top = topBlock(range.startContainer === root ? root.childNodes[range.startOffset] || root.lastChild : range.startContainer, root);
   const simple = top && ['DIV', 'P', 'H1', 'H2', 'H3'].includes(top.tagName) && !top.querySelector('ul, ol, table, pre, blockquote, div, p');
+  // several plain lines pasted into a list item become list items (as in Word / OneNote)
+  const li = closest(range.startContainer, 'li', root);
+  const lineLike = (n) => !isBlock(n) || (['DIV', 'P', 'H1', 'H2', 'H3', 'LI'].includes(n.tagName) && ![...n.children].some(isBlock));
+  if (li && !closest(range.startContainer, 'td, th, pre', root) && nodes.every(lineLike)) return insertListLines(range, li, nodes);
   if (!simple) {
     // flatten: block boundaries become line breaks
     const inline = [];
@@ -434,20 +480,71 @@ export function insertFragment(root, range, frag) {
   }
   stripTrailingBr(lastInserted);
   if (lastInserted?.isConnected) {
-    // caret at the end of the last pasted block
-    const r = document.createRange();
-    if (lastInserted === anchor || lastInserted === top) {
-      r.selectNodeContents(lastInserted);
-      r.collapse(false);
-    } else {
-      r.selectNodeContents(lastInserted);
-      r.collapse(false);
+    // caret at the end of the last pasted block: inside its last list item / table cell, or on the line
+    // after a divider
+    let target = lastLeaf(lastInserted);
+    if (target.tagName === 'HR') {
+      const next = target.nextElementSibling;
+      if (next && !isBlock(next.firstElementChild) && ['DIV', 'P'].includes(next.tagName)) {
+        caretAtStart(next);
+        target = null;
+      } else {
+        const line = emptyLine();
+        target.after(line);
+        target = line;
+      }
     }
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(r);
+    if (target) caretAtEnd(target);
   }
   if (!root.firstChild) root.appendChild(emptyLine());
+}
+
+function insertListLines(range, li, nodes) {
+  // lines: each block is a line, consecutive inline nodes form one line
+  const lines = [];
+  let cur = null;
+  for (const n of nodes) {
+    if (isBlock(n)) {
+      cur = null;
+      const kids = [...n.childNodes];
+      if (kids.length && kids[kids.length - 1].nodeName === 'BR' && kids.length > 1) kids.pop();
+      lines.push(kids.filter((k) => !(k.nodeName === 'BR' && kids.length === 1)));
+    } else {
+      if (!cur) lines.push((cur = []));
+      cur.push(n);
+    }
+  }
+  if (!lines.length) return;
+  // the rest of the item after the caret goes to the last new item (with its nested list, if any)
+  const nested = [...li.children].find((c) => c.tagName === 'UL' || c.tagName === 'OL');
+  const tail = document.createRange();
+  tail.setStart(range.startContainer, range.startOffset);
+  if (nested) tail.setEndBefore(nested);
+  else tail.setEnd(li, li.childNodes.length);
+  const rest = tail.extractContents();
+  const before = nested || null;
+  for (const k of lines[0]) li.insertBefore(k, before);
+  let last = li;
+  for (const line of lines.slice(1)) {
+    const item = li.cloneNode(false);
+    if (item.hasAttribute('data-checked')) item.setAttribute('data-checked', 'false');
+    for (const k of line) item.appendChild(k);
+    if (!item.firstChild) item.appendChild(document.createElement('br'));
+    last.after(item);
+    last = item;
+  }
+  const caretAfter = last === li ? (nested ? nested.previousSibling : li.lastChild) : last.lastChild;
+  if (last !== li && nested) last.appendChild(nested);
+  const restNodes = [...rest.childNodes];
+  if (restNodes.length) last.insertBefore(rest, last === li && nested ? nested : null);
+  if (!last.firstChild || last.firstChild === nested) last.insertBefore(document.createElement('br'), last.firstChild);
+  const r = document.createRange();
+  if (caretAfter && caretAfter.parentNode === last) r.setStartAfter(caretAfter);
+  else r.setStart(last, 0);
+  r.collapse(true);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
 }
 
 function stripTrailingBr(el) {

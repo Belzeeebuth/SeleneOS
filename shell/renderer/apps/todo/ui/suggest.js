@@ -60,7 +60,24 @@ export class Suggest {
         const row = h(
           'div',
           { class: 'td-sg-row', dataset: { id: task.id } },
-          h('div', { class: 'td-sg-main', onclick: () => app.openTask(task.id) }, h('div', { class: 'td-sg-title' }, task.title), h('div', { class: 'td-row-meta' }, meta)),
+          h(
+            'div',
+            {
+              class: 'td-sg-main',
+              role: 'button',
+              tabindex: '0',
+              'aria-label': t('suggest.open', { title: task.title }),
+              onclick: () => app.openTask(task.id),
+              onkeydown: (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  app.openTask(task.id, { focus: true });
+                }
+              },
+            },
+            h('div', { class: 'td-sg-title' }, task.title),
+            h('div', { class: 'td-row-meta' }, meta),
+          ),
           h(
             'button',
             {

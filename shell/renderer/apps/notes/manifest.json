@@ -5,8 +5,9 @@
   "icon": "icon.svg",
   "entry": "main.js",
   "styles": ["style.css"],
-  "window": { "width": 1180, "height": 760, "minWidth": 480, "minHeight": 400, "titlebar": "tall", "background": "mica" },
+  "window": { "width": 1260, "height": 780, "minWidth": 480, "minHeight": 400, "titlebar": "tall", "background": "mica" },
   "category": "productivity",
+  "fileTypes": [".md", ".markdown", ".txt"],
   "keywords": {
     "en": ["notes", "note", "notebook", "onenote", "memo", "journal", "checklist", "write", "ideas", "markdown", "sticky"],
     "fr": ["notes", "note", "carnet", "onenote", "mémo", "journal", "liste", "écrire", "idées", "markdown", "pense-bête"]

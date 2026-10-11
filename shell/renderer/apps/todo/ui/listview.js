@@ -334,8 +334,19 @@ export class ListView {
           'div',
           { class: 'infobar error td-banner', role: 'alert' },
           icon('error_circle', { filled: true }),
-          h('div', { class: 'grow' }, h('div', { class: 'body-strong' }, t('errors.saveTitle')), h('div', { class: 'caption' }, store.saveError)),
+          h('div', { class: 'grow' }, h('div', { class: 'body-strong' }, t('errors.saveTitle')), h('div', { class: 'caption td-banner-msg', 'data-tip': store.saveError }, store.saveError)),
           h('button', { type: 'button', class: 'btn', onclick: () => store.flush() }, t('common.retry')),
+        ),
+      );
+    }
+    if (store.readOnly) {
+      // the data file could not be read: say so for as long as nothing is being saved (not only in the start-up alert)
+      this.bannerSlot.appendChild(
+        h(
+          'div',
+          { class: 'infobar warning td-banner td-readonly-banner', role: 'status' },
+          icon('warning', { filled: true }),
+          h('div', { class: 'grow' }, h('div', { class: 'body-strong' }, t('errors.readOnlyTitle')), h('div', { class: 'caption' }, t('errors.readOnlyBody'))),
         ),
       );
     }

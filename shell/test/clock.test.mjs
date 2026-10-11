@@ -376,6 +376,15 @@ async function runEnglish() {
       const now = await s.page.evaluate('Date.now()');
       check('snooze rescheduled the one-shot alarm in 10 min', snoozed && Math.round((snoozed.at - now) / 60000), 10);
       check('alarm stays off (only the snoozed ring is pending)', await CK(s, (app, id) => app.store.alarms.find((x) => x.id === id).enabled, id), false);
+      // QA2: the card says it was snoozed (not "Off"), and its toggle cancels the pending ring
+      const card = `${WIN} .ck-alarm[data-id="${id}"]`;
+      await until(s, (app, id) => /^Snoozed until /.test(app.win.el.querySelector(`.ck-alarm[data-id="${id}"] .ck-alarm-when-text`)?.textContent || ''), { arg: id, label: 'snoozed text' });
+      check('card: Snoozed until <time in 10 min>', await s.page.textContent(`${card} .ck-alarm-when-text`), `Snoozed until ${await CK(s, (app, at) => app.timeText(at), snoozed.at)}`);
+      check('card: toggle on while a snoozed ring is pending', await s.page.isChecked(`${card} .ck-alarm-toggle input`), true);
+      await s.page.click(`${card} .ck-alarm-toggle`);
+      await sleep(250);
+      check('toggle off cancels the snoozed ring', (await reminders(s)).some((r) => r.id.startsWith(`alarm-${id}`)), false);
+      check('card back to Off', await s.page.textContent(`${card} .ck-alarm-when-text`), 'Off');
       await CK(s, (app, id) => app.store.deleteAlarm(id), id);
     });
 
@@ -970,8 +979,9 @@ async function runEnglish() {
         const st = app.store;
         const a = st.addAlarm({ hour: 9, minute: 0, name: 'tz', days: [] });
         const at0 = st.shell.reminders.get(`alarm-${a.id}`, 'clock').at;
-        // pretend the reminder was computed in another zone
-        st.shell.reminders.set({ ...st.shell.reminders.get(`alarm-${a.id}`, 'clock'), at: at0 - 7 * 3600000 });
+        // pretend the reminder was computed in another zone (7 h later: earlier could already be in
+        // the past at night, and the shell would ring it at once)
+        st.shell.reminders.set({ ...st.shell.reminders.get(`alarm-${a.id}`, 'clock'), at: at0 + 7 * 3600000 });
         st.zone = 'Asia/Tokyo';
         const changed = st.checkZone();
         const at1 = st.shell.reminders.get(`alarm-${a.id}`, 'clock').at;
@@ -1024,6 +1034,103 @@ async function runEnglish() {
         await sleep(400);
         await s.page.evaluate(`window.__aurora.wm.byApp('clock')[0]?.focus()`);
       } else check('accent row only with per-app themes', await CK(s, (app) => app.page.perAppThemes), false);
+    });
+
+    // ---------------------------------------------------------------- QA2 regressions (second adversarial pass)
+    await section('QA2: stopwatch laps — header columns line up with the rows (wide and narrow windows)', async () => {
+      await go(s, 'stopwatch');
+      await CK(s, (app) => {
+        app.store.stopwatch = { running: false, startedAt: 0, base: 4000000, laps: [1000000, 2500000, 3900000] };
+        app.store.emit('stopwatch');
+      });
+      const cols = () =>
+        CK(s, (app) => {
+          const head = [...app.win.el.querySelectorAll('.ck-laps-head > *')].map((e) => e.getBoundingClientRect().left);
+          const rows = [...app.win.el.querySelectorAll('.ck-lap')].map((r) => [...r.children].map((e) => e.getBoundingClientRect().left));
+          return { tight: app.root.classList.contains('tight'), worst: Math.max(...rows.flatMap((r) => r.map((x, i) => Math.abs(x - head[i])))) };
+        });
+      for (const [w, h] of [
+        [1040, 720],
+        [480, 640],
+      ]) {
+        await CK(s, (app, sz) => app.win.setSize(sz[0], sz[1]), [w, h]);
+        await sleep(350);
+        const c = await cols();
+        check(`laps columns aligned at ${w} px${c.tight ? ' (narrow layout)' : ''} (worst offset ${Math.round(c.worst)} px)`, c.worst, (v) => v < 1.5);
+      }
+      await CK(s, (app) => app.win.setSize(1040, 720));
+      await sleep(300);
+      await CK(s, (app) => app.store.swReset());
+    });
+
+    await section('QA2: picker neighbours are readable (secondary text), timer dialog has no blank error row', async () => {
+      await go(s, 'alarm');
+      await s.page.click(`${WIN} .ck-page-alarm .ck-cmd-add`);
+      await s.page.waitForSelector(`${DLG} .ck-picker`);
+      await sleep(300);
+      const c = await s.page.evaluate(`(() => { const d = document.querySelector(${JSON.stringify(DLG)}); return [getComputedStyle(d.querySelector('.ck-spin-cell.above')).color, getComputedStyle(d.querySelector('.ck-dlg-preview')).color]; })()`);
+      check('neighbour values use --text-2 (≥ 4.5:1), like the preview caption', c[0], c[1]);
+      await s.page.keyboard.press('Escape');
+      await sleep(250);
+      await go(s, 'timer');
+      await s.page.click(`${WIN} .ck-page-timer .ck-cmd-add`);
+      await s.page.waitForSelector(`${DLG} .ck-dur`);
+      await sleep(300);
+      check('empty error row takes no space', await s.page.evaluate(`getComputedStyle(document.querySelector(${JSON.stringify(DLG + ' .ck-dlg-err')})).display`), 'none');
+      for (const n of [0, 1, 2]) {
+        await s.page.focus(`${DLG} .ck-dur .ck-spin >> nth=${n}`);
+        await s.page.keyboard.type('00');
+      }
+      await s.page.locator(`${DLG} .dialog-footer .btn`, { hasText: 'Save' }).click();
+      check('the error shows when there is one', await s.page.isVisible(`${DLG} .ck-dlg-err`), true);
+      await s.page.keyboard.press('Escape');
+      await sleep(250);
+    });
+
+    await section('QA2: at most 60 cities — the search dialog says so instead of doing nothing', async () => {
+      await go(s, 'world');
+      const r = await CK(s, async (app) => {
+        const C = await import('app://shell/apps/clock/lib/cities.js');
+        const saved = [...app.store.cities];
+        const free = C.allCities().map((c) => c.id).filter((id) => !saved.includes(id));
+        for (const id of free) if (app.store.cities.length < 60) app.store.addCity(id);
+        const extra = C.cityById(free.at(-1));
+        return { n: app.store.cities.length, refused: app.store.addCity(extra.id) === false, saved, name: extra.en };
+      });
+      check('60 cities stored, the 61st refused', [r.n, r.refused], [60, true]);
+      await s.page.click(`${WIN} .ck-page-world .ck-cmd-add`);
+      await s.page.waitForSelector(`${DLG} input[type="search"]`);
+      await sleep(80);
+      await s.page.keyboard.type(r.name);
+      await sleep(150);
+      await s.page.keyboard.press('Enter');
+      await sleep(400);
+      check('limit explained in a dialog', await s.page.textContent(`${DLG} .dialog-body`), (v) => /up to 60 cities/.test(v));
+      await s.page.keyboard.press('Escape');
+      await sleep(250);
+      await CK(s, (app, saved) => {
+        app.store.cities = saved;
+        app.store.persist('cities');
+        app.store.emit('cities');
+      }, r.saved);
+      check('cities restored', await CK(s, (app) => app.store.cities.length), r.saved.length);
+    });
+
+    await section('QA2: a snoozed repeating alarm says when it rings again; deleting it cancels the snooze', async () => {
+      await go(s, 'alarm');
+      const id = await CK(s, (app) => {
+        const a = app.store.addAlarm({ hour: 5, minute: 0, name: 'Daily', days: [0, 1, 2, 3, 4, 5, 6] });
+        const R = app.shell.reminders;
+        R.set({ ...R.get(`alarm-${a.id}`, 'clock'), id: `alarm-${a.id}~snooze`, at: Date.now() + 5 * 60000, repeat: null }); // what Snooze on its toast does
+        return a.id;
+      });
+      const txt = await until(s, (app, id) => {
+        const v = app.win.el.querySelector(`.ck-alarm[data-id="${id}"] .ck-alarm-when-text`)?.textContent || '';
+        return /^Snoozed until /.test(v) && v;
+      }, { arg: id, label: 'snoozed repeating alarm text' });
+      check('repeating alarm: Snoozed until …', txt, (v) => /^Snoozed until \d{1,2}:\d\d [AP]M$/.test(v));
+      await CK(s, (app, id) => app.store.deleteAlarm(id), id);
+      check('deleting it removes the snoozed ring too', (await reminders(s)).some((r) => r.id.startsWith(`alarm-${id}`)), false);
     });
 
     await section('alarm page screenshot with a few alarms (docs)', async () => {
@@ -1237,7 +1344,7 @@ async function runSizes(size, lang, theme) {
         return bad;
       });
 
-    await section(`${tag}: maximized, every page fits; the world map wraps instead of stretching`, async () => {
+    await section(`${tag}: maximized, every page fits; the world map keeps its proportions (no stretch, no repeat)`, async () => {
       await CK(s, (app) => app.win.maximize());
       await sleep(600);
       for (const p of ['focus', 'timer', 'alarm', 'stopwatch', 'world', 'settings']) {
@@ -1258,14 +1365,46 @@ async function runSizes(size, lang, theme) {
         // pixel x of a longitude in the drawn map vs the pin
         const ny = pins.find((x) => x.id === 'new-york-city-us');
         const expX = ((-74.0 + 180 - vb[0]) / vb[2]) * r.width;
-        return { w: r.width, h: r.height, vb, aspect: r.width / r.height, vbAspect: vb[2] / vb[3], lands: p.lands.length, nyDx: ny ? Math.abs(ny.x - expX) : null, inside: pins.every((x) => x.x >= 0 && x.x <= r.width && x.y >= 0 && x.y <= r.height) };
+        const page = p.el.getBoundingClientRect();
+        const card = p.mapCard.getBoundingClientRect();
+        // suns whose centre is inside the visible 0..360 view (the ±360° copies only show at the date line)
+        const sunsInView = p.suns.filter((g) => {
+          const x = Number(/translate\(([-\d.]+)/.exec(g.getAttribute('transform') || '')?.[1]);
+          return x >= vb[0] && x <= vb[0] + vb[2];
+        }).length;
+        return {
+          w: r.width, h: r.height, vb, aspect: r.width / r.height, vbAspect: vb[2] / vb[3], lands: p.lands.length, sunsInView,
+          centred: Math.abs(card.left + card.width / 2 - (page.left + page.width / 2)), screenH: window.innerHeight,
+          nyDx: ny ? Math.abs(ny.x - expX) : null, inside: pins.every((x) => x.x >= 0 && x.x <= r.width && x.y >= 0 && x.y <= r.height),
+        };
       });
       check(`${tag}: map not distorted (viewBox aspect = box aspect)`, Math.abs(m.aspect - m.vbAspect), (v) => v < 0.02);
-      check(`${tag}: map height capped`, m.h, (v) => v <= 441);
-      if (m.aspect > 360 / 142 + 0.05) check(`${tag}: wide window shows more than 360° (wraps)`, m.vb[2], (v) => v > 360);
-      check(`${tag}: land drawn three times (wrap copies)`, m.lands, 3);
+      check(`${tag}: the map shows the world exactly once (360°)`, [m.vb[0], m.vb[2]], [0, 360]);
+      check(`${tag}: one land shape, one sun in view (no repeated continents)`, [m.lands, m.sunsInView], [1, 1]);
+      check(`${tag}: map height at most 60 % of the screen`, m.h, (v) => v <= m.screenH * 0.6 + 1);
+      check(`${tag}: map centred on the page`, m.centred, (v) => v < 2);
       check(`${tag}: pins inside the map`, m.inside, true);
       check(`${tag}: New York pin at its longitude`, m.nyDx, (v) => v != null && v < 6);
+      // pin labels: none overlaps another label or another city's dot, and each stays inside the map
+      const lab = await CK(s, (app) => {
+        const p = app.page;
+        const box = p.pins.getBoundingClientRect();
+        const ov = (a, b) => !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
+        const pins = [...p.pins.querySelectorAll('.ck-pin')];
+        const labels = pins.map((el) => (el.classList.contains('nolabel') ? null : el.querySelector('.ck-pin-label').getBoundingClientRect()));
+        const dots = pins.map((el) => el.querySelector('.ck-pin-dot').getBoundingClientRect());
+        const bad = [];
+        labels.forEach((l, i) => {
+          if (!l) return;
+          if (l.left < box.left || l.right > box.right) bad.push(`${pins[i].dataset.id} outside`);
+          labels.forEach((m, j) => j > i && m && ov(l, m) && bad.push(`${pins[i].dataset.id}/${pins[j].dataset.id} labels`));
+          dots.forEach((d, j) => j !== i && ov(l, d) && bad.push(`${pins[i].dataset.id} label over ${pins[j].dataset.id} dot`));
+        });
+        return { bad, shown: labels.filter(Boolean).length, tips: pins.every((el) => /·/.test(el.querySelector('.ck-pin-dot').dataset.tip || '')) };
+      });
+      check(`${tag}: pin labels never cover another label or dot`, lab.bad, []);
+      check(`${tag}: most pin labels shown`, lab.shown, (n) => n >= 4);
+      check(`${tag}: every pin dot has a name · time tooltip`, lab.tips, true);
       await shot(s, `world-${size}`, { clip: false });
     });
 
@@ -1342,11 +1481,21 @@ async function runReconcile() {
     { id: 'aoff', hour: 8, minute: 0, name: 'Off', days: [], enabled: false, at: null },
     { id: 'bad', hour: 99, minute: -5, name: 42, days: ['x', 9], enabled: 'yes' },
     'garbage',
+    // rang 5 min ago while Clock was never opened, and the user pressed Snooze on its notification
+    { id: 'snz', hour: 6, minute: 0, name: 'Snoozed', days: [], enabled: true, at: now - 5 * 60000 },
+    { id: 'arep', hour: 9, minute: 0, name: 'Duplicate id', days: [], enabled: false },
   ]);
   w('timers', [
     { id: 'tdone', name: 'Ended', duration: 60000, state: 'running', endAt: now - 5000, runTotal: 60000 },
     { id: 'tlive', name: 'Live', duration: 600000, state: 'running', endAt: now + 300000, runTotal: 600000 },
+    { id: 'tlive', name: 'Duplicate id', duration: 60000 },
   ]);
+  w('cities', ['tokyo-jp', 'no-such-city', 'tokyo-jp', 'kolkata-in', 42]);
+  w('prefs', { focus: { minutes: 17 } });
+  // the shell re-registered the snoozed one-shot ring under the alarm's own id
+  const shellDir = path.join(home, '.config', 'aurora', 'apps', 'shell');
+  fs.mkdirSync(shellDir, { recursive: true });
+  fs.writeFileSync(path.join(shellDir, 'reminders.json'), JSON.stringify([{ id: 'alarm-snz', appId: 'clock', at: now + 5 * 60000, title: 'Snoozed', body: '6:00 AM', repeat: null, kind: 'alarm', snoozeMinutes: 10, data: { alarmId: 'snz' } }]));
   w('stopwatch', { running: true, startedAt: now - 5000, base: 1000, laps: [500] });
   w('focus', {
     session: { id: 'f1', minutes: 30, segs: [{ type: 'focus', ms: 1800000 }], startedAt: now - 1900000, state: 'running', pausedTotal: 0, dndChanged: true },
@@ -1377,13 +1526,27 @@ async function runReconcile() {
           history: Object.values(st.focus.history).reduce((n, v) => n + v, 0),
           dnd: app.ctx.settings.get('notifications.dnd'),
           rems: app.shell.reminders.list('clock').map((x) => x.id).sort(),
+          snz: a('snz')?.enabled,
+          snzAt: app.shell.reminders.get('alarm-snz', 'clock')?.at,
+          repName: a('arep')?.name,
+          timerIds: st.timers.map((x) => x.id),
+          cities: st.cities,
+          focusMin: st.prefs.focus.minutes,
+          loadErrors: st.loadErrors,
         };
       });
       check('one-shot alarm that rang while closed is off', r.once, false);
       check('repeating alarm still on', r.rep, true);
       check('repeating alarm rescheduled in the future', r.repAt > Date.now(), true);
       check('corrupt alarm sanitized', r.bad, [23, 0, [], false, '']);
-      check('garbage entries dropped', r.count, 4);
+      check('garbage entries and duplicate ids dropped', r.count, 5);
+      check('the first of two alarms with one id is kept', r.repName, 'Weekdays');
+      check('snoozed one-shot alarm: turned off…', r.snz, false);
+      check('…but its snoozed ring is kept (it still rings in 5 min)', r.snzAt && Math.round((r.snzAt - Date.now()) / 60000), 5);
+      check('duplicate timer id dropped', r.timerIds, ['tdone', 'tlive']);
+      check('unknown and duplicate cities dropped', r.cities, ['tokyo-jp', 'kolkata-in']);
+      check('focus length put back on the 5-minute grid', r.focusMin, 15);
+      check('valid files are not reported as damaged', r.loadErrors, []);
       check('timer that ended while closed is done', r.tdone, 'done');
       check('live timer still running', r.tlive, 'running');
       check('stopwatch kept running from its timestamps', r.sw, (v) => v >= 6000 && v < 60000);
@@ -1392,7 +1555,18 @@ async function runReconcile() {
       check('…as completed', r.last?.completed, true);
       check('…and its 30 minutes counted (on the day(s) they were done)', r.history, 30);
       check('…and DND restored', r.dnd, false);
-      check('reminders re-registered', r.rems, ['alarm-arep', 'timer-tlive']);
+      check('reminders re-registered', r.rems, ['alarm-arep', 'alarm-snz', 'timer-tlive']);
+      await go(s, 'focus');
+      // (the session that completed while Clock was closed shows its summary first)
+      check('summary of the session that ended while closed', await s.page.textContent(`${WIN} .ck-focus-done .subtitle`), 'Well done!');
+      await s.page.click(`${WIN} .ck-focus-done .btn`);
+      check('the focus picker shows the stored length', await s.page.getAttribute(`${WIN} .ck-focus-spin`, 'aria-valuenow'), '15');
+      await go(s, 'world');
+      await sleep(200);
+      check('one card per stored city', await s.page.evaluate(`[...document.querySelectorAll('${WIN} .ck-city:not(.local)')].map((e) => e.dataset.id)`), ['tokyo-jp', 'kolkata-in']);
+      await s.page.click(`${WIN} .ck-city[data-id="kolkata-in"]`, { button: 'right' });
+      await s.page.locator('.menu .menu-item', { hasText: 'Move up' }).click();
+      check('Move up on the second city makes it first', await CK(s, (app) => app.store.cities), ['kolkata-in', 'tokyo-jp']);
     });
     await section('console (reconcile run): no errors from Clock', async () => {
       check('no Clock errors in the console', clockErrors(s), []);
@@ -1404,10 +1578,68 @@ async function runReconcile() {
   }
 }
 
+// ================================================================== launch E: damaged storage files
+async function runDamaged() {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-home-'));
+  const dir = path.join(home, '.config', 'aurora', 'apps', 'clock');
+  fs.mkdirSync(dir, { recursive: true });
+  const brokenAlarms = '[{"id":"a1","hour":6,"minute":0,"name":"My alarm","days":[1],"enabled":tr';
+  fs.writeFileSync(path.join(dir, 'alarms.json'), brokenAlarms); // truncated JSON
+  fs.writeFileSync(path.join(dir, 'timers.json'), JSON.stringify({ not: 'a list' })); // wrong shape
+  fs.writeFileSync(path.join(dir, 'cities.json'), JSON.stringify(['tokyo-jp'])); // fine
+  const s = await launchShell({ open: ['clock'], lang: 'en', theme: 'light', home, env: { TZ: 'Europe/Paris' } });
+  current = s;
+  try {
+    await s.page.waitForSelector(`${WIN} .ck`, { timeout: 20000 });
+    await until(s, (app) => !!app?.store, { label: 'clock ready' });
+    await section('damaged storage: files set aside (never replaced by first-run defaults), warning bar, dismiss', async () => {
+      await sleep(400);
+      const r = await CK(s, (app) => ({ alarms: app.store.alarms.length, timers: app.store.timers.length, cities: app.store.cities, errs: app.store.loadErrors.map((e) => [e.name, /^\w+\.unreadable-[\d-]+\.json$/.test(e.backup || '')]) }));
+      check('no "Good morning" / default timers over the damaged files', [r.alarms, r.timers], [0, 0]);
+      check('readable files still load', r.cities, ['tokyo-jp']);
+      check('damaged files reported, each with a backup name', r.errs, [
+        ['alarms', true],
+        ['timers', true],
+      ]);
+      const files = fs.readdirSync(dir).sort();
+      const backup = files.find((f) => f.startsWith('alarms.unreadable-'));
+      check('damaged alarms.json renamed, not overwritten', [files.includes('alarms.json'), !!backup], [false, true]);
+      check('backup keeps the original bytes', backup && fs.readFileSync(path.join(dir, backup), 'utf8'), brokenAlarms);
+      const bar = `${WIN} .ck-info-slot .ck-load-error`;
+      check('warning bar names what was lost and the backup', await s.page.textContent(bar), (v) => v.includes('(alarms, timers)') && v.includes(backup));
+      await s.page.click(`${bar} .btn`);
+      check('dismissed', await s.page.isVisible(bar), false);
+      await CK(s, (app) => app.store.addAlarm({ hour: 7, minute: 0, name: 'Fresh', days: [] }));
+      await sleep(400);
+      check('new alarms are saved to a fresh alarms.json', JSON.parse(fs.readFileSync(path.join(dir, 'alarms.json'), 'utf8')).map((a) => a.name), ['Fresh']);
+      check('backup left untouched', fs.readFileSync(path.join(dir, backup), 'utf8'), brokenAlarms);
+    });
+    await section('console (damaged storage run): no errors from Clock', async () => {
+      check('no Clock errors in the console', clockErrors(s), []);
+    });
+  } finally {
+    await s.close();
+    current = null;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
 console.log('Clock tests');
+{
+  // every English string has a French translation with the same placeholders (static check)
+  const j = JSON.parse(fs.readFileSync(path.join(ROOT, 'renderer', 'apps', 'clock', 'i18n.json'), 'utf8'));
+  const flat = (o, p = '') => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' ? flat(v, `${p}${k}.`) : [[p + k, v]]));
+  const en = Object.fromEntries(flat(j.en));
+  const fr = Object.fromEntries(flat(j.fr));
+  const ph = (v) => [...String(v).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join();
+  check('i18n: every English key exists in French', Object.keys(en).filter((k) => !(k in fr)), []);
+  check('i18n: no French-only key', Object.keys(fr).filter((k) => !(k in en)), []);
+  check('i18n: same placeholders in both languages', Object.keys(en).filter((k) => k in fr && ph(en[k]) !== ph(fr[k])), []);
+}
 await runEnglish();
 await runFrench();
 await runReconcile();
+await runDamaged();
 await runSizes('1280x720', 'fr', 'dark');
 await runSizes('1920x1080', 'en', 'light');
 console.log(`\n${passed} passed, ${failures.length} failed`);

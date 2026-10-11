@@ -3,12 +3,14 @@
 //            app names, combine buttons, auto-hide; colour + transparency (shared with the Theme designer)
 //   start    preview; layout; pinned apps; app folders; folders next to the power button; recommended files;
 //            background style
-// Keys: taskbar.{search, showSearch, showTaskView, showWidgets, position, size, align, showLabels, combine, autohide,
-// widgets, color, opacity}, pinned; start.{layout, background, folders, groups}, startPinned, startShowRecent.
+// Keys: taskbar.{search, showSearch, showTaskView, showWidgets, widgetsPos, position, size, align, showLabels, combine,
+// badges, tray.{network, volume, battery}, autohide, hideDelay, widgets, color, opacity}, showSeconds, pinned;
+// start.{layout, background, folders, groups, showRecentApps, showMostUsed}, startPinned, startShowRecent.
+// App folders are edited through core/start.js → start.folders (they keep their place in Pinned).
 import { taskbarColorControls } from './personalization-designer.js';
 import { setupShellPages, boundCombo, boundSeg, boundToggle, appIcon, orderedList, moved } from './personalization-shell-kit.js';
 import { PAGES } from '../lib/index.js';
-import { recent } from '../../../core/start.js';
+import { recent, start as startMenu } from '../../../core/start.js';
 
 const MINI = ['weather', 'cpu', 'memory', 'network'];
 const MINI_ICON = { weather: 'weather_partly_cloudy_day', cpu: 'developer_board', memory: 'ram', network: 'arrow_swap' };
@@ -38,9 +40,12 @@ function pinnedEditor(pc, { key, section, addLabel, empty, exclude = () => new S
         empty,
         removeLabel: t('pzs.unpin'),
         onMove: (id, d) => {
-          const all = settings.get(key) || [];
+          // swap with the neighbour shown in the list; hidden entries (Start folders and the apps inside them) keep
+          // their slots
           const order = moved(list, id, d);
-          return settings.set(key, [...order, ...all.filter((x) => !order.includes(x))]);
+          const queue = [...order];
+          const shown = new Set(order);
+          return settings.set(key, [...new Set(settings.get(key) || [])].map((x) => (shown.has(x) ? queue.shift() : x)));
         },
         onRemove: (id) => settings.set(key, (settings.get(key) || []).filter((x) => x !== id)),
       }),
@@ -145,6 +150,33 @@ async function taskbar(pc) {
     return kit.subRow({ icon: MINI_ICON[id], title: t(`pzs.mini_${id}`), desc: t(`pzs.mini_${id}Desc`), control: tg });
   });
 
+  // tray icons (taskbar.tray.*) + clock seconds
+  const trayRows = ['network', 'volume', 'battery'].map((id) => {
+    const tg = boundToggle(pc, `taskbar.tray.${id}`, true, t(`pzs.b2Tray_${id}`));
+    return kit.subRow({ icon: { network: 'wifi_1', volume: 'speaker_2', battery: 'battery_6' }[id], title: t(`pzs.b2Tray_${id}`), control: tg });
+  });
+  trayRows.push(kit.subRow({ icon: 'clock', title: t('pzs.b2Seconds'), control: boundToggle(pc, 'showSeconds', false, t('pzs.b2Seconds')) }));
+  const fmtSec = (ms) => `${new Intl.NumberFormat(pc.lang === 'fr' ? 'fr-FR' : 'en-US', { maximumFractionDigits: 1 }).format(ms / 1000)} s`;
+  const delayCombo = boundCombo(pc, { key: 'taskbar.hideDelay', def: 600, label: t('pzs.b2HideDelay'), options: [300, 600, 1200, 2500].map((v) => ({ value: v, label: fmtSec(v) })), onChange: (v) => settings.set('taskbar.hideDelay', Number(v)) });
+  const delayRow = kit.row({ icon: 'timer', title: t('pzs.b2HideDelay'), desc: t('pzs.b2HideDelayDesc'), section: 'hideDelay', control: delayCombo });
+  const paintDelay = () => {
+    const on = !!settings.get('taskbar.autohide');
+    delayRow.classList.toggle('disabled', !on);
+    delayCombo.disabled = !on;
+  };
+  paintDelay();
+  pc.onDispose(settings.on('taskbar', paintDelay));
+  const wposRow = kit.row({
+    icon: 'board',
+    title: t('pzs.b2WidgetsPos'),
+    desc: t('pzs.b2WidgetsPosDesc'),
+    section: 'widgetsPos',
+    control: boundCombo(pc, { key: 'taskbar.widgetsPos', def: 'auto', label: t('pzs.b2WidgetsPos'), options: ['auto', 'start', 'inline', 'end'].map((v) => ({ value: v, label: t(`pzs.b2Wpos_${v}`) })) }),
+  });
+  const paintWpos = () => wposRow.classList.toggle('pzs-dim', !settings.get('taskbar.showWidgets'));
+  paintWpos();
+  pc.onDispose(settings.on('taskbar', paintWpos));
+
   const tbc = taskbarColorControls(pc);
   return h(
     'div',
@@ -155,8 +187,10 @@ async function taskbar(pc) {
       kit.row({ icon: 'search', title: t('pers.tbSearch'), desc: t('pzs.searchDesc'), section: 'items', control: search }),
       kit.settingToggleRow({ icon: 'window_multiple', title: t('pers.tbTaskView'), key: 'taskbar.showTaskView', def: true, section: 'taskView' }),
       kit.settingToggleRow({ icon: 'board', title: t('pers.tbWidgets'), key: 'taskbar.showWidgets', def: false, section: 'widgetsButton' }),
+      wposRow,
       pinnedEditor(pc, { key: 'pinned', section: 'pinned', addLabel: t('pzs.pinApp'), empty: t('pzs.noPinnedTb') }),
     ),
+    kit.group(t('pzs.b2TrayItems'), kit.expander({ icon: 'apps_list', title: t('pzs.b2TrayItems'), desc: t('pzs.b2TrayItemsDesc'), section: 'tray', open: true, body: () => h('div', null, trayRows) })),
     kit.group(t('pzs.miniWidgets'), kit.expander({ icon: 'data_usage', title: t('pzs.miniWidgets'), desc: t('pzs.miniWidgetsDesc'), section: 'widgets', open: true, body: () => h('div', null, widgetRows) })),
     kit.group(
       t('pers.taskbarBehaviors'),
@@ -175,7 +209,7 @@ async function taskbar(pc) {
       kit.row({
         icon: 'resize',
         title: t('pzs.size'),
-        desc: t('pzs.sizeDesc'),
+        desc: t('pzs.b2SizeDesc'),
         section: 'size',
         control: boundSeg(pc, { key: 'taskbar.size', def: 'medium', label: t('pzs.size'), options: ['small', 'medium', 'large'].map((v) => ({ value: v, label: t(`pzs.size_${v}`) })) }),
       }),
@@ -188,7 +222,9 @@ async function taskbar(pc) {
         section: 'combine',
         control: boundCombo(pc, { key: 'taskbar.combine', def: 'always', label: t('pzs.combine'), options: ['always', 'whenFull', 'never'].map((v) => ({ value: v, label: t(`pzs.combine_${v}`) })) }),
       }),
+      kit.settingToggleRow({ icon: 'alert_badge', title: t('pzs.b2Badges'), desc: t('pzs.b2BadgesDesc'), key: 'taskbar.badges', def: true, section: 'badges' }),
       kit.settingToggleRow({ icon: 'panel_bottom_contract', title: t('pers.autohide'), desc: t('pzs.autohideDesc'), key: 'taskbar.autohide', def: false, section: 'autohide' }),
+      delayRow,
     ),
     kit.group(t('pzs.appearance'), tbc.colorRow, tbc.opacityRow),
     kit.group(
@@ -224,7 +260,7 @@ function startPreview(pc) {
     const layout = ['morePins', 'moreRecommended', 'list'].includes(st.layout) ? st.layout : 'default';
     const recOn = settings.get('startShowRecent') !== false && layout !== 'list';
     scr.dataset.mode = all.theme === 'dark' ? 'dark' : 'light';
-    scr.dataset.bg = ['solid', 'accent', 'wallpaper'].includes(st.background) ? st.background : 'acrylic';
+    scr.dataset.bg = ['solid', 'accent', 'wallpaper', 'glass'].includes(st.background) ? st.background : 'acrylic';
     scr.style.setProperty('--pv-accent', all.accent || '#0078d4');
     scr.style.backgroundImage = `url("${pc.shell.theme?.wallpaperUrl || ''}")`;
     const rows = layout === 'list' ? 1 : !recOn ? 5 : { default: 3, morePins: 4, moreRecommended: 2 }[layout];
@@ -250,8 +286,7 @@ function groupsEditor(pc) {
   const { h, t, settings, ui, kit: k } = pc;
   const reg = pc.shell.registry;
   const box = h('div', { class: 'pzs-groups' });
-  const groups = () => (Array.isArray(settings.get('start.groups')) ? settings.get('start.groups') : []);
-  const save = (list) => settings.set('start.groups', list);
+  const groups = () => startMenu.folders.list();
   async function editGroup(g) {
     const name = h('input', { class: 'input', value: g?.name || t('pzs.folderDefault'), maxLength: 60, 'aria-label': t('pzs.folderName') });
     const chosen = new Set(g?.apps || []);
@@ -272,11 +307,11 @@ function groupsEditor(pc) {
     const r = await ui.dialog({ title: g ? t('pzs.editFolder') : t('pzs.newFolder'), body, parent: pc.win, buttons: [{ label: t('common.save'), value: 'ok', primary: true }, { label: t('common.cancel'), value: null }] });
     if (r !== 'ok') return;
     const apps = [...chosen].filter((id) => reg.get(id));
-    if (!apps.length) return pc.toast(t('pzs.folderNeedsApps'));
-    const entry = { id: g?.id || `g-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, name: name.value.replace(/[\u0000-\u001f<>]/g, ' ').trim().slice(0, 60) || t('pzs.folderDefault'), apps };
-    // an app lives in one folder at a time
-    const others = groups().filter((x) => x.id !== entry.id).map((x) => ({ ...x, apps: x.apps.filter((a) => !apps.includes(a)) })).filter((x) => x.apps.length);
-    await save(g ? groups().map((x) => (x.id === entry.id ? entry : others.find((o) => o.id === x.id))).filter(Boolean) : [entry, ...others]);
+    if (apps.length < 2) return pc.toast(t('pzs.b2FolderNeedsTwo'));
+    const label = name.value.replace(/[\u0000-\u001f<>]/g, ' ').trim().slice(0, 60) || t('pzs.folderDefault');
+    // (an app lives in one folder at a time; the folder keeps its place in Pinned)
+    if (g) await startMenu.folders.update(g.id, { name: label, apps });
+    else await startMenu.folders.create(label, apps);
   }
   const paint = () => {
     const list = groups();
@@ -295,7 +330,7 @@ function groupsEditor(pc) {
                   'span',
                   { class: 'pzs-list-btns' },
                   h('button', { class: 'btn subtle icon-btn', type: 'button', 'aria-label': `${t('pzs.editFolder')} — ${g.name}`, 'data-tip': t('pzs.editFolder'), onclick: () => editGroup(g) }, pc.icon('edit', { size: 14 })),
-                  h('button', { class: 'btn subtle icon-btn pzs-remove', type: 'button', 'aria-label': `${t('pzs.deleteFolder')} — ${g.name}`, 'data-tip': t('pzs.deleteFolder'), onclick: () => save(groups().filter((x) => x.id !== g.id)) }, pc.icon('delete', { size: 14 })),
+                  h('button', { class: 'btn subtle icon-btn pzs-remove', type: 'button', 'aria-label': `${t('pzs.deleteFolder')} — ${g.name}`, 'data-tip': t('pzs.deleteFolder'), onclick: () => startMenu.folders.remove(g.id) }, pc.icon('delete', { size: 14 })),
                 ),
               ),
             ),
@@ -345,12 +380,14 @@ async function start(pc) {
         title: t('pzs.startBg'),
         desc: t('pzs.startBgDesc'),
         section: 'background',
-        control: boundCombo(pc, { key: 'start.background', def: 'acrylic', label: t('pzs.startBg'), options: ['acrylic', 'solid', 'accent', 'wallpaper'].map((v) => ({ value: v, label: t(`pzs.bg_${v}`) })) }),
+        control: boundCombo(pc, { key: 'start.background', def: 'acrylic', label: t('pzs.startBg'), options: ['acrylic', 'glass', 'solid', 'accent', 'wallpaper'].map((v) => ({ value: v, label: v === 'glass' ? t('pzs.b2BgGlass') : t(`pzs.bg_${v}`) })) }),
       }),
     ),
     k.group(t('pzs.pinnedApps'), pinnedEditor(pc, { key: 'startPinned', section: 'pinned', addLabel: t('pzs.pinApp'), empty: t('pzs.noPinnedStart'), exclude: inGroups }), groupsEditor(pc)),
     k.group(
-      t('pzs.recommended'),
+      t('pzs.b2RecommendedGroup'),
+      k.settingToggleRow({ icon: 'sparkle', title: t('pzs.b2RecentApps'), desc: t('pzs.b2RecentAppsDesc'), key: 'start.showRecentApps', def: true, section: 'recentApps' }),
+      k.settingToggleRow({ icon: 'data_trending', title: t('pzs.b2MostUsed'), desc: t('pzs.b2MostUsedDesc'), key: 'start.showMostUsed', def: false, section: 'mostUsed' }),
       k.settingToggleRow({ icon: 'history', title: t('pers.startRecent'), desc: t('pers.startRecentDesc'), key: 'startShowRecent', def: true, section: 'recent' }),
       k.row({
         icon: 'delete',

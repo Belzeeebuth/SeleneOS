@@ -7,7 +7,7 @@
 //             metadata). At load the two are reconciled: a note file newer than the index wins, notes whose
 //             folder disappeared are dropped, folders missing from the index are adopted, notebooks only
 //             known from a note's metadata are recreated. Notes deleted more than 30 days ago are purged.
-import { sanitizeFragment, sanitizeHtml } from './sanitize.js';
+import { sanitizeFragment, sanitizeHtml, inertDocument } from './sanitize.js';
 import { plainText, extractTags, countWords, countChars, foldText, newId, matches } from './text.js';
 
 export const PURGE_DAYS = 30;
@@ -49,8 +49,9 @@ function cleanMeta(m, id) {
 
 /** Derived fields of a body (sanitized HTML string): plain text, preview, tags, counts, first picture. */
 export function analyze(html, title, locale = 'en') {
-  const box = document.createElement('div');
-  box.appendChild(sanitizeFragment(html, { attachments: true, allowMedia: true, allowRemote: true }));
+  const doc = inertDocument(); // attachment names are relative URLs: never fetch them
+  const box = doc.createElement('div');
+  box.appendChild(sanitizeFragment(html, { attachments: true, allowMedia: true, allowRemote: true, doc }));
   const text = plainText(box);
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
   // preview: the first lines that aren't the title
@@ -81,6 +82,57 @@ export class NotesStore {
     this.noteChains = new Map();
     this.listeners = new Set();
     this.lastError = null;
+    // writes that failed (disk full, folder replaced...): retried in the background with a growing delay;
+    // 'saved' is emitted when a note reaches the disk again, 'error' on each failure
+    this.failed = new Set();
+    this.indexFailed = false;
+    this.retryTimer = null;
+    this.retryCount = 0;
+  }
+
+  /** True while something is only in memory (a failed note or index write). */
+  get pending() {
+    return this.failed.size > 0 || this.indexFailed;
+  }
+
+  scheduleRetry() {
+    if (this.retryTimer || this.disposed) return;
+    const delay = Math.min(60000, 3000 * 2 ** Math.min(this.retryCount++, 5));
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.retryNow().catch(() => {});
+    }, delay);
+  }
+
+  /** Write again everything that failed. Resolves true when it all reached the disk. */
+  async retryNow() {
+    let ok = true;
+    for (const id of [...this.failed]) {
+      if (!this.notes.has(id)) {
+        this.failed.delete(id);
+        continue;
+      }
+      try {
+        await this.writeNote(id);
+      } catch {
+        ok = false;
+      }
+    }
+    if (this.indexFailed) {
+      try {
+        await this.saveIndex(true);
+      } catch {
+        ok = false;
+      }
+    }
+    if (ok) this.retryCount = 0;
+    return ok;
+  }
+
+  dispose() {
+    this.disposed = true;
+    clearTimeout(this.retryTimer);
+    clearTimeout(this.indexTimer);
   }
 
   on(fn) {
@@ -169,11 +221,22 @@ export class NotesStore {
     this.indexChain = this.indexChain
       .catch(() => {})
       .then(() => this.api.invoke('notes:writeIndex', data))
-      .catch((err) => {
-        this.lastError = err;
-        this.emit('error', err);
-        throw err;
-      });
+      .then(
+        (v) => {
+          if (this.indexFailed) {
+            this.indexFailed = false;
+            this.emit('saved', { index: true });
+          }
+          return v;
+        },
+        (err) => {
+          this.lastError = err;
+          this.indexFailed = true;
+          this.emit('error', err);
+          this.scheduleRetry();
+          throw err;
+        },
+      );
     return this.indexChain;
   }
 
@@ -197,11 +260,22 @@ export class NotesStore {
     const next = prev
       .catch(() => {})
       .then(() => this.api.invoke('notes:writeNote', id, payload))
-      .catch((err) => {
-        this.lastError = err;
-        this.emit('error', err);
-        throw err;
-      });
+      .then(
+        (v) => {
+          if (this.failed.delete(id)) this.emit('saved', { id });
+          return v;
+        },
+        (err) => {
+          this.lastError = err;
+          // a note deleted for good meanwhile has nothing left to save
+          if (this.notes.has(id)) {
+            this.failed.add(id);
+            this.scheduleRetry();
+          }
+          this.emit('error', err);
+          throw err;
+        },
+      );
     this.noteChains.set(id, next);
     next.finally(() => {
       if (this.noteChains.get(id) === next) this.noteChains.delete(id);
@@ -277,7 +351,10 @@ export class NotesStore {
     if (!list.length) return 0;
     for (const id of list) await (this.noteChains.get(id) || Promise.resolve()).catch(() => {});
     await this.api.invoke('notes:remove', list);
-    for (const id of list) this.notes.delete(id);
+    for (const id of list) {
+      this.notes.delete(id);
+      this.failed.delete(id);
+    }
     await this.saveIndex(true);
     this.emit('change', { ids: list, kind: 'purge' });
     return list.length;
@@ -289,10 +366,13 @@ export class NotesStore {
     if (!expired.length) return 0;
     try {
       await this.api.invoke('notes:remove', expired);
-      for (const id of expired) this.notes.delete(id);
+      for (const id of expired) {
+        this.notes.delete(id);
+        this.failed.delete(id);
+      }
       return expired.length;
     } catch (err) {
-      console.error('[notes] purge failed', err);
+      console.warn('[notes] purge failed', err?.message || err);
       return 0;
     }
   }

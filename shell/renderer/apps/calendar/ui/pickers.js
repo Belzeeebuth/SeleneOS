@@ -5,7 +5,20 @@
 //   timeField(app, { value: minutes, onChange(min), from: () => minutes|null (show durations), label })
 //       -> editable combobox (type "9", "9:30", "21h15", "9pm"…) with a 30-minute list
 //   parseTime(text) -> minutes | null
+//   wrapTab(e, root) / tabStops(root)   keep Tab inside a flyout or the window
+//   gridPointerAllowed()                false just after a flyout button closed its flyout (double click)
+// Flyouts stay inside the work area (above the taskbar) and cycle Tab among their own controls.
 import { miniMonth } from './minical.js';
+import { wm } from '../../../core/wm.js';
+
+// Screen area flyouts stay in (the desktop minus the taskbar), like Windows menus and flyouts.
+function workArea() {
+  try {
+    const wa = wm.workarea();
+    if (wa && wa.width > 100 && wa.height > 100) return { left: wa.x, top: wa.y, right: wa.x + wa.width, bottom: wa.y + wa.height };
+  } catch {}
+  return { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+}
 
 const stack = [];
 
@@ -42,6 +55,38 @@ function listen(on) {
   }
 }
 
+// Keyboard-focusable elements of `root` in Tab order (DOM order; no positive tabindex is used).
+export function tabStops(root) {
+  return [...root.querySelectorAll('button, [href], input, select, textarea, [tabindex]')].filter(
+    (x) => !x.disabled && x.tabIndex >= 0 && !x.closest('[hidden], .dialog-layer') && x.getClientRects().length > 0,
+  );
+}
+
+// Wrap Tab / Shift+Tab at both ends of `root`'s Tab order (true when handled).
+export function wrapTab(e, root) {
+  if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return false;
+  const stops = tabStops(root);
+  const a = document.activeElement;
+  const i = stops.findIndex((x) => x === a || x.contains(a));
+  const outside = i < 0 && (a === root || !root.contains(a));
+  let next = null;
+  if (!stops.length) next = root;
+  else if (!e.shiftKey && (i === stops.length - 1 || outside)) next = stops[0];
+  else if (e.shiftKey && (i === 0 || outside)) next = stops[stops.length - 1];
+  if (!next) return false;
+  e.preventDefault();
+  e.stopPropagation();
+  next.focus();
+  return true;
+}
+
+// A flyout closed by one of its own buttons (Save, Edit…): the second click of a double click lands on
+// the grid behind it and must not start a new selection there.
+let quietUntil = 0;
+export function gridPointerAllowed() {
+  return Date.now() >= quietUntil;
+}
+
 export function closeAllPopovers(reason = 'api') {
   for (const p of [...stack].reverse()) p.close(reason);
 }
@@ -65,6 +110,10 @@ export function openPopover({ anchor, content, className, placement = 'below', o
     }
   }
   document.body.appendChild(el);
+  // Tab / Shift+Tab cycle inside a flyout (it lives in <body>: Tab would otherwise walk to the desktop)
+  if (role === 'dialog') el.addEventListener('keydown', (e) => wrapTab(e, el));
+  let lastPointer = 0;
+  el.addEventListener('pointerdown', () => (lastPointer = Date.now()));
   const anchorEl = anchor instanceof Element ? anchor : null;
   const offs = [];
   let closed = false;
@@ -75,6 +124,7 @@ export function openPopover({ anchor, content, className, placement = 'below', o
     close(reason = 'api') {
       if (closed) return;
       closed = true;
+      if (Date.now() - lastPointer < 1000 && !['outside', 'escape', 'escape-silent', 'render', 'resize', 'owner', 'blur', 'tab'].includes(reason)) quietUntil = Date.now() + 400;
       const i = stack.indexOf(handle);
       if (i >= 0) stack.splice(i, 1);
       for (const off of offs) off?.();
@@ -88,25 +138,28 @@ export function openPopover({ anchor, content, className, placement = 'below', o
     reposition() {
       const r = anchorEl ? anchorEl.getBoundingClientRect() : anchor;
       const pr = el.getBoundingClientRect();
-      const vw = window.innerWidth;
-      const vh = window.innerHeight - 4;
+      const wa = workArea();
+      const x0 = wa.left + 4;
+      const y0 = wa.top + 4;
+      const vw = wa.right;
+      const vh = wa.bottom - 4;
       let x;
       let y;
       if (placement === 'side') {
         x = r.right + 8;
         if (x + pr.width > vw - 4) x = r.left - pr.width - 8;
-        if (x < 4) x = Math.max(4, Math.min(vw - pr.width - 4, r.left + r.width / 2 - pr.width / 2));
-        y = Math.max(4, Math.min(vh - pr.height, r.top));
+        if (x < x0) x = Math.max(x0, Math.min(vw - pr.width - 4, r.left + r.width / 2 - pr.width / 2));
+        y = Math.max(y0, Math.min(vh - pr.height, r.top));
         el.classList.toggle('from-left', x < r.left);
       } else {
-        x = Math.max(4, Math.min(vw - pr.width - 4, r.left));
+        x = Math.max(x0, Math.min(vw - pr.width - 4, r.left));
         y = r.bottom + 4;
         if (y + pr.height > vh) {
           const up = r.top - pr.height - 4;
-          if (up >= 4) {
+          if (up >= y0) {
             y = up;
             el.classList.add('up');
-          } else y = Math.max(4, vh - pr.height);
+          } else y = Math.max(y0, vh - pr.height);
         }
       }
       el.style.left = `${Math.round(x)}px`;
@@ -354,7 +407,9 @@ export function timeField(app, { value, onChange, from, label }) {
       e.stopPropagation();
       pop.close('escape-silent');
     } else if (e.key === 'Tab') {
+      // commit right away (not on the delayed blur) so the end time follows before the next field
       pop?.close('tab');
+      commit();
     }
   });
   paint();

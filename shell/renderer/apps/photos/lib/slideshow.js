@@ -15,6 +15,7 @@ export class Slideshow {
     this.playing = false;
     this.timer = null;
     this.token = 0;
+    this.failed = new Set();
     this._build();
   }
 
@@ -57,6 +58,8 @@ export class Slideshow {
       this.pos = 0;
     } else this.pos = Math.max(0, Math.min(this.list.length - 1, index));
     this.app.ui.clear(this.layers);
+    this.failed = new Set();
+    this._dir = 1;
     this.playing = true;
     this._setPlayIcon();
     this._show(true);
@@ -94,11 +97,18 @@ export class Slideshow {
     try {
       await img.decode();
     } catch {
-      // Unreadable file: skip it.
-      if (token === this.token) this.timer = setTimeout(() => this.step(1, true), 400);
+      // Unreadable file: skip it (and give up once every picture of the list failed).
+      if (token !== this.token) return;
+      this.failed.add(this.index);
+      if (this.failed.size >= this.order.length) {
+        this.app.slideshowFailed();
+        return;
+      }
+      this.timer = setTimeout(() => this.step(this._dir || 1, true), 400);
       return;
     }
     if (token !== this.token) return;
+    this.failed.delete(this.index);
     const kb = this.lib.prefs.slideshowTransition === 'kenburns' && !reduceMotion();
     const layer = this.h('div', { class: 'ph-ss-layer' }, img);
     this.layers.appendChild(layer);
@@ -112,7 +122,9 @@ export class Slideshow {
       const dy = (Math.random() * 2 - 1) * 3;
       const a = zIn ? { transform: 'scale(1.0) translate(0%, 0%)' } : { transform: `scale(1.14) translate(${dx}%, ${dy}%)` };
       const b = zIn ? { transform: `scale(1.14) translate(${dx}%, ${dy}%)` } : { transform: 'scale(1.0) translate(0%, 0%)' };
-      img.animate([a, b], { duration: dur, easing: 'linear', fill: 'forwards' });
+      const anim = img.animate([a, b], { duration: dur, easing: 'linear', fill: 'forwards' });
+      // Browsing while paused shows the next photo without starting its motion.
+      if (!this.playing) anim.pause();
     }
     const olds = [...this.layers.children].filter((c) => c !== layer);
     for (const o of olds) {
@@ -135,6 +147,8 @@ export class Slideshow {
   }
 
   step(dir, auto = false) {
+    if (!this.order.length) return;
+    if (!auto) this._dir = dir;
     let p = this.pos + dir;
     if (p >= this.order.length) {
       if (!this.lib.prefs.slideshowLoop && auto) {
@@ -166,7 +180,7 @@ export class Slideshow {
     this.playBtn.replaceChildren(this.icon(this.playing ? 'pause' : 'play', { size: 20 }));
     const lab = this.playing ? this.t('pause') : this.t('play');
     this.playBtn.setAttribute('aria-label', lab);
-    this.playBtn.dataset.tip = `${lab} (Space)`;
+    this.playBtn.dataset.tip = `${lab} (${this.t('key.space')})`;
     this.el.classList.toggle('paused', !this.playing);
   }
 

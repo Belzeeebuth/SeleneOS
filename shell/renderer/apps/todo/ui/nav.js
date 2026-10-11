@@ -130,7 +130,7 @@ export class Nav {
     }
     this.el.querySelector('.td-settings-btn')?.classList.toggle('active', app.view === 'settings');
     this.scroller.scrollTop = scroll;
-    if (focusedView) (this.items.get(focusedView) || this.listsEl.querySelector(`[data-group="${focusedView}"]`))?.focus({ preventScroll: true });
+    if (focusedView) (this.items.get(focusedView) || this.listsEl.querySelector(`[data-group="${CSS.escape(focusedView)}"]`))?.focus({ preventScroll: true });
   }
 
   _item(view, { icon: ic, emoji, label, count, drop, indent = false }) {
@@ -179,7 +179,7 @@ export class Nav {
 
   // ---------------------------------------------------------------- group rename (inline)
   editGroup(gid) {
-    const head = this.listsEl.querySelector(`[data-group="${gid}"]`);
+    const head = this.listsEl.querySelector(`[data-group="${CSS.escape(gid)}"]`);
     const g = this.app.store.group(gid);
     if (!head || !g) return;
     const { h } = this.app;
@@ -192,7 +192,7 @@ export class Nav {
       done = true;
       if (save && input.value.trim()) this.app.store.renameGroup(gid, input.value);
       else this.app.render();
-      setTimeout(() => this.listsEl.querySelector(`[data-group="${gid}"]`)?.focus(), 0);
+      setTimeout(() => this.listsEl.querySelector(`[data-group="${CSS.escape(gid)}"]`)?.focus(), 0);
     };
     input.addEventListener('keydown', (e) => {
       e.stopPropagation();

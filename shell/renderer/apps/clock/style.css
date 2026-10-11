@@ -473,7 +473,7 @@
 .app-clock .ck-spin-cell.above,
 .app-clock .ck-spin-cell.below {
   height: calc(var(--row) * 0.55);
-  color: var(--text-3);
+  color: var(--text-2); /* clickable neighbours: readable (text-3 was 3.3:1 in light) */
   font-size: calc(var(--row) * 0.36);
   font-weight: 400;
   transition: opacity var(--dur) linear;
@@ -615,6 +615,9 @@
   min-height: 16px;
   color: var(--danger);
 }
+.app-clock .ck-dlg-err:empty {
+  display: none; /* no blank band at the bottom of the timer dialog */
+}
 .app-clock .ck-days {
   display: flex;
   flex-wrap: wrap;
@@ -753,14 +756,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 18px;
 }
 .app-clock .ck-presets-label {
   margin-right: 4px;
 }
 .app-clock .ck-preset {
-  min-width: 60px;
+  min-width: 56px;
 }
 .app-clock .ck-timer {
   display: flex;
@@ -960,22 +963,34 @@
 .app-clock .ck-sw.expanded .ck-sw-display {
   font-size: clamp(48px, 15cqw, 168px);
 }
+/* one grid for the whole table (header + rows share their tracks through subgrid): the header's
+   "Copy laps" button must not make its columns narrower than the rows' */
 .app-clock .ck-laps {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(max-content, 1fr) minmax(max-content, 1fr) minmax(32px, auto);
+  column-gap: 12px;
   width: min(760px, 100%);
   margin-top: 8px;
 }
+.app-clock .ck-laps-body {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+}
 .app-clock .ck-laps-head,
 .app-clock .ck-lap {
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(max-content, 1fr) minmax(max-content, 1fr) minmax(32px, auto);
+  grid-template-columns: subgrid;
   align-items: center;
-  gap: 12px;
   padding: 0 12px 0 16px;
 }
 /* narrow window: the Fastest / Slowest tag goes under the lap number, Copy laps shows its icon only */
+.app-clock .ck.tight .ck-laps {
+  column-gap: 8px;
+}
 .app-clock .ck.tight .ck-laps-head,
 .app-clock .ck.tight .ck-lap {
-  gap: 8px;
   padding: 0 4px 0 8px;
 }
 .app-clock .ck.tight .ck-lap-n {
@@ -1043,13 +1058,16 @@
   overflow: hidden;
   margin-bottom: 12px;
   flex: none;
+  /* the map keeps its proportions: past 60 % of the screen height it stops growing and is centred */
+  align-self: center;
+  width: 100%;
+  max-width: calc(60vh * 360 / 142);
   background: color-mix(in srgb, var(--accent) 9%, var(--card-solid));
 }
 .app-clock .ck-map {
   position: relative;
   width: 100%;
   aspect-ratio: 360 / 142;
-  max-height: 440px; /* wider than that: the view widens and the map wraps around (layoutMap) */
 }
 .app-clock .ck-map-svg {
   position: absolute;
@@ -1109,6 +1127,7 @@
   border-radius: 50%;
   background: var(--text);
   box-shadow: 0 0 0 2px var(--card-solid);
+  pointer-events: auto; /* hover tooltip (name and time) */
 }
 .app-clock .ck-pin.local .ck-pin-dot {
   left: -5px;

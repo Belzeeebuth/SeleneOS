@@ -737,8 +737,16 @@ export class Editor {
     return P.renderAsync(this.src, this.srcW, this.srcH, this.edit, { scale: 1, crop: true });
   }
 
-  /** mode: 'copy' | 'overwrite' | 'clipboard'. Resolves to the written path (or true for clipboard), null if cancelled. */
-  async save(mode = 'copy') {
+  /** mode: 'copy' | 'overwrite' | 'clipboard'. Resolves to the written path (or true for clipboard), null if
+   *  cancelled. One save flow at a time: double clicks and Ctrl+S repeats share it. */
+  save(mode = 'copy') {
+    if (!this.item) return Promise.resolve(null);
+    if (this._saveP) return this._saveP;
+    this._saveP = this._save(mode).finally(() => (this._saveP = null));
+    return this._saveP;
+  }
+
+  async _save(mode) {
     if (this.busy || !this.item) return null;
     const { t } = this;
     const it = this.item;
@@ -746,7 +754,7 @@ export class Editor {
     let dest = it.path;
     let ext = ext0;
     if (mode === 'overwrite') {
-      if (!this.canOverwrite) return this.save('copy');
+      if (!this.canOverwrite) return this._save('copy');
       const ok = await this.ui.confirm(t('overwriteBody', { name: it.name }), { title: t('overwriteTitle'), okLabel: t('save'), parent: this.app.win });
       if (!ok) return null;
     } else if (mode === 'copy') {
@@ -800,9 +808,16 @@ export class Editor {
     }
   }
 
-  /** Ask before discarding edits. Resolves true when it's OK to leave. */
-  async confirmLeave() {
-    if (!this.dirty) return true;
+  /** Ask before discarding edits. Resolves true when it's OK to leave. A second request while the prompt is
+   *  open (close button clicked twice, Esc then close…) gets the same answer instead of a second prompt. */
+  confirmLeave() {
+    if (!this.dirty) return Promise.resolve(true);
+    if (!this._leaveP) this._leaveP = this._confirmLeave().finally(() => (this._leaveP = null));
+    return this._leaveP;
+  }
+
+  async _confirmLeave() {
+    if (this._saveP) return !!(await this._saveP) && !this.dirty;
     const { t } = this;
     const v = await this.ui.dialog({
       title: t('unsavedTitle'),

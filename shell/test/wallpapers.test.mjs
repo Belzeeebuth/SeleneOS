@@ -163,6 +163,9 @@ async function unit() {
   const d1 = dyn.spotlightPick(new Date(2026, 9, 11, 9));
   check(spots.length >= 20 && spots.every((x) => fs.existsSync(path.join(ROOT, 'renderer/assets/wallpapers', x.url.replace('app://shell/assets/wallpapers/', '')))), `spotlight: ${spots.length} built-in pictures, every file exists`);
   check(d0.url === d0b.url && d0.url !== d1.url && dyn.spotlightPick(new Date(2026, 9, 10), 1).url === d1.url, 'spotlight: one picture per calendar day, a new one the next day');
+  const fam = spots.map((x) => dyn.pictureFamily(x.url));
+  const repeats = fam.filter((f, i) => f === fam[(i + 1) % fam.length]);
+  check(new Set(spots.map((x) => x.url)).size === spots.length && !repeats.length && new Set(fam).size >= 5, `spotlight: consecutive days never repeat a family, wrap-around included (${[...new Set(fam)].join(', ')})`);
 
   // weather mapping + URLs + parsing
   const k = (c) => wx.weatherKind(c);
@@ -190,6 +193,7 @@ async function unit() {
   const c2 = cities.searchCities('montr', 'fr');
   const c3 = cities.searchCities('geneve', 'en');
   check(c1[0]?.name === 'Paris' && c2[0]?.name === 'Montréal' && c3[0]?.name === 'Geneva' && cities.searchCities('z', 'en').length === 0, 'offline cities: prefix, accent-insensitive, localized names');
+  check(cities.samePlace(c1[0], { name: 'Paris', lat: 48.85341, lon: 2.3488 }) && cities.samePlace({ name: 'Montreal', lat: 45.5, lon: -73.57 }, c2[0]) && !cities.samePlace(c1[0], { name: 'Paris', lat: 33.66, lon: -95.56 }) && !cities.samePlace(c1[0], { name: 'Lyon', lat: 48.85, lon: 2.35 }), 'samePlace: same town in the built-in and online lists (name + ~25 km), Paris (Texas) kept apart');
   // defaults
   const { DEFAULTS } = require(path.join(ROOT, 'main/ipc/settings.js'));
   check(DEFAULTS.wallpaperMode === 'static' && DEFAULTS.animatedWallpaper.id === 'aurora' && DEFAULTS.animatedWallpaper.fps === 30 && DEFAULTS.animatedWallpaper.pauseOnMaximized === true && DEFAULTS.dynamicWallpaper.followTheme === false && DEFAULTS.slideshow.interval === 30 && DEFAULTS.lockScreen.mode === 'picture', 'DEFAULTS: every B1 key has a default');
@@ -202,6 +206,15 @@ async function unit() {
   const dyn_ = [...used].filter((key) => key.endsWith('_*')).every((p) => ['en', 'fr'].every((l) => Object.keys(i18n[l].wp).some((x) => x.startsWith(p.slice(0, -1)))));
   check(!missing.length && dyn_ && Object.keys(i18n.en.wp).sort().join() === Object.keys(i18n.fr.wp).sort().join(), `wp.* strings: ${used.size} keys used, all in English and French${missing.length ? ` (missing ${missing})` : ''}`);
   check(['w_clear', 'w_mainlyClear', 'w_partlyCloudy', 'w_overcast', 'w_fog', 'w_drizzle', 'w_freezingDrizzle', 'w_rain', 'w_freezingRain', 'w_snow', 'w_snowGrains', 'w_showers', 'w_snowShowers', 'w_thunderstorm', 'w_hail'].every((x) => i18n.en.wp[x] && i18n.fr.wp[x]), 'every weather description is translated');
+  const wt = await import(R('core/wallpaper/weather-text.js'));
+  const fluent = JSON.parse(fs.readFileSync(path.join(ROOT, 'renderer/assets/icons/fluent.json'), 'utf8'));
+  const allCodes = [0, 1, 2, 3, 45, 48, 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 71, 73, 75, 77, 80, 81, 82, 85, 86, 95, 96, 99];
+  const wtOk = allCodes.every((c) => [true, false].every((isDay) => {
+    const w = { ...wx.weatherKind(c), isDay };
+    return !!fluent[wt.weatherIconName(w)] && wt.weatherDescribe(w, 'en') !== wt.weatherDescribe(w, 'fr');
+  }));
+  check(wtOk && Object.keys(wt.WEATHER_TEXT.en).sort().join() === Object.keys(wt.WEATHER_TEXT.fr).sort().join(), 'weather-text: every WMO code has an existing icon (day / night) and an EN + FR description');
+  check(wt.weatherIconName({ describe: 'clear', isDay: false }) === 'weather_moon' && wt.weatherIconName({ describe: 'showers', isDay: true }) === 'weather_rain_showers_day' && wt.formatTemperature({ temperature: 12.4, unit: '°C' }) === '12 °C' && wt.formatTemperature({ temperature: -0.3 }) === '0 °C' && wt.formatTemperature({ temperature: null }) === '', 'weather-text: night icons, temperatures (rounded, no "-0", unknown → empty)');
 }
 
 // =====================================================================================================================
@@ -508,6 +521,8 @@ async function effectsAndEngine() {
     fs.writeFileSync(path.join(dir, 'notes.txt'), 'not a picture');
     await setMany(s, { wallpaperMode: 'slideshow', slideshow: { folder: dir, interval: 1, shuffle: false } });
     await waitFor(async () => (await state(s)).slideshow.count === 3, 4000);
+    // the list is known before the first picture is decoded and shown
+    await waitFor(async () => /a-sunrise\.jpg/.test(decodeURIComponent(await A(() => window.__aurora.theme.wallpaperUrl))), 5000);
     st = await state(s);
     const u0 = await A(() => window.__aurora.theme.wallpaperUrl);
     check(st.mode === 'slideshow' && st.slideshow.count === 3 && st.slideshow.index === 0 && /a-sunrise\.jpg/.test(decodeURIComponent(u0)), `slideshow: the folder's 3 pictures in name order (first: ${decodeURIComponent(u0).split('/').pop()})`);
@@ -577,7 +592,8 @@ async function dynamicAndWeather() {
     const expect = [['2026-06-21T02:00:00Z', 'night'], ['2026-06-21T03:30:00Z', 'dawn'], ['2026-06-21T12:00:00Z', 'day'], ['2026-06-21T19:30:00Z', 'dusk'], ['2026-06-21T21:30:00Z', 'night']];
     for (const [iso, ph] of expect) {
       await clock(iso);
-      await sleep(900);
+      await waitFor(async () => (await A(() => window.__aurora.theme.wallpaperUrl)).endsWith(`dynamic/dunes-${ph}.jpg`), 5000);
+      await sleep(300);
       const st = await state(s);
       const wp = await A(() => window.__aurora.theme.wallpaperUrl);
       check(st.dynamic?.phase === ph && wp.endsWith(`dynamic/dunes-${ph}.jpg`) && st.dynamic.source === 'sun', `Paris ${iso.slice(11, 16)} UTC → ${ph} (${wp.split('/').pop()})`);
@@ -605,6 +621,18 @@ async function dynamicAndWeather() {
       const st = await state(s);
       check(st.dynamic.phase === ph && st.dynamic.source === 'fixed', `no location: ${h}:50 → ${ph} (fixed hours)`);
     }
+    // the widgets board (weather:current without a place = the dynamic wallpaper's place) asks for a location
+    await A(() => window.__aurora.shell.emit('widgets:open'));
+    await waitFor(async () => /location/i.test((await A(() => document.querySelector('.wg-weather .btn')?.textContent)) || ''), 4000);
+    const wgNo = await A(() => ({ text: document.querySelector('.wg-weather .wg-weather-body')?.innerText, btn: document.querySelector('.wg-weather .btn')?.textContent }));
+    check(/Choose a location/.test(wgNo.text || '') && wgNo.btn === 'Choose a location', `widgets board without a place: "${wgNo.text}" + "${wgNo.btn}"`);
+    await s.page.click('.wg-weather .btn');
+    await s.page.waitForSelector(S('.st-page[data-page="wallpaperEffects"]'), { timeout: 10000 }).catch(() => {});
+    await sleep(600);
+    const wins = await A(() => window.__aurora.wm.list().map((w) => w.appId));
+    check(wins.includes('settings') && !wins.includes('browser') && (await s.page.locator(S('.st-page[data-page="wallpaperEffects"]')).count()) === 1, `"Choose a location" opens Settings > Animated & dynamic wallpapers only (windows: ${wins.join(', ')})`);
+    await A(() => window.__aurora.wm.list().forEach((w) => w.close()));
+    await sleep(600);
     await set(s, 'dynamicWallpaper.location', PARIS);
     // theme follows the sun
     await setMany(s, { 'dynamicWallpaper.followTheme': true, 'autoTheme.enabled': false });
@@ -646,6 +674,14 @@ async function dynamicAndWeather() {
     const cacheFile = path.join(s.home, '.cache', 'aurora', 'weather.json');
     await waitFor(() => fs.existsSync(cacheFile), 2000);
     check(fs.existsSync(cacheFile) && JSON.parse(fs.readFileSync(cacheFile, 'utf8')).entries?.[0]?.code === 63, 'conditions persisted to ~/.cache/aurora/weather.json (offline after a restart)');
+    // the widgets board reuses weather:current (same place)
+    await A(() => window.__aurora.shell.emit('widgets:open'));
+    await waitFor(async () => !!(await A(() => document.querySelector('.wg-weather .wg-weather-temp')?.textContent)), 4000);
+    const wg = await A(() => ({ temp: document.querySelector('.wg-weather .wg-weather-temp')?.textContent, text: document.querySelector('.wg-weather .wg-weather-now')?.innerText, icon: document.querySelector('.wg-weather .wg-weather-art [data-icon]')?.dataset.icon, kind: document.querySelector('.wg-weather')?.dataset.kind }));
+    check(/^12\s°C$/.test(wg.temp || '') && /Rain/.test(wg.text || '') && /Paris/.test(wg.text || '') && wg.icon === 'weather_rain' && wg.kind === 'rain', `widgets board: live weather card (${wg.temp}, ${(wg.text || '').replace(/\n/g, ' / ')}, ${wg.icon})`);
+    await docShot(s, 'wallpaper-widgets-weather');
+    await A(() => window.__aurora.shell.emit('widgets:close'));
+    await sleep(400);
     // an event for other consumers (widgets, Weather app)
     await A(() => {
       window.__wxEvents = [];
@@ -789,7 +825,8 @@ async function settingsUi({ theme, lang, size = '1600x900', shots = true }) {
     await s.page.waitForSelector(S('.wp-sets .wp-set'), { timeout: 5000 });
     check((await get(s, 'wallpaperMode')) === 'dynamic' && (await s.page.locator(S('.wp-sets .wp-set')).count()) === 3, 'Background → Dynamic: 3 picture sets');
     await s.page.locator(S('.wp-set[data-set="dunes"]')).click();
-    await sleep(400);
+    // the engine decodes the 2560×1600 variant before showing it: wait for it rather than a fixed delay
+    await waitFor(async () => (await A(() => window.__aurora.theme.wallpaperUrl)).includes('dynamic/dunes-'), 5000);
     check((await get(s, 'dynamicWallpaper.set')) === 'dunes' && (await A(() => window.__aurora.theme.wallpaperUrl)).includes('dynamic/dunes-'), 'clicking a set applies it');
     // source: time + weather
     await s.page.locator(S('.wp-source button'), { hasText: L('Time of day and weather', 'L’heure du jour et la météo') }).click();
@@ -806,6 +843,14 @@ async function settingsUi({ theme, lang, size = '1600x900', shots = true }) {
     await sleep(700);
     const items = await s.page.locator('.wp-loc-item').allInnerTexts();
     check(items.length >= 2 && items.some((x) => /Texas/.test(x)) && items[0].includes('Paris'), `location search: online (mock) + built-in results (${items.length})`);
+    check(items.filter((x) => /Paris/.test(x) && /France/.test(x)).length === 1, `location search: the built-in Paris merges with the online one (${items.map((x) => x.replace(/\s+/g, ' ')).join(' | ')})`);
+    const dlgFit = await s.aurora(() => {
+      const b = document.querySelector('.wp-loc-dlg .dialog-body');
+      const d = document.querySelector('.wp-loc-dlg').getBoundingClientRect();
+      const out = [...b.querySelectorAll('input, button')].filter((el) => el.getBoundingClientRect().right > d.right - 8).length;
+      return { sw: b.scrollWidth, cw: b.clientWidth, out };
+    });
+    check(dlgFit.sw <= dlgFit.cw && dlgFit.out === 0, `location dialog: no horizontal overflow (scroll ${dlgFit.sw} / ${dlgFit.cw}, ${dlgFit.out} controls past the edge)`);
     if (shots) await docShot(s, `wallpaper-settings-location-${theme}-${lang}`);
     await s.page.locator('.wp-loc-item').first().click();
     await sleep(800);

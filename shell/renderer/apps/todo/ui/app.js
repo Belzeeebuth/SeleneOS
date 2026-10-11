@@ -5,7 +5,7 @@
 // Views: 'myday' 'important' 'planned' 'assigned' 'all' 'completed' 'list:<id>' 'search' 'settings'.
 // Test / automation hook: the window element exposes this object as `el.__todo`.
 import * as D from '../lib/dates.js';
-import { TodoStore, DEFAULT_LIST, DEFAULT_THEMES, reminderPlan, viewTasks, splitEmoji } from '../lib/store.js';
+import { TodoStore, DEFAULT_LIST, DEFAULT_THEMES, SCHEMA, reminderPlan, viewTasks, splitEmoji } from '../lib/store.js';
 import { seed } from '../lib/seed.js';
 import { Fmt } from './fmt.js';
 import { Nav } from './nav.js';
@@ -13,7 +13,7 @@ import { ListView } from './listview.js';
 import { Detail } from './detail.js';
 import { Suggest } from './suggest.js';
 import { SettingsView } from './settings.js';
-import { pickDate, pickDateTime, customRepeat, themePicker, emojiPicker, shortcutsHelp, closePopover, popoverOpen } from './pickers.js';
+import { pickDate, pickDateTime, customRepeat, themePicker, emojiPicker, shortcutsHelp, closePopover, popoverOpen, trapPopoverTab } from './pickers.js';
 import { isDragging } from './drag.js';
 
 const CHIME = [
@@ -142,6 +142,7 @@ export class TodoApp {
       // a second window: nothing to report again
     } else if (this.store.loadError) this.ui.alert(this.t('errors.load', { msg: this.store.loadError.message || String(this.store.loadError) }), { title: this.t('errors.title'), parent: this.win });
     else if (this.recoveredFrom) this.ui.alert(this.t('errors.damaged', { file: this.recoveredFrom.split('/').pop() }), { title: this.t('errors.title'), parent: this.win });
+    else if (this.newerKeptAs) this.ui.alert(this.t('errors.newer', { file: this.newerKeptAs.split('/').pop() }), { title: this.t('app'), parent: this.win });
     return this;
   }
 
@@ -157,14 +158,26 @@ export class TodoApp {
     }
     if (!(await api.invoke('fs:exists', file))) return null;
     const text = await api.invoke('fs:readText', file);
+    let data;
     try {
-      return JSON.parse(text);
+      data = JSON.parse(text);
     } catch {
       const backup = file.replace(/data\.json$/, `data.damaged-${Date.now()}.json`);
       await api.invoke('fs:rename', file, backup).catch(() => {});
       this.recoveredFrom = backup;
       return {};
     }
+    if (data && typeof data === 'object' && Number.isInteger(data.version) && data.version > SCHEMA) {
+      // written by a newer To Do: keep the original before this version saves its own (older) format over it
+      const backup = file.replace(/data\.json$/, `data.v${data.version}-${Date.now()}.json`);
+      try {
+        await api.invoke('fs:writeText', backup, text);
+        this.newerKeptAs = backup;
+      } catch (err) {
+        throw new Error(this.t('errors.newerNoBackup', { msg: err?.message || String(err) }));
+      }
+    }
+    return data;
   }
 
   _build() {
@@ -190,7 +203,7 @@ export class TodoApp {
 
   rebuild() {
     if (this.closed) return;
-    closePopover();
+    closePopover(this);
     this.ro?.disconnect();
     this.root?.remove();
     this._build();
@@ -236,9 +249,11 @@ export class TodoApp {
     this.completing.clear();
     this.detail.commitFocused();
     this.detail.flush();
+    closePopover(this); // its document listeners would otherwise outlive the window
     this.closed = true;
     clearInterval(this._tick);
     clearTimeout(this._syncT);
+    clearTimeout(this.nav._st);
     for (const off of this.offs) off?.();
     this.ro?.disconnect();
     this.store.flush();
@@ -347,7 +362,7 @@ export class TodoApp {
         this.detail.flush();
         this.openId = null;
       }
-      closePopover();
+      closePopover(this);
     }
     if (v !== 'search' && v !== 'settings' && this.store.data.prefs.lastView !== v) {
       this.store.data.prefs.lastView = v;
@@ -661,7 +676,12 @@ export class TodoApp {
 
   // ---------------------------------------------------------------- lists
   async newList() {
-    const l = this.store.addList(this.t('list.untitled'));
+    // a double click on "New list" (or a held Ctrl+L) must not create a pile of empty lists
+    const last = this.store.list(this._newListId);
+    if (last && Date.now() - (this._newListAt || 0) < 600 && last.name === this.t('list.untitled') && !last.emoji) return last;
+    const l = this.store.addList(this.t('list.untitled'), { fallbackName: this.t('list.untitled') });
+    this._newListAt = Date.now();
+    this._newListId = l.id;
     this.go(`list:${l.id}`);
     setTimeout(() => this.list.editTitle(true), 30);
     return l;
@@ -693,7 +713,7 @@ export class TodoApp {
   }
 
   duplicateList(id) {
-    const c = this.store.duplicateList(id, (l) => this.t('list.copyName', { name: l.name || this.t('nav.tasks') }));
+    const c = this.store.duplicateList(id, (l) => this.t('list.copyName', { name: l.id === DEFAULT_LIST ? this.t('nav.tasks') : l.name }), { fallbackName: this.t('list.untitled') });
     if (c) this.go(`list:${c.id}`);
     return c;
   }
@@ -780,7 +800,7 @@ export class TodoApp {
     return this.menu(at, [
       { label: t('menu.renameGroup'), icon: 'rename', action: () => this.nav.editGroup(gid) },
       { label: t('menu.newListInGroup'), icon: 'add', action: async () => {
-        const l = this.store.addList(this.t('list.untitled'), { groupId: gid });
+        const l = this.store.addList(this.t('list.untitled'), { groupId: gid, fallbackName: this.t('list.untitled') });
         this.store.setGroupCollapsed(gid, false);
         this.go(`list:${l.id}`);
         setTimeout(() => this.list.editTitle(true), 30);
@@ -791,7 +811,7 @@ export class TodoApp {
   }
 
   newGroup() {
-    const g = this.store.addGroup(this.t('list.untitledGroup'));
+    const g = this.store.addGroup(this.t('list.untitledGroup'), { fallbackName: this.t('list.untitledGroup') });
     this.renderNow();
     this.nav.editGroup(g.id);
     return g;
@@ -841,7 +861,7 @@ export class TodoApp {
   newListFromTask(id) {
     const task = this.store.task(id);
     if (!task) return;
-    const l = this.store.addList(task.title);
+    const l = this.store.addList(task.title, { fallbackName: this.t('list.untitled') });
     this.store.remove([id]);
     for (const s of task.steps) {
       const n = this.store.addTask({ title: s.title, listId: l.id }, { top: false });
@@ -951,12 +971,56 @@ export class TodoApp {
     this._applyArgs(args || {});
   }
 
+  /** Wrap Tab / Shift+Tab at both ends of the window's Tab order. */
+  _wrapTab(e) {
+    const stops = focusable(this.root);
+    if (!stops.length) return;
+    const a = document.activeElement;
+    const i = stops.findIndex((x) => x === a);
+    let next = null;
+    if (!e.shiftKey && (i === stops.length - 1 || (i < 0 && !this.root.contains(a)))) next = stops[0];
+    else if (e.shiftKey && (i === 0 || (i < 0 && !this.root.contains(a)))) next = stops[stops.length - 1];
+    if (!next) return;
+    e.preventDefault();
+    next.focus();
+  }
+
+  /** F6 / Shift+F6: navigation pane -> task list -> details (or suggestions) -> … (like Windows apps). */
+  cyclePane(dir = 1) {
+    const main = this.view === 'settings' ? this.settingsView.el : this.list.el;
+    const side = this.openId ? this.detail.el : this.suggestOpen && this.view === 'myday' ? this.suggest.el : null;
+    const panes = [this.nav.el, main, side].filter(Boolean);
+    const i = panes.findIndex((p) => p.contains(document.activeElement));
+    const next = panes[(i < 0 ? 0 : i + dir + panes.length) % panes.length];
+    if (next === this.nav.el) {
+      if (this.root.classList.contains('narrow')) this.toggleNav(true);
+      else this.nav.focusCurrent();
+    } else {
+      if (this.root.classList.contains('nav-open')) this.toggleNav(false);
+      if (next === this.list.el) this.list.focusList();
+      else if (next === this.detail.el) this.detail.focus('title');
+      else if (next === this.suggest.el) this.suggest.focus();
+      else focusable(next)[0]?.focus();
+    }
+  }
+
   // ---------------------------------------------------------------- keyboard
   _keys(e) {
     if (e.defaultPrevented || isDragging()) return;
     const k = e.key;
     const ctrl = e.ctrlKey || e.metaKey;
     const inField = e.target.closest?.('input, textarea, select, [contenteditable="true"]');
+    if (k === 'Tab' && !ctrl && !e.altKey) {
+      // like a Windows app, Tab cycles inside the window (never out to the taskbar / desktop); flyouts trap it
+      if (popoverOpen()) trapPopoverTab(e);
+      else this._wrapTab(e);
+      return;
+    }
+    if (k === 'F6' && !ctrl && !e.altKey) {
+      e.preventDefault();
+      this.cyclePane(e.shiftKey ? -1 : 1);
+      return;
+    }
     if (ctrl && !e.altKey && (k === '?' || (e.shiftKey && (e.code === 'Slash' || k === '/')))) {
       e.preventDefault();
       shortcutsHelp(this);
@@ -1039,6 +1103,21 @@ export class TodoApp {
       return;
     }
     if (inField) return;
+    const navEl = e.target.closest?.('.td-nav');
+    if (navEl && (k === 'Delete' || k === 'F2') && !ctrl && !e.altKey) {
+      // in the navigation pane these keys act on the focused list, never on the task selected in the list
+      const lid = e.target.closest('.td-nav-item[data-list-id]')?.dataset.listId;
+      const gid = e.target.closest('.td-group-head')?.dataset.group;
+      if (lid && lid !== DEFAULT_LIST) {
+        e.preventDefault();
+        if (k === 'Delete') this.deleteList(lid);
+        else this.renameList(lid);
+      } else if (gid && k === 'F2') {
+        e.preventDefault();
+        this.nav.editGroup(gid);
+      }
+      return;
+    }
     if (k === 'Delete' && !ctrl && !e.altKey) {
       const ids = this.targets();
       if (ids.length) {
@@ -1047,11 +1126,17 @@ export class TodoApp {
       }
       return;
     }
-    if (k === 'F2' && this.view.startsWith('list:') && e.target.closest('.td-nav, .td-head')) {
+    if (k === 'F2' && this.view.startsWith('list:') && e.target.closest('.td-head')) {
       e.preventDefault();
       this.renameList(this.view.slice(5));
     }
   }
+}
+
+function focusable(root) {
+  return [...root.querySelectorAll('button, [href], input, select, textarea, [tabindex]')].filter(
+    (x) => !x.disabled && x.tabIndex >= 0 && !x.closest('[hidden], .td-ghost') && x.checkVisibility?.({ checkVisibilityCSS: true, visibilityProperty: true }) !== false && x.getClientRects().length > 0,
+  );
 }
 
 function infinityIcon(h, opts = {}) {

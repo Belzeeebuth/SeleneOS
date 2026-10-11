@@ -34,11 +34,11 @@ export class WorldPage {
     const { h, t, icon } = this.app;
     this.tz = localZone();
     // ---- map
-    // The map wraps around: on a window wider than the map's 360° x 142° aspect, the view widens
-    // (layoutMap) and the copies of the land and of the sun at ±360° fill the sides seamlessly, so
-    // the map never stretches or shows empty bands. The night paths already repeat at ±360°.
-    this.lands = WRAP.map((dx) => svg('path', { class: 'ck-land', d: '', transform: dx ? `translate(${dx} 0)` : null }));
-    this.land = this.lands[1];
+    // Always exactly 360° x 142° (84°N .. 58°S) at its own aspect ratio: on very wide windows the map
+    // card stops growing and is centred (CSS) rather than stretching or repeating the continents.
+    // The night paths and the sun are repeated at ±360° so they wrap seamlessly across the date line.
+    this.land = svg('path', { class: 'ck-land', d: '' });
+    this.lands = [this.land];
     this.nights = [0, -6, -12, -18].map((a, i) => svg('path', { class: `ck-night n${i}`, d: '', 'fill-rule': 'nonzero' }));
     this.suns = WRAP.map(() => svg('g', { class: 'ck-sun' }, svg('circle', { r: 7, class: 'ck-sun-glow' }), svg('circle', { r: 2.4, class: 'ck-sun-core' })));
     this.sun = this.suns[1];
@@ -352,47 +352,45 @@ export class WorldPage {
       const x = ((c.lon + 180 - this.view.x) / this.view.w) * 100;
       const y = ((90 - c.lat - MAP_TOP) / MAP_H) * 100;
       if (y < 0 || y > 100) continue;
-      const label = h('span', { class: 'ck-pin-label' }, h('span', { class: 'ck-pin-name' }, e.local ? cityName(c, lang) : cityName(c, lang)), h('span', { class: 'ck-pin-time' }));
-      const pin = h('div', { class: ['ck-pin', e.local && 'local'], style: { left: `${x}%`, top: `${y}%` }, dataset: { id: e.key } }, h('span', { class: 'ck-pin-dot' }), label);
+      const label = h('span', { class: 'ck-pin-label', 'aria-hidden': 'true' }, h('span', { class: 'ck-pin-name' }, cityName(c, lang)), h('span', { class: 'ck-pin-time' }));
+      // the dot keeps a tooltip for when its label had to be hidden (crowded map)
+      const dot = h('span', { class: 'ck-pin-dot' });
+      const pin = h('div', { class: ['ck-pin', e.local && 'local'], style: { left: `${x}%`, top: `${y}%` }, dataset: { id: e.key } }, dot, label);
       pin.tz = e.local ? this.tz : c.tz;
       pin.lon = c.lon;
+      pin.cityName = cityName(c, lang);
+      pin.dot = dot;
       this.pins.appendChild(pin);
       this.pinEls.push(pin);
     }
     requestAnimationFrame(() => this.layoutPins());
   }
 
-  // widen the view to the map's box (no stretching on wide windows), centred on Greenwich
-  layoutMap() {
-    const r = this.map.getBoundingClientRect();
-    if (!r.width || !r.height) return;
-    const w = Math.min(1080, Math.max(360, (MAP_H * r.width) / r.height));
-    if (Math.abs(w - this.view.w) > 0.05) {
-      this.view = { x: 180 - w / 2, w };
-      this.mapSvg.setAttribute('viewBox', `${this.view.x.toFixed(2)} ${MAP_TOP} ${w.toFixed(2)} ${MAP_H}`);
-    }
-    for (const pin of this.pinEls || []) pin.style.left = `${((pin.lon + 180 - this.view.x) / this.view.w) * 100}%`;
-  }
-
-  // hide labels that would overlap one already placed (the local pin first), flip near the right edge
+  // Place each label (the local pin first) to the right of its dot, else to the left, so that it stays
+  // inside the map and covers neither another label nor another city's dot; hide it when neither fits.
   layoutPins() {
-    this.layoutMap();
     if (!this.pinEls?.length) return;
     const box = this.pins.getBoundingClientRect();
     if (!box.width) return;
+    const hits = (r, list) => list.some((p) => !(r.right < p.left || r.left > p.right || r.bottom < p.top || r.top > p.bottom));
+    const dots = this.pinEls.map((pin) => pin.querySelector('.ck-pin-dot').getBoundingClientRect());
     const placed = [];
-    for (const pin of this.pinEls) {
+    this.pinEls.forEach((pin, i) => {
       const label = pin.querySelector('.ck-pin-label');
+      const others = dots.filter((_, j) => j !== i);
       pin.classList.remove('left', 'nolabel');
-      let r = label.getBoundingClientRect();
-      if (r.right > box.right - 2) {
-        pin.classList.add('left');
-        r = label.getBoundingClientRect();
+      for (const side of ['right', 'left']) {
+        pin.classList.toggle('left', side === 'left');
+        const r = label.getBoundingClientRect();
+        const inside = r.left >= box.left + 2 && r.right <= box.right - 2;
+        if (inside && !hits(r, placed) && !hits(r, others)) {
+          placed.push(r);
+          return;
+        }
       }
-      const hit = placed.some((p) => !(r.right < p.left || r.left > p.right || r.bottom < p.top || r.top > p.bottom));
-      if (hit) pin.classList.add('nolabel');
-      else placed.push(r);
-    }
+      pin.classList.remove('left');
+      pin.classList.add('nolabel');
+    });
   }
 
   drawMap(at) {
@@ -422,7 +420,10 @@ export class WorldPage {
       for (const pin of this.pinEls || []) {
         const el = pin.querySelector('.ck-pin-time');
         const txt = this.app.timeParts(at, { tz: pin.tz }).full;
-        if (el.textContent !== txt) el.textContent = txt;
+        if (el.textContent !== txt) {
+          el.textContent = txt;
+          pin.dot.dataset.tip = `${pin.cityName} · ${txt}`;
+        }
       }
       if (this.compare) this.fillCompare(now);
     }
@@ -587,7 +588,11 @@ export class WorldPage {
     this.dialogOpen = false;
     if (res !== 'add' || sel < 0) return null;
     const city = results[sel];
-    if (!this.store.addCity(city.id)) this.highlight(city.id);
+    if (this.store.cities.includes(city.id)) this.highlight(city.id);
+    else if (!this.store.addCity(city.id)) {
+      ui.alert(t('world.limit', { n: 60 }), { title: t('world.addTitle'), parent: win });
+      return null;
+    }
     return city;
   }
 

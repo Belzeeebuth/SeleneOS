@@ -1,0 +1,266 @@
+/* Taskbar + Start personalization, part 2 (docs/PERSONALIZATION.md §10) — owned by area B2, loaded by core/taskbar.js
+   after core/shell.css and core/shell-personalize.css (same specificity → these rules win).
+   Taskbar: notification badges, widgets button at the end of the bar, vertical flyout anchoring.
+   Start: background styles (glass), app folders (drag-to-create, popup, rename, drag out), recommended apps. */
+
+/* ------------------------------------------------------------------ taskbar: notification badges (taskbar.badges) */
+#taskbar .tb-badge {
+  position: absolute;
+  top: 3px;
+  left: calc(50% + 3px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 1.5px var(--taskbar-solid, #eee);
+  pointer-events: none;
+  z-index: 1;
+}
+#taskbar .tb-badge[hidden] {
+  display: none;
+}
+:root[data-tb-size="small"] #taskbar .tb-badge {
+  top: 1px;
+  min-width: 14px;
+  height: 14px;
+  line-height: 14px;
+  border-radius: 7px;
+  font-size: 9px;
+}
+:root[data-tb-size="large"] #taskbar .tb-badge {
+  top: 4px;
+  left: calc(50% + 5px);
+}
+:root[data-tb-labels="on"] #taskbar .tb-app.running .tb-badge {
+  left: 22px;
+}
+:root[data-style="contrast"] #taskbar .tb-badge {
+  background: var(--hc-hi, #ffff00);
+  color: var(--hc-on-hi, #000);
+}
+:root[data-style="retro"] #taskbar .tb-badge {
+  border-radius: 0;
+}
+
+/* ------------------------------------------------------------------ taskbar: widgets button at the end (before the tray) */
+#taskbar .tb-tray > .tb-widgets {
+  flex: none;
+}
+:root[data-tb-pos="left"] #taskbar .tb-tray > .tb-widgets,
+:root[data-tb-pos="right"] #taskbar .tb-tray > .tb-widgets {
+  padding: 0;
+}
+
+/* ------------------------------------------------------------------ vertical taskbar: Start and Search open beside the
+   Start button (top of the screen), Quick settings and the Calendar beside the tray (bottom); none of them loses the
+   taskbar's thickness in height. */
+:root[data-tb-pos="left"] #start,
+:root[data-tb-pos="right"] #start,
+:root[data-tb-pos="left"] #search-panel,
+:root[data-tb-pos="right"] #search-panel {
+  top: 12px;
+  bottom: auto;
+}
+:root[data-tb-pos="left"] #start,
+:root[data-tb-pos="right"] #start {
+  height: min(726px, calc(100vh - 24px));
+}
+:root[data-tb-pos="left"] #search-panel,
+:root[data-tb-pos="right"] #search-panel {
+  height: min(700px, calc(100vh - 24px));
+}
+:root[data-tb-pos="left"] #quick-settings,
+:root[data-tb-pos="right"] #quick-settings,
+:root[data-tb-pos="left"] #calendar-center,
+:root[data-tb-pos="right"] #calendar-center {
+  max-height: calc(100vh - 24px);
+}
+
+/* ------------------------------------------------------------------ Start background: transparent glass (start.background) */
+#start[data-bg="glass"] {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.16));
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: var(--fly-shadow, var(--shadow-flyout)), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(var(--blur-lg, 60px)) saturate(185%);
+}
+:root[data-theme="dark"] #start[data-bg="glass"] {
+  background: linear-gradient(160deg, rgba(40, 40, 48, 0.42), rgba(20, 20, 26, 0.26));
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: var(--fly-shadow, var(--shadow-flyout)), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+#start[data-bg="glass"] .start-footer {
+  background: rgba(255, 255, 255, 0.12);
+}
+:root[data-theme="dark"] #start[data-bg="glass"] .start-footer {
+  background: rgba(0, 0, 0, 0.16);
+}
+/* Transparency off and the opaque styles: glass falls back to the theme's surface. High contrast keeps its palette
+   whatever the background style. */
+:root[data-transparency="off"] #start[data-bg="glass"] {
+  background: var(--fly-bg);
+  backdrop-filter: none;
+}
+:root[data-style="contrast"] #start[data-bg] {
+  background: var(--fly-bg);
+  backdrop-filter: none;
+}
+
+/* ------------------------------------------------------------------ Start: app folders */
+/* a dragged app held over the middle of another one: they become a folder */
+.start-tile.drop-merge {
+  position: relative;
+  background: var(--fly-card);
+  border-color: var(--control-stroke);
+}
+.start-tile.drop-merge::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 46px;
+  height: 46px;
+  margin-left: -23px;
+  border-radius: var(--radius);
+  background: var(--accent-subtle);
+  border: 2px solid var(--accent);
+  animation: start-merge-in var(--dur) var(--ease) both;
+}
+.start-tile.drop-merge img {
+  position: relative;
+  transform: scale(0.8);
+}
+@keyframes start-merge-in {
+  from {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+}
+.start-group.drop-into .start-group-icons {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+/* the open folder: a popup over the (dimmed, inert) Pinned page */
+.start-body.has-folder > .start-view {
+  opacity: 0.28;
+  transition: opacity var(--dur) linear;
+}
+.start-folder-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 36px 32px 12px;
+}
+.start-folder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(100%, 440px);
+  max-height: 100%;
+  padding: 12px 14px 10px;
+  border-radius: var(--radius-lg);
+  background: var(--solid, var(--fly-bg));
+  border: 1px solid var(--control-stroke);
+  box-shadow: var(--shadow-flyout);
+  transform-origin: 50% 50%;
+  transition: opacity var(--dur) linear, transform var(--dur) var(--ease);
+}
+.start-folder-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0 2px 6px;
+}
+.start-folder-head > .icon {
+  color: var(--text-2);
+  flex: none;
+}
+.start-folder-name {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: 600 var(--fs-body-large, 16px) / 1.3 var(--font-display, var(--font));
+  outline: none;
+  cursor: text;
+}
+.start-folder-name:hover {
+  background: var(--subtle-hover);
+}
+.start-folder-name:focus {
+  background: var(--input-focus-bg, var(--input-bg));
+  border-color: var(--control-stroke);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.start-folder-close {
+  flex: none;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+}
+.start-folder-grid {
+  padding: 0;
+  grid-auto-rows: 84px;
+  max-height: calc(3 * 84px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.start-folder-hint {
+  display: none;
+  text-align: center;
+  padding: 2px 8px 0;
+}
+.start-folder-layer.dragging .start-folder-hint,
+.start-folder-layer.drop-out .start-folder-hint {
+  display: block;
+}
+.start-folder-layer.drop-out .start-folder {
+  opacity: 0.72;
+  transform: scale(0.97);
+}
+.start-folder-layer.leaving {
+  pointer-events: none;
+}
+:root[data-style="retro"] .start-folder {
+  border-radius: 0;
+  border: 0;
+  box-shadow: var(--bevel-out), var(--fly-shadow);
+}
+:root[data-style="contrast"] .start-folder {
+  border: 2px solid var(--hc-fg);
+  background: var(--hc-bg);
+}
+:root[data-style="contrast"] .start-body.has-folder > .start-view {
+  opacity: 0.12;
+}
+
+/* ------------------------------------------------------------------ Start: recommended apps + "New" in All apps */
+.start-rec-appicon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+}
+.start-new-pill {
+  margin-left: auto;
+  flex: none;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--accent-text);
+  background: var(--accent-subtle);
+}

@@ -31,6 +31,11 @@ const int = (v, min, max, def) => {
   const n = Math.round(Number(v));
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
 };
+/** First item of each id (stored lists are untrusted: two cards with one id would share one DOM node). */
+const uniqueById = (list) => {
+  const seen = new Set();
+  return list.filter((x) => x && !seen.has(x.id) && seen.add(x.id));
+};
 
 // ------------------------------------------------------------------ sanitizers (stored data is untrusted)
 function cleanAlarm(a) {
@@ -118,7 +123,8 @@ function cleanPrefs(p) {
     timerSound: TONES.some((x) => x.id === o.timerSound) ? o.timerSound : DEFAULT_PREFS.timerSound,
     snooze: SNOOZE_CHOICES.includes(Number(o.snooze)) ? Number(o.snooze) : DEFAULT_PREFS.snooze,
     focus: {
-      minutes: int(f.minutes, FOCUS_MIN, FOCUS_MAX, df.minutes),
+      // the duration picker steps by 5 minutes: keep the stored value on that grid
+      minutes: Math.round(int(f.minutes, FOCUS_MIN, FOCUS_MAX, df.minutes) / 5) * 5,
       chunk: [25, 30, 45, 60].includes(Number(f.chunk)) ? Number(f.chunk) : df.chunk,
       brk: [5, 10, 15].includes(Number(f.brk)) ? Number(f.brk) : df.brk,
       goal: int(f.goal, 15, 600, df.goal),
@@ -200,16 +206,29 @@ class ClockStore {
     const st = this.ctx.storage;
     const get = (n, d) => st.get(n, d).catch((err) => (console.error(`[clock] reading ${n} failed`, err), d));
     const [alarms, timers, sw, cities, focus, prefs] = await Promise.all([get('alarms', null), get('timers', null), get('stopwatch', null), get('cities', null), get('focus', null), get('prefs', null)]);
+    // storage.get answers the fallback both for a missing file and for one that can't be read or parsed:
+    // a damaged file is set aside (never silently replaced by the first-run defaults) and reported
+    const shapes = { alarms: [alarms, Array.isArray], timers: [timers, Array.isArray], stopwatch: [sw, isObj], cities: [cities, Array.isArray], focus: [focus, isObj], prefs: [prefs, isObj] };
+    const suspect = Object.entries(shapes).filter(([, [v, ok]]) => !ok(v)).map(([k]) => k);
+    this.loadErrors = suspect.length ? await this._setAsideUnreadable(suspect) : [];
+    const damaged = new Set(this.loadErrors.map((e) => e.name));
     this.prefs = cleanPrefs(prefs);
-    this.alarms = Array.isArray(alarms) ? alarms.map(cleanAlarm).filter(Boolean) : [cleanAlarm({ id: uid('a'), hour: 7, minute: 0, name: this.t('alarm.goodMorning'), days: [1, 2, 3, 4, 5], enabled: false })];
+    const firstRun = (k, v) => !Array.isArray(v) && !damaged.has(k);
+    this.alarms = Array.isArray(alarms)
+      ? uniqueById(alarms.map(cleanAlarm).filter(Boolean))
+      : firstRun('alarms', alarms)
+        ? [cleanAlarm({ id: uid('a'), hour: 7, minute: 0, name: this.t('alarm.goodMorning'), days: [1, 2, 3, 4, 5], enabled: false })]
+        : [];
     this.timers = Array.isArray(timers)
-      ? timers.map(cleanTimer).filter(Boolean)
-      : [1, 3, 5].map((m) => cleanTimer({ id: uid('t'), name: '', duration: m * MIN }));
+      ? uniqueById(timers.map(cleanTimer).filter(Boolean))
+      : firstRun('timers', timers)
+        ? [1, 3, 5].map((m) => cleanTimer({ id: uid('t'), name: '', duration: m * MIN }))
+        : [];
     this.stopwatch = cleanStopwatch(sw);
-    this.cities = Array.isArray(cities) ? cities.filter((c) => typeof c === 'string').slice(0, 60) : [];
+    this.cities = Array.isArray(cities) ? [...new Set(cities.filter((c) => typeof c === 'string' && c.length <= 80))].slice(0, 60) : [];
     this.focus = cleanFocus(focus);
-    if (!Array.isArray(alarms)) this.persist('alarms');
-    if (!Array.isArray(timers)) this.persist('timers');
+    if (firstRun('alarms', alarms)) this.persist('alarms');
+    if (firstRun('timers', timers)) this.persist('timers');
     this.reconcile();
     this.zone = localZone();
     this.rem.on('fire', (r) => this._onFire(r));
@@ -219,6 +238,55 @@ class ClockStore {
       langT = setTimeout(() => this.resyncAll(), 50);
     });
     this.settings.on('clock24h', () => this.resyncAll());
+  }
+
+  /**
+   * Of the stored files that came back empty or malformed, find those that exist on disk (so they are
+   * damaged, not missing) and rename each to <name>.unreadable-<date>.json next to it.
+   * -> [{ name, backup: 'alarms.unreadable-….json' | null (could not be renamed) }]
+   */
+  async _setAsideUnreadable(names) {
+    const api = this.ctx.api;
+    let dir;
+    try {
+      dir = await api.invoke('storage:dir', APP);
+    } catch {
+      return [];
+    }
+    const out = [];
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    for (const name of names) {
+      const file = `${dir}/${name}.json`;
+      let exists = false;
+      try {
+        exists = await api.invoke('fs:exists', file);
+      } catch {}
+      if (!exists) continue;
+      let backup = `${name}.unreadable-${stamp}.json`;
+      try {
+        await api.invoke('fs:rename', file, backup);
+      } catch (err) {
+        console.error(`[clock] could not set aside the unreadable ${name}.json`, err);
+        backup = null;
+      }
+      out.push({ name, backup });
+    }
+    return out;
+  }
+
+  dismissLoadErrors() {
+    this.loadErrors = [];
+    this.emit('save-error');
+  }
+
+  /** Drop stored city ids that are not in the bundled list (called once the list has loaded). */
+  pruneCities(known) {
+    const kept = this.cities.filter((id) => known(id));
+    if (kept.length === this.cities.length) return false;
+    this.cities = kept;
+    this.persist('cities');
+    this.emit('cities');
+    return true;
   }
 
   persist(kind) {
@@ -269,12 +337,14 @@ class ClockStore {
       // (a disabled one-shot alarm may still have a live reminder: the snoozed ring from its notification)
       if (!a.enabled) continue;
       if (a.at && a.at <= now) {
-        if (live.has(rid) && live.get(rid).at <= now + 1000) continue; // about to fire right now
+        const r = live.get(rid);
+        if (r && r.at <= now + 1000) continue; // about to fire right now
         if (!a.days.length) {
-          // a one-shot alarm that rang (or was missed) while Clock was closed turns itself off
+          // a one-shot alarm that rang (or was missed) while Clock was closed turns itself off; if it was
+          // snoozed from its notification, the shell re-registered it later under the same id: keep that ring
           a.enabled = false;
           a.at = null;
-          this.rem.remove(rid, APP);
+          if (!(r && r.at > now)) this.rem.remove(rid, APP);
           a1 = true;
           continue;
         }
@@ -358,6 +428,15 @@ class ClockStore {
   }
   alarmTime(a) {
     return wallTime(a.hour, a.minute, { locale: this.locale, h12: this.h12 });
+  }
+  /**
+   * When a ring snoozed from the notification is pending: its time, else null. The shell keeps a snoozed
+   * repeating alarm as `alarm-<id>~snooze`, and re-registers a snoozed one-shot alarm (which turned itself
+   * off when it rang) under `alarm-<id>`.
+   */
+  snoozedUntil(a, now = Date.now()) {
+    const r = this.rem.get(`alarm-${a.id}~snooze`, APP) || (!a.enabled ? this.rem.get(`alarm-${a.id}`, APP) : null);
+    return r && r.at > now ? r.at : null;
   }
 
   _syncAlarm(a) {
@@ -634,7 +713,7 @@ class ClockStore {
 
   // ================================================================== world clock
   addCity(id) {
-    if (this.cities.includes(id)) return false;
+    if (this.cities.includes(id) || this.cities.length >= 60) return false;
     this.cities.push(id);
     this.persist('cities');
     this.emit('cities', { added: id });

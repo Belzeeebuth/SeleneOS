@@ -7,6 +7,11 @@
 //   overlapping events laid out side by side, month "+N more", agenda, search, keyboard shortcuts,
 //   settings (week numbers, first day), calendars (add / hide / delete), persistence, the taskbar
 //   flyout's day events, English + French, light + dark, minimum and maximized sizes, console errors.
+//   QA regressions: quick-create double submit, typed times validated before saving, work week of a
+//   Sunday, daylight-saving days drawn at wall-clock time, no half-visible lines in event blocks, Tab kept
+//   inside flyouts and the window, Delete on pane controls, AZERTY view keys, series rename keeps its
+//   exceptions, multi-week WKST, import undo, settings in a small window, export errors, hidden
+//   calendars, listener leaks over 12 open/close cycles, damaged events.json kept aside, French key names.
 //   Documentation screenshots: aurora-os/docs/screenshots/calendar-*.png
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/calendar.test.mjs [--only=name] [--unit]
 import fs from 'node:fs';
@@ -740,6 +745,258 @@ if (!unitOnly) {
     });
   });
 
+  // ---------------------------------------------------------------- QA regressions (bugs found in review)
+  await section('QA: quick create double submit, double click on Save', async () => {
+    await setView(s, 'week', [2026, 10, 2]);
+    const before = (await events(s)).length;
+    const c = await slot(s, '2026-11-03', 10);
+    await s.page.mouse.click(c.x, c.y);
+    await until(() => popOpen(s, '.ac-pop-quick'), { label: 'quick create' });
+    await sleep(150); // the title field gets the focus
+    await s.page.keyboard.type('Twice');
+    await s.page.keyboard.press('Enter');
+    await s.page.keyboard.press('Enter');
+    await sleep(500);
+    check('Enter pressed twice creates one event', (await events(s)).filter((e) => e.title === 'Twice').length, 1);
+    const c2 = await slot(s, '2026-11-04', 14);
+    await s.page.mouse.click(c2.x, c2.y);
+    await until(() => popOpen(s, '.ac-pop-quick'), { label: 'quick create 2' });
+    await sleep(150);
+    await s.page.keyboard.type('Dbl');
+    const save = await rect(s, '.ac-pop-quick .btn.primary');
+    await s.page.mouse.dblclick(save.x + 10, save.y + 10);
+    await sleep(600);
+    check('double click on Save creates one event', (await events(s)).filter((e) => e.title === 'Dbl').length, 1);
+    check('…and opens neither the editor nor a new quick create', [await dialogOpen(s), await popOpen(s, '.ac-pop-quick')], [false, false]);
+    check('two events added in all', (await events(s)).length, before + 2);
+  });
+
+  await section('QA: editor validates a typed time even before it is committed', async () => {
+    await setView(s, 'week', [2026, 10, 2]);
+    await CAL(s, (app, a) => {
+      app.newEvent({ start: new Date(...a.s).getTime(), end: new Date(...a.e).getTime() });
+    }, { s: [2026, 10, 5, 10], e: [2026, 10, 5, 11] });
+    await until(() => dialogOpen(s), { label: 'editor' });
+    await sleep(300);
+    await s.page.fill(`${DLG} .ac-ed-title`, 'Typed end');
+    await s.page.click(`${DLG} .ac-timefield >> nth=1`);
+    await s.page.keyboard.press('Control+A');
+    await s.page.keyboard.type('8:00');
+    // click Save right away (no Tab / blur): the typed end is before the start
+    await s.page.locator(`${DLG} .dialog-footer .btn.primary`).click();
+    await sleep(400);
+    check('not saved with an end before the start', !!(await evByTitle(s, 'Typed end')), false);
+    check('error shown, editor still open', await run(s, `document.querySelector('${DLG} .ac-ed-error')?.textContent || ''`), (t) => t.length > 0);
+    await s.page.click(`${DLG} .ac-timefield >> nth=1`);
+    await s.page.keyboard.press('Control+A');
+    await s.page.keyboard.type('12:15');
+    await s.page.keyboard.press('Control+s');
+    await sleep(500);
+    const ev = await evByTitle(s, 'Typed end');
+    check('Ctrl+S right after typing saves the typed end', ev && ev.end, await pageMs(s, 2026, 10, 5, 12, 15));
+    check('editor closed', await dialogOpen(s), false);
+  });
+
+  await section('QA: work week of a Sunday follows the first day of the week', async () => {
+    const first = await CAL(s, (app) => app.prefs.firstDay);
+    await CAL(s, (app) => (app.prefs.firstDay = 0));
+    await setView(s, 'workweek', [2026, 9, 11]);
+    check('Sunday-first week: Sun Oct 11 -> Mon 12 … Fri 16', await run(s, `[...document.querySelectorAll('${WIN} .ac-tg-dh')].map((d) => d.dataset.date)`), ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16']);
+    await CAL(s, (app) => (app.prefs.firstDay = 1));
+    await setView(s, 'workweek', [2026, 9, 11]);
+    check('Monday-first week: Sun Oct 11 -> Mon 5 … Fri 9', await run(s, `[...document.querySelectorAll('${WIN} .ac-tg-dh')].map((d) => d.dataset.date)`), ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09']);
+    await CAL(s, (app, f) => (app.prefs.firstDay = f), first);
+  });
+
+  await section('QA: daylight-saving days draw events at their wall-clock time', async () => {
+    await seed(s, [
+      { id: 'dstA', title: 'DST autumn', start: await pageMs(s, 2026, 9, 25, 9), end: await pageMs(s, 2026, 9, 25, 10) },
+      { id: 'dstS', title: 'DST spring', start: await pageMs(s, 2027, 2, 28, 9), end: await pageMs(s, 2027, 2, 28, 10, 30) },
+    ]);
+    for (const [id, date, h] of [
+      ['dstA', [2026, 9, 25], 48 - 2],
+      ['dstS', [2027, 2, 28], 72 - 2],
+    ]) {
+      await setView(s, 'day', date);
+      const g = await run(s, `(() => { const e = document.querySelector('${WIN} .ac-ev[data-event-id="${id}"]'); return e && [parseFloat(e.style.top), parseFloat(e.style.height)]; })()`);
+      check(`${id}: 09:00 block on the 9:00 line (top, height)`, g, [9 * 48, h]);
+    }
+    // resize on the autumn day: bottom edge to 11:00 -> ends at 11:00 wall-clock
+    await setView(s, 'day', [2026, 9, 25]);
+    const r = await rect(s, `${WIN} .ac-ev[data-event-id="dstA"] .ac-ev-resize`);
+    const cols = await rect(s, `${WIN} .ac-tg-cols`);
+    await drag(s, { x: r.x + r.w / 2, y: r.y + 3 }, { x: r.x + r.w / 2, y: cols.y + 11 * 48 + 2 }, 6);
+    check('resize on a DST day ends at 11:00', (await evByTitle(s, 'DST autumn')).end, await pageMs(s, 2026, 9, 25, 11));
+    // the current-time line and the hour labels share the same wall-clock scale
+    check('hour label 9 AM at 9 × 48 px', await run(s, `parseFloat([...document.querySelectorAll('${WIN} .ac-tg-hour')][8].style.top)`), 9 * 48);
+  });
+
+  await section('QA: event blocks never show half a line', async () => {
+    await seed(s, [{ id: 'cut1', title: 'One hour with place', start: await pageMs(s, 2026, 10, 10, 9), end: await pageMs(s, 2026, 10, 10, 10), location: 'Room with a long name' }]);
+    await setView(s, 'week', [2026, 10, 10]);
+    const g = await run(s, `(() => { const e = document.querySelector('${WIN} .ac-ev[data-event-id="cut1"]'); const r = e.getBoundingClientRect(); return [...e.querySelectorAll('.ac-ev-in > *')].map((x) => { const q = x.getBoundingClientRect(); return q.left >= r.right - 1 || q.bottom <= r.bottom + 0.5; }); })()`);
+    check('every line is either fully inside the block or moved out of view', g, (a) => a.length >= 2 && a.every(Boolean));
+  });
+
+  await section('QA: keyboard focus stays in flyouts and in the window', async () => {
+    await setView(s, 'week', [2026, 10, 10]);
+    await s.page.focus(`${WIN} .ac-ev[data-event-id="cut1"]`);
+    await s.page.keyboard.press(' ');
+    await until(() => popOpen(s, '.ac-pop-peek'), { label: 'peek' });
+    await sleep(100);
+    const inPeek = [];
+    for (let i = 0; i < 4; i++) {
+      await s.page.keyboard.press('Tab');
+      inPeek.push(await run(s, `!!document.activeElement.closest('.ac-pop-peek')`));
+    }
+    check('Tab cycles inside the event card', inPeek, [true, true, true, true]);
+    await s.page.keyboard.press('Escape');
+    await sleep(250);
+    const inWin = [];
+    for (let i = 0; i < 45; i++) {
+      await s.page.keyboard.press('Tab');
+      inWin.push(await run(s, `!!document.activeElement.closest('${WIN}')`));
+    }
+    check('Tab never leaves the window (wraps around)', inWin.every(Boolean), true);
+    // Delete while a pane control has the focus does not delete the selected event
+    await CAL(s, (app) => {
+      const o = app.occurrences(new Date(2026, 10, 10), new Date(2026, 10, 11)).find((x) => x.eventId === 'cut1');
+      app.select(o, null, { peek: false });
+    });
+    await s.page.focus(`${WIN} .ac-cal-more`);
+    await s.page.keyboard.press('Delete');
+    await sleep(300);
+    check('Delete on a pane button keeps the event', !!(await evByTitle(s, 'One hour with place')), true);
+    // AZERTY: the digit row types & é " ' ( — the view shortcuts follow the physical key
+    await CAL(s, (app) => app.viewEl.focus());
+    await run(s, `document.querySelector('${WIN} .ac-view').dispatchEvent(new KeyboardEvent('keydown', { key: 'é', code: 'Digit2', bubbles: true, cancelable: true })); 0`);
+    check('AZERTY "é" (Digit2) -> Work week', await CAL(s, (app) => app.state.view), 'workweek');
+  });
+
+  await section('QA: series edit of the title keeps exceptions; multi-week rule gets WKST', async () => {
+    await seed(s, [{ id: 'exc1', title: 'Biweekly club', start: await pageMs(s, 2026, 10, 1, 18), end: await pageMs(s, 2026, 10, 1, 19), rrule: { freq: 'WEEKLY', interval: 2, byday: ['SU', 'MO'], wkst: 'SU' } }]);
+    // delete one occurrence and rename another (exceptions)
+    await CAL(s, async (app) => {
+      const occs = app.occurrences(new Date(2026, 10, 1), new Date(2026, 11, 31)).filter((o) => o.eventId === 'exc1');
+      await app.applyOccurrenceEdit(occs[1], { title: 'Special session' });
+      const ev = app.data.events.find((e) => e.id === 'exc1');
+      const { deleteOccurrence } = await import('app://shell/apps/calendar/lib/events.mjs');
+      await app.commit(app.data.events.map((e) => (e.id === 'exc1' ? deleteOccurrence(ev, occs[2].key) : e)));
+    });
+    const before = await evByTitle(s, 'Biweekly club');
+    check('exceptions stored', [before.exdates.length, Object.keys(before.overrides).length], [1, 1]);
+    await CAL(s, async (app) => {
+      const ev = app.data.events.find((e) => e.id === 'exc1');
+      const { openEditor } = await import('app://shell/apps/calendar/ui/editor.js');
+      openEditor(app, { ev, occ: null, mode: 'series' });
+    });
+    await until(() => dialogOpen(s), { label: 'series editor' });
+    await sleep(300);
+    await s.page.fill(`${DLG} .ac-ed-title`, 'Biweekly club (renamed)');
+    await s.page.locator(`${DLG} .dialog-footer .btn.primary`).click();
+    await sleep(500);
+    check('no "exceptions will be lost" prompt', await dialogOpen(s), false);
+    const after = await evByTitle(s, 'Biweekly club (renamed)');
+    check('exceptions kept after renaming the series', after && [after.exdates.length, Object.keys(after.overrides).length, after.rrule.wkst], [1, 1, 'SU']);
+    // a new custom "every 2 weeks" rule follows the user's first day of the week
+    const first = await CAL(s, (app) => app.prefs.firstDay);
+    await CAL(s, (app) => {
+      app.prefs.firstDay = 0;
+      app.newEvent({ start: new Date(2026, 10, 1, 8).getTime(), end: new Date(2026, 10, 1, 9).getTime() });
+    });
+    await until(() => dialogOpen(s), { label: 'editor' });
+    await sleep(300);
+    await s.page.fill(`${DLG} .ac-ed-title`, 'Every other week');
+    await s.page.selectOption(`${DLG} .ac-ed-repeat`, 'custom');
+    await s.page.fill(`${DLG} .ac-ed-interval`, '2');
+    await s.page.click(`${DLG} .ac-ed-day[aria-label="Monday"]`);
+    await s.page.locator(`${DLG} .dialog-footer .btn.primary`).click();
+    await sleep(500);
+    const eow = await evByTitle(s, 'Every other week');
+    check('custom every 2 weeks (Sunday-first) stores WKST=SU', eow && [eow.rrule.interval, eow.rrule.wkst, eow.rrule.byday], [2, 'SU', ['SU', 'MO']]);
+    const occ = await CAL(s, (app) => app.occurrences(new Date(2026, 10, 1), new Date(2026, 10, 20)).filter((o) => o.eventId === app.data.events.find((e) => e.title === 'Every other week').id).map((o) => new Date(o.start).getDate()));
+    check('Sun 1 + Mon 2, then Sun 15 + Mon 16 (same week, every other week)', occ, [1, 2, 15, 16]);
+    await CAL(s, (app, f) => (app.prefs.firstDay = f), first);
+  });
+
+  await section('QA: import undo removes the new calendar; settings fit a small window', async () => {
+    fs.writeFileSync(path.join(home, 'undo.ics'), ['BEGIN:VCALENDAR', 'VERSION:2.0', 'X-WR-CALNAME:Undo me', 'BEGIN:VEVENT', 'UID:undo1@test', 'DTSTART:20261120T100000Z', 'DTEND:20261120T110000Z', 'SUMMARY:Undo import', 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n'));
+    await run(s, `window.__aurora.shell.launch('calendar', { file: ${JSON.stringify(path.join(home, 'undo.ics'))} }); 0`);
+    await until(async () => /Undo me/.test(await dialogText(s)), { label: 'import dialog' });
+    await dialogButton(s, 'Import');
+    check('calendar created by the import', await CAL(s, (app) => app.data.calendars.some((c) => c.name === 'Undo me')), true);
+    await s.page.click(`${WIN} .ac-snack .ac-undo`);
+    await sleep(400);
+    check('Undo removes the events and the new calendar', await CAL(s, (app) => [app.data.events.some((e) => e.title === 'Undo import'), app.data.calendars.some((c) => c.name === 'Undo me')]), [false, false]);
+    // settings dialog inside a minimum-size window
+    await CAL(s, (app) => app.win.setSize(480, 440));
+    await sleep(400);
+    await s.page.click(`${WIN} .ac-more`);
+    await s.page.locator('body > .menu .menu-item', { hasText: 'Calendar settings' }).click();
+    await until(() => dialogOpen(s), { label: 'settings' });
+    await sleep(300);
+    const fit = await run(s, `(() => { const w = document.querySelector('${WIN}').getBoundingClientRect(); const d = document.querySelector('${DLG}').getBoundingClientRect(); const b = document.querySelector('${DLG} .dialog-body'); return d.left >= w.left - 1 && d.right <= w.right + 1 && b.scrollWidth <= b.clientWidth + 1; })()`);
+    check('settings dialog fits a 480 px window', fit, true);
+    await dialogButton(s, 'Cancel');
+    await CAL(s, (app) => app.win.setSize(1180, 760));
+    await sleep(300);
+    // export to a place that can't be written: an error dialog, no toast
+    await s.page.click(`${WIN} .ac-more`);
+    await s.page.locator('body > .menu .menu-item', { hasText: 'Export all calendars' }).click();
+    await until(() => run(s, `!!document.querySelector('${DLG}.fp-dialog .fp-bottom input')`), { label: 'save picker' });
+    await sleep(200);
+    // (a "folder" that is a file: the write fails whoever runs the test, root included)
+    await s.page.fill(`${DLG}.fp-dialog .fp-bottom input`, path.join(home, 'team.ics', 'out.ics'));
+    await s.page.keyboard.press('Enter');
+    await until(async () => /couldn’t be exported/.test(await dialogText(s)), { label: 'export error' });
+    check('export failure -> error dialog', await dialogText(s), (t) => t.includes('The calendar couldn’t be exported'));
+    await dialogButton(s, 'OK');
+    // creating an event in a hidden calendar shows that calendar (otherwise the event "disappears")
+    await CAL(s, (app) => app.setCalendarVisible('birthdays', false));
+    await setView(s, 'week', [2026, 10, 2]);
+    const c = await slot(s, '2026-11-06', 15); // a free slot
+    await s.page.mouse.click(c.x, c.y);
+    await until(() => popOpen(s, '.ac-pop-quick'), { label: 'quick create' });
+    await sleep(150);
+    await s.page.selectOption('.ac-pop-quick .ac-cal-select', 'birthdays');
+    await s.page.fill('.ac-pop-quick .ac-quick-title', 'Hidden calendar event');
+    await s.page.keyboard.press('Enter');
+    await sleep(500);
+    check('the hidden calendar is shown again', await CAL(s, (app) => app.calendar('birthdays').visible), true);
+    check('…and the new event is on screen', await run(s, `!!document.querySelector('${WIN} .ac-ev[data-event-id]') && [...document.querySelectorAll('${WIN} .ac-ev')].some((e) => e.textContent.includes('Hidden calendar event'))`), true);
+  });
+
+  await section('QA: no listener or node leaks when the app is opened and closed', async () => {
+    const cdp = await s.page.context().newCDPSession(s.page);
+    const counts = async () => {
+      const out = [];
+      for (const target of ['window', 'document', 'document.body']) {
+        const { result } = await cdp.send('Runtime.evaluate', { expression: target });
+        const { listeners } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId });
+        out.push(listeners.length);
+      }
+      return out;
+    };
+    await CAL(s, (app) => app.win.close());
+    await until(async () => !(await run(s, `!!document.querySelector('${WIN}')`)), { label: 'closed' });
+    await sleep(300);
+    const c0 = await counts();
+    for (let i = 0; i < 12; i++) {
+      await openCalendar(s);
+      await CAL(s, (app, i) => app.setView(['month', 'week', 'day', 'agenda', 'workweek'][i % 5]), i);
+      await run(s, `document.querySelector('${WIN} .ac-title').click(); 0`);
+      await sleep(120);
+      await CAL(s, (app) => app.win.close());
+      await until(async () => !(await run(s, `!!document.querySelector('${WIN}')`)), { label: 'closed' });
+    }
+    await sleep(400);
+    const c1 = await counts();
+    check('window/document/body listeners unchanged after 12 open/close', c1, c0);
+    check('no calendar flyouts left in <body>', await run(s, `document.querySelectorAll('body > .ac-pop, body > .app-calendar').length`), 0);
+    await cdp.detach().catch(() => {});
+    await openCalendar(s);
+  });
+
   await section('screenshots EN light + sizes', async () => {
     await CAL(s, async (app) => {
       app.data.events = app.data.events.filter((e) => !/^ov|^fly/.test(e.id));
@@ -823,6 +1080,23 @@ if (!unitOnly) {
     await openCalendar(s);
     check('events reloaded', (await events(s)).length, n);
     check('prefs reloaded', await CAL(s, (app) => app.prefs.firstDay), 1);
+  });
+
+  await section('QA: an unreadable events.json is kept aside, not overwritten', async () => {
+    await CAL(s, (app) => app.win.close());
+    await until(async () => !(await run(s, `!!document.querySelector('${WIN}')`)), { label: 'closed' });
+    const store = path.join(home, '.config', 'aurora', 'apps', 'calendar');
+    const good = fs.readFileSync(path.join(store, 'events.json'), 'utf8');
+    const cut = good.slice(0, Math.floor(good.length / 2)); // a truncated write (power loss…)
+    fs.writeFileSync(path.join(store, 'events.json'), cut);
+    await openCalendar(s);
+    check('the app still starts (no events)', (await events(s)).length, 0);
+    const copies = fs.readdirSync(store).filter((f) => /^events\.damaged-.*\.json$/.test(f));
+    check('a copy of the damaged file is kept', copies.length, 1);
+    check('…with the original bytes', copies.length ? fs.readFileSync(path.join(store, copies[0]), 'utf8') === cut : false, true);
+    check('the user is told where the copy is', await run(s, `document.querySelector('${WIN} .ac-snack.show')?.textContent || ''`), (t) => t.includes(copies[0] || '?'));
+    await seed(s, [{ id: 'after-damage', title: 'After damage', start: await pageMs(s, 2026, 10, 2, 9), end: await pageMs(s, 2026, 10, 2, 10) }]);
+    check('the copy survives the next save', fs.existsSync(path.join(store, copies[0] || 'none')), true);
   });
 
   check('no console errors (English run)', errorsSince(s, mark0), []);
@@ -917,6 +1191,20 @@ if (!unitOnly) {
     }
     await setView(s, 'month', [2026, 9, 12]);
     await shot(s, 'min-size-dark-fr');
+  });
+  await section('French: agenda times never cut, shortcut key names', async () => {
+    // still at the minimum size (previous section): "Toute la journée" wraps instead of being cut
+    await setView(s, 'agenda', [2026, 9, 12]);
+    check('agenda: no cut time label', await run(s, `[...document.querySelectorAll('${WIN} .ac-ag-when')].filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent)`), []);
+    await CAL(s, (app) => app.win.setSize(1180, 760));
+    await sleep(300);
+    await CAL(s, (app) => app.viewEl.focus());
+    await s.page.keyboard.press('?');
+    await until(() => dialogOpen(s), { label: 'raccourcis' });
+    const keys = await run(s, `[...document.querySelectorAll('${DLG} .ac-keys kbd')].map((k) => k.textContent)`);
+    check('noms des touches en français', keys, (k) => ['Entrée', 'Suppr', 'Échap', 'Pg préc', 'Pg suiv', 'Ctrl', 'Alt'].every((x) => k.includes(x)) && !k.some((x) => /^(Enter|Delete|Esc|Page Up|Page Down)$/.test(x)));
+    await shot(s, 'shortcuts-dark-fr');
+    await dialogButton(s, 'Fermer');
   });
   check('no console errors (French run)', errorsSince(s, mark1), []);
   await s.close();

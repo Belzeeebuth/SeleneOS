@@ -5,15 +5,16 @@
 //   (insert / paste / drop -> attachments next to the note), clear formatting, snapshot undo / redo.
 //   Markdown while typing: "# " "## " "### " "- " "* " "1. " "[] " "[x] " "> " "```" "---" **b** *i* ~~s~~ `c` ==h==
 //   Paste / drop are sanitized (lib/sanitize.js); pictures in pasted HTML are copied into the note.
-import { sanitizeFragment, sanitizeHtml, TEXT_COLORS, HIGHLIGHTS, ATTACHMENT_RE, safeLinkUrl } from '../lib/sanitize.js';
+import { sanitizeFragment, sanitizeHtml, TEXT_COLORS, HIGHLIGHTS, ATTACHMENT_RE, safeLinkUrl, inertDocument } from '../lib/sanitize.js';
 import { plainText, countWords, countChars, findRanges, foldText } from '../lib/text.js';
 import { History } from './history.js';
 import { popover, closePopover, arrowNav } from './popover.js';
 import {
   closestBlock, topBlock, closest, editorRange, normalizeRoot, emptyLine, isEmptyBlock, blocksInRange, retag, unwrap,
   applyInline, allInside, wordRange, insertFragment, insertInline, setCaret, caretAtEnd, caretAtStart, saveRefs, restoreRefs,
-  mergeSiblings, ZWSP,
+  mergeSiblings, flattenRoot, ZWSP,
 } from './dom.js';
+import { toggleList as toggleListBlocks, itemsToLines, indentItems, outdentItems, setListKind, fixLists } from './lists.js';
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i;
 const BLOCK_STYLES = [
@@ -24,6 +25,7 @@ const BLOCK_STYLES = [
   { tag: 'blockquote', key: 'quote', keys: 'Ctrl+Shift+.' },
   { tag: 'pre', key: 'codeBlock', keys: 'Ctrl+Alt+C' },
 ];
+const INLINE_TAGS = new Set(['B', 'I', 'U', 'S', 'MARK', 'CODE', 'SPAN', 'SUB', 'SUP', 'STRONG', 'EM']);
 const hasHighlights = typeof CSS !== 'undefined' && CSS.highlights && typeof Highlight !== 'undefined';
 
 export class Editor {
@@ -54,7 +56,7 @@ export class Editor {
           dataset: { cmd },
           tabindex: '-1',
           'aria-label': label,
-          'data-tip': keys ? `${label} (${keys})` : label,
+          'data-tip': keys ? `${label} (${this.app.kl(keys)})` : label,
           'data-tip-pos': 'below',
           'aria-pressed': extra.toggle ? 'false' : null,
           onmousedown: (e) => e.preventDefault(), // keep the editor selection
@@ -219,9 +221,9 @@ export class Editor {
       icon('search', { size: 16 }),
       this.findInput,
       this.findCount,
-      h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-label': t('ed.findPrev'), 'data-tip': `${t('ed.findPrev')} (Shift+Enter)`, onclick: () => this.findStep(-1) }, icon('chevron_up', { size: 16 })),
-      h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-label': t('ed.findNext'), 'data-tip': `${t('ed.findNext')} (Enter)`, onclick: () => this.findStep(1) }, icon('chevron_down', { size: 16 })),
-      h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-label': t('ed.findClose'), 'data-tip': `${t('ed.findClose')} (Esc)`, onclick: () => this.closeFind() }, icon('dismiss', { size: 16 })),
+      h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-label': t('ed.findPrev'), 'data-tip': `${t('ed.findPrev')} (${this.app.kl('Shift+Enter')})`, onclick: () => this.findStep(-1) }, icon('chevron_up', { size: 16 })),
+      h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-label': t('ed.findNext'), 'data-tip': `${t('ed.findNext')} (${this.app.kl('Enter')})`, onclick: () => this.findStep(1) }, icon('chevron_down', { size: 16 })),
+      h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-label': t('ed.findClose'), 'data-tip': `${t('ed.findClose')} (${this.app.kl('Esc')})`, onclick: () => this.closeFind() }, icon('dismiss', { size: 16 })),
     );
 
     this.infobar = h('div', { class: 'nt-deleted-bar infobar warning', hidden: true });
@@ -287,6 +289,7 @@ export class Editor {
   }
 
   destroy() {
+    if (this.selHandler) document.removeEventListener('selectionchange', this.selHandler);
     this.ro?.disconnect();
     clearInterval(this.editedTimer);
     clearTimeout(this.countTimer);
@@ -309,7 +312,8 @@ export class Editor {
 
   /** Hide the lowest-priority groups when the command bar is too narrow; they move to the "…" menu. */
   layoutToolbar() {
-    const order = ['clear', 'insert', 'blocks', 'color', 'lists', 'style', 'format', 'history'];
+    // least used first; quote / code block also live in the text style menu
+    const order = ['clear', 'blocks', 'color', 'insert', 'lists', 'style', 'format', 'history'];
     for (const g of this.groups) g.hidden = false;
     this.overflowBtn.hidden = true;
     this.cmdbar.classList.remove('compact');
@@ -373,7 +377,7 @@ export class Editor {
     if (hidden.has('insert')) items.push(item('link', 'link', t('ed.link'), 'Ctrl+K'), { label: t('ed.table'), icon: 'table', disabled: this.readOnly, submenu: this.tableItems() }, item('image', 'image_add', t('ed.image')), '-');
     if (hidden.has('clear')) items.push(item('clear', 'text_clear_formatting', t('ed.clear'), 'Ctrl+Space'));
     while (items[items.length - 1] === '-') items.pop();
-    this.ctx.ui.menu(e.currentTarget, items);
+    this.app.menu(e.currentTarget, items);
   }
 
   styleItems() {
@@ -464,7 +468,7 @@ export class Editor {
         return this.run(() => this.toggleInlineCode());
       case 'style':
         this.focusBody();
-        return this.ctx.ui.menu(e?.currentTarget || this.styleBtn, this.styleItems());
+        return this.app.menu(e?.currentTarget || this.styleBtn, this.styleItems());
       case 'hlApply':
         return this.run(() => this.applyColor('hl', this.lastHl));
       case 'colorApply':
@@ -489,7 +493,7 @@ export class Editor {
         return this.editLink();
       case 'table':
         this.focusBody();
-        return this.ctx.ui.menu(e?.currentTarget || this.cmdbar, this.tableItems());
+        return this.app.menu(e?.currentTarget || this.cmdbar, this.tableItems());
       case 'image':
         return this.pickImages();
       case 'clear':
@@ -515,13 +519,11 @@ export class Editor {
     let blocks = blocksInRange(this.body, range);
     if (toggle && blocks.length && blocks.every((b) => b.tagName === tag.toUpperCase())) tag = 'div';
     // list items leave their list first
-    const li = blocks.find((b) => b.tagName === 'LI');
-    if (li) {
-      document.execCommand(li.parentElement?.tagName === 'OL' ? 'insertOrderedList' : 'insertUnorderedList');
-      normalizeRoot(this.body);
-      range = editorRange(this.body);
-      if (!range) return;
-      blocks = blocksInRange(this.body, range);
+    if (blocks.some((b) => b.tagName === 'LI')) {
+      const refs = saveRefs(this.body);
+      const lines = itemsToLines(this.body, blocks.filter((b) => b.tagName === 'LI'));
+      restoreRefs(this.body, refs);
+      blocks = blocks.map((b) => (b.tagName === 'LI' ? lines.get(b) : b)).filter(Boolean);
     }
     blocks = blocks.filter((b) => !['LI', 'TD', 'TH'].includes(b.tagName));
     if (!blocks.length) return;
@@ -570,30 +572,20 @@ export class Editor {
     } else restoreRefs(this.body, refs);
   }
 
+  /** Bullets / numbers / checklist on the selected lines (see lists.js: no execCommand, no list merging). */
   toggleList(kind) {
-    const range = editorRange(this.body);
-    if (!range) return;
-    const li = closest(range.startContainer, 'li', this.body);
-    const list = li?.parentElement;
-    const isCheck = list?.tagName === 'UL' && list.dataset.type === 'checklist';
-    if (kind === 'check') {
-      if (isCheck) document.execCommand('insertUnorderedList');
-      else if (list?.tagName === 'UL') setChecklist(list, true);
-      else {
-        document.execCommand('insertUnorderedList');
-        const r = editorRange(this.body);
-        const ul = r && closest(r.startContainer, 'ul', this.body);
-        if (ul) setChecklist(ul, true);
-      }
-    } else if (kind === 'ul') {
-      if (isCheck) setChecklist(list, false);
-      else document.execCommand('insertUnorderedList');
-    } else {
-      document.execCommand('insertOrderedList');
+    let range = editorRange(this.body);
+    if (!range) return null;
+    if (!closestBlock(range.startContainer, this.body)) {
+      normalizeRoot(this.body);
+      range = editorRange(this.body);
+      if (!range) return null;
     }
-    normalizeRoot(this.body);
-    // Chromium can leave a stray data-checked on items moved out of a checklist
-    for (const x of this.body.querySelectorAll('li[data-checked]')) if (x.parentElement?.dataset.type !== 'checklist') x.removeAttribute('data-checked');
+    const blocks = blocksInRange(this.body, range).filter((b) => !['TD', 'TH', 'PRE'].includes(b.tagName));
+    const refs = saveRefs(this.body);
+    const first = toggleListBlocks(this.body, blocks, kind);
+    if (!restoreRefs(this.body, refs) && first?.isConnected) caretInto(first);
+    return first;
   }
 
   insertRule() {
@@ -731,7 +723,28 @@ export class Editor {
   // ---- links
   currentLink() {
     const r = editorRange(this.body);
-    return r ? closest(r.startContainer, 'a', this.body) || (r.collapsed ? null : closest(r.endContainer, 'a', this.body)) : null;
+    return r ? this.linkAt(r) || (r.collapsed ? null : closest(r.endContainer, 'a', this.body)) : null;
+  }
+
+  /** The link holding the caret, or the link that starts right at the caret (a click on its left edge). */
+  linkAt(r) {
+    if (!r) return null;
+    const a = closest(r.startContainer, 'a', this.body);
+    if (a || !r.collapsed) return a;
+    let n = r.startContainer;
+    let next = null;
+    if (n.nodeType === 3 && r.startOffset === n.length) {
+      next = n.nextSibling;
+      // end of an inline wrapper (<i>text|</i><a>): climb out
+      while (!next && n.parentNode && n.parentNode !== this.body && INLINE_TAGS.has(n.parentNode.nodeName)) {
+        n = n.parentNode;
+        next = n.nextSibling;
+      }
+    } else if (n.nodeType === 1) next = n.childNodes[r.startOffset];
+    // the link may be wrapped in formatting (<b><a>…</a></b>): descend into the first children
+    while (next?.nodeType === 1 && next.tagName !== 'A' && INLINE_TAGS.has(next.nodeName)) next = next.firstChild;
+    if (!next) return null;
+    return next.nodeType === 1 && next.tagName === 'A' ? next : closest(next, 'a', this.body);
   }
 
   async editLink(existing) {
@@ -832,7 +845,7 @@ export class Editor {
       h('a', { class: 'nt-linkcard-url ellipsis', href: '#', title: href, onclick: (e) => (e.preventDefault(), this.openLink(a)) }, href),
       h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-label': t('ed.openLink'), 'data-tip': `${t('ed.openLink')} (Ctrl+${t('click')})`, onmousedown: (e) => e.preventDefault(), onclick: () => this.openLink(a) }, icon('open', { size: 16 })),
       h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-label': t('ed.copyLink'), 'data-tip': t('ed.copyLink'), onmousedown: (e) => e.preventDefault(), onclick: () => this.copyText(href) }, icon('copy', { size: 16 })),
-      h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-label': t('ed.editLink'), 'data-tip': `${t('ed.editLink')} (Ctrl+K)`, onmousedown: (e) => e.preventDefault(), onclick: () => (this.linkPop?.close(), this.editLink(a)) }, icon('edit', { size: 16 })),
+      h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-label': t('ed.editLink'), 'data-tip': `${t('ed.editLink')} (${this.app.kl('Ctrl+K')})`, onmousedown: (e) => e.preventDefault(), onclick: () => (this.linkPop?.close(), this.editLink(a)) }, icon('edit', { size: 16 })),
       h('button', { type: 'button', class: 'btn subtle icon-btn', 'aria-label': t('ed.removeLink'), 'data-tip': t('ed.removeLink'), onmousedown: (e) => e.preventDefault(), onclick: () => (this.linkPop?.close(), this.run(() => unwrap(a))) }, icon('link_dismiss', { size: 16 })),
     );
     this.linkPop = popover(this.ctx.win, a, content, { className: 'nt-linkpop', focus: false, role: 'toolbar', label: t('ed.link') });
@@ -976,11 +989,7 @@ export class Editor {
       imgs.push({ img, src });
     }
     const r = editorRange(this.body);
-    if (r) {
-      const nodes = [];
-      for (const { img } of imgs) nodes.push(img);
-      insertInline(this.body, r, nodes);
-    }
+    if (r) this.placeImages(r, imgs.map((x) => x.img));
     this.ensureStructure();
     let failed = 0;
     for (const { img, src } of imgs) {
@@ -1009,6 +1018,36 @@ export class Editor {
     this.hist.record();
     this.changed({ record: false });
     if (failed) this.app.error(this.t('ed.imageFailed', { count: failed }));
+  }
+
+  /**
+   * Pictures go on lines of their own in normal text (as in OneNote / Apple Notes): the line is split at the
+   * caret and the caret ends up after the last picture. In lists, tables, headings and quotes they stay inline.
+   */
+  placeImages(range, imgs) {
+    const block = closestBlock(range.startContainer, this.body);
+    const top = block && block.parentNode === this.body && ['DIV', 'P'].includes(block.tagName) ? block : null;
+    if (!top) {
+      insertInline(this.body, range, imgs);
+      return;
+    }
+    range.deleteContents();
+    const tail = document.createRange();
+    tail.setStart(range.startContainer, range.startOffset);
+    tail.setEnd(top, top.childNodes.length);
+    const rest = top.cloneNode(false);
+    rest.appendChild(tail.extractContents());
+    const lines = imgs.map((img) => {
+      const d = top.cloneNode(false);
+      d.appendChild(img);
+      return d;
+    });
+    if (isEmptyBlock(top)) top.replaceWith(...lines);
+    else top.after(...lines);
+    const last = lines[lines.length - 1];
+    // the text after the caret continues on its own line
+    if (!isEmptyBlock(rest)) last.after(rest);
+    caretAtEnd(last);
   }
 
   /** Copy pictures referenced by pasted / imported HTML into the note (data:, media:, http(s):). */
@@ -1055,7 +1094,7 @@ export class Editor {
         else img.removeAttribute('width');
       });
     const cur = Number(img.getAttribute('width') || 0);
-    this.ctx.ui.menu(e, [
+    this.app.menu(e, [
       { label: t('ed.img.open'), icon: 'open', disabled: !path, action: () => this.ctx.shell.openFile(path) },
       { label: t('ed.img.saveAs'), icon: 'save', disabled: !path, action: () => this.saveImageAs(img) },
       { label: t('ed.img.copy'), icon: 'copy', disabled: !path, action: () => this.copyImage(img) },
@@ -1201,7 +1240,12 @@ export class Editor {
       if (map[code]) return go(() => this.run(() => this.setBlock(map[code])));
       if (k === 'c') return go(() => this.command('pre'));
     }
-    if (e.key === 'Tab' && !ctrl && !e.altKey) return go(() => this.onTab(e.shiftKey));
+    if (e.key === 'Tab' && !ctrl && !e.altKey) {
+      // Shift+Tab outside lists and tables leaves the text (focus goes back to the title): no keyboard trap
+      const r = editorRange(this.body);
+      if (e.shiftKey && !(r && closest(r.startContainer, 'li, td, th', this.body))) return;
+      return go(() => this.onTab(e.shiftKey));
+    }
     if (e.key === 'Enter' && !ctrl && !e.altKey && !e.shiftKey) {
       if (this.onEnter()) e.preventDefault();
       return;
@@ -1227,6 +1271,15 @@ export class Editor {
       e.preventDefault();
       this.closeFind();
     }
+  }
+
+  /** The empty line right after el (reused when there is one, else created). */
+  lineAfter(el) {
+    const next = el.nextElementSibling;
+    if (next && ['DIV', 'P'].includes(next.tagName) && isEmptyBlock(next) && !next.querySelector('img')) return next;
+    const line = emptyLine();
+    el.after(line);
+    return line;
   }
 
   checklistItem() {
@@ -1264,17 +1317,21 @@ export class Editor {
       }
       return;
     }
-    if (closest(r.startContainer, 'li', this.body)) {
+    const items = blocksInRange(this.body, r).filter((b) => b.tagName === 'LI');
+    if (items.length) {
       this.run(() => {
-        this._formatting = true;
-        document.execCommand(back ? 'outdent' : 'indent');
-        this._formatting = false;
-        // nested lists inside a checklist are checklists too
-        for (const ul of this.body.querySelectorAll('ul[data-type="checklist"] ul:not([data-type])')) setChecklist(ul, true);
+        const refs = saveRefs(this.body);
+        const first = back ? outdentItems(this.body, items) : (indentItems(items), null);
+        if (!restoreRefs(this.body, refs) && first?.isConnected) caretInto(first);
       });
       return;
     }
-    if (!back) this.run(() => document.execCommand('insertText', false, '\t'));
+    // a plain tab character (the body keeps white space; execCommand would wrap it in a styled span)
+    if (!back)
+      this.run(() => {
+        const rr = editorRange(this.body);
+        if (rr) insertInline(this.body, rr, [document.createTextNode('\t')]);
+      });
   }
 
   onEnter() {
@@ -1298,9 +1355,7 @@ export class Editor {
         // leave: drop the empty last line
         block.textContent = block.textContent.replace(/\n+$/, '');
         if (!block.textContent) block.appendChild(document.createElement('br'));
-        const line = emptyLine();
-        block.after(line);
-        caretAtStart(line);
+        caretAtStart(this.lineAfter(block));
       } else {
         const nl = document.createTextNode('\n');
         r.insertNode(nl);
@@ -1328,10 +1383,8 @@ export class Editor {
     if (['DIV', 'P'].includes(block.tagName) && block.parentNode === this.body && /^(-{3,}|\*{3,}|_{3,})$/.test(lineText)) {
       this.hist.record();
       const hr = document.createElement('hr');
-      const line = emptyLine();
       block.replaceWith(hr);
-      hr.after(line);
-      caretAtStart(line);
+      caretAtStart(this.lineAfter(hr));
       this.hist.record();
       this.changed({ record: false });
       return true;
@@ -1427,7 +1480,9 @@ export class Editor {
       if (!/^\[[ xX]?\]$/.test(mk) || block.parentElement?.tagName !== 'UL') return false;
       this.hist.record();
       pre.deleteContents();
-      setChecklist(block.parentElement, true);
+      const refs = saveRefs(this.body);
+      setListKind(block.parentElement, 'check');
+      restoreRefs(this.body, refs);
       block.dataset.checked = /x/i.test(mk) ? 'true' : 'false';
       this.fillEmpty(block);
       this.hist.record();
@@ -1437,20 +1492,15 @@ export class Editor {
     pre.deleteContents();
     if (/^#/.test(mk)) this.convertLine(block, `h${mk.length}`);
     else if (mk === '>') this.convertLine(block, 'blockquote');
-    else if (/^[-*+]$/.test(mk)) this.listFromLine('insertUnorderedList');
+    else if (/^[-*+]$/.test(mk)) this.listFromLine('ul');
     else if (/^\d/.test(mk)) {
-      this.listFromLine('insertOrderedList');
+      const li = this.listFromLine('ol');
       const n = parseInt(mk, 10);
-      const ol = closest(editorRange(this.body)?.startContainer, 'ol', this.body);
-      if (ol && n > 1) ol.setAttribute('start', String(n));
+      // "3. " starts a new numbered list at 3 (not when it continues the list above)
+      if (li && n > 1 && li.parentElement?.firstElementChild === li) li.parentElement.setAttribute('start', String(n));
     } else {
-      this.listFromLine('insertUnorderedList');
-      const r2 = editorRange(this.body);
-      const li = r2 && closest(r2.startContainer, 'li', this.body);
-      if (li?.parentElement?.tagName === 'UL') {
-        setChecklist(li.parentElement, true);
-        li.dataset.checked = /x/i.test(mk) ? 'true' : 'false';
-      }
+      const li = this.listFromLine('check');
+      if (li) li.setAttribute('data-checked', /x/i.test(mk) ? 'true' : 'false');
     }
     this.ensureStructure();
     this.hist.record();
@@ -1471,14 +1521,13 @@ export class Editor {
     caretAtStart(n);
   }
 
-  listFromLine(cmd) {
+  /** The current line becomes a list item (joining a list of the same kind right above it). */
+  listFromLine(kind) {
     const r = editorRange(this.body);
     const block = r && closestBlock(r.startContainer, this.body);
     if (block) this.fillEmpty(block);
-    this._formatting = true;
-    document.execCommand(cmd);
-    this._formatting = false;
-    normalizeRoot(this.body);
+    const li = this.toggleList(kind);
+    return li?.tagName === 'LI' ? li : null;
   }
 
   fillEmpty(el) {
@@ -1549,6 +1598,8 @@ export class Editor {
   }
 
   onClick(e) {
+    const a = e.target.closest?.('a');
+    if (a && this.body.contains(a) && !(e.ctrlKey || e.metaKey) && window.getSelection().isCollapsed) this.linkCard(a);
     if (e.target.tagName === 'IMG' && this.body.contains(e.target)) {
       e.target.classList.add('nt-sel');
       const r = document.createRange();
@@ -1588,7 +1639,7 @@ export class Editor {
     }
     if (this.currentCell() && !ro) items.push({ label: t('ed.table'), icon: 'table', submenu: this.tableItems() });
     items.push('-', { label: t('ed.find'), icon: 'search', shortcut: 'Ctrl+F', action: () => this.openFind() });
-    this.ctx.ui.menu(e, items);
+    this.app.menu(e, items);
   }
 
   selectAll() {
@@ -1767,6 +1818,7 @@ export class Editor {
     if (this.title.value.includes('\n')) this.title.value = this.title.value.replace(/\s*\n\s*/g, ' ');
     this.autosizeTitle();
     this.changed({ record: false });
+    this.app.previewTitle(this.note?.id, this.title.value.replace(/\s+/g, ' ').trim());
   }
 
   autosizeTitle() {
@@ -1793,11 +1845,15 @@ export class Editor {
         break;
       }
     }
-    if (bare) {
+    // Chromium's list commands can nest following blocks inside a line: keep one level of blocks
+    const nested = [...b.children].some((n) => (n.tagName === 'DIV' || n.tagName === 'P') && n.querySelector(':scope > :is(div, p, h1, h2, h3, blockquote, pre, ul, ol, table, hr)'));
+    if (bare || nested) {
       const refs = saveRefs(b);
-      normalizeRoot(b);
+      if (nested) flattenRoot(b);
+      if (bare) normalizeRoot(b);
       restoreRefs(b, refs);
     }
+    fixLists(b);
     if (!b.firstChild) b.appendChild(emptyLine());
     // a divider or table must never be the last block (nowhere to type after it)
     const last = b.lastElementChild;
@@ -1854,7 +1910,7 @@ export class Editor {
     this.pinBtn.setAttribute('aria-label', this.note.pinned ? this.t('unpin') : this.t('pin'));
     this.fixTabStop();
     // link card when the caret sits in a link
-    const a = r?.collapsed && document.activeElement === this.body ? closest(r.startContainer, 'a', this.body) : null;
+    const a = r?.collapsed && document.activeElement === this.body ? this.linkAt(r) : null;
     if (a) this.linkCard(a);
     else if (this.linkPop && !this.linkPop.closed) this.linkPop.close();
   }
@@ -1905,22 +1961,25 @@ export class Editor {
   }
 
   renderHtml(note) {
-    const frag = sanitizeFragment(note.html || '', { attachments: true, allowMedia: true, allowRemote: true });
+    // built in an inert document (attachment names are relative URLs), then imported with media:// URLs
+    const frag = sanitizeFragment(note.html || '', { attachments: true, allowMedia: true, allowRemote: true, doc: inertDocument() });
     for (const img of frag.querySelectorAll('img')) {
       const src = img.getAttribute('src') || '';
       const name = img.dataset.att || (ATTACHMENT_RE.test(src) ? src : null);
       if (name && ATTACHMENT_RE.test(name)) {
         img.dataset.att = name;
-        img.src = this.ctx.api.mediaUrl(`${this.app.store.root}/${note.id}/${name}`);
+        img.setAttribute('src', this.ctx.api.mediaUrl(`${this.app.store.root}/${note.id}/${name}`));
       }
-      img.decoding = 'async';
+      img.setAttribute('decoding', 'async');
     }
-    return frag;
+    return document.importNode(frag, true);
   }
 
   /** Clean HTML of the body as stored in the note file (attachments by name). */
   serialize() {
-    const clone = this.body.cloneNode(true);
+    // cloned into an inert document: setting attachment names as src must not fetch anything
+    const doc = inertDocument();
+    const clone = doc.importNode(this.body, true);
     for (const img of clone.querySelectorAll('img')) {
       img.removeAttribute('class');
       img.removeAttribute('decoding');
@@ -1929,7 +1988,7 @@ export class Editor {
     }
     for (const el of clone.querySelectorAll('[class]')) el.removeAttribute('class');
     // zero-width spaces used as caret anchors
-    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT);
+    const walker = doc.createTreeWalker(clone, NodeFilter.SHOW_TEXT);
     const empty = [];
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       if (n.data.includes(ZWSP)) n.data = n.data.replace(new RegExp(ZWSP, 'g'), '');
@@ -1939,7 +1998,7 @@ export class Editor {
     for (const pre of clone.querySelectorAll('pre')) if (pre.lastChild?.nodeName === 'BR' && pre.childNodes.length > 1) pre.lastChild.remove();
     mergeSiblings(clone);
     // a note that is just an empty line is empty
-    if (clone.childNodes.length === 1 && isEmptyBlock(clone.firstChild) && clone.firstChild.nodeType === 1 && ['DIV', 'P'].includes(clone.firstChild.tagName)) return '';
+    if (clone.childNodes.length === 1 && clone.firstChild.nodeType === 1 && ['DIV', 'P'].includes(clone.firstChild.tagName) && isEmptyBlock(clone.firstChild)) return '';
     return sanitizeHtml(clone.innerHTML, { attachments: true, allowMedia: true, allowRemote: true });
   }
 
@@ -2177,14 +2236,10 @@ function h2(ctx, tag, props, ...kids) {
   return ctx.h(tag, props, ...kids);
 }
 
-function setChecklist(ul, on) {
-  if (on) {
-    ul.setAttribute('data-type', 'checklist');
-    for (const li of ul.children) if (li.tagName === 'LI' && li.dataset.checked !== 'true') li.dataset.checked = 'false';
-  } else {
-    ul.removeAttribute('data-type');
-    for (const li of ul.children) li.removeAttribute('data-checked');
-  }
+/** Caret at the end of an element's text, or at its start when it is an empty line (before its <br>). */
+function caretInto(el) {
+  if (isEmptyBlock(el) && !el.querySelector('img')) caretAtStart(el);
+  else caretAtEnd(el);
 }
 
 function setCaretAfter(node) {

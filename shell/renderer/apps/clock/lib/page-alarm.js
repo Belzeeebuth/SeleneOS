@@ -172,8 +172,15 @@ export class AlarmPage {
     const { t } = this.app;
     for (const c of this.cards.values()) {
       const a = c.alarm;
-      const text = a?.enabled && a.at ? ringsIn(t, a.at - now) : t('alarm.offText');
+      if (!a) continue;
+      // a ring snoozed from the notification counts as "on": the toggle turns it off (cancels the snooze)
+      const snoozed = this.store.snoozedUntil(a, now);
+      const text = snoozed ? t('alarm.snoozedUntil', { time: this.app.timeText(snoozed) }) : a.enabled && a.at ? ringsIn(t, a.at - now) : t('alarm.offText');
       if (c.when.textContent !== text) c.when.textContent = text;
+      const on = a.enabled || !!snoozed;
+      if (c.toggle.input.checked !== on) c.toggle.input.checked = on;
+      c.el.classList.toggle('off', !on);
+      c.el.classList.toggle('snoozed', !!snoozed);
     }
   }
 

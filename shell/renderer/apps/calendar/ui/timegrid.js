@@ -4,6 +4,7 @@
 import { addDays, sameDay, localKey, localDayNum, weekNumber, minutesOfDay } from '../lib/dates.mjs';
 import { layoutColumns, packLanes } from '../lib/layout.mjs';
 import { track, autoScroller } from './drag.js';
+import { gridPointerAllowed } from './pickers.js';
 import { chipLabel } from './agenda.js';
 import { css } from './util.js';
 
@@ -20,6 +21,13 @@ const atMinutes = (day, min) => {
   d.setMinutes(min);
   return d.getTime();
 };
+
+// Wall-clock minute of `ms` inside a segment's day column (0 at the start of the column, 24 h at its end).
+function segMinute(seg, ms) {
+  const m = minutesOfDay(ms);
+  // an end at midnight belongs to the bottom of the column
+  return ms > seg.start && m === 0 ? 24 * 60 : m;
+}
 
 export function renderTimeGrid(app, days) {
   const { h, icon } = app.ctx;
@@ -155,9 +163,14 @@ export function renderTimeGrid(app, days) {
     const work = app.prefs.workDays.includes(d.getDay());
     const evs = h('div', { class: 'ac-tg-evs' });
     const col = h('div', { class: ['ac-tg-col', sameDay(d, today) && 'today', !work && 'weekend'], style: work ? css({ '--ws': `${ws}px`, '--we': `${we}px` }) : null, role: 'gridcell', 'aria-label': app.fmt.dayLong(d), dataset: { date: localKey(d) } }, evs);
-    col.addEventListener('pointerdown', (e) => onColDown(e, d, col));
+    let downs = [];
+    col.addEventListener('pointerdown', (e) => {
+      downs = [...downs.filter((ts) => e.timeStamp - ts < 700), e.timeStamp];
+      onColDown(e, d, col);
+    });
     col.addEventListener('dblclick', (e) => {
-      if (e.target.closest('.ac-ev')) return;
+      // both clicks must land on the grid (not a click on a flyout button that closed just before)
+      if (e.target.closest('.ac-ev') || downs.filter((ts) => e.timeStamp - ts < 700).length < 2) return;
       const min = snapMin(minuteAt(e.clientY) - 15, 30);
       app.newEvent({ start: atMinutes(d, min), end: atMinutes(d, min + (app.prefs.defaultDuration || 30)) });
     });
@@ -206,9 +219,11 @@ export function renderTimeGrid(app, days) {
 
   function eventBlock(s) {
     const { o } = s;
-    const dayStart = cols[s.day].d.getTime();
-    const top = ((s.start - dayStart) / 60000) * PX_MIN;
-    const hgt = Math.max(20, ((s.end - s.start) / 60000) * PX_MIN - 2);
+    // wall-clock positions (a 09:00 event sits on the 9:00 line on daylight-saving change days too)
+    const topMin = segMinute(s, s.start);
+    const bottomMin = s.last ? segMinute(s, s.end) : 24 * 60;
+    const top = topMin * PX_MIN;
+    const hgt = Math.max(20, Math.max(0, bottomMin - topMin) * PX_MIN - 2);
     const short = hgt < 38;
     const label = chipLabel(app, o);
     const el = h(
@@ -368,7 +383,7 @@ export function renderTimeGrid(app, days) {
   function onResizeDown(e, o, el, seg) {
     if (o.readOnly) return;
     const dayStart = cols[seg.day].d;
-    const startMinInCol = (seg.start - dayStart.getTime()) / 60000;
+    const startMinInCol = segMinute(seg, seg.start);
     let result = null;
     const auto = autoScroller(scroll, () => update(lastEv));
     let lastEv = e;
@@ -387,7 +402,8 @@ export function renderTimeGrid(app, days) {
       threshold: 2,
       onStart: () => {
         el.classList.add('resizing');
-        el.querySelector('.ac-ev-in').appendChild(label);
+        // the live "9:00 AM – 10:30 AM" label takes the place of the time line under the title
+        el.querySelector('.ac-ev-title').after(label);
       },
       onMove: (ev) => {
         auto.update(ev.clientY);
@@ -411,7 +427,7 @@ export function renderTimeGrid(app, days) {
   }
 
   function onColDown(e, d, col) {
-    if (e.button !== 0 || e.target.closest('.ac-ev')) return;
+    if (e.button !== 0 || e.target.closest('.ac-ev') || !gridPointerAllowed()) return;
     e.preventDefault();
     app.viewEl.focus({ preventScroll: true });
     const a = Math.floor(minuteAt(e.clientY) / SNAP) * SNAP;
@@ -465,7 +481,7 @@ export function renderTimeGrid(app, days) {
 
   // all-day row: select days (quick create) and move bars between days
   adGrid.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0 || e.target.closest('.ac-chip, .ac-tg-admore')) return;
+    if (e.button !== 0 || e.target.closest('.ac-chip, .ac-tg-admore') || !gridPointerAllowed()) return;
     e.preventDefault();
     const a = adColAt(e.clientX);
     let b = a;

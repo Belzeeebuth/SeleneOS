@@ -13,7 +13,7 @@ import { EFFECTS, effectById, WEATHER_EFFECT } from '../../../core/wallpaper/eff
 import { weatherTint } from '../../../core/wallpaper/effects/weather.js';
 import { DYNAMIC_SETS, PHASE_NAMES, setById, variantUrl, dynamicPick, spotlightPick } from '../../../core/wallpaper/dynamic.js';
 import { FIXED } from '../../../core/wallpaper/solar.js';
-import { searchCities } from '../../../core/wallpaper/cities.js';
+import { searchCities, samePlace } from '../../../core/wallpaper/cities.js';
 import { thumb, solidWallpaper, solidColorOf } from './personalization.js';
 import { liveSlider, pickColorDialog } from './personalization-designer.js';
 import { PAGES } from '../lib/index.js';
@@ -582,13 +582,9 @@ export async function pickLocation(pc) {
       online = null;
     }
     if (my !== seq) return;
-    const seen = new Set();
-    const merged = [...(online || []), ...offline].filter((p) => {
-      const k = `${p.name}|${Number(p.lat).toFixed(1)}|${Number(p.lon).toFixed(1)}`;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
+    // online results first (they name the region); a built-in city they already list is not shown twice
+    const merged = [];
+    for (const p of [...(online || []), ...offline]) if (!merged.some((m) => samePlace(m, p))) merged.push(p);
     render(merged.slice(0, 10), online === null ? t('wp.locOffline') : merged.length ? '' : t('wp.locNoResult'));
   }
   input.addEventListener('input', () => {

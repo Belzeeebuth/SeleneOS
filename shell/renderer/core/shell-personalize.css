@@ -30,16 +30,16 @@
   height: 28px;
 }
 :root[data-tb-size="large"] #taskbar .tb-btn {
-  height: 52px;
-  min-width: 52px;
+  height: 48px;
+  min-width: 48px;
 }
 :root[data-tb-size="large"] #taskbar .tb-btn > img {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
 }
 :root[data-tb-size="large"] #taskbar .tb-start > img {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
 }
 :root[data-tb-size="large"] #taskbar .tb-btn > .icon {
   width: 24px !important;
@@ -585,23 +585,7 @@
   background: var(--accent-subtle);
   border-color: var(--accent);
 }
-.start-folder {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  padding: 0 32px 12px;
-  background: none;
-}
-/* the flyout background can be translucent: hide what the open folder covers */
-.start-body.has-folder > :not(.start-folder) {
-  visibility: hidden;
-}
-.start-folder-grid {
-  grid-auto-rows: 84px;
-  overflow: auto;
-}
+/* (the open folder popup, drag-to-create and drag-out: core/taskbar-start.css) */
 .start-folders {
   display: flex;
   align-items: center;

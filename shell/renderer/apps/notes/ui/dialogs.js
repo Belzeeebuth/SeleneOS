@@ -2,7 +2,7 @@
 // (.md / .txt), keyboard shortcuts.
 import { NOTEBOOK_COLORS, displayTitle } from '../lib/store.js';
 import { htmlToMarkdown, markdownToHtml, markdownTitle } from '../lib/markdown.js';
-import { sanitizeFragment, sanitizeHtml, escapeHtml, ATTACHMENT_RE } from '../lib/sanitize.js';
+import { sanitizeFragment, sanitizeHtml, escapeHtml, ATTACHMENT_RE, inertDocument } from '../lib/sanitize.js';
 import { plainText, fileNameOf } from '../lib/text.js';
 import { arrowNav } from './popover.js';
 
@@ -14,8 +14,18 @@ export async function notebookDialog(app, nb = null) {
   const t = app.t;
   let color = nb?.color || NOTEBOOK_COLORS[app.store.notebooks.length % NOTEBOOK_COLORS.length];
   let emoji = nb?.emoji || '';
-  const name = h('input', { class: 'input', value: nb?.name || '', placeholder: t('nb.namePlaceholder'), maxlength: 120, 'aria-label': t('nb.name') });
   const err = h('div', { class: 'field-hint nt-field-error', role: 'alert' });
+  const name = h('input', {
+    class: 'input',
+    value: nb?.name || '',
+    placeholder: t('nb.namePlaceholder'),
+    maxlength: 120,
+    'aria-label': t('nb.name'),
+    oninput: () => {
+      err.textContent = '';
+      name.classList.remove('invalid');
+    },
+  });
   const preview = h('span', { class: 'nt-nb-preview' });
   const paintPreview = () => {
     preview.dataset.color = color;
@@ -105,9 +115,11 @@ ul[data-type=checklist]>li[data-checked=true]{color:#777;text-decoration:line-th
 [data-color=red]{color:#c42b1c}[data-color=orange]{color:#ca5010}[data-color=green]{color:#0f7b0f}[data-color=blue]{color:#0063b1}[data-color=purple]{color:#8764b8}[data-color=gray]{color:#69797e}`;
 
 function stored(note) {
-  // the note body as a detached element (attachments referenced by file name)
-  const box = document.createElement('div');
-  box.appendChild(sanitizeFragment(note.html || '', { attachments: true, allowMedia: true, allowRemote: true }));
+  // the note body as a detached element (attachments referenced by file name), in an inert document so
+  // that nothing is fetched while it is converted
+  const doc = inertDocument();
+  const box = doc.createElement('div');
+  box.appendChild(sanitizeFragment(note.html || '', { attachments: true, allowMedia: true, allowRemote: true, doc }));
   return box;
 }
 function attName(img) {
@@ -287,7 +299,7 @@ export function shortcutsDialog(app) {
     title: t('keys.title'),
     parent: app.ctx.win,
     className: 'nt-dialog',
-    body: h('div', { class: 'nt-keys' }, rows.map(([k, label]) => h('div', { class: 'nt-key-row' }, h('span', null, label), h('kbd', null, k)))),
+    body: h('div', { class: 'nt-keys' }, rows.map(([k, label]) => h('div', { class: 'nt-key-row' }, h('span', null, label), h('kbd', null, app.kl(k))))),
     buttons: [{ label: t('common.close'), value: true, primary: true }],
   });
 }

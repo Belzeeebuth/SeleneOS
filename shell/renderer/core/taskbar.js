@@ -10,8 +10,10 @@
 // taskbar.position (bottom | top | left | right: wm insets, flyouts and menus follow the edge),
 // taskbar.showLabels (app names), taskbar.combine (always | whenFull | never: one button per window),
 // taskbar.widgets (tray mini widgets: weather, cpu, memory, network), taskbar.search (hidden | icon | box),
-// taskbar.autohide, Focus mode's simplified taskbar (<html data-focus-simple="on">: running apps only).
-// Layout CSS: core/shell-personalize.css.
+// taskbar.autohide (+ taskbar.hideDelay ms), taskbar.tray ({ network, volume, battery }: tray icons shown),
+// taskbar.badges (unread-notification count on app buttons), taskbar.widgetsPos (auto | start | inline | end),
+// Focus mode's simplified taskbar (<html data-focus-simple="on">: running apps only).
+// Layout CSS: core/shell-personalize.css + core/taskbar-start.css.
 //
 // Flyout manager (shared by Start, Search, Quick settings, Calendar and Widgets):
 //   const fly = createFlyout({ id: 'quick', el, button: '.tb-quick', onOpen, onClose, onKey, onEscape, focus });
@@ -267,9 +269,9 @@ let suppressClick = false;
 let bulk = false; // true while the whole taskbar is rebuilt (no per-button entrance animation)
 
 // ---------------------------------------------------------------- layout (personalization)
-const THICK = { small: 40, medium: 48, large: 60 }; // height of a horizontal taskbar
+const THICK = { small: 40, medium: 48, large: 56 }; // height of a horizontal taskbar
 const THICK_V = { small: 52, medium: 60, large: 72 }; // width of a vertical one (room for the clock)
-const BTN = { small: 32, medium: 40, large: 52 };
+const BTN = { small: 32, medium: 40, large: 48 };
 const tbCfg = () => settings.get('taskbar') || {};
 function tbPos() {
   const p = tbCfg().position;
@@ -286,6 +288,24 @@ function combineMode() {
   return c === 'never' || c === 'whenFull' ? c : 'always';
 }
 const labelsOn = () => !!tbCfg().showLabels && !isVertical();
+// Tray items (taskbar.tray: { network, volume, battery }), app badges (taskbar.badges), widgets button place
+// (taskbar.widgetsPos: auto | start | inline | end) and the auto-hide delay (taskbar.hideDelay, ms).
+const trayCfg = () => {
+  const t = tbCfg().tray;
+  return t && typeof t === 'object' ? t : {};
+};
+const badgesOn = () => tbCfg().badges !== false;
+function widgetsPos() {
+  const v = tbCfg().widgetsPos;
+  const left = tbCfg().align === 'left';
+  let pos = v === 'start' || v === 'inline' || v === 'end' ? v : left ? 'end' : 'start';
+  if (pos === 'start' && (left || isVertical())) pos = 'inline'; // the left end of the bar is taken by Start
+  return pos;
+}
+function hideDelay() {
+  const d = Number(tbCfg().hideDelay);
+  return Number.isFinite(d) ? Math.max(0, Math.min(5000, d)) : 600;
+}
 const focusSimple = () => document.documentElement.dataset.focusSimple === 'on';
 
 function visibleWins(appId) {
@@ -673,6 +693,7 @@ function makeAppButton(key) {
     },
     h('img', { src: registry.iconUrl(id), alt: '', draggable: false }),
     h('span', { class: 'tb-label' }, registry.name(id)),
+    h('span', { class: 'tb-badge', hidden: true, 'aria-hidden': 'true' }),
     h('span', { class: 'tb-ind' }),
     h('span', { class: 'tb-progress' }),
   );
@@ -739,14 +760,35 @@ function renderApps() {
     if (wins.length) delete b.dataset.tip;
     else b.dataset.tip = registry.name(id);
     const label = wins.length === 1 ? wins[0].title || registry.name(id) : registry.name(id);
-    b.setAttribute('aria-label', label);
+    b.dataset.name = label;
     const lab = b.querySelector('.tb-label');
     if (lab && lab.textContent !== label) lab.textContent = label;
   }
+  paintBadges();
   if (previewEl && previewApp && !winsOfKey(previewApp).length) hidePreview(true);
   if (overflowBtn && !overflowBtn.hidden) {
     overflowBtn.classList.toggle('running', hiddenApps.some((k) => winsOfKey(k).length));
     overflowBtn.classList.toggle('flashing', hiddenApps.some((k) => winsOfKey(k).some((w) => w.flashing)));
+  }
+}
+
+// Badges: the number of unread notifications of an app on its (first) taskbar button.
+function paintBadges() {
+  if (!appsBox) return;
+  const counts = new Map();
+  if (badgesOn()) for (const n of notifications.list?.() || []) if (!n.read && n.appId) counts.set(n.appId, (counts.get(n.appId) || 0) + 1);
+  const seen = new Set();
+  for (const b of appsBox.querySelectorAll(':scope > .tb-app')) {
+    const id = b.dataset.app;
+    const n = seen.has(id) ? 0 : counts.get(id) || 0;
+    seen.add(id);
+    const el = b.querySelector('.tb-badge');
+    if (el) {
+      el.hidden = !n;
+      el.textContent = n > 9 ? '9+' : n ? String(n) : '';
+    }
+    const name = b.dataset.name || registry.name(id);
+    b.setAttribute('aria-label', n ? `${name}, ${t('taskbar.notifications', { count: n })}` : name);
   }
 }
 
@@ -923,11 +965,21 @@ function renderClock() {
   const h24 = settings.get('clock24h');
   const timeOpts = { hour: 'numeric', minute: '2-digit' };
   if (h24 != null) timeOpts.hour12 = !h24;
+  // A 24-hour clock always shows two-digit hours ("00:55", like Windows in French); 12-hour keeps "9:05 AM".
+  if (h24 != null ? !!h24 : is24h()) timeOpts.hour = '2-digit';
   if (settings.get('showSeconds')) timeOpts.second = '2-digit';
   clockEl.querySelector('.tb-time').textContent = i18n.formatTime(now, timeOpts);
   clockEl.querySelector('.tb-date').textContent = i18n.formatDate(now, { day: '2-digit', month: '2-digit', year: 'numeric' });
   const full = i18n.formatDate(now, { dateStyle: 'full' });
   clockEl.dataset.tip = full.charAt(0).toUpperCase() + full.slice(1);
+}
+function is24h() {
+  try {
+    const hc = new Intl.DateTimeFormat(i18n.locale, { hour: 'numeric' }).resolvedOptions().hourCycle;
+    return hc === 'h23' || hc === 'h24';
+  } catch {
+    return false;
+  }
 }
 let clockTimer = null;
 function tickClock() {
@@ -982,13 +1034,14 @@ function renderTray() {
   const vol = trayEl.querySelector('.tb-vol');
   const bat = trayEl.querySelector('.tb-bat');
   const ng = netGlyph(status.net);
-  net.hidden = !ng;
+  const want = trayCfg();
+  net.hidden = !ng || want.network === false;
   if (ng) {
     setGlyph(net, ng.key, ng.node);
     net.dataset.tip = ng.tip;
   }
   const a = status.audio;
-  vol.hidden = !a;
+  vol.hidden = !a || want.volume === false;
   if (a) {
     const v = Math.round(a.volume ?? 0);
     const name = a.muted ? 'speaker_mute' : v === 0 ? 'speaker_0' : v < 34 ? 'speaker_1' : 'speaker_2';
@@ -996,7 +1049,7 @@ function renderTray() {
     vol.dataset.tip = a.muted ? t('tray.muted') : t('tray.volume', { value: v });
   }
   const b = status.battery;
-  bat.hidden = !b;
+  bat.hidden = !b || want.battery === false;
   if (b) {
     const pct = Math.round(b.percent ?? 0);
     setGlyph(bat, `${pct}|${!!b.charging}`, () => glyph(batterySvg(pct, b.charging)));
@@ -1005,7 +1058,7 @@ function renderTray() {
   }
   // Never leave the quick-settings button empty.
   const fallback = trayEl.querySelector('.tb-qs-fallback');
-  fallback.hidden = !!(ng || a || b);
+  fallback.hidden = !(net.hidden && vol.hidden && bat.hidden);
   fitApps(); // the tray's width changed: re-check how many app buttons fit
 }
 
@@ -1223,7 +1276,7 @@ function reveal() {
   clearTimeout(hideTimer);
   root?.classList.remove('hidden');
 }
-function scheduleHide(ms = 600) {
+function scheduleHide(ms = hideDelay()) {
   clearTimeout(hideTimer);
   if (!autohideOn()) return;
   hideTimer = setTimeout(() => {
@@ -1243,7 +1296,7 @@ function applyAutohide() {
   if (!on) insets[tbPos()] = thickness();
   const cur = wm.insets || {};
   if (['top', 'bottom', 'left', 'right'].some((k) => cur[k] !== insets[k])) wm.setInsets(insets);
-  if (on) scheduleHide(900);
+  if (on) scheduleHide(Math.max(900, hideDelay()));
   else reveal();
 }
 
@@ -1277,6 +1330,7 @@ function renderStatic() {
   document.body.classList.toggle('tb-left', align === 'left');
   let searchMode = ['hidden', 'icon', 'box'].includes(tb.search) ? tb.search : tb.showSearch === false ? 'hidden' : 'icon';
   if (vertical && searchMode === 'box') searchMode = 'icon';
+  const wpos = widgetsPos();
   const widgetsBtn = (withLabel) =>
     h(
       'button',
@@ -1284,7 +1338,7 @@ function renderStatic() {
       icon('board', { size: 20 }),
       withLabel ? h('span', { class: 'tb-label' }, t('taskbar.widgets')) : null,
     );
-  leftEl = h('div', { class: 'tb-left' }, tb.showWidgets && align === 'center' && !vertical ? widgetsBtn(true) : null);
+  leftEl = h('div', { class: 'tb-left' }, tb.showWidgets && wpos === 'start' ? widgetsBtn(true) : null);
   centerEl = h(
     'div',
     { class: 'tb-center' },
@@ -1301,12 +1355,13 @@ function renderStatic() {
     tb.showTaskView !== false
       ? h('button', { class: 'tb-btn tb-taskview', 'data-tip': t('taskbar.taskView'), 'aria-label': t('taskbar.taskView'), onclick: () => shell.emit('taskview:toggle') }, icon('task_list_square_ltr', { size: 20 }))
       : null,
-    tb.showWidgets && (align === 'left' || vertical) ? widgetsBtn(false) : null,
+    tb.showWidgets && wpos === 'inline' ? widgetsBtn(false) : null,
     (appsBox = h('div', { class: 'tb-apps' })),
   );
   trayEl = h(
     'div',
     { class: 'tb-tray' },
+    tb.showWidgets && wpos === 'end' ? widgetsBtn(!vertical) : null,
     h('div', { class: 'tb-status' }),
     (minisEl = h('div', { class: 'tb-minis', hidden: true })),
     h(
@@ -1355,11 +1410,12 @@ export const taskbar = {
   mount(el) {
     root = el;
     i18n.extend(STRINGS);
+    ui.loadCss('app://shell/core/taskbar-start.css');
     root.setAttribute('role', 'toolbar');
     notifications.setNameResolver?.((id) => (registry.get(id) ? registry.name(id) : id === 'system' ? t('notif.system') : id));
     applyLayout();
     renderStatic();
-    hotzone = h('div', { class: 'tb-hotzone', hidden: true, onpointerenter: () => (reveal(), scheduleHide(1600)) });
+    hotzone = h('div', { class: 'tb-hotzone', hidden: true, onpointerenter: () => (reveal(), scheduleHide(Math.max(1600, hideDelay()))) });
     document.body.appendChild(hotzone);
     root.addEventListener('pointerenter', reveal);
     root.addEventListener('pointerleave', () => scheduleHide());
@@ -1403,7 +1459,12 @@ export const taskbar = {
       document.body.classList.toggle('has-fullscreen', !!(f && f.fullscreen && !f.minimized));
     });
     settings.on('pinned', () => renderApps());
+    // (settings:setMany of other keys reaches every listener: only a real change of taskbar.* re-lays the bar)
+    let tbSig = JSON.stringify(settings.get('taskbar') || {});
     settings.on('taskbar', () => {
+      const now = JSON.stringify(settings.get('taskbar') || {});
+      if (now === tbSig) return;
+      tbSig = now;
       applyAlign();
       applyAutohide();
     });
@@ -1429,7 +1490,10 @@ export const taskbar = {
       renderStatic();
       tickClock();
     });
-    notifications.on('change', renderBell);
+    notifications.on('change', () => {
+      renderBell();
+      paintBadges();
+    });
     tickClock();
 
     // System status (owned by the system backend; icons hide when a channel is missing).
