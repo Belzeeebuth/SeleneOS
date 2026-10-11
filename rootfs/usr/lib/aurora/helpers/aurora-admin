@@ -455,7 +455,7 @@ format-removable)
   # Never the disk that holds the running system or the live medium.
   for target in / /boot /boot/efi /usr /var /home /cdrom /run/live/medium /rofs; do
     src=$(findmnt -no SOURCE --target "$target" 2>/dev/null | head -n1) || true
-    [ -n "$src" ] && [ -b "$src" ] || continue
+    { [ -n "$src" ] && [ -b "$src" ]; } || continue
     if lsblk -nso NAME -- "$src" 2>/dev/null | sed 's/^[^[:alnum:]]*//' | grep -qx -- "$dname"; then
       die 4 "$dev holds the system or the live medium"
     fi
