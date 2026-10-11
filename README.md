@@ -55,6 +55,18 @@ available in **English and French**, in light and dark themes.
 | Snipping Tool | Rectangle/window/full-screen/free-form captures, markup, save and copy |
 | Task Manager | Processes with heat map, live performance graphs, users, details, services |
 | Settings | System, network, personalization, apps, accounts, time & language, accessibility, privacy & security, updates |
+| Weather | Current conditions, 24-hour and 7-day forecasts, saved places; sets the dynamic wallpaper location |
+| Maps | OpenStreetMap maps, place search, saved places |
+| Contacts | People, e-mails, phones, addresses, birthdays, vCard import/export; suggestions in Mail |
+| Sticky Notes | Colourful notes that can stay on top, saved as you type, copy to Notes |
+| Translator | Seven languages (MyMemory or your LibreTranslate server), English dictionary, offline EN↔FR glossary |
+| Remote Desktop | VNC client (RDP later) |
+| Store | Command-line tools and services installed with apt (curated list) |
+| Disks | Drives and partitions, mount and eject, format USB sticks and SD cards |
+| Backup | Incremental snapshots of your folders to a drive; browse and restore |
+| Passwords | Encrypted password vault with a generator |
+| Cloud | Nextcloud / WebDAV files: browse, upload, download |
+| Network tools | VPN and WireGuard connections, ping, DNS lookup |
 | Games | Minesweeper, Solitaire, Snake, 2048, Chess (with a computer opponent) |
 | Installer | Windows Setup–style installer: language, keyboard, disk, account, time zone |
 
