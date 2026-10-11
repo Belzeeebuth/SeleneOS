@@ -204,7 +204,9 @@ async function uiTests() {
 
   // ---------------------------------------------------------------- Part 2: EN light, full happy path
   {
-    const s = await launchShell({ open: ['installer'], live: true, lang: 'en', theme: 'light', env: { AURORA_INSTALLER_DRYRUN_DELAY: '0.02' } });
+    // 0.15 s per dry-run step: the install must still be running when the test closes the window (on a loaded
+    // machine a 0.02 s dry run used to finish first, so no "Cancel the installation?" prompt appeared).
+    const s = await launchShell({ open: ['installer'], live: true, lang: 'en', theme: 'light', env: { AURORA_INSTALLER_DRYRUN_DELAY: '0.15' } });
     const { page } = s;
     // Failed loads of the installer's own files (other apps' resources are not this test's business).
     const badLoads = [];
