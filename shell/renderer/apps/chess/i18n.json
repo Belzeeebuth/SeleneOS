@@ -37,7 +37,7 @@
     },
     "modeDesc": {
       "ai": "Play against the engine",
-      "two": "Take turns on this PC",
+      "two": "Take turns on this computer",
       "analysis": "Free play with live evaluation"
     },
     "level": {
@@ -72,7 +72,7 @@
       "computerTurn": "Computer to move",
       "whiteToMove": "White to move",
       "blackToMove": "Black to move",
-      "check": "Check!",
+      "check": "Check",
       "thinking": "Computer is thinking…",
       "thinkingShort": "Thinking…",
       "hintThinking": "Looking for a good move…",
@@ -136,7 +136,7 @@
       "start": "Start game"
     },
     "result": {
-      "youWon": "You won!",
+      "youWon": "You won",
       "youLost": "You lost",
       "draw": "Draw",
       "whiteWins": "White wins",
@@ -319,7 +319,7 @@
     },
     "modeDesc": {
       "ai": "Affrontez le moteur",
-      "two": "Jouez à tour de rôle sur ce PC",
+      "two": "Jouez à tour de rôle sur cet ordinateur",
       "analysis": "Jeu libre avec évaluation"
     },
     "level": {
@@ -354,7 +354,7 @@
       "computerTurn": "Au tour de l'ordinateur",
       "whiteToMove": "Aux Blancs de jouer",
       "blackToMove": "Aux Noirs de jouer",
-      "check": "Échec !",
+      "check": "Échec au roi",
       "thinking": "L'ordinateur réfléchit…",
       "thinkingShort": "Réflexion…",
       "hintThinking": "Recherche d'un bon coup…",
@@ -418,7 +418,7 @@
       "start": "Commencer"
     },
     "result": {
-      "youWon": "Vous avez gagné !",
+      "youWon": "Vous avez gagné",
       "youLost": "Vous avez perdu",
       "draw": "Partie nulle",
       "whiteWins": "Les Blancs gagnent",

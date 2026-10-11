@@ -144,7 +144,7 @@ window that asked. In greeter mode (`--mode=greeter`) only `settings`, `sys`, `g
 | Area (file) | Channels |
 |---|---|
 | files (`fs.js`) | `fs:home` `fs:xdg` `fs:list` `fs:stat` `fs:exists` `fs:readText` `fs:writeText` `fs:readBytes` `fs:writeBytes` `fs:mkdir` `fs:uniqueName` `fs:rename` `fs:copy` (+`fs:progress`) `fs:trash` `fs:trashList` `fs:trashRestore` `fs:trashEmpty` (+`fs:trash-changed`) `fs:delete` `fs:search` `fs:watch`/`fs:unwatch` (+`fs:changed`) `fs:drives` `fs:mount` `fs:unmount` `fs:eject` `fs:usage` `fs:dirSize` |
-| File Explorer (`files.js`) | `files:transfer` (+`files:progress`) `files:cancel` `files:dirStats` (+`files:dirStats`) `files:props` `files:chmod` `files:compress` `files:extract` `files:head` `files:thumb` `files:media` `files:recent` `files:mounts` `files:drivesWatch` (+`files:drives-changed`) |
+| Files (`files.js`) | `files:transfer` (+`files:progress`) `files:cancel` `files:dirStats` (+`files:dirStats`) `files:props` `files:chmod` `files:compress` `files:extract` `files:head` `files:thumb` `files:media` `files:recent` `files:mounts` `files:drivesWatch` (+`files:drives-changed`) |
 | system (`sys.js`, `power-ext.js`) | `sys:info` `sys:stats` `power:shutdown` `power:reboot` `power:suspend` `power:battery` (+`power:changed`) `session:logout` `apps:list` |
 | shell (`sys.js`) | `shell:zoom` `shell:capture(rect)` `shell:screenSize` `shell:features` `shell:devtools` `clipboard:readText` `clipboard:writeText` `clipboard:readImage` `clipboard:writeImage`; `hotkeys:rules` `hotkeys:setCustom` (`main/lib/hotkeys.js`, custom shortcuts); events from `main/`: `shell:hotkey` `shell:open-url` `shell:open-mailto` |
 | settings (`settings.js`) | `settings:all` `settings:get` `settings:set` `settings:setMany` `settings:defaults` `settings:reset` (+`settings:changed`), `storage:get` `storage:set` `storage:delete` `storage:dir` |
@@ -190,9 +190,9 @@ actions. Never expose a generic "run this command as root" path.
 Tests live in `shell/test/<id>.test.mjs`; Minesweeper, Snake and 2048 share `games-classic.test.mjs`,
 Settings uses `system-settings.test.mjs`.
 
-- `archive` - Archive Manager: open, extract and create ZIP, 7z, RAR and TAR archives
+- `archive` - Archives: open, extract and create ZIP, 7z, RAR and TAR archives
 - `backup` - Backup: incremental rsync snapshots of your folders to a drive; browse and restore
-- `browser` - Selene Browser: Chromium `<webview>` tabs, favorites, history, downloads, private windows
+- `browser` - Browser: Chromium `<webview>` tabs, favorites, history, downloads, private windows
 - `calculator` - Calculator: standard, scientific, programmer, date calculation, unit converters
 - `calendar` - Calendar: month/week/day/agenda views, recurring events, reminders, holidays, .ics import/export
 - `chess` - Chess against the computer or a friend
@@ -200,33 +200,33 @@ Settings uses `system-settings.test.mjs`.
 - `cloud` - Cloud: browse, upload and download Nextcloud / WebDAV files (other services later)
 - `contacts` - Contacts: people, e-mails, phones, addresses, birthdays, vCard import/export; feeds Mail's recipient suggestions
 - `disks` - Disks: drives and partitions, mount, eject; format removable drives only
-- `files` - File Explorer: tabs, drives, Recycle Bin, search, properties
+- `files` - Files: tabs, drives, Recycle Bin, search, properties
 - `game2048` - 2048
 - `installer` - Install Selene OS (live session only): language, keyboard, disk, account, time zone
 - `mail` - Mail: IMAP/SMTP accounts, compose, attachments
 - `maps` - Maps: OpenStreetMap tiles, place search (Nominatim), saved places
-- `media` - Media Player: music and video libraries, queue, playlists
+- `media` - Player: music and video libraries, queue, playlists
 - `minesweeper` - Minesweeper
 - `nettools` - Network tools: VPN / WireGuard connections (NetworkManager), ping, DNS lookup
-- `notepad` - Notepad: plain text with tabs, find/replace, encodings
+- `notepad` - Text Editor: plain text with tabs, find/replace, encodings
 - `notes` - Notes: notebooks, rich text, checklists, pictures and tags, saved as you type
-- `paint` - Paint: draw and edit pictures
+- `paint` - Draw: draw and edit pictures
 - `passwords` - Passwords: encrypted vault (AES-GCM, PBKDF2), generator, CSV import/export
 - `pdf` - PDF Reader: read, search, annotate and present PDFs
 - `photos` - Photos: gallery, viewer, slideshow and editor
 - `remote` - Remote Desktop: VNC client (RFB 3.8, None / VNC authentication); RDP later
 - `settings` - Settings: system, devices, network, personalization, accounts, time and language, updates
 - `snake` - Snake
-- `snipping` - Snipping Tool: screen captures with markup
+- `snipping` - Screenshot: screen captures with markup
 - `solitaire` - Solitaire (Klondike)
-- `sticky` - Sticky Notes: small always-on-top notes, colours, basic formatting, copy to Notes
-- `store` - Store: curated command-line tools and services installed with apt (through aurora-admin)
-- `taskmgr` - Task Manager: processes, performance, users, details, services
+- `sticky` - Memos: small always-on-top notes, colours, basic formatting, copy to Notes
+- `store` - Software: curated command-line tools and services installed with apt (through aurora-admin)
+- `taskmgr` - System Monitor: processes, performance, users, details, services
 - `terminal` - Terminal: real PTY, tabs, split panes, profiles
-- `todo` - To Do: lists, My Day, reminders, due dates, steps
+- `todo` - Tasks: lists, My Day, reminders, due dates, steps
 - `translate` - Translator: MyMemory or LibreTranslate, English dictionary, offline EN↔FR glossary
 - `weather` - Weather: Open-Meteo current conditions, 24 h and 7-day forecasts; sets the dynamic wallpaper location
-- `winver` - About Selene OS: version and license information
+- `winver` - About Selene: version and license information
 
 ## Rules for parallel work
 

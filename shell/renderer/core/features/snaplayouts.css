@@ -1,24 +1,16 @@
-/* Snap layouts flyout, drag bar and Snap Assist (Windows 11). */
+/* Dispositions: the flyout on the maximize button, the bar shown when a window is dragged to the top, and the
+   assistant that fills the other zones. Flat, opaque surfaces (no blur outside the bar, Lanceur and panels). */
 .snapl-fly,
 .snapl-bar {
   position: fixed;
   z-index: 70;
-  padding: 10px;
-  border-radius: var(--radius);
-  background: var(--acrylic);
-  border: 1px solid var(--window-stroke);
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
   box-shadow: var(--shadow-flyout);
-  backdrop-filter: blur(40px) saturate(160%);
   outline: none;
   animation: snapl-in var(--dur-slow) var(--ease);
-}
-:root[data-transparency="off"] .snapl-fly,
-:root[data-transparency="off"] .snapl-bar,
-:root[data-transparency="off"] .snapa {
-  backdrop-filter: none;
-}
-:root[data-transparency="off"] .snapa {
-  background: var(--acrylic-strong);
 }
 .snapl-fly.closing,
 .snapl-bar.closing {
@@ -28,7 +20,7 @@
 @keyframes snapl-in {
   from {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateY(-4px);
   }
 }
 @keyframes snapl-out {
@@ -49,31 +41,24 @@
 .snapl-zone {
   position: absolute;
   border: 2px solid transparent;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background-clip: padding-box;
-  background-color: var(--snapl-zone);
-  box-shadow: inset 0 0 0 1px var(--snapl-zone-stroke);
+  background-color: var(--bg-alt);
+  box-shadow: inset 0 0 0 1px var(--control-strong);
   display: grid;
   place-items: center;
-  transition: background-color var(--dur-fast) linear, box-shadow var(--dur-fast) linear;
-}
-:root[data-theme="light"] .snapl-zone {
-  --snapl-zone: rgba(0, 0, 0, 0.05);
-  --snapl-zone-stroke: rgba(0, 0, 0, 0.16);
-}
-:root[data-theme="dark"] .snapl-zone {
-  --snapl-zone: rgba(255, 255, 255, 0.07);
-  --snapl-zone-stroke: rgba(255, 255, 255, 0.2);
+  transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .snapl-zone:hover,
 .snapl-zone.kb,
 .snapl-zone.hot {
   background-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent-hover);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 .snapl-num {
-  font-size: 11px;
+  font-size: var(--fs-caption);
   line-height: 12px;
+  font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: var(--text-2);
 }
@@ -89,8 +74,8 @@
   height: 15px;
   padding: 0 3px;
   border-radius: 8px;
-  background: var(--solid);
-  border: 1px solid var(--stroke-strong);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
   font-size: 10px;
   line-height: 13px;
   text-align: center;
@@ -124,7 +109,7 @@
 @keyframes snapl-bar-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -24px);
+    transform: translate(-50%, -12px);
   }
 }
 @keyframes snapl-bar-out {
@@ -145,11 +130,10 @@
   gap: 14px;
   padding: 16px;
   overflow: hidden;
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--acrylic-strong) 88%, transparent);
-  border: 1px solid var(--window-stroke);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
   box-shadow: var(--shadow-flyout);
-  backdrop-filter: blur(40px) saturate(150%);
   outline: none;
   animation: snapa-in var(--dur-slower) var(--ease);
 }
@@ -169,7 +153,7 @@
   }
 }
 .snapa-hint {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
   color: var(--text-2);
   text-align: center;
 }
@@ -200,7 +184,7 @@
   color: var(--text);
   text-align: left;
   min-width: 0;
-  transition: background var(--dur-fast) linear;
+  transition: background var(--dur-fast) var(--ease);
 }
 .snapa-card:hover {
   background: var(--subtle-hover);
@@ -210,8 +194,8 @@
   place-items: center;
 }
 .snapa-card.sel {
-  background: var(--subtle-hover);
-  box-shadow: inset 0 0 0 2px var(--text);
+  background: var(--sel-bg);
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
 }
 .snapa-head {
   display: flex;
@@ -219,7 +203,7 @@
   gap: 8px;
   min-width: 0;
   height: 20px;
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
 }
 .snapa-head img {
   width: 16px;
@@ -231,5 +215,5 @@
   place-items: center;
   overflow: hidden;
   border-radius: var(--radius-sm);
-  box-shadow: 0 0 0 1px var(--stroke), 0 4px 12px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 0 0 1px var(--line), 0 4px 12px rgb(var(--shadow-rgb) / 0.16);
 }

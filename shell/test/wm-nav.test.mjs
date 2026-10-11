@@ -1048,7 +1048,7 @@ async function frenchDarkRun() {
     await sleep(300);
     const winx = await A(() => [...document.querySelectorAll('.menu.wm-accel-menu .menu-item .label')].map((l) => l.textContent));
     const hasTm = await A(() => !!window.__aurora.registry.get('taskmgr'));
-    check('fr: Win+X localized', (!hasTm || winx.includes('Gestionnaire des tâches')) && winx.includes('Exécuter') && winx.includes('Bureau') && winx.includes('Arrêter ou se déconnecter'), winx.join(', '));
+    check('fr: Win+X localized', (!hasTm || winx.includes('Moniteur système')) && winx.includes('Fichiers') && winx.includes('Exécuter') && winx.includes('Bureau') && winx.includes('Arrêter ou se déconnecter'), winx.join(', '));
     check('fr: Win+X labels not clipped', (await clipped('.menu.wm-accel-menu .menu-item .label')).length === 0);
     await shot('wm-winx-fr-dark', true);
     await A(() => window.__aurora.ui.closeMenus());

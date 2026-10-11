@@ -416,6 +416,23 @@
   .toast {
     border: 2px solid var(--hc-fg);
   }
+  /* panels (features/quick, calendar, widgets, osd; toasts): solid, with thick borders */
+  #quick-settings,
+  #widgets-board,
+  #calendar-center .nc-card,
+  #calendar-center .cal-card,
+  #toasts .toast,
+  .osd {
+    background: var(--hc-bg);
+    border: 2px solid var(--hc-fg);
+  }
+  .qs-tile,
+  .qs-style,
+  .qs-amb,
+  .qs-battery,
+  .nc-item {
+    border: 2px solid var(--hc-fg);
+  }
   #taskbar {
     border-top: 2px solid var(--hc-fg);
   }

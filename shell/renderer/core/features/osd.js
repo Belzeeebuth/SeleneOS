@@ -18,16 +18,16 @@ const STRINGS = {
 };
 
 function volIcon(v, muted) {
-  if (muted) return 'speaker_mute';
-  if (v === 0) return 'speaker_0';
-  return v < 34 ? 'speaker_1' : 'speaker_2';
+  if (muted) return 'speaker-x';
+  if (v === 0) return 'speaker-none';
+  return v < 34 ? 'speaker-low' : 'speaker-high';
 }
 
 function show({ kind = 'volume', value = 0, muted = false } = {}) {
   const v = Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
   const icon = ctx.ui.icon;
   lastOsdAt = Date.now();
-  iconEl.replaceChildren(icon(kind === 'brightness' ? 'brightness_high' : volIcon(v, muted), { size: 20 }));
+  iconEl.replaceChildren(icon(kind === 'brightness' ? 'sun' : volIcon(v, muted), { size: 20 }));
   el.classList.toggle('muted', kind === 'volume' && !!muted);
   bar.style.setProperty('--v', `${v}%`);
   valueEl.textContent = String(v);

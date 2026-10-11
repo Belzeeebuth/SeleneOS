@@ -511,10 +511,10 @@ async function lightEnglish() {
     await pickCombo(s, 'Taskbar alignment', 'Left');
     check((await get(s, 'taskbar.align')) === 'left', 'taskbar alignment');
     await pickCombo(s, 'Taskbar alignment', 'Center');
-    await (await rowControl(s, 'Widgets')).locator('.toggle input').click();
+    await (await rowControl(s, 'Dashboard')).locator('.toggle input').click();
     await sleep(300);
-    check((await get(s, 'taskbar.showWidgets')) === true, 'taskbar Widgets button toggle');
-    await (await rowControl(s, 'Widgets')).locator('.toggle input').click();
+    check((await get(s, 'taskbar.showWidgets')) === true, 'taskbar Dashboard button toggle');
+    await (await rowControl(s, 'Dashboard')).locator('.toggle input').click();
     await go(s, 'lockscreen');
     await s.page.locator(S('.st-wall[aria-label="Pine forest"]')).click();
     await sleep(300);
@@ -655,7 +655,7 @@ async function lightEnglish() {
 
     // ---- About: rename this PC
     await go(s, 'about');
-    await s.page.locator(S('.btn'), { hasText: 'Rename this PC' }).click();
+    await s.page.locator(S('.btn'), { hasText: 'Rename this computer' }).click();
     await s.page.locator('.dialog input').fill('bad name!');
     await s.page.locator('.dialog .dialog-footer .btn.primary').click();
     check(await s.page.locator('.dialog input.invalid').count(), 'invalid PC names are refused');
@@ -910,7 +910,7 @@ async function qaRegressions() {
     const me = (await inv(s, 'users:current')).name;
     await inv(s, 'admin:run', 'pw', 'user-set-admin', [me, '0']);
     await go(s, 'about');
-    await s.page.locator(S('.btn'), { hasText: 'Rename this PC' }).click();
+    await s.page.locator(S('.btn'), { hasText: 'Rename this computer' }).click();
     await s.page.locator('.dialog input').fill('NEW-NAME');
     await s.page.locator('.dialog .dialog-footer .btn.primary').click();
     await uac(s);

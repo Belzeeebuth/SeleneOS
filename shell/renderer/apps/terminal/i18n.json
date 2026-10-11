@@ -81,7 +81,7 @@
       "hint": "You can now close this terminal with Ctrl+D, or press Enter to restart."
     },
     "link": {
-      "hint": "Click to open in Selene Browser"
+      "hint": "Click to open in Browser"
     },
     "error": {
       "title": "Terminal",
@@ -146,7 +146,7 @@
       "background": "Background",
       "opacity": "Background opacity",
       "opacityDesc": "Lower it to see the window material through the terminal",
-      "acrylic": "Acrylic material",
+      "acrylic": "Translucent background",
       "acrylicDesc": "Blur the desktop and windows behind a translucent terminal",
       "transparencyOff": "Transparency effects are turned off in Settings > Personalization > Colors, so the background stays opaque.",
       "scrollback": "History size",
@@ -242,7 +242,7 @@
       "hint": "Vous pouvez fermer ce terminal avec Ctrl+D, ou appuyer sur Entrée pour le redémarrer."
     },
     "link": {
-      "hint": "Cliquez pour ouvrir dans le Navigateur Selene"
+      "hint": "Cliquez pour ouvrir dans le Navigateur"
     },
     "error": {
       "title": "Terminal",
@@ -307,7 +307,7 @@
       "background": "Arrière-plan",
       "opacity": "Opacité de l’arrière-plan",
       "opacityDesc": "Diminuez-la pour voir le matériau de la fenêtre à travers le terminal",
-      "acrylic": "Matériau acrylique",
+      "acrylic": "Fond translucide",
       "acrylicDesc": "Flouter le bureau et les fenêtres derrière un terminal translucide",
       "transparencyOff": "Les effets de transparence sont désactivés dans Paramètres > Personnalisation > Couleurs : l’arrière-plan reste opaque.",
       "scrollback": "Taille de l’historique",

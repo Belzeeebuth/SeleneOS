@@ -1,6 +1,6 @@
 {
   "id": "snipping",
-  "name": { "en": "Snipping Tool", "fr": "Outil Capture" },
+  "name": { "en": "Screenshot", "fr": "Capture d'écran" },
   "description": { "en": "Capture any part of your screen, then mark it up and share it", "fr": "Capturez une partie de l'écran, puis annotez-la et partagez-la" },
   "icon": "icon.svg",
   "entry": "main.js",

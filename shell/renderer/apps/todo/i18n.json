@@ -1,6 +1,6 @@
 {
  "en": {
-  "app": "To Do",
+  "app": "Tasks",
   "nav": {
    "label": "Lists",
    "toggle": "Show or hide navigation",
@@ -305,10 +305,10 @@
    "autoHideDesc": "Important, Planned, All and Completed are hidden while they’re empty",
    "examples": "Example tasks",
    "examplesLabel": "Getting started examples",
-   "examplesDesc": "A few tasks and a list that show what To Do can do",
+   "examplesDesc": "A few tasks and a list that show what Tasks can do",
    "addExamples": "Add examples",
    "help": "Help",
-   "about": "To Do for Selene OS. Your tasks are stored on this device only."
+   "about": "Tasks for Selene OS. Your tasks are stored on this device only."
   },
   "keys": {
    "title": "Keyboard shortcuts",
@@ -359,17 +359,17 @@
    "copied": "Copied to the clipboard"
   },
   "errors": {
-   "title": "To Do",
+   "title": "Tasks",
    "load": "Your tasks couldn’t be loaded: {msg}. Changes made now won’t be saved, so your file isn’t overwritten.",
    "saveTitle": "Changes couldn’t be saved",
    "copy": "Couldn’t copy the list: {msg}",
    "taskGone": "This task no longer exists. It may have been deleted.",
-   "damaged": "Your task data was damaged and couldn’t be read, so To Do started with empty lists. The damaged file was kept as {file} in the To Do settings folder.",
-   "newer": "Your tasks were saved by a newer version of To Do. A copy of the original file was kept as {file} in the To Do settings folder.",
-   "newerNoBackup": "your tasks were saved by a newer version of To Do and a safety copy couldn’t be made ({msg})",
+   "damaged": "Your task data was damaged and couldn’t be read, so Tasks started with empty lists. The damaged file was kept as {file} in the Tasks settings folder.",
+   "newer": "Your tasks were saved by a newer version of Tasks. A copy of the original file was kept as {file} in the Tasks settings folder.",
+   "newerNoBackup": "your tasks were saved by a newer version of Tasks and a safety copy couldn’t be made ({msg})",
    "damagedNoBackup": "your task file is damaged and couldn’t be moved aside or copied ({msg})",
    "readOnlyTitle": "Changes aren’t being saved",
-   "readOnlyBody": "Your task file couldn’t be read, so To Do won’t overwrite it. Close To Do and fix or move the file, then open To Do again.",
+   "readOnlyBody": "Your task file couldn’t be read, so Tasks won’t overwrite it. Close Tasks and fix or move the file, then open Tasks again.",
    "stepLimit": "A task can have up to {max} steps. Split it into several tasks, or turn a few steps into tasks."
   }
  },

@@ -90,7 +90,7 @@ export const notifications = {
 
 function iconNode(n, size = 16) {
   const src = n.icon || iconFor(n.appId);
-  if (!src) return icon('alert', { size });
+  if (!src) return icon('bell', { size });
   // Absolute file paths (e.g. icons sent by desktop notifications) go through media://; other strings
   // are Fluent icon names. Only image-safe URL schemes are loaded.
   if (typeof src === 'string' && src.startsWith('/')) return h('img', { class: 'toast-img', src: api.mediaUrl(src), alt: '', width: size, height: size });
@@ -161,7 +161,7 @@ export function notify(opts = {}) {
             close();
           },
         },
-        icon('dismiss', { size: 12 }),
+        icon('x', { size: 12 }),
       ),
     ),
     h('div', { class: 'toast-title body-strong' }, n.title),
@@ -173,11 +173,12 @@ export function notify(opts = {}) {
       ? h(
           'div',
           { class: 'toast-actions' },
-          n.actions.map((a) =>
+          n.actions.map((a, i) =>
             h(
               'button',
               {
-                class: 'btn',
+                // the first of several actions is the main one (« Installer » / « Plus tard »)
+                class: ['btn', i === 0 && n.actions.length > 1 && 'primary'],
                 onclick: () => {
                   try {
                     a.onClick?.();

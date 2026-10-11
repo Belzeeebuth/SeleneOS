@@ -1,6 +1,6 @@
 {
   "id": "taskmgr",
-  "name": { "en": "Task Manager", "fr": "Gestionnaire des tâches" },
+  "name": { "en": "System Monitor", "fr": "Moniteur système" },
   "description": { "en": "See and manage running apps, processes, performance, users and services", "fr": "Affichez et gérez les applications, processus, performances, utilisateurs et services" },
   "icon": "icon.svg",
   "entry": "main.js",

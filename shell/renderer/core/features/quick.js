@@ -1,11 +1,13 @@
-// Quick settings flyout (Win+A / taskbar network-volume-battery button) — Windows 11 style.
-//   Tiles: Wi-Fi (split, ▸ network list), Airplane mode, Night light, Dark mode, Do not disturb,
-//   Accessibility (▸ animation / transparency toggles). Sliders: brightness (hidden when the
-//   display has no backlight), volume (+ ▸ output device picker). Footer: battery, Settings.
+// Réglages rapides (Super+A / the bar's network-volume-battery button).
+//   Header: title, battery chip, gear button (opens Settings). Tiles: Wi-Fi (split, > network list),
+//   Airplane mode, Focus, Dark mode, Night light, Do not disturb, Accessibility (> animation /
+//   transparency toggles). Sliders: brightness (hidden when the display has no backlight), volume
+//   (+ > output device picker). Appearance: style, ambiance and accent (core/theme.js API).
 //   Sub-pages slide horizontally; backend channels (net:*, audio:*, display:*, power:battery) are
 //   optional — controls whose backend is missing are hidden, failures are reported inline.
 //   Opens on shell 'quick:toggle' / 'quick:open'.
 import { createFlyout } from '../taskbar.js';
+import { STYLES, AMBIANCES, ACCENT_PRESETS, chooseStyle, accentPreset, ambianceOf } from '../theme.js';
 
 let ctx;
 let fly;
@@ -19,6 +21,22 @@ const STRINGS = {
     quick: {
       title: 'Quick settings',
       wifi: 'Wi-Fi',
+      on: 'On',
+      off: 'Off',
+      onF: 'On',
+      offF: 'Off',
+      notConnected: 'Not connected',
+      a11ySub: 'Motion, transparency',
+      openSettings: 'Open Settings',
+      batteryChip: '{percent}%',
+      batteryLeft: 'about {time}',
+      charging: 'Charging',
+      appearance: 'Appearance',
+      style: 'Style',
+      ambiance: 'Ambiance',
+      accent: 'Accent colour',
+      customAccent: 'Custom',
+      contrastNote: 'High contrast uses its own colours.',
       airplane: 'Airplane mode',
       nightLight: 'Night light',
       darkMode: 'Dark mode',
@@ -52,7 +70,7 @@ const STRINGS = {
       wifiIsOff: 'Wi-Fi is turned off',
       scanning: 'Searching for networks…',
       refresh: 'Refresh',
-      allSettings: 'All settings',
+      allSettings: 'Open Settings',
       animations: 'Animation effects',
       transparency: 'Transparency effects',
       moreAccessibility: 'More accessibility settings',
@@ -65,9 +83,25 @@ const STRINGS = {
   },
   fr: {
     quick: {
-      title: 'Paramètres rapides',
+      title: 'Réglages rapides',
       wifi: 'Wi-Fi',
-      airplane: 'Mode Avion',
+      on: 'Activé',
+      off: 'Désactivé',
+      onF: 'Activée',
+      offF: 'Désactivée',
+      notConnected: 'Non connecté',
+      a11ySub: 'Animations, transparence',
+      openSettings: 'Ouvrir les Paramètres',
+      batteryChip: '{percent} %',
+      batteryLeft: 'environ {time}',
+      charging: 'En charge',
+      appearance: 'Apparence',
+      style: 'Style',
+      ambiance: 'Ambiance',
+      accent: 'Couleur d’accent',
+      customAccent: 'Personnalisée',
+      contrastNote: 'Le contraste élevé utilise ses propres couleurs.',
+      airplane: 'Mode avion',
       nightLight: 'Éclairage nocturne',
       darkMode: 'Mode sombre',
       dnd: 'Ne pas déranger',
@@ -100,7 +134,7 @@ const STRINGS = {
       wifiIsOff: 'Le Wi-Fi est désactivé',
       scanning: 'Recherche de réseaux…',
       refresh: 'Actualiser',
-      allSettings: 'Tous les paramètres',
+      allSettings: 'Ouvrir les Paramètres',
       animations: 'Effets d’animation',
       transparency: 'Effets de transparence',
       moreAccessibility: 'Plus de paramètres d’accessibilité',
@@ -151,38 +185,33 @@ function appendAll(el, ...nodes) {
   el.append(...nodes.filter((n) => n != null && n !== false));
 }
 function wifiGlyph(signal, secured, size = 20) {
-  const { h } = ctx;
-  const level = signal >= 75 ? 4 : signal >= 50 ? 3 : signal >= 25 ? 2 : 1;
-  const k = Math.SQRT1_2;
-  const arc = (r) => `M${(10 - r * k).toFixed(2)} ${(16.5 - r * k).toFixed(2)}A${r} ${r} 0 0 1 ${(10 + r * k).toFixed(2)} ${(16.5 - r * k).toFixed(2)}`;
-  const arcs = [4.6, 8.2, 11.8].map((r, i) => `<path d="${arc(r)}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity="${i < level - 1 ? 1 : 0.3}"/>`).join('');
-  const lock = secured ? '<rect x="13.6" y="13.2" width="5.6" height="4.8" rx="1" fill="currentColor"/><path d="M14.7 13.4v-1.2a1.7 1.7 0 0 1 3.4 0v1.2" fill="none" stroke="currentColor" stroke-width="1.1"/>' : '';
-  return h('span', { class: 'icon', style: { width: `${size}px`, height: `${size}px` }, html: `<svg viewBox="0 0 20 20" aria-hidden="true">${arcs}<circle cx="10" cy="16.4" r="1.35" fill="currentColor"/>${lock}</svg>` });
+  const { h, icon } = ctx;
+  const name = signal >= 75 ? 'wifi-high' : signal >= 50 ? 'wifi-medium' : signal >= 25 ? 'wifi-low' : 'wifi-none';
+  if (!secured) return icon(name, { size });
+  return h('span', { class: 'qs-wifi-ico' }, icon(name, { size }), h('span', { class: 'qs-wifi-lock' }, icon('lock-simple', { size: 10, weight: 'fill' })));
 }
 
-function tile({ key, label, iconName, on, onToggle, onMore, moreLabel, disabled }) {
+function tile({ key, label, sub, iconName, on, onToggle, onMore, moreLabel, disabled }) {
   const { h, icon } = ctx;
   const main = h(
     'button',
     {
       class: 'qs-tile-main',
       'aria-pressed': onToggle ? String(!!on) : null,
-      'aria-label': label,
       disabled: !!disabled,
       onclick: () => (onToggle ? onToggle(!on) : onMore?.()),
     },
-    typeof iconName === 'string' ? icon(iconName, { size: 20 }) : iconName,
+    h('span', { class: 'qs-tile-ico' }, typeof iconName === 'string' ? icon(iconName, { size: 20, filled: !!on }) : iconName),
+    h('span', { class: 'qs-tile-text' }, h('span', { class: 'qs-tile-label' }, label), sub ? h('span', { class: 'qs-tile-sub' }, sub) : null),
   );
   const more =
     onMore && onToggle
-      ? h('button', { class: 'qs-tile-more', 'aria-label': moreLabel || label, disabled: !!disabled, onclick: onMore }, icon('chevron_right', { size: 16 }))
-      : null;
-  return h(
-    'div',
-    { class: ['qs-tile', on && 'on', more && 'split', disabled && 'disabled'], dataset: { key } },
-    h('div', { class: 'qs-tile-btns' }, main, more),
-    h('div', { class: 'qs-tile-label' }, label),
-  );
+      ? h('button', { class: 'qs-tile-more', 'aria-label': moreLabel || label, 'data-tip': moreLabel || label, disabled: !!disabled, onclick: onMore }, icon('caret-right', { size: 16 }))
+      : !onToggle && onMore
+        ? h('span', { class: 'qs-tile-caret', 'aria-hidden': 'true' }, icon('caret-right', { size: 14 }))
+        : null;
+  if (more && !onToggle) main.appendChild(more);
+  return h('div', { class: ['qs-tile', on && 'on', onToggle && more && 'split', disabled && 'disabled'], dataset: { key } }, main, onToggle ? more : null);
 }
 
 function pageHeader(title, extra) {
@@ -190,11 +219,15 @@ function pageHeader(title, extra) {
   return h(
     'div',
     { class: 'qs-sub-head' },
-    h('button', { class: 'qs-back', 'aria-label': t('quick.back'), onclick: () => showPage(null) }, icon('chevron_left', { size: 16 })),
+    h('button', { class: 'qs-back', 'aria-label': t('quick.back'), 'data-tip': t('quick.back'), onclick: () => showPage(null) }, icon('caret-left', { size: 16 })),
     h('div', { class: 'qs-sub-title' }, title),
     extra || null,
   );
 }
+
+const pct = (v) => ctx.t('quick.batteryChip', { percent: Math.round(v) });
+const onOff = (on, fem) => ctx.t(`quick.${on ? 'on' : 'off'}${fem ? 'F' : ''}`);
+const L = (o) => (o && typeof o === 'object' ? o[ctx.i18n.lang] || o.en : o);
 
 // ---------------------------------------------------------------- main page
 function renderMain() {
@@ -211,12 +244,14 @@ function renderMain() {
     const ssid = p.type === 'wifi' && p.name ? p.name : wdev?.connection || null;
     const ap = ssid ? (state.wifiList || []).find((n) => n.ssid === ssid) : null;
     const strength = p.type === 'wifi' && p.strength != null ? Number(p.strength) : ap?.signal ?? 100;
+    const wifiOn = !!net.wifiEnabled && !net.airplane;
     tiles.appendChild(
       tile({
         key: 'wifi',
-        label: ssid && net.wifiEnabled && !net.airplane ? ssid : t('quick.wifi'),
-        iconName: net.wifiEnabled && !net.airplane ? wifiGlyph(strength, false) : icon('wifi_off', { size: 20 }),
-        on: !!net.wifiEnabled && !net.airplane,
+        label: t('quick.wifi'),
+        sub: wifiOn ? ssid || t('quick.notConnected') : t('quick.off'),
+        iconName: wifiOn ? wifiGlyph(ssid ? strength : 0, false) : icon('wifi-slash', { size: 20 }),
+        on: wifiOn,
         moreLabel: t('quick.manageWifi'),
         onToggle: (v) => backend('net:setWifi', [v], () => (state.net = { ...state.net, wifiEnabled: v })),
         onMore: () => showPage('wifi'),
@@ -225,21 +260,22 @@ function renderMain() {
   }
   if (net) {
     tiles.appendChild(
-      tile({ key: 'airplane', label: t('quick.airplane'), iconName: 'airplane', on: !!net.airplane, onToggle: (v) => backend('net:setAirplane', [v], () => (state.net = { ...state.net, airplane: v })) }),
+      tile({ key: 'airplane', label: t('quick.airplane'), sub: onOff(!!net.airplane), iconName: 'airplane', on: !!net.airplane, onToggle: (v) => backend('net:setAirplane', [v], () => (state.net = { ...state.net, airplane: v })) }),
     );
   }
   tiles.append(
-    tile({ key: 'nightLight', label: t('quick.nightLight'), iconName: 'weather_moon', on: !!s.nightLight, onToggle: (v) => settings.set('nightLight', v) }),
-    tile({ key: 'darkMode', label: t('quick.darkMode'), iconName: 'dark_theme', on: s.theme === 'dark', onToggle: (v) => settings.set('theme', v ? 'dark' : 'light') }),
-    tile({ key: 'dnd', label: t('quick.dnd'), iconName: 'alert_snooze', on: !!s.notifications?.dnd, onToggle: (v) => settings.set('notifications.dnd', v) }),
-    // Focus mode (features/focus.js): hides notifications, dims the desktop, simplifies the taskbar
-    tile({ key: 'focus', label: t('quick.focus'), iconName: 'target', on: !!s.focusMode?.active, onToggle: (v) => shell.emit(v ? 'focus:start' : 'focus:stop') }),
-    tile({ key: 'accessibility', label: t('quick.accessibility'), iconName: 'accessibility', on: a11yActive, onMore: () => showPage('a11y') }),
+    // Focus mode (features/focus.js): hides notifications, dims the desktop, simplifies the bar
+    tile({ key: 'focus', label: t('quick.focus'), sub: onOff(!!s.focusMode?.active, true), iconName: 'target', on: !!s.focusMode?.active, onToggle: (v) => shell.emit(v ? 'focus:start' : 'focus:stop') }),
+    tile({ key: 'darkMode', label: t('quick.darkMode'), sub: onOff(s.theme === 'dark'), iconName: 'circle-half', on: s.theme === 'dark', onToggle: (v) => settings.set('theme', v ? 'dark' : 'light') }),
+    tile({ key: 'nightLight', label: t('quick.nightLight'), sub: onOff(!!s.nightLight), iconName: 'moon-stars', on: !!s.nightLight, onToggle: (v) => settings.set('nightLight', v) }),
+    tile({ key: 'dnd', label: t('quick.dnd'), sub: onOff(!!s.notifications?.dnd), iconName: 'bell-slash', on: !!s.notifications?.dnd, onToggle: (v) => settings.set('notifications.dnd', v) }),
+    tile({ key: 'accessibility', label: t('quick.accessibility'), sub: t('quick.a11ySub'), iconName: 'person-arms-spread', on: a11yActive, onMore: () => showPage('a11y') }),
   );
 
   const sliders = h('div', { class: 'qs-sliders' });
   const d = state.display;
   if (d && d.brightness != null) {
+    const val = h('span', { class: 'qs-value' }, pct(d.brightness));
     const sl = ctx.ui.slider({
       min: 0,
       max: 100,
@@ -247,19 +283,23 @@ function renderMain() {
       oninput: throttle((v) => {
         suppressOsd();
         state.display = { ...state.display, brightness: v };
+        val.textContent = pct(v);
         ctx.api.invoke('display:setBrightness', v).catch((err) => toastError(err));
       }, 80),
     });
     sl.setAttribute('aria-label', t('quick.brightness'));
-    sliders.appendChild(h('div', { class: 'qs-slider-row', dataset: { key: 'brightness' } }, h('span', { class: 'qs-slider-icon' }, icon('brightness_high', { size: 20 })), sl, h('span', { class: 'qs-slider-spacer' })));
+    sliders.appendChild(
+      h('div', { class: 'qs-slider-row', dataset: { key: 'brightness' } }, h('span', { class: 'qs-slider-icon', 'aria-hidden': 'true' }, icon('sun', { size: 20 })), h('div', { class: 'qs-slider-wrap' }, sl), val, h('span', { class: 'qs-slider-spacer' })),
+    );
   }
   const a = state.audio;
   if (a) {
     const vol = Math.round(a.volume ?? 0);
-    const volIcon = () => (state.audio.muted ? 'speaker_mute' : state.audio.volume === 0 ? 'speaker_0' : state.audio.volume < 34 ? 'speaker_1' : 'speaker_2');
+    const volIcon = () => (state.audio.muted ? 'speaker-x' : state.audio.volume === 0 ? 'speaker-none' : state.audio.volume < 34 ? 'speaker-low' : 'speaker-high');
     const muteBtn = h('button', {
       class: 'qs-slider-icon qs-mute',
       'aria-label': a.muted ? t('quick.unmute') : t('quick.mute'),
+      'aria-pressed': String(!!a.muted),
       'data-tip': a.muted ? t('quick.unmute') : t('quick.mute'),
       onclick: () => {
         const m = !state.audio.muted;
@@ -268,6 +308,7 @@ function renderMain() {
       },
     });
     muteBtn.appendChild(icon(volIcon(), { size: 20 }));
+    const valueTip = h('span', { class: 'qs-value' }, pct(vol));
     const sl = ctx.ui.slider({
       min: 0,
       max: 100,
@@ -276,59 +317,121 @@ function renderMain() {
         suppressOsd();
         state.audio = { ...state.audio, volume: v };
         muteBtn.replaceChildren(icon(volIcon(), { size: 20 }));
-        valueTip.textContent = String(v);
+        valueTip.textContent = pct(v);
         ctx.api.invoke('audio:setVolume', v).catch((err) => toastError(err));
       }, 60),
     });
     sl.setAttribute('aria-label', t('quick.volume'));
     sl.classList.toggle('muted', !!a.muted);
-    const valueTip = h('span', { class: 'qs-value' }, String(vol));
     sliders.appendChild(
       h(
         'div',
         { class: 'qs-slider-row', dataset: { key: 'volume' } },
         muteBtn,
-        h('div', { class: 'qs-slider-wrap' }, sl, valueTip),
+        h('div', { class: 'qs-slider-wrap' }, sl),
+        valueTip,
         (a.outputs || []).length
-          ? h('button', { class: 'qs-slider-more', 'aria-label': t('quick.selectOutput'), 'data-tip': t('quick.selectOutput'), onclick: () => showPage('audio') }, icon('speaker_settings', { size: 18 }))
+          ? h('button', { class: 'qs-slider-more', 'aria-label': t('quick.selectOutput'), 'data-tip': t('quick.selectOutput'), onclick: () => showPage('audio') }, icon('caret-right', { size: 16 }))
           : h('span', { class: 'qs-slider-spacer' }),
       ),
     );
   }
 
   const b = state.battery;
-  const footer = h(
+  const head = h(
     'div',
-    { class: 'qs-footer' },
+    { class: 'qs-head' },
+    h('h2', { class: 'qs-title' }, t('quick.title')),
     b
       ? h(
           'button',
-          { class: 'qs-battery', 'aria-label': ctx.t('quick.batterySettings'), onclick: () => (fly.close('launch'), shell.launch('settings', { page: 'power' })) },
+          { class: 'qs-battery', 'aria-label': `${t('quick.batterySettings')} (${pct(b.percent ?? 0)})`, 'data-tip': t('quick.batterySettings'), onclick: () => (fly.close('launch'), shell.launch('settings', { page: 'power' })) },
           batteryIcon(b),
-          h('span', null, `${Math.round(b.percent ?? 0)}${ctx.i18n.lang === 'fr' ? ' %' : '%'}`),
+          h('span', { class: 'qs-bat-pct' }, pct(b.percent ?? 0)),
+          b.charging ? h('span', { class: 'qs-bat-time' }, t('quick.charging')) : b.timeLeftMin > 0 ? h('span', { class: 'qs-bat-time' }, t('quick.batteryLeft', { time: hm(b.timeLeftMin) })) : null,
         )
-      : h('span'),
-    h(
-      'div',
-      { class: 'qs-footer-right' },
-      h('button', { class: 'qs-foot-btn', 'aria-label': t('quick.allSettings'), 'data-tip': t('quick.allSettings'), onclick: () => (fly.close('launch'), shell.launch('settings')) }, icon('settings', { size: 16 })),
-    ),
+      : null,
+    h('button', { class: 'qs-foot-btn qs-gear', 'aria-label': t('quick.allSettings'), 'data-tip': t('quick.allSettings'), onclick: () => (fly.close('launch'), shell.launch('settings')) }, icon('gear-six', { size: 20 })),
   );
-  const page = h('div', { class: 'qs-page qs-main' }, h('div', { class: 'qs-body' }, tiles, sliders.children.length ? sliders : null), footer);
+  const page = h('div', { class: 'qs-page qs-main' }, head, h('div', { class: 'qs-body' }, tiles, sliders.children.length ? sliders : null, renderAppearance(s)));
   return page;
 }
 
+function hm(min) {
+  const m = Math.round(min);
+  return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
+}
+
+// ---------------------------------------------------------------- appearance: style, ambiance, accent
+function renderAppearance(s) {
+  const { h, icon, t } = ctx;
+  const mode = s.theme === 'light' ? 'light' : 'dark';
+  const styleId = STYLES.some((x) => x.id === s.style) ? s.style : 'nocturne';
+  const isContrast = styleId === 'contrast';
+  const amb = ambianceOf(s);
+  const preset = accentPreset(s.accent);
+  const group = (key, title, value, body) =>
+    h('div', { class: 'qs-group', dataset: { key }, role: 'group', 'aria-label': title }, h('div', { class: 'qs-group-head' }, h('span', { class: 'qs-group-title' }, title), value ? h('span', { class: 'qs-group-value' }, value) : null), body);
+  const choice = (cls, value, pressed, label, onclick, ...kids) =>
+    h('button', { class: [cls, pressed && 'on'], dataset: { value }, 'aria-pressed': String(!!pressed), 'aria-label': label, onclick: () => !pressed && onclick() }, ...kids);
+
+  const styles = h(
+    'div',
+    { class: 'qs-styles' },
+    ...STYLES.map((st) => {
+      const def = st.defaults;
+      const ap = def ? accentPreset(def.accent) : null;
+      const sw = def
+        ? h('span', { class: 'qs-style-sw', style: { background: AMBIANCES.find((x) => x.id === def.ambiance)?.swatch[mode] } }, h('span', { class: 'qs-style-dot', style: { background: ap?.[mode].accent || def.accent } }))
+        : h('span', { class: 'qs-style-sw contrast' }, icon('circle-half', { size: 16, filled: true }));
+      return choice('qs-style', st.id, st.id === styleId, L(st.name), () => chooseStyle(st.id).catch((err) => toastError(err)), sw, h('span', { class: 'qs-style-name' }, L(st.name)), st.id === styleId ? icon('check', { size: 14, class: 'qs-check' }) : null);
+    }),
+  );
+  const out = [group('style', t('quick.style'), null, styles)];
+  if (isContrast) {
+    out.push(h('p', { class: 'qs-note' }, t('quick.contrastNote')));
+  } else {
+    const ambs = h(
+      'div',
+      { class: 'qs-ambs' },
+      ...AMBIANCES.map((x) =>
+        choice(
+          'qs-amb',
+          x.id,
+          x.id === amb,
+          L(x.name),
+          () => ctx.settings.set('ambiance', x.id),
+          h('span', { class: 'qs-amb-sw', 'aria-hidden': 'true' }, h('span', { style: { background: x.swatch.dark } }), h('span', { style: { background: x.swatch.light } })),
+          h('span', { class: 'qs-amb-name' }, L(x.name), x.id === amb ? icon('check', { size: 14, class: 'qs-check' }) : null),
+        ),
+      ),
+    );
+    out.push(group('ambiance', t('quick.ambiance'), L(AMBIANCES.find((x) => x.id === amb)?.name), ambs));
+    const accents = h(
+      'div',
+      { class: 'qs-accents' },
+      ...ACCENT_PRESETS.map((x) =>
+        choice(
+          'qs-accent',
+          x.id,
+          preset?.id === x.id,
+          L(x.name),
+          () => ctx.api.invoke('settings:setMany', s.accentFromWallpaper ? { accent: x.hex, accentFromWallpaper: false } : { accent: x.hex }).catch((err) => toastError(err)),
+          h('span', { class: 'qs-accent-sw', style: { background: x[mode].accent, color: x[mode].on } }, preset?.id === x.id ? icon('check', { size: 16, weight: 'bold' }) : null),
+        ),
+      ),
+    );
+    out.push(group('accent', t('quick.accent'), preset ? L(preset.name) : t('quick.customAccent'), accents));
+  }
+  return h('section', { class: 'qs-appearance', 'aria-labelledby': 'qs-appearance-title' }, h('h3', { class: 'qs-sec-title', id: 'qs-appearance-title' }, t('quick.appearance')), ...out);
+}
+
 function batteryIcon(b) {
-  const { h } = ctx;
-  const pct = Math.max(0, Math.min(100, b.percent ?? 0));
-  const w = ((12.4 * pct) / 100).toFixed(1);
-  return h('span', {
-    class: 'icon',
-    style: { width: '20px', height: '20px' },
-    html: `<svg viewBox="0 0 20 20"><rect x="1.7" y="5.7" width="15" height="8.6" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="17.4" y="8.2" width="1.4" height="3.6" rx=".6" fill="currentColor"/><rect x="3.3" y="7.3" width="${w}" height="5.4" rx="1" fill="${pct <= 10 && !b.charging ? '#e81123' : 'currentColor'}"/>${
-      b.charging ? '<path d="M10.6 4.2 7.4 10.4h2.7l-.9 5.4 3.4-6.6H9.9z" fill="currentColor"/>' : ''
-    }</svg>`,
-  });
+  const p = Math.max(0, Math.min(100, b.percent ?? 0));
+  const name = b.charging ? 'battery-charging' : p >= 90 ? 'battery-full' : p >= 60 ? 'battery-high' : p >= 30 ? 'battery-medium' : p > 10 ? 'battery-low' : 'battery-empty';
+  const el = ctx.icon(name, { size: 20 });
+  if (p <= 10 && !b.charging) el.classList.add('qs-bat-low');
+  return el;
 }
 
 // ---------------------------------------------------------------- Wi-Fi page
@@ -360,7 +463,7 @@ function renderWifi() {
   });
   toggle.input.setAttribute('aria-label', t('quick.wifi'));
   const list = h('div', { class: 'qs-net-list', role: 'list' });
-  if (!on) list.appendChild(h('div', { class: 'qs-empty' }, icon('wifi_off', { size: 32 }), h('div', null, t('quick.wifiIsOff'))));
+  if (!on) list.appendChild(h('div', { class: 'qs-empty' }, icon('wifi-slash', { size: 32 }), h('div', null, t('quick.wifiIsOff'))));
   else if (state.wifiList && !state.wifiList.length && !state.scanning) list.appendChild(h('div', { class: 'qs-empty' }, h('div', null, t('quick.noNetworks'))));
   else if (!state.wifiList) list.appendChild(h('div', { class: 'qs-empty' }, h('span', { class: 'spinner small' }), h('div', null, t('quick.scanning'))));
   if (on && wifiError && !wifiError.ssid) list.appendChild(h('div', { class: 'qs-error caption' }, t('quick.errorGeneric', { msg: wifiError.msg })));
@@ -375,7 +478,7 @@ function renderWifi() {
       'div',
       { class: 'qs-sub-foot' },
       h('button', { class: 'qs-link', onclick: () => (fly.close('launch'), ctx.shell.launch('settings', { page: 'wifi' })) }, t('quick.moreWifi')),
-      on ? h('button', { class: 'qs-foot-btn', 'aria-label': t('quick.refresh'), 'data-tip': t('quick.refresh'), onclick: () => scanWifi(true) }, icon('arrow_clockwise', { size: 16 })) : null,
+      on ? h('button', { class: 'qs-foot-btn', 'aria-label': t('quick.refresh'), 'data-tip': t('quick.refresh'), onclick: () => scanWifi(true) }, icon('arrow-clockwise', { size: 16 })) : null,
     ),
   );
 }
@@ -530,9 +633,9 @@ function renderAudio() {
               state.audio = { ...state.audio, outputs: state.audio.outputs.map((x) => ({ ...x, default: x.id === o.id })) };
             }),
         },
-        icon(isHead ? 'headphones' : 'speaker_2', { size: 20 }),
+        icon(isHead ? 'headphones' : 'speaker-high', { size: 20 }),
         h('span', { class: 'ellipsis grow' }, o.name || o.id),
-        o.default ? icon('checkmark', { size: 16 }) : null,
+        o.default ? icon('check', { size: 16 }) : null,
       ),
     );
   }
@@ -579,11 +682,14 @@ function refreshPage() {
   const old = pagesEl.querySelector('.qs-page:not(.leaving)');
   const focusKey = document.activeElement && old?.contains(document.activeElement) ? focusPath(document.activeElement, old) : null;
   const scroll = old?.querySelector('.qs-net-list')?.scrollTop || 0;
+  const bodyScroll = old?.querySelector('.qs-body')?.scrollTop || 0;
   const next = buildPage(currentPage);
   if (old) old.replaceWith(next);
   else pagesEl.appendChild(next);
   const nl = next.querySelector('.qs-net-list');
   if (nl) nl.scrollTop = scroll;
+  const body = next.querySelector('.qs-body');
+  if (body) body.scrollTop = bodyScroll;
   if (focusKey) restoreFocus(next, focusKey);
   if (!currentPage) mainPage = next;
 }
@@ -592,11 +698,12 @@ function refreshPage() {
 function focusPath(el, rootEl) {
   const key = el.closest('[data-key]')?.dataset.key;
   const all = [...rootEl.querySelectorAll('button, input')];
-  return { key, idx: all.indexOf(el), cls: el.className, inList: !!el.closest('.qs-net-list') };
+  return { key, value: el.dataset.value, idx: all.indexOf(el), cls: el.className, inList: !!el.closest('.qs-net-list') };
 }
 function restoreFocus(rootEl, f) {
   const cls = String(f.cls || '').split(' ')[0];
-  let el = f.key && cls ? rootEl.querySelector(`[data-key="${f.key}"] .${CSS.escape(cls)}`) : null;
+  let el = f.key && f.value ? rootEl.querySelector(`[data-key="${f.key}"] [data-value="${CSS.escape(f.value)}"]`) : null;
+  if (!el && f.key && cls) el = rootEl.querySelector(`[data-key="${f.key}"] .${CSS.escape(cls)}`);
   // Inside the network list keep focus on the expanded (or newly connected) network.
   if (!el) el = rootEl.querySelector('.qs-net.expanded input, .qs-net.expanded .btn.primary, .qs-net.expanded .qs-net-head');
   if (!el && f.inList) el = rootEl.querySelector('.qs-net.active .qs-net-head, .qs-net .qs-net-head');

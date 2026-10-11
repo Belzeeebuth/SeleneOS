@@ -1,24 +1,17 @@
-/* Task View + virtual desktops (Windows 11). */
+/* Vue d'ensemble (overview) + virtual desktops. A flat scrim over the desktop: no blur (SYSTEM.md §5). */
 .tv-backdrop {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: var(--tv-bg);
-  backdrop-filter: blur(48px) saturate(150%);
-  animation: tv-fade-in 260ms linear;
-}
-:root[data-theme="light"] .tv-backdrop {
-  --tv-bg: rgba(236, 236, 236, 0.66);
-}
-:root[data-theme="dark"] .tv-backdrop {
-  --tv-bg: rgba(24, 24, 24, 0.66);
+  background: color-mix(in srgb, var(--desk) 90%, transparent);
+  backdrop-filter: none;
+  animation: tv-fade-in var(--dur-slow) var(--ease);
 }
 :root[data-transparency="off"] .tv-backdrop {
-  --tv-bg: var(--bg);
-  backdrop-filter: none;
+  background: var(--desk);
 }
 .tv-backdrop.closing {
-  animation: tv-fade-out 300ms linear forwards;
+  animation: tv-fade-out var(--dur-slower) var(--ease-in) forwards;
   pointer-events: none;
 }
 @keyframes tv-fade-in {
@@ -38,22 +31,16 @@
 }
 .tv-plate {
   position: absolute;
-  border-radius: 10px;
-  transition: background var(--dur-fast) linear, opacity var(--dur-fast) linear;
-  animation: tv-fade-in 300ms linear;
+  border-radius: var(--radius-lg);
+  transition: background var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+  animation: tv-fade-in var(--dur-slow) var(--ease);
 }
 .tv-plate.hover {
-  background: var(--tv-plate-hover);
-}
-:root[data-theme="light"] .tv-plate {
-  --tv-plate-hover: rgba(0, 0, 0, 0.07);
-}
-:root[data-theme="dark"] .tv-plate {
-  --tv-plate-hover: rgba(255, 255, 255, 0.09);
+  background: var(--subtle-hover);
 }
 .tv-plate.sel {
-  background: var(--tv-plate-hover);
-  box-shadow: inset 0 0 0 2px var(--text);
+  background: var(--subtle-selected);
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
 }
 .tv-plate.hide {
   opacity: 0;
@@ -77,9 +64,9 @@
 }
 .tv-card {
   position: absolute;
-  border-radius: 10px;
-  animation: tv-card-in 340ms var(--ease) backwards;
-  transition: opacity var(--dur-fast) linear;
+  border-radius: var(--radius-lg);
+  animation: tv-card-in var(--dur-slower) var(--ease) backwards;
+  transition: opacity var(--dur-fast) var(--ease);
 }
 @keyframes tv-card-in {
   from {
@@ -109,8 +96,10 @@
 .tv-title {
   flex: 1;
   min-width: 0;
-  font-size: var(--fs-caption);
-  line-height: 16px;
+  font-family: var(--font-display);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: var(--lh-small, 18px);
   color: var(--text);
 }
 /* The close button only takes room from the title while it is visible (hover / keyboard selection),
@@ -132,15 +121,15 @@
   background: transparent;
   color: var(--text);
   opacity: 0;
-  transition: opacity var(--dur-fast) linear, background var(--dur-fast) linear;
+  transition: opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .tv-card:hover .tv-x,
 .tv-card.sel .tv-x {
   opacity: 1;
 }
 .tv-x:hover {
-  background: var(--close-hover);
-  color: #fff;
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 .tv-hit {
   position: absolute;
@@ -155,7 +144,7 @@
   font-size: var(--fs-body-large);
   line-height: 24px;
   color: var(--text-2);
-  animation: tv-fade-in 300ms linear;
+  animation: tv-fade-in var(--dur-slow) var(--ease);
 }
 .tv-empty[hidden] {
   display: none;
@@ -171,26 +160,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-top: 1px solid var(--stroke);
-  background: var(--tv-strip-bg);
-  animation: tv-strip-in 380ms var(--ease);
-}
-:root[data-theme="light"] .tv-strip {
-  --tv-strip-bg: rgba(255, 255, 255, 0.42);
-}
-:root[data-theme="dark"] .tv-strip {
-  --tv-strip-bg: rgba(0, 0, 0, 0.16);
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-alt);
+  animation: tv-strip-in var(--dur-slower) var(--ease);
 }
 @keyframes tv-strip-in {
   from {
     opacity: 0;
-    transform: translateY(40px);
+    transform: translateY(16px);
   }
 }
 @keyframes tv-strip-out {
   to {
     opacity: 0;
-    transform: translateY(40px);
+    transform: translateY(16px);
   }
 }
 .tv-desks {
@@ -210,20 +193,20 @@
   padding: 4px 8px 10px;
   border-radius: var(--radius);
   outline: none;
-  transition: background var(--dur-fast) linear, transform var(--dur) var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur) var(--ease);
 }
 .tv-desk:hover {
   background: var(--subtle-hover);
 }
 .tv-desk.sel {
-  box-shadow: inset 0 0 0 2px var(--text);
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
 }
 .tv-desk.drop {
   background: var(--accent-subtle);
-  transform: scale(1.04);
+  transform: scale(1.02);
 }
 .tv-desk.drop .tv-desk-thumb {
-  box-shadow: 0 0 0 2px var(--accent), 0 4px 14px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 0 0 2px var(--accent), 0 4px 14px rgb(var(--shadow-rgb) / 0.22);
 }
 .tv-desk-head {
   display: flex;
@@ -236,8 +219,8 @@
 .tv-desk-name {
   flex: 1;
   min-width: 0;
-  font-size: var(--fs-caption);
-  line-height: 16px;
+  font-size: var(--fs-small);
+  line-height: var(--lh-small, 18px);
 }
 .tv-desk.current .tv-desk-name {
   font-weight: 600;
@@ -248,7 +231,7 @@
   min-height: 0 !important;
   height: 26px;
   padding: 0 6px !important;
-  font-size: var(--fs-caption) !important;
+  font-size: var(--fs-small) !important;
 }
 .tv-desk-x {
   flex: none;
@@ -261,38 +244,38 @@
   background: transparent;
   color: var(--text);
   opacity: 0;
-  transition: opacity var(--dur-fast) linear, background var(--dur-fast) linear;
+  transition: opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .tv-desk:hover .tv-desk-x {
   opacity: 1;
 }
 .tv-desk-x:hover {
-  background: var(--close-hover);
-  color: #fff;
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 .tv-desk-thumb {
   position: relative;
   width: 100%;
   overflow: hidden;
-  border-radius: 6px;
-  background: var(--wallpaper) center / cover, linear-gradient(135deg, #2b5cae, #6aa7e8);
-  box-shadow: 0 0 0 1px var(--stroke-strong), 0 2px 8px rgba(0, 0, 0, 0.16);
-  transition: box-shadow var(--dur) linear;
+  border-radius: var(--radius-sm);
+  background: var(--wallpaper) center / cover, var(--desk);
+  box-shadow: 0 0 0 1px var(--line), 0 2px 8px rgb(var(--shadow-rgb) / 0.16);
+  transition: box-shadow var(--dur) var(--ease);
 }
 .tv-desk.current .tv-desk-thumb {
-  box-shadow: 0 0 0 2px var(--accent), 0 2px 8px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 0 0 2px var(--accent), 0 2px 8px rgb(var(--shadow-rgb) / 0.16);
 }
 .tv-desk.shown:not(.current) .tv-desk-thumb {
-  box-shadow: 0 0 0 2px var(--text-3), 0 2px 8px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 0 0 2px var(--text-3), 0 2px 8px rgb(var(--shadow-rgb) / 0.16);
 }
 .tv-mini {
   position: absolute;
   display: grid;
   place-items: center;
   border-radius: 2px;
-  background: var(--solid);
-  border: 1px solid var(--stroke-strong);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 3px rgb(var(--shadow-rgb) / 0.22);
 }
 .tv-mini img {
   width: 12px;
@@ -314,14 +297,14 @@
   place-items: center;
   background: var(--card);
   color: var(--text-2);
-  box-shadow: 0 0 0 1px var(--stroke-strong);
+  box-shadow: 0 0 0 1px var(--line);
 }
 .tv-new:hover .tv-new-thumb {
   color: var(--text);
   background: var(--card-hover);
 }
 
-/* Real windows while Task View is up: visible even if minimised / on another desktop, inert. */
+/* Real windows while the overview is up: visible even if minimised / on another desktop, inert. */
 .tv-on .win.tv-win {
   visibility: visible !important;
   pointer-events: none !important;
@@ -346,17 +329,13 @@
   min-width: 180px;
   padding: 12px 24px 14px;
   border-radius: var(--radius-lg);
-  background: var(--acrylic);
-  border: 1px solid var(--window-stroke);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
   box-shadow: var(--shadow-flyout);
-  backdrop-filter: blur(40px) saturate(160%);
   pointer-events: none !important;
   transform: translateX(-50%);
   animation: tv-pill-in var(--dur-slow) var(--ease);
   transition: opacity 260ms linear;
-}
-:root[data-transparency="off"] .tv-pill {
-  backdrop-filter: none;
 }
 .tv-pill.hide {
   opacity: 0;
@@ -392,7 +371,7 @@
   height: 6px;
   border-radius: 3px;
   background: var(--text-3);
-  transition: width var(--dur) var(--ease), background var(--dur) linear;
+  transition: width var(--dur) var(--ease), background var(--dur) var(--ease);
 }
 .tv-pill-dots span.on {
   width: 18px;

@@ -57,7 +57,7 @@
 //   Focus inside <webview>/<iframe>: such focus changes never reach the shell document as focusin, so the
 //   wm watches window 'blur' + document.activeElement and focuses the owning window. Apps need nothing extra.
 import { Emitter } from './api.js';
-import { h, icon } from './ui.js';
+import { h, icon, iconSvg } from './ui.js';
 import { i18n, t } from './i18n.js';
 
 const MIN_VISIBLE = 64;
@@ -89,11 +89,11 @@ i18n.extend({
   },
 });
 
-const SVG_MIN = '<svg viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor" stroke-width="1"/></svg>';
-const SVG_MAX = '<svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9" rx="1.5" fill="none" stroke="currentColor"/></svg>';
-const SVG_RESTORE =
-  '<svg viewBox="0 0 10 10"><rect x=".5" y="2.5" width="7" height="7" rx="1.5" fill="none" stroke="currentColor"/><path d="M2.5 .5h5.5a1.5 1.5 0 0 1 1.5 1.5v5.5" fill="none" stroke="currentColor"/></svg>';
-const SVG_CLOSE = '<svg viewBox="0 0 10 10"><path d="M.5.5l9 9M9.5.5l-9 9" stroke="currentColor" stroke-width="1"/></svg>';
+// Caption glyphs: Phosphor (minus, corners-out / corners-in, x), read lazily so loadIcons() has run.
+const SVG_MIN = () => iconSvg('minus');
+const SVG_MAX = () => iconSvg('corners-out');
+const SVG_RESTORE = () => iconSvg('corners-in');
+const SVG_CLOSE = () => iconSvg('x');
 
 // Functional rules the wm relies on (window chrome styling itself lives in shell.css).
 const CORE_CSS = `
@@ -160,9 +160,9 @@ class Win extends Emitter {
     this.iconEl = h('img', { class: 'win-icon', src: this.iconUrl || 'app://shell/assets/app-default.svg', draggable: false, alt: '' });
     this.titleEl = h('span', { class: 'win-title ellipsis' }, this.title);
     this.titlebarSlot = h('div', { class: 'win-tb-slot' });
-    this.btnMin = h('button', { class: 'win-ctl win-min', tabindex: '-1', 'aria-label': t('wm.minimize'), 'data-tip': t('wm.minimize'), html: SVG_MIN, onclick: () => this.minimize() });
-    this.btnMax = h('button', { class: 'win-ctl win-max', tabindex: '-1', 'aria-label': t('wm.maximize'), html: SVG_MAX, onclick: () => this.toggleMaximize() });
-    this.btnClose = h('button', { class: 'win-ctl win-close', tabindex: '-1', 'aria-label': t('wm.close'), 'data-tip': t('wm.close'), html: SVG_CLOSE, onclick: () => this.close() });
+    this.btnMin = h('button', { class: 'win-ctl win-min', tabindex: '-1', 'aria-label': t('wm.minimize'), 'data-tip': t('wm.minimize'), html: SVG_MIN(), onclick: () => this.minimize() });
+    this.btnMax = h('button', { class: 'win-ctl win-max', tabindex: '-1', 'aria-label': t('wm.maximize'), html: SVG_MAX(), onclick: () => this.toggleMaximize() });
+    this.btnClose = h('button', { class: 'win-ctl win-close', tabindex: '-1', 'aria-label': t('wm.close'), 'data-tip': t('wm.close'), html: SVG_CLOSE(), onclick: () => this.close() });
     if (!o.minimizable) this.btnMin.hidden = true;
     if (!o.maximizable || !o.resizable) this.btnMax.hidden = true;
     this.controls = h('div', { class: 'win-controls' }, this.btnMin, this.btnMax, this.btnClose);
@@ -371,7 +371,7 @@ class Win extends Emitter {
   }
 
   _setMaxButton(restore) {
-    this.btnMax.innerHTML = restore ? SVG_RESTORE : SVG_MAX;
+    this.btnMax.innerHTML = restore ? SVG_RESTORE() : SVG_MAX();
     this.btnMax.setAttribute('aria-label', restore ? t('wm.restore') : t('wm.maximize'));
   }
   // Caption button labels follow a live language switch.

@@ -207,13 +207,13 @@ if (!fatal) {
     const nav = await page.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts();
     check('nav: Home first', nav[0], 'Home');
     check('nav: pinned folders', ['Desktop', 'Downloads', 'Documents', 'Pictures', 'Music', 'Videos'].every((n) => nav.includes(n)), true);
-    check('nav: This PC + Recycle Bin', nav.includes('This PC') && nav.includes('Recycle Bin'), true);
+    check('nav: Computer + Recycle Bin', nav.includes('Computer') && nav.includes('Recycle Bin'), true);
     const quick = await page.locator('.app-files .fx-qtile .fx-name').allInnerTexts();
     check('quick access tiles', quick.length, 6);
     const recent = await page.locator('.app-files .fx-hrow.fx-item .fx-name').allInnerTexts();
     check('recent files listed', recent.includes('Report 2026.txt') || recent.length > 3, true);
     check('tab title', await page.locator('.app-files .fx-tab.active .fx-tab-title').innerText(), 'Home');
-    check('window title', await page.evaluate(() => window.__fx().win.title), 'Home - File Explorer');
+    check('window title', await page.evaluate(() => window.__fx().win.title), 'Home - Files');
     check('New disabled on Home', await page.locator('.app-files .fx-cmd[aria-label="New"]').isDisabled(), true);
     await H.shot('files-home');
   });
@@ -230,7 +230,7 @@ if (!fatal) {
     check('type: folder', types.Letters, 'File folder');
     check('type: csv', types['budget.csv'], 'CSV File');
     const crumbs = await page.locator('.app-files .fx-crumb:visible').allInnerTexts();
-    check('breadcrumbs', crumbs, ['This PC', 'Documents']);
+    check('breadcrumbs', crumbs, ['Computer', 'Documents']);
     const headers = await page.locator('.app-files .fx-dh-cell').allInnerTexts();
     check('detail columns', headers.map((x) => x.trim()), ['Name', 'Date modified', 'Type', 'Size']);
     const size = await page.locator('.app-files .fx-row:has-text("Report 2026.txt") .c-size').innerText();
@@ -784,7 +784,7 @@ if (!fatal) {
   });
 
   await section('This PC and drives', async () => {
-    await page.click('.app-files .fx-tnode:has-text("This PC")');
+    await page.click('.app-files .fx-tnode:has-text("Computer")');
     await H.settle();
     const folders = await page.locator('.app-files .fx-pctile .fx-name').allInnerTexts();
     check('folders section', ['Desktop', 'Documents', 'Downloads', 'Music', 'Pictures', 'Videos'].every((f) => folders.includes(f)), true);
@@ -804,7 +804,7 @@ if (!fatal) {
     await page.locator('.app-files .fx-drive').first().dblclick();
     await H.settle();
     check('open drive', (await H.loc()).path, '/');
-    check('crumbs for root', await page.locator('.app-files .fx-crumb:visible').allInnerTexts(), ['This PC', 'System (/)']);
+    check('crumbs for root', await page.locator('.app-files .fx-crumb:visible').allInnerTexts(), ['Computer', 'System (/)']);
   });
 
   await section('Batch rename (F2 with several items) + undo', async () => {
@@ -888,11 +888,11 @@ if (!fatal) {
     const owLabels = await page.locator('.menu').last().locator('.menu-item .label').allInnerTexts();
     check('open with lists choose another app', owLabels.includes('Choose another app'), true);
     const hasNotepad = await page.evaluate(() => !!window.__aurora.registry.get('notepad'));
-    if (hasNotepad) check('open with lists Notepad (declares .md)', owLabels.includes('Notepad'), true);
+    if (hasNotepad) check('open with lists Text Editor (declares .md)', owLabels.includes('Text Editor'), true);
     await H.menuClick('Choose another app');
     await page.waitForSelector('.dialog-layer .fx-apps');
     check('choose app dialog title', await page.locator('.dialog-layer .dialog-title').innerText(), 'Select an app to open this .md file');
-    const target = hasNotepad ? 'Notepad' : 'About Selene OS';
+    const target = hasNotepad ? 'Text Editor' : 'About Selene';
     await page.locator(`.dialog-layer .fx-app-row:has-text("${target}")`).click();
     await H.clickDialog('Always');
     await page.waitForTimeout(800);
@@ -1298,9 +1298,9 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
     await section('French + dark theme', async () => {
       const p2 = s2.page;
       const nav = await p2.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts();
-      check('fr nav', ['Accueil', 'Bureau', 'Téléchargements', 'Documents', 'Images', 'Ce PC', 'Corbeille'].every((n) => nav.includes(n)), true);
+      check('fr nav', ['Accueil', 'Bureau', 'Téléchargements', 'Documents', 'Images', 'Ordinateur', 'Corbeille'].every((n) => nav.includes(n)), true);
       check('fr quick access', await p2.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Accès rapide');
-      check('fr title', await p2.evaluate(() => window.__fx().win.title), 'Accueil - Explorateur de fichiers');
+      check('fr title', await p2.evaluate(() => window.__fx().win.title), 'Accueil - Fichiers');
       await H2.go(path.join(home2, 'Documents'));
       const types = await p2.evaluate(() => Object.fromEntries(window.__fx().view.items.map((i) => [i.entry.name, i.type])));
       check('fr type folder', types.Letters, 'Dossier de fichiers');
@@ -1324,7 +1324,7 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
       const labels = await p2.locator('.menu .menu-item .label').allInnerTexts();
       check('fr context menu', labels.includes('Ouvrir') && labels.includes('Propriétés'), true);
       await p2.keyboard.press('Escape');
-      await p2.click('.app-files .fx-tnode:has-text("Ce PC")');
+      await p2.click('.app-files .fx-tnode:has-text("Ordinateur")');
       await H2.settle();
       check('fr this pc', await p2.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Dossiers');
       check('fr drives', await p2.locator('.app-files .fx-drive .fx-sub').first().innerText(), (t) => / libres sur /.test(t));

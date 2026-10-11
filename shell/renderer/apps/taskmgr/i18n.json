@@ -1,10 +1,10 @@
 {
   "en": {
     "app": {
-      "name": "Task Manager"
+      "name": "System Monitor"
     },
     "nav": {
-      "label": "Task Manager pages",
+      "label": "System Monitor pages",
       "toggle": "Open or close navigation",
       "processes": "Processes",
       "performance": "Performance",
@@ -142,7 +142,7 @@
       "search": "No results for “{q}”"
     },
     "err": {
-      "title": "Task Manager",
+      "title": "System Monitor",
       "data": "Couldn't read system information: {msg}",
       "end": "Unable to end “{name}”: {msg}",
       "priority": "Unable to change the priority of “{name}”: {msg}",
@@ -385,7 +385,7 @@
       "window": "Window management",
       "alwaysOnTop": "Always on top",
       "minimizeOnUse": "Minimize on use",
-      "minimizeOnUseDesc": "Minimize Task Manager after switching to an app",
+      "minimizeOnUseDesc": "Minimize System Monitor after switching to an app",
       "other": "Other options",
       "groupByType": "Group processes by type",
       "showFullName": "Show full account name",
@@ -393,7 +393,7 @@
       "kernelThreads": "Show kernel threads in Details",
       "effConfirm": "Show efficiency mode confirmation dialog",
       "about": "About",
-      "aboutDesc": "Selene OS Task Manager · reads live data from the Linux kernel"
+      "aboutDesc": "Selene OS System Monitor · reads live data from the Linux kernel"
     },
     "u": {
       "pct": "%",
@@ -415,10 +415,10 @@
   },
   "fr": {
     "app": {
-      "name": "Gestionnaire des tâches"
+      "name": "Moniteur système"
     },
     "nav": {
-      "label": "Pages du Gestionnaire des tâches",
+      "label": "Pages du Moniteur système",
       "toggle": "Ouvrir ou fermer la navigation",
       "processes": "Processus",
       "performance": "Performances",
@@ -556,7 +556,7 @@
       "search": "Aucun résultat pour « {q} »"
     },
     "err": {
-      "title": "Gestionnaire des tâches",
+      "title": "Moniteur système",
       "data": "Impossible de lire les informations système : {msg}",
       "end": "Impossible de terminer « {name} » : {msg}",
       "priority": "Impossible de modifier la priorité de « {name} » : {msg}",
@@ -799,7 +799,7 @@
       "window": "Gestion des fenêtres",
       "alwaysOnTop": "Toujours visible",
       "minimizeOnUse": "Réduire après utilisation",
-      "minimizeOnUseDesc": "Réduire le Gestionnaire des tâches après avoir basculé vers une application",
+      "minimizeOnUseDesc": "Réduire le Moniteur système après avoir basculé vers une application",
       "other": "Autres options",
       "groupByType": "Regrouper les processus par type",
       "showFullName": "Afficher le nom complet du compte",
@@ -807,7 +807,7 @@
       "kernelThreads": "Afficher les threads du noyau dans Détails",
       "effConfirm": "Afficher la confirmation du mode efficacité",
       "about": "À propos",
-      "aboutDesc": "Gestionnaire des tâches de Selene OS · lit les données en direct depuis le noyau Linux"
+      "aboutDesc": "Moniteur système de Selene OS · lit les données en direct depuis le noyau Linux"
     },
     "u": {
       "pct": " %",

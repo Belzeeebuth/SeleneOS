@@ -1,6 +1,6 @@
 {
   "id": "archive",
-  "name": { "en": "Archive Manager", "fr": "Gestionnaire d'archives" },
+  "name": { "en": "Archives", "fr": "Archives" },
   "description": { "en": "Open, extract and create ZIP, 7z, RAR and TAR archives", "fr": "Ouvrir, extraire et créer des archives ZIP, 7z, RAR et TAR" },
   "icon": "icon.svg",
   "entry": "main.js",

@@ -313,7 +313,7 @@ function render() {
               closeAt(i);
             },
           },
-          icon('dismiss', { size: 12 }),
+          icon('x', { size: 12 }),
         ),
       ),
       h('div', { class: 'alttab-thumb', style: { width: `${tw}px`, height: `${th}px` } }, thumbs.node(win, tw, th)),

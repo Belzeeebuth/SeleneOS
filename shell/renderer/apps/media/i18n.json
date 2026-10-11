@@ -1,6 +1,6 @@
 {
   "en": {
-    "app": { "name": "Media Player" },
+    "app": { "name": "Player" },
     "nav": {
       "label": "Navigation", "toggle": "Open or close navigation", "back": "Back", "home": "Home", "music": "Music library", "videos": "Video library",
       "queue": "Play queue", "playlists": "Playlists", "settings": "Settings", "expandPlaylists": "Show or hide playlists"
@@ -9,7 +9,7 @@
     "home": {
       "openFiles": "Open file(s)", "openFolder": "Open folder", "recent": "Recent media", "seeAll": "See all", "music": "Music", "videos": "Videos",
       "welcomeTitle": "Play your music and videos", "welcomeBody": "Open files or a folder, browse your library, or drag files onto this window to start playing.",
-      "browseMusic": "Music library", "browseVideos": "Video library", "libraryHint": "Media Player shows music from your Music folder and videos from your Videos folder. Add more folders in Settings."
+      "browseMusic": "Music library", "browseVideos": "Video library", "libraryHint": "Player shows music from your Music folder and videos from your Videos folder. Add more folders in Settings."
     },
     "music": {
       "songs": "Songs", "albums": "Albums", "artists": "Artists", "shufflePlay": "Shuffle and play", "sort": "Sort by", "playAll": "Play all",
@@ -29,14 +29,14 @@
     "props": { "audioType": "{ext} audio file", "videoType": "{ext} video file", "kbps": "{n} kbps" },
     "library": {
       "addFolder": "Add folder", "refresh": "Refresh library", "scanning": "Looking for music and videos…", "unknownArtist": "Unknown artist", "unknownAlbum": "Unknown album",
-      "emptyMusicTitle": "We couldn't find any music", "emptyMusicBody": "Media Player looks for music in these folders. Add a folder to show more music here.",
-      "emptyVideoTitle": "We couldn't find any videos", "emptyVideoBody": "Media Player looks for videos in these folders. Add a folder to show more videos here.",
+      "emptyMusicTitle": "We couldn't find any music", "emptyMusicBody": "Player looks for music in these folders. Add a folder to show more music here.",
+      "emptyVideoTitle": "We couldn't find any videos", "emptyVideoBody": "Player looks for videos in these folders. Add a folder to show more videos here.",
       "folderExists": "This folder is already in your library", "scanFailed": "Couldn't refresh the library", "gone": "This item is no longer in your library"
     },
     "queue": { "addFiles": "Add files", "clear": "Clear", "save": "Save as playlist", "empty": "Your play queue is empty", "emptyBody": "Play something from your library, open files, or drag files onto this window." },
     "playlists": {
       "new": "New playlist", "create": "Create", "name": "Playlist name", "untitled": "Untitled playlist", "rename": "Rename", "delete": "Delete",
-      "deleteTitle": "Delete playlist?", "deleteConfirm": "“{name}” will be deleted. The songs and videos in it stay on your PC.",
+      "deleteTitle": "Delete playlist?", "deleteConfirm": "“{name}” will be deleted. The songs and videos in it stay on your computer.",
       "empty": "No playlists yet", "emptyBody": "Create a playlist to keep your favourite songs and videos together.",
       "emptyPlaylist": "This playlist is empty", "emptyPlaylistBody": "Use “Add to” on songs and videos, drag them onto the playlist in the navigation pane, or add media files.",
       "addMedia": "Add media", "removeFrom": "Remove from playlist", "nameEmpty": "Enter a name for the playlist.", "nameTaken": "There's already a playlist with this name."
@@ -65,24 +65,24 @@
     "drop": { "play": "Drop to play", "queue": "Drop to add to the play queue" },
     "filters": { "media": "Media files", "audio": "Audio files", "video": "Video files" },
     "errors": {
-      "playTitle": "Can't play this item", "notSupported": "“{name}” is in a format Media Player doesn't support.", "decode": "“{name}” is damaged or uses a codec Media Player doesn't support.",
+      "playTitle": "Can't play this item", "notSupported": "“{name}” is in a format Player doesn't support.", "decode": "“{name}” is damaged or uses a codec Player doesn't support.",
       "notFound": "“{name}” can't be found. It may have been moved, renamed or deleted.", "read": "There was a problem reading “{name}”.", "skipping": "Skipping to the next item.",
-      "noMediaTitle": "Nothing to play", "noMedia": "None of these items can be played by Media Player.", "folderEmpty": "There's no music or video in “{name}”.",
+      "noMediaTitle": "Nothing to play", "noMedia": "None of these items can be played by Player.", "folderEmpty": "There's no music or video in “{name}”.",
       "empty": "“{name}” is empty."
     },
     "time": { "hm": "{h} hr {m} min", "m": "{m} min", "s": "{s} sec" },
     "settings": {
       "library": "Library", "musicFolders": "Music library locations", "videoFolders": "Video library locations",
-      "foldersHint": "Media Player shows music and videos from these folders and their subfolders.", "noFolders": "No folders. Add one to see your media here.",
+      "foldersHint": "Player shows music and videos from these folders and their subfolders.", "noFolders": "No folders. Add one to see your media here.",
       "remove": "Remove folder", "removeFolderTitle": "Remove folder from library?", "removeFolderConfirm": "“{name}” won't appear in your library anymore. The files themselves won't be deleted.",
       "rescan": "Refresh library", "rescanHint": "Look again for new, changed or removed files.",
       "playback": "Playback", "visualizer": "Visualizer", "visualizerHint": "Animation shown behind music in the now playing view.",
       "vizAnimOff": "Animation effects are turned off in Selene Settings, so the visualizer is hidden.", "viz": { "bars": "Bars", "wave": "Wave", "off": "Off" },
-      "resume": "Resume where I left off", "resumeHint": "Restore the play queue and position the next time Media Player starts.",
+      "resume": "Resume where I left off", "resumeHint": "Restore the play queue and position the next time Player starts.",
       "videoStage": "Open videos in the player", "videoStageHint": "Switch to the full video view when a video starts playing.",
       "about": "About", "cache": "Thumbnails and artwork cache", "cacheHint": "Remove cached artwork, video thumbnails and song information. They're rebuilt automatically.",
       "cacheConfirm": "Clear the cache? Artwork, thumbnails and song information will be read again from your files.", "cacheCleared": "Cache cleared",
-      "clear": "Clear", "version": "Version {v}", "aboutBody": "Plays music and videos from your PC. Sample media © Selene OS, public domain (CC0)."
+      "clear": "Clear", "version": "Version {v}", "aboutBody": "Plays music and videos from your computer. Sample media © Selene OS, public domain (CC0)."
     },
     "shortcuts": {
       "title": "Keyboard shortcuts", "show": "Show", "play": "Play or pause", "seek5": "Back or forward 5 seconds", "seek10": "Back or forward 10 seconds",
@@ -92,7 +92,7 @@
     }
   },
   "fr": {
-    "app": { "name": "Lecteur multimédia" },
+    "app": { "name": "Lecteur" },
     "nav": {
       "label": "Navigation", "toggle": "Ouvrir ou fermer la navigation", "back": "Retour", "home": "Accueil", "music": "Bibliothèque musicale", "videos": "Bibliothèque vidéo",
       "queue": "File d'attente", "playlists": "Playlists", "settings": "Paramètres", "expandPlaylists": "Afficher ou masquer les playlists"
@@ -101,7 +101,7 @@
     "home": {
       "openFiles": "Ouvrir des fichiers", "openFolder": "Ouvrir un dossier", "recent": "Médias récents", "seeAll": "Tout afficher", "music": "Musique", "videos": "Vidéos",
       "welcomeTitle": "Écoutez votre musique, regardez vos vidéos", "welcomeBody": "Ouvrez des fichiers ou un dossier, parcourez votre bibliothèque ou faites glisser des fichiers sur cette fenêtre pour commencer la lecture.",
-      "browseMusic": "Bibliothèque musicale", "browseVideos": "Bibliothèque vidéo", "libraryHint": "Le Lecteur multimédia affiche la musique de votre dossier Musique et les vidéos de votre dossier Vidéos. Ajoutez d'autres dossiers dans les Paramètres."
+      "browseMusic": "Bibliothèque musicale", "browseVideos": "Bibliothèque vidéo", "libraryHint": "Le Lecteur affiche la musique de votre dossier Musique et les vidéos de votre dossier Vidéos. Ajoutez d'autres dossiers dans les Paramètres."
     },
     "music": {
       "songs": "Titres", "albums": "Albums", "artists": "Artistes", "shufflePlay": "Lecture aléatoire", "sort": "Trier par", "playAll": "Tout lire",
@@ -121,14 +121,14 @@
     "props": { "audioType": "Fichier audio {ext}", "videoType": "Fichier vidéo {ext}", "kbps": "{n} kbit/s" },
     "library": {
       "addFolder": "Ajouter un dossier", "refresh": "Actualiser la bibliothèque", "scanning": "Recherche de musique et de vidéos…", "unknownArtist": "Artiste inconnu", "unknownAlbum": "Album inconnu",
-      "emptyMusicTitle": "Nous n'avons trouvé aucune musique", "emptyMusicBody": "Le Lecteur multimédia recherche la musique dans ces dossiers. Ajoutez un dossier pour afficher plus de musique ici.",
-      "emptyVideoTitle": "Nous n'avons trouvé aucune vidéo", "emptyVideoBody": "Le Lecteur multimédia recherche les vidéos dans ces dossiers. Ajoutez un dossier pour afficher plus de vidéos ici.",
+      "emptyMusicTitle": "Nous n'avons trouvé aucune musique", "emptyMusicBody": "Le Lecteur recherche la musique dans ces dossiers. Ajoutez un dossier pour afficher plus de musique ici.",
+      "emptyVideoTitle": "Nous n'avons trouvé aucune vidéo", "emptyVideoBody": "Le Lecteur recherche les vidéos dans ces dossiers. Ajoutez un dossier pour afficher plus de vidéos ici.",
       "folderExists": "Ce dossier fait déjà partie de votre bibliothèque", "scanFailed": "Impossible d'actualiser la bibliothèque", "gone": "Cet élément ne fait plus partie de votre bibliothèque"
     },
     "queue": { "addFiles": "Ajouter des fichiers", "clear": "Effacer", "save": "Enregistrer comme playlist", "empty": "Votre file d'attente est vide", "emptyBody": "Lancez la lecture depuis votre bibliothèque, ouvrez des fichiers ou faites-les glisser sur cette fenêtre." },
     "playlists": {
       "new": "Nouvelle playlist", "create": "Créer", "name": "Nom de la playlist", "untitled": "Playlist sans titre", "rename": "Renommer", "delete": "Supprimer",
-      "deleteTitle": "Supprimer la playlist ?", "deleteConfirm": "« {name} » sera supprimée. Les titres et vidéos qu'elle contient restent sur votre PC.",
+      "deleteTitle": "Supprimer la playlist ?", "deleteConfirm": "« {name} » sera supprimée. Les titres et vidéos qu'elle contient restent sur votre ordinateur.",
       "empty": "Aucune playlist pour l'instant", "emptyBody": "Créez une playlist pour regrouper vos titres et vidéos préférés.",
       "emptyPlaylist": "Cette playlist est vide", "emptyPlaylistBody": "Utilisez « Ajouter à » sur des titres ou des vidéos, faites-les glisser sur la playlist dans le volet de navigation ou ajoutez des fichiers multimédias.",
       "addMedia": "Ajouter des médias", "removeFrom": "Retirer de la playlist", "nameEmpty": "Entrez un nom pour la playlist.", "nameTaken": "Une playlist porte déjà ce nom."
@@ -157,24 +157,24 @@
     "drop": { "play": "Déposer pour lire", "queue": "Déposer pour ajouter à la file d'attente" },
     "filters": { "media": "Fichiers multimédias", "audio": "Fichiers audio", "video": "Fichiers vidéo" },
     "errors": {
-      "playTitle": "Impossible de lire cet élément", "notSupported": "« {name} » est dans un format que le Lecteur multimédia ne prend pas en charge.", "decode": "« {name} » est endommagé ou utilise un codec que le Lecteur multimédia ne prend pas en charge.",
+      "playTitle": "Impossible de lire cet élément", "notSupported": "« {name} » est dans un format que le Lecteur ne prend pas en charge.", "decode": "« {name} » est endommagé ou utilise un codec que le Lecteur ne prend pas en charge.",
       "notFound": "« {name} » est introuvable. Il a peut-être été déplacé, renommé ou supprimé.", "read": "Un problème est survenu lors de la lecture de « {name} ».", "skipping": "Passage à l'élément suivant.",
-      "noMediaTitle": "Rien à lire", "noMedia": "Aucun de ces éléments ne peut être lu par le Lecteur multimédia.", "folderEmpty": "« {name} » ne contient ni musique ni vidéo.",
+      "noMediaTitle": "Rien à lire", "noMedia": "Aucun de ces éléments ne peut être lu par le Lecteur.", "folderEmpty": "« {name} » ne contient ni musique ni vidéo.",
       "empty": "« {name} » est vide."
     },
     "time": { "hm": "{h} h {m} min", "m": "{m} min", "s": "{s} s" },
     "settings": {
       "library": "Bibliothèque", "musicFolders": "Emplacements de la bibliothèque musicale", "videoFolders": "Emplacements de la bibliothèque vidéo",
-      "foldersHint": "Le Lecteur multimédia affiche la musique et les vidéos de ces dossiers et de leurs sous-dossiers.", "noFolders": "Aucun dossier. Ajoutez-en un pour afficher vos médias ici.",
+      "foldersHint": "Le Lecteur affiche la musique et les vidéos de ces dossiers et de leurs sous-dossiers.", "noFolders": "Aucun dossier. Ajoutez-en un pour afficher vos médias ici.",
       "remove": "Supprimer le dossier", "removeFolderTitle": "Retirer le dossier de la bibliothèque ?", "removeFolderConfirm": "« {name} » n'apparaîtra plus dans votre bibliothèque. Les fichiers eux-mêmes ne seront pas supprimés.",
       "rescan": "Actualiser la bibliothèque", "rescanHint": "Rechercher à nouveau les fichiers ajoutés, modifiés ou supprimés.",
       "playback": "Lecture", "visualizer": "Visualiseur", "visualizerHint": "Animation affichée derrière la musique dans la vue En cours de lecture.",
       "vizAnimOff": "Les effets d'animation sont désactivés dans les Paramètres de Selene : le visualiseur est masqué.", "viz": { "bars": "Barres", "wave": "Onde", "off": "Désactivé" },
-      "resume": "Reprendre là où je m'étais arrêté", "resumeHint": "Restaurer la file d'attente et la position au prochain démarrage du Lecteur multimédia.",
+      "resume": "Reprendre là où je m'étais arrêté", "resumeHint": "Restaurer la file d'attente et la position au prochain démarrage du Lecteur.",
       "videoStage": "Ouvrir les vidéos dans le lecteur", "videoStageHint": "Passer à la vue vidéo quand la lecture d'une vidéo commence.",
       "about": "À propos", "cache": "Cache des miniatures et pochettes", "cacheHint": "Supprimer les pochettes, miniatures vidéo et informations de titres en cache. Elles sont recréées automatiquement.",
       "cacheConfirm": "Vider le cache ? Les pochettes, miniatures et informations des titres seront relues depuis vos fichiers.", "cacheCleared": "Cache vidé",
-      "clear": "Vider", "version": "Version {v}", "aboutBody": "Lit la musique et les vidéos de votre PC. Médias d'exemple © Selene OS, domaine public (CC0)."
+      "clear": "Vider", "version": "Version {v}", "aboutBody": "Lit la musique et les vidéos de votre ordinateur. Médias d'exemple © Selene OS, domaine public (CC0)."
     },
     "shortcuts": {
       "title": "Raccourcis clavier", "show": "Afficher", "play": "Lecture ou pause", "seek5": "Reculer ou avancer de 5 secondes", "seek10": "Reculer ou avancer de 10 secondes",

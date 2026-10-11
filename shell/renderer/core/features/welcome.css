@@ -1,7 +1,13 @@
-/* Session "Welcome" (features/welcome.js): the overlay reuses the sign-in screen styles (core/greeter/greeter.css). */
+/* Session "Welcome" (features/welcome.js): the overlay reuses the sign-in screen styles (core/greeter/greeter.css).
+   Its backdrop is the night of the current ambiance (--desk), never a pure black. */
 .lockui.lk-welcome {
-  background: #000 !important;
-  animation: lk-fade-in 260ms linear both;
+  background: var(--desk) !important;
+  animation: lk-fade-in var(--dur-slower) linear both;
+}
+:root[data-animations="off"] .lockui.lk-welcome,
+:root[data-animations="off"] body.aurora-welcome-reveal #desktop,
+:root[data-animations="off"] body.aurora-welcome-reveal #taskbar {
+  animation: none;
 }
 .lk-welcome .lk-card {
   transition: transform 640ms var(--ease), opacity 360ms linear;

@@ -53,7 +53,7 @@
       "loadError": "The disks could not be listed: {error}"
     },
     "account": {
-      "title": "Who's going to use this PC?",
+      "title": "Who's going to use this computer?",
       "subtitle": "Create the account you'll use to sign in. It is an administrator account: it can install apps and change settings.",
       "fullname": "Your name",
       "fullnamePh": "e.g. Jane Doe",
@@ -63,7 +63,7 @@
       "confirm": "Confirm the password",
       "showPassword": "Show the password",
       "hostname": "Computer name",
-      "hostnameHint": "How this PC appears on the network",
+      "hostnameHint": "How this computer appears on the network",
       "autologin": "Sign in automatically",
       "autologinHint": "Skip the sign-in screen when the computer starts",
       "strength": {
@@ -223,7 +223,7 @@
       "loadError": "Impossible d'obtenir la liste des disques : {error}"
     },
     "account": {
-      "title": "Qui va utiliser ce PC ?",
+      "title": "Qui va utiliser cet ordinateur ?",
       "subtitle": "Créez le compte avec lequel vous vous connecterez. C'est un compte administrateur : il peut installer des applications et modifier les paramètres.",
       "fullname": "Votre nom",
       "fullnamePh": "par ex. Marie Dupont",
@@ -233,7 +233,7 @@
       "confirm": "Confirmez le mot de passe",
       "showPassword": "Afficher le mot de passe",
       "hostname": "Nom de l'ordinateur",
-      "hostnameHint": "Nom de ce PC sur le réseau",
+      "hostnameHint": "Nom de cet ordinateur sur le réseau",
       "autologin": "Se connecter automatiquement",
       "autologinHint": "Ignorer l'écran de connexion au démarrage de l'ordinateur",
       "strength": {

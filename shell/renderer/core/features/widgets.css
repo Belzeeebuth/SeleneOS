@@ -1,9 +1,15 @@
-/* Widgets board (features/widgets.js) */
+/* Tableau de bord (features/widgets.js): one glass panel on the left, flat cards inside. Tokens only. */
 #widgets-board {
   --fly-from: 0px;
-  left: 12px;
+  left: max(var(--bar-margin, 0px), 8px);
   top: 12px;
-  bottom: calc(var(--taskbar-h) + 12px);
+  bottom: calc(var(--taskbar-h) + var(--bar-margin, 0px) + 10px);
+  background-color: var(--glass);
+  background-image: var(--panel-grain);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-flyout);
+  backdrop-filter: blur(var(--blur)) saturate(var(--blur-sat, 140%));
   width: min(760px, calc(100vw - 24px));
   display: flex;
   flex-direction: column;
@@ -13,7 +19,16 @@
 }
 #widgets-board.open {
   transform: none;
-  transition: transform 300ms var(--ease), opacity 100ms linear, visibility 0s;
+  transition: transform var(--dur-slower) var(--ease), opacity var(--dur-fast) linear, visibility 0s;
+}
+:root[data-transparency="off"] #widgets-board {
+  background-color: var(--glass-strong);
+  backdrop-filter: none;
+}
+#widgets-board button:focus-visible,
+#widgets-board a:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 :root[data-animations="off"] #widgets-board {
   transform: none;
@@ -26,7 +41,9 @@
 }
 .wg-title {
   flex: 1;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-weight: 700;
 }
 .wg-icon-btn {
   width: 32px;
@@ -84,8 +101,8 @@
   gap: 10px;
   padding: 14px 16px 16px;
   border-radius: var(--radius);
-  background: var(--fly-card);
-  border: 1px solid var(--control-stroke);
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-line);
   min-width: 0;
 }
 #widgets-board.open .wg-card {
@@ -109,11 +126,11 @@
   gap: 16px;
 }
 .wg-weather-art {
-  color: #f2b01e;
+  color: var(--warning);
   display: inline-flex;
 }
 .wg-weather {
-  background: linear-gradient(135deg, color-mix(in srgb, #5aa7ff 22%, var(--fly-card)), var(--fly-card));
+  background: linear-gradient(135deg, var(--accent-subtle), var(--glass-fill) 70%);
 }
 .wg-notes {
   width: 100%;
@@ -196,5 +213,5 @@
 .wg-weather[data-kind='snow'] .wg-weather-art,
 .wg-weather[data-kind='clouds'] .wg-weather-art,
 .wg-weather[data-kind='fog'] .wg-weather-art {
-  color: #5aa7ff;
+  color: var(--accent-text);
 }

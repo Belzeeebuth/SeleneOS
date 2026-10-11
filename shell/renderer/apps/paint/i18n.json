@@ -1,11 +1,11 @@
 {
   "en": {
     "untitled": "Untitled",
-    "titleFmt": "{name} - Paint",
+    "titleFmt": "{name} - Draw",
     "canvas": "Canvas",
     "canvasResize": "Drag to resize the canvas",
     "dropHint": "Drop an image to open it",
-    "cmdbar": "Paint commands",
+    "cmdbar": "Draw commands",
     "menu": { "file": "File", "edit": "Edit", "view": "View" },
     "file": {
       "new": "New",
@@ -28,7 +28,7 @@
       "wp_tile": "Tile",
       "wp_center": "Center",
       "props": "Image properties",
-      "about": "About Paint",
+      "about": "About Draw",
       "exit": "Exit"
     },
     "edit": {
@@ -214,10 +214,10 @@
     "wp": { "mustSave": "Before you can set this picture as your desktop background, you must save it." },
     "about": { "version": "Version {v}", "desc": "Draw, paint, edit pictures and add shapes and text. Part of Selene OS." },
     "err": {
-      "open": "Paint can't open {name}.",
+      "open": "Draw can't open {name}.",
       "notFound": "The file doesn't exist anymore.",
-      "tooBig": "{name} is too large to open in Paint.",
-      "save": "Paint can't save {name}.",
+      "tooBig": "{name} is too large to open in Draw.",
+      "save": "Draw can't save {name}.",
       "copy": "The selection couldn't be copied to the clipboard.",
       "noImage": "The clipboard doesn't contain a picture.",
       "undo": "This change couldn't be undone.",
@@ -231,16 +231,16 @@
       "decode": "The file isn't a picture, or it is damaged.",
       "busy": "The file is in use by another program.",
       "detail": "Error code: {code}.",
-      "pasteTooBig": "The picture is too large to paste: Paint pictures are limited to {max} pixels per side and 50 megapixels."
+      "pasteTooBig": "The picture is too large to paste: Draw pictures are limited to {max} pixels per side and 50 megapixels."
     }
   },
   "fr": {
     "untitled": "Sans titre",
-    "titleFmt": "{name} - Paint",
+    "titleFmt": "{name} - Dessin",
     "canvas": "Zone de dessin",
     "canvasResize": "Faites glisser pour redimensionner la zone de dessin",
     "dropHint": "Déposez une image pour l'ouvrir",
-    "cmdbar": "Commandes de Paint",
+    "cmdbar": "Commandes de Dessin",
     "menu": { "file": "Fichier", "edit": "Modifier", "view": "Affichage" },
     "file": {
       "new": "Nouveau",
@@ -263,7 +263,7 @@
       "wp_tile": "Mosaïque",
       "wp_center": "Centrer",
       "props": "Propriétés de l'image",
-      "about": "À propos de Paint",
+      "about": "À propos de Dessin",
       "exit": "Quitter"
     },
     "edit": {
@@ -449,10 +449,10 @@
     "wp": { "mustSave": "Vous devez enregistrer cette image avant de pouvoir la définir comme arrière-plan du Bureau." },
     "about": { "version": "Version {v}", "desc": "Dessinez, peignez, retouchez des images et ajoutez-y des formes et du texte. Fait partie de Selene OS." },
     "err": {
-      "open": "Paint ne peut pas ouvrir {name}.",
+      "open": "Dessin ne peut pas ouvrir {name}.",
       "notFound": "Le fichier n'existe plus.",
-      "tooBig": "{name} est trop volumineux pour être ouvert dans Paint.",
-      "save": "Paint ne peut pas enregistrer {name}.",
+      "tooBig": "{name} est trop volumineux pour être ouvert dans Dessin.",
+      "save": "Dessin ne peut pas enregistrer {name}.",
       "copy": "La sélection n'a pas pu être copiée dans le Presse-papiers.",
       "noImage": "Le Presse-papiers ne contient pas d'image.",
       "undo": "Cette modification n'a pas pu être annulée.",
@@ -466,7 +466,7 @@
       "decode": "Ce fichier n'est pas une image, ou il est endommagé.",
       "busy": "Le fichier est utilisé par un autre programme.",
       "detail": "Code d'erreur : {code}.",
-      "pasteTooBig": "L'image est trop grande pour être collée : les images de Paint sont limitées à {max} pixels de côté et à 50 mégapixels."
+      "pasteTooBig": "L'image est trop grande pour être collée : les images de Dessin sont limitées à {max} pixels de côté et à 50 mégapixels."
     }
   }
 }

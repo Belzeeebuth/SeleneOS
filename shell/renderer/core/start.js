@@ -1,4 +1,4 @@
-// Start menu (Windows 11 22H2 layout): search box, Pinned grid (pages of 18), All apps (A–Z with
+// The Lanceur (Selene's app launcher): search box, Pinned grid (pages of 18), All apps (A–Z with
 // a letter jump grid), Recommended (recent files), user menu and power menu.
 //
 // Also home of the shell search engine shared with features/search.js:
@@ -19,9 +19,9 @@ import { createFlyout } from './taskbar.js';
 const STRINGS = {
   en: {
     start: {
-      searchPlaceholder: 'Search for apps, settings, and documents',
+      searchPlaceholder: 'Search for an app, a file or a setting',
       more: 'More',
-      moreRecommended: 'Recommended',
+      moreRecommended: 'Recent files',
       pageN: 'Page {n}',
       moveToFront: 'Move to front',
       appSettings: 'App settings',
@@ -53,7 +53,7 @@ const STRINGS = {
       folder_music: 'Music',
       folder_pictures: 'Pictures',
       folder_videos: 'Videos',
-      folder_files: 'File Explorer',
+      folder_files: 'Files',
       folder_settings: 'Settings',
       folder_home: 'Personal folder',
       folder_network: 'Network',
@@ -83,8 +83,8 @@ const STRINGS = {
       modified: 'Last modified',
       open: 'Open',
       runApp: 'Open',
-      pinStart: 'Pin to Start',
-      unpinStart: 'Unpin from Start',
+      pinStart: 'Pin to Launcher',
+      unpinStart: 'Unpin from Launcher',
       pinTaskbar: 'Pin to taskbar',
       unpinTaskbar: 'Unpin from taskbar',
       typeToSearch: 'Type to search apps, settings and files',
@@ -107,7 +107,7 @@ const STRINGS = {
       darkMode: 'Dark mode',
       themes: 'Themes',
       lockscreen: 'Lock screen',
-      startMenu: 'Start',
+      startMenu: 'Launcher',
       taskbar: 'Taskbar',
       apps: 'Installed apps',
       defaultApps: 'Default apps',
@@ -127,9 +127,9 @@ const STRINGS = {
   },
   fr: {
     start: {
-      searchPlaceholder: 'Rechercher des applications, des paramètres et des documents',
+      searchPlaceholder: 'Rechercher une application, un fichier ou un réglage',
       more: 'Plus',
-      moreRecommended: 'Recommandé',
+      moreRecommended: 'Fichiers récents',
       pageN: 'Page {n}',
       moveToFront: 'Placer en premier',
       appSettings: 'Paramètres de l’application',
@@ -138,7 +138,7 @@ const STRINGS = {
       gotoLetter: 'Aller aux applications commençant par {letter}',
       openFileLocation: 'Ouvrir l’emplacement du fichier',
       copyPath: 'Copier en tant que chemin d’accès',
-      pinnedFull: 'Épinglé',
+      pinnedFull: 'Épinglées',
       emptyPinned: 'Épinglez des applications ici depuis Toutes les applications.',
       addToFolder: 'Ajouter au dossier',
       newFolder: 'Nouveau dossier…',
@@ -161,7 +161,7 @@ const STRINGS = {
       folder_music: 'Musique',
       folder_pictures: 'Images',
       folder_videos: 'Vidéos',
-      folder_files: 'Explorateur de fichiers',
+      folder_files: 'Fichiers',
       folder_settings: 'Paramètres',
       folder_home: 'Dossier personnel',
       folder_network: 'Réseau',
@@ -191,8 +191,8 @@ const STRINGS = {
       modified: 'Dernière modification',
       open: 'Ouvrir',
       runApp: 'Ouvrir',
-      pinStart: 'Épingler à l’écran de démarrage',
-      unpinStart: 'Désépingler de l’écran de démarrage',
+      pinStart: 'Épingler au Lanceur',
+      unpinStart: 'Détacher du Lanceur',
       pinTaskbar: 'Épingler à la barre des tâches',
       unpinTaskbar: 'Détacher de la barre des tâches',
       typeToSearch: 'Tapez pour rechercher des applications, des paramètres et des fichiers',
@@ -215,7 +215,7 @@ const STRINGS = {
       darkMode: 'Mode sombre',
       themes: 'Thèmes',
       lockscreen: 'Écran de verrouillage',
-      startMenu: 'Démarrer',
+      startMenu: 'Lanceur',
       taskbar: 'Barre des tâches',
       apps: 'Applications installées',
       defaultApps: 'Applications par défaut',

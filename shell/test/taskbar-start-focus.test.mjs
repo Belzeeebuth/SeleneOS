@@ -333,9 +333,15 @@ async function taskbarPart() {
     // colour + opacity (tokens of the theme engine)
     await setMany(s, { 'taskbar.color': '#123456', 'taskbar.opacity': 30 });
     await sleep(500);
-    const col = await A(() => getComputedStyle(document.getElementById('taskbar')).backgroundColor);
+    // (a floating bar — islands, pills — paints its parts, not the band: read the status part's surface then)
+    const col = await A(() => {
+      const bg = (el) => getComputedStyle(el).backgroundColor;
+      const band = bg(document.getElementById('taskbar'));
+      return band === 'rgba(0, 0, 0, 0)' ? bg(document.querySelector('#taskbar > .tb-tray')) : band;
+    });
     const m = col.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?/);
-    check(m && +m[1] === 18 && +m[2] === 52 && +m[3] === 86 && m[4] && Math.abs(+m[4] - 0.3) < 0.08, `taskbar colour and opacity (${col})`);
+    // opacity 30 % is clamped to the glass floor (0.80, docs/design/SYSTEM.md §2.4) so the bar stays readable
+    check(m && +m[1] === 18 && +m[2] === 52 && +m[3] === 86 && m[4] && Math.abs(+m[4] - 0.8) < 0.08, `taskbar colour and opacity, clamped to the glass floor (${col})`);
     await setMany(s, {}, ['taskbar.color', 'taskbar.opacity']);
 
     // right-click on an empty part of the bar → Taskbar settings
@@ -514,7 +520,7 @@ async function startPart() {
       await startOpen();
       pos[k] = { start: await rect(s, '#start'), btn: await rect(s, '#taskbar .tb-start') };
     }
-    check(Math.abs(pos.center.start.cx - 960) < 4, `centred taskbar: Start centred (${pos.center.start.cx})`);
+    check(pos.center.start.x <= 16 && pos.center.btn.x <= 24, `centred apps: the Lanceur and its panel stay on the left (${pos.center.start.x}, button ${pos.center.btn.x})`);
     check(pos.left.start.x <= 16, `left-aligned taskbar: Start at the left (${pos.left.start.x})`);
     check(pos.top.start.y >= 48 && pos.top.start.y <= 64, `top taskbar: Start drops from it (${pos.top.start.y})`);
     check(pos['left-edge'].start.x >= 60 && pos['left-edge'].start.y <= 16, `left taskbar: Start beside it, at the top next to the Start button (${pos['left-edge'].start.x},${pos['left-edge'].start.y})`);

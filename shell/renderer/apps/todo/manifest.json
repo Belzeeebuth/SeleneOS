@@ -1,6 +1,6 @@
 {
   "id": "todo",
-  "name": { "en": "To Do", "fr": "Tâches" },
+  "name": { "en": "Tasks", "fr": "Tâches" },
   "description": { "en": "Lists, My Day, reminders, due dates and steps for everything you need to get done", "fr": "Listes, Ma journée, rappels, échéances et étapes pour tout ce que vous avez à faire" },
   "icon": "icon.svg",
   "entry": "main.js",

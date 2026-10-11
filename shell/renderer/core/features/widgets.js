@@ -1,4 +1,4 @@
-// Widgets board (Win+W / taskbar Widgets button when settings.taskbar.showWidgets): left-side panel
+// Tableau de bord (Super+W / the bar's dashboard button when settings.taskbar.showWidgets): left-side panel
 // with a greeting + clock, a weather card (current conditions from 'weather:current' at the place chosen for the
 // dynamic wallpaper — main/ipc/weather.js; offline / no place: a placeholder with a link),
 // quick notes (persisted per user), a photo slideshow from ~/Pictures and live system usage.
@@ -15,7 +15,7 @@ let notesSave = null;
 const STRINGS = {
   en: {
     widgets: {
-      title: 'Widgets',
+      title: 'Dashboard',
       morning: 'Good morning',
       afternoon: 'Good afternoon',
       evening: 'Good evening',
@@ -36,12 +36,12 @@ const STRINGS = {
       memory: 'Memory',
       uptime: 'Up for {time}',
       saved: 'Saved',
-      settings: 'Widget settings',
+      settings: 'Dashboard settings',
     },
   },
   fr: {
     widgets: {
-      title: 'Widgets',
+      title: 'Tableau de bord',
       morning: 'Bonjour',
       afternoon: 'Bon après-midi',
       evening: 'Bonsoir',
@@ -62,7 +62,7 @@ const STRINGS = {
       memory: 'Mémoire',
       uptime: 'Allumé depuis {time}',
       saved: 'Enregistré',
-      settings: 'Paramètres des widgets',
+      settings: 'Paramètres du tableau de bord',
     },
   },
 };
@@ -120,12 +120,12 @@ async function render() {
   const wxBody = h(
     'div',
     { class: 'wg-weather-body' },
-    h('div', { class: 'wg-weather-art' }, icon('weather_partly_cloudy_day', { size: 56, filled: true })),
+    h('div', { class: 'wg-weather-art' }, icon('cloud-sun', { size: 56, filled: true })),
     h('div', { class: 'caption text-2' }, t('widgets.weatherOffline')),
   );
   let wxAction = () => shell.openUrl('https://wttr.in/');
   const wxBtn = h('button', { class: 'btn small', onclick: () => (fly.close('launch'), wxAction()) }, t('widgets.weatherOpen'));
-  const weather = card('wg-weather', t('widgets.weather'), 'weather_partly_cloudy_day', wxBody, wxBtn);
+  const weather = card('wg-weather', t('widgets.weather'), 'cloud-sun', wxBody, wxBtn);
   api.invoke('weather:current').then(
     (w) => {
       if (!w) return;
@@ -167,11 +167,11 @@ async function render() {
     notesSave = setTimeout(() => api.invoke('storage:set', 'shell', 'widget-notes', notes.value).then(() => (status.textContent = t('widgets.saved'))).catch(() => {}), 500);
   });
   notes.addEventListener('keydown', (e) => e.key === 'Escape' && notes.blur());
-  const notesCard = card('wg-notes-card', t('widgets.notes'), 'note_edit', notes, status);
+  const notesCard = card('wg-notes-card', t('widgets.notes'), 'note-pencil', notes, status);
 
   // Photos
   const photoBox = h('div', { class: 'wg-photo' });
-  const photosCard = card('wg-photos', t('widgets.photos'), 'image_multiple', photoBox);
+  const photosCard = card('wg-photos', t('widgets.photos'), 'images', photoBox);
   (async () => {
     const pics = shell.xdg?.pictures;
     let files = [];
@@ -183,7 +183,7 @@ async function render() {
         h(
           'div',
           { class: 'wg-photo-empty' },
-          icon('image_multiple', { size: 32 }),
+          icon('images', { size: 32 }),
           h('div', { class: 'caption text-2' }, t('widgets.photosEmpty')),
           pics ? h('button', { class: 'btn small', onclick: () => (fly.close('launch'), shell.launch('files', { path: pics })) }, t('widgets.openPictures')) : null,
         ),
@@ -215,7 +215,7 @@ async function render() {
   const sysCard = card(
     'wg-sys',
     t('widgets.system'),
-    'data_histogram',
+    'gauge',
     h('div', { class: 'wg-meter-row' }, h('span', { class: 'grow' }, t('widgets.cpu')), cpuVal),
     cpuBar,
     h('div', { class: 'wg-meter-row' }, h('span', { class: 'grow' }, t('widgets.memory')), memVal),
@@ -244,7 +244,7 @@ async function render() {
       'div',
       { class: 'wg-top' },
       h('div', { class: 'wg-title' }, t('widgets.title')),
-      h('button', { class: 'wg-icon-btn', 'aria-label': t('widgets.settings'), 'data-tip': t('widgets.settings'), onclick: () => (fly.close('launch'), shell.launch('settings', { page: 'taskbar' })) }, icon('settings', { size: 16 })),
+      h('button', { class: 'wg-icon-btn', 'aria-label': t('widgets.settings'), 'data-tip': t('widgets.settings'), onclick: () => (fly.close('launch'), shell.launch('settings', { page: 'taskbar' })) }, icon('gear-six', { size: 16 })),
     ),
     header,
     h('div', { class: 'wg-grid' }, h('div', { class: 'wg-col' }, weather, sysCard), h('div', { class: 'wg-col' }, photosCard, notesCard)),

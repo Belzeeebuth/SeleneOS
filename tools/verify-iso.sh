@@ -135,7 +135,14 @@ while IFS= read -r fname; do
   [[ -n "$fname" ]] && ! grep -qxF "$fname" <<<"$pf2_names" && missing_fonts+=" '$fname'"
 done < <(grep -oE '(font|terminal-font|item_font|selected_item_font) *[=:] *"[^"]+"' "$I/boot/grub/themes/aurora/theme.txt" | sed -E 's/.*"([^"]+)"/\1/' | sort -u)
 [[ -z "$missing_fonts" ]] && pass "GRUB theme: every font it names exists ($(wc -l <<<"$pf2_names") .pf2 fonts)" || fail "GRUB theme: fonts not found (GRUB would fall back to another font):$missing_fonts"
-# Menu labels must fit the theme's menu box (760 px at item_font 20): keep them short.
+# Every image theme.txt names (desktop image, logo, 9-slice pixmaps) must be in the theme directory.
+missing_img=""
+while IFS= read -r img; do
+  if [[ "$img" == *'*'* ]]; then compgen -G "$I/boot/grub/themes/aurora/$img" >/dev/null || missing_img+=" $img"
+  else [[ -f "$I/boot/grub/themes/aurora/$img" ]] || missing_img+=" $img"; fi
+done < <(grep -oE '(desktop-image|file|menu_pixmap_style|selected_item_pixmap_style|terminal-box) *[=:] *"[^"]+"' "$I/boot/grub/themes/aurora/theme.txt" | sed -E 's/.*"([^"]+)"/\1/' | sort -u)
+[[ -z "$missing_img" ]] && pass "GRUB theme: every image it names exists" || fail "GRUB theme: images not found:$missing_img"
+# Menu labels must fit the theme's menu box (640 px at item_font 20): keep them short.
 long_lbl="$(grep -oE '^ *(menuentry|submenu) "[^"]+"' "$cfg" | sed -E 's/^ *(menuentry|submenu) "//; s/"$//' | awk 'length($0) > 40')"
 [[ -z "$long_lbl" ]] && pass "grub.cfg: every menu label fits (40 characters max)" || fail "grub.cfg: labels too long for the menu: $(tr '\n' '|' <<<"$long_lbl")"
 grep -q '^initrd /casper/initrd' <<<"$(sed 's/^ *//' "$cfg")" && pass "grub.cfg: initrd /casper/initrd" || fail "grub.cfg: no initrd line"

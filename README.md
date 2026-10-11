@@ -10,60 +10,60 @@ available in **English and French**, in light and dark themes.
 ## Features
 
 **Desktop**
-- Centered taskbar (or left-aligned), Start menu with pinned apps, all apps and recommended files
-- Search, quick settings (Wi-Fi, volume, dark mode, night light, do not disturb), calendar and
-  notification center, widgets
+- Bar with centred app icons, Launcher with pinned apps, all apps and recommended files
+- Search, Quick settings (Wi-Fi, volume, dark mode, night light, do not disturb), calendar and
+  notification center, Dashboard
 - Window manager drawn by the shell itself: open/close/minimize/maximize animations, edge snapping,
-  Snap layouts, Snap assist, Alt+Tab, Task View with virtual desktops
+  Layouts, Snap assist, Alt+Tab, Overview with virtual desktops
 - Windows 11-like visuals: Mica windows, acrylic blur, accent colors, original wallpapers, light/dark mode
-- Keyboard shortcuts: Win, Win+D/E/I/L/A/N/S/R/X, Win+Tab, Win+arrows, Alt+Tab, Alt+F4,
-  Ctrl+Shift+Esc, Ctrl+Alt+Del, PrintScreen / Win+Shift+S
+- Keyboard shortcuts: Super, Super+D/E/I/L/A/N/S/R/X, Super+Tab, Super+arrows, Alt+Tab, Alt+F4,
+  Ctrl+Shift+Esc, Ctrl+Alt+Del, PrintScreen / Super+Shift+S
 - Regular Linux applications (GIMP, LibreOffice, VLC, Inkscape…) open in Selene windows with taskbar, Alt+Tab,
-  snapping and the light/dark theme; installed programs appear in Start and search ([docs/XWINDOWS.md](docs/XWINDOWS.md))
-- Login screen and lock screen with PAM authentication, "User Account Control" prompts for admin
+  snapping and the light/dark theme; installed programs appear in the Launcher and search ([docs/XWINDOWS.md](docs/XWINDOWS.md))
+- Login screen and lock screen with PAM authentication, "Administrator permission" prompts for admin
   actions, firewall (ufw) enabled by default
 
 **Personalization** (details in [docs/PERSONALIZATION.md](docs/PERSONALIZATION.md))
 - Theme designer: accent color, wallpaper, lock screen, taskbar color, window transparency and blur intensity;
   font, text size, rounded corners, UI scale and reduced motion
-- Five visual styles (Windows 11, Minimal, Glass, Retro, High contrast) and per-app light / dark / accent themes
+- Four visual styles (Nocturne, Éclipse, Clair de lune, High contrast) and per-app light / dark / accent themes
 - Animated wallpapers, and dynamic wallpapers that follow the time of day and the weather; slideshow
-- Taskbar (size, position, icons, mini widgets, transparency, auto-hide) and Start menu (layouts, pinned apps,
+- Taskbar (size, position, icons, indicators, transparency, auto-hide) and Launcher (layouts, pinned apps,
   folders, recommended files, background style)
 - Cursor, icon and sound packs, with custom notification, startup and shutdown sounds
-- Custom snap layouts and fully customizable keyboard shortcuts
-- Focus mode: hides notifications, dims the desktop and simplifies the taskbar, with a session timer
+- Custom layouts and fully customizable keyboard shortcuts
+- Focus: hides notifications, dims the desktop and simplifies the taskbar, with a session timer
 - Profiles: save the whole look and switch themes in one click; export and import
 
 **Apps**
 
 | App | Highlights |
 |---|---|
-| Selene Browser | Chromium engine, tabs, bookmarks bar and manager, history, downloads, private windows, find, zoom |
-| File Explorer | Tabs, breadcrumb bar, copy/cut/paste, rename, delete to Recycle Bin, search, drives (mount/eject), properties |
+| Browser | Chromium engine, tabs, bookmarks bar and manager, history, downloads, private windows, find, zoom |
+| Files | Tabs, breadcrumb bar, copy/cut/paste, rename, delete to Recycle Bin, search, drives (mount/eject), properties |
 | Mail | IMAP/SMTP accounts with provider presets (Gmail, Outlook, Yahoo, iCloud, Orange, Free…), compose, attachments, webmail shortcut |
-| Paint | Brushes, shapes, fill, text, eraser, color picker, selection, undo/redo, PNG/JPEG/BMP/WebP save |
+| Draw | Brushes, shapes, fill, text, eraser, color picker, selection, undo/redo, PNG/JPEG/BMP/WebP save |
 | Calculator | Standard, Scientific, Programmer, date calculation and unit converters, history and memory |
-| Notepad | Tabs, find/replace, go to line, word wrap, encodings and line endings |
+| Text Editor | Tabs, find/replace, go to line, word wrap, encodings and line endings |
 | Terminal | Real PTY with Bash, tabs, split panes, color schemes |
-| Media Player | Music and video libraries, queue, playlists, audio visualizer, sample media included |
+| Player | Music and video libraries, queue, playlists, audio visualizer, sample media included |
 | Photos | Gallery by date, folders, favorites and albums; viewer with zoom and filmstrip, slideshow; editor with crop, straighten, adjustments and filters |
 | PDF Reader | Tabs, page thumbnails and outline, find, zoom and page layouts, highlight and draw, presentation mode |
-| Archive Manager | Browse, extract and create ZIP, 7z, RAR and TAR archives, password-protected archives, test and preview |
+| Archives | Browse, extract and create ZIP, 7z, RAR and TAR archives, password-protected archives, test and preview |
 | Notes | Notebooks, rich text, checklists, pictures and tags, Markdown import/export, saved as you type |
 | Calendar | Day, work week, week, month and agenda views, recurring events, reminders, holidays, .ics import/export |
 | Clock | Alarms, timers, stopwatch, world clock and focus sessions; alarms ring even when the app is closed |
-| To Do | Lists, My Day, reminders, due dates, repeats and steps |
-| Snipping Tool | Rectangle/window/full-screen/free-form captures, markup, save and copy |
-| Task Manager | Processes with heat map, live performance graphs, users, details, services |
+| Tasks | Lists, My Day, reminders, due dates, repeats and steps |
+| Screenshot | Rectangle/window/full-screen/free-form captures, markup, save and copy |
+| System Monitor | Processes with heat map, live performance graphs, users, details, services |
 | Settings | System, network, personalization, apps, accounts, time & language, accessibility, privacy & security, updates |
 | Weather | Current conditions, 24-hour and 7-day forecasts, saved places; sets the dynamic wallpaper location |
 | Maps | OpenStreetMap maps, place search, saved places |
 | Contacts | People, e-mails, phones, addresses, birthdays, vCard import/export; suggestions in Mail |
-| Sticky Notes | Colourful notes that can stay on top, saved as you type, copy to Notes |
+| Memos | Colourful notes that can stay on top, saved as you type, copy to Notes |
 | Translator | Seven languages (MyMemory or your LibreTranslate server), English dictionary, offline EN↔FR glossary |
 | Remote Desktop | VNC client (RDP later) |
-| Store | The whole Flathub catalogue (Firefox, Spotify, Discord, Steam, Blender…) and every desktop app of the Ubuntu archive, with icons, search, categories and screenshots; plus curated tools and services ([docs/STORE-SOURCES.md](docs/STORE-SOURCES.md)) |
+| Software | The whole Flathub catalogue (Firefox, Spotify, Discord, Steam, Blender…) and every desktop app of the Ubuntu archive, with icons, search, categories and screenshots; plus curated tools and services ([docs/STORE-SOURCES.md](docs/STORE-SOURCES.md)) |
 | Disks | Drives and partitions, mount and eject, format USB sticks and SD cards |
 | Backup | Incremental snapshots of your folders to a drive; browse and restore |
 | Passwords | Encrypted password vault with a generator |
@@ -138,7 +138,7 @@ aurora-os/
 **Architecture:**
 - Ubuntu 24.04 base (pinned archive snapshot for reproducible builds) with casper for the live session.
 - greetd starts the Selene login screen. After sign-in, Xorg runs the fullscreen Electron shell, which
-  draws the taskbar, the Start menu and every window.
+  draws the taskbar, the Launcher and every window.
 - System features use standard Linux services: NetworkManager, PipeWire, udisks2, systemd-logind and
   ufw.
 

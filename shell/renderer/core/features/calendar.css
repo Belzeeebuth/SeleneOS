@@ -1,10 +1,12 @@
-/* Notification center + calendar (features/calendar.js) */
+/* Notifications + calendar (features/calendar.js) and the toasts (core/notify.js).
+   Two glass cards: tokens and hooks only (docs/design/SYSTEM.md). Clair de lune adds its grain through
+   --panel-grain; blur stays on these panels. */
 #calendar-center {
-  --fly-from: 32px;
-  right: 12px;
-  bottom: calc(var(--taskbar-h) + 12px);
-  width: 360px;
-  max-height: calc(100vh - var(--taskbar-h) - 24px);
+  --fly-from: 16px;
+  right: max(var(--bar-margin, 0px), 8px);
+  bottom: calc(var(--taskbar-h) + var(--bar-margin, 0px) + 10px);
+  width: 380px;
+  max-height: calc(100vh - var(--taskbar-h) - var(--bar-margin, 0px) - 20px);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -17,16 +19,24 @@
 }
 .nc-card,
 .cal-card {
-  background: var(--fly-bg);
-  border: 1px solid var(--fly-stroke);
-  border-radius: var(--radius);
-  box-shadow: var(--fly-shadow);
-  backdrop-filter: blur(60px) saturate(170%);
+  color: var(--text);
+  background-color: var(--glass);
+  background-image: var(--panel-grain);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-flyout);
+  backdrop-filter: blur(var(--blur)) saturate(var(--blur-sat, 140%));
   overflow: hidden;
 }
 :root[data-transparency="off"] .nc-card,
 :root[data-transparency="off"] .cal-card {
+  background-color: var(--glass-strong);
   backdrop-filter: none;
+}
+#calendar-center button:focus-visible,
+#calendar-center .nc-item:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
 }
 .nc-card {
   display: flex;
@@ -35,30 +45,45 @@
   flex: 0 1 auto;
 }
 #calendar-center.open .nc-card {
-  animation: cal-card-in 300ms var(--ease) backwards;
+  animation: cal-card-in var(--dur-slow) var(--ease) backwards;
 }
 #calendar-center.open .cal-card {
-  animation: cal-card-in 300ms var(--ease) 40ms backwards;
+  animation: cal-card-in var(--dur-slow) var(--ease) 40ms backwards;
 }
 @keyframes cal-card-in {
   from {
-    transform: translateY(24px);
+    transform: translateY(12px);
     opacity: 0;
   }
+}
+:root[data-animations="off"] #calendar-center .nc-card,
+:root[data-animations="off"] #calendar-center .cal-card,
+:root[data-animations="off"] .nc-item {
+  animation: none;
 }
 .nc-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 12px 8px 16px;
+  gap: 6px;
+  padding: 12px 10px 8px 16px;
   flex: none;
 }
 .nc-title {
   flex: 1;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  line-height: 22px;
+  font-weight: 700;
 }
-.nc-clear {
-  background: var(--fly-card);
+#calendar-center .nc-clear {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+#calendar-center .nc-clear:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
 }
 .nc-dnd {
   width: 32px;
@@ -100,7 +125,7 @@
   align-items: flex-start;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
-  background: var(--fly-card);
+  background: var(--glass-fill);
   color: var(--text-2);
 }
 .nc-hint .icon {
@@ -127,9 +152,9 @@
 .nc-item {
   position: relative;
   padding: 10px 12px 12px;
-  border-radius: var(--radius);
-  background: var(--fly-card);
-  border: 1px solid var(--control-stroke);
+  border-radius: var(--radius-lg);
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-line);
   outline-offset: -2px;
   animation: nc-in var(--dur-slow) var(--ease);
 }
@@ -140,7 +165,7 @@
   }
 }
 .nc-item:hover {
-  background: color-mix(in srgb, var(--fly-card) 70%, var(--subtle-hover));
+  background: var(--subtle-hover);
 }
 .nc-item-top {
   display: flex;
@@ -210,7 +235,7 @@
   gap: 8px;
   height: 48px;
   padding: 0 12px 0 8px;
-  border-bottom: 1px solid var(--fly-stroke);
+  border-bottom: 1px solid var(--glass-line);
 }
 .cal-card.collapsed .cal-head {
   border-bottom-color: transparent;
@@ -224,7 +249,8 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 700;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
@@ -265,7 +291,8 @@
 }
 .cal-month {
   flex: 1;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 650;
 }
 .cal-weekdays,
 .cal-grid {
@@ -277,7 +304,7 @@
   height: 32px;
   align-items: center;
   font-size: var(--fs-caption);
-  color: var(--text);
+  color: var(--text-2);
 }
 .cal-viewport {
   position: relative;
@@ -303,7 +330,7 @@
   display: grid;
   place-items: center;
   outline-offset: -2px;
-  transition: background var(--dur-fast) linear;
+  transition: background-color var(--dur-fast) var(--ease);
 }
 .cal-day:hover {
   background: var(--subtle-hover);
@@ -323,5 +350,70 @@
   background: var(--accent-hover);
 }
 .cal-day.today.selected {
-  box-shadow: inset 0 0 0 2px var(--fly-bg);
+  box-shadow: inset 0 0 0 2px var(--glass-strong);
+}
+
+/* ---------------- Toasts (core/notify.js): the same glass card as the panels ---------------- */
+#toasts {
+  padding-right: max(var(--bar-margin, 0px), 8px);
+  padding-bottom: calc(var(--taskbar-h) + var(--bar-margin, 0px) + 10px);
+}
+#toasts .toast {
+  width: 380px;
+  padding: 12px 14px 14px;
+  color: var(--text);
+  background-color: var(--glass);
+  background-image: var(--panel-grain);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-flyout);
+  backdrop-filter: blur(var(--blur)) saturate(var(--blur-sat, 140%));
+  animation: nc-toast-in var(--dur-slower) var(--ease);
+}
+#toasts .toast.leaving {
+  animation: nc-toast-out var(--dur-slow) var(--ease-in) forwards;
+}
+@keyframes nc-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@keyframes nc-toast-out {
+  to {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+:root[data-animations="off"] #toasts .toast {
+  animation: none;
+}
+:root[data-transparency="off"] #toasts .toast {
+  background-color: var(--glass-strong);
+  backdrop-filter: none;
+}
+#toasts .toast-head {
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--text-2);
+}
+#toasts .toast-title {
+  font-weight: 600;
+}
+#toasts .toast-body {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+#toasts .toast-actions {
+  gap: 8px;
+  margin-top: 12px;
+}
+#toasts .toast-actions .btn,
+.nc-actions .btn {
+  flex: 0 1 auto;
+  min-width: 96px;
+}
+#toasts .toast button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }

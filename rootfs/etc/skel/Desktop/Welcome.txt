@@ -1,24 +1,20 @@
 Welcome to Selene OS
 ====================
 
-Selene OS is a modern desktop built on Ubuntu 24.04 LTS.
+Selene OS is a desktop built on Ubuntu 24.04 LTS.
 
-  * Open the Start menu with the Windows key or the button in the middle of the taskbar.
-  * Your files live in Documents, Downloads, Pictures, Music and Videos.
-  * Settings lets you change the theme, the language (English / French), the network and more.
-  * In the live session nothing is saved: use "Install Selene OS" to install it on your disk.
-
-Enjoy!
+  * Open the Launcher with the Super key or with the button on the left of the bar.
+  * Your files are in Documents, Downloads, Pictures, Music and Videos. Open Files to browse them.
+  * Settings lets you change the style, the theme, the language (English / French), the network and more.
+  * Nothing is saved in the live session. Use "Install Selene OS" to install it on your disk.
 
 
 Bienvenue dans Selene OS
 ========================
 
-Selene OS est un bureau moderne basé sur Ubuntu 24.04 LTS.
+Selene OS est un bureau basé sur Ubuntu 24.04 LTS.
 
-  * Ouvrez le menu Démarrer avec la touche Windows ou le bouton au centre de la barre des tâches.
-  * Vos fichiers se trouvent dans Documents, Téléchargements, Images, Musique et Vidéos.
-  * Les Paramètres permettent de changer le thème, la langue (anglais / français), le réseau, etc.
-  * Dans la session live, rien n'est enregistré : utilisez « Installer Selene OS » pour l'installer sur votre disque.
-
-Bonne découverte !
+  * Ouvrez le Lanceur avec la touche Super ou avec le bouton à gauche de la barre.
+  * Vos fichiers se trouvent dans Documents, Téléchargements, Images, Musique et Vidéos. Ouvrez Fichiers pour les parcourir.
+  * Les Paramètres vous permettent de changer le style, le thème, la langue (anglais / français), le réseau, etc.
+  * Rien n'est enregistré dans la session live. Utilisez « Installer Selene OS » pour l'installer sur votre disque.

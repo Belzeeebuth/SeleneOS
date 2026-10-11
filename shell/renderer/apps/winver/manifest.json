@@ -1,6 +1,6 @@
 {
   "id": "winver",
-  "name": { "en": "About Selene OS", "fr": "À propos de Selene OS" },
+  "name": { "en": "About Selene", "fr": "À propos de Selene" },
   "description": { "en": "Version and license information", "fr": "Informations de version et de licence" },
   "icon": "icon.svg",
   "entry": "main.js",

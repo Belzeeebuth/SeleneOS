@@ -16,10 +16,10 @@ i18n.extend({
   en: {
     run: {
       title: 'Run',
-      intro: 'Type the name of a program, folder, document, or Internet resource, and Selene will open it for you.',
+      intro: 'Type the name of an app, a folder, a document or a web address.',
       open: 'Open:',
       browse: 'Browse…',
-      notFound: "Selene can't find '{cmd}'. Make sure you typed the name correctly, and then try again.",
+      notFound: "Can't find '{cmd}'. Check the name, then try again.",
       noBrowser: 'No web browser is installed.',
       history: 'Recent',
       apps: 'Apps',
@@ -29,10 +29,10 @@ i18n.extend({
   fr: {
     run: {
       title: 'Exécuter',
-      intro: "Entrez le nom d'un programme, dossier, document ou ressource Internet, et Selene l'ouvrira pour vous.",
+      intro: "Saisissez le nom d'une application, d'un dossier, d'un document ou d'une adresse web.",
       open: 'Ouvrir :',
       browse: 'Parcourir…',
-      notFound: 'Selene ne trouve pas « {cmd} ». Vérifiez que le nom est correct, puis réessayez.',
+      notFound: 'Impossible de trouver « {cmd} ». Vérifiez le nom, puis réessayez.',
       noBrowser: "Aucun navigateur web n'est installé.",
       history: 'Récents',
       apps: 'Applications',

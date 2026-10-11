@@ -1,13 +1,13 @@
 {
   "en": {
-    "appName": "Sticky Notes",
+    "appName": "Memos",
     "newNote": "New note",
     "search": "Search notes",
     "noResults": "No matching notes",
     "emptyTitle": "No notes yet",
     "emptyHint": "Select + or press Ctrl+N to write your first note.",
     "emptyNote": "Empty note",
-    "untitled": "Sticky note",
+    "untitled": "Memo",
     "more": "More options",
     "openNote": "Open note",
     "notesList": "Notes list",
@@ -38,14 +38,14 @@
     "color.gray": "Charcoal"
   },
   "fr": {
-    "appName": "Pense-bêtes",
+    "appName": "Mémos",
     "newNote": "Nouvelle note",
     "search": "Rechercher dans les notes",
     "noResults": "Aucune note correspondante",
     "emptyTitle": "Aucune note pour l’instant",
     "emptyHint": "Sélectionnez + ou appuyez sur Ctrl+N pour écrire votre première note.",
     "emptyNote": "Note vide",
-    "untitled": "Pense-bête",
+    "untitled": "Mémo",
     "more": "Plus d’options",
     "openNote": "Ouvrir la note",
     "notesList": "Liste des notes",

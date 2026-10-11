@@ -1,6 +1,6 @@
 {
   "id": "notepad",
-  "name": { "en": "Notepad", "fr": "Bloc-notes" },
+  "name": { "en": "Text Editor", "fr": "Éditeur de texte" },
   "description": { "en": "Write and edit plain text files", "fr": "Écrire et modifier des fichiers texte" },
   "icon": "icon.svg",
   "entry": "main.js",

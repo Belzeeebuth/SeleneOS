@@ -1,4 +1,4 @@
-/* Power-user menu (Win+X) and window menu (Alt+Space). */
+/* Menu rapide (Super+X) and window menu (Alt+Space). */
 .menu.wm-accel-menu {
   min-width: 248px;
 }
@@ -7,7 +7,7 @@
   text-underline-offset: 2px;
   text-decoration-thickness: 1px;
 }
-/* Opened with the mouse: no underlines (Windows shows them only for keyboard use). */
+/* Opened with the mouse: no underlines (they show only for keyboard use). */
 .menu.wm-accel-menu:not(.kbd) .accel-label u {
   text-decoration: none;
 }

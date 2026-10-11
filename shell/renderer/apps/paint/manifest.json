@@ -1,6 +1,6 @@
 {
   "id": "paint",
-  "name": { "en": "Paint", "fr": "Paint" },
+  "name": { "en": "Draw", "fr": "Dessin" },
   "description": { "en": "Draw, edit and annotate pictures", "fr": "Dessiner, retoucher et annoter des images" },
   "icon": "icon.svg",
   "entry": "main.js",

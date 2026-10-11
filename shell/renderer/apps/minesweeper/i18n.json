@@ -15,7 +15,7 @@
     "gk.winRate": "Win rate",
     "gk.currentStreak": "Current streak",
     "gk.longestStreak": "Longest streak",
-    "gk.newRecord": "New record!",
+    "gk.newRecord": "New record",
     "gk.saveFailed": "Your progress and statistics couldn't be saved. Check that your home folder isn't full or read-only.",
 
     "diff.beginner": "Beginner",
@@ -40,11 +40,11 @@
     "cell.number_one": "{count} adjacent mine",
     "cell.number_other": "{count} adjacent mines",
 
-    "won.title": "You won!",
+    "won.title": "You won",
     "won.text": "Minefield cleared in {time}.",
     "won.best": "Best time: {time}",
-    "lost.title": "Boom! Game over",
-    "lost.text": "You uncovered a mine. Have another go!",
+    "lost.title": "Game over",
+    "lost.text": "You uncovered a mine. You can try again.",
 
     "quit.title": "Abandon this game?",
     "quit.text": "The game in progress will count as a loss and your current streak will be reset.",
@@ -104,7 +104,7 @@
     "gk.winRate": "Taux de victoire",
     "gk.currentStreak": "Série en cours",
     "gk.longestStreak": "Meilleure série",
-    "gk.newRecord": "Nouveau record !",
+    "gk.newRecord": "Nouveau record",
     "gk.saveFailed": "Impossible d'enregistrer votre progression et vos statistiques. Vérifiez que votre dossier personnel n'est pas plein ou en lecture seule.",
 
     "diff.beginner": "Débutant",
@@ -129,11 +129,11 @@
     "cell.number_one": "{count} mine adjacente",
     "cell.number_other": "{count} mines adjacentes",
 
-    "won.title": "Vous avez gagné !",
+    "won.title": "Vous avez gagné",
     "won.text": "Terrain déminé en {time}.",
     "won.best": "Meilleur temps : {time}",
-    "lost.title": "Boum ! Partie perdue",
-    "lost.text": "Vous avez découvert une mine. Retentez votre chance !",
+    "lost.title": "Partie perdue",
+    "lost.text": "Vous avez découvert une mine. Vous pouvez réessayer.",
 
     "quit.title": "Abandonner cette partie ?",
     "quit.text": "La partie en cours sera comptée comme perdue et votre série actuelle sera remise à zéro.",

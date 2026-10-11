@@ -1,6 +1,6 @@
 {
  "en": {
-  "appName": "File Explorer",
+  "appName": "Files",
   "address": {
    "label": "Address",
    "more": "More locations",
@@ -224,7 +224,7 @@
   "options": {
    "checkboxes": "Use check boxes to select items",
    "clear": "Clear",
-   "clearHistoryLabel": "Clear File Explorer history",
+   "clearHistoryLabel": "Clear Files history",
    "click": "Click items as follows",
    "compact": "Decrease space between items (compact view)",
    "confirmTrash": "Display delete confirmation dialog",
@@ -233,7 +233,7 @@
    "fullPath": "Display the full path in the title bar",
    "general": "General",
    "hideExtensions": "Hide extensions for known file types",
-   "openTo": "Open File Explorer to:",
+   "openTo": "Open Files to:",
    "privacy": "Privacy",
    "resetFolders": "Reset folders",
    "resetFoldersLabel": "Reset all folders to the default view",
@@ -278,7 +278,7 @@
    "music": "Music",
    "pictures": "Pictures",
    "videos": "Videos",
-   "thisPc": "This PC",
+   "thisPc": "Computer",
    "trash": "Recycle Bin",
    "gallery": "Gallery"
   },
@@ -482,7 +482,7 @@
   }
  },
  "fr": {
-  "appName": "Explorateur de fichiers",
+  "appName": "Fichiers",
   "address": {
    "label": "Adresse",
    "more": "Autres emplacements",
@@ -706,7 +706,7 @@
   "options": {
    "checkboxes": "Utiliser les cases à cocher pour sélectionner les éléments",
    "clear": "Effacer",
-   "clearHistoryLabel": "Effacer l'historique de l'Explorateur de fichiers",
+   "clearHistoryLabel": "Effacer l'historique de Fichiers",
    "click": "Cliquer sur les éléments de la manière suivante",
    "compact": "Réduire l'espace entre les éléments (affichage compact)",
    "confirmTrash": "Afficher la boîte de dialogue de confirmation de suppression",
@@ -715,7 +715,7 @@
    "fullPath": "Afficher le chemin d'accès complet dans la barre de titre",
    "general": "Général",
    "hideExtensions": "Masquer les extensions des fichiers dont le type est connu",
-   "openTo": "Ouvrir l'Explorateur de fichiers dans :",
+   "openTo": "Ouvrir Fichiers dans :",
    "privacy": "Confidentialité",
    "resetFolders": "Réinitialiser les dossiers",
    "resetFoldersLabel": "Rétablir l'affichage par défaut de tous les dossiers",
@@ -760,7 +760,7 @@
    "music": "Musique",
    "pictures": "Images",
    "videos": "Vidéos",
-   "thisPc": "Ce PC",
+   "thisPc": "Ordinateur",
    "trash": "Corbeille",
    "gallery": "Galerie"
   },

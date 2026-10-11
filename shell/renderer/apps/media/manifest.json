@@ -1,6 +1,6 @@
 {
   "id": "media",
-  "name": { "en": "Media Player", "fr": "Lecteur multimédia" },
+  "name": { "en": "Player", "fr": "Lecteur" },
   "description": { "en": "Play music and videos, manage your library and playlists", "fr": "Écoutez de la musique, regardez des vidéos et gérez votre bibliothèque et vos playlists" },
   "icon": "icon.svg",
   "entry": "main.js",

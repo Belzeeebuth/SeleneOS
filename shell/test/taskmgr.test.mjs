@@ -275,7 +275,7 @@ try {
   let R = await rows();
   const groups = R.filter((r) => r.kind === 'group').map((r) => r.label);
   check('Apps / Background / Selene groups', groups.some((g) => /^Apps \(2\)$/.test(g)) && groups.some((g) => /^Background processes \(\d+\)$/.test(g)) && groups.some((g) => /^Selene processes \(\d+\)$/.test(g)), groups);
-  check('app rows for open windows', R.some((r) => r.type === 'app' && r.name === 'Calculator') && R.some((r) => r.type === 'app' && r.name === 'Task Manager'));
+  check('app rows for open windows', R.some((r) => r.type === 'app' && r.name === 'Calculator') && R.some((r) => r.type === 'app' && r.name === 'System Monitor'));
   check('Selene Shell row', R.some((r) => r.type === 'shell' && /^Selene Shell \(\d+\)$/.test(r.name)), R.filter((r) => r.type === 'shell'));
   check('Linux kernel row', R.some((r) => r.type === 'kernel'));
   const imgs = await page.$$eval('.app-taskmgr img', (els) => els.map((e) => ({ src: e.getAttribute('src'), ok: e.complete && e.naturalWidth > 0 })));

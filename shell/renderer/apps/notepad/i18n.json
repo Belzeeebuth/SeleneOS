@@ -132,7 +132,7 @@
       "saveMany": "Do you want to save changes to the following files?",
       "dontSave": "Don't save",
       "bigTitle": "Large file",
-      "big": "{name} is {size}. Opening it may take a while and Notepad may respond slowly. Open it anyway?",
+      "big": "{name} is {size}. Opening it may take a while and Text Editor may respond slowly. Open it anyway?",
       "openAnyway": "Open anyway",
       "lossyTitle": "Unsupported characters",
       "lossy": "This text contains characters (such as “{ch}”) that can't be saved in {enc}. They will be replaced with question marks unless you save the file as UTF-8.",
@@ -143,14 +143,14 @@
     },
     "err": {
       "openTitle": "Couldn't open the file",
-      "open": "Notepad couldn't open {name}.",
-      "notFound": "Notepad can't find the file {path}. Check the file name and try again.",
+      "open": "Text Editor couldn't open {name}.",
+      "notFound": "Text Editor can't find the file {path}. Check the file name and try again.",
       "isDir": "{name} is a folder, not a text file.",
-      "notFile": "{name} isn't a regular file (it may be a device or a pipe), so Notepad can't open it.",
+      "notFile": "{name} isn't a regular file (it may be a device or a pipe), so Text Editor can't open it.",
       "badPath": "“{path}” isn't a valid file path.",
-      "tooBig": "{name} is too large to open in Notepad ({size}). The maximum file size is {max}.",
+      "tooBig": "{name} is too large to open in Text Editor ({size}). The maximum file size is {max}.",
       "saveTitle": "Couldn't save the file",
-      "save": "Notepad couldn't save {name}."
+      "save": "Text Editor couldn't save {name}."
     },
     "recent": {
       "missing": "{name} no longer exists. Do you want to remove it from the list of recent files?",
@@ -179,19 +179,19 @@
       "statusDesc": "Show the position, character count, zoom, line ending and encoding",
       "eol": "Line ending for new documents",
       "eolDesc": "Existing files keep the line ending they were opened with",
-      "opening": "Opening Notepad",
+      "opening": "Opening Text Editor",
       "openFiles": "Opening files",
       "openFilesDesc": "Choose where files open from other apps",
       "openTab": "Open in a new tab",
       "openWindow": "Open in a new window",
-      "startup": "When Notepad starts",
+      "startup": "When Text Editor starts",
       "startupRestore": "Continue previous session",
-      "startupRestoreDesc": "Reopen your tabs, including unsaved changes, without asking to save when you close Notepad",
+      "startupRestoreDesc": "Reopen your tabs, including unsaved changes, without asking to save when you close Text Editor",
       "startupNew": "Start a new session",
-      "startupNewDesc": "Ask to save unsaved changes when you close Notepad",
+      "startupNewDesc": "Ask to save unsaved changes when you close Text Editor",
       "about": "About this app",
       "version": "Version {v}",
-      "legal": "Notepad for Selene OS. Free software released under the MIT license."
+      "legal": "Text Editor for Selene OS. Free software released under the MIT license."
     }
   },
   "fr": {
@@ -327,7 +327,7 @@
       "saveMany": "Voulez-vous enregistrer les modifications apportées aux fichiers suivants ?",
       "dontSave": "Ne pas enregistrer",
       "bigTitle": "Fichier volumineux",
-      "big": "{name} fait {size}. Son ouverture peut prendre du temps et le Bloc-notes risque de ralentir. L'ouvrir quand même ?",
+      "big": "{name} fait {size}. Son ouverture peut prendre du temps et l'Éditeur de texte risque de ralentir. L'ouvrir quand même ?",
       "openAnyway": "Ouvrir quand même",
       "lossyTitle": "Caractères non pris en charge",
       "lossy": "Ce texte contient des caractères (comme « {ch} ») qui ne peuvent pas être enregistrés en {enc}. Ils seront remplacés par des points d'interrogation, sauf si vous enregistrez le fichier en UTF-8.",
@@ -338,14 +338,14 @@
     },
     "err": {
       "openTitle": "Impossible d'ouvrir le fichier",
-      "open": "Le Bloc-notes n'a pas pu ouvrir {name}.",
-      "notFound": "Le Bloc-notes ne trouve pas le fichier {path}. Vérifiez le nom du fichier et réessayez.",
+      "open": "L'Éditeur de texte n'a pas pu ouvrir {name}.",
+      "notFound": "L'Éditeur de texte ne trouve pas le fichier {path}. Vérifiez le nom du fichier et réessayez.",
       "isDir": "{name} est un dossier, pas un fichier texte.",
-      "notFile": "{name} n'est pas un fichier ordinaire (il peut s'agir d'un périphérique ou d'un tube) : le Bloc-notes ne peut pas l'ouvrir.",
+      "notFile": "{name} n'est pas un fichier ordinaire (il peut s'agir d'un périphérique ou d'un tube) : l'Éditeur de texte ne peut pas l'ouvrir.",
       "badPath": "« {path} » n'est pas un chemin de fichier valide.",
-      "tooBig": "{name} est trop volumineux pour le Bloc-notes ({size}). La taille maximale est de {max}.",
+      "tooBig": "{name} est trop volumineux pour l'Éditeur de texte ({size}). La taille maximale est de {max}.",
       "saveTitle": "Impossible d'enregistrer le fichier",
-      "save": "Le Bloc-notes n'a pas pu enregistrer {name}."
+      "save": "L'Éditeur de texte n'a pas pu enregistrer {name}."
     },
     "recent": {
       "missing": "{name} n'existe plus. Voulez-vous le retirer de la liste des fichiers récents ?",
@@ -374,19 +374,19 @@
       "statusDesc": "Afficher la position, le nombre de caractères, le zoom, la fin de ligne et l'encodage",
       "eol": "Fin de ligne des nouveaux documents",
       "eolDesc": "Les fichiers existants conservent la fin de ligne avec laquelle ils ont été ouverts",
-      "opening": "Ouverture du Bloc-notes",
+      "opening": "Ouverture de l'Éditeur de texte",
       "openFiles": "Ouverture des fichiers",
       "openFilesDesc": "Choisissez où s'ouvrent les fichiers provenant d'autres applications",
       "openTab": "Ouvrir dans un nouvel onglet",
       "openWindow": "Ouvrir dans une nouvelle fenêtre",
-      "startup": "Au démarrage du Bloc-notes",
+      "startup": "Au démarrage de l'Éditeur de texte",
       "startupRestore": "Reprendre la session précédente",
       "startupRestoreDesc": "Rouvrir vos onglets, y compris les modifications non enregistrées, sans demander d'enregistrer à la fermeture",
       "startupNew": "Démarrer une nouvelle session",
-      "startupNewDesc": "Proposer d'enregistrer les modifications à la fermeture du Bloc-notes",
+      "startupNewDesc": "Proposer d'enregistrer les modifications à la fermeture de l'Éditeur de texte",
       "about": "À propos de cette application",
       "version": "Version {v}",
-      "legal": "Bloc-notes pour Selene OS. Logiciel libre publié sous licence MIT."
+      "legal": "Éditeur de texte pour Selene OS. Logiciel libre publié sous licence MIT."
     }
   }
 }

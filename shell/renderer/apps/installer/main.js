@@ -1,4 +1,5 @@
-// Install Aurora OS — Windows 11 Setup / OOBE style installer (live session only).
+// Install Selene OS: the installer of the live session (Nocturne look: a night side panel with the steps
+// drawn as moon phases, flat pages on the right).
 //
 // Steps: welcome (language) -> keyboard -> disk -> account -> time zone -> summary -> installing -> done | error.
 // The installer has its own UI language (chosen on the first page, switched live); it is also the
@@ -6,7 +7,7 @@
 // /usr/lib/aurora/helpers/aurora-install as root (dry run in dev mode / outside the live session).
 //
 // Test hooks: the root element carries data-step / data-phase; window.__installer exposes the state.
-import { ART } from './art.js';
+import { ART, BRAND } from './art.js';
 
 const STEPS = ['welcome', 'keyboard', 'disk', 'account', 'timezone', 'summary'];
 const STAGES = ['partition', 'format', 'copy', 'configure', 'bootloader', 'cleanup'];
@@ -178,11 +179,18 @@ export default {
     const content = h('div', { class: 'ins-content' });
     const footLeft = h('div', { class: 'ins-foot-left' });
     const footRight = h('div', { class: 'ins-foot-right' });
-    const page = h('section', { class: 'ins-page', 'aria-labelledby': `ins-title-${win.id}` }, kicker, title, subtitle, content);
+    const page = h(
+      'section',
+      { class: 'ins-page', 'aria-labelledby': `ins-title-${win.id}` },
+      h('header', { class: 'ins-head' }, h('div', { class: 'ins-head-text' }, kicker, title, subtitle), art),
+      content,
+    );
+    // The side panel is always a night scene (dark tokens, lunar wallpaper), in light mode too.
+    const brand = h('div', { class: 'ins-brand', html: `${BRAND(30)}<span class="ins-brand-name">Selene OS</span>` });
     const root = h(
       'div',
       { class: 'ins', dataset: { step: STEPS[0], phase: 'setup' } },
-      h('aside', { class: 'ins-side' }, art, stepper),
+      h('aside', { class: 'ins-side', 'data-theme-scope': true, dataset: { theme: 'dark' } }, brand, stepper),
       h('main', { class: 'ins-main' }, page, h('footer', { class: 'ins-foot' }, footLeft, footRight)),
     );
     win.body.appendChild(root);
@@ -239,7 +247,8 @@ export default {
             h(
               'button',
               { class: 'ins-step-btn', disabled: !clickable, tabindex: clickable ? 0 : -1, onclick: () => clickable && go(i) },
-              h('span', { class: 'ins-step-dot' }, state === 'done' ? icon('checkmark', { size: 12 }) : String(i + 1)),
+              // Moon phase: new moon (to do), half moon (current), full moon (done); drawn in CSS.
+              h('span', { class: 'ins-step-dot', 'aria-hidden': 'true' }),
               h('span', { class: 'ins-step-label' }, t(`steps.${s}`)),
             ),
           );

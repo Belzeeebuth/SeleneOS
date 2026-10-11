@@ -31,8 +31,8 @@ const opt = (k, def = true) => {
 };
 
 i18n.extend({
-  en: { snap: { label: 'Snap layouts', assist: 'Snap Assist', chooseWindow: 'Choose a window to snap here' } },
-  fr: { snap: { label: "Dispositions d'ancrage", assist: "Assistance à l'ancrage", chooseWindow: 'Choisissez une fenêtre à ancrer ici' } },
+  en: { snap: { label: 'Layouts', assist: 'Layout assistant', chooseWindow: 'Choose a window for this zone' } },
+  fr: { snap: { label: 'Dispositions', assist: 'Assistant de disposition', chooseWindow: 'Choisissez une fenêtre pour cette zone' } },
 });
 
 export const LAYOUTS = [

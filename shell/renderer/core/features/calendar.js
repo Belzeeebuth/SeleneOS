@@ -84,7 +84,7 @@ function renderNotifs() {
       'data-tip': t('cal.dnd'),
       onclick: () => settings.set('notifications.dnd', !dnd),
     },
-    icon(dnd ? 'alert_snooze' : 'alert', { size: 16, filled: dnd }),
+    icon(dnd ? 'bell-slash' : 'bell', { size: 16, filled: dnd }),
   );
   const head = h(
     'div',
@@ -94,7 +94,7 @@ function renderNotifs() {
     dndBtn,
   );
   const list = h('div', { class: 'nc-list' });
-  if (dnd) list.appendChild(h('div', { class: 'nc-hint caption' }, icon('alert_snooze', { size: 14 }), h('span', null, t('cal.dndOnHint'))));
+  if (dnd) list.appendChild(h('div', { class: 'nc-hint caption' }, icon('bell-slash', { size: 14 }), h('span', null, t('cal.dndOnHint'))));
   if (!groups.length) {
     list.appendChild(h('div', { class: 'nc-empty' }, t('cal.empty')));
   }
@@ -108,12 +108,12 @@ function renderNotifs() {
         h(
           'div',
           { class: 'nc-group-head caption' },
-          g.icon ? h('img', { src: g.icon, alt: '', width: 16, height: 16 }) : icon('alert', { size: 16 }),
+          g.icon ? h('img', { src: g.icon, alt: '', width: 16, height: 16 }) : icon('bell', { size: 16 }),
           h('span', { class: 'grow ellipsis' }, g.appName === 'system' ? t('notif.system') : g.appName),
           h(
             'button',
             { class: 'nc-x', 'aria-label': t('cal.clearApp', { app: g.appName }), 'data-tip': t('cal.clearApp', { app: g.appName }), onclick: () => animateOut([...items.children], () => notifications.clearApp(g.appId)) },
-            icon('dismiss', { size: 12 }),
+            icon('x', { size: 12 }),
           ),
         ),
         items,
@@ -197,7 +197,7 @@ function notifItem(n) {
             animateOut([el], () => notifications.dismiss(n.id));
           },
         },
-        icon('dismiss', { size: 12 }),
+        icon('x', { size: 12 }),
       ),
     ),
     n.body ? h('div', { class: 'nc-body' }, n.body) : null,
@@ -205,11 +205,11 @@ function notifItem(n) {
       ? h(
           'div',
           { class: 'nc-actions' },
-          n.actions.map((a) =>
+          n.actions.map((a, i) =>
             h(
               'button',
               {
-                class: 'btn',
+                class: ['btn', i === 0 && n.actions.length > 1 && 'primary'],
                 onclick: () => {
                   try {
                     a.onClick?.();
@@ -310,7 +310,7 @@ function renderCalendar(slide = 0) {
         'data-tip': collapsed ? t('cal.expand') : t('cal.collapse'),
         onclick: () => toggleCollapsed(),
       },
-      icon(collapsed ? 'chevron_up' : 'chevron_down', { size: 14 }),
+      icon(collapsed ? 'caret-up' : 'caret-down', { size: 16 }),
     ),
   );
   const body = h('div', { class: 'cal-body' });
@@ -319,8 +319,8 @@ function renderCalendar(slide = 0) {
       'div',
       { class: 'cal-nav' },
       h('div', { class: 'cal-month', 'aria-live': 'polite' }, cap(monthLabel)),
-      h('button', { class: 'cal-icon-btn', 'aria-label': t('cal.prevMonth'), 'data-tip': t('cal.prevMonth'), onclick: () => changeMonth(-1) }, icon('arrow_up', { size: 14, filled: true })),
-      h('button', { class: 'cal-icon-btn', 'aria-label': t('cal.nextMonth'), 'data-tip': t('cal.nextMonth'), onclick: () => changeMonth(1) }, icon('arrow_down', { size: 14, filled: true })),
+      h('button', { class: 'cal-icon-btn', 'aria-label': t('cal.prevMonth'), 'data-tip': t('cal.prevMonth'), onclick: () => changeMonth(-1) }, icon('caret-up', { size: 16 })),
+      h('button', { class: 'cal-icon-btn', 'aria-label': t('cal.nextMonth'), 'data-tip': t('cal.nextMonth'), onclick: () => changeMonth(1) }, icon('caret-down', { size: 16 })),
     );
     const wk = h('div', { class: 'cal-weekdays' }, weekdayLabels().map((l) => h('span', null, l)));
     const viewport = h('div', { class: 'cal-viewport' }, monthGrid(viewMonth));

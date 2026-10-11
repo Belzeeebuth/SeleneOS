@@ -11,7 +11,7 @@ _Last updated: 2026-10-11 17:45 UTC — app phases 3 and 4 done (12 apps), renam
 A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 - **Base:** Ubuntu 24.04 (noble), pinned via snapshot.ubuntu.com.
 - **Live session:** casper.
-- **Login and session:** greetd → Electron login screen → Xorg → fullscreen Electron "Selene Shell", which draws the taskbar, Start menu, windows and all apps.
+- **Login and session:** greetd → Electron login screen → Xorg → fullscreen Electron "Selene Shell", which draws the taskbar, the Launcher, windows and all apps.
 - **Languages:** English and French everywhere.
 
 **Decisions taken with the user:**
@@ -135,11 +135,11 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 - Wi-Fi key passed on the `nmcli` command line (briefly visible in /proc to other local users).
 - fs.js: `fs:readText` throws ETOOBIG instead of returning the first bytes; `fs:copy` has no cancel.
 - Alt+F4 while a dialog is open inside a window does nothing (Windows closes the dialog); no per-window Tab containment in wm.
-- To Do reminders have no "Mark as completed" button (shell.reminders has no app buttons yet).
+- Tasks reminders have no "Mark as completed" button (shell.reminders has no app buttons yet).
 - Cursor packs don't apply inside web pages; Busy/Working cursors are static.
 - Some tests are timing-sensitive on a loaded 4-CPU machine; `make test-all --retry` separates those from real failures.
 - ISO not bit-for-bit reproducible (grub-mkrescue date + volume UUID).
-- Linux GUI apps (first version, docs/XWINDOWS.md): no live thumbnails of X windows in Alt+Tab / Task view (app icon
+- Linux GUI apps (first version, docs/XWINDOWS.md): no live thumbnails of X windows in Alt+Tab / Overview (app icon
   instead); no hole while a frame animates; max-size hints not enforced; modal X dialogs don't block their parent;
   no Alt+drag move; Firefox/Chromium/Thunderbird are snaps on noble (not offered; Mozilla's APT repo would be needed).
   Store installs use --no-install-recommends (LibreOffice without libreoffice-gtk3 uses its plain X11 look).
@@ -155,7 +155,7 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
    key events: likely host/QEMU keyboard side; asked the user whether Space works and whether arrows work elsewhere).
 3. App **Phase 2** when the user asks: same mode as phases 3–4 (one workflow per app, all 6 in parallel, builder +
    8-min checker, lean tests, max 2 screenshots), ~45 min.
-4. Known follow-ups (small): Sticky Notes does not tell the user when it restored notes from a backup; Cloud real
+4. Known follow-ups (small): Memos does not tell the user when it restored notes from a backup; Cloud real
    client ignores back-pressure and shows 100 % for chunked downloads; Remote Desktop scaled canvas is blurry
    (image-rendering); Translator MyMemory limit is bytes not characters; weather:current still makes a real request
    in dev (wallpapers test expects it).
@@ -163,15 +163,15 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 ## Personalization request (verbatim, user request #2)
 
 - Theme designer: custom accent color, wallpaper, lock screen, taskbar color, window transparency and blur intensity.
-- Multiple visual styles: Windows 11-like, minimal, glassmorphism, retro, high contrast.
+- Visual styles: Nocturne (default), Éclipse, Clair de lune, high contrast.
 - Animated wallpapers and dynamic wallpapers that change with time of day or weather.
-- Customizable taskbar: size, position, icons, widgets, transparency, auto-hide.
-- Custom Start menu: layout, pinned apps, folders, recommended files, background style.
+- Customizable taskbar: size, position, icons, indicators, transparency, auto-hide.
+- Custom Launcher: layout, pinned apps, folders, recommended files, background style.
 - Cursor packs, icon packs, sound packs, notification sounds, and startup/shutdown sounds.
 - Font and text size controls, rounded-corner intensity, UI scale, and reduced-motion mode.
 - Per-app themes: light, dark, system, or custom accent.
-- Snap layout presets and customizable keyboard shortcuts.
-- Optional "Focus mode": hides notifications, dims desktop, and simplifies the taskbar.
+- Layout presets and customizable keyboard shortcuts.
+- Optional "Focus": hides notifications, dims desktop, and simplifies the taskbar.
 - Profile system: save and switch between complete UI themes with one click.
 
 ## History (short)

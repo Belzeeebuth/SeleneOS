@@ -1,7 +1,415 @@
-/* Taskbar + Start personalization, part 2 (docs/PERSONALIZATION.md §10) — owned by area B2, loaded by core/taskbar.js
-   after core/shell.css and core/shell-personalize.css (same specificity → these rules win).
+/* The Selene bar and Lanceur (docs/design/SYSTEM.md §3), plus taskbar + Start personalization part 2
+   (docs/PERSONALIZATION.md §10). Loaded by core/taskbar.js after core/shell.css and core/shell-personalize.css
+   (same specificity → these rules win).
+   Bar: one shape per --bar-mode (islands | full | pills), read with container style queries; the Lanceur and its
+   search on the left, the apps centred, status + clock + notifications on the right. No [data-style] selectors
+   but High contrast's (the styles only set the hooks).
    Taskbar: notification badges, widgets button at the end of the bar, vertical flyout anchoring.
-   Start: background styles (glass), app folders (drag-to-create, popup, rename, drag out), recommended apps. */
+   Lanceur: surface, search, tiles, recommended files, footer; background styles (glass), app folders. */
+
+/* ================================================================== the bar */
+#taskbar {
+  /* the parts float inside the reserved band (--taskbar-h) in the floating modes; 0 when docked */
+  --tb-mx: 0px; /* side margin */
+  --tb-it: 0px; /* gap on the screen-inner edge */
+  --tb-ib: 0px; /* gap on the screen edge */
+  --tb-part-gap: 0px;
+  --tb-pad: 4px; /* padding inside a part */
+  --tb-btn-h: calc(var(--taskbar-h) - 8px - var(--tb-it) - var(--tb-ib));
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--taskbar-bg); /* the bar colour + opacity settings (--taskbar-rgb, --a-tb) */
+  border-top: var(--bar-border-w) solid var(--glass-line);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+#taskbar .tb-btn {
+  height: var(--tb-btn-h);
+  min-width: var(--tb-btn-h);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+#taskbar .tb-btn:hover,
+#taskbar .tb-btn.open {
+  background: var(--subtle-hover);
+  border-color: transparent;
+}
+#taskbar .tb-btn:active,
+#taskbar .tb-btn.pressed {
+  background: var(--subtle-pressed);
+}
+#taskbar .tb-btn:focus-visible,
+.tb-ovf-item:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+#taskbar .tb-btn:hover > img {
+  transform: none;
+}
+/* the three parts: Lanceur + search | apps | status + clock */
+#taskbar > .tb-left,
+#taskbar > .tb-center,
+#taskbar > .tb-tray {
+  position: absolute;
+  top: var(--tb-it);
+  bottom: var(--tb-ib);
+  height: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 var(--tb-pad);
+  margin: 0;
+}
+#taskbar > .tb-left {
+  left: var(--tb-mx);
+}
+#taskbar > .tb-center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+#taskbar.left > .tb-center {
+  left: calc(var(--tb-mx) + var(--tb-left-w, 120px) + var(--tb-part-gap) + 4px);
+  transform: none;
+}
+#taskbar > .tb-tray {
+  right: var(--tb-mx);
+  gap: 2px;
+}
+#taskbar > .tb-center:not(:has(.tb-btn:not([hidden]))) {
+  visibility: hidden;
+}
+/* the Lanceur button: the crescent in currentColor */
+#taskbar .tb-start .tb-logo {
+  width: 22px;
+  height: 22px;
+  color: var(--text);
+  transition: transform var(--dur) var(--ease);
+}
+#taskbar .tb-start.open {
+  background: var(--accent-subtle);
+}
+#taskbar .tb-start.open .tb-logo {
+  color: var(--accent-text);
+}
+#taskbar .tb-start:active .tb-logo {
+  transform: scale(0.9);
+}
+#taskbar .tb-search > .icon,
+#taskbar .tb-taskview > .icon,
+#taskbar .tb-widgets > .icon {
+  color: var(--text);
+}
+#taskbar .tb-searchbox {
+  height: calc(var(--tb-btn-h) - 4px);
+  min-width: 168px;
+  margin: 0 2px;
+  padding: 0 14px 0 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: calc(var(--tb-btn-h) / 2);
+  background: var(--glass-fill);
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+#taskbar .tb-searchbox:hover {
+  background: var(--subtle-hover);
+}
+#taskbar .tb-searchbox > .icon {
+  color: var(--text-2);
+}
+/* app buttons: active = accent-tinted tile + accent marker; running = a small marker (dot or top line) */
+#taskbar .tb-apps {
+  gap: 4px;
+}
+#taskbar .tb-app.active {
+  background: var(--accent-subtle);
+  border-color: transparent;
+}
+#taskbar .tb-app.active:hover {
+  background: color-mix(in srgb, var(--accent-subtle), var(--subtle-hover));
+}
+#taskbar .tb-btn > img {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+#taskbar .tb-ind,
+.tb-ovf-item .tb-ind {
+  bottom: 2px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: var(--text-3);
+  transform: scale(0);
+  transition: transform var(--dur) var(--ease), opacity var(--dur-fast) linear, background var(--dur-fast) linear;
+}
+#taskbar .tb-app.running .tb-ind,
+#taskbar .tb-overflow.running .tb-ind,
+.tb-ovf-item.running .tb-ind {
+  transform: none;
+}
+#taskbar .tb-app.active .tb-ind,
+.tb-ovf-item.active .tb-ind {
+  width: 4px;
+  margin-left: -2px;
+  background: var(--accent);
+}
+#taskbar .tb-app.flashing {
+  background: var(--warning-bg, color-mix(in srgb, var(--warning) 22%, transparent));
+  animation: none;
+}
+#taskbar .tb-app.flashing .tb-ind {
+  background: var(--warning);
+}
+#taskbar .tb-progress {
+  left: 8px;
+  right: 8px;
+  bottom: 2px;
+  height: 3px;
+  background: linear-gradient(to right, var(--accent) var(--p, 0%), var(--line) var(--p, 0%));
+}
+.tb-ovf-item:hover,
+.tb-ovf-item:focus-visible {
+  background: var(--subtle-hover);
+  border-color: transparent;
+}
+.tb-ovf-item.active {
+  background: var(--accent-subtle);
+}
+.tb-ovf {
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-flyout);
+}
+/* tray: status glyphs, battery %, date + time, notifications */
+#taskbar .tb-quick {
+  gap: 10px;
+  padding: 0 10px;
+}
+#taskbar .tb-quick .icon {
+  color: var(--text);
+}
+#taskbar .tb-bat {
+  align-items: center;
+  gap: 4px;
+}
+#taskbar .tb-bat-pct {
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+}
+#taskbar .tb-bat .tb-bat-low {
+  color: var(--danger);
+}
+#taskbar .tb-clock {
+  gap: 12px;
+  padding: 0 10px 0 12px;
+}
+#taskbar .tb-clock-text {
+  flex-direction: row-reverse;
+  align-items: baseline;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+#taskbar .tb-time {
+  font: 600 var(--fs-body) / 1.2 var(--font-display);
+  color: var(--text);
+}
+#taskbar .tb-date {
+  font-size: var(--fs-small);
+  line-height: 1.2;
+  color: var(--text-2);
+}
+#taskbar .tb-bell {
+  position: relative;
+  padding-left: 12px;
+  border-left: 1px solid var(--line-soft);
+  height: 20px;
+}
+#taskbar .tb-bell .icon {
+  color: var(--text);
+}
+#taskbar .tb-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: 600 var(--fs-caption) / 20px var(--font);
+}
+#taskbar .tb-showdesk {
+  width: 8px;
+}
+#taskbar .tb-showdesk::before {
+  background: var(--line);
+}
+/* Éclipse (top-line): the running marker is a short line on the bar's inner edge, the active one a wide accent line */
+@container style(--bar-indicator: top-line) {
+  #taskbar .tb-ind,
+  .tb-ovf-item .tb-ind {
+    top: calc(-4px - var(--tb-it));
+    bottom: auto;
+    width: 12px;
+    height: 2px;
+    margin-left: -6px;
+    border-radius: 0 0 2px 2px;
+    transform: scaleX(0);
+  }
+  #taskbar .tb-app.active .tb-ind,
+  .tb-ovf-item.active .tb-ind {
+    width: 100%;
+    left: 0;
+    margin-left: 0;
+  }
+  #taskbar .tb-app.active,
+  #taskbar .tb-start.open {
+    border-radius: var(--radius-sm);
+  }
+}
+
+/* ---- floating modes (islands, pills), horizontal bar: the parts float with a margin, rounded, on glass */
+@container style(--bar-mode: islands) {
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar {
+    --tb-mx: var(--bar-margin);
+    --tb-it: 1px;
+    --tb-ib: 5px;
+    --tb-part-gap: var(--bar-gap);
+    --tb-pad: 4px;
+    background: transparent;
+    border: 0;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar::before,
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar > .tb-tray {
+    background: var(--taskbar-bg);
+    border: var(--bar-border);
+    border-radius: var(--bar-radius);
+    box-shadow: var(--bar-shadow);
+    backdrop-filter: blur(calc(var(--blur) * var(--bar-blur))) saturate(var(--blur-sat));
+  }
+  /* the first island spans from the left margin to the status island; the apps stay centred on the screen */
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar::before {
+    content: "";
+    position: absolute;
+    left: var(--tb-mx);
+    right: calc(var(--tb-mx) + var(--tb-tray-w, 280px) + var(--bar-gap));
+    top: var(--tb-it);
+    bottom: var(--tb-ib);
+    pointer-events: none;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-start {
+    margin-right: 2px;
+  }
+}
+@container style(--bar-mode: pills) {
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar {
+    --tb-mx: var(--bar-margin);
+    --tb-it: 1px;
+    --tb-ib: 5px;
+    --tb-part-gap: var(--bar-gap);
+    --tb-pad: 4px;
+    background: transparent;
+    border: 0;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar > .tb-part {
+    background: var(--taskbar-bg);
+    border: var(--bar-border);
+    border-radius: var(--bar-radius);
+    box-shadow: var(--bar-shadow);
+    backdrop-filter: blur(calc(var(--blur) * var(--bar-blur))) saturate(var(--blur-sat));
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-btn,
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-searchbox {
+    border-radius: calc(var(--tb-btn-h) / 2);
+  }
+}
+/* a top bar: the floating parts hang from the top edge */
+:root[data-tb-pos="top"] #taskbar {
+  --tb-swap: 1;
+}
+@container style(--bar-mode: islands) {
+  :root[data-tb-pos="top"] #taskbar {
+    --tb-it: 5px;
+    --tb-ib: 1px;
+  }
+}
+@container style(--bar-mode: pills) {
+  :root[data-tb-pos="top"] #taskbar {
+    --tb-it: 5px;
+    --tb-ib: 1px;
+  }
+}
+/* docked (full) and vertical bars: one opaque band (blur only when --bar-blur is 1) */
+:root[data-tb-pos="left"] #taskbar,
+:root[data-tb-pos="right"] #taskbar {
+  --tb-btn-h: 40px; /* buttons keep the size's height (32 / 40 / 48); the bar's thickness is its width */
+  border-top: 0;
+}
+:root[data-tb-pos="left"][data-tb-size="small"] #taskbar,
+:root[data-tb-pos="right"][data-tb-size="small"] #taskbar {
+  --tb-btn-h: 32px;
+}
+:root[data-tb-pos="left"][data-tb-size="large"] #taskbar,
+:root[data-tb-pos="right"][data-tb-size="large"] #taskbar {
+  --tb-btn-h: 48px;
+}
+:root[data-tb-pos="left"] #taskbar > .tb-left,
+:root[data-tb-pos="right"] #taskbar > .tb-left {
+  display: flex;
+  position: static;
+  flex-direction: column;
+  padding: 6px 0 0;
+  width: 100%;
+}
+:root[data-tb-pos="left"] #taskbar > .tb-center,
+:root[data-tb-pos="right"] #taskbar > .tb-center {
+  position: static;
+  transform: none;
+  padding: 4px 0 0;
+}
+:root[data-tb-pos="left"] #taskbar > .tb-tray,
+:root[data-tb-pos="right"] #taskbar > .tb-tray {
+  position: static;
+}
+:root[data-tb-pos="left"] #taskbar .tb-bell,
+:root[data-tb-pos="right"] #taskbar .tb-bell {
+  border-left: 0;
+  padding-left: 0;
+}
+:root[data-tb-pos="left"] #taskbar .tb-clock-text,
+:root[data-tb-pos="right"] #taskbar .tb-clock-text {
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+:root[data-tb-pos="left"] #taskbar .tb-time,
+:root[data-tb-pos="right"] #taskbar .tb-time {
+  font-size: inherit;
+}
+:root[data-tb-pos="left"] #taskbar .tb-bat-pct,
+:root[data-tb-pos="right"] #taskbar .tb-bat-pct {
+  display: none;
+}
+:root[data-tb-pos="left"] #taskbar .tb-ind,
+:root[data-tb-pos="right"] #taskbar .tb-ind {
+  top: auto;
+  bottom: 2px;
+}
+/* the Lanceur and the search open on the left, above the Lanceur button, whatever the alignment */
+:root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #start,
+:root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #search-panel {
+  left: var(--bar-margin, 12px);
+  margin-left: 0;
+}
+@container style(--bar-mode: full) {
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #start,
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #search-panel {
+    left: 8px;
+  }
+}
 
 /* ------------------------------------------------------------------ taskbar: notification badges (taskbar.badges) */
 #taskbar .tb-badge {
@@ -13,13 +421,13 @@
   padding: 0 4px;
   border-radius: 8px;
   background: var(--accent);
-  color: var(--on-accent, #fff);
+  color: var(--on-accent);
   font-size: 10px;
   font-weight: 600;
   line-height: 16px;
   text-align: center;
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 0 0 1.5px var(--taskbar-solid, #eee);
+  box-shadow: 0 0 0 1.5px rgb(var(--bar-rgb));
   pointer-events: none;
   z-index: 1;
 }
@@ -44,9 +452,6 @@
 :root[data-style="contrast"] #taskbar .tb-badge {
   background: var(--hc-hi, #ffff00);
   color: var(--hc-on-hi, #000);
-}
-:root[data-style="retro"] #taskbar .tb-badge {
-  border-radius: 0;
 }
 
 /* ------------------------------------------------------------------ taskbar: widgets button at the end (before the tray) */
@@ -142,21 +547,10 @@
 
 /* ------------------------------------------------------------------ Start background: transparent glass (start.background) */
 #start[data-bg="glass"] {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.16));
-  border-color: rgba(255, 255, 255, 0.55);
-  box-shadow: var(--fly-shadow, var(--shadow-flyout)), inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(var(--blur-lg, 60px)) saturate(185%);
-}
-:root[data-theme="dark"] #start[data-bg="glass"] {
-  background: linear-gradient(160deg, rgba(40, 40, 48, 0.42), rgba(20, 20, 26, 0.26));
-  border-color: rgba(255, 255, 255, 0.16);
-  box-shadow: var(--fly-shadow, var(--shadow-flyout)), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-}
-#start[data-bg="glass"] .start-footer {
-  background: rgba(255, 255, 255, 0.12);
-}
-:root[data-theme="dark"] #start[data-bg="glass"] .start-footer {
-  background: rgba(0, 0, 0, 0.16);
+  background: var(--glass) var(--panel-grain, none);
+  border-color: var(--glass-line);
+  box-shadow: var(--shadow-flyout);
+  backdrop-filter: blur(var(--blur-lg)) saturate(var(--blur-sat));
 }
 /* Transparency off and the opaque styles: glass falls back to the theme's surface. High contrast keeps its palette
    whatever the background style. */
@@ -291,11 +685,6 @@
 .start-folder-layer.leaving {
   pointer-events: none;
 }
-:root[data-style="retro"] .start-folder {
-  border-radius: 0;
-  border: 0;
-  box-shadow: var(--bevel-out), var(--fly-shadow);
-}
 :root[data-style="contrast"] .start-folder {
   border: 2px solid var(--hc-fg);
   background: var(--hc-bg);
@@ -330,4 +719,228 @@
 }
 .start-tile-label {
   padding: 0;
+}
+
+/* ================================================================== the Lanceur (ex-Start): glass surface, Manrope
+   section titles, rounded tiles, accent focus. Blur only when transparency is on (the glass stays 80–92 % opaque). */
+#start {
+  width: 660px;
+  max-width: calc(100vw - 24px);
+  color: var(--text);
+  background: var(--glass) var(--panel-grain, none);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-flyout);
+  backdrop-filter: blur(var(--blur)) saturate(var(--blur-sat));
+  font-family: var(--font);
+}
+:root[data-transparency="off"] #start {
+  backdrop-filter: none;
+}
+#start .start-top {
+  padding: 20px 20px 0;
+}
+#start .start-search-box > .icon {
+  left: 18px;
+  color: var(--text-2);
+}
+#start .start-search {
+  height: 44px;
+  padding: 0 16px 0 46px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--input-bg);
+  color: var(--text);
+  font: var(--fs-body) / 1.3 var(--font);
+}
+#start .start-search:hover {
+  background: var(--input-bg);
+  border-color: var(--text-3);
+}
+#start .start-search:focus {
+  border: 1px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+#start .start-search::placeholder {
+  color: var(--text-3);
+}
+#start .start-view {
+  padding: 0 20px 12px;
+}
+#start .start-section-head {
+  height: 32px;
+  margin: 16px 0 8px;
+  padding: 0 0 0 8px;
+}
+#start .start-section-title {
+  font: 600 var(--fs-body-large) / 1.2 var(--font-display);
+  color: var(--text);
+}
+#start .start-head-btn {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--glass-fill);
+  color: var(--text);
+  font-size: var(--fs-small);
+}
+#start .start-head-btn:hover {
+  background: var(--subtle-hover);
+}
+#start .start-grid {
+  grid-auto-rows: 92px;
+  padding: 0;
+  gap: 2px 4px;
+}
+#start .start-tile {
+  gap: 8px;
+  padding: 8px 2px 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  font-size: var(--fs-small);
+  line-height: 1.25;
+  color: var(--text);
+}
+#start .start-tile img {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+#start .start-tile:hover,
+#start .start-row:hover,
+#start .start-rec:hover,
+#start .start-letter:hover,
+#start .start-jump-l:hover:not(:disabled),
+#start .start-user:hover,
+#start .start-power:hover {
+  background: var(--subtle-hover);
+  border-color: transparent;
+}
+#start .start-tile:focus-visible,
+#start .start-row:focus-visible,
+#start .start-rec:focus-visible,
+#start .start-letter:focus-visible,
+#start .start-jump-l:focus-visible,
+#start .start-user:focus-visible,
+#start .start-power:focus-visible,
+#start .start-head-btn:focus-visible,
+#start .start-dot:focus-visible {
+  background: var(--accent-subtle);
+  border-color: transparent;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+#start .start-group-icons {
+  border-radius: 10px;
+  background: var(--glass-fill);
+  border-color: var(--line-soft);
+}
+#start .start-recs {
+  gap: 2px 8px;
+  padding: 0;
+}
+#start .start-rec {
+  gap: 12px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  font-size: var(--fs-body);
+}
+#start .start-rec-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: var(--radius);
+  background: var(--glass-fill);
+  color: var(--text-2);
+}
+#start .start-rec-icon .icon {
+  width: 20px;
+  height: 20px;
+}
+#start .start-rec-thumb,
+#start .start-rec-appicon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+}
+#start .start-rec-text .caption {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+}
+#start .start-all {
+  padding: 0 4px 16px 0;
+}
+#start .start-row {
+  border: 0;
+  border-radius: var(--radius);
+  height: 44px;
+  min-height: 44px;
+}
+#start .start-row img {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+#start .start-letter {
+  border: 0;
+  font-family: var(--font-display);
+  color: var(--accent-text);
+}
+#start .start-jump {
+  border-radius: var(--radius-float);
+  background: var(--glass-strong);
+}
+#start .start-jump-l {
+  border: 0;
+  font-family: var(--font-display);
+}
+#start .start-dot {
+  background: var(--text-3);
+}
+#start .start-dot.on {
+  background: var(--accent);
+}
+#start .start-footer {
+  height: 64px;
+  padding: 0 20px;
+  border-top: 1px solid var(--glass-line);
+  background: transparent;
+}
+#start .start-user {
+  height: 44px;
+  margin-left: -4px;
+  padding: 0 14px 0 6px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  font: 500 var(--fs-body) / 1.2 var(--font-display);
+}
+#start .avatar {
+  width: 34px;
+  height: 34px;
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--line);
+  font: 600 var(--fs-small) / 1 var(--font-display);
+}
+#start .start-power {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  color: var(--text);
+}
+#start .start-new-pill {
+  border-radius: var(--radius-sm);
+}
+/* (High contrast keeps its own Lanceur rules in styles/contrast.css) */
+
+/* ------------------------------------------------------------------ bar: leftovers of the old look, tokenised */
+#taskbar .tb-overflow.flashing {
+  background: var(--warning-bg, color-mix(in srgb, var(--warning) 22%, transparent));
 }

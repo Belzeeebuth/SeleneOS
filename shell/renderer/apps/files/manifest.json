@@ -1,6 +1,6 @@
 {
   "id": "files",
-  "name": { "en": "File Explorer", "fr": "Explorateur de fichiers" },
+  "name": { "en": "Files", "fr": "Fichiers" },
   "description": { "en": "Browse, organize and manage your files and folders", "fr": "Parcourez, organisez et gérez vos fichiers et dossiers" },
   "icon": "icon.svg",
   "entry": "main.js",

@@ -86,11 +86,6 @@
   border: 2px solid var(--hc-fg);
   background: var(--hc-bg);
 }
-:root[data-style="retro"] .focus-banner {
-  border-radius: 0;
-  border: 0;
-  box-shadow: var(--bevel-out), var(--fly-shadow, none);
-}
 
 /* the tray chip: accent text, a subtle accent fill so it reads as "on" */
 #taskbar .tb-focus-pill {

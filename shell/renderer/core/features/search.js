@@ -69,7 +69,7 @@ function render() {
     sv.setQuery(q);
     input.focus();
   };
-  root.replaceChildren(h('div', { class: 'sp-top' }, h('div', { class: 'sp-box' }, icon('search', { size: 18 }), input, clearBtn)), h('div', { class: 'sp-body' }, sv.el));
+  root.replaceChildren(h('div', { class: 'sp-top' }, h('div', { class: 'sp-box' }, icon('magnifying-glass', { size: 18 }), input, clearBtn)), h('div', { class: 'sp-body' }, sv.el));
   sv.setQuery('');
 }
 

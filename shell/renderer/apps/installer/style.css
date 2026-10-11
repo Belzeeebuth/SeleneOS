@@ -1,52 +1,48 @@
-/* Install Aurora OS — Windows 11 Setup / OOBE look. Everything is scoped under .app-installer. */
+/* Install Selene OS: Nocturne look (docs/design/SYSTEM.md). A night side panel (lunar wallpaper, steps drawn as
+   moon phases) and flat pages on the right. Tokens only: colours follow the ambiance, accent and mode.
+   Everything is scoped under .app-installer. */
 .app-installer {
-  --ins-surface: #ffffff;
-  --ins-key: #dde3ec;
-  --ins-line: #c9d3e3;
-  --ins-ring: color-mix(in srgb, var(--accent) 45%, transparent);
-  --ins-danger: #c42b1c;
-  --ins-side: color-mix(in srgb, var(--accent) 7%, var(--layer));
-}
-:root[data-theme="dark"] .app-installer {
-  --ins-surface: #313744;
-  --ins-key: #4a5262;
-  --ins-line: #505a6c;
-  --ins-danger: #ff99a4;
-  --ins-side: color-mix(in srgb, var(--accent) 9%, rgba(0, 0, 0, 0.12));
+  --ins-danger: var(--danger);
 }
 
 .app-installer .ins {
   display: grid;
-  grid-template-columns: 296px minmax(0, 1fr);
+  grid-template-columns: 256px minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   color: var(--text);
+  background: var(--bg);
 }
 
-/* ---------------------------------------------------------------- left column: art + steps */
+/* ---------------------------------------------------------------- side panel: night scene, brand, phases */
 .app-installer .ins-side {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 28px 22px 22px;
-  background:
-    radial-gradient(120% 70% at 0% 0%, color-mix(in srgb, #18b6e8 16%, transparent), transparent 70%),
-    radial-gradient(90% 60% at 100% 100%, color-mix(in srgb, #2b6cf6 12%, transparent), transparent 70%),
-    var(--ins-side);
-  border-right: 1px solid var(--stroke);
+  gap: var(--sp-6);
+  padding: 22px 14px 18px;
   min-height: 0;
+  color: var(--text);
+  /* The moon of the Nocturne wallpaper sits in the upper middle; the shade keeps the steps readable. */
+  background:
+    linear-gradient(to bottom, rgb(var(--shadow-rgb) / 0.35) 0%, rgb(var(--shadow-rgb) / 0) 22%, rgb(var(--shadow-rgb) / 0) 42%, rgb(var(--shadow-rgb) / 0.7) 62%, rgb(var(--shadow-rgb) / 0.85) 100%),
+    url('../../assets/wallpapers/nocturne-dark.jpg') 71% 0 / auto 100% no-repeat,
+    var(--bg-alt);
 }
-.app-installer .ins-art {
-  width: 220px;
-  height: 220px;
-  align-self: center;
+.app-installer .ins-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+}
+.app-installer .ins-brand-logo {
   flex: none;
-}
-.app-installer .ins-art svg {
-  width: 100%;
-  height: 100%;
   display: block;
-  overflow: visible;
+}
+.app-installer .ins-brand-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-body-large);
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 .app-installer .ins-steps {
   list-style: none;
@@ -59,19 +55,25 @@
 .app-installer .ins-step-btn {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 5px 8px;
+  min-height: 34px;
+  padding: 6px 10px;
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
   color: var(--text-2);
   font: inherit;
   text-align: left;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .app-installer .ins-step-btn:not(:disabled):hover {
   background: var(--subtle-hover);
   color: var(--text);
+}
+.app-installer .ins-step-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .app-installer .ins-step-btn:disabled {
   cursor: default;
@@ -80,28 +82,28 @@
   color: var(--text);
   font-weight: 600;
   background: var(--subtle-selected);
+  /* Éclipse marks a selection with a bar on the left edge (--sel-bar-w is 0 in the other styles). */
+  box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
 }
+.app-installer .ins-step.done .ins-step-btn {
+  color: var(--text);
+}
+/* Moon phases: new moon (to do), first quarter (current), full moon (done). */
 .app-installer .ins-step-dot {
-  width: 22px;
-  height: 22px;
+  width: 14px;
+  height: 14px;
   flex: none;
   border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  font-weight: 600;
-  border: 1px solid var(--control-strong);
-  color: var(--text-2);
+  border: 1.5px solid var(--text-3);
+  background: transparent;
 }
 .app-installer .ins-step.current .ins-step-dot {
-  background: var(--accent);
-  border-color: transparent;
-  color: var(--on-accent);
+  border-color: var(--text);
+  background: linear-gradient(90deg, transparent 50%, var(--text) 50%);
 }
 .app-installer .ins-step.done .ins-step-dot {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-color: transparent;
-  color: var(--accent);
+  border-color: var(--text);
+  background: var(--text);
 }
 
 /* ---------------------------------------------------------------- right column */
@@ -110,41 +112,65 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  background: var(--bg);
 }
 .app-installer .ins-page {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 32px 40px 0;
+  padding: 28px 36px 0;
 }
 .app-installer .ins-page.enter {
-  animation: ins-enter var(--dur-slower) var(--ease) both;
+  animation: ins-enter var(--dur-slow) var(--ease) both;
 }
 @keyframes ins-enter {
   from {
     opacity: 0;
-    transform: translateX(18px);
+    transform: translateY(6px);
   }
 }
+.app-installer .ins-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.app-installer .ins-head-text {
+  flex: 1;
+  min-width: 0;
+}
+.app-installer .ins-art {
+  width: 92px;
+  height: 92px;
+  flex: none;
+  margin: -8px -6px 0 0;
+}
+.app-installer .ins-art svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
 .app-installer .ins-kicker {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
   color: var(--text-2);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
 }
 .app-installer .ins-title {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   font-family: var(--font-display);
   font-size: var(--fs-title);
-  line-height: 36px;
-  font-weight: 600;
+  line-height: 1.25;
+  font-weight: 700;
   letter-spacing: -0.01em;
 }
 .app-installer .ins-sub {
-  margin: 0 0 20px;
-  max-width: 580px;
+  margin: 0;
+  max-width: 540px;
   color: var(--text-2);
-  line-height: 20px;
+  line-height: 1.5;
 }
 .app-installer .ins-content {
   flex: 1;
@@ -162,9 +188,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 40px 18px;
-  border-top: 1px solid var(--stroke);
-  background: color-mix(in srgb, var(--layer) 60%, transparent);
+  padding: 12px 36px 14px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-alt);
 }
 .app-installer .ins-foot-left,
 .app-installer .ins-foot-right {
@@ -173,7 +199,7 @@
   gap: 8px;
 }
 .app-installer .ins-foot-right .btn {
-  min-width: 120px;
+  min-width: 112px;
 }
 .app-installer .ins-badge {
   white-space: nowrap;
@@ -182,16 +208,16 @@
   gap: 6px;
   padding: 3px 10px 4px;
   border-radius: 999px;
-  border: 1px solid var(--stroke-card);
+  border: 1px solid var(--line-soft);
   background: var(--warning-bg);
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
   color: var(--text);
 }
 .app-installer .ins-badge .icon {
   color: var(--warning);
 }
 
-/* ---------------------------------------------------------------- welcome: language cards */
+/* ---------------------------------------------------------------- welcome: language choice */
 .app-installer .ins-langs {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -202,22 +228,26 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 18px 16px;
+  padding: 16px;
   border-radius: var(--radius);
-  border: 1px solid var(--stroke-card);
-  background: var(--card);
+  border: 1px solid var(--line-soft);
+  background: var(--surface-raised);
   color: var(--text);
   font: inherit;
   text-align: left;
-  transition: background var(--dur-fast) linear, border-color var(--dur-fast) linear;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 .app-installer .ins-option:hover {
-  background: var(--card-hover);
+  background: linear-gradient(var(--subtle-hover), var(--subtle-hover)), var(--surface-raised);
 }
 .app-installer .ins-option.selected {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
-  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+  background: linear-gradient(var(--accent-subtle), var(--accent-subtle)), var(--surface-raised);
+}
+.app-installer .ins-option:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .app-installer .ins-option-badge {
   width: 44px;
@@ -225,15 +255,18 @@
   flex: none;
   display: grid;
   place-items: center;
-  border-radius: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: 0.04em;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
+  background: var(--bg-alt);
+  color: var(--text-2);
 }
 .app-installer .ins-option.selected .ins-option-badge {
-  background: linear-gradient(135deg, #2b6cf6, #18b6e8 70%, #7be3c6);
-  color: #fff;
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
 }
 .app-installer .ins-option-text {
   display: flex;
@@ -243,6 +276,7 @@
   min-width: 0;
 }
 .app-installer .ins-option-name {
+  font-family: var(--font-display);
   font-size: var(--fs-body-large);
   font-weight: 600;
 }
@@ -250,20 +284,18 @@
   color: var(--text-2);
 }
 .app-installer .ins-option-check {
-  color: var(--accent);
+  color: var(--accent-text);
   opacity: 0;
-  transform: scale(0.6);
-  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+  transition: opacity var(--dur) var(--ease);
 }
 .app-installer .ins-option.selected .ins-option-check {
   opacity: 1;
-  transform: none;
 }
 .app-installer .ins-note {
   align-items: flex-start;
 }
 
-/* ---------------------------------------------------------------- lists */
+/* ---------------------------------------------------------------- lists (a sunken well of rows) */
 .app-installer .ins-search {
   width: 100%;
   flex: none;
@@ -271,42 +303,41 @@
 .app-installer .ins-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   flex: 1 1 auto;
   min-height: 120px;
   overflow: auto;
-  padding: 2px;
+  padding: 4px;
   border-radius: var(--radius);
+  border: 1px solid var(--line-soft);
+  background: var(--bg-alt);
   outline: none;
 }
 .app-installer .ins-list:focus-visible .ins-row.selected {
-  outline: 2px solid var(--text);
-  outline-offset: 1px;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
 }
 .app-installer .ins-row {
   display: flex;
   align-items: center;
   gap: 12px;
   flex: none;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--stroke-card);
-  background: var(--card);
-  transition: background var(--dur-fast) linear;
+  transition: background var(--dur-fast) var(--ease);
 }
 .app-installer .ins-row:hover {
-  background: var(--card-hover);
+  background: var(--subtle-hover);
 }
 .app-installer .ins-row.selected {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
-  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+  background: var(--sel-bg);
+  box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
 }
 .app-installer .ins-row.disabled {
-  opacity: 0.6;
+  color: var(--text-2);
 }
 .app-installer .ins-row.disabled:hover {
-  background: var(--card);
+  background: none;
 }
 .app-installer .ins-row-icon {
   display: grid;
@@ -318,8 +349,12 @@
   width: 44px;
   height: 44px;
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  color: var(--accent);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
+  color: var(--text-2);
+}
+.app-installer .ins-row.selected .ins-row-icon.big {
+  color: var(--accent-text);
 }
 .app-installer .ins-row-main {
   display: flex;
@@ -339,16 +374,17 @@
   white-space: nowrap;
 }
 .app-installer .ins-row-sub {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
   color: var(--text-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .app-installer .ins-row-meta {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
   color: var(--text-2);
   flex: none;
+  font-variant-numeric: tabular-nums;
 }
 .app-installer .ins-row-size {
   flex: none;
@@ -357,14 +393,14 @@
 }
 .app-installer .ins-row-offset {
   flex: none;
-  width: 84px;
-  font-size: var(--fs-caption);
+  width: 88px;
+  font-size: var(--fs-small);
   color: var(--text-2);
 }
 .app-installer .ins-row-check {
   flex: none;
   width: 16px;
-  color: var(--accent);
+  color: var(--accent-text);
   visibility: hidden;
 }
 .app-installer .ins-row.selected .ins-row-check {
@@ -374,11 +410,11 @@
   font-family: var(--font-mono);
 }
 .app-installer .ins-tag {
-  font-size: 11px;
+  font-size: var(--fs-caption);
   font-weight: 600;
-  padding: 0 6px;
+  padding: 0 7px;
   border-radius: 999px;
-  background: var(--subtle-hover);
+  border: 1px solid var(--line-soft);
   color: var(--text-2);
 }
 .app-installer .ins-empty {
@@ -416,15 +452,14 @@
 }
 .app-installer .ins-disks .ins-row {
   padding: 12px 14px;
-  border-radius: var(--radius);
 }
 .app-installer .ins-parts {
   display: flex;
   gap: 2px;
-  height: 8px;
+  height: 6px;
   max-width: 380px;
   margin: 7px 0 4px;
-  border-radius: 4px;
+  border-radius: 3px;
   overflow: hidden;
 }
 .app-installer .ins-part {
@@ -433,21 +468,21 @@
   background: var(--control-strong);
 }
 .app-installer .ins-part.c0 {
-  background: #2b6cf6;
+  background: var(--accent);
 }
 .app-installer .ins-part.c1 {
-  background: #18b6e8;
+  background: var(--text-2);
 }
 .app-installer .ins-part.c2 {
-  background: #48c9a5;
+  background: color-mix(in srgb, var(--accent) 55%, var(--bg));
 }
 .app-installer .ins-part.c3 {
-  background: #8e8cd8;
+  background: var(--text-3);
 }
 .app-installer .ins-part.free {
-  background: repeating-linear-gradient(-45deg, var(--stroke-strong) 0 4px, transparent 4px 8px);
-  border: 1px solid var(--stroke-strong);
-  border-radius: 4px;
+  background: repeating-linear-gradient(-45deg, var(--line) 0 4px, transparent 4px 8px);
+  border: 1px solid var(--line);
+  border-radius: 3px;
 }
 .app-installer .ins-err-text {
   color: var(--danger);
@@ -479,14 +514,14 @@
 }
 .app-installer .ins-label {
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .app-installer .ins-hint {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
   color: var(--text-2);
 }
 .app-installer .ins-err {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
   color: var(--danger);
 }
 .app-installer .ins-err:empty {
@@ -519,7 +554,7 @@
   align-items: center;
   gap: 10px;
   min-height: 16px;
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
   color: var(--text-2);
 }
 .app-installer .ins-meter-bars {
@@ -528,26 +563,22 @@
   flex: none;
 }
 .app-installer .ins-meter-bars span {
-  width: 38px;
+  width: 36px;
   height: 4px;
   border-radius: 2px;
-  background: var(--control-strong);
-  opacity: 0.3;
+  background: var(--line);
 }
 .app-installer .ins-meter[data-level=""] .ins-meter-bars {
   visibility: hidden;
 }
 .app-installer .ins-meter[data-level="weak"] .ins-meter-bars span:nth-child(1) {
   background: var(--danger);
-  opacity: 1;
 }
 .app-installer .ins-meter[data-level="fair"] .ins-meter-bars span:nth-child(-n + 2) {
   background: var(--warning);
-  opacity: 1;
 }
 .app-installer .ins-meter[data-level="strong"] .ins-meter-bars span {
   background: var(--success);
-  opacity: 1;
 }
 
 /* ---------------------------------------------------------------- summary */
@@ -555,19 +586,23 @@
   padding: 2px 0;
   display: flex;
   flex-direction: column;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  box-shadow: none;
 }
 .app-installer .ins-sum-row {
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 9px 16px;
-  border-bottom: 1px solid var(--stroke);
+  border-bottom: 1px solid var(--line-soft);
 }
 .app-installer .ins-sum-row:last-child {
   border-bottom: 0;
 }
 .app-installer .ins-sum-label {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
   color: var(--text-2);
 }
 .app-installer .ins-sum-row.danger .ins-row-icon {
@@ -583,8 +618,8 @@
 }
 .app-installer .ins-ring {
   position: relative;
-  width: 132px;
-  height: 132px;
+  width: 128px;
+  height: 128px;
   flex: none;
 }
 .app-installer .ins-ring svg {
@@ -594,16 +629,15 @@
 }
 .app-installer .ins-ring-track {
   fill: none;
-  stroke: var(--control-strong);
-  stroke-width: 8;
-  opacity: 0.25;
+  stroke: var(--line-soft);
+  stroke-width: 5;
 }
 .app-installer .ins-ring-bar {
   fill: none;
   stroke: var(--accent);
-  stroke-width: 8;
+  stroke-width: 5;
   stroke-linecap: round;
-  transition: stroke-dashoffset 0.6s var(--ease);
+  transition: stroke-dashoffset var(--dur-slower) var(--ease);
 }
 .app-installer .ins-ring-pct {
   position: absolute;
@@ -611,7 +645,7 @@
   display: grid;
   place-items: center;
   font-family: var(--font-display);
-  font-size: 28px;
+  font-size: var(--fs-title);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -653,11 +687,11 @@
   display: grid;
   place-items: center;
   flex: none;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .app-installer .ins-stage-dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   border: 1.5px solid var(--text-3);
 }
@@ -680,12 +714,16 @@
   overflow: auto;
   padding: 10px 12px;
   border-radius: var(--radius);
-  border: 1px solid var(--stroke-card);
-  background: var(--card);
+  border: 1px solid var(--line-soft);
+  background: var(--bg-alt);
   color: var(--text-2);
   font: 12px/1.5 var(--font-mono);
   white-space: pre-wrap;
   word-break: break-word;
+}
+.app-installer .ins-log:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .app-installer .ins-log[hidden] {
   display: none;
@@ -698,64 +736,81 @@
 }
 .app-installer .ins-done-msg {
   color: var(--text-2);
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
 }
 .app-installer .ins-error-msg {
   margin-top: 2px;
   word-break: break-word;
 }
 
-/* ---------------------------------------------------------------- illustrations */
+/* ---------------------------------------------------------------- illustrations (art.js) */
+.app-installer .ins-svg .g-hi {
+  stop-color: var(--accent);
+}
+.app-installer .ins-svg .g-lo {
+  stop-color: color-mix(in srgb, var(--accent) 72%, var(--bg));
+}
+.app-installer .ins-svg .g-night-hi {
+  stop-color: var(--surface-raised);
+}
+.app-installer .ins-svg .g-night-lo {
+  stop-color: var(--bg-alt);
+}
+.app-installer .ins-svg .g-glow {
+  stop-color: var(--accent);
+  stop-opacity: 0.14;
+}
+.app-installer .ins-svg .g-glow.g-end {
+  stop-opacity: 0;
+}
 .app-installer .ins-svg .s-surface {
-  fill: var(--ins-surface);
+  fill: var(--surface-raised);
+  stroke: var(--line-soft);
+  stroke-width: 1;
 }
 .app-installer .ins-svg .s-stroke {
-  stroke: var(--stroke-strong);
+  stroke: var(--line);
   stroke-width: 1.5;
 }
 .app-installer .ins-svg .s-key {
-  fill: var(--ins-key);
+  fill: var(--bg-alt);
 }
 .app-installer .ins-svg .s-line {
-  fill: var(--ins-line);
+  fill: var(--line);
 }
 .app-installer .ins-svg .s-accent {
-  fill: #2b6cf6;
+  fill: var(--accent);
 }
 .app-installer .ins-svg .s-accent-stroke {
-  stroke: #2b6cf6;
+  stroke: var(--accent);
+}
+.app-installer .ins-svg .s-on-stroke {
+  stroke: var(--on-accent);
 }
 .app-installer .ins-svg .s-track {
-  stroke: var(--ins-line);
-  opacity: 0.45;
+  stroke: var(--line-soft);
 }
 .app-installer .ins-svg .s-ring {
-  stroke: var(--ins-ring);
+  stroke: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.app-installer .ins-svg .s-star {
+  fill: var(--accent);
+  opacity: 0.7;
 }
 .app-installer .ins-svg .s-text {
   fill: var(--text);
-  font: 700 16px var(--font);
+  font: 700 16px var(--font-display);
 }
 .app-installer .ins-svg .s-text-on {
-  fill: #fff;
-  font: 700 16px var(--font);
+  fill: var(--on-accent);
+  font: 700 16px var(--font-display);
 }
-.app-installer .ins-svg .s-surface:not(.s-stroke) {
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.08));
-}
-.app-installer .ins-float {
-  animation: ins-float 6s ease-in-out infinite;
-}
-@keyframes ins-float {
-  50% {
-    transform: translateY(-6px);
-  }
-}
+/* Only the installation shows motion: the two rings turn slowly while it runs. */
 .app-installer .ins-spin-slow {
-  animation: ins-spin 2.6s linear infinite;
+  animation: ins-spin 3.2s linear infinite;
 }
 .app-installer .ins-spin-rev {
-  animation: ins-spin 4.2s linear infinite reverse;
+  animation: ins-spin 5s linear infinite reverse;
 }
 @keyframes ins-spin {
   to {
@@ -763,21 +818,20 @@
   }
 }
 .app-installer .ins-pop {
-  animation: ins-pop 0.6s var(--ease-spring) both;
+  animation: ins-pop var(--dur-slower) var(--ease) both;
 }
 @keyframes ins-pop {
   from {
-    transform: scale(0.6);
+    transform: scale(0.85);
     opacity: 0;
   }
 }
-.app-installer .ins-confetti {
-  animation: ins-fade 0.8s 0.25s both;
+.app-installer .ins-stars {
+  animation: ins-fade var(--dur-slower) var(--dur-slow) var(--ease) both;
 }
 @keyframes ins-fade {
   from {
     opacity: 0;
-    transform: scale(0.9);
   }
 }
 
@@ -788,9 +842,11 @@
   transition: none !important;
 }
 @media (prefers-reduced-motion: reduce) {
-  .app-installer .ins-float,
+  .app-installer .ins-page.enter,
   .app-installer .ins-spin-slow,
-  .app-installer .ins-spin-rev {
+  .app-installer .ins-spin-rev,
+  .app-installer .ins-pop,
+  .app-installer .ins-stars {
     animation: none;
   }
 }

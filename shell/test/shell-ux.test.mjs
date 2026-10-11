@@ -691,7 +691,7 @@ async function scenario(theme, lang) {
 // QA regressions, driven against the real (dev) system backends — no mock — at 1280x720:
 // keyboard paths, overflow, races, leaks, XSS, untranslated strings.
 // English words that must never show up in the French shell chrome (user content is excluded).
-const EN_ONLY = /\b(Settings|Search|Pinned|All apps|Recommended|Back|Clear all|Do not disturb|Night light|Airplane mode|Brightness|Mute|Unmute|Connected|Secured|Sign out|Shut down|Restart|Sleep|Lock|Refresh|Paste|View|Sort by|Personalize|Today|Weather|Quick notes|Memory|Processor|Good (morning|afternoon|evening)|Type here|Top apps|Quick searches|Close|Task Manager|Taskbar|Previous month|Next month|Collapse|Expand|No new notifications|Dark mode|remaining|Speakers|Internet access|Task view|Show more|Show desktop|Power|Account|Sound output|More|Open|New|Start)\b/;
+const EN_ONLY = /\b(Settings|Search|Pinned|All apps|Recommended|Back|Clear all|Do not disturb|Night light|Airplane mode|Brightness|Mute|Unmute|Connected|Secured|Sign out|Shut down|Restart|Sleep|Lock|Refresh|Paste|View|Sort by|Personalize|Today|Weather|Quick notes|Memory|Processor|Good (morning|afternoon|evening)|Type here|Top apps|Quick searches|Close|Task Manager|Taskbar|Previous month|Next month|Collapse|Expand|No new notifications|Dark mode|remaining|Speakers|Internet access|Task view|Show more|Show desktop|Power|Account|Sound output|More|Open|New|Start|Launcher|Overview|Dashboard|System Monitor|Quick settings)\b/;
 
 async function listenerCounts(cdp) {
   const r = await cdp.send('Runtime.evaluate', {
@@ -841,7 +841,7 @@ async function adversarial(theme, lang) {
     // ---- quick settings vs the real backends: Wi-Fi tile + tray stay in sync
     await P.click('.tb-quick');
     await sleep(1200);
-    const wifiLabel = await A(() => document.querySelector('[data-key="wifi"] .qs-tile-label')?.textContent);
+    const wifiLabel = await A(() => document.querySelector('[data-key="wifi"] .qs-tile-sub')?.textContent);
     const wifiConn = await A(async () => (await window.__aurora.api.invoke('net:status')).devices.find((d) => d.type === 'wifi' && /^connected/.test(d.state))?.connection);
     check(!wifiConn || wifiLabel === wifiConn, `[${tag}] Wi-Fi tile names the connected network (${wifiLabel} / ${wifiConn})`);
     await P.click('.qs-mute');

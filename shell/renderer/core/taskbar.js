@@ -30,6 +30,7 @@ import { i18n, t } from './i18n.js';
 import { shell } from './services.js';
 import { notifications } from './notify.js';
 import { api, Emitter } from './api.js';
+import { LOGO } from './app-glyphs.js';
 
 // ---------------------------------------------------------------- strings
 const STRINGS = {
@@ -226,29 +227,15 @@ export function createFlyout({ id, el, button, onOpen, onClose, onKey, onEscape,
   return fly;
 }
 
-// ---------------------------------------------------------------- tray glyphs (Windows 11 style)
-const ARC = (r) => {
-  const k = r * Math.SQRT1_2;
-  return `M${(10 - k).toFixed(2)} ${(16.5 - k).toFixed(2)}A${r} ${r} 0 0 1 ${(10 + k).toFixed(2)} ${(16.5 - k).toFixed(2)}`;
-};
-function wifiSvg(level) {
-  // level 0..4 : number of lit arcs (0 = only the dot)
-  const arcs = [4.6, 8.2, 11.8]
-    .map((r, i) => `<path d="${ARC(r)}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity="${i < level - 1 ? 1 : 0.32}"/>`)
-    .join('');
-  return `<svg viewBox="0 0 20 20" aria-hidden="true">${arcs}<circle cx="10" cy="16.4" r="1.35" fill="currentColor"/></svg>`;
+// ---------------------------------------------------------------- tray glyphs (Phosphor, core/icons.js)
+const WIFI_GLYPH = ['wifi-none', 'wifi-low', 'wifi-medium', 'wifi-high', 'wifi-high'];
+function batteryGlyph(pct, charging) {
+  if (charging) return 'battery-charging';
+  return pct >= 90 ? 'battery-full' : pct >= 60 ? 'battery-high' : pct >= 30 ? 'battery-medium' : pct > 10 ? 'battery-low' : 'battery-empty';
 }
-const ETHERNET_SVG =
-  '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4.3" y="3.3" width="13.4" height="9.4" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8.5 16.5h5M11 12.8v3.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M1.8 9.5h2.6M3.1 9.5v6.5h2.4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-function batterySvg(pct, charging) {
-  const w = Math.max(1, Math.round((12.4 * Math.max(0, Math.min(100, pct))) / 100 * 10) / 10);
-  const low = pct <= 10 && !charging;
-  return `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1.7" y="5.7" width="15" height="8.6" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="17.4" y="8.2" width="1.4" height="3.6" rx=".6" fill="currentColor"/><rect x="3.3" y="7.3" width="${w}" height="5.4" rx="1" fill="${low ? '#e81123' : 'currentColor'}"/>${
-    charging ? '<path d="M10.6 4.2 7.4 10.4h2.7l-.9 5.4 3.4-6.6H9.9z" fill="currentColor" stroke="var(--taskbar-solid, #eee)" stroke-width=".9" stroke-linejoin="round"/>' : ''
-  }</svg>`;
-}
-function glyph(svg, size = 16) {
-  return h('span', { class: 'icon', style: { width: `${size}px`, height: `${size}px` }, html: svg });
+// The Lanceur button: the Selene crescent + dot-star (LOGO, 48 grid), drawn in currentColor.
+function logoSvg() {
+  return `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="${LOGO.crescent}" fill="currentColor"/><path d="${LOGO.dotPath}" fill="currentColor"/></svg>`;
 }
 
 // ---------------------------------------------------------------- state
@@ -261,6 +248,12 @@ let leftEl;
 let hotzone;
 let previewEl = null;
 let minisEl = null;
+// The widths of the left part and the tray feed the islands' layout (--tb-left-w / --tb-tray-w, core/taskbar-start.css).
+const trayObserver = new ResizeObserver(() => {
+  if (!root || !trayEl) return;
+  root.style.setProperty('--tb-tray-w', `${Math.round(trayEl.getBoundingClientRect().width)}px`);
+  if (leftEl) root.style.setProperty('--tb-left-w', `${Math.round(leftEl.getBoundingClientRect().width)}px`);
+});
 const buttons = new Map(); // key -> button (key = appId, or appId::winId for a window of its own: combine never / whenFull)
 const thumbs = new Map(); // winId -> blob URL
 const status = { net: undefined, audio: undefined, battery: undefined };
@@ -820,8 +813,10 @@ function availSpace() {
   if (!W) return null;
   const tr = trayEl.getBoundingClientRect();
   const trayW = v ? tr.height : tr.width;
-  const leftW = !v && leftEl?.children.length ? leftEl.getBoundingClientRect().width + 12 : 0;
-  const avail = v || root.classList.contains('left') ? W - trayW - 24 : W - 2 * (Math.max(trayW, leftW) + 12);
+  const lr = leftEl?.children.length ? leftEl.getBoundingClientRect() : null;
+  const leftW = lr ? (v ? lr.height : lr.width) + 12 : 0;
+  const gaps = 24 + 2 * (parseFloat(getComputedStyle(root).getPropertyValue('--tb-part-gap')) || 0);
+  const avail = v || root.classList.contains('left') ? W - trayW - leftW - gaps : W - 2 * (Math.max(trayW, leftW) + 12) - gaps;
   const fixed = [...centerEl.children]
     .filter((c) => c !== appsBox)
     .reduce((sum, c) => {
@@ -975,7 +970,8 @@ function renderClock() {
   // A vertical bar is narrow: the seconds may wrap onto their own line ("07:22" / ":39"), like AM/PM does.
   if (isVertical() && timeOpts.second) time = time.replace(/([:.]\d{2})(\D*)$/, '\u200b$1$2');
   clockEl.querySelector('.tb-time').textContent = time;
-  clockEl.querySelector('.tb-date').textContent = i18n.formatDate(now, { day: '2-digit', month: '2-digit', year: 'numeric' });
+  // "dim. 11 oct." beside the time; a vertical bar (narrow) keeps the short numeric date.
+  clockEl.querySelector('.tb-date').textContent = isVertical() ? i18n.formatDate(now, { day: '2-digit', month: '2-digit' }) : i18n.formatDate(now, { weekday: 'short', day: 'numeric', month: 'short' });
   const full = i18n.formatDate(now, { dateStyle: 'full' });
   clockEl.dataset.tip = full.charAt(0).toUpperCase() + full.slice(1);
 }
@@ -1006,7 +1002,7 @@ function renderBell() {
     bell.append(h('span', { class: 'tb-count' }, n > 99 ? '99+' : String(n)));
     clockEl.setAttribute('aria-label', t('taskbar.notifications', { count: n }));
   } else {
-    bell.append(icon(dnd ? 'alert_snooze' : 'alert', { size: 16 }));
+    bell.append(icon(dnd ? 'bell-slash' : 'bell', { size: 16 }));
     clockEl.setAttribute('aria-label', dnd ? t('taskbar.dndOn') : t('taskbar.noNotifications'));
   }
   bell.classList.toggle('dnd', dnd);
@@ -1020,10 +1016,10 @@ function netGlyph(st) {
   if (p.type === 'wifi') {
     const s = Number(p.strength ?? 100);
     const level = s >= 75 ? 4 : s >= 50 ? 3 : s >= 25 ? 2 : 1;
-    return { key: limited ? 'wifi-limited' : `wifi${level}`, node: () => (limited ? icon('wifi_warning', { size: 16 }) : glyph(wifiSvg(level))), tip: t(limited ? 'tray.wifiLimited' : 'tray.wifi', { name: p.name || 'Wi-Fi' }) };
+    return { key: limited ? 'wifi-limited' : `wifi${level}`, node: () => icon(limited ? 'wifi-x' : WIFI_GLYPH[level], { size: 16 }), tip: t(limited ? 'tray.wifiLimited' : 'tray.wifi', { name: p.name || 'Wi-Fi' }) };
   }
-  if (p.type === 'ethernet') return { key: 'ethernet', node: () => glyph(ETHERNET_SVG), tip: t(limited ? 'tray.ethernetLimited' : 'tray.ethernet'), limited };
-  return { key: 'none', node: () => icon('globe_prohibited', { size: 16 }), tip: t('tray.disconnected') };
+  if (p.type === 'ethernet') return { key: 'ethernet', node: () => icon(limited ? 'network-slash' : 'network', { size: 16 }), tip: t(limited ? 'tray.ethernetLimited' : 'tray.ethernet'), limited };
+  return { key: 'none', node: () => icon('wifi-slash', { size: 16 }), tip: t('tray.disconnected') };
 }
 
 // Replace a tray glyph only when it actually changes: re-creating the node under the pointer would
@@ -1050,7 +1046,7 @@ function renderTray() {
   vol.hidden = !a || want.volume === false;
   if (a) {
     const v = Math.round(a.volume ?? 0);
-    const name = a.muted ? 'speaker_mute' : v === 0 ? 'speaker_0' : v < 34 ? 'speaker_1' : 'speaker_2';
+    const name = a.muted ? 'speaker-slash' : v === 0 ? 'speaker-none' : v < 50 ? 'speaker-low' : 'speaker-high';
     setGlyph(vol, name, () => icon(name, { size: 16 }));
     vol.dataset.tip = a.muted ? t('tray.muted') : t('tray.volume', { value: v });
   }
@@ -1058,7 +1054,13 @@ function renderTray() {
   bat.hidden = !b || want.battery === false;
   if (b) {
     const pct = Math.round(b.percent ?? 0);
-    setGlyph(bat, `${pct}|${!!b.charging}`, () => glyph(batterySvg(pct, b.charging)));
+    setGlyph(bat, `${pct}|${!!b.charging}`, () => {
+      const g = icon(batteryGlyph(pct, b.charging), { size: 16 });
+      if (pct <= 10 && !b.charging) g.classList.add('tb-bat-low');
+      const f = document.createDocumentFragment();
+      f.append(g, h('span', { class: 'tb-bat-pct' }, i18n.formatNumber ? `${i18n.formatNumber(pct)}\u202f%` : `${pct}\u202f%`));
+      return f;
+    });
     const time = b.timeLeftMin > 0 && !b.charging ? t('tray.hours', { h: Math.floor(b.timeLeftMin / 60), m: b.timeLeftMin % 60 }) : null;
     bat.dataset.tip = b.charging ? t('tray.charging', { percent: pct }) : time ? t('tray.batteryTime', { percent: pct, time }) : t('tray.battery', { percent: pct });
   }
@@ -1341,32 +1343,33 @@ function renderStatic() {
     h(
       'button',
       { class: ['tb-btn tb-widgets', withLabel && 'with-label'], 'data-tip': t('taskbar.widgets'), 'aria-label': t('taskbar.widgets'), onclick: () => shell.emit('widgets:toggle') },
-      icon('board', { size: 20 }),
+      icon('cloud-sun', { size: 20 }),
       withLabel ? h('span', { class: 'tb-label' }, t('taskbar.widgets')) : null,
     );
-  leftEl = h('div', { class: 'tb-left' }, tb.showWidgets && wpos === 'start' ? widgetsBtn(true) : null);
-  centerEl = h(
+  // Left: the Lanceur and its search (+ Overview, Dashboard at the start). Centre: the apps (centred on the screen in
+  // every style; taskbar.align = left puts them right after the left part). Right: status, clock, notifications.
+  leftEl = h(
     'div',
-    { class: 'tb-center' },
+    { class: 'tb-left tb-part' },
     h(
       'button',
       { class: 'tb-btn tb-start', 'data-tip': t('taskbar.start'), 'aria-label': t('taskbar.start'), onclick: () => shell.emit('start:toggle') },
-      h('img', { src: 'app://shell/assets/aurora-logo.svg', alt: '', draggable: false }),
+      h('span', { class: 'icon tb-logo', html: logoSvg() }),
     ),
     searchMode === 'box'
-      ? h('button', { class: 'tb-btn tb-search tb-searchbox', 'aria-label': t('taskbar.search'), onclick: () => shell.emit('search:toggle') }, icon('search', { size: 16 }), h('span', null, t('taskbar.searchBox')))
+      ? h('button', { class: 'tb-btn tb-search tb-searchbox', 'aria-label': t('taskbar.search'), onclick: () => shell.emit('search:toggle') }, icon('magnifying-glass', { size: 16 }), h('span', null, t('taskbar.searchBox')))
       : searchMode !== 'hidden'
-        ? h('button', { class: 'tb-btn tb-search', 'data-tip': t('taskbar.search'), 'aria-label': t('taskbar.search'), onclick: () => shell.emit('search:toggle') }, icon('search', { size: 20 }))
+        ? h('button', { class: 'tb-btn tb-search', 'data-tip': t('taskbar.search'), 'aria-label': t('taskbar.search'), onclick: () => shell.emit('search:toggle') }, icon('magnifying-glass', { size: 20 }))
         : null,
     tb.showTaskView !== false
-      ? h('button', { class: 'tb-btn tb-taskview', 'data-tip': t('taskbar.taskView'), 'aria-label': t('taskbar.taskView'), onclick: () => shell.emit('taskview:toggle') }, icon('task_list_square_ltr', { size: 20 }))
+      ? h('button', { class: 'tb-btn tb-taskview', 'data-tip': t('taskbar.taskView'), 'aria-label': t('taskbar.taskView'), onclick: () => shell.emit('taskview:toggle') }, icon('rows', { size: 20 }))
       : null,
-    tb.showWidgets && wpos === 'inline' ? widgetsBtn(false) : null,
-    (appsBox = h('div', { class: 'tb-apps' })),
+    tb.showWidgets && wpos === 'start' ? widgetsBtn(true) : null,
   );
+  centerEl = h('div', { class: 'tb-center tb-part' }, tb.showWidgets && wpos === 'inline' ? widgetsBtn(false) : null, (appsBox = h('div', { class: 'tb-apps' })));
   trayEl = h(
     'div',
-    { class: 'tb-tray' },
+    { class: 'tb-tray tb-part' },
     tb.showWidgets && wpos === 'end' ? widgetsBtn(!vertical) : null,
     h('div', { class: 'tb-status' }),
     (minisEl = h('div', { class: 'tb-minis', hidden: true })),
@@ -1387,6 +1390,9 @@ function renderStatic() {
     h('div', { class: 'tb-showdesk', 'data-tip': t('taskbar.showDesktop'), role: 'button', 'aria-label': t('taskbar.showDesktop'), onclick: () => wm.toggleDesktop() }),
   );
   root.append(leftEl, centerEl, trayEl);
+  trayObserver.disconnect();
+  trayObserver.observe(trayEl);
+  trayObserver.observe(leftEl);
   renderStatusItems();
   renderMinis();
   bulk = true;

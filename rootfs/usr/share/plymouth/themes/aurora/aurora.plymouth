@@ -1,30 +1,31 @@
 [Plymouth Theme]
 Name=Selene OS
 Name[fr]=Selene OS
-Description=Selene OS boot splash: logo and spinner on black.
-Description[fr]=Écran de démarrage de Selene OS : logo et indicateur de chargement sur fond noir.
+Description=Selene OS boot splash: the crescent logo and a discreet silver spinner on a night-blue background.
+Description[fr]=Écran de démarrage de Selene OS : le croissant de lune et un indicateur de chargement discret sur fond bleu nuit.
 ModuleName=two-step
 
-# Images: watermark.png (Selene OS logo, rendered from shell/renderer/assets/aurora-logo.svg)
-# and the spinner/dialog images of Ubuntu's "spinner" theme, copied by iso/build.sh.
+# Images (made by iso/build.sh configure_plymouth): watermark.png (the logo, rendered from
+# shell/renderer/assets/aurora-logo.svg), throbber-0001..0036.png (a silver arc turning on a faint track)
+# and the dialog/keyboard images of Ubuntu's "spinner" theme. Colours: Nocturne, cold ambiance.
 [two-step]
-Font=Ubuntu 12
-TitleFont=Ubuntu Light 26
+Font=Inter 12
+TitleFont=Inter Light 24
 ImageDir=/usr/share/plymouth/themes/aurora
 DialogHorizontalAlignment=.5
 DialogVerticalAlignment=.62
 TitleHorizontalAlignment=.5
 TitleVerticalAlignment=.25
 HorizontalAlignment=.5
-VerticalAlignment=.70
+VerticalAlignment=.64
 WatermarkHorizontalAlignment=.5
 WatermarkVerticalAlignment=.42
 Transition=none
 TransitionDuration=0.0
-BackgroundStartColor=0x000000
-BackgroundEndColor=0x000000
-ProgressBarBackgroundColor=0x3a3a3a
-ProgressBarForegroundColor=0x4cc2ff
+BackgroundStartColor=0x080c16
+BackgroundEndColor=0x121a2b
+ProgressBarBackgroundColor=0x2a3247
+ProgressBarForegroundColor=0xc9d3e6
 MessageBelowAnimation=true
 
 [boot-up]

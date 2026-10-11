@@ -1,15 +1,15 @@
-/* Ctrl+Alt+Delete security screen + "Shut Down Selene" dialog. */
+/* Ctrl+Alt+Delete security screen + the "Arrêter Selene" dialog. Tokens only; the scrim keeps text >= 4.5:1. */
 .sec-screen {
   position: fixed;
   inset: 0;
   z-index: 80;
   overflow: hidden;
-  color: #fff;
+  color: var(--text);
   outline: none;
-  animation: sec-fade-in 240ms linear;
+  animation: sec-fade-in var(--dur-slow) var(--ease);
 }
 .sec-screen.closing {
-  animation: sec-fade-out 200ms linear forwards;
+  animation: sec-fade-out var(--dur) var(--ease-in) forwards;
   pointer-events: none;
 }
 @keyframes sec-fade-in {
@@ -26,16 +26,16 @@
 .sec-bg {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, #1d2b4a, #0b1220);
+  background: var(--desk);
   transform: scale(1.02);
-  animation: sec-bg-in 600ms var(--ease);
+  animation: sec-bg-in var(--dur-slower) var(--ease);
 }
 .sec-bg-img {
   position: absolute;
   inset: 0;
   background: center / cover no-repeat;
   opacity: 0;
-  transition: opacity 260ms linear;
+  transition: opacity var(--dur-slower) var(--ease);
 }
 .sec-bg-img.ready {
   opacity: 1;
@@ -44,11 +44,11 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(4, 10, 22, 0.26), rgba(4, 10, 22, 0.5));
+  background: color-mix(in srgb, var(--desk) 72%, transparent);
 }
 @keyframes sec-bg-in {
   from {
-    transform: scale(1.12);
+    transform: scale(1.05);
   }
 }
 .sec-center {
@@ -59,21 +59,21 @@
   align-items: center;
   justify-content: center;
   gap: 36px;
-  animation: sec-up 420ms var(--ease);
+  animation: sec-up var(--dur-slower) var(--ease);
 }
 .sec-screen.closing .sec-center {
-  animation: sec-down 200ms var(--ease-in) forwards;
+  animation: sec-down var(--dur) var(--ease-in) forwards;
 }
 @keyframes sec-up {
   from {
     opacity: 0;
-    transform: translateY(24px);
+    transform: translateY(12px);
   }
 }
 @keyframes sec-down {
   to {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(8px);
   }
 }
 .sec-list {
@@ -85,23 +85,22 @@
 .sec-opt {
   padding: 9px 16px 11px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: transparent;
-  color: #fff;
+  color: var(--text);
   font-family: var(--font-display);
   font-size: 18px;
   line-height: 24px;
   font-weight: 600;
   text-align: left;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   white-space: nowrap;
-  transition: background var(--dur-fast) linear;
+  transition: background var(--dur-fast) var(--ease);
 }
 .sec-opt:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--subtle-hover);
 }
 .sec-opt:active {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--subtle-pressed);
 }
 .sec-opt:focus-visible,
 .sec-cancel:focus-visible,
@@ -109,25 +108,26 @@
 .sec-screen.kbd .sec-opt:focus,
 .sec-screen.kbd .sec-cancel:focus,
 .sec-screen.kbd .sec-tray-btn:focus {
-  outline: 2px solid #fff;
-  outline-offset: 1px;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .sec-cancel {
   min-width: 128px;
   padding: 6px 24px 7px;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  border: 1px solid var(--line);
+  background: var(--control);
+  color: var(--text);
   font-size: var(--fs-body);
+  font-weight: 500;
   line-height: 20px;
-  transition: background var(--dur-fast) linear;
+  transition: background var(--dur-fast) var(--ease);
 }
 .sec-cancel:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--control-hover);
 }
 .sec-cancel:active {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--control-pressed);
 }
 .sec-tray {
   position: absolute;
@@ -135,7 +135,7 @@
   bottom: 24px;
   display: flex;
   gap: 6px;
-  animation: sec-up 520ms var(--ease);
+  animation: sec-up var(--dur-slower) var(--ease);
 }
 .sec-tray-btn {
   width: 44px;
@@ -143,22 +143,19 @@
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: transparent;
-  color: #fff;
-  transition: background var(--dur-fast) linear;
+  color: var(--text);
+  transition: background var(--dur-fast) var(--ease);
 }
 .sec-tray-btn[hidden] {
   display: none;
 }
 .sec-tray-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-.sec-tray-btn .icon {
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+  background: var(--subtle-hover);
 }
 
-/* Shut Down Selene (Alt+F4 on the desktop) */
+/* Arrêter Selene (Alt+F4 on the desktop) */
 .sd-dialog {
   width: 440px;
 }
@@ -175,8 +172,9 @@
   gap: 12px;
   margin: -24px -24px 20px;
   padding: 18px 24px;
-  background: linear-gradient(120deg, color-mix(in srgb, var(--accent-base, #0078d4) 92%, #000), color-mix(in srgb, var(--accent-base, #0078d4) 55%, #6ad2ff));
-  color: #fff;
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text);
   font-family: var(--font-display);
   font-size: var(--fs-subtitle);
   line-height: 28px;
@@ -185,7 +183,6 @@
 .sd-hero img {
   width: 36px;
   height: 36px;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
 }
 .sd-q {
   margin-bottom: 8px;
@@ -196,7 +193,7 @@
 .sd-desc {
   margin-top: 12px;
   min-height: 48px;
-  font-size: var(--fs-caption);
-  line-height: 16px;
+  font-size: var(--fs-small);
+  line-height: var(--lh-small, 18px);
   color: var(--text-2);
 }

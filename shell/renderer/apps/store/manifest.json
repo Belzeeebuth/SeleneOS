@@ -1,8 +1,8 @@
 {
   "id": "store",
   "name": {
-    "en": "Store",
-    "fr": "Store"
+    "en": "Software",
+    "fr": "Logithèque"
   },
   "description": {
     "en": "Install apps from Selene picks, the Ubuntu archive and Flathub",

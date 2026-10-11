@@ -135,6 +135,10 @@ export class LockScreen {
       role: 'dialog',
       'aria-modal': 'true',
       tabindex: '-1',
+      // The lock and sign-in screens use the dark tokens whatever the desktop theme (light text on the
+      // picture); the curtain switches to the light tokens over a light picture (see _loadBlur).
+      'data-theme-scope': '',
+      'data-theme': 'dark',
     });
     if (o.wallpaper) this.el.style.setProperty('--lk-wall-img', `url("${o.wallpaper}")`);
 
@@ -188,7 +192,7 @@ export class LockScreen {
     this.hintEl = h('div', { class: 'lk-sr' });
     this.curtain = h(
       'div',
-      { class: 'lk-curtain' },
+      { class: 'lk-curtain', 'data-theme-scope': '', 'data-theme': 'dark' },
       this.wall,
       h('div', { class: 'lk-shade' }),
       h('div', { class: 'lk-clock' }, this.timeEl, this.dateEl),
@@ -237,8 +241,19 @@ export class LockScreen {
   async _loadBlur() {
     const url = this.o.wallpaper;
     if (!url) return;
-    // A light picture behind the white clock gets a stronger shade at the top (legible time and date).
-    topLuminance(url).then((lum) => this.el.classList.toggle('lk-light-wall', lum != null && lum > 0.28));
+    // Contrast >= 4.5:1 for every text over the picture, from the mean luminance (linear) of its top part:
+    //  - curtain: a light picture gets dark text (light tokens) on a light veil; a dark one keeps light
+    //    text under a night shade dense enough to bring the background to L <= 0.15 (white text >= 5:1);
+    //  - sign-in: light text over the pre-blurred copy (brightness 0.72, about x0.48 in linear light),
+    //    under a night veil computed the same way.
+    topLuminance(url).then((lum) => {
+      const light = lum != null && lum > 0.28;
+      this.el.classList.toggle('lk-light-wall', light);
+      this.curtain.dataset.theme = light ? 'light' : 'dark';
+      const veil = (l) => Math.min(0.82, Math.max(0, 1 - 0.15 / Math.max(l, 0.001)));
+      this.el.style.setProperty('--lk-shade-a', (light ? 0.42 : Math.max(0.24, veil(lum || 0))).toFixed(2));
+      this.el.style.setProperty('--lk-veil', Math.max(0.12, veil((lum || 0) * 0.48)).toFixed(2));
+    });
     const blurred = await blurredImage(url, { blur: 30, brightness: 0.72, saturate: 1.3 });
     if (blurred) {
       this.blur.style.backgroundImage = `url("${blurred}")`;
@@ -719,8 +734,13 @@ export class LockScreen {
     this._bumpIdle();
     const p = ui.menu(anchor, items, { above: true, class: 'lk-menu' });
     // ui.menu opens at the button's left edge and clamps to the screen edge; align the menu's right edge with the
-    // button instead, a little above it, like the Windows sign-in screen.
+    // button instead, a little above it.
     const m = [...document.querySelectorAll('body > .menu.lk-menu')].pop();
+    // Same dark tokens as the lock screen itself (the menu lives in <body>, outside .lockui).
+    if (m) {
+      m.setAttribute('data-theme-scope', '');
+      m.dataset.theme = 'dark';
+    }
     if (m && anchor?.getBoundingClientRect) {
       const a = anchor.getBoundingClientRect();
       const r = m.getBoundingClientRect();

@@ -906,16 +906,27 @@ configure_plymouth() {
   local theme="$ROOT/usr/share/plymouth/themes/aurora" logo="$SHELL_SRC/renderer/assets/aurora-logo.svg"
   [[ -f "$theme/aurora.plymouth" ]] || { warn "no Plymouth theme in rootfs/, keeping the default"; return; }
   [[ -d "$ROOT/usr/share/plymouth/themes/spinner" ]] || die "plymouth-theme-spinner is required for the Selene OS theme"
-  # Spinner frames, dialog and keyboard images come from Ubuntu's spinner theme;
-  # the logo (watermark) is rendered from the shell's SVG.
-  local f
+  # Dialog, entry and keyboard images come from Ubuntu's spinner theme. The logo (watermark) is rendered from
+  # the shell's SVG, and the spinner is drawn here: a thin lunar-silver arc turning on a faint track
+  # (no ring of dots). Preview: docs/design/plymouth-preview.png.
+  local f i a
   for f in "$ROOT"/usr/share/plymouth/themes/spinner/*.png; do
-    case "$(basename "$f")" in watermark.png|bgrt-fallback.png|animation-*) continue ;; esac
+    case "$(basename "$f")" in watermark.png|bgrt-fallback.png|animation-*|throbber-*) continue ;; esac
     cp "$f" "$theme/"
   done
-  rsvg-convert -w 160 -h 160 "$logo" -o "$theme/watermark.tmp.png"
-  convert "$theme/watermark.tmp.png" -define png:exclude-chunks=date,time +set date:create +set date:modify "$theme/watermark.png"
+  # shellcheck disable=SC2054  # ImageMagick option values contain commas
+  local png_opts=(-depth 8 -define png:exclude-chunks=date,time +set date:create +set date:modify -strip)
+  rsvg-convert -w 128 -h 128 "$logo" -o "$theme/watermark.tmp.png"
+  convert "$theme/watermark.tmp.png" "${png_opts[@]}" "PNG32:$theme/watermark.png"
   rm -f "$theme/watermark.tmp.png"
+  # 36 frames for one turn, drawn at 2x and reduced to 40x40 (a 30 px ring, 2 px stroke).
+  for ((i = 0; i < 36; i++)); do
+    a=$((i * 10 - 90))
+    convert -size 80x80 xc:none -fill none -strokewidth 4 \
+      -stroke 'rgba(201,211,230,0.18)' -draw 'circle 40,40 40,10' \
+      -stroke '#c9d3e6' -draw "stroke-linecap round arc 10,10 70,70 $a,$((a + 80))" \
+      -resize 40x40 "${png_opts[@]}" "PNG32:$theme/$(printf 'throbber-%04d.png' $((i + 1)))"
+  done
   in_chroot "$ROOT" update-alternatives --quiet --install /usr/share/plymouth/themes/default.plymouth \
     default.plymouth /usr/share/plymouth/themes/aurora/aurora.plymouth 300
   in_chroot "$ROOT" update-alternatives --quiet --set default.plymouth /usr/share/plymouth/themes/aurora/aurora.plymouth
@@ -1196,7 +1207,9 @@ font_file() { # pattern... -> first matching font in the package layer
 
 make_grub_theme() {
   local t="$ISO_TREE/boot/grub/themes/aurora" logo="$SHELL_SRC/renderer/assets/aurora-logo.svg"
+  local wall="$SHELL_SRC/renderer/assets/wallpapers/nocturne-dark.jpg"
   local tmp="$WORK/grub-theme"
+  [[ -f "$wall" ]] || die "GRUB theme: missing wallpaper $wall"
   rm -rf "$t" "$tmp"; mkdir -p "$t" "$tmp"
   local regular bold
   regular="$(font_file 'Inter-Regular.*' 'Inter*.ttf' 'Inter*.otf' 'DejaVuSans.ttf')" || die "no font for the GRUB theme"
@@ -1217,106 +1230,133 @@ make_grub_theme() {
   # GRUB's PNG reader only handles 8-bit RGB/RGBA (no 16-bit, palette or grey+alpha images): ImageMagick
   # writes gradients as 16-bit and tiny shapes as palette/grey PNGs unless told otherwise (PNG24:/PNG32:).
   local png_opts=(-depth 8 -define png:exclude-chunks=date,time +set date:create +set date:modify -strip)
-  # Background: deep navy with a soft aurora glow and the logo, 1920x1080.
-  rsvg-convert -w 168 -h 168 "$logo" -o "$tmp/logo.png"
-  # The glows fade to fully transparent, so their bounding boxes never show as rectangles.
-  convert -size 1920x1080 xc:'#070b16' \
-    \( -size 1800x1000 -define gradient:radii=900,500 radial-gradient:'rgba(30,72,140,0.85)-rgba(7,11,22,0)' \) \
-      -gravity north -geometry +0-120 -compose over -composite \
-    \( -size 1100x620 -define gradient:radii=550,310 radial-gradient:'rgba(16,120,128,0.40)-rgba(7,11,22,0)' \) \
-      -gravity north -geometry +320+60 -compose screen -composite \
-    "$tmp/logo.png" -gravity north -geometry +0+150 -compose over -composite \
-    -font "$bold" -pointsize 54 -fill '#f4f7fc' -gravity north -annotate +0+340 "$OS_NAME" \
-    -font "$regular" -pointsize 22 -fill '#8fa2c2' -gravity north -annotate +0+412 "$ISO_VERSION" \
+  # Nocturne look (docs/design/SYSTEM.md, cold ambiance): the night-sea wallpaper, darkened on the left where
+  # the logo and the menu sit, so the moon stays visible on the right. Logo, name and menu are theme
+  # components (not drawn into the image), so they keep their place at every resolution.
+  convert "$wall" -resize '1920x1080^' -gravity center -extent 1920x1080 \
+    \( -size 1080x1250 gradient:'rgba(7,10,18,0.80)-rgba(7,10,18,0)' -rotate -90 \) \
+      -gravity west -compose over -composite \
+    \( -size 1920x260 gradient:'rgba(7,10,18,0)-rgba(7,10,18,0.55)' \) -gravity south -compose over -composite \
     "${png_opts[@]}" "PNG24:$t/background.png"
-  # Selected-entry highlight (9-slice: corners/edges/center).
-  local s=8 fill='#2f6fe0'
-  convert -size $((s*2+1))x$((s*2+1)) xc:none -fill "$fill" -draw "roundrectangle 0,0 $((s*2)),$((s*2)) $s,$s" "$tmp/hl.png"
-  convert "$tmp/hl.png" -crop "${s}x${s}+0+0"         +repage "${png_opts[@]}" "PNG32:$t/select_nw.png"
-  convert "$tmp/hl.png" -crop "1x${s}+${s}+0"         +repage "${png_opts[@]}" "PNG32:$t/select_n.png"
-  convert "$tmp/hl.png" -crop "${s}x${s}+$((s+1))+0"  +repage "${png_opts[@]}" "PNG32:$t/select_ne.png"
-  convert "$tmp/hl.png" -crop "${s}x1+0+${s}"         +repage "${png_opts[@]}" "PNG32:$t/select_w.png"
-  convert "$tmp/hl.png" -crop "1x1+${s}+${s}"         +repage "${png_opts[@]}" "PNG32:$t/select_c.png"
-  convert "$tmp/hl.png" -crop "${s}x1+$((s+1))+${s}"  +repage "${png_opts[@]}" "PNG32:$t/select_e.png"
-  convert "$tmp/hl.png" -crop "${s}x${s}+0+$((s+1))"  +repage "${png_opts[@]}" "PNG32:$t/select_sw.png"
-  convert "$tmp/hl.png" -crop "1x${s}+${s}+$((s+1))"  +repage "${png_opts[@]}" "PNG32:$t/select_s.png"
-  convert "$tmp/hl.png" -crop "${s}x${s}+$((s+1))+$((s+1))" +repage "${png_opts[@]}" "PNG32:$t/select_se.png"
-  # Menu panel (translucent card behind the entries).
-  local m=12
-  convert -size $((m*2+1))x$((m*2+1)) xc:none -fill '#ffffff14' -draw "roundrectangle 0,0 $((m*2)),$((m*2)) $m,$m" "$tmp/panel.png"
-  local spec
-  for spec in "nw ${m}x${m}+0+0" "n 1x${m}+${m}+0" "ne ${m}x${m}+$((m+1))+0" "w ${m}x1+0+${m}" "c 1x1+${m}+${m}" \
-              "e ${m}x1+$((m+1))+${m}" "sw ${m}x${m}+0+$((m+1))" "s 1x${m}+${m}+$((m+1))" "se ${m}x${m}+$((m+1))+$((m+1))"; do
-    convert "$tmp/panel.png" -crop "${spec#* }" +repage "${png_opts[@]}" "PNG32:$t/menu_${spec%% *}.png"
-  done
+  rsvg-convert -w 72 -h 72 "$logo" -o "$tmp/logo.png"
+  convert "$tmp/logo.png" "${png_opts[@]}" "PNG32:$t/logo.png"
+  # 9-slice pieces (corners, edges, centre) cut from a small rounded square.
+  slice9() { # src size prefix
+    local src="$1" n="$2" p="$3" spec
+    for spec in "nw ${n}x${n}+0+0" "n 1x${n}+${n}+0" "ne ${n}x${n}+$((n+1))+0" "w ${n}x1+0+${n}" "c 1x1+${n}+${n}" \
+                "e ${n}x1+$((n+1))+${n}" "sw ${n}x${n}+0+$((n+1))" "s 1x${n}+${n}+$((n+1))" "se ${n}x${n}+$((n+1))+$((n+1))"; do
+      convert "$src" -crop "${spec#* }" +repage "${png_opts[@]}" "PNG32:$t/${p}_${spec%% *}.png"
+    done
+  }
+  # Selected entry: a lunar-silver pill (accent "silver", dark text on it: 12:1).
+  local s=9
+  convert -size $((s*2+1))x$((s*2+1)) xc:none -fill '#c9d3e6' -draw "roundrectangle 0,0 $((s*2)),$((s*2)) $s,$s" "$tmp/hl.png"
+  slice9 "$tmp/hl.png" "$s" select
+  # Menu panel: the night surface (#0e131f) at 88 % with a faint silver hairline, like the shell's panels.
+  local m=14
+  convert -size $((m*2+1))x$((m*2+1)) xc:none -fill '#0e131fe0' -stroke '#cdd8ee30' -strokewidth 1 \
+    -draw "roundrectangle 0.5,0.5 $((m*2)).5,$((m*2)).5 $m,$m" "$tmp/panel.png"
+  slice9 "$tmp/panel.png" "$m" menu
+  unset -f slice9
 
-  cat >"$t/theme.txt" <<'EOF'
-# Selene OS GRUB theme (generated by iso/build.sh)
+  # Colours are the cold ambiance's: text #e6eaf2, text-2 #a9b2c5, text-3 #959fb4 (>= 7:1 on the panel).
+  cat >"$t/theme.txt" <<EOF
+# Selene OS GRUB theme (generated by iso/build.sh make_grub_theme; preview: docs/design/grub-preview.png)
 title-text: ""
 desktop-image: "background.png"
-desktop-image-scale-method: "crop"
+desktop-image-scale-method: "fitheight"
 desktop-image-h-align: "center"
 desktop-image-v-align: "center"
-desktop-color: "#070b16"
+desktop-color: "#070a12"
 terminal-font: "Aurora Regular Regular 16"
 terminal-box: "menu_*.png"
-terminal-left: "10%"
+terminal-left: "9%"
 terminal-top: "10%"
-terminal-width: "80%"
+terminal-width: "82%"
 terminal-height: "80%"
 
++ image {
+  left = 9%
+  top = 50%-330
+  width = 72
+  height = 72
+  file = "logo.png"
+}
+
++ label {
+  left = 9%+92
+  top = 50%-324
+  width = 600
+  height = 44
+  align = "left"
+  color = "#e6eaf2"
+  font = "Aurora Bold Regular 36"
+  text = "${OS_NAME}"
+}
+
++ label {
+  left = 9%+94
+  top = 50%-278
+  width = 400
+  height = 22
+  align = "left"
+  color = "#a9b2c5"
+  font = "Aurora Regular Regular 16"
+  text = "Version ${ISO_VERSION}"
+}
+
 + boot_menu {
-  left = 50%-380
-  top = 50%+30
-  width = 760
+  left = 9%
+  top = 50%-212
+  width = 640
   height = 262
   menu_pixmap_style = "menu_*.png"
   item_font = "Aurora Regular Regular 20"
-  item_color = "#c9d4e8"
+  item_color = "#e6eaf2"
   selected_item_font = "Aurora Bold Regular 22"
-  selected_item_color = "#ffffff"
+  selected_item_color = "#101624"
   selected_item_pixmap_style = "select_*.png"
   item_height = 42
-  item_padding = 14
-  item_spacing = 4
+  item_padding = 16
+  item_spacing = 6
   icon_width = 0
   icon_height = 0
   item_icon_space = 0
   scrollbar = false
 }
 
-# Two countdown labels (GRUB fills one %d per label): English left, French right.
+# Two countdown labels (GRUB fills one %d per label): English, then French.
 + label {
   id = "__timeout__"
-  left = 0
-  top = 100%-90
-  width = 50%-14
-  height = 24
-  align = "right"
-  color = "#8fa2c2"
+  left = 9%+18
+  top = 50%+72
+  width = 160
+  height = 22
+  align = "left"
+  color = "#a9b2c5"
   font = "Aurora Regular Regular 16"
   text = "Starting in %d s"
 }
 
 + label {
   id = "__timeout__"
-  left = 50%+14
-  top = 100%-90
-  width = 50%-14
-  height = 24
+  left = 9%+156
+  top = 50%+72
+  width = 320
+  height = 22
   align = "left"
-  color = "#8fa2c2"
+  color = "#a9b2c5"
   font = "Aurora Regular Regular 16"
-  text = "Démarrage dans %d s"
+  text = "·   Démarrage dans %d s"
 }
 
 + label {
-  left = 0
-  top = 100%-56
-  width = 100%
-  height = 24
-  align = "center"
-  color = "#5f6f8c"
+  left = 9%
+  top = 100%-64
+  width = 82%
+  height = 22
+  align = "left"
+  color = "#959fb4"
   font = "Aurora Regular Regular 16"
   text = "↑ ↓ choose / choisir   ·   Enter / Entrée: start / démarrer   ·   e: edit / modifier"
 }

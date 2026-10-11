@@ -1,7 +1,15 @@
-/* Search flyout (features/search.js); the results view (.sv-*) is styled in shell.css */
+/* Search flyout (features/search.js); the results view (.sv-*) is styled in shell.css.
+   Same glass surface as the Lanceur; it opens on the left, above the Lanceur's search button
+   (core/taskbar-start.css places it for every bar edge). */
 #search-panel {
   --fly-from: 64px;
   left: 50%;
+  color: var(--text);
+  background: var(--glass) var(--panel-grain, none);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-flyout);
+  backdrop-filter: blur(var(--blur)) saturate(var(--blur-sat));
   bottom: calc(var(--taskbar-h) + 12px);
   width: 800px;
   max-width: calc(100vw - 24px);
@@ -24,8 +32,11 @@ body.tb-left #search-panel {
 #search-panel.open {
   transition: transform 300ms var(--ease), opacity 80ms linear, visibility 0s;
 }
+:root[data-transparency="off"] #search-panel {
+  backdrop-filter: none;
+}
 .sp-top {
-  padding: 24px 24px 14px;
+  padding: 20px 20px 12px;
   flex: none;
 }
 .sp-box {
@@ -35,28 +46,28 @@ body.tb-left #search-panel {
 }
 .sp-box > .icon {
   position: absolute;
-  left: 16px;
-  color: var(--accent-text);
+  left: 18px;
+  color: var(--text-2);
   pointer-events: none;
 }
 .sp-input {
   width: 100%;
-  height: 40px;
+  height: 44px;
   padding: 0 44px 0 46px;
-  border-radius: 20px;
-  border: 1px solid var(--control-stroke);
-  border-bottom-color: var(--control-strong);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
   background: var(--input-bg);
   color: var(--text);
-  font-size: 15px;
+  font: var(--fs-body) / 1.3 var(--font);
   outline: none;
 }
 .sp-input:hover {
-  background: var(--control-hover);
+  border-color: var(--text-3);
 }
 .sp-input:focus {
-  background: var(--input-focus-bg);
-  border-bottom: 2px solid var(--accent);
+  border: 1px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .sp-input::placeholder {
   color: var(--text-3);
@@ -76,13 +87,17 @@ body.tb-left #search-panel {
 .sp-clear:hover {
   background: var(--subtle-hover);
 }
+.sp-clear:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
 .sp-clear[hidden] {
   display: none;
 }
 .sp-body {
   flex: 1;
   min-height: 0;
-  padding: 0 24px 20px;
+  padding: 0 20px 16px;
 }
 #search-panel.open .sv-main {
   animation: start-fade-up 360ms var(--ease) 40ms backwards;

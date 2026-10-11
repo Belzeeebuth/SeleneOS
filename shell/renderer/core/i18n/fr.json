@@ -66,7 +66,7 @@
     "music": "Musique",
     "videos": "Vidéos",
     "trash": "Corbeille",
-    "thisPc": "Ce PC"
+    "thisPc": "Ordinateur"
   },
   "wm": {
     "minimize": "Réduire",
@@ -89,7 +89,7 @@
     "wrongPassword": "Le mot de passe est incorrect. Réessayez.",
     "thisApp": "Cette application",
     "password": "Mot de passe",
-    "question": "Voulez-vous autoriser cette application à apporter des modifications à votre appareil ?",
+    "question": "Autoriser cette application à modifier le système ?",
     "publisher": "Éditeur vérifié : Selene OS",
     "enterPassword": "Pour continuer, entrez le mot de passe de {user}."
   },
@@ -98,19 +98,19 @@
     "unpin": "Détacher de la barre des tâches",
     "closeAll": "Fermer toutes les fenêtres",
     "closeWindow": "Fermer la fenêtre",
-    "start": "Démarrer",
+    "start": "Lanceur",
     "search": "Rechercher",
-    "taskView": "Vue des tâches",
-    "widgets": "Widgets",
+    "taskView": "Vue d’ensemble",
+    "widgets": "Tableau de bord",
     "quickSettings": "Réseau, son",
     "showDesktop": "Afficher le bureau",
     "settings": "Paramètres de la barre des tâches",
-    "taskManager": "Gestionnaire des tâches"
+    "taskManager": "Moniteur système"
   },
   "start": {
     "open": "Ouvrir",
-    "unpinStart": "Désépingler de l’écran de démarrage",
-    "pinStart": "Épingler à l’écran de démarrage",
+    "unpinStart": "Détacher du Lanceur",
+    "pinStart": "Épingler au Lanceur",
     "noRecent": "Vos fichiers récents s’afficheront ici.",
     "bestMatch": "Meilleur résultat",
     "app": "Application",
@@ -119,7 +119,7 @@
     "back": "Retour",
     "pinned": "Épinglé",
     "recommended": "Recommandations",
-    "searchPlaceholder": "Tapez ici pour effectuer une recherche",
+    "searchPlaceholder": "Rechercher une application, un fichier ou un réglage",
     "accountSettings": "Modifier les paramètres du compte"
   },
   "power": {
@@ -132,7 +132,7 @@
     "switchUser": "Changer d’utilisateur"
   },
   "desktop": {
-    "thisPc": "Ce PC",
+    "thisPc": "Ordinateur",
     "recycleBin": "Corbeille",
     "installAurora": "Installer Selene OS",
     "open": "Ouvrir",

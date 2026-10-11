@@ -1,6 +1,6 @@
 {
   "id": "browser",
-  "name": { "en": "Selene Browser", "fr": "Navigateur Selene" },
+  "name": { "en": "Browser", "fr": "Navigateur" },
   "description": { "en": "Browse the web with tabs, favorites and private windows", "fr": "Naviguez sur le Web avec des onglets, des favoris et des fenêtres privées" },
   "icon": "icon.svg",
   "entry": "main.js",

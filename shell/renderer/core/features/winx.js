@@ -1,6 +1,6 @@
-// Power-user menu (Super+X, or right-click on the Start button) and the window menu
+// Menu rapide (Super+X, or right-click on the Lanceur button) and the window menu
 // (right-click on a title bar, click on the window icon, or Alt+Space).
-// Both menus support Windows-style accelerator keys (the underlined letter).
+// Both menus support accelerator keys (the underlined letter).
 //   shell.on('winx:toggle')          shell.on('sysmenu:open', win)
 //   wm.on('titlebar-menu', (win, event))
 import { h, ui } from '../ui.js';
@@ -19,9 +19,9 @@ i18n.extend({
       network: 'Net&work Connections',
       disks: 'Dis&k Management',
       terminal: 'Term&inal',
-      taskmgr: '&Task Manager',
+      taskmgr: 'System &Monitor',
       settings: 'Setti&ngs',
-      files: 'File &Explorer',
+      files: '&Files',
       search: '&Search',
       run: '&Run',
       shutdownMenu: 'Sh&ut down or sign out',
@@ -41,9 +41,9 @@ i18n.extend({
       network: 'Connexions &réseau',
       disks: 'Gestion des &disques',
       terminal: '&Terminal',
-      taskmgr: '&Gestionnaire des tâches',
+      taskmgr: '&Moniteur système',
       settings: '&Paramètres',
-      files: '&Explorateur de fichiers',
+      files: '&Fichiers',
       search: 'Re&chercher',
       run: 'E&xécuter',
       shutdownMenu: 'Arrêter o&u se déconnecter',
@@ -57,7 +57,7 @@ i18n.extend({
   },
 });
 
-// "&Task Manager" -> <span>…<u>T</u>…</span> ; the accelerator is the letter after '&'.
+// "System &Monitor" -> <span>…<u>M</u>…</span> ; the accelerator is the letter after '&'.
 function accel(key) {
   const text = t(key);
   const i = text.indexOf('&');

@@ -7,17 +7,13 @@
    Every rule is prefixed with :root[data-tb-*] so it beats the shell and visual-style rules it adapts. */
 
 /* ------------------------------------------------------------------ sizes */
-:root[data-tb-size="small"] #taskbar .tb-btn {
-  height: 32px;
-  min-width: 32px;
-}
 :root[data-tb-size="small"] #taskbar .tb-btn > img {
   width: 20px;
   height: 20px;
 }
-:root[data-tb-size="small"] #taskbar .tb-start > img {
-  width: 21px;
-  height: 21px;
+:root[data-tb-size="small"] #taskbar .tb-start .tb-logo {
+  width: 19px;
+  height: 19px;
 }
 :root[data-tb-size="small"] #taskbar .tb-btn > .icon {
   width: 16px !important;
@@ -29,17 +25,13 @@
 :root[data-tb-size="small"] #taskbar .tb-searchbox {
   height: 28px;
 }
-:root[data-tb-size="large"] #taskbar .tb-btn {
-  height: 48px;
-  min-width: 48px;
-}
 :root[data-tb-size="large"] #taskbar .tb-btn > img {
   width: 30px;
   height: 30px;
 }
-:root[data-tb-size="large"] #taskbar .tb-start > img {
-  width: 32px;
-  height: 32px;
+:root[data-tb-size="large"] #taskbar .tb-start .tb-logo {
+  width: 26px;
+  height: 26px;
 }
 :root[data-tb-size="large"] #taskbar .tb-btn > .icon {
   width: 24px !important;
@@ -197,10 +189,6 @@
   left: auto;
   right: 0;
   border-left: var(--tb-edge-border, 1px solid var(--window-stroke));
-}
-:root[data-tb-pos="left"] #taskbar .tb-left,
-:root[data-tb-pos="right"] #taskbar .tb-left {
-  display: none;
 }
 /* (a vertical taskbar always starts at the top, like Windows 10: the tray needs the bottom) */
 :root[data-tb-pos="left"] #taskbar .tb-center,
@@ -492,22 +480,11 @@
 }
 
 /* ------------------------------------------------------------------ the edge border of each visual style */
+:root {
+  --tb-edge-border: var(--bar-border-w, 1px) solid var(--glass-line);
+}
 :root[data-style="contrast"] {
   --tb-edge-border: 2px solid var(--hc-fg);
-}
-:root[data-style="glass"] {
-  --tb-edge-border: 1px solid var(--glass-hi);
-}
-:root[data-style="minimal"] {
-  --tb-edge-border: 1px solid var(--stroke);
-}
-:root[data-style="retro"] {
-  --tb-edge-border: 2px solid var(--face-hi, #fff);
-}
-:root[data-style="retro"][data-tb-pos="top"] #taskbar,
-:root[data-style="retro"][data-tb-pos="left"] #taskbar,
-:root[data-style="retro"][data-tb-pos="right"] #taskbar {
-  box-shadow: none;
 }
 
 /* ------------------------------------------------------------------ Start menu background style (start.background) */
@@ -543,7 +520,7 @@
 :root[data-focus-simple="on"] #taskbar .tb-search,
 :root[data-focus-simple="on"] #taskbar .tb-taskview,
 :root[data-focus-simple="on"] #taskbar .tb-widgets,
-:root[data-focus-simple="on"] #taskbar .tb-left,
+:root[data-focus-simple="on"] #taskbar .tb-left > .tb-widgets,
 :root[data-focus-simple="on"] #taskbar .tb-minis,
 :root[data-focus-simple="on"] #taskbar .tb-bell .tb-count {
   display: none;
@@ -620,4 +597,43 @@
 :root[data-icon-pack="mono"][data-theme="light"] [data-theme-scope][data-theme="dark"] img[src*="aurora-mono"],
 :root[data-icon-pack="mono"][data-theme="dark"] [data-theme-scope][data-theme="light"] img[src*="aurora-mono"] {
   filter: invert(1);
+}
+
+/* ------------------------------------------------------------------ desktop icons (Selene): rounded plates, labels
+   readable on any wallpaper (a soft dark halo, and a subtle plate on hover / selection), accent selection, a visible
+   keyboard focus ring. The labels are always light: they sit on the wallpaper, not on a themed surface. */
+#desktop .desk-icon {
+  gap: 4px;
+  padding: 6px 4px 4px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  font-family: var(--font);
+}
+#desktop .desk-icon:hover {
+  background: rgb(var(--shadow-rgb) / 0.26);
+}
+#desktop .desk-icon.selected,
+#desktop .desk-icon.drop-target {
+  background: color-mix(in srgb, var(--accent-base) 34%, rgb(var(--shadow-rgb) / 0.42));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-base) 70%, transparent);
+}
+#desktop .desk-icon:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 0;
+  box-shadow: 0 0 0 4px rgb(var(--shadow-rgb) / 0.55);
+}
+#desktop .desk-ico {
+  filter: drop-shadow(0 2px 4px rgb(var(--shadow-rgb) / 0.4));
+}
+#desktop .desk-label {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  line-height: 16px;
+  text-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.95), 0 0 6px rgb(var(--shadow-rgb) / 0.6);
+}
+#desktop .desk-icon.selected .desk-label,
+#desktop .desk-icon:hover .desk-label {
+  text-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.9);
 }
