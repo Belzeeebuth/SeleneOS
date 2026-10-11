@@ -112,6 +112,9 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
     aurora-xsession retries the shell with `AURORA_GPU=off` after a crash with the GPU on.
   - Under TCG, QEMU's emulated AVX2 gather (`vpgatherdd`) faults on masked-off lanes and Skia's software renderer
     crashed the GPU process ("GPU process isn't usable"). qemu-run.sh uses `-cpu max,avx2=off` for TCG (KVM: `-cpu host`).
+  - Fluidity: without 3D in the VM everything is drawn by the CPU (the user saw it on a laptop on battery). `make run`
+    now defaults to `VGA=auto`: virgl (`virtio-gl`) when the host has a render node, QEMU's virtio-vga-gl and the OpenGL
+    display, with a restart without 3D if QEMU refuses it at startup. The user confirmed virtio-gl is much smoother.
   - GRUB theme: PNGs must be 8-bit RGB/RGBA (GRUB drew rainbow rings otherwise) and theme fonts must match the .pf2
     names; verify-iso checks both.
 - The user builds on an Arch-like host with fish (heredocs fail; use `bash` first) and `sudo make docker-iso`.

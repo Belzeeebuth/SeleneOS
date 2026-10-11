@@ -21,7 +21,8 @@
 #   MEM=4096        VM memory in MB            CPUS=4          VM vCPUs
 #   DISK=work/qemu/aurora-disk.qcow2            DISK_SIZE=32G   size of a newly created disk
 #   ISO=out/aurora-os-<version>-amd64.iso       RES=WxH         initial VM screen mode
-#   VGA=virtio|std  display adapter (std = most compatible)     AUDIO=auto|pipewire|pa|sdl|none
+#   VGA=auto|virtio|virtio-gl|std  display adapter (auto = 3D when the host can; std = most compatible)
+#   AUDIO=auto|pipewire|pa|sdl|none
 #   BOOT=auto|cd    auto: disk first, CD while the disk is blank; cd: always the live CD first
 #   HEADLESS=1      no window (QMP/serial/guest-agent sockets in work/qemu/)
 #   QEMU_ARGS="..." extra arguments for tools/qemu-run.sh (see tools/qemu-run.sh --help)
@@ -40,7 +41,7 @@ DISK        ?= $(ROOT)/work/qemu/aurora-disk.qcow2
 DISK_SIZE   ?= 32G
 MEM         ?= 4096
 CPUS        ?= 4
-VGA         ?= virtio
+VGA         ?= auto
 RES         ?=
 AUDIO       ?= auto
 BOOT        ?= auto

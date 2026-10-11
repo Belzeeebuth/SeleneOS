@@ -222,7 +222,8 @@ created by the firmware survives. The installer writes both a BIOS and a UEFI bo
 installed disk boots with either firmware (`make run-disk` or `make run-disk-uefi`).
 
 VM settings: `MEM=4096` (MB), `CPUS=4`, `RES=1920x1080` (initial screen mode; 1600x900 under TCG),
-`VGA=virtio` (`VGA=std` = standard VGA, the most compatible), `AUDIO=auto`
+`VGA=auto` (3D through the host GPU with virgl, `virtio-gl`, when the host can do it, else `virtio`
+without 3D; `VGA=std` = standard VGA, the most compatible), `AUDIO=auto`
 (PipeWire, else PulseAudio, else SDL, else none), `DISK=...`, `DISK_SIZE=32G`, `HEADLESS=1`
 (no window, sockets in `work/qemu/` for `tools/qmp.py`), `QEMU_ARGS="..."` (passed to
 `tools/qemu-run.sh`, see `tools/qemu-run.sh --help`). Example: `make run-uefi MEM=8192 CPUS=6`.
@@ -427,6 +428,7 @@ installation is retried. On failure the live session starts and the error stays 
 |---|---|
 | `Could not access KVM kernel module` / "KVM not available — using TCG" | enable VT-x/AMD-V in the PC's firmware; `sudo modprobe kvm_intel` (or `kvm_amd`); `sudo usermod -aG kvm $USER` and log in again; check `ls -l /dev/kvm` |
 | Very slow boot | that is TCG (no KVM). Give it more cores (`CPUS=`), keep `MEM=4096`+, be patient on the first boot; the boot menu's default entry works, *copy to RAM* does not help under TCG |
+| Desktop not fluid | without 3D (`virtio` in the `qemu-run:` line) the CPU draws everything: check that `make run` picked `virtio-gl` (needs `/dev/dri/renderD*` and QEMU's OpenGL display: Arch `qemu-desktop`, Ubuntu `qemu-system-gui`); plug the laptop in; `RES=1600x900` |
 | Black screen after the splash | choose **Safe graphics** in the boot menu; in QEMU try `make run VGA=std`; the *debug* entry logs everything to `work/qemu/aurora.serial.log` |
 | Desktop does not appear, back to a sign-in screen | boot the *debug* entry and look for `aurora-session`/`aurora-shell` lines in the serial log; or open a text console (Ctrl+Alt+F1 — in the QEMU window use *Machine → Send key* if the host catches it; user `aurora`, empty password) and run `journalctl -b -t aurora-session -t aurora-greeter` |
 | UEFI VM goes to the UEFI shell or does not find the ISO | Secure Boot firmware selected: use `OVMF_CODE_4M.fd` (`make run-uefi` does) |
@@ -589,7 +591,8 @@ CD »). `make run BOOT=cd` force le CD. En UEFI, une copie privée des variables
 est gardée dans `work/qemu/`. L'installateur écrit un chargeur de démarrage BIOS **et** UEFI : le
 disque installé démarre avec les deux (`make run-disk` ou `make run-disk-uefi`).
 
-Réglages : `MEM=4096`, `CPUS=4`, `RES=1920x1080`, `VGA=virtio` (`VGA=std` = VGA standard, le plus
+Réglages : `MEM=4096`, `CPUS=4`, `RES=1920x1080`, `VGA=auto` (3D via la carte graphique du PC avec
+virgl, `virtio-gl`, quand c'est possible, sinon `virtio` sans 3D ; `VGA=std` = VGA standard, le plus
 compatible), `AUDIO=auto` (PipeWire, sinon PulseAudio, sinon SDL, sinon aucun), `DISK=...`,
 `DISK_SIZE=32G`, `HEADLESS=1`, `QEMU_ARGS="..."` (voir `tools/qemu-run.sh --help`). La console
 série est écrite dans `work/qemu/aurora.serial.log` (entrée *débogage* du menu). Sans session
@@ -721,6 +724,7 @@ session live démarre et l'erreur reste affichée sur la console.
 |---|---|
 | « KVM not available — using TCG » | activer VT-x/AMD-V dans le BIOS/UEFI du PC, `sudo modprobe kvm_intel` (ou `kvm_amd`), `sudo usermod -aG kvm $USER` puis se reconnecter |
 | Démarrage très lent | c'est TCG (sans KVM) : plus de cœurs (`CPUS=`), `MEM=4096` ou plus, patience au premier démarrage |
+| Bureau pas fluide | sans 3D (`virtio` dans la ligne `qemu-run:`) le processeur dessine tout : vérifier que `make run` a choisi `virtio-gl` (il faut `/dev/dri/renderD*` et l'affichage OpenGL de QEMU : Arch `qemu-desktop`, Ubuntu `qemu-system-gui`) ; brancher le portable ; `RES=1600x900` |
 | Écran noir après le logo | entrée **Mode graphique sûr** ; dans QEMU `make run VGA=std` ; l'entrée *débogage* journalise tout dans `work/qemu/aurora.serial.log` |
 | Le bureau n'apparaît pas | entrée *débogage*, lignes `aurora-session`/`aurora-shell` du journal série ; ou console texte (Ctrl+Alt+F1 — dans la fenêtre QEMU, *Machine → Send key* si l'hôte intercepte la touche ; utilisateur `aurora`, mot de passe vide) puis `journalctl -b -t aurora-session -t aurora-greeter` |
 | La VM UEFI tombe dans le shell UEFI | micrologiciel Secure Boot choisi : prendre `OVMF_CODE_4M.fd` (`make run-uefi` le fait) |

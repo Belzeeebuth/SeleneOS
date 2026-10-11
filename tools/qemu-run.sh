@@ -30,9 +30,11 @@
 #   --ovmf-vars FILE     UEFI variable store template [OVMF_VARS]
 #   --mem MB             RAM [MEM]                       (default: 4096)
 #   --cpus N             vCPUs [CPUS]                    (default: 4, at most the host's CPUs)
-#   --vga virtio|std|virtio-gl  display adapter [VGA]    (default: virtio = virtio-vga;
-#                        std = standard VGA (bochs), most compatible; virtio-gl = virgl 3D, needs
-#                        a host GPU and the gtk/sdl display with OpenGL)
+#   --vga auto|virtio|std|virtio-gl  display adapter [VGA] (default: auto = virtio-gl when the
+#                        host can do 3D, else virtio; virtio = virtio-vga without 3D; std = standard
+#                        VGA (bochs), most compatible; virtio-gl = virgl 3D through the host GPU, needs
+#                        a render node /dev/dri/renderD*, QEMU's virtio-vga-gl and the gtk/sdl display
+#                        with OpenGL). auto falls back to virtio if QEMU refuses 3D at startup.
 #   --res WxH            initial screen mode [RES]       (default: 1920x1080 with KVM, 1600x900 TCG)
 #   --audio auto|pipewire|pa|sdl|alsa|none  host audio backend [AUDIO] (default: auto =
 #                        pipewire, else pulseaudio, else sdl, else none)
@@ -72,7 +74,7 @@ OVMF_CODE="${OVMF_CODE:-}"
 OVMF_VARS="${OVMF_VARS:-}"
 MEM="${MEM:-4096}"
 CPUS="${CPUS:-4}"
-VGA="${VGA:-virtio}"
+VGA="${VGA:-auto}"
 RES="${RES:-}"
 AUDIO="${AUDIO:-auto}"
 HEADLESS="${HEADLESS:-0}"
@@ -365,15 +367,6 @@ if ((DIRECT_KERNEL)); then
          -append "boot=casper console=tty1 console=ttyS0,115200n8${KERNEL_ARGS:+ $KERNEL_ARGS} ---")
 fi
 
-# Display adapter.
-args+=(-vga none)
-case "$VGA" in
-  virtio) args+=(-device "virtio-vga,xres=$XRES,yres=$YRES") ;;
-  std) args+=(-device "VGA,edid=on,xres=$XRES,yres=$YRES") ;;
-  virtio-gl) args+=(-device "virtio-vga-gl,xres=$XRES,yres=$YRES") ;;
-  *) die "unknown --vga $VGA (virtio|std|virtio-gl)" ;;
-esac
-
 # Display backend.
 GUI=0
 if ((HEADLESS)); then
@@ -391,6 +384,32 @@ elif [[ -z "$DISPLAY_SPEC" ]]; then
     note "no graphical session: the VM screen is on VNC 127.0.0.1:5900 (e.g. vncviewer 127.0.0.1:0)"
   fi
 fi
+
+# Display adapter. auto: 3D (virgl) when the host can do it — without it the guest draws everything
+# with the CPU and the desktop is far less fluid.
+host_can_do_3d() {
+  local n node=0
+  for n in /dev/dri/renderD*; do [[ -r "$n" && -w "$n" ]] && node=1; done
+  ((node)) || return 1
+  have_module ui-opengl || return 1
+  command -v "$QEMU" >/dev/null 2>&1 || return 1
+  local devs; devs="$("$QEMU" -device help 2>/dev/null)" || return 1
+  [[ "$devs" == *'"virtio-vga-gl"'* ]]
+}
+VGA_AUTO_GL=0
+if [[ "$VGA" == auto ]]; then
+  VGA=virtio
+  if [[ "$DISPLAY_SPEC" =~ ^(gtk|sdl)($|,) && "$DISPLAY_SPEC" != *gl=off* ]] && host_can_do_3d; then
+    VGA=virtio-gl; VGA_AUTO_GL=1
+  fi
+fi
+args+=(-vga none)
+case "$VGA" in
+  virtio) args+=(-device "virtio-vga,xres=$XRES,yres=$YRES") ;;
+  std) args+=(-device "VGA,edid=on,xres=$XRES,yres=$YRES") ;;
+  virtio-gl) args+=(-device "virtio-vga-gl,xres=$XRES,yres=$YRES") ;;
+  *) die "unknown --vga $VGA (auto|virtio|std|virtio-gl)" ;;
+esac
 [[ "$VGA" == virtio-gl && "$DISPLAY_SPEC" =~ ^(gtk|sdl)($|,) && "$DISPLAY_SPEC" != *gl=* ]] && DISPLAY_SPEC+=",gl=on"
 [[ "$DISPLAY_SPEC" =~ ^(gtk|sdl) ]] && GUI=1
 args+=(-display "$DISPLAY_SPEC")
@@ -436,7 +455,8 @@ args+=("${EXTRA[@]}")
 
 firmware=BIOS
 if [[ "$UEFI" == 1 ]]; then firmware=UEFI; ((SECURE_BOOT)) && firmware="UEFI + Secure Boot"; fi
-summary="$firmware, $ACCEL, ${MEM} MB, $CPUS vCPU, $VGA ${RES}, audio=$AUDIO, display=$DISPLAY_SPEC, boot=$BOOT"
+vga_label="$VGA"; ((VGA_AUTO_GL)) && vga_label+=" (auto)"
+summary="$firmware, $ACCEL, ${MEM} MB, $CPUS vCPU, $vga_label ${RES}, audio=$AUDIO, display=$DISPLAY_SPEC, boot=$BOOT"
 [[ -n "$ISO" ]] && summary+=", iso=${ISO##*/}"
 if ((DRY_RUN)); then
   note "dry run ($summary) — nothing is started or created"
@@ -447,4 +467,19 @@ fi
 rm -f "$QMP_SOCK" "$QGA_SOCK"
 note "$summary"
 note "QMP $QMP_SOCK  guest agent $QGA_SOCK  serial log $SERIAL"
+((VGA_AUTO_GL)) || exec "$QEMU" "${args[@]}"
+# 3D chosen automatically: if QEMU refuses it at startup (no usable OpenGL/EGL on the host), start
+# again without it instead of leaving the user with an error.
+started=$SECONDS
+"$QEMU" "${args[@]}" && exit 0
+rc=$?
+if ((rc >= 128 || SECONDS - started > 20)); then exit "$rc"; fi
+note "QEMU did not start with 3D acceleration (virtio-gl); starting again without it (VGA=virtio)"
+for i in "${!args[@]}"; do
+  case "${args[$i]}" in
+    virtio-vga-gl,*) args[i]="virtio-vga,${args[$i]#virtio-vga-gl,}" ;;
+    *,gl=on) [[ "${args[$((i - 1))]}" == -display ]] && args[i]="${args[$i]%,gl=on}" ;;
+  esac
+done
+rm -f "$QMP_SOCK" "$QGA_SOCK"
 exec "$QEMU" "${args[@]}"
