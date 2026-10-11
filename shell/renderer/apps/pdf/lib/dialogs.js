@@ -26,7 +26,9 @@ export async function askPassword(doc, incorrect) {
       { label: t('password.open'), value: 'ok', primary: true },
       { label: t('common.cancel'), value: null },
     ],
-    onOpen: (dlg) => {
+    onOpen: (dlg, done) => {
+      // The tab can go away while the question is open (window closed from the taskbar…): close it too.
+      doc.closePasswordDialog = () => done(null);
       dlg._validate = (val) => {
         if (val === 'ok' && !input.value) {
           err.textContent = t('password.empty');
@@ -39,6 +41,7 @@ export async function askPassword(doc, incorrect) {
       setTimeout(() => input.focus({ preventScroll: true }), 50);
     },
   });
+  doc.closePasswordDialog = null;
   return v === 'ok' ? input.value : null;
 }
 
@@ -202,9 +205,7 @@ export async function chooseApp(w, path) {
   const { h, t } = w;
   const { ui } = w.ctx;
   const reg = w.ctx.shell.registry;
-  const apps = reg.list().filter((m) => m.id !== 'pdf' && m.id !== 'installer');
-  const suggested = apps.filter((m) => (m.fileTypes || []).includes('.pdf') || (m.defaultFor || []).includes('.pdf'));
-  const others = apps.filter((m) => !suggested.includes(m));
+  const { suggested, others } = openWithApps(reg);
   let selected = suggested[0]?.id || others[0]?.id || null;
   const rows = [];
   const pick = (id) => {
@@ -264,6 +265,16 @@ export async function chooseApp(w, path) {
     },
   });
   return v === 'open' ? selected : null;
+}
+
+/** Apps that can be offered for a PDF: the ones registered for .pdf, then the ones that open files at all
+ *  (games, system tools and the like are left out, as Windows does). */
+export function openWithApps(reg) {
+  const apps = reg.list().filter((m) => m.id !== 'pdf' && !m.hidden);
+  const handles = (m, ext) => (m.fileTypes || []).includes(ext) || (m.defaultFor || []).includes(ext);
+  const suggested = apps.filter((m) => handles(m, '.pdf'));
+  const others = apps.filter((m) => !suggested.includes(m) && m.category !== 'games' && ((m.fileTypes || []).length || (m.defaultFor || []).length));
+  return { suggested, others };
 }
 
 // ---------------------------------------------------------------- go to page

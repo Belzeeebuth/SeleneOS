@@ -233,6 +233,24 @@ export function makeSorter(key, dir, locale) {
   };
 }
 
+/** "10/11/2026 7:10 AM" / "11/10/2026 07:10": the Date modified column of Explorer (4-digit year, no comma,
+ *  two-digit hours in French). */
+const dateFmts = new Map();
+export function listDate(ms, locale) {
+  if (!ms) return '';
+  let f = dateFmts.get(locale);
+  if (!f) {
+    const fr = /^fr/.test(locale);
+    f = [
+      new Intl.DateTimeFormat(locale, { year: 'numeric', month: fr ? '2-digit' : 'numeric', day: fr ? '2-digit' : 'numeric' }),
+      new Intl.DateTimeFormat(locale, { hour: fr ? '2-digit' : 'numeric', minute: '2-digit' }),
+    ];
+    dateFmts.set(locale, f);
+  }
+  const d = new Date(ms);
+  return `${f[0].format(d)} ${f[1].format(d)}`;
+}
+
 /** Space saved by compression, 0..1 (Windows' "Ratio" column), or null when unknown. */
 export function ratioOf(size, packed) {
   if (packed == null || !size) return null;

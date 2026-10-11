@@ -41,7 +41,8 @@
    "toggle": "Turn the alarm on or off",
    "turnOff": "Turn off",
    "turnOn": "Turn on",
-   "snoozedUntil": "Snoozed until {time}"
+   "snoozedUntil": "Snoozed until {time}",
+   "limit": "You can have up to {n} alarms. Delete one to add another."
   },
   "timer": {
    "add": "Add new timer",
@@ -72,7 +73,8 @@
    "resume": "Resume",
    "start": "Start",
    "startPreset": "Start a {n} min timer",
-   "tooShort": "Choose a time of at least 1 second."
+   "tooShort": "Choose a time of at least 1 second.",
+   "limit": "You can have up to {n} timers. Delete one to add another."
   },
   "stopwatch": {
    "collapse": "Restore",
@@ -327,7 +329,8 @@
    "toggle": "Activer ou désactiver l’alarme",
    "turnOff": "Désactiver",
    "turnOn": "Activer",
-   "snoozedUntil": "Sonnera de nouveau à {time}"
+   "snoozedUntil": "Sonnera de nouveau à {time}",
+   "limit": "Vous pouvez avoir jusqu’à {n} alarmes. Supprimez-en une pour en ajouter une autre."
   },
   "timer": {
    "add": "Ajouter un minuteur",
@@ -358,7 +361,8 @@
    "resume": "Reprendre",
    "start": "Démarrer",
    "startPreset": "Lancer un minuteur de {n} min",
-   "tooShort": "Choisissez une durée d’au moins 1 seconde."
+   "tooShort": "Choisissez une durée d’au moins 1 seconde.",
+   "limit": "Vous pouvez avoir jusqu’à {n} minuteurs. Supprimez-en un pour en ajouter un autre."
   },
   "stopwatch": {
    "collapse": "Réduire",

@@ -29,6 +29,14 @@ export function newId(prefix = '') {
   return `${prefix}${Date.now().toString(36)}${rnd}`;
 }
 
+// Dates the views, reminders and .ics export can handle: events outside 1900–2499 are dropped, and no
+// event lasts more than 10 years (a broken DURATION in an imported file would make the dates invalid).
+const MIN_MS = Date.UTC(1900, 0, 1);
+const MAX_MS = Date.UTC(2500, 0, 1);
+const MAX_SPAN_DAYS = 3660;
+const inRange = (ms) => Number.isFinite(ms) && ms >= MIN_MS && ms < MAX_MS;
+const keyInRange = (k) => isDateKey(k) && Number(k.slice(0, 4)) >= 1900 && Number(k.slice(0, 4)) < 2500;
+
 const str = (v, max = 10000) => (typeof v === 'string' ? v.slice(0, max) : v == null ? '' : String(v).slice(0, max));
 const isColor = (c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
 
@@ -36,11 +44,11 @@ function sanitizeOverride(o, allDay) {
   if (!o || typeof o !== 'object') return null;
   const out = {};
   if (allDay) {
-    if (isDateKey(o.start)) out.start = o.start;
-    if (isDateKey(o.end)) out.end = o.end;
+    if (keyInRange(o.start)) out.start = o.start;
+    if (keyInRange(o.end)) out.end = o.end;
   } else {
-    if (Number.isFinite(o.start)) out.start = o.start;
-    if (Number.isFinite(o.end)) out.end = o.end;
+    if (inRange(o.start)) out.start = o.start;
+    if (inRange(o.end)) out.end = o.end;
   }
   for (const f of ['title', 'location', 'description']) if (typeof o[f] === 'string') out[f] = str(o[f]);
   if (typeof o.calendarId === 'string') out.calendarId = o.calendarId;
@@ -55,14 +63,16 @@ export function sanitizeEvent(e) {
   let start;
   let end;
   if (allDay) {
-    if (!isDateKey(e.start)) return null;
+    if (!keyInRange(e.start)) return null;
     start = e.start;
     end = isDateKey(e.end) && e.end > start ? e.end : keyFromDayNum(dayNumFromKey(start) + 1);
+    if (dayNumFromKey(end) - dayNumFromKey(start) > MAX_SPAN_DAYS) end = keyFromDayNum(dayNumFromKey(start) + MAX_SPAN_DAYS);
   } else {
     start = Number(e.start);
-    if (!Number.isFinite(start)) return null;
+    if (!inRange(start)) return null;
     end = Number(e.end);
     if (!Number.isFinite(end) || end < start) end = start;
+    end = Math.min(end, start + MAX_SPAN_DAYS * DAY_MS);
   }
   const out = {
     id: typeof e.id === 'string' && e.id ? e.id.slice(0, 200) : newId('e'),

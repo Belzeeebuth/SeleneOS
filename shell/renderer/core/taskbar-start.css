@@ -82,6 +82,63 @@
 :root[data-tb-pos="right"] #calendar-center {
   max-height: calc(100vh - 24px);
 }
+/* …and none of them runs under the bar or off the far edge on a narrow work area (a small screen, a large UI scale:
+   the Search panel is 800 px and the Widgets board 760 px wide). */
+:root[data-tb-pos="left"] #start,
+:root[data-tb-pos="right"] #start,
+:root[data-tb-pos="left"] #search-panel,
+:root[data-tb-pos="right"] #search-panel,
+:root[data-tb-pos="left"] #quick-settings,
+:root[data-tb-pos="right"] #quick-settings,
+:root[data-tb-pos="left"] #calendar-center,
+:root[data-tb-pos="right"] #calendar-center {
+  max-width: calc(100vw - var(--taskbar-h) - 24px);
+}
+:root[data-tb-pos="left"] #widgets-board,
+:root[data-tb-pos="right"] #widgets-board {
+  width: min(760px, calc(100vw - var(--taskbar-h) - 24px));
+}
+
+/* ------------------------------------------------------------------ taskbar clock vs. large text */
+/* A vertical bar is 52 / 60 / 72 px wide whatever the text size: the clock's font grows with the text size only as far
+   as "00:00" still fits the button (taskbar.js lets a long time — seconds, AM/PM — wrap onto a second line). */
+:root[data-tb-pos="left"] #taskbar .tb-clock,
+:root[data-tb-pos="right"] #taskbar .tb-clock {
+  font-size: min(var(--fs-caption), calc((var(--taskbar-h) - 16px) / 2.8));
+  line-height: 1.25;
+}
+:root[data-tb-pos="left"] #taskbar .tb-time,
+:root[data-tb-pos="right"] #taskbar .tb-time {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+/* A horizontal bar keeps its two-line clock inside its 32 / 40 / 48 px buttons up to 150 % text.
+   (calc() line heights: theme.js rewrites plain `Npx` ones to grow with the text size) */
+:root[data-tb-size="small"]:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock {
+  font-size: min(var(--fs-caption), 13px);
+  line-height: calc(15px);
+}
+:root[data-tb-size="large"]:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock {
+  font-size: min(calc(13px * var(--text-scale, 1)), 16px);
+  line-height: min(calc(18px * var(--text-scale, 1)), 22px);
+}
+/* The Focus mode chip on a vertical bar: "25 min" wraps under its number instead of running out of the bar. */
+:root[data-tb-pos="left"] #taskbar .tb-status-text,
+:root[data-tb-pos="right"] #taskbar .tb-status-text {
+  max-width: 100%;
+  font-size: min(var(--fs-caption), calc((var(--taskbar-h) - 16px) / 2.8));
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+#taskbar .tb-searchbox > span:not(.icon) {
+  min-width: 0;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ------------------------------------------------------------------ Start background: transparent glass (start.background) */
 #start[data-bg="glass"] {

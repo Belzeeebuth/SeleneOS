@@ -466,6 +466,8 @@ export function mount(c) {
   ctx.shell.reminders?.on?.('fire', (r) => {
     if (r?.appId === 'calendar') setTimeout(() => dayEvents().then((m) => m?.resync?.(ctx)).catch(() => {}), 1000);
   });
+  // ...and once after startup, so reminders dropped while the computer was off are planned again.
+  setTimeout(() => dayEvents().then((m) => m?.resync?.(ctx)).catch(() => {}), 8000);
   // Refresh relative times while open.
   setInterval(() => fly.isOpen && refreshTimes(), 30000);
   renderNotifs();

@@ -27,7 +27,7 @@ export class StartPage {
       h('div', { class: 'body-strong' }, t('start.dropTitle')),
       h('div', { class: 'caption text-2' }, t('start.dropHint')),
       this.openBtn,
-      h('div', { class: 'caption text-3 pdf-start-key' }, t('start.shortcut')),
+      h('div', { class: 'caption text-2 pdf-start-key' }, t('start.shortcut')),
     );
     this.list = h('div', { class: 'pdf-recent-list', role: 'list', 'aria-label': t('start.recent') });
     this.clearBtn = h('button', { class: 'btn subtle small pdf-recent-clear', onclick: () => this.clearAll() }, t('start.clear'));
@@ -188,6 +188,7 @@ export class StartPage {
 
 function relDate(i18n, ms) {
   const d = new Date(ms);
+  if (!Number.isFinite(d.getTime())) return '';
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
   if (sameDay) return i18n.formatTime(d, { hour: 'numeric', minute: '2-digit' });

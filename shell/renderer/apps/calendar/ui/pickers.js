@@ -137,8 +137,11 @@ export function openPopover({ anchor, content, className, placement = 'below', o
     },
     reposition() {
       const r = anchorEl ? anchorEl.getBoundingClientRect() : anchor;
-      const pr = el.getBoundingClientRect();
       const wa = workArea();
+      // never taller than the work area (a long title or description scrolls inside the flyout)
+      el.style.maxHeight = `${Math.max(120, wa.bottom - wa.top - 8)}px`;
+      // layout size, not getBoundingClientRect(): the opening animation scales the flyout (0.98)
+      const pr = { width: el.offsetWidth, height: el.offsetHeight };
       const x0 = wa.left + 4;
       const y0 = wa.top + 4;
       const vw = wa.right;

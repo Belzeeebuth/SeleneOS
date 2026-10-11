@@ -33,7 +33,7 @@ import { i18n, t } from '../i18n.js';
 import { alttab } from './alttab.js';
 import { exit as exitTaskView, isOpen as taskViewOpen } from './taskview.js';
 import { isFlyoutOpen } from '../taskbar.js';
-import { SHORTCUTS, effectiveShortcuts, FIXED_COMBOS } from '../shortcuts.js';
+import { SHORTCUTS, effectiveShortcuts, FIXED_COMBOS, appOfAction } from '../shortcuts.js';
 
 i18n.extend({
   en: {
@@ -384,21 +384,45 @@ const EXTRA_ACTIONS = {
   notepad: () => launch('notepad'),
   calculator: () => launch('calculator'),
 };
+for (let n = 1; n <= 9; n++) EXTRA_ACTIONS[`taskbarApp${n}`] = () => activateNth(n);
 const actionOf = (s) => EXTRA_ACTIONS[s.id] || (s.combo ? ACTIONS[normalize(s.combo)] : null);
+// The user's "open this app" shortcuts ('app:<appId>'): switch to the app's latest window on this desktop (restored
+// if minimized), or open it.
+function openApp(appId) {
+  if (!registry.get(appId)) return warnOnce(`app ${appId}`, 'not installed');
+  closeTransient();
+  const w = wm.mru().find((x) => x.appId === appId && wm.listDesktop().includes(x) && !x._closing);
+  if (!w) return launch(appId);
+  if (w.minimized) w.restoreFromMinimize();
+  w.focus();
+}
 let effective = { ...ACTIONS }; // combo -> fn in effect
+let effectiveIds = {}; // combo -> action id (catalog id or 'app:<id>'), for tests and Settings
 let customSent = '';
 function rebuild() {
   const combos = effectiveShortcuts(settings.get('shortcuts') || {});
   const map = { ...ACTIONS };
+  const ids = {};
   // free the default combos of every catalog action first (another action may take them over)…
   for (const s of SHORTCUTS) if (s.combo && map[normalize(s.combo)] === actionOf(s)) delete map[normalize(s.combo)];
   // …then bind each action to its combo in effect
   for (const s of SHORTCUTS) {
     const c = combos[s.id];
     const fn = actionOf(s);
-    if (c && fn && !FIXED_COMBOS.has(normalize(c))) map[normalize(c)] = fn;
+    if (c && fn && !FIXED_COMBOS.has(normalize(c))) {
+      map[normalize(c)] = fn;
+      ids[normalize(c)] = s.id;
+    }
+  }
+  // …and the user's app shortcuts last (Settings turned off whatever else used their combo)
+  for (const [id, c] of Object.entries(combos)) {
+    const appId = appOfAction(id);
+    if (!appId || !c || FIXED_COMBOS.has(normalize(c))) continue;
+    map[normalize(c)] = () => openApp(appId);
+    ids[normalize(c)] = id;
   }
   effective = map;
+  effectiveIds = ids;
   // main only forwards Super+… and its built-in system combos: tell it about the others (e.g. Ctrl+Alt+T)
   const extra = Object.keys(map).filter((c) => !c.startsWith('Super') && !systemCombos.has(c) && c !== 'Alt:up').sort();
   const key = extra.join('|');
@@ -614,11 +638,34 @@ function trigger(combo, { repeat = false } = {}) {
   return true;
 }
 
-/** Record the next key combination (Settings > Keyboard shortcuts): fn(combo) for each one; returns stop(). */
-function capture(fn) {
+/**
+ * Record the next key combination (Settings > Keyboard shortcuts): fn(combo) for each one; returns stop().
+ * onModifiers(['Ctrl', 'Alt']) (optional) follows the modifier keys held right now, so the recorder can show them
+ * while the user is still building the combination.
+ */
+function capture(fn, { onModifiers } = {}) {
   capturing = typeof fn === 'function' ? fn : null;
+  let held = '';
+  const mods = (e) => {
+    if (typeof onModifiers !== 'function') return;
+    const list = [e.metaKey && 'Super', e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift'].filter(Boolean);
+    // a modifier's own keydown / keyup does not yet / no longer report itself in the flags
+    const self = { Meta: 'Super', OS: 'Super', Control: 'Ctrl', Alt: 'Alt', Shift: 'Shift' }[e.key];
+    if (self && e.type === 'keydown' && !list.includes(self)) list.push(self);
+    const out = self && e.type === 'keyup' ? list.filter((m) => m !== self) : list;
+    const sorted = MODS.filter((m) => out.includes(m));
+    if (sorted.join('+') === held) return;
+    held = sorted.join('+');
+    onModifiers(sorted);
+  };
+  const onUp = (e) => capturing && mods(e);
+  const onBlur = () => {
+    held = '';
+    if (typeof onModifiers === 'function') onModifiers([]);
+  };
   const onKey = (e) => {
     if (!capturing) return;
+    mods(e);
     // system combos also come through IPC (trigger); others only as DOM events
     if (isSystemEvent(e)) return;
     const c = comboOfEvent(e);
@@ -633,9 +680,13 @@ function capture(fn) {
     if (!e.repeat) capturing(normalize(c));
   };
   window.addEventListener('keydown', onKey, true);
+  window.addEventListener('keyup', onUp, true);
+  window.addEventListener('blur', onBlur);
   return () => {
     capturing = null;
     window.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('keyup', onUp, true);
+    window.removeEventListener('blur', onBlur);
   };
 }
 
@@ -648,6 +699,10 @@ export const hotkeys = {
   isSystemEvent,
   capture,
   combos: () => effectiveShortcuts(settings.get('shortcuts') || {}),
+  /** combo -> action id in effect ('files', 'taskbarApp1', 'app:photos'…); built-in combos outside the catalog are absent */
+  get bindings() {
+    return { ...effectiveIds };
+  },
   get effective() {
     return effective;
   },

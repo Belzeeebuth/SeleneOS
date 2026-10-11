@@ -2,7 +2,7 @@
 // add / edit dialog with a spin-wheel time picker, edit mode (delete), context menus.
 import { ringsIn, weekdayNames, weekOrder, wallTime, nextAlarmOccurrence } from './time.js';
 import { TONES, toneById } from './tones.js';
-import { SNOOZE_CHOICES } from './store.js';
+import { SNOOZE_CHOICES, MAX_ALARMS } from './store.js';
 import { timePicker, dayToggles, commandBar, enter } from './widgets.js';
 
 export class AlarmPage {
@@ -226,6 +226,12 @@ export class AlarmPage {
   async openEditor(a = null) {
     if (this.dialogOpen) return null;
     const { h, t, icon, ui, win, locale, lang } = this.app;
+    if (!a && this.store.alarms.length >= MAX_ALARMS) {
+      this.dialogOpen = true;
+      await ui.alert(t('alarm.limit', { n: MAX_ALARMS }), { title: t('alarm.addTitle'), parent: win });
+      this.dialogOpen = false;
+      return null;
+    }
     // a new alarm starts at the next quarter hour
     const now = new Date(Math.ceil((Date.now() + 60000) / 900000) * 900000);
     const init = a || { hour: now.getHours(), minute: now.getMinutes(), name: '', days: [], sound: this.store.prefs.sound, snooze: this.store.prefs.snooze };

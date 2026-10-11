@@ -72,7 +72,7 @@ export async function settingsDialog(app) {
     h('h3', { class: 'ac-set-head' }, t('setCalendar')),
     row(t('firstDay'), null, firstSel),
     row(t('workWeek'), t('workWeekHint'), days),
-    row(t('workHours'), null, h('div', { class: 'row' }, startSel, h('span', { class: 'text-2' }, '–'), endSel)),
+    row(t('workHours'), null, h('div', { class: 'row ac-set-hours' }, startSel, h('span', { class: 'text-2' }, '–'), endSel)),
     hoursErr,
     row(t('weekNumbers'), t('weekNumbersHint'), wn),
     h('h3', { class: 'ac-set-head' }, t('setNewEvents')),
@@ -203,7 +203,10 @@ export async function importFlow(app, path = null, calendarId = null) {
   }
   const newName = parsed.name || baseName(path).replace(/\.ics$/i, '');
   const NEW = '__new__';
-  const target = calendarId && app.calendar(calendarId)?.kind === 'user' ? calendarId : parsed.name ? NEW : app.defaultCalendarId();
+  // a calendar that already has the file's name (the same file imported again, or one exported from
+  // here) is the default target: its events are then updated by UID instead of being duplicated
+  const sameName = app.userCalendars().find((c) => app.calName(c).trim().toLowerCase() === newName.trim().toLowerCase());
+  const target = calendarId && app.calendar(calendarId)?.kind === 'user' ? calendarId : sameName ? sameName.id : parsed.name ? NEW : app.defaultCalendarId();
   const sel = ui.select({
     options: [{ value: NEW, label: t('newCalendarNamed', { name: newName }) }, ...app.userCalendars().map((c) => ({ value: c.id, label: app.calName(c) }))],
     value: target,

@@ -1,6 +1,6 @@
 // Dialogs of the Archive Manager: extract, new archive, password, unsafe items, zip bomb, properties,
 // test results and errors. Every dialog is scoped to its window (parent: win) and keyboard accessible.
-import { FORMATS, LEVELS, basename, dirname, joinPath, withFormatExt, formatOfName, splitExt, typeName, ratioOf, modeString, iconUrl, methodName, containsText } from './util.js';
+import { FORMATS, LEVELS, basename, dirname, joinPath, withFormatExt, formatOfName, typeName, ratioOf, modeString, iconUrl, methodName, containsText } from './util.js';
 import { shared } from './shared.js';
 import { errorInfo } from './ops.js';
 
@@ -98,7 +98,7 @@ export async function newArchiveDialog(w, { sources = [], dir = null, name = nul
   let location = dir || (srcs[0] ? dirname(srcs[0]) : xdg.documents);
   const formats = FORMATS.filter((f) => shared.tools.create.includes(f.id));
   let format = formats.some((f) => f.id === shared.prefs.format) ? shared.prefs.format : formats[0]?.id || 'zip';
-  const suggested = name || (srcs.length === 1 ? splitExt(basename(srcs[0]))[0] || basename(srcs[0]) : srcs.length ? basename(dirname(srcs[0])) || t('newArc.defaultName') : t('newArc.defaultName'));
+  const suggested = name || (srcs.length === 1 ? await w.stemFor(srcs[0]) : srcs.length ? basename(dirname(srcs[0])) || t('newArc.defaultName') : t('newArc.defaultName'));
   const nameInput = h('input', { class: 'input grow', value: suggested, spellcheck: false, 'aria-label': t('newArc.name') });
   const fmtSel = ui.select({ options: formats.map((f) => ({ value: f.id, label: f.ext })), value: format, onchange: (v) => ((format = v), refresh()) });
   fmtSel.classList.add('arc-fmt');
@@ -148,13 +148,14 @@ export async function newArchiveDialog(w, { sources = [], dir = null, name = nul
       if (d) addSources([d]);
     },
   }, icon('folder_add'), t('newArc.addFolder'));
-  function addSources(list) {
+  async function addSources(list) {
     for (const p of list) if (p && !srcs.includes(p)) srcs.push(p);
+    renderSources();
     if (srcs.length && !nameInput.dataset.touched && !name) {
-      nameInput.value = srcs.length === 1 ? splitExt(basename(srcs[0]))[0] || basename(srcs[0]) : basename(dirname(srcs[0])) || t('newArc.defaultName');
+      const n = srcs.length === 1 ? await w.stemFor(srcs[0]) : basename(dirname(srcs[0])) || t('newArc.defaultName');
+      if (!nameInput.dataset.touched) nameInput.value = n;
       if (!dir) locInput.value = dirname(srcs[0]);
     }
-    renderSources();
   }
   nameInput.addEventListener('input', () => (nameInput.dataset.touched = '1'));
   function renderSources() {

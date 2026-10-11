@@ -98,9 +98,11 @@ export function mount(ctx) {
       return;
     }
     const timed = endsAt() > 0;
+    // (a vertical bar is 52–72 px wide: "Focus" / "Concentration" does not fit, the icon and the tooltip say it)
+    const vertical = ['left', 'right'].includes(root.dataset.tbPos);
     taskbar.setStatusItem?.('focus', {
       icon: 'target',
-      text: timed ? t('focus.left', { min: minutesLeft() }) : t('focus.on'),
+      text: timed ? t('focus.left', { min: minutesLeft() }) : vertical ? '' : t('focus.on'),
       tip: timed ? t('focus.tipLeft', { min: minutesLeft() }) : t('focus.tipUntilOff'),
       onClick: (e) =>
         ui.menu(
@@ -131,7 +133,8 @@ export function mount(ctx) {
     if (on && endsAt()) {
       // (long sessions: re-armed every ≤ 6 h, setTimeout cannot wait longer than ~24.8 days anyway)
       endTimer = setTimeout(() => (endsAt() <= Date.now() + 500 ? finish() : apply()), Math.max(0, Math.min(6 * 3600e3, endsAt() - Date.now())));
-      tick = setInterval(paintPill, 30000);
+      // (timers stand still while the machine sleeps: the wall clock is checked on every tick too)
+      tick = setInterval(() => (endsAt() && endsAt() <= Date.now() ? finish() : paintPill()), 30000);
     }
     if (!on) hideBanner();
     paintPill();
@@ -177,8 +180,15 @@ export function mount(ctx) {
     if (!cfg().active || !endsAt()) return Promise.resolve();
     return write({ 'focusMode.endsAt': endsAt() + min * 60000 });
   }
+  let finishing = false;
   async function finish() {
-    await stop();
+    if (finishing || !cfg().active) return; // (the end timer and the tick can both see the end time pass)
+    finishing = true;
+    try {
+      await stop();
+    } finally {
+      finishing = false;
+    }
     shell.notify?.({ title: t('focus.ended'), body: t('focus.endedBody'), icon: 'target', appId: 'system' });
   }
 
@@ -197,7 +207,7 @@ export function mount(ctx) {
   function showBanner() {
     hideBanner();
     const c = cfg();
-    if (!c.active) return;
+    if (!c.active || document.querySelector('#start.open, #search-panel.open, #widgets-board.open')) return;
     const parts = [endsAt() ? t('focus.bannerUntil', { time: until() }) : t('focus.bannerUntilOff')];
     if (c.hideNotifications !== false) parts.push(t('focus.bannerQuiet'));
     banner = h(
@@ -227,11 +237,14 @@ export function mount(ctx) {
     apply();
   });
   i18n.on('change', paintPill);
+  shell.on('taskbar:layout', () => cfg().active && paintPill());
   settings.on('notifications', () => cfg().active && apply());
   shell.on('focus:start', (arg) => start(typeof arg === 'number' ? arg : arg?.minutes));
   shell.on('focus:stop', () => stop());
   shell.on('focus:toggle', () => (cfg().active ? stop() : start()));
   shell.on('lock', hideBanner);
+  // Start, Search and the Widgets board reach the top of the screen: the banner gives way instead of covering them.
+  shell.on('flyouts:close', (a) => ['start', 'search', 'widgets'].includes(a?.except) && hideBanner());
 
   // A session survives a restart of the shell; one whose time ran out meanwhile is closed (everything restored).
   const c0 = cfg();

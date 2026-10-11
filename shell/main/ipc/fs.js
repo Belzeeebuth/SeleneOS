@@ -347,7 +347,8 @@ module.exports = function register(api) {
     await fsp.rm(TRASH_INFO, { recursive: true, force: true });
     await fsp.mkdir(TRASH_FILES, { recursive: true });
     await fsp.mkdir(TRASH_INFO, { recursive: true });
-    api.broadcast('fs:trash-changed', {});
+    // emptied: how many items went (the shell plays the "Empty Recycle Bin" sound, core/sounds.js)
+    api.broadcast('fs:trash-changed', { emptied: n });
     return n;
   });
 

@@ -223,7 +223,13 @@
       "done": "Saved to {name}",
       "failedTitle": "Couldn't save",
       "failed": "{name} couldn't be saved. {error}",
-      "inUse": "{name} is open in another tab. Close it first or choose another name."
+      "inUse": "{name} is open in another tab. Close it first or choose another name.",
+      "errDenied": "You don't have permission to save in this folder.",
+      "errSpace": "There isn't enough space on the disk.",
+      "errReadOnly": "The disk is read-only.",
+      "errFolder": "The folder doesn't exist anymore.",
+      "errIsFolder": "A folder already has this name.",
+      "errOther": "Check that the file isn't used by another program, then try again."
     },
     "goto": {
       "title": "Go to page",
@@ -467,7 +473,13 @@
       "done": "Enregistré dans {name}",
       "failedTitle": "Échec de l’enregistrement",
       "failed": "Impossible d’enregistrer {name}. {error}",
-      "inUse": "{name} est ouvert dans un autre onglet. Fermez-le d’abord ou choisissez un autre nom."
+      "inUse": "{name} est ouvert dans un autre onglet. Fermez-le d’abord ou choisissez un autre nom.",
+      "errDenied": "Vous n’avez pas l’autorisation d’enregistrer dans ce dossier.",
+      "errSpace": "L’espace disque est insuffisant.",
+      "errReadOnly": "Le disque est en lecture seule.",
+      "errFolder": "Le dossier n’existe plus.",
+      "errIsFolder": "Un dossier porte déjà ce nom.",
+      "errOther": "Vérifiez que le fichier n’est pas utilisé par un autre programme, puis réessayez."
     },
     "goto": {
       "title": "Atteindre la page",

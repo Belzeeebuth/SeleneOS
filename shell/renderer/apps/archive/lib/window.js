@@ -807,8 +807,10 @@ export class ArchiveWindow {
     }
   }
 
-  /** Extract one file to the private temp folder (cached) -> { path, text?, binary?, truncated? } */
-  async previewFile(n, { text = 0, progress = false } = {}) {
+  /** Extract one file to the private temp folder (cached) -> { path, text?, binary?, truncated? }, or
+   *  { link } for a symbolic link (never extracted: see followLink). opts.onOp(opId) gets the operation id
+   *  (the preview pane cancels a preview that is no longer wanted). */
+  async previewFile(n, { text = 0, progress = false, onOp = null } = {}) {
     const L = this.listing;
     const call = (password, opId) => this.api.invoke('archive:preview', L.path, n.path, { password, session: this.session, text, opId, allowBomb: true });
     if (progress) {
@@ -819,7 +821,49 @@ export class ArchiveWindow {
       e.code = 'EPASSWORD';
       throw e;
     }
-    return tracked(this, (opId) => call(this.password, opId));
+    return tracked(this, (opId) => {
+      onOp?.(opId);
+      return call(this.password, opId);
+    });
+  }
+
+  /** The item a link entry points to inside the archive (link chains followed), or null when its target
+   *  is absolute, outside the archive or missing. */
+  resolveLink(n, target = n.link) {
+    let cur = n;
+    let tgt = target;
+    for (let hops = 0; hops < 16; hops++) {
+      if (!tgt || tgt.startsWith('/')) return null;
+      const parts = cur.parent?.path ? cur.parent.path.split('/') : [];
+      for (const seg of tgt.split('/')) {
+        if (!seg || seg === '.') continue;
+        if (seg === '..') {
+          if (!parts.length) return null;
+          parts.pop();
+        } else parts.push(seg);
+      }
+      const next = this.tree.all.get(parts.join('/'));
+      if (!next || next === n) return null;
+      if (next.link == null) return next;
+      if (!next.link) return null; // a link whose target isn't known (zip / 7z): not followed further
+      cur = next;
+      tgt = next.link;
+    }
+    return null;
+  }
+  /** Open a link like Windows opens a shortcut: its target inside the archive (a folder is entered). */
+  async followLink(n, target) {
+    const dest = this.resolveLink(n, target);
+    if (!dest) {
+      await D.errorDialog(this, this.t('err.openFileTitle', { name: n.name }), { code: 'ELINK', message: target || '' });
+      return;
+    }
+    if (dest.dir) {
+      this.openNode(dest);
+      return;
+    }
+    if (dest.parent && dest.parent !== this.folder && !this.query) this.navigate(dest.parent, { select: [dest.path] });
+    await this.openNode(dest);
   }
 
   async openNode(n) {
@@ -834,8 +878,10 @@ export class ArchiveWindow {
       return;
     }
     if (this.busy) return;
+    if (n.link) return this.followLink(n, n.link); // the target is known (tar): nothing to read
     try {
       const res = await this.previewFile(n, { progress: true });
+      if (res.link != null) return this.followLink(n, res.link);
       await this.shell.openFile(res.path);
     } catch (e) {
       if (canceled(e)) return;
@@ -1364,7 +1410,7 @@ export class ArchiveWindow {
     const ext = { zip: '.zip', '7z': '.7z', tar: '.tar', 'tar.gz': '.tar.gz', 'tar.xz': '.tar.xz', 'tar.zst': '.tar.zst', 'tar.bz2': '.tar.bz2' }[fmt];
     if (!ext) return this.showWelcome();
     const dir = args.dest ? dirname(String(args.dest)) : dirname(paths[0]);
-    const name = args.dest ? basename(String(args.dest)) : `${paths.length === 1 ? stemOf(basename(paths[0])) || basename(paths[0]) : basename(dirname(paths[0])) || 'Archive'}${ext}`;
+    const name = args.dest ? basename(String(args.dest)) : `${paths.length === 1 ? await this.stemFor(paths[0]) : basename(dirname(paths[0])) || 'Archive'}${ext}`;
     const dest = await this.uniquePath(dir, name);
     this.compact(() => this.t('flow.compressTitle', { name: basename(dest) }));
     try {
@@ -1377,6 +1423,13 @@ export class ArchiveWindow {
       if (canceled(e)) return this.win.close(true);
       this.taskError(t('err.createTitle'), e);
     }
+  }
+
+  /** The archive name Windows suggests for an item: a file without its extension ("report.pdf" -> "report"),
+   *  a folder with its whole name ("photos.2024" -> "photos.2024"). */
+  async stemFor(p) {
+    const st = await this.api.invoke('fs:stat', p).catch(() => null);
+    return st?.dir ? basename(p) : stemOf(basename(p)) || basename(p);
   }
 
   /** dir/name, or "name (2).ext", "name (3).ext"… when it exists (compound extensions kept: "a (2).tar.gz"). */

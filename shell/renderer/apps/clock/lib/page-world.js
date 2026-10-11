@@ -407,16 +407,22 @@ export class WorldPage {
     const at = this.at(now);
     this.drawMap(at);
     const sec = Math.floor(at / 1000);
+    const min = Math.floor(at / 60000);
     const full = force || sec !== this.lastSec;
+    // city cards and pins show hours and minutes only: refresh them once a minute (with 60 cities a
+    // refresh costs tens of milliseconds, which would stutter the local clock's second hand every second)
+    const minute = force || min !== this.lastMin;
     this.lastSec = sec;
+    this.lastMin = min;
     for (const c of this.cards.values()) {
-      if (full) this.fillTime(c, at);
+      if (c.local ? full : minute) this.fillTime(c, at);
       if (c.local && c.parts) {
         const s = reduceMotion() ? Math.floor((at / 1000) % 60) : (at / 1000) % 60;
         c.face.set(c.parts.h, c.parts.mi, s);
       }
     }
-    if (full) {
+    if (full && this.compare) this.fillCompare(now);
+    if (minute) {
       for (const pin of this.pinEls || []) {
         const el = pin.querySelector('.ck-pin-time');
         const txt = this.app.timeParts(at, { tz: pin.tz }).full;
@@ -425,7 +431,6 @@ export class WorldPage {
           pin.dot.dataset.tip = `${pin.cityName} · ${txt}`;
         }
       }
-      if (this.compare) this.fillCompare(now);
     }
   }
 

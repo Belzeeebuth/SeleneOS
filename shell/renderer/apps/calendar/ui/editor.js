@@ -45,7 +45,7 @@ export function showPeek(app, o, anchor) {
   const line = (ic, content, cls) => h('div', { class: ['ac-peek-row', cls] }, icon(ic, { size: 16 }), h('div', { class: 'ac-peek-text' }, content));
   const rows = [line('clock', app.fmt.occWhen(o))];
   if (o.recurring && o.ev) rows.push(line('arrow_repeat_all', `${app.fmt.recurrence(o.ev.rrule, seriesStart(o.ev))}${o.exception ? ` · ${t('occurrenceChanged')}` : ''}`));
-  if (o.location) rows.push(line('location', o.location, 'selectable'));
+  if (o.location) rows.push(line('location', o.location, 'selectable loc'));
   if (o.reminder != null) rows.push(line('alert', app.fmt.reminder(o.reminder, o.allDay)));
   rows.push(h('div', { class: 'ac-peek-row' }, h('span', { class: 'ac-dot', style: css({ '--ev': cal?.color || o.color }) }), h('div', { class: 'ac-peek-text' }, app.calName(cal))));
   if (o.holiday) rows.push(line('flag', t(`holidayKind.${o.holiday.kind}`)));
@@ -62,7 +62,7 @@ export function showPeek(app, o, anchor) {
   const content = h(
     'div',
     { class: 'ac-peek', style: css({ '--ev': o.color }) },
-    h('div', { class: 'ac-peek-head' }, h('div', { class: 'ac-peek-title selectable' }, o.title || t('noTitle'))),
+    h('div', { class: 'ac-peek-head' }, h('div', { class: 'ac-peek-title selectable', title: o.title || t('noTitle') }, o.title || t('noTitle'))),
     h('div', { class: 'ac-peek-body' }, rows, desc),
     actions,
   );
@@ -765,7 +765,8 @@ export function openEditor(app, { ev = null, occ = null, mode = 'series', draft 
     app.editorState = null;
     closeAllPopovers('editor-closed');
     if (v === 'delete') {
-      if (single) await app.deleteOcc(occ);
+      // "Delete occurrence" in the editor of one occurrence: no second question
+      if (single) await app.deleteOcc(occ, { choice: 'one' });
       else if (ev.rrule) {
         const ok = await ui.confirm(t('deleteSeriesConfirm', { title: ev.title || t('noTitle') }), { title: t('deleteRecurringTitle'), okLabel: t('delete'), danger: true, parent: app.win });
         if (ok) {

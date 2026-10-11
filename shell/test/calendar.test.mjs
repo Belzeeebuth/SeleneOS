@@ -11,7 +11,9 @@
 //   Sunday, daylight-saving days drawn at wall-clock time, no half-visible lines in event blocks, Tab kept
 //   inside flyouts and the window, Delete on pane controls, AZERTY view keys, series rename keeps its
 //   exceptions, multi-week WKST, import undo, settings in a small window, export errors, hidden
-//   calendars, listener leaks over 12 open/close cycles, damaged events.json kept aside, French key names.
+//   calendars, listener leaks over 15 open/close cycles, damaged events.json kept aside, French key names.
+//   QA3: "Delete occurrence" asks once, re-import preselects the same-named calendar, reminders already
+//   due shown at once, snoozed reminders kept by the sync, absurd imported durations, long event cards.
 //   Documentation screenshots: aurora-os/docs/screenshots/calendar-*.png
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/calendar.test.mjs [--only=name] [--unit]
 import fs from 'node:fs';
@@ -38,7 +40,8 @@ function check(name, actual, expected) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let recover = null;
 async function section(name, fn) {
-  if (only && !name.toLowerCase().includes(only)) return;
+  // --only=a,b runs the sections whose name contains any of the comma-separated words
+  if (only && !only.split(',').some((o) => o && name.toLowerCase().includes(o))) return;
   const t0 = Date.now();
   const before = failures.length;
   try {
@@ -554,8 +557,9 @@ if (!unitOnly) {
     // importing the same file again updates instead of duplicating
     await run(s, `window.__aurora.shell.openFile(${JSON.stringify(path.join(home, 'team.ics'))}); 0`);
     await until(() => dialogOpen(s), { label: 'import dialog 2' });
-    await s.page.selectOption(`${DLG} select`, cal.id);
+    check('re-import: the calendar with the same name is preselected', await run(s, `document.querySelector('${DLG} select').value`), cal.id);
     await dialogButton(s, 'Import');
+    check('re-import does not create a second calendar', await CAL(s, (app) => app.data.calendars.filter((c) => c.name === 'Team Paris').length), 1);
     check('re-import does not duplicate', (await events(s)).filter((e) => e.calendarId === cal.id).length, 3);
     // export everything through the "…" menu and the save picker
     await s.page.click(`${WIN} .ac-more`);
@@ -648,6 +652,15 @@ if (!unitOnly) {
     await s.page.keyboard.press('Escape');
     await sleep(300);
     check('Escape clears the search', await view(), 'workweek');
+    // Next while search results are shown leaves the search and moves one week (it used to do nothing)
+    await s.page.keyboard.press('Control+f');
+    await s.page.keyboard.type('piano');
+    await sleep(500);
+    const t0 = await CAL(s, (app) => app.state.date.getTime());
+    await s.page.click(`${WIN} .ac-next`);
+    await sleep(300);
+    check('Next leaves the search results', [await view(), await run(s, `document.querySelector('${WIN} .ac-search input').value`)], ['workweek', '']);
+    check('…and moves one week', await CAL(s, (app, t0) => Math.round((app.state.date.getTime() - t0) / 86400000), t0), 7);
   });
 
   await section('settings: first day, week numbers, work week', async () => {
@@ -966,6 +979,182 @@ if (!unitOnly) {
     check('…and the new event is on screen', await run(s, `!!document.querySelector('${WIN} .ac-ev[data-event-id]') && [...document.querySelectorAll('${WIN} .ac-ev')].some((e) => e.textContent.includes('Hidden calendar event'))`), true);
   });
 
+  // ---------------------------------------------------------------- QA3 regressions
+  await section('QA3: "Delete occurrence" in the editor of one occurrence asks nothing more', async () => {
+    await seed(s, [{ id: 'club', title: 'Book club', start: await pageMs(s, 2027, 0, 4, 19), end: await pageMs(s, 2027, 0, 4, 20), rrule: { freq: 'WEEKLY', byday: ['MO'] } }]);
+    await setView(s, 'month', [2027, 0, 11]);
+    const k = String(await pageMs(s, 2027, 0, 11, 19));
+    await s.page.dblclick(`${WIN} .ac-chip[data-event-id="club"][data-key="${k}"]`);
+    await until(() => dialogOpen(s), { label: 'series prompt' });
+    await dialogButton(s, 'Just this one');
+    await until(() => run(s, `!!document.querySelector('${DLG} .ac-ed-title')`), { label: 'occurrence editor' });
+    await dialogButton(s, 'Delete occurrence');
+    await sleep(300);
+    check('no second "which occurrences?" question', await dialogOpen(s), false);
+    check('that occurrence is deleted', (await evByTitle(s, 'Book club')).exdates, [k]);
+    check('the others stay', await CAL(s, () => document.querySelectorAll('.win.app-calendar .ac-chip[data-event-id="club"]').length), (n) => n >= 3);
+    await s.page.click(`${WIN} .ac-snack .ac-undo`);
+    await sleep(400);
+    check('Undo brings it back', (await evByTitle(s, 'Book club')).exdates, []);
+  });
+
+  await section('QA3: a reminder already due is shown right away; a snoozed one survives the next sync', async () => {
+    await run(s, `window.__aurora.notifications.clear(); 0`);
+    // starts in 10 minutes with a 15-minute reminder: its reminder time has passed
+    const start = await run(s, `Math.ceil((Date.now() + 10 * 60000) / 60000) * 60000`);
+    await seed(s, [{ id: 'soon', title: 'Stand-up soon', start, end: start + 1800000, reminder: 15, location: 'Room 2' }]);
+    await sleep(400);
+    const notes = () => run(s, `window.__aurora.notifications.list().filter((n) => n.appId === 'calendar' && n.title.startsWith('Stand-up')).map((n) => n.body)`);
+    const n1 = await notes();
+    check('the reminder is shown at once', n1.length, 1);
+    check('…with the time and the place', n1[0] || '', (b) => b.endsWith('Room 2') && b.includes('–'));
+    // another edit of the same event does not show it again
+    await CAL(s, async (app) => app.applySeriesEdit(app.data.events.find((e) => e.id === 'soon'), { title: 'Stand-up soon!' }));
+    await sleep(400);
+    check('not shown twice', (await notes()).length, 1);
+    // an event whose reminder time had already passed before (its reminder was shown by the scheduler):
+    // renaming it does not show the reminder again
+    await CAL(s, async (app, start) => {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      app.data.events.push({ id: 'shown', uid: 'shown@x', title: 'Already reminded', start, end: start + 1800000, reminder: 15, tz, calendarId: 'personal', allDay: false, exdates: [], overrides: {}, location: '', description: '', color: null, rrule: null });
+      await app.applySeriesEdit(app.data.events.find((e) => e.id === 'shown'), { title: 'Already reminded (renamed)' });
+    }, start);
+    await sleep(300);
+    check('no reminder for an edit of an event already due', await run(s, `window.__aurora.notifications.list().filter((n) => n.appId === 'calendar' && n.title.startsWith('Already reminded')).length`), 0);
+    // …but changing its reminder so that it becomes due shows it
+    await CAL(s, async (app, start) => {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      app.data.events.push({ id: 'remchg', uid: 'remchg@x', title: 'Reminder changed', start: start + 60000, end: start + 1800000, reminder: 5, tz, calendarId: 'personal', allDay: false, exdates: [], overrides: {}, location: '', description: '', color: null, rrule: null });
+      await app.applySeriesEdit(app.data.events.find((e) => e.id === 'remchg'), { reminder: 30 });
+    }, start);
+    await sleep(300);
+    check('a reminder made due by an edit is shown', await run(s, `window.__aurora.notifications.list().filter((n) => n.appId === 'calendar' && n.title === 'Reminder changed').length`), 1);
+    await CAL(s, async (app) => app.commit(app.data.events.filter((e) => !['shown', 'remchg'].includes(e.id))));
+    // an event 2 hours away with a 15-minute reminder: nothing yet, a normal scheduled reminder
+    const later = start + 2 * 3600000;
+    await seed(s, [{ id: 'later', title: 'Later meeting', start: later, end: later + 1800000, reminder: 15 }]);
+    await sleep(300);
+    check('a future reminder is only scheduled', await run(s, `[window.__aurora.notifications.list().some((n) => n.title === 'Later meeting'), window.__aurora.shell.reminders.list('calendar').filter((r) => r.data?.eventId === 'later').map((r) => r.at)]`), [false, [later - 15 * 60000]]);
+    // snooze the reminder that was shown: the next sync keeps the snoozed copy
+    const id = `evt-soon-${start}`;
+    const kept = await CAL(s, async (app, id) => {
+      const r = window.__aurora.shell.reminders;
+      r.snooze(id, 'calendar', 5);
+      const before = r.list('calendar').some((x) => x.id === id);
+      await app.syncReminders();
+      return [before, r.list('calendar').some((x) => x.id === id)];
+    }, id);
+    check('snoozed reminder kept by the sync', kept, [true, true]);
+    // deleting the event removes the snoozed reminder too
+    await CAL(s, async (app) => app.commit(app.data.events.filter((e) => e.id !== 'soon' && e.id !== 'later')));
+    await sleep(300);
+    check('…and removed with its event', await run(s, `window.__aurora.shell.reminders.list('calendar').filter((r) => ['soon', 'later'].includes(r.data?.eventId)).length`), 0);
+    await run(s, `window.__aurora.notifications.clear(); 0`);
+    // a big calendar never floods the shell scheduler: only the 64 soonest reminders are registered
+    const base = await run(s, `(() => { const d = new Date(); d.setDate(d.getDate() + 3); d.setHours(8, 0, 0, 0); return d.getTime(); })()`);
+    const many = Array.from({ length: 40 }, (_, i) => ({ id: `bulk${i}`, title: `Bulk ${i}`, start: base + i * 3600000, end: base + i * 3600000 + 1800000, reminder: 10, rrule: { freq: 'DAILY' } }));
+    await CAL(s, async (app, many) => {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      await app.commit([...app.data.events, ...many.map((e) => ({ tz, calendarId: 'personal', allDay: false, exdates: [], overrides: {}, location: '', description: '', color: null, ...e }))]);
+      await app.syncReminders();
+    }, many);
+    const bulk = await run(s, `window.__aurora.shell.reminders.list('calendar').filter((r) => String(r.data?.eventId).startsWith('bulk')).map((r) => r.at).sort((a, b) => a - b)`);
+    const all = await run(s, `window.__aurora.shell.reminders.list('calendar').length`);
+    check('at most 64 calendar reminders registered (40 daily series = 120 planned)', all <= 64 && bulk.length >= 60, true);
+    check('…the soonest ones', bulk[0], base - 10 * 60000);
+    await CAL(s, async (app) => app.commit(app.data.events.filter((e) => !e.id.startsWith('bulk'))));
+    await sleep(300);
+    check('…and all removed with their events', await run(s, `window.__aurora.shell.reminders.list('calendar').filter((r) => String(r.data?.eventId).startsWith('bulk')).length`), 0);
+  });
+
+  await section('QA3: an imported event with an absurd DURATION is limited; export and agenda still work', async () => {
+    fs.writeFileSync(path.join(home, 'huge.ics'), ['BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', 'UID:huge@test', 'DTSTART:20261021T080000Z', 'DURATION:P99999999W', 'SUMMARY:Huge', 'END:VEVENT', 'BEGIN:VEVENT', 'UID:far@test', 'DTSTART:99991231T080000Z', 'SUMMARY:Far future', 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n'));
+    await run(s, `window.__aurora.shell.launch('calendar', { file: ${JSON.stringify(path.join(home, 'huge.ics'))} }); 0`);
+    await until(() => dialogOpen(s), { label: 'import dialog' });
+    await dialogButton(s, 'Import');
+    const huge = await evByTitle(s, 'Huge');
+    check('imported, at most 10 years long', huge && huge.end - huge.start, (d) => d > 0 && d <= 3660 * 86400000);
+    check('an event in year 9999 is skipped', !!(await evByTitle(s, 'Far future')), false);
+    const ser = await CAL(s, async (app) => {
+      const { serializeIcs } = await import('app://shell/apps/calendar/lib/ics.mjs');
+      try {
+        return serializeIcs({ name: 'x', events: app.data.events }).length > 0;
+      } catch (e) {
+        return e.message;
+      }
+    });
+    check('export of all calendars still works', ser, true);
+    await setView(s, 'agenda', [2026, 9, 21]);
+    check('agenda renders (no error)', await run(s, `[!!document.querySelector('${WIN} .ac-view .empty .mono'), [...document.querySelectorAll('${WIN} .ac-ag-title')].some((t) => t.textContent === 'Huge')]`), [false, true]);
+    await CAL(s, async (app) => app.commit(app.data.events.filter((e) => e.title !== 'Huge')));
+  });
+
+  await section('QA3: the event card fits the screen with a very long title and description', async () => {
+    const long = 'Pneumonoultramicroscopicsilicovolcanoconiosis '.repeat(12);
+    await seed(s, [{ id: 'longev', title: long.replace(/ /g, ''), location: long, description: long.repeat(4), start: await pageMs(s, 2026, 10, 18, 13), end: await pageMs(s, 2026, 10, 18, 14), calendarId: 'work' }]);
+    await setView(s, 'week', [2026, 10, 18]);
+    await CAL(s, (app) => {
+      const o = app.occurrences(new Date(2026, 10, 18), new Date(2026, 10, 19)).find((x) => x.eventId === 'longev');
+      app.select(o, app.viewEl.querySelector('[data-event-id="longev"]'));
+    });
+    await until(() => popOpen(s, '.ac-pop-peek'), { label: 'peek' });
+    await sleep(300);
+    const g = await run(s, `(() => { const p = document.querySelector('body > .ac-pop-peek').getBoundingClientRect(); const e = document.querySelector('.ac-pop-peek .ac-peek-edit').getBoundingClientRect(); const wa = window.__aurora.wm.workarea(); window.__peekDbg = [p.top, p.bottom, p.height, wa.y, wa.height, e.top, e.bottom]; return { top: p.top >= wa.y - 1, bottom: p.bottom <= wa.y + wa.height + 1, edit: e.bottom <= p.bottom && e.top >= p.top && e.bottom <= wa.y + wa.height, w: p.width }; })()`);
+    if (!g.bottom) console.log('    peek geometry', await run(s, 'window.__peekDbg'));
+    check('card inside the work area, Edit button reachable', g, { top: true, bottom: true, edit: true, w: 340 });
+    await s.page.click('.ac-pop-peek .ac-peek-edit');
+    await until(() => dialogOpen(s), { label: 'editor from long card' });
+    check('Edit opens the editor', await run(s, `document.querySelector('${DLG} .ac-ed-title').value.length`), (n) => n > 400);
+    await closeFlyouts(s);
+    await CAL(s, async (app) => app.commit(app.data.events.filter((e) => e.id !== 'longev')));
+  });
+
+  await section('QA3: the mini calendar header opens the year view (months), like Windows 11', async () => {
+    await setView(s, 'month', [2026, 9, 14]);
+    const PANE = `${WIN} .ac-pane-mini`;
+    await s.page.click(`${PANE} .ac-mini-title`);
+    await sleep(300);
+    check('12 months shown', await run(s, `document.querySelectorAll('${PANE} .ac-mini-month').length`), 12);
+    check('title is the year', await run(s, `document.querySelector('${PANE} .ac-mini-title').textContent`), '2026');
+    check('current month highlighted', await run(s, `document.querySelector('${PANE} .ac-mini-month.today')?.textContent`), (t) => /Oct/.test(t || ''));
+    await shot(s, 'year-view');
+    // the arrows change the year
+    await s.page.click(`${PANE} .ac-mini-nav >> nth=1`);
+    await sleep(300);
+    check('next arrow -> 2027', await run(s, `document.querySelector('${PANE} .ac-mini-title').textContent`), '2027');
+    await s.page.click(`${PANE} .ac-mini-month[data-month="2"]`);
+    await sleep(350);
+    check('picking March shows its days', [await run(s, `document.querySelector('${PANE} .ac-mini-title').textContent`), await run(s, `document.querySelectorAll('${PANE} .ac-mini-day').length`)], ['March 2027', 42]);
+    check('the main view did not move', await CAL(s, (app) => app.state.date.toDateString()), 'Wed Oct 14 2026');
+    // keyboard: Enter on the header, arrows, Enter on a month; Esc goes back
+    await s.page.focus(`${PANE} .ac-mini-title`);
+    await s.page.keyboard.press('Enter');
+    await sleep(300);
+    check('focus on the shown month', await run(s, `document.activeElement.dataset.month`), '2');
+    await s.page.keyboard.press('ArrowDown');
+    await s.page.keyboard.press('ArrowRight');
+    check('ArrowDown + ArrowRight -> August', await run(s, `document.activeElement.dataset.month`), '7');
+    await s.page.keyboard.press('Enter');
+    await sleep(300);
+    check('Enter opens August 2027, focus on a day', [await run(s, `document.querySelector('${PANE} .ac-mini-title').textContent`), await run(s, `document.activeElement.classList.contains('ac-mini-day')`)], ['August 2027', true]);
+    await s.page.focus(`${PANE} .ac-mini-title`);
+    await s.page.keyboard.press('Enter');
+    await sleep(250);
+    await s.page.keyboard.press('Escape');
+    await sleep(250);
+    check('Esc goes back to the days', await run(s, `document.querySelectorAll('${PANE} .ac-mini-day').length`), 42);
+    // the date picker of the toolbar title has it too
+    await s.page.click(`${WIN} .ac-title`);
+    await until(() => popOpen(s, '.ac-pop-date'), { label: 'date picker' });
+    await s.page.click('.ac-pop-date .ac-mini-title');
+    await sleep(300);
+    await s.page.click('.ac-pop-date .ac-mini-month[data-month="0"]');
+    await sleep(300);
+    await s.page.click('.ac-pop-date .ac-mini-day[data-date="2026-01-15"]');
+    await sleep(400);
+    check('picked Jan 15 through the year view', await CAL(s, (app) => app.state.date.toDateString()), 'Thu Jan 15 2026');
+  });
+
   await section('QA: no listener or node leaks when the app is opened and closed', async () => {
     const cdp = await s.page.context().newCDPSession(s.page);
     const counts = async () => {
@@ -980,8 +1169,20 @@ if (!unitOnly) {
     await CAL(s, (app) => app.win.close());
     await until(async () => !(await run(s, `!!document.querySelector('${WIN}')`)), { label: 'closed' });
     await sleep(300);
+    // count the shell emitter subscriptions (settings, reminders) the app makes and releases
+    await run(s, `(() => {
+      const A = window.__aurora;
+      window.__subs = { settings: 0, reminders: 0 };
+      for (const [name, obj] of [['settings', A.settings], ['reminders', A.shell.reminders]]) {
+        if (obj.__wrapped) continue;
+        const on = obj.on.bind(obj);
+        obj.on = (ev, fn) => { window.__subs[name]++; const off = on(ev, fn); let done = false; return () => { if (!done) { done = true; window.__subs[name]--; } return typeof off === 'function' ? off() : undefined; }; };
+        obj.__wrapped = true;
+      }
+      return 0;
+    })()`);
     const c0 = await counts();
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 15; i++) {
       await openCalendar(s);
       await CAL(s, (app, i) => app.setView(['month', 'week', 'day', 'agenda', 'workweek'][i % 5]), i);
       await run(s, `document.querySelector('${WIN} .ac-title').click(); 0`);
@@ -991,7 +1192,8 @@ if (!unitOnly) {
     }
     await sleep(400);
     const c1 = await counts();
-    check('window/document/body listeners unchanged after 12 open/close', c1, c0);
+    check('window/document/body listeners unchanged after 15 open/close', c1, c0);
+    check('settings / reminders subscriptions all released', await run(s, `window.__subs`), (v) => v && v.settings <= 0 && v.reminders <= 0);
     check('no calendar flyouts left in <body>', await run(s, `document.querySelectorAll('body > .ac-pop, body > .app-calendar').length`), 0);
     await cdp.detach().catch(() => {});
     await openCalendar(s);
@@ -1208,6 +1410,26 @@ if (!unitOnly) {
   });
   check('no console errors (French run)', errorsSince(s, mark1), []);
   await s.close();
+
+  // ---------------------------------------------------------------- shell start without the app
+  console.log('Shell start (Calendar not opened)');
+  await section('QA3: reminders are planned again at shell start, without opening Calendar', async () => {
+    const homeBoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-cal-boot-'));
+    const st = path.join(homeBoot, '.config', 'aurora', 'apps', 'calendar');
+    fs.mkdirSync(st, { recursive: true });
+    const start = Math.ceil((Date.now() + 3 * 86400000) / 3600000) * 3600000;
+    fs.writeFileSync(path.join(st, 'events.json'), JSON.stringify([{ id: 'boot1', title: 'Boot check', start, end: start + 3600000, reminder: 60, tz: TZ, calendarId: 'personal' }]));
+    const sb = await launchShell({ home: homeBoot, lang: 'en', theme: 'light', env: { TZ }, settings: { lang: 'en', theme: 'light' } });
+    try {
+      const ids = await until(() => sb.page.evaluate(`window.__aurora.shell.reminders.list('calendar').map((r) => r.id + '@' + r.at).join()`), { timeout: 20000, label: 'boot resync' });
+      check('the event’s reminder is registered after start', ids, `evt-boot1-${start}@${start - 3600000}`);
+      check('the Calendar app was not opened', await sb.page.evaluate(`!!document.querySelector('${WIN}')`), false);
+      check('no console errors at start', errorsSince(sb, 0), []);
+    } finally {
+      await sb.close();
+      fs.rmSync(homeBoot, { recursive: true, force: true });
+    }
+  });
   fs.rmSync(home, { recursive: true, force: true });
   fs.rmSync(homeFr, { recursive: true, force: true });
 }

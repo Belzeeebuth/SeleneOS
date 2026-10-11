@@ -469,6 +469,8 @@ await api.invoke('weather:stats')               // { requests, cacheHits, failur
 
 - **Background** (`background`): live desktop preview and status ("On your desktop now"), and *Personalize your
   background*: Picture / Solid color / Slideshow / Animated / Dynamic (time of day), each with its own controls.
+  Slideshow: album folder (Browse, and *Use Aurora pictures* while a folder is chosen), interval, shuffle, *Next
+  picture*, fit. Sun times use the taskbar clock's format (two-digit hours with a 24-hour clock: "Lever 06:04").
 - **Animated & dynamic wallpapers** (`wallpaperEffects`): effect gallery with live mini previews (15 fps, only while
   visible), speed, intensity, frame rate, pause when apps are maximized; picture sets with their four phases; changes with
   time / time and weather; location (offline cities + online search + coordinates); today's sun times and next phase;
@@ -507,11 +509,15 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
   snap zones, the desktop icons, toasts, the volume / brightness OSD, the Task view pill and every flyout (Start, Search,
   Quick settings, Calendar, Widgets) follow the edge. Flyouts slide in from it; on a vertical bar Start and Search open
   at the top (next to the Start button) and Quick settings / Calendar at the bottom (next to the tray), using the whole
-  screen height. Menus and the window picker open above, below or beside the button (`menuPointFor(el)`,
-  `placePopup()`); Win+X opens next to the Start button.
+  screen height, and never wider than the space left beside the bar (a 800 px Search panel on a 1024 × 768 screen at
+  125 %). Menus and the window picker open above, below or beside the button (`menuPointFor(el)`, `placePopup()`); Win+X
+  opens next to the Start button.
 - **Vertical taskbar** (left / right): the buttons stack from the top (the Start button first, then search, task view,
   widgets, apps), the tray and a compact clock (time only) sit at the bottom, arrow keys move Up/Down, the search box
-  becomes an icon and app names are hidden.
+  becomes an icon and app names are hidden. The clock's font follows the text size only as far as "00:00" fits the
+  bar's width; seconds and AM/PM wrap onto a second line.
+- **Clock and text size:** on a horizontal bar the two-line clock grows with the text size but stays inside its 32 / 40
+  / 48 px button (`core/taskbar-start.css`: `calc()` line heights, which theme.js does not rescale).
 - **Buttons per app or per window.** Every button has a key `appId` (combined) or `appId::winId` (one per window).
   `whenFull` keeps one button per window while `capacity(keys)` says they fit, then combines. Dragging buttons to
   reorder the pinned apps works when buttons are combined (`always`). The overflow ("…") flyout and the keyboard
@@ -587,12 +593,15 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
   Win+Shift+F (customizable action `focusMode`), the tray chip menu (End session, Add 10 minutes), or the shell events
   `focus:start` (`{ minutes }` optional), `focus:stop`, `focus:toggle`. API: `shell.focus` / `window.__aurora.focus` =
   `{ start(minutes?), stop(), extend(minutes), toggle(), state }`. It emits `focus:changed` `{ active, endsAt }`. A
-  banner says "Focus session started — until 10:45 · notifications silenced" for 3.6 s.
+  banner says "Focus session started — until 10:45 · notifications silenced" for 3.6 s; it gives way to Start, Search
+  and the Widgets board (they reach the top of the screen) and is not shown while one of them is open.
 - **What it does** (each part can be turned off on the page):
   - `hideNotifications` → **Do not disturb is turned on** (`notifications.dnd`, its previous value saved in
     `focusMode.prevDnd` and put back at the end — also when the option is switched off during a session) and `<html
     data-focus-quiet="on">`: `core/notify.js` keeps new notifications in the notification center without a banner or
-    sound; the bell shows the snoozed glyph. Urgent notifications (alarms, timers) still ring.
+    sound; the bell shows the snoozed glyph; taskbar badges and flashing buttons are hidden until the session ends (like
+    the "hide badges / hide flashing" options of a Windows 11 focus session). Urgent notifications (alarms, timers)
+    still ring.
   - `dimDesktop` → `<html data-focus-dim="on">` + `--focus-dim` (`dimLevel` / 100, max 0.9): a black veil over the
     wallpaper and desktop icons, faded in / out; windows stay bright.
   - `hideIcons` → `<html data-focus-noicons="on">`: the desktop icons fade away.
@@ -601,8 +610,9 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 - **Session length** (`duration`, minutes; 0 = until turned off; Settings offers 15, 25, 30, 45, 50, 60, 90, 120): the
   tray chip shows the minutes left, a notification says when the session is over, and everything comes back.
   **Restarts:** `active`, `endsAt` and `prevDnd` are stored, so a session goes on after the shell restarts; one whose end
-  time passed while the shell was not running is closed at start-up (Do not disturb restored, end notification). They are
-  never part of a profile.
+  time passed while the shell was not running is closed at start-up (Do not disturb restored, end notification). The
+  chip's 30 s tick also compares the wall clock with `endsAt`, so a session whose end passed while the machine slept
+  ends at wake-up (once: one end notification). They are never part of a profile.
 - **Clock app:** the Focus page shows the Clock app's focus sessions (running / paused session and today's focus
   minutes, read from `storage clock/focus.json`; nothing is shown when the app or the file is missing) with an *Open
   Clock* button.
@@ -775,8 +785,9 @@ depuis Paramètres › Personnalisation en anglais et en français, et enregistr
   seule application disparaît), recommandations (applications récemment ajoutées, les plus utilisées, fichiers ouverts
   récemment), dossiers à côté du bouton d’alimentation, style d’arrière-plan (acrylique, verre transparent, uni, couleur
   d’accentuation, fond d’écran) ; il suit l’alignement et le bord de la barre (§10.2).
-- **Mode concentration** : active « Ne pas déranger » (rétabli ensuite), assombrit le bureau, peut masquer les icônes du
-  bureau, simplifie la barre des tâches avec une puce du temps restant ; durée de session (25, 50, 90 min…), bannière,
+- **Mode concentration** : active « Ne pas déranger » (rétabli ensuite) et masque les badges et le clignotement des
+  boutons de la barre des tâches, assombrit le bureau, peut masquer les icônes du bureau, simplifie la barre des tâches
+  avec une puce du temps restant ; durée de session (25, 50, 90 min…), bannière,
   notification de fin, survit à un redémarrage ; Win+Maj+F, vignette des paramètres rapides, sessions de l’Horloge
   (§10.3).
 - **Packs** : sept packs de curseurs, cinq packs d’icônes, cinq packs de sons, et un son au choix pour les

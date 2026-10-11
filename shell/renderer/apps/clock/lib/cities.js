@@ -1,4 +1,4 @@
-// Clock — bundled city list (data/cities.json: ~425 cities with IANA zones, English + French names)
+// Clock — bundled city list (data/cities.json: ~430 cities with IANA zones, English + French names)
 // and search. Country names come from Intl.DisplayNames so they follow the UI language.
 let data = null;
 let loading = null;

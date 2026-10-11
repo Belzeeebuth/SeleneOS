@@ -3,6 +3,8 @@
 //   -> element with .setState({ month, selected, range }) and .focusGrid()
 // Keyboard: arrows move the focused day (roving tabindex), PageUp/PageDown change month, Enter/Space pick,
 // Home/End go to the start/end of the week.
+// The header ("October 2026") switches to the year view (12 months, like CalendarView); picking a month
+// goes back to its days. Esc in the year view goes back too.
 import { addDays, sameDay, startOfWeek, weekNumber, localKey } from '../lib/dates.mjs';
 
 export function miniMonth(app, opts) {
@@ -12,7 +14,8 @@ export function miniMonth(app, opts) {
   let range = opts.range || null;
   let focusDate = selected && sameDay(new Date(selected.getFullYear(), selected.getMonth(), 1), month) ? selected : month;
   const root = h('div', { class: ['ac-mini', opts.compact && 'compact'] });
-  const title = h('button', { class: 'ac-mini-title', type: 'button', onclick: () => opts.onTitle?.(month) });
+  let mode = 'days'; // 'days' | 'months' (year view)
+  const title = h('button', { class: 'ac-mini-title', type: 'button', 'aria-label': '', onclick: () => showMonths() });
   const prev = h('button', { class: 'ac-mini-nav', type: 'button', 'aria-label': t('prevMonth'), 'data-tip': t('prevMonth'), onclick: () => change(-1) }, icon('arrow_up', { size: 14, filled: true }));
   const next = h('button', { class: 'ac-mini-nav', type: 'button', 'aria-label': t('nextMonth'), 'data-tip': t('nextMonth'), onclick: () => change(1) }, icon('arrow_down', { size: 14, filled: true }));
   const head = h('div', { class: 'ac-mini-head' }, title, prev, next);
@@ -21,10 +24,68 @@ export function miniMonth(app, opts) {
   root.append(head, wk, viewport);
 
   function change(delta, focus = false) {
+    if (mode === 'months') {
+      // the arrows change the year in the year view
+      month = new Date(month.getFullYear() + delta, month.getMonth(), 1);
+      render(delta);
+      return;
+    }
     month = new Date(month.getFullYear(), month.getMonth() + delta, 1);
     if (!focus) focusDate = month;
     render(delta);
     opts.onMonth?.(month);
+  }
+
+  function showMonths() {
+    if (mode === 'months') return;
+    const hadFocus = root.contains(document.activeElement);
+    mode = 'months';
+    render(0, 'out');
+    if (hadFocus) viewport.querySelector('.ac-mini-month[tabindex="0"]')?.focus();
+  }
+
+  function showDays(m, focus = false) {
+    month = new Date(month.getFullYear(), m, 1);
+    mode = 'days';
+    focusDate = selected && sameDay(new Date(selected.getFullYear(), selected.getMonth(), 1), month) ? selected : month;
+    render(0, 'in');
+    opts.onMonth?.(month);
+    if (focus) root.focusGrid();
+  }
+
+  // year view: the 12 months of the shown year, 4 per row
+  function monthsGrid() {
+    const y = month.getFullYear();
+    const today = new Date();
+    const g = h('div', { class: 'ac-mini-months', role: 'grid', 'aria-label': String(y) });
+    for (let r = 0; r < 3; r++) {
+      const row = h('div', { class: 'ac-mini-mrow', role: 'row' });
+      for (let c = 0; c < 4; c++) {
+        const m = r * 4 + c;
+        const d = new Date(y, m, 1);
+        const isToday = today.getFullYear() === y && today.getMonth() === m;
+        const isSel = !!selected && selected.getFullYear() === y && selected.getMonth() === m;
+        row.appendChild(
+          h(
+            'button',
+            {
+              type: 'button',
+              class: ['ac-mini-month', isToday && 'today', isSel && 'selected'],
+              role: 'gridcell',
+              tabindex: m === month.getMonth() ? '0' : '-1',
+              'aria-label': app.fmt.monthYear(d),
+              'aria-selected': String(isSel),
+              'aria-current': isToday ? 'date' : null,
+              dataset: { month: String(m) },
+              onclick: (e) => showDays(m, e.detail === 0),
+            },
+            h('span', null, app.fmt.monthShort(d).replace(/\.$/, '')),
+          ),
+        );
+      }
+      g.appendChild(row);
+    }
+    return g;
   }
 
   function grid() {
@@ -74,20 +135,37 @@ export function miniMonth(app, opts) {
     return g;
   }
 
-  function render(slide = 0) {
-    title.textContent = app.fmt.monthYear(month);
+  function render(slide = 0, zoom = null) {
+    const months = mode === 'months';
+    title.textContent = months ? String(month.getFullYear()) : app.fmt.monthYear(month);
     title.setAttribute('aria-live', 'polite');
+    title.setAttribute('aria-label', months ? String(month.getFullYear()) : `${app.fmt.monthYear(month)}. ${t('pickMonth')}`);
+    title.classList.toggle('static', months);
+    title.tabIndex = months ? -1 : 0;
+    prev.setAttribute('aria-label', months ? t('prevYear') : t('prevMonth'));
+    prev.dataset.tip = months ? t('prevYear') : t('prevMonth');
+    next.setAttribute('aria-label', months ? t('nextYear') : t('nextMonth'));
+    next.dataset.tip = months ? t('nextYear') : t('nextMonth');
+    root.classList.toggle('year-view', months);
     app.ctx.ui.clear(wk);
     const first = app.firstDay();
-    if (app.prefs.weekNumbers) wk.appendChild(h('span', { class: 'ac-mini-wn' }));
-    wk.classList.toggle('weeks', !!app.prefs.weekNumbers);
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(2026, 0, 4 + ((first + i) % 7));
-      wk.appendChild(h('span', { 'aria-hidden': 'true' }, app.fmt.weekdayShort(d).slice(0, 2)));
+    if (!months) {
+      if (app.prefs.weekNumbers) wk.appendChild(h('span', { class: 'ac-mini-wn' }));
+      wk.classList.toggle('weeks', !!app.prefs.weekNumbers);
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(2026, 0, 4 + ((first + i) % 7));
+        wk.appendChild(h('span', { 'aria-hidden': 'true' }, app.fmt.weekdayShort(d).slice(0, 2)));
+      }
     }
     const old = viewport.firstElementChild;
-    const g = grid();
-    if (old && slide && !app.reduceMotion()) {
+    const g = months ? monthsGrid() : grid();
+    if (zoom && !app.reduceMotion()) {
+      // year view <-> days: a short zoom, like CalendarView
+      app.ctx.ui.clear(viewport);
+      viewport.appendChild(g);
+      const from = zoom === 'out' ? 'scale(1.12)' : 'scale(0.88)';
+      g.animate([{ transform: from, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 220, easing: 'cubic-bezier(0.1,0.9,0.2,1)' });
+    } else if (old && slide && !app.reduceMotion()) {
       old.classList.add('ac-mini-out');
       old.animate([{ transform: 'none', opacity: 1 }, { transform: `translateY(${slide > 0 ? -24 : 24}px)`, opacity: 0 }], { duration: 160, easing: 'cubic-bezier(0.7,0,1,0.5)', fill: 'forwards' }).finished.then(
         () => old.remove(),
@@ -102,6 +180,30 @@ export function miniMonth(app, opts) {
   }
 
   viewport.addEventListener('keydown', (e) => {
+    const mbtn = e.target.closest?.('.ac-mini-month');
+    if (mbtn) {
+      const m = Number(mbtn.dataset.month);
+      const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -4, ArrowDown: 4 }[e.key];
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        e.stopPropagation();
+        showDays(m, true);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        showDays(month.getMonth(), true);
+      } else if (step || e.key === 'PageUp' || e.key === 'PageDown') {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = step ? new Date(month.getFullYear(), m + step, 1) : new Date(month.getFullYear() + (e.key === 'PageUp' ? -1 : 1), m, 1);
+        const yearDelta = target.getFullYear() - month.getFullYear();
+        month = target;
+        if (yearDelta) render(yearDelta);
+        else for (const b of viewport.querySelectorAll('.ac-mini-month')) b.tabIndex = Number(b.dataset.month) === target.getMonth() ? 0 : -1;
+        viewport.lastElementChild?.querySelector(`.ac-mini-month[data-month="${target.getMonth()}"]`)?.focus();
+      }
+      return;
+    }
     const btn = e.target.closest?.('.ac-mini-day');
     if (!btn) return;
     const [y, m, d] = btn.dataset.date.split('-').map(Number);
@@ -181,12 +283,14 @@ export function miniMonth(app, opts) {
       const m = new Date(s.month.getFullYear(), s.month.getMonth(), 1);
       slide = m.getTime() === month.getTime() ? 0 : m > month ? 1 : -1;
       month = m;
+      // the main view moved to another month: show its days again
+      if (slide) mode = 'days';
     }
     if (selected && sameDay(new Date(selected.getFullYear(), selected.getMonth(), 1), month)) focusDate = selected;
     else if (slide) focusDate = month;
     render(slide);
   };
-  root.focusGrid = () => (viewport.lastElementChild?.querySelector('.ac-mini-day[tabindex="0"]') || viewport.querySelector('.ac-mini-day'))?.focus();
+  root.focusGrid = () => (viewport.lastElementChild?.querySelector('.ac-mini-day[tabindex="0"], .ac-mini-month[tabindex="0"]') || viewport.querySelector('.ac-mini-day, .ac-mini-month'))?.focus();
   render();
   return root;
 }

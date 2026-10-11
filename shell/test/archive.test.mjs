@@ -406,7 +406,7 @@ async function backendTests() {
     check('skip policy', skip.ERR || [skip.kept, fs.readFileSync(path.join(d, 'main.js'), 'utf8')], [1, 'changed']);
     const repl = await call('archive:extract', fx('t.7z'), d, { entries: ['code/main.js'], overwrite: 'replace' });
     check('replace policy', repl.ERR || [repl.replaced, fs.readFileSync(path.join(d, 'main.js'), 'utf8').startsWith('export')], [1, true]);
-    check('unknown entry', (await call('archive:extract', fx('t.zip'), d, { entries: ['nope/x'] })).ERR, 'ENOENT');
+    check('unknown entry', (await call('archive:extract', fx('t.zip'), d, { entries: ['nope/x'] })).ERR, 'ENOENTRY');
     check('relative destination refused', (await call('archive:extract', fx('t.zip'), 'rel/dest', {})).ERR, 'EINVAL');
   });
 
@@ -497,7 +497,7 @@ async function backendTests() {
     check('7z unicode password round trip', names(await call('archive:list', p7, { password: 'clé été' })).includes('docs/readme.txt'), true);
     check('tar.gz cannot be encrypted', (await call('archive:create', [path.join(SRC, 'docs')], path.join(O, 'x.tar.gz'), { format: 'tar.gz', password: 'x' })).ERR, 'ENOTSUP');
     check('password with a newline refused', (await call('archive:create', [path.join(SRC, 'docs')], path.join(O, 'x.zip'), { format: 'zip', password: 'a\nb' })).ERR, 'EINVAL');
-    check('missing source', (await call('archive:create', [path.join(SRC, 'nope')], path.join(O, 'x.zip'), { format: 'zip' })).ERR, 'ENOENT');
+    check('missing source', (await call('archive:create', [path.join(SRC, 'nope')], path.join(O, 'x.zip'), { format: 'zip' })).ERR, 'ENOITEM');
     // an archive written inside the folder being compressed does not contain itself
     const inside = path.join(SRC, 'docs', 'self.zip');
     const ri = await call('archive:create', [path.join(SRC, 'docs')], inside, { format: 'zip' });
@@ -1282,6 +1282,13 @@ async function uiTests() {
     await until(() => fs.existsSync(slowDest) && fs.readdirSync(slowDest).some((n) => n.startsWith('.aurora-extract-')), { label: 'extraction started' });
     await sleep(200);
     check('extraction running before the close', procs() !== '', true);
+    // freeze the tool: the extraction must not be able to finish while the close confirmation is up (on a
+    // fast machine 400 MB extract in well under a second, which made this check a race)
+    for (const pid of procs().split(',').filter(Boolean)) {
+      try {
+        process.kill(Number(pid), 'SIGSTOP');
+      } catch {}
+    }
     await s.aurora(() => {
       void window.__aurora.wm.list().find((x) => x.appId === 'archive').close();
     });

@@ -1,7 +1,7 @@
 // Details view of the archive (Windows 11 File Explorer "Details" layout): sortable, resizable columns,
 // multi-selection (click, Ctrl, Shift, Ctrl+A, arrows, Home/End, Page Up/Down, type-ahead), and
 // virtual scrolling so folders with hundreds of thousands of items stay fast.
-import { iconUrl, typeName, ratioOf } from './util.js';
+import { iconUrl, typeName, ratioOf, listDate } from './util.js';
 import { shared } from './shared.js';
 
 const ROW_H = { normal: 30, compact: 24 };
@@ -265,7 +265,7 @@ export class DetailsList {
           break;
         }
         case 'mtime':
-          content = n.mtime ? i18n.formatDate(n.mtime, { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }).replace(',', '') : '';
+          content = listDate(n.mtime, i18n.locale);
           break;
         case 'location':
           content = n.parent?.path ? `${L?.name || ''}/${n.parent.path}` : L?.name || '';
@@ -374,7 +374,9 @@ export class DetailsList {
     if (e.button !== 0 && e.button !== 2) return;
     const i = this.indexAt(e);
     if (i < 0) {
-      if (e.button === 0 && !e.ctrlKey && !e.shiftKey && this.selected.size) this.clearSelection();
+      if (e.button !== 0 || e.target.closest('.arc-empty')) return;
+      if (!e.ctrlKey && !e.shiftKey && this.selected.size) this.clearSelection();
+      this.startMarquee(e);
       return;
     }
     if (e.button === 2) {
@@ -402,6 +404,91 @@ export class DetailsList {
       this.paintState();
     }
   }
+  /** Rubber-band selection from the empty space (Explorer): rows the rectangle touches are selected (Ctrl:
+   *  toggled against the current selection); the list scrolls when the pointer nears its top / bottom edge. */
+  startMarquee(e) {
+    if (!this.items.length) return;
+    const { h } = this.w;
+    const scroller = this.el;
+    const rowsBox = () => this.rows.getBoundingClientRect();
+    const base = e.ctrlKey ? new Set(this.selected) : new Set();
+    const toggle = e.ctrlKey;
+    const b0 = rowsBox();
+    const start = { x: e.clientX - b0.left, y: e.clientY - b0.top };
+    let last = { x: e.clientX, y: e.clientY };
+    let moved = false;
+    let timer = null;
+    let raf = null;
+    this.marquee ||= h('div', { class: 'arc-marquee', 'aria-hidden': 'true' });
+    const box = this.marquee;
+    const update = () => {
+      const b = rowsBox();
+      const cur = { x: last.x - b.left, y: last.y - b.top };
+      const x1 = Math.min(start.x, cur.x);
+      const y1 = Math.min(start.y, cur.y);
+      const x2 = Math.max(start.x, cur.x);
+      const y2 = Math.max(start.y, cur.y);
+      Object.assign(box.style, { transform: `translate(${x1}px, ${y1}px)`, width: `${x2 - x1}px`, height: `${y2 - y1}px` });
+      const rh = this.rowH;
+      const sel = new Set(base);
+      const lo = Math.max(0, Math.floor(y1 / rh));
+      const hi = Math.min(this.items.length - 1, Math.floor((y2 - 0.01) / rh));
+      if (x2 > 0 && x1 < b.width && y2 > 0) {
+        for (let k = lo; k <= hi; k++) {
+          const p = this.items[k].path;
+          if (toggle && base.has(p)) sel.delete(p);
+          else sel.add(p);
+        }
+        if (hi >= lo) this.focusIndex = cur.y < start.y ? lo : hi;
+      }
+      this.selected = sel;
+      this.render();
+      if (!raf) {
+        raf = requestAnimationFrame(() => {
+          raf = null;
+          this.w.onSelectionChange();
+        });
+      }
+    };
+    const edgeScroll = () => {
+      const r = scroller.getBoundingClientRect();
+      const top = r.top + HEAD_H;
+      const d = last.y < top + 20 ? -Math.ceil((top + 20 - last.y) / 3) : last.y > r.bottom - 20 ? Math.ceil((last.y - r.bottom + 20) / 3) : 0;
+      if (d) {
+        scroller.scrollTop += d;
+        update();
+      }
+    };
+    const move = (ev) => {
+      last = { x: ev.clientX, y: ev.clientY };
+      if (!moved) {
+        if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 4) return;
+        moved = true;
+        this.rows.appendChild(box);
+        timer = setInterval(edgeScroll, 30);
+      }
+      update();
+    };
+    const up = () => {
+      scroller.removeEventListener('pointermove', move);
+      scroller.removeEventListener('pointerup', up);
+      scroller.removeEventListener('pointercancel', up);
+      clearInterval(timer);
+      cancelAnimationFrame(raf);
+      this.endMarquee = null;
+      box.remove();
+      if (!moved) return;
+      this.anchor = this.focusIndex;
+      this.paintState();
+      this.w.onSelectionChange();
+    };
+    this.endMarquee = up;
+    scroller.setPointerCapture?.(e.pointerId);
+    scroller.addEventListener('pointermove', move);
+    scroller.addEventListener('pointerup', up);
+    scroller.addEventListener('pointercancel', up);
+  }
+
   onContext(e) {
     if (e.target.closest('.arc-dh')) {
       e.preventDefault();
@@ -490,7 +577,7 @@ export class DetailsList {
       default:
         break;
     }
-    if (e.key === 'a' && e.ctrlKey && !e.shiftKey && !e.altKey) {
+    if ((e.key === 'a' || e.key === 'A') && e.ctrlKey && !e.shiftKey && !e.altKey) {
       e.preventDefault();
       this.selectAll();
       return;
@@ -514,6 +601,7 @@ export class DetailsList {
   }
 
   destroy() {
+    this.endMarquee?.();
     this.ro.disconnect();
     cancelAnimationFrame(this.raf);
     clearTimeout(this.typeTimer);

@@ -1,6 +1,6 @@
 // Area B2 — customizable taskbar, custom Start menu, Focus mode (docs/PERSONALIZATION.md §10), in the real shell.
 //
-//   xvfb-run -a -s "-screen 0 1920x1080x24" node test/taskbar-start-focus.test.mjs [--no-shots] [--only=geometry,taskbar,autohide,start,folders,focus,restart,styles,i18n,security,perf]
+//   xvfb-run -a -s "-screen 0 1920x1080x24" node test/taskbar-start-focus.test.mjs [--no-shots] [--only=geometry,taskbar,autohide,start,folders,focus,restart,styles,i18n,security,perf,fit]
 //
 // geometry  every size × edge at 1280×720 and 1920×1080: thickness, work area, a maximized window never under the bar,
 //           buttons inside the bar, every flyout (Start, Search, Quick settings, Calendar, Widgets) and the window
@@ -19,6 +19,9 @@
 // i18n      French + dark: Settings pages Taskbar / Start / Focus mode have no raw keys and nothing overflows
 // security  an imported profile with hostile values for the B2 keys is cleaned (no CSS / HTML injection)
 // perf      20 × focus on/off and 20 × edge change: no leaked nodes or listeners, one veil, one hot zone
+// fit       1024×768 at 125 %: every flyout fits beside a vertical bar; 150 % text + seconds: the clock fits every
+//           size × edge; a quiet focus session hides badges and flashing; the banner gives way to Start; an end time
+//           already past (sleep) ends the session once
 // Screenshots → docs/screenshots/taskbar-*.png, start-*.png, focus-*.png
 import { launchShell, ROOT } from './lib.mjs';
 import fs from 'node:fs';
@@ -60,6 +63,29 @@ const rect = (s, sel) =>
     return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), r: Math.round(r.right), b: Math.round(r.bottom), cx: Math.round(r.x + r.width / 2), cy: Math.round(r.y + r.height / 2) };
   }, sel);
 const overlap = (a, b) => !!a && !!b && a.x < b.r - 0.5 && a.r > b.x + 0.5 && a.y < b.b - 0.5 && a.b > b.y + 0.5;
+// Wait until an element stops moving (no running animation / transition, same rect twice in a row): on a loaded VM
+// with software rendering the slide-in and maximize animations can take much longer than their nominal duration.
+// `sel` is a CSS selector, or 'win:<appId>' for the first window of an app.
+const still = (s, sel, timeout = 5000) =>
+  s.aurora(
+    async ([q, to]) => {
+      const find = () => (q.startsWith('win:') ? window.__aurora.wm.byApp(q.slice(4))[0]?.el : document.querySelector(q));
+      const t0 = performance.now();
+      let last = '';
+      while (performance.now() - t0 < to) {
+        const e = find();
+        if (!e) return false;
+        const busy = e.getAnimations({ subtree: false }).some((a) => a.playState === 'running' || a.playState === 'pending');
+        const r = e.getBoundingClientRect();
+        const k = [r.x, r.y, r.width, r.height].map(Math.round).join();
+        if (!busy && k === last) return true;
+        last = k;
+        await new Promise((res) => setTimeout(res, 90));
+      }
+      return false;
+    },
+    [sel, timeout],
+  );
 async function go(s, page) {
   await s.aurora((p) => window.__aurora.registry.launch('settings', { page: p }), page);
   await s.page.waitForSelector(S(`.st-page[data-page="${page}"]`), { timeout: 15000 });
@@ -103,7 +129,8 @@ async function openFly(s, f) {
   await s.aurora(() => window.__aurora.shell.emit('flyouts:close', {}));
   await sleep(150);
   await s.aurora((x) => window.__aurora.shell.emit(`${x}:toggle`), f);
-  await sleep(550);
+  await sleep(350);
+  await still(s, `#${FLY[f]}`);
   return rect(s, `#${FLY[f]}`);
 }
 const closeFly = async (s) => {
@@ -145,7 +172,8 @@ async function geometryPart(size) {
           w.maximize();
           return { tb: { x: tb.x, y: tb.y, w: tb.width, h: tb.height, r: tb.right, b: tb.bottom }, wa: window.__aurora.wm.workarea(), layout: window.__aurora.taskbar.layout() };
         });
-        await sleep(450);
+        await sleep(300);
+        await still(s, 'win:notepad');
         const m = await A(() => {
           const w = window.__aurora.wm.byApp('notepad')[0];
           const r = w.el.getBoundingClientRect();
@@ -1024,6 +1052,127 @@ async function perfPart() {
 }
 
 // =====================================================================================================================
+// QA pass 2: a narrow work area (1024×768 at 125 %: 819×614 CSS px) with a vertical bar, the clock with large text and
+// seconds on every size / edge, Focus mode hiding badges and flashing, the banner giving way to Start.
+async function fitPart() {
+  console.log('\n# Narrow work area, large text, focus quiet badges, banner vs Start');
+  const s = await launchShell({ size: '1024x768', open: ['notepad'], settle: 1500, lang: 'fr', settings: { scale: 125 } });
+  const A = (fn, a) => s.aurora(fn, a);
+  try {
+    const vp = await A(() => ({ w: innerWidth, h: innerHeight }));
+    for (const pos of ['left', 'right']) {
+      await setMany(s, { 'taskbar.position': pos, 'taskbar.size': 'large' });
+      await sleep(600);
+      const tb = await rect(s, '#taskbar');
+      const bad = [];
+      for (const f of Object.keys(FLY)) {
+        const r = await openFly(s, f);
+        if (!r || r.x < 0 || r.y < 0 || r.r > vp.w || r.b > vp.h || overlap(r, tb)) bad.push(`${f} ${r ? `${r.x},${r.y} ${r.w}×${r.h}` : 'missing'}`);
+      }
+      await closeFly(s);
+      check(!bad.length, `[${vp.w}×${vp.h} CSS px] ${pos} large bar: every flyout fits beside the bar (${bad.join('; ') || 'ok'})`);
+    }
+    // the clock with 150 % text and seconds stays inside the bar on every size and edge
+    await setMany(s, { textScale: 150, showSeconds: true, scale: 100 });
+    await sleep(900);
+    const clockBad = [];
+    for (const pos of ['bottom', 'top', 'left', 'right']) {
+      for (const sz of ['small', 'medium', 'large']) {
+        await setMany(s, { 'taskbar.position': pos, 'taskbar.size': sz });
+        await sleep(450);
+        const m = await A(() => {
+          const tb = document.getElementById('taskbar').getBoundingClientRect();
+          const out = [...document.querySelectorAll('#taskbar .tb-clock, #taskbar .tb-time, #taskbar .tb-date')]
+            .filter((e) => e.getClientRects().length && getComputedStyle(e).display !== 'none')
+            .filter((e) => {
+              const r = e.getBoundingClientRect();
+              return r.left < tb.left - 1 || r.right > tb.right + 1 || r.top < tb.top - 1 || r.bottom > tb.bottom + 1 || e.scrollWidth > e.clientWidth + 1;
+            })
+            .map((e) => e.className);
+          const clock = document.querySelector('#taskbar .tb-clock');
+          return { out, overflowY: clock.scrollHeight > clock.clientHeight + 2, time: document.querySelector('#taskbar .tb-time').textContent };
+        });
+        if (m.out.length || m.overflowY) clockBad.push(`${pos}/${sz}: ${m.out.join(',')}${m.overflowY ? ' (taller than its button)' : ''} "${m.time}"`);
+      }
+    }
+    check(!clockBad.length, `150 % text + seconds: the clock fits the bar on every edge and size (${clockBad.join('; ') || 'ok'})`);
+    // the Focus chip (French "Concentration" / "25 min") stays inside a narrow vertical bar
+    const pillBad = [];
+    for (const minutes of [0, 25]) {
+      await A((m) => window.__aurora.focus.start(m), minutes);
+      for (const pos of ['left', 'right']) {
+        for (const sz of ['small', 'large']) {
+          await setMany(s, { 'taskbar.position': pos, 'taskbar.size': sz });
+          await sleep(450);
+          const p = await A(() => {
+            const tb = document.getElementById('taskbar').getBoundingClientRect();
+            const pill = document.querySelector('#taskbar .tb-focus-pill');
+            const parts = [pill, ...pill.querySelectorAll('*')].map((e) => e.getBoundingClientRect()).filter((r) => r.width);
+            return { out: parts.some((r) => r.left < tb.left - 1 || r.right > tb.right + 1), text: pill.textContent, tip: pill.dataset.tip };
+          });
+          if (p.out || !p.tip) pillBad.push(`${minutes}/${pos}/${sz} "${p.text}"`);
+        }
+      }
+      await A(() => window.__aurora.focus.stop());
+    }
+    check(!pillBad.length, `150 % text, French: the Focus chip stays inside a vertical bar, timed or not (${pillBad.join('; ') || 'ok'})`);
+    if (!NO_SHOTS) {
+      await setMany(s, { 'taskbar.position': 'left', 'taskbar.size': 'small' });
+      await sleep(500);
+      await docShot(s, 'taskbar-left-small-large-text');
+    }
+    await setMany(s, {}, ['textScale', 'showSeconds', 'taskbar.position', 'taskbar.size', 'scale']);
+    await sleep(900);
+
+    // Focus mode with "hide notifications": no badge, no flashing button; both come back after the session
+    await A(() => window.__aurora.notify({ title: 'Badge', body: 'b', appId: 'notepad' }));
+    await sleep(400);
+    const badge = () => A(() => {
+      const b = document.querySelector('#taskbar .tb-app[data-app="notepad"]');
+      return { badge: !b.querySelector('.tb-badge').hidden, flashing: b.classList.contains('flashing') };
+    });
+    const b0 = await badge();
+    await A(() => window.__aurora.wm.byApp('notepad')[0].minimize());
+    await A(() => window.__aurora.focus.start(25));
+    await sleep(500);
+    await A(() => window.__aurora.wm.byApp('notepad')[0].flash());
+    await sleep(400);
+    const b1 = await badge();
+    await A(() => window.__aurora.focus.stop());
+    await sleep(500);
+    const b2 = await badge();
+    check(b0.badge && !b1.badge && !b1.flashing && b2.badge && b2.flashing, `a quiet focus session hides taskbar badges and flashing, they come back after (${JSON.stringify([b0, b1, b2])})`);
+    await A(() => window.__aurora.notifications.markAllRead());
+    await A(() => window.__aurora.wm.byApp('notepad')[0].focus());
+
+    // the start banner gives way to Start (it would cover its search box), and is not shown over an open Start
+    await A(() => window.__aurora.focus.start(25));
+    await sleep(400);
+    const shown = await A(() => !!document.querySelector('.focus-banner:not(.leaving)'));
+    await A(() => window.__aurora.shell.emit('start:open'));
+    await sleep(500);
+    const gone = await A(() => !document.querySelector('.focus-banner:not(.leaving)'));
+    await A(() => window.__aurora.focus.stop());
+    await A(() => window.__aurora.focus.start(25));
+    await sleep(400);
+    const notOver = await A(() => !document.querySelector('.focus-banner:not(.leaving)') && document.getElementById('start').classList.contains('open'));
+    check(shown && gone && notOver, `the focus banner gives way to Start (shown ${shown}, hidden when Start opens ${gone}, not shown over an open Start ${notOver})`);
+    await A(() => window.__aurora.shell.emit('flyouts:close', {}));
+    await A(() => window.__aurora.focus.stop());
+    // an end time already in the past (the machine slept through it) closes the session
+    await A(() => window.__aurora.focus.start(25));
+    await sleep(300);
+    await A(() => window.__aurora.api.invoke('settings:set', 'focusMode.endsAt', Date.now() - 1000));
+    await sleep(1200);
+    const st = await A(() => ({ ...window.__aurora.focus.state, dnd: window.__aurora.settings.get('notifications.dnd'), ended: window.__aurora.notifications.list().filter((n) => /terminée|complete/.test(n.title)).length }));
+    check(!st.active && st.dnd === false && st.ended === 1, `an end time in the past ends the session once, Do not disturb restored ${JSON.stringify(st)}`);
+    check(!errorsOf(s).length, `no console errors (${errorsOf(s).slice(0, 3).join(' | ')})`);
+  } finally {
+    await s.close();
+  }
+}
+
+// =====================================================================================================================
 const parts = [
   ['geometry', async () => (await geometryPart('1280x720'), await geometryPart('1920x1080'))],
   ['taskbar', taskbarPart],
@@ -1036,6 +1185,7 @@ const parts = [
   ['i18n', i18nPart],
   ['security', securityPart],
   ['perf', perfPart],
+  ['fit', fitPart],
 ];
 for (const [name, fn] of parts) {
   if (!run(name)) continue;

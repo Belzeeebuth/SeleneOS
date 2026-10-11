@@ -45,7 +45,7 @@ export class FindBar {
   relabel() {
     const { t } = this.w;
     const tip = (el, label, key) => {
-      el.dataset.tip = key ? `${label} (${key})` : label;
+      el.dataset.tip = key ? `${label} (${this.w.key(key)})` : label;
       el.setAttribute('aria-label', label);
     };
     this.input.placeholder = t('find.placeholder');

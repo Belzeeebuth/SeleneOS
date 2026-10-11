@@ -53,7 +53,7 @@ const DEFAULTS = {
   showSeconds: false,
   // Settings app (apps/settings) — keys below are applied live by the shell or the backends:
   lockWallpaper: null, // lock screen picture: null = same as the desktop, 'builtin:<id>' or absolute image path
-  multitasking: { snap: true, snapLayouts: true, snapAssist: true, shake: false }, // features/snaplayouts.js
+  multitasking: { snap: true, snapLayouts: true, snapBar: true, snapAssist: true, shake: false }, // features/snaplayouts.js (snapBar: layouts bar when dragging a window to the top)
   clipboard: { history: false }, // Win+V clipboard history (features/hotkeys.js)
   mouse: { speed: 0, leftHanded: false }, // pointer acceleration -1..1 and primary button (applied with xinput, main/ipc/locale.js)
 
@@ -89,11 +89,15 @@ const DEFAULTS = {
   focusMode: { active: false, hideNotifications: true, dimDesktop: true, dimLevel: 40, hideIcons: false, simplifyTaskbar: true, duration: 0, endsAt: 0, prevDnd: null },
   // Area B3 — packs (core/packs.js, core/sounds.js) + input (core/shortcuts.js, features/hotkeys.js, features/snaplayouts.js):
   cursorPack: 'default', // default (system) | classic | midnight | accent | large | highvis | retro
-  iconPack: 'fluent', // fluent (the apps' own icons) | tiles | accent | graphite | outline
+  cursorSize: 100, // 100–300 (%): size of the pointer (the system pack is drawn as "Aurora light" when > 100)
+  iconPack: 'fluent', // fluent (the apps' own icons) | tiles | accent | graphite | mono | outline | glass | retro
   soundPack: 'aurora', // aurora | chimes | retro | soft | silent
   soundEvents: { notification: null, startup: null, shutdown: null }, // null = pack sound, 'none' = silent, '<pack>.<sound>', '/abs/file.ogg'
+  soundVolume: 100, // 0–100: volume of the system sounds (multiplies every pack sound and sound file)
+  startupSound: true, // play the startup sound when the session starts
   snapPresets: [], // [{ id, name, zones: [{ x, y, w, h }] }] (fractions of the work area)
-  shortcuts: {}, // { [actionId]: 'Super+K' | null } — overrides of core/shortcuts.js SHORTCUTS (null = turned off)
+  snapLayouts: null, // null = the six Windows 11 layouts then every preset; else the ordered ids shown (features/snaplayouts.js)
+  shortcuts: {}, // { [actionId]: 'Super+K' | null } — overrides of core/shortcuts.js SHORTCUTS (null = turned off); 'app:<appId>' = open an app
 };
 // Personalization keys of the taskbar (Area A: color/opacity; Area B2: the rest), merged into DEFAULTS.taskbar.
 Object.assign(DEFAULTS.taskbar, {

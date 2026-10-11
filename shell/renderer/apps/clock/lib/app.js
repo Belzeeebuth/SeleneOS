@@ -132,7 +132,10 @@ export class ClockApp {
       if (it) rove(it);
     });
     this.navEl.addEventListener('focusout', (e) => {
-      if (!this.navEl.contains(e.relatedTarget)) rove(this.navItems[this.pageId]);
+      if (this.navEl.contains(e.relatedTarget)) return;
+      rove(this.navItems[this.pageId]);
+      // the overlay pane of a narrow window is light-dismiss: Tab (or a click) out of it closes it
+      if (e.relatedTarget && this.root.classList.contains('nav-open')) this.closeNavOverlay();
     });
     this.infoSlot = h('div', { class: 'ck-info-slot' });
     this.scroller = h('div', { class: 'ck-scroll', tabindex: '-1' });
@@ -161,6 +164,7 @@ export class ClockApp {
     this.root.classList.toggle('compact', narrow || this.store.prefs.navCollapsed);
     if (!narrow) this.root.classList.remove('nav-open');
     this.root.classList.toggle('tight', w > 0 && w < 520);
+    this._navTips();
     this._placePill(false);
     this.page?.onResize?.();
   }
@@ -169,6 +173,7 @@ export class ClockApp {
     if (this.root.classList.contains('narrow')) {
       const open = !this.root.classList.contains('nav-open');
       this.root.classList.toggle('nav-open', open);
+      this._navTips();
       if (open) this.navItems[this.pageId]?.focus();
     } else {
       this.store.setPref('navCollapsed', !this.store.prefs.navCollapsed);
@@ -177,7 +182,18 @@ export class ClockApp {
   }
 
   closeNavOverlay() {
+    if (!this.root.classList.contains('nav-open')) return;
     this.root.classList.remove('nav-open');
+    this._navTips();
+  }
+
+  /** Icon-only pane: each item names itself in a tooltip (like a compact WinUI NavigationView). */
+  _navTips() {
+    const iconsOnly = this.root.classList.contains('compact') && !this.root.classList.contains('nav-open');
+    for (const el of Object.values(this.navItems)) {
+      if (iconsOnly) el.dataset.tip = el.getAttribute('aria-label');
+      else delete el.dataset.tip;
+    }
   }
 
   _placePill(animate = true) {
@@ -396,6 +412,14 @@ export class ClockApp {
 
   _dispose() {
     this.closed = true;
+    // A dialog still open when the window goes away (taskbar "Close window", Task Manager…) is answered
+    // "cancel": otherwise ui.dialog's document-level key handler outlives it and swallows Tab / Esc in
+    // every other window until Esc is pressed once.
+    for (const dlg of this.win.el.querySelectorAll(':scope > .dialog-layer .dialog')) {
+      try {
+        dlg._done?.(null);
+      } catch {}
+    }
     cancelAnimationFrame(this.raf);
     clearTimeout(this.to);
     this.ro?.disconnect();

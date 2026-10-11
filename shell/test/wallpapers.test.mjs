@@ -867,6 +867,8 @@ async function settingsUi({ theme, lang, size = '1600x900', shots = true }) {
     check(wxText.includes(L('Rain', 'Pluie')) && wxText.includes('°C') && wxText.includes('Paris'), `current weather shown ("${wxText}")`);
     const sun = await s.page.locator(S('[data-section="sun"] .st-row-desc')).innerText();
     check(sun.includes(L('Sunrise', 'Lever')) && sun.includes(L('Now:', 'Maintenant')), `today's sun times and phase ("${sun}")`);
+    // French = 24-hour clock: two-digit hours like the taskbar clock ("06:04"); English: "6:04 AM"
+    check(fr ? /Lever \d\d:\d\d/.test(sun) : /Sunrise \d{1,2}:\d\d\s?[AP]M/.test(sun), `sun times use the taskbar's time format ("${sun.split('·')[0].trim()}")`);
     // manual coordinates: invalid then valid
     await (await rowOf(s, L('Location', 'Lieu'))).locator('.btn').click();
     await s.page.waitForSelector('.wp-loc-dialog');
@@ -936,6 +938,12 @@ async function settingsUi({ theme, lang, size = '1600x900', shots = true }) {
     await sleep(900);
     const cnt = await s.page.locator(S('[data-section="slideshow"] .st-row-desc')).innerText();
     check(cnt.includes(L('2 pictures', '2 images')), `slideshow shows the album and its picture count ("${cnt}")`);
+    // "Use Aurora pictures" appears live once a folder is chosen, and goes back to the built-in pictures
+    const useBuiltin = s.page.locator(S('[data-section="slideshow"] .btn'), { hasText: L('Use Aurora pictures', 'Utiliser les images d’Aurora') });
+    check(await useBuiltin.isVisible(), '"Use Aurora pictures" button shown while an album is chosen');
+    await useBuiltin.click();
+    await sleep(600);
+    check((await get(s, 'slideshow.folder')) === null && !(await useBuiltin.isVisible()) && (await s.page.locator(S('[data-section="slideshow"] .wp-folder')).innerText()) === L('Aurora pictures', 'Images d’Aurora'), '"Use Aurora pictures" resets the album and hides itself');
     // Picture / Solid still work (picture tiles, solid swatches)
     await pickCombo(s, L('Personalize your background', 'Personnaliser votre arrière-plan'), L('Picture', 'Image'));
     await sleep(600);

@@ -570,6 +570,17 @@
 .app-archive .arc-row:hover {
   background-color: var(--arc-hover);
 }
+/* rubber-band selection (drag from the empty space under the rows) */
+.app-archive .arc-marquee {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: var(--arc-sel);
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+}
 .app-archive .arc-row.selected {
   background-color: var(--arc-sel);
 }

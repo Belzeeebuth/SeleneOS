@@ -4,7 +4,7 @@
 import { PdfDoc, TOOLS, basename, dirname } from './doc.js';
 import { FindBar } from './findbar.js';
 import { StartPage } from './start.js';
-import { shared, HIGHLIGHT_COLORS, PEN_COLORS } from './shared.js';
+import { shared, HIGHLIGHT_COLORS, PEN_COLORS, saveErrorText } from './shared.js';
 import { engine, acquireWorker, releaseWorker } from './engine.js';
 import * as dlg from './dialogs.js';
 
@@ -45,6 +45,15 @@ export class PdfWindow {
   fmt(n) {
     return this.ctx.i18n.formatNumber(n);
   }
+  /** A keyboard shortcut as the UI language writes it ("Ctrl+Shift+S" -> "Ctrl+Maj+S", "Esc" -> "Échap"). */
+  key(combo) {
+    return localizeKeys(combo, this.ctx.lang);
+  }
+  /** ui.menu with the shortcuts localized (submenus included). */
+  menu(at, items, opts) {
+    const fix = (list) => list.map((it) => (it && typeof it === 'object' ? { ...it, shortcut: it.shortcut && this.key(it.shortcut), submenu: Array.isArray(it.submenu) ? fix(it.submenu) : it.submenu } : it));
+    return this.ctx.ui.menu(at, fix(items), opts);
+  }
 
   // ================================================================== setup
   async init() {
@@ -62,6 +71,7 @@ export class PdfWindow {
   /** The shared pdf.js worker, held while this window is open. */
   async ensureWorker() {
     const E = await engine();
+    if (this.closing) return null; // closed while pdf.js was loading: never take a reference that is not released
     if (!this.workerHeld) {
       this.worker = acquireWorker(E.lib);
       this.workerHeld = true;
@@ -340,7 +350,7 @@ export class PdfWindow {
     const { t } = this;
     const tip = (el, label, key) => {
       if (!el) return;
-      el.dataset.tip = key ? `${label} (${key})` : label;
+      el.dataset.tip = key ? `${label} (${this.key(key)})` : label;
       el.setAttribute('aria-label', label);
     };
     tip(this.newTabBtn, t('tabs.new'), 'Ctrl+T');
@@ -455,7 +465,7 @@ export class PdfWindow {
     tab.el.classList.toggle('dirty', !!doc?.dirty);
     tab.el.setAttribute('aria-label', doc?.dirty ? `${title}, ${t('tabs.unsaved')}` : title);
     tab.close.setAttribute('aria-label', t('tabs.close'));
-    tab.close.dataset.tip = `${t('tabs.close')} (Ctrl+W)`;
+    tab.close.dataset.tip = `${t('tabs.close')} (${this.key('Ctrl+W')})`;
     const state = !doc ? 'start' : doc.state;
     if (tab.iconState !== state) {
       tab.iconState = state;
@@ -477,6 +487,7 @@ export class PdfWindow {
     if (prev) {
       prev.el.classList.remove('active');
       prev.el.setAttribute('aria-selected', 'false');
+      prev.el.tabIndex = -1;
       if (prev.doc) {
         // Inactive documents never keep an editing tool on (its listeners are global).
         if (prev.doc.mode) prev.doc.setMode(0);
@@ -487,6 +498,7 @@ export class PdfWindow {
     this.activeTab = tab;
     tab.el.classList.add('active');
     tab.el.setAttribute('aria-selected', 'true');
+    tab.el.tabIndex = 0; // the tab strip is one Tab stop (arrow keys move between tabs)
     this.revealActiveTab();
     // Lay the document area out before showing the document (pdf.js measures it).
     this.root.classList.toggle('has-doc', !!tab.doc);
@@ -517,17 +529,23 @@ export class PdfWindow {
     else this.win.body.focus({ preventScroll: true });
   }
 
-  async closeTab(tab = this.activeTab, { prompt = true } = {}) {
-    if (!tab || !this.tabs.includes(tab)) return true;
+  /** Close a tab (asking to save its changes). Resolves false when the user cancels. */
+  closeTab(tab = this.activeTab, { prompt = true } = {}) {
+    if (!tab || !this.tabs.includes(tab)) return Promise.resolve(true);
+    // A second request while the first one is asking (double click, Ctrl+W twice…) waits for the same answer.
+    if (tab.closing) return tab.closing;
+    tab.closing = this.closeTabNow(tab, prompt).finally(() => (tab.closing = null));
+    return tab.closing;
+  }
+
+  async closeTabNow(tab, prompt) {
     const doc = tab.doc;
     doc?.commitEdits();
     if (prompt && doc?.dirty) {
       this.activate(tab);
-      const r = await dlg.askSave(doc);
-      if (!r) return false;
-      if (r === 'save' && !(await this.save(doc))) return false;
+      if (!(await this.confirmDiscard(doc))) return false;
     }
-    if (!this.tabs.includes(tab)) return true;
+    if (!this.tabs.includes(tab) || this.closing) return true;
     if (this.tabs.length === 1) {
       this.closing = true;
       this.win.close(true);
@@ -535,6 +553,36 @@ export class PdfWindow {
     }
     this.removeTab(tab);
     return true;
+  }
+
+  /**
+   * Save / Don't save / Cancel for a document with changes. Resolves true when the document may go (saved or
+   * discarded). One question at a time per window: another close request meanwhile is refused (and the open
+   * question is brought to attention), like a modal dialog on Windows.
+   */
+  async confirmDiscard(doc) {
+    if (this.prompting) {
+      this.nudgePrompt();
+      return false;
+    }
+    this.prompting = true;
+    try {
+      const r = await dlg.askSave(doc);
+      if (!r) return false;
+      if (r === 'save') return await this.save(doc);
+      return true;
+    } finally {
+      this.prompting = false;
+    }
+  }
+
+  /** Draw attention to the dialog that is already open in this window. */
+  nudgePrompt() {
+    this.win.focus();
+    const d = this.win.el.querySelector(':scope > .dialog-layer:not(.closing) .dialog');
+    if (!d) return;
+    (d.querySelector('.dialog-footer .btn.primary') || d).focus?.({ preventScroll: true });
+    if (!reduceMotion()) d.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.02)' }, { transform: 'scale(1)' }], { duration: 240, easing: EASE });
   }
 
   closeDoc(doc) {
@@ -720,7 +768,7 @@ export class PdfWindow {
     const { t } = this;
     const i = this.tabs.indexOf(tab);
     const path = tab.doc?.path;
-    this.ctx.ui.menu(at, [
+    this.menu(at, [
       { label: t('tabs.new'), icon: 'tab_add', shortcut: 'Ctrl+T', action: () => this.newTab() },
       '-',
       { label: t('tabs.close'), icon: 'dismiss', shortcut: 'Ctrl+W', action: () => this.closeTab(tab) },
@@ -742,9 +790,19 @@ export class PdfWindow {
 
   // ================================================================== opening
   async openDialog({ replace = null } = {}) {
+    if (this.picking) return; // Ctrl+O pressed again before the picker took the keyboard
+    this.picking = true;
+    try {
+      await this.openDialogNow(replace);
+    } finally {
+      this.picking = false;
+    }
+  }
+  async openDialogNow(replace) {
     const { t, ctx } = this;
     const cur = this.active?.path;
     const xdg = await ctx.api.invoke('fs:xdg').catch(() => ({}));
+    if (this.closing) return;
     const path = await ctx.ui.filePicker({
       mode: 'open',
       title: t('open.title'),
@@ -753,8 +811,9 @@ export class PdfWindow {
       multiple: true,
       parent: this.win,
     });
-    if (!path) return;
+    if (!path || this.closing) return;
     const paths = Array.isArray(path) ? path : [path];
+    if (!paths.length) return;
     this.lastDir = dirname(paths[0]);
     let first = true;
     for (const p of paths) {
@@ -1115,33 +1174,46 @@ export class PdfWindow {
   }
 
   async writeDoc(doc, path, { rename = false } = {}) {
-    const { t, ctx } = this;
+    const { t } = this;
     if (doc.saving) return false;
     doc.saving = true;
     this.refreshChrome();
     try {
       const bytes = await doc.bytes();
-      await ctx.api.invoke('fs:writeBytes', path, bytes);
-      doc.pdf.annotationStorage.resetModified();
+      if (doc.destroyed) return false;
+      const st = await this.writeFile(path, bytes);
+      doc.pdf?.annotationStorage.resetModified();
       doc.setDirty(false);
       if (rename && path !== doc.path) {
         doc.path = path;
         doc.remember({ touch: true });
         doc.makeRecentThumb();
       }
-      const st = await ctx.api.invoke('fs:stat', path).catch(() => null);
-      if (st) doc.fileSize = st.size;
+      if (st?.size != null) doc.fileSize = st.size;
       this.flashHint(t('save.done', { name: basename(path) }));
       return true;
     } catch (err) {
-      console.warn('[pdf] save failed', err);
-      this.alert(t('save.failedTitle'), t('save.failed', { name: basename(path), error: err?.message || '' }));
+      console.warn('[pdf] save failed', err?.code, err?.message);
+      this.alert(t('save.failedTitle'), t('save.failed', { name: basename(path), error: saveErrorText(t, err) }));
       return false;
     } finally {
       doc.saving = false;
       const tab = this.tabs.find((x) => x.doc === doc);
       if (tab) this.updateTab(tab);
       this.refreshChrome();
+    }
+  }
+
+  /** Write a whole PDF safely (temporary file + rename, see main/ipc/pdf.js). */
+  async writeFile(path, bytes) {
+    const { api } = this.ctx;
+    try {
+      return await api.invoke('pdf:save', path, bytes);
+    } catch (err) {
+      if (err?.code !== 'ENOHANDLER') throw err;
+      // Older main process without the PDF backend.
+      await api.invoke('fs:writeBytes', path, bytes);
+      return api.invoke('fs:stat', path).catch(() => null);
     }
   }
 
@@ -1175,7 +1247,7 @@ export class PdfWindow {
 
   openWithItems() {
     const reg = this.ctx.shell.registry;
-    const apps = reg.list().filter((m) => m.id !== 'pdf' && ((m.fileTypes || []).includes('.pdf') || (m.defaultFor || []).includes('.pdf')));
+    const apps = dlg.openWithApps(reg).suggested;
     const items = apps.map((m) => ({ label: reg.name(m.id), icon: 'app_generic', action: () => this.openWith(m.id) }));
     if (items.length) items.push('-');
     items.push({ label: this.t('openWith.choose'), icon: 'apps', action: () => this.openWith() });
@@ -1215,7 +1287,7 @@ export class PdfWindow {
   }
   zoomMenu(e) {
     if (!this.active?.ready) return;
-    this.ctx.ui.menu(e.currentTarget, this.zoomItems(), { class: 'pdf-menu' });
+    this.menu(e.currentTarget, this.zoomItems(), { class: 'pdf-menu' });
   }
 
   layoutItems() {
@@ -1226,7 +1298,7 @@ export class PdfWindow {
   }
   layoutMenu(e) {
     if (!this.active?.ready) return;
-    this.ctx.ui.menu(e.currentTarget, this.layoutItems());
+    this.menu(e.currentTarget, this.layoutItems());
   }
   setLayout(id) {
     const doc = this.active;
@@ -1242,7 +1314,7 @@ export class PdfWindow {
     const ready = !!doc?.ready;
     const overflow = this.tbItems.filter((it) => it.el.classList.contains('pdf-overflowed')).map((it) => it.menu());
     const sel = ready && !!doc.selectionInDoc();
-    this.ctx.ui.menu(e.currentTarget, [
+    this.menu(e.currentTarget, [
       { label: t('menu.open'), icon: 'folder_open', shortcut: 'Ctrl+O', action: () => this.openDialog() },
       { label: t('tabs.new'), icon: 'tab_add', shortcut: 'Ctrl+T', action: () => this.newTab() },
       ...(overflow.length ? ['-', ...overflow] : []),
@@ -1297,7 +1369,7 @@ export class PdfWindow {
       '-',
       { label: t('menu.properties'), icon: 'info', shortcut: 'Ctrl+D', action: () => dlg.properties(doc) },
     );
-    this.ctx.ui.menu(e, items);
+    this.menu(e, items);
   }
 
   // ================================================================== tool flyouts
@@ -1548,6 +1620,15 @@ export class PdfWindow {
       fn();
     };
 
+    // Tab / Shift+Tab cycle inside the window (inside an open flyout) instead of walking out to the taskbar.
+    if (k === 'Tab' && !ctrl && !e.altKey) {
+      if (this.presenting) return run(() => {});
+      const root = this.flyout?.el.contains(e.target) ? this.flyout.el : this.win.el;
+      wrapTab(e, root);
+      return;
+    }
+    if (k === 'F6' && !ctrl && !e.altKey && !this.presenting) return run(() => this.focusRegion(e.shiftKey ? -1 : 1));
+
     if (this.presenting) {
       if (k === 'Escape' || k === 'F5' || k === 'F11') return run(() => this.exitPresentation());
       if (['ArrowRight', 'ArrowDown', 'PageDown', 'Enter', 'n', 'N'].includes(k) || (k === ' ' && !e.shiftKey)) return run(() => doc?.nextPage());
@@ -1615,6 +1696,26 @@ export class PdfWindow {
     if (k === 'ArrowLeft') return run(() => (noHScroll ? doc.prevPage() : scrollBy(sc, 0, -48)));
   }
 
+  /** F6 / Shift+F6: tab strip -> command bar -> sidebar -> document (or start page) -> … */
+  focusRegion(dir) {
+    const visible = (el) => el && !el.closest('[hidden]') && el.getClientRects().length > 0;
+    const first = (root) => tabStops(root)[0] || null;
+    const regions = [
+      { root: this.strip, target: () => this.activeTab?.el },
+      { root: this.toolbar, target: () => first(this.toolbar) },
+      { root: this.sidebar, target: () => this.sidePanel?.el.querySelector('[tabindex="0"]') || this.sidePanel?.el || first(this.sidebar) },
+      { root: this.find.el, target: () => this.find.input },
+      { root: this.docsHost, target: () => (this.active?.ready ? this.active.scroller : this.active?.overlay.querySelector('.btn.primary') || first(this.active?.overlay || this.docsHost)) },
+      { root: this.start.el, target: () => this.start.list.querySelector('.pdf-recent-row') || this.start.openBtn },
+    ].filter((r) => visible(r.root) && visible(r.target()));
+    if (!regions.length) return;
+    const a = document.activeElement;
+    let cur = regions.findIndex((r) => r.root.contains(a));
+    if (cur < 0) cur = dir > 0 ? -1 : 0;
+    const next = regions[(cur + dir + regions.length) % regions.length];
+    next.target()?.focus({ preventScroll: true });
+  }
+
   onWinFocus(on) {
     this.focused = on;
     if (on) shared.noteFocus(this);
@@ -1635,14 +1736,18 @@ export class PdfWindow {
   // ================================================================== closing
   async beforeClose() {
     if (this.closing) return true;
+    if (this.prompting) {
+      // Closing again (taskbar, Alt+F4…) while a save question is open: that question must be answered first.
+      this.nudgePrompt();
+      return false;
+    }
     for (const d of this.docs()) d.commitEdits();
     for (const tab of [...this.tabs]) {
       const doc = tab.doc;
-      if (!doc?.dirty) continue;
+      if (!doc?.dirty || !this.tabs.includes(tab)) continue;
       this.activate(tab);
-      const r = await dlg.askSave(doc);
-      if (!r) return false;
-      if (r === 'save' && !(await this.save(doc))) return false;
+      if (!(await this.confirmDiscard(doc))) return false;
+      if (this.closing) return true;
     }
     this.closing = true;
     if (this.presenting) this.exitPresentation();
@@ -1670,6 +1775,46 @@ export class PdfWindow {
     if (this.workerHeld) releaseWorker();
     this.workerHeld = false;
   }
+}
+
+/** Keyboard-focusable controls inside root, in Tab order (DOM order: no positive tabindex is used). */
+function tabStops(root) {
+  if (!root) return [];
+  const inOtherLayer = (el) => {
+    const layer = el.closest('.dialog-layer');
+    return !!layer && !layer.contains(root);
+  };
+  return [...root.querySelectorAll('button, input, textarea, select, a[href], [tabindex]')].filter(
+    (el) => !el.disabled && el.tabIndex >= 0 && !el.closest('[hidden], .pdf-overflowed') && !inOtherLayer(el) && el.getClientRects().length > 0,
+  );
+}
+/** Tab / Shift+Tab wrap around inside root like a Windows app. Returns true when it moved the focus. */
+function wrapTab(e, root) {
+  const stops = tabStops(root);
+  if (!stops.length) return false;
+  const a = document.activeElement;
+  // The deepest stop holding the focus (the document view is a stop that contains its text layers and links).
+  let i = -1;
+  stops.forEach((x, j) => {
+    if (x === a || x.contains(a)) i = j;
+  });
+  let next = null;
+  if (!e.shiftKey && (i === stops.length - 1 || (i < 0 && !root.contains(a)))) next = stops[0];
+  else if (e.shiftKey && (i === 0 || (i < 0 && !root.contains(a)))) next = stops[stops.length - 1];
+  if (!next) return false;
+  e.preventDefault();
+  e.stopPropagation();
+  next.focus({ preventScroll: true });
+  return true;
+}
+
+const KEYS_FR = { Shift: 'Maj', Esc: 'Échap', Escape: 'Échap', Del: 'Suppr', Delete: 'Suppr', Space: 'Espace', Enter: 'Entrée', Home: 'Origine', End: 'Fin', PageUp: 'Pg préc', PageDown: 'Pg suiv' };
+export function localizeKeys(combo, lang) {
+  if (!combo || lang !== 'fr') return combo;
+  return String(combo)
+    .split('+')
+    .map((k) => KEYS_FR[k] || k)
+    .join('+');
 }
 
 function isEditable(el) {

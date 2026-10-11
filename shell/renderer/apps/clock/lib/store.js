@@ -15,6 +15,10 @@ export const APP = 'clock';
 export const SNOOZE_CHOICES = [0, 5, 10, 20, 30];
 export const FOCUS_MIN = 15;
 export const FOCUS_MAX = 240;
+// Upper bounds (a damaged or hostile alarms.json with thousands of entries must not freeze the shell:
+// every enabled alarm is one shell.reminders entry, written to disk on each change)
+export const MAX_ALARMS = 100;
+export const MAX_TIMERS = 100;
 
 const DEFAULT_PREFS = {
   page: 'timer',
@@ -215,12 +219,12 @@ class ClockStore {
     this.prefs = cleanPrefs(prefs);
     const firstRun = (k, v) => !Array.isArray(v) && !damaged.has(k);
     this.alarms = Array.isArray(alarms)
-      ? uniqueById(alarms.map(cleanAlarm).filter(Boolean))
+      ? uniqueById(alarms.slice(0, MAX_ALARMS * 4).map(cleanAlarm).filter(Boolean)).slice(0, MAX_ALARMS)
       : firstRun('alarms', alarms)
         ? [cleanAlarm({ id: uid('a'), hour: 7, minute: 0, name: this.t('alarm.goodMorning'), days: [1, 2, 3, 4, 5], enabled: false })]
         : [];
     this.timers = Array.isArray(timers)
-      ? uniqueById(timers.map(cleanTimer).filter(Boolean))
+      ? uniqueById(timers.slice(0, MAX_TIMERS * 4).map(cleanTimer).filter(Boolean)).slice(0, MAX_TIMERS)
       : firstRun('timers', timers)
         ? [1, 3, 5].map((m) => cleanTimer({ id: uid('t'), name: '', duration: m * MIN }))
         : [];
@@ -470,7 +474,9 @@ class ClockStore {
     return true;
   }
 
+  /** -> the new alarm, or null when there are already MAX_ALARMS */
   addAlarm(fields) {
+    if (this.alarms.length >= MAX_ALARMS) return null;
     const a = cleanAlarm({ id: uid('a'), enabled: true, sound: this.prefs.sound, snooze: this.prefs.snooze, ...fields });
     this.alarms.push(a);
     this._syncAlarm(a);
@@ -552,7 +558,9 @@ class ClockStore {
     }
   }
 
+  /** -> the new timer, or null when there are already MAX_TIMERS */
   addTimer({ name = '', duration }) {
+    if (this.timers.length >= MAX_TIMERS) return null;
     const x = cleanTimer({ id: uid('t'), name, duration });
     this.timers.push(x);
     this.persist('timers');
@@ -954,6 +962,15 @@ class ClockStore {
 
   async _restoreDnd() {
     try {
+      // The shell's Focus mode (core/features/focus.js) started while this session had Do not disturb on:
+      // it saved that "on" as the value to put back when it ends. Leave Do not disturb on for Focus mode
+      // and hand it the value from before this session instead, or DND would go off under Focus mode now
+      // and stay on for good once Focus mode ends.
+      const fm = this.settings.get('focusMode');
+      if (fm?.active && fm.prevDnd != null) {
+        if (fm.prevDnd !== false) await this.settings.set('focusMode.prevDnd', false);
+        return;
+      }
       if (this.settings.get('notifications.dnd')) await this.settings.set('notifications.dnd', false);
     } catch (err) {
       console.error('[clock] could not restore do not disturb', err);

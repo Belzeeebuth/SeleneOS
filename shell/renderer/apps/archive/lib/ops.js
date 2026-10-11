@@ -25,10 +25,14 @@ export function errorInfo(t, e) {
     EEXIST: 'err.exists',
     ETIMEDOUT: 'err.timeout',
     EZIPPASSWORD: 'err.zipPassword',
+    ENOENTRY: 'err.entryMissing',
+    ENOITEM: 'err.itemMissing',
+    ENODEST: 'err.destMissing',
+    ELINK: 'err.link',
   };
   // The backend's own (English) text is worth showing only when it adds something: tool output for
   // damaged archives, unsupported methods, permissions or unexpected failures.
-  const withDetails = !known[code] || ['ECORRUPT', 'ENOTSUP', 'EACCES', 'EPERM', 'EROFS', 'ETOOL', 'EINVAL'].includes(code);
+  const withDetails = !known[code] || ['ECORRUPT', 'ENOTSUP', 'EACCES', 'EPERM', 'EROFS', 'ETOOL', 'EINVAL', 'ENOITEM', 'ELINK'].includes(code);
   return { message: t(known[code] || 'err.generic'), details: withDetails ? String(e?.message || e || '') : '', code };
 }
 

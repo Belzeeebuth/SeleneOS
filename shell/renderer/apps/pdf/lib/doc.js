@@ -51,6 +51,19 @@ export class PdfDoc {
     this.scroller.hidden = true;
     this.panels = { thumbs: null, outline: null, attachments: null };
     this.attachments = null;
+    // Middle-click on a link would open it through window.open (the shell sends http(s) URLs straight to
+    // the browser), skipping the confirmation: links are only followed by our own handlers.
+    this.scroller.addEventListener('mousedown', (e) => e.button === 1 && e.target.closest?.('a[href]') && e.preventDefault(), true);
+    this.scroller.addEventListener('auxclick', (e) => this.onLinkAuxClick(e), true);
+  }
+
+  onLinkAuxClick(e) {
+    const a = e.target.closest?.('a[href]');
+    if (!a || e.button !== 1) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const href = a.getAttribute('href') || '';
+    if (/^(https?|mailto):/i.test(href)) this.w.openExternal(href);
   }
 
   get name() {
@@ -105,7 +118,7 @@ export class PdfDoc {
     if (!(data instanceof Uint8Array)) data = new Uint8Array(data);
     if (!looksLikePdf(data)) return this.fail('corrupt', this.t('error.notPdf'));
     const worker = await this.w.ensureWorker();
-    if (this.destroyed) return;
+    if (this.destroyed || !worker) return;
     const task = E.lib.getDocument({ data, ...docParams(), worker });
     this.task = task;
     let passwordCanceled = false;
@@ -189,7 +202,7 @@ export class PdfDoc {
         h('div', { class: 'pdf-error-icon' }, icon(ic, { size: 40 })),
         h('div', { class: 'subtitle' }, t(`error.${kind}.title`)),
         h('div', { class: 'text-2 pdf-error-body' }, t(`error.${kind}.body`, { name: this.name, path: this.path })),
-        this.error?.message ? h('div', { class: 'caption text-3 pdf-error-detail selectable' }, this.error.message) : null,
+        this.error?.message ? h('div', { class: 'caption text-2 pdf-error-detail selectable' }, this.error.message) : null,
         h('div', { class: 'pdf-error-actions' }, buttons),
       ),
     );
@@ -199,6 +212,8 @@ export class PdfDoc {
   setupViewer(initial = {}) {
     const { lib, viewer: V, l10n } = this.E;
     const eventBus = new V.EventBus();
+    // Aborted on teardown: releases the viewer's ResizeObserver and scroll listener.
+    this.viewerAC = new AbortController();
     const doc = this;
     class LinkService extends V.PDFLinkService {
       addLinkAttributes(link, url) {
@@ -230,6 +245,7 @@ export class PdfDoc {
       enableHighlightFloatingButton: false,
       imageResourcesPath: `${PDFJS}web/images/`,
       enableAutoLinking: true,
+      abortSignal: this.viewerAC.signal,
     });
     linkService.setViewer(viewer);
     l10n.translate(this.scroller);
@@ -296,6 +312,13 @@ export class PdfDoc {
   }
 
   onPagesInit(initial) {
+    // A document that finished loading in a background tab: pdf.js would size and scroll it against a hidden,
+    // zero-size container (errors, a 10 % zoom, the remembered page lost). Set it up when the tab is shown.
+    if (this.el.hidden || !this.scroller.offsetParent || !this.scroller.clientWidth) {
+      this.deferredInit = initial || {};
+      return;
+    }
+    this.deferredInit = null;
     const v = this.viewer;
     const remembered = shared.recentGet(this.path);
     this.applyLayout(this.layout, { keepPage: false });
@@ -342,6 +365,15 @@ export class PdfDoc {
   // ================================================================== state shown by the window
   show() {
     this.el.hidden = false;
+    if (this.deferredInit && this.viewer) {
+      if (!this.scroller.offsetParent || !this.scroller.clientWidth) {
+        requestAnimationFrame(() => !this.el.hidden && !this.destroyed && this.show());
+        return;
+      }
+      this.onPagesInit(this.deferredInit);
+      this.viewer.update();
+      return;
+    }
     if (this._savedScroll && this.viewer && !this.scroller.offsetParent) {
       // Not laid out yet: restore once it is.
       requestAnimationFrame(() => !this.el.hidden && !this.destroyed && this.show());
@@ -380,6 +412,14 @@ export class PdfDoc {
   /** The window resized: re-fit preset zooms (page width, page fit, automatic). */
   relayout() {
     if (!this.viewer || this.el.hidden) return;
+    if (this.deferredInit) {
+      // Loaded while the window was minimized / on another desktop: set the view up now that it has a size.
+      if (this.scroller.offsetParent && this.scroller.clientWidth) {
+        this.onPagesInit(this.deferredInit);
+        this.viewer.update();
+      }
+      return;
+    }
     if (typeof this.scaleValue === 'string' && ZOOM_PRESETS.includes(this.scaleValue)) this.viewer.currentScaleValue = this.scaleValue;
     this.viewer.update();
   }
@@ -508,7 +548,7 @@ export class PdfDoc {
   async attachmentBytes(a) {
     if (a.content) return a.content;
     const bytes = await this.pdf.getAttachmentContent(a.id);
-    if (!bytes) throw new Error(this.t('att.empty'));
+    if (!bytes) throw Object.assign(new Error(this.t('att.empty')), { code: 'EEMPTY' });
     a.content = bytes;
     return bytes;
   }
@@ -516,8 +556,17 @@ export class PdfDoc {
   // ================================================================== save
   async bytes() {
     this.commitEdits();
-    if (this.pdf.annotationStorage.size > 0) return this.pdf.saveDocument();
-    return this.pdf.getData();
+    const storage = this.pdf.annotationStorage;
+    if (storage.size === 0) return this.pdf.getData();
+    // pdf.js marks the annotations as saved as soon as the new bytes are built; the document only becomes
+    // clean once they are on disk (the window resets it after a successful write).
+    const onReset = storage.onResetModified;
+    storage.onResetModified = null;
+    try {
+      return await this.pdf.saveDocument();
+    } finally {
+      storage.onResetModified = onReset;
+    }
   }
 
   // ================================================================== recent list
@@ -526,7 +575,8 @@ export class PdfDoc {
     this._rememberTimer = setTimeout(() => this.remember(), 600);
   }
   remember({ touch = false } = {}) {
-    if (!this.ready || !this.viewer) return;
+    // (not shown yet: its page and zoom are still the ones remembered)
+    if (!this.ready || !this.viewer || this.deferredInit) return;
     const entry = { path: this.path, name: this.name, page: this.pageNum, pages: this.pages, size: this.fileSize, scale: this.scaleValue };
     if (touch) entry.date = Date.now();
     shared.recentPut(entry, { keepOrder: !touch });
@@ -565,6 +615,14 @@ export class PdfDoc {
       this.viewer?.setDocument(null);
       this.linkService?.setDocument(null);
     } catch {}
+    this.viewerAC?.abort();
+    this.viewerAC = null;
+    // Nothing that outlives the document (the shared worker's message handlers) may point back at this tab.
+    if (this.task) this.task.onPassword = null;
+    if (this.pdf) {
+      this.pdf.annotationStorage.onSetModified = null;
+      this.pdf.annotationStorage.onResetModified = null;
+    }
     try {
       if (this.pdf) this.pdf.destroy();
       else this.task?.destroy();
@@ -589,6 +647,7 @@ export class PdfDoc {
     clearTimeout(this._spinTimer);
     if (this.ready) this.remember();
     this.destroyed = true;
+    this.closePasswordDialog?.();
     try {
       this.E?.l10n.forget(this.scroller);
     } catch {}

@@ -17,15 +17,15 @@
 }
 
 /* ------------------------------------------------------------------ title bar + tabs */
-.app-pdf > .win-titlebar > .win-title {
+/* Like Edge and the other tabbed apps (Browser, File Explorer, Terminal): every tab shows the document
+   icon, so the title bar has no separate app icon. */
+.app-pdf > .win-titlebar > .win-title,
+.app-pdf > .win-titlebar > .win-icon {
   display: none;
 }
 .app-pdf > .win-titlebar {
-  padding-left: 14px;
-  gap: 4px;
-}
-.app-pdf > .win-titlebar > .win-icon {
-  margin-right: 6px;
+  padding-left: 8px;
+  gap: 0;
 }
 .app-pdf .pdf-strip {
   display: flex;

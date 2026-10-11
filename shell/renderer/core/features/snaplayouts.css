@@ -103,6 +103,12 @@
   top: 8px;
   left: 50%;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  /* up to 7 layouts per row (the user may show up to 18) */
+  max-width: min(92vw, 610px);
+  width: max-content;
   gap: 10px;
   padding: 8px 10px;
   transform: translateX(-50%);

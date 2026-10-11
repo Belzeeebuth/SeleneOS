@@ -40,8 +40,9 @@
 // (0700) inside the destination; after the tool finishes the staging tree is checked with lstat/realpath
 // (escaping symlinks and special files are deleted, setuid bits and unreadable modes fixed) and only then
 // moved into place with the chosen overwrite policy. Zip bombs (> 10 GB, or > 100x and > 64 MB) need
-// allowBomb. Errors carry a code: ENOENT EFORMAT EPASSWORD EBADPASSWORD EUNSAFE EBOMB ENOSPC EACCES
-// ENOTSUP ETOOL ECORRUPT ECANCELED EARCHIVE EINVAL.
+// allowBomb. Errors carry a code: ENOENT (the archive) ENOENTRY (an item not in the archive) ENOITEM (an item
+// to add / compress is missing) ENODEST EFORMAT EPASSWORD EBADPASSWORD EZIPPASSWORD EUNSAFE EBOMB ENOSPC EACCES
+// EEXIST ELINK (preview of a link) ENOTSUP ETOOL ECORRUPT ECANCELED EARCHIVE EINVAL.
 const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
@@ -108,6 +109,15 @@ function splitExt(name) {
   const m = /(\.tar\.(gz|xz|bz2|zst|lz|lzma)|\.[^./]{1,8})$/i.exec(name);
   return m && m.index > 0 ? [name.slice(0, m.index), m[0]] : [name, ''];
 }
+/** Does p exist (a dangling link counts)? */
+const present = (p) => {
+  try {
+    fs.lstatSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+};
 async function exists(p) {
   try {
     await fsp.lstat(p);
@@ -783,7 +793,9 @@ async function listArchive(file, { password = null, op = null } = {}) {
   const byPath = new Map();
   const unsafe = [];
   for (const r of raws) {
-    const n = normEntry(r.raw);
+    // Zips made on Windows (Windows PowerShell's Compress-Archive…) use '\\' as the folder separator:
+    // shown as folders, like Explorer and libarchive do ("..\\x" and "\\abs" are then caught as unsafe)
+    const n = normEntry(info.kind === 'zip' ? r.raw.replace(/\\/g, '/') : r.raw);
     let reason = n.unsafe;
     if (!reason && r.special) reason = 'special';
     if (!reason && r.link != null && r.link !== '' && !linkInside(n.path, r.link)) reason = 'link';
@@ -800,7 +812,7 @@ async function listArchive(file, { password = null, op = null } = {}) {
     byPath.set(n.path, { ...r, path: n.path, name });
   }
   // A file stored under an unsafe link ("esc" -> /tmp, then "esc/x") is unsafe too.
-  const unsafeLinks = new Set(unsafe.filter((u) => u.reason === 'link').map((u) => normEntry(u.path).path).filter(Boolean));
+  const unsafeLinks = new Set(unsafe.filter((u) => u.reason === 'link').map((u) => normEntry(info.kind === 'zip' ? u.path.replace(/\\/g, '/') : u.path).path).filter(Boolean));
   const underUnsafe = (p) => {
     if (!unsafeLinks.size) return false;
     for (let i = p.indexOf('/'); i > 0; i = p.indexOf('/', i + 1)) if (unsafeLinks.has(p.slice(0, i))) return true;
@@ -1051,7 +1063,9 @@ async function runExtract(op, info, listing, stage, { targets, all, password, sk
   // hold symlinks: 7-Zip drops every relative link containing '..' even when it stays inside the folder,
   // while bsdtar recreates them and refuses to write through any link (escaping ones are removed after).
   const zipLinks = info.kind === 'zip' && t.bsdtar && listing.entries.some((e) => e.link != null) && !listing.encrypted;
-  const useBsdtar = info.kind === 'rar' || !t.sz || zipLinks;
+  // 7-Zip would write "dir\\file.txt" as one file name; libarchive turns the '\\' into folders
+  const zipBackslash = info.kind === 'zip' && t.bsdtar && !listing.encrypted && [...listing.entries, ...listing.unsafe].some((e) => (e.raw ?? e.path).includes('\\'));
+  const useBsdtar = info.kind === 'rar' || !t.sz || zipLinks || zipBackslash;
   if (info.kind === 'single') {
     const name = targets[0]?.raw || 'data';
     const fd = fs.openSync(path.join(stage, name), 'wx', 0o644);
@@ -1125,13 +1139,15 @@ async function runExtract(op, info, listing, stage, { targets, all, password, sk
 async function runBsdtarExtract(op, info, stage, { targets, all, unsafeRaw, tmp, skipped = [] }) {
   const t = tools();
   const args = ['-x', '-v', '--no-same-owner', '--no-same-permissions', '-f', info.file, '-C', stage];
+  // libarchive names zip entries with '/' only (see zipBackslash)
+  const bsdName = (raw) => (info.kind === 'zip' ? raw.replace(/\\/g, '/') : raw);
   for (const u of unsafeRaw) {
-    const r = breEscape(u);
+    const r = breEscape(bsdName(u));
     args.push('-s', `,^${r}$,,rHS`, '-s', `,^${r}/.*$,,rHS`);
   }
   if (!all) {
     const lst = path.join(tmp, 'include.lst');
-    await fsp.writeFile(lst, targets.map((e) => `${globEscape(e.raw)}\n`).join(''), { mode: 0o600 });
+    await fsp.writeFile(lst, targets.map((e) => `${globEscape(bsdName(e.raw))}\n`).join(''), { mode: 0o600 });
     args.push('-T', lst);
   }
   op.percent = null;
@@ -1172,7 +1188,7 @@ async function doExtract(op, file, dest, opts = {}) {
   checkCanceled(op);
   const sel = Array.isArray(opts.entries) && opts.entries.length ? opts.entries.map(String) : null;
   const targets = selectEntries(listing, sel);
-  if (sel && !targets.length) throw err('The selected items are not in the archive', 'ENOENT');
+  if (sel && !targets.length) throw err('The selected items are not in the archive', 'ENOENTRY');
   const skipped = [];
   if (listing.unsafe.length && !sel && !opts.skipUnsafe) {
     throw err(`This archive contains ${listing.unsafe.length} item(s) that would be written outside the destination folder`, 'EUNSAFE');
@@ -1210,6 +1226,7 @@ async function doExtract(op, file, dest, opts = {}) {
     await fsp.rm(stage, { recursive: true, force: true }).catch(() => {});
     throw err('There is not enough space on the disk', 'ENOSPC');
   }
+  let flat = null;
   try {
     await runExtract(op, info, listing, stage, { targets, all: !sel, password: opts.password ?? null, skipped });
     checkCanceled(op);
@@ -1217,26 +1234,61 @@ async function doExtract(op, file, dest, opts = {}) {
     op.phase = 'finishing';
     op.percent = 1;
     op.emit(true);
-    const sum = await sanitizeTree(stage, skipped);
-    checkCanceled(op);
     // What goes where: every selected item lands in the destination under its own name (an item shown in
     // a sub-folder of the archive, or found by a search, is extracted without its parent folders), or the
-    // whole tree when extracting everything.
-    let srcs;
-    if (sel) srcs = [...new Set(sel.map((s) => normEntry(s).path).filter(Boolean))].map((s) => path.join(stage, ...s.split('/')));
-    else srcs = (await fsp.readdir(stage)).map((n) => path.join(stage, n));
+    // whole tree when extracting everything. The selected items are first laid out exactly as they will
+    // end up (in a second staging folder) and only THEN checked: a link that stays inside the archive's
+    // tree ("a/b/c/x -> ../../../y") can point far outside once its parent folders are dropped
+    // ("dest/x -> ../../../y").
+    let root = stage;
+    let order = null; // the selected items, in selection order
+    if (sel) {
+      order = [];
+      flat = await fsp.mkdtemp(path.join(dest, '.aurora-extract-'));
+      await fsp.chmod(flat, 0o700).catch(() => {});
+      for (const s of [...new Set(sel.map((x) => normEntry(x).path).filter(Boolean))]) {
+        const src = path.join(stage, ...s.split('/'));
+        if (!isInside(stage, src) || src === stage || !(await exists(src))) continue;
+        // two selected items with the same name (search results from several folders): "name (2).ext"
+        const to = await uniqueName(flat, path.basename(src));
+        await fsp.rename(src, to);
+        order.push(path.basename(to));
+      }
+      root = flat;
+    }
+    const sum = await sanitizeTree(root, skipped);
+    checkCanceled(op);
+    // From here on the result is moved into place (renames): too late to cancel, the operation completes.
+    op.committed = true;
+    const srcs = (order || (await fsp.readdir(root))).map((n) => path.join(root, n)).filter(present); // links removed by the check are gone
     const stats = { renamed: 0, replaced: 0, kept: 0 };
     const items = [];
     const policy = ['rename', 'replace', 'skip'].includes(opts.overwrite) ? opts.overwrite : 'rename';
     for (const src of srcs) {
-      if (!isInside(stage, src) || src === stage || !(await exists(src))) continue;
       const out = await moveInto(src, path.join(dest, path.basename(src)), policy, stats);
       if (out) items.push(out);
     }
     return { dest, items, files: sum.files, dirs: sum.dirs, bytes: sum.bytes, skipped, ...stats };
   } finally {
     await fsp.rm(stage, { recursive: true, force: true }).catch(() => {});
+    if (flat) await fsp.rm(flat, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+/** The target of a link entry of a zip / 7z archive (stored as the entry's data; 7-Zip's listing omits it). */
+async function linkTargetOf(op, info, entry, password) {
+  const t = tools();
+  if (!t.sz || (info.kind !== 'zip' && info.kind !== '7z')) return '';
+  if (entry.encrypted && password == null) throw err('A password is required', 'EPASSWORD');
+  let out = Buffer.alloc(0);
+  const res = await pipeline(op, [{ bin: t.sz, args: ['x', '-so', '-bd', '-sccUTF-8', '-spd', info.file, entry.raw] }], {
+    input: password != null ? `${password}\n` : '',
+    onOut: (d) => {
+      if (out.length < 4096) out = Buffer.concat([out, d]);
+    },
+  });
+  if (res.codes[0] !== 0) throw sevenError(res.stderr[0], { password });
+  return out.subarray(0, 4096).toString('utf8').replace(/\0[\s\S]*$/, '');
 }
 
 // ------------------------------------------------------------------ temp folders (preview / copy)
@@ -1283,6 +1335,41 @@ function tarOperand(name) {
   // bsdtar treats operands starting with '-C' (chdir) or '@' (archive inclusion) specially.
   return /^[-@]/.test(name) ? `./${name}` : name;
 }
+/** Absolute paths grouped by their folder: Map folder -> [names]. */
+function groupByFolder(paths) {
+  const groups = new Map();
+  for (const p of paths) {
+    const d = path.dirname(p);
+    if (!groups.has(d)) groups.set(d, []);
+    groups.get(d).push(path.basename(p));
+  }
+  return groups;
+}
+/**
+ * A copy of `src` at `dst` for 7-Zip to read: hard links for files (a real copy across file systems),
+ * real folders, links recreated as links (stored as links with -snl, never followed). Devices, FIFOs and
+ * sockets are left out (7-Zip skips them too).
+ */
+async function mirror(op, src, dst) {
+  checkCanceled(op);
+  const st = await fsp.lstat(src);
+  if (st.isSymbolicLink()) {
+    await fsp.symlink(await fsp.readlink(src), dst);
+  } else if (st.isDirectory()) {
+    await fsp.mkdir(dst, { mode: 0o700 });
+    for (const n of await fsp.readdir(src)) await mirror(op, path.join(src, n), path.join(dst, n));
+    await fsp.chmod(dst, (st.mode & 0o777) | 0o700).catch(() => {});
+    await fsp.utimes(dst, st.atime, st.mtime).catch(() => {});
+  } else if (st.isFile()) {
+    try {
+      await fsp.link(src, dst);
+    } catch {
+      await fsp.copyFile(src, dst, fs.constants.COPYFILE_FICLONE);
+      await fsp.chmod(dst, st.mode & 0o777).catch(() => {});
+      await fsp.utimes(dst, st.atime, st.mtime).catch(() => {});
+    }
+  }
+}
 
 async function sevenProgress(op, args, { input, cwd }) {
   const t = tools();
@@ -1308,12 +1395,13 @@ async function doCreate(op, srcPaths, destPath, opts) {
   // 7-Zip's ZIP AES encoder only takes printable ASCII passwords (7z archives accept any Unicode).
   if (password && format === 'zip' && !/^[\x20-\x7e]+$/.test(password)) throw err('ZIP passwords can only contain ASCII letters, digits and symbols', 'EZIPPASSWORD');
   for (const s of srcPaths) {
-    if (!(await exists(s))) throw err(`Item not found: ${s}`, 'ENOENT');
+    if (!(await exists(s))) throw err(`Item not found: ${s}`, 'ENOITEM');
     if (s === destPath) throw err('An archive cannot contain itself', 'EINVAL');
   }
   const dir = path.dirname(destPath);
   const dst = await fsp.stat(dir).catch(() => null);
-  if (!dst?.isDirectory()) throw err('The destination folder does not exist', 'ENOENT');
+  if (!dst?.isDirectory()) throw err('The destination folder does not exist', 'ENODEST');
+  if ((await fsp.lstat(destPath).catch(() => null))?.isDirectory()) throw err('A folder with this name already exists', 'EEXIST');
   const ext = format === 'zip' ? '.zip' : format === '7z' ? '.7z' : `.${format}`;
   // The output is written next to the destination (atomic rename at the end), or in a private temp
   // folder when the destination lies inside one of the folders being compressed.
@@ -1337,7 +1425,9 @@ async function doCreate(op, srcPaths, destPath, opts) {
   op.emit(true);
   checkCanceled(op);
   if ((format === 'zip' || format === '7z') && t.sz) {
-    const args = ['a', `-t${format}`, `-mx=${level}`, '-bsp1', '-bb1', '-bso1', '-bse2', '-sccUTF-8', '-scsUTF-8', '-spd', '-y'];
+    // -snl: symbolic links are stored as links, never followed (a link to "..", "/" or a home folder would
+    // otherwise pull the whole tree in, again and again, or put private files in the archive)
+    const args = ['a', `-t${format}`, `-mx=${level}`, '-snl', '-bsp1', '-bb1', '-bso1', '-bse2', '-sccUTF-8', '-scsUTF-8', '-spd', '-y'];
     if (password) {
       args.push('-p');
       if (format === 'zip') args.push('-mem=AES256');
@@ -1426,18 +1516,25 @@ async function rewriteTar(op, info, listing, { exclude = [], addBase = null, add
     source = pass1;
   }
   if (addPaths.length) {
-    // staging folder: <base>/<name> symlinks to the files being added (followed with -H)
-    const stage = path.join(tmp, 'stage');
-    const baseDir = addBase ? path.join(stage, ...addBase.split('/')) : stage;
-    await fsp.mkdir(baseDir, { recursive: true });
-    const operands = [];
-    for (const p of addPaths) {
-      const name = path.basename(p);
-      await fsp.symlink(p, path.join(baseDir, name));
-      operands.push(tarOperand(addBase ? `${addBase}/${name}` : name));
+    // The items are read from their own folder (-C <folder> <name>), so links inside them are stored as links
+    // (never followed). Into a sub-folder of the archive: a staging folder where <base> is a link to that
+    // folder, read as "<base>/<name>" (only that path component is followed).
+    const groupArgs = [];
+    let gi = 0;
+    for (const [folder, names] of groupByFolder(addPaths)) {
+      let cdir = folder;
+      let prefix = '';
+      if (addBase) {
+        const parts = addBase.split('/');
+        cdir = path.join(tmp, `g${gi++}`);
+        await fsp.mkdir(path.join(cdir, ...parts.slice(0, -1)), { recursive: true });
+        await fsp.symlink(folder, path.join(cdir, ...parts));
+        prefix = `${addBase}/`;
+      }
+      groupArgs.push('-C', cdir, ...names.map((n) => tarOperand(prefix + n)));
     }
-    const args = ['-c', '-v', '-H', '-f', outTmp, ...fmt, ...comp, '-C', stage, `@${source}`, ...operands];
-    const res = await pipeline(op, [{ bin: bsdtar, args, cwd: stage }], { onErr: (d) => split.push(d) });
+    const args = ['-c', '-v', '-f', outTmp, ...fmt, ...comp, `@${source}`, ...groupArgs];
+    const res = await pipeline(op, [{ bin: bsdtar, args, cwd: tmp }], { onErr: (d) => split.push(d) });
     if (res.codes[0] !== 0) throw bsdtarError(res.stderr[0]);
   }
   split.end();
@@ -1451,9 +1548,11 @@ async function doAdd(op, file, srcPaths, opts) {
   const { info, listing } = await listArchive(file, { password: opts.password ?? null, op });
   if (listing.readOnly === 'perm') throw err('You do not have permission to change this archive', 'EACCES');
   if (!listing.canAdd) throw err('Files cannot be added to this type of archive', 'ENOTSUP');
-  const base = normEntry(opts.base || '').path;
+  const nb = normEntry(String(opts.base || ''));
+  if (nb.unsafe) throw err('Invalid folder in the archive', 'EINVAL'); // "../..": would leave the staging folder
+  const base = nb.path;
   for (const s of srcPaths) {
-    if (!(await exists(s))) throw err(`Item not found: ${s}`, 'ENOENT');
+    if (!(await exists(s))) throw err(`Item not found: ${s}`, 'ENOITEM');
     if (s === file || isInside(s, file)) throw err('An archive cannot contain itself', 'EINVAL');
   }
   const names = srcPaths.map((s) => path.basename(s));
@@ -1464,25 +1563,32 @@ async function doAdd(op, file, srcPaths, opts) {
   op.emit(true);
   if (info.kind === 'zip' || info.kind === '7z') {
     if (listing.encrypted && opts.password == null) throw err('A password is required', 'EPASSWORD');
-    const stage = await fsp.mkdtemp(path.join(os.tmpdir(), 'aurora-arc-add-'));
-    op.cleanup.push(() => fsp.rm(stage, { recursive: true, force: true }));
-    const baseDir = base ? path.join(stage, ...base.split('/')) : stage;
-    await fsp.mkdir(baseDir, { recursive: true });
-    const operands = [];
-    for (const s of srcPaths) {
-      const name = path.basename(s);
-      await fsp.symlink(s, path.join(baseDir, name));
-      operands.push(base ? `${base}/${name}` : `./${name}`);
+    // -snl: links inside the added folders are stored as links, never followed (see doCreate). 7-Zip stores
+    // relative operands as given and can't go through a linked folder with -snl, so:
+    //  - into the archive's root: run from each item's own folder with its bare name;
+    //  - into a sub-folder: a staging copy laid out as <base>/<name> (hard links where possible).
+    const runs = [];
+    if (!base) {
+      for (const [folder, names] of groupByFolder(srcPaths)) runs.push({ cwd: folder, operands: names.map((n) => `./${n}`) });
+    } else {
+      const stage = await fsp.mkdtemp(path.join(path.dirname(file), '.aurora-add-')).catch(() => fsp.mkdtemp(path.join(os.tmpdir(), 'aurora-arc-add-')));
+      op.cleanup.push(() => fsp.rm(stage, { recursive: true, force: true }));
+      await fsp.chmod(stage, 0o700).catch(() => {});
+      const baseDir = path.join(stage, ...base.split('/'));
+      await fsp.mkdir(baseDir, { recursive: true });
+      for (const s of srcPaths) await mirror(op, s, path.join(baseDir, path.basename(s)));
+      runs.push({ cwd: stage, operands: srcPaths.map((s) => `${base}/${path.basename(s)}`) });
     }
-    const args = ['a', `-t${info.kind}`, '-bsp1', '-bb1', '-bso1', '-bse2', '-sccUTF-8', '-scsUTF-8', '-spd', '-y'];
+    const args = ['a', `-t${info.kind}`, '-snl', '-bsp1', '-bb1', '-bso1', '-bse2', '-sccUTF-8', '-scsUTF-8', '-spd', '-y'];
     if (opts.password != null && listing.encrypted) {
       args.push('-p');
       if (info.kind === 'zip') args.push('-mem=AES256');
       else if (listing.headersEncrypted) args.push('-mhe=on');
     }
-    args.push('--', file, ...operands);
-    const res = await sevenProgress(op, args, { input: opts.password != null ? `${opts.password}\n${opts.password}\n` : '', cwd: stage });
-    if (res.codes[0] !== 0 && res.codes[0] !== 1) throw sevenError(res.stderr[0], { password: opts.password });
+    for (const r of runs) {
+      const res = await sevenProgress(op, [...args, '--', file, ...r.operands], { input: opts.password != null ? `${opts.password}\n${opts.password}\n` : '', cwd: r.cwd });
+      if (res.codes[0] !== 0 && res.codes[0] !== 1) throw sevenError(res.stderr[0], { password: opts.password });
+    }
   } else {
     const exclude = [];
     for (const n of names) {
@@ -1501,7 +1607,7 @@ async function doDelete(op, file, entries, opts) {
   if (!listing.canDelete) throw err('Items cannot be deleted from this type of archive', 'ENOTSUP');
   const sel = [...new Set(entries.map((s) => normEntry(String(s)).path).filter(Boolean))];
   const targets = selectEntries(listing, sel);
-  if (!targets.length) throw err('The selected items are not in the archive', 'ENOENT');
+  if (!targets.length) throw err('The selected items are not in the archive', 'ENOENTRY');
   op.total = targets.length;
   op.emit(true);
   if (info.kind === 'zip' || info.kind === '7z') {
@@ -1582,13 +1688,15 @@ module.exports = function register(api) {
     const p = (async () => {
       try {
         const res = await fn(op);
-        checkCanceled(op);
+        // a cancel that arrives while the result is being moved into place comes too late: the files are
+        // there, so report success (not "canceled" over files that were extracted)
+        if (!op.committed) checkCanceled(op);
         op.percent = 1;
         if (op.total > 0) op.done = op.total;
         op.emit(true);
         return res;
       } catch (e) {
-        if (op.canceled) throw err('The operation was canceled', 'ECANCELED');
+        if (op.canceled && !op.committed) throw err('The operation was canceled', 'ECANCELED');
         throw e;
       } finally {
         for (const c of op.children) killTree(c);
@@ -1664,10 +1772,15 @@ module.exports = function register(api) {
     if (!e.path || e.unsafe) throw err('Invalid entry', 'EINVAL');
     const textMax = Math.max(0, Math.min(4 * 1024 * 1024, Number(o.text) || 0));
     const describe = async (out) => {
-      const st = await fsp.stat(out);
+      // never read through a link (the renderer resolves links inside the archive itself)
+      const lst = await fsp.lstat(out).catch(() => null);
+      if (!lst) throw err('This item could not be extracted', 'ENOENTRY');
+      if (lst.isSymbolicLink()) throw err('This item is a symbolic link', 'ELINK');
+      if (!lst.isFile()) throw err('This item is not a file', 'EINVAL');
+      const st = lst;
       const res = { path: out, size: st.size };
       if (textMax) {
-        const fh = await fsp.open(out, 'r');
+        const fh = await fsp.open(out, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
         try {
           const buf = Buffer.alloc(Math.min(textMax, st.size));
           const { bytesRead } = await fh.read(buf, 0, buf.length, 0);
@@ -1684,6 +1797,12 @@ module.exports = function register(api) {
       return res;
     };
     return run(o, event?.sender, 'preview', async (op) => {
+      // A link is never extracted for a preview: its target is returned ({ link }) and the window follows it
+      // inside the archive (extracted alone, its target wouldn't be there).
+      const { info, listing } = await listArchive(p, { password: o.password ?? null, op });
+      const entry = listing.entries.find((x) => x.path === e.path);
+      if (!entry) throw err('The item is not in the archive', 'ENOENTRY');
+      if (entry.link != null) return { link: entry.link || (await linkTargetOf(op, info, entry, o.password ?? null)), size: 0 };
       const st = await fsp.stat(p);
       const key = crypto.createHash('sha1').update(`${p}|${st.size}|${st.mtimeMs}|${e.path}`).digest('hex').slice(0, 20);
       const dir = path.join(sessionDir(o.session), `p-${key}`);

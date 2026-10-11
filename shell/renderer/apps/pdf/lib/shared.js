@@ -52,7 +52,7 @@ export const shared = {
     this.ready = (async () => {
       const [prefs, recent] = await Promise.all([ctx.storage.get('prefs', {}).catch(() => ({})), ctx.storage.get('recent', []).catch(() => [])]);
       this.prefs = sanitizePrefs(prefs);
-      this.recent = Array.isArray(recent) ? recent.filter((r) => r && typeof r.path === 'string' && r.path.startsWith('/')).slice(0, RECENT_MAX) : [];
+      this.recent = sanitizeRecent(recent);
     })();
     return this.ready;
   },
@@ -136,6 +136,47 @@ export const shared = {
     return null;
   },
 };
+
+/**
+ * The Recent list comes from a JSON file the user (or anything else) can edit: keep only well-formed
+ * entries and fields, so a bad value can never break the start page or point an <img> at the network.
+ */
+export function sanitizeRecent(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  const seen = new Set();
+  const int = (v, lo, hi) => (Number.isInteger(v) && v >= lo && v <= hi ? v : undefined);
+  for (const r of list) {
+    if (!r || typeof r !== 'object' || typeof r.path !== 'string') continue;
+    const path = r.path;
+    if (!path.startsWith('/') || path.length > 4096 || path.includes('\0') || seen.has(path)) continue;
+    seen.add(path);
+    const e = { path, name: typeof r.name === 'string' && r.name.trim() ? r.name.slice(0, 255) : path.split('/').pop() || path };
+    const pages = int(r.pages, 1, 1e6);
+    if (pages) e.pages = pages;
+    const page = int(r.page, 1, 1e6);
+    if (page) e.page = pages ? Math.min(page, pages) : page;
+    // Dates between 1990 and 100 years from now (anything else cannot be formatted).
+    if (Number.isFinite(r.date) && r.date > 631152000000 && r.date < Date.now() + 3.15e12) e.date = r.date;
+    if (Number.isFinite(r.size) && r.size >= 0) e.size = r.size;
+    if (['auto', 'page-actual', 'page-fit', 'page-width'].includes(r.scale) || (Number.isFinite(r.scale) && r.scale >= 0.1 && r.scale <= 10)) e.scale = r.scale;
+    if (typeof r.thumb === 'string' && r.thumb.length < 400000 && /^data:image\/(jpeg|png);base64,[a-z0-9+/=]+$/i.test(r.thumb)) e.thumb = r.thumb;
+    out.push(e);
+    if (out.length >= RECENT_MAX) break;
+  }
+  return out;
+}
+
+/** Why a save failed, in the user's language (system messages are English and technical). */
+export function saveErrorText(t, err) {
+  const code = err?.code || '';
+  if (code === 'EACCES' || code === 'EPERM') return t('save.errDenied');
+  if (code === 'ENOSPC' || code === 'EDQUOT') return t('save.errSpace');
+  if (code === 'EROFS') return t('save.errReadOnly');
+  if (code === 'ENOENT' || code === 'ENOTDIR') return t('save.errFolder');
+  if (code === 'EISDIR') return t('save.errIsFolder');
+  return t('save.errOther');
+}
 
 function sanitizePrefs(p) {
   const out = { ...DEFAULT_PREFS };

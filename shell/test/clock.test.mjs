@@ -10,6 +10,9 @@
 //   restore on stop and on completion, pause / resume reminders, already-on DND left alone, daily progress),
 //   settings (tones, per-timer sound), keyboard navigation, reconcile on launch (things that fired while
 //   Clock was closed), French + dark theme, minimum and maximized sizes, and console errors.
+//   QA3: closing Clock with a dialog open (no global key handler left behind), Settings keeps the keyboard
+//   focus when it refreshes, Do not disturb handed over to the shell's Focus mode, incremental lap rows,
+//   world clock refresh rate, extra cities (Adelaide…), oversized storage capped, 15 open / close cycles.
 //   Documentation screenshots: aurora-os/docs/screenshots/clock-*.png
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/clock.test.mjs [--only=world]
 import fs from 'node:fs';
@@ -1133,6 +1136,161 @@ async function runEnglish() {
       check('deleting it removes the snoozed ring too', (await reminders(s)).some((r) => r.id.startsWith(`alarm-${id}`)), false);
     });
 
+    await section('QA3: closing Clock with a dialog open leaves no key handler behind (Tab still works in other windows)', async () => {
+      // count document-level keydown listeners (ui.dialog adds one per open dialog)
+      await s.page.evaluate(`(() => {
+        if (window.__ckDocKeys != null) return;
+        window.__ckDocKeys = 0;
+        const add = document.addEventListener.bind(document), rem = document.removeEventListener.bind(document);
+        const seen = new Set();
+        document.addEventListener = (t, f, o) => { if (t === 'keydown' && !seen.has(f)) { seen.add(f); window.__ckDocKeys++; } return add(t, f, o); };
+        document.removeEventListener = (t, f, o) => { if (t === 'keydown' && seen.has(f)) { seen.delete(f); window.__ckDocKeys--; } return rem(t, f, o); };
+      })()`);
+      const base = await s.page.evaluate('window.__ckDocKeys');
+      await go(s, 'alarm');
+      await s.page.click(`${WIN} .ck-cmd-add`);
+      await s.page.waitForSelector(`${DLG} .ck-picker`);
+      check('the open dialog has its document key handler', await s.page.evaluate('window.__ckDocKeys'), base + 1);
+      // taskbar button > right-click > Close window, while the dialog is open
+      await s.page.click('.tb-btn.tb-app[data-app="clock"]', { button: 'right' });
+      await s.page.locator('.menu .menu-item', { hasText: 'Close window' }).first().click();
+      const t0 = Date.now();
+      while (Date.now() - t0 < 4000 && (await s.page.evaluate(`window.__aurora.wm.byApp('clock').length`))) await sleep(60);
+      check('Clock closed', await s.page.evaluate(`window.__aurora.wm.byApp('clock').length`), 0);
+      check('no key handler left behind', await s.page.evaluate('window.__ckDocKeys'), base);
+      await s.page.evaluate(`window.__aurora.registry.launch('settings')`);
+      await s.page.waitForSelector('.win.app-settings .st-user, .win.app-settings input', { timeout: 8000 });
+      await sleep(400);
+      const focusSeq = [];
+      for (let i = 0; i < 3; i++) {
+        await s.page.keyboard.press('Tab');
+        await sleep(60);
+        focusSeq.push(await s.page.evaluate(`(() => { const a = document.activeElement; return a ? a.tagName + '.' + String(a.className).split(' ')[0] + (a.getAttribute('aria-label') || '') : ''; })()`));
+      }
+      check('Tab moves the focus in another window afterwards', new Set(focusSeq).size, (n) => n >= 2);
+      await s.page.evaluate(`window.__aurora.wm.byApp('settings')[0]?.close(true)`);
+      await s.page.evaluate(`window.__aurora.registry.launch('clock', { page: 'alarm' })`);
+      await s.page.waitForSelector(`${WIN} .ck`);
+      await until(s, (app) => !!app?.store && app.pageId === 'alarm', { label: 'clock reopened' });
+    });
+
+    await section('QA3: Settings keeps the keyboard focus on the app theme radios while the page refreshes', async () => {
+      await go(s, 'settings');
+      const radio = (v) => `${WIN} .ck-set-row[data-key="theme"] input[type="radio"][value="${v}"]`;
+      await s.page.waitForSelector(radio('system'));
+      await s.page.focus(radio('system'));
+      await s.page.keyboard.press('ArrowUp'); // -> Dark
+      await until(s, (app) => app.ctx.settings.get('appThemes')?.clock?.theme === 'dark', { label: 'app theme dark' });
+      await sleep(250);
+      const act = () => s.page.evaluate(`(() => { const a = document.activeElement; return a && a.closest('.win.app-clock') ? a.type + ':' + a.value : 'lost:' + (a && a.tagName); })()`);
+      check('focus stays on the Dark radio after the page refreshed', await act(), 'radio:dark');
+      await s.page.keyboard.press('ArrowDown'); // -> Use system setting
+      await until(s, (app) => app.ctx.settings.get('appThemes')?.clock?.theme === 'system', { label: 'app theme system' });
+      await sleep(250);
+      check('…and on Use system setting after the next arrow key', await act(), 'radio:system');
+      await s.page.evaluate(`window.__aurora.settings.set('appThemes', {})`);
+      await sleep(200);
+    });
+
+    await section('QA3: a focus session that ends under the shell Focus mode hands Do not disturb over to it', async () => {
+      await s.page.evaluate(`window.__aurora.settings.set('notifications.dnd', false)`);
+      await go(s, 'focus');
+      await CK(s, (app) => app.store.startFocus({ minutes: 15, dnd: true }));
+      check('Clock turned Do not disturb on', await s.page.evaluate(`window.__aurora.settings.get('notifications.dnd')`), true);
+      await s.page.evaluate(`window.__aurora.shell.focus.start(60)`);
+      await sleep(300);
+      check('Focus mode saved "on" as the value to restore', await s.page.evaluate(`window.__aurora.settings.get('focusMode.prevDnd')`), true);
+      await CK(s, (app) => app.store.stopFocus({ completed: false }));
+      await sleep(300);
+      const mid = await s.page.evaluate(`({ dnd: window.__aurora.settings.get('notifications.dnd'), prev: window.__aurora.settings.get('focusMode.prevDnd'), quiet: document.documentElement.dataset.focusQuiet || null })`);
+      check('Do not disturb stays on while Focus mode runs', mid, { dnd: true, prev: false, quiet: 'on' });
+      await s.page.evaluate(`window.__aurora.shell.focus.stop()`);
+      await sleep(300);
+      check('…and goes back off when Focus mode ends (not stuck on)', await s.page.evaluate(`window.__aurora.settings.get('notifications.dnd')`), false);
+      await CK(s, (app) => app.store.dismissFocusSummary());
+    });
+
+    await section('QA3: stopwatch adds lap rows one at a time and moves the Fastest / Slowest tags', async () => {
+      await go(s, 'stopwatch');
+      const r = await CK(s, async (app) => {
+        const st = app.store;
+        st.swReset();
+        const T = Date.now() - 20000;
+        st.swStart(T);
+        st.swLap(T + 1000); // 1.00
+        st.swLap(T + 3000); // 2.00  slowest
+        st.swLap(T + 3500); // 0.50  fastest
+        const rows = () => [...app.win.el.querySelectorAll('.ck-lap')];
+        const firstRow = rows().find((x) => x.dataset.lap === '1');
+        const tags = () => rows().map((x) => [x.dataset.lap, x.querySelector('.ck-lap-tag')?.classList.contains('fast') ? 'fast' : x.querySelector('.ck-lap-tag')?.classList.contains('slow') ? 'slow' : '', x.classList.contains('fast') ? 'F' : x.classList.contains('slow') ? 'S' : ''].join(''));
+        const before = tags();
+        st.swLap(T + 6500); // 3.00  new slowest
+        const after = tags();
+        const same = rows().find((x) => x.dataset.lap === '1') === firstRow;
+        st.swPause(T + 7000);
+        return { before, after, same, n: rows().length };
+      });
+      check('3 laps: lap 3 fastest, lap 2 slowest (newest first)', r.before, ['3fastF', '2slowS', '1']);
+      check('a 4th, slower lap takes the Slowest tag from lap 2', r.after, ['4slowS', '3fastF', '2', '1']);
+      check('existing rows are kept (no rebuild of the whole table)', r.same, true);
+      check('one row per lap', r.n, 4);
+      await CK(s, (app) => app.store.swReset());
+    });
+
+    await section('QA3: world clock refreshes city cards once a minute (the local clock every second)', async () => {
+      await go(s, 'world');
+      const added = await CK(s, (app) => ['tokyo-jp', 'kolkata-in', 'new-york-city-us'].filter((id) => app.store.addCity(id)));
+      await sleep(200);
+      const r = await CK(s, (app) => {
+        const pg = app.page;
+        const n = pg.cards.size;
+        let calls = [];
+        const orig = pg.fillTime;
+        pg.fillTime = function (c, at) {
+          calls.push(c.local ? 'local' : 'city');
+          return orig.call(this, c, at);
+        };
+        const T = Math.floor(Date.now() / 60000) * 60000 + 10000; // hh:mm:10
+        pg.tick(T, true);
+        calls = [];
+        pg.tick(T + 1000); // next second, same minute
+        const sameMinute = calls.slice();
+        calls = [];
+        pg.tick(T + 50000); // hh:(mm+1):00
+        const nextMinute = calls.slice();
+        pg.fillTime = orig;
+        pg.tick(Date.now(), true);
+        return { n, sameMinute, nextMinute };
+      });
+      check('several cards on the page', r.n, (v) => v >= 3);
+      check('next second: only the local card is refreshed', r.sameMinute, ['local']);
+      check('next minute: every card is refreshed', r.nextMinute.length, r.n);
+      await CK(s, (app, ids) => ids.forEach((id) => app.store.removeCity(id)), added);
+    });
+
+    await section('QA3: bundled cities include Adelaide (+9:30 with DST), Zurich, Calgary, Easter Island, Norfolk Island', async () => {
+      const r = await s.page.evaluate(`(async () => {
+        const C = await import('app://shell/apps/clock/lib/cities.js');
+        const T = await import('app://shell/apps/clock/lib/time.js');
+        const pick = (q) => C.searchCities(q, 'en', 3)[0];
+        const a = pick('Adelaide');
+        return {
+          names: ['Adelaide', 'Zurich', 'Calgary', 'Easter Island', 'Norfolk'].map((q) => pick(q)?.en || null),
+          fr: C.searchCities('Pâques', 'fr', 1)[0]?.fr || null,
+          tz: a?.tz,
+          jan: T.zoneOffset(a.tz, Date.UTC(2026, 0, 15)),
+          jul: T.zoneOffset(a.tz, Date.UTC(2026, 6, 15)),
+          valid: C.allCities().every((c) => T.isValidZone(c.tz)),
+          count: C.allCities().length,
+        };
+      })()`);
+      check('found by name', r.names, ['Adelaide', 'Zurich', 'Calgary', 'Easter Island', 'Norfolk Island']);
+      check('French name', r.fr, 'Île de Pâques');
+      check('Adelaide zone and its half-hour offsets (summer / winter)', [r.tz, r.jan, r.jul], ['Australia/Adelaide', 630, 570]);
+      check('every bundled zone is valid', r.valid, true);
+      check('about 430 cities', r.count, (n) => n >= 425 && n <= 450);
+    });
+
     await section('alarm page screenshot with a few alarms (docs)', async () => {
       await CK(s, (app) => {
         app.store.addAlarm({ hour: 6, minute: 30, name: 'Gym', days: [1, 3, 5] });
@@ -1264,6 +1422,40 @@ async function runFrench() {
       const fits = await s.page.evaluate(`(() => { const d = document.querySelector(${JSON.stringify(DLG)}).getBoundingClientRect(); const w = document.querySelector(${JSON.stringify(WIN)}).getBoundingClientRect(); return d.left >= w.left - 1 && d.right <= w.right + 1; })()`);
       check('alarm dialog fits in the window', fits, true);
       await shot(s, 'minsize-dialog-fr-dark');
+      await s.page.keyboard.press('Escape');
+      await sleep(250);
+    });
+
+    await section('QA3 (minimum size): icon-only pane has tooltips, its overlay closes when Tab leaves it, the city search scrolls once', async () => {
+      check('each icon-only item names itself in a tooltip', await s.page.evaluate(`[...document.querySelectorAll('${WIN} .ck-nav-item')].map((e) => e.dataset.tip || '')`), [
+        'Sessions de concentration',
+        'Minuteur',
+        'Alarme',
+        'Chronomètre',
+        'Horloge mondiale',
+        'Paramètres',
+      ]);
+      await s.page.click(`${WIN} .ck-burger`);
+      await sleep(250);
+      check('labels shown in the open overlay: no redundant tooltips', await s.page.evaluate(`[...document.querySelectorAll('${WIN} .ck-nav-item')].some((e) => e.dataset.tip)`), false);
+      await s.page.keyboard.press('Tab'); // from the selected item into the page
+      await sleep(250);
+      check('Tab out of the overlay pane closes it (light dismiss)', await CK(s, (app) => [app.root.classList.contains('nav-open'), app.navEl.contains(document.activeElement)]), [false, false]);
+      await go(s, 'world');
+      await s.page.click(`${WIN} .ck-page-world .ck-cmd-add`);
+      await s.page.waitForSelector(`${DLG} input`);
+      await s.page.keyboard.type('san');
+      await sleep(300);
+      const r = await s.page.evaluate(`(() => {
+        const d = document.querySelector(${JSON.stringify(DLG)});
+        const b = d.querySelector('.dialog-body');
+        const l = d.querySelector('.ck-search-list');
+        const w = document.querySelector(${JSON.stringify(WIN)}).getBoundingClientRect();
+        const dr = d.getBoundingClientRect();
+        return { bodyScrolls: b.scrollHeight > b.clientHeight + 1, listScrolls: l.scrollHeight > l.clientHeight, inside: dr.top >= w.top - 1 && dr.bottom <= w.bottom + 1, listH: Math.round(l.clientHeight) };
+      })()`);
+      check('search dialog in a 500 px window: only the result list scrolls', [r.bodyScrolls, r.listScrolls, r.inside], [false, true, true]);
+      check('…and the list keeps a usable height', r.listH, (v) => v >= 112);
       await s.page.keyboard.press('Escape');
       await sleep(250);
     });
@@ -1408,37 +1600,61 @@ async function runSizes(size, lang, theme) {
       await shot(s, `world-${size}`, { clip: false });
     });
 
-    await section(`${tag}: opening and closing Clock 10 times leaves no listeners behind`, async () => {
+    await section(`${tag}: opening and closing Clock 15 times (some with a dialog open) leaves no listeners behind`, async () => {
       await s.page.evaluate(`(() => {
         const A = window.__aurora;
-        window.__ckSubs = { settings: 0, i18n: 0 };
+        window.__ckSubs = { settings: 0, i18n: 0, doc: 0, win: 0 };
         const wrap = (obj, kind) => {
           const orig = obj.on.bind(obj);
           obj.on = (k, fn) => { window.__ckSubs[kind]++; const off = orig(k, fn); let done = false; return () => { if (!done) { done = true; window.__ckSubs[kind]--; } return off?.(); }; };
         };
         wrap(A.settings, 'settings');
         wrap(A.i18n, 'i18n');
+        for (const [obj, k] of [[document, 'doc'], [window, 'win']]) {
+          const add = obj.addEventListener.bind(obj), rem = obj.removeEventListener.bind(obj);
+          const seen = new Set();
+          obj.addEventListener = (t, f, o) => { if (!seen.has(f)) { seen.add(f); window.__ckSubs[k]++; } return add(t, f, o); };
+          obj.removeEventListener = (t, f, o) => { if (seen.has(f)) { seen.delete(f); window.__ckSubs[k]--; } return rem(t, f, o); };
+        }
       })()`);
-      const stats = () => s.page.evaluate(`(() => ({ subs: { ...window.__ckSubs }, store: window.__ckStore ? window.__ckStore.subs.size : null, wins: window.__aurora.wm.byApp('clock').length }))()`);
-      await s.page.evaluate(`window.__ckStore = document.querySelector('${WIN}').__clock.store; window.__aurora.wm.byApp('clock')[0].close()`);
-      await sleep(500);
+      const stats = () => s.page.evaluate(`(() => { const A = window.__aurora; return { subs: { ...window.__ckSubs }, wm: [...A.wm._h.values()].reduce((n, x) => n + x.size, 0), store: window.__ckStore ? window.__ckStore.subs.size : null, wins: A.wm.byApp('clock').length, layers: document.querySelectorAll('.dialog-layer').length }; })()`);
+      const closeClock = async () => {
+        await s.page.evaluate(`window.__aurora.wm.byApp('clock').find((w) => !w._closing)?.close()`);
+        const t0 = Date.now();
+        while (Date.now() - t0 < 5000 && (await s.page.evaluate(`window.__aurora.wm.byApp('clock').length`))) await sleep(50);
+      };
+      await s.page.evaluate(`window.__ckStore = document.querySelector('${WIN}').__clock.store`);
+      await closeClock();
+      await sleep(300);
       const base = await stats();
       const pages = ['focus', 'timer', 'alarm', 'stopwatch', 'world', 'settings'];
-      for (let i = 0; i < 10; i++) {
-        await s.page.evaluate(`window.__aurora.registry.launch('clock', { page: '${pages[i % pages.length]}' })`);
-        await s.page.waitForSelector(`${WIN} .ck`);
-        await sleep(300);
-        await s.page.evaluate(`window.__aurora.wm.byApp('clock')[0].close()`);
-        await sleep(300);
+      for (let i = 0; i < 15; i++) {
+        const p = pages[i % pages.length];
+        await s.page.evaluate(`window.__aurora.registry.launch('clock', { page: '${p}' })`);
+        await until(s, (app, p) => !!app && !app.closed && app.pageId === p && !app.win._closing, { arg: p, label: `clock open on ${p}` });
+        await sleep(200);
+        // every other round, close it with a dialog still open (taskbar "Close window" does that)
+        if (i % 2 === 1) {
+          const opener = { focus: `${WIN} .ck-focus-progress .icon-btn`, timer: `${WIN} .ck-cmd-add`, alarm: `${WIN} .ck-cmd-add`, world: `${WIN} .ck-cmd-add`, stopwatch: null, settings: null }[p];
+          if (opener) {
+            await s.page.click(opener);
+            await s.page.waitForSelector(`${WIN} > .dialog-layer .dialog`, { timeout: 4000 });
+          }
+        }
+        await closeClock();
+        await sleep(120);
       }
+      await sleep(400);
       const after = await stats();
       check('no Clock window left', after.wins, 0);
       check('store listeners back to zero', [base.store, after.store], [0, 0]);
-      check('settings / language listeners back to baseline', after.subs, base.subs);
+      check('settings / language / document / window listeners back to baseline', after.subs, base.subs);
+      check('window manager listeners back to baseline', after.wm, base.wm);
+      check('no dialog layer left behind', after.layers, 0);
       await s.page.evaluate(`window.__aurora.registry.launch('clock', { page: 'alarm' })`);
       await s.page.waitForSelector(`${WIN} .ck`);
       await until(s, (app) => !!app?.store, { label: 'clock reopened' });
-      check('state survived the 10 reopenings', await CK(s, (app) => [app.store.cities.length, app.store.timers.some((x) => x.state === 'running')]), [5, true]);
+      check('state survived the 15 reopenings', await CK(s, (app) => [app.store.cities.length, app.store.timers.some((x) => x.state === 'running')]), [5, true]);
     });
 
     await section(`${tag}: a failed save shows an error bar, which goes away once saving works again`, async () => {
@@ -1624,6 +1840,61 @@ async function runDamaged() {
   }
 }
 
+// ================================================================== launch F: oversized storage (thousands of entries)
+async function runOversized() {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-home-'));
+  const dir = path.join(home, '.config', 'aurora', 'apps', 'clock');
+  fs.mkdirSync(dir, { recursive: true });
+  const w = (n, v) => fs.writeFileSync(path.join(dir, `${n}.json`), JSON.stringify(v));
+  w('alarms', Array.from({ length: 5000 }, (_, i) => ({ id: `a${i}`, hour: i % 24, minute: i % 60, days: [1, 2], enabled: i % 2 === 0, name: 'x'.repeat(300) })));
+  w('timers', Array.from({ length: 3000 }, (_, i) => ({ id: `t${i}`, name: 'T', duration: 120000 })));
+  w('stopwatch', { running: true, startedAt: Date.now() - 5e6, base: 0, laps: Array.from({ length: 5000 }, (_, i) => i * 1000) });
+  const t0 = Date.now();
+  const s = await launchShell({ open: ['clock'], lang: 'en', theme: 'light', home, env: { TZ: 'Europe/Paris' } });
+  current = s;
+  try {
+    await s.page.waitForSelector(`${WIN} .ck`, { timeout: 30000 });
+    await until(s, (app) => !!app?.store, { label: 'clock ready' });
+    await section('oversized storage: thousands of alarms / timers / laps are capped, Clock still opens quickly', async () => {
+      check('Clock opened in reasonable time', Date.now() - t0, (ms) => ms < 25000);
+      const r = await CK(s, (app) => ({ alarms: app.store.alarms.length, timers: app.store.timers.length, laps: app.store.stopwatch.laps.length, rems: app.shell.reminders.list('clock').length, name: app.store.alarms[0].name.length }));
+      check('at most 100 alarms, 100 timers, 999 laps kept', [r.alarms, r.timers, r.laps], [100, 100, 999]);
+      check('one reminder per enabled alarm (50)', r.rems, 50);
+      check('names cut to 64 characters', r.name, 64);
+      await go(s, 'alarm');
+      await s.page.click(`${WIN} .ck-cmd-add`);
+      await s.page.waitForSelector(DLG);
+      check('Add at the limit explains why instead of doing nothing', await s.page.textContent(`${DLG} .dialog-body`), (v) => v.includes('up to 100 alarms'));
+      await dialogButton(s, 'OK');
+      check('…and adds nothing', await CK(s, (app) => app.store.alarms.length), 100);
+      await go(s, 'timer');
+      await s.page.click(`${WIN} .ck-preset.custom`);
+      await s.page.waitForSelector(DLG);
+      check('Custom timer at the limit says so too', await s.page.textContent(`${DLG} .dialog-body`), (v) => v.includes('up to 100 timers'));
+      await dialogButton(s, 'OK');
+      await s.page.click(`${WIN} .ck-preset[data-min="30"]`);
+      await s.page.waitForSelector(DLG);
+      check('a quick-start preset needing a new timer says so too', await s.page.textContent(`${DLG} .dialog-body`), (v) => v.includes('up to 100 timers'));
+      await dialogButton(s, 'OK');
+      check('no timer added', await CK(s, (app) => app.store.timers.length), 100);
+      await go(s, 'stopwatch');
+      const ms = await CK(s, (app) => {
+        const t = performance.now();
+        app.store.swLap();
+        return performance.now() - t;
+      });
+      check('a new lap with 999 rows on screen is quick (no table rebuild)', ms, (v) => v < 40);
+    });
+    await section('console (oversized storage run): no errors from Clock', async () => {
+      check('no Clock errors in the console', clockErrors(s), []);
+    });
+  } finally {
+    await s.close();
+    current = null;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
 console.log('Clock tests');
 {
   // every English string has a French translation with the same placeholders (static check)
@@ -1640,6 +1911,7 @@ await runEnglish();
 await runFrench();
 await runReconcile();
 await runDamaged();
+await runOversized();
 await runSizes('1280x720', 'fr', 'dark');
 await runSizes('1920x1080', 'en', 'light');
 console.log(`\n${passed} passed, ${failures.length} failed`);

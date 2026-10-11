@@ -9,7 +9,7 @@ import { renderTimeGrid } from './timegrid.js';
 import { renderAgenda, renderSearch } from './agenda.js';
 import { showPeek, quickCreate, openEditor, askSeries, askDeleteSeries } from './editor.js';
 import { settingsDialog, calendarDialog, importFlow, exportFlow, shortcutsDialog } from './dialogs.js';
-import { loadData, visibleOccurrences, syncReminders, sanitizeCalendars, sanitizePrefs, PALETTE, APP_ID } from '../lib/store.mjs';
+import { loadData, visibleOccurrences, syncReminders, sanitizeCalendars, sanitizePrefs, dueReminder, reminderText, PALETTE, APP_ID } from '../lib/store.mjs';
 import { sanitizeEvent, occurrenceAt, updateOccurrence, updateSeries, deleteOccurrence, truncateSeries, moveOccurrence, newId, firstOccurrence } from '../lib/events.mjs';
 import { addDays, addMonths, startOfDay, startOfWeek, sameDay, localFromKey, localKey, isDateKey, keyFromDayNum, localDayNum } from '../lib/dates.mjs';
 import { css } from './util.js';
@@ -264,7 +264,6 @@ export class CalendarApp {
         this.goTo(d);
         if (this.root.classList.contains('pane-overlay')) this.togglePane(false);
       },
-      onTitle: () => this.setView('month'),
     });
     this.calList = h('div', { class: 'ac-cals' });
     this.pane = h(
@@ -300,7 +299,24 @@ export class CalendarApp {
     this.root.classList.toggle('pane-hidden', !narrow && !this.prefs.paneOpen);
     this.paneBtn.setAttribute('aria-expanded', String(narrow ? this.root.classList.contains('pane-open-overlay') : this.prefs.paneOpen));
     this.fitToolbar();
+    this.fitSearch();
     if (!initial) this.viewHandle?.resize?.();
+  }
+
+  // "Search events" when it fits in the title bar search box, else just "Search" (small windows, French)
+  fitSearch() {
+    const inp = this.searchInput;
+    if (!inp?.isConnected || !inp.clientWidth) return;
+    const full = this.t('searchPlaceholder');
+    try {
+      const cs = getComputedStyle(inp);
+      const avail = inp.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      this._measure = this._measure || document.createElement('canvas').getContext('2d');
+      this._measure.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      inp.placeholder = this._measure.measureText(full).width > avail - 2 ? this.t('searchShort') : full;
+    } catch {
+      inp.placeholder = full;
+    }
   }
 
   // Progressive toolbar compaction (French labels are longer): drop the view icons, then turn the view
@@ -572,6 +588,11 @@ export class CalendarApp {
   }
 
   step(dir) {
+    // Previous / Next while search results are shown leave the search (they would otherwise do nothing)
+    if (this.state.search) {
+      this.searchInput.value = '';
+      this.state.search = '';
+    }
     const d = this.state.date;
     let next;
     switch (this.state.view) {
@@ -821,6 +842,7 @@ export class CalendarApp {
     list.push(clean);
     const first = firstOccurrence(clean);
     await this.commit(list, { select: first ? { eventId: clean.id, key: first.key } : null, undoLabel: toastLabel || null, before });
+    this.remindIfDue(clean.id, before);
     return clean;
   }
 
@@ -832,6 +854,7 @@ export class CalendarApp {
     const next = updateOccurrence(ev, o.key, changes);
     const list = this.data.events.map((e) => (e.id === ev.id ? next : e));
     await this.commit(list, { select: { eventId: ev.id, key: o.key }, before });
+    this.remindIfDue(ev.id, before);
   }
 
   async applySeriesEdit(ev, changes) {
@@ -842,6 +865,7 @@ export class CalendarApp {
     const list = this.data.events.map((e) => (e.id === ev.id ? next : e));
     const first = firstOccurrence(next);
     await this.commit(list, { select: first ? { eventId: next.id, key: first.key } : null, before });
+    this.remindIfDue(next.id, before);
   }
 
   // Drag & drop / resize result. newStart/newEnd are local epoch ms (timed) or Date (all-day: day granularity).
@@ -867,9 +891,11 @@ export class CalendarApp {
     const key = ev.rrule ? o.key : String(next.start);
     const list = this.data.events.map((x) => (x.id === ev.id ? next : x));
     await this.commit(list, { select: { eventId: ev.id, key }, undoLabel: this.t('eventMoved'), before });
+    this.remindIfDue(ev.id, before);
   }
 
-  async deleteOcc(o) {
+  // `choice` ('one' | 'following' | 'all') skips the question (the editor of one occurrence already knows).
+  async deleteOcc(o, { choice = null } = {}) {
     if (!o || o.readOnly) return;
     const ev = this.data.events.find((e) => e.id === o.eventId);
     if (!ev) return;
@@ -878,7 +904,7 @@ export class CalendarApp {
     let list;
     if (!ev.rrule) list = this.data.events.filter((e) => e.id !== ev.id);
     else {
-      const choice = await askDeleteSeries(this, o);
+      choice = choice || (await askDeleteSeries(this, o));
       if (!choice) return;
       let next = null;
       if (choice === 'one') next = deleteOccurrence(ev, o.key);
@@ -912,6 +938,30 @@ export class CalendarApp {
 
   savePrefs() {
     return this.persist('prefs', this.data.prefs);
+  }
+
+  // An event created or changed so close to its start that its reminder time has already passed (a meeting
+  // in 10 minutes with a 15-minute reminder): show the reminder now, as Outlook does — once per occurrence,
+  // and not when that occurrence's reminder time had already passed before this change (it was shown then).
+  remindIfDue(eventId, before = null) {
+    const reminders = this.ctx.shell?.reminders;
+    const ev = this.data.events.find((e) => e.id === eventId);
+    if (!reminders?.set || !ev) return;
+    try {
+      const o = dueReminder(ev);
+      if (!o) return;
+      const prev = before?.find((e) => e.id === eventId);
+      const po = prev ? occurrenceAt(prev, o.key) : null;
+      if (po && po.reminder != null && po.start - po.reminder * 60000 <= Date.now()) return;
+      const id = `evt-${ev.id}-${o.key}`;
+      this._remindedLate = this._remindedLate || new Set();
+      if (this._remindedLate.has(id)) return;
+      this._remindedLate.add(id);
+      const { title, body } = reminderText(o, this.ctx.lang, this.fmt.hour12());
+      reminders.set({ id, appId: APP_ID, at: Date.now(), title, body, kind: 'reminder', snoozeMinutes: 5, data: { eventId: ev.id, key: o.key } });
+    } catch (err) {
+      console.error('[calendar] reminder failed', err);
+    }
   }
 
   syncReminders() {

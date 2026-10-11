@@ -2,6 +2,7 @@
 // reset / +1 min, expanded (big) view, add / edit dialog with an hh:mm:ss wheel picker, edit mode.
 import { hms, MIN } from './time.js';
 import { progressRing, durationPicker, commandBar, enter, reduceMotion } from './widgets.js';
+import { MAX_TIMERS } from './store.js';
 
 const PRESETS = [1, 3, 5, 10, 15, 30];
 
@@ -224,6 +225,10 @@ export class TimerPage {
     // reuse an idle timer of that length instead of piling up duplicates
     let x = this.store.timers.find((tm) => tm.duration === ms && tm.state === 'idle' && !tm.name);
     if (!x) x = this.store.addTimer({ name: '', duration: ms });
+    if (!x) {
+      this.limitAlert();
+      return null;
+    }
     this.store.startTimer(x.id);
     this._lastQuick = { m, id: x.id, at: Date.now() };
     setTimeout(() => this.highlight(x.id), 30);
@@ -299,9 +304,21 @@ export class TimerPage {
     return false;
   }
 
+  async limitAlert() {
+    const { t, ui, win } = this.app;
+    if (this.dialogOpen) return;
+    this.dialogOpen = true;
+    await ui.alert(t('timer.limit', { n: MAX_TIMERS }), { title: t('timer.addTitle'), parent: win });
+    this.dialogOpen = false;
+  }
+
   async openEditor(x = null) {
     if (this.dialogOpen) return null;
     const { h, t, icon, ui, win } = this.app;
+    if (!x && this.store.timers.length >= MAX_TIMERS) {
+      await this.limitAlert();
+      return null;
+    }
     const picker = durationPicker({ h, icon, t, ms: x ? x.duration : 15 * MIN, onchange: () => check() });
     const name = h('input', { class: 'input grow', type: 'text', maxlength: 64, value: x ? x.name : '', placeholder: t('timer.namePlaceholder'), 'aria-label': t('timer.name') });
     const err = h('div', { class: 'ck-dlg-err caption', role: 'alert' });

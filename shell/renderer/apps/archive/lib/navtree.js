@@ -48,6 +48,7 @@ export class NavTree {
   render() {
     const { h, icon } = this.w;
     this.el.replaceChildren();
+    let idx = 0;
     for (const { n, depth } of this.visible()) {
       const hasKids = [...n.children.values()].some((c) => c.dir);
       const open = this.expanded.has(n.path);
@@ -67,6 +68,7 @@ export class NavTree {
         'div',
         {
           class: ['arc-tnode', n === this.current && 'selected', n.path === this.focusPath && 'focused'],
+          id: `${this.w.uid}-t${idx++}`,
           role: 'treeitem',
           'aria-level': String(depth + 1),
           'aria-expanded': hasKids ? String(open) : null,
@@ -85,6 +87,7 @@ export class NavTree {
       );
       this.el.appendChild(row);
     }
+    this.paintFocus();
   }
   toggle(n) {
     if (this.expanded.has(n.path) && n !== this.root) this.expanded.delete(n.path);
@@ -92,7 +95,15 @@ export class NavTree {
     this.render();
   }
   paintFocus() {
-    for (const el of this.el.querySelectorAll('.arc-tnode')) el.classList.toggle('focused', el.dataset.path === this.focusPath);
+    let active = null;
+    for (const el of this.el.querySelectorAll('.arc-tnode')) {
+      const on = el.dataset.path === this.focusPath;
+      el.classList.toggle('focused', on);
+      if (on) active = el.id;
+    }
+    // screen readers follow the focused row (the tree itself keeps the keyboard focus)
+    if (active) this.el.setAttribute('aria-activedescendant', active);
+    else this.el.removeAttribute('aria-activedescendant');
   }
 
   onKey(e) {

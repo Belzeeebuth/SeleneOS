@@ -62,6 +62,15 @@ export class SettingsPage {
     const p = this.store.prefs;
     const f = p.focus;
     const scroll = this.el.closest('.ck-scroll')?.scrollTop;
+    // the page is rebuilt when a setting changes (theme radios, notifications…): keep the keyboard focus
+    // on the same control, or arrow keys on the theme radios would drop it on the page body
+    let refocus = null;
+    const active = document.activeElement;
+    const activeRow = active && this.el.contains(active) ? active.closest('.ck-set-row[data-key]') : null;
+    if (activeRow) {
+      const controls = [...activeRow.querySelectorAll('button, input, select')];
+      refocus = { key: activeRow.dataset.key, index: controls.indexOf(active), radio: active.type === 'radio' ? active.value : null };
+    }
     const sel = (key, options, value, label) => {
       const s = ui.select({ options, value, onchange: (v) => this.store.setPref(key, isNaN(Number(v)) ? v : Number(v)) });
       s.setAttribute('aria-label', label);
@@ -196,6 +205,12 @@ export class SettingsPage {
     ];
     this.el.replaceChildren(...sections.filter(Boolean));
     if (scroll) this.el.closest('.ck-scroll').scrollTop = scroll;
+    if (refocus) {
+      const row = [...this.el.querySelectorAll('.ck-set-row[data-key]')].find((r) => r.dataset.key === refocus.key);
+      const controls = row ? [...row.querySelectorAll('button, input, select')] : [];
+      const target = refocus.radio != null ? controls.find((c) => c.type === 'radio' && c.value === refocus.radio) : controls[refocus.index];
+      target?.focus({ preventScroll: true });
+    }
   }
 
   onStore(kind) {

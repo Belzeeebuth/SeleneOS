@@ -345,7 +345,8 @@
       "cannot": "This file can't be previewed",
       "locked": "Password protected",
       "unlock": "Enter password",
-      "truncated": "Only the beginning of the file is shown."
+      "truncated": "Only the beginning of the file is shown.",
+      "linkTo": "Link to {target}"
     },
     "err": {
       "openTitle": "Can't open “{name}”",
@@ -372,7 +373,11 @@
       "exists": "An item with that name already exists.",
       "timeout": "The operation took too long and was stopped.",
       "generic": "Something went wrong.",
-      "zipPassword": "ZIP passwords can only use letters, digits and symbols from an English keyboard (no accents). Use 7z for other characters."
+      "zipPassword": "ZIP passwords can only use letters, digits and symbols from an English keyboard (no accents). Use 7z for other characters.",
+      "entryMissing": "This item isn't in the archive any more. Press F5 to refresh the view.",
+      "itemMissing": "One of the items can't be found. It may have been moved or deleted.",
+      "destMissing": "The destination folder doesn't exist.",
+      "link": "This item is a link whose target isn't in the archive."
     },
     "close": {
       "busyTitle": "An operation is in progress",
@@ -741,7 +746,8 @@
       "cannot": "Impossible d'afficher l'aperçu de ce fichier",
       "locked": "Protégé par mot de passe",
       "unlock": "Saisir le mot de passe",
-      "truncated": "Seul le début du fichier est affiché."
+      "truncated": "Seul le début du fichier est affiché.",
+      "linkTo": "Lien vers {target}"
     },
     "err": {
       "openTitle": "Impossible d'ouvrir « {name} »",
@@ -768,7 +774,11 @@
       "exists": "Un élément portant ce nom existe déjà.",
       "timeout": "L'opération a pris trop de temps et a été arrêtée.",
       "generic": "Une erreur s'est produite.",
-      "zipPassword": "Les mots de passe ZIP ne peuvent contenir que des lettres sans accents, des chiffres et des symboles. Utilisez 7z pour les autres caractères."
+      "zipPassword": "Les mots de passe ZIP ne peuvent contenir que des lettres sans accents, des chiffres et des symboles. Utilisez 7z pour les autres caractères.",
+      "entryMissing": "Cet élément ne se trouve plus dans l'archive. Appuyez sur F5 pour actualiser l'affichage.",
+      "itemMissing": "Un des éléments est introuvable. Il a peut-être été déplacé ou supprimé.",
+      "destMissing": "Le dossier de destination n'existe pas.",
+      "link": "Cet élément est un lien dont la cible ne se trouve pas dans l'archive."
     },
     "close": {
       "busyTitle": "Une opération est en cours",

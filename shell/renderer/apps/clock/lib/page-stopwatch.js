@@ -100,7 +100,7 @@ export class StopwatchPage {
     this.laps.hidden = laps.length === 0;
     this.copyBtn.disabled = laps.length === 0;
     if (laps.length === this.lapCount && this.tbody.children.length === laps.length) return;
-    const added = laps.length === this.lapCount + 1;
+    const added = laps.length === this.lapCount + 1 && this.tbody.children.length === this.lapCount;
     this.lapCount = laps.length;
     const splits = laps.map((v, i) => v - (i ? laps[i - 1] : 0));
     let fast = -1;
@@ -110,19 +110,38 @@ export class StopwatchPage {
       slow = splits.indexOf(Math.max(...splits));
       if (fast === slow) fast = slow = -1;
     }
-    this.tbody.replaceChildren();
-    for (let i = laps.length - 1; i >= 0; i--) {
-      const tag = i === fast ? h('span', { class: 'ck-lap-tag fast' }, t('stopwatch.fastest')) : i === slow ? h('span', { class: 'ck-lap-tag slow' }, t('stopwatch.slowest')) : null;
-      const row = h(
+    const row = (i) =>
+      h(
         'div',
-        { class: ['ck-lap', i === fast && 'fast', i === slow && 'slow'], role: 'row', dataset: { lap: String(i + 1) } },
-        h('span', { role: 'cell', class: 'ck-lap-n' }, String(i + 1).padStart(2, '0'), tag),
+        { class: 'ck-lap', role: 'row', dataset: { lap: String(i + 1) } },
+        h('span', { role: 'cell', class: 'ck-lap-n' }, String(i + 1).padStart(2, '0')),
         h('span', { role: 'cell', class: 'ck-lap-split' }, this.fmt(splits[i], lang)),
         h('span', { role: 'cell', class: 'ck-lap-total' }, this.fmt(laps[i], lang)),
       );
-      this.tbody.appendChild(row);
+    // rows are newest first: lap i is row (n - 1 - i)
+    const rowOf = (i) => (i >= 0 ? this.tbody.children[laps.length - 1 - i] : null);
+    const mark = (i, kind) => {
+      const r = rowOf(i);
+      if (!r) return;
+      r.classList.toggle('fast', kind === 'fast');
+      r.classList.toggle('slow', kind === 'slow');
+      r.querySelector('.ck-lap-tag')?.remove();
+      if (kind) r.firstChild.appendChild(h('span', { class: `ck-lap-tag ${kind}` }, t(kind === 'fast' ? 'stopwatch.fastest' : 'stopwatch.slowest')));
+    };
+    if (added) {
+      // one more lap (the usual case): add its row and move the Fastest / Slowest tags, without
+      // rebuilding a table that may hold hundreds of rows
+      this.tbody.prepend(row(laps.length - 1));
+      const was = [this.fast ?? -1, this.slow ?? -1];
+      for (const i of new Set([...was, fast, slow])) if (i >= 0) mark(i, i === fast ? 'fast' : i === slow ? 'slow' : null);
+      enter(this.tbody.firstChild, { y: -8, duration: 200 });
+    } else {
+      this.tbody.replaceChildren(...laps.map((_, k) => row(laps.length - 1 - k)));
+      if (fast >= 0) mark(fast, 'fast');
+      if (slow >= 0) mark(slow, 'slow');
     }
-    if (added && this.tbody.firstChild) enter(this.tbody.firstChild, { y: -8, duration: 200 });
+    this.fast = fast;
+    this.slow = slow;
   }
 
   fmt(ms, lang) {

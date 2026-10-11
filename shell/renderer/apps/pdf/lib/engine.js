@@ -9,8 +9,8 @@
 // image URLs are made absolute.
 //
 // The annotation editor (highlight / ink / free text) listens on window and document for keys,
-// clipboard and drag & drop — in this shell that is every app. guards() keeps those listeners from
-// acting on events that belong to other apps (see the comments below).
+// clipboard and drag & drop — in this shell that is every app. patchEditor() neutralizes the drag & drop
+// handlers and keeps the clipboard ones to events that belong to a PDF view (see the comments below).
 import { AuroraL10n } from './l10n.js';
 
 export const PDFJS = 'app://shell/node_modules/pdfjs-dist/';
@@ -18,13 +18,14 @@ export const PDFJS = 'app://shell/node_modules/pdfjs-dist/';
 let loading = null;
 let worker = null;
 let workerRefs = 0;
+let workerTimer = 0;
 let l10n = null;
 
 export function engine() {
   if (!loading) {
     loading = (async () => {
-      installGuards();
       const lib = await import(`${PDFJS}build/pdf.mjs`);
+      patchEditor(lib);
       if (!globalThis.pdfjsLib) globalThis.pdfjsLib = lib; // pdf_viewer.mjs reads globalThis.pdfjsLib
       lib.GlobalWorkerOptions.workerSrc = `${PDFJS}build/pdf.worker.mjs`;
       const viewer = await import(`${PDFJS}web/pdf_viewer.mjs`);
@@ -55,21 +56,32 @@ export function docParams() {
 /** One worker thread for every open document (ref-counted by windows). */
 export function acquireWorker(lib) {
   workerRefs++;
+  // A window opened while the last one is closing reuses the worker that was about to go.
+  clearTimeout(workerTimer);
+  workerTimer = 0;
   if (!worker || worker.destroyed) worker = new lib.PDFWorker({ name: 'aurora-pdf' });
   return worker;
 }
 export function releaseWorker() {
   workerRefs = Math.max(0, workerRefs - 1);
-  if (workerRefs === 0 && worker) {
+  if (workerRefs > 0 || !worker) return;
+  // Let documents that are being destroyed finish first (their "Terminate" replies come from the worker).
+  // The worker is destroyed even if another one was created meanwhile: an orphaned worker thread would keep
+  // every document it served — and their windows' DOM — alive.
+  clearTimeout(workerTimer);
+  workerTimer = setTimeout(() => {
+    workerTimer = 0;
+    if (workerRefs > 0 || !worker) return;
     const w = worker;
     worker = null;
-    // Let documents that are being destroyed finish first.
-    setTimeout(() => {
-      try {
-        if (!worker) w.destroy();
-      } catch {}
-    }, 3000);
-  }
+    try {
+      w.destroy();
+    } catch {}
+  }, 3000);
+}
+/** Test / diagnostics hook. */
+export function workerInfo() {
+  return { refs: workerRefs, alive: !!worker && !worker.destroyed, pendingDestroy: !!workerTimer };
 }
 
 async function injectViewerCss() {
@@ -94,32 +106,36 @@ async function injectViewerCss() {
   document.head.insertBefore(style, document.head.querySelector('link[href*="/apps/"]') || null);
 }
 
-// ------------------------------------------------------------------ guards
-// Registered before any pdf.js editor exists, so these document-level listeners run before the
-// editor's own document listeners and can stop them with stopImmediatePropagation:
+// ------------------------------------------------------------------ editor patches
+// pdf.js' AnnotationEditorUIManager binds these prototype methods when it adds its document-level
+// listeners, so patching the prototype once (before any viewer exists) changes what every editor does,
+// without touching the listeners other apps register on the document:
 //  - drag & drop: the editor turns any image dropped anywhere in the shell into a stamp in the PDF.
-//    PDF Reader windows handle their own drops (capture phase on the window), so pdf.js never needs these.
-//  - copy / cut / paste: while a tool is active the editor cancels every copy in the document. Only let
-//    it act when the clipboard event comes from a document view and annotations are selected.
-let guardsInstalled = false;
+//    PDF Reader windows handle their own drops (capture phase on the window): pdf.js never needs these.
+//  - copy / cut / paste: while a tool is active the editor cancels every clipboard event of the document.
+//    Only let it act when the event comes from a document view whose editor has a selection.
 const editingViews = new Set(); // .pdf-scroller elements whose editor has a selection (set by doc.js)
 export const guard = { editingViews };
 
-function installGuards() {
-  if (guardsInstalled) return;
-  guardsInstalled = true;
-  const stopDnD = (e) => {
-    if (document.querySelector('.app-pdf .pdf-scroller')) e.stopImmediatePropagation();
-  };
-  document.addEventListener('dragover', stopDnD);
-  document.addEventListener('drop', stopDnD);
-  const clip = (e) => {
-    // pdf.js only listens to the clipboard while one of our documents has a tool on (focused window).
-    if (!document.querySelector('.app-pdf .pdf-root.tool-active')) return;
-    const target = document.activeElement;
-    const view = target?.closest?.('.pdf-scroller');
-    const textSelected = !!document.getSelection()?.toString();
-    if (!view || !editingViews.has(view) || (textSelected && e.type === 'copy')) e.stopImmediatePropagation();
-  };
-  for (const ev of ['copy', 'cut', 'paste']) document.addEventListener(ev, clip);
+function clipboardIsOurs(e) {
+  const view = document.activeElement?.closest?.('.pdf-scroller');
+  if (!view || !editingViews.has(view)) return false;
+  // Selected text (not annotations) is copied by the browser as usual.
+  if (e?.type === 'copy' && document.getSelection()?.toString()) return false;
+  return true;
+}
+
+function patchEditor(lib) {
+  const P = lib.AnnotationEditorUIManager?.prototype;
+  if (!P || P.__auroraPatched) return;
+  Object.defineProperty(P, '__auroraPatched', { value: true });
+  P.dragOver = function () {};
+  P.drop = function () {};
+  for (const name of ['copy', 'cut', 'paste']) {
+    const orig = P[name];
+    if (typeof orig !== 'function') continue;
+    P[name] = function (e) {
+      if (clipboardIsOurs(e)) return orig.call(this, e);
+    };
+  }
 }

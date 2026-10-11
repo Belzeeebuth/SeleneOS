@@ -15,7 +15,7 @@ export class Welcome {
   build() {
     const { h, t, icon, ctx } = this.w;
     const card = (cls, ic, title, sub, key, onclick) =>
-      h('button', { class: ['arc-wcard', cls], onclick }, h('span', { class: 'arc-wcard-ic' }, icon(ic, { size: 24 })), h('span', { class: 'arc-wcard-text' }, h('span', { class: 'body-strong' }, title), h('span', { class: 'caption text-2' }, sub)), h('span', { class: 'arc-wcard-key caption text-3' }, key));
+      h('button', { class: ['arc-wcard', cls], onclick }, h('span', { class: 'arc-wcard-ic' }, icon(ic, { size: 24 })), h('span', { class: 'arc-wcard-text' }, h('span', { class: 'body-strong' }, title), h('span', { class: 'caption text-2' }, sub)), h('span', { class: 'arc-wcard-key caption text-2' }, key));
     this.list = h('div', { class: 'arc-recent-list', role: 'list', 'aria-label': t('welcome.recent') });
     this.clearBtn = h('button', { class: 'btn subtle small', onclick: () => this.clearAll() }, t('welcome.clear'));
     this.el.replaceChildren(
@@ -36,7 +36,7 @@ export class Welcome {
         ),
         h('div', { class: 'arc-wdrop caption text-2' }, icon('document_arrow_up', { size: 16 }), h('span', null, t('welcome.drop'))),
         h('section', { class: 'arc-recent' }, h('div', { class: 'arc-recent-head' }, h('div', { class: 'body-strong' }, t('welcome.recent')), this.clearBtn), this.list),
-        h('div', { class: 'arc-formats caption text-3' }, t('welcome.formats')),
+        h('div', { class: 'arc-formats caption text-2' }, t('welcome.formats')),
       ),
     );
     this.renderRecent();
@@ -80,7 +80,7 @@ export class Welcome {
           onclick: () => this.open(r),
           onkeydown: (e) => {
             if (e.key === 'Enter') this.open(r);
-            else if (e.key === 'Delete') shared.recentRemove(r.path);
+            else if (e.key === 'Delete') this.remove(r, row);
             else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
               e.preventDefault();
               (e.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling)?.focus();
@@ -104,12 +104,22 @@ export class Welcome {
           'data-tip': t('welcome.remove'),
           onclick: (e) => {
             e.stopPropagation();
-            shared.recentRemove(r.path);
+            this.remove(r, row);
           },
         }, icon('dismiss', { size: 12 })),
       );
       this.list.appendChild(row);
     }
+    if (this.refocus != null) {
+      const rows = this.list.querySelectorAll('.arc-recent-row');
+      (rows[Math.min(this.refocus, rows.length - 1)] || this.el.querySelector('.arc-wcard'))?.focus();
+      this.refocus = null;
+    }
+  }
+  /** Remove a Recent entry; the keyboard focus moves to the next row (not lost to the page). */
+  remove(r, row) {
+    if (row?.contains(document.activeElement)) this.refocus = [...this.list.children].indexOf(row);
+    shared.recentRemove(r.path);
   }
 
   menu(at, r) {
@@ -119,7 +129,7 @@ export class Welcome {
       { label: t('menu.openLocation'), icon: 'folder_open', action: () => this.w.shell.launch('files', { select: r.path }) },
       { label: t('menu.copyPath'), icon: 'copy', action: () => this.w.api.invoke('clipboard:writeText', r.path) },
       '-',
-      { label: t('welcome.remove'), icon: 'dismiss', action: () => shared.recentRemove(r.path) },
+      { label: t('welcome.remove'), icon: 'dismiss', action: () => this.remove(r, this.list.querySelector(`[data-path="${CSS.escape(r.path)}"]`)) },
     ]);
   }
 

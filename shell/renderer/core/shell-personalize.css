@@ -612,3 +612,12 @@
 :root[data-icon-pack="accent"] .folder-icon {
   color: var(--accent-text);
 }
+:root[data-icon-pack="mono"] :is(.ft-txt, .ft-dir, .ft-doc, .ft-xls, .ft-ppt, .ft-pdf, .ft-img, .ft-audio, .ft-video, .ft-zip, .ft-code),
+:root[data-icon-pack="mono"] .folder-icon {
+  color: var(--text);
+}
+/* Monochrome app icons are drawn for the system mode: inside a window / taskbar of the other mode they are inverted */
+:root[data-icon-pack="mono"][data-theme="light"] [data-theme-scope][data-theme="dark"] img[src*="aurora-mono"],
+:root[data-icon-pack="mono"][data-theme="dark"] [data-theme-scope][data-theme="light"] img[src*="aurora-mono"] {
+  filter: invert(1);
+}

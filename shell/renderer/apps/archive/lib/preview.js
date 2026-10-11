@@ -17,8 +17,16 @@ export class PreviewPane {
 
   update(nodes) {
     clearTimeout(this.timer);
+    this.abort();
     const tok = ++this.token;
     this.timer = setTimeout(() => this.render(nodes, tok), nodes.length === 1 && previewKind(nodes[0]) ? 140 : 0);
+  }
+
+  /** Stop the extraction of a preview that is no longer shown (arrowing through a big solid archive must not
+   *  pile up extractions). */
+  abort() {
+    if (this.opId) this.w.api.invoke('archive:cancel', this.opId).catch(() => {});
+    this.opId = null;
   }
 
   meta(rows) {
@@ -70,7 +78,7 @@ export class PreviewPane {
       return;
     }
     const kind = previewKind(n);
-    const rows = [
+    const rows = () => [
       [t('preview.type'), typeName(n, t)],
       [t('preview.size'), size(n.size)],
       L.perEntryPacked && n.packed != null ? [t('preview.packed'), size(n.packed)] : null,
@@ -79,51 +87,77 @@ export class PreviewPane {
       n.link ? [t('props.linkTarget'), n.link] : null,
       n.encrypted ? [t('props.encrypted'), t('common.yes')] : null,
     ];
-    const stage = h('div', { class: ['arc-pv-stage', kind && 'loading'] });
+    const stage = h('div', { class: ['arc-pv-stage', (kind || n.link != null) && 'loading'] });
     const openBtn = h('button', { class: 'btn', onclick: () => this.w.openNode(n) }, icon('open'), t('preview.open'));
     const extractBtn = h('button', { class: 'btn', onclick: () => this.w.extractSelected([n]) }, icon('folder_arrow_up'), t('preview.extract'));
-    this.el.replaceChildren(stage, h('div', { class: 'arc-pv-title subtitle', 'data-tip': n.name }, n.name), this.meta(rows), h('div', { class: 'arc-pv-actions' }, openBtn, extractBtn));
+    let metaEl = this.meta(rows());
+    this.el.replaceChildren(stage, h('div', { class: 'arc-pv-title subtitle', 'data-tip': n.name }, n.name), metaEl, h('div', { class: 'arc-pv-actions' }, openBtn, extractBtn));
     const showIcon = (msg) => {
       stage.classList.remove('loading');
       stage.replaceChildren(...[h('img', { class: 'arc-pv-icon', src: iconUrl(n), alt: '' }), msg ? h('div', { class: 'caption text-2 arc-pv-msg' }, msg) : null].filter(Boolean));
     };
-    if (!kind) return showIcon();
+    if (!kind && n.link == null) return showIcon();
     if ((kind === 'image' && n.size > IMAGE_MAX) || (kind === 'text' && n.size > TEXT_MAX)) return showIcon(t('preview.tooBig'));
-    if (n.encrypted && this.w.password == null) {
+    const locked = (wrong) => {
       stage.classList.remove('loading');
       stage.replaceChildren(
         h('div', { class: 'arc-pv-lock' }, icon('lock_closed', { size: 32, filled: true })),
-        h('div', { class: 'caption text-2 arc-pv-msg' }, t('preview.locked')),
-        h('button', { class: 'btn small', onclick: async () => (await this.w.askPassword()) && this.update([n]) }, t('preview.unlock')),
+        h('div', { class: ['caption', 'arc-pv-msg', wrong ? 'arc-err' : 'text-2'], role: wrong ? 'alert' : null }, wrong ? t('pw.wrong') : t('preview.locked')),
+        h('button', { class: 'btn small', onclick: async () => (await this.w.askPassword(wrong)) != null && this.update([n]) }, t('preview.unlock')),
       );
-      return;
-    }
+    };
+    if (n.encrypted && this.w.password == null) return locked(false);
     stage.appendChild(h('div', { class: 'spinner small' }));
-    this.w
-      .previewFile(n, { text: kind === 'text' ? TEXT_READ : 0 })
-      .then((res) => {
-        if (tok !== this.token) return;
-        stage.classList.remove('loading');
-        if (kind === 'image') {
-          const img = h('img', { class: 'arc-pv-img', alt: n.name, draggable: false });
-          img.onerror = () => tok === this.token && showIcon(t('preview.cannot'));
-          img.onload = () => stage.classList.add('ready');
-          img.src = this.w.api.mediaUrl(res.path);
-          stage.replaceChildren(img);
-        } else if (res.binary) showIcon(t('preview.binary'));
-        else {
-          const pre = h('pre', { class: ['arc-pv-text', 'selectable', extOf(n.name) === '.md' && 'md'], tabindex: '0', 'aria-label': n.name }, res.text || '');
-          stage.replaceChildren(...[pre, res.truncated ? h('div', { class: 'caption text-2 arc-pv-trunc' }, t('preview.truncated')) : null].filter(Boolean));
+    // a link shows its target (inside the archive) instead: links are never extracted for a preview
+    const load = (node, k) =>
+      node.link
+        ? Promise.resolve({ link: node.link })
+        : this.w.previewFile(node, { text: k === 'text' ? TEXT_READ : 0, onOp: (id) => tok === this.token && (this.opId = id) });
+    const show = (node, k, res) => {
+      if (tok !== this.token) return;
+      if (res.link != null) {
+        if (node.link === '') {
+          node.link = res.link; // zip / 7z: the target is only known now
+          if (node === n) {
+            const fresh = this.meta(rows());
+            metaEl.replaceWith(fresh);
+            metaEl = fresh;
+          }
         }
-      })
+        const tgt = this.w.resolveLink(node, res.link);
+        if (tgt && !tgt.dir && previewKind(tgt) && tgt !== node && !(tgt.encrypted && this.w.password == null)) {
+          return load(tgt, previewKind(tgt)).then((r) => show(tgt, previewKind(tgt), r));
+        }
+        return showIcon(t('preview.linkTo', { target: res.link }));
+      }
+      this.opId = null;
+      stage.classList.remove('loading');
+      if (k === 'image') {
+        const img = h('img', { class: 'arc-pv-img', alt: node.name, draggable: false });
+        img.onerror = () => tok === this.token && showIcon(t('preview.cannot'));
+        img.onload = () => stage.classList.add('ready');
+        img.src = this.w.api.mediaUrl(res.path);
+        stage.replaceChildren(img);
+      } else if (res.binary) showIcon(t('preview.binary'));
+      else {
+        const pre = h('pre', { class: ['arc-pv-text', 'selectable', extOf(node.name) === '.md' && 'md'], tabindex: '0', 'aria-label': node.name }, res.text || '');
+        stage.replaceChildren(...[pre, res.truncated ? h('div', { class: 'caption text-2 arc-pv-trunc' }, t('preview.truncated')) : null].filter(Boolean));
+      }
+    };
+    load(n, kind)
+      .then((res) => show(n, kind, res))
       .catch((e) => {
         if (tok !== this.token) return;
+        this.opId = null;
         if (e?.code === 'ECANCELED') return;
-        showIcon(e?.code === 'EPASSWORD' || e?.code === 'EBADPASSWORD' ? t('preview.locked') : t('preview.cannot'));
+        if (e?.code === 'EBADPASSWORD') this.w.password = null; // ask again (with "wrong password")
+        if (e?.code === 'EPASSWORD' || e?.code === 'EBADPASSWORD') return locked(e.code === 'EBADPASSWORD');
+        showIcon(t('preview.cannot'));
       });
   }
 
   clear() {
+    this.abort();
     this.token++;
     this.el.replaceChildren();
   }

@@ -11,8 +11,12 @@
 // Settings (Windows "Multitasking" page; all default on except shake):
 //   multitasking.snap          edge snapping, Super+arrows snapping zones, the drag bar
 //   multitasking.snapLayouts   flyout when hovering the maximize button
+//   multitasking.snapBar       layouts bar when a window is dragged to the top of the screen
 //   multitasking.snapAssist    Snap Assist after snapping
 //   multitasking.shake         title bar window shake (minimise the other windows)
+// Personalization (docs/PERSONALIZATION.md §12.2): settings.snapLayouts = ordered ids of the layouts the flyouts show
+// (BUILTIN_LAYOUTS ids and snapPresets ids; null = DEFAULT_LAYOUT_IDS then every preset); settings.snapPresets = the
+// user's own layouts [{ id, name, zones: [{ x, y, w, h }] }].
 import { h, icon, ui } from '../ui.js';
 import { i18n, t } from '../i18n.js';
 import { wm } from '../wm.js';
@@ -41,17 +45,69 @@ export const LAYOUTS = [
 ];
 
 // The user's own layouts (settings snapPresets: [{ id, name, zones: [{ x, y, w, h }] }], fractions of the work area,
-// edited in Settings > Personalization > Snap layouts) come after the built-in ones, as 'z:x,y,w,h' zones (wm.zoneRect).
-const frac = (n) => String(Math.round(Math.max(0, Math.min(1, Number(n) || 0)) * 10000) / 10000);
+// edited in Settings > Personalization > Snap layouts) are 'z:x,y,w,h' zones (wm.zoneRect).
+const r4 = (n) => Math.round(Math.max(0, Math.min(1, Number(n) || 0)) * 10000) / 10000;
+const frac = (n) => String(r4(n));
+const zoneOf = (x, y, w, h) => `z:${frac(x)},${frac(y)},${frac(w)},${frac(h)}`;
 export function presetZones(p) {
   return (p?.zones || [])
     .filter((z) => z && z.w > 0 && z.h > 0 && z.x >= 0 && z.y >= 0 && z.x + z.w <= 1.001 && z.y + z.h <= 1.001)
     .slice(0, 16)
-    .map((z) => `z:${frac(z.x)},${frac(z.y)},${frac(z.w)},${frac(z.h)}`);
+    .map((z) => zoneOf(z.x, z.y, z.w, z.h));
 }
+const cols = (n) => Array.from({ length: n }, (_, i) => zoneOf(i / n, 0, i === n - 1 ? 1 - r4(i / n) : 1 / n, 1));
+const rows = (n) => Array.from({ length: n }, (_, i) => zoneOf(0, i / n, 1, i === n - 1 ? 1 - r4(i / n) : 1 / n));
+
+/** Every built-in layout: { id, zones, name } — the first six are Windows 11's (shown by default). */
+export const BUILTIN_LAYOUTS = [
+  { id: 'halves', zones: LAYOUTS[0], name: { en: 'Two halves', fr: 'Deux moitiés' } },
+  { id: 'twoThirds', zones: LAYOUTS[1], name: { en: 'Two thirds and one third', fr: 'Deux tiers et un tiers' } },
+  { id: 'thirds', zones: LAYOUTS[2], name: { en: 'Three columns', fr: 'Trois colonnes' } },
+  { id: 'mainStack', zones: LAYOUTS[3], name: { en: 'Half and two quarters', fr: 'Une moitié et deux quarts' } },
+  { id: 'quad', zones: LAYOUTS[4], name: { en: 'Four quarters', fr: 'Quatre quarts' } },
+  { id: 'wideCenter', zones: LAYOUTS[5], name: { en: '25 / 50 / 25', fr: '25 / 50 / 25' } },
+  { id: 'seventyThirty', zones: [zoneOf(0, 0, 0.7, 1), zoneOf(0.7, 0, 0.3, 1)], name: { en: '70 / 30', fr: '70 / 30' } },
+  { id: 'thirtySeventy', zones: [zoneOf(0, 0, 0.3, 1), zoneOf(0.3, 0, 0.7, 1)], name: { en: '30 / 70', fr: '30 / 70' } },
+  { id: 'thirdTwoThirds', zones: ['third-l', 'two-thirds-r'], name: { en: 'One third and two thirds', fr: 'Un tiers et deux tiers' } },
+  { id: 'stackMain', zones: ['tl', 'bl', 'right'], name: { en: 'Two quarters and half', fr: 'Deux quarts et une moitié' } },
+  { id: 'fourColumns', zones: cols(4), name: { en: 'Four columns', fr: 'Quatre colonnes' } },
+  { id: 'twoRows', zones: rows(2), name: { en: 'Two rows', fr: 'Deux lignes' } },
+  { id: 'threeRows', zones: rows(3), name: { en: 'Three rows', fr: 'Trois lignes' } },
+  { id: 'sixGrid', zones: [0, 1].flatMap((j) => [0, 1, 2].map((i) => zoneOf(i / 3, j / 2, i === 2 ? 1 - r4(2 / 3) : 1 / 3, 0.5))), name: { en: 'Six tiles', fr: 'Six tuiles' } },
+];
+export const DEFAULT_LAYOUT_IDS = BUILTIN_LAYOUTS.slice(0, 6).map((l) => l.id);
+export const MAX_SHOWN_LAYOUTS = 18;
+const presets = () => (Array.isArray(settings.get('snapPresets')) ? settings.get('snapPresets') : []).slice(0, 12);
+/** The layouts the flyouts show, in order: [{ id, zones, custom }] (never empty). */
+export function shownLayouts() {
+  const byId = new Map(BUILTIN_LAYOUTS.map((l) => [l.id, { id: l.id, zones: l.zones, custom: false }]));
+  for (const p of presets()) {
+    const zones = presetZones(p);
+    if (zones.length && typeof p.id === 'string' && !byId.has(p.id)) byId.set(p.id, { id: p.id, zones, custom: true });
+  }
+  const order = settings.get('snapLayouts');
+  const ids = Array.isArray(order) ? order : [...DEFAULT_LAYOUT_IDS, ...presets().map((p) => p.id)];
+  const out = [];
+  for (const id of ids) {
+    const l = byId.get(id);
+    if (l && !out.includes(l)) out.push(l);
+  }
+  return (out.length ? out : DEFAULT_LAYOUT_IDS.map((id) => byId.get(id))).slice(0, MAX_SHOWN_LAYOUTS);
+}
+/** Zones of the layouts shown (arrays of zone names), in order. */
 export function allLayouts() {
-  const custom = (Array.isArray(settings.get('snapPresets')) ? settings.get('snapPresets') : []).map(presetZones).filter((zs) => zs.length);
-  return [...LAYOUTS, ...custom.slice(0, 12)];
+  return shownLayouts().map((l) => l.zones);
+}
+/** Fractions { x, y, w, h } of a zone name (for previews outside the shell's work area, e.g. Settings). */
+export function zoneFractions(zone) {
+  const F = {
+    left: [0, 0, 0.5, 1], right: [0.5, 0, 0.5, 1], tl: [0, 0, 0.5, 0.5], tr: [0.5, 0, 0.5, 0.5], bl: [0, 0.5, 0.5, 0.5], br: [0.5, 0.5, 0.5, 0.5],
+    'third-l': [0, 0, 1 / 3, 1], 'third-c': [1 / 3, 0, 1 / 3, 1], 'third-r': [2 / 3, 0, 1 / 3, 1], 'two-thirds-l': [0, 0, 2 / 3, 1], 'two-thirds-r': [1 / 3, 0, 2 / 3, 1],
+    'quarter-l': [0, 0, 0.25, 1], 'half-c': [0.25, 0, 0.5, 1], 'quarter-r': [0.75, 0, 0.25, 1], max: [0, 0, 1, 1],
+  }[zone];
+  if (F) return { x: F[0], y: F[1], w: F[2], h: F[3] };
+  const m = /^z:([\d.]+),([\d.]+),([\d.]+),([\d.]+)$/.exec(String(zone || ''));
+  return m ? { x: Number(m[1]), y: Number(m[2]), w: Number(m[3]), h: Number(m[4]) } : null;
 }
 
 // What Snap Assist offers after a snap that did not come from a layout.
@@ -233,7 +289,11 @@ export function openFlyout(win, { keyboard = false, anchor } = {}) {
       }),
     ),
   );
-  for (const tile of [...grid.children].slice(LAYOUTS.length)) tile.classList.add('custom');
+  const shown = shownLayouts();
+  [...grid.children].forEach((tile, i) => {
+    tile.classList.toggle('custom', !!shown[i]?.custom);
+    tile.dataset.id = shown[i]?.id || '';
+  });
   document.getElementById('overlays').appendChild(el);
   // Under the maximize button, kept on screen.
   const b = (anchor || win.btnMax).getBoundingClientRect();
@@ -441,7 +501,10 @@ function showBar(win) {
 }
 
 function onDragMove(win, { x, y }) {
-  if (!win.opts.resizable || assist || !opt('snap')) return;
+  if (!win.opts.resizable || assist || !opt('snap') || !opt('snapBar')) {
+    if (bar) hideBar();
+    return;
+  }
   const wa = wm.workarea();
   const cx = wa.x + wa.width / 2;
   const near = y <= wa.y + 56 && y > wa.y + 2 && Math.abs(x - cx) < 300;
@@ -553,6 +616,8 @@ export function mount(ctx) {
     endAssist,
     layouts: LAYOUTS,
     allLayouts,
+    shownLayouts,
+    builtins: BUILTIN_LAYOUTS,
     get flyoutOpen() {
       return !!fly;
     },

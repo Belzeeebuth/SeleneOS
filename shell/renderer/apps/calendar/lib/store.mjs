@@ -4,9 +4,12 @@
 //
 //   loadData(api) -> { calendars, events, prefs }
 //   visibleOccurrences(data, from, to, lang) -> occurrences (holidays included) with .color resolved
-//   syncReminders({ reminders, events, lang, hour12, now }) -> { set, removed }   (idempotent)
+//   syncReminders({ reminders, events, lang, hour12, now, limit }) -> { set, removed }   (idempotent; the
+//       `limit` soonest reminders only — the next ones are planned when one of them fires, so a big calendar
+//       never floods the shell scheduler)
 //   reminderText(occ, lang, hour12) -> { title, body }
-import { sanitizeEvent, expandAll, planReminders } from './events.mjs';
+//   dueReminder(ev, now) -> occurrence whose reminder time has passed but that has not started yet | null
+import { sanitizeEvent, expandAll, expandEvent, planReminders, occurrenceAt } from './events.mjs';
 import { holidaysInRange } from './holidays.mjs';
 import { keyFromDayNum, dayNumFromKey, keyToLocalMs, localKey, DAY_MS } from './dates.mjs';
 
@@ -178,11 +181,38 @@ export function reminderText(occ, lang = 'en', hour12 = null) {
 
 let syncChain = Promise.resolve();
 
-// Make shell.reminders hold exactly the next reminders of every event (3 occurrences per event).
-export function syncReminders({ reminders, events, lang = 'en', hour12 = null, now = Date.now(), perEvent = 3 }) {
+// The next occurrence of `ev` whose reminder time is already past although it has not started yet (an
+// event created 10 minutes before it starts, with a 15-minute reminder). Reminders are at most 28 days.
+export function dueReminder(ev, now = Date.now()) {
+  if (!ev || ev.readOnly) return null;
+  try {
+    for (const o of expandEvent(ev, now, now + 29 * DAY_MS)) {
+      if (o.start <= now || o.reminder == null || o.reminder <= 0) continue;
+      if (o.start - o.reminder * 60000 <= now) return o;
+    }
+  } catch {}
+  return null;
+}
+
+// A reminder still scheduled after its planned time: a snoozed one (snoozing a one-shot reminder sets it
+// again under the same id) or one shown late. Kept while its occurrence still exists with a reminder.
+function isLateCopy(r, byId, now) {
+  const ev = byId.get(r.data?.eventId);
+  if (!ev || r.data?.key == null || !(r.at > now)) return false;
+  try {
+    const occ = occurrenceAt(ev, r.data.key);
+    return !!occ && occ.reminder != null && occ.start - occ.reminder * 60000 <= now;
+  } catch {
+    return false;
+  }
+}
+
+// Make shell.reminders hold exactly the next reminders of every event (3 occurrences per event, the
+// `limit` soonest in all).
+export function syncReminders({ reminders, events, lang = 'en', hour12 = null, now = Date.now(), perEvent = 3, limit = 64 }) {
   const run = async () => {
     if (!reminders?.list) return { set: 0, removed: 0 };
-    const plan = planReminders(events, now, { perEvent });
+    const plan = planReminders(events, now, { perEvent }).slice(0, limit);
     const want = new Map();
     for (const p of plan) {
       const { title, body } = reminderText(p.occ, lang, hour12);
@@ -190,10 +220,12 @@ export function syncReminders({ reminders, events, lang = 'en', hour12 = null, n
     }
     let set = 0;
     let removed = 0;
+    const byId = new Map(events.map((e) => [e.id, e]));
     for (const r of reminders.list(APP_ID)) {
       if (!String(r.id).startsWith('evt-') || String(r.id).includes('~')) continue; // keep snoozed copies
       const w = want.get(r.id);
       if (!w) {
+        if (isLateCopy(r, byId, now)) continue;
         reminders.remove(r.id, APP_ID);
         removed++;
       } else if (w.at === r.at && w.title === r.title && w.body === r.body) want.delete(r.id);

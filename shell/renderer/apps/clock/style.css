@@ -1255,8 +1255,20 @@
   box-shadow: var(--shadow-flyout);
   transition: none;
 }
+/* in a short window the result list gives up height first, so the dialog never scrolls as a whole
+   (no second scroll bar around the list's own) */
+.app-clock .dialog.ck-search-dialog .dialog-body {
+  display: flex;
+  flex-direction: column;
+}
+.app-clock .ck-dlg-search {
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .app-clock .ck-search-list {
   height: 280px;
+  flex: 0 1 280px;
+  min-height: 112px;
   overflow: auto;
   margin: 0 -8px;
   padding: 0 4px;

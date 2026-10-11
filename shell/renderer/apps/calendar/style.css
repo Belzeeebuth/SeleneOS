@@ -416,10 +416,72 @@
   height: 192px;
   overflow: hidden;
 }
-.app-calendar .ac-mini-grid.ac-mini-out {
+.app-calendar .ac-mini-out {
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+/* year view (header clicked): 12 months, 4 per row, same circles as the days */
+.app-calendar .ac-mini-title.static {
+  cursor: default;
+}
+.app-calendar .ac-mini-title.static:hover {
+  background: transparent;
+}
+/* (no weekday row: the months use its height, so the pane does not jump) */
+.app-calendar .ac-mini.year-view .ac-mini-wk {
+  display: none;
+}
+.app-calendar .ac-mini.year-view .ac-mini-vp {
+  height: 220px;
+}
+.app-calendar .ac-mini-months {
+  display: grid;
+  grid-template-rows: repeat(3, 1fr);
+  height: 100%;
+}
+.app-calendar .ac-mini-mrow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+.app-calendar .ac-mini-month {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  font-size: 13px;
+}
+.app-calendar .ac-mini-month > span {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  transition: background var(--dur-fast) linear, color var(--dur-fast) linear;
+}
+.app-calendar .ac-mini-month:hover > span {
+  background: var(--subtle-hover);
+}
+.app-calendar .ac-mini-month:active > span {
+  background: var(--subtle-pressed);
+}
+.app-calendar .ac-mini-month.selected > span {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  font-weight: 600;
+}
+.app-calendar .ac-mini-month.today > span {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.app-calendar .ac-mini-month:focus-visible {
+  outline: none;
+}
+.app-calendar .ac-mini-month:focus-visible > span {
+  outline: 2px solid var(--text);
+  outline-offset: 0;
 }
 .app-calendar .ac-mini-day {
   height: 32px;
@@ -1436,17 +1498,22 @@
   position: relative;
 }
 
-/* peek card */
+/* peek card: header and buttons stay put, the details scroll when the card would not fit the screen */
 .app-calendar.ac-pop-peek {
   width: 340px;
   max-width: calc(100vw - 16px);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .app-calendar .ac-peek {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .app-calendar .ac-peek-head {
+  flex: none;
   padding: 16px 18px 8px;
   border-top: 4px solid var(--ev);
 }
@@ -1456,12 +1523,28 @@
   font-weight: 600;
   line-height: 26px;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
 }
 .app-calendar .ac-peek-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 4px 18px 14px;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.app-calendar .ac-peek-body > * {
+  flex: none;
+}
+.app-calendar .ac-peek-row.loc .ac-peek-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 .app-calendar .ac-peek-row {
   display: flex;
@@ -1492,6 +1575,7 @@
   line-height: 18px;
 }
 .app-calendar .ac-peek-actions {
+  flex: none;
   display: flex;
   gap: 8px;
   padding: 12px 18px;
@@ -1918,6 +2002,15 @@
 .app-calendar .ac-set-ctl .select {
   min-width: 180px;
   max-width: 100%;
+}
+/* working hours: two short time lists side by side (they fit a minimum-size window) */
+.app-calendar .ac-set-hours {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.app-calendar .ac-set-ctl .ac-set-hours .select {
+  min-width: 112px;
+  flex: 1 1 112px;
 }
 .app-calendar .ac-caldlg {
   min-width: min(340px, 100%);

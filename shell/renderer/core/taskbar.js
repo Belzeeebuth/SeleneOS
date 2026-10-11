@@ -307,6 +307,9 @@ function hideDelay() {
   return Number.isFinite(d) ? Math.max(0, Math.min(5000, d)) : 600;
 }
 const focusSimple = () => document.documentElement.dataset.focusSimple === 'on';
+// Focus mode with "hide notifications" (<html data-focus-quiet="on">): no badges and no flashing buttons, like the
+// "hide badges / hide flashing on taskbar apps" options of a Windows 11 focus session.
+const focusQuiet = () => document.documentElement.dataset.focusQuiet === 'on';
 
 function visibleWins(appId) {
   const list = wm.listDesktop ? wm.listDesktop() : wm.list();
@@ -747,7 +750,7 @@ function renderApps() {
     b.classList.toggle('running', wins.length > 0);
     b.classList.toggle('active', wins.some((w) => w === focused && !w.minimized));
     b.classList.toggle('multi', wins.length > 1);
-    const flashing = wins.some((w) => w.flashing);
+    const flashing = !focusQuiet() && wins.some((w) => w.flashing);
     if (flashing && !b.classList.contains('flashing')) {
       b.classList.remove('flashing');
       void b.offsetWidth;
@@ -768,7 +771,7 @@ function renderApps() {
   if (previewEl && previewApp && !winsOfKey(previewApp).length) hidePreview(true);
   if (overflowBtn && !overflowBtn.hidden) {
     overflowBtn.classList.toggle('running', hiddenApps.some((k) => winsOfKey(k).length));
-    overflowBtn.classList.toggle('flashing', hiddenApps.some((k) => winsOfKey(k).some((w) => w.flashing)));
+    overflowBtn.classList.toggle('flashing', !focusQuiet() && hiddenApps.some((k) => winsOfKey(k).some((w) => w.flashing)));
   }
 }
 
@@ -776,7 +779,7 @@ function renderApps() {
 function paintBadges() {
   if (!appsBox) return;
   const counts = new Map();
-  if (badgesOn()) for (const n of notifications.list?.() || []) if (!n.read && n.appId) counts.set(n.appId, (counts.get(n.appId) || 0) + 1);
+  if (badgesOn() && !focusQuiet()) for (const n of notifications.list?.() || []) if (!n.read && n.appId) counts.set(n.appId, (counts.get(n.appId) || 0) + 1);
   const seen = new Set();
   for (const b of appsBox.querySelectorAll(':scope > .tb-app')) {
     const id = b.dataset.app;
@@ -968,7 +971,10 @@ function renderClock() {
   // A 24-hour clock always shows two-digit hours ("00:55", like Windows in French); 12-hour keeps "9:05 AM".
   if (h24 != null ? !!h24 : is24h()) timeOpts.hour = '2-digit';
   if (settings.get('showSeconds')) timeOpts.second = '2-digit';
-  clockEl.querySelector('.tb-time').textContent = i18n.formatTime(now, timeOpts);
+  let time = i18n.formatTime(now, timeOpts);
+  // A vertical bar is narrow: the seconds may wrap onto their own line ("07:22" / ":39"), like AM/PM does.
+  if (isVertical() && timeOpts.second) time = time.replace(/([:.]\d{2})(\D*)$/, '\u200b$1$2');
+  clockEl.querySelector('.tb-time').textContent = time;
   clockEl.querySelector('.tb-date').textContent = i18n.formatDate(now, { day: '2-digit', month: '2-digit', year: 'numeric' });
   const full = i18n.formatDate(now, { dateStyle: 'full' });
   clockEl.dataset.tip = full.charAt(0).toUpperCase() + full.slice(1);
@@ -1470,7 +1476,10 @@ export const taskbar = {
     });
     // Focus mode (features/focus.js) toggles <html data-focus-simple>: running apps only, no extras.
     new MutationObserver((recs) => {
-      if (recs.some((r) => r.attributeName === 'data-focus-quiet')) renderBell();
+      if (recs.some((r) => r.attributeName === 'data-focus-quiet')) {
+        renderBell();
+        renderApps(); // badges + flashing
+      }
       if (recs.some((r) => r.attributeName === 'data-focus-simple')) {
         renderMinis();
         renderApps();

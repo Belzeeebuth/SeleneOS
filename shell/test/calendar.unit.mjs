@@ -19,6 +19,7 @@ import {
 } from '../renderer/apps/calendar/lib/events.mjs';
 import { parseIcs, serializeIcs, unfold, escapeText, unescapeText, foldLine, parseDuration } from '../renderer/apps/calendar/lib/ics.mjs';
 import { layoutColumns, packLanes } from '../renderer/apps/calendar/lib/layout.mjs';
+import { dueReminder } from '../renderer/apps/calendar/lib/store.mjs';
 import { fileURLToPath } from 'node:url';
 
 const iso = (ms) => new Date(ms).toISOString().replace('.000', '');
@@ -157,6 +158,27 @@ export function runUnitTests(check) {
   const exRem = planReminders([updateOccurrence(remEv, String(Date.UTC(2026, 9, 12, 7)), { reminder: null })], now);
   c('override can drop one reminder', exRem.length, 3);
   c('override drop skips that occurrence', exRem[0].id, `evt-r-${Date.UTC(2026, 9, 19, 7)}`);
+  // reminders whose time has passed although the event has not started (shown at once by the app)
+  const soon = sanitizeEvent({ id: 's1', start: now + 10 * 60000, end: now + 40 * 60000, reminder: 15 });
+  c('due: starts in 10 min, 15-min reminder', dueReminder(soon, now)?.key, String(now + 10 * 60000));
+  c('due: planReminders skips it (time passed)', planReminders([soon], now).length, 0);
+  c('due: 2 hours away -> not due yet', dueReminder(sanitizeEvent({ id: 's2', start: now + 2 * 3600000, end: now + 3 * 3600000, reminder: 15 }), now), null);
+  c('due: already started -> no', dueReminder(sanitizeEvent({ id: 's3', start: now - 60000, end: now + 3600000, reminder: 15 }), now), null);
+  c('due: reminder after the start -> no', dueReminder(sanitizeEvent({ id: 's4', start: now + 60000, end: now + 3600000, reminder: -15 }), now), null);
+  c('due: no reminder -> no', dueReminder(sanitizeEvent({ id: 's5', start: now + 60000, end: now + 3600000, reminder: null }), now), null);
+  const dueSeries = sanitizeEvent({ id: 's6', start: now - 7 * 86400000 + 5 * 60000, end: now - 7 * 86400000 + 35 * 60000, reminder: 30, tz: 'UTC', rrule: { freq: 'WEEKLY' } });
+  c('due: weekly series -> this week’s occurrence', dueReminder(dueSeries, now)?.start, now + 5 * 60000);
+
+  // ---------------------------------------------------------------- sanity limits
+  section = 'limits';
+  const huge = sanitizeEvent({ id: 'h', start: Date.UTC(2026, 9, 21, 8), end: 60481791363600000 });
+  c('absurd end limited to 10 years', huge.end - huge.start, 3660 * 86400000);
+  c('year 9999 start dropped', sanitizeEvent({ id: 'f', start: Date.UTC(9999, 11, 31), end: Date.UTC(9999, 11, 31, 1) }), null);
+  c('year 1800 start dropped', sanitizeEvent({ id: 'o', start: Date.UTC(1800, 0, 1), end: Date.UTC(1800, 0, 1, 1) }), null);
+  c('all-day in year 2600 dropped', sanitizeEvent({ id: 'a', allDay: true, start: '2600-01-01', end: '2600-01-02' }), null);
+  c('all-day end limited to 10 years', sanitizeEvent({ id: 'b', allDay: true, start: '2026-01-01', end: '2099-01-01' }).end, keyFromDayNum(dayNumFromKey('2026-01-01') + 3660));
+  const badOv = sanitizeEvent({ id: 'w', start: Date.UTC(2026, 0, 5, 9), end: Date.UTC(2026, 0, 5, 10), rrule: { freq: 'WEEKLY' }, overrides: { [String(Date.UTC(2026, 0, 12, 9))]: { start: 1e20, title: 'x' } } });
+  c('override with an invalid start keeps only the valid fields', badOv.overrides[String(Date.UTC(2026, 0, 12, 9))], { title: 'x' });
 
   // ---------------------------------------------------------------- holidays
   section = 'holidays';

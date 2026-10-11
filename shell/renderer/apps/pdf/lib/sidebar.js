@@ -1,6 +1,8 @@
 // Sidebar panels of one document: page thumbnails, outline (bookmarks) and attachments.
 // The window owns the sidebar frame (pivot + resize handle) and shows the active document's panels.
 
+import { saveErrorText } from './shared.js';
+
 const reduceMotion = () => document.documentElement.dataset.animations === 'off';
 
 // ====================================================================== thumbnails
@@ -399,6 +401,21 @@ export class OutlinePanel {
   }
 }
 
+/** A file name from a PDF (untrusted): no folders, no ".." tricks, no control characters, not too long. */
+export function safeName(raw) {
+  let name = String(raw || '')
+    .split(/[\\/]/)
+    .pop()
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .trim();
+  if (!name || name === '.' || name === '..') name = 'attachment';
+  if (name.length > 120) {
+    const ext = /\.[^.]{1,10}$/.exec(name)?.[0] || '';
+    name = name.slice(0, 120 - ext.length) + ext;
+  }
+  return name;
+}
+
 function countItems(list) {
   let n = 0;
   for (const it of list || []) n += 1 + countItems(it.items);
@@ -418,7 +435,7 @@ export class AttachmentsPanel {
       return;
     }
     for (const a of list) {
-      const name = String(a.filename || 'attachment').split(/[\\/]/).pop();
+      const name = safeName(a.filename);
       const ext = (/\.[^.]+$/.exec(name)?.[0] || '').toLowerCase();
       const row = h(
         'div',
@@ -489,7 +506,8 @@ export class AttachmentsPanel {
     try {
       await api.invoke('fs:writeBytes', path, await doc.attachmentBytes(a));
     } catch (err) {
-      doc.w.alert(doc.t('att.saveFailed', { name }), err?.message);
+      console.warn('[pdf] attachment save', err?.code, err?.message);
+      doc.w.alert(doc.t('att.saveFailed', { name }), saveErrorText(doc.t, err));
     }
   }
 
@@ -499,11 +517,12 @@ export class AttachmentsPanel {
     try {
       const home = await api.invoke('fs:home');
       const dir = `${home}/.cache/aurora/pdf-attachments/${Date.now().toString(36)}`;
-      const path = `${dir}/${name.replace(/[\0/]/g, '_')}`;
+      const path = `${dir}/${name}`;
       await api.invoke('fs:writeBytes', path, await doc.attachmentBytes(a));
       await shell.openFile(path);
     } catch (err) {
-      doc.w.alert(doc.t('att.openFailed', { name }), err?.message);
+      console.warn('[pdf] attachment open', err?.code, err?.message);
+      doc.w.alert(doc.t('att.openFailed', { name }), err?.code === 'EEMPTY' ? doc.t('att.empty') : saveErrorText(doc.t, err));
     }
   }
 

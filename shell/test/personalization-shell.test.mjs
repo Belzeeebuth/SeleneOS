@@ -467,7 +467,7 @@ async function checklistPart() {
 
     // ---------------- 9. Snap layout presets
     await go(s, 'snapPresets');
-    await s.page.locator(S('.pzs-snap-new')).click();
+    await s.page.locator(S('.pzs-snap-new-btn')).click();
     await s.page.waitForSelector('.pzs-snap-editor', { timeout: 5000 });
     await s.page.locator('.pzs-snap-editor .segmented button', { hasText: 'Main + side' }).click();
     await sleep(200);
@@ -606,6 +606,9 @@ const NONDEFAULT = {
   cursorPack: 'large', iconPack: 'graphite', soundPack: 'chimes', soundEvents: { notification: 'retro.notify', startup: 'none', shutdown: 'soft.shutdown' },
   snapPresets: [{ id: 's-p1', name: 'Wide', zones: [{ x: 0, y: 0, w: 0.7, h: 1 }, { x: 0.7, y: 0, w: 0.3, h: 1 }] }],
   shortcuts: { files: 'Ctrl+Alt+E', lock: null }, desktopIconSize: 'large',
+  // B3 (test/packs-input.test.mjs checks them in depth)
+  cursorSize: 150, soundVolume: 60, startupSound: false, snapLayouts: ['quad', 's-p1', 'halves'],
+  'multitasking.snapLayouts': false, 'multitasking.snapBar': false, 'multitasking.snapAssist': false,
 };
 async function profilesPart() {
   console.log('\n# Profiles: every key saved and restored');

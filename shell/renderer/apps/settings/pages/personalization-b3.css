@@ -1,0 +1,276 @@
+/* Settings > Personalization: cursor / icon / sound packs, keyboard shortcuts, snap layouts (area B3, pzb-*).
+   Loaded by pages/personalization-packs.js and personalization-input.js next to personalization-shell.css (pzs-*). */
+
+.app-settings .pzb-note {
+  margin: 0 0 8px;
+}
+.app-settings .pzb-pad {
+  padding: 4px 0 2px;
+}
+
+/* ---------- cursors: every pointer of the pack ---------- */
+.app-settings .pzb-cursor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+}
+.app-settings .pzb-cursor-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 6px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+  text-align: center;
+}
+.app-settings .pzb-cursor-cell:hover {
+  border-color: var(--accent);
+  background: var(--card-hover);
+}
+.app-settings .pzb-cursor-img {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-sm);
+  /* a mid-tone backdrop: white and black pointers both read on it */
+  background: linear-gradient(135deg, #8aa6c4, #c9d6e3);
+  color: #1a1a1a;
+}
+.app-settings .pzb-cursor-img img {
+  image-rendering: auto;
+}
+.app-settings .pzb-cursor-name {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+/* ---------- icon packs: where they appear ---------- */
+.app-settings .pzb-icon-scene {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-card);
+  background: linear-gradient(140deg, #2d5f8f 0%, #5e7fb3 45%, #b48ac8 100%);
+}
+.app-settings .pzb-desk {
+  display: flex;
+  gap: 18px;
+  padding: 14px 16px 18px;
+  min-height: 92px;
+}
+.app-settings .pzb-desk-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 76px;
+  color: #fff;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.app-settings .pzb-desk-icon .caption {
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+.app-settings .pzb-tb {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  height: 44px;
+  background: color-mix(in srgb, var(--solid) 82%, transparent);
+  border-top: 1px solid var(--stroke);
+}
+.app-settings .pzb-tb-start,
+.app-settings .pzb-tb-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  color: var(--accent-text);
+}
+.app-settings .pzb-tb-btn:first-of-type {
+  background: var(--subtle-hover);
+}
+
+/* ---------- sounds ---------- */
+.app-settings .pzb-pack-sounds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0;
+}
+.app-settings .pzb-pack-sound {
+  gap: 6px;
+}
+.pzb-sound-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(460px, 76vw);
+  max-height: min(56vh, 520px);
+  overflow: auto;
+  padding-right: 4px;
+}
+.pzb-sound-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pzb-sound-pack {
+  padding: 4px 0;
+}
+.pzb-sound-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 4px 0 8px;
+  border-radius: var(--radius-sm);
+}
+.pzb-sound-item:hover {
+  background: var(--subtle-hover);
+}
+.pzb-sound-item .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- keyboard shortcuts ---------- */
+.pzs-keys.pending kbd {
+  border-style: dashed;
+}
+.pzs-keys kbd.pzb-more {
+  min-width: 0;
+  color: var(--text-3, var(--text-2));
+}
+.pzb-rec-def:empty {
+  display: none;
+}
+.app-settings .pzb-sc-appicon {
+  flex: none;
+}
+.app-settings .pzb-sc-addrow {
+  display: flex;
+  padding: 8px 0 2px;
+}
+.pzb-app-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  gap: 4px;
+  width: min(560px, 76vw);
+  max-height: min(56vh, 480px);
+  overflow: auto;
+}
+.pzb-app-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.pzb-app-item:hover {
+  background: var(--subtle-hover);
+}
+.pzb-app-item:focus-visible {
+  border-color: var(--accent);
+}
+
+/* ---------- snap layouts ---------- */
+.app-settings .pzb-layouts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-settings .pzb-layout-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke-card);
+  background: var(--card);
+}
+.app-settings .pzb-layout-row .pzs-layout-pv {
+  flex: none;
+  width: 72px;
+}
+.app-settings .pzb-layout-row.hidden-layout .pzs-layout-pv i {
+  background-color: color-mix(in srgb, var(--text) 16%, transparent);
+}
+.app-settings .pzb-layout-row.hidden-layout .pzb-layout-name {
+  color: var(--text-2);
+}
+.app-settings .pzb-layout-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.app-settings .pzb-layout-name {
+  font-weight: 600;
+}
+.app-settings .pzb-layout-row .pzs-list-btns {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.app-settings .pzb-layout-row .toggle {
+  margin-left: 8px;
+}
+.app-settings .pzb-snap-toolbar {
+  margin: 0 0 8px;
+}
+.pzb-split-pv {
+  overflow: hidden;
+}
+.pzb-split-zone {
+  position: absolute;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 4px;
+  background-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+.pzb-split-zone:hover {
+  background-color: color-mix(in srgb, var(--accent) 48%, transparent);
+}
+.pzb-split-zone.selected {
+  background-color: var(--accent);
+  color: var(--on-accent);
+  box-shadow: inset 0 0 0 2px var(--accent-hover);
+}
+.pzb-split-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pzb-split-btns .btn {
+  gap: 6px;
+}
+@media (max-width: 700px) {
+  .app-settings .pzb-layout-row {
+    flex-wrap: wrap;
+  }
+}

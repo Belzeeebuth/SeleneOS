@@ -19,6 +19,7 @@ import { settings } from './settings.js';
 import { theme, STYLES, FONTS } from './theme.js';
 import { EFFECT_IDS, SET_IDS } from './wallpaper/dynamic.js';
 import { i18n } from './i18n.js';
+import { SHORTCUT_IDS, isAppAction, validCombo } from './shortcuts.js';
 
 /** Every settings key a profile saves and restores (dotted keys are sub-keys). */
 export const PROFILE_KEYS = [
@@ -33,7 +34,8 @@ export const PROFILE_KEYS = [
   'start.layout', 'start.background', 'start.folders', 'start.groups', 'startShowRecent', 'focusMode',
   'taskbar.tray', 'taskbar.badges', 'taskbar.widgetsPos', 'taskbar.hideDelay', 'showSeconds', 'start.showRecentApps', 'start.showMostUsed',
   // packs + input (B3)
-  'cursorPack', 'iconPack', 'soundPack', 'soundEvents', 'snapPresets', 'shortcuts',
+  'cursorPack', 'cursorSize', 'iconPack', 'soundPack', 'soundEvents', 'soundVolume', 'startupSound', 'snapPresets', 'snapLayouts',
+  'multitasking.snapLayouts', 'multitasking.snapBar', 'multitasking.snapAssist', 'shortcuts',
   // desktop
   'desktopIconSize',
 ];
@@ -121,6 +123,14 @@ const soundRef = (v) => (v === null || v === 'none' ? v : slug(v) ?? (/\.(ogg|og
 /** A keyboard combo in main/lib/hotkeys.js syntax ("Super+Shift+S"), or null (= turned off). */
 const combo = (v) => (v === null ? null : typeof v === 'string' && /^[^\s<>"'`(){}\\\u0000-\u001f\u007f]{1,48}$/u.test(v) ? v : undefined);
 const zone = shape({ x: num(0, 1), y: num(0, 1), w: num(0.02, 1), h: num(0.02, 1) }, { required: ['x', 'y', 'w', 'h'] });
+/** Split tree of a custom snap layout (Settings editor): null = one zone, or { s: 'v'|'h', r: 0.1–0.9, a, b }. */
+function splitTree(v, depth = 0, count = { n: 0 }) {
+  if (v === null || v === undefined) return ++count.n <= 16 ? null : undefined;
+  if (!isObj(v) || depth > 5 || (v.s !== 'v' && v.s !== 'h') || typeof v.r !== 'number' || !(v.r >= 0.1 && v.r <= 0.9)) return undefined;
+  const a = splitTree(v.a ?? null, depth + 1, count);
+  const b = splitTree(v.b ?? null, depth + 1, count);
+  return a === undefined || b === undefined ? undefined : { s: v.s, r: Math.round(v.r * 1000) / 1000, a, b };
+}
 function wallpaperValue(v) {
   if (typeof v !== 'string' || !v || v.length > 8192) return undefined;
   if (/^builtin:[a-z0-9-]{1,32}$/.test(v)) return v;
@@ -227,17 +237,36 @@ export const VALIDATORS = {
   // B3 — packs and input (ids of core/packs.js CURSOR_PACKS / ICON_PACKS and core/sounds.js SOUND_PACKS; listed here
   // so this module does not import the shell runtime)
   cursorPack: oneOf('default', 'classic', 'midnight', 'accent', 'large', 'highvis', 'retro'),
-  iconPack: oneOf('fluent', 'tiles', 'accent', 'graphite', 'outline'),
+  cursorSize: int(100, 300),
+  iconPack: oneOf('fluent', 'tiles', 'accent', 'glass', 'graphite', 'mono', 'outline', 'retro'),
   soundPack: oneOf('aurora', 'chimes', 'retro', 'soft', 'silent'),
   soundEvents: shape({ notification: soundRef, startup: soundRef, shutdown: soundRef }),
-  snapPresets: arrayOf(shape({ id: slug, name: text(60), zones: arrayOf((z) => { const o = zone(z); return o && o.x + o.w <= 1.001 && o.y + o.h <= 1.001 ? o : undefined; }, 16) }, { required: ['id', 'zones'] }), 32),
+  soundVolume: int(0, 100),
+  startupSound: bool,
+  snapPresets: arrayOf(
+    shape(
+      {
+        id: slug,
+        name: text(60),
+        zones: arrayOf((z) => { const o = zone(z); return o && o.x + o.w <= 1.001 && o.y + o.h <= 1.001 ? o : undefined; }, 16),
+        spec: shape({ kind: oneOf('columns', 'rows', 'main', 'grid', 'custom'), count: int(1, 6), ratio: int(10, 90), side: oneOf('left', 'right'), rows: int(1, 6), tree: splitTree }),
+      },
+      { required: ['id', 'zones'] },
+    ),
+    32,
+  ),
+  snapLayouts: (v) => (v === null ? null : arrayOf(slug, 32)(v)),
+  'multitasking.snapLayouts': bool,
+  'multitasking.snapBar': bool,
+  'multitasking.snapAssist': bool,
+  // catalog actions of core/shortcuts.js and 'app:<appId>'; combos checked with the same rules as Settings
   shortcuts: (v) => {
     if (!isObj(v)) return undefined;
     const out = {};
     for (const [id, c] of Object.entries(v).slice(0, 300)) {
-      if (!/^[a-z0-9][\w.:-]{0,63}$/i.test(id) || UNSAFE_KEYS.has(id)) continue;
+      if (UNSAFE_KEYS.has(id) || !(SHORTCUT_IDS.has(id) || isAppAction(id))) continue;
       const x = combo(c);
-      if (x !== undefined) out[id] = x;
+      if (x === null || (x !== undefined && validCombo(x))) out[id] = x;
     }
     return out;
   },

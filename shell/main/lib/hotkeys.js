@@ -55,12 +55,13 @@ function comboOf(input) {
 }
 
 // Extra combos the user bound to shell actions (Settings > Keyboard shortcuts, e.g. "Ctrl+Alt+T"), sent by the
-// shell renderer with hotkeys:setCustom. Each needs Ctrl or Alt (Shift alone would steal typing) or is F13–F24.
+// shell renderer with hotkeys:setCustom. Each needs Ctrl+Alt together or is F13–F24 (with or without modifiers):
+// a plain Ctrl+C, Alt+F or Shift+A must keep reaching the apps and web pages. (Super combos are always forwarded.)
 const CUSTOM = new Set();
 const CUSTOM_RE = /^(Ctrl\+)?(Alt\+)?(Shift\+)?([A-Z0-9]|[-=;/[\]]|F([1-9]|1[0-9]|2[0-4])|Arrow(Left|Right|Up|Down)|Home|End|PageUp|PageDown|Insert|Delete|Space|Tab|Escape|Enter|Backspace|Period|Comma|Pause)$/;
 function validCustom(c) {
   if (typeof c !== 'string' || c.length > 48 || !CUSTOM_RE.test(c)) return false;
-  return /^(Ctrl|Alt)\+/.test(c) || /\bAlt\+/.test(c) || /^F(1[3-9]|2[0-4])$/.test(c);
+  return /^Ctrl\+Alt\+/.test(c) || /(^|\+)F(1[3-9]|2[0-4])$/.test(c);
 }
 
 // Is this combo a system hotkey (forwarded to the shell)?
