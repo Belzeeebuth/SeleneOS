@@ -7,7 +7,7 @@ Every new app follows the app contract in [docs/DEVELOPING.md](docs/DEVELOPING.m
 under `shell/renderer/apps/<id>/` with a manifest, EN + FR strings, an original Fluent-style icon,
 light and dark themes, and a Playwright test in `shell/test/<id>.test.mjs`.
 
-## Phase 1 — Core apps (in progress)
+## Phase 1 — Core apps (done, 2026-10-11)
 
 | App | id | Notes |
 |---|---|---|
@@ -19,7 +19,10 @@ light and dark themes, and a Playwright test in `shell/test/<id>.test.mjs`.
 | PDF Reader | `pdf` | pdf.js (`pdfjs-dist`), thumbnails, search, zoom, rotate, print-free, highlights/notes |
 | Archive Manager | `archive` | zip / tar / tar.gz / tar.xz / 7z / rar (read) via libarchive `bsdtar` + `7z` |
 
-## Phase 2 — Media and productivity (next)
+All seven are built and independently verified, each with its own test suite (`shell/test/<id>.test.mjs`;
+Calendar and Notes also have `*.unit.mjs`).
+
+## Phase 2 — Media and productivity (next — waits for the user's go)
 
 | App | id (planned) | Notes for later |
 |---|---|---|
