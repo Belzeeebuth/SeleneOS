@@ -997,6 +997,10 @@ clamp_mtimes() { # dir
 
 cleanup_image() {
   log "cleaning the image"
+  # Packages shipped in the image: the Store never removes them (aurora-admin store-remove).
+  mkdir -p "$ROOT/usr/share/aurora/store"
+  in_chroot "$ROOT" dpkg-query -W --showformat='${Package}\n' | LC_ALL=C sort -u >"$ROOT/usr/share/aurora/store/base-packages.txt"
+  chmod 644 "$ROOT/usr/share/aurora/store/base-packages.txt"
   write_final_sources "$ROOT"
   apt_net_off "$ROOT"
   rm -rf "$ROOT"/var/lib/apt/lists/* "$ROOT"/var/cache/apt/*.bin "$ROOT"/var/cache/apt/archives/*.deb

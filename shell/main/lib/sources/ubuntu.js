@@ -27,6 +27,13 @@ const MAX_FILE = 64 * 1024 * 1024;
 const FIXTURE_DIR = path.join(__dirname, '..', '..', '..', 'test', 'fixtures', 'store-ubuntu');
 const MAIN_CATEGORIES = ['AudioVideo', 'Development', 'Education', 'Game', 'Graphics', 'Network', 'Office', 'Science', 'Settings', 'System', 'Utility'];
 const CATEGORY_ALIASES = { Audio: 'AudioVideo', Video: 'AudioVideo' };
+// refresh() errors: err.code + a message in the shell language (status() returns both).
+const ERRORS = {
+  ENOSOURCES: { en: 'No Ubuntu archive is configured in the APT sources', fr: 'Aucune archive Ubuntu n’est configurée dans les sources APT' },
+  ENETWORK: { en: 'Could not download the Ubuntu catalogue (check the network connection)', fr: 'Impossible de télécharger le catalogue Ubuntu (vérifiez la connexion réseau)' },
+  ENODATA: { en: 'The Ubuntu archive has no AppStream data', fr: 'L’archive Ubuntu ne fournit pas de données AppStream' },
+  EHELPER: { en: 'Could not read the Ubuntu catalogue', fr: 'Impossible de lire le catalogue Ubuntu' },
+};
 
 // ------------------------------------------------------------------ parsers (unit-tested)
 
@@ -186,6 +193,7 @@ const state = {
   refreshing: null,
   phase: null,
   error: null,
+  errorCode: null,
   installed: { at: 0, map: new Map() },
 };
 
@@ -338,8 +346,12 @@ function runHelper(sources, onProgress) {
     child.stderr.on('data', (d) => {
       err = (err + d).slice(-4000);
     });
-    child.on('error', reject);
-    child.on('close', (code) => (code === 0 ? resolve() : reject(new Error((err.trim().split('\n').pop() || `aurora-catalog-apt exited with ${code}`).replace(/^aurora-catalog-apt:\s*/, '')))));
+    child.on('error', (e) => reject(Object.assign(e, { code: 'EHELPER' })));
+    child.on('close', (code) => {
+      if (code === 0) return resolve();
+      const detail = (err.trim().split('\n').pop() || `aurora-catalog-apt exited with ${code}`).replace(/^aurora-catalog-apt:\s*/, '');
+      reject(Object.assign(new Error(`${ERRORS.EHELPER[lang()]}: ${detail.slice(0, 200)}`), { code: 'EHELPER' }));
+    });
   });
 }
 
@@ -359,7 +371,7 @@ async function doRefresh(onProgress) {
   } else {
     emit({ phase: 'sources', percent: 0 });
     const plan = planDownloads(readSources(), aptArch());
-    if (!plan.length) throw Object.assign(new Error('no Ubuntu archive is configured in the APT sources'), { code: 'ENOSOURCES' });
+    if (!plan.length) throw Object.assign(new Error(ERRORS.ENOSOURCES[lang()]), { code: 'ENOSOURCES' });
     const dl = path.join(cacheDir(), 'dl');
     fs.mkdirSync(dl, { recursive: true });
     const metaFile = path.join(dl, 'meta.json');
@@ -414,7 +426,10 @@ async function doRefresh(onProgress) {
       meta.__sources = signature;
       fs.writeFileSync(metaFile, JSON.stringify(meta));
     };
-    if (!sources.length) throw Object.assign(new Error(failures ? 'could not download the Ubuntu catalogue (check the network connection)' : 'the Ubuntu archive has no AppStream data'), { code: 'ENETWORK' });
+    if (!sources.length) {
+      const code = failures ? 'ENETWORK' : 'ENODATA';
+      throw Object.assign(new Error(ERRORS[code][lang()]), { code });
+    }
   }
   await runHelper(sources, (p) => emit({ phase: p.phase, percent: p.percent }));
   try {
@@ -432,9 +447,11 @@ function refresh(onProgress) {
     return state.refreshing;
   }
   state.error = null;
+  state.errorCode = null;
   state.refreshing = doRefresh(onProgress)
     .catch((e) => {
       state.error = e.message || String(e);
+      state.errorCode = /^E[A-Z]{2,15}$/.test(e?.code || '') ? e.code : null;
       throw e;
     })
     .finally(() => {
@@ -499,6 +516,7 @@ module.exports = {
     const out = { available, ready: !!cat, updatedAt: cat ? cat.updatedAt : null, count: cat ? cat.items.length : 0, live: !!state.ctx?.api?.env?.live, refreshing: !!state.refreshing };
     if (state.phase) out.phase = state.phase;
     if (state.error) out.error = state.error;
+    if (state.errorCode) out.errorCode = state.errorCode;
     return out;
   },
   refresh,

@@ -50,7 +50,7 @@ const ID = /^[a-z0-9][a-z0-9+._-]{0,62}$/;
 const CATEGORIES = new Set(['development', 'editors', 'shells', 'system', 'utilities', 'multimedia', 'network', 'graphics', 'office']);
 const DESKTOP = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.desktop$/;
 const APPID = /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$/;
-const FLATPAK_ID = /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+){2,}$/;
+const FLATPAK_ID = /^[A-Za-z0-9_][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+){2,}$/; // never a leading '-' (would read as an option)
 // AppStream ids of the curated GUI apps whose .desktop file name is not their component id (merge key).
 const SELENE_APPID = {
   gimp: 'org.gimp.GIMP',

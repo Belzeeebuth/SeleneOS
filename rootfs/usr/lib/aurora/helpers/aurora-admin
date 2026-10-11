@@ -398,6 +398,8 @@ store-install | store-remove)
   need_args $# 1
   pkg=$1
   [[ $pkg =~ ^[a-z0-9][a-z0-9+.-]{1,62}$ ]] || die 2 "invalid package name"
+  # A trailing '-' would turn "apt-get install <pkg>" into a removal.
+  [[ $pkg == *- ]] && die 2 "invalid package name"
   STORE_CATALOG=/usr/share/aurora/store/catalog.json
   { [ -f "$STORE_CATALOG" ] && [ ! -L "$STORE_CATALOG" ]; } || die 3 "the store catalog is missing"
   [ "$(stat -c %u -- "$STORE_CATALOG")" = 0 ] || die 4 "the store catalog is not owned by root"
@@ -411,9 +413,9 @@ sys.exit(1)' "$STORE_CATALOG" "$pkg") || store_kind=""
   # store_dep11_has <package> <lists dir>: true when a root-owned regular DEP-11 Components file of <lists dir>
   # lists <package> as a desktop application (shell/test/store-ubuntu.test.mjs runs this function on a test dir).
   store_dep11_has() {
-    python3 -I -c 'import glob, gzip, os, stat, sys
+    python3 -I -c 'import glob, gzip, lzma, os, stat, sys
 pkg, top = sys.argv[1], sys.argv[2]
-for path in sorted(glob.glob(os.path.join(top, "*_dep11_Components-*.yml.gz"))):
+for path in sorted(glob.glob(os.path.join(top, "*_dep11_Components-*.yml.gz")) + glob.glob(os.path.join(top, "*_dep11_Components-*.yml.xz"))):
     try:
         st = os.lstat(path)
     except OSError:
@@ -422,7 +424,7 @@ for path in sorted(glob.glob(os.path.join(top, "*_dep11_Components-*.yml.gz"))):
         continue
     kind = name = None
     try:
-        with gzip.open(path, "rt", encoding="utf-8", errors="replace") as f:
+        with (lzma if path.endswith(".xz") else gzip).open(path, "rt", encoding="utf-8", errors="replace") as f:
             for line in f:
                 if line.startswith("---"):
                     kind = name = None
@@ -435,7 +437,7 @@ for path in sorted(glob.glob(os.path.join(top, "*_dep11_Components-*.yml.gz"))):
                     continue
                 if kind == "desktop-application" and name == pkg:
                     sys.exit(0)
-    except (OSError, EOFError, ValueError):
+    except (OSError, EOFError, ValueError, lzma.LZMAError):
         continue
 sys.exit(1)' "$1" "$2"
   }
@@ -453,6 +455,9 @@ sys.exit(1)' "$1" "$2"
   export DEBIAN_FRONTEND=noninteractive
   if [ "$ACTION" = store-install ]; then
     store_apt_install() {
+      # Never take other packages along: apt-get -y install removes the installed packages that conflict.
+      store_others=$(apt-get -s -q -o DPkg::Lock::Timeout=120 --no-install-recommends install "$pkg" 2>/dev/null | awk '$1 == "Remv" { printf "%s ", $2 }') || true
+      [ -z "$store_others" ] || die 6 "installing $pkg would remove: ${store_others% }"
       apt-get -q -y -o DPkg::Lock::Timeout=120 --no-install-recommends \
         -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold \
         -o APT::Status-Fd=3 install "$pkg" 3>&1 1>&2
@@ -464,6 +469,13 @@ sys.exit(1)' "$1" "$2"
     fi
   else
     [ "$store_kind" = fixed ] && die 6 "$pkg is part of Selene OS and cannot be removed from the Store"
+    # Packages shipped in the image (list written by the ISO build) are never removed from the Store, even when
+    # they are desktop applications of the Ubuntu catalogue.
+    STORE_BASE=/usr/share/aurora/store/base-packages.txt
+    if [ -f "$STORE_BASE" ] && [ ! -L "$STORE_BASE" ] && [ "$(stat -c %u -- "$STORE_BASE")" = 0 ] \
+       && grep -qxF -- "$pkg" "$STORE_BASE"; then
+      die 6 "$pkg is part of Selene OS and cannot be removed from the Store"
+    fi
     # Never take other packages along (apt removes everything that depends on $pkg without asking).
     store_others=$(apt-get -s -q -o DPkg::Lock::Timeout=120 remove "$pkg" 2>/dev/null | awk -v p="$pkg" '$1 == "Remv" && $2 != p { printf "%s ", $2 }') || true
     [ -z "$store_others" ] || die 6 "removing $pkg would also remove: ${store_others% }"

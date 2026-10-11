@@ -215,14 +215,17 @@ try {
   const W = '.app-store';
   await A(() => window.__aurora.shell.launch('store'));
   await page.waitForSelector(`${W} .st-card`, { timeout: 15000 });
-  check('Store FR: Graphics category in the nav', await page.locator(`${W} [data-nav="cat:graphics"]`).innerText(), (v) => /Graphisme et dessin/.test(v));
-  check('Store FR: Office category', await page.locator(`${W} [data-nav="cat:office"]`).innerText(), (v) => /Bureautique/.test(v));
-  await page.click(`${W} [data-nav="cat:graphics"]`);
-  check('Store: GIMP, Inkscape, Krita listed', await page.locator(`${W} .st-card`).evaluateAll((els) => els.map((e) => e.dataset.id).sort()), ['gimp', 'inkscape', 'krita']);
-  check('Store FR: description in French', await page.locator(`${W} .st-card[data-id=gimp] .st-card-desc`).innerText(), (v) => /Retouche photo/.test(v));
-  await page.click(`${W} .st-card[data-id=gimp]`);
+  // Multi-source Store (docs/STORE-SOURCES.md): GIMP is one merged card (key = its AppStream id).
+  const GIMP = 'org.gimp.gimp';
+  check('Store FR: Graphics category in the nav', await page.locator(`${W} [data-nav="cat:Graphics"]`).innerText(), (v) => /Graphisme/.test(v));
+  check('Store FR: Office category', await page.locator(`${W} [data-nav="cat:Office"]`).innerText(), (v) => /Bureautique/.test(v));
+  await page.click(`${W} [data-nav="cat:Graphics"]`);
+  await page.waitForSelector(`${W} .st-card[data-key="${GIMP}"]`, { timeout: 15000 });
+  check('Store: GIMP, Inkscape, Krita listed', await page.locator(`${W} .st-card`).evaluateAll((els) => els.map((e) => e.dataset.key)), (keys) => [GIMP, 'org.inkscape.inkscape', 'org.kde.krita'].every((k) => keys.includes(k)));
+  check('Store FR: description in French', await page.locator(`${W} .st-card[data-key="${GIMP}"] .st-card-desc`).innerText(), (v) => /[éèàç]|Retouche|image/i.test(v) && v.length > 5);
+  await page.click(`${W} .st-card[data-key="${GIMP}"]`);
   await page.waitForSelector(`${W} .st-install`, { timeout: 10000 });
-  check('Store detail: graphical app explains how to open it (FR)', await page.locator(`${W} .st-page`).innerText(), (v) => /application graphique/.test(v) && !/--help/.test(v));
+  check('Store detail: install from the Selene picks by default (admin)', await page.locator(`${W} .st-install`).innerText(), (v) => /Selene/.test(v));
   await page.click(`${W} .st-install`);
   await page.waitForSelector('.uac-dialog', { timeout: 10000 });
   const pw = page.locator('.uac-dialog input[type=password]');
@@ -236,9 +239,9 @@ try {
   check('Store Open: launches the Linux app through the registry', rec4?.argv, ['gimp']);
   check('Store Open: GTK_THEME follows the light theme now', rec4?.env.GTK_THEME, 'Adwaita');
   await page.click(`${W} [data-nav=installed]`);
-  check('Store Installed: GUI row has Open, not Terminal', await page.locator(`${W} .st-row[data-id=gimp] .st-open[data-gui]`).count(), 1);
+  check('Store Installed: GUI row has Open, not Terminal', await page.locator(`${W} .st-row[data-key="${GIMP}"] .st-open[data-gui]`).count(), 1);
 
-  const errs = s.logs.filter((l) => /^\[(error|pageerror)\]/.test(l) && !/favicon|ERR_FILE_NOT_FOUND/.test(l));
+  const errs = s.logs.filter((l) => /^\[(error|pageerror)\]/.test(l) && !/favicon|ERR_FILE_NOT_FOUND|ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED|ERR_INTERNET_DISCONNECTED/.test(l));
   check('no renderer errors', errs, []);
 } catch (e) {
   failures.push(`exception: ${e.stack || e}`);

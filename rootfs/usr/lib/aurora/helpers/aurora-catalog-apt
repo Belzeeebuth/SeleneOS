@@ -41,6 +41,10 @@ def say(*parts):
     print(*parts, flush=True)
 
 
+def as_list(v):
+    return v if isinstance(v, list) else []
+
+
 def text(v, limit=4000):
     return v.strip()[:limit] if isinstance(v, str) else ''
 
@@ -119,8 +123,8 @@ def icon_name(icon):
     """The cached 64x64 icon file name (falls back to any cached size: the 64x64 tarball usually has it)."""
     if not isinstance(icon, dict):
         return None
-    cached = [c for c in (icon.get('cached') or []) if isinstance(c, dict) and isinstance(c.get('name'), str)]
-    for c in sorted(cached, key=lambda c: (c.get('width') != 64, int(c.get('scale') or 1) != 1)):
+    cached = [c for c in as_list(icon.get('cached')) if isinstance(c, dict) and isinstance(c.get('name'), str)]
+    for c in sorted(cached, key=lambda c: (c.get('width') != 64, str(c.get('scale') or 1) != '1')):
         if ICON_NAME.match(c['name']):
             return c['name']
     return None
@@ -158,10 +162,10 @@ def component(doc, base):
     if not name.get('C'):
         return None
     launch = doc.get('Launchable') if isinstance(doc.get('Launchable'), dict) else {}
-    desktop = next((d for d in (launch.get('desktop-id') or []) if isinstance(d, str) and DESKTOP_ID.match(d)), None)
+    desktop = next((d for d in as_list(launch.get('desktop-id')) if isinstance(d, str) and DESKTOP_ID.match(d)), None)
     url = doc.get('Url') if isinstance(doc.get('Url'), dict) else {}
     homepage = url.get('homepage') if isinstance(url.get('homepage'), str) and re.match(r'^https?://', url.get('homepage')) else ''
-    cats = [c for c in (doc.get('Categories') or []) if isinstance(c, str) and re.match(r'^[A-Za-z0-9-]{1,40}$', c)][:12]
+    cats = [c for c in as_list(doc.get('Categories')) if isinstance(c, str) and re.match(r'^[A-Za-z0-9-]{1,40}$', c)][:12]
     app_id = re.sub(r'\.desktop$', '', cid.strip())[:255]
     return {
         'package': pkg,
@@ -215,9 +219,10 @@ def parse_file(path, on_doc=None):
             continue
         try:
             doc = yaml.load(raw, Loader=Loader)
-        except yaml.YAMLError:
+            # malformed data (a number where a list is expected, a bad icon scale...) skips this one component
+            app = component(doc, base)
+        except (yaml.YAMLError, TypeError, ValueError, AttributeError, KeyError, RecursionError):
             continue
-        app = component(doc, base)
         if app:
             apps.append(app)
         if on_doc:

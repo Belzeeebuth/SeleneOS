@@ -201,6 +201,7 @@ for b in /usr/bin/flatpak /usr/libexec/xdg-desktop-portal /usr/libexec/xdg-deskt
   [[ -x "$S$b" ]] && pass "image has $b (Store sources)" || fail "image lacks $b (Store sources: rebuild with --from packages)"
 done
 [[ -f "$S/etc/apt/apt.conf.d/50appstream" ]] && pass "apt downloads AppStream metadata (50appstream)" || fail "apt.conf.d/50appstream missing: the Store cannot verify Ubuntu catalogue packages"
+[[ -s "$S/usr/share/aurora/store/base-packages.txt" ]] && pass "Store base package list present (image packages are never removed from the Store)" || fail "usr/share/aurora/store/base-packages.txt missing"
 compgen -G "$S/usr/lib/python3/dist-packages/yaml/__init__.py" >/dev/null && pass "python3-yaml is installed (Ubuntu catalogue)" || fail "python3-yaml is missing (Ubuntu catalogue)"
 bad="$(find "$S/usr/bin" "$S/usr/lib/aurora" -maxdepth 1 -name 'aurora-*' -type f ! -perm -0755 ! -name aurora-common | sed "s|^$S||")"
 [[ -z "$bad" ]] && pass "session entry points are executable" || fail "not executable: $bad"
