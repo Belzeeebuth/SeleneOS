@@ -823,6 +823,16 @@ async function lockTests(theme, lang) {
   await page.waitForTimeout(900);
   check(await visible(page, '.lk-switch'), '"Switch user" bottom-left');
   check(!(await visible(page, '.lk-ind')), 'no language switcher on the lock screen');
+  const room = await page.evaluate(() => {
+    const card = document.querySelector('.lk-card').getBoundingClientRect();
+    const link = [...document.querySelectorAll('.lk-link')].find((e) => e.offsetParent)?.getBoundingClientRect();
+    return link ? Math.round(card.bottom - link.bottom) : -1;
+  });
+  check(room >= 0 && room <= 48, `unlock card ends just under "I forgot my password" (${room}px)`);
+  check(await page.evaluate(() => {
+    const hh = document.querySelector('.lk-time .lk-hh');
+    return !!hh && /proportional-nums/.test(getComputedStyle(hh).fontVariantNumeric) && /^\d{1,2}$/.test(hh.textContent);
+  }), 'the clock hour uses proportional figures (a one-digit hour lines up with the date)');
   await shot(page, `lock-signin-${theme}-${lang}`);
   await page.keyboard.type('wrong');
   await page.keyboard.press('Enter');

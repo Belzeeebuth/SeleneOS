@@ -4,8 +4,9 @@
 //   close button on hover, right-click for Snap / Move to desktop / Close; arrow keys + Enter / Delete,
 //   Esc or Super+Tab exits.
 //   Top strip: one card per desktop (live miniature of its windows, name under it, the current one
-//   highlighted) and a discreet round "+" at the end. Hover a card to preview that desktop's windows,
-//   click to switch, click the name (or right-click) to rename inline, X to close it (its windows move to
+//   highlighted) and a discreet round "+" at the end. With a single desktop the strip is compact (72 px, no
+//   divider): a small chip for the desktop and a "+ New desktop" button, and the windows hang just under it.
+//   Hover a card to preview that desktop's windows, click to switch, click the name (or right-click) to rename inline, X to close it (its windows move to
 //   the neighbour). Drag a window onto a desktop card (or the "+") to move it there.
 //   Super+Ctrl+←/→ switch desktops (with a slide animation and a name pill), Super+Ctrl+D new desktop,
 //   Super+Ctrl+F4 closes the current one. Desktop names persist in storage 'shell' / 'desktops'.

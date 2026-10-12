@@ -32,6 +32,11 @@ const SVGNS = 'http://www.w3.org/2000/svg';
 export function createChrome(app) {
   const { h, icon, ui } = app.ctx;
   const t = (k, v) => app.ctx.t(k, v);
+  // Locale-aware zoom percentage ("70.8%" in English, "70,8 %" in French).
+  const pct = (z) => {
+    const r = Math.round(z * 1000) / 1000;
+    try { return app.ctx.i18n.formatNumber(r, { style: 'percent', maximumFractionDigits: 1 }); } catch { return `${r * 100}%`; }
+  };
   const S = app.S;
   const refs = {};
   let flyoutState = null;
@@ -778,7 +783,7 @@ export function createChrome(app) {
       { class: 'pt-zoom-presets', role: 'group', 'aria-label': t('view.zoomLevel') },
       [8, 6, 4, 3, 2, 1, 0.5, 0.25, 0.125].map((z) => {
         const on = Math.abs(app.zoom() - z) < 1e-6;
-        return h('button', { type: 'button', class: ['pt-zoom-preset', on && 'on'], 'aria-pressed': String(on), onclick: () => (app.setZoom(z), closeFlyout()) }, `${z * 100}%`);
+        return h('button', { type: 'button', class: ['pt-zoom-preset', on && 'on'], 'aria-pressed': String(on), onclick: () => (app.setZoom(z), closeFlyout()) }, pct(z));
       }),
     );
     const fit = h('button', { type: 'button', class: 'pt-zoom-preset pt-zoom-fitp', onclick: () => (app.cmd('zoomFit'), closeFlyout()) }, icon('zoom_fit', { size: 16 }), h('span', null, t('view.fit')));
@@ -912,9 +917,9 @@ export function createChrome(app) {
       }
     },
     setZoom(z) {
-      refs.zoomBtn.querySelector('.pt-zoom-txt').textContent = `${Math.round(z * 1000) / 10}%`;
+      refs.zoomBtn.querySelector('.pt-zoom-txt').textContent = pct(z);
       refs.zoomSlider.setValue(zoomToSlider(z));
-      refs.zoomBtn.setAttribute('aria-label', `${t('view.zoomLevel')} ${Math.round(z * 1000) / 10}%`);
+      refs.zoomBtn.setAttribute('aria-label', `${t('view.zoomLevel')} ${pct(z)}`);
     },
     fileSize: () => refs.fileSize || '',
     update() {

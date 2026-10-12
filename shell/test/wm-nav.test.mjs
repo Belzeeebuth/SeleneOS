@@ -447,6 +447,15 @@ async function mainRun() {
       });
       check('Task View cards do not overlap and stay on screen', !overlap);
       check('Task View animates the real window elements', await A(() => window.__aurora.wm.list().every((w) => w.el.classList.contains('tv-win') && w.el.style.transform.includes('scale'))));
+      const solo = await A(() => {
+        const st = document.querySelector('.tv-strip');
+        const r = st.getBoundingClientRect();
+        const label = document.querySelector('.tv-new .tv-new-label');
+        const top = Math.min(...[...document.querySelectorAll('.tv-card')].map((c) => c.getBoundingClientRect().top));
+        return { solo: st.classList.contains('solo'), h: r.height, divider: getComputedStyle(st).borderBottomWidth, label: label?.offsetParent ? label.textContent : null, gap: top - r.bottom };
+      });
+      check('one desktop: compact strip, no divider, windows close under it', solo.solo && solo.h <= 80 && solo.divider === '0px' && solo.gap >= 0 && solo.gap < 120, JSON.stringify(solo));
+      check('one desktop: "+" spells out "New desktop"', solo.label === 'New desktop', JSON.stringify(solo));
       await sleep(250);
       await shot('wm-taskview', true, { rest: true });
       // Click a card -> focus it and leave.
@@ -479,6 +488,10 @@ async function mainRun() {
       await page.click('.tv-new');
       await sleep(300);
       check('"New desktop" adds a desktop tile', (await A(() => window.__aurora.wm.desktops.length)) === 2 && (await A(() => document.querySelectorAll('.tv-desk:not(.tv-new)').length)) === 2);
+      check('two desktops: the full strip again (round "+")', await A(() => {
+        const st = document.querySelector('.tv-strip');
+        return !st.classList.contains('solo') && st.getBoundingClientRect().height > 120 && !document.querySelector('.tv-new .tv-new-label').offsetParent;
+      }));
       // Drag a window card onto Desktop 2 (first leave the top strip, where "+" was clicked, so no hover preview runs).
       await page.mouse.move(24, 600);
       await sleep(450);
@@ -690,6 +703,23 @@ async function mainRun() {
       check('first option has keyboard focus', await A(() => document.activeElement?.classList.contains('sec-opt')));
       check('… and shows its focus rectangle (opened from the keyboard)', (await A(() => getComputedStyle(document.activeElement).outlineStyle)) === 'solid');
       await shot('wm-security', true, { rest: true });
+      const rows = await A(() => {
+        const list = document.querySelector('.sec-list').getBoundingClientRect();
+        const by = new Map();
+        for (const b of document.querySelectorAll('.sec-opt')) {
+          const r = b.getBoundingClientRect();
+          const k = Math.round(r.top);
+          by.set(k, [...(by.get(k) || []), r]);
+        }
+        return [...by.values()].map((rs) => ({ n: rs.length, off: Math.round((Math.min(...rs.map((r) => r.left)) + Math.max(...rs.map((r) => r.right))) / 2 - (list.left + list.width / 2)) }));
+      });
+      check('option tiles: balanced rows, each centred (no empty cell)', rows.every((r) => Math.abs(r.off) <= 1) && Math.max(...rows.map((r) => r.n)) - Math.min(...rows.map((r) => r.n)) <= 1, JSON.stringify(rows));
+      if (rows.length > 1) {
+        await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })));
+        check('ArrowDown moves to the row below', await A(() => [...document.querySelectorAll('.sec-opt')].indexOf(document.activeElement) === Number(document.querySelector('.sec-list').style.getPropertyValue('--sec-cols'))));
+        await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })));
+        check('ArrowUp moves back to the first row', await A(() => { const i = [...document.querySelectorAll('.sec-opt')].indexOf(document.activeElement); return i >= 0 && i < Number(document.querySelector('.sec-list').style.getPropertyValue('--sec-cols')); }));
+      }
       await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
       await sleep(350);
       check('Esc cancels the security screen', await A(() => !window.__aurora.security.isOpen && !document.querySelector('.sec-screen')));
@@ -771,12 +801,14 @@ async function mainRun() {
       await sleep(200);
       await press('Super+X', 400);
       check('Super+X opens the power-user menu (real key path)', await A(() => window.__aurora.winx.isOpen && !!document.querySelector('.menu.wm-accel-menu')));
+      await sleep(200); // open animation
       const pos = await A(() => {
         const m = document.querySelector('.menu.wm-accel-menu').getBoundingClientRect();
+        const bar = document.querySelector('#taskbar').getBoundingClientRect();
         const s = document.querySelector('#taskbar .tb-start').getBoundingClientRect();
-        return { above: m.bottom <= s.top + 1, left: Math.abs(m.left - s.left) < 8 };
+        return { above: m.bottom <= Math.min(bar.top, s.top) + 1 && m.bottom >= Math.min(bar.top, s.top) - 24, centred: Math.abs(m.left + m.width / 2 - innerWidth / 2) <= 2, notCorner: m.left > s.right };
       });
-      check('Win+X menu sits above the Start button', pos.above && pos.left, JSON.stringify(pos));
+      check('Super+X opens Menu rapide centred just above the bar (not in the Lanceur corner)', pos.above && pos.centred && pos.notCorner, JSON.stringify(pos));
       await shot('wm-winx', true);
       await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'u', bubbles: true })));
       await sleep(350);
@@ -795,9 +827,21 @@ async function mainRun() {
       await hk('Super+X');
       await sleep(200);
       check('Super+X again closes it', !(await A(() => window.__aurora.winx.isOpen)));
-      await page.click('#taskbar .tb-start', { button: 'right' });
-      await sleep(300);
+      const pt = await A(() => {
+        const r = document.querySelector('#taskbar .tb-start').getBoundingClientRect();
+        return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+      });
+      await page.mouse.click(pt.x, pt.y, { button: 'right' });
+      await sleep(350);
       check('right-click on Start opens it too', await A(() => window.__aurora.winx.isOpen));
+      const at = await A(() => {
+        const m = document.querySelector('.menu.wm-accel-menu').getBoundingClientRect();
+        return { left: m.left, bottom: m.bottom };
+      });
+      check('… at the pointer (opening upwards from it)', Math.abs(at.left - pt.x) <= 2 && Math.abs(at.bottom - (pt.y - 4)) <= 3, JSON.stringify({ pt, at }));
+      await A(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'u', bubbles: true })));
+      await sleep(300);
+      check('… with the same access keys (U opens the power submenu)', await A(() => document.querySelectorAll('body > .menu').length === 2));
       await A(() => window.__aurora.ui.closeMenus());
       await closeAll();
     }
