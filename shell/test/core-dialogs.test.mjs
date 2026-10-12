@@ -64,6 +64,41 @@ try {
   await s.page.keyboard.press('Enter');
   await sleep(300);
   check('Enter picks the primary button', await s.page.evaluate(() => window.__dlgResult3), 'ok');
+
+  console.log('File dialog in a 720p-sized window');
+  await s.aurora(() => window.__aurora.shell.launch('notepad'));
+  await s.page.waitForFunction(() => window.__aurora.wm.list().some((w) => w.appId === 'notepad'), null, { timeout: 15000 });
+  await sleep(800);
+  await s.aurora(() => {
+    const { wm, ui } = window.__aurora;
+    const win = wm.list().find((w) => w.appId === 'notepad');
+    win.setSize(960, 600);
+    win.center?.();
+    window.__fpResult = 'pending';
+    ui.filePicker({ mode: 'save', parent: win }).then((v) => (window.__fpResult = v));
+  });
+  await s.page.waitForSelector('.fp-dialog', { timeout: 8000 });
+  await sleep(600);
+  const fit = await s.page.evaluate(() => {
+    const d = document.querySelector('.fp-dialog');
+    const w = d.closest('.win').getBoundingClientRect();
+    const r = d.getBoundingClientRect();
+    const body = d.querySelector('.dialog-body');
+    return {
+      inside: r.top >= w.top + 8 && r.bottom <= w.bottom - 8 && r.left >= w.left && r.right <= w.right,
+      bodyScrolls: body.scrollHeight > body.clientHeight + 1 || body.scrollWidth > body.clientWidth + 1,
+      titleShown: d.querySelector('.dialog-title').getBoundingClientRect().top >= r.top,
+      cut: [...d.querySelectorAll('.fp-side .nav-item .ellipsis')].filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent),
+      listScrolls: getComputedStyle(d.querySelector('.fp-list')).overflowY,
+    };
+  });
+  check('the file dialog fits its window (margin kept)', fit.inside, true);
+  check('the dialog body never scrolls (the lists do)', [fit.bodyScrolls, fit.listScrolls], [false, 'auto']);
+  check('the title stays in view', fit.titleShown, true);
+  check('the places are not cut (Home, Downloads…)', fit.cut, []);
+  await s.page.keyboard.press('Escape');
+  await sleep(400);
+  check('Esc cancels the file dialog', await s.page.evaluate(() => window.__fpResult), null);
   check('no console errors', errors, []);
 } catch (err) {
   failures.push(`threw ${err.stack || err}`);

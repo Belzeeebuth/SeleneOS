@@ -26,12 +26,14 @@
 // Every look's SVGs are built once and cached; a change of <html data-ambiance / data-theme / data-style> (set by
 // theme.js inside its cross-fade) redraws the icons on screen in the same frame.
 // File-type icons follow too: <html data-icon-pack> (shell-personalize.css tints them per pack).
+// The Fichiers folder, file-type and drive pictures follow the look as well (core/file-icons.js, started by init).
 import { settings } from './settings.js';
 import { registry } from './registry.js';
 import { APP_GLYPHS } from './app-glyphs.js';
 import { lookKey, iconLook, seleneIconSvg, slotOfColor } from './app-icon-art.js';
 import { wm } from './wm.js';
 import { sounds } from './sounds.js';
+import { fileIcons } from './file-icons.js';
 
 // ------------------------------------------------------------------ cursors
 export const CURSOR_PACKS = [
@@ -572,6 +574,8 @@ export const packs = {
     applyCursors();
     applyIcons();
     watchLook();
+    // the Fichiers folder, file-type and drive icons follow the same look (core/file-icons.js)
+    fileIcons.init();
     settings.on('cursorPack', applyCursors);
     settings.on('cursorSize', applyCursors);
     settings.on('iconPack', applyIcons);

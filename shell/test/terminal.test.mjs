@@ -17,7 +17,9 @@
 //     only, OSC 9;4 progress ring + taskbar progress, French tab menu / paste warning / min-size
 //     settings, 15 open/close cycles with unchanged listeners, sessions and DOM.
 //   Documentation screenshots: aurora-os/docs/screenshots/terminal-*.png
-// Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/terminal.test.mjs [--only=helper|ui|fr|orphans|shots]
+//   Ambiances: the default scheme and the profile icons follow the ambiance (cold unchanged, no blue in neutral / warm,
+//     live), explicit schemes kept, Clair de lune's violet accent when the style was written without its follow rule.
+// Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/terminal.test.mjs [--only=helper|ui|fr|ambiance|orphans|shots]
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -1483,6 +1485,154 @@ async function frenchTests() {
   }
 }
 
+// The ambiances: the default scheme and the profile icons follow <html data-ambiance> (cold unchanged; neutral and
+// warm draw from the Selene app-icon palette, core/app-icon-art.js, with no blue), live; a scheme the user picked
+// stays; Clair de lune written straight into the settings file still gets its violet accent (core/theme.js accentOf).
+const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(String(h).slice(i, i + 2), 16));
+const cssRgb = (c) => (String(c).match(/\d+(\.\d+)?/g) || []).slice(0, 3).map(Number);
+function hueOf([r, g, b]) {
+  const mx = Math.max(r, g, b);
+  const mn = Math.min(r, g, b);
+  if (mx === mn) return { h: 0, s: 0 };
+  const d = mx - mn;
+  const h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { h: (h * 60 + 360) % 360, s: d / mx };
+}
+// blue: b clearly above r and g AND a blue/cyan hue (185°–250°) with some saturation
+const isBlue = (rgb) => {
+  const [r, g, b] = rgb;
+  const { h, s } = hueOf(rgb);
+  return b > Math.max(r, g) + 8 && h >= 185 && h <= 250 && s > 0.12;
+};
+const lum = (rgb) => {
+  const c = rgb.map((v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+};
+const ratio = (a, b) => {
+  const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+  return (x + 0.05) / (y + 0.05);
+};
+
+async function ambianceTests() {
+  console.log('Terminal in the ambiances (fr)');
+  const schemes = await import(path.join(ROOT, 'renderer', 'apps', 'terminal', 'lib', 'schemes.js'));
+  await section('ambiance', 'default scheme per ambiance: cold unchanged, readable, no blue ground', async () => {
+    check('cold dark = One Half Dark', schemes.systemScheme('dark', 'cold').colors.background, '#282C34');
+    check('cold light = One Half Light', schemes.systemScheme('light', 'cold').colors.background, '#FAFAFA');
+    check('no ambiance = cold', schemes.resolveScheme('system', 'dark').colors.background, '#282C34');
+    for (const amb of ['neutral', 'warm']) {
+      for (const mode of ['dark', 'light']) {
+        const c = schemes.systemScheme(mode, amb).colors;
+        check(`${amb} ${mode}: own ground`, c.background, (v) => v !== schemes.systemScheme(mode, 'cold').colors.background);
+        check(`${amb} ${mode}: ground, text and greys are not blue`, ['background', 'foreground', 'black', 'white', 'brightBlack', 'cursor'].filter((k) => isBlue(hexRgb(c[k]))), []);
+        check(`${amb} ${mode}: text >= 4.5:1 (${ratio(hexRgb(c.foreground), hexRgb(c.background)).toFixed(1)})`, ratio(hexRgb(c.foreground), hexRgb(c.background)) >= 4.5, true);
+        check(`${amb} ${mode}: bright black >= 3:1`, ratio(hexRgb(c.brightBlack), hexRgb(c.background)) >= 3, true);
+        const cold = schemes.systemScheme(mode, 'cold').colors;
+        // the chromatic ANSI colours keep their meaning and are at least as readable as on the cold ground
+        check(`${amb} ${mode}: ANSI colours kept`, ['red', 'green', 'yellow', 'blue', 'purple', 'cyan'].every((k) => c[k] === cold[k]), true);
+        check(`${amb} ${mode}: ANSI contrast not lower than in cold`, ['red', 'green', 'yellow', 'blue', 'purple', 'cyan'].filter((k) => ratio(hexRgb(c[k]), hexRgb(c.background)) < ratio(hexRgb(cold[k]), hexRgb(cold.background)) - 0.05), []);
+      }
+    }
+    check('a scheme the user picked is never changed', schemes.resolveScheme('campbell-powershell', 'dark', 'warm').colors.background, '#012456');
+  });
+
+  const home = makeHome();
+  // Clair de lune written straight into the settings file (no follow rule): its own accent and ambiance apply.
+  const s = await launchShell({ open: ['terminal'], lang: 'fr', theme: 'light', home, size: '1280x720', settings: { style: 'clairdelune' } });
+  recover = async () => {
+    await closeMenus(s).catch(() => {});
+  };
+  const mark0 = s.logs.length;
+  const iconColors = () =>
+    TM(s, (app, el) =>
+      [...el.querySelectorAll('.tm-tab .tm-picon')].map((p) => ({
+        kind: p.dataset.picon,
+        colors: [...p.innerHTML.matchAll(/(?:stop-color|fill|stroke)="(#[0-9a-fA-F]{6})"/g)].map((m) => m[1].toLowerCase()),
+      })),
+    );
+  const look = () => TM(s, (app) => ({ amb: document.documentElement.dataset.ambiance, mode: document.documentElement.dataset.theme, bg: app.session.term.options.theme.background, scheme: app.scheme.id }));
+  const setting = (k, v) => run(s, `window.__aurora.settings.set(${JSON.stringify(k)}, ${JSON.stringify(v)}).then(() => 0)`);
+  try {
+    await s.page.waitForSelector(`${WIN} .xterm`, { timeout: 20000 });
+    await waitReady(s);
+    await TM(s, (app) => {
+      for (const p of app.profiles().slice(1)) app.newTab(p);
+      app.activate(app.tabs[0]);
+    });
+    await until(async () => (await iconColors()).length >= 2, { label: 'profile tabs' });
+
+    await section('ambiance', 'Clair de lune light: violet accent (style set without the follow rule)', async () => {
+      await until(() => run(s, `window.__aurora.settings.get('accent') === '#a58bf2'`), { label: 'accent saved' });
+      check('--accent is the violet of Clair de lune light', await run(s, `getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()`), '#6a4bc3');
+      check('the style accent and ambiance are saved once', await run(s, `[window.__aurora.settings.get('accent'), window.__aurora.settings.get('ambiance')]`), ['#a58bf2', 'warm']);
+      await TM(s, (app) => app.openSettings('interaction'));
+      await until(() => TM(s, (app, el) => !!el.querySelector('.tm-settings .toggle input:checked')), { label: 'settings toggles' });
+      const on = await TM(s, (app, el) => getComputedStyle(el.querySelector('.tm-settings .toggle input:checked')).backgroundColor);
+      check(`a switch that is on uses the violet accent (${on})`, cssRgb(on), [106, 75, 195]);
+      await TM(s, (app) => app.activate(app.tabs[0]));
+      // a colour the user picks afterwards is theirs, silver included
+      await setting('accent', '#c9d3e6');
+      await until(() => run(s, `getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() === '#55637e'`), { label: 'silver picked' });
+      check('silver picked by the user stays silver', await run(s, `window.__aurora.settings.get('accent')`), '#c9d3e6');
+      await setting('accent', '#a58bf2');
+    });
+
+    await section('ambiance', 'warm: plum-black / cream scheme, profile icons from the warm palette, no blue', async () => {
+      check('warm light scheme', await look(), (v) => v.amb === 'warm' && v.mode === 'light' && v.scheme === 'one-half-light' && v.bg === schemes.systemScheme('light', 'warm').colors.background);
+      const view = await TM(s, (app) => getComputedStyle(app.active.view).backgroundColor);
+      check(`terminal ground is not blue (${view})`, isBlue(cssRgb(view)), false);
+      const icons = await iconColors();
+      check('three profile icons', icons.map((i) => i.kind).sort(), ['python', 'root', 'shell']);
+      check('warm light icons: no blue colour', icons.flatMap((i) => i.colors.filter((c) => isBlue(hexRgb(c)))), []);
+      check('warm light icons: no original blue artwork', icons.flatMap((i) => i.colors).filter((c) => ['#3b82f6', '#2f6fb8', '#3f86cf', '#3a4254', '#151922'].includes(c)), []);
+      await setting('theme', 'dark');
+      await until(async () => (await look()).bg === schemes.systemScheme('dark', 'warm').colors.background, { label: 'warm dark scheme' });
+      check('warm dark: plum-black ground', (await look()).bg, '#251a25');
+      check('warm dark icons: no blue colour', (await iconColors()).flatMap((i) => i.colors.filter((c) => isBlue(hexRgb(c)))), []);
+      await shot(s, 'ambiance-warm-dark', { clip: true });
+    });
+
+    await section('ambiance', 'neutral, live: warm near-black scheme and icons redrawn at once', async () => {
+      const before = JSON.stringify(await iconColors());
+      await setting('ambiance', 'neutral');
+      await until(async () => (await look()).bg === '#1b1917', { label: 'neutral dark scheme' });
+      check('icons redrawn on the ambiance change', JSON.stringify(await iconColors()) !== before, true);
+      check('neutral dark icons: no blue colour', (await iconColors()).flatMap((i) => i.colors.filter((c) => isBlue(hexRgb(c)))), []);
+      await setting('theme', 'light');
+      await until(async () => (await look()).bg === schemes.systemScheme('light', 'neutral').colors.background, { label: 'neutral light scheme' });
+      check('neutral light icons: no blue colour', (await iconColors()).flatMap((i) => i.colors.filter((c) => isBlue(hexRgb(c)))), []);
+      const strip = await TM(s, (app, el) => getComputedStyle(el.querySelector('.tm-tab.active') || el.querySelector('.tm-tab')).backgroundColor);
+      check(`neutral light active tab is not blue (${strip})`, isBlue(cssRgb(strip)), false);
+      await shot(s, 'ambiance-neutral-light', { clip: true });
+      // the explicit scheme a user picked is not touched by the ambiance
+      await TM(s, (app) => app.prefs.set('scheme', 'campbell-powershell'));
+      await until(async () => (await look()).bg === '#012456', { label: 'explicit scheme' });
+      check('explicit scheme kept in neutral', (await look()).bg, '#012456');
+      await TM(s, (app) => app.prefs.set('scheme', 'system'));
+    });
+
+    await section('ambiance', 'cold: the original scheme and icons, unchanged', async () => {
+      await setting('ambiance', 'cold');
+      await setting('theme', 'dark');
+      await until(async () => (await look()).bg === '#282C34', { label: 'cold dark scheme' });
+      const icons = await iconColors();
+      const shell = icons.find((i) => i.kind === 'shell').colors;
+      const python = icons.find((i) => i.kind === 'python').colors;
+      check('cold shell icon: original colours', shell, (c) => ['#3a4254', '#151922', '#2ec6c0', '#3b82f6', '#7fe3d4'].every((x) => c.includes(x)));
+      check('cold python icon: original colours', python, (c) => ['#2f6fb8', '#3f86cf', '#e6b422'].every((x) => c.includes(x)));
+      check('cold root icon: original colours', icons.find((i) => i.kind === 'root').colors, (c) => ['#f0743e', '#c42b1c'].every((x) => c.includes(x)));
+    });
+
+    await section('ambiance', 'no console errors (ambiances)', async () => {
+      check('console errors', errorsSince(s, mark0), []);
+    });
+  } finally {
+    recover = null;
+    await s.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
 // Documentation screenshots: colourful output in dark and light, Python, split panes.
 async function screenshotTests() {
   for (const theme of ['dark', 'light']) {
@@ -1534,11 +1684,12 @@ async function screenshotTests() {
 // ---------------------------------------------------------------- main
 const t0 = Date.now();
 // --only=<group> runs one group; any other --only=<text> runs the sections whose name contains it.
-const GROUPS = ['helper', 'ui', 'fr', 'orphans', 'shots'];
+const GROUPS = ['helper', 'ui', 'fr', 'ambiance', 'orphans', 'shots'];
 const want = (g) => !only || !GROUPS.includes(only) || only === g;
 if (want('helper')) await helperTests();
 if (want('ui')) await uiTests();
 if (want('fr')) await frenchTests();
+if (want('ambiance')) await ambianceTests();
 if (want('orphans')) await orphanTests();
 if (want('shots')) await screenshotTests();
 console.log(`\n${passed} checks passed, ${failures.length} failed (${((Date.now() - t0) / 1000).toFixed(1)} s)`);

@@ -452,7 +452,8 @@ export const ui = {
     ];
     const side = h(
       'div',
-      { class: 'fp-side nav' },
+      // as wide as its longest label (« Dossier personnel », « Téléchargements »), within 176–240 px
+      { class: 'fp-side nav', style: { flex: '0 0 auto', width: 'max-content', minWidth: '176px', maxWidth: '240px' } },
       places.map(([ic, label, p]) => h('div', { class: 'nav-item', onclick: () => go(p) }, icon(ic), h('span', { class: 'ellipsis' }, label))),
     );
     let doneFn = null;
@@ -538,7 +539,8 @@ export const ui = {
     pathInput.addEventListener('keydown', (e) => e.key === 'Enter' && go(pathInput.value));
     const body = h(
       'div',
-      { class: 'fp' },
+      // fills the dialog body (below): the dialog fits the window or the screen, the lists scroll inside
+      { class: 'fp', style: { width: '100%', height: 'auto', maxWidth: 'none', maxHeight: 'none', flex: '1', minHeight: '0' } },
       h('div', { class: 'fp-top' }, up, pathInput, newFolder),
       h('div', { class: 'fp-main' }, side, list),
       h(
@@ -563,6 +565,12 @@ export const ui = {
         ],
         onOpen: (dlg, done) => {
           dlg.style.maxWidth = 'min(900px, calc(100% - 32px))';
+          // Fit 720p screens and small windows: the dialog's height comes from its host (window or screen), never
+          // more than 640 px; the body is a flex column so the folder list and the places scroll inside it, and the
+          // title stays in view (the body itself never scrolls).
+          dlg.style.height = 'min(640px, calc(100% - 32px))';
+          const dBody = dlg.querySelector('.dialog-body');
+          if (dBody) Object.assign(dBody.style, { flex: '1', minHeight: '0', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: '16px' });
           dlg._validate = (v) => {
             if (v === '__accept') {
               accept();

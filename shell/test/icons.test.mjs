@@ -351,5 +351,116 @@ const blueSymbol = (px) => {
   }
 }
 
+// ------------------------------------------------------------------ Fichiers icons follow the look
+// The folder, file-type and drive icons (core/file-icon-art.js, drawn by core/file-icons.js) take the same palette:
+// the static apps/files/icons/*.svg files are the cold look; neutral and warm show no blue or cyan; the Phosphor
+// file-type glyphs of the desktop and the Lanceur (.ft-*) follow too.
+{
+  const fa = await import(path.join(ROOT, 'renderer', 'core', 'file-icon-art.js'));
+  const { glyphs } = pack;
+  const glyphOf = (n, w) => glyphs[n]?.[w];
+  const names = Object.keys(fa.FILE_ICONS);
+  const dir = path.join(ROOT, 'renderer', 'apps', 'files', 'icons');
+  const onDisk = fs.readdirSync(dir).filter((f) => f.endsWith('.svg')).map((f) => f.slice(0, -4)).sort();
+  check(names.length === 33 && JSON.stringify(onDisk) === JSON.stringify([...names].sort()), `Fichiers: ${names.length} icons, one static file each`, onDisk.filter((n) => !names.includes(n)).join(', '));
+  const differ = names.filter((n) => fa.fileIconSvg(n, fa.fileIconLook('cold'), glyphOf) !== fs.readFileSync(path.join(dir, `${n}.svg`), 'utf8'));
+  check(!differ.length, 'Fichiers: the static icons/*.svg files are the cold look of core/file-icon-art.js, byte for byte (tools/gen-files-icons.mjs)', differ.join(', '));
+  check(['nocturne', 'eclipse', 'clairdelune'].every((st, i) => fa.fileLookKey(`${['cold', 'neutral', 'warm'][i]}-light`) === ['cold', 'neutral', 'warm'][i]) && fa.fileLookKey('contrast-light') === 'contrast-light', 'Fichiers looks: cold / neutral / warm (any mode), Contraste élevé per mode');
+  for (const amb of ['neutral', 'warm']) {
+    const L = fa.fileIconLook(amb);
+    const colours = { ...L.folder, ...Object.fromEntries(Object.entries(L.page).map(([k, v]) => [`page.${k}`, v])), ...Object.fromEntries(Object.entries(L.device).map(([k, v]) => [`device.${k}`, v])), ...L.types };
+    const blue = Object.entries(colours).filter(([, c]) => blueSymbol(rgbOf(c)));
+    check(!blue.length, `Fichiers ${amb}: no blue / cyan in the folder, page, device and ${Object.keys(L.types).length} file-type colours`, blue.map(([k, c]) => `${k} ${c}`).join(', '));
+    const low = Object.entries(L.types).filter(([, c]) => fa.contrast(c, L.page.sheet) < 4.5);
+    check(!low.length, `Fichiers ${amb}: every file-type glyph is >= 4.5:1 on its page`, low.map(([k, c]) => `${k} ${c}`).join(', '));
+    check(L.types['file-doc'] !== L.types['file-text'], `Fichiers ${amb}: documents and plain text (same glyph) keep different colours`);
+    for (const m of ['dark', 'light']) {
+      const t = fa.fileTypeTints(amb, m);
+      const bt = Object.entries(t).filter(([, c]) => blueSymbol(rgbOf(c)));
+      check(!bt.length, `.ft-* tints ${amb} ${m}: no blue / cyan`, bt.map(([k, c]) => `${k} ${c}`).join(', '));
+    }
+  }
+  const hc = fa.fileIconLook('contrast-dark');
+  check(Object.values(hc.types).every((c) => c === '#ffffff') && hc.page.sheet === '#000000' && hc.flat, 'Fichiers Contraste élevé: white on black, flat');
+  check(fa.fileTypeTints('cold', 'dark') === null && fa.fileTypeTints('contrast-dark', 'dark') === null, '.ft-* tints: cold and Contraste élevé keep their own style sheets');
+}
+{
+  const home = fs.mkdtempSync(path.join((await import('node:os')).tmpdir(), 'aurora-home-'));
+  for (const d of ['Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos']) fs.mkdirSync(path.join(home, d), { recursive: true });
+  for (const n of ['lettre.docx', 'budget.xlsx', 'rapport.pdf', 'notes.txt', 'archive.zip']) fs.writeFileSync(path.join(home, 'Desktop', n), 'x');
+  fs.mkdirSync(path.join(home, 'Desktop', 'Dossier'));
+  const s = await launchShell({ home, theme: 'dark', lang: 'fr', size: '1280x720', settle: 1500 });
+  const P = s.page;
+  try {
+    const setLook = (patch) => P.evaluate(async (pt) => {
+      if (pt.style) await (await import('app://shell/core/theme.js')).chooseStyle(pt.style);
+      const rest = { ...pt };
+      delete rest.style;
+      if (Object.keys(rest).length) await window.__aurora.api.invoke('settings:setMany', rest);
+    }, patch);
+    // the desktop's file glyphs and a probe of every Fichiers icon (an <img> with the static src, as Fichiers draws it)
+    await P.evaluate((list) => {
+      const host = document.createElement('div');
+      host.id = 'fi-probe';
+      host.style.cssText = 'position:fixed;right:20px;top:20px;z-index:99999;display:flex;flex-wrap:wrap;width:400px;gap:4px';
+      for (const n of list) {
+        const img = document.createElement('img');
+        img.src = `app://shell/apps/files/icons/${n}.svg`;
+        img.width = img.height = 32;
+        host.append(img);
+      }
+      document.body.append(host);
+    }, Object.keys((await import(path.join(ROOT, 'renderer', 'core', 'file-icon-art.js'))).FILE_ICONS));
+    const read = () =>
+      P.evaluate(() => {
+        const rgb = (c) => (c.match(/\d+(\.\d+)?/g) || []).slice(0, 3).map(Number);
+        const desk = [...document.querySelectorAll('#desktop .desk-fi')].map((el) => ({ cls: el.getAttribute('class'), c: rgb(getComputedStyle(el).color) }));
+        const probe = [...document.querySelectorAll('#fi-probe img')].map((img) => getComputedStyle(img).content);
+        return { look: window.__aurora.packs.iconLook, desk, mapped: probe.filter((c) => c.startsWith('url("data:image/svg')).length, total: probe.length };
+      });
+    const cold = await read();
+    const docCold = cold.desk.find((d) => /ft-doc/.test(d.cls));
+    check(cold.look === 'cold-dark' && cold.mapped === 0 && cold.total === 33 && docCold && docCold.c.join() === '106,167,255', `cold: no Fichiers mapping, the desktop keeps its tints (document ${docCold?.c})`);
+    for (const [patch, want] of [
+      [{ style: 'eclipse', theme: 'dark' }, 'neutral-dark'],
+      [{ style: 'eclipse', theme: 'light' }, 'neutral-light'],
+      [{ style: 'clairdelune', theme: 'light' }, 'warm-light'],
+      [{ style: 'clairdelune', theme: 'dark' }, 'warm-dark'],
+    ]) {
+      await setLook(patch);
+      await P.waitForTimeout(1000);
+      const r = await read();
+      const blue = r.desk.filter((d) => blueSymbol(d.c));
+      check(r.look === want && r.mapped === 33 && r.desk.length >= 6 && !blue.length, `${want}: 33/33 Fichiers icons mapped to the look, ${r.desk.length} desktop file glyphs without blue`, `${r.look} ${r.mapped}; ${blue.map((d) => `${d.cls} ${d.c}`).join(', ')}`);
+      if (want === 'neutral-dark' || want === 'warm-light') await s.shot(`icons-files-${want}`);
+    }
+    // the other icon packs keep their own file-type tints
+    await P.evaluate(() => window.__aurora.settings.set('iconPack', 'graphite'));
+    await P.waitForTimeout(500);
+    const gr = await P.evaluate(() => {
+      const el = document.querySelector('#desktop .ft-doc');
+      const ref = document.createElement('span');
+      ref.style.color = 'var(--text-2)';
+      document.body.append(ref);
+      const want = getComputedStyle(ref).color;
+      ref.remove();
+      return el ? { got: getComputedStyle(el).color, want } : null;
+    });
+    await P.evaluate(() => window.__aurora.settings.set('iconPack', 'selene'));
+    check(gr && gr.got === gr.want, 'other icon packs (graphite): the desktop file glyphs keep the pack tint', JSON.stringify(gr));
+    await setLook({ style: 'nocturne', theme: 'dark' });
+    await P.waitForTimeout(1000);
+    const back = await read();
+    check(back.mapped === 0 && back.desk.find((d) => /ft-doc/.test(d.cls))?.c.join() === '106,167,255', 'back to Nocturne: static Fichiers icons and the original desktop tints');
+    const errs = s.logs.filter((l) => /^\[(error|pageerror)\]/.test(l) && !/Failed to load resource/.test(l));
+    check(!errs.length, 'no console errors while the Fichiers icons switch looks', errs.slice(0, 3).join(' | '));
+  } catch (err) {
+    check(false, 'Fichiers icon looks', err.stack || String(err));
+  } finally {
+    await s.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

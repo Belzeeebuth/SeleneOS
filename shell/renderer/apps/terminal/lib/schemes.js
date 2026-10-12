@@ -1,7 +1,10 @@
 // Colour schemes (the classic Windows Terminal set) and their xterm.js themes.
 //   SCHEMES: [{ id, name, dark, colors: { background, foreground, cursor, selection, black … brightWhite } }]
-//   resolveScheme(prefs.scheme, uiMode) -> scheme   ('system' follows the Selene light/dark theme)
+//   resolveScheme(prefs.scheme, uiMode, ambiance) -> scheme   ('system' follows the Selene light/dark theme and ambiance)
+//   systemScheme(uiMode, ambiance) -> the default scheme ('system') for a mode and an ambiance
 //   xtermTheme(scheme, opacity) -> ITheme
+import { ICON_LOOKS, mix as artMix } from '../../../core/app-icon-art.js';
+
 const S = (id, name, dark, c) => ({ id, name, dark, colors: c });
 
 const TANGO = {
@@ -42,8 +45,45 @@ export function schemeById(id) {
   return SCHEMES.find((s) => s.id === id) || null;
 }
 
-export function resolveScheme(id, uiMode) {
-  if (!id || id === 'system') return schemeById(uiMode === 'dark' ? SYSTEM_SCHEME.dark : SYSTEM_SCHEME.light);
+// The default scheme follows the ambiance (data-ambiance on <html>): One Half Dark / Light as they are in the cold
+// ambiance (Nocturne), and the same palette on the ambiance's own ground in neutral (Éclipse: warm near-black, warm
+// white) and warm (Clair de lune: plum-black, cream), so the slate-blue cast of #282C34 never shows there. The ground,
+// the text and the greys come from the Selene app-icon palette (core/app-icon-art.js: tile base and stone / cream
+// symbol colours); the chromatic ANSI colours (red, green, blue…) keep their meaning and stay as they are. The text is
+// >= 4.5:1 on the ground (in fact >= 10:1), bright black >= 3:1. A scheme the user picked is never changed.
+const ambianceCache = new Map();
+export function systemScheme(uiMode, ambiance) {
+  const base = schemeById(uiMode === 'dark' ? SYSTEM_SCHEME.dark : SYSTEM_SCHEME.light);
+  const look = ambiance === 'neutral' || ambiance === 'warm' ? ICON_LOOKS[ambiance] : null;
+  if (!look) return base;
+  const key = `${ambiance}-${base.id}`;
+  if (ambianceCache.has(key)) return ambianceCache.get(key);
+  let ground;
+  let text;
+  let colors;
+  if (base.dark) {
+    ground = look.dark[1]; // the tile's lower colour: #1b1917 warm near-black, #251a25 plum-black
+    text = artMix(look.hues.silver, '#ffffff', 0.3); // light stone / light cream
+    colors = { background: ground, foreground: text, black: ground, white: text, brightWhite: text, brightBlack: artMix(text, ground, 0.5) };
+  } else {
+    ground = artMix(look.hues.silver, '#ffffff', ambiance === 'warm' ? 0.8 : 0.92); // warm white / cream, as light as #FAFAFA (same ANSI contrast)
+    text = look.light[0]; // the light-mode tile: dark umber / dark plum
+    const grey = artMix(text, ground, 0.22);
+    colors = { background: ground, foreground: text, black: text, white: ground, brightBlack: grey, cursor: grey, selection: grey };
+  }
+  const scheme = { ...base, ambiance, colors: { ...base.colors, ...colors } };
+  ambianceCache.set(key, scheme);
+  return scheme;
+}
+
+/** The ambiance the default scheme follows: <html data-ambiance> (Contraste élevé ignores the ambiance). */
+export function pageAmbiance() {
+  const d = globalThis.document?.documentElement?.dataset || {};
+  return d.style === 'contrast' ? 'cold' : d.ambiance || 'cold';
+}
+
+export function resolveScheme(id, uiMode, ambiance) {
+  if (!id || id === 'system') return systemScheme(uiMode, ambiance);
   return schemeById(id) || schemeById(SYSTEM_SCHEME.dark);
 }
 

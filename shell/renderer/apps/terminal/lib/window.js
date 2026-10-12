@@ -6,8 +6,8 @@ import { Session, loadXterm, LARGE_PASTE } from './session.js';
 import { PaneTree } from './panes.js';
 import { FindBar } from './find.js';
 import { SettingsPage } from './settings.js';
-import { resolveScheme, xtermTheme, rgba } from './schemes.js';
-import { profileIcon, profileIconSvg } from './icons.js';
+import { resolveScheme, xtermTheme, rgba, pageAmbiance } from './schemes.js';
+import { profileIcon, drawProfileIcon } from './icons.js';
 
 let envPromise = null;
 let fontsPromise = null; // installed monospace fonts (pty:fonts), fetched once, not awaited
@@ -269,7 +269,7 @@ export class TerminalApp {
     const face = prefs.get('fontFace');
     const transparent = document.documentElement.dataset.transparency !== 'off';
     const opacity = transparent ? prefs.get('opacity') / 100 : 1;
-    this.scheme = resolveScheme(prefs.get('scheme'), this.ctx.shell.theme.mode);
+    this.scheme = resolveScheme(prefs.get('scheme'), this.ctx.shell.theme.mode, pageAmbiance());
     return {
       fontFamily: `"${face}", "Cascadia Mono", "DejaVu Sans Mono", "Noto Sans Mono", monospace, "Noto Color Emoji"`,
       fontSize: Math.max(6, Math.min(72, prefs.get('fontSize') + this.zoom)),
@@ -826,7 +826,7 @@ export class TerminalApp {
       const rows = menu.querySelectorAll('.menu-item');
       profiles.forEach((pr, i) => {
         const ic = rows[i]?.querySelector('.icon');
-        if (ic) ic.innerHTML = profileIconSvg(pr.icon);
+        if (ic) drawProfileIcon(ic, pr.icon);
       });
     }
     await p;

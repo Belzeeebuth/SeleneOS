@@ -104,6 +104,17 @@ export function ambianceOf(all = settings.all()) {
   if (AMBIANCE_IDS.includes(all.ambiance)) return all.ambiance;
   return styleOf(all.style).defaults?.ambiance || 'cold';
 }
+/**
+ * The accent in effect: the setting, except for a style written without its follow rule (a settings file, a script:
+ * the ambiance was never set and the accent is still the factory default, Nocturne's silver). Then the style's own
+ * accent applies, like its ambiance (Clair de lune: violet, not the slate-blue light silver). watchTheme saves that
+ * pair once at start-up, so every reader of settings.accent agrees and a later choice of silver is the user's.
+ */
+export function accentOf(all = settings.all()) {
+  const d = styleOf(all.style).defaults;
+  const factory = all.accent == null || String(all.accent).toLowerCase() === DEFAULT_ACCENT;
+  return d && all.ambiance == null && !all.accentFromWallpaper && factory ? d.accent : all.accent;
+}
 /** { ambiance, accent, wallpaper } a style brings (Contraste élevé: null, it keeps the user's choices). */
 export function styleDefaults(id) {
   return styleOf(id).defaults || null;
@@ -491,7 +502,7 @@ export async function applyVisualStyle(all = settings.all(), root = document.doc
   const st = styleOf(all.style);
   root.dataset.style = st.id;
   root.dataset.ambiance = ambianceOf(all);
-  root.dataset.accent = accentPreset(all.accent)?.id || 'custom';
+  root.dataset.accent = accentPreset(accentOf(all))?.id || 'custom';
   writeVars(styleVars(st.id, all));
   await loadStyleSheets();
   return st.id;
@@ -864,6 +875,7 @@ async function transition(fn) {
 
 export async function applyTheme(all = settings.all()) {
   const root = document.documentElement;
+  if (accentOf(all) !== all.accent) all = { ...all, accent: accentOf(all) }; // a style's own accent (accentOf)
   latest = all;
   const prevMode = root.dataset.theme;
   const nextMode = all.theme === 'dark' ? 'dark' : 'light';
@@ -997,6 +1009,11 @@ const THEME_KEYS = [
 let lastStyleId = null; // style of the last settings snapshot seen by watchTheme (follow rule below)
 export function watchTheme() {
   lastStyleId = styleOf(settings.get('style')).id;
+  // A style written without its follow rule (accentOf): save its own ambiance and accent once, so the lock screen,
+  // quick settings and the Settings pages read the accent on screen.
+  const start = settings.all();
+  const own = styleOf(start.style).defaults;
+  if (own && accentOf(start) !== start.accent) api.invoke('settings:setMany', { ambiance: own.ambiance, accent: own.accent }).catch(() => {});
   settings.on('*', (_v, key) => {
     // A plain settings.set('style', id) (quick settings, a script) gets the same follow rule as Settings:
     // the ambiance, accent and wallpaper that were the old style's defaults follow the new style.

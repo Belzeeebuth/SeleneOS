@@ -1,7 +1,7 @@
 // The Settings tab (Windows Terminal style): left navigation, Fluent setting rows on the right.
 // Changes apply at once to every Terminal window and are saved (lib/prefs.js).
 import { prefs, FONTS, CURSORS, BELLS, CLOSE_ON_EXIT } from './prefs.js';
-import { SCHEMES, SYSTEM_SCHEME, schemeById, resolveScheme, rgba, PALETTE_KEYS } from './schemes.js';
+import { SCHEMES, resolveScheme, systemScheme, pageAmbiance, rgba, PALETTE_KEYS } from './schemes.js';
 import { profileIcon } from './icons.js';
 
 const SECTIONS = [
@@ -320,7 +320,7 @@ export class SettingsPage {
     const el = h('div', { class: 'tm-preview', 'aria-hidden': 'true' });
     const draw = () => {
       const transparent = document.documentElement.dataset.transparency !== 'off';
-      const scheme = resolveScheme(prefs.get('scheme'), this.ctx.shell.theme.mode);
+      const scheme = resolveScheme(prefs.get('scheme'), this.ctx.shell.theme.mode, pageAmbiance());
       const c = scheme.colors;
       const op = transparent ? prefs.get('opacity') / 100 : 1;
       el.style.background = op >= 1 ? c.background : rgba(c.background, op);
@@ -435,9 +435,17 @@ export class SettingsPage {
         swatches(sc),
       );
     };
-    const preview = system
-      ? h('div', { class: 'tm-scheme-split' }, sample(schemeById(SYSTEM_SCHEME.light)), sample(schemeById(SYSTEM_SCHEME.dark)))
-      : sample(s);
+    // the default scheme shows its light and dark variants in the current ambiance (redrawn when it changes)
+    const split = (amb) => [sample(systemScheme('light', amb)), sample(systemScheme('dark', amb))];
+    let shownAmb = pageAmbiance();
+    const preview = system ? h('div', { class: 'tm-scheme-split' }, split(shownAmb)) : sample(s);
+    if (system) {
+      this.syncers.push(() => {
+        if (pageAmbiance() === shownAmb) return;
+        shownAmb = pageAmbiance();
+        preview.replaceChildren(...split(shownAmb));
+      });
+    }
     const card = h(
       'button',
       { type: 'button', class: 'tm-scheme-card', role: 'radio', dataset: { scheme: value }, onclick: () => prefs.set('scheme', value) },

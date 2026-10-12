@@ -1435,6 +1435,97 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
       await p2.waitForTimeout(250);
       await s2.page.screenshot({ path: path.join(DOCS, 'files-this-pc-fr-dark.png') });
     });
+    // The folder, file-type and drive icons follow the ambiance like the app icons (core/file-icons.js): cold keeps the
+    // slate-blue static files; neutral (Éclipse) and warm (Clair de lune) show no blue or cyan; Contraste élevé is
+    // black and white. The src attributes never change: a style sheet maps each file to the look's picture.
+    await section('French + dark theme: icons follow the ambiance', async () => {
+      const p2 = s2.page;
+      await H2.go({ type: 'home' });
+      const sample = () =>
+        p2.evaluate(async () => {
+          const urlOf = (img) => {
+            const m = /^url\("(.*)"\)$/.exec(getComputedStyle(img).content || '');
+            return m ? m[1].replace(/\\([0-9a-f]{1,6}) ?/gi, (_, x) => String.fromCodePoint(parseInt(x, 16))) : img.currentSrc || img.src;
+          };
+          // blue / cyan: a hue in 185°–250°, saturated (chroma > 0.08) or as a cast on a grey (b > max(r, g) + 8);
+          // pale anti-aliased edges of a violet glyph (hue > 250°) are not blue
+          const isBlue = ([r, g, b]) => {
+            const mx = Math.max(r, g, b) / 255;
+            const c = mx - Math.min(r, g, b) / 255;
+            if (!c) return false;
+            const R = r / 255, G = g / 255, B = b / 255;
+            const h = ((mx === R ? ((G - B) / c) % 6 : mx === G ? (B - R) / c + 2 : (R - G) / c + 4) * 60 + 360) % 360;
+            return h >= 185 && h <= 250 && (c > 0.08 || b > Math.max(r, g) + 8);
+          };
+          const out = [];
+          const seen = new Set();
+          for (const img of document.querySelectorAll('.app-files img[src*="/apps/files/icons/"]')) {
+            const src = img.getAttribute('src');
+            if (!img.offsetParent || seen.has(src)) continue;
+            seen.add(src);
+            const url = urlOf(img);
+            const im = new Image();
+            im.src = url;
+            await im.decode().catch(() => {});
+            const cv = document.createElement('canvas');
+            cv.width = cv.height = 48;
+            const g = cv.getContext('2d');
+            g.drawImage(im, 0, 0, 48, 48);
+            const d = g.getImageData(0, 0, 48, 48).data;
+            let n = 0;
+            let blue = 0;
+            let colour = 0;
+            for (let i = 0; i < d.length; i += 4) {
+              if (d[i + 3] < 200) continue;
+              const p = [d[i], d[i + 1], d[i + 2]];
+              n++;
+              if (isBlue(p)) blue++;
+              if (Math.max(...p) - Math.min(...p) > 24) colour++;
+            }
+            const at = (x, y) => [0, 1, 2].map((k) => d[(y * 48 + x) * 4 + k]);
+            out.push({ name: src.split('/').pop(), mapped: url.startsWith('data:image/svg'), n, blue, colour, front: at(8, 30) });
+          }
+          return out;
+        });
+      const setLook = (patch) =>
+        p2.evaluate(async (pt) => {
+          await (await import('app://shell/core/theme.js')).chooseStyle(pt.style);
+          await window.__aurora.api.invoke('settings:setMany', { theme: pt.theme });
+        }, patch);
+      const fmt = (arr) => arr.filter((r) => r.blue || !r.mapped).map((r) => `${r.name}:${r.blue}/${r.n}${r.mapped ? '' : ' (static)'}`).join(' ');
+
+      // cold (Nocturne, the default): the static files, slate-blue folders
+      const cold = await sample();
+      const folder = cold.find((r) => r.name.startsWith('folder'));
+      check('cold: Fichiers shows the static icons (no mapping)', cold.length >= 8 && cold.every((r) => !r.mapped), true);
+      check('cold: folders keep their slate blue', folder && folder.front[2] > Math.max(folder.front[0], folder.front[1]) + 30, true);
+
+      for (const [patch, label] of [
+        [{ style: 'eclipse', theme: 'dark' }, 'Éclipse dark'],
+        [{ style: 'eclipse', theme: 'light' }, 'Éclipse light'],
+        [{ style: 'clairdelune', theme: 'light' }, 'Clair de lune light'],
+        [{ style: 'clairdelune', theme: 'dark' }, 'Clair de lune dark'],
+      ]) {
+        await setLook(patch);
+        await p2.waitForTimeout(900);
+        const all = await sample();
+        const f = all.find((r) => r.name.startsWith('folder'));
+        check(`${label}: ${all.length} Fichiers icons drawn in the look, no blue / cyan pixel`, all.length >= 8 && all.every((r) => r.mapped && !r.blue) && f && f.front[0] > f.front[2] ? 'ok' : `${fmt(all)} folder ${f?.front}`, 'ok');
+        if (label === 'Éclipse dark') await s2.shot('files-fr-eclipse-dark');
+        if (label === 'Clair de lune light') await s2.shot('files-fr-clairdelune-light');
+      }
+      await setLook({ style: 'contrast', theme: 'dark' });
+      await p2.waitForTimeout(900);
+      const hc = await sample();
+      check('Contraste élevé: Fichiers icons are black and white', hc.length >= 8 && hc.every((r) => r.mapped && r.colour === 0) ? 'ok' : hc.filter((r) => r.colour).map((r) => `${r.name}:${r.colour}`).join(' '), 'ok');
+
+      // live: back to Nocturne restores the static pictures at once, without a new src
+      await setLook({ style: 'nocturne', theme: 'dark' });
+      await p2.waitForTimeout(900);
+      const back = await sample();
+      check('back to Nocturne: the static icons again', back.length >= 8 && back.every((r) => !r.mapped), true);
+      check('the icons kept their src (only the mapping changed)', back.map((r) => r.name).sort().join(), cold.map((r) => r.name).sort().join());
+    });
     const errors2 = s2.logs.filter((l) => (l.startsWith('[error]') || l.startsWith('[pageerror]')) && !/Failed to load resource/.test(l));
     check('no console errors (fr)', errors2, []);
   } finally {

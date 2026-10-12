@@ -1,4 +1,4 @@
-// File types: localized type names, colour icons (Windows 11 style SVGs in ../icons) and formatting.
+// File types: localized type names, colour icons (../icons: the cold look; core/file-icons.js maps them to the current look) and formatting.
 import { shared } from './shared.js';
 
 const ICONS = 'app://shell/apps/files/icons/';
