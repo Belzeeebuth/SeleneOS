@@ -231,8 +231,11 @@ const tm = (fn, arg) => s.aurora(fn, arg);
 const DLG = '.app-taskmgr .dialog-layer:not(.closing) .dialog';
 // The Run dialog focuses its text box on the next task: wait for it before typing / pressing keys.
 const runFocused = () => page.waitForFunction(() => document.activeElement?.classList.contains('tm-run-input'), null, { timeout: 3000 }).catch(() => null);
+// "Run a command" lives in the toolbar's "…" menu.
 async function openRun() {
-  await page.click('.app-taskmgr .tm-cmd[data-cmd="run"]');
+  await page.click('.app-taskmgr .tm-cmd[data-cmd="more"]');
+  await page.waitForSelector('body > .menu .menu-item:has-text("Run a command")', { timeout: 3000 });
+  await page.click('body > .menu .menu-item:has-text("Run a command")');
   await page.waitForSelector(`${DLG} .tm-run input`, { timeout: 3000 });
   await runFocused();
 }
@@ -642,6 +645,8 @@ try {
   const tiles = await page.$$eval('.app-taskmgr .tm-dev', (els) => els.map((e) => e.dataset.dev));
   check('device list: CPU, Memory, disks, adapters', tiles[0] === 'cpu' && tiles[1] === 'mem' && tiles.some((x) => x.startsWith('disk:')) && tiles.some((x) => x.startsWith('net:')), tiles);
   const cpuStats = await page.$$eval('.app-taskmgr .tm-stat', (els) => Object.fromEntries(els.map((e) => [e.querySelector('.tm-stat-l').textContent, e.querySelector('.tm-stat-v').textContent])));
+  // The utilization is the detail's large header value; the other key figures are chips.
+  cpuStats.Utilization = await page.$eval('.app-taskmgr .tm-pd-value', (e) => e.textContent);
   check('CPU stats', /^\d+%$/.test(cpuStats.Utilization) && /GHz$/.test(cpuStats.Speed) && /^\d+:\d\d:\d\d:\d\d$/.test(cpuStats['Up time']) && Number(cpuStats.Processes.replace(/,/g, '')) > 10, cpuStats);
   await page.click('.app-taskmgr .tm-dev[data-dev="mem"]');
   await sleep(1300);
@@ -961,8 +966,24 @@ try {
   check('French "Afficher" menu', ['Processus', 'Détails', 'Historique des applications', 'Démarrage', 'Services', 'Utilisateurs', 'Performances', 'Paramètres'].every((x) => views.includes(x)), views);
   await fp.keyboard.press('Escape');
   await sleep(200);
+  // Contextual commands: "Arrêter" and "Priorité basse" show for the selected row only;
+  // "Lancer une commande" is in the "…" menu.
+  const noSelLabels = await fp.$$eval('.app-taskmgr .tm-cmd', (els) => els.map((e) => e.getAttribute('aria-label')));
+  check('French toolbar without a selection: only "…"', noSelLabels.join('|') === 'Voir plus', noSelLabels);
+  await fp.click('.app-taskmgr .tm-cmd[data-cmd="more"]');
+  await sleep(300);
+  const moreItems = await fp.$$eval('body > .menu .menu-item .label', (els) => els.map((e) => e.textContent));
+  check('French "…" menu holds "Lancer une commande" and the view options', moreItems[0] === 'Lancer une commande' && moreItems.includes('Regrouper par type') && moreItems.includes("Vitesse d'actualisation"), moreItems);
+  await fp.keyboard.press('Escape');
+  await sleep(200);
+  await fp.evaluate(() => {
+    const p = window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes;
+    p.table.select(p.table.rows.find((r) => r.kind === 'item' && r.data.type === 'app')?.key || p.table.rows.find((r) => r.kind === 'item').key);
+    p.app.renderCommands();
+  });
+  await sleep(200);
   const cmdLabels = await fp.$$eval('.app-taskmgr .tm-cmd', (els) => els.map((e) => e.getAttribute('aria-label')));
-  check('French toolbar commands', cmdLabels.includes('Lancer une commande') && cmdLabels.includes('Arrêter le processus') && cmdLabels.includes('Priorité basse'), cmdLabels);
+  check('French toolbar commands', !cmdLabels.includes('Lancer une commande') && cmdLabels.includes('Arrêter le processus') && cmdLabels.includes('Priorité basse') && cmdLabels.includes('Voir plus'), cmdLabels);
   const heads = await fp.$$eval('.app-taskmgr .tm-page-processes .tm-th', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
   check('French headers', heads.includes('Processeur') && heads.includes('Mémoire'), heads);
   const tops = await fp.$$eval('.app-taskmgr .tm-meter:not([data-meter="net"]) .tm-meter-val', (els) => els.map((e) => e.textContent));
@@ -995,8 +1016,11 @@ try {
     });
     check(`FR ${pg}: command bar fits`, !overflow);
     if (pg === 'performance') {
-      const top = await fp.$$eval('.app-taskmgr .tm-pd .tm-chart-top span:last-child', (els) => els.map((e) => e.textContent));
-      check('FR chart scale label "100 %"', top.length >= 1 && top.every((x) => x === '100\u202f%'), top);
+      // No axis labels: the time span is a small caption under the one chart.
+      const cap = await fp.$$eval('.app-taskmgr .tm-pd .tm-chart-span', (els) => els.map((e) => e.textContent));
+      check('FR chart caption "60 dernières secondes", no axis labels', cap.length === 1 && cap[0] === '60 dernières secondes' && !(await fp.$('.app-taskmgr .tm-pd .tm-chart-top, .app-taskmgr .tm-pd .tm-chart-foot')), cap);
+      const val = await fp.$eval('.app-taskmgr .tm-pd-value', (e) => e.textContent);
+      check('FR header value "N %"', /^\d+\u202f%$/.test(val), val);
       const tips = await fp.$$eval('.app-taskmgr .tm-dev .tm-dev-title', (els) => els.every((e) => e.dataset.tip === e.textContent));
       check('device titles carry their full text as a tooltip', tips);
       await fp.click('.app-taskmgr .tm-dev[data-dev="cpu"]');

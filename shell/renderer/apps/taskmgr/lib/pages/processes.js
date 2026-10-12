@@ -117,7 +117,12 @@ export class ProcessesPage {
   }
   applyColumns() {
     const defs = this.colDefs();
-    this.table.setColumns(this.visibleCols().map((id) => defs[id]));
+    // The Status column only shows while some row has a status (low priority, suspended…).
+    this.table.setColumns(
+      this.visibleCols()
+        .filter((id) => !(id === 'status' && this.statusEmpty))
+        .map((id) => defs[id]),
+    );
   }
   columnMenu(e) {
     const { t } = this.app;
@@ -436,6 +441,12 @@ export class ProcessesPage {
       rows.push({ key: e.key, kind: 'item', depth, parentKey, expandable: !!kids, expanded: exp, data: e.data, dim: e.data.type === 'window' });
       if (exp) for (const c of e.data.type === 'app' ? e.children : this.sorted(kids)) push(c, depth + 1, e.key);
     };
+    const hasStatus = (e) => !!e.data?.status || (e.children || []).some(hasStatus);
+    const empty = !this.sections.some((sec) => sec.entries.some(hasStatus));
+    if (empty !== !!this.statusEmpty) {
+      this.statusEmpty = empty;
+      this.applyColumns();
+    }
     let total = 0;
     if (this.app.prefs.groupByType) {
       for (const s of this.sections) {
@@ -632,10 +643,12 @@ export class ProcessesPage {
     const { t } = this.app;
     const r = this.selected();
     const eff = this.effState(r);
+    // "End task" and "Low priority" are contextual: they show for the selected row (they are also
+    // in its right-click menu). "Run a command" and the View items go to the "…" menu (app.js).
     return [
       { id: 'run', icon: 'window_new', label: t('cmd.run'), action: () => this.app.actions.runNewTask() },
-      { id: 'end', icon: 'prohibited', label: t('cmd.endTask'), disabled: !this.canEnd(r), action: () => this.endTask(this.selected()) },
-      { id: 'eff', icon: 'arrow-down', label: t('cmd.efficiency'), disabled: !eff.enabled, pressed: eff.on, action: () => this.toggleEfficiency(this.selected()) },
+      { id: 'end', icon: 'prohibited', label: t('cmd.endTask'), hidden: !r, disabled: !this.canEnd(r), action: () => this.endTask(this.selected()) },
+      { id: 'eff', icon: 'arrow-down', label: t('cmd.efficiency'), hidden: !r, disabled: !eff.enabled, pressed: eff.on, action: () => this.toggleEfficiency(this.selected()) },
       {
         id: 'view',
         icon: 'eye',

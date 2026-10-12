@@ -64,8 +64,10 @@ function monotonePath(ctx, xs, ys, move = true) {
 }
 
 export class Chart {
-  constructor({ mini = false, gridRows = 10, gridCols = 10, span = 60000, className, label } = {}) {
+  constructor({ mini = false, grid = true, gridRows = 10, gridCols = 10, span = 60000, className, label } = {}) {
     this.mini = mini;
+    // grid: false draws no grid, only a faint baseline (the Selene Performances detail).
+    this.grid = grid;
     this.gridRows = gridRows;
     this.gridCols = gridCols;
     this.span = span;
@@ -121,7 +123,14 @@ export class Chart {
     const now = this.now || Date.now();
     const span = this.span;
     // Grid: horizontal rows + vertical lines that scroll with time.
-    if (!this.mini) {
+    if (!this.mini && !this.grid) {
+      ctx.strokeStyle = rgba(d.color, dark ? 0.22 : 0.18);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, ch - 0.5);
+      ctx.lineTo(cw, ch - 0.5);
+      ctx.stroke();
+    } else if (!this.mini) {
       ctx.strokeStyle = rgba(d.color, dark ? 0.26 : 0.2);
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -166,13 +175,19 @@ export class Chart {
         ctx.lineTo(xs[xs.length - 1], ch);
         ctx.lineTo(xs[0], ch);
         ctx.closePath();
-        ctx.fillStyle = rgba(d.color, s.fillAlpha ?? (dark ? 0.24 : 0.13));
+        if (!this.grid && !this.mini) {
+          // Soft accent fill that fades towards the baseline.
+          const g = ctx.createLinearGradient(0, 0, 0, ch);
+          g.addColorStop(0, rgba(d.color, s.fillAlpha ?? (dark ? 0.3 : 0.2)));
+          g.addColorStop(1, rgba(d.color, 0.02));
+          ctx.fillStyle = g;
+        } else ctx.fillStyle = rgba(d.color, s.fillAlpha ?? (dark ? 0.24 : 0.13));
         ctx.fill();
       }
       ctx.beginPath();
       monotonePath(ctx, xs, ys);
       ctx.strokeStyle = s.color || d.color;
-      ctx.lineWidth = s.width || (this.mini ? 1 : 1.5);
+      ctx.lineWidth = s.width || (this.mini ? 1 : this.grid ? 1.5 : 2);
       ctx.lineJoin = 'round';
       ctx.setLineDash(s.dash ? [4, 3] : []);
       ctx.stroke();

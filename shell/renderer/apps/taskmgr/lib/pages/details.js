@@ -266,8 +266,8 @@ export class DetailsPage {
     const r = this.selected();
     return [
       { id: 'run', icon: 'window_new', label: t('cmd.run'), action: () => this.app.actions.runNewTask() },
-      { id: 'end', icon: 'prohibited', label: t('cmd.endTask'), disabled: !this.canEnd(r), action: () => this.endTask(this.selected()) },
-      { id: 'eff', icon: 'arrow-down', label: t('cmd.efficiency'), disabled: !this.canEff(r), pressed: !!r && r.data.nice >= 19, action: () => this.toggleEff(this.selected()) },
+      { id: 'end', icon: 'prohibited', label: t('cmd.endTask'), hidden: !r, disabled: !this.canEnd(r), action: () => this.endTask(this.selected()) },
+      { id: 'eff', icon: 'arrow-down', label: t('cmd.efficiency'), hidden: !r, disabled: !this.canEff(r), pressed: !!r && r.data.nice >= 19, action: () => this.toggleEff(this.selected()) },
       { id: 'props', icon: 'info', label: t('cmd.properties'), disabled: !r, action: () => this.properties(this.selected()) },
       { id: 'more', icon: 'more_horizontal', label: t('cmd.more'), menu: () => this.moreItems(this.selected()) },
     ];

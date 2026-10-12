@@ -217,9 +217,10 @@ export async function createPaint(ctx) {
   const dropEl = h('div', { class: 'pt-drop' }, h('div', { class: 'pt-drop-card' }, ctx.icon('image_add', { size: 32 }), h('div', { class: 'pt-drop-txt' }, t('dropHint'))));
   const fsExit = h('button', { type: 'button', class: 'btn pt-fs-exit', onclick: () => setFullscreen(false) }, ctx.icon('full_screen_minimize'), t('view.exitFullscreen'));
   // The tool island floats inside the canvas area, on the dotted backdrop.
-  const main = h('div', { class: 'pt-main' }, h('div', { class: 'pt-ruler-corner' }), rulerH, rulerV, markH, markV, scroller, chrome.toolbox, dropEl, fsExit);
+  // The zoom pill floats at the bottom right of the canvas area, like the tool island on the left.
+  const main = h('div', { class: 'pt-main' }, h('div', { class: 'pt-ruler-corner' }), rulerH, rulerV, markH, markV, scroller, chrome.toolbox, chrome.status, dropEl, fsExit);
   const work = h('div', { class: 'pt-work' }, main);
-  const root = h('div', { class: 'pt' }, chrome.cmdbar, chrome.ctxbar, work, chrome.status);
+  const root = h('div', { class: 'pt' }, chrome.cmdbar, chrome.ctxbar, work);
   win.body.appendChild(root);
   win.titlebarSlot.appendChild(chrome.titlebar);
 

@@ -129,8 +129,11 @@ function splitTree(v, depth = 0, count = { n: 0 }) {
   const b = splitTree(v.b ?? null, depth + 1, count);
   return a === undefined || b === undefined ? undefined : { s: v.s, r: Math.round(v.r * 1000) / 1000, a, b };
 }
+// Pictures removed by the redesign (same list as main/ipc/settings.js migrate()): profiles saved before it get Nocturne.
+const RETIRED_WALLPAPERS = new Set(['builtin:bloom', 'builtin:glow', 'builtin:flow', 'builtin:sunrise', 'builtin:aurora', 'builtin:dunes']);
 function wallpaperValue(v) {
   if (typeof v !== 'string' || !v || v.length > 8192) return undefined;
+  if (RETIRED_WALLPAPERS.has(v)) return 'builtin:nocturne';
   if (/^builtin:[a-z0-9-]{1,32}$/.test(v)) return v;
   if (localPath(v)) return v;
   if (/^data:image\/(svg\+xml|png|jpeg|webp)[;,]/i.test(v) && !CTRL.test(v) && !/<script|javascript:|on\w+\s*=|<foreignObject|href\s*=/i.test(decodeURIComponentSafe(v))) return v;

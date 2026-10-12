@@ -26,7 +26,7 @@ export const TOOLS = [
 ];
 
 const SIZES = [1, 2, 3, 5, 8, 12, 16, 24, 32, 50];
-const COLLAPSE_ORDER = ['clipboard', 'image', 'shapeopts', 'colors'];
+const COLLAPSE_ORDER = ['shapeopts', 'colors'];
 const SVGNS = 'http://www.w3.org/2000/svg';
 
 export function createChrome(app) {
@@ -207,12 +207,18 @@ export function createChrome(app) {
   const fmtItems = () =>
     ['png', 'jpeg', 'bmp', 'gif', 'webp'].map((f) => ({ label: t(`file.${f}`), icon: 'image', action: () => app.cmd('saveAs', f) }));
 
-  // "…": the file commands, then the edit and view commands in two submenus.
+  // "…": the file commands, the clipboard actions, then the edit and view commands in two submenus.
+  const clipItems = () => [
+    { label: t('edit.cut'), icon: 'cut', shortcut: 'Ctrl+X', disabled: !app.can('cut'), action: () => app.cmd('cut') },
+    { label: t('edit.copy'), icon: 'copy', shortcut: 'Ctrl+C', disabled: !app.can('copy'), action: () => app.cmd('copy') },
+    { label: t('edit.paste'), icon: 'clipboard_paste', shortcut: 'Ctrl+V', action: () => app.cmd('paste') },
+    { label: t('edit.pasteFrom'), icon: 'image_add', action: () => app.cmd('pasteFrom') },
+  ];
   async function openMenu(id, anchor = refs.more) {
     closeFlyout();
     const items =
       id === 'more'
-        ? [...menuItems('file'), '-', { label: t('menu.edit'), icon: 'pencil-simple', submenu: menuItems('edit') }, { label: t('menu.view'), icon: 'eye', submenu: menuItems('view') }]
+        ? [...menuItems('file'), '-', ...clipItems(), '-', { label: t('menu.edit'), icon: 'pencil-simple', submenu: menuItems('edit') }, { label: t('menu.view'), icon: 'eye', submenu: menuItems('view') }]
         : menuItems(id);
     anchor.classList.add('open');
     await menuAt(anchor, items);
@@ -373,11 +379,32 @@ export function createChrome(app) {
       (refs.selectMain = btn({ ic: 'select_object', label: t('image.select'), key: 'S', cls: 'pt-split-main', size: 20, onclick: () => app.setTool('select') })),
       btn({ ic: icon('chevron_down', { size: 10 }), label: t('image.selectOptions'), cls: 'pt-split-arrow', onclick: (e) => selectMenu(e.currentTarget) }),
     );
-    refs.crop = btn({ ic: 'crop', label: t('edit.crop'), key: 'Ctrl+Shift+X', cls: 'sm', onclick: () => app.cmd('crop') });
-    refs.resize = btn({ ic: 'resize_image', label: t('image.resize'), key: 'Ctrl+W', cls: 'sm', onclick: () => app.cmd('resize') });
-    refs.rotate = btn({ ic: 'arrow_rotate_clockwise', label: t('image.rotate'), cls: 'sm wide', chevron: true, onclick: (e) => rotateMenu(e.currentTarget) });
-    refs.flip = btn({ ic: 'flip_horizontal', label: t('image.flip'), cls: 'sm wide', chevron: true, onclick: (e) => flipMenu(e.currentTarget) });
-    return group('image', h('div', { class: 'pt-g-body' }, refs.crop, refs.resize, refs.rotate, refs.flip), 'image');
+    // One compact "Image" menu: crop, resize, rotate, flip (the shortcuts are unchanged).
+    refs.imageBtn = h(
+      'button',
+      {
+        type: 'button',
+        class: 'pt-b pt-image-btn',
+        'aria-haspopup': 'menu',
+        'data-tip': t('groups.image'),
+        onclick: (e) =>
+          menuAt(e.currentTarget, [
+            { label: t('edit.crop'), icon: 'crop', shortcut: 'Ctrl+Shift+X', disabled: !app.can('crop'), action: () => app.cmd('crop') },
+            { label: t('image.resize'), icon: 'resize_image', shortcut: 'Ctrl+W', action: () => app.cmd('resize') },
+            '-',
+            { label: t('image.rotR'), icon: 'rotate_right', action: () => app.cmd('rotR') },
+            { label: t('image.rotL'), icon: 'rotate_left', action: () => app.cmd('rotL') },
+            { label: t('image.rot180'), icon: 'arrow_rotate_clockwise', action: () => app.cmd('rot180') },
+            '-',
+            { label: t('image.flipV'), icon: 'flip_vertical', action: () => app.cmd('flipV') },
+            { label: t('image.flipH'), icon: 'flip_horizontal', action: () => app.cmd('flipH') },
+          ]),
+      },
+      icon('image', { size: 18 }),
+      h('span', { class: 'pt-image-lbl' }, t('groups.image')),
+      icon('caret-down', { size: 10, class: 'pt-chev' }),
+    );
+    return group('image', h('div', { class: 'pt-g-body' }, refs.imageBtn), 'image');
   }
 
   function buildTools() {
@@ -627,7 +654,7 @@ export function createChrome(app) {
   }
 
   function buildCmdbar() {
-    const clipboard = buildClipboard();
+    // Clipboard actions are in the "…" menu (and on Ctrl+X / C / V).
     const image = buildImage();
     // The tool island: selection, the tools, brushes, then the shapes popover.
     const tools = buildTools();
@@ -643,7 +670,8 @@ export function createChrome(app) {
       shapes,
     );
     // Options bar along the top.
-    const bar = h('div', { class: 'pt-cmdbar', role: 'toolbar', 'aria-label': t('cmdbar') }, clipboard, image, refs.shapeOpts, buildSize(), buildColors());
+    // Options bar along the top: the active tool's options, then the Image menu at the end.
+    const bar = h('div', { class: 'pt-cmdbar', role: 'toolbar', 'aria-label': t('cmdbar') }, refs.shapeOpts, buildSize(), buildColors(), h('div', { class: 'pt-bar-grow' }), image);
     refs.bar = bar;
     return bar;
   }
@@ -740,34 +768,43 @@ export function createChrome(app) {
     refs.fontSel.value = S.text.family;
   }
 
-  // ------------------------------------------------------------ status bar
+  // ------------------------------------------------------------ zoom pill
+  // A small floating pill at the bottom right of the canvas area: − , the zoom level (opens the
+  // presets and the slider), +, fit. The canvas size, pointer position and selection size show
+  // as a discreet caption above it while the pointer is over the canvas area.
+  function zoomFlyout(anchor) {
+    const presets = h(
+      'div',
+      { class: 'pt-zoom-presets', role: 'group', 'aria-label': t('view.zoomLevel') },
+      [8, 6, 4, 3, 2, 1, 0.5, 0.25, 0.125].map((z) => {
+        const on = Math.abs(app.zoom() - z) < 1e-6;
+        return h('button', { type: 'button', class: ['pt-zoom-preset', on && 'on'], 'aria-pressed': String(on), onclick: () => (app.setZoom(z), closeFlyout()) }, `${z * 100}%`);
+      }),
+    );
+    const fit = h('button', { type: 'button', class: 'pt-zoom-preset pt-zoom-fitp', onclick: () => (app.cmd('zoomFit'), closeFlyout()) }, icon('zoom_fit', { size: 16 }), h('span', null, t('view.fit')));
+    refs.zoomSlider.setValue(zoomToSlider(app.zoom()));
+    flyout(anchor, h('div', { class: 'pt-zoom-fly' }, refs.zoomSlider, presets, fit), { className: 'pt-fly-zoom' });
+  }
   function buildStatus() {
     const item = (ic, cls) => {
       const txt = h('span', { class: 'pt-st-txt' });
-      const el = h('div', { class: ['pt-st-item', cls] }, icon(ic, { size: 16 }), txt);
+      const el = h('div', { class: ['pt-st-item', cls] }, icon(ic, { size: 14 }), txt);
       el.txt = txt;
       return el;
     };
     refs.stPos = item('cursor', 'pos');
     refs.stSel = item('select_object', 'sel');
     refs.stSize = item('resize_image', 'size');
-    refs.stFile = item('save', 'file');
     refs.zoomBtn = h(
       'button',
       {
         type: 'button',
         class: 'pt-zoom-pct',
         'data-tip': t('view.zoomLevel'),
-        'aria-haspopup': 'menu',
-        onclick: (e) =>
-          menuAt(e.currentTarget, [
-            ...[8, 6, 4, 3, 2, 1, 0.5, 0.25, 0.125].map((z) => ({ label: `${z * 100}%`, checked: Math.abs(app.zoom() - z) < 1e-6, action: () => app.setZoom(z) })),
-            '-',
-            { label: t('view.fit'), icon: 'zoom_fit', action: () => app.cmd('zoomFit') },
-          ]),
+        'aria-haspopup': 'dialog',
+        onclick: (e) => zoomFlyout(e.currentTarget),
       },
       h('span', { class: 'pt-zoom-txt' }),
-      icon('chevron_down', { size: 10 }),
     );
     refs.zoomSlider = ui.slider({
       min: 0,
@@ -777,19 +814,11 @@ export function createChrome(app) {
     });
     refs.zoomSlider.classList.add('pt-zoom-slider');
     refs.zoomSlider.setAttribute('aria-label', t('view.zoomLevel'));
-    const zo = btn({ ic: 'subtract', label: t('view.zoomOut'), key: 'Ctrl+-', cls: 'xs', size: 14, onclick: () => app.cmd('zoomOut') });
-    const zi = btn({ ic: 'add', label: t('view.zoomIn'), key: 'Ctrl++', cls: 'xs', size: 14, onclick: () => app.cmd('zoomIn') });
-    const fit = btn({ ic: 'zoom_fit', label: t('view.fit'), key: 'Ctrl+0', cls: 'xs', size: 16, onclick: () => app.cmd('zoomFit') });
-    refs.status = h(
-      'div',
-      { class: 'pt-status', role: 'status' },
-      refs.stPos,
-      refs.stSel,
-      refs.stSize,
-      refs.stFile,
-      h('div', { class: 'grow' }),
-      h('div', { class: 'pt-zoom' }, refs.zoomBtn, zo, refs.zoomSlider, zi, h('div', { class: 'pt-st-sep' }), fit),
-    );
+    const zo = btn({ ic: 'minus', label: t('view.zoomOut'), key: 'Ctrl+-', cls: 'xs', size: 14, onclick: () => app.cmd('zoomOut') });
+    const zi = btn({ ic: 'plus', label: t('view.zoomIn'), key: 'Ctrl++', cls: 'xs', size: 14, onclick: () => app.cmd('zoomIn') });
+    const fit = btn({ ic: 'corners-out', label: t('view.fit'), key: 'Ctrl+0', cls: 'xs', size: 14, onclick: () => app.cmd('zoomFit') });
+    refs.stCap = h('div', { class: 'pt-st-cap', 'aria-live': 'off' }, refs.stSize, refs.stPos, refs.stSel);
+    refs.status = h('div', { class: 'pt-status pt-zoompill-wrap' }, refs.stCap, h('div', { class: 'pt-zoom', role: 'group', 'aria-label': t('view.zoomLevel') }, zo, refs.zoomBtn, zi, fit));
     return refs.status;
   }
 
@@ -873,15 +902,21 @@ export function createChrome(app) {
         refs.stSel.classList.toggle('pt-empty', !sel);
       }
       if (size !== undefined) refs.stSize.txt.textContent = size;
+      // The file size is no longer shown in the window; it stays in the title's tooltip.
       if (file !== undefined) {
-        refs.stFile.txt.textContent = file ?? '';
-        refs.stFile.classList.toggle('pt-empty', !file);
+        refs.fileSize = file ?? '';
+        if (refs.title) {
+          if (file) refs.title.dataset.tip = file;
+          else delete refs.title.dataset.tip;
+        }
       }
     },
     setZoom(z) {
       refs.zoomBtn.querySelector('.pt-zoom-txt').textContent = `${Math.round(z * 1000) / 10}%`;
       refs.zoomSlider.setValue(zoomToSlider(z));
+      refs.zoomBtn.setAttribute('aria-label', `${t('view.zoomLevel')} ${Math.round(z * 1000) / 10}%`);
     },
+    fileSize: () => refs.fileSize || '',
     update() {
       const c = (k) => app.can(k);
       for (const [id, b] of Object.entries(refs.tools || {})) {
@@ -913,12 +948,17 @@ export function createChrome(app) {
       }
       refs.toolsGrid?._sync?.();
       refs.gallery?._sync?.();
-      refs.cut.disabled = !c('cut');
-      refs.copy.disabled = !c('copy');
-      refs.crop.disabled = !c('crop');
+      if (refs.cut) refs.cut.disabled = !c('cut');
+      if (refs.copy) refs.copy.disabled = !c('copy');
       refs.qaUndo.disabled = !c('undo');
       refs.qaRedo.disabled = !c('redo');
       refs.size.disabled = !app.sizeKey();
+      // Size is an option of the tools that have one only.
+      const noSize = !app.sizeKey();
+      if ((groups.size.el.style.display === 'none') !== noSize) {
+        groups.size.el.style.display = noSize ? 'none' : '';
+        if (refs.bar?.isConnected) requestAnimationFrame(fitBar);
+      }
       // current colours
       refs.c1.style.setProperty('--c', S.primary);
       refs.c2.style.setProperty('--c', S.secondary);

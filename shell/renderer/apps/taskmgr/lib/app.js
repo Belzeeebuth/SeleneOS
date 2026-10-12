@@ -359,7 +359,19 @@ export class TaskManager {
   // ------------------------------------------------------------------ command bar
   renderCommands() {
     const { h, icon } = this.ctx;
-    const cmds = (this.current?.commands?.() || []).filter(Boolean);
+    let cmds = (this.current?.commands?.() || []).filter((c) => c && !c.hidden);
+    // "Run a command" and a page's View menu live in the "…" menu, at its top.
+    const run = cmds.find((c) => c.id === 'run');
+    const view = cmds.find((c) => c.id === 'view');
+    if (run || view) {
+      cmds = cmds.filter((c) => c !== run && c !== view);
+      const head = () => [run && { label: run.label, icon: 'terminal-window', disabled: !!run.disabled, action: run.action }, run && view && '-', ...(view ? view.menu() : [])].filter(Boolean);
+      const more = cmds.find((c) => c.id === 'more');
+      if (more) {
+        const own = more.menu;
+        cmds = cmds.map((c) => (c === more ? { ...c, menu: () => [...head(), '-', ...own()] } : c));
+      } else cmds.push({ id: 'more', icon: 'dots-three', label: this.t('cmd.more'), menu: head });
+    }
     const sig = JSON.stringify(cmds.map((c) => [c.id, c.label, !!c.disabled, c.pressed ?? null, c.icon]));
     if (sig === this._cmdSig) return;
     this._cmdSig = sig;
@@ -369,7 +381,7 @@ export class TaskManager {
       const btn = h(
         'button',
         {
-          class: ['btn', 'subtle', 'tm-cmd', c.menu && 'has-menu'],
+          class: ['btn', 'subtle', 'tm-cmd', c.menu && 'has-menu', c.id === 'more' && 'tm-cmd-more'],
           disabled: !!c.disabled,
           'data-tip': c.label,
           'data-tip-pos': 'below',
@@ -382,9 +394,9 @@ export class TaskManager {
             else c.action?.();
           },
         },
-        c.icon ? icon(c.icon, { filled: !!c.pressed }) : null,
-        h('span', { class: 'tm-cmd-label' }, c.label),
-        c.menu ? icon('chevron_down', { size: 12, class: 'tm-cmd-chev' }) : null,
+        c.icon ? icon(c.id === 'more' ? 'dots-three' : c.icon, { filled: !!c.pressed }) : null,
+        c.id === 'more' ? null : h('span', { class: 'tm-cmd-label' }, c.label),
+        c.menu && c.id !== 'more' ? icon('chevron_down', { size: 12, class: 'tm-cmd-chev' }) : null,
       );
       this.cmdBar.appendChild(btn);
     }

@@ -91,7 +91,8 @@ export class VTable {
     const ctx = (VTable._measure ||= document.createElement('canvas').getContext('2d'));
     const font = `12px ${getComputedStyle(this.el.isConnected ? this.el : document.body).fontFamily}`;
     if (ctx.font !== font) ctx.font = font;
-    const w = Math.max(...words.map((x) => ctx.measureText(String(x)).width));
+    // The header label also leaves room for the sort caret beside it.
+    const w = Math.max(...words.map((x, i) => ctx.measureText(String(x)).width + (i === 0 && label ? 14 : 0)));
     return Math.ceil(w) + 24 + (c.fitIcon ? 22 : 0); // + the cell's horizontal padding (and icon)
   }
   _applyWidths() {
@@ -123,9 +124,9 @@ export class VTable {
           dataset: { col: c.id },
           'aria-sort': 'none',
         },
-        sortIc,
         top,
-        h('div', { class: 'tm-th-label ellipsis' }, typeof c.label === 'function' ? c.label() : c.label),
+        // The sort caret sits next to the header text (not centred above it).
+        h('div', { class: 'tm-th-line' }, h('div', { class: 'tm-th-label ellipsis' }, typeof c.label === 'function' ? c.label() : c.label), sortIc),
         h('div', { class: 'tm-rs', dataset: { col: c.id } }),
       );
       this.headCells.set(c.id, { cell, top });

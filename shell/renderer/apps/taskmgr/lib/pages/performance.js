@@ -1,6 +1,6 @@
-// Performance page: device list with live sparklines (CPU, Memory, every disk, every network
-// adapter, GPU when the driver reports utilization) and the selected device's 60-second chart
-// with its statistics, like Windows 11 Task Manager.
+// Performance page: a row of device chips (CPU, Memory, every disk, every network adapter, GPU
+// when the driver reports utilization) and the selected device's detail: its current value in
+// large type, one 60-second area chart, key figures as chips and a short "Details" card.
 import { Chart, niceMax } from '../chart.js';
 
 const SPAN = 60000;
@@ -157,6 +157,9 @@ export class PerformancePage {
   }
 
   // ------------------------------------------------------------------ detail
+  // Selene layout: a header (device name, its model, the current value in large type), ONE area
+  // chart (soft accent fill, faint baseline, the time span as a caption), a few key figures as
+  // chips, then the hardware details in a short card (the less useful lines behind "Show all").
   buildDetail() {
     const { h } = this.app.ctx;
     const { t } = this.app;
@@ -170,51 +173,50 @@ export class PerformancePage {
       const el = h('div', { class: ['tm-stat', cls] }, h('div', { class: 'tm-stat-l' }, label), v);
       return { el, v };
     };
-    const kvRow = (label) => {
-      const v = h('dd');
-      return { el: [h('dt', null, label), v], v };
+    const kvRow = (label, more) => {
+      const v = h('dd', { class: more ? 'more' : null });
+      return { el: [h('dt', { class: more ? 'more' : null }, label), v], v };
     };
     const title = h('h2', { class: 'tm-pd-title' }, this.devLabel(dev).replace(/ \(.*$/, ''));
     const sub = h('div', { class: 'tm-pd-sub ellipsis' });
-    const head = h('div', { class: 'tm-pd-head' }, title, sub);
-    const chartBox = (labelL, labelR, opts = {}) => {
-      const chart = new Chart({ label: labelL, gridRows: opts.rows || 10, gridCols: 10 });
+    const value = h('div', { class: 'tm-pd-value', 'aria-live': 'off' });
+    const head = h('div', { class: 'tm-pd-head' }, h('div', { class: 'tm-pd-name' }, title, sub), value);
+    const chartBox = (label, opts = {}) => {
+      const chart = new Chart({ label, grid: false });
       charts.push(chart);
-      const right = h('span', null, labelR || '');
+      const scale = h('span', { class: 'tm-chart-scale' });
       const wrap = h('div', { class: ['tm-chart', opts.cls] }, chart.canvas);
-      const box = h(
-        'div',
-        { class: ['tm-chartbox', opts.box] },
-        h('div', { class: 'tm-chart-top caption text-2' }, h('span', { class: 'ellipsis' }, labelL), right),
-        wrap,
-        opts.foot === false ? null : h('div', { class: 'tm-chart-foot caption text-2' }, h('span', null, t('perf.seconds')), h('span', null, '0')),
-      );
-      return { chart, box, right, wrap };
+      const box = h('div', { class: ['tm-chartbox', opts.box] }, wrap, h('div', { class: 'tm-chart-cap' }, h('span', { class: 'tm-chart-span' }, t('perf.lastMinute')), scale));
+      return { chart, box, scale, wrap };
     };
-    const d = { kind: dev.kind, dev, charts, sub, title, stats: {}, kv: {} };
+    const d = { kind: dev.kind, dev, charts, sub, title, value, valueLabel: '', stats: {}, kv: {} };
     const body = h('div', { class: ['tm-pd-body', `k-${dev.kind}`] });
-    const statsBig = h('div', { class: 'tm-stats' });
+    const chips = h('div', { class: 'tm-stats', role: 'list' });
     const kv = h('dl', { class: 'tm-kv tm-kv-perf' });
-    const addStats = (rows) => {
-      for (const row of rows) {
-        const line = h('div', { class: 'tm-stats-row' });
-        for (const [key, label, cls] of row) {
-          const s = stat(label, cls);
-          d.stats[key] = s.v;
-          line.appendChild(s.el);
-        }
-        statsBig.appendChild(line);
+    let moreCount = 0;
+    const addStats = (row) => {
+      for (const [key, label, cls] of row) {
+        const s = stat(label, cls);
+        s.el.setAttribute('role', 'listitem');
+        d.stats[key] = s.v;
+        chips.appendChild(s.el);
       }
     };
+    // [key, label, more?]: "more" lines stay hidden until "Show all".
     const addKv = (rows) => {
-      for (const [key, label] of rows) {
-        const r = kvRow(label);
+      for (const [key, label, more] of rows) {
+        const r = kvRow(label, more);
+        if (more) moreCount++;
         d.kv[key] = r.v;
         kv.append(...r.el);
       }
     };
+    const graphBox = (box) => {
+      body.appendChild(box);
+    };
 
     if (dev.kind === 'cpu') {
+      d.valueLabel = t('perf.util');
       const logical = this.app.prefs.cpuGraph === 'logical';
       if (logical) {
         const n = this.app.store.perf?.cpu.perCore.length || 1;
@@ -223,54 +225,48 @@ export class PerformancePage {
         grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
         d.cores = [];
         for (let i = 0; i < n; i++) {
-          const c = new Chart({ gridRows: 4, gridCols: 6, label: t('perf.cpuN', { n: i }) });
+          const c = new Chart({ grid: false, label: t('perf.cpuN', { n: i }) });
           charts.push(c);
           grid.appendChild(h('div', { class: 'tm-chart' }, c.canvas));
           d.cores.push(c);
         }
-        body.appendChild(
-          h(
-            'div',
-            { class: 'tm-chartbox main' },
-            h('div', { class: 'tm-chart-top caption text-2' }, h('span', null, t('perf.utilizationOver', { s: 60 })), h('span', null, this.app.fmt.pct(100))),
-            grid,
-            h('div', { class: 'tm-chart-foot caption text-2' }, h('span', null, t('perf.seconds')), h('span', null, '0')),
-          ),
-        );
+        graphBox(h('div', { class: 'tm-chartbox main' }, grid, h('div', { class: 'tm-chart-cap' }, h('span', { class: 'tm-chart-span' }, t('perf.lastMinute')))));
       } else {
-        const c = chartBox(t('perf.utilization'), this.app.fmt.pct(100), { box: 'main' });
+        const c = chartBox(t('perf.utilization'), { box: 'main' });
         d.main = c.chart;
-        body.appendChild(c.box);
+        graphBox(c.box);
       }
       addStats([
-        [
-          ['util', t('perf.util')],
-          ['speed', t('perf.speed')],
-        ],
-        [
-          ['procs', t('perf.processes')],
-          ['threads', t('perf.threads')],
-          ['handles', t('perf.handles')],
-        ],
-        [['uptime', t('perf.uptime')]],
+        ['speed', t('perf.speed')],
+        ['procs', t('perf.processes')],
+        ['threads', t('perf.threads')],
+        ['uptime', t('perf.uptime')],
       ]);
       addKv([
         ['base', t('perf.baseSpeed')],
-        ['sockets', t('perf.sockets')],
         ['cores', t('perf.cores')],
         ['logical', t('perf.logical')],
         ['virt', t('perf.virtualization')],
-        ['vm', t('perf.vm')],
-        ['l1', t('perf.l1')],
-        ['l2', t('perf.l2')],
-        ['l3', t('perf.l3')],
         ['load', t('perf.load')],
+        ['handles', t('perf.handles'), true],
+        ['sockets', t('perf.sockets'), true],
+        ['vm', t('perf.vm'), true],
+        ['l1', t('perf.l1'), true],
+        ['l2', t('perf.l2'), true],
+        ['l3', t('perf.l3'), true],
       ]);
     } else if (dev.kind === 'mem') {
-      const c = chartBox(t('perf.memUsage'), '', { box: 'main' });
+      d.valueLabel = t('perf.memUsage');
+      const c = chartBox(t('perf.memUsage'), { box: 'main' });
       d.main = c.chart;
-      d.mainRight = c.right;
-      body.appendChild(c.box);
+      d.mainRight = c.scale;
+      graphBox(c.box);
+      addStats([
+        ['inuse', t('perf.inUse')],
+        ['avail', t('perf.available')],
+        ['committed', t('perf.committed')],
+        ['cached', t('perf.cached')],
+      ]);
       const segs = {};
       const bar = h('div', { class: 'tm-membar', role: 'img' });
       for (const k of ['inuse', 'modified', 'standby', 'free']) {
@@ -279,88 +275,81 @@ export class PerformancePage {
       }
       d.segs = segs;
       d.bar = bar;
-      body.appendChild(h('div', { class: 'tm-chartbox comp' }, h('div', { class: 'tm-chart-top caption text-2' }, h('span', null, t('perf.memComposition'))), bar));
-      addStats([
-        [
-          ['inuse', t('perf.inUse')],
-          ['avail', t('perf.available')],
-        ],
-        [
-          ['committed', t('perf.committed')],
-          ['cached', t('perf.cached')],
-        ],
-        [
-          ['shared', t('perf.shared')],
-          ['kernel', t('perf.kernelMem')],
-        ],
-      ]);
+      d.comp = h('div', { class: 'tm-chartbox comp' }, h('div', { class: 'tm-comp-label' }, t('perf.memComposition')), bar);
       addKv([
         ['total', t('perf.installed')],
         ['swap', t('perf.swap')],
-        ['buffers', t('perf.buffers')],
-        ['reserved', t('perf.reserved')],
+        ['shared', t('perf.shared'), true],
+        ['kernel', t('perf.kernelMem'), true],
+        ['buffers', t('perf.buffers'), true],
+        ['reserved', t('perf.reserved'), true],
       ]);
     } else if (dev.kind === 'disk') {
-      const c1 = chartBox(t('perf.activeTime'), this.app.fmt.pct(100), { box: 'main' });
-      const c2 = chartBox(t('perf.transferRate'), '', { box: 'second', rows: 4 });
-      d.main = c1.chart;
-      d.second = c2.chart;
-      d.secondRight = c2.right;
-      body.append(c1.box, c2.box);
+      d.valueLabel = t('perf.activeTime');
+      // One graph: the active time, or the transfer rate (read solid, write dashed) from the
+      // "Change graph to" menu.
+      d.rate = this.diskGraph === 'rate';
+      const c = chartBox(d.rate ? t('perf.transferRate') : t('perf.activeTime'), { box: 'main' });
+      d.main = c.chart;
+      d.scale = c.scale;
+      graphBox(c.box);
       addStats([
-        [
-          ['active', t('perf.activeTime')],
-          ['resp', t('perf.avgResponse')],
-        ],
-        [
-          ['read', t('perf.readSpeed'), 'lg-solid'],
-          ['write', t('perf.writeSpeed'), 'lg-dash'],
-        ],
+        ['resp', t('perf.avgResponse')],
+        ['read', t('perf.readSpeed'), d.rate ? 'lg-solid' : null],
+        ['write', t('perf.writeSpeed'), d.rate ? 'lg-dash' : null],
       ]);
       addKv([
         ['capacity', t('perf.capacity')],
-        ['formatted', t('perf.formatted')],
-        ['system', t('perf.systemDisk')],
-        ['swapfile', t('perf.pageFile')],
         ['type', t('perf.type')],
         ['model', t('perf.model')],
         ['mounts', t('perf.mounts')],
+        ['formatted', t('perf.formatted'), true],
+        ['system', t('perf.systemDisk'), true],
+        ['swapfile', t('perf.pageFile'), true],
       ]);
     } else if (dev.kind === 'net') {
-      const c = chartBox(t('perf.throughput'), '', { box: 'main' });
+      d.valueLabel = t('perf.throughput');
+      const c = chartBox(t('perf.throughput'), { box: 'main' });
       d.main = c.chart;
-      d.mainRight = c.right;
-      body.appendChild(c.box);
+      d.mainRight = c.scale;
+      graphBox(c.box);
       addStats([
-        [
-          ['send', t('perf.send'), 'lg-dash'],
-          ['recv', t('perf.receive'), 'lg-solid'],
-        ],
+        ['recv', t('perf.receive'), 'lg-solid'],
+        ['send', t('perf.send'), 'lg-dash'],
       ]);
       addKv([
         ['adapter', t('perf.adapter')],
         ['ctype', t('perf.connType')],
         ['speed', t('perf.linkSpeed')],
-        ['signal', t('perf.signal')],
         ['ipv4', t('perf.ipv4')],
-        ['ipv6', t('perf.ipv6')],
-        ['mac', t('perf.mac')],
+        ['signal', t('perf.signal'), true],
+        ['ipv6', t('perf.ipv6'), true],
+        ['mac', t('perf.mac'), true],
       ]);
     } else if (dev.kind === 'gpu') {
-      const c = chartBox(t('perf.utilization'), this.app.fmt.pct(100), { box: 'main' });
+      d.valueLabel = t('perf.util');
+      const c = chartBox(t('perf.utilization'), { box: 'main' });
       d.main = c.chart;
-      body.appendChild(c.box);
-      addStats([
-        [
-          ['util', t('perf.util')],
-          ['vram', t('perf.vram')],
-        ],
-      ]);
+      graphBox(c.box);
+      addStats([['vram', t('perf.vram')]]);
       addKv([['driver', t('perf.driver')]]);
     }
-    // Legends for the two-line charts (solid = first series, dashed = second).
-    if (dev.kind === 'disk' || dev.kind === 'net') statsBig.classList.add('legend');
-    body.appendChild(h('div', { class: 'tm-pd-stats' }, statsBig, kv));
+    if (dev.kind === 'disk' || dev.kind === 'net') chips.classList.add('legend');
+    value.setAttribute('aria-label', d.valueLabel);
+    const card = h('section', { class: 'tm-pd-card', 'aria-label': t('perf.detailsTitle') }, h('h3', { class: 'tm-pd-card-title' }, t('perf.detailsTitle')), kv);
+    if (moreCount) {
+      const more = h('button', { class: 'btn subtle small tm-pd-more', type: 'button', 'aria-expanded': 'false' }, t('perf.showAll'));
+      more.addEventListener('click', () => {
+        const on = !card.classList.contains('all');
+        card.classList.toggle('all', on);
+        this.showAllDetails = on;
+        more.setAttribute('aria-expanded', String(on));
+        more.textContent = t(on ? 'perf.showLess' : 'perf.showAll');
+      });
+      if (this.showAllDetails) more.click();
+      card.appendChild(more);
+    }
+    body.appendChild(h('div', { class: 'tm-pd-stats' }, chips, d.comp || null, card));
     this.detailEl.append(head, body);
     this.detail = d;
   }
@@ -418,16 +407,20 @@ export class PerformancePage {
     const d = this.detail;
     if (!d) return;
     const S = (k, v) => {
-      const el = d.stats[k];
+      const el = d.stats[k] || d.kv[k];
       if (el && el.textContent !== v) el.textContent = v;
     };
     const K = (k, v) => {
       const el = d.kv[k];
       if (el && el.textContent !== v) el.textContent = v;
     };
+    const V = (v) => {
+      if (d.value.textContent !== v) d.value.textContent = v;
+    };
     const color = this.colors[d.kind];
     if (d.kind === 'cpu') {
       const c = p.cpu;
+      V(f.pct(c.total));
       if (d.sub.textContent !== c.model) d.sub.textContent = c.model;
       if (d.main) d.main.set({ color, max: 100, series: [{ points: store.get('cpu') }] }, now, { animate });
       if (d.cores) d.cores.forEach((ch, i) => ch.set({ color, max: 100, series: [{ points: store.get(`cpu${i}`) }] }, now, { animate }));
@@ -452,6 +445,7 @@ export class PerformancePage {
       const total = f.size(m.total, 1);
       if (d.sub.textContent !== total) d.sub.textContent = total;
       if (d.mainRight.textContent !== total) d.mainRight.textContent = total;
+      V(f.pct((m.used / (m.total || 1)) * 100));
       d.main.set({ color, max: m.total, series: [{ points: store.get('mem') }] }, now, { animate });
       const parts = { inuse: m.used, modified: m.modified, standby: m.standby, free: m.free };
       const sum = Object.values(parts).reduce((a, b) => a + b, 0) || 1;
@@ -475,11 +469,13 @@ export class PerformancePage {
       if (!dk) return;
       const sub = dk.model || dk.name;
       if (d.sub.textContent !== sub) d.sub.textContent = sub;
-      d.main.set({ color, max: 100, series: [{ points: store.get(`disk:${dk.name}:busy`) }] }, now, { animate });
+      V(f.pct(dk.busyPct));
+      if (!d.rate) d.main.set({ color, max: 100, series: [{ points: store.get(`disk:${dk.name}:busy`) }] }, now, { animate });
       const peak = niceMax(Math.max(store.peak(`disk:${dk.name}:read`, now), store.peak(`disk:${dk.name}:write`, now)), 102400);
-      const pr = f.rate(peak);
-      if (d.secondRight.textContent !== pr) d.secondRight.textContent = pr;
-      d.second.set(
+      const pr = d.rate ? f.rate(peak) : '';
+      if (d.scale.textContent !== pr) d.scale.textContent = pr;
+      if (d.rate)
+        d.main.set(
         {
           color,
           max: peak,
@@ -509,6 +505,7 @@ export class PerformancePage {
       const peak = niceMax(Math.max(store.peak(`net:${n.iface}:rx`, now), store.peak(`net:${n.iface}:tx`, now)), 10000);
       const pr = f.bits(peak);
       if (d.mainRight.textContent !== pr) d.mainRight.textContent = pr;
+      V(f.bits(n.rxBps + n.txBps));
       d.main.set(
         {
           color,
@@ -535,6 +532,7 @@ export class PerformancePage {
       const g = p.gpu;
       if (!g) return;
       if (d.sub.textContent !== g.name) d.sub.textContent = g.name;
+      V(f.pct(g.busyPct));
       d.main.set({ color, max: 100, series: [{ points: store.get('gpu') }] }, now, { animate });
       S('util', f.pct(g.busyPct));
       S('vram', g.vramTotal ? `${f.size(g.vramUsed, 1)} / ${f.size(g.vramTotal, 1)}` : t('props.na'));
@@ -547,6 +545,7 @@ export class PerformancePage {
     const p = this.app.store.perf;
     if (!p || !this.detail) return '';
     const lines = [`${this.detail.title.textContent}\t${this.detail.sub.textContent}`, ''];
+    if (this.detail.valueLabel) lines.push(`${this.detail.valueLabel}\t${this.detail.value.textContent}`);
     for (const el of this.detailEl.querySelectorAll('.tm-stat')) lines.push(`${el.querySelector('.tm-stat-l').textContent}\t${el.querySelector('.tm-stat-v').textContent}`);
     const dts = this.detailEl.querySelectorAll('.tm-kv dt');
     for (const dt of dts) lines.push(`${dt.textContent}\t${dt.nextElementSibling?.textContent || ''}`);
@@ -568,6 +567,21 @@ export class PerformancePage {
       });
       items.push('-');
     }
+    if (this.selected.startsWith('disk:')) {
+      const set = (v) => {
+        this.diskGraph = v;
+        this.buildDetail();
+        if (this.app.store.perf) this.update(this.app.store, { animate: false });
+      };
+      items.push({
+        label: t('perf.changeGraph'),
+        submenu: [
+          { label: t('perf.activeTime'), checked: this.diskGraph !== 'rate', action: () => set('active') },
+          { label: t('perf.transferRate'), checked: this.diskGraph === 'rate', action: () => set('rate') },
+        ],
+      });
+      items.push('-');
+    }
     items.push({ label: t('cmd.copy'), icon: 'copy', shortcut: 'Ctrl+C', action: () => this.copy() });
     items.push({ label: t('view.speed'), submenu: this.app.speedMenu() });
     return items;
@@ -576,7 +590,7 @@ export class PerformancePage {
     const { t } = this.app;
     return [
       { id: 'run', icon: 'window_new', label: t('cmd.run'), action: () => this.app.actions.runNewTask() },
-      { id: 'more', icon: 'more_horizontal', label: t('cmd.more'), menu: () => this.chartMenu() },
+      { id: 'more', icon: 'dots-three', label: t('cmd.more'), menu: () => this.chartMenu() },
     ];
   }
   destroy() {

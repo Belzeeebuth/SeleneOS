@@ -596,7 +596,7 @@ const NONDEFAULT = {
   style: 'clairdelune', ambiance: 'neutral', theme: 'dark', autoTheme: { enabled: true, light: '06:30', dark: '20:15' }, accent: '#c239b3', accentFromWallpaper: true,
   transparency: false, transparencyLevel: 80, blur: 25, cornerRadius: 150, fontFamily: 'dejavu-sans', textScale: 115, scale: 100, reducedMotion: true, animations: false,
   'taskbar.color': '#123456', 'taskbar.opacity': 70, appThemes: { notepad: { theme: 'dark', accent: '#ff8c00' } },
-  wallpaper: 'builtin:glow', wallpaperFit: 'fit', lockWallpaper: 'builtin:flow', wallpaperMode: 'animated',
+  wallpaper: 'builtin:forest', wallpaperFit: 'fit', lockWallpaper: 'builtin:peaks', wallpaperMode: 'animated',
   animatedWallpaper: { id: 'waves', speed: 70, intensity: 60, fps: 15, pauseOnMaximized: false }, dynamicWallpaper: { source: 'weather', set: 'dunes', location: { name: 'Lyon', lat: 45.75, lon: 4.85 }, followTheme: true },
   slideshow: { folder: '/tmp', interval: 10, shuffle: false }, lockScreen: { mode: 'animated', effect: 'starfield' },
   'taskbar.align': 'left', 'taskbar.autohide': true, 'taskbar.showSearch': false, 'taskbar.showTaskView': false, 'taskbar.showWidgets': true,
