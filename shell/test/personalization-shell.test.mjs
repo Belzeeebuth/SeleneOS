@@ -639,7 +639,9 @@ async function profilesPart() {
     await A((id) => window.__aurora.theme.profiles.apply(id), p);
     await sleep(1500);
     const got = await snap(keys);
-    const strip = (k, v) => (k === 'focusMode' && v ? { ...v, active: undefined } : v);
+    // with accentFromWallpaper on, the accent is re-derived from whatever picture is on screen (the animated /
+    // dynamic wallpaper can swap it at any moment), so only its format is compared
+    const strip = (k, v) => (k === 'focusMode' && v ? { ...v, active: undefined } : k === 'accent' && want.accentFromWallpaper ? /^#[0-9a-f]{6}$/i.test(String(v)) : v);
     const diff = keys.filter((k) => JSON.stringify(strip(k, got[k])) !== JSON.stringify(strip(k, want[k])));
     item('Profiles', 'save and switch between complete UI themes with one click (every key)', !diff.length, diff.length ? `different after apply: ${diff.map((k) => `${k}=${JSON.stringify(got[k])} vs ${JSON.stringify(want[k])}`).join('; ')}` : `${keys.length} keys identical after save → reset → apply`);
     // the look really follows: taskbar on top, small, retro style, large cursors, graphite icons
