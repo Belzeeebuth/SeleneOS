@@ -17,7 +17,7 @@
     opacity: 0;
   }
 }
-/* The wallpaper as it is, dimmed and darkened by a flat scrim (no blur: cheap in a VM). */
+/* The wallpaper (a small copy made while idle), dimmed and darkened by a flat scrim (no blur: cheap in a VM). */
 .sec-bg {
   position: absolute;
   inset: 0;
@@ -27,6 +27,11 @@
   position: absolute;
   inset: 0;
   background: center / cover no-repeat;
+  opacity: 0;
+  transition: opacity var(--dur-slower) var(--ease);
+}
+.sec-bg-img.ready {
+  opacity: 1;
 }
 .sec-bg::after {
   content: '';

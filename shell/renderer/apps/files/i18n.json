@@ -366,7 +366,8 @@
    "label": "Search",
    "noResults": "No items match your search.",
    "placeholder": "Search",
-   "resultsIn": "Search Results in {name}",
+   "resultsIn": "Results in {name}",
+   "titleFor": "“{query}” in {name}",
    "searching": "Searching…"
   },
   "show": {
@@ -860,7 +861,8 @@
    "label": "Rechercher",
    "noResults": "Aucun élément ne correspond à votre recherche.",
    "placeholder": "Rechercher",
-   "resultsIn": "Résultats de recherche dans {name}",
+   "resultsIn": "Résultats dans {name}",
+   "titleFor": "« {query} » dans {name}",
    "searching": "Recherche en cours…"
   },
   "show": {

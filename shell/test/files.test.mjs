@@ -628,7 +628,7 @@ if (!fatal) {
     check('search columns', headers.map((x) => x.trim()), ['Name', 'Location', 'Size', 'Modified']);
     check('search field stays open on results', await page.locator('.app-files .fx-search-input').isVisible(), true);
     check('location column', await page.locator('.app-files .fx-row .c-location').first().innerText(), D('Documents/Projects/aurora'));
-    check('tab title', await page.locator('.app-files .fx-tab.active .fx-tab-title').innerText(), 'readme - Search Results in Documents');
+    check('tab title', await page.locator('.app-files .fx-tab.active .fx-tab-title').innerText(), '“readme” in Documents');
     await page.fill('.app-files .fx-search-input', 'zzzz-nothing');
     await H.key('Enter');
     await H.settle();

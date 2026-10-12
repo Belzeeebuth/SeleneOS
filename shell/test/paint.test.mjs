@@ -1482,7 +1482,8 @@ await test('demo drawing + screenshots (dark, fr) and dialogs in French', async 
   await wait(f, 300);
   await f.shot('paint-dark-fr');
   fs.copyFileSync(path.join(OUT, 'paint-dark-fr.png'), path.join(DOCS, 'paint-dark-fr.png'));
-  await f.page.click(`${WIN} .pt-edit-colors`);
+  await f.page.click(`${WIN} .pt-pal-btn`);
+  await f.page.click(`${WIN} .pt-fly-palette .pt-edit-colors`);
   await f.page.waitForSelector(`${WIN} .pt-colors-dlg`);
   await wait(f, 400);
   assert.equal(await f.page.locator(`${WIN} .dialog-title`).textContent(), 'Modifier les couleurs');
@@ -1490,9 +1491,10 @@ await test('demo drawing + screenshots (dark, fr) and dialogs in French', async 
   fs.copyFileSync(path.join(OUT, 'paint-colors-fr.png'), path.join(DOCS, 'paint-edit-colors.png'));
   await f.page.keyboard.press('Escape');
   await wait(f, 200);
-  await f.page.click(`${WIN} .pt-menu-btn:nth-child(1)`);
+  await f.page.click(`${WIN} .pt-more`);
   await wait(f, 350);
   const items = await f.page.locator('.menu .menu-item .label').allTextContents();
+  assert.ok(items.includes('Modifier') && items.includes('Affichage'), `edit and view submenus: ${items.join('|')}`);
   assert.ok(items.includes('Enregistrer sous') && items.includes("Propriétés de l'image"), items.join('|'));
   await f.shot('paint-file-menu-fr');
   await f.page.keyboard.press('Escape');
@@ -1542,8 +1544,9 @@ await test('French: menus, submenus, flyouts, context menus, messages and dialog
   };
   await P(f, (p) => p.app.setTool('pencil'));
   await scan('window');
-  for (const i of [1, 2, 3]) {
-    await f.page.click(`${WIN} .pt-menu-btn:nth-child(${i})`);
+  // One "…" menu: the file commands, then the Modifier and Affichage submenus (hovered below).
+  for (const i of [1]) {
+    await f.page.click(`${WIN} .pt-more`);
     await wait(f, 300);
     await scan(`menu ${i}`);
     const items = f.page.locator('.menu').first().locator('.menu-item:not(.disabled)');
@@ -1556,7 +1559,7 @@ await test('French: menus, submenus, flyouts, context menus, messages and dialog
     await esc();
     await esc();
   }
-  for (const sel of ['.pt-split-arrow', '.pt-b.sm.wide', '.pt-zoom-pct']) {
+  for (const sel of ['.pt-split-arrow', '.pt-b.sm.wide', '.pt-shapes-btn', '.pt-zoom-pct']) {
     const n = await f.page.locator(`${WIN} ${sel}`).count();
     for (let k = 0; k < n; k++) {
       await f.page.locator(`${WIN} ${sel}`).nth(k).click();

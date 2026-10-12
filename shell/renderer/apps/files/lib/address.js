@@ -118,7 +118,7 @@ export class AddressBar {
           e.stopPropagation();
           this.ex.navigate(s.loc);
         },
-      }, s.home ? icon('home', { size: 14, class: 'fx-crumb-home' }) : null, s.label);
+      }, s.home ? icon('home', { size: 14, class: 'fx-crumb-home' }) : null, h('span', { class: 'fx-crumb-label' }, s.label));
       if (s.loc.type === 'dir') this.ex.dnd.dropTarget(seg, () => s.loc.path);
       this.crumbs.appendChild(seg);
       if (s.loc.type !== 'search') this.crumbs.appendChild(this.chevron(s, i));

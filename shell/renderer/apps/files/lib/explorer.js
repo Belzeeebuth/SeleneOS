@@ -509,7 +509,7 @@ export class Explorer {
 
   tabTitle(tab) {
     const loc = tab.loc;
-    if (loc.type === 'search') return `${loc.query} - ${this.locName(loc)}`;
+    if (loc.type === 'search') return this.t('search.titleFor', { query: loc.query, name: this.locName(loc.root) });
     return this.locName(loc);
   }
 

@@ -101,6 +101,46 @@ export async function powerAction(kind) {
 let screen = null;
 const COLS = 3; // tiles per row on the card
 
+// The wallpaper, scaled down once on a small canvas while the shell is idle (no blur): a full-size picture
+// costs a slow first paint in software rendering (VM), and the scrim hides the lost detail anyway.
+let wallCache = { src: '', url: '' };
+let wallJob = null;
+function smallWallpaper() {
+  const src = theme.wallpaperUrl;
+  if (!src) return Promise.resolve('');
+  if (wallCache.src === src) return Promise.resolve(wallCache.url);
+  if (wallJob?.src === src) return wallJob.promise;
+  const promise = scaleDown(src).finally(() => {
+    if (wallJob?.promise === promise) wallJob = null;
+  });
+  wallJob = { src, promise };
+  return promise;
+}
+async function scaleDown(src) {
+  try {
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+    const w = 960;
+    const hgt = Math.round((w * window.innerHeight) / Math.max(1, window.innerWidth));
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = hgt;
+    const k = Math.max(w / img.naturalWidth, hgt / img.naturalHeight);
+    c.getContext('2d').drawImage(img, (w - img.naturalWidth * k) / 2, (hgt - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
+    const url = await new Promise((res) => c.toBlob((b) => res(b ? URL.createObjectURL(b) : ''), 'image/jpeg', 0.88));
+    if (theme.wallpaperUrl !== src) {
+      if (url) URL.revokeObjectURL(url);
+      return wallCache.src === theme.wallpaperUrl ? wallCache.url : '';
+    }
+    if (wallCache.url && !screen) URL.revokeObjectURL(wallCache.url);
+    wallCache = { src, url };
+    return url;
+  } catch {
+    return '';
+  }
+}
+
 // The signed-in user (name and picture), read once and cached for the card's header.
 let userCache = null;
 async function loadUser() {
@@ -255,10 +295,17 @@ async function buildSecurity() {
       { above: true },
     ),
   );
-  // The wallpaper itself (already decoded for the desktop), dimmed by a flat scrim: no blur.
+  // The wallpaper (a small copy made while idle), dimmed by a flat scrim: no blur. The screen comes up at once;
+  // the picture fades in if its copy is not ready yet.
   const img = h('div', { class: 'sec-bg-img' });
-  if (theme.wallpaperUrl) img.style.backgroundImage = `url("${String(theme.wallpaperUrl).replace(/"/g, '%22')}")`;
   const bg = h('div', { class: 'sec-bg' }, img);
+  const showWall = (url) => {
+    if (!url) return;
+    img.style.backgroundImage = `url("${url}")`;
+    img.classList.add('ready');
+  };
+  if (wallCache.src && wallCache.src === theme.wallpaperUrl) showWall(wallCache.url);
+  else smallWallpaper().then(showWall);
   const who = h('div', { class: 'sec-who' }, avatarEl({ name: env.user, url: null }), h('div', { class: 'sec-who-text' }, h('div', { class: 'sec-name' }, env.user || ''), h('div', { class: 'sec-q' }, t('security.question'))));
   loadUser().then((u) => {
     if (!who.isConnected && screen?.el !== el) return;
@@ -378,8 +425,18 @@ export function mount(ctx) {
   shell.on('security:open', () => openSecurity());
   shell.on('shutdown:dialog', () => openShutdownDialog());
   shell.on('lock', () => closeScreen(() => {}));
-  // Read the user's name and picture while the shell is idle, so the card shows them at once.
-  setTimeout(() => (window.requestIdleCallback || setTimeout)(() => loadUser(), { timeout: 4000 }), 3000);
+  // Prepare the user's name and picture and the small wallpaper while the shell is idle, so the screen
+  // never waits for them (and again when the wallpaper changes).
+  const warm = () =>
+    (window.requestIdleCallback || setTimeout)(
+      () => {
+        loadUser();
+        smallWallpaper();
+      },
+      { timeout: 4000 },
+    );
+  setTimeout(warm, 3000);
+  theme.on('wallpaper', () => setTimeout(warm, 1000));
   ctx.security = {
     open: openSecurity,
     close: () => closeScreen(),

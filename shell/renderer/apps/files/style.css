@@ -2219,6 +2219,15 @@
   color: var(--text);
   font-weight: 600;
 }
+/* The label carries the ellipsis: text-overflow does not reach a bare text node in a flex box. */
+.app-files .fx-crumb {
+  min-width: 0;
+}
+.app-files .fx-crumb-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .app-files .fx-crumb-home {
   color: var(--text-2);
 }
