@@ -523,7 +523,7 @@ async function checklistPart() {
     await s.page.locator('.menu .menu-item', { hasText: 'Turn off' }).click();
     await sleep(400);
     const lockOff = await A(() => ({ v: window.__aurora.settings.get('shortcuts').lock, t: window.__aurora.hotkeys.trigger('Super+L') }));
-    check(sk?.includes('Win') && sc2.search === 'Super+K' && sc2.run === null && /Run/.test(conflict || '') && lockOff.v === null && lockOff.t === false, `Win+K recorded ("${sk}"), conflict "${conflict}" resolved (search ${sc2.search}, run ${sc2.run}); Lock turned off (${JSON.stringify(lockOff)})`);
+    check(sk?.includes('Super') && sc2.search === 'Super+K' && sc2.run === null && /Run/.test(conflict || '') && lockOff.v === null && lockOff.t === false, `Super+K recorded ("${sk}"), conflict "${conflict}" resolved (search ${sc2.search}, run ${sc2.run}); Lock turned off (${JSON.stringify(lockOff)})`);
     await docShot(s, 'pzs-shortcuts-page');
     await s.page.locator(S('.pzs-sc-reset-all')).click();
     await s.page.locator('.dialog .btn.primary').last().click();
