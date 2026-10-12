@@ -236,6 +236,8 @@ body.tb-left #search-panel {
 .sv .sv-row.selected {
   background: var(--sel-bg);
   box-shadow: inset var(--sel-bar-w, 0) 0 0 var(--sel-bar, var(--accent));
+  border-start-start-radius: var(--sel-bar-radius, var(--radius-sm));
+  border-end-start-radius: var(--sel-bar-radius, var(--radius-sm));
 }
 .sv .sv-row.selected::before {
   content: none;

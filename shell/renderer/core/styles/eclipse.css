@@ -36,6 +36,9 @@
     /* selected list rows: a 3 px accent bar on the left; keyboard focus: 2 px accent outline */
     --sel-mode: bar;
     --sel-bar-w: 3px;
+    /* the bar is a straight, full-height edge (not a short rounded pill): a selected row squares its start corners.
+       Rows read it as var(--sel-bar-radius, var(--radius-sm)) on border-start-start / border-end-start-radius. */
+    --sel-bar-radius: 0px;
     --panel-grain: none;
   }
 }

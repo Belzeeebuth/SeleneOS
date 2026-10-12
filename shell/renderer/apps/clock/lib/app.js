@@ -202,8 +202,10 @@ export class ClockApp {
     const nav = this.navEl.getBoundingClientRect();
     const r = el.getBoundingClientRect();
     if (!r.height) return;
-    const y = r.top - nav.top + (r.height - 16) / 2;
+    // Full-height edge bar (only drawn where the style sets --sel-bar-w, i.e. Éclipse), not a short pill.
+    const y = r.top - nav.top;
     const x = r.left - nav.left;
+    this.pill.style.height = `${r.height}px`;
     this.pill.style.transition = animate && !reduceMotion() ? `transform 250ms ${EASE}` : 'none';
     this.pill.style.transform = `translate(${x}px, ${y}px)`;
     this.pill.hidden = false;

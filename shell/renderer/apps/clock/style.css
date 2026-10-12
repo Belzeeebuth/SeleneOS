@@ -122,8 +122,8 @@
   left: 0;
   top: 0;
   width: var(--sel-bar-w);
-  height: 16px;
-  border-radius: 2px;
+  height: 36px;
+  border-radius: 0;
   background: var(--sel-bar);
   pointer-events: none;
 }

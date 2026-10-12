@@ -758,6 +758,8 @@ button.qs-slider-icon:active,
   background: var(--sel-bg);
   border-color: transparent;
   box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
+  border-start-start-radius: var(--sel-bar-radius, var(--radius-sm));
+  border-end-start-radius: var(--sel-bar-radius, var(--radius-sm));
 }
 .qs-out.selected .icon:last-child {
   color: var(--accent-text);

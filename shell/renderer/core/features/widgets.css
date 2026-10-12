@@ -20,6 +20,13 @@
   padding: 0 20px 20px;
   transform: translateY(12px) scale(0.98);
 }
+/* a bar on a side: the board is centred in the work area beside the bar, never under it */
+:root[data-tb-pos="left"] #widgets-board {
+  inset: 12px 12px 12px calc(var(--taskbar-h) + 12px);
+}
+:root[data-tb-pos="right"] #widgets-board {
+  inset: 12px calc(var(--taskbar-h) + 12px) 12px 12px;
+}
 #widgets-board.open {
   transform: none;
   transition: transform var(--dur-slow) var(--ease), opacity var(--dur-fast) linear, visibility 0s;
