@@ -1728,3 +1728,16 @@
 .app-clock .ck-timer.state-idle .ck-line-fill {
   background: transparent;
 }
+/* small windows: tighter rows so the time and the actions still fit */
+.app-clock .ck.tight .ck-timer:not(.big) {
+  gap: 6px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.app-clock .ck.tight .ck-timer:not(.big) .ck-timer-time {
+  font-size: var(--fs-body-large);
+}
+.app-clock .ck.tight .ck-line {
+  left: 48px;
+  right: 6px;
+}

@@ -697,7 +697,7 @@ if (!unitOnly) {
     await setView(s, 'month', [2026, 9, 10]);
     const visible = () => run(s, `!!document.querySelector('${WIN} .ac-chip[data-event-id="sp1"]')`);
     check('event visible', await visible(), true);
-    check('event color follows the calendar', await run(s, `getComputedStyle(document.querySelector('${WIN} .ac-chip[data-event-id="sp1"] .ac-chip-dot')).backgroundColor`), 'rgb(16, 124, 16)');
+    check('event color follows the calendar', await run(s, `getComputedStyle(document.querySelector('${WIN} .ac-chip[data-event-id="sp1"] .ac-chip-dot')).backgroundColor`), 'rgb(116, 150, 106)');
     await s.page.click(`${WIN} .ac-cal-row[data-cal="${cal.id}"] input`);
     await sleep(200);
     check('hidden calendar hides its events', await visible(), false);

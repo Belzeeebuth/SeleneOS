@@ -1231,7 +1231,7 @@ await test('library: new files dropped into Pictures appear automatically (watch
   assert.equal(await appEval((a, f) => !!a.lib.get(f), p), true);
 });
 
-await test('viewer: delete moves the file to the Recycle Bin after confirmation', async () => {
+await test('viewer: delete moves the file to the Trash after confirmation', async () => {
   const p = path.join(home, 'Pictures', 'new-arrival.png');
   if (!fs.existsSync(p)) fs.writeFileSync(p, png(320, 240, 30));
   await ensurePhotos({ file: p });
@@ -1240,7 +1240,7 @@ await test('viewer: delete moves the file to the Recycle Bin after confirmation'
   const count = (await viewerState()).count;
   await s.page.keyboard.press('Delete');
   await s.page.waitForSelector('.app-photos .ph-del-dialog');
-  assert.match(await s.page.locator('.app-photos .ph-del-dialog').textContent(), /new-arrival\.png” will be moved to the Recycle Bin/);
+  assert.match(await s.page.locator('.app-photos .ph-del-dialog').textContent(), /new-arrival\.png” will be moved to the Trash/);
   await s.page.locator('.app-photos .ph-del-dialog .btn.primary').click();
   await s.page.waitForFunction((n) => [...document.querySelectorAll('.win.app-photos')].pop().__photos.viewer.list.length === n - 1, count);
   assert.ok(!fs.existsSync(p), 'removed from Pictures');

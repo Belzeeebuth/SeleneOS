@@ -1675,7 +1675,7 @@ async function runQA() {
       await dialogButton(s, 'Delete list');
       r = await TD(s, (app, [lid, id]) => ({ list: !!app.store.list(lid), task: !!app.store.task(id) }), [lid, id]);
       check('the list is deleted, the selected task is kept', r, { list: false, task: true });
-      await TD(s, (app) => (app.nav.itemFor('important').focus(), true));
+      await TD(s, (app) => (app.nav.itemFor('planned').focus(), true));
       await s.page.keyboard.press('Delete');
       await sleep(300);
       check('Delete on a smart list does nothing', await ev(() => !!document.querySelector('.win.app-todo .dialog-layer:not(.closing)')), false);

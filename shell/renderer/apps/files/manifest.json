@@ -8,7 +8,7 @@
   "window": { "width": 1100, "height": 700, "minWidth": 520, "minHeight": 360, "titlebar": "default", "background": "mica" },
   "category": "system",
   "keywords": {
-    "en": ["explorer", "files", "folders", "documents", "browse", "file manager", "this pc", "recycle bin"],
+    "en": ["explorer", "files", "folders", "documents", "browse", "file manager", "this pc", "recycle bin", "trash"],
     "fr": ["explorateur", "fichiers", "dossiers", "documents", "parcourir", "gestionnaire de fichiers", "ce pc", "corbeille"]
   },
   "singleInstance": false,

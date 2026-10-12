@@ -182,7 +182,7 @@ export const SOUND_NAMES = [
   { id: 'alarm', name: { en: 'Alarm', fr: 'Alarme' } },
   { id: 'deviceConnect', name: { en: 'Device connected', fr: 'Périphérique connecté' } },
   { id: 'deviceDisconnect', name: { en: 'Device disconnected', fr: 'Périphérique déconnecté' } },
-  { id: 'emptyTrash', name: { en: 'Empty Recycle Bin', fr: 'Vider la Corbeille' } },
+  { id: 'emptyTrash', name: { en: 'Empty Trash', fr: 'Vider la Corbeille' } },
 ];
 export const SOUND_EVENTS = ['notification', 'startup', 'shutdown'];
 const EVENT_SOUND = { notification: 'notify', startup: 'startup', shutdown: 'shutdown' };

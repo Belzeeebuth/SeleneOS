@@ -1,7 +1,7 @@
 // File Explorer tests — drives the real Electron shell with Playwright.
 //   Builds a throwaway HOME (documents, generated PNG photos, nested folders, hidden files),
 //   then exercises navigation (nav pane, breadcrumbs, address bar, history, tabs), file operations
-//   (new folder/file + inline rename, rename validation, delete to Recycle Bin + undo, permanent
+//   (new folder/file + inline rename, rename validation, delete to Trash + undo, permanent
 //   delete, restore, empty bin, copy/paste between two windows with conflict naming, cut/paste,
 //   drag & drop, compress/extract), search, sorting, grouping, every view mode with thumbnails,
 //   panes, properties, keyboard navigation, rubber band selection, pinning, This PC drives,
@@ -207,7 +207,7 @@ if (!fatal) {
     const nav = await page.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts();
     check('nav: Home first', nav[0], 'Home');
     check('nav: pinned folders', ['Desktop', 'Downloads', 'Documents', 'Pictures', 'Music', 'Videos'].every((n) => nav.includes(n)), true);
-    check('nav: Computer + Recycle Bin', nav.includes('Computer') && nav.includes('Recycle Bin'), true);
+    check('nav: Computer + Trash', nav.includes('Computer') && nav.includes('Trash'), true);
     const quick = await page.locator('.app-files .fx-qtile .fx-name').allInnerTexts();
     check('quick access tiles', quick.length, 6);
     const recent = await page.locator('.app-files .fx-hrow.fx-item .fx-name').allInnerTexts();
@@ -226,7 +226,7 @@ if (!fatal) {
     check('sidebar sections', await page.locator('.app-files .fx-tsec').allInnerTexts(), (v) => v.includes('Favorites') && v.includes('Places'));
     check('no Gallery in sidebar', nav.includes('Gallery'), false);
     check('home folder in sidebar', nav.includes('Home folder'), true);
-    check('Home places section', await page.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Places');
+    check('Home places section', await page.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Favorite folders');
     check('no pin glyph on Home', await page.locator('.app-files .fx-qtile .fx-pin').count(), 0);
     // "…" menu holds the file commands.
     await page.click('.app-files .fx-cmd[aria-label="See more"]');
@@ -425,7 +425,7 @@ if (!fatal) {
     check('undo rename', H.exists(D('Documents/notes.md')), true);
   });
 
-  await section('Delete to Recycle Bin, toast + undo, restore, permanent delete, empty', async () => {
+  await section('Delete to Trash, toast + undo, restore, permanent delete, empty', async () => {
     await H.go(D('Documents'));
     await H.select('budget.csv');
     await H.focusView();
@@ -438,7 +438,7 @@ if (!fatal) {
     await H.settle();
     await H.waitNames((n) => n.includes('budget.csv'));
     check('undo delete restores', H.exists(D('Documents/budget.csv')), true);
-    // Delete two and look at the Recycle Bin
+    // Delete two and look at the Trash
     await page.evaluate(() => {
       const v = window.__fx().view;
       v.setSel(v.items.filter((i) => ['budget.csv', 'archive-me.txt'].includes(i.entry.name)).map((i) => i.key));
@@ -446,13 +446,13 @@ if (!fatal) {
     await page.click('.app-files .fx-cmd[aria-label="See more"]');
     await H.menuClick('Delete');
     await H.settle();
-    await page.click('.app-files .fx-tnode:has-text("Recycle Bin")');
+    await page.click('.app-files .fx-tnode:has-text("Trash")');
     await H.settle();
     check('recycle bin lists', (await H.names()).sort(), ['archive-me.txt', 'budget.csv']);
     const headers = await page.locator('.app-files .fx-dh-cell').allInnerTexts();
     check('trash columns', headers.map((x) => x.trim()).slice(0, 4), ['Name', 'Original location', 'Date deleted', 'Size']);
     check('original location', await page.locator('.app-files .fx-row:has-text("budget.csv") .c-origin').innerText(), D('Documents'));
-    check('nav shows full bin icon', await page.locator('.app-files .fx-tnode:has-text("Recycle Bin") img').getAttribute('src'), (v) => v.includes('trash-full'));
+    check('nav shows full bin icon', await page.locator('.app-files .fx-tnode:has-text("Trash") img').getAttribute('src'), (v) => v.includes('trash-full'));
     await H.shot('files-recycle-bin');
     await H.select('budget.csv');
     await page.click('.app-files .fx-cmd:has-text("Restore the selected items")');
@@ -460,7 +460,7 @@ if (!fatal) {
     check('restored to original location', H.exists(D('Documents/budget.csv')), true);
     check('bin updated live', await H.waitNames((n) => n.length === 1), ['archive-me.txt']);
     // Empty the bin (confirm)
-    await page.click('.app-files .fx-cmd:has-text("Empty Recycle Bin")');
+    await page.click('.app-files .fx-cmd:has-text("Empty Trash")');
     await page.waitForTimeout(300);
     check('empty confirmation', (await H.dialogText()).includes('permanently delete'), true);
     await H.clickDialog('Yes');
@@ -1099,9 +1099,9 @@ if (!fatal) {
     check('double Ctrl+Shift+N: one new folder', fs.readdirSync(dir).filter((n) => n.startsWith('New folder')).length, 1);
     await page.keyboard.press('Escape');
     await H.go({ type: 'trash' });
-    await page.locator('.app-files .fx-cmd:has-text("Empty Recycle Bin")').dblclick();
+    await page.locator('.app-files .fx-cmd:has-text("Empty Trash")').dblclick();
     await page.waitForTimeout(600);
-    check('double click Empty Recycle Bin: one confirmation', await page.locator('.dialog-layer:not(.closing)').count(), 1);
+    check('double click Empty Trash: one confirmation', await page.locator('.dialog-layer:not(.closing)').count(), 1);
     await H.clickDialog('No');
     await page.evaluate(() => window.__fx().view.selectAll());
     await page.locator('.app-files .fx-cmd:has-text("Restore the selected items")').dblclick();
@@ -1122,7 +1122,7 @@ if (!fatal) {
     check('Properties double OK: renamed once, no error', [H.exists(path.join(dir, 'once.txt')), await page.locator('.dialog-layer:not(.closing)').count()], [true, 0]);
   });
 
-  await section('QA: search inside the Recycle Bin lists trash items', async () => {
+  await section('QA: search inside the Trash lists trash items', async () => {
     const dir = D('QA/TrashSearch');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'needle.txt'), 'x');
@@ -1330,7 +1330,7 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
       const p2 = s2.page;
       const nav = await p2.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts();
       check('fr nav', ['Accueil', 'Bureau', 'Téléchargements', 'Documents', 'Images', 'Ordinateur', 'Corbeille'].every((n) => nav.includes(n)), true);
-      check('fr places', await p2.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Emplacements');
+      check('fr places', await p2.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Dossiers favoris');
       check('fr sidebar sections', await p2.locator('.app-files .fx-tsec').allInnerTexts(), (v) => v.includes('Favoris') && v.includes('Emplacements'));
       check('fr home folder', (await p2.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts()).includes('Dossier personnel'), true);
       check('fr title', await p2.evaluate(() => window.__fx().win.title), 'Accueil - Fichiers');

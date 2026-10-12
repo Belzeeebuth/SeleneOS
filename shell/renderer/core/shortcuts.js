@@ -12,7 +12,7 @@
 // (Alt+Space, Alt+F4, Ctrl+Shift+Esc) stay allowed. Ctrl+Alt+F1…F12 and Ctrl+Alt+Backspace belong to the X server.
 
 export const SHORTCUT_GROUPS = [
-  { id: 'shell', name: { en: 'Desktop and Start', fr: 'Bureau et Démarrer' } },
+  { id: 'shell', name: { en: 'Desktop and Launcher', fr: 'Bureau et Lanceur' } },
   { id: 'windows', name: { en: 'Windows', fr: 'Fenêtres' } },
   { id: 'desktops', name: { en: 'Virtual desktops', fr: 'Bureaux virtuels' } },
   { id: 'taskbar', name: { en: 'Taskbar apps', fr: 'Applications de la barre des tâches' } },
@@ -21,22 +21,22 @@ export const SHORTCUT_GROUPS = [
 
 // [id, group, default combo (null = none), English, French]
 const LIST = [
-  ['start', 'shell', 'Super', 'Open or close Start', 'Ouvrir ou fermer Démarrer'],
+  ['start', 'shell', 'Super', 'Open or close the Launcher', 'Ouvrir ou fermer le Lanceur'],
   ['search', 'shell', 'Super+S', 'Search', 'Rechercher'],
-  ['quickSettings', 'shell', 'Super+A', 'Quick settings', 'Paramètres rapides'],
+  ['quickSettings', 'shell', 'Super+A', 'Quick settings', 'Réglages rapides'],
   ['notifications', 'shell', 'Super+N', 'Notifications and calendar', 'Notifications et calendrier'],
-  ['widgets', 'shell', 'Super+W', 'Widgets', 'Widgets'],
+  ['widgets', 'shell', 'Super+W', 'Dashboard', 'Tableau de bord'],
   ['showDesktop', 'shell', 'Super+D', 'Show or hide the desktop', 'Afficher ou masquer le bureau'],
   ['lock', 'shell', 'Super+L', 'Lock the screen', 'Verrouiller l’écran'],
   ['run', 'shell', 'Super+R', 'Run', 'Exécuter'],
-  ['powerMenu', 'shell', 'Super+X', 'Quick link menu', 'Menu des liens rapides'],
+  ['powerMenu', 'shell', 'Super+X', 'Quick menu', 'Menu rapide'],
   ['clipboard', 'shell', 'Super+V', 'Clipboard history', 'Historique du Presse-papiers'],
-  ['focusMode', 'shell', 'Super+Shift+F', 'Focus mode on or off', 'Activer ou désactiver le mode concentration'],
-  ['screenshot', 'shell', 'Super+Shift+S', 'Screen snip', 'Capture d’écran'],
-  ['taskView', 'windows', 'Super+Tab', 'Task view', 'Vue des tâches'],
-  ['snapLayouts', 'windows', 'Super+Z', 'Snap layouts', 'Dispositions d’ancrage'],
-  ['snapLeft', 'windows', 'Super+ArrowLeft', 'Snap to the left', 'Ancrer à gauche'],
-  ['snapRight', 'windows', 'Super+ArrowRight', 'Snap to the right', 'Ancrer à droite'],
+  ['focusMode', 'shell', 'Super+Shift+F', 'Turn Focus on or off', 'Activer ou désactiver Concentration'],
+  ['screenshot', 'shell', 'Super+Shift+S', 'Screenshot', 'Capture d’écran'],
+  ['taskView', 'windows', 'Super+Tab', 'Overview', 'Vue d’ensemble'],
+  ['snapLayouts', 'windows', 'Super+Z', 'Layouts', 'Dispositions'],
+  ['snapLeft', 'windows', 'Super+ArrowLeft', 'Place on the left', 'Placer à gauche'],
+  ['snapRight', 'windows', 'Super+ArrowRight', 'Place on the right', 'Placer à droite'],
   ['maximize', 'windows', 'Super+ArrowUp', 'Maximize', 'Agrandir'],
   ['minimize', 'windows', 'Super+ArrowDown', 'Restore or minimize', 'Restaurer ou réduire'],
   ['maximizeVertically', 'windows', 'Super+Shift+ArrowUp', 'Maximize vertically', 'Agrandir verticalement'],
@@ -50,12 +50,12 @@ const LIST = [
   ['prevDesktop', 'desktops', 'Super+Ctrl+ArrowLeft', 'Previous desktop', 'Bureau précédent'],
   ['nextDesktop', 'desktops', 'Super+Ctrl+ArrowRight', 'Next desktop', 'Bureau suivant'],
   ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [`taskbarApp${n}`, 'taskbar', `Super+${n}`, `Open or switch to taskbar app ${n}`, `Ouvrir ou afficher l’application ${n} de la barre des tâches`]),
-  ['files', 'apps', 'Super+E', 'File Explorer', 'Explorateur de fichiers'],
+  ['files', 'apps', 'Super+E', 'Files', 'Fichiers'],
   ['settings', 'apps', 'Super+I', 'Settings', 'Paramètres'],
   ['terminal', 'apps', 'Ctrl+Alt+T', 'Terminal', 'Terminal'],
-  ['taskManager', 'apps', 'Ctrl+Shift+Escape', 'Task Manager', 'Gestionnaire des tâches'],
-  ['browser', 'apps', null, 'Selene Browser', 'Navigateur Selene'],
-  ['notepad', 'apps', null, 'Notepad', 'Bloc-notes'],
+  ['taskManager', 'apps', 'Ctrl+Shift+Escape', 'System Monitor', 'Moniteur système'],
+  ['browser', 'apps', null, 'Browser', 'Navigateur'],
+  ['notepad', 'apps', null, 'Text Editor', 'Éditeur de texte'],
   ['calculator', 'apps', null, 'Calculator', 'Calculatrice'],
   ['accessibility', 'apps', 'Super+U', 'Accessibility settings', 'Paramètres d’accessibilité'],
   ['display', 'apps', 'Super+P', 'Display settings', 'Paramètres d’affichage'],
@@ -136,10 +136,10 @@ export function conflictOf(combos, combo, exceptId) {
 }
 
 const KEY_LABELS = {
-  en: { Super: 'Win', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Escape: 'Esc', Delete: 'Del', Space: 'Space', Period: '.', Comma: ',', PrintScreen: 'PrtScn', Backspace: 'Backspace', PageUp: 'PgUp', PageDown: 'PgDn' },
-  fr: { Super: 'Win', Ctrl: 'Ctrl', Shift: 'Maj', Alt: 'Alt', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Escape: 'Échap', Delete: 'Suppr', Space: 'Espace', Period: '.', Comma: ',', PrintScreen: 'Impr. écran', Home: 'Origine', End: 'Fin', Tab: 'Tab', Enter: 'Entrée', Backspace: 'Retour arrière', Insert: 'Inser', PageUp: 'Pg préc.', PageDown: 'Pg suiv.' },
+  en: { Super: 'Super', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Escape: 'Esc', Delete: 'Del', Space: 'Space', Period: '.', Comma: ',', PrintScreen: 'PrtScn', Backspace: 'Backspace', PageUp: 'PgUp', PageDown: 'PgDn' },
+  fr: { Super: 'Super', Ctrl: 'Ctrl', Shift: 'Maj', Alt: 'Alt', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Escape: 'Échap', Delete: 'Suppr', Space: 'Espace', Period: '.', Comma: ',', PrintScreen: 'Impr. écran', Home: 'Origine', End: 'Fin', Tab: 'Tab', Enter: 'Entrée', Backspace: 'Retour arrière', Insert: 'Inser', PageUp: 'Pg préc.', PageDown: 'Pg suiv.' },
 };
-/** Key caps of a combo for display: ['Win', 'Maj', 'S'] */
+/** Key caps of a combo for display: ['Super', 'Maj', 'S'] */
 export function comboKeys(combo, lang = 'en') {
   if (!combo) return [];
   const map = KEY_LABELS[lang] || KEY_LABELS.en;

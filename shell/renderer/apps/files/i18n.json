@@ -71,15 +71,15 @@
    "deleteMultipleTitle": "Delete Multiple Items",
    "openMany_one": "You are about to open {count} file. Do you want to continue?",
    "openMany_other": "You are about to open {count} files. Do you want to continue?",
-   "trashMany_one": "Are you sure you want to move this item to the Recycle Bin?",
-   "trashMany_other": "Are you sure you want to move these {count} items to the Recycle Bin?",
-   "trashOne": "Are you sure you want to move \"{name}\" to the Recycle Bin?",
+   "trashMany_one": "Are you sure you want to move this item to the Trash?",
+   "trashMany_other": "Are you sure you want to move these {count} items to the Trash?",
+   "trashOne": "Are you sure you want to move \"{name}\" to the Trash?",
    "trashTitle": "Delete"
   },
   "dnd": {
    "copy": "Copy to {name}",
    "move": "Move to {name}",
-   "trash": "Move to Recycle Bin"
+   "trash": "Move to Trash"
   },
   "drives": {
    "capacity": "Capacity",
@@ -148,15 +148,15 @@
    "size_gigantic": "Gigantic (> 4 GB)"
   },
   "home": {
-   "favorites": "Favorites",
+   "favorites": "Favorite files",
    "missing": "Location not available",
-   "noFavorites": "After you've favorited some files, we'll show them here.",
+   "noFavorites": "Files you add to your favorites will show up here.",
    "noPins": "Add folders to the sidebar to show them here.",
-   "noRecent": "After you've opened some files, we'll show the most recent ones here.",
+   "noRecent": "Files you open will show up here.",
    "quickAccess": "Quick access",
    "recent": "Recent",
    "storedLocally": "On this computer",
-   "places": "Places"
+   "places": "Favorite folders"
   },
   "keys": {
    "shift": "Shift",
@@ -287,7 +287,7 @@
    "pictures": "Pictures",
    "videos": "Videos",
    "thisPc": "Computer",
-   "trash": "Recycle Bin",
+   "trash": "Trash",
    "gallery": "Gallery",
    "personal": "Home folder"
   },
@@ -416,17 +416,17 @@
    "pathCopied": "Path copied to the clipboard",
    "pathsCopied_one": "{count} path copied to the clipboard",
    "pathsCopied_other": "{count} paths copied to the clipboard",
-   "trashed_one": "{count} item moved to the Recycle Bin",
-   "trashed_other": "{count} items moved to the Recycle Bin",
+   "trashed_one": "{count} item moved to the Trash",
+   "trashed_other": "{count} items moved to the Trash",
    "wallpaper": "Desktop background updated"
   },
   "trash": {
    "deleteForever": "Delete permanently",
-   "empty": "Empty Recycle Bin",
+   "empty": "Empty Trash",
    "emptyConfirm_one": "Are you sure you want to permanently delete this item?",
    "emptyConfirm_other": "Are you sure you want to permanently delete these {count} items?",
    "emptyConfirmOne": "Are you sure you want to permanently delete \"{name}\"?",
-   "emptyTitle": "Empty Recycle Bin",
+   "emptyTitle": "Empty Trash",
    "restore": "Restore",
    "restoreAll": "Restore all items",
    "restoreAllConfirm_one": "Restore {count} item to its original location?",
@@ -640,15 +640,15 @@
    "size_gigantic": "Gigantesque (> 4 Go)"
   },
   "home": {
-   "favorites": "Favoris",
+   "favorites": "Fichiers favoris",
    "missing": "Emplacement non disponible",
-   "noFavorites": "Une fois que vous aurez ajouté des fichiers aux favoris, ils s’afficheront ici.",
+   "noFavorites": "Les fichiers que vous ajoutez à vos favoris apparaîtront ici.",
    "noPins": "Ajoutez des dossiers à la barre latérale pour les afficher ici.",
-   "noRecent": "Une fois que vous aurez ouvert des fichiers, les plus récents s’afficheront ici.",
+   "noRecent": "Les fichiers que vous ouvrez apparaîtront ici.",
    "quickAccess": "Accès rapide",
    "recent": "Récent",
    "storedLocally": "Sur cet ordinateur",
-   "places": "Emplacements"
+   "places": "Dossiers favoris"
   },
   "keys": {
    "shift": "Maj",
