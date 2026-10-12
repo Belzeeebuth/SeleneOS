@@ -231,11 +231,12 @@ async function unit() {
   check(!missing.length && dyn_ && Object.keys(i18n.en.wp).sort().join() === Object.keys(i18n.fr.wp).sort().join(), `wp.* strings: ${used.size} keys used, all in English and French${missing.length ? ` (missing ${missing})` : ''}`);
   check(['w_clear', 'w_mainlyClear', 'w_partlyCloudy', 'w_overcast', 'w_fog', 'w_drizzle', 'w_freezingDrizzle', 'w_rain', 'w_freezingRain', 'w_snow', 'w_snowGrains', 'w_showers', 'w_snowShowers', 'w_thunderstorm', 'w_hail'].every((x) => i18n.en.wp[x] && i18n.fr.wp[x]), 'every weather description is translated');
   const wt = await import(R('core/wallpaper/weather-text.js'));
-  const fluent = JSON.parse(fs.readFileSync(path.join(ROOT, 'renderer/assets/icons/fluent.json'), 'utf8'));
+  // Phosphor names, or old Fluent names through the aliases (same rule as core/icons.js resolveIcon)
+  const knownIcon = ((j) => (n) => { n = String(n).replace(/_filled$/, ''); const a = j.aliases[n]; if (a) return !!j.glyphs[a.split(':')[0]]; if (j.glyphs[n]) return true; const m = /^(.+)-(fill|bold|regular)$/.exec(n); return !!(m && j.glyphs[m[1]]); })(JSON.parse(fs.readFileSync(path.join(ROOT, 'renderer/assets/icons/phosphor.json'), 'utf8')));
   const allCodes = [0, 1, 2, 3, 45, 48, 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 71, 73, 75, 77, 80, 81, 82, 85, 86, 95, 96, 99];
   const wtOk = allCodes.every((c) => [true, false].every((isDay) => {
     const w = { ...wx.weatherKind(c), isDay };
-    return !!fluent[wt.weatherIconName(w)] && wt.weatherDescribe(w, 'en') !== wt.weatherDescribe(w, 'fr');
+    return knownIcon(wt.weatherIconName(w)) && wt.weatherDescribe(w, 'en') !== wt.weatherDescribe(w, 'fr');
   }));
   check(wtOk && Object.keys(wt.WEATHER_TEXT.en).sort().join() === Object.keys(wt.WEATHER_TEXT.fr).sort().join(), 'weather-text: every WMO code has an existing icon (day / night) and an EN + FR description');
   check(wt.weatherIconName({ describe: 'clear', isDay: false }) === 'weather_moon' && wt.weatherIconName({ describe: 'showers', isDay: true }) === 'weather_rain_showers_day' && wt.formatTemperature({ temperature: 12.4, unit: '°C' }) === '12 °C' && wt.formatTemperature({ temperature: -0.3 }) === '0 °C' && wt.formatTemperature({ temperature: null }) === '', 'weather-text: night icons, temperatures (rounded, no "-0", unknown → empty)');

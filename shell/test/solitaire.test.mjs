@@ -460,13 +460,14 @@ async function unitTests() {
     }
   });
 
-  await test('icons: every Fluent icon the app uses exists', () => {
+  await test('icons: every icon the app uses exists', () => {
     const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'renderer');
     const src = fs.readFileSync(path.join(root, 'apps/solitaire/main.js'), 'utf8');
-    const map = JSON.parse(fs.readFileSync(path.join(root, 'assets/icons/fluent.json'), 'utf8'));
+    // Phosphor names, or old Fluent names through the aliases (same rule as core/icons.js resolveIcon)
+    const known = ((j) => (n) => { n = String(n).replace(/_filled$/, ''); const a = j.aliases[n]; if (a) return !!j.glyphs[a.split(':')[0]]; if (j.glyphs[n]) return true; const m = /^(.+)-(fill|bold|regular)$/.exec(n); return !!(m && j.glyphs[m[1]]); })(JSON.parse(fs.readFileSync(path.join(root, 'assets/icons/phosphor.json'), 'utf8')));
     const names = new Set([...src.matchAll(/icon\('([a-z0-9_]+)'/g), ...src.matchAll(/icon: '([a-z0-9_]+)'/g), ...src.matchAll(/tbBtn\('([a-z0-9_]+)'/g)].map((m) => m[1]));
     assert.ok(names.size >= 10);
-    for (const n of names) assert.ok(map[n], `unknown icon ${n}`);
+    for (const n of names) assert.ok(known(n), `unknown icon ${n}`);
   });
 
   await test('artwork: 52 distinct faces and every back render as SVG', () => {

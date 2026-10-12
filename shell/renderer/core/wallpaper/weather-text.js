@@ -2,7 +2,7 @@
 // the weather (widgets board; the taskbar and Settings keep their own copies of the strings for now).
 // Pure data + helpers, no DOM.
 //   weatherDescribe(conditions, lang)  -> 'Partly cloudy' / 'Partiellement nuageux' (from conditions.describe)
-//   weatherIconName(conditions)        -> Fluent icon name (renderer/assets/icons/fluent.json), day / night aware
+//   weatherIconName(conditions)        -> icon name for core/icons.js (Phosphor or alias), day / night aware
 //   formatTemperature(conditions, fmt) -> '12 °C' ('' when unknown); fmt = i18n.formatNumber (optional)
 export const WEATHER_TEXT = {
   en: {

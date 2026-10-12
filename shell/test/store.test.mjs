@@ -57,8 +57,9 @@ const W = '.app-store';
   check('catalog: every apt package matches the strict pattern', items.every((i) => /^[a-z0-9][a-z0-9+.-]{1,62}$/.test(i.apt)), true);
   check('catalog: unique ids', new Set(items.map((i) => i.id)).size, items.length);
   check('catalog: EN + FR descriptions everywhere', items.every((i) => i.description?.en && i.description?.fr), true);
-  const icons = require(path.join(ROOT, 'renderer', 'assets', 'icons', 'fluent.json'));
-  check('catalog: every icon is a Fluent icon', items.filter((i) => !icons[i.icon]).map((i) => i.id), []);
+  // Phosphor names, or old Fluent names through the aliases (same rule as core/icons.js resolveIcon)
+  const knownIcon = ((j) => (n) => { n = String(n).replace(/_filled$/, ''); const a = j.aliases[n]; if (a) return !!j.glyphs[a.split(':')[0]]; if (j.glyphs[n]) return true; const m = /^(.+)-(fill|bold|regular)$/.exec(n); return !!(m && j.glyphs[m[1]]); })(require(path.join(ROOT, 'renderer', 'assets', 'icons', 'phosphor.json')));
+  check('catalog: every icon exists', items.filter((i) => !knownIcon(i.icon)).map((i) => i.id), []);
   check('catalog: graphical apps declare gui + their .desktop file, no snaps', items.filter((i) => i.gui).every((i) => /^[A-Za-z0-9][A-Za-z0-9._-]*\.desktop$/.test(i.desktop) && !/^(firefox|chromium|thunderbird)/.test(i.apt)) && items.some((i) => i.gui), true);
   const { parsers } = require(path.join(ROOT, 'main', 'ipc', 'store.js'));
   const parsed = parsers.parseCatalog({ items: [...items, { id: 'bad', apt: '-oops' }, { id: 'git', apt: 'git' }, null, { apt: 'x;rm' }] });
