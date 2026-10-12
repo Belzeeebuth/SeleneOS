@@ -238,6 +238,10 @@
 #taskbar .tb-bell .icon {
   color: var(--text);
 }
+/* Notifications open: the bell shows it (it is its own flyout button inside the clock) */
+#taskbar .tb-bell.open .icon {
+  color: var(--accent-text);
+}
 #taskbar .tb-count {
   min-width: 20px;
   height: 20px;
@@ -1130,6 +1134,9 @@
   }
   :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock > .tb-bell:hover {
     background: var(--subtle-hover);
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock > .tb-bell.open {
+    background: var(--accent-subtle);
   }
   :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-quick:focus-visible,
   :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-clock:focus-visible {
