@@ -15,7 +15,7 @@ export const SHORTCUT_GROUPS = [
   { id: 'shell', name: { en: 'Desktop and Launcher', fr: 'Bureau et Lanceur' } },
   { id: 'windows', name: { en: 'Windows', fr: 'Fenêtres' } },
   { id: 'desktops', name: { en: 'Virtual desktops', fr: 'Bureaux virtuels' } },
-  { id: 'taskbar', name: { en: 'Taskbar apps', fr: 'Applications de la barre des tâches' } },
+  { id: 'taskbar', name: { en: 'Taskbar apps', fr: 'Applications de la barre' } },
   { id: 'apps', name: { en: 'Apps', fr: 'Applications' } },
 ];
 
@@ -49,7 +49,7 @@ const LIST = [
   ['closeDesktop', 'desktops', 'Super+Ctrl+F4', 'Close the desktop', 'Fermer le bureau'],
   ['prevDesktop', 'desktops', 'Super+Ctrl+ArrowLeft', 'Previous desktop', 'Bureau précédent'],
   ['nextDesktop', 'desktops', 'Super+Ctrl+ArrowRight', 'Next desktop', 'Bureau suivant'],
-  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [`taskbarApp${n}`, 'taskbar', `Super+${n}`, `Open or switch to taskbar app ${n}`, `Ouvrir ou afficher l’application ${n} de la barre des tâches`]),
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [`taskbarApp${n}`, 'taskbar', `Super+${n}`, `Open or switch to taskbar app ${n}`, `Ouvrir ou afficher l’application ${n} de la barre`]),
   ['files', 'apps', 'Super+E', 'Files', 'Fichiers'],
   ['settings', 'apps', 'Super+I', 'Settings', 'Paramètres'],
   ['terminal', 'apps', 'Ctrl+Alt+T', 'Terminal', 'Terminal'],

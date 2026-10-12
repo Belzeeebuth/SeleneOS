@@ -104,7 +104,7 @@ i18n.extend({
       sh_grabbing: 'Saisie en cours',
       'sh_col-resize': 'Séparer des colonnes',
       iconPreview: 'Où apparaissent les icônes',
-      iconPreviewDesc: 'Barre des tâches, Lanceur, recherche, Alt+Tab, Vue d’ensemble, barres de titre, notifications et bureau',
+      iconPreviewDesc: 'Barre, Lanceur, recherche, Alt+Tab, Vue d’ensemble, barres de titre, notifications et bureau',
       iconSpecialNote: 'Ordinateur et la Corbeille suivent aussi le pack, sur le bureau et dans Fichiers.',
       volume: 'Volume des sons système',
       volumeDesc: 'Notifications, démarrage, arrêt et les autres sons système (alarmes comprises)',
