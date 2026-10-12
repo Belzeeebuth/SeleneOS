@@ -1,6 +1,6 @@
-// Notepad — a Windows 11-style plain text editor with tabs.
-// One module instance serves every Notepad window: lib/shared.js holds preferences, recent files
-// and the restorable session; lib/window.js is one window (tabs, menus, editor, find, status bar).
+// Éditeur de texte (app id "notepad"): a plain text editor with tabs.
+// One module instance serves every window: lib/shared.js holds preferences, recent files and the
+// restorable session; lib/window.js is one window (tabs, the "…" menu, editor, find, document info).
 // Backend: main/ipc/notepad.js (installed font families). Files go through fs:readBytes/writeBytes.
 import { shared } from './lib/shared.js';
 import { NotepadWindow, normalizePath } from './lib/window.js';

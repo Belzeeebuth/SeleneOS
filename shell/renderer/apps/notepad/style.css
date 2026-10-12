@@ -195,6 +195,9 @@
 .app-notepad > .win-titlebar > .win-icon {
   margin-right: 6px;
 }
+.app-notepad > .win-titlebar > .win-tb-slot {
+  container: np-tb / inline-size;
+}
 .app-notepad .np-strip {
   display: flex;
   align-items: center;
@@ -425,6 +428,15 @@
   margin: 0 4px;
   background: var(--line-soft);
 }
+/* narrow window: the tabs keep the room; undo and redo stay in Ctrl+Z / Ctrl+Y, the context menu
+   and "…" > More commands */
+@container np-tb (max-width: 340px) {
+  .app-notepad .np-undo,
+  .app-notepad .np-redo,
+  .app-notepad .np-actions-sep {
+    display: none;
+  }
+}
 .app-notepad .np-newtab:focus-visible,
 .app-notepad .np-qa:focus-visible,
 .app-notepad .np-tab-close:focus-visible {
@@ -458,6 +470,9 @@
 .np-menu {
   max-height: calc(100vh - 8px);
   overflow-y: auto;
+}
+.np-menu.np-menu-still .menu-item:hover:not(.active) {
+  background: transparent;
 }
 .np-menu .np-menu-header {
   padding: 6px 10px 4px;
@@ -841,12 +856,6 @@
 .app-notepad .np-root.nowrap .np-info {
   bottom: 22px; /* above the horizontal scroll bar */
 }
-/* narrow window: the open pill keeps the pickers and the position; the count waits for more room */
-@container np-main (max-width: 520px) {
-  .app-notepad .np-info.open .np-st-chars {
-    display: none;
-  }
-}
 .app-notepad .np-st-item {
   display: inline-flex;
   align-items: center;
@@ -916,6 +925,13 @@
 }
 .app-notepad:not(.active) .np-st-pos {
   color: var(--text-2);
+}
+
+/* narrow window: the open pill keeps the pickers and the position; the count waits for more room */
+@container np-main (max-width: 520px) {
+  .app-notepad .np-info.open .np-st-chars {
+    display: none;
+  }
 }
 
 /* ------------------------------------------------------------------ settings page */

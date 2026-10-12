@@ -1563,6 +1563,14 @@ export class NotepadWindow {
     const inField = !!e.target?.matches?.('input, select, textarea:not(.np-text)');
     if (k === 'F3') return run(() => this.find.next(e.shiftKey ? -1 : 1));
     if (k === 'F5' && !ctrl && !e.altKey && !inField) return run(() => this.insertDateTime());
+    // The info pill opened by a click keeps the caret in the text: Escape folds it first.
+    if (k === 'Escape' && this.infoOpen && !ctrl && !this.menus.isOpen) {
+      const inPill = this.infoEl.contains(e.target);
+      return run(() => {
+        this.setInfoOpen(false);
+        if (inPill) this.active?.focus();
+      });
+    }
     if (k === 'Escape' && this.find.isOpen && !ctrl) return run(() => this.find.close());
     if (!ctrl) return;
     const shift = e.shiftKey;

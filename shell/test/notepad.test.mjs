@@ -132,7 +132,7 @@ async function openInfo(s) {
   if (!(await run(s, `document.querySelector('${WIN} .np-info').classList.contains('open')`))) await s.page.click(`${WIN} .np-st-pos`);
   await until(() => run(s, `document.querySelector('${WIN} .np-info').classList.contains('open')`), { label: 'info pill open' });
 }
-const shown = (s, sel) => run(s, `(() => { const e = document.querySelector('${WIN} ${sel}'); return !!e && getComputedStyle(e).display !== 'none' && !e.closest('[hidden]'); })()`);
+const shown = (s, sel) => run(s, `(() => { const e = document.querySelector('${WIN} ${sel}'); return !!e && e.getClientRects().length > 0; })()`);
 const prefsFile = (home) => path.join(home, '.config', 'aurora', 'apps', 'notepad', 'prefs.json');
 const readJson = (f) => {
   try {
@@ -209,7 +209,7 @@ async function mainRun() {
       check('editor focused', await run(s, `document.activeElement?.classList.contains('np-text')`), true);
     });
 
-    await section('typing, dirty state and status bar', async () => {
+    await section('typing, dirty state and document info', async () => {
       await focusEditor(s);
       await s.page.keyboard.type('Hello world');
       await s.page.keyboard.press('Enter');
@@ -578,10 +578,15 @@ async function mainRun() {
       check('line ending from the "…" menu', (await status(s)).eol, 'Windows (CRLF)');
       await moreMenu(s, 'UTF-16 LE', 'Encoding and line endings');
       check('encoding from the "…" menu', (await status(s)).enc, 'UTF-16 LE');
+      // back to what is on disk (UTF-8, LF) without a prompt
       await NP(s, (np) => {
-        np.setEol(np.active, 'lf');
-        np.setEncoding(np.active, 'utf-8');
+        const d = np.active;
+        d.eol = 'lf';
+        d.encoding = 'utf-8';
+        d.markSaved();
+        np.onDocChanged(d);
       });
+      check('clean again', (await tabs(s)).find((x) => x.active).dirty, false);
     });
 
     await section('save all (Ctrl+Alt+S)', async () => {
@@ -1477,7 +1482,9 @@ async function sessionRun() {
       await s.page.keyboard.press('Control+Shift+n');
       await until(async () => (await winCount(s)) === 2, { label: 'second window' });
       await until(() => NP(s, (np) => !!np?.active, null, -1), { label: 'second window ready' });
-      await NP(s, (np) => np.openMore(), null, -1);
+      await NP(s, (np) => {
+        np.openMore();
+      }, null, -1);
       await s.page.locator('.np-more-menu .menu-item', { hasText: 'Close' }).click();
       await s.page.locator('.np-menu').last().locator('.menu-item', { hasText: 'Exit' }).click();
       await until(async () => (await winCount(s)) === 0, { label: 'all closed', timeout: 6000 });

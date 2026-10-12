@@ -102,7 +102,11 @@ export class Menus {
     // With icons, on/off items show a small switch at the end of the row; without, a check mark column.
     const hasCheck = !hasIcon && visible.some((it) => it !== '-' && it.checked !== undefined);
     const el = h('div', { class: ['menu', 'np-menu', this.themeClass(), className], role: 'menu', tabindex: '-1' });
-    const m = { el, entries: [], active: -1, level };
+    // Opened from the keyboard: a pointer that merely rests where the menu appears (Chromium sends
+    // it a synthetic enter) must not move the highlight; it does once the pointer really moves.
+    const m = { el, entries: [], active: -1, level, still: keyboard ? null : false };
+    // Until the pointer really moves, a resting pointer's :hover must not draw a second highlight.
+    if (keyboard) el.classList.add('np-menu-still');
     let prevSep = true;
     for (const it of visible) {
       if (it === '-') {
@@ -138,7 +142,15 @@ export class Menus {
       );
       const idx = m.entries.length;
       m.entries.push({ row, it });
-      row.addEventListener('pointerenter', () => {
+      row.addEventListener('pointerenter', (e) => {
+        if (m.still !== false) {
+          if (!m.still || (m.still[0] === e.clientX && m.still[1] === e.clientY)) {
+            m.still = [e.clientX, e.clientY];
+            return;
+          }
+          m.still = false;
+          el.classList.remove('np-menu-still');
+        }
         this._setActive(m, idx);
         clearTimeout(el._subTimer);
         if (it.submenu && !it.disabled) el._subTimer = setTimeout(() => this._openSub(m, idx, false), 220);
