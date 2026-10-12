@@ -650,7 +650,8 @@ await test('resize & skew dialog, rotate and flip transform pixels correctly', a
   await wait(s, 150);
   assert.deepEqual(await P(s, (p) => p.size), { w: 1152, h: 648 });
   // rotate right 90°: (x, y) -> (H - 1 - y, x)
-  await s.page.click(`${WIN} .pt-b[aria-label="Rotate"]`);
+  // Rotate and flip are in the compact Image menu of the options bar.
+  await s.page.click(`${WIN} .pt-image-btn`);
   await s.page.locator('.menu .menu-item', { hasText: 'Rotate right 90°' }).click();
   await wait(s, 150);
   assert.deepEqual(await P(s, (p) => p.size), { w: 648, h: 1152 });
@@ -659,7 +660,7 @@ await test('resize & skew dialog, rotate and flip transform pixels correctly', a
   assert.deepEqual(await P(s, (p) => p.size), { w: 1152, h: 648 });
   assert.deepEqual(await px(s, 110, 105), red);
   // flip horizontal: (x, y) -> (W - 1 - x, y)
-  await s.page.click(`${WIN} .pt-b[aria-label="Flip"]`);
+  await s.page.click(`${WIN} .pt-image-btn`);
   await s.page.locator('.menu .menu-item', { hasText: 'Flip horizontal' }).click();
   await wait(s, 150);
   assert.deepEqual(await px(s, 1152 - 1 - 110, 105), red);

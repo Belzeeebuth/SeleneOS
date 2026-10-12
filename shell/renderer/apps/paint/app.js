@@ -23,6 +23,9 @@ const ZOOMS = [0.125, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6, 7, 8];
 const MIN_ZOOM = 0.02;
 const MAX_ZOOM = 8;
 const MARGIN = 28;
+// Below the picture the workspace keeps room for the floating zoom pill, so the bottom edge and
+// its resize grips can always be scrolled clear of it.
+const MARGIN_B = 64;
 const SVGNS = 'http://www.w3.org/2000/svg';
 const FALLBACK_FONTS = ['Inter', 'DejaVu Sans', 'DejaVu Serif', 'DejaVu Sans Mono', 'Liberation Sans', 'Liberation Serif', 'Liberation Mono', 'Noto Sans', 'sans-serif', 'serif', 'monospace'];
 const BRUSH_TOOLS = new Set(['brush', 'calli1', 'calli2', 'airbrush', 'oil', 'crayon', 'marker', 'natural', 'watercolor']);
@@ -333,10 +336,10 @@ export async function createPaint(ctx) {
     const vw = scroller.clientWidth;
     const vh = scroller.clientHeight;
     const left = pw + MARGIN * 2 <= vw ? snap((vw - pw) / 2) : MARGIN;
-    const top = ph + MARGIN * 2 <= vh ? snap((vh - ph) / 2) : MARGIN;
+    const top = ph + MARGIN + MARGIN_B <= vh ? snap((vh - ph - (MARGIN_B - MARGIN)) / 2) : MARGIN;
     Object.assign(L, { left, top, pw, ph });
     stage.style.width = `${Math.max(vw, Math.ceil(pw + MARGIN * 2))}px`;
-    stage.style.height = `${Math.max(vh, Math.ceil(ph + MARGIN * 2))}px`;
+    stage.style.height = `${Math.max(vh, Math.ceil(ph + MARGIN + MARGIN_B))}px`;
     for (const el of [page, ovl]) Object.assign(el.style, { left: `${left}px`, top: `${top}px`, width: `${pw}px`, height: `${ph}px` });
     page.classList.toggle('pixelated', L.scale >= 1);
     antsSvg.setAttribute('viewBox', `0 0 ${W()} ${H()}`);
@@ -373,7 +376,7 @@ export async function createPaint(ctx) {
 
   function zoomFit() {
     const vw = Math.max(40, scroller.clientWidth - MARGIN * 2);
-    const vh = Math.max(40, scroller.clientHeight - MARGIN * 2);
+    const vh = Math.max(40, scroller.clientHeight - MARGIN - MARGIN_B);
     const z = Math.min(vw / W(), vh / H()) * (window.devicePixelRatio || 1);
     S.zoom = clamp(Math.floor(z * 1000) / 1000, MIN_ZOOM, MAX_ZOOM);
     layout();
@@ -384,7 +387,7 @@ export async function createPaint(ctx) {
     S.zoom = 1;
     layout();
     const dpr = window.devicePixelRatio || 1;
-    if (W() / dpr > scroller.clientWidth - MARGIN * 2 || H() / dpr > scroller.clientHeight - MARGIN * 2) zoomFit();
+    if (W() / dpr > scroller.clientWidth - MARGIN * 2 || H() / dpr > scroller.clientHeight - MARGIN - MARGIN_B) zoomFit();
     else scroller.scrollTo(0, 0);
   }
 
@@ -2635,16 +2638,16 @@ export async function createPaint(ctx) {
     reveal(pts) {
       const xs = pts.map((q) => q[0]);
       const ys = pts.map((q) => q[1]);
-      const m = 12;
-      const fit = (lo, hi, first, scroll, size, origin) => {
+      const fit = (lo, hi, first, scroll, size, origin, m2 = 12) => {
+        const m = 12;
         const a = origin + lo * L.scale - m;
-        const b = origin + hi * L.scale + m;
+        const b = origin + hi * L.scale + m2;
         if (a >= scroll && b <= scroll + size) return scroll;
         if (b - a <= size) return a < scroll ? a : b - size;
         return origin + first * L.scale - size / 2;
       };
       scroller.scrollLeft = fit(Math.min(...xs), Math.max(...xs), xs[0], scroller.scrollLeft, scroller.clientWidth, L.left);
-      scroller.scrollTop = fit(Math.min(...ys), Math.max(...ys), ys[0], scroller.scrollTop, scroller.clientHeight, L.top);
+      scroller.scrollTop = fit(Math.min(...ys), Math.max(...ys), ys[0], scroller.scrollTop, scroller.clientHeight, L.top, MARGIN_B - 8);
     },
     opening,
     openPath: (p) => openPath(p, { prompt: false }),
