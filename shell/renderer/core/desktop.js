@@ -211,12 +211,14 @@ function firstFreeCell(occupied, rows, from = 0) {
 const SPECIAL_ART = {
   thispc: { glyph: 'desktop', file: 'app://shell/assets/icons/this-pc.svg' },
   trash: { glyph: 'trash', file: 'app://shell/assets/icons/recycle-bin.svg' },
+  // « Installer Selene OS » (live session): the installer's own symbol, flat like the two others (no app tile)
+  installer: { glyph: 'download-simple', file: 'app://shell/apps/installer/icon.svg', hueOf: 'installer' },
 };
 const artCache = new Map();
 function specialArt(which, tone = rootMode()) {
   const def = SPECIAL_ART[which];
   const d = document.documentElement.dataset;
-  if (d.iconPack && d.iconPack !== 'selene') return def.file;
+  if (d.iconPack && d.iconPack !== 'selene') return which === 'installer' ? registry.iconUrl('installer') : def.file;
   const look = lookKey({ style: d.style, ambiance: d.ambiance, theme: tone });
   const key = `${which}|${look}`;
   if (artCache.has(key)) return artCache.get(key);
@@ -229,7 +231,7 @@ function specialArt(which, tone = rootMode()) {
     layers = `<g fill="${ICON_LOOKS.contrast[mode === 'light' ? 'light' : 'dark'].ink}">${line}</g>`;
   } else {
     const L = ICON_LOOKS[amb] || ICON_LOOKS.cold;
-    const hue = L.hues[APP_GLYPHS[`special:${which}`]?.hue] || L.hues.silver;
+    const hue = L.hues[APP_GLYPHS[def.hueOf || `special:${which}`]?.hue] || L.hues.silver;
     const dark = mode !== 'light';
     // the outline is the light symbol colour of the app icons (dark) or the dark tile colour (light)
     const ink = dark ? mix(hue, '#ffffff', 0.4) : L.light[1];
@@ -345,7 +347,7 @@ function specialItems() {
     { id: 'special:trash', label: t('desktop.recycleBin'), img: specialArt('trash'), special: 'trash', open: () => shell.launch('files', { path: 'trash' }) },
   ];
   if (env.live && registry.get('installer')) {
-    list.push({ id: 'special:installer', label: t('desktop.installAurora'), img: registry.iconUrl('installer'), special: 'installer', open: () => shell.launch('installer') });
+    list.push({ id: 'special:installer', label: t('desktop.installAurora'), img: specialArt('installer'), special: 'installer', open: () => shell.launch('installer') });
   }
   return list;
 }
