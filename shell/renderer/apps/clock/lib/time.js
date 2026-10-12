@@ -11,7 +11,7 @@ export const DAY = 24 * HOUR;
  * Next time an alarm rings, strictly after `after` (epoch ms), in the *local* time zone.
  *   alarm: { hour 0..23, minute 0..59, days: [0..6] (0 = Sunday; empty/null = only once) }
  * Wall-clock semantics: 07:00 stays 07:00 across DST changes. A time that does not exist on a
- * spring-forward day (02:30) rings when the clock jumps (03:30), like Windows.
+ * spring-forward day (02:30) rings when the clock jumps (03:30) (the usual desktop clock behaviour).
  */
 export function nextAlarmOccurrence(alarm, after = Date.now()) {
   const hour = clampInt(alarm?.hour, 0, 23);
@@ -32,7 +32,7 @@ function clampInt(v, min, max) {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : min;
 }
 
-/** Split a duration into whole days / hours / minutes, rounding up to the next minute (Windows style). */
+/** Split a duration into whole days / hours / minutes, rounding up to the next minute. */
 export function splitUntil(ms) {
   const mins = Math.max(0, Math.ceil(ms / MIN));
   return { days: Math.floor(mins / 1440), hours: Math.floor((mins % 1440) / 60), minutes: mins % 60, total: mins };
@@ -226,7 +226,7 @@ export function weekOrder(locale) {
   return Array.from({ length: 7 }, (_, i) => (first + i) % 7);
 }
 
-/** hh:mm:ss (always 2-digit groups, Windows Timer style) */
+/** hh:mm:ss (always 2-digit groups) */
 export function hms(ms, { forceHours = true } = {}) {
   const total = Math.max(0, Math.ceil(ms / 1000));
   const h = Math.floor(total / 3600);

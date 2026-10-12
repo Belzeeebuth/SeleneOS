@@ -8,11 +8,17 @@
   display: none !important;
 }
 
-/* ------------------------------------------------------------------ title bar search */
+/* ------------------------------------------------------------------ header search (right of the title) */
 .app-photos .ph-search {
-  width: min(440px, 100%);
-  margin: 0 auto;
-  padding: 0 8px;
+  flex: 0 1 260px;
+  min-width: 140px;
+  margin-left: auto;
+}
+.app-photos .ph-search + .ph-cmds {
+  margin-left: 0;
+}
+.app-photos .ph-head.has-selection .ph-search {
+  display: none;
 }
 .app-photos .ph-search > .input {
   height: 32px;
@@ -209,6 +215,9 @@
 @container phmain (max-width: 520px) {
   .app-photos .ph-count {
     display: none;
+  }
+  .app-photos .ph-search {
+    min-width: 96px;
   }
   .app-photos .ph-selbar [data-cmd="sel-all"] {
     display: none;
@@ -1768,7 +1777,7 @@
 .app-photos .ph-drop {
   position: absolute;
   inset: 8px;
-  top: calc(var(--titlebar-tall-h) + 8px);
+  top: calc(var(--titlebar-h) + 8px);
   z-index: 40;
   display: grid;
   place-items: center;

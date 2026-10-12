@@ -15,15 +15,27 @@ import { keyFromDayNum, dayNumFromKey, keyToLocalMs, localKey, DAY_MS } from './
 
 export const APP_ID = 'calendar';
 
-// Outlook-like calendar colours (data colours, chosen by the user; they are the same in both themes).
-export const PALETTE = ['#0078d4', '#038387', '#107c10', '#8cbd18', '#c19c00', '#ca5010', '#d13438', '#e3008c', '#8764b8', '#5c2e91', '#69797e', '#4f6bed'];
+// Calendar colours: a muted lunar palette (slate blue, mist teal, sage, moss, sand, clay, dusty rose, mauve,
+// lavender, night indigo, moon grey, haze blue). They are user data (saved, exported to .ics), so they are
+// hex values; each one is a mid tone that stays >= 3:1 against the dark and the light surfaces of every
+// ambiance, and the views tint them against --card-solid.
+export const PALETTE = ['#6e86b8', '#5b9399', '#74966a', '#8f9156', '#b08d55', '#b37a62', '#b5707f', '#9b78aa', '#8579b8', '#6b72ad', '#7d8796', '#5d8db3'];
+
+// The first palette (saturated Outlook colours) maps onto the new one, index for index, so calendars and
+// events saved before the redesign take the new colours.
+const LEGACY_PALETTE = ['#0078d4', '#038387', '#107c10', '#8cbd18', '#c19c00', '#ca5010', '#d13438', '#e3008c', '#8764b8', '#5c2e91', '#69797e', '#4f6bed'];
+export function migrateColor(c) {
+  if (typeof c !== 'string') return c;
+  const i = LEGACY_PALETTE.indexOf(c.toLowerCase());
+  return i < 0 ? c : PALETTE[i];
+}
 
 export const BUILTIN = {
-  personal: { color: '#0078d4' },
-  work: { color: '#ca5010' },
-  birthdays: { color: '#e3008c' },
-  'holidays-fr': { color: '#107c10', country: 'FR' },
-  'holidays-us': { color: '#8764b8', country: 'US' },
+  personal: { color: PALETTE[0] },
+  work: { color: PALETTE[4] },
+  birthdays: { color: PALETTE[6] },
+  'holidays-fr': { color: PALETTE[2], country: 'FR' },
+  'holidays-us': { color: PALETTE[8], country: 'US' },
 };
 
 export function defaultCalendars(lang = 'en') {
@@ -50,7 +62,7 @@ export function sanitizeCalendars(list, lang = 'en') {
     out.push({
       id: c.id.slice(0, 100),
       name: typeof c.name === 'string' && c.name.trim() ? c.name.slice(0, 200) : null,
-      color: isColor(c.color) ? c.color : PALETTE[out.length % PALETTE.length],
+      color: isColor(c.color) ? migrateColor(c.color) : PALETTE[out.length % PALETTE.length],
       visible: c.visible !== false,
       kind: holidays ? 'holidays' : 'user',
       ...(holidays ? { country: c.country } : {}),
@@ -155,7 +167,7 @@ export function visibleOccurrences(data, from, to, lang = 'en', { includeHidden 
   const shown = (id) => includeHidden || cals.get(id)?.visible !== false;
   const out = expandAll(data.events, from, to, (ev, occ) => shown(occ ? occ.calendarId : ev.calendarId) || (!occ && Object.values(ev.overrides || {}).some((o) => o.calendarId && shown(o.calendarId))));
   for (const c of data.calendars) if (c.kind === 'holidays' && (includeHidden || c.visible)) out.push(...holidayOccurrences(c, from, to, lang));
-  for (const o of out) o.color = o.color || cals.get(o.calendarId)?.color || PALETTE[0];
+  for (const o of out) o.color = migrateColor(o.color) || cals.get(o.calendarId)?.color || PALETTE[0];
   return out.sort((a, b) => (b.allDay ? 1 : 0) - (a.allDay ? 1 : 0) || a.start - b.start || b.end - a.end || String(a.title).localeCompare(String(b.title)));
 }
 

@@ -1,4 +1,4 @@
-// Mini month navigator (left pane and date picker), Windows 11 CalendarView look.
+// Mini month navigator (left pane and date picker): month name, then previous / next chevrons.
 //   miniMonth(app, { month, selected, range: [startDate, endDateExclusive], onPick(date), onMonth(newMonth), compact })
 //   -> element with .setState({ month, selected, range }) and .focusGrid()
 // Keyboard: arrows move the focused day (roving tabindex), PageUp/PageDown change month, Enter/Space pick,
@@ -16,8 +16,8 @@ export function miniMonth(app, opts) {
   const root = h('div', { class: ['ac-mini', opts.compact && 'compact'] });
   let mode = 'days'; // 'days' | 'months' (year view)
   const title = h('button', { class: 'ac-mini-title', type: 'button', 'aria-label': '', onclick: () => showMonths() });
-  const prev = h('button', { class: 'ac-mini-nav', type: 'button', 'aria-label': t('prevMonth'), 'data-tip': t('prevMonth'), onclick: () => change(-1) }, icon('arrow_up', { size: 14, filled: true }));
-  const next = h('button', { class: 'ac-mini-nav', type: 'button', 'aria-label': t('nextMonth'), 'data-tip': t('nextMonth'), onclick: () => change(1) }, icon('arrow_down', { size: 14, filled: true }));
+  const prev = h('button', { class: 'ac-mini-nav', type: 'button', 'aria-label': t('prevMonth'), 'data-tip': t('prevMonth'), onclick: () => change(-1) }, icon('caret-left', { size: 14 }));
+  const next = h('button', { class: 'ac-mini-nav', type: 'button', 'aria-label': t('nextMonth'), 'data-tip': t('nextMonth'), onclick: () => change(1) }, icon('caret-right', { size: 14 }));
   const head = h('div', { class: 'ac-mini-head' }, title, prev, next);
   const wk = h('div', { class: 'ac-mini-wk' });
   const viewport = h('div', { class: 'ac-mini-vp' });

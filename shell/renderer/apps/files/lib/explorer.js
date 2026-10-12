@@ -1005,6 +1005,8 @@ export class Explorer {
     const title = loc.type === 'search' ? this.tabTitle(this.tab) : this.locName(loc);
     this.headTitle.textContent = title;
     this.headTitle.title = loc.type === 'dir' ? loc.path : title;
+    // Home mixes places, favorites and recent files: a single count would mean nothing there.
+    this.headCount.hidden = loc.type === 'home';
     this.headCount.textContent = this.t('status.items', { count: this.view.items.length });
   }
 
@@ -1158,15 +1160,19 @@ export class Explorer {
     ];
   }
 
-  viewMenu(btn) {
+  viewItems() {
     const t = this.t;
-    this.menu(btn, [
+    return [
       ...this.viewModeItems(),
       '-',
       { label: t('view.compact'), icon: 'text_density', checked: shared.prefs.compact, action: () => setPref('compact', !shared.prefs.compact) },
       '-',
       { label: t('view.show'), icon: 'eye', submenu: this.showItems() },
-    ]);
+    ];
+  }
+
+  viewMenu(btn) {
+    this.menu(btn, this.viewItems());
   }
 
   moreMenu(btn) {
@@ -1187,6 +1193,8 @@ export class Explorer {
       '-',
       { label: ops.undoLabel(this), icon: 'arrow_undo', shortcut: 'Ctrl+Z', disabled: !op, action: () => ops.undo(this) },
       { label: t('nav.refresh'), icon: 'arrow_clockwise', shortcut: 'F5', action: () => this.refresh() },
+      { label: t('cmd.view'), icon: 'apps_list_detail', submenu: this.viewItems() },
+      { label: t('cmd.sort'), icon: 'arrow_sort', disabled: c.sort.disabled, submenu: this.sortItems() },
       '-',
       { label: t('more.selectAll'), icon: 'select_all_on', shortcut: 'Ctrl+A', disabled: !this.view.items.length, action: () => this.view.selectAll() },
       { label: t('more.selectNone'), icon: 'select_all_off', disabled: !s.items.length, action: () => this.view.selectNone() },

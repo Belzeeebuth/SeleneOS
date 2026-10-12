@@ -1,4 +1,4 @@
-// Clock window: navigation pane (Focus sessions, Timer, Alarm, Stopwatch, World clock, Settings),
+// Clock window: navigation pane (Focus, Timer, Alarm, Stopwatch, World clock, Settings),
 // page routing with Fluent entrance animations, the frame/second render loop, keyboard shortcuts,
 // relaunch arguments (notification clicks) and the taskbar progress of running timers / focus sessions.
 import { getStore } from './store.js';

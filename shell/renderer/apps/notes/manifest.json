@@ -5,7 +5,7 @@
   "icon": "icon.svg",
   "entry": "main.js",
   "styles": ["style.css"],
-  "window": { "width": 1260, "height": 780, "minWidth": 480, "minHeight": 400, "titlebar": "tall", "background": "mica" },
+  "window": { "width": 1260, "height": 780, "minWidth": 480, "minHeight": 400, "background": "mica" },
   "category": "productivity",
   "fileTypes": [".md", ".markdown", ".txt"],
   "keywords": {

@@ -228,8 +228,18 @@ export default {
       for (const el of navItems()) {
         const on = el.dataset.cat === cat;
         el.classList.toggle('selected', on);
-        if (on) el.setAttribute('aria-current', 'page');
-        else el.removeAttribute('aria-current');
+        if (on) {
+          el.setAttribute('aria-current', 'page');
+          // keep the current category visible in a short window (À propos sits under the fold at 720 px)
+          // (scrolls only the nav list, never an overflow:hidden ancestor of the window)
+          const box = el.closest('.st-nav');
+          if (box) {
+            const r = el.getBoundingClientRect();
+            const b = box.getBoundingClientRect();
+            if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom + 4;
+            else if (r.top < b.top) box.scrollTop -= b.top - r.top + 4;
+          }
+        } else el.removeAttribute('aria-current');
       }
       if (!navItems().includes(document.activeElement)) rovingReset();
     }

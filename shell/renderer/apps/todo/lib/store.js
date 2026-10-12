@@ -19,12 +19,13 @@ export const COLORS = ['accent', 'blue', 'purple', 'rose', 'red', 'orange', 'gre
 export const BACKGROUNDS = ['dawn', 'ocean', 'forest', 'dusk', 'aurora', 'sunset', 'mist', 'night'];
 export const SORTS = ['importance', 'due', 'myDay', 'alpha', 'created'];
 export const DEFAULT_THEMES = {
+  // every smart view starts in the accent tint; users can still pick a colour per list or view
   myday: { color: 'accent', bg: null },
-  important: { color: 'rose', bg: null },
-  planned: { color: 'teal', bg: null },
-  assigned: { color: 'green', bg: null },
-  all: { color: 'slate', bg: null },
-  completed: { color: 'purple', bg: null },
+  important: { color: 'accent', bg: null },
+  planned: { color: 'accent', bg: null },
+  assigned: { color: 'accent', bg: null },
+  all: { color: 'accent', bg: null },
+  completed: { color: 'accent', bg: null },
   tasks: { color: 'accent', bg: null },
 };
 export const DEFAULT_PREFS = {
@@ -33,7 +34,8 @@ export const DEFAULT_PREFS = {
   addOnTop: true,
   starToTop: true,
   dueTodayInMyDay: false,
-  smart: { important: true, planned: true, assigned: false, all: true, completed: true },
+  // Today, Upcoming, All and Completed by default; Important (a flag on tasks) and Assigned can be shown in Settings
+  smart: { important: false, planned: true, assigned: false, all: true, completed: true },
   autoHideEmpty: false,
   seedBanner: true,
   lastView: 'myday',

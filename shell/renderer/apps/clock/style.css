@@ -1,4 +1,4 @@
-/* Clock — Windows 11 style. Every rule is scoped under .app-clock; colours come from the shell tokens
+/* Clock (Selene). Every rule is scoped under .app-clock; colours come from the shell tokens
    (only day/night/sun colours of the world map and clock faces are content colours). */
 .app-clock .ck {
   --nav-w: 264px;
@@ -285,33 +285,45 @@
   height: 18px;
 }
 
-/* floating command bar (Edit / Add) */
+/* page header: page name on the left, its actions (Quick timers, Edit, Add) on the right */
 .app-clock .ck-cmdbar {
-  isolation: isolate; /* keeps the paint order the removed backdrop-filter gave */
-  position: sticky;
-  bottom: 20px;
-  z-index: 4;
-  align-self: flex-end;
-  margin-top: auto;
   display: flex;
-  gap: 4px;
-  padding: 4px;
-  transform: translateY(4px);
-  border-radius: var(--radius);
-  background: var(--surface-raised);
-  border: 1px solid var(--window-stroke);
-  box-shadow: var(--shadow-flyout);
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  margin-bottom: 16px;
 }
-/* keep the floating bar from covering the last row of cards */
-.app-clock .ck-alarms > .ck-grid,
-.app-clock .ck-timers > .ck-grid,
-.app-clock .ck-world > .ck-grid {
-  margin-bottom: 72px;
+.app-clock .ck-page-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle);
+  line-height: var(--lh-subtitle, 28px);
+  font-weight: 600;
+}
+.app-clock .ck-cmdbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
 }
 .app-clock .ck-cmd {
-  width: 40px;
-  min-width: 40px;
-  height: 36px;
+  width: 36px;
+  min-width: 36px;
+  height: 32px;
+  padding: 0;
+}
+.app-clock .ck-cmd.ck-cmd-text {
+  width: auto;
+  gap: 8px;
+  padding: 0 12px 0 10px;
+}
+.app-clock .ck.tight .ck-cmd-label {
+  display: none;
+}
+.app-clock .ck.tight .ck-cmd.ck-cmd-text {
+  width: 36px;
   padding: 0;
 }
 .app-clock .ck-note {
@@ -764,6 +776,90 @@
   align-items: center;
   gap: 6px;
   padding: 10px 14px 16px;
+}
+/* the list of timers: calm rows (play, name, time left, actions) with a slim progress line */
+.app-clock .ck-timer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 880px;
+}
+.app-clock .ck-timer:not(.big) {
+  position: relative;
+  flex-direction: row;
+  gap: 14px;
+  padding: 10px 12px 14px;
+  border-radius: var(--radius);
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+.app-clock .ck-timer:not(.big):hover {
+  background: var(--subtle-hover);
+}
+.app-clock .ck-timer:not(.big) .ck-timer-play {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  border: 1px solid var(--line);
+}
+.app-clock .ck-timer-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-clock .ck-timer:not(.big) .ck-timer-name {
+  font-weight: 600;
+}
+.app-clock .ck-timer:not(.big) .ck-timer-sub:empty {
+  display: none;
+}
+.app-clock .ck-timer:not(.big) .ck-timer-time {
+  flex: none;
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle);
+  line-height: 28px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.app-clock .ck-timer:not(.big) .ck-timer-actions {
+  flex: none;
+  gap: 2px;
+  margin: 0;
+}
+.app-clock .ck-timer:not(.big) .ck-timer-reset {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border: 0;
+  background: none;
+}
+.app-clock .ck-line {
+  position: absolute;
+  left: 62px;
+  right: 12px;
+  bottom: 6px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+.app-clock .ck-line-fill {
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+.app-clock .ck-timer.state-paused .ck-line-fill {
+  background: var(--text-3);
+}
+.app-clock .ck-timer.state-done .ck-line-fill {
+  background: var(--success, var(--accent));
 }
 .app-clock .ck-timer-head {
   align-self: stretch;
@@ -1627,4 +1723,8 @@
 .app-clock .ck-sun-row .v {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+/* an idle timer shows only the track of its progress line */
+.app-clock .ck-timer.state-idle .ck-line-fill {
+  background: transparent;
 }

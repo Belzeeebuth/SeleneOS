@@ -1659,6 +1659,8 @@ await wait(hd, 800);
 await test('high-DPI: at 100 % one image pixel is one device pixel, and strokes land on the right pixels', async () => {
   await P(hd, (p, el) => window.__aurora.wm.get(el.dataset.id).maximize());
   await wait(hd, 400);
+  // The maximize animation scales the window (0.98 → 1): measure once it has ended, even on a loaded machine.
+  await hd.page.waitForFunction(() => !document.getAnimations().some((a) => a.playState === 'running' && a.effect?.target?.classList?.contains('win')), null, { timeout: 5000 }).catch(() => {});
   const info = await P(hd, (p, el) => {
     p.setZoom(1);
     const r = el.querySelector('.pt-doc').getBoundingClientRect();

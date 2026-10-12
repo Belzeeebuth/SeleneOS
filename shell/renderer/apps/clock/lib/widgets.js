@@ -59,7 +59,7 @@ export function analogClock({ className = '', seconds = true } = {}) {
 }
 
 /**
- * Spin picker column (role=spinbutton). Larger values sit above, like the Windows 11 Clock pickers:
+ * Spin picker column (role=spinbutton). Larger values sit above:
  * the up chevron / ArrowUp / wheel up / dragging down increase the value.
  *   spinner({ h, icon, values: [{ value, label }], value, wrap, label, onchange, pageStep, className })
  *   el.value  el.setValue(v)
@@ -362,16 +362,29 @@ export function dayToggles({ h, order, names, longNames, days = [], onchange }) 
   return el;
 }
 
-/** Floating command bar (bottom-right of a page), like the Windows 11 Clock "Edit" / "Add" buttons. */
-export function commandBar(h, buttons) {
+/**
+ * Page header: the page name on the left, its actions on the right (Edit, Add…). A button with `text`
+ * shows it next to its icon (the main action, e.g. "Add"); the others are icon buttons with a tooltip.
+ */
+export function commandBar(h, buttons, { title = '' } = {}) {
   return h(
     'div',
-    { class: 'ck-cmdbar', role: 'toolbar' },
-    buttons.filter(Boolean).map((b) => {
-      const el = h('button', { type: 'button', class: ['btn', 'subtle', 'ck-cmd', b.className], 'aria-label': b.label, 'data-tip': b.label, onclick: b.onclick, dataset: b.dataset || null }, b.icon);
-      b.ref?.(el);
-      return el;
-    }),
+    { class: 'ck-cmdbar' },
+    h('h1', { class: 'ck-page-title ellipsis' }, title),
+    h(
+      'div',
+      { class: 'ck-cmdbar-actions', role: 'toolbar', 'aria-label': title || null },
+      buttons.filter(Boolean).map((b) => {
+        const el = h(
+          'button',
+          { type: 'button', class: ['btn', b.text ? 'ck-cmd-text' : 'subtle', 'ck-cmd', b.className], 'aria-label': b.label, 'data-tip': b.text ? null : b.label, 'aria-haspopup': b.menu ? 'menu' : null, onclick: b.onclick, dataset: b.dataset || null },
+          b.icon,
+          b.text ? h('span', { class: 'ck-cmd-label' }, b.text) : null,
+        );
+        b.ref?.(el);
+        return el;
+      }),
+    ),
   );
 }
 

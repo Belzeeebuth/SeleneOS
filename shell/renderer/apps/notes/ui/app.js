@@ -173,17 +173,16 @@ export class NotesApp {
     const { h, icon, ui } = this.ctx;
     const t = this.t;
     ui.clear(this.win.body);
-    ui.clear(this.win.titlebarSlot);
     this.editor?.destroy();
     this.itemCache.clear();
 
-    // search box in the tall title bar (as in Mail / Outlook)
+    // search box at the top of the notes list (the title bar keeps only the title and the window buttons)
     this.searchInput = h('input', {
       class: 'nt-search-input',
       type: 'search',
       spellcheck: false,
-      placeholder: t('searchPlaceholder'),
-      'aria-label': t('search'),
+      placeholder: t('searchShort'),
+      'aria-label': t('searchPlaceholder'),
       value: this.searchInput?.value || '',
       oninput: () => {
         clearTimeout(this._searchT);
@@ -207,7 +206,7 @@ export class NotesApp {
       { type: 'button', class: 'nt-search-clear', hidden: !this.searchInput.value, 'aria-label': t('clearSearch'), 'data-tip': t('clearSearch'), onclick: () => this.clearSearch(true) },
       icon('dismiss', { size: 12 }),
     );
-    this.win.titlebarSlot.appendChild(h('div', { class: 'nt-tb-search' }, h('div', { class: 'nt-search' }, icon('search', { size: 16 }), this.searchInput, this.searchClear)));
+    this.searchBar = h('div', { class: 'nt-list-search', role: 'search' }, h('div', { class: 'nt-search' }, icon('search', { size: 16 }), this.searchInput, this.searchClear));
 
     // navigation pane
     this.newBtn = h('button', { type: 'button', class: 'btn primary nt-new', 'data-tip': `${t('newNote')} (${this.kl('Ctrl+N')})`, onclick: () => this.newNote() }, icon('note_add', { size: 16 }), h('span', { class: 'ellipsis' }, t('newNote')));
@@ -243,6 +242,7 @@ export class NotesApp {
       'section',
       { class: 'nt-listpane', 'aria-label': t('notesList') },
       h('header', { class: 'nt-list-head' }, this.navToggle, h('div', { class: 'nt-list-heading' }, this.listTitle, this.listCount), this.listNewBtn, this.sortBtn, this.listMoreBtn),
+      this.searchBar,
       this.listEl,
       this.listEmpty,
     );
@@ -258,11 +258,10 @@ export class NotesApp {
     this.root.classList.toggle('nav-collapsed', !!this.prefs.navCollapsed);
     this.win.body.appendChild(this.root);
     if (!this._keysBound) {
-      // the window manager focuses win.body (or [autofocus]) on activation: listen there, and in the title
-      // bar (search box), never on win.el (dialogs live there)
+      // the window manager focuses win.body (or [autofocus]) on activation: listen there (the search box
+      // lives in the list pane), never on win.el (dialogs live there)
       this._keysBound = true;
       this.win.body.addEventListener('keydown', (e) => this.onKey(e));
-      this.win.titlebarSlot.addEventListener('keydown', (e) => this.onKey(e));
     }
     this.ro?.disconnect();
     this.ro = new ResizeObserver(() => this.layout());
@@ -290,7 +289,6 @@ export class NotesApp {
       this.mode = mode;
       this.root.dataset.layout = mode;
       this.toggleNav(false, { silent: true });
-      this.searchInput.placeholder = mode === 'narrow' ? this.t('searchShort') : this.t('searchPlaceholder');
     }
     const navShown = mode === 'wide' ? !this.root.classList.contains('nav-collapsed') : this.root.classList.contains('nav-open');
     this.navToggle.setAttribute('aria-expanded', String(navShown));

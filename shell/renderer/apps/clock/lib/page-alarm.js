@@ -30,9 +30,9 @@ export class AlarmPage {
     this.note = h('div', { class: 'ck-note' });
     this.cmd = commandBar(h, [
       { icon: icon('edit'), label: t('alarm.edit'), className: 'ck-cmd-edit', ref: (el) => (this.editBtn = el), onclick: () => this.setEditing(!this.editing) },
-      { icon: icon('add'), label: t('alarm.add'), className: 'ck-cmd-add', onclick: () => this.openEditor() },
-    ]);
-    this.el = h('section', { class: 'ck-alarms' }, this.note, this.grid, this.empty, this.cmd);
+      { icon: icon('add'), label: t('alarm.add'), text: t('timer.addShort'), className: 'ck-cmd-add', onclick: () => this.openEditor() },
+    ], { title: t('nav.alarm') });
+    this.el = h('section', { class: 'ck-alarms' }, this.cmd, this.note, this.grid, this.empty);
     this.render();
     return this.el;
   }

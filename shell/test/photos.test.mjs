@@ -1487,7 +1487,8 @@ await test('live language switch keeps the current photo; right-click menus', as
   await s.aurora(() => window.__aurora.settings.set('lang', 'fr'));
   await s.page.waitForFunction(() => /Modifier/.test(document.querySelector('.app-photos .ph-tb-edit')?.textContent || ''), null, { timeout: 10000 });
   assert.equal((await viewerState()).name, name, 'same photo after the switch');
-  assert.equal(await s.page.locator('.app-photos .ph-search').count(), 1, 'one search box in the title bar');
+  assert.equal(await s.page.locator('.app-photos .ph-search').count(), 1, 'one search box (in the gallery header)');
+  assert.equal(await s.page.locator('.app-photos .win-titlebar .ph-search').count(), 0, 'the title bar holds no search box');
   await s.page.locator('.app-photos .ph-stage').last().focus();
   await s.page.keyboard.press('Escape');
   const back = await s.page

@@ -1,11 +1,11 @@
-// Navigation pane: search box, smart lists (My Day, Important, Planned, Assigned to me, All, Completed,
-// Tasks), user lists and list groups with counts, "New list" / "New group" / settings. Lists can be dragged
+// Navigation pane: search box, smart views (Today, Upcoming, [Important, Assigned to me,] All, Completed),
+// then "Lists": the default list (Personal), user lists and list groups with counts, "New list" / "New group" / settings. Lists can be dragged
 // to reorder them or into a group; nav items are drop targets for dragged tasks.
 import { DEFAULT_LIST, counts } from '../lib/store.js';
 import { SMART_ICONS } from './app.js';
 import { beginDrag } from './drag.js';
 
-const SMART = ['myday', 'important', 'planned', 'assigned', 'all', 'completed'];
+const SMART = ['myday', 'planned', 'important', 'assigned', 'all', 'completed'];
 
 export class Nav {
   constructor(app) {
@@ -48,7 +48,7 @@ export class Nav {
     this.search.addEventListener('input', () => (this.searchClear.hidden = !this.search.value));
     this.smartEl = h('div', { class: 'td-nav-smart', role: 'group', 'aria-label': t('nav.smartLists') });
     this.listsEl = h('div', { class: 'td-nav-lists', role: 'group', 'aria-label': t('nav.myLists') });
-    this.scroller = h('div', { class: 'td-nav-scroll' }, this.smartEl, h('div', { class: 'td-nav-sep', role: 'separator' }), this.listsEl);
+    this.scroller = h('div', { class: 'td-nav-scroll' }, this.smartEl, h('div', { class: 'td-nav-heading caption', 'aria-hidden': 'true' }, t('nav.myLists')), this.listsEl);
     this.scroller.addEventListener('keydown', (e) => this._keys(e));
     const foot = h(
       'div',
@@ -91,14 +91,17 @@ export class Nav {
     const scroll = this.scroller.scrollTop;
     this.items.clear();
     app.ui.clear(this.smartEl);
-    for (const v of [...SMART, `list:${DEFAULT_LIST}`]) {
-      if (SMART.includes(v) && v !== 'myday') {
+    for (const v of SMART) {
+      if (v !== 'myday') {
         if (prefs.smart[v] === false) continue;
         if (prefs.autoHideEmpty && !c[v] && app.view !== v) continue;
       }
-      this.smartEl.appendChild(this._item(v, { icon: SMART_ICONS[v], label: v.startsWith('list:') ? app.t('nav.tasks') : app.t(`nav.${v}`), count: c[v], drop: ['myday', 'important', `list:${DEFAULT_LIST}`].includes(v) }));
+      this.smartEl.appendChild(this._item(v, { icon: SMART_ICONS[v], label: app.t(`nav.${v}`), count: c[v], drop: ['myday', 'important'].includes(v) }));
     }
     app.ui.clear(this.listsEl);
+    // the default list (Personal) heads the "Lists" section
+    const def = `list:${DEFAULT_LIST}`;
+    this.listsEl.appendChild(this._item(def, { icon: SMART_ICONS[def], label: app.t('nav.tasks'), count: c[def], drop: true }));
     const entries = [
       ...store.data.groups.map((g) => ({ g, order: g.order })),
       ...store.userLists().filter((l) => !l.groupId).map((l) => ({ l, order: l.order })),
@@ -155,7 +158,7 @@ export class Nav {
         onclick: () => app.go(view),
         oncontextmenu: (e) => app.listMenu(e, view),
       },
-      emoji ? h('span', { class: 'td-nav-emoji', 'aria-hidden': 'true' }, emoji) : app.icon(ic, { class: 'td-nav-ic', filled: view === 'important' }),
+      emoji ? h('span', { class: 'td-nav-emoji', 'aria-hidden': 'true' }, emoji) : app.icon(ic, { class: 'td-nav-ic' }),
       h('span', { class: 'td-nav-label ellipsis' }, label),
       count ? h('span', { class: 'td-nav-count', 'aria-label': app.t('nav.count', { count }) }, String(count)) : null,
     );

@@ -221,7 +221,10 @@ if (!unitOnly) {
       title: app.win.title,
       cals: app.data.calendars.map((c) => [c.id, c.visible, c.kind]),
       rows: [...app.root.querySelectorAll('.ac-cal-row')].map((r) => r.querySelector('.ac-cal-name').textContent),
-      views: [...app.root.querySelectorAll('.ac-views button')].map((b) => b.textContent.trim()),
+      viewBtn: app.root.querySelector('.ac-toolbar .ac-view-menu')?.getAttribute('aria-label'),
+      oldSegmented: !!app.root.querySelector('.ac-views'),
+      titlebarSearch: !!app.win.el.querySelector('.win-titlebar .ac-search'),
+      toolbarSearch: !!app.root.querySelector('.ac-toolbar .ac-search input'),
       tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
     }));
     check('window title', info.title, 'Calendar');
@@ -233,7 +236,12 @@ if (!unitOnly) {
       ['holidays-us', true, 'holidays'],
     ]);
     check('calendar names', info.rows, ['Personal', 'Work', 'Birthdays', 'Holidays in France', 'Holidays in United States']);
-    check('view switcher', info.views, ['Day', 'Work week', 'Week', 'Month', 'Agenda']);
+    check('view switch is a compact menu (no segmented bar)', [info.oldSegmented, !!info.viewBtn], [false, true]);
+    check('search in the toolbar, not in the title bar', [info.toolbarSearch, info.titlebarSearch], [true, false]);
+    await s.page.click(`${WIN} .ac-view-menu`);
+    await s.page.waitForSelector('body > .menu .menu-item');
+    check('view switcher', await run(s, `[...document.querySelectorAll('body > .menu .menu-item > .label')].map((b) => b.textContent.trim())`), ['Day', 'Work week', 'Week', 'Month', 'Agenda']);
+    await s.page.keyboard.press('Escape');
     check('system time zone in the app', info.tz, TZ);
     await setView(s, 'month', [2026, 9, 10]);
     check('month title', await run(s, `document.querySelector('${WIN} .ac-title-text').textContent`), 'October 2026');
@@ -684,7 +692,7 @@ if (!unitOnly) {
     await s.page.click(`${DLG} .ac-color >> nth=2`);
     await dialogButton(s, 'Add');
     const cal = await CAL(s, (app) => app.data.calendars.find((c) => c.name === 'Sports'));
-    check('calendar added', cal && [cal.color, cal.visible], ['#107c10', true]);
+    check('calendar added', cal && [cal.color, cal.visible], ['#74966a', true]);
     await seed(s, [{ id: 'sp1', title: 'Football', start: await pageMs(s, 2026, 9, 24, 15), end: await pageMs(s, 2026, 9, 24, 17), calendarId: cal.id }]);
     await setView(s, 'month', [2026, 9, 10]);
     const visible = () => run(s, `!!document.querySelector('${WIN} .ac-chip[data-event-id="sp1"]')`);

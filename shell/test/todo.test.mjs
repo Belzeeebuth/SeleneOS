@@ -220,8 +220,12 @@ async function runEnglish() {
         view: app.view,
         firstRun: app.store.firstRun,
       }));
-      check('smart lists in order (Assigned to me hidden by default)', r.nav, ['myday', 'important', 'planned', 'all', 'completed', 'list:tasks', 'user']);
-      check('smart list labels', r.labels, ['My Day', 'Important', 'Planned', 'All', 'Completed', 'Tasks']);
+      check('smart views in order (Important and Assigned to me hidden by default), then the lists', r.nav, ['myday', 'planned', 'all', 'completed', 'list:tasks', 'user']);
+      check('smart view labels', r.labels, ['Today', 'Upcoming', 'All', 'Completed']);
+      check('default list named Personal, first under "Lists"', await TD(s, (app) => [app.nav.el.querySelector('.td-nav-heading')?.textContent, app.nav.el.querySelector('.td-nav-lists .td-nav-item .td-nav-label')?.textContent]), ['Lists', 'Personal']);
+      // Importance stays a flag on tasks; its smart view can be shown from Settings (the rest of this suite uses it)
+      await TD(s, (app) => (app.store.setPref('smart.important', true), app.renderNow(), true));
+      check('Important view can be shown', await TD(s, (app) => !!app.nav.itemFor('important')), true);
       check('example tasks', r.seed, 8);
       check('example list with an emoji icon', r.lists, [['🛒', 'Groceries']]);
       check('examples are in English', r.titles.some((x) => x.startsWith('Welcome to Tasks')), true);
@@ -393,7 +397,7 @@ async function runEnglish() {
       });
       check('reminder at tomorrow 9:00', r.at, exp);
       check('reminder title = task title', r.title, 'Water the plants');
-      check('reminder body has the list name', r.body.startsWith('Tasks'), true);
+      check('reminder body has the list name', r.body.startsWith('Personal'), true);
       check('reminder data carries the task id', r.data, { taskId: id });
       check('reminder kind', r.kind, 'reminder');
       check('task stores the time', await TD(s, (app, id) => app.store.task(id).remindAt, id), exp);
@@ -454,7 +458,7 @@ async function runEnglish() {
         return t.id;
       });
       const toast = await until(s, () => window.__aurora.notifications.list().find((n) => n.title === 'Ring soon'), { timeout: 9000, label: 'reminder notification' });
-      check('notification shows the list', (toast.body || '').includes('Tasks'), true);
+      check('notification shows the list', (toast.body || '').includes('Personal'), true);
       check('fired one-shot reminder left the schedule', await TD(s, (app, id) => app.shell.reminders.get(`task-${id}`, 'todo'), rid), null);
       await render(s);
       check('row bell shows the reminder has passed', await TD(s, (app, id) => !!app.list.rowEl(id)?.querySelector('.td-meta-remind.past'), rid), true);
@@ -1030,7 +1034,7 @@ async function runEnglish() {
       await s.page.waitForSelector('.menu');
       check('bulk menu header', (await s.page.textContent('.menu')).includes('4 tasks selected'), true);
       await shot(s, 'multiselect-light-en', { clip: false });
-      await menuClick(s, 'Add to My Day');
+      await menuClick(s, 'Add to Today');
       check('bulk action applied to all', await TD(s, (app, ids) => ids.slice(0, 4).every((id) => app.store.task(id).myDay === app.today()), ids), true);
       await TD(s, (app, ids) => (app.store.setMyDay(ids.slice(0, 4), false), true), ids);
     });
@@ -1258,13 +1262,13 @@ async function runFrench() {
         sub: document.querySelector('.win.app-todo .td-subtitle').textContent,
         title: document.querySelector('.win.app-todo .td-title').textContent,
       }));
-      check('smart list labels in French', r.labels, ['Ma journée', 'Important', 'Planifié', 'Toutes', 'Terminées', 'Tâches']);
+      check('smart view labels in French', r.labels, ['Aujourd’hui', 'À venir', 'Toutes', 'Terminées']);
       check('examples in French', r.seed.some((x) => x.startsWith('Bienvenue dans Tâches')), true);
       check('example list in French', r.list, ['Courses']);
       check('add placeholder', r.add, 'Ajouter une tâche');
       check('weeks start on Monday', r.ws, 1);
       check('French long date', /^[a-z]+ \d+ [a-zéû]+$/.test(r.sub), true);
-      check('title', r.title, 'Ma journée');
+      check('title', r.title, 'Aujourd’hui');
       await shot(s, 'myday-dark-fr');
     });
     await section('French: details, menus, pickers and overflow', async () => {
@@ -1273,7 +1277,7 @@ async function runFrench() {
       await TD(s, (app, id) => (app.openTask(id), true), id);
       await sleep(300);
       const r = await TD(s, () => [...document.querySelectorAll('.win.app-todo .td-opt-label')].map((x) => x.textContent));
-      check('detail options in French', r, ['Ajouter à Ma journée', 'Me le rappeler', 'Ajouter une date d’échéance', 'Répéter']);
+      check('detail options in French', r, ['Ajouter à Aujourd’hui', 'Me le rappeler', 'Ajouter une date d’échéance', 'Répéter']);
       await shot(s, 'detail-dark-fr');
       check('no overflow (French, details open)', await overflowProbe(s), []);
       await s.page.click(`${WIN} .td-opt[data-key="remind"]`);

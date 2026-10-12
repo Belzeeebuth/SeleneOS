@@ -409,7 +409,7 @@
    "new": "New tab"
   },
   "thispc": {
-   "drives": "Devices and drives",
+   "drives": "Devices",
    "folders": "Folders"
   },
   "toast": {
@@ -901,7 +901,7 @@
    "new": "Nouvel onglet"
   },
   "thispc": {
-   "drives": "Périphériques et lecteurs",
+   "drives": "Appareils",
    "folders": "Dossiers"
   },
   "toast": {

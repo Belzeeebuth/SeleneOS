@@ -76,9 +76,9 @@ export class WorldPage {
     this.cmd = commandBar(h, [
       { icon: icon('timeline'), label: t('world.compare'), className: 'ck-cmd-compare', ref: (el) => (this.cmpBtn = el), onclick: () => this.setCompare(!this.compare) },
       { icon: icon('edit'), label: t('world.edit'), className: 'ck-cmd-edit', ref: (el) => (this.editBtn = el), onclick: () => this.setEditing(!this.editing) },
-      { icon: icon('add'), label: t('world.add'), className: 'ck-cmd-add', onclick: () => this.openSearch() },
-    ]);
-    this.el = h('section', { class: 'ck-world' }, this.error, this.mapCard, this.cmpBar, this.grid, this.cmd);
+      { icon: icon('add'), label: t('world.add'), text: t('timer.addShort'), className: 'ck-cmd-add', onclick: () => this.openSearch() },
+    ], { title: t('nav.world') });
+    this.el = h('section', { class: 'ck-world' }, this.cmd, this.error, this.mapCard, this.cmpBar, this.grid);
     this.render();
     return this.el;
   }

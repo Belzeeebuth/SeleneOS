@@ -1,7 +1,7 @@
 {
  "en": {
   "nav": {
-   "focus": "Focus sessions",
+   "focus": "Focus",
    "timer": "Timer",
    "alarm": "Alarm",
    "stopwatch": "Stopwatch",
@@ -46,6 +46,7 @@
   },
   "timer": {
    "add": "Add new timer",
+    "addShort": "Add",
    "addTitle": "Add new timer",
    "editTitle": "Edit timer",
    "collapse": "Exit expanded view",
@@ -57,7 +58,7 @@
    "edit": "Edit timers",
    "editOne": "Edit",
    "emptyTitle": "No timers",
-   "emptyBody": "Start a quick timer above or add your own.",
+   "emptyBody": "Start a quick timer or add your own.",
    "endsAt": "Rings at {time}",
    "expand": "Expand",
    "name": "Timer name",
@@ -67,7 +68,7 @@
    "plusOne": "Add 1 minute",
    "plusOneShort": "+1 min",
    "presetLabel": "{n} min",
-   "quick": "Quick start",
+   "quick": "Quick timers",
    "reset": "Reset",
    "restart": "Restart",
    "resume": "Resume",
@@ -289,7 +290,7 @@
  },
  "fr": {
   "nav": {
-   "focus": "Sessions de concentration",
+   "focus": "Concentration",
    "timer": "Minuteur",
    "alarm": "Alarme",
    "stopwatch": "Chronomètre",
@@ -334,6 +335,7 @@
   },
   "timer": {
    "add": "Ajouter un minuteur",
+    "addShort": "Ajouter",
    "addTitle": "Ajouter un nouveau minuteur",
    "editTitle": "Modifier le minuteur",
    "collapse": "Quitter l’affichage agrandi",
@@ -345,7 +347,7 @@
    "edit": "Modifier les minuteurs",
    "editOne": "Modifier",
    "emptyTitle": "Aucun minuteur",
-   "emptyBody": "Lancez un minuteur rapide ci-dessus ou créez le vôtre.",
+   "emptyBody": "Lancez une durée rapide ou créez votre minuteur.",
    "endsAt": "Sonne à {time}",
    "expand": "Agrandir",
    "name": "Nom du minuteur",
@@ -355,7 +357,7 @@
    "plusOne": "Ajouter 1 minute",
    "plusOneShort": "+1 min",
    "presetLabel": "{n} min",
-   "quick": "Démarrage rapide",
+   "quick": "Durées rapides",
    "reset": "Réinitialiser",
    "restart": "Redémarrer",
    "resume": "Reprendre",

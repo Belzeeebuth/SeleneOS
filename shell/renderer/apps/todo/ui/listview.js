@@ -10,7 +10,7 @@ import { beginDrag, liveReorder } from './drag.js';
 
 const NO_ADD = new Set(['completed', 'assigned', 'search']);
 const NO_SORT = new Set(['planned', 'completed', 'assigned', 'search']);
-const EMPTY_ICON = { myday: 'weather_sunny', important: 'star', planned: 'calendar_ltr', assigned: 'person', all: 'infinity', completed: 'checkmark_circle', search: 'search' };
+const EMPTY_ICON = { myday: 'calendar-dot', important: 'flag', planned: 'calendar-dots', assigned: 'user', all: 'tray', completed: 'check-circle', search: 'search' };
 
 export class ListView {
   constructor(app) {
@@ -322,7 +322,7 @@ export class ListView {
     const cur = app.store.viewPrefs(v).sort;
     const items = SORTS.filter((s) => s !== 'myDay' || v !== 'myday').map((s) => ({
       label: app.t(`sort.${s}`),
-      icon: { importance: 'star', due: 'calendar_ltr', myDay: 'weather_sunny', alpha: 'text_sort_ascending', created: 'calendar_add' }[s],
+      icon: { importance: 'flag', due: 'calendar_ltr', myDay: 'calendar-dot', alpha: 'text_sort_ascending', created: 'calendar_add' }[s],
       checked: cur?.by === s,
       action: () => app.store.setViewPref(v, { sort: { by: s, dir: 'asc' } }),
     }));
@@ -535,7 +535,7 @@ export class ListView {
     const meta = [];
     const list = app.store.list(task.listId);
     if (showList && list) meta.push(h('span', { class: 'td-meta-list' }, list.emoji ? `${list.emoji} ` : '', app.listName(list)));
-    if (task.myDay === today && app.view !== 'myday') meta.push(h('span', { class: 'td-meta-myday' }, icon('weather_sunny', { size: 12 }), t('nav.myday')));
+    if (task.myDay === today && app.view !== 'myday') meta.push(h('span', { class: 'td-meta-myday' }, icon('calendar-dot', { size: 12 }), t('nav.myday')));
     if (task.steps.length) meta.push(h('span', { class: 'td-meta-steps' }, t('row.steps', { done: task.steps.filter((s) => s.done).length, total: task.steps.length })));
     if (task.due) {
       const st = D.dueState(task.due, app.now());
@@ -582,7 +582,7 @@ export class ListView {
           if (!reduceMotion()) e.currentTarget.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 300, easing: EASE });
         },
       },
-      icon('star', { filled: task.important }),
+      icon('flag', { filled: task.important }),
     );
     const el = h(
       'div',

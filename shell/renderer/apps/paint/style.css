@@ -1241,7 +1241,13 @@
   padding: 8px 0;
   background: var(--bg);
   border-right: 1px solid var(--line-soft);
-  overflow: hidden;
+  /* Short windows: the palette scrolls, so every tool and shape stays reachable. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.app-paint .pt-toolbox > * {
+  flex: none;
 }
 .app-paint .pt-toolbox .pt-g {
   padding: 0;
@@ -1286,19 +1292,6 @@
   height: 1px;
   background: var(--line-soft);
 }
-.app-paint .pt-toolbox .pt-g[data-g="shapes"] {
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-}
-.app-paint .pt-toolbox .pt-g[data-g="shapes"] .pt-g-main,
-.app-paint .pt-toolbox .pt-g[data-g="shapes"] .pt-g-body {
-  min-height: 0;
-  max-height: 100%;
-  align-items: flex-start;
-  justify-content: center;
-  width: 100%;
-}
 .app-paint .pt-toolbox .pt-gallery {
   grid-template-columns: repeat(2, 34px);
   grid-auto-rows: 30px;
@@ -1306,9 +1299,6 @@
   padding: 0 0 4px;
   border: 0;
   background: none;
-  max-height: 100%;
-  overflow-y: auto;
-  scrollbar-width: thin;
 }
 .app-paint .pt-toolbox .pt-b.shape {
   width: 34px;
@@ -1359,6 +1349,10 @@
 .app-paint .pt-cmdbar .pt-palette {
   display: flex;
   gap: 3px;
+}
+/* Only one empty custom slot is shown in the bar (it opens the colour editor, like the picker). */
+.app-paint .pt-cmdbar .pt-palette.custom .pt-sw.pt-empty ~ .pt-sw.pt-empty {
+  display: none;
 }
 .app-paint .pt-cmdbar .pt-palette.custom:not(:empty) {
   padding-left: 6px;

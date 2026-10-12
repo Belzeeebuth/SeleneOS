@@ -181,7 +181,8 @@ export class PhotosApp {
       this.gallery = new Gallery(this);
       this.gallery.applyNavState();
       this.root.appendChild(this.gallery.el);
-      this.win.titlebarSlot.appendChild(this.gallery.searchBox);
+      // the search sits in the gallery header, next to the commands; the title bar keeps only the title
+      this.gallery.head.insertBefore(this.gallery.searchBox, this.gallery.cmds);
     }
     if (part === 'viewer' && !this.viewer) {
       this.viewer = new Viewer(this);

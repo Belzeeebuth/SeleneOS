@@ -91,7 +91,7 @@ export class Gallery {
       items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
     });
 
-    // Search box in the title bar
+    // Search box in the page header (right side, before the commands)
     this.searchInput = h('input', {
       class: 'input ph-search-input',
       type: 'search',

@@ -21,7 +21,8 @@ const CHIME = [
   { freq: 1975.5, start: 0.075, dur: 0.42, gain: 0.06, type: 'sine' },
   { freq: 2637, start: 0.075, dur: 0.18, gain: 0.015, type: 'sine' },
 ];
-export const SMART_ICONS = { myday: 'weather_sunny', important: 'star', planned: 'calendar_ltr', assigned: 'person', all: 'infinity', completed: 'checkmark_circle', 'list:tasks': 'home' };
+// Neutral Phosphor glyphs, all drawn in the accent tint (no per-view colour coding).
+export const SMART_ICONS = { myday: 'calendar-dot', important: 'flag', planned: 'calendar-dots', assigned: 'user', all: 'tray', completed: 'check-circle', 'list:tasks': 'list-bullets' };
 // One store for every To Do window (a second window opened with "newWindow" must not keep its own copy of
 // the data and overwrite the first one's changes): created by the first window, dropped with the last one.
 let shared = null; // { ready: Promise<TodoStore>, refs }
@@ -860,8 +861,8 @@ export class TodoApp {
     const anchor = at?.currentTarget instanceof Element ? at.currentTarget : this.list.rowEl(tasks[0].id);
     const items = [
       tasks.length > 1 ? { header: t('menu.selected', { count: tasks.length }) } : null,
-      { label: t(allMyDay ? 'menu.removeMyDay' : 'menu.addMyDay'), icon: 'weather_sunny', shortcut: this.fmt.keys('Ctrl+T'), action: () => this.toggleMyDay(ids) },
-      { label: t(allImportant ? 'menu.removeImportant' : 'menu.markImportant'), icon: 'star', iconFilled: allImportant, shortcut: this.fmt.keys('Ctrl+Shift+S'), action: () => this.toggleImportant(ids) },
+      { label: t(allMyDay ? 'menu.removeMyDay' : 'menu.addMyDay'), icon: 'calendar-dot', shortcut: this.fmt.keys('Ctrl+T'), action: () => this.toggleMyDay(ids) },
+      { label: t(allImportant ? 'menu.removeImportant' : 'menu.markImportant'), icon: 'flag', iconFilled: allImportant, shortcut: this.fmt.keys('Ctrl+Shift+S'), action: () => this.toggleImportant(ids) },
       { label: t(allDone ? 'menu.markNotCompleted' : 'menu.markCompleted'), icon: allDone ? 'circle' : 'checkmark_circle', shortcut: this.fmt.keys('Ctrl+D'), action: () => this.complete(ids, !allDone) },
       '-',
       { label: t('menu.dueToday'), icon: 'calendar_today', action: () => this.setDue(ids, presets.today) },

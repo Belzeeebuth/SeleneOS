@@ -222,7 +222,7 @@ if (!fatal) {
     check('tabs not in the title bar', await page.locator('.app-files .win-titlebar .fx-tab').count(), 0);
     check('tab strip hidden with one tab', await page.locator('.app-files .fx-tabbar').isHidden(), true);
     check('heading title', await page.locator('.app-files .fx-head-title').innerText(), 'Home');
-    check('heading count', await page.locator('.app-files .fx-head-count').innerText(), '6 items');
+    check('no item count on Home', await page.locator('.app-files .fx-head-count').isHidden(), true);
     check('sidebar sections', await page.locator('.app-files .fx-tsec').allInnerTexts(), (v) => v.includes('Favorites') && v.includes('Places'));
     check('no Gallery in sidebar', nav.includes('Gallery'), false);
     check('home folder in sidebar', nav.includes('Home folder'), true);
@@ -234,6 +234,7 @@ if (!fatal) {
     check('… menu commands', ['New', 'New tab', 'Cut', 'Copy', 'Paste', 'Rename', 'Delete', 'Refresh', 'Select all', 'Properties'].every((l) => moreLabels.includes(l)), true);
     await page.keyboard.press('Escape');
     await page.waitForTimeout(200);
+    await H.focusView();
     await H.shot('files-home');
   });
 
@@ -252,6 +253,7 @@ if (!fatal) {
     check('breadcrumbs', crumbs, ['Home folder', 'Documents']);
     check('breadcrumb house glyph', await page.locator('.app-files .fx-crumb').first().locator('.fx-crumb-home').count(), 1);
     check('heading follows the folder', await page.locator('.app-files .fx-head-title').innerText(), 'Documents');
+    check('heading count', await page.locator('.app-files .fx-head-count').innerText(), '6 items');
     const headers = await page.locator('.app-files .fx-dh-cell').allInnerTexts();
     check('detail columns', headers.map((x) => x.trim()), ['Name', 'Date modified', 'Type', 'Size']);
     const size = await page.locator('.app-files .fx-row:has-text("Report 2026.txt") .c-size').innerText();
@@ -1179,7 +1181,7 @@ if (!fatal) {
     await H.focusView();
     await H.key('Control+l');
     await H.key('Shift+Tab');
-    check('Shift+Tab from the address field goes to Refresh', await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Refresh');
+    check('Shift+Tab from the address field goes to Up', await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Up');
     await page.waitForTimeout(200);
     check('address left edit mode', await page.locator('.app-files .fx-address.editing').count(), 0);
     // ... and inside a dialog shown over the window
@@ -1293,9 +1295,10 @@ if (!fatal) {
     await page.waitForTimeout(400);
     const overflow = await page.evaluate(() => {
       const r = window.__fx().root;
-      return [r.scrollWidth <= r.clientWidth + 1, window.__fx().cmdBar.scrollWidth <= window.__fx().cmdBar.clientWidth + 1];
+      const fits = (el) => el.scrollWidth <= el.clientWidth + 1;
+      return [fits(r), fits(window.__fx().top), fits(window.__fx().head)];
     });
-    check('no overflow at min size', overflow, [true, true]);
+    check('no overflow at min size', overflow, [true, true, true]);
     await s.shot('files-min-size');
     await page.evaluate(() => window.__fx().win.maximize());
     await page.waitForTimeout(500);
@@ -1338,11 +1341,11 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
       check('fr headers', (await p2.locator('.app-files .fx-dh-cell').allInnerTexts()).map((x) => x.trim()), ['Nom', 'Modifié le', 'Type', 'Taille']);
       check('fr size', await p2.locator('.app-files .fx-row:has-text("Report 2026.txt") .c-size').innerText(), '1 Ko');
       check('fr status', await p2.locator('.app-files .fx-status span').first().innerText(), '6 éléments');
-      check('fr search placeholder', await p2.locator('.app-files .fx-search-input').getAttribute('placeholder'), 'Rechercher dans : Documents');
+      check('fr search placeholder', await p2.locator('.app-files .fx-search-input').getAttribute('placeholder'), 'Rechercher dans Documents');
       await H2.select('Report 2026.txt');
       check('fr selection status', await p2.locator('.app-files .fx-st-sel').innerText(), (t) => t.startsWith('1 élément sélectionné'));
-      const cmdOverflow = await p2.evaluate(() => window.__fx().cmdBar.scrollWidth <= window.__fx().cmdBar.clientWidth + 1);
-      check('fr command bar fits', cmdOverflow, true);
+      const cmdOverflow = await p2.evaluate(() => [window.__fx().top, window.__fx().head].every((el) => el.scrollWidth <= el.clientWidth + 1));
+      check('fr toolbar and heading fit', cmdOverflow, true);
       check('dark theme', await p2.evaluate(() => document.documentElement.dataset.theme), 'dark');
       await p2.evaluate(() => window.__fx().togglePane('details'));
       await p2.waitForTimeout(500);

@@ -189,6 +189,18 @@
   margin: 8px 12px;
   background: var(--stroke);
 }
+/* "Lists" section heading between the smart views and the lists */
+.app-todo .td-nav-heading {
+  margin: 14px 12px 6px;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-2);
+}
+/* smart views: neutral glyphs, all in the accent tint */
+.app-todo .td-nav-smart .td-nav-ic {
+  color: var(--accent-text);
+}
 .app-todo .td-group-head {
   display: flex;
   align-items: center;

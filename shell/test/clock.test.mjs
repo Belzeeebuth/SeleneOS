@@ -88,6 +88,12 @@ async function shot(s, name, { clip = true } = {}) {
   await s.page.screenshot({ path: file, ...(rect ? { clip: rect } : {}) });
   return file;
 }
+// The quick timers live in a small menu in the Timer page header.
+async function pickPreset(s, label) {
+  await s.page.click(`${WIN} .ck-presets-btn`);
+  await s.page.waitForSelector('body > .menu .menu-item');
+  await s.page.locator('body > .menu .menu-item', { has: s.page.locator('.label', { hasText: new RegExp(`^${label}$`) }) }).click();
+}
 function clockErrors(s) {
   return s.logs.filter((l) => /^\[(error|pageerror)\]/.test(l) && /clock|apps\/clock/i.test(l));
 }
@@ -464,7 +470,9 @@ async function runEnglish() {
       check('reset clears the reminder', (await reminders(s)).some((r) => r.id === `timer-${id}`), false);
       // presets
       const before = await CK(s, (app) => app.store.timers.length);
-      await s.page.click(`${WIN} .ck-preset[data-min="10"]`);
+      check('no floating command bar: the actions sit in the page header', await s.page.evaluate(`(() => { const b = document.querySelector('${WIN} .ck-page-timer .ck-cmdbar'); return !!b && getComputedStyle(b).position === 'static' && b === b.parentElement.firstElementChild; })()`), true);
+      check('timers are list rows with a progress line (no ring cards)', await s.page.evaluate(`[!!document.querySelector('${WIN} .ck-timer-list .ck-timer .ck-line'), !!document.querySelector('${WIN} .ck-timer-list .ck-ring')]`), [true, false]);
+      await pickPreset(s, '10 min');
       const pre = await CK(s, (app) => app.store.timers.find((t) => t.duration === 600000 && t.state === 'running'));
       check('10 min preset starts a timer', !!pre && (await CK(s, (app) => app.store.timers.length)) === before + 1, true);
       check('preset timer named by length', await s.page.textContent(`${WIN} .ck-timer[data-id="${pre.id}"] .ck-timer-name`), '10 min');
@@ -914,9 +922,10 @@ async function runEnglish() {
       await go(s, 'timer');
       const n15 = () => CK(s, (app) => app.store.timers.filter((x) => x.duration === 15 * 60000 && x.state === 'running').length);
       const before = await n15();
-      await s.page.dblclick(`${WIN} .ck-preset[data-min="15"]`);
+      await pickPreset(s, '15 min');
+      await pickPreset(s, '15 min');
       await sleep(300);
-      check('double click on the 15 min preset starts one timer', (await n15()) - before, 1);
+      check('picking the 15 min preset twice in a row starts one timer', (await n15()) - before, 1);
       await CK(s, (app) => app.store.timers.filter((x) => x.duration === 15 * 60000).forEach((x) => app.store.deleteTimer(x.id)));
       await CK(s, (app) => app.store.setPref('focus.dnd', 'ask'));
     });
@@ -1339,7 +1348,7 @@ async function runFrench() {
 
     await section('French: strings, 24 h format, week order, offsets', async () => {
       check('window title', await s.page.evaluate(`window.__aurora.wm.byApp('clock')[0].title`), 'Horloge');
-      check('nav labels', await s.page.evaluate(`[...document.querySelectorAll('${WIN} .ck-nav-label')].map((e) => e.textContent)`), ['Sessions de concentration', 'Minuteur', 'Alarme', 'Chronomètre', 'Horloge mondiale', 'Paramètres']);
+      check('nav labels', await s.page.evaluate(`[...document.querySelectorAll('${WIN} .ck-nav-label')].map((e) => e.textContent)`), ['Concentration', 'Minuteur', 'Alarme', 'Chronomètre', 'Horloge mondiale', 'Paramètres']);
       await go(s, 'alarm');
       const a = await CK(s, (app) => app.store.alarms.find((x) => x.name === 'Sport'));
       const card = `${WIN} .ck-alarm[data-id="${a.id}"]`;
@@ -1385,7 +1394,7 @@ async function runFrench() {
         const sc = app.scroller;
         const box = sc.getBoundingClientRect();
         if (sc.scrollWidth > sc.clientWidth + 1) bad.push(`page ${sc.scrollWidth}>${sc.clientWidth}`);
-        for (const el of app.root.querySelectorAll('.ck-card, .ck-set-row, .ck-note, .ck-presets, .ck-sw-display, .ck-focus-main, .ck-lap, .ck-laps-head')) {
+        for (const el of app.root.querySelectorAll('.ck-card, .ck-set-row, .ck-note, .ck-cmdbar, .ck-sw-display, .ck-focus-main, .ck-lap, .ck-laps-head')) {
           if (!el.offsetParent) continue;
           if (el.scrollWidth > el.clientWidth + 2) bad.push(`${el.className.split(' ').slice(0, 3).join('.')} ${el.scrollWidth}>${el.clientWidth}`);
           // a card wider than the page (a grid column sized by a long name) sticks out on the right
@@ -1428,7 +1437,7 @@ async function runFrench() {
 
     await section('QA3 (minimum size): icon-only pane has tooltips, its overlay closes when Tab leaves it, the city search scrolls once', async () => {
       check('each icon-only item names itself in a tooltip', await s.page.evaluate(`[...document.querySelectorAll('${WIN} .ck-nav-item')].map((e) => e.dataset.tip || '')`), [
-        'Sessions de concentration',
+        'Concentration',
         'Minuteur',
         'Alarme',
         'Chronomètre',
@@ -1528,7 +1537,7 @@ async function runSizes(size, lang, theme) {
         const bad = [];
         const box = app.scroller.getBoundingClientRect();
         if (app.scroller.scrollWidth > app.scroller.clientWidth + 1) bad.push('horizontal scroll');
-        for (const el of app.root.querySelectorAll('.ck-card, .ck-set-row, .ck-presets, .ck-lap, .ck-map-card')) {
+        for (const el of app.root.querySelectorAll('.ck-card, .ck-set-row, .ck-cmdbar, .ck-lap, .ck-map-card')) {
           if (!el.offsetParent) continue;
           const r = el.getBoundingClientRect();
           if (r.right > box.right + 1 || r.left < box.left - 1) bad.push(`${el.className.split(' ').slice(0, 3).join('.')} outside the page`);
@@ -1868,11 +1877,11 @@ async function runOversized() {
       await dialogButton(s, 'OK');
       check('…and adds nothing', await CK(s, (app) => app.store.alarms.length), 100);
       await go(s, 'timer');
-      await s.page.click(`${WIN} .ck-preset.custom`);
+      await pickPreset(s, 'Custom');
       await s.page.waitForSelector(DLG);
       check('Custom timer at the limit says so too', await s.page.textContent(`${DLG} .dialog-body`), (v) => v.includes('up to 100 timers'));
       await dialogButton(s, 'OK');
-      await s.page.click(`${WIN} .ck-preset[data-min="30"]`);
+      await pickPreset(s, '30 min');
       await s.page.waitForSelector(DLG);
       check('a quick-start preset needing a new timer says so too', await s.page.textContent(`${DLG} .dialog-body`), (v) => v.includes('up to 100 timers'));
       await dialogButton(s, 'OK');

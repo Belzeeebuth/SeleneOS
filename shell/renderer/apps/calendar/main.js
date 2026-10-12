@@ -1,4 +1,4 @@
-// Calendar — Windows 11 / Outlook-style calendar.
+// Calendar (Selene): month / week / day / agenda views with a compact view menu and an in-toolbar search.
 //   Views: Day, Work week, Week, Month, Agenda (+ search results); events with recurrence (RFC 5545
 //   subset, DST-aware), exceptions, reminders through shell.reminders, holidays (France / United States),
 //   .ics import / export. Data: ~/.config/aurora/apps/calendar/{events,calendars,prefs}.json

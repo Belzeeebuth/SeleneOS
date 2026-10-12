@@ -1266,7 +1266,7 @@ if (!only || 'french dark fr'.includes(only) || only.includes('fr')) {
     check('bienvenue', all.map((n) => n.title), ['Bienvenue dans Notes']);
     check('carnet par défaut', await N(s, (app) => app.store.notebooks.map((b) => b.name)), ['Mes notes']);
     check('étiquettes', all[0].tags, ['astuces', 'bienvenue']);
-    check('libellés FR', await run(s, `[document.querySelector('${WIN} .nt-new').textContent, document.querySelector('${WIN} .nt-list-title').textContent, document.querySelector('${WIN} .nt-search-input').placeholder]`), ['Nouvelle note', 'Toutes les notes', 'Rechercher dans toutes les notes']);
+    check('libellés FR', await run(s, `[document.querySelector('${WIN} .nt-new').textContent, document.querySelector('${WIN} .nt-list-title').textContent, document.querySelector('${WIN} .nt-search-input').getAttribute('aria-label')]`), ['Nouvelle note', 'Toutes les notes', 'Rechercher dans toutes les notes']);
     check('compteur FR', await run(s, `document.querySelector('${WIN} .nt-count').textContent`), (v) => /mots · \d+ caractères$/.test(v));
     // no English left in the visible chrome
     const english = await run(s, `[...document.querySelectorAll('${WIN} .nt-nav, ${WIN} .nt-listpane, ${WIN} .nt-status, ${WIN} .nt-cmdbar')].map((e) => e.innerText).join(' ')`);

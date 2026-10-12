@@ -1,4 +1,4 @@
-// Clock (Windows 11 style): Focus sessions, Timer, Alarm, Stopwatch, World clock and Settings.
+// Clock (Selene): Focus, Timer, Alarm, Stopwatch, World clock and Settings.
 //   lib/store.js    state + background service (survives the window; mirrors alarms, timers and focus
 //                   sessions into shell.reminders so they fire while Clock is closed)
 //   lib/app.js      window layout, navigation, routing, render loop, keyboard, relaunch arguments

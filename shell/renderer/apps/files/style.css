@@ -61,8 +61,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 0 1 200px;
-  min-width: 84px;
+  flex: 0 1 auto;
+  width: 200px;
+  min-width: 96px;
   height: 28px;
   padding: 0 2px 0 10px;
   border-radius: var(--radius-sm);
@@ -483,9 +484,6 @@
 .app-files .fx-cmd:disabled .icon {
   opacity: 0.55;
 }
-.app-files .fx-cmd.accent-icon:not(:disabled) > .icon:first-child {
-  color: var(--accent);
-}
 .app-files .fx-cmd .fx-cmd-chev {
   color: var(--text-2);
   margin-left: -2px;
@@ -650,11 +648,6 @@
   flex: none;
   color: var(--text-3);
   padding-right: 4px;
-}
-.app-files .fx-tsep {
-  height: 1px;
-  margin: 6px 8px 6px 10px;
-  background: var(--stroke);
 }
 .app-files .fx-tloading {
   height: 24px;
@@ -2105,9 +2098,6 @@
 .app-files .fx-cmd:disabled > .icon:first-child {
   color: var(--text-disabled);
 }
-.app-files .fx-cmd.accent-icon:not(:disabled) > .icon:first-child {
-  color: var(--accent-text);
-}
 .app-files .fx-cmd.toggled {
   background: var(--accent-subtle);
 }
@@ -2171,10 +2161,6 @@
 .app-files .fx-tree:focus-visible .fx-tnode.selected:not(.focused):only-child {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
-}
-.app-files .fx-tsep {
-  background: var(--line-soft);
-  margin: 8px 10px;
 }
 .app-files .fx-tpin {
   color: var(--text-3);
@@ -2405,6 +2391,7 @@
 .app-files .fx-nav {
   display: flex;
   flex-direction: column;
+  container: fx-nav / size;
 }
 .app-files .fx-nav > .fx-tree {
   flex: 1;
@@ -2509,7 +2496,16 @@
     display: none;
   }
 }
+/* A short window keeps the room for the folders: the disk meter goes first. */
+@container fx-nav (max-height: 420px) {
+  .app-files .fx-disk {
+    display: none;
+  }
+}
 @container (max-width: 560px) {
+  .app-files .fx-nav {
+    display: none;
+  }
   .app-files .fx-top .fx-search {
     flex-basis: 120px;
     min-width: 90px;

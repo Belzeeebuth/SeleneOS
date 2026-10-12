@@ -167,8 +167,7 @@ export class CalendarApp {
     const { h, icon, ui } = this.ctx;
     const t = this.t;
     ui.clear(this.win.body);
-    ui.clear(this.win.titlebarSlot);
-    // search box in the (tall) title bar, like the new Outlook
+    // search box in the toolbar, right side next to the view menu (the title bar keeps only the title)
     this.searchInput = h('input', {
       class: 'input',
       type: 'search',
@@ -213,7 +212,7 @@ export class CalendarApp {
       },
       icon('dismiss', { size: 12 }),
     );
-    this.win.titlebarSlot.appendChild(h('div', { class: 'ac-tb-search' }, h('div', { class: 'ac-search' }, icon('search', { size: 16 }), this.searchInput, this.searchClear)));
+    this.searchBox = h('div', { class: 'ac-search', role: 'search' }, icon('search', { size: 16 }), this.searchInput, this.searchClear);
 
     // toolbar
     this.paneBtn = h('button', { class: 'btn subtle icon-btn ac-pane-toggle', type: 'button', 'aria-label': t('togglePane'), 'data-tip': t('togglePane'), onclick: () => this.togglePane() }, icon('navigation', { size: 16 }));
@@ -223,39 +222,20 @@ export class CalendarApp {
     const next = h('button', { class: 'btn subtle icon-btn ac-next', type: 'button', 'aria-label': t('next'), 'data-tip': t('next'), onclick: () => this.step(1) }, icon('chevron_right', { size: 16 }));
     this.titleText = h('span', { class: 'ac-title-text ellipsis' });
     this.titleBtn = h('button', { class: 'ac-title', type: 'button', 'aria-haspopup': 'dialog', onclick: () => this.pickMonth() }, this.titleText, icon('chevron_down', { size: 12 }));
-    this.viewSeg = h(
-      'div',
-      { class: 'segmented ac-views', role: 'tablist', 'aria-label': t('viewLabel') },
-      VIEWS.map((v, i) =>
-        h(
-          'button',
-          {
-            type: 'button',
-            role: 'tab',
-            dataset: { view: v },
-            'data-tip': this.tipWithKey(t(`view.${v}`), String(i + 1)),
-            onclick: () => this.setView(v),
-          },
-          icon(VIEW_ICONS[v], { size: 16 }),
-          h('span', { class: 'ac-view-label' }, t(`view.${v}`)),
-        ),
-      ),
-    );
-    this.viewMenuBtn = h('button', { class: 'btn ac-view-menu', type: 'button', 'aria-haspopup': 'menu', onclick: (e) => this.viewMenu(e) });
+    // view switch: a compact drop-down (Day … Agenda, keys 1–5), aligned right
+    this.viewMenuBtn = h('button', { class: 'btn subtle ac-view-menu', type: 'button', 'aria-haspopup': 'menu', 'data-tip': t('viewLabel'), onclick: (e) => this.viewMenu(e) });
     const more = h('button', { class: 'btn subtle icon-btn ac-more', type: 'button', 'aria-label': t('moreOptions'), 'data-tip': t('moreOptions'), onclick: (e) => this.moreMenu(e) }, icon('more_horizontal', { size: 16 }));
     this.toolbar = h(
       'div',
       { class: 'ac-toolbar', role: 'toolbar', 'aria-label': t('toolbarLabel') },
       this.paneBtn,
-      this.newBtn,
-      h('div', { class: 'vsep' }),
-      this.todayBtn,
-      h('div', { class: 'ac-nav' }, prev, next),
       this.titleBtn,
+      h('div', { class: 'ac-nav' }, prev, this.todayBtn, next),
       h('div', { class: 'grow' }),
-      this.viewSeg,
+      this.searchBox,
       this.viewMenuBtn,
       more,
+      this.newBtn,
     );
 
     // left pane
@@ -306,7 +286,7 @@ export class CalendarApp {
     if (!initial) this.viewHandle?.resize?.();
   }
 
-  // "Search events" when it fits in the title bar search box, else just "Search" (small windows, French)
+  // "Search events" when it fits in the toolbar search box, else just "Search" (small windows, French)
   fitSearch() {
     const inp = this.searchInput;
     if (!inp?.isConnected || !inp.clientWidth) return;
@@ -322,10 +302,10 @@ export class CalendarApp {
     }
   }
 
-  // Progressive toolbar compaction (French labels are longer): drop the view icons, then turn the view
-  // switcher into a drop-down, then icon-only buttons, until the title is no longer cut.
+  // Progressive toolbar compaction (French labels are longer): icon-only "New event", then icon-only
+  // Today and view menu, then a narrower search box, until the title is no longer cut.
   fitToolbar() {
-    const levels = ['tb-noicons', 'tb-dropdown', 'tb-compact', 'tb-mini'];
+    const levels = ['tb-compact', 'tb-mini', 'tb-tiny'];
     const root = this.root;
     if (!root || !this.titleText) return;
     for (const c of levels) root.classList.remove(c);
@@ -670,11 +650,6 @@ export class CalendarApp {
     // flyouts point at elements of the old view
     closeAllPopovers('render');
     const view = this.state.view;
-    for (const b of this.viewSeg.children) {
-      const on = b.dataset.view === view && !this.state.search;
-      b.classList.toggle('selected', on);
-      b.setAttribute('aria-selected', String(on));
-    }
     this.ctx.ui.clear(this.viewMenuBtn);
     this.viewMenuBtn.append(this.ctx.icon(VIEW_ICONS[view], { size: 16 }), this.h('span', { class: 'ac-view-menu-label' }, this.t(`view.${view}`)), this.ctx.icon('chevron_down', { size: 12 }));
     this.viewMenuBtn.setAttribute('aria-label', `${this.t('viewLabel')}: ${this.t(`view.${view}`)}`);
@@ -1083,7 +1058,7 @@ export class CalendarApp {
         this.togglePane(false);
       }
     } else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(k)) {
-      if (e.target.closest('.ac-mini, .ac-pane, .ac-toolbar, .ac-ag-row, .ac-views')) return;
+      if (e.target.closest('.ac-mini, .ac-pane, .ac-toolbar, .ac-ag-row')) return;
       handled();
       const d = this.state.date;
       const delta = this.state.view === 'agenda' ? { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -1, ArrowDown: 1 }[k] : this.state.view === 'day' && (k === 'ArrowUp' || k === 'ArrowDown') ? { ArrowUp: -1, ArrowDown: 1 }[k] : { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[k];

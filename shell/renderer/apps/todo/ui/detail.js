@@ -199,7 +199,7 @@ export class Detail {
         'data-tip': t(task.important ? 'row.removeImportanceTip' : 'row.markImportantTip'),
         onclick: () => app.toggleImportant([id]),
       },
-      icon('star', { filled: task.important }),
+      icon('flag', { filled: task.important }),
     );
     const titleRow = h('div', { class: ['td-d-titlerow', task.done && 'done', app.completing.has(id) && 'completing'] }, check, title, star);
 
@@ -239,7 +239,7 @@ export class Detail {
         { class: 'td-d-card' },
         this._optRow({
           key: 'myday',
-          ic: 'weather_sunny',
+          ic: 'calendar-dot',
           label: t(inMyDay ? 'detail.addedMyDay' : 'detail.addMyDay'),
           active: inMyDay,
           onclick: () => !inMyDay && app.toggleMyDay([id], true),

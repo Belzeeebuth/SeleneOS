@@ -1,5 +1,6 @@
-// Clock — Timer page: quick-start presets, timer cards with an animated progress ring, start / pause /
-// reset / +1 min, expanded (big) view, add / edit dialog with an hh:mm:ss wheel picker, edit mode.
+// Clock — Timer page: a calm list of timers (one row each: name, time left, a slim progress line,
+// play / pause, reset, +1 min), a page header with "Add" and a small "Quick timers" menu, the expanded
+// (big) view with its progress ring, the add / edit dialog with an hh:mm:ss wheel picker, edit mode.
 import { hms, MIN } from './time.js';
 import { progressRing, durationPicker, commandBar, enter, reduceMotion } from './widgets.js';
 import { MAX_TIMERS } from './store.js';
@@ -20,16 +21,7 @@ export class TimerPage {
 
   build() {
     const { h, t, icon } = this.app;
-    this.presets = h(
-      'div',
-      { class: 'ck-presets', role: 'group', 'aria-label': t('timer.quick') },
-      h('span', { class: 'ck-presets-label caption text-2' }, t('timer.quick')),
-      PRESETS.map((m) =>
-        h('button', { type: 'button', class: 'btn ck-preset', dataset: { min: String(m) }, 'data-tip': t('timer.startPreset', { n: m }), onclick: () => this.quickStart(m) }, t('timer.presetLabel', { n: m })),
-      ),
-      h('button', { type: 'button', class: 'btn subtle ck-preset custom', onclick: () => this.openEditor() }, icon('add', { size: 14 }), t('timer.custom')),
-    );
-    this.grid = h('div', { class: 'ck-grid ck-timer-grid', role: 'list' });
+    this.grid = h('div', { class: 'ck-timer-list', role: 'list' });
     this.empty = h(
       'div',
       { class: 'empty ck-empty', hidden: true },
@@ -37,12 +29,17 @@ export class TimerPage {
       h('div', { class: 'subtitle' }, t('timer.emptyTitle')),
       h('div', { class: 'text-2' }, t('timer.emptyBody')),
     );
-    this.cmd = commandBar(h, [
-      { icon: icon('edit'), label: t('timer.edit'), className: 'ck-cmd-edit', ref: (el) => (this.editBtn = el), onclick: () => this.setEditing(!this.editing) },
-      { icon: icon('add'), label: t('timer.add'), className: 'ck-cmd-add', onclick: () => this.openEditor() },
-    ]);
+    this.cmd = commandBar(
+      h,
+      [
+        { icon: icon('timer'), label: t('timer.quick'), text: t('timer.quick'), className: 'ck-presets-btn', menu: true, onclick: (e) => this.presetMenu(e) },
+        { icon: icon('edit'), label: t('timer.edit'), className: 'ck-cmd-edit', ref: (el) => (this.editBtn = el), onclick: () => this.setEditing(!this.editing) },
+        { icon: icon('add'), label: t('timer.add'), text: t('timer.addShort'), className: 'ck-cmd-add', onclick: () => this.openEditor() },
+      ],
+      { title: t('nav.timer') },
+    );
     this.big = h('div', { class: 'ck-timer-big', hidden: true, role: 'dialog', 'aria-modal': 'false' });
-    this.el = h('section', { class: 'ck-timers' }, this.presets, this.grid, this.empty, this.cmd, this.big);
+    this.el = h('section', { class: 'ck-timers' }, this.cmd, this.grid, this.empty, this.big);
     this.render();
     return this.el;
   }
@@ -97,11 +94,17 @@ export class TimerPage {
   makeCard(x, big = false) {
     const { h, t, icon } = this.app;
     const c = { id: x.id, big };
-    c.ring = progressRing({ stroke: big ? 2 : 2.8 });
+    if (big) c.ring = progressRing({ stroke: 2 });
+    else {
+      // slim progress line under the row (scaleX only: cheap to animate)
+      const fill = h('div', { class: 'ck-line-fill' });
+      c.ring = h('div', { class: 'ck-line', 'aria-hidden': 'true' }, fill);
+      c.ring.set = (frac) => (fill.style.transform = `scaleX(${Math.max(0, Math.min(1, frac))})`);
+    }
     c.time = h('div', { class: 'ck-timer-time', role: 'timer', 'aria-live': 'off' });
     c.sub = h('div', { class: 'ck-timer-sub caption text-2' });
     c.name = h('div', { class: 'ck-timer-name ellipsis' });
-    c.play = h('button', { type: 'button', class: 'btn primary ck-round ck-timer-play', onclick: (e) => (e.stopPropagation(), this.toggle(x.id)) });
+    c.play = h('button', { type: 'button', class: ['btn', big ? 'primary' : 'subtle', 'ck-round', 'ck-timer-play'], onclick: (e) => (e.stopPropagation(), this.toggle(x.id)) });
     c.reset = h('button', { type: 'button', class: 'btn ck-round ck-timer-reset', 'aria-label': t('timer.reset'), 'data-tip': t('timer.reset'), onclick: (e) => (e.stopPropagation(), this.store.resetTimer(x.id)) }, icon('arrow_reset'));
     c.plus = h('button', { type: 'button', class: 'btn subtle ck-timer-plus', 'aria-label': t('timer.plusOne'), 'data-tip': t('timer.plusOne'), onclick: (e) => (e.stopPropagation(), this.store.addMinute(x.id)) }, t('timer.plusOneShort'));
     const expandBtn = big
@@ -110,7 +113,7 @@ export class TimerPage {
     const del = big
       ? null
       : h('button', { type: 'button', class: 'btn subtle icon-btn ck-card-del', 'aria-label': t('timer.delete'), 'data-tip': t('timer.delete'), onclick: (e) => (e.stopPropagation(), this.store.deleteTimer(x.id)) }, icon('delete'));
-    const dial = h('div', { class: 'ck-timer-dial' }, c.ring, h('div', { class: 'ck-timer-center' }, c.time, c.sub));
+    const dial = big ? h('div', { class: 'ck-timer-dial' }, c.ring, h('div', { class: 'ck-timer-center' }, c.time, c.sub)) : null;
     if (!big) {
       c.time.addEventListener('click', (e) => {
         if (this.editing) return;
@@ -144,11 +147,17 @@ export class TimerPage {
         },
         oncontextmenu: big ? null : (e) => this.menu(e, x.id),
       },
-      h('div', { class: 'ck-timer-head' }, c.name, expandBtn, del),
-      dial,
-      h('div', { class: 'ck-timer-actions' }, c.play, c.reset, c.plus),
+      ...(big
+        ? [h('div', { class: 'ck-timer-head' }, c.name, expandBtn, del), dial, h('div', { class: 'ck-timer-actions' }, c.play, c.reset, c.plus)]
+        : [
+            c.play,
+            h('div', { class: 'ck-timer-label' }, c.name, c.sub),
+            c.time,
+            h('div', { class: 'ck-timer-actions' }, c.reset, c.plus, expandBtn, del),
+            c.ring,
+          ]),
     );
-    if (!big) enter(c.el, { y: 12 });
+    if (!big) enter(c.el, { y: 6 });
     return c;
   }
 
@@ -162,7 +171,7 @@ export class TimerPage {
     const label = running ? t('timer.pause') : x.state === 'done' ? t('timer.restart') : x.state === 'paused' ? t('timer.resume') : t('timer.start');
     const ic = running ? 'pause' : x.state === 'done' ? 'arrow_counterclockwise' : 'play';
     if (c.play.dataset.icon !== ic) {
-      c.play.replaceChildren(icon(ic, { filled: true }));
+      c.play.replaceChildren(icon(ic, { filled: c.big || ic !== 'arrow_counterclockwise' }));
       c.play.dataset.icon = ic;
     }
     c.play.setAttribute('aria-label', label);
@@ -233,6 +242,17 @@ export class TimerPage {
     this._lastQuick = { m, id: x.id, at: Date.now() };
     setTimeout(() => this.highlight(x.id), 30);
     return x;
+  }
+
+  /** "Quick timers" menu: 1 … 30 min start at once; "Custom" opens the editor. */
+  presetMenu(e) {
+    const { t, ui } = this.app;
+    // anchored under the button (an Element also works from the keyboard)
+    ui.menu(e.currentTarget, [
+      ...PRESETS.map((m) => ({ label: t('timer.presetLabel', { n: m }), icon: 'play', action: () => this.quickStart(m) })),
+      '-',
+      { label: t('timer.custom'), icon: 'add', action: () => this.openEditor() },
+    ]);
   }
 
   highlight(id) {
