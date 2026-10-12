@@ -778,11 +778,11 @@ async function shortcutsPart() {
     const clip = await A(() => window.__aurora.api.invoke('clipboard:readText'));
     check(clip === 'hello b3', `Ctrl+A / Ctrl+C still reach Notepad (clipboard "${clip}")`);
     await closeApps(s, ['notepad']);
-    // conflict: Win+E for Run turns File Explorer's shortcut off
+    // conflict: Super+E for Run turns Files' shortcut off
     await go(s, 'shortcuts');
     const r2 = await recordIn(s, 'sc-run', 'Super+E');
     const sc2 = await get(s, 'shortcuts');
-    check(/File Explorer/.test(r2.msg) && /warn/.test(r2.cls) && sc2.run === 'Super+E' && sc2.files === null, `conflict shown ("${r2.msg}") and resolved: run ${sc2.run}, files ${sc2.files}`);
+    check(/“Files”/.test(r2.msg) && /warn/.test(r2.cls) && sc2.run === 'Super+E' && sc2.files === null, `conflict shown ("${r2.msg}") and resolved: run ${sc2.run}, files ${sc2.files}`);
     const tr = await A(() => ({ b: window.__aurora.hotkeys.bindings['Super+E'] }));
     check(tr.b === 'run', `Win+E now runs "${tr.b}"`);
     // reserved and typing combos are refused in the recorder
@@ -962,7 +962,7 @@ async function i18nPart() {
         const r = d.getBoundingClientRect();
         return { fits: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, text: d.innerText.replace(/\s+/g, ' ').slice(0, 220), over: d.scrollWidth > d.clientWidth + 1 };
       });
-      check(dl.fits && !dl.over && (lang === 'fr' ? /Ajoutez Win/.test(dl.text) : /Add Win/.test(dl.text)), `${lang} recorder dialog fits (${dl.text})`);
+      check(dl.fits && !dl.over && (lang === 'fr' ? /Ajoutez Super/.test(dl.text) : /Add Super/.test(dl.text)), `${lang} recorder dialog fits (${dl.text})`);
       if (lang === 'fr' && theme === 'dark') await docShot(s, `shortcuts-record-${lang}-${theme}`);
       await s.page.keyboard.press('Escape');
       await go(s, 'snapPresets');
@@ -1040,11 +1040,11 @@ async function stylesPart() {
   const A = (fn, a) => s.aurora(fn, a);
   try {
     const combos = [
-      { style: 'retro', iconPack: 'retro', cursorPack: 'retro', 'taskbar.position': 'left', textScale: 130, theme: 'light' },
-      { style: 'glass', iconPack: 'glass', cursorPack: 'accent', 'taskbar.position': 'bottom', blur: 90, theme: 'dark' },
+      { style: 'clairdelune', iconPack: 'retro', cursorPack: 'retro', 'taskbar.position': 'left', textScale: 130, theme: 'light' },
+      { style: 'nocturne', iconPack: 'glass', cursorPack: 'accent', 'taskbar.position': 'bottom', blur: 90, theme: 'dark' },
       { style: 'contrast', iconPack: 'mono', cursorPack: 'highvis', 'taskbar.position': 'top', theme: 'dark' },
-      { style: 'minimal', iconPack: 'graphite', cursorPack: 'midnight', 'taskbar.position': 'right', theme: 'light', appThemes: { notepad: { theme: 'dark', accent: null } } },
-      { style: 'win11', iconPack: 'tiles', cursorPack: 'large', 'taskbar.position': 'bottom', cursorSize: 150, theme: 'light' },
+      { style: 'eclipse', iconPack: 'graphite', cursorPack: 'midnight', 'taskbar.position': 'right', theme: 'light', appThemes: { notepad: { theme: 'dark', accent: null } } },
+      { style: 'nocturne', iconPack: 'tiles', cursorPack: 'large', 'taskbar.position': 'bottom', cursorSize: 150, theme: 'light' },
     ];
     for (const c of combos) {
       await setMany(s, c);
