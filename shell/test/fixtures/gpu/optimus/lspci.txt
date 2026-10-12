@@ -1,0 +1,5 @@
+00:00.0 "Host bridge [0600]" "Intel Corporation [8086]" "12th Gen Core Processor Host Bridge/DRAM Registers [4621]" -r02 "Lenovo [17aa]" "Device [3803]"
+00:02.0 "VGA compatible controller [0300]" "Intel Corporation [8086]" "Alder Lake-P GT2 [Iris Xe Graphics] [46a6]" -r0c "Lenovo [17aa]" "Device [3803]"
+00:14.3 "Network controller [0280]" "Intel Corporation [8086]" "Alder Lake-P PCH CNVi WiFi [51f0]" -r01 "Intel Corporation [8086]" "Wi-Fi 6 AX201 160MHz [0074]"
+01:00.0 "3D controller [0302]" "NVIDIA Corporation [10de]" "GA107M [GeForce RTX 3050 Mobile] [25a2]" -ra1 "Lenovo [17aa]" "Device [3803]"
+04:00.0 "Non-Volatile memory controller [0108]" "SK hynix [1c5c]" "Platinum P41/PC801 NVMe Solid State Drive [1959]" -p02 "SK hynix [1c5c]" "Device [0000]"

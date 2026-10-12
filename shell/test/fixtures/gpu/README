@@ -1,0 +1,7 @@
+Real `lspci -nn -mm` and `ubuntu-drivers devices` outputs (Ubuntu 24.04), used by shell/test/gpu-drivers.unit.mjs
+and, in dev mode, by the installer's graphics driver step (AURORA_GPU_FIXTURE=<directory name>).
+  lspci.txt           lspci -nn -mm
+  ubuntu-drivers.txt  ubuntu-drivers devices (empty: no driver offered)
+  lsmod.txt           lsmod (optional)
+  nvidia-version.txt  /proc/driver/nvidia/version (optional: the nvidia module is loaded)
+  sb-state.txt        mokutil --sb-state (optional)

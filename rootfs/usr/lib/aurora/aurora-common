@@ -17,7 +17,7 @@ aurora_log() { printf 'aurora: %s\n' "$*" >&2; }
 
 # aurora_cmdline KEY -> value of KEY=value on the kernel command line ("1" for a bare KEY)
 aurora_cmdline() {
-  for _w in $(cat /proc/cmdline 2>/dev/null); do
+  for _w in $(cat "${AURORA_PROCFS:-/proc}/cmdline" 2>/dev/null); do
     case "$_w" in
       "$1"=*) printf '%s\n' "${_w#*=}"; return 0 ;;
       "$1") echo 1; return 0 ;;
@@ -61,16 +61,48 @@ if v is None or isinstance(v, (dict, list)):
 print(v)' "$_f" "$1" 2>/dev/null
 }
 
+# Root of sysfs / procfs (tests point these at fixture trees).
+AURORA_SYSFS="${AURORA_SYSFS:-/sys}"
+AURORA_PROCFS="${AURORA_PROCFS:-/proc}"
+
+# The NVIDIA proprietary driver (installed by the installer or Settings > Graphics drivers) is loaded.
+aurora_nvidia_loaded() {
+  [ -d "$AURORA_SYSFS/module/nvidia" ] || [ -r "$AURORA_PROCFS/driver/nvidia/version" ]
+}
+
+# The NVIDIA driver may still be loading when the sign-in screen starts: when an NVIDIA graphics card is
+# present and its driver is installed, wait for the module a little (at most ~5 s) so that Xorg picks the
+# nvidia driver and the shell gets the GPU. Returns 0 when the nvidia module is loaded.
+aurora_wait_nvidia() {
+  aurora_nvidia_loaded && return 0
+  _nv=""
+  for _d in "$AURORA_SYSFS"/bus/pci/devices/*; do
+    [ "$(cat "$_d/vendor" 2>/dev/null)" = 0x10de ] || continue
+    case "$(cat "$_d/class" 2>/dev/null)" in 0x03*) _nv=1 ;; esac
+  done
+  [ -n "$_nv" ] || return 1
+  PATH="$PATH:/usr/sbin:/sbin" modinfo -n nvidia >/dev/null 2>&1 || return 1   # no NVIDIA driver installed (nouveau)
+  _i=0
+  while [ "$_i" -lt 25 ]; do
+    aurora_nvidia_loaded && return 0
+    sleep 0.2
+    _i=$((_i + 1))
+  done
+  return 1
+}
+
 # GPU mode for Electron and Xorg: prints "on" or "off".
 aurora_gpu_mode() {
   _m="${AURORA_GPU:-}"
   [ -n "$_m" ] || _m="$(aurora_cmdline aurora.gpu || true)"
   case "$_m" in on|1|yes) echo on; return ;; off|0|no) echo off; return ;; esac
   if aurora_cmdline nomodeset >/dev/null; then echo off; return; fi
+  # A loaded nvidia module is a real GPU, even before (or without) its DRM device (nvidia-drm).
+  if aurora_nvidia_loaded; then echo on; return; fi
   _accel=off
-  for _c in /sys/class/drm/card[0-9]*; do
+  for _c in "$AURORA_SYSFS"/class/drm/card[0-9]*; do
     [ -e "$_c/device/driver" ] || continue
-    case "$_c" in *-*) continue ;; esac   # connectors (card0-HDMI-A-1)
+    case "${_c##*/}" in *-*) continue ;; esac   # connectors (card0-HDMI-A-1)
     _drv="$(basename "$(readlink -f "$_c/device/driver")")"
     case "$_drv" in
       virtio_gpu|virtio-gpu|virtio-pci|virtio_pci)

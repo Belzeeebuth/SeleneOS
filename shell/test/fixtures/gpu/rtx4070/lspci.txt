@@ -1,0 +1,8 @@
+00:00.0 "Host bridge [0600]" "Advanced Micro Devices, Inc. [AMD] [1022]" "Starship/Matisse Root Complex [1480]" "ASUSTeK Computer Inc. [1043]" "Device [87c0]"
+00:01.0 "Host bridge [0600]" "Advanced Micro Devices, Inc. [AMD] [1022]" "Starship/Matisse PCIe Dummy Host Bridge [1482]" "" ""
+00:01.1 "PCI bridge [0604]" "Advanced Micro Devices, Inc. [AMD] [1022]" "Starship/Matisse GPP Bridge [1483]" "" ""
+00:14.0 "SMBus [0c05]" "Advanced Micro Devices, Inc. [AMD] [1022]" "FCH SMBus Controller [790b]" -r61 "ASUSTeK Computer Inc. [1043]" "FCH SMBus Controller [87c0]"
+01:00.0 "VGA compatible controller [0300]" "NVIDIA Corporation [10de]" "AD104 [GeForce RTX 4070] [2786]" -ra1 "ASUSTeK Computer Inc. [1043]" "Device [88f2]"
+01:00.1 "Audio device [0403]" "NVIDIA Corporation [10de]" "AD104 High Definition Audio Controller [22bc]" -ra1 "ASUSTeK Computer Inc. [1043]" "Device [88f2]"
+02:00.0 "Non-Volatile memory controller [0108]" "Samsung Electronics Co Ltd [144d]" "NVMe SSD Controller PM9A1/PM9A3/980PRO [a80a]" -p02 "Samsung Electronics Co Ltd [144d]" "SSD 980 PRO [a801]"
+05:00.0 "Ethernet controller [0200]" "Realtek Semiconductor Co., Ltd. [10ec]" "RTL8125 2.5GbE Controller [8125]" -r05 "ASUSTeK Computer Inc. [1043]" "Device [87d7]"

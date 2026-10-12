@@ -1,0 +1,13 @@
+udevadm hwdb is deprecated. Use systemd-hwdb instead.
+== /sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0 ==
+modalias : pci:v000010DEd00002786sv00001043sd000088F2bc03sc00i00
+vendor   : NVIDIA Corporation
+model    : AD104 [GeForce RTX 4070]
+driver   : nvidia-driver-535-server-open - distro non-free
+driver   : nvidia-driver-550 - distro non-free recommended
+driver   : nvidia-driver-535-open - distro non-free
+driver   : nvidia-driver-550-open - distro non-free
+driver   : nvidia-driver-535 - distro non-free
+driver   : nvidia-driver-535-server - distro non-free
+driver   : xserver-xorg-video-nouveau - distro free builtin
+

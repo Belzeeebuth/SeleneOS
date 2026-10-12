@@ -9,6 +9,7 @@
 // 3. End-to-end: the real shell (dev mode = simulated system) driven through the Settings UI —
 //    every setting is checked to really take effect (settings store, DOM of the shell, backends).
 // 4. Screenshots: light/en and dark/fr, copied to docs/screenshots/settings-*.png.
+// 5. Pilotes graphiques (--drivers runs only this part, after the unit tests): simulated NVIDIA / AMD / Intel machines.
 import { launchShell, ROOT, OUT } from './lib.mjs';
 import { createRequire } from 'node:module';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -1074,6 +1075,145 @@ async function realSystemPages() {
   }
 }
 
+// ===================================================================== Graphics drivers (Pilotes graphiques)
+// Simulated machines of main/ipc/drivers.js (real lspci / ubuntu-drivers outputs), switched with drivers:devSet.
+async function graphicsDrivers() {
+  console.log('\n# Settings — Pilotes graphiques (fr, 1280x720)');
+  const s = await launchShell({ lang: 'fr', size: '1280x720', open: ['settings'], env: { AURORA_DEV_GPU: 'rtx4070' } });
+  const devSet = (o) => inv(s, 'drivers:devSet', o);
+  const reopen = async () => {
+    await go(s, 'system');
+    await go(s, 'gpuDrivers');
+  };
+  const text = (sel) => s.page.locator(S(sel)).first().innerText().then((x) => x.trim()).catch(() => '');
+  const rowsPkgs = () => s.aurora(() => [...document.querySelectorAll('.app-settings .st-drv-row[data-pkg]')].map((r) => ({ pkg: r.dataset.pkg, text: r.innerText })));
+  try {
+    await s.page.waitForSelector(S('.st-page'), { timeout: 20000 });
+    // the page is listed on Accueil (Système) and linked from Écran
+    await go(s, 'system');
+    check((await s.page.locator(S('.st-row-title'), { hasText: 'Pilotes graphiques' }).count()) === 1, 'Accueil lists « Pilotes graphiques »');
+    await go(s, 'display');
+    check((await s.page.locator(S('.st-row-title'), { hasText: 'Pilotes graphiques' }).count()) === 1, 'Écran links to « Pilotes graphiques » (paramètres associés)');
+    await go(s, 'gpuDrivers');
+    check((await text('.st-title')) === 'Pilotes graphiques' && (await text('.st-crumbs')).includes('Accueil'), 'page title and breadcrumb (Accueil › Pilotes graphiques)');
+    // RTX 4070 on Nouveau: recommended 580 Open first, Open / Propriétaire pills, server versions folded away
+    check((await text('.st-drv-hero .st-hero-title')) === 'Un pilote NVIDIA est disponible', 'RTX 4070 + Nouveau: « Un pilote NVIDIA est disponible »');
+    const card = await text('.st-drv-card');
+    check(card.includes('NVIDIA GeForce RTX 4070') && card.includes('Pilote utilisé : Nouveau (pilote libre)'), 'the card and the driver in use (Nouveau)');
+    let rows = await rowsPkgs();
+    check(rows[0]?.pkg === 'nvidia-driver-580-open' && /Recommandé/.test(rows[0].text) && /Open/.test(rows[0].text) && rows.some((r) => r.pkg === 'nvidia-driver-580' && /Propriétaire/.test(r.text)), 'recommended driver first, with « Recommandé » and « Open » / « Propriétaire » badges');
+    check(!rows.some((r) => /server/.test(r.pkg)) && (await s.page.locator(S('.st-exp-head'), { hasText: 'Versions pour serveurs' }).count()) === 1, 'server versions in a folded « Versions pour serveurs et calcul » section');
+    check((await s.page.locator(S('.st-drv-row .btn'), { hasText: 'Installer' }).count()) >= 4 && (await text('[data-section="free"]')).includes('Utilisé'), 'each driver has « Installer »; Nouveau is marked « Utilisé »');
+    await docShot(s, 'drivers-rtx4070-fr');
+    // Dismissed prompt: nothing happens, no error
+    await s.page.locator(S('.st-drv-install-rec')).click();
+    await s.page.waitForSelector('.uac-dialog', { timeout: 8000 });
+    check(/pilote graphique NVIDIA 580 Open/.test(await s.page.locator('.uac-dialog').innerText()), 'UAC prompt says which driver is installed');
+    await s.page.locator('.uac-dialog .dialog-footer .btn:not(.primary)').click();
+    await sleep(500);
+    check(!(await s.page.locator(S('.st-drv-error')).count()) && (await text('.st-drv-hero .st-hero-title')) === 'Un pilote NVIDIA est disponible', 'cancelled authorisation: no error, nothing changed');
+    // Install the recommended driver: progress, then « Redémarrer maintenant » / « Plus tard »
+    await s.page.locator(S('.st-drv-install-rec')).click();
+    await uac(s);
+    await s.page.waitForSelector(S('.st-drv-progress .progress'), { timeout: 8000 });
+    await s.page.waitForFunction(() => Number(document.querySelector('.app-settings .st-drv-progress .progress')?.getAttribute('aria-valuenow')) >= 45, null, { timeout: 15000 }).catch(() => {});
+    const prog = await text('.st-drv-progress');
+    check((await text('.st-drv-hero .st-hero-title')).startsWith('Installation du pilote NVIDIA 580 Open') && /%/.test(prog), `install progress (${prog.replace(/\s+/g, ' ')})`);
+    await docShot(s, 'drivers-installing-fr');
+    await s.page.waitForFunction(() => document.querySelector('.app-settings .st-drv-hero .st-hero-title')?.textContent === 'Redémarrez pour terminer', null, { timeout: 20000 }).catch(() => {});
+    check((await text('.st-drv-hero .st-hero-sub')).includes('NVIDIA 580 Open est installé') && (await s.page.locator(S('.st-drv-restart')).count()) === 1 && (await s.page.locator(S('.st-drv-hero .btn'), { hasText: 'Plus tard' }).count()) === 1, 'after the install: « Redémarrez pour terminer », « Redémarrer maintenant » / « Plus tard »');
+    rows = await rowsPkgs();
+    check(/Au prochain démarrage/.test(rows.find((r) => r.pkg === 'nvidia-driver-580-open')?.text || '') && /Utiliser celui-ci/.test(rows.find((r) => r.pkg === 'nvidia-driver-580')?.text || ''), 'installed driver « Au prochain démarrage », the others « Utiliser celui-ci »');
+    await docShot(s, 'drivers-reboot-fr');
+    await s.page.locator(S('.st-drv-hero .btn'), { hasText: 'Plus tard' }).click();
+    await sleep(300);
+    check(!(await s.page.locator(S('.st-drv-restart')).count()) && (await s.page.locator(S('.st-infobar'), { hasText: 'prochain redémarrage' }).count()) === 1, '« Plus tard » folds the prompt into a reminder');
+    // After the restart: the NVIDIA driver is loaded
+    await devSet({ machine: 'rtx4070', driver: 'nvidia-driver-580-open' });
+    await reopen();
+    check((await text('.st-drv-hero .st-hero-title')) === 'Le pilote NVIDIA 580 Open est utilisé' && (await text('.st-drv-card')).includes('Pilote utilisé : NVIDIA 580.95.05 Open'), 'after the restart: « Le pilote NVIDIA 580 Open est utilisé », version from /proc/driver/nvidia/version');
+    check((await text('.st-drv-row.current')).includes('Utilisé') && (await s.page.locator(S('.st-drv-free')).count()) === 1, 'driver in use marked « Utilisé »; « Revenir au pilote libre (Nouveau) » offered');
+    await docShot(s, 'drivers-inuse-fr');
+    // Back to Nouveau (confirmation, then UAC)
+    await s.page.locator(S('.st-drv-free')).click();
+    await s.page.waitForSelector('.dialog-layer .dialog', { timeout: 5000 });
+    await s.page.locator('.dialog-layer .dialog .btn.primary').last().click();
+    await uac(s);
+    await s.page.waitForFunction(() => /Nouveau sera utilisé/.test(document.querySelector('.app-settings .st-drv-hero .st-hero-sub')?.textContent || ''), null, { timeout: 15000 }).catch(() => {});
+    check((await text('.st-drv-hero .st-hero-title')) === 'Redémarrez pour terminer' && (await text('[data-section="free"]')).includes('Au prochain démarrage'), 'back to Nouveau: restart prompt, Nouveau « Au prochain démarrage »');
+    // A failed install: readable reason
+    await devSet({ machine: 'rtx2060', driver: '', fail: true });
+    await reopen();
+    rows = await rowsPkgs();
+    check(rows[0]?.pkg === 'nvidia-driver-580' && rows.some((r) => r.pkg === 'nvidia-driver-580-open') && rows.some((r) => r.pkg === 'nvidia-driver-535-open'), 'RTX 2060 (Turing): -open drivers offered, 580 recommended');
+    await s.page.locator(S('.st-drv-install-rec')).click();
+    await uac(s);
+    await s.page.waitForSelector(S('.st-drv-error'), { timeout: 15000 }).catch(() => {});
+    check(/n’a pas pu être installé/.test(await text('.st-drv-error')) && (await text('.st-drv-hero .st-hero-title')) === 'Un pilote NVIDIA est disponible', `failed install: « Le pilote n’a pas pu être installé. » (${(await text('.st-drv-error')).slice(0, 90)})`);
+    await devSet({ fail: false });
+    // GTX 1060 (Pascal): proprietary only
+    await devSet({ machine: 'gtx1060', secureBoot: true });
+    await reopen();
+    rows = await rowsPkgs();
+    check(rows.length >= 3 && rows.every((r) => !/-open/.test(r.pkg) && !/\bOpen\b/.test(r.text)) && rows[0].pkg === 'nvidia-driver-580', 'GTX 1060: proprietary drivers only (no « Open »), 580 recommended');
+    check((await s.page.locator(S('.st-drv-sb')).count()) === 1, 'Secure Boot on: reassuring note (drivers signed by Canonical)');
+    // Optimus laptop: both cards listed
+    await devSet({ machine: 'optimus', secureBoot: false });
+    await reopen();
+    const cards = await s.page.locator(S('.st-drv-card')).allInnerTexts();
+    check(cards.length === 2 && /Intel Iris Xe Graphics/.test(cards[0]) && /Intel · Pilote utilisé : libre, intégré à Selene OS/.test(cards[0]) && /RTX 3050 Mobile/.test(cards[1]) && (await text('.st-group-title')) === 'Vos cartes graphiques', 'Intel + NVIDIA laptop: both cards, each with its driver');
+    check((await s.page.locator(S('.st-drv-optimus')).count()) === 1, 'Optimus: explains which card does what');
+    await docShot(s, 'drivers-optimus-fr');
+    // Offline: explained, list kept, buttons disabled
+    await devSet({ machine: 'rtx4070', offline: true });
+    await reopen();
+    check((await s.page.locator(S('.st-drv-offline')).count()) === 1 && (await rowsPkgs()).length >= 4 && (await s.page.locator(S('.st-drv-action:not([disabled])')).count()) === 0 && (await s.page.locator(S('.st-drv-install-rec[disabled]')).count()) === 1, 'offline: « Pas de connexion Internet », the list stays, install buttons disabled');
+    await docShot(s, 'drivers-offline-fr');
+    // No package lists yet: « Rechercher les pilotes » (apt-get update) brings the list
+    await devSet({ machine: 'nolists', offline: false });
+    await reopen();
+    check((await rowsPkgs()).length === 0 && (await s.page.locator(S('.st-drv-search')).count()) === 1, 'no driver list yet: « Rechercher les pilotes »');
+    await s.page.locator(S('.st-drv-search')).click();
+    await uac(s);
+    await s.page.waitForFunction(() => document.querySelectorAll('.app-settings .st-drv-row[data-pkg]').length > 0, null, { timeout: 15000 }).catch(() => {});
+    check((await rowsPkgs()).length > 0, 'after the search the drivers are listed');
+    // AMD / Intel only: calm "nothing to install"
+    for (const m of ['amd', 'intel']) {
+      await devSet({ machine: m });
+      await reopen();
+      check((await text('.st-drv-hero .st-hero-title')) === 'Votre carte graphique utilise déjà le bon pilote' && (await rowsPkgs()).length === 0 && !(await s.page.locator(S('.st-drv-offline, .st-drv-install-rec')).count()), `${m} only: « Votre carte graphique utilise déjà le bon pilote », nothing to install`);
+      if (m === 'amd') {
+        check((await text('.st-drv-card')).includes('AMDGPU (libre, intégré à Selene OS)'), 'AMD card: built-in AMDGPU driver');
+        await docShot(s, 'drivers-amd-fr');
+      }
+    }
+    // The backend refuses packages that are not drivers / not offered here
+    const bad = [];
+    for (const p of ['nvidia-driver-580; reboot', 'nvidia-driver-58', 'xserver-xorg-video-nouveau', 'nvidia-driver-999']) {
+      try {
+        await inv(s, 'drivers:install', p);
+        bad.push(p);
+      } catch {}
+    }
+    check(!bad.length, `drivers:install refuses invalid / not offered packages${bad.length ? ` (accepted: ${bad.join(', ')})` : ''}`);
+    // Search box: « pilote », « NVIDIA », « carte graphique »
+    for (const q of ['pilote', 'NVIDIA', 'carte graphique']) {
+      const res = await s.aurora((qq) => import('app://shell/apps/settings/lib/index.js').then((m) => m.searchIndex(qq, 'fr', 3).map((e) => e.page)), q);
+      check(res[0] === 'gpuDrivers', `search « ${q} » finds Pilotes graphiques`);
+    }
+    const errs = errorsOf(s);
+    check(!errs.length, `no renderer errors on the drivers page${errs.length ? `: ${errs.slice(0, 3).join(' | ')}` : ''}`);
+  } catch (err) {
+    check(false, `drivers flow crashed: ${err.stack || err}`);
+  } finally {
+    await s.close();
+  }
+}
+
+if (ARGS.has('--drivers')) {
+  await graphicsDrivers();
+  finish();
+}
 if (ARGS.has('--qa')) {
   await qaRegressions();
   finish();
@@ -1086,6 +1226,7 @@ await lightEnglish();
 if (!ARGS.has('--skip-dark')) await darkFrench();
 await realSystemPages();
 await qaRegressions();
+await graphicsDrivers();
 finish();
 
 function finish() {

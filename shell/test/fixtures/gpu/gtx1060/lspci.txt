@@ -1,0 +1,7 @@
+00:00.0 "Host bridge [0600]" "Intel Corporation [8086]" "8th Gen Core Processor Host Bridge/DRAM Registers [3ec2]" -r07 "Micro-Star International Co., Ltd. [MSI] [1462]" "Device [7b45]"
+00:01.0 "PCI bridge [0604]" "Intel Corporation [8086]" "6th-10th Gen Core Processor PCIe Controller (x16) [1901]" -r07 "" ""
+00:14.0 "USB controller [0c03]" "Intel Corporation [8086]" "Cannon Lake PCH USB 3.1 xHCI Host Controller [a36d]" -r10 -p30 "Micro-Star International Co., Ltd. [MSI] [1462]" "Device [7b45]"
+00:17.0 "SATA controller [0106]" "Intel Corporation [8086]" "Cannon Lake PCH SATA AHCI Controller [a352]" -r10 -p01 "Micro-Star International Co., Ltd. [MSI] [1462]" "Device [7b45]"
+01:00.0 "VGA compatible controller [0300]" "NVIDIA Corporation [10de]" "GP106 [GeForce GTX 1060 6GB] [1c03]" -ra1 "Micro-Star International Co., Ltd. [MSI] [1462]" "Device [3283]"
+01:00.1 "Audio device [0403]" "NVIDIA Corporation [10de]" "GP106 High Definition Audio Controller [10f1]" -ra1 "Micro-Star International Co., Ltd. [MSI] [1462]" "Device [3283]"
+03:00.0 "Ethernet controller [0200]" "Realtek Semiconductor Co., Ltd. [10ec]" "RTL8111/8168/8411 PCI Express Gigabit Ethernet Controller [8168]" -r15 "Micro-Star International Co., Ltd. [MSI] [1462]" "Device [7b45]"

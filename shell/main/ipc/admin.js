@@ -64,6 +64,13 @@ const ACTIONS = {
 ACTIONS['format-removable'] = { args: [/^\/dev\/(sd[a-z]{1,2}|mmcblk[0-9]{1,2})$/, oneOf('vfat', 'exfat', 'ext4'), /^[A-Za-z0-9_ -]{0,16}$/], timeout: 15 * 60 * 1000 };
 // ---- END disks ----
 
+// ---- BEGIN drivers (Settings > Graphics drivers: renderer/apps/settings/pages/drivers.js, main/ipc/drivers.js) ----
+// drivers-install <nvidia-driver-NNN[-open|-server|-server-open]> / drivers-remove: the helper re-checks the package
+// against `ubuntu-drivers devices`; APT progress streamed (admin:progress). Dev: simulated in drivers.js (devRun).
+ACTIONS['drivers-install'] = { args: [/^nvidia-driver-\d{3}(-open|-server|-server-open)?$/], timeout: 0, stream: true };
+ACTIONS['drivers-remove'] = { args: [], timeout: 0, stream: true };
+// ---- END drivers ----
+
 function err(message, code) {
   const e = new Error(message);
   e.code = code;
@@ -237,6 +244,7 @@ dev.storeRun = devStoreRun; // main/lib/sources/ubuntu.js: simulated install / r
 async function devRun(action, args, secret, onLine) {
   if (action.startsWith('store-')) return devStoreRun(action, args, onLine); // store actions (Store app)
   if (action === 'format-removable') return require('./disks').devFormat(args); // disks (Disks app): simulated in disks.js
+  if (action.startsWith('drivers-')) return require('./drivers').devRun(action, args, onLine); // graphics drivers: simulated in drivers.js
   const users = dev.users || [];
   const find = (n) => users.find((u) => u.name === n);
   const need = (n) => {
@@ -316,6 +324,7 @@ async function devRun(action, args, secret, onLine) {
       return 'ok\n';
     case 'apt-check':
       await sleep(1600);
+      dev.aptListsFetched = true; // package lists downloaded (drivers.js: ubuntu-drivers now lists the NVIDIA drivers)
       if (dev.updated) return '';
       return `${dev.upgradable.map(([n, epoch, from, to, origin]) => `Inst ${n} [${epoch ? `${epoch}:` : ''}${from}] (${to} ${origin})`).join('\n')}\n`;
     case 'apt-upgrade': {

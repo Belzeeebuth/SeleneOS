@@ -2,7 +2,7 @@
 // (multitasking), Clipboard, About. Display, Sound and About are their own entries in the navigation.
 import { PAGES } from '../lib/index.js';
 
-const SUBPAGES = ['notifications', 'power', 'storage', 'multitasking', 'clipboard'];
+const SUBPAGES = ['gpuDrivers', 'notifications', 'power', 'storage', 'multitasking', 'clipboard']; // gpuDrivers: pages/drivers.js
 const HOST_RE = /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
 
 function subpageRows(pc, ids) {
@@ -348,6 +348,7 @@ async function display(pc) {
       kit.related([
         { icon: 'paint_brush', title: pc.pageTitle('personalization'), desc: t('system.relatedPersonalization'), onClick: () => pc.go('personalization') },
         { icon: 'text_font_size', title: pc.pageTitle('textSize'), desc: t('system.relatedTextSize'), onClick: () => pc.go('textSize') },
+        { icon: 'developer_board', title: pc.pageTitle('gpuDrivers'), desc: pc.L(PAGES.gpuDrivers.desc), onClick: () => pc.go('gpuDrivers') },
       ]),
     );
     root.append(...groups);

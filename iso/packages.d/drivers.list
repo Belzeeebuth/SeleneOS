@@ -1,0 +1,10 @@
+# Graphics drivers: the installer's « Pilote graphique » option and Settings > Graphics drivers
+# (shell/main/lib/gpu-drivers.js, shell/main/ipc/installer.js, shell/main/ipc/drivers.js,
+# /usr/lib/aurora/helpers/aurora-install, aurora-admin drivers-install / drivers-remove).
+# The NVIDIA drivers themselves are NOT in the image: they are downloaded from the Ubuntu archive
+# (restricted) when they are installed, with the prebuilt kernel modules signed by Canonical
+# (linux-modules-nvidia-NNN-<flavour>), so Secure Boot keeps working without enrolling a key.
+# `ubuntu-drivers devices` / `ubuntu-drivers install nvidia:NNN[-open]` (+ gpu-manager for hybrid laptops).
+ubuntu-drivers-common
+# Secure Boot state only (`mokutil --sb-state`). lspci (pciutils) is in base.list.
+mokutil

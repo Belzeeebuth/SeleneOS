@@ -1,0 +1,7 @@
+00:00.0 "Host bridge [0600]" "Intel Corporation [8086]" "8th Gen Core Processor Host Bridge/DRAM Registers [3ec2]" -r07 "ASRock Incorporation [1849]" "Device [3ec2]"
+00:01.0 "PCI bridge [0604]" "Intel Corporation [8086]" "6th-10th Gen Core Processor PCIe Controller (x16) [1901]" -r07 "" ""
+00:02.0 "Display controller [0380]" "Intel Corporation [8086]" "CoffeeLake-S GT2 [UHD Graphics 630] [3e92]" "ASRock Incorporation [1849]" "Device [3e92]"
+01:00.0 "VGA compatible controller [0300]" "NVIDIA Corporation [10de]" "TU106 [GeForce RTX 2060 Rev. A] [1f08]" -ra1 "Gigabyte Technology Co., Ltd [1458]" "Device [37ce]"
+01:00.1 "Audio device [0403]" "NVIDIA Corporation [10de]" "TU106 High Definition Audio Controller [10f9]" -ra1 "Gigabyte Technology Co., Ltd [1458]" "Device [37ce]"
+01:00.2 "USB controller [0c03]" "NVIDIA Corporation [10de]" "TU106 USB 3.1 Host Controller [1ada]" -ra1 -p30 "Gigabyte Technology Co., Ltd [1458]" "Device [37ce]"
+01:00.3 "Serial bus controller [0c80]" "NVIDIA Corporation [10de]" "TU106 USB Type-C UCSI Controller [1adb]" -ra1 "Gigabyte Technology Co., Ltd [1458]" "Device [37ce]"

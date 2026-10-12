@@ -11,10 +11,21 @@
 //   installer:keyboards            -> [{ id: 'fr(oss)', layout: 'fr', variant: 'oss', name: { en, fr } }]
 //   installer:timezones            -> ['Africa/Abidjan', …, 'UTC']
 //   installer:applyKeyboard (id)   -> true when the layout was applied to the live X session (setxkbmap)
+//   installer:gpu                  -> { gpus, nvidia, current, available, recommended, online, secureBoot }
+//                                     graphics cards (lspci -nn -mm, main/lib/gpu-drivers.js); for an NVIDIA card the
+//                                     NVIDIA drivers the archive offers (`ubuntu-drivers devices`: empty while the live
+//                                     system has no package lists, the helper then picks the recommended one itself),
+//                                     whether the computer is online (NetworkManager) and the Secure Boot state.
+//                                     No root needed. Dev: AURORA_GPU_FIXTURE=<test/fixtures/gpu/NAME> (default: no
+//                                     graphics card offered a driver), AURORA_GPU_ONLINE=0 (offline).
 //   installer:start (opts)         -> { dryRun }   opts: { disk, user, fullname, password, hostname, lang,
-//                                                          keyboard, timezone, autologin }
+//                                                          keyboard, timezone, autologin, nvidiaDriver }
+//                                     nvidiaDriver: 'nvidia-driver-NNN[-open|-server|-server-open]' or 'recommended'
+//                                     (downloaded from the Ubuntu archive during the installation; optional)
 //       events 'installer:progress' (to the window that started it):
-//         { type: 'progress', stage, progress, message }   stage: partition|format|copy|configure|bootloader|cleanup|done
+//         { type: 'progress', stage, progress, message }   stage: partition|format|copy|configure|drivers|bootloader|
+//                                                                 cleanup|done
+//         { type: 'driver', status: 'installed'|'failed', pkg, message }   (graphics driver; never an error)
 //         { type: 'log', line }      { type: 'error', message, stage, code }      { type: 'done' }
 //                                    code: EAUTH (sudo wants a password), ENOTADMIN (sudo refuses this account), exit code
 //         { type: 'exit', code, cancelled }
@@ -30,10 +41,12 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { run, which, helperPath } = require('../lib/exec');
+const gpu = require('../lib/gpu-drivers');
 
 const MIN_SIZE = 12e9; // bytes, same as the helper
 const HELPER = 'aurora-install';
-const STAGES = ['partition', 'format', 'copy', 'configure', 'bootloader', 'cleanup', 'done'];
+const STAGES = ['partition', 'format', 'copy', 'configure', 'drivers', 'bootloader', 'cleanup', 'done'];
+const GPU_FIXTURES = path.join(__dirname, '..', '..', 'test', 'fixtures', 'gpu');
 const RE = {
   disk: /^\/dev\/[A-Za-z0-9/_.:-]+$/,
   user: /^[a-z_][a-z0-9_-]{0,31}$/,
@@ -190,6 +203,11 @@ function buildArgs(opts, { dryRun = false, delay, failAt } = {}) {
   if (typeof password !== 'string' || !password.length || password.length > 256 || /[\x00-\x1f\x7f]/.test(password)) bad('password');
   const args = ['--json', '--password-stdin', '--disk', disk, '--user', user, '--fullname', fullname, '--hostname', hostname, '--lang', lang, '--keyboard', keyboard, '--timezone', timezone];
   if (bool(o.autologin)) args.push('--autologin');
+  if (o.nvidiaDriver != null && o.nvidiaDriver !== false && o.nvidiaDriver !== '') {
+    const drv = String(o.nvidiaDriver);
+    if (drv !== 'recommended' && !gpu.validDriverPkg(drv)) bad('nvidiaDriver');
+    args.push('--nvidia-driver', drv);
+  }
   if (dryRun) {
     args.push('--dry-run');
     if (delay != null && /^[0-9]{1,2}(\.[0-9]{1,3})?$/.test(String(delay))) args.push('--dry-run-delay', String(delay));
@@ -263,6 +281,64 @@ function register(api) {
     return FALLBACK_ZONES;
   });
 
+  // ---- graphics card + NVIDIA driver offer (no root; cached for the session, `refresh` probes again)
+  let gpuCache = null;
+  const readText = (f) => fs.promises.readFile(f, 'utf8').catch(() => '');
+  const cmdOut = (cmd, args, timeout = 10000) =>
+    run(cmd, args, { timeout })
+      .then((r) => r.stdout || '')
+      .catch(() => '');
+  async function isOnline() {
+    // NetworkManager: CONNECTIVITY full (or unknown, when the connectivity check is off, while connected).
+    const nm = (await cmdOut('nmcli', ['-t', '-f', 'CONNECTIVITY,STATE', 'general'], 5000)).trim();
+    if (nm) {
+      const [conn, st] = nm.split('\n')[0].split(':');
+      if (conn === 'full') return true;
+      if (conn === 'unknown') return /^connected/.test(st || '');
+      return false;
+    }
+    // No NetworkManager: a default route.
+    return /^\S+\t00000000\t/m.test(await readText('/proc/net/route'));
+  }
+  async function probeGpu() {
+    const fixture = DEV && process.env.AURORA_REAL_BACKENDS !== '1' ? String(process.env.AURORA_GPU_FIXTURE || '') : null;
+    let lspci;
+    let drivers;
+    let mods;
+    let sb;
+    let online;
+    if (fixture != null) {
+      const dir = /^[a-z0-9-]+$/.test(fixture) ? path.join(GPU_FIXTURES, fixture) : null;
+      const rd = (f) => (dir ? readText(path.join(dir, f)) : Promise.resolve(''));
+      [lspci, drivers, sb] = await Promise.all([rd('lspci.txt'), rd('ubuntu-drivers.txt'), rd('sb-state.txt')]);
+      mods = (await rd('nvidia-version.txt')) || (await rd('lsmod.txt'));
+      online = process.env.AURORA_GPU_ONLINE !== '0';
+      const delay = Number(process.env.AURORA_GPU_DELAY) || 0;
+      if (delay > 0) await new Promise((r) => setTimeout(r, Math.min(delay, 10000)));
+    } else {
+      lspci = await cmdOut('lspci', ['-nn', '-mm'], 8000);
+    }
+    const gpus = gpu.detectGpus(lspci);
+    const nvidia = gpus.filter((g) => g.vendor === 'nvidia');
+    const res = { gpus, nvidia, current: { module: null, version: null, open: null }, available: [], recommended: null, online: false, secureBoot: null };
+    if (!nvidia.length) return res; // nothing to offer: AMD / Intel / virtual machines
+    if (fixture == null) {
+      [drivers, sb, online] = await Promise.all([cmdOut('ubuntu-drivers', ['devices'], 60000), cmdOut('mokutil', ['--sb-state'], 5000), isOnline()]);
+      mods = (await readText('/proc/driver/nvidia/version')) || (await readText('/proc/modules'));
+    }
+    res.current = gpu.currentDriver(mods);
+    res.available = gpu.parseUbuntuDrivers(drivers);
+    res.recommended = gpu.recommendedDriver(res.available);
+    res.online = !!online;
+    res.secureBoot = gpu.parseSecureBoot(sb);
+    return res;
+  }
+  api.handle('installer:gpu', async (opts) => {
+    if (!gpuCache || opts?.refresh) gpuCache = probeGpu().catch(() => ({ gpus: [], nvidia: [], current: { module: null, version: null, open: null }, available: [], recommended: null, online: false, secureBoot: null }));
+    const r = await gpuCache;
+    return JSON.parse(JSON.stringify(r));
+  });
+
   api.handle('installer:applyKeyboard', async (id) => {
     const k = KEYBOARDS.find((x) => x.id === id);
     if (!k) throw api.error('Unknown keyboard layout', 'EINVAL');
@@ -312,7 +388,11 @@ function register(api) {
       try {
         ev = JSON.parse(line);
       } catch {}
-      if (ev && typeof ev === 'object' && ev.error) {
+      if (ev && typeof ev === 'object' && typeof ev.driver === 'string') {
+        // Graphics driver result: never fails the installation.
+        const status = ev.driver === 'installed' ? 'installed' : 'failed';
+        send({ type: 'driver', status, pkg: gpu.validDriverPkg(ev.package) ? ev.package : null, message: String(ev.message || '') });
+      } else if (ev && typeof ev === 'object' && ev.error) {
         sawError = true;
         send({ type: 'error', message: String(ev.error), stage: ev.stage || null, code: ev.code ?? null });
       } else if (ev && typeof ev === 'object' && typeof ev.stage === 'string') {
@@ -393,3 +473,4 @@ module.exports.buildArgs = buildArgs;
 module.exports.KEYBOARDS = KEYBOARDS;
 module.exports.RESERVED_USERS = RESERVED_USERS;
 module.exports.MIN_SIZE = MIN_SIZE;
+module.exports.STAGES = STAGES;

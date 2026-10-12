@@ -1,0 +1,1 @@
+udevadm hwdb is deprecated. Use systemd-hwdb instead.

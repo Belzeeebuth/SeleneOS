@@ -28,6 +28,8 @@
 #   apt-check                                    apt-get update, then one "Inst …" line per pending upgrade
 #   apt-upgrade                                  non-interactive upgrade; APT status lines on stdout
 #                                                ("dlstatus:…" / "pmstatus:pkg:percent:message"), apt's own output on stderr
+#   drivers-install <nvidia-driver-NNN[-open|-server|-server-open]>    NVIDIA driver offered by ubuntu-drivers (see below)
+#   drivers-remove                               purge the NVIDIA driver, back to nouveau
 #
 # Secrets: passwords never appear on a command line. The caller passes a random nonce (32 hex
 # digits) as the last argument and writes "<nonce>:<base64 of the password>" on stdin, after the
@@ -572,6 +574,86 @@ format-removable)
   echo "ok $part"
   ;;
 # ------------------------------------------------------------------ END disks
+
+# ------------------------------------------------------------------ BEGIN drivers (Paramètres > Pilotes graphiques)
+#   drivers-install <nvidia-driver-NNN[-open|-server|-server-open]>
+#       apt-get update, then the package must be offered for this machine by `ubuntu-drivers devices` (the archive's
+#       driver list matched against the PCI ids of the graphics card). Installed with `ubuntu-drivers install
+#       nvidia:NNN[-open…]`, which takes the prebuilt kernel modules signed by Canonical (linux-modules-nvidia-NNN-<kernel
+#       flavour>): Secure Boot keeps working without enrolling a key (MOK). Another NVIDIA driver already installed is
+#       replaced by apt (the driver packages conflict with each other).
+#   drivers-remove
+#       purges the installed NVIDIA driver packages (nvidia-*-NNN, libnvidia-*-NNN, linux-modules|objects|signatures-
+#       nvidia-*, nvidia-prime, nvidia-settings) and goes back to the free driver (nouveau): an /etc/X11/xorg.conf that
+#       names the nvidia driver is moved aside, the initramfs is rebuilt. Refused when apt would remove anything else.
+#   Progress on stdout: "step:<refresh|check|install|remove|initramfs>" lines, APT status lines ("dlstatus:…",
+#   "pmstatus:…"), then "reboot-required" and "done". apt's own output goes to stderr. Refused in the live session.
+drivers-install | drivers-remove)
+  # drivers_listed <package>: true when the `ubuntu-drivers devices` output on stdin offers <package>
+  # (lines "driver   : nvidia-driver-550 - distro non-free recommended"). Unit-tested by shell/test/drivers.unit.mjs.
+  drivers_listed() {
+    awk -v p="$1" '$1 == "driver" && $2 == ":" && $3 == p { found = 1 } END { exit !found }'
+  }
+  # drivers_nvidia_pkgs: NVIDIA driver packages among the dpkg-query lines "<Status> <Package>" on stdin
+  # (installed or with configuration files left). Unit-tested by shell/test/drivers.unit.mjs.
+  drivers_nvidia_pkgs() {
+    awk '($3 == "installed" || $3 == "config-files") && ($4 ~ /^(nvidia-|libnvidia-|xserver-xorg-video-nvidia-)([a-z0-9.+]+-)*[0-9][0-9][0-9](-open|-server|-server-open)?(-[a-z0-9.+-]+)?$/ || $4 ~ /^linux-(modules|objects|signatures)-nvidia-[a-z0-9.+-]+$/ || $4 == "nvidia-prime" || $4 == "nvidia-settings") { print $4 }'
+  }
+  # drivers_status_filter: APT status lines to stdout (progress bar), everything else to stderr (journal / errors)
+  drivers_status_filter() {
+    local line
+    while IFS= read -r line; do
+      case $line in
+      dlstatus:* | pmstatus:* | pmerror:* | pmconffile:*) printf '%s\n' "$line" ;;
+      *) printf '%s\n' "$line" >&2 ;;
+      esac
+    done
+  }
+  grep -qw 'boot=casper' /proc/cmdline 2>/dev/null && die 4 "graphics drivers cannot be installed in the live session: install Selene OS first"
+  export DEBIAN_FRONTEND=noninteractive
+  if [ "$ACTION" = drivers-install ]; then
+    need_args $# 1
+    pkg=$1
+    [[ $pkg =~ ^nvidia-driver-[0-9]{3}(-open|-server|-server-open)?$ ]] || die 2 "invalid driver package name"
+    command -v ubuntu-drivers >/dev/null 2>&1 || die 3 "ubuntu-drivers is not installed (package ubuntu-drivers-common)"
+    echo "step:refresh"
+    apt-get -q -o DPkg::Lock::Timeout=120 update >&2 || die 5 "could not refresh the package lists (check the Internet connection)"
+    echo "step:check"
+    drv_devices=$(ubuntu-drivers devices 2>/dev/null) || die 5 "could not list the drivers available for this computer"
+    printf '%s\n' "$drv_devices" | drivers_listed "$pkg" || die 4 "$pkg is not offered for the graphics card of this computer"
+    echo "step:install"
+    # APT status lines on apt-get's stdout (ubuntu-drivers runs apt-get as a child process; its stdout is inherited,
+    # extra file descriptors are not). APT_CONFIG is read in addition to /etc/apt/apt.conf{,.d}.
+    drv_conf=$(mktemp /run/aurora-drivers-apt.XXXXXX)
+    printf '%s\n' 'APT::Status-Fd "1";' 'DPkg::Lock::Timeout "120";' 'Dpkg::Options { "--force-confdef"; "--force-confold"; };' >"$drv_conf"
+    drv_rc=0
+    APT_CONFIG=$drv_conf ubuntu-drivers install "nvidia:${pkg#nvidia-driver-}" 2>&1 </dev/null | drivers_status_filter || drv_rc=$?
+    rm -f -- "$drv_conf"
+    [ "$drv_rc" -eq 0 ] || die 5 "could not install $pkg (see the system journal)"
+    dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q 'install ok installed' || die 5 "$pkg was not installed (see the system journal)"
+    log "user=$CALLER installed $pkg"
+  else
+    need_args $# 0
+    mapfile -t drv_pkgs < <(dpkg-query -W -f='${Status} ${Package}\n' 2>/dev/null | drivers_nvidia_pkgs)
+    [ "${#drv_pkgs[@]}" -gt 0 ] || die 3 "no NVIDIA driver is installed"
+    # Never take other packages along (apt removes everything that depends on the driver without asking).
+    drv_others=$(apt-get -s -q -o Debug::NoLocking=1 purge "${drv_pkgs[@]}" 2>/dev/null | awk '$1 == "Purg" || $1 == "Remv" { print $2 }' | grep -vxF -f <(printf '%s\n' "${drv_pkgs[@]}") | tr '\n' ' ') || true
+    [ -z "$drv_others" ] || die 6 "removing the NVIDIA driver would also remove: ${drv_others% }"
+    echo "step:remove"
+    apt-get -q -y -o DPkg::Lock::Timeout=120 -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold \
+      -o APT::Status-Fd=3 purge "${drv_pkgs[@]}" 3>&1 1>&2 || die 5 "could not remove the NVIDIA driver (see the system journal)"
+    # An xorg.conf written for the proprietary driver would keep Xorg from starting with nouveau / modesetting.
+    if [ -f /etc/X11/xorg.conf ] && grep -qiE '^[[:space:]]*Driver[[:space:]]+"nvidia"' /etc/X11/xorg.conf; then
+      mv -f -- /etc/X11/xorg.conf "/etc/X11/xorg.conf.nvidia-$(date +%Y%m%d%H%M%S)"
+    fi
+    echo "step:initramfs"
+    update-initramfs -u >&2 || die 5 "could not rebuild the initramfs (see the system journal)"
+    log "user=$CALLER removed the NVIDIA driver (${drv_pkgs[*]})"
+  fi
+  echo "reboot-required"
+  echo "done"
+  ;;
+# ------------------------------------------------------------------ END drivers
 
 *)
   die 2 "unknown action: $ACTION"

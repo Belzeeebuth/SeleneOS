@@ -1,0 +1,12 @@
+Module                  Size  Used by
+snd_hda_codec_hdmi     94208  1
+nouveau              3096576  3
+mxm_wmi                12288  1 nouveau
+drm_gpuvm              45056  1 nouveau
+drm_exec               12288  2 drm_gpuvm,nouveau
+gpu_sched              61440  1 nouveau
+i2c_algo_bit           16384  1 nouveau
+drm_ttm_helper         12288  1 nouveau
+ttm                   110592  2 drm_ttm_helper,nouveau
+video                  73728  1 nouveau
+wmi                    40960  3 video,mxm_wmi,nouveau

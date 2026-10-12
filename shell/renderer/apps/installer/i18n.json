@@ -17,6 +17,7 @@
       "disk": "Disk",
       "account": "Account",
       "timezone": "Time zone",
+      "drivers": "Graphics driver",
       "summary": "Summary",
       "install": "Install"
     },
@@ -104,6 +105,32 @@
       "Pacific": "Pacific",
       "Etc": "Universal"
     },
+    "drivers": {
+      "title": "Your NVIDIA graphics card",
+      "subtitle": "Its official driver gets the best out of it: smoother games, videos and animations. We can install it for you along with Selene OS.",
+      "card": "Graphics card",
+      "cards": "Graphics cards",
+      "recommended": "Recommended driver",
+      "recommendedAuto": "The one recommended for your card, chosen during the installation",
+      "kind": {
+        "proprietary": "NVIDIA driver {version}",
+        "open": "NVIDIA driver {version} (open kernel modules)",
+        "server": "NVIDIA driver {version} for servers",
+        "server-open": "NVIDIA driver {version} for servers (open kernel modules)"
+      },
+      "current": "Current driver: {driver}",
+      "currentFree": "free driver (nouveau)",
+      "currentNone": "basic display",
+      "currentNvidia": "NVIDIA {version}",
+      "switch": "Install the recommended NVIDIA driver",
+      "onHint": "It will be downloaded from the Ubuntu archive during the installation (a few hundred MB).",
+      "offHint": "Selene OS will use the free driver. You can install the NVIDIA driver later in Settings > Graphics drivers.",
+      "offline": "You're not connected to the Internet. Connect to install it now, or later in Settings > Graphics drivers.",
+      "retry": "Check again",
+      "checking": "Checking the connection…",
+      "secureBoot": "Secure Boot is on: the driver is signed by Canonical, so it works without any extra step.",
+      "hybrid": "This computer also has {other} graphics: it keeps driving the screen to save battery, and the NVIDIA card stays available to the apps that ask for it."
+    },
     "summary": {
       "title": "Ready to install",
       "subtitle": "Check your choices, then select Install. It takes a few minutes.",
@@ -117,7 +144,12 @@
       "autologinOn": "Signs in automatically",
       "autologinOff": "Password required",
       "hostname": "Computer name",
-      "timezone": "Time zone"
+      "timezone": "Time zone",
+      "driver": "Graphics driver",
+      "driverOn": "Recommended NVIDIA driver",
+      "driverOnSub": "Downloaded during the installation",
+      "driverOff": "Free driver",
+      "driverOffSub": "NVIDIA driver: later, in Settings > Graphics drivers"
     },
     "confirm": {
       "title": "Erase this disk?",
@@ -141,6 +173,7 @@
       "format": "Formatting",
       "copy": "Copying files",
       "configure": "Configuring the system",
+      "drivers": "Installing the graphics driver",
       "bootloader": "Installing the boot loader",
       "cleanup": "Finishing up"
     },
@@ -153,7 +186,9 @@
       "later": "Keep using the live session",
       "simulated": "Simulation finished: nothing was written to disk.",
       "restartSimulated": "Restart skipped: this was a simulation.",
-      "restartFailed": "The computer could not be restarted: {error}"
+      "restartFailed": "The computer could not be restarted: {error}",
+      "driverOk": "The NVIDIA driver ({pkg}) is installed. It will be used as soon as you restart.",
+      "driverFailed": "The driver couldn't be installed; you can install it later in Settings > Graphics drivers."
     },
     "error": {
       "title": "The installation failed",
@@ -187,6 +222,7 @@
       "disk": "Disque",
       "account": "Compte",
       "timezone": "Fuseau horaire",
+      "drivers": "Pilote graphique",
       "summary": "Récapitulatif",
       "install": "Installation"
     },
@@ -274,6 +310,32 @@
       "Pacific": "Pacifique",
       "Etc": "Universel"
     },
+    "drivers": {
+      "title": "Votre carte graphique NVIDIA",
+      "subtitle": "Son pilote officiel lui permet de donner le meilleur d'elle-même : jeux, vidéos et animations plus fluides. Nous pouvons l'installer pour vous en même temps que Selene OS.",
+      "card": "Carte graphique",
+      "cards": "Cartes graphiques",
+      "recommended": "Pilote recommandé",
+      "recommendedAuto": "Celui recommandé pour votre carte, choisi pendant l'installation",
+      "kind": {
+        "proprietary": "Pilote NVIDIA {version}",
+        "open": "Pilote NVIDIA {version} (modules du noyau ouverts)",
+        "server": "Pilote NVIDIA {version} pour serveurs",
+        "server-open": "Pilote NVIDIA {version} pour serveurs (modules du noyau ouverts)"
+      },
+      "current": "Pilote actuel : {driver}",
+      "currentFree": "pilote libre (nouveau)",
+      "currentNone": "affichage de base",
+      "currentNvidia": "NVIDIA {version}",
+      "switch": "Installer le pilote NVIDIA recommandé",
+      "onHint": "Il sera téléchargé depuis les dépôts Ubuntu pendant l'installation (quelques centaines de Mo).",
+      "offHint": "Selene OS utilisera le pilote libre. Vous pourrez installer le pilote NVIDIA plus tard dans Paramètres > Pilotes graphiques.",
+      "offline": "Connectez-vous à Internet pour l'installer maintenant, ou plus tard dans Paramètres > Pilotes graphiques.",
+      "retry": "Vérifier à nouveau",
+      "checking": "Vérification de la connexion…",
+      "secureBoot": "Le démarrage sécurisé (Secure Boot) est activé : le pilote est signé par Canonical, il fonctionnera sans réglage supplémentaire.",
+      "hybrid": "Cet ordinateur a aussi une puce graphique {other} : elle continue d'afficher l'écran pour ménager la batterie, et la carte NVIDIA reste disponible pour les applications qui la demandent."
+    },
     "summary": {
       "title": "Prêt pour l'installation",
       "subtitle": "Vérifiez vos choix, puis sélectionnez Installer. L'installation prend quelques minutes.",
@@ -287,7 +349,12 @@
       "autologinOn": "Connexion automatique",
       "autologinOff": "Mot de passe demandé",
       "hostname": "Nom de l'ordinateur",
-      "timezone": "Fuseau horaire"
+      "timezone": "Fuseau horaire",
+      "driver": "Pilote graphique",
+      "driverOn": "Pilote NVIDIA recommandé",
+      "driverOnSub": "Téléchargé pendant l'installation",
+      "driverOff": "Pilote libre",
+      "driverOffSub": "Pilote NVIDIA : plus tard, dans Paramètres > Pilotes graphiques"
     },
     "confirm": {
       "title": "Effacer ce disque ?",
@@ -311,6 +378,7 @@
       "format": "Formatage",
       "copy": "Copie des fichiers",
       "configure": "Configuration du système",
+      "drivers": "Installation du pilote graphique",
       "bootloader": "Installation du chargeur de démarrage",
       "cleanup": "Finalisation"
     },
@@ -323,7 +391,9 @@
       "later": "Continuer la session live",
       "simulated": "Simulation terminée : rien n'a été écrit sur le disque.",
       "restartSimulated": "Redémarrage ignoré : il s'agissait d'une simulation.",
-      "restartFailed": "Impossible de redémarrer l'ordinateur : {error}"
+      "restartFailed": "Impossible de redémarrer l'ordinateur : {error}",
+      "driverOk": "Le pilote NVIDIA ({pkg}) est installé. Il sera utilisé dès le redémarrage.",
+      "driverFailed": "Le pilote n'a pas pu être installé ; vous pourrez l'installer plus tard dans Paramètres > Pilotes graphiques."
     },
     "error": {
       "title": "L'installation a échoué",

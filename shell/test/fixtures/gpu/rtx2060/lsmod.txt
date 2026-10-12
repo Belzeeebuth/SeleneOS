@@ -1,0 +1,7 @@
+Module                  Size  Used by
+nvidia_uvm           4931584  0
+nvidia_drm            122880  4
+nvidia_modeset       1355776  6 nvidia_drm
+nvidia              54042624  136 nvidia_uvm,nvidia_modeset
+i915                 4268032  2
+video                  73728  2 nvidia_modeset,i915

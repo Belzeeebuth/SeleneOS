@@ -10,6 +10,11 @@
 //          Enter key navigation, close guard while installing.
 //   Part 3: failure (AURORA_INSTALLER_FAIL_AT) -> error page with log excerpt + retry; cancellation.
 //   Part 4 (FR dark): French strings, French defaults (fr keyboard, Europe/Paris), no raw i18n keys.
+//   Part 5 (FR, 1280x720, fake graphics cards from test/fixtures/gpu): the « Pilote graphique » step for an
+//          NVIDIA card (RTX 4070 online + Secure Boot: recommended driver installed during the dry run; GTX 1060
+//          offline: switch disabled, « Vérifier à nouveau »; Optimus laptop: hybrid note, driver failure reported
+//          on the done page without failing the installation), none for AMD / Intel; the helper's --nvidia-driver
+//          (validation, dry run, its ubuntu-drivers / APT status parsers) and the session's GPU mode with nvidia.
 // No screenshots are written unless --shots is given (test/out/installer-*.png).
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/installer.test.mjs [--node-only] [--shots]
 import fs from 'node:fs';
@@ -101,6 +106,10 @@ async function waitFor(fn, { timeout = 10000, step = 100 } = {}) {
   check('buildArgs rejects: password empty / newline', rejects({ password: '' }, 'password') && rejects({ password: 'a\nb' }, 'password'));
   check('buildArgs rejects: keyboard / timezone / lang', rejects({ keyboard: 'fr oss' }, 'keyboard') && rejects({ timezone: 'Europe/../x' }, 'timezone') && rejects({ lang: 'de' }, 'lang'));
   check('buildArgs: default hostname <user>-pc', be.buildArgs({ ...ok, hostname: '' }).includes('jane-pc'));
+  check('buildArgs: --nvidia-driver PACKAGE / recommended', be.buildArgs({ ...ok, nvidiaDriver: 'nvidia-driver-550-open' }).join(' ').endsWith('--autologin --nvidia-driver nvidia-driver-550-open') && be.buildArgs({ ...ok, nvidiaDriver: 'recommended' }).includes('recommended'));
+  check('buildArgs: no driver -> no --nvidia-driver', !be.buildArgs({ ...ok, nvidiaDriver: '' }).includes('--nvidia-driver') && !be.buildArgs({ ...ok, nvidiaDriver: false }).includes('--nvidia-driver') && !be.buildArgs(ok).includes('--nvidia-driver'));
+  check('buildArgs rejects: driver package injection', rejects({ nvidiaDriver: 'nvidia-driver-550;reboot' }, 'nvidiaDriver') && rejects({ nvidiaDriver: 'nvidia-dkms-550' }, 'nvidiaDriver') && rejects({ nvidiaDriver: '--purge' }, 'nvidiaDriver'));
+  check('backend stages include drivers (between configure and bootloader)', be.STAGES.join(' ') === 'partition format copy configure drivers bootloader cleanup done', be.STAGES);
 
   const xkb = '/usr/share/X11/xkb/symbols';
   if (fs.existsSync(xkb)) {
@@ -164,6 +173,84 @@ async function waitFor(fn, { timeout = 10000, step = 100 } = {}) {
   if (process.getuid?.() === 0) {
     const r = spawnSync('su', ['nobody', '-s', '/bin/bash', '-c', `printf 'x\\n' | bash ${HELPER} ${base.join(' ').replace('fr(oss)', "'fr(oss)'").replace('Jane Doe', "'Jane Doe'")}`], { encoding: 'utf8', timeout: 30000 });
     check('helper (real mode) refuses to run without root (exit 4)', r.status === 4 && /must be run as root/.test(r.stdout + r.stderr), { status: r.status, out: (r.stdout + r.stderr).slice(-200) });
+  }
+
+  // ---- graphics driver (--nvidia-driver): dry runs, validation, the real stage's parsers
+  {
+    const dd = runHelper([...base, '--nvidia-driver', 'recommended', '--dry-run', '--dry-run-delay', '0']);
+    const dst = [...new Set(dd.events.map((e) => e.stage).filter(Boolean))];
+    const dpr = dd.events.filter((e) => typeof e.progress === 'number');
+    check('helper dry run + driver: drivers stage between configure and bootloader', dd.status === 0 && dst.join(' ') === 'partition format copy configure drivers bootloader cleanup done', { status: dd.status, dst });
+    check('helper dry run + driver: progress monotonic, drivers 76..88', dpr.every((e, i) => i === 0 || e.progress >= dpr[i - 1].progress) && dpr.filter((e) => e.stage === 'drivers').every((e) => e.progress >= 76 && e.progress <= 88) && dpr.at(-1).progress === 100, dpr.map((e) => `${e.stage}:${e.progress}`).join(' '));
+    check('helper dry run + driver: {"driver":"installed"} with the package', dd.events.some((e) => e.driver === 'installed' && e.package === 'nvidia-driver-550'), dd.events.filter((e) => e.driver));
+    const df = runHelper([...base, '--nvidia-driver', 'nvidia-driver-470', '--dry-run', '--dry-run-delay', '0', '--fail-at', 'drivers']);
+    check('helper --fail-at drivers: the driver fails, the installation does not (exit 0, done)', df.status === 0 && df.events.some((e) => e.driver === 'failed' && e.package === 'nvidia-driver-470' && /package lists/.test(e.message)) && df.events.some((e) => e.stage === 'done') && !df.events.some((e) => e.error), df.events.filter((e) => e.driver || e.error));
+    const dn = runHelper([...base, '--dry-run', '--dry-run-delay', '0']);
+    check('helper without --nvidia-driver: no drivers stage', !dn.events.some((e) => e.stage === 'drivers' || e.driver));
+    for (const bad of ['nvidia-driver-550;reboot', 'nvidia-dkms-550', 'nvidia-driver-55', '$(reboot)']) {
+      const r = runHelper([...base, '--nvidia-driver', bad, '--dry-run', '--dry-run-delay', '0']);
+      check(`helper refuses --nvidia-driver ${bad} (exit 2)`, r.status === 2 && /invalid --nvidia-driver/.test(r.events.at(-1)?.error || ''), { status: r.status, ev: r.events.at(-1) });
+    }
+    // The real stage's parsers, extracted from the helper and run on fixtures.
+    const fn = (name) => {
+      const m = new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?^\\}$`, 'm').exec(helperSrc);
+      return m ? m[0] : '';
+    };
+    const helperSrc = fs.readFileSync(HELPER, 'utf8');
+    const ud = fs.readFileSync(path.join(ROOT, 'test/fixtures/gpu/optimus/ubuntu-drivers.txt'), 'utf8');
+    const off = spawnSync('bash', ['-c', `${fn('nvidia_offered')}\nnvidia_offered`], { input: ud, encoding: 'utf8' });
+    check('helper nvidia_offered: NVIDIA drivers + the recommended mark, not the Wi-Fi driver', off.stdout.split('\n').filter(Boolean).length === 6 && /^nvidia-driver-550-open recommended$/m.test(off.stdout) && !/iwlwifi|nouveau/.test(off.stdout), off.stdout);
+    const off2 = spawnSync('bash', ['-c', `${fn('nvidia_offered')}\nnvidia_offered`], { input: 'driver   : nvidia-driver-550;reboot - distro non-free recommended\n', encoding: 'utf8' });
+    check('helper nvidia_offered: an invalid name is not offered', off2.stdout.trim() === '', off2.stdout);
+    const apt = 'Reading package lists...\ndlstatus:1:0.0000:Retrieving file 1 of 40\ndlstatus:20:51.2340:Retrieving file 20 of 40\ndlstatus:40:100.0000:Retrieving file 40 of 40\npmstatus:dpkg-exec:0.0000:Running dpkg\nSetting up nvidia-driver-550 (550.120-0ubuntu0.24.04.1) ...\npmstatus:nvidia-driver-550:99.9:Installed nvidia-driver-550\n';
+    const dp = spawnSync('bash', ['-c', `JSON=1; PROGRESS=76; STAGE=drivers; NVIDIA_DRIVER=x; exec 3>&1; ${fn('json_str')}\n${fn('log')}\n${fn('progress')}\n${fn('driver_progress')}\ndriver_progress`], { input: apt, encoding: 'utf8' });
+    const dpe = dp.stdout.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    check('helper driver_progress: APT status -> drivers 80..88, other lines to the log', dpe.length >= 5 && dpe.every((e) => e.stage === 'drivers' && e.progress >= 80 && e.progress <= 88) && dpe.some((e) => e.message === 'Downloading the NVIDIA driver') && dpe.some((e) => e.message === 'Installing the NVIDIA driver') && dpe.at(-1).progress === 87 && /Setting up nvidia-driver-550/.test(dp.stderr), { out: dpe, err: dp.stderr });
+    check('helper: the target gets nvidia-drm modeset=1 when the driver package does not set it', /options nvidia-drm modeset=1/.test(helperSrc) && /nvidia-graphics-drivers-kms\.conf/.test(helperSrc));
+  }
+
+  // ---- session: GPU mode with the NVIDIA driver (aurora-common on fake /sys and /proc trees)
+  {
+    const COMMON = path.join(OS_ROOT, 'rootfs/usr/lib/aurora/aurora-common');
+    const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'aurora-gpu-'));
+    const tree = (name, { drm = [], nvidia = false, cmdline = 'quiet splash' } = {}) => {
+      const sys = path.join(tmp, name, 'sys');
+      const proc = path.join(tmp, name, 'proc');
+      fs.mkdirSync(path.join(sys, 'class/drm'), { recursive: true });
+      fs.mkdirSync(proc, { recursive: true });
+      fs.writeFileSync(path.join(proc, 'cmdline'), `${cmdline}\n`);
+      drm.forEach(([drv, features], i) => {
+        const dev = path.join(sys, 'devices', `card${i}`);
+        fs.mkdirSync(path.join(sys, 'bus/pci/drivers', drv), { recursive: true });
+        fs.mkdirSync(dev, { recursive: true });
+        fs.symlinkSync(path.join(sys, 'bus/pci/drivers', drv), path.join(dev, 'driver'));
+        if (features) fs.writeFileSync(path.join(dev, 'features'), features);
+        fs.mkdirSync(path.join(sys, 'class/drm', `card${i}`), { recursive: true });
+        fs.symlinkSync(dev, path.join(sys, 'class/drm', `card${i}`, 'device'));
+      });
+      if (nvidia) {
+        fs.mkdirSync(path.join(sys, 'module/nvidia'), { recursive: true });
+        fs.mkdirSync(path.join(proc, 'driver/nvidia'), { recursive: true });
+        fs.writeFileSync(path.join(proc, 'driver/nvidia/version'), 'NVRM version: NVIDIA UNIX x86_64 Kernel Module  550.120  Fri Sep 13 10:10:01 UTC 2024\n');
+      }
+      return { sys, proc };
+    };
+    const mode = (t, env = {}) => spawnSync('sh', ['-c', `. "${COMMON}"; aurora_gpu_mode; aurora_nvidia_loaded && echo nvidia || echo no-nvidia`], { encoding: 'utf8', env: { PATH: process.env.PATH, AURORA_SYSFS: t.sys, AURORA_PROCFS: t.proc, ...env } }).stdout.trim().split('\n');
+    const nv = tree('nvidia', { drm: [['simple-framebuffer'], ['nvidia']], nvidia: true });
+    check('GPU mode: nvidia driver loaded -> on', mode(nv).join(' ') === 'on nvidia', mode(nv));
+    const nvEarly = tree('nvidia-early', { drm: [['simple-framebuffer']], nvidia: true });
+    check('GPU mode: nvidia module loaded before its DRM device (only simpledrm) -> on', mode(nvEarly).join(' ') === 'on nvidia', mode(nvEarly));
+    check('GPU mode: AURORA_GPU=off still wins with nvidia', mode(nv, { AURORA_GPU: 'off' })[0] === 'off');
+    check('GPU mode: nomodeset (safe graphics) still off with nvidia', mode(tree('nvidia-nomodeset', { drm: [['nvidia']], nvidia: true, cmdline: 'quiet nomodeset' }))[0] === 'off');
+    const fb = tree('simpledrm', { drm: [['simple-framebuffer']] });
+    check('GPU mode: simpledrm only -> off (unchanged)', mode(fb).join(' ') === 'off no-nvidia', mode(fb));
+    check('GPU mode: QEMU virtio-gpu without virgl -> off, with virgl -> on (unchanged)', mode(tree('virtio', { drm: [['virtio-pci', '0000000000000000000000000000000000000000000000000000000000000000']] }))[0] === 'off' && mode(tree('virgl', { drm: [['virtio-pci', '1000000000000000000000000000000000000000000000000000000000000000']] }))[0] === 'on');
+    check('GPU mode: nouveau / i915 / amdgpu -> on (unchanged)', ['nouveau', 'i915', 'amdgpu'].every((d) => mode(tree(`drv-${d}`, { drm: [[d]] }))[0] === 'on'));
+    const xstart = fs.readFileSync(path.join(OS_ROOT, 'rootfs/usr/lib/aurora/aurora-xstart'), 'utf8');
+    check('aurora-xstart: noaccel.conf (forces modesetting) never with the nvidia driver loaded', /if aurora_wait_nvidia; then[\s\S]*?elif \[ "\$\(aurora_gpu_mode\)" = off \]; then\s*config="-config \/usr\/share\/aurora\/xorg\/noaccel\.conf"/.test(xstart));
+    const xconfs = fs.readdirSync(path.join(OS_ROOT, 'rootfs/etc/X11/xorg.conf.d')).map((f) => fs.readFileSync(path.join(OS_ROOT, 'rootfs/etc/X11/xorg.conf.d', f), 'utf8')).join('\n');
+    check('xorg.conf.d: no Selene Device section forcing a driver (modesetting / noaccel)', !/Driver\s+"|AccelMethod/.test(xconfs));
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
 
   // ---- automated install (live media only)
@@ -479,6 +566,146 @@ async function uiTests() {
     check('FR: no untranslated keys on any page', rawKeys.length === 0, rawKeys);
     check('FR: summary in French', (await text(page, '.ins-title')) === "Prêt pour l'installation" && (await text(page, '[data-act="next"]')) === 'Installer');
     if (shots) await ins(page).screenshot({ path: path.join(ROOT, 'test/out/installer-summary-fr-dark.png') });
+    await s.close();
+  }
+  // ---------------------------------------------------------------- Part 5: graphics driver step (FR, 1280x720)
+  const toSummaryFr = async (page, { drivers = true } = {}) => {
+    await page.waitForSelector('.app-installer .ins[data-step="welcome"]', { timeout: 20000 });
+    await clickNext(page);
+    await clickNext(page);
+    await page.waitForSelector('.app-installer .ins-disks .ins-row');
+    await page.click('.app-installer .ins-row[data-id="/dev/vda"]');
+    await clickNext(page);
+    await page.fill('.app-installer input[name="fullname"]', 'Élodie Dupont');
+    await page.fill('.app-installer input[name="password"]', 'pw');
+    await page.fill('.app-installer input[name="confirm"]', 'pw');
+    await clickNext(page);
+    await clickNext(page);
+    if (drivers) {
+      await stepIs(page, 'drivers');
+      await clickNext(page);
+    }
+    return stepIs(page, 'summary');
+  };
+  const confirmInstall = async (page) => {
+    await clickNext(page);
+    await page.waitForSelector('.dialog');
+    await page.click('.dialog .btn.danger');
+  };
+  {
+    // RTX 4070, online, Secure Boot on: the recommended driver (nvidia-driver-550) is installed during the (dry) run.
+    const s = await launchShell({ open: ['installer'], live: true, lang: 'fr', theme: 'light', size: '1280x720', env: { AURORA_INSTALLER_DRYRUN_DELAY: '0.03', AURORA_GPU_FIXTURE: 'rtx4070' } });
+    const { page } = s;
+    await page.waitForSelector('.app-installer .ins[data-step="welcome"]', { timeout: 20000 });
+    check('RTX 4070: the « Pilote graphique » step is added before the summary', await waitFor(async () => (await page.evaluate(() => window.__installer.steps.join(' '))) === 'welcome keyboard disk account timezone drivers summary'), await page.evaluate(() => window.__installer.steps));
+    check('RTX 4070: stepper has 8 entries (7 steps + installation), step 6 is « Pilote graphique »', (await page.locator('.app-installer .ins-step').count()) === 8 && (await text(page, '.ins-step:nth-child(6) .ins-step-label')) === 'Pilote graphique');
+    await clickNext(page);
+    check('RTX 4070: kicker counts 7 steps', (await text(page, '.ins-kicker')) === 'Étape 2 sur 7');
+    await clickNext(page);
+    await page.waitForSelector('.app-installer .ins-disks .ins-row');
+    await page.click('.app-installer .ins-row[data-id="/dev/vda"]');
+    await clickNext(page);
+    await page.fill('.app-installer input[name="fullname"]', 'Élodie Dupont');
+    await page.fill('.app-installer input[name="password"]', 'pw');
+    await page.fill('.app-installer input[name="confirm"]', 'pw');
+    await clickNext(page);
+    await clickNext(page);
+    check('RTX 4070: drivers step reached from the time zone', await stepIs(page, 'drivers'));
+    check('RTX 4070: title, kicker « Étape 6 sur 7 »', (await text(page, '.ins-title')) === 'Votre carte graphique NVIDIA' && (await text(page, '.ins-kicker')) === 'Étape 6 sur 7');
+    check('RTX 4070: card name and current driver', (await text(page, '.ins-gpu-row[data-slot="01:00.0"] .ins-row-title')) === 'NVIDIA GeForce RTX 4070' && (await text(page, '.ins-gpu-row[data-slot="01:00.0"] .ins-row-sub')) === 'Pilote actuel : pilote libre (nouveau)');
+    check('RTX 4070: recommended driver', (await text(page, '.ins-gpu-driver .ins-row-title')) === 'Pilote NVIDIA 550' && (await text(page, '.ins-gpu-driver .ins-row-sub')) === 'nvidia-driver-550');
+    check('RTX 4070: switch « Installer le pilote NVIDIA recommandé » on by default (online)', (await text(page, '.ins-driver-toggle .toggle-label')) === 'Installer le pilote NVIDIA recommandé' && (await page.isChecked('.app-installer .ins-driver-toggle input')) && !(await page.isDisabled('.app-installer .ins-driver-toggle input')));
+    check('RTX 4070: download hint + Secure Boot note (Secure Boot on)', (await text(page, '.ins-driver-hint'))?.includes('dépôts Ubuntu') && (await text(page, '.ins-secureboot'))?.includes('signé par Canonical'));
+    check('RTX 4070: no offline note, no hybrid note (single card)', (await page.locator('.app-installer .ins-offline, .app-installer .ins-hybrid').count()) === 0);
+    await s.shot('installer-drivers-fr');
+    // keyboard: Space toggles the switch, the hint follows; Space again turns it back on
+    await page.focus('.app-installer .ins-driver-toggle input');
+    await page.keyboard.press('Space');
+    check('RTX 4070: Space turns the switch off -> free driver hint, no Secure Boot note', (await state(page)).driverWanted === false && (await text(page, '.ins-driver-hint'))?.includes('pilote libre') && (await page.locator('.app-installer .ins-secureboot').count()) === 0);
+    check('RTX 4070: focus stays on the switch', await page.evaluate(() => document.activeElement?.closest('.ins-driver-toggle') != null));
+    await page.keyboard.press('Space');
+    check('RTX 4070: Space turns it back on', (await state(page)).driverWanted === true);
+    await page.keyboard.press('Enter');
+    check('RTX 4070: Enter on the switch = Next (summary)', await stepIs(page, 'summary'));
+    check('RTX 4070: summary kicker « Étape 7 sur 7 »', (await text(page, '.ins-kicker')) === 'Étape 7 sur 7');
+    const drvRow = await text(page, '.ins-sum-row[data-row="driver"]');
+    check('RTX 4070: summary row « Pilote graphique »', drvRow?.includes('Pilote NVIDIA recommandé · Pilote NVIDIA 550') && drvRow.includes("Téléchargé pendant l'installation"), drvRow);
+    await page.evaluate(() => document.querySelector('.app-installer .ins-sum-row[data-row="driver"]')?.scrollIntoView({ block: 'end' }));
+    await s.shot('installer-drivers-summary-fr');
+    await page.click('.app-installer .ins-sum-row[data-row="driver"] .btn');
+    check('RTX 4070: Change goes back to the drivers step', await stepIs(page, 'drivers'));
+    await clickNext(page);
+    await page.evaluate(() => {
+      window.__insEvents = [];
+      window.aurora.on('installer:progress', (e) => window.__insEvents.push(e));
+    });
+    await confirmInstall(page);
+    check('RTX 4070: installing with a « Installation du pilote graphique » stage (7 stages)', (await phaseIs(page, 'installing', 5000)) && (await page.locator('.app-installer .ins-stage').count()) === 7 && (await text(page, '.ins-stage[data-stage="drivers"]')) === 'Installation du pilote graphique');
+    check('RTX 4070: done', await phaseIs(page, 'done', 60000));
+    const evs = await page.evaluate(() => window.__insEvents);
+    check('RTX 4070: the helper got --nvidia-driver nvidia-driver-550 (log)', (await page.evaluate(() => window.aurora.invoke('installer:log'))).includes('nvidia-driver=nvidia-driver-550'));
+    check('RTX 4070: driver event installed', evs.some((e) => e.type === 'driver' && e.status === 'installed' && e.pkg === 'nvidia-driver-550'), evs.filter((e) => e.type === 'driver'));
+    check('RTX 4070: drivers stage progress 76..88, monotonic overall', evs.filter((e) => e.type === 'progress' && e.stage === 'drivers').length >= 5 && evs.filter((e) => e.type === 'progress').every((e, i, a) => i === 0 || e.progress >= a[i - 1].progress));
+    check('RTX 4070: done page says the driver is installed', (await text(page, '.ins-driver-result[data-status="installed"]'))?.includes('Le pilote NVIDIA (nvidia-driver-550) est installé'));
+    await s.shot('installer-drivers-done-fr');
+    check('RTX 4070: no page errors', !s.logs.some((l) => /pageerror/.test(l)), s.logs.filter((l) => /pageerror/.test(l)));
+    await s.close();
+  }
+  {
+    // GTX 1060 (Pascal), offline: switch disabled, clear note, « Vérifier à nouveau »; nothing is downloaded.
+    const s = await launchShell({ open: ['installer'], live: true, lang: 'fr', theme: 'light', size: '1280x720', env: { AURORA_INSTALLER_DRYRUN_DELAY: '0.02', AURORA_GPU_FIXTURE: 'gtx1060', AURORA_GPU_ONLINE: '0' } });
+    const { page } = s;
+    await page.waitForSelector('.app-installer .ins[data-step="welcome"]', { timeout: 20000 });
+    await waitFor(() => page.evaluate(() => window.__installer.steps.includes('drivers')));
+    await page.evaluate(() => window.__installer.go(window.__installer.steps.indexOf('drivers')));
+    check('GTX 1060: drivers step', await stepIs(page, 'drivers'));
+    check('GTX 1060: card name', (await text(page, '.ins-gpu-row .ins-row-title')) === 'NVIDIA GeForce GTX 1060 6GB');
+    check('GTX 1060 offline: switch off and disabled', !(await page.isChecked('.app-installer .ins-driver-toggle input')) && (await page.isDisabled('.app-installer .ins-driver-toggle input')));
+    check('GTX 1060 offline: « Connectez-vous à Internet… » note', (await text(page, '.ins-offline'))?.includes("Connectez-vous à Internet pour l'installer maintenant, ou plus tard dans Paramètres > Pilotes graphiques."), await text(page, '.ins-offline'));
+    check('GTX 1060: no Secure Boot note (Secure Boot off / offline)', (await page.locator('.app-installer .ins-secureboot').count()) === 0);
+    await s.shot('installer-drivers-offline-fr');
+    // The connection comes back: « Vérifier à nouveau » turns the switch on.
+    await s.app.evaluate(() => {
+      process.env.AURORA_GPU_ONLINE = '1';
+    });
+    await page.click('.app-installer [data-act="recheck"]');
+    check('GTX 1060: back online after « Vérifier à nouveau »: switch enabled and on', await waitFor(async () => (await page.isChecked('.app-installer .ins-driver-toggle input')) && !(await page.isDisabled('.app-installer .ins-driver-toggle input'))));
+    check('GTX 1060: the offline note is gone once online', (await page.locator('.app-installer .ins-offline').count()) === 0);
+    // The user turns the driver off: the free driver is kept, nothing is downloaded.
+    await page.click('.app-installer .ins-driver-toggle .toggle-label');
+    check('GTX 1060: switch turned off by the user', (await state(page)).driverWanted === false && (await text(page, '.ins-driver-hint'))?.includes('Paramètres > Pilotes graphiques'));
+    await page.evaluate(() => window.__installer.go(0));
+    check('GTX 1060: summary', await toSummaryFr(page));
+    check('GTX 1060: summary row « Pilote libre »', (await text(page, '.ins-sum-row[data-row="driver"]'))?.includes('Pilote libre') && (await text(page, '.ins-sum-row[data-row="driver"]')).includes('plus tard, dans Paramètres > Pilotes graphiques'), await text(page, '.ins-sum-row[data-row="driver"]'));
+    await confirmInstall(page);
+    check('GTX 1060 driver off: no driver stage, done, no driver note', (await phaseIs(page, 'done', 60000)) && (await state(page)).driverRequested === null && (await page.locator('.app-installer .ins-driver-result').count()) === 0 && !(await page.evaluate(() => window.aurora.invoke('installer:log'))).includes('nvidia-driver='));
+    // AMD-only / Intel-only machines: nothing offered.
+    for (const fx of ['amd', 'intel']) {
+      await s.app.evaluate((_, f) => {
+        process.env.AURORA_GPU_FIXTURE = f;
+      }, fx);
+      const g = await page.evaluate(() => window.aurora.invoke('installer:gpu', { refresh: true }));
+      check(`${fx} only: a card, no NVIDIA, no driver offered`, g.gpus.length === 1 && g.gpus[0].vendor === fx && g.nvidia.length === 0 && g.recommended === null, g);
+    }
+    await s.close();
+  }
+  {
+    // Optimus laptop (Intel + RTX 3050 Mobile): hybrid note; the driver download fails -> installed anyway, note.
+    const s = await launchShell({ open: ['installer'], live: true, lang: 'fr', theme: 'dark', size: '1280x720', env: { AURORA_INSTALLER_DRYRUN_DELAY: '0.02', AURORA_GPU_FIXTURE: 'optimus', AURORA_INSTALLER_FAIL_AT: 'drivers' } });
+    const { page } = s;
+    await page.waitForSelector('.app-installer .ins[data-step="welcome"]', { timeout: 20000 });
+    await waitFor(() => page.evaluate(() => window.__installer.steps.includes('drivers')));
+    await page.evaluate(() => window.__installer.go(window.__installer.steps.indexOf('drivers')));
+    check('Optimus: only the NVIDIA card is listed, recommended 550 open', (await page.locator('.app-installer .ins-gpu-row[data-slot]').count()) === 1 && (await text(page, '.ins-gpu-row .ins-row-title')) === 'NVIDIA GeForce RTX 3050 Mobile' && (await text(page, '.ins-gpu-driver .ins-row-title')) === 'Pilote NVIDIA 550 (modules du noyau ouverts)');
+    check('Optimus: hybrid note names the Intel chip', (await text(page, '.ins-hybrid'))?.includes('puce graphique Intel'));
+    await s.shot('installer-drivers-optimus-fr-dark');
+    await page.evaluate(() => window.__installer.go(0));
+    check('Optimus: summary', await toSummaryFr(page));
+    await confirmInstall(page);
+    check('Optimus: the installation still succeeds when the driver fails', await phaseIs(page, 'done', 60000));
+    check('Optimus: « Le pilote n\'a pas pu être installé… » on the done page', (await text(page, '.ins-driver-result[data-status="failed"]')) === "Le pilote n'a pas pu être installé ; vous pourrez l'installer plus tard dans Paramètres > Pilotes graphiques.", await text(page, '.ins-driver-result'));
+    await s.shot('installer-drivers-failed-fr-dark');
+    check('Optimus: no page errors', !s.logs.some((l) => /pageerror/.test(l)), s.logs.filter((l) => /pageerror/.test(l)));
     await s.close();
   }
   {

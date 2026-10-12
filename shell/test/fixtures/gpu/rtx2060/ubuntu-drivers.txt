@@ -1,0 +1,14 @@
+== /sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0 ==
+modalias : pci:v000010DEd00001F08sv00001458sd000037CEbc03sc00i00
+vendor   : NVIDIA Corporation
+model    : TU106 [GeForce RTX 2060 Rev. A]
+driver   : nvidia-driver-550-open - distro non-free
+driver   : nvidia-driver-535-server - distro non-free
+driver   : nvidia-driver-470 - distro non-free
+driver   : nvidia-driver-535-open - distro non-free
+driver   : nvidia-driver-550 - distro non-free recommended
+driver   : nvidia-driver-535-server-open - distro non-free
+driver   : nvidia-driver-535 - distro non-free
+driver   : nvidia-driver-470-server - distro non-free
+driver   : xserver-xorg-video-nouveau - distro free builtin
+

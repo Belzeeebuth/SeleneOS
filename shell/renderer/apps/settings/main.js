@@ -24,6 +24,7 @@ const MODULES = {
   accessibility: () => import('./pages/accessibility.js'),
   privacy: () => import('./pages/privacy.js'),
   update: () => import('./pages/update.js'),
+  drivers: () => import('./pages/drivers.js'), // Pilotes graphiques (gpuDrivers)
 };
 
 const NAV_ICONS = {

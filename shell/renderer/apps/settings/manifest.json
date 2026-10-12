@@ -185,6 +185,10 @@
     {"page":"privacy","section":"firewall","icon":"shield_globe","name":{"en":"Firewall & network protection","fr":"Pare-feu et protection du réseau"},"keywords":{"en":["ufw","firewall"],"fr":["ufw","pare-feu"]}},
     {"page":"privacy","section":"device","icon":"shield_checkmark","name":{"en":"Device security","fr":"Sécurité de l’appareil"},"keywords":{"en":["apparmor","secure","boot","tpm"],"fr":["apparmor","démarrage","sécurisé","tpm"]}},
     {"page":"update","icon":"arrow_sync","name":{"en":"Updates","fr":"Mises à jour"},"keywords":{"en":["update","upgrade","patches","apt","check"],"fr":["mise","à","jour","correctifs","apt","rechercher"]}},
-    {"page":"updateHistory","icon":"history","name":{"en":"Update history","fr":"Historique des mises à jour"},"keywords":{"en":["installed","updates","log"],"fr":["mises","à","jour","installées","journal"]}}
+    {"page":"updateHistory","icon":"history","name":{"en":"Update history","fr":"Historique des mises à jour"},"keywords":{"en":["installed","updates","log"],"fr":["mises","à","jour","installées","journal"]}},
+    {"page":"gpuDrivers","icon":"developer_board","name":{"en":"Graphics drivers","fr":"Pilotes graphiques"},"keywords":{"en":["driver","drivers","nvidia","graphics","card","gpu","geforce","rtx","gtx","video"],"fr":["pilote","pilotes","nvidia","carte","graphique","gpu","geforce","rtx","gtx","vidéo"]}},
+    {"page":"gpuDrivers","section":"nvidia","icon":"developer_board","name":{"en":"NVIDIA driver","fr":"Pilote NVIDIA"},"keywords":{"en":["geforce","rtx","gtx","proprietary","open","install","driver"],"fr":["geforce","rtx","gtx","propriétaire","open","installer","pilote"]}},
+    {"page":"gpuDrivers","section":"cards","icon":"developer_board","name":{"en":"Graphics card","fr":"Carte graphique"},"keywords":{"en":["gpu","video","card","amd","radeon","intel","driver"],"fr":["gpu","carte","vidéo","amd","radeon","intel","pilote"]}},
+    {"page":"gpuDrivers","section":"free","icon":"arrow_undo","name":{"en":"Free graphics driver (Nouveau)","fr":"Pilote graphique libre (Nouveau)"},"keywords":{"en":["nouveau","open","source","remove","nvidia","driver"],"fr":["nouveau","libre","retirer","nvidia","pilote"]}}
   ]
 }

@@ -1,7 +1,9 @@
 // Install Selene OS: the installer of the live session (Nocturne look: a night side panel with the steps
 // drawn as moon phases, flat pages on the right).
 //
-// Steps: welcome (language) -> keyboard -> disk -> account -> time zone -> summary -> installing -> done | error.
+// Steps: welcome (language) -> keyboard -> disk -> account -> time zone -> [graphics driver] -> summary -> installing
+// -> done | error. The graphics driver step only exists when an NVIDIA card is detected (installer:gpu): the
+// recommended NVIDIA driver is then downloaded from the Ubuntu archive during the installation (needs the Internet).
 // The installer has its own UI language (chosen on the first page, switched live); it is also the
 // language of the installed system. Backend: main/ipc/installer.js (installer:* channels), which runs
 // /usr/lib/aurora/helpers/aurora-install as root (dry run in dev mode / outside the live session).
@@ -9,8 +11,8 @@
 // Test hooks: the root element carries data-step / data-phase; window.__installer exposes the state.
 import { ART, BRAND } from './art.js';
 
-const STEPS = ['welcome', 'keyboard', 'disk', 'account', 'timezone', 'summary'];
-const STAGES = ['partition', 'format', 'copy', 'configure', 'bootloader', 'cleanup'];
+const BASE_STEPS = ['welcome', 'keyboard', 'disk', 'account', 'timezone', 'summary'];
+const BASE_STAGES = ['partition', 'format', 'copy', 'configure', 'bootloader', 'cleanup'];
 const RE_USER = /^[a-z_][a-z0-9_-]*$/;
 const RE_HOST = /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
 const RE_BADNAME = /[:,=\\\x00-\x1f\x7f]/;
@@ -26,6 +28,17 @@ const DEFAULTS = {
 const LOCALES = { en: 'en-US', fr: 'fr-FR' };
 
 // ------------------------------------------------------------------ pure helpers (exported for tests)
+/** Steps of the installer: the graphics driver step (before the summary) only for a computer with an NVIDIA card. */
+export function stepsFor(gpu) {
+  return gpu?.nvidia?.length ? [...BASE_STEPS.slice(0, -1), 'drivers', 'summary'] : BASE_STEPS.slice();
+}
+
+/** Driver to ask the helper for: the recommended package when known, else 'recommended' (picked in the target). */
+export function driverRequest(gpu, wanted) {
+  if (!wanted || !gpu?.nvidia?.length || !gpu.online) return null;
+  return gpu.recommended || 'recommended';
+}
+
 export function deriveUsername(fullName) {
   const first = String(fullName || '').trim().split(/\s+/)[0] || '';
   let u = first
@@ -118,7 +131,15 @@ export default {
       api.invoke('installer:timezones').catch(() => ['UTC']),
     ]);
 
+    let STEPS = BASE_STEPS.slice();
+    let STAGES = BASE_STAGES.slice();
     const S = {
+      gpu: null, // installer:gpu result (null while probing)
+      driverWanted: true, // « Install the recommended NVIDIA driver » (on by default when online)
+      driverTouched: false,
+      driverChecking: false,
+      driverRequested: null, // package (or 'recommended') sent to the helper
+      driverResult: null, // { status: 'installed'|'failed', pkg, message }
       lang: ctx.lang === 'fr' ? 'fr' : 'en',
       step: 0,
       phase: 'setup', // setup | installing | done | error
@@ -261,6 +282,7 @@ export default {
       }
     }
 
+    const stepOf = (name) => t('stepOf', { n: STEPS.indexOf(name) + 1, total: STEPS.length });
     function setHeader(k, ttl, sub) {
       kicker.textContent = k || '';
       kicker.hidden = !k;
@@ -351,7 +373,7 @@ export default {
     }
 
     function pageKeyboard() {
-      setHeader(t('stepOf', { n: 2, total: STEPS.length }), t('keyboard.title'), t('keyboard.subtitle'));
+      setHeader(stepOf('keyboard'), t('keyboard.title'), t('keyboard.subtitle'));
       const q = S.kbQuery.trim().toLowerCase();
       const items = keyboards
         .map((k) => ({ ...k, label: k.name[S.lang] || k.name.en }))
@@ -444,7 +466,7 @@ export default {
     }
 
     function pageDisk() {
-      setHeader(t('stepOf', { n: 3, total: STEPS.length }), t('disk.title'), t('disk.subtitle'));
+      setHeader(stepOf('disk'), t('disk.title'), t('disk.subtitle'));
       const refresh = h('button', { class: 'btn subtle small ins-refresh', onclick: loadDisks, 'data-act': 'refresh' }, icon('arrow_sync', { size: 16 }), t('refresh'));
       let body;
       if (S.disks == null) {
@@ -504,7 +526,7 @@ export default {
     }
 
     function pageAccount() {
-      setHeader(t('stepOf', { n: 4, total: STEPS.length }), t('account.title'), t('account.subtitle'));
+      setHeader(stepOf('account'), t('account.title'), t('account.subtitle'));
       const inp = (key, props = {}) =>
         h('input', {
           class: 'input',
@@ -610,7 +632,7 @@ export default {
     }
 
     function pageTimezone() {
-      setHeader(t('stepOf', { n: 5, total: STEPS.length }), t('tz.title'), t('tz.subtitle'));
+      setHeader(stepOf('timezone'), t('tz.title'), t('tz.subtitle'));
       const q = S.tzQuery
         .trim()
         .toLowerCase()
@@ -678,6 +700,97 @@ export default {
       content.replaceChildren(search, list);
     }
 
+    // ---------------------------------------------------------------- graphics driver (NVIDIA cards only)
+    function applyGpu(info) {
+      S.gpu = info || { gpus: [], nvidia: [] };
+      const cur = STEPS[S.step];
+      STEPS = stepsFor(S.gpu);
+      if (S.phase === 'setup') {
+        S.step = Math.max(0, STEPS.indexOf(cur));
+        render();
+      }
+    }
+    async function recheckGpu() {
+      S.driverChecking = true;
+      if (STEPS[S.step] === 'drivers' && S.phase === 'setup') pageDrivers();
+      const info = await api.invoke('installer:gpu', { refresh: true }).catch(() => S.gpu);
+      S.driverChecking = false;
+      // Online now: the switch follows the connection unless it was turned off on purpose.
+      if (info?.online && !S.gpu?.online && !S.driverTouched) S.driverWanted = true;
+      S.gpu = info || S.gpu;
+      if (STEPS[S.step] === 'drivers' && S.phase === 'setup') {
+        pageDrivers();
+        content.querySelector('[data-act="recheck"]')?.focus();
+      }
+    }
+    const driverLabel = (pkg) => {
+      const m = /^nvidia-driver-(\d{3})(-open|-server|-server-open)?$/.exec(pkg || '');
+      if (!m) return null;
+      const kind = { '-open': 'open', '-server': 'server', '-server-open': 'server-open' }[m[2]] || 'proprietary';
+      return t(`drivers.kind.${kind}`, { version: m[1] });
+    };
+    const driverOn = () => !!(S.gpu?.online && S.driverWanted);
+
+    function pageDrivers() {
+      const g = S.gpu || { nvidia: [], gpus: [] };
+      setHeader(stepOf('drivers'), t('drivers.title'), t('drivers.subtitle'));
+      const cur = g.current || {};
+      const curText = cur.module === 'nvidia' ? t('drivers.currentNvidia', { version: cur.version || '' }).trim() : cur.module === 'nouveau' ? t('drivers.currentFree') : t('drivers.currentNone');
+      const cards = h(
+        'div',
+        { class: 'ins-gpu card' },
+        g.nvidia.map((c) =>
+          h(
+            'div',
+            { class: 'ins-gpu-row', dataset: { slot: c.slot } },
+            h('span', { class: 'ins-row-icon big' }, icon('developer_board', { size: 28 })),
+            h('span', { class: 'ins-row-main' }, h('span', { class: 'ins-sum-label' }, t('drivers.card')), h('span', { class: 'ins-row-title' }, c.name), h('span', { class: 'ins-row-sub' }, t('drivers.current', { driver: curText }))),
+          ),
+        ),
+        h(
+          'div',
+          { class: 'ins-gpu-row ins-gpu-driver' },
+          h('span', { class: 'ins-row-icon big' }, icon('arrow_download', { size: 24 })),
+          h(
+            'span',
+            { class: 'ins-row-main' },
+            h('span', { class: 'ins-sum-label' }, t('drivers.recommended')),
+            h('span', { class: 'ins-row-title' }, g.recommended ? driverLabel(g.recommended) : t('drivers.recommendedAuto')),
+            g.recommended ? h('span', { class: 'ins-row-sub mono' }, g.recommended) : null,
+          ),
+        ),
+      );
+      const sw = ui.toggle({
+        checked: driverOn(),
+        disabled: !g.online,
+        label: t('drivers.switch'),
+        onchange: (v) => {
+          S.driverWanted = v;
+          S.driverTouched = true;
+          pageDrivers();
+          content.querySelector('.ins-driver-switch input')?.focus();
+        },
+      });
+      sw.classList.add('ins-driver-switch');
+      const others = (g.gpus || []).filter((x) => x.vendor === 'intel' || x.vendor === 'amd');
+      const notes = [];
+      if (!g.online) {
+        notes.push(
+          h(
+            'div',
+            { class: 'infobar warning ins-note ins-offline', role: 'note' },
+            icon('wifi_off', { size: 16 }),
+            h('div', { class: 'ins-note-body' }, h('div', null, t('drivers.offline')), h('button', { class: 'btn small', 'data-act': 'recheck', disabled: S.driverChecking, onclick: recheckGpu }, S.driverChecking ? t('drivers.checking') : t('drivers.retry'))),
+          ),
+        );
+      } else {
+        notes.push(h('span', { class: 'ins-hint ins-driver-hint' }, driverOn() ? t('drivers.onHint') : t('drivers.offHint')));
+        if (driverOn() && g.secureBoot === true) notes.push(h('div', { class: 'infobar ins-note ins-secureboot', role: 'note' }, icon('shield_checkmark', { size: 16 }), h('div', null, t('drivers.secureBoot'))));
+      }
+      if (others.length && g.nvidia.length) notes.push(h('div', { class: 'ins-hint ins-hybrid' }, t('drivers.hybrid', { other: others[0].vendor === 'intel' ? 'Intel' : 'AMD' })));
+      content.replaceChildren(cards, h('div', { class: 'ins-driver-toggle' }, sw), ...notes);
+    }
+
     function kbLabel(id) {
       const k = keyboards.find((x) => x.id === id);
       return k ? k.name[S.lang] || k.name.en : id;
@@ -690,7 +803,7 @@ export default {
     const diskObj = () => S.disks?.find((d) => d.path === S.disk);
 
     function pageSummary() {
-      setHeader(t('stepOf', { n: 6, total: STEPS.length }), t('summary.title'), t('summary.subtitle'));
+      setHeader(stepOf('summary'), t('summary.title'), t('summary.subtitle'));
       const d = diskObj();
       const row = (ic, label, value, sub, step, opts = {}) =>
         h(
@@ -711,6 +824,16 @@ export default {
           row('lock_closed', t('summary.signin'), S.autologin ? t('summary.autologinOn') : t('summary.autologinOff'), null, 3, { key: 'signin' }),
           row('desktop', t('summary.hostname'), S.hostname, null, 3, { key: 'hostname' }),
           row('globe_clock', t('summary.timezone'), tzLabel(S.timezone), null, 4, { key: 'timezone' }),
+          STEPS.includes('drivers')
+            ? row(
+                'developer_board',
+                t('summary.driver'),
+                driverOn() ? (S.gpu?.recommended ? `${t('summary.driverOn')} · ${driverLabel(S.gpu.recommended)}` : t('summary.driverOn')) : t('summary.driverOff'),
+                driverOn() ? t('summary.driverOnSub') : t('summary.driverOffSub'),
+                STEPS.indexOf('drivers'),
+                { key: 'driver' },
+              )
+            : null,
         ),
       );
     }
@@ -737,6 +860,9 @@ export default {
       S.error = null;
       S.cancelled = false;
       S.cancelling = false;
+      S.driverRequested = driverRequest(S.gpu, S.driverWanted);
+      S.driverResult = null;
+      STAGES = S.driverRequested ? [...BASE_STAGES.slice(0, 4), 'drivers', ...BASE_STAGES.slice(4)] : BASE_STAGES.slice();
       render();
       offProgress?.();
       offProgress = api.on('installer:progress', onProgress);
@@ -751,6 +877,7 @@ export default {
           keyboard: S.keyboard,
           timezone: S.timezone,
           autologin: S.autologin,
+          ...(S.driverRequested ? { nvidiaDriver: S.driverRequested } : {}),
         });
         S.dryRun = !!r?.dryRun;
       } catch (e) {
@@ -775,6 +902,8 @@ export default {
           if (stageBox.log.textContent.length > 200000) stageBox.log.textContent = stageBox.log.textContent.slice(-150000);
           stageBox.log.scrollTop = stageBox.log.scrollHeight;
         }
+      } else if (ev.type === 'driver') {
+        S.driverResult = ev; // never an error: reported on the done page
       } else if (ev.type === 'error') {
         S.error = ev;
       } else if (ev.type === 'done') {
@@ -881,6 +1010,11 @@ export default {
       content.replaceChildren(
         ...[
         S.dryRun ? h('div', { class: 'infobar ins-note' }, icon('info', { size: 16 }), h('div', null, t('done.simulated'))) : null,
+        S.driverResult?.status === 'installed'
+          ? h('div', { class: 'infobar success ins-note ins-driver-result', dataset: { status: 'installed' } }, icon('checkmark_circle', { size: 16 }), h('div', null, t('done.driverOk', { pkg: S.driverResult.pkg || 'NVIDIA' })))
+          : S.driverRequested && S.driverResult?.status !== 'installed'
+            ? h('div', { class: 'infobar warning ins-note ins-driver-result', role: 'note', dataset: { status: 'failed' } }, icon('developer_board', { size: 16 }), h('div', null, t('done.driverFailed')))
+            : null,
         h('div', { class: 'infobar warning ins-note' }, icon('usb_stick', { size: 16 }), h('div', null, t('done.removeMedia'))),
         h('p', { class: 'ins-done-account' }, t('done.account', { name: S.fullname.trim(), user: S.user })),
         h('div', { class: 'ins-done-msg', role: 'status', 'aria-live': 'polite' }),
@@ -945,11 +1079,11 @@ export default {
       root.dataset.phase = S.phase;
       root.lang = S.lang;
       const key = `${name}`;
-      const artName = { welcome: 'welcome', keyboard: 'keyboard', disk: 'disk', account: 'account', timezone: 'timezone', summary: 'summary', installing: 'installing', done: 'done', error: 'error' }[name];
+      const artName = { welcome: 'welcome', keyboard: 'keyboard', disk: 'disk', account: 'account', timezone: 'timezone', drivers: 'drivers', summary: 'summary', installing: 'installing', done: 'done', error: 'error' }[name];
       renderChrome(artName);
       refreshAccount = null;
       if (S.phase === 'setup') {
-        ({ welcome: pageWelcome, keyboard: pageKeyboard, disk: pageDisk, account: pageAccount, timezone: pageTimezone, summary: pageSummary })[name]();
+        ({ welcome: pageWelcome, keyboard: pageKeyboard, disk: pageDisk, account: pageAccount, timezone: pageTimezone, drivers: pageDrivers, summary: pageSummary })[name]();
         setupFooter();
         if (name === 'disk' && S.disks == null) loadDisks();
       } else if (S.phase === 'installing') pageInstalling();
@@ -988,12 +1122,23 @@ export default {
       get state() {
         return { ...S, password: S.password ? '***' : '', confirm: S.confirm ? '***' : '' };
       },
+      get steps() {
+        return STEPS.slice();
+      },
+      get stages() {
+        return STAGES.slice();
+      },
       next,
       back,
       go,
     };
 
     render();
+    // Graphics card probe (lspci, ubuntu-drivers, connection): adds the graphics driver step for an NVIDIA card.
+    api
+      .invoke('installer:gpu')
+      .then(applyGpu)
+      .catch(() => applyGpu(null));
     return {
       onRelaunch() {
         win.focus();

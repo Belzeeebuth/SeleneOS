@@ -1,0 +1,11 @@
+== /sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0 ==
+modalias : pci:v000010DEd00001C03sv00001462sd00003283bc03sc00i00
+vendor   : NVIDIA Corporation
+model    : GP106 [GeForce GTX 1060 6GB]
+driver   : nvidia-driver-470 - distro non-free
+driver   : nvidia-driver-535-server - distro non-free
+driver   : nvidia-driver-550 - distro non-free recommended
+driver   : nvidia-driver-470-server - distro non-free
+driver   : nvidia-driver-535 - distro non-free
+driver   : xserver-xorg-video-nouveau - distro free builtin
+

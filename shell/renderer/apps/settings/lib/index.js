@@ -27,6 +27,7 @@ export const PAGES = {
   storage: { module: 'system', parent: 'system', icon: 'hard_drive', title: { en: 'Storage', fr: 'Stockage' }, desc: { en: 'Storage space, drives, recycle bin', fr: 'Espace de stockage, lecteurs, corbeille' } },
   multitasking: { module: 'system', parent: 'system', icon: 'window_multiple', title: { en: 'Window management', fr: 'Fenêtres' }, desc: { en: 'Layouts, desktops, switching between windows', fr: 'Dispositions, bureaux, passage d’une fenêtre à l’autre' } },
   clipboard: { module: 'system', parent: 'system', icon: 'clipboard_paste', title: { en: 'Clipboard', fr: 'Presse-papiers' }, desc: { en: 'Cut and copy history', fr: 'Historique du couper et copier' } },
+  gpuDrivers: { module: 'drivers', parent: 'system', icon: 'developer_board', title: { en: 'Graphics drivers', fr: 'Pilotes graphiques' }, desc: { en: 'Graphics cards, NVIDIA drivers', fr: 'Cartes graphiques, pilotes NVIDIA' } },
   about: { module: 'system', icon: 'info', title: { en: 'About', fr: 'À propos' }, desc: { en: 'Device name, device and Selene OS specifications', fr: 'Nom de l’appareil, caractéristiques de l’appareil et de Selene OS' } },
   // Devices
   bluetooth: { module: 'devices', icon: 'bluetooth', title: { en: 'Devices', fr: 'Appareils' } },
@@ -159,6 +160,12 @@ export const ALIASES = {
   'windowsupdate-history': 'updateHistory',
   updatehistory: 'updateHistory',
   'keyboard-layout': 'keyboard',
+  drivers: 'gpuDrivers',
+  'graphics-drivers': 'gpuDrivers',
+  graphicsdrivers: 'gpuDrivers',
+  'additional-drivers': 'gpuDrivers',
+  gpu: 'gpuDrivers',
+  nvidia: 'gpuDrivers',
 };
 
 // (page, section) pairs that live on another page.
@@ -350,6 +357,10 @@ const ENTRIES = [
   ['privacy', 'device', 'shield_checkmark', 'Device security', 'Sécurité de l’appareil', 'apparmor secure boot tpm', 'apparmor démarrage sécurisé tpm'],
   ['update', null, 'arrow_sync', 'Updates', 'Mises à jour', 'update upgrade patches apt check', 'mise à jour correctifs apt rechercher'],
   ['updateHistory', null, 'history', 'Update history', 'Historique des mises à jour', 'installed updates log', 'mises à jour installées journal'],
+  ['gpuDrivers', null, 'developer_board', 'Graphics drivers', 'Pilotes graphiques', 'driver drivers nvidia graphics card gpu geforce rtx gtx video', 'pilote pilotes nvidia carte graphique gpu geforce rtx gtx vidéo'],
+  ['gpuDrivers', 'nvidia', 'developer_board', 'NVIDIA driver', 'Pilote NVIDIA', 'geforce rtx gtx proprietary open install driver', 'geforce rtx gtx propriétaire open installer pilote'],
+  ['gpuDrivers', 'cards', 'developer_board', 'Graphics card', 'Carte graphique', 'gpu video card amd radeon intel driver', 'gpu carte vidéo amd radeon intel pilote'],
+  ['gpuDrivers', 'free', 'arrow_undo', 'Free graphics driver (Nouveau)', 'Pilote graphique libre (Nouveau)', 'nouveau open source remove nvidia driver', 'nouveau libre retirer nvidia pilote'],
 ];
 
 export const INDEX = ENTRIES.map(([page, section, icon, en, fr, kwEn, kwFr]) => ({ page, section, icon, name: { en, fr }, keywords: { en: kwEn.split(' '), fr: kwFr.split(' ') } }));

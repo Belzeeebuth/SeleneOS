@@ -25,9 +25,13 @@ export XAUTHORITY="$auth"
 export XDG_SESSION_TYPE=x11
 
 # Without a 3D-capable GPU (VMs, simpledrm, nomodeset) 2D through glamor would run on
-# llvmpipe: plain shadow framebuffer is much faster there.
+# llvmpipe: plain shadow framebuffer is much faster there. Never with the NVIDIA proprietary driver:
+# noaccel.conf forces the modesetting driver, which would take the card from Xorg's nvidia driver
+# (Xorg picks nvidia itself: /usr/share/X11/xorg.conf.d/10-nvidia.conf of the driver package).
 config=""
-if [ "$(aurora_gpu_mode)" = off ]; then
+if aurora_wait_nvidia; then
+  aurora_log "NVIDIA driver loaded ($(sed -n 's/^NVRM version: *//p' /proc/driver/nvidia/version 2>/dev/null | head -n1))"
+elif [ "$(aurora_gpu_mode)" = off ]; then
   config="-config /usr/share/aurora/xorg/noaccel.conf"
 fi
 

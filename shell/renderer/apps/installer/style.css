@@ -850,3 +850,35 @@
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------- graphics driver (NVIDIA cards only) */
+.app-installer .ins-gpu {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.app-installer .ins-gpu-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.app-installer .ins-gpu-row:last-child {
+  border-bottom: none;
+}
+.app-installer .ins-driver-toggle {
+  margin-top: var(--sp-2);
+}
+.app-installer .ins-driver-hint,
+.app-installer .ins-hybrid {
+  display: block;
+}
+.app-installer .ins-note-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}

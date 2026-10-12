@@ -1,0 +1,19 @@
+udevadm hwdb is deprecated. Use systemd-hwdb instead.
+== /sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0 ==
+modalias : pci:v000010DEd000025A2sv000017AAsd00003803bc03sc02i00
+vendor   : NVIDIA Corporation
+model    : GA107M [GeForce RTX 3050 Mobile]
+driver   : nvidia-driver-535-open - distro non-free
+driver   : nvidia-driver-550-open - distro non-free recommended
+driver   : nvidia-driver-535-server - distro non-free
+driver   : nvidia-driver-550 - distro non-free
+driver   : nvidia-driver-535-server-open - distro non-free
+driver   : nvidia-driver-535 - distro non-free
+driver   : xserver-xorg-video-nouveau - distro free builtin
+
+== /sys/devices/pci0000:00/0000:00:14.3 ==
+modalias : pci:v00008086d000051F0sv00008086sd00000074bc02sc80i00
+vendor   : Intel Corporation
+model    : Alder Lake-P PCH CNVi WiFi
+driver   : backport-iwlwifi-dkms - distro free
+

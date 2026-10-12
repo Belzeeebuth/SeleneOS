@@ -1,0 +1,107 @@
+/* Settings > System > Graphics drivers (pages/drivers.js). Colours come from the theme tokens only. */
+.app-settings .st-drv {
+  display: flex;
+  flex-direction: column;
+}
+.app-settings .st-drv > .st-infobar {
+  margin-top: 8px;
+}
+
+/* status card on top */
+.app-settings .st-drv-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--stroke-card);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.app-settings .st-drv-hero > .st-drv-progress,
+.app-settings .st-drv-hero > .st-hero-actions {
+  grid-column: 2;
+  min-width: 0;
+}
+.app-settings .st-drv-icon {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--accent-text);
+  background: var(--accent-subtle);
+}
+.app-settings .st-drv-icon.busy > .icon:first-child {
+  animation: st-drv-pulse 1.4s ease-in-out infinite;
+}
+.app-settings .st-drv-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 0 0 2px var(--bg);
+  line-height: 0;
+}
+.app-settings .st-drv-badge.ok {
+  color: var(--success);
+}
+.app-settings .st-drv-badge.pending {
+  color: var(--accent-text);
+}
+.app-settings .st-drv-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-settings .st-drv-progress-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* driver rows: "NVIDIA 580" + pills, a one-line description and the package name */
+.app-settings .st-drv-title {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.app-settings .st-drv-pkg {
+  margin-left: 8px;
+  color: var(--text-3);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.app-settings .st-drv-row.current .st-row-title {
+  font-weight: 600;
+}
+.app-settings .st-pill.st-drv-pill-ok {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.app-settings .st-pill.st-drv-pill-wait {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.app-settings .st-drv-server > .st-row {
+  border-top: 1px solid var(--stroke);
+  padding-left: 56px;
+}
+.app-settings .st-drv-server > .st-row:first-child {
+  border-top: 0;
+}
+
+@keyframes st-drv-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-settings .st-drv-icon.busy > .icon:first-child {
+    animation: none;
+  }
+}

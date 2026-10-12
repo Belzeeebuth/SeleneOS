@@ -103,6 +103,25 @@ export const ART = {
       </g>
     </g>`),
 
+  drivers: () =>
+    svg(`
+    <g>
+      <rect x="30" y="74" width="180" height="100" rx="14" class="s-surface"/>
+      <rect x="30" y="174" width="56" height="12" rx="3" class="s-key"/>
+      <rect x="100" y="174" width="96" height="9" rx="3" class="s-line"/>
+      ${[82, 154]
+        .map(
+          (cx) => `<circle cx="${cx}" cy="124" r="34" class="s-surface s-stroke"/>
+        <circle cx="${cx}" cy="124" r="26" fill="none" class="s-accent-stroke" stroke-width="3" stroke-dasharray="14 7" opacity=".7"/>
+        <circle cx="${cx}" cy="124" r="9" fill="url(#ins-g)"/>`,
+        )
+        .join('')}
+      <g transform="translate(150 22)">
+        <rect width="58" height="40" rx="10" fill="url(#ins-g)"/>
+        <path d="M29 9v16m-7-7 7 7 7-7M19 31h20" fill="none" class="s-on-stroke" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+    </g>`),
+
   summary: () =>
     svg(`
     <g>

@@ -210,6 +210,17 @@ done
 [[ -f "$S/etc/apt/apt.conf.d/50appstream" ]] && pass "apt downloads AppStream metadata (50appstream)" || fail "apt.conf.d/50appstream missing: the Store cannot verify Ubuntu catalogue packages"
 [[ -s "$S/usr/share/aurora/store/base-packages.txt" ]] && pass "Store base package list present (image packages are never removed from the Store)" || fail "usr/share/aurora/store/base-packages.txt missing"
 compgen -G "$S/usr/lib/python3/dist-packages/yaml/__init__.py" >/dev/null && pass "python3-yaml is installed (Ubuntu catalogue)" || fail "python3-yaml is missing (Ubuntu catalogue)"
+# Graphics drivers (iso/packages.d/drivers.list): the installer's « Pilote graphique » step and Settings > Graphics
+# drivers download the NVIDIA driver from the archive; the image only carries the tools.
+for b in /usr/bin/ubuntu-drivers /usr/bin/mokutil /usr/bin/lspci; do
+  [[ -x "$S$b" ]] && pass "image has $b (graphics drivers)" || fail "image lacks $b (graphics drivers: rebuild with --from packages)"
+done
+[[ -s "$S/usr/share/misc/pci.ids" || -s "$S/usr/share/hwdata/pci.ids" ]] && pass "pci.ids present (graphics card names)" || warn "no pci.ids: graphics cards are shown by their PCI ids"
+nvd="$(find "$S/usr/lib/modules" -name 'nvidia*.ko*' 2>/dev/null | head -n1 || true)"
+[[ -z "$nvd" ]] && ! compgen -G "$S/usr/lib/x86_64-linux-gnu/libnvidia-glcore.so*" >/dev/null \
+  && pass "no NVIDIA driver bundled in the image (downloaded during the installation)" || warn "an NVIDIA driver is bundled in the image: $nvd"
+grep -qs 'Driver' "$S"/etc/X11/xorg.conf.d/*.conf && fail "an /etc/X11/xorg.conf.d file forces an Xorg driver (the NVIDIA driver must stay possible)" \
+  || pass "no Xorg driver forced in /etc/X11/xorg.conf.d (noaccel.conf is only used without a GPU / nvidia)"
 bad="$(find "$S/usr/bin" "$S/usr/lib/aurora" -maxdepth 1 -name 'aurora-*' -type f ! -perm -0755 ! -name aurora-common | sed "s|^$S||")"
 [[ -z "$bad" ]] && pass "session entry points are executable" || fail "not executable: $bad"
 
