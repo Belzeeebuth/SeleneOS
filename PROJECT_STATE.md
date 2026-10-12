@@ -4,11 +4,12 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-11 17:45 UTC — app phases 3 and 4 done (12 apps), renamed to Selene OS (new crescent-moon logo), ISO selene-os-1.0.0-amd64.iso rebuilt: verify-iso 0 failures, smoke-image passes._
+_Last updated: 2026-10-12 01:30 UTC — visual redesign (Selene design system, 3 styles) nearly done: last tracks finishing, then strings pass, full test sweep and ISO rebuild._
 
 ## What this is
 
-A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
+A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a Windows 11-like desktop; since the
+2026-10-11 redesign it has its own night-sky look (docs/design/BRIEF.md, docs/design/SYSTEM.md):
 - **Base:** Ubuntu 24.04 (noble), pinned via snapshot.ubuntu.com.
 - **Live session:** casper.
 - **Login and session:** greetd → Electron login screen → Xorg → fullscreen Electron "Selene Shell", which draws the taskbar, the Launcher, windows and all apps.
@@ -39,6 +40,7 @@ A Windows 11-like desktop OS delivered as a bootable/installable ISO for QEMU:
 | App phase 4 (PHASEAPP.md) | **done** — weather, maps, contacts, sticky, translate, remote (VNC) |
 | Linux GUI apps (external X11 windows) | **done** — aurora-xwm helper (python3-xlib) + shaped shell window + frames, .desktop entries in Start/search, 12 GUI apps in the Store; see docs/XWINDOWS.md |
 | Store sources (Flathub + Ubuntu AppStream) | **done** — per-user Flatpak installs from Flathub (no root), full Ubuntu desktop-app catalogue from DEP-11 (apt installs through aurora-admin, verified against root-owned DEP-11 lists; image packages never removable); merged catalogue UI; see docs/STORE-SOURCES.md |
+| Visual redesign (user request, 2026-10-11) | **nearly done** — brief in docs/design/BRIEF.md (all user answers), system in docs/design/SYSTEM.md; styles Nocturne (default) / Éclipse / Clair de lune / Contraste élevé × ambiances × accents; Phosphor icons, Manrope + Inter, new app icons, wallpapers, logo, GRUB/Plymouth; Windows names replaced (Lanceur, Fichiers, Moniteur système…); bar icons centred in every style |
 | App phase 2 | not started — wait for the user's go; run it like phases 3–4 (one workflow per app, all in parallel) |
 
 ### App / area status (every area has its own test suite in shell/test/)
@@ -64,6 +66,7 @@ aurora-os/
   docs/BUILDING.md        build, QEMU run/install instructions (EN + FR)
   docs/DEVELOPING.md      architecture, app contract, UI kit, backend API (all channels), app list
   docs/PERSONALIZATION.md settings schema and behaviour of every personalization feature
+  docs/design/            redesign brief (user answers), design system, mockups, previews
   docs/screenshots/       test screenshots
   iso/config.sh build.sh Dockerfile packages.d/*.list   ISO build (debootstrap → squashfs → grub-mkrescue)
   rootfs/                 overlay copied into the image (session scripts, greetd, polkit, sudoers, helpers)
@@ -80,7 +83,7 @@ aurora-os/
     renderer/core/        wm, taskbar, start, desktop, ui kit, i18n, theme, settings, notify, sounds,
                           registry, services (ctx.shell), reminders (shared alarms), greeter/, features/*
     renderer/apps/<id>/   manifest.json main.js style.css i18n.json icon.svg (+ app modules)
-    renderer/assets/      Fluent icons (fluent.json), wallpapers, logos
+    renderer/assets/      Phosphor icons (phosphor.json + aliases.json), fonts (Manrope, Inter), wallpapers, logos
     test/lib.mjs smoke.mjs <area>.test.mjs   Playwright-driven Electron tests (run under xvfb)
     test/run-all.mjs      runs every suite (make test-all)
 ```

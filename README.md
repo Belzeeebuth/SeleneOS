@@ -1,9 +1,9 @@
 # Selene OS
 
-A Windows 11–style desktop operating system you can boot live from an ISO and install in a virtual
-machine. It is built on **Ubuntu 24.04 LTS**, with a fully custom desktop: the shell, the window
-manager, the login screen and every app are written from scratch for Selene OS. Everything is
-available in **English and French**, in light and dark themes.
+A desktop operating system you can boot live from an ISO and install in a virtual machine. It is
+built on **Ubuntu 24.04 LTS**, with a fully custom desktop: the shell, the window manager, the login
+screen and every app are written from scratch for Selene OS, with a night-sky look of their own.
+Everything is available in **English and French**, dark by default, with a light mode.
 
 ![Selene OS desktop](docs/screenshots/shell-desktop.png)
 
@@ -11,28 +11,30 @@ available in **English and French**, in light and dark themes.
 
 **Desktop**
 - Bar with centred app icons, Launcher with pinned apps, all apps and recommended files
-- Search, Quick settings (Wi-Fi, volume, dark mode, night light, do not disturb), calendar and
-  notification center, Dashboard
+- Search, Quick settings (Wi-Fi, volume, dark mode, night light, do not disturb), calendar,
+  notifications drawer, Dashboard
 - Window manager drawn by the shell itself: open/close/minimize/maximize animations, edge snapping,
   Layouts, Snap assist, Alt+Tab, Overview with virtual desktops
-- Windows 11-like visuals: Mica windows, acrylic blur, accent colors, original wallpapers, light/dark mode
+- Selene design: three styles (Nocturne, Éclipse, Clair de lune) plus High contrast, cold / neutral / warm
+  ambiances, four accents (silver, night blue, violet, amber), Manrope and Inter fonts, Phosphor icons,
+  app icons on a common night-blue base, original wallpapers ([docs/design/SYSTEM.md](docs/design/SYSTEM.md))
 - Keyboard shortcuts: Super, Super+D/E/I/L/A/N/S/R/X, Super+Tab, Super+arrows, Alt+Tab, Alt+F4,
   Ctrl+Shift+Esc, Ctrl+Alt+Del, PrintScreen / Super+Shift+S
-- Regular Linux applications (GIMP, LibreOffice, VLC, Inkscape…) open in Selene windows with taskbar, Alt+Tab,
+- Regular Linux applications (GIMP, LibreOffice, VLC, Inkscape…) open in Selene windows with bar entries, Alt+Tab,
   snapping and the light/dark theme; installed programs appear in the Launcher and search ([docs/XWINDOWS.md](docs/XWINDOWS.md))
 - Login screen and lock screen with PAM authentication, "Administrator permission" prompts for admin
   actions, firewall (ufw) enabled by default
 
 **Personalization** (details in [docs/PERSONALIZATION.md](docs/PERSONALIZATION.md))
-- Theme designer: accent color, wallpaper, lock screen, taskbar color, window transparency and blur intensity;
+- Theme designer: style, ambiance, accent color, wallpaper, lock screen, bar color, window transparency and blur intensity;
   font, text size, rounded corners, UI scale and reduced motion
 - Four visual styles (Nocturne, Éclipse, Clair de lune, High contrast) and per-app light / dark / accent themes
 - Animated wallpapers, and dynamic wallpapers that follow the time of day and the weather; slideshow
-- Taskbar (size, position, icons, indicators, transparency, auto-hide) and Launcher (layouts, pinned apps,
+- Bar (size, position, icons, indicators, transparency, auto-hide) and Launcher (layouts, pinned apps,
   folders, recommended files, background style)
 - Cursor, icon and sound packs, with custom notification, startup and shutdown sounds
 - Custom layouts and fully customizable keyboard shortcuts
-- Focus: hides notifications, dims the desktop and simplifies the taskbar, with a session timer
+- Focus: hides notifications, dims the desktop and simplifies the bar, with a session timer
 - Profiles: save the whole look and switch themes in one click; export and import
 
 **Apps**
@@ -40,7 +42,7 @@ available in **English and French**, in light and dark themes.
 | App | Highlights |
 |---|---|
 | Browser | Chromium engine, tabs, bookmarks bar and manager, history, downloads, private windows, find, zoom |
-| Files | Tabs, breadcrumb bar, copy/cut/paste, rename, delete to Recycle Bin, search, drives (mount/eject), properties |
+| Files | Home page with folders, recent files and favourites; tabs, breadcrumb, copy/cut/paste, rename, Trash, search, drives (mount/eject), properties |
 | Mail | IMAP/SMTP accounts with provider presets (Gmail, Outlook, Yahoo, iCloud, Orange, Free…), compose, attachments, webmail shortcut |
 | Draw | Brushes, shapes, fill, text, eraser, color picker, selection, undo/redo, PNG/JPEG/BMP/WebP save |
 | Calculator | Standard, Scientific, Programmer, date calculation and unit converters, history and memory |
@@ -70,7 +72,7 @@ available in **English and French**, in light and dark themes.
 | Cloud | Nextcloud / WebDAV files: browse, upload, download |
 | Network tools | VPN and WireGuard connections, ping, DNS lookup |
 | Games | Minesweeper, Solitaire, Snake, 2048, Chess (with a computer opponent) |
-| Installer | Windows Setup–style installer: language, keyboard, disk, account, time zone |
+| Installer | Language, keyboard, disk, account, time zone |
 
 ## Quick start
 
@@ -132,13 +134,14 @@ aurora-os/
   iso/        ISO build scripts (debootstrap -> squashfs -> hybrid BIOS/UEFI ISO)
   tools/      QEMU launcher and helpers
   docs/       BUILDING.md (build, run, install), DEVELOPING.md (architecture, app API),
-              PERSONALIZATION.md (themes, styles, wallpapers, taskbar, packs, profiles)
+              PERSONALIZATION.md (themes, styles, wallpapers, bar, packs, profiles),
+              design/ (redesign brief, design system, mockups)
 ```
 
 **Architecture:**
 - Ubuntu 24.04 base (pinned archive snapshot for reproducible builds) with casper for the live session.
 - greetd starts the Selene login screen. After sign-in, Xorg runs the fullscreen Electron shell, which
-  draws the taskbar, the Launcher and every window.
+  draws the bar, the Launcher and every window.
 - System features use standard Linux services: NetworkManager, PipeWire, udisks2, systemd-logind and
   ufw.
 
@@ -157,7 +160,6 @@ for the app contract, the UI kit and the backend API.
 
 ## License
 
-The Selene shell, apps, scripts and artwork are released under the MIT license. Icons come from
-Microsoft's Fluent UI System Icons (MIT). The base system is Ubuntu, and its components keep their
-own licenses. Selene OS is not affiliated with Microsoft. "Windows" is a trademark of Microsoft
-Corporation.
+The Selene shell, apps, scripts and artwork are released under the MIT license. Interface icons come
+from Phosphor Icons (MIT); the Manrope and Inter fonts are under the SIL Open Font License. The base
+system is Ubuntu, and its components keep their own licenses.
