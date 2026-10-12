@@ -58,7 +58,7 @@ export class StopwatchPage {
     this.el = h(
       'section',
       { class: 'ck-sw' },
-      h('div', { class: 'ck-sw-top' }, this.expandBtn),
+      h('div', { class: 'ck-sw-top' }, h('h1', { class: 'ck-page-title ck-sw-title ellipsis' }, t('nav.stopwatch')), this.expandBtn),
       h('div', { class: 'ck-sw-center' }, this.display, h('div', { class: 'ck-sw-actions' }, this.playBtn, this.lapBtn, this.resetBtn), h('div', { class: 'ck-sw-hint caption text-2' }, t('stopwatch.hint'))),
       this.laps,
     );

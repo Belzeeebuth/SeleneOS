@@ -17,7 +17,7 @@ export class UsersPage {
     this.expanded = new Map();
     this.sort = app.prefs.sort.users || { id: 'name', dir: 1 };
     this.table = new VTable({
-      header: 'two-line',
+      header: 'one-line',
       rowHeight: 30,
       label: app.t('nav.users'),
       widths: app.prefs.widths.users,
@@ -58,7 +58,7 @@ export class UsersPage {
     this.table.setColumns([
       { id: 'name', name: true, flex: true, max: 560, width: 260, min: 140, label: () => t('col.userCol'), cell: (r) => ({ text: r.data.label, icon: r.data.icon }) },
       { id: 'status', width: 120, min: 60, label: () => t('col.status'), fit: () => ['active', 'online', 'closing', 'disconnected'].map((k) => t(`user.status.${k}`)), cell: (r) => r.data.statusText || '' },
-      { id: 'cpu', width: 88, min: 60, align: 'end', heat: true, label: () => t('col.cpu'), top: () => (perf() ? fmt.pct(perf().cpu.total) : ''), hot: () => (perf()?.cpu.total || 0) >= 85, cell: (r) => ({ text: fmt.cpu(r.data.cpu), heat: heat(r.data.cpu / 100) }) },
+      { id: 'cpu', width: 88, min: 60, align: 'end', heat: true, label: () => t('col.cpu'), cell: (r) => ({ text: fmt.cpu(r.data.cpu), heat: heat(r.data.cpu / 100) }) },
       {
         id: 'mem',
         width: 104,
@@ -66,11 +66,9 @@ export class UsersPage {
         align: 'end',
         heat: true,
         label: () => t('col.mem'),
-        top: () => (perf() ? fmt.pct((perf().mem.used / total()) * 100) : ''),
-        hot: () => (perf() ? perf().mem.used / total() >= 0.85 : false),
         cell: (r) => ({ text: fmt.mb(r.data.mem), heat: heat((r.data.mem / total()) * 4) }),
       },
-      { id: 'disk', width: 92, min: 60, align: 'end', heat: true, label: () => t('col.disk'), top: () => (perf() ? fmt.pct(Math.max(0, ...perf().disks.map((d) => d.busyPct))) : ''), cell: (r) => ({ text: fmt.mbps(r.data.disk), heat: heat(r.data.disk / DISK_SCALE) }) },
+      { id: 'disk', width: 92, min: 60, align: 'end', heat: true, label: () => t('col.disk'), cell: (r) => ({ text: fmt.mbps(r.data.disk), heat: heat(r.data.disk / DISK_SCALE) }) },
     ]);
   }
 

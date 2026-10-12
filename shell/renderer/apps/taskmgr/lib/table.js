@@ -339,6 +339,13 @@ export class VTable {
           if (hv === '') delete slot.el.dataset.h;
           else slot.el.dataset.h = hv;
         }
+        // Inline usage bar under the value (0..1); falls back to the heat level in CSS.
+        const bv = v.bar == null || hv === '' ? '' : String(Math.round(Math.max(0, Math.min(1, v.bar)) * 1000) / 1000);
+        if (slot.bar !== bv) {
+          slot.bar = bv;
+          if (bv === '') slot.el.style.removeProperty('--tm-bar');
+          else slot.el.style.setProperty('--tm-bar', bv);
+        }
         const ik = v.icon ? iconKey(v.icon) : '';
         if (slot.ik !== ik) {
           slot.ik = ik;

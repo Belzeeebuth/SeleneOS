@@ -102,7 +102,8 @@ export function moonPhase(date = new Date()) {
   return { age, lit: (1 - Math.cos(2 * Math.PI * age)) / 2, index: Math.round(age * 8) % 8 };
 }
 
-// The moon drawn in the theme colours: a dim disc and its lit part (terminator as a half ellipse).
+// The moon drawn in the theme colours: an unlit disc (dark, with an outline) and its lit part (terminator as a half
+// ellipse). A new moon is the unlit disc alone, never a light one.
 function moonSvg(age, size = 64) {
   const r = 28;
   const c = 32;
@@ -112,7 +113,9 @@ function moonSvg(age, size = 64) {
   const outer = waxing ? 1 : 0;
   const term = waxing ? (k > 0 ? 0 : 1) : k > 0 ? 1 : 0;
   const lit = `M ${c} ${c - r} A ${r} ${r} 0 0 ${outer} ${c} ${c + r} A ${rx} ${r} 0 0 ${term} ${c} ${c - r} Z`;
-  return `<svg class="wg-moon-svg" viewBox="0 0 64 64" width="${size}" height="${size}" aria-hidden="true"><circle class="wg-moon-dark" cx="${c}" cy="${c}" r="${r}"/><path class="wg-moon-lit" d="${lit}"/></svg>`;
+  const litFrac = (1 - k) / 2;
+  const litPath = litFrac < 0.02 ? '' : `<path class="wg-moon-lit" d="${lit}"/>`;
+  return `<svg class="wg-moon-svg" viewBox="0 0 64 64" width="${size}" height="${size}" aria-hidden="true"><circle class="wg-moon-dark" cx="${c}" cy="${c}" r="${r}"/>${litPath}</svg>`;
 }
 
 function card(cls, title, iconName, ...children) {
@@ -292,7 +295,8 @@ export function mount(c) {
   ctx = c;
   ctx.i18n.extend(STRINGS);
   ctx.ui.loadCss('app://shell/core/features/widgets.css');
-  root = ctx.h('div', { id: 'widgets-board', class: 'wg', role: 'dialog', 'aria-label': ctx.t('widgets.title') });
+  // The board itself takes the focus on open (tabindex -1, no ring): the gear shows a ring only once Tab reaches it.
+  root = ctx.h('div', { id: 'widgets-board', class: 'wg', role: 'dialog', tabindex: '-1', 'aria-label': ctx.t('widgets.title') });
   document.getElementById('flyouts').appendChild(root);
   fly = createFlyout({
     id: 'widgets',
@@ -303,7 +307,7 @@ export function mount(c) {
       timers.forEach(clearInterval);
       timers = [];
     },
-    focus: () => root.querySelector('.wg-icon-btn'),
+    focus: () => root,
   });
   ctx.shell.on('widgets:toggle', () => fly.toggle());
   ctx.shell.on('widgets:open', () => fly.open());

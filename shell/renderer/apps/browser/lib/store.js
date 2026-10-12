@@ -49,7 +49,7 @@ function seedBookmarks(t = null) {
           type: 'folder',
           title: 'Selene OS',
           added: now,
-          children: [mk(tr('seed.docs', 'Selene OS — documentation'), 'aurora://about'), mk(tr('seed.settings', 'Selene Browser settings'), 'aurora://settings')],
+          children: [mk(tr('seed.docs', 'Selene OS — documentation'), 'aurora://about'), mk(tr('seed.settings', 'Browser settings'), 'aurora://settings')],
         },
       ],
     },

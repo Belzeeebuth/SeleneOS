@@ -34,8 +34,8 @@ export class PerformancePage {
       const ids = this.devices.map((d) => d.id);
       const i = ids.indexOf(this.selected);
       let j = null;
-      if (e.key === 'ArrowDown') j = Math.min(ids.length - 1, i + 1);
-      else if (e.key === 'ArrowUp') j = Math.max(0, i - 1);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') j = Math.min(ids.length - 1, i + 1);
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') j = Math.max(0, i - 1);
       else if (e.key === 'Home') j = 0;
       else if (e.key === 'End') j = ids.length - 1;
       if (j == null) return;

@@ -896,6 +896,12 @@ export function createChrome(app) {
       }
       refs.brushes.classList.toggle('on', S.tool === 'brush');
       refs.shapesBtn.classList.toggle('on', S.tool === 'shape');
+      // The options bar shows the active tool's options: outline and fill only for shapes.
+      const noShapeOpts = S.tool !== 'shape';
+      if ((refs.shapeOpts.style.display === 'none') !== noShapeOpts) {
+        refs.shapeOpts.style.display = noShapeOpts ? 'none' : '';
+        if (refs.bar?.isConnected) requestAnimationFrame(fitBar);
+      }
       if (refs.shapesBtn.dataset.shape !== S.shape) {
         refs.shapesBtn.dataset.shape = S.shape;
         refs.shapesBtn.firstChild.replaceWith(svgIcon(shapeIcon(S.shape || 'rect'), { size: 20 }));

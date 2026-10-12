@@ -94,8 +94,8 @@
     "enterPassword": "Pour continuer, entrez le mot de passe de {user}."
   },
   "taskbar": {
-    "pin": "Épingler à la barre des tâches",
-    "unpin": "Détacher de la barre des tâches",
+    "pin": "Épingler à la barre",
+    "unpin": "Détacher de la barre",
     "closeAll": "Fermer toutes les fenêtres",
     "closeWindow": "Fermer la fenêtre",
     "start": "Lanceur",
@@ -104,7 +104,7 @@
     "widgets": "Tableau de bord",
     "quickSettings": "Réseau, son",
     "showDesktop": "Afficher le bureau",
-    "settings": "Paramètres de la barre des tâches",
+    "settings": "Paramètres de la barre",
     "taskManager": "Moniteur système"
   },
   "start": {

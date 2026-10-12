@@ -859,22 +859,14 @@
   background: var(--subtle-pressed);
   color: var(--text-2);
 }
+/* selected mode: the system row hook (overlay, plus the edge bar only where the style asks for it) */
 .app-calculator .calc-nav-item.selected {
-  background: var(--subtle-selected);
+  background: var(--sel-bg, var(--subtle-selected));
+  box-shadow: inset var(--sel-bar-w, 0) 0 0 var(--sel-bar, var(--accent));
+  font-weight: 600;
 }
-.app-calculator .calc-nav-item.selected::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 3px;
-  height: 16px;
-  margin-top: -8px;
-  border-radius: 2px;
-  background: var(--accent);
-}
-.app-calculator .calc.nav-open .calc-nav-item.selected::before {
-  animation: calc-pill var(--dur-slower) var(--ease);
+.app-calculator .calc-nav-item.selected .icon {
+  color: var(--accent-text);
 }
 .app-calculator .calc-nav-item .icon {
   width: 16px;

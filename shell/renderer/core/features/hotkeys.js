@@ -4,7 +4,7 @@
 //
 //   Super                 Start                       Super+Tab / Super+Ctrl+D/F4/←/→   Task View / desktops
 //   Super+D / M / Shift+M  show desktop / minimise all / restore all                 Super+Home  minimise others
-//   Super+E files   Super+I settings   Super+L lock   Super+A quick settings   Super+N notifications
+//   Super+E files   Super+I settings   Super+L lock   Super+A quick settings   Super+N notifications (drawer)
 //   Super+S / Q search   Super+W widgets   Super+R Run   Super+X power menu   Super+Z snap layouts
 //   Super+←/→/↑/↓  snap / maximise / restore / minimise (cycles like Windows)   Super+Shift+↑ vertical maximise
 //   Super+1..9  activate / launch the nth taskbar app   Super+Shift+S, PrintScreen  screen snip
@@ -318,7 +318,7 @@ const ACTIONS = {
     shell.lock();
   },
   'Super+A': () => shell.emit('quick:toggle'),
-  'Super+N': () => shell.emit('calendar:toggle'),
+  'Super+N': () => shell.emit('notifications:toggle'),
   'Super+S': () => shell.emit('search:toggle'),
   'Super+Q': () => shell.emit('search:toggle'),
   'Super+W': () => shell.emit('widgets:toggle'),

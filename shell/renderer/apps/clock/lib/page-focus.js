@@ -3,7 +3,7 @@
 // (restored at the end), daily goal ring, streak, yesterday, and today's sessions.
 import { MIN, hms, dayKey, addDays, minutesText } from './time.js';
 import { planSegments, FOCUS_MIN, FOCUS_MAX } from './store.js';
-import { progressRing, spinner, enter, reduceMotion } from './widgets.js';
+import { progressRing, spinner, enter, reduceMotion, commandBar } from './widgets.js';
 
 const GOALS = [15, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480];
 
@@ -22,7 +22,8 @@ export class FocusPage {
     this.main = h('div', { class: 'card ck-focus-main' });
     this.progress = h('div', { class: 'card ck-focus-progress' });
     this.logCard = h('div', { class: 'card ck-focus-log' });
-    this.el = h('section', { class: 'ck-focus' }, h('div', { class: 'ck-focus-grid' }, this.main, h('div', { class: 'ck-focus-side' }, this.progress, this.logCard)));
+    // every page starts with its title, like Alarms and Timers
+    this.el = h('section', { class: 'ck-focus' }, commandBar(h, [], { title: this.app.t('nav.focus') }), h('div', { class: 'ck-focus-grid' }, this.main, h('div', { class: 'ck-focus-side' }, this.progress, this.logCard)));
     this.buildProgress();
     this.render();
     return this.el;

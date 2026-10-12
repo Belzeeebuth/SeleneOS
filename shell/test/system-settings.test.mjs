@@ -375,7 +375,7 @@ async function lightEnglish() {
     check((await s.page.locator(S('.st-nav-item')).count()) === 13, 'nav has the 12 categories and the account row');
     check(eq(await s.aurora(() => [...document.querySelectorAll('.app-settings .st-nav-heading')].map((e) => e.textContent)), ['Appearance', 'Connections', 'System']), 'nav categories are grouped under Appearance, Connections and System');
     check(await s.aurora(() => { const p = document.querySelector('.app-settings .st-pane'); const u = p.querySelector('.st-user'); const q = p.querySelector('.st-search'); return !!u && u.dataset.cat === 'accounts' && q.getBoundingClientRect().top < p.querySelector('.st-nav').getBoundingClientRect().top && u.getBoundingClientRect().top > p.querySelector('.st-nav').getBoundingClientRect().bottom - 1; }), 'search on top of the pane, the account row at the bottom');
-    check((await s.page.locator(S('.st-title')).innerText()).trim() === 'Overview', 'opens on the Overview page (the System group heading stays)');
+    check((await s.page.locator(S('.st-title')).innerText()).trim() === 'Home', 'opens on the Home page (the System group heading stays)');
     check(await s.page.locator('.app-settings .st-tb-back').isDisabled(), 'back button disabled on the first page');
     await docShot(s, 'system-light-en');
 
@@ -645,10 +645,10 @@ async function lightEnglish() {
     await go(s, 'language');
     await pickCombo(s, 'Selene display language', 'Français');
     await sleep(700);
-    check((await get(s, 'lang')) === 'fr' && (await s.page.locator(S('.st-nav-item[data-cat="system"]')).innerText()).includes('Vue d’ensemble'), 'display language switches the shell to French live');
+    check((await get(s, 'lang')) === 'fr' && (await s.page.locator(S('.st-nav-item[data-cat="system"]')).innerText()).includes('Accueil'), 'display language switches the shell to French live');
     await pickCombo(s, 'Langue d’affichage de Selene', 'English');
     await sleep(700);
-    check((await s.page.locator(S('.st-nav-item[data-cat="system"]')).innerText()).includes('Overview'), 'and back to English');
+    check((await s.page.locator(S('.st-nav-item[data-cat="system"]')).innerText()).includes('Home'), 'and back to English');
 
     // ---- Privacy: firewall
     await go(s, 'privacy');
@@ -773,7 +773,7 @@ async function darkFrench() {
   try {
     await s.page.waitForSelector(S('.st-page[data-page="system"]'), { timeout: 20000 });
     await sleep(600);
-    check((await s.page.locator(S('.st-title')).innerText()).trim() === 'Vue d’ensemble', 'opens in French');
+    check((await s.page.locator(S('.st-title')).innerText()).trim() === 'Accueil', 'opens in French');
     const pages = ['system', 'display', 'sound', 'network', 'wifi', 'personalization', 'colors', 'background', 'accounts', 'users', 'time', 'language', 'keyboard', 'privacy', 'update', 'about', 'installedApps', 'power', 'storage'];
     const over = [];
     const stray = [];

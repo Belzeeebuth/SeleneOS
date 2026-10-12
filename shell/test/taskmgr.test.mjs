@@ -274,16 +274,22 @@ try {
   const rows = () => tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes.table.rows.map((r) => ({ key: r.key, kind: r.kind, label: r.label, name: r.data?.name, type: r.data?.type, cpu: r.data?.cpu, depth: r.depth, parentKey: r.parentKey, pid: r.data?.pid })));
   let R = await rows();
   const groups = R.filter((r) => r.kind === 'group').map((r) => r.label);
-  check('Apps / Background / Selene groups', groups.some((g) => /^Apps \(2\)$/.test(g)) && groups.some((g) => /^Background processes \(\d+\)$/.test(g)) && groups.some((g) => /^Selene processes \(\d+\)$/.test(g)), groups);
+  // Grouped by application: one top-level row per app (apps first), the user's other programs,
+  // and a single "System" group for the shell, the kernel and the other accounts.
+  const top = R.filter((r) => r.kind === 'item' && r.depth === 0 && r.parentKey == null);
+  check('rows grouped by application + one System group', groups.length === 1 && /^System \(\d+\)$/.test(groups[0]) && top.filter((r) => r.type === 'app').length === 2 && top.findIndex((r) => r.type !== 'app') >= 2 && top.some((r) => r.type === 'proc' || r.type === 'pgroup'), { groups, top: top.slice(0, 4) });
   check('app rows for open windows', R.some((r) => r.type === 'app' && r.name === 'Calculator') && R.some((r) => r.type === 'app' && r.name === 'System Monitor'));
   check('Selene Shell row', R.some((r) => r.type === 'shell' && /^Selene Shell \(\d+\)$/.test(r.name)), R.filter((r) => r.type === 'shell'));
   check('Linux kernel row', R.some((r) => r.type === 'kernel'));
   const imgs = await page.$$eval('.app-taskmgr img', (els) => els.map((e) => ({ src: e.getAttribute('src'), ok: e.complete && e.naturalWidth > 0 })));
   check("Task Manager's images all load", imgs.length > 0 && imgs.every((i) => i.ok), imgs.filter((i) => !i.ok));
   const heads = await page.$$eval('.app-taskmgr .tm-page-processes .tm-th', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
-  check('column headers with totals', heads.some((x) => /^\d+% CPU$/.test(x)) && heads.some((x) => /^\d+% Memory$/.test(x)) && heads.some((x) => /^\d+% Disk$/.test(x)), heads);
-  const heat = await page.$$eval('.app-taskmgr .tm-page-processes .tm-td[data-h]', (els) => els.length);
-  check('heat-map cells rendered', heat > 10, heat);
+  check('column headers without totals', heads.includes('CPU') && heads.includes('Memory') && heads.includes('Disk') && !(await page.$('.app-taskmgr .tm-page-processes .tm-th-top')), heads);
+  const bars = await page.$$eval('.app-taskmgr .tm-page-processes .tm-td[data-h]', (els) => ({ n: els.length, withBar: els.filter((e) => e.style.getPropertyValue('--tm-bar') !== '').length, tinted: els.filter((e) => getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)').length }));
+  check('inline usage bars rendered (no tinted cells)', bars.n > 10 && bars.withBar > 10 && bars.tinted === 0, bars);
+  // The meters strip: four meters with a value and a sparkline.
+  const meters = await page.$$eval('.app-taskmgr .tm-meters .tm-meter', (els) => els.map((e) => ({ id: e.dataset.meter, val: e.querySelector('.tm-meter-val').textContent, spark: !!e.querySelector('.tm-spark-line')?.getAttribute('d') })));
+  check('four meters with values and sparklines', meters.map((m) => m.id).join() === 'cpu,mem,disk,net' && meters.every((m) => m.val && m.val !== '—') && meters.filter((m) => m.spark).length >= 3, meters);
   // The Selene processes group is far down the (virtualized) list: bring the row into view first.
   await tm(() => {
     const t = window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes.table;
@@ -326,14 +332,13 @@ try {
   await page.click('.app-taskmgr .tm-page-processes .tm-th[data-col="cpu"]');
   await sleep(300);
   R = await rows();
-  const bgKey = R.find((r) => r.kind === 'group' && /^Background/.test(r.label))?.key;
-  const bgCpu = R.filter((r) => r.parentKey === bgKey && r.depth === 0).map((r) => r.cpu);
+  const bgCpu = R.filter((r) => r.kind === 'item' && r.parentKey == null && r.depth === 0 && r.type !== 'app').map((r) => r.cpu);
   check('sort by CPU (descending first)', bgCpu.length > 2 && bgCpu.every((v, i) => i === 0 || bgCpu[i - 1] >= v), bgCpu.slice(0, 10));
   check('sort indicator on the CPU header', await page.$eval('.app-taskmgr .tm-page-processes .tm-th[data-col="cpu"]', (e) => e.classList.contains('sorted') && e.classList.contains('desc') && e.getAttribute('aria-sort') === 'descending'));
   await page.click('.app-taskmgr .tm-page-processes .tm-th[data-col="name"]');
   await sleep(300);
   R = await rows();
-  const bgNames = R.filter((r) => r.parentKey === bgKey && r.depth === 0).map((r) => r.name.toLowerCase());
+  const bgNames = R.filter((r) => r.kind === 'item' && r.parentKey == null && r.depth === 0 && r.type !== 'app').map((r) => r.name.toLowerCase());
   check('sort by name (ascending)', bgNames.every((v, i) => i === 0 || bgNames[i - 1].localeCompare(v, undefined, { sensitivity: 'base', numeric: true }) <= 0), bgNames.slice(0, 12));
 
   // ---- keyboard: arrows move the selection, Ctrl+F focuses search
@@ -385,7 +390,7 @@ try {
   check('End task closes the app window', closed);
   await sleep(300);
   R = await rows();
-  check('app row disappears', !R.some((r) => r.name === 'Calculator') && R.some((r) => /^Apps \(1\)$/.test(r.label || '')), R.filter((r) => r.kind === 'group').map((r) => r.label));
+  check('app row disappears', !R.some((r) => r.name === 'Calculator') && R.filter((r) => r.type === 'app' && r.depth === 0).length === 1, R.filter((r) => r.type === 'app').map((r) => r.name));
 
   // ---- apps with their own processes: a browser tab (<webview>) is measured and shown on the app row
   {
@@ -946,19 +951,25 @@ try {
   const ftm = (fn, arg) => f.aurora(fn, arg);
   await waitFor(() => ftm(() => window.__aurora.wm.byApp('taskmgr')[0]?.taskmgr?.store.procs?.length > 0));
   await sleep(2200);
-  const nav = await fp.$$eval('.app-taskmgr .tm-tab .tm-tab-label', (els) => els.map((e) => e.textContent));
-  check('French tabs', nav.join('|') === 'Processus|Performances|Démarrage|Utilisateurs|Services|Paramètres', nav);
-  const views = await fp.$$eval('.app-taskmgr .tm-views .tm-view', (els) => els.map((e) => e.textContent));
-  check('French Processes views', views.join('|') === 'Liste|Détails|Historique', views);
+  const nav = await fp.$$eval('.app-taskmgr .tm-meter .tm-meter-label', (els) => els.map((e) => e.textContent));
+  check('French meters', nav.join('|') === 'Processeur|Mémoire|Disque|Réseau', nav);
+  check('no tabs row, no title-bar search', !(await fp.$('.app-taskmgr .tm-tab, .app-taskmgr [role="tablist"], .app-taskmgr .win-titlebar .tm-search')));
+  check('French view button', (await fp.$eval('.app-taskmgr .tm-viewbtn', (e) => e.innerText.replace(/\s+/g, ' ').trim())) === 'Afficher : Processus');
+  await fp.click('.app-taskmgr .tm-viewbtn');
+  await sleep(300);
+  const views = await fp.$$eval('body > .menu .menu-item .label', (els) => els.map((e) => e.textContent));
+  check('French "Afficher" menu', ['Processus', 'Détails', 'Historique des applications', 'Démarrage', 'Services', 'Utilisateurs', 'Performances', 'Paramètres'].every((x) => views.includes(x)), views);
+  await fp.keyboard.press('Escape');
+  await sleep(200);
   const cmdLabels = await fp.$$eval('.app-taskmgr .tm-cmd', (els) => els.map((e) => e.getAttribute('aria-label')));
   check('French toolbar commands', cmdLabels.includes('Lancer une commande') && cmdLabels.includes('Arrêter le processus') && cmdLabels.includes('Priorité basse'), cmdLabels);
   const heads = await fp.$$eval('.app-taskmgr .tm-page-processes .tm-th', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
-  check('French headers', heads.some((x) => /^\d+ % Processeur$/.test(x)) && heads.some((x) => /Mémoire$/.test(x)), heads);
-  const tops = await fp.$$eval('.app-taskmgr .tm-page-processes .tm-th-top', (els) => els.map((e) => e.textContent));
-  check('French percent spacing (narrow no-break space)', tops.length >= 3 && tops.every((x) => /^\d+\u202f%$/.test(x)), tops);
+  check('French headers', heads.includes('Processeur') && heads.includes('Mémoire'), heads);
+  const tops = await fp.$$eval('.app-taskmgr .tm-meter:not([data-meter="net"]) .tm-meter-val', (els) => els.map((e) => e.textContent));
+  check('French percent spacing (narrow no-break space)', tops.length === 3 && tops.every((x) => /^\d+\u202f%$/.test(x)), tops);
   check('French search placeholder', (await fp.getAttribute('.app-taskmgr .tm-search-input', 'placeholder')) === 'Tapez un nom, un éditeur ou un PID pour rechercher');
   const groups = await ftm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes.table.rows.filter((r) => r.kind === 'group').map((r) => r.label));
-  check('French groups', groups.some((g) => /^Applications \(1\)$/.test(g)) && groups.some((g) => /^Processus en arrière-plan/.test(g)), groups);
+  check('French groups', groups.length === 1 && /^Système \(\d+\)$/.test(groups[0]), groups);
   await ftm(() => {
     const t = window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes.table;
     t.select('shell');
@@ -1043,53 +1054,67 @@ try {
   let r = await box();
   await fp.screenshot({ path: path.join(DOCS, 'taskmgr-processes-dark-fr.png'), clip: { x: r.x - 16, y: r.y - 16, width: r.width + 32, height: r.height + 32 } });
 
-  // Minimum size: every tab visible, icon-only commands, nothing cut off.
+  // Minimum size: the four meters visible, icon-only commands, nothing cut off.
   await ftm(() => window.__aurora.wm.byApp('taskmgr')[0].setSize(600, 420));
   await sleep(700);
   r = await box();
   check('minimum size 600×420', Math.round(r.width) === 600 && Math.round(r.height) === 420, r);
   const small = await fp.$eval('.app-taskmgr', (el) => ({
-    tabsFit: (() => {
-      const l = el.querySelector('.tm-tablist');
-      return l.scrollWidth <= l.clientWidth + 1 && [...l.querySelectorAll('.tm-tab')].every((t) => t.offsetWidth > 0 && t.scrollWidth <= t.clientWidth + 1);
+    metersFit: (() => {
+      const l = el.querySelector('.tm-meters');
+      return l.scrollWidth <= l.clientWidth + 1 && [...l.querySelectorAll('.tm-meter')].every((t) => t.offsetWidth > 60 && t.scrollWidth <= t.clientWidth + 1);
     })(),
     compactCmds: el.querySelector('.tm-head').classList.contains('compact'),
-    viewsVisible: el.querySelector('.tm-views').offsetWidth > 120,
+    viewsVisible: el.querySelector('.tm-viewbtn').offsetWidth > 80,
     searchW: el.querySelector('.tm-search').offsetWidth,
+    headFits: (() => {
+      const hd = el.querySelector('.tm-head');
+      return hd.scrollWidth <= hd.clientWidth + 1;
+    })(),
+    // every command stays reachable (none clipped by the toolbar)
+    cmdsVisible: (() => {
+      const c = el.querySelector('.tm-cmds').getBoundingClientRect();
+      const list = [...el.querySelectorAll('.tm-cmds .tm-cmd')];
+      return list.length >= 3 && list.every((b) => {
+        const r = b.getBoundingClientRect();
+        return r.width > 20 && r.left >= c.left - 1 && r.right <= c.right + 1;
+      });
+    })(),
   }));
-  check('min size: all tabs fit + icon commands', small.tabsFit && small.compactCmds && small.viewsVisible && small.searchW > 120, small);
+  check('min size: meters fit + icon commands', small.metersFit && small.compactCmds && small.viewsVisible && small.searchW >= 120 && small.headFits && small.cmdsVisible, small);
   await fp.screenshot({ path: path.join(DOCS, 'taskmgr-minsize-dark-fr.png'), clip: { x: r.x - 16, y: r.y - 16, width: r.width + 32, height: r.height + 32 } });
-  // The Processes tab holds three views (list, details, history) behind a switch in the toolbar.
-  await fp.click('.app-taskmgr .tm-view[data-view="details"]');
+  // The "Afficher :" menu switches views (keyboard: Enter opens it, arrows + Enter pick).
+  await fp.focus('.app-taskmgr .tm-viewbtn');
+  await fp.keyboard.press('Enter');
+  await sleep(300);
+  await fp.locator('body > .menu .menu-item', { hasText: /^Détails$/ }).click();
   await sleep(500);
   const viewState = async () =>
     fp.$eval('.app-taskmgr', (el) => ({
       page: el.querySelector('.tm-page:not([hidden])')?.className,
       title: el.querySelector('.tm-title').textContent,
-      tab: el.querySelector('.tm-tab.selected')?.dataset.page,
-      pressed: el.querySelector('.tm-view[aria-pressed="true"]')?.dataset.view,
+      view: el.querySelector('.tm-viewbtn-label').textContent,
+      meter: el.querySelector('.tm-meter[aria-pressed="true"]')?.dataset.meter || null,
+      dev: el.querySelector('.tm-dev.selected')?.dataset.dev || null,
     }));
   let vs = await viewState();
-  check('Details view: Processes tab stays selected', /tm-page-details/.test(vs.page) && vs.title === 'Détails' && vs.tab === 'processes' && vs.pressed === 'details', vs);
-  // Arrow keys move between tabs; the Processes tab reopens the last view used.
-  await fp.click('.app-taskmgr .tm-tab[data-page="performance"]');
-  await sleep(400);
-  check('views switch hidden outside the Processes tab', await fp.$eval('.app-taskmgr .tm-views', (e) => e.hidden));
-  await fp.focus('.app-taskmgr .tm-tab[data-page="performance"]');
-  await fp.keyboard.press('ArrowLeft');
-  check('ArrowLeft moves focus to the previous tab', await fp.evaluate(() => document.activeElement?.dataset?.page === 'processes'));
+  check('Details view from the "Afficher" menu', /tm-page-details/.test(vs.page) && vs.title === 'Détails' && vs.view === 'Détails' && vs.meter === null, vs);
+  // A meter opens the Performances detail on its device; arrow keys move between the meters.
+  await fp.focus('.app-taskmgr .tm-meter[data-meter="cpu"]');
+  await fp.keyboard.press('ArrowRight');
+  check('ArrowRight moves focus to the next meter', await fp.evaluate(() => document.activeElement?.dataset?.meter === 'mem'));
   await fp.keyboard.press('Enter');
-  await sleep(500);
+  await sleep(600);
   vs = await viewState();
-  check('Processes tab reopens the last view', /tm-page-details/.test(vs.page) && vs.tab === 'processes', vs);
+  check('Memory meter opens the Performances detail on memory', /tm-page-performance/.test(vs.page) && vs.view === 'Performances' && vs.meter === 'mem' && vs.dev === 'mem', vs);
   await ftm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.go('performance', { focus: false }));
   await sleep(1500);
   await fp.screenshot({ path: path.join(DOCS, 'taskmgr-performance-minsize-dark-fr.png'), clip: { x: r.x - 16, y: r.y - 16, width: r.width + 32, height: r.height + 32 } });
   // Maximized: expanded navigation pane.
   await ftm(() => window.__aurora.wm.byApp('taskmgr')[0].maximize());
   await sleep(900);
-  check('maximized: tab bar across the top', await fp.$eval('.app-taskmgr', (e) => {
-    const bar = e.querySelector('.tm-tabbar').getBoundingClientRect();
+  check('maximized: meters strip across the top', await fp.$eval('.app-taskmgr', (e) => {
+    const bar = e.querySelector('.tm-meters').getBoundingClientRect();
     const main = e.querySelector('.tm-main').getBoundingClientRect();
     return bar.width > 1000 && bar.bottom <= main.top + 1;
   }));

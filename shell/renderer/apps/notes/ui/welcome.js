@@ -31,7 +31,7 @@ const EN = {
 }</pre>
 <h3>Find anything</h3>
 <div>Search every note from the box at the top (<b>Ctrl+E</b>), or find text in this note with <b>Ctrl+F</b>. Type a hash sign right before a word to tag a note. Tags show up in the side pane, like these: #welcome #tips</div>
-<div>Links open in Selene Browser with Ctrl+click: <a href="https://en.wikipedia.org/wiki/Note-taking">Note-taking on Wikipedia</a></div>
+<div>Links open in the Browser with Ctrl+click: <a href="https://en.wikipedia.org/wiki/Note-taking">Note-taking on Wikipedia</a></div>
 <hr>
 <div>Export a note as Markdown, text or HTML, import <code>.md</code> files, or send it by e-mail from the <b>⋯</b> menu.</div>`,
 };

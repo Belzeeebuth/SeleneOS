@@ -1,16 +1,20 @@
-/* Volume / brightness OSD (features/osd.js): a small glass pill above the bar. Tokens only. */
+/* Volume / brightness OSD (features/osd.js): a slim vertical glass slab at the right edge of the screen, vertically
+   centred, with the icon on top, the level as a vertical gauge, and the value with its unit at the bottom.
+   It slides in from the edge. Tokens only. */
 .osd {
   position: fixed;
-  left: 50%;
-  bottom: calc(var(--taskbar-h) + var(--bar-margin, 0px) + 20px);
-  width: 232px;
-  height: 48px;
-  margin-left: -116px;
+  top: 50%;
+  right: 16px;
+  /* the bar's own rules may set a bottom: top + height win, bottom is then ignored */
+  height: 216px;
+  margin-top: -108px;
+  width: 56px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: 0 16px 0 14px;
-  border-radius: 24px;
+  padding: 16px 0 14px;
+  border-radius: var(--radius-float, 16px);
   background-color: var(--glass);
   background-image: var(--panel-grain);
   border: 1px solid var(--glass-line);
@@ -19,11 +23,11 @@
   color: var(--text);
   pointer-events: auto;
   opacity: 0;
-  transform: translateY(16px);
+  transform: translateX(16px);
   z-index: 9500;
 }
-body.tb-autohide .osd {
-  bottom: 48px;
+:root[data-tb-pos="right"] .osd {
+  right: calc(var(--taskbar-h) + 12px);
 }
 :root[data-transparency="off"] .osd {
   background-color: var(--glass-strong);
@@ -39,7 +43,7 @@ body.tb-autohide .osd {
 }
 .osd.hiding {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateX(8px);
   transition: transform var(--dur-slow) var(--ease-in), opacity var(--dur-slow) linear;
 }
 :root[data-animations="off"] .osd {
@@ -47,33 +51,32 @@ body.tb-autohide .osd {
 }
 .osd-icon {
   display: inline-flex;
+  flex: none;
+  color: var(--text-2);
 }
 .osd-bar {
   position: relative;
   flex: 1;
-  height: 4px;
-  border-radius: 2px;
+  width: 6px;
+  border-radius: 3px;
   background: var(--line);
   overflow: hidden;
 }
 .osd-fill {
   position: absolute;
-  inset: 0 auto 0 0;
-  width: var(--v, 0%);
-  border-radius: 2px;
+  inset: auto 0 0 0;
+  height: var(--v, 0%);
+  border-radius: 3px;
   background: var(--accent);
-  transition: width var(--dur-fast) var(--ease);
+  transition: height var(--dur-fast) var(--ease);
 }
 .osd.muted .osd-fill {
   background: var(--text-3);
 }
-.osd-icon {
-  color: var(--text-2);
-}
 .osd-value {
-  min-width: 40px;
+  flex: none;
   white-space: nowrap;
-  text-align: right;
+  text-align: center;
   font-size: var(--fs-small);
   font-weight: 600;
   font-variant-numeric: tabular-nums;

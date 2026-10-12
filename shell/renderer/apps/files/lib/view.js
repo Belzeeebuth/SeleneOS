@@ -1,7 +1,7 @@
 // Content area of File Explorer: Details / icons (XL, L, M, S) / List / Tiles views, the Home and
 // This PC pages, grouping, selection (click, Ctrl/Shift, rubber band, keyboard, type-to-find),
 // inline rename, thumbnails and drag & drop.
-import { shared, getColumns, saveColumns, pushUndo } from './shared.js';
+import { shared, getColumns, saveColumns, pushUndo, isFavorite } from './shared.js';
 import * as T from './types.js';
 import * as ops from './ops.js';
 import { TRASH_TARGET } from './dnd.js';
@@ -11,18 +11,19 @@ export const VIEW_MODES = MODES;
 const ICON_SIZE = { xl: 256, large: 96, medium: 48, small: 16, list: 16, details: 16, tiles: 48 };
 
 const COLSETS = {
+  // Name first and stretching to fill the row (its width is a minimum), then size, date, type.
   dir: [
     { id: 'name', width: 300 },
+    { id: 'size', width: 96, align: 'end' },
     { id: 'mtime', width: 168 },
-    { id: 'type', width: 160 },
-    { id: 'size', width: 104, align: 'end' },
+    { id: 'type', width: 140 },
   ],
   search: [
     { id: 'name', width: 260 },
     { id: 'location', width: 280 },
+    { id: 'size', width: 96, align: 'end' },
     { id: 'mtime', width: 160 },
-    { id: 'size', width: 100, align: 'end' },
-    { id: 'type', width: 150, hidden: true },
+    { id: 'type', width: 140, hidden: true },
   ],
   trash: [
     { id: 'name', width: 250 },
@@ -542,44 +543,85 @@ export class ContentView {
     return sec;
   }
 
+  // Home: a row of folder chips (the pinned folders), then the recent files as a grid of large
+  // thumbnails with the name and date under each. A star marks a favourite; the "Favourites only"
+  // chip narrows the grid to them. No collapsible sections.
   renderHome() {
-    const { h, t } = this.ex;
+    const { h, t, icon } = this.ex;
     const d = this.data;
     const wrap = h('div', { class: 'fx-home' });
-    // Quick access tiles
-    const grid = h('div', { class: 'fx-quick' });
+    const chips = h('div', { class: 'fx-chips', role: 'group', 'aria-label': t('home.places') });
     for (const e of d.quick) {
       const it = { key: `q:${e.path}`, entry: e, kind: 'file', type: T.typeName(e), section: 'quick' };
       this.register(it);
-      const where = e.missing ? t('home.missing') : T.knownFolder(e.path) && T.knownFolder(e.path) !== 'home' ? t('home.storedLocally') : T.dirname(e.path);
-      it.el = h('div', { class: ['fx-item', 'fx-qtile', e.missing && 'missing'], id: it.id, role: 'option', draggable: 'true', dataset: { key: it.key }, title: e.path },
-        this.iconNode(e, 40, { thumbs: false }),
-        h('div', { class: 'fx-meta' }, h('span', { class: 'fx-name' }, e.name), h('span', { class: 'fx-sub' }, where)));
-      grid.append(it.el);
+      it.el = h('div', { class: ['fx-item', 'fx-chip', e.missing && 'missing'], id: it.id, role: 'option', 'aria-selected': 'false', draggable: 'true', dataset: { key: it.key }, title: e.missing ? `${e.path}\n${t('home.missing')}` : e.path },
+        this.iconNode(e, 20, { thumbs: false }),
+        h('span', { class: 'fx-name' }, e.name));
+      chips.append(it.el);
     }
-    if (!d.quick.length) grid.append(h('div', { class: 'fx-empty-inline' }, t('home.noPins')));
-    wrap.append(this.section('quick', t('home.places'), null, grid));
-    if (shared.prefs.showFavorites) wrap.append(this.section('fav', t('home.favorites'), null, this.homeTable(d.favorites, 'f', t('home.noFavorites'))));
-    if (shared.prefs.showRecent) wrap.append(this.section('recent', t('home.recent'), null, this.homeTable(d.recent, 'r', t('home.noRecent'))));
+    if (!d.quick.length) chips.append(h('div', { class: 'fx-empty-inline' }, t('home.noPins')));
+    wrap.append(chips);
+    const showRecent = shared.prefs.showRecent;
+    const showFav = shared.prefs.showFavorites;
+    if (showRecent || showFav) {
+      const favOnly = !showRecent || (showFav && !!this.homeFavOnly);
+      const bar = h('div', { class: 'fx-home-bar' }, h('h3', { class: 'fx-home-title' }, showRecent ? t('home.recent') : t('home.favorites')));
+      if (showRecent && showFav) {
+        bar.append(h('button', {
+          class: 'fx-filter-chip',
+          type: 'button',
+          'aria-pressed': String(favOnly),
+          onclick: () => {
+            this.homeFavOnly = !this.homeFavOnly;
+            this.setSel([]);
+            this.render();
+            this.ex.updateStatus();
+            this.inner.querySelector('.fx-filter-chip')?.focus();
+          },
+        }, icon(favOnly ? 'star-fill' : 'star', { size: 14 }), h('span', null, t('home.favOnly'))));
+      }
+      wrap.append(bar);
+      const list = favOnly ? d.favorites : d.recent;
+      const prefix = favOnly ? 'f' : 'r';
+      if (!list.length) wrap.append(h('div', { class: 'fx-empty-inline' }, favOnly ? t('home.noFavorites') : t('home.noRecent')));
+      else {
+        const grid = h('div', { class: 'fx-rgrid' });
+        for (const e of list) grid.append(this.homeCard(e, prefix));
+        wrap.append(grid);
+      }
+    }
     this.inner.append(wrap);
     this.paintCut();
   }
 
-  homeTable(entries, prefix, emptyText) {
-    const { h, t } = this.ex;
-    if (!entries.length) return h('div', { class: 'fx-empty-inline' }, emptyText);
-    const table = h('div', { class: 'fx-htable' },
-      h('div', { class: 'fx-hrow fx-hhead' }, h('span', null, t('cols.name')), h('span', null, t('cols.mtime')), h('span', null, t('cols.location'))));
-    for (const e of entries) {
-      const it = { key: `${prefix}:${e.path}`, entry: e, kind: 'file', type: T.typeName(e), section: prefix };
-      this.register(it);
-      it.el = h('div', { class: ['fx-item', 'fx-hrow'], id: it.id, role: 'option', draggable: 'true', dataset: { key: it.key }, title: e.path },
-        h('span', { class: 'fx-cell c-name' }, this.iconNode(e, 16), h('span', { class: 'fx-name' }, T.displayName(e))),
-        h('span', { class: 'fx-cell' }, T.formatDate(e.mtime)),
-        h('span', { class: 'fx-cell' }, this.prettyDir(T.dirname(e.path))));
-      table.append(it.el);
-    }
-    return table;
+  homeCard(e, prefix) {
+    const { h, t, icon } = this.ex;
+    const it = { key: `${prefix}:${e.path}`, entry: e, kind: 'file', type: T.typeName(e), section: prefix };
+    this.register(it);
+    const fav = isFavorite(e.path);
+    const date = this.shortDate(e.mtime);
+    it.el = h('div', {
+      class: ['fx-item', 'fx-rcard'],
+      id: it.id,
+      role: 'option',
+      'aria-selected': 'false',
+      'aria-label': `${T.displayName(e)}, ${date}${fav ? `, ${t('home.favorite')}` : ''}`,
+      draggable: 'true',
+      dataset: { key: it.key },
+      title: `${e.path}\n${t('cols.mtime')}: ${T.formatDate(e.mtime)}`,
+    },
+    h('span', { class: 'fx-thumb' }, this.iconNode(e, 96), fav ? h('span', { class: 'fx-star', 'aria-hidden': 'true' }, icon('star-fill', { size: 14 })) : null),
+    h('span', { class: 'fx-name' }, T.displayName(e)),
+    h('span', { class: 'fx-sub' }, date));
+    return it.el;
+  }
+
+  shortDate(ms) {
+    if (!ms) return '';
+    const d = new Date(ms);
+    const lang = this.ex.ctx.lang === 'fr' ? 'fr-FR' : 'en-US';
+    const sameYear = d.getFullYear() === new Date().getFullYear();
+    return new Intl.DateTimeFormat(lang, sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
   }
 
   prettyDir(p) {
@@ -856,7 +898,7 @@ export class ContentView {
     sc.addEventListener('dragstart', (e) => {
       const el = e.target.closest?.('.fx-item');
       const it = el && this.byKey.get(el.dataset.key);
-      if (!it || it.kind !== 'file' || this.renaming) {
+      if (!it || it.kind !== 'file' || this.renaming || this.bandArmed) {
         e.preventDefault();
         return;
       }
@@ -898,8 +940,11 @@ export class ContentView {
   onPointerDown(e) {
     clearTimeout(this.renameTimer);
     if (this.renaming && !e.target.closest('.fx-rename')) this.commitRename();
-    if (e.target.closest('.fx-rename, .fx-dh, .fx-sec-head, .fx-group-head, .fx-hhead')) return;
+    if (e.target.closest('.fx-rename, .fx-dh, .fx-sec-head, .fx-group-head, .fx-hhead, .fx-home-bar')) return;
     const el = e.target.closest('.fx-item');
+    // Details: the Name column stretches to fill the row. A click on its stretched part (past the
+    // column's own width) selects the row; a drag from there draws a rubber band, as from empty space.
+    const gutter = !!el && e.button === 0 && !e.ctrlKey && !e.shiftKey && this.mode === 'details' && this.inNameGutter(el, e.clientX);
     if (e.pointerType === 'mouse' && this.kbd) {
       this.kbd = false;
       this.paintSel();
@@ -950,9 +995,14 @@ export class ContentView {
     } else {
       this.setSel([key], key);
     }
+    if (gutter) this.startBand(e);
   }
 
   onPointerUp(e) {
+    if (this.banding) {
+      this.pendingToggle = null;
+      this.pendingSingle = null;
+    }
     if (this.pendingToggle) {
       const key = this.pendingToggle;
       this.pendingToggle = null;
@@ -1039,6 +1089,14 @@ export class ContentView {
   }
 
   // ---------------------------------------------------------------- rubber band
+  inNameGutter(el, x) {
+    const cell = el.querySelector('.fx-cell.c-name');
+    const col = this.columns().find((c) => c.id === 'name');
+    if (!cell || !col) return false;
+    const r = cell.getBoundingClientRect();
+    return x > r.left + col.width && x < r.right;
+  }
+
   startBand(e) {
     if (e.pointerType === 'touch') return;
     this.flushAll();
@@ -1061,6 +1119,7 @@ export class ContentView {
     let last = { x: e.clientX, y: e.clientY };
     let scrollTimer = null;
     const pointerId = e.pointerId;
+    this.bandArmed = true; // a band started on a row's empty part must not turn into a file drag
     try {
       sc.setPointerCapture(pointerId);
     } catch {}
@@ -1111,6 +1170,7 @@ export class ContentView {
       clearInterval(scrollTimer);
       band?.remove();
       this.banding = false;
+      this.bandArmed = false;
       try {
         sc.releasePointerCapture(pointerId);
       } catch {}

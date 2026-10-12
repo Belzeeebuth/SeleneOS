@@ -1,4 +1,4 @@
-// On-screen display for volume / brightness (a small pill above the bar).
+// Volume / brightness OSD: a slim vertical slab at the right edge (icon, gauge, value with its unit), on
 //   shell.emit('osd', { kind: 'volume' | 'brightness', value: 0-100, muted })
 //   Also reacts to audio:changed coming from elsewhere (hardware keys, other apps) unless the change
 //   came from the shell's own UI: features emit 'osd:suppress' (ms) while the user drags a slider.

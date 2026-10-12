@@ -132,13 +132,15 @@ export class Explorer {
     this.relabelStatic();
   }
 
-  // One toolbar row: history, breadcrumb, search, list/grid toggle, "New folder" and the "…" menu.
+  // One toolbar row: history, a frameless title-like breadcrumb, the search icon (opens into a
+  // field), list/grid toggle, "New folder" and the "…" menu.
   buildTop() {
     const { h, t } = this;
     const navBtn = (ic, label, key, fn) =>
       h('button', { class: 'fx-navbtn', 'aria-label': label, 'data-tip': key ? `${label} (${this.kb(key)})` : label, 'data-tip-pos': 'below', onclick: fn }, this.icon(ic, { size: 16 }));
     this.btnBack = navBtn('arrow_left', t('nav.back'), 'Alt+Left', () => this.goBack());
     this.btnFwd = navBtn('arrow_right', t('nav.forward'), 'Alt+Right', () => this.goForward());
+    // "Up" is Alt+Up and the breadcrumb; the button stays detached and only carries its state.
     this.btnUp = navBtn('arrow_up', t('nav.up'), 'Alt+Up', () => this.goUp());
     // Refresh lives in the "…" menu and on F5; the button is kept off-screen for its spin feedback.
     this.btnRefresh = navBtn('arrow_clockwise', t('nav.refresh'), 'F5', () => this.refresh());
@@ -155,7 +157,7 @@ export class Explorer {
     const c = this.cmd;
     const seg = h('div', { class: 'fx-seg', role: 'group', 'aria-label': t('cmd.view') }, this.segDetails, this.segLarge, c.view);
     const top = h('div', { class: 'fx-top fx-toolbar', role: 'toolbar', 'aria-label': t('cmd.label') },
-      h('div', { class: 'fx-navbtns' }, this.btnBack, this.btnFwd, this.btnUp),
+      h('div', { class: 'fx-navbtns' }, this.btnBack, this.btnFwd),
       this.address.el,
       this.search.el,
       seg,
@@ -1113,7 +1115,7 @@ export class Explorer {
     const t = this.t;
     const loc = this.tab.loc;
     const inTrash = loc.type === 'trash' || (loc.type === 'search' && loc.root.type === 'trash');
-    const keys = inTrash ? ['name', 'origin', 'deleted', 'size', 'type', 'mtime'] : loc.type === 'search' ? ['name', 'mtime', 'type', 'size', 'location'] : ['name', 'mtime', 'type', 'size'];
+    const keys = inTrash ? ['name', 'origin', 'deleted', 'size', 'type', 'mtime'] : loc.type === 'search' ? ['name', 'location', 'size', 'mtime', 'type'] : ['name', 'size', 'mtime', 'type'];
     return [
       ...keys.map((k) => ({ label: t(`cols.${k}`), checked: this.vs.sort === k, action: () => this.setSort(k, this.vs.sort === k ? this.vs.dir : k === 'mtime' || k === 'deleted' || k === 'size' ? -1 : 1) })),
       '-',

@@ -85,8 +85,9 @@ const STRINGS = {
       runApp: 'Open',
       pinStart: 'Pin to Launcher',
       unpinStart: 'Unpin from Launcher',
-      pinTaskbar: 'Pin to taskbar',
-      unpinTaskbar: 'Unpin from taskbar',
+      pinTaskbar: 'Pin to the bar',
+      unpinTaskbar: 'Unpin from the bar',
+      actionsFor: 'Actions for {name}',
       typeToSearch: 'Type to search apps, settings and files',
       results: 'Results',
       groupApps: 'Apps',
@@ -200,8 +201,9 @@ const STRINGS = {
       runApp: 'Ouvrir',
       pinStart: 'Épingler au Lanceur',
       unpinStart: 'Détacher du Lanceur',
-      pinTaskbar: 'Épingler à la barre des tâches',
-      unpinTaskbar: 'Détacher de la barre des tâches',
+      pinTaskbar: 'Épingler à la barre',
+      unpinTaskbar: 'Détacher de la barre',
+      actionsFor: 'Actions pour {name}',
       typeToSearch: 'Tapez pour rechercher des applications, des paramètres et des fichiers',
       results: 'Résultats',
       groupApps: 'Applications',
@@ -533,7 +535,8 @@ function prettyPath(p) {
 
 // ---------------------------------------------------------------- SearchView (shared UI)
 // One results list grouped by kind (Applications, Fichiers, Réglages, Web), most relevant group first, with the first
-// result selected for the keyboard. A preview pane opens on the right only while an app or a file is selected. A group
+// result selected for the keyboard. The actions of the selected app or file (Ouvrir, Épingler…) show inline, as small
+// chips under its row: there is no side preview pane, so the view stays one column wide. A group
 // heading narrows the list to that kind (setCategory; Ctrl+Tab in the search panel). With no query: recent items and
 // common settings as one plain list (arrow keys move through it too).
 const SV_GROUPS = { apps: 'search.groupApps', documents: 'search.groupFiles', settings: 'search.groupSettings', web: 'search.web' };
@@ -551,8 +554,7 @@ export class SearchView {
     this.res = { apps: [], settings: [], files: [] };
     this.filesPending = false;
     this.list = h('div', { class: 'sv-list', role: 'listbox', 'aria-label': t('search.results') });
-    this.preview = h('div', { class: 'sv-preview' });
-    this.el = h('div', { class: ['sv', `sv-${variant}`] }, h('div', { class: 'sv-main' }, this.list, this.preview));
+    this.el = h('div', { class: ['sv', `sv-${variant}`] }, h('div', { class: 'sv-main' }, this.list));
   }
   /** (kept for callers of the old pivot; the kinds are now group headings in the list) */
   renderTabs() {}
@@ -723,9 +725,7 @@ export class SearchView {
   }
   // No query: what you opened recently (searches, apps, files), then common settings. One list, no grid.
   renderHome() {
-    clear(this.preview);
     this.el.classList.add('home');
-    this.el.classList.remove('with-preview');
     this.sel = -1;
     const recentItems = [
       ...recent
@@ -779,39 +779,35 @@ export class SearchView {
       })
       .catch(() => {});
   }
+  /** The selected app's or file's actions, as a row of chips right under it (kept name: callers re-render after a pin). */
   renderPreview() {
-    clear(this.preview);
+    for (const old of this.list.querySelectorAll('.sv-acts')) old.remove();
     const item = this.items[this.sel];
-    // The preview only earns its place for an app or a file; settings and the web search use the whole width.
     const show = !!item && (item.kind === 'app' || item.kind === 'file') && !this.el.classList.contains('home');
-    this.el.classList.toggle('with-preview', show);
     if (!show) return;
-    const actions = this.actionsFor(item);
-    let meta = null;
-    if (item.kind === 'file') {
-      meta = h(
-        'div',
-        { class: 'sv-meta caption' },
-        h('div', { class: 'text-2' }, t('search.location')),
-        h('div', { class: 'selectable sv-path' }, prettyPath(parentDir(item.entry.path))),
-        item.entry.mtime ? h('div', { class: 'text-2', style: { marginTop: '8px' } }, t('search.modified')) : null,
-        item.entry.mtime ? h('div', null, i18n.formatDate(item.entry.mtime, { dateStyle: 'medium', timeStyle: 'short' })) : null,
-      );
-    }
-    this.preview.appendChild(
-      h(
-        'div',
-        { class: 'sv-pv', key: item.id },
-        h('div', { class: 'sv-pv-top' }, this.iconFor(item, 64), h('div', { class: 'sv-pv-title' }, item.title), h('div', { class: 'caption text-2' }, this.subtitle(item))),
-        h('div', { class: 'sv-pv-sep' }),
+    const row = this.list.querySelector(`.sv-row[data-i="${this.sel}"]`);
+    if (!row) return;
+    const acts = h(
+      'div',
+      { class: 'sv-acts', role: 'group', 'aria-label': t('search.actionsFor', { name: item.title }), dataset: { for: item.title } },
+      this.actionsFor(item).map((a) =>
         h(
-          'div',
-          { class: 'sv-actions' },
-          actions.map((a) => h('button', { class: 'sv-action', onclick: () => a.run() }, icon(a.icon, { size: 16 }), h('span', null, a.label))),
+          'button',
+          {
+            class: 'sv-chip',
+            // a click keeps the focus (and the arrow keys) in the search box; Tab still reaches the chips
+            onmousedown: (e) => e.preventDefault(),
+            onclick: (e) => {
+              e.stopPropagation();
+              a.run();
+            },
+          },
+          icon(a.icon, { size: 14 }),
+          h('span', null, a.label),
         ),
-        meta,
       ),
     );
+    row.after(acts);
   }
   actionsFor(item) {
     const done = () => this.onDone();

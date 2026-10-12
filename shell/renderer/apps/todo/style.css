@@ -1951,8 +1951,14 @@
 .app-todo .td-search-toggle[hidden] {
   display: none;
 }
+.app-todo .td-tools {
+  flex: 0 1 auto;
+  min-width: 0;
+}
 .app-todo .td-search-slot {
-  width: min(280px, 40vw);
+  flex: 0 1 280px;
+  width: 280px;
+  min-width: 120px;
   animation: td-search-in var(--dur) var(--ease);
 }
 @keyframes td-search-in {
@@ -2041,8 +2047,10 @@
   0% { transform: scale(0); }
   100% { transform: scale(1); }
 }
-/* importance: a small accent dot before the title; on hover or focus an empty ring shows where to click */
-.app-todo .td-star {
+/* importance: a small accent dot before the title; on hover or focus an empty ring shows where to click
+   (the details pane keeps its own flag button) */
+.app-todo .td-task .td-star,
+.app-todo .td-task .td-star:hover {
   flex: none;
   width: 16px;
   height: 40px;

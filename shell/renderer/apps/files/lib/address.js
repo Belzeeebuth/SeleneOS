@@ -3,6 +3,8 @@
 import { shared } from './shared.js';
 import * as T from './types.js';
 
+let searchSeq = 0;
+
 export class AddressBar {
   constructor(ex) {
     this.ex = ex;
@@ -402,12 +404,15 @@ function normalize(p) {
   return `/${out.join('/')}`;
 }
 
+// Search: an icon button that opens into the field (click, Ctrl+F / F3, or typing into it). It folds
+// back to the icon when it loses focus empty; it stays open while a search is shown.
 export class SearchBox {
   constructor(ex) {
     this.ex = ex;
     const { h, icon, t } = ex;
     this.input = h('input', {
       class: 'fx-search-input',
+      id: `fx-search-${++searchSeq}`,
       type: 'text',
       spellcheck: false,
       autocomplete: 'off',
@@ -423,44 +428,77 @@ export class SearchBox {
           e.stopPropagation();
           this.clear(true);
           this.ex.view.focus();
+          this.close();
         } else if (e.key === 'ArrowDown') {
           e.preventDefault();
           this.ex.view.focus();
         }
       },
     });
+    this.toggle = h('button', {
+      class: 'fx-search-toggle',
+      type: 'button',
+      'aria-label': t('search.label'),
+      'aria-expanded': 'false',
+      'aria-controls': this.input.id,
+      'data-tip': `${t('search.label')} (${ex.kb('Ctrl+F')})`,
+      'data-tip-pos': 'below',
+      onclick: () => this.focus(),
+    }, icon('search', { size: 16 }));
     this.btn = h('button', {
       class: 'fx-search-btn',
+      type: 'button',
       tabindex: '-1',
-      'aria-label': t('search.label'),
+      'aria-label': t('search.clear'),
       onclick: () => {
-        if (this.input.value) this.clear(true);
-        else this.input.focus();
+        this.clear(true);
+        this.input.focus();
       },
-    }, icon('search', { size: 14 }));
-    this.el = h('div', { class: 'fx-search', role: 'search' }, this.input, this.btn);
+    }, icon('dismiss', { size: 12 }));
+    this.el = h('div', { class: 'fx-search', role: 'search' }, this.toggle, this.input, this.btn);
+    this.el.addEventListener('focusout', () => setTimeout(() => {
+      if (!this.el.contains(document.activeElement)) this.close();
+    }, 0));
   }
 
-  setPlaceholder(name) {
-    this.input.placeholder = this.ex.t('search.placeholder', { name });
+  get isOpen() {
+    return this.el.classList.contains('open');
+  }
+
+  open() {
+    if (this.isOpen) return;
+    this.el.classList.add('open');
+    this.toggle.setAttribute('aria-expanded', 'true');
+    this.toggle.tabIndex = -1;
+  }
+
+  // Folds back to the icon unless it holds text or a search is on screen.
+  close() {
+    if (this.input.value || this.ex.tab?.loc.type === 'search') return;
+    this.el.classList.remove('open');
+    this.toggle.setAttribute('aria-expanded', 'false');
+    this.toggle.tabIndex = 0;
+  }
+
+  setPlaceholder() {
+    this.input.placeholder = this.ex.t('search.placeholder');
   }
 
   sync(loc) {
     // Leaving search results (navigation elsewhere) empties the box.
     if (loc.type === 'search') {
       if (this.input.value !== loc.query) this.input.value = loc.query;
+      this.open();
     } else if (document.activeElement !== this.input) {
       this.input.value = '';
       clearTimeout(this.timer); // a pending debounced search belongs to the place we just left
+      this.close();
     }
     this.el.classList.toggle('has-text', !!this.input.value);
-    this.btn.replaceChildren(this.ex.icon(this.input.value ? 'dismiss' : 'search', { size: this.input.value ? 12 : 14 }));
-    this.btn.setAttribute('aria-label', this.ex.t(this.input.value ? 'search.clear' : 'search.label'));
   }
 
   onInput() {
     this.el.classList.toggle('has-text', !!this.input.value);
-    this.btn.replaceChildren(this.ex.icon(this.input.value ? 'dismiss' : 'search', { size: this.input.value ? 12 : 14 }));
     clearTimeout(this.timer);
     const tab = this.ex.tab;
     // Debounced: only if the user is still on the same tab (Ctrl+Tab while typing must not start the
@@ -491,6 +529,7 @@ export class SearchBox {
   }
 
   focus() {
+    this.open();
     this.input.focus();
     this.input.select();
   }

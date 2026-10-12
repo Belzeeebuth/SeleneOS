@@ -161,13 +161,13 @@ async function mainRun() {
     if (want('shellkeys')) {
       await A(() => {
         window.__ev = [];
-        for (const e of ['start:toggle', 'quick:toggle', 'calendar:toggle', 'search:toggle', 'widgets:toggle', 'taskview:toggle', 'lock', 'run:open', 'winx:toggle', 'security:open'])
+        for (const e of ['start:toggle', 'quick:toggle', 'calendar:toggle', 'notifications:toggle', 'search:toggle', 'widgets:toggle', 'taskview:toggle', 'lock', 'run:open', 'winx:toggle', 'security:open'])
           window.__aurora.shell.on(e, () => window.__ev.push(e));
       });
       await press('Super', 250);
       check('Super alone toggles Start (real key path)', (await A(() => window.__ev.join())) === 'start:toggle');
       await A(() => window.__aurora.shell.emit('start:close'));
-      for (const [combo, ev] of [['Super+A', 'quick:toggle'], ['Super+N', 'calendar:toggle'], ['Super+S', 'search:toggle'], ['Super+W', 'widgets:toggle']]) {
+      for (const [combo, ev] of [['Super+A', 'quick:toggle'], ['Super+N', 'notifications:toggle'], ['Super+S', 'search:toggle'], ['Super+W', 'widgets:toggle']]) {
         await A(() => (window.__ev = []));
         await press(combo, 150);
         check(`${combo} -> ${ev} (real key path)`, (await A(() => window.__ev.join())) === ev, await A(() => window.__ev.join()));

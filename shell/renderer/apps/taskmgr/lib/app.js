@@ -1,6 +1,7 @@
-// System Monitor window: title-bar search, a tab bar along the top (Processes, Performance, Startup,
-// Users, Services, and Settings as a gear), a quiet toolbar row (the Processes views switch: list,
-// details, history; then the page's commands), and the pages themselves. Pages implement:
+// System Monitor window: a permanent strip of four meters along the top (processor, memory, disk,
+// network: value + sparkline; a click opens the Performances detail on that device), a toolbar
+// (search on the left, the "Show:" view menu, the page's commands, Settings), and the pages
+// themselves. Pages implement:
 //   { id, icon, title(), needs: { procs, shell }, mount(el), show(), hide(), update(store),
 //     commands() -> [{ id, icon, label, action, disabled, pressed, menu }], onSearch(q), focus(), relabel() }
 import { wm } from '../../../core/wm.js';
@@ -17,10 +18,13 @@ import { ServicesPage } from './pages/services.js';
 import { SettingsPage } from './pages/settings.js';
 
 export const PAGE_ORDER = ['processes', 'performance', 'history', 'startup', 'users', 'details', 'services'];
-// Top tabs. History and Details are views of the Processes tab (switch in the toolbar row).
-export const TABS = ['processes', 'performance', 'startup', 'users', 'services'];
+// The "Show:" menu. Details and History are other views of the processes.
+export const VIEWS = ['processes', 'details', 'history', 'startup', 'services', 'users'];
 export const PROC_VIEWS = ['processes', 'details', 'history'];
-const tabOf = (id) => (PROC_VIEWS.includes(id) ? 'processes' : id);
+export const METERS = ['cpu', 'mem', 'disk', 'net'];
+const SPARK_W = 64;
+const SPARK_H = 22;
+const SVGNS = 'http://www.w3.org/2000/svg';
 
 const DEFAULT_PREFS = {
   startPage: 'processes',
@@ -89,7 +93,7 @@ export class TaskManager {
     this.savePrefs = debounce(() => this.ctx.storage.set('prefs', this.prefs).catch(() => {}), 400);
     this.actions = createActions(this);
 
-    // ---- title bar search
+    // ---- search, on the left of the toolbar
     this.search = h('input', {
       class: 'input tm-search-input',
       type: 'search',
@@ -97,9 +101,8 @@ export class TaskManager {
       'aria-label': t('search.label'),
       placeholder: t('search.placeholder'),
     });
-    const clearBtn = h('button', { class: 'tm-search-clear', tabindex: '-1', 'aria-label': t('search.clear'), onclick: () => this.setQuery('', true) }, icon('dismiss', { size: 12 }));
-    this.searchBox = h('div', { class: 'tm-search' }, icon('search', { size: 14, class: 'tm-search-ic' }), this.search, clearBtn);
-    win.titlebarSlot.appendChild(h('div', { class: 'tm-tb' }, this.searchBox));
+    const clearBtn = h('button', { class: 'tm-search-clear', tabindex: '-1', 'aria-label': t('search.clear'), onclick: () => this.setQuery('', true) }, icon('x', { size: 12 }));
+    this.searchBox = h('div', { class: 'tm-search' }, icon('magnifying-glass', { size: 14, class: 'tm-search-ic' }), this.search, clearBtn);
     const onSearch = debounce((q) => this.applyQuery(q), 120);
     this.search.addEventListener('input', () => {
       this.searchBox.classList.toggle('has-text', !!this.search.value);
@@ -117,7 +120,6 @@ export class TaskManager {
       }
     });
 
-    // ---- tabs along the top
     this.pages = {
       processes: new ProcessesPage(this),
       performance: new PerformancePage(this),
@@ -129,41 +131,63 @@ export class TaskManager {
       settings: new SettingsPage(this),
     };
     this.lastProcView = 'processes';
-    this.navItems = new Map();
-    const mkTab = (id) => {
-      const p = this.pages[id];
-      const gear = id === 'settings';
-      const label = h('span', { class: ['tm-tab-label', gear && 'sr-only'] }, this.tabTitle(id));
-      const btn = h(
-        'button',
-        { class: ['tm-tab', gear && 'tm-tab-gear'], role: 'tab', 'aria-selected': 'false', 'data-tip': gear ? p.title() : null, dataset: { page: id }, onclick: () => this.go(id === 'processes' ? this.lastProcView : id, { focus: false }) },
-        gear ? icon(p.icon) : null,
-        label,
-      );
-      btn._label = label;
-      this.navItems.set(id, btn);
-      return btn;
-    };
-    this.navList = h('div', { class: 'tm-tablist', role: 'tablist', 'aria-label': t('nav.label') }, TABS.map(mkTab), h('span', { class: 'tm-tab-gap', 'aria-hidden': 'true' }), mkTab('settings'));
-    this.nav = h('nav', { class: 'tm-tabbar', 'aria-label': t('nav.label') }, this.navList);
-    this.navList.addEventListener('keydown', (e) => this._navKeys(e));
 
-    // ---- Processes views: list, details, history
-    this.viewBtns = new Map();
-    this.views = h(
-      'div',
-      { class: 'tm-views', role: 'group', 'aria-label': t('views.label') },
-      PROC_VIEWS.map((id) => {
-        const b = h('button', { class: 'tm-view', 'aria-pressed': 'false', dataset: { view: id }, onclick: () => this.go(id, { focus: false }) }, t(`views.${id}`));
-        this.viewBtns.set(id, b);
-        return b;
-      }),
+    // ---- the four meters
+    this.meters = new Map();
+    const mkMeter = (id) => {
+      const label = h('span', { class: 'tm-meter-label' }, t(`meter.${id}`));
+      const val = h('span', { class: 'tm-meter-val' }, '—');
+      const svg = document.createElementNS(SVGNS, 'svg');
+      svg.setAttribute('viewBox', `0 0 ${SPARK_W} ${SPARK_H}`);
+      svg.setAttribute('preserveAspectRatio', 'none');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.classList.add('tm-spark');
+      const area = document.createElementNS(SVGNS, 'path');
+      area.classList.add('tm-spark-area');
+      const line = document.createElementNS(SVGNS, 'path');
+      line.classList.add('tm-spark-line');
+      svg.append(area, line);
+      const b = h(
+        'button',
+        { class: 'tm-meter', type: 'button', 'aria-pressed': 'false', 'data-tip': t('meter.open'), 'data-tip-pos': 'below', dataset: { meter: id }, onclick: () => this.openDevice(id) },
+        h('span', { class: 'tm-meter-text' }, label, val),
+        svg,
+      );
+      Object.assign(b, { _label: label, _val: val, _area: area, _line: line });
+      this.meters.set(id, b);
+      return b;
+    };
+    this.meterBar = h('div', { class: 'tm-meters', role: 'group', 'aria-label': t('meter.label') }, METERS.map(mkMeter));
+    this.meterBar.addEventListener('keydown', (e) => {
+      const items = [...this.meters.values()];
+      const i = items.indexOf(document.activeElement);
+      if (i < 0) return;
+      const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: items.length - 1 }[e.key];
+      if (j == null) return;
+      e.preventDefault();
+      items[(j + items.length) % items.length].focus();
+    });
+
+    // ---- "Show:" view menu, Settings
+    this.viewLabel = h('span', { class: 'tm-viewbtn-label' });
+    this.viewPre = h('span', { class: 'tm-viewbtn-pre' }, t('views.show'));
+    this.viewBtn = h(
+      'button',
+      { class: 'btn subtle tm-viewbtn', type: 'button', 'aria-haspopup': 'menu', onclick: (e) => this.viewMenu(e.currentTarget) },
+      this.viewPre,
+      this.viewLabel,
+      icon('caret-down', { size: 12, class: 'tm-cmd-chev' }),
+    );
+    this.settingsBtn = h(
+      'button',
+      { class: 'btn subtle tm-settings-btn', type: 'button', 'aria-pressed': 'false', 'aria-label': this.pages.settings.title(), 'data-tip': this.pages.settings.title(), 'data-tip-pos': 'below', onclick: () => this.go('settings', { focus: false }) },
+      icon('gear-six'),
     );
 
     // ---- main area
     this.titleEl = h('h1', { class: 'tm-title ellipsis' });
     this.cmdBar = h('div', { class: 'tm-cmds', role: 'toolbar', 'aria-label': t('cmd.toolbar') });
-    this.head = h('header', { class: 'tm-head' }, this.titleEl, this.views, this.cmdBar);
+    this.head = h('header', { class: 'tm-head' }, this.titleEl, this.searchBox, this.viewBtn, this.cmdBar, this.settingsBtn);
     this.pageHost = h('div', { class: 'tm-pages' });
     this.errorText = h('div', { class: 'caption grow' });
     this.errorBar = h(
@@ -174,7 +198,7 @@ export class TaskManager {
       h('button', { class: 'btn small', onclick: () => this.store.refresh() }, t('common.retry')),
     );
     this.main = h('main', { class: 'tm-main' }, this.head, this.errorBar, this.pageHost);
-    this.root = h('div', { class: 'tm-root' }, this.nav, this.main);
+    this.root = h('div', { class: 'tm-root' }, this.meterBar, this.main);
     win.body.appendChild(this.root);
 
     for (const [id, p] of Object.entries(this.pages)) {
@@ -228,18 +252,9 @@ export class TaskManager {
         void p.el.offsetWidth;
         p.el.classList.add('enter');
       }
-      const tab = tabOf(id);
-      if (tab === 'processes') this.lastProcView = id;
-      for (const [k, b] of this.navItems) {
-        b.classList.toggle('selected', k === tab);
-        b.setAttribute('aria-selected', String(k === tab));
-        b.tabIndex = k === tab ? 0 : -1;
-      }
-      this.views.hidden = tab !== 'processes';
-      for (const [k, b] of this.viewBtns) {
-        b.classList.toggle('selected', k === id);
-        b.setAttribute('aria-pressed', String(k === id));
-      }
+      if (PROC_VIEWS.includes(id)) this.lastProcView = id;
+      this.viewLabel.textContent = this.tabTitle(id);
+      this.settingsBtn.setAttribute('aria-pressed', String(id === 'settings'));
       this.titleEl.textContent = p.title();
       this.store.setNeeds(p.needs || {});
       p.onSearch?.(this.query);
@@ -254,7 +269,79 @@ export class TaskManager {
   _tick() {
     if (!this.errorBar.hidden) this.errorBar.hidden = true;
     this.current?.update?.(this.store);
+    this.updateMeters();
     this.renderCommands();
+  }
+
+  // ------------------------------------------------------------------ meters
+  meterDevice(kind) {
+    const perf = this.store.perf;
+    if (!perf) return null;
+    if (kind === 'cpu' || kind === 'mem') return { id: kind };
+    if (kind === 'disk') return perf.disks[0] ? { id: `disk:${perf.disks[0].name}`, d: perf.disks[0] } : null;
+    const n = perf.net.find((x) => x.type !== 'loopback' && x.iface !== 'lo') || perf.net[0];
+    return n ? { id: `net:${n.iface}`, n } : null;
+  }
+  updateMeters() {
+    const perf = this.store.perf;
+    if (!perf) return;
+    const { fmt, store } = this;
+    const series = (k) => store.series.get(k) || [];
+    const sum = (a, b) => a.map(([tt, v], i) => [tt, v + (b[i]?.[1] || 0)]);
+    const perfDev = this.current?.id === 'performance' ? this.pages.performance.selected || '' : '';
+    for (const [kind, b] of this.meters) {
+      const dev = this.meterDevice(kind);
+      let text = '—';
+      let pts = [];
+      let max = 100;
+      if (kind === 'cpu') {
+        text = fmt.pct(perf.cpu.total);
+        pts = series('cpu');
+      } else if (kind === 'mem') {
+        const total = perf.mem.total || 1;
+        text = fmt.pct((perf.mem.used / total) * 100);
+        pts = series('mem');
+        max = total;
+      } else if (kind === 'disk' && dev) {
+        text = fmt.pct(dev.d.busyPct);
+        pts = series(`${dev.id}:busy`);
+      } else if (kind === 'net' && dev) {
+        text = fmt.bits((dev.n.rxBps + dev.n.txBps) * 8);
+        pts = sum(series(`${dev.id}:rx`), series(`${dev.id}:tx`));
+        max = Math.max(1, ...pts.map((x) => x[1]));
+      }
+      if (b._val.textContent !== text) b._val.textContent = text;
+      b.setAttribute('aria-label', `${b._label.textContent} ${text}`);
+      const last = pts.slice(-30);
+      if (last.length > 1) {
+        const step = SPARK_W / 29;
+        const x0 = SPARK_W - (last.length - 1) * step;
+        const y = (v) => (SPARK_H - 1.5 - Math.max(0, Math.min(1, v / max)) * (SPARK_H - 3)).toFixed(1);
+        const d = last.map(([, v], i) => `${i ? 'L' : 'M'}${(x0 + i * step).toFixed(1)} ${y(v)}`).join(' ');
+        b._line.setAttribute('d', d);
+        b._area.setAttribute('d', `${d} L${SPARK_W} ${SPARK_H} L${x0.toFixed(1)} ${SPARK_H} Z`);
+      }
+      const on = !!dev && perfDev === dev.id;
+      b.classList.toggle('selected', on);
+      b.setAttribute('aria-pressed', String(on));
+    }
+  }
+  // A meter opens the Performances detail on its device.
+  openDevice(kind) {
+    this.go('performance', { focus: false });
+    const dev = this.meterDevice(kind);
+    if (dev) this.pages.performance.select(dev.id);
+    this.updateMeters();
+  }
+
+  viewMenu(at) {
+    const { t } = this;
+    const cur = this.current?.id;
+    const item = (id) => ({ label: this.tabTitle(id), checked: cur === id, action: () => this.go(id) });
+    at.classList.add('open');
+    const p = this.menu(at, [...VIEWS.map(item), '-', item('performance'), item('settings')]);
+    Promise.resolve(p).finally(() => at.classList.remove('open'));
+    return p;
   }
 
   applyQuery(q) {
@@ -312,29 +399,15 @@ export class TaskManager {
     if (need > this.cmdBar.clientWidth + 1) this.head.classList.add('compact');
   }
 
-  // ------------------------------------------------------------------ tabs
+  // ------------------------------------------------------------------ views
   tabTitle(id) {
     return this.t(id === 'startup' ? 'nav.startupTab' : `nav.${id}`);
   }
-  // Kept for callers of the old navigation pane: the tab bar has no collapsed state.
+  // Kept for callers of the old navigation pane: there is no navigation pane any more.
   applyNav() {}
   toggleNav() {}
   _layout() {
     this._fitCommands();
-  }
-  _navKeys(e) {
-    if (e.defaultPrevented) return;
-    const items = [...this.navItems.values()];
-    const i = items.indexOf(document.activeElement);
-    if (i < 0) return;
-    let j = null;
-    if (e.key === 'ArrowRight') j = (i + 1) % items.length;
-    else if (e.key === 'ArrowLeft') j = (i - 1 + items.length) % items.length;
-    else if (e.key === 'Home') j = 0;
-    else if (e.key === 'End') j = items.length - 1;
-    if (j == null) return;
-    e.preventDefault();
-    items[j].focus();
   }
 
   _keys(e) {
@@ -414,17 +487,19 @@ export class TaskManager {
     const { t } = this;
     this.search.placeholder = t('search.placeholder');
     this.search.setAttribute('aria-label', t('search.label'));
-    this.nav.setAttribute('aria-label', t('nav.label'));
-    this.navList.setAttribute('aria-label', t('nav.label'));
-    this.views.setAttribute('aria-label', t('views.label'));
-    for (const [id, b] of this.viewBtns) b.textContent = t(`views.${id}`);
+    this.meterBar.setAttribute('aria-label', t('meter.label'));
+    for (const [id, b] of this.meters) {
+      b._label.textContent = t(`meter.${id}`);
+      b.dataset.tip = t('meter.open');
+    }
+    this.viewPre.textContent = t('views.show');
+    if (this.current) this.viewLabel.textContent = this.tabTitle(this.current.id);
+    this.settingsBtn.setAttribute('aria-label', this.pages.settings.title());
+    this.settingsBtn.dataset.tip = this.pages.settings.title();
     this.cmdBar.setAttribute('aria-label', t('cmd.toolbar'));
     this.errorBar.querySelector('.btn').textContent = t('common.retry');
     this.searchBox.querySelector('.tm-search-clear').setAttribute('aria-label', t('search.clear'));
-    for (const [id, b] of this.navItems) {
-      b._label.textContent = this.tabTitle(id);
-      if (id === 'settings') b.dataset.tip = this.pages[id].title();
-    }
+    this.updateMeters();
     for (const p of Object.values(this.pages)) {
       p.el.setAttribute('aria-label', p.title());
       p.relabel?.();

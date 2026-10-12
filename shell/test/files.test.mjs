@@ -165,6 +165,11 @@ function helpers(s) {
       await page.screenshot({ path: file });
       return file;
     },
+    // The search is an icon button that opens into the field.
+    async openSearch() {
+      if (!(await page.locator('.app-files .fx-search-input').isVisible())) await page.click('.app-files .fx-search-toggle');
+      await page.waitForSelector('.app-files .fx-search-input', { state: 'visible' });
+    },
     async menuClick(label) {
       const row = page.locator('.menu .menu-item').filter({ has: page.locator(`.label:text-is("${label}")`) }).last();
       await row.click();
@@ -208,10 +213,39 @@ if (!fatal) {
     check('nav: Home first', nav[0], 'Home');
     check('nav: pinned folders', ['Desktop', 'Downloads', 'Documents', 'Pictures', 'Music', 'Videos'].every((n) => nav.includes(n)), true);
     check('nav: Computer + Trash', nav.includes('Computer') && nav.includes('Trash'), true);
-    const quick = await page.locator('.app-files .fx-qtile .fx-name').allInnerTexts();
-    check('quick access tiles', quick.length, 6);
-    const recent = await page.locator('.app-files .fx-hrow.fx-item .fx-name').allInnerTexts();
+    const quick = await page.locator('.app-files .fx-chip .fx-name').allInnerTexts();
+    check('folder chips', quick.length, 6);
+    const recent = await page.locator('.app-files .fx-rcard .fx-name').allInnerTexts();
     check('recent files listed', recent.includes('Report 2026.txt') || recent.length > 3, true);
+    check('recent cards show a date', await page.locator('.app-files .fx-rcard .fx-sub').first().innerText(), (v) => /\d/.test(v));
+    // Selene Home: chips row, then a thumbnail grid; no Windows-style section headings or tables.
+    check('no collapsible sections on Home', await page.locator('.app-files .fx-home .fx-sec-head, .app-files .fx-home [aria-expanded]').count(), 0);
+    check('no table on Home', await page.locator('.app-files .fx-home .fx-htable').count(), 0);
+    check('recent heading', await page.locator('.app-files .fx-home-title').innerText(), 'Recent');
+    check('chips come before the grid', await page.evaluate(() => {
+      const c = document.querySelector('.app-files .fx-chips').getBoundingClientRect();
+      const g = document.querySelector('.app-files .fx-rgrid').getBoundingClientRect();
+      return c.bottom <= g.top;
+    }), true);
+    // Favourites only: a star marks favourites, the filter chip narrows the grid to them.
+    await page.locator('.app-files .fx-rcard').filter({ has: page.locator('.fx-name:text-is("notes.md")') }).click({ button: 'right' });
+    await H.menuClick('Add to Favorites');
+    await H.settle();
+    await page.waitForTimeout(300);
+    check('favourite starred', await page.locator('.app-files .fx-rcard').filter({ has: page.locator('.fx-name:text-is("notes.md")') }).locator('.fx-star').count(), 1);
+    check('others not starred', await page.locator('.app-files .fx-rcard .fx-star').count(), 1);
+    const filter = page.locator('.app-files .fx-filter-chip');
+    check('filter chip label', (await filter.innerText()).trim(), 'Favorites only');
+    check('filter chip off', await filter.getAttribute('aria-pressed'), 'false');
+    await filter.focus();
+    await H.key('Enter');
+    check('filter chip on (keyboard)', await page.locator('.app-files .fx-filter-chip').getAttribute('aria-pressed'), 'true');
+    check('filter keeps focus', await page.evaluate(() => document.activeElement?.classList.contains('fx-filter-chip')), true);
+    check('favourites only', await page.locator('.app-files .fx-rcard .fx-name').allInnerTexts(), ['notes.md']);
+    check('favourite items keep their section', await page.evaluate(() => window.__fx().view.items.filter((i) => i.section === 'f').map((i) => i.entry.name)), ['notes.md']);
+    await page.click('.app-files .fx-filter-chip');
+    check('filter chip off again', await page.locator('.app-files .fx-filter-chip').getAttribute('aria-pressed'), 'false');
+    check('all recent back', (await page.locator('.app-files .fx-rcard').count()) > 1, true);
     check('tab title', await page.locator('.app-files .fx-tab.active .fx-tab-title').innerText(), 'Home');
     check('window title', await page.evaluate(() => window.__fx().win.title), 'Home - Files');
     check('New folder disabled on Home', await page.locator('.app-files .fx-cmd[aria-label="New folder"]').isDisabled(), true);
@@ -226,8 +260,15 @@ if (!fatal) {
     check('sidebar sections', await page.locator('.app-files .fx-tsec').allInnerTexts(), (v) => v.includes('Favorites') && v.includes('Places'));
     check('no Gallery in sidebar', nav.includes('Gallery'), false);
     check('home folder in sidebar', nav.includes('Home folder'), true);
-    check('Home places section', await page.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Favorite folders');
-    check('no pin glyph on Home', await page.locator('.app-files .fx-qtile .fx-pin').count(), 0);
+    check('Home folder chips label', await page.locator('.app-files .fx-chips').getAttribute('aria-label'), 'Folders');
+    check('no pin glyph on Home', await page.locator('.app-files .fx-chip .fx-pin').count(), 0);
+    // Address row: no Up button, frameless breadcrumb, search folded to an icon.
+    check('no Up button', await page.locator('.app-files .fx-top .fx-navbtn[aria-label="Up"]').count(), 0);
+    check('breadcrumb is frameless', await page.evaluate(() => {
+      const cs = getComputedStyle(document.querySelector('.app-files .fx-address'));
+      return cs.borderTopColor === 'rgba(0, 0, 0, 0)' && (cs.backgroundColor === 'rgba(0, 0, 0, 0)' || cs.backgroundColor === 'transparent');
+    }), true);
+    check('search folded to an icon', [await page.locator('.app-files .fx-search-input').isVisible(), await page.locator('.app-files .fx-search-toggle').getAttribute('aria-expanded')], [false, 'false']);
     // "…" menu holds the file commands.
     await page.click('.app-files .fx-cmd[aria-label="See more"]');
     const moreLabels = await page.locator('.menu .menu-item .label').allInnerTexts();
@@ -246,16 +287,24 @@ if (!fatal) {
     check('folders first', names.slice(0, 2), ['Letters', 'Projects']);
     check('hidden file not shown', names.includes('.secret-config'), false);
     const types = await page.evaluate(() => Object.fromEntries(window.__fx().view.items.map((i) => [i.entry.name, i.type])));
-    check('type: text', types['Report 2026.txt'], 'Text Document');
-    check('type: folder', types.Letters, 'File folder');
-    check('type: csv', types['budget.csv'], 'CSV File');
+    check('type: text', types['Report 2026.txt'], 'Text');
+    check('type: folder', types.Letters, 'Folder');
+    check('type: csv', types['budget.csv'], 'CSV table');
     const crumbs = await page.locator('.app-files .fx-crumb:visible').allInnerTexts();
     check('breadcrumbs', crumbs, ['Home folder', 'Documents']);
     check('breadcrumb house glyph', await page.locator('.app-files .fx-crumb').first().locator('.fx-crumb-home').count(), 1);
     check('heading follows the folder', await page.locator('.app-files .fx-head-title').innerText(), 'Documents');
     check('heading count', await page.locator('.app-files .fx-head-count').innerText(), '6 items');
     const headers = await page.locator('.app-files .fx-dh-cell').allInnerTexts();
-    check('detail columns', headers.map((x) => x.trim()), ['Name', 'Date modified', 'Type', 'Size']);
+    check('detail columns', headers.map((x) => x.trim()), ['Name', 'Size', 'Modified', 'Type']);
+    check('Name column fills the row', await page.evaluate(() => {
+      const head = document.querySelector('.app-files .fx-dh');
+      const cells = [...head.querySelectorAll('.fx-dh-cell')];
+      const used = cells.reduce((a, c) => a + c.getBoundingClientRect().width, 0);
+      const name = head.querySelector('.fx-dh-cell.c-name').getBoundingClientRect().width;
+      const row = document.querySelector('.app-files .fx-row .fx-cell.c-name').getBoundingClientRect().width;
+      return head.clientWidth - used < 40 && name > 300 && Math.abs(row - name) < 3;
+    }), true);
     const size = await page.locator('.app-files .fx-row:has-text("Report 2026.txt") .c-size').innerText();
     check('size in KB', size, '1 KB');
     check('status bar count', await page.locator('.app-files .fx-status span').first().innerText(), '6 items');
@@ -278,7 +327,8 @@ if (!fatal) {
 
   await section('History: back / forward / up + keyboard', async () => {
     await H.go(D('Documents/Projects/aurora'));
-    await page.click('.app-files .fx-navbtn[aria-label="Up"]');
+    await H.focusView();
+    await H.key('Alt+ArrowUp');
     await H.settle();
     check('up to parent', (await H.loc()).path, D('Documents/Projects'));
     check('up selects child folder', await H.selected(), ['aurora']);
@@ -559,6 +609,14 @@ if (!fatal) {
     await page.evaluate(() => window.__fx(1)?.win.close());
     await page.waitForTimeout(300);
     await H.go(D('Documents'));
+    check('search placeholder', await page.locator('.app-files .fx-search-input').getAttribute('placeholder'), 'Search');
+    await H.focusView();
+    await H.key('Control+f');
+    check('Ctrl+F opens the search field', [await page.locator('.app-files .fx-search-input').isVisible(), await page.evaluate(() => document.activeElement?.classList.contains('fx-search-input'))], [true, true]);
+    await H.focusView();
+    await page.waitForTimeout(150);
+    check('empty search folds back on blur', await page.locator('.app-files .fx-search-input').isVisible(), false);
+    await H.openSearch();
     await page.fill('.app-files .fx-search-input', 'readme');
     await H.key('Enter');
     await H.settle();
@@ -567,7 +625,8 @@ if (!fatal) {
     check('results', await H.names(), ['readme.txt']);
     check('match highlighted', await page.locator('.app-files .fx-row mark.fx-hl').first().innerText(), 'readme');
     const headers = await page.locator('.app-files .fx-dh-cell').allInnerTexts();
-    check('search columns', headers.map((x) => x.trim()), ['Name', 'Location', 'Date modified', 'Size']);
+    check('search columns', headers.map((x) => x.trim()), ['Name', 'Location', 'Size', 'Modified']);
+    check('search field stays open on results', await page.locator('.app-files .fx-search-input').isVisible(), true);
     check('location column', await page.locator('.app-files .fx-row .c-location').first().innerText(), D('Documents/Projects/aurora'));
     check('tab title', await page.locator('.app-files .fx-tab.active .fx-tab-title').innerText(), 'readme - Search Results in Documents');
     await page.fill('.app-files .fx-search-input', 'zzzz-nothing');
@@ -578,6 +637,7 @@ if (!fatal) {
     await H.key('Escape');
     await H.settle();
     check('Esc closes search', (await H.loc()).path, D('Documents'));
+    check('Esc folds the search back', await page.locator('.app-files .fx-search-input').isVisible(), false);
   });
 
   await section('Sorting, grouping and view modes', async () => {
@@ -599,7 +659,7 @@ if (!fatal) {
     await page.waitForTimeout(400);
     await H.menuClick('Type');
     const groups = await page.locator('.app-files .fx-group-head .lbl').allInnerTexts();
-    check('grouped by type', groups.includes('File folder') && groups.includes('Text Document'), true);
+    check('grouped by type', groups.includes('Folder') && groups.includes('Text'), true);
     await page.click('.app-files .fx-cmd[aria-label="Sort"]');
     await page.locator('.menu .menu-item:has-text("Group by")').hover();
     await page.waitForTimeout(400);
@@ -647,7 +707,7 @@ if (!fatal) {
     await H.key('Alt+Shift+p');
     await page.waitForSelector('.app-files .fx-dp-name', { timeout: 5000 });
     check('details pane name', await page.locator('.app-files .fx-dp-name').innerText(), 'notes.md');
-    check('details pane type', await page.locator('.app-files .fx-dp-head .caption').innerText(), 'Markdown Document');
+    check('details pane type', await page.locator('.app-files .fx-dp-head .caption').innerText(), 'Markdown');
     await page.click('.app-files .fx-cmd-details');
     check('details pane toggled off', await page.locator('.app-files .fx-pane').isVisible(), false);
   });
@@ -660,7 +720,7 @@ if (!fatal) {
     await page.waitForSelector('.fx-props-win', { timeout: 5000 });
     await page.waitForFunction(() => !document.querySelector('.fx-props-win .fx-inline-spin'), null, { timeout: 10000 });
     const text = await page.locator('.fx-props-win .fx-props-page').innerText();
-    check('props type', text.includes('File folder'), true);
+    check('props type', text.includes('Folder'), true);
     check('props contains', text.includes('3 Files, 3 Folders'), true);
     check('props location', text.includes(D('Documents')), true);
     check('props title', await page.evaluate(() => window.__aurora.wm.list().find((w) => w.el.classList.contains('fx-props-win'))?.title), 'Projects Properties');
@@ -740,7 +800,7 @@ if (!fatal) {
     check('compact icon bar', iconbar, 4);
     const labels = await page.locator('.menu .menu-item .label').allInnerTexts();
     const hasTerminal = await page.evaluate(() => !!window.__aurora.registry.get('terminal'));
-    check('item menu entries', ['Open', 'Open in new tab', 'Add to sidebar', 'Copy as path', 'Properties'].every((l) => labels.includes(l)), true);
+    check('item menu entries', ['Open', 'Open in new tab', 'Add to sidebar', 'Copy path', 'Properties'].every((l) => labels.includes(l)), true);
     check('Open in Terminal only when Terminal is installed', labels.includes('Open in Terminal'), hasTerminal);
     await H.menuClick('Add to sidebar');
     await page.waitForTimeout(300);
@@ -796,7 +856,11 @@ if (!fatal) {
     // rubber band from empty space across the first rows
     const first = await page.locator('.app-files .fx-row').nth(0).boundingBox();
     const third = await page.locator('.app-files .fx-row').nth(2).boundingBox();
-    await page.mouse.move(first.x + first.width + 40, first.y + 4);
+    // The Name column stretches to fill the row; its stretched part is empty space where a band starts.
+    const nameW = await page.evaluate(() => window.__fx().view.columns().find((c) => c.id === 'name').width);
+    const nameCell = await page.locator('.app-files .fx-row').nth(0).locator('.c-name').boundingBox();
+    check('Name cell stretched past its width', nameCell.width > nameW + 60, true);
+    await page.mouse.move(nameCell.x + nameW + 40, first.y + 4);
     await page.mouse.down();
     await page.mouse.move(first.x + 100, third.y + 10, { steps: 10 });
     await page.mouse.up();
@@ -873,7 +937,8 @@ if (!fatal) {
     await H.key('ArrowRight');
     check('gallery keyboard', (await H.selected()).length, 1);
     await H.shot('files-gallery');
-    await page.click('.app-files .fx-navbtn[aria-label="Up"]');
+    await H.focusView();
+    await H.key('Alt+ArrowUp');
     await H.settle();
     check('up from gallery', (await H.loc()).type, 'home');
   });
@@ -939,7 +1004,7 @@ if (!fatal) {
     check('relabel: nav', (await page.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts()).includes('Accueil'), true);
     check('relabel: headers', (await page.locator('.app-files .fx-dh-cell').first().innerText()).trim(), 'Nom');
     check('relabel: tab', await page.locator('.app-files .fx-tab.active .fx-tab-title').innerText(), 'Documents');
-    check('relabel: types', await page.evaluate(() => window.__fx().view.items.find((i) => i.entry.dir).type), 'Dossier de fichiers');
+    check('relabel: types', await page.evaluate(() => window.__fx().view.items.find((i) => i.entry.dir).type), 'Dossier');
     await page.evaluate(() => window.__aurora.settings.set('lang', 'en'));
     await page.waitForTimeout(600);
     check('back to English', (await page.locator('.app-files .fx-dh-cell').first().innerText()).trim(), 'Name');
@@ -1181,7 +1246,7 @@ if (!fatal) {
     await H.focusView();
     await H.key('Control+l');
     await H.key('Shift+Tab');
-    check('Shift+Tab from the address field goes to Up', await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Up');
+    check('Shift+Tab from the address field goes to the history buttons', await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), (v) => v === 'Back' || v === 'Forward');
     await page.waitForTimeout(200);
     check('address left edit mode', await page.locator('.app-files .fx-address.editing').count(), 0);
     // ... and inside a dialog shown over the window
@@ -1221,6 +1286,7 @@ if (!fatal) {
     await H.settle();
     await page.locator('.app-files .fx-tab').first().click();
     await H.settle();
+    await H.openSearch();
     await page.click('.app-files .fx-search-input');
     await page.keyboard.type('notes');
     await page.keyboard.press('Control+Tab');
@@ -1330,18 +1396,21 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
       const p2 = s2.page;
       const nav = await p2.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts();
       check('fr nav', ['Accueil', 'Bureau', 'Téléchargements', 'Documents', 'Images', 'Ordinateur', 'Corbeille'].every((n) => nav.includes(n)), true);
-      check('fr places', await p2.locator('.app-files .fx-sec-head span:not(.icon)').first().innerText(), 'Dossiers favoris');
+      check('fr places', await p2.locator('.app-files .fx-chips').getAttribute('aria-label'), 'Dossiers');
+      check('fr recent', await p2.locator('.app-files .fx-home-title').innerText(), 'Récents');
+      check('fr filter chip', (await p2.locator('.app-files .fx-filter-chip').innerText()).trim(), 'Favoris uniquement');
+      check('fr chips', await p2.locator('.app-files .fx-chip .fx-name').allInnerTexts(), (v) => ['Bureau', 'Documents', 'Téléchargements', 'Images', 'Musique', 'Vidéos'].every((n) => v.includes(n)));
       check('fr sidebar sections', await p2.locator('.app-files .fx-tsec').allInnerTexts(), (v) => v.includes('Favoris') && v.includes('Emplacements'));
       check('fr home folder', (await p2.locator('.app-files .fx-tnode .fx-tlabel').allInnerTexts()).includes('Dossier personnel'), true);
       check('fr title', await p2.evaluate(() => window.__fx().win.title), 'Accueil - Fichiers');
       await H2.go(path.join(home2, 'Documents'));
       const types = await p2.evaluate(() => Object.fromEntries(window.__fx().view.items.map((i) => [i.entry.name, i.type])));
-      check('fr type folder', types.Letters, 'Dossier de fichiers');
-      check('fr type text', types['Report 2026.txt'], 'Document texte');
-      check('fr headers', (await p2.locator('.app-files .fx-dh-cell').allInnerTexts()).map((x) => x.trim()), ['Nom', 'Modifié le', 'Type', 'Taille']);
+      check('fr type folder', types.Letters, 'Dossier');
+      check('fr type text', types['Report 2026.txt'], 'Texte');
+      check('fr headers', (await p2.locator('.app-files .fx-dh-cell').allInnerTexts()).map((x) => x.trim()), ['Nom', 'Taille', 'Modification', 'Type']);
       check('fr size', await p2.locator('.app-files .fx-row:has-text("Report 2026.txt") .c-size').innerText(), '1 Ko');
       check('fr status', await p2.locator('.app-files .fx-status span').first().innerText(), '6 éléments');
-      check('fr search placeholder', await p2.locator('.app-files .fx-search-input').getAttribute('placeholder'), 'Rechercher dans Documents');
+      check('fr search placeholder', await p2.locator('.app-files .fx-search-input').getAttribute('placeholder'), 'Rechercher');
       await H2.select('Report 2026.txt');
       check('fr selection status', await p2.locator('.app-files .fx-st-sel').innerText(), (t) => t.startsWith('1 élément sélectionné'));
       const cmdOverflow = await p2.evaluate(() => [window.__fx().top, window.__fx().head].every((el) => el.scrollWidth <= el.clientWidth + 1));
@@ -1356,6 +1425,7 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
       await p2.locator('.app-files .fx-item').first().click({ button: 'right' });
       const labels = await p2.locator('.menu .menu-item .label').allInnerTexts();
       check('fr context menu', labels.includes('Ouvrir') && labels.includes('Propriétés'), true);
+      check('fr copy path', labels.includes('Copier le chemin') && !labels.some((l) => l.includes("chemin d'accès")), true);
       await p2.keyboard.press('Escape');
       await p2.click('.app-files .fx-tnode:has-text("Ordinateur")');
       await H2.settle();

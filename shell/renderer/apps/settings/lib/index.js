@@ -19,7 +19,7 @@ export const NAV = [...NAV_GROUPS.flatMap((g) => g.items), NAV_ACCOUNT];
 
 export const PAGES = {
   // System
-  system: { module: 'system', icon: 'desktop', title: { en: 'Overview', fr: 'Vue d’ensemble' } },
+  system: { module: 'system', icon: 'home', title: { en: 'Home', fr: 'Accueil' } },
   display: { module: 'system', icon: 'desktop', title: { en: 'Display', fr: 'Écran' }, desc: { en: 'Resolution, scale, brightness, night light', fr: 'Résolution, échelle, luminosité, éclairage nocturne' } },
   sound: { module: 'system', icon: 'speaker_2', title: { en: 'Sound', fr: 'Son' }, desc: { en: 'Volume levels, output, input, sound devices', fr: 'Niveaux de volume, sortie, entrée, périphériques audio' } },
   notifications: { module: 'system', parent: 'system', icon: 'alert', title: { en: 'Notifications', fr: 'Notifications' }, desc: { en: 'Alerts from apps and system, do not disturb', fr: 'Alertes des applications et du système, ne pas déranger' } },
@@ -228,7 +228,7 @@ const ENTRIES = [
   ['storage', null, 'hard_drive', 'Storage', 'Stockage', 'disk space drive free', 'disque espace lecteur libre'],
   ['storage', 'recycle', 'delete', 'Empty recycle bin', 'Vider la corbeille', 'trash cleanup', 'nettoyage'],
   ['multitasking', null, 'window_multiple', 'Window management', 'Fenêtres', 'multitasking snap windows layouts', 'multitâche ancrer fenêtres dispositions'],
-  ['multitasking', 'snap', 'layout_column_two', 'Snap windows', 'Ancrer les fenêtres', 'snap layouts assist', 'dispositions ancrage'],
+  ['multitasking', 'snap', 'layout_column_two', 'Window layouts', 'Disposer les fenêtres', 'snap layouts assist', 'dispositions ancrage ancrer'],
   ['multitasking', 'shake', 'window_multiple', 'Title bar window shake', 'Secouer la barre de titre', 'aero shake minimize', 'secouer réduire'],
   ['clipboard', null, 'clipboard_paste', 'Clipboard history', 'Historique du Presse-papiers', 'copy paste win+v', 'copier coller'],
   ['about', null, 'info', 'About', 'À propos', 'specifications version build system information', 'caractéristiques version build informations système'],

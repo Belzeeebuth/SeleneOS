@@ -643,14 +643,21 @@ export class ListView {
       star,
       h('div', { class: 'td-row-main' }, titleEl, meta.length ? h('div', { class: 'td-row-meta' }, meta) : null),
     );
+    // the first click opens the details pane, which narrows the list and can move the rows (a banner wraps):
+    // the second click of a double click then lands on another row. Both clicks belong to the first row.
     el.addEventListener('click', (e) => {
+      const fc = this._firstClick;
+      if (e.detail >= 2 && fc && fc.id !== task.id && Date.now() - fc.t < 800) return;
+      if (e.detail <= 1) this._firstClick = { id: task.id, t: Date.now() };
       const add = e.ctrlKey || e.metaKey;
       app.select(task.id, { add, range: e.shiftKey });
       if (!add && !e.shiftKey) el.focus({ preventScroll: true });
     });
     el.addEventListener('dblclick', (e) => {
       if (e.target.closest('.td-check, .td-star')) return;
-      app.openTask(task.id, { focus: true, field: 'title' });
+      const fc = this._firstClick;
+      const id = fc && Date.now() - fc.t < 800 && app.store.task(fc.id) ? fc.id : task.id;
+      app.openTask(id, { focus: true, field: 'title' });
     });
     el.addEventListener('contextmenu', (e) => {
       if (!app.sel.has(task.id)) app.select(task.id, { open: false });

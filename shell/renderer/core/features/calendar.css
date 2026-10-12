@@ -19,9 +19,23 @@
   --fly-from: 12px;
   width: min(624px, calc(100vw - 16px));
 }
+/* Notifications: a drawer on the right edge, the full height of the work area (minus the margins), sliding in from
+   the side; not a box stacked above the tray. */
 #notif-center {
-  --fly-from: 12px;
+  --fly-from: 0px;
+  top: max(var(--bar-margin, 0px), 8px);
   width: min(392px, calc(100vw - 16px));
+  max-height: none;
+  justify-content: stretch;
+}
+#notif-center:not(.open) {
+  transform: translateX(32px);
+}
+:root[data-animations="off"] #notif-center {
+  transform: none;
+}
+#notif-center > .nc-card {
+  flex: 1 1 auto;
 }
 .nc-card,
 .cal-card {
@@ -136,6 +150,32 @@
 }
 #calendar-center .td-agenda .acf-link {
   font-size: var(--fs-small);
+}
+/* no event today: the empty agenda becomes a quiet well that fills the column, centred, with its « Ajouter un
+   événement » link (instead of one line at the top over a large empty gap) */
+#calendar-center .td-agenda:has(.acf-empty) {
+  display: flex;
+  margin: 0;
+}
+#calendar-center .td-agenda:has(.acf-empty) > .acf {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+#calendar-center .td-agenda .acf-foot:has(.acf-empty) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 72px;
+  margin-top: 2px;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--text-2);
+  text-align: center;
 }
 .td-notifs {
   display: flex;
@@ -589,20 +629,25 @@
   bottom: auto;
   justify-content: flex-start;
 }
+:root[data-tb-pos="top"] #notif-center {
+  bottom: 12px;
+}
 :root[data-tb-pos="left"] #notif-center {
   right: auto;
   left: calc(var(--taskbar-h) + 12px);
+  top: 12px;
   bottom: 12px;
 }
 :root[data-tb-pos="right"] #notif-center {
   right: calc(var(--taskbar-h) + 12px);
+  top: 12px;
   bottom: 12px;
 }
 :root[data-tb-pos="left"] #notif-center:not(.open) {
   transform: translateX(-24px);
 }
-:root[data-tb-pos="right"] #notif-center:not(.open) {
-  transform: translateX(24px);
+:root[data-animations="off"][data-tb-pos] #notif-center {
+  transform: none;
 }
 /* a narrow work area: the month goes under the agenda instead of shrinking */
 @media (max-width: 660px) {

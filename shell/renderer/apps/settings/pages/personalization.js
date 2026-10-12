@@ -13,8 +13,8 @@ export const THEMES = [
   { id: 'light', name: { en: 'Nocturne, light', fr: 'Nocturne clair' }, wallpaper: 'builtin:nocturne', theme: 'light', accent: '#c9d3e6' },
   { id: 'eclipse', name: { en: 'Eclipse', fr: 'Éclipse' }, wallpaper: 'builtin:eclipse', theme: 'dark', accent: '#e9b566' },
   { id: 'eclipse-light', name: { en: 'Eclipse, light', fr: 'Éclipse clair' }, wallpaper: 'builtin:eclipse', theme: 'light', accent: '#e9b566' },
-  { id: 'clairdelune', name: { en: 'Moonlight', fr: 'Clair de lune' }, wallpaper: 'builtin:clairdelune', theme: 'dark', accent: '#a58bf2' },
-  { id: 'clairdelune-light', name: { en: 'Moonlight, dawn', fr: 'Clair de lune, aube' }, wallpaper: 'builtin:clairdelune', theme: 'light', accent: '#6f8de6' },
+  { id: 'clairdelune', name: { en: 'Clair de lune', fr: 'Clair de lune' }, wallpaper: 'builtin:clairdelune', theme: 'dark', accent: '#a58bf2' },
+  { id: 'clairdelune-light', name: { en: 'Clair de lune, dawn', fr: 'Clair de lune, aube' }, wallpaper: 'builtin:clairdelune', theme: 'light', accent: '#6f8de6' },
 ];
 
 const SOLIDS = ['#0b5394', '#1e3a5f', '#004e8c', '#0063b1', '#2d7d9a', '#038387', '#107c10', '#498205', '#5c2e91', '#8764b8', '#881798', '#c30052', '#a4262c', '#ca5010', '#986f0b', '#7a7574', '#4c4a48', '#1f1f1f'];

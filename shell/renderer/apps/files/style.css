@@ -2536,3 +2536,257 @@
 .app-files .fx-dh-cell.sorted {
   color: var(--text);
 }
+
+/* ---------------------------------------------------------------- Selene layout (phase D)
+   Address row: a frameless, title-like breadcrumb (no field until you edit the path), no Up
+   button (Alt+Up), and a search icon that opens into the field. Home: folder chips, then the
+   recent files as large thumbnails. Details: the Name column stretches to fill the row. */
+.app-files .fx-top .fx-address {
+  height: 36px;
+  padding-left: 0;
+  background: transparent;
+  border-color: transparent;
+}
+.app-files .fx-top .fx-address:hover {
+  background: transparent;
+}
+.app-files .fx-top .fx-address.editing {
+  padding-left: 4px;
+  background: var(--input-bg);
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.app-files .fx-top .fx-address.error {
+  border: 1px solid var(--danger);
+}
+.app-files .fx-top .fx-crumb {
+  height: 30px;
+  padding: 0 6px;
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+}
+.app-files .fx-top .fx-crumb:hover {
+  color: var(--text);
+}
+.app-files .fx-top .fx-crumb.last {
+  font-size: var(--fs-body-large);
+  font-weight: 600;
+  color: var(--text);
+}
+.app-files .fx-top .fx-crumb-chev {
+  width: 20px;
+  height: 30px;
+}
+
+/* search: icon button, opens into the field */
+.app-files .fx-top .fx-search:not(.open) {
+  flex: none;
+  width: 34px;
+  min-width: 0;
+  height: 34px;
+  border-color: transparent;
+  background: transparent;
+}
+.app-files .fx-top .fx-search.open {
+  flex: 0 1 260px;
+  min-width: 150px;
+}
+.app-files .fx-search:not(.open) .fx-search-input,
+.app-files .fx-search .fx-search-btn {
+  display: none;
+}
+.app-files .fx-search.open.has-text .fx-search-btn {
+  display: grid;
+}
+.app-files .fx-search-toggle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  transition: background var(--dur-fast) linear;
+}
+.app-files .fx-search:not(.open) .fx-search-toggle:hover {
+  background: var(--subtle-hover);
+}
+.app-files .fx-search.open .fx-search-toggle {
+  width: 30px;
+  color: var(--text-2);
+  cursor: text;
+}
+.app-files .fx-search-toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.app-files .fx-top .fx-search.open .fx-search-input {
+  padding-left: 0;
+  animation: fx-search-in var(--dur-fast) var(--ease);
+}
+@keyframes fx-search-in {
+  from {
+    opacity: 0;
+  }
+}
+:root[data-animations="off"] .app-files .fx-search-input {
+  animation: none;
+}
+@container (max-width: 560px) {
+  .app-files .fx-top .fx-search.open {
+    flex-basis: 150px;
+    min-width: 110px;
+  }
+}
+
+/* details: the Name column takes the room that is left */
+.app-files .fx-row {
+  min-width: 100%;
+}
+.app-files .fx-row > .fx-cell.c-name,
+.app-files .fx-dh > .fx-dh-cell.c-name {
+  flex: 1 0 auto;
+}
+
+/* Home */
+.app-files .fx-home {
+  padding: 6px 12px 24px;
+}
+.app-files .fx-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 2px 0 24px;
+}
+.app-files .fx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px 0 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  font-size: var(--fs-body);
+  white-space: nowrap;
+}
+.app-files .fx-chip:hover {
+  background-color: var(--surface-raised);
+  background-image: linear-gradient(var(--subtle-hover), var(--subtle-hover));
+}
+.app-files .fx-chip .fx-ic {
+  width: 20px;
+  height: 20px;
+}
+.app-files .fx-chip .fx-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-files .fx-home-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  margin: 0 0 12px;
+  padding: 0 2px;
+}
+.app-files .fx-home-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-body-large);
+  font-weight: 600;
+  color: var(--text);
+}
+.app-files .fx-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  transition: background var(--dur-fast) linear;
+}
+.app-files .fx-filter-chip:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-files .fx-filter-chip[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--text);
+}
+.app-files .fx-filter-chip[aria-pressed="true"] .icon {
+  color: var(--accent-text);
+}
+.app-files .fx-filter-chip:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.app-files .fx-rgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 8px;
+}
+.app-files .fx-rcard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 8px 10px;
+}
+.app-files .fx-rcard .fx-thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 112px;
+  margin-bottom: 6px;
+  border-radius: var(--radius);
+  background: var(--bg-alt);
+  overflow: hidden;
+}
+.app-files .fx-rcard .fx-ic {
+  width: 64px;
+  height: 64px;
+}
+.app-files .fx-rcard .fx-ic:has(> .fx-photo) {
+  width: 100%;
+  height: 100%;
+}
+.app-files .fx-rcard .fx-ic > img.fx-photo {
+  object-fit: cover;
+}
+.app-files .fx-rcard .fx-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-small);
+  color: var(--text);
+}
+.app-files .fx-rcard .fx-sub {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.app-files .fx-star {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  color: var(--accent-text);
+}
+.app-files .fx-home > .fx-empty-inline {
+  padding: 4px 2px;
+}

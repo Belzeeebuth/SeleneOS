@@ -1,9 +1,9 @@
 // Two panels at the right end of the bar (Selene layout, not a stacked notification center):
-//   « Aujourd'hui » (click on the clock, Super+N, 'calendar:toggle' / 'calendar:open'): a landscape card with the
+//   « Aujourd'hui » (click on the clock, 'calendar:toggle' / 'calendar:open'): a landscape card with the
 //     date in Manrope and the agenda of the selected day (apps/calendar/flyout.js) on the left, and a month grid
 //     that keeps its size on the right (locale aware: weeks start on Monday in French; today highlighted;
 //     horizontal month navigation, wheel, arrow keys). A link at the bottom opens the notifications.
-//   « Notifications » (click on the bell, 'notifications:toggle' / 'notifications:open'): Concentration and
+//   « Notifications » (click on the bell, Super+N, 'notifications:toggle' / 'notifications:open'): a drawer on the right edge. Concentration and
 //     Ne pas déranger at the top, then one card per app (clear the app, dismiss one, Delete key), Clear all.
 //     Opening it marks the notifications as read.
 import { createFlyout } from '../taskbar.js';

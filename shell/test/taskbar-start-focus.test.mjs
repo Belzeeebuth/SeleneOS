@@ -352,10 +352,10 @@ async function taskbarPart() {
     await s.page.mouse.click(tb.x + 300, tb.cy, { button: 'right' });
     await sleep(400);
     const items = await A(() => [...document.querySelectorAll('body > .menu .menu-item')].map((x) => x.textContent.trim()));
-    check(items.includes('Taskbar settings'), `context menu of the bar: ${items.join(' | ')}`);
-    await s.page.locator('body > .menu .menu-item', { hasText: 'Taskbar settings' }).click();
+    check(items.includes('Bar settings'), `context menu of the bar: ${items.join(' | ')}`);
+    await s.page.locator('body > .menu .menu-item', { hasText: 'Bar settings' }).click();
     await s.page.waitForSelector(S('.st-page[data-page="taskbar"]'), { timeout: 15000 });
-    check(true, 'Taskbar settings opens Settings > Personalization > Taskbar');
+    check(true, 'Bar settings opens Settings > Personalization > Taskbar');
     // the Settings page drives the new keys
     await A(() => window.__aurora.wm.byApp('settings')[0].maximize());
     await sleep(500);

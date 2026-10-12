@@ -519,6 +519,46 @@ button.qs-slider-icon:active,
   transform: none;
 }
 
+/* a short screen (1280x720 and below): the Apparence section reflows to fit without cutting its labels: tighter
+   gaps, shorter style chips, and each ambiance as one row (swatch beside its name) */
+@media (max-height: 760px) {
+  .qs-appearance {
+    margin-top: 8px;
+    padding-top: 10px;
+    gap: 10px;
+  }
+  .qs-group {
+    gap: 6px;
+  }
+  .qs-style {
+    height: 34px;
+  }
+  .qs-amb {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 4px 6px;
+  }
+  .qs-amb-sw {
+    flex: none;
+    width: 26px;
+    height: 18px;
+  }
+  .qs-amb-name {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+  }
+  .qs-accents {
+    padding: 0 4px 2px;
+  }
+  .qs-accent {
+    width: 32px;
+    height: 32px;
+  }
+}
+
 /* sub pages */
 .qs-sub {
   min-height: 300px;

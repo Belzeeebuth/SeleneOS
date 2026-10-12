@@ -1,6 +1,7 @@
 /* Search flyout (features/search.js); the results view (.sv-*) is styled in shell.css, its grouped-list layout below.
    Same glass surface as the Lanceur; it opens on the left, above the Lanceur's search button
-   (core/taskbar-start.css places it for every bar edge). */
+   (core/taskbar-start.css places it for every bar edge). One column, 540 px wide in every state: the actions of the
+   selected result show inline under its row, never in a side pane. */
 #search-panel {
   --fly-from: 64px;
   left: 50%;
@@ -11,13 +12,13 @@
   box-shadow: var(--shadow-flyout);
   backdrop-filter: blur(var(--blur)) saturate(var(--blur-sat));
   bottom: calc(var(--taskbar-h) + 12px);
-  width: 800px;
+  width: 540px;
   max-width: calc(100vw - 24px);
   /* as tall as the list needs (up to 700 px): no empty well under a short list */
   height: auto;
   min-height: min(440px, calc(100vh - var(--taskbar-h) - 24px));
   max-height: min(700px, calc(100vh - var(--taskbar-h) - 24px));
-  margin-left: -400px;
+  margin-left: -270px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -26,7 +27,7 @@ body.tb-left #search-panel {
   left: 12px;
   margin-left: 0;
 }
-@media (max-width: 830px) {
+@media (max-width: 570px) {
   #search-panel {
     left: 12px;
     margin-left: 0;
@@ -109,15 +110,57 @@ body.tb-left #search-panel {
 }
 
 /* ---- results view (core/start.js SearchView, also used by the Lanceur's inline search): one list grouped by kind,
-   a preview pane on the right only while an app or a file is selected. */
-.sv .sv-main {
+   one column; the selected app or file shows its actions as chips right under its row. */
+.sv .sv-main,
+.sv.with-preview .sv-main {
   grid-template-columns: minmax(0, 1fr);
 }
-.sv.with-preview .sv-main {
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-}
-.sv:not(.with-preview) .sv-preview {
+.sv .sv-preview {
   display: none;
+}
+.sv .sv-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 12px 8px 48px;
+  animation: sv-acts-in var(--dur) var(--ease);
+}
+@keyframes sv-acts-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+:root[data-animations="off"] .sv .sv-acts {
+  animation: none;
+}
+.sv .sv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--control);
+  color: var(--text);
+  font: 500 var(--fs-small) / 1 var(--font);
+  white-space: nowrap;
+  cursor: default;
+  transition: background var(--dur-fast) var(--ease);
+}
+.sv .sv-chip .icon {
+  color: var(--text-2);
+}
+.sv .sv-chip:hover {
+  background: var(--subtle-hover);
+}
+.sv .sv-chip:active {
+  background: var(--subtle-pressed);
+}
+.sv .sv-chip:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .sv .sv-group + .sv-group,
 .sv .sv-pending + .sv-group {

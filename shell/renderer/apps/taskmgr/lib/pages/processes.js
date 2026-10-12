@@ -1,12 +1,13 @@
-// Processes page: "Apps", "Background processes" and "Aurora processes" groups with the
-// Windows heat map, column totals, sorting, search, expandable process trees and End task.
+// Processes page: one row per application (its icon, expandable to its windows and processes),
+// the user's other programs, and everything that belongs to the system under one "System" row.
+// Usage shows as inline bars under the values; sorting, search, process trees and End task.
 //
 // Where things come from:
 //   Apps        the shell's windows (wm) grouped by app; apps with their own processes (browser
 //               tabs = <webview> renderers) show those processes' CPU / memory.
-//   Background  the user's processes, process trees of the same executable collapsed into one row.
-//   Aurora      Aurora Shell (its Electron processes), the Linux kernel threads and processes of
-//               other (system) accounts.
+//   Programs    the user's processes, process trees of the same executable collapsed into one row.
+//   System      Selene Shell (its Electron processes), the Linux kernel threads and processes of
+//               other (system) accounts and services.
 import { wm } from '../../../../core/wm.js';
 import { registry } from '../../../../core/registry.js';
 import { VTable } from '../table.js';
@@ -27,7 +28,7 @@ export class ProcessesPage {
     this.sort = app.prefs.sort.processes || { id: 'name', dir: 1 };
     this.entries = [];
     this.table = new VTable({
-      header: 'two-line',
+      header: 'one-line',
       rowHeight: 30,
       label: app.t('nav.processes'),
       widths: app.prefs.widths.processes,
@@ -87,9 +88,7 @@ export class ProcessesPage {
         align: 'end',
         heat: true,
         label: () => t('col.cpu'),
-        top: () => (perf() ? fmt.pct(perf().cpu.total) : ''),
-        hot: () => (perf()?.cpu.total || 0) >= 85,
-        cell: (r) => (blank(r) ? na(r) : { text: fmt.cpu(r.data.cpu), heat: heat((r.data.cpu || 0) / 100) }),
+        cell: (r) => (blank(r) ? na(r) : { text: fmt.cpu(r.data.cpu), heat: heat((r.data.cpu || 0) / 100), bar: (r.data.cpu || 0) / 100 }),
       },
       mem: {
         id: 'mem',
@@ -98,12 +97,10 @@ export class ProcessesPage {
         align: 'end',
         heat: true,
         label: () => t('col.mem'),
-        top: () => (perf() ? fmt.pct((perf().mem.used / memTotal()) * 100) : ''),
-        hot: () => (perf() ? perf().mem.used / memTotal() >= 0.85 : false),
         cell: (r) => {
           if (blank(r)) return na(r);
           const share = (r.data.mem || 0) / memTotal();
-          return { text: this.app.prefs.memPercent ? fmt.pct(share * 100, 1) : fmt.mb(r.data.mem), heat: heat(share * 4) };
+          return { text: this.app.prefs.memPercent ? fmt.pct(share * 100, 1) : fmt.mb(r.data.mem), heat: heat(share * 4), bar: Math.sqrt(share) };
         },
       },
       disk: {
@@ -113,9 +110,7 @@ export class ProcessesPage {
         align: 'end',
         heat: true,
         label: () => t('col.disk'),
-        top: () => (perf() ? fmt.pct(Math.max(0, ...perf().disks.map((d) => d.busyPct))) : ''),
-        hot: () => Math.max(0, ...(perf()?.disks.map((d) => d.busyPct) || [0])) >= 85,
-        cell: (r) => (blank(r) ? na(r) : { text: fmt.mbps(r.data.disk), heat: heat((r.data.disk || 0) / DISK_SCALE) }),
+        cell: (r) => (blank(r) ? na(r) : { text: fmt.mbps(r.data.disk), heat: heat((r.data.disk || 0) / DISK_SCALE), bar: Math.sqrt(Math.min(1, (r.data.disk || 0) / DISK_SCALE)) }),
       },
       cmdline: { id: 'cmdline', width: 360, min: 100, label: () => t('col.cmdline'), cell: (r) => ({ text: r.data.cmdline || '', tip: r.data.cmdline || '' }) },
     };
@@ -379,9 +374,11 @@ export class ProcessesPage {
     }
     sysEntries.push(...trees(sys, true));
 
+    // Applications and the user's programs are rows of their own (apps first); everything that
+    // belongs to the system is one "System" row.
     this.sections = [
-      { key: 'sec:apps', label: (n) => t('grp.apps', { count: n }), entries: appEntries },
-      { key: 'sec:bg', label: (n) => t('grp.background', { count: n }), entries: trees(bg, false) },
+      { key: 'sec:apps', rows: true, entries: appEntries },
+      { key: 'sec:bg', rows: true, entries: trees(bg, false) },
       { key: 'sec:sys', label: (n) => t('grp.system', { count: n }), entries: sysEntries },
     ];
   }
@@ -445,6 +442,10 @@ export class ProcessesPage {
         const entries = this.filterEntries(s.entries, m);
         if (!entries.length) continue;
         total += entries.length;
+        if (s.rows) {
+          for (const e of this.sorted(entries)) push(e, 0, null);
+          continue;
+        }
         const exp = !!m || this.isExpanded(s.key, true);
         rows.push({ key: s.key, kind: 'group', depth: 0, expandable: true, expanded: exp, label: s.label(entries.length), data: { type: 'section' } });
         if (exp) for (const e of this.sorted(entries)) push(e, 0, s.key);

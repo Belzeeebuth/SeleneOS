@@ -58,7 +58,7 @@
     "grp": {
       "apps": "Apps ({count})",
       "background": "Background processes ({count})",
-      "system": "Selene processes ({count})"
+      "system": "System ({count})"
     },
     "col": {
       "name": "Name",
@@ -417,7 +417,16 @@
       "label": "Process views",
       "processes": "List",
       "details": "Details",
-      "history": "History"
+      "history": "History",
+      "show": "Show:"
+    },
+    "meter": {
+      "label": "Resources",
+      "cpu": "Processor",
+      "mem": "Memory",
+      "disk": "Disk",
+      "net": "Network",
+      "open": "Show the details"
     }
   },
   "fr": {
@@ -479,7 +488,7 @@
     "grp": {
       "apps": "Applications ({count})",
       "background": "Processus en arrière-plan ({count})",
-      "system": "Processus Selene ({count})"
+      "system": "Système ({count})"
     },
     "col": {
       "name": "Nom",
@@ -838,7 +847,16 @@
       "label": "Vues des processus",
       "processes": "Liste",
       "details": "Détails",
-      "history": "Historique"
+      "history": "Historique",
+      "show": "Afficher :"
+    },
+    "meter": {
+      "label": "Ressources",
+      "cpu": "Processeur",
+      "mem": "Mémoire",
+      "disk": "Disque",
+      "net": "Réseau",
+      "open": "Afficher le détail"
     }
   }
 }

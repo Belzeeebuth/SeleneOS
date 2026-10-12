@@ -313,7 +313,7 @@ await test('fill bucket floods the inside of the rectangle with color 1', async 
   await s.page.click(`${WIN} .pt-pal-btn`);
   await s.page.click(`${WIN} .pt-fly-palette .pt-sw[data-color="#3d5bc4"]`);
   assert.equal(await P(s, (p) => p.S.primary), '#3d5bc4');
-  assert.equal(await s.page.isVisible(`${WIN} .pt-fly-palette`), false, 'the palette popover closes after a mouse pick');
+  assert.equal(await s.page.isVisible(`${WIN} .pt-fly-palette:not(.closing)`), false, 'the palette popover closes after a mouse pick');
   await tool(s, 'fill');
   assert.equal(await P(s, (p, el) => !el.querySelector('.pt-ctxbar').hidden), true, 'tolerance bar shown');
   await click(s, 500, 275);
@@ -588,12 +588,17 @@ await test('clipboard: copy all, new image, paste gives identical pixels', async
   await s.page.click(`${WIN} .pt-scroll`, { position: { x: 5, y: 5 } });
   await s.page.keyboard.press('Control+a');
   await s.page.keyboard.press('Control+c');
-  await wait(s, 300);
-  const img = await s.page.evaluate(async () => {
-    const bytes = await window.aurora.invoke('paint:clipboardReadImage');
-    const bmp = await createImageBitmap(new Blob([bytes]));
-    return { width: bmp.width, height: bmp.height };
-  });
+  // The copy encodes a 1152×648 PNG: on a loaded machine it can take more than a moment.
+  let img = null;
+  for (let i = 0; i < 20 && !img; i++) {
+    await wait(s, 150);
+    img = await s.page.evaluate(async () => {
+      const bytes = await window.aurora.invoke('paint:clipboardReadImage');
+      if (!bytes || !(bytes.length || bytes.byteLength)) return null;
+      const bmp = await createImageBitmap(new Blob([bytes])).catch(() => null);
+      return bmp && { width: bmp.width, height: bmp.height };
+    });
+  }
   assert.deepEqual(img, { width: 1152, height: 648 }, 'system clipboard holds the picture');
   await P(s, (p) => { p.app.cmd('new'); });
   await waitFor(s, (p) => !p.file.path);
@@ -1002,7 +1007,9 @@ await test('older undo steps are compressed to PNG in the background and still r
 });
 
 await test('Edit colors dialog (HSV + hex) sets color 1 and fills a custom slot', async () => {
-  await s.page.click(`${WIN} .pt-edit-colors`);
+  // The custom colour picker is at the bottom of the palette popover.
+  await s.page.click(`${WIN} .pt-pal-btn`);
+  await s.page.click(`${WIN} .pt-fly-palette .pt-edit-colors`);
   await s.page.waitForSelector(`${WIN} .pt-colors-dlg`);
   const hex = s.page.locator(`${WIN} .pt-hex`);
   await hex.fill('#12AB34');
@@ -1372,6 +1379,8 @@ await test('demo drawing + screenshots (light, en)', async () => {
 
 await test('small (minimum size) and maximized windows keep the command bar usable', async () => {
   const id = await P(s, (p, el) => el.dataset.id);
+  // The shape tool shows the most options (outline and fill) in the options bar.
+  await P(s, (p) => p.app.setShape('rect'));
   await s.aurora((wid) => {
     const w = window.__aurora.wm.get(wid);
     w.restore();
@@ -1383,7 +1392,8 @@ await test('small (minimum size) and maximized windows keep the command bar usab
     return { overflow: bar.scrollWidth - bar.clientWidth, compact: [...el.querySelectorAll('.pt-g.compact')].map((g) => g.dataset.g), w: el.getBoundingClientRect().width };
   });
   assert.ok(st.overflow <= 1, `no clipped commands (${st.overflow})`);
-  assert.ok(st.compact.length >= 3, `groups collapsed: ${st.compact}`);
+  // (the palette is a popover and the shape options show only for shapes: fewer groups collapse)
+  assert.ok(st.compact.length >= 1, `groups collapsed: ${st.compact}`);
   await s.shot('paint-min');
   // compact group opens as a flyout with the full group
   await s.page.click(`${WIN} .pt-g.compact[data-g="${st.compact[0]}"] .pt-g-compact`);

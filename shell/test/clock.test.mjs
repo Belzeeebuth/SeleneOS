@@ -264,9 +264,10 @@ async function runEnglish() {
       await s.page.keyboard.press('Control+5');
       await s.page.keyboard.press('Control+,');
       check('Ctrl+, -> Settings', await CK(s, (app) => app.pageId), 'settings');
+      // the pane reads Alarms, Timers, Stopwatch, Clocks, Focus
       await s.page.focus(`${WIN} .ck-nav-item[data-page="timer"]`);
-      await s.page.keyboard.press('ArrowDown');
-      check('ArrowDown moves focus in the pane', await s.page.evaluate(`document.activeElement?.dataset?.page`), 'alarm');
+      await s.page.keyboard.press('ArrowUp');
+      check('ArrowUp moves focus in the pane', await s.page.evaluate(`document.activeElement?.dataset?.page`), 'alarm');
       await s.page.keyboard.press('Enter');
       check('Enter opens the focused page', await CK(s, (app) => app.pageId), 'alarm');
       await sleep(300);
@@ -894,7 +895,7 @@ async function runEnglish() {
       await s.page.keyboard.press('End');
       check('End -> Settings', await s.page.evaluate(`document.activeElement?.dataset?.page`), 'settings');
       await s.page.keyboard.press('Home');
-      check('Home -> Focus sessions', await s.page.evaluate(`document.activeElement?.dataset?.page`), 'focus');
+      check('Home -> Alarms (first item)', await s.page.evaluate(`document.activeElement?.dataset?.page`), 'alarm');
       await s.page.keyboard.press('Tab');
       check('Tab leaves the pane', await s.page.evaluate(`!document.activeElement?.classList.contains('ck-nav-item')`), true);
     });

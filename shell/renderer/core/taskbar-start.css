@@ -253,15 +253,17 @@
 #taskbar .tb-showdesk::before {
   background: var(--line);
 }
-/* Éclipse (top-line): the running marker is a short line on the bar's inner edge, the active one a wide accent line */
+/* Éclipse (top-line): every running app carries the same line along the bar's top edge, as wide as its button; the
+   active one is the accent colour (and its button the accent tint), the others the tertiary text colour. */
 @container style(--bar-indicator: top-line) {
   #taskbar .tb-ind,
   .tb-ovf-item .tb-ind {
     top: calc(-4px - var(--tb-it));
     bottom: auto;
-    width: 12px;
+    left: 0;
+    width: 100%;
     height: 2px;
-    margin-left: -6px;
+    margin-left: 0;
     border-radius: 0 0 2px 2px;
     transform: scaleX(0);
   }
@@ -1086,6 +1088,53 @@
     height: 20px;
     margin: 0;
     line-height: 20px;
+  }
+  /* no separate Vue d'ensemble button: it stays on Super+Tab, in the Lanceur and in the bar's menu */
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-left > .tb-taskview {
+    display: none;
+  }
+  /* ONE status pill: network + volume (Réglages rapides) | bell (Notifications) | date + clock (Aujourd'hui).
+     Each part keeps its own button, hover and focus ring; together they read as one rounded field. */
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-quick,
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-clock {
+    height: calc(var(--tb-btn-h) - 4px);
+    margin: 0;
+    border: 1px solid var(--line-soft);
+    background: var(--control);
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-quick {
+    padding: 0 10px 0 14px;
+    border-right: 0;
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-clock {
+    margin-left: -2px;
+    padding: 0 14px 0 4px;
+    border-left: 0;
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-quick:hover,
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-clock:hover {
+    background: color-mix(in srgb, var(--control), var(--text) 8%);
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-quick.open,
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-clock.open {
+    background: var(--accent-subtle);
+  }
+  /* the bell is its own target inside the pill (a click opens Notifications) */
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock > .tb-bell {
+    height: calc(var(--tb-btn-h) - 14px);
+    padding: 0 8px;
+    border-left: 1px solid var(--line-soft);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock > .tb-bell:hover {
+    background: var(--subtle-hover);
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-quick:focus-visible,
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-clock:focus-visible {
+    position: relative;
+    z-index: 1;
   }
 }
 :root[data-tb-size="small"]:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-time {

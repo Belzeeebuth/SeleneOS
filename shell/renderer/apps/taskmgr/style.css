@@ -1,5 +1,5 @@
-/* System Monitor: tabs along the top, a quiet toolbar row, flat tables on the window surface,
-   resource columns tinted with the accent (stronger with use), graphs in the accent colour. */
+/* System Monitor: four meters along the top, a toolbar (search, "Show:" menu, commands), flat
+   tables on the window surface with inline usage bars, graphs in the accent colour. */
 .app-taskmgr {
   --tm-c-cpu: var(--accent);
   --tm-c-mem: var(--accent);
@@ -30,21 +30,13 @@
   white-space: nowrap;
 }
 
-/* ------------------------------------------------------------------ title bar search */
-.app-taskmgr .tm-tb {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 12px;
-}
+/* ------------------------------------------------------------------ toolbar search (left) */
 .app-taskmgr .tm-search {
   position: relative;
+  flex: 0 1 300px;
+  min-width: 140px;
   display: flex;
   align-items: center;
-  width: min(100%, 440px);
 }
 .app-taskmgr .tm-search-ic {
   position: absolute;
@@ -54,10 +46,10 @@
 }
 .app-taskmgr .tm-search-input {
   width: 100%;
-  min-height: 30px;
-  height: 30px;
+  min-height: 32px;
+  height: 32px;
   padding: 4px 32px 5px 34px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   border-radius: var(--radius-sm);
 }
 .app-taskmgr .tm-search-input,
@@ -96,75 +88,95 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  container-type: inline-size;
 }
 .app-taskmgr [hidden] {
   display: none !important;
 }
-/* Tabs along the top: text only, the selected one underlined in the accent. */
-.app-taskmgr .tm-tabbar {
+/* The meters: a permanent strip of four compact cards along the top (value + sparkline in the
+   accent colour). A card opens the Performances detail of its device. */
+.app-taskmgr .tm-meters {
   flex: none;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--line-soft);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px 8px;
   background: var(--titlebar-bg);
+  border-bottom: 1px solid var(--line-soft);
 }
-.app-taskmgr .tm-tablist {
-  display: flex;
-  align-items: stretch;
-  gap: 2px;
+.app-taskmgr .tm-meter {
   min-width: 0;
-  overflow: hidden;
-}
-.app-taskmgr .tm-tab-gap {
-  flex: 1;
-}
-.app-taskmgr .tm-tab {
-  position: relative;
-  flex: none;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  background: transparent;
-  color: var(--text-2);
+  gap: 8px;
+  height: 52px;
+  padding: 6px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
   font: inherit;
-  font-size: var(--fs-body);
-  white-space: nowrap;
+  text-align: left;
   cursor: default;
-  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
-.app-taskmgr .tm-tab:hover {
-  color: var(--text);
-  background: var(--subtle-hover);
+.app-taskmgr .tm-meter:hover {
+  background: color-mix(in srgb, var(--bg) 100%, var(--subtle-hover));
+  border-color: var(--line);
 }
-.app-taskmgr .tm-tab.selected {
-  color: var(--text);
-  font-weight: 600;
+.app-taskmgr .tm-meter.selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
-.app-taskmgr .tm-tab.selected::after {
-  content: "";
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 0;
-  height: 2px;
-  border-radius: 2px 2px 0 0;
-  background: var(--accent);
-}
-.app-taskmgr .tm-tab:focus-visible {
+.app-taskmgr .tm-meter:focus-visible {
   outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
-.app-taskmgr .tm-tab-gear {
-  width: 40px;
-  padding: 0;
-  justify-content: center;
+.app-taskmgr .tm-meter-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
-.app-taskmgr .tm-tab-gear.selected::after {
-  left: 8px;
-  right: 8px;
+.app-taskmgr .tm-meter-label {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-taskmgr .tm-meter-val {
+  font-family: var(--font-display);
+  font-size: var(--fs-body-large);
+  font-weight: 600;
+  line-height: 22px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-taskmgr .tm-spark {
+  flex: 0 1 72px;
+  min-width: 36px;
+  height: 26px;
+  overflow: visible;
+}
+.app-taskmgr .tm-spark-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+}
+.app-taskmgr .tm-spark-area {
+  fill: var(--accent-subtle);
+  stroke: none;
+}
+@container (max-width: 700px) {
+  .app-taskmgr .tm-spark {
+    display: none;
+  }
 }
 
 .app-taskmgr .tm-main {
@@ -176,11 +188,11 @@
   background: var(--bg);
   overflow: hidden;
 }
-/* Quiet toolbar row: the Processes views on the left, the page's commands on the right. */
+/* Toolbar: search on the left, the "Show:" view menu, the page's commands, Settings. */
 .app-taskmgr .tm-head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-height: 48px;
   padding: 8px 12px 6px 16px;
   flex: none;
@@ -194,40 +206,38 @@
   white-space: nowrap;
   margin: 0;
 }
-.app-taskmgr .tm-views {
+.app-taskmgr .tm-viewbtn {
   flex: none;
-  display: inline-flex;
-  padding: 2px;
-  gap: 2px;
-  border-radius: var(--radius);
-  background: var(--bg-alt);
-  border: 1px solid var(--line-soft);
-}
-.app-taskmgr .tm-view {
-  height: 28px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-2);
-  font: inherit;
+  gap: 4px;
+  min-height: 32px;
+  padding: 4px 10px;
   font-size: var(--fs-small);
   white-space: nowrap;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
-.app-taskmgr .tm-view:hover {
-  color: var(--text);
-  background: var(--subtle-hover);
+.app-taskmgr .tm-viewbtn-pre {
+  color: var(--text-2);
 }
-.app-taskmgr .tm-view.selected {
-  color: var(--text);
-  background: var(--surface-raised);
-  box-shadow: 0 0 0 1px var(--line-soft);
+.app-taskmgr .tm-viewbtn-label {
   font-weight: 600;
 }
-.app-taskmgr .tm-view:focus-visible {
+.app-taskmgr .tm-viewbtn.open {
+  background: var(--subtle-pressed);
+}
+.app-taskmgr .tm-settings-btn {
+  flex: none;
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  color: var(--text-2);
+}
+.app-taskmgr .tm-settings-btn[aria-pressed="true"] {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-taskmgr .tm-viewbtn:focus-visible,
+.app-taskmgr .tm-settings-btn:focus-visible {
   outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 .app-taskmgr .tm-cmds {
   flex: 1;
@@ -508,36 +518,32 @@
   justify-content: flex-end;
   font-variant-numeric: tabular-nums;
 }
+/* Usage: an inline bar under the value (no tinted cells). */
 .app-taskmgr .tm-td.heat {
-  box-shadow: inset 1px 0 0 var(--tm-heat-sep);
+  position: relative;
 }
-.app-taskmgr .tm-td[data-h] {
-  color: var(--heat-text);
+.app-taskmgr .tm-td[data-h]::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  bottom: 5px;
+  width: calc((100% - 20px) * var(--tm-bar, var(--tm-lvl, 0)));
+  min-width: 2px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.85;
 }
-.app-taskmgr .tm-td[data-h="0"] {
-  background: var(--heat-0);
+.app-taskmgr .tm-td[data-h="0"]::after {
+  display: none;
 }
-.app-taskmgr .tm-td[data-h="1"] {
-  background: var(--heat-1);
-}
-.app-taskmgr .tm-td[data-h="2"] {
-  background: var(--heat-2);
-}
-.app-taskmgr .tm-td[data-h="3"] {
-  background: var(--heat-3);
-}
-.app-taskmgr .tm-td[data-h="4"] {
-  background: var(--heat-4);
-}
-.app-taskmgr .tm-td[data-h="5"] {
-  background: var(--heat-5);
-}
-.app-taskmgr .tm-td[data-h="6"] {
-  background: var(--heat-6);
-}
-.app-taskmgr .tm-td[data-h="7"] {
-  background: var(--heat-7);
-}
+.app-taskmgr .tm-td[data-h="1"] { --tm-lvl: 0.14; }
+.app-taskmgr .tm-td[data-h="2"] { --tm-lvl: 0.29; }
+.app-taskmgr .tm-td[data-h="3"] { --tm-lvl: 0.43; }
+.app-taskmgr .tm-td[data-h="4"] { --tm-lvl: 0.57; }
+.app-taskmgr .tm-td[data-h="5"] { --tm-lvl: 0.71; }
+.app-taskmgr .tm-td[data-h="6"] { --tm-lvl: 0.86; }
+.app-taskmgr .tm-td[data-h="7"] { --tm-lvl: 1; }
 .app-taskmgr .tm-name {
   padding-left: 8px;
 }
@@ -1119,4 +1125,79 @@
 }
 .app-taskmgr .tm-run-recent.btn:disabled {
   opacity: 0.5;
+}
+
+/* ------------------------------------------------------------------ Selene: Performances detail
+   The meters above choose the device; every device (all disks, interfaces, the GPU) stays
+   reachable as a row of chips above the large graph and the figures. */
+.app-taskmgr .tm-perf {
+  flex-direction: column;
+}
+.app-taskmgr .tm-devs {
+  width: auto;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 2px 16px 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.app-taskmgr .tm-dev {
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+}
+.app-taskmgr .tm-dev .tm-spark-wrap,
+.app-taskmgr .tm-dev .tm-dev-sub {
+  display: none;
+}
+.app-taskmgr .tm-dev-text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.app-taskmgr .tm-dev-title {
+  max-width: 180px;
+  font-size: var(--fs-small);
+}
+.app-taskmgr .tm-dev.selected {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+}
+.app-taskmgr .tm-dev.selected::before {
+  display: none;
+}
+.app-taskmgr .tm-devs:focus-visible .tm-dev.selected {
+  box-shadow: none;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.app-taskmgr .tm-pd {
+  padding-left: 16px;
+}
+/* Usage bars: a thin track under the value, filled in the accent. */
+.app-taskmgr .tm-td[data-h]::after {
+  left: 10px;
+  right: 10px;
+  bottom: 3px;
+  width: auto;
+  height: 3px;
+  opacity: 1;
+  background: linear-gradient(to right, var(--accent) calc(var(--tm-bar, var(--tm-lvl, 0)) * 100%), color-mix(in srgb, var(--line-soft) 70%, transparent) 0);
+}
+.app-taskmgr .tm-td.heat {
+  padding-bottom: 3px;
+}
+.app-taskmgr .tm-td[data-h="0"]::after {
+  display: block;
+}
+/* Narrow windows: the search gives its room to the commands (icons only). */
+.app-taskmgr .tm-head.compact .tm-search {
+  flex-basis: 170px;
+}
+/* The detail's graph stays large; the detail scrolls in short windows. */
+.app-taskmgr .tm-chartbox.main {
+  min-height: 200px;
 }

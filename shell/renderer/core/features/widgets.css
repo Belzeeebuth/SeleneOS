@@ -264,7 +264,12 @@
   display: inline-flex;
 }
 .wg-moon-dark {
-  fill: rgb(var(--tint) / 0.14);
+  fill: rgb(var(--shadow-rgb, 0 0 0) / 0.35);
+  stroke: var(--text-3);
+  stroke-width: 1.5;
+}
+#widgets-board:focus {
+  outline: none;
 }
 .wg-moon-lit {
   fill: var(--text);

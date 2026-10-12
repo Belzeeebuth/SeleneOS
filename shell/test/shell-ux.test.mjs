@@ -398,18 +398,26 @@ async function scenario(theme, lang) {
       open: document.getElementById('search-panel').classList.contains('open'),
       value: document.querySelector('.sp-input').value,
       rows: [...document.querySelectorAll('#search-panel .sv-row')].map((r) => r.textContent),
-      preview: !!document.querySelector('#search-panel .sv-pv'),
+      preview: !!document.querySelector('#search-panel .sv-pv, #search-panel .sv-preview'),
+      acts: document.querySelector('#search-panel .sv-row.selected + .sv-acts') ? document.querySelectorAll('#search-panel .sv-acts .sv-chip').length : 0,
+      width: Math.round(document.getElementById('search-panel').getBoundingClientRect().width),
     }));
     check(srch.open && srch.value === 'pro', `[${tag}] search:open {query} opens with the query`);
     check(srch.rows.some((x) => x.includes('Project plan.docx')), `[${tag}] file search finds ~/Documents/Project plan.docx`);
     // the preview pane is there only while an app or a file is selected: walk down to the file with the keyboard
     const fileIdx = await s.aurora(() => [...document.querySelectorAll('#search-panel .sv-row')].findIndex((r) => r.textContent.includes('Project plan.docx')));
     const firstKind = await s.aurora(() => document.querySelector('#search-panel .sv-row.selected')?.dataset.kind);
-    check(srch.preview === (firstKind === 'app' || firstKind === 'file'), `[${tag}] the first result is selected, with a preview only for an app or a file (${firstKind})`);
+    // one column (no side preview pane), about 540 px wide; the selected app or file shows its actions inline under its row
+    check(!srch.preview && srch.width <= 560 && srch.width >= 500, `[${tag}] search is one column, ~540 px wide, no preview pane (${srch.width}px)`);
+    check((srch.acts > 0) === (firstKind === 'app' || firstKind === 'file'), `[${tag}] the first result is selected, with inline actions only for an app or a file (${firstKind}, ${srch.acts})`);
     for (let i = 0; i < fileIdx; i++) await P.keyboard.press('ArrowDown');
     await sleep(250);
-    const pv = await s.aurora(() => ({ sel: document.querySelector('#search-panel .sv-row.selected')?.textContent, pv: document.querySelector('#search-panel .sv-pv-title')?.textContent }));
-    check(fileIdx >= 0 && pv.sel?.includes('Project plan.docx') && pv.pv === 'Project plan.docx', `[${tag}] arrow keys select the file and the preview pane shows it ${JSON.stringify(pv)}`);
+    const pv = await s.aurora(() => {
+      const sel = document.querySelector('#search-panel .sv-row.selected');
+      const acts = sel?.nextElementSibling?.classList.contains('sv-acts') ? sel.nextElementSibling : null;
+      return { sel: sel?.textContent, for: acts?.dataset.for, chips: acts ? [...acts.querySelectorAll('.sv-chip')].map((b) => b.textContent) : [], all: document.querySelectorAll('#search-panel .sv-acts').length };
+    });
+    check(fileIdx >= 0 && pv.sel?.includes('Project plan.docx') && pv.for === 'Project plan.docx' && pv.chips.length === 3 && pv.all === 1, `[${tag}] arrow keys select the file and its actions show inline under it ${JSON.stringify(pv)}`);
     await shot(s, `search-${tag}`, docName('shell-search', tag));
     // one list grouped by kind (no pivot tabs, no tiles); a group heading narrows the list to its kind
     const groups = await s.aurora(() => ({

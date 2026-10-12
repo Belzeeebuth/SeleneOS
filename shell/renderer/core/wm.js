@@ -78,11 +78,11 @@ i18n.extend({
     wm: {
       minimize: 'Réduire',
       maximize: 'Agrandir',
-      restore: 'Niveau inférieur',
+      restore: 'Restaurer',
       close: 'Fermer',
       move: 'Déplacer',
       size: 'Taille',
-      snap: 'Ancrer',
+      snap: 'Disposer',
       desktopN: 'Bureau {n}',
       maximizeVertically: 'Agrandir verticalement',
     },
