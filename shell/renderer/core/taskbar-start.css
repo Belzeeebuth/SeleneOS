@@ -331,6 +331,11 @@
     border-radius: calc(var(--tb-btn-h) / 2);
   }
 }
+/* transparency off (and High contrast): the islands / pills are opaque (--tp 0) and drop their backdrop blur, like
+   every other glass surface (styles/base.css) — cheaper in a VM */
+:root[data-transparency="off"]:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar > .tb-part {
+  backdrop-filter: none;
+}
 /* a top bar: the floating parts hang from the top edge */
 :root[data-tb-pos="top"] #taskbar {
   --tb-swap: 1;

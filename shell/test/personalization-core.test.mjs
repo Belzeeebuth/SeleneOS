@@ -48,6 +48,15 @@ async function install(s) {
         const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
         return el ? getComputedStyle(el)[prop] : null;
       },
+      // the element that carries the bar's glass (colour, opacity, blur): in the floating modes (islands, pills) the
+      // bar itself is transparent and each part is glass (docs/design/SYSTEM.md §3); docked / vertical: the bar
+      bar: () => {
+        const tb = document.getElementById('taskbar');
+        const part = tb.querySelector(':scope > .tb-part');
+        const mode = getComputedStyle(document.documentElement).getPropertyValue('--bar-mode').trim();
+        const pos = document.documentElement.dataset.tbPos;
+        return part && (mode === 'islands' || mode === 'pills') && pos !== 'left' && pos !== 'right' ? part : tb;
+      },
       alpha: (c) => {
         const m = /rgba?\(([^)]+)\)/.exec(c || '') || [];
         const p = (m[1] || '').split(/[\s,/]+/).filter(Boolean);
