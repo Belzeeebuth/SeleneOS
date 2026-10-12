@@ -1,7 +1,7 @@
 // Aurora Calculator — a Windows 11 style calculator.
 //   Standard (immediate execution), Scientific (precedence, functions), Programmer (64-bit two's
 //   complement, HEX/DEC/OCT/BIN, bitwise), Date calculation and 12 unit converters.
-// Layout: header (hamburger, mode title, keep-on-top), mode view, history/memory pane docked on the
+// Layout: header (mode dropdown, keep-on-top, memory keys, history), mode view, history/memory pane docked on the
 // right when the window is >= 560px wide, otherwise shown as a flyout.
 import { Engine, STD_PREC, SCI_PREC } from './lib/engine.js';
 import { decimalSystem } from './lib/decimal.js';

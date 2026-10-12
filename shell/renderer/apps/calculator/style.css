@@ -1,26 +1,20 @@
 /* Aurora Calculator — Windows 11 Calculator look. Everything is scoped under .app-calculator. */
+/* Keys: digits on the raised surface, functions on the sunken one, the operator column tinted with the
+   accent, equals filled with it. Colours come from the tokens only. */
 .app-calculator {
-  --ck-num: rgba(255, 255, 255, 0.72);
-  --ck-num-hover: rgba(249, 249, 249, 0.55);
-  --ck-num-press: rgba(249, 249, 249, 0.32);
-  --ck-op: rgba(249, 249, 249, 0.42);
-  --ck-op-hover: rgba(255, 255, 255, 0.62);
-  --ck-op-press: rgba(249, 249, 249, 0.28);
-  --ck-stroke: rgba(0, 0, 0, 0.0578);
-  --ck-stroke-bottom: rgba(0, 0, 0, 0.13);
-  --calc-pane-bg: rgba(255, 255, 255, 0.22);
-  --calc-gap: 2px;
-}
-:root[data-theme="dark"] .app-calculator {
-  --ck-num: rgba(255, 255, 255, 0.0837);
-  --ck-num-hover: rgba(255, 255, 255, 0.115);
-  --ck-num-press: rgba(255, 255, 255, 0.05);
-  --ck-op: rgba(255, 255, 255, 0.0465);
-  --ck-op-hover: rgba(255, 255, 255, 0.0837);
-  --ck-op-press: rgba(255, 255, 255, 0.0326);
-  --ck-stroke: rgba(255, 255, 255, 0.0698);
-  --ck-stroke-bottom: rgba(255, 255, 255, 0.035);
-  --calc-pane-bg: rgba(255, 255, 255, 0.025);
+  --ck-num: var(--surface-raised);
+  --ck-num-hover: color-mix(in srgb, var(--surface-raised) 92%, var(--text));
+  --ck-num-press: color-mix(in srgb, var(--surface-raised) 86%, var(--text));
+  --ck-op: var(--bg-alt);
+  --ck-op-hover: color-mix(in srgb, var(--bg-alt) 92%, var(--text));
+  --ck-op-press: color-mix(in srgb, var(--bg-alt) 86%, var(--text));
+  --ck-oper: color-mix(in srgb, var(--accent-base, var(--accent)) 16%, var(--bg));
+  --ck-oper-hover: color-mix(in srgb, var(--accent-base, var(--accent)) 24%, var(--bg));
+  --ck-oper-press: color-mix(in srgb, var(--accent-base, var(--accent)) 30%, var(--bg));
+  --ck-stroke: var(--line-soft);
+  --ck-stroke-bottom: var(--line-soft);
+  --calc-pane-bg: var(--bg-alt);
+  --calc-gap: 4px;
 }
 
 .app-calculator .calc {
@@ -86,15 +80,69 @@
   transition: transform var(--dur-fast) var(--ease);
 }
 .app-calculator .calc-title {
-  margin: 0 2px 0 4px;
   font-family: var(--font-display);
-  font-size: var(--fs-subtitle);
-  line-height: 28px;
+  font-size: var(--fs-body);
+  line-height: 20px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+/* mode switcher: a compact dropdown */
+.app-calculator .calc-modebtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 60%;
+  height: 32px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text);
+  transition: background var(--dur-fast) var(--ease);
+}
+.app-calculator .calc-modebtn:hover {
+  background: var(--control-hover, var(--subtle-hover));
+}
+.app-calculator .calc-modebtn[aria-expanded="true"] {
+  background: var(--subtle-selected);
+}
+.app-calculator .calc-modebtn-chev {
+  flex: none;
+  color: var(--text-2);
+}
+.app-calculator .calc-textbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  flex: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-small);
+  transition: background var(--dur-fast) var(--ease);
+}
+.app-calculator .calc-textbtn:hover {
+  background: var(--subtle-hover);
+}
+.app-calculator .calc-textbtn.on {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-calculator .calc-textbtn[hidden] {
+  display: none;
+}
+.app-calculator .calc-modebtn:focus-visible,
+.app-calculator .calc-textbtn:focus-visible,
+.app-calculator .calc-iconbtn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .app-calculator .calc-back-full {
   display: none;
@@ -102,8 +150,8 @@
 .app-calculator .calc.compact .calc-back-full {
   display: inline-grid;
 }
-.app-calculator .calc.compact .calc-ham,
-.app-calculator .calc.compact .calc-title,
+.app-calculator .calc.compact .calc-modebtn,
+.app-calculator .calc.compact .calc-mem-btn,
 .app-calculator .calc.compact .calc-compact-btn,
 .app-calculator .calc.compact .calc-history-btn {
   display: none;
@@ -190,13 +238,20 @@
   font-weight: 600;
 }
 
-/* memory row, tool rows */
+/* memory row (hidden behind the Memory button in the header), tool rows */
 .app-calculator .calc-memrow {
   display: flex;
   flex: none;
-  height: 34px;
-  padding: 0 4px;
+  height: 36px;
+  margin: 0 4px 4px;
+  padding: 2px;
   gap: 2px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+}
+.app-calculator .calc:not(.mem-open) .calc-memrow {
+  display: none;
 }
 .app-calculator .calc-mem,
 .app-calculator .calc-tool {
@@ -348,7 +403,7 @@
   padding: 0;
   border: 1px solid var(--ck-stroke);
   border-bottom-color: var(--ck-stroke-bottom);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--ck-op);
   color: var(--text);
   font-size: var(--key-fs-op);
@@ -385,8 +440,7 @@
 .app-calculator .ck-eq {
   background: var(--accent);
   color: var(--on-accent);
-  border-color: rgba(255, 255, 255, 0.08);
-  border-bottom-color: rgba(0, 0, 0, 0.32);
+  border-color: transparent;
   font-size: calc(var(--key-fs) + 2px);
 }
 .app-calculator .ck-eq:hover {
@@ -472,6 +526,38 @@
 .app-calculator .calc-view .ck[data-key="equals"] {
   font-size: calc(var(--key-fs) + 4px);
   font-weight: 400;
+}
+/* operator column: accent tint, accent-coloured signs */
+.app-calculator .calc-view .ck[data-key="div"],
+.app-calculator .calc-view .ck[data-key="mul"],
+.app-calculator .calc-view .ck[data-key="sub"],
+.app-calculator .calc-view .ck[data-key="add"] {
+  background: var(--ck-oper);
+  color: var(--accent-text);
+  border-color: transparent;
+}
+.app-calculator .calc-view .ck[data-key="div"]:hover:not(:disabled),
+.app-calculator .calc-view .ck[data-key="mul"]:hover:not(:disabled),
+.app-calculator .calc-view .ck[data-key="sub"]:hover:not(:disabled),
+.app-calculator .calc-view .ck[data-key="add"]:hover:not(:disabled) {
+  background: var(--ck-oper-hover);
+}
+.app-calculator .calc-view .ck[data-key="div"]:active:not(:disabled),
+.app-calculator .calc-view .ck[data-key="mul"]:active:not(:disabled),
+.app-calculator .calc-view .ck[data-key="sub"]:active:not(:disabled),
+.app-calculator .calc-view .ck[data-key="add"]:active:not(:disabled),
+.app-calculator .calc-view .ck[data-key="div"].pressed,
+.app-calculator .calc-view .ck[data-key="mul"].pressed,
+.app-calculator .calc-view .ck[data-key="sub"].pressed,
+.app-calculator .calc-view .ck[data-key="add"].pressed {
+  background: var(--ck-oper-press);
+}
+.app-calculator .calc-view .ck[data-key="div"]:disabled,
+.app-calculator .calc-view .ck[data-key="mul"]:disabled,
+.app-calculator .calc-view .ck[data-key="sub"]:disabled,
+.app-calculator .calc-view .ck[data-key="add"]:disabled {
+  background: var(--ck-oper);
+  color: var(--text-disabled);
 }
 .app-calculator .calc-scientific .ck,
 .app-calculator .calc-programmer .ck {
@@ -710,35 +796,30 @@
 }
 .app-calculator .calc-nav {
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: min(300px, calc(100% - 40px));
+  left: 6px;
+  top: 40px;
+  width: min(260px, calc(100% - 12px));
+  max-height: calc(100% - 52px);
   display: flex;
   flex-direction: column;
-  padding: 2px 4px 4px;
+  padding: 4px;
   background: var(--surface-raised);
-  border-right: 1px solid var(--window-stroke);
-  border-radius: 0 var(--radius) var(--radius) 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   box-shadow: var(--shadow-flyout);
-  transform: translateX(calc(-100% - 24px));
+  opacity: 0;
+  transform: translateY(-4px);
   visibility: hidden;
-  transition: transform var(--dur-slower) var(--ease), visibility 0s linear var(--dur-slower);
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease), visibility 0s linear var(--dur);
 }
 .app-calculator .calc.nav-open .calc-navlayer {
   pointer-events: auto;
 }
 .app-calculator .calc.nav-open .calc-nav {
+  opacity: 1;
   transform: none;
   visibility: visible;
-  transition: transform var(--dur-slower) var(--ease), visibility 0s;
-}
-.app-calculator .calc-nav-top {
-  display: flex;
-  align-items: center;
-  height: 42px;
-  padding: 0 2px;
-  flex: none;
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease), visibility 0s;
 }
 .app-calculator .calc-nav-list {
   flex: 1;
