@@ -16,7 +16,7 @@ aurora-os/
     renderer/core/          shell core: wm, taskbar, start, desktop, ui kit, i18n, theme…
     renderer/core/features/ optional shell features, auto-discovered (export mount(ctx))
     renderer/apps/<id>/     one folder per app (manifest.json, main.js, style.css, i18n.json, icon.svg)
-    renderer/assets/        icons (Fluent, MIT), wallpapers, logos
+    renderer/assets/        icons (Phosphor, MIT), wallpapers, logos
     test/lib.mjs            Playwright/Electron harness;  test/smoke.mjs
   rootfs/                   files copied verbatim into the OS image (/etc, /usr/lib/aurora, …)
   iso/                      ISO build scripts;  iso/packages.d/*.list = apt packages per feature
@@ -93,8 +93,9 @@ What you can use:
   bar, controls, resize handles, snapping and animations for free (full list in the header of `core/wm.js`).
 - **`ctx.ui`** (UI kit): `menu`, `dialog`, `alert`, `confirm`, `prompt`, `filePicker`, `toggle`, `slider`,
   `select`, `segmented`, `fileIcon`, `loadCss(href)` (adds a stylesheet once). **`ctx.h`** builds DOM;
-  **`ctx.icon(name)`** draws a Fluent icon. Check that a name exists with
-  `node -e 'console.log(Object.keys(require("./renderer/assets/icons/fluent.json")).filter(k=>k.includes("arrow")).join(" "))'`.
+  **`ctx.icon(name)`** draws a Phosphor icon (Phosphor names, or the older Fluent-style names kept as
+  aliases; see [design/SYSTEM.md](design/SYSTEM.md) §8). Check that a name exists with
+  `node -e 'const j=require("./renderer/assets/icons/phosphor.json");console.log([...Object.keys(j.glyphs),...Object.keys(j.aliases)].filter(k=>k.includes("arrow")).join(" "))'`.
 - **`ctx.t(key, vars)`**: looks in `apps/<id>/i18n.json` (`{ "en": {…}, "fr": {…} }`), then in the core
   dictionary (`common.ok`, `common.cancel`, `common.save`, …). Plurals use the `key_one` / `key_other`
   forms with `{ count }`. **Every visible string must exist in English and French.**
@@ -123,14 +124,20 @@ What you can use:
   [PERSONALIZATION.md](PERSONALIZATION.md). Apps that follow the tokens and `:root[data-theme="dark"] .app-x`
   selectors need no extra work.
 
-### Visual rules (Windows 11 / Fluent)
+### Visual rules (Selene design system)
+
+The full reference is [design/SYSTEM.md](design/SYSTEM.md) (styles, ambiances, accents, tokens, icons).
 
 - Use the CSS tokens from `core/tokens.css` (`--text`, `--text-2`, `--card`, `--stroke`, `--accent`,
   `--subtle-hover`, radii, `--ease`, durations) and the classes from `core/ui.css` (`.btn`, `.btn.primary`,
   `.btn.subtle`, `.input`, `.select`, `.toggle`, `.slider`, `.card`, `.card-row`, `.list-item`, `.nav-item`,
   `.toolbar`, `.tabs`, `.segmented`, `.infobar`, `.empty`, typography classes).
-- Never hard-code colors that break dark mode. Test **light + dark** and **en + fr**.
-- Font: 14px body, 12px captions, Segoe-like (Inter). Radius: 4px controls, 8px cards and windows.
+- No hex colours in components: tokens only, so the three styles (Nocturne, Éclipse, Clair de lune),
+  Contraste élevé, the ambiances and the accents all work. Per-style differences go through the style
+  hooks (`--bar-mode`, `--win-border`, `--sel-bar-w`, `--panel-grain`…), not through `[data-style]` selectors
+  in app CSS. Test **light + dark** and **en + fr**.
+- Blur (`backdrop-filter`) only on the bar, the Lanceur and shell panels, never in app windows.
+- Fonts: Manrope for titles, Inter for text (14px body, 12px captions). Radii come from the tokens.
 - Animate with `transform`/`opacity` only, using `var(--ease)`; respect `[data-animations="off"]`.
 - Scope your CSS under `.app-<id>` (the window gets that class) so apps never clash.
 
