@@ -1146,7 +1146,8 @@ async function greeterQaTests() {
   await page.keyboard.press('ArrowUp');
   check(await page.evaluate(() => document.activeElement === [...document.querySelectorAll('.lk-user')].pop()), 'ArrowUp wraps around');
   check((await page.$$('.lk-user[tabindex="0"]')).length === 1, 'exactly one account is tabbable');
-  // Tray: localized labels; menus open right-aligned above their button.
+  // Tray: localized labels; menus open right-aligned next to their button, never over it (below it: the tray is
+  // on the top edge).
   const netLabel = await page.$eval('.lk-net', (e) => e.getAttribute('aria-label'));
   check(/^Réseau : /.test(netLabel), `network label uses French punctuation (${netLabel})`);
   for (const sel of ['.lk-power', '.lk-a11y', '.lk-ind']) {
@@ -1156,9 +1157,9 @@ async function greeterQaTests() {
     const geo = await page.evaluate((sel) => {
       const m = document.querySelector('.menu.lk-menu').getBoundingClientRect();
       const b = document.querySelector(sel).getBoundingClientRect();
-      return { dr: Math.round(m.right - b.right), gap: Math.round(b.top - m.bottom), edge: Math.round(innerWidth - m.right) };
+      return { dr: Math.round(m.right - b.right), gap: Math.round(Math.max(b.top - m.bottom, m.top - b.bottom)), edge: Math.round(innerWidth - m.right), bottom: Math.round(innerHeight - m.bottom) };
     }, sel);
-    check(Math.abs(geo.dr) <= 1 && geo.gap >= 4 && geo.edge >= 8, `${sel} menu right-aligned above its button (${JSON.stringify(geo)})`);
+    check(Math.abs(geo.dr) <= 1 && geo.gap >= 4 && geo.edge >= 8 && geo.bottom >= 8, `${sel} menu right-aligned next to its button, not over it (${JSON.stringify(geo)})`);
     if (sel === '.lk-power') await shot(page, 'login-power-menu-fr');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(150);

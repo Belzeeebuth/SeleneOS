@@ -805,7 +805,7 @@ export class LockScreen {
     this._bumpIdle();
     const p = ui.menu(anchor, items, { above: true, class: 'lk-menu' });
     // ui.menu opens at the button's left edge and clamps to the screen edge; align the menu's right edge with the
-    // button instead, a little above it.
+    // button instead, a little above it, or below it when the tray sits on the top edge (no room above).
     const m = [...document.querySelectorAll('body > .menu.lk-menu')].pop();
     // Same dark tokens as the lock screen itself (the menu lives in <body>, outside .lockui).
     if (m) {
@@ -816,9 +816,11 @@ export class LockScreen {
       const a = anchor.getBoundingClientRect();
       const r = m.getBoundingClientRect();
       const left = Math.max(8, Math.min(window.innerWidth - r.width - 8, a.right - r.width));
-      const top = Math.max(8, a.top - r.height - 8);
+      const below = a.top - r.height - 8 < 8;
+      const top = below ? Math.min(a.bottom + 8, window.innerHeight - r.height - 8) : a.top - r.height - 8;
+      m.classList.toggle('up', !below);
       m.style.left = `${left}px`;
-      m.style.top = `${top}px`;
+      m.style.top = `${Math.max(8, top)}px`;
     }
     return p.then((r) => {
       // Like Windows, the keyboard goes back to the password box once a tray menu closes.
