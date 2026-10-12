@@ -1,10 +1,11 @@
 // Settings > Personalization: preview + themes and the index of every personalization page, Background,
 // Colors, Themes, Lock screen. (Taskbar + Start: personalization-taskbar.js; Theme designer, Visual style,
 // Profiles, App themes: personalization-designer.js; see docs/PERSONALIZATION.md.)
-import { WALLPAPERS, ACCENTS, ACCENT_PRESETS, accentPreset, resolveWallpaper, theme as coreTheme } from '../../../core/theme.js';
+import { wallpaperChoices, ACCENTS, ACCENT_PRESETS, accentPreset, resolveWallpaper, theme as coreTheme } from '../../../core/theme.js';
 import { PAGES } from '../lib/index.js';
 import { modeControl, accentControls, taskbarColorControls, rovingFocus, ambianceControl } from './personalization-designer.js';
 import { ensureStrings } from './personalization-strings.js';
+import { finishSection, customizeSection } from './personalization-finish.js';
 
 ensureStrings();
 
@@ -148,7 +149,7 @@ async function wallGrid(pc, { key, includeSame = false }) {
   const exists = await Promise.all(recents.map((p) => pc.api.invoke('fs:exists', p).catch(() => false)));
   const items = [];
   if (includeSame) items.push({ value: null, label: t('pers.sameAsDesktop') });
-  for (const w of WALLPAPERS) items.push({ value: `builtin:${w.id}`, label: L(w.name) });
+  for (const w of wallpaperChoices()) items.push({ value: `builtin:${w.id}`, label: L(w.name) });
   recents.forEach((p, i) => exists[i] && items.push({ value: p, label: p.split('/').pop() }));
   const mode = () => (settings.get('theme') === 'dark' ? 'dark' : 'light');
   const tiles = items.map((it) => {
@@ -189,17 +190,15 @@ const HOME_GROUPS = [
   ['pz.groupPacks', ['cursors', 'iconPacks', 'soundPacks']],
   ['pz.groupInput', ['shortcuts', 'snapPresets']],
 ];
+// On top: « Thème » (Halo, Prisme, Sobre) and « Personnaliser le thème » (personalization-finish.js), then every page.
 async function personalization(pc) {
   const { h, t, kit, L } = pc;
+  pc.ui.loadCss('app://shell/apps/settings/pages/personalization.css');
   return h(
     'div',
-    null,
-    h(
-      'div',
-      { class: 'st-pers-hero' },
-      preview(pc, { start: true }),
-      h('div', { class: 'st-themes-strip' }, h('div', { class: 'body-strong' }, t('pers.selectTheme')), h('div', { class: 'st-theme-grid' }, THEMES.map((th) => themeTile(pc, th)))),
-    ),
+    { class: 'pz-home' },
+    await finishSection(pc),
+    customizeSection(pc),
     ...HOME_GROUPS.map(([title, ids]) => kit.group(t(title), ...ids.filter((id) => PAGES[id]).map((id) => kit.row({ icon: PAGES[id].icon, title: L(PAGES[id].title), desc: L(PAGES[id].desc), onClick: () => pc.go(id) })))),
   );
 }

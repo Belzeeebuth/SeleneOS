@@ -26,6 +26,7 @@ theme.js sets them. Components never set them; they only read the tokens.
 
 | Attribute | Values | Source |
 |---|---|---|
+| `data-finish` | `halo` (default), `prisme`, `sobre` | `settings.finish` (the theme, §9) |
 | `data-style` | `nocturne` (default), `eclipse`, `clairdelune`, `contrast` | `settings.style` |
 | `data-ambiance` | `cold`, `neutral`, `warm` | `settings.ambiance` (follows the style unless the user picks one) |
 | `data-accent` | `silver`, `night`, `violet`, `amber`, `custom` | `settings.accent` (a hex; the four presets are recognised) |
@@ -243,6 +244,39 @@ ne définit que des crochets de forme : `--bar-mode`, `--bar-margin`, `--win-bor
 l'accent (argent lunaire, bleu nuit, violet, ambre) sont indépendants du style. Le flou est réservé à la barre,
 au Lanceur et aux panneaux, avec un fond opaque à 80–92 %. Il n'y a pas de Mica, les icônes viennent de
 Phosphor et les polices sont Inter et Manrope. Tous les textes atteignent un contraste d'au moins 4,5:1.
+
+## 9. Themes (finishes): Halo, Prisme, Sobre
+
+Decision of 2026-10-12 ([BRIEF.md](BRIEF.md)). A theme (`settings.finish`, `<html data-finish>`) is the *material*
+of the whole shell. It sits above the style: the style gives the shape (bar mode, radii, borders), the ambiance the
+colour mood, and the theme the glass, the app icons and the wallpapers.
+
+| Theme | Windows | Bar, Lanceur, menus, panels | App icons (`iconPack: 'auto'`) | Wallpapers (`builtin:`) |
+|---|---|---|---|---|
+| `halo` (default) | Mica-like glass: a pre-blurred copy of the wallpaper (`--mica-image`) under a tint of the ambiance | Live blur on tinted glass | `halo`: colourful free-shape gradient icons | `halo-nocturne`, `halo-eclipse`, `halo-clairdelune` (petal halos) |
+| `prisme` | The same Mica pipeline, frosted, with a faint grain | Live blur, frosted, faint grain | `prisme`: glossy rounded squares, two-tone gradient, white symbol | `prisme-nocturne`, `prisme-eclipse`, `prisme-clairdelune` (aurora veils, small moon) |
+| `sobre` | Flat and opaque (§2.2, §5 as written) | Glass 80–92 % opaque | `selene`: muted symbols on a common base | `nocturne`, `eclipse`, `clairdelune` |
+
+- **Defaults per style.** `finishDefaults(finish, style)` in `core/finishes.js` gives the accent, the wallpaper and
+  the icon pack each theme brings for each style. Choosing a theme or a style moves them along unless the user
+  changed them. Contraste élevé keeps its own colours and solid surfaces in every theme.
+- **Tint.** `settings.tintFromWallpaper` (default on) lets windows and panels take the wallpaper's tint in Halo and
+  Prisme. It has no effect with transparency off, reduced transparency or Contraste élevé: surfaces are solid there.
+- **Where the values live.** The glass levels, tints and text tokens of each theme are in the theme layer
+  (`core/finishes.js` and the theme style sheets), never in components. Components keep using the tokens of §2: the
+  same `--bg`, `--glass`, `--text` resolve to the theme's values.
+- **Rules that do not change.** Text ≥ 4.5:1 on the glass in every theme × style × mode; live `backdrop-filter`
+  only on the bar, the Lanceur, menus and panels (windows use the pre-blurred copy, never a live blur);
+  `prefers-reduced-motion` and `data-animations="off"` respected. In Halo and Prisme, §5's « No Mica » line is
+  replaced by this pipeline; it still holds in Sobre.
+- **Settings.** Paramètres > Personnalisation opens on « Thème » (three cards with a preview picture,
+  `assets/finishes/<id>.jpg`, one Tab stop, arrows move) and « Personnaliser le thème » (style, ambiance, accent,
+  wallpaper, window transparency, blur, tint, icon set). Réglages rapides > Apparence has the three themes as a
+  compact choice above Style. The accent swatches show the theme's own three accents before the four Selene ones.
+
+En bref : le thème (Halo par défaut, Prisme, Sobre) définit la matière (verre teinté ou mat), les icônes des
+applications et les fonds d'écran ; le style garde la forme et l'ambiance la couleur. Tout reste réglable dans
+« Personnaliser le thème ».
 
 ## 8. UI icons (Phosphor)
 

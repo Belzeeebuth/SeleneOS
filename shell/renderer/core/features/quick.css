@@ -341,7 +341,7 @@ button.qs-slider-icon:active,
   flex: none;
 }
 
-/* Apparence: style, ambiance, accent */
+/* Apparence: theme (finish), style, ambiance, accent */
 .qs-appearance {
   margin: 12px calc(-1 * var(--qs-pad)) 0;
   padding: 14px var(--qs-pad) 0;
@@ -380,6 +380,41 @@ button.qs-slider-icon:active,
   margin: 0;
   font-size: var(--fs-small);
   color: var(--text-2);
+}
+/* theme: one compact segmented row (Halo / Prisme / Sobre) */
+.qs-finishes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius);
+  background: var(--glass-fill);
+}
+.qs-finish {
+  height: 30px;
+  min-width: 0;
+  padding: 0 6px;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-small);
+  transition: background-color var(--dur-fast) var(--ease);
+}
+.qs-finish:hover {
+  background: var(--subtle-hover);
+}
+.qs-finish.on {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.qs-finish-name {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .qs-styles {
   display: grid;
@@ -484,7 +519,8 @@ button.qs-slider-icon:active,
 }
 .qs-accents {
   display: flex;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   padding: 2px 4px 4px;
 }
 .qs-accent {
@@ -539,13 +575,30 @@ button.qs-slider-icon:active,
   .qs-appearance {
     margin-top: 6px;
     padding-top: 8px;
-    gap: 8px;
+    gap: 6px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 12px;
+  }
+  .qs-appearance > * {
+    grid-column: 1 / -1;
+  }
+  .qs-appearance > .qs-sec-title,
+  .qs-appearance > .qs-group[data-key="finish"] {
+    grid-column: auto;
+  }
+  .qs-group[data-key="finish"] > .qs-group-head {
+    display: none;
   }
   .qs-group {
     gap: 4px;
   }
   .qs-style {
-    height: 34px;
+    height: 32px;
+  }
+  .qs-finish {
+    height: 26px;
   }
   .qs-amb {
     flex-direction: row;
@@ -566,6 +619,7 @@ button.qs-slider-icon:active,
   }
   .qs-accents {
     padding: 0 4px 2px;
+    gap: 4px 6px;
   }
   .qs-accent {
     width: 32px;

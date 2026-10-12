@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<!-- Halo icon (tools/gen-finish-icons.mjs). Symbols: Phosphor Icons 2.1.1, MIT. -->
+<style>@media (max-width:26px){.d{display:none}}</style>
+<defs><linearGradient id="card" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E7EBF6"/></linearGradient><linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB38A"/><stop offset="1" stop-color="#F0566A"/></linearGradient><linearGradient id="sp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7C8CFF"/><stop offset="1" stop-color="#4F46E5"/></linearGradient></defs>
+<rect x="12" y="7" width="42" height="50" rx="7" fill="url(#card)"/><rect x="8" y="15" width="8" height="4" rx="2" fill="url(#sp)"/><rect x="8" y="25" width="8" height="4" rx="2" fill="url(#sp)"/><rect x="8" y="35" width="8" height="4" rx="2" fill="url(#sp)"/><rect x="8" y="45" width="8" height="4" rx="2" fill="url(#sp)"/><circle cx="34" cy="25" r="7.5" fill="url(#a)"/><path d="M21 45c1.5-7 6.6-10.5 13-10.5S45.5 38 47 45a2 2 0 0 1-2 2.4H23a2 2 0 0 1-2-2.4Z" fill="url(#a)"/><circle class="d" cx="31.5" cy="22.5" r="2.2" fill="#fff" opacity=".45"/>
+</svg>

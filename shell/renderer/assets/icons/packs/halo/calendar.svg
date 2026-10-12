@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<!-- Halo icon (tools/gen-finish-icons.mjs). Symbols: Phosphor Icons 2.1.1, MIT. -->
+<style>@media (max-width:26px){.d{display:none}}</style>
+<defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E9ECF4"/></linearGradient><linearGradient id="band" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF6F6F"/><stop offset="1" stop-color="#E2304E"/></linearGradient></defs>
+<rect x="8" y="10" width="48" height="46" rx="9" fill="url(#pg)"/><path d="M8 19a9 9 0 0 1 9-9h30a9 9 0 0 1 9 9v5H8Z" fill="url(#band)"/><rect x="19" y="6" width="4.4" height="10" rx="2.2" fill="#7E879C"/><rect x="40.6" y="6" width="4.4" height="10" rx="2.2" fill="#7E879C"/><path d="M21.5 34.5l4.5-3.2V49" fill="none" stroke="#2A2F3D" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M32.5 35c0-2.6 2.2-4.2 4.8-4.2s4.8 1.6 4.8 4.4c0 4.4-9.6 8.2-9.6 13.8h9.8" fill="none" stroke="#2A2F3D" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<!-- Halo icon (tools/gen-finish-icons.mjs). Symbols: Phosphor Icons 2.1.1, MIT. -->
+<style>@media (max-width:26px){.d{display:none}}</style>
+<defs><linearGradient id="roof" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF8A6B"/><stop offset="1" stop-color="#E2304E"/></linearGradient><linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E6EAF7"/></linearGradient><linearGradient id="door" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7FA8FF"/><stop offset="1" stop-color="#3346D3"/></linearGradient></defs>
+<path d="M13 30h38v22a5 5 0 0 1-5 5H18a5 5 0 0 1-5-5Z" fill="url(#w)"/><rect x="27" y="39" width="10" height="18" rx="2.5" fill="url(#door)"/><path d="M6.5 30.5 29.4 9.2a3.8 3.8 0 0 1 5.2 0L57.5 30.5a2.6 2.6 0 0 1-1.8 4.5H8.3a2.6 2.6 0 0 1-1.8-4.5Z" fill="url(#roof)"/>
+</svg>

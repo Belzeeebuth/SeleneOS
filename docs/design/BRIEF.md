@@ -106,3 +106,28 @@ Paramètres > Personnalisation. The new list replaces the old one (Windows 11, M
 | Font | Manrope for titles, Inter for text (variable woff2 vendored in the shell; OFL). |
 | UI icons | Phosphor (regular weight; fill for active states), replacing Fluent everywhere. |
 | Glass | Blurred surfaces (bar, Lanceur, panels) stay 80–92 % opaque, because blur silently fails in software rendering. |
+
+## Decision (2026-10-12): two themes from the mixed mockups, Halo by default
+
+The user found the flat Selene look "not very pretty" and wanted back the richness of the earlier version: colourful
+app icons, translucent glass windows tinted by the wallpaper, vivid wallpapers, together with Selene's three styles
+and ambiances. Two mixed mockups were made (`docs/design/mockups-mix/halo`, `docs/design/mockups-mix/prisme`). The
+user keeps **both**, as themes to choose and adjust in Paramètres > Personnalisation:
+
+| Theme (`finish`) | Look | Default |
+|---|---|---|
+| Halo | Mica-like glass tinted by the wallpaper, colourful free-shape gradient icons, petal-halo wallpapers | **Yes**, for new users and for settings that never chose a theme |
+| Prisme | Frosted glass with a faint grain, glossy rounded-square icons (two-tone gradient, white symbol), aurora veils with a small moon | |
+| Sobre | The flat Selene look of 2026-10-11, unchanged | |
+
+- The theme sits above the style: each theme works with Nocturne, Éclipse, Clair de lune and Contraste élevé, and
+  brings its accent, wallpaper and icon set for each style. Contraste élevé keeps its own colours and solid surfaces
+  in every theme.
+- Everything stays adjustable under « Personnaliser le thème »: style, ambiance, accent, wallpaper, window
+  transparency, blur, « Teinter les fenêtres selon le fond d'écran », and the icon set (« Automatique » follows the
+  theme).
+- Réglages rapides > Apparence gets the three themes as a compact choice above Style.
+- The rules of 2026-10-11 still apply: text ≥ 4.5:1 on the glass in every theme × style × mode, solid surfaces with
+  transparency off, reduced transparency or high contrast, live blur only on the bar, the Lanceur, menus and panels
+  (windows show a pre-blurred copy of the wallpaper), reduced motion respected. This replaces the line « No Mica or
+  acrylic look anywhere else » for the Halo and Prisme themes only.

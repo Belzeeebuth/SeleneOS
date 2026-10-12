@@ -12,11 +12,37 @@
 // glyphs of the desktop and the Lanceur (.ft-* classes, core/shell.css) get the same palette. Each look's sheet is built
 // once and cached; a change of <html data-ambiance / data-theme / data-style / data-icon-pack> (theme.js, inside its
 // cross-fade) swaps it in the same frame. Cold adds no rule at all: Nocturne looks exactly as before.
+// The colourful packs of the finishes (<html data-icon-pack="halo|prisme">, core/packs.js) have their own Fichiers
+// pictures (assets/icons/packs/<pack>/<name>.svg, tools/gen-finish-icons.mjs): every Fichiers picture is mapped to
+// them, and so are the Phosphor file-type glyphs of the desktop, the Lanceur and the file pickers (`content: url()` on
+// the glyph, picked by its .ft-* class or its icon name). Contraste élevé never gets them (packs.js draws selene there).
 import { lookKey } from './app-icon-art.js';
 import { FILE_ICONS, fileLookKey, fileIconLook, fileIconSvg, fileTypeTints } from './file-icon-art.js';
 import { iconInner } from './icons.js';
 
 export const FILE_ICON_BASE = 'app://shell/apps/files/icons/';
+// the colourful packs of the finishes: one static SVG per FILE_ICONS name
+export const STATIC_ICON_PACKS = ['halo', 'prisme'];
+export const PACK_ICON_BASE = 'app://shell/assets/icons/packs/';
+// file-type classes (.ft-*: desktop, Lanceur) and file icon names (ui.fileIcon: desktop, file pickers) -> FILE_ICONS
+const FT_FILE = { dir: 'folder', txt: 'file-text', doc: 'file-doc', xls: 'file-sheet', ppt: 'file-slides', pdf: 'file-pdf', img: 'file-image', audio: 'file-audio', video: 'file-video', zip: 'file-archive', code: 'file-code' };
+const NAME_FILE = { folder: 'folder', document: 'file', document_text: 'file-text', document_pdf: 'file-pdf', image: 'file-image', music_note_2: 'file-audio', video: 'file-video', folder_zip: 'file-archive', code: 'file-code', mail: 'file-mail', cd: 'file-disc' };
+const staticPack = () => {
+  const p = document.documentElement.dataset.iconPack;
+  return STATIC_ICON_PACKS.includes(p) && document.documentElement.dataset.style !== 'contrast' ? p : null;
+};
+/** The CSS of a colourful pack: the Fichiers pictures and the file-type glyphs drawn with its icons. */
+function packSheet(pack) {
+  const u = (name) => cssUrl(`${PACK_ICON_BASE}${pack}/${name}.svg`);
+  const rules = Object.keys(FILE_ICONS).map((name) => `img[src="${FILE_ICON_BASE}${name}.svg"]:not([data-icon-fixed]) { content: ${u(name)}; }`);
+  // by icon name: file pickers, the desktop (its folders and plain pages)
+  for (const [n, f] of Object.entries(NAME_FILE)) {
+    rules.push(`:is(.fp-row, .desk-fi) > .icon[data-icon="${n}"], .desk-fi.icon[data-icon="${n}"], .desk-page:has(> .icon[data-icon="${n}"]) { content: ${u(f)}; }`);
+  }
+  // by file-type class (more precise: documents, sheets, slides): the desktop and the Lanceur's results / recent files
+  for (const [ft, f] of Object.entries(FT_FILE)) rules.push(`:root .desk-fi.ft-${ft}, :root .desk-page.ft-${ft}, .ft-${ft} > .icon { content: ${u(f)}; }`);
+  return rules.join('\n');
+}
 const CSS_ID = 'aurora-fileicons-css';
 const WEIGHT = { r: 'regular', b: 'bold' };
 const glyphOf = (name, w) => iconInner(name, { weight: WEIGHT[w] || 'regular' }).inner;
@@ -30,7 +56,8 @@ const currentLook = () => {
 };
 
 const urls = new Map(); // `${look}|${name}` -> data: URL
-function iconUrl(name, look) {
+function iconUrl(name, look, pack = null) {
+  if (pack && FILE_ICONS[name]) return `${PACK_ICON_BASE}${pack}/${name}.svg`;
   if (look === 'cold' || !FILE_ICONS[name]) return `${FILE_ICON_BASE}${name}.svg`;
   const key = `${look}|${name}`;
   if (!urls.has(key)) urls.set(key, svgUrl(fileIconSvg(name, fileIconLook(look), glyphOf)));
@@ -64,16 +91,17 @@ function sheet(look, m) {
 let applied = '';
 function apply() {
   const look = currentLook();
+  const pack = staticPack();
   const key = `${look}|${mode()}|${document.documentElement.dataset.iconPack || ''}`;
   if (key === applied) return;
   let css = '';
   try {
-    css = sheet(look, mode());
+    css = pack ? packSheet(pack) : sheet(look, mode());
   } catch (err) {
     console.warn('[file-icons] look failed', look, err);
   }
   // nothing drawn yet (Phosphor not loaded): try again on the next change
-  applied = css || look === 'cold' ? key : '';
+  applied = css || look === 'cold' || pack ? key : '';
   let el = document.getElementById(CSS_ID);
   if (!css) {
     el?.remove();
@@ -103,7 +131,11 @@ export const fileIcons = {
   get look() {
     return currentLook();
   },
+  /** The colourful pack drawing the Fichiers icons ('halo' | 'prisme'), or null (the Selene looks). */
+  get pack() {
+    return staticPack();
+  },
   url(name) {
-    return iconUrl(name, currentLook());
+    return iconUrl(name, currentLook(), staticPack());
   },
 };

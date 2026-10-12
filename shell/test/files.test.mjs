@@ -1440,6 +1440,9 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
     // black and white. The src attributes never change: a style sheet maps each file to the look's picture.
     await section('French + dark theme: icons follow the ambiance', async () => {
       const p2 = s2.page;
+      // the Sobre finish: the Selene looks below (the Halo and Prisme icon sets are checked at the end)
+      await p2.evaluate(() => window.__aurora.settings.set('finish', 'sobre'));
+      await p2.waitForTimeout(900);
       await H2.go({ type: 'home' });
       const sample = () =>
         p2.evaluate(async () => {
@@ -1483,7 +1486,7 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
               if (Math.max(...p) - Math.min(...p) > 24) colour++;
             }
             const at = (x, y) => [0, 1, 2].map((k) => d[(y * 48 + x) * 4 + k]);
-            out.push({ name: src.split('/').pop(), mapped: url.startsWith('data:image/svg'), n, blue, colour, front: at(8, 30) });
+            out.push({ name: src.split('/').pop(), url, mapped: url.startsWith('data:image/svg'), n, blue, colour, front: at(8, 30) });
           }
           return out;
         });
@@ -1525,6 +1528,20 @@ if (!only || only.toLowerCase().split(',').some((o) => 'french dark'.includes(o)
       const back = await sample();
       check('back to Nocturne: the static icons again', back.length >= 8 && back.every((r) => !r.mapped), true);
       check('the icons kept their src (only the mapping changed)', back.map((r) => r.name).sort().join(), cold.map((r) => r.name).sort().join());
+
+      // the Halo and Prisme finishes: every Fichiers picture is the same icon of the finish's colourful set
+      for (const fin of ['halo', 'prisme']) {
+        await p2.evaluate((f) => window.__aurora.settings.set('finish', f), fin);
+        await p2.waitForTimeout(1200);
+        const all = await sample();
+        const off = all.filter((r) => r.url !== `app://shell/assets/icons/packs/${fin}/${r.name}` || r.n < 300 || r.colour < 100);
+        check(`${fin}: ${all.length} Fichiers icons drawn from the ${fin} set (colourful)`, all.length >= 8 && !off.length ? 'ok' : off.map((r) => `${r.name}:${r.url.slice(0, 50)} n${r.n} c${r.colour}`).join(' '), 'ok');
+        await s2.shot(`files-fr-${fin}`);
+      }
+      await p2.evaluate(() => window.__aurora.settings.set('finish', 'sobre'));
+      await p2.waitForTimeout(900);
+      const sob = await sample();
+      check('back to Sobre: the static icons again', sob.length >= 8 && sob.every((r) => !r.mapped && r.url.includes('/apps/files/icons/')), true);
     });
     const errors2 = s2.logs.filter((l) => (l.startsWith('[error]') || l.startsWith('[pageerror]')) && !/Failed to load resource/.test(l));
     check('no console errors (fr)', errors2, []);

@@ -610,6 +610,8 @@ const NONDEFAULT = {
   shortcuts: { files: 'Ctrl+Alt+E', lock: null }, desktopIconSize: 'large',
   // B3 (test/packs-input.test.mjs checks them in depth)
   cursorSize: 150, soundVolume: 60, startupSound: false, snapLayouts: ['quad', 's-p1', 'halves'],
+  // the themes (finishes, docs/PERSONALIZATION.md §1.1)
+  finish: 'sobre', tintFromWallpaper: false,
   'multitasking.snapLayouts': false, 'multitasking.snapBar': false, 'multitasking.snapAssist': false,
 };
 async function profilesPart() {

@@ -657,3 +657,12 @@
 #desktop .desk-icon[data-theme="light"] .desk-label {
   text-shadow: 0 0 1px var(--bg), 0 0 2px var(--bg), 0 0 6px color-mix(in srgb, var(--bg) 85%, transparent);
 }
+
+/* ------------------------------------------------------------------ window material (finishes, core/finishes.js)
+   Sobre: the flat surface. Halo / Prisme: tinted glass over the pre-blurred wallpaper (--win-material, tokens.css). */
+:root .win.bg-mica {
+  background: var(--win-material, var(--bg));
+}
+:root .win.bg-mica-alt {
+  background: var(--win-material, var(--bg-alt));
+}

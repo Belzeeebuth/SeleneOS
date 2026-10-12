@@ -84,6 +84,8 @@ function resolve(name) {
     });
     check(filledNav.length > 10, 'Settings nav uses the fill weight (filled: true) without error');
 
+    // (Fichiers draws its toolbar once its first folder is listed: wait for it on a busy machine)
+    await P.waitForSelector('.fx-toolbar .icon', { timeout: 15000 }).catch(() => {});
     const fx = await svgOk('.fx-toolbar .icon');
     check(fx.total >= 4 && fx.drawn === fx.total, `Fichiers toolbar: ${fx.drawn}/${fx.total} icons are Phosphor SVGs`);
 
@@ -226,7 +228,8 @@ const blueSymbol = (px) => {
   check(['nocturne', 'eclipse', 'clairdelune'].every((st, i) => art.lookKey({ style: st, ambiance: ['cold', 'neutral', 'warm'][i], theme: 'dark' }) === `${['cold', 'neutral', 'warm'][i]}-dark`) && art.lookKey({ style: 'nocturne', ambiance: 'warm', theme: 'light' }) === 'warm-light' && art.lookKey({ style: 'contrast', ambiance: 'neutral', theme: 'light' }) === 'contrast-light', 'lookKey: the ambiance (not the style) picks the palette; Contraste élevé has its own');
 }
 {
-  const s = await launchShell({ theme: 'dark', lang: 'fr', size: '1280x720', settle: 1200 });
+  // (the Sobre finish: its automatic icon set is the Selene icons; Halo and Prisme are checked at the end)
+  const s = await launchShell({ theme: 'dark', lang: 'fr', size: '1280x720', settle: 1200, settings: { finish: 'sobre' } });
   const P = s.page;
   try {
     // Draw every icon of a selector at 48 px and sample it: the base (a pixel left of the symbol) and the symbol (the
@@ -412,7 +415,7 @@ const blueSymbol = (px) => {
   for (const d of ['Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos']) fs.mkdirSync(path.join(home, d), { recursive: true });
   for (const n of ['lettre.docx', 'budget.xlsx', 'rapport.pdf', 'notes.txt', 'archive.zip']) fs.writeFileSync(path.join(home, 'Desktop', n), 'x');
   fs.mkdirSync(path.join(home, 'Desktop', 'Dossier'));
-  const s = await launchShell({ home, theme: 'dark', lang: 'fr', size: '1280x720', settle: 1500 });
+  const s = await launchShell({ home, theme: 'dark', lang: 'fr', size: '1280x720', settle: 1500, settings: { finish: 'sobre' } });
   const P = s.page;
   try {
     const setLook = (patch) => P.evaluate(async (pt) => {
@@ -494,7 +497,7 @@ const blueSymbol = (px) => {
   for (const d of ['Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos']) fs.mkdirSync(path.join(home, d), { recursive: true });
   fs.writeFileSync(path.join(home, 'Desktop', 'Welcome.txt'), 'x');
   fs.mkdirSync(path.join(home, 'Desktop', 'Projets'));
-  const s = await launchShell({ home, theme: 'dark', lang: 'fr', size: '1280x720', settle: 1500, live: true });
+  const s = await launchShell({ home, theme: 'dark', lang: 'fr', size: '1280x720', settle: 1500, live: true, settings: { finish: 'sobre' } });
   const P = s.page;
   try {
     const labels = () =>
@@ -600,6 +603,158 @@ const blueSymbol = (px) => {
     check(!errs.length, 'no console errors while the desktop icons switch looks', errs.slice(0, 3).join(' | '));
   } catch (err) {
     check(false, 'desktop icons', err.stack || String(err));
+  } finally {
+    await s.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
+// ------------------------------------------------------------------ Halo and Prisme: the icon sets of the finishes
+// Static SVGs (tools/gen-finish-icons.mjs) for every app, the specials and the Fichiers icons. iconPack "auto" (the
+// default) follows <html data-finish>: halo -> halo, prisme -> prisme, sobre -> selene; Contraste élevé keeps its flat
+// black and white icons whatever the finish.
+{
+  const PACKS = path.join(ROOT, 'renderer', 'assets', 'icons', 'packs');
+  const fa = await import(path.join(ROOT, 'renderer', 'core', 'file-icon-art.js'));
+  const appIds = fs.readdirSync(path.join(ROOT, 'renderer', 'apps')).filter((d) => fs.existsSync(path.join(ROOT, 'renderer', 'apps', d, 'manifest.json')));
+  const want = [...appIds, 'this-pc', 'recycle-bin', 'app-default', ...Object.keys(fa.FILE_ICONS)];
+  const gen = (await import('node:child_process')).spawnSync(process.execPath, [path.join(ROOT, '..', 'tools', 'gen-finish-icons.mjs'), '--check'], { encoding: 'utf8' });
+  check(gen.status === 0, 'Halo / Prisme: the SVGs on disk are what tools/gen-finish-icons.mjs draws', (gen.stdout + gen.stderr).trim().split('\n').pop());
+  for (const p of ['halo', 'prisme']) {
+    const dir = path.join(PACKS, p);
+    const missing = want.filter((id) => !fs.existsSync(path.join(dir, `${id}.svg`)));
+    check(appIds.length >= 37 && !missing.length, `${p}: an icon for each of the ${appIds.length} apps, Ordinateur, Corbeille, the default app icon and the ${Object.keys(fa.FILE_ICONS).length} Fichiers icons`, missing.join(', '));
+    const bad = [];
+    const seen = new Map();
+    for (const id of want.filter((x) => !missing.includes(x))) {
+      const svg = fs.readFileSync(path.join(dir, `${id}.svg`), 'utf8');
+      // 64 grid; details dropped at 26 px and below; no text (no font inside an <img>), no external reference
+      if (!/viewBox="0 0 64 64"/.test(svg) || !/@media \(max-width:26px\)/.test(svg) || /<text|href=|url\((?!#)/.test(svg) || !/Gradient/.test(svg)) bad.push(id);
+      if (appIds.includes(id)) seen.set(svg, [...(seen.get(svg) || []), id]);
+    }
+    const twins = [...seen.values()].filter((v) => v.length > 1);
+    check(!bad.length && !twins.length, `${p}: every icon is a 64-grid SVG with gradients and a small-size rule, no text or external reference; every app has its own picture`, [...bad, ...twins.map((t) => t.join('='))].join(', '));
+  }
+  // Prisme: the glossy squircle and the white symbol on every app icon (Terminal: mint prompt)
+  const pr = appIds.filter((id) => !/<path d="M60\.00,32\.00/.test(fs.readFileSync(path.join(PACKS, 'prisme', `${id}.svg`), 'utf8')) || !/fill="#(FFFFFF|7DFFC9|E9EEFF)"/.test(fs.readFileSync(path.join(PACKS, 'prisme', `${id}.svg`), 'utf8')));
+  check(!pr.length, 'prisme: a glossy squircle with a white symbol on every app', pr.join(', '));
+
+  const home = fs.mkdtempSync(path.join((await import('node:os')).tmpdir(), 'aurora-home-'));
+  for (const d of ['Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos']) fs.mkdirSync(path.join(home, d), { recursive: true });
+  for (const n of ['rapport.pdf', 'budget.xlsx', 'lettre.docx', 'notes.txt']) fs.writeFileSync(path.join(home, 'Desktop', n), 'x');
+  fs.mkdirSync(path.join(home, 'Desktop', 'Projets'));
+  const s = await launchShell({ home, theme: 'dark', lang: 'fr', size: '1280x720', open: ['files'], settle: 1500, settings: { finish: 'halo' } });
+  const P = s.page;
+  try {
+    const state = () =>
+      P.evaluate(() => {
+        const content = (q) => {
+          const e = typeof q === 'string' ? document.querySelector(q) : q;
+          const c = e && getComputedStyle(e).content;
+          return c && c !== 'normal' && c !== 'none' ? c.replace(/^url\("(.*)"\)$/, '$1') : e?.getAttribute?.('src') || null;
+        };
+        const d = document.documentElement.dataset;
+        return {
+          finish: d.finish,
+          pack: d.iconPack,
+          setting: window.__aurora.packs.iconPackSetting,
+          bar: document.querySelector('#taskbar .tb-app img')?.getAttribute('src'),
+          // (a window opened before the pack was applied keeps the app's icon file, which the pack's sheet maps)
+          win: content(window.__aurora.wm.byApp('files')[0]?.iconEl),
+          thisPc: content('#desktop [data-special="thispc"] img'),
+          trash: content('#desktop [data-special="trash"] img'),
+          folder: content('.app-files img[src$="/folder-documents.svg"], .app-files img[src*="/folder"]'),
+          deskPdf: content('#desktop .desk-fi.ft-pdf, #desktop .desk-page.ft-pdf'),
+          deskDir: content('#desktop .desk-fi.folder-icon'),
+        };
+      });
+    const H = 'app://shell/assets/icons/packs/halo/';
+    const R = 'app://shell/assets/icons/packs/prisme/';
+    await P.waitForSelector('.app-files img[src*="/folder"]', { timeout: 15000 }).catch(() => {});
+    await P.waitForSelector('#desktop .desk-fi.ft-pdf, #desktop .desk-page.ft-pdf', { timeout: 15000 }).catch(() => {});
+    const h0 = await state();
+    check(h0.finish === 'halo' && h0.pack === 'halo' && h0.setting === 'auto', `Halo finish: iconPack "auto" draws the Halo icons (<html data-icon-pack="${h0.pack}">)`, JSON.stringify(h0).slice(0, 200));
+    check(h0.bar?.startsWith(H) && h0.win?.startsWith(H) && h0.thisPc === `${H}this-pc.svg` && h0.trash === `${H}recycle-bin.svg`, 'Halo: bar, window title, desktop Ordinateur and Corbeille', JSON.stringify({ bar: h0.bar, win: h0.win, pc: h0.thisPc, trash: h0.trash }));
+    check(h0.folder?.startsWith(`${H}folder`) && h0.deskPdf === `${H}file-pdf.svg` && h0.deskDir === `${H}folder.svg`, 'Halo: Fichiers folders, desktop documents and folders use the Halo file icons', JSON.stringify({ folder: h0.folder, pdf: h0.deskPdf, dir: h0.deskDir }));
+    await s.shot('icons-finish-halo-nocturne');
+    await P.evaluate(() => window.__aurora.shell.emit('start:toggle'));
+    await P.waitForTimeout(700);
+    const startImgs = await P.evaluate(() => [...document.querySelectorAll('#start img')].map((i) => i.getAttribute('src')).filter(Boolean));
+    check(startImgs.length >= 8 && startImgs.filter((u) => u.startsWith('app://shell/apps/')).length === 0 && startImgs.filter((u) => u.startsWith(H)).length >= 8, `Halo: the Lanceur's ${startImgs.length} app icons`);
+    await s.shot('icons-finish-halo-lanceur');
+    await P.evaluate(() => window.__aurora.shell.emit('start:close'));
+
+    // legible at 16, 24, 32 and 48 px: enough opaque pixels, and a picture that stands out from dark and light surfaces
+    const legible = await P.evaluate(async ([base, ids]) => {
+      const out = [];
+      for (const id of ids) for (const size of [16, 24, 32, 48]) {
+        const im = new Image(size, size);
+        im.src = `${base}${id}.svg`;
+        await im.decode().catch(() => {});
+        const cv = document.createElement('canvas');
+        cv.width = cv.height = size;
+        const g = cv.getContext('2d');
+        g.drawImage(im, 0, 0, size, size);
+        const d = g.getImageData(0, 0, size, size).data;
+        let solid = 0;
+        for (let i = 3; i < d.length; i += 4) if (d[i] > 180) solid++;
+        if (solid / (size * size) < 0.22) out.push(`${id}@${size}:${(solid / (size * size)).toFixed(2)}`);
+      }
+      return out;
+    }, [H, ['files', 'browser', 'mail', 'settings', 'terminal', 'store', 'notepad', 'media', 'calculator', 'game2048', 'winver', 'this-pc', 'folder', 'file-pdf']]);
+    check(!legible.length, 'Halo: the icons keep their silhouette at 16, 24, 32 and 48 px', legible.join(' '));
+
+    // live: Prisme (the bar is redrawn as soon as <html data-finish> changes), then Sobre, then Contraste élevé
+    const frame = await P.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const html = document.documentElement;
+          const mo = new MutationObserver(() => {
+            if (html.dataset.finish !== 'prisme') return;
+            mo.disconnect();
+            const now = document.querySelector('#taskbar .tb-app img').getAttribute('src');
+            requestAnimationFrame(() => resolve({ now, pack: html.dataset.iconPack }));
+          });
+          mo.observe(html, { attributes: true, attributeFilter: ['data-finish'] });
+          window.__aurora.settings.set('finish', 'prisme');
+        }),
+    );
+    check(frame.now?.startsWith('app://shell/assets/icons/packs/prisme/') && frame.pack === 'prisme', `Prisme: the bar's icons change as soon as <html data-finish> does (${String(frame.now).slice(-24)})`);
+    await P.waitForTimeout(1200);
+    const p1 = await state();
+    check(p1.bar?.startsWith(R) && p1.thisPc === `${R}this-pc.svg` && p1.folder?.startsWith(`${R}folder`) && p1.deskPdf === `${R}file-pdf.svg`, 'Prisme: bar, desktop, Fichiers and desktop documents follow live', JSON.stringify({ bar: p1.bar, pc: p1.thisPc, folder: p1.folder, pdf: p1.deskPdf }));
+    await P.evaluate(async () => (await import('app://shell/core/theme.js')).chooseStyle('clairdelune'));
+    await P.evaluate(() => window.__aurora.settings.set('theme', 'light'));
+    await P.waitForTimeout(1500);
+    await s.shot('icons-finish-prisme-clairdelune-light');
+
+    await P.evaluate(() => window.__aurora.settings.set('finish', 'sobre'));
+    await P.waitForTimeout(1500);
+    const so = await state();
+    check(so.pack === 'selene' && so.bar?.startsWith('data:image/svg') && decodeURIComponent(so.bar).includes('Selene app icon') && !String(so.folder).includes('/packs/') && !String(so.deskPdf).includes('/packs/'), 'Sobre: back to the Selene icons in the ambiance colours (no pack picture left)', JSON.stringify({ pack: so.pack, folder: so.folder, pdf: so.deskPdf }));
+
+    await P.evaluate(() => window.__aurora.settings.set('finish', 'halo'));
+    await P.evaluate(async () => (await import('app://shell/core/theme.js')).chooseStyle('contrast'));
+    await P.evaluate(() => window.__aurora.settings.set('theme', 'dark'));
+    await P.waitForTimeout(1500);
+    const hc = await state();
+    const hcSvg = decodeURIComponent(String(hc.bar));
+    check(hc.finish === 'halo' && hc.pack === 'selene' && hcSvg.includes('high contrast') && !String(hc.thisPc).includes('/packs/') && !String(hc.deskPdf).includes('/packs/') && !String(hc.folder).includes('/packs/'), 'Contraste élevé keeps its flat black and white icons with the Halo finish (apps, desktop, Fichiers)', JSON.stringify({ pack: hc.pack, pc: String(hc.thisPc).slice(0, 40), folder: String(hc.folder).slice(0, 50) }));
+    await s.shot('icons-finish-halo-contrast');
+
+    // an explicit set wins over the finish; "auto" follows it again
+    await P.evaluate(async () => (await import('app://shell/core/theme.js')).chooseStyle('nocturne'));
+    await P.evaluate(() => window.__aurora.settings.set('iconPack', 'prisme'));
+    await P.waitForTimeout(800);
+    const ex = await state();
+    await P.evaluate(() => window.__aurora.settings.set('iconPack', 'auto'));
+    await P.waitForTimeout(800);
+    const au = await state();
+    check(ex.pack === 'prisme' && ex.bar?.startsWith(R) && au.pack === 'halo' && au.bar?.startsWith(H), 'an explicit icon set (Prisme) wins over the Halo finish; "auto" follows the finish again', JSON.stringify({ ex: ex.pack, au: au.pack }));
+    const errs = s.logs.filter((l) => /^\[(error|pageerror)\]/.test(l) && !/Failed to load resource/.test(l));
+    check(!errs.length, 'no console errors while switching finishes', errs.slice(0, 3).join(' | '));
+  } catch (err) {
+    check(false, 'Halo / Prisme icon sets', err.stack || String(err));
   } finally {
     await s.close();
     fs.rmSync(home, { recursive: true, force: true });

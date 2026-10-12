@@ -225,6 +225,7 @@ HDMI-1 connected 1080x1920+1920+0 left (normal left inverted right x axis y axis
   check(eq(idx.resolvePage('accounts', 'password'), { page: 'signIn', section: 'password' }) && eq(idx.resolvePage('accessibility', 'animations'), { page: 'visualEffects', section: 'animations' }) && idx.resolvePage('ms-settings:windowsupdate').page === 'update' && idx.resolvePage('nope').page === 'system', 'section redirects and aliases');
   check(idx.searchIndex('wifi', 'en')[0]?.page === 'wifi' && idx.searchIndex('wi fi', 'fr')[0]?.page === 'wifi' && idx.searchIndex('sign in', 'en').some((e) => e.section === 'autologin') && idx.searchIndex('24 hour', 'en')[0]?.section === 'clock24h' && idx.searchIndex('signin', 'en').length > 0, 'search ignores hyphens: "wifi" finds Wi-Fi, "sign in" / "signin" find Sign-in, "24 hour" finds 24-hour');
   check(idx.searchIndex('night', 'en')[0]?.section === 'nightLight' && idx.searchIndex('fuseau', 'fr')[0]?.section === 'timezone' && idx.searchIndex('mot de passe', 'fr').some((e) => e.page === 'signIn') && idx.searchIndex('zzzz', 'en').length === 0, 'in-app search (en, fr, accents)');
+  check(['Halo', 'Prisme'].every((q) => idx.searchIndex(q, 'fr')[0]?.page === 'personalization' && idx.searchIndex(q, 'fr')[0]?.section === 'finish') && idx.searchIndex('Thème', 'fr')[0]?.section === 'finish' && idx.searchIndex('theme', 'en')[0]?.section === 'finish' && idx.searchIndex('teinter', 'fr')[0]?.section === 'tintFromWallpaper', 'search: « Thème », « Halo », « Prisme » lead to the theme cards of Personnalisation, « Teinter » to the tint switch');
   const man = JSON.parse(fs.readFileSync(path.join(ROOT, 'renderer/apps/settings/manifest.json'), 'utf8'));
   check(man.searchIndex?.length === idx.INDEX.length && man.searchIndex.every((e, i) => e.page === idx.INDEX[i].page && e.name.fr === idx.INDEX[i].name.fr), 'manifest.json searchIndex (Start search) matches lib/index.js');
   const i18n = JSON.parse(fs.readFileSync(path.join(ROOT, 'renderer/apps/settings/i18n.json'), 'utf8'));
@@ -502,6 +503,37 @@ async function lightEnglish() {
     // ---- Personalization
     await go(s, 'personalization');
     await docShot(s, 'personalization-light-en');
+    // « Theme »: three large cards (Halo, Prisme, Sobre) with their picture, the current one marked, one Tab stop + arrows
+    const fc = await s.page.evaluate(() => [...document.querySelectorAll('.app-settings .pz-finish-card')].map((c) => ({ id: c.dataset.finish, checked: c.getAttribute('aria-checked'), tab: c.tabIndex, img: c.querySelector('img')?.naturalWidth || 0 })));
+    const curFinish = (await get(s, 'finish')) || 'halo';
+    check(fc.map((c) => c.id).join() === 'halo,prisme,sobre' && fc.filter((c) => c.checked === 'true').map((c) => c.id).join() === curFinish && fc.filter((c) => c.tab === 0).length === 1 && fc.every((c) => c.img >= 600), `Personalization: Theme cards Halo, Prisme, Sobre with their preview, the current one (${curFinish}) marked, one Tab stop (${JSON.stringify(fc)})`);
+    await s.page.locator(S(`.pz-finish-card[data-finish="${curFinish}"]`)).focus();
+    await s.page.keyboard.press('End');
+    await s.page.keyboard.press('Enter');
+    await sleep(900);
+    check((await get(s, 'finish')) === 'sobre' && (await s.page.locator(S('.pz-finish-card[data-finish="sobre"][aria-checked="true"]')).count()) === 1 && (await s.aurora(() => document.documentElement.dataset.finish)) === 'sobre', 'Theme cards: keyboard (End, Enter) chooses Sobre, the card is marked and <html data-finish> follows');
+    check(await s.aurora(() => { const r = document.querySelector('.app-settings .pz-finish-custom [data-key="tintFromWallpaper"]'); return !!r && r.classList.contains('pz-overridden') && !!r.querySelector('.toggle input')?.disabled; }), 'Customize the theme: the tint switch is unavailable with Sobre (flat surfaces, nothing to tint)');
+    await s.page.keyboard.press('ArrowLeft');
+    await s.page.keyboard.press('Space');
+    await sleep(900);
+    check((await get(s, 'finish')) === 'prisme', 'Theme cards: ArrowLeft + Space chooses Prisme');
+    // « Customize the theme »: style, ambiance, accent, wallpaper, window transparency, blur, tint, icon set (existing keys)
+    const cust = await s.page.evaluate(() => [...document.querySelectorAll('.app-settings .pz-finish-custom [data-section]')].map((e) => e.dataset.section));
+    check(['style', 'ambiance', 'accent', 'wallpaper', 'transparencyLevel', 'blur', 'tintFromWallpaper', 'iconPack'].every((x) => cust.includes(x)), `Customize the theme: style, ambiance, accent, wallpaper, transparency, blur, tint and icon set (${cust.join(', ')})`);
+    await s.page.locator(S('.pz-finish-custom .pz-seg-btn[data-style-id="eclipse"]')).click();
+    await sleep(900);
+    check((await get(s, 'style')) === 'eclipse' && (await s.page.locator(S('.pz-seg-btn[data-style-id="eclipse"][aria-checked="true"]')).count()) === 1, 'Customize the theme: the style buttons apply the style');
+    await s.page.locator(S('.pz-finish-custom [data-key="tintFromWallpaper"] .toggle input')).click();
+    await sleep(400);
+    check((await get(s, 'tintFromWallpaper')) === false, 'Customize the theme: « Tint windows with the wallpaper » writes tintFromWallpaper');
+    await s.page.locator(S('.pz-finish-custom .st-combo[data-key="iconPack"]')).click();
+    const packOpts = await s.page.evaluate(() => [...document.querySelectorAll('.st-combo-menu .menu-item')].map((e) => e.textContent.trim()).filter(Boolean));
+    await s.page.keyboard.press('Escape');
+    check(/Automatic/.test(packOpts[0] || ''), `Customize the theme: the icon set starts with « Automatic (follows the theme) » (${packOpts.slice(0, 4).join(' | ')})`);
+    await inv(s, 'settings:setMany', {}, { reset: ['finish', 'style', 'ambiance', 'accent', 'wallpaper', 'iconPack', 'tintFromWallpaper'] });
+    await sleep(900);
+    // the Sobre presets (wallpaper + mode + accent) live on the Themes page
+    await go(s, 'themes');
     await s.page.locator(S('.st-theme[data-theme="clairdelune"]')).first().click();
     await sleep(900);
     check((await get(s, 'wallpaper')) === 'builtin:clairdelune' && (await get(s, 'theme')) === 'dark' && (await get(s, 'accent')) === '#a58bf2' && (await s.aurora(() => document.documentElement.dataset.theme)) === 'dark', 'theme preset applies wallpaper + dark mode + accent to the shell');

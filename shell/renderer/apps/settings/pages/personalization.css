@@ -925,3 +925,153 @@
     padding-left: 0;
   }
 }
+
+/* ---------- Personnalisation home: « Thème » (Halo, Prisme, Sobre) and « Personnaliser le thème »
+   (pages/personalization-finish.js). Tokens only; the preview pictures are assets/finishes/<id>.jpg. ---------- */
+.app-settings .pz-home {
+  container-type: inline-size;
+}
+.app-settings .pz-finish {
+  margin-bottom: 24px;
+}
+.app-settings .pz-finish-title {
+  margin: 0 0 4px;
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle);
+  line-height: var(--lh-subtitle, 28px);
+  font-weight: 650;
+}
+.app-settings .pz-finish .pz-intro {
+  margin-bottom: 12px;
+}
+.app-settings .pz-finish-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+@container (max-width: 620px) {
+  .app-settings .pz-finish-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.app-settings .pz-finish-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 6px 12px;
+  border: 1px solid var(--stroke-card);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.app-settings .pz-finish-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-flyout);
+}
+.app-settings .pz-finish-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.app-settings .pz-finish-card:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--text));
+  outline-offset: 2px;
+}
+:root[data-animations="off"] .app-settings .pz-finish-card:hover {
+  transform: none;
+}
+.app-settings .pz-finish-pv {
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: calc(var(--radius-lg) - 4px);
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.app-settings .pz-finish-pv img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.app-settings .pz-finish-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px;
+  min-width: 0;
+}
+.app-settings .pz-finish-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: var(--fs-body-large);
+  font-weight: 650;
+}
+.app-settings .pz-finish-check {
+  display: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.app-settings .pz-finish-card.selected .pz-finish-check {
+  display: inline-grid;
+}
+.app-settings .pz-finish-desc {
+  font-size: var(--fs-small);
+  line-height: var(--lh-small, 18px);
+}
+.app-settings .pz-finish-custom {
+  margin-bottom: 24px;
+}
+.app-settings .pz-finish-custom .pz-card {
+  gap: 3px;
+}
+/* icon set: the combo and « More icon packs » wrap onto two lines; keep both flush right like the other controls */
+.app-settings .pz-finish-custom .pz-ctl-right > .pz-wrap {
+  justify-content: flex-end;
+}
+/* style: one radio group of four buttons (keyboard: one Tab stop, arrows move) */
+.app-settings .pz-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--control-stroke);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+}
+.app-settings .pz-seg-btn {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-body);
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease);
+}
+.app-settings .pz-seg-btn:hover {
+  background: var(--subtle-hover);
+}
+.app-settings .pz-seg-btn.selected {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.app-settings .pz-seg-btn:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--text));
+  outline-offset: 2px;
+}
+.app-settings .pz-more-packs {
+  min-height: 32px;
+}

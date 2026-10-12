@@ -1,0 +1,139 @@
+/* Finish "Halo" (core/finishes.js; mockup docs/design/mockups-mix/halo): Mica-like glass tinted by the wallpaper,
+   colourful icons, petal-halo wallpapers. Palettes and glass levels only — the glass machinery is at the end of
+   core/tokens.css; components read the same tokens as in every finish (docs/design/SYSTEM.md).
+   Levels measured on the mockup: windows 72–76 % (pre-blurred wallpaper behind), Lanceur / bar / panels 78–82 % with
+   a live 48 px blur at 175 % saturation, a 1 px light edge and an inset top highlight. Text tokens re-measured on the
+   rendered glass (≥ 4.5:1; theme.js raises --a-floor when a picture is brighter / darker than these). */
+@scope ([data-finish="halo"]) to ([data-finish]:not([data-finish="halo"])) {
+  :scope,
+  [data-style] {
+    --fin-a-win: 0.74;
+    --fin-a-pop: 0.8;
+    --fin-a-bar: 0.8;
+    --fin-blur-k: 1.715; /* 48 px at the default blur */
+    --fin-sat: 175%;
+    --fin-win-r-add: 2px; /* windows: the style's radius + 2 px (Nocturne 12 px, as on the mockup) */
+    --fin-hi-d: 0.2;
+    --fin-hi-l: 0.95;
+    --fin-layer-d: 0.05;
+    --fin-layer2-d: 0.1;
+    --fin-layer-l: 0.5;
+    --fin-layer2-l: 0.74;
+  }
+  /* cold (Nocturne): navy glass on blue / indigo petals */
+  :scope,
+  [data-ambiance] {
+    --fin-tint-d: 13 21 54;
+    --fin-tint-l: 244 247 255;
+    --amb-d-glass: var(--wall-tint-d, var(--fin-tint-d));
+    --amb-d-bar: var(--wall-tint-d, 11 18 46);
+    --amb-l-glass: var(--wall-tint-l, var(--fin-tint-l));
+    --amb-l-bar: var(--wall-tint-l, var(--fin-tint-l));
+    --amb-d-desk: #070c24;
+    --amb-d-bg: #10183a;
+    --amb-d-sunken: #0c1330;
+    --amb-d-raised: #18224a;
+    --amb-d-title: #10183a;
+    --amb-d-line: #2a3663;
+    --amb-d-line-soft: #1c2650;
+    --amb-d-text: #eef3ff;
+    --amb-d-text-2: #c5cee8;
+    --amb-d-text-3: #a9b5d6;
+    --amb-d-tint: 170 195 255;
+    --amb-d-shadow: 0 4 24;
+    --amb-l-desk: #dfe6f7;
+    --amb-l-bg: #f7f9ff;
+    --amb-l-sunken: #eef2fb;
+    --amb-l-raised: #ffffff;
+    --amb-l-title: #f7f9ff;
+    --amb-l-line: #cdd6ec;
+    --amb-l-line-soft: #e2e8f5;
+    --amb-l-text: #121933;
+    --amb-l-text-2: #3d4865;
+    --amb-l-text-3: #48536f;
+    --amb-l-tint: 30 45 100;
+    --amb-l-shadow: 30 40 90;
+  }
+  /* neutral (Éclipse): warm graphite glass around the amber corona */
+  :scope[data-ambiance="neutral"],
+  [data-ambiance="neutral"] {
+    --fin-a-win: 0.76;
+    --fin-a-pop: 0.82;
+    --fin-tint-d: 24 20 17;
+    --fin-tint-l: 250 247 243;
+    --amb-d-bar: var(--wall-tint-d, 17 15 13);
+    --amb-d-desk: #0a0807;
+    --amb-d-bg: #1a1613;
+    --amb-d-sunken: #15120f;
+    --amb-d-raised: #25201b;
+    --amb-d-title: #1a1613;
+    --amb-d-line: #3a3129;
+    --amb-d-line-soft: #2a241e;
+    --amb-d-text: #f8f2ea;
+    --amb-d-text-2: #d8cdbe;
+    --amb-d-text-3: #bfb2a0;
+    --amb-d-tint: 255 236 210;
+    --amb-d-shadow: 0 0 0;
+    --amb-l-desk: #ebe5dc;
+    --amb-l-bg: #fffdfa;
+    --amb-l-sunken: #f5f1ec;
+    --amb-l-raised: #ffffff;
+    --amb-l-title: #fffdfa;
+    --amb-l-line: #ddd4c8;
+    --amb-l-line-soft: #ebe5dd;
+    --amb-l-text: #1f1a15;
+    --amb-l-text-2: #4d443b;
+    --amb-l-text-3: #594f45;
+    --amb-l-tint: 60 40 20;
+    --amb-l-shadow: 40 28 14;
+  }
+  /* warm (Clair de lune): rosy glass on pink / violet / peach petals */
+  :scope[data-ambiance="warm"],
+  [data-ambiance="warm"] {
+    --fin-a-win: 0.72;
+    --fin-a-pop: 0.78;
+    --fin-a-bar: 0.78;
+    --fin-tint-d: 34 22 44;
+    --fin-tint-l: 255 248 251;
+    --amb-d-bar: var(--wall-tint-d, var(--fin-tint-d));
+    --amb-d-desk: #120b18;
+    --amb-d-bg: #1f1528;
+    --amb-d-sunken: #1a1122;
+    --amb-d-raised: #2a1d35;
+    --amb-d-title: #1f1528;
+    --amb-d-line: #3e2d4b;
+    --amb-d-line-soft: #2e2139;
+    --amb-d-text: #f7eff9;
+    --amb-d-text-2: #dacbe0;
+    --amb-d-text-3: #c1afcb;
+    --amb-d-tint: 240 205 255;
+    --amb-d-shadow: 10 2 16;
+    --amb-l-desk: #eadcf0;
+    --amb-l-bg: #fffafd;
+    --amb-l-sunken: #f7eef5;
+    --amb-l-raised: #ffffff;
+    --amb-l-title: #fffafd;
+    --amb-l-line: #e4d4e3;
+    --amb-l-line-soft: #efe4ee;
+    --amb-l-text: #2a1b38;
+    --amb-l-text-2: #534261;
+    --amb-l-text-3: #5c4a6c;
+    --amb-l-tint: 90 40 110;
+    --amb-l-shadow: 90 40 110;
+  }
+  /* rim light: a 1 px light edge on every glass surface, an inset highlight on its top edge */
+  :scope[data-theme="dark"],
+  [data-theme-scope][data-theme="dark"],
+  [data-ambiance][data-theme="dark"] {
+    --glass-line: rgb(var(--amb-d-tint) / 0.2);
+    --shadow-flyout: 0 24px 64px rgb(var(--amb-d-shadow) / 0.55), 0 2px 8px rgb(var(--amb-d-shadow) / 0.35), inset 0 1px 0 var(--glass-hi);
+    --shadow-float: var(--shadow-flyout);
+  }
+  :scope[data-theme="light"],
+  [data-theme-scope][data-theme="light"],
+  [data-ambiance][data-theme="light"] {
+    --glass-line: rgb(255 255 255 / 0.8);
+    --shadow-flyout: 0 24px 60px rgb(var(--amb-l-shadow) / 0.2), 0 2px 8px rgb(var(--amb-l-shadow) / 0.12), 0 0 0 1px rgb(var(--amb-l-tint) / 0.08), inset 0 1px 0 var(--glass-hi);
+    --shadow-float: var(--shadow-flyout);
+  }
+}

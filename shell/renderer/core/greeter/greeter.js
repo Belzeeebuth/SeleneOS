@@ -8,7 +8,7 @@ import { api, env } from '../api.js';
 import { i18n, t, LANGS } from '../i18n.js';
 import { loadIcons } from '../icons.js';
 import { settings } from '../settings.js';
-import { accentVars, resolveWallpaper, applyVisualStyle } from '../theme.js';
+import { accentVars, resolveWallpaper, applyVisualStyle, finishDefaults, DEFAULT_FINISH } from '../theme.js';
 import { LockScreen } from './lockui.js';
 import { extendStrings } from './strings.js';
 import { preload } from './backdrop.js';
@@ -49,7 +49,7 @@ async function main() {
   await applyVisualStyle(settings.all()).catch((err) => console.warn('[greeter] visual style:', err.message));
 
   // settings.lockScreen: picture (lockWallpaper or the desktop picture), daily Spotlight picture, or animated scene
-  const fallbackWall = resolveWallpaper(settings.get('lockWallpaper') || settings.get('wallpaper') || 'builtin:nocturne', 'dark');
+  const fallbackWall = resolveWallpaper(settings.get('lockWallpaper') || settings.get('wallpaper') || finishDefaults(DEFAULT_FINISH, 'nocturne').wallpaper, 'dark');
   const wallpaper = (await withTimeout(lockScreenWallpaper(settings.all(), 'dark').catch(() => null), 2000, null)) || fallbackWall;
   const [rawUsers, kbInfo] = await Promise.all([
     api.invoke('greeter:users').catch((err) => {

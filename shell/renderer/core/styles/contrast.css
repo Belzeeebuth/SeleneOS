@@ -19,6 +19,8 @@
     --bar-border: 2px solid var(--hc-fg);
     --bar-shadow: none;
     --bar-blur: 0;
+    /* the glass finishes (Halo, Prisme) do not round its windows further */
+    --fin-win-r-add: 0px;
   }
   :scope[data-theme="dark"],
   [data-theme-scope][data-theme="dark"] {

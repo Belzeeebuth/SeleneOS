@@ -267,19 +267,26 @@ async function cursorsPart() {
 // =====================================================================================================================
 async function iconsPart() {
   console.log('\n# Icon packs');
-  const s = await launchShell({ theme: 'light', lang: 'en', open: ['notepad', 'files'] });
+  // (the Sobre finish: the automatic icon set draws the Selene icons, the look these checks were written for)
+  const s = await launchShell({ theme: 'light', lang: 'en', open: ['notepad', 'files'], settings: { finish: 'sobre' } });
   const A = (fn, a) => s.aurora(fn, a);
   try {
     const ids = await A(() => import('app://shell/core/packs.js').then((m) => m.ICON_PACKS.map((p) => p.id)));
-    check(['selene', 'mono', 'glass', 'retro', 'graphite', 'tiles'].every((x) => ids.includes(x)), `icon packs: ${ids.join(', ')}`);
+    check(['auto', 'halo', 'prisme', 'selene', 'mono', 'glass', 'retro', 'graphite', 'tiles'].every((x) => ids.includes(x)) && ids[0] === 'auto', `icon packs: ${ids.join(', ')}`);
+    // Halo / Prisme: static pictures of the finishes; "auto" follows the finish (Sobre here: the Selene icons)
+    const STATIC = { halo: 'app://shell/assets/icons/packs/halo/', prisme: 'app://shell/assets/icons/packs/prisme/' };
     await A(() => window.__aurora.notify({ title: 'Icon test', body: 'toast', appId: 'notepad' }));
     await sleep(300);
     const where = () =>
       A(() => {
         const src = (sel) => document.querySelector(sel)?.getAttribute('src') || null;
+        // the picture drawn: the pack's style sheet (`content: url()`), else the image itself (the desktop draws the
+        // Selene Ordinateur / Corbeille as flat data: pictures of its own)
         const content = (sel) => {
           const e = document.querySelector(sel);
-          return e ? getComputedStyle(e).content : null;
+          if (!e) return null;
+          const c = getComputedStyle(e).content;
+          return c && c !== 'normal' && c !== 'none' ? c : e.getAttribute('src') ? `url("${e.getAttribute('src')}")` : c;
         };
         return {
           taskbar: src('#taskbar .tb-app[data-app="notepad"] img'),
@@ -305,7 +312,9 @@ async function iconsPart() {
       await A(() => window.__aurora.notify({ title: 'Icon test', body: 'toast', appId: 'notepad' }));
       await sleep(500);
       const w = await where();
-      const want = id === 'retro' ? 'data:image/png' : 'data:image/svg+xml';
+      const eff = id === 'auto' ? 'selene' : id;
+      const want = id === 'retro' ? 'data:image/png' : STATIC[id] || 'data:image/svg+xml';
+      const deskWant = STATIC[id] ? `url("${STATIC[id]}` : 'url("data:';
       // open Start, Alt+Tab and Task view to read their icons too
       await A(() => window.__aurora.shell.emit('start:toggle'));
       await sleep(500);
@@ -321,10 +330,11 @@ async function iconsPart() {
       await sleep(200);
       seen[id] = w.taskbar;
       check(
-        w.taskbar?.startsWith(want) && w.title?.startsWith(want) && w.toast?.startsWith(want) && start.startsWith(want) && alt.startsWith(want) && w.pack === id && w.thisPc?.startsWith('url("data:') && w.trash?.startsWith('url("data:'),
-        `${id}: taskbar, title bar, notification, Start, Alt+Tab, desktop This PC / Recycle Bin all in the pack (${Object.entries({ ...w, start, alt }).filter(([k, v]) => k !== 'filesThisPc' && !(k === 'pack' ? v === id : String(v).startsWith(k === 'thisPc' || k === 'trash' ? 'url("data:' : want))).map(([k, v]) => `${k}=${String(v).slice(0, 30)}`).join('; ') || 'ok'})`,
+        w.taskbar?.startsWith(want) && w.title?.startsWith(want) && w.toast?.startsWith(want) && start.startsWith(want) && alt.startsWith(want) && w.pack === eff && w.thisPc?.startsWith(deskWant) && w.trash?.startsWith(deskWant),
+        `${id}: taskbar, title bar, notification, Start, Alt+Tab, desktop This PC / Recycle Bin all in the pack (${Object.entries({ ...w, start, alt }).filter(([k, v]) => k !== 'filesThisPc' && !(k === 'pack' ? v === eff : String(v).startsWith(k === 'thisPc' || k === 'trash' ? deskWant : want))).map(([k, v]) => `${k}=${String(v).slice(0, 30)}`).join('; ') || 'ok'})`,
       );
       if (id === 'retro') check(w.filesThisPc == null || w.filesThisPc.startsWith('url("data:'), `File Explorer's This PC picture follows the pack too (${(w.filesThisPc || 'not shown').slice(0, 24)})`);
+      if (STATIC[id]) check(w.filesThisPc == null || w.filesThisPc.startsWith(`url("${STATIC[id]}this-pc.svg`), `${id}: Fichiers' Ordinateur picture is the pack's (${(w.filesThisPc || 'not shown').slice(0, 60)})`);
       if (id === 'retro' || id === 'glass' || id === 'mono') await docShot(s, `packs-icons-${id}`);
     }
     check(new Set(Object.values(seen)).size === Object.keys(seen).length, `each pack has its own picture (${Object.keys(seen).length} distinct)`);
@@ -920,6 +930,15 @@ async function profilesPart() {
       `imported profile sanitised: ${JSON.stringify(imp)}`,
     );
     await setMany(s, {}, mine);
+    // the themes (finishes): 'auto' / 'halo' / 'prisme' icon sets, 'finish' and 'tintFromWallpaper' are saved and validated
+    const fin = await A(async () => {
+      const pr = await import('app://shell/core/profiles.js');
+      const ok = pr.sanitizeValues({ iconPack: 'auto', finish: 'prisme', tintFromWallpaper: false });
+      const ok2 = pr.sanitizeValues({ iconPack: 'halo' }).iconPack === 'halo' && pr.sanitizeValues({ iconPack: 'prisme' }).iconPack === 'prisme';
+      const bad = pr.sanitizeValues({ iconPack: 'auto"}', finish: 'glass', tintFromWallpaper: 'yes' });
+      return { keys: ['finish', 'tintFromWallpaper'].every((k) => pr.PROFILE_KEYS.includes(k) && pr.LOOK_KEYS.includes(k)), ok, ok2, bad, builtins: pr.BUILTIN_PROFILES.filter((p) => p.values.finish && p.values.finish !== 'sobre').map((p) => `${p.id}:${p.values.iconPack}`) };
+    });
+    check(fin.keys && fin.ok.iconPack === 'auto' && fin.ok.finish === 'prisme' && fin.ok.tintFromWallpaper === false && fin.ok2 && !Object.keys(fin.bad).length && fin.builtins.join() === 'halo:auto,prisme:auto', `themes: profiles save finish + tintFromWallpaper, accept the auto / halo / prisme icon sets, refuse bad values; built-in Halo and Prisme use the automatic icon set (${JSON.stringify(fin)})`);
     check(!errorsOf(s).length, `no console errors (${errorsOf(s).join(' | ')})`);
   } finally {
     await s.close();
@@ -1010,10 +1029,10 @@ async function perfPart() {
       return Math.round((performance.now() - t0) / 21);
     });
     const ic = await A(async () => {
-      const packs = ['tiles', 'accent', 'glass', 'graphite', 'mono', 'outline', 'retro', 'selene'];
+      const packs = ['tiles', 'accent', 'glass', 'graphite', 'mono', 'outline', 'retro', 'halo', 'prisme', 'auto', 'selene'];
       const t0 = performance.now();
-      for (let i = 0; i < 24; i++) await window.__aurora.settings.set('iconPack', packs[i % packs.length]);
-      return Math.round((performance.now() - t0) / 24);
+      for (let i = 0; i < 22; i++) await window.__aurora.settings.set('iconPack', packs[i % packs.length]);
+      return Math.round((performance.now() - t0) / 22);
     });
     await sleep(800);
     const after = await A(() => ({ head: document.head.children.length, nodes: document.getElementsByTagName('*').length, styles: document.querySelectorAll('#aurora-cursor-vars, #aurora-iconpack-css').length }));

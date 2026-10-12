@@ -7,7 +7,7 @@
 // Keys: wallpaper, wallpaperFit, wallpaperMode, animatedWallpaper, dynamicWallpaper, slideshow, lockWallpaper, lockScreen.
 // Shared builders (exported): kindControl(pc), effectGallery(pc, opts), animatedControls(pc), setGallery(pc),
 //   dynamicControls(pc), slideshowControls(pc), heroPreview(pc), pickLocation(pc)
-import { WALLPAPERS, resolveWallpaper } from '../../../core/theme.js';
+import { wallpaperChoices, resolveWallpaper } from '../../../core/theme.js';
 import { WallpaperRenderer } from '../../../core/wallpaper/engine.js';
 import { EFFECTS, effectById, WEATHER_EFFECT } from '../../../core/wallpaper/effects/index.js';
 import { weatherTint } from '../../../core/wallpaper/effects/weather.js';
@@ -276,7 +276,7 @@ async function wallGrid(pc, { key, includeSame = false, onPick }) {
   const exists = await Promise.all(recents.map((p) => pc.api.invoke('fs:exists', p).catch(() => false)));
   const items = [];
   if (includeSame) items.push({ value: null, label: t('pers.sameAsDesktop') });
-  for (const w of WALLPAPERS) items.push({ value: `builtin:${w.id}`, label: L(w.name) });
+  for (const w of wallpaperChoices()) items.push({ value: `builtin:${w.id}`, label: L(w.name) });
   recents.forEach((p, i) => exists[i] && items.push({ value: p, label: p.split('/').pop() }));
   const tiles = items.map((it) => {
     const el = h('button', { class: 'st-wall', type: 'button', role: 'option', 'aria-label': it.label, 'data-tip': it.label, onclick: () => (onPick ? onPick(it.value) : settings.set(key, it.value)) });

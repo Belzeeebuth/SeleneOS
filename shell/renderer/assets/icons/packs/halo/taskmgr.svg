@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<!-- Halo icon (tools/gen-finish-icons.mjs). Symbols: Phosphor Icons 2.1.1, MIT. -->
+<style>@media (max-width:26px){.d{display:none}}</style>
+<defs><linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4FE6A8"/><stop offset="1" stop-color="#0B9467"/></linearGradient><linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.55"/><stop offset="0.35" stop-color="#fff" stop-opacity="0.08"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+<rect x="6" y="6" width="52" height="52" rx="14" fill="url(#t)"/><rect class="d" x="6.6" y="6.6" width="50.8" height="50.8" rx="13.4" fill="none" stroke="url(#sheen)" stroke-width="1.2"/><g class="d"><rect x="14" y="42" width="6" height="10" rx="2" fill="#fff" opacity=".22"/><rect x="23" y="36" width="6" height="16" rx="2" fill="#fff" opacity=".22"/><rect x="32" y="44" width="6" height="8" rx="2" fill="#fff" opacity=".22"/><rect x="41" y="32" width="6" height="20" rx="2" fill="#fff" opacity=".22"/></g><path d="M12 34h8l4.5-10 7 21 5-14 3 5h12.5" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

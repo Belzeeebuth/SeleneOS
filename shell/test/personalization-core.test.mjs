@@ -92,7 +92,9 @@ async function waitTransitions(s) {
 
 if (!E2E_ONLY) {
 // ===================================================================== launch 1: engine, styles, profiles, pages
-const s = await launchShell({ lang: 'en', theme: 'light', size: '1600x900', open: ['calculator', 'notepad'] });
+// The checks of the Selene styles below describe the flat "Sobre" finish (the look of 2026-10-11, unchanged); the glass
+// finishes (Halo, Prisme) have their own section at the end of this launch.
+const s = await launchShell({ lang: 'en', theme: 'light', size: '1600x900', open: ['calculator', 'notepad'], settings: { finish: 'sobre', accent: '#c9d3e6', wallpaper: 'builtin:nocturne' } });
 await install(s);
 await sleep(600);
 
@@ -475,6 +477,7 @@ console.log('\n# Per-app themes');
       npTheme: np.dataset.theme || null,
       npText: getComputedStyle(np).color,
       npAccent: v(np, '--accent-base'),
+      sysAccent: v(document.documentElement, '--accent-base'),
       root: document.documentElement.dataset.theme,
     };
   });
@@ -482,7 +485,7 @@ console.log('\n# Per-app themes');
   // the Calculator's own key colours are built from tokens on its window (--ck-num: var(--surface-raised)): in its dark
   // window they take the dark raised surface (Nocturne #1a2133), not the system's light one
   check(r.calcAppVar.toLowerCase() === '#1a2133' && r.sysRaised.toLowerCase() !== '#1a2133', `the app's own colours follow its window (--ck-num ${r.calcAppVar}, system raised surface ${r.sysRaised})`);
-  check(r.npTheme === null && r.npText !== 'rgb(230, 234, 242)' && r.npAccent === '#c9d3e6' && r.root === 'light', 'Notepad and the shell keep the system theme');
+  check(r.npTheme === null && r.npText !== 'rgb(230, 234, 242)' && r.npAccent === r.sysAccent && !!r.sysAccent && r.root === 'light', 'Notepad and the shell keep the system theme');
   // a menu opened from the calculator matches it
   const m = await T(s, async () => {
     const calc = document.querySelector('#windows > .win.app-calculator');
@@ -1079,6 +1082,99 @@ if (!ARGS.has('--no-shots')) {
   check(true, 'style screenshots written to docs/screenshots/style-*.png');
 }
 
+if (!E2E_ONLY) {
+  console.log('\n# Finishes (Halo, Prisme, Sobre): core/finishes.js, <html data-finish>, glass levels');
+  const fin = await T(s, async () => {
+    const m = await import('app://shell/core/finishes.js');
+    return { ids: m.FINISHES.map((f) => f.id), def: m.DEFAULT_FINISH, previews: m.FINISHES.every((f) => /^app:\/\/shell\/assets\/finishes\/[a-z]+\.jpg$/.test(f.preview) && f.name.fr && f.desc.fr), d: m.finishDefaults('halo', 'eclipse'), p: m.finishDefaults('prisme', 'clairdelune'), so: m.finishDefaults('sobre', 'nocturne') };
+  });
+  check(fin.ids.join() === 'halo,prisme,sobre' && fin.def === 'halo' && fin.previews && fin.d.accent === '#ffb547' && fin.d.wallpaper === 'builtin:halo-eclipse' && fin.d.iconPack === 'halo' && fin.p.wallpaper === 'builtin:prisme-clairdelune' && fin.p.iconPack === 'prisme' && fin.so.wallpaper === 'builtin:nocturne' && fin.so.accent === '#c9d3e6' && fin.so.iconPack === 'selene', `FINISHES / DEFAULT_FINISH / finishDefaults follow the contract (${JSON.stringify(fin.d)})`);
+  const defs = await T(s, () => window.__aurora.api?.invoke ? window.__aurora.api.invoke('settings:defaults') : null);
+  if (defs) check(defs.finish === 'halo' && defs.iconPack === 'auto' && defs.tintFromWallpaper === true && defs.accent === '#7fcbff' && defs.wallpaper === 'builtin:halo-nocturne', `defaults: finish halo, iconPack auto, tintFromWallpaper on, Halo's accent and wallpaper (${defs.finish}, ${defs.iconPack}, ${defs.accent}, ${defs.wallpaper})`);
+  await setKey(s, 'style', 'nocturne', 500);
+  await setKey(s, 'theme', 'dark', 500);
+  await T(s, () => window.__t.set('ambiance', null));
+  await T(s, () => window.__t.set('accent', '#c9d3e6'));
+  await T(s, () => window.__t.set('wallpaper', 'builtin:nocturne'));
+  await sleep(400);
+  const mica = () => T(s, () => new Promise((res) => { if (/blob:/.test(document.documentElement.style.getPropertyValue('--mica-image'))) return res(true); const off = window.__aurora.theme.on('mica', (u) => { off?.(); res(!!u); }); setTimeout(() => res(/blob:/.test(document.documentElement.style.getPropertyValue('--mica-image'))), 4000); }));
+  const sample = () => T(s, () => {
+    const r = document.documentElement;
+    const win = document.querySelector('#windows > .win.bg-mica, #windows > .win');
+    const num = (v) => Number.parseFloat(v);
+    return {
+      finish: r.dataset.finish, accent: window.__t.get('accent'), wall: window.__t.get('wallpaper'),
+      aWin: num(window.__t.cs(window.__t.probe('<div style="opacity: var(--a-win)"></div>'), 'opacity')),
+      floor: num(r.style.getPropertyValue('--a-floor') || '0'),
+      bar: window.__t.alpha(window.__t.cs(window.__t.bar(), 'backgroundColor')), barBlur: window.__t.cs(window.__t.bar(), 'backdropFilter'),
+      start: window.__t.cs('#start', 'backdropFilter'), startA: window.__t.alpha(window.__t.cs('#start', 'backgroundColor')),
+      winImg: win ? getComputedStyle(win).backgroundImage : '', tint: r.style.getPropertyValue('--wall-tint-d'),
+    };
+  });
+  await T(s, async () => (await import('app://shell/core/theme.js')).chooseFinish('halo'));
+  await sleep(600);
+  await waitTransitions(s);
+  const micaOk = await mica();
+  const h = await sample();
+  check(h.finish === 'halo' && h.accent === '#7fcbff' && h.wall === 'builtin:halo-nocturne', `chooseFinish('halo'): data-finish, and the accent and wallpaper follow (they were Sobre's defaults): ${h.accent}, ${h.wall}`);
+  check(micaOk && /blob:/.test(h.winImg) && /linear-gradient/.test(h.winImg) && h.aWin >= 0.7 && h.aWin <= 0.8, `Halo windows: tinted glass over the pre-blurred wallpaper (Mica-like, no live blur), alpha ${h.aWin}`);
+  check(/blur\(48/.test(h.barBlur) && h.bar >= 0.78 && h.bar <= 0.84 && /blur\(48/.test(h.start) && h.startA >= 0.78 && h.startA <= 0.84, `Halo bar and Lanceur: live blur ${h.barBlur} at ${h.bar.toFixed(2)}, Lanceur ${h.startA.toFixed(2)}`);
+  check(/^\d+ \d+ \d+$/.test(h.tint), `tintFromWallpaper: the glass takes the wallpaper's hue (--wall-tint-d ${h.tint})`);
+  await setKey(s, 'tintFromWallpaper', false, 700);
+  const noTint = await T(s, () => document.documentElement.style.getPropertyValue('--wall-tint-d'));
+  check(noTint === '', 'tintFromWallpaper off: the finish keeps its own tint');
+  await setKey(s, 'tintFromWallpaper', true, 400);
+  // text-3 on the rendered glass: theme.js measures the brightest (dark) / darkest (light) blurred area of the picture
+  // and never lets the glass get clearer than the alpha that keeps 4.5:1; every finish × style × mode
+  const low = [];
+  const seen = [];
+  for (const f of ['halo', 'prisme']) {
+    await T(s, async (id) => (await import('app://shell/core/theme.js')).chooseFinish(id), f);
+    for (const st of ['nocturne', 'eclipse', 'clairdelune']) {
+      await T(s, async (id) => (await import('app://shell/core/theme.js')).chooseStyle(id), st);
+      for (const mode of ['dark', 'light']) {
+        await setKey(s, 'theme', mode, 300);
+        await waitTransitions(s);
+        await mica();
+        await sleep(500);
+        const x = await sample();
+        const ok = x.floor > 0 && x.aWin >= x.floor - 0.001 && x.bar >= x.floor - 0.001 && x.startA >= x.floor - 0.001;
+        seen.push(`${f}/${st}/${mode} ${x.aWin.toFixed(2)}≥${x.floor}`);
+        if (!ok || x.finish !== f) low.push(`${f}/${st}/${mode} ${JSON.stringify(x)}`);
+      }
+    }
+  }
+  check(!low.length, `text-3 ≥ 4.5:1 on the rendered glass in every finish × style × mode (glass alpha ≥ measured floor): ${seen.join(', ')}${low.length ? ` — LOW: ${low.join(' | ')}` : ''}`);
+  const pr = await sample();
+  check(pr.finish === 'prisme' && /svg/.test(pr.winImg) && pr.accent === '#b42f78', `Prisme: grain layer on the window glass, its own accent (${pr.accent})`);
+  // transparency off, reduced transparency (level 0) and High contrast: solid surfaces
+  await setKey(s, 'transparency', false, 700);
+  const off = await sample();
+  check(off.aWin === 1 && !/blob:/.test(off.winImg) && off.bar === 1, `transparency off: opaque windows (alpha ${off.aWin}, no Mica copy) and bar`);
+  await setKey(s, 'transparency', true, 300);
+  await setKey(s, 'transparencyLevel', 0, 700);
+  const lvl0 = await sample();
+  check(lvl0.aWin === 1 && lvl0.bar === 1, `transparency level 0: opaque glass (${lvl0.aWin}, bar ${lvl0.bar})`);
+  await setKey(s, 'transparencyLevel', 50, 300);
+  await setKey(s, 'style', 'contrast', 900);
+  await waitTransitions(s);
+  const hc = { ...(await sample()), ...(await T(s, () => ({ fly: window.__t.root('--shadow-flyout'), line: window.__t.root('--glass-line'), r: getComputedStyle(document.querySelector('#windows > .win')).borderTopLeftRadius }))) };
+  check(hc.aWin === 1 && !/blob:|svg/.test(hc.winImg) && hc.bar === 1 && hc.start === 'none' && hc.fly === 'none' && !/rgb/.test(hc.line) && hc.r === '6px', `High contrast in a glass finish: solid surfaces, no Mica, no grain, no blur, its own lines and shadows and corners (${hc.fly}, ${hc.line}, ${hc.r})`);
+  await setKey(s, 'style', 'nocturne', 900);
+  await T(s, async () => (await import('app://shell/core/theme.js')).chooseFinish('sobre'));
+  await sleep(900);
+  await waitTransitions(s);
+  const so = await sample();
+  check(so.finish === 'sobre' && so.accent === '#c9d3e6' && so.wall === 'builtin:nocturne' && !/blob:|gradient/.test(so.winImg), `back to Sobre: flat windows, Selene accent and wallpaper (${so.accent}, ${so.wall})`);
+  // a plain settings.set('finish') gets the same follow rule
+  await setKey(s, 'finish', 'halo', 1200);
+  const plain = await sample();
+  check(plain.accent === '#7fcbff' && plain.wall === 'builtin:halo-nocturne', `settings.set('finish') follows too (${plain.accent}, ${plain.wall})`);
+  await T(s, async () => (await import('app://shell/core/theme.js')).chooseFinish('sobre'));
+  await sleep(600);
+  await setKey(s, 'theme', 'light', 600);
+}
+
 const errs1 = errorsOf(s).filter((l) => !/net::ERR_|favicon/.test(l));
 check(!errs1.length, `no console errors (${errs1.slice(0, 3).join(' | ')})`);
 await s.close();
@@ -1336,7 +1432,7 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
       const pr = await import('app://shell/core/profiles.js');
       const A = window.__aurora;
       const ALT = {
-        style: 'clairdelune', ambiance: 'neutral', theme: 'light', autoTheme: { enabled: false, light: '06:30', dark: '20:15' }, accent: '#c239b3', accentFromWallpaper: true,
+        finish: 'sobre', tintFromWallpaper: false, style: 'clairdelune', ambiance: 'neutral', theme: 'light', autoTheme: { enabled: false, light: '06:30', dark: '20:15' }, accent: '#c239b3', accentFromWallpaper: true,
         transparency: false, transparencyLevel: 80, blur: 20, cornerRadius: 150, fontFamily: 'dejavu-sans', textScale: 110, scale: 110,
         reducedMotion: true, animations: false, 'taskbar.color': '#203040', 'taskbar.opacity': 70, appThemes: { notepad: { theme: 'dark', accent: '#112233' } },
         // pictures of the Selene set (the redesign retired dunes / glow: an import maps them to Nocturne)
@@ -1439,15 +1535,16 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
         unknown: ['unknownKey', 'evil', 'taskbar.evil'].some((k) => A.settings.get(k) !== undefined),
         name: p.name,
         wall: A.settings.get('wallpaper'),
+        defs: await A.api.invoke('settings:defaults'),
       };
       await A.theme.profiles.remove(p.id);
       return out;
     });
     check(!inj.keys.includes('unknownKey') && !inj.keys.includes('evil') && !inj.keys.includes('taskbar.evil') && !inj.unknown && !inj.polluted, `import: unknown keys are dropped (${inj.keys.join(', ')})`);
-    check(inj.accent === '#c9d3e6' && inj.font === 'inter' && inj.tbColor === null && !inj.injected && !inj.hidden, `import: no CSS injection through colours, font names or the taskbar colour (accent ${inj.accent}, font ${inj.font})`);
+    check(inj.accent === inj.defs.accent && /^#[0-9a-f]{6}$/.test(inj.accent) && inj.font === 'inter' && inj.tbColor === null && !inj.injected && !inj.hidden, `import: no CSS injection through colours, font names or the taskbar colour (accent ${inj.accent}, font ${inj.font})`);
     check(JSON.stringify(inj.appThemes) === '{"calculator":{"theme":"light","accent":"#123456"}}', `import: per-app themes keep only valid app ids and colours (${JSON.stringify(inj.appThemes)})`);
     // (profile names keep their text as typed and are always shown with textContent: see "saved profile name is cleaned")
-    check(!/[<>]/.test(`${inj.group}${inj.preset}`) && inj.dynKeys === 'followTheme,location,set,source' && inj.wall === 'builtin:nocturne', `import: names lose markup ("${inj.group}", "${inj.preset}", "${inj.name}"), unknown sub-keys and scripted SVG pictures are dropped`);
+    check(!/[<>]/.test(`${inj.group}${inj.preset}`) && inj.dynKeys === 'followTheme,location,set,source' && inj.wall === inj.defs.wallpaper && /^builtin:/.test(inj.wall), `import: names lose markup ("${inj.group}", "${inj.preset}", "${inj.name}"), unknown sub-keys and scripted SVG pictures are dropped`);
 
     // ---- documentation contract: every key documented in PERSONALIZATION.md §1 / §9.1 is saved by profiles
     const doc = fs.readFileSync(path.join(ROOT, '..', 'docs', 'PERSONALIZATION.md'), 'utf8');

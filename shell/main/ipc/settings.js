@@ -25,10 +25,10 @@ const SYSTEM_FILE = '/etc/aurora/settings.json';
 
 const DEFAULTS = {
   theme: 'dark', // 'light' | 'dark'
-  accent: '#c9d3e6', // '#rrggbb'; the four Selene accents: #c9d3e6 silver, #6f8de6 night blue, #a58bf2 violet, #e9b566 amber (core/theme.js ACCENT_PRESETS)
+  accent: '#7fcbff', // '#rrggbb': the accent of the default finish and style (Halo + Nocturne, ice blue; core/finishes.js finishDefaults). The four Selene accents: #c9d3e6 silver, #6f8de6 night blue, #a58bf2 violet, #e9b566 amber (core/theme.js ACCENT_PRESETS)
   transparency: true,
   animations: true,
-  wallpaper: 'builtin:nocturne', // 'builtin:<id>' or absolute image path (each style has its own: nocturne | eclipse | clairdelune)
+  wallpaper: 'builtin:halo-nocturne', // 'builtin:<id>' or absolute image path (each finish x style has its own: core/finishes.js finishDefaults)
   wallpaperFit: 'fill', // fill | fit | stretch | center | tile
   lang: null, // null -> follow system ($LANG); 'en' | 'fr'
   clock24h: null, // null -> locale default
@@ -58,6 +58,8 @@ const DEFAULTS = {
   mouse: { speed: 0, leftHanded: false }, // pointer acceleration -1..1 and primary button (applied with xinput, main/ipc/locale.js)
 
   // ---- Personalization (docs/PERSONALIZATION.md). Area A — theme engine (core/theme.js):
+  finish: 'halo', // finish (material of the whole shell): halo | prisme | sobre (core/finishes.js; <html data-finish>)
+  tintFromWallpaper: true, // glass finishes: windows and panels take the wallpaper's tint (core/theme.js)
   style: 'nocturne', // visual style: nocturne | eclipse | clairdelune | contrast (older ids are migrated, see migrate())
   ambiance: null, // colour ambiance: null = the style's own (Nocturne cold, Éclipse neutral, Clair de lune warm) | cold | neutral | warm (core/theme.js ambianceOf, styleChoicePatch)
   autoTheme: { enabled: false, light: '07:00', dark: '19:00' }, // "Auto" mode: theme follows the time of day
@@ -91,7 +93,7 @@ const DEFAULTS = {
   // Area B3 — packs (core/packs.js, core/sounds.js) + input (core/shortcuts.js, features/hotkeys.js, features/snaplayouts.js):
   cursorPack: 'default', // default (system) | classic | midnight | accent | large | highvis | retro
   cursorSize: 100, // 100–300 (%): size of the pointer (the system pack is drawn as "Selene light" when > 100)
-  iconPack: 'selene', // selene (the apps' own icons; 'fluent' before the redesign) | tiles | accent | graphite | mono | outline | glass | retro
+  iconPack: 'auto', // auto (follows the finish: halo, prisme, sobre -> selene) | halo | prisme | selene (the apps' own icons; 'fluent' before the redesign) | tiles | accent | graphite | mono | outline | glass | retro
   soundPack: 'aurora', // aurora | chimes | retro | soft | silent
   soundEvents: { notification: null, startup: null, shutdown: null }, // null = pack sound, 'none' = silent, '<pack>.<sound>', '/abs/file.ogg'
   soundVolume: 100, // 0–100: volume of the system sounds (multiplies every pack sound and sound file)
@@ -189,9 +191,14 @@ function safeName(s) {
 // something. Used on the user file, on /etc/aurora/settings.json and by core/profiles.js for saved profiles.
 const STYLE_IDS = ['nocturne', 'eclipse', 'clairdelune', 'contrast'];
 const AMBIANCE_IDS = ['cold', 'neutral', 'warm'];
+const FINISH_IDS = ['halo', 'prisme', 'sobre'];
 function migrate(obj) {
   if (!isObj(obj)) return false;
   let changed = false;
+  if ('finish' in obj && !FINISH_IDS.includes(obj.finish)) {
+    delete obj.finish;
+    changed = true;
+  }
   if ('style' in obj && !STYLE_IDS.includes(obj.style)) {
     obj.style = 'nocturne';
     changed = true;
@@ -220,13 +227,39 @@ function migrate(obj) {
 const RETIRED_WALLPAPERS = new Set(['builtin:bloom', 'builtin:glow', 'builtin:flow', 'builtin:sunrise', 'builtin:aurora', 'builtin:dunes']);
 const RETIRED_DYNAMIC_SETS = new Set(['bloom']);
 
+// Finishes (2026-10-12): a settings file written before them never chose one, so it gets the default finish, Halo.
+// Its accent and wallpaper move along when they are still the Selene ("Sobre") defaults of its style (the same
+// follow rule as core/theme.js finishChoicePatch; table = core/finishes.js finishDefaults). Then 'finish' is
+// written, so this runs once. A file without any look key (new user) needs nothing: DEFAULTS apply.
+const SOBRE_DEFAULTS = {
+  nocturne: { accent: '#c9d3e6', wallpaper: 'builtin:nocturne' },
+  eclipse: { accent: '#e9b566', wallpaper: 'builtin:eclipse' },
+  clairdelune: { accent: '#a58bf2', wallpaper: 'builtin:clairdelune' },
+};
+const HALO_DEFAULTS = {
+  nocturne: { accent: '#7fcbff', wallpaper: 'builtin:halo-nocturne' },
+  eclipse: { accent: '#ffb547', wallpaper: 'builtin:halo-eclipse' },
+  clairdelune: { accent: '#b5367f', wallpaper: 'builtin:halo-clairdelune' },
+};
+const LOOK_KEYS = ['style', 'accent', 'wallpaper', 'ambiance', 'theme', 'iconPack'];
+function migrateFinish(obj) {
+  if (!isObj(obj) || 'finish' in obj || !LOOK_KEYS.some((k) => k in obj)) return false;
+  const style = SOBRE_DEFAULTS[obj.style] ? obj.style : 'nocturne';
+  const same = (a, b) => String(a ?? '').toLowerCase() === b;
+  if ('accent' in obj && same(obj.accent, SOBRE_DEFAULTS[style].accent)) obj.accent = HALO_DEFAULTS[style].accent;
+  if ('wallpaper' in obj && same(obj.wallpaper, SOBRE_DEFAULTS[style].wallpaper)) obj.wallpaper = HALO_DEFAULTS[style].wallpaper;
+  if (obj.iconPack === 'selene') delete obj.iconPack; // the old default: now 'auto' (follows the finish)
+  obj.finish = 'halo';
+  return true;
+}
+
 module.exports = function register(api) {
   const system = readJson(SYSTEM_FILE, {});
   migrate(system);
   const base = deepMerge(DEFAULTS, system);
   // user overrides only (so new defaults reach existing users)
   let user = readJson(FILE, {});
-  if (migrate(user)) {
+  if ([migrate(user), migrateFinish(user)].some(Boolean)) {
     try {
       writeJsonAtomic(FILE, user);
     } catch (err) {
@@ -322,3 +355,4 @@ module.exports = function register(api) {
 
 module.exports.DEFAULTS = DEFAULTS;
 module.exports.migrate = migrate;
+module.exports.migrateFinish = migrateFinish;

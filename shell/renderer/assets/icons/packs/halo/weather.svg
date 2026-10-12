@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<!-- Halo icon (tools/gen-finish-icons.mjs). Symbols: Phosphor Icons 2.1.1, MIT. -->
+<style>@media (max-width:26px){.d{display:none}}</style>
+<defs><radialGradient id="sun" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#FFC23D"/><stop offset="1" stop-color="#FF8A1F"/></radialGradient><linearGradient id="c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#C9DAF7"/></linearGradient><linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.32"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+<circle cx="24" cy="24" r="17" fill="url(#sun)"/><path d="M21 56h28a11 11 0 0 0 1.4-21.9A14 14 0 0 0 23.6 33 11.5 11.5 0 0 0 21 56Z" fill="url(#c)"/><path class="d" d="M24.5 34.5A13.5 13.5 0 0 1 49 35" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/>
+</svg>

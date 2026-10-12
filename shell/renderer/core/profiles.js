@@ -23,8 +23,8 @@ import { SHORTCUT_IDS, isAppAction, validCombo } from './shortcuts.js';
 
 /** Every settings key a profile saves and restores (dotted keys are sub-keys). */
 export const PROFILE_KEYS = [
-  // Area A — theme engine
-  'style', 'ambiance', 'theme', 'autoTheme', 'accent', 'accentFromWallpaper', 'transparency', 'transparencyLevel', 'blur',
+  // Area A — theme engine ('finish' + 'tintFromWallpaper': the Halo / Prisme / Sobre themes, docs/PERSONALIZATION.md §1.1)
+  'finish', 'tintFromWallpaper', 'style', 'ambiance', 'theme', 'autoTheme', 'accent', 'accentFromWallpaper', 'transparency', 'transparencyLevel', 'blur',
   'cornerRadius', 'fontFamily', 'textScale', 'scale', 'reducedMotion', 'animations', 'taskbar.color', 'taskbar.opacity', 'appThemes',
   // wallpapers (B1)
   'wallpaper', 'wallpaperFit', 'lockWallpaper', 'wallpaperMode', 'animatedWallpaper', 'dynamicWallpaper', 'slideshow', 'lockScreen',
@@ -43,19 +43,38 @@ export const PROFILE_KEYS = [
 export const PROFILE_EXCLUDE = ['focusMode.active', 'focusMode.endsAt', 'focusMode.prevDnd'];
 /** The "look": what a built-in profile sets (every other key is left alone — text size, scale, layout…). */
 export const LOOK_KEYS = [
-  'style', 'ambiance', 'theme', 'autoTheme', 'accent', 'accentFromWallpaper', 'transparencyLevel', 'blur', 'cornerRadius', 'fontFamily',
+  'finish', 'tintFromWallpaper', 'style', 'ambiance', 'theme', 'autoTheme', 'accent', 'accentFromWallpaper', 'transparencyLevel', 'blur', 'cornerRadius', 'fontFamily',
   'taskbar.color', 'taskbar.opacity', 'wallpaper', 'wallpaperFit', 'wallpaperMode', 'cursorPack', 'iconPack', 'soundPack',
 ];
 
 const solid = (c) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="10"><rect width="16" height="10" fill="${c}"/></svg>`)}`;
 
+// Halo and Prisme: the two themes (finishes) of 2026-10-12 in their default style. Their accent and wallpaper are the
+// mockups' values until core/finishes.js answers (finishDefaults, below), so that profiles.current() recognises a
+// theme chosen from its card. The other built-ins are the Sobre look (the flat Selene look of 2026-10-11).
+const FINISH_FALLBACK = { halo: { accent: '#7fcbff', wallpaper: 'builtin:halo-nocturne' }, prisme: { accent: '#72e4ff', wallpaper: 'builtin:prisme-nocturne' } };
+const finishProfile = (id, name) => ({ id, name, values: { finish: id, style: 'nocturne', ambiance: null, theme: 'dark', accent: FINISH_FALLBACK[id].accent, wallpaper: FINISH_FALLBACK[id].wallpaper, iconPack: 'auto', tintFromWallpaper: true } });
+
 export const BUILTIN_PROFILES = [
-  { id: 'aurora-dark', name: { en: 'Nocturne', fr: 'Nocturne' }, values: { style: 'nocturne', ambiance: 'cold', theme: 'dark', accent: '#c9d3e6', wallpaper: 'builtin:nocturne' } },
-  { id: 'aurora-light', name: { en: 'Nocturne, light', fr: 'Nocturne clair' }, values: { style: 'nocturne', ambiance: 'cold', theme: 'light', accent: '#c9d3e6', wallpaper: 'builtin:nocturne' } },
-  { id: 'eclipse', name: { en: 'Eclipse', fr: 'Éclipse' }, values: { style: 'eclipse', ambiance: 'neutral', theme: 'dark', accent: '#e9b566', wallpaper: 'builtin:eclipse' } },
-  { id: 'clairdelune', name: { en: 'Clair de lune', fr: 'Clair de lune' }, values: { style: 'clairdelune', ambiance: 'warm', theme: 'dark', accent: '#a58bf2', wallpaper: 'builtin:clairdelune' } },
+  finishProfile('halo', { en: 'Halo', fr: 'Halo' }),
+  finishProfile('prisme', { en: 'Prism', fr: 'Prisme' }),
+  { id: 'aurora-dark', name: { en: 'Nocturne', fr: 'Nocturne' }, values: { finish: 'sobre', style: 'nocturne', ambiance: 'cold', theme: 'dark', accent: '#c9d3e6', wallpaper: 'builtin:nocturne' } },
+  { id: 'aurora-light', name: { en: 'Nocturne, light', fr: 'Nocturne clair' }, values: { finish: 'sobre', style: 'nocturne', ambiance: 'cold', theme: 'light', accent: '#c9d3e6', wallpaper: 'builtin:nocturne' } },
+  { id: 'eclipse', name: { en: 'Eclipse', fr: 'Éclipse' }, values: { finish: 'sobre', style: 'eclipse', ambiance: 'neutral', theme: 'dark', accent: '#e9b566', wallpaper: 'builtin:eclipse' } },
+  { id: 'clairdelune', name: { en: 'Clair de lune', fr: 'Clair de lune' }, values: { finish: 'sobre', style: 'clairdelune', ambiance: 'warm', theme: 'dark', accent: '#a58bf2', wallpaper: 'builtin:clairdelune' } },
   { id: 'contrast', name: { en: 'High Contrast', fr: 'Contraste élevé' }, values: { style: 'contrast', theme: 'dark', accent: '#c9d3e6', wallpaper: solid('#000000'), cursorPack: 'highvis' } },
 ];
+const HEX_RE = /^#[0-9a-f]{6}$/i;
+// the engine's own defaults for Halo and Prisme (core/finishes.js), when it is there
+import('./finishes.js')
+  .then((m) => {
+    for (const p of BUILTIN_PROFILES) {
+      const d = p.values.finish !== 'sobre' && p.values.finish ? m.finishDefaults?.(p.values.finish, p.values.style) : null;
+      if (d && HEX_RE.test(d.accent || '')) p.values.accent = d.accent.toLowerCase();
+      if (d && /^builtin:[a-z0-9-]{1,32}$/.test(d.wallpaper || '')) p.values.wallpaper = d.wallpaper;
+    }
+  })
+  .catch(() => {});
 
 // ---------------------------------------------------------------- helpers
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
@@ -149,6 +168,9 @@ function decodeURIComponentSafe(s) {
 }
 /** Validators: return the (normalised) value, or undefined when invalid. */
 export const VALIDATORS = {
+  // the theme (core/finishes.js FINISHES) and the wallpaper tint of windows and panels
+  finish: oneOf('halo', 'prisme', 'sobre'),
+  tintFromWallpaper: bool,
   // older releases' styles (win11, minimal, glass, retro) become Nocturne
   style: (v) => (LEGACY_STYLES.includes(v) ? 'nocturne' : oneOf(...STYLES.map((s) => s.id))(v)),
   // null = the style's own ambiance (the default)
@@ -242,7 +264,8 @@ export const VALIDATORS = {
   // so this module does not import the shell runtime)
   cursorPack: oneOf('default', 'classic', 'midnight', 'accent', 'large', 'highvis', 'retro'),
   cursorSize: int(100, 300),
-  iconPack: oneOf('selene', 'fluent', 'tiles', 'accent', 'glass', 'graphite', 'mono', 'outline', 'retro'),
+  // 'auto' = the pack of the theme (halo -> halo, prisme -> prisme, sobre -> selene)
+  iconPack: oneOf('auto', 'halo', 'prisme', 'selene', 'fluent', 'tiles', 'accent', 'glass', 'graphite', 'mono', 'outline', 'retro'),
   soundPack: oneOf('aurora', 'chimes', 'retro', 'soft', 'silent'),
   soundEvents: shape({ notification: soundRef, startup: soundRef, shutdown: soundRef }),
   soundVolume: int(0, 100),

@@ -22,6 +22,8 @@
 //                                   wallpaper and the lock screen follow it (core/features/wallpaper.js, area B1)
 import { api, Emitter } from './api.js';
 import { settings } from './settings.js';
+import { FINISHES, DEFAULT_FINISH, finishDefaults, finishOf, finishAccent } from './finishes.js';
+export { FINISHES, DEFAULT_FINISH, finishDefaults };
 
 // Selene wallpapers (one per style, light + dark; drawn by tools/gen-wallpapers.mjs), then the other lunar scenes.
 // Ids of the retired set (bloom, glow, flow, sunrise, aurora, dunes) are unknown here and resolve to the first entry.
@@ -32,7 +34,25 @@ export const WALLPAPERS = [
   { id: 'forest', name: { en: 'Pine forest', fr: 'Forêt de pins' }, light: 'forest-light.jpg', dark: 'forest-dark.jpg' },
   { id: 'peaks', name: { en: 'Peaks', fr: 'Cimes' }, light: 'peaks-light.jpg', dark: 'peaks-dark.jpg' },
   { id: 'milkyway', name: { en: 'Milky Way', fr: 'Voie lactée' }, light: 'milkyway.jpg', dark: 'milkyway.jpg' },
+  // Finish wallpapers (core/finishes.js; drawn by tools/gen-finish-wallpapers.mjs), one per style, light + dark.
+  // `finish` tags them so the Background grid lists the Halo and Prisme pictures first; untagged entries are Sobre's.
+  { id: 'halo-nocturne', finish: 'halo', name: { en: 'Blue halo', fr: 'Halo bleu' }, light: 'halo-nocturne-light.jpg', dark: 'halo-nocturne-dark.jpg' },
+  { id: 'halo-eclipse', finish: 'halo', name: { en: 'Golden corona', fr: 'Couronne d’or' }, light: 'halo-eclipse-light.jpg', dark: 'halo-eclipse-dark.jpg' },
+  { id: 'halo-clairdelune', finish: 'halo', name: { en: 'Dawn petals', fr: 'Pétales d’aube' }, light: 'halo-clairdelune-light.jpg', dark: 'halo-clairdelune-dark.jpg' },
+  { id: 'prisme-nocturne', finish: 'prisme', name: { en: 'Northern lights', fr: 'Aurore boréale' }, light: 'prisme-nocturne-light.jpg', dark: 'prisme-nocturne-dark.jpg' },
+  { id: 'prisme-eclipse', finish: 'prisme', name: { en: 'Golden veils', fr: 'Voiles d’or' }, light: 'prisme-eclipse-light.jpg', dark: 'prisme-eclipse-dark.jpg' },
+  { id: 'prisme-clairdelune', finish: 'prisme', name: { en: 'Pink dawn', fr: 'Aube rose' }, light: 'prisme-clairdelune-light.jpg', dark: 'prisme-clairdelune-dark.jpg' },
 ];
+/**
+ * Built-in wallpapers in the order the pickers show them: the current finish's pictures first (<html data-finish>),
+ * then Halo, Prisme and Sobre's (untagged) ones; registry order otherwise. A Sobre user sees the Selene set first.
+ */
+export function wallpaperChoices(finish = globalThis.document?.documentElement?.dataset?.finish) {
+  const cur = finishOf(finish);
+  const fam = (w) => w.finish || 'sobre';
+  const rank = (w) => (fam(w) === cur ? -1 : ['halo', 'prisme', 'sobre'].indexOf(fam(w)));
+  return WALLPAPERS.map((w, i) => [w, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([w]) => w);
+}
 
 // The four Selene accents. `hex` is the value stored in settings.accent (every consumer keeps reading a
 // plain '#rrggbb'); `dark` / `light` are the curated tokens of each mode. Contrast (docs/design/SYSTEM.md §3):
@@ -110,14 +130,33 @@ export function ambianceOf(all = settings.all()) {
  * accent applies, like its ambiance (Clair de lune: violet, not the slate-blue light silver). watchTheme saves that
  * pair once at start-up, so every reader of settings.accent agrees and a later choice of silver is the user's.
  */
+// Factory accents: the old default (silver) and the default of the default finish (Halo + Nocturne: ice blue).
+const FACTORY_ACCENTS = [DEFAULT_ACCENT, finishDefaults(DEFAULT_FINISH, 'nocturne').accent];
+const FACTORY_WALLPAPER = finishDefaults(DEFAULT_FINISH, 'nocturne').wallpaper;
+const sameVal = (a, b) => String(a ?? '').toLowerCase() === String(b ?? '').toLowerCase();
 export function accentOf(all = settings.all()) {
   const d = styleOf(all.style).defaults;
-  const factory = all.accent == null || String(all.accent).toLowerCase() === DEFAULT_ACCENT;
-  return d && all.ambiance == null && !all.accentFromWallpaper && factory ? d.accent : all.accent;
+  const factory = all.accent == null || FACTORY_ACCENTS.includes(String(all.accent).toLowerCase());
+  return d && all.ambiance == null && !all.accentFromWallpaper && factory ? finishDefaults(finishOf(all.finish), styleOf(all.style).id).accent : all.accent;
 }
-/** { ambiance, accent, wallpaper } a style brings (Contraste élevé: null, it keeps the user's choices). */
-export function styleDefaults(id) {
-  return styleOf(id).defaults || null;
+/** The finish in effect ('halo' | 'prisme' | 'sobre'). */
+export function finishIdOf(all = settings.all()) {
+  return finishOf(all.finish);
+}
+/** Whether windows and panels are glass: a Halo / Prisme finish, transparency on, not High contrast. */
+export function glassOf(all = settings.all()) {
+  const st = styleOf(all.style);
+  return finishOf(all.finish) !== 'sobre' && all.transparency !== false && !st.traits.opaque;
+}
+/**
+ * { ambiance, accent, wallpaper } a style brings in a finish (default: the current one); Contraste élevé: null, it keeps
+ * the user's choices.
+ */
+export function styleDefaults(id, finish = settings.all().finish) {
+  const st = styleOf(id);
+  if (!st.defaults) return null;
+  const f = finishDefaults(finish, st.id);
+  return { ambiance: st.defaults.ambiance, accent: f.accent, wallpaper: f.wallpaper };
 }
 /**
  * The settings patch for choosing a style: the ambiance, the accent and the wallpaper follow the new style's
@@ -128,18 +167,48 @@ export function styleChoicePatch(id, all = settings.all()) {
   const next = styleOf(id);
   const patch = { style: next.id };
   if (!next.defaults) return patch;
-  const same = (a, b) => String(a ?? '').toLowerCase() === String(b ?? '').toLowerCase();
+  const same = sameVal;
+  const fin = finishOf(all.finish);
+  // the accent and wallpaper a style brings depend on the finish (core/finishes.js finishDefaults)
+  const look = (st) => ({ ambiance: st.defaults.ambiance, ...finishDefaults(fin, st.id) });
+  const accent = accentOf(all);
   // coming from a style without defaults (High contrast): the values count as defaults when they are exactly
   // one style's pair (ambiance + accent), i.e. the user did not pick them separately
-  const prev = styleOf(all.style).defaults || STYLES.find((st) => st.defaults && same(st.defaults.ambiance, all.ambiance ?? 'cold') && same(st.defaults.accent, all.accent))?.defaults || STYLES[0].defaults;
-  if (all.ambiance == null || same(all.ambiance, prev.ambiance)) patch.ambiance = next.defaults.ambiance;
-  if (!all.accentFromWallpaper && (all.accent == null || same(all.accent, prev.accent))) patch.accent = next.defaults.accent;
-  if (all.wallpaper == null || same(all.wallpaper, prev.wallpaper)) patch.wallpaper = next.defaults.wallpaper;
+  const prevSt = styleOf(all.style).defaults ? styleOf(all.style) : STYLES.find((st) => st.defaults && same(st.defaults.ambiance, all.ambiance ?? 'cold') && same(look(st).accent, accent)) || STYLES[0];
+  const prev = look(prevSt);
+  const nxt = look(next);
+  if (all.ambiance == null || same(all.ambiance, prev.ambiance)) patch.ambiance = nxt.ambiance;
+  if (!all.accentFromWallpaper && (accent == null || same(accent, prev.accent))) patch.accent = nxt.accent;
+  if (all.wallpaper == null || same(all.wallpaper, prev.wallpaper)) patch.wallpaper = nxt.wallpaper;
   return patch;
 }
 /** Choose a style the way Settings does (one atomic settings:setMany, one cross-fade). */
 export function chooseStyle(id) {
   return api.invoke('settings:setMany', styleChoicePatch(id));
+}
+/**
+ * The settings patch for choosing a finish: the accent and the wallpaper follow the new finish's defaults for the
+ * current style unless the user changed them (same rule as styleChoicePatch). High contrast keeps its own colours;
+ * its wallpaper follows when it is one of the previous finish's pictures. iconPack 'auto' follows by itself.
+ */
+export function finishChoicePatch(id, all = settings.all()) {
+  const next = finishOf(id);
+  const prevF = finishOf(all.finish);
+  const patch = { finish: next };
+  if (next === prevF) return patch;
+  const st = styleOf(all.style);
+  const accent = accentOf(all);
+  for (const sid of st.defaults ? [st.id] : ['nocturne', 'eclipse', 'clairdelune']) {
+    const a = finishDefaults(prevF, sid);
+    const b = finishDefaults(next, sid);
+    if (st.defaults && !('accent' in patch) && !all.accentFromWallpaper && (accent == null || sameVal(accent, a.accent))) patch.accent = b.accent;
+    if (!('wallpaper' in patch) && (all.wallpaper == null || sameVal(all.wallpaper, a.wallpaper))) patch.wallpaper = b.wallpaper;
+  }
+  return patch;
+}
+/** Choose a finish the way Settings does (one atomic settings:setMany, one cross-fade). */
+export function chooseFinish(id) {
+  return api.invoke('settings:setMany', finishChoicePatch(id));
 }
 
 // Curated fonts (installed in the image: fonts-inter, fonts-noto-core, fonts-dejavu-core, fonts-liberation2,
@@ -260,7 +329,7 @@ export function luminance(hex) {
 
 export function accentVars(hex, mode) {
   hex = HEX.test(hex || '') ? hex : DEFAULT_ACCENT;
-  const preset = accentPreset(hex);
+  const preset = accentPreset(hex) || finishAccent(hex);
   if (preset) {
     const p = preset[mode === 'dark' ? 'dark' : 'light'];
     const [r, g, b] = hexToRgb(p.accent);
@@ -436,7 +505,8 @@ export async function wallpaperAccent(url) {
 let styleSheetsReady = null;
 function loadStyleSheets() {
   if (styleSheetsReady) return styleSheetsReady;
-  const files = ['base', ...STYLES.map((s) => s.id)];
+  // finish layers first: on a tie a style wins, so High contrast keeps its own lines and shadows in every finish
+  const files = ['base', ...FINISHES.filter((f) => f.id !== 'sobre').map((f) => `finish-${f.id}`), ...STYLES.map((s) => s.id)];
   styleSheetsReady = Promise.all(
     files.map(
       (f) =>
@@ -479,7 +549,11 @@ export function styleVars(styleId, all = settings.all()) {
   out['--font'] = f.font;
   out['--font-display'] = f.display || f.font;
   const tb = all.taskbar || {};
-  if (tb.opacity != null && Number.isFinite(Number(tb.opacity)) && on) out['--a-taskbar'] = (clampNum(tb.opacity, 0, 100, 83) / 100).toFixed(3);
+  if (tb.opacity != null && Number.isFinite(Number(tb.opacity)) && on) {
+    out['--a-taskbar'] = (clampNum(tb.opacity, 0, 100, 83) / 100).toFixed(3);
+    // glass finishes: the user's bar opacity keeps the 0.80 floor of every glass surface (tokens.css)
+    out['--a-taskbar-user'] = Math.max(0.8, clampNum(tb.opacity, 0, 100, 83) / 100).toFixed(3);
+  }
   return out;
 }
 
@@ -501,8 +575,9 @@ function writeVars(vars) {
 export async function applyVisualStyle(all = settings.all(), root = document.documentElement) {
   const st = styleOf(all.style);
   root.dataset.style = st.id;
+  root.dataset.finish = finishOf(all.finish);
   root.dataset.ambiance = ambianceOf(all);
-  root.dataset.accent = accentPreset(accentOf(all))?.id || 'custom';
+  root.dataset.accent = accentPreset(accentOf(all))?.id || finishAccent(accentOf(all))?.id || 'custom';
   writeVars(styleVars(st.id, all));
   await loadStyleSheets();
   return st.id;
@@ -779,6 +854,112 @@ export function setWallpaperOverride(url) {
     });
   }
 }
+// ---- glass finishes (Halo, Prisme): wallpaper tint + contrast floor ----
+// The window glass shows a pre-blurred copy of the wallpaper under a tint. With tintFromWallpaper the tint takes the
+// wallpaper's hue (the finish keeps its saturation and lightness, so text contrast does not move): --wall-tint-d / -l.
+// Whatever the picture, the glass never gets so clear that --text-3 drops below 4.5:1 over its brightest (dark mode)
+// or darkest (light mode) blurred area: --a-floor is the lowest glass alpha that keeps it (measured, not assumed).
+const statsCache = new Map();
+// a new picture: the desktop decodes it and cross-fades (700 ms) first; the glass follows once that is over
+const GLASS_DEFER_MS = 1500;
+async function wallStats(url) {
+  if (statsCache.has(url)) return statsCache.get(url);
+  let out = null;
+  try {
+    const img = await loadImage(url);
+    const w = 48;
+    const h = 27;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.filter = 'blur(2px)';
+    g.drawImage(img, -4, -4, w + 8, h + 8);
+    const px = g.getImageData(0, 0, w, h).data;
+    const all = [];
+    let r = 0;
+    let gg = 0;
+    let b = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      all.push([px[i], px[i + 1], px[i + 2]]);
+      r += px[i];
+      gg += px[i + 1];
+      b += px[i + 2];
+    }
+    const n = all.length;
+    all.sort((p, q) => lumRgb(p) - lumRgb(q));
+    out = { avg: [r / n, gg / n, b / n], lo: all[Math.floor(n * 0.03)], hi: all[Math.min(n - 1, Math.floor(n * 0.97))] };
+  } catch {}
+  if (statsCache.size > 16) statsCache.clear();
+  statsCache.set(url, out);
+  return out;
+}
+function lumRgb([r, g, b]) {
+  const c = [r, g, b].map((v) => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+const ratioOf = (a, b) => {
+  const [x, y] = [lumRgb(a), lumRgb(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+};
+const triplet = (v) => {
+  const m = String(v || '').trim().split(/[\s,]+/).map(Number);
+  return m.length === 3 && m.every(Number.isFinite) ? m : null;
+};
+/** Lowest alpha of a tint over a backdrop colour that keeps `text` at `min`:1 (0..1). */
+export function glassFloor(text, tint, backdrop, min = 4.6) {
+  for (let a = 0; a <= 1.0001; a += 0.01) {
+    const mix = tint.map((t, i) => a * t + (1 - a) * backdrop[i]);
+    if (ratioOf(text, mix) >= min) return Math.round(a * 100) / 100;
+  }
+  return 1;
+}
+let glassSig = '';
+function applyGlass(all, mode, wp, glass) {
+  const root = document.documentElement;
+  const tint = glass && all.tintFromWallpaper !== false;
+  const sig = `${glass}|${tint}|${mode}|${wp}|${root.dataset.ambiance}|${root.dataset.finish}`;
+  if (sig === glassSig) return;
+  glassSig = sig;
+  if (!glass) {
+    root.style.removeProperty('--wall-tint-d');
+    root.style.removeProperty('--wall-tint-l');
+    root.style.removeProperty('--a-floor');
+    return;
+  }
+  if (!tint) {
+    root.style.removeProperty('--wall-tint-d');
+    root.style.removeProperty('--wall-tint-l');
+  }
+  // measured after the desktop cross-fade of a new picture (statsCache makes a known picture instant)
+  const wait = statsCache.has(wp) ? Promise.resolve() : new Promise((r) => setTimeout(r, applied ? GLASS_DEFER_MS : 0));
+  wait.then(() => (glassSig === sig ? wallStats(wp) : null)).then((st) => {
+    if (glassSig !== sig || !st) return;
+    if (tint) {
+      const cs = getComputedStyle(root);
+      const [h, s] = rgbToHsl(st.avg);
+      for (const m of ['d', 'l']) {
+        const fin = triplet(cs.getPropertyValue(`--fin-tint-${m}`));
+        if (!fin) continue;
+        const [fh, fs, fl] = rgbToHsl(fin);
+        // a colourful picture lends its hue; a grey one keeps the finish's hue, with less colour
+        const rgb = s >= 10 ? hslToRgb(h, fs, fl) : hslToRgb(fh, Math.min(fs, s), fl);
+        root.style.setProperty(`--wall-tint-${m}`, rgb.map((v) => Math.round(v)).join(' '));
+      }
+    }
+    // contrast floor, measured with the tint in effect
+    const cs = getComputedStyle(root);
+    const glassRgb = triplet(cs.getPropertyValue('--glass-rgb'));
+    const text3 = cs.getPropertyValue('--text-3').trim();
+    if (!glassRgb || !HEX.test(text3)) return;
+    const back = mode === 'dark' ? st.hi : st.lo;
+    root.style.setProperty('--a-floor', String(glassFloor(hexToRgb(text3), glassRgb, back)));
+  });
+}
+
 let lastMicaKey = '';
 let lastMica = '';
 let micaTimer = null;
@@ -792,10 +973,12 @@ function applyColors(all) {
   const mode = all.theme === 'dark' ? 'dark' : 'light';
   const st = styleOf(all.style);
   const prevStyle = root.dataset.style;
+  const prevFinish = root.dataset.finish;
   root.dataset.theme = mode;
   root.dataset.style = st.id;
+  root.dataset.finish = finishOf(all.finish);
   root.dataset.ambiance = ambianceOf(all);
-  root.dataset.accent = accentPreset(all.accent)?.id || 'custom';
+  root.dataset.accent = accentPreset(all.accent)?.id || finishAccent(all.accent)?.id || 'custom';
   root.dataset.transparency = all.transparency === false || st.traits.opaque ? 'off' : 'on';
   const reduced = !!all.reducedMotion;
   root.dataset.reducedMotion = reduced ? 'on' : 'off';
@@ -825,6 +1008,7 @@ function applyColors(all) {
     setTimeout(() => el.remove(), 1000);
   }
   if (prevStyle !== st.id && applied) emitter.emit('style', st.id);
+  if (prevFinish !== root.dataset.finish && applied) emitter.emit('finish', root.dataset.finish);
   return mode;
 }
 
@@ -880,7 +1064,7 @@ export async function applyTheme(all = settings.all()) {
   const prevMode = root.dataset.theme;
   const nextMode = all.theme === 'dark' ? 'dark' : 'light';
   const accentChanged = root.style.getPropertyValue('--accent-base') !== (HEX.test(all.accent || '') ? all.accent : DEFAULT_ACCENT);
-  const styleChanged = (root.dataset.style || 'nocturne') !== styleOf(all.style).id;
+  const styleChanged = (root.dataset.style || 'nocturne') !== styleOf(all.style).id || (!!root.dataset.finish && root.dataset.finish !== finishOf(all.finish));
   const ambianceChanged = !!root.dataset.ambiance && root.dataset.ambiance !== ambianceOf(all);
   const animate = applied && motionOn(all) && (prevMode !== nextMode || accentChanged || styleChanged || ambianceChanged);
   if (!applied) await loadStyleSheets();
@@ -915,7 +1099,8 @@ export async function applyTheme(all = settings.all()) {
   const wp = wallpaperOverride || resolveWallpaper(all.wallpaper, mode);
   const st = styleOf(all.style);
   const blurLevel = clampNum(all.blur, 0, 100, 50);
-  const micaOpts = { blur: (blurLevel / 50) * 18 * (st.traits.micaBlur ?? 1), sat: 1.4 * (st.traits.micaSat ?? 1) };
+  const glass = glassOf(all);
+  const micaOpts = { blur: (blurLevel / 50) * 18 * (st.traits.micaBlur ?? 1), sat: 1.4 * (st.traits.micaSat ?? 1) * (glass ? 1.25 : 1) };
   const micaKey = `${wp}|${micaOpts.blur.toFixed(1)}|${micaOpts.sat}`;
   if (wp !== lastWallpaper) {
     lastWallpaper = wp;
@@ -930,8 +1115,9 @@ export async function applyTheme(all = settings.all()) {
       if (latest?.accentFromWallpaper && lastWallpaper === wp && String(settings.get('accent') || '').toLowerCase() !== hex) settings.set('accent', hex).catch(() => {});
     });
   }
-  if (st.traits.noMica) {
-    // flat windows: no pre-blurred wallpaper to compute (cheaper, and no Mica look)
+  applyGlass(all, mode, wp, glass);
+  if (!glass) {
+    // flat windows (Sobre, High contrast, transparency off): no pre-blurred wallpaper to compute (cheaper, no Mica look)
     if (lastMicaKey) {
       lastMicaKey = '';
       clearTimeout(micaTimer);
@@ -959,7 +1145,10 @@ export async function applyTheme(all = settings.all()) {
         emitter.emit('mica', mica);
       }
     };
+    // a new picture in a glass finish: the desktop cross-fade (700 ms) goes first; the windows keep the previous copy
+    // meanwhile (one decode and one full restyle at a time on a VM without 3D)
     if (sameWall) micaTimer = setTimeout(run, 160);
+    else if (glass && lastMica) micaTimer = setTimeout(run, GLASS_DEFER_MS);
     else await run();
   }
 
@@ -1004,20 +1193,39 @@ function checkAutoTheme() {
 
 const THEME_KEYS = [
   'theme', 'accent', 'transparency', 'animations', 'wallpaper', 'wallpaperFit', 'nightLight', 'nightLightStrength', 'scale', '*',
-  'style', 'ambiance', 'accentFromWallpaper', 'transparencyLevel', 'blur', 'cornerRadius', 'fontFamily', 'textScale', 'reducedMotion', 'taskbar', 'appThemes',
+  'finish', 'tintFromWallpaper', 'style', 'ambiance', 'accentFromWallpaper', 'transparencyLevel', 'blur', 'cornerRadius', 'fontFamily', 'textScale', 'reducedMotion', 'taskbar', 'appThemes',
 ];
 let lastStyleId = null; // style of the last settings snapshot seen by watchTheme (follow rule below)
+let lastFinishId = null; // same for the finish
 export function watchTheme() {
   lastStyleId = styleOf(settings.get('style')).id;
+  lastFinishId = finishOf(settings.get('finish'));
   // A style written without its follow rule (accentOf): save its own ambiance and accent once, so the lock screen,
   // quick settings and the Settings pages read the accent on screen.
   const start = settings.all();
   const own = styleOf(start.style).defaults;
-  if (own && accentOf(start) !== start.accent) api.invoke('settings:setMany', { ambiance: own.ambiance, accent: own.accent }).catch(() => {});
+  if (own && accentOf(start) !== start.accent) {
+    // the finish's picture for that style too, when the wallpaper is still the factory one
+    const wall = finishDefaults(finishOf(start.finish), styleOf(start.style).id).wallpaper;
+    const extra = (start.wallpaper == null || sameVal(start.wallpaper, FACTORY_WALLPAPER)) && !sameVal(start.wallpaper, wall) ? { wallpaper: wall } : {};
+    api.invoke('settings:setMany', { ambiance: own.ambiance, accent: accentOf(start), ...extra }).catch(() => {});
+  }
   settings.on('*', (_v, key) => {
     // A plain settings.set('style', id) (quick settings, a script) gets the same follow rule as Settings:
     // the ambiance, accent and wallpaper that were the old style's defaults follow the new style.
     // settings:setMany callers (profiles, chooseStyle) send their own complete patch.
+    const nowFinish = finishOf(settings.get('finish'));
+    if (nowFinish !== lastFinishId) {
+      // a plain settings.set('finish', id): the accent and wallpaper that were the old finish's defaults follow
+      const prev = lastFinishId;
+      lastFinishId = nowFinish;
+      if (key === 'finish' && prev) {
+        const all = settings.all();
+        const { finish, ...rest } = finishChoicePatch(nowFinish, { ...all, finish: prev });
+        const patch = Object.fromEntries(Object.entries(rest).filter(([k, v]) => String(all[k] ?? '').toLowerCase() !== String(v).toLowerCase()));
+        if (Object.keys(patch).length) api.invoke('settings:setMany', patch).catch(() => {});
+      }
+    }
     const nowStyle = styleOf(settings.get('style')).id;
     if (nowStyle !== lastStyleId) {
       const prev = lastStyleId;

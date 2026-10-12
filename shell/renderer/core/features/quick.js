@@ -2,12 +2,20 @@
 //   Header: title, battery chip, gear button (opens Settings). Tiles: Wi-Fi (split, > network list),
 //   Airplane mode, Focus, Dark mode, Night light, Do not disturb, Accessibility (> animation /
 //   transparency toggles). Sliders: brightness (hidden when the display has no backlight), volume
-//   (+ > output device picker). Appearance: style, ambiance and accent (core/theme.js API).
+//   (+ > output device picker). Appearance: theme (Halo / Prisme / Sobre, settings.finish), style, ambiance and accent
+//   (core/theme.js API).
 //   Sub-pages slide horizontally; backend channels (net:*, audio:*, display:*, power:battery) are
 //   optional — controls whose backend is missing are hidden, failures are reported inline.
 //   Opens on shell 'quick:toggle' / 'quick:open'.
 import { createFlyout } from '../taskbar.js';
 import { STYLES, AMBIANCES, ACCENT_PRESETS, chooseStyle, accentPreset, ambianceOf } from '../theme.js';
+import { FINISHES, DEFAULT_FINISH, finishDefaults, finishAccent } from '../finishes.js';
+
+/** The accents offered for a finish: its own three (one per style), then the four Selene accents (as in Settings). */
+function accentChoices(finish) {
+  const own = finish !== 'sobre' ? [...new Set(['nocturne', 'eclipse', 'clairdelune'].map((st) => finishDefaults(finish, st).accent))].map(finishAccent).filter(Boolean) : [];
+  return [...own, ...ACCENT_PRESETS];
+}
 
 let ctx;
 let fly;
@@ -32,6 +40,7 @@ const STRINGS = {
       batteryLeft: 'about {time}',
       charging: 'Charging',
       appearance: 'Appearance',
+      finish: 'Theme',
       style: 'Style',
       ambiance: 'Ambiance',
       accent: 'Accent colour',
@@ -96,6 +105,7 @@ const STRINGS = {
       batteryLeft: 'environ {time}',
       charging: 'En charge',
       appearance: 'Apparence',
+      finish: 'Thème',
       style: 'Style',
       ambiance: 'Ambiance',
       accent: 'Couleur d’accent',
@@ -369,7 +379,7 @@ function renderAppearance(s) {
   const styleId = STYLES.some((x) => x.id === s.style) ? s.style : 'nocturne';
   const isContrast = styleId === 'contrast';
   const amb = ambianceOf(s);
-  const preset = accentPreset(s.accent);
+  const preset = accentPreset(s.accent) || finishAccent(s.accent);
   const group = (key, title, value, body) =>
     h('div', { class: 'qs-group', dataset: { key }, role: 'group', 'aria-label': title }, h('div', { class: 'qs-group-head' }, h('span', { class: 'qs-group-title' }, title), value ? h('span', { class: 'qs-group-value' }, value) : null), body);
   const choice = (cls, value, pressed, label, onclick, ...kids) =>
@@ -387,7 +397,14 @@ function renderAppearance(s) {
       return choice('qs-style', st.id, st.id === styleId, L(st.name), () => chooseStyle(st.id).catch((err) => toastError(err)), sw, h('span', { class: 'qs-style-name' }, L(st.name)), st.id === styleId ? icon('check', { size: 14, class: 'qs-check' }) : null);
     }),
   );
-  const out = [group('style', t('quick.style'), null, styles)];
+  // the theme: a compact segmented choice above the style (settings.finish; theme.js applies its defaults)
+  const finishId = FINISHES.some((f) => f.id === s.finish) ? s.finish : DEFAULT_FINISH;
+  const finishes = h(
+    'div',
+    { class: 'qs-finishes' },
+    ...FINISHES.map((f) => choice('qs-finish', f.id, f.id === finishId, L(f.name), () => ctx.settings.set('finish', f.id).catch((err) => toastError(err)), h('span', { class: 'qs-finish-name' }, L(f.name)))),
+  );
+  const out = [group('finish', t('quick.finish'), null, finishes), group('style', t('quick.style'), null, styles)];
   if (isContrast) {
     out.push(h('p', { class: 'qs-note' }, t('quick.contrastNote')));
   } else {
@@ -410,7 +427,7 @@ function renderAppearance(s) {
     const accents = h(
       'div',
       { class: 'qs-accents' },
-      ...ACCENT_PRESETS.map((x) =>
+      ...accentChoices(FINISHES.some((f) => f.id === s.finish) ? s.finish : DEFAULT_FINISH).map((x) =>
         choice(
           'qs-accent',
           x.id,

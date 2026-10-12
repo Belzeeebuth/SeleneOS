@@ -3,6 +3,7 @@
    <html> attributes (set by core/theme.js):
      data-theme="light|dark"            colour mode
      data-style="nocturne|eclipse|clairdelune|contrast"   style layer core/styles/<style>.css (shape hooks)
+     data-finish="halo|prisme|sobre"    material layer core/styles/finish-<id>.css (glass levels, tints; core/finishes.js)
      data-ambiance="cold|neutral|warm"  palette of the surfaces and text
      data-accent="silver|night|violet|amber|custom"       accent preset (values set inline by theme.js)
      data-transparency="on|off", data-animations="on|off", data-reduced-motion="on|off".
@@ -274,6 +275,7 @@
   --a-acrylic-strong: clamp(0.86, calc(1 - 0.05 * var(--tp) * var(--tp-k)), 1);
   --a-fly: clamp(0.8, calc(1 - 0.08 * var(--tp) * var(--tp-k)), 1);
   --a-tb: clamp(0.8, var(--a-taskbar, calc(1 - 0.08 * var(--tp) * var(--tp-k))), 1);
+  --a-win: 1; /* window glass (Halo / Prisme finishes only, see the end of this file) */
   --glass-a: var(--a-acrylic);
   --glass-blur: var(--blur);
 }
@@ -351,6 +353,10 @@
   --glass-strong: rgb(var(--amb-l-glass) / var(--a-acrylic-strong));
   --glass-line: rgb(var(--amb-l-tint) / 0.12);
   --glass-fill: rgb(var(--amb-l-tint) / 0.06);
+  /* glass finishes (Halo, Prisme): overlays on the window glass, rim light */
+  --glass-layer: rgb(255 255 255 / var(--fin-layer-l, 0.5));
+  --glass-layer-2: rgb(255 255 255 / var(--fin-layer2-l, 0.74));
+  --glass-hi: rgb(255 255 255 / var(--fin-hi-l, 0));
   --taskbar-bg: rgb(var(--taskbar-rgb, var(--amb-l-bar)) / var(--a-tb));
   --scrim: rgb(var(--amb-l-shadow) / 0.3);
   --shadow-flyout: 0 16px 44px rgb(var(--amb-l-shadow) / 0.2), 0 2px 6px rgb(var(--amb-l-shadow) / 0.08);
@@ -426,6 +432,9 @@
   --glass-strong: rgb(var(--amb-d-glass) / var(--a-acrylic-strong));
   --glass-line: rgb(var(--amb-d-tint) / 0.13);
   --glass-fill: rgb(var(--amb-d-tint) / 0.07);
+  --glass-layer: rgb(var(--amb-d-tint) / var(--fin-layer-d, 0.05));
+  --glass-layer-2: rgb(var(--amb-d-tint) / var(--fin-layer2-d, 0.1));
+  --glass-hi: rgb(255 255 255 / var(--fin-hi-d, 0));
   --taskbar-bg: rgb(var(--taskbar-rgb, var(--amb-d-bar)) / var(--a-tb));
   --scrim: rgb(var(--amb-d-shadow) / 0.5);
   --shadow-flyout: 0 16px 48px rgb(var(--amb-d-shadow) / 0.5), 0 2px 6px rgb(var(--amb-d-shadow) / 0.3);
@@ -446,6 +455,44 @@
   --warning: #f2c46b;
   --warning-bg: #352813;
   --info-bg: rgb(var(--amb-d-tint) / 0.035);
+}
+
+/* ---- glass finishes (Halo, Prisme; core/finishes.js, palettes in core/styles/finish-<id>.css) ----
+   Windows: a pre-blurred copy of the wallpaper (--mica-image, computed once by theme.js) under the finish's tint at
+   --a-win (Mica-like, no live blur); inside them --bg / --bg-alt / the title band become thin overlays, so sidebars and
+   content show the glass. Bar, Lanceur, panels: live blur at --a-acrylic / --a-tb. The finish sets --fin-a-win,
+   --fin-a-pop, --fin-a-bar (alphas at the default transparency) and --fin-blur-k / --fin-sat. transparencyLevel scales
+   them (--tp), transparency off / High contrast make them opaque (--tp 0), and --a-floor (theme.js, measured on the
+   wallpaper) keeps --text-3 at 4.5:1 or more whatever the picture. */
+:is([data-finish="halo"], [data-finish="prisme"]):is(:root, [data-style]) {
+  --tp-glass: min(calc(var(--tp) * var(--tp-k)), 1.6);
+  --a-win: clamp(var(--a-floor, 0), calc(1 - (1 - var(--fin-a-win, 0.74)) * var(--tp-glass)), 1);
+  --a-acrylic: clamp(max(0.7, var(--a-floor, 0)), calc(1 - (1 - var(--fin-a-pop, 0.8)) * var(--tp-glass)), 1);
+  --a-acrylic-strong: clamp(max(0.76, var(--a-floor, 0)), calc(1 - (1 - var(--fin-a-pop, 0.8)) * 0.7 * var(--tp-glass)), 1);
+  --a-fly: var(--a-acrylic);
+  /* the bar: a docked bar that never blurs (--bar-blur 0, Éclipse) is near-opaque (+0.16) */
+  --a-tb: clamp(max(0.7, var(--a-floor, 0)), var(--a-taskbar-user, calc(1 - (1 - var(--fin-a-bar, 0.8) - (1 - var(--bar-blur, 1)) * 0.16) * var(--tp-glass))), 1);
+  --blur-k: var(--fin-blur-k, 1.7);
+  /* whole pixels, and never more than 64 px (80 px for --blur-lg) whatever the intensity: smooth in a VM without 3D */
+  --blur: min(round(calc(var(--blur-px) * var(--blur-k)), 1px), 64px);
+  --blur-sat: var(--fin-sat, 175%);
+  --win-radius: calc(var(--radius-lg) + var(--fin-win-r-add, 2px) * var(--corner)); /* each style's radius, a little rounder */
+}
+:is([data-finish="halo"], [data-finish="prisme"])[data-transparency="on"] .win:is(.bg-mica, .bg-mica-alt) {
+  /* grain (Prisme) and top sheen over the tint, over the pre-blurred wallpaper; the opaque tint underneath shows
+     until the Mica copy is ready (and if it cannot be computed) */
+  --win-material: var(--fin-grain, none), linear-gradient(180deg, var(--fin-sheen, transparent), transparent 140px), linear-gradient(rgb(var(--glass-rgb) / var(--a-win)), rgb(var(--glass-rgb) / var(--a-win))), var(--mica-image, none) center / cover fixed, rgb(var(--glass-rgb));
+  --bg: var(--glass-layer);
+  --surface: var(--glass-layer);
+  --bg-alt: transparent;
+  --surface-sunken: transparent;
+  --titlebar-bg: transparent;
+  --card: var(--glass-layer);
+  --control: var(--glass-layer-2);
+  --input-bg: var(--glass-layer-2);
+  --win-shadow: var(--shadow-window), inset 0 1px 0 var(--glass-hi);
+  --win-shadow-inactive: var(--shadow-window-inactive), inset 0 1px 0 var(--glass-hi);
+  --win-border: 1px solid var(--glass-line);
 }
 
 /* Transparency off: every translucent surface becomes opaque (theme.js sets --tp: 0), no blur. */

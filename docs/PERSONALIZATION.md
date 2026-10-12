@@ -28,6 +28,8 @@ Rules for every key:
 
 | Key | Type / range | Default | Effect |
 |---|---|---|---|
+| `finish` | `'halo' \| 'prisme' \| 'sobre'` | `'halo'` | The theme (material of the whole shell, design/SYSTEM.md §9): `<html data-finish>`. `halo` = glass tinted by the wallpaper, colourful icons, petal-halo wallpapers; `prisme` = frosted glass with a faint grain, glossy icons, aurora veils; `sobre` = the flat Selene look. Settings files that never set it get `halo`. Choosing a theme moves the accent, the wallpaper and the icon set to the theme's own for the current style (`core/finishes.js` `finishDefaults(finish, style)`) unless the user changed them |
+| `tintFromWallpaper` | bool | `true` | Halo and Prisme: windows, the bar and panels take the wallpaper's tint. No effect with transparency off, reduced transparency or High contrast (solid surfaces) |
 | `style` | `'nocturne' \| 'eclipse' \| 'clairdelune' \| 'contrast'` | `'nocturne'` | Visual style: `<html data-style>` plus the style layer `core/styles/<style>.css`. Older ids (`win11`, `minimal`, `glass`, `retro`) and unknown ids are migrated to `nocturne` (settings.js `migrate()`, profile import) |
 | `ambiance` | `null \| 'cold' \| 'neutral' \| 'warm'` | `null` | Colour mood of the surfaces and text: `<html data-ambiance>`. `null` = the style's own (Nocturne cold, Éclipse neutral, Clair de lune warm; `ambianceOf()`); choosing a style moves it along unless the user picked another one |
 | `theme` | `'light' \| 'dark'` | `'dark'` | Colour mode: `<html data-theme>` |
@@ -101,7 +103,7 @@ Notes:
 |---|---|---|---|
 | `cursorPack` | `'default' \| 'classic' \| 'midnight' \| 'accent' \| 'large' \| 'highvis' \| 'retro'` | `'default'` | Mouse pointer pack (`default` = the system cursors) |
 | `cursorSize` | 100–300 (%) | `100` | Pointer size for every pack; the system pack cannot grow, so above 100 % it is drawn as "Selene light" |
-| `iconPack` | `'selene' \| 'tiles' \| 'accent' \| 'glass' \| 'graphite' \| 'mono' \| 'outline' \| 'retro'` | `'selene'` | App icons everywhere in the shell (+ Ordinateur / Corbeille, file-type icon tints; `selene` = the Selene icons in the colours of the current ambiance and mode, §11.2; a saved `fluent`, the old id, is read as and migrated to `selene`) |
+| `iconPack` | `'auto' \| 'halo' \| 'prisme' \| 'selene' \| 'tiles' \| 'accent' \| 'glass' \| 'graphite' \| 'mono' \| 'outline' \| 'retro'` | `'auto'` | `auto` = the icon set of the theme (`halo` → Halo, `prisme` → Prisme, `sobre` → Selene; read from `<html data-finish>`). App icons everywhere in the shell (+ Ordinateur / Corbeille, file-type icon tints; `selene` = the Selene icons in the colours of the current ambiance and mode, §11.2; a saved `fluent`, the old id, is read as and migrated to `selene`) |
 | `soundPack` | `'aurora' \| 'chimes' \| 'retro' \| 'soft' \| 'silent'` | `'aurora'` | Scheme of every system sound (`silent`: only alarms ring) |
 | `soundEvents` | `{ notification, startup, shutdown }`, each `null \| 'none' \| '<pack>.<sound>' \| '/abs/file.ogg'` | all `null` | Per-event sound. `null` = the pack's sound. Files: `.ogg .oga .opus .wav .mp3 .flac .m4a .webm` |
 | `soundVolume` | 0–100 | `100` | Volume of the system sounds (pack tones and sound files) |
@@ -262,12 +264,13 @@ and the `sounds` master switch, which are content / a system switch, not part of
 **Applying:** one `settings:setMany` call. A key missing from a user profile is reset to its default. The
 call runs inside `theme.transition()`, a ~300 ms cross-fade.
 
-**Built-in profiles** only set the *look* keys (`LOOK_KEYS`). They never touch accessibility (`textScale`,
-`scale`, `reducedMotion`, `animations`) or layout keys. The built-ins are:
+**Built-in profiles** only set the *look* keys (`LOOK_KEYS`, which include `finish` and `tintFromWallpaper`). They
+never touch accessibility (`textScale`, `scale`, `reducedMotion`, `animations`) or layout keys. The built-ins are:
 
-- Nocturne (`aurora-dark`) and Nocturne clair (`aurora-light`)
-- Éclipse (`eclipse`)
-- Clair de lune (`clairdelune`)
+- Halo (`halo`) and Prisme (`prisme`): the theme in Nocturne, dark, its own accent and wallpaper (read from
+  `core/finishes.js` `finishDefaults`), the automatic icon set, tint on
+- in the Sobre theme (`finish: 'sobre'`): Nocturne (`aurora-dark`) and Nocturne clair (`aurora-light`), Éclipse
+  (`eclipse`), Clair de lune (`clairdelune`)
 - Contraste élevé (`contrast`)
 
 A saved or imported profile with an older style (`win11`, `minimal`, `glass`, `retro`) gets `nocturne`.
@@ -318,7 +321,17 @@ shell.emit('profiles:apply', { id });  // also window.__aurora.theme.profiles
 
 **Personalization** contains:
 
-- the hero preview;
+- **Thème** (`section: 'finish'`, module `pages/personalization-finish.js`): three large cards, Halo, Prisme and
+  Sobre, with a preview picture (`shell/renderer/assets/finishes/<id>.jpg`, 640 × 360, made from the mockups and from
+  a screenshot of the Sobre look). The current one is marked; the group is one Tab stop (arrows, Home / End move;
+  Enter / Space choose). A card only writes `settings.finish`; theme.js and finishes.js apply the theme's defaults.
+- **Personnaliser le thème** (`section: 'customizeTheme'`), right under it, with the existing keys and builders:
+  style (four buttons, `chooseStyle`), ambiance, accent (the theme's own three accents, then the four Selene ones,
+  then a custom colour), wallpaper (thumbnail + link to Background), window transparency (`transparencyLevel`), blur,
+  « Teinter les fenêtres selon le fond d'écran » (`tintFromWallpaper`; greyed out, with a note, in Sobre, with
+  transparency off and with Contraste élevé, where every surface is solid) and the icon set (« Automatique (suit le
+  thème) », Halo, Prisme, Selene, then the other packs; link to Icon packs). Search: « Thème », « Halo », « Prisme »,
+  « Sobre », « Personnaliser le thème », « Teinter les fenêtres… », « Jeu d'icônes du thème »;
 - **Theme designer** (`themeDesigner`);
 - **Visual style** (`visualStyle`);
 - **Profiles** (`profiles`);
@@ -558,6 +571,28 @@ bar sits.
 The ids of the retired set (`bloom`, `glow`, `flow`, `sunrise`, `aurora`, `dunes`) are no longer in `WALLPAPERS`:
 `resolveWallpaper('builtin:<old id>')` returns the first entry (Nocturne), so old settings and profiles still show a
 picture. The moons follow the real near side (maria kept low in contrast and broken up, so no face appears).
+
+### 9.10 Finish pictures (Halo, Prisme)
+
+The Halo and Prisme finishes (`core/finishes.js`, `finishDefaults(finish, style).wallpaper`) bring one picture per style,
+each with a light and a dark variant that follow the mode like the Selene set. They are drawn by
+`shell/tools/gen-finish-wallpapers.mjs` (Halo: procedural SVG rasterised by Electron; Prisme: numpy, in
+`tools/gen-finish-wallpapers.py`; both ported from `docs/design/mockups-mix/*/build/`, seeded):
+`xvfb-run -a node tools/gen-finish-wallpapers.mjs [--only=halo-eclipse-light,…] [--out=<dir>]` (needs python3 with
+numpy and Pillow). Every file is a 2560×1440 progressive JPEG (q 88, under 700 KB, Gaussian dither against banding;
+checked by `test/wallpapers.test.mjs --only=finish`). The twelve files add about 3.6 MB to the image. In the
+Background and Lock screen grids the current finish's pictures come first (`wallpaperChoices()`, read from
+`<html data-finish>`: then Halo, Prisme and the Selene set, which Sobre keeps using and lists first); the Spotlight
+rotation includes them.
+
+| Id (`builtin:<id>`) | Name (fr / en) | Light | Dark |
+|---|---|---|---|
+| `halo-nocturne` | Halo bleu / Blue halo | blue / cyan petals on an ice-blue sky | blue / indigo / cyan petals around a glowing core, navy |
+| `halo-eclipse` | Couronne d’or / Golden corona | amber / gold petals around a pale sun disc, cream | amber / gold corona around a black disc |
+| `halo-clairdelune` | Pétales d’aube / Dawn petals | violet / pink / peach petals on lavender | the same flower on deep violet and plum |
+| `prisme-nocturne` | Aurore boréale / Northern lights | cyan / blue / violet veils on a pale dawn sky, white moon | aurora curtains, small moon, stars, navy |
+| `prisme-eclipse` | Voiles d’or / Golden veils | gold / copper / magenta veils on cream, eclipse with a gold ring | gold / copper / magenta silk veils, eclipse with corona |
+| `prisme-clairdelune` | Aube rose / Pink dawn | lavender / pink / peach mesh sky, crescent | the same veils at night: violet to plum, crescent, stars |
 
 ## 10. Taskbar, Start and Focus mode (area B2)
 
@@ -895,6 +930,11 @@ depuis Paramètres › Personnalisation en anglais et en français, et enregistr
   de zones) et **raccourcis clavier modifiables** (46 actions + « ouvrir cette application » ; enregistrement d’une
   combinaison avec Win, Ctrl + Alt ou F13–F24, conflits résolus, désactivation, restauration) (§12).
 - **Profils** : enregistrer l’apparence complète et passer d’un thème à l’autre en un clic ; export / import validé (§5).
+- **Thèmes (12 octobre 2026)** : Halo (par défaut), Prisme et Sobre, en haut de Paramètres › Personnalisation sous forme
+  de trois grandes cartes avec un aperçu, puis « Personnaliser le thème » (style, ambiance, accent, fond d’écran,
+  transparence des fenêtres, flou, « Teinter les fenêtres selon le fond d’écran », jeu d’icônes avec « Automatique (suit
+  le thème) »). Réglages rapides › Apparence propose les trois thèmes au-dessus du style. Clés : `finish`,
+  `tintFromWallpaper`, `iconPack: 'auto'` (§1.1, §6).
 
 Limites connues : les curseurs ne s’appliquent pas dans les pages web ; les packs d’icônes ne changent pas les icônes
 dessinées par les applications elles-mêmes ; un raccourci système désactivé reste intercepté ; l’écran de connexion

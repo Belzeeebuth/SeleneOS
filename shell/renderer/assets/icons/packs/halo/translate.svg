@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<!-- Halo icon (tools/gen-finish-icons.mjs). Symbols: Phosphor Icons 2.1.1, MIT. -->
+<style>@media (max-width:26px){.d{display:none}}</style>
+<defs><linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB65C"/><stop offset="1" stop-color="#F2620F"/></linearGradient><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#73C0FF"/><stop offset="1" stop-color="#3F4BE8"/></linearGradient><linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.32"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+<path d="M26 6h24a8 8 0 0 1 8 8v14a8 8 0 0 1-8 8h-1v6l-7-6H26a8 8 0 0 1-8-8V14a8 8 0 0 1 8-8Z" fill="url(#a)"/><path class="d" d="M30 15h16M38 12v3M43 15c-1.5 6-5 10-11 12M33 18c1.5 4 5 7.5 10 9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M14 24h22a8 8 0 0 1 8 8v14a8 8 0 0 1-8 8H21l-8 6v-6.2A8 8 0 0 1 6 46V32a8 8 0 0 1 8-8Z" fill="url(#b)"/><path d="M17.5 48.5l7.5-18 7.5 18M20.3 42h9.4" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

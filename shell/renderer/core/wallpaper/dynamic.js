@@ -4,7 +4,7 @@
 //   variantUrl(setId, phase) -> app:// URL of a variant
 //   spotlightList()         every built-in picture (Lock screen "Spotlight" rotation)
 //   spotlightPick(date)     -> { url, name } of the day (fixed order: two consecutive days never share a family)
-//   pictureFamily(url)      -> 'lake' | 'dunes' | 'peaks' | 'eclipse' | 'forest' | 'milkyway'
+//   pictureFamily(url)      -> 'lake' | 'dunes' | 'peaks' | 'eclipse' | 'forest' | 'milkyway' | 'halo' | 'prisme'
 import { phaseAt } from './solar.js';
 
 const BASE = 'app://shell/assets/wallpapers/';
@@ -38,19 +38,25 @@ export function dynamicPick(setId, date = new Date(), location = null) {
 
 // Built-in pictures for the Spotlight rotation: the static wallpapers and every time-of-day variant, ordered so that
 // two consecutive days (including the wrap-around) never show the same family (Nocturne/lake, Clair de lune/dunes,
-// Peaks, Eclipse, Forest, Milky Way).
+// Peaks, Eclipse, Forest, Milky Way, and the Halo / Prisme finish pictures).
 const SPOT = [
   ['nocturne-dark.jpg', { en: 'Moon over the lake', fr: 'Lune sur le lac' }],
+  ['halo-nocturne-dark.jpg', { en: 'Blue halo', fr: 'Halo bleu' }],
   ['dynamic/dunes-day.jpg', { en: 'Dunes by day', fr: 'Dunes de jour' }],
   ['eclipse-dark.jpg', { en: 'Eclipse', fr: 'Éclipse' }],
+  ['prisme-nocturne-dark.jpg', { en: 'Northern lights', fr: 'Aurore boréale' }],
   ['forest-dark.jpg', { en: 'Pines by moonlight', fr: 'Pins au clair de lune' }],
   ['dynamic/peaks-dusk.jpg', { en: 'Peaks at dusk', fr: 'Cimes au crépuscule' }],
+  ['halo-eclipse-dark.jpg', { en: 'Golden corona', fr: 'Couronne d’or' }],
   ['clairdelune-dark.jpg', { en: 'Phases of the moon', fr: 'Phases de la lune' }],
   ['milkyway.jpg', { en: 'Milky Way', fr: 'Voie lactée' }],
+  ['prisme-eclipse-dark.jpg', { en: 'Golden veils', fr: 'Voiles d’or' }],
   ['dynamic/lake-day.jpg', { en: 'Lake by day', fr: 'Lac de jour' }],
   ['peaks-light.jpg', { en: 'Peaks at dawn', fr: 'Cimes à l’aube' }],
+  ['halo-clairdelune-light.jpg', { en: 'Dawn petals', fr: 'Pétales d’aube' }],
   ['eclipse-light.jpg', { en: 'Eclipse (light)', fr: 'Éclipse (clair)' }],
   ['dynamic/dunes-dusk.jpg', { en: 'Dunes at dusk', fr: 'Dunes au crépuscule' }],
+  ['prisme-clairdelune-light.jpg', { en: 'Pink dawn', fr: 'Aube rose' }],
   ['forest-light.jpg', { en: 'Pines in the mist', fr: 'Pins dans la brume' }],
   ['nocturne-light.jpg', { en: 'Lake at dawn', fr: 'Lac à l’aube' }],
   ['peaks-dark.jpg', { en: 'Crescent over the peaks', fr: 'Croissant sur les cimes' }],

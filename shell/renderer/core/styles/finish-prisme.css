@@ -1,0 +1,142 @@
+/* Finish "Prisme" (core/finishes.js; mockup docs/design/mockups-mix/prisme): frosted glass with a stronger colour bleed
+   and a very faint grain, glossy two-tone icons, aurora-veil wallpapers with a small moon. Palettes and glass levels
+   only (machinery: end of core/tokens.css). The mockup's glass is clearer (55–66 %) because it leans on a 190 %
+   saturation; here windows are 64–66 % over the pre-blurred wallpaper and the floating glass keeps 70 % or more (live
+   blur 44 px), with the grain (a tiny tiled noise) and a top sheen on windows and panels. Text re-measured (≥ 4.5:1). */
+@scope ([data-finish="prisme"]) to ([data-finish]:not([data-finish="prisme"])) {
+  :scope,
+  [data-style] {
+    --fin-a-win: 0.66;
+    --fin-a-pop: 0.74;
+    --fin-a-bar: 0.72;
+    --fin-blur-k: 1.57; /* 44 px at the default blur */
+    --fin-sat: 190%;
+    --fin-win-r-add: 4px; /* windows: the style's radius + 4 px (Nocturne 14 px) */
+    --fin-hi-d: 0.16;
+    --fin-hi-l: 0.9;
+    --fin-layer-d: 0.035;
+    --fin-layer2-d: 0.1;
+    --fin-layer-l: 0.34;
+    --fin-layer2-l: 0.62;
+    /* grain: fractal noise at 7 % (rasterised once, tiled) */
+    --fin-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    --panel-grain: var(--fin-grain);
+  }
+  /* cold (Nocturne): deep indigo frost on cyan / violet aurora */
+  :scope,
+  [data-ambiance] {
+    --fin-tint-d: 16 24 62;
+    --fin-tint-l: 245 247 255;
+    --amb-d-glass: var(--wall-tint-d, var(--fin-tint-d));
+    --amb-d-bar: var(--wall-tint-d, 18 26 70);
+    --amb-l-glass: var(--wall-tint-l, var(--fin-tint-l));
+    --amb-l-bar: var(--wall-tint-l, var(--fin-tint-l));
+    --amb-d-desk: #0a1440;
+    --amb-d-bg: #121a42;
+    --amb-d-sunken: #0d1436;
+    --amb-d-raised: #1a2352;
+    --amb-d-title: #121a42;
+    --amb-d-line: #2c376a;
+    --amb-d-line-soft: #1e2855;
+    --amb-d-text: #f3f6ff;
+    --amb-d-text-2: #cbd5f0;
+    --amb-d-text-3: #b0bcdf;
+    --amb-d-tint: 200 220 255;
+    --amb-d-shadow: 2 4 24;
+    --amb-l-desk: #dde4f8;
+    --amb-l-bg: #f8f9ff;
+    --amb-l-sunken: #eef1fc;
+    --amb-l-raised: #ffffff;
+    --amb-l-title: #f8f9ff;
+    --amb-l-line: #cfd6ee;
+    --amb-l-line-soft: #e3e8f7;
+    --amb-l-text: #111833;
+    --amb-l-text-2: #3b4566;
+    --amb-l-text-3: #465071;
+    --amb-l-tint: 40 50 120;
+    --amb-l-shadow: 30 36 100;
+  }
+  /* neutral (Éclipse): smoky glass, honey and rose veil */
+  :scope[data-ambiance="neutral"],
+  [data-ambiance="neutral"] {
+    --fin-a-win: 0.68;
+    --fin-a-pop: 0.76;
+    --fin-tint-d: 22 18 20;
+    --fin-tint-l: 251 248 247;
+    --amb-d-bar: var(--wall-tint-d, 14 11 13);
+    --amb-d-desk: #0b0608;
+    --amb-d-bg: #19151a;
+    --amb-d-sunken: #141015;
+    --amb-d-raised: #241e23;
+    --amb-d-title: #19151a;
+    --amb-d-line: #382d33;
+    --amb-d-line-soft: #2a2227;
+    --amb-d-text: #faf5f1;
+    --amb-d-text-2: #ddd2ca;
+    --amb-d-text-3: #c4b6ac;
+    --amb-d-tint: 255 236 220;
+    --amb-d-shadow: 0 0 0;
+    --amb-l-desk: #ece4e2;
+    --amb-l-bg: #fffcfb;
+    --amb-l-sunken: #f6f1ef;
+    --amb-l-raised: #ffffff;
+    --amb-l-title: #fffcfb;
+    --amb-l-line: #ded4d1;
+    --amb-l-line-soft: #ece5e2;
+    --amb-l-text: #1e1719;
+    --amb-l-text-2: #4c4145;
+    --amb-l-text-3: #574b50;
+    --amb-l-tint: 70 40 50;
+    --amb-l-shadow: 40 20 28;
+  }
+  /* warm (Clair de lune): pearly pink frost on a rose / peach veil */
+  :scope[data-ambiance="warm"],
+  [data-ambiance="warm"] {
+    --fin-a-win: 0.66;
+    --fin-a-pop: 0.74;
+    --fin-a-bar: 0.72;
+    --fin-tint-d: 36 20 40;
+    --fin-tint-l: 255 245 243;
+    --amb-d-bar: var(--wall-tint-d, var(--fin-tint-d));
+    --amb-d-desk: #140a16;
+    --amb-d-bg: #21142a;
+    --amb-d-sunken: #1b1023;
+    --amb-d-raised: #2c1c36;
+    --amb-d-title: #21142a;
+    --amb-d-line: #432d4c;
+    --amb-d-line-soft: #31213a;
+    --amb-d-text: #fbf0f8;
+    --amb-d-text-2: #e0cbdc;
+    --amb-d-text-3: #c8b0c6;
+    --amb-d-tint: 255 210 235;
+    --amb-d-shadow: 12 2 14;
+    --amb-l-desk: #f2c6de;
+    --amb-l-bg: #fff9f8;
+    --amb-l-sunken: #f8edf0;
+    --amb-l-raised: #ffffff;
+    --amb-l-title: #fff9f8;
+    --amb-l-line: #e8d3dc;
+    --amb-l-line-soft: #f1e3e8;
+    --amb-l-text: #2a1430;
+    --amb-l-text-2: #533b59;
+    --amb-l-text-3: #5f4765;
+    --amb-l-tint: 110 50 90;
+    --amb-l-shadow: 120 40 90;
+  }
+  :scope[data-theme="dark"],
+  [data-theme-scope][data-theme="dark"],
+  [data-ambiance][data-theme="dark"] {
+    --fin-sheen: rgb(255 255 255 / 0.06);
+    --glass-line: rgb(var(--amb-d-tint) / 0.22);
+    --shadow-flyout: 0 30px 80px rgb(var(--amb-d-shadow) / 0.55), 0 2px 10px rgb(var(--amb-d-shadow) / 0.35), inset 0 1px 0 var(--glass-hi);
+    --shadow-float: var(--shadow-flyout);
+  }
+  :scope[data-theme="light"],
+  [data-theme-scope][data-theme="light"],
+  [data-ambiance][data-theme="light"] {
+    --fin-sheen: rgb(255 255 255 / 0.42);
+    --glass-line: rgb(255 255 255 / 0.78);
+    --shadow-flyout: 0 30px 70px rgb(var(--amb-l-shadow) / 0.22), 0 2px 8px rgb(var(--amb-l-shadow) / 0.12), 0 0 0 1px rgb(var(--amb-l-tint) / 0.1), inset 0 1px 0 var(--glass-hi);
+    --shadow-float: var(--shadow-flyout);
+  }
+}

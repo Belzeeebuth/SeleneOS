@@ -2,7 +2,7 @@
 // maths + weather), slideshow, lock screen / sign-in screen backgrounds, Settings pages (Background, Lock screen,
 // Animated & dynamic wallpapers), profiles. See docs/PERSONALIZATION.md §9.
 //
-//   xvfb-run -a -s "-screen 0 1600x900x24" node test/wallpapers.test.mjs [--no-shots] [--only=unit,engine,dynamic,ui,sizes,restart,net,perf]
+//   xvfb-run -a -s "-screen 0 1600x900x24" node test/wallpapers.test.mjs [--no-shots] [--only=unit,finish,engine,dynamic,ui,sizes,restart,net,perf]
 //
 // Weather is tested with the mock backend (AURORA_WEATHER_MOCK) — the build container has no access to Open-Meteo;
 // a real request is attempted at the end and reported (not required).
@@ -1303,8 +1303,140 @@ async function perfAndLeaks() {
   }
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Finish wallpapers (Halo / Prisme, core/finishes.js, tools/gen-finish-wallpapers.mjs): six built-ins, light + dark.
+const FINISH_WALLS = [
+  ['halo-nocturne', 'Blue halo', 'Halo bleu'], ['halo-eclipse', 'Golden corona', 'Couronne d’or'], ['halo-clairdelune', 'Dawn petals', 'Pétales d’aube'],
+  ['prisme-nocturne', 'Northern lights', 'Aurore boréale'], ['prisme-eclipse', 'Golden veils', 'Voiles d’or'], ['prisme-clairdelune', 'Pink dawn', 'Aube rose'],
+];
+async function finishWallpapers() {
+  console.log('\n# Finish wallpapers (Halo, Prisme)');
+  const dir = path.join(ROOT, 'renderer/assets/wallpapers');
+  const sof = (buf) => {
+    for (let i = 2; i < buf.length - 9; ) {
+      if (buf[i] !== 0xff) break;
+      if (buf[i + 1] === 0xc0 || buf[i + 1] === 0xc2) return { progressive: buf[i + 1] === 0xc2, w: buf.readUInt16BE(i + 7), h: buf.readUInt16BE(i + 5) };
+      i += 2 + buf.readUInt16BE(i + 2);
+    }
+    return {};
+  };
+  let total = 0;
+  const bad = [];
+  for (const [id] of FINISH_WALLS) {
+    for (const m of ['dark', 'light']) {
+      const f = path.join(dir, `${id}-${m}.jpg`);
+      const buf = fs.existsSync(f) ? fs.readFileSync(f) : null;
+      const d = buf ? sof(buf) : {};
+      total += buf?.length || 0;
+      if (!buf || d.w !== 2560 || d.h !== 1440 || !d.progressive || buf.length > 700 * 1024) bad.push(`${id}-${m}.jpg`);
+    }
+  }
+  check(!bad.length, `12 finish pictures: progressive JPEG 2560×1440, each < 700 KB (total ${(total / 1024).toFixed(0)} KB)${bad.length ? ` bad: ${bad}` : ''}`);
+  const src = fs.readFileSync(path.join(ROOT, 'renderer/core/theme.js'), 'utf8');
+  const block = src.slice(src.indexOf('export const WALLPAPERS'), src.indexOf('];', src.indexOf('export const WALLPAPERS')));
+  check(['nocturne', 'eclipse', 'clairdelune', 'forest', 'peaks', 'milkyway'].every((id) => block.includes(`id: '${id}'`)), 'the Sobre wallpapers stay registered');
+
+  const s = await launchShell({ theme: 'dark', lang: 'fr', size: '1280x720', env: ENV, settings: { wallpaperMode: 'static', finish: 'halo', wallpaper: 'builtin:halo-nocturne' } });
+  try {
+    const A = (fn, a) => s.aurora(fn, a);
+    // registry: ids per the finishes contract, names, light / dark files; the dark picture is darker, both are vivid
+    const reg = await A(async (ids) => {
+      const th = await import('app://shell/core/theme.js');
+      const fin = await import('app://shell/core/finishes.js').catch(() => null);
+      const stat = async (url) => {
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = 64;
+        c.height = 36;
+        const x = c.getContext('2d');
+        x.drawImage(img, 0, 0, 64, 36);
+        const d = x.getImageData(0, 0, 64, 36).data;
+        let lum = 0, chroma = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          lum += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+          chroma += (Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2])) / 255;
+        }
+        return { lum: lum / (64 * 36), chroma: chroma / (64 * 36) };
+      };
+      const out = {};
+      for (const id of ids) {
+        const w = th.WALLPAPERS.find((x) => x.id === id);
+        const dark = th.resolveWallpaper(`builtin:${id}`, 'dark');
+        const light = th.resolveWallpaper(`builtin:${id}`, 'light');
+        out[id] = { name: w?.name, finish: w?.finish, dark: dark.endsWith(`/${id}-dark.jpg`), light: light.endsWith(`/${id}-light.jpg`), sd: await stat(dark), sl: await stat(light) };
+      }
+      const defaults = fin ? ['halo', 'prisme'].flatMap((f) => ['nocturne', 'eclipse', 'clairdelune'].map((st) => fin.finishDefaults(f, st).wallpaper)) : [];
+      const first = (f) => th.wallpaperChoices(f).slice(0, 3).map((w) => w.id).join();
+      return { out, defaults, order: th.wallpaperChoices().slice(0, 6).map((w) => w.id), byFinish: { prisme: first('prisme'), sobre: first('sobre') } };
+    }, FINISH_WALLS.map((w) => w[0]));
+    const regBad = FINISH_WALLS.filter(([id, en, frn]) => {
+      const r = reg.out[id];
+      return !r || r.name?.en !== en || r.name?.fr !== frn || r.finish !== id.split('-')[0] || !r.dark || !r.light;
+    });
+    check(!regBad.length, `registry: builtin:halo-* / builtin:prisme-* with FR / EN names, light + dark files${regBad.length ? ` bad: ${regBad.map((b) => b[0])}` : ''}`);
+    const tone = Object.entries(reg.out).map(([id, r]) => `${id} ${r.sd.lum.toFixed(2)}/${r.sl.lum.toFixed(2)} c${r.sd.chroma.toFixed(2)}/${r.sl.chroma.toFixed(2)}`);
+    check(Object.values(reg.out).every((r) => r.sd.lum < 0.4 && r.sl.lum > 0.55 && r.sl.lum - r.sd.lum > 0.3), `the dark variant is dark, the light one light (${tone.join(', ')})`);
+    check(Object.values(reg.out).every((r) => r.sd.chroma > 0.12 && r.sl.chroma > 0.1), 'every variant stays vivid (mean chroma)');
+    check(!reg.defaults.length || reg.defaults.every((v) => FINISH_WALLS.some(([id]) => v === `builtin:${id}`)), `finishDefaults() points at registered pictures (${reg.defaults.join(', ') || 'finishes.js not there yet'})`);
+    check(reg.order.join() === FINISH_WALLS.map((w) => w[0]).join(), `pickers list Halo then Prisme first (${reg.order.join(', ')})`);
+    check(reg.byFinish.prisme === 'prisme-nocturne,prisme-eclipse,prisme-clairdelune' && reg.byFinish.sobre === 'nocturne,eclipse,clairdelune', `pickers list the current finish's pictures first (prisme: ${reg.byFinish.prisme}; sobre: ${reg.byFinish.sobre})`);
+
+    // Background page: the grid starts with the six finish pictures; picking one follows the mode
+    await go(s, 'background');
+    await A(() => {
+      const w = window.__aurora.wm.byApp('settings')[0];
+      w.focus();
+      if (w.state !== 'maximized') w.maximize();
+    });
+    await s.page.waitForSelector(S('.st-wall'));
+    const labels = await s.page.locator(S('.st-wall-grid .st-wall')).evaluateAll((els) => els.slice(0, 6).map((e) => e.getAttribute('aria-label')));
+    check(labels.join('|') === FINISH_WALLS.map((w) => w[2]).join('|'), `Background grid starts with the finish pictures (${labels.join(', ')})`);
+    await s.page.locator(S('.st-wall[aria-label="Couronne d’or"]')).first().click();
+    await sleep(800);
+    const dk = await A(() => ({ v: window.__aurora.settings.get('wallpaper'), url: window.__aurora.theme.wallpaperUrl }));
+    await set(s, 'theme', 'light');
+    await sleep(900);
+    const lt = await A(() => window.__aurora.theme.wallpaperUrl);
+    check(dk.v === 'builtin:halo-eclipse' && dk.url.endsWith('/halo-eclipse-dark.jpg') && lt.endsWith('/halo-eclipse-light.jpg'), `picking « Couronne d’or » sets builtin:halo-eclipse; the picture follows the mode (${dk.url.split('/').pop()} → ${lt.split('/').pop()})`);
+    const gridY = await A(() => {
+      const g = document.querySelector('.app-settings .st-wall-grid');
+      g?.scrollIntoView({ block: 'center' });
+      return !!g;
+    });
+    await waitFor(() => s.page.locator(S('.st-wall-grid .st-wall')).evaluateAll((els) => els.slice(0, 6).every((e) => /url\(/.test(e.style.backgroundImage))), 6000);
+    await sleep(gridY ? 500 : 0);
+    await docShot(s, 'wallpaper-finish-background-light-fr');
+    await set(s, 'theme', 'dark');
+    // Lock screen: the same pictures in its grid
+    await go(s, 'lockscreen');
+    await s.page.waitForSelector(S('.st-wall[aria-label="Aube rose"]'));
+    await s.page.locator(S('.st-wall[aria-label="Aube rose"]')).first().click();
+    await sleep(400);
+    check((await get(s, 'lockWallpaper')) === 'builtin:prisme-clairdelune', 'Lock screen → Picture: « Aube rose » sets builtin:prisme-clairdelune');
+    await set(s, 'lockWallpaper', null);
+    await A(() => window.__aurora.wm.byApp('settings')[0]?.close());
+    // desktop shots of each picture (dark, then light) for the visual review
+    for (const [id] of FINISH_WALLS) {
+      for (const m of ['dark', 'light']) {
+        await setMany(s, { theme: m, wallpaper: `builtin:${id}` });
+        await waitFor(() => A((f) => String(window.__aurora.theme.wallpaperUrl).endsWith(f), `/${id}-${m}.jpg`), 5000);
+        await sleep(1500);
+        await docShot(s, `wallpaper-finish-${id}-${m}`);
+      }
+    }
+    await set(s, 'theme', 'dark');
+    const errs = errorsOf(s);
+    check(!errs.length, `no console errors (finish wallpapers)${errs.length ? `: ${errs.slice(0, 3).join(' | ')}` : ''}`);
+  } finally {
+    await s.close();
+  }
+}
+
 try {
   if (run('unit')) await unit();
+  if (run('finish')) await finishWallpapers();
   if (run('engine')) await effectsAndEngine();
   if (run('dynamic')) await dynamicAndWeather();
   if (run('ui')) {
