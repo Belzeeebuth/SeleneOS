@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="fr" data-style="nocturne">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1600, initial-scale=1">
+<title>Selene · Halo</title>
+<script>
+  // ?style=nocturne|eclipse|clairdelune   &   ?view=compose|desktop|icons
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var s = q.get('style'), v = q.get('view');
+    if (/^(nocturne|eclipse|clairdelune)$/.test(s || '')) document.documentElement.dataset.style = s;
+    document.documentElement.dataset.view = /^(compose|desktop|icons)$/.test(v || '') ? v : 'compose';
+  })();
+</script>
+<style>
+@font-face { font-family: 'Inter'; font-weight: 100 900; font-display: block; src: url(../../mockups/assets/fonts/inter-latin-wght-normal.woff2) format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212; }
+@font-face { font-family: 'Inter'; font-weight: 100 900; font-display: block; src: url(../../mockups/assets/fonts/inter-latin-ext-wght-normal.woff2) format('woff2-variations'); unicode-range: U+0100-02BA, U+1E00-1EFF; }
+@font-face { font-family: 'Manrope'; font-weight: 200 800; font-display: block; src: url(../../mockups/assets/fonts/manrope-latin-wght-normal.woff2) format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+20AC; }
+@font-face { font-family: 'Manrope'; font-weight: 200 800; font-display: block; src: url(../../mockups/assets/fonts/manrope-latin-ext-wght-normal.woff2) format('woff2-variations'); unicode-range: U+0100-02BA, U+1E00-1EFF; }
+
+/* ================================================================ tokens
+   Halo = Selene structure (3 styles, ambiances, Phosphor UI glyphs, Manrope/Inter)
+        + Mica-like glass tinted by a luminous wallpaper + colourful app icons. */
+:root {
+  --font-ui: 'Inter', system-ui, sans-serif;
+  --font-display: 'Manrope', 'Inter', sans-serif;
+  --blur: 48px;
+  --sat: 175%;
+  --r-win: 14px;
+  --r-ctl: 9px;
+}
+/* Nocturne · ambiance froide · halo bleu/indigo/cyan sur marine */
+[data-style="nocturne"] {
+  --wall: url(wallpapers/halo-nocturne.jpg);
+  --glass: rgba(13, 21, 54, .74);          /* windows (Mica) */
+  --glass-side: rgba(13, 21, 54, .62);     /* sidebars: lets more wallpaper through */
+  --glass-pop: rgba(11, 18, 46, .80);      /* Lanceur, bar */
+  --bar: var(--glass-pop);
+  --layer: rgba(170, 195, 255, .07);       /* cards inside a window */
+  --layer-2: rgba(170, 195, 255, .12);     /* fields, buttons */
+  --hover: rgba(170, 195, 255, .10);
+  --edge: rgba(170, 200, 255, .20);
+  --edge-top: rgba(255, 255, 255, .22);
+  --line: rgba(170, 195, 255, .12);
+  --text: #EEF3FF;
+  --text-2: #C5CEE8;
+  --text-3: #A9B5D6;
+  --accent: #7FCBFF;
+  --accent-2: #6A7CFF;
+  --on-accent: #061433;
+  --sel: rgba(127, 203, 255, .16);
+  --logo-a: #A6EEFF; --logo-b: #6C7BFF;
+  --avatar: linear-gradient(135deg, #3A5BFF, #5B3FD9); --avatar-fg: #FFFFFF;
+  --shadow: 0 32px 80px rgba(0, 4, 24, .55), 0 2px 10px rgba(0, 4, 24, .35);
+  --label-shadow: 0 1px 3px rgba(0, 0, 0, .7);
+}
+/* Éclipse · ambiance neutre · couronne ambre/or sur noir */
+[data-style="eclipse"] {
+  --wall: url(wallpapers/halo-eclipse.jpg);
+  --glass: rgba(24, 20, 17, .76);
+  --glass-side: rgba(24, 20, 17, .64);
+  --glass-pop: rgba(20, 17, 14, .82);
+  --bar: rgba(17, 15, 13, .96);
+  --layer: rgba(255, 236, 210, .06);
+  --layer-2: rgba(255, 236, 210, .11);
+  --hover: rgba(255, 236, 210, .09);
+  --edge: rgba(255, 222, 180, .17);
+  --edge-top: rgba(255, 240, 220, .18);
+  --line: rgba(255, 236, 210, .11);
+  --text: #F8F2EA;
+  --text-2: #D8CDBE;
+  --text-3: #BFB2A0;
+  --accent: #FFB547;
+  --accent-2: #FF7A1A;
+  --on-accent: #2A1500;
+  --sel: rgba(255, 181, 71, .15);
+  --logo-a: #FFE08A; --logo-b: #FF7A1A;
+  --avatar: linear-gradient(135deg, #FFC15A, #FF8A2A); --avatar-fg: #2A1500;
+  --shadow: 0 32px 80px rgba(0, 0, 0, .6), 0 2px 10px rgba(0, 0, 0, .4);
+  --label-shadow: 0 1px 3px rgba(0, 0, 0, .8);
+}
+/* Clair de lune · ambiance chaude · halo rose/violet/pêche sur lavande (clair) */
+[data-style="clairdelune"] {
+  --wall: url(wallpapers/halo-clairdelune.jpg);
+  --glass: rgba(255, 248, 251, .72);
+  --glass-side: rgba(255, 246, 250, .58);
+  --glass-pop: rgba(255, 249, 252, .78);
+  --bar: var(--glass-pop);
+  --layer: rgba(255, 255, 255, .55);
+  --layer-2: rgba(255, 255, 255, .78);
+  --hover: rgba(110, 50, 120, .07);
+  --edge: rgba(255, 255, 255, .80);
+  --edge-top: rgba(255, 255, 255, .95);
+  --line: rgba(90, 40, 110, .11);
+  --text: #2A1B38;
+  --text-2: #554463;
+  --text-3: #5F4D6F;
+  --accent: #B5367F;
+  --accent-2: #8B5CF6;
+  --on-accent: #FFFFFF;
+  --sel: rgba(181, 54, 127, .12);
+  --logo-a: #FF9C70; --logo-b: #9B5CF0;
+  --avatar: linear-gradient(135deg, #B03478, #7C4CE0); --avatar-fg: #FFFFFF;
+  --shadow: 0 30px 70px rgba(90, 40, 110, .22), 0 2px 8px rgba(90, 40, 110, .12);
+  --label-shadow: 0 1px 2px rgba(255, 255, 255, .8);
+}
+
+/* ================================================================ base */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1600px; height: 900px; overflow: hidden; background: #000; }
+body { font: 13px/1.4 var(--font-ui); color: var(--text); -webkit-font-smoothing: antialiased; }
+.ph { width: 16px; height: 16px; fill: currentColor; flex: none; display: block; }
+.app { display: block; flex: none; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .28)); }
+[data-style="clairdelune"] .app { filter: drop-shadow(0 2px 3px rgba(90, 40, 110, .22)); }
+
+.desk { position: absolute; inset: 0; background: var(--wall) center / cover no-repeat; }
+
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--sat));
+  backdrop-filter: blur(var(--blur)) saturate(var(--sat));
+  border: 1px solid var(--edge);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--edge-top);
+}
+
+/* desktop icons */
+.desk-icons { position: absolute; left: 18px; top: 18px; display: grid; gap: 14px; }
+.desk-icon { width: 84px; display: grid; justify-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--text); text-shadow: var(--label-shadow); }
+
+/* ================================================================ windows */
+.win { position: absolute; border-radius: var(--r-win); overflow: hidden; display: flex; flex-direction: column; }
+.titlebar { height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 14px; flex: none; }
+.titlebar .t { font-weight: 600; font-size: 13px; flex: 1; }
+.wctl { display: flex; }
+.wctl span { width: 38px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: var(--text-2); }
+.wctl span:last-child:hover { background: #E5484D; }
+.wbody { flex: 1; display: flex; min-height: 0; }
+.side { width: 196px; flex: none; padding: 6px 10px 12px; display: flex; flex-direction: column; gap: 1px; }
+.side h6 { font: 600 11.5px var(--font-ui); color: var(--text-3); margin: 12px 10px 4px; letter-spacing: .02em; }
+.nav { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border-radius: var(--r-ctl); color: var(--text-2); font-weight: 500; position: relative; }
+.nav .ph { color: var(--text-2); }
+.nav.on { background: var(--sel); color: var(--text); }
+.nav.on .ph { color: var(--accent); }
+.nav.on::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 3px; background: var(--accent); }
+.main { flex: 1; min-width: 0; background: var(--layer); border-top-left-radius: 12px; border-top: 1px solid var(--line); border-left: 1px solid var(--line); display: flex; flex-direction: column; }
+.btn { white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px; border-radius: var(--r-ctl); background: var(--layer-2); color: var(--text); font-weight: 500; border: 1px solid var(--line); }
+.btn.icon { width: 30px; padding: 0; justify-content: center; background: transparent; border-color: transparent; color: var(--text-2); }
+.btn.accent { background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 82%, var(--accent-2))); color: var(--on-accent); border-color: transparent; font-weight: 600; }
+.field { white-space: nowrap; overflow: hidden; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 11px; border-radius: var(--r-ctl); background: var(--layer-2); border: 1px solid var(--line); color: var(--text-2); }
+
+/* Fichiers */
+.files .toolbar { display: flex; align-items: center; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.crumb { white-space: nowrap; display: flex; align-items: center; gap: 6px; margin-left: 6px; font-weight: 600; font-family: var(--font-display); font-size: 15px; }
+.crumb .dim { color: var(--text-2); font-weight: 500; font-family: var(--font-ui); font-size: 13px; }
+.files .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 14px 14px 8px; align-content: start; flex: 1; }
+.item { display: grid; justify-items: center; gap: 6px; padding: 12px 6px 10px; border-radius: 10px; text-align: center; font-size: 12.5px; }
+.item small { display: block; color: var(--text-2); font-size: 11.5px; margin-top: -4px; }
+.item.on { background: var(--sel); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.status { height: 30px; display: flex; align-items: center; gap: 14px; padding: 0 14px; color: var(--text-2); font-size: 12px; border-top: 1px solid var(--line); }
+.disk { margin-top: auto; padding: 10px; border-radius: 10px; background: var(--layer); font-size: 12px; color: var(--text-2); }
+.disk b { color: var(--text); font-weight: 600; display: flex; justify-content: space-between; margin-bottom: 6px; }
+.meter { height: 6px; border-radius: 3px; background: var(--layer-2); overflow: hidden; }
+.meter i { display: block; height: 100%; width: 62%; border-radius: 3px; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+
+/* Paramètres */
+.settings .side { width: 212px; }
+.settings .side .field { margin: 2px 0 8px; font-size: 12.5px; }
+.user { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 8px 6px 0; border-top: 1px solid var(--line); }
+.avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; color: var(--avatar-fg); background: var(--avatar); flex: none; box-shadow: inset 0 1px 0 rgba(255,255,255,.4); }
+.user b { display: block; font-weight: 600; } .user small { color: var(--text-2); font-size: 11.5px; }
+.page { padding: 18px 22px; overflow: hidden; }
+.page h1 { font: 700 24px/1.2 var(--font-display); letter-spacing: -.01em; margin-bottom: 14px; }
+.page h2 { font: 600 13px var(--font-ui); color: var(--text); margin: 16px 0 8px; }
+.styles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.sty { border-radius: 12px; padding: 6px 6px 9px; background: var(--layer); border: 1px solid var(--line); }
+.sty.on { box-shadow: 0 0 0 2px var(--accent); border-color: transparent; }
+.thumb { height: 74px; border-radius: 8px; background: center / cover; position: relative; overflow: hidden; }
+.thumb i { position: absolute; bottom: 5px; height: 8px; border-radius: 4px; background: rgba(255,255,255,.55); }
+.thumb.n i { left: 34%; right: 34%; }
+.thumb.e i { left: 0; right: 0; bottom: 0; border-radius: 0; height: 9px; background: rgba(20,16,12,.9); }
+.thumb.c i:nth-child(1) { left: 5px; width: 18%; } .thumb.c i:nth-child(2) { left: 37%; width: 26%; } .thumb.c i:nth-child(3) { right: 5px; width: 22%; }
+.sty b { display: flex; align-items: center; gap: 6px; margin: 8px 4px 0; font-weight: 600; }
+.sty b .ph { color: var(--accent); width: 14px; height: 14px; margin-left: auto; }
+.sty small { display: block; margin: 0 4px; color: var(--text-2); font-size: 11.5px; }
+.swatches { display: flex; gap: 10px; }
+.sw { width: 26px; height: 26px; border-radius: 50%; box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }
+.sw.on { outline: 2px solid var(--text); outline-offset: 2px; }
+.rows { border-radius: 12px; background: var(--layer); border: 1px solid var(--line); margin-top: 14px; }
+.row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; }
+.row + .row { border-top: 1px solid var(--line); }
+.row .ph { color: var(--text-2); width: 18px; height: 18px; }
+.row div { flex: 1; } .row small { display: block; color: var(--text-2); font-size: 11.5px; }
+.slider { width: 150px; height: 4px; border-radius: 2px; background: var(--layer-2); position: relative; }
+.slider::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 78%; border-radius: 2px; background: var(--accent); }
+.slider::after { content: ''; position: absolute; left: 78%; top: 50%; width: 16px; height: 16px; margin: -8px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 4px var(--accent), 0 1px 4px rgba(0,0,0,.3); transform: scale(.75); }
+.toggle { width: 40px; height: 22px; border-radius: 11px; background: var(--accent); position: relative; }
+.toggle::after { content: ''; position: absolute; right: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--on-accent); }
+.val { color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+/* ================================================================ Lanceur */
+.launcher { z-index: 3; position: absolute; width: 580px; border-radius: 18px; background: var(--glass-pop); display: flex; flex-direction: column; overflow: hidden; }
+.launcher .search { margin: 18px 18px 6px; height: 40px; border-radius: 12px; font-size: 13.5px; }
+.launcher .search .ph { color: var(--text-2); }
+.launcher .search:focus-within, .launcher .search.focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.lhead { display: flex; align-items: center; justify-content: space-between; margin: 12px 22px 4px; }
+.lhead h3 { font: 700 15px var(--font-display); }
+.lhead .btn { height: 28px; font-size: 12px; }
+.apps { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 4px 14px 8px; }
+.apps a { display: grid; justify-items: center; align-content: start; gap: 6px; padding: 10px 2px 8px; border-radius: 12px; text-align: center; font-size: 12px; line-height: 1.25; color: var(--text); min-height: 86px; }
+.apps a.hov { background: var(--hover); }
+.recents { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 0 14px 12px; }
+.rec { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; }
+.rec b { display: block; font-weight: 500; font-size: 12.5px; } .rec small { color: var(--text-2); font-size: 11.5px; }
+.lfoot { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--line); background: var(--layer); }
+.lfoot b { flex: 1; font-weight: 600; }
+
+/* ================================================================ bar */
+.bar { position: absolute; display: flex; align-items: center; }
+.grp { display: flex; align-items: center; gap: 2px; }
+.bb { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; position: relative; color: var(--text); }
+.bb .ph { width: 18px; height: 18px; }
+.bb.on { background: var(--hover); }
+.bb.run::after { content: ''; position: absolute; bottom: 3px; left: 50%; width: 5px; height: 4px; margin-left: -2.5px; border-radius: 2px; background: var(--text-3); }
+.bb.focus::after { width: 16px; margin-left: -8px; background: var(--accent); }
+.logo { width: 24px; height: 24px; }
+.tray { display: flex; align-items: center; gap: 12px; padding: 0 12px; color: var(--text); }
+.tray .ph { width: 17px; height: 17px; }
+.clock { display: grid; text-align: right; line-height: 1.2; font-size: 12px; }
+.clock b { font-weight: 600; font-size: 13px; }
+.sep { width: 1px; height: 26px; background: var(--line); margin: 0 6px; }
+
+/* Nocturne: one floating island, centred */
+[data-style="nocturne"] .bar { left: 50%; bottom: 14px; transform: translateX(-50%); padding: 6px; border-radius: 22px; background: var(--bar); }
+[data-style="nocturne"] .bar .search-f { display: none; }
+/* Éclipse: full-width opaque bar */
+[data-style="eclipse"] .bar { left: 0; right: 0; bottom: 0; height: 56px; padding: 0 8px; border-radius: 0; border-width: 1px 0 0; background: var(--bar);
+  box-shadow: 0 -1px 0 rgba(255, 190, 110, .10), 0 -20px 50px rgba(0,0,0,.35); justify-content: space-between; }
+[data-style="eclipse"] .bar .grp.mid { position: absolute; left: 50%; transform: translateX(-50%); }
+[data-style="eclipse"] .bar .search-b, [data-style="eclipse"] .bar .sep { display: none; }
+[data-style="eclipse"] .search-f { width: 220px; height: 36px; margin-left: 4px; border-radius: 10px; }
+.search-f kbd { margin-left: auto; font: 500 11px var(--font-ui); color: var(--text-2); background: var(--layer-2); padding: 2px 6px; border-radius: 5px; }
+[data-style="eclipse"] .bb { height: 46px; }
+/* Clair de lune: three floating pills */
+[data-style="clairdelune"] .bar { left: 14px; right: 14px; bottom: 14px; justify-content: space-between; background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+[data-style="clairdelune"] .bar .grp { padding: 6px; border-radius: 24px; background: var(--bar); -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--sat)); backdrop-filter: blur(var(--blur)) saturate(var(--sat)); border: 1px solid var(--edge); box-shadow: var(--shadow), inset 0 1px 0 var(--edge-top); }
+[data-style="clairdelune"] .bar .search-f, [data-style="clairdelune"] .bar .sep { display: none; }
+[data-style="clairdelune"] .bb { border-radius: 18px; }
+[data-style="clairdelune"] .tray { height: 44px; }
+
+/* ================================================================ layout per style */
+[data-style="nocturne"] .files    { left: 40px;  top: 34px;  width: 720px; height: 470px; }
+[data-style="nocturne"] .settings { left: 836px; top: 70px;  width: 724px; height: 560px; }
+[data-style="nocturne"] .launcher { left: 510px; bottom: 82px; }
+[data-style="eclipse"] .files     { left: 846px; top: 24px;  width: 724px; height: 456px; }
+[data-style="eclipse"] .settings  { left: 612px; top: 296px; width: 724px; height: 536px; z-index: 2; }
+[data-style="eclipse"] .launcher  { left: 10px;  bottom: 66px; }
+[data-view="compose"] .desk-icons { display: none; }
+[data-style="clairdelune"] .files    { left: 618px; top: 22px;  width: 724px; height: 456px; }
+[data-style="clairdelune"] .settings { left: 862px; top: 262px; width: 724px; height: 552px; z-index: 2; }
+[data-style="clairdelune"] .launcher { left: 14px;  bottom: 86px; }
+/* window focus: the front window gets a slightly stronger edge */
+.win.back { box-shadow: 0 20px 60px rgba(0,0,0,.35), inset 0 1px 0 var(--edge-top); }
+[data-style="clairdelune"] .win.back { box-shadow: 0 20px 50px rgba(90,40,110,.16), inset 0 1px 0 var(--edge-top); }
+
+/* views */
+[data-view="desktop"] .win, [data-view="desktop"] .launcher { display: none; }
+[data-view="icons"] .win, [data-view="icons"] .launcher { display: none; }
+.sheet { display: none; }
+[data-view="icons"] .sheet { display: grid; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -54%); grid-template-columns: repeat(8, 128px); gap: 10px; padding: 26px; border-radius: 22px; }
+.sheet div { display: grid; justify-items: center; gap: 8px; font-size: 12.5px; text-align: center; padding: 10px 0; }
+</style>
+</head>
+<body>
+<script src="ph-sprite.js"></script>
+<div class="desk">
+  <div class="desk-icons">
+    <div class="desk-icon"><img class="app" src="icons/ordinateur.svg" width="48" height="48" alt="">Ordinateur</div>
+    <div class="desk-icon"><img class="app" src="icons/corbeille.svg" width="48" height="48" alt="">Corbeille</div>
+  </div>
+
+  <!-- Paramètres (behind) -->
+  <section class="win settings glass back">
+    <div class="titlebar"><img class="app" src="icons/parametres.svg" width="18" height="18" alt=""><span class="t">Paramètres</span><div class="wctl" data-ctl></div></div>
+    <div class="wbody">
+      <aside class="side" data-settings-nav></aside>
+      <div class="main"><div class="page">
+        <h1>Personnalisation</h1>
+        <h2 style="margin-top:0">Style</h2>
+        <div class="styles">
+          <div class="sty" data-sty="nocturne"><div class="thumb n" style="background-image:url(wallpapers/halo-nocturne.jpg)"><i></i></div><b>Nocturne</b><small>Froide · îlot</small></div>
+          <div class="sty" data-sty="eclipse"><div class="thumb e" style="background-image:url(wallpapers/halo-eclipse.jpg)"><i></i></div><b>Éclipse</b><small>Neutre · barre</small></div>
+          <div class="sty" data-sty="clairdelune"><div class="thumb c" style="background-image:url(wallpapers/halo-clairdelune.jpg)"><i></i><i></i><i></i></div><b>Clair de lune</b><small>Chaude · pilules</small></div>
+        </div>
+        <h2>Couleur d’accent</h2>
+        <div class="swatches" data-swatches></div>
+        <div class="rows">
+          <div class="row"><svg class="ph"><use href="#ph-drop"/></svg><div>Transparence des fenêtres<small>Le verre laisse voir le fond</small></div><span class="slider"></span><span class="val">78 %</span></div>
+          <div class="row"><svg class="ph"><use href="#ph-sparkle"/></svg><div>Teinter selon le fond d’écran<small>Fenêtres et barre prennent sa teinte</small></div><span class="toggle"></span></div>
+          <div class="row"><svg class="ph"><use href="#ph-image"/></svg><div>Fond d’écran<small data-wallname></small></div><svg class="ph"><use href="#ph-caret-right"/></svg></div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- Fichiers (front) -->
+  <section class="win files glass">
+    <div class="titlebar"><img class="app" src="icons/fichiers.svg" width="18" height="18" alt=""><span class="t">Documents — Fichiers</span><div class="wctl" data-ctl></div></div>
+    <div class="wbody">
+      <aside class="side" data-files-nav></aside>
+      <div class="main">
+        <div class="toolbar">
+          <span class="btn icon"><svg class="ph"><use href="#ph-arrow-left"/></svg></span>
+          <span class="btn icon"><svg class="ph"><use href="#ph-arrow-right"/></svg></span>
+          <div class="crumb"><span class="dim">Dossier personnel</span><svg class="ph" style="width:12px;height:12px;color:var(--text-3)"><use href="#ph-caret-right"/></svg>Documents</div>
+          <span style="flex:1"></span>
+          <span class="btn icon"><svg class="ph"><use href="#ph-magnifying-glass"/></svg></span>
+          <span class="btn icon" style="background:var(--layer-2);color:var(--text)"><svg class="ph"><use href="#ph-squares-four"/></svg></span>
+          <span class="btn icon"><svg class="ph"><use href="#ph-list"/></svg></span>
+          <span class="btn accent" style="margin-left:4px"><svg class="ph"><use href="#ph-folder-simple-plus"/></svg>Nouveau</span>
+        </div>
+        <div class="grid" data-items></div>
+        <div class="status"><span>8 éléments</span><span>1 sélectionné · 2,4 Mo</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Lanceur -->
+  <section class="launcher glass">
+    <label class="field search focus"><svg class="ph"><use href="#ph-magnifying-glass"/></svg>Rechercher une application, un fichier ou un réglage</label>
+    <div class="lhead"><h3>Épinglées</h3><span class="btn">Toutes les applications<svg class="ph" style="width:12px;height:12px"><use href="#ph-caret-right"/></svg></span></div>
+    <div class="apps" data-apps></div>
+    <div class="lhead" style="margin-top:2px"><h3>Récents</h3></div>
+    <div class="recents" data-recents></div>
+    <div class="lfoot"><span class="avatar">SU</span><b>Selene User</b><span class="btn icon"><svg class="ph"><use href="#ph-power"/></svg></span></div>
+  </section>
+
+  <!-- Barre -->
+  <nav class="bar glass">
+    <div class="grp left">
+      <span class="bb on"><svg class="logo" viewBox="0 0 32 32"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--logo-a)"/><stop offset="1" style="stop-color:var(--logo-b)"/></linearGradient></defs><circle cx="16" cy="16" r="13.5" fill="none" stroke="url(#lg)" stroke-width="2" opacity=".85"/><path d="M19.6 8.6a8.2 8.2 0 1 0 4.6 12.9 6.6 6.6 0 1 1-4.6-12.9Z" fill="url(#lg)"/></svg></span>
+      <span class="field search-f"><svg class="ph" style="width:15px;height:15px"><use href="#ph-magnifying-glass"/></svg>Rechercher<kbd>Super</kbd></span>
+      <span class="bb search-b"><svg class="ph"><use href="#ph-magnifying-glass"/></svg></span>
+      <span class="bb"><svg class="ph"><use href="#ph-rows"/></svg></span>
+    </div>
+    <span class="sep"></span>
+    <div class="grp mid" data-pinned></div>
+    <span class="sep"></span>
+    <div class="grp right"><div class="tray">
+      <svg class="ph"><use href="#ph-wifi-high"/></svg><svg class="ph"><use href="#ph-speaker-high"/></svg><svg class="ph"><use href="#ph-battery-high"/></svg>
+      <div class="clock"><span>lun. 12 oct.</span><b>10:47</b></div>
+      <svg class="ph"><use href="#ph-bell"/></svg>
+    </div></div>
+  </nav>
+
+  <!-- Icon sheet (view=icons) -->
+  <div class="sheet glass" data-sheet></div>
+</div>
+
+<script>
+  var STYLE = document.documentElement.dataset.style;
+  var ph = function (n, st) { return '<svg class="ph"' + (st ? ' style="' + st + '"' : '') + '><use href="#ph-' + n + '"/></svg>'; };
+  var img = function (n, s) { return '<img class="app" src="icons/' + n + '.svg" width="' + s + '" height="' + s + '" alt="">'; };
+  var APPS = [['fichiers','Fichiers'],['navigateur','Navigateur'],['courrier','Courrier'],['parametres','Paramètres'],['calculatrice','Calculatrice'],['dessin','Dessin'],['editeur','Éditeur de texte'],
+              ['terminal','Terminal'],['lecteur','Lecteur'],['photos','Photos'],['calendrier','Calendrier'],['horloge','Horloge'],['logitheque','Logithèque'],['moniteur','Moniteur système']];
+  var $ = function (s) { return document.querySelectorAll(s); };
+
+  $('[data-ctl]').forEach(function (el) { el.innerHTML = '<span>' + ph('minus') + '</span><span>' + ph('corners-out') + '</span><span>' + ph('x') + '</span>'; });
+  $('[data-apps]')[0].innerHTML = APPS.map(function (a, i) { return '<a' + (i === 6 ? ' class="hov"' : '') + '>' + img(a[0], 40) + '<span>' + a[1] + '</span></a>'; }).join('');
+  $('[data-recents]')[0].innerHTML = [['doc-pdf','Rapport 2026.pdf','Il y a 5 min'],['doc-tableur','budget.csv','Il y a 1 h'],['photos','vacances-ete.jpg','Hier'],['editeur','notes.md','Hier']]
+    .map(function (r) { return '<div class="rec">' + img(r[0], 30) + '<div><b>' + r[1] + '</b><small>' + r[2] + '</small></div></div>'; }).join('');
+  $('[data-pinned]')[0].innerHTML = [['fichiers','run focus'],['navigateur',''],['courrier',''],['photos',''],['lecteur',''],['editeur',''],['terminal',''],['logitheque',''],['parametres','run']]
+    .map(function (p) { return '<span class="bb ' + p[1] + '">' + img(p[0], 30) + '</span>'; }).join('');
+  var nav = function (list) { return list.map(function (n) { return n[0] === 'h' ? '<h6>' + n[1] + '</h6>' : '<div class="nav' + (n[2] ? ' on' : '') + '">' + ph(n[0]) + n[1] + '</div>'; }).join(''); };
+  $('[data-files-nav]')[0].innerHTML = nav([['house-simple','Accueil'],['h','Favoris'],['desktop','Bureau'],['download-simple','Téléchargements'],['file-text','Documents',1],['image','Images'],['music-notes','Musique'],
+    ['h','Emplacements'],['user','Dossier personnel'],['hard-drives','Ordinateur'],['trash','Corbeille']]) + '<div class="disk"><b>Disque système<span>62 %</span></b><div class="meter"><i></i></div><div style="margin-top:6px">95 Go libres sur 252 Go</div></div>';
+  $('[data-settings-nav]')[0].innerHTML = '<span class="field">' + ph('magnifying-glass', 'width:14px;height:14px') + 'Rechercher un paramètre</span>' + nav([['house-simple','Accueil'],['h','Apparence'],['paint-brush','Personnalisation',1],['monitor','Écran'],
+    ['h','Connexions'],['globe-simple','Réseau'],['bluetooth','Appareils'],['speaker-high','Son'],['h','Système'],['list-bullets','Applications'],['translate','Langue et heure']])
+    + '<div class="user"><span class="avatar">SU</span><div><b>Selene User</b><small>Compte local</small></div></div>';
+  $('[data-items]')[0].innerHTML = [['fichiers','Projets','12 éléments'],['fichiers','Factures','8 éléments'],['fichiers','Lettres','5 éléments'],['doc-pdf','Rapport 2026.pdf','2,4 Mo',1],
+    ['doc-tableur','budget.csv','18 Ko'],['editeur','notes.md','4 Ko'],['photos','vacances-ete.jpg','3,1 Mo'],['lecteur','podcast.mp3','42 Mo']]
+    .map(function (it) { return '<div class="item' + (it[3] ? ' on' : '') + '">' + img(it[0], 52) + '<span>' + it[1] + '<small>' + it[2] + '</small></span></div>'; }).join('');
+  var SW = { nocturne: ['#7FCBFF','#6A7CFF','#5EE6D0','#B59BFF','#FF8FB1','#FFC66B'], eclipse: ['#FFB547','#FF7A1A','#FFD86B','#F2665A','#E8C9A0','#7FCBFF'], clairdelune: ['#B5367F','#8B5CF6','#E8607A','#E07B39','#3E8E8A','#5B6BD6'] }[STYLE];
+  $('[data-swatches]')[0].innerHTML = SW.map(function (c, i) { return '<span class="sw' + (i ? '' : ' on') + '" style="background:linear-gradient(135deg,' + c + ',color-mix(in srgb,' + c + ' 70%,#000))"></span>'; }).join('');
+  $('[data-sty="' + STYLE + '"]')[0].classList.add('on');
+  $('[data-sty="' + STYLE + '"] b')[0].insertAdjacentHTML('beforeend', ph('check-circle-fill'));
+  $('[data-wallname]')[0].textContent = { nocturne: 'Halo · bleu nuit', eclipse: 'Halo · couronne d’or', clairdelune: 'Halo · rose et lavande' }[STYLE];
+  $('[data-sheet]')[0].innerHTML = APPS.concat([['ordinateur','Ordinateur'],['corbeille','Corbeille']]).map(function (a) { return '<div>' + img(a[0], 64) + a[1] + '</div>'; }).join('');
+</script>
+</body>
+</html>

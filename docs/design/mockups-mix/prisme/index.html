@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="fr" data-style="nocturne">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1600, initial-scale=1">
+<title>Selene · Prisme</title>
+<script>
+  // ?style=nocturne|eclipse|clairdelune
+  (function () {
+    var s = new URLSearchParams(location.search).get('style');
+    if (/^(nocturne|eclipse|clairdelune)$/.test(s || '')) document.documentElement.dataset.style = s;
+  })();
+</script>
+<style>
+/* ------------------------------------------------------------------ fonts */
+@font-face { font-family: 'Inter'; font-weight: 100 900; font-display: block;
+  src: url(../../mockups/assets/fonts/inter-latin-wght-normal.woff2) format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Inter'; font-weight: 100 900; font-display: block;
+  src: url(../../mockups/assets/fonts/inter-latin-ext-wght-normal.woff2) format('woff2-variations');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'Manrope'; font-weight: 200 800; font-display: block;
+  src: url(../../mockups/assets/fonts/manrope-latin-wght-normal.woff2) format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Manrope'; font-weight: 200 800; font-display: block;
+  src: url(../../mockups/assets/fonts/manrope-latin-ext-wght-normal.woff2) format('woff2-variations');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+/* ------------------------------------------------------------------ tokens
+   One block per style. Glass = tint + blur + saturate + grain + rim light.
+   --glass      window body tint (the wallpaper bleeds through it)
+   --pane       extra veil under dense content (lists, grids) for legibility
+   --side       sidebar tint, on top of --glass
+   --prism-a/b  the two-tone gradient used for selection and the Lanceur button */
+:root {
+  --font-ui: 'Inter', system-ui, sans-serif;
+  --font-display: 'Manrope', 'Inter', sans-serif;
+  --blur: 44px;
+  --sat: 1.9;
+  --r-win: 16px;
+  --r-ctl: 10px;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* Nocturne · ambiance froide · accent glacier */
+:root[data-style="nocturne"] {
+  --wp: url(wallpapers/prisme-nocturne.jpg);
+  --desk: #0A1440;
+  --glass: rgba(16, 24, 62, 0.58);
+  --glass-float: rgba(18, 26, 70, 0.62);
+  --pane: rgba(8, 12, 36, 0.30);
+  --side: rgba(130, 160, 255, 0.06);
+  --bar: rgba(18, 26, 70, 0.55);
+  --stroke: rgba(170, 200, 255, 0.22);
+  --hi: rgba(255, 255, 255, 0.16);
+  --line: rgba(170, 200, 255, 0.13);
+  --field: rgba(200, 220, 255, 0.10);
+  --hover: rgba(200, 220, 255, 0.08);
+  --text: #F3F6FF;
+  --text-2: #CBD5F0;
+  --text-3: #AAB7DC;
+  --accent: #72E4FF;
+  --accent-ink: #9EEBFF;
+  --on-accent: #041A28;
+  --prism-a: #4FE6FF;
+  --prism-b: #8B6CFF;
+  --sel: linear-gradient(90deg, rgba(79, 230, 255, 0.24), rgba(139, 108, 255, 0.20));
+  --grain-o: 0.07;
+  --shadow: 0 30px 80px rgba(2, 4, 24, 0.55), 0 2px 10px rgba(2, 4, 24, 0.35);
+}
+/* Éclipse · ambiance neutre · accent or */
+:root[data-style="eclipse"] {
+  --wp: url(wallpapers/prisme-eclipse.jpg);
+  --desk: #0B0608;
+  --glass: rgba(22, 18, 20, 0.60);
+  --glass-float: rgba(24, 20, 22, 0.66);
+  --pane: rgba(6, 4, 6, 0.30);
+  --side: rgba(255, 220, 190, 0.04);
+  --bar: rgba(14, 11, 13, 0.94);
+  --stroke: rgba(255, 214, 170, 0.18);
+  --hi: rgba(255, 240, 220, 0.14);
+  --line: rgba(255, 220, 190, 0.11);
+  --field: rgba(255, 236, 220, 0.09);
+  --hover: rgba(255, 236, 220, 0.07);
+  --text: #FAF5F1;
+  --text-2: #DDD2CA;
+  --text-3: #BFB1A7;
+  --accent: #FFC65C;
+  --accent-ink: #FFD27D;
+  --on-accent: #2A1500;
+  --prism-a: #FFC65C;
+  --prism-b: #FF5E8A;
+  --sel: linear-gradient(90deg, rgba(255, 198, 92, 0.22), rgba(255, 94, 138, 0.18));
+  --grain-o: 0.07;
+  --shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+/* Clair de lune · ambiance chaude · clair · accent prune rosée */
+:root[data-style="clairdelune"] {
+  --wp: url(wallpapers/prisme-clairdelune.jpg);
+  --desk: #F2C6DE;
+  --glass: rgba(255, 245, 243, 0.60);
+  --glass-float: rgba(255, 247, 245, 0.66);
+  --pane: rgba(255, 255, 255, 0.30);
+  --side: rgba(255, 220, 230, 0.20);
+  --bar: rgba(255, 246, 244, 0.62);
+  --stroke: rgba(255, 255, 255, 0.80);
+  --hi: rgba(255, 255, 255, 0.90);
+  --line: rgba(110, 50, 90, 0.12);
+  --field: rgba(255, 255, 255, 0.62);
+  --hover: rgba(110, 50, 90, 0.07);
+  --text: #2A1430;
+  --text-2: #573F5D;
+  --text-3: #6A526F;
+  --accent: #B42F78;
+  --accent-ink: #A0286A;
+  --on-accent: #FFFFFF;
+  --prism-a: #FF6FA8;
+  --prism-b: #8A5CF0;
+  --sel: linear-gradient(90deg, rgba(255, 111, 168, 0.20), rgba(138, 92, 240, 0.16));
+  --grain-o: 0.05;
+  --shadow: 0 30px 70px rgba(120, 40, 90, 0.22), 0 2px 8px rgba(120, 40, 90, 0.12);
+}
+
+/* ------------------------------------------------------------------ base */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  width: 1600px; height: 900px; overflow: hidden; position: relative;
+  font: 400 14px/20px var(--font-ui);
+  font-feature-settings: 'cv05', 'cv08';
+  color: var(--text);
+  background: var(--desk) var(--wp) center / cover no-repeat;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; }
+.ic { width: 20px; height: 20px; flex: none; fill: currentColor; display: block; }
+.ic.s16 { width: 16px; height: 16px; }
+.ic.s18 { width: 18px; height: 18px; }
+.ic.s24 { width: 24px; height: 24px; }
+.spacer { flex: 1; }
+.ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.num { font-variant-numeric: tabular-nums; }
+.only { display: none !important; }
+[data-style="nocturne"] .only.nocturne, [data-style="eclipse"] .only.eclipse, [data-style="clairdelune"] .only.clairdelune { display: flex !important; }
+
+/* ------------------------------------------------------------------ glass */
+.glass {
+  position: absolute;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--sat));
+  backdrop-filter: blur(var(--blur)) saturate(var(--sat));
+  border: 1px solid var(--stroke);
+  box-shadow: inset 0 1px 0 var(--hi), var(--shadow);
+  isolation: isolate;
+}
+.glass::before { /* grain */
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+  background: var(--grain); opacity: var(--grain-o); mix-blend-mode: overlay;
+}
+.glass::after { /* light sheen on the top edge, like the icons */
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 120px);
+}
+[data-style="clairdelune"] .glass { border-color: rgba(255, 255, 255, 0.75); outline: 1px solid rgba(110, 40, 80, 0.10); outline-offset: 0; }
+[data-style="clairdelune"] .glass::after { background: linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0) 140px); }
+
+/* ------------------------------------------------------------------ windows */
+.win { border-radius: var(--r-win); display: flex; flex-direction: column; overflow: hidden; }
+.titlebar { height: 46px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 16px; }
+.titlebar > img { width: 22px; height: 22px; }
+.t-title { font: 600 14px/20px var(--font-display); letter-spacing: 0.005em; }
+.t-app { color: var(--text-3); font-size: 13px; }
+.wbtns { margin-left: auto; display: flex; gap: 2px; }
+.wbtn { width: 34px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--text-2); }
+.wbtn .ic { width: 16px; height: 16px; }
+.wbtn.close:hover, .wbtn.close.demo { background: #E5484D; color: #fff; }
+.ibtn { width: 34px; height: 34px; border-radius: var(--r-ctl); display: grid; place-items: center; color: var(--text-2); flex: none; }
+.ibtn[disabled] { opacity: 0.45; }
+.btn { height: 34px; padding: 0 12px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 8px; background: var(--field); color: var(--text); font-weight: 500; flex: none; }
+.field { height: 34px; border-radius: var(--r-ctl); background: var(--field); display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line); }
+
+/* ------------------------------------------------------------------ Fichiers */
+#files .f-body { flex: 1; display: flex; min-height: 0; }
+#files .side { width: 208px; flex: none; padding: 6px 10px 12px; background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 1px; }
+.side-h { font: 600 12px/16px var(--font-ui); color: var(--text-3); padding: 14px 10px 6px; letter-spacing: 0.02em; }
+.nav-i { height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: var(--r-ctl); color: var(--text); font-weight: 450; position: relative; }
+.nav-i .ic { color: var(--tint, var(--text-2)); }
+.nav-i.on { background: var(--sel); font-weight: 600; }
+.nav-i.on::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 3px; background: linear-gradient(var(--prism-a), var(--prism-b)); }
+.disk { margin-top: auto; padding: 10px; border-radius: 12px; background: var(--field); }
+.disk .d-t { display: flex; justify-content: space-between; font-weight: 600; font-size: 13px; }
+.disk .bar { height: 6px; border-radius: 3px; background: var(--line); margin: 8px 0 6px; overflow: hidden; }
+.disk .bar i { display: block; height: 100%; width: 62%; border-radius: 3px; background: linear-gradient(90deg, var(--prism-a), var(--prism-b)); }
+.disk .d-c { color: var(--text-2); font-size: 12px; line-height: 16px; }
+#files .main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--pane); }
+.f-toolbar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; }
+.crumbs { flex: 1; min-width: 0; color: var(--text-2); white-space: nowrap; overflow: hidden; }
+.crumbs b { color: var(--text); font-weight: 600; }
+.crumbs .sep { width: 14px; height: 14px; opacity: 0.7; }
+.f-search { width: 150px; flex: none; }
+.m-head { display: flex; align-items: center; gap: 10px; padding: 4px 18px 10px; }
+.m-head h1 { font: 700 20px/28px var(--font-display); margin: 0; letter-spacing: -0.005em; }
+.m-head .count { color: var(--text-3); font-size: 13px; padding-top: 3px; }
+.seg { display: flex; padding: 3px; border-radius: var(--r-ctl); background: var(--field); }
+.seg button { width: 32px; height: 28px; border-radius: 7px; display: grid; place-items: center; color: var(--text-2); }
+.seg button.on { background: linear-gradient(135deg, var(--prism-a), var(--prism-b)); color: #fff; }
+[data-style="eclipse"] .seg button.on { color: var(--on-accent); }
+.grid { flex: 1; min-height: 0; overflow: hidden; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); align-content: start; gap: 6px 4px; padding: 4px 14px 10px; }
+.it { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px 8px; border-radius: 12px; }
+.it.sel { background: var(--sel); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.it .th { width: 72px; height: 60px; display: grid; place-items: center; }
+.it .th img { max-width: 72px; max-height: 60px; }
+.it .th .photo { width: 70px; height: 52px; border-radius: 8px; background-size: cover; background-position: center; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25), inset 0 0 0 2px rgba(255, 255, 255, 0.85); }
+.it .nm { font-size: 13px; line-height: 17px; text-align: center; max-width: 118px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.it .mt { font-size: 12px; line-height: 15px; color: var(--text-3); margin-top: -4px; }
+.status { height: 34px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; color: var(--text-3); font-size: 12px; border-top: 1px solid var(--line); }
+
+/* ------------------------------------------------------------------ Paramètres */
+#settings .s-body { flex: 1; display: flex; min-height: 0; }
+#settings .side { width: 220px; flex: none; padding: 4px 10px 12px; background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 1px; }
+.s-search { margin: 2px 0 8px; }
+.cat { height: 36px; display: flex; align-items: center; gap: 11px; padding: 0 8px; border-radius: var(--r-ctl); font-weight: 450; position: relative; }
+.cat.on { background: var(--sel); font-weight: 600; }
+.tile { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; flex: none; color: #fff;
+  background: linear-gradient(160deg, var(--a), var(--b)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 2px rgba(0, 0, 0, 0.2); }
+.tile .ic { width: 15px; height: 15px; }
+.who { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px 8px 2px; border-top: 1px solid var(--line); }
+.avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font: 700 13px/1 var(--font-display); color: #fff; background: linear-gradient(135deg, #B8501F, #B0285E 55%, #5B3BC8); flex: none; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+.who .n { font-weight: 600; font-size: 13px; line-height: 17px; }
+.who .r { color: var(--text-3); font-size: 12px; line-height: 16px; }
+#settings .main { flex: 1; min-width: 0; padding: 4px 24px 18px; background: var(--pane); overflow: hidden; }
+#settings h1 { font: 700 22px/30px var(--font-display); margin: 6px 0 14px; }
+.grp-h { font: 600 13px/18px var(--font-ui); color: var(--text-2); margin: 16px 0 8px; display: flex; justify-content: space-between; }
+.grp-h span { color: var(--text-3); font-weight: 450; }
+.styles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.sty { border-radius: 14px; padding: 6px; background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
+.sty.on { background: var(--sel); box-shadow: inset 0 0 0 2px var(--accent); }
+.sty .pv { height: 86px; border-radius: 9px; background-size: cover; background-position: center; position: relative; overflow: hidden; }
+.sty .pv .mini-win { position: absolute; left: 14%; top: 16%; width: 56%; height: 48%; border-radius: 5px; background: rgba(255, 255, 255, 0.28); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4); backdrop-filter: blur(6px); }
+.sty .pv .mini-bar { position: absolute; height: 9px; bottom: 6px; border-radius: 5px; background: rgba(255, 255, 255, 0.35); }
+.sty .lb { display: flex; align-items: center; justify-content: space-between; padding: 8px 6px 2px; font-weight: 600; font-size: 13px; }
+.sty .lb small { display: block; color: var(--text-3); font-weight: 450; font-size: 12px; }
+.check { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, var(--prism-a), var(--prism-b)); color: #fff; }
+[data-style="eclipse"] .check { color: var(--on-accent); }
+.check .ic { width: 12px; height: 12px; }
+.rows { border-radius: 14px; background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
+.rowi { display: flex; align-items: center; gap: 14px; min-height: 54px; padding: 8px 14px; }
+.rowi + .rowi { border-top: 1px solid var(--line); }
+.rowi .k { font-weight: 500; }
+.rowi .d { color: var(--text-3); font-size: 12px; line-height: 16px; }
+.ambs { display: flex; padding: 3px; border-radius: 10px; background: var(--hover); gap: 2px; margin-left: auto; }
+.ambs button { height: 30px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--text-2); display: inline-flex; gap: 6px; align-items: center; }
+.ambs button i { width: 10px; height: 10px; border-radius: 50%; }
+.ambs button.on { background: var(--glass-float); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18), inset 0 0 0 1px var(--stroke); font-weight: 600; }
+.sws { display: flex; gap: 8px; margin-left: auto; }
+.sw { width: 26px; height: 26px; border-radius: 50%; position: relative; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 1px 2px rgba(0, 0, 0, 0.2); }
+.sw.on::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; box-shadow: 0 0 0 2px var(--text); }
+.slider { width: 180px; margin-left: auto; height: 6px; border-radius: 3px; background: var(--line); position: relative; }
+.slider i { position: absolute; left: 0; top: 0; bottom: 0; width: 64%; border-radius: 3px; background: linear-gradient(90deg, var(--prism-a), var(--prism-b)); }
+.slider b { position: absolute; left: 64%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); }
+.toggle { width: 40px; height: 24px; border-radius: 12px; background: linear-gradient(135deg, var(--prism-a), var(--prism-b)); position: relative; flex: none; margin-left: auto; }
+.toggle::after { content: ''; position: absolute; right: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
+.sl-v { width: 48px; text-align: right; color: var(--text-2); font-size: 13px; }
+
+/* ------------------------------------------------------------------ Calendrier */
+#cal .c-toolbar { display: flex; align-items: center; gap: 6px; padding: 4px 14px 10px; }
+#cal h2 { font: 700 20px/28px var(--font-display); margin: 0 6px; }
+#cal .c-body { flex: 1; display: flex; min-height: 0; background: var(--pane); }
+.c-grid { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: 30px repeat(5, 1fr); }
+.c-grid .dh { font-size: 12px; font-weight: 600; color: var(--text-3); padding: 7px 10px; text-transform: lowercase; border-bottom: 1px solid var(--line); }
+.c-grid .dc { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 6px 6px 4px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.c-grid .dc:nth-child(7n+7) { border-right: 0; }
+.c-grid .dc .n { font-size: 13px; font-weight: 500; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; }
+.c-grid .dc.out .n { color: var(--text-3); }
+.c-grid .dc.today .n { background: linear-gradient(135deg, var(--prism-a), var(--prism-b)); color: var(--on-accent); font-weight: 700; }
+.ev { font-size: 12px; line-height: 16px; padding: 2px 6px 2px 7px; border-radius: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); font-weight: 500; position: relative;
+  background: color-mix(in srgb, var(--e2) 34%, transparent); box-shadow: inset 3px 0 0 var(--e1); }
+.ev.a { --e1: #FF8A7A; --e2: #E8345A; }
+.ev.b { --e1: #5BB8FF; --e2: #2C62E8; }
+.ev.c { --e1: #B48BFF; --e2: #6A3BEF; }
+.ev.d { --e1: #4FE0B0; --e2: #0E8F7E; }
+.agenda { width: 230px; flex: none; border-left: 1px solid var(--line); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.agenda h3 { margin: 0; font: 700 15px/20px var(--font-display); }
+.agenda .day { color: var(--text-3); font-size: 12px; margin-top: -6px; }
+.ag { display: flex; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--field); }
+.ag i { width: 4px; border-radius: 2px; flex: none; }
+.ag .t { font-weight: 600; font-size: 13px; line-height: 17px; }
+.ag .h { color: var(--text-3); font-size: 12px; line-height: 16px; }
+
+/* ------------------------------------------------------------------ Lanceur */
+#launcher { width: 620px; border-radius: 22px; padding: 18px 18px 0; background: var(--glass-float); }
+.l-search { height: 44px; border-radius: 14px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: var(--field); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 70%, transparent), 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); color: var(--text-2); }
+.l-search .caret { width: 1.5px; height: 20px; background: var(--accent); margin-right: -6px; }
+.l-sec { display: flex; align-items: center; justify-content: space-between; margin: 18px 4px 8px; }
+.l-sec h3 { margin: 0; font: 700 15px/20px var(--font-display); }
+.l-more { height: 28px; padding: 0 6px 0 10px; border-radius: 8px; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 500; color: var(--accent-ink); background: var(--hover); }
+.l-more .ic { width: 14px; height: 14px; }
+.l-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px 2px; }
+.app { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 2px 6px; border-radius: 12px; }
+.app img { width: 52px; height: 52px; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.22)); }
+.app span { font-size: 12px; line-height: 15px; text-align: center; max-width: 80px; }
+.app.hl { background: var(--hover); }
+.l-recent { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+.rec { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 10px; }
+.rec img { width: 30px; height: 30px; }
+.rec .nm { font-size: 13px; font-weight: 500; line-height: 17px; }
+.rec .mt { font-size: 12px; line-height: 16px; color: var(--text-3); }
+.l-foot { display: flex; align-items: center; gap: 10px; margin: 12px -18px 0; padding: 12px 18px; border-top: 1px solid var(--line); background: var(--pane); border-radius: 0 0 22px 22px; }
+.l-foot .avatar { width: 30px; height: 30px; font-size: 12px; }
+.l-foot .n { font-weight: 600; }
+
+/* ------------------------------------------------------------------ bars */
+.launch { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; flex: none;
+  background: linear-gradient(140deg, var(--prism-a), var(--prism-b)); color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 4px 12px color-mix(in srgb, var(--prism-b) 40%, transparent); }
+.launch .ic { width: 24px; height: 24px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); }
+.launch.open { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); }
+.tb { width: 48px; height: 52px; display: grid; place-items: center; position: relative; flex: none; border-radius: 12px; color: var(--text); }
+.tb img { width: 40px; height: 40px; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.25)); }
+.tb.run::after { content: ''; position: absolute; bottom: 1px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--text-2); }
+.tb.act::after { width: 16px; margin-left: -8px; border-radius: 3px; background: linear-gradient(90deg, var(--prism-a), var(--prism-b)); }
+.tb.act { background: var(--hover); }
+.vsep { width: 1px; height: 30px; background: var(--line); margin: 0 4px; flex: none; }
+.tray { display: flex; align-items: center; gap: 12px; padding: 0 12px; height: 40px; border-radius: 12px; color: var(--text); }
+.clock { display: flex; flex-direction: column; align-items: flex-end; line-height: 16px; padding: 0 6px; }
+.clock .t { font: 700 15px/18px var(--font-display); }
+.clock .d { font-size: 12px; color: var(--text-2); }
+.clock.row { flex-direction: row; align-items: baseline; gap: 8px; }
+.bell { position: relative; }
+.bell .dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg, #FF8A7A, #E8345A); box-shadow: 0 0 0 2px var(--glass-float); }
+.bar { position: absolute; display: flex; align-items: center; z-index: 5; }
+
+/* Nocturne: floating island, centred icons; tray in a twin island */
+.bar.island { bottom: 12px; height: 68px; padding: 0 12px; gap: 4px; border-radius: 24px; background: var(--bar); }
+.bar.island.center { left: 50%; transform: translateX(-50%); }
+.bar.island.right { right: 12px; height: 56px; bottom: 18px; border-radius: 20px; padding: 0 8px 0 4px; }
+/* Éclipse: full-width opaque bar */
+.bar.full { left: 0; right: 0; bottom: 0; height: 58px; padding: 0 10px; border-radius: 0; border-width: 1px 0 0; background: var(--bar); gap: 6px; box-shadow: inset 0 1px 0 var(--hi); }
+.bar.full .apps { position: absolute; left: 50%; transform: translateX(-50%); display: flex; gap: 2px; align-items: center; }
+.bar.full .srch { width: 230px; height: 38px; }
+.bar.full .srch kbd { margin-left: auto; font: 500 11px/1 var(--font-ui); padding: 4px 6px; border-radius: 6px; background: var(--hover); color: var(--text-2); }
+/* Clair de lune: three floating pills */
+.bar.pill { bottom: 12px; height: 58px; padding: 0 8px; gap: 4px; border-radius: 29px; background: var(--bar); }
+.bar.pill.l { left: 12px; }
+.bar.pill.c { left: 50%; transform: translateX(-50%); }
+.bar.pill.r { right: 12px; padding: 0 6px 0 4px; }
+.bar.pill .launch { border-radius: 50%; width: 44px; height: 44px; }
+
+/* ------------------------------------------------------------------ positions per style */
+[data-style="nocturne"] #files { left: 28px; top: 28px; width: 700px; height: 540px; }
+[data-style="nocturne"] #settings { left: 870px; top: 52px; width: 702px; height: 572px; }
+[data-style="nocturne"] #launcher { left: 50%; margin-left: -310px; bottom: 96px; }
+[data-style="nocturne"] #cal { display: none; }
+
+[data-style="eclipse"] #files { left: 640px; top: 24px; width: 760px; height: 470px; }
+[data-style="eclipse"] #cal { left: 880px; top: 300px; width: 700px; height: 530px; }
+[data-style="eclipse"] #launcher { left: 12px; bottom: 70px; }
+[data-style="eclipse"] #settings { display: none; }
+
+[data-style="clairdelune"] #files { left: 650px; top: 28px; width: 760px; height: 480px; }
+[data-style="clairdelune"] #settings { left: 860px; top: 246px; width: 722px; height: 574px; }
+[data-style="clairdelune"] #launcher { left: 12px; bottom: 82px; }
+[data-style="clairdelune"] #cal { display: none; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<!-- PHOSPHOR:BEGIN (Phosphor Icons 2.1.1, MIT) -->
+<symbol id="i-arrow-left" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"/></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 256 256"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></symbol>
+<symbol id="i-battery-high-fill" viewBox="0 0 256 256"><path d="M152,96v64a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V96a8,8,0,0,1,8-8h96A8,8,0,0,1,152,96Zm72-16v96a24,24,0,0,1-24,24H32A24,24,0,0,1,8,176V80A24,24,0,0,1,32,56H200A24,24,0,0,1,224,80Zm-16,0a8,8,0,0,0-8-8H32a8,8,0,0,0-8,8v96a8,8,0,0,0,8,8H200a8,8,0,0,0,8-8Zm40,8a8,8,0,0,0-8,8v64a8,8,0,0,0,16,0V96A8,8,0,0,0,248,88Z"/></symbol>
+<symbol id="i-bell" viewBox="0 0 256 256"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216ZM48,184c7.7-13.24,16-43.92,16-80a64,64,0,1,1,128,0c0,36.05,8.28,66.73,16,80Z"/></symbol>
+<symbol id="i-bell-fill" viewBox="0 0 256 256"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216Z"/></symbol>
+<symbol id="i-bluetooth-bold" viewBox="0 0 256 256"><path d="M199.2,166.4,148,128l51.2-38.4a12,12,0,0,0,0-19.2l-64-48A12,12,0,0,0,116,32v72L71.2,70.4A12,12,0,0,0,56.8,89.6L108,128,56.8,166.4a12,12,0,1,0,14.4,19.2L116,152v72a12,12,0,0,0,19.2,9.6l64-48a12,12,0,0,0,0-19.2ZM140,56l32,24-32,24Zm0,144V152l32,24Z"/></symbol>
+<symbol id="i-caret-left" viewBox="0 0 256 256"><path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"/></symbol>
+<symbol id="i-caret-right" viewBox="0 0 256 256"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></symbol>
+<symbol id="i-check-bold" viewBox="0 0 256 256"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></symbol>
+<symbol id="i-corners-out" viewBox="0 0 256 256"><path d="M216,48V88a8,8,0,0,1-16,0V56H168a8,8,0,0,1,0-16h40A8,8,0,0,1,216,48ZM88,200H56V168a8,8,0,0,0-16,0v40a8,8,0,0,0,8,8H88a8,8,0,0,0,0-16Zm120-40a8,8,0,0,0-8,8v32H168a8,8,0,0,0,0,16h40a8,8,0,0,0,8-8V168A8,8,0,0,0,208,160ZM88,40H48a8,8,0,0,0-8,8V88a8,8,0,0,0,16,0V56H88a8,8,0,0,0,0-16Z"/></symbol>
+<symbol id="i-desktop-fill" viewBox="0 0 256 256"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24h72v16H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16H136V200h72a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm0,144H48a8,8,0,0,1-8-8V160H216v16A8,8,0,0,1,208,184Z"/></symbol>
+<symbol id="i-download-simple-bold" viewBox="0 0 256 256"><path d="M228,144v64a12,12,0,0,1-12,12H40a12,12,0,0,1-12-12V144a12,12,0,0,1,24,0v52H204V144a12,12,0,0,1,24,0Zm-108.49,8.49a12,12,0,0,0,17,0l40-40a12,12,0,0,0-17-17L140,115V32a12,12,0,0,0-24,0v83L96.49,95.51a12,12,0,0,0-17,17Z"/></symbol>
+<symbol id="i-file-text-fill" viewBox="0 0 256 256"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,176H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Zm0-32H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Zm-8-56V44l44,44Z"/></symbol>
+<symbol id="i-film-strip-fill" viewBox="0 0 256 256"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM184,56h32V72H184ZM72,200H40V184H72ZM72,72H40V56H72Zm48,128H88V184h32Zm0-128H88V56h32Zm48,128H136V184h32Zm0-128H136V56h32Zm48,128H184V184h32v16Z"/></symbol>
+<symbol id="i-folder-simple-plus" viewBox="0 0 256 256"><path d="M216,72H130.67L102.93,51.2a16.12,16.12,0,0,0-9.6-3.2H40A16,16,0,0,0,24,64V200a16,16,0,0,0,16,16H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72Zm0,128H40V64H93.33L123.2,86.4A8,8,0,0,0,128,88h88Zm-56-56a8,8,0,0,1-8,8H136v16a8,8,0,0,1-16,0V152H104a8,8,0,0,1,0-16h16V120a8,8,0,0,1,16,0v16h16A8,8,0,0,1,160,144Z"/></symbol>
+<symbol id="i-hard-drives-fill" viewBox="0 0 256 256"><path d="M208,40H48A16,16,0,0,0,32,56v48a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40ZM180,92a12,12,0,1,1,12-12A12,12,0,0,1,180,92Z"/><path d="M208,136H48a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V152A16,16,0,0,0,208,136Zm-28,52a12,12,0,1,1,12-12A12,12,0,0,1,180,188Z"/></symbol>
+<symbol id="i-house" viewBox="0 0 256 256"><path d="M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z"/></symbol>
+<symbol id="i-house-fill" viewBox="0 0 256 256"><path d="M224,120v96a8,8,0,0,1-8,8H160a8,8,0,0,1-8-8V164a4,4,0,0,0-4-4H108a4,4,0,0,0-4,4v52a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V120a16,16,0,0,1,4.69-11.31l80-80a16,16,0,0,1,22.62,0l80,80A16,16,0,0,1,224,120Z"/></symbol>
+<symbol id="i-image-fill" viewBox="0 0 256 256"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM156,88a12,12,0,1,1-12,12A12,12,0,0,1,156,88Zm60,112H40V160.69l46.34-46.35a8,8,0,0,1,11.32,0h0L165,181.66a8,8,0,0,0,11.32-11.32l-17.66-17.65L173,138.34a8,8,0,0,1,11.31,0L216,170.07V200Z"/></symbol>
+<symbol id="i-info-fill" viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm-4,48a12,12,0,1,1-12,12A12,12,0,0,1,124,72Zm12,112a16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40a8,8,0,0,1,0,16Z"/></symbol>
+<symbol id="i-list" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128ZM40,72H216a8,8,0,0,0,0-16H40a8,8,0,0,0,0,16ZM216,184H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z"/></symbol>
+<symbol id="i-lock-simple" viewBox="0 0 256 256"><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Z"/></symbol>
+<symbol id="i-lock-simple-fill" viewBox="0 0 256 256"><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96Z"/></symbol>
+<symbol id="i-magnifying-glass" viewBox="0 0 256 256"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></symbol>
+<symbol id="i-minus" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128Z"/></symbol>
+<symbol id="i-monitor-fill" viewBox="0 0 256 256"><path d="M232,64V176a24,24,0,0,1-24,24H48a24,24,0,0,1-24-24V64A24,24,0,0,1,48,40H208A24,24,0,0,1,232,64ZM160,216H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16Z"/></symbol>
+<symbol id="i-moon-stars-fill" viewBox="0 0 256 256"><path d="M240,96a8,8,0,0,1-8,8H216v16a8,8,0,0,1-16,0V104H184a8,8,0,0,1,0-16h16V72a8,8,0,0,1,16,0V88h16A8,8,0,0,1,240,96ZM144,56h8v8a8,8,0,0,0,16,0V56h8a8,8,0,0,0,0-16h-8V32a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16Zm65.14,94.33A88.07,88.07,0,0,1,105.67,46.86a8,8,0,0,0-10.6-9.06A96,96,0,1,0,218.2,160.93a8,8,0,0,0-9.06-10.6Z"/></symbol>
+<symbol id="i-music-notes-fill" viewBox="0 0 256 256"><path d="M212.92,17.71a7.89,7.89,0,0,0-6.86-1.46l-128,32A8,8,0,0,0,72,56V166.1A36,36,0,1,0,88,196V102.25l112-28V134.1A36,36,0,1,0,216,164V24A8,8,0,0,0,212.92,17.71Z"/></symbol>
+<symbol id="i-palette-fill" viewBox="0 0 256 256"><path d="M200.77,53.89A103.27,103.27,0,0,0,128,24h-1.07A104,104,0,0,0,24,128c0,43,26.58,79.06,69.36,94.17A32,32,0,0,0,136,192a16,16,0,0,1,16-16h46.21a31.81,31.81,0,0,0,31.2-24.88,104.43,104.43,0,0,0,2.59-24A103.28,103.28,0,0,0,200.77,53.89ZM84,168a12,12,0,1,1,12-12A12,12,0,0,1,84,168Zm0-56a12,12,0,1,1,12-12A12,12,0,0,1,84,112Zm44-24a12,12,0,1,1,12-12A12,12,0,0,1,128,88Zm44,24a12,12,0,1,1,12-12A12,12,0,0,1,172,112Z"/></symbol>
+<symbol id="i-plus-bold" viewBox="0 0 256 256"><path d="M228,128a12,12,0,0,1-12,12H140v76a12,12,0,0,1-24,0V140H40a12,12,0,0,1,0-24h76V40a12,12,0,0,1,24,0v76h76A12,12,0,0,1,228,128Z"/></symbol>
+<symbol id="i-power" viewBox="0 0 256 256"><path d="M120,128V48a8,8,0,0,1,16,0v80a8,8,0,0,1-16,0Zm60.37-78.7a8,8,0,0,0-8.74,13.4C194.74,77.77,208,101.57,208,128a80,80,0,0,1-160,0c0-26.43,13.26-50.23,36.37-65.3a8,8,0,0,0-8.74-13.4C47.9,67.38,32,96.06,32,128a96,96,0,0,0,192,0C224,96.06,208.1,67.38,180.37,49.3Z"/></symbol>
+<symbol id="i-speaker-high-fill" viewBox="0 0 256 256"><path d="M160,32.25V223.69a8.29,8.29,0,0,1-3.91,7.18,8,8,0,0,1-9-.56l-65.57-51A4,4,0,0,1,80,176.16V79.84a4,4,0,0,1,1.55-3.15l65.57-51a8,8,0,0,1,10,.16A8.27,8.27,0,0,1,160,32.25ZM60,80H32A16,16,0,0,0,16,96v64a16,16,0,0,0,16,16H60a4,4,0,0,0,4-4V84A4,4,0,0,0,60,80Zm126.77,20.84a8,8,0,0,0-.72,11.3,24,24,0,0,1,0,31.72,8,8,0,1,0,12,10.58,40,40,0,0,0,0-52.88A8,8,0,0,0,186.74,100.84Zm40.89-26.17a8,8,0,1,0-11.92,10.66,64,64,0,0,1,0,85.34,8,8,0,1,0,11.92,10.66,80,80,0,0,0,0-106.66Z"/></symbol>
+<symbol id="i-squares-four" viewBox="0 0 256 256"><path d="M104,40H56A16,16,0,0,0,40,56v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,104,40Zm0,64H56V56h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,64H152V56h48v48Zm-96,32H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm0,64H56V152h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,200,136Zm0,64H152V152h48v48Z"/></symbol>
+<symbol id="i-squares-four-fill" viewBox="0 0 256 256"><path d="M120,56v48a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V56A16,16,0,0,1,56,40h48A16,16,0,0,1,120,56Zm80-16H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm-96,96H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm96,0H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,200,136Z"/></symbol>
+<symbol id="i-trash-fill" viewBox="0 0 256 256"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM112,168a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm0-120H96V40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8Z"/></symbol>
+<symbol id="i-wifi-high-bold" viewBox="0 0 256 256"><path d="M144,204a16,16,0,1,1-16-16A16,16,0,0,1,144,204ZM239.61,83.91a176,176,0,0,0-223.22,0,12,12,0,1,0,15.23,18.55,152,152,0,0,1,192.76,0,12,12,0,1,0,15.23-18.55Zm-32.16,35.73a128,128,0,0,0-158.9,0,12,12,0,0,0,14.9,18.81,104,104,0,0,1,129.1,0,12,12,0,0,0,14.9-18.81ZM175.07,155.3a80.05,80.05,0,0,0-94.14,0,12,12,0,0,0,14.14,19.4,56,56,0,0,1,65.86,0,12,12,0,1,0,14.14-19.4Z"/></symbol>
+<symbol id="i-x" viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></symbol>
+<!-- PHOSPHOR:END -->
+</svg>
+
+<!-- ============================================================ Fichiers -->
+<section class="win glass" id="files" aria-label="Fichiers">
+  <div class="titlebar">
+    <img src="icons/fichiers.svg" alt="">
+    <span class="t-title">Images</span>
+    <span class="t-app">Fichiers</span>
+    <div class="wbtns">
+      <button class="wbtn" aria-label="Réduire"><svg class="ic"><use href="#i-minus"/></svg></button>
+      <button class="wbtn" aria-label="Agrandir"><svg class="ic"><use href="#i-corners-out"/></svg></button>
+      <button class="wbtn close" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+  </div>
+  <div class="f-body">
+    <nav class="side" aria-label="Emplacements">
+      <div class="nav-i" style="--tint:#FFB84D"><svg class="ic"><use href="#i-house-fill"/></svg>Dossier personnel</div>
+      <div class="nav-i" style="--tint:#6FB8FF"><svg class="ic"><use href="#i-desktop-fill"/></svg>Bureau</div>
+      <div class="nav-i" style="--tint:#FF9A6A"><svg class="ic"><use href="#i-file-text-fill"/></svg>Documents</div>
+      <div class="nav-i" style="--tint:#52E0B0"><svg class="ic"><use href="#i-download-simple-bold"/></svg>Téléchargements</div>
+      <div class="nav-i on" style="--tint:#FF7FB8"><svg class="ic"><use href="#i-image-fill"/></svg>Images</div>
+      <div class="nav-i" style="--tint:#B48BFF"><svg class="ic"><use href="#i-music-notes-fill"/></svg>Musique</div>
+      <div class="nav-i" style="--tint:#FF8A7A"><svg class="ic"><use href="#i-film-strip-fill"/></svg>Vidéos</div>
+      <div class="side-h">Appareils</div>
+      <div class="nav-i"><svg class="ic"><use href="#i-hard-drives-fill"/></svg>Ordinateur</div>
+      <div class="nav-i"><svg class="ic"><use href="#i-trash-fill"/></svg>Corbeille</div>
+      <div class="disk">
+        <div class="d-t"><span>Disque système</span><span class="num">62&#8239;%</span></div>
+        <div class="bar"><i></i></div>
+        <div class="d-c">182&nbsp;Go libres sur 476&nbsp;Go</div>
+      </div>
+    </nav>
+    <div class="main">
+      <div class="f-toolbar">
+        <button class="ibtn" aria-label="Précédent"><svg class="ic"><use href="#i-arrow-left"/></svg></button>
+        <button class="ibtn" aria-label="Suivant" disabled><svg class="ic"><use href="#i-arrow-right"/></svg></button>
+        <div class="field crumbs">
+          <svg class="ic s16"><use href="#i-house"/></svg>
+          <span>Personnel</span>
+          <svg class="ic sep"><use href="#i-caret-right"/></svg>
+          <b>Images</b>
+        </div>
+        <div class="field f-search"><svg class="ic s16"><use href="#i-magnifying-glass"/></svg><span>Rechercher</span></div>
+      </div>
+      <div class="m-head">
+        <h1>Images</h1>
+        <span class="count">14 éléments</span>
+        <span class="spacer"></span>
+        <button class="btn"><svg class="ic s18"><use href="#i-folder-simple-plus"/></svg>Nouveau dossier</button>
+        <div class="seg" role="radiogroup" aria-label="Affichage">
+          <button aria-label="Liste"><svg class="ic s18"><use href="#i-list"/></svg></button>
+          <button class="on" aria-label="Grille"><svg class="ic s18"><use href="#i-squares-four"/></svg></button>
+        </div>
+      </div>
+      <div class="grid" id="fgrid"></div>
+      <div class="status"><span>14 éléments, 1 sélectionné (3,2&nbsp;Mo)</span><span>Trié par date</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ Paramètres -->
+<section class="win glass" id="settings" aria-label="Paramètres">
+  <div class="titlebar">
+    <img src="icons/parametres.svg" alt="">
+    <span class="t-title">Paramètres</span>
+    <div class="wbtns">
+      <button class="wbtn" aria-label="Réduire"><svg class="ic"><use href="#i-minus"/></svg></button>
+      <button class="wbtn" aria-label="Agrandir"><svg class="ic"><use href="#i-corners-out"/></svg></button>
+      <button class="wbtn close" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+  </div>
+  <div class="s-body">
+    <nav class="side" aria-label="Catégories">
+      <div class="field s-search"><svg class="ic s16"><use href="#i-magnifying-glass"/></svg><span>Rechercher un réglage</span></div>
+      <div class="cat"><span class="tile" style="--a:#62C8FF;--b:#2770F2"><svg class="ic"><use href="#i-wifi-high-bold"/></svg></span>Réseau</div>
+      <div class="cat"><span class="tile" style="--a:#86A6FF;--b:#3E4CE6"><svg class="ic"><use href="#i-bluetooth-bold"/></svg></span>Appareils</div>
+      <div class="cat"><span class="tile" style="--a:#FF7FA6;--b:#D92C6B"><svg class="ic"><use href="#i-speaker-high-fill"/></svg></span>Son</div>
+      <div class="cat"><span class="tile" style="--a:#5BF2EE;--b:#139AE6"><svg class="ic"><use href="#i-monitor-fill"/></svg></span>Écran</div>
+      <div class="cat on"><span class="tile" style="--a:#F08CFF;--b:#7A4CF0"><svg class="ic"><use href="#i-palette-fill"/></svg></span>Apparence</div>
+      <div class="cat"><span class="tile" style="--a:#FF8A7A;--b:#EE3657"><svg class="ic"><use href="#i-bell-fill"/></svg></span>Notifications</div>
+      <div class="cat"><span class="tile" style="--a:#FFB06A;--b:#F2602E"><svg class="ic"><use href="#i-squares-four-fill"/></svg></span>Applications</div>
+      <div class="cat"><span class="tile" style="--a:#52F0C2;--b:#0E9F96"><svg class="ic"><use href="#i-lock-simple-fill"/></svg></span>Confidentialité</div>
+      <div class="cat"><span class="tile" style="--a:#B9C5DE;--b:#56648A"><svg class="ic"><use href="#i-info-fill"/></svg></span>À propos</div>
+      <div class="who"><span class="avatar">CL</span><div><div class="n">Camille Laurent</div><div class="r">Administratrice</div></div></div>
+    </nav>
+    <div class="main">
+      <h1>Apparence</h1>
+      <div class="grp-h">Style du bureau<span>Barre, fenêtres et fond d'écran</span></div>
+      <div class="styles">
+        <div class="sty" data-k="nocturne"><div class="pv" style="background-image:url(wallpapers/prisme-nocturne.jpg)"><span class="mini-win"></span><span class="mini-bar" style="left:28%;right:28%"></span></div><div class="lb"><div>Nocturne<small>Îlot centré</small></div><span class="check"><svg class="ic"><use href="#i-check-bold"/></svg></span></div></div>
+        <div class="sty" data-k="eclipse"><div class="pv" style="background-image:url(wallpapers/prisme-eclipse.jpg)"><span class="mini-win"></span><span class="mini-bar" style="left:0;right:0;bottom:0;border-radius:0;background:rgba(10,8,10,.85)"></span></div><div class="lb"><div>Éclipse<small>Barre pleine</small></div><span class="check"><svg class="ic"><use href="#i-check-bold"/></svg></span></div></div>
+        <div class="sty" data-k="clairdelune"><div class="pv" style="background-image:url(wallpapers/prisme-clairdelune.jpg)"><span class="mini-win"></span><span class="mini-bar" style="left:4%;width:16%"></span><span class="mini-bar" style="left:34%;width:32%"></span><span class="mini-bar" style="right:4%;width:20%"></span></div><div class="lb"><div>Clair de lune<small>Trois pastilles</small></div><span class="check"><svg class="ic"><use href="#i-check-bold"/></svg></span></div></div>
+      </div>
+      <div class="grp-h">Couleurs et matière</div>
+      <div class="rows">
+        <div class="rowi"><div><div class="k">Ambiance</div><div class="d">Teinte des fenêtres et des menus</div></div>
+          <div class="ambs" role="radiogroup" aria-label="Ambiance">
+            <button data-k="nocturne"><i style="background:#6FA8FF"></i>Froide</button>
+            <button data-k="eclipse"><i style="background:#B8AEA8"></i>Neutre</button>
+            <button data-k="clairdelune"><i style="background:#FFAA85"></i>Chaude</button>
+          </div></div>
+        <div class="rowi"><div><div class="k">Couleur d'accent</div><div class="d" id="acc-name">Glacier</div></div>
+          <div class="sws" id="sws"></div></div>
+        <div class="rowi"><div><div class="k">Effet de verre</div><div class="d">Le fond d'écran colore les fenêtres</div></div>
+          <div class="slider"><i></i><b></b></div><span class="sl-v">Moyen</span></div>
+        <div class="rowi"><div><div class="k">Icônes en couleur</div><div class="d">Chaque application garde sa couleur</div></div>
+          <span class="toggle" role="switch" aria-checked="true"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ Calendrier -->
+<section class="win glass" id="cal" aria-label="Calendrier">
+  <div class="titlebar">
+    <img src="icons/calendrier.svg" alt="">
+    <span class="t-title">Calendrier</span>
+    <div class="wbtns">
+      <button class="wbtn" aria-label="Réduire"><svg class="ic"><use href="#i-minus"/></svg></button>
+      <button class="wbtn" aria-label="Agrandir"><svg class="ic"><use href="#i-corners-out"/></svg></button>
+      <button class="wbtn close" aria-label="Fermer"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+  </div>
+  <div class="c-toolbar">
+    <button class="btn">Aujourd'hui</button>
+    <button class="ibtn" aria-label="Mois précédent"><svg class="ic"><use href="#i-caret-left"/></svg></button>
+    <button class="ibtn" aria-label="Mois suivant"><svg class="ic"><use href="#i-caret-right"/></svg></button>
+    <h2>Octobre 2026</h2>
+    <span class="spacer"></span>
+    <div class="ambs" style="margin:0"><button>Semaine</button><button class="on">Mois</button></div>
+    <button class="btn" style="background:linear-gradient(135deg,var(--prism-a),var(--prism-b));color:var(--on-accent)"><svg class="ic s18"><use href="#i-plus-bold"/></svg>Événement</button>
+  </div>
+  <div class="c-body">
+    <div class="c-grid" id="cgrid"></div>
+    <div class="agenda">
+      <h3>Lundi 12 octobre</h3>
+      <div class="day">3 événements</div>
+      <div class="ag"><i style="background:linear-gradient(#4FB6FF,#2C62E8)"></i><div><div class="t">Point équipe</div><div class="h">09:30 – 10:00 · Visio</div></div></div>
+      <div class="ag"><i style="background:linear-gradient(#FF8A7A,#E8345A)"></i><div><div class="t">Dentiste</div><div class="h">12:15 – 13:00</div></div></div>
+      <div class="ag"><i style="background:linear-gradient(#B48BFF,#6A3BEF)"></i><div><div class="t">Chorale</div><div class="h">19:00 – 21:00 · Salle des fêtes</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ Lanceur -->
+<section class="glass" id="launcher" aria-label="Lanceur">
+  <div class="l-search" role="search">
+    <svg class="ic"><use href="#i-magnifying-glass"/></svg><span class="caret"></span>
+    <span>Rechercher une application, un fichier ou un réglage</span>
+  </div>
+  <div class="l-sec"><h3>Épinglées</h3><button class="l-more">Toutes les applications <svg class="ic"><use href="#i-caret-right"/></svg></button></div>
+  <div class="l-grid" id="pins"></div>
+  <div class="l-sec"><h3>Récents</h3><button class="l-more">Tout afficher <svg class="ic"><use href="#i-caret-right"/></svg></button></div>
+  <div class="l-recent" id="recent"></div>
+  <div class="l-foot">
+    <span class="avatar">CL</span><span class="n">Camille Laurent</span><span class="spacer"></span>
+    <button class="ibtn" aria-label="Verrouiller"><svg class="ic"><use href="#i-lock-simple"/></svg></button>
+    <button class="ibtn" aria-label="Éteindre ou redémarrer"><svg class="ic"><use href="#i-power"/></svg></button>
+  </div>
+</section>
+
+<!-- ============================================================ bars -->
+<!-- Nocturne -->
+<nav class="bar island center glass only nocturne" aria-label="Barre">
+  <button class="launch open" aria-label="Lanceur"><svg class="ic"><use href="#i-moon-stars-fill"/></svg></button>
+  <span class="vsep"></span>
+  <span id="dock-n" style="display:contents"></span>
+</nav>
+<nav class="bar island right glass only nocturne" aria-label="État du système">
+  <div class="tray"><svg class="ic s18"><use href="#i-wifi-high-bold"/></svg><svg class="ic s18"><use href="#i-speaker-high-fill"/></svg><svg class="ic s18"><use href="#i-battery-high-fill"/></svg></div>
+  <span class="vsep"></span>
+  <div class="clock"><span class="t num">14:32</span><span class="d">lun. 12 oct.</span></div>
+  <button class="tb bell" style="width:40px;height:44px" aria-label="Notifications"><svg class="ic"><use href="#i-bell"/></svg><span class="dot"></span></button>
+</nav>
+<!-- Éclipse -->
+<nav class="bar full glass only eclipse" aria-label="Barre">
+  <button class="launch open" aria-label="Lanceur" style="width:42px;height:42px;border-radius:12px"><svg class="ic"><use href="#i-moon-stars-fill"/></svg></button>
+  <div class="field srch"><svg class="ic s16"><use href="#i-magnifying-glass"/></svg><span>Rechercher</span><kbd>Super</kbd></div>
+  <div class="apps" id="dock-e"></div>
+  <span class="spacer"></span>
+  <div class="tray"><svg class="ic s18"><use href="#i-wifi-high-bold"/></svg><svg class="ic s18"><use href="#i-speaker-high-fill"/></svg><svg class="ic s18"><use href="#i-battery-high-fill"/></svg><span class="num" style="font-size:13px">82&#8239;%</span></div>
+  <span class="vsep"></span>
+  <div class="clock"><span class="t num">14:32</span><span class="d">lundi 12 octobre</span></div>
+  <button class="tb bell" style="width:40px;height:44px" aria-label="Notifications"><svg class="ic"><use href="#i-bell"/></svg><span class="dot"></span></button>
+</nav>
+<!-- Clair de lune -->
+<nav class="bar pill l glass only clairdelune" aria-label="Lanceur et recherche">
+  <button class="launch open" aria-label="Lanceur"><svg class="ic"><use href="#i-moon-stars-fill"/></svg></button>
+  <button class="tb" style="width:44px;height:44px" aria-label="Rechercher"><svg class="ic s24"><use href="#i-magnifying-glass"/></svg></button>
+  <button class="tb" style="width:44px;height:44px" aria-label="Vue d'ensemble"><svg class="ic s24"><use href="#i-squares-four"/></svg></button>
+</nav>
+<nav class="bar pill c glass only clairdelune" aria-label="Applications" id="dock-c"></nav>
+<nav class="bar pill r glass only clairdelune" aria-label="État du système">
+  <div class="tray" style="gap:10px"><svg class="ic s18"><use href="#i-wifi-high-bold"/></svg><svg class="ic s18"><use href="#i-speaker-high-fill"/></svg></div>
+  <span class="vsep"></span>
+  <div class="clock row"><span class="d">lun. 12 oct.</span><span class="t num">14:32</span></div>
+  <button class="tb bell" style="width:40px;height:44px" aria-label="Notifications"><svg class="ic"><use href="#i-bell"/></svg><span class="dot"></span></button>
+</nav>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var style = document.documentElement.dataset.style;
+
+  // --- barre (mêmes apps dans les 3 styles)
+  var dock = [['fichiers', 'Fichiers', 'act'], ['navigateur', 'Navigateur', 'run'], ['courrier', 'Courrier'], ['calendrier', 'Calendrier', style === 'eclipse' ? 'run' : ''],
+    ['photos', 'Photos'], ['lecteur', 'Lecteur', 'run'], ['editeur', 'Éditeur de texte'], ['terminal', 'Terminal'], ['logitheque', 'Logithèque'],
+    ['parametres', 'Paramètres', style === 'eclipse' ? '' : 'run']];
+  var dockHtml = dock.map(function (d) { return '<button class="tb ' + (d[2] || '') + '" aria-label="' + d[1] + '"><img src="icons/' + d[0] + '.svg" alt=""></button>'; }).join('');
+  ({ nocturne: $('dock-n'), eclipse: $('dock-e'), clairdelune: $('dock-c') })[style].innerHTML = dockHtml;
+
+  // --- Lanceur : 14 apps
+  var apps = [['fichiers', 'Fichiers'], ['navigateur', 'Navigateur'], ['courrier', 'Courrier'], ['calendrier', 'Calendrier'], ['photos', 'Photos'], ['lecteur', 'Lecteur'], ['dessin', 'Dessin'],
+    ['editeur', 'Éditeur de texte'], ['calculatrice', 'Calculatrice'], ['horloge', 'Horloge'], ['terminal', 'Terminal'], ['moniteur', 'Moniteur système'], ['logitheque', 'Logithèque'], ['parametres', 'Paramètres']];
+  $('pins').innerHTML = apps.map(function (a, i) { return '<div class="app' + (i === 0 ? ' hl' : '') + '"><img src="icons/' + a[0] + '.svg" alt=""><span>' + a[1] + '</span></div>'; }).join('');
+  var recent = [
+    ['Budget familial 2026.ods', 'f-sheet', "Documents · aujourd'hui"],
+    ['Calanque de Sormiou.jpg', 'f-image', 'Images · hier, 19:52'],
+    ['Compte rendu du 8 octobre.odt', 'f-doc', 'Documents · hier'],
+    ['Contrat de location.pdf', 'f-pdf', 'Téléchargements · 7 oct.']
+  ];
+  $('recent').innerHTML = recent.map(function (r) {
+    return '<div class="rec"><img src="files/' + r[1] + '.svg" alt=""><span style="min-width:0"><div class="nm ellipsis">' + r[0] + '</div><div class="mt ellipsis">' + r[2] + '</div></span></div>';
+  }).join('');
+
+  // --- Fichiers : Images (grille)
+  var wp = ['prisme-nocturne', 'prisme-eclipse', 'prisme-clairdelune'];
+  var items = [
+    ['folder', 'Captures d\'écran', '24 éléments'],
+    ['folder', 'Fonds d\'écran', '9 éléments'],
+    ['folder', 'Vacances 2026', '312 éléments'],
+    ['photo', 'Aurore boréale.jpg', '3,2 Mo', 0, 'sel'],
+    ['photo', 'Éclipse de juin.jpg', '2,8 Mo', 1],
+    ['photo', 'Aube à Collioure.jpg', '2,4 Mo', 2],
+    ['f-image', 'Logo association.svg', '18 Ko'],
+    ['photo', 'Nuit claire.jpg', '2,9 Mo', 0, '', '20% 30%'],
+    ['photo', 'Ciel d\'automne.jpg', '3,1 Mo', 2, '', '70% 60%'],
+    ['f-pdf', 'Album photo.pdf', '12,6 Mo']
+  ];
+  $('fgrid').innerHTML = items.map(function (it) {
+    var th = it[0] === 'folder' ? '<img src="files/folder.svg" alt="">'
+      : it[0] === 'photo' ? '<span class="photo" style="background-image:url(wallpapers/' + wp[it[3]] + '.jpg);background-position:' + (it[5] || 'center') + '"></span>'
+      : '<img src="files/' + it[0] + '.svg" alt="" style="height:56px">';
+    return '<div class="it ' + (it[4] || '') + '"><span class="th">' + th + '</span><span class="nm">' + it[1] + '</span><span class="mt">' + it[2] + '</span></div>';
+  }).join('');
+
+  // --- Paramètres : style courant, ambiance, accents
+  document.querySelectorAll('.sty').forEach(function (e) { e.classList.toggle('on', e.dataset.k === style); if (e.dataset.k !== style) e.querySelector('.check').style.visibility = 'hidden'; });
+  document.querySelectorAll('.rowi .ambs button').forEach(function (e) { e.classList.toggle('on', e.dataset.k === style); });
+  var accents = {
+    nocturne: [['Glacier', 'linear-gradient(135deg,#4FE6FF,#8B6CFF)'], ['Lagon', 'linear-gradient(135deg,#52F0C2,#139AE6)'], ['Améthyste', 'linear-gradient(135deg,#F08CFF,#6A3BEF)'], ['Ambre', 'linear-gradient(135deg,#FFD45C,#FF8F1F)']],
+    eclipse: [['Or', 'linear-gradient(135deg,#FFC65C,#FF5E8A)'], ['Cuivre', 'linear-gradient(135deg,#FFB06A,#C2412A)'], ['Magenta', 'linear-gradient(135deg,#FF7FB8,#B0249A)'], ['Glacier', 'linear-gradient(135deg,#4FE6FF,#8B6CFF)']],
+    clairdelune: [['Prune rosée', 'linear-gradient(135deg,#FF6FA8,#8A5CF0)'], ['Pêche', 'linear-gradient(135deg,#FFB06A,#F2602E)'], ['Lilas', 'linear-gradient(135deg,#B48BFF,#5B3BF0)'], ['Lagon', 'linear-gradient(135deg,#52F0C2,#139AE6)']]
+  }[style];
+  $('sws').innerHTML = accents.map(function (a, i) { return '<span class="sw' + (i === 0 ? ' on' : '') + '" title="' + a[0] + '" style="background:' + a[1] + '"></span>'; }).join('');
+  $('acc-name').textContent = accents[0][0];
+
+  // --- Calendrier : octobre 2026 (commence un jeudi)
+  var dn = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
+  var ev = { 2: [['b', 'Réunion parents']], 6: [['d', 'Yoga']], 9: [['c', 'Anniversaire Léa']], 12: [['b', 'Point équipe'], ['a', 'Dentiste']], 13: [['d', 'Yoga']], 15: [['b', 'Atelier design']], 17: [['c', 'Concert']], 20: [['d', 'Yoga']], 23: [['a', 'Train pour Lyon']], 27: [['d', 'Yoga']], 31: [['c', 'Halloween']] };
+  var cells = dn.map(function (d) { return '<div class="dh">' + d + '</div>'; });
+  for (var i = 0; i < 35; i++) {
+    var day = i - 2; // 28, 29, 30 sept. … 1 nov.
+    var out = day < 1 || day > 31, n = day < 1 ? [28, 29, 30][i] : day > 31 ? day - 31 : day;
+    var cls = 'dc' + (out ? ' out' : '') + (day === 12 ? ' today' : '');
+    var evs = (!out && ev[day] ? ev[day] : []).map(function (e) { return '<div class="ev ' + e[0] + '">' + e[1] + '</div>'; }).join('');
+    cells.push('<div class="' + cls + '"><span class="n num">' + n + '</span>' + evs + '</div>');
+  }
+  $('cgrid').innerHTML = cells.join('');
+})();
+</script>
+</body>
+</html>
