@@ -3,39 +3,41 @@
   --st-pane-w: 280px;
 }
 
-/* ---------- title bar additions ---------- */
-.app-settings .st-tb-btn {
+/* ---------- page header: back arrow (and the navigation button in a narrow window) left of the title ---------- */
+.app-settings .st-head-btns {
+  display: contents;
+}
+.app-settings .st-head-btn {
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: 40px;
-  height: 32px;
-  margin: 0 -4px 0 4px;
+  width: 36px;
+  height: 34px;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
-  transition: background var(--dur-fast) linear;
+  transition: background var(--dur-fast) var(--ease);
 }
-.app-settings .st-tb-btn:hover {
+.app-settings .st-head-btn:hover {
   background: var(--subtle-hover);
 }
-.app-settings .st-tb-btn:active {
+.app-settings .st-head-btn:active {
   background: var(--subtle-pressed);
   color: var(--text-2);
 }
-.app-settings .st-tb-btn:disabled {
-  color: var(--text-disabled);
-  background: transparent;
+.app-settings .st-head-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
-.app-settings .st-tb-btn + .win-icon,
-.app-settings .st-tb-btn + .st-tb-btn + .win-icon {
-  margin-left: 12px;
+/* nowhere to go back to (first page): no arrow at all */
+.app-settings .st-tb-back:disabled {
+  display: none;
 }
 .app-settings .st-tb-menu {
   display: none;
 }
-.app-settings:has(.st-root.compact) .st-tb-menu {
+.app-settings .st-root.compact .st-tb-menu {
   display: inline-grid;
 }
 
@@ -223,7 +225,14 @@
 }
 .app-settings .st-header {
   flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
   padding: 22px 40px 18px 40px;
+}
+.app-settings .st-head-text {
+  flex: 1;
+  min-width: 0;
 }
 .app-settings .st-crumbs {
   display: flex;
@@ -749,6 +758,52 @@
   overflow-wrap: anywhere;
 }
 
+/* ---------- About: one plain key / value list and a single copy action ---------- */
+.app-settings .st-about-list {
+  margin: 0;
+  padding: 0;
+}
+.app-settings .st-about-item {
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 4px 24px;
+  padding: 11px 20px;
+  border-top: 1px solid var(--line-soft);
+  font-size: var(--fs-body);
+}
+.app-settings .st-about-item:first-child {
+  border-top: 0;
+}
+.app-settings .st-about-item > .k {
+  color: var(--text-2);
+}
+.app-settings .st-about-item > .v {
+  margin: 0;
+  min-width: 0;
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+.app-settings .st-about-name {
+  align-items: center;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+.app-settings .st-host.bare .st-host-hint {
+  margin-top: 6px;
+}
+.app-settings .st-about-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line-soft);
+}
+@container (max-width: 520px) {
+  .app-settings .st-about-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ---------- System summary (System and About) ---------- */
 .app-settings .st-summary {
   display: flex;
@@ -944,40 +999,14 @@
 }
 
 /* ---------- Network ---------- */
-.app-settings .st-net-hero {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 20px 24px;
-  border-radius: var(--radius);
-  border: 1px solid var(--stroke-card);
-  background: var(--card);
-}
-.app-settings .st-net-art {
-  flex: none;
-  position: relative;
-  width: 104px;
-  height: 72px;
-  display: grid;
-  place-items: center;
-  color: var(--accent);
-}
-.app-settings .st-net-art .st-net-globe {
-  position: absolute;
-  right: 0;
-  bottom: 0;
+.app-settings .st-net-status .st-row-icon {
   color: var(--text-2);
 }
-.app-settings .st-net-props {
-  display: flex;
-  gap: 24px;
-  flex-wrap: wrap;
+.app-settings .st-net-status.online .st-row-icon {
+  color: var(--accent-text);
 }
-.app-settings .st-net-prop {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-2);
+.app-settings .st-net-status .st-row-title {
+  font-weight: 600;
 }
 .app-settings .st-wifi-list .st-row {
   min-height: 60px;
@@ -1562,13 +1591,6 @@
 }
 .app-settings .st-pers-hero {
   align-items: flex-start;
-}
-.app-settings .st-net-hero {
-  flex-wrap: wrap;
-  row-gap: 12px;
-}
-.app-settings .st-net-hero .st-hero-text {
-  min-width: 220px;
 }
 
 /* ---------- narrow page (small window or big scale): controls go under their label ----------

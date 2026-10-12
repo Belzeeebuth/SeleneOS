@@ -375,7 +375,7 @@ async function lightEnglish() {
     check((await s.page.locator(S('.st-nav-item')).count()) === 13, 'nav has the 12 categories and the account row');
     check(eq(await s.aurora(() => [...document.querySelectorAll('.app-settings .st-nav-heading')].map((e) => e.textContent)), ['Appearance', 'Connections', 'System']), 'nav categories are grouped under Appearance, Connections and System');
     check(await s.aurora(() => { const p = document.querySelector('.app-settings .st-pane'); const u = p.querySelector('.st-user'); const q = p.querySelector('.st-search'); return !!u && u.dataset.cat === 'accounts' && q.getBoundingClientRect().top < p.querySelector('.st-nav').getBoundingClientRect().top && u.getBoundingClientRect().top > p.querySelector('.st-nav').getBoundingClientRect().bottom - 1; }), 'search on top of the pane, the account row at the bottom');
-    check((await s.page.locator(S('.st-title')).innerText()).trim() === 'System', 'opens on System');
+    check((await s.page.locator(S('.st-title')).innerText()).trim() === 'Overview', 'opens on the Overview page (the System group heading stays)');
     check(await s.page.locator('.app-settings .st-tb-back').isDisabled(), 'back button disabled on the first page');
     await docShot(s, 'system-light-en');
 
@@ -388,7 +388,16 @@ async function lightEnglish() {
     check((await s.page.locator(S('.st-nav-item.selected')).getAttribute('data-cat')) === 'network', 'nav keeps the category selected on sub pages');
     await s.page.locator('.app-settings .st-tb-back').click();
     await s.page.waitForSelector(S('.st-page[data-page="network"]'));
-    check(true, 'title bar back button returns to the previous page');
+    check(true, 'the back button returns to the previous page');
+    check(
+      await s.aurora(() => {
+        const b = document.querySelector('.app-settings .st-tb-back');
+        const head = b?.closest('.st-header');
+        const title = head?.querySelector('.st-title');
+        return !!head && !!title && b.getBoundingClientRect().right <= title.getBoundingClientRect().left + 1 && !document.querySelector('.app-settings .win-titlebar .st-head-btn');
+      }),
+      'the back arrow sits in the page header, left of the page title (the title bar only holds the window title and controls)',
+    );
     await s.page.locator(S('button.st-crumb'), { hasText: 'Network' }).count();
 
     // ---- search
@@ -458,6 +467,17 @@ async function lightEnglish() {
     // ---- Network: airplane, Wi-Fi with a wrong then right key
     await go(s, 'network');
     await docShot(s, 'network');
+    check(
+      await s.aurora(() => {
+        const first = document.querySelector('.app-settings .st-page[data-page="network"] .st-group-rows > .st-row');
+        return !!first?.classList.contains('st-net-status') && !!first.querySelector('.st-row-icon') && !!first.querySelector('.st-row-title')?.textContent && !!first.querySelector('.st-row-desc')?.textContent && !!first.querySelector('.st-net-details') && !document.querySelector('.app-settings .st-net-hero');
+      }),
+      'Network: the connection is a status row at the top of the list (icon, name, state, Details)',
+    );
+    await s.page.locator(S('.st-net-details')).click();
+    await s.page.waitForFunction(() => /^(wifi|ethernet|advancedNetwork)$/.test(document.querySelector('.app-settings .st-page')?.dataset.page || ''), null, { timeout: 5000 });
+    check(true, 'Network: Details opens the connection properties');
+    await go(s, 'network');
     await (await rowControl(s, 'Airplane mode')).locator('.toggle input').click();
     await sleep(500);
     const air = await inv(s, 'net:status');
@@ -625,10 +645,10 @@ async function lightEnglish() {
     await go(s, 'language');
     await pickCombo(s, 'Selene display language', 'Français');
     await sleep(700);
-    check((await get(s, 'lang')) === 'fr' && (await s.page.locator(S('.st-nav-item[data-cat="system"]')).innerText()).includes('Système'), 'display language switches the shell to French live');
+    check((await get(s, 'lang')) === 'fr' && (await s.page.locator(S('.st-nav-item[data-cat="system"]')).innerText()).includes('Vue d’ensemble'), 'display language switches the shell to French live');
     await pickCombo(s, 'Langue d’affichage de Selene', 'English');
     await sleep(700);
-    check((await s.page.locator(S('.st-nav-item[data-cat="system"]')).innerText()).includes('System'), 'and back to English');
+    check((await s.page.locator(S('.st-nav-item[data-cat="system"]')).innerText()).includes('Overview'), 'and back to English');
 
     // ---- Privacy: firewall
     await go(s, 'privacy');
@@ -657,6 +677,18 @@ async function lightEnglish() {
 
     // ---- About: rename this computer (the device name is edited in place)
     await go(s, 'about');
+    check(
+      await s.aurora(() => {
+        const page = document.querySelector('.app-settings .st-page[data-page="about"]');
+        const keys = [...page.querySelectorAll('.st-about-list dt')].map((e) => e.textContent);
+        return !page.querySelector('.st-expander') && page.querySelectorAll('.st-about-copy').length === 1 && keys[0] === 'Device name' && ['Selene OS version', 'Processor', 'Memory', 'Storage'].every((k) => keys.includes(k));
+      }),
+      'About: one plain key / value list (device name first) with a single Copy information action',
+    );
+    await s.page.locator(S('.st-about-copy')).click();
+    await s.page.waitForFunction(() => /copied/i.test(document.querySelector('.app-settings .st-about-copy')?.textContent || ''), null, { timeout: 5000 });
+    const copied = await inv(s, 'clipboard:readText').catch(() => '');
+    check(/Device name\tselene/.test(copied) && /Selene OS version\t/.test(copied), 'About: Copy information puts every line on the clipboard');
     check((await s.page.locator(S('.st-host-input')).inputValue()) === 'selene', 'device name: the simulated computer is called "selene"');
     check(await s.page.locator(S('.st-host-save')).isDisabled(), 'Rename stays disabled until the name changes');
     await s.page.locator(S('.st-host-input')).fill('bad name!');
@@ -709,7 +741,7 @@ async function lightEnglish() {
     // ---- compact (narrow) layout
     await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'settings').setSize(680, 640));
     await sleep(500);
-    check(await s.page.locator('.app-settings .st-tb-menu').isVisible(), 'narrow window: navigation button in the title bar');
+    check(await s.page.locator('.app-settings .st-tb-menu').isVisible(), 'narrow window: navigation button in the page header');
     await sleep(1800); // let the deep-link highlight fade
     await docShot(s, 'compact');
     await s.page.locator('.app-settings .st-tb-menu').click();
@@ -741,7 +773,7 @@ async function darkFrench() {
   try {
     await s.page.waitForSelector(S('.st-page[data-page="system"]'), { timeout: 20000 });
     await sleep(600);
-    check((await s.page.locator(S('.st-title')).innerText()).trim() === 'Système', 'opens in French');
+    check((await s.page.locator(S('.st-title')).innerText()).trim() === 'Vue d’ensemble', 'opens in French');
     const pages = ['system', 'display', 'sound', 'network', 'wifi', 'personalization', 'colors', 'background', 'accounts', 'users', 'time', 'language', 'keyboard', 'privacy', 'update', 'about', 'installedApps', 'power', 'storage'];
     const over = [];
     const stray = [];

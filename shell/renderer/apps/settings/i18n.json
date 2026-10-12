@@ -199,7 +199,8 @@
    "adapters": "Network adapters",
    "totalSinceBoot": "Data used since the computer started",
    "totalDesc": "Received and sent, all adapters",
-   "rxTx": "Received {rx} · Sent {tx}"
+   "rxTx": "Received {rx} · Sent {tx}",
+   "details": "Details"
   },
   "pers": {
    "selectTheme": "Select a theme to apply",
@@ -291,7 +292,7 @@
    "lastChecked": "Last checked: {when}",
    "available_one": "{count} update available",
    "available_other": "{count} updates available",
-   "unknown": "Check for updates",
+   "unknown": "Updates not checked yet",
    "unknownDesc": "Get the latest fixes and security improvements for Selene and your apps.",
    "restartNow": "Restart now",
    "installNow": "Install all",
@@ -602,7 +603,12 @@
    "copied": "Copied",
    "relatedUpdate": "Check for updates",
    "aboutAurora": "About Selene",
-   "aboutAuroraDesc": "Version and license information"
+   "aboutAuroraDesc": "Version and license information",
+   "osVersion": "Selene OS version",
+   "storage": "Storage",
+   "copyAll": "Copy information",
+   "copiedAll": "Information copied",
+   "listLabel": "Device information"
   },
   "time": {
    "auto": "Set time automatically",
@@ -1331,7 +1337,8 @@
    "adapters": "Cartes réseau",
    "totalSinceBoot": "Données utilisées depuis le démarrage de l’ordinateur",
    "totalDesc": "Reçues et envoyées, toutes cartes confondues",
-   "rxTx": "Reçu {rx} · Envoyé {tx}"
+   "rxTx": "Reçu {rx} · Envoyé {tx}",
+   "details": "Détails"
   },
   "pers": {
    "selectTheme": "Sélectionner un thème à appliquer",
@@ -1423,7 +1430,7 @@
    "lastChecked": "Dernière vérification : {when}",
    "available_one": "{count} mise à jour disponible",
    "available_other": "{count} mises à jour disponibles",
-   "unknown": "Rechercher des mises à jour",
+   "unknown": "Mises à jour non vérifiées",
    "unknownDesc": "Obtenez les derniers correctifs et améliorations de sécurité pour Selene et vos applications.",
    "restartNow": "Redémarrer maintenant",
    "installNow": "Tout installer",
@@ -1734,7 +1741,12 @@
    "copied": "Copié",
    "relatedUpdate": "Rechercher des mises à jour",
    "aboutAurora": "À propos de Selene",
-   "aboutAuroraDesc": "Informations de version et de licence"
+   "aboutAuroraDesc": "Informations de version et de licence",
+   "osVersion": "Version de Selene OS",
+   "storage": "Stockage",
+   "copyAll": "Copier les informations",
+   "copiedAll": "Informations copiées",
+   "listLabel": "Informations sur l’appareil"
   },
   "time": {
    "auto": "Régler l’heure automatiquement",

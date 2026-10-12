@@ -138,7 +138,11 @@ export default {
     const pane = h('aside', { class: 'st-pane' }, searchBox, nav, h('div', { class: 'st-pane-foot' }, userCard));
     const titleEl = h('h1', { class: 'st-title' });
     const crumbsEl = h('nav', { class: 'st-crumbs', 'aria-label': t('settings.navigation'), hidden: true });
-    const header = h('header', { class: 'st-header' }, crumbsEl, titleEl);
+    // Page header: the back arrow (and the navigation button when the window is narrow) sit left of the
+    // page title, so the title bar only holds the window title and its controls.
+    const backBtn = h('button', { class: 'st-head-btn st-tb-back', type: 'button', 'aria-label': t('common.back'), 'data-tip': t('common.back'), disabled: true, onclick: () => goBack() }, icon('arrow-left', { size: 18 }));
+    const menuBtn = h('button', { class: 'st-head-btn st-tb-menu', type: 'button', 'aria-label': t('settings.navigation'), 'aria-expanded': 'false', onclick: () => setPaneOpen(!root.classList.contains('pane-open')) }, icon('list', { size: 18 }));
+    const header = h('header', { class: 'st-header' }, h('div', { class: 'st-head-btns' }, menuBtn, backBtn), h('div', { class: 'st-head-text' }, crumbsEl, titleEl));
     const errorHost = h('div', { class: 'st-errors' });
     const content = h('div', { class: 'st-content' });
     const scroller = h('div', { class: 'st-scroll', tabindex: '-1' }, h('div', { class: 'st-content-wrap' }, errorHost, content));
@@ -147,17 +151,9 @@ export default {
     const root = h('div', { class: 'st-root' }, pane, main, scrim);
     win.body.appendChild(root);
 
-    // Title bar: back arrow (and the nav button when the window is narrow).
-    const backBtn = h('button', { class: 'st-tb-btn st-tb-back', type: 'button', 'aria-label': t('common.back'), 'data-tip': t('common.back'), disabled: true, onclick: () => goBack() }, icon('arrow_left', { size: 16 }));
-    const menuBtn = h('button', { class: 'st-tb-btn st-tb-menu', type: 'button', 'aria-label': t('settings.navigation'), onclick: () => setPaneOpen(!root.classList.contains('pane-open')) }, icon('line_horizontal_3', { size: 16 }));
-    const tbHost = win.titlebar || win.el?.querySelector('.win-titlebar');
-    if (tbHost && win.iconEl) {
-      tbHost.insertBefore(backBtn, win.iconEl);
-      tbHost.insertBefore(menuBtn, win.iconEl);
-    } else win.titlebarSlot?.append(backBtn, menuBtn);
-
     function setPaneOpen(open) {
       root.classList.toggle('pane-open', !!open);
+      menuBtn.setAttribute('aria-expanded', String(!!open));
       if (open) setTimeout(() => pane.querySelector('.st-nav-item.selected')?.focus(), 50);
     }
     const ro = new ResizeObserver(() => {
@@ -505,8 +501,6 @@ export default {
           fn();
         } catch {}
       }
-      backBtn.remove();
-      menuBtn.remove();
     });
 
     // Dev builds simulate the system (admin actions, users…): refresh the visible page when it changes.

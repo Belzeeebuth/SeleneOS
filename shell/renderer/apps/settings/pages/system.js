@@ -25,7 +25,7 @@ async function hostname(pc) {
 }
 
 // Device name, edited in place: a field and a Rename button (enabled once the name changed).
-function nameEditor(pc, host, info, adm) {
+function nameEditor(pc, host, info, adm, { bare = false } = {}) {
   const { h, t, kit } = pc;
   const uid = Math.random().toString(36).slice(2, 8);
   const hintId = `st-host-hint-${uid}`;
@@ -73,10 +73,12 @@ function nameEditor(pc, host, info, adm) {
       btn.disabled = false;
     }
   }
+  // bare: inside the About list, whose line already names the field
+  if (bare) input.setAttribute('aria-label', t('about.deviceName'));
   return h(
     'div',
-    { class: 'st-host', dataset: { section: 'rename' } },
-    h('label', { class: 'st-sum-label', for: `st-host-${uid}` }, t('about.deviceName')),
+    { class: ['st-host', bare && 'bare'], dataset: { section: 'rename' } },
+    bare ? null : h('label', { class: 'st-sum-label', for: `st-host-${uid}` }, t('about.deviceName')),
     h('div', { class: 'st-host-edit' }, input, btn),
     hint,
   );
@@ -825,44 +827,45 @@ function specText(rows) {
 
 async function about(pc) {
   const { h, t, kit, api, icon } = pc;
-  const [info, host, adm] = await Promise.all([pc.tryInvoke('sys:info'), hostname(pc), pc.adminStatus()]);
+  const [info, host, adm, usage] = await Promise.all([pc.tryInvoke('sys:info'), hostname(pc), pc.adminStatus(), pc.tryInvoke('fs:usage', '/')]);
   const i = info || {};
   const archLabel = { x64: 'x64', arm64: 'ARM64', ia32: 'x86' }[i.arch] || i.arch || '';
-  const device = [
-    [t('about.deviceName'), host],
+  const upMin = Math.round((i.uptime || 0) / 60);
+  // One plain list, the device name first (edited in place), then everything else as key / value lines.
+  const rows = [
+    [t('about.osVersion'), `${i.osName || 'Selene OS'} ${i.version || pc.env.version || ''}`.trim()],
     [t('about.processor'), i.cpu ? `${i.cpu}${i.cores ? ` (${t('about.cores', { count: i.cores })})` : ''}` : '—'],
     [t('about.ram'), i.memTotal ? pc.fmtSize(i.memTotal) : '—'],
     [t('about.systemType'), t('about.systemTypeValue', { arch: archLabel })],
+    [t('about.storage'), usage?.size ? t('storage.usedOf', { used: pc.fmtSize(usage.used || 0), total: pc.fmtSize(usage.size) }) : '—'],
     [t('about.machine'), machineName(pc, i)],
-  ];
-  const upMin = Math.round((i.uptime || 0) / 60);
-  const osSpecs = [
-    [t('about.edition'), i.osName || 'Selene OS'],
-    [t('about.version'), i.version || pc.env.version || '—'],
     [t('about.build'), i.buildId || 'dev'],
     [t('about.base'), i.distro || 'Linux'],
     [t('about.kernel'), i.kernel || '—'],
     [t('about.uptime'), upMin >= 60 * 24 ? t('about.days', { count: Math.floor(upMin / 1440) }) + ' ' + fmtDuration(pc, upMin % 1440) : fmtDuration(pc, upMin)],
   ];
-  if (i.live) osSpecs.push([t('about.session'), t('about.liveSession')]);
-  const kv = (rows) => h('div', { class: 'st-kv st-sub-pad' }, rows.flatMap(([k, v]) => [h('div', { class: 'k' }, k), h('div', { class: 'v' }, v)]));
-  const copyBtn = (rows) =>
-    kit.button(t('about.copy'), async (e) => {
+  if (i.live) rows.push([t('about.session'), t('about.liveSession')]);
+  const copyBtn = kit.button(
+    t('about.copyAll'),
+    async (e) => {
       const b = e.currentTarget;
-      await api.invoke('clipboard:writeText', specText(rows)).catch(pc.toastError);
-      b.replaceChildren(icon('checkmark', { size: 16 }), t('about.copied'));
-      setTimeout(() => b.isConnected && b.replaceChildren(t('about.copy')), 1600);
-    });
-  const hero = h('section', { class: 'st-summary st-summary-about' }, nameEditor(pc, host, i, adm));
+      const ok = await api.invoke('clipboard:writeText', specText([[t('about.deviceName'), host], ...rows])).then(() => true, (err) => (pc.toastError(err), false));
+      if (!ok) return;
+      b.replaceChildren(icon('checkmark', { size: 16 }), h('span', null, t('about.copiedAll')));
+      setTimeout(() => b.isConnected && b.replaceChildren(icon('copy', { size: 16 }), h('span', null, t('about.copyAll'))), 1600);
+    },
+    { icon: 'copy', className: 'st-about-copy' },
+  );
+  const list = h(
+    'dl',
+    { class: 'st-about-list', dataset: { section: 'specs' }, 'aria-label': t('about.listLabel') },
+    h('div', { class: 'st-about-item st-about-name' }, h('dt', { class: 'k' }, t('about.deviceName')), h('dd', { class: 'v' }, nameEditor(pc, host, i, adm, { bare: true }))),
+    rows.map(([k, v]) => h('div', { class: 'st-about-item' }, h('dt', { class: 'k' }, k), h('dd', { class: 'v' }, v))),
+  );
   return h(
     'div',
     null,
-    hero,
-    kit.group(
-      null,
-      kit.expander({ icon: 'desktop_tower', title: t('about.deviceSpecs'), section: 'specs', control: copyBtn(device), open: true, body: () => kv(device) }),
-      kit.expander({ icon: 'info', title: t('about.osSpecs'), control: copyBtn(osSpecs), open: true, body: () => kv(osSpecs) }),
-    ),
+    h('section', { class: 'st-group st-about' }, h('div', { class: 'st-group-rows' }, list, h('div', { class: 'st-about-foot' }, copyBtn))),
     kit.related([
       { icon: 'arrow_sync', title: pc.pageTitle('update'), desc: t('about.relatedUpdate'), onClick: () => pc.go('update') },
       ...(pc.ctx.shell.registry?.get?.('winver') ? [{ icon: 'info', title: t('about.aboutAurora'), desc: t('about.aboutAuroraDesc'), onClick: () => pc.shell.launch('winver'), external: true }] : []),

@@ -30,6 +30,7 @@
   },
   "nav": {
    "open": "Open Navigation",
+   "mode": "Change mode",
    "close": "Close Navigation",
    "label": "Calculator modes",
    "calculator": "Calculator",
@@ -50,6 +51,8 @@
    "clear": "Clear all history (Ctrl+Shift+D)"
   },
   "memory": {
+   "button": "Memory",
+   "panel": "Memory keys",
    "empty": "There's nothing saved in memory",
    "clearItem": "Clear memory item",
    "addItem": "Add to memory item",
@@ -346,6 +349,7 @@
   },
   "nav": {
    "open": "Ouvrir la navigation",
+   "mode": "Changer de mode",
    "close": "Fermer la navigation",
    "label": "Modes de la calculatrice",
    "calculator": "Calculatrice",
@@ -366,6 +370,8 @@
    "clear": "Effacer tout l'historique (Ctrl+Maj+D)"
   },
   "memory": {
+   "button": "Mémoire",
+   "panel": "Touches de la mémoire",
    "empty": "Aucun élément enregistré en mémoire",
    "clearItem": "Effacer l'élément de la mémoire",
    "addItem": "Ajouter à l'élément de la mémoire",

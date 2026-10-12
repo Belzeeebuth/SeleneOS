@@ -30,11 +30,11 @@ function primaryTitle(pc, st) {
   return p.name || p.type;
 }
 
-function heroArt(pc, st) {
-  const { h, icon } = pc;
+// Icon of the connection status row: the Wi-Fi strength, a plug for Ethernet, or a crossed globe.
+function statusIcon(pc, st) {
   const p = st?.primary;
-  const main = !p?.type ? icon('globe_prohibited', { size: 52 }) : p.type === 'wifi' ? wifiGlyph(pc, p.strength ?? 100, false, 56) : icon('plug_connected', { size: 52 });
-  return h('div', { class: 'st-net-art', 'aria-hidden': 'true' }, main, p?.type && st.connectivity === 'full' ? h('span', { class: 'st-net-globe' }, icon('globe', { size: 22 })) : null);
+  if (!p?.type) return pc.icon('globe_prohibited', { size: 20 });
+  return p.type === 'wifi' ? wifiGlyph(pc, p.strength ?? 100, false, 20) : pc.icon('plug_connected', { size: 20 });
 }
 
 // ------------------------------------------------------------------ Network & internet (home)
@@ -42,13 +42,6 @@ async function network(pc) {
   const { h, t, kit, api } = pc;
   const root = h('div');
   let st = await pc.tryInvoke('net:status');
-  let ip = null;
-  const loadIp = async () => {
-    if (!st?.primary?.device) return (ip = null);
-    const d = await pc.tryInvoke('net:details', st.primary.device);
-    ip = d?.ipv4?.[0]?.split('/')[0] || null;
-  };
-  await loadIp();
 
   function paint() {
     pc.ui.clear(root);
@@ -57,27 +50,16 @@ async function network(pc) {
       return;
     }
     const p = st.primary || {};
-    const hero = h(
-      'div',
-      { class: 'st-net-hero' },
-      heroArt(pc, st),
-      h(
-        'div',
-        { class: 'st-hero-text' },
-        h('div', { class: 'st-hero-title' }, primaryTitle(pc, st)),
-        h('div', { class: 'st-hero-sub' }, statusText(pc, st)),
-        ip ? h('div', { class: 'caption text-2' }, t('net.ipAddress', { ip })) : null,
-      ),
-      h(
-        'div',
-        { class: 'st-net-props' },
-        p.type
-          ? h('button', { class: 'btn subtle', type: 'button', onclick: () => pc.go(p.type === 'wifi' ? 'wifi' : 'ethernet', p.type === 'wifi' ? 'props' : null) }, pc.icon('info', { size: 16 }), h('span', null, t('net.properties')))
-          : null,
-        h('button', { class: 'btn subtle', type: 'button', onclick: () => pc.go('advancedNetwork') }, pc.icon('data_usage', { size: 16 }), h('span', null, t('net.dataUsage'))),
-      ),
-    );
-    const rows = [];
+    // The connection is the first row of the list: its name, its state, and a button to its details.
+    const status = kit.row({
+      icon: statusIcon(pc, st),
+      title: primaryTitle(pc, st),
+      desc: statusText(pc, st),
+      section: 'status',
+      className: `st-net-status ${st.connectivity === 'full' ? 'online' : 'offline'}`,
+      control: kit.button(t('net.details'), () => (p.type ? pc.go(p.type === 'wifi' ? 'wifi' : 'ethernet', p.type === 'wifi' ? 'props' : null) : pc.go('advancedNetwork')), { className: 'st-net-details' }),
+    });
+    const rows = [status];
     const wifiDev = (st.devices || []).find((d) => d.type === 'wifi');
     if (wifiDev || st.wifiHardware) {
       rows.push(
@@ -107,12 +89,11 @@ async function network(pc) {
     rows.push(
       kit.row({ icon: PAGES.advancedNetwork.icon, title: L(pc, PAGES.advancedNetwork.title), desc: L(pc, PAGES.advancedNetwork.desc), onClick: () => pc.go('advancedNetwork') }),
     );
-    root.append(hero, kit.group(null, ...rows));
+    root.append(kit.group(null, ...rows));
   }
   paint();
   pc.on('net:changed', async (next) => {
     st = next || st;
-    await loadIp();
     paint();
   });
   return root;

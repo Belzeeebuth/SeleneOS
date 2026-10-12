@@ -129,7 +129,7 @@ class CalculatorApp {
   // ------------------------------------------------------------ DOM
   build() {
     const { h, icon, t } = this.ctx;
-    this.titleEl = h('h1', { class: 'calc-title', id: `${this.win.id}-calc-title` });
+    this.titleEl = h('span', { class: 'calc-title', id: `${this.win.id}-calc-title` });
     this.compactBtn = h(
       'button',
       { class: 'calc-iconbtn calc-compact-btn', type: 'button', 'data-key': 'compact', 'aria-label': t('compact.enter'), 'data-tip': t('compact.enterTip'), onclick: (e) => this.setCompact(true, e.detail === 0) },
@@ -145,12 +145,21 @@ class CalculatorApp {
       { class: 'calc-iconbtn calc-history-btn', type: 'button', 'data-key': 'history', 'aria-label': t('history.open'), 'data-tip': t('history.openTip'), onclick: (e) => this.togglePaneFlyout('history', e.detail === 0) },
       icon('history', { size: 16 }),
     );
+    // Mode switcher: a compact dropdown (the current mode and a caret) that opens the list of modes.
     this.hamburger = h(
       'button',
-      { class: 'calc-iconbtn calc-ham', type: 'button', 'data-key': 'nav', 'aria-label': t('nav.open'), 'aria-expanded': 'false', 'data-tip': t('nav.open'), onclick: (e) => this.openNav(e.detail === 0) },
-      icon('line_horizontal_3', { size: 16 }),
+      { class: 'calc-modebtn', type: 'button', 'data-key': 'nav', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'data-tip': t('nav.mode'), onclick: (e) => this.openNav(e.detail === 0) },
+      this.titleEl,
+      icon('caret-down', { size: 14, class: 'calc-modebtn-chev' }),
     );
-    this.header = h('header', { class: 'calc-header' }, this.backBtn, this.hamburger, this.titleEl, this.compactBtn, h('div', { class: 'grow' }), this.historyBtn);
+    // Memory keys (MC MR M+ M− MS M▾) stay out of the way until this button shows them.
+    this.memBtn = h(
+      'button',
+      { class: 'calc-textbtn calc-mem-btn', type: 'button', 'data-key': 'memory-panel', 'aria-expanded': 'false', onclick: (e) => this.toggleMemPanel(undefined, e.detail === 0) },
+      icon('memory', { size: 16 }),
+      h('span', null, t('memory.button')),
+    );
+    this.header = h('header', { class: 'calc-header' }, this.backBtn, this.hamburger, this.compactBtn, h('div', { class: 'grow' }), this.memBtn, this.historyBtn);
     this.stage = h('div', { class: 'calc-stage', role: 'region', 'aria-labelledby': this.titleEl.id });
     this.main = h('div', { class: 'calc-main' }, this.header, this.stage);
     this.pane = h('aside', { class: 'calc-pane', 'aria-label': t('pane.label') });
@@ -179,16 +188,10 @@ class CalculatorApp {
       ...CALC_MODES.map((m) => item(m.id, m.icon, t(`mode.${m.id}`))),
       ...CATEGORIES.map((c) => item(`conv-${c.id}`, c.icon, t(`conv.cat.${c.id}`))),
     ];
-    const navHam = h(
-      'button',
-      { class: 'calc-iconbtn calc-ham', type: 'button', 'aria-label': t('nav.close'), onclick: () => this.closeNav() },
-      icon('line_horizontal_3', { size: 16 }),
-    );
     const about = h('button', { class: 'calc-nav-item', type: 'button', 'data-mode': 'about', onclick: () => (this.closeNav(), this.showAbout()) }, icon('info', { size: 16 }), h('span', { class: 'ellipsis' }, t('nav.about')));
     this.nav = h(
       'nav',
       { class: 'calc-nav', 'aria-label': t('nav.label'), role: 'menu', tabindex: '-1' },
-      h('div', { class: 'calc-nav-top' }, navHam),
       h(
         'div',
         { class: 'calc-nav-list' },
@@ -225,6 +228,7 @@ class CalculatorApp {
     this.backBtn?.remove(); // may live in the window title bar while compact
     this.root.remove();
     this.build();
+    if (this.memOpen) this.toggleMemPanel(true);
     this.root.classList.toggle('compact', wasCompact);
     this.placeBackButton();
     this.setMode(this.S.mode, { animate: false });
@@ -298,6 +302,7 @@ class CalculatorApp {
     this.root.classList.toggle('docked', docked);
     this.root.classList.toggle('narrow', this.win.body.clientWidth < 400);
     this.historyBtn.hidden = docked || this.compact || !this.view.historyKind;
+    this.memBtn.hidden = this.compact || this.view.memoryKind !== 'dec';
     if (docked !== wasDocked) {
       this.closePaneFlyout(true);
       this.renderPane();
@@ -308,6 +313,15 @@ class CalculatorApp {
 
   onFocus() {
     if (!this.root.contains(document.activeElement)) this.root.focus({ preventScroll: true });
+  }
+
+  // ------------------------------------------------------------ memory keys panel
+  toggleMemPanel(open = !this.memOpen, viaKeyboard = false) {
+    this.memOpen = !!open;
+    this.root.classList.toggle('mem-open', this.memOpen);
+    this.memBtn.setAttribute('aria-expanded', String(this.memOpen));
+    this.memBtn.classList.toggle('on', this.memOpen);
+    if (this.memOpen && viaKeyboard) setTimeout(() => this.root.querySelector('.calc-memrow .calc-mem:not(:disabled)')?.focus({ preventScroll: true }), 30);
   }
 
   // ------------------------------------------------------------ navigation pane

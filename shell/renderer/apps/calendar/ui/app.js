@@ -472,8 +472,9 @@ export class CalendarApp {
   // ------------------------------------------------------------------ menus
   viewMenu(e) {
     const t = this.t;
+    // a dropdown: open under its button (not at the pointer), the same for mouse and keyboard
     this.ctx.ui.menu(
-      e,
+      e?.currentTarget || this.viewMenuBtn,
       VIEWS.map((v, i) => ({ label: t(`view.${v}`), icon: VIEW_ICONS[v], shortcut: String(i + 1), checked: this.state.view === v, action: () => this.setView(v) })),
     );
   }

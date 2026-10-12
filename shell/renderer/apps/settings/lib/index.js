@@ -19,7 +19,7 @@ export const NAV = [...NAV_GROUPS.flatMap((g) => g.items), NAV_ACCOUNT];
 
 export const PAGES = {
   // System
-  system: { module: 'system', icon: 'desktop', title: { en: 'System', fr: 'Système' } },
+  system: { module: 'system', icon: 'desktop', title: { en: 'Overview', fr: 'Vue d’ensemble' } },
   display: { module: 'system', icon: 'desktop', title: { en: 'Display', fr: 'Écran' }, desc: { en: 'Resolution, scale, brightness, night light', fr: 'Résolution, échelle, luminosité, éclairage nocturne' } },
   sound: { module: 'system', icon: 'speaker_2', title: { en: 'Sound', fr: 'Son' }, desc: { en: 'Volume levels, output, input, sound devices', fr: 'Niveaux de volume, sortie, entrée, périphériques audio' } },
   notifications: { module: 'system', parent: 'system', icon: 'alert', title: { en: 'Notifications', fr: 'Notifications' }, desc: { en: 'Alerts from apps and system, do not disturb', fr: 'Alertes des applications et du système, ne pas déranger' } },
@@ -233,7 +233,7 @@ const ENTRIES = [
   ['clipboard', null, 'clipboard_paste', 'Clipboard history', 'Historique du Presse-papiers', 'copy paste win+v', 'copier coller'],
   ['about', null, 'info', 'About', 'À propos', 'specifications version build system information', 'caractéristiques version build informations système'],
   ['about', 'rename', 'rename', 'Device name', 'Nom de l’appareil', 'rename hostname computer name pc', 'renommer nom de l’ordinateur hôte pc'],
-  ['about', 'specs', 'desktop_tower', 'Device specifications', 'Caractéristiques de l’appareil', 'processor cpu ram memory', 'processeur mémoire'],
+  ['about', 'specs', 'desktop_tower', 'Device information', 'Informations sur l’appareil', 'processor cpu ram memory specifications copy', 'processeur mémoire caractéristiques copier'],
   ['bluetooth', null, 'bluetooth', 'Devices', 'Appareils', 'bluetooth pair', 'bluetooth jumeler'],
   ['mouse', null, 'cursor', 'Mouse', 'Souris', 'pointer speed buttons touchpad', 'pointeur vitesse boutons pavé tactile'],
   ['mouse', 'primary', 'cursor_click', 'Primary mouse button', 'Bouton principal de la souris', 'left handed swap', 'gaucher inverser'],

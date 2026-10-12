@@ -719,13 +719,13 @@
 .app-clock .ck-alarm-days {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 2px;
   margin-top: 6px;
 }
 .app-clock .ck-chip {
   font-size: var(--fs-caption);
   line-height: 16px;
-  padding: 2px 6px;
+  padding: 2px 5px;
   border-radius: var(--radius-sm);
   color: var(--text-2); /* readable (4.5:1); selected days stand out by colour, weight and fill */
 }
@@ -782,7 +782,6 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-width: 880px;
 }
 .app-clock .ck-timer:not(.big) {
   position: relative;
