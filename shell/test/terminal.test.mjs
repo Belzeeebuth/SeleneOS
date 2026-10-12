@@ -812,10 +812,11 @@ async function uiTests() {
       check('opacity -> translucent background', (await bg()).view, 'rgba(12, 12, 12, 0.7)');
       await TM(s, (app) => app.prefs.set('acrylic', true));
       await sleep(100);
-      // Selene windows never blur (blur is reserved for the bar, the Lanceur and the panels): the
-      // acrylic option keeps an opaque window surface.
+      // Windows never blur live (blur is reserved for the bar, the Lanceur and the panels): with the acrylic option the
+      // window surface stays opaque in the Sobre theme, and is the theme's pre-blurred glass (Mica-like) in Halo / Prisme.
+      const finish = await run(s, `document.documentElement.dataset.finish`);
       check('acrylic option: no window blur', await run(s, `getComputedStyle(document.querySelector('${WIN}')).backdropFilter`), (v) => !/blur/.test(v));
-      check('acrylic option: opaque window surface', await run(s, `getComputedStyle(document.querySelector('${WIN}')).backgroundColor`), (v) => /^rgb\(/.test(v));
+      check(`acrylic option: window surface opaque (Sobre) or theme glass (${finish})`, await run(s, `getComputedStyle(document.querySelector('${WIN}')).backgroundColor`), (v) => (finish === 'sobre' ? /^rgb\(/.test(v) : /^rgba?\(/.test(v)));
       await TM(s, (app) => {
         app.prefs.set('acrylic', false);
         app.prefs.set('opacity', 100);
@@ -1539,7 +1540,7 @@ async function ambianceTests() {
 
   const home = makeHome();
   // Clair de lune written straight into the settings file (no follow rule): its own accent and ambiance apply.
-  const s = await launchShell({ open: ['terminal'], lang: 'fr', theme: 'light', home, size: '1280x720', settings: { style: 'clairdelune' } });
+  const s = await launchShell({ open: ['terminal'], lang: 'fr', theme: 'light', home, size: '1280x720', settings: { style: 'clairdelune', finish: 'sobre' } }); // the Sobre theme's Clair de lune accents (Halo / Prisme have their own)
   recover = async () => {
     await closeMenus(s).catch(() => {});
   };
