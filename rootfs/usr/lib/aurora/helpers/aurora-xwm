@@ -114,6 +114,12 @@ SYSTEM_COMBOS = {'Alt+Tab', 'Alt+Shift+Tab', 'Ctrl+Alt+Tab', 'Alt+F4', 'Ctrl+Alt
 # For these the shell gets X focus before the event, so the Alt / Super release reaches its page.
 FOCUS_SHELL_FIRST = {'Alt+Tab', 'Alt+Shift+Tab', 'Super', 'Super+Tab'}
 
+def autorepeat_pair(release_time, press_time):
+    """X autorepeat sends a release and a press of the held key together, with one timestamp (the two
+    can land on consecutive milliseconds: SDL allows the same). No hand or keyboard re-presses that fast."""
+    return (press_time - release_time) & 0xFFFFFFFF <= 1
+
+
 WINDOW_TYPES = {'_NET_WM_WINDOW_TYPE_NORMAL': 'normal', '_NET_WM_WINDOW_TYPE_DIALOG': 'dialog',
                 '_NET_WM_WINDOW_TYPE_UTILITY': 'utility', '_NET_WM_WINDOW_TYPE_SPLASH': 'splash',
                 '_NET_WM_WINDOW_TYPE_TOOLBAR': 'toolbar'}
@@ -205,6 +211,7 @@ class XWM(object):
         self.keys_grabbed = False
         self.super_down = False
         self.super_used = False
+        self.super_release = None  # (keycode, time) of a Super release not yet known to be a real one
         self.last_release = {}
         self.drag = None
         self.last_time = X.CurrentTime
@@ -593,6 +600,26 @@ class XWM(object):
             parts.append('Shift')
         return '+'.join(parts + [name])
 
+    # A Super release is held back until the next event: X autorepeat (on when the keymap or `xset r`
+    # makes Super repeat) turns a held key into release + press pairs with one timestamp. Sending 'Super'
+    # on such a release opened the Lanceur while the key was still down, gave the shell X focus, and the
+    # real release then reached Chromium, which sent 'Super' again: open, then close, for one press.
+    def super_pending(self, e):
+        """Called before each event (e) and with e=None once the queue is empty."""
+        if self.super_release is None:
+            return
+        if e is not None and e.type not in (X.KeyPress, X.KeyRelease, X.ButtonPress):
+            return  # e.g. the FocusIn / FocusOut the end and restart of the passive key grab make in between
+        if e is not None and e.type == X.KeyPress and e.detail == self.super_release[0] \
+                and autorepeat_pair(self.super_release[1], e.time):
+            self.super_release = None  # autorepeat: the key is still down
+            return
+        self.super_release = None
+        if self.super_down and not self.super_used:
+            self.focus_shell()
+            emit('key', combo='Super', repeat=False)
+        self.super_down = self.super_used = False
+
     def on_key(self, e, press):
         ks = self.d.keycode_to_keysym(e.detail, 0)
         if self.debug:
@@ -601,13 +628,16 @@ class XWM(object):
             self.last_release[e.detail] = e.time
             if ks in SUPER_KEYSYMS:
                 if self.super_down and not self.super_used:
-                    self.focus_shell()
-                    emit('key', combo='Super', repeat=False)
-                self.super_down = self.super_used = False
+                    # A tap, unless the server's autorepeat sent this release: then a press of the same key
+                    # with the same timestamp follows at once (see super_pending). Decided by that event.
+                    self.super_release = (e.detail, e.time)
+                else:
+                    self.super_down = self.super_used = False
             elif ks in ALT_KEYSYMS:
                 emit('key', combo='Alt:up', repeat=False)
             return
-        repeat = self.last_release.get(e.detail) == e.time
+        last = self.last_release.get(e.detail)
+        repeat = last is not None and autorepeat_pair(last, e.time)
         if ks in SUPER_KEYSYMS:
             if not repeat:
                 self.super_down, self.super_used = True, False
@@ -717,6 +747,8 @@ class XWM(object):
                 log('debug', 'focus%s 0x%x detail=%d mode=%d' % ('in' if t == X.FocusIn else 'out', e.window.id, e.detail, e.mode))
             self.refresh_focus()
         elif t == X.ButtonPress:
+            if self.super_down:
+                self.super_used = True  # Super+click is not a Super tap (as in shell/main/lib/hotkeys.js)
             wid = e.window.id
             c = None if self.drag else self.clients.get(wid)
             try:
@@ -964,6 +996,7 @@ class XWM(object):
                 while self.d.pending_events():
                     e = self.d.next_event()
                     try:
+                        self.super_pending(e)
                         self.handle(e)
                     except error.XError as exc:
                         log('debug', 'event %d: X error %s' % (e.type, exc.__class__.__name__))
@@ -971,6 +1004,16 @@ class XWM(object):
                         raise
                     except Exception as exc:  # never die on one bad event
                         log('error', 'event %d: %s: %s' % (e.type, exc.__class__.__name__, exc))
+                if self.super_release is not None:
+                    # The server makes an autorepeat press together with its release: after one round
+                    # trip it is in the queue. Nothing there: the release was a real one (a tap).
+                    self.d.sync()
+                    if self.d.pending_events():
+                        continue
+                    try:
+                        self.super_pending(None)
+                    except error.XError as exc:
+                        log('debug', 'super: X error %s' % exc.__class__.__name__)
                 errs = self.__dict__.get('xerrors')
                 if errs:
                     self.xerrors = []

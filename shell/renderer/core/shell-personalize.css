@@ -599,56 +599,61 @@
   filter: invert(1);
 }
 
-/* ------------------------------------------------------------------ desktop icons (Selene): rounded plates, labels
-   readable on any wallpaper (a soft dark halo, and a subtle plate on hover / selection), accent selection, a visible
-   keyboard focus ring. The labels are always light: they sit on the wallpaper, not on a themed surface. */
+/* ------------------------------------------------------------------ desktop icons (Selene): no tile and no label
+   plate. The symbol stands on the wallpaper (Ordinateur and Corbeille: a flat duotone symbol drawn by core/desktop.js;
+   files keep their file-type icons, the installer its app icon) and the name is plain text with a soft halo: light
+   text over a dark shadow on a dark wallpaper, dark text inside a light halo on a light one. Each icon carries the
+   tone of the wallpaper behind it (data-theme, set by core/desktop.js; a theme scope when it differs from the system
+   mode), so the tokens below are those of that tone. At rest nothing is drawn behind an icon; hover is a faint
+   overlay, the selection an accent-subtle highlight, keyboard focus a ring. Contraste élevé puts the names on a solid
+   plate (styles/contrast.css). */
 #desktop .desk-icon {
-  gap: 4px;
-  padding: 6px 4px 4px;
+  gap: 6px;
+  padding: 6px 2px;
   border: 0;
   border-radius: var(--radius-lg);
+  color: var(--text);
   font-family: var(--font);
 }
 #desktop .desk-icon:hover {
-  background: rgb(var(--shadow-rgb) / 0.26);
+  background: var(--subtle-hover);
 }
 #desktop .desk-icon.selected,
 #desktop .desk-icon.drop-target {
-  background: color-mix(in srgb, var(--accent-base) 34%, rgb(var(--shadow-rgb) / 0.42));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-base) 70%, transparent);
+  background: var(--accent-subtle);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+/* an expanded name (selected and focused: up to 5 lines) is drawn above the icon below it */
+#desktop .desk-icon.selected:focus {
+  z-index: 2;
+}
+/* ... and a long name (data-long, core/desktop.js) would then run over that icon: the highlight gets the surface below
+   its accent tint, so the opened name never mixes with the picture underneath */
+#desktop .desk-icon.selected:focus[data-long] {
+  background: linear-gradient(var(--accent-subtle), var(--accent-subtle)), var(--surface);
 }
 #desktop .desk-icon:focus-visible {
-  outline: 2px solid currentColor;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 0;
-  box-shadow: 0 0 0 4px rgb(var(--shadow-rgb) / 0.55);
+}
+#desktop[data-pointer] .desk-icon:focus-visible {
+  outline: 0;
 }
 #desktop .desk-ico {
-  filter: drop-shadow(0 2px 4px rgb(var(--shadow-rgb) / 0.4));
+  filter: drop-shadow(0 1px 2px rgb(var(--shadow-rgb) / 0.45));
+}
+#desktop .desk-icon[data-theme="light"] .desk-ico {
+  filter: drop-shadow(0 0 1px color-mix(in srgb, var(--bg) 75%, transparent)) drop-shadow(0 1px 2px rgb(var(--shadow-rgb) / 0.14));
 }
 #desktop .desk-label {
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
+  padding: 0 1px;
+  background: none;
+  color: var(--text);
   font-size: var(--fs-caption);
   font-weight: 500;
   line-height: 16px;
-  text-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.95), 0 0 6px rgb(var(--shadow-rgb) / 0.6);
+  text-shadow: 0 0 1px rgb(var(--shadow-rgb) / 0.9), 0 1px 2px rgb(var(--shadow-rgb) / 0.9), 0 0 6px rgb(var(--shadow-rgb) / 0.6);
 }
-#desktop .desk-icon.selected .desk-label,
-#desktop .desk-icon:hover .desk-label {
-  text-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.9);
-}
-/* Readable on the light wallpapers too: the label sits on a soft plate of the ambiance's shadow tone — subtle over the
-   night wallpapers, denser in light mode (dawn and pale wallpapers), where white text alone would fade (≥ 4.5:1 over
-   a white wallpaper at 0.7). */
-#desktop .desk-label {
-  background: rgb(var(--shadow-rgb) / 0.32);
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-}
-:root[data-theme="light"] #desktop .desk-label {
-  background: rgb(var(--shadow-rgb) / 0.7);
-  text-shadow: none;
-}
-#desktop .desk-icon.selected .desk-label {
-  background: transparent;
+#desktop .desk-icon[data-theme="light"] .desk-label {
+  text-shadow: 0 0 1px var(--bg), 0 0 2px var(--bg), 0 0 6px color-mix(in srgb, var(--bg) 85%, transparent);
 }

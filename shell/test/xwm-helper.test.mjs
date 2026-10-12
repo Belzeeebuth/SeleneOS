@@ -234,6 +234,50 @@ async function main() {
   const clickFocus = await wm.wait((e) => e.ev === 'focus' && e.id === XT, 4000, m);
   check('clicking a client focuses it', !!clickFocus && focusNow() === XT, { events: wm.lines.slice(m), focus: focusNow() });
 
+  // ---- one Super press = one Super tap ------------------------------------------------------
+  // X autorepeat (when the keymap or `xset r` lets Super repeat) turns a held key into release + press
+  // pairs with one timestamp. No 'Super' may come before the real release (that opened the Lanceur while
+  // the key was down, moved focus to the shell, and the real release then toggled it a second time).
+  const superKeys = (from) => wm.events().slice(from).filter((e) => e.ev === 'key').map((e) => e.combo);
+  let held = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await focusClient(XT);
+    const mk = wm.mark();
+    await shell.cmd('down Super_L');
+    await sleep(150);
+    await shell.cmd('autorepeat Super_L');
+    await sleep(80);
+    await shell.cmd('autorepeat Super_L');
+    await sleep(400);
+    const early = superKeys(mk);
+    await shell.cmd('up Super_L');
+    await wm.wait((e) => e.ev === 'key' && e.combo === 'Super', 2500, mk);
+    await sleep(300);
+    held = { early, all: superKeys(mk) };
+    if (!early.length) break;
+    console.log('  (retrying held Super)', JSON.stringify(held), wm.lines.slice(mk).filter((l) => /key/.test(l)).join(' | '));
+  }
+  check('held Super with autorepeat: no Super before the release', !!held && held.early.length === 0, held);
+  check('held Super with autorepeat: exactly one Super, after the release', !!held && held.all.length === 1 && held.all[0] === 'Super', held);
+  check('held Super with autorepeat: focus moves to the shell once', focusNow() === shell.id, focusNow());
+  await focusClient(XT);
+  m = wm.mark();
+  await shell.cmd('keys Super_L');
+  await wm.wait((e) => e.ev === 'key' && e.combo === 'Super', 2500, m);
+  await sleep(400);
+  check('Super tap -> exactly one key event', JSON.stringify(superKeys(m)) === '["Super"]', superKeys(m));
+  // Super held while clicking a client is not a tap (shell/main/lib/hotkeys.js does the same for the shell).
+  await focusClient(XT);
+  m = wm.mark();
+  await shell.cmd('down Super_L');
+  await sleep(100);
+  xdo('mousemove', '300', '245');
+  xdo('click', '1');
+  await wm.wait((e) => e.ev === 'click', 2500, m);
+  await shell.cmd('up Super_L');
+  await sleep(500);
+  check('Super+click on a client -> no Super tap', !superKeys(m).includes('Super'), wm.lines.slice(m));
+
   // ---- configure requests --------------------------------------------------------------------
   m = wm.mark();
   xdo('windowsize', String(XT), '300', '200');

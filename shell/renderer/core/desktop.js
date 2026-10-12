@@ -15,7 +15,10 @@ import { settings } from './settings.js';
 import { i18n, t } from './i18n.js';
 import { shell } from './services.js';
 import { registry } from './registry.js';
-import { theme } from './theme.js';
+import { theme, styleAccentVars } from './theme.js';
+import { iconInner } from './icons.js';
+import { ICON_LOOKS, lookKey, mix } from './app-icon-art.js';
+import { APP_GLYPHS } from './app-glyphs.js';
 
 const DND_MIME = 'application/x-aurora-paths';
 
@@ -198,11 +201,148 @@ function firstFreeCell(occupied, rows, from = 0) {
   return [Math.floor(i / rows), i % rows];
 }
 
+// ---------------------------------------------------------------- Ordinateur and Corbeille pictures
+// On the desktop the two special items are a flat duotone symbol with no tile behind it: the Phosphor glyph's outline
+// over its filled shape at low opacity, drawn in the look's colours (core/app-icon-art.js: the item's palette slot, so
+// no blue outside the cold ambiance). Dark mode: a light outline over a tinted body, for the night wallpapers; light
+// mode: the look's dark ink over a tinted body, for the pale ones; Contraste élevé: the style's ink alone. The mode is
+// the tone of the wallpaper behind the icon (see "label tone" below). The other icon packs keep the static files
+// (Fichiers draws them too), which packs.js maps to the pack.
+const SPECIAL_ART = {
+  thispc: { glyph: 'desktop', file: 'app://shell/assets/icons/this-pc.svg' },
+  trash: { glyph: 'trash', file: 'app://shell/assets/icons/recycle-bin.svg' },
+};
+const artCache = new Map();
+function specialArt(which, tone = rootMode()) {
+  const def = SPECIAL_ART[which];
+  const d = document.documentElement.dataset;
+  if (d.iconPack && d.iconPack !== 'selene') return def.file;
+  const look = lookKey({ style: d.style, ambiance: d.ambiance, theme: tone });
+  const key = `${which}|${look}`;
+  if (artCache.has(key)) return artCache.get(key);
+  const line = iconInner(def.glyph).inner;
+  const body = iconInner(def.glyph, { weight: 'fill' }).inner;
+  if (!line || !body) return def.file; // Phosphor not loaded yet
+  const [amb, mode] = look.split('-');
+  let layers;
+  if (amb === 'contrast') {
+    layers = `<g fill="${ICON_LOOKS.contrast[mode === 'light' ? 'light' : 'dark'].ink}">${line}</g>`;
+  } else {
+    const L = ICON_LOOKS[amb] || ICON_LOOKS.cold;
+    const hue = L.hues[APP_GLYPHS[`special:${which}`]?.hue] || L.hues.silver;
+    const dark = mode !== 'light';
+    // the outline is the light symbol colour of the app icons (dark) or the dark tile colour (light)
+    const ink = dark ? mix(hue, '#ffffff', 0.4) : L.light[1];
+    layers = `<g fill="${hue}" fill-opacity="${dark ? 0.32 : 0.62}">${body}</g><g fill="${ink}">${line}</g>`;
+  }
+  // the glyphs sit in a 256 box with a 16-24 unit margin: cropped so the symbol is ~44 px in a 48 px picture
+  const url = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 232 232" width="48" height="48">${layers}</svg>`)}`;
+  artCache.set(key, url);
+  return url;
+}
+
+// ---------------------------------------------------------------- label tone
+// The names have no plate, so each icon takes the mode whose text reads on the wallpaper right behind it. The wallpaper
+// is sampled once into a small luminance map laid out like the screen (same fit as .wallpaper-layer). An icon over a
+// light area gets data-theme="light" (dark text in a light halo, a dark symbol), over a dark one data-theme="dark"
+// (light text over a dark shadow); when that differs from the system mode the icon also becomes a theme scope
+// (data-theme-scope, with that mode's accent), so every token it reads is the one of its tone. The system mode is kept
+// unless the area clearly calls for the other one, so the built-in wallpapers (night pictures in dark mode, pale ones in
+// light mode) keep the look of their mode. No map (a picture the canvas cannot read, a video): the system mode.
+const rootMode = () => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
+const TONE_W = 96;
+let wallLum = null; // { w, h, data: Float32Array } relative luminance per map cell
+function sampleWall(img) {
+  try {
+    const iw = img?.naturalWidth;
+    const ih = img?.naturalHeight;
+    if (!iw || !ih || !innerWidth || !innerHeight) return null;
+    const W = TONE_W;
+    const H = Math.max(1, Math.round((W * innerHeight) / innerWidth));
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.fillStyle = getComputedStyle(wallEl).backgroundColor;
+    g.fillRect(0, 0, W, H);
+    const k1 = W / innerWidth; // screen px -> map px
+    const fit = wallEl.dataset.fit;
+    const place = (k) => g.drawImage(img, (W - iw * k) / 2, (H - ih * k) / 2, iw * k, ih * k);
+    if (fit === 'stretch') g.drawImage(img, 0, 0, W, H);
+    else if (fit === 'fit') place(Math.min(W / iw, H / ih));
+    else if (fit === 'center') place(k1);
+    else if (fit === 'tile') {
+      const pat = g.createPattern(img, 'repeat');
+      pat.setTransform(new DOMMatrix().scale(k1));
+      g.fillStyle = pat;
+      g.fillRect(0, 0, W, H);
+    } else place(Math.max(W / iw, H / ih));
+    const px = g.getImageData(0, 0, W, H).data;
+    const lin = (v) => ((v /= 255) <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+    const data = new Float32Array(W * H);
+    for (let i = 0; i < data.length; i++) data[i] = 0.2126 * lin(px[i * 4]) + 0.7152 * lin(px[i * 4 + 1]) + 0.0722 * lin(px[i * 4 + 2]);
+    return { w: W, h: H, data };
+  } catch {
+    return null; // a picture from another origin taints the canvas
+  }
+}
+/** 'light' | 'dark': the mode an icon's name reads in, from the wallpaper luminance under its cell. */
+function toneOf(el) {
+  const mode = rootMode();
+  if (!wallLum || el._x == null) return mode;
+  const box = iconsBox.getBoundingClientRect();
+  const s = size();
+  const kx = wallLum.w / innerWidth;
+  const ky = wallLum.h / innerHeight;
+  const x0 = Math.max(0, Math.floor((box.left + el._x) * kx));
+  const x1 = Math.min(wallLum.w, Math.ceil((box.left + el._x + s.w) * kx));
+  const y0 = Math.max(0, Math.floor((box.top + el._y) * ky));
+  const y1 = Math.min(wallLum.h, Math.ceil((box.top + el._y + s.h) * ky));
+  let sum = 0;
+  let n = 0;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) (sum += wallLum.data[y * wallLum.w + x]), n++;
+  if (!n) return mode;
+  const L = sum / n;
+  // light text (L ≈ 0.8) and dark text (L ≈ 0.01) read equally well at L ≈ 0.18: switch only well past it
+  return mode === 'dark' ? (L > 0.3 ? 'light' : 'dark') : L < 0.08 ? 'dark' : 'light';
+}
+function applyTone(el) {
+  const tone = toneOf(el);
+  const scoped = tone !== rootMode();
+  el.dataset.theme = tone;
+  el.toggleAttribute('data-theme-scope', scoped);
+  // a name longer than 2 lines opens over the icon below when selected and focused: the CSS then makes the highlight
+  // opaque (scrollHeight is the full text, clamped or not)
+  const lab = el.querySelector('.desk-label');
+  if (lab) el.toggleAttribute('data-long', lab.scrollHeight > 2 * (parseFloat(getComputedStyle(lab).lineHeight) || 16) + 2);
+  // the accent of that mode (theme.js writes the system mode's on <html> only); kept current on accent / style changes
+  for (const [k, v] of Object.entries(styleAccentVars(document.documentElement.dataset.style, settings.get('accent'), tone))) {
+    if (scoped) el.style.setProperty(k, v);
+    else el.style.removeProperty(k);
+  }
+  const it = SPECIAL_ART[el.dataset.special] ? itemById(el.dataset.id) : null;
+  if (it) {
+    it.img = specialArt(el.dataset.special, tone);
+    const img = el.querySelector('img.desk-img');
+    if (img && img.getAttribute('src') !== it.img) img.setAttribute('src', it.img);
+  }
+}
+/** Re-tone every icon (after a render, a change of look, mode, icon pack or wallpaper: same frame as theme.js). */
+function applyTones() {
+  if (!iconsBox) return;
+  for (const el of iconsBox.querySelectorAll('.desk-icon')) applyTone(el);
+}
+let wallImg = null;
+function resampleWall() {
+  wallLum = sampleWall(wallImg);
+  applyTones();
+}
+
 // ---------------------------------------------------------------- items
 function specialItems() {
   const list = [
-    { id: 'special:thispc', label: t('desktop.thisPc'), img: 'app://shell/assets/icons/this-pc.svg', special: 'thispc', open: () => shell.launch('files', { path: 'thispc' }) },
-    { id: 'special:trash', label: t('desktop.recycleBin'), img: 'app://shell/assets/icons/recycle-bin.svg', special: 'trash', open: () => shell.launch('files', { path: 'trash' }) },
+    { id: 'special:thispc', label: t('desktop.thisPc'), img: specialArt('thispc'), special: 'thispc', open: () => shell.launch('files', { path: 'thispc' }) },
+    { id: 'special:trash', label: t('desktop.recycleBin'), img: specialArt('trash'), special: 'trash', open: () => shell.launch('files', { path: 'trash' }) },
   ];
   if (env.live && registry.get('installer')) {
     list.push({ id: 'special:installer', label: t('desktop.installAurora'), img: registry.iconUrl('installer'), special: 'installer', open: () => shell.launch('installer') });
@@ -315,6 +455,7 @@ async function render() {
   }
   for (const el of existing.values()) el.remove();
   for (const el of frag) if (!el.isConnected) iconsBox.appendChild(el);
+  applyTones();
 }
 
 function buildIcon(it) {
@@ -325,7 +466,7 @@ function buildIcon(it) {
       role: 'option',
       tabindex: '-1',
       draggable: 'true',
-      dataset: { id: it.id, special: it.special || '' },
+      dataset: { id: it.id, special: it.special || '', theme: rootMode() },
       'aria-label': it.label,
       ondblclick: () => !renaming && it.open(),
     },
@@ -648,6 +789,8 @@ async function refresh() {
 
 // ---------------------------------------------------------------- pointer: selection + rubber band
 function onPointerDown(e) {
+  // the focus ring is for the keyboard: a click focuses the icon from script, which Chromium may still mark :focus-visible
+  root.toggleAttribute('data-pointer', true);
   if (e.button !== 0 && e.button !== 2) return;
   const iconEl = e.target.closest('.desk-icon');
   if (iconEl) {
@@ -922,12 +1065,14 @@ async function setWallpaper(url, animate = true) {
   wallUrl = url;
   const layer = h('div', { class: 'wallpaper-layer' });
   layer.style.backgroundImage = `url("${url}")`;
+  const img = new Image();
   try {
-    const img = new Image();
     img.src = url;
     await img.decode();
   } catch {}
   if (url !== wallUrl) return; // superseded meanwhile
+  wallImg = img;
+  resampleWall();
   const old = [...wallEl.children];
   wallEl.appendChild(layer);
   if (!animate || reduceMotion() || !old.length) {
@@ -957,7 +1102,10 @@ export const desktop = {
     applyFit();
     setWallpaper(theme.wallpaperUrl, false);
     theme.on('wallpaper', (url) => setWallpaper(url, true));
-    settings.on('wallpaperFit', applyFit);
+    settings.on('wallpaperFit', () => {
+      applyFit();
+      resampleWall();
+    });
 
     root.addEventListener('contextmenu', (e) => {
       e.preventDefault();
@@ -971,6 +1119,7 @@ export const desktop = {
     });
     root.addEventListener('pointerdown', onPointerDown);
     root.addEventListener('keydown', onKey);
+    root.addEventListener('keydown', () => root.removeAttribute('data-pointer'), true);
     root.addEventListener('dragstart', onDragStart);
     root.addEventListener('dragend', onDragEnd);
     root.addEventListener('dragover', onDragOver);
@@ -995,11 +1144,16 @@ export const desktop = {
     });
     settings.on('desktopIcons', render);
     settings.on('desktopIconSize', () => render());
+    settings.on('accent', applyTones);
+    new MutationObserver(applyTones).observe(document.documentElement, { attributes: true, attributeFilter: ['data-ambiance', 'data-theme', 'data-style', 'data-icon-pack'] });
     i18n.on('change', render);
     let rt = null;
     window.addEventListener('resize', () => {
       clearTimeout(rt);
-      rt = setTimeout(render, 150);
+      rt = setTimeout(() => {
+        wallLum = sampleWall(wallImg);
+        render();
+      }, 150);
     });
     // The taskbar moved to another edge or changed size (personalization): the icon area changed too.
     shell.on('taskbar:layout', () => {

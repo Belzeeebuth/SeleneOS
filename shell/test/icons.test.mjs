@@ -283,7 +283,7 @@ const blueSymbol = (px) => {
     const coldBar = await sample('#taskbar .tb-app img');
     const coldStart = await sample('#start img[src^="data:image/svg"]');
     check((await look()) === 'cold-dark' && coldBar.length >= 5 && coldStart.length >= 8 && [...coldBar, ...coldStart].every((r) => r.base[2] > Math.max(r.base[0], r.base[1]) + 15), `cold: bar (${coldBar.length}) and Lanceur (${coldStart.length}) icons keep the night-blue base`, report(coldBar));
-    const coldSrc = await P.evaluate(() => ({ bar: document.querySelector('#taskbar .tb-app img').getAttribute('src'), start: document.querySelector('#start img[src^="data:image/svg"]').getAttribute('src'), desk: getComputedStyle(document.querySelector('#desktop [data-special="thispc"] img')).content }));
+    const coldSrc = await P.evaluate(() => ({ bar: document.querySelector('#taskbar .tb-app img').getAttribute('src'), start: document.querySelector('#start img[src^="data:image/svg"]').getAttribute('src'), desk: document.querySelector('#desktop [data-special="thispc"] img').getAttribute('src') }));
     const staticSame = await P.evaluate(async () => {
       const own = await fetch('app://shell/apps/browser/icon.svg').then((r) => r.text());
       return decodeURIComponent(window.__aurora.registry.iconUrl('browser').replace(/^data:image\/svg\+xml,/, '')) === own;
@@ -308,10 +308,30 @@ const blueSymbol = (px) => {
     );
     check(frame.look === 'neutral-dark' && frame.now === frame.want, `the bar's icons are redrawn as soon as <html data-ambiance> changes (no stale frame; look ${frame.look})`);
     await P.waitForTimeout(900);
-    const neuSrc = await P.evaluate(() => ({ bar: document.querySelector('#taskbar .tb-app img').getAttribute('src'), start: document.querySelector('#start img[src^="data:image/svg"]')?.getAttribute('src'), desk: getComputedStyle(document.querySelector('#desktop [data-special="thispc"] img')).content, open: document.querySelector('#start').getBoundingClientRect().width > 0 }));
-    check(neuSrc.bar !== coldSrc.bar && neuSrc.start && neuSrc.start !== coldSrc.start && neuSrc.desk !== coldSrc.desk && neuSrc.desk.startsWith('url("data:image/svg'), 'switching the ambiance updates the bar, the open Lanceur and the desktop icons live');
+    const neuSrc = await P.evaluate(() => ({ bar: document.querySelector('#taskbar .tb-app img').getAttribute('src'), start: document.querySelector('#start img[src^="data:image/svg"]')?.getAttribute('src'), desk: document.querySelector('#desktop [data-special="thispc"] img').getAttribute('src'), open: document.querySelector('#start').getBoundingClientRect().width > 0 }));
+    check(neuSrc.bar !== coldSrc.bar && neuSrc.start && neuSrc.start !== coldSrc.start && neuSrc.desk !== coldSrc.desk && neuSrc.desk.startsWith('data:image/svg'), 'switching the ambiance updates the bar, the open Lanceur and the desktop icons live');
 
-    // every non-cold look: no blue cast in the base, no blue / cyan symbol (bar, Lanceur, desktop specials)
+    // every non-cold look: no blue cast in the base, no blue / cyan symbol (bar, Lanceur; the desktop's Ordinateur and
+    // Corbeille are flat symbols with no tile: every drawn pixel is checked, and most of the picture is see-through)
+    const flat = (sel) =>
+      P.evaluate(async (q) => {
+        const out = [];
+        for (const img of document.querySelectorAll(q)) {
+          const im = new Image();
+          im.src = img.getAttribute('src');
+          await im.decode().catch(() => {});
+          const cv = document.createElement('canvas');
+          cv.width = cv.height = 48;
+          const g = cv.getContext('2d');
+          g.drawImage(im, 0, 0, 48, 48);
+          const d = g.getImageData(0, 0, 48, 48).data;
+          let solid = 0;
+          const inks = [];
+          for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) (solid++, inks.push([d[i], d[i + 1], d[i + 2]]));
+          out.push({ id: img.closest('[data-special]').dataset.special, solid: solid / (48 * 48), inks });
+        }
+        return out;
+      }, sel);
     const looks = [
       [{ style: 'eclipse', theme: 'dark' }, 'neutral-dark'],
       [{ style: 'eclipse', theme: 'light' }, 'neutral-light'],
@@ -323,7 +343,10 @@ const blueSymbol = (px) => {
       await setLook(patch);
       await P.waitForTimeout(1200);
       await openStart();
-      const all = [...(await sample('#taskbar .tb-app img')), ...(await sample('#start img[src^="data:image/svg"]')), ...(await sample('#desktop [data-special] img'))];
+      const all = [...(await sample('#taskbar .tb-app img')), ...(await sample('#start img[src^="data:image/svg"]')), ...(await sample('#desktop [data-special="installer"] img'))];
+      const specials = await flat('#desktop [data-special="thispc"] img, #desktop [data-special="trash"] img');
+      const sb = specials.map((r) => ({ id: r.id, solid: r.solid.toFixed(2), blue: r.inks.filter(blueSymbol).length }));
+      check(specials.length === 2 && specials.every((r) => r.solid < 0.5 && r.inks.length > 80 && !r.inks.some(blueSymbol)), `${want}: Ordinateur and Corbeille are flat symbols (no tile) without blue / cyan`, JSON.stringify(sb));
       const cast = all.filter((r) => blueCast(r.base));
       const blue = all.filter((r) => !r.sym || blueSymbol(r.sym));
       check((await look()) === want && all.length >= 15 && !cast.length && !blue.length, `${JSON.stringify(patch)} → ${want}: ${all.length} icons, bases without blue cast, symbols not blue / cyan`, `look ${await look()}; cast ${report(cast)}; blue ${report(blue)}`);
@@ -456,6 +479,127 @@ const blueSymbol = (px) => {
     check(!errs.length, 'no console errors while the Fichiers icons switch looks', errs.slice(0, 3).join(' | '));
   } catch (err) {
     check(false, 'Fichiers icon looks', err.stack || String(err));
+  } finally {
+    await s.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
+// ------------------------------------------------------------------ desktop icons: no tile, no label plate
+// The names are plain text with a halo (light text over a dark shadow, or dark text in a light halo, by the tone of the
+// wallpaper behind each icon; core/desktop.js sets it). Effective contrast: the text colour against what is drawn right
+// around each glyph (wallpaper + halo), read from two screenshots (with the text, then the text made transparent).
+{
+  const home = fs.mkdtempSync(path.join((await import('node:os')).tmpdir(), 'aurora-home-'));
+  for (const d of ['Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos']) fs.mkdirSync(path.join(home, d), { recursive: true });
+  fs.writeFileSync(path.join(home, 'Desktop', 'Welcome.txt'), 'x');
+  fs.mkdirSync(path.join(home, 'Desktop', 'Projets'));
+  const s = await launchShell({ home, theme: 'dark', lang: 'fr', size: '1280x720', settle: 1500, live: true });
+  const P = s.page;
+  try {
+    const labels = () =>
+      P.evaluate(() =>
+        [...document.querySelectorAll('#desktop .desk-icon')].map((el) => {
+          const l = el.querySelector('.desk-label');
+          const cs = getComputedStyle(l);
+          const r = l.getBoundingClientRect();
+          return { id: el.dataset.special || el.dataset.id.split('/').pop(), tone: el.dataset.theme, color: cs.color, bg: cs.backgroundColor, plate: getComputedStyle(el).backgroundColor, fs: parseFloat(cs.fontSize), shadow: cs.textShadow !== 'none', clip: { x: Math.floor(r.left) - 2, y: Math.floor(r.top) - 2, width: Math.ceil(r.width) + 4, height: Math.ceil(r.height) + 4 } };
+        }),
+      );
+    const effective = async (list) => {
+      const A = await Promise.all(list.map((l) => P.screenshot({ clip: l.clip }).then((b) => b.toString('base64'))));
+      await P.evaluate(() => document.head.append(Object.assign(document.createElement('style'), { id: 'desk-probe', textContent: '#desktop .desk-label { color: transparent !important; }' })));
+      await P.waitForTimeout(150);
+      const B = await Promise.all(list.map((l) => P.screenshot({ clip: l.clip }).then((b) => b.toString('base64'))));
+      await P.evaluate(() => document.getElementById('desk-probe').remove());
+      return P.evaluate(
+        async ({ A, B, colors }) => {
+          const dec = async (b64) => {
+            const im = new Image();
+            im.src = `data:image/png;base64,${b64}`;
+            await im.decode();
+            const c = document.createElement('canvas');
+            c.width = im.width;
+            c.height = im.height;
+            c.getContext('2d').drawImage(im, 0, 0);
+            return c.getContext('2d').getImageData(0, 0, c.width, c.height);
+          };
+          const lin = (v) => ((v /= 255) <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+          const L = (d, p) => 0.2126 * lin(d[p]) + 0.7152 * lin(d[p + 1]) + 0.0722 * lin(d[p + 2]);
+          const out = [];
+          for (let i = 0; i < A.length; i++) {
+            const a = await dec(A[i]);
+            const b = await dec(B[i]);
+            const tc = colors[i].match(/[\d.]+/g).map(Number);
+            const Lt = 0.2126 * lin(tc[0]) + 0.7152 * lin(tc[1]) + 0.0722 * lin(tc[2]);
+            const diff = (p) => Math.abs(a.data[p] - b.data[p]) + Math.abs(a.data[p + 1] - b.data[p + 1]) + Math.abs(a.data[p + 2] - b.data[p + 2]);
+            const core = new Set();
+            for (let p = 0; p < a.data.length; p += 4) if (diff(p) > 60 && Math.abs(a.data[p] - tc[0]) + Math.abs(a.data[p + 1] - tc[1]) + Math.abs(a.data[p + 2] - tc[2]) < 60) core.add(p / 4);
+            const ring = [];
+            for (let q = 0; q < a.width * a.height; q++) {
+              if (core.has(q) || diff(q * 4) > 30) continue;
+              const x = q % a.width;
+              const y = Math.floor(q / a.width);
+              let near = false;
+              for (let dy = -2; dy <= 2 && !near; dy++) for (let dx = -2; dx <= 2 && !near; dx++) near = core.has((y + dy) * a.width + x + dx);
+              if (!near) continue;
+              const Lb = L(b.data, q * 4);
+              ring.push((Math.max(Lt, Lb) + 0.05) / (Math.min(Lt, Lb) + 0.05));
+            }
+            ring.sort((p, q) => p - q);
+            out.push({ n: core.size, p10: ring.length ? ring[Math.floor(ring.length * 0.1)] : 0 });
+          }
+          return out;
+        },
+        { A, B, colors: list.map((l) => l.color) },
+      );
+    };
+    const looks = [
+      ['nocturne', 'dark'], ['nocturne', 'light'], ['eclipse', 'dark'], ['eclipse', 'light'], ['clairdelune', 'light'], ['clairdelune', 'dark'], ['contrast', 'dark'],
+      // a wallpaper of the other mode: the icons take the wallpaper's tone
+      ['nocturne', 'dark', 'peaks-light', 'light'], ['nocturne', 'light', 'milkyway', 'dark'],
+    ];
+    for (const [style, mode, wp, tone] of looks) {
+      const tag = `${style}-${mode}${wp ? `@${wp}` : ''}`;
+      await P.evaluate(async ([st, m, w]) => {
+        await (await import('app://shell/core/theme.js')).chooseStyle(st);
+        await window.__aurora.settings.set('theme', m);
+        if (w) await window.__aurora.settings.set('wallpaper', `app://shell/assets/wallpapers/${w}.jpg`);
+        window.__aurora.desktop.select([]);
+      }, [style, mode, wp]);
+      await P.mouse.move(1000, 300);
+      await P.waitForTimeout(1500);
+      const ls = await labels();
+      const hc = style === 'contrast';
+      const plain = ls.every((l) => l.plate === 'rgba(0, 0, 0, 0)' && (hc ? l.bg !== 'rgba(0, 0, 0, 0)' : l.bg === 'rgba(0, 0, 0, 0)' && l.shadow) && l.fs >= 12 && l.fs <= 13);
+      check(ls.length === 5 && plain, `desktop ${tag}: nothing behind the icons at rest, ${hc ? 'names on a solid plate' : 'names in plain text with a halo'} (12–13 px)`, JSON.stringify(ls.map(({ id, bg, plate, fs }) => ({ id, bg, plate, fs }))));
+      const eff = await effective(ls);
+      const worst = Math.min(...eff.map((e) => e.p10));
+      check(eff.every((e) => e.n > 15) && worst >= 4.5, `desktop ${tag}: every name reads >= 4.5:1 against the wallpaper and its halo (worst ${worst.toFixed(1)}:1)`, JSON.stringify(eff.map((e, i) => `${ls[i].id} ${e.p10.toFixed(2)} n${e.n}`)));
+      if (tone) check(ls.every((l) => l.tone === tone), `desktop ${tag}: the icons take the tone of the wallpaper behind them (${tone})`, ls.map((l) => `${l.id} ${l.tone}`).join(', '));
+      if (!wp) {
+        // hover: a faint highlight; selection: the accent-subtle highlight; the focus ring only for the keyboard
+        await P.hover('.desk-icon[data-special="trash"]');
+        await P.click('.desk-icon[data-id$="Projets"]');
+        await P.hover('.desk-icon[data-special="trash"]');
+        await P.waitForTimeout(250);
+        const st = await P.evaluate(() => {
+          const cs = (sel) => getComputedStyle(document.querySelector(sel));
+          return { hover: [cs('.desk-icon[data-special="trash"]').backgroundColor, cs('.desk-icon[data-special="trash"]').boxShadow], sel: cs('.desk-icon[data-id$="Projets"]').backgroundColor, selShadow: cs('.desk-icon[data-id$="Projets"]').boxShadow, ring: cs('.desk-icon[data-id$="Projets"]').outlineStyle };
+        });
+        await s.shot(`desktop-icons-${tag}`);
+        await P.keyboard.press('ArrowDown');
+        await P.waitForTimeout(150);
+        const kb = await P.evaluate(() => getComputedStyle(document.activeElement).outlineStyle);
+        const hoverOn = st.hover[0] !== 'rgba(0, 0, 0, 0)' || st.hover[1] !== 'none';
+        const selOn = st.sel !== 'rgba(0, 0, 0, 0)' || st.selShadow !== 'none';
+        check(hoverOn && selOn && st.ring === 'none' && kb === 'solid', `desktop ${tag}: hover and selection highlights, a focus ring for the keyboard only`, JSON.stringify({ ...st, kb }));
+      }
+    }
+    const errs = s.logs.filter((l) => /^\[(error|pageerror)\]/.test(l) && !/Failed to load resource/.test(l));
+    check(!errs.length, 'no console errors while the desktop icons switch looks', errs.slice(0, 3).join(' | '));
+  } catch (err) {
+    check(false, 'desktop icons', err.stack || String(err));
   } finally {
     await s.close();
     fs.rmSync(home, { recursive: true, force: true });

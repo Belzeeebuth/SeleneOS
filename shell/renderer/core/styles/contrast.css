@@ -484,16 +484,31 @@
     border: 3px dashed var(--hc-hi);
   }
 
-  /* desktop icon labels: solid plate instead of a text shadow */
-  .desk-label {
-    background: #000000;
-    color: #ffffff;
+  /* desktop icon labels: a solid plate of the style's ground instead of a text shadow (white on black, black on white);
+     the selection is a highlight-coloured ring and plate (core/shell-personalize.css draws the other styles) */
+  #desktop .desk-label {
+    padding: 0 1px;
+    border-radius: var(--radius-xs);
+    background: var(--hc-bg);
+    color: var(--hc-fg);
+  }
+  /* as specific as the light-tone halo of core/shell-personalize.css (which would blur a selected name) */
+  #desktop .desk-icon[data-theme] .desk-label {
     text-shadow: none;
   }
-  .desk-icon.selected,
-  .desk-icon.drop-target {
+  #desktop .desk-icon:hover {
     background: transparent;
-    border-color: #ffff00;
+    box-shadow: inset 0 0 0 1px var(--hc-fg);
+  }
+  #desktop .desk-icon.selected,
+  #desktop .desk-icon.drop-target {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px var(--hc-hi);
+  }
+  #desktop .desk-icon.selected .desk-label,
+  #desktop .desk-icon.drop-target .desk-label {
+    background: var(--hc-hi);
+    color: var(--hc-on-hi);
   }
   /* file-type glyphs of the desktop and the Lanceur (.ft-*, core/shell.css): the style's ink (white / black), folders
      in its highlight (yellow / indigo); a page is an ink outline on the ground; on a highlighted row they take the

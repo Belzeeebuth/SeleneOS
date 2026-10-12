@@ -353,6 +353,53 @@ async function e2e() {
     execFileSync('xdotool', ['type', '--delay', '20', `echo XWIN_OK > ${okFile}`]);
     execFileSync('xdotool', ['key', 'Return']);
     check('e2e: typing after a click reaches xterm', !!(await waitFor(() => fs.existsSync(okFile) && fs.readFileSync(okFile, 'utf8').includes('XWIN_OK'), 6000)));
+    // One Super tap toggles the Lanceur exactly once, whoever gets the key: the helper's grab (xterm focused)
+    // or Chromium (the shell focused, after the first tap). Counted: 'Super' hotkeys, open / close changes,
+    // #start elements. Also with X autorepeat (release + press pairs, one timestamp) while Super is held.
+    await pg.evaluate(() => {
+      const L = (window.__superLog = []);
+      window.__aurora.api.on('shell:hotkey', (p) => p?.combo === 'Super' && L.push('Super'));
+      const st = document.getElementById('start');
+      let was = st.classList.contains('open');
+      new MutationObserver(() => {
+        const now = st.classList.contains('open');
+        if (now !== was) L.push(now ? 'open' : 'close');
+        was = now;
+      }).observe(st, { attributes: true, attributeFilter: ['class'] });
+    });
+    const tap = async (fn) => {
+      await pg.evaluate(() => window.__superLog.splice(0));
+      await fn();
+      await sleep(700);
+      return pg.evaluate(() => ({ log: window.__superLog.splice(0), open: window.__aurora.start.isOpen, n: document.querySelectorAll('#start, .flyout[data-flyout="start"]').length }));
+    };
+    const same = (r, log, open) => JSON.stringify(r.log) === JSON.stringify(log) && r.open === open && r.n === 1;
+    let r = await tap(() => execFileSync('xdotool', ['key', 'super']));
+    check('e2e: Super tap with xterm focused opens the Lanceur once', same(r, ['Super', 'open'], true), r);
+    r = await tap(() => execFileSync('xdotool', ['key', 'super']));
+    check('e2e: next Super tap (shell focused) closes it once', same(r, ['Super', 'close'], false), r);
+    r = await tap(() => execFileSync('xdotool', ['key', 'super']));
+    check('e2e: Super tap with the shell focused opens it once', same(r, ['Super', 'open'], true), r);
+    r = await tap(() => execFileSync('xdotool', ['key', 'Super_R']));
+    check('e2e: Super_R tap closes it once', same(r, ['Super', 'close'], false), r);
+    execFileSync('xdotool', ['mousemove', String(cx), String(cy), 'click', '1']);
+    // The helper must own the key (grabs while xterm has X focus): XTest's release + press pairs are real
+    // releases for Chromium, which only drops the server's own autorepeat releases (detectable autorepeat).
+    const xf = await waitFor(() => pg.evaluate((id) => window.__aurora.xwin.xFocus === id, fr.id), 4000);
+    check('e2e: clicking xterm gives it X focus again', !!xf);
+    await sleep(300);
+    const heldPy = [
+      'import time', 'from Xlib import X, display', 'from Xlib.ext import xtest',
+      'd = display.Display(); kc = d.keysym_to_keycode(0xffeb)',
+      'xtest.fake_input(d, X.KeyPress, kc); d.sync(); time.sleep(0.3)',
+      'for _ in range(2):',
+      '    d.grab_server(); xtest.fake_input(d, X.KeyRelease, kc); xtest.fake_input(d, X.KeyPress, kc); d.sync(); d.ungrab_server(); d.sync(); time.sleep(0.08)',
+      'time.sleep(0.3); xtest.fake_input(d, X.KeyRelease, kc); d.sync()',
+    ].join('\n');
+    r = await tap(() => execFileSync('python3', ['-c', heldPy]));
+    check('e2e: Super held with X autorepeat (xterm focused) opens it once, no open-close-open', same(r, ['Super', 'open'], true), r);
+    await pg.evaluate(() => window.__aurora.start.close());
+    await sleep(300);
     await pg.evaluate((id) => window.__aurora.xwin.frames.get(id).win.minimize(), fr.id);
     await sleep(1000);
     const pm = pixel(cx, cy);

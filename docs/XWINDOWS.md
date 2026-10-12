@@ -94,7 +94,11 @@ Rules:
 ### Keyboard
 
 - While a client has X focus, the helper holds passive grabs on the root for the system shortcuts:
-  - every `Super` combo, and `Super` alone, which is sent on release when no other key was pressed;
+  - every `Super` combo, and `Super` alone, which is sent on release when no other key and no
+    mouse button was pressed. An X autorepeat release (followed at once by a press of the same key
+    with the same timestamp) is not a release: one press of Super sends `Super` once, after the
+    real release (sending it on the autorepeat release opened the Lanceur, moved focus to the
+    shell, and the real release then reached Chromium and closed it again);
   - `Alt+Tab`, `Alt+Shift+Tab`, `Alt+F4`, `Ctrl+Alt+Delete`, `Ctrl+Shift+Escape`;
   - `PrintScreen` and the volume and brightness keys.
 

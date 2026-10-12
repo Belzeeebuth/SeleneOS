@@ -16,6 +16,9 @@ Prints "xid <XID>" once mapped, then reads commands on stdin (one per line) and 
   unmap                                  withdraw the window
   keys <keysym>...                       press the keys in order with XTest, release them in reverse
                                          (exact keycodes: xdotool sometimes adds Shift to Tab)
+  down <keysym> | up <keysym>            press / release one key with XTest
+  autorepeat <keysym>                    release + press of a held key under a server grab, as X
+                                         autorepeat sends them (together, one server timestamp)
 Prints "delete" and exits when it receives WM_DELETE_WINDOW.
 """
 import os
@@ -93,6 +96,19 @@ def command(line):
         for kc in reversed(codes):
             xtest.fake_input(d, X.KeyRelease, kc)
             d.sync()
+    elif c in ('down', 'up'):
+        xtest.fake_input(d, X.KeyPress if c == 'down' else X.KeyRelease, d.keysym_to_keycode(XK.string_to_keysym(parts[1])))
+        d.sync()
+    elif c == 'autorepeat':
+        kc = d.keysym_to_keycode(XK.string_to_keysym(parts[1]))
+        # The server makes both events of an autorepeat at once; with XTest the window manager could
+        # run between the two requests. A server grab keeps the pair together, as X autorepeat does.
+        d.grab_server()
+        xtest.fake_input(d, X.KeyRelease, kc)
+        xtest.fake_input(d, X.KeyPress, kc)
+        d.sync()
+        d.ungrab_server()
+        d.sync()
     elif c == 'unmap':
         w.unmap()
         # ICCCM: a synthetic UnmapNotify on the root tells the WM the window is withdrawn.
