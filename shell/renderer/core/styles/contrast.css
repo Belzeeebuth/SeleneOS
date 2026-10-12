@@ -499,7 +499,8 @@
      in its highlight (yellow / indigo); a page is an ink outline on the ground; on a highlighted row they take the
      row's text colour */
   :scope[data-theme] :is(.ft-txt, .ft-doc, .ft-xls, .ft-ppt, .ft-pdf, .ft-img, .ft-audio, .ft-video, .ft-zip, .ft-code, .ft-file),
-  :scope[data-theme] .desk-fi:is(.ft-file, .desk-page) {
+  :scope[data-theme] .desk-fi:is(.ft-file, .desk-page),
+  :scope[data-theme] .desk-thumb > :not(img) /* picture that failed to load: its image glyph */ {
     color: var(--hc-fg);
     filter: none;
   }
