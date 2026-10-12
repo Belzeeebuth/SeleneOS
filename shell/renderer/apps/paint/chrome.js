@@ -1,5 +1,5 @@
 // Drawing app chrome: the title bar ("…" menu with the file, edit and view commands, quick undo /
-// redo / save, the document title), one floating tool island inside the canvas area (selection,
+// redo, the document title), one floating tool island inside the canvas area (selection,
 // tools, brushes, a shapes popover), a compact options bar along the top (clipboard, image, shape
 // outline and fill, size, and the current colours with the Selene palette in a popover), the
 // contextual text/fill bar, flyouts and the status bar.
@@ -190,10 +190,10 @@ export function createChrome(app) {
     container._sync();
   }
 
-  // ------------------------------------------------------------ title bar (menus + quick access + title)
+  // ------------------------------------------------------------ title bar ("…" menu, undo / redo, title)
+  // Save lives in the "…" menu (and Ctrl+S); only undo and redo stay next to it.
   function buildTitlebar() {
     refs.more = btn({ ic: 'dots-three', label: t('menu.more'), key: 'Alt+F', cls: 'pt-qa pt-more', size: 18, attrs: { 'aria-haspopup': 'menu' }, onclick: (e) => openMenu('more', e.currentTarget) });
-    refs.qaSave = btn({ ic: 'save', label: t('file.save'), key: 'Ctrl+S', cls: 'pt-qa', size: 16, onclick: () => app.cmd('save') });
     refs.qaUndo = btn({ ic: 'arrow_undo', label: t('edit.undo'), key: 'Ctrl+Z', cls: 'pt-qa', size: 16, onclick: () => app.cmd('undo') });
     refs.qaRedo = btn({ ic: 'arrow_redo', label: t('edit.redo'), key: 'Ctrl+Y', cls: 'pt-qa', size: 16, onclick: () => app.cmd('redo') });
     refs.title = h('div', { class: 'pt-doctitle ellipsis' });
@@ -202,7 +202,6 @@ export function createChrome(app) {
       { class: 'pt-tb' },
       refs.more,
       h('div', { class: 'pt-tb-sep' }),
-      refs.qaSave,
       refs.qaUndo,
       refs.qaRedo,
       refs.title,
@@ -775,8 +774,8 @@ export function createChrome(app) {
 
   // ------------------------------------------------------------ zoom pill
   // A small floating pill at the bottom right of the canvas area: − , the zoom level (opens the
-  // presets and the slider), +, fit. The canvas size, pointer position and selection size show
-  // as a discreet caption above it while the pointer is over the canvas area.
+  // presets and the slider), +, fit. The canvas size and selection size show as a discreet
+  // caption above it while the pill is hovered or has the focus (never over the picture's handles).
   function zoomFlyout(anchor) {
     const presets = h(
       'div',

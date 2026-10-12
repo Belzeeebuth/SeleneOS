@@ -93,12 +93,14 @@
 .app-taskmgr [hidden] {
   display: none !important;
 }
-/* The meters: a permanent strip of four compact cards along the top (value + sparkline in the
-   accent colour). A card opens the Performances detail of its device. */
+/* The meters: a permanent strip of four compact cards along the top (five with a GPU; value +
+   sparkline in the accent colour). A card opens the Performances detail of its device: on that
+   page the meters are the device picker. */
 .app-taskmgr .tm-meters {
   flex: none;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 8px;
   padding: 10px 12px 8px;
   background: var(--titlebar-bg);
@@ -133,7 +135,8 @@
   outline-offset: 2px;
 }
 .app-taskmgr .tm-meter-text {
-  flex: 1;
+  flex: 1 0 auto;
+  max-width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -158,7 +161,7 @@
 }
 .app-taskmgr .tm-spark {
   flex: 0 1 72px;
-  min-width: 36px;
+  min-width: 0;
   height: 26px;
   overflow: visible;
 }
@@ -188,7 +191,8 @@
   background: var(--bg);
   overflow: hidden;
 }
-/* Toolbar: search on the left, the "Show:" view menu, the page's commands, Settings. */
+/* Toolbar: search on the left with the selected row's actions next to it; the "Show:" view
+   menu, the page's commands and Settings on the right. */
 .app-taskmgr .tm-head {
   display: flex;
   align-items: center;
@@ -208,6 +212,7 @@
 }
 .app-taskmgr .tm-viewbtn {
   flex: none;
+  margin-left: auto;
   gap: 4px;
   min-height: 32px;
   padding: 4px 10px;
@@ -239,8 +244,14 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
+.app-taskmgr .tm-rowcmds {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
 .app-taskmgr .tm-cmds {
-  flex: 1;
+  flex: none;
   min-width: 0;
   display: flex;
   justify-content: flex-end;
@@ -1128,8 +1139,8 @@
 }
 
 /* ------------------------------------------------------------------ Selene: Performances detail
-   The meters above choose the device; every device (all disks, interfaces, the GPU) stays
-   reachable as a row of chips above the large graph and the figures. */
+   The meters above choose the device; a small row of chips chooses among several disks or
+   several network adapters (shown only when there is more than one). */
 .app-taskmgr .tm-perf {
   flex-direction: column;
 }
@@ -1149,8 +1160,7 @@
   border: 1px solid var(--line-soft);
   border-radius: 999px;
 }
-.app-taskmgr .tm-dev .tm-spark-wrap,
-.app-taskmgr .tm-dev .tm-dev-sub {
+.app-taskmgr .tm-dev .tm-dev-sub:empty {
   display: none;
 }
 .app-taskmgr .tm-dev-text {
@@ -1197,9 +1207,9 @@
 .app-taskmgr .tm-head.compact .tm-search {
   flex-basis: 170px;
 }
-/* The detail's graph stays large; the detail scrolls in short windows. */
+/* The detail's graph takes the room left by the figures; the detail scrolls in short windows. */
 .app-taskmgr .tm-chartbox.main {
-  min-height: 200px;
+  min-height: 150px;
 }
 
 /* ------------------------------------------------------------------ Selene: phase D
@@ -1232,10 +1242,18 @@
   flex-wrap: wrap;
   overflow: visible;
   row-gap: 6px;
+  padding: 4px 16px 4px;
 }
 .app-taskmgr .tm-dev {
   max-width: 100%;
   min-width: 0;
+  padding: 3px 12px;
+}
+.app-taskmgr .tm-dev-sub,
+.app-taskmgr .tm-dev-val {
+  font-size: var(--fs-small);
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
 }
 .app-taskmgr .tm-dev-title {
   max-width: none;
@@ -1248,7 +1266,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   min-height: 0;
 }
 .app-taskmgr .tm-pd-name {
@@ -1284,18 +1302,19 @@
   min-height: 1.15em;
 }
 .app-taskmgr .tm-pd-body {
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 .app-taskmgr .tm-pd-body .tm-chartbox.main {
-  flex: 0 0 auto;
-  height: 200px;
-  min-height: 0;
+  flex: 1 1 0;
+  height: auto;
+  min-height: 150px;
   gap: 4px;
 }
 .app-taskmgr .tm-pd-body .tm-chartbox.main:has(.tm-coregrid) {
-  height: 300px;
+  min-height: 220px;
 }
 .app-taskmgr .tm-pd-body .tm-chart {
   background: none;
@@ -1321,11 +1340,20 @@
 }
 .app-taskmgr .tm-pd-stats {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 16px;
+  margin: 0;
   border: 0;
   padding: 0;
+}
+.app-taskmgr .tm-pd-figs {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 .app-taskmgr .tm-pd-body .tm-stats {
   display: flex;
@@ -1364,7 +1392,9 @@
   color: var(--text-2);
 }
 .app-taskmgr .tm-pd-card {
-  max-width: 560px;
+  flex: 1 1 340px;
+  min-width: 0;
+  max-width: 440px;
   padding: 10px 14px 8px;
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);

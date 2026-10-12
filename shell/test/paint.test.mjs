@@ -254,10 +254,27 @@ await test('boots with an untitled 1152×648 white canvas and the command bar', 
     return { inMain: el.querySelector('.pt-main > .pt-status') != null, right: main.right - r.right, bottom: main.bottom - r.bottom, file: !!el.querySelector('.pt-st-item.file'), slider: !!el.querySelector('.pt-status .pt-zoom-slider'), btns: [...el.querySelectorAll('.pt-status .pt-zoom button')].map((b) => b.getAttribute('aria-label') || b.textContent) };
   });
   assert.ok(pill.inMain && pill.right > 0 && pill.right < 40 && pill.bottom > 0 && pill.bottom < 40 && !pill.file && !pill.slider && pill.btns.length === 4, `floating zoom pill at the bottom right (no status bar, no file size): ${JSON.stringify(pill)}`);
+  // The size caption shows only while the pill is hovered (or focused), never just because the
+  // pointer is over the canvas area, where it could cover the picture's resize handle.
+  const capOpacity = () => P(s, (p, el) => getComputedStyle(el.querySelector('.pt-st-cap')).opacity);
+  const mainBox = await s.page.locator(`${WIN} .pt-main`).boundingBox();
+  await s.page.mouse.move(mainBox.x + mainBox.width / 2, mainBox.y + mainBox.height / 2);
+  await wait(s, 300);
+  assert.equal(await capOpacity(), '0', 'no size caption while the pointer is over the canvas');
+  await s.page.hover(`${WIN} .pt-zoom-pct`);
+  await wait(s, 300);
+  assert.equal(await capOpacity(), '1', 'size caption while the zoom pill is hovered');
+  await s.page.mouse.move(mainBox.x + mainBox.width / 2, mainBox.y + mainBox.height / 2);
+  await wait(s, 300);
+  // Title bar: "…", then undo and redo only; Save is in the "…" menu with Ctrl+S.
+  const qa = await P(s, (p, el) => [...el.querySelectorAll('.pt-tb .pt-qa:not(.pt-more)')].map((b) => b.getAttribute('aria-label')));
+  assert.deepEqual(qa, ['Undo', 'Redo'], `title-bar quick actions: ${qa.join('|')}`);
   await s.page.click(`${WIN} .pt-more`);
   await s.page.waitForSelector('.menu .menu-item');
   const top = await s.page.locator('.menu .menu-item .label').allTextContents();
   assert.ok(['Cut', 'Copy', 'Paste'].every((x) => top.includes(x)), `clipboard actions in the "…" menu: ${top.join('|')}`);
+  const saveItem = await s.page.locator('.menu .menu-item', { hasText: /^Save\s*Ctrl\+S$/ }).count();
+  assert.equal(saveItem, 1, 'Save (Ctrl+S) is in the "…" menu');
   await s.page.keyboard.press('Escape');
   await wait(s, 150);
   assert.equal(info.captions, 0, 'no group captions, no rainbow colour wheel');
@@ -265,7 +282,7 @@ await test('boots with an untitled 1152×648 white canvas and the command bar', 
   assert.ok(info.shapes >= 23, 'at least 23 shapes');
   assert.equal(info.swatches.length, 12, 'the Selene palette has 12 colours');
   assert.equal(info.swatches[6], 'rgb(214, 69, 69)', 'palette ember (red)');
-  assert.equal(info.status, '1152 × 648px');
+  assert.equal(info.status, '1152 × 648 px');
   assert.equal(info.dirty, false);
   assert.ok(isWhite(await px(s, 10, 10)));
   // status items (empty ones included) stay inside the 32px status bar, unaffected by shell classes
@@ -444,7 +461,7 @@ await test('all shapes render, Shift constrains, outline/fill styles apply', asy
   await shape(s, 'ellipse');
   await drag(s, [[60, 500], [200, 560]], { shift: true });
   const sel = await P(s, (p, el) => el.querySelector('.pt-st-item.sel').textContent);
-  assert.equal(sel, '141 × 141px', 'constrained to a circle (cells 60…200 inclusive)');
+  assert.equal(sel, '141 × 141 px', 'constrained to a circle (cells 60…200 inclusive)');
   await P(s, (p) => p.commitPending());
   // outline/fill styles through the menus
   await s.page.click(`${WIN} .pt-g[data-g="shapeopts"] .pt-col .pt-b:nth-child(1)`);
@@ -492,7 +509,7 @@ await test('rectangle selection: move with the mouse, Delete, undo', async () =>
   await s.page.click(`${WIN} .pt-split .pt-split-main[aria-label="Select"]`);
   await drag(s, [[90, 90], [210, 210]]);
   assert.deepEqual(await P(s, (p) => p.sel), { x: 90, y: 90, w: 121, h: 121, floating: false });
-  assert.equal(await P(s, (p, el) => el.querySelector('.pt-st-item.sel').textContent), '121 × 121px');
+  assert.equal(await P(s, (p, el) => el.querySelector('.pt-st-item.sel').textContent), '121 × 121 px');
   await drag(s, [[150, 150], [450, 250]]);
   assert.equal((await P(s, (p) => p.sel)).floating, true);
   assert.ok(isWhite(await px(s, 150, 150)), 'hole filled with color 2');
@@ -741,9 +758,10 @@ await test('View menu: rulers, gridlines, status bar and full screen', async () 
   await s.page.keyboard.press('Control+r');
   await s.page.keyboard.press('Control+g');
   assert.deepEqual(await P(s, (p) => [p.S.rulers, p.S.grid]), [false, false]);
-  await menu(s, 'view', 'Status bar');
+  // "Zoom controls" (settings key: statusbar) shows or hides the floating zoom pill.
+  await menu(s, 'view', 'Zoom controls');
   assert.equal(await P(s, (p, el) => el.querySelector('.pt-status').hidden), true);
-  await menu(s, 'view', 'Status bar');
+  await menu(s, 'view', 'Zoom controls');
   assert.equal(await P(s, (p, el) => el.querySelector('.pt-status').hidden), false);
   await s.page.keyboard.press('F11');
   await wait(s, 300);
@@ -1109,10 +1127,12 @@ await test('repeated Ctrl+S / Ctrl+O and double clicks open a single dialog; clo
   assert.equal(await s.page.locator(`${WIN} .pt-ask`).count(), 0, 'no save prompt stacked on the picker');
   await dismissDialogs(s);
   await waitFor(s, () => !document.querySelector('.win.app-paint .dialog-layer:not(.closing)'));
-  // double click on the title-bar Save button
-  await s.page.click(`${WIN} .pt-qa[data-tip^="Save"]`, { clickCount: 2 });
+  // Save from the "…" menu (it is no longer a title-bar button), then a second save right away
+  // (what a double click used to send): still one picker.
+  await menu(s, 'file', /^Save\s*Ctrl\+S$/);
+  await P(s, (p) => p.app.cmd('save'));
   await wait(s, 800);
-  assert.equal(await s.page.locator(`${WIN} .fp-dialog`).count(), 1, 'one picker for a double click');
+  assert.equal(await s.page.locator(`${WIN} .fp-dialog`).count(), 1, 'one picker for Save from the menu + a second save');
   await dismissDialogs(s);
   await wait(s, 250);
   // Ctrl+O twice on a dirty picture: a single "save changes?" prompt

@@ -56,7 +56,7 @@
       "zoomLevel": "Zoom level",
       "rulers": "Rulers",
       "grid": "Gridlines",
-      "status": "Status bar",
+      "status": "Zoom controls",
       "fullscreen": "Full screen",
       "exitFullscreen": "Exit full screen"
     },
@@ -367,7 +367,7 @@
       "zoomLevel": "Niveau de zoom",
       "rulers": "Règles",
       "grid": "Quadrillage",
-      "status": "Barre d'état",
+      "status": "Commandes de zoom",
       "fullscreen": "Plein écran",
       "exitFullscreen": "Quitter le plein écran"
     },

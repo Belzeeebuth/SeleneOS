@@ -374,7 +374,9 @@ export class ProcessesPage {
       sysEntries.push({
         key: 'kernel',
         data: { type: 'kernel', procs: kernel, name: `${t('kernel.name')} (${kernel.length})`, baseName: t('kernel.name'), icon: { name: 'developer_board', tone: 'kernel' }, pids: [], user: 'root', procname: 'kthreadd', cpu: sum(kernel, 'cpu'), mem: kmem, disk: 0, status: '' },
-        children: kernel.map((p) => procEntry(p, { data: { kernel: true } })),
+        // The kernel's own threads get no status: their priority is the kernel's choice, not a
+        // "Low priority" the user can turn off (the Details page shows their real priority).
+        children: kernel.map((p) => procEntry(p, { data: { kernel: true, status: '' } })),
       });
     }
     sysEntries.push(...trees(sys, true));
@@ -643,12 +645,13 @@ export class ProcessesPage {
     const { t } = this.app;
     const r = this.selected();
     const eff = this.effState(r);
-    // "End task" and "Low priority" are contextual: they show for the selected row (they are also
-    // in its right-click menu). "Run a command" and the View items go to the "…" menu (app.js).
+    // "End task" and "Low priority" act on the selected row: they show next to the search while a
+    // row is selected (they are also in its right-click menu; Delete ends the task). "Run a
+    // command" and the View items go to the "…" menu (app.js).
     return [
       { id: 'run', icon: 'window_new', label: t('cmd.run'), action: () => this.app.actions.runNewTask() },
-      { id: 'end', icon: 'prohibited', label: t('cmd.endTask'), hidden: !r, disabled: !this.canEnd(r), action: () => this.endTask(this.selected()) },
-      { id: 'eff', icon: 'arrow-down', label: t('cmd.efficiency'), hidden: !r, disabled: !eff.enabled, pressed: eff.on, action: () => this.toggleEfficiency(this.selected()) },
+      { id: 'end', icon: 'prohibited', label: t('cmd.endTask'), row: true, hidden: !r, disabled: !this.canEnd(r), action: () => this.endTask(this.selected()) },
+      { id: 'eff', icon: 'arrow-down', label: t('cmd.efficiency'), row: true, hidden: !r, disabled: !eff.enabled, pressed: eff.on, action: () => this.toggleEfficiency(this.selected()) },
       {
         id: 'view',
         icon: 'eye',

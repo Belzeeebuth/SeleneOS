@@ -642,25 +642,45 @@ try {
     return { n, w: c.width, h: c.height };
   });
   check('CPU chart painted', painted.n > 500 && painted.w > 200 && painted.h > 80, painted);
-  const tiles = await page.$$eval('.app-taskmgr .tm-dev', (els) => els.map((e) => e.dataset.dev));
-  check('device list: CPU, Memory, disks, adapters', tiles[0] === 'cpu' && tiles[1] === 'mem' && tiles.some((x) => x.startsWith('disk:')) && tiles.some((x) => x.startsWith('net:')), tiles);
+  // One device picker: the meters. CPU and memory have no chip row; it only lists several disks
+  // or several adapters.
+  const devs = await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.performance.devices.map((d) => d.id));
+  check('devices: CPU, Memory, disks, adapters', devs[0] === 'cpu' && devs[1] === 'mem' && devs.some((x) => x.startsWith('disk:')) && devs.some((x) => x.startsWith('net:')), devs);
+  check('no device chip row on CPU', !(await page.isVisible('.app-taskmgr .tm-devs')) && (await page.$$eval('.app-taskmgr .tm-dev:not([hidden])', (els) => els.length)) === 0);
   const cpuStats = await page.$$eval('.app-taskmgr .tm-stat', (els) => Object.fromEntries(els.map((e) => [e.querySelector('.tm-stat-l').textContent, e.querySelector('.tm-stat-v').textContent])));
   // The utilization is the detail's large header value; the other key figures are chips.
   cpuStats.Utilization = await page.$eval('.app-taskmgr .tm-pd-value', (e) => e.textContent);
   check('CPU stats', /^\d+%$/.test(cpuStats.Utilization) && /GHz$/.test(cpuStats.Speed) && /^\d+:\d\d:\d\d:\d\d$/.test(cpuStats['Up time']) && Number(cpuStats.Processes.replace(/,/g, '')) > 10, cpuStats);
-  await page.click('.app-taskmgr .tm-dev[data-dev="mem"]');
+  await page.click('.app-taskmgr .tm-meter[data-meter="mem"]');
   await sleep(1300);
+  check('Memory meter selected, no chip row', (await page.$eval('.app-taskmgr .tm-meter[aria-pressed="true"]', (e) => e.dataset.meter)) === 'mem' && !(await page.isVisible('.app-taskmgr .tm-devs')));
   const memTitle = await page.$eval('.app-taskmgr .tm-pd-title', (e) => e.textContent);
   const memStats = await page.$$eval('.app-taskmgr .tm-stat', (els) => Object.fromEntries(els.map((e) => [e.querySelector('.tm-stat-l').textContent, e.querySelector('.tm-stat-v').textContent])));
   check('Memory detail', memTitle === 'Memory' && /GB|MB/.test(memStats['In use']) && /GB|MB/.test(memStats.Available), { memTitle, memStats });
   const segs = await page.$$eval('.app-taskmgr .tm-membar .tm-seg', (els) => els.map((e) => Number(e.style.flexGrow)));
   check('memory composition bar', segs.length === 4 && segs[0] > 0 && Math.abs(segs.reduce((a, b) => a + b, 0) - 1) < 0.01, segs);
   await s.shot('taskmgr-perf-memory-check');
-  // Keyboard in the device list
-  await page.focus('.app-taskmgr .tm-devs');
-  await page.keyboard.press('ArrowDown');
-  await sleep(300);
-  check('arrow keys move through devices', (await page.$eval('.app-taskmgr .tm-dev.selected', (e) => e.dataset.dev)).startsWith('disk:'));
+  // Disks: the Disk meter opens the first disk; with several disks a chip row lists them (and only
+  // them) and the arrow keys move through it, the meter staying on.
+  await page.click('.app-taskmgr .tm-meter[data-meter="disk"]');
+  await sleep(600);
+  const disks = devs.filter((x) => x.startsWith('disk:'));
+  const chips = await page.$$eval('.app-taskmgr .tm-dev:not([hidden])', (els) => els.map((e) => e.dataset.dev));
+  if (disks.length > 1) {
+    check('disk chip row lists the disks only', (await page.isVisible('.app-taskmgr .tm-devs')) && chips.join() === disks.join(), { chips, disks });
+    await page.focus('.app-taskmgr .tm-devs');
+    await page.keyboard.press('ArrowRight');
+    await sleep(300);
+    check('arrow keys move through the disks', (await page.$eval('.app-taskmgr .tm-dev.selected', (e) => e.dataset.dev)) === disks[1] && (await page.$eval('.app-taskmgr .tm-meter[aria-pressed="true"]', (e) => e.dataset.meter)) === 'disk');
+    await page.click('.app-taskmgr .tm-meter[data-meter="cpu"]');
+    await page.click('.app-taskmgr .tm-meter[data-meter="disk"]');
+    await sleep(300);
+    check('the Disk meter reopens the disk last chosen', (await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.performance.selected)) === disks[1]);
+  } else check('one disk: no chip row', chips.length === 0 && !(await page.isVisible('.app-taskmgr .tm-devs')), chips);
+  const adapters = devs.filter((x) => x.startsWith('net:'));
+  await page.click('.app-taskmgr .tm-meter[data-meter="net"]');
+  await sleep(600);
+  check('Network meter opens an adapter (chip row only for several)', (await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.performance.selected)).startsWith('net:') && (await page.isVisible('.app-taskmgr .tm-devs')) === adapters.length > 1);
 
   // ---- Services (sample data when systemd is not running)
   await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.go('services', { focus: false }));
@@ -917,10 +937,10 @@ try {
   };
   await shot('taskmgr-processes');
   await tm(() => window.__aurora.wm.byApp('taskmgr')[0].taskmgr.go('performance', { focus: false }));
-  await page.click('.app-taskmgr .tm-dev[data-dev="cpu"]');
+  await page.click('.app-taskmgr .tm-meter[data-meter="cpu"]');
   await sleep(2500);
   await shot('taskmgr-performance-cpu');
-  await page.click('.app-taskmgr .tm-dev[data-dev="mem"]');
+  await page.click('.app-taskmgr .tm-meter[data-meter="mem"]');
   await sleep(2200);
   await shot('taskmgr-performance-memory');
   await tm(() => {
@@ -970,6 +990,7 @@ try {
   // "Lancer une commande" is in the "…" menu.
   const noSelLabels = await fp.$$eval('.app-taskmgr .tm-cmd', (els) => els.map((e) => e.getAttribute('aria-label')));
   check('French toolbar without a selection: only "…"', noSelLabels.join('|') === 'Voir plus', noSelLabels);
+  check('no row actions without a selection', await fp.$eval('.app-taskmgr .tm-rowcmds', (g) => g.hidden && !g.childElementCount));
   await fp.click('.app-taskmgr .tm-cmd[data-cmd="more"]');
   await sleep(300);
   const moreItems = await fp.$$eval('body > .menu .menu-item .label', (els) => els.map((e) => e.textContent));
@@ -984,8 +1005,23 @@ try {
   await sleep(200);
   const cmdLabels = await fp.$$eval('.app-taskmgr .tm-cmd', (els) => els.map((e) => e.getAttribute('aria-label')));
   check('French toolbar commands', !cmdLabels.includes('Lancer une commande') && cmdLabels.includes('Arrêter le processus') && cmdLabels.includes('Priorité basse') && cmdLabels.includes('Voir plus'), cmdLabels);
+  // The row actions sit right after the search while a row is selected, not on the right.
+  const rowPos = await fp.$eval('.app-taskmgr .tm-head', (hd) => {
+    const s = hd.querySelector('.tm-search').getBoundingClientRect();
+    const g = hd.querySelector('.tm-rowcmds');
+    const r = g.getBoundingClientRect();
+    return { visible: !g.hidden, ids: [...g.querySelectorAll('.tm-cmd')].map((b) => b.dataset.cmd), gap: r.left - s.right, beforeView: r.right <= hd.querySelector('.tm-viewbtn').getBoundingClientRect().left };
+  });
+  check('row actions next to the search', rowPos.visible && rowPos.ids.join() === 'end,eff' && rowPos.gap >= 0 && rowPos.gap <= 16 && rowPos.beforeView, rowPos);
   const heads = await fp.$$eval('.app-taskmgr .tm-page-processes .tm-th', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
   check('French headers', heads.includes('Processeur') && heads.includes('Mémoire'), heads);
+  // The Statut column shows only while some row (collapsed ones included) has a status.
+  const anyStatus = await ftm(() => {
+    const p = window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes;
+    const has = (e) => !!e.data?.status || (e.children || []).some(has);
+    return p.sections.some((sec) => sec.entries.some(has));
+  });
+  check('Statut column only when a row has a status', heads.includes('Statut') === anyStatus, { anyStatus, heads });
   const tops = await fp.$$eval('.app-taskmgr .tm-meter:not([data-meter="net"]) .tm-meter-val', (els) => els.map((e) => e.textContent));
   check('French percent spacing (narrow no-break space)', tops.length === 3 && tops.every((x) => /^\d+\u202f%$/.test(x)), tops);
   check('French search placeholder', (await fp.getAttribute('.app-taskmgr .tm-search-input', 'placeholder')) === 'Tapez un nom, un éditeur ou un PID pour rechercher');
@@ -1021,11 +1057,23 @@ try {
       check('FR chart caption "60 dernières secondes", no axis labels', cap.length === 1 && cap[0] === '60 dernières secondes' && !(await fp.$('.app-taskmgr .tm-pd .tm-chart-top, .app-taskmgr .tm-pd .tm-chart-foot')), cap);
       const val = await fp.$eval('.app-taskmgr .tm-pd-value', (e) => e.textContent);
       check('FR header value "N %"', /^\d+\u202f%$/.test(val), val);
-      const tips = await fp.$$eval('.app-taskmgr .tm-dev .tm-dev-title', (els) => els.every((e) => e.dataset.tip === e.textContent));
-      check('device titles carry their full text as a tooltip', tips);
-      await fp.click('.app-taskmgr .tm-dev[data-dev="cpu"]');
+      await fp.click('.app-taskmgr .tm-meter[data-meter="disk"]');
+      await sleep(600);
+      const tips = await fp.$$eval('.app-taskmgr .tm-dev:not([hidden])', (els) => els.every((e) => e.dataset.tip.startsWith(e.querySelector('.tm-dev-title').textContent)));
+      check('disk chips carry their full name (mount points) as a tooltip', tips);
+      // The network value uses SI prefixes: "kbit/s", never "Kbit/s".
+      const netVal = await fp.$eval('.app-taskmgr .tm-meter[data-meter="net"] .tm-meter-val', (e) => e.textContent);
+      check('FR network rate "… kbit/s | Mbit/s | Gbit/s"', /^\d[\d\u202f\u00a0]*,\d[ \u00a0\u202f](kbit|Mbit|Gbit)\/s$/.test(netVal), netVal);
+      await fp.click('.app-taskmgr .tm-meter[data-meter="cpu"]');
       await fp.mouse.move(1595, 5);
       await sleep(1500);
+      // The chart and the key figures fit in the default window, the Details card too (next to
+      // the figures), with no device chips on CPU.
+      const fit = await fp.$eval('.app-taskmgr .tm-pd', (pd) => {
+        const b = pd.getBoundingClientRect().bottom;
+        return { chips: pd.querySelector('.tm-stats').getBoundingClientRect().bottom <= b + 1, card: pd.querySelector('.tm-pd-card').getBoundingClientRect().bottom <= b + 1, chart: pd.querySelector('.tm-chartbox.main').getBoundingClientRect().height, scroll: pd.scrollHeight <= pd.clientHeight + 1 };
+      });
+      check('FR CPU: chart, key figures and Details fit without scrolling', fit.chips && fit.card && fit.scroll && fit.chart >= 150, fit);
       const r = await ftm(() => {
         const b = window.__aurora.wm.byApp('taskmgr')[0].el.getBoundingClientRect();
         return { x: b.x, y: b.y, width: b.width, height: b.height };
@@ -1101,14 +1149,17 @@ try {
       const hd = el.querySelector('.tm-head');
       return hd.scrollWidth <= hd.clientWidth + 1;
     })(),
-    // every command stays reachable (none clipped by the toolbar)
+    // every command stays reachable (none clipped by the toolbar): the row actions next to the
+    // search, the page's commands on the right
     cmdsVisible: (() => {
-      const c = el.querySelector('.tm-cmds').getBoundingClientRect();
-      const list = [...el.querySelectorAll('.tm-cmds .tm-cmd')];
-      return list.length >= 3 && list.every((b) => {
+      const hd = el.querySelector('.tm-head').getBoundingClientRect();
+      const list = [...el.querySelectorAll('.tm-rowcmds .tm-cmd, .tm-cmds .tm-cmd')];
+      const inside = (b, box) => {
         const r = b.getBoundingClientRect();
-        return r.width > 20 && r.left >= c.left - 1 && r.right <= c.right + 1;
-      });
+        const c = box.getBoundingClientRect();
+        return r.width > 20 && r.left >= c.left - 1 && r.right <= c.right + 1 && r.right <= hd.right + 1;
+      };
+      return list.length >= 3 && el.querySelectorAll('.tm-rowcmds .tm-cmd').length === 2 && list.every((b) => inside(b, b.parentElement));
     })(),
   }));
   check('min size: meters fit + icon commands', small.metersFit && small.compactCmds && small.viewsVisible && small.searchW >= 120 && small.headFits && small.cmdsVisible, small);
@@ -1125,7 +1176,7 @@ try {
       title: el.querySelector('.tm-title').textContent,
       view: el.querySelector('.tm-viewbtn-label').textContent,
       meter: el.querySelector('.tm-meter[aria-pressed="true"]')?.dataset.meter || null,
-      dev: el.querySelector('.tm-dev.selected')?.dataset.dev || null,
+      dev: window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.performance.selected,
     }));
   let vs = await viewState();
   check('Details view from the "Afficher" menu', /tm-page-details/.test(vs.page) && vs.title === 'Détails' && vs.view === 'Détails' && vs.meter === null, vs);

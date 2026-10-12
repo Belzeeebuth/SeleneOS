@@ -1,9 +1,12 @@
 // System Monitor window: a permanent strip of four meters along the top (processor, memory, disk,
-// network: value + sparkline; a click opens the Performances detail on that device), a toolbar
-// (search on the left, the "Show:" view menu, the page's commands, Settings), and the pages
-// themselves. Pages implement:
+// network, plus the GPU when the driver reports it: value + sparkline; a click opens the
+// Performances detail on that device, so the meters are that page's device picker), a toolbar
+// (search on the left with the selected row's actions next to it; the "Show:" view menu, the
+// page's commands and Settings on the right), and the pages themselves. Pages implement:
 //   { id, icon, title(), needs: { procs, shell }, mount(el), show(), hide(), update(store),
-//     commands() -> [{ id, icon, label, action, disabled, pressed, menu }], onSearch(q), focus(), relabel() }
+//     commands() -> [{ id, icon, label, action, disabled, pressed, menu, row }], onSearch(q), focus(), relabel() }
+// A command with `row: true` acts on the selected row: it sits next to the search, and only while
+// a row is selected (`hidden` otherwise).
 import { wm } from '../../../core/wm.js';
 import { Store } from './store.js';
 import { createFormat, debounce, alignMenu, errText } from './util.js';
@@ -23,6 +26,7 @@ export const VIEWS = ['processes', 'details', 'history', 'startup', 'services', 
 export const PROC_VIEWS = ['processes', 'details', 'history'];
 export const METERS = ['cpu', 'mem', 'disk', 'net'];
 const SPARK_W = 64;
+const SEARCH_MIN = 200; // below this, the commands drop their labels
 const SPARK_H = 22;
 const SVGNS = 'http://www.w3.org/2000/svg';
 
@@ -134,7 +138,7 @@ export class TaskManager {
 
     // ---- the four meters
     this.meters = new Map();
-    const mkMeter = (id) => {
+    this.mkMeter = (id) => {
       const label = h('span', { class: 'tm-meter-label' }, t(`meter.${id}`));
       const val = h('span', { class: 'tm-meter-val' }, '—');
       const svg = document.createElementNS(SVGNS, 'svg');
@@ -157,7 +161,7 @@ export class TaskManager {
       this.meters.set(id, b);
       return b;
     };
-    this.meterBar = h('div', { class: 'tm-meters', role: 'group', 'aria-label': t('meter.label') }, METERS.map(mkMeter));
+    this.meterBar = h('div', { class: 'tm-meters', role: 'group', 'aria-label': t('meter.label') }, METERS.map(this.mkMeter));
     this.meterBar.addEventListener('keydown', (e) => {
       const items = [...this.meters.values()];
       const i = items.indexOf(document.activeElement);
@@ -187,7 +191,8 @@ export class TaskManager {
     // ---- main area
     this.titleEl = h('h1', { class: 'tm-title ellipsis' });
     this.cmdBar = h('div', { class: 'tm-cmds', role: 'toolbar', 'aria-label': t('cmd.toolbar') });
-    this.head = h('header', { class: 'tm-head' }, this.titleEl, this.searchBox, this.viewBtn, this.cmdBar, this.settingsBtn);
+    this.rowBar = h('div', { class: 'tm-rowcmds', role: 'toolbar', 'aria-label': t('cmd.rowActions'), hidden: true });
+    this.head = h('header', { class: 'tm-head' }, this.titleEl, this.searchBox, this.rowBar, this.viewBtn, this.cmdBar, this.settingsBtn);
     this.pageHost = h('div', { class: 'tm-pages' });
     this.errorText = h('div', { class: 'caption grow' });
     this.errorBar = h(
@@ -274,12 +279,19 @@ export class TaskManager {
   }
 
   // ------------------------------------------------------------------ meters
+  // The device a meter stands for: for disks and adapters, the one last chosen on the
+  // Performances page (its chip row), else the first disk / the first real adapter.
   meterDevice(kind) {
     const perf = this.store.perf;
     if (!perf) return null;
     if (kind === 'cpu' || kind === 'mem') return { id: kind };
-    if (kind === 'disk') return perf.disks[0] ? { id: `disk:${perf.disks[0].name}`, d: perf.disks[0] } : null;
-    const n = perf.net.find((x) => x.type !== 'loopback' && x.iface !== 'lo') || perf.net[0];
+    if (kind === 'gpu') return perf.gpu ? { id: 'gpu' } : null;
+    const last = this.pages.performance?.lastOf?.[kind];
+    if (kind === 'disk') {
+      const d = perf.disks.find((x) => `disk:${x.name}` === last) || perf.disks[0];
+      return d ? { id: `disk:${d.name}`, d } : null;
+    }
+    const n = perf.net.find((x) => `net:${x.iface}` === last) || perf.net.find((x) => x.type !== 'loopback' && x.iface !== 'lo') || perf.net[0];
     return n ? { id: `net:${n.iface}`, n } : null;
   }
   updateMeters() {
@@ -288,7 +300,16 @@ export class TaskManager {
     const { fmt, store } = this;
     const series = (k) => store.series.get(k) || [];
     const sum = (a, b) => a.map(([tt, v], i) => [tt, v + (b[i]?.[1] || 0)]);
+    // A GPU meter joins the strip while the driver reports one.
+    if (!!perf.gpu !== this.meters.has('gpu')) {
+      if (perf.gpu) this.meterBar.appendChild(this.mkMeter('gpu'));
+      else {
+        this.meters.get('gpu').remove();
+        this.meters.delete('gpu');
+      }
+    }
     const perfDev = this.current?.id === 'performance' ? this.pages.performance.selected || '' : '';
+    const perfKind = perfDev.split(':')[0];
     for (const [kind, b] of this.meters) {
       const dev = this.meterDevice(kind);
       let text = '—';
@@ -306,9 +327,13 @@ export class TaskManager {
         text = fmt.pct(dev.d.busyPct);
         pts = series(`${dev.id}:busy`);
       } else if (kind === 'net' && dev) {
-        text = fmt.bits((dev.n.rxBps + dev.n.txBps) * 8);
+        // rxBps / txBps are already bits per second.
+        text = fmt.bits(dev.n.rxBps + dev.n.txBps);
         pts = sum(series(`${dev.id}:rx`), series(`${dev.id}:tx`));
         max = Math.max(1, ...pts.map((x) => x[1]));
+      } else if (kind === 'gpu' && dev) {
+        text = fmt.pct(perf.gpu.busyPct || 0);
+        pts = series('gpu');
       }
       if (b._val.textContent !== text) b._val.textContent = text;
       b.setAttribute('aria-label', `${b._label.textContent} ${text}`);
@@ -321,7 +346,7 @@ export class TaskManager {
         b._line.setAttribute('d', d);
         b._area.setAttribute('d', `${d} L${SPARK_W} ${SPARK_H} L${x0.toFixed(1)} ${SPARK_H} Z`);
       }
-      const on = !!dev && perfDev === dev.id;
+      const on = !!dev && perfKind === kind;
       b.classList.toggle('selected', on);
       b.setAttribute('aria-pressed', String(on));
     }
@@ -372,11 +397,12 @@ export class TaskManager {
         cmds = cmds.map((c) => (c === more ? { ...c, menu: () => [...head(), '-', ...own()] } : c));
       } else cmds.push({ id: 'more', icon: 'dots-three', label: this.t('cmd.more'), menu: head });
     }
-    const sig = JSON.stringify(cmds.map((c) => [c.id, c.label, !!c.disabled, c.pressed ?? null, c.icon]));
+    const sig = JSON.stringify(cmds.map((c) => [c.id, c.label, !!c.disabled, c.pressed ?? null, c.icon, !!c.row]));
     if (sig === this._cmdSig) return;
     this._cmdSig = sig;
-    const focusedId = this.cmdBar.contains(document.activeElement) ? document.activeElement.dataset.cmd : null;
+    const focused = this.cmdBar.contains(document.activeElement) || this.rowBar.contains(document.activeElement) ? document.activeElement.dataset.cmd : null;
     this.cmdBar.textContent = '';
+    this.rowBar.textContent = '';
     for (const c of cmds) {
       const btn = h(
         'button',
@@ -398,17 +424,22 @@ export class TaskManager {
         c.id === 'more' ? null : h('span', { class: 'tm-cmd-label' }, c.label),
         c.menu && c.id !== 'more' ? icon('chevron_down', { size: 12, class: 'tm-cmd-chev' }) : null,
       );
-      this.cmdBar.appendChild(btn);
+      (c.row ? this.rowBar : this.cmdBar).appendChild(btn);
     }
-    if (focusedId) this.cmdBar.querySelector(`[data-cmd="${focusedId}"]`)?.focus();
+    this.rowBar.hidden = !this.rowBar.childElementCount;
+    if (focused) this.head.querySelector(`.tm-cmd[data-cmd="${focused}"]`)?.focus();
     this._fitCommands();
   }
-  // Labels collapse to icons (with tooltips) when the commands don't fit next to the title.
+  // Labels collapse to icons (with tooltips) when the commands don't fit next to a usable search.
   _fitCommands() {
     this.head.classList.remove('compact');
-    const kids = [...this.cmdBar.children];
-    const need = kids.reduce((a, c) => a + c.offsetWidth, 0) + Math.max(0, kids.length - 1) * 2;
-    if (need > this.cmdBar.clientWidth + 1) this.head.classList.add('compact');
+    const width = (el) => (el.hidden ? 0 : [...el.children].reduce((a, c) => a + c.offsetWidth, 0) + Math.max(0, el.childElementCount - 1) * 2);
+    const cs = getComputedStyle(this.head);
+    const room = this.head.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const parts = [width(this.rowBar), this.viewBtn.offsetWidth, width(this.cmdBar), this.settingsBtn.offsetWidth].filter((w) => w > 0);
+    const gap = parseFloat(cs.columnGap) || 8;
+    const need = SEARCH_MIN + parts.reduce((a, w) => a + w, 0) + parts.length * gap;
+    if (need > room + 1) this.head.classList.add('compact');
   }
 
   // ------------------------------------------------------------------ views
@@ -509,6 +540,7 @@ export class TaskManager {
     this.settingsBtn.setAttribute('aria-label', this.pages.settings.title());
     this.settingsBtn.dataset.tip = this.pages.settings.title();
     this.cmdBar.setAttribute('aria-label', t('cmd.toolbar'));
+    this.rowBar.setAttribute('aria-label', t('cmd.rowActions'));
     this.errorBar.querySelector('.btn').textContent = t('common.retry');
     this.searchBox.querySelector('.tm-search-clear').setAttribute('aria-label', t('search.clear'));
     this.updateMeters();

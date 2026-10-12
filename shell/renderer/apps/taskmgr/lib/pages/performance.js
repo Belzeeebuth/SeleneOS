@@ -1,6 +1,7 @@
-// Performance page: a row of device chips (CPU, Memory, every disk, every network adapter, GPU
-// when the driver reports utilization) and the selected device's detail: its current value in
-// large type, one 60-second area chart, key figures as chips and a short "Details" card.
+// Performance page: the selected device's detail: its current value in large type, one 60-second
+// area chart, key figures as chips and a short "Details" card. The meters along the top of the
+// window are the device picker; a small chip row above the detail chooses among several disks or
+// several network adapters, and only shows when there is more than one.
 import { Chart, niceMax } from '../chart.js';
 
 const SPAN = 60000;
@@ -14,6 +15,7 @@ export class PerformancePage {
     this.devices = [];
     this.devSig = '';
     this.selected = 'cpu';
+    this.lastOf = {}; // kind -> the disk / adapter last chosen, for the meters
     this.tiles = new Map();
     this.detail = null;
     this.colors = {};
@@ -25,13 +27,13 @@ export class PerformancePage {
 
   mount(el) {
     const { h } = this.app.ctx;
-    this.list = h('div', { class: 'tm-devs', role: 'listbox', tabindex: '0', 'aria-label': this.app.t('perf.devices') });
+    this.list = h('div', { class: 'tm-devs', role: 'listbox', tabindex: '0', hidden: true, 'aria-label': this.app.t('perf.disks') });
     this.detailEl = h('div', { class: 'tm-pd' });
     this.root = h('div', { class: 'tm-perf' }, this.list, this.detailEl);
     el.appendChild(this.root);
     this.list.addEventListener('keydown', (e) => {
       if (e.defaultPrevented) return; // an open menu's keys
-      const ids = this.devices.map((d) => d.id);
+      const ids = this.siblings().map((d) => d.id);
       const i = ids.indexOf(this.selected);
       let j = null;
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight') j = Math.min(ids.length - 1, i + 1);
@@ -57,7 +59,16 @@ export class PerformancePage {
   }
 
   focus() {
-    this.list.focus({ preventScroll: true });
+    if (!this.list.hidden) this.list.focus({ preventScroll: true });
+    else this.app.meters?.get(this.kindOf(this.selected))?.focus({ preventScroll: true });
+  }
+  kindOf(id) {
+    return String(id).split(':')[0];
+  }
+  // The devices of the selected one's kind (all the disks, all the adapters).
+  siblings() {
+    const kind = this.kindOf(this.selected);
+    return this.devices.filter((d) => d.kind === kind);
   }
   show() {
     this.readColors();
@@ -67,7 +78,6 @@ export class PerformancePage {
     if (key === 'cpuGraph' && this.selected === 'cpu') this.buildDetail();
   }
   relabel() {
-    this.list.setAttribute('aria-label', this.app.t('perf.devices'));
     this.devSig = '';
     if (this.app.store.perf) {
       this.syncDevices(this.app.store.perf);
@@ -101,21 +111,19 @@ export class PerformancePage {
     this.devSig = sig;
     this.devices = devs;
     const { h } = this.app.ctx;
-    for (const tile of this.tiles.values()) tile.chart.destroy();
     this.list.textContent = '';
     this.tiles.clear();
     for (const d of devs) {
-      const chart = new Chart({ mini: true, className: 'tm-spark' });
-      const t1 = h('div', { class: 'tm-dev-title ellipsis' });
-      const t2 = h('div', { class: 'tm-dev-sub ellipsis' });
-      const t3 = h('div', { class: 'tm-dev-val ellipsis' });
+      if (d.kind !== 'disk' && d.kind !== 'net') continue;
+      const t1 = h('span', { class: 'tm-dev-title ellipsis' });
+      const t2 = h('span', { class: 'tm-dev-sub ellipsis' });
+      const t3 = h('span', { class: 'tm-dev-val ellipsis' });
       const el = h(
         'div',
         { class: ['tm-dev', `k-${d.kind}`], role: 'option', id: `tm-dev-${d.id.replace(/[^\w-]/g, '_')}`, 'aria-selected': 'false', dataset: { dev: d.id }, onclick: () => this.select(d.id) },
-        h('div', { class: 'tm-spark-wrap' }, chart.canvas),
-        h('div', { class: 'tm-dev-text' }, t1, t2, t3),
+        h('span', { class: 'tm-dev-text' }, t1, t2, t3),
       );
-      this.tiles.set(d.id, { el, chart, t1, t2, t3, dev: d });
+      this.tiles.set(d.id, { el, t1, t2, t3, dev: d });
       this.list.appendChild(el);
     }
     if (!devs.some((d) => d.id === this.selected)) this.selected = 'cpu';
@@ -140,20 +148,28 @@ export class PerformancePage {
   select(id) {
     if (!this.devices.some((d) => d.id === id)) return;
     this.selected = id;
+    this.lastOf[this.kindOf(id)] = id;
     this.markSelected();
     this.buildDetail();
     if (this.app.store.perf) this.update(this.app.store, { animate: false });
+    if (this.app.current === this) this.app.updateMeters?.();
   }
+  // The chip row lists the selected device's siblings, and only when there are several.
   markSelected() {
+    const kind = this.kindOf(this.selected);
+    const many = this.devices.filter((d) => d.kind === kind).length > 1;
+    const hadFocus = this.list.contains(document.activeElement);
+    this.list.hidden = !many;
+    this.list.setAttribute('aria-label', this.app.t(kind === 'net' ? 'perf.adapters' : 'perf.disks'));
     for (const [id, tile] of this.tiles) {
       const on = id === this.selected;
+      tile.el.hidden = !many || tile.dev.kind !== kind;
       tile.el.classList.toggle('selected', on);
       tile.el.setAttribute('aria-selected', String(on));
-      if (on) {
-        this.list.setAttribute('aria-activedescendant', tile.el.id);
-        tile.el.scrollIntoView({ block: 'nearest' });
-      }
+      if (on) this.list.setAttribute('aria-activedescendant', tile.el.id);
     }
+    if (!many) this.list.removeAttribute('aria-activedescendant');
+    if (hadFocus && !many) this.focus();
   }
 
   // ------------------------------------------------------------------ detail
@@ -349,7 +365,9 @@ export class PerformancePage {
       if (this.showAllDetails) more.click();
       card.appendChild(more);
     }
-    body.appendChild(h('div', { class: 'tm-pd-stats' }, chips, d.comp || null, card));
+    // Key figures (and the memory composition) on the left, the Details card on their right when
+    // the window is wide enough, so the chart and the figures fit without scrolling.
+    body.appendChild(h('div', { class: 'tm-pd-stats' }, h('div', { class: 'tm-pd-figs' }, chips, d.comp || null), card));
     this.detailEl.append(head, body);
     this.detail = d;
   }
@@ -363,45 +381,23 @@ export class PerformancePage {
     const now = p.time;
     const { t } = this.app;
     const f = this.app.fmt;
-    // ---- device tiles
+    // ---- sibling chips (several disks / adapters): short name, current value
     for (const tile of this.tiles.values()) {
+      if (tile.el.hidden) continue;
       const dv = tile.dev;
-      let points = [];
-      let max = 100;
-      let color = this.colors[dv.kind];
-      let second = null;
-      const set = (a, b, c) => {
-        if (tile.t1.textContent !== a) {
-          tile.t1.textContent = a;
-          tile.t1.dataset.tip = a; // long mount-point lists are cut off
-        }
+      const set = (a, tip, b, c) => {
+        if (tile.t1.textContent !== a) tile.t1.textContent = a;
+        if (tile.el.dataset.tip !== tip) tile.el.dataset.tip = tip; // the mount points of a disk
         if (tile.t2.textContent !== b) tile.t2.textContent = b;
-        if (tile.t3.textContent !== (c || '')) tile.t3.textContent = c || '';
+        if (tile.t3.textContent !== c) tile.t3.textContent = c;
       };
-      if (dv.kind === 'cpu') {
-        points = store.get('cpu');
-        set(t('perf.cpu'), `${f.pct(p.cpu.total)}  ${f.ghz(p.cpu.speedMHz)}`);
-      } else if (dv.kind === 'mem') {
-        points = store.get('mem');
-        max = p.mem.total;
-        set(t('perf.memory'), `${f.gbPair(p.mem.used, p.mem.total)} (${f.pct((p.mem.used / p.mem.total) * 100)})`);
-      } else if (dv.kind === 'disk') {
+      if (dv.kind === 'disk') {
         const dk = p.disks.find((x) => x.name === dv.name);
-        if (!dk) continue;
-        points = store.get(`disk:${dv.name}:busy`);
-        set(this.devLabel(dv), t(`disk.${dk.type}`), f.pct(dk.busyPct));
+        if (dk) set(this.devLabel(dv).replace(/ \(.*$/, ''), this.devLabel(dv), '', f.pct(dk.busyPct));
       } else if (dv.kind === 'net') {
         const n = p.net.find((x) => x.iface === dv.name);
-        if (!n) continue;
-        points = store.get(`net:${dv.name}:rx`);
-        second = store.get(`net:${dv.name}:tx`);
-        max = niceMax(Math.max(store.peak(`net:${dv.name}:rx`, now), store.peak(`net:${dv.name}:tx`, now)), 10000);
-        set(this.devLabel(dv), n.iface, t('perf.sendRecv', { s: f.bits(n.txBps), r: f.bits(n.rxBps) }));
-      } else if (dv.kind === 'gpu') {
-        points = store.get('gpu');
-        set(t('perf.gpu', { n: 0 }), p.gpu?.name || '', f.pct(p.gpu?.busyPct || 0));
+        if (n) set(this.devLabel(dv), `${this.devLabel(dv)} (${n.iface})`, n.iface, t('perf.sendRecv', { s: f.bits(n.txBps), r: f.bits(n.rxBps) }));
       }
-      tile.chart.set({ color, max, series: [{ points }, second ? { points: second, dash: true, fill: false } : null].filter(Boolean) }, now, { animate: false });
     }
     // ---- detail
     const d = this.detail;
@@ -595,6 +591,5 @@ export class PerformancePage {
   }
   destroy() {
     for (const c of this.detail?.charts || []) c.destroy();
-    for (const tile of this.tiles.values()) tile.chart.destroy();
   }
 }

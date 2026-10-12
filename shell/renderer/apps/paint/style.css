@@ -1528,8 +1528,8 @@
 }
 
 /* ---------------------------------------------------------------- Selene phase D
-   Zoom pill: floats at the bottom right of the canvas area (no status bar). The canvas size,
-   pointer position and selection size show above it as a discreet caption on hover. */
+   Zoom pill: floats at the bottom right of the canvas area (no status bar). The canvas size and
+   selection size show above it as a discreet caption while the pill is hovered or focused. */
 .app-paint .pt-status.pt-zoompill-wrap {
   position: absolute;
   z-index: 3;
@@ -1589,7 +1589,7 @@
   transition: opacity var(--dur) var(--ease);
   pointer-events: none;
 }
-.app-paint .pt-main:hover .pt-st-cap,
+.app-paint .pt-zoompill-wrap:hover .pt-st-cap,
 .app-paint .pt-zoompill-wrap:focus-within .pt-st-cap {
   opacity: 1;
 }

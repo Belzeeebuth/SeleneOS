@@ -24,6 +24,7 @@
     },
     "cmd": {
       "toolbar": "Commands",
+      "rowActions": "Actions on the selected item",
       "run": "Run a command",
       "endTask": "Stop process",
       "endTree": "End process tree",
@@ -231,6 +232,8 @@
     },
     "perf": {
       "devices": "Devices",
+      "disks": "Disks",
+      "adapters": "Network adapters",
       "cpu": "CPU",
       "memory": "Memory",
       "disk": "Disk {n}",
@@ -303,7 +306,7 @@
       "throughput": "Throughput",
       "send": "Send",
       "receive": "Receive",
-      "sendRecv": "S: {s} R: {r}",
+      "sendRecv": "Send {s} · Receive {r}",
       "adapter": "Adapter name:",
       "connType": "Connection type:",
       "linkSpeed": "Link speed:",
@@ -411,7 +414,7 @@
       "KBs": "KB/s",
       "MBs": "MB/s",
       "GBs": "GB/s",
-      "Kbps": "Kbps",
+      "Kbps": "kbps",
       "Mbps": "Mbps",
       "Gbps": "Gbps",
       "GHz": "GHz",
@@ -430,6 +433,7 @@
       "mem": "Memory",
       "disk": "Disk",
       "net": "Network",
+      "gpu": "GPU",
       "open": "Show the details"
     }
   },
@@ -458,6 +462,7 @@
     },
     "cmd": {
       "toolbar": "Commandes",
+      "rowActions": "Actions sur l'élément sélectionné",
       "run": "Lancer une commande",
       "endTask": "Arrêter le processus",
       "endTree": "Terminer l'arborescence du processus",
@@ -665,6 +670,8 @@
     },
     "perf": {
       "devices": "Périphériques",
+      "disks": "Disques",
+      "adapters": "Cartes réseau",
       "cpu": "Processeur",
       "memory": "Mémoire",
       "disk": "Disque {n}",
@@ -737,7 +744,7 @@
       "throughput": "Débit",
       "send": "Envoi",
       "receive": "Réception",
-      "sendRecv": "E : {s} R : {r}",
+      "sendRecv": "Envoi {s} · Réception {r}",
       "adapter": "Nom de l'adaptateur :",
       "connType": "Type de connexion :",
       "linkSpeed": "Vitesse de la liaison :",
@@ -845,7 +852,7 @@
       "KBs": "Ko/s",
       "MBs": "Mo/s",
       "GBs": "Go/s",
-      "Kbps": "Kbit/s",
+      "Kbps": "kbit/s",
       "Mbps": "Mbit/s",
       "Gbps": "Gbit/s",
       "GHz": "GHz",
@@ -864,6 +871,7 @@
       "mem": "Mémoire",
       "disk": "Disque",
       "net": "Réseau",
+      "gpu": "GPU",
       "open": "Afficher le détail"
     }
   }

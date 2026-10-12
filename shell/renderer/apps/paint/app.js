@@ -496,7 +496,7 @@ export async function createPaint(ctx) {
   }
 
   // ------------------------------------------------------------------ status / title
-  const fmtSize = (w, hh) => `${w} × ${hh}px`;
+  const fmtSize = (w, hh) => `${w} × ${hh} px`;
   function selSizeText() {
     if (marquee && !marquee.lasso) return fmtSize(marquee.w, marquee.h);
     if (sel) return fmtSize(Math.round(sel.w), Math.round(sel.h));
