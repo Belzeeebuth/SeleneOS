@@ -501,6 +501,14 @@
   --tp: 0 !important;
   --a-taskbar: 1 !important;
 }
+/* The system asks for reduced transparency: the same solid surfaces, whatever the finish. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --mica-image: none !important;
+    --tp: 0 !important;
+    --a-taskbar: 1 !important;
+  }
+}
 :root[data-animations="off"] *,
 :root[data-animations="off"] *::before,
 :root[data-animations="off"] *::after {

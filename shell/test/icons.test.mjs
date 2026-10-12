@@ -653,6 +653,11 @@ const blueSymbol = (px) => {
           const c = e && getComputedStyle(e).content;
           return c && c !== 'normal' && c !== 'none' ? c.replace(/^url\("(.*)"\)$/, '$1') : e?.getAttribute?.('src') || null;
         };
+        const bg = (q) => {
+          const e = document.querySelector(q);
+          const b = e && getComputedStyle(e).backgroundImage;
+          return b && b !== 'none' ? b.replace(/^url\("(.*)"\)$/, '$1') : null;
+        };
         const d = document.documentElement.dataset;
         return {
           finish: d.finish,
@@ -664,8 +669,13 @@ const blueSymbol = (px) => {
           thisPc: content('#desktop [data-special="thispc"] img'),
           trash: content('#desktop [data-special="trash"] img'),
           folder: content('.app-files img[src$="/folder-documents.svg"], .app-files img[src*="/folder"]'),
-          deskPdf: content('#desktop .desk-fi.ft-pdf, #desktop .desk-page.ft-pdf'),
-          deskDir: content('#desktop .desk-fi.folder-icon'),
+          // (the desktop's Phosphor glyphs get the picture as a background, the glyph hidden)
+          deskPdf: bg('#desktop .desk-fi.ft-pdf, #desktop .desk-page.ft-pdf'),
+          deskDir: bg('#desktop .desk-fi.folder-icon'),
+          deskGlyph: (() => {
+            const g = document.querySelector('#desktop .desk-fi.folder-icon svg');
+            return g ? getComputedStyle(g).visibility : null;
+          })(),
         };
       });
     const H = 'app://shell/assets/icons/packs/halo/';
@@ -675,7 +685,7 @@ const blueSymbol = (px) => {
     const h0 = await state();
     check(h0.finish === 'halo' && h0.pack === 'halo' && h0.setting === 'auto', `Halo finish: iconPack "auto" draws the Halo icons (<html data-icon-pack="${h0.pack}">)`, JSON.stringify(h0).slice(0, 200));
     check(h0.bar?.startsWith(H) && h0.win?.startsWith(H) && h0.thisPc === `${H}this-pc.svg` && h0.trash === `${H}recycle-bin.svg`, 'Halo: bar, window title, desktop Ordinateur and Corbeille', JSON.stringify({ bar: h0.bar, win: h0.win, pc: h0.thisPc, trash: h0.trash }));
-    check(h0.folder?.startsWith(`${H}folder`) && h0.deskPdf === `${H}file-pdf.svg` && h0.deskDir === `${H}folder.svg`, 'Halo: Fichiers folders, desktop documents and folders use the Halo file icons', JSON.stringify({ folder: h0.folder, pdf: h0.deskPdf, dir: h0.deskDir }));
+    check(h0.folder?.startsWith(`${H}folder`) && h0.deskPdf === `${H}file-pdf.svg` && h0.deskDir === `${H}folder.svg` && h0.deskGlyph === 'hidden', 'Halo: Fichiers folders, desktop documents and folders use the Halo file icons', JSON.stringify({ folder: h0.folder, pdf: h0.deskPdf, dir: h0.deskDir, glyph: h0.deskGlyph }));
     await s.shot('icons-finish-halo-nocturne');
     await P.evaluate(() => window.__aurora.shell.emit('start:toggle'));
     await P.waitForTimeout(700);

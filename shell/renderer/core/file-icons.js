@@ -14,8 +14,9 @@
 // cross-fade) swaps it in the same frame. Cold adds no rule at all: Nocturne looks exactly as before.
 // The colourful packs of the finishes (<html data-icon-pack="halo|prisme">, core/packs.js) have their own Fichiers
 // pictures (assets/icons/packs/<pack>/<name>.svg, tools/gen-finish-icons.mjs): every Fichiers picture is mapped to
-// them, and so are the Phosphor file-type glyphs of the desktop, the Lanceur and the file pickers (`content: url()` on
-// the glyph, picked by its .ft-* class or its icon name). Contraste élevé never gets them (packs.js draws selene there).
+// them, and so are the Phosphor file-type glyphs of the desktop, the Lanceur and the file pickers (the picture as the
+// glyph's background, the glyph hidden; picked by its .ft-* class or its icon name). Contraste élevé never gets them
+// (packs.js draws selene there).
 import { lookKey } from './app-icon-art.js';
 import { FILE_ICONS, fileLookKey, fileIconLook, fileIconSvg, fileTypeTints } from './file-icon-art.js';
 import { iconInner } from './icons.js';
@@ -35,12 +36,16 @@ const staticPack = () => {
 function packSheet(pack) {
   const u = (name) => cssUrl(`${PACK_ICON_BASE}${pack}/${name}.svg`);
   const rules = Object.keys(FILE_ICONS).map((name) => `img[src="${FILE_ICON_BASE}${name}.svg"]:not([data-icon-fixed]) { content: ${u(name)}; }`);
+  // The Phosphor glyphs (<span class="icon"><svg>) get the picture as a background, their own glyph hidden: a
+  // `content: url()` there would make them images the desktop's pointer drag cannot hold (Chromium drags the picture).
+  const glyph = (sel, name) =>
+    `${sel} { background: ${u(name)} center / contain no-repeat; }\n:is(${sel}) > :is(svg, .icon) { visibility: hidden; }`;
   // by icon name: file pickers, the desktop (its folders and plain pages)
   for (const [n, f] of Object.entries(NAME_FILE)) {
-    rules.push(`:is(.fp-row, .desk-fi) > .icon[data-icon="${n}"], .desk-fi.icon[data-icon="${n}"], .desk-page:has(> .icon[data-icon="${n}"]) { content: ${u(f)}; }`);
+    rules.push(glyph(`:is(.fp-row, .desk-fi) > .icon[data-icon="${n}"], .desk-fi.icon[data-icon="${n}"], .desk-page:has(> .icon[data-icon="${n}"])`, f));
   }
   // by file-type class (more precise: documents, sheets, slides): the desktop and the Lanceur's results / recent files
-  for (const [ft, f] of Object.entries(FT_FILE)) rules.push(`:root .desk-fi.ft-${ft}, :root .desk-page.ft-${ft}, .ft-${ft} > .icon { content: ${u(f)}; }`);
+  for (const [ft, f] of Object.entries(FT_FILE)) rules.push(glyph(`:root .desk-fi.ft-${ft}, :root .desk-page.ft-${ft}, .ft-${ft} > .icon`, f));
   return rules.join('\n');
 }
 const CSS_ID = 'aurora-fileicons-css';

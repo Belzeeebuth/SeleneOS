@@ -1115,6 +1115,9 @@ if (!E2E_ONLY) {
   await sleep(600);
   await waitTransitions(s);
   const micaOk = await mica();
+  // the tint and the contrast floor of a new picture are measured after the desktop cross-fade (theme.js GLASS_DEFER_MS)
+  const glassMeasured = () => T(s, () => new Promise((res) => { const t0 = Date.now(); const tick = () => (document.documentElement.style.getPropertyValue('--a-floor') || Date.now() - t0 > 6000 ? res() : setTimeout(tick, 100)); tick(); }));
+  await glassMeasured();
   const h = await sample();
   check(h.finish === 'halo' && h.accent === '#7fcbff' && h.wall === 'builtin:halo-nocturne', `chooseFinish('halo'): data-finish, and the accent and wallpaper follow (they were Sobre's defaults): ${h.accent}, ${h.wall}`);
   check(micaOk && /blob:/.test(h.winImg) && /linear-gradient/.test(h.winImg) && h.aWin >= 0.7 && h.aWin <= 0.8, `Halo windows: tinted glass over the pre-blurred wallpaper (Mica-like, no live blur), alpha ${h.aWin}`);
@@ -1136,7 +1139,10 @@ if (!E2E_ONLY) {
         await setKey(s, 'theme', mode, 300);
         await waitTransitions(s);
         await mica();
-        await sleep(500);
+        // each mode has its own picture (<id>-dark.jpg / -light.jpg): its floor is measured after the cross-fade
+        // (theme.js GLASS_DEFER_MS), else the previous picture's floor would be read
+        await sleep(1900);
+        await glassMeasured();
         const x = await sample();
         const ok = x.floor > 0 && x.aWin >= x.floor - 0.001 && x.bar >= x.floor - 0.001 && x.startA >= x.floor - 0.001;
         seen.push(`${f}/${st}/${mode} ${x.aWin.toFixed(2)}≥${x.floor}`);
