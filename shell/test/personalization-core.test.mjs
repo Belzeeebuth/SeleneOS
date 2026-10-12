@@ -164,10 +164,10 @@ console.log('\n# Defaults + settings:setMany');
 
 console.log('\n# Every key applies live');
 {
-  // transparency level → alpha of the taskbar / window tint
+  // transparency level → alpha of the bar's glass (Nocturne: its islands) / window tint
   const alphaAt = async (lvl) => {
     await setKey(s, 'transparencyLevel', lvl);
-    return T(s, () => ({ tb: window.__t.alpha(window.__t.cs('#taskbar', 'backgroundColor')), mica: window.__t.alpha(window.__t.cs(window.__t.probe('<div style="background-color: var(--mica-tint)"></div>'), 'backgroundColor')), tp: window.__t.root('--tp') }));
+    return T(s, () => ({ tb: window.__t.alpha(window.__t.cs(window.__t.bar(), 'backgroundColor')), mica: window.__t.alpha(window.__t.cs(window.__t.probe('<div style="background-color: var(--mica-tint)"></div>'), 'backgroundColor')), tp: window.__t.root('--tp') }));
   };
   const a0 = await alphaAt(0);
   const a50 = await alphaAt(50);
@@ -175,15 +175,16 @@ console.log('\n# Every key applies live');
   check(a0.tb === 1 && a0.mica === 1 && a50.tb <= 0.92 && a50.tb >= 0.8 && a100.tb <= a50.tb && a100.tb >= 0.8 && a100.mica === 1, `transparencyLevel (glass stays 80–92 % opaque, windows opaque): taskbar alpha ${a0.tb} → ${a50.tb.toFixed(2)} → ${a100.tb.toFixed(2)}, window tint ${a0.mica} → ${a100.mica.toFixed(2)}`);
   await setKey(s, 'transparencyLevel', 50);
   await setKey(s, 'transparency', false);
-  const off = await T(s, () => ({ attr: document.documentElement.dataset.transparency, bf: window.__t.cs('#taskbar', 'backdropFilter'), a: window.__t.alpha(window.__t.cs('#taskbar', 'backgroundColor')) }));
-  check(off.attr === 'off' && off.bf === 'none' && off.a === 1, 'transparency off: opaque surfaces, no backdrop blur');
+  const off = await T(s, () => ({ attr: document.documentElement.dataset.transparency, bf: window.__t.cs(window.__t.bar(), 'backdropFilter'), a: window.__t.alpha(window.__t.cs(window.__t.bar(), 'backgroundColor')), start: window.__t.cs('#start', 'backdropFilter'), qs: window.__t.cs('#quick-settings', 'backdropFilter') }));
+  check(off.attr === 'off' && off.bf === 'none' && off.a === 1 && off.start === 'none' && off.qs === 'none', `transparency off: opaque surfaces, no backdrop blur (bar ${off.bf} at ${off.a}, Lanceur ${off.start}, panel ${off.qs})`);
   await setKey(s, 'transparency', true);
-  // blur intensity → backdrop-filter of the taskbar, flyouts, menus
+  // blur intensity → backdrop-filter of the glass surfaces: the bar (its islands), the Lanceur, the panels.
+  // Menus are flat and opaque in Selene (docs/design/SYSTEM.md §5): no blur whatever the setting.
   await setKey(s, 'blur', 0);
-  const b0 = await T(s, () => window.__t.cs('#taskbar', 'backdropFilter'));
+  const b0 = await T(s, () => window.__t.cs(window.__t.bar(), 'backdropFilter'));
   await setKey(s, 'blur', 100);
-  const b100 = await T(s, () => ({ tb: window.__t.cs('#taskbar', 'backdropFilter'), menu: window.__t.cs(window.__t.probe('<div class="menu"></div>'), 'backdropFilter'), start: window.__t.cs('#start', 'backdropFilter') }));
-  check(/blur\(0px\)/.test(b0) && /blur\(56px\)/.test(b100.tb) && /blur\(42px\)/.test(b100.menu), `blur intensity: taskbar ${b0} → ${b100.tb}; menu ${b100.menu}`);
+  const b100 = await T(s, () => ({ tb: window.__t.cs(window.__t.bar(), 'backdropFilter'), menu: window.__t.cs(window.__t.probe('<div class="menu"></div>'), 'backdropFilter'), start: window.__t.cs('#start', 'backdropFilter'), qs: window.__t.cs('#quick-settings', 'backdropFilter') }));
+  check(/blur\(0px\)/.test(b0) && /blur\(56px\)/.test(b100.tb) && /blur\(56px\)/.test(b100.start) && /blur\(56px\)/.test(b100.qs) && b100.menu === 'none', `blur intensity: bar ${b0} → ${b100.tb}; Lanceur ${b100.start}; panel ${b100.qs}; menu (flat) ${b100.menu}`);
   await setKey(s, 'blur', 50);
   // corner radius
   const radius = async (v) => {
@@ -195,7 +196,8 @@ console.log('\n# Every key applies live');
   };
   const r0 = await radius(0);
   const r200 = await radius(200);
-  check(r0.btn === '0px' && r0.win === '0px' && r200.btn === '12px' && r200.win === '16px', `corner radius 0 % → 200 %: button ${r0.btn} → ${r200.btn}, window ${r0.win} → ${r200.win}`);
+  // Nocturne: 6 px controls, 10 px windows (docs/design/SYSTEM.md §2.4), each × the setting
+  check(r0.btn === '0px' && r0.win === '0px' && r200.btn === '12px' && r200.win === '20px', `corner radius 0 % → 200 %: button ${r0.btn} → ${r200.btn}, window ${r0.win} → ${r200.win}`);
   await setKey(s, 'cornerRadius', 100);
   // font family
   await setKey(s, 'fontFamily', 'dejavu-serif');
@@ -218,7 +220,8 @@ console.log('\n# Every key applies live');
   const t150 = await ts(150);
   const t80 = await ts(80);
   check(t100.body === '14px' && t150.body === '21px' && t80.body === '11.2px', `text size scales the body text (${t100.body} → ${t150.body} / ${t80.body})`);
-  check(t150.cap === '18px' && t150.row === '21px' && t150.title === '18px', `text size reaches captions, title bars and px sizes in app style sheets (Settings row ${t100.row} → ${t150.row})`);
+  // captions 12 px (--fs-caption), window titles 13 px (--fs-small: text people read is ≥ 13 px), Settings rows 14 px
+  check(t100.cap === '12px' && t100.title === '13px' && t150.cap === '18px' && t150.row === '21px' && t150.title === '19.5px', `text size reaches captions, title bars and px sizes in app style sheets (caption ${t100.cap} → ${t150.cap}, title ${t100.title} → ${t150.title}, Settings row ${t100.row} → ${t150.row})`);
   await setKey(s, 'textScale', 100, 400);
   // UI scale (zoom)
   await setKey(s, 'scale', 125, 800);
@@ -234,17 +237,17 @@ console.log('\n# Every key applies live');
   check((await T(s, () => document.documentElement.dataset.animations)) === 'on', 'reduced motion off: animations back');
   // taskbar colour + opacity
   await setKey(s, 'taskbar.color', '#101820');
-  const tbDark = await T(s, () => ({ theme: document.getElementById('taskbar').dataset.theme, bg: window.__t.cs('#taskbar', 'backgroundColor'), text: window.__t.cs('#taskbar .tb-btn', 'color') }));
+  const tbDark = await T(s, () => ({ theme: document.getElementById('taskbar').dataset.theme, bg: window.__t.cs(window.__t.bar(), 'backgroundColor'), text: window.__t.cs('#taskbar .tb-btn', 'color') }));
   check(tbDark.theme === 'dark' && /^rgba?\(16, 24, 32/.test(tbDark.bg) && tbDark.text === 'rgb(230, 234, 242)', `taskbar colour: custom dark colour, light icons/text (${tbDark.bg})`);
   await setKey(s, 'taskbar.color', '#f4e8c1');
   check((await T(s, () => document.getElementById('taskbar').dataset.theme)) === 'light', 'taskbar colour: light custom colour keeps dark text');
   await setKey(s, 'taskbar.color', 'accent');
-  const tbAcc = await T(s, () => window.__t.cs('#taskbar', 'backgroundColor'));
+  const tbAcc = await T(s, () => window.__t.cs(window.__t.bar(), 'backgroundColor'));
   await setKey(s, 'taskbar.opacity', 30);
-  const tbOp = await T(s, () => window.__t.alpha(window.__t.cs('#taskbar', 'backgroundColor')));
+  const tbOp = await T(s, () => window.__t.alpha(window.__t.cs(window.__t.bar(), 'backgroundColor')));
   await setKey(s, 'taskbar.opacity', null);
   await setKey(s, 'taskbar.color', null);
-  const tbDef = await T(s, () => ({ theme: document.getElementById('taskbar').dataset.theme || null, bg: window.__t.cs('#taskbar', 'backgroundColor') }));
+  const tbDef = await T(s, () => ({ theme: document.getElementById('taskbar').dataset.theme || null, bg: window.__t.cs(window.__t.bar(), 'backgroundColor') }));
   check(/^rgba?\(\d+, \d+, \d+/.test(tbAcc) && !/^rgba?\(243, 246, 251/.test(tbAcc) && Math.abs(tbOp - 0.8) < 0.01 && tbDef.theme === null && /^rgba?\(243, 246, 251/.test(tbDef.bg), `taskbar accent colour (${tbAcc}), opacity 30 % clamped to the 0.80 glass floor (${tbOp}), back to default`);
   // accent + light/dark
   await setKey(s, 'accent', '#e3008c', 600);
@@ -305,8 +308,8 @@ console.log('\n# Visual styles');
         winShadow: window.__t.cs(w, 'boxShadow'),
         winBorder: window.__t.cs(w, 'borderTopWidth'),
         titleBg: window.__t.cs(w.querySelector('.win-titlebar'), 'backgroundImage'),
-        tbBlur: window.__t.cs('#taskbar', 'backdropFilter'),
-        tbAlpha: window.__t.alpha(window.__t.cs('#taskbar', 'backgroundColor')),
+        tbBlur: window.__t.cs(window.__t.bar(), 'backdropFilter'),
+        tbAlpha: window.__t.alpha(window.__t.cs(window.__t.bar(), 'backgroundColor')),
         transp: document.documentElement.dataset.transparency,
         accent: window.__t.root('--accent'),
       };
@@ -330,7 +333,7 @@ console.log('\n# Visual styles');
   check(Object.values(res).every((v) => v.align === 'center'), 'every style centres the bar’s app icons');
   // the follow rule: a plain settings.set('style') brings the style's ambiance and accent (they were defaults)
   check(res.eclipse.amb === 'neutral' && res.eclipse.acc === 'amber' && res.clairdelune.amb === 'warm' && res.clairdelune.acc === 'violet', `choosing a style brings its ambiance and accent (${res.eclipse.amb}/${res.eclipse.acc}, ${res.clairdelune.amb}/${res.clairdelune.acc})`);
-  check(res.contrast.btnBorder === '2px' && res.contrast.winBorder === '2px' && res.contrast.winShadow === 'none' && res.contrast.tbAlpha === 1 && res.contrast.transp === 'off', 'High contrast: thick borders, no shadows, no transparency');
+  check(res.contrast.btnBorder === '2px' && res.contrast.winBorder === '2px' && res.contrast.winShadow === 'none' && res.contrast.tbAlpha === 1 && res.contrast.tbBlur === 'none' && res.contrast.transp === 'off', `High contrast: thick borders, no shadows, no transparency (bar ${res.contrast.tbBlur} at ${res.contrast.tbAlpha})`);
   // an explicit ambiance survives a style change
   await setKey(s, 'style', 'nocturne', 700);
   await setKey(s, 'ambiance', 'warm', 700);
@@ -467,6 +470,7 @@ console.log('\n# Per-app themes');
       calcText: getComputedStyle(calc).color,
       calcAccent: v(calc, '--accent-base'),
       calcAppVar: v(calc, '--ck-num'),
+      sysRaised: v(document.documentElement, '--surface-raised'),
       calcBg: getComputedStyle(calc).backgroundColor,
       npTheme: np.dataset.theme || null,
       npText: getComputedStyle(np).color,
@@ -475,7 +479,9 @@ console.log('\n# Per-app themes');
     };
   });
   check(r.calcTheme === 'dark' && r.calcText === 'rgb(230, 234, 242)' && r.calcBg === 'rgb(18, 24, 38)' && r.calcAccent === '#e81123', `Calculator alone is dark with its own accent (${JSON.stringify(r)})`);
-  check(r.calcAppVar.replace(/\s/g, '') === 'rgba(255,255,255,0.0837)', `the app's own dark rules follow its window (--ck-num ${r.calcAppVar})`);
+  // the Calculator's own key colours are built from tokens on its window (--ck-num: var(--surface-raised)): in its dark
+  // window they take the dark raised surface (Nocturne #1a2133), not the system's light one
+  check(r.calcAppVar.toLowerCase() === '#1a2133' && r.sysRaised.toLowerCase() !== '#1a2133', `the app's own colours follow its window (--ck-num ${r.calcAppVar}, system raised surface ${r.sysRaised})`);
   check(r.npTheme === null && r.npText !== 'rgb(230, 234, 242)' && r.npAccent === '#c9d3e6' && r.root === 'light', 'Notepad and the shell keep the system theme');
   // a menu opened from the calculator matches it
   const m = await T(s, async () => {
@@ -489,7 +495,8 @@ console.log('\n# Per-app themes');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     return out;
   });
-  check(m.theme === 'dark' && /^rgba?\(15, 20, 33/.test(m.bg), 'a menu opened from that app uses its theme');
+  // menus are flat and opaque (--surface-raised, docs/design/SYSTEM.md §5): the dark raised surface #1a2133
+  check(m.theme === 'dark' && m.bg === 'rgb(26, 33, 51)', `a menu opened from that app uses its theme (${m.theme}, ${m.bg})`);
   // new window of a themed app, and system dark + app forced light
   await T(s, () => window.__aurora.settings.set('appThemes', { notepad: { theme: 'light', accent: null } }));
   await setKey(s, 'theme', 'dark', 900);
@@ -840,7 +847,9 @@ console.log('\n# Settings pages');
   });
   await go('personalization');
   const home = await s.page.locator(S('.st-row-title')).allInnerTexts();
-  check(['Theme designer', 'Visual style', 'Profiles', 'App themes', 'Animated & dynamic wallpapers', 'Focus mode', 'Cursors', 'Icon packs', 'Sound packs', 'Keyboard shortcuts', 'Snap layouts', 'Taskbar', 'Start'].every((x) => home.includes(x)), 'Personalization lists every personalization page');
+  // Selene names (docs/design/BRIEF.md): Concentration → "Focus", Dispositions → "Layouts", Lanceur → "Launcher"
+  const pages = ['Theme designer', 'Visual style', 'Profiles', 'App themes', 'Animated & dynamic wallpapers', 'Focus', 'Cursors', 'Icon packs', 'Sound packs', 'Keyboard shortcuts', 'Layouts', 'Taskbar', 'Launcher'];
+  check(pages.every((x) => home.includes(x)), `Personalization lists every personalization page${pages.some((x) => !home.includes(x)) ? ` — missing: ${pages.filter((x) => !home.includes(x)).join(', ')} (${home.join(', ')})` : ''}`);
   // Theme designer
   await go('themeDesigner');
   check((await s.page.locator(S('.pz-mock .win')).count()) === 1 && (await s.page.locator(S('.pz-mock-taskbar')).count()) === 1 && (await s.page.locator(S('.pz-mock-start')).count()) === 1 && (await s.page.locator(S('.pz-mock-qs')).count()) === 1, 'Theme designer: live preview with a window, Start, a flyout and the taskbar');
@@ -1201,14 +1210,14 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
     const tp0 = await T(e, () => window.__t.root('--tp'));
     await e.page.locator(S('.pz-ctl[data-section="transparency"] .toggle input')).click();
     await sleep(500);
-    const off = await T(e, () => ({ v: window.__t.get('transparency'), attr: document.documentElement.dataset.transparency, tb: getComputedStyle(document.getElementById('taskbar')).backdropFilter }));
+    const off = await T(e, () => ({ v: window.__t.get('transparency'), attr: document.documentElement.dataset.transparency, tb: getComputedStyle(window.__t.bar()).backdropFilter }));
     await e.page.locator(S('.pz-ctl[data-section="transparency"] .toggle input')).click();
     await sleep(500);
     check(off.v === false && off.attr === 'off' && off.tb === 'none' && (await T(e, () => document.documentElement.dataset.transparency)) === 'on', `E2E window transparency toggle (off: data-transparency=${off.attr}, taskbar backdrop ${off.tb})`);
     await slide('transparencyLevel', 85);
     await slide('blur', 90);
     await sleep(700);
-    const tb = await T(e, () => ({ tp: window.__t.root('--tp'), blurPx: window.__t.root('--blur-px'), lvl: window.__t.get('transparencyLevel'), blur: window.__t.get('blur'), taskbar: getComputedStyle(document.getElementById('taskbar')).backdropFilter }));
+    const tb = await T(e, () => ({ tp: window.__t.root('--tp'), blurPx: window.__t.root('--blur-px'), lvl: window.__t.get('transparencyLevel'), blur: window.__t.get('blur'), taskbar: getComputedStyle(window.__t.bar()).backdropFilter }));
     check(tb.lvl === 85 && Number(tb.tp) > Number(tp0), `E2E transparency level slider (85 → --tp ${tp0} → ${tb.tp})`);
     check(tb.blur === 90 && /blur\((\d+)/.test(tb.taskbar) && Number(/blur\((\d+)/.exec(tb.taskbar)[1]) > 40, `E2E blur intensity slider (90 → taskbar ${tb.taskbar}, --blur-px ${tb.blurPx})`);
 
@@ -1325,7 +1334,8 @@ for (const [size, theme, lang] of [['1280x720', 'dark', 'fr'], ['1920x1080', 'li
         style: 'clairdelune', ambiance: 'neutral', theme: 'light', autoTheme: { enabled: false, light: '06:30', dark: '20:15' }, accent: '#c239b3', accentFromWallpaper: true,
         transparency: false, transparencyLevel: 80, blur: 20, cornerRadius: 150, fontFamily: 'dejavu-sans', textScale: 110, scale: 110,
         reducedMotion: true, animations: false, 'taskbar.color': '#203040', 'taskbar.opacity': 70, appThemes: { notepad: { theme: 'dark', accent: '#112233' } },
-        wallpaper: 'builtin:dunes', wallpaperFit: 'fit', lockWallpaper: 'builtin:glow', wallpaperMode: 'animated',
+        // pictures of the Selene set (the redesign retired dunes / glow: an import maps them to Nocturne)
+        wallpaper: 'builtin:forest', wallpaperFit: 'fit', lockWallpaper: 'builtin:peaks', wallpaperMode: 'animated',
         animatedWallpaper: { id: 'waves', speed: 70, intensity: 30, fps: 15, pauseOnMaximized: false },
         dynamicWallpaper: { source: 'weather', set: 'dunes', location: { name: 'Lyon', lat: 45.76, lon: 4.84 }, followTheme: true },
         slideshow: { folder: '/tmp', interval: 5, shuffle: false }, lockScreen: { mode: 'spotlight', effect: 'bokeh' },

@@ -14,6 +14,11 @@
     --tp-k: 0;
     --blur-k: 0;
     --blur-sat: 100%;
+    /* the bar's islands get the same thick border as everything else, no blur, no shadow */
+    --bar-border-w: 2px;
+    --bar-border: 2px solid var(--hc-fg);
+    --bar-shadow: none;
+    --bar-blur: 0;
   }
   :scope[data-theme="dark"],
   [data-theme-scope][data-theme="dark"] {
