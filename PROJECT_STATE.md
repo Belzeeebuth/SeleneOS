@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-12 18:20 Paris — themes Halo (default) / Prisme / Sobre added on top of the 3 styles (wallpaper-tinted glass, colourful icon packs, 6 new wallpapers ×2 modes; chosen and adjusted in Personnalisation and Réglages rapides); targeted suites green; ISO rebuilt: verify-iso 0 failures, smoke-image passes._
+_Last updated: 2026-10-12 21:15 Paris — NVIDIA drivers in the installer (downloaded, Canonical-signed modules) + Paramètres > Pilotes graphiques; Fichiers double-click fix; ISO rebuilt from packages: verify-iso 0 failures, smoke-image passes. NVIDIA paths tested with fixtures only (no NVIDIA GPU here)._
 
 ## What this is
 
@@ -42,6 +42,7 @@ A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a W
 | Store sources (Flathub + Ubuntu AppStream) | **done** — per-user Flatpak installs from Flathub (no root), full Ubuntu desktop-app catalogue from DEP-11 (apt installs through aurora-admin, verified against root-owned DEP-11 lists; image packages never removable); merged catalogue UI; see docs/STORE-SOURCES.md |
 | Visual redesign (user request, 2026-10-11) | **done** (2026-10-12) — brief in docs/design/BRIEF.md (all user answers), system in docs/design/SYSTEM.md; styles Nocturne (default) / Éclipse / Clair de lune / Contraste élevé × ambiances × accents; Phosphor icons, Manrope + Inter, new app icons, wallpapers, logo, GRUB/Plymouth; Windows names replaced (Lanceur, Fichiers, Moniteur système…); bar icons centred in every style |
 | Themes Halo / Prisme / Sobre (user request, 2026-10-12) | **done** — mockups in docs/design/mockups-mix/{halo,prisme}; setting `finish` (core/finishes.js), wallpaper-tinted Mica-like glass (pre-blurred wallpaper behind windows, live blur only on bar / Lanceur / panels), icon packs halo / prisme (+ 'auto' follows the theme), wallpapers halo-* / prisme-* (light + dark); Sobre = the previous Selene look |
+| NVIDIA drivers (user request, 2026-10-12) | **done (untested on real hardware)** — iso/packages.d/drivers.list (ubuntu-drivers-common, mokutil, pciutils), shell/main/lib/gpu-drivers.js, installer « Pilote graphique » step + aurora-install --nvidia-driver (apt in the target, ubuntu-drivers install, never fails the install), session uses nvidia when loaded (aurora_gpu_mode / aurora-xstart), Paramètres > Pilotes graphiques (main/ipc/drivers.js, aurora-admin drivers-install / drivers-remove) |
 | App phase 2 | not started — wait for the user's go; run it like phases 3–4 (one workflow per app, all in parallel) |
 
 ### App / area status (every area has its own test suite in shell/test/)

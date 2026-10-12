@@ -216,7 +216,9 @@ for b in /usr/bin/ubuntu-drivers /usr/bin/mokutil /usr/bin/lspci; do
   [[ -x "$S$b" ]] && pass "image has $b (graphics drivers)" || fail "image lacks $b (graphics drivers: rebuild with --from packages)"
 done
 [[ -s "$S/usr/share/misc/pci.ids" || -s "$S/usr/share/hwdata/pci.ids" ]] && pass "pci.ids present (graphics card names)" || warn "no pci.ids: graphics cards are shown by their PCI ids"
-nvd="$(find "$S/usr/lib/modules" -name 'nvidia*.ko*' 2>/dev/null | head -n1 || true)"
+# the proprietary / open driver modules (nvidia.ko, nvidia-drm, -modeset, -uvm, -peermem); the stock kernel's
+# nvidia-wmi-ec-backlight (laptop backlight control) is not a graphics driver
+nvd="$(find "$S/usr/lib/modules" \( -name 'nvidia.ko*' -o -name 'nvidia-drm.ko*' -o -name 'nvidia-modeset.ko*' -o -name 'nvidia-uvm.ko*' -o -name 'nvidia-peermem.ko*' \) 2>/dev/null | head -n1 || true)"
 [[ -z "$nvd" ]] && ! compgen -G "$S/usr/lib/x86_64-linux-gnu/libnvidia-glcore.so*" >/dev/null \
   && pass "no NVIDIA driver bundled in the image (downloaded during the installation)" || warn "an NVIDIA driver is bundled in the image: $nvd"
 grep -qs 'Driver' "$S"/etc/X11/xorg.conf.d/*.conf && fail "an /etc/X11/xorg.conf.d file forces an Xorg driver (the NVIDIA driver must stay possible)" \
