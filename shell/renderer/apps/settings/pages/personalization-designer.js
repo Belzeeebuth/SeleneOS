@@ -5,7 +5,7 @@
 //   pickColorDialog(pc, initial, { title, allowDefault })  livePreview(pc)  ambianceControl(pc)
 import { ACCENTS, ACCENT_PRESETS, AMBIANCES, STYLES, FONTS, fontInstalled, resolveWallpaper, styleVars, styleAccentVars, styleChoicePatch, ambianceOf, accentPreset, theme as coreTheme } from '../../../core/theme.js';
 import { profiles, LOOK_KEYS } from '../../../core/profiles.js';
-import { DEFAULT_FINISH, finishDefaults, finishAccent } from '../../../core/finishes.js';
+import { DEFAULT_FINISH, finishDefaults, finishAccent, offeredAccents } from '../../../core/finishes.js';
 import { ensureStrings } from './personalization-strings.js';
 import { PAGES } from '../lib/index.js';
 
@@ -277,17 +277,15 @@ export function modeControl(pc) {
 /** The curated accent of a stored hex: a Selene accent or a finish accent (core/finishes.js), or null. */
 const presetOf = (hex) => accentPreset(hex) || finishAccent(hex);
 /** The accents offered: the current finish's own three (Halo, Prisme; one per style), then the four Selene accents. */
-export function accentChoices(finish) {
-  const f = finish || DEFAULT_FINISH;
-  const own = f !== 'sobre' ? [...new Set(['nocturne', 'eclipse', 'clairdelune'].map((st) => finishDefaults(f, st).accent))].map(finishAccent).filter(Boolean) : [];
-  return [...own, ...ACCENT_PRESETS];
+export function accentChoices(finish, current = '') {
+  return offeredAccents(finish || DEFAULT_FINISH, ACCENT_PRESETS, current);
 }
 export function accentControls(pc, { compact = false } = {}) {
   const { h, t, settings, kit } = pc;
   const swatches = h('div', { class: ['pz-swatches', 'pz-accent-presets', compact && 'small'], role: 'listbox', 'aria-label': t('pz.accent') });
   const build = () =>
     swatches.replaceChildren(
-      ...accentChoices(settings.get('finish')).map((a) => {
+      ...accentChoices(settings.get('finish'), settings.get('accent')).map((a) => {
         const name = pc.L(a.name);
         const b = h('button', { class: 'pz-swatch', type: 'button', role: 'option', 'aria-label': name, 'data-tip': name, dataset: { hex: a.hex, accent: a.id }, onclick: () => setAccent(a.hex) });
         // the swatch shows the accent as it looks in the current mode

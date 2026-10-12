@@ -139,7 +139,7 @@ async function iconPacks(pc) {
   const apps = () => SAMPLE_APPS.filter((id) => reg.get(id));
   const fixedImg = (src, size = 28) => h('img', { src, alt: '', width: size, height: size, draggable: false, dataset: { iconFixed: '' } });
   const preview = (p) => h('span', { class: 'pzs-icon-row' }, apps().map((id) => fixedImg(packs.appIcon(p.id, id))));
-  const cards = packCards(pc, { key: 'iconPack', list: ICON_PACKS, def: 'selene', label: t('pzs.iconPack'), render: preview, className: 'pzs-icon-cards' });
+  const cards = packCards(pc, { key: 'iconPack', list: ICON_PACKS, def: 'auto', label: t('pzs.iconPack'), render: preview, className: 'pzs-icon-cards' });
   pc.onDispose(settings.on('accent', () => cards.repaint()));
   pc.onDispose(settings.on('theme', () => cards.repaint()));
 

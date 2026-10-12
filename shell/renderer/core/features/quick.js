@@ -9,12 +9,11 @@
 //   Opens on shell 'quick:toggle' / 'quick:open'.
 import { createFlyout } from '../taskbar.js';
 import { STYLES, AMBIANCES, ACCENT_PRESETS, chooseStyle, accentPreset, ambianceOf } from '../theme.js';
-import { FINISHES, DEFAULT_FINISH, finishDefaults, finishAccent } from '../finishes.js';
+import { FINISHES, DEFAULT_FINISH, finishDefaults, finishAccent, offeredAccents } from '../finishes.js';
 
 /** The accents offered for a finish: its own three (one per style), then the four Selene accents (as in Settings). */
-function accentChoices(finish) {
-  const own = finish !== 'sobre' ? [...new Set(['nocturne', 'eclipse', 'clairdelune'].map((st) => finishDefaults(finish, st).accent))].map(finishAccent).filter(Boolean) : [];
-  return [...own, ...ACCENT_PRESETS];
+function accentChoices(finish, current = '') {
+  return offeredAccents(finish, ACCENT_PRESETS, current);
 }
 
 let ctx;
@@ -427,7 +426,7 @@ function renderAppearance(s) {
     const accents = h(
       'div',
       { class: 'qs-accents' },
-      ...accentChoices(FINISHES.some((f) => f.id === s.finish) ? s.finish : DEFAULT_FINISH).map((x) =>
+      ...accentChoices(FINISHES.some((f) => f.id === s.finish) ? s.finish : DEFAULT_FINISH, s.accent).map((x) =>
         choice(
           'qs-accent',
           x.id,

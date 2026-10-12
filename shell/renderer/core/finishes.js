@@ -108,6 +108,19 @@ export const FINISH_ACCENTS = [
   },
 ];
 /** The curated finish accent of a stored hex, or null. */
+/**
+ * The accents offered for a finish (Réglages rapides and Personnalisation): its own three (one per style), then the
+ * shared presets, minus a preset that looks the same as one of the finish's own (e.g. Halo's « Or » and the amber preset);
+ * the current accent is always kept so it stays selectable.
+ */
+export function offeredAccents(finish, presets, current = '') {
+  const own = finish !== 'sobre' ? [...new Set(['nocturne', 'eclipse', 'clairdelune'].map((st) => finishDefaults(finish, st).accent))].map(finishAccent).filter(Boolean) : [];
+  const rgb = (h) => [1, 3, 5].map((i) => parseInt(String(h).slice(i, i + 2), 16));
+  const near = (a, b) => { const [x, y] = [rgb(a), rgb(b)]; return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) < 60; };
+  const cur = String(current || '').toLowerCase();
+  return [...own, ...presets.filter((p) => p.hex === cur || !own.some((o) => near(o.hex, p.hex)))];
+}
+
 export function finishAccent(hex) {
   const v = String(hex || '').toLowerCase();
   return FINISH_ACCENTS.find((a) => a.hex === v) || null;

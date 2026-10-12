@@ -772,10 +772,11 @@
   background: var(--input-bg);
   border-color: var(--text-3);
 }
+/* one thin accent ring (the field takes the focus as soon as the Lanceur opens: a double ring looked heavy) */
 #start .start-search:focus {
   border: 1px solid var(--accent);
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 1px var(--accent);
 }
 #start .start-search::placeholder {
   color: var(--text-3);
