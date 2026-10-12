@@ -1289,8 +1289,13 @@
   gap: 12px;
 }
 .app-taskmgr .tm-pd-body .tm-chartbox.main {
-  min-height: 180px;
+  flex: 0 0 auto;
+  height: 200px;
+  min-height: 0;
   gap: 4px;
+}
+.app-taskmgr .tm-pd-body .tm-chartbox.main:has(.tm-coregrid) {
+  height: 300px;
 }
 .app-taskmgr .tm-pd-body .tm-chart {
   background: none;

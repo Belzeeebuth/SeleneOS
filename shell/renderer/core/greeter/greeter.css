@@ -1012,6 +1012,11 @@ body.aurora-locked .tooltip,
   top: 16px;
   bottom: auto;
 }
+/* Network, accessibility and power share the top edge with the status icons, not the bottom-right corner. */
+.lk-tray {
+  top: 16px;
+  bottom: auto;
+}
 /* Sign-in: the accounts as a column of avatars on the card's left. */
 .lk-greeter .lk-users {
   order: -1; /* shown on the card's left, but after it in the Tab order */

@@ -1526,3 +1526,158 @@
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------- Selene phase D
+   Zoom pill: floats at the bottom right of the canvas area (no status bar). The canvas size,
+   pointer position and selection size show above it as a discreet caption on hover. */
+.app-paint .pt-status.pt-zoompill-wrap {
+  position: absolute;
+  z-index: 3;
+  right: 14px;
+  bottom: 14px;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  overflow: visible;
+  pointer-events: none;
+}
+.app-paint .pt-status.pt-zoompill-wrap[hidden] {
+  display: none;
+}
+.app-paint .pt-zoompill-wrap > * {
+  pointer-events: auto;
+}
+.app-paint .pt-zoompill-wrap .pt-zoom {
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--shadow-flyout);
+}
+.app-paint .pt-zoompill-wrap .pt-zoom .pt-b {
+  border-radius: 999px;
+}
+.app-paint .pt-zoompill-wrap .pt-zoom-pct {
+  justify-content: center;
+  min-width: 58px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: var(--fs-small);
+}
+.app-paint .pt-zoom-pct:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.app-paint .pt-st-cap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+  pointer-events: none;
+}
+.app-paint .pt-main:hover .pt-st-cap,
+.app-paint .pt-zoompill-wrap:focus-within .pt-st-cap {
+  opacity: 1;
+}
+.app-paint .pt-st-cap .pt-st-item {
+  min-width: 0;
+  padding: 0;
+  gap: 4px;
+}
+.app-paint .pt-st-cap .pt-st-item + .pt-st-item:not(.pt-empty)::before {
+  content: "·";
+  margin-right: 4px;
+  color: var(--text-2);
+}
+.app-paint .pt-st-cap .pt-st-item.pt-empty {
+  display: none;
+}
+.app-paint .pt-st-cap .pt-st-item > .icon {
+  display: none;
+}
+.app-paint .pt-fly-zoom .pt-zoom-fly {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 200px;
+}
+.app-paint .pt-fly-zoom .pt-zoom-slider {
+  width: auto;
+  margin: 4px 6px;
+}
+.app-paint .pt-zoom-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+}
+.app-paint .pt-zoom-preset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+.app-paint .pt-zoom-preset:hover {
+  background: var(--subtle-hover);
+}
+.app-paint .pt-zoom-preset.on {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.app-paint .pt-zoom-preset:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.app-paint .pt-zoom-fitp {
+  justify-content: flex-start;
+  padding: 0 10px;
+  border-top: 1px solid var(--line-soft);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+/* Options bar: the active tool's options, then the compact Image menu at the end. */
+.app-paint .pt-bar-grow {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.app-paint .pt-image-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  height: 32px;
+  padding: 0 10px;
+  font-size: var(--fs-small);
+  color: var(--text);
+}
+.app-paint .pt-image-btn .pt-chev {
+  width: 10px;
+  height: 10px;
+  color: var(--text-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-paint .pt-st-cap {
+    transition: none;
+  }
+}

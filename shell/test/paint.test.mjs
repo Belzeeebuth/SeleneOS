@@ -245,8 +245,21 @@ await test('boots with an untitled 1152×648 white canvas and the command bar', 
   }));
   assert.deepEqual(info.size, { w: 1152, h: 648 });
   assert.equal(info.title, 'Untitled - Draw');
-  // Options bar along the top (no captions), then the tool palette on the left.
-  assert.deepEqual(info.groups, ['Clipboard', 'Image', 'Outline and fill', 'Size', 'Colors', 'Tools', 'Brushes', 'Shapes']);
+  // Options bar along the top (no captions): the active tool's options, then the compact Image
+  // menu; the clipboard actions are in the "…" menu. Then the tool palette on the left.
+  assert.deepEqual(info.groups, ['Outline and fill', 'Size', 'Colors', 'Image', 'Tools', 'Brushes', 'Shapes']);
+  const pill = await P(s, (p, el) => {
+    const main = el.querySelector('.pt-main').getBoundingClientRect();
+    const r = el.querySelector('.pt-status .pt-zoom').getBoundingClientRect();
+    return { inMain: el.querySelector('.pt-main > .pt-status') != null, right: main.right - r.right, bottom: main.bottom - r.bottom, file: !!el.querySelector('.pt-st-item.file'), slider: !!el.querySelector('.pt-status .pt-zoom-slider'), btns: [...el.querySelectorAll('.pt-status .pt-zoom button')].map((b) => b.getAttribute('aria-label') || b.textContent) };
+  });
+  assert.ok(pill.inMain && pill.right > 0 && pill.right < 40 && pill.bottom > 0 && pill.bottom < 40 && !pill.file && !pill.slider && pill.btns.length === 4, `floating zoom pill at the bottom right (no status bar, no file size): ${JSON.stringify(pill)}`);
+  await s.page.click(`${WIN} .pt-more`);
+  await s.page.waitForSelector('.menu .menu-item');
+  const top = await s.page.locator('.menu .menu-item .label').allTextContents();
+  assert.ok(['Cut', 'Copy', 'Paste'].every((x) => top.includes(x)), `clipboard actions in the "…" menu: ${top.join('|')}`);
+  await s.page.keyboard.press('Escape');
+  await wait(s, 150);
   assert.equal(info.captions, 0, 'no group captions, no rainbow colour wheel');
   assert.ok(info.palette.left && info.palette.tools === 6 && info.palette.barH <= 56 && info.palette.menubar === 0, `floating one-column tool island + slim options bar, no menu bar: ${JSON.stringify(info.palette)}`);
   assert.ok(info.shapes >= 23, 'at least 23 shapes');
@@ -533,7 +546,8 @@ await test('Save as PNG through the File menu, then reopen from args with identi
   savedHash = await hash(s);
   const t = await P(s, (p, el) => el.querySelector('.pt-doctitle').textContent);
   assert.equal(t, 'paint-test.png - Draw');
-  const status = await P(s, (p, el) => el.querySelector('.pt-st-item.file').textContent);
+  // The file size is not in the window any more; it is the document title's tooltip.
+  const status = await P(s, (p, el) => el.querySelector('.pt-doctitle').dataset.tip || '');
   assert.match(status, /^Size: \d/);
   // open from args in a second window
   await s.aurora((f) => window.__aurora.registry.launch('paint', { file: f }), savedPng);
@@ -931,11 +945,15 @@ await test('About dialog, recent files menu, zoom slider, middle-button pan, inc
   assert.ok(rec.includes('paint-test.png'), `recent list: ${rec.join('|')}`);
   await s.page.keyboard.press('Escape');
   await wait(s, 100);
-  // zoom slider
+  // zoom slider (in the zoom level popover of the pill)
+  await s.page.click(`${WIN} .pt-zoom-pct`);
+  await s.page.waitForSelector(`${WIN} .pt-fly-zoom .pt-zoom-slider`);
   const sl = await s.page.locator(`${WIN} .pt-zoom-slider`).boundingBox();
   await s.page.mouse.click(sl.x + sl.width * 0.9, sl.y + sl.height / 2);
   const z = await P(s, (p) => p.zoom());
   assert.ok(z > 3, `slider zoomed to ${z}`);
+  await s.page.keyboard.press('Escape');
+  await wait(s, 100);
   // middle-button drag pans the view
   const sc0 = await P(s, (p, el) => [el.querySelector('.pt-scroll').scrollLeft, el.querySelector('.pt-scroll').scrollTop]);
   const mid = await P(s, (p, el) => {
@@ -1469,7 +1487,7 @@ await test('French UI strings and dark theme', async () => {
     text: getComputedStyle(el).color,
   }));
   assert.equal(info.title, 'Sans titre - Dessin');
-  assert.deepEqual(info.groups, ['Presse-papiers', 'Image', 'Contour et remplissage', 'Taille', 'Couleurs', 'Outils', 'Pinceaux', 'Formes']);
+  assert.deepEqual(info.groups, ['Contour et remplissage', 'Taille', 'Couleurs', 'Image', 'Outils', 'Pinceaux', 'Formes']);
   assert.equal(info.menus, 'Plus : fichier, modification et affichage');
   assert.equal(info.tip, 'Remplissage (F)');
   assert.equal(info.ws, 'rgb(14, 19, 31)', 'dark workspace (--bg-alt, cold ambiance)');
@@ -1561,7 +1579,7 @@ await test('French: menus, submenus, flyouts, context menus, messages and dialog
   }
   // The shape tool shows every option of the options bar (outline and fill too).
   await P(f, (p) => p.app.setShape('rect'));
-  for (const sel of ['.pt-split-arrow', '.pt-b.sm.wide', '.pt-shapes-btn', '.pt-zoom-pct']) {
+  for (const sel of ['.pt-split-arrow', '.pt-b.sm.wide', '.pt-image-btn', '.pt-shapes-btn', '.pt-zoom-pct']) {
     const n = await f.page.locator(`${WIN} ${sel}`).count();
     for (let k = 0; k < n; k++) {
       await f.page.locator(`${WIN} ${sel}`).nth(k).click();

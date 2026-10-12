@@ -1078,7 +1078,13 @@ try {
   let r = await box();
   await fp.screenshot({ path: path.join(DOCS, 'taskmgr-processes-dark-fr.png'), clip: { x: r.x - 16, y: r.y - 16, width: r.width + 32, height: r.height + 32 } });
 
-  // Minimum size: the four meters visible, icon-only commands, nothing cut off.
+  // Minimum size: the four meters visible, icon-only commands, nothing cut off. A row is selected,
+  // so the contextual commands ("Arrêter", "Priorité basse") are in the toolbar too.
+  await ftm(() => {
+    const p = window.__aurora.wm.byApp('taskmgr')[0].taskmgr.pages.processes;
+    p.table.select(p.table.rows.find((x) => x.kind === 'item' && x.data.type === 'app')?.key || p.table.rows.find((x) => x.kind === 'item').key, { scroll: false });
+    p.app.renderCommands();
+  });
   await ftm(() => window.__aurora.wm.byApp('taskmgr')[0].setSize(600, 420));
   await sleep(700);
   r = await box();
