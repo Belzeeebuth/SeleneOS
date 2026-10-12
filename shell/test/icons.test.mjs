@@ -177,5 +177,179 @@ function resolve(name) {
   }
 }
 
+// ------------------------------------------------------------------ Selene app icons follow the look
+// The default icon pack ("selene") draws the Selene icon for the current ambiance and mode (core/app-icon-art.js):
+// night blue for cold, warm charcoal for neutral, plum for warm, with no blue cast and no blue / cyan symbol outside
+// cold; the static icon.svg files are the cold dark look.
+const rgbOf = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+/** hue in degrees and chroma (0–1) of [r, g, b] */
+function hueChroma([r, g, b]) {
+  const [R, G, B] = [r / 255, g / 255, b / 255];
+  const mx = Math.max(R, G, B);
+  const c = mx - Math.min(R, G, B);
+  if (!c) return { h: 0, c: 0 };
+  const h = mx === R ? ((G - B) / c) % 6 : mx === G ? (B - R) / c + 2 : (R - G) / c + 4;
+  return { h: (h * 60 + 360) % 360, c };
+}
+const blueCast = ([r, g, b]) => b > Math.max(r, g) + 8;
+const blueSymbol = (px) => {
+  const { h, c } = hueChroma(px);
+  return (c > 0.08 && h >= 185 && h <= 250) || (c <= 0.08 && blueCast(px));
+};
+{
+  const art = await import(path.join(ROOT, 'renderer', 'core', 'app-icon-art.js'));
+  const { APP_GLYPHS } = await import(path.join(ROOT, 'renderer', 'core', 'app-glyphs.js'));
+  for (const amb of ['neutral', 'warm']) {
+    const L = art.ICON_LOOKS[amb];
+    const bases = [...L.dark, ...L.light];
+    const blue = Object.entries(L.hues).filter(([, c]) => blueSymbol(rgbOf(c)));
+    check(!bases.some((b) => blueCast(rgbOf(b))) && !blue.length, `${amb} palette: no blue cast in the base (${bases.join(' ')}), no blue / cyan symbol`, blue.map(([k, c]) => `${k} ${c}`).join(', '));
+    // neighbours stay distinguishable: every pair of slot colours differs (RGB distance > 24)
+    const vals = Object.entries(L.hues);
+    const close = [];
+    for (let i = 0; i < vals.length; i++) for (let j = i + 1; j < vals.length; j++) {
+      const d = Math.hypot(...rgbOf(vals[i][1]).map((v, k) => v - rgbOf(vals[j][1])[k]));
+      if (d <= 24) close.push(`${vals[i][0]}/${vals[j][0]} ${d.toFixed(0)}`);
+    }
+    check(!close.length && new Set(Object.values(L.hues)).size === art.HUE_SLOTS.length, `${amb} palette: ${art.HUE_SLOTS.length} distinct symbol colours`, close.join(', '));
+  }
+  check(art.ICON_LOOKS.cold.dark.every((b) => blueCast(rgbOf(b))), `cold keeps the night-blue base (${art.ICON_LOOKS.cold.dark.join(' → ')})`);
+  check(Object.values(APP_GLYPHS).every((g) => art.HUE_SLOTS.includes(g.hue)) && Object.keys(APP_GLYPHS).length >= 40, `app-glyphs.js: every app (${Object.keys(APP_GLYPHS).length}) has a palette slot`);
+  // the static files are the cold dark look, byte for byte
+  const files = { 'special:thispc': 'assets/icons/this-pc.svg', 'special:trash': 'assets/icons/recycle-bin.svg', default: 'assets/app-default.svg' };
+  const differ = Object.entries(APP_GLYPHS).filter(([id, g]) => {
+    const f = path.join(ROOT, 'renderer', files[id] || `apps/${id}/icon.svg`);
+    const key = id === 'default' ? 'app-default' : id.replace(/[^a-z0-9]+/gi, '-');
+    return art.seleneIconSvg(key, g, art.iconLook('cold-dark')) !== fs.readFileSync(f, 'utf8');
+  });
+  check(!differ.length, 'the static icon.svg files are the cold dark look of core/app-icon-art.js (unchanged design)', differ.map(([k]) => k).join(', '));
+  check(['nocturne', 'eclipse', 'clairdelune'].every((st, i) => art.lookKey({ style: st, ambiance: ['cold', 'neutral', 'warm'][i], theme: 'dark' }) === `${['cold', 'neutral', 'warm'][i]}-dark`) && art.lookKey({ style: 'nocturne', ambiance: 'warm', theme: 'light' }) === 'warm-light' && art.lookKey({ style: 'contrast', ambiance: 'neutral', theme: 'light' }) === 'contrast-light', 'lookKey: the ambiance (not the style) picks the palette; Contraste élevé has its own');
+}
+{
+  const s = await launchShell({ theme: 'dark', lang: 'fr', size: '1280x720', settle: 1200 });
+  const P = s.page;
+  try {
+    // Draw every icon of a selector at 48 px and sample it: the base (a pixel left of the symbol) and the symbol (the
+    // mean of the pixels far from the base). Desktop specials are mapped with CSS `content: url()`: read that URL.
+    const sample = (sel) =>
+      P.evaluate(async (q) => {
+        const urlOf = (img) => {
+          const c = getComputedStyle(img).content;
+          const m = /^url\("(.*)"\)$/.exec(c || '');
+          return m ? m[1].replace(/\\([0-9a-f]{1,6}) ?/gi, (_, x) => String.fromCodePoint(parseInt(x, 16))) : img.currentSrc || img.src;
+        };
+        const out = [];
+        for (const img of document.querySelectorAll(q)) {
+          if (!img.offsetParent) continue;
+          const src = urlOf(img);
+          const im = new Image();
+          im.src = src;
+          await im.decode().catch(() => {});
+          const cv = document.createElement('canvas');
+          cv.width = cv.height = 48;
+          const g = cv.getContext('2d');
+          g.drawImage(im, 0, 0, 48, 48);
+          const d = g.getImageData(0, 0, 48, 48).data;
+          const px = (x, y) => [0, 1, 2].map((k) => d[(y * 48 + x) * 4 + k]);
+          const base = px(5, 26);
+          const sum = [0, 0, 0];
+          let n = 0;
+          for (let y = 8; y < 40; y++) for (let x = 8; x < 40; x++) {
+            const p = px(x, y);
+            if (d[(y * 48 + x) * 4 + 3] > 250 && Math.hypot(p[0] - base[0], p[1] - base[1], p[2] - base[2]) > 70) {
+              p.forEach((v, k) => (sum[k] += v));
+              n++;
+            }
+          }
+          out.push({ src: src.slice(0, 40), base, sym: n ? sum.map((v) => Math.round(v / n)) : null, n });
+        }
+        return out;
+      }, sel);
+    const setLook = (patch) => P.evaluate(async (pt) => {
+      if (pt.style) await (await import('app://shell/core/theme.js')).chooseStyle(pt.style);
+      const rest = { ...pt };
+      delete rest.style;
+      if (Object.keys(rest).length) await window.__aurora.api.invoke('settings:setMany', rest);
+    }, patch);
+    const look = () => P.evaluate(() => window.__aurora.packs.iconLook);
+    const openStart = async () => {
+      await P.evaluate(() => document.querySelector('#start')?.classList.contains('open') || window.__aurora.shell.emit('start:toggle'));
+      await P.waitForTimeout(700);
+    };
+    const report = (arr) => arr.map((r) => `${r.base}|${r.sym}`).slice(0, 4).join(' ');
+
+    // cold (Nocturne, the default): night-blue base everywhere
+    await openStart();
+    const coldBar = await sample('#taskbar .tb-app img');
+    const coldStart = await sample('#start img[src^="data:image/svg"]');
+    check((await look()) === 'cold-dark' && coldBar.length >= 5 && coldStart.length >= 8 && [...coldBar, ...coldStart].every((r) => r.base[2] > Math.max(r.base[0], r.base[1]) + 15), `cold: bar (${coldBar.length}) and Lanceur (${coldStart.length}) icons keep the night-blue base`, report(coldBar));
+    const coldSrc = await P.evaluate(() => ({ bar: document.querySelector('#taskbar .tb-app img').getAttribute('src'), start: document.querySelector('#start img[src^="data:image/svg"]').getAttribute('src'), desk: getComputedStyle(document.querySelector('#desktop [data-special="thispc"] img')).content }));
+    const staticSame = await P.evaluate(async () => {
+      const own = await fetch('app://shell/apps/browser/icon.svg').then((r) => r.text());
+      return decodeURIComponent(window.__aurora.registry.iconUrl('browser').replace(/^data:image\/svg\+xml,/, '')) === own;
+    });
+    check(staticSame, 'cold dark: the drawn icon is the static icon.svg, byte for byte');
+
+    // switching the ambiance (Lanceur still open): bar, Lanceur and desktop follow live, in the same frame
+    const frame = await P.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const html = document.documentElement;
+          const mo = new MutationObserver(() => {
+            if (html.dataset.ambiance !== 'neutral') return;
+            mo.disconnect();
+            // read right away (same task) and one frame later
+            const now = document.querySelector('#taskbar .tb-app img').getAttribute('src');
+            requestAnimationFrame(() => resolve({ now, want: window.__aurora.registry.iconUrl(document.querySelector('#taskbar .tb-app').dataset.app), look: window.__aurora.packs.iconLook }));
+          });
+          mo.observe(html, { attributes: true, attributeFilter: ['data-ambiance'] });
+          window.__aurora.settings.set('ambiance', 'neutral');
+        }),
+    );
+    check(frame.look === 'neutral-dark' && frame.now === frame.want, `the bar's icons are redrawn as soon as <html data-ambiance> changes (no stale frame; look ${frame.look})`);
+    await P.waitForTimeout(900);
+    const neuSrc = await P.evaluate(() => ({ bar: document.querySelector('#taskbar .tb-app img').getAttribute('src'), start: document.querySelector('#start img[src^="data:image/svg"]')?.getAttribute('src'), desk: getComputedStyle(document.querySelector('#desktop [data-special="thispc"] img')).content, open: document.querySelector('#start').getBoundingClientRect().width > 0 }));
+    check(neuSrc.bar !== coldSrc.bar && neuSrc.start && neuSrc.start !== coldSrc.start && neuSrc.desk !== coldSrc.desk && neuSrc.desk.startsWith('url("data:image/svg'), 'switching the ambiance updates the bar, the open Lanceur and the desktop icons live');
+
+    // every non-cold look: no blue cast in the base, no blue / cyan symbol (bar, Lanceur, desktop specials)
+    const looks = [
+      [{ style: 'eclipse', theme: 'dark' }, 'neutral-dark'],
+      [{ style: 'eclipse', theme: 'light' }, 'neutral-light'],
+      [{ style: 'clairdelune', theme: 'light' }, 'warm-light'],
+      [{ style: 'clairdelune', theme: 'dark' }, 'warm-dark'],
+      [{ style: 'nocturne', ambiance: 'warm', theme: 'dark' }, 'warm-dark'],
+    ];
+    for (const [patch, want] of looks) {
+      await setLook(patch);
+      await P.waitForTimeout(1200);
+      await openStart();
+      const all = [...(await sample('#taskbar .tb-app img')), ...(await sample('#start img[src^="data:image/svg"]')), ...(await sample('#desktop [data-special] img'))];
+      const cast = all.filter((r) => blueCast(r.base));
+      const blue = all.filter((r) => !r.sym || blueSymbol(r.sym));
+      check((await look()) === want && all.length >= 15 && !cast.length && !blue.length, `${JSON.stringify(patch)} → ${want}: ${all.length} icons, bases without blue cast, symbols not blue / cyan`, `look ${await look()}; cast ${report(cast)}; blue ${report(blue)}`);
+      await s.shot(`icons-look-${want}-${patch.style}`);
+    }
+    // Contraste élevé: black tile, white symbol
+    await setLook({ style: 'contrast', theme: 'dark' });
+    await P.waitForTimeout(1200);
+    const hc = await sample('#taskbar .tb-app img');
+    check((await look()) === 'contrast-dark' && hc.length >= 5 && hc.every((r) => r.base.every((v) => v < 16) && r.sym && r.sym.every((v) => v > 170) && Math.max(...r.sym) - Math.min(...r.sym) < 8), 'Contraste élevé: black tiles, white symbols', hc.map((r) => `${r.base}|${r.sym}|${r.n}`).join(' '));
+    // other packs still win over the look; back to Selene redraws for the look
+    await P.evaluate(() => window.__aurora.settings.set('iconPack', 'tiles'));
+    await P.waitForTimeout(500);
+    const tiles = await P.evaluate(() => decodeURIComponent(document.querySelector('#taskbar .tb-app img').getAttribute('src')));
+    await P.evaluate(() => window.__aurora.settings.set('iconPack', 'selene'));
+    await P.waitForTimeout(500);
+    const back = await P.evaluate(() => decodeURIComponent(document.querySelector('#taskbar .tb-app img').getAttribute('src')));
+    check(!tiles.includes('Selene app icon') && back.includes('Selene app icon') && back.includes('stroke="#ffffff"'), 'other packs keep their own pictures; Selene comes back in the current look', `${tiles.slice(0, 90)} | ${back.slice(0, 90)}`);
+    const errs = s.logs.filter((l) => /^\[(error|pageerror)\]/.test(l) && !/Failed to load resource/.test(l));
+    check(!errs.length, 'no console errors while switching looks', errs.slice(0, 3).join(' | '));
+  } catch (err) {
+    check(false, 'Selene icon looks', err.stack || String(err));
+  } finally {
+    await s.close();
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

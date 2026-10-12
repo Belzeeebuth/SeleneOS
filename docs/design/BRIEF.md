@@ -100,7 +100,7 @@ Paramètres > Personnalisation. The new list replaces the old one (Windows 11, M
 
 | Item | Decision |
 |---|---|
-| App icons | Rounded square on a **common night-blue base**, with a symbol in **muted** colours, so not saturated iOS-style gradients. It applies to all 37 apps plus the default icon for Linux apps, and replaces the old Fluent icon pack. |
+| App icons | Rounded square on a **common night-blue base**, with a symbol in **muted** colours, so not saturated iOS-style gradients. It applies to all 37 apps plus the default icon for Linux apps, and replaces the old Fluent icon pack. Update (2026-10-12, user request): the base and the symbols follow the ambiance, so no blue shows outside the cold ambiance (warm charcoal for Éclipse, plum for Clair de lune; `shell/renderer/core/app-icon-art.js`). |
 | Logo | Crescent plus a **small round dot-star**. The four-point sparkle is dropped. |
 | Names | The table above is validated as is. |
 | Font | Manrope for titles, Inter for text (variable woff2 vendored in the shell; OFL). |

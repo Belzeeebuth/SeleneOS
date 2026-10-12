@@ -391,7 +391,7 @@ async function checklistPart() {
     await s.page.locator(S('.pzs-card[data-pack="tiles"]')).click();
     await sleep(600);
     const ic = await A(() => ({ tb: document.querySelector('#taskbar .tb-app img')?.getAttribute('src').slice(0, 26), win: window.__aurora.wm.byApp('notepad')[0]?.iconEl?.getAttribute('src').slice(0, 26), pack: document.documentElement.dataset.iconPack, fluentCard: document.querySelector('.app-settings .pzs-card[data-pack="selene"] img')?.getAttribute('src').slice(0, 12) }));
-    item('Packs', 'icon packs', ic.tb?.startsWith('data:image/svg+xml,%3Csvg') && ic.win?.startsWith('data:image/svg+xml,%3Csvg') && ic.pack === 'tiles' && ic.fluentCard === 'app://shell/', JSON.stringify(ic));
+    item('Packs', 'icon packs', ic.tb?.startsWith('data:image/svg+xml,%3Csvg') && ic.win?.startsWith('data:image/svg+xml,%3Csvg') && ic.pack === 'tiles' && ic.fluentCard === 'data:image/s', JSON.stringify(ic));
     await docShot(s, 'pzs-icon-packs-tiles');
     await s.page.locator(S('.pzs-card[data-pack="selene"]')).click();
     await sleep(400);

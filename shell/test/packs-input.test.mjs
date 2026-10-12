@@ -292,7 +292,11 @@ async function iconsPart() {
         };
       });
     const f0 = await where();
-    check(f0.taskbar?.startsWith('app://shell/apps/notepad/') && f0.title?.startsWith('app://shell/apps/notepad/') && f0.pack === 'selene' && (f0.thisPc === 'normal' || f0.thisPc === 'none' || !f0.thisPc?.startsWith('url')), `Selene: the apps' own icons (${f0.taskbar})`);
+    // Selene (default): the Selene icon itself, drawn for the current look (cold light here) as an SVG data: URL; the
+    // apps' own icon files and the desktop's This PC / Recycle Bin pictures are mapped to it by the pack's style sheet
+    const seleneSvg = (u) => /^data:image\/svg\+xml,/.test(u || '') && decodeURIComponent(u).includes('Selene app icon');
+    check(seleneSvg(f0.taskbar) && f0.title === f0.taskbar && seleneSvg(f0.toast) && f0.pack === 'selene' && f0.thisPc?.startsWith('url("data:image/svg') && f0.trash?.startsWith('url("data:image/svg'), `Selene: the Selene icons in the current look everywhere (${String(f0.taskbar).slice(0, 30)}, This PC ${String(f0.thisPc).slice(0, 26)})`);
+    check(await A(() => window.__aurora.packs.iconLook === 'cold-light' && window.__aurora.packs.appIcon('selene', 'notepad') === window.__aurora.registry.iconUrl('notepad')), 'Selene: registry.iconUrl() and packs.appIcon() agree on the cold light look');
     await go(s, 'iconPacks', { maximize: false });
     const seen = {};
     for (const id of ids.filter((x) => x !== 'selene')) {
@@ -354,7 +358,8 @@ async function iconsPart() {
     await A(() => window.__aurora.notify({ title: 'Icon test', body: 'toast', appId: 'notepad' }));
     await sleep(500);
     const f1 = await where();
-    check(f1.taskbar?.startsWith('app://') && f1.title?.startsWith('app://') && f1.toast?.startsWith('app://') && !(await A(() => !!document.getElementById('aurora-iconpack-css'))), `back to Selene: the apps’ own icons everywhere, no icon style sheet (${f1.taskbar?.slice(0, 30)}, ${f1.title?.slice(0, 30)}, ${f1.toast?.slice(0, 30)})`);
+    const seleneCss = await A(() => document.getElementById('aurora-iconpack-css')?.textContent || '');
+    check(f1.taskbar === f0.taskbar && f1.title === f0.taskbar && f1.toast === f0.toast && f1.thisPc === f0.thisPc && seleneCss.includes('img[src="app://shell/apps/notepad/icon.svg"]') && seleneCss.includes('app-default.svg'), `back to Selene: the same Selene icons everywhere, the style sheet maps the icon files to them (${f1.taskbar?.slice(0, 30)}, ${f1.title?.slice(0, 30)}, ${f1.toast?.slice(0, 30)})`);
     // the Settings previews never swap
     const fixed = await A(() => [...document.querySelectorAll('.app-settings .pzs-card[data-pack="glass"] img')].every((i) => i.getAttribute('src').startsWith('data:image/svg')));
     check(fixed, 'pack previews keep their own pictures (data-icon-fixed)');

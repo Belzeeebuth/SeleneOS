@@ -2,22 +2,26 @@
 // Selene app icons: generates every app icon, the default app icon, the desktop icons (Ordinateur, Corbeille), the
 // logo, the glyph table of the derived icon packs, and the review sheet.
 //
-//   node tools/gen-app-icons.mjs [--phosphor <dir>] [--sheet]
+//   node tools/gen-app-icons.mjs [--phosphor <dir>] [--sheet] [--glyphs-only]
 //
 // --phosphor: the Phosphor 2.1.1 "assets" folder (it holds fill/, regular/…); default $PHOSPHOR_DIR.
 //             Without it, the glyphs already stored in shell/renderer/core/app-glyphs.js are reused, so the icons can
 //             be regenerated (e.g. after a colour change) without the design kit.
 // --sheet:    also renders docs/design/icons-sheet.png (needs playwright-core and /opt/pw-browsers/chromium).
+// --glyphs-only: only rewrites core/app-glyphs.js (the icon files are left untouched).
 //
 // Style (docs/design/BRIEF.md, "Decisions after the mockups"): a rounded square (radius 22 % of the tile) on a common
-// night-blue base (#222c45 -> #161d30) with a hairline inner highlight; each app's symbol is a Phosphor "fill" glyph
-// (MIT) in one muted colour with a slight vertical gradient. The SVGs carry a size media query: at 26 px and below
-// the hairline is dropped and the symbol grows (36/48 instead of 32/48; 38/48 at 18 px and below), so 16 and 24 px
-// icons stay legible.
+// base with a hairline inner highlight; each app's symbol is a Phosphor "fill" glyph (MIT) in one muted colour with a
+// slight vertical gradient. The colours of every look (cold / neutral / warm × dark / light, Contraste élevé) and the
+// SVG itself live in shell/renderer/core/app-icon-art.js, shared with the shell's "selene" icon pack (core/packs.js),
+// which draws the icons for the current ambiance at run time. The static files written here are the cold dark look
+// (night-blue base #222c45 -> #161d30): they are what .desktop files, the docs and the first frame before the shell
+// loads show.
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
+import { ICON_LOOKS, HUE_SLOTS, iconLook, seleneIconSvg } from '../shell/renderer/core/app-icon-art.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SHELL = join(ROOT, 'shell/renderer');
@@ -26,20 +30,10 @@ const argVal = (k) => (args.includes(k) ? args[args.indexOf(k) + 1] : null);
 const PHOSPHOR = argVal('--phosphor') || process.env.PHOSPHOR_DIR || null;
 
 // ------------------------------------------------------------------ palette
-// Muted symbol colours: every one is at least 6:1 against the tile (checked below), none is saturated.
-export const HUES = {
-  silver: '#c5cee0',
-  blue: '#93abdb',
-  lavender: '#ae9fdf',
-  sage: '#94c3a7',
-  teal: '#86bcc6',
-  amber: '#dcb77e',
-  sand: '#cbbd9d',
-  rose: '#d89ca4',
-  terra: '#d99a80',
-};
-const BASE_TOP = '#222c45';
-const BASE_BOTTOM = '#161d30';
+// Muted symbol colours of the cold look (the static files); every look's symbols are >= 4.5:1 on its base (checked
+// below). The palettes of all the looks are in core/app-icon-art.js.
+export const HUES = ICON_LOOKS.cold.hues;
+const [BASE_TOP, BASE_BOTTOM] = ICON_LOOKS.cold.dark;
 
 // app id -> [Phosphor glyph ("fill" weight, or "bold:<name>" for line symbols), hue]
 const APPS = {
@@ -159,30 +153,8 @@ function loadGlyphs() {
 }
 
 // ------------------------------------------------------------------ icon SVG
-function iconSvg(key, g) {
-  const id = key.replace(/[^a-z0-9]+/gi, '-');
-  const light = mix(g.color, '#ffffff', 0.32);
-  const sym =
-    g.name === '@logo'
-      ? // the logo is drawn on the 48 grid: scaled to the same optical size as the 256-grid glyphs
-        `<g class="s" transform="translate(10.8 8.6) scale(.6)" fill="url(#${id}-f)">${logoInner(`url(#${id}-f)`)}</g>`
-      : `<g class="s" transform="translate(8 8) scale(.125)" fill="url(#${id}-f)">${g.inner}</g>`;
-  const small = g.name === '@logo' ? 'translate(8.6px,6px) scale(.7)' : 'translate(6px,6px) scale(.140625)';
-  const tiny = g.name === '@logo' ? 'translate(7.3px,4.5px) scale(.76)' : 'translate(5px,5px) scale(.1484)';
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-<!-- Selene app icon (tools/gen-app-icons.mjs). Symbol: Phosphor Icons 2.1.1, MIT (assets/icons/LICENSE-phosphor.txt). -->
-<style>@media (max-width:26px){.hl{display:none}.s{transform:${small}}}@media (max-width:18px){.s{transform:${tiny}}}</style>
-<defs>
-<linearGradient id="${id}-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${BASE_TOP}"/><stop offset="1" stop-color="${BASE_BOTTOM}"/></linearGradient>
-<linearGradient id="${id}-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
-<linearGradient id="${id}-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${light}"/><stop offset="1" stop-color="${g.color}"/></linearGradient>
-</defs>
-<rect x="2" y="2" width="44" height="44" rx="9.7" fill="url(#${id}-b)"/>
-<rect class="hl" x="2.5" y="2.5" width="43" height="43" rx="9.2" fill="none" stroke="url(#${id}-h)"/>
-${sym}
-</svg>
-`;
-}
+// (the cold dark look; core/app-icon-art.js draws every look)
+const iconSvg = (key, g) => seleneIconSvg(key, { vb: g.name === '@logo' ? 48 : 256, inner: g.name === '@logo' ? logoInner('currentColor').replace(/ fill="currentColor"/g, '') : g.inner, hue: g.hue }, iconLook('cold-dark'));
 
 function logoSvg() {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
@@ -204,39 +176,50 @@ const problems = [];
 for (const [k, g] of Object.entries(glyphs)) {
   for (const b of [BASE_TOP, BASE_BOTTOM]) if (contrast(g.color, b) < 4.5) problems.push(`${k}: ${g.color} on ${b} = ${contrast(g.color, b).toFixed(2)}`);
 }
+// every look of the shell's "selene" pack: each symbol colour >= 4.5:1 on both stops of its base
+for (const amb of ['cold', 'neutral', 'warm']) {
+  for (const mode of ['dark', 'light']) {
+    const look = iconLook(`${amb}-${mode}`);
+    for (const slot of HUE_SLOTS) for (const b of look.base) if (contrast(look.hues[slot], b) < 4.5) problems.push(`${amb}-${mode} ${slot}: ${look.hues[slot]} on ${b} = ${contrast(look.hues[slot], b).toFixed(2)}`);
+  }
+}
 if (problems.length) {
   console.error('contrast too low:\n' + problems.join('\n'));
   process.exit(1);
 }
 
-for (const [id, g] of Object.entries(glyphs)) {
-  const file = id in APPS ? join(SHELL, 'apps', id, 'icon.svg') : join(SHELL, SPECIAL[id][2]);
-  writeFileSync(file, iconSvg(id === 'default' ? 'app-default' : id, g));
+const glyphsOnly = args.includes('--glyphs-only');
+if (!glyphsOnly) {
+  for (const [id, g] of Object.entries(glyphs)) {
+    const file = id in APPS ? join(SHELL, 'apps', id, 'icon.svg') : join(SHELL, SPECIAL[id][2]);
+    writeFileSync(file, iconSvg(id === 'default' ? 'app-default' : id.replace(/[^a-z0-9]+/gi, '-'), g));
+  }
+  writeFileSync(join(SHELL, 'assets/aurora-logo.svg'), logoSvg());
 }
-writeFileSync(join(SHELL, 'assets/aurora-logo.svg'), logoSvg());
 
 // glyph table of the derived packs (core/packs.js)
 const table = {};
 for (const [id, g] of Object.entries(glyphs)) {
   table[id] =
     g.name === '@logo'
-      ? { vb: 48, color: g.color, tile: tileOf(g.color), inner: logoInner('currentColor').replace(/ fill="currentColor"/g, '') }
-      : { vb: 256, color: g.color, tile: tileOf(g.color), inner: g.inner };
+      ? { vb: 48, hue: g.hue, color: g.color, tile: tileOf(g.color), inner: logoInner('currentColor').replace(/ fill="currentColor"/g, '') }
+      : { vb: 256, hue: g.hue, color: g.color, tile: tileOf(g.color), inner: g.inner };
 }
 writeFileSync(
   join(SHELL, 'core/app-glyphs.js'),
   `// GENERATED by tools/gen-app-icons.mjs: do not edit by hand.
 // The symbol of every Selene app icon, for the derived icon packs of core/packs.js.
-//   APP_GLYPHS[appId | 'special:thispc' | 'special:trash' | 'default'] = { vb, color, tile, inner }
-//   vb: viewBox size of \`inner\` (256 for Phosphor glyphs, 48 for the logo); color: the muted symbol colour of the
-//   Selene icon; tile: a darker tile colour for that hue (white glyph >= 4.5:1); inner: SVG markup without fills.
+//   APP_GLYPHS[appId | 'special:thispc' | 'special:trash' | 'default'] = { vb, hue, color, tile, inner }
+//   vb: viewBox size of \`inner\` (256 for Phosphor glyphs, 48 for the logo); hue: the app's palette slot (its symbol
+//   colour in every look, core/app-icon-art.js); color: the symbol colour of the static (cold) icon; tile: a darker
+//   tile colour for that hue (white glyph >= 4.5:1); inner: SVG markup without fills.
 // Symbols: Phosphor Icons 2.1.1 (MIT, assets/icons/LICENSE-phosphor.txt), "fill" weight.
 export const APP_GLYPHS = ${JSON.stringify(table, null, 1)};
 // The logo on a 48 grid (also drawn by assets/aurora-logo.svg, apps/winver/icon.svg and apps/installer/art.js).
 export const LOGO = ${JSON.stringify({ crescent: LOGO_CRESCENT, dot: LOGO_DOT, dotPath: LOGO_DOT_PATH })};
 `,
 );
-console.log(`wrote ${Object.keys(glyphs).length} icons, the logo and core/app-glyphs.js`);
+console.log(glyphsOnly ? 'wrote core/app-glyphs.js' : `wrote ${Object.keys(glyphs).length} icons, the logo and core/app-glyphs.js`);
 
 // ------------------------------------------------------------------ review sheet
 if (args.includes('--sheet')) {
