@@ -13,11 +13,11 @@ import { FocusPage } from './page-focus.js';
 import { SettingsPage } from './page-settings.js';
 
 export const PAGES = [
-  { id: 'focus', icon: 'target', label: 'nav.focus', cls: FocusPage },
-  { id: 'timer', icon: 'hourglass_half', label: 'nav.timer', cls: TimerPage },
   { id: 'alarm', icon: 'clock_alarm', label: 'nav.alarm', cls: AlarmPage },
+  { id: 'timer', icon: 'hourglass_half', label: 'nav.timer', cls: TimerPage },
   { id: 'stopwatch', icon: 'timer', label: 'nav.stopwatch', cls: StopwatchPage },
   { id: 'world', icon: 'globe', label: 'nav.world', cls: WorldPage },
+  { id: 'focus', icon: 'target', label: 'nav.focus', cls: FocusPage },
 ];
 const SETTINGS = { id: 'settings', icon: 'settings', label: 'nav.settings', cls: SettingsPage };
 const NARROW = 700;

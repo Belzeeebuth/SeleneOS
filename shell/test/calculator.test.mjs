@@ -596,6 +596,16 @@ async function part2() {
   await p.keyboard.press('Escape');
 
   // --- memory (keyboard + buttons)
+  check('layout: no hamburger, the mode switcher is a dropdown that shows the mode', await p.$eval(`${A} [data-key="nav"]`, (b) => b.classList.contains('calc-modebtn') && b.getAttribute('aria-haspopup') === 'menu' && b.querySelector('.calc-title')?.textContent === 'Standard' && !document.querySelector('.app-calculator .calc-ham')), true);
+  check('mem: the memory keys stay hidden until the Memory button shows them', await p.$eval(`${A} .calc-memrow`, (e) => getComputedStyle(e).display), 'none');
+  await p.click(`${A} .calc-mem-btn`);
+  check('mem: the Memory button in the header shows the memory keys', await p.$eval(`${A} .calc-memrow`, (e) => getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().height > 20), true);
+  check('mem: the Memory button reports its state', await p.$eval(`${A} .calc-mem-btn`, (b) => b.getAttribute('aria-expanded')), 'true');
+  check('keys: operator column tinted with the accent, equals filled with it', await s.aurora(() => {
+    const cs = (k) => getComputedStyle(document.querySelector(`.app-calculator .ck[data-key="${k}"]`));
+    const acc = getComputedStyle(document.querySelector('.app-calculator')).getPropertyValue('--accent').trim();
+    return cs('add').backgroundColor !== cs('7').backgroundColor && cs('add').backgroundColor !== cs('percent').backgroundColor && cs('equals').backgroundColor !== cs('add').backgroundColor && !!acc;
+  }), true);
   await typeSeq('5');
   await p.keyboard.press('Control+m');
   check('mem: MC/MR enabled after MS', await p.$eval(`${A} [data-key="mr"]`, (b) => !b.disabled), true);
@@ -1002,7 +1012,7 @@ async function part2() {
   check('a11y: Tab moves focus to the navigation button', await s.aurora(() => document.activeElement?.dataset?.key), 'nav');
   await p.keyboard.press('Enter');
   await p.waitForTimeout(400);
-  check('a11y: Enter on the hamburger opens the navigation pane', await p.$eval(`${A} .calc`, (e) => e.classList.contains('nav-open')), true);
+  check('a11y: Enter on the mode dropdown opens the list of modes', await p.$eval(`${A} .calc`, (e) => e.classList.contains('nav-open')), true);
   check('a11y: keyboard focus lands on the current mode', await s.aurora(() => document.activeElement?.dataset?.mode), 'standard');
   await p.keyboard.press('ArrowDown');
   await p.keyboard.press('Enter');

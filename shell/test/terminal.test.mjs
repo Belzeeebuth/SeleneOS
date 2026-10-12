@@ -401,7 +401,8 @@ async function uiTests() {
       const ti = await tabInfo(s);
       check('one tab', ti.count, 1);
       check('one pane', ti.panes, 1);
-      check('tab strip is in the title bar', await run(s, `!!document.querySelector('${WIN} .win-titlebar .tm-strip .tm-tab.active')`), true);
+      check('tab strip is a row under the title bar', await run(s, `!!document.querySelector('${WIN} .win-body > .tm-strip .tm-tab.active') && !document.querySelector('${WIN} .win-titlebar .tm-strip')`), true);
+      check('no dropdown chevron next to +', await run(s, `!document.querySelector('${WIN} .tm-newgroup .tm-dropdown') && document.querySelector('${WIN} .tm-newgroup').children.length === 1`), true);
       check('xterm styles loaded', await run(s, `getComputedStyle(document.querySelector('${WIN} .xterm-helper-textarea')).opacity`), '0');
       const env = await TM(s, (app) => app.env);
       check('pty:env knows the login shell', env.shell, (v) => /\/(ba|z|da|fi)?sh$/.test(v));
@@ -503,6 +504,10 @@ async function uiTests() {
       await s.page.click(`${WIN} .tm-newtab`);
       await until(async () => (await tabInfo(s)).count === 3, { label: '3 tabs' });
       await waitReady(s);
+      await s.page.click(`${WIN} .tm-newtab`, { button: 'right' });
+      await until(() => run(s, `!!document.querySelector('body > .menu.tm-profile-menu')`), { label: 'profiles menu (right-click on +)' });
+      check('right-click on + opens the profiles, not a tab', (await tabInfo(s)).count, 3);
+      await closeMenus(s);
       await s.page.click(`${WIN} .tm-dropdown`);
       await until(() => run(s, `!!document.querySelector('body > .menu.tm-profile-menu')`), { label: 'profiles menu' });
       check('profiles menu', await menuLabels(s), (l) => l[0] === 'Bash' && l.includes('Python 3') && l.includes('Settings'));
@@ -1249,7 +1254,9 @@ async function uiTests() {
         const w = app.win.el.getBoundingClientRect();
         const strip = app.strip.getBoundingClientRect();
         const ctl = app.win.el.querySelector('.win-controls').getBoundingClientRect();
-        return { w: Math.round(w.width), h: Math.round(w.height), cols: app.session.term.cols, rows: app.session.term.rows, overlap: strip.right > ctl.left + 1 };
+        // The strip is its own row under the title bar: it never reaches the window buttons and
+        // never runs past the window's edge.
+        return { w: Math.round(w.width), h: Math.round(w.height), cols: app.session.term.cols, rows: app.session.term.rows, overlap: strip.top < ctl.bottom - 1 || strip.right > w.right + 1 || app.dropBtn.getBoundingClientRect().right > w.right + 1 };
       });
       check('min width honoured', r.w, 420);
       check('min height honoured', r.h, 260);

@@ -94,24 +94,52 @@ export class TerminalApp {
     const { h, icon, t, win } = this.ctx;
     win.el.classList.add('tm-window');
     win.el.__terminal = this; // tests and debugging
-    // ---- tab strip in the title bar
+    // ---- tab strip: a row of pills under the title bar. "+" opens the default profile; the
+    // profiles are in a menu (right-click or long press on "+", or the small "Profiles" button).
     this.tabsEl = h('div', { class: 'tm-tabs', role: 'tablist', 'aria-label': t('tabs.label') });
     this.newBtn = h(
       'button',
-      { type: 'button', class: 'tm-newtab', 'aria-label': t('tabs.new'), 'data-tip': t('tabs.newTip'), 'data-tip-pos': 'below', onclick: () => this.newTab() },
-      icon('add', { size: 16 }),
+      { type: 'button', class: 'tm-newtab', 'aria-label': t('tabs.new'), 'data-tip': t('tabs.newTip'), 'data-tip-pos': 'below', onclick: () => (this._longPressed ? (this._longPressed = false) : this.newTab()) },
+      icon('plus', { size: 16 }),
     );
+    this.newBtn.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.profileMenu(this.newBtn);
+    });
+    // Long press on "+" (touch or mouse) opens the profiles menu instead of a new tab.
+    let pressTimer = 0;
+    const cancelPress = () => clearTimeout(pressTimer);
+    this.newBtn.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      this._longPressed = false;
+      cancelPress();
+      pressTimer = setTimeout(() => {
+        this._longPressed = true;
+        this.profileMenu(this.newBtn);
+      }, 500);
+    });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) this.newBtn.addEventListener(ev, cancelPress);
+    this.newBtn.addEventListener('keydown', (e) => {
+      // Shift+F10 / the menu key already fire contextmenu; Alt+Down opens the profiles too.
+      if (e.altKey && e.key === 'ArrowDown') {
+        e.preventDefault();
+        this.profileMenu(this.newBtn);
+      }
+    });
+    this.dropLabel = h('span', { class: 'tm-profiles-label' }, t('tabs.profilesBtn'));
     this.dropBtn = h(
       'button',
-      { type: 'button', class: 'tm-dropdown', 'aria-label': t('tabs.profiles'), 'aria-haspopup': 'menu', 'data-tip': t('tabs.profiles'), 'data-tip-pos': 'below', onclick: () => this.profileMenu() },
-      icon('chevron_down', { size: 12 }),
+      { type: 'button', class: 'tm-dropdown tm-profiles', 'aria-haspopup': 'menu', 'data-tip': t('tabs.profiles'), 'data-tip-pos': 'below', onclick: () => this.profileMenu() },
+      icon('stack', { size: 14 }),
+      this.dropLabel,
     );
-    // Scroll buttons, shown when the tabs do not fit (Windows Terminal style).
+    // Scroll buttons, shown when the tabs do not fit.
     const scrollBtn = (dir) =>
       h(
         'button',
         { type: 'button', tabindex: '-1', class: `tm-scroll tm-scroll-${dir}`, 'aria-hidden': 'true', hidden: true, onclick: () => this.scrollTabs(dir === 'l' ? -1 : 1) },
-        icon(dir === 'l' ? 'chevron_left' : 'chevron_right', { size: 12 }),
+        icon(dir === 'l' ? 'caret-left' : 'caret-right', { size: 12 }),
       );
     this.scrollL = scrollBtn('l');
     this.scrollR = scrollBtn('r');
@@ -121,10 +149,10 @@ export class TerminalApp {
       this.scrollL,
       this.tabsEl,
       this.scrollR,
-      h('div', { class: 'tm-newgroup' }, this.newBtn, this.dropBtn),
+      h('div', { class: 'tm-newgroup' }, this.newBtn),
       h('div', { class: 'tm-strip-drag' }),
+      this.dropBtn,
     );
-    win.titlebarSlot.appendChild(this.strip);
     this.tabsEl.addEventListener('scroll', () => this.updateScrollButtons(), { passive: true });
     this.stripRo = new ResizeObserver(() => {
       this.updateScrollButtons();
@@ -144,7 +172,7 @@ export class TerminalApp {
     this.views = h('div', { class: 'tm-views' });
     this.toast = h('div', { class: 'tm-toast', 'aria-live': 'polite', hidden: true });
     this.root = h('div', { class: 'tm-root' }, this.views, this.toast);
-    win.body.appendChild(this.root);
+    win.body.append(this.strip, this.root);
     this.find = new FindBar(this);
   }
 
@@ -778,7 +806,7 @@ export class TerminalApp {
   }
 
   // ================================================================== menus
-  async profileMenu() {
+  async profileMenu(anchor = this.dropBtn) {
     const { ui, t } = this.ctx;
     const profiles = this.profiles();
     const items = profiles.map((p, i) => ({
@@ -790,8 +818,8 @@ export class TerminalApp {
     items.push('-', { label: t('menu.settings'), icon: 'settings', shortcut: this.kbd('Ctrl+,'), action: () => this.openSettings() });
     items.push({ label: t('menu.newWindow'), icon: 'window_new', shortcut: this.kbd('Ctrl+Shift+N'), action: () => this.newWindow() });
     items.push({ label: t('menu.about'), icon: 'info', action: () => this.about() });
-    this.dropBtn.classList.add('open');
-    const p = ui.menu(this.dropBtn, items, { class: 'tm-menu tm-profile-menu' });
+    anchor.classList.add('open');
+    const p = ui.menu(anchor, items, { class: 'tm-menu tm-profile-menu' });
     // ui.menu draws Fluent icons only: put the profile artwork in the profile rows.
     const menu = document.querySelector('.menu.tm-profile-menu');
     if (menu) {
@@ -802,7 +830,7 @@ export class TerminalApp {
       });
     }
     await p;
-    this.dropBtn.classList.remove('open');
+    anchor.classList.remove('open');
   }
 
   terminalMenuItems(s) {
@@ -1091,7 +1119,7 @@ export class TerminalApp {
     this.tabsEl.setAttribute('aria-label', t('tabs.label'));
     this.newBtn.setAttribute('aria-label', t('tabs.new'));
     this.newBtn.dataset.tip = t('tabs.newTip');
-    this.dropBtn.setAttribute('aria-label', t('tabs.profiles'));
+    this.dropLabel.textContent = t('tabs.profilesBtn');
     this.dropBtn.dataset.tip = t('tabs.profiles');
     for (const tab of this.tabs) {
       tab.closeEl.setAttribute('aria-label', t('tabs.close'));

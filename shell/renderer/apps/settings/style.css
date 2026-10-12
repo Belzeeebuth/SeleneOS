@@ -789,6 +789,12 @@
   padding-top: 14px;
   padding-bottom: 14px;
 }
+.app-settings .st-host.bare .st-host-input {
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  font-weight: 400;
+  height: 32px;
+}
 .app-settings .st-host.bare .st-host-hint {
   margin-top: 6px;
 }

@@ -1740,3 +1740,78 @@
   left: 48px;
   right: 6px;
 }
+
+/* ================================================================== alarms as rows (phase D)
+   Like the timers: the time large on the left, the name and days under it, the switch on the right. */
+.app-clock .ck-alarm-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-clock .ck-alarm.ck-row-alarm {
+  position: relative;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  min-height: 0;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  box-shadow: inset 0 -1px 0 var(--line-soft);
+  cursor: default;
+  transition: background var(--dur-fast) linear;
+}
+.app-clock .ck-alarm.ck-row-alarm:hover {
+  background: var(--subtle-hover);
+}
+.app-clock .ck-alarm.ck-row-alarm:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.app-clock .ck-alarm-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 24px;
+  row-gap: 2px;
+  align-items: center;
+}
+.app-clock .ck-alarm-main > .ck-alarm-timebox {
+  grid-row: 1 / span 2;
+  flex: none;
+}
+.app-clock .ck-alarm.ck-row-alarm .ck-alarm-clock {
+  font-size: var(--fs-title-large);
+}
+.app-clock .ck-alarm-sub {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.app-clock .ck-alarm-sub .ck-alarm-name {
+  font-weight: 600;
+  min-width: 0;
+}
+.app-clock .ck-alarm-info {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 14px;
+}
+.app-clock .ck-alarm-info .ck-alarm-when,
+.app-clock .ck-alarm-info .ck-alarm-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.app-clock .ck-alarm.ck-row-alarm .ck-alarm-top {
+  flex: none;
+  align-items: center;
+}

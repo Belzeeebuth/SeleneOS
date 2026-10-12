@@ -5,9 +5,9 @@ import { addDays } from './dates.js';
 const TEXT = {
   en: {
     list: 'Groceries',
-    welcome: 'Welcome to Tasks. Tick the circle to complete a task',
-    star: 'Star a task to mark it as important',
-    myday: 'Plan your day: add tasks to My Day',
+    welcome: 'Welcome to Tasks. Tick the box to complete a task',
+    star: 'Click the dot before a title to mark a task as important',
+    myday: 'Plan your day: add tasks to Today',
     steps: 'Break big tasks into steps',
     stepsList: ['Open the task', 'Add a step', 'Tick it off'],
     due: 'Give a task a due date and a reminder',
@@ -16,9 +16,9 @@ const TEXT = {
   },
   fr: {
     list: 'Courses',
-    welcome: 'Bienvenue dans Tâches. Cochez le cercle pour terminer une tâche',
-    star: 'Ajoutez une étoile pour marquer une tâche comme importante',
-    myday: 'Planifiez votre journée : ajoutez des tâches à Ma journée',
+    welcome: 'Bienvenue dans Tâches. Cochez la case pour terminer une tâche',
+    star: 'Cliquez sur le point avant le titre pour marquer une tâche comme importante',
+    myday: 'Planifiez votre journée : ajoutez des tâches à Aujourd’hui',
     steps: 'Divisez les grandes tâches en étapes',
     stepsList: ['Ouvrir la tâche', 'Ajouter une étape', 'La cocher'],
     due: 'Donnez une échéance et un rappel à une tâche',

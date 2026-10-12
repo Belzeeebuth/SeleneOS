@@ -643,7 +643,9 @@ async function runEnglish() {
       check('empty state shown', r.empty, true);
       check('history kept on the task', r.data, today);
       await shot(s, 'myday-empty-light-en');
-      await s.page.click(`${WIN} .td-suggest-btn`);
+      // Suggestions live in the header "…" menu
+      await s.page.click(`${WIN} .td-more`);
+      await menuClick(s, 'Suggestions');
       await s.page.waitForSelector(`${WIN} .td-suggest:not([hidden]) .td-sg-row`);
       const sg = await TD(s, (app, id) => ({ yesterday: [...document.querySelectorAll('.win.app-todo .td-sg-sec[data-key="yesterday"] .td-sg-row')].map((x) => x.dataset.id).includes(id), secs: [...document.querySelectorAll('.win.app-todo .td-sg-sec')].map((x) => x.dataset.key) }), id);
       check('suggested under Yesterday', sg.yesterday, true);
@@ -869,13 +871,16 @@ async function runEnglish() {
       check('sort by due date (no date last)', await order(), ['cherry', 'banana', 'Apple']);
       await TD(s, (app, v) => (app.store.setViewPref(v, { sort: { by: 'importance', dir: 'asc' } }), app.renderNow(), true), `list:${lid}`);
       check('sort by importance', (await order())[0], 'Apple');
-      await s.page.click(`${WIN} .td-sort-btn`);
+      // sort and group are submenus of the header "…" menu
+      await s.page.click(`${WIN} .td-more`);
+      await menuClick(s, 'Sort');
       await menuClick(s, 'Creation date');
       check('sort menu: creation date (newest first)', await order(), ['cherry', 'Apple', 'banana']);
       await s.page.click(`${WIN} .td-chip-x`);
       await sleep(150);
       check('sort removed', await TD(s, (app, v) => app.store.viewPrefs(v).sort, `list:${lid}`), null);
-      await s.page.click(`${WIN} .td-group-btn`);
+      await s.page.click(`${WIN} .td-more`);
+      await menuClick(s, 'Group');
       await menuClick(s, 'Due date');
       const g = await TD(s, () => [...document.querySelectorAll('.win.app-todo .td-body .td-sec')].map((x) => x.dataset.key));
       check('group a list by due date (+ "No due date")', g.includes('noDate') && g.length >= 2, true);
@@ -1265,7 +1270,7 @@ async function runFrench() {
       check('smart view labels in French', r.labels, ['Aujourd’hui', 'À venir', 'Toutes', 'Terminées']);
       check('examples in French', r.seed.some((x) => x.startsWith('Bienvenue dans Tâches')), true);
       check('example list in French', r.list, ['Courses']);
-      check('add placeholder', r.add, 'Ajouter une tâche');
+      check('add placeholder', r.add, 'Nouvelle tâche');
       check('weeks start on Monday', r.ws, 1);
       check('French long date', /^[a-z]+ \d+ [a-zéû]+$/.test(r.sub), true);
       check('title', r.title, 'Aujourd’hui');
@@ -2086,13 +2091,13 @@ async function runQA2() {
       const st = () => TD(s, (app) => ({ view: app.view, nav: app.root.classList.contains('nav-open'), input: document.activeElement === app.nav.search, row: !!document.activeElement.closest?.('.td-task') }));
       await s.page.keyboard.press('Control+f');
       await sleep(300);
-      check('Ctrl+F: overlay open, focus in the search box', await st(), { view: 'myday', nav: true, input: true, row: false });
+      check('Ctrl+F: focus in the header search box (the overlay stays closed)', await st(), { view: 'myday', nav: false, input: true, row: false });
       await s.page.keyboard.type('milk', { delay: 30 });
       await sleep(400);
-      check('typing searches and keeps the box (and the overlay) under the caret', await st(), { view: 'search', nav: true, input: true, row: false });
+      check('typing searches and keeps the box under the caret', await st(), { view: 'search', nav: false, input: true, row: false });
       for (let i = 0; i < 4; i++) await s.page.keyboard.press('Backspace');
       await sleep(400);
-      check('clearing the box keeps the overlay and the focus', await st(), { view: 'myday', nav: true, input: true, row: false });
+      check('clearing the box keeps the focus in it', await st(), { view: 'myday', nav: false, input: true, row: false });
       await s.page.keyboard.type('bread', { delay: 30 });
       await s.page.keyboard.press('ArrowDown');
       await sleep(400);
@@ -2178,7 +2183,7 @@ async function runQA2() {
       await TD(s, (app) => (app.win.maximize(), app.store.setTheme('myday', { color: 'accent', bg: 'dawn' }), app.go('myday'), app.renderNow(), true));
       await sleep(700);
       const day = await contrast('.td-subtitle');
-      const tools = await contrast('.td-sort-btn .td-tool-label');
+      const tools = await contrast('.td-title');
       const id = await TD(s, (app) => {
         const l = app.store.addList('Mist');
         app.store.setTheme(`list:${l.id}`, { bg: 'mist' });
@@ -2187,10 +2192,10 @@ async function runQA2() {
         return l.id;
       });
       await sleep(700);
-      const mist = await contrast('.td-sort-btn .td-tool-label');
+      const mist = await contrast('.td-title');
       check(`My Day date on Dawn ≥ 4.5 (${day})`, day >= 4.5, true);
-      check(`toolbar labels on Dawn ≥ 4.5 (${tools})`, tools >= 4.5, true);
-      check(`toolbar labels on Mist ≥ 4.5 (${mist})`, mist >= 4.5, true);
+      check(`header title on Dawn ≥ 4.5 (${tools})`, tools >= 4.5, true);
+      check(`header title on Mist ≥ 4.5 (${mist})`, mist >= 4.5, true);
       await TD(s, (app, id) => (app.store.setTheme(`list:${id}`, { bg: null }), app.win.restore?.(), app.win.setSize(1180, 760), true), id);
       await sleep(400);
     });

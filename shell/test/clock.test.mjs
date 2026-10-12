@@ -255,10 +255,13 @@ async function runEnglish() {
       await s.page.click(`${WIN} .ck-nav-item[data-page="alarm"]`);
       check('click selects Alarm', await CK(s, (app) => app.pageId), 'alarm');
       check('selected item marked', await s.page.getAttribute(`${WIN} .ck-nav-item[data-page="alarm"]`, 'aria-selected'), 'true');
-      await s.page.keyboard.press('Control+4');
-      check('Ctrl+4 -> Stopwatch', await CK(s, (app) => app.pageId), 'stopwatch');
+      await s.page.keyboard.press('Control+3');
+      check('Ctrl+3 -> Stopwatch', await CK(s, (app) => app.pageId), 'stopwatch');
+      await s.page.keyboard.press('Control+5');
+      check('Ctrl+5 -> Focus sessions', await CK(s, (app) => app.pageId), 'focus');
       await s.page.keyboard.press('Control+1');
-      check('Ctrl+1 -> Focus sessions', await CK(s, (app) => app.pageId), 'focus');
+      check('Ctrl+1 -> Alarms', await CK(s, (app) => app.pageId), 'alarm');
+      await s.page.keyboard.press('Control+5');
       await s.page.keyboard.press('Control+,');
       check('Ctrl+, -> Settings', await CK(s, (app) => app.pageId), 'settings');
       await s.page.focus(`${WIN} .ck-nav-item[data-page="timer"]`);
@@ -922,10 +925,12 @@ async function runEnglish() {
       await go(s, 'timer');
       const n15 = () => CK(s, (app) => app.store.timers.filter((x) => x.duration === 15 * 60000 && x.state === 'running').length);
       const before = await n15();
-      await pickPreset(s, '15 min');
-      await pickPreset(s, '15 min');
+      // a real double click on the menu item (the two clicks are a few ms apart, whatever the machine load)
+      await s.page.click(`${WIN} .ck-presets-btn`);
+      await s.page.waitForSelector('body > .menu .menu-item');
+      await s.page.locator('body > .menu .menu-item', { has: s.page.locator('.label', { hasText: /^15 min$/ }) }).dblclick();
       await sleep(300);
-      check('picking the 15 min preset twice in a row starts one timer', (await n15()) - before, 1);
+      check('double-clicking the 15 min preset starts one timer', (await n15()) - before, 1);
       await CK(s, (app) => app.store.timers.filter((x) => x.duration === 15 * 60000).forEach((x) => app.store.deleteTimer(x.id)));
       await CK(s, (app) => app.store.setPref('focus.dnd', 'ask'));
     });
@@ -1348,7 +1353,7 @@ async function runFrench() {
 
     await section('French: strings, 24 h format, week order, offsets', async () => {
       check('window title', await s.page.evaluate(`window.__aurora.wm.byApp('clock')[0].title`), 'Horloge');
-      check('nav labels', await s.page.evaluate(`[...document.querySelectorAll('${WIN} .ck-nav-label')].map((e) => e.textContent)`), ['Concentration', 'Minuteur', 'Alarme', 'Chronomètre', 'Horloge mondiale', 'Paramètres']);
+      check('nav labels', await s.page.evaluate(`[...document.querySelectorAll('${WIN} .ck-nav-label')].map((e) => e.textContent)`), ['Alarmes', 'Minuteurs', 'Chronomètre', 'Horloges', 'Concentration', 'Paramètres']);
       await go(s, 'alarm');
       const a = await CK(s, (app) => app.store.alarms.find((x) => x.name === 'Sport'));
       const card = `${WIN} .ck-alarm[data-id="${a.id}"]`;
@@ -1437,11 +1442,11 @@ async function runFrench() {
 
     await section('QA3 (minimum size): icon-only pane has tooltips, its overlay closes when Tab leaves it, the city search scrolls once', async () => {
       check('each icon-only item names itself in a tooltip', await s.page.evaluate(`[...document.querySelectorAll('${WIN} .ck-nav-item')].map((e) => e.dataset.tip || '')`), [
-        'Concentration',
-        'Minuteur',
-        'Alarme',
+        'Alarmes',
+        'Minuteurs',
         'Chronomètre',
-        'Horloge mondiale',
+        'Horloges',
+        'Concentration',
         'Paramètres',
       ]);
       await s.page.click(`${WIN} .ck-burger`);

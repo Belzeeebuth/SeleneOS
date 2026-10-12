@@ -6,16 +6,11 @@
   overflow: hidden;
   color: var(--text);
   outline: none;
-  animation: sec-fade-in var(--dur-slow) var(--ease);
+  /* No full-screen fade on open (costly to composite in software rendering): only the card rises. */
 }
 .sec-screen.closing {
   animation: sec-fade-out var(--dur) var(--ease-in) forwards;
   pointer-events: none;
-}
-@keyframes sec-fade-in {
-  from {
-    opacity: 0;
-  }
 }
 @keyframes sec-fade-out {
   to {

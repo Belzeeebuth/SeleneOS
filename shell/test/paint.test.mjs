@@ -114,6 +114,8 @@ async function tool(s, id) {
   await wait(s, 40);
 }
 async function shape(s, id) {
+  // The shapes gallery is a popover of the tool island.
+  if (!(await s.page.isVisible(`${WIN} .pt-gallery`))) await s.page.click(`${WIN} .pt-shapes-btn`);
   await s.page.click(`${WIN} .pt-gallery [data-shape="${id}"]`);
   await wait(s, 40);
 }
@@ -129,8 +131,10 @@ async function savePicker(s, file) {
   await input.fill(file);
   await s.page.click(`${live} .dialog-footer .btn.primary`);
 }
+// The "…" menu holds the file commands, then Edit and View as submenus.
 async function menu(s, top, ...labels) {
-  await s.page.click(`${WIN} .pt-menu-btn:nth-child(${{ file: 1, edit: 2, view: 3 }[top]})`);
+  await s.page.click(`${WIN} .pt-more`);
+  if (top !== 'file') labels = [{ edit: /^(Edit|Modifier)$/, view: /^(View|Affichage)$/ }[top], ...labels];
   for (const l of labels) {
     const item = s.page.locator('.menu .menu-item', { hasText: l }).last();
     await item.hover();
@@ -224,8 +228,15 @@ await test('boots with an untitled 1152×648 white canvas and the command bar', 
     palette: (() => {
       const box = el.querySelector('.pt-toolbox').getBoundingClientRect();
       const main = el.querySelector('.pt-main').getBoundingClientRect();
+      const scroll = el.querySelector('.pt-scroll').getBoundingClientRect();
       const bar = el.querySelector('.pt-cmdbar').getBoundingClientRect();
-      return { left: box.right <= main.left + 1 && box.height > box.width, tools: el.querySelectorAll('.pt-toolbox [data-tool]').length, barH: bar.height };
+      const cols = new Set([...el.querySelectorAll('.pt-toolbox [data-tool]')].map((b) => Math.round(b.getBoundingClientRect().left))).size;
+      return {
+        left: box.left > main.left && box.right <= scroll.left && box.top > main.top && box.height > box.width && cols === 1 && el.querySelector('.pt-main > .pt-toolbox.pt-island') != null,
+        tools: el.querySelectorAll('.pt-toolbox [data-tool]').length,
+        barH: bar.height,
+        menubar: el.querySelectorAll('.pt-menu-btn, [role="menubar"]').length,
+      };
     })(),
     shapes: el.querySelectorAll('.pt-gallery [data-shape]').length,
     swatches: [...el.querySelectorAll('.pt-palette:not(.custom) .pt-sw')].map((b) => getComputedStyle(b).backgroundColor),
@@ -237,10 +248,10 @@ await test('boots with an untitled 1152×648 white canvas and the command bar', 
   // Options bar along the top (no captions), then the tool palette on the left.
   assert.deepEqual(info.groups, ['Clipboard', 'Image', 'Outline and fill', 'Size', 'Colors', 'Tools', 'Brushes', 'Shapes']);
   assert.equal(info.captions, 0, 'no group captions, no rainbow colour wheel');
-  assert.ok(info.palette.left && info.palette.tools === 6 && info.palette.barH <= 56, `left tool palette + slim options bar: ${JSON.stringify(info.palette)}`);
+  assert.ok(info.palette.left && info.palette.tools === 6 && info.palette.barH <= 56 && info.palette.menubar === 0, `floating one-column tool island + slim options bar, no menu bar: ${JSON.stringify(info.palette)}`);
   assert.ok(info.shapes >= 23, 'at least 23 shapes');
-  assert.equal(info.swatches.length, 20);
-  assert.equal(info.swatches[3], 'rgb(237, 28, 36)', 'palette red');
+  assert.equal(info.swatches.length, 12, 'the Selene palette has 12 colours');
+  assert.equal(info.swatches[6], 'rgb(214, 69, 69)', 'palette ember (red)');
   assert.equal(info.status, '1152 × 648px');
   assert.equal(info.dirty, false);
   assert.ok(isWhite(await px(s, 10, 10)));
@@ -263,8 +274,9 @@ await test('pencil draws aliased pixels in color 1; title gets a *', async () =>
 });
 
 await test('right-button brush stroke uses color 2 (set by right-clicking a swatch)', async () => {
-  await s.page.click(`${WIN} .pt-palette .pt-sw[data-color="#ed1c24"]`, { button: 'right' });
-  assert.equal(await P(s, (p) => p.S.secondary), '#ed1c24');
+  await s.page.click(`${WIN} .pt-pal-btn`);
+  await s.page.click(`${WIN} .pt-fly-palette .pt-sw[data-color="#d64545"]`, { button: 'right' });
+  assert.equal(await P(s, (p) => p.S.secondary), '#d64545');
   await s.page.click(`${WIN} .pt-g[data-g="brushes"] .pt-b`);
   await s.page.waitForSelector(`${WIN} .pt-fly-brushes`);
   await s.page.click(`${WIN} .pt-fly-brushes .pt-brush-item:nth-child(1)`);
@@ -298,13 +310,15 @@ await test('rectangle shape: live preview, editable handles, commits on click ou
 });
 
 await test('fill bucket floods the inside of the rectangle with color 1', async () => {
-  await s.page.click(`${WIN} .pt-palette .pt-sw[data-color="#3f48cc"]`);
-  assert.equal(await P(s, (p) => p.S.primary), '#3f48cc');
+  await s.page.click(`${WIN} .pt-pal-btn`);
+  await s.page.click(`${WIN} .pt-fly-palette .pt-sw[data-color="#3d5bc4"]`);
+  assert.equal(await P(s, (p) => p.S.primary), '#3d5bc4');
+  assert.equal(await s.page.isVisible(`${WIN} .pt-fly-palette`), false, 'the palette popover closes after a mouse pick');
   await tool(s, 'fill');
   assert.equal(await P(s, (p, el) => !el.querySelector('.pt-ctxbar').hidden), true, 'tolerance bar shown');
   await click(s, 500, 275);
-  assert.deepEqual(await px(s, 500, 275), [63, 72, 204, 255]);
-  assert.deepEqual(await px(s, 420, 210), [63, 72, 204, 255]);
+  assert.deepEqual(await px(s, 500, 275), [61, 91, 196, 255]);
+  assert.deepEqual(await px(s, 420, 210), [61, 91, 196, 255]);
   assert.ok(isWhite(await px(s, 700, 275)), 'outside untouched');
 });
 
@@ -905,7 +919,7 @@ await test('About dialog, recent files menu, zoom slider, middle-button pan, inc
   assert.match(await s.page.locator(`${WIN} .pt-about`).textContent(), /Draw/);
   await s.page.click(`${WIN} .dialog-footer .btn.primary`);
   await wait(s, 250);
-  await s.page.click(`${WIN} .pt-menu-btn:nth-child(1)`);
+  await s.page.click(`${WIN} .pt-more`);
   await s.page.locator('.menu .menu-item', { hasText: 'Recent' }).hover();
   await wait(s, 350);
   const rec = await s.page.locator('.menu .menu-item .label').allTextContents();
@@ -1164,7 +1178,7 @@ await test('file names are shown as text, never as HTML (title, Recent menu, err
   await P(s, (p, el, a) => p.openPath(a), file);
   const t = await P(s, (p, el) => el.querySelector('.pt-doctitle').textContent);
   assert.equal(t, `${evil} - Draw`);
-  await s.page.click(`${WIN} .pt-menu-btn:nth-child(1)`);
+  await s.page.click(`${WIN} .pt-more`);
   await wait(s, 250);
   await s.page.locator('.menu .menu-item', { hasText: 'Recent' }).hover();
   await wait(s, 400);
@@ -1307,10 +1321,11 @@ await test('picking a colour with the mouse while typing keeps the text box acti
   await click(s, 300, 300);
   await s.page.waitForSelector(`${WIN} .pt-ta`);
   await s.page.keyboard.type('ab');
-  await s.page.click(`${WIN} .pt-palette .pt-sw[data-color="#ed1c24"]`);
+  await s.page.click(`${WIN} .pt-pal-btn`);
+  await s.page.click(`${WIN} .pt-fly-palette .pt-sw[data-color="#d64545"]`);
   await s.page.keyboard.type('c');
   assert.equal(await P(s, (p, el) => el.querySelector('.pt-ta').value), 'abc');
-  assert.equal(await P(s, (p) => p.S.primary), '#ed1c24');
+  assert.equal(await P(s, (p) => p.S.primary), '#d64545');
   await s.page.keyboard.press('Escape');
   await waitFor(s, (p) => !p.pending);
   assert.ok((await nonWhite(s, 295, 295, 120, 60)) > 20, 'red text committed');
@@ -1412,7 +1427,7 @@ await test('opening and closing Paint 15 times leaks no listeners or DOM nodes',
     await s.page.click(`${WIN} .pt-g[data-g="size"] .pt-b:not(.pt-g-compact)`);
     await wait(s, 60);
     await s.page.keyboard.press('Escape');
-    await s.page.click(`${WIN} .pt-menu-btn:nth-child(3)`);
+    await s.page.click(`${WIN} .pt-more`);
     await wait(s, 60);
     await s.page.keyboard.press('Escape');
     await P(s, (p) => p.app.setTool('text'));
@@ -1438,14 +1453,14 @@ await test('French UI strings and dark theme', async () => {
   const info = await P(f, (p, el) => ({
     title: el.querySelector('.pt-doctitle').textContent,
     groups: [...el.querySelectorAll('.pt-g')].map((x) => x.getAttribute('aria-label')),
-    menus: [...el.querySelectorAll('.pt-menu-btn')].map((x) => x.textContent),
+    menus: el.querySelector('.pt-more').getAttribute('aria-label'),
     tip: el.querySelector('[data-tool="fill"]').dataset.tip,
     ws: getComputedStyle(el.querySelector('.pt-main')).backgroundColor,
     text: getComputedStyle(el).color,
   }));
   assert.equal(info.title, 'Sans titre - Dessin');
   assert.deepEqual(info.groups, ['Presse-papiers', 'Image', 'Contour et remplissage', 'Taille', 'Couleurs', 'Outils', 'Pinceaux', 'Formes']);
-  assert.deepEqual(info.menus, ['Fichier', 'Modifier', 'Affichage']);
+  assert.equal(info.menus, 'Plus : fichier, modification et affichage');
   assert.equal(info.tip, 'Remplissage (F)');
   assert.equal(info.ws, 'rgb(14, 19, 31)', 'dark workspace (--bg-alt, cold ambiance)');
   assert.equal(info.text, 'rgb(230, 234, 242)');

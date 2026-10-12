@@ -48,25 +48,35 @@ export class Nav {
     this.search.addEventListener('input', () => (this.searchClear.hidden = !this.search.value));
     this.smartEl = h('div', { class: 'td-nav-smart', role: 'group', 'aria-label': t('nav.smartLists') });
     this.listsEl = h('div', { class: 'td-nav-lists', role: 'group', 'aria-label': t('nav.myLists') });
-    this.scroller = h('div', { class: 'td-nav-scroll' }, this.smartEl, h('div', { class: 'td-nav-heading caption', 'aria-hidden': 'true' }, t('nav.myLists')), this.listsEl);
+    // "Listes" heading with its own "+" (new list) and new-group buttons, instead of a bar at the bottom
+    const heading = h(
+      'div',
+      { class: 'td-nav-heading' },
+      h('span', { class: 'td-nav-heading-label', 'aria-hidden': 'true' }, t('nav.myLists')),
+      h('button', { type: 'button', class: 'btn subtle icon-btn td-newgroup', 'aria-label': t('nav.newGroup'), 'data-tip': t('nav.newGroup'), onclick: () => this.app.newGroup() }, icon('folder-simple-plus')),
+      h('button', { type: 'button', class: 'btn subtle icon-btn td-newlist', 'aria-label': t('nav.newList'), 'data-tip': `${t('nav.newList')} (${this.app.fmt.keys('Ctrl+L')})`, onclick: () => this.app.newList() }, icon('plus')),
+    );
+    this.scroller = h('div', { class: 'td-nav-scroll' }, this.smartEl, heading, this.listsEl);
     this.scroller.addEventListener('keydown', (e) => this._keys(e));
+    // the search field is shown in the list header (ListView places it); Nav keeps owning its behaviour
+    this.searchBox = h('div', { class: 'search-box td-search' }, this.search, this.searchClear, icon('magnifying-glass'));
+    this.search.addEventListener('focus', () => this.app.list?.paintSearch());
+    this.search.addEventListener('blur', () => setTimeout(() => this.app.list?.paintSearch(), 0));
     const foot = h(
       'div',
       { class: 'td-nav-foot' },
-      h('button', { type: 'button', class: 'btn subtle td-newlist', 'data-tip': `${t('nav.newList')} (${this.app.fmt.keys('Ctrl+L')})`, onclick: () => this.app.newList() }, icon('add'), h('span', { class: 'ellipsis' }, t('nav.newList'))),
-      h('button', { type: 'button', class: 'btn subtle icon-btn td-newgroup', 'aria-label': t('nav.newGroup'), 'data-tip': t('nav.newGroup'), onclick: () => this.app.newGroup() }, icon('folder_add')),
-      h('button', { type: 'button', class: 'btn subtle icon-btn td-settings-btn', 'aria-label': t('settings.title'), 'data-tip': t('settings.title'), onclick: () => this.app.go('settings') }, icon('settings')),
+      h('button', { type: 'button', class: 'nav-item td-settings-btn', onclick: () => this.app.go('settings') }, icon('gear-six', { class: 'td-nav-ic' }), h('span', { class: 'td-nav-label ellipsis' }, t('settings.title'))),
     );
-    return h(
-      'nav',
-      { class: 'td-nav', 'aria-label': t('nav.label') },
-      h('div', { class: 'td-nav-top' }, h('div', { class: 'search-box td-search' }, this.search, this.searchClear, icon('search'))),
-      this.scroller,
-      foot,
-    );
+    return h('nav', { class: 'td-nav', 'aria-label': t('nav.label') }, this.scroller, foot);
   }
 
   focusSearch() {
+    if (this.searchBox.parentNode !== this.app.list?.searchSlot) this.app.list?.renderHeader();
+    if (this.app.list) {
+      this.app.list.searchSlot.hidden = false;
+      this.app.list.head.classList.add('searching');
+      this.app.list.searchToggle.hidden = true;
+    }
     this.search.focus();
     this.search.select();
   }
@@ -138,7 +148,10 @@ export class Nav {
       if (on) el.setAttribute('aria-current', 'page');
       else el.removeAttribute('aria-current');
     }
-    this.el.querySelector('.td-settings-btn')?.classList.toggle('active', app.view === 'settings');
+    const sb = this.el.querySelector('.td-settings-btn');
+    sb?.classList.toggle('selected', app.view === 'settings');
+    if (app.view === 'settings') sb?.setAttribute('aria-current', 'page');
+    else sb?.removeAttribute('aria-current');
     this.scroller.scrollTop = scroll;
     if (focusedView) (this.items.get(focusedView) || this.listsEl.querySelector(`[data-group="${CSS.escape(focusedView)}"]`))?.focus({ preventScroll: true });
   }

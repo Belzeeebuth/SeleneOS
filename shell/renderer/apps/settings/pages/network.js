@@ -72,7 +72,8 @@ async function network(pc) {
         }),
       );
     }
-    if ((st.devices || []).some((d) => d.type === 'ethernet')) {
+    // (the status row already stands for a wired connection in use)
+    if (p.type !== 'ethernet' && (st.devices || []).some((d) => d.type === 'ethernet')) {
       const eth = st.devices.find((d) => d.type === 'ethernet' && /^connected/.test(d.state)) || st.devices.find((d) => d.type === 'ethernet');
       rows.push(kit.row({ icon: 'plug_connected', title: t('net.ethernet'), desc: /^connected/.test(eth.state) ? t('net.ethConnected') : t('net.ethUnplugged'), onClick: () => pc.go('ethernet') }));
     }

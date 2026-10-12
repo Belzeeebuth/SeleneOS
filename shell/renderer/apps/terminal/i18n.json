@@ -4,9 +4,10 @@
       "label": "Tabs",
       "new": "New tab",
       "newTip": "New tab (Ctrl+Shift+T)",
-      "profiles": "Open a profile",
+      "profiles": "Open a profile (right-click on +)",
       "close": "Close tab",
-      "rename": "Tab name"
+      "rename": "Tab name",
+      "profilesBtn": "Profiles"
     },
     "profile": {
       "python": "Python 3",
@@ -165,9 +166,10 @@
       "label": "Onglets",
       "new": "Nouvel onglet",
       "newTip": "Nouvel onglet (Ctrl+Maj+T)",
-      "profiles": "Ouvrir un profil",
+      "profiles": "Ouvrir un profil (clic droit sur +)",
       "close": "Fermer l’onglet",
-      "rename": "Nom de l’onglet"
+      "rename": "Nom de l’onglet",
+      "profilesBtn": "Profils"
     },
     "profile": {
       "python": "Python 3",

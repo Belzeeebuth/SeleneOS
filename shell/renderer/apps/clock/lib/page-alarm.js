@@ -120,7 +120,7 @@ export class AlarmPage {
     c.el = h(
       'div',
       {
-        class: 'card ck-card ck-alarm',
+        class: 'ck-card ck-alarm ck-row-alarm',
         role: 'listitem',
         tabindex: '0',
         dataset: { id: a.id },
@@ -137,11 +137,17 @@ export class AlarmPage {
         },
         oncontextmenu: (e) => this.menu(e, a.id),
       },
-      h('div', { class: 'ck-alarm-top' }, h('div', { class: 'ck-alarm-timebox' }, c.time, c.period), c.toggle, c.del),
-      h('div', { class: 'ck-alarm-when caption' }, icon('alert', { size: 14 }), c.when),
-      h('div', { class: 'ck-alarm-name' }, icon('tag', { size: 14 }), c.name),
-      c.days,
-      h('div', { class: 'ck-alarm-meta caption text-2' }, h('span', { class: 'ck-meta' }, icon('speaker_2', { size: 14 }), c.sound), h('span', { class: 'ck-meta' }, icon('alert_snooze', { size: 14 }), c.snooze)),
+      // a row like the timers: the time large on the left, the name and days under it, the switch on the right
+      h(
+        'div',
+        { class: 'ck-alarm-main' },
+        h('div', { class: 'ck-alarm-timebox' }, c.time, c.period),
+        h('div', { class: 'ck-alarm-sub' }, h('div', { class: 'ck-alarm-name' }, c.name), c.days),
+        h('div', { class: 'ck-alarm-info caption text-2' },
+          h('span', { class: 'ck-alarm-when' }, icon('alert', { size: 14 }), c.when),
+          h('span', { class: 'ck-alarm-meta' }, h('span', { class: 'ck-meta' }, icon('speaker_2', { size: 14 }), c.sound), h('span', { class: 'ck-meta' }, icon('alert_snooze', { size: 14 }), c.snooze))),
+      ),
+      h('div', { class: 'ck-alarm-top' }, c.toggle, c.del),
     );
     enter(c.el, { y: 12 });
     return c;

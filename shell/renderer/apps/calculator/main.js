@@ -24,7 +24,7 @@ const COMPACT = { width: 296, height: 400, minWidth: 220, minHeight: 300 };
 const MAX_HISTORY = 100;
 const MAX_PASTE = 512;
 const reduceMotion = () => document.documentElement.dataset.animations === 'off';
-const NO_FOCUS_ON_CLICK = '.ck, .calc-mem, .calc-tool, .calc-radix, .calc-bit, .calc-iconbtn, .calc-drop, .calc-conv-value, .calc-pane-tab, .calc-hitem, .calc-mitem';
+const NO_FOCUS_ON_CLICK = '.ck, .calc-mem, .calc-modebtn, .calc-textbtn, .calc-tool, .calc-radix, .calc-bit, .calc-iconbtn, .calc-drop, .calc-conv-value, .calc-pane-tab, .calc-hitem, .calc-mitem';
 
 export default {
   async launch(ctx) {

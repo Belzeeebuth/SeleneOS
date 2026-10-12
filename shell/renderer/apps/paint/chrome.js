@@ -1,16 +1,19 @@
-// Drawing app chrome: title bar menus, a vertical tool palette on the left (selection, tools,
-// brushes, shapes), a slim options bar along the top (clipboard, image, shape outline and fill,
-// size, colours), the contextual text/fill bar, flyouts and the status bar.
+// Drawing app chrome: the title bar ("…" menu with the file, edit and view commands, quick undo /
+// redo / save, the document title), one floating tool island inside the canvas area (selection,
+// tools, brushes, a shapes popover), a compact options bar along the top (clipboard, image, shape
+// outline and fill, size, and the current colours with the Selene palette in a popover), the
+// contextual text/fill bar, flyouts and the status bar.
 // The controller (app.js) owns all state; chrome reads it through `app` and calls app.cmd()/setters.
 import { BRUSHES, createEngine } from './lib/brushes.js';
 import { SHAPES, OUTLINES, FILLS, shapeIcon } from './lib/shapes.js';
 import { previewStroke } from './art.js';
 
+// The Selene palette: twelve colours from the lunar and ambiance hues, plus black and white.
+// (Picture colours, not interface colours: they stay plain hex values.)
 export const PALETTE = [
-  ['#000000', 'black'], ['#7f7f7f', 'gray50'], ['#880015', 'darkRed'], ['#ed1c24', 'red'], ['#ff7f27', 'orange'],
-  ['#fff200', 'yellow'], ['#22b14c', 'green'], ['#00a2e8', 'turquoise'], ['#3f48cc', 'indigo'], ['#a349a4', 'purple'],
-  ['#ffffff', 'white'], ['#c3c3c3', 'gray25'], ['#b97a57', 'brown'], ['#ffaec9', 'rose'], ['#ffc90e', 'gold'],
-  ['#efe4b0', 'lightYellow'], ['#b5e61d', 'lime'], ['#99d9ea', 'lightTurquoise'], ['#7092be', 'blueGray'], ['#c8bfe7', 'lavender'],
+  ['#1b2440', 'deepNight'], ['#3d5bc4', 'nightBlue'], ['#7f95e8', 'moonBlue'], ['#c9d3e6', 'moonSilver'],
+  ['#7a5fd0', 'violet'], ['#c45a8a', 'duskRose'], ['#d64545', 'ember'], ['#e9a23b', 'amber'],
+  ['#3f9a78', 'sage'], ['#3aa3b8', 'lagoon'], ['#000000', 'black'], ['#ffffff', 'white'],
 ];
 
 export const TOOLS = [
@@ -95,7 +98,7 @@ export function createChrome(app) {
     f.onClose?.();
   }
 
-  function flyout(anchor, content, { className, onClose, focus = true } = {}) {
+  function flyout(anchor, content, { className, onClose, focus = true, side = 'below' } = {}) {
     if (flyoutState?.anchor === anchor) {
       closeFlyout();
       return null;
@@ -110,8 +113,8 @@ export function createChrome(app) {
     const fr = el.getBoundingClientRect();
     const ox = hr.left + host.clientLeft;
     const oy = hr.top + host.clientTop;
-    let x = ar.left - ox;
-    let y = ar.bottom - oy + 4;
+    let x = side === 'right' ? ar.right - ox + 8 : ar.left - ox;
+    let y = side === 'right' ? ar.top - oy : ar.bottom - oy + 4;
     if (x + fr.width > host.clientWidth - 8) x = host.clientWidth - fr.width - 8;
     if (y + fr.height > host.clientHeight - 8) {
       const above = ar.top - oy - fr.height - 4;
@@ -184,8 +187,7 @@ export function createChrome(app) {
 
   // ------------------------------------------------------------ title bar (menus + quick access + title)
   function buildTitlebar() {
-    const menuBtn = (id) =>
-      h('button', { type: 'button', class: 'pt-menu-btn', 'aria-haspopup': 'menu', onclick: (e) => openMenu(id, e.currentTarget) }, t(`menu.${id}`));
+    refs.more = btn({ ic: 'dots-three', label: t('menu.more'), key: 'Alt+F', cls: 'pt-qa pt-more', size: 18, attrs: { 'aria-haspopup': 'menu' }, onclick: (e) => openMenu('more', e.currentTarget) });
     refs.qaSave = btn({ ic: 'save', label: t('file.save'), key: 'Ctrl+S', cls: 'pt-qa', size: 16, onclick: () => app.cmd('save') });
     refs.qaUndo = btn({ ic: 'arrow_undo', label: t('edit.undo'), key: 'Ctrl+Z', cls: 'pt-qa', size: 16, onclick: () => app.cmd('undo') });
     refs.qaRedo = btn({ ic: 'arrow_redo', label: t('edit.redo'), key: 'Ctrl+Y', cls: 'pt-qa', size: 16, onclick: () => app.cmd('redo') });
@@ -193,7 +195,7 @@ export function createChrome(app) {
     return h(
       'div',
       { class: 'pt-tb' },
-      h('div', { class: 'pt-menus', role: 'menubar' }, menuBtn('file'), menuBtn('edit'), menuBtn('view')),
+      refs.more,
       h('div', { class: 'pt-tb-sep' }),
       refs.qaSave,
       refs.qaUndo,
@@ -205,8 +207,19 @@ export function createChrome(app) {
   const fmtItems = () =>
     ['png', 'jpeg', 'bmp', 'gif', 'webp'].map((f) => ({ label: t(`file.${f}`), icon: 'image', action: () => app.cmd('saveAs', f) }));
 
-  async function openMenu(id, anchor) {
+  // "…": the file commands, then the edit and view commands in two submenus.
+  async function openMenu(id, anchor = refs.more) {
     closeFlyout();
+    const items =
+      id === 'more'
+        ? [...menuItems('file'), '-', { label: t('menu.edit'), icon: 'pencil-simple', submenu: menuItems('edit') }, { label: t('menu.view'), icon: 'eye', submenu: menuItems('view') }]
+        : menuItems(id);
+    anchor.classList.add('open');
+    await menuAt(anchor, items);
+    anchor.classList.remove('open');
+  }
+
+  function menuItems(id) {
     const c = (k) => app.can(k);
     let items = [];
     if (id === 'file') {
@@ -267,9 +280,7 @@ export function createChrome(app) {
         { label: t('view.fullscreen'), icon: 'full_screen_maximize', shortcut: 'F11', action: () => app.cmd('fullscreen') },
       ];
     }
-    anchor.classList.add('open');
-    await menuAt(anchor, items);
-    anchor.classList.remove('open');
+    return items;
   }
 
   // ------------------------------------------------------------ command bar
@@ -378,7 +389,7 @@ export function createChrome(app) {
       refs.tools[id] = b;
       grid.appendChild(b);
     }
-    gridNav(grid, 2);
+    gridNav(grid, 1);
     return group('tools', h('div', { class: 'pt-g-body' }, grid), 'edit');
   }
 
@@ -406,7 +417,7 @@ export function createChrome(app) {
       requestAnimationFrame(() => previewStroke(cv, id, color, createEngine));
     }
     gridNav(list, 1);
-    flyout(anchor, list, { className: 'pt-fly-brushes' });
+    flyout(anchor, list, { className: 'pt-fly-brushes', side: 'right' });
   }
 
   function buildBrushes() {
@@ -430,11 +441,21 @@ export function createChrome(app) {
     const gal = h('div', { class: 'pt-gallery', role: 'radiogroup', 'aria-label': t('groups.shapes') });
     refs.gallery = gal;
     for (const id of SHAPES) {
-      const b = btn({ ic: svgIcon(shapeIcon(id), { size: 18 }), label: t(`shapes.${id}`), cls: 'shape', onclick: () => app.setShape(id), attrs: { role: 'radio', dataset: { shape: id } } });
+      const b = btn({
+        ic: svgIcon(shapeIcon(id), { size: 18 }),
+        label: t(`shapes.${id}`),
+        cls: 'shape',
+        onclick: (e) => {
+          app.setShape(id);
+          // Picked with the mouse: the popover closes; with the keyboard it stays for arrows.
+          if (e.detail > 0 && flyoutState?.anchor === refs.shapesBtn) closeFlyout();
+        },
+        attrs: { role: 'radio', dataset: { shape: id } },
+      });
       refs.shapes[id] = b;
       gal.appendChild(b);
     }
-    gridNav(gal, 2);
+    gridNav(gal, 6);
     refs.outline = btn({
       ic: 'color_line',
       label: t('shapeopts.outline'),
@@ -458,7 +479,28 @@ export function createChrome(app) {
         ),
     });
     refs.shapeOpts = group('shapeopts', h('div', { class: 'pt-g-body' }, h('div', { class: 'pt-col' }, refs.outline, refs.fillStyle)), 'shapes');
-    return group('shapes', h('div', { class: 'pt-g-body' }, gal), 'shapes');
+    refs.shapesBtn = btn({
+      ic: svgIcon(shapeIcon(S.shape || 'rect'), { size: 20 }),
+      label: t('groups.shapes'),
+      cls: 'sm tool pt-shapes-btn',
+      chevron: true,
+      onclick: (e) => popover(e.currentTarget, gal, 'pt-fly-shapes'),
+    });
+    // The gallery lives in a hidden store when its popover is closed (keeps its state and hooks).
+    refs.galStore = h('div', { class: 'pt-store', hidden: true }, gal);
+    return group('shapes', h('div', { class: 'pt-g-body' }, refs.shapesBtn, refs.galStore), 'shapes');
+  }
+
+  // Opens `content` (kept in a hidden store) as a popover next to `anchor`; puts it back on close.
+  function popover(anchor, content, className, side = 'right') {
+    const home = content.parentNode;
+    const f = flyout(anchor, h('div', { class: 'pt-pop' }, content), {
+      className,
+      side,
+      onClose: () => home.appendChild(content),
+    });
+    if (!f) home.appendChild(content);
+    return f;
   }
 
   function sizeFlyout(anchor) {
@@ -520,9 +562,16 @@ export function createChrome(app) {
     b.addEventListener('click', (e) => {
       if (color) {
         app.setColor(S.slot, color);
-        // A colour picked with the mouse while typing text keeps the text box active.
-        if (e.detail > 0) app.focusEditor?.();
-      } else app.cmd('editColors');
+        // Picked with the mouse: the popover closes, and a colour picked while typing text keeps
+        // the text box active. With the keyboard the popover stays open for the arrow keys.
+        if (e.detail > 0) {
+          if (flyoutState?.anchor === refs.palBtn) closeFlyout();
+          app.focusEditor?.();
+        }
+      } else {
+        closeFlyout();
+        app.cmd('editColors');
+      }
     });
     b.addEventListener('contextmenu', (e) => {
       e.preventDefault();
@@ -549,16 +598,26 @@ export function createChrome(app) {
     refs.custom = h('div', { class: 'pt-palette custom' });
     for (const [c, n] of PALETTE) refs.palette.appendChild(swatch(c, t(`colors.${n}`)));
     renderCustom();
-    refs.palWrap = h('div', { class: 'pt-pal-wrap' }, refs.palette, refs.custom);
-    gridNav(refs.palWrap, 20);
-    // Custom colour picker: a plain icon button (no rainbow wheel).
-    refs.edit = btn({ ic: 'palette', label: t('colors.edit'), cls: 'sm pt-edit-colors', size: 18, onclick: () => app.cmd('editColors') });
-    refs.miniCur = h('span', { class: 'pt-mini-cur', 'aria-hidden': 'true' }, h('i', { class: 'b' }), h('i', { class: 'a' }));
-    return group(
-      'colors',
-      h('div', { class: 'pt-g-body' }, h('div', { class: 'pt-cur-stack' }, refs.c1, refs.c2), refs.palWrap, refs.edit),
-      refs.miniCur,
+    // Custom colour picker, at the bottom of the popover.
+    refs.edit = h(
+      'button',
+      { type: 'button', class: 'btn subtle small pt-edit-colors', onclick: () => (closeFlyout(), app.cmd('editColors')) },
+      icon('eyedropper', { size: 16 }),
+      h('span', {}, t('colors.edit')),
     );
+    refs.palWrap = h('div', { class: 'pt-pal-wrap' }, h('div', { class: 'pt-pal-cap' }, t('colors.palette')), refs.palette, h('div', { class: 'pt-pal-cap' }, t('colors.customs')), refs.custom, refs.edit);
+    gridNav(refs.palWrap, 6);
+    refs.palStore = h('div', { class: 'pt-store', hidden: true }, refs.palWrap);
+    refs.palBtn = btn({
+      ic: 'palette',
+      label: t('colors.choose'),
+      cls: 'sm wide pt-pal-btn',
+      chevron: true,
+      size: 18,
+      onclick: (e) => popover(e.currentTarget, refs.palWrap, 'pt-fly-palette', 'below'),
+    });
+    refs.miniCur = h('span', { class: 'pt-mini-cur', 'aria-hidden': 'true' }, h('i', { class: 'b' }), h('i', { class: 'a' }));
+    return group('colors', h('div', { class: 'pt-g-body' }, h('div', { class: 'pt-cur-stack' }, refs.c1, refs.c2), refs.palBtn, refs.palStore), refs.miniCur);
   }
 
   function renderCustom() {
@@ -570,13 +629,13 @@ export function createChrome(app) {
   function buildCmdbar() {
     const clipboard = buildClipboard();
     const image = buildImage();
-    // Left palette: selection, the tools, brushes, then the shapes.
+    // The tool island: selection, the tools, brushes, then the shapes popover.
     const tools = buildTools();
     const brushes = buildBrushes();
     const shapes = buildShapes();
     refs.toolbox = h(
       'div',
-      { class: 'pt-toolbox', role: 'toolbar', 'aria-orientation': 'vertical', 'aria-label': t('groups.tools') },
+      { class: 'pt-toolbox pt-island', role: 'toolbar', 'aria-orientation': 'vertical', 'aria-label': t('groups.tools') },
       h('div', { class: 'pt-tb-select' }, refs.select),
       tools,
       brushes,
@@ -792,6 +851,7 @@ export function createChrome(app) {
     },
     closeFlyout,
     flyout,
+    openMenu: (id) => openMenu(id),
     fit() {
       fitBar();
       fitStatus();
@@ -835,6 +895,11 @@ export function createChrome(app) {
         refs.selectMain.replaceChildren(icon(S.selMode === 'free' ? 'lasso' : 'select_object', { size: 20 }));
       }
       refs.brushes.classList.toggle('on', S.tool === 'brush');
+      refs.shapesBtn.classList.toggle('on', S.tool === 'shape');
+      if (refs.shapesBtn.dataset.shape !== S.shape) {
+        refs.shapesBtn.dataset.shape = S.shape;
+        refs.shapesBtn.firstChild.replaceWith(svgIcon(shapeIcon(S.shape || 'rect'), { size: 20 }));
+      }
       for (const [id, b] of Object.entries(refs.shapes || {})) {
         const on = S.tool === 'shape' && S.shape === id;
         b.classList.toggle('on', on);

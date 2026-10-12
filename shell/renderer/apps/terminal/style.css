@@ -1,4 +1,4 @@
-/* Aurora Terminal — Windows Terminal look & feel. Every rule is scoped under .app-terminal.
+/* Selene Terminal. Every rule is scoped under .app-terminal.
    Colours of the terminal area come from the colour scheme (set by lib/window.js):
    --tm-bg (with the opacity setting), --tm-bg-solid, --tm-fg, --tm-fg-2, --tm-hover. */
 .app-terminal {
@@ -25,32 +25,33 @@
   background: var(--titlebar-bg);
 }
 
-/* ------------------------------------------------------------------ title bar + tabs */
-.app-terminal > .win-titlebar > .win-title,
-.app-terminal > .win-titlebar > .win-icon {
-  display: none;
-}
-.app-terminal > .win-titlebar {
-  padding-left: 8px;
-  gap: 0;
-}
+/* ------------------------------------------------------------------ tab strip
+   A row of pills under the title bar (the title bar keeps the window title). "+" opens the
+   default profile; the profiles are in a menu on right-click / long press of "+" and behind the
+   small "Profils" button at the end of the row. */
 .app-terminal .tm-strip {
   display: flex;
-  align-items: flex-end;
-  height: 100%;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: 40px;
   min-width: 0;
-  flex: 1;
+  padding: 0 8px 4px;
+  background: var(--titlebar-bg);
+  border-bottom: 1px solid var(--line-soft);
+  container-type: inline-size;
 }
 .app-terminal .tm-tabs {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  gap: 4px;
   height: 100%;
   min-width: 0;
   flex: 0 1 auto;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
-  padding: 0 8px 0 4px;
+  padding: 0 2px;
 }
 .app-terminal .tm-tabs::-webkit-scrollbar {
   display: none;
@@ -58,15 +59,16 @@
 .app-terminal .tm-tab {
   position: relative;
   flex: 0 1 auto;
-  width: 220px;
+  width: 200px;
   min-width: 48px;
-  height: 36px;
+  height: 30px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 6px 0 12px;
+  padding: 0 3px 0 10px;
+  border-radius: 999px;
   color: var(--text-2);
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
   line-height: 16px;
   outline: none;
   transition: color var(--dur-fast) linear;
@@ -82,8 +84,8 @@
 }
 .app-terminal .tm-tab-bg {
   position: absolute;
-  inset: 4px 2px 4px;
-  border-radius: 6px;
+  inset: 0;
+  border-radius: inherit;
   background: transparent;
   pointer-events: none;
   transition: background var(--dur-fast) linear;
@@ -99,51 +101,26 @@
   z-index: 2;
   min-width: 112px;
 }
-.app-terminal .tm-tab.tm-tab-term.active {
-  color: var(--tm-fg);
-}
 .app-terminal .tm-tab.active .tm-tab-bg {
-  inset: 0;
-  border-radius: 8px 8px 0 0;
-  background: var(--tm-tab-surface);
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
-.app-terminal .tm-tab.active .tm-tab-bg::before,
-.app-terminal .tm-tab.active .tm-tab-bg::after {
+/* the active pill carries a small accent dot before its icon */
+.app-terminal .tm-tab.active::before {
   content: "";
   position: absolute;
-  bottom: 0;
-  width: 8px;
-  height: 8px;
-  pointer-events: none;
-}
-.app-terminal .tm-tab.active .tm-tab-bg::before {
-  left: -8px;
-  background: radial-gradient(circle at 0 0, transparent 7.5px, var(--tm-tab-surface) 8px);
-}
-.app-terminal .tm-tab.active .tm-tab-bg::after {
-  right: -8px;
-  background: radial-gradient(circle at 100% 0, transparent 7.5px, var(--tm-tab-surface) 8px);
-}
-.app-terminal .tm-tab::after {
-  content: "";
-  position: absolute;
-  right: -0.5px;
+  left: 4px;
   top: 50%;
-  width: 1px;
-  height: 16px;
-  margin-top: -8px;
-  background: var(--stroke-strong);
-}
-.app-terminal .tm-tab:last-child::after,
-.app-terminal .tm-tab.active::after,
-.app-terminal .tm-tab:hover::after,
-.app-terminal .tm-tab:has(+ .tm-tab.active)::after,
-.app-terminal .tm-tab:has(+ .tm-tab:hover)::after {
-  opacity: 0;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: var(--accent);
+  z-index: 1;
 }
 .app-terminal .tm-tab:focus-visible .tm-tab-bg {
-  outline: 2px solid var(--text);
-  outline-offset: -2px;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 .app-terminal .tm-tab.dragging {
   z-index: 5;
@@ -252,7 +229,7 @@ html[data-animations="off"] .app-terminal .tm-tab-progress.s3 {
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 50%;
   background: transparent;
   color: inherit;
   opacity: 0.75;
@@ -282,39 +259,59 @@ html[data-animations="off"] .app-terminal .tm-tab-progress.s3 {
   background: var(--subtle-hover);
   opacity: 1;
 }
-.app-terminal .tm-tab.tm-tab-term.active .tm-tab-close:hover {
-  background: var(--tm-hover);
-}
+
 .app-terminal .tm-tab-close:active {
   opacity: 0.6;
 }
 .app-terminal .tm-newgroup {
   display: flex;
   align-items: center;
-  gap: 1px;
-  height: 36px;
   flex: none;
-  padding-bottom: 2px;
 }
 .app-terminal .tm-newtab,
 .app-terminal .tm-dropdown {
   height: 30px;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--text);
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
+  font-size: var(--fs-small);
   transition: background var(--dur-fast) linear;
 }
 .app-terminal .tm-newtab {
-  width: 34px;
+  width: 30px;
 }
 .app-terminal .tm-dropdown {
-  width: 26px;
+  flex: none;
+  padding: 0 12px 0 10px;
+  color: var(--text-2);
+}
+.app-terminal .tm-dropdown:hover,
+.app-terminal .tm-dropdown.open {
+  color: var(--text);
+}
+.app-terminal .tm-newtab:focus-visible,
+.app-terminal .tm-dropdown:focus-visible,
+.app-terminal .tm-tab-close:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+@container (max-width: 520px) {
+  .app-terminal .tm-profiles-label {
+    display: none;
+  }
+  .app-terminal .tm-dropdown {
+    padding: 0;
+    width: 30px;
+  }
 }
 .app-terminal .tm-newtab:hover,
+.app-terminal .tm-newtab.open,
 .app-terminal .tm-dropdown:hover,
 .app-terminal .tm-dropdown.open {
   background: var(--subtle-hover);
@@ -329,7 +326,7 @@ html[data-animations="off"] .app-terminal .tm-tab-progress.s3 {
   align-self: center;
   width: 24px;
   height: 28px;
-  margin-top: 4px;
+  border-radius: 999px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -347,7 +344,7 @@ html[data-animations="off"] .app-terminal .tm-tab-progress.s3 {
 }
 .app-terminal .tm-strip-drag {
   flex: 1;
-  min-width: 32px;
+  min-width: 8px;
   height: 100%;
 }
 .win.app-terminal:not(.active) .tm-tab:not(.active),

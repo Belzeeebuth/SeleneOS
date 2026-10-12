@@ -772,7 +772,7 @@ export class TodoApp {
   }
 
   /** Context menu of a list (nav right-click or the header "…" button). */
-  listMenu(at, view) {
+  listMenu(at, view, extra = []) {
     const { t } = this;
     const isList = view.startsWith('list:');
     const id = isList ? view.slice(5) : null;
@@ -804,6 +804,7 @@ export class TodoApp {
       isUser ? '-' : null,
       isUser ? { label: t('menu.deleteList'), icon: 'delete', danger: true, action: () => this.deleteList(id) } : null,
     ].filter(Boolean);
+    if (extra.length) items.unshift(...extra, '-');
     return this.menu(at, items);
   }
 
@@ -1065,8 +1066,8 @@ export class TodoApp {
       }
       if (lk === 'f') {
         e.preventDefault();
-        // (the overlay must not move the focus to the current list: it belongs in the search box)
-        if (this.root.classList.contains('narrow')) this.toggleNav(true, { focus: false });
+        // the search field is in the list header, so the narrow layout's navigation overlay stays closed
+        if (this.root.classList.contains('nav-open')) this.toggleNav(false, { focus: false });
         this.nav.focusSearch();
         return;
       }

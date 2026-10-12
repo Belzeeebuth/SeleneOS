@@ -12,7 +12,7 @@
   --pt-dash: #d6d6d6;
 }
 
-/* ---------------------------------------------------------------- title bar */
+/* ---------------------------------------------------------------- title bar ("…" menu, quick actions, title) */
 .app-paint .win-titlebar > .win-title {
   display: none;
 }
@@ -1372,4 +1372,157 @@
 .app-paint .pt-cur:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- Selene layout
+   No menu bar: a "…" button in the title bar. The tools float in one vertical island inside the
+   canvas area, over a subtle dotted backdrop; the colours are a popover grid. */
+.app-paint {
+  --pt-island-w: 64px;
+}
+.app-paint .pt-b.pt-more.open {
+  background: var(--subtle-pressed);
+}
+.app-paint .pt-main {
+  background-color: var(--pt-ws);
+  background-image: radial-gradient(circle, rgb(var(--tint) / 0.16) 1px, transparent 1.6px);
+  background-size: 16px 16px;
+  background-position: 8px 8px;
+}
+.app-paint .pt-main .pt-scroll {
+  left: var(--pt-island-w);
+}
+.app-paint .pt-main.rulers .pt-scroll {
+  left: calc(var(--pt-island-w) + 20px);
+}
+.app-paint .pt-main .pt-ruler-v,
+.app-paint .pt-main .pt-ruler-corner,
+.app-paint .pt-main .pt-rmark.v {
+  left: var(--pt-island-w);
+}
+.app-paint .pt-main .pt-ruler-h {
+  left: calc(var(--pt-island-w) + 20px);
+}
+.app-paint .pt-toolbox.pt-island {
+  position: absolute;
+  z-index: 3;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  max-height: calc(100% - 20px);
+  padding: 4px 3px;
+  gap: 2px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-flyout);
+  scrollbar-width: none;
+}
+.app-paint .pt-island .pt-tools {
+  grid-template-columns: 36px;
+  gap: 2px;
+}
+.app-paint .pt-island .pt-b.sm,
+.app-paint .pt-island .pt-b.pt-brushes,
+.app-paint .pt-island .pt-b.pt-shapes-btn {
+  width: 36px;
+  height: 36px;
+}
+.app-paint .pt-island .pt-b.on {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-paint .pt-island .pt-chev {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  opacity: 0.8;
+}
+.app-paint .pt-island .pt-tb-select .pt-split {
+  flex-direction: column;
+  width: 36px;
+  height: auto;
+}
+.app-paint .pt-island .pt-tb-select .pt-split .pt-split-main {
+  width: 36px;
+  height: 34px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.app-paint .pt-island .pt-tb-select .pt-split .pt-split-arrow {
+  width: 36px;
+  height: 14px;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+.app-paint .pt-island .pt-box-sep {
+  width: 24px;
+  margin: 2px 0;
+}
+.app-paint .pt.fs .pt-island {
+  display: none;
+}
+.app-paint .pt.fs .pt-main .pt-scroll {
+  left: 0;
+}
+.app-paint .pt-store {
+  display: none;
+}
+/* popovers: the shapes gallery and the palette */
+.app-paint .pt-fly-shapes .pt-gallery {
+  grid-template-columns: repeat(6, 34px);
+  grid-auto-rows: 32px;
+  gap: 2px;
+  padding: 2px;
+  border: 0;
+  background: none;
+}
+.app-paint .pt-fly-shapes .pt-b.shape {
+  width: 34px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+}
+.app-paint .pt-fly-shapes .pt-b.shape.on {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-paint .pt-fly-palette .pt-pal-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px;
+  width: 220px;
+}
+.app-paint .pt-pal-cap {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+}
+.app-paint .pt-fly-palette .pt-palette {
+  display: grid;
+  grid-template-columns: repeat(6, 28px);
+  gap: 6px;
+}
+.app-paint .pt-fly-palette .pt-sw {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+}
+.app-paint .pt-fly-palette .pt-sw:hover {
+  transform: none;
+  box-shadow: inset 0 0 0 1px var(--pt-sw-ring), 0 0 0 2px var(--line);
+}
+.app-paint .pt-edit-colors {
+  align-self: flex-start;
+  gap: 6px;
+}
+.app-paint .pt-cmdbar .pt-pal-btn {
+  width: auto;
+  padding: 0 6px;
+  gap: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-paint .pt-sw,
+  .app-paint .pt-flyout {
+    transition: none;
+    animation: none;
+  }
 }

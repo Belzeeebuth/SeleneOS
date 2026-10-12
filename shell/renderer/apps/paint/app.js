@@ -216,8 +216,9 @@ export async function createPaint(ctx) {
   const markV = h('div', { class: 'pt-rmark v' });
   const dropEl = h('div', { class: 'pt-drop' }, h('div', { class: 'pt-drop-card' }, ctx.icon('image_add', { size: 32 }), h('div', { class: 'pt-drop-txt' }, t('dropHint'))));
   const fsExit = h('button', { type: 'button', class: 'btn pt-fs-exit', onclick: () => setFullscreen(false) }, ctx.icon('full_screen_minimize'), t('view.exitFullscreen'));
-  const main = h('div', { class: 'pt-main' }, h('div', { class: 'pt-ruler-corner' }), rulerH, rulerV, markH, markV, scroller, dropEl, fsExit);
-  const work = h('div', { class: 'pt-work' }, chrome.toolbox, main);
+  // The tool island floats inside the canvas area, on the dotted backdrop.
+  const main = h('div', { class: 'pt-main' }, h('div', { class: 'pt-ruler-corner' }), rulerH, rulerV, markH, markV, scroller, chrome.toolbox, dropEl, fsExit);
+  const work = h('div', { class: 'pt-work' }, main);
   const root = h('div', { class: 'pt' }, chrome.cmdbar, chrome.ctxbar, work, chrome.status);
   win.body.appendChild(root);
   win.titlebarSlot.appendChild(chrome.titlebar);
@@ -2443,6 +2444,8 @@ export async function createPaint(ctx) {
       else done = false;
     } else if (k === 'F11') cmd('fullscreen');
     else if (k === 'F12') cmd('saveAs');
+    // The "…" menu (it replaces the menu bar): Alt+F or F10.
+    else if ((e.altKey && !ctrl && kl === 'f') || (k === 'F10' && !e.shiftKey)) chrome.openMenu('more');
     else if (inText) return;
     else if (e.altKey) done = false;
     else if (k === 'Escape') {

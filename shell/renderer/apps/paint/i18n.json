@@ -6,7 +6,12 @@
     "canvasResize": "Drag to resize the canvas",
     "dropHint": "Drop an image to open it",
     "cmdbar": "Draw commands",
-    "menu": { "file": "File", "edit": "Edit", "view": "View" },
+    "menu": {
+      "file": "File",
+      "edit": "Edit",
+      "view": "View",
+      "more": "More: file, edit and view"
+    },
     "file": {
       "new": "New",
       "open": "Open",
@@ -55,8 +60,19 @@
       "fullscreen": "Full screen",
       "exitFullscreen": "Exit full screen"
     },
-    "groups": { "clipboard": "Clipboard", "image": "Image", "tools": "Tools", "brushes": "Brushes", "shapes": "Shapes", "size": "Size", "colors": "Colors", "shapeopts": "Outline and fill" },
-    "clip": { "pasteOptions": "Paste options" },
+    "groups": {
+      "clipboard": "Clipboard",
+      "image": "Image",
+      "tools": "Tools",
+      "brushes": "Brushes",
+      "shapes": "Shapes",
+      "size": "Size",
+      "colors": "Colors",
+      "shapeopts": "Outline and fill"
+    },
+    "clip": {
+      "pasteOptions": "Paste options"
+    },
     "image": {
       "select": "Select",
       "selectShapes": "Selection shapes",
@@ -73,7 +89,14 @@
       "flipV": "Flip vertical",
       "flipH": "Flip horizontal"
     },
-    "tools": { "pencil": "Pencil", "fill": "Fill", "text": "Text", "eraser": "Eraser", "picker": "Color picker", "zoom": "Magnifier" },
+    "tools": {
+      "pencil": "Pencil",
+      "fill": "Fill",
+      "text": "Text",
+      "eraser": "Eraser",
+      "picker": "Color picker",
+      "zoom": "Magnifier"
+    },
     "brushes": {
       "brush": "Brush",
       "calli1": "Calligraphy brush 1",
@@ -110,9 +133,28 @@
       "heart": "Heart",
       "lightning": "Lightning"
     },
-    "shapeopts": { "outline": "Shape outline", "fill": "Shape fill" },
-    "outline": { "none": "No outline", "solid": "Solid color", "crayon": "Crayon", "marker": "Marker", "oil": "Oil", "natural": "Natural pencil", "watercolor": "Watercolor" },
-    "fillstyle": { "none": "No fill", "solid": "Solid color", "crayon": "Crayon", "marker": "Marker", "oil": "Oil", "natural": "Natural pencil", "watercolor": "Watercolor" },
+    "shapeopts": {
+      "outline": "Shape outline",
+      "fill": "Shape fill"
+    },
+    "outline": {
+      "none": "No outline",
+      "solid": "Solid color",
+      "crayon": "Crayon",
+      "marker": "Marker",
+      "oil": "Oil",
+      "natural": "Natural pencil",
+      "watercolor": "Watercolor"
+    },
+    "fillstyle": {
+      "none": "No fill",
+      "solid": "Solid color",
+      "crayon": "Crayon",
+      "marker": "Marker",
+      "oil": "Oil",
+      "natural": "Natural pencil",
+      "watercolor": "Watercolor"
+    },
     "colors": {
       "c1": "Color 1",
       "c2": "Color 2",
@@ -151,7 +193,20 @@
       "lime": "Lime",
       "lightTurquoise": "Light turquoise",
       "blueGray": "Blue-gray",
-      "lavender": "Lavender"
+      "lavender": "Lavender",
+      "deepNight": "Deep night",
+      "nightBlue": "Night blue",
+      "moonBlue": "Moon blue",
+      "moonSilver": "Lunar silver",
+      "violet": "Violet",
+      "duskRose": "Dusk rose",
+      "ember": "Ember",
+      "amber": "Amber",
+      "sage": "Sage",
+      "lagoon": "Lagoon",
+      "palette": "Selene palette",
+      "customs": "Your colors",
+      "choose": "Choose a color"
     },
     "text": {
       "font": "Font family",
@@ -164,8 +219,13 @@
       "transparent": "Transparent",
       "opaque": "Fill"
     },
-    "fillopts": { "tolerance": "Tolerance", "hint": "Higher values also fill similar colors" },
-    "status": { "fileSize": "Size: {size}" },
+    "fillopts": {
+      "tolerance": "Tolerance",
+      "hint": "Higher values also fill similar colors"
+    },
+    "status": {
+      "fileSize": "Size: {size}"
+    },
     "resize": {
       "title": "Resize and skew",
       "resize": "Resize",
@@ -209,10 +269,26 @@
       "anchor_b": "Bottom",
       "anchor_br": "Bottom right"
     },
-    "fmt": { "all": "All pictures", "png": "PNG picture", "jpeg": "JPEG picture", "bmp": "Bitmap picture", "gif": "GIF picture", "webp": "WebP picture" },
-    "ask": { "save": "Do you want to save changes to {name}?", "saveBtn": "Save", "dontSave": "Don't save" },
-    "wp": { "mustSave": "Before you can set this picture as your desktop background, you must save it." },
-    "about": { "version": "Version {v}", "desc": "Draw, paint, edit pictures and add shapes and text. Part of Selene OS." },
+    "fmt": {
+      "all": "All pictures",
+      "png": "PNG picture",
+      "jpeg": "JPEG picture",
+      "bmp": "Bitmap picture",
+      "gif": "GIF picture",
+      "webp": "WebP picture"
+    },
+    "ask": {
+      "save": "Do you want to save changes to {name}?",
+      "saveBtn": "Save",
+      "dontSave": "Don't save"
+    },
+    "wp": {
+      "mustSave": "Before you can set this picture as your desktop background, you must save it."
+    },
+    "about": {
+      "version": "Version {v}",
+      "desc": "Draw, paint, edit pictures and add shapes and text. Part of Selene OS."
+    },
     "err": {
       "open": "Draw can't open {name}.",
       "notFound": "The file doesn't exist anymore.",
@@ -241,7 +317,12 @@
     "canvasResize": "Faites glisser pour redimensionner la zone de dessin",
     "dropHint": "Déposez une image pour l'ouvrir",
     "cmdbar": "Commandes de Dessin",
-    "menu": { "file": "Fichier", "edit": "Modifier", "view": "Affichage" },
+    "menu": {
+      "file": "Fichier",
+      "edit": "Modifier",
+      "view": "Affichage",
+      "more": "Plus : fichier, modification et affichage"
+    },
     "file": {
       "new": "Nouveau",
       "open": "Ouvrir",
@@ -290,8 +371,19 @@
       "fullscreen": "Plein écran",
       "exitFullscreen": "Quitter le plein écran"
     },
-    "groups": { "clipboard": "Presse-papiers", "image": "Image", "tools": "Outils", "brushes": "Pinceaux", "shapes": "Formes", "size": "Taille", "colors": "Couleurs", "shapeopts": "Contour et remplissage" },
-    "clip": { "pasteOptions": "Options de collage" },
+    "groups": {
+      "clipboard": "Presse-papiers",
+      "image": "Image",
+      "tools": "Outils",
+      "brushes": "Pinceaux",
+      "shapes": "Formes",
+      "size": "Taille",
+      "colors": "Couleurs",
+      "shapeopts": "Contour et remplissage"
+    },
+    "clip": {
+      "pasteOptions": "Options de collage"
+    },
     "image": {
       "select": "Sélectionner",
       "selectShapes": "Formes de sélection",
@@ -308,7 +400,14 @@
       "flipV": "Retourner verticalement",
       "flipH": "Retourner horizontalement"
     },
-    "tools": { "pencil": "Crayon", "fill": "Remplissage", "text": "Texte", "eraser": "Gomme", "picker": "Sélecteur de couleurs", "zoom": "Loupe" },
+    "tools": {
+      "pencil": "Crayon",
+      "fill": "Remplissage",
+      "text": "Texte",
+      "eraser": "Gomme",
+      "picker": "Sélecteur de couleurs",
+      "zoom": "Loupe"
+    },
     "brushes": {
       "brush": "Pinceau",
       "calli1": "Pinceau calligraphique 1",
@@ -345,9 +444,28 @@
       "heart": "Cœur",
       "lightning": "Éclair"
     },
-    "shapeopts": { "outline": "Contour de forme", "fill": "Remplissage de forme" },
-    "outline": { "none": "Aucun contour", "solid": "Couleur unie", "crayon": "Pastel gras", "marker": "Marqueur", "oil": "Huile", "natural": "Crayon naturel", "watercolor": "Aquarelle" },
-    "fillstyle": { "none": "Aucun remplissage", "solid": "Couleur unie", "crayon": "Pastel gras", "marker": "Marqueur", "oil": "Huile", "natural": "Crayon naturel", "watercolor": "Aquarelle" },
+    "shapeopts": {
+      "outline": "Contour de forme",
+      "fill": "Remplissage de forme"
+    },
+    "outline": {
+      "none": "Aucun contour",
+      "solid": "Couleur unie",
+      "crayon": "Pastel gras",
+      "marker": "Marqueur",
+      "oil": "Huile",
+      "natural": "Crayon naturel",
+      "watercolor": "Aquarelle"
+    },
+    "fillstyle": {
+      "none": "Aucun remplissage",
+      "solid": "Couleur unie",
+      "crayon": "Pastel gras",
+      "marker": "Marqueur",
+      "oil": "Huile",
+      "natural": "Crayon naturel",
+      "watercolor": "Aquarelle"
+    },
     "colors": {
       "c1": "Couleur 1",
       "c2": "Couleur 2",
@@ -386,7 +504,20 @@
       "lime": "Citron vert",
       "lightTurquoise": "Turquoise clair",
       "blueGray": "Bleu-gris",
-      "lavender": "Lavande"
+      "lavender": "Lavande",
+      "deepNight": "Nuit profonde",
+      "nightBlue": "Bleu nuit",
+      "moonBlue": "Bleu lune",
+      "moonSilver": "Argent lunaire",
+      "violet": "Violet",
+      "duskRose": "Rose crépuscule",
+      "ember": "Braise",
+      "amber": "Ambre",
+      "sage": "Sauge",
+      "lagoon": "Lagon",
+      "palette": "Palette Selene",
+      "customs": "Vos couleurs",
+      "choose": "Choisir une couleur"
     },
     "text": {
       "font": "Police",
@@ -399,8 +530,13 @@
       "transparent": "Transparent",
       "opaque": "Rempli"
     },
-    "fillopts": { "tolerance": "Tolérance", "hint": "Une valeur plus élevée remplit aussi les couleurs proches" },
-    "status": { "fileSize": "Taille : {size}" },
+    "fillopts": {
+      "tolerance": "Tolérance",
+      "hint": "Une valeur plus élevée remplit aussi les couleurs proches"
+    },
+    "status": {
+      "fileSize": "Taille : {size}"
+    },
     "resize": {
       "title": "Redimensionner et incliner",
       "resize": "Redimensionner",
@@ -444,10 +580,26 @@
       "anchor_b": "En bas",
       "anchor_br": "En bas à droite"
     },
-    "fmt": { "all": "Toutes les images", "png": "Image PNG", "jpeg": "Image JPEG", "bmp": "Image bitmap", "gif": "Image GIF", "webp": "Image WebP" },
-    "ask": { "save": "Voulez-vous enregistrer les modifications apportées à {name} ?", "saveBtn": "Enregistrer", "dontSave": "Ne pas enregistrer" },
-    "wp": { "mustSave": "Vous devez enregistrer cette image avant de pouvoir la définir comme arrière-plan du Bureau." },
-    "about": { "version": "Version {v}", "desc": "Dessinez, peignez, retouchez des images et ajoutez-y des formes et du texte. Fait partie de Selene OS." },
+    "fmt": {
+      "all": "Toutes les images",
+      "png": "Image PNG",
+      "jpeg": "Image JPEG",
+      "bmp": "Image bitmap",
+      "gif": "Image GIF",
+      "webp": "Image WebP"
+    },
+    "ask": {
+      "save": "Voulez-vous enregistrer les modifications apportées à {name} ?",
+      "saveBtn": "Enregistrer",
+      "dontSave": "Ne pas enregistrer"
+    },
+    "wp": {
+      "mustSave": "Vous devez enregistrer cette image avant de pouvoir la définir comme arrière-plan du Bureau."
+    },
+    "about": {
+      "version": "Version {v}",
+      "desc": "Dessinez, peignez, retouchez des images et ajoutez-y des formes et du texte. Fait partie de Selene OS."
+    },
     "err": {
       "open": "Dessin ne peut pas ouvrir {name}.",
       "notFound": "Le fichier n'existe plus.",

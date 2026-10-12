@@ -30,15 +30,16 @@ export class ListView {
     this.burger = h('button', { type: 'button', class: 'btn subtle icon-btn td-burger', 'aria-label': t('nav.toggle'), 'data-tip': t('nav.toggle'), onclick: () => this.app.toggleNav() }, icon('line_horizontal_3'));
     this.titleIcon = h('span', { class: 'td-title-icon', 'aria-hidden': 'true' });
     this.titleEl = h('h1', { class: 'td-title', id: `${this.app.win.id}-title` });
-    this.moreBtn = h('button', { type: 'button', class: 'btn subtle icon-btn td-more', 'aria-label': t('toolbar.listOptions'), 'data-tip': t('toolbar.listOptions'), onclick: (e) => this.app.listMenu(e, this.app.view) }, icon('more_horizontal'));
-    this.sortBtn = h('button', { type: 'button', class: 'btn subtle td-tool td-sort-btn', 'aria-label': t('toolbar.sort'), 'data-tip': t('toolbar.sort'), onclick: (e) => this.sortMenu(e) }, icon('arrow_sort'), h('span', { class: 'td-tool-label' }, t('toolbar.sort')));
-    this.groupBtn = h('button', { type: 'button', class: 'btn subtle td-tool td-group-btn', 'aria-label': t('toolbar.group'), 'data-tip': t('toolbar.group'), onclick: (e) => this.groupMenu(e) }, icon('group_list'), h('span', { class: 'td-tool-label' }, t('toolbar.group')));
-    this.suggestBtn = h('button', { type: 'button', class: 'btn subtle td-tool td-suggest-btn', 'aria-label': t('toolbar.suggestions'), 'data-tip': t('toolbar.suggestions'), onclick: () => this.app.toggleSuggestions() }, icon('lightbulb'), h('span', { class: 'td-tool-label' }, t('toolbar.suggestions')));
+    // one quiet "…" menu holds sort, group, suggestions and the list options (no row of toolbar buttons)
+    this.moreBtn = h('button', { type: 'button', class: 'btn subtle icon-btn td-more', 'aria-label': t('toolbar.listOptions'), 'aria-haspopup': 'menu', 'data-tip': t('toolbar.listOptions'), onclick: (e) => this.headerMenu(e) }, icon('dots-three'));
+    // search is an icon in the header; the field opens next to it (Ctrl+F) and stays open while a search is shown
+    this.searchToggle = h('button', { type: 'button', class: 'btn subtle icon-btn td-search-toggle', 'aria-label': t('search.placeholder'), 'data-tip': `${t('search.placeholder')} (${this.app.fmt.keys('Ctrl+F')})`, onclick: () => this.app.nav.focusSearch() }, icon('magnifying-glass'));
+    this.searchSlot = h('div', { class: 'td-search-slot' });
     this.subtitle = h('div', { class: 'td-subtitle' });
     this.head = h(
       'header',
       { class: 'td-head' },
-      h('div', { class: 'td-head-row' }, this.burger, h('div', { class: 'td-title-wrap' }, this.titleIcon, this.titleEl, this.moreBtn), h('div', { class: 'td-tools' }, this.sortBtn, this.groupBtn, this.suggestBtn)),
+      h('div', { class: 'td-head-row' }, this.burger, h('div', { class: 'td-title-wrap' }, this.titleIcon, this.titleEl), h('div', { class: 'td-tools' }, this.searchSlot, this.searchToggle, this.moreBtn)),
       this.subtitle,
     );
     this.titleEl.addEventListener('click', () => this.editTitle(false));
@@ -251,12 +252,10 @@ export class ListView {
     this.subtitle.hidden = v !== 'myday';
     const prefs = app.store.viewPrefs(v);
     this.moreBtn.hidden = v === 'search';
-    this.sortBtn.hidden = NO_SORT.has(v);
-    this.groupBtn.hidden = ['planned', 'assigned', 'search'].includes(v);
-    this.groupBtn.classList.toggle('on', !!prefs.groupBy && prefs.groupBy !== 'none' && !['all', 'completed'].includes(v));
-    this.suggestBtn.hidden = v !== 'myday';
-    this.suggestBtn.classList.toggle('on', app.suggestOpen);
-    this.suggestBtn.setAttribute('aria-pressed', String(app.suggestOpen));
+    // the search field lives in the header (Nav owns it); it shows while focused or while a search is on screen
+    const box = app.nav?.searchBox;
+    if (box && box.parentNode !== this.searchSlot) this.searchSlot.appendChild(box);
+    this.paintSearch();
     // sort chip
     app.ui.clear(this.chipSlot);
     if (prefs.sort && !NO_SORT.has(v)) {
@@ -314,6 +313,52 @@ export class ListView {
       input.focus();
       if (selectAll) input.select();
     }, 0);
+  }
+
+  paintSearch() {
+    const { app } = this;
+    const box = app.nav?.searchBox;
+    if (!box) return;
+    const open = app.view === 'search' || !!app.nav.search.value || box.contains(document.activeElement);
+    this.head.classList.toggle('searching', open);
+    this.searchSlot.hidden = !open;
+    this.searchToggle.hidden = open;
+  }
+
+  /** The header "…" menu: sort, group and suggestions first, then the options of the list. */
+  headerMenu(e) {
+    const { app } = this;
+    const v = app.view;
+    const t = app.t;
+    const prefs = app.store.viewPrefs(v);
+    const extra = [];
+    if (!NO_SORT.has(v)) extra.push({ label: t('toolbar.sort'), icon: 'arrow_sort', submenu: this._sortItems() });
+    if (!['planned', 'assigned', 'search'].includes(v)) extra.push({ label: t('toolbar.group'), icon: 'group_list', checked: !!prefs.groupBy && prefs.groupBy !== 'none' && !['all', 'completed'].includes(v), submenu: this._groupItems() });
+    if (v === 'myday') extra.push({ label: t('toolbar.suggestions'), icon: 'lightbulb', checked: !!app.suggestOpen, action: () => app.toggleSuggestions() });
+    if (v === 'search') return extra.length ? app.menu(e, extra) : null;
+    return app.listMenu(e, v, extra);
+  }
+
+  _sortItems() {
+    const { app } = this;
+    const v = app.view;
+    const cur = app.store.viewPrefs(v).sort;
+    const items = SORTS.filter((s) => s !== 'myDay' || v !== 'myday').map((s) => ({
+      label: app.t(`sort.${s}`),
+      icon: { importance: 'flag', due: 'calendar_ltr', myDay: 'calendar-dot', alpha: 'text_sort_ascending', created: 'calendar_add' }[s],
+      checked: cur?.by === s,
+      action: () => app.store.setViewPref(v, { sort: { by: s, dir: 'asc' } }),
+    }));
+    if (cur) items.push('-', { label: app.t('sort.remove'), icon: 'dismiss', action: () => app.store.setViewPref(v, { sort: null }) });
+    return [{ header: app.t('sort.by') }, ...items];
+  }
+
+  _groupItems() {
+    const { app } = this;
+    const v = app.view;
+    const cur = app.store.viewPrefs(v).groupBy || 'none';
+    const opts = v.startsWith('list:') ? ['none', 'due'] : ['none', 'list'];
+    return [{ header: app.t('group.by') }, ...opts.map((g) => ({ label: app.t(`group.${g}`), checked: cur === g, action: () => app.store.setViewPref(v, { groupBy: g }) }))];
   }
 
   sortMenu(e) {
@@ -582,7 +627,7 @@ export class ListView {
           if (!reduceMotion()) e.currentTarget.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 300, easing: EASE });
         },
       },
-      icon('flag', { filled: task.important }),
+      h('span', { class: 'td-dot', 'aria-hidden': 'true' }),
     );
     const el = h(
       'div',
@@ -594,8 +639,9 @@ export class ListView {
         'aria-label': this._ariaLabel(task),
       },
       check,
-      h('div', { class: 'td-row-main' }, titleEl, meta.length ? h('div', { class: 'td-row-meta' }, meta) : null),
+      // importance is a small accent dot before the title (a button: click to toggle, Ctrl+Shift+S from the keyboard)
       star,
+      h('div', { class: 'td-row-main' }, titleEl, meta.length ? h('div', { class: 'td-row-meta' }, meta) : null),
     );
     el.addEventListener('click', (e) => {
       const add = e.ctrlKey || e.metaKey;
@@ -866,7 +912,7 @@ function checkSvg() {
     checkProto.className = 'td-check-ic';
     checkProto.setAttribute('aria-hidden', 'true');
     checkProto.innerHTML =
-      '<svg viewBox="0 0 20 20"><circle class="td-ring" cx="10" cy="10" r="8.5"/><circle class="td-fill" cx="10" cy="10" r="9.25"/><path class="td-tick" d="M6.2 10.4l2.6 2.6 5-5.4"/></svg>';
+      '<svg viewBox="0 0 20 20"><rect class="td-ring" x="1.75" y="1.75" width="16.5" height="16.5" rx="4.5"/><rect class="td-fill" x="1" y="1" width="18" height="18" rx="5"/><path class="td-tick" d="M6.2 10.4l2.6 2.6 5-5.4"/></svg>';
   }
   return checkProto.cloneNode(true);
 }

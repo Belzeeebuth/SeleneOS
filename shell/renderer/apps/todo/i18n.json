@@ -50,7 +50,7 @@
    "due": "Due date"
   },
   "add": {
-   "placeholder": "Add a task",
+   "placeholder": "New task",
    "add": "Add",
    "due": "Add due date",
    "remind": "Remind me",
@@ -424,7 +424,7 @@
    "due": "Date d’échéance"
   },
   "add": {
-   "placeholder": "Ajouter une tâche",
+   "placeholder": "Nouvelle tâche",
    "add": "Ajouter",
    "due": "Ajouter une date d’échéance",
    "remind": "Me le rappeler",

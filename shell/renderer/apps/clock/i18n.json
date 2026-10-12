@@ -2,10 +2,10 @@
  "en": {
   "nav": {
    "focus": "Focus",
-   "timer": "Timer",
-   "alarm": "Alarm",
+   "timer": "Timers",
+   "alarm": "Alarms",
    "stopwatch": "Stopwatch",
-   "world": "World clock",
+   "world": "Clocks",
    "settings": "Settings",
    "label": "Clock navigation",
    "toggle": "Open or close navigation"
@@ -291,10 +291,10 @@
  "fr": {
   "nav": {
    "focus": "Concentration",
-   "timer": "Minuteur",
-   "alarm": "Alarme",
+   "timer": "Minuteurs",
+   "alarm": "Alarmes",
    "stopwatch": "Chronomètre",
-   "world": "Horloge mondiale",
+   "world": "Horloges",
    "settings": "Paramètres",
    "label": "Navigation de l’Horloge",
    "toggle": "Ouvrir ou fermer la navigation"
