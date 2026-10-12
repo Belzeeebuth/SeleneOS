@@ -1083,7 +1083,8 @@ async function uiTests() {
       await s.page.fill(`${WIN} > .dialog-layer .fp-bottom input`, 'terminal-export.txt');
       await s.page.locator(`${WIN} > .dialog-layer .dialog-footer .btn.primary`).click();
       const file = path.join(home, 'Documents', 'terminal-export.txt');
-      await until(() => fs.existsSync(file), { label: 'exported file' });
+      // the file appears before its write has finished: wait for the content, not just the name
+      await until(() => fs.existsSync(file) && /export-marker-42/.test(fs.readFileSync(file, 'utf8')), { label: 'exported file' });
       check('exported buffer', fs.readFileSync(file, 'utf8'), (t) => /^export-marker-42$/m.test(t) && t.endsWith('\n'));
       await until(() => run(s, `!document.querySelector('${WIN} > .dialog-layer:not(.closing)')`), { label: 'dialog closed' });
     });

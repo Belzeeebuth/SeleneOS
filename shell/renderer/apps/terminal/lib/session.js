@@ -119,6 +119,9 @@ export class Session {
       term.onBinary((d) => this.ptyId && this.state === 'running' && this.api.send('pty:write', this.ptyId, d, 'binary')),
       term.onResize(({ cols, rows }) => this.ptyResize(cols, rows)),
       term.onTitleChange((title) => {
+        // xterm parses output asynchronously: a title the prompt set just before "exit" can arrive after onPtyExit
+        // has put the profile name back, so the exited tab ignores it
+        if (this.state === 'exited') return;
         this.oscTitle = cleanTitle(title);
         this.app.sessionTitleChanged(this);
       }),
