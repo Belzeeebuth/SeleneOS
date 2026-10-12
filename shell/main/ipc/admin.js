@@ -144,7 +144,7 @@ function groupMembers(name) {
 // ------------------------------------------------------------------ dev simulation
 // Shared in-memory "system" for dev mode (users.js and locale.js read it too).
 const dev = {
-  hostname: 'AURORA-PC',
+  hostname: 'selene',
   timezone: 'Europe/Paris',
   ntp: true,
   locale: 'en_US.UTF-8',

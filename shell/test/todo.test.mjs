@@ -227,7 +227,7 @@ async function runEnglish() {
       await TD(s, (app) => (app.store.setPref('smart.important', true), app.renderNow(), true));
       check('Important view can be shown', await TD(s, (app) => !!app.nav.itemFor('important')), true);
       check('example tasks', r.seed, 8);
-      check('example list with an emoji icon', r.lists, [['🛒', 'Groceries']]);
+      check('example list (plain name, no emoji in the seed copy)', r.lists, [[null, 'Groceries']]);
       check('examples are in English', r.titles.some((x) => x.startsWith('Welcome to Tasks')), true);
       check('examples banner shown in My Day', r.banner, true);
       check('opens on My Day', r.view, 'myday');

@@ -28,7 +28,7 @@ import { settings } from './settings.js';
 export const WALLPAPERS = [
   { id: 'nocturne', name: { en: 'Nocturne', fr: 'Nocturne' }, light: 'nocturne-light.jpg', dark: 'nocturne-dark.jpg' },
   { id: 'eclipse', name: { en: 'Eclipse', fr: 'Éclipse' }, light: 'eclipse-light.jpg', dark: 'eclipse-dark.jpg' },
-  { id: 'clairdelune', name: { en: 'Moonlight', fr: 'Clair de lune' }, light: 'clairdelune-light.jpg', dark: 'clairdelune-dark.jpg' },
+  { id: 'clairdelune', name: { en: 'Clair de lune', fr: 'Clair de lune' }, light: 'clairdelune-light.jpg', dark: 'clairdelune-dark.jpg' },
   { id: 'forest', name: { en: 'Pine forest', fr: 'Forêt de pins' }, light: 'forest-light.jpg', dark: 'forest-dark.jpg' },
   { id: 'peaks', name: { en: 'Peaks', fr: 'Cimes' }, light: 'peaks-light.jpg', dark: 'peaks-dark.jpg' },
   { id: 'milkyway', name: { en: 'Milky Way', fr: 'Voie lactée' }, light: 'milkyway.jpg', dark: 'milkyway.jpg' },
@@ -92,7 +92,7 @@ const AMBIANCE_IDS = AMBIANCES.map((a) => a.id);
 export const STYLES = [
   { id: 'nocturne', name: { en: 'Nocturne', fr: 'Nocturne' }, desc: { en: 'Ink-blue night, silver accent, floating bar islands', fr: 'Nuit bleu encre, accent argenté, barre en îlots flottants' }, defaults: { ambiance: 'cold', accent: '#c9d3e6', wallpaper: 'builtin:nocturne' }, traits: { noMica: true } },
   { id: 'eclipse', name: { en: 'Eclipse', fr: 'Éclipse' }, desc: { en: 'Graphite, amber accent, full-width opaque bar', fr: 'Graphite, accent ambre, barre opaque sur toute la largeur' }, defaults: { ambiance: 'neutral', accent: '#e9b566', wallpaper: 'builtin:eclipse' }, traits: { noMica: true } },
-  { id: 'clairdelune', name: { en: 'Moonlight', fr: 'Clair de lune' }, desc: { en: 'Warm night and cream, violet accent, three floating pills', fr: 'Nuit chaude et crème, accent violet, trois pastilles flottantes' }, defaults: { ambiance: 'warm', accent: '#a58bf2', wallpaper: 'builtin:clairdelune' }, traits: { noMica: true } },
+  { id: 'clairdelune', name: { en: 'Clair de lune', fr: 'Clair de lune' }, desc: { en: 'Warm night and cream, violet accent, three floating pills', fr: 'Nuit chaude et crème, accent violet, trois pastilles flottantes' }, defaults: { ambiance: 'warm', accent: '#a58bf2', wallpaper: 'builtin:clairdelune' }, traits: { noMica: true } },
 
   { id: 'contrast', name: { en: 'High contrast', fr: 'Contraste élevé' }, desc: { en: 'Maximum legibility: solid colours, thick borders, AAA contrast', fr: 'Lisibilité maximale : couleurs pleines, bordures épaisses, contraste AAA' }, defaults: null, traits: { opaque: true, noBlur: true, noMica: true, noTaskbarColor: true, contrast: true } },
 ];

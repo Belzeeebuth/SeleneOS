@@ -53,7 +53,7 @@ export const BUILTIN_PROFILES = [
   { id: 'aurora-dark', name: { en: 'Nocturne', fr: 'Nocturne' }, values: { style: 'nocturne', ambiance: 'cold', theme: 'dark', accent: '#c9d3e6', wallpaper: 'builtin:nocturne' } },
   { id: 'aurora-light', name: { en: 'Nocturne, light', fr: 'Nocturne clair' }, values: { style: 'nocturne', ambiance: 'cold', theme: 'light', accent: '#c9d3e6', wallpaper: 'builtin:nocturne' } },
   { id: 'eclipse', name: { en: 'Eclipse', fr: 'Éclipse' }, values: { style: 'eclipse', ambiance: 'neutral', theme: 'dark', accent: '#e9b566', wallpaper: 'builtin:eclipse' } },
-  { id: 'clairdelune', name: { en: 'Moonlight', fr: 'Clair de lune' }, values: { style: 'clairdelune', ambiance: 'warm', theme: 'dark', accent: '#a58bf2', wallpaper: 'builtin:clairdelune' } },
+  { id: 'clairdelune', name: { en: 'Clair de lune', fr: 'Clair de lune' }, values: { style: 'clairdelune', ambiance: 'warm', theme: 'dark', accent: '#a58bf2', wallpaper: 'builtin:clairdelune' } },
   { id: 'contrast', name: { en: 'High Contrast', fr: 'Contraste élevé' }, values: { style: 'contrast', theme: 'dark', accent: '#c9d3e6', wallpaper: solid('#000000'), cursorPack: 'highvis' } },
 ];
 
