@@ -204,6 +204,7 @@ export class NotepadWindow {
       pos: h('button', { type: 'button', class: 'np-st-item np-st-btn np-st-pos', 'aria-expanded': 'false', onclick: () => this.toggleInfo() }),
       zoom: h('button', { type: 'button', class: 'np-st-item np-st-btn np-st-zoom', 'aria-haspopup': 'menu', onclick: (e) => this.zoomMenu(e) }),
     };
+    for (const b of [this.st.eol, this.st.enc, this.st.pos, this.st.zoom]) b.addEventListener('mousedown', (e) => e.preventDefault());
     this.infoMore = h('span', { class: 'np-info-more' }, this.st.eol, this.st.enc);
     this.infoEl = h('div', { class: 'np-info', role: 'group' }, this.st.chars, this.infoMore, this.st.pos, this.st.zoom);
     this.infoEl.addEventListener('focusin', () => this.setInfoOpen(true));
@@ -261,7 +262,7 @@ export class NotepadWindow {
     win.el.addEventListener('keyup', (e) => {
       if (e.key !== 'Alt' || !this._altArmed) return;
       this._altArmed = false;
-      if (this.dialogOpen() || this.settings.isOpen) return;
+      if (this.dialogOpen()) return;
       e.preventDefault();
       if (this.menus.isOpen) this.menus.close();
       else this.openMore({ keyboard: true });
@@ -792,7 +793,47 @@ export class NotepadWindow {
     this.ctx.shell.launch('files', { select: doc.path });
   }
 
-  // ================================================================== menus
+  // ================================================================== the "…" menu
+  // One menu with three sections (file, edit, view) and the settings. The commands that do not
+  // need a row of their own sit in submenus: Recent, Close (tab, window, exit), More commands
+  // (undo / redo, clipboard, find next / previous, search the web), Zoom, Encoding and line endings.
+  // Keyboard: F10 or Alt alone open it on its first item; Alt+F / Alt+E / Alt+V (localised) on a section.
+  static SECTION_START = { file: 'newTab', edit: 'find', view: 'zoom' };
+
+  openMore({ keyboard = false, section = null } = {}) {
+    if (this.settings.isOpen) this.settings.close();
+    this.setInfoOpen(false);
+    return this.menus.popup(this.moreBtn, this.moreMenu(), {
+      keyboard,
+      focusId: section ? NotepadWindow.SECTION_START[section] : null,
+      toggle: this.moreBtn,
+      alignRight: true,
+      className: 'np-more-menu',
+      restore: this.active?.ta,
+    });
+  }
+
+  /** Alt+<letter>: the section whose (localised) access key it is, or null. */
+  sectionForKey(ch) {
+    const c = String(ch || '').toLocaleLowerCase();
+    if (!c) return null;
+    return ['file', 'edit', 'view'].find((id) => this.t(`menu.${id}Key`).toLocaleLowerCase() === c) || null;
+  }
+
+  moreMenu() {
+    const { t } = this;
+    return [
+      { header: t('menu.file') },
+      ...this.fileMenu(),
+      { header: t('menu.edit') },
+      ...this.editMenu(),
+      { header: t('menu.view') },
+      ...this.viewMenu(),
+      '-',
+      { id: 'settings', label: t('settings.title'), icon: 'gear-six', action: () => this.settings.open() },
+    ];
+  }
+
   fileMenu() {
     const { t } = this;
     const recent = shared.recent;
@@ -804,21 +845,40 @@ export class NotepadWindow {
         ]
       : [{ label: t('file.noRecent'), disabled: true }];
     return [
-      { label: t('file.newTab'), shortcut: 'Ctrl+N', action: () => this.newTab() },
-      { label: t('file.newWindow'), shortcut: 'Ctrl+Shift+N', action: () => this.newWindow() },
-      { label: t('file.open'), shortcut: 'Ctrl+O', action: () => this.openDialog() },
-      { label: t('file.recent'), id: 'recent', submenu: () => recentItems },
-      { label: t('file.save'), shortcut: 'Ctrl+S', action: () => this.save() },
-      { label: t('file.saveAs'), shortcut: 'Ctrl+Shift+S', action: () => this.saveAs() },
-      { label: t('file.saveAll'), shortcut: 'Ctrl+Alt+S', action: () => this.saveAll() },
-      '-',
-      { label: t('file.closeTab'), shortcut: 'Ctrl+W', action: () => this.closeTab() },
-      { label: t('file.closeWindow'), shortcut: 'Ctrl+Shift+W', action: () => this.win.close() },
-      { label: t('file.exit'), action: () => this.exitAll() },
+      { id: 'newTab', label: t('file.newTab'), icon: 'file-plus', shortcut: 'Ctrl+N', action: () => this.newTab() },
+      { id: 'newWindow', label: t('file.newWindow'), icon: 'app-window', shortcut: 'Ctrl+Shift+N', action: () => this.newWindow() },
+      { id: 'open', label: t('file.open'), icon: 'folder-open', shortcut: 'Ctrl+O', action: () => this.openDialog() },
+      { id: 'recent', label: t('file.recent'), icon: 'clock-counter-clockwise', submenu: () => recentItems },
+      { id: 'save', label: t('file.save'), icon: 'floppy-disk', shortcut: 'Ctrl+S', action: () => this.save() },
+      { id: 'saveAs', label: t('file.saveAs'), icon: 'floppy-disk-back', shortcut: 'Ctrl+Shift+S', action: () => this.saveAs() },
+      { id: 'saveAll', label: t('file.saveAll'), icon: 'files', shortcut: 'Ctrl+Alt+S', action: () => this.saveAll() },
+      {
+        id: 'close',
+        label: t('file.close'),
+        icon: 'x',
+        submenu: () => [
+          { label: t('file.closeTab'), shortcut: 'Ctrl+W', action: () => this.closeTab() },
+          { label: t('file.closeWindow'), shortcut: 'Ctrl+Shift+W', action: () => this.win.close() },
+          '-',
+          { label: t('file.exit'), action: () => this.exitAll() },
+        ],
+      },
     ];
   }
 
   editMenu() {
+    const { t } = this;
+    return [
+      { id: 'find', label: t('edit.find'), icon: 'magnifying-glass', shortcut: 'Ctrl+F', action: () => this.find.open() },
+      { id: 'replace', label: t('edit.replace'), icon: 'arrows-left-right', shortcut: 'Ctrl+H', action: () => this.find.open({ replace: true }) },
+      { id: 'goTo', label: t('edit.goTo'), icon: 'list-numbers', shortcut: 'Ctrl+G', action: () => this.goTo() },
+      { id: 'timeDate', label: t('edit.timeDate'), icon: 'calendar-blank', shortcut: 'F5', action: () => this.insertDateTime() },
+      { id: 'moreEdit', label: t('edit.more'), icon: 'clipboard-text', submenu: () => this.moreEditMenu() },
+    ];
+  }
+
+  // Everything else from the old Edit menu (undo and redo are also in the title bar).
+  moreEditMenu() {
     const { t } = this;
     const d = this.active;
     const hasSel = !!d && d.ta.selectionStart !== d.ta.selectionEnd;
@@ -830,35 +890,43 @@ export class NotepadWindow {
       { label: t('edit.copy'), shortcut: 'Ctrl+C', disabled: !hasSel, action: () => this.copy() },
       { label: t('edit.paste'), shortcut: 'Ctrl+V', action: () => this.paste() },
       { label: t('edit.delete'), shortcut: t('keys.del'), disabled: !hasSel, action: () => this.del() },
+      { label: t('edit.selectAll'), shortcut: 'Ctrl+A', action: () => this.selectAll() },
       '-',
-      { label: t('edit.searchWeb'), shortcut: 'Ctrl+E', disabled: !hasSel, action: () => this.searchWeb() },
-      { label: t('edit.find'), shortcut: 'Ctrl+F', action: () => this.find.open() },
       { label: t('edit.findNext'), shortcut: 'F3', action: () => this.find.next(1) },
       { label: t('edit.findPrev'), shortcut: 'Shift+F3', action: () => this.find.next(-1) },
-      { label: t('edit.replace'), shortcut: 'Ctrl+H', action: () => this.find.open({ replace: true }) },
-      { label: t('edit.goTo'), shortcut: 'Ctrl+G', action: () => this.goTo() },
-      '-',
-      { label: t('edit.selectAll'), shortcut: 'Ctrl+A', action: () => this.selectAll() },
-      { label: t('edit.timeDate'), shortcut: 'F5', action: () => this.insertDateTime() },
-      '-',
-      { label: t('edit.font'), action: () => this.fontDialog() },
+      { label: t('edit.searchWeb'), shortcut: 'Ctrl+E', disabled: !hasSel, action: () => this.searchWeb() },
     ];
   }
 
   viewMenu() {
     const { t } = this;
     return [
-      {
-        label: t('view.zoom'),
-        id: 'zoom',
-        submenu: () => [
-          { label: t('view.zoomIn'), shortcut: t('keys.plus'), disabled: this.prefs.zoom >= ZOOM_MAX, action: () => this.zoomBy(10) },
-          { label: t('view.zoomOut'), shortcut: t('keys.minus'), disabled: this.prefs.zoom <= ZOOM_MIN, action: () => this.zoomBy(-10) },
-          { label: t('view.zoomReset'), shortcut: 'Ctrl+0', action: () => this.setZoom(100) },
-        ],
-      },
-      { label: t('view.statusBar'), checked: !!this.prefs.statusBar, action: () => shared.setPref('statusBar', !this.prefs.statusBar) },
-      { label: t('view.wordWrap'), checked: !!this.prefs.wordWrap, action: () => shared.setPref('wordWrap', !this.prefs.wordWrap) },
+      { id: 'zoom', label: t('view.zoom'), icon: 'magnifying-glass-plus', submenu: () => this.zoomItems() },
+      { id: 'wordWrap', label: t('view.wordWrap'), icon: 'arrow-u-down-left', checked: !!this.prefs.wordWrap, action: () => shared.setPref('wordWrap', !this.prefs.wordWrap) },
+      { id: 'docInfo', label: t('view.docInfo'), icon: 'info', checked: !!this.prefs.statusBar, action: () => shared.setPref('statusBar', !this.prefs.statusBar) },
+      { id: 'font', label: t('edit.font'), icon: 'text-aa', action: () => this.fontDialog() },
+      { id: 'encoding', label: t('view.encoding'), icon: 'file-text', disabled: !this.active, submenu: () => this.encodingItems(this.active) },
+    ];
+  }
+
+  zoomItems() {
+    const { t } = this;
+    return [
+      { label: t('view.zoomIn'), shortcut: t('keys.plus'), disabled: this.prefs.zoom >= ZOOM_MAX, action: () => this.zoomBy(10) },
+      { label: t('view.zoomOut'), shortcut: t('keys.minus'), disabled: this.prefs.zoom <= ZOOM_MIN, action: () => this.zoomBy(-10) },
+      { label: t('view.zoomReset'), shortcut: 'Ctrl+0', action: () => this.setZoom(100) },
+    ];
+  }
+
+  // Line endings and encodings of a document in one list (keyboard path to the info pill's pickers).
+  encodingItems(d) {
+    if (!d) return [];
+    const { t } = this;
+    return [
+      { header: t('status.eolTip') },
+      ...this.eolItems(d),
+      { header: t('status.encTip') },
+      ...this.encItems(d),
     ];
   }
 
@@ -888,42 +956,50 @@ export class NotepadWindow {
     return d.length > 34 ? `…${d.slice(-33)}` : d;
   }
 
+  // The info pill's pickers. They open above the pill, which sits at the bottom of the window.
   zoomMenu(e) {
+    this.menus.popup(e.currentTarget, this.zoomItems(), { restore: this.active?.ta, alignRight: true });
+  }
+
+  eolItems(d) {
+    return EOLS.map((k) => ({ label: this.t(`eol.${k}`), checked: d.eol === k, action: () => this.setEol(d, k) }));
+  }
+  encItems(d) {
     const { t } = this;
-    this.menus.popup(e.currentTarget, [
-      { label: t('view.zoomIn'), shortcut: t('keys.plus'), disabled: this.prefs.zoom >= ZOOM_MAX, action: () => this.zoomBy(10) },
-      { label: t('view.zoomOut'), shortcut: t('keys.minus'), disabled: this.prefs.zoom <= ZOOM_MIN, action: () => this.zoomBy(-10) },
-      { label: t('view.zoomReset'), shortcut: 'Ctrl+0', action: () => this.setZoom(100) },
-    ], { restore: this.active?.ta });
+    return [
+      ...ENCODINGS.map((k) => ({ label: t(`encMenu.${k}`), checked: d.encoding === k, action: () => this.setEncoding(d, k) })),
+      '-',
+      {
+        label: t('enc.reopen'),
+        disabled: !d.path,
+        submenu: () => ENCODINGS.filter((k) => k !== 'utf-8-bom').map((k) => ({ label: t(`encMenu.${k}`), action: () => this.reopenWith(d, k) })),
+      },
+    ];
   }
 
   eolMenu(e) {
     const d = this.active;
     if (!d) return;
-    this.menus.popup(
-      e.currentTarget,
-      EOLS.map((k) => ({ label: this.t(`eol.${k}`), checked: d.eol === k, action: () => this.setEol(d, k) })),
-      { restore: d.ta, className: 'np-menu-up' },
-    );
+    this.menus.popup(e.currentTarget, this.eolItems(d), { restore: d.ta, className: 'np-menu-up' });
   }
 
   encMenu(e) {
     const d = this.active;
     if (!d) return;
-    const { t } = this;
-    this.menus.popup(
-      e.currentTarget,
-      [
-        ...ENCODINGS.map((k) => ({ label: t(`encMenu.${k}`), checked: d.encoding === k, action: () => this.setEncoding(d, k) })),
-        '-',
-        {
-          label: t('enc.reopen'),
-          disabled: !d.path,
-          submenu: () => ENCODINGS.filter((k) => k !== 'utf-8-bom').map((k) => ({ label: t(`encMenu.${k}`), action: () => this.reopenWith(d, k) })),
-        },
-      ],
-      { restore: d.ta },
-    );
+    this.menus.popup(e.currentTarget, this.encItems(d), { restore: d.ta });
+  }
+
+  // ================================================================== document info pill
+  toggleInfo() {
+    this.setInfoOpen(!this.infoOpen);
+  }
+  setInfoOpen(on) {
+    on = !!on && !this.infoEl.hidden;
+    if (this.infoOpen === on) return;
+    this.infoOpen = on;
+    this.infoEl.classList.toggle('open', on);
+    this.st.pos.setAttribute('aria-expanded', String(on));
+    this.st.pos.dataset.tip = this.t(on ? 'status.lessTip' : 'status.moreTip');
   }
 
   setEol(d, eol) {
@@ -1420,11 +1496,17 @@ export class NotepadWindow {
     const caret = ta.selectionDirection === 'backward' ? s : e;
     const { line, col } = d.lineCol(caret);
     this.st.pos.textContent = t('status.pos', { line, col });
+    this.st.pos.dataset.tip = t(this.infoOpen ? 'status.lessTip' : 'status.moreTip');
     const total = d.text.length;
     this.st.chars.textContent = s !== e ? t('status.selChars', { count: total, sel: this.fmt(e - s), n: this.fmt(total) }) : t('status.chars', { count: total, n: this.fmt(total) });
-    this.st.zoom.textContent = t('status.zoom', { zoom: this.prefs.zoom || 100 });
+    const zoom = this.prefs.zoom || 100;
+    this.st.zoom.textContent = t('status.zoom', { zoom });
     this.st.eol.textContent = t(`eol.${d.eol}`);
     this.st.enc.textContent = t(`enc.${d.encoding}`);
+    this.infoEl.classList.toggle('has-sel', s !== e);
+    this.infoEl.classList.toggle('zoomed', zoom !== 100);
+    this.undoBtn.disabled = !d.history.canUndo;
+    this.redoBtn.disabled = !d.history.canRedo;
   }
 
   layoutChanged() {
@@ -1453,10 +1535,10 @@ export class NotepadWindow {
     }
     const k = e.key;
     if (k === 'Alt') {
-      if (!e.repeat) this.bar.altDown();
+      if (!e.repeat) this._altArmed = true;
       return;
     }
-    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) this.bar.altCancel();
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) this._altArmed = false;
     const ctrl = e.ctrlKey || e.metaKey;
     const lower = k.length === 1 ? k.toLowerCase() : k;
     const run = (fn) => {
@@ -1464,16 +1546,14 @@ export class NotepadWindow {
       e.stopPropagation();
       fn();
     };
-    // Menu access keys (Alt+F / Alt+E / Alt+V, localized) and F10.
+    // The "…" menu from the keyboard: F10 on its first item; Alt+F / Alt+E / Alt+V (localised) on a section.
     if (e.altKey && !ctrl && !e.shiftKey && k.length === 1) {
       const code = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3) : k;
-      if (this.bar.accessKey(code) || this.bar.accessKey(k)) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
+      const section = this.sectionForKey(code) || this.sectionForKey(k);
+      if (section) run(() => this.openMore({ keyboard: true, section }));
       return;
     }
-    if (k === 'F10' && !ctrl && !e.altKey && !e.shiftKey) return run(() => this.bar.enterKeyboard());
+    if (k === 'F10' && !ctrl && !e.altKey && !e.shiftKey) return run(() => this.openMore({ keyboard: true }));
     if (this.settings.isOpen) {
       if (ctrl && !e.altKey && ['n', 'o', 'w'].includes(lower)) {
         this.settings.close();

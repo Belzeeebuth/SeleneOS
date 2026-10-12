@@ -1,4 +1,4 @@
-// Notepad Settings page (gear button): app theme, font, word wrap, status bar, default line ending,
+// Notepad Settings page ("…" menu > Settings): app theme, font, word wrap, document info, default line ending,
 // where files open, session restore, and About. Shown in place of the editor, like Windows 11.
 import { fontControls, styleKey } from './dialogs.js';
 
@@ -139,7 +139,7 @@ export class SettingsPage {
       h('div', { class: 'np-set-section' }, t('settings.textFormatting')),
       expander('font', 'text_font', t('settings.font'), null, fontSummary, fontCtl.el),
       card('wrap', 'text_wrap', t('view.wordWrap'), t('settings.wrapDesc'), toggle(t('view.wordWrap'), !!p.wordWrap, (v) => set('wordWrap', v))),
-      card('status', 'panel_bottom', t('view.statusBar'), t('settings.statusDesc'), toggle(t('view.statusBar'), !!p.statusBar, (v) => set('statusBar', v))),
+      card('status', 'info', t('view.docInfo'), t('settings.statusDesc'), toggle(t('view.docInfo'), !!p.statusBar, (v) => set('statusBar', v))),
       card('eol', 'arrow_enter_left', t('settings.eol'), t('settings.eolDesc'), sel('eol', p.defaultEol, [
         ['lf', t('eol.lf')],
         ['crlf', t('eol.crlf')],

@@ -1,10 +1,12 @@
 // Notepad tests — drives the real Electron shell with Playwright (keyboard, mouse, dialogs, files).
-//   Typing + status bar, undo/redo (incl. replace all), tab key, Time/Date, find/replace (match case,
+//   Typing + document info, undo/redo (incl. replace all), tab key, Time/Date, find/replace (match case,
 //   whole word, wrap around, counts, replace all), go to line, word wrap, zoom (keys, wheel, menu),
-//   status bar toggle, open/save roundtrips (CRLF, BOM, ANSI fallback, UTF-16), Save as (+ .txt),
+//   document info toggle, open/save roundtrips (CRLF, BOM, ANSI fallback, UTF-16), Save as (+ .txt),
 //   recent files, relaunch with {file} (new tab, no duplicate, new window), tabs (context menu,
 //   middle click, drag reorder, Ctrl+Tab), unsaved prompts (tab + window list), external changes,
-//   big file guard, drag & drop, menu bar keyboard access, French + dark theme, app theme override,
+//   big file guard, drag & drop, the "…" menu (mouse, F10, Alt, Alt+F/E/V, letters), title bar
+//   undo / redo, the document info pill (position, zoom, characters, line ending and encoding
+//   pickers), French + dark theme, app theme override,
 //   session restore, minimum and maximized sizes — and checks for console errors.
 //   QA regressions: one prompt for repeated close / save / open / exit requests, devices and pipes
 //   refused, relative paths refused, file:// URLs, minimised window raised for its prompt, keyboard
@@ -115,6 +117,22 @@ async function setText(s, value, caret = 0) {
   }, { value, caret });
 }
 const sel = (s) => NP(s, (np) => [np.active.ta.selectionStart, np.active.ta.selectionEnd]);
+// The "…" menu of the title bar: click it, then (optionally) open a submenu and click an item there.
+async function moreMenu(s, item, sub) {
+  await s.page.click(`${WIN} .np-more`);
+  await until(() => run(s, `!!document.querySelector('.np-more-menu')`), { label: '"…" menu' });
+  if (sub) {
+    await s.page.locator('.np-more-menu .menu-item', { hasText: sub }).click();
+    await until(() => run(s, `document.querySelectorAll('.np-menu').length === 2`), { label: `${sub} submenu` });
+  }
+  if (item) await s.page.locator('.np-menu').last().locator('.menu-item', { hasText: item }).first().click();
+}
+// The document info pill: open it (shows the line ending and encoding pickers).
+async function openInfo(s) {
+  if (!(await run(s, `document.querySelector('${WIN} .np-info').classList.contains('open')`))) await s.page.click(`${WIN} .np-st-pos`);
+  await until(() => run(s, `document.querySelector('${WIN} .np-info').classList.contains('open')`), { label: 'info pill open' });
+}
+const shown = (s, sel) => run(s, `(() => { const e = document.querySelector('${WIN} ${sel}'); return !!e && getComputedStyle(e).display !== 'none' && !e.closest('[hidden]'); })()`);
 const prefsFile = (home) => path.join(home, '.config', 'aurora', 'apps', 'notepad', 'prefs.json');
 const readJson = (f) => {
   try {
@@ -176,14 +194,18 @@ async function mainRun() {
   try {
     await openNotepad(s);
 
-    await section('opens with an Untitled tab, tall title bar and menu bar', async () => {
+    await section('opens with an Untitled tab, tall title bar, quick actions and the info pill', async () => {
       check('one window', await winCount(s), 1);
       check('window title', await run(s, `window.__aurora.wm.byApp('notepad')[0].title`), 'Untitled - Text Editor');
       check('tab title', (await tabs(s))[0].title, 'Untitled');
       check('tall title bar', await run(s, `document.querySelector('${WIN}').classList.contains('tb-tall')`), true);
       check('tabs live in the title bar', await run(s, `!!document.querySelector('${WIN} .win-titlebar .np-tabs .np-tab')`), true);
-      check('menus', await run(s, `[...document.querySelectorAll('${WIN} .np-menu-btn .np-menu-label')].map((b) => b.textContent)`), ['File', 'Edit', 'View']);
-      check('status bar', await status(s), { pos: 'Ln 1, Col 1', chars: '0 characters', zoom: '100%', eol: 'Unix (LF)', enc: 'UTF-8' });
+      check('no menu bar', await run(s, `!document.querySelector('${WIN} [role="menubar"], ${WIN} .np-menubar')`), true);
+      check('title bar: undo, redo, "…"', await run(s, `[...document.querySelectorAll('${WIN} .win-titlebar .np-actions button')].map((b) => b.getAttribute('aria-label'))`), ['Undo', 'Redo', 'More: file, edit, view and settings']);
+      check('undo / redo disabled on a new tab', await run(s, `[...document.querySelectorAll('${WIN} .np-actions .np-undo, ${WIN} .np-actions .np-redo')].map((b) => b.disabled)`), [true, true]);
+      check('document info', await status(s), { pos: 'Ln 1, Col 1', chars: '0 characters', zoom: '100%', eol: 'Unix (LF)', enc: 'UTF-8' });
+      check('info pill shows the position only', [await shown(s, '.np-st-pos'), await shown(s, '.np-st-chars'), await shown(s, '.np-st-zoom'), await shown(s, '.np-st-eol'), await shown(s, '.np-st-enc')], [true, false, false, false, false]);
+      check('no status bar', await run(s, `!document.querySelector('${WIN} .np-status')`), true);
       check('editor focused', await run(s, `document.activeElement?.classList.contains('np-text')`), true);
     });
 
@@ -197,6 +219,7 @@ async function mainRun() {
       check('position', (await status(s)).pos, 'Ln 2, Col 12');
       check('chars', (await status(s)).chars, '23 characters');
       check('dirty tab', (await tabs(s))[0].dirty, true);
+      check('undo enabled after typing', await run(s, `document.querySelector('${WIN} .np-undo').disabled`), false);
       check('dirty dot shown', await run(s, `document.querySelector('${WIN} .np-tab.active').classList.contains('dirty')`), true);
       check('title has *', await run(s, `window.__aurora.wm.byApp('notepad')[0].title`), '*Untitled - Text Editor');
       await s.page.keyboard.down('Shift');
@@ -204,6 +227,7 @@ async function mainRun() {
       await s.page.keyboard.up('Shift');
       await sleep(80);
       check('selection count', (await status(s)).chars, '11 of 23 characters');
+      check('character count shown with a selection', await shown(s, '.np-st-chars'), true);
       check('caret at selection start (backward)', (await status(s)).pos, 'Ln 2, Col 1');
     });
 
@@ -239,15 +263,19 @@ async function mainRun() {
       check('F5 inserts time and date', t.split('\n')[1], (v) => /^\d{1,2}:\d{2}\s?(AM|PM)\s\d{1,2}\/\d{1,2}\/\d{4}$/.test(v));
       await s.page.keyboard.press('Control+z');
       check('Time/Date undoable', await text(s), '\talpha beta gamma\n');
-      // Edit menu: Select all + Delete, then undo through the menu.
-      await s.page.click(`${WIN} .np-menu-btn[data-menu="edit"]`);
-      await s.page.locator('.np-menu .menu-item', { hasText: 'Select all' }).click();
-      await s.page.click(`${WIN} .np-menu-btn[data-menu="edit"]`);
-      await s.page.locator('.np-menu .menu-item', { hasText: 'Delete' }).click();
+      // "…" > More commands: Select all + Delete, then undo through the menu.
+      await moreMenu(s, 'Select all', 'More commands');
+      await moreMenu(s, 'Delete', 'More commands');
       check('menu delete', await text(s), '');
-      await s.page.click(`${WIN} .np-menu-btn[data-menu="edit"]`);
-      await s.page.locator('.np-menu .menu-item', { hasText: 'Undo' }).click();
+      await moreMenu(s, 'Undo', 'More commands');
       check('menu undo', await text(s), '\talpha beta gamma\n');
+      // Title bar undo / redo buttons
+      await s.page.click(`${WIN} .np-redo`);
+      check('title bar redo', await text(s), '');
+      check('redo button disabled at the end of history', await run(s, `document.querySelector('${WIN} .np-redo').disabled`), true);
+      await s.page.click(`${WIN} .np-undo`);
+      check('title bar undo', await text(s), '\talpha beta gamma\n');
+      check('caret stays in the editor', await run(s, `document.activeElement?.classList.contains('np-text')`), true);
     });
 
     await section('cut / copy / paste through the clipboard', async () => {
@@ -388,17 +416,17 @@ async function mainRun() {
       check('line text at caret', await NP(s, (np) => np.active.text.slice(np.active.ta.selectionStart, np.active.ta.selectionStart + 9)), 'Line 150:');
     });
 
-    await section('word wrap, zoom, status bar toggle (persisted)', async () => {
+    await section('word wrap, zoom, document info toggle (persisted)', async () => {
       await setText(s, `${'wide '.repeat(120)}\nshort`, 0);
       check('wrap on by default', await NP(s, (np) => np.active.ta.wrap), 'soft');
       check('no horizontal scroll with wrap', await NP(s, (np) => np.active.ta.scrollWidth <= np.active.ta.clientWidth + 1), true);
-      await s.page.click(`${WIN} .np-menu-btn[data-menu="view"]`);
-      await s.page.locator('.np-menu .menu-item', { hasText: 'Word wrap' }).click();
+      await moreMenu(s, 'Word wrap');
       await sleep(120);
       check('wrap off', await NP(s, (np) => np.active.ta.wrap), 'off');
       check('nowrap class', await run(s, `document.querySelector('${WIN} .np-root').classList.contains('nowrap')`), true);
       check('horizontal scroll without wrap', await NP(s, (np) => np.active.ta.scrollWidth > np.active.ta.clientWidth + 50), true);
-      await s.page.click(`${WIN} .np-menu-btn[data-menu="view"]`);
+      check('info pill above the horizontal scroll bar', await NP(s, (np) => np.infoEl.getBoundingClientRect().bottom <= np.active.ta.getBoundingClientRect().top + np.active.ta.clientHeight + 1), true);
+      await moreMenu(s);
       check('menu shows wrap unchecked', await run(s, `[...document.querySelectorAll('.np-menu .menu-item')].find((r) => r.textContent.includes('Word wrap')).getAttribute('aria-checked')`), 'false');
       await s.page.keyboard.press('Escape');
       await NP(s, (np) => np.shared.setPref('wordWrap', true));
@@ -407,6 +435,7 @@ async function mainRun() {
       await s.page.keyboard.press('Control+=');
       await s.page.keyboard.press('Control+=');
       check('zoom in x2', (await status(s)).zoom, '120%');
+      check('zoom shown in the info pill when not 100%', await shown(s, '.np-st-zoom'), true);
       check('font grows', await NP(s, (np) => parseFloat(getComputedStyle(np.active.ta).fontSize)), (v) => Math.abs(v - fs0 * 1.2) < 0.2);
       await s.page.keyboard.press('Control+-');
       check('zoom out', (await status(s)).zoom, '110%');
@@ -419,21 +448,29 @@ async function mainRun() {
       check('ctrl+wheel zooms in', (await status(s)).zoom, '120%');
       await s.page.keyboard.press('Control+0');
       check('restore zoom', (await status(s)).zoom, '100%');
+      check('zoom hidden at 100%', await shown(s, '.np-st-zoom'), false);
       await s.page.keyboard.press('Control+=');
       await sleep(600);
       check('zoom persisted', readJson(prefsFile(home))?.zoom, 110);
       await s.page.keyboard.press('Control+0');
+      await openInfo(s);
+      check('open pill shows line ending, encoding and zoom', [await shown(s, '.np-st-chars'), await shown(s, '.np-st-eol'), await shown(s, '.np-st-enc'), await shown(s, '.np-st-zoom')], [true, true, true, true]);
       await s.page.click(`${WIN} .np-st-zoom`);
-      check('zoom menu from status bar', await run(s, `[...document.querySelectorAll('.np-menu .menu-item .label')].map((x) => x.textContent)`), ['Zoom in', 'Zoom out', 'Restore default zoom']);
+      check('zoom menu from the info pill', await run(s, `[...document.querySelectorAll('.np-menu .menu-item .label')].map((x) => x.textContent)`), ['Zoom in', 'Zoom out', 'Restore default zoom']);
       await s.page.keyboard.press('Escape');
-      await s.page.click(`${WIN} .np-menu-btn[data-menu="view"]`);
-      await s.page.locator('.np-menu .menu-item', { hasText: 'Status bar' }).click();
+      await moreMenu(s, 'Zoom in', 'Zoom');
+      check('zoom in from the "…" menu', (await status(s)).zoom, '110%');
+      await s.page.keyboard.press('Control+0');
+      await focusEditor(s);
+      await s.page.mouse.click(box.x, box.y);
+      check('a click in the text folds the pill', await run(s, `document.querySelector('${WIN} .np-info').classList.contains('open')`), false);
+      await moreMenu(s, 'Document info');
       await sleep(80);
-      check('status bar hidden', await run(s, `document.querySelector('${WIN} .np-status').hidden`), true);
+      check('document info hidden', await run(s, `document.querySelector('${WIN} .np-info').hidden`), true);
       await sleep(600);
-      check('status bar pref persisted', readJson(prefsFile(home))?.statusBar, false);
+      check('document info pref persisted (statusBar key)', readJson(prefsFile(home))?.statusBar, false);
       await NP(s, (np) => np.shared.setPref('statusBar', true));
-      check('status bar back', await run(s, `document.querySelector('${WIN} .np-status').hidden`), false);
+      check('document info back', await run(s, `document.querySelector('${WIN} .np-info').hidden`), false);
     });
 
     await section('open CRLF file, edit, save: CRLF preserved', async () => {
@@ -454,7 +491,8 @@ async function mainRun() {
       await until(() => NP(s, (np) => !np.active.dirty), { label: 'saved' });
       check('file on disk keeps CRLF', fs.readFileSync(f, 'utf8'), 'first line\r\nsecond line\r\nthird line\r\nfourth line\r\n');
       check('clean after save', (await tabs(s)).find((x) => x.active).dirty, false);
-      // switch to LF through the status bar menu
+      // switch to LF through the info pill's line ending picker
+      await openInfo(s);
       await s.page.click(`${WIN} .np-st-eol`);
       await s.page.locator('.np-menu .menu-item', { hasText: 'Unix (LF)' }).click();
       check('eol change marks dirty', (await tabs(s)).find((x) => x.active).dirty, true);
@@ -487,6 +525,7 @@ async function mainRun() {
       const b = fs.readFileSync(bom);
       check('BOM preserved', [...b.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
       check('content preserved', b.subarray(3).toString('utf8'), '>Ça va? Ünïcödé ✓\n');
+      await openInfo(s);
       await s.page.click(`${WIN} .np-st-enc`);
       await s.page.locator('.np-menu .menu-item', { hasText: /^UTF-8$/ }).first().click();
       check('encoding change marks dirty', (await tabs(s)).find((x) => x.active).dirty, true);
@@ -523,8 +562,9 @@ async function mainRun() {
       const ub = fs.readFileSync(u);
       check('UTF-16 BOM kept', [ub[0], ub[1]], [0xff, 0xfe]);
       check('UTF-16 content', ub.subarray(2).toString('utf16le'), '#UTF-16 text: ñ €\r\n');
-      // Reopen with encoding (status bar menu > submenu)
+      // Reopen with encoding (info pill menu > submenu)
       await openNotepad(s, { file: bom });
+      await openInfo(s);
       await s.page.click(`${WIN} .np-st-enc`);
       await s.page.locator('.np-menu .menu-item', { hasText: 'Reopen with encoding' }).click();
       await s.page.locator('.np-menu').last().locator('.menu-item', { hasText: 'ANSI (Windows-1252)' }).click();
@@ -533,6 +573,15 @@ async function mainRun() {
       check('reopen keeps the tab clean', (await tabs(s)).find((x) => x.active).dirty, false);
       await NP(s, (np) => np.reopenWith(np.active, 'utf-8'));
       check('reopened as UTF-8', await text(s), '>Ça va? Ünïcödé ✓\n');
+      // The same pickers from the "…" menu (the keyboard path): View > Encoding and line endings
+      await moreMenu(s, 'Windows (CRLF)', 'Encoding and line endings');
+      check('line ending from the "…" menu', (await status(s)).eol, 'Windows (CRLF)');
+      await moreMenu(s, 'UTF-16 LE', 'Encoding and line endings');
+      check('encoding from the "…" menu', (await status(s)).enc, 'UTF-16 LE');
+      await NP(s, (np) => {
+        np.setEol(np.active, 'lf');
+        np.setEncoding(np.active, 'utf-8');
+      });
     });
 
     await section('save all (Ctrl+Alt+S)', async () => {
@@ -593,7 +642,7 @@ async function mainRun() {
     });
 
     await section('recent files menu, open recent, clear', async () => {
-      await s.page.click(`${WIN} .np-menu-btn[data-menu="file"]`);
+      await s.page.click(`${WIN} .np-more`);
       await s.page.locator('.np-menu .menu-item', { hasText: 'Recent' }).hover();
       await until(() => run(s, `document.querySelectorAll('.np-menu').length === 2`), { label: 'recent submenu' });
       const items = await run(s, `[...document.querySelectorAll('.np-menu')[1].querySelectorAll('.menu-item .label')].map((x) => x.textContent)`);
@@ -607,7 +656,7 @@ async function mainRun() {
       // open a recent file that is not open
       await NP(s, (np) => np.closeTab(np.docs.find((d) => d.title === 'notes.md') || null));
       await NP(s, (np, el, p) => np.shared.addRecent(p), path.join(docs, 'notes.md'));
-      await s.page.click(`${WIN} .np-menu-btn[data-menu="file"]`);
+      await s.page.click(`${WIN} .np-more`);
       await s.page.locator('.np-menu .menu-item', { hasText: 'Recent' }).click();
       await s.page.locator('.np-menu .menu-item', { hasText: 'notes.md' }).click();
       await until(() => NP(s, (np) => np.active.title === 'notes.md'), { label: 'recent opened' });
@@ -621,11 +670,11 @@ async function mainRun() {
       check('missing message', await dialogText(s), (v) => v.includes('gone.txt'));
       await dialogButton(s, 'Remove');
       check('removed from recent', await NP(s, (np) => np.shared.recent.some((p) => p.endsWith('gone.txt'))), false);
-      await s.page.click(`${WIN} .np-menu-btn[data-menu="file"]`);
+      await s.page.click(`${WIN} .np-more`);
       await s.page.locator('.np-menu .menu-item', { hasText: 'Recent' }).click();
       await s.page.locator('.np-menu .menu-item', { hasText: 'Clear recent files' }).click();
       check('recent cleared', await NP(s, (np) => np.shared.recent.length), 0);
-      await s.page.click(`${WIN} .np-menu-btn[data-menu="file"]`);
+      await s.page.click(`${WIN} .np-more`);
       await s.page.locator('.np-menu .menu-item', { hasText: 'Recent' }).click();
       check('empty recent placeholder', await run(s, `document.querySelectorAll('.np-menu')[1]?.innerText.trim()`), 'No recent files');
       await s.page.keyboard.press('Escape');
@@ -860,40 +909,68 @@ async function mainRun() {
       check('drop overlay hidden', await run(s, `document.querySelector('${WIN} .np-drop').hidden`), true);
     });
 
-    await section('menu bar keyboard: Alt+F, arrows, Escape, F10, key tips', async () => {
+    await section('"…" menu from the keyboard: F10, Alt, Alt+F/E/V, arrows, letters, Escape; mouse toggle', async () => {
+      const isOpen = () => run(s, `document.querySelector('${WIN} .np-more').classList.contains('open') && !!document.querySelector('.np-more-menu')`);
+      const activeLabel = () => run(s, `document.querySelector('.np-menu .menu-item.active .label')?.textContent`);
       await focusEditor(s);
       await s.page.keyboard.press('Alt+f');
       await sleep(120);
-      check('Alt+F opens File', await run(s, `document.querySelector('${WIN} .np-menu-btn[data-menu="file"]').classList.contains('open')`), true);
-      check('first item active', await run(s, `document.querySelector('.np-menu .menu-item.active .label')?.textContent`), 'New tab');
-      await s.page.keyboard.press('ArrowRight');
+      check('Alt+F opens the "…" menu', await isOpen(), true);
+      check('first item active', await activeLabel(), 'New tab');
+      check('sections', await run(s, `[...document.querySelectorAll('.np-more-menu .menu-header')].map((x) => x.textContent)`), ['File', 'Edit', 'View']);
+      check('"…" aria-expanded', await run(s, `document.querySelector('${WIN} .np-more').getAttribute('aria-expanded')`), 'true');
+      await s.page.keyboard.press('Escape');
       await sleep(80);
-      check('right -> Edit', await run(s, `document.querySelector('${WIN} .np-menu-btn[data-menu="edit"]').classList.contains('open')`), true);
+      check('escape -> editor', await run(s, `document.activeElement?.classList.contains('np-text')`), true);
+      check('menu closed', await isOpen(), false);
+      await s.page.keyboard.press('Alt+e');
+      await sleep(120);
+      check('Alt+E opens on the Edit section', await activeLabel(), 'Find');
+      await s.page.keyboard.press('Escape');
+      await s.page.keyboard.press('Alt+v');
+      await sleep(120);
+      check('Alt+V opens on the View section', await activeLabel(), 'Zoom');
       await s.page.keyboard.press('ArrowRight');
-      await s.page.keyboard.press('Enter');
       await sleep(80);
       check('Zoom submenu opens', await run(s, `document.querySelectorAll('.np-menu').length`), 2);
       await s.page.keyboard.press('ArrowLeft');
       check('left closes submenu', await run(s, `document.querySelectorAll('.np-menu').length`), 1);
       await s.page.keyboard.press('Escape');
-      check('escape -> menu bar focused', await run(s, `document.activeElement?.dataset?.menu`), 'view');
-      await s.page.keyboard.press('Escape');
-      check('escape -> editor', await run(s, `document.activeElement?.classList.contains('np-text')`), true);
+      check('escape -> editor again', await run(s, `document.activeElement?.classList.contains('np-text')`), true);
       await s.page.keyboard.press('F10');
-      check('F10 shows key tips', await run(s, `document.querySelector('${WIN} .np-menus').classList.contains('keytips')`), true);
+      await sleep(120);
+      check('F10 opens the "…" menu', await isOpen(), true);
+      check('F10: first item active', await activeLabel(), 'New tab');
       await shot(s, 'keytips-light-en', true);
-      await s.page.keyboard.press('e');
-      await sleep(80);
-      check('key tip opens Edit', await run(s, `document.querySelector('${WIN} .np-menu-btn[data-menu="edit"]').classList.contains('open')`), true);
-      await s.page.keyboard.press('Escape');
-      await s.page.keyboard.press('Escape');
-      // Mouse: hovering another menu while one is open switches
-      await s.page.click(`${WIN} .np-menu-btn[data-menu="file"]`);
-      await s.page.hover(`${WIN} .np-menu-btn[data-menu="view"]`);
+      await s.page.keyboard.press('ArrowUp');
+      check('arrow up wraps to Settings', await activeLabel(), 'Settings');
+      // Letters inside the menu: "w" = Word wrap (the only item starting with W), run at once.
+      await s.page.keyboard.press('w');
+      await sleep(120);
+      check('letter key runs its item', await NP(s, (np) => np.prefs.wordWrap), false);
+      check('menu closed after the letter', await isOpen(), false);
+      await NP(s, (np) => np.shared.setPref('wordWrap', true));
+      // Alt pressed and released on its own opens the menu, and closes it again.
+      await focusEditor(s);
+      await s.page.keyboard.press('Alt');
+      await sleep(120);
+      check('Alt alone opens the "…" menu', await isOpen(), true);
+      await s.page.keyboard.press('Alt');
+      await sleep(120);
+      check('Alt again closes it', await isOpen(), false);
+      // Mouse: click opens, click again closes.
+      await s.page.click(`${WIN} .np-more`);
       await sleep(100);
-      check('hover switches menus', await run(s, `document.querySelector('${WIN} .np-menu-btn[data-menu="view"]').classList.contains('open')`), true);
-      await s.page.click(`${WIN} .np-menu-btn[data-menu="view"]`);
+      check('click opens the "…" menu', await isOpen(), true);
+      await s.page.click(`${WIN} .np-more`);
       check('click again closes', await run(s, `document.querySelectorAll('.np-menu').length`), 0);
+      check('menu fits on a 720 px high screen', await NP(s, (np) => {
+        np.openMore();
+        const r = document.querySelector('.np-more-menu').getBoundingClientRect();
+        const ok = r.height <= 700 && r.top >= 0 && r.bottom <= innerHeight;
+        np.menus.close();
+        return ok;
+      }), true);
     });
 
     await section('search the web opens the browser with the selection', async () => {
@@ -935,7 +1012,7 @@ async function mainRun() {
     });
 
     await section('settings page: theme override, opening files in a new window', async () => {
-      await s.page.click(`${WIN} .np-gear`);
+      await moreMenu(s, 'Settings');
       await until(() => run(s, `!document.querySelector('${WIN} .np-settings').hidden`), { label: 'settings' });
       check('settings title', await run(s, `document.querySelector('${WIN} .np-set-title').textContent`), 'Settings');
       await s.page.click(`${WIN} .np-set-card[data-key="theme"] .np-set-head`);
@@ -970,25 +1047,44 @@ async function mainRun() {
       await s.page.keyboard.type('Meeting notes — Aurora OS\n\n• Ship the Notepad app with tabs\n• Test light and dark themes\n• French translation: « Bloc-notes »\n\nTODO: review find & replace.');
       await sleep(200);
       await shot(s, 'light-en');
-      await s.page.click(`${WIN} .np-menu-btn[data-menu="file"]`);
+      await s.page.click(`${WIN} .np-more`);
       await sleep(250);
       await shot(s, 'menu-file-light-en', true);
+      await s.page.keyboard.press('Escape');
+      await s.page.keyboard.press('Alt+e');
+      for (let i = 0; i < 4; i++) await s.page.keyboard.press('ArrowDown');
       await s.page.keyboard.press('ArrowRight');
       await sleep(250);
+      check('More commands submenu', await run(s, `[...document.querySelectorAll('.np-menu')[1].querySelectorAll('.menu-item .label')].map((x) => x.textContent)`), ['Undo', 'Redo', 'Cut', 'Copy', 'Paste', 'Delete', 'Select all', 'Find next', 'Find previous', 'Search the web']);
       await shot(s, 'menu-edit-light-en', true);
+      await s.page.keyboard.press('Escape');
+      await s.page.keyboard.press('Escape');
+      await s.page.keyboard.press('Alt+v');
       await s.page.keyboard.press('ArrowRight');
-      await s.page.keyboard.press('Enter');
       await sleep(250);
       await shot(s, 'menu-view-light-en', true);
       await s.page.keyboard.press('Escape');
       await s.page.keyboard.press('Escape');
-      await s.page.keyboard.press('Escape');
+      await NP(s, (np) => np.setZoom(120));
+      await NP(s, (np) => np.active.ta.select());
+      await NP(s, (np) => np.updateStatus());
+      await openInfo(s);
+      await sleep(200);
+      await shot(s, 'info-pill-light-en', true);
+      await NP(s, (np) => np.setInfoOpen(false));
+      await NP(s, (np) => np.setZoom(100));
       await NP(s, (np) => np.win.setSize(400, 300));
       await sleep(300);
-      const ov = await run(s, `(() => { const el = [...document.querySelectorAll('${WIN}')].pop(); const q = (c) => el.querySelector(c); return { menubar: q('.np-menubar').scrollWidth <= q('.np-menubar').clientWidth + 1, status: q('.np-st-right').getBoundingClientRect().right <= q('.np-status').getBoundingClientRect().right + 1, w: el.getBoundingClientRect().width }; })()`);
+      const fitsAtMin = () =>
+        run(s, `(() => { const el = [...document.querySelectorAll('${WIN}')].pop(); const q = (c) => el.querySelector(c); const r = (c) => q(c).getBoundingClientRect(); const main = r('.np-main'); const more = r('.np-more'); const info = r('.np-info'); return { w: el.getBoundingClientRect().width, actions: more.right <= r('.win-controls').left + 1 && more.width > 20, info: info.left >= main.left - 1 && info.right <= main.right + 1 && [...q('.np-info').querySelectorAll('.np-st-item')].filter((b) => b.offsetParent).every((b) => b.scrollWidth <= b.clientWidth + 1) }; })()`);
+      let ov = await fitsAtMin();
       check('min size window', ov.w, 400);
-      check('menubar fits at min size', ov.menubar, true);
-      check('status bar fits at min size', ov.status, true);
+      check('title bar actions fit at min size', ov.actions, true);
+      check('info pill fits at min size', ov.info, true);
+      await openInfo(s);
+      ov = await fitsAtMin();
+      check('open info pill fits at min size', ov.info, true);
+      await NP(s, (np) => np.setInfoOpen(false));
       const tabVisible = await run(s, `(() => { const el = [...document.querySelectorAll('${WIN}')].pop(); const t = el.querySelector('.np-tabs').getBoundingClientRect(); const a = el.querySelector('.np-tab.active').getBoundingClientRect(); return a.left >= t.left - 1 && a.right <= t.right + 1; })()`);
       check('active tab visible at min size', tabVisible, true);
       await s.page.keyboard.press('Control+h');
@@ -1132,7 +1228,7 @@ async function mainRun() {
       await sleep(150);
       await s.page.mouse.move(5, 5);
       await sleep(200);
-      await s.page.hover(`${WIN} .np-gear`);
+      await s.page.hover(`${WIN} .np-more`);
       await until(() => run(s, `!!document.querySelector('.tooltip')`), { label: 'tooltip', timeout: 4000 });
       check('tooltip gets the dark theme', await run(s, `(() => { const t = document.querySelector('.tooltip'); return t.classList.contains('np-theme-dark') && getComputedStyle(t).color; })()`), 'rgb(230, 234, 242)');
       await s.page.mouse.move(5, 5);
@@ -1210,7 +1306,7 @@ async function mainRun() {
         await openNotepad(s);
         await NP(s, (np) => {
           np.find.open();
-          np.bar.open('file');
+          np.openMore();
         });
         await NP(s, (np) => np.win.close(true));
         await until(async () => (await winCount(s)) === 0, { label: 'closed' });
@@ -1240,8 +1336,8 @@ async function frenchDarkRun() {
     await openNotepad(s);
     await section('French labels, plurals and dark theme', async () => {
       check('window title', await run(s, `window.__aurora.wm.byApp('notepad')[0].title`), 'Sans titre - Éditeur de texte');
-      check('menus', await run(s, `[...document.querySelectorAll('${WIN} .np-menu-btn .np-menu-label')].map((b) => b.textContent)`), ['Fichier', 'Modifier', 'Affichage']);
-      check('status FR', await status(s), { pos: 'Ln 1, col 1', chars: '0 caractère', zoom: '100 %', eol: 'Unix (LF)', enc: 'UTF-8' });
+      check('status FR', await status(s), { pos: 'Ligne 1, col. 1', chars: '0 caractère', zoom: '100 %', eol: 'Unix (LF)', enc: 'UTF-8' });
+      check('FR title bar tooltips', await run(s, `[...document.querySelectorAll('${WIN} .np-actions button')].map((b) => b.dataset.tip)`), ['Annuler (Ctrl+Z)', 'Rétablir (Ctrl+Y)', 'Plus : fichier, modification, affichage et paramètres (F10)']);
       await focusEditor(s);
       await s.page.keyboard.type('Bonjour');
       await sleep(80);
@@ -1249,9 +1345,13 @@ async function frenchDarkRun() {
       check('dark text color', await NP(s, (np) => getComputedStyle(np.active.ta).color), 'rgb(230, 234, 242)');
       await s.page.keyboard.press('Alt+m');
       await sleep(150);
-      check('Alt+M opens Modifier', await run(s, `document.querySelector('${WIN} .np-menu-btn[data-menu="edit"]').classList.contains('open')`), true);
-      check('French edit items', await run(s, `[...document.querySelectorAll('.np-menu .menu-item .label')].map((x) => x.textContent).slice(0, 3)`), ['Annuler', 'Rétablir', 'Couper']);
-      const menuFits = await run(s, `(() => { const m = document.querySelector('.np-menu'); return [...m.querySelectorAll('.menu-item')].every((r) => r.scrollWidth <= r.clientWidth + 1); })()`);
+      check('Alt+M opens the "…" menu on Modifier', await run(s, `document.querySelector('.np-menu .menu-item.active .label')?.textContent`), 'Rechercher');
+      check('French sections', await run(s, `[...document.querySelectorAll('.np-more-menu .menu-header')].map((x) => x.textContent)`), ['Fichier', 'Modifier', 'Affichage']);
+      for (let i = 0; i < 4; i++) await s.page.keyboard.press('ArrowDown');
+      await s.page.keyboard.press('ArrowRight');
+      await sleep(150);
+      check('French edit items', await run(s, `[...document.querySelectorAll('.np-menu')[1].querySelectorAll('.menu-item .label')].map((x) => x.textContent).slice(0, 3)`), ['Annuler', 'Rétablir', 'Couper']);
+      const menuFits = await run(s, `[...document.querySelectorAll('.np-menu .menu-item')].every((r) => r.scrollWidth <= r.clientWidth + 1)`);
       check('French menu items fit', menuFits, true);
       await shot(s, 'menu-edit-dark-fr', true);
       await s.page.keyboard.press('Escape');
@@ -1279,7 +1379,7 @@ async function frenchDarkRun() {
       check('FR prompt', await dialogText(s), (v) => v.includes('Voulez-vous enregistrer les modifications apportées à Sans titre'));
       await shot(s, 'unsaved-prompt-dark-fr', true);
       await dialogButton(s, 'Annuler');
-      await s.page.click(`${WIN} .np-gear`);
+      await moreMenu(s, 'Paramètres');
       await sleep(400);
       await s.page.click(`${WIN} .np-set-card[data-key="font"] .np-set-head`);
       await sleep(300);
@@ -1287,8 +1387,11 @@ async function frenchDarkRun() {
       await s.page.keyboard.press('Escape');
       await NP(s, (np) => np.win.setSize(400, 300));
       await sleep(300);
-      const fits = await run(s, `(() => { const el = [...document.querySelectorAll('${WIN}')].pop(); const q = (c) => el.querySelector(c); return q('.np-menubar').scrollWidth <= q('.np-menubar').clientWidth + 1 && q('.np-st-right').getBoundingClientRect().right <= q('.np-status').getBoundingClientRect().right + 1; })()`);
-      check('FR fits at min size', fits, true);
+      await NP(s, (np) => np.active.ta.select());
+      await NP(s, (np) => np.setInfoOpen(true));
+      await sleep(100);
+      const fits = await run(s, `(() => { const el = [...document.querySelectorAll('${WIN}')].pop(); const q = (c) => el.querySelector(c); const r = (c) => q(c).getBoundingClientRect(); const main = r('.np-main'); const info = r('.np-info'); return r('.np-more').right <= r('.win-controls').left + 1 && info.left >= main.left - 1 && info.right <= main.right + 1 && [...q('.np-info').querySelectorAll('.np-st-item')].filter((b) => b.offsetParent).every((b) => b.scrollWidth <= b.clientWidth + 1); })()`);
+      check('FR fits at min size (actions, open info pill)', fits, true);
       await shot(s, 'minsize-dark-fr', true);
       await NP(s, (np) => np.win.maximize());
       await sleep(400);
@@ -1300,15 +1403,18 @@ async function frenchDarkRun() {
         np.win.setSize(960, 640);
       });
       await sleep(200);
-      await NP(s, (np) => np.bar.open('file'));
+      await NP(s, (np) => np.setInfoOpen(false));
+      await moreMenu(s, null, 'Fermer');
       await sleep(200);
       const fileKeys = await run(s, `[...document.querySelectorAll('.np-menu .menu-item .shortcut')].map((x) => x.textContent)`);
-      check('File menu uses Maj', fileKeys.includes('Ctrl+Maj+N') && fileKeys.includes('Ctrl+Maj+S') && fileKeys.includes('Ctrl+Maj+W'), true);
+      check('File section uses Maj', fileKeys.includes('Ctrl+Maj+N') && fileKeys.includes('Ctrl+Maj+S') && fileKeys.includes('Ctrl+Maj+W'), true);
       check('no "Shift" in French menus', fileKeys.some((k) => /Shift/.test(k)), false);
-      await s.page.keyboard.press('ArrowRight');
+      await s.page.keyboard.press('Escape');
+      await s.page.keyboard.press('Escape');
+      await moreMenu(s, null, 'Autres commandes');
       await sleep(150);
       const editKeys = await run(s, `[...document.querySelectorAll('.np-menu .menu-item .shortcut')].map((x) => x.textContent)`);
-      check('Edit menu: Maj+F3 and Suppr', editKeys.includes('Maj+F3') && editKeys.includes('Suppr'), true);
+      check('More commands: Maj+F3 and Suppr', editKeys.includes('Maj+F3') && editKeys.includes('Suppr'), true);
       await s.page.keyboard.press('Escape');
       await s.page.keyboard.press('Escape');
       check('find tooltips', await NP(s, (np) => [np.find.prevBtn.dataset.tip, np.find.closeBtn.dataset.tip]), ['Rechercher le précédent (Maj+F3)', 'Fermer (Échap)']);
@@ -1367,12 +1473,13 @@ async function sessionRun() {
       await NP(s, (np) => np.activate(np.docs[0]));
       check('restored untitled text', await text(s), 'unsaved scratch text');
     });
-    await section('File > Exit closes every Notepad window', async () => {
+    await section('"…" > Close > Exit closes every Notepad window', async () => {
       await s.page.keyboard.press('Control+Shift+n');
       await until(async () => (await winCount(s)) === 2, { label: 'second window' });
       await until(() => NP(s, (np) => !!np?.active, null, -1), { label: 'second window ready' });
-      await NP(s, (np) => np.bar.open('file'), null, -1);
-      await s.page.locator('.np-menu .menu-item', { hasText: 'Exit' }).click();
+      await NP(s, (np) => np.openMore(), null, -1);
+      await s.page.locator('.np-more-menu .menu-item', { hasText: 'Close' }).click();
+      await s.page.locator('.np-menu').last().locator('.menu-item', { hasText: 'Exit' }).click();
       await until(async () => (await winCount(s)) === 0, { label: 'all closed', timeout: 6000 });
       check('all Notepad windows closed', await winCount(s), 0);
       await openNotepad(s);
@@ -1406,7 +1513,7 @@ async function storageRun() {
       check('recent keeps absolute paths only', await NP(s, (np) => np.shared.recent), ['/abs/ok.txt']);
       const t = await NP(s, (np) => np.docs.map((d) => [d.title, d.encoding, d.eol, d.text, d.dirty]));
       check('session: valid tab restored, junk ignored', t, [['Untitled', 'utf-8', 'lf', 'restored text', true]]);
-      check('status bar sane', await status(s), (v) => v.zoom === '100%' && v.enc === 'UTF-8' && v.eol === 'Unix (LF)');
+      check('document info sane', await status(s), (v) => v.zoom === '100%' && v.enc === 'UTF-8' && v.eol === 'Unix (LF)');
       check('editor font size sane', await NP(s, (np) => getComputedStyle(np.active.ta).fontSize), '14.6667px');
     });
     await section('no console errors (storage run)', async () => {

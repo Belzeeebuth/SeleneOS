@@ -167,19 +167,24 @@
 /* ------------------------------------------------------------------ local tokens */
 .app-notepad,
 .dialog.np-dialog {
-  --np-surface: var(--layer-alt);
-  --np-divider: var(--stroke);
+  --np-surface: var(--bg);
+  --np-divider: var(--line-soft);
   --np-match: color-mix(in srgb, var(--accent) 24%, transparent);
   --np-match-cur: color-mix(in srgb, var(--accent) 52%, transparent);
-  --np-lh: 1.4;
-  --np-pad-y: 8px;
-  --np-pad-x: 12px;
+  /* the text: a calm page with room around it; the bottom padding lets the last line scroll
+     above the document info pill */
+  --np-lh: 1.6;
+  --np-pad-top: 14px;
+  --np-pad-x: 24px;
+  --np-pad-bottom: 56px;
 }
 .app-notepad [hidden] {
   display: none !important;
 }
 
-/* ------------------------------------------------------------------ title bar + tabs */
+/* ------------------------------------------------------------------ title bar: tabs, "+", quick actions
+   The app icon, then the documents as pills (like the Terminal's), "+", and on the right undo /
+   redo and the "…" menu. The title text itself is hidden: the active tab names the document. */
 .app-notepad > .win-titlebar > .win-title {
   display: none;
 }
@@ -192,7 +197,8 @@
 }
 .app-notepad .np-strip {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  gap: 2px;
   height: 100%;
   min-width: 0;
   flex: 1;
@@ -200,14 +206,15 @@
 }
 .app-notepad .np-tabs {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  gap: 4px;
   height: 100%;
   min-width: 0;
   flex: 0 1 auto;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
-  padding: 0 8px 0 2px;
+  padding: 0 4px 0 2px;
 }
 .app-notepad .np-tabs::-webkit-scrollbar {
   display: none;
@@ -224,15 +231,16 @@
 .app-notepad .np-tab {
   position: relative;
   flex: 0 1 auto;
-  width: 220px;
+  width: 200px;
   min-width: 76px;
-  height: 36px;
+  height: 30px;
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0 6px 0 12px;
+  padding: 0 3px 0 14px;
+  border-radius: 999px;
   color: var(--text-2);
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
   line-height: 16px;
   outline: none;
   container-type: inline-size;
@@ -244,8 +252,8 @@
 }
 .app-notepad .np-tab-bg {
   position: absolute;
-  inset: 4px 2px 4px;
-  border-radius: 6px;
+  inset: 0;
+  border-radius: inherit;
   background: transparent;
   pointer-events: none;
   transition: background var(--dur-fast) linear;
@@ -261,56 +269,19 @@
   z-index: 2;
 }
 .app-notepad .np-tab.active .np-tab-bg {
-  inset: 0;
-  border-radius: 8px 8px 0 0;
-  background: var(--np-surface);
-}
-.app-notepad .np-tab.active .np-tab-bg::before,
-.app-notepad .np-tab.active .np-tab-bg::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  width: 8px;
-  height: 8px;
-  pointer-events: none;
-}
-.app-notepad .np-tab.active .np-tab-bg::before {
-  left: -8px;
-  background: radial-gradient(circle at 0 0, transparent 7.5px, var(--np-surface) 8px);
-}
-.app-notepad .np-tab.active .np-tab-bg::after {
-  right: -8px;
-  background: radial-gradient(circle at 100% 0, transparent 7.5px, var(--np-surface) 8px);
-}
-/* separators between inactive tabs */
-.app-notepad .np-tab::after {
-  content: "";
-  position: absolute;
-  right: -0.5px;
-  top: 50%;
-  width: 1px;
-  height: 16px;
-  margin-top: -8px;
-  background: var(--stroke-strong);
-  transition: opacity var(--dur-fast) linear;
-}
-.app-notepad .np-tab:last-child::after,
-.app-notepad .np-tab.active::after,
-.app-notepad .np-tab:hover::after,
-.app-notepad .np-tab:has(+ .np-tab.active)::after,
-.app-notepad .np-tab:has(+ .np-tab:hover)::after {
-  opacity: 0;
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 .app-notepad .np-tab:focus-visible .np-tab-bg {
-  outline: 2px solid var(--text);
-  outline-offset: -2px;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 .app-notepad .np-tab-title {
   flex: 1;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
 }
 .app-notepad .np-tab-state {
   position: relative;
@@ -328,7 +299,7 @@
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 50%;
   background: transparent;
   color: var(--text-2);
   opacity: 0;
@@ -379,24 +350,23 @@
   z-index: 5;
   transition: none;
 }
-.app-notepad .np-tab.drag::after {
-  opacity: 0;
+.app-notepad .np-tab.drag .np-tab-bg {
+  box-shadow: inset 0 0 0 1px var(--line), var(--shadow-tooltip);
 }
 .app-notepad .np-tab-ghost {
   position: absolute;
-  bottom: 0;
+  top: calc(50% - 15px);
   pointer-events: none;
   z-index: 0;
 }
 .app-notepad .np-newtab {
-  width: 32px;
+  width: 30px;
   height: 30px;
   flex: none;
-  margin: 0 4px 3px 0;
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 6px;
+  border-radius: 50%;
   background: transparent;
   color: var(--text);
   transition: background var(--dur-fast) linear;
@@ -409,11 +379,61 @@
   color: var(--text-2);
 }
 .app-notepad .np-strip-drag {
-  flex: 1 0 24px;
+  flex: 1 0 16px;
   height: 100%;
 }
+/* quick actions */
+.app-notepad .np-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 6px;
+}
+.app-notepad .np-qa {
+  width: 34px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  transition: background var(--dur-fast) linear, color var(--dur-fast) linear;
+}
+.app-notepad .np-qa:hover {
+  background: var(--subtle-hover);
+}
+.app-notepad .np-qa:active,
+.app-notepad .np-qa.open {
+  background: var(--subtle-pressed);
+}
+.app-notepad .np-qa:disabled {
+  color: var(--text-disabled);
+  background: transparent;
+}
+.app-notepad .np-qa > .icon {
+  transition: transform var(--dur-fast) var(--ease);
+}
+.app-notepad .np-qa:active > .icon {
+  transform: scale(0.92);
+}
+.app-notepad .np-actions-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--line-soft);
+}
+.app-notepad .np-newtab:focus-visible,
+.app-notepad .np-qa:focus-visible,
+.app-notepad .np-tab-close:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
 .app-notepad:not(.active) .np-tab,
-.app-notepad:not(.active) .np-newtab {
+.app-notepad:not(.active) .np-newtab,
+.app-notepad:not(.active) .np-qa:not(:disabled) {
   color: var(--text-3);
 }
 .app-notepad:not(.active) .np-tab.active {
@@ -432,83 +452,63 @@
   display: none;
 }
 
-/* ------------------------------------------------------------------ menu bar */
-.app-notepad .np-menubar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 40px;
-  padding: 0 6px 0 4px;
-  background: var(--np-surface);
+/* ------------------------------------------------------------------ popup menus (body level)
+   The "…" menu has section headings (Fichier, Modifier, Affichage) instead of separators, and
+   on/off items end with a small switch. A menu taller than the screen scrolls. */
+.np-menu {
+  max-height: calc(100vh - 8px);
+  overflow-y: auto;
 }
-.app-notepad .np-menus {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.app-notepad .np-menu-btn {
-  position: relative;
-  height: 32px;
-  padding: 0 11px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
-  font-size: var(--fs-body);
-  line-height: 20px;
-  transition: background var(--dur-fast) linear;
-}
-.app-notepad .np-menu-btn:hover {
-  background: var(--subtle-hover);
-}
-.app-notepad .np-menu-btn:active,
-.app-notepad .np-menu-btn.open {
-  background: var(--subtle-pressed);
-}
-.app-notepad .np-menu-btn.open {
-  background: var(--subtle-hover);
-}
-.app-notepad .np-menus.kbd .np-menu-btn:focus {
-  outline: 2px solid var(--text);
-  outline-offset: -2px;
-}
-.app-notepad .np-keytip {
-  position: absolute;
-  left: 50%;
-  top: calc(100% - 4px);
-  min-width: 18px;
-  padding: 1px 5px 2px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-raised);
-  border: 1px solid var(--window-stroke);
-  box-shadow: var(--shadow-tooltip);
-  color: var(--text);
-  font-size: 11px;
-  line-height: 14px;
-  font-weight: 600;
-  text-align: center;
-  transform: translateX(-50%) scale(0.9);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 30;
-  transition: opacity var(--dur-fast) linear, transform var(--dur) var(--ease);
-}
-.app-notepad .np-menus.keytips .np-keytip {
-  opacity: 1;
-  transform: translateX(-50%);
-}
-.app-notepad:not(.active) .np-menu-btn {
+.np-menu .np-menu-header {
+  padding: 6px 10px 4px;
   color: var(--text-2);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.02em;
 }
-.app-notepad .np-gear .icon {
-  transition: transform var(--dur-slow) var(--ease);
+.np-menu .np-menu-header:not(:first-child) {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
 }
-.app-notepad .np-gear:hover .icon {
-  transform: rotate(30deg);
+/* the "…" menu holds about twenty rows: a little tighter than the other menus so that it fits
+   a 720 px high screen */
+.np-more-menu {
+  min-width: 288px;
 }
-
-/* Notepad popup menus (body level) */
+.np-more-menu .menu-item {
+  height: 28px;
+}
+.np-menu .np-menu-switch {
+  position: relative;
+  flex: none;
+  width: 28px;
+  height: 16px;
+  margin-left: 16px;
+  border-radius: 999px;
+  border: 1px solid var(--text-2);
+  transition: background var(--dur-fast) linear, border-color var(--dur-fast) linear;
+}
+.np-menu .np-menu-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-2);
+  transition: transform var(--dur) var(--ease), background var(--dur-fast) linear;
+}
+.np-menu .np-menu-switch.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.np-menu .np-menu-switch.on::after {
+  background: var(--on-accent);
+  transform: translateX(12px);
+}
 .np-menu .np-menu-chev {
   width: 12px;
   height: 12px;
@@ -548,6 +548,7 @@
   flex-direction: column;
   background: var(--np-surface);
   border-top: 1px solid var(--np-divider);
+  container: np-main / inline-size;
 }
 .app-notepad .np-docs {
   position: relative;
@@ -570,7 +571,7 @@
   font-variant-ligatures: none;
   font-kerning: none;
   tab-size: 8;
-  padding: var(--np-pad-y) var(--np-pad-x);
+  padding: var(--np-pad-top) var(--np-pad-x) var(--np-pad-bottom);
   white-space: pre-wrap;
   overflow-wrap: break-word;
   word-break: normal;
@@ -813,82 +814,108 @@
   }
 }
 
-/* ------------------------------------------------------------------ status bar */
-.app-notepad .np-status {
-  flex: none;
+/* ------------------------------------------------------------------ document info pill
+   Floats at the bottom right of the text, clear of the scroll bars (like Dessin's zoom pill).
+   Always: the caret position, and the zoom when it is not 100 %. With a selection or on hover:
+   the character count. Open (click or keyboard focus): the line ending and encoding pickers. */
+.app-notepad .np-info {
+  position: absolute;
+  right: 20px;
+  bottom: 16px;
+  z-index: 3;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  height: 30px;
-  padding: 0 8px;
-  border-top: 1px solid var(--np-divider);
-  font-size: var(--fs-caption);
+  gap: 2px;
+  max-width: calc(100% - 40px);
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-tooltip);
+  color: var(--text-2);
+  font-size: var(--fs-small);
   line-height: 16px;
-  color: var(--text);
-  container-type: inline-size;
-  overflow: hidden;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
-.app-notepad .np-st-left,
-.app-notepad .np-st-right {
-  display: flex;
-  align-items: center;
-  min-width: 0;
+.app-notepad .np-root.nowrap .np-info {
+  bottom: 22px; /* above the horizontal scroll bar */
 }
-.app-notepad .np-st-left {
-  flex: 0 1 auto;
-}
-.app-notepad .np-st-right {
-  flex: none;
+/* narrow window: the open pill keeps the pickers and the position; the count waits for more room */
+@container np-main (max-width: 520px) {
+  .app-notepad .np-info.open .np-st-chars {
+    display: none;
+  }
 }
 .app-notepad .np-st-item {
   display: inline-flex;
   align-items: center;
-  height: 24px;
-  padding: 0 12px;
-  white-space: nowrap;
+  height: 26px;
+  padding: 0 10px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-width: 0;
-}
-.app-notepad .np-st-pos {
-  min-width: 108px;
-  flex: none;
+  white-space: nowrap;
 }
 .app-notepad .np-st-btn {
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   background: transparent;
   color: inherit;
   font: inherit;
-  transition: background var(--dur-fast) linear;
+  transition: background var(--dur-fast) linear, color var(--dur-fast) linear;
 }
 .app-notepad .np-st-btn:hover {
   background: var(--subtle-hover);
+  color: var(--text);
 }
 .app-notepad .np-st-btn:active {
   background: var(--subtle-pressed);
 }
-.app-notepad .np-st-sep {
+.app-notepad .np-st-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.app-notepad .np-st-pos {
+  color: var(--text);
+}
+.app-notepad .np-st-zoom {
+  color: var(--accent-text);
+}
+/* Folded parts: hidden until they are useful. */
+.app-notepad .np-info .np-st-chars,
+.app-notepad .np-info .np-info-more,
+.app-notepad .np-info:not(.zoomed):not(.open) .np-st-zoom {
+  display: none;
+}
+.app-notepad .np-info.has-sel .np-st-chars,
+.app-notepad .np-info:hover .np-st-chars,
+.app-notepad .np-info.open .np-st-chars {
+  display: inline-flex;
+  padding-right: 4px;
+  animation: np-fade var(--dur-fast) linear;
+}
+.app-notepad .np-info.open .np-info-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  animation: np-fade var(--dur-fast) linear;
+}
+.app-notepad .np-info.open .np-st-pos {
+  background: var(--subtle-selected);
+}
+.app-notepad .np-info-more::after {
+  content: "";
   width: 1px;
-  height: 16px;
-  flex: none;
-  background: var(--stroke-strong);
+  height: 14px;
+  margin: 0 2px;
+  background: var(--line-soft);
 }
-.app-notepad:not(.active) .np-status {
+.app-notepad:not(.active) .np-info {
+  color: var(--text-3);
+}
+.app-notepad:not(.active) .np-st-pos {
   color: var(--text-2);
-}
-@container (max-width: 540px) {
-  .app-notepad .np-st-chars,
-  .app-notepad .np-st-left .np-st-sep {
-    display: none;
-  }
-}
-@container (max-width: 400px) {
-  .app-notepad .np-st-zoom,
-  .app-notepad .np-st-zoom + .np-st-sep {
-    display: none;
-  }
 }
 
 /* ------------------------------------------------------------------ settings page */
@@ -1186,6 +1213,10 @@
 /* ------------------------------------------------------------------ reduced motion */
 :root[data-animations="off"] .app-notepad .np-tab,
 :root[data-animations="off"] .app-notepad .np-tab-close,
-:root[data-animations="off"] .app-notepad .np-tab-dot {
+:root[data-animations="off"] .app-notepad .np-tab-dot,
+:root[data-animations="off"] .np-menu .np-menu-switch::after {
   transition: none;
+}
+:root[data-animations="off"] .app-notepad .np-info * {
+  animation: none;
 }

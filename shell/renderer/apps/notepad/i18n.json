@@ -10,7 +10,7 @@
       "openFolder": "Open containing folder",
       "unsaved": "unsaved changes"
     },
-    "menu": { "file": "File", "edit": "Edit", "view": "View", "fileKey": "F", "editKey": "E", "viewKey": "V" },
+    "menu": { "file": "File", "edit": "Edit", "view": "View", "more": "More: file, edit, view and settings", "fileKey": "F", "editKey": "E", "viewKey": "V" },
     "keys": { "del": "Del", "plus": "Ctrl+Plus", "minus": "Ctrl+Minus", "shift": "Shift", "esc": "Esc" },
     "file": {
       "newTab": "New tab",
@@ -23,6 +23,7 @@
       "save": "Save",
       "saveAs": "Save as",
       "saveAll": "Save all",
+      "close": "Close",
       "closeTab": "Close tab",
       "closeWindow": "Close window",
       "exit": "Exit"
@@ -42,6 +43,7 @@
       "goTo": "Go to line",
       "selectAll": "Select all",
       "timeDate": "Time/Date",
+      "more": "More commands",
       "font": "Font"
     },
     "view": {
@@ -49,8 +51,9 @@
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
       "zoomReset": "Restore default zoom",
-      "statusBar": "Status bar",
-      "wordWrap": "Word wrap"
+      "docInfo": "Document info",
+      "wordWrap": "Word wrap",
+      "encoding": "Encoding and line endings"
     },
     "status": {
       "pos": "Ln {line}, Col {col}",
@@ -60,7 +63,9 @@
       "selChars_other": "{sel} of {n} characters",
       "zoom": "{zoom}%",
       "eolTip": "Line endings",
-      "encTip": "Encoding"
+      "encTip": "Encoding",
+      "moreTip": "Show the encoding and line endings",
+      "lessTip": "Hide the encoding and line endings"
     },
     "eol": { "crlf": "Windows (CRLF)", "lf": "Unix (LF)", "cr": "Macintosh (CR)" },
     "enc": {
@@ -176,7 +181,7 @@
       "textFormatting": "Text formatting",
       "font": "Font",
       "wrapDesc": "Fit text within the window by default",
-      "statusDesc": "Show the position, character count, zoom, line ending and encoding",
+      "statusDesc": "Show the cursor position, the zoom, the encoding and the line ending at the bottom right of the text",
       "eol": "Line ending for new documents",
       "eolDesc": "Existing files keep the line ending they were opened with",
       "opening": "Opening Text Editor",
@@ -205,7 +210,7 @@
       "openFolder": "Ouvrir le dossier",
       "unsaved": "modifications non enregistrées"
     },
-    "menu": { "file": "Fichier", "edit": "Modifier", "view": "Affichage", "fileKey": "F", "editKey": "M", "viewKey": "A" },
+    "menu": { "file": "Fichier", "edit": "Modifier", "view": "Affichage", "more": "Plus : fichier, modification, affichage et paramètres", "fileKey": "F", "editKey": "M", "viewKey": "A" },
     "keys": { "del": "Suppr", "plus": "Ctrl+Plus", "minus": "Ctrl+Moins", "shift": "Maj", "esc": "Échap" },
     "file": {
       "newTab": "Nouvel onglet",
@@ -218,6 +223,7 @@
       "save": "Enregistrer",
       "saveAs": "Enregistrer sous",
       "saveAll": "Enregistrer tout",
+      "close": "Fermer",
       "closeTab": "Fermer l'onglet",
       "closeWindow": "Fermer la fenêtre",
       "exit": "Quitter"
@@ -237,6 +243,7 @@
       "goTo": "Atteindre la ligne",
       "selectAll": "Sélectionner tout",
       "timeDate": "Heure/Date",
+      "more": "Autres commandes",
       "font": "Police"
     },
     "view": {
@@ -244,18 +251,21 @@
       "zoomIn": "Zoom avant",
       "zoomOut": "Zoom arrière",
       "zoomReset": "Rétablir le zoom par défaut",
-      "statusBar": "Barre d'état",
-      "wordWrap": "Retour automatique à la ligne"
+      "docInfo": "Infos du document",
+      "wordWrap": "Retour automatique à la ligne",
+      "encoding": "Encodage et fins de ligne"
     },
     "status": {
-      "pos": "Ln {line}, col {col}",
+      "pos": "Ligne {line}, col. {col}",
       "chars_one": "{n} caractère",
       "chars_other": "{n} caractères",
       "selChars_one": "{sel} sur {n} caractère",
       "selChars_other": "{sel} sur {n} caractères",
       "zoom": "{zoom} %",
       "eolTip": "Fins de ligne",
-      "encTip": "Encodage"
+      "encTip": "Encodage",
+      "moreTip": "Afficher l'encodage et les fins de ligne",
+      "lessTip": "Masquer l'encodage et les fins de ligne"
     },
     "eol": { "crlf": "Windows (CRLF)", "lf": "Unix (LF)", "cr": "Macintosh (CR)" },
     "enc": {
@@ -371,7 +381,7 @@
       "textFormatting": "Mise en forme du texte",
       "font": "Police",
       "wrapDesc": "Ajuster le texte à la fenêtre par défaut",
-      "statusDesc": "Afficher la position, le nombre de caractères, le zoom, la fin de ligne et l'encodage",
+      "statusDesc": "Afficher la position du curseur, le zoom, l'encodage et la fin de ligne en bas à droite du texte",
       "eol": "Fin de ligne des nouveaux documents",
       "eolDesc": "Les fichiers existants conservent la fin de ligne avec laquelle ils ont été ouverts",
       "opening": "Ouverture de l'Éditeur de texte",
