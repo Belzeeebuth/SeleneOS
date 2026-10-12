@@ -952,7 +952,8 @@ install_nvidia_driver() {
   fi
   progress drivers 77 "Downloading the list of drivers"
   log "\$ apt-get update (in the installed system)"
-  bg_wait in_target apt-get -q -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update >&2 \
+  # --error-on=any: offline, apt-get update only prints warnings and exits 0 otherwise
+  bg_wait in_target apt-get -q --error-on=any -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update >&2 \
     || { DRIVER_ERR="could not download the package lists (no Internet connection?)"; return 1; }
   progress drivers 79 "Checking the drivers offered for this graphics card"
   log "\$ ubuntu-drivers devices"
@@ -961,7 +962,9 @@ install_nvidia_driver() {
   log "NVIDIA drivers offered: $(tr '\n' ' ' <<<"$offered")"
   if [[ "$NVIDIA_DRIVER" == recommended ]]; then
     DRIVER_PKG=$(awk '$2 == "recommended" { print $1; exit }' <<<"$offered")
-    [[ -n "$DRIVER_PKG" ]] || DRIVER_PKG=$(awk 'NR == 1 { print $1 }' <<<"$offered")
+    # nothing marked recommended: the newest desktop driver (not a -server one), whatever order ubuntu-drivers printed
+    [[ -n "$DRIVER_PKG" ]] || DRIVER_PKG=$(awk '$1 !~ /-server/ { print $1 }' <<<"$offered" | sort -V | tail -n1)
+    [[ -n "$DRIVER_PKG" ]] || DRIVER_PKG=$(awk '{ print $1 }' <<<"$offered" | sort -V | tail -n1)
     [[ -n "$DRIVER_PKG" ]] || { DRIVER_PKG=""; DRIVER_ERR="no NVIDIA driver is offered for this graphics card"; return 1; }
   fi
   [[ "$DRIVER_PKG" =~ $RE_NVIDIA ]] || { DRIVER_ERR="invalid driver package $DRIVER_PKG"; return 1; }

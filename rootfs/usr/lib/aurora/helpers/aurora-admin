@@ -617,7 +617,7 @@ drivers-install | drivers-remove)
     [[ $pkg =~ ^nvidia-driver-[0-9]{3}(-open|-server|-server-open)?$ ]] || die 2 "invalid driver package name"
     command -v ubuntu-drivers >/dev/null 2>&1 || die 3 "ubuntu-drivers is not installed (package ubuntu-drivers-common)"
     echo "step:refresh"
-    apt-get -q -o DPkg::Lock::Timeout=120 update >&2 || die 5 "could not refresh the package lists (check the Internet connection)"
+    apt-get -q --error-on=any -o DPkg::Lock::Timeout=120 update >&2 || die 5 "could not refresh the package lists (check the Internet connection)"
     echo "step:check"
     drv_devices=$(ubuntu-drivers devices 2>/dev/null) || die 5 "could not list the drivers available for this computer"
     printf '%s\n' "$drv_devices" | drivers_listed "$pkg" || die 4 "$pkg is not offered for the graphics card of this computer"
