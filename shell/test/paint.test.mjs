@@ -1559,6 +1559,8 @@ await test('French: menus, submenus, flyouts, context menus, messages and dialog
     await esc();
     await esc();
   }
+  // The shape tool shows every option of the options bar (outline and fill too).
+  await P(f, (p) => p.app.setShape('rect'));
   for (const sel of ['.pt-split-arrow', '.pt-b.sm.wide', '.pt-shapes-btn', '.pt-zoom-pct']) {
     const n = await f.page.locator(`${WIN} ${sel}`).count();
     for (let k = 0; k < n; k++) {

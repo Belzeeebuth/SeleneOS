@@ -157,8 +157,10 @@
   display: flex;
   margin: 0;
 }
-#calendar-center .td-agenda:has(.acf-empty) > .acf {
+#calendar-center .td-agenda:has(.acf-empty) > *,
+#calendar-center .td-agenda:has(.acf-empty) .acf {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
