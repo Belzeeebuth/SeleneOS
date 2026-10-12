@@ -84,7 +84,7 @@ function resolve(name) {
     });
     check(filledNav.length > 10, 'Settings nav uses the fill weight (filled: true) without error');
 
-    const fx = await svgOk('.fx-cmdbar .icon');
+    const fx = await svgOk('.fx-toolbar .icon');
     check(fx.total >= 4 && fx.drawn === fx.total, `Fichiers toolbar: ${fx.drawn}/${fx.total} icons are Phosphor SVGs`);
 
     await P.click('.tb-start');

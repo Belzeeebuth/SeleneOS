@@ -1121,7 +1121,7 @@ async function uiPart() {
       document.body.append(box);
     });
     const bad = [];
-    for (const style of ['win11', 'minimal', 'glass', 'retro', 'contrast']) {
+    for (const style of ['nocturne', 'eclipse', 'clairdelune', 'contrast']) {
       for (const theme of ['light', 'dark']) {
         await setMany(s, { style, theme });
         await sleep(300);
@@ -1137,14 +1137,14 @@ async function uiPart() {
           const sel = document.querySelector('#ui-probe .select');
           sel.focus();
           const cs = getComputedStyle(sel);
-          const out = { ratio: (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05), arrow: cs.backgroundImage.startsWith('url('), pad: parseFloat(cs.paddingRight) };
+          const out = { ratio: (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05), arrow: /^(url|linear-gradient)\(/.test(cs.backgroundImage) /* the redesign draws the chevron with two gradients */, pad: parseFloat(cs.paddingRight) };
           sel.blur();
           return out;
         });
         if (r.ratio < 4.5 || !r.arrow || r.pad < 28) bad.push(`${style}/${theme}: ${JSON.stringify(r)}`);
       }
     }
-    check(!bad.length, `5 styles × light/dark: danger button ≥ 4.5:1, select arrow visible with room on focus (${bad.join('; ') || 'ok'})`);
+    check(!bad.length, `4 styles × light/dark: danger button ≥ 4.5:1, select arrow visible with room on focus (${bad.join('; ') || 'ok'})`);
     await A(() => void window.__aurora.ui.menu({ x: 200, y: 200 }, [{ label: 'A very long menu label '.repeat(12), action: () => {} }, { label: 'Short', action: () => {} }]));
     await sleep(300);
     const m = await A(() => {
