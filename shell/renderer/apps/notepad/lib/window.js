@@ -1,5 +1,6 @@
-// One Notepad window: tab strip in the title bar, menu bar, editor area (find bar, notices,
-// documents), status bar and the Settings page. Commands are shared by menus and shortcuts.
+// One Notepad window: the title bar (tabs, "+", undo / redo and the "…" menu), the editor area
+// (find bar, notices, documents, the floating document info pill) and the Settings page.
+// Commands are shared by the menus and the shortcuts.
 import { Doc, basename, dirname } from './doc.js';
 import { FindBar } from './find.js';
 import { Menus } from './menu.js';
@@ -85,6 +86,7 @@ export class NotepadWindow {
     this.key = `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
     this.menus = new Menus({ h: ctx.h, icon: ctx.icon, themeClass: () => this.themeClass, kbd: (k) => this.kbd(k) });
     this.offs = [];
+    this._altArmed = false; // Alt pressed on its own: opens the "…" menu when released
     this._stRaf = 0;
     this._findTimer = null;
     this._sessionTimer = null;
@@ -167,7 +169,19 @@ export class NotepadWindow {
     this.tabsEl = h('div', { class: 'np-tabs', role: 'tablist', 'aria-label': t('tabs.label') });
     this.newBtn = h('button', { type: 'button', class: 'np-newtab no-drag', onclick: () => this.newTab() }, icon('add', { size: 16 }));
     this.strip = h('div', { class: 'np-strip' }, this.tabsEl, this.newBtn, h('div', { class: 'np-strip-drag' }));
-    win.titlebarSlot.appendChild(this.strip);
+    // ---- quick actions (title bar, right): undo, redo and the "…" menu (file, edit, view, settings)
+    const qa = (ic, cls, onclick) => {
+      const b = h('button', { type: 'button', class: ['np-qa', cls], onclick }, icon(ic, { size: 16 }));
+      b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the caret in the editor
+      return b;
+    };
+    this.undoBtn = qa('arrow-arc-left', 'np-undo', () => this.undo());
+    this.redoBtn = qa('arrow-arc-right', 'np-redo', () => this.redo());
+    this.moreBtn = qa('dots-three', 'np-more', () => (this.menus.session?.toggle === this.moreBtn ? this.menus.close() : this.openMore()));
+    this.moreBtn.setAttribute('aria-haspopup', 'menu');
+    this.moreBtn.setAttribute('aria-expanded', 'false');
+    this.actionsEl = h('div', { class: 'np-actions' }, this.undoBtn, this.redoBtn, h('span', { class: 'np-actions-sep', 'aria-hidden': 'true' }), this.moreBtn);
+    win.titlebarSlot.append(this.strip, this.actionsEl);
     this.tabsEl.addEventListener(
       'wheel',
       (e) => {
@@ -180,45 +194,44 @@ export class NotepadWindow {
     this.tabsEl.addEventListener('scroll', () => this.updateTabOverflow(), { passive: true });
     new ResizeObserver(() => this.revealActiveTab()).observe(this.tabsEl);
 
-    // ---- menu bar
-    this.menusEl = h('div', { class: 'np-menus', role: 'menubar' });
-    this.gearBtn = h('button', { type: 'button', class: 'btn subtle icon-btn np-gear', onclick: () => this.settings.open() }, icon('settings', { size: 16 }));
-    this.menubarEl = h('div', { class: 'np-menubar' }, this.menusEl, h('div', { class: 'grow' }), this.gearBtn);
-    this.bar = this.menus.menubar(
-      this.menusEl,
-      [
-        { id: 'file', label: () => t('menu.file'), key: () => t('menu.fileKey'), items: () => this.fileMenu() },
-        { id: 'edit', label: () => t('menu.edit'), key: () => t('menu.editKey'), items: () => this.editMenu() },
-        { id: 'view', label: () => t('menu.view'), key: () => t('menu.viewKey'), items: () => this.viewMenu() },
-      ],
-      { restoreFocus: () => this.active?.ta },
-    );
+    // ---- document info: a small pill at the bottom right of the text. It shows the caret position
+    // (and the zoom when it is not 100 %); the character count shows on hover or with a selection;
+    // a click (or the keyboard focus) opens it on the line ending and encoding pickers.
+    this.st = {
+      chars: h('span', { class: 'np-st-item np-st-chars' }),
+      eol: h('button', { type: 'button', class: 'np-st-item np-st-btn np-st-eol', 'aria-haspopup': 'menu', onclick: (e) => this.eolMenu(e) }),
+      enc: h('button', { type: 'button', class: 'np-st-item np-st-btn np-st-enc', 'aria-haspopup': 'menu', onclick: (e) => this.encMenu(e) }),
+      pos: h('button', { type: 'button', class: 'np-st-item np-st-btn np-st-pos', 'aria-expanded': 'false', onclick: () => this.toggleInfo() }),
+      zoom: h('button', { type: 'button', class: 'np-st-item np-st-btn np-st-zoom', 'aria-haspopup': 'menu', onclick: (e) => this.zoomMenu(e) }),
+    };
+    this.infoMore = h('span', { class: 'np-info-more' }, this.st.eol, this.st.enc);
+    this.infoEl = h('div', { class: 'np-info', role: 'group' }, this.st.chars, this.infoMore, this.st.pos, this.st.zoom);
+    this.infoEl.addEventListener('focusin', () => this.setInfoOpen(true));
+    this.infoEl.addEventListener('focusout', (e) => {
+      const to = e.relatedTarget;
+      if (to && !this.infoEl.contains(to) && !to.closest?.('.np-menu')) this.setInfoOpen(false);
+    });
+    this.infoEl.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || this.menus.isOpen) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.setInfoOpen(false);
+      this.active?.focus();
+    });
+    this._onInfoOutside = (e) => {
+      if (this.infoOpen && !this.infoEl.contains(e.target) && !e.target.closest?.('.np-menu')) this.setInfoOpen(false);
+    };
+    document.addEventListener('pointerdown', this._onInfoOutside, true);
 
     // ---- editor area
     this.find = new FindBar(this);
     this.noticeEl = h('div', { class: 'np-notice', hidden: true, role: 'alert' });
     this.docsEl = h('div', { class: 'np-docs' });
     this.dropEl = h('div', { class: 'np-drop', hidden: true }, h('div', { class: 'np-drop-card' }, icon('document_arrow_up', { size: 28 }), (this.dropText = h('span'))));
-    this.main = h('div', { class: 'np-main' }, this.find.el, this.noticeEl, this.docsEl, this.dropEl);
-
-    // ---- status bar
-    const sep = () => h('span', { class: 'np-st-sep', 'aria-hidden': 'true' });
-    this.st = {
-      pos: h('span', { class: 'np-st-item np-st-pos' }),
-      chars: h('span', { class: 'np-st-item np-st-chars' }),
-      zoom: h('button', { type: 'button', class: 'np-st-item np-st-btn np-st-zoom', onclick: (e) => this.zoomMenu(e) }),
-      eol: h('button', { type: 'button', class: 'np-st-item np-st-btn np-st-eol', onclick: (e) => this.eolMenu(e) }),
-      enc: h('button', { type: 'button', class: 'np-st-item np-st-btn np-st-enc', onclick: (e) => this.encMenu(e) }),
-    };
-    this.statusEl = h(
-      'div',
-      { class: 'np-status' },
-      h('div', { class: 'np-st-left' }, this.st.pos, sep(), this.st.chars),
-      h('div', { class: 'np-st-right' }, this.st.zoom, sep(), this.st.eol, sep(), this.st.enc),
-    );
+    this.main = h('div', { class: 'np-main' }, this.find.el, this.noticeEl, this.docsEl, this.infoEl, this.dropEl);
 
     this.settings = new SettingsPage(this);
-    this.root = h('div', { class: 'np-root' }, this.menubarEl, this.main, this.statusEl, this.settings.el);
+    this.root = h('div', { class: 'np-root' }, this.main, this.settings.el);
     win.body.appendChild(this.root);
     this.relabel();
   }
@@ -230,7 +243,7 @@ export class NotepadWindow {
       shared.on('recent', () => {}),
       ctx.shell.theme.on('change', () => this.applyTheme()),
       this.api.on('shell:hotkey', (p) => {
-        if (String(p?.combo || '').includes('Alt')) this.bar.altCancel();
+        if (String(p?.combo || '').includes('Alt')) this._altArmed = false;
       }),
     );
     ctx.onLangChange(() => this.relabel());
@@ -244,14 +257,22 @@ export class NotepadWindow {
       },
       true,
     );
+    // Alt pressed and released on its own opens the "…" menu (and closes it again).
     win.el.addEventListener('keyup', (e) => {
-      if (e.key === 'Alt' && !this.dialogOpen() && this.bar.altUp()) e.preventDefault();
+      if (e.key !== 'Alt' || !this._altArmed) return;
+      this._altArmed = false;
+      if (this.dialogOpen() || this.settings.isOpen) return;
+      e.preventDefault();
+      if (this.menus.isOpen) this.menus.close();
+      else this.openMore({ keyboard: true });
     });
     win.on('focus', () => {
       shared.noteFocus(this);
       if (this.active) this.checkExternal(this.active);
     });
-    win.on('blur', () => this.bar.altCancel());
+    win.on('blur', () => {
+      this._altArmed = false;
+    });
     win.onBeforeClose(() => this.beforeClose());
     ctx.onClose(() => this.destroy());
     // Ctrl + mouse wheel zoom
@@ -324,6 +345,7 @@ export class NotepadWindow {
     }
     this.offs = [];
     this.ro?.disconnect();
+    document.removeEventListener('pointerdown', this._onInfoOutside, true);
     this.menus.close(null, { restoreFocus: false });
     clearTimeout(this._sessionTimer);
     shared.unregister(this);
@@ -354,13 +376,15 @@ export class NotepadWindow {
       el.setAttribute('aria-label', label);
     };
     tip(this.newBtn, t('file.newTab'), 'Ctrl+N');
-    tip(this.gearBtn, t('settings.title'));
+    tip(this.undoBtn, t('edit.undo'), 'Ctrl+Z');
+    tip(this.redoBtn, t('edit.redo'), 'Ctrl+Y');
+    tip(this.moreBtn, t('menu.more'), 'F10');
     tip(this.st.zoom, t('view.zoom'));
     tip(this.st.eol, t('status.eolTip'));
     tip(this.st.enc, t('status.encTip'));
+    this.infoEl.setAttribute('aria-label', t('view.docInfo'));
     this.tabsEl.setAttribute('aria-label', t('tabs.label'));
     this.dropText.textContent = t('drop.hint');
-    this.bar.relabel();
     this.find.relabel();
     for (const d of this.docs) {
       d.ta.setAttribute('aria-label', t('editor.label'));
@@ -386,7 +410,10 @@ export class NotepadWindow {
       r.classList.toggle('nowrap', !p.wordWrap);
       for (const d of this.docs) d.ta.wrap = p.wordWrap ? 'soft' : 'off';
     }
-    if (!key || key === 'statusBar') this.statusEl.hidden = !p.statusBar;
+    if (!key || key === 'statusBar') {
+      this.infoEl.hidden = !p.statusBar;
+      if (!p.statusBar) this.setInfoOpen(false);
+    }
     if (key === 'theme') this.applyTheme();
     if (key && ['font', 'zoom', 'wordWrap'].includes(key) && this.active) {
       requestAnimationFrame(() => {

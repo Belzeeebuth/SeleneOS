@@ -1,13 +1,14 @@
-// Notepad menus: Fluent popup menus (styled by the core `.menu` classes) and a classic menu bar.
+// Notepad popup menus (styled by the core `.menu` classes): the "…" menu of the title bar, the
+// context menus and the pickers of the document info pill.
 //
 // Notepad renders its own menus instead of ui.menu so that:
-//   - the menu bar works like Windows (hovering File → Edit switches menus, ←/→ move between them,
-//     Alt / F10 focus the bar and show key tips, Alt+F/E/V open a menu directly);
-//   - menus follow the app's own theme setting (light / dark override per window).
+//   - menus follow the app's own theme setting (light / dark override per window);
+//   - the "…" menu can have section headings, on/off switches and keyboard entry points
+//     (F10 / Alt open it on its first item, Alt+F / Alt+E / Alt+V on a section).
 //
 //   const menus = new Menus({ h, icon, themeClass: () => 'np-theme-dark' | '', kbd: (combo) => localisedCombo });
-//   await menus.popup(eventOrPoint, [{ label, icon, shortcut, checked, disabled, action, submenu }, '-', …]);
-//   const bar = menus.menubar(barEl, [{ id, label, key, items: () => [...] }], { restoreFocus: () => el });
+//   await menus.popup(eventOrPoint, [{ header }, { id, label, icon, shortcut, checked, disabled, action, submenu }, '-', …],
+//                     { keyboard, focusId, toggle: anchorButton, restore, className });
 
 function pointOf(at) {
   if (!at) return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
@@ -30,7 +31,7 @@ export class Menus {
     this.themeClass = themeClass || (() => '');
     this.kbd = kbd || ((k) => k);
     this.stack = []; // [{ el, entries, active, items }]
-    this.session = null; // { resolve, restore, bar, barId, keyboard }
+    this.session = null; // { resolve, restore, toggle, keyboard }
     this._onKey = this._onKey.bind(this);
     this._onOutside = this._onOutside.bind(this);
     this._onBlur = () => this.close();
@@ -48,8 +49,12 @@ export class Menus {
     const restore = opts.restore || this.session?.restore || document.activeElement;
     this.close(null, { restoreFocus: false });
     return new Promise((resolve) => {
-      this._begin({ resolve, restore, bar: null, keyboard: !!opts.keyboard });
-      this._openLevel(items, pointOf(at), 0, { keyboard: !!opts.keyboard, className: opts.className });
+      this._begin({ resolve, restore, toggle: opts.toggle || null, keyboard: !!opts.keyboard });
+      if (opts.toggle) {
+        opts.toggle.classList.add('open');
+        opts.toggle.setAttribute('aria-expanded', 'true');
+      }
+      this._openLevel(items, pointOf(at), 0, { keyboard: !!opts.keyboard, className: opts.className, focusId: opts.focusId, alignRight: !!opts.alignRight });
     });
   }
 
@@ -61,7 +66,10 @@ export class Menus {
     document.removeEventListener('keydown', this._onKey, true);
     document.removeEventListener('pointerdown', this._onOutside, true);
     window.removeEventListener('blur', this._onBlur);
-    if (s.bar) s.bar._closed(s.barId);
+    if (s.toggle) {
+      s.toggle.classList.remove('open');
+      s.toggle.setAttribute('aria-expanded', 'false');
+    }
     if (restoreFocus && s.restore?.isConnected && (!document.activeElement || document.activeElement === document.body || document.activeElement.closest?.('.np-menu'))) {
       try {
         s.restore.focus({ preventScroll: true });
@@ -86,18 +94,25 @@ export class Menus {
   }
 
   // ------------------------------------------------------------------ rendering
-  _openLevel(items, pt, level, { keyboard = false, className } = {}) {
+  _openLevel(items, pt, level, { keyboard = false, className, focusId, alignRight = false } = {}) {
     for (const m of this.stack.splice(level)) this._removeEl(m.el);
     const { h, icon } = this;
     const visible = items.filter((it) => it && !it.hidden);
-    const hasCheck = visible.some((it) => it !== '-' && it.checked !== undefined);
     const hasIcon = visible.some((it) => it !== '-' && it.icon);
+    // With icons, on/off items show a small switch at the end of the row; without, a check mark column.
+    const hasCheck = !hasIcon && visible.some((it) => it !== '-' && it.checked !== undefined);
     const el = h('div', { class: ['menu', 'np-menu', this.themeClass(), className], role: 'menu', tabindex: '-1' });
     const m = { el, entries: [], active: -1, level };
     let prevSep = true;
     for (const it of visible) {
       if (it === '-') {
         if (!prevSep) el.appendChild(h('div', { class: 'menu-sep', role: 'separator' }));
+        prevSep = true;
+        continue;
+      }
+      if (it.header) {
+        if (el.lastChild?.classList?.contains('menu-sep')) el.lastChild.remove();
+        el.appendChild(h('div', { class: 'menu-header np-menu-header', role: 'presentation' }, it.header));
         prevSep = true;
         continue;
       }
@@ -118,6 +133,7 @@ export class Menus {
         it.icon ? icon(it.icon) : hasIcon ? h('span', { class: 'icon' }) : null,
         h('span', { class: 'label' }, it.label),
         it.shortcut ? h('span', { class: 'shortcut' }, this.kbd(it.shortcut)) : null,
+        checkable && !hasCheck ? h('span', { class: ['np-menu-switch', it.checked && 'on'], 'aria-hidden': 'true' }) : null,
         it.submenu ? icon('chevron_right', { size: 12, class: 'np-menu-chev' }) : null,
       );
       const idx = m.entries.length;
@@ -135,11 +151,12 @@ export class Menus {
       el.appendChild(row);
     }
     if (prevSep && el.lastChild?.classList?.contains('menu-sep')) el.lastChild.remove();
-    // Position: inside the viewport, submenus flip to the left when needed.
+    // Position: inside the viewport, submenus flip to the left when needed. A menu taller than the
+    // screen scrolls (np-menu has a max-height).
     el.style.visibility = 'hidden';
     document.body.appendChild(el);
     const r = el.getBoundingClientRect();
-    let x = pt.x;
+    let x = alignRight && pt.anchor ? pt.anchor.right - r.width : pt.x;
     let y = pt.y;
     if (x + r.width > window.innerWidth - 4) x = pt.sub ? pt.sub.left - r.width + 4 : window.innerWidth - r.width - 4;
     if (y + r.height > window.innerHeight - 4) {
@@ -153,7 +170,11 @@ export class Menus {
     el.style.visibility = '';
     this.stack.push(m);
     if (level === 0) el.focus({ preventScroll: true });
-    if (keyboard) this._move(m, 1, true);
+    const start = focusId ? m.entries.findIndex((e) => e.it.id === focusId && !e.it.disabled) : -1;
+    if (start >= 0) {
+      this._setActive(m, start);
+      m.entries[start].row.scrollIntoView?.({ block: 'nearest' });
+    } else if (keyboard) this._move(m, 1, true);
     return m;
   }
 
@@ -211,7 +232,7 @@ export class Menus {
   // ------------------------------------------------------------------ input
   _onOutside(e) {
     if (this.stack.some((m) => m.el.contains(e.target))) return;
-    if (this.session?.bar?.el.contains(e.target) && e.target.closest('.np-menu-btn')) return; // the bar toggles itself
+    if (this.session?.toggle?.contains(e.target)) return; // the "…" button toggles its menu itself
     this.close();
   }
 
@@ -244,11 +265,9 @@ export class Menus {
         break;
       case 'ArrowRight':
         if (cur?.submenu && !cur.disabled) this._openSub(m, m.active, true);
-        else if (s.bar) s.bar.step(1, true);
         break;
       case 'ArrowLeft':
         if (m.level > 0) this._closeFrom(m.level);
-        else if (s.bar) s.bar.step(-1, true);
         break;
       case 'Enter':
       case ' ':
@@ -256,12 +275,7 @@ export class Menus {
         break;
       case 'Escape':
         if (m.level > 0) this._closeFrom(m.level);
-        else if (s.bar && s.keyboard) {
-          const bar = s.bar;
-          const id = s.barId;
-          this.close(null, { restoreFocus: false });
-          bar.focusButton(id);
-        } else this.close();
+        else this.close();
         break;
       case 'Tab':
       case 'Alt':
@@ -285,137 +299,5 @@ export class Menus {
     }
     const next = matches.find(([, i]) => i > m.active) || matches[0];
     this._setActive(m, next[1]);
-  }
-
-  // ------------------------------------------------------------------ menu bar
-  menubar(el, defs, { restoreFocus } = {}) {
-    const menus = this;
-    const { h } = this;
-    const buttons = new Map();
-    let altArmed = false;
-    const bar = {
-      el,
-      defs,
-      buttons,
-      open(id, { keyboard = false } = {}) {
-        const def = defs.find((d) => d.id === id);
-        const btn = buttons.get(id);
-        if (!def || !btn) return;
-        const ae = document.activeElement;
-        const restore = menus.session?.restore || (!ae || ae === document.body || el.contains(ae) ? restoreFocus?.() : ae);
-        menus.close(null, { restoreFocus: false });
-        bar.hideTips();
-        btn.classList.add('open');
-        btn.setAttribute('aria-expanded', 'true');
-        const r = btn.getBoundingClientRect();
-        new Promise((resolve) => {
-          menus._begin({ resolve, restore, bar, barId: id, keyboard });
-          menus._openLevel(def.items(), { x: r.left, y: r.bottom + 2, anchor: r }, 0, { keyboard });
-        });
-      },
-      step(dir, keyboard) {
-        const id = menus.session?.barId;
-        const i = defs.findIndex((d) => d.id === id);
-        const next = defs[(i + dir + defs.length) % defs.length];
-        bar.open(next.id, { keyboard });
-      },
-      focusButton(id) {
-        const btn = buttons.get(id) || buttons.get(defs[0].id);
-        el.classList.add('kbd');
-        btn?.focus({ preventScroll: true });
-      },
-      enterKeyboard() {
-        el.classList.add('kbd', 'keytips');
-        buttons.get(defs[0].id)?.focus({ preventScroll: true });
-      },
-      hideTips() {
-        el.classList.remove('keytips');
-      },
-      leave() {
-        el.classList.remove('kbd', 'keytips');
-        const target = restoreFocus?.();
-        if (target?.isConnected) target.focus({ preventScroll: true });
-      },
-      relabel() {
-        for (const d of defs) {
-          const b = buttons.get(d.id);
-          if (!b) continue;
-          b.querySelector('.np-menu-label').textContent = d.label();
-          b.querySelector('.np-keytip').textContent = d.key();
-        }
-      },
-      // Alt pressed and released on its own toggles the key tips (like Windows).
-      altDown() {
-        altArmed = true;
-      },
-      altCancel() {
-        altArmed = false;
-      },
-      altUp() {
-        if (!altArmed) return false;
-        altArmed = false;
-        if (menus.session) {
-          menus.close();
-          return true;
-        }
-        if (el.classList.contains('keytips') || el.contains(document.activeElement)) bar.leave();
-        else bar.enterKeyboard();
-        return true;
-      },
-      accessKey(ch) {
-        const c = String(ch || '').toLocaleLowerCase();
-        const def = defs.find((d) => d.key().toLocaleLowerCase() === c);
-        if (def) bar.open(def.id, { keyboard: true });
-        return !!def;
-      },
-      _closed(id) {
-        const btn = buttons.get(id);
-        btn?.classList.remove('open');
-        btn?.setAttribute('aria-expanded', 'false');
-      },
-    };
-    for (const d of defs) {
-      const btn = h(
-        'button',
-        { type: 'button', class: 'np-menu-btn', role: 'menuitem', 'aria-haspopup': 'menu', 'aria-expanded': 'false', tabindex: '-1', dataset: { menu: d.id } },
-        h('span', { class: 'np-menu-label' }, d.label()),
-        h('span', { class: 'np-keytip', 'aria-hidden': 'true' }, d.key()),
-      );
-      btn.addEventListener('mousedown', (e) => e.preventDefault()); // keep the caret in the editor
-      btn.addEventListener('pointerdown', (e) => {
-        if (e.button !== 0) return;
-        if (menus.session?.bar === bar && menus.session.barId === d.id) menus.close();
-        else bar.open(d.id, { keyboard: false });
-      });
-      btn.addEventListener('pointerenter', () => {
-        if (menus.session?.bar === bar && menus.session.barId !== d.id) bar.open(d.id, { keyboard: false });
-      });
-      btn.addEventListener('keydown', (e) => {
-        const ids = defs.map((x) => x.id);
-        const i = ids.indexOf(d.id);
-        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-          e.preventDefault();
-          bar.hideTips();
-          buttons.get(ids[(i + (e.key === 'ArrowRight' ? 1 : -1) + ids.length) % ids.length]).focus();
-        } else if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
-          e.preventDefault();
-          bar.open(d.id, { keyboard: true });
-        } else if (e.key === 'Escape' || e.key === 'Tab') {
-          e.preventDefault();
-          bar.leave();
-        } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-          e.preventDefault();
-          bar.accessKey(e.key);
-        }
-      });
-      btn.addEventListener('blur', () => {
-        setTimeout(() => {
-          if (!el.contains(document.activeElement)) el.classList.remove('kbd', 'keytips');
-        });
-      });
-      buttons.set(d.id, btn);
-      el.appendChild(btn);
-    }
-    return bar;
   }
 }
