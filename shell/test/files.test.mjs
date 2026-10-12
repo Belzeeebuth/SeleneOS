@@ -865,6 +865,15 @@ if (!fatal) {
     await page.mouse.move(first.x + 100, third.y + 10, { steps: 10 });
     await page.mouse.up();
     check('rubber band selects 3', (await H.selected()).length, 3);
+    // A plain double-click there still opens the row (the band must not capture the pointer before it moves:
+    // the click / dblclick then targeted the view, not the row).
+    const alpha = await page.locator('.app-files .fx-row:has-text("Alpha")').locator('.c-name').boundingBox();
+    await page.mouse.dblclick(alpha.x + nameW + 40, alpha.y + alpha.height / 2);
+    await H.settle();
+    check('double-click on the stretched Name part opens the folder', (await H.loc()).path, D('Documents/Alpha'));
+    await page.click('.app-files .fx-navbtn[aria-label="Back"]');
+    await H.settle();
+    check('back to Documents', (await H.loc()).path, D('Documents'));
     // drag a file onto a folder (same drive -> move)
     await page.dragAndDrop('.app-files .fx-row:has-text("Report 2026.txt") .fx-name', '.app-files .fx-row:has-text("Alpha") .fx-name');
     await H.settle();

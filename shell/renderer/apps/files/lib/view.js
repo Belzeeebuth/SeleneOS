@@ -1120,9 +1120,9 @@ export class ContentView {
     let scrollTimer = null;
     const pointerId = e.pointerId;
     this.bandArmed = true; // a band started on a row's empty part must not turn into a file drag
-    try {
-      sc.setPointerCapture(pointerId);
-    } catch {}
+    // The pointer is captured only once a band is drawn: captured, the release goes to the scroller, so
+    // 'click' / 'dblclick' would target it instead of the row (a double-click on the stretched part of
+    // the Name column opened nothing).
     const update = () => {
       const r = sc.getBoundingClientRect();
       const cx = Math.max(0, Math.min(sc.scrollWidth, last.x - r.left + sc.scrollLeft));
@@ -1136,6 +1136,9 @@ export class ContentView {
         band = this.ex.h('div', { class: 'fx-band' });
         this.inner.append(band);
         this.banding = true;
+        try {
+          sc.setPointerCapture(pointerId); // keep following the band outside the view (auto-scroll)
+        } catch {}
       }
       Object.assign(band.style, { transform: `translate(${x}px, ${y}px)`, width: `${w}px`, height: `${hh}px` });
       const s = new Set(base);
@@ -1159,6 +1162,9 @@ export class ContentView {
       }
     };
     const move = (ev) => {
+      // Released outside the view before a band started (not captured yet): the scroller never saw the
+      // pointerup, so end here rather than drawing a band on hover.
+      if (!(ev.buttons & 1)) return up();
       last = { x: ev.clientX, y: ev.clientY };
       update();
       if (!scrollTimer) scrollTimer = setInterval(autoScroll, 30);
