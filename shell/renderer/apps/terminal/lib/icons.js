@@ -49,17 +49,23 @@ const CHEVRONS = 'M3.6 5.6l2 2.4-2 2.4M6.9 5.6l2 2.4-2 2.4M10.2 5.6l2 2.4-2 2.4'
 
 // Neutral and warm: the same shapes, coloured from the look (base = the app-icon tile, hues = its symbol slots).
 //   shell:  the app-icon tile, a teal -> "blue" slot title band (moss -> bone, eucalyptus -> lavender), a light prompt
-//   python: a "blue" slot -> amber tile (bone -> amber, lavender -> honey) with chevrons in the tile's dark base
+//   python: a "blue" slot -> amber tile (bone -> amber, lavender -> honey) with chevrons in the tile's dark base; in
+//           the light looks (pale tab strip and menus) the gradient ends on a deeper amber and the tile gets a hairline
+//           edge in the dark base, so it keeps its outline
 //   root:   a terra shield (copper, peach) with the prompt in the dark base
-function paletteArt(kind, u, look) {
+function paletteArt(kind, u, look, light = false) {
   const [top, bottom] = look.base;
   const hue = look.hues;
   const ink = bottom; // dark symbols on the light hues (>= 4.5:1, like the app icons' symbols on their base)
   if (kind === 'python') {
+    const edge = light ? `<rect x="1.4" y="1.9" width="13.2" height="12.2" rx="2.6" fill="none" stroke="${bottom}" stroke-opacity=".45" stroke-width=".8"/>` : '';
+    const stops = light
+      ? [[0, mix(hue.blue, bottom, 0.08)], [0.55, mix(hue.blue, hue.amber, 0.5)], [1, mix(hue.amber, bottom, 0.3)]]
+      : [[0, mix(hue.blue, '#ffffff', 0.12)], [0.62, hue.blue], [1, hue.amber]];
     return svg(
-      `<rect x="1" y="1.5" width="14" height="13" rx="3" fill="url(#${u}a)"/>
+      `<rect x="1" y="1.5" width="14" height="13" rx="3" fill="url(#${u}a)"/>${edge}
        <path d="${CHEVRONS}" fill="none" stroke="${ink}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>`,
-      grad(`${u}a`, [2, 2, 14, 15], [[0, mix(hue.blue, '#ffffff', 0.12)], [0.62, hue.blue], [1, hue.amber]]),
+      grad(`${u}a`, [2, 2, 14, 15], stops),
     );
   }
   if (kind === 'root') {
@@ -113,7 +119,7 @@ export function profileIconSvg(kind, look = currentLook()) {
   const l = iconLook(look);
   if (l.flat) return contrastArt(k, l);
   if (String(look).startsWith('cold-') || !String(look).includes('-')) return COLD[k](u);
-  return paletteArt(k, u, l);
+  return paletteArt(k, u, l, String(look).endsWith('-light'));
 }
 
 // One observer for the whole page (ES modules load once per shell page): when the look changes, every profile icon

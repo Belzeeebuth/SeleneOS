@@ -265,7 +265,9 @@ export function fileTypeTints(key, mode = 'dark') {
   for (const [ft, n] of Object.entries(FT_SLOT)) out[ft] = mode === 'light' ? look.types[n] : L.hues[pageSlot(key, n)];
   out.dir = mode === 'light' ? look.folder.back : L.hues[FOLDER_SLOT[key]];
   // desktop (on the wallpaper): folders, plain pages (white sheet, coloured outline) and the shortcut badge (white square)
-  out.folder = mode === 'light' ? look.folder.front : L.hues[FOLDER_SLOT[key]];
+  // (Clair de lune light: the mauve front panel is ~1.9:1 on the lavender wallpaper, so the darker back panel, ~3.3:1;
+  // Éclipse light keeps its amber front panel, ~2.5:1 on its pale stone, the back one turns it muddy)
+  out.folder = mode === 'light' ? (key === 'warm' ? look.folder.back : look.folder.front) : L.hues[FOLDER_SLOT[key]];
   out.page = look.types['file-text'];
   out.link = look.types['file-doc'];
   return out;

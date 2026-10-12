@@ -52,8 +52,23 @@ export function schemeById(id) {
 // symbol colours); the chromatic ANSI colours (red, green, blue…) keep their meaning and stay as they are. The text is
 // >= 4.5:1 on the ground (in fact >= 10:1), bright black >= 3:1. A scheme the user picked is never changed.
 const ambianceCache = new Map();
+// Contraste élevé (styles/contrast.css): flat white on black / black on white, and ANSI colours taken from the style's
+// own palette (yellow, cyan, the status colours), every one >= 7:1 on the ground.
+const CONTRAST = {
+  dark: {
+    background: '#000000', foreground: '#FFFFFF', cursor: '#FFFFFF', selection: '#FFFF00',
+    black: '#000000', red: '#FF8A8A', green: '#3FF23F', yellow: '#FFFF00', blue: '#8CB4FF', purple: '#E59CFF', cyan: '#1AEBFF', white: '#FFFFFF',
+    brightBlack: '#A6A6A6', brightRed: '#FF8A8A', brightGreen: '#3FF23F', brightYellow: '#FFFF00', brightBlue: '#8CB4FF', brightPurple: '#E59CFF', brightCyan: '#1AEBFF', brightWhite: '#FFFFFF',
+  },
+  light: {
+    background: '#FFFFFF', foreground: '#000000', cursor: '#000000', selection: '#1C0AA8',
+    black: '#000000', red: '#A10000', green: '#0A5C0A', yellow: '#6B4100', blue: '#1C0AA8', purple: '#7A0A7A', cyan: '#005A66', white: '#FFFFFF',
+    brightBlack: '#595959', brightRed: '#A10000', brightGreen: '#0A5C0A', brightYellow: '#6B4100', brightBlue: '#1C0AA8', brightPurple: '#7A0A7A', brightCyan: '#005A66', brightWhite: '#FFFFFF',
+  },
+};
 export function systemScheme(uiMode, ambiance) {
   const base = schemeById(uiMode === 'dark' ? SYSTEM_SCHEME.dark : SYSTEM_SCHEME.light);
+  if (ambiance === 'contrast') return { ...base, ambiance, colors: { ...CONTRAST[base.dark ? 'dark' : 'light'] } };
   const look = ambiance === 'neutral' || ambiance === 'warm' ? ICON_LOOKS[ambiance] : null;
   if (!look) return base;
   const key = `${ambiance}-${base.id}`;
@@ -76,10 +91,10 @@ export function systemScheme(uiMode, ambiance) {
   return scheme;
 }
 
-/** The ambiance the default scheme follows: <html data-ambiance> (Contraste élevé ignores the ambiance). */
+/** The ambiance the default scheme follows: <html data-ambiance>, or 'contrast' (Contraste élevé ignores the ambiance). */
 export function pageAmbiance() {
   const d = globalThis.document?.documentElement?.dataset || {};
-  return d.style === 'contrast' ? 'cold' : d.ambiance || 'cold';
+  return d.style === 'contrast' ? 'contrast' : d.ambiance || 'cold';
 }
 
 export function resolveScheme(id, uiMode, ambiance) {

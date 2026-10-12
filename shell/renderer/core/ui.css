@@ -931,6 +931,8 @@ hr.sep {
 .dialog-layer.global {
   position: fixed;
   z-index: 90000;
+  /* the scrim covers the screen; the dialog is sized and centred in the work area (wm.js: off the bar, on any edge) */
+  padding: var(--wa-top, 0px) var(--wa-right, 0px) var(--wa-bottom, 0px) var(--wa-left, 0px);
 }
 .dialog-layer.closing {
   animation: ui-fade-out var(--dur) linear forwards;

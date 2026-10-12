@@ -171,6 +171,16 @@ body.tb-autohide .desk-icons {
 .desk-fi.ft-file {
   color: #f4f4f4;
 }
+/* Light mode (pale wallpapers): the yellow folder is darkened to ~2:1 on Nocturne's pale sky (the neutral and warm
+   looks set their own, core/file-icons.js), and a file with no specific type is drawn in the look's mid-tone with a
+   light edge instead of white */
+:root[data-theme="light"] .desk-fi.folder-icon {
+  color: #cc9418;
+}
+:root[data-theme="light"] .desk-fi.ft-file:not(.desk-page) {
+  color: var(--text-3);
+  filter: drop-shadow(0 0 0.75px rgb(255 255 255 / 0.95)) drop-shadow(0 0 0.5px rgb(255 255 255 / 0.8));
+}
 .desk-page {
   display: grid;
 }

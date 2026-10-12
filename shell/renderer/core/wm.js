@@ -964,6 +964,8 @@ class WindowManager extends Emitter {
   }
   setInsets(insets) {
     Object.assign(this.insets, insets);
+    // the work area for CSS too (--wa-top/-right/-bottom/-left): global dialogs are centred in it, off the bar
+    for (const k of ['top', 'right', 'bottom', 'left']) document.documentElement.style.setProperty(`--wa-${k}`, `${this.insets[k] || 0}px`);
     this._refit();
   }
   workarea() {

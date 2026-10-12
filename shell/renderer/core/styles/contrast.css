@@ -25,6 +25,8 @@
     color-scheme: dark;
     --hc-fg: #ffffff;
     --hc-bg: #000000;
+    --hc-rgb: 0 0 0; /* --hc-bg as an rgb triplet */
+    --hc-fg-rgb: 255 255 255;
     --hc-hi: #ffff00; /* highlight (accent, selection, hover) */
     --hc-on-hi: #000000;
     --hc-focus: #1aebff;
@@ -48,6 +50,8 @@
     color-scheme: light;
     --hc-fg: #000000;
     --hc-bg: #ffffff;
+    --hc-rgb: 255 255 255;
+    --hc-fg-rgb: 0 0 0;
     --hc-hi: #1c0aa8;
     --hc-on-hi: #ffffff;
     --hc-focus: #a3005a;
@@ -68,6 +72,24 @@
   }
   :scope[data-theme],
   [data-theme-scope][data-theme] {
+    /* every surface and line token of the ambiances (tokens.css), so no ambiance colour shows through
+       (data-ambiance stays on <html> while this style is on) */
+    --desk: var(--hc-bg);
+    --surface: var(--hc-bg);
+    --surface-sunken: var(--hc-bg);
+    --surface-raised: var(--hc-bg);
+    --titlebar-bg: var(--hc-bg);
+    --line: var(--hc-fg);
+    --line-soft: var(--hc-fg);
+    --tint: var(--hc-fg-rgb);
+    --glass-rgb: var(--hc-rgb);
+    --bar-rgb: var(--hc-rgb);
+    --shadow-rgb: 0 0 0;
+    --glass: var(--hc-bg);
+    --glass-strong: var(--hc-bg);
+    --glass-line: var(--hc-fg);
+    --glass-fill: var(--hc-bg);
+    --shadow-float: none;
     --bg: var(--hc-bg);
     --bg-alt: var(--hc-bg);
     --solid: var(--hc-bg);
@@ -472,6 +494,28 @@
   .desk-icon.drop-target {
     background: transparent;
     border-color: #ffff00;
+  }
+  /* file-type glyphs of the desktop and the Lanceur (.ft-*, core/shell.css): the style's ink (white / black), folders
+     in its highlight (yellow / indigo); a page is an ink outline on the ground; on a highlighted row they take the
+     row's text colour */
+  :scope[data-theme] :is(.ft-txt, .ft-doc, .ft-xls, .ft-ppt, .ft-pdf, .ft-img, .ft-audio, .ft-video, .ft-zip, .ft-code, .ft-file),
+  :scope[data-theme] .desk-fi:is(.ft-file, .desk-page) {
+    color: var(--hc-fg);
+    filter: none;
+  }
+  :scope[data-theme] :is(.ft-dir, .desk-fi.folder-icon) {
+    color: var(--hc-hi);
+  }
+  :scope[data-theme] .desk-page > .pg-fill {
+    color: var(--hc-bg);
+  }
+  :scope[data-theme] .desk-link {
+    background: var(--hc-bg);
+    color: var(--hc-fg);
+    box-shadow: inset 0 0 0 1px var(--hc-fg);
+  }
+  :scope[data-theme] :is(.sv-row:hover, .sv-row.selected, .start-rec:hover, .start-rec:focus-visible) [class*="ft-"] {
+    color: var(--hc-on-hi);
   }
 
   /* ---- lock / sign-in screen (core/greeter/greeter.css) ---- */
