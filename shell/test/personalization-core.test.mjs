@@ -776,6 +776,11 @@ console.log('\n# Title bars, clock, tooltips, motion, Mica');
 console.log('\n# Leaks');
 {
   const r = {};
+  // count from a quiet screen: the pointer left over a bar button keeps a window preview open (11 nodes) that would
+  // close during the switches and read as a negative "leak"
+  await s.page.mouse.move(800, 300);
+  await s.page.waitForFunction(() => !document.querySelector('#flyouts .tb-preview'), null, { timeout: 5000 }).catch(() => {});
+  await waitTransitions(s);
   await T(s, async () => {
     const A = window.__aurora;
     const count = () => ({ nodes: document.getElementsByTagName('*').length, head: document.head.children.length, sheets: document.styleSheets.length });

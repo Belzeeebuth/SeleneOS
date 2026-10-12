@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-12 03:15 UTC — visual redesign done (Selene design system, 3 styles + high contrast, every app and system screen reworked); 50/50 suites green; ISO rebuilt: verify-iso 0 failures, smoke-image passes, live desktop boots in QEMU (headless TCG)._
+_Last updated: 2026-10-12 12:20 Paris (10:20 UTC) — redesign done + follow-ups (Éditeur de texte without menu bar, icons / Files / Terminal colours follow the ambiance, high-contrast token fixes, aurora-pty hang-up fix); 52/52 suites green; ISO rebuilt: verify-iso 0 failures, smoke-image passes._
 
 ## What this is
 
@@ -56,7 +56,7 @@ A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a W
 | Core | smoke, core-dialogs 6 |
 | Linux GUI apps + Store sources | xwm-helper 78, xwin 63 (incl. real xterm end-to-end), xapps 71, store 128, store-flathub 83, store-ubuntu 84 |
 
-Last full sweep (2026-10-12, after the redesign): 50/50 suites green (48 in the sweep with --retry: wm-nav, personalization-core and personalization-shell needed their retry; icons and packs-input fixed for renamed labels and re-run alone; taskmgr 192 and paint 51 run separately).
+Last full sweep (2026-10-12 ~12:00 Paris, after the follow-ups): 52/52 suites green (pdf needed its retry; personalization-core's leak check fixed to count from a quiet screen). Previous sweep (2026-10-12, after the redesign): 50/50 suites green (48 in the sweep with --retry: wm-nav, personalization-core and personalization-shell needed their retry; icons and packs-input fixed for renamed labels and re-run alone; taskmgr 192 and paint 51 run separately).
 
 ## File structure
 
