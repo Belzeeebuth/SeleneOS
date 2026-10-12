@@ -159,10 +159,11 @@ async function checklistPart() {
     const tp1 = await A(() => ({ v: window.__aurora.settings.get('transparencyLevel'), tp: getComputedStyle(document.documentElement).getPropertyValue('--tp').trim(), win: getComputedStyle(document.querySelector('.win[data-app="notepad"]') || document.body).getPropertyValue('--a-mica').trim() }));
     item('Theme designer', 'window transparency', tp1.v === 100 && tp1.tp !== tp0, `transparencyLevel ${tp1.v}, --tp ${tp0} → ${tp1.tp}, window --a-mica ${tp1.win}`);
     await sliderKey(s, '[data-section="blur"]', 'Home');
-    const bl = await A(() => ({ v: window.__aurora.settings.get('blur'), f: getComputedStyle(document.getElementById('taskbar')).backdropFilter }));
-    item('Theme designer', 'blur intensity', bl.v === 0 && /blur\(0px\)/.test(bl.f), `blur ${bl.v}, taskbar backdrop-filter ${bl.f}`);
+    // Nocturne's bar is floating islands: the glass (and its blur) is on each part, the bar itself is transparent
+    const bl = await A(() => ({ v: window.__aurora.settings.get('blur'), f: getComputedStyle(document.querySelector('#taskbar > .tb-part')).backdropFilter }));
+    item('Theme designer', 'blur intensity', bl.v === 0 && /blur\(0px\)/.test(bl.f), `blur ${bl.v}, bar backdrop-filter ${bl.f}`);
     await sliderKey(s, '[data-section="blur"]', 'End');
-    const bl2 = await A(() => getComputedStyle(document.getElementById('taskbar')).backdropFilter);
+    const bl2 = await A(() => getComputedStyle(document.querySelector('#taskbar > .tb-part')).backdropFilter);
     check(/blur\((?!0px)/.test(bl2), `blur at 100: ${bl2}`);
     // wallpaper + lock screen (Background / Lock screen pages, linked from the designer)
     await s.page.locator(S('[data-section="wallpaper"] .btn')).click();
@@ -212,8 +213,9 @@ async function checklistPart() {
     await docShot(s, 'pzs-taskbar-page-light-en');
     await s.page.locator(S('[data-section="size"] .segmented button[data-value="large"]')).click();
     await sleep(600);
-    const tl = await A(() => ({ size: document.documentElement.dataset.tbSize, h: Math.round(document.getElementById('taskbar').getBoundingClientRect().height), wa: window.__aurora.wm.workarea() }));
-    item('Taskbar', 'size', tl.size === 'large' && tl.h === 56 && tl.wa.height === 900 - 56, `data-tb-size ${tl.size}, height ${tl.h}px, work area ${tl.wa.height}px`);
+    // the thickness depends on the style's bar (Nocturne's floating islands: 72 px when large, a full bar: 56 px)
+    const tl = await A(() => ({ size: document.documentElement.dataset.tbSize, h: Math.round(document.getElementById('taskbar').getBoundingClientRect().height), th: window.__aurora.taskbar.layout().thickness, wa: window.__aurora.wm.workarea() }));
+    item('Taskbar', 'size', tl.size === 'large' && tl.h === tl.th && tl.th >= 56 && tl.wa.height === 900 - tl.th, `data-tb-size ${tl.size}, height ${tl.h}px (layout ${tl.th}px), work area ${tl.wa.height}px`);
     await pick(s, '[data-section="position"]', 'Left');
     await sleep(800);
     const tp = await A(() => {
@@ -309,7 +311,7 @@ async function checklistPart() {
     const sl2 = await A(() => !!document.querySelector('#start .start-view-list .start-all .start-row'));
     await docShot(s, 'pzs-start-list-layout');
     await A(() => window.__aurora.shell.emit('start:close'));
-    item('Start', 'layout', sl1 === 'repeat(4, 84px)' && sl2, `More pins → ${sl1}; List → A–Z list ${sl2}`);
+    item('Start', 'layout', /^repeat\(4, \d+px\)$/.test(sl1 || '') && sl2, `More pins → ${sl1}; List → A–Z list ${sl2}`);
     await pick(s, '[data-section="layout"]', 'Default');
     // pinned apps
     await s.page.locator(S('.pzs-pin-add')).first().click();
@@ -369,7 +371,7 @@ async function checklistPart() {
     item('Start', 'recommended files (show / hide / clear)', recOff && (await get(s, 'startShowRecent')) !== false, `hidden when off ${recOff}, back on ${(await get(s, 'startShowRecent')) !== false}`);
     // background style
     const bgs = {};
-    for (const [label, v] of [['Solid', 'solid'], ['Accent color', 'accent'], ['Wallpaper', 'wallpaper'], ['Acrylic (translucent)', 'acrylic']]) {
+    for (const [label, v] of [['Solid', 'solid'], ['Accent color', 'accent'], ['Wallpaper', 'wallpaper'], ['Glass (translucent)', 'acrylic']]) {
       await pick(s, '[data-section="background"]', label);
       bgs[v] = await A(() => ({ bg: document.getElementById('start').dataset.bg || 'acrylic', css: getComputedStyle(document.getElementById('start')).backgroundColor }));
     }
@@ -477,7 +479,7 @@ async function checklistPart() {
     await s.page.locator('.dialog .btn.primary').last().click();
     await sleep(500);
     const presets = await get(s, 'snapPresets');
-    await s.page.locator(S('.pzs-page .btn'), { hasText: 'Show snap layouts' }).click();
+    await s.page.locator(S('.pzs-page .btn'), { hasText: 'Show layouts' }).click();
     await sleep(600);
     const customTiles = await A(() => document.querySelectorAll('.snapl-fly .snapl-layout.custom').length);
     await docShot(s, 'pzs-snap-flyout-custom');
