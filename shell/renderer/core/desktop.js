@@ -402,6 +402,7 @@ function tint(e) {
   const x = (e.ext || '').toLowerCase();
   if (['.doc', '.docx', '.odt', '.rtf'].includes(x)) return 'doc';
   if (['.xls', '.xlsx', '.ods', '.csv'].includes(x)) return 'xls';
+  if (['.ppt', '.pptx', '.odp'].includes(x)) return 'ppt';
   if (x === '.pdf') return 'pdf';
   if (IMAGE_EXT.includes(x)) return 'img';
   if (['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.opus'].includes(x)) return 'audio';

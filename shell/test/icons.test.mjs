@@ -641,7 +641,7 @@ const blueSymbol = (px) => {
 
   const home = fs.mkdtempSync(path.join((await import('node:os')).tmpdir(), 'aurora-home-'));
   for (const d of ['Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos']) fs.mkdirSync(path.join(home, d), { recursive: true });
-  for (const n of ['rapport.pdf', 'budget.xlsx', 'lettre.docx', 'notes.txt']) fs.writeFileSync(path.join(home, 'Desktop', n), 'x');
+  for (const n of ['rapport.pdf', 'budget.xlsx', 'lettre.docx', 'notes.txt', 'diapos.pptx', 'abimee.jpg']) fs.writeFileSync(path.join(home, 'Desktop', n), 'x');
   fs.mkdirSync(path.join(home, 'Desktop', 'Projets'));
   const s = await launchShell({ home, theme: 'dark', lang: 'fr', size: '1280x720', open: ['files'], settle: 1500, settings: { finish: 'halo' } });
   const P = s.page;
@@ -672,6 +672,9 @@ const blueSymbol = (px) => {
           // (the desktop's Phosphor glyphs get the picture as a background, the glyph hidden)
           deskPdf: bg('#desktop .desk-fi.ft-pdf, #desktop .desk-page.ft-pdf'),
           deskDir: bg('#desktop .desk-fi.folder-icon'),
+          deskPpt: bg('#desktop .desk-page.ft-pptx, #desktop .desk-page.ft-ppt, #desktop .desk-fi.ft-ppt'),
+          // an image the desktop cannot preview falls back to the Phosphor "image" glyph
+          deskBadImg: bg('#desktop .desk-thumb > .icon[data-icon="image"]'),
           deskGlyph: (() => {
             const g = document.querySelector('#desktop .desk-fi.folder-icon svg');
             return g ? getComputedStyle(g).visibility : null;
@@ -682,10 +685,12 @@ const blueSymbol = (px) => {
     const R = 'app://shell/assets/icons/packs/prisme/';
     await P.waitForSelector('.app-files img[src*="/folder"]', { timeout: 15000 }).catch(() => {});
     await P.waitForSelector('#desktop .desk-fi.ft-pdf, #desktop .desk-page.ft-pdf', { timeout: 15000 }).catch(() => {});
+    await P.waitForSelector('#desktop .desk-thumb > .icon[data-icon="image"]', { timeout: 15000 }).catch(() => {});
     const h0 = await state();
     check(h0.finish === 'halo' && h0.pack === 'halo' && h0.setting === 'auto', `Halo finish: iconPack "auto" draws the Halo icons (<html data-icon-pack="${h0.pack}">)`, JSON.stringify(h0).slice(0, 200));
     check(h0.bar?.startsWith(H) && h0.win?.startsWith(H) && h0.thisPc === `${H}this-pc.svg` && h0.trash === `${H}recycle-bin.svg`, 'Halo: bar, window title, desktop Ordinateur and Corbeille', JSON.stringify({ bar: h0.bar, win: h0.win, pc: h0.thisPc, trash: h0.trash }));
     check(h0.folder?.startsWith(`${H}folder`) && h0.deskPdf === `${H}file-pdf.svg` && h0.deskDir === `${H}folder.svg` && h0.deskGlyph === 'hidden', 'Halo: Fichiers folders, desktop documents and folders use the Halo file icons', JSON.stringify({ folder: h0.folder, pdf: h0.deskPdf, dir: h0.deskDir, glyph: h0.deskGlyph }));
+    check(h0.deskPpt === `${H}file-slides.svg` && h0.deskBadImg === `${H}file-image.svg`, 'Halo: desktop slides and an image without preview use the Halo file icons', JSON.stringify({ ppt: h0.deskPpt, img: h0.deskBadImg }));
     await s.shot('icons-finish-halo-nocturne');
     await P.evaluate(() => window.__aurora.shell.emit('start:toggle'));
     await P.waitForTimeout(700);

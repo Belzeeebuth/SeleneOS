@@ -40,9 +40,9 @@ function packSheet(pack) {
   // `content: url()` there would make them images the desktop's pointer drag cannot hold (Chromium drags the picture).
   const glyph = (sel, name) =>
     `${sel} { background: ${u(name)} center / contain no-repeat; }\n:is(${sel}) > :is(svg, .icon) { visibility: hidden; }`;
-  // by icon name: file pickers, the desktop (its folders and plain pages)
+  // by icon name: file pickers, the desktop (its folders and plain pages, and the glyph of an image it cannot preview)
   for (const [n, f] of Object.entries(NAME_FILE)) {
-    rules.push(glyph(`:is(.fp-row, .desk-fi) > .icon[data-icon="${n}"], .desk-fi.icon[data-icon="${n}"], .desk-page:has(> .icon[data-icon="${n}"])`, f));
+    rules.push(glyph(`:is(.fp-row, .desk-fi, .desk-thumb) > .icon[data-icon="${n}"], .desk-fi.icon[data-icon="${n}"], .desk-page:has(> .icon[data-icon="${n}"])`, f));
   }
   // by file-type class (more precise: documents, sheets, slides): the desktop and the Lanceur's results / recent files
   for (const [ft, f] of Object.entries(FT_FILE)) rules.push(glyph(`:root .desk-fi.ft-${ft}, :root .desk-page.ft-${ft}, .ft-${ft} > .icon`, f));
