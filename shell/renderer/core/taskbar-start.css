@@ -232,15 +232,20 @@
 #taskbar .tb-bell {
   position: relative;
   padding-left: 12px;
-  border-left: 1px solid var(--line-soft);
+  /* --line-soft vanishes on the dark glass: a share of --text-3 reads in both modes */
+  border-left: 1px solid color-mix(in srgb, var(--text-3) 40%, transparent);
   height: 20px;
 }
 #taskbar .tb-bell .icon {
   color: var(--text);
 }
-/* Notifications open: the bell shows it (it is its own flyout button inside the clock) */
+/* Notifications open: the bell shows it (it is its own flyout button inside the clock) with a small accent chip, so
+   the state still reads with a pale accent (silver in light mode) */
 #taskbar .tb-bell.open .icon {
   color: var(--accent-text);
+  border-radius: var(--radius-xs);
+  background: var(--accent-subtle);
+  box-shadow: 0 0 0 5px var(--accent-subtle);
 }
 #taskbar .tb-count {
   min-width: 20px;
@@ -1118,23 +1123,40 @@
   }
   :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-clock {
     margin-left: -2px;
-    padding: 0 14px 0 4px;
+    gap: 6px;
+    padding: 0 6px 0 4px;
     border-left: 0;
     border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
   }
-  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-quick:hover,
-  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-clock:hover {
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-quick:hover {
     background: color-mix(in srgb, var(--control), var(--text) 8%);
   }
-  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-quick.open,
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-quick.open {
+    background: var(--accent-subtle);
+  }
+  /* the clock segment holds two targets (bell, date + time): each one carries its own hover and open chip, so opening
+     « Aujourd'hui » never marks the bell and opening Notifications never marks the date */
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-clock:hover,
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-clock:active,
   :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-clock.open {
+    background: var(--control);
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock > .tb-clock-text {
+    height: calc(var(--tb-btn-h) - 8px); /* the two-line date needs 31 px */
+    padding: 0 8px;
+    border-radius: var(--radius-sm);
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock:hover:not(:has(> .tb-bell:hover)) > .tb-clock-text {
+    background: var(--subtle-hover);
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock.open > .tb-clock-text {
     background: var(--accent-subtle);
   }
   /* the bell is its own target inside the pill (a click opens Notifications) */
   :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock > .tb-bell {
     height: calc(var(--tb-btn-h) - 14px);
     padding: 0 8px;
-    border-left: 1px solid var(--line-soft);
+    border-left: 1px solid color-mix(in srgb, var(--text-3) 45%, transparent);
     border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   }
   :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock > .tb-bell:hover {
@@ -1142,6 +1164,10 @@
   }
   :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock > .tb-bell.open {
     background: var(--accent-subtle);
+  }
+  :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-clock > .tb-bell.open .icon {
+    background: none;
+    box-shadow: none;
   }
   :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-quick:focus-visible,
   :root:not([data-tb-pos="left"]):not([data-tb-pos="right"]) #taskbar .tb-tray > .tb-clock:focus-visible {

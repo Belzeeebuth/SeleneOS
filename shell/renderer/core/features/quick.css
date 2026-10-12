@@ -520,15 +520,29 @@ button.qs-slider-icon:active,
 }
 
 /* a short screen (1280x720 and below): the Apparence section reflows to fit without cutting its labels: tighter
-   gaps, shorter style chips, and each ambiance as one row (swatch beside its name) */
+   gaps, a shorter volume row, shorter style chips, and each ambiance as one row (swatch beside its name). The accent
+   swatches must fit at 1280x720 without scrolling in every style. */
 @media (max-height: 760px) {
-  .qs-appearance {
+  .qs-body {
+    padding-bottom: 12px;
+  }
+  .qs-sliders {
     margin-top: 8px;
-    padding-top: 10px;
-    gap: 10px;
+  }
+  .qs-slider-row {
+    height: 34px;
+  }
+  .qs-slider-row .qs-slider-icon,
+  .qs-slider-row .qs-slider-more {
+    height: 32px;
+  }
+  .qs-appearance {
+    margin-top: 6px;
+    padding-top: 8px;
+    gap: 8px;
   }
   .qs-group {
-    gap: 6px;
+    gap: 4px;
   }
   .qs-style {
     height: 34px;

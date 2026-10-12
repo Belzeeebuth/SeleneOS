@@ -54,6 +54,8 @@ const DUR = 300;
 const EASE = 'cubic-bezier(0.1, 0.9, 0.2, 1)';
 const TITLE = 34; // room for the icon + title under each thumbnail
 const STRIP_H = 156; // the desktops strip at the top
+const SOLO_H = 72; // the same strip, compact, while there is only one desktop
+const stripH = () => (wm.desktops.length > 1 ? STRIP_H : SOLO_H);
 const reduceMotion = () => document.documentElement.dataset.animations === 'off';
 const dur = () => (reduceMotion() ? 0 : DUR);
 
@@ -61,7 +63,7 @@ let tv = null;
 
 // ------------------------------------------------------------------ layout
 // Rows of equal-height thumbnails, centred; picks the row count that gives the largest thumbnails.
-export function computeLayout(items, area, { gapX = 28, gapY = 24, title = TITLE, maxScale = 0.72 } = {}) {
+export function computeLayout(items, area, { gapX = 28, gapY = 24, title = TITLE, maxScale = 0.72, valign = 0.5 } = {}) {
   const n = items.length;
   if (!n) return new Map();
   let best = null;
@@ -98,7 +100,7 @@ export function computeLayout(items, area, { gapX = 28, gapY = 24, title = TITLE
   const out = new Map();
   const rowHs = best.sizes.map((r) => Math.max(...r.map((s) => s.ih)) + title);
   const totalH = rowHs.reduce((a, b) => a + b, 0) + gapY * (rowHs.length - 1);
-  let y = area.y + Math.max(0, (area.height - totalH) / 2);
+  let y = area.y + Math.max(0, (area.height - totalH) * valign);
   best.sizes.forEach((r, ri) => {
     const rowW = r.reduce((a, s) => a + s.iw, 0) + gapX * (r.length - 1);
     let x = area.x + (area.width - rowW) / 2;
@@ -120,7 +122,8 @@ function elementBox(win) {
 
 function gridArea() {
   const L = wm.layer.getBoundingClientRect();
-  return { x: 56, y: STRIP_H + 28, width: L.width - 112, height: L.height - STRIP_H - 28 - 32 };
+  const top = stripH() + (wm.desktops.length > 1 ? 28 : 12);
+  return { x: 56, y: top, width: L.width - 112, height: L.height - top - 32 };
 }
 
 // ------------------------------------------------------------------ desktops strip
@@ -243,8 +246,10 @@ function renderStrip() {
         wm.createDesktop();
       },
     },
-    h('span', { class: 'tv-new-btn', 'aria-hidden': 'true' }, icon('plus', { size: 18 })),
+    // With one desktop the strip is compact and the button says what it does.
+    h('span', { class: 'tv-new-btn', 'aria-hidden': 'true' }, icon('plus', { size: 18 }), h('span', { class: 'tv-new-label' }, t('taskview.newDesktop'))),
   );
+  tv.strip.classList.toggle('solo', wm.desktops.length < 2);
   tv.strip.replaceChildren(h('div', { class: 'tv-desks', role: 'list', 'aria-label': t('taskview.desktops') }, desks, add));
 }
 
@@ -377,7 +382,8 @@ function layout({ instant = false, appear = false } = {}) {
     const b = elementBox(w);
     return { id: w.id, w: b.width, h: b.height };
   });
-  const rects = computeLayout(items, gridArea());
+  // One desktop: the spare height goes mostly under the windows, so they hang close to the compact strip.
+  const rects = computeLayout(items, gridArea(), { valign: wm.desktops.length > 1 ? 0.5 : 0.3 });
   const d = instant ? 0 : dur();
   const alive = new Set();
   for (const w of shownWins) {

@@ -99,7 +99,9 @@ export async function powerAction(kind) {
 
 // ------------------------------------------------------------------ security screen
 let screen = null;
-const COLS = 3; // tiles per row on the card
+const COLS = 3; // at most this many tiles per row on the card
+// Balanced rows with no empty cell: 3 tiles -> one row, 4 -> 2 + 2, 5 -> 3 + 2 (the short row is centred).
+const rowSize = (n) => Math.ceil(n / Math.ceil(n / COLS));
 
 // The wallpaper, scaled down once on a small canvas while the shell is idle (no blur): a full-size picture
 // costs a slow first paint in software rendering (VM), and the scrim hides the lost detail anyway.
@@ -231,6 +233,24 @@ function closeScreen(then) {
   else if (prev && wm.get(prev.id) && wm.focused() === prev) prev.focusContent();
 }
 
+// Up / Down: the nearest tile in the row above / below (the short last row is centred, so columns shift).
+function nextRow(tiles, i, dir) {
+  const r0 = tiles[i].getBoundingClientRect();
+  const cx = r0.left + r0.width / 2;
+  let best = null;
+  let bd = Infinity;
+  tiles.forEach((tile, k) => {
+    const r = tile.getBoundingClientRect();
+    if (dir > 0 ? r.top < r0.bottom - 1 : r.bottom > r0.top + 1) return;
+    const d = Math.abs(r.top - r0.top) * 4 + Math.abs(r.left + r.width / 2 - cx);
+    if (d < bd) {
+      bd = d;
+      best = k;
+    }
+  });
+  return best;
+}
+
 let opening = false;
 export async function openSecurity() {
   if (screen || opening) return;
@@ -332,7 +352,7 @@ async function buildSecurity() {
         'div',
         { class: 'sec-card' },
         who,
-        h('div', { class: 'sec-list', role: 'menu', style: `--sec-cols:${COLS}` }, buttons),
+        h('div', { class: 'sec-list', role: 'menu', style: `--sec-cols:${rowSize(buttons.length)}` }, buttons),
         h('div', { class: 'sec-foot' }, h('div', { class: 'sec-tray' }, netBtn, a11yBtn, powerBtn), cancel),
       ),
     ),
@@ -355,8 +375,8 @@ async function buildSecurity() {
       if (i < 0) j = 0;
       else if (e.key === 'ArrowRight') j = (i + 1) % list.length;
       else if (e.key === 'ArrowLeft') j = (i - 1 + list.length) % list.length;
-      else if (e.key === 'ArrowDown') j = i >= n ? 0 : i + COLS < n ? i + COLS : n; // last row -> Cancel
-      else j = i >= n ? Math.max(0, n - 1) : i - COLS >= 0 ? i - COLS : n; // first row -> Cancel
+      else if (e.key === 'ArrowDown') j = i >= n ? 0 : (nextRow(buttons, i, 1) ?? n); // last row -> Cancel
+      else j = i >= n ? Math.max(0, n - 1) : (nextRow(buttons, i, -1) ?? n); // first row -> Cancel
       list[j].focus();
     }
   };

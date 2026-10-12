@@ -24,7 +24,7 @@ const LIST = [
   ['start', 'shell', 'Super', 'Open or close the Launcher', 'Ouvrir ou fermer le Lanceur'],
   ['search', 'shell', 'Super+S', 'Search', 'Rechercher'],
   ['quickSettings', 'shell', 'Super+A', 'Quick settings', 'Réglages rapides'],
-  ['notifications', 'shell', 'Super+N', 'Notifications and calendar', 'Notifications et calendrier'],
+  ['notifications', 'shell', 'Super+N', 'Notifications', 'Notifications'],
   ['widgets', 'shell', 'Super+W', 'Dashboard', 'Tableau de bord'],
   ['showDesktop', 'shell', 'Super+D', 'Show or hide the desktop', 'Afficher ou masquer le bureau'],
   ['lock', 'shell', 'Super+L', 'Lock the screen', 'Verrouiller l’écran'],

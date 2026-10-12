@@ -179,6 +179,28 @@
   color: var(--text-2);
   text-align: center;
 }
+/* « Ajouter un événement » in the well reads as a button (accent text on a light accent chip), not as plain text */
+#calendar-center .td-agenda .acf-foot:has(.acf-empty) .acf-link {
+  margin: 2px 0 0;
+  padding: 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-text) 35%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  font-weight: 600;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+#calendar-center .td-agenda .acf-foot:has(.acf-empty) .acf-link:hover {
+  background: color-mix(in srgb, var(--accent-subtle), var(--accent-text) 12%);
+  text-decoration: none;
+}
+#calendar-center .td-agenda .acf-foot:has(.acf-empty) .acf-link:active {
+  background: color-mix(in srgb, var(--accent-subtle), var(--accent-text) 20%);
+}
+#calendar-center .td-agenda .acf-link:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
 .td-notifs {
   display: flex;
   align-items: center;

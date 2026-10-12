@@ -344,7 +344,13 @@ export class LockScreen {
     }
     let date = i18n.formatDate(now, { weekday: 'long', month: 'long', day: 'numeric' });
     date = date.charAt(0).toUpperCase() + date.slice(1);
-    if (force || this.timeEl.textContent !== time) this.timeEl.textContent = time;
+    if (force || this.timeEl.textContent !== time) {
+      // The hour uses proportional figures so a one-digit hour ("1:29") lines up with the date's left edge;
+      // the minutes keep tabular figures (see .lk-hh).
+      const m = /^(\d{1,2})(\D.*)$/.exec(time);
+      if (m) this.timeEl.replaceChildren(h('span', { class: 'lk-hh' }, m[1]), m[2]);
+      else this.timeEl.textContent = time;
+    }
     if (force || this.dateEl.textContent !== date) {
       this.dateEl.textContent = date;
       const m = moonPhase(now);

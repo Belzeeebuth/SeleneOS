@@ -1411,14 +1411,26 @@ await test('small (minimum size) and maximized windows keep the command bar usab
     return { overflow: bar.scrollWidth - bar.clientWidth, compact: [...el.querySelectorAll('.pt-g.compact')].map((g) => g.dataset.g), w: el.getBoundingClientRect().width };
   });
   assert.ok(st.overflow <= 1, `no clipped commands (${st.overflow})`);
-  // (the palette is a popover and the shape options show only for shapes: fewer groups collapse)
-  assert.ok(st.compact.length >= 1, `groups collapsed: ${st.compact}`);
   await s.shot('paint-min');
+  // The options bar now holds only the active tool's options and the Image menu, so it fits at the
+  // minimum size. Squeeze it (a wide right padding) to check that groups still collapse when needed.
+  if (!st.compact.length) {
+    await P(s, (p, el) => (el.querySelector('.pt-cmdbar').style.paddingRight = '380px'));
+    await s.aurora((wid) => window.__aurora.wm.get(wid).setRect({ width: 561, height: 420 }), id);
+    await wait(s, 400);
+    const sq = await P(s, (p, el) => {
+      const bar = el.querySelector('.pt-cmdbar');
+      return { overflow: bar.scrollWidth - bar.clientWidth, compact: [...el.querySelectorAll('.pt-g.compact')].map((g) => g.dataset.g) };
+    });
+    assert.ok(sq.compact.length >= 1, `groups collapsed when squeezed: ${JSON.stringify(sq)}`);
+    st.compact = sq.compact;
+  }
   // compact group opens as a flyout with the full group
   await s.page.click(`${WIN} .pt-g.compact[data-g="${st.compact[0]}"] .pt-g-compact`);
   await s.page.waitForSelector(`${WIN} .pt-fly-group`);
   await s.page.keyboard.press('Escape');
   await wait(s, 200);
+  await P(s, (p, el) => (el.querySelector('.pt-cmdbar').style.paddingRight = ''));
   await s.aurora((wid) => window.__aurora.wm.get(wid).maximize(), id);
   await wait(s, 500);
   const max = await P(s, (p, el) => ({ compact: el.querySelectorAll('.pt-g.compact').length, overflow: el.querySelector('.pt-cmdbar').scrollWidth - el.querySelector('.pt-cmdbar').clientWidth }));

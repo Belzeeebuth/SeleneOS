@@ -350,6 +350,63 @@
   box-shadow: inset 0 0 0 2px var(--focus-ring);
 }
 
+/* One desktop: a compact band (STRIP_H/SOLO_H in taskview.js) with no divider, close to the windows. The
+   desktop is a small chip (picture + name side by side) and "+" spells out "New desktop". */
+.tv-strip.solo {
+  height: 72px;
+  border-bottom: 0;
+  background: none;
+}
+.tv-strip.solo .tv-desks {
+  align-items: stretch;
+  gap: 12px;
+  padding: 8px 24px;
+}
+.tv-strip.solo .tv-desk:not(.tv-new) {
+  width: auto;
+  max-width: 280px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px 5px 5px;
+  background: var(--card);
+}
+.tv-strip.solo .tv-desk:not(.tv-new):hover {
+  background: var(--subtle-hover);
+}
+.tv-strip.solo .tv-desk-pic {
+  flex: none;
+  width: 64px;
+}
+.tv-strip.solo .tv-desk-head {
+  min-width: 0;
+  justify-content: flex-start;
+}
+.tv-new-label {
+  display: none;
+}
+.tv-strip.solo .tv-desk.tv-new {
+  padding: 0;
+  border-radius: var(--radius-lg);
+}
+.tv-strip.solo .tv-new-btn {
+  flex: 1;
+  width: auto;
+  height: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px 0 10px;
+  border-radius: var(--radius-lg);
+}
+.tv-strip.solo .tv-new-label {
+  display: block;
+  font-size: var(--fs-small);
+  line-height: var(--lh-small, 18px);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 /* Real windows while the overview is up: visible even if minimised / on another desktop, inert. */
 .tv-on .win.tv-win {
   visibility: visible !important;

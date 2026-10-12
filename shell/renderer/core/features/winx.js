@@ -116,7 +116,7 @@ function onBlurAccels() {
   showAccels(false);
 }
 
-async function openAccelMenu(at, items, { prevWin, keyboard = true, above = false } = {}) {
+async function openAccelMenu(at, items, { prevWin, keyboard = true, above = false, place = null } = {}) {
   items = tidy(items);
   document.addEventListener('keydown', onAccelKey, true);
   document.addEventListener('keyup', onAltUp, true);
@@ -124,6 +124,7 @@ async function openAccelMenu(at, items, { prevWin, keyboard = true, above = fals
   const p = ui.menu(at, items, { class: ['wm-accel-menu', keyboard ? 'kbd' : ''].join(' '), above });
   // Put the keyboard in the menu (it may have been inside a webview).
   const el = [...document.querySelectorAll('body > .menu')].pop();
+  if (el && place) place(el); // final position, once the menu's size is known (before it is painted)
   el?.focus({ preventScroll: true });
   const res = await p;
   document.removeEventListener('keydown', onAccelKey, true);
@@ -169,7 +170,33 @@ function winxItems() {
   ];
 }
 
-export async function toggleWinX() {
+// Opened from the keyboard: centred along the bar, just off its inner edge (bar on any side of the screen).
+function placeByBar(el, pos) {
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  const m = el.getBoundingClientRect();
+  const bar = document.getElementById('taskbar')?.getBoundingClientRect();
+  const has = !!(bar && bar.width && bar.height);
+  const gap = 8;
+  let x;
+  let y;
+  if (pos === 'top' || pos === 'bottom') {
+    x = (W - m.width) / 2;
+    if (pos === 'top') y = Math.max(has ? bar.bottom : 0, wm.insets.top) + gap;
+    else y = Math.min(has ? bar.top : H, H - wm.insets.bottom) - gap - m.height;
+  } else {
+    y = (H - m.height) / 2;
+    if (pos === 'left') x = Math.max(has ? bar.right : 0, wm.insets.left) + gap;
+    else x = Math.min(has ? bar.left : W, W - wm.insets.right) - gap - m.width;
+  }
+  el.classList.toggle('up', pos === 'bottom');
+  el.style.left = `${Math.round(Math.max(4, Math.min(x, W - m.width - 4)))}px`;
+  el.style.top = `${Math.round(Math.max(4, Math.min(y, H - m.height - 4)))}px`;
+}
+
+// Super+X: centred along the bar. Right-click on the Lanceur button (e = the contextmenu event): at the pointer,
+// opening upwards or leftwards when there is no room below or to the right.
+export async function toggleWinX(e = null) {
   if (winxOpen) {
     ui.closeMenus();
     return;
@@ -177,20 +204,13 @@ export async function toggleWinX() {
   shell.emit('start:close');
   shell.emit('flyouts:close');
   const start = document.querySelector('#taskbar .tb-start');
-  const r = start?.getBoundingClientRect();
-  // Above the Start button with the same gap as the Start menu (never touching the taskbar).
-  const barTop = Math.min(r?.top ?? Infinity, document.getElementById('taskbar')?.getBoundingClientRect().top ?? Infinity, window.innerHeight - wm.insets.bottom);
-  const lift = Number.isFinite(barTop) ? barTop - 8 : window.innerHeight - 56;
-  let at = r && r.width ? { x: r.left, y: lift, anchor: new DOMRect(r.left, lift, r.width, 1) } : { x: 12, y: lift, anchor: new DOMRect(12, lift, 40, 1) };
-  // Taskbar on another edge (personalization, taskbar.position): under / beside the Start button.
   const pos = document.documentElement.dataset.tbPos || 'bottom';
-  if (r && r.width && pos === 'top') at = { x: r.left, y: r.bottom + 8 };
-  else if (r && r.width && pos === 'left') at = { x: r.right + 8, y: r.top };
-  else if (r && r.width && pos === 'right') at = { x: r.left - 8, y: r.top, sub: new DOMRect(r.left - 4, r.top, 1, 1) };
+  const pointer = e && typeof e.clientX === 'number' && (e.clientX || e.clientY);
+  const at = pointer ? { x: e.clientX, y: e.clientY, anchor: new DOMRect(e.clientX, e.clientY, 0, 0), sub: new DOMRect(e.clientX, e.clientY, 0, 0) } : { x: 0, y: 0 };
   winxOpen = true;
   start?.classList.add('open');
   try {
-    await openAccelMenu(at, winxItems(), { prevWin: wm.focused(), above: pos === 'bottom' });
+    await openAccelMenu(at, winxItems(), { prevWin: wm.focused(), keyboard: !pointer, place: pointer ? null : (el) => placeByBar(el, pos) });
   } finally {
     winxOpen = false;
     start?.classList.remove('open');
@@ -240,7 +260,7 @@ export function mount(ctx) {
       if (e.defaultPrevented || !e.target.closest?.('#taskbar .tb-start')) return;
       e.preventDefault();
       e.stopPropagation();
-      toggleWinX();
+      toggleWinX(e);
     },
     true,
   );

@@ -110,7 +110,8 @@ body.tb-left #search-panel {
 }
 
 /* ---- results view (core/start.js SearchView, also used by the Lanceur's inline search): one list grouped by kind,
-   one column; the selected app or file shows its actions as chips right under its row. */
+   one column; the selected app or file shows its actions as chips right under its row (tight enough that three chips
+   such as « Ouvrir · Détacher du Lanceur · Détacher de la barre » stay on one line beside the list's scrollbar). */
 .sv .sv-main,
 .sv.with-preview .sv-main {
   grid-template-columns: minmax(0, 1fr);
@@ -121,8 +122,8 @@ body.tb-left #search-panel {
 .sv .sv-acts {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 4px 12px 8px 48px;
+  gap: 4px;
+  padding: 4px 8px 8px 48px;
   animation: sv-acts-in var(--dur) var(--ease);
 }
 @keyframes sv-acts-in {
@@ -137,9 +138,9 @@ body.tb-left #search-panel {
 .sv .sv-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   height: 28px;
-  padding: 0 10px 0 8px;
+  padding: 0 8px 0 6px;
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
   background: var(--control);

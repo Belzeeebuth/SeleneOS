@@ -920,9 +920,15 @@ body.aurora-locked .tooltip,
   transform: translateY(-24px);
 }
 .lk-time {
+  /* Optical alignment with the date: cancels the digits' side bearing at display size. */
+  margin-left: -0.04em;
   font-size: clamp(64px, 12vh, 152px);
   font-weight: 600;
   letter-spacing: -0.03em;
+}
+/* The hour in proportional figures: a tabular "1" would sit ~10 px in from the date's edge. */
+.lk-hh {
+  font-variant-numeric: proportional-nums lining-nums;
 }
 .lk-date {
   font-size: clamp(17px, 2.4vh, 26px);
@@ -997,6 +1003,10 @@ body.aurora-locked .tooltip,
 }
 .lk-avatar-slot .lk-avatar {
   --lk-av: clamp(72px, 12vh, 104px);
+}
+/* Just tall enough for the "Welcome" spinner (no empty band under the link); an error message adds its line. */
+.lk-card .lk-form-slot {
+  min-height: 96px;
 }
 .lk-name {
   margin-top: 14px;

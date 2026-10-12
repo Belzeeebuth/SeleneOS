@@ -113,12 +113,16 @@
   line-height: 18px;
   color: var(--text-2);
 }
+/* Rows of equal tiles; a shorter last row is centred, so no empty cell is left (5 tiles = 3 + 2). */
 .sec-list {
-  display: grid;
-  grid-template-columns: repeat(var(--sec-cols, 3), minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
 }
 .sec-opt {
+  flex: 0 0 calc((100% - (var(--sec-cols, 3) - 1) * 8px) / var(--sec-cols, 3));
+  min-width: 0;
   min-height: 92px;
   display: flex;
   flex-direction: column;
