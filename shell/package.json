@@ -12,7 +12,6 @@
   "author": "Selene OS contributors",
   "license": "MIT",
   "devDependencies": {
-    "@fluentui/svg-icons": "1.1.344",
     "electron": "44.7.0",
     "playwright-core": "1.64.0"
   },
