@@ -1889,6 +1889,7 @@
 }
 .app-browser .bp-tile-label {
   min-width: 0;
+  text-align: start;
   font-size: var(--fs-small);
   line-height: 17px;
   overflow-wrap: break-word;
