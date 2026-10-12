@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-12 01:30 UTC — visual redesign (Selene design system, 3 styles) nearly done: last tracks finishing, then strings pass, full test sweep and ISO rebuild._
+_Last updated: 2026-10-12 02:10 UTC — visual redesign done (Selene design system, 3 styles + high contrast, every app and system screen reworked); full test sweep and ISO rebuild running._
 
 ## What this is
 
@@ -40,7 +40,7 @@ A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a W
 | App phase 4 (PHASEAPP.md) | **done** — weather, maps, contacts, sticky, translate, remote (VNC) |
 | Linux GUI apps (external X11 windows) | **done** — aurora-xwm helper (python3-xlib) + shaped shell window + frames, .desktop entries in Start/search, 12 GUI apps in the Store; see docs/XWINDOWS.md |
 | Store sources (Flathub + Ubuntu AppStream) | **done** — per-user Flatpak installs from Flathub (no root), full Ubuntu desktop-app catalogue from DEP-11 (apt installs through aurora-admin, verified against root-owned DEP-11 lists; image packages never removable); merged catalogue UI; see docs/STORE-SOURCES.md |
-| Visual redesign (user request, 2026-10-11) | **nearly done** — brief in docs/design/BRIEF.md (all user answers), system in docs/design/SYSTEM.md; styles Nocturne (default) / Éclipse / Clair de lune / Contraste élevé × ambiances × accents; Phosphor icons, Manrope + Inter, new app icons, wallpapers, logo, GRUB/Plymouth; Windows names replaced (Lanceur, Fichiers, Moniteur système…); bar icons centred in every style |
+| Visual redesign (user request, 2026-10-11) | **done** (2026-10-12) — brief in docs/design/BRIEF.md (all user answers), system in docs/design/SYSTEM.md; styles Nocturne (default) / Éclipse / Clair de lune / Contraste élevé × ambiances × accents; Phosphor icons, Manrope + Inter, new app icons, wallpapers, logo, GRUB/Plymouth; Windows names replaced (Lanceur, Fichiers, Moniteur système…); bar icons centred in every style |
 | App phase 2 | not started — wait for the user's go; run it like phases 3–4 (one workflow per app, all in parallel) |
 
 ### App / area status (every area has its own test suite in shell/test/)
@@ -112,6 +112,12 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 
 ## Known issues / limitations
 
+- Redesign leftovers (small, from the last reviewers): in Nocturne / Clair de lune, opening « Aujourd'hui » highlights
+  the whole clock button including the bell (Éclipse has separate states); Moniteur système with a GPU at the 600 px
+  minimum width truncates the Réseau meter; the Processus table leaves ~60 px empty on the right when Statut is hidden;
+  Dessin's « Image » menu name is also a Windows Paint group name; Vue d'ensemble / lock / Ctrl+Alt+Del not checked in
+  high contrast. Workflow scripts for the redesign phases were in the session scratchpad (redesign-a…e.js).
+
 - Sounds were never heard (no audio device in the build container).
 - Boot fixes (2026-10-11, after the user saw a black screen after the splash in QEMU):
   - Plymouth used to quit with `--retain-splash`, which left tty1 in graphics mode, so greetd's switch to vt7 was refused.
@@ -153,7 +159,9 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 
 ## Next steps (exact)
 
-1. Wait for the user's QEMU feedback on the Selene OS ISO (phases 3 + 4 apps, rename, new logo).
+1. Wait for the user's QEMU feedback on the redesigned ISO. Open design question put to the user: the Éclipse bar
+   (validated mockup: search field + labelled running apps) still reads like Windows 10 to the reviewers; offer to make
+   it icon-only by default like the two other styles.
 2. Open questions from the user: Snake arrow keys reported as not working (works in the agent's VM with real
    key events: likely host/QEMU keyboard side; asked the user whether Space works and whether arrows work elsewhere).
 3. App **Phase 2** when the user asks: same mode as phases 3–4 (one workflow per app, all 6 in parallel, builder +
