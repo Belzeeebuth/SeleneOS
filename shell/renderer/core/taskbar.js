@@ -1451,6 +1451,9 @@ function applyAlign() {
   centerEl.animate([{ transform: `${v ? 'translateY' : 'translateX'}(${before - after}px)` }, { transform: 'none' }], { duration: 420, easing: EASE, composite: 'add' });
 }
 
+// Apps reach the tray through shell.setStatusItem (core/services.js), e.g. the Navigateur's screen sharing button.
+shell.on('status-item', (id, item) => taskbar.setStatusItem(id, item));
+
 export const taskbar = {
   mount(el) {
     root = el;

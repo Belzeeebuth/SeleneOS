@@ -121,7 +121,7 @@ fs.mkdirSync(appsDir, { recursive: true });
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
   res.end(`<!doctype html><title>Partage</title><body style="font:16px sans-serif;background:#fff"><h1>Test de partage</h1><div id="r">-</div>
-<script>window.share = () => navigator.mediaDevices.getDisplayMedia({ video: true }).then((s) => { const tr = s.getVideoTracks()[0]; document.getElementById('r').textContent = 'ok:' + tr.kind; window.__res = 'ok:' + tr.kind; tr.stop(); }, (e) => { window.__res = 'err:' + e.name; document.getElementById('r').textContent = 'err:' + e.name; });</script></body>`);
+<script>window.share = (keep) => navigator.mediaDevices.getDisplayMedia({ video: true }).then((s) => { const tr = s.getVideoTracks()[0]; window.__track = tr; window.__ended = false; tr.addEventListener('ended', () => (window.__ended = true)); document.getElementById('r').textContent = 'ok:' + tr.kind; window.__res = 'ok:' + tr.kind; if (!keep) tr.stop(); }, (e) => { window.__res = 'err:' + e.name; document.getElementById('r').textContent = 'err:' + e.name; });</script></body>`);
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const pageUrl = `http://127.0.0.1:${server.address().port}/share.html`;
@@ -129,7 +129,8 @@ const pageUrl = `http://127.0.0.1:${server.address().port}/share.html`;
 for (const theme of ['dark', 'light']) {
   const s = await launchShell({ lang: 'fr', theme, size: '1280x720', env: { AURORA_OPEN_SOCKET: sock, AURORA_XAPPS_DIRS: appsDir } });
   const shotOut = (n) => s.shot(`openoffice-${n}-${theme}`);
-  for (const st of [s.app.process().stdout, s.app.process().stderr]) st?.on('data', (d) => String(d).split('\n').filter((l) => /DBGSHARE|display media|desktopCapturer|\[browser\]/.test(l)).forEach((l) => console.log('  [main]', l)));
+  // Main-process warnings of the screen sharing code (refusals say why), shown with the results.
+  for (const st of [s.app.process().stdout, s.app.process().stderr]) st?.on('data', (d) => String(d).split('\n').filter((l) => /\[browser\].*(display media|desktopCapturer|screen capture)/.test(l)).forEach((l) => console.log('  [main]', l.trim())));
   const open = (...args) => spawnSync('python3', [AURORA_OPEN, ...args], { env: { ...process.env, AURORA_OPEN_SOCKET: sock }, encoding: 'utf8', cwd: s.home });
   const winsOf = (app) => s.aurora((a) => window.__aurora.wm.byApp(a).length, app);
   const closeAll = () => s.aurora(() => window.__aurora.wm.list?.().forEach((w) => w.close()) ?? [...document.querySelectorAll('.window')].length);
@@ -256,20 +257,74 @@ for (const theme of ['dark', 'light']) {
     const dont = await s.page.$('.dialog .btn:not(.primary)');
     if (dont) await s.aurora(() => [...document.querySelectorAll('.dialog .btn')].find((b) => /Ne pas enregistrer|Don/.test(b.textContent))?.click());
 
-    // Screen sharing (dark: share; light: cancel = deny).
+    // Screen sharing. Both: « Partager » -> live track + indicator (tab glyph, « Partage d'écran en cours — site » bar,
+    // tray button). Dark: stop from the tray menu. Light: « Annuler » refuses first; stop from the bar, then the page
+    // stops by itself, then closing the tab: the indicator goes away each time.
     await s.aurora((u) => window.__aurora.shell.openUrl(u), pageUrl);
     const CTL = "window.__aurora.registry.instance(window.__aurora.wm.byApp('browser')[0].id).hooks.ctl";
+    const inTab = (code) => s.page.evaluate(`(() => { const bw = ${CTL}; return bw.active.wv.executeJavaScript(${JSON.stringify(code)}, true); })()`);
     await waitFor(() => s.page.evaluate(`(() => { const bw = ${CTL}; return bw.active && bw.active.ready && bw.active.wv; })()`).catch(() => false), { timeout: 20000 });
     await sleep(800);
-    await s.page.evaluate(`(() => { const bw = ${CTL}; bw.active.wv.executeJavaScript('window.share(); 1', true); return 1; })()`);
-    const picker = await waitFor(() => s.aurora(() => document.querySelector('.bw-share-dialog')?.textContent || ''), { timeout: 10000 });
-    check(/Partager votre écran/.test(picker) && /Écran entier/.test(picker), `screen sharing picker « Partager votre écran » with « Écran entier » (${theme})`);
-    await shotOut('share');
-    if (theme === 'dark') await s.page.click('.bw-share-dialog .btn.primary');
-    else await s.page.click('.bw-share-dialog .btn:not(.primary)');
-    const res = await waitFor(() => s.page.evaluate(`(() => { const bw = ${CTL}; return bw.active.wv.executeJavaScript('window.__res || ""'); })()`), { timeout: 10000 });
-    if (theme === 'dark') check(res === 'ok:video', `« Partager »: the page gets a video track (${res})`);
-    else check(/^err:(NotAllowedError|AbortError)/.test(res || ''), `« Annuler »: the page is refused, no stream (${res})`);
+    const askShare = async (keep) => {
+      await inTab(`window.__res = ''; window.share(${keep}); 1`);
+      return waitFor(() => s.aurora(() => document.querySelector('.bw-share-dialog')?.textContent || ''), { timeout: 10000 });
+    };
+    const result = () => waitFor(() => inTab('window.__res || ""'), { timeout: 10000 });
+    const indicator = () =>
+      s.aurora(() => ({
+        tab: !!document.querySelector('.app-browser .bw-tab.sharing .bw-tab-share'),
+        bar: document.querySelector('.app-browser .bw-sharebar:not([hidden])')?.textContent || '',
+        tray: document.querySelector('#taskbar [data-status="browser-share"]')?.dataset.tip || '',
+      }));
+    const indicatorOn = () => waitFor(async () => ((i) => (i.tab && i.bar && i.tray ? i : null))(await indicator()), { timeout: 6000 });
+    const indicatorGone = () => waitFor(async () => ((i) => !i.tab && !i.bar && !i.tray)(await indicator()), { timeout: 6000 });
+    const shareOk = async (label) => {
+      const picker = await askShare(true);
+      check(/Partager votre écran/.test(picker) && /Écran entier/.test(picker), `screen sharing picker « Partager votre écran » with « Écran entier » (${theme}, ${label})`);
+      await s.page.click('.bw-share-dialog .btn.primary');
+      const res = await result();
+      check(res === 'ok:video', `« Partager »: the page gets a video track (${theme}, ${label}: ${res})`);
+      const on = await indicatorOn();
+      check(
+        !!on && /Partage d'écran en cours — 127\.0\.0\.1:\d+/.test(on.bar) && /Arrêter le partage/.test(on.bar) && /Partage d'écran en cours — 127\.0\.0\.1:\d+/.test(on.tray),
+        `indicator: tab glyph + « Partage d'écran en cours — site » bar with « Arrêter le partage » + tray button (${theme}, ${label}) ${on ? '' : JSON.stringify(await indicator())}`,
+      );
+      return !!on;
+    };
+    if (theme === 'light') {
+      const picker = await askShare(false);
+      check(/Partager votre écran/.test(picker) && /Écran entier/.test(picker), `screen sharing picker « Partager votre écran » with « Écran entier » (${theme})`);
+      await shotOut('share');
+      await s.page.click('.bw-share-dialog .btn:not(.primary)');
+      const res = await result();
+      check(/^err:(NotAllowedError|AbortError)/.test(res || ''), `« Annuler »: the page is refused, no stream (${res})`);
+      check(!(await indicator()).tray, 'no sharing indicator after a refusal');
+    }
+    if (await shareOk('first share')) {
+      await sleep(400);
+      await shotOut('share-on');
+      if (theme === 'dark') {
+        await s.page.click('#taskbar [data-status="browser-share"]');
+        const item = await waitFor(() => s.aurora(() => [...document.querySelectorAll('.menu [role="menuitem"], .menu .menu-item, .menu button')].some((e) => /Arrêter le partage/.test(e.textContent))), { timeout: 4000 });
+        check(!!item, 'tray button -> menu with « Arrêter le partage »');
+        await shotOut('share-menu');
+        await s.aurora(() => [...document.querySelectorAll('.menu [role="menuitem"], .menu .menu-item, .menu button')].find((e) => /Arrêter le partage/.test(e.textContent))?.click());
+      } else await s.page.click('.app-browser .bw-sharebar .bw-share-stop');
+      const ended = await waitFor(() => inTab('window.__ended && window.__track.readyState === "ended" ? "ended" : ""'), { timeout: 6000 });
+      check(ended === 'ended', `« Arrêter le partage » (${theme === 'dark' ? 'tray' : 'bar'}): the page's track ends and gets an « ended » event (${ended})`);
+      check(await indicatorGone(), `the indicator goes away after « Arrêter le partage » (${theme})`);
+      check(await inTab('location.pathname') === '/share.html' && (await inTab('document.getElementById("r").textContent')) === 'ok:video', 'the page was not reloaded (its hook ended the capture)');
+    }
+    if (theme === 'light') {
+      if (await shareOk('page stops')) {
+        await inTab('window.__track.stop(); 1');
+        check(await indicatorGone(), 'the page stops its track: the indicator goes away');
+      }
+      if (await shareOk('tab closed')) {
+        await s.page.evaluate(`(() => { const bw = ${CTL}; const t = bw.active; bw.newTab(); bw.closeTab(t); return 1; })()`);
+        check(await waitFor(async () => !(await indicator()).tray, { timeout: 6000 }), 'closing the sharing tab removes the tray button');
+      }
+    }
   } catch (err) {
     check(false, `${theme}: ${err.stack || err}`);
   } finally {

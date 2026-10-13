@@ -2163,3 +2163,57 @@
 .bw-share-thumb { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; border-radius: var(--radius-sm); background: var(--surface-raised); display: flex; align-items: center; justify-content: center; }
 .bw-share-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .bw-share-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- screen sharing indicator (lib/screenshare.js): tab glyph + « Partage d'écran en cours » bar */
+.app-browser .bw-tab-share {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-right: -2px;
+  border-radius: 999px;
+  color: var(--on-danger, #fff);
+  background: var(--danger);
+  animation: bw-pop-in var(--dur-slow) var(--ease-spring);
+}
+.app-browser .bw-sharebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  margin: 0 8px 6px;
+  padding: 4px 6px 4px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  animation: bw-fade-in var(--dur) linear;
+}
+.app-browser .bw-sharebar[hidden] {
+  display: none;
+}
+.app-browser .bw-sharebar-dot {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  color: var(--on-danger, #fff);
+  background: var(--danger);
+}
+.app-browser .bw-sharebar-text {
+  flex: 1;
+  min-width: 0;
+}
+.app-browser .bw-share-stop {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* the tray button (shell.setStatusItem 'browser-share') while the browser is loaded */
+#taskbar .tb-focus-pill[data-status="browser-share"] .icon {
+  color: var(--danger);
+}

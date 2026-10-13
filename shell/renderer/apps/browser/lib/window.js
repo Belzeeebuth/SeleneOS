@@ -13,6 +13,7 @@ import { FavBar, barMode } from './favbar.js';
 import { renderPage, pageTitle, pageIcon } from './pages.js';
 import * as panels from './panels.js';
 import { closeMenus, showMenu } from './menu.js';
+import { paintShareBar } from './screenshare.js';
 
 let tabSeq = 0;
 const reduceMotion = () => document.documentElement.dataset.animations === 'off';
@@ -149,7 +150,9 @@ export class BrowserWindowCtl {
     this.fsHint = h('div', { class: 'bw-fs-hint', hidden: true });
     this.fsHot = h('div', { class: 'bw-fs-hot', onpointerenter: () => this.root.classList.add('bw-fs-reveal') });
     this.content = h('div', { class: 'bw-content' }, this.views, this.status, this.findBar.el, this.fsHint);
-    this.chrome = h('div', { class: 'bw-chrome', onpointerleave: () => this.root.classList.remove('bw-fs-reveal') }, this.toolbar, this.favbar.el);
+    // « Partage d'écran en cours — site » + « Arrêter le partage » while the active tab shares (lib/screenshare.js).
+    this.shareBar = h('div', { class: 'bw-sharebar', role: 'status', hidden: true });
+    this.chrome = h('div', { class: 'bw-chrome', onpointerleave: () => this.root.classList.remove('bw-fs-reveal') }, this.toolbar, this.favbar.el, this.shareBar);
     this.root = h('div', { class: 'bw-root' }, this.fsHot, this.chrome, this.content);
     win.body.appendChild(this.root);
     this.applyPrefsToChrome();
@@ -471,6 +474,19 @@ export class BrowserWindowCtl {
       audio.setAttribute('aria-label', tip);
     }
     close.setAttribute('aria-label', this.t('tab.close'));
+    // Screen sharing glyph (lib/screenshare.js), before the audio / close buttons.
+    tab.el.classList.toggle('sharing', !!tab.sharing);
+    if (tab.sharing && !tab.parts.share) {
+      tab.parts.share = h('span', { class: 'bw-tab-share', role: 'img' }, icon('screencast', { size: 14 }));
+      tab.el.insertBefore(tab.parts.share, audio);
+    } else if (!tab.sharing && tab.parts.share) {
+      tab.parts.share.remove();
+      tab.parts.share = null;
+    }
+    if (tab.parts.share) {
+      tab.parts.share.dataset.tip = this.t('share.tabTip');
+      tab.parts.share.setAttribute('aria-label', this.t('share.tabTip'));
+    }
     tab.el.classList.toggle('loading', loading);
     tab.el.classList.toggle('private', this.private);
   }
@@ -1394,6 +1410,7 @@ export class BrowserWindowCtl {
     else this.omni.updateChips();
     this.updateWindowTitle();
     this.favbar.updateVisibility();
+    paintShareBar(this);
   }
 
   updateNavButtons() {

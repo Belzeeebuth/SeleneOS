@@ -15,6 +15,7 @@ export const shared = {
   store: new Store(),
   windows: [], // BrowserWindowCtl instances
   downloads: new Map(), // id -> download info (live + persisted)
+  shares: new Map(), // webContents id -> origin, tabs sharing the screen (lib/screenshare.js indicator)
   info: null,
   privateSeq: 0,
   privatePartition: null, // shared by every open Private window
@@ -169,6 +170,12 @@ export function initShared(ctx) {
       else api.invoke('browser:displayMediaReply', p.id, null).catch(() => {});
     });
     api.on('browser:display-media-done', (p) => import('./screenshare.js').then((m) => m.dropPicker(p.id)).catch(() => {}));
+    // A tab started / stopped sharing the screen: tab glyph, « Arrêter le partage » bar and tray button.
+    api.on('browser:display-share', (p) => import('./screenshare.js').then((m) => m.onShareChange(p)).catch(() => {}));
+    api
+      .invoke('browser:activeShares')
+      .then((list) => list?.length && import('./screenshare.js').then((m) => list.forEach((x) => m.onShareChange({ ...x, active: true }))))
+      .catch(() => {});
     api.on('browser:auth', (p) => {
       const hit = shared.findTab(p.sourceId);
       if (hit) hit.bw.showAuth(hit.tab, p);

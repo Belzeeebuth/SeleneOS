@@ -7,6 +7,7 @@
 //   shell.xdg -> {home, desktop, documents, downloads, pictures, music, videos, trash}
 //   shell.settings (see settings.js) ; shell.theme ; shell.sounds ; shell.wm ; shell.registry
 //   shell.on('lock'|'unlock'|'files-clipboard', fn)
+//   shell.setStatusItem(id, { icon, text, tip, onClick } | null)   extra tray button (taskbar.setStatusItem)
 import { api, env, Emitter } from './api.js';
 import { registry } from './registry.js';
 import { notify } from './notify.js';
@@ -58,6 +59,11 @@ export const shell = {
   },
   notify(opts) {
     return notify(opts);
+  },
+  // Extra tray button for an app state the user must see and can end (the Navigateur's screen sharing):
+  // { icon, text, tip, onClick } or null; drawn by core/taskbar.js (taskbar.setStatusItem).
+  setStatusItem(id, item) {
+    emitter.emit('status-item', String(id), item || null);
   },
 
   clipboard: {

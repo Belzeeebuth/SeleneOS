@@ -26,6 +26,7 @@
 //   browser:copyImageAt(sourceId, x, y) / browser:inspect(sourceId, x, y)
 //   browser:navHistory(sourceId)                 -> { index, entries: [{ url, title }] }
 //   browser:jsDialogReply(id, { ok, value, suppress })  answers 'browser:js-dialog' {id, sourceId, kind, message, def, origin, offerSuppress}
+//   browser:displayMediaReply(id, sourceId|null) / browser:stopShare(sourceId) / browser:activeShares()  (screen sharing)
 const { app, session, webContents } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -310,6 +311,8 @@ module.exports = function register(api) {
     });
     // alert / confirm / prompt from the page (guest-preload.js): the page waits for the answer.
     wc.ipc.on('browser:js-dialog', (event, p) => onJsDialog(wc, event, p || {}));
+    // Screen capture state from guest-preload.js (the indicator goes away when the page ends its capture).
+    wc.ipc.on('browser:share-state', (event, live) => onShareState(wc, event, live === true));
     // A new navigation (or closing the tab) abandons any sign-in or page dialog the previous one was waiting for.
     wc.on('did-start-navigation', (details) => {
       if (details?.isMainFrame && !details.isSameDocument) {
@@ -536,51 +539,158 @@ module.exports = function register(api) {
   // ------------------------------------------------------------------ screen sharing
   //   browser:display-media { id, sourceId, origin, sources: [{ id, name, kind: 'screen'|'window', thumb }] }
   //   browser:displayMediaReply (id, sourceId | null) -> true   (null / unknown source / 2 min = denied)
-  const pendingShares = new Map(); // id -> { callback, sources, timer }
+  //   browser:display-share { sourceId, origin, active }        a tab started / stopped sharing (indicator)
+  //   browser:stopShare (sourceId) -> true                       « Arrêter le partage »
+  // A share is known here from the grant (trusted) until the page's tracks have all ended (guest-preload.js
+  // reports it), the tab navigates away or closes. Stopping asks the page hook to end the tracks; if the share
+  // is still there 1.5 s later (no hook in that frame), the tab is reloaded so the capture always ends.
+  const pendingShares = new Map(); // id -> { callback, sources, timer, wc, frameKey, origin }
+  const activeShares = new Map(); // wc.id -> { origin, frames: Set<frameKey>, stopTimer }
+  const frameKeyOf = (f) => (f ? `${f.processId}:${f.routingId}` : '');
+  const deny = (callback) => {
+    try {
+      callback(null);
+    } catch (err) {
+      console.warn('[browser] display media refusal failed', err?.message || err);
+    }
+  };
+  function shareStarted(wc, frameKey, origin) {
+    if (!wc || wc.isDestroyed()) return;
+    const id = wc.id;
+    let sh = activeShares.get(id);
+    if (!sh) {
+      sh = { origin, frames: new Set(), stopTimer: null };
+      activeShares.set(id, sh);
+      // A new document in the tab (did-navigate: main frame, committed, not in-page), a crash or closing the tab
+      // ends every capture of that document.
+      const end = () => shareEnded(id);
+      wc.on('did-navigate', end);
+      wc.once('destroyed', end);
+      wc.once('render-process-gone', end);
+      sh.off = () => {
+        if (wc.isDestroyed()) return;
+        wc.off('did-navigate', end);
+        wc.off('destroyed', end);
+        wc.off('render-process-gone', end);
+      };
+    }
+    sh.frames.add(frameKey);
+    api.broadcast('browser:display-share', { sourceId: id, origin: sh.origin, active: true });
+  }
+  function shareEnded(id) {
+    const sh = activeShares.get(id);
+    if (!sh) return;
+    activeShares.delete(id);
+    clearTimeout(sh.stopTimer);
+    sh.off?.();
+    api.broadcast('browser:display-share', { sourceId: id, origin: sh.origin, active: false });
+  }
+  // From guest-preload.js: the page's shared tracks are live (true) or have all ended (false).
+  function onShareState(wc, event, live) {
+    const sh = activeShares.get(wc.id);
+    if (!sh) return;
+    const key = frameKeyOf(event.senderFrame);
+    if (live) sh.frames.add(key);
+    else {
+      sh.frames.delete(key);
+      if (!sh.frames.size) shareEnded(wc.id);
+    }
+  }
   function finishShare(id, chosen) {
     const p = pendingShares.get(id);
     if (!p) return false;
     pendingShares.delete(id);
     clearTimeout(p.timer);
     const src = chosen ? p.sources.find((x) => x.id === chosen) : null;
-    try {
-      if (src) p.callback({ video: src });
-      else p.callback({});
-    } catch (err) {
-      console.warn('[browser] display media answer failed', err?.message || err);
-    }
+    if (src && p.wc && !p.wc.isDestroyed()) {
+      try {
+        p.callback({ video: src });
+        shareStarted(p.wc, p.frameKey, p.origin);
+      } catch (err) {
+        console.warn('[browser] display media answer failed', err?.message || err);
+      }
+    } else deny(p.callback);
     api.broadcast('browser:display-media-done', { id });
     return true;
   }
-  async function onDisplayMedia(request, callback) {
-    let wc = null;
-    try {
-      wc = request.frame ? webContents.fromFrame(request.frame) : null;
-    } catch {}
-    const origin = originOf(request.securityOrigin || request.frame?.url || wc?.getURL?.() || '');
-    if (api.DEV) console.log(`[browser] display media request from ${origin || '?'} (tab ${wc?.id ?? '?'})`);
-    console.log('[DBGSHARE] req', JSON.stringify({ so: request.securityOrigin, furl: request.frame?.url, hasFrame: !!request.frame, wc: wc?.id, type: wc?.getType?.(), origin }));
-    if (!wc || !origin) return callback({});
-    let sources = [];
-    try {
+  // desktopCapturer on X11: a window enumeration running at the same time as a screen enumeration makes the
+  // screen capturer fail ("screen_capturer_x11: Failed to initialize pixel buffer") and the screen list comes
+  // back empty, and getSources({ types: ['screen', 'window'] }) does exactly that, intermittently (more often
+  // under load). So: screens alone first (retried once), then windows, never two enumerations at once (queue);
+  // the picker does not wait more than WINDOW_WAIT for windows (X11 without a window list takes 3 s to give up).
+  const WINDOW_WAIT = 1200;
+  let capturerQueue = Promise.resolve();
+  const capture = (types) => {
+    const run = capturerQueue.then(() => {
       const { desktopCapturer } = require('electron');
-      sources = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: false });
-    } catch (err) {
-      console.warn('[browser] desktopCapturer failed', err?.message || err);
-    }
-    console.log('[DBGSHARE] sources', sources.length, sources.map((x) => x.id).join(','));
-    if (!sources.length) return callback({});
-    const id = `d${++seq}`;
-    const timer = setTimeout(() => finishShare(id, null), 120000);
-    pendingShares.set(id, { callback, sources, timer });
-    api.broadcast('browser:display-media', {
-      id,
-      sourceId: wc.id,
-      origin,
-      sources: sources.map((x) => ({ id: x.id, name: String(x.name || '').slice(0, 200), kind: x.id.startsWith('screen:') ? 'screen' : 'window', thumb: x.thumbnail && !x.thumbnail.isEmpty() ? x.thumbnail.toDataURL() : '' })),
+      return desktopCapturer.getSources({ types, thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: false });
     });
+    capturerQueue = run.catch(() => []);
+    return run.catch((err) => {
+      console.warn(`[browser] desktopCapturer (${types}) failed`, err?.message || err);
+      return [];
+    });
+  };
+  async function listSources() {
+    let screens = await capture(['screen']);
+    if (!screens.length) screens = await new Promise((r) => setTimeout(r, 150)).then(() => capture(['screen']));
+    const windows = await Promise.race([capture(['window']), new Promise((r) => setTimeout(() => r([]), WINDOW_WAIT))]);
+    return [...screens, ...windows];
+  }
+  async function onDisplayMedia(request, callback) {
+    try {
+      let wc = null;
+      try {
+        wc = request.frame ? webContents.fromFrame(request.frame) : null;
+      } catch {}
+      const origin = originOf(request.securityOrigin || request.frame?.url || wc?.getURL?.() || '');
+      if (!wc || !origin) {
+        console.warn(`[browser] display media request refused: ${!wc ? 'no tab for the frame' : 'no origin'}`);
+        return deny(callback);
+      }
+      const sources = await listSources();
+      if (api.DEV) console.log(`[browser] display media request from ${origin} (tab ${wc.id}): ${sources.length} source(s)`);
+      if (!sources.length || wc.isDestroyed()) {
+        console.warn('[browser] display media request refused: no screen or window to share');
+        return deny(callback);
+      }
+      const id = `d${++seq}`;
+      const timer = setTimeout(() => finishShare(id, null), 120000);
+      pendingShares.set(id, { callback, sources, timer, wc, frameKey: frameKeyOf(request.frame), origin });
+      api.broadcast('browser:display-media', {
+        id,
+        sourceId: wc.id,
+        origin,
+        sources: sources.map((x) => ({ id: x.id, name: String(x.name || '').slice(0, 200), kind: x.id.startsWith('screen:') ? 'screen' : 'window', thumb: x.thumbnail && !x.thumbnail.isEmpty() ? x.thumbnail.toDataURL() : '' })),
+      });
+    } catch (err) {
+      console.warn('[browser] display media request failed', err?.message || err);
+      deny(callback);
+    }
   }
   api.handle('browser:displayMediaReply', (id, sourceId) => finishShare(String(id || ''), typeof sourceId === 'string' ? sourceId : null));
+  api.handle('browser:stopShare', (sourceId) => {
+    const id = Number(sourceId);
+    const sh = activeShares.get(id);
+    const wc = webContents.fromId(id);
+    if (!sh || !wc || wc.isDestroyed()) {
+      shareEnded(id);
+      return true;
+    }
+    for (const f of wc.mainFrame?.framesInSubtree || []) {
+      try {
+        f.send('browser:share-stop');
+      } catch {}
+    }
+    clearTimeout(sh.stopTimer);
+    sh.stopTimer = setTimeout(() => {
+      if (activeShares.get(id) !== sh || wc.isDestroyed()) return;
+      console.warn('[browser] the page did not end its screen capture: reloading the tab');
+      wc.reload();
+    }, 1500);
+    return true;
+  });
+  api.handle('browser:activeShares', () => [...activeShares].map(([sourceId, sh]) => ({ sourceId, origin: sh.origin })));
   // Note: the IPC layer appends the event as the last argument, so optional parameters are type-checked.
   const optPartition = (p) => (typeof p === 'string' && validPartition(p) ? p : PERSIST);
   api.handle('browser:sitePermissions', (partition) => {
