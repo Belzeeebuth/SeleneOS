@@ -1,7 +1,8 @@
 // Camera backend, no Electron: main/ipc/camera.js patchWebmDuration (the Duration MediaRecorder leaves out) on
 // synthetic WebM heads: unknown Segment size (MediaRecorder), known Segment size (grown by the added bytes), an
 // existing Duration (overwritten in place), TimecodeScale other than 1 ms, and files it must leave alone.
-// Then the camera:* handlers on a fake ipc: streamed chunks, finish -> final file with a Duration, abort.
+// Then the camera:* handlers on a fake ipc: streamed chunks, finish -> final file with a Duration, abort; paths
+// outside home refused, also through a symlink inside home, and the '.part' file never written through a link.
 // Usage:  cd aurora-os/shell && node test/camera.unit.mjs
 import fs from 'node:fs';
 import os from 'node:os';
@@ -175,6 +176,34 @@ try {
   err = null;
   await handlers['camera:begin'](path.join(dir, '..', 'escape.webm')).catch((e) => (err = e.code));
   check('.. escaping the home folder refused', err, 'EPERM');
+  // symlinks are resolved: a link in home cannot lead outside
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'camera-unit-out-'));
+  try {
+    fs.symlinkSync(out, path.join(dir, 'Out'));
+    err = null;
+    await handlers['camera:begin'](path.join(dir, 'Out', 'x.webm')).catch((e) => (err = e.code));
+    check('a link in home to a folder outside refused', err, 'EPERM');
+    err = null;
+    await handlers['camera:begin'](path.join(dir, 'Out', 'new', 'x.webm')).catch((e) => (err = e.code));
+    check('…a missing folder below that link too', [err, fs.readdirSync(out)], ['EPERM', []]);
+    fs.symlinkSync(path.join(out, 'nowhere'), path.join(dir, 'Dangling'));
+    err = null;
+    await handlers['camera:begin'](path.join(dir, 'Dangling', 'x.webm')).catch((e) => (err = e.code));
+    check('a dangling link as the folder refused', err, 'EPERM');
+    fs.writeFileSync(path.join(out, 'victim'), 'keep me');
+    fs.symlinkSync(path.join(out, 'victim'), path.join(dir, 'Pellicule', '.trap.webm.part'));
+    err = null;
+    await handlers['camera:begin'](path.join(dir, 'Pellicule', 'trap.webm')).catch((e) => (err = e.code));
+    check('a link as the .part file is not written through', [err, fs.readFileSync(path.join(out, 'victim'), 'utf8')], ['EINVAL', 'keep me']);
+    fs.rmSync(path.join(dir, 'Pellicule', '.trap.webm.part'));
+    fs.symlinkSync(path.join(dir, 'Pellicule'), path.join(dir, 'Roll link'));
+    const v = await handlers['camera:begin'](path.join(dir, 'Roll link', 'v.webm'));
+    check('a link in home to a folder in home is fine (real path)', v.path, path.join(dir, 'Pellicule', 'v.webm'));
+    await handlers['camera:abort'](v.id);
+    check('nothing written outside home', fs.readdirSync(out), ['victim']);
+  } finally {
+    fs.rmSync(out, { recursive: true, force: true });
+  }
 } finally {
   process.env.HOME = realHome;
   fs.rmSync(dir, { recursive: true, force: true });

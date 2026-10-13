@@ -96,7 +96,7 @@ function hero(app, { art, kicker, title, lines = [], actions }) {
   );
 }
 
-function mosaic(app, entries, key) {
+function mosaic(app, entries, key, glyph = 'text_bullet_list') {
   const { h } = app;
   const arts = [];
   for (const e of entries) {
@@ -111,7 +111,7 @@ function mosaic(app, entries, key) {
       arts.map((src) => h('img', { src: app.api.mediaUrl(src), alt: '', draggable: false })),
     );
   if (arts.length) return artEl(app, { src: arts[0], key });
-  return artEl(app, { key, glyph: 'text_bullet_list' });
+  return artEl(app, { key, glyph });
 }
 
 // ====================================================================== Home
@@ -229,17 +229,29 @@ function artistTile(app, a) {
     onMenu: (ev) => app.itemMenu(ev, a.songs, { context: 'group' }),
   });
 }
+function genreTile(app, g) {
+  const albums = new Set(g.songs.map((s) => app.albumKeyOf(s)));
+  return tile(app, {
+    art: mosaic(app, g.songs, `genre:${g.key}`, 'guitar'),
+    title: g.name,
+    subtitle: [app.t('count.albums', { count: albums.size }), app.t('count.songs', { count: g.songs.length })].join(' · '),
+    cls: 'mp-genre-tile',
+    onOpen: () => app.go({ name: 'genre', arg: g.key }),
+    onPlay: () => app.playEntries(sortSongs(app, g.songs, 'artist'), 0),
+    onMenu: (ev) => app.itemMenu(ev, g.songs, { context: 'group' }),
+  });
+}
 
 export function musicView(app, tab = 'songs') {
   const { h, t } = app;
-  if (!['songs', 'albums', 'artists'].includes(tab)) tab = 'songs';
+  if (!['songs', 'albums', 'artists', 'genres'].includes(tab)) tab = 'songs';
   const el = h('div', { class: 'mp-page mp-music' });
   el.appendChild(pageHeader(app, t('nav.music'), { actions: libraryActions(app, 'music') }));
   el.appendChild(
     h(
       'div',
       { class: 'tabs mp-tabs', role: 'tablist' },
-      ['songs', 'albums', 'artists'].map((k) =>
+      ['songs', 'albums', 'artists', 'genres'].map((k) =>
         h(
           'button',
           {
@@ -310,6 +322,20 @@ export function musicView(app, tab = 'songs') {
     );
     return { el, rerenderOnMeta: true };
   }
+  if (tab === 'genres') {
+    const genres = app.genres();
+    el.appendChild(
+      h(
+        'div',
+        { class: 'mp-toolbar' },
+        btn(app, { label: t('music.shufflePlay'), icon: 'arrow_shuffle', primary: true, onClick: () => app.playEntries(songs, 0, { shuffle: true }), cls: 'mp-shuffle-play' }),
+        h('span', { class: 'grow' }),
+        h('span', { class: 'caption text-2 mp-count' }, t('count.genres', { count: genres.length })),
+      ),
+    );
+    el.appendChild(grid(app, genres.map((g) => genreTile(app, g)), { cls: 'mp-genres' }));
+    return { el, rerenderOnMeta: true };
+  }
   const artists = app.artists();
   el.appendChild(
     h(
@@ -371,6 +397,40 @@ export function artistView(app, key) {
     }),
   );
   const list = songListView(app, sortSongs(app, a.songs, 'album'), { context: 'artist', label: a.name });
+  el.appendChild(list.el);
+  return { el, rerenderOnMeta: true };
+}
+
+// A genre: its albums (tiles) and its songs (by artist, album, track), « Lecture aléatoire » first.
+export function genreView(app, key) {
+  const { h, t } = app;
+  const g = app.genres().find((x) => x.key === key);
+  const el = h('div', { class: 'mp-page mp-genre' });
+  if (!g) {
+    el.appendChild(emptyState(app, { glyph: 'guitar', title: t('library.gone'), actions: [btn(app, { label: t('nav.music'), onClick: () => app.go({ name: 'music', arg: 'genres' }) })] }));
+    return { el };
+  }
+  const songs = sortSongs(app, g.songs, 'artist');
+  const keys = new Set(songs.map((s) => app.albumKeyOf(s)));
+  const albums = app.albums().filter((a) => keys.has(a.key));
+  const total = songs.reduce((n, e) => n + (e.duration || 0), 0);
+  el.appendChild(
+    hero(app, {
+      art: mosaic(app, songs, `genre:${g.key}`, 'guitar'),
+      kicker: t('kind.genre'),
+      title: g.name,
+      lines: [[t('count.albums', { count: albums.length }), t('count.songs', { count: songs.length }), total ? app.fmtTotal(total) : null].filter(Boolean).join(' · ')],
+      actions: [
+        btn(app, { label: t('music.shufflePlay'), icon: 'arrow_shuffle', primary: true, onClick: () => app.playEntries(songs, 0, { shuffle: true }), cls: 'mp-shuffle-play' }),
+        btn(app, { label: t('music.playAll'), icon: 'play', onClick: () => app.playEntries(songs, 0, { shuffle: false }), cls: 'mp-play-all' }),
+        btn(app, { label: t('music.addTo'), icon: 'add', onClick: (e) => app._menu(e, app.addToMenuItems(songs.map((x) => x.path))), cls: 'mp-add-to' }),
+      ],
+    }),
+  );
+  el.appendChild(sectionHead(app, `${t('music.albums')} (${albums.length})`));
+  el.appendChild(grid(app, albums.map((a) => albumTile(app, a)), { cls: 'mp-genre-albums' }));
+  el.appendChild(sectionHead(app, `${t('music.songs')} (${songs.length})`));
+  const list = songListView(app, songs, { context: 'genre', label: g.name });
   el.appendChild(list.el);
   return { el, rerenderOnMeta: true };
 }

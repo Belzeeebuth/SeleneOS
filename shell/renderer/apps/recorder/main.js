@@ -4,6 +4,9 @@
 //   Record view   big record / stop button, pause and resume, markers (button or M), live waveform, timer,
 //                 microphone choice with a level meter and a test button. Recording goes on while the window is
 //                 minimized; a red dot with the elapsed time sits in the bar tray (shell.setStatusItem 'recorder').
+//                 The microphone test stops when the window is minimized or the record view is left (no hidden open
+//                 microphone). A microphone unplugged during a recording: what was recorded is saved, like Stop,
+//                 and a notification says so.
 //   Recordings    list (name, date, duration), newest first; select one to play it with a seekable waveform (WebAudio,
 //                 exact seeking), its markers, rename, delete (to the Trash), show in Files, trim (two handles, save as
 //                 a copy or replace). Trimming re-encodes the kept part to Opus with WebCodecs (lib/audio.js), muxed by
@@ -11,7 +14,8 @@
 //                 can seek them. With ffmpeg in the image, MP3 / M4A copies via main/ipc/recorder.js (Export button).
 //   Metadata      per-file duration and markers in the app storage ('meta': { [fileName]: { duration, markers } }).
 //   Keyboard      Ctrl+R record / stop, Space pause / resume (play / pause on a recording), M add a marker,
-//                 F2 rename, Delete delete, arrows seek 5 s.
+//                 F2 rename, Delete delete, arrows seek 5 s. None of them act while a dialog is open, and Ctrl+R
+//                 does nothing from a text field.
 // Test hook: the window element carries `__recorder` (this object).
 import { decode, peaks, encodeSlice, fmtTime } from './lib/audio.js';
 import { fixDuration } from './lib/webm.js';
@@ -75,6 +79,7 @@ class Recorder {
       return true;
     });
     win.on('close', () => this.dispose());
+    win.on('minimize', () => this.stopTest()); // no microphone left open behind a minimized window
     this.loop();
   }
 
@@ -327,6 +332,7 @@ class Recorder {
   }
 
   showPlayView() {
+    this.stopTest(); // the test panel is in the record view
     this.els.recView.hidden = true;
     this.els.playView.hidden = false;
   }
@@ -389,7 +395,8 @@ class Recorder {
     this.els.micMsg.textContent = '';
     try {
       const stream = await this.openMic();
-      if (this.rec || this.ctx.win.closed) return stream.getTracks().forEach((tr) => tr.stop());
+      // (recording started, window closed or minimized, or the record view left meanwhile)
+      if (this.rec || this.monitor || this.ctx.win.closed || this.ctx.win.minimized || this.els.recView.hidden) return stream.getTracks().forEach((tr) => tr.stop());
       this.monitor = this.attachMeter(stream);
       this.monitor.test = true;
       this.els.testBtn.textContent = this.t('stopTest');
@@ -397,6 +404,11 @@ class Recorder {
     } catch {
       this.els.micMsg.textContent = this.t('micError');
     }
+  }
+
+  /** Stops the microphone test (not the meter of a recording). */
+  stopTest() {
+    if (this.monitor?.test) this.stopMonitor();
   }
 
   stopMonitor() {
@@ -463,6 +475,8 @@ class Recorder {
     const rec = { stream, mr, mime: mr.mimeType || mime, chunks: [], t0: performance.now(), pausedMs: 0, pauseAt: 0, markers: [], levels: [], lastBar: 0 };
     mr.ondataavailable = (e) => e.data?.size && rec.chunks.push(e.data);
     rec.done = new Promise((res) => (mr.onstop = res));
+    // the microphone goes away (unplugged): keep what was recorded
+    for (const tr of stream.getAudioTracks()) tr.addEventListener('ended', () => this.micLost(rec), { once: true });
     this.rec = rec;
     this.monitor = this.attachMeter(stream);
     mr.start(1000);
@@ -502,6 +516,16 @@ class Recorder {
     box.replaceChildren(...(r?.markers || []).map((m, i) => this.h('span', { class: 'rc-chip' }, this.ctx.icon('flag', { size: 14, filled: true }), `${this.t('marker', { n: i + 1 })} · ${fmtTime(m)}`)));
   }
 
+  /** The microphone ended during the recording: save what was recorded (as Stop does) and say so calmly. */
+  async micLost(rec) {
+    if (this.rec !== rec || this.saving) return;
+    const name = await this.stopRecording();
+    const { t } = this;
+    const body = name ? t('micLostSaved', { name: baseOf(name) }) : '';
+    this.ctx.shell.notify?.({ appId: 'recorder', title: t('micLostTitle'), body, silent: true, onClick: () => !this.ctx.win.closed && this.ctx.win.focus() });
+  }
+
+  /** Stops and saves; resolves to the saved file name (undefined when nothing was saved). */
   async stopRecording() {
     const r = this.rec;
     if (!r || this.saving) return;
@@ -516,7 +540,8 @@ class Recorder {
     } catch {
       /* already stopped */
     }
-    await r.done;
+    // (a recorder already stopped by an ended track has fired 'stop' or is about to; never wait forever)
+    await Promise.race([r.done, new Promise((res) => setTimeout(res, 4000))]);
     r.stream.getTracks().forEach((tr) => tr.stop());
     clearInterval(this.trayTimer);
     this.monitor?.ac.close().catch(() => {});
@@ -545,6 +570,7 @@ class Recorder {
       await this.refresh();
       this.saving = false;
       await this.select(name, buffer);
+      return name;
     } catch (err) {
       this.saving = false;
       this.ctx.ui.alert(this.t('saveError', { error: err?.message || String(err) }), { title: this.t('title'), parent: this.ctx.win });
@@ -1143,9 +1169,13 @@ class Recorder {
   onKey(e) {
     const tag = e.target?.tagName;
     const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable;
+    // a dialog (rename, confirm…) over this window or the whole shell: no shortcut acts behind it
+    const dialog = '.dialog-layer:not(.closing)';
+    if (e.target?.closest?.(dialog) || this.ctx.win.el?.querySelector(dialog) || document.querySelector(`${dialog}.global`)) return;
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'r') {
       e.preventDefault();
-      this.toggleRecord();
+      const textField = tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable;
+      if (!textField) this.toggleRecord();
       return;
     }
     if (typing || e.ctrlKey || e.altKey || e.metaKey) return;

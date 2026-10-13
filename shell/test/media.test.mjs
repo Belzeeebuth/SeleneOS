@@ -603,6 +603,19 @@ await test('music library page: songs list, sorting, albums and artists tabs', a
   await s.page.click(`${WIN} .mp-tabs [data-tab="artists"]`);
   await wait(s, 200);
   assert.deepEqual(await s.page.$$eval(`${WIN} .mp-grid .mp-tile-title`, (els) => els.map((e) => e.textContent)), ['Aurora', 'Aurora QA']);
+  // Genres: one tile per genre tag, songs without one last (« Unknown genre »)
+  await s.page.click(`${WIN} .mp-tabs [data-tab="genres"]`);
+  await wait(s, 200);
+  const genres = await M(s, (a) => a.genres().map((g) => g.name));
+  assert.ok(genres.includes('Synthwave') && genres.at(-1) === 'Unknown genre', JSON.stringify(genres));
+  assert.deepEqual(await s.page.$$eval(`${WIN} .mp-genres .mp-tile-title`, (els) => els.map((e) => e.textContent)), genres);
+  assert.equal(await s.page.textContent(`${WIN} .mp-count`), `${genres.length} genre${genres.length > 1 ? 's' : ''}`);
+  await s.page.click(`${WIN} .mp-genres .mp-tile >> text=Synthwave`);
+  await s.page.waitForSelector(`${WIN} .mp-genre .mp-row`);
+  assert.equal(await s.page.textContent(`${WIN} .mp-hero-title`), 'Synthwave');
+  assert.ok((await s.page.$$eval(`${WIN} .mp-genre .mp-row .mp-row-title`, (els) => els.map((e) => e.textContent))).includes('Night Drive'));
+  await s.page.click(`${WIN} .mp-back >> nth=0`);
+  await wait(s, 200);
   await s.page.click(`${WIN} .mp-tabs [data-tab="songs"]`);
   await wait(s, 200);
 });

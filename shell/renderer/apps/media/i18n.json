@@ -12,23 +12,23 @@
       "browseMusic": "Music library", "browseVideos": "Video library", "libraryHint": "Player shows music from your Music folder and videos from your Videos folder. Add more folders in Settings."
     },
     "music": {
-      "songs": "Songs", "albums": "Albums", "artists": "Artists", "shufflePlay": "Shuffle and play", "sort": "Sort by", "playAll": "Play all",
+      "songs": "Songs", "albums": "Albums", "artists": "Artists", "genres": "Genres", "shufflePlay": "Shuffle and play", "sort": "Sort by", "playAll": "Play all",
       "shuffle": "Shuffle", "addTo": "Add to"
     },
     "sort": { "az": "A – Z", "artist": "Artist", "album": "Album", "year": "Release year", "added": "Date added", "duration": "Duration" },
     "count": {
       "songs_one": "{count} song", "songs_other": "{count} songs", "albums_one": "{count} album", "albums_other": "{count} albums",
-      "artists_one": "{count} artist", "artists_other": "{count} artists", "videos_one": "{count} video", "videos_other": "{count} videos",
+      "artists_one": "{count} artist", "artists_other": "{count} artists", "genres_one": "{count} genre", "genres_other": "{count} genres", "videos_one": "{count} video", "videos_other": "{count} videos",
       "items_one": "{count} item", "items_other": "{count} items"
     },
-    "kind": { "album": "Album", "artist": "Artist", "playlist": "Playlist", "video": "Video" },
+    "kind": { "album": "Album", "artist": "Artist", "genre": "Genre", "playlist": "Playlist", "video": "Video" },
     "col": {
       "title": "Title", "artist": "Artist", "album": "Album", "genre": "Genre", "year": "Year", "track": "Track", "duration": "Length", "type": "Type",
       "size": "Size", "location": "Location", "resolution": "Resolution", "bitrate": "Bit rate"
     },
     "props": { "audioType": "{ext} audio file", "videoType": "{ext} video file", "kbps": "{n} kbps" },
     "library": {
-      "addFolder": "Add folder", "refresh": "Refresh library", "scanning": "Looking for music and videos…", "unknownArtist": "Unknown artist", "unknownAlbum": "Unknown album",
+      "addFolder": "Add folder", "refresh": "Refresh library", "scanning": "Looking for music and videos…", "unknownArtist": "Unknown artist", "unknownAlbum": "Unknown album", "unknownGenre": "Unknown genre",
       "emptyMusicTitle": "We couldn't find any music", "emptyMusicBody": "Player looks for music in these folders. Add a folder to show more music here.",
       "emptyVideoTitle": "We couldn't find any videos", "emptyVideoBody": "Player looks for videos in these folders. Add a folder to show more videos here.",
       "folderExists": "This folder is already in your library", "scanFailed": "Couldn't refresh the library", "gone": "This item is no longer in your library"
@@ -104,23 +104,23 @@
       "browseMusic": "Bibliothèque musicale", "browseVideos": "Bibliothèque vidéo", "libraryHint": "Le Lecteur affiche la musique de votre dossier Musique et les vidéos de votre dossier Vidéos. Ajoutez d'autres dossiers dans les Paramètres."
     },
     "music": {
-      "songs": "Titres", "albums": "Albums", "artists": "Artistes", "shufflePlay": "Lecture aléatoire", "sort": "Trier par", "playAll": "Tout lire",
+      "songs": "Titres", "albums": "Albums", "artists": "Artistes", "genres": "Genres", "shufflePlay": "Lecture aléatoire", "sort": "Trier par", "playAll": "Tout lire",
       "shuffle": "Aléatoire", "addTo": "Ajouter à"
     },
     "sort": { "az": "A – Z", "artist": "Artiste", "album": "Album", "year": "Année de sortie", "added": "Date d'ajout", "duration": "Durée" },
     "count": {
       "songs_one": "{count} titre", "songs_other": "{count} titres", "albums_one": "{count} album", "albums_other": "{count} albums",
-      "artists_one": "{count} artiste", "artists_other": "{count} artistes", "videos_one": "{count} vidéo", "videos_other": "{count} vidéos",
+      "artists_one": "{count} artiste", "artists_other": "{count} artistes", "genres_one": "{count} genre", "genres_other": "{count} genres", "videos_one": "{count} vidéo", "videos_other": "{count} vidéos",
       "items_one": "{count} élément", "items_other": "{count} éléments"
     },
-    "kind": { "album": "Album", "artist": "Artiste", "playlist": "Playlist", "video": "Vidéo" },
+    "kind": { "album": "Album", "artist": "Artiste", "genre": "Genre", "playlist": "Playlist", "video": "Vidéo" },
     "col": {
       "title": "Titre", "artist": "Artiste", "album": "Album", "genre": "Genre", "year": "Année", "track": "Piste", "duration": "Durée", "type": "Type",
       "size": "Taille", "location": "Emplacement", "resolution": "Résolution", "bitrate": "Débit binaire"
     },
     "props": { "audioType": "Fichier audio {ext}", "videoType": "Fichier vidéo {ext}", "kbps": "{n} kbit/s" },
     "library": {
-      "addFolder": "Ajouter un dossier", "refresh": "Actualiser la bibliothèque", "scanning": "Recherche de musique et de vidéos…", "unknownArtist": "Artiste inconnu", "unknownAlbum": "Album inconnu",
+      "addFolder": "Ajouter un dossier", "refresh": "Actualiser la bibliothèque", "scanning": "Recherche de musique et de vidéos…", "unknownArtist": "Artiste inconnu", "unknownAlbum": "Album inconnu", "unknownGenre": "Genre inconnu",
       "emptyMusicTitle": "Nous n'avons trouvé aucune musique", "emptyMusicBody": "Le Lecteur recherche la musique dans ces dossiers. Ajoutez un dossier pour afficher plus de musique ici.",
       "emptyVideoTitle": "Nous n'avons trouvé aucune vidéo", "emptyVideoBody": "Le Lecteur recherche les vidéos dans ces dossiers. Ajoutez un dossier pour afficher plus de vidéos ici.",
       "folderExists": "Ce dossier fait déjà partie de votre bibliothèque", "scanFailed": "Impossible d'actualiser la bibliothèque", "gone": "Cet élément ne fait plus partie de votre bibliothèque"

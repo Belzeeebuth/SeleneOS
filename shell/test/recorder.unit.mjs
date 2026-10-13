@@ -1,8 +1,13 @@
 // Voice Recorder unit tests (no Electron): the WebM helpers of renderer/apps/recorder/lib/webm.js and fmtTime.
 //   fixDuration on a MediaRecorder-like file (unknown-size Segment and Clusters, no Duration), on a known-size
 //   Segment, on a file that already has a Duration; muxOpus round trip (readInfo), OpusHead layout, garbage input.
+//   Backend main/ipc/recorder.js on a fake IPC with a throwaway HOME: recorder:export refuses files outside $HOME,
+//   also through a symlink inside $HOME (to a file, or to a folder, outside), and unknown formats.
 // Usage:  cd aurora-os/shell && node test/recorder.unit.mjs
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { ROOT } from './lib.mjs';
 
@@ -89,6 +94,37 @@ const recorded = Uint8Array.from([...header, ...ids(0x18538067), ...UNKNOWN, ...
 }
 {
   check('fmtTime', [fmtTime(0), fmtTime(65.4), fmtTime(3725), fmtTime(5.37, { tenths: true }), fmtTime(5.37, { tenths: true, sep: ',' }), fmtTime(-3)], ['0:00', '1:05', '1:02:05', '0:05.3', '0:05,3', '0:00']);
+}
+
+{
+  // backend: "inside home" resolves symlinks
+  const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'recorder-unit-home-'));
+  const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'recorder-unit-out-'));
+  const realHome = process.env.HOME;
+  process.env.HOME = HOME;
+  try {
+    const handlers = {};
+    createRequire(import.meta.url)(path.join(ROOT, 'main/ipc/recorder.js'))({ handle: (ch, fn) => (handlers[ch] = fn), error: (m, c) => Object.assign(new Error(m), { code: c }) });
+    const code = (...a) => Promise.resolve().then(() => handlers['recorder:export'](...a)).then(() => 'ok', (e) => e.code);
+    fs.writeFileSync(path.join(OUT, 'secret.webm'), 'x');
+    fs.mkdirSync(path.join(HOME, 'Docs'));
+    fs.writeFileSync(path.join(HOME, 'Docs', 'a.webm'), 'x');
+    fs.symlinkSync(path.join(OUT, 'secret.webm'), path.join(HOME, 'Docs', 'link.webm'));
+    fs.symlinkSync(OUT, path.join(HOME, 'Out'));
+    fs.symlinkSync(path.join(OUT, 'gone.webm'), path.join(HOME, 'Docs', 'dangling.webm'));
+    check('export: a file outside home refused', await code(path.join(OUT, 'secret.webm'), 'mp3'), 'EACCES');
+    check('export: a link in home to a file outside refused', await code(path.join(HOME, 'Docs', 'link.webm'), 'mp3'), 'EACCES');
+    check('export: a file in a linked folder outside refused', await code(path.join(HOME, 'Out', 'secret.webm'), 'mp3'), 'EACCES');
+    check('export: a dangling link refused', await code(path.join(HOME, 'Docs', 'dangling.webm'), 'mp3'), 'EACCES');
+    check('export: the home folder itself refused', await code(HOME, 'mp3'), 'EACCES');
+    check('export: unknown format refused', await code(path.join(HOME, 'Docs', 'a.webm'), 'exe'), 'EINVAL');
+    check('export: a file in home passes the path check', await code(path.join(HOME, 'Docs', 'a.webm'), 'mp3'), (c) => c !== 'EACCES' && c !== 'EINVAL');
+    check('export: nothing written outside home', fs.readdirSync(OUT), ['secret.webm']);
+  } finally {
+    process.env.HOME = realHome;
+    fs.rmSync(HOME, { recursive: true, force: true });
+    fs.rmSync(OUT, { recursive: true, force: true });
+  }
 }
 
 console.log(`recorder.unit: ${passed} passed, ${failures.length} failed`);

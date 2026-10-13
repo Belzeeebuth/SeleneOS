@@ -429,7 +429,9 @@ export class Library {
       const name = String(s.genre || '').trim();
       const key = name.toLowerCase();
       if (!map.has(key)) map.set(key, { key, name: name || unknownGenre, unknown: !name, songs: [] });
-      map.get(key).songs.push(s);
+      const g = map.get(key);
+      if (name && g.name === key && name !== key) g.name = name; // « Chanson » rather than « chanson »
+      g.songs.push(s);
     }
     const loc = this.locale();
     return [...map.values()].sort((a, b) => a.unknown - b.unknown || compareText(a.name, b.name, loc));

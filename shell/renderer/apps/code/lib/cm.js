@@ -107,23 +107,51 @@ export const seleneTheme = EditorView.theme({
   '.cm-panels': { backgroundColor: 'var(--bg-alt)', color: 'var(--text)' },
   '.cm-panels.cm-panels-top': { borderBottom: '1px solid var(--line-soft)' },
   '.cm-panels.cm-panels-bottom': { borderTop: '1px solid var(--line-soft)' },
-  '.cm-panel.cm-search': { padding: '8px 36px 8px 10px', fontFamily: 'var(--font)', fontSize: 'var(--fs-small)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' },
+  // The find / replace panel wears Selene's controls (dressSearchPanel below: .input, .btn, .checkbox of core/ui.css);
+  // these rules only size them for the panel and undo CodeMirror's base margins, fonts and close button.
+  '.cm-panel.cm-search': {
+    padding: '8px 48px 8px 10px', fontFamily: 'var(--font)', fontSize: 'var(--fs-small)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px',
+  },
   '.cm-panel.cm-search br': { flexBasis: '100%', height: 0, content: '""' },
-  '.cm-panel.cm-search input[type=checkbox]': { accentColor: 'var(--accent)', margin: '0 2px 0 6px' },
-  '.cm-panel.cm-search label': { color: 'var(--text-2)', fontSize: 'var(--fs-small)', display: 'inline-flex', alignItems: 'center' },
-  '.cm-panel.cm-search [name=close]': { color: 'var(--text-2)', fontSize: '18px', top: '6px', right: '8px', cursor: 'pointer' },
-  '.cm-textfield': {
-    backgroundColor: 'var(--input-bg)', color: 'var(--text)', border: '1px solid var(--line)', borderRadius: 'var(--radius-sm)',
-    padding: '4px 8px', fontFamily: 'var(--font)', fontSize: 'var(--fs-small)', minWidth: '180px', margin: 0,
+  '.cm-panel.cm-search input, .cm-panel.cm-search button, .cm-panel.cm-search label': { margin: 0 },
+  '.cm-panel.cm-search .input': { width: '240px', minHeight: '28px', padding: '3px 10px', fontFamily: 'var(--font)', fontSize: 'var(--fs-small)' },
+  '.cm-panel.cm-search .btn': { minHeight: '28px', fontFamily: 'var(--font)', fontSize: 'var(--fs-small)' },
+  '.cm-panel.cm-search .checkbox': { minHeight: '28px', gap: '8px', marginLeft: '10px', fontSize: 'var(--fs-small)', color: 'var(--text)', whiteSpace: 'nowrap' },
+  '.cm-panel.cm-search .checkbox input': { margin: 0 },
+  '.cm-panel.cm-search [name=close]': {
+    top: '8px', right: '10px', width: '28px', minWidth: '28px', height: '28px', padding: 0, color: 'var(--text-2)', backgroundColor: 'transparent', borderRadius: 'var(--radius-sm)',
   },
-  '.cm-textfield:focus': { outline: '2px solid var(--focus-ring)', outlineOffset: '-1px' },
-  '.cm-button': {
-    backgroundImage: 'none', backgroundColor: 'var(--control)', color: 'var(--text)', border: '1px solid var(--line-soft)',
-    borderRadius: 'var(--radius-sm)', padding: '4px 10px', fontFamily: 'var(--font)', fontSize: 'var(--fs-small)', margin: 0, cursor: 'pointer',
-  },
-  '.cm-button:hover': { backgroundColor: 'var(--control-hover)' },
-  '.cm-button:active': { backgroundImage: 'none', backgroundColor: 'var(--control-pressed)' },
+  '.cm-panel.cm-search [name=close]:hover': { backgroundColor: 'var(--subtle-hover)', color: 'var(--text)' },
+  '.cm-panel.cm-search [name=close]:focus-visible': { outline: '2px solid var(--focus-ring)', outlineOffset: '-2px' },
 });
+
+/**
+ * Gives CodeMirror's find / replace panel Selene's own controls: its fields become .input, its buttons .btn.small,
+ * its option labels .checkbox (core/ui.css, so every theme, visual style and the contrast mode apply) and the close
+ * button the Phosphor x. CodeMirror's classes are swapped out so its base theme no longer paints them. Idempotent:
+ * runs after each update (extensions) and after EditorView.setState (main.js), which rebuilds the panel.
+ */
+export function dressSearchPanel(root, closeIcon) {
+  // the panel groups are children of .cm-editor: no walk through the document's lines on every keystroke
+  let p = null;
+  for (const c of root?.children || []) if (c.classList.contains('cm-panels')) p ||= c.querySelector('.cm-search:not(.selene)');
+  if (!p) return false;
+  p.classList.add('selene');
+  for (const f of p.querySelectorAll('input.cm-textfield')) f.classList.replace('cm-textfield', 'input');
+  for (const b of p.querySelectorAll('button.cm-button')) {
+    b.classList.replace('cm-button', 'btn');
+    b.classList.add('small');
+  }
+  for (const l of p.querySelectorAll('label')) if (l.querySelector('input[type=checkbox]')) l.classList.add('checkbox');
+  const x = p.querySelector('button[name=close]');
+  if (x) {
+    x.classList.add('btn', 'subtle', 'icon-btn');
+    x.dataset.tip = x.getAttribute('aria-label') || '';
+    const ic = closeIcon?.();
+    if (ic) x.replaceChildren(ic);
+  }
+  return true;
+}
 
 // ------------------------------------------------------------------ phrases (CodeMirror's own UI)
 export const PHRASES_FR = {
@@ -139,11 +167,12 @@ export const PHRASES_FR = {
 
 /**
  * The extensions of one document.
- *   { lang, langComp / wrapComp / tabComp (Compartments), indent: { tabs, size }, wrap, uiLang: 'fr'|'en', keys, onUpdate(update) }
+ *   { lang, langComp / wrapComp / tabComp (Compartments), indent: { tabs, size }, wrap, uiLang: 'fr'|'en', keys,
+ *     closeIcon() -> the search panel's close glyph, onUpdate(update) }
  */
 export const tabExt = ({ tabs = false, size = 2 } = {}) => [EditorState.tabSize.of(size), CM.indentUnit.of(tabs ? '\t' : ' '.repeat(size))];
 
-export function extensions({ lang, langComp, wrapComp, tabComp, indent, wrap = false, uiLang = 'en', keys = [], onUpdate }) {
+export function extensions({ lang, langComp, wrapComp, tabComp, indent, wrap = false, uiLang = 'en', keys = [], closeIcon, onUpdate }) {
   const {
     lineNumbers, highlightActiveLineGutter, highlightSpecialChars, history, foldGutter, drawSelection, dropCursor,
     indentOnInput, syntaxHighlighting, bracketMatching, closeBrackets, autocompletion, rectangularSelection,
@@ -176,7 +205,10 @@ export function extensions({ lang, langComp, wrapComp, tabComp, indent, wrap = f
     wrapComp.of(wrap ? EditorView.lineWrapping : []),
     uiLang === 'fr' ? EditorState.phrases.of(PHRASES_FR) : [],
     seleneTheme,
-    EditorView.updateListener.of((u) => onUpdate?.(u)),
+    EditorView.updateListener.of((u) => {
+      dressSearchPanel(u.view.dom, closeIcon);
+      onUpdate?.(u);
+    }),
   ];
 }
 

@@ -6,6 +6,9 @@
 //   playback with seek on the waveform, rename (F2), trim (save as a copy, replace), MP3 / M4A export (ffmpeg,
 //   main/ipc/recorder.js, paths outside home refused), show in Files, delete to the
 //   Trash, close while recording (stop and save), English folder name, light theme, no console errors.
+//   The microphone test stops when the window is minimized or the record view is left; Ctrl+R does nothing while
+//   the rename dialog is open or from a text field; a microphone that ends mid-recording (unplugged) saves what was
+//   recorded with a notification.
 //   Unit tests of the WebM helpers: test/recorder.unit.mjs.
 //   Screenshots (1280x720, French, Halo): docs/screenshots/recorder-recording-dark.png, recorder-playback-dark.png,
 //   recorder-trim-dark.png, recorder-playback-light.png, recorder-recording-light.png
@@ -95,6 +98,16 @@ try {
     check('test button label', await RC(s, (R) => R.els.testBtn.textContent), 'Arrêter le test');
     await s.page.click(`${WIN} .rc-test`);
     check('test stops', await RC(s, (R) => [!!R.monitor, R.els.testBtn.textContent]), [false, 'Tester']);
+    // minimizing the window stops the test: no microphone left open without an indicator
+    await s.page.click(`${WIN} .rc-test`);
+    await until(s, (R) => R.monitor?.test, { label: 'test running again' });
+    await RC(s, (R) => (window.__rcTestStream = R.monitor.stream) && true);
+    await s.aurora(() => window.__aurora.wm.list().find((x) => x.appId === 'recorder').minimize());
+    const min = await until(s, (R) => (!R.monitor ? { label: R.els.testBtn.textContent, tracks: window.__rcTestStream.getTracks().map((tr) => tr.readyState) } : null), { label: 'test stopped on minimize', timeout: 3000 });
+    check('minimize stops the test and closes the microphone', [min.label, min.tracks.every((x) => x === 'ended')], ['Tester', true]);
+    await s.aurora(() => window.__aurora.wm.list().find((x) => x.appId === 'recorder').focus());
+    await until(s, (R) => !R.ctx.win.minimized, { label: 'restored' });
+    await sleep(400);
   });
 
   let recSeconds = 0;
@@ -185,15 +198,41 @@ try {
     fs.copyFileSync(path.join(ROOT, 'test/out/recorder-playback-dark.png'), path.join(DOCS, 'recorder-playback-dark.png'));
   });
 
+  await section('leaving the record view stops the microphone test', async () => {
+    await s.page.click(`${WIN} .rc-new`);
+    await s.page.click(`${WIN} .rc-test`);
+    await until(s, (R) => R.monitor?.test, { label: 'test running' });
+    await RC(s, (R) => (window.__rcTestStream = R.monitor.stream) && true);
+    await RC(s, (R) => R.select('Enregistrement 1.webm'));
+    await until(s, (R) => R.selected === 'Enregistrement 1.webm' && R.play?.buffer, { label: 'recording selected again' });
+    const st = await RC(s, (R) => ({ monitor: !!R.monitor, tracks: window.__rcTestStream.getTracks().map((tr) => tr.readyState) }));
+    check('test stopped, microphone closed', [st.monitor, st.tracks.every((x) => x === 'ended')], [false, true]);
+  });
+
   await section('rename (F2)', async () => {
     await s.page.focus(`${WIN} .rc-item.selected`);
     await s.page.keyboard.press('F2');
     await s.page.waitForSelector('.dialog input', { timeout: 5000 });
+    // Ctrl+R while the rename dialog is open: neither from its text field nor reaching the window behind it
+    await s.page.keyboard.press('Control+r');
+    await RC(s, (R) => R.ctx.win.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', ctrlKey: true, bubbles: true, cancelable: true })));
+    await sleep(400);
+    check('Ctrl+R does not record while the rename dialog is open', await RC(s, (R) => [!!R.rec, !!document.querySelector('.dialog input')]), [false, true]);
     await s.page.fill('.dialog input', 'Réunion');
     await s.page.keyboard.press('Enter');
     await until(s, (R) => R.items.some((i) => i.name === 'Réunion.webm') && R.selected === 'Réunion.webm', { label: 'renamed' });
     check('file renamed on disk', [fs.existsSync(path.join(dir, 'Réunion.webm')), fs.existsSync(path.join(dir, 'Enregistrement 1.webm'))], [true, false]);
     check('markers follow the new name', await RC(s, (R) => R.meta['Réunion.webm']?.markers?.length), 2);
+    // a text field in the window (e.g. an inline rename): Ctrl+R types, it does not record
+    await RC(s, (R) => {
+      const input = Object.assign(document.createElement('input'), { className: 'rc-test-field' });
+      R.ctx.win.body.append(input);
+      input.focus();
+    });
+    await s.page.keyboard.press('Control+r');
+    await sleep(400);
+    check('Ctrl+R from a text field does not record', await RC(s, (R) => !!R.rec), false);
+    await RC(s, (R) => R.ctx.win.body.querySelector('.rc-test-field')?.remove());
   });
 
   await section('trim: save as a copy, then replace', async () => {
@@ -324,6 +363,22 @@ await section('English: Sound recordings folder and strings', async () => {
     const st = await RC(e, (R) => ({ dir: R.dir, state: R.els.state.textContent, btn: R.els.recBtn.getAttribute('aria-label') }));
     check('folder', st.dir, path.join(e.home, 'Documents', 'Sound recordings'));
     check('strings', [st.state, st.btn], ['Ready to record', 'Record']);
+    // the microphone goes away mid-recording (unplugged): what was recorded is saved, with a calm notification
+    await e.page.click(`${WIN} .rc-rec`);
+    await until(e, (R) => R.rec?.mr?.state === 'recording', { label: 'recording (en)' });
+    await sleep(1800);
+    await RC(e, (R) => {
+      const tr = R.rec.stream.getAudioTracks()[0];
+      tr.stop(); // (stop() alone fires no 'ended': the event an unplugged device gets is sent by hand)
+      tr.dispatchEvent(new Event('ended'));
+    });
+    await until(e, (R) => !R.rec && !R.saving && R.items.length === 1 && R.play?.buffer, { label: 'saved after the microphone ended', timeout: 15000 });
+    const file = path.join(e.home, 'Documents', 'Sound recordings', 'Recording 1.webm');
+    const info = fs.existsSync(file) ? webm.readInfo(fs.readFileSync(file)) : null;
+    check('mic lost: the recording so far is saved (Opus WebM with a duration)', [info?.codec, info?.duration > 1000], ['A_OPUS', true]);
+    const note = await e.page.evaluate(() => window.__aurora.notifications.list().find((n) => n.appId === 'recorder'));
+    check('mic lost: a notification says so', note && [note.title, note.body], ['Microphone disconnected', 'The recording stopped. What was recorded so far is saved in “Recording 1”.']);
+    check('mic lost: back to ready, no tray dot', await RC(e, (R) => [R.els.recBtn.getAttribute('aria-label'), !!document.querySelector('#taskbar [data-status="recorder"]')]), ['Record', false]);
     check('no page errors (en)', appErrors(e), []);
   } finally {
     await e.close();

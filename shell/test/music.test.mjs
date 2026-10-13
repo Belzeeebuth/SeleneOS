@@ -2,6 +2,7 @@
 // Run: cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/music.test.mjs
 // 1. Unit: LRC parser (lib/lyrics.js), embedded lyrics (ID3 USLT).
 // 2. Shell (FR, Halo, 1280x720): the alias opens the Lecteur on its albums; folder.jpg becomes the album cover;
+//    the Genres tab groups the songs by their genre tag (a genre page: its albums, its songs, « Lecture aléatoire »);
 //    a .lrc next to a track shows synced lyrics in the now playing view, the current line follows the playback.
 // Screenshots: test/out/music-*.png (Halo dark + light).
 import { launchShell } from './lib.mjs';
@@ -73,7 +74,7 @@ await test('unit: embedded lyrics (ID3v2.3 USLT)', async () => {
 });
 
 // ------------------------------------------------------------------ fixtures
-function wavFile({ seconds = 2, rate = 22050, freq = 440, title, artist } = {}) {
+function wavFile({ seconds = 2, rate = 22050, freq = 440, title, artist, album, genre } = {}) {
   const n = Math.floor(seconds * rate);
   const pcm = Buffer.alloc(n * 2);
   for (let i = 0; i < n; i++) pcm.writeInt16LE(Math.round(Math.sin((2 * Math.PI * freq * i) / rate) * 0.2 * 32767), i * 2);
@@ -93,6 +94,8 @@ function wavFile({ seconds = 2, rate = 22050, freq = 440, title, artist } = {}) 
   const info = [];
   if (title) info.push(chunk('INAM', Buffer.from(`${title}\0`)));
   if (artist) info.push(chunk('IART', Buffer.from(`${artist}\0`)));
+  if (album) info.push(chunk('IPRD', Buffer.from(`${album}\0`)));
+  if (genre) info.push(chunk('IGNR', Buffer.from(`${genre}\0`)));
   const list = info.length ? chunk('LIST', Buffer.concat([Buffer.from('INFO'), ...info])) : Buffer.alloc(0);
   const body = Buffer.concat([Buffer.from('WAVE'), chunk('fmt ', fmt), list, chunk('data', pcm)]);
   const riff = Buffer.alloc(8);
@@ -104,8 +107,17 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-music-'));
 const ALBUM = path.join(home, 'Music', 'Nuits claires');
 fs.mkdirSync(ALBUM, { recursive: true });
 const TRACK = path.join(ALBUM, '01 - Lune Rousse - Marée haute.wav');
-fs.writeFileSync(TRACK, wavFile({ seconds: 12, freq: 392, title: 'Marée haute', artist: 'Lune Rousse' }));
-fs.writeFileSync(path.join(ALBUM, '02 - Lune Rousse - Phare.wav'), wavFile({ seconds: 6, freq: 494, title: 'Phare', artist: 'Lune Rousse' }));
+fs.writeFileSync(TRACK, wavFile({ seconds: 12, freq: 392, title: 'Marée haute', artist: 'Lune Rousse', album: 'Nuits claires', genre: 'Chanson' }));
+fs.writeFileSync(path.join(ALBUM, '02 - Lune Rousse - Phare.wav'), wavFile({ seconds: 6, freq: 494, title: 'Phare', artist: 'Lune Rousse', album: 'Nuits claires', genre: 'Chanson' }));
+// more genres: « chanson » in another album (one genre with « Chanson »), Jazz, and a song without a genre
+const more = (dir, file, o) => {
+  fs.mkdirSync(path.join(home, 'Music', dir), { recursive: true });
+  fs.writeFileSync(path.join(home, 'Music', dir, file), wavFile({ seconds: 2, ...o }));
+};
+more('Divers', 'Escale.wav', { freq: 523, title: 'Escale', artist: 'Lune Rousse', album: 'Divers', genre: 'chanson' });
+more('Matins', '01 Aube.wav', { freq: 330, title: 'Aube', artist: 'Trio Aube', album: 'Matins', genre: 'Jazz' });
+more('Matins', '02 Rosée.wav', { freq: 349, title: 'Rosée', artist: 'Trio Aube', album: 'Matins', genre: 'Jazz' });
+more('Matins', '03 Brume.wav', { freq: 370, title: 'Brume', artist: 'Trio Aube', album: 'Matins' });
 fs.writeFileSync(
   TRACK.replace(/\.wav$/, '.lrc'),
   '[ar:Lune Rousse]\n[ti:Marée haute]\n[00:00.00]La mer monte sans bruit\n[00:01.20]Sous la lune rousse\n[00:02.40]Les bateaux rentrent au port\n[00:03.60]Et le phare s’allume\n[00:05.00]On attend la marée haute\n[00:06.50]Jusqu’au matin\n[00:08.00]La mer monte sans bruit\n[00:10.00]…\n',
@@ -198,6 +210,57 @@ await test('albums: folder.jpg is the album cover', async () => {
   await s.page.waitForSelector(`${WIN} .mp-music .mp-tile img`, { timeout: 5000 });
   await s.page.waitForTimeout(500);
   await s.shot('music-albums-fr-dark');
+});
+
+await test('genres: a Genres tab next to Titres / Albums / Artistes, a genre page with its albums, songs and « Lecture aléatoire »', async () => {
+  await waitFor((a) => a.lib.songs().length === 6 && a.lib.songs().every((e) => e.tagged), null, { what: 'six songs tagged' });
+  const lib = await M((a) => a.genres().map((g) => [g.name, g.songs.length, g.unknown]));
+  assert.deepEqual(lib, [['Chanson', 3, false], ['Jazz', 2, false], ['Genre inconnu', 1, true]]);
+  await M((a) => a.go({ name: 'music', arg: 'albums' }));
+  const tabs = await s.page.$$eval(`${WIN} .mp-tabs .tab`, (els) => els.map((e) => [e.dataset.tab, e.textContent]));
+  assert.deepEqual(tabs, [['songs', 'Titres'], ['albums', 'Albums'], ['artists', 'Artistes'], ['genres', 'Genres']]);
+  await s.page.click(`${WIN} .mp-tabs [data-tab="genres"]`);
+  await s.page.waitForSelector(`${WIN} .mp-genres .mp-tile`, { timeout: 5000 });
+  assert.equal(await M((a) => a.route.arg), 'genres');
+  assert.equal(await s.page.textContent(`${WIN} .mp-music .mp-count`), '3 genres');
+  assert.match(await s.page.textContent(`${WIN} .mp-music .mp-toolbar .mp-shuffle-play`), /Lecture aléatoire/);
+  const tiles = await s.page.$$eval(`${WIN} .mp-genres .mp-tile`, (els) => els.map((e) => [e.querySelector('.mp-tile-title').textContent, e.querySelector('.mp-tile-sub').textContent]));
+  assert.deepEqual(tiles, [['Chanson', '2 albums · 3 titres'], ['Jazz', '1 album · 2 titres'], ['Genre inconnu', '1 album · 1 titre']]);
+  await s.page.waitForTimeout(400);
+  await s.shot('music-genres-fr-dark');
+  // a genre page
+  await s.page.click(`${WIN} .mp-genres .mp-tile >> nth=0`);
+  await s.page.waitForSelector(`${WIN} .mp-genre .mp-row`, { timeout: 5000 });
+  assert.deepEqual(await M((a) => a.route), { name: 'genre', arg: 'chanson' });
+  assert.equal(await s.page.textContent(`${WIN} .mp-genre .mp-hero-title`), 'Chanson');
+  assert.equal(await s.page.textContent(`${WIN} .mp-genre .mp-kicker`), 'Genre');
+  assert.match(await s.page.textContent(`${WIN} .mp-genre .mp-hero-line`), /^2 albums · 3 titres/);
+  assert.deepEqual(await s.page.$$eval(`${WIN} .mp-genre-albums .mp-tile-title`, (els) => els.map((e) => e.textContent)), ['Divers', 'Nuits claires']);
+  assert.deepEqual((await s.page.$$eval(`${WIN} .mp-genre .mp-row .mp-row-title`, (els) => els.map((e) => e.textContent))).sort(), ['Escale', 'Marée haute', 'Phare']);
+  assert.equal(await s.page.getAttribute(`${WIN} [data-nav="music"]`, 'aria-current'), 'page');
+  const shuffle = `${WIN} .mp-genre .mp-hero .mp-shuffle-play`;
+  assert.match(await s.page.textContent(shuffle), /Lecture aléatoire/);
+  assert.ok(await s.page.$eval(shuffle, (b) => b.classList.contains('primary')), '« Lecture aléatoire » is the main action');
+  await s.page.waitForTimeout(400);
+  await s.shot('music-genre-fr-dark');
+  await s.page.click(shuffle);
+  await waitFor((a) => a.queue.length === 3 && a.queue.shuffle && !a.player.paused, null, { what: 'genre shuffled into the queue' });
+  const q = await M((a) => a.queue.items.map((i) => i.path.split('/').pop()).sort());
+  assert.deepEqual(q, ['01 - Lune Rousse - Marée haute.wav', '02 - Lune Rousse - Phare.wav', 'Escale.wav']);
+  await M((a) => a.player.pause());
+  await s.aurora(() => window.__aurora.settings.set('theme', 'light'));
+  await s.page.waitForTimeout(700);
+  await s.shot('music-genre-fr-light');
+  await s.aurora(() => window.__aurora.settings.set('theme', 'dark'));
+  await M((a) => a.queue.shuffle && a.toggleShuffle());
+  await s.page.waitForTimeout(500);
+  // another genre by its route; a genre that is no longer in the library shows « gone »
+  await M((a) => a.go({ name: 'genre', arg: 'jazz' }));
+  await s.page.waitForSelector(`${WIN} .mp-genre .mp-row`, { timeout: 5000 });
+  assert.equal(await s.page.textContent(`${WIN} .mp-genre .mp-hero-title`), 'Jazz');
+  await M((a) => a.go({ name: 'genre', arg: 'polka' }));
+  await s.page.waitForSelector(`${WIN} .mp-genre .mp-empty, ${WIN} .mp-genre .empty`, { timeout: 5000 });
+  await M((a) => a.go({ name: 'music', arg: 'albums' }));
 });
 
 await test('lyrics: the .lrc next to the track is shown synced in the now playing view', async () => {

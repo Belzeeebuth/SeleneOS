@@ -173,7 +173,7 @@ export function grid(app, tiles, { wide = false, cls } = {}) {
 
 // ------------------------------------------------------------------ song list
 // items: library entries (or { path } for missing files). opts:
-//   context: 'library' | 'album' | 'artist' | 'queue' | 'playlist' | 'search'
+//   context: 'library' | 'album' | 'artist' | 'genre' | 'queue' | 'playlist' | 'search'
 //   onPlay(index), onRemove(indexes), onMove(from, to), playlistId, trackNumbers, currentIndex()
 //
 // Windowed rendering: rows have a fixed height, so only the rows in (or near) the visible part of
@@ -388,7 +388,7 @@ export class SongList {
       ),
       h('div', { class: 'c-artist ellipsis text-2' }, link(artist, !isVideo && app.artistKeyOf(e) != null ? () => app.go({ name: 'artist', arg: app.artistKeyOf(e) }) : null)),
       h('div', { class: 'c-album ellipsis text-2' }, link(album, !isVideo && ctx !== 'album' ? () => app.go({ name: 'album', arg: app.albumKeyOf(e) }) : null)),
-      h('div', { class: 'c-genre ellipsis text-2' }, e.genre || ''),
+      h('div', { class: 'c-genre ellipsis text-2' }, e.genre ? link(e.genre, !isVideo && ctx !== 'genre' ? () => app.go({ name: 'genre', arg: String(e.genre).trim().toLowerCase() }) : null) : ''),
       h('div', { class: 'c-year text-2' }, e.year ? String(e.year) : ''),
       h('div', { class: 'c-dur text-2' }, e.duration ? formatTime(e.duration) : ''),
       h(

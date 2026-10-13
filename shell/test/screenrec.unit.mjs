@@ -3,10 +3,13 @@
 //      whole screen, clamped to the screen).
 //   2. backend main/ipc/screenrec.js with a fake IPC registry and a throwaway HOME: open (unique names, folder must be
 //      in $HOME), append in order, abort deletes, finish refuses an empty file, finish with ffmpeg remuxes a real WebM
-//      and converts it to MP4 (when ffmpeg is installed), unknown ids.
+//      and converts it to MP4 (when ffmpeg is installed), unknown ids; symlinks resolved (a link in $HOME to a folder
+//      outside refused, a dangling link is not reused as a name); files of a renderer that goes away
+//      (render-process-gone, reload, destroyed) are closed and dropped (data kept, empty file removed).
 // Run:  cd aurora-os/shell && node test/screenrec.unit.mjs     Prints "N passed, M failed"; exit code 1 on failure.
 import fs from 'node:fs';
 import os from 'node:os';
+import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
@@ -77,6 +80,62 @@ await call('screenrec:abort', b.id);
 check('abort deletes', fs.existsSync(b.path), false);
 check('unknown id', await errCode(call('screenrec:append', 'r999', new Uint8Array([1]))), 'ENOENT');
 check('abort of an unknown id is fine', await call('screenrec:abort', 'nope'), true);
+
+// symlinks: "inside home" is checked on the real path
+const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'screenrec-unit-out-'));
+fs.symlinkSync(OUT, path.join(HOME, 'Out'));
+check('a link in home to a folder outside refused', await errCode(call('screenrec:open', path.join(HOME, 'Out'), 'x')), 'EPERM');
+check('…a folder below that link too', await errCode(call('screenrec:open', path.join(HOME, 'Out', 'sub'), 'x')), 'EPERM');
+check('…and nothing created outside', fs.readdirSync(OUT), []);
+fs.symlinkSync(path.join(OUT, 'nowhere'), path.join(HOME, 'Dangling'));
+check('a dangling link as the folder refused', await errCode(call('screenrec:open', path.join(HOME, 'Dangling', 'x'), 'x')), 'EPERM');
+fs.symlinkSync(dir, path.join(HOME, 'Rec link'));
+const viaLink = await call('screenrec:open', path.join(HOME, 'Rec link'), 'Via link');
+check('a link in home to a folder in home is fine (real path)', viaLink.path, path.join(dir, 'Via link.webm'));
+await call('screenrec:abort', viaLink.id);
+fs.symlinkSync(path.join(OUT, 'x.webm'), path.join(dir, 'Taken.webm'));
+const taken = await call('screenrec:open', dir, 'Taken');
+check('a dangling link counts as a taken name', path.basename(taken.path), 'Taken (2).webm');
+await call('screenrec:abort', taken.id);
+fs.rmSync(path.join(dir, 'Taken.webm'));
+check('nothing written outside home', fs.readdirSync(OUT), []);
+fs.rmSync(OUT, { recursive: true, force: true });
+
+// files belong to the renderer that opened them: closed and dropped when it goes away
+const fdCount = () => (fs.existsSync('/proc/self/fd') ? fs.readdirSync('/proc/self/fd').length : 0);
+const waitFor = async (fn, ms = 3000) => {
+  const t0 = Date.now();
+  while (!(await fn()) && Date.now() - t0 < ms) await new Promise((r) => setTimeout(r, 20));
+  return fn();
+};
+const fakeSender = (id) => Object.assign(new EventEmitter(), { id, isDestroyed: () => false });
+for (const evName of ['render-process-gone', 'did-navigate', 'destroyed']) {
+  const sender = fakeSender(100 + evName.length);
+  const fds = fdCount();
+  const full = await call('screenrec:open', dir, `Owned ${evName}`, { sender });
+  const empty = await call('screenrec:open', dir, `Owned empty ${evName}`, { sender });
+  await call('screenrec:append', full.id, new Uint8Array(200).fill(7), { sender });
+  sender.emit(evName);
+  const gone = await waitFor(async () => (await errCode(call('screenrec:append', full.id, new Uint8Array([1])))) === 'ENOENT' && (await errCode(call('screenrec:append', empty.id, new Uint8Array([1])))) === 'ENOENT');
+  check(`${evName}: the renderer's files are dropped`, gone, true);
+  check(`${evName}: their handles are closed`, await waitFor(() => fdCount() <= fds), true);
+  check(`${evName}: what was written is kept, an empty file removed`, [fs.existsSync(full.path) && fs.statSync(full.path).size, fs.existsSync(empty.path)], [200, false]);
+  fs.rmSync(full.path, { force: true });
+}
+{
+  // a file finished before its renderer goes away is not touched again; another renderer's files stay open
+  const a1 = fakeSender(201);
+  const a2 = fakeSender(202);
+  const f1 = await call('screenrec:open', dir, 'Mine', { sender: a1 });
+  const f2 = await call('screenrec:open', dir, 'Theirs', { sender: a2 });
+  await call('screenrec:append', f1.id, new Uint8Array(100), { sender: a1 });
+  await call('screenrec:abort', f1.id, { sender: a1 });
+  a1.emit('destroyed');
+  await new Promise((r) => setTimeout(r, 50));
+  check('another renderer keeps its file open', await call('screenrec:append', f2.id, new Uint8Array([1, 2]), { sender: a2 }), 2);
+  await call('screenrec:abort', f2.id, { sender: a2 });
+  check('both removed by abort', [fs.existsSync(f1.path), fs.existsSync(f2.path)], [false, false]);
+}
 
 let ffmpeg = false;
 try {

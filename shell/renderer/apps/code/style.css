@@ -98,13 +98,13 @@
 .app-code .code-root.no-doc .code-host { display: none; }
 .app-code .code-welcome { display: none; }
 .app-code .code-root.no-doc .code-welcome { display: flex; flex: 1; overflow: auto; align-items: center; justify-content: center; padding: 24px; }
-.app-code .code-welcome-inner { max-width: 460px; width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+.app-code .code-welcome-inner { max-width: 600px; width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
 .app-code .code-welcome-icon {
   width: 72px; height: 72px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center;
   background: var(--accent-subtle); color: var(--accent-text); margin-bottom: 4px;
 }
 .app-code .code-welcome-title { margin: 0; font-family: var(--font-display); font-size: var(--fs-subtitle); font-weight: 700; }
-.app-code .code-welcome-text { margin: 0; color: var(--text-2); font-size: var(--fs-body); line-height: var(--lh-body); }
+.app-code .code-welcome-text { margin: 0; max-width: 460px; color: var(--text-2); font-size: var(--fs-body); line-height: var(--lh-body); }
 .app-code .code-welcome-actions { display: flex; gap: 8px; margin: 8px 0 4px; flex-wrap: wrap; justify-content: center; }
 .app-code .code-welcome-actions .btn { display: inline-flex; align-items: center; gap: 8px; }
 .app-code .code-recent { width: 100%; text-align: left; margin-top: 8px; }
@@ -118,10 +118,12 @@
 .app-code .code-recent-item .icon { color: var(--accent-text); }
 .app-code .code-recent-name { font-weight: 600; }
 .app-code .code-recent-path { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
-.app-code .code-keys { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; margin: 18px 0 0; width: 100%; }
-.app-code .code-key { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--text-2); }
-.app-code .code-key dt { margin: 0; }
-.app-code .code-key dd { margin: 0; }
+.app-code .code-recent { max-width: 460px; }
+/* shortcuts: two columns of « label … key », each label on one line, aligned left (one column when narrow) */
+.app-code .code-keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 6px 28px; margin: 18px 0 0; width: 100%; text-align: left; }
+.app-code .code-key { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--text-2); min-width: 0; }
+.app-code .code-key dt { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.app-code .code-key dd { margin: 0; flex: none; }
 .app-code .code-key kbd {
   font-family: var(--font-mono); font-size: var(--fs-caption); padding: 2px 6px; border-radius: var(--radius-xs);
   border: 1px solid var(--line-soft); background: var(--card); color: var(--text);

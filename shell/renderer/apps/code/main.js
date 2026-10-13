@@ -7,7 +7,7 @@
 //   - Terminal panel: the Terminal app's PTY backend (main/ipc/pty.js) and xterm.js, started in the opened folder.
 //   - Status bar: git branch (main/ipc/code.js, git with an argument vector), cursor, indentation, line ending, language.
 // Test hook: ctx.win.el.__code (the CodeApp instance).
-import { CM, LANGS, langOf, extensions, detectIndent, tabExt } from './lib/cm.js';
+import { CM, LANGS, langOf, extensions, detectIndent, tabExt, dressSearchPanel } from './lib/cm.js';
 import { loadXterm } from '../terminal/lib/session.js';
 import { bus } from '../terminal/lib/bus.js';
 import { resolveScheme, xtermTheme, pageAmbiance } from '../terminal/lib/schemes.js';
@@ -51,6 +51,7 @@ class CodeApp {
     this.prefs = { recent: [], showIgnored: false, wrap: false, terminal: false, sideW: 260, panelH: 220, sideHidden: false };
     this.term = null;
     this.termOpen = false;
+    this.closeIcon = () => this.icon('x', { size: 16 }); // the find panel's close button (lib/cm.js dressSearchPanel)
   }
 
   icon(name, opts) {
@@ -116,6 +117,7 @@ class CodeApp {
     this.stBranch = h('button', { class: 'code-st code-st-branch', onclick: () => this.refresh() });
     this.stPos = h('button', { class: 'code-st', onclick: () => this.gotoLine() });
     this.stIndent = h('button', { class: 'code-st', onclick: (e) => this.indentMenu(e) });
+    this.stEnc = h('span', { class: 'code-st' }, 'UTF-8');
     this.stEol = h('span', { class: 'code-st' });
     this.stLang = h('button', { class: 'code-st', onclick: (e) => this.langMenu(e) });
     this.status = h(
@@ -125,7 +127,7 @@ class CodeApp {
       h('span', { class: 'code-grow' }),
       this.stPos,
       this.stIndent,
-      h('span', { class: 'code-st' }, 'UTF-8'),
+      this.stEnc,
       this.stEol,
       this.stLang,
     );
@@ -524,6 +526,7 @@ class CodeApp {
           { key: 'Mod-g', run: () => (this.gotoLine(), true) },
           { key: 'Mod-h', run: (v) => (CM.openSearchPanel(v), setTimeout(() => this.host.querySelector('.cm-search [name=replace]')?.focus(), 0), true) },
         ],
+        closeIcon: this.closeIcon,
         onUpdate: (u) => this.onUpdate(u),
       }),
     });
@@ -585,6 +588,7 @@ class CodeApp {
     this.active = tab;
     if (tab) {
       this.view.setState(tab.state);
+      dressSearchPanel(this.view.dom, this.closeIcon); // setState rebuilds an open find panel
       const top = tab.scroll || 0;
       requestAnimationFrame(() => (this.view.scrollDOM.scrollTop = top));
       this.view.focus();
@@ -796,7 +800,8 @@ class CodeApp {
 
   renderPos() {
     const tab = this.active;
-    this.stPos.hidden = this.stIndent.hidden = this.stEol.hidden = this.stLang.hidden = !tab;
+    // file items (cursor, indentation, encoding, line ending, language) only with a file open
+    this.stPos.hidden = this.stIndent.hidden = this.stEnc.hidden = this.stEol.hidden = this.stLang.hidden = !tab;
     if (!tab) return;
     const s = this.view.state;
     const head = s.selection.main.head;

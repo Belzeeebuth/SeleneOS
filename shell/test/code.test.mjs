@@ -118,8 +118,24 @@ try {
     check('open folder button (FR)', w.open, 'Ouvrir un dossier');
     check('empty explorer text', w.tree, "Aucun dossier n'est ouvert.");
     check('no document → welcome', w.noDoc, true);
+    // the shortcut list: every label on one line, not cut, aligned left (default window size, then maximized)
+    const keys = () =>
+      C(s, () =>
+        [...document.querySelectorAll('.app-code .code-key dt')].map((dt) => {
+          const r = document.createRange();
+          r.selectNodeContents(dt);
+          const lines = new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size;
+          return { text: dt.textContent, lines, cut: dt.scrollWidth > dt.clientWidth + 1, align: getComputedStyle(dt).textAlign };
+        }),
+      );
+    for (const k of await keys()) check(`shortcut label on one line: ${k.text}`, [k.lines, k.cut, k.align], [1, false, 'left']);
+    check('shortcut list has « Sélectionner l\'occurrence suivante »', (await keys()).some((k) => /occurrence suivante/.test(k.text)), true);
+    // no file open: the status bar shows no file items (cursor, indentation, encoding, line ending, language)
+    check('status bar empty without a file', await C(s, (a) => [...a.status.querySelectorAll('.code-st')].filter((e) => !e.hidden && e.offsetParent).map((e) => e.textContent)), []);
     await C(s, (a) => a.win.maximize());
     await sleep(400);
+    for (const k of await keys()) check(`maximized: shortcut label on one line: ${k.text}`, [k.lines, k.cut], [1, false]);
+    await s.shot('code-welcome-fr-dark');
   });
 
   await section('open folder: .gitignore-aware tree, git status, branch', async () => {
@@ -185,6 +201,7 @@ try {
     check('language in status bar', e.lang, 'JavaScript');
     check('position in status bar (FR)', e.pos, 'Ligne 1, col. 1');
     check('line ending', e.eol, 'LF');
+    check('encoding shown with a file open', await C(s, (a) => (a.stEnc.hidden ? null : a.stEnc.textContent)), 'UTF-8');
     check('indentation detected', e.indent, 'Espaces : 2');
     // language detection for other files
     const langs = await s.page.evaluate(async () => {
@@ -351,6 +368,93 @@ try {
     check('Ctrl+` hides the panel', await C(s, (a) => a.termOpen), false);
     await s.page.keyboard.press('Control+`');
     check('Ctrl+` shows it again', await C(s, (a) => a.termOpen), true);
+  });
+
+  await section('find panel: Selene fields, buttons and checkboxes, many tabs, FR dark + light', async () => {
+    const names = ['src/moon.js', 'tools/build.py', 'style.css', 'config.yaml', 'package.json', 'scripts/run.sh', 'native/moon.c', 'native/moon.rs', 'native/moon.go', '.gitignore', 'notes.txt'];
+    await C(s, async (a, list) => {
+      for (const p of list) await a.openFile(p);
+    }, names.map((n) => path.join(project, n)));
+    await until(s, (a) => a.tabs.length >= 13, { label: 'many tabs' });
+    await C(s, (a) => a.toggleTerminal(false));
+    await C(s, (a) => {
+      a.activate(a.tabs.find((x) => x.name === 'main.js'));
+      a.find();
+    });
+    await until(s, () => document.querySelector('.app-code .cm-search.selene'), { label: 'dressed search panel' });
+    await s.page.fill('.app-code .cm-search input[name=search]', 'phase');
+    await s.page.check('.app-code .cm-search input[name=case]');
+    await sleep(400); // the checkbox fades to the accent (--dur-fast)
+    const look = await C(s, () => {
+      const p = document.querySelector('.app-code .cm-search');
+      const probe = document.createElement('span');
+      probe.style.background = 'var(--accent)';
+      p.appendChild(probe);
+      const accent = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      const box = (sel) => getComputedStyle(p.querySelector(sel));
+      return {
+        fields: [...p.querySelectorAll('input:not([type=checkbox])')].map((x) => x.className),
+        buttons: [...p.querySelectorAll('button:not([name=close])')].map((x) => x.className),
+        labels: [...p.querySelectorAll('label')].map((x) => x.className),
+        cmLeft: p.querySelectorAll('.cm-textfield, .cm-button').length,
+        appearance: box('input[name=case]').appearance,
+        size: [box('input[name=case]').width, box('input[name=case]').height],
+        checkedBg: box('input[name=case]').backgroundColor,
+        uncheckedBg: box('input[name=word]').backgroundColor, // (« re » stays checked from the regex section)
+        accent,
+        btnImage: box('button[name=next]').backgroundImage,
+        btnRadius: box('button[name=next]').borderTopLeftRadius,
+        fieldRadius: box('input[name=search]').borderTopLeftRadius,
+        heights: [box('input[name=search]').height, box('button[name=next]').height],
+        close: p.querySelector('button[name=close] .icon')?.dataset.icon,
+        closeTip: p.querySelector('button[name=close]')?.dataset.tip,
+      };
+    });
+    check('fields are Selene inputs', look.fields, (f) => f.length === 2 && f.every((c) => /\binput\b/.test(c)));
+    check('buttons are Selene buttons', look.buttons, (b) => b.length === 5 && b.every((c) => /\bbtn\b/.test(c) && /\bsmall\b/.test(c)));
+    check('options are Selene checkboxes', look.labels, ['checkbox', 'checkbox', 'checkbox']);
+    check('no CodeMirror field / button class left', look.cmLeft, 0);
+    check('checkbox drawn by Selene (no native box)', look.appearance, 'none');
+    check('checkbox 18 px', look.size, ['18px', '18px']);
+    check('checked option filled with the accent', look.checkedBg, look.accent);
+    check('unchecked option not filled', look.uncheckedBg !== look.accent, true);
+    check('buttons: no CodeMirror gradient', look.btnImage, 'none');
+    check('rounded like Selene controls', look.btnRadius !== '1px' && look.btnRadius === look.fieldRadius, true);
+    check('fields and buttons one height', look.heights[0], look.heights[1]);
+    check('close button: Phosphor x with a tip', [look.close, look.closeTip], ['x', 'Fermer']);
+    // EditorView.setState (tab switch) rebuilds the open panel: it is dressed again
+    await C(s, (a) => a.activate(a.tabs.find((x) => x.name === 'README.md')));
+    await C(s, (a) => a.activate(a.tabs.find((x) => x.name === 'main.js')));
+    check('panel dressed again after a tab switch', await C(s, () => {
+      const p = document.querySelector('.app-code .cm-search');
+      return !!p && p.classList.contains('selene') && p.querySelectorAll('.input').length === 2 && !!p.querySelector('[name=close] .icon');
+    }), true);
+    check('find query kept', await C(s, () => document.querySelector('.app-code .cm-search input[name=search]').value), 'phase');
+    check('tab strip overflows (many tabs)', await C(s, () => {
+      const t = document.querySelector('.app-code .code-tabs');
+      return t.scrollWidth > t.clientWidth;
+    }), true);
+    await sleep(300);
+    await s.shot('code-find-fr-dark');
+    await s.aurora(() => window.__aurora.settings.set('theme', 'light'));
+    await sleep(900);
+    const lightLook = await C(s, () => {
+      const p = document.querySelector('.app-code .cm-search');
+      return { field: getComputedStyle(p.querySelector('input[name=search]')).backgroundColor, text: getComputedStyle(p.querySelector('label')).color };
+    });
+    check('light: field background is light', lightLook.field, (c) => c.match(/\d+/g).slice(0, 3).map(Number).reduce((x, y) => x + y, 0) > 600);
+    check('light: option text is dark', lightLook.text, (c) => c.match(/\d+/g).slice(0, 3).map(Number).reduce((x, y) => x + y, 0) < 300);
+    await s.shot('code-find-fr-light');
+    await s.aurora(() => window.__aurora.settings.set('theme', 'dark'));
+    await sleep(600);
+    // back to the state the next sections expect: panel closed, two tabs, terminal open
+    await C(s, (a) => a.view.dom.querySelector('.cm-search [name=close]')?.click());
+    await C(s, async (a, list) => {
+      for (const t of a.tabs.filter((x) => list.includes(x.path))) await a.closeTab(t, true);
+    }, names.map((n) => path.join(project, n)));
+    await C(s, (a) => a.toggleTerminal(true));
+    check('back to two tabs, panel closed', await C(s, (a) => [a.tabs.map((x) => x.name), !!document.querySelector('.app-code .cm-search')]), [['main.js', 'README.md'], false]);
   });
 
   await section('screenshots FR dark + light (1280x720)', async () => {
