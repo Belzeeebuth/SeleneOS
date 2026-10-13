@@ -123,6 +123,10 @@ module.exports = function register(api) {
     if (!f) throw api.error('No such recording', 'ENOENT');
     files.delete(String(id));
     await close(f);
+    if (f.size < 64) {
+      await fsp.rm(f.path, { force: true }).catch(() => {});
+      throw api.error('The recording is empty', 'ENODATA');
+    }
     const out = { path: f.path, size: f.size, format: 'webm', warning: null };
     if (!which('ffmpeg')) {
       if (opts && opts.mp4) out.warning = 'ENOFFMPEG';

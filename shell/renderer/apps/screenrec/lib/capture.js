@@ -131,8 +131,11 @@ export function controlPlace(rect, { width, height }, gap = 12) {
 
 const nextVideoFrame = (video) =>
   new Promise((r) => {
-    if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => r());
-    else setTimeout(r, 40);
+    const t = setTimeout(r, 120);
+    video.requestVideoFrameCallback?.(() => {
+      clearTimeout(t);
+      r();
+    });
   });
 
 function pickMime() {
@@ -257,11 +260,16 @@ export class Recording {
     return this.src;
   }
 
+  // A frame each display refresh, at most ~30 per second (requestVideoFrameCallback is not reliable for a <video> that
+  // is not in the page).
   loop() {
     if (this.state === 'stopped' || !this.video) return;
-    this.draw();
-    if (this.video.requestVideoFrameCallback) this.video.requestVideoFrameCallback(() => this.loop());
-    else setTimeout(() => this.loop(), 33);
+    const now = performance.now();
+    if (!this.lastDraw || now - this.lastDraw >= 30) {
+      this.lastDraw = now;
+      this.draw();
+    }
+    requestAnimationFrame(() => this.loop());
   }
 
   /** The control's screen rectangle (CSS px) -> the part of the canvas painted from the clean picture. */

@@ -409,7 +409,7 @@ class CodeApp {
       if (!name) return this.t('nameEmpty');
       if (name.includes('/') || name === '.' || name === '..' || name.includes('\0')) return this.t('nameInvalid');
       if ((this.entries.get(dir) || []).some((e) => e.name === name)) return this.t('nameExists');
-      return true;
+      return null;
     };
   }
 
@@ -449,7 +449,7 @@ class CodeApp {
       value: entry.name,
       okLabel: this.t('rename'),
       parent: this.win,
-      validate: (v) => (String(v).trim() === entry.name ? true : this.validName(dir)(v)),
+      validate: (v) => (String(v).trim() === entry.name ? null : this.validName(dir)(v)),
     });
     if (!name || name.trim() === entry.name) return;
     let res;
@@ -852,7 +852,7 @@ class CodeApp {
       value: String(cur),
       okLabel: this.t('go'),
       parent: this.win,
-      validate: (x) => (/^\s*\d+\s*(?:[:,]\s*\d+\s*)?$/.test(x || '') ? true : this.t('gotoInvalid')),
+      validate: (x) => (/^\s*\d+\s*(?:[:,]\s*\d+\s*)?$/.test(x || '') ? null : this.t('gotoInvalid')),
     });
     if (!v) return this.view.focus();
     const [l, c] = v.split(/[:,]/).map((x) => parseInt(x, 10));

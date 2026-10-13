@@ -216,6 +216,17 @@ try {
     check('grid / mirror / mode saved', [prefs.grid, prefs.mirror, prefs.mode], [true, true, 'photo']);
   });
 
+  await section('privacy: minimizing releases the webcam, restoring starts it again', async () => {
+    const tracks = await C(s, (c) => { window.__camTracks = c.stream.getTracks(); return window.__camTracks.length; });
+    check('preview has a track', tracks, (n) => n >= 1);
+    await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'camera')?.minimize());
+    await until(s, (c) => !c.stream && window.__camTracks.every((tr) => tr.readyState === 'ended'), { label: 'camera released' });
+    check('minimized: camera tracks ended', true, true);
+    await s.aurora(() => window.__aurora.wm.list().find((w) => w.appId === 'camera')?.restoreFromMinimize());
+    await until(s, (c) => c.status === 'live' && !!c.stream, { label: 'live again after restore' });
+    check('restored: live again', await C(s, (c) => c.status), 'live');
+  });
+
   await section('closing while recording keeps the video', async () => {
     await s.page.click(`${W} .cam-mode [data-mode="video"]`);
     await s.page.click(`${W} .cam-shutter`);

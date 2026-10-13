@@ -554,6 +554,23 @@ export default {
     }
 
     // ---------------------------------------------------------------- lifecycle
+    // privacy: a minimized Camera lets go of the webcam (its light goes off) unless it is recording (the bar's red
+    // dot then shows it); restoring the window starts the preview again
+    let parked = false;
+    win.on?.('minimize', () => {
+      if (rec || closed || !stream) return;
+      cancelCount();
+      startSeq++;
+      stopStream();
+      parked = true;
+      status = 'starting';
+      paint();
+    });
+    win.on?.('restore', () => {
+      if (!parked || closed) return;
+      parked = false;
+      start();
+    });
     win.onBeforeClose(async () => {
       if (rec) await stopRec();
       return true;
@@ -569,11 +586,17 @@ export default {
         // closed without onBeforeClose (forced): keep what was recorded so far
         const r = rec;
         rec = null;
+        const duration = performance.now() - r.start;
+        const done = new Promise((res) => r.recorder.addEventListener('stop', res, { once: true }));
         try {
           r.recorder.stop();
         } catch {}
         r.audio?.getTracks().forEach((tr) => tr.stop());
-        r.q.then(() => api.invoke('camera:finish', r.id, performance.now() - r.start)).catch(() => {});
+        // wait for the last chunk (sent with 'stop') before writing the file
+        Promise.race([done, new Promise((res) => setTimeout(res, 3000))])
+          .then(() => r.q)
+          .then(() => api.invoke('camera:finish', r.id, duration))
+          .catch(() => {});
       }
       md?.removeEventListener?.('devicechange', onDeviceChange);
       ro.disconnect();
