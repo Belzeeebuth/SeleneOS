@@ -231,7 +231,45 @@ for b in gamemoderun gamemoded; do
   else fail "image lacks $b in /usr/games or /usr/bin (GameMode: rebuild with --from packages)"; fi
 done
 compgen -G "$S/usr/lib/*-linux-gnu/libgamemode.so*" >/dev/null && pass "libgamemode is installed (GameMode)" || fail "libgamemode is missing (GameMode)"
+# Printing (iso/packages.d/printing.list): CUPS clients and daemon, driverless (IPP Everywhere) support, discovery,
+# the units enabled at boot (iso/build.sh configure_services) and the aurora-admin printer-* actions.
+for b in /usr/sbin/cupsd /usr/bin/lp /usr/bin/lpstat /usr/sbin/lpadmin /usr/sbin/lpinfo /usr/bin/cancel /usr/sbin/cupsenable \
+         /usr/sbin/cupsdisable /usr/sbin/cupsaccept /usr/bin/ipptool /usr/sbin/ipp-usb /usr/sbin/avahi-daemon /usr/bin/avahi-browse; do
+  [[ -x "$S$b" ]] && pass "image has $b (printing)" || fail "image lacks $b (printing: rebuild with --from packages)"
+done
+[[ -f "$S/usr/share/cups/data/default-testpage.pdf" || -f "$S/usr/share/cups/data/testprint" ]] && pass "CUPS test page (default-testpage.pdf, libcupsfilters2-common)" || fail "no /usr/share/cups/data/default-testpage.pdf (« Imprimer une page de test »)"
+[[ -x "$S/usr/lib/cups/filter/pdftopdf" ]] && pass "cups-filters: pdftopdf filter (driverless printing)" || fail "cups-filters: no pdftopdf filter"
+compgen -G "$S/usr/lib/*-linux-gnu/libnss_mdns4_minimal.so*" >/dev/null && grep -q 'mdns4_minimal' "$S/etc/nsswitch.conf" \
+  && pass "libnss-mdns: *.local names resolve (nsswitch.conf)" || fail "libnss-mdns missing or not in /etc/nsswitch.conf"
+for u in cups.socket cups.path cups.service avahi-daemon.service; do
+  st="$(systemctl --root="$S" is-enabled "$u" 2>/dev/null || true)"
+  [[ "$st" == enabled ]] && pass "systemctl --root: $u is $st (printing)" || fail "systemctl --root: $u is '$st' (printing)"
+done
+grep -q "^printer-add | printer-remove | printer-default | printer-enable | printer-rename | printer-job-cancel)" "$S/usr/lib/aurora/helpers/aurora-admin" \
+  && pass "aurora-admin has the printer-* actions" || fail "aurora-admin lacks the printer-* actions"
 grep -q -- '--gaming' "$S/usr/lib/aurora/helpers/aurora-install" 2>/dev/null && pass "the installer helper records the gaming apps (--gaming)" || fail "aurora-install has no --gaming (installer « Jeux » step)"
+# Print dialog (iso/packages.d/printdialog.list, shell core/print.js + main/ipc/print.js): page ranges of a PDF are cut
+# with qpdf (pdfseparate + pdfunite as a fallback), the pdf.js preview ships with the shell.
+for b in /usr/bin/qpdf /usr/bin/pdfseparate /usr/bin/pdfunite; do
+  [[ -x "$S$b" ]] && pass "image has $b (print dialog)" || fail "image lacks $b (print dialog: rebuild with --from packages)"
+done
+for f in /opt/aurora/shell/main/ipc/print.js /opt/aurora/shell/renderer/core/print.js /opt/aurora/shell/renderer/core/print.css \
+         /opt/aurora/shell/renderer/core/print-ranges.js /opt/aurora/shell/node_modules/pdfjs-dist/build/pdf.mjs; do
+  [[ -f "$S$f" ]] && pass "image has $f (print dialog)" || fail "image lacks $f (print dialog)"
+done
+# Screen reader (iso/packages.d/screen-reader.list): Orca + speech-dispatcher (espeak-ng, French voice) + AT-SPI.
+for b in /usr/bin/orca /usr/bin/spd-say /usr/bin/espeak-ng /usr/libexec/at-spi-bus-launcher /usr/bin/gsettings; do
+  [[ -x "$S$b" ]] && pass "image has $b (screen reader)" || fail "image lacks $b (screen reader: rebuild with --from packages)"
+done
+compgen -G "$S/usr/lib/speech-dispatcher-modules/sd_espeak-ng" >/dev/null || compgen -G "$S/usr/lib/*-linux-gnu/speech-dispatcher-modules/sd_espeak-ng" >/dev/null \
+  && pass "speech-dispatcher has its espeak-ng module" || fail "speech-dispatcher's espeak-ng module is missing (speech-dispatcher-espeak-ng)"
+compgen -G "$S/usr/lib/*-linux-gnu/espeak-ng-data/fr_dict" >/dev/null && compgen -G "$S/usr/lib/*-linux-gnu/espeak-ng-data/lang/roa/fr" >/dev/null \
+  && pass "espeak-ng has the French voice" || fail "espeak-ng's French voice data is missing (espeak-ng-data)"
+[[ -d "$S/usr/lib/python3/dist-packages/speechd" ]] && pass "Orca can reach speech-dispatcher (python3-speechd)" || fail "python3-speechd is missing (Orca would stay silent)"
+[[ -f "$S/usr/share/glib-2.0/schemas/org.gnome.desktop.a11y.applications.gschema.xml" ]] && pass "a11y gsettings schema present (screen-reader-enabled)" || fail "org.gnome.desktop.a11y.applications schema missing"
+[[ -L "$S/etc/systemd/user/sockets.target.wants/speech-dispatcher.socket" ]] && pass "speech-dispatcher user socket enabled" || warn "speech-dispatcher.socket not enabled for users (clients still autospawn it)"
+[[ ! -e "$S/etc/systemd/system/multi-user.target.wants/speech-dispatcherd.service" ]] && pass "no system-wide speech-dispatcherd" || fail "system-wide speech-dispatcherd.service is enabled (it must run per user)"
+grep -qs 'force-renderer-accessibility' "$S/opt/aurora/shell/main/ipc/screenreader.js" && pass "the shell turns Chromium accessibility on for the screen reader" || warn "shell screenreader backend not found in /opt/aurora/shell"
 bad="$(find "$S/usr/bin" "$S/usr/lib/aurora" -maxdepth 1 -name 'aurora-*' -type f ! -perm -0755 ! -name aurora-common | sed "s|^$S||")"
 [[ -z "$bad" ]] && pass "session entry points are executable" || fail "not executable: $bad"
 
@@ -300,6 +338,20 @@ dt="$(readlink "$S/etc/systemd/system/default.target")"
 la="$(LC_ALL=C localedef --list-archive "$S/usr/lib/locale/locale-archive" 2>/dev/null | tr '\n' ' ' || true)"
 [[ "$la" == *en_US.utf8* && "$la" == *fr_FR.utf8* ]] && pass "locales compiled: $la" || fail "locales: '$la'"
 grep -q '^LANG=en_US.UTF-8' "$S/etc/default/locale" && pass "default locale en_US.UTF-8" || fail "default locale: $(cat "$S/etc/default/locale")"
+
+# Bluetooth (iso/packages.d/bluetooth.list): BlueZ + PipeWire plugin + the session helper, bluetoothd at boot,
+# and the D-Bus policy that lets the signed-in user pair without root.
+for p in bluez libspa-0.2-bluetooth python3-dbus python3-gi rfkill; do
+  grep -A1 -x "Package: $p" "$S/var/lib/dpkg/status" | grep -q '^Status: install ok installed' && pass "package $p installed" || fail "package $p missing"
+done
+st="$(systemctl --root="$S" is-enabled bluetooth.service 2>/dev/null || true)"
+[[ "$st" == enabled ]] && pass "systemctl --root: bluetooth.service is $st" || fail "systemctl --root: bluetooth.service is '$st'"
+[[ -x "$S/usr/lib/aurora/helpers/aurora-bluetooth" ]] && pass "aurora-bluetooth helper is executable" || fail "aurora-bluetooth helper missing"
+compgen -G "$S/usr/lib/x86_64-linux-gnu/spa-0.2/bluez5/libspa-bluez5*.so" >/dev/null && pass "PipeWire bluez5 SPA plugin present" || fail "PipeWire bluez5 SPA plugin missing"
+btconf="$(cat "$S/usr/share/dbus-1/system.d/bluetooth.conf" "$S/etc/dbus-1/system.d/bluetooth.conf" 2>/dev/null || true)"
+tr -d '\n' <<<"$btconf" | grep -Eq '<policy context="default">[[:space:]]*<allow send_destination="org.bluez"/>' \
+  && pass "bluez D-Bus policy: any local user may talk to org.bluez" || fail "bluez D-Bus policy does not allow the session user"
+grep -qs 'KERNEL=="rfkill".*uaccess' "$S/usr/lib/udev/rules.d/70-uaccess.rules" && pass "/dev/rfkill is uaccess (session user can unblock Bluetooth)" || warn "/dev/rfkill is not tagged uaccess"
 
 # Build leftovers / host leaks.
 [[ ! -s "$S/etc/machine-id" ]] && pass "/etc/machine-id is empty (generated at boot)" || fail "/etc/machine-id is set"

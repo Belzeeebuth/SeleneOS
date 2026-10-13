@@ -10,7 +10,7 @@
 //   await ui.prompt({ title, label, value, placeholder, okLabel, parent, validate })    -> string | null
 //   await ui.filePicker({ mode: 'open'|'save'|'folder', title, filters: [{ name, ext: ['.png'] }],
 //                         path, name, multiple, parent })                                -> path | [paths] | null
-//   ui.toggle({ checked, label, onchange })  ui.slider({ min, max, value, step, oninput })  ui.select({ options:[{value,label}], value, onchange })
+//   ui.toggle({ checked, label, onchange, ariaLabel })  ui.slider({ min, max, value, step, oninput })  ui.select({ options:[{value,label}], value, onchange })
 //   ui.segmented({ options: [{ value, label, icon }], value, onchange })
 //   ui.fileIcon(entry) -> icon name for a file/folder entry ;  ui.tooltips(rootEl) is installed globally
 // `parent` (a Win from wm.js) scopes a dialog to that window; omit it for a global modal.
@@ -596,8 +596,9 @@ export const ui = {
     return res;
   },
 
-  toggle({ checked = false, label, onchange, disabled } = {}) {
-    const input = h('input', { type: 'checkbox', checked, disabled, onchange: (e) => onchange?.(e.target.checked, e) });
+  toggle({ checked = false, label, onchange, disabled, ariaLabel } = {}) {
+    // ariaLabel: the switch's name for screen readers when its visible label is outside it (a row title)
+    const input = h('input', { type: 'checkbox', checked, disabled, 'aria-label': ariaLabel || null, onchange: (e) => onchange?.(e.target.checked, e) });
     const el = h('label', { class: 'toggle' }, input, label ? h('span', { class: 'toggle-label' }, label) : null);
     el.input = input;
     return el;

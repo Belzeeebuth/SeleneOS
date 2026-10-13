@@ -383,6 +383,7 @@ const EXTRA_ACTIONS = {
   browser: () => launch('browser'),
   notepad: () => launch('notepad'),
   calculator: () => launch('calculator'),
+  screenReader: () => shell.emit('screenreader:toggle', { source: 'hotkey' }), // features/screenreader.js
 };
 for (let n = 1; n <= 9; n++) EXTRA_ACTIONS[`taskbarApp${n}`] = () => activateNth(n);
 const actionOf = (s) => EXTRA_ACTIONS[s.id] || (s.combo ? ACTIONS[normalize(s.combo)] : null);

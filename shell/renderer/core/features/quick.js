@@ -46,6 +46,8 @@ const STRINGS = {
       customAccent: 'Custom',
       contrastNote: 'High contrast uses its own colours.',
       airplane: 'Airplane mode',
+      btNotConnected: 'Not connected',
+      btManage: 'Manage Bluetooth devices',
       nightLight: 'Night light',
       darkMode: 'Dark mode',
       dnd: 'Do not disturb',
@@ -111,6 +113,8 @@ const STRINGS = {
       customAccent: 'Personnalisée',
       contrastNote: 'Le contraste élevé utilise ses propres couleurs.',
       airplane: 'Mode avion',
+      btNotConnected: 'Non connecté',
+      btManage: 'Gérer les appareils Bluetooth',
       nightLight: 'Éclairage nocturne',
       darkMode: 'Mode sombre',
       dnd: 'Ne pas déranger',
@@ -168,6 +172,14 @@ async function load(kind) {
   }
   // Keep the taskbar tray in sync (a backend pushes only changes, and this read can swallow one).
   if (kind !== 'display') ctx.taskbar?.applyStatus?.(kind, state[kind]);
+}
+// Bluetooth state for the tile (bluetooth track); null when there is no adapter / no backend.
+async function loadBluetooth() {
+  try {
+    state.bluetooth = (await ctx.api.invoke('bluetooth:status')) ?? null;
+  } catch {
+    state.bluetooth = null;
+  }
 }
 function throttle(fn, ms) {
   let last = 0;
@@ -244,7 +256,7 @@ function renderMain() {
   const s = settings.all();
   const net = state.net;
   const hasWifi = !!net && (net.devices || []).some((d) => d.type === 'wifi' || d.type === 'wireless');
-  const a11yActive = s.animations === false || s.transparency === false;
+  const a11yActive = s.animations === false || s.transparency === false || s.screenReader?.enabled === true;
   const tiles = h('div', { class: 'qs-tiles' });
   if (hasWifi) {
     const p = net.primary || {};
@@ -270,6 +282,33 @@ function renderMain() {
   if (net) {
     tiles.appendChild(
       tile({ key: 'airplane', label: t('quick.airplane'), sub: onOff(!!net.airplane), iconName: 'airplane', on: !!net.airplane, onToggle: (v) => backend('net:setAirplane', [v], () => (state.net = { ...state.net, airplane: v })) }),
+    );
+  }
+  // Bluetooth tile (bluetooth track, main/ipc/bluetooth.js): toggles the adapter; the arrow opens Paramètres > Bluetooth et appareils.
+  const bt = state.bluetooth;
+  if (bt?.available) {
+    const btDev = bt.powered ? (bt.devices || []).find((d) => d.paired && d.connected) : null;
+    tiles.appendChild(
+      tile({
+        key: 'bluetooth',
+        label: 'Bluetooth',
+        sub: !bt.powered ? t('quick.off') : btDev ? btDev.name : t('quick.btNotConnected'),
+        iconName: bt.powered ? 'bluetooth' : 'bluetooth-slash',
+        on: !!bt.powered,
+        moreLabel: t('quick.btManage'),
+        onToggle: (v) => {
+          state.bluetooth = { ...bt, powered: v };
+          refreshPage();
+          ctx.api
+            .invoke('bluetooth:setPowered', v)
+            .catch(toastError)
+            .finally(() => loadBluetooth().then(() => fly.isOpen && !currentPage && refreshPage()));
+        },
+        onMore: () => {
+          fly.close('launch');
+          shell.launch('settings', { page: 'bluetooth' });
+        },
+      }),
     );
   }
   tiles.append(
@@ -668,7 +707,7 @@ function renderAudio() {
 function renderA11y() {
   const { h, t, ui, settings } = ctx;
   const s = settings.all();
-  const row = (label, checked, onchange) => h('div', { class: 'qs-a11y-row' }, h('span', { class: 'grow' }, label), ui.toggle({ checked, onchange }));
+  const row = (label, checked, onchange) => h('div', { class: 'qs-a11y-row' }, h('span', { class: 'grow' }, label), ui.toggle({ checked, onchange, ariaLabel: label }));
   return h(
     'div',
     { class: 'qs-page qs-sub qs-a11y' },
@@ -678,6 +717,7 @@ function renderA11y() {
       { class: 'qs-a11y-list' },
       row(t('quick.animations'), s.animations !== false, (v) => settings.set('animations', v)),
       row(t('quick.transparency'), s.transparency !== false, (v) => settings.set('transparency', v)),
+      row(t('screenreader.title'), s.screenReader?.enabled === true, (v) => settings.set('screenReader.enabled', v)), // Lecteur d'écran (features/screenreader.js)
     ),
     h('div', { class: 'qs-sub-foot' }, h('button', { class: 'qs-link', onclick: () => (fly.close('launch'), ctx.shell.launch('settings', { page: 'accessibility' })) }, t('quick.moreAccessibility'))),
   );
@@ -791,7 +831,7 @@ function toastError(err) {
 async function onOpen() {
   currentPage = null;
   pagesEl.replaceChildren(renderMain());
-  await Promise.all(['net', 'audio', 'display', 'battery'].map(load));
+  await Promise.all([...['net', 'audio', 'display', 'battery'].map(load), loadBluetooth()]);
   if (fly.isOpen && !currentPage) refreshPage();
 }
 
@@ -830,6 +870,10 @@ export function mount(c) {
     state.audio = st || null;
     // Don't fight the user's slider drag: only refresh when not interacting.
     if (fly.isOpen && (currentPage === 'audio' || (outputsChanged && !currentPage) || (!currentPage && !root.querySelector('.slider:active')))) refreshPage();
+  });
+  ctx.api.on('bluetooth:changed', (st) => {
+    state.bluetooth = st || null;
+    if (fly.isOpen && !currentPage) refreshPage();
   });
   ctx.settings.on('*', () => fly.isOpen && (!currentPage || currentPage === 'a11y') && refreshPage());
   ctx.i18n.on('change', () => {

@@ -1,0 +1,20 @@
+# Screen reader — « Lecteur d'écran » (Paramètres > Accessibilité > Lecteur d'écran, Super+Alt+S; backend
+# shell/main/ipc/screenreader.js, session side shell/renderer/core/features/screenreader.js).
+# Orca runs for the session user and reads the shell, its apps and web pages over AT-SPI (the shell turns Chromium
+# accessibility on while it runs). It speaks through speech-dispatcher with the espeak-ng module, in the UI language:
+# espeak-ng-data carries the French voice (fr, fr-be, fr-ch) and every other language.
+# speech-dispatcher runs per user (its user socket, enabled globally by the package and by build.sh); the system-wide
+# speech-dispatcherd.service stays disabled. at-spi2-core's bus is D-Bus activated in the session.
+# gsettings (libglib2.0-bin + dconf) carries org.gnome.desktop.a11y.applications screen-reader-enabled, which
+# at-spi-bus-launcher mirrors to apps and Orca watches to quit.
+orca
+speech-dispatcher
+speech-dispatcher-espeak-ng
+python3-speechd
+espeak-ng
+espeak-ng-data
+at-spi2-core
+gsettings-desktop-schemas
+libglib2.0-bin
+dconf-gsettings-backend
+dconf-service

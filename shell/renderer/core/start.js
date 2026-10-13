@@ -1105,7 +1105,7 @@ function openFolder(gid, { rename = false, animate = true } = {}) {
     return;
   }
   const cols = Math.max(3, Math.min(4, g.apps.length));
-  const grid = h('div', { class: 'start-grid start-folder-grid', role: 'list', style: { gridTemplateColumns: `repeat(${cols}, 1fr)` } }, g.apps.map((id, i) => folderTile(id, i)));
+  const grid = h('div', { class: 'start-grid start-folder-grid', role: 'list', 'aria-label': g.name || t('start.defaultFolderName'), style: { gridTemplateColumns: `repeat(${cols}, 1fr)` } }, g.apps.map((id, i) => folderTile(id, i)));
   for (const tile of grid.children) {
     const id = tile.dataset.app;
     tile.addEventListener('contextmenu', (e) =>
@@ -1308,7 +1308,7 @@ function renderPinnedGrid(gridWrap, dots, animate) {
   const pages = Math.max(1, Math.ceil(items.length / per));
   page = Math.max(0, Math.min(page, pages - 1));
   clear(gridWrap);
-  const grid = h('div', { class: ['start-grid', animate && 'stagger'], role: 'list', style: { gridTemplateRows: `repeat(${rows()}, 92px)` } });
+  const grid = h('div', { class: ['start-grid', animate && 'stagger'], role: 'list', 'aria-label': t('start.pinned'), style: { gridTemplateRows: `repeat(${rows()}, 92px)` } });
   items.slice(page * per, page * per + per).forEach((x, i) => {
     if (x.group) {
       grid.appendChild(groupTile(x.group, i));
@@ -1602,7 +1602,7 @@ function viewAll() {
 
 // The A–Z list of every app with its letter-jump grid (All apps view, and the "List" layout).
 function allAppsList() {
-  const list = h('div', { class: 'start-all', role: 'list' });
+  const list = h('div', { class: 'start-all', role: 'list', 'aria-label': t('start.allApps') });
   const added = new Set(startCfg().showRecentApps !== false ? recent.addedApps() : []);
   const groups = new Map();
   for (const m of registry.list()) {

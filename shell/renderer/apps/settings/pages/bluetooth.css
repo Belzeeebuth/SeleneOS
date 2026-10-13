@@ -1,0 +1,52 @@
+/* Settings > Bluetooth et appareils (pages/bluetooth.js). Tokens only (docs/design/SYSTEM.md). */
+.app-settings .st-bt-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r);
+  background: var(--subtle-hover);
+  color: var(--text-2);
+}
+.app-settings .st-bt-ico.on {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-settings .st-bt-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.app-settings .st-bt-batt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--text-2);
+  margin-right: var(--sp-2);
+  font-variant-numeric: tabular-nums;
+}
+.app-settings .st-bt-nearby {
+  margin-top: var(--sp-5);
+}
+.app-settings .st-bt-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 32px;
+  margin: 0 0 var(--sp-2) 2px;
+}
+.app-settings .st-bt-head .st-group-title {
+  flex: 1;
+  margin: 0;
+}
+.app-settings .st-bt-searching {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-2);
+}
+.app-settings .st-bt-note {
+  color: var(--text-2);
+  margin: var(--sp-2) var(--sp-1) 0;
+}

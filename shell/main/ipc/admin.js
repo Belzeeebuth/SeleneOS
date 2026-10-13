@@ -71,6 +71,22 @@ ACTIONS['drivers-install'] = { args: [/^nvidia-driver-\d{3}(-open|-server|-serve
 ACTIONS['drivers-remove'] = { args: [], timeout: 0, stream: true };
 // ---- END drivers ----
 
+// ---- BEGIN printers (Settings > Printers & scanners: renderer/apps/settings/pages/printers.js, main/ipc/printers.js) ----
+// printer-add <queue> <ipp|ipps|dnssd URI> <label>: driverless IPP Everywhere queue (lpadmin -m everywhere); printer-remove,
+// printer-default, printer-enable <queue> <0|1> (resume / pause), printer-rename <queue> <label> (the name people see),
+// printer-job-cancel <queue-N> (another user's job). The helper validates again. Dev: simulated in printers.js (devRun).
+{
+  const queue = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$/;
+  const label = /^[^\x00-\x1f\x7f"\\\s](?:[^\x00-\x1f\x7f"\\]{0,125}[^\x00-\x1f\x7f"\\\s])?$/;
+  ACTIONS['printer-add'] = { args: [queue, /^(ipp|ipps|dnssd):\/\/[A-Za-z0-9._~%:/?=&+@[\]-]{1,480}$/, label], timeout: 90000 };
+  ACTIONS['printer-remove'] = { args: [queue] };
+  ACTIONS['printer-default'] = { args: [queue] };
+  ACTIONS['printer-enable'] = { args: [queue, RE.bool] };
+  ACTIONS['printer-rename'] = { args: [queue, label] };
+  ACTIONS['printer-job-cancel'] = { args: [/^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}-[1-9][0-9]{0,9}$/] };
+}
+// ---- END printers ----
+
 function err(message, code) {
   const e = new Error(message);
   e.code = code;
@@ -245,6 +261,7 @@ async function devRun(action, args, secret, onLine) {
   if (action.startsWith('store-')) return devStoreRun(action, args, onLine); // store actions (Store app)
   if (action === 'format-removable') return require('./disks').devFormat(args); // disks (Disks app): simulated in disks.js
   if (action.startsWith('drivers-')) return require('./drivers').devRun(action, args, onLine); // graphics drivers: simulated in drivers.js
+  if (action.startsWith('printer-')) return require('./printers').devRun(action, args); // printers: simulated CUPS in printers.js
   const users = dev.users || [];
   const find = (n) => users.find((u) => u.name === n);
   const need = (n) => {

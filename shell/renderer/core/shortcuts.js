@@ -33,6 +33,7 @@ const LIST = [
   ['clipboard', 'shell', 'Super+V', 'Clipboard history', 'Historique du Presse-papiers'],
   ['focusMode', 'shell', 'Super+Shift+F', 'Turn Focus on or off', 'Activer ou désactiver Concentration'],
   ['screenshot', 'shell', 'Super+Shift+S', 'Screenshot', 'Capture d’écran'],
+  ['screenReader', 'shell', 'Super+Alt+S', 'Turn the screen reader on or off', 'Activer ou désactiver le lecteur d’écran'],
   ['taskView', 'windows', 'Super+Tab', 'Overview', 'Vue d’ensemble'],
   ['snapLayouts', 'windows', 'Super+Z', 'Layouts', 'Dispositions'],
   ['snapLeft', 'windows', 'Super+ArrowLeft', 'Place on the left', 'Placer à gauche'],

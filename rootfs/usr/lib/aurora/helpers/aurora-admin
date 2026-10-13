@@ -30,6 +30,8 @@
 #                                                ("dlstatus:…" / "pmstatus:pkg:percent:message"), apt's own output on stderr
 #   drivers-install <nvidia-driver-NNN[-open|-server|-server-open]>    NVIDIA driver offered by ubuntu-drivers (see below)
 #   drivers-remove                               purge the NVIDIA driver, back to nouveau
+#   printer-add <queue> <uri> <label>  printer-remove <queue>  printer-default <queue>  printer-enable <queue> <0|1>
+#   printer-rename <queue> <label>  printer-job-cancel <queue-N>      CUPS printers (driverless IPP Everywhere, see below)
 #
 # Secrets: passwords never appear on a command line. The caller passes a random nonce (32 hex
 # digits) as the last argument and writes "<nonce>:<base64 of the password>" on stdin, after the
@@ -654,6 +656,102 @@ drivers-install | drivers-remove)
   echo "done"
   ;;
 # ------------------------------------------------------------------ END drivers
+
+# ------------------------------------------------------------------ BEGIN printers (Paramètres > Imprimantes et scanners)
+#   printer-add <queue> <ipp|ipps|dnssd URI> <label>
+#       driverless IPP Everywhere queue: lpadmin -p QUEUE -E -v URI -m everywhere -D LABEL (CUPS asks the printer for
+#       its capabilities; no PPD or vendor driver). Jobs are retried when the printer is off (error policy retry-job),
+#       and the first printer becomes the default one.
+#   printer-remove <queue>                       lpadmin -x
+#   printer-default <queue>                      lpadmin -d (system default)
+#   printer-enable <queue> <0|1>                 0: cupsdisable (pause: jobs wait), 1: cupsenable + cupsaccept (resume)
+#   printer-rename <queue> <label>               lpadmin -D: the name people see (CUPS has no queue rename)
+#   printer-job-cancel <queue-N>                 cancel another user's job (people cancel their own without this)
+# Queue names: letters, digits, _ . - (63 max). Labels: 1–127 characters, no control characters, " or \.
+printer-add | printer-remove | printer-default | printer-enable | printer-rename | printer-job-cancel)
+  RE_PRINTER_QUEUE='^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$'
+  RE_PRINTER_URI='^(ipp|ipps|dnssd)://[]A-Za-z0-9._~%:/?=&+@[-]{1,480}$'
+  RE_PRINTER_JOB='^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}-[1-9][0-9]{0,9}$'
+  # printer_valid_label <label>: 1–127 characters, no control characters, no " or \, no space at either end.
+  printer_valid_label() {
+    local v=$1
+    { [ -n "$v" ] && [ ${#v} -le 127 ]; } || die 2 "invalid printer label"
+    [[ $v =~ [[:cntrl:]] ]] && die 2 "invalid printer label"
+    case $v in *'"'* | *\\* | [[:space:]]* | *[[:space:]]) die 2 "invalid printer label" ;; esac
+    return 0
+  }
+  printer_queue_arg() { [[ $1 =~ $RE_PRINTER_QUEUE ]] || die 2 "invalid printer name"; }
+  printer_exists() { lpstat -p "$1" >/dev/null 2>&1; }
+  printer_need_cups() { command -v lpadmin >/dev/null 2>&1 || die 3 "CUPS is not installed (package cups)"; }
+  case $ACTION in
+  printer-add)
+    need_args $# 3
+    printer_queue_arg "$1"
+    [[ $2 =~ $RE_PRINTER_URI ]] || die 2 "invalid printer address (ipp://, ipps:// or dnssd:// only)"
+    printer_valid_label "$3"
+    printer_need_cups
+    printer_exists "$1" && die 4 "a printer named $1 already exists"
+    run_or_die "could not add $1: the printer did not answer (IPP Everywhere)" timeout 80 lpadmin -p "$1" -E -v "$2" -m everywhere -D "$3" -o printer-error-policy=retry-job
+    if ! lpstat -d 2>/dev/null | grep -q '^system default destination:'; then
+      lpadmin -d "$1" || true
+    fi
+    log "user=$CALLER added printer $1 ($2)"
+    echo "ok $1"
+    ;;
+  printer-remove)
+    need_args $# 1
+    printer_queue_arg "$1"
+    printer_need_cups
+    printer_exists "$1" || die 3 "no such printer: $1"
+    run_or_die "could not remove $1" lpadmin -x "$1"
+    log "user=$CALLER removed printer $1"
+    echo "ok"
+    ;;
+  printer-default)
+    need_args $# 1
+    printer_queue_arg "$1"
+    printer_need_cups
+    printer_exists "$1" || die 3 "no such printer: $1"
+    run_or_die "could not make $1 the default printer" lpadmin -d "$1"
+    log "user=$CALLER default printer $1"
+    echo "ok"
+    ;;
+  printer-enable)
+    need_args $# 2
+    printer_queue_arg "$1"
+    valid_bool "$2"
+    printer_need_cups
+    printer_exists "$1" || die 3 "no such printer: $1"
+    if [ "$2" = 1 ]; then
+      run_or_die "could not resume $1" cupsenable "$1"
+      run_or_die "could not resume $1" cupsaccept "$1"
+    else
+      run_or_die "could not pause $1" cupsdisable "$1"
+    fi
+    log "user=$CALLER printer $1 enabled=$2"
+    echo "ok"
+    ;;
+  printer-rename)
+    need_args $# 2
+    printer_queue_arg "$1"
+    printer_valid_label "$2"
+    printer_need_cups
+    printer_exists "$1" || die 3 "no such printer: $1"
+    run_or_die "could not rename $1" lpadmin -p "$1" -D "$2"
+    log "user=$CALLER renamed printer $1"
+    echo "ok"
+    ;;
+  printer-job-cancel)
+    need_args $# 1
+    [[ $1 =~ $RE_PRINTER_JOB ]] || die 2 "invalid print job"
+    printer_need_cups
+    run_or_die "could not cancel $1" cancel "$1"
+    log "user=$CALLER cancelled print job $1"
+    echo "ok"
+    ;;
+  esac
+  ;;
+# ------------------------------------------------------------------ END printers
 
 *)
   die 2 "unknown action: $ACTION"

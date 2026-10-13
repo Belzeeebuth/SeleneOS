@@ -25,6 +25,7 @@ const MODULES = {
   privacy: () => import('./pages/privacy.js'),
   update: () => import('./pages/update.js'),
   drivers: () => import('./pages/drivers.js'), // Pilotes graphiques (gpuDrivers)
+  printers: () => import('./pages/printers.js'), // Imprimantes et scanners (printers)
 };
 
 const NAV_ICONS = {

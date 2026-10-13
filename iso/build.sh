@@ -873,6 +873,24 @@ configure_services() {
     in_chroot "$ROOT" systemctl disable "$u" >/dev/null 2>&1 || true
   done
   in_chroot "$ROOT" systemctl mask systemd-networkd-wait-online.service >/dev/null
+  # Bluetooth (iso/packages.d/bluetooth.list): bluetoothd at boot; the session talks to it without root.
+  if [[ -f "$ROOT/usr/lib/systemd/system/bluetooth.service" || -f "$ROOT/lib/systemd/system/bluetooth.service" ]]; then
+    in_chroot "$ROOT" systemctl enable bluetooth.service >/dev/null 2>&1 || die "cannot enable bluetooth.service"
+  fi
+  # Printing (iso/packages.d/printing.list): CUPS (socket- and path-activated, and started at boot so that queued jobs
+  # resume) and Avahi (DNS-SD: network printers, IPP-over-USB printers announced by ipp-usb, *.local names).
+  # ipp-usb itself is started by udev when an IPP-over-USB printer is plugged in.
+  if [[ -f "$ROOT/usr/lib/systemd/system/cups.service" ]]; then
+    for u in cups.socket cups.path cups.service avahi-daemon.socket avahi-daemon.service; do
+      in_chroot "$ROOT" systemctl enable "$u" >/dev/null 2>&1 || die "cannot enable $u"
+    done
+  fi
+  # Screen reader (iso/packages.d/screen-reader.list): speech-dispatcher runs per user through its user socket (Orca
+  # and spd-say connect to it); the system-wide speech-dispatcherd.service stays off.
+  if [[ -f "$ROOT/usr/lib/systemd/user/speech-dispatcher.socket" ]]; then
+    in_chroot "$ROOT" systemctl --global enable speech-dispatcher.socket >/dev/null 2>&1 || die "cannot enable speech-dispatcher.socket (user)"
+    in_chroot "$ROOT" systemctl disable speech-dispatcherd.service >/dev/null 2>&1 || true
+  fi
   # Text console on tty1 stays available (Ctrl+Alt+F1); greetd owns tty7. Plymouth must quit normally
   # (no --retain-splash): a console left in graphics mode makes the kernel ignore greetd's switch to tty7.
   # Other aurora-* units shipped in rootfs/ are enabled when they have an [Install] section.

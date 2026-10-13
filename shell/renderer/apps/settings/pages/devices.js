@@ -1,29 +1,12 @@
 // Settings > Bluetooth & devices: Bluetooth status, Mouse, Typing, Printers & scanners.
 import { PAGES } from '../lib/index.js';
+import { bluetoothPage } from './bluetooth.js';
 
-async function bluetoothAdapters(pc) {
-  const ents = await pc.api.invoke('fs:list', '/sys/class/bluetooth', { hidden: true }).catch(() => []);
-  return (ents || []).map((e) => e.name).filter((n) => /^hci\d+$/.test(n));
-}
-
+// Bluetooth part: pages/bluetooth.js (adapter, Mes appareils, Appareils à proximité); the other device pages below it.
 async function bluetooth(pc) {
-  const { h, t, kit, L } = pc;
-  const adapters = await bluetoothAdapters(pc);
+  const { kit, L } = pc;
   const sub = (id) => kit.row({ icon: PAGES[id].icon, title: L(PAGES[id].title), desc: L(PAGES[id].desc), onClick: () => pc.go(id) });
-  return h(
-    'div',
-    null,
-    kit.group(
-      null,
-      kit.row({
-        icon: adapters.length ? 'bluetooth' : 'bluetooth_disabled',
-        title: t('dev.bluetooth'),
-        desc: adapters.length ? t('dev.btAdapterNoSupport', { name: adapters[0] }) : t('dev.btNone'),
-        control: h('span', { class: 'st-pill' }, adapters.length ? t('dev.btUnsupported') : t('dev.btUnavailable')),
-      }),
-    ),
-    kit.group(t('dev.devices'), sub('mouse'), sub('typing'), sub('printers')),
-  );
+  return bluetoothPage(pc, [sub('mouse'), sub('typing'), sub('printers')]);
 }
 
 async function mouse(pc) {
@@ -94,9 +77,6 @@ async function typing(pc) {
   );
 }
 
-async function printers(pc) {
-  const { h, t, icon } = pc;
-  return h('div', { class: 'st-empty' }, icon('print', { size: 40 }), h('div', { class: 'body-large' }, t('dev.noPrinters')), h('div', null, t('dev.noPrintersDesc')));
-}
+// Printers & scanners: pages/printers.js (module 'printers').
 
-export default { bluetooth, mouse, typing, printers };
+export default { bluetooth, mouse, typing };

@@ -42,6 +42,13 @@ app.setName('Selene Shell');
 
 registerSchemes(protocol);
 
+// Screen reader on at sign-in (Accessibilité > Lecteur d'écran): Chromium accessibility from the first frame (main/ipc/screenreader.js).
+try {
+  require('./ipc/screenreader.js').early(app, MODE);
+} catch (err) {
+  console.warn('[screenreader] early setup failed:', err.message);
+}
+
 function detectLang() {
   if (FORCE_LANG) return String(FORCE_LANG).slice(0, 2);
   const env = process.env.LANGUAGE || process.env.LC_ALL || process.env.LC_MESSAGES || process.env.LANG || 'en';

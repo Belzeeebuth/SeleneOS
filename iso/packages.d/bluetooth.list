@@ -1,0 +1,9 @@
+# Bluetooth (track "bluetooth"): BlueZ (bluetoothd, bluetooth.service enabled by iso/build.sh) and the
+# PipeWire Bluetooth audio plugin (A2DP / HFP headsets and speakers appear as normal sound devices).
+# The session helper /usr/lib/aurora/helpers/aurora-bluetooth (pairing agent, discovery) needs python3-dbus + python3-gi.
+# No root needed: bluez's D-Bus policy allows any local user; /dev/rfkill is tagged uaccess (70-uaccess.rules).
+bluez
+libspa-0.2-bluetooth
+python3-dbus
+python3-gi
+rfkill
