@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-12 21:15 Paris — NVIDIA drivers in the installer (downloaded, Canonical-signed modules) + Paramètres > Pilotes graphiques; Fichiers double-click fix; ISO rebuilt from packages: verify-iso 0 failures, smoke-image passes. NVIDIA paths tested with fixtures only (no NVIDIA GPU here)._
+_Last updated: 2026-10-13 10:20 Paris — installer « Jeux » step (Flathub gaming apps at first sign-in, GameMode in the image) on top of the NVIDIA drivers option; ISO rebuilt from packages: verify-iso 0 failures, smoke-image passes._
 
 ## What this is
 
@@ -43,6 +43,7 @@ A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a W
 | Visual redesign (user request, 2026-10-11) | **done** (2026-10-12) — brief in docs/design/BRIEF.md (all user answers), system in docs/design/SYSTEM.md; styles Nocturne (default) / Éclipse / Clair de lune / Contraste élevé × ambiances × accents; Phosphor icons, Manrope + Inter, new app icons, wallpapers, logo, GRUB/Plymouth; Windows names replaced (Lanceur, Fichiers, Moniteur système…); bar icons centred in every style |
 | Themes Halo / Prisme / Sobre (user request, 2026-10-12) | **done** — mockups in docs/design/mockups-mix/{halo,prisme}; setting `finish` (core/finishes.js), wallpaper-tinted Mica-like glass (pre-blurred wallpaper behind windows, live blur only on bar / Lanceur / panels), icon packs halo / prisme (+ 'auto' follows the theme), wallpapers halo-* / prisme-* (light + dark); Sobre = the previous Selene look |
 | NVIDIA drivers (user request, 2026-10-12) | **done (untested on real hardware)** — iso/packages.d/drivers.list (ubuntu-drivers-common, mokutil, pciutils), shell/main/lib/gpu-drivers.js, installer « Pilote graphique » step + aurora-install --nvidia-driver (apt in the target, ubuntu-drivers install, never fails the install), session uses nvidia when loaded (aurora_gpu_mode / aurora-xstart), Paramètres > Pilotes graphiques (main/ipc/drivers.js, aurora-admin drivers-install / drivers-remove) |
+| Gaming apps option (user request, 2026-10-13) | **done** — installer « Jeux » step (Steam, Heroic, Lutris, ProtonUp-Qt checked; Bottles, Discord optional), aurora-install --gaming (allow-list) writes ~/.config/aurora/first-login/gaming.json, shell/main/ipc/firstlogin.js + core/features/gaming-setup.js install them per user from Flathub at the first sign-in (progress notification, offline retry, once only); gamemode in iso/packages.d/gaming.list |
 | App phase 2 | not started — wait for the user's go; run it like phases 3–4 (one workflow per app, all in parallel) |
 
 ### App / area status (every area has its own test suite in shell/test/)
