@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-13 10:20 Paris — installer « Jeux » step (Flathub gaming apps at first sign-in, GameMode in the image) on top of the NVIDIA drivers option; ISO rebuilt from packages: verify-iso 0 failures, smoke-image passes._
+_Last updated: 2026-10-13 11:45 Paris — system features (Bluetooth, printers + print dialog, Logithèque updates + install cancel, fwupd firmware, Orca screen reader); ISO rebuilt from packages (873 MB): verify-iso 198 checks, 0 failures; smoke-image passes._
 
 ## What this is
 
