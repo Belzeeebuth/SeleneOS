@@ -187,7 +187,9 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
   « Ajouter au dictionnaire » is saved at once, but webFrame.isWordMisspelled keeps its cache until the text is re-checked.
 
 - Real-PC image (track "image", 2026-10-13): Secure Boot checked only in QEMU (OVMF_CODE_4M.secboot.fd +
-  OVMF_VARS_4M.ms.fd, TCG): shim → signed GRUB menu (text, no theme) → kernel « EFI stub: UEFI Secure Boot is enabled ».
+  OVMF_VARS_4M.ms.fd, TCG): shim → signed GRUB menu (text, no theme) → HWE 7.0 kernel (« secureboot: Secure boot
+  enabled », lockdown) → casper mounts the squashfs (casper-bottom); without Secure Boot the themed menu is unchanged.
+  ISO with firmware + HWE: 1.6 GB (was 873 MB).
   To check on real PCs: Secure Boot on a real firmware (and with the 2023 Microsoft UEFI CA only), USB boot of the
   hybrid image, Wi-Fi / GPU / Bluetooth firmware actually loading (iwlwifi, amdgpu, i915 GuC/DMC, rtw88/89, brcm), the
   HWE 7.0 kernel on real laptops, the NVIDIA path (aurora-install --nvidia-driver + MOK) with the HWE kernel, a real
