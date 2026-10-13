@@ -11,7 +11,14 @@
 //            notify:desktopAction (id, key)                             -> ActionInvoked
 //            tray:list -> items        tray:activate|secondary (key, x, y)    tray:scroll (key, delta, orientation)
 //            tray:menu (key) -> [menu entries]              tray:menuEvent (key, menuId)
-//            sessionbus:status -> { running, notifications, tray }
+//            sessionbus:status -> { running, notifications, tray, screensaver, power }
+// Idle inhibitors (org.freedesktop.ScreenSaver + org.freedesktop.PowerManagement.Inhibit, owned by the helper):
+//   event    power:inhibitors ({ count, apps: [names], list: [{ cookie, app, reason, kind: 'screen'|'power' }] })
+//            power:userActivity ()                          SimulateUserActivity: the idle timers start again
+//   handler  power:inhibitors -> the same object
+//   core/features/power.js and lock.js treat count > 0 as activity (no screen off, lock or idle sleep). Chromium's own
+//   wake locks (videos in the shell's webviews, the Navigateur) go through the bus to the helper like any other app's;
+//   nothing in the shell calls Electron's powerSaveBlocker (it would reach the helper the same way).
 // Icons: names resolved in the icon theme (the item's IconThemePath first) -> media:// URLs; pixmaps -> PNG data URLs.
 // Dev mode: the helper is not started (no fixture items in the bar) unless AURORA_SESSIONBUS=1 (tests run it on a
 // private dbus-daemon: DBUS_SESSION_BUS_ADDRESS).
@@ -157,7 +164,17 @@ function register(api) {
   let seq = 0;
   const pending = new Map();
   let items = [];
-  let ready = { notifications: false, tray: false };
+  const NONE = { notifications: false, tray: false, screensaver: false, power: false };
+  let ready = { ...NONE };
+  const NO_INHIBITORS = { count: 0, apps: [], list: [] };
+  let inhibitors = NO_INHIBITORS;
+  const setInhibitors = (m) => {
+    const list = Array.isArray(m?.list) ? m.list.slice(0, 256).map((i) => ({ cookie: Number(i.cookie) || 0, app: String(i.app || ''), reason: String(i.reason || ''), kind: i.kind === 'power' ? 'power' : 'screen' })) : [];
+    const next = { count: Math.max(0, Number(m?.count) || 0), apps: Array.isArray(m?.apps) ? m.apps.map(String).slice(0, 50) : [], list };
+    if (JSON.stringify(next) === JSON.stringify(inhibitors)) return;
+    inhibitors = next;
+    api.broadcast('power:inhibitors', inhibitors);
+  };
   let restarts = 0;
   let stopping = false;
 
@@ -189,7 +206,8 @@ function register(api) {
         items = [];
         api.broadcast('tray:items', []);
       }
-      ready = { notifications: false, tray: false };
+      ready = { ...NONE };
+      setInhibitors(NO_INHIBITORS); // the helper's cookies went with it
       if (restarts++ < 5 && !stopping) setTimeout(start, 2000);
     });
     return child;
@@ -204,9 +222,15 @@ function register(api) {
       return;
     }
     if (m.event === 'ready') {
-      ready = { notifications: !!m.notifications, tray: !!m.tray };
+      ready = { notifications: !!m.notifications, tray: !!m.tray, screensaver: !!m.screensaver, power: !!m.power };
       if (!m.notifications) console.warn('[sessionbus] org.freedesktop.Notifications is owned by another program');
       if (!m.tray) console.warn('[sessionbus] org.kde.StatusNotifierWatcher is owned by another program');
+      if (!m.screensaver) console.warn('[sessionbus] org.freedesktop.ScreenSaver is owned by another program: its inhibitors are not seen');
+      if (!m.power) console.warn('[sessionbus] org.freedesktop.PowerManagement is owned by another program: its inhibitors are not seen');
+    } else if (m.event === 'inhibitors') {
+      setInhibitors(m);
+    } else if (m.event === 'activity') {
+      api.broadcast('power:userActivity', {});
     } else if (m.event === 'notify' && m.n) {
       api.broadcast('notify:desktop', toNotification(m.n, { iconUrl, entry }));
     } else if (m.event === 'notify-close') {
@@ -240,6 +264,7 @@ function register(api) {
   api.handle('notify:desktopClosed', (id, reason) => (child ? call('closed', { nid: int(id, 2 ** 31), reason: reason === 1 ? 1 : 2 }) : false));
   api.handle('notify:desktopAction', (id, k) => call('action', { nid: int(id, 2 ** 31), key: String(k ?? '').slice(0, 200) }));
   api.handle('tray:list', () => items);
+  api.handle('power:inhibitors', () => inhibitors);
   api.handle('tray:activate', (k, x, y) => call('activate', { item: key(k), x: int(x), y: int(y) }));
   api.handle('tray:secondary', (k, x, y) => call('secondary', { item: key(k), x: int(x), y: int(y) }));
   api.handle('tray:context', (k, x, y) => call('context', { item: key(k), x: int(x), y: int(y) }));

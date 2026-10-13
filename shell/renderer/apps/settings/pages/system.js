@@ -677,7 +677,8 @@ async function energyGroups(pc, bat) {
     );
   }
   if (bat) more.push(kit.row({ icon: 'battery-low', title: t('energy.lowBattery'), desc: t('energy.lowBatteryDesc'), section: 'lowBattery' }));
-  if (more.length) groups.push(kit.group(null, ...more));
+  // Laptop: power mode, lid, low battery; desktop: the power mode alone.
+  if (more.length) groups.push(kit.group(t(bat ? 'energy.batteryLid' : 'energy.powerUse'), ...more));
   return groups;
 }
 

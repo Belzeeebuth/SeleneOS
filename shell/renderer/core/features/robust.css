@@ -1,4 +1,4 @@
-/* Safe mode banner (features/robust.js): a calm glass card at the top centre, above the windows, hidden by the lock
+/* Safe mode banner (features/robust.js): a calm glass card at the bottom centre above the bar, hidden by the lock
    screen. Tokens only. */
 .safe-banner {
   /* bottom centre, above the bar: notifications use the top-right corner */
@@ -6,7 +6,7 @@
   bottom: calc(var(--taskbar-h, 48px) + 28px);
   left: 50%;
   transform: translateX(-50%);
-  width: min(760px, calc(100vw - 32px));
+  width: min(900px, calc(100vw - 32px)); /* wide enough for the FR title on one line */
   display: flex;
   align-items: center;
   gap: 14px;
@@ -48,6 +48,25 @@
   flex: none;
   display: flex;
   gap: 8px;
+}
+/* stepped aside: a small pill with the title only; a click opens the card again */
+.safe-banner.compact {
+  width: auto;
+  max-width: calc(100vw - 32px);
+  padding: 6px 14px 6px 8px;
+  gap: 8px;
+  cursor: pointer;
+}
+.safe-banner.compact .safe-banner-body,
+.safe-banner.compact .safe-banner-actions > :not(.safe-banner-hide) {
+  display: none;
+}
+.safe-banner.compact .safe-banner-icon {
+  width: 26px;
+  height: 26px;
+}
+.safe-banner.compact .safe-banner-title {
+  font-size: var(--fs-caption);
 }
 body.aurora-locked .safe-banner {
   display: none;

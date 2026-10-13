@@ -425,6 +425,9 @@ nlists="$(find "$S/var/lib/apt/lists" -type f ! -name lock 2>/dev/null | wc -l)"
 
 # ---- BEGIN Selene packages (self-updates, docs/UPDATES.md) -----------------------------------
 # Selene's files come from its own packages (tools/build-debs.sh), so installed systems can update them.
+if ! grep -qx 'Package: aurora-shell' "$S/var/lib/dpkg/status"; then
+  fail "no Selene packages in the image: it was built by an iso/build.sh older than the Selene packaging (copied files); rebuild from the system stage (docs/UPDATES.md)"
+else
 for p in aurora-electron aurora-shell aurora-base; do
   grep -A1 -x "Package: $p" "$S/var/lib/dpkg/status" | grep -q '^Status: install ok installed' && pass "package $p installed (Selene)" || fail "package $p missing (Selene)"
 done
@@ -451,6 +454,7 @@ if command -v gpg >/dev/null 2>&1 && [[ -s "$S/usr/share/keyrings/selene-archive
     && pass "Selene archive keyring holds a public key" || fail "Selene archive keyring is not a valid keyring"
 fi
 [[ -s "$S/opt/aurora/shell/selene-version" ]] && pass "shell package version $(cat "$S/opt/aurora/shell/selene-version")" || fail "/opt/aurora/shell/selene-version missing"
+fi
 # ---- END Selene packages ---------------------------------------------------------------------
 
 # ---- robust (track "robust"): low memory killer, bug report URLs -------------------------------

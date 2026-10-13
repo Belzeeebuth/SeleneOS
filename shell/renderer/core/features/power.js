@@ -5,9 +5,14 @@
 //   * Sleep after inactivity (sleepBattery / sleepAc, 0 = never; never on mains by default so VMs stay awake).
 //   * Battery: a notification at 10 % and 5 %; at 3 % while discharging, a 60 s countdown notification, then sleep
 //     (plugging in cancels it).
-// Playing audio / video counts as activity (like features/lock.js). settings.power is not in the shell defaults: in dev
-// mode (tests) nothing happens unless a test sets it, so long test runs never blank or sleep.
-//   ctx.power = { config(), state, countdownSec, tick() }   (tests)
+// Playing audio / video counts as activity (like features/lock.js): <video>/<audio> in the shell page, and any idle
+// inhibitor held on the session bus (org.freedesktop.ScreenSaver / PowerManagement.Inhibit, owned by
+// main/ipc/sessionbus.js's helper: Firefox, VLC, Flatpak apps, Chromium wake locks of the webviews and the Navigateur).
+// While one is held: no screen off, no lock at screen off, no idle sleep. SimulateUserActivity restarts the delays.
+// The 3 % battery countdown is NOT held back by inhibitors (battery safety first).
+// settings.power is not in the shell defaults: in dev mode (tests) nothing happens unless a test sets it, so long test
+// runs never blank or sleep.
+//   ctx.power = { config(), state, countdownSec, tick(), inhibitors, lastActivity }   (tests)
 export const POWER_DEFAULTS = { screenOffBattery: 5, screenOffAc: 10, sleepBattery: 15, sleepAc: 0, lockOnScreenOff: true };
 
 const STRINGS = {
@@ -68,7 +73,18 @@ export function mount(ctx) {
   };
   for (const ev of ACTIVITY_EVENTS) window.addEventListener(ev, bump, { capture: true, passive: true });
   api.on('shell:hotkey', bump);
-  const mediaPlaying = () => [...document.querySelectorAll('video, audio')].some((m) => !m.paused && !m.ended && !m.muted);
+  api.on('power:userActivity', bump);
+  let inhibitors = { count: 0, apps: [] };
+  const setInhibitors = (st) => {
+    inhibitors = st && typeof st === 'object' ? st : { count: 0, apps: [] };
+    if (inhibitors.count > 0) bump();
+  };
+  api.on('power:inhibitors', setInhibitors);
+  api
+    .invoke('power:inhibitors')
+    .then(setInhibitors)
+    .catch(() => {});
+  const mediaPlaying = () => inhibitors.count > 0 || [...document.querySelectorAll('video, audio')].some((m) => !m.paused && !m.ended && !m.muted);
   let lastTick = Date.now();
   async function tick() {
     const cfg = config();
@@ -182,6 +198,12 @@ export function mount(ctx) {
     countdownSec: 60,
     tick,
     defaults: POWER_DEFAULTS,
+    get inhibitors() {
+      return inhibitors;
+    },
+    get lastActivity() {
+      return lastActivity;
+    },
   };
   ctx.power = ctxPower;
 }

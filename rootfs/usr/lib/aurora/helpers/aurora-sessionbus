@@ -9,7 +9,13 @@
 #    their owner leaves the bus. Right click: the item's com.canonical.dbusmenu layout, Event "clicked" back.
 #    Legacy XEmbed tray icons are not bridged (no cheap bridge in noble: snixembed is not packaged,
 #    xembedsniproxy comes only with plasma-workspace).
-# Either name already owned by someone else: that part is off ("ready" says which), the other keeps working.
+# 3. Idle inhibitors: owns org.freedesktop.ScreenSaver (/org/freedesktop/ScreenSaver and /ScreenSaver) and
+#    org.freedesktop.PowerManagement (/org/freedesktop/PowerManagement/Inhibit). Video players and browsers call
+#    Inhibit while they play (Firefox, VLC, Chromium / Electron wake locks — the shell's own webviews and the
+#    Navigateur included —, Flatpak apps through xdg-desktop-portal-gtk); the shell treats a held inhibitor as
+#    activity (no screen off, no lock, no idle sleep). Cookies belong to the D-Bus connection that took them and are
+#    dropped when it leaves the bus (an app that crashes mid-film does not keep the screen on forever).
+# Any name already owned by someone else: that part is off ("ready" says which, stderr logs it), the rest keeps working.
 #
 # Protocol: JSON lines.
 #   stdin   {"id": 1, "cmd": "state"}                                  -> {"id": 1, "ok": true, "result": <state>}
@@ -20,8 +26,11 @@
 #           {"id": 5, "cmd": "scroll", "item": "<key>", "delta": 1, "orientation": "vertical"}
 #           {"id": 6, "cmd": "menu", "item": "<key>"}                  -> {"items": [<menu entry>]}
 #           {"id": 7, "cmd": "menu-event", "item": "<key>", "mid": 12}  Event(mid, "clicked")
+#           {"id": 8, "cmd": "inhibitors"}                             -> <inhibitors>
 #   stdout  {"id": n, "ok": false, "error": "…", "code": "ENOTFOUND"|"EFAIL"|…}
-#           {"event": "ready", "notifications": bool, "tray": bool}
+#           {"event": "ready", "notifications": bool, "tray": bool, "screensaver": bool, "power": bool}
+#           {"event": "inhibitors", "count": n, "apps": [names], "list": [{cookie, app, reason, kind}]}  on change
+#           {"event": "activity"}                                       SimulateUserActivity (resets the idle timer)
 #           {"event": "notify", "n": {id, app, icon, image, summary, body, actions: [[key, label]], urgency,
 #                    timeout, entry, resident, transient, silent, replaces}}
 #           {"event": "notify-close", "id": 7}                          CloseNotification from the app
@@ -53,6 +62,12 @@ WATCHER = 'org.kde.StatusNotifierWatcher'
 WATCHER_PATH = '/StatusNotifierWatcher'
 SNI = 'org.kde.StatusNotifierItem'
 MENU = 'com.canonical.dbusmenu'
+SAVER = 'org.freedesktop.ScreenSaver'
+SAVER_PATHS = ('/org/freedesktop/ScreenSaver', '/ScreenSaver')
+PM = 'org.freedesktop.PowerManagement'
+PM_IFACE = 'org.freedesktop.PowerManagement.Inhibit'
+PM_PATH = '/org/freedesktop/PowerManagement/Inhibit'
+MAX_INHIBITORS = 64  # per connection: a looping bug in one app cannot grow the table without end
 PROPS = 'org.freedesktop.DBus.Properties'
 VERSION = os.environ.get('AURORA_VERSION') or '1.0'
 MAX_SIDE = 512  # larger pictures are refused (a tray icon or an avatar does not need more)
@@ -319,6 +334,61 @@ class Watcher(dbus.service.Object):
         raise dbus.exceptions.DBusException('Read-only', name='org.freedesktop.DBus.Error.PropertyReadOnly')
 
 
+# ------------------------------------------------------------------ idle inhibitors
+class ScreenSaver(dbus.service.Object):
+    """org.freedesktop.ScreenSaver (one object per path: KDE's /ScreenSaver and the spec's /org/freedesktop/...)."""
+
+    def __init__(self, helper, bus, path):
+        super().__init__(bus, path)
+        self.h = helper
+
+    @dbus.service.method(SAVER, in_signature='ss', out_signature='u', sender_keyword='sender')
+    def Inhibit(self, app, reason, sender=None):
+        return dbus.UInt32(self.h.inhibit(sender, app, reason, 'screen'))
+
+    @dbus.service.method(SAVER, in_signature='u', out_signature='', sender_keyword='sender')
+    def UnInhibit(self, cookie, sender=None):
+        self.h.uninhibit(sender, int(cookie))
+
+    @dbus.service.method(SAVER, in_signature='', out_signature='b')
+    def GetActive(self):
+        return False  # the shell turns the screen off with DPMS; no screen saver ever runs
+
+    @dbus.service.method(SAVER, in_signature='', out_signature='u')
+    def GetActiveTime(self):
+        return dbus.UInt32(0)
+
+    @dbus.service.method(SAVER, in_signature='', out_signature='')
+    def SimulateUserActivity(self):
+        out({'event': 'activity'})
+
+    @dbus.service.signal(SAVER, signature='b')
+    def ActiveChanged(self, active):
+        pass
+
+
+class PowerInhibit(dbus.service.Object):
+    def __init__(self, helper, bus):
+        super().__init__(bus, PM_PATH)
+        self.h = helper
+
+    @dbus.service.method(PM_IFACE, in_signature='ss', out_signature='u', sender_keyword='sender')
+    def Inhibit(self, app, reason, sender=None):
+        return dbus.UInt32(self.h.inhibit(sender, app, reason, 'power'))
+
+    @dbus.service.method(PM_IFACE, in_signature='u', out_signature='', sender_keyword='sender')
+    def UnInhibit(self, cookie, sender=None):
+        self.h.uninhibit(sender, int(cookie))
+
+    @dbus.service.method(PM_IFACE, in_signature='', out_signature='b')
+    def HasInhibit(self):
+        return bool(self.h.inhibitors)
+
+    @dbus.service.signal(PM_IFACE, signature='b')
+    def HasInhibitChanged(self, has):
+        pass
+
+
 def menu_entry(node):
     """GetLayout node (i, a{sv}, av) -> JSON entry; invisible entries are None."""
     mid, props, children = node
@@ -348,15 +418,21 @@ class Helper:
         self.emit_pending = False
         self.notif = None
         self.watcher = None
+        self.saver = []
+        self.pm = None
+        self.inhibitors = {}  # cookie -> {sender, app, reason, kind}
+        self.cookie = 0
         bus.add_signal_receiver(self.on_owner_changed, 'NameOwnerChanged', 'org.freedesktop.DBus', 'org.freedesktop.DBus')
         bus.add_signal_receiver(self.on_sni_signal, dbus_interface=SNI, sender_keyword='sender', path_keyword='path', member_keyword='member')
 
     def own(self, name, factory):
         try:
             r = self.bus.request_name(name, dbus.bus.NAME_FLAG_DO_NOT_QUEUE)
-        except dbus.DBusException:
+        except dbus.DBusException as e:
+            sys.stderr.write('%s: %s\n' % (name, e))
             return None
         if r not in (dbus.bus.REQUEST_NAME_REPLY_PRIMARY_OWNER, dbus.bus.REQUEST_NAME_REPLY_ALREADY_OWNER):
+            sys.stderr.write('%s is owned by another program: not provided by Selene\n' % name)
             return None
         return factory(self, self.bus)
 
@@ -365,7 +441,42 @@ class Helper:
         self.watcher = self.own(WATCHER, Watcher)
         if self.watcher:
             self.watcher.StatusNotifierHostRegistered()
-        out({'event': 'ready', 'notifications': bool(self.notif), 'tray': bool(self.watcher)})
+        self.saver = self.own(SAVER, lambda h, bus: [ScreenSaver(h, bus, p) for p in SAVER_PATHS]) or []
+        self.pm = self.own(PM, PowerInhibit)
+        sys.stderr.flush()
+        out({'event': 'ready', 'notifications': bool(self.notif), 'tray': bool(self.watcher), 'screensaver': bool(self.saver), 'power': bool(self.pm)})
+
+    # ---- idle inhibitors
+    def inhibit(self, sender, app, reason, kind):
+        sender = str(sender or '')
+        if sum(1 for i in self.inhibitors.values() if i['sender'] == sender) >= MAX_INHIBITORS:
+            raise dbus.exceptions.DBusException('Too many inhibitors', name='org.freedesktop.DBus.Error.LimitsExceeded')
+        self.cookie = self.cookie % 0xfffffffe + 1  # never 0 (some apps read 0 as "failed")
+        while self.cookie in self.inhibitors:
+            self.cookie = self.cookie % 0xfffffffe + 1
+        self.inhibitors[self.cookie] = {'sender': sender, 'app': strip_markup(app)[:100], 'reason': strip_markup(reason)[:200], 'kind': kind}
+        self.inhibitors_changed()
+        return self.cookie
+
+    def uninhibit(self, sender, cookie):
+        it = self.inhibitors.get(cookie)
+        # only the connection that took a cookie can give it back (an unknown cookie is ignored, like GNOME / KDE)
+        if it and it['sender'] == str(sender or ''):
+            del self.inhibitors[cookie]
+            self.inhibitors_changed()
+
+    def inhibitor_state(self):
+        apps = []
+        for i in self.inhibitors.values():
+            if i['app'] and i['app'] not in apps:
+                apps.append(i['app'])
+        return {'count': len(self.inhibitors), 'apps': apps,
+                'list': [{'cookie': c, 'app': i['app'], 'reason': i['reason'], 'kind': i['kind']} for c, i in self.inhibitors.items()]}
+
+    def inhibitors_changed(self):
+        out({'event': 'inhibitors', **self.inhibitor_state()})
+        if self.pm:
+            self.pm.HasInhibitChanged(bool(self.inhibitors))
 
     # ---- tray items
     def add_item(self, name, path, sender):
@@ -393,6 +504,11 @@ class Helper:
         for key, it in list(self.items.items()):
             if it['owner'] == old or it['name'] == name:
                 self.remove_item(key)
+        gone = [c for c, i in self.inhibitors.items() if i['sender'] == old]
+        for c in gone:
+            del self.inhibitors[c]
+        if gone:
+            self.inhibitors_changed()
 
     def on_sni_signal(self, *args, sender=None, path=None, member=None):
         for key, it in self.items.items():
@@ -476,7 +592,9 @@ class Helper:
 
         try:
             if cmd == 'state':
-                return reply({'notifications': bool(self.notif), 'tray': bool(self.watcher), 'items': self.item_list()})
+                return reply({'notifications': bool(self.notif), 'tray': bool(self.watcher), 'screensaver': bool(self.saver), 'power': bool(self.pm), 'items': self.item_list(), 'inhibitors': self.inhibitor_state()})
+            if cmd == 'inhibitors':
+                return reply(self.inhibitor_state())
             if cmd == 'closed':
                 return reply(bool(self.notif) and self.notif.closed(int(msg.get('nid', 0)), int(msg.get('reason', 2))))
             if cmd == 'action':

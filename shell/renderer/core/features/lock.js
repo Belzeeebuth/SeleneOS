@@ -292,8 +292,21 @@ export async function mount(ctx) {
   const bump = () => (lastActivity = Date.now());
   for (const ev of ACTIVITY_EVENTS) window.addEventListener(ev, bump, { capture: true, passive: true });
   api.on('shell:hotkey', bump); // keys typed in webviews (browser tabs) count too
+  api.on('power:userActivity', bump); // org.freedesktop.ScreenSaver.SimulateUserActivity
+  // Idle inhibitors on the session bus (a film in Firefox / VLC / the Navigateur, see main/ipc/sessionbus.js) count as
+  // activity, like media playing in the shell page.
+  let inhibited = 0;
+  const setInhibitors = (st) => {
+    inhibited = Math.max(0, Number(st?.count) || 0);
+    if (inhibited) bump();
+  };
+  api.on('power:inhibitors', setInhibitors);
+  api
+    .invoke('power:inhibitors')
+    .then(setInhibitors)
+    .catch(() => {});
   let idleTimer = 0;
-  const mediaPlaying = () => [...document.querySelectorAll('video, audio')].some((m) => !m.paused && !m.ended && !m.muted);
+  const mediaPlaying = () => inhibited > 0 || [...document.querySelectorAll('video, audio')].some((m) => !m.paused && !m.ended && !m.muted);
   function scheduleIdle() {
     clearInterval(idleTimer);
     const minutes = Number(settings.get('lockTimeout')) || 0;

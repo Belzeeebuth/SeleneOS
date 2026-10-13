@@ -6,8 +6,11 @@
 // files), powerprofilesctl (three modes), xset (logs), a fake /sys/class/power_supply (AURORA_POWER_SUPPLY) the test
 // rewrites, and a logind drop-in directory (AURORA_LOGIND_DIR) for the simulated aurora-admin power-lid.
 // Screenshots (1280x720, FR, Halo dark + light): test/out/inputpower-*.png
+// Idle inhibitors: the shell on a PRIVATE dbus-daemon with the real session-bus helper and the fake app of
+// test/sessionbus.test.mjs (a film in VLC / Firefox): no screen off, lock or idle sleep while it is held; released ->
+// the delays apply again; the 3 % countdown still sleeps (skipped without python3-dbus / dbus-daemon).
 import { launchShell } from './lib.mjs';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -232,6 +235,106 @@ for (const theme of ['dark', 'light']) {
     check(false, `[${theme}] ${e.message}`);
   } finally {
     await s.close();
+  }
+}
+
+// ------------------------------------------------------------------ idle inhibitors (private session bus)
+{
+  const PY = process.env.AURORA_SESSIONBUS_PYTHON || 'python3.12';
+  const pyPath = spawnSync('sh', ['-c', `command -v ${PY}`], { encoding: 'utf8' }).stdout.trim();
+  const haveBus = !!pyPath && spawnSync(pyPath, ['-c', 'import dbus, gi; from gi.repository import GLib'], { stdio: 'ignore' }).status === 0 && spawnSync('sh', ['-c', 'command -v dbus-daemon'], { stdio: 'ignore' }).status === 0;
+  if (!haveBus) console.log(`\n# idle inhibitors: SKIPPED (${PY} without python3-dbus / python3-gi, or no dbus-daemon)`);
+  else {
+    console.log('\n# idle inhibitors (org.freedesktop.ScreenSaver on a private bus) — FR, 1280x720');
+    resetState();
+    const btmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ip-bus-'));
+    const r = spawnSync('dbus-daemon', ['--session', '--fork', '--print-address=1', '--print-pid=1', `--address=unix:path=${btmp}/bus`], { encoding: 'utf8' });
+    const [address, busPid] = r.stdout.trim().split('\n');
+    const HELPER = path.join(ROOT, '..', 'rootfs', 'usr', 'lib', 'aurora', 'helpers', 'aurora-sessionbus');
+    const FAKE_APP = path.join(ROOT, 'test', 'fixtures', 'sessionbus', 'fake-app.py');
+    const apps = [];
+    const fakeApp = () => {
+      const p = spawn(pyPath, ['-I', FAKE_APP], { env: { ...process.env, DBUS_SESSION_BUS_ADDRESS: address }, stdio: ['pipe', 'pipe', 'inherit'] });
+      const lines = [];
+      let buf = '';
+      p.stdout.on('data', (d) => {
+        buf += d;
+        let i;
+        while ((i = buf.indexOf('\n')) >= 0) {
+          try {
+            lines.push(JSON.parse(buf.slice(0, i)));
+          } catch {}
+          buf = buf.slice(i + 1);
+        }
+      });
+      const a = { lines, send: (o) => p.stdin.write(`${JSON.stringify(o)}\n`), quit: () => (p.stdin.end(), setTimeout(() => p.kill(), 1000)), proc: p };
+      apps.push(a);
+      return a;
+    };
+    const s = await launchShell({ lang: 'fr', theme: 'dark', size: '1280x720', env: { ...ENV, DBUS_SESSION_BUS_ADDRESS: address, AURORA_SESSIONBUS: '1', AURORA_SESSIONBUS_HELPER: HELPER, AURORA_SESSIONBUS_PYTHON: pyPath } });
+    const pw = (fn, arg) => s.aurora(fn, arg);
+    const tickFor = async (ms) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) {
+        await pw(() => window.__aurora.power.tick());
+        await sleep(500);
+      }
+    };
+    try {
+      check(await waitFor(async () => (await inv(s, 'sessionbus:status')).screensaver, 10000), 'the helper owns org.freedesktop.ScreenSaver on the session bus');
+      const vlc = fakeApp();
+      await waitFor(() => vlc.lines.includes('READY'), 8000);
+      vlc.send({ cmd: 'inhibit', kind: 'screen', app: 'VLC', reason: 'Lecture d’une vidéo' });
+      check(await waitFor(() => pw(() => window.__aurora.power.inhibitors.count === 1), 6000), 'a film in VLC (ScreenSaver.Inhibit) reaches the shell: 1 inhibitor');
+      const named = await pw(() => window.__aurora.power.inhibitors);
+      check(JSON.stringify(named.apps) === '["VLC"]', `the inhibitor is named after its app (VLC) (${JSON.stringify(named)})`);
+      setBat(80, 'Discharging', 0);
+      fs.writeFileSync(path.join(ST, 'log'), '');
+      await pw(() => {
+        window.__aurora.settings.set('power', { screenOffBattery: 0.05, screenOffAc: 0.05, sleepBattery: 0.08, sleepAc: 0.08, lockOnScreenOff: true });
+        window.__aurora.settings.set('lockTimeout', 0.05);
+      });
+      await tickFor(7000);
+      const st = await pw(() => ({ off: window.__aurora.power.state.screenOffCount, sleep: window.__aurora.power.state.sleepCount, locked: !!window.__aurora.lockScreen?.locked }));
+      check(!/dpms force off/.test(log()) && st.off === 0, `inhibited: no screen off after 7 s with a 3 s delay (${JSON.stringify(st)})`);
+      check(st.sleep === 0, 'inhibited: no idle sleep after 7 s with a 4.8 s delay');
+      check(!st.locked, 'inhibited: no lock (lock at screen off, and lockTimeout 3 s)');
+      // SimulateUserActivity restarts the delays
+      const before = await pw(() => window.__aurora.power.lastActivity);
+      await sleep(50);
+      vlc.send({ cmd: 'simulate' });
+      check(await waitFor(async () => (await pw(() => window.__aurora.power.lastActivity)) > before + 20, 5000), 'SimulateUserActivity -> the idle timer starts again');
+      // released (the app quits without UnInhibit): the delays apply again
+      vlc.quit();
+      check(await waitFor(() => pw(() => window.__aurora.power.inhibitors.count === 0), 6000), 'VLC leaves the bus -> its inhibitor is released');
+      await tickFor(4500);
+      check(await waitFor(() => /xset dpms force off/.test(log()), 4000), 'no inhibitor any more -> the screen turns off after the delay');
+      check(await waitFor(() => pw(() => !!window.__aurora.lockScreen?.locked), 4000), 'and the session locks');
+      // battery safety first: the 3 % countdown still sleeps while a film plays
+      const ff = fakeApp();
+      await waitFor(() => ff.lines.includes('READY'), 8000);
+      ff.send({ cmd: 'inhibit', kind: 'power', app: 'Firefox', reason: 'video-playing' });
+      check(await waitFor(() => pw(() => window.__aurora.power.inhibitors.count === 1), 6000), 'PowerManagement.Inhibit (Firefox) counts too');
+      await pw(() => {
+        window.__aurora.settings.set('power', { screenOffBattery: 0, screenOffAc: 0, sleepBattery: 0, sleepAc: 0, lockOnScreenOff: false });
+        window.__aurora.power.countdownSec = 2;
+      });
+      const sleeps = await pw(() => window.__aurora.power.state.sleepCount);
+      setBat(3);
+      check(await waitFor(() => pw((n) => window.__aurora.power.state.sleepCount > n, sleeps), 10000), 'battery at 3 % while inhibited -> the countdown still puts the computer to sleep');
+      ff.quit();
+      const errs = s.logs.filter((l) => /^\[(error|pageerror)\]/.test(l) && !/favicon|net::ERR/.test(l));
+      check(!errs.length, `[inhibitors] no renderer errors${errs.length ? `: ${errs.slice(0, 3).join(' | ')}` : ''}`);
+    } catch (e) {
+      check(false, `[inhibitors] ${e.message}`);
+    } finally {
+      for (const a of apps) a.quit();
+      await s.close();
+      try {
+        process.kill(Number(busPid), 'SIGTERM');
+      } catch {}
+      fs.rmSync(btmp, { recursive: true, force: true });
+    }
   }
 }
 

@@ -19,7 +19,8 @@ const HOUR = 60 * 60 * 1000;
 /** True when a partition is low on space: under 5 % free or under 1 GB free. */
 function isLowDisk({ avail, total }) {
   if (!(total > 0) || !(avail >= 0)) return false;
-  return avail < GB || avail / total < 0.05;
+  // under 1 GB, or under 5 % on disks where 5 % is still small (no warning at 50 GB free on a 1 TB disk)
+  return avail < GB || (avail / total < 0.05 && avail < 10 * GB);
 }
 
 function diskOf(dir) {

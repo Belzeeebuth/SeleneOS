@@ -96,6 +96,7 @@ console.log('\n# low disk rule, report scrubbing, renderer error source');
   check('low disk: 0.5 GB free of 100 GB', R.isLowDisk({ avail: 0.5 * GB, total: 100 * GB }), true);
   check('low disk: 4 GB free of 100 GB (4 %)', R.isLowDisk({ avail: 4 * GB, total: 100 * GB }), true);
   check('not low: 20 GB free of 100 GB', R.isLowDisk({ avail: 20 * GB, total: 100 * GB }), false);
+  check('not low: 40 GB free of 1 TB (4 % but plenty left)', R.isLowDisk({ avail: 40 * GB, total: 1000 * GB }), false);
   check('not low: bad numbers', R.isLowDisk({ avail: NaN, total: 0 }), false);
   const scrubbed = R.scrub({ theme: 'dark', mail: { password: 'x', token: 'y' }, weather: { location: { lat: 1, lon: 2 } }, translate: true, accent: '#fff' });
   check('report settings: secrets and places removed, the rest kept', scrubbed, { theme: 'dark', mail: { password: '(removed)', token: '(removed)' }, weather: { location: '(removed)' }, translate: true, accent: '#fff' });

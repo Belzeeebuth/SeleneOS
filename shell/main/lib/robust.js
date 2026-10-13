@@ -5,6 +5,8 @@
 //       process (main/ipc/auth.js auth:setLocked), so a reloaded shell comes back LOCKED when it was locked.
 //     - 'unresponsive' -> waits UNRESPONSIVE_GRACE ms for 'responsive', then kills the renderer, which reloads it.
 //     - 3 renderer crashes within 2 minutes (shell mode) -> safe mode (state.safeMode), then the reload.
+//     - reloads back off (0.3 s, 0.6 s, 1.2 s … up to 8 s); after GIVE_UP crashes within 2 minutes the app exits
+//       with code 1, so aurora-xsession (shell) or greetd (greeter) takes over instead of a blank reload loop.
 //     - renderer console errors (uncaught exceptions, unhandled rejections, console.error) reach stderr
 //       (= the session journal through systemd-cat, aurora-session) as "[renderer:<app>] message (source:line)".
 //   state: shared with main/ipc/robust.js and main/ipc/settings.js
@@ -12,6 +14,7 @@
 // Safe mode also starts with AURORA_SAFE_MODE=1 (aurora-xsession after 2 shell crashes in a row).
 const CRASH_WINDOW = 2 * 60 * 1000;
 const CRASH_LIMIT = 3;
+const GIVE_UP = 6;
 const UNRESPONSIVE_GRACE = Number(process.env.AURORA_UNRESPONSIVE_GRACE) || 5000;
 
 const state = {
@@ -49,6 +52,7 @@ function appOfSource(src) {
 function watchWindow(win, { mode = 'shell' } = {}) {
   const wc = win.webContents;
   const times = [];
+  const all = []; // every crash within the window (not reset by safe mode): bounds the reload loop
   let hangTimer = null;
   let logged = 0;
   let logWindow = Date.now();
@@ -65,9 +69,17 @@ function watchWindow(win, { mode = 'shell' } = {}) {
       enterSafeMode('renderer-crashes');
       times.length = 0;
     }
+    all.push(now);
+    while (all.length && now - all[0] > CRASH_WINDOW) all.shift();
+    if (all.length >= GIVE_UP) {
+      console.error(`[robust] ${mode} renderer crashed ${all.length} times within 2 min: giving up, the session takes over`);
+      require('electron').app.exit(1);
+      return;
+    }
+    const delay = Math.min(300 * 2 ** (all.length - 1), 8000);
     setTimeout(() => {
       if (!win.isDestroyed()) wc.reload();
-    }, 300);
+    }, delay);
   });
 
   wc.on('unresponsive', () => {
@@ -106,4 +118,4 @@ function watchWindow(win, { mode = 'shell' } = {}) {
   });
 }
 
-module.exports = { state, watchWindow, enterSafeMode, leaveSafeMode, appOfSource, CRASH_LIMIT, CRASH_WINDOW };
+module.exports = { state, watchWindow, enterSafeMode, leaveSafeMode, appOfSource, CRASH_LIMIT, CRASH_WINDOW, GIVE_UP };

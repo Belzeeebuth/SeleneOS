@@ -5,6 +5,10 @@
 #   {"cmd": "caps"} / {"cmd": "info"}                GetCapabilities / GetServerInformation
 #   {"cmd": "sni", "name": "org.kde.StatusNotifierItem-1-1", "byPath": false}   export + register a tray item
 #   {"cmd": "status", "value": "NeedsAttention"}     change Status (+ NewStatus)
+#   {"cmd": "inhibit", "kind": "screen"|"power", "path": "/ScreenSaver", "app": "VLC", "reason": "Film"}
+#                                                    -> {"inhibited": cookie}  (ScreenSaver or PowerManagement.Inhibit)
+#   {"cmd": "uninhibit", "kind": "screen"|"power", "cookie": 3}  -> {"uninhibited": 3}
+#   {"cmd": "hasInhibit"} / {"cmd": "active"} / {"cmd": "simulate"}   HasInhibit / GetActive / SimulateUserActivity
 #   {"cmd": "quit"}
 # stdout: READY, results, and every call/signal seen: {"signal": "ActionInvoked", ...}, {"call": "Activate", ...},
 #         {"call": "Event", "id": 3, "event": "clicked"}
@@ -153,6 +157,24 @@ def main():
             st['item'].props['Status'] = m['value']
             st['item'].NewStatus(m['value'])
             out({'status': m['value']})
+        elif c in ('inhibit', 'uninhibit', 'hasInhibit', 'active', 'simulate'):
+            power = m.get('kind') == 'power' or c == 'hasInhibit'
+            if power:
+                obj = dbus.Interface(bus.get_object('org.freedesktop.PowerManagement', '/org/freedesktop/PowerManagement/Inhibit'), 'org.freedesktop.PowerManagement.Inhibit')
+            else:
+                obj = dbus.Interface(bus.get_object('org.freedesktop.ScreenSaver', m.get('path') or '/org/freedesktop/ScreenSaver'), 'org.freedesktop.ScreenSaver')
+            if c == 'inhibit':
+                out({'inhibited': int(obj.Inhibit(m.get('app', ''), m.get('reason', '')))})
+            elif c == 'uninhibit':
+                obj.UnInhibit(dbus.UInt32(m['cookie']))
+                out({'uninhibited': m['cookie']})
+            elif c == 'hasInhibit':
+                out({'hasInhibit': bool(obj.HasInhibit())})
+            elif c == 'active':
+                out({'active': bool(obj.GetActive())})
+            else:
+                obj.SimulateUserActivity()
+                out({'simulated': True})
         elif c == 'quit':
             loop.quit()
 

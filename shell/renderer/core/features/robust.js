@@ -88,7 +88,21 @@ export async function mount(ctx) {
       h('div', { class: 'safe-banner-text' }, h('div', { class: 'safe-banner-title' }, t('robust.safeTitle')), h('div', { class: 'safe-banner-body' }, t('robust.safeBody'))),
       h('div', { class: 'safe-banner-actions' }, resetBtn, restartBtn, hideBtn),
     );
-    hideBtn.addEventListener('click', () => banner.remove()); // until the shell starts again (still in safe mode)
+    hideBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      banner.remove(); // until the shell starts again (still in safe mode)
+    });
+    // It steps aside so it never covers work: a small « mode sans échec » pill once a window opens or after 25 s;
+    // a click on the pill opens the card again.
+    let compactTimer = null;
+    const compact = (on) => {
+      clearTimeout(compactTimer);
+      banner.classList.toggle('compact', on);
+      if (!on) compactTimer = setTimeout(() => compact(true), 25000);
+    };
+    banner.addEventListener('click', () => banner.classList.contains('compact') && compact(false));
+    ctx.wm?.on?.('open', () => compact(true));
+    compact(false);
     document.body.append(banner);
     self.banner = banner;
   }

@@ -60,6 +60,8 @@ const THROTTLE = 250;
 export async function mount(ctx) {
   const { api, i18n, t, notify, notifications, shell } = ctx;
   if (ctx.env?.mode && ctx.env.mode !== 'shell') return;
+  // safe mode (features/robust.js): nothing starts on its own, the gaming apps wait for a normal session
+  if ((await api.invoke('robust:status').catch(() => null))?.safeMode) return;
   i18n.extend(STRINGS);
 
   let nid = null; // the progress notification

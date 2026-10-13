@@ -697,8 +697,9 @@ install_selene_debs() {
   done < <(dpkg-deb --fsys-tarfile "$out"/aurora-base_*.deb | tar -t | grep -v '/$')
   rm -rf "$ROOT/tmp/selene-debs"; mkdir -p "$ROOT/tmp/selene-debs"
   cp "${debs[@]}" "$ROOT/tmp/selene-debs/"
-  in_chroot "$ROOT" dpkg -i /tmp/selene-debs/aurora-electron_*.deb /tmp/selene-debs/aurora-base_*.deb \
-    /tmp/selene-debs/aurora-shell_*.deb >/dev/null || die "dpkg -i of the Selene packages failed"
+  local in_root=()
+  for d in "${debs[@]}"; do in_root+=("/tmp/selene-debs/$(basename "$d")"); done
+  in_chroot "$ROOT" dpkg -i "${in_root[@]}" </dev/null >/dev/null || die "dpkg -i of the Selene packages failed"
   rm -rf "$ROOT/tmp/selene-debs"
   for d in aurora-electron aurora-base aurora-shell; do
     in_chroot "$ROOT" dpkg-query -W -f='${Status}' "$d" | grep -q 'install ok installed' || die "$d is not installed"

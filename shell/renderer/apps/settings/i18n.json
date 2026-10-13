@@ -1494,7 +1494,9 @@
    "modeBalanced": "Balanced",
    "modePerformance": "Performance",
    "lowBattery": "Low battery",
-   "lowBatteryDesc": "You are warned at 10% and 5%. At 3%, the computer goes to sleep after one minute, unless you plug it in.",
+   "lowBatteryDesc": "A warning appears at 10% and 5%. At 3%, the computer goes to sleep after one minute, unless it is plugged in.",
+   "batteryLid": "Battery and lid",
+   "powerUse": "Power use",
    "lidDone": "Saved: it applies the next time you close the lid",
    "reasonLid": "Settings wants to change what happens when you close the lid."
   }
@@ -2994,7 +2996,9 @@
    "modeBalanced": "Équilibré",
    "modePerformance": "Performances",
    "lowBattery": "Batterie faible",
-   "lowBatteryDesc": "Vous êtes prévenu à 10 % et à 5 %. À 3 %, l’ordinateur se met en veille au bout d’une minute, sauf si vous le branchez.",
+   "lowBatteryDesc": "Un avertissement s’affiche à 10 % et à 5 %. À 3 %, l’ordinateur se met en veille au bout d’une minute, sauf s’il est branché.",
+   "batteryLid": "Batterie et capot",
+   "powerUse": "Consommation d’énergie",
    "lidDone": "Enregistré : cela s’appliquera la prochaine fois que vous fermerez le capot",
    "reasonLid": "Paramètres veut changer ce qui se passe quand vous fermez le capot."
   }
