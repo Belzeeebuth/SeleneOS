@@ -1,0 +1,757 @@
+#!/usr/bin/python3 -I
+# aurora-disk-probe — read-only survey of the disks for « Installer à côté de … » (install alongside).
+#
+# Run as root (blkid -p, ntfsresize --info, dumpe2fs, resize2fs -P and debugfs read the partitions):
+#     sudo -n /usr/lib/aurora/helpers/aurora-disk-probe [--disk /dev/sda ...]
+#     aurora-disk-probe --ui            (= aurora-install --probe --json: one line {"probe":{firmware, disks}}, sizes in
+#                                        bytes, partitions with type/state/used/min/esp — the shape installer.js reads)
+#     aurora-disk-probe --disk DEV --plan free:STARTMIB:ENDMIB|shrink:N:NEWSIZEMIB[:SELENEMIB] --fingerprint HEX [--esp N]
+#                       [--format json|shell]
+#
+# Nothing is ever written: no file system is mounted read-write (the EFI system partition is mounted
+# read-only, or read with mtools where the kernel has no FAT driver), ext4 is read with debugfs/dumpe2fs,
+# NTFS with ntfsresize --info / ntfsls / ntfscat (all read-only), and os-prober is NOT run here (it mounts
+# partitions, which would replay an unclean ext4 journal).
+#
+# Survey (default): one JSON document on stdout:
+#   { version: 1, firmware: 'uefi'|'bios', minSeleneMiB, suggestedSeleneMiB, disks: [disk] }
+#   disk: { path, name, model, size (bytes), sizeMiB, transport, removable, table: 'gpt'|'dos'|null, sectorSize,
+#           fingerprint (sha256 of `sfdisk --dump`), partitions: [part], free: [{startMiB, endMiB, sizeMiB}],
+#           esp: {number, path, sizeMiB, freeMiB, folders, hasFallback, ubuntuFolder, readable} | null,
+#           systems: [{name, kind: 'windows'|'linux'|'other', partition}], bitlocker, warnings: [code],
+#           alongside: { possible, reason, message, plans: [plan] } }
+#   part: { number, path, start, sectors, startMiB, sizeMiB, type, name, fstype, label, uuid, mounted, esp,
+#           usedMiB, os, flags: [bitlocker|hibernated|dirty|luks|lvm|needs-recovery|mounted|in-use|swap],
+#           shrink: { possible, reason, message, minSizeMiB, maxSizeMiB, suggestedSizeMiB, spaceMiB } }
+#   plan: { kind: 'free', startMiB, endMiB, sizeMiB }
+#       | { kind: 'shrink', partition, path, fstype, label, os, currentSizeMiB, minSizeMiB, maxSizeMiB,
+#           suggestedSizeMiB, spaceMiB (current size + free space right after it) }
+#   alongside.partition: when no plan is possible because of one partition (e.g. hibernated Windows), its number
+#   reason codes (alongside / shrink): bios, no-table, mbr, no-esp, esp-unreadable, esp-full, ubuntu-folder,
+#     no-space, in-use; btrfs, xfs, luks, lvm, bitlocker, hibernated, dirty, needs-recovery, unsupported,
+#     too-full, mounted, unreadable
+#
+# Plan check (--plan, used by aurora-install --alongside before anything is written): the plan is checked
+# against a fresh survey of DEV (same rules as above) and the partition table fingerprint; prints either
+#   OK=1 and the exact sectors (--format shell: KEY=VALUE lines) or OK=0 CODE=… MESSAGE=…
+# Exit codes: 0 ok (survey, or a valid plan), 2 invalid arguments, 3 not found, 4 plan refused.
+#
+# Test aid: --assume-uefi treats the running firmware as UEFI (build machines without /sys/firmware/efi;
+# aurora-install passes it only when AURORA_INSTALL_TEST_NO_FIRMWARE=1, which sudo never forwards).
+import hashlib
+import json
+import math
+import os
+import re
+import subprocess
+import sys
+import tempfile
+
+MIB = 1024 * 1024
+# Same bounds as shell/main/ipc/installer.js (ROOT_MIN, KEEP_FREE_MIN, KEEP_FREE_RATIO, ESP_MIN_FREE).
+MIN_SELENE_MIB = -(-20 * 10**9 // MIB)   # 20 GB: smallest Selene OS partition (19074 MiB)
+SUGGESTED_SELENE_MIB = -(-40 * 10**9 // MIB)
+KEEP_FREE_MIN = 5 * 10**9           # a shrunk partition keeps at least 5 GB free …
+KEEP_FREE_RATIO = 0.10              # … and 10 % of its new size
+ESP_MIN_FREE_MIB = 32               # EFI/ubuntu: shim + GRUB + MokManager + grub.cfg ≈ 6 MiB (+ EFI/BOOT ≈ 6 MiB)
+ESP_GUID = 'C12A7328-F81F-11D2-BA4B-00A0C93EC93B'
+SWAP_GUIDS = {'0657FD6D-A4AB-43C4-84E5-0933C84B4F4F'}
+RE_DEV = re.compile(r'^/dev/[A-Za-z0-9/_.:-]+$')
+SYSTEM_MOUNTS = {'/', '/cdrom', '/rofs', '/isodevice', '/run/live/medium', '/media/cdrom', '/run/initramfs/live', '/boot', '/boot/efi', '/usr', '/home', '/var'}
+ENV = {'PATH': '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C', 'LANG': 'C', 'MTOOLS_SKIP_CHECK': '1'}
+
+MESSAGES = {
+    'bios': 'This computer started in legacy BIOS mode: installing alongside needs UEFI mode. Restart and choose the UEFI entry of the USB drive in the boot menu, or erase the whole disk.',
+    'no-table': 'This disk has no partition table.',
+    'mbr': 'This disk uses an MBR (msdos) partition table: installing alongside needs a GPT disk. Only erasing the whole disk is possible.',
+    'no-esp': 'No EFI system partition on this disk.',
+    'esp-unreadable': 'The EFI system partition could not be read.',
+    'esp-full': 'The EFI system partition is almost full.',
+    'ubuntu-folder': 'The EFI system partition already holds an EFI/ubuntu folder (another Ubuntu-based system). Selene OS uses that folder too: install alongside is not possible on this disk.',
+    'no-space': 'Not enough room: no free space of 20 GB or more, and no partition that can be shrunk enough.',
+    'in-use': 'A partition of this disk is in use (mounted, swap, LVM, RAID or encryption).',
+    'btrfs': 'Btrfs partitions cannot be shrunk by the installer. Shrink it from its own system (btrfs filesystem resize, then the partition), then come back to use the free space.',
+    'xfs': 'XFS partitions cannot be shrunk. Free some space from the other system first, then come back to use the free space.',
+    'luks': 'This partition is encrypted (LUKS): the installer does not shrink it. Free some space from the other system first.',
+    'lvm': 'This partition holds LVM volumes: the installer does not shrink it. Free some space from the other system first.',
+    'bitlocker': 'This partition is encrypted with BitLocker. In Windows, shrink it in Disk Management (or suspend BitLocker), then come back to use the free space.',
+    'hibernated': 'Windows is hibernated or uses Fast Startup. In Windows, turn off Fast Startup (Control Panel > Power Options > Choose what the power buttons do), then shut down fully (Shift + Shut down) and come back.',
+    'dirty': 'Windows must check this partition first. Restart Windows (twice if needed), shut it down fully, then come back.',
+    'needs-recovery': 'This partition was not closed cleanly (its journal needs recovery). Start its system and shut it down normally, then come back.',
+    'unsupported': 'The installer can shrink only NTFS (Windows) and ext4 partitions.',
+    'too-full': 'This partition does not have enough free space to make room for Selene OS.',
+    'mounted': 'This partition is in use (mounted).',
+    'unreadable': 'This partition could not be read.',
+}
+
+
+def run(cmd, timeout=60, input_bytes=None):
+    try:
+        p = subprocess.run(cmd, input=input_bytes, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, env=ENV)
+        return p.returncode, p.stdout.decode('utf-8', 'replace'), p.stderr.decode('utf-8', 'replace')
+    except (OSError, subprocess.SubprocessError) as e:
+        return 127, '', str(e)
+
+
+def head_bytes(cmd, n, timeout=20):
+    """First n bytes of a command's output (the command is stopped afterwards)."""
+    try:
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=ENV)
+    except OSError:
+        return None
+    try:
+        data = p.stdout.read(n)
+    finally:
+        p.stdout.close()
+        try:
+            p.kill()
+        except OSError:
+            pass
+        try:
+            p.wait(timeout=timeout)
+        except subprocess.SubprocessError:
+            pass
+    return data
+
+
+def firmware(assume_uefi=False):
+    return 'uefi' if assume_uefi or os.path.isdir('/sys/firmware/efi') else 'bios'
+
+
+def mounts_of(dev):
+    rc, out, _ = run(['findmnt', '-rn', '-S', dev, '-o', 'TARGET'], timeout=10)
+    return [bytes(m, 'utf-8').decode('unicode_escape') for m in out.split('\n') if m] if rc == 0 else []
+
+
+def swaps():
+    try:
+        with open('/proc/swaps') as f:
+            return {line.split()[0] for line in f.read().split('\n')[1:] if line.strip()}
+    except OSError:
+        return set()
+
+
+def holders(dev):
+    name = os.path.basename(os.path.realpath(dev))
+    try:
+        return os.listdir(f'/sys/class/block/{name}/holders')
+    except OSError:
+        return []
+
+
+def blkid(dev):
+    rc, out, _ = run(['blkid', '-p', '-o', 'export', dev], timeout=20)
+    info = {}
+    for line in out.split('\n'):
+        k, sep, v = line.partition('=')
+        if sep:
+            info[k] = v.replace('\\ ', ' ')
+    return info
+
+
+def parse_os_release(text):
+    d = {}
+    for line in str(text or '').split('\n'):
+        m = re.match(r'^([A-Z_]+)=(.*)$', line.strip())
+        if m:
+            v = m.group(2).strip()
+            if len(v) >= 2 and v[0] == v[-1] and v[0] in '"\'':
+                v = v[1:-1]
+            d[m.group(1)] = v
+    return d
+
+
+# ------------------------------------------------------------------ file systems
+def probe_ntfs(dev, part):
+    # Without --force first: --force silently skips ntfsresize's own "Volume is scheduled for check" refusal
+    # (the dirty bit Windows sets when it wants chkdsk, and that ntfsresize itself sets after a resize).
+    rc, out, err = run(['ntfsresize', '--info', '--no-progress-bar', dev], timeout=300)
+    if re.search(r'scheduled for check', out + err, re.I):
+        part['flags'].append('dirty')
+        rc, out, err = run(['ntfsresize', '--info', '--force', '--no-progress-bar', dev], timeout=300)   # sizes only
+    text = out + err
+    m = re.search(r'Space in use\s*:\s*(\d+) MB', text)
+    if m:
+        part['used'] = int(m.group(1)) * 10**6
+        part['usedMiB'] = math.ceil(part['used'] / MIB)
+    m = re.search(r'You might resize at (\d+) bytes', text)
+    tool_min = int(m.group(1)) if m else None
+    if re.search(r'hibernat|unsafe state|fast restart', text, re.I):
+        part['flags'].append('hibernated')
+    if re.search(r'scheduled for check|marked to be fixed|inconsistent', text, re.I) and 'dirty' not in part['flags']:
+        part['flags'].append('dirty')
+    if re.search(r'journal.*unclean|unclean.*journal', text, re.I):
+        part['flags'].append('hibernated')
+    # Hibernation / Fast Startup: ntfsresize does not refuse a hibernated volume by itself, so the header
+    # of hiberfil.sys is read here (same rule as ntfs-3g: anything but zeros or "wake" is a saved session).
+    hdr = head_bytes(['ntfscat', dev, 'hiberfil.sys'], 4)
+    if hdr and len(hdr) == 4 and hdr != b'\0\0\0\0' and hdr.lower() != b'wake':
+        if 'hibernated' not in part['flags']:
+            part['flags'].append('hibernated')
+    # Windows itself on this partition?
+    rc2, ls, _ = run(['ntfsls', '-F', dev], timeout=30)
+    if rc2 == 0 and re.search(r'^Windows/$', ls, re.M | re.I):
+        part['os'] = 'Windows'
+    if rc != 0 and tool_min is None:
+        part['flags'].append('unreadable')
+    return tool_min
+
+
+def probe_ext4(dev, part):
+    rc, out, _ = run(['dumpe2fs', '-h', dev], timeout=60)
+    if rc != 0:
+        part['flags'].append('unreadable')
+        return None
+    f = {}
+    for line in out.split('\n'):
+        k, sep, v = line.partition(':')
+        if sep:
+            f[k.strip()] = v.strip()
+    try:
+        bs = int(f.get('Block size', '4096'))
+        used = (int(f['Block count']) - int(f['Free blocks'])) * bs
+        part['used'] = used
+        part['usedMiB'] = math.ceil(used / MIB)
+    except (KeyError, ValueError):
+        bs = 4096
+    if 'needs_recovery' in f.get('Filesystem features', ''):
+        part['flags'].append('needs-recovery')
+    if f.get('Filesystem state', 'clean') != 'clean':
+        part['flags'].append('dirty')
+    tool_min = None
+    rc, out, _ = run(['resize2fs', '-P', dev], timeout=300)
+    m = re.search(r'Estimated minimum size of the filesystem: (\d+)', out)
+    if m:
+        tool_min = int(m.group(1)) * bs
+    # The system it holds (/etc/os-release is usually a link to ../usr/lib/os-release; debugfs reads, never writes).
+    for p in ('/usr/lib/os-release', '/etc/os-release'):
+        rc, txt, _ = run(['debugfs', '-R', f'cat {p}', dev], timeout=30)
+        osr = parse_os_release(txt) if rc == 0 else {}
+        if osr.get('NAME') or osr.get('PRETTY_NAME'):
+            part['os'] = osr.get('PRETTY_NAME') or osr.get('NAME')
+            part['osId'] = osr.get('ID', '')
+            break
+    return tool_min
+
+
+def read_esp(dev):
+    """{readable, freeMiB, folders, hasFallback, ubuntuFolder, entries} of a FAT EFI system partition (read-only)."""
+    res = {'readable': False, 'freeMiB': None, 'folders': [], 'hasFallback': False, 'ubuntuFolder': False, 'loaderEntries': []}
+    existing = [m for m in mounts_of(dev) if m]
+    tmp = None
+    root = existing[0] if existing else None
+    try:
+        if root is None and 'vfat' in open('/proc/filesystems').read():
+            tmp = tempfile.mkdtemp(prefix='aurora-probe-', dir='/run' if os.access('/run', os.W_OK) else None)
+            rc, _, _ = run(['mount', '-t', 'vfat', '-o', 'ro,nosuid,nodev,noexec', dev, tmp], timeout=30)
+            if rc == 0:
+                root = tmp
+            else:
+                os.rmdir(tmp)
+                tmp = None
+        if root is not None:
+            st = os.statvfs(root)
+            res['freeMiB'] = st.f_bavail * st.f_frsize // MIB
+            efi = next((os.path.join(root, e) for e in os.listdir(root) if e.lower() == 'efi'), None)
+            if efi and os.path.isdir(efi):
+                res['folders'] = sorted(os.listdir(efi), key=str.lower)
+                for d in res['folders']:
+                    full = os.path.join(efi, d)
+                    if d.lower() == 'boot' and os.path.isdir(full):
+                        res['hasFallback'] = any(x.lower() == 'bootx64.efi' for x in os.listdir(full))
+                    if d.lower() == 'ubuntu':
+                        res['ubuntuFolder'] = True
+            loader = os.path.join(root, 'loader', 'entries')
+            if os.path.isdir(loader):
+                for e in sorted(os.listdir(loader))[:20]:
+                    try:
+                        with open(os.path.join(loader, e), errors='replace') as f:
+                            m = re.search(r'^title\s+(.+)$', f.read(4096), re.M)
+                        if m:
+                            res['loaderEntries'].append(m.group(1).strip()[:80])
+                    except OSError:
+                        pass
+            res['readable'] = True
+            return res
+        # No FAT driver (build machines): mtools reads the partition directly.
+        rc, out, _ = run(['mdir', '-i', dev, '-b', '::/EFI'], timeout=30)
+        rc2, out2, _ = run(['mdir', '-i', dev, '::/'], timeout=30)
+        if rc2 != 0:
+            return res
+        m = re.search(r'([\d ]+) bytes free', out2)
+        if m:
+            res['freeMiB'] = int(m.group(1).replace(' ', '')) // MIB
+        if rc == 0:
+            names = [ln.rstrip('/').split('/')[-1] for ln in out.split('\n') if ln.strip()]
+            res['folders'] = sorted({n for n in names if n and n not in ('.', '..')}, key=str.lower)
+            for d in res['folders']:
+                if d.lower() == 'ubuntu':
+                    res['ubuntuFolder'] = True
+            rc3, out3, _ = run(['mdir', '-i', dev, '-b', '::/EFI/BOOT'], timeout=30)
+            res['hasFallback'] = rc3 == 0 and bool(re.search(r'/BOOTX64\.EFI$', out3, re.M | re.I))
+        res['readable'] = True
+        return res
+    except OSError:
+        return res
+    finally:
+        if tmp:
+            run(['umount', tmp], timeout=30)
+            try:
+                os.rmdir(tmp)
+            except OSError:
+                pass
+
+
+# ------------------------------------------------------------------ disks
+def list_disks(only=None):
+    rc, out, err = run(['lsblk', '-J', '-b', '-p', '-o', 'NAME,PATH,TYPE,SIZE,MODEL,TRAN,RM,RO,HOTPLUG,MOUNTPOINTS'], timeout=20)
+    if rc != 0:
+        raise SystemExit(f'lsblk failed: {err.strip()}')
+    data = json.loads(out or '{}')
+    disks = []
+    for d in data.get('blockdevices') or []:
+        path = d.get('path') or d.get('name')
+        if only is not None:
+            if os.path.realpath(path) not in only:
+                continue
+            if d.get('type') not in ('disk', 'loop'):
+                continue
+        else:
+            name = os.path.basename(path)
+            if d.get('type') != 'disk' or re.match(r'^(loop|zram|sr|ram|fd|md|dm-)', name):
+                continue
+        if d.get('ro') in (True, 1, '1'):
+            continue
+
+        def walk(n, acc):
+            acc.append(n)
+            for c in n.get('children') or []:
+                walk(c, acc)
+            return acc
+        nodes = walk(d, [])
+        mps = [m for n in nodes for m in (n.get('mountpoints') or []) if m]
+        if any(m in SYSTEM_MOUNTS or m.startswith('/rofs') or m.startswith('/cdrom') for m in mps):
+            continue  # the running system or the live medium
+        disks.append(d)
+    return disks
+
+
+def mib_floor(sectors, ss):
+    return sectors * ss // MIB
+
+
+def mib_ceil(sectors, ss):
+    return -(-sectors * ss // MIB)
+
+
+def survey_disk(d, fw):
+    path = d.get('path') or d.get('name')
+    size = int(d.get('size') or 0)
+    disk = {
+        'path': path, 'name': os.path.basename(path), 'model': (d.get('model') or '').strip(), 'size': size, 'sizeMiB': size // MIB,
+        'transport': (d.get('tran') or '').strip(), 'removable': d.get('rm') in (True, 1, '1') or d.get('hotplug') in (True, 1, '1'),
+        'table': None, 'sectorSize': 512, 'fingerprint': None, 'partitions': [], 'free': [], 'esp': None, 'systems': [],
+        'bitlocker': False, 'warnings': [], 'alongside': {'possible': False, 'reason': None, 'message': '', 'plans': []},
+    }
+    rc, dump, _ = run(['sfdisk', '--dump', path], timeout=30)
+    if rc == 0:
+        disk['fingerprint'] = hashlib.sha256(dump.encode()).hexdigest()
+    rc, out, _ = run(['sfdisk', '--json', path], timeout=30)
+    pt = {}
+    if rc == 0:
+        try:
+            pt = json.loads(out).get('partitiontable') or {}
+        except ValueError:
+            pt = {}
+    disk['table'] = pt.get('label')
+    ss = int(pt.get('sectorsize') or 0)
+    if not ss:
+        rc, out, _ = run(['blockdev', '--getss', path], timeout=10)
+        ss = int(out.strip()) if rc == 0 and out.strip().isdigit() else 512
+    disk['sectorSize'] = ss
+    align = MIB // ss  # sectors per MiB
+    sw = swaps()
+    parts = []
+    for p in pt.get('partitions') or []:
+        node = p.get('node', '')
+        m = re.search(r'(\d+)$', node[len(path):] if node.startswith(path) else node)
+        num = int(m.group(1)) if m else 0
+        start, sectors = int(p.get('start', 0)), int(p.get('size', 0))
+        ptype = str(p.get('type', '')).upper()
+        part = {
+            'number': num, 'path': node, 'start': start, 'sectors': sectors, 'startMiB': mib_floor(start, ss), 'sizeMiB': mib_floor(sectors, ss),
+            'type': ptype, 'name': p.get('name', ''), 'fstype': '', 'label': '', 'uuid': '', 'mounted': [], 'esp': ptype == ESP_GUID or ptype == 'EF',
+            'used': None, 'usedMiB': None, 'os': None, 'flags': [], 'shrink': {'possible': False, 'reason': None},
+        }
+        exists = os.path.exists(node)
+        info = blkid(node) if exists else {}
+        part['fstype'] = info.get('TYPE', '')
+        part['label'] = info.get('LABEL', '')
+        part['uuid'] = info.get('UUID', '')
+        part['mounted'] = mounts_of(node) if exists else []
+        if part['mounted']:
+            part['flags'].append('mounted')
+        if node in sw or ptype in SWAP_GUIDS or part['fstype'] == 'swap':
+            part['flags'].append('swap')
+        if exists and holders(node):
+            part['flags'].append('in-use')
+        fs = part['fstype']
+        tool_min = None
+        if fs == 'BitLocker':
+            part['flags'].append('bitlocker')
+            disk['bitlocker'] = True
+        elif fs == 'crypto_LUKS':
+            part['flags'].append('luks')
+        elif fs == 'LVM2_member':
+            part['flags'].append('lvm')
+        elif fs == 'ntfs' and exists and not part['mounted']:
+            tool_min = probe_ntfs(node, part)
+        elif fs in ('ext4', 'ext3', 'ext2') and exists:
+            tool_min = probe_ext4(node, part)
+        part['_toolMin'] = tool_min
+        parts.append(part)
+    parts.sort(key=lambda x: x['start'])
+    disk['partitions'] = parts
+
+    # Unallocated regions inside the usable area, aligned to 1 MiB.
+    last = int(pt.get('lastlba') or (size // ss - 1))
+    disk['lastLba'] = last
+    if disk['table'] == 'gpt' or disk['table'] == 'dos':
+        first = int(pt.get('firstlba') or align)
+        cur = max(first, align)
+        bounds = [(p['start'], p['start'] + p['sectors']) for p in parts] + [(last + 1, last + 1)]
+        for s, e in bounds:
+            if s > cur:
+                a = -(-cur // align) * align
+                b = (s // align) * align
+                if b - a >= align:
+                    disk['free'].append({'startMiB': a // align, 'endMiB': b // align, 'sizeMiB': (b - a) // align})
+            cur = max(cur, e)
+
+    # EFI system partition (the one Windows uses when there are several).
+    esps = [p for p in parts if p['esp']]
+    if esps:
+        best = None
+        for p in esps:
+            info = read_esp(p['path']) if os.path.exists(p['path']) else {'readable': False}
+            cand = {'number': p['number'], 'path': p['path'], 'sizeMiB': p['sizeMiB'], 'freeMiB': info.get('freeMiB'), 'folders': info.get('folders', []),
+                    'hasFallback': info.get('hasFallback', False), 'ubuntuFolder': info.get('ubuntuFolder', False), 'readable': info.get('readable', False),
+                    'loaderEntries': info.get('loaderEntries', [])}
+            if best is None or (any(f.lower() == 'microsoft' for f in cand['folders']) and not any(f.lower() == 'microsoft' for f in best['folders'])):
+                best = cand
+        disk['esp'] = best
+        for f in best['folders']:
+            fl = f.lower()
+            if fl == 'microsoft':
+                disk['systems'].append({'name': 'Windows Boot Manager', 'kind': 'windows', 'partition': best['number']})
+            elif fl not in ('boot', 'ubuntu', 'tools', 'oem', 'dell', 'hp', 'lenovo', 'asus', 'acer', 'msi'):
+                disk['systems'].append({'name': f, 'kind': 'other', 'partition': best['number'], 'loader': True})
+        for t in best.get('loaderEntries', []):
+            disk['systems'].append({'name': t, 'kind': 'linux', 'partition': best['number'], 'loader': True})
+    for p in parts:
+        if p['os']:
+            disk['systems'].append({'name': p['os'], 'kind': 'windows' if p['os'] == 'Windows' else 'linux', 'partition': p['number']})
+    if disk['bitlocker']:
+        disk['warnings'].append('bitlocker-recovery-key')
+
+    # Shrink candidates.
+    for i, p in enumerate(parts):
+        nxt = parts[i + 1]['start'] if i + 1 < len(parts) else last + 1
+        end_aligned = (nxt // align) * align
+        span_mib = (end_aligned - p['start']) * ss // MIB  # partition + free space right after it
+        sh = {'possible': False, 'reason': None, 'spaceMiB': span_mib}
+        fs = p['fstype']
+        flags = p['flags']
+        if p['esp'] or 'swap' in flags:
+            sh['reason'] = 'unsupported'
+        elif 'bitlocker' in flags:
+            sh['reason'] = 'bitlocker'
+        elif 'luks' in flags:
+            sh['reason'] = 'luks'
+        elif 'lvm' in flags:
+            sh['reason'] = 'lvm'
+        elif fs == 'btrfs':
+            sh['reason'] = 'btrfs'
+        elif fs == 'xfs':
+            sh['reason'] = 'xfs'
+        elif fs not in ('ntfs', 'ext4'):
+            sh['reason'] = 'unsupported'
+        elif 'mounted' in flags or 'in-use' in flags:
+            sh['reason'] = 'mounted'
+        elif 'hibernated' in flags:
+            sh['reason'] = 'hibernated'
+        elif 'needs-recovery' in flags:
+            sh['reason'] = 'needs-recovery'
+        elif 'dirty' in flags:
+            sh['reason'] = 'dirty'
+        elif 'unreadable' in flags or p['usedMiB'] is None or p['_toolMin'] is None:
+            sh['reason'] = 'unreadable'
+        else:
+            used = max(p['used'] or 0, p['_toolMin'])
+            min_new = -(-max(used + KEEP_FREE_MIN, math.ceil(used / (1 - KEEP_FREE_RATIO)), p['_toolMin']) // MIB)
+            max_new = span_mib - MIN_SELENE_MIB - 1  # 1 MiB: alignment of the new partition
+            max_new = min(max_new, p['sizeMiB'] - 1)
+            sh['minSizeMiB'], sh['maxSizeMiB'] = min_new, max_new
+            if max_new < min_new or min_new >= p['sizeMiB']:
+                sh['reason'] = 'too-full'
+            else:
+                room = span_mib - 1 - min_new  # largest Selene partition
+                selene = min(room, max(SUGGESTED_SELENE_MIB, room // 2))
+                sh['suggestedSizeMiB'] = max(min_new, min(max_new, span_mib - 1 - selene))
+                sh['possible'] = True
+        if sh['reason']:
+            sh['message'] = MESSAGES.get(sh['reason'], '')
+        sh['toolMin'] = p['_toolMin']
+        p['shrink'] = sh
+
+    # Is « install alongside » possible, and how?
+    al = disk['alongside']
+    busy = [p for p in parts if ('mounted' in p['flags'] or 'in-use' in p['flags'])]
+    reason = None
+    if fw != 'uefi':
+        reason = 'bios'
+    elif disk['table'] is None:
+        reason = 'no-table'
+    elif disk['table'] != 'gpt':
+        reason = 'mbr'
+    elif not disk['esp']:
+        reason = 'no-esp'
+    elif not disk['esp']['readable']:
+        reason = 'esp-unreadable'
+    elif disk['esp']['ubuntuFolder']:
+        reason = 'ubuntu-folder'
+    elif disk['esp']['freeMiB'] is None or disk['esp']['freeMiB'] < ESP_MIN_FREE_MIB:   # unknown free space: refused too
+        reason = 'esp-full'
+    if reason is None:
+        for f in disk['free']:
+            if f['sizeMiB'] >= MIN_SELENE_MIB:
+                al['plans'].append({'kind': 'free', **f})
+        for p in parts:
+            if p['shrink']['possible']:
+                al['plans'].append({'kind': 'shrink', 'partition': p['number'], 'path': p['path'], 'fstype': p['fstype'], 'label': p['label'], 'os': p['os'],
+                                    'currentSizeMiB': p['sizeMiB'], 'usedMiB': p['usedMiB'], 'minSizeMiB': p['shrink']['minSizeMiB'], 'maxSizeMiB': p['shrink']['maxSizeMiB'],
+                                    'suggestedSizeMiB': p['shrink']['suggestedSizeMiB'], 'spaceMiB': p['shrink']['spaceMiB']})
+        if not al['plans']:
+            # The reason of the largest partition that could have been shrunk (BitLocker, hibernated Windows, Btrfs…).
+            specific = [p for p in parts if p['shrink']['reason'] not in (None, 'unsupported', 'too-full') and not p['esp'] and p['sizeMiB'] > MIN_SELENE_MIB]
+            specific += [p for p in parts if p['shrink']['reason'] == 'unsupported' and p['fstype'] and p['fstype'] != 'swap' and not p['esp'] and p['sizeMiB'] > MIN_SELENE_MIB]
+            if specific:
+                best = max(specific, key=lambda p: p['sizeMiB'])
+                reason = best['shrink']['reason']
+                al['partition'] = best['number']
+            else:
+                reason = 'in-use' if busy else 'no-space'
+    al['possible'] = reason is None
+    al['reason'] = reason
+    al['message'] = MESSAGES.get(reason, '') if reason else ''
+    for p in parts:
+        p.pop('_toolMin', None)
+    return disk
+
+
+TYPE_NAMES = {
+    'C12A7328-F81F-11D2-BA4B-00A0C93EC93B': 'esp', 'E3C9E316-0B5C-4DB8-817D-F92DF00215AE': 'msr',
+    'DE94BBA4-06D1-4D40-A16A-BFD50179D6AC': 'windows-recovery', '0657FD6D-A4AB-43C4-84E5-0933C84B4F4F': 'swap',
+    '0FC63DAF-8483-4772-8E79-3D69D8477DE4': 'linux', '4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709': 'linux',
+    '933AC7E1-2EB4-4F13-B844-0E14E2AEF915': 'linux', 'BC13C2FF-59E6-4262-A352-B275FD6F7172': 'linux',
+    'E6D6D379-F507-44C2-A23C-238F2A3DF928': 'linux', 'CA7D7CCB-63ED-4C53-861C-1742536059CC': 'linux',
+}
+BASIC_DATA = 'EBD0A0A2-B9E5-4433-87C0-68B6B72699C7'
+
+
+def ui_disk(d):
+    """Survey disk -> the shape shell/main/ipc/installer.js planAlongside() reads (bytes)."""
+    ss = d['sectorSize']
+    parts = []
+    others_have_os = any(p['os'] and not p['esp'] for p in d['partitions'])
+    for p in d['partitions']:
+        t = TYPE_NAMES.get(p['type'])
+        if t is None:
+            if p['type'] == BASIC_DATA or p['type'] in ('7', '07'):
+                t = 'windows' if p['fstype'] in ('ntfs', 'BitLocker') else 'data'
+            elif p['type'] in ('83',):
+                t = 'linux'
+            elif p['type'] in ('82',):
+                t = 'swap'
+            elif p['type'] in ('EF', 'EF00'):
+                t = 'esp'
+            else:
+                t = 'other'
+        if p['fstype'] == 'swap':
+            t = 'swap'
+        fl = p['flags']
+        state = ('bitlocker' if 'bitlocker' in fl else 'mounted' if ('mounted' in fl or 'in-use' in fl) else 'hibernated' if 'hibernated' in fl
+                 else 'dirty' if ('dirty' in fl or 'needs-recovery' in fl) else 'error' if 'unreadable' in fl else 'ok')
+        os_name = p['os']
+        q = {'path': p['path'], 'number': p['number'], 'start': p['start'] * ss, 'size': p['sectors'] * ss, 'fstype': p['fstype'], 'label': p['label'],
+             'type': t, 'os': os_name, 'used': p.get('used'), 'min': p['shrink'].get('toolMin'), 'state': state}
+        if p['esp'] and d['esp'] and d['esp']['number'] == p['number']:
+            e = d['esp']
+            q['esp'] = {'free': (e['freeMiB'] if e['freeMiB'] is not None else 0) * MIB, 'dirs': e['folders'], 'fallback': bool(e['hasFallback'])}
+            if not others_have_os and e.get('loaderEntries'):
+                q['os'] = e['loaderEntries'][0]  # systemd-boot entry title (e.g. Arch Linux on Btrfs)
+        parts.append(q)
+    return {'path': d['path'], 'name': d['name'], 'model': d['model'], 'size': d['size'], 'transport': d['transport'], 'removable': d['removable'],
+            'table': d['table'] or '', 'fingerprint': d['fingerprint'],
+            'free': [{'start': f['startMiB'] * MIB, 'size': f['sizeMiB'] * MIB} for f in d['free']], 'partitions': parts}
+
+
+def survey(only=None, assume_uefi=False):
+    fw = firmware(assume_uefi)
+    disks = [survey_disk(d, fw) for d in list_disks(only)]
+    return {'version': 1, 'firmware': fw, 'minSeleneMiB': MIN_SELENE_MIB, 'suggestedSeleneMiB': SUGGESTED_SELENE_MIB, 'disks': disks}
+
+
+# ------------------------------------------------------------------ plan check
+def check_plan(dev, spec, fingerprint, esp_num, assume_uefi):
+    """-> (ok, dict). Validates a plan against a fresh survey; computes the exact sectors."""
+    real = os.path.realpath(dev)
+    found = list_disks({real})
+    if not found:
+        return False, {'CODE': 'not-found', 'MESSAGE': f'{dev} is not an installable disk'}
+    disk = survey_disk(found[0], firmware(assume_uefi))
+    if not disk['fingerprint'] or disk['fingerprint'] != fingerprint:
+        return False, {'CODE': 'changed', 'MESSAGE': 'The partitions of this disk changed since they were shown: nothing was changed. Go back and choose again.'}
+    al = disk['alongside']
+    m = re.match(r'^shrink:(\d{1,3}):', spec)
+    if m and al['reason'] in (None, 'no-space', 'in-use') or (m and al.get('partition') == int(m.group(1))):
+        p = next((x for x in disk['partitions'] if x['number'] == int(m.group(1))), None)
+        if p is not None and not p['shrink'].get('possible'):
+            r = p['shrink'].get('reason') or 'refused'
+            return False, {'CODE': r, 'MESSAGE': MESSAGES.get(r, f'partition {p["number"]} cannot be shrunk')}
+    if not al['possible']:
+        return False, {'CODE': al['reason'] or 'refused', 'MESSAGE': al['message'] or 'Installing alongside is not possible on this disk.'}
+    esp = disk['esp']
+    if esp_num is not None and esp['number'] != esp_num:
+        return False, {'CODE': 'esp', 'MESSAGE': f'Partition {esp_num} is not the EFI system partition the installer would use ({esp["number"]}).'}
+    ss = disk['sectorSize']
+    align = MIB // ss
+    parts = disk['partitions']
+    out = {'DISK': disk['path'], 'SECTOR_SIZE': ss, 'ESP_NUM': esp['number'], 'ESP_PART': esp['path'], 'ESP_HAS_FALLBACK': int(bool(esp['hasFallback'])),
+           'ESP_FREE_MIB': esp['freeMiB'] if esp['freeMiB'] is not None else -1, 'FINGERPRINT': disk['fingerprint']}
+    m = re.match(r'^free:(\d{1,9}):(\d{1,9})$', spec)
+    if m:
+        s, e = int(m.group(1)), int(m.group(2))
+        region = next((f for f in disk['free'] if f['startMiB'] <= s and e <= f['endMiB']), None)
+        if region is None or e - s < MIN_SELENE_MIB:
+            return False, {'CODE': 'bad-plan', 'MESSAGE': f'{s}-{e} MiB is not free space of at least {MIN_SELENE_MIB} MiB on this disk.'}
+        out.update({'KIND': 'free', 'NEW_START': s * align, 'NEW_SECTORS': (e - s) * align, 'NEW_SIZE_MIB': e - s})
+    else:
+        m = re.match(r'^shrink:(\d{1,3}):(\d{1,9})(?::(\d{1,9}))?$', spec)
+        if not m:
+            return False, {'CODE': 'bad-plan', 'MESSAGE': f'invalid plan: {spec}'}
+        num, new_mib = int(m.group(1)), int(m.group(2))
+        root_mib = int(m.group(3)) if m.group(3) else None   # Selene OS size; default: all the space freed
+        idx = next((i for i, p in enumerate(parts) if p['number'] == num), None)
+        if idx is None:
+            return False, {'CODE': 'bad-plan', 'MESSAGE': f'no partition {num} on this disk'}
+        p = parts[idx]
+        sh = p['shrink']
+        if not sh.get('possible'):
+            return False, {'CODE': sh.get('reason') or 'refused', 'MESSAGE': sh.get('message') or f'partition {num} cannot be shrunk'}
+        if not (sh['minSizeMiB'] <= new_mib <= sh['maxSizeMiB']):
+            return False, {'CODE': 'bad-size', 'MESSAGE': f'the new size of partition {num} must be between {sh["minSizeMiB"]} and {sh["maxSizeMiB"]} MiB'}
+        new_sectors = new_mib * align
+        new_end = p['start'] + new_sectors
+        sel_start = -(-new_end // align) * align
+        nxt = parts[idx + 1]['start'] if idx + 1 < len(parts) else disk['lastLba'] + 1
+        sel_end = (nxt // align) * align   # Selene OS takes the space freed, up to the next partition …
+        if root_mib is not None:            # … or the size asked
+            if root_mib < MIN_SELENE_MIB:
+                return False, {'CODE': 'bad-size', 'MESSAGE': f'Selene OS needs at least {MIN_SELENE_MIB} MiB'}
+            if sel_start + root_mib * align > sel_end:
+                return False, {'CODE': 'bad-size', 'MESSAGE': f'{root_mib} MiB for Selene OS do not fit in the space freed after partition {num}'}
+            sel_end = sel_start + root_mib * align
+        if (sel_end - sel_start) * ss // MIB < MIN_SELENE_MIB:
+            return False, {'CODE': 'bad-size', 'MESSAGE': 'not enough room left for Selene OS'}
+        out.update({'KIND': 'shrink', 'SHRINK_NUM': num, 'SHRINK_PART': p['path'], 'SHRINK_FS': p['fstype'], 'SHRINK_START': p['start'],
+                    'SHRINK_OLD_SECTORS': p['sectors'], 'SHRINK_NEW_SECTORS': new_sectors, 'SHRINK_NEW_BYTES': new_sectors * ss,
+                    'SHRINK_OLD_MIB': p['sizeMiB'], 'SHRINK_NEW_MIB': new_mib, 'NEW_START': sel_start, 'NEW_SECTORS': sel_end - sel_start,
+                    'NEW_SIZE_MIB': (sel_end - sel_start) * ss // MIB})
+    # The new partition must not overlap any partition (except the shrunk one's freed tail).
+    ns, ne = out['NEW_START'], out['NEW_START'] + out['NEW_SECTORS']
+    for p in parts:
+        ps, pe = p['start'], p['start'] + p['sectors']
+        if out.get('KIND') == 'shrink' and p['number'] == out['SHRINK_NUM']:
+            pe = p['start'] + out['SHRINK_NEW_SECTORS']
+        if ps < ne and ns < pe:
+            return False, {'CODE': 'bad-plan', 'MESSAGE': f'the new partition would overlap partition {p["number"]}'}
+    if ns % align or out['NEW_SECTORS'] % align:
+        return False, {'CODE': 'bad-plan', 'MESSAGE': 'the new partition is not aligned to 1 MiB'}
+    out['OK'] = 1
+    return True, out
+
+
+def main(argv):
+    disks, plan, fp, esp, fmt, assume = [], None, None, None, 'json', False
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        val = argv[i + 1] if i + 1 < len(argv) else None
+        if a == '--disk' and val:
+            if not RE_DEV.match(val) or '..' in val:
+                print(f'aurora-disk-probe: invalid disk {val}', file=sys.stderr)
+                return 2
+            disks.append(val)
+            i += 2
+        elif a == '--plan' and val:
+            plan = val
+            i += 2
+        elif a == '--fingerprint' and val:
+            fp = val
+            i += 2
+        elif a == '--esp' and val:
+            if not re.match(r'^[0-9]{1,3}$', val) or not 1 <= int(val) <= 128:
+                print('aurora-disk-probe: invalid --esp', file=sys.stderr)
+                return 2
+            esp = int(val)
+            i += 2
+        elif a == '--format' and val in ('json', 'shell'):
+            fmt = val
+            i += 2
+        elif a == '--assume-uefi':
+            assume = True
+            i += 1
+        elif a == '--json':
+            i += 1
+        elif a == '--ui':
+            fmt = 'ui'
+            i += 1
+        elif a in ('-h', '--help'):
+            with open(__file__) as f:
+                for line in f.read().split('\n')[1:]:
+                    if not line.startswith('#'):
+                        break
+                    print(line[2:])
+            return 0
+        else:
+            print(f'aurora-disk-probe: unknown argument {a}', file=sys.stderr)
+            return 2
+    if plan is not None and (len(disks) != 1 or not fp or not re.match(r'^[0-9a-f]{64}$', fp)):
+        print('aurora-disk-probe: --plan needs one --disk and --fingerprint', file=sys.stderr)
+        return 2
+    if os.geteuid() != 0:
+        print('aurora-disk-probe: must be run as root', file=sys.stderr)
+        return 4
+    if plan is not None:
+        ok, res = check_plan(disks[0], plan, fp, esp, assume)
+        if not ok:
+            res['OK'] = 0
+        if fmt == 'shell':
+            for k, v in res.items():
+                v = re.sub(r'[^\x20-\x7e]', ' ', str(v))
+                print(f'{k}={v}')
+        else:
+            print(json.dumps(res))
+        return 0 if ok else (3 if res.get('CODE') == 'not-found' else 4)
+    only = {os.path.realpath(d) for d in disks} if disks else None
+    res = survey(only, assume)
+    if fmt == 'ui':
+        print(json.dumps({'probe': {'firmware': res['firmware'], 'disks': [ui_disk(d) for d in res['disks']]}}))
+    else:
+        print(json.dumps(res, indent=1))
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

@@ -195,6 +195,20 @@ if [[ -n "$helpers" ]]; then
 else
   warn "no helpers in /usr/lib/aurora/helpers yet"
 fi
+# Install next to other systems (« Installer à côté »): the read-only survey, the tools it and aurora-install
+# --alongside run, and os-prober for the installed system's GRUB menu (iso/packages.d/installer.list).
+if [[ -x "$S/usr/lib/aurora/helpers/aurora-disk-probe" ]] && head -n1 "$S/usr/lib/aurora/helpers/aurora-disk-probe" | grep -q python3; then
+  pass "image has the aurora-disk-probe helper (dual boot survey)"
+else
+  fail "image lacks /usr/lib/aurora/helpers/aurora-disk-probe (install alongside)"
+fi
+dual_missing=""
+for t in /usr/bin/os-prober /etc/grub.d/30_os-prober /usr/sbin/ntfsresize /usr/bin/ntfscat /usr/bin/ntfsls /usr/bin/efibootmgr \
+         /usr/sbin/sfdisk /usr/bin/partx /usr/sbin/blkid /usr/sbin/resize2fs /usr/sbin/e2fsck /usr/sbin/dumpe2fs /usr/sbin/debugfs /usr/bin/python3; do
+  [[ -e "$S$t" || -L "$S$t" ]] || dual_missing+=" $t"
+done
+[[ -z "$dual_missing" ]] && pass "install alongside tools: os-prober, ntfsresize/ntfscat/ntfsls, efibootmgr, sfdisk, resize2fs/e2fsck/dumpe2fs/debugfs, python3" \
+  || fail "install alongside tools missing:$dual_missing (rebuild with --from packages)"
 # Linux GUI applications (docs/XWINDOWS.md): the window manager helper and its Python X library.
 if [[ -x "$S/usr/lib/aurora/helpers/aurora-xwm" ]]; then
   pass "image has the aurora-xwm window manager helper"

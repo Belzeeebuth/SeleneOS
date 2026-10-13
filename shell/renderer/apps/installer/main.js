@@ -1,8 +1,14 @@
 // Install Selene OS: the installer of the live session (Nocturne look: a night side panel with the steps
 // drawn as moon phases, flat pages on the right).
 //
-// Steps: welcome (language) -> keyboard -> disk -> account -> time zone -> [graphics driver] -> games -> summary
-// -> installing -> done | error. The graphics driver step only exists when an NVIDIA card is detected (installer:gpu):
+// Steps: welcome (language) -> keyboard -> disk -> [space] -> account -> time zone -> [graphics driver] -> games -> summary
+// -> installing -> done | error.
+// The disk step picks the disk and, for a disk that already holds a system, how: « Installer à côté de Windows / Arch
+// Linux… » (dual boot: UEFI + GPT, the probe's plans, see main/ipc/installer.js analyzeDisk) or « Effacer tout le
+// disque ». « À côté » adds the space step (Selene's size, slider + number, both systems' resulting sizes); its summary
+// lists the exact changes and asks to confirm a backup (checkbox) before « Installer ». Dual boot sizes come from the
+// probe in MiB and are shown in binary units (« 476 Go » for 476 GiB), as Windows' Disk Management shows partitions;
+// whole disks keep their decimal size (the label on the box). The graphics driver step only exists when an NVIDIA card is detected (installer:gpu):
 // the recommended NVIDIA driver is then downloaded from the Ubuntu archive during the installation (needs the Internet).
 // The games step (« Jeux ») offers the usual Linux gaming apps (Flathub, off by default): they are NOT downloaded
 // during the installation; the helper records the choice (--gaming, ~/.config/aurora/first-login/gaming.json) and
@@ -43,9 +49,41 @@ export const GAMING_APPS = [
 ];
 
 // ------------------------------------------------------------------ pure helpers (exported for tests)
-/** Steps of the installer: the graphics driver step only for a computer with an NVIDIA card, then the games step. */
-export function stepsFor(gpu) {
-  return gpu?.nvidia?.length ? [...BASE_STEPS.slice(0, -2), 'drivers', 'games', 'summary'] : BASE_STEPS.slice();
+/** Steps of the installer: the space step for a dual boot, the graphics driver step only for a computer with an
+ * NVIDIA card, then the games step. */
+export function stepsFor(gpu, mode) {
+  const steps = gpu?.nvidia?.length ? [...BASE_STEPS.slice(0, -2), 'drivers', 'games', 'summary'] : BASE_STEPS.slice();
+  if (mode === 'alongside') steps.splice(steps.indexOf('disk') + 1, 0, 'space');
+  return steps;
+}
+
+/** Selene's size bounds for a dual boot option, in whole GiB: { min, max, def }. */
+export function rootBoundsGiB(opt) {
+  const min = Math.ceil(opt.rootMinMiB / 1024);
+  const max = Math.floor(opt.rootMaxMiB / 1024);
+  const def = Math.max(min, Math.min(max, Math.round((opt.rootSuggestedMiB || opt.rootMaxMiB) / 1024)));
+  return { min, max, def };
+}
+
+/**
+ * The exact dual boot plan for an option of the disk's analysis and a Selene size (GiB): the sizes to show and the
+ * request for installer:start (main/ipc/installer.js alongsideArgs). Sizes in MiB.
+ *   free:   { method, rootGiB, rootMiB, freeLeftMiB, request: { method, fingerprint, esp, start, end } }
+ *   shrink: { method, rootGiB, rootMiB, oldMiB, newMiB, usedMiB, request: { method, fingerprint, esp, part, newSize } }
+ */
+export function alongsidePlan(analysis, opt, rootGiB) {
+  if (!analysis?.possible || !opt || !analysis.esp) return null;
+  const b = rootBoundsGiB(opt);
+  if (b.max < b.min) return null;
+  const g = Math.max(b.min, Math.min(b.max, Math.round(Number(rootGiB) || b.def)));
+  const base = { fingerprint: analysis.fingerprint, esp: analysis.esp.number };
+  if (opt.method === 'free') {
+    const rootMiB = Math.max(opt.rootMinMiB, Math.min(g * 1024, opt.rootMaxMiB));
+    return { method: 'free', rootGiB: g, rootMiB, freeLeftMiB: opt.sizeMiB - rootMiB, request: { method: 'free', ...base, start: opt.startMiB, end: opt.startMiB + rootMiB } };
+  }
+  // The new partition takes the space after the shrunk one (spaceMiB, minus 1 MiB of alignment).
+  const newMiB = Math.max(opt.newMinMiB, Math.min(opt.newMaxMiB, opt.spaceMiB - 1 - g * 1024));
+  return { method: 'shrink', rootGiB: g, rootMiB: opt.spaceMiB - 1 - newMiB, oldMiB: opt.sizeMiB, newMiB, usedMiB: opt.usedMiB, request: { method: 'shrink', ...base, part: opt.number, newSize: newMiB } };
 }
 
 /** Flathub ids to send to the helper (--gaming): none while the switch is off; catalog order, known ids only. */
@@ -127,6 +165,13 @@ export function zoneInfo(id, now = new Date()) {
   };
 }
 
+/** MiB -> « 400 Go »: binary units, as Windows' Disk Management shows partitions (the probe counts in MiB). */
+function fmtGiB(mib, lang) {
+  const v = (Number(mib) || 0) / 1024;
+  if (v < 1) return `${new Intl.NumberFormat(LOCALES[lang], { maximumFractionDigits: 0 }).format(Number(mib) || 0)} ${lang === 'fr' ? 'Mo' : 'MB'}`;
+  return `${new Intl.NumberFormat(LOCALES[lang], { maximumFractionDigits: v < 10 ? 1 : 0 }).format(v)} ${lang === 'fr' ? 'Go' : 'GB'}`;
+}
+
 function fmtSize(bytes, lang) {
   const units = lang === 'fr' ? ['o', 'Ko', 'Mo', 'Go', 'To'] : ['B', 'KB', 'MB', 'GB', 'TB'];
   let v = Number(bytes) || 0;
@@ -174,6 +219,11 @@ export default {
       disks: null,
       disksError: null,
       disk: null,
+      mode: null, // 'erase' | 'alongside' (dual boot) for the chosen disk
+      method: null, // dual boot: index of the chosen option of the disk's analysis (free space / shrink a partition)
+      rootGiB: null, // dual boot: size of Selene OS (GiB)
+      backupOk: false, // dual boot: « J'ai sauvegardé mes fichiers importants »
+      bootEntry: null, // { status: 'added'|'failed'|'skipped', message } (dual boot)
       fullname: '',
       user: '',
       userTouched: false,
@@ -212,6 +262,8 @@ export default {
       }
       v = v ?? lookup(dict[S.lang], key) ?? lookup(dict.en, key);
       if (typeof v !== 'string') return key;
+      // FR « à côté de Windows » / « à côté d'Arch Linux »: {de_os} is derived from {os}.
+      if (vars && vars.os !== undefined && vars.de_os === undefined) vars = { ...vars, de_os: /^[aeiouyàâäéèêëîïôöùûü]/i.test(String(vars.os)) ? `d'${vars.os}` : `de ${vars.os}` };
       return v.replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] !== undefined ? String(vars[k]) : m));
     };
     const size = (b) => fmtSize(b, S.lang);
@@ -249,8 +301,14 @@ export default {
       switch (name) {
         case 'keyboard':
           return !!S.keyboard;
-        case 'disk':
-          return !!S.disk && !!S.disks?.find((d) => d.path === S.disk && !d.tooSmall);
+        case 'disk': {
+          const d = S.disks?.find((x) => x.path === S.disk && !x.tooSmall);
+          return !!d && (S.mode === 'erase' || (S.mode === 'alongside' && !!d.alongside?.possible));
+        }
+        case 'space':
+          return !!currentPlan();
+        case 'summary':
+          return S.mode !== 'alongside' || (!!currentPlan() && S.backupOk);
         case 'account':
           return Object.keys(validateAccount(S)).length === 0;
         case 'timezone':
@@ -259,6 +317,25 @@ export default {
           return true;
       }
     };
+    // Dual boot: the disk's analysis, the chosen option and the exact plan.
+    const diskObj = () => S.disks?.find((d) => d.path === S.disk);
+    const analysis = () => (S.mode === 'alongside' ? diskObj()?.alongside || null : null);
+    const option = () => analysis()?.options?.[S.method ?? 0] || null;
+    const currentPlan = () => (S.mode === 'alongside' ? alongsidePlan(analysis(), option(), S.rootGiB) : null);
+    const osName = (a = diskObj()?.alongside) => a?.os || t('disk.otherSystem');
+    function setMode(mode) {
+      const cur = STEPS[S.step];
+      S.mode = mode;
+      S.backupOk = false;
+      if (mode === 'alongside') {
+        const a = diskObj()?.alongside;
+        S.method = 0;
+        S.rootGiB = a?.options?.[0] ? rootBoundsGiB(a.options[0]).def : null;
+      }
+      STEPS = stepsFor(S.gpu, S.mode);
+      S.step = Math.max(0, STEPS.indexOf(cur));
+    }
+
     const go = (i) => {
       S.step = Math.max(0, Math.min(STEPS.length - 1, i));
       render();
@@ -473,6 +550,15 @@ export default {
       if (S.disk && !S.disks.find((d) => d.path === S.disk && !d.tooSmall)) S.disk = null;
       const usable = S.disks.filter((d) => !d.tooSmall);
       if (!S.disk && usable.length === 1) S.disk = usable[0].path;
+      // After a refresh the analysis is new: a dual boot that is no longer possible is dropped, its size re-clamped.
+      const cur = diskObj();
+      if (!cur) setMode(null);
+      else if (!cur.partitions.length) setMode('erase');
+      else if (S.mode === 'alongside' && !cur.alongside?.possible) setMode(null);
+      else if (S.mode === 'alongside') {
+        if (!option()) S.method = 0;
+        S.rootGiB = alongsidePlan(cur.alongside, option(), S.rootGiB)?.rootGiB ?? null;
+      }
       if (STEPS[S.step] === 'disk' && S.phase === 'setup') {
         pageDisk();
         refreshNext();
@@ -510,7 +596,12 @@ export default {
         );
       } else {
         const select = (id) => {
-          S.disk = id;
+          if (S.disk !== id) {
+            S.disk = id;
+            // A disk without partitions can only be used whole; otherwise the person chooses (nothing preselected).
+            setMode(diskObj()?.partitions?.length ? null : 'erase');
+            renderChrome('disk');
+          }
           pageDisk();
           refreshNext();
           content.querySelector('.ins-list')?.focus();
@@ -534,7 +625,7 @@ export default {
                   h('span', { class: 'ins-row-title' }, d.model || t('disk.unknownModel'), d.removable ? h('span', { class: 'ins-tag' }, t('disk.removable')) : null),
                   h('span', { class: 'ins-row-sub' }, [d.path, d.transport ? d.transport.toUpperCase() : null].filter(Boolean).join(' · ')),
                   partBar(d),
-                  h('span', { class: ['ins-row-sub', d.tooSmall && 'ins-err-text'] }, d.tooSmall ? t('disk.tooSmall', { size: size(status.minSize || 12e9) }) : parts),
+                  h('span', { class: ['ins-row-sub', d.tooSmall && 'ins-err-text'] }, d.tooSmall ? t('disk.tooSmall', { size: size(status.minSize || 12e9) }) : [d.alongside?.systems?.map((x) => x.name).join(', '), parts].filter(Boolean).join(' · ')),
                 ),
                 h('span', { class: 'ins-row-size' }, size(d.size)),
                 h('span', { class: 'ins-row-check' }, icon('checkmark', { size: 16 })),
@@ -543,11 +634,176 @@ export default {
           },
         );
       }
+      const sel = S.disks?.find((d) => d.path === S.disk && !d.tooSmall);
+      const chooser = sel && sel.partitions.length ? modeChooser(sel) : null;
       content.replaceChildren(
-        h('div', { class: 'ins-toolbar' }, refresh),
-        body,
-        h('div', { class: 'infobar warning ins-warning', role: 'note' }, icon('warning', { size: 16 }), h('div', null, t('disk.warning'))),
+        ...[
+          h('div', { class: 'ins-toolbar' }, refresh),
+          body,
+          chooser || h('div', { class: 'infobar warning ins-warning', role: 'note' }, icon('warning', { size: 16 }), h('div', null, t('disk.warning'))),
+        ],
       );
+      if (chooser && STEPS[S.step] === 'disk') setTimeout(() => chooser.scrollIntoView?.({ block: 'nearest' }), 0);
+    }
+
+    // « Installer à côté de … » / « Effacer tout le disque » for a disk that holds something.
+    function modeChooser(d) {
+      const a = d.alongside || {};
+      const os = a.os;
+      const showAlong = a.possible || (a.systems || []).length > 0;
+      const pick = (mode) => {
+        if (mode === 'alongside' && !a.possible) return;
+        if (S.mode !== mode) setMode(mode);
+        render();
+        content.querySelector(`.ins-mode[data-mode="${mode}"]`)?.focus();
+      };
+      const card = (mode, ic, ttl, desc, { disabled = false, danger = false, extra = null } = {}) => {
+        const on = S.mode === mode;
+        return h(
+          'div',
+          {
+            class: ['ins-mode', on && 'selected', disabled && 'disabled', danger && 'danger'],
+            role: 'radio',
+            tabindex: disabled ? -1 : 0,
+            'aria-checked': on ? 'true' : 'false',
+            'aria-disabled': disabled ? 'true' : null,
+            dataset: { mode },
+            onclick: () => pick(mode),
+            onkeydown: (e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                if (e.key === 'Enter' && on) return; // Enter on the chosen card = Next
+                e.preventDefault();
+                e.stopPropagation();
+                pick(mode);
+              }
+            },
+          },
+          h('span', { class: 'ins-mode-radio', 'aria-hidden': 'true' }),
+          h('span', { class: 'ins-mode-icon', 'aria-hidden': 'true' }, icon(ic, { size: 22 })),
+          h('span', { class: 'ins-mode-text' }, h('span', { class: 'ins-mode-title' }, ttl), h('span', { class: 'ins-mode-desc' }, desc), extra),
+        );
+      };
+      const reason = !a.possible && a.reason ? whyBlock(a, d) : null;
+      return h(
+        'div',
+        { class: 'ins-modes', role: 'radiogroup', 'aria-label': t('disk.modeLabel') },
+        showAlong
+          ? card('alongside', 'split_vertical', t('disk.alongside', { os: os || t('disk.otherSystem') }), t('disk.alongsideDesc', { os: os || t('disk.otherSystem') }), { disabled: !a.possible, extra: reason })
+          : null,
+        card('erase', 'delete', t('disk.erase'), os ? t('disk.eraseDesc', { os }) : t('disk.eraseDescPlain'), { danger: true }),
+        S.mode == null ? h('div', { class: 'ins-hint ins-mode-hint' }, t('disk.chooseMode')) : null,
+      );
+    }
+
+    // Why « à côté » is not possible, and what the person can do about it.
+    function whyBlock(a, d) {
+      const vars = { os: a.reasonOs || a.os || t('disk.otherSystem'), fs: a.reasonFs || '', part: a.reasonPart || d.path, free: fmtGiB(a.esp?.freeMiB || 0, S.lang) };
+      return h(
+        'span',
+        { class: 'ins-why', role: 'note', dataset: { reason: a.reason } },
+        h('span', { class: 'ins-why-title' }, icon('info', { size: 14 }), t(`why.${a.reason}.title`, vars)),
+        h('span', { class: 'ins-why-body' }, t(`why.${a.reason}.body`, vars)),
+      );
+    }
+
+    // ---------------------------------------------------------------- space (dual boot): Selene's size
+    const partName = (o) => (o.kind === 'windows' ? t('part.windows') : o.os ? t('part.linux', { os: o.os, part: o.part.replace(/^\/dev\//, '') }) : t('part.other', { part: o.part.replace(/^\/dev\//, '') }));
+    function pageSpace() {
+      const d = diskObj();
+      const a = analysis();
+      if (!d || !a) return;
+      const os = osName(a);
+      setHeader(stepOf('space'), t('space.title'), t('space.subtitle', { os, disk: d.model || d.path }));
+      const opts = a.options;
+      const opt = option();
+      const b = rootBoundsGiB(opt);
+      const g = (x) => fmtGiB(x, S.lang);
+      const methods =
+        opts.length > 1
+          ? h(
+              'div',
+              { class: 'ins-methods', role: 'radiogroup', 'aria-label': t('space.methodLabel') },
+              opts.map((o, i) =>
+                h(
+                  'button',
+                  {
+                    class: ['ins-method', (S.method ?? 0) === i && 'selected'],
+                    role: 'radio',
+                    'aria-checked': (S.method ?? 0) === i ? 'true' : 'false',
+                    dataset: { method: o.method },
+                    onclick: () => {
+                      if ((S.method ?? 0) === i) return;
+                      S.method = i;
+                      S.rootGiB = rootBoundsGiB(o).def;
+                      S.backupOk = false;
+                      pageSpace();
+                      refreshNext();
+                      content.querySelector(`.ins-method[data-method="${o.method}"]`)?.focus();
+                    },
+                  },
+                  h('span', { class: 'ins-mode-radio', 'aria-hidden': 'true' }),
+                  h(
+                    'span',
+                    { class: 'ins-mode-text' },
+                    h('span', { class: 'ins-mode-title' }, o.method === 'free' ? t('space.useFree') : t('space.shrink', { name: partName(o) })),
+                    h('span', { class: 'ins-mode-desc' }, o.method === 'free' ? t('space.useFreeDesc', { size: g(o.sizeMiB) }) : t('space.shrinkDesc', { size: g(o.sizeMiB), used: g(o.usedMiB) })),
+                  ),
+                ),
+              ),
+            )
+          : null;
+      // The split: the other system (or the free space left) and Selene, to scale.
+      const bar = h('div', { class: 'ins-split', 'aria-hidden': 'true' });
+      const legend = h('div', { class: 'ins-split-legend' });
+      const note = h('div', { class: 'ins-space-note', 'aria-live': 'polite' });
+      const range = h('input', { type: 'range', class: 'slider ins-range', min: b.min, max: b.max, step: 1, value: S.rootGiB ?? b.def, 'aria-label': t('space.sizeLabel') });
+      const num = h('input', { type: 'number', class: 'input ins-num', min: b.min, max: b.max, step: 1, value: S.rootGiB ?? b.def, 'aria-label': `${t('space.sizeLabel')} (${t('space.unit')})` });
+      const update = (v, from) => {
+        const plan = alongsidePlan(a, opt, v);
+        S.rootGiB = plan.rootGiB;
+        if (from !== range) range.value = String(plan.rootGiB);
+        range.style.setProperty('--val', `${b.max > b.min ? ((plan.rootGiB - b.min) / (b.max - b.min)) * 100 : 100}%`);
+        if (from !== num) num.value = String(plan.rootGiB);
+        const total = opt.method === 'free' ? opt.sizeMiB : opt.spaceMiB;
+        const left = opt.method === 'free' ? plan.freeLeftMiB : plan.newMiB;
+        const leftLabel = opt.method === 'free' ? t('space.free') : opt.os || os;
+        bar.replaceChildren(
+          h('span', { class: ['ins-split-part', opt.method === 'free' ? 'free' : 'other'], style: { flexGrow: String(Math.max(left / total, 0.001)) } }, opt.method === 'shrink' ? h('span', { class: 'ins-split-used', style: { width: `${Math.min(100, (plan.usedMiB / Math.max(left, 1)) * 100)}%` } }) : null),
+          h('span', { class: 'ins-split-part selene', style: { flexGrow: String(plan.rootMiB / total) } }),
+        );
+        legend.replaceChildren(
+          h('span', { class: 'ins-legend other', dataset: { k: 'other' } }, h('span', { class: ['ins-dot', opt.method === 'free' ? 'free' : 'other'] }), h('span', { class: 'ins-legend-name' }, leftLabel), h('strong', { class: 'ins-legend-size' }, g(left))),
+          h('span', { class: 'ins-legend selene', dataset: { k: 'selene' } }, h('span', { class: 'ins-dot selene' }), h('span', { class: 'ins-legend-name' }, 'Selene OS'), h('strong', { class: 'ins-legend-size' }, g(plan.rootMiB))),
+        );
+        note.replaceChildren(
+          ...[
+            opt.method === 'shrink'
+              ? h('div', { class: 'ins-space-line', dataset: { k: 'keeps' } }, icon('info', { size: 16 }), h('span', null, t('space.keeps', { os: opt.os || os, from: g(plan.oldMiB), size: g(plan.newMiB), used: g(plan.usedMiB), free: g(plan.newMiB - plan.usedMiB) })))
+              : plan.freeLeftMiB >= 1024
+                ? h('div', { class: 'ins-space-line', dataset: { k: 'freeLeft' } }, icon('info', { size: 16 }), h('span', null, t('space.freeLeft', { size: g(plan.freeLeftMiB) })))
+                : null,
+            plan.rootMiB < a.rootSuggestedMiB - 512 ? h('div', { class: 'ins-space-line warn', dataset: { k: 'small' } }, icon('warning', { size: 16 }), h('span', null, t('space.small', { suggested: g(a.rootSuggestedMiB) }))) : null,
+          ].filter(Boolean),
+        );
+        refreshNext();
+      };
+      range.addEventListener('input', () => update(range.value, range));
+      num.addEventListener('input', () => {
+        const v = Number(num.value);
+        if (Number.isFinite(v) && v >= b.min && v <= b.max) update(v, num);
+      });
+      num.addEventListener('change', () => update(num.value, null));
+      content.replaceChildren(
+        ...[
+          methods,
+          h('div', { class: 'ins-space card' }, bar, legend, h('div', { class: 'ins-size-row' }, h('label', { class: 'ins-label', for: `ins-num-${win.id}` }, t('space.sizeLabel')), range, h('span', { class: 'ins-num-wrap' }, num, h('span', { class: 'ins-unit' }, t('space.unit'))))),
+          h('div', { class: 'ins-hint ins-bounds' }, t('space.bounds', { min: g(b.min * 1024), suggested: g(a.rootSuggestedMiB), max: g(b.max * 1024) })),
+          note,
+          a.bitlocker ? h('div', { class: 'infobar warning ins-note ins-bitlocker', role: 'note' }, icon('shield_keyhole', { size: 16 }), h('div', null, t('space.bitlockerKey'))) : null,
+        ].filter(Boolean),
+      );
+      num.id = `ins-num-${win.id}`;
+      update(S.rootGiB ?? b.def, null);
     }
 
     function field(key, label, input, hint) {
@@ -733,7 +989,7 @@ export default {
     function applyGpu(info) {
       S.gpu = info || { gpus: [], nvidia: [] };
       const cur = STEPS[S.step];
-      STEPS = stepsFor(S.gpu);
+      STEPS = stepsFor(S.gpu, S.mode);
       if (S.phase === 'setup') {
         S.step = Math.max(0, STEPS.indexOf(cur));
         render();
@@ -900,7 +1156,16 @@ export default {
       if (!z) return id;
       return id === 'UTC' ? `UTC — ${t('tz.utc')}` : `${z.city} (${t(`region.${z.region}`)}) · ${z.offsetLabel}`;
     }
-    const diskObj = () => S.disks?.find((d) => d.path === S.disk);
+    /** The exact changes of a dual boot, as sentences (summary, confirmation). */
+    function changesFor(plan, opt, a) {
+      const g = (x) => fmtGiB(x, S.lang);
+      return [
+        plan.method === 'shrink' ? t('summary.changeShrink', { name: partName(opt), from: g(plan.oldMiB), to: g(plan.newMiB) }) : t('summary.changeFree', { size: g(plan.rootMiB) }),
+        t('summary.changeNew', { size: g(plan.rootMiB) }),
+        t('summary.changeEsp'),
+        t('summary.changeKeep', { os: osName(a) }),
+      ];
+    }
 
     function pageSummary() {
       setHeader(stepOf('summary'), t('summary.title'), t('summary.subtitle'));
@@ -913,17 +1178,50 @@ export default {
           h('span', { class: 'ins-row-main' }, h('span', { class: 'ins-sum-label' }, label), h('span', { class: 'ins-row-title' }, value), sub ? h('span', { class: ['ins-row-sub', opts.danger && 'ins-err-text'] }, sub) : null),
           h('button', { class: 'btn subtle small', onclick: () => go(step) }, t('change')),
         );
+      const plan = currentPlan();
+      const a = analysis();
+      const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+      const changes = plan
+        ? h(
+            'div',
+            { class: 'ins-changes card', dataset: { method: plan.method } },
+            h('div', { class: 'ins-changes-title' }, icon('hard_drive', { size: 18 }), t('summary.changesTitle', { disk: d?.model || S.disk })),
+            h('ul', { class: 'ins-changes-list' }, changesFor(plan, option(), a).map((c) => h('li', null, cap(c)))),
+            h('div', { class: 'infobar warning ins-backup', role: 'note' }, icon('save', { size: 16 }), h('div', null, plan.method === 'shrink' ? t('summary.backup') : t('summary.backupFree'))),
+            h(
+              'label',
+              { class: 'ins-backup-check' },
+              h(
+                'span',
+                { class: 'checkbox' },
+                h('input', {
+                  type: 'checkbox',
+                  checked: S.backupOk,
+                  'data-act': 'backup',
+                  onchange: (e) => {
+                    S.backupOk = e.target.checked;
+                    refreshNext();
+                  },
+                }),
+              ),
+              h('span', null, t('summary.backupCheck')),
+            ),
+          )
+        : null;
       content.replaceChildren(
+        ...[changes,
         h(
           'div',
           { class: 'ins-summary card' },
           row('local_language', t('summary.language'), S.lang === 'fr' ? 'Français (France)' : 'English (United States)', null, 0, { key: 'language' }),
           row('keyboard', t('summary.keyboard'), kbLabel(S.keyboard), S.keyboard, 1, { key: 'keyboard' }),
-          row('hard_drive', t('summary.disk'), d ? `${d.model || t('disk.unknownModel')} · ${size(d.size)}` : S.disk, `${S.disk} — ${t('summary.erase')}`, 2, { danger: true, key: 'disk' }),
-          row('person', t('summary.account'), S.fullname.trim(), t('summary.admin', { user: S.user }), 3, { key: 'account' }),
-          row('lock_closed', t('summary.signin'), S.autologin ? t('summary.autologinOn') : t('summary.autologinOff'), null, 3, { key: 'signin' }),
-          row('desktop', t('summary.hostname'), S.hostname, null, 3, { key: 'hostname' }),
-          row('globe_clock', t('summary.timezone'), tzLabel(S.timezone), null, 4, { key: 'timezone' }),
+          plan
+            ? row('hard_drive', t('summary.disk'), d ? `${d.model || t('disk.unknownModel')} · ${size(d.size)}` : S.disk, `${S.disk} — ${t('summary.alongside', { os: osName(a) })}`, 2, { key: 'disk' })
+            : row('hard_drive', t('summary.disk'), d ? `${d.model || t('disk.unknownModel')} · ${size(d.size)}` : S.disk, `${S.disk} — ${t('summary.erase')}`, 2, { danger: true, key: 'disk' }),
+          row('person', t('summary.account'), S.fullname.trim(), t('summary.admin', { user: S.user }), STEPS.indexOf('account'), { key: 'account' }),
+          row('lock_closed', t('summary.signin'), S.autologin ? t('summary.autologinOn') : t('summary.autologinOff'), null, STEPS.indexOf('account'), { key: 'signin' }),
+          row('desktop', t('summary.hostname'), S.hostname, null, STEPS.indexOf('account'), { key: 'hostname' }),
+          row('globe_clock', t('summary.timezone'), tzLabel(S.timezone), null, STEPS.indexOf('timezone'), { key: 'timezone' }),
           STEPS.includes('drivers')
             ? row(
                 'developer_board',
@@ -944,7 +1242,7 @@ export default {
                 { key: 'gaming' },
               )
             : null,
-        ),
+        )].filter(Boolean),
       );
     }
 
@@ -954,14 +1252,26 @@ export default {
 
     async function startInstall() {
       const d = diskObj();
-      const ok = await ui.confirm(t('confirm.body', { disk: `${d?.model || S.disk} (${S.disk})`, size: size(d?.size || 0) }), {
-        title: t('confirm.title'),
-        okLabel: t('confirm.ok'),
-        cancelLabel: t('cancel'),
-        danger: true,
-        parent: win,
-      });
+      const plan = currentPlan();
+      if (S.mode === 'alongside' && (!plan || !S.backupOk)) return;
+      const ok = plan
+        ? await ui.confirm(t('confirm.alongsideBody', { changes: changesFor(plan, option(), analysis()).map((c) => c.charAt(0).toUpperCase() + c.slice(1)).join(' ') }), {
+            title: t('confirm.alongsideTitle'),
+            okLabel: t('confirm.alongsideOk', { os: osName(analysis()) }),
+            cancelLabel: t('cancel'),
+            danger: true,
+            parent: win,
+          })
+        : await ui.confirm(t('confirm.body', { disk: `${d?.model || S.disk} (${S.disk})`, size: size(d?.size || 0) }), {
+            title: t('confirm.title'),
+            okLabel: t('confirm.ok'),
+            cancelLabel: t('cancel'),
+            danger: true,
+            parent: win,
+          });
       if (!ok || S.phase !== 'setup') return;
+      S.installPlan = plan ? { ...plan, os: osName(analysis()), bitlocker: !!analysis()?.bitlocker } : null;
+      S.bootEntry = null;
       S.phase = 'installing';
       S.progress = 0;
       S.stage = null;
@@ -981,6 +1291,7 @@ export default {
       try {
         const r = await api.invoke('installer:start', {
           disk: S.disk,
+          ...(plan ? { mode: 'alongside', alongside: plan.request } : { mode: 'erase' }),
           user: S.user,
           fullname: S.fullname.trim(),
           password: S.password,
@@ -995,7 +1306,7 @@ export default {
         S.dryRun = !!r?.dryRun;
       } catch (e) {
         S.phase = 'error';
-        S.error = e?.code === 'ENOTADMIN' || e?.code === 'EAUTH' ? { code: e.code, message: e.message } : { message: t('error.start', { error: e.message }) };
+        S.error = e?.code === 'ENOTADMIN' || e?.code === 'EAUTH' ? { code: e.code, message: e.message } : e?.code === 'EPLAN' ? { code: 'EPLAN', message: e.message } : { message: t('error.start', { error: e.message }) };
         render();
       }
     }
@@ -1004,6 +1315,11 @@ export default {
       if (!ev || S.phase !== 'installing') return;
       if (ev.type === 'progress') {
         S.progress = Math.max(S.progress, ev.progress);
+        if (ev.stage === 'shrink' && !STAGES.includes('shrink')) {
+          // A dual boot that shrinks a partition first: one more stage, at the top of the list.
+          STAGES.unshift('shrink');
+          if (S.phase === 'installing') pageInstalling();
+        }
         if (STAGES.includes(ev.stage)) S.stage = ev.stage;
         if (ev.message) S.stageMessage = ev.message;
         updateProgress();
@@ -1019,6 +1335,8 @@ export default {
         S.driverResult = ev; // never an error: reported on the done page
       } else if (ev.type === 'gaming') {
         S.gamingResult = ev; // never an error either (the apps are installed at the first sign-in)
+      } else if (ev.type === 'bootentry') {
+        S.bootEntry = ev; // dual boot: the firmware entry « Selene » (never an error)
       } else if (ev.type === 'error') {
         S.error = ev;
       } else if (ev.type === 'done') {
@@ -1135,6 +1453,9 @@ export default {
             ? h('div', { class: 'infobar warning ins-note ins-gaming-result', role: 'note', dataset: { status: 'failed' } }, icon('game-controller', { size: 16 }), h('div', null, t('done.gamingFailed')))
             : h('div', { class: 'infobar ins-note ins-gaming-result', dataset: { status: 'saved' } }, icon('game-controller', { size: 16 }), h('div', null, t('done.gaming', { apps: listFmt(gamingNames(S.gamingRequested, { short: true })) })))
           : null,
+        S.installPlan ? h('div', { class: 'infobar success ins-note ins-dualboot' }, icon('split_vertical', { size: 16 }), h('div', null, t('done.dualboot', { os: S.installPlan.os }))) : null,
+        S.installPlan && S.bootEntry?.status === 'failed' ? h('div', { class: 'infobar warning ins-note ins-bootentry', role: 'note' }, icon('power', { size: 16 }), h('div', null, t('done.bootentryFailed'))) : null,
+        S.installPlan?.bitlocker ? h('div', { class: 'infobar ins-note ins-bitlocker-done' }, icon('shield_keyhole', { size: 16 }), h('div', null, t('done.bitlocker'))) : null,
         h('div', { class: 'infobar warning ins-note' }, icon('usb_stick', { size: 16 }), h('div', null, t('done.removeMedia'))),
         h('p', { class: 'ins-done-account' }, t('done.account', { name: S.fullname.trim(), user: S.user })),
         h('div', { class: 'ins-done-msg', role: 'status', 'aria-live': 'polite' }),
@@ -1160,10 +1481,11 @@ export default {
 
     function pageError() {
       const cancelled = S.cancelled;
-      setHeader(null, cancelled ? t('error.cancelledTitle') : t('error.title'), cancelled ? t('error.cancelledSubtitle') : t('error.subtitle'));
+      setHeader(null, cancelled ? t('error.cancelledTitle') : t('error.title'), S.installPlan ? t('error.subtitleAlongside', { os: S.installPlan.os }) : cancelled ? t('error.cancelledSubtitle') : t('error.subtitle'));
       const raw = String(S.error?.message || '');
       // sudo refused: a standard account (ENOTADMIN) or one that needs a password (EAUTH).
-      const msg = S.error?.code === 'ENOTADMIN' ? t('error.notAdmin') : S.error?.code === 'EAUTH' ? t('error.auth') : raw;
+      const planRefused = S.error?.code === 'EPLAN' || (S.installPlan && Number(S.error?.code) === 4 && /changed since/i.test(raw));
+      const msg = S.error?.code === 'ENOTADMIN' ? t('error.notAdmin') : S.error?.code === 'EAUTH' ? t('error.auth') : planRefused ? t('error.plan') : raw;
       const excerpt = S.log.slice(-40).join('\n');
       content.replaceChildren(
         ...[
@@ -1183,7 +1505,14 @@ export default {
           t('error.retry'),
           () => {
             S.phase = 'setup';
-            S.step = STEPS.indexOf('summary');
+            if (planRefused) {
+              // The disk changed: back to the disk step with a fresh analysis (the plan is chosen again).
+              S.mode = null;
+              S.backupOk = false;
+              STEPS = stepsFor(S.gpu, null);
+              S.step = STEPS.indexOf('disk');
+              S.disks = null;
+            } else S.step = STEPS.indexOf('summary');
             render();
           },
           { primary: true, id: 'retry' },
@@ -1199,11 +1528,11 @@ export default {
       root.dataset.phase = S.phase;
       root.lang = S.lang;
       const key = `${name}`;
-      const artName = { welcome: 'welcome', keyboard: 'keyboard', disk: 'disk', account: 'account', timezone: 'timezone', drivers: 'drivers', games: 'games', summary: 'summary', installing: 'installing', done: 'done', error: 'error' }[name];
+      const artName = { welcome: 'welcome', keyboard: 'keyboard', disk: 'disk', space: 'disk', account: 'account', timezone: 'timezone', drivers: 'drivers', games: 'games', summary: 'summary', installing: 'installing', done: 'done', error: 'error' }[name];
       renderChrome(artName);
       refreshAccount = null;
       if (S.phase === 'setup') {
-        ({ welcome: pageWelcome, keyboard: pageKeyboard, disk: pageDisk, account: pageAccount, timezone: pageTimezone, drivers: pageDrivers, games: pageGames, summary: pageSummary })[name]();
+        ({ welcome: pageWelcome, keyboard: pageKeyboard, disk: pageDisk, space: pageSpace, account: pageAccount, timezone: pageTimezone, drivers: pageDrivers, games: pageGames, summary: pageSummary })[name]();
         setupFooter();
         if (name === 'disk' && S.disks == null) loadDisks();
       } else if (S.phase === 'installing') pageInstalling();

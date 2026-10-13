@@ -20,7 +20,8 @@
       "drivers": "Graphics driver",
       "games": "Games",
       "summary": "Summary",
-      "install": "Install"
+      "install": "Install",
+      "space": "Space"
     },
     "welcome": {
       "title": "Welcome to Selene OS",
@@ -42,7 +43,7 @@
     },
     "disk": {
       "title": "Where do you want to install Selene OS?",
-      "subtitle": "Selene OS uses a whole disk. Choose the disk to install it on.",
+      "subtitle": "Choose the disk, then whether Selene OS goes next to the system already on it or replaces everything.",
       "warning": "Everything on the selected disk will be erased: partitions, files and any other operating system.",
       "empty": "No partitions",
       "partitions_one": "{count} partition",
@@ -53,7 +54,16 @@
       "noneHint": "Connect a disk of at least {size}, then select Refresh.",
       "loading": "Looking for disks…",
       "unknownModel": "Disk",
-      "loadError": "The disks could not be listed: {error}"
+      "loadError": "The disks could not be listed: {error}",
+      "modeLabel": "Installation type",
+      "chooseMode": "Choose how to install Selene OS on this disk.",
+      "alongside": "Install next to {os}",
+      "alongsideDesc": "Keep {os} and your files. When the PC starts, you choose which system to use.",
+      "otherSystem": "the other system",
+      "erase": "Erase the whole disk",
+      "eraseDesc": "{os} and all the files on this disk will be permanently erased.",
+      "eraseDescPlain": "Everything on this disk will be permanently erased: partitions and files.",
+      "howTo": "What you can do"
     },
     "account": {
       "title": "Who's going to use this computer?",
@@ -192,12 +202,25 @@
       "gaming": "Gaming apps",
       "gamingOff": "None",
       "gamingOnSub": "At your first sign-in, from Flathub",
-      "gamingOffSub": "You can add them later from Software"
+      "gamingOffSub": "You can add them later from Software",
+      "alongside": "Next to {os}",
+      "changesTitle": "What will change on {disk}",
+      "changeShrink": "The {name} shrinks from {from} to {to}.",
+      "changeFree": "{size} of the free space is used.",
+      "changeNew": "A new {size} partition is created for Selene OS.",
+      "changeEsp": "The EFI boot partition is kept; Selene OS adds its own folder to it.",
+      "changeKeep": "Nothing else changes: {os} and your files stay where they are.",
+      "backup": "Before you go on, back up your important files (USB stick, external disk or online). Shrinking a partition is safe in the vast majority of cases, but a power cut during the operation could lose data.",
+      "backupFree": "Before you go on, back up your important files (USB stick, external disk or online): it's always wise before changing a disk.",
+      "backupCheck": "I have backed up my important files"
     },
     "confirm": {
       "title": "Erase this disk?",
       "body": "All data on {disk} ({size}) will be permanently erased. This cannot be undone.",
-      "ok": "Erase and install"
+      "ok": "Erase and install",
+      "alongsideTitle": "Change the disk and install?",
+      "alongsideBody": "{changes} Once started, this cannot be undone.",
+      "alongsideOk": "Install next to {os}"
     },
     "installing": {
       "title": "Installing Selene OS",
@@ -218,7 +241,8 @@
       "configure": "Configuring the system",
       "drivers": "Installing the graphics driver",
       "bootloader": "Installing the boot loader",
-      "cleanup": "Finishing up"
+      "cleanup": "Finishing up",
+      "shrink": "Making room on the disk"
     },
     "done": {
       "title": "Selene OS is installed",
@@ -233,7 +257,10 @@
       "driverOk": "The NVIDIA driver ({pkg}) is installed. It will be used as soon as you restart.",
       "driverFailed": "The driver couldn't be installed; you can install it later in Settings > Graphics drivers.",
       "gaming": "The first time you sign in, Selene OS will install {apps} (Internet needed).",
-      "gamingFailed": "The gaming apps couldn't be set up for your first sign-in; you can install them from Software."
+      "gamingFailed": "The gaming apps couldn't be set up for your first sign-in; you can install them from Software.",
+      "dualboot": "When your PC starts, a menu lets you choose between Selene OS and {os}. If you choose nothing, Selene OS starts after 5 seconds.",
+      "bitlocker": "If Windows asks for its BitLocker recovery key the next time it starts, type it in: this can happen once after a boot menu is added.",
+      "bootentryFailed": "The PC's own boot menu couldn't get a « Selene » entry. If Windows starts directly, open your PC's boot menu (often F12, F11 or Esc at power-on) and choose « Selene » or « ubuntu »."
     },
     "error": {
       "title": "The installation failed",
@@ -246,7 +273,85 @@
       "retry": "Try again",
       "auth": "Administrator rights are required to install Selene OS.",
       "notAdmin": "This account isn't an administrator, so it can't install Selene OS. Sign in with an administrator account, or ask an administrator to make your account one.",
-      "start": "The installation could not start: {error}"
+      "start": "The installation could not start: {error}",
+      "plan": "The disk changed since it was analysed, so nothing was done. Go back to the Disk step and select Refresh.",
+      "subtitleAlongside": "Selene OS couldn't be installed. The log below shows where it stopped. {os} and its files were not erased; if the partitions had already been changed, the space set aside for Selene OS stays unused until you try again."
+    },
+    "why": {
+      "bios": {
+        "title": "This PC started in legacy BIOS mode",
+        "body": "Installing next to another system needs UEFI mode. Restart from the installation media and pick its « UEFI » entry in your PC's boot menu (often F12, F11 or Esc), or erase the whole disk."
+      },
+      "mbr": {
+        "title": "This disk uses the old MBR format",
+        "body": "Selene OS can only be installed next to another system on a GPT disk, in UEFI mode. You can erase the whole disk, or install Selene OS on another disk."
+      },
+      "noEsp": {
+        "title": "No EFI boot partition on this disk",
+        "body": "{os} doesn't start in UEFI mode from this disk, so Selene OS can't add itself to its start-up. Erase the whole disk, or choose another disk."
+      },
+      "espFull": {
+        "title": "The EFI boot partition is full",
+        "body": "Selene OS needs about 32 MB on it and only {free} is left. Remove the boot files of systems you no longer use, then select Refresh."
+      },
+      "espUbuntu": {
+        "title": "Another Ubuntu-based system is already installed here",
+        "body": "Its boot files use the « ubuntu » folder that Selene OS needs too: installing next to it would stop that system from starting. Erase the whole disk, or choose another disk."
+      },
+      "noOs": {
+        "title": "No other system found on this disk",
+        "body": "Selene OS installs next to Windows or Linux. This disk only holds files: erase it, or choose the disk your other system is on."
+      },
+      "bitlocker": {
+        "title": "The Windows partition is encrypted with BitLocker",
+        "body": "Selene OS can't shrink it. In Windows, open Disk Management (right-click the Start button), right-click C: > Shrink Volume and free at least 20 GB. Then suspend BitLocker (Control Panel > BitLocker Drive Encryption > Suspend protection) and write down your recovery key. Come back here and select Refresh: Selene OS will use the free space."
+      },
+      "hibernated": {
+        "title": "Windows wasn't fully shut down",
+        "body": "Fast Startup or hibernation keeps the Windows partition in use, so changing it now could lose data. In Windows: Control Panel > Power Options > Choose what the power buttons do > Change settings that are currently unavailable, untick « Turn on fast startup », save, then shut down. Come back here and select Refresh."
+      },
+      "dirty": {
+        "title": "{os} needs to check its disk first",
+        "body": "Its file system was not closed properly. Start {os} and shut it down normally (in Windows you can also run « chkdsk C: /f »), then come back here and select Refresh."
+      },
+      "mounted": {
+        "title": "A partition of this disk is in use",
+        "body": "{part} is open in this live session. Eject it in Files, then select Refresh."
+      },
+      "fsUnsupported": {
+        "title": "Selene OS can't shrink a {fs} partition",
+        "body": "Make room yourself from {os} (or with a partitioning tool you trust): leave at least 20 GB of unallocated space on this disk, then come back here and select Refresh. Selene OS will use that free space."
+      },
+      "noSpace": {
+        "title": "Not enough space",
+        "body": "Selene OS needs at least 20 GB, and {os} must keep some free space. Free up space in {os} (delete or move files), then come back here and select Refresh."
+      },
+      "probeFailed": {
+        "title": "This disk couldn't be analysed",
+        "body": "Selene OS couldn't read enough about its partitions to change them safely. Select Refresh; if it happens again, erase the whole disk or choose another disk."
+      }
+    },
+    "part": {
+      "windows": "Windows partition (C:)",
+      "linux": "{os} partition ({part})",
+      "other": "partition {part}"
+    },
+    "space": {
+      "title": "How much space for Selene OS?",
+      "subtitle": "Selene OS goes next to {os} on {disk}. Choose its size: it is hard to change later.",
+      "methodLabel": "Where Selene OS goes",
+      "useFree": "Use the free space",
+      "useFreeDesc": "{size} unallocated · nothing else changes",
+      "shrink": "Shrink the {name}",
+      "shrinkDesc": "{size} · {used} used",
+      "sizeLabel": "Size of Selene OS",
+      "unit": "GB",
+      "bounds": "Minimum {min} · {suggested} or more recommended · maximum {max}",
+      "keeps": "{os} goes from {from} to {size}: {used} used, {free} free.",
+      "freeLeft": "{size} of free space stays unallocated.",
+      "small": "Under {suggested}: enough to try Selene OS, but little room for your files and games.",
+      "bitlockerKey": "BitLocker is on: Windows may ask for its recovery key the first time it starts after this. Write the key down before installing (account.microsoft.com/devices/recoverykey).",
+      "free": "Free space"
     }
   },
   "fr": {
@@ -270,7 +375,8 @@
       "drivers": "Pilote graphique",
       "games": "Jeux",
       "summary": "Récapitulatif",
-      "install": "Installation"
+      "install": "Installation",
+      "space": "Espace"
     },
     "welcome": {
       "title": "Bienvenue dans Selene OS",
@@ -292,7 +398,7 @@
     },
     "disk": {
       "title": "Où voulez-vous installer Selene OS ?",
-      "subtitle": "Selene OS utilise un disque entier. Choisissez le disque sur lequel l'installer.",
+      "subtitle": "Choisissez le disque, puis si Selene OS s'installe à côté du système déjà présent ou s'il remplace tout.",
       "warning": "Tout le contenu du disque sélectionné sera effacé : partitions, fichiers et tout autre système d'exploitation.",
       "empty": "Aucune partition",
       "partitions_one": "{count} partition",
@@ -303,7 +409,16 @@
       "noneHint": "Branchez un disque d'au moins {size}, puis sélectionnez Actualiser.",
       "loading": "Recherche des disques…",
       "unknownModel": "Disque",
-      "loadError": "Impossible d'obtenir la liste des disques : {error}"
+      "loadError": "Impossible d'obtenir la liste des disques : {error}",
+      "modeLabel": "Type d'installation",
+      "chooseMode": "Choisissez comment installer Selene OS sur ce disque.",
+      "alongside": "Installer à côté {de_os}",
+      "alongsideDesc": "Gardez {os} et vos fichiers. Au démarrage du PC, vous choisissez le système à utiliser.",
+      "otherSystem": "l'autre système",
+      "erase": "Effacer tout le disque",
+      "eraseDesc": "{os} et tous les fichiers de ce disque seront définitivement effacés.",
+      "eraseDescPlain": "Tout le contenu de ce disque sera définitivement effacé : partitions et fichiers.",
+      "howTo": "Ce que vous pouvez faire"
     },
     "account": {
       "title": "Qui va utiliser cet ordinateur ?",
@@ -442,12 +557,25 @@
       "gaming": "Applications de jeu",
       "gamingOff": "Aucune",
       "gamingOnSub": "À votre première connexion, depuis Flathub",
-      "gamingOffSub": "Vous pourrez les ajouter plus tard depuis la Logithèque"
+      "gamingOffSub": "Vous pourrez les ajouter plus tard depuis la Logithèque",
+      "alongside": "À côté {de_os}",
+      "changesTitle": "Ce qui va changer sur {disk}",
+      "changeShrink": "La {name} passe de {from} à {to}.",
+      "changeFree": "{size} de l'espace libre sont utilisés.",
+      "changeNew": "Une nouvelle partition de {size} est créée pour Selene OS.",
+      "changeEsp": "La partition de démarrage EFI est conservée ; Selene OS y ajoute son propre dossier.",
+      "changeKeep": "Rien d'autre n'est modifié : {os} et vos fichiers restent en place.",
+      "backup": "Avant de continuer, sauvegardez vos fichiers importants (clé USB, disque externe ou en ligne). Réduire une partition est sans danger dans la très grande majorité des cas, mais une coupure de courant pendant l'opération pourrait faire perdre des données.",
+      "backupFree": "Avant de continuer, sauvegardez vos fichiers importants (clé USB, disque externe ou en ligne) : c'est toujours plus prudent avant de modifier un disque.",
+      "backupCheck": "J'ai sauvegardé mes fichiers importants"
     },
     "confirm": {
       "title": "Effacer ce disque ?",
       "body": "Toutes les données de {disk} ({size}) seront définitivement effacées. Cette action est irréversible.",
-      "ok": "Effacer et installer"
+      "ok": "Effacer et installer",
+      "alongsideTitle": "Modifier le disque et installer ?",
+      "alongsideBody": "{changes} Une fois lancée, l'opération ne peut pas être annulée.",
+      "alongsideOk": "Installer à côté {de_os}"
     },
     "installing": {
       "title": "Installation de Selene OS",
@@ -468,7 +596,8 @@
       "configure": "Configuration du système",
       "drivers": "Installation du pilote graphique",
       "bootloader": "Installation du chargeur de démarrage",
-      "cleanup": "Finalisation"
+      "cleanup": "Finalisation",
+      "shrink": "Libération de l'espace sur le disque"
     },
     "done": {
       "title": "Selene OS est installé",
@@ -483,7 +612,10 @@
       "driverOk": "Le pilote NVIDIA ({pkg}) est installé. Il sera utilisé dès le redémarrage.",
       "driverFailed": "Le pilote n'a pas pu être installé ; vous pourrez l'installer plus tard dans Paramètres > Pilotes graphiques.",
       "gaming": "À votre première connexion, Selene OS installera {apps} (Internet nécessaire).",
-      "gamingFailed": "Les applications de jeu n'ont pas pu être préparées pour votre première connexion ; vous pourrez les installer depuis la Logithèque."
+      "gamingFailed": "Les applications de jeu n'ont pas pu être préparées pour votre première connexion ; vous pourrez les installer depuis la Logithèque.",
+      "dualboot": "Au démarrage, votre PC affichera un menu pour choisir entre Selene OS et {os}. Sans choix de votre part, Selene OS démarre au bout de 5 secondes.",
+      "bitlocker": "Si Windows demande la clé de récupération BitLocker à son prochain démarrage, saisissez-la : cela peut arriver une fois après l'ajout d'un menu de démarrage.",
+      "bootentryFailed": "L'entrée « Selene » n'a pas pu être ajoutée au menu de démarrage du PC. Si Windows démarre directement, ouvrez le menu de démarrage de votre PC (souvent F12, F11 ou Échap à l'allumage) et choisissez « Selene » ou « ubuntu »."
     },
     "error": {
       "title": "L'installation a échoué",
@@ -496,7 +628,85 @@
       "retry": "Réessayer",
       "auth": "Des droits d'administrateur sont nécessaires pour installer Selene OS.",
       "notAdmin": "Ce compte n'est pas administrateur : il ne peut pas installer Selene OS. Connectez-vous avec un compte administrateur ou demandez à un administrateur de modifier le type de votre compte.",
-      "start": "L'installation n'a pas pu démarrer : {error}"
+      "start": "L'installation n'a pas pu démarrer : {error}",
+      "plan": "Le disque a changé depuis son analyse : rien n'a été modifié. Revenez à l'étape Disque et sélectionnez Actualiser.",
+      "subtitleAlongside": "Selene OS n'a pas pu être installé. Le journal ci-dessous indique où l'installation s'est arrêtée. {os} et ses fichiers n'ont pas été effacés ; si les partitions avaient déjà été modifiées, l'espace prévu pour Selene OS reste inutilisé jusqu'à une nouvelle tentative."
+    },
+    "why": {
+      "bios": {
+        "title": "Ce PC a démarré en mode BIOS (ancien mode)",
+        "body": "L'installation à côté d'un autre système demande le mode UEFI. Redémarrez sur le support d'installation en choisissant son entrée « UEFI » dans le menu de démarrage de votre PC (souvent F12, F11 ou Échap), ou effacez tout le disque."
+      },
+      "mbr": {
+        "title": "Ce disque utilise l'ancien format MBR",
+        "body": "Selene OS ne peut s'installer à côté d'un autre système que sur un disque GPT, en mode UEFI. Vous pouvez effacer tout le disque, ou installer Selene OS sur un autre disque."
+      },
+      "noEsp": {
+        "title": "Pas de partition de démarrage EFI sur ce disque",
+        "body": "{os} ne démarre pas en mode UEFI depuis ce disque : Selene OS ne peut pas s'ajouter à son démarrage. Effacez tout le disque, ou choisissez un autre disque."
+      },
+      "espFull": {
+        "title": "La partition de démarrage EFI est pleine",
+        "body": "Selene OS a besoin d'environ 32 Mo dessus et il n'en reste que {free}. Supprimez-y les fichiers de démarrage des systèmes que vous n'utilisez plus, puis sélectionnez Actualiser."
+      },
+      "espUbuntu": {
+        "title": "Un autre système basé sur Ubuntu est déjà installé ici",
+        "body": "Ses fichiers de démarrage utilisent le dossier « ubuntu » dont Selene OS a aussi besoin : s'installer à côté empêcherait ce système de démarrer. Effacez tout le disque, ou choisissez un autre disque."
+      },
+      "noOs": {
+        "title": "Aucun autre système trouvé sur ce disque",
+        "body": "Selene OS s'installe à côté de Windows ou de Linux. Ce disque ne contient que des fichiers : effacez-le, ou choisissez le disque où se trouve votre autre système."
+      },
+      "bitlocker": {
+        "title": "La partition Windows est chiffrée avec BitLocker",
+        "body": "Selene OS ne peut pas la réduire. Dans Windows, ouvrez Gestion des disques (clic droit sur le bouton Démarrer), faites un clic droit sur C: > Réduire le volume et libérez au moins 20 Go. Suspendez ensuite BitLocker (Panneau de configuration > Chiffrement de lecteur BitLocker > Suspendre la protection) et notez votre clé de récupération. Revenez ici et sélectionnez Actualiser : Selene OS utilisera l'espace libre."
+      },
+      "hibernated": {
+        "title": "Windows n'a pas été complètement arrêté",
+        "body": "Le démarrage rapide ou la mise en veille prolongée gardent la partition Windows en cours d'utilisation : la modifier maintenant pourrait faire perdre des données. Dans Windows : Panneau de configuration > Options d'alimentation > Choisir l'action des boutons d'alimentation > Modifier des paramètres actuellement non disponibles, décochez « Activer le démarrage rapide », enregistrez, puis arrêtez l'ordinateur. Revenez ensuite ici et sélectionnez Actualiser."
+      },
+      "dirty": {
+        "title": "{os} doit d'abord vérifier son disque",
+        "body": "Son système de fichiers n'a pas été fermé correctement. Démarrez {os} et arrêtez-le normalement (dans Windows, vous pouvez aussi lancer « chkdsk C: /f »), puis revenez ici et sélectionnez Actualiser."
+      },
+      "mounted": {
+        "title": "Une partition de ce disque est en cours d'utilisation",
+        "body": "{part} est ouverte dans cette session live. Éjectez-la dans Fichiers, puis sélectionnez Actualiser."
+      },
+      "fsUnsupported": {
+        "title": "Selene OS ne sait pas réduire une partition {fs}",
+        "body": "Faites de la place vous-même depuis {os} (ou avec un outil de partitionnement de confiance) : laissez au moins 20 Go d'espace non alloué sur ce disque, puis revenez ici et sélectionnez Actualiser. Selene OS utilisera cet espace libre."
+      },
+      "noSpace": {
+        "title": "Pas assez de place",
+        "body": "Selene OS a besoin d'au moins 20 Go, et {os} doit garder de l'espace libre. Libérez de la place dans {os} (supprimez ou déplacez des fichiers), puis revenez ici et sélectionnez Actualiser."
+      },
+      "probeFailed": {
+        "title": "Ce disque n'a pas pu être analysé",
+        "body": "Selene OS n'a pas pu lire assez d'informations sur ses partitions pour les modifier sans risque. Sélectionnez Actualiser ; si cela se reproduit, effacez tout le disque ou choisissez un autre disque."
+      }
+    },
+    "part": {
+      "windows": "partition Windows (C:)",
+      "linux": "partition {os} ({part})",
+      "other": "partition {part}"
+    },
+    "space": {
+      "title": "Quelle place pour Selene OS ?",
+      "subtitle": "Selene OS s'installe à côté {de_os} sur {disk}. Choisissez sa taille : elle sera difficile à changer ensuite.",
+      "methodLabel": "Emplacement de Selene OS",
+      "useFree": "Utiliser l'espace libre",
+      "useFreeDesc": "{size} non alloués · rien d'autre n'est modifié",
+      "shrink": "Réduire la {name}",
+      "shrinkDesc": "{size} · {used} utilisés",
+      "sizeLabel": "Taille de Selene OS",
+      "unit": "Go",
+      "bounds": "Minimum {min} · {suggested} ou plus conseillés · maximum {max}",
+      "keeps": "{os} passe de {from} à {size} : {used} utilisés, {free} libres.",
+      "freeLeft": "{size} d'espace libre restent non alloués.",
+      "small": "Moins de {suggested} : assez pour essayer Selene OS, mais peu de place pour vos fichiers et vos jeux.",
+      "bitlockerKey": "BitLocker est activé : Windows pourra demander sa clé de récupération au premier démarrage qui suit. Notez cette clé avant d'installer (account.microsoft.com/devices/recoverykey).",
+      "free": "Espace libre"
     }
   }
 }

@@ -19,6 +19,12 @@
 //          paths), the summary row, --gaming to the helper and the done-page note; the helper's --gaming (strict
 //          allow-list, dry run, gaming.json written for the new account with its owner and modes, never fatal);
 //          GameMode in the image (iso/packages.d/gaming.list, tools/verify-iso.sh).
+//   Dual boot (pure Node): the probe's survey (test/fixtures/installer/*.json: Windows 11, Arch Linux + free space,
+//          BitLocker, hibernated Windows, BIOS mode, nearly full / MBR / Btrfs disks) -> analyzeDisk, the plan
+//          (alongsidePlan) -> --alongside argv, checkPlan, and the helper's dry run accepting that argv.
+//   Part 7 (FR, 1280x720, Halo light + dark): « Installer à côté de … » / « Effacer tout le disque », the « Espace »
+//          step (slider + number, both systems' sizes, bounds), the summary's exact changes + backup checkbox, the
+//          confirmation, the done page's boot menu note, every refusal with what to do, a plan refused by the helper.
 // No screenshots are written unless --shots is given (test/out/installer-*.png).
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/installer.test.mjs [--node-only] [--shots]
 import fs from 'node:fs';
@@ -359,6 +365,81 @@ async function waitFor(fn, { timeout = 10000, step = 100 } = {}) {
   const helperTxt = fs.readFileSync(HELPER, 'utf8');
   check('loop guard: the helper writes AURORA_INSTALL_COMPLETE last, the autoinstall checks it', /AURORA_INSTALL_COMPLETE=/.test(helperTxt) && /debugfs -R 'cat \/etc\/aurora\/install-info'/.test(autoTxt) && /\^AURORA_INSTALL_COMPLETE=/.test(autoTxt));
   check('installer removes the autoinstall unit from the installed system', /\*\.wants\/aurora-autoinstall\.service/.test(helperTxt));
+}
+
+// ---- dual boot (« Installer à côté de … »): the probe's survey -> the UI's analysis, the plan -> helper argv
+{
+  const be = require(path.join(ROOT, 'main/ipc/installer.js'));
+  const ui = await import(new URL('../renderer/apps/installer/main.js', import.meta.url));
+  const fx = (n) => be.loadFixture(n);
+  const an = (n, dev, patch) => {
+    const sv = fx(n);
+    return be.analyzeDisk({ ...sv.disks.find((d) => d.path === dev), ...(patch || {}) }, sv);
+  };
+  for (const n of ['default', 'bitlocker', 'hibernated', 'bios', 'refusals']) {
+    const sv = fx(n);
+    check(`dual boot fixture ${n}: the probe's survey shape`, sv?.version === 1 && ['uefi', 'bios'].includes(sv.firmware) && sv.minSeleneMiB === 20480 && sv.disks.every((d) => d.path && d.alongside && Array.isArray(d.partitions) && Array.isArray(d.free)));
+  }
+  check('parseSurvey: garbage -> null', be.parseSurvey('nope') === null && be.parseSurvey('{"x":1}') === null);
+  const win = an('default', '/dev/nvme0n1');
+  const wo = win.options[0];
+  check('dual boot: Windows 11 disk -> possible, shrink C: (ntfs, partition 3), ESP 1 kept, one system', win.possible && win.os === 'Windows 11' && win.systems.length === 1 && win.options.length === 1 && wo.method === 'shrink' && wo.number === 3 && wo.kind === 'windows' && win.esp.number === 1 && /^[0-9a-f]{64}$/.test(win.fingerprint), win);
+  const arch = an('default', '/dev/sda');
+  check('dual boot: Arch Linux disk -> the free space first (nothing shrunk), then shrinking ext4; « arch » ESP folder not listed twice', arch.possible && arch.os === 'Arch Linux' && arch.systems.length === 1 && arch.options[0].method === 'free' && arch.options[1]?.method === 'shrink' && arch.options[1].fstype === 'ext4', arch);
+  check('dual boot: empty disk -> empty; data-only USB stick -> no system', an('default', '/dev/vda').reason === 'empty' && an('default', '/dev/sdb').possible === false && an('default', '/dev/sdb').systems.length === 0);
+  const bl = an('bitlocker', '/dev/nvme0n1');
+  check('dual boot: BitLocker -> bitlocker (and the recovery key flag)', bl.reason === 'bitlocker' && bl.bitlocker === true && bl.reasonOs === 'Windows', bl);
+  check('dual boot: hibernated / Fast Startup Windows -> hibernated', an('hibernated', '/dev/nvme0n1').reason === 'hibernated');
+  check('dual boot: legacy BIOS boot -> bios on every disk with a system', ['/dev/nvme0n1', '/dev/sda'].every((p) => an('bios', p).reason === 'bios'));
+  const fed = an('refusals', '/dev/sdc');
+  check('dual boot: nearly full Windows -> noSpace; MBR -> mbr; Btrfs -> fsUnsupported (Btrfs, Fedora Linux 40)', an('refusals', '/dev/nvme0n1').reason === 'noSpace' && an('refusals', '/dev/sda').reason === 'mbr' && fed.reason === 'fsUnsupported' && fed.reasonFs === 'Btrfs' && fed.reasonOs === 'Fedora Linux 40', fed);
+  check('dual boot: probe reasons -> EFI/ubuntu taken, ESP full, unreadable ESP, possible without a fingerprint', an('default', '/dev/nvme0n1', { alongside: { possible: false, reason: 'ubuntu-folder', plans: [] } }).reason === 'espUbuntu' && an('default', '/dev/nvme0n1', { alongside: { possible: false, reason: 'esp-full', plans: [] } }).reason === 'espFull' && an('default', '/dev/nvme0n1', { alongside: { possible: false, reason: 'esp-unreadable', plans: [] } }).reason === 'probeFailed' && an('default', '/dev/nvme0n1', { fingerprint: null }).reason === 'probeFailed');
+  const b = ui.rootBoundsGiB(wo);
+  check('dual boot: Selene 20..128 GiB on the Windows disk, the probe suggests 64 GiB', b.min === 20 && b.max === 128 && b.def === 64, b);
+  const plan = ui.alongsidePlan(win, wo, 76);
+  check('alongsidePlan shrink: C: 476 -> 400 GiB, Selene 76 GiB, request for partition 3 / ESP 1', Math.round(plan.oldMiB / 1024) === 476 && Math.round(plan.newMiB / 1024) === 400 && plan.rootMiB === 76 * 1024 && plan.newMiB === wo.spaceMiB - 1 - 76 * 1024 && plan.request.part === 3 && plan.request.esp === 1 && plan.request.newSize === plan.newMiB && plan.request.fingerprint === win.fingerprint, plan);
+  const pMin = ui.alongsidePlan(win, wo, 5);
+  const pMax = ui.alongsidePlan(win, wo, 999);
+  check('alongsidePlan clamps: 5 -> 20 GiB, 999 -> 128 GiB, C: never below its minimum nor above its maximum', pMin.rootGiB === 20 && pMax.rootGiB === 128 && pMax.newMiB >= wo.newMinMiB && pMin.newMiB <= wo.newMaxMiB, { pMin: pMin.request, pMax: pMax.request });
+  const fplan = ui.alongsidePlan(arch, arch.options[0], 100);
+  check('alongsidePlan free: start .. start + 100 GiB of the free region, the rest stays free', fplan.request.method === 'free' && fplan.request.start === arch.options[0].startMiB && fplan.request.end === arch.options[0].startMiB + 102400 && fplan.freeLeftMiB === arch.options[0].sizeMiB - 102400, fplan);
+  check('stepsFor: « Espace » right after the disk for a dual boot only', ui.stepsFor(null, 'alongside').join(' ') === 'welcome keyboard disk space account timezone games summary' && ui.stepsFor(null, 'erase').join(' ') === 'welcome keyboard disk account timezone games summary' && ui.stepsFor({ nvidia: [{}] }, 'alongside').join(' ') === 'welcome keyboard disk space account timezone drivers games summary');
+  const okA = { disk: '/dev/nvme0n1', user: 'jane', fullname: 'Jane', password: 'pw', lang: 'fr', mode: 'alongside', alongside: plan.request };
+  const av = be.buildArgs(okA);
+  check('buildArgs alongside shrink: --alongside --fingerprint H --esp 1 --shrink 3 --new-size N', av.join(' ').includes(`--alongside --fingerprint ${win.fingerprint} --esp 1 --shrink 3 --new-size ${plan.newMiB}`), av.join(' '));
+  const avf = be.buildArgs({ ...okA, disk: '/dev/sda', alongside: fplan.request });
+  check('buildArgs alongside free: --free-space S:E, no --shrink', avf.join(' ').includes(`--free-space ${fplan.request.start}:${fplan.request.end}`) && !avf.includes('--shrink'), avf.join(' '));
+  check('buildArgs erase (default or explicit): no --alongside', !be.buildArgs({ ...okA, mode: 'erase' }).includes('--alongside') && !be.buildArgs({ ...okA, mode: undefined, alongside: undefined }).includes('--alongside'));
+  const rejectsA = (a, field) => {
+    try {
+      be.buildArgs({ ...okA, alongside: { ...plan.request, ...a } });
+      return false;
+    } catch (e) {
+      return e.code === 'EINVAL' && e.field === field;
+    }
+  };
+  check(
+    'buildArgs rejects a malformed plan (fingerprint, ESP, partition, size, method, free span < 20 GiB)',
+    rejectsA({ fingerprint: 'abc' }, 'alongside.fingerprint') && rejectsA({ fingerprint: `${win.fingerprint}\n--x` }, 'alongside.fingerprint') && rejectsA({ esp: 0 }, 'alongside.esp') && rejectsA({ esp: '1' }, 'alongside.esp') && rejectsA({ part: 1 }, 'alongside.part') && rejectsA({ part: 129 }, 'alongside.part') && rejectsA({ newSize: 12.5 }, 'alongside.newSize') && rejectsA({ newSize: '1;reboot' }, 'alongside.newSize') && rejectsA({ method: 'resize' }, 'alongside.method') && rejectsA({ method: 'free', start: 100, end: 200 }, 'alongside.free'),
+  );
+  check('buildArgs rejects an unknown mode', (() => { try { be.buildArgs({ ...okA, mode: 'wipe' }); return false; } catch (e) { return e.field === 'mode'; } })());
+  const planErr = (a, analysis = win) => {
+    try {
+      be.checkPlan(a, analysis);
+      return null;
+    } catch (e) {
+      return e.code;
+    }
+  };
+  check('checkPlan: the plans the UI builds pass (min, 76 GiB, max, free)', [pMin.request, plan.request, pMax.request].every((r) => planErr(r) === null) && planErr(fplan.request, arch) === null);
+  check(
+    'checkPlan refuses: another fingerprint / ESP / partition, a size out of bounds, a disk where it is impossible, free space outside the region',
+    planErr({ ...plan.request, fingerprint: 'f'.repeat(64) }) === 'EPLAN' && planErr({ ...plan.request, esp: 2 }) === 'EPLAN' && planErr({ ...plan.request, part: 4 }) === 'EPLAN' && planErr({ ...plan.request, newSize: wo.newMinMiB - 1 }) === 'EPLAN' && planErr({ ...plan.request, newSize: wo.newMaxMiB + 1 }) === 'EPLAN' && planErr(plan.request, bl) === 'EPLAN' && planErr({ ...fplan.request, end: arch.options[0].endMiB + 1 }, arch) === 'EPLAN',
+  );
+  const hd = spawnSync('bash', [HELPER, ...av, '--dry-run', '--dry-run-delay', '0'], { input: 'pw\n', encoding: 'utf8', timeout: 60000 });
+  check("helper dry run accepts the UI's dual boot argv (shrink): exit 0, done, the partition shrunk to the new size", hd.status === 0 && hd.stdout.includes('"stage":"done"') && hd.stderr.includes(`${plan.newMiB}`), { status: hd.status, err: hd.stderr.slice(-400) });
+  const hf = spawnSync('bash', [HELPER, ...avf, '--dry-run', '--dry-run-delay', '0'], { input: 'pw\n', encoding: 'utf8', timeout: 60000 });
+  check("helper dry run accepts the UI's dual boot argv (free space): exit 0, done", hf.status === 0 && hf.stdout.includes('"stage":"done"'), { status: hf.status, err: hf.stderr.slice(-400) });
 }
 
 if (args.has('--node-only')) {
@@ -919,6 +1000,192 @@ async function uiTests() {
     check('games (dark): the installation succeeds although the request failed', await phaseIs(page, 'done', 60000));
     check('games (dark): « Les applications de jeu n\'ont pas pu être préparées… » on the done page', (await text(page, '.ins-gaming-result[data-status="failed"]'))?.startsWith("Les applications de jeu n'ont pas pu être préparées"), await text(page, '.ins-gaming-result'));
     await s.shot('installer-games-failed-fr-dark');
+    await s.close();
+  }
+  // ---------------------------------------------------------------- Part 7: dual boot (FR, 1280x720, Halo light + dark)
+  const toDiskFr = async (page) => {
+    await page.waitForSelector('.app-installer .ins[data-step="welcome"]', { timeout: 20000 });
+    await clickNext(page);
+    await clickNext(page);
+    await page.waitForSelector('.app-installer .ins-disks .ins-row');
+  };
+  const modeText = (page, mode) => text(page, `.ins-mode[data-mode="${mode}"]`);
+  const accountToSummaryFr = async (page) => {
+    await page.fill('.app-installer input[name="fullname"]', 'Élodie Dupont');
+    await page.fill('.app-installer input[name="password"]', 'pw');
+    await page.fill('.app-installer input[name="confirm"]', 'pw');
+    await clickNext(page);
+    await clickNext(page);
+    await stepIs(page, 'games');
+    await clickNext(page);
+    return stepIs(page, 'summary');
+  };
+  const setSize = async (page, v) => {
+    await page.fill('.app-installer .ins-num', String(v));
+    await page.dispatchEvent('.app-installer .ins-num', 'change');
+  };
+  const leafKeys = (page) =>
+    page.evaluate(() => [...document.querySelectorAll('.app-installer *')].filter((e) => e.children.length === 0 && /^[a-z]+(\.[a-zA-Z]+)+$|\{[a-z_]+\}/.test(e.textContent.trim())).map((e) => e.textContent.trim()));
+  {
+    // Windows 11 (C: 476 GiB, 300 GiB used): shrink C: to 400 GiB, Selene 76 GiB; the whole path to the done page.
+    const s = await launchShell({ open: ['installer'], live: true, lang: 'fr', theme: 'light', size: '1280x720', env: { AURORA_INSTALLER_DRYRUN_DELAY: '0.02', AURORA_INSTALLER_FIXTURE: 'default' } });
+    const { page } = s;
+    await toDiskFr(page);
+    check('dual boot: four disks listed (empty VM disk, Windows 11, Arch Linux, USB stick)', (await page.locator('.app-installer .ins-disks .ins-row').count()) === 4);
+    check('dual boot: the Windows disk row names the system', (await text(page, '.ins-row[data-id="/dev/nvme0n1"]'))?.includes('Windows 11'));
+    await page.click('.app-installer .ins-row[data-id="/dev/vda"]');
+    check('dual boot: an empty disk has no choice to make (erase, Next enabled, no mode cards)', (await state(page)).mode === 'erase' && (await page.locator('.app-installer .ins-mode').count()) === 0 && (await nextDisabled(page)) === false);
+    await page.click('.app-installer .ins-row[data-id="/dev/nvme0n1"]');
+    check('dual boot: Windows disk -> « Installer à côté de Windows 11 » and « Effacer tout le disque », nothing preselected, Next disabled', (await modeText(page, 'alongside'))?.startsWith('Installer à côté de Windows 11') && (await modeText(page, 'erase'))?.includes('Windows 11 et tous les fichiers de ce disque seront définitivement effacés.') && (await state(page)).mode === null && (await nextDisabled(page)) === true && (await text(page, '.ins-mode-hint')) === 'Choisissez comment installer Selene OS sur ce disque.');
+    await page.click('.app-installer .ins-mode[data-mode="alongside"]');
+    check('dual boot: « à côté » chosen -> Next enabled, the « Espace » step added after « Disque »', (await state(page)).mode === 'alongside' && (await nextDisabled(page)) === false && (await page.evaluate(() => window.__installer.steps.join(' '))) === 'welcome keyboard disk space account timezone games summary' && (await text(page, '.ins-step:nth-child(4) .ins-step-label')) === 'Espace');
+    check('dual boot: the selected card is checked (aria)', (await page.getAttribute('.app-installer .ins-mode[data-mode="alongside"]', 'aria-checked')) === 'true' && (await page.getAttribute('.app-installer .ins-mode[data-mode="erase"]', 'aria-checked')) === 'false');
+    await s.shot('installer-dualboot-disk-fr');
+    await clickNext(page);
+    check('space: step 4 of 8, « Quelle place pour Selene OS ? »', (await stepIs(page, 'space')) && (await text(page, '.ins-kicker')) === 'Étape 4 sur 8' && (await text(page, '.ins-title')) === 'Quelle place pour Selene OS ?');
+    check('space: minimum / suggested / maximum', (await text(page, '.ins-bounds')) === 'Minimum 20 Go · 40 Go ou plus conseillés · maximum 128 Go', await text(page, '.ins-bounds'));
+    check('space: the probe suggests 64 Go (slider and number agree)', (await page.inputValue('.app-installer .ins-num')) === '64' && (await page.inputValue('.app-installer .ins-range')) === '64');
+    await setSize(page, 76);
+    check('space: 76 Go -> Selene 76 Go, Windows 11 400 Go', (await text(page, '.ins-legend.selene .ins-legend-size')) === '76 Go' && (await text(page, '.ins-legend.other'))?.includes('Windows 11') && (await text(page, '.ins-legend.other .ins-legend-size')) === '400 Go' && (await page.inputValue('.app-installer .ins-range')) === '76');
+    check('space: « Windows 11 passe de 476 Go à 400 Go : 300 Go utilisés, 100 Go libres. »', (await text(page, '.ins-space-line[data-k="keeps"]')) === 'Windows 11 passe de 476 Go à 400 Go : 300 Go utilisés, 100 Go libres.', await text(page, '.ins-space-line[data-k="keeps"]'));
+    await setSize(page, 5);
+    check('space: below the minimum -> 20 Go, with the « moins de 40 Go » note', (await page.inputValue('.app-installer .ins-num')) === '20' && (await text(page, '.ins-space-line[data-k="small"]'))?.startsWith('Moins de 40 Go'));
+    await page.evaluate(() => {
+      const r = document.querySelector('.app-installer .ins-range');
+      r.value = '200'; // the browser clamps a range to its max
+      r.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    check('space: the slider stops at the maximum (128 Go)', (await page.inputValue('.app-installer .ins-range')) === '128' && (await text(page, '.ins-legend.selene .ins-legend-size')) === '128 Go');
+    await setSize(page, 76);
+    await s.shot('installer-dualboot-space-fr');
+    await clickNext(page);
+    check('space -> account', await stepIs(page, 'account'));
+    check('dual boot: summary reached', await accountToSummaryFr(page));
+    check('summary: step 8 of 8', (await text(page, '.ins-kicker')) === 'Étape 8 sur 8');
+    const items = await page.evaluate(() => [...document.querySelectorAll('.app-installer .ins-changes-list li')].map((li) => li.textContent));
+    check(
+      'summary: the exact changes (C: 476 -> 400 Go, new 76 Go partition, EFI kept, nothing else)',
+      JSON.stringify(items) === JSON.stringify(['La partition Windows (C:) passe de 476 Go à 400 Go.', 'Une nouvelle partition de 76 Go est créée pour Selene OS.', 'La partition de démarrage EFI est conservée ; Selene OS y ajoute son propre dossier.', "Rien d'autre n'est modifié : Windows 11 et vos fichiers restent en place."]),
+      items,
+    );
+    check('summary: « Ce qui va changer sur Samsung SSD 980 PRO 512GB »', (await text(page, '.ins-changes-title')) === 'Ce qui va changer sur Samsung SSD 980 PRO 512GB');
+    check('summary: back up first (shrinking)', (await text(page, '.ins-backup'))?.startsWith('Avant de continuer, sauvegardez vos fichiers importants'));
+    check('summary: disk row « À côté de Windows 11 », not « effacé »', (await text(page, '.ins-sum-row[data-row="disk"]'))?.includes('À côté de Windows 11') && !(await text(page, '.ins-sum-row[data-row="disk"]')).includes('effacé'));
+    check('summary: « Installer » disabled until « J\'ai sauvegardé mes fichiers importants » is checked', (await nextDisabled(page)) === true && (await text(page, '.ins-backup-check')) === "J'ai sauvegardé mes fichiers importants");
+    await page.keyboard.press('Enter');
+    check('summary: Enter does not install while unchecked', (await state(page)).phase === 'setup' && (await page.locator('.dialog').count()) === 0);
+    await s.shot('installer-dualboot-summary-fr');
+    await page.click('.app-installer [data-act="backup"]');
+    check('summary: checked -> « Installer » enabled', (await nextDisabled(page)) === false);
+    await page.evaluate(() => {
+      window.__insEvents = [];
+      window.aurora.on('installer:progress', (e) => window.__insEvents.push(e));
+    });
+    await clickNext(page);
+    await page.waitForSelector('.dialog');
+    const dlg = await page.textContent('.dialog');
+    check('confirmation: « Modifier le disque et installer ? » with the changes and « Installer à côté de Windows 11 »', dlg.includes('Modifier le disque et installer ?') && dlg.includes('La partition Windows (C:) passe de 476 Go à 400 Go.') && dlg.includes('ne peut pas être annulée') && (await page.textContent('.dialog .btn.danger')) === 'Installer à côté de Windows 11', dlg);
+    await page.click('.dialog .btn:not(.danger)');
+    await sleep(200);
+    check('confirmation: Annuler keeps the summary (and the checkbox)', (await state(page)).phase === 'setup' && (await state(page)).backupOk === true);
+    await clickNext(page);
+    await page.waitForSelector('.dialog');
+    await page.click('.dialog .btn.danger');
+    check('dual boot: installation done', await phaseIs(page, 'done', 60000));
+    const evs = await page.evaluate(() => window.__insEvents);
+    const st = await state(page);
+    const logTxt = await page.evaluate(() => window.aurora.invoke('installer:log'));
+    check('dual boot: the helper ran with the plan (log: the new size of partition 3)', logTxt.includes(String(st.installPlan.newMiB)) && /nvme0n1p3/.test(logTxt), logTxt.slice(0, 600));
+    check('dual boot: firmware boot entry event', evs.some((e) => e.type === 'bootentry' && e.status === 'added'), evs.filter((e) => e.type === 'bootentry'));
+    check('done: « Au démarrage, votre PC affichera un menu pour choisir entre Selene OS et Windows 11. … »', (await text(page, '.ins-dualboot')) === 'Au démarrage, votre PC affichera un menu pour choisir entre Selene OS et Windows 11. Sans choix de votre part, Selene OS démarre au bout de 5 secondes.', await text(page, '.ins-dualboot'));
+    await s.shot('installer-dualboot-done-fr');
+    check('dual boot (light): no page errors', !s.logs.some((l) => /pageerror/.test(l)), s.logs.filter((l) => /pageerror/.test(l)));
+    await s.close();
+  }
+  {
+    // Dark: Arch Linux with free space (two ways to make room), then every refusal with what to do.
+    const s = await launchShell({ open: ['installer'], live: true, lang: 'fr', theme: 'dark', size: '1280x720', env: { AURORA_INSTALLER_DRYRUN_DELAY: '0.02', AURORA_INSTALLER_FIXTURE: 'default' } });
+    const { page } = s;
+    await toDiskFr(page);
+    await page.click('.app-installer .ins-row[data-id="/dev/sda"]');
+    check('Arch: « Installer à côté d\'Arch Linux » (elision)', (await modeText(page, 'alongside'))?.startsWith("Installer à côté d'Arch Linux"), await modeText(page, 'alongside'));
+    await page.click('.app-installer .ins-mode[data-mode="alongside"]');
+    await s.shot('installer-dualboot-disk-fr-dark');
+    await clickNext(page);
+    check('Arch: two ways to make room, the free space first', (await page.locator('.app-installer .ins-method').count()) === 2 && (await page.getAttribute('.app-installer .ins-method[data-method="free"]', 'aria-checked')) === 'true' && (await text(page, '.ins-method[data-method="shrink"]'))?.includes('Réduire la partition Arch Linux (sda3)'));
+    await setSize(page, 120);
+    check('Arch: 120 Go of the free space, the rest stays free', (await text(page, '.ins-legend.selene .ins-legend-size')) === '120 Go' && (await text(page, '.ins-legend.other .ins-legend-name')) === 'Espace libre' && (await text(page, '.ins-space-line[data-k="freeLeft"]'))?.endsWith("d'espace libre restent non alloués."));
+    await s.shot('installer-dualboot-space-fr-dark');
+    await page.click('.app-installer .ins-method[data-method="shrink"]');
+    check('Arch: shrinking ext4 instead -> its own bounds, Next still enabled', (await page.getAttribute('.app-installer .ins-method[data-method="shrink"]', 'aria-checked')) === 'true' && (await text(page, '.ins-space-line[data-k="keeps"]'))?.startsWith('Arch Linux passe de') && (await nextDisabled(page)) === false);
+    await page.click('.app-installer .ins-method[data-method="free"]');
+    await setSize(page, 120);
+    await clickNext(page);
+    check('Arch: summary reached', await accountToSummaryFr(page));
+    const items = await page.evaluate(() => [...document.querySelectorAll('.app-installer .ins-changes-list li')].map((li) => li.textContent));
+    check("Arch: changes « 120 Go de l'espace libre sont utilisés. » + new partition + EFI kept", items[0] === "120 Go de l'espace libre sont utilisés." && items[1] === 'Une nouvelle partition de 120 Go est créée pour Selene OS.' && items[2].startsWith('La partition de démarrage EFI est conservée'), items);
+    check('Arch: the gentler backup note (nothing is shrunk), still required', (await text(page, '.ins-backup'))?.includes("c'est toujours plus prudent") && (await nextDisabled(page)) === true);
+    await s.shot('installer-dualboot-summary-fr-dark');
+    const raw1 = await leafKeys(page);
+    // Refusals: change the simulated disks, Refresh on the disk step.
+    await page.click('.app-installer .ins-step:nth-child(3) .ins-step-btn');
+    check('back on the disk step from the stepper', await stepIs(page, 'disk'));
+    const fixture = async (name) => {
+      await s.app.evaluate((_e, n) => {
+        process.env.AURORA_INSTALLER_FIXTURE = n;
+      }, name);
+      await page.click('.app-installer [data-act="refresh"]');
+      await page.waitForSelector('.app-installer .ins-disks .ins-row');
+    };
+    const why = async (dev) => {
+      await page.click(`.app-installer .ins-row[data-id="${dev}"]`);
+      return { reason: await page.getAttribute('.app-installer .ins-why', 'data-reason').catch(() => null), title: await text(page, '.ins-why-title'), body: await text(page, '.ins-why-body'), disabled: await page.getAttribute('.app-installer .ins-mode[data-mode="alongside"]', 'aria-disabled') };
+    };
+    await fixture('bitlocker');
+    check('refresh: the Arch disk is gone -> no disk, no mode, « Espace » removed', (await state(page)).disk === null && (await state(page)).mode === null && !(await page.evaluate(() => window.__installer.steps.includes('space'))));
+    const wb = await why('/dev/nvme0n1');
+    check('BitLocker: « à côté » disabled, why + what to do in Windows (Gestion des disques, suspendre BitLocker, clé de récupération)', wb.disabled === 'true' && wb.reason === 'bitlocker' && wb.title === 'La partition Windows est chiffrée avec BitLocker' && wb.body.includes('Gestion des disques') && wb.body.includes('Réduire le volume') && wb.body.includes('Suspendre la protection') && wb.body.includes('clé de récupération'), wb);
+    await page.click('.app-installer .ins-mode[data-mode="alongside"]', { force: true });
+    check('BitLocker: clicking the disabled card does nothing; erasing stays possible', (await state(page)).mode === null && (await nextDisabled(page)) === true);
+    await s.shot('installer-dualboot-bitlocker-fr-dark');
+    await fixture('hibernated');
+    const wh = await why('/dev/nvme0n1');
+    check('hibernated Windows: « Windows n\'a pas été complètement arrêté » + turn off Fast Startup', wh.reason === 'hibernated' && wh.title === "Windows n'a pas été complètement arrêté" && wh.body.includes('Activer le démarrage rapide') && wh.body.includes('Actualiser'), wh);
+    await fixture('bios');
+    const wbi = await why('/dev/nvme0n1');
+    check('BIOS mode: « Ce PC a démarré en mode BIOS » + UEFI entry of the boot menu', wbi.reason === 'bios' && wbi.title === 'Ce PC a démarré en mode BIOS (ancien mode)' && wbi.body.includes('UEFI') && wbi.body.includes('F12'), wbi);
+    await fixture('refusals');
+    const wf = await why('/dev/nvme0n1');
+    check('nearly full Windows 10: « Pas assez de place » + free space in Windows 10', wf.reason === 'noSpace' && wf.title === 'Pas assez de place' && wf.body.includes('Libérez de la place dans Windows 10'), wf);
+    const wm = await why('/dev/sda');
+    check('MBR disk: « Ce disque utilise l\'ancien format MBR »', wm.reason === 'mbr' && wm.title === "Ce disque utilise l'ancien format MBR", wm);
+    const wbt = await why('/dev/sdc');
+    check('Btrfs (Fedora): « Selene OS ne sait pas réduire une partition Btrfs » + make room from Fedora Linux 40', wbt.reason === 'fsUnsupported' && wbt.title === 'Selene OS ne sait pas réduire une partition Btrfs' && wbt.body.includes('depuis Fedora Linux 40') && (await modeText(page, 'alongside'))?.startsWith('Installer à côté de Fedora Linux 40'), wbt);
+    await page.evaluate(() => document.querySelector('.app-installer .ins-why')?.scrollIntoView({ block: 'end' }));
+    await s.shot('installer-dualboot-btrfs-fr-dark');
+    check('dual boot pages: no untranslated keys or {placeholders}', [...raw1, ...(await leafKeys(page))].length === 0, [...raw1, ...(await leafKeys(page))]);
+    check('dual boot (dark): no page errors', !s.logs.some((l) => /pageerror/.test(l)), s.logs.filter((l) => /pageerror/.test(l)));
+    await s.close();
+  }
+  {
+    // The partition table changed after the summary (simulated by the helper): nothing written, back to the disk step.
+    const s = await launchShell({ open: ['installer'], live: true, lang: 'fr', theme: 'light', size: '1280x720', env: { AURORA_INSTALLER_DRYRUN_DELAY: '0.02', AURORA_DRYRUN_PLAN_REFUSED: 'changed' } });
+    const { page } = s;
+    await toDiskFr(page);
+    await page.click('.app-installer .ins-row[data-id="/dev/nvme0n1"]');
+    await page.click('.app-installer .ins-mode[data-mode="alongside"]');
+    await clickNext(page);
+    await clickNext(page);
+    await accountToSummaryFr(page);
+    await page.click('.app-installer [data-act="backup"]');
+    await clickNext(page);
+    await page.waitForSelector('.dialog');
+    await page.click('.dialog .btn.danger');
+    check('plan refused: error page', await phaseIs(page, 'error', 30000));
+    check('plan refused: « Le disque a changé depuis son analyse : rien n\'a été modifié. … »', (await text(page, '.ins-error-msg')) === "Le disque a changé depuis son analyse : rien n'a été modifié. Revenez à l'étape Disque et sélectionnez Actualiser.", await text(page, '.ins-error-msg'));
+    check('plan refused: the dual boot subtitle (the other system is not erased)', (await text(page, '.ins-sub'))?.includes("Windows 11 et ses fichiers n'ont pas été effacés"));
+    await page.click('.app-installer [data-act="retry"]');
+    check('plan refused: Réessayer -> the disk step, analysed again, the plan to choose again', (await stepIs(page, 'disk')) && (await state(page)).mode === null && (await state(page)).backupOk === false);
     await s.close();
   }
   {

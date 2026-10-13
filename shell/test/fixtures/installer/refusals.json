@@ -1,0 +1,399 @@
+{
+ "version": 1,
+ "firmware": "uefi",
+ "minSeleneMiB": 20480,
+ "suggestedSeleneMiB": 40960,
+ "disks": [
+  {
+   "path": "/dev/nvme0n1",
+   "name": "nvme0n1",
+   "model": "KIOXIA BG4 128GB",
+   "size": 128035323904,
+   "sizeMiB": 122104,
+   "transport": "nvme",
+   "removable": false,
+   "table": "gpt",
+   "sectorSize": 512,
+   "fingerprint": "d3c3e893c95a26cb448a5941919d8ebf07dbb4d2e7e0a3919aeddca1fe90805a",
+   "partitions": [
+    {
+     "number": 1,
+     "startMiB": 1,
+     "sizeMiB": 100,
+     "fstype": "vfat",
+     "label": "SYSTEM",
+     "os": null,
+     "usedMiB": null,
+     "flags": [],
+     "esp": true,
+     "type": "esp",
+     "mounted": [],
+     "path": "/dev/nvme0n1p1",
+     "start": 2048,
+     "sectors": 204800,
+     "shrink": {
+      "possible": false,
+      "reason": "unsupported",
+      "spaceMiB": 100,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    },
+    {
+     "number": 2,
+     "startMiB": 101,
+     "sizeMiB": 16,
+     "fstype": "",
+     "label": "",
+     "os": null,
+     "usedMiB": null,
+     "flags": [],
+     "esp": false,
+     "type": "msr",
+     "mounted": [],
+     "path": "/dev/nvme0n1p2",
+     "start": 206848,
+     "sectors": 32768,
+     "shrink": {
+      "possible": false,
+      "reason": "unsupported",
+      "spaceMiB": 16,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    },
+    {
+     "number": 3,
+     "startMiB": 117,
+     "sizeMiB": 121386,
+     "fstype": "ntfs",
+     "label": "",
+     "os": "Windows 10",
+     "usedMiB": 107520,
+     "flags": [],
+     "esp": false,
+     "type": "",
+     "mounted": [],
+     "path": "/dev/nvme0n1p3",
+     "start": 239616,
+     "sectors": 248598528,
+     "shrink": {
+      "possible": false,
+      "reason": "too-full",
+      "spaceMiB": 121386,
+      "minSizeMiB": 119959,
+      "maxSizeMiB": 100905,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    },
+    {
+     "number": 4,
+     "startMiB": 121503,
+     "sizeMiB": 600,
+     "fstype": "ntfs",
+     "label": "",
+     "os": null,
+     "usedMiB": 500,
+     "flags": [],
+     "esp": false,
+     "type": "windows-recovery",
+     "mounted": [],
+     "path": "/dev/nvme0n1p4",
+     "start": 248838144,
+     "sectors": 1228800,
+     "shrink": {
+      "possible": false,
+      "reason": "too-full",
+      "spaceMiB": 600,
+      "minSizeMiB": 5620,
+      "maxSizeMiB": -19881,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    }
+   ],
+   "free": [],
+   "esp": {
+    "number": 1,
+    "path": "/dev/nvme0n1p1",
+    "sizeMiB": 100,
+    "readable": true,
+    "loaderEntries": [],
+    "freeMiB": 68,
+    "folders": [
+     "Microsoft",
+     "Boot"
+    ],
+    "hasFallback": true,
+    "ubuntuFolder": false
+   },
+   "systems": [
+    {
+     "name": "Windows Boot Manager",
+     "kind": "windows",
+     "partition": 1
+    },
+    {
+     "name": "Windows 10",
+     "kind": "windows",
+     "partition": 3
+    }
+   ],
+   "bitlocker": false,
+   "warnings": [],
+   "alongside": {
+    "possible": false,
+    "reason": "no-space",
+    "message": "(aurora-disk-probe MESSAGES)",
+    "plans": []
+   }
+  },
+  {
+   "path": "/dev/sda",
+   "name": "sda",
+   "model": "WDC WD5000AAKX",
+   "size": 500107862016,
+   "sizeMiB": 476940,
+   "transport": "sata",
+   "removable": false,
+   "table": "dos",
+   "sectorSize": 512,
+   "fingerprint": "76aeb1e2266dc628d23ee8b3bc2d70986f7358ab64eff370c93528b19ed440f2",
+   "partitions": [
+    {
+     "number": 1,
+     "startMiB": 1,
+     "sizeMiB": 100,
+     "fstype": "ntfs",
+     "label": "System Reserved",
+     "os": null,
+     "usedMiB": 30,
+     "flags": [],
+     "esp": false,
+     "type": "",
+     "mounted": [],
+     "path": "/dev/sda1",
+     "start": 2048,
+     "sectors": 204800,
+     "shrink": {
+      "possible": false,
+      "reason": "too-full",
+      "spaceMiB": 100,
+      "minSizeMiB": 5150,
+      "maxSizeMiB": -20381,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    },
+    {
+     "number": 2,
+     "startMiB": 101,
+     "sizeMiB": 476838,
+     "fstype": "ntfs",
+     "label": "",
+     "os": "Windows 7",
+     "usedMiB": 81920,
+     "flags": [],
+     "esp": false,
+     "type": "",
+     "mounted": [],
+     "path": "/dev/sda2",
+     "start": 206848,
+     "sectors": 976564224,
+     "shrink": {
+      "possible": true,
+      "reason": null,
+      "spaceMiB": 476838,
+      "minSizeMiB": 129604,
+      "maxSizeMiB": 456357,
+      "suggestedSizeMiB": 303221
+     }
+    }
+   ],
+   "free": [],
+   "esp": null,
+   "systems": [
+    {
+     "name": "Windows 7",
+     "kind": "windows",
+     "partition": 2
+    }
+   ],
+   "bitlocker": false,
+   "warnings": [],
+   "alongside": {
+    "possible": false,
+    "reason": "mbr",
+    "message": "(aurora-disk-probe MESSAGES)",
+    "plans": []
+   }
+  },
+  {
+   "path": "/dev/sdc",
+   "name": "sdc",
+   "model": "Kingston A2000 500GB",
+   "size": 500107862016,
+   "sizeMiB": 476940,
+   "transport": "sata",
+   "removable": false,
+   "table": "gpt",
+   "sectorSize": 512,
+   "fingerprint": "badba2cabb27b893164297b8db0e39af10686f9ec72069761faa58b7a3902ed8",
+   "partitions": [
+    {
+     "number": 1,
+     "startMiB": 1,
+     "sizeMiB": 600,
+     "fstype": "vfat",
+     "label": "",
+     "os": null,
+     "usedMiB": null,
+     "flags": [],
+     "esp": true,
+     "type": "esp",
+     "mounted": [],
+     "path": "/dev/sdc1",
+     "start": 2048,
+     "sectors": 1228800,
+     "shrink": {
+      "possible": false,
+      "reason": "unsupported",
+      "spaceMiB": 600,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    },
+    {
+     "number": 2,
+     "startMiB": 601,
+     "sizeMiB": 1024,
+     "fstype": "ext4",
+     "label": "",
+     "os": null,
+     "usedMiB": 300,
+     "flags": [],
+     "esp": false,
+     "type": "",
+     "mounted": [],
+     "path": "/dev/sdc2",
+     "start": 1230848,
+     "sectors": 2097152,
+     "shrink": {
+      "possible": false,
+      "reason": "too-full",
+      "spaceMiB": 1024,
+      "minSizeMiB": 5420,
+      "maxSizeMiB": -19457,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    },
+    {
+     "number": 3,
+     "startMiB": 1625,
+     "sizeMiB": 475300,
+     "fstype": "btrfs",
+     "label": "fedora",
+     "os": "Fedora Linux 40 (Workstation Edition)",
+     "usedMiB": 61440,
+     "flags": [],
+     "esp": false,
+     "type": "",
+     "mounted": [],
+     "path": "/dev/sdc3",
+     "start": 3328000,
+     "sectors": 973414400,
+     "shrink": {
+      "possible": false,
+      "reason": "btrfs",
+      "spaceMiB": 475314,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    }
+   ],
+   "free": [
+    {
+     "startMiB": 476925,
+     "endMiB": 476939,
+     "sizeMiB": 14
+    }
+   ],
+   "esp": {
+    "number": 1,
+    "path": "/dev/sdc1",
+    "sizeMiB": 600,
+    "readable": true,
+    "loaderEntries": [],
+    "freeMiB": 580,
+    "folders": [
+     "fedora",
+     "BOOT"
+    ],
+    "hasFallback": true,
+    "ubuntuFolder": false
+   },
+   "systems": [
+    {
+     "name": "fedora",
+     "kind": "other",
+     "partition": 1,
+     "loader": true
+    },
+    {
+     "name": "Fedora Linux 40 (Workstation Edition)",
+     "kind": "linux",
+     "partition": 3
+    }
+   ],
+   "bitlocker": false,
+   "warnings": [],
+   "alongside": {
+    "possible": false,
+    "reason": "no-space",
+    "message": "(aurora-disk-probe MESSAGES)",
+    "plans": []
+   }
+  },
+  {
+   "path": "/dev/sdb",
+   "name": "sdb",
+   "model": "SanDisk Ultra",
+   "size": 8004304896,
+   "sizeMiB": 7633,
+   "transport": "usb",
+   "removable": true,
+   "table": "dos",
+   "sectorSize": 512,
+   "fingerprint": "6dea28d0249d9b91955efd0b34a0ca16c82f72e1c072ed7a2ccaa54775bfe237",
+   "partitions": [
+    {
+     "number": 1,
+     "startMiB": 1,
+     "sizeMiB": 7631,
+     "fstype": "exfat",
+     "label": "USB",
+     "os": null,
+     "usedMiB": 1100,
+     "flags": [],
+     "esp": false,
+     "type": "",
+     "mounted": [],
+     "path": "/dev/sdb1",
+     "start": 2048,
+     "sectors": 15628288,
+     "shrink": {
+      "possible": false,
+      "reason": "unsupported",
+      "spaceMiB": 7631,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    }
+   ],
+   "free": [],
+   "esp": null,
+   "systems": [],
+   "bitlocker": false,
+   "warnings": [],
+   "alongside": {
+    "possible": false,
+    "reason": "mbr",
+    "message": "(aurora-disk-probe MESSAGES)",
+    "plans": []
+   }
+  }
+ ]
+}

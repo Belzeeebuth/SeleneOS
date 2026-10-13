@@ -27,3 +27,12 @@ tzdata
 x11-xkb-utils
 # Process tree handling during cancellation (ps).
 procps
+# Install next to other systems (« Installer à côté »: aurora-disk-probe, aurora-install --alongside):
+# NTFS sizes, Fast Startup / hibernation check and shrink (ntfsresize, ntfscat, ntfsls: ntfs-3g), ext4 check and
+# shrink (e2fsck, resize2fs, dumpe2fs, debugfs: e2fsprogs above), the survey itself (python3), the firmware boot
+# entry « Selene » (efibootmgr), and the other systems in the installed system's GRUB menu (os-prober, with
+# GRUB_DISABLE_OS_PROBER=false; it is copied to the installed system with the rest of the image).
+ntfs-3g
+python3
+efibootmgr
+os-prober

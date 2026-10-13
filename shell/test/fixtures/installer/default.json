@@ -1,0 +1,382 @@
+{
+ "version": 1,
+ "firmware": "uefi",
+ "minSeleneMiB": 20480,
+ "suggestedSeleneMiB": 40960,
+ "disks": [
+  {
+   "path": "/dev/vda",
+   "name": "vda",
+   "model": "QEMU HARDDISK",
+   "size": 34359738368,
+   "sizeMiB": 32768,
+   "transport": "virtio",
+   "removable": false,
+   "table": null,
+   "sectorSize": 512,
+   "fingerprint": "c2f60bc666fec1d957e12204075e8f615338c6918e05eb8e16e4269550eb0863",
+   "partitions": [],
+   "free": [],
+   "esp": null,
+   "systems": [],
+   "bitlocker": false,
+   "warnings": [],
+   "alongside": {
+    "possible": false,
+    "reason": "no-table",
+    "message": "(aurora-disk-probe MESSAGES)",
+    "plans": []
+   }
+  },
+  {
+   "path": "/dev/nvme0n1",
+   "name": "nvme0n1",
+   "model": "Samsung SSD 980 PRO 512GB",
+   "size": 512109838336,
+   "sizeMiB": 488386,
+   "transport": "nvme",
+   "removable": false,
+   "table": "gpt",
+   "sectorSize": 512,
+   "fingerprint": "35ee9018520ad2f7e288b7e5cd7c676249d6d79d7719d939cdfd32979c25b07b",
+   "partitions": [
+    {
+     "number": 1,
+     "startMiB": 1,
+     "sizeMiB": 100,
+     "fstype": "vfat",
+     "label": "SYSTEM",
+     "os": null,
+     "usedMiB": null,
+     "flags": [],
+     "esp": true,
+     "type": "esp",
+     "mounted": [],
+     "path": "/dev/nvme0n1p1",
+     "start": 2048,
+     "sectors": 204800,
+     "shrink": {
+      "possible": false,
+      "reason": "unsupported",
+      "spaceMiB": 100,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    },
+    {
+     "number": 2,
+     "startMiB": 101,
+     "sizeMiB": 16,
+     "fstype": "",
+     "label": "",
+     "os": null,
+     "usedMiB": null,
+     "flags": [],
+     "esp": false,
+     "type": "msr",
+     "mounted": [],
+     "path": "/dev/nvme0n1p2",
+     "start": 206848,
+     "sectors": 32768,
+     "shrink": {
+      "possible": false,
+      "reason": "unsupported",
+      "spaceMiB": 16,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    },
+    {
+     "number": 3,
+     "startMiB": 117,
+     "sizeMiB": 487668,
+     "fstype": "ntfs",
+     "label": "",
+     "os": "Windows 11",
+     "usedMiB": 307200,
+     "flags": [],
+     "esp": false,
+     "type": "",
+     "mounted": [],
+     "path": "/dev/nvme0n1p3",
+     "start": 239616,
+     "sectors": 998744064,
+     "shrink": {
+      "possible": true,
+      "reason": null,
+      "spaceMiB": 487668,
+      "minSizeMiB": 356267,
+      "maxSizeMiB": 467187,
+      "suggestedSizeMiB": 421967
+     }
+    },
+    {
+     "number": 4,
+     "startMiB": 487785,
+     "sizeMiB": 600,
+     "fstype": "ntfs",
+     "label": "",
+     "os": null,
+     "usedMiB": 500,
+     "flags": [],
+     "esp": false,
+     "type": "windows-recovery",
+     "mounted": [],
+     "path": "/dev/nvme0n1p4",
+     "start": 998983680,
+     "sectors": 1228800,
+     "shrink": {
+      "possible": false,
+      "reason": "too-full",
+      "spaceMiB": 600,
+      "minSizeMiB": 5620,
+      "maxSizeMiB": -19881,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    }
+   ],
+   "free": [],
+   "esp": {
+    "number": 1,
+    "path": "/dev/nvme0n1p1",
+    "sizeMiB": 100,
+    "readable": true,
+    "loaderEntries": [],
+    "freeMiB": 68,
+    "folders": [
+     "Microsoft",
+     "Boot"
+    ],
+    "hasFallback": true,
+    "ubuntuFolder": false
+   },
+   "systems": [
+    {
+     "name": "Windows Boot Manager",
+     "kind": "windows",
+     "partition": 1
+    },
+    {
+     "name": "Windows 11",
+     "kind": "windows",
+     "partition": 3
+    }
+   ],
+   "bitlocker": false,
+   "warnings": [],
+   "alongside": {
+    "possible": true,
+    "reason": null,
+    "message": "",
+    "plans": [
+     {
+      "kind": "shrink",
+      "partition": 3,
+      "path": "/dev/nvme0n1p3",
+      "fstype": "ntfs",
+      "label": "",
+      "os": "Windows 11",
+      "currentSizeMiB": 487668,
+      "usedMiB": 307200,
+      "minSizeMiB": 356267,
+      "maxSizeMiB": 467187,
+      "suggestedSizeMiB": 421967,
+      "spaceMiB": 487668
+     }
+    ]
+   }
+  },
+  {
+   "path": "/dev/sda",
+   "name": "sda",
+   "model": "Crucial MX500 1TB",
+   "size": 1000204886016,
+   "sizeMiB": 953869,
+   "transport": "sata",
+   "removable": false,
+   "table": "gpt",
+   "sectorSize": 512,
+   "fingerprint": "2c2789b3d317d7e00dee5eaf5360a5bc10adb5a81d8c8007d851506ddaa1449e",
+   "partitions": [
+    {
+     "number": 1,
+     "startMiB": 1,
+     "sizeMiB": 512,
+     "fstype": "vfat",
+     "label": "",
+     "os": null,
+     "usedMiB": null,
+     "flags": [],
+     "esp": true,
+     "type": "esp",
+     "mounted": [],
+     "path": "/dev/sda1",
+     "start": 2048,
+     "sectors": 1048576,
+     "shrink": {
+      "possible": false,
+      "reason": "unsupported",
+      "spaceMiB": 512,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    },
+    {
+     "number": 2,
+     "startMiB": 513,
+     "sizeMiB": 8192,
+     "fstype": "swap",
+     "label": "",
+     "os": null,
+     "usedMiB": null,
+     "flags": [
+      "swap"
+     ],
+     "esp": false,
+     "type": "",
+     "mounted": [],
+     "path": "/dev/sda2",
+     "start": 1050624,
+     "sectors": 16777216,
+     "shrink": {
+      "possible": false,
+      "reason": "unsupported",
+      "spaceMiB": 8192,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    },
+    {
+     "number": 3,
+     "startMiB": 8705,
+     "sizeMiB": 573440,
+     "fstype": "ext4",
+     "label": "arch",
+     "os": "Arch Linux",
+     "usedMiB": 122880,
+     "flags": [],
+     "esp": false,
+     "type": "",
+     "mounted": [],
+     "path": "/dev/sda3",
+     "start": 17827840,
+     "sectors": 1174405120,
+     "shrink": {
+      "possible": true,
+      "reason": null,
+      "spaceMiB": 945163,
+      "minSizeMiB": 180224,
+      "maxSizeMiB": 573439,
+      "suggestedSizeMiB": 562693
+     }
+    }
+   ],
+   "free": [
+    {
+     "startMiB": 582145,
+     "endMiB": 953868,
+     "sizeMiB": 371723
+    }
+   ],
+   "esp": {
+    "number": 1,
+    "path": "/dev/sda1",
+    "sizeMiB": 512,
+    "readable": true,
+    "loaderEntries": [],
+    "freeMiB": 420,
+    "folders": [
+     "arch",
+     "BOOT"
+    ],
+    "hasFallback": true,
+    "ubuntuFolder": false
+   },
+   "systems": [
+    {
+     "name": "arch",
+     "kind": "other",
+     "partition": 1,
+     "loader": true
+    },
+    {
+     "name": "Arch Linux",
+     "kind": "linux",
+     "partition": 3
+    }
+   ],
+   "bitlocker": false,
+   "warnings": [],
+   "alongside": {
+    "possible": true,
+    "reason": null,
+    "message": "",
+    "plans": [
+     {
+      "kind": "free",
+      "startMiB": 582145,
+      "endMiB": 953868,
+      "sizeMiB": 371723
+     },
+     {
+      "kind": "shrink",
+      "partition": 3,
+      "path": "/dev/sda3",
+      "fstype": "ext4",
+      "label": "arch",
+      "os": "Arch Linux",
+      "currentSizeMiB": 573440,
+      "usedMiB": 122880,
+      "minSizeMiB": 180224,
+      "maxSizeMiB": 573439,
+      "suggestedSizeMiB": 562693,
+      "spaceMiB": 945163
+     }
+    ]
+   }
+  },
+  {
+   "path": "/dev/sdb",
+   "name": "sdb",
+   "model": "SanDisk Ultra",
+   "size": 8004304896,
+   "sizeMiB": 7633,
+   "transport": "usb",
+   "removable": true,
+   "table": "dos",
+   "sectorSize": 512,
+   "fingerprint": "6dea28d0249d9b91955efd0b34a0ca16c82f72e1c072ed7a2ccaa54775bfe237",
+   "partitions": [
+    {
+     "number": 1,
+     "startMiB": 1,
+     "sizeMiB": 7631,
+     "fstype": "exfat",
+     "label": "USB",
+     "os": null,
+     "usedMiB": 1100,
+     "flags": [],
+     "esp": false,
+     "type": "",
+     "mounted": [],
+     "path": "/dev/sdb1",
+     "start": 2048,
+     "sectors": 15628288,
+     "shrink": {
+      "possible": false,
+      "reason": "unsupported",
+      "spaceMiB": 7631,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    }
+   ],
+   "free": [],
+   "esp": null,
+   "systems": [],
+   "bitlocker": false,
+   "warnings": [],
+   "alongside": {
+    "possible": false,
+    "reason": "mbr",
+    "message": "(aurora-disk-probe MESSAGES)",
+    "plans": []
+   }
+  }
+ ]
+}

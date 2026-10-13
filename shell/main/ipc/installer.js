@@ -4,10 +4,33 @@
 // (casper gives the live user passwordless sudo: /etc/sudoers.d/casper). The account password is
 // written to the helper's stdin (--password-stdin), never on a command line.
 //
-//   installer:status               -> { live, dev, dryRun, minSize, running, finished, helper }
-//   installer:disks                -> [{ path, name, model, vendor, size, transport, removable, tooSmall,
-//                                        partitions: [{ path, size, fstype, label, mountpoints }] }]
-//                                     whole disks only: no live medium, loop, zram, sr, read-only or in-use disk
+//   installer:status               -> { live, dev, dryRun, minSize, running, finished, helper, firmware: 'uefi'|'bios' }
+//   installer:disks                -> [{ path, name, model, vendor, size, transport, removable, tooSmall, table,
+//                                        partitions: [{ path, number, size, fstype, label, mountpoints, os }],
+//                                        alongside }]
+//                                     whole disks only: no live medium, loop, zram, sr, read-only or in-use disk.
+//                                     alongside (analyzeDisk, unit-tested): can Selene be installed next to the
+//                                     systems already on this disk, and how (sizes in MiB) —
+//                                       { possible, reason, reasonPart, reasonFs, reasonOs, os, systems: [{ name, kind, part }],
+//                                         esp: { number, path, freeMiB }, fingerprint, bitlocker, rootMinMiB, rootSuggestedMiB,
+//                                         options: [ { method: 'free', startMiB, endMiB, sizeMiB, rootMinMiB, rootMaxMiB }
+//                                                  | { method: 'shrink', number, part, fstype, os, kind, label, sizeMiB, usedMiB,
+//                                                      newMinMiB, newMaxMiB, spaceMiB, rootMinMiB, rootMaxMiB, rootSuggestedMiB } ],
+//                                         blocked: [{ part, number, reason, code, fstype, os }] }
+//                                     reason (when !possible): empty | bios | mbr | noEsp | espFull | espUbuntu | bitlocker |
+//                                     hibernated | dirty | mounted | fsUnsupported | noSpace | probeFailed
+//
+// ---- dual boot: the root helpers' contract — AGREED, matches rootfs/usr/lib/aurora/helpers as of 2026-10-13 18:00:
+//   Survey (read-only, root): sudo -n aurora-disk-probe [--disk DEV]…  -> one JSON document (see its header):
+//     { firmware, minSeleneMiB, suggestedSeleneMiB, disks: [{ path, table, fingerprint, partitions: [{ number, path,
+//       sizeMiB, fstype, os, usedMiB, flags, shrink: { possible, reason, minSizeMiB, maxSizeMiB, spaceMiB } }], free,
+//       esp, systems, bitlocker, alongside: { possible, reason, plans } }] }
+//   The rules (20 GiB minimum, a shrunk partition keeps max(5 GiB, 10 %) free, UEFI + GPT, ESP reused) live there;
+//   analyzeDisk only reshapes them for the UI. Dev mode reads the same shape from test/fixtures/installer/.
+//   Install: installer:start opts.mode 'alongside', opts.alongside = { method, fingerprint, esp, start, end | part, newSize }
+//   -> aurora-install … --alongside --fingerprint SHA256 --esp N (--free-space S:E | --shrink N --new-size MIB);
+//   the helper re-checks the plan (`aurora-disk-probe --plan`, fresh survey + fingerprint) before anything is written.
+//   Events: an optional 'shrink' stage before 'partition'; {"bootentry":"added|failed|skipped"} -> { type: 'bootentry' }.
 //   installer:keyboards            -> [{ id: 'fr(oss)', layout: 'fr', variant: 'oss', name: { en, fr } }]
 //   installer:timezones            -> ['Africa/Abidjan', …, 'UTC']
 //   installer:applyKeyboard (id)   -> true when the layout was applied to the live X session (setxkbmap)
@@ -18,8 +41,10 @@
 //                                     whether the computer is online (NetworkManager) and the Secure Boot state.
 //                                     No root needed. Dev: AURORA_GPU_FIXTURE=<test/fixtures/gpu/NAME> (default: no
 //                                     graphics card offered a driver), AURORA_GPU_ONLINE=0 (offline).
-//   installer:start (opts)         -> { dryRun }   opts: { disk, user, fullname, password, hostname, lang,
-//                                                          keyboard, timezone, autologin, nvidiaDriver, gaming }
+//   installer:start (opts)         -> { dryRun }   opts: { disk, mode, alongside, user, fullname, password, hostname,
+//                                                          lang, keyboard, timezone, autologin, nvidiaDriver, gaming }
+//                                     mode 'alongside': the plan is checked against the last installer:disks
+//                                     analysis of that disk (method, partition, bounds, fingerprint) before the helper runs
 //                                     nvidiaDriver: 'nvidia-driver-NNN[-open|-server|-server-open]' or 'recommended'
 //                                     (downloaded from the Ubuntu archive during the installation; optional)
 //                                     gaming: Flathub ids from GAMING_APPS (optional; nothing is downloaded during the
@@ -38,7 +63,9 @@
 //   installer:reboot               -> { simulated }   restarts the computer (systemctl reboot)
 //
 // Outside the live session, and always in --dev mode, the helper runs with --dry-run (it only simulates
-// the stages: nothing is written) and the disk list is simulated (AURORA_REAL_BACKENDS=1: real lsblk).
+// the stages: nothing is written) and the disk list is simulated (AURORA_REAL_BACKENDS=1: real lsblk):
+// test/fixtures/installer/<AURORA_INSTALLER_FIXTURE>.json (default: an empty VM disk, Windows 11, Arch Linux with
+// free space, a too-small USB stick; also bitlocker, hibernated, bios, refusals).
 // Test hooks (dev only): AURORA_INSTALLER_DRYRUN_DELAY=<seconds per step>, AURORA_INSTALLER_FAIL_AT=<stage>
 // (or 'notadmin': sudo refuses the account, as for a standard user; error code ENOTADMIN).
 const fs = require('fs');
@@ -98,20 +125,142 @@ const KEYBOARDS = [
   return { id, layout: m[1], variant: m[2] || '', name: { en, fr } };
 });
 
-// Simulated disks (dev mode): an empty VM disk, a laptop SSD with Windows, a USB stick that is too small.
-const MOCK_DISKS = [
-  { path: '/dev/vda', name: 'vda', model: 'QEMU HARDDISK', vendor: '', size: 34359738368, transport: 'virtio', removable: false, partitions: [] },
-  {
-    path: '/dev/nvme0n1', name: 'nvme0n1', model: 'Samsung SSD 980 PRO 512GB', vendor: '', size: 512110190592, transport: 'nvme', removable: false,
-    partitions: [
-      { path: '/dev/nvme0n1p1', size: 104857600, fstype: 'vfat', label: 'SYSTEM', mountpoints: [] },
-      { path: '/dev/nvme0n1p2', size: 16777216, fstype: '', label: '', mountpoints: [] },
-      { path: '/dev/nvme0n1p3', size: 510942756864, fstype: 'ntfs', label: 'Windows', mountpoints: [] },
-      { path: '/dev/nvme0n1p4', size: 1046478848, fstype: 'ntfs', label: 'Recovery', mountpoints: [] },
-    ],
-  },
-  { path: '/dev/sdb', name: 'sdb', model: 'SanDisk Ultra', vendor: 'SanDisk', size: 8004304896, transport: 'usb', removable: true, partitions: [{ path: '/dev/sdb1', size: 8003256320, fstype: 'exfat', label: 'USB', mountpoints: [] }] },
-];
+// Simulated disks (dev mode): test/fixtures/installer/<name>.json, in the shape of the probe's survey.
+const DISK_FIXTURES = path.join(__dirname, '..', '..', 'test', 'fixtures', 'installer');
+const PROBE = 'aurora-disk-probe';
+const MiB = 1048576;
+const ROOT_MIN_MIB = 20480; // defaults when the survey does not say (aurora-disk-probe MIN_SELENE_MIB / SUGGESTED_SELENE_MIB)
+const ROOT_SUGGESTED_MIB = 40960;
+// aurora-disk-probe reason codes -> the installer's (one explanation + what to do, i18n why.<code>)
+const REASONS = {
+  bios: 'bios', 'no-table': 'empty', mbr: 'mbr', 'no-esp': 'noEsp', 'esp-unreadable': 'probeFailed', 'esp-full': 'espFull', 'ubuntu-folder': 'espUbuntu',
+  'no-space': 'noSpace', 'too-full': 'noSpace', 'in-use': 'mounted', mounted: 'mounted', btrfs: 'fsUnsupported', xfs: 'fsUnsupported', luks: 'fsUnsupported',
+  lvm: 'fsUnsupported', unsupported: 'fsUnsupported', bitlocker: 'bitlocker', hibernated: 'hibernated', dirty: 'dirty', 'needs-recovery': 'dirty', unreadable: 'probeFailed',
+};
+const FS_NAMES = { btrfs: 'Btrfs', xfs: 'XFS', crypto_LUKS: 'LUKS', LVM2_member: 'LVM', BitLocker: 'BitLocker', zfs_member: 'ZFS', f2fs: 'F2FS', exfat: 'exFAT', vfat: 'FAT32', ext3: 'ext3', ext2: 'ext2' };
+const FS_OF_REASON = { btrfs: 'Btrfs', xfs: 'XFS', luks: 'LUKS', lvm: 'LVM' };
+const int = (v) => (Number.isSafeInteger(Number(v)) ? Number(v) : 0);
+const RE_FP = /^[0-9a-f]{64}$/;
+
+/** A name people know: 'Windows Boot Manager' -> 'Windows', 'Fedora Linux 40 (Workstation Edition)' -> 'Fedora Linux 40'. */
+function systemName(n) {
+  const s = String(n || '').trim();
+  if (/^windows boot manager$/i.test(s)) return 'Windows';
+  return s.replace(/\s*\([^)]*\)$/, '').slice(0, 60);
+}
+
+/**
+ * One disk of the probe's survey -> its dual boot analysis for the UI (pure, unit-tested). Sizes in MiB. The rules
+ * (minimum sizes, free space kept) are the probe's: its plans are only reshaped here.
+ */
+function analyzeDisk(d, survey = {}) {
+  const rootMin = int(survey.minSeleneMiB) || ROOT_MIN_MIB;
+  const rootSug = int(survey.suggestedSeleneMiB) || ROOT_SUGGESTED_MIB;
+  const parts = Array.isArray(d?.partitions) ? d.partitions : [];
+  const al = d?.alongside || {};
+  const res = { possible: false, reason: null, reasonPart: null, reasonFs: null, reasonOs: null, os: null, systems: [], esp: null, fingerprint: null, bitlocker: !!d?.bitlocker, rootMinMiB: rootMin, rootSuggestedMiB: rootSug, options: [], blocked: [] };
+  // Systems: the ones found on partitions first (named), then the boot loaders of the EFI system partition.
+  const seen = new Set();
+  const sys = [...(d?.systems || [])].sort((x, y) => (x.loader ? 1 : 0) - (y.loader ? 1 : 0) || (/boot manager/i.test(x.name) ? 1 : 0) - (/boot manager/i.test(y.name) ? 1 : 0));
+  const named = sys.some((x) => !x.loader && !/boot manager/i.test(x.name));
+  for (const s of sys) {
+    const name = systemName(s.name);
+    if (!name || /^(boot|tools)$/i.test(name)) continue;
+    if (s.loader && named) continue; // an ESP folder (« arch ») of a system already named by its partition (« Arch Linux »)
+    // « Windows Boot Manager » next to a « Windows 11 » partition is the same system
+    if ([...seen].some((x) => x === name.toLowerCase() || (name === 'Windows' && x.startsWith('windows')))) continue;
+    seen.add(name.toLowerCase());
+    const part = parts.find((p) => p.number === s.partition && !p.esp);
+    res.systems.push({ name, kind: s.kind === 'windows' || /^windows/i.test(name) ? 'windows' : s.kind === 'linux' ? 'linux' : 'other', part: part?.path || null });
+  }
+  res.os = res.systems[0]?.name || null;
+  if (d?.esp) res.esp = { number: int(d.esp.number), path: String(d.esp.path || ''), freeMiB: d.esp.freeMiB == null ? null : int(d.esp.freeMiB) };
+  res.fingerprint = RE_FP.test(String(d?.fingerprint || '')) ? d.fingerprint : null;
+  for (const p of parts) {
+    const sh = p.shrink || {};
+    if (sh.possible || !sh.reason || p.esp || (sh.reason === 'unsupported' && !p.os)) continue;
+    res.blocked.push({ part: p.path, number: p.number, reason: REASONS[sh.reason] || 'probeFailed', code: sh.reason, fstype: p.fstype || '', os: p.os ? systemName(p.os) : null });
+  }
+  if (!parts.length) {
+    res.reason = 'empty';
+    return res;
+  }
+  if (!al.possible) {
+    let code = REASONS[al.reason] || 'probeFailed';
+    // « Not enough room »: the partition of the system says why it can't be shrunk (BitLocker, Fast Startup, Btrfs…).
+    const b = res.blocked.find((x) => x.os) || res.blocked[0];
+    if (b && (code === 'noSpace' || (code === 'mounted' && b.reason === 'mounted'))) code = b.reason;
+    const fs = b ? FS_OF_REASON[b.code] || FS_NAMES[b.fstype] || b.fstype || null : null;
+    Object.assign(res, { reason: code, reasonPart: b?.part || null, reasonFs: fs, reasonOs: b?.os || res.os });
+    return res;
+  }
+  if (!res.fingerprint || !res.esp?.number) {
+    res.reason = 'probeFailed';
+    return res;
+  }
+  for (const pl of al.plans || []) {
+    if (pl.kind === 'free') {
+      const start = int(pl.startMiB);
+      const end = int(pl.endMiB);
+      if (start >= 1 && end - start >= rootMin) res.options.push({ method: 'free', startMiB: start, endMiB: end, sizeMiB: end - start, rootMinMiB: rootMin, rootMaxMiB: end - start, rootSuggestedMiB: end - start });
+    } else if (pl.kind === 'shrink') {
+      const space = int(pl.spaceMiB);
+      const newMin = int(pl.minSizeMiB);
+      const newMax = int(pl.maxSizeMiB);
+      const p = parts.find((x) => x.number === pl.partition);
+      if (!p || newMin < 1 || newMax < newMin) continue;
+      // Selene takes the space after the shrunk partition: spaceMiB - 1 (alignment) - its new size.
+      const rootMax = space - 1 - newMin;
+      const rootMinS = Math.max(rootMin, space - 1 - newMax);
+      if (rootMax < rootMinS) continue;
+      const os = pl.os ? systemName(pl.os) : null;
+      res.options.push({
+        method: 'shrink', number: int(pl.partition), part: String(pl.path || p.path), fstype: String(pl.fstype || ''), os,
+        kind: /^windows/i.test(os || '') || (pl.fstype === 'ntfs' && res.systems.some((x) => x.kind === 'windows')) ? 'windows' : os ? 'linux' : 'other',
+        label: String(pl.label || ''), sizeMiB: int(pl.currentSizeMiB), usedMiB: int(pl.usedMiB), newMinMiB: newMin, newMaxMiB: newMax, spaceMiB: space,
+        rootMinMiB: rootMinS, rootMaxMiB: rootMax, rootSuggestedMiB: pl.suggestedSizeMiB ? Math.min(rootMax, Math.max(rootMinS, space - 1 - int(pl.suggestedSizeMiB))) : Math.min(rootMax, Math.max(rootMinS, rootSug)),
+      });
+    }
+  }
+  // Free space first (nothing is shrunk), then the systems' partitions.
+  res.options.sort((x, y) => (x.method === 'free' ? 0 : 1) - (y.method === 'free' ? 0 : 1) || (y.os ? 1 : 0) - (x.os ? 1 : 0) || y.rootMaxMiB - x.rootMaxMiB);
+  res.possible = res.options.length > 0;
+  if (!res.possible) res.reason = 'noSpace';
+  return res;
+}
+
+/** Survey disk -> the disk list entry the renderer gets. */
+function describeDisk(d, survey, { minSize = MIN_SIZE } = {}) {
+  const size = Number(d.size) || 0;
+  return {
+    path: d.path,
+    name: d.name || path.basename(String(d.path)),
+    model: clean(d.model) || clean(d.vendor) || '',
+    vendor: clean(d.vendor),
+    size,
+    transport: clean(d.transport),
+    removable: !!d.removable,
+    tooSmall: size < minSize,
+    table: d.table || '',
+    partitions: (d.partitions || []).map((p) => ({ path: p.path, number: p.number, size: (Number(p.sizeMiB) || 0) * MiB, fstype: clean(p.fstype), label: clean(p.label), mountpoints: Array.isArray(p.mounted) ? p.mounted : p.mounted ? ['(mounted)'] : [], os: p.os ? systemName(p.os) : null })),
+    alongside: analyzeDisk(d, survey),
+  };
+}
+
+function loadFixture(name) {
+  const n = /^[a-z0-9-]+$/.test(String(name || '')) ? name : 'default';
+  const f = fs.existsSync(path.join(DISK_FIXTURES, `${n}.json`)) ? `${n}.json` : 'default.json';
+  return parseSurvey(fs.readFileSync(path.join(DISK_FIXTURES, f), 'utf8'));
+}
+
+/** aurora-disk-probe stdout -> the survey ({ firmware, minSeleneMiB, disks }) or null. */
+function parseSurvey(text) {
+  try {
+    const o = JSON.parse(String(text || ''));
+    if (o && typeof o === 'object' && Array.isArray(o.disks)) return o;
+  } catch {}
+  return null;
+}
 
 const bool = (v) => v === true || v === 1 || v === '1' || v === 'true';
 const clean = (s) => String(s ?? '').trim();
@@ -209,6 +358,8 @@ function buildArgs(opts, { dryRun = false, delay, failAt } = {}) {
   const password = o.password;
   if (typeof password !== 'string' || !password.length || password.length > 256 || /[\x00-\x1f\x7f]/.test(password)) bad('password');
   const args = ['--json', '--password-stdin', '--disk', disk, '--user', user, '--fullname', fullname, '--hostname', hostname, '--lang', lang, '--keyboard', keyboard, '--timezone', timezone];
+  const mode = o.mode == null || o.mode === 'erase' ? 'erase' : o.mode === 'alongside' ? 'alongside' : bad('mode');
+  if (mode === 'alongside') args.push(...alongsideArgs(o.alongside, bad));
   if (bool(o.autologin)) args.push('--autologin');
   if (o.nvidiaDriver != null && o.nvidiaDriver !== false && o.nvidiaDriver !== '') {
     const drv = String(o.nvidiaDriver);
@@ -228,6 +379,52 @@ function buildArgs(opts, { dryRun = false, delay, failAt } = {}) {
   }
   if (failAt && STAGES.includes(failAt) && failAt !== 'done') args.push('--fail-at', failAt);
   return args;
+}
+
+/**
+ * Dual boot plan -> helper argv (aurora-install --alongside …). Structure and bounds only: whole MiB, partition numbers
+ * 1..128, a sha256 fingerprint; checkPlan() matches it against the disk's analysis. (unit-tested)
+ *   { method: 'free', fingerprint, esp, start, end }        -> --alongside --fingerprint H --esp N --free-space S:E
+ *   { method: 'shrink', fingerprint, esp, part, newSize }   -> --alongside --fingerprint H --esp N --shrink N --new-size MIB
+ */
+const isInt = (v, min, max) => Number.isSafeInteger(v) && v >= min && v <= max;
+const MAX_MIB = 999999999; // the helper's 9 digits
+function alongsideArgs(a, bad) {
+  if (!a || typeof a !== 'object') bad('alongside');
+  if (typeof a.fingerprint !== 'string' || !RE_FP.test(a.fingerprint)) bad('alongside.fingerprint');
+  if (!isInt(a.esp, 1, 128)) bad('alongside.esp');
+  const args = ['--alongside', '--fingerprint', a.fingerprint, '--esp', String(a.esp)];
+  if (a.method === 'shrink') {
+    if (!isInt(a.part, 1, 128) || a.part === a.esp) bad('alongside.part');
+    if (!isInt(a.newSize, 1024, MAX_MIB)) bad('alongside.newSize');
+    args.push('--shrink', String(a.part), '--new-size', String(a.newSize));
+  } else if (a.method === 'free') {
+    if (!isInt(a.start, 1, MAX_MIB) || !isInt(a.end, 1, MAX_MIB) || a.end - a.start < ROOT_MIN_MIB) bad('alongside.free');
+    args.push('--free-space', `${a.start}:${a.end}`);
+  } else bad('alongside.method');
+  return args;
+}
+
+/** Is this plan one the analysis of the disk offers (method, partition, bounds, fingerprint, ESP)? Throws EPLAN. (unit-tested) */
+function checkPlan(a, analysis) {
+  const no = (why) => {
+    const e = new Error(`This dual boot plan is not possible: ${why}`);
+    e.code = 'EPLAN';
+    throw e;
+  };
+  if (!analysis?.possible) no(analysis?.reason || 'no analysis of this disk');
+  if (a.fingerprint !== analysis.fingerprint) no('the partition table changed');
+  if (a.esp !== analysis.esp?.number) no('EFI system partition');
+  if (a.method === 'free') {
+    const opt = analysis.options.find((x) => x.method === 'free' && x.startMiB <= a.start && a.end <= x.endMiB);
+    if (!opt) no('free space');
+    if (a.end - a.start < opt.rootMinMiB) no('Selene OS is too small');
+    return opt;
+  }
+  const opt = analysis.options.find((x) => x.method === 'shrink' && x.number === a.part);
+  if (!opt) no('partition');
+  if (a.newSize < opt.newMinMiB || a.newSize > opt.newMaxMiB) no('new size out of bounds');
+  return opt;
 }
 
 /** Split a stream into lines (keeps a partial trailing line). */
@@ -264,9 +461,16 @@ function register(api) {
     if (logLines.length > LOG_MAX) logLines.splice(0, logLines.length - LOG_MAX);
   };
 
+  // UEFI or legacy BIOS boot of the live session (dual boot needs UEFI). Dev: the fixture says.
+  const fixtureName = () => process.env.AURORA_INSTALLER_FIXTURE || 'default';
+  const firmware = () => (useMockDisks ? (loadFixture(fixtureName()).firmware === 'uefi' ? 'uefi' : 'bios') : fs.existsSync('/sys/firmware/efi') ? 'uefi' : 'bios');
+  // Last analysis of each disk (installer:disks): installer:start only accepts a dual boot plan it offered.
+  const analyses = new Map();
+
   api.handle('installer:status', () => ({
     live,
     dev: DEV,
+    firmware: firmware(),
     dryRun,
     minSize: MIN_SIZE,
     running: !!job,
@@ -277,12 +481,39 @@ function register(api) {
   }));
 
   api.handle('installer:disks', async () => {
-    if (useMockDisks) return MOCK_DISKS.map((d) => ({ ...d, tooSmall: d.size < MIN_SIZE, partitions: d.partitions.map((p) => ({ ...p })) }));
-    const r = await run('lsblk', ['-J', '-b', '-p', '-o', 'NAME,KNAME,PATH,TYPE,SIZE,MODEL,VENDOR,TRAN,RM,RO,HOTPLUG,FSTYPE,LABEL,PARTLABEL,MOUNTPOINTS'], { timeout: 10000 }).catch(
-      (e) => ({ code: 1, stdout: '', stderr: e.message }),
-    );
-    if (r.code !== 0) throw api.error(`lsblk failed: ${r.stderr.trim()}`, 'ECMD');
-    return parseLsblk(r.stdout);
+    let list;
+    if (useMockDisks) {
+      const sv = loadFixture(fixtureName());
+      const delay = Number(process.env.AURORA_INSTALLER_PROBE_DELAY) || 0;
+      if (delay > 0) await new Promise((r) => setTimeout(r, Math.min(delay, 10000)));
+      list = (sv?.disks || []).map((d) => describeDisk(d, sv));
+    } else {
+      const r = await run('lsblk', ['-J', '-b', '-p', '-o', 'NAME,KNAME,PATH,TYPE,SIZE,MODEL,VENDOR,TRAN,RM,RO,HOTPLUG,FSTYPE,LABEL,PARTLABEL,MOUNTPOINTS'], { timeout: 10000 }).catch(
+        (e) => ({ code: 1, stdout: '', stderr: e.message }),
+      );
+      if (r.code !== 0) throw api.error(`lsblk failed: ${r.stderr.trim()}`, 'ECMD');
+      list = parseLsblk(r.stdout);
+      // Dual boot facts need root (ntfsresize --info, dumpe2fs, the ESP's folders): the read-only probe. Outside the
+      // live session (dry run) there is none: erasing stays the only choice for a disk with partitions.
+      let sv = null;
+      const withParts = list.filter((d) => d.partitions.length);
+      if (!dryRun && withParts.length && which('sudo')) {
+        const pr = await run('sudo', ['-n', '--', path.join('/usr/lib/aurora/helpers', PROBE), ...withParts.flatMap((d) => ['--disk', d.path])], { timeout: 180000 }).catch(() => ({ code: 1, stdout: '' }));
+        if (pr.code === 0) sv = parseSurvey(pr.stdout);
+      }
+      list = list.map((d) => {
+        const pd = sv?.disks.find((x) => x.path === d.path);
+        if (pd) {
+          const out = describeDisk({ ...pd, model: d.model, vendor: d.vendor, transport: d.transport, removable: d.removable, size: d.size }, sv);
+          return { ...out, partitions: out.partitions.map((p) => ({ ...p, mountpoints: d.partitions.find((x) => x.path === p.path)?.mountpoints || [] })) };
+        }
+        // No survey for this disk: erasing only (a disk with partitions says why).
+        return { ...d, table: '', alongside: { ...analyzeDisk({ partitions: [] }), reason: d.partitions.length ? 'probeFailed' : 'empty' } };
+      });
+    }
+    analyses.clear();
+    for (const d of list) analyses.set(d.path, d.alongside);
+    return list;
   });
 
   api.handle('installer:keyboards', () => KEYBOARDS.map((k) => ({ ...k, name: { ...k.name } })));
@@ -372,6 +603,13 @@ function register(api) {
     const delay = DEV ? process.env.AURORA_INSTALLER_DRYRUN_DELAY : undefined;
     const failAt = DEV ? process.env.AURORA_INSTALLER_FAIL_AT : undefined;
     const args = buildArgs(opts, { dryRun, delay, failAt });
+    if (opts?.mode === 'alongside') {
+      try {
+        checkPlan(opts.alongside, analyses.get(String(opts.disk)));
+      } catch (e) {
+        throw api.error(e.message, e.code || 'EPLAN');
+      }
+    }
     const helper = dryRun ? helperPath(HELPER) : path.join('/usr/lib/aurora/helpers', HELPER);
     if (!fs.existsSync(helper)) throw api.error(`The installer helper is missing (${helper})`, 'ENOENT');
     let cmd;
@@ -412,6 +650,9 @@ function register(api) {
         // Gaming apps request for the first sign-in: never fails the installation either.
         const apps = String(ev.apps || '').split(',').filter((id) => GAMING_APPS.includes(id));
         send({ type: 'gaming', status: ev.gaming === 'saved' ? 'saved' : 'failed', apps, message: String(ev.message || '') });
+      } else if (ev && typeof ev === 'object' && typeof ev.bootentry === 'string') {
+        // Firmware boot entry « Selene » (dual boot): never fails the installation, the done page says what to do.
+        send({ type: 'bootentry', status: ['added', 'failed', 'skipped'].includes(ev.bootentry) ? ev.bootentry : 'failed', message: String(ev.message || '') });
       } else if (ev && typeof ev === 'object' && ev.error) {
         sawError = true;
         send({ type: 'error', message: String(ev.error), stage: ev.stage || null, code: ev.code ?? null });
@@ -495,3 +736,9 @@ module.exports.RESERVED_USERS = RESERVED_USERS;
 module.exports.MIN_SIZE = MIN_SIZE;
 module.exports.STAGES = STAGES;
 module.exports.GAMING_APPS = GAMING_APPS;
+module.exports.analyzeDisk = analyzeDisk;
+module.exports.describeDisk = describeDisk;
+module.exports.checkPlan = checkPlan;
+module.exports.parseSurvey = parseSurvey;
+module.exports.loadFixture = loadFixture;
+module.exports.MiB = MiB;

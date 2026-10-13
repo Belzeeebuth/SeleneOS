@@ -12,9 +12,39 @@
 #   aurora-install --disk /dev/vda --user NAME --fullname "Full Name" --password-stdin
 #                  --hostname aurora-pc --lang en|fr --keyboard us|fr|fr(oss)|ch(fr)|... --timezone Europe/Paris
 #                  [--autologin] [--nvidia-driver PACKAGE|recommended] [--gaming APPID[,APPID...]]
+#                  [--alongside --fingerprint SHA256 --esp N (--free-space STARTMIB:ENDMIB | --shrink N --new-size MIB)]
+#                  [--alongside --expect-table SHA256 --esp N --root-size MIB (--free-start MIB | --shrink N --shrink-to MIB)]
+#   aurora-install --probe --json [--disk DEV]...
 #                  [--source DIR|FILE.squashfs] [--medium DIR] [--log FILE]
 #                  [--json] [--dry-run [--dry-run-delay SECONDS]] [--fail-at STAGE]
 #
+#   --probe             read-only survey for the installer (no other option needed): runs aurora-disk-probe --ui and
+#                       prints one line {"probe":{"firmware","disks":[…]}} (see its header). Nothing is written.
+#   --alongside         install NEXT TO the systems already on --disk instead of erasing it (UEFI + GPT only):
+#                       every partition stays as it is, except the one shrunk with --shrink; the existing EFI system
+#                       partition is reused (never formatted; only EFI/ubuntu is written, plus the removable
+#                       EFI/BOOT/BOOTX64.EFI when the disk has no EFI/BOOT folder), a firmware boot entry « Selene » is
+#                       added first in BootOrder (efibootmgr) and GRUB lists the other systems (os-prober) with a 5 s
+#                       menu. No BIOS boot loader is written. The read-only survey the plan comes from is
+#                       /usr/lib/aurora/helpers/aurora-disk-probe (run by the installer as root).
+#     --fingerprint H   sha256 of `sfdisk --dump DISK` when the plan was shown (the survey's "fingerprint"): refused,
+#                       with nothing written, when the partition table changed since (checked again right before
+#                       the partition table is written)
+#     --esp N           the EFI system partition to reuse (must be the one the survey reports)
+#     --free-space S:E  create the Selene OS partition in the unallocated space S..E (MiB from the start of the disk,
+#                       1 MiB aligned, at least 20 GB = 19074 MiB, inside one free region of the survey)
+#     --shrink N        shrink partition N first (NTFS: ntfsresize; ext4: e2fsck -f then resize2fs; anything else,
+#     --new-size MIB    and a hibernated / Fast Startup / BitLocker / dirty / mounted partition, is refused) to MIB,
+#                       between the survey's minSizeMiB (max(used + 5 GB, used / 0.9, the file system's minimum)) and
+#                       maxSizeMiB; the
+#                       Selene OS partition takes the space freed after it, up to the next partition (1 MiB aligned).
+#                       The file system is shrunk first, then its partition entry, and the new partition is created
+#                       only after a successful shrink.
+#     --expect-table H, --free-start S, --shrink-to MIB: other spellings of --fingerprint, --free-space S:S+R, --new-size
+#     --root-size R     size of the Selene OS partition in MiB (default: all the free space / all the space freed)
+#                       Every plan is checked again by `aurora-disk-probe --plan` (fresh survey, same rules) before
+#                       anything is written. The partition table before the change is saved to the log and to
+#                       /var/log/aurora-install-partitions.sfdisk on the installed system (`sfdisk DISK <` restores it).
 #   --disk DEV          whole disk to ERASE (sda, vda, nvme0n1, mmcblk0, loopN with partition scanning);
 #                       refused when it is the live medium, holds the installation source, has
 #                       partitions mounted outside /media, /mnt or /run/media, or is smaller than 12 GB
@@ -49,6 +79,8 @@
 #                         {"error":"…","stage":"…","code":N}
 #                         {"driver":"installed|failed","package":"nvidia-driver-NNN","message":"…"}  (--nvidia-driver)
 #                         {"gaming":"saved|failed","apps":"com.valvesoftware.Steam,…","message":"…"}  (--gaming)
+#                         {"bootentry":"added|failed|skipped","message":"…"}  (--alongside: firmware boot entry « Selene »;
+#                                                                     a failure is reported, never fatal: the disk is complete)
 #                       Human-readable log lines always go to stderr (and to the log file).
 #   --dry-run           validate the arguments, then simulate every stage with short sleeps: touches
 #                       nothing, needs no root (UI development, tests)
@@ -81,7 +113,7 @@ WORKDIR=/run/aurora-install     # mount root (target system under $WORKDIR/targe
 TARGET=$WORKDIR/target
 LOCK=/run/aurora-install.lock
 LINKS_STATE=/run/aurora-install.links   # /dev/disk/by-uuid links created where udev does not run
-STAGES=(partition format copy configure drivers bootloader cleanup)
+STAGES=(shrink partition format copy configure drivers bootloader cleanup)   # shrink: --fail-at only (progress says partition)
 USER_GROUPS=(sudo adm users netdev audio video plugdev)
 RESERVED_USERS=" root daemon bin sys sync games man lp mail news uucp proxy www-data backup list irc gnats nobody systemd-network systemd-resolve systemd-timesync systemd-coredump messagebus syslog _apt tss uuidd tcpdump sshd polkitd _greetd greeter aurora-greeter admin sudo adm users wheel staff operator ubuntu "
 
@@ -89,6 +121,8 @@ RESERVED_USERS=" root daemon bin sys sync games man lp mail news uucp proxy www-
 DISK="" USERNAME="" FULLNAME="" HOST_NAME="" LANGUAGE_ID="en" KEYBOARD="us" TIMEZONE="UTC"
 AUTOLOGIN=0 SOURCE="" MEDIUM="" LOG_FILE="" JSON=0 DRY_RUN=0 DRY_DELAY=0.35 FAIL_AT="" PASSWORD_STDIN=0 NVIDIA_DRIVER=
 GAMING="" GAMING_APPS=()
+ALONGSIDE=0 FINGERPRINT="" FREE_SPACE="" FREE_START_ARG="" SHRINK_NUM_ARG="" NEW_SIZE_ARG="" ROOT_SIZE_ARG="" ESP_NUM_ARG=""
+PROBE_MODE=0 PROBE_DISKS=()
 # The only Flathub apps --gaming accepts (same list as shell/main/ipc/installer.js GAMING_APPS).
 GAMING_ALLOWED=(com.valvesoftware.Steam com.heroicgameslauncher.hgl net.lutris.Lutris net.davidotek.pupgui2 com.usebottles.bottles com.discordapp.Discord)
 PASSWORD=""
@@ -99,7 +133,7 @@ ARG_ERR=""
 need_val() { [[ $# -ge 2 && -n "${2-}" ]] || { ARG_ERR="$1 needs a value"; return 1; }; }
 while (($#)); do
   case "$1" in
-    --disk) need_val "$@" || break; DISK=$2; shift 2 ;;
+    --disk) need_val "$@" || break; DISK=$2; PROBE_DISKS+=("$2"); shift 2 ;;
     --user) need_val "$@" || break; USERNAME=$2; shift 2 ;;
     --fullname) [[ $# -ge 2 ]] || { ARG_ERR="--fullname needs a value"; break; }; FULLNAME=$2; shift 2 ;;
     --hostname) need_val "$@" || break; HOST_NAME=$2; shift 2 ;;
@@ -113,6 +147,15 @@ while (($#)); do
     --fail-at) need_val "$@" || break; FAIL_AT=$2; shift 2 ;;
     --nvidia-driver) need_val "$@" || break; NVIDIA_DRIVER=$2; shift 2 ;;
     --gaming) need_val "$@" || break; GAMING=$2; shift 2 ;;
+    --probe) PROBE_MODE=1; shift ;;
+    --alongside) ALONGSIDE=1; shift ;;
+    --fingerprint|--expect-table) need_val "$@" || break; FINGERPRINT=$2; shift 2 ;;
+    --free-space) need_val "$@" || break; FREE_SPACE=$2; shift 2 ;;
+    --free-start) need_val "$@" || break; FREE_START_ARG=$2; shift 2 ;;
+    --shrink) need_val "$@" || break; SHRINK_NUM_ARG=$2; shift 2 ;;
+    --new-size|--shrink-to) need_val "$@" || break; NEW_SIZE_ARG=$2; shift 2 ;;
+    --root-size) need_val "$@" || break; ROOT_SIZE_ARG=$2; shift 2 ;;
+    --esp) need_val "$@" || break; ESP_NUM_ARG=$2; shift 2 ;;
     --password-stdin) PASSWORD_STDIN=1; shift ;;
     --autologin) AUTOLOGIN=1; shift ;;
     --json) JSON=1; shift ;;
@@ -170,6 +213,12 @@ emit_gaming() { # emit_gaming saved|failed [MESSAGE]
     printf '{"gaming":"%s","apps":%s,"message":%s}\n' "$1" "$(json_str "$apps")" "$(json_str "${2:-}")" >&3 2>/dev/null || true
   fi
 }
+emit_bootentry() { # emit_bootentry added|failed|skipped [MESSAGE]
+  log "firmware boot entry « Selene »: $1${2:+ ($2)}"
+  if ((JSON)); then
+    printf '{"bootentry":"%s","message":%s}\n' "$1" "$(json_str "${2:-}")" >&3 2>/dev/null || true
+  fi
+}
 emit_error() { # emit_error CODE MESSAGE
   ((ERROR_SENT)) && return 0
   ERROR_SENT=1
@@ -195,6 +244,19 @@ run() {
 }
 
 [[ -z "$ARG_ERR" ]] || die 2 "$ARG_ERR"
+
+# ------------------------------------------------------------------ read-only survey (--probe)
+if ((PROBE_MODE)); then
+  _probe=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/aurora-disk-probe
+  [[ -x "$_probe" ]] || die 3 "$_probe is missing"
+  _pargs=(--ui)
+  for _d in "${PROBE_DISKS[@]}"; do
+    [[ "$_d" =~ ^/dev/[A-Za-z0-9/_.:-]+$ && "$_d" != *..* ]] || die 2 "invalid disk path: $_d"
+    _pargs+=(--disk "$_d")
+  done
+  [[ "${AURORA_INSTALL_TEST_NO_FIRMWARE:-}" == 1 ]] && _pargs+=(--assume-uefi)
+  exec "$_probe" "${_pargs[@]}" >&3
+fi
 
 # ------------------------------------------------------------------ validation (shared by real and dry runs)
 RE_USER='^[a-z_][a-z0-9_-]{0,31}$'
@@ -242,6 +304,43 @@ fi
 if [[ -n "$FAIL_AT" ]]; then
   [[ " ${STAGES[*]} " == *" $FAIL_AT "* ]] || die 2 "--fail-at: unknown stage $FAIL_AT (${STAGES[*]})"
 fi
+# --alongside: one plan, strict numbers (MiB within bounds, partition numbers 1..128, sha256 fingerprint).
+MIN_ALONGSIDE_MIB=19074   # 20 GB, aurora-disk-probe MIN_SELENE_MIB (installer.js ROOT_MIN)
+num_ok() { [[ "$1" =~ ^[0-9]{1,9}$ ]] && ((10#$1 >= $2 && 10#$1 <= $3)); }
+if ((ALONGSIDE)); then
+  [[ "$FINGERPRINT" =~ ^[0-9a-f]{64}$ ]] || die 2 "--alongside needs --fingerprint (sha256 of the partition table shown)"
+  num_ok "$ESP_NUM_ARG" 1 128 || die 2 "--alongside needs --esp N (the EFI system partition, 1..128)"
+  ESP_NUM_ARG=$((10#$ESP_NUM_ARG))
+  ROOT_SIZE_MIB=""
+  if [[ -n "$ROOT_SIZE_ARG" ]]; then
+    num_ok "$ROOT_SIZE_ARG" "$MIN_ALONGSIDE_MIB" 999999999 || die 2 "invalid --root-size: $ROOT_SIZE_ARG (MiB, at least $MIN_ALONGSIDE_MIB)"
+    ROOT_SIZE_MIB=$((10#$ROOT_SIZE_ARG))
+  fi
+  if [[ -n "$FREE_START_ARG" ]]; then   # --free-start S --root-size R == --free-space S:S+R
+    [[ -z "$FREE_SPACE" && -n "$ROOT_SIZE_MIB" ]] || die 2 "--free-start needs --root-size (and no --free-space)"
+    num_ok "$FREE_START_ARG" 1 999999999 || die 2 "invalid --free-start: $FREE_START_ARG (MiB)"
+    FREE_SPACE="$((10#$FREE_START_ARG)):$((10#$FREE_START_ARG + ROOT_SIZE_MIB))"
+  fi
+  if [[ -n "$FREE_SPACE" ]]; then
+    [[ -z "$SHRINK_NUM_ARG$NEW_SIZE_ARG" ]] || die 2 "--free-space and --shrink cannot be combined"
+    [[ "$FREE_SPACE" =~ ^([0-9]{1,9}):([0-9]{1,9})$ ]] || die 2 "invalid --free-space: $FREE_SPACE (STARTMIB:ENDMIB)"
+    FS_START=$((10#${BASH_REMATCH[1]})) FS_END=$((10#${BASH_REMATCH[2]}))
+    ((FS_START >= 1 && FS_END > FS_START && FS_END - FS_START >= MIN_ALONGSIDE_MIB)) \
+      || die 2 "invalid --free-space: $FREE_SPACE (at least $MIN_ALONGSIDE_MIB MiB, start >= 1 MiB)"
+    PLAN_SPEC="free:$FS_START:$FS_END"
+    [[ -z "$ROOT_SIZE_MIB" ]] || ((FS_END - FS_START == ROOT_SIZE_MIB)) || die 2 "--root-size does not match --free-space"
+  elif [[ -n "$SHRINK_NUM_ARG" ]]; then
+    num_ok "$SHRINK_NUM_ARG" 1 128 || die 2 "invalid --shrink: $SHRINK_NUM_ARG (partition number)"
+    num_ok "$NEW_SIZE_ARG" 1024 999999999 || die 2 "--shrink needs --new-size MIB (at least 1024)"
+    ((10#$SHRINK_NUM_ARG != ESP_NUM_ARG)) || die 2 "the EFI system partition cannot be shrunk"
+    PLAN_SPEC="shrink:$((10#$SHRINK_NUM_ARG)):$((10#$NEW_SIZE_ARG))${ROOT_SIZE_MIB:+:$ROOT_SIZE_MIB}"
+  else
+    die 2 "--alongside needs --free-space STARTMIB:ENDMIB or --shrink N --new-size MIB"
+  fi
+else
+  [[ -z "$FINGERPRINT$FREE_SPACE$FREE_START_ARG$SHRINK_NUM_ARG$NEW_SIZE_ARG$ROOT_SIZE_ARG$ESP_NUM_ARG" ]] \
+    || die 2 "--fingerprint, --esp, --free-space, --shrink, --new-size and --root-size need --alongside"
+fi
 for _p in "$SOURCE" "$MEDIUM" "$LOG_FILE"; do
   [[ -z "$_p" ]] || { [[ "$_p" =~ $RE_PATH && "$_p" != *..* ]] || die 2 "invalid path: $_p (absolute paths only)"; }
 done
@@ -264,6 +363,7 @@ if ((DRY_RUN)); then
   trap 'rc=$?; ((DONE || rc == 0)) || emit_error "$rc" "installation failed (exit $rc)"' EXIT
   dsleep() { sleep "$DRY_DELAY"; }
   # A dry run never opens the named device (it may well be the disk of the machine running it).
+  ((ALONGSIDE)) && log "DRY RUN — install alongside: $PLAN_SPEC, EFI system partition $ESP_NUM_ARG kept"
   log "DRY RUN — nothing will be written. disk=$DISK user=$USERNAME host=$HOST_NAME lang=$LANGUAGE_ID keyboard=$KEYBOARD timezone=$TIMEZONE autologin=$AUTOLOGIN${NVIDIA_DRIVER:+ nvidia-driver=$NVIDIA_DRIVER}${GAMING:+ gaming=$(IFS=,; printf '%s' "${GAMING_APPS[*]}")}"
   sim() { # sim STAGE FROM TO MESSAGE [log lines...]
     local st=$1 from=$2 to=$3 msg=$4 i; shift 4
@@ -274,8 +374,23 @@ if ((DRY_RUN)); then
     progress "$st" "$to" ""
   }
   pp=""; [[ "$DISK" =~ [0-9]$ ]] && pp=p   # partition names: sda2, nvme0n1p2, loop0p2
-  sim partition 1 4 "Partitioning $DISK" "\$ wipefs --all $DISK" "\$ sfdisk --label gpt $DISK (BIOS boot 1 MiB, EFI System 512 MiB, Selene OS ext4)"
-  sim format 4 7 "Formatting the partitions" "\$ mkfs.vfat -F 32 -n EFI ${DISK}${pp}2" "\$ mkfs.ext4 -L AURORA ${DISK}${pp}3"
+  if ((ALONGSIDE)); then
+    # AURORA_DRYRUN_PLAN_REFUSED=changed simulates a partition table that changed since it was shown.
+    if [[ "${AURORA_DRYRUN_PLAN_REFUSED:-}" == changed ]]; then
+      STAGE=partition; die 4 "The partitions of this disk changed since they were shown: nothing was changed. Go back and choose again."
+    fi
+    if [[ "$PLAN_SPEC" == shrink:* ]]; then
+      IFS=: read -r _ _sn _ss _ <<<"$PLAN_SPEC"
+      maybe_fail shrink
+      sim partition 1 3 "Shrinking partition ${DISK}${pp}${_sn} to ${_ss} MiB (your files are kept)" "\$ ntfsresize --size ${_ss}M ${DISK}${pp}${_sn}"
+      dsleep
+    fi
+    sim partition 3 4 "Creating the Selene OS partition next to your systems" "\$ sfdisk --append $DISK (Selene OS ext4, ${PLAN_SPEC})"
+    sim format 4 7 "Formatting the Selene OS partition" "\$ mkfs.ext4 -L AURORA ${DISK}${pp}N (the EFI system partition is kept)"
+  else
+    sim partition 1 4 "Partitioning $DISK" "\$ wipefs --all $DISK" "\$ sfdisk --label gpt $DISK (BIOS boot 1 MiB, EFI System 512 MiB, Selene OS ext4)"
+    sim format 4 7 "Formatting the partitions" "\$ mkfs.vfat -F 32 -n EFI ${DISK}${pp}2" "\$ mkfs.ext4 -L AURORA ${DISK}${pp}3"
+  fi
   maybe_fail copy
   progress copy 7 "Copying the system files"
   for p in 5 12 20 28 37 45 53 61 70 78 86 93 100; do
@@ -313,9 +428,19 @@ if ((DRY_RUN)); then
     fi
     progress drivers 88 ""
   fi
-  sim bootloader 87 91 "Installing the boot loader (BIOS)" "\$ grub-install --target=i386-pc $DISK"
-  progress bootloader 94 "Installing the boot loader (UEFI)"; dsleep
-  progress bootloader 97 "Writing the boot menu"; dsleep
+  if ((ALONGSIDE)); then
+    sim bootloader 87 91 "Installing the boot loader (UEFI, next to your other systems)" "\$ grub-install --target=x86_64-efi --bootloader-id=ubuntu --no-nvram (EFI/ubuntu only)"
+    progress bootloader 94 "Writing the boot menu (with your other systems)"; dsleep
+    progress bootloader 96 "Adding « Selene » to the computer's boot menu"; dsleep
+    # AURORA_DRYRUN_BOOTENTRY_FAIL=1 simulates firmware that refuses the new boot entry (reported, not fatal).
+    if [[ "${AURORA_DRYRUN_BOOTENTRY_FAIL:-}" == 1 ]]; then emit_bootentry failed "simulated failure (AURORA_DRYRUN_BOOTENTRY_FAIL)"
+    else emit_bootentry added; fi
+    progress bootloader 97 ""
+  else
+    sim bootloader 87 91 "Installing the boot loader (BIOS)" "\$ grub-install --target=i386-pc $DISK"
+    progress bootloader 94 "Installing the boot loader (UEFI)"; dsleep
+    progress bootloader 97 "Writing the boot menu"; dsleep
+  fi
   sim cleanup 98 99 "Finishing" "sync; unmounting $TARGET"
   DONE=1
   progress "done" 100 "Selene OS has been installed (simulation: nothing was written)"
@@ -582,6 +707,7 @@ flush_esp() {
   [[ "$ESP_MODE" == mtools ]] || return 0
   local e out rc="$WORKDIR/mtoolsrc"
   printf 'mtools_skip_check=1\ndrive e: file="%s"\n' "$P_ESP" >"$rc"
+  if ((ALONGSIDE)); then flush_esp_alongside "$rc"; return; fi
   shopt -s nullglob dotglob
   for e in "$TARGET"/boot/efi/*; do
     log "\$ mcopy -s ${e#"$TARGET"} $P_ESP:/"
@@ -591,6 +717,26 @@ flush_esp() {
   shopt -u nullglob dotglob
   MTOOLSRC=$rc mtype e:/EFI/BOOT/BOOTX64.EFI 2>/dev/null | cmp -s - "$TARGET/boot/efi/EFI/BOOT/BOOTX64.EFI" \
     || die 5 "EFI/BOOT/BOOTX64.EFI on the EFI system partition does not match"
+  MTOOLSRC=$rc mdir -/ e:/EFI 2>&1 | grep -v 'Could not get geometry' >&2 || true
+  rm -f "$rc"
+  umount "$TARGET/boot/efi" || die 5 "could not unmount the EFI staging area"
+  ESP_MODE=flushed
+}
+
+flush_esp_alongside() { # only EFI/ubuntu (and EFI/BOOT when the disk had none) go to the shared ESP
+  local rc=$1 d f out
+  MTOOLSRC=$rc mmd e:/EFI >/dev/null 2>&1 || true   # exists on any ESP that boots something
+  for d in ubuntu BOOT; do
+    [[ "$d" == BOOT ]] && ((!ESP_OWN_FALLBACK)) && continue
+    [[ -d "$TARGET/boot/efi/EFI/$d" ]] || continue
+    log "\$ mcopy -s /boot/efi/EFI/$d $P_ESP:/EFI/"
+    out=$(MTOOLSRC=$rc mcopy -s -o -m -Q "$TARGET/boot/efi/EFI/$d" e:/EFI/ 2>&1) || { printf '%s\n' "$out" >&2; die 5 "could not write the EFI system partition (mcopy)"; }
+    grep -v 'Could not get geometry' <<<"$out" >&2 || true
+  done
+  for f in "$TARGET"/boot/efi/EFI/ubuntu/*; do
+    [[ -f "$f" ]] || continue
+    MTOOLSRC=$rc mtype "e:/EFI/ubuntu/${f##*/}" 2>/dev/null | cmp -s - "$f" || die 5 "EFI/ubuntu/${f##*/} on the EFI system partition does not match"
+  done
   MTOOLSRC=$rc mdir -/ e:/EFI 2>&1 | grep -v 'Could not get geometry' >&2 || true
   rm -f "$rc"
   umount "$TARGET/boot/efi" || die 5 "could not unmount the EFI staging area"
@@ -672,6 +818,276 @@ stage_format() {
   mkdir -p "$TARGET"
   run "could not mount the system partition" mount -t ext4 "$P_ROOT" "$TARGET"
   progress format 7 ""
+}
+
+# ------------------------------------------------------------------ install alongside (--alongside)
+# P_ROOT is a NEW partition; the EFI system partition is the existing one (never formatted); nothing else
+# on the disk is touched except the partition being shrunk (--shrink).
+PROBE=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/aurora-disk-probe
+declare -A PLAN=()
+TEST_NO_FIRMWARE=0
+[[ "${AURORA_INSTALL_TEST_NO_FIRMWARE:-}" == 1 ]] && TEST_NO_FIRMWARE=1   # build machines (sudo never forwards it)
+ESP_OWN_FALLBACK=0   # 1: the disk had no EFI/BOOT folder, Selene OS installs the removable EFI/BOOT/BOOTX64.EFI
+pt_fingerprint() { sfdisk --dump "$DISK" 2>/dev/null | sha256sum | cut -d' ' -f1; }
+plan_alongside() {
+  if ((TEST_NO_FIRMWARE)); then
+    log "test mode (AURORA_INSTALL_TEST_NO_FIRMWARE=1): firmware check and NVRAM boot entry skipped"
+  else
+    [[ -d /sys/firmware/efi ]] || die 4 "this computer started in legacy BIOS mode: installing alongside needs UEFI mode (restart and choose the UEFI entry of the USB drive), or erase the whole disk"
+  fi
+  [[ -x "$PROBE" ]] || die 3 "$PROBE is missing"
+  local out rc=0 line k v
+  local args=(--disk "$DISK" --plan "$PLAN_SPEC" --fingerprint "$FINGERPRINT" --format shell)
+  args+=(--esp "$ESP_NUM_ARG")
+  ((TEST_NO_FIRMWARE)) && args+=(--assume-uefi)
+  log "\$ aurora-disk-probe ${args[*]}"
+  out=$("$PROBE" "${args[@]}" 2>"$WORKDIR/probe.err") || rc=$?
+  cat "$WORKDIR/probe.err" >&2 2>/dev/null; rm -f "$WORKDIR/probe.err"
+  while IFS= read -r line; do
+    [[ "$line" =~ ^([A-Z_]{2,32})=(.*)$ ]] || continue
+    k=${BASH_REMATCH[1]} v=${BASH_REMATCH[2]}
+    [[ "$k" == MESSAGE || "$v" =~ ^[A-Za-z0-9/._:-]*$ ]] || die 5 "unexpected value from aurora-disk-probe: $k"
+    PLAN[$k]=$v
+  done <<<"$out"
+  if [[ "${PLAN[OK]:-0}" != 1 ]]; then
+    ((rc == 0)) && rc=4
+    ((rc == 3 || rc == 4)) || rc=5
+    die "$rc" "${PLAN[MESSAGE]:-the installation plan was refused (aurora-disk-probe exit $rc)}"
+  fi
+  # Everything the destructive steps use comes from the probe's fresh survey, checked again here.
+  local key
+  for key in KIND NEW_START NEW_SECTORS NEW_SIZE_MIB ESP_NUM ESP_PART SECTOR_SIZE FINGERPRINT; do
+    [[ -n "${PLAN[$key]:-}" ]] || die 5 "incomplete plan from aurora-disk-probe ($key)"
+  done
+  for key in NEW_START NEW_SECTORS NEW_SIZE_MIB ESP_NUM SECTOR_SIZE; do
+    [[ "${PLAN[$key]}" =~ ^[0-9]{1,15}$ ]] || die 5 "invalid plan value $key"
+  done
+  [[ "${PLAN[FINGERPRINT]}" == "$FINGERPRINT" ]] || die 4 "the partition table changed since it was shown: nothing was changed"
+  [[ "${PLAN[ESP_PART]}" == "$(part_path "${PLAN[ESP_NUM]}")" ]] || die 5 "unexpected EFI system partition ${PLAN[ESP_PART]}"
+  ((PLAN[NEW_SIZE_MIB] >= MIN_ALONGSIDE_MIB)) || die 4 "the Selene OS partition would be smaller than $MIN_ALONGSIDE_MIB MiB"
+  [[ -z "$ROOT_SIZE_MIB" ]] || ((PLAN[NEW_SIZE_MIB] == ROOT_SIZE_MIB)) || die 5 "the planned Selene OS partition (${PLAN[NEW_SIZE_MIB]} MiB) is not the size asked ($ROOT_SIZE_MIB MiB)"
+  if [[ "${PLAN[KIND]}" == shrink ]]; then
+    for key in SHRINK_NUM SHRINK_START SHRINK_OLD_SECTORS SHRINK_NEW_SECTORS SHRINK_NEW_BYTES SHRINK_OLD_MIB SHRINK_NEW_MIB; do
+      [[ "${PLAN[$key]:-}" =~ ^[0-9]{1,15}$ ]] || die 5 "invalid plan value $key"
+    done
+    [[ "${PLAN[SHRINK_PART]:-}" == "$(part_path "${PLAN[SHRINK_NUM]}")" ]] || die 5 "unexpected partition ${PLAN[SHRINK_PART]:-}"
+    [[ "${PLAN[SHRINK_FS]:-}" == ntfs || "${PLAN[SHRINK_FS]:-}" == ext4 ]] || die 4 "only NTFS and ext4 partitions can be shrunk"
+    ((PLAN[SHRINK_NEW_SECTORS] < PLAN[SHRINK_OLD_SECTORS])) || die 4 "the new size must be smaller than the current one"
+    ((PLAN[NEW_START] >= PLAN[SHRINK_START] + PLAN[SHRINK_NEW_SECTORS])) || die 5 "the new partition would overlap the shrunk one"
+    [[ "${PLAN[SHRINK_NUM]}" != "${PLAN[ESP_NUM]}" ]] || die 4 "the EFI system partition cannot be shrunk"
+  elif [[ "${PLAN[KIND]}" != free ]]; then
+    die 5 "unknown plan kind ${PLAN[KIND]}"
+  fi
+  P_ESP=${PLAN[ESP_PART]}
+  [[ "${PLAN[ESP_HAS_BOOT_DIR]:-1}" == 0 ]] && ESP_OWN_FALLBACK=1
+  if [[ "${PLAN[KIND]}" == shrink ]]; then
+    log "plan: shrink ${PLAN[SHRINK_PART]} (${PLAN[SHRINK_FS]}) ${PLAN[SHRINK_OLD_MIB]} MiB -> ${PLAN[SHRINK_NEW_MIB]} MiB, new Selene OS partition ${PLAN[NEW_SIZE_MIB]} MiB at sector ${PLAN[NEW_START]}, EFI system partition $P_ESP kept"
+  else
+    log "plan: new Selene OS partition ${PLAN[NEW_SIZE_MIB]} MiB at sector ${PLAN[NEW_START]} (free space), EFI system partition $P_ESP kept"
+  fi
+  log "EFI system partition: ${PLAN[ESP_FREE_MIB]:-?} MiB free, removable EFI/BOOT path $( ((ESP_OWN_FALLBACK)) && echo 'installed (the disk has none)' || echo 'left as it is')"
+}
+
+# dump_without N...: the sfdisk dump of the disk without the partition lines of numbers N (and its header)
+dump_without() {
+  local skip=" $* " line n
+  while IFS= read -r line; do
+    [[ "$line" =~ ^(/dev/[^ ]+)[[:space:]]*: ]] || continue
+    n=$(sed -n 's/.*[^0-9]\([0-9][0-9]*\)$/\1/p' <<<"${BASH_REMATCH[1]}")
+    [[ "$skip" == *" $n "* ]] && continue
+    printf '%s\n' "$line"
+  done < <(sfdisk --dump "$DISK")
+}
+# entry_without_size N < DUMP: partition N's line of an sfdisk dump without its size (start, type, uuid, name, attrs)
+entry_without_size() {
+  local line n
+  while IFS= read -r line; do
+    [[ "$line" =~ ^(/dev/[^ ]+)[[:space:]]*: ]] || continue
+    n=$(sed -n 's/.*[^0-9]\([0-9][0-9]*\)$/\1/p' <<<"${BASH_REMATCH[1]}")
+    [[ "$n" == "$1" ]] || continue
+    sed -E 's/size= *[0-9]+, *//' <<<"$line"
+  done
+}
+wait_for_node() { # wait_for_node DEV EXPECTED_BYTES
+  local i
+  udevadm settle --timeout=10 >/dev/null 2>&1 || true
+  for ((i = 0; i < 100; i++)); do
+    [[ -b "$1" && "$(blockdev --getsize64 "$1" 2>/dev/null)" == "$2" ]] && return 0
+    ((i == 20 || i == 60)) && partx -u "$DISK" >/dev/null 2>&1
+    sleep 0.1
+  done
+  die 5 "the partition $1 did not appear with its new size"
+}
+
+shrink_ntfs() {
+  local dev=${PLAN[SHRINK_PART]} bytes=${PLAN[SHRINK_NEW_BYTES]} out
+  # Hibernation / Fast Startup: ntfsresize does not refuse it by itself (checked again here, right before).
+  local hdr; hdr=$(ntfscat "$dev" hiberfil.sys 2>/dev/null | head -c 4 | od -An -tx1 | tr -d ' \n' || true)
+  if [[ -n "$hdr" && "$hdr" != 00000000 && "$hdr" != 77616b65 && "$hdr" != 57414b45 ]]; then
+    die 4 "Windows is hibernated or uses Fast Startup: turn off Fast Startup in Windows and shut it down fully, then try again (nothing was changed)"
+  fi
+  # Marked for a check (by Windows, or by an earlier ntfsresize): refused. --force would skip this check
+  # silently, so it is made here without it (read-only).
+  out=$(ntfsresize --info --no-progress-bar "$dev" </dev/null 2>&1 || true)
+  if has_text 'scheduled for check' "$out"; then
+    die 4 "Windows must check this partition first: start Windows (twice if needed), shut it down fully, then try again (nothing was changed)"
+  fi
+  # One --force only: it skips the interactive question. (A second one would also skip the dirty-volume check.)
+  log "\$ ntfsresize --no-action --size $bytes $dev"
+  out=$(ntfsresize --no-action --force --no-progress-bar --size "$bytes" "$dev" </dev/null 2>&1) \
+    || { printf '%s\n' "$out" >&2; die 4 "Windows' partition cannot be shrunk safely (ntfsresize test run failed; nothing was changed): start Windows, run a disk check, shut it down fully and try again"; }
+  printf '%s\n' "$out" | tail -n 3 >&2
+  progress partition 2 ""
+  log "\$ ntfsresize --size $bytes $dev"
+  bg_wait ntfsresize --force --no-progress-bar --size "$bytes" "$dev" </dev/null >&2 \
+    || die 5 "shrinking the Windows partition failed (ntfsresize); the partition table was not changed"
+  local now
+  now=$(ntfsresize --info --force --no-progress-bar "$dev" 2>/dev/null | sed -n 's/^Current volume size: *\([0-9]*\) bytes.*/\1/p')
+  [[ "$now" =~ ^[0-9]+$ ]] && ((now <= bytes)) || die 5 "the NTFS file system is not smaller than $bytes bytes after ntfsresize (${now:-unknown}); the partition table was not changed"
+  log "NTFS file system now $now bytes (Windows checks the disk once at its next start)"
+}
+shrink_ext4() {
+  local dev=${PLAN[SHRINK_PART]} bytes=${PLAN[SHRINK_NEW_BYTES]} rc=0
+  log "\$ e2fsck -f -p $dev"
+  bg_wait e2fsck -f -p "$dev" >&2 || rc=$?
+  ((rc <= 1)) || die 4 "the ext4 partition $dev has errors e2fsck cannot fix by itself (exit $rc): check it from its own system, then try again (nothing was changed)"
+  progress partition 2 ""
+  log "\$ resize2fs $dev $((bytes / 1024))K"
+  bg_wait resize2fs "$dev" "$((bytes / 1024))K" >&2 || die 5 "shrinking the ext4 partition failed (resize2fs); the partition table was not changed"
+  local bc bs
+  bc=$(dumpe2fs -h "$dev" 2>/dev/null | sed -n 's/^Block count: *//p') bs=$(dumpe2fs -h "$dev" 2>/dev/null | sed -n 's/^Block size: *//p')
+  [[ "$bc" =~ ^[0-9]+$ && "$bs" =~ ^[0-9]+$ ]] && ((bc * bs <= bytes)) || die 5 "the ext4 file system is not smaller than $bytes bytes after resize2fs; the partition table was not changed"
+  e2fsck -f -n "$dev" >&2 || die 5 "the ext4 file system reports errors after resize2fs; the partition table was not changed"
+  log "ext4 file system now $((bc * bs)) bytes"
+}
+
+stage_partition_alongside() {
+  maybe_fail partition
+  progress partition 1 "Preparing the disk (your files are kept)"
+  local before="$WORKDIR/partitions-before.sfdisk" others_before others_after new_num=""
+  sfdisk --dump "$DISK" >"$before" || die 5 "cannot read the partition table of $DISK"
+  log "partition table before the change (restore with: sfdisk $DISK < this dump):"; cat "$before" >&2
+  [[ "$(sha256sum <"$before" | cut -d' ' -f1)" == "$FINGERPRINT" ]] || die 4 "the partition table changed since it was shown: nothing was changed"
+  others_before=$(dump_without ${PLAN[SHRINK_NUM]:-})
+  local shrunk_before="" shrunk_after=""
+  [[ "${PLAN[KIND]}" == shrink ]] && shrunk_before=$(entry_without_size "${PLAN[SHRINK_NUM]}" <"$before")
+  if [[ "${PLAN[KIND]}" == shrink ]]; then
+    maybe_fail shrink
+    progress partition 1 "Shrinking ${PLAN[SHRINK_PART]} from ${PLAN[SHRINK_OLD_MIB]} MiB to ${PLAN[SHRINK_NEW_MIB]} MiB (your files are kept)"
+    findmnt -rn -S "${PLAN[SHRINK_PART]}" >/dev/null 2>&1 && die 4 "${PLAN[SHRINK_PART]} is mounted: nothing was changed"
+    case "${PLAN[SHRINK_FS]}" in
+      ntfs) shrink_ntfs ;;
+      ext4) shrink_ext4 ;;
+    esac
+    # The file system is smaller now; the table must still be the one that was shown.
+    [[ "$(pt_fingerprint)" == "$FINGERPRINT" ]] || die 5 "the partition table changed during the shrink: stopped before writing it"
+    progress partition 3 "Updating the partition table"
+    log "\$ sfdisk -N ${PLAN[SHRINK_NUM]} $DISK (start=${PLAN[SHRINK_START]}, size=${PLAN[SHRINK_NEW_SECTORS]})"
+    printf 'start=%s, size=%s\n' "${PLAN[SHRINK_START]}" "${PLAN[SHRINK_NEW_SECTORS]}" \
+      | sfdisk --quiet --no-reread --wipe never --wipe-partitions never -N "${PLAN[SHRINK_NUM]}" "$DISK" >&2 \
+      || die 5 "could not shrink partition ${PLAN[SHRINK_NUM]} in the partition table (its file system is already smaller: nothing is lost)"
+    partx -u "$DISK" >/dev/null 2>&1 || true
+    wait_for_node "${PLAN[SHRINK_PART]}" "${PLAN[SHRINK_NEW_BYTES]}"
+    # The shrunk entry keeps its start, type, UUID, name and attributes (Windows' boot configuration names it).
+    shrunk_after=$(entry_without_size "${PLAN[SHRINK_NUM]}" < <(sfdisk --dump "$DISK"))
+    [[ -n "$shrunk_before" && "$shrunk_after" == "$shrunk_before" ]] \
+      || die 5 "partition ${PLAN[SHRINK_NUM]} changed more than its size (before: $shrunk_before; after: $shrunk_after)"
+  fi
+  progress partition 3 "Creating the Selene OS partition"
+  log "\$ sfdisk --append $DISK (start=${PLAN[NEW_START]}, size=${PLAN[NEW_SECTORS]}, Selene OS)"
+  printf 'start=%s, size=%s, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Selene OS"\n' "${PLAN[NEW_START]}" "${PLAN[NEW_SECTORS]}" \
+    | sfdisk --quiet --no-reread --wipe never --wipe-partitions never --append "$DISK" >&2 \
+    || die 5 "could not create the Selene OS partition"
+  partx -u "$DISK" >/dev/null 2>&1 || partx -a "$DISK" >/dev/null 2>&1 || true
+  # The new partition: the entry that starts at NEW_START.
+  local line node
+  while IFS= read -r line; do
+    [[ "$line" =~ ^(/dev/[^ ]+)[[:space:]]*:[[:space:]]*start=[[:space:]]*([0-9]+), ]] || continue
+    if [[ "${BASH_REMATCH[2]}" == "${PLAN[NEW_START]}" ]]; then node=${BASH_REMATCH[1]}; break; fi
+  done < <(sfdisk --dump "$DISK")
+  [[ -n "${node:-}" ]] || die 5 "the new partition is not in the partition table"
+  new_num=$(sed -n 's/.*[^0-9]\([0-9][0-9]*\)$/\1/p' <<<"$node")
+  P_ROOT=$(part_path "$new_num")
+  [[ "$P_ROOT" == "$node" ]] || die 5 "unexpected partition name $node"
+  # Every other partition is exactly as before (start, size, type, UUID, name).
+  others_after=$(dump_without ${PLAN[SHRINK_NUM]:-} "$new_num")
+  [[ "$others_after" == "$others_before" ]] || { diff <(echo "$others_before") <(echo "$others_after") >&2 || true; die 5 "another partition changed unexpectedly (see the log)"; }
+  sfdisk --verify "$DISK" >&2 || die 5 "the partition table does not verify after the change"
+  wait_for_node "$P_ROOT" "$((PLAN[NEW_SECTORS] * PLAN[SECTOR_SIZE]))"
+  # The kernel's node is the partition just created (same start), not a stale one: only then it is formatted.
+  local kstart; kstart=$(cat "/sys/class/block/${P_ROOT#/dev/}/start" 2>/dev/null || echo -1)
+  [[ "$kstart" =~ ^[0-9]+$ ]] && ((kstart * 512 == PLAN[NEW_START] * PLAN[SECTOR_SIZE])) \
+    || die 5 "the kernel does not show $P_ROOT at sector ${PLAN[NEW_START]} (start: $kstart): nothing was formatted"
+  P_BIOS=""
+  sfdisk --dump "$DISK" >&2 || true
+  progress partition 4 ""
+}
+
+stage_format_alongside() {
+  maybe_fail format
+  progress format 4 "Formatting the Selene OS partition"
+  wipefs --all --force --quiet "$P_ROOT" >/dev/null 2>&1 || true
+  run "could not format the system partition" mkfs.ext4 -F -q -L AURORA "$P_ROOT"
+  udevadm settle --timeout=10 >/dev/null 2>&1 || true
+  ROOT_UUID=$(blkid -p -s UUID -o value "$P_ROOT" 2>/dev/null || blkid -s UUID -o value "$P_ROOT")
+  ESP_UUID=$(blkid -p -s UUID -o value "$P_ESP" 2>/dev/null || blkid -s UUID -o value "$P_ESP")
+  [[ -n "$ROOT_UUID" && -n "$ESP_UUID" ]] || die 5 "could not read the UUIDs of the file systems"
+  [[ "$(blkid -p -s TYPE -o value "$P_ESP" 2>/dev/null)" == vfat ]] || die 5 "the EFI system partition $P_ESP is not a FAT file system"
+  log "root $P_ROOT UUID=$ROOT_UUID (new), ESP $P_ESP UUID=$ESP_UUID (kept)"
+  ensure_uuid_link "$ROOT_UUID" "$P_ROOT"
+  ensure_uuid_link "$ESP_UUID" "$P_ESP"
+  mkdir -p "$TARGET"
+  run "could not mount the system partition" mount -t ext4 "$P_ROOT" "$TARGET"
+  progress format 7 ""
+}
+
+# esp_snapshot OUT: sha256 of every file of the EFI system partition outside the folders Selene OS writes
+# (EFI/ubuntu, and EFI/BOOT when the disk had none): compared before and after the boot loader is written.
+esp_snapshot() {
+  local out=$1 dir excl='^[0-9a-f]+  \./efi/ubuntu/'
+  ((ESP_OWN_FALLBACK)) && excl='^[0-9a-f]+  \./efi/(ubuntu|boot)/'
+  if [[ "$ESP_MODE" == mount ]]; then
+    dir=$TARGET/boot/efi
+  else
+    dir=$WORKDIR/esp-snapshot
+    rm -rf "$dir"; mkdir -p "$dir"
+    MTOOLS_SKIP_CHECK=1 mcopy -s -n -m -Q -i "$P_ESP" '::*' "$dir/" >/dev/null 2>&1 || { rm -rf "$dir"; return 1; }
+  fi
+  (cd "$dir" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0r sha256sum) | awk -v r="$excl" 'tolower($0) !~ r' >"$out"
+  [[ "$ESP_MODE" == mount ]] || rm -rf "$dir"
+  return 0
+}
+
+# add_boot_entry: firmware boot entry « Selene » (shim) first in BootOrder. Never fatal: reported with emit_bootentry.
+add_boot_entry() {
+  if ((TEST_NO_FIRMWARE)); then emit_bootentry skipped "test mode: no firmware boot entry"; return 0; fi
+  command -v efibootmgr >/dev/null 2>&1 || { emit_bootentry failed "efibootmgr is not installed"; return 0; }
+  local loader='\EFI\ubuntu\shimx64.efi' partuuid out num order line
+  [[ -s "$TARGET/boot/efi/EFI/ubuntu/shimx64.efi" || "$ESP_MODE" != mount ]] || loader='\EFI\ubuntu\grubx64.efi'
+  partuuid=$(blkid -p -s PART_ENTRY_UUID -o value "$P_ESP" 2>/dev/null | tr 'A-F' 'a-f')
+  # An entry « Selene » left on this same EFI system partition by an earlier attempt is replaced.
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^Boot([0-9A-Fa-f]{4})\*?[[:space:]]+Selene[[:space:]] ]] && [[ -n "$partuuid" && "${line,,}" == *"$partuuid"* ]]; then
+      log "\$ efibootmgr -b ${BASH_REMATCH[1]} -B (earlier « Selene » entry)"
+      efibootmgr -q -b "${BASH_REMATCH[1]}" -B >&2 2>&1 || log "warning: could not remove the earlier entry Boot${BASH_REMATCH[1]}"
+    fi
+  done < <(efibootmgr -v 2>/dev/null || true)
+  log "\$ efibootmgr --create --disk $DISK --part ${PLAN[ESP_NUM]} --label Selene --loader $loader"
+  if ! out=$(efibootmgr --create --disk "$DISK" --part "${PLAN[ESP_NUM]}" --label Selene --loader "$loader" 2>&1); then
+    printf '%s\n' "$out" >&2
+    emit_bootentry failed "the computer refused the new boot entry (efibootmgr): choose « Selene » or the disk in its boot menu"
+    return 0
+  fi
+  printf '%s\n' "$out" >&2
+  num=$(sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\}[[:space:]]\{1,\}Selene\([[:space:]].*\)\{0,1\}$/\1/p' <<<"$out" | tail -n1)
+  order=$(sed -n 's/^BootOrder: *//p' <<<"$out")
+  if [[ -z "$num" ]]; then emit_bootentry failed "the new boot entry was not found after efibootmgr --create"; return 0; fi
+  if [[ "$order" != "$num"* ]]; then
+    order=$num$(tr ',' '\n' <<<"$order" | grep -vix "$num" | sed 's/^/,/' | tr -d '\n')
+    log "\$ efibootmgr --bootorder $order"
+    efibootmgr -q --bootorder "$order" >&2 2>&1 || { emit_bootentry failed "could not put « Selene » first in the boot order"; return 0; }
+  fi
+  emit_bootentry added "Boot$num"
 }
 
 copy_progress() { # reads tool output; percentages -> overall 7..75
@@ -1092,6 +1508,7 @@ stage_drivers() {
 
 stage_bootloader() {
   maybe_fail bootloader
+  if ((ALONGSIDE)); then stage_bootloader_alongside; return; fi
   progress bootloader 87 "Installing the boot loader (BIOS)"
   # GRUB settings (Ubuntu's /etc/default/grub stays untouched; this drop-in overrides it).
   local theme_src="$MEDIUM/boot/grub/themes/aurora" theme_line="#GRUB_THEME= (no Selene OS theme on the installation medium)"
@@ -1161,6 +1578,79 @@ EOF
   progress bootloader 97 ""
 }
 
+# Next to other systems: UEFI only, on the shared EFI system partition, without touching other folders.
+stage_bootloader_alongside() {
+  progress bootloader 87 "Installing the boot loader (UEFI, next to your other systems)"
+  local theme_src="$MEDIUM/boot/grub/themes/aurora" theme_line="#GRUB_THEME= (no Selene OS theme on the installation medium)"
+  [[ -f "$TARGET/usr/share/grub/themes/aurora/theme.txt" ]] && theme_src="$TARGET/usr/share/grub/themes/aurora"
+  if [[ -f "$theme_src/theme.txt" ]]; then
+    rm -rf "$TARGET/boot/grub/themes/aurora"
+    mkdir -p "$TARGET/boot/grub/themes"
+    cp -r "$theme_src" "$TARGET/boot/grub/themes/aurora"
+    chmod -R u+rwX,go+rX,go-w "$TARGET/boot/grub/themes/aurora"
+    theme_line='GRUB_THEME=/boot/grub/themes/aurora/theme.txt'
+  fi
+  write_file "$TARGET/etc/default/grub.d/50-aurora.cfg" 0644 <<EOF
+# Selene OS boot menu (written by the Selene OS installer, installed next to other systems). Sourced after
+# /etc/default/grub; run 'sudo update-grub' after changing it.
+GRUB_DISTRIBUTOR="Selene OS"
+GRUB_TIMEOUT_STYLE=menu
+GRUB_TIMEOUT=5
+GRUB_RECORDFAIL_TIMEOUT=10
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+GRUB_GFXMODE=1920x1080,1600x900,1280x800,1024x768,auto
+GRUB_GFXPAYLOAD_LINUX=keep
+# The other systems of this computer (Windows, other Linux) are listed in the menu (os-prober).
+GRUB_DISABLE_OS_PROBER=false
+$theme_line
+EOF
+  # GRUB package updates must never overwrite another system's removable EFI/BOOT/BOOTX64.EFI.
+  local extra=false; ((ESP_OWN_FALLBACK)) && extra=true
+  in_target debconf-set-selections >&2 2>&1 <<EOF || log "warning: debconf-set-selections (grub) failed"
+grub-efi-amd64 grub2/force_efi_extra_removable boolean $extra
+EOF
+  local before="$WORKDIR/esp-before.sha256" after="$WORKDIR/esp-after.sha256" snap=1
+  esp_snapshot "$before" || { snap=0; log "warning: could not read the EFI system partition for the before/after check"; }
+  # EFI/ubuntu: Ubuntu's signed shim + GRUB (their built-in prefix is /EFI/ubuntu); the NVRAM entry is added below.
+  run "could not install the UEFI boot loader" \
+    in_target grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot \
+      --bootloader-id=ubuntu --no-nvram --recheck
+  [[ -s "$TARGET/boot/efi/EFI/ubuntu/grubx64.efi" ]] || die 5 "EFI/ubuntu/grubx64.efi was not installed"
+  if ((ESP_OWN_FALLBACK)); then
+    run "could not install the removable UEFI boot loader" \
+      in_target grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot \
+        --removable --no-nvram --recheck
+  fi
+  local stub="$TARGET/boot/efi/EFI/ubuntu/grub.cfg" d
+  if [[ ! -s "$stub" ]]; then
+    printf "search.fs_uuid %s root\nset prefix=(\$root)'/boot/grub'\nconfigfile \$prefix/grub.cfg\n" "$ROOT_UUID" >"$stub"
+  fi
+  grep -q "$ROOT_UUID" "$stub" || die 5 "the UEFI boot loader configuration does not point to the system partition"
+  if ((ESP_OWN_FALLBACK)); then
+    d=$TARGET/boot/efi/EFI/BOOT
+    [[ -d "$d" && ! -s "$d/grub.cfg" ]] && cp "$stub" "$d/grub.cfg"
+  fi
+
+  progress bootloader 94 "Writing the boot menu (with your other systems)"
+  run "could not write the boot menu (update-grub)" in_target update-grub
+  local cfg="$TARGET/boot/grub/grub.cfg"
+  [[ -s "$cfg" ]] || die 5 "/boot/grub/grub.cfg was not generated"
+  grep -q "root=UUID=$ROOT_UUID" "$cfg" || die 5 "the boot menu does not boot the system partition by UUID"
+  grep -q 'scripts/casper\|boot=casper' "$cfg" && die 5 "the boot menu still refers to the live system"
+  log "boot menu entries: $(grep -o "^menuentry '[^']*'" "$cfg" | sed "s/^menuentry //" | tr '\n' ' ' || true)"
+  flush_esp
+  if ((snap)) && esp_snapshot "$after"; then
+    if ! cmp -s "$before" "$after"; then
+      diff "$before" "$after" >&2 || true
+      die 5 "a file of another system changed on the EFI system partition (see the log)"
+    fi
+    log "EFI system partition: the $(wc -l <"$before") files of the other systems are unchanged"
+  fi
+  progress bootloader 96 "Adding « Selene » to the computer's boot menu"
+  add_boot_entry
+  progress bootloader 97 ""
+}
+
 stage_cleanup() {
   maybe_fail cleanup
   progress cleanup 98 "Finishing"
@@ -1171,6 +1661,9 @@ stage_cleanup() {
   printf 'AURORA_INSTALL_COMPLETE=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$TARGET/etc/aurora/install-info"
   # Keep a copy of this log on the installed system (no secrets are ever logged).
   install -D -m 0600 "$LOG_FILE" "$TARGET/var/log/aurora-install.log" 2>/dev/null || true
+  if ((ALONGSIDE)) && [[ -s "$WORKDIR/partitions-before.sfdisk" ]]; then
+    install -D -m 0600 "$WORKDIR/partitions-before.sfdisk" "$TARGET/var/log/aurora-install-partitions.sfdisk" 2>/dev/null || true
+  fi
   bg_wait sync
   umount_under "$TARGET"
   if has_text "$TARGET" "$(findmnt -rn -o TARGET)"; then die 5 "could not unmount the installed system"; fi
@@ -1189,14 +1682,23 @@ remove_created_links
 resolve_source
 check_disk
 check_choices
-log "installing to $DISK ($((DISK_SIZE / 1000000000)) GB)"
-stage_partition
-stage_format
+if ((ALONGSIDE)); then
+  mkdir -p "$WORKDIR"
+  plan_alongside
+  log "installing to $DISK ($((DISK_SIZE / 1000000000)) GB) next to the systems already on it"
+  stage_partition_alongside
+  stage_format_alongside
+else
+  log "installing to $DISK ($((DISK_SIZE / 1000000000)) GB)"
+  stage_partition
+  stage_format
+fi
 stage_copy
 stage_configure
 stage_drivers
 stage_bootloader
 stage_cleanup
 DONE=1
-progress "done" 100 "Selene OS has been installed on $DISK"
+if ((ALONGSIDE)); then progress "done" 100 "Selene OS has been installed on $DISK next to your other systems"
+else progress "done" 100 "Selene OS has been installed on $DISK"; fi
 exit 0

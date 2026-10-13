@@ -1010,3 +1010,293 @@
 .app-installer .ins-games-none .icon {
   color: var(--warning);
 }
+
+/* ---------------------------------------------------------------- dual boot: installation type (disk step) */
+.app-installer .ins-modes {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-installer .ins-mode,
+.app-installer .ins-method {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-soft);
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.app-installer .ins-mode:not(.disabled):hover,
+.app-installer .ins-method:hover {
+  background: linear-gradient(var(--subtle-hover), var(--subtle-hover)), var(--surface-raised);
+}
+.app-installer .ins-mode.selected,
+.app-installer .ins-method.selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  background: linear-gradient(var(--accent-subtle), var(--accent-subtle)), var(--surface-raised);
+}
+.app-installer .ins-mode.danger.selected {
+  border-color: var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+  background: linear-gradient(color-mix(in srgb, var(--danger) 9%, transparent), color-mix(in srgb, var(--danger) 9%, transparent)), var(--surface-raised);
+}
+.app-installer .ins-mode:focus-visible,
+.app-installer .ins-method:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.app-installer .ins-mode.disabled {
+  background: var(--bg-alt);
+}
+.app-installer .ins-mode.disabled .ins-mode-title,
+.app-installer .ins-mode.disabled .ins-mode-icon {
+  color: var(--text-2);
+}
+.app-installer .ins-mode-radio {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 1.5px solid var(--control-strong);
+  background: var(--surface);
+}
+.app-installer .selected > .ins-mode-radio {
+  border: 5px solid var(--accent);
+  background: var(--on-accent);
+}
+.app-installer .ins-mode.danger.selected > .ins-mode-radio {
+  border-color: var(--danger);
+}
+.app-installer .ins-mode.disabled > .ins-mode-radio {
+  border-style: dashed;
+  background: transparent;
+}
+.app-installer .ins-mode-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--accent-text);
+}
+.app-installer .ins-mode.danger .ins-mode-icon {
+  color: var(--danger);
+}
+.app-installer .ins-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.app-installer .ins-mode-title {
+  font-weight: 600;
+}
+.app-installer .ins-mode-desc {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+}
+.app-installer .ins-mode.danger .ins-mode-desc {
+  color: var(--danger);
+}
+.app-installer .ins-mode-hint {
+  padding-left: 2px;
+}
+.app-installer .ins-why {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-soft);
+  background: var(--surface-raised);
+  font-size: var(--fs-small);
+  line-height: 1.45;
+  cursor: text;
+  user-select: text;
+}
+.app-installer .ins-why-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text);
+}
+.app-installer .ins-why-body {
+  color: var(--text-2);
+}
+.app-installer .ins-disks:has(+ .ins-modes) .ins-row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+/* ---------------------------------------------------------------- dual boot: space step */
+.app-installer .ins-methods {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.app-installer .ins-space {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+.app-installer .ins-split {
+  display: flex;
+  gap: 3px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.app-installer .ins-split-part {
+  position: relative;
+  display: block;
+  min-width: 6px;
+  overflow: hidden;
+}
+.app-installer .ins-split-part.other {
+  background: color-mix(in srgb, var(--text-2) 28%, var(--surface-raised));
+}
+.app-installer .ins-split-used {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--text-2) 55%, var(--surface-raised));
+}
+.app-installer .ins-split-part.free {
+  background: repeating-linear-gradient(-45deg, var(--line) 0 5px, transparent 5px 10px);
+  border: 1px solid var(--line);
+}
+.app-installer .ins-split-part.selene {
+  background: var(--accent);
+}
+.app-installer .ins-split-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.app-installer .ins-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.app-installer .ins-legend-name {
+  color: var(--text-2);
+}
+.app-installer .ins-legend-size {
+  font-family: var(--font-display);
+  font-size: var(--fs-body-large);
+  font-variant-numeric: tabular-nums;
+}
+.app-installer .ins-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+.app-installer .ins-dot.other {
+  background: color-mix(in srgb, var(--text-2) 55%, var(--surface-raised));
+}
+.app-installer .ins-dot.free {
+  border: 1px solid var(--text-3);
+}
+.app-installer .ins-dot.selene {
+  background: var(--accent);
+}
+.app-installer .ins-size-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+.app-installer .ins-range {
+  width: 100%;
+}
+.app-installer .ins-num-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-installer .ins-num {
+  width: 84px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.app-installer .ins-unit {
+  color: var(--text-2);
+}
+.app-installer .ins-bounds {
+  margin-top: -4px;
+}
+.app-installer .ins-space-note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-installer .ins-space-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text-2);
+}
+.app-installer .ins-space-line .icon {
+  flex: none;
+  margin-top: 2px;
+}
+.app-installer .ins-space-line.warn .icon {
+  color: var(--warning, var(--accent-text));
+}
+
+/* ---------------------------------------------------------------- dual boot: summary changes + backup */
+.app-installer .ins-changes {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--surface-raised);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+.app-installer .ins-changes-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.app-installer .ins-changes-title .icon {
+  color: var(--accent-text);
+}
+.app-installer .ins-changes-list {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.app-installer .ins-backup {
+  align-items: flex-start;
+}
+.app-installer .ins-backup-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
