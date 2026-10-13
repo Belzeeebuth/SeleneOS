@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-13 11:45 Paris — system features (Bluetooth, printers + print dialog, Logithèque updates + install cancel, fwupd firmware, Orca screen reader); ISO rebuilt from packages (873 MB): verify-iso 198 checks, 0 failures; smoke-image passes._
+_Last updated: 2026-10-13 18:00 Paris — release readiness lots 1–3 (real-PC image, input / power, robustness, Linux app integration, Selene self-updates); ISO rebuilt (1.6 GB with firmware): verify-iso 292 checks, 0 failures; smoke-image passes._
 
 ## What this is
 
