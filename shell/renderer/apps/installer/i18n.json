@@ -210,6 +210,9 @@
       "changeNew": "A new {size} partition is created for Selene OS.",
       "changeEsp": "The EFI boot partition is kept; Selene OS adds its own folder to it.",
       "changeKeep": "Nothing else changes: {os} and your files stay where they are.",
+      "changeReuse": "The {size} partition the previous attempt created is used again for Selene OS (it is formatted).",
+      "changeSlow": "Shrinking it can take from a few minutes to an hour, depending on the data.",
+      "changeBoot": "Your PC will start Selene OS, with a 5-second menu to choose « {os} » instead.",
       "backup": "Before you go on, back up your important files (USB stick, external disk or online). Shrinking a partition is safe in the vast majority of cases, but a power cut during the operation could lose data.",
       "backupFree": "Before you go on, back up your important files (USB stick, external disk or online): it's always wise before changing a disk.",
       "backupCheck": "I have backed up my important files"
@@ -349,6 +352,10 @@
       "bounds": "Minimum {min} · {suggested} or more recommended · maximum {max}",
       "keeps": "{os} goes from {from} to {size}: {used} used, {free} free.",
       "freeLeft": "{size} of free space stays unallocated.",
+      "reuse": "Use the space of the previous attempt",
+      "reuseDesc": "{size} · partition {part}, already set aside for Selene OS",
+      "reuseNote": "Selene OS reuses the {size} partition the previous attempt created. Nothing else changes: {os} and your files stay where they are.",
+      "slowExt4": "Shrinking an ext4 partition can take from a few minutes to an hour, depending on how much data it holds. Keep the PC plugged in.",
       "small": "Under {suggested}: enough to try Selene OS, but little room for your files and games.",
       "bitlockerKey": "BitLocker is on: Windows may ask for its recovery key the first time it starts after this. Write the key down before installing (account.microsoft.com/devices/recoverykey).",
       "free": "Free space"
@@ -565,6 +572,9 @@
       "changeNew": "Une nouvelle partition de {size} est créée pour Selene OS.",
       "changeEsp": "La partition de démarrage EFI est conservée ; Selene OS y ajoute son propre dossier.",
       "changeKeep": "Rien d'autre n'est modifié : {os} et vos fichiers restent en place.",
+      "changeReuse": "La partition de {size} créée lors de l'essai précédent est réutilisée pour Selene OS (elle est formatée).",
+      "changeSlow": "Cette réduction peut prendre de quelques minutes à une heure, selon la quantité de données.",
+      "changeBoot": "Le PC démarrera sur Selene OS, avec un menu de 5 secondes pour choisir « {os} ».",
       "backup": "Avant de continuer, sauvegardez vos fichiers importants (clé USB, disque externe ou en ligne). Réduire une partition est sans danger dans la très grande majorité des cas, mais une coupure de courant pendant l'opération pourrait faire perdre des données.",
       "backupFree": "Avant de continuer, sauvegardez vos fichiers importants (clé USB, disque externe ou en ligne) : c'est toujours plus prudent avant de modifier un disque.",
       "backupCheck": "J'ai sauvegardé mes fichiers importants"
@@ -704,6 +714,10 @@
       "bounds": "Minimum {min} · {suggested} ou plus conseillés · maximum {max}",
       "keeps": "{os} passe de {from} à {size} : {used} utilisés, {free} libres.",
       "freeLeft": "{size} d'espace libre restent non alloués.",
+      "reuse": "Reprendre l'espace de l'essai précédent",
+      "reuseDesc": "{size} · partition {part}, déjà réservée à Selene OS",
+      "reuseNote": "Selene OS réutilise la partition de {size} créée lors de l'essai précédent. Rien d'autre ne change : {os} et vos fichiers restent en place.",
+      "slowExt4": "Réduire une partition ext4 peut prendre de quelques minutes à une heure, selon la quantité de données. Laissez le PC branché.",
       "small": "Moins de {suggested} : assez pour essayer Selene OS, mais peu de place pour vos fichiers et vos jeux.",
       "bitlockerKey": "BitLocker est activé : Windows pourra demander sa clé de récupération au premier démarrage qui suit. Notez cette clé avant d'installer (account.microsoft.com/devices/recoverykey).",
       "free": "Espace libre"

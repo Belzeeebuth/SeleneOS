@@ -5,8 +5,10 @@
 #     sudo -n /usr/lib/aurora/helpers/aurora-disk-probe [--disk /dev/sda ...]
 #     aurora-disk-probe --ui            (= aurora-install --probe --json: one line {"probe":{firmware, disks}}, sizes in
 #                                        bytes, partitions with type/state/used/min/esp — the shape installer.js reads)
-#     aurora-disk-probe --disk DEV --plan free:STARTMIB:ENDMIB|shrink:N:NEWSIZEMIB[:SELENEMIB] --fingerprint HEX [--esp N]
-#                       [--format json|shell]
+#     aurora-disk-probe --disk DEV --plan free:STARTMIB:ENDMIB|shrink:N:NEWSIZEMIB[:SELENEMIB]|reuse:N --fingerprint HEX
+#                       [--esp N] [--format json|shell]
+#     aurora-disk-probe --chainload ESPDIR --esp-partuuid GUID [--efibootmgr FILE] [--name NAME] [--os-id ID]
+#                       (no root, reads only ESPDIR and FILE: the other systems' own EFI boot loaders, see chainload_entries)
 #
 # Nothing is ever written: no file system is mounted read-write (the EFI system partition is mounted
 # read-only, or read with mtools where the kernel has no FAT driver), ext4 is read with debugfs/dumpe2fs,
@@ -19,6 +21,8 @@
 #           fingerprint (sha256 of `sfdisk --dump`), partitions: [part], free: [{startMiB, endMiB, sizeMiB}],
 #           esp: {number, path, sizeMiB, freeMiB, folders, hasFallback, ubuntuFolder, readable} | null,
 #           systems: [{name, kind: 'windows'|'linux'|'other', partition}], bitlocker, warnings: [code],
+#           chain: {name, id, uuid, partition} | null   (the Linux system whose boot loader is on the ESP: its
+#                  os-release PRETTY_NAME, the partition whose /etc/fstab mounts the ESP, else the only Linux one),
 #           alongside: { possible, reason, message, plans: [plan] } }
 #   part: { number, path, start, sectors, startMiB, sizeMiB, type, name, fstype, label, uuid, mounted, esp,
 #           usedMiB, os, flags: [bitlocker|hibernated|dirty|luks|lvm|needs-recovery|mounted|in-use|swap],
@@ -26,6 +30,10 @@
 #   plan: { kind: 'free', startMiB, endMiB, sizeMiB }
 #       | { kind: 'shrink', partition, path, fstype, label, os, currentSizeMiB, minSizeMiB, maxSizeMiB,
 #           suggestedSizeMiB, spaceMiB (current size + free space right after it) }
+#       | { kind: 'reuse', partition, path, startMiB, sizeMiB }: the « Selene OS » partition an installation that
+#           stopped left behind (GPT name « Selene OS », ext4 « AURORA » or not formatted yet, at least 20 GB, and no
+#           AURORA_INSTALL_COMPLETE in its /etc/aurora/install-info): formatted again, nothing else changes. A finished
+#           Selene OS installation is never offered (it is a system, and its EFI/ubuntu folder refuses the disk).
 #   alongside.partition: when no plan is possible because of one partition (e.g. hibernated Windows), its number
 #   reason codes (alongside / shrink): bios, no-table, mbr, no-esp, esp-unreadable, esp-full, ubuntu-folder,
 #     no-space, in-use; btrfs, xfs, luks, lvm, bitlocker, hibernated, dirty, needs-recovery, unsupported,
@@ -55,6 +63,9 @@ KEEP_FREE_MIN = 5 * 10**9           # a shrunk partition keeps at least 5 GB fre
 KEEP_FREE_RATIO = 0.10              # … and 10 % of its new size
 ESP_MIN_FREE_MIB = 32               # EFI/ubuntu: shim + GRUB + MokManager + grub.cfg ≈ 6 MiB (+ EFI/BOOT ≈ 6 MiB)
 ESP_GUID = 'C12A7328-F81F-11D2-BA4B-00A0C93EC93B'
+LINUX_FS_GUID = '0FC63DAF-8483-4772-8E79-3D69D8477DE4'
+SELENE_PART_NAME = 'Selene OS'   # aurora-install: GPT name of the partition it creates, and the ext4 label
+SELENE_LABEL = 'AURORA'
 SWAP_GUIDS = {'0657FD6D-A4AB-43C4-84E5-0933C84B4F4F'}
 RE_DEV = re.compile(r'^/dev/[A-Za-z0-9/_.:-]+$')
 SYSTEM_MOUNTS = {'/', '/cdrom', '/rofs', '/isodevice', '/run/live/medium', '/media/cdrom', '/run/initramfs/live', '/boot', '/boot/efi', '/usr', '/home', '/var'}
@@ -161,6 +172,118 @@ def parse_os_release(text):
     return d
 
 
+def fstab_mounts_esp(text, esp):
+    """Does this /etc/fstab mount the EFI system partition esp (by UUID, PARTUUID or LABEL) on /boot, /boot/efi or /efi?"""
+    ids = {('uuid', esp.get('uuid', '').lower()), ('partuuid', esp.get('partuuid', '').lower()), ('label', esp.get('label', '').lower())}
+    for line in str(text or '').split('\n'):
+        f = line.split()
+        if len(f) < 2 or f[0].startswith('#') or f[1].rstrip('/') not in ('/boot', '/boot/efi', '/efi'):
+            continue
+        spec = f[0]
+        m = re.match(r'^(UUID|PARTUUID|LABEL)=(.+)$', spec, re.I) or re.match(r'^/dev/disk/by-(uuid|partuuid|label)/(.+)$', spec, re.I)
+        if m and (m.group(1).lower(), m.group(2).strip('"\'').lower()) in ids and m.group(2).strip('"\''):
+            return True
+    return False
+
+
+# A menu entry title: what ends up between single quotes in grub.cfg (and in a shell list file). Only these characters,
+# so no quote, backslash, $, `, ;, newline or other GRUB / shell metacharacter can ever get there. The trailing
+# « (…) » of a PRETTY_NAME is dropped, as the installer UI does (systemName): « Debian GNU/Linux 12 (bookworm) » ->
+# « Debian GNU/Linux 12 ».
+RE_MENU_NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9 ._+(),/-]{0,63}$')
+
+
+def menu_name(s):
+    s = re.sub(r'\s*\([^)]*\)\s*$', '', str(s or '').strip())
+    s = re.sub(r'[^A-Za-z0-9 ._+(),/-]', '', s)
+    s = re.sub(r'\s+', ' ', s).strip()[:64].strip()
+    s = re.sub(r'^[^A-Za-z0-9]+', '', s)
+    return s if RE_MENU_NAME.match(s) else ''
+
+
+RE_EFI_PATH = re.compile(r'^/EFI/[A-Za-z0-9._+-]{1,64}(/[A-Za-z0-9._+-]{1,64}){1,3}$', re.I)
+# Folders whose loaders are never chainloaded: Selene OS itself (ubuntu), Windows (os-prober lists it), the removable
+# fallback path (whichever system wrote it last: ambiguous).
+CHAIN_SKIP_DIRS = {'ubuntu', 'microsoft', 'boot'}
+
+
+def chainload_entries(nvram_text, esp_partuuid, esp_dir, name='', os_id=''):
+    """The other systems' own EFI boot loaders on this ESP, as GRUB chainload entries: [(path, title, named)].
+
+    nvram_text: `efibootmgr -v` output read BEFORE Selene OS adds its own entry (the source of truth: the active entries
+    whose HD(…,GPT,<guid>,…) is this ESP's PARTUUID, in BootOrder order). When it names none, the known loader paths
+    of the ESP are scanned (EFI/limine/*.efi, EFI/systemd/systemd-bootx64.efi, EFI/refind/refind_x64.efi,
+    EFI/<distro>/grubx64.efi). esp_dir: a copy (or a mount) of the ESP; a loader must exist there (FAT names: any case,
+    the path keeps the case on the partition). name / os_id: the Linux system that owns this ESP (aurora-disk-probe's
+    chain); the first loader (or the EFI/<os_id> one) gets its name and named=1, the others keep their firmware label.
+    """
+    files = {}
+    root = os.path.realpath(esp_dir)
+    for dp, dns, fns in os.walk(root):
+        depth = os.path.relpath(dp, root).count(os.sep)
+        if depth >= 4:
+            dns[:] = []
+        for fn in fns:
+            rel = '/' + os.path.relpath(os.path.join(dp, fn), root).replace(os.sep, '/')
+            files.setdefault(rel.lower(), rel)
+        if len(files) > 20000:
+            break
+    guid = str(esp_partuuid or '').strip().lower()
+    found = []   # (path, label)
+
+    def add(path, label):
+        path = files.get(path.lower())
+        if not path or not RE_EFI_PATH.match(path) or not path.lower().endswith('.efi'):
+            return
+        if path.split('/')[2].lower() in CHAIN_SKIP_DIRS or any(p.lower() == path.lower() for p, _ in found):
+            return
+        found.append((path, label))
+
+    entries, order = [], []
+    for line in str(nvram_text or '').split('\n'):
+        m = re.match(r'^BootOrder:\s*([0-9A-Fa-f,]*)', line)
+        if m:
+            order = [x.upper() for x in m.group(1).split(',') if x]
+        m = re.match(r'^Boot([0-9A-Fa-f]{4})(\*?)\s+(.*?)\s*\t?\s*HD\((\d+),GPT,([0-9A-Fa-f-]{36}),[^)]*\)/(?:File\()?\\?([^)\t\s]*)', line)
+        if not m or not m.group(2) or not guid or m.group(5).lower() != guid:
+            continue
+        label = m.group(3).strip()
+        if label.lower() == 'selene':
+            continue
+        entries.append((m.group(1).upper(), '/' + m.group(6).replace('\\', '/').lstrip('/'), label))
+    entries.sort(key=lambda e: order.index(e[0]) if e[0] in order else len(order) + int(e[0], 16))
+    for _, path, label in entries:
+        add(path, label)
+    if not found:
+        known = sorted(p for p in files.values() if re.match(r'^/EFI/limine/[^/]+\.efi$', p, re.I) and not re.search(r'ia32|aa64|arm|riscv|loongarch', p, re.I))
+        known.sort(key=lambda p: (not re.search(r'x64', p, re.I), p.lower()))
+        for p in known[:1]:
+            add(p, 'Limine')
+        add('/EFI/systemd/systemd-bootx64.efi', 'Linux Boot Manager')
+        add('/EFI/refind/refind_x64.efi', 'rEFInd')
+        for p in sorted(files.values(), key=str.lower):
+            m = re.match(r'^/EFI/([^/]+)/grubx64\.efi$', p, re.I)
+            if m and m.group(1).lower() not in CHAIN_SKIP_DIRS | {'limine', 'systemd', 'refind'}:
+                add(p, m.group(1))
+    found = found[:8]
+    name = menu_name(name)
+    target = None
+    if name and found:
+        target = next((i for i, (p, _) in enumerate(found) if os_id and p.split('/')[2].lower() == str(os_id).lower()), 0)
+    out, titles = [], set()
+    for i, (path, label) in enumerate(found):
+        title = name if i == target else (menu_name(label) or menu_name(path.split('/')[2]))
+        if not title:
+            continue
+        if title.lower() in titles:   # two loaders with the same label: the folder tells them apart
+            title = menu_name(f'{title[:50]} ({path.split("/")[2][:10]})')
+            if not title or title.lower() in titles:
+                continue
+        titles.add(title.lower())
+        out.append((path, title, 1 if i == target else 0))
+    return out
+
+
 # ------------------------------------------------------------------ file systems
 def probe_ntfs(dev, part):
     # Without --force first: --force silently skips ntfsresize's own "Volume is scheduled for check" refusal
@@ -230,7 +353,14 @@ def probe_ext4(dev, part):
         if osr.get('NAME') or osr.get('PRETTY_NAME'):
             part['os'] = osr.get('PRETTY_NAME') or osr.get('NAME')
             part['osId'] = osr.get('ID', '')
+            part['_imageId'] = osr.get('IMAGE_ID', '')
             break
+    if part['os']:   # where its boot files live: /etc/fstab (does it mount the EFI system partition on /boot?)
+        rc, txt, _ = run(['debugfs', '-R', 'cat /etc/fstab', dev], timeout=30)
+        part['_fstab'] = txt[:65536] if rc == 0 else ''
+    if part['name'] == SELENE_PART_NAME or part['label'] == SELENE_LABEL:   # Selene OS: finished, or stopped half-way?
+        rc, txt, _ = run(['debugfs', '-R', 'cat /etc/aurora/install-info', dev], timeout=30)
+        part['_complete'] = rc == 0 and bool(re.search(r'^AURORA_INSTALL_COMPLETE=', txt, re.M))
     return tool_min
 
 
@@ -388,6 +518,7 @@ def survey_disk(d, fw):
         part['fstype'] = info.get('TYPE', '')
         part['label'] = info.get('LABEL', '')
         part['uuid'] = info.get('UUID', '')
+        part['partuuid'] = info.get('PART_ENTRY_UUID', '')
         part['mounted'] = mounts_of(node) if exists else []
         if part['mounted']:
             part['flags'].append('mounted')
@@ -448,6 +579,31 @@ def survey_disk(d, fw):
                 disk['systems'].append({'name': f, 'kind': 'other', 'partition': best['number'], 'loader': True})
         for t in best.get('loaderEntries', []):
             disk['systems'].append({'name': t, 'kind': 'linux', 'partition': best['number'], 'loader': True})
+    # Selene OS partitions: a finished installation is a system like any other; the partition an installation that
+    # stopped left behind (no completion marker) is offered again (plan « reuse »), never listed as a system nor shrunk.
+    for p in parts:
+        if p['name'] != SELENE_PART_NAME and p['label'] != SELENE_LABEL:
+            continue
+        if p.get('_complete'):
+            p['seleneInstalled'] = True
+            continue
+        if (p['name'] == SELENE_PART_NAME and p['type'] == LINUX_FS_GUID and p['sizeMiB'] >= MIN_SELENE_MIB
+                and (p['fstype'] == '' or (p['fstype'] == 'ext4' and p['label'] == SELENE_LABEL))
+                and not {'mounted', 'in-use', 'swap', 'luks', 'lvm', 'bitlocker'} & set(p['flags'])
+                and (not p['os'] or p.get('_imageId') == 'aurora-os')):
+            p['reuse'] = True
+            p['os'] = None
+    # The Linux system whose boot loader lives on this ESP (its own menu is chainloaded by Selene OS's GRUB).
+    disk['chain'] = None
+    esp_part = next((p for p in parts if disk['esp'] and p['number'] == disk['esp']['number']), None)
+    if esp_part:
+        linux = [p for p in parts if p['os'] and p['os'] != 'Windows' and not p['esp'] and p.get('_imageId') != 'aurora-os']
+        owners = [p for p in linux if fstab_mounts_esp(p.get('_fstab', ''), esp_part)]
+        pick = owners[0] if len(owners) == 1 else linux[0] if len(linux) == 1 and not owners else None
+        if pick and re.match(r'^[0-9A-Fa-f-]{4,36}$', pick['uuid']):
+            osid = str(pick.get('osId') or '').lower()
+            disk['chain'] = {'name': menu_name(pick['os']), 'id': osid if re.match(r'^[a-z0-9._-]{1,32}$', osid) else '',
+                             'uuid': pick['uuid'], 'partition': pick['number'], 'espOnBoot': pick in owners}
     for p in parts:
         if p['os']:
             disk['systems'].append({'name': p['os'], 'kind': 'windows' if p['os'] == 'Windows' else 'linux', 'partition': p['number']})
@@ -462,7 +618,7 @@ def survey_disk(d, fw):
         sh = {'possible': False, 'reason': None, 'spaceMiB': span_mib}
         fs = p['fstype']
         flags = p['flags']
-        if p['esp'] or 'swap' in flags:
+        if p['esp'] or 'swap' in flags or p.get('reuse'):
             sh['reason'] = 'unsupported'
         elif 'bitlocker' in flags:
             sh['reason'] = 'bitlocker'
@@ -523,6 +679,9 @@ def survey_disk(d, fw):
     elif disk['esp']['freeMiB'] is None or disk['esp']['freeMiB'] < ESP_MIN_FREE_MIB:   # unknown free space: refused too
         reason = 'esp-full'
     if reason is None:
+        for p in parts:   # first: the space an installation that stopped already took (nothing else changes)
+            if p.get('reuse'):
+                al['plans'].append({'kind': 'reuse', 'partition': p['number'], 'path': p['path'], 'startMiB': p['startMiB'], 'sizeMiB': p['sizeMiB']})
         for f in disk['free']:
             if f['sizeMiB'] >= MIN_SELENE_MIB:
                 al['plans'].append({'kind': 'free', **f})
@@ -545,7 +704,8 @@ def survey_disk(d, fw):
     al['reason'] = reason
     al['message'] = MESSAGES.get(reason, '') if reason else ''
     for p in parts:
-        p.pop('_toolMin', None)
+        for k in ('_toolMin', '_fstab', '_complete', '_imageId'):
+            p.pop(k, None)
     return disk
 
 
@@ -629,8 +789,22 @@ def check_plan(dev, spec, fingerprint, esp_num, assume_uefi):
     parts = disk['partitions']
     out = {'DISK': disk['path'], 'SECTOR_SIZE': ss, 'ESP_NUM': esp['number'], 'ESP_PART': esp['path'], 'ESP_HAS_FALLBACK': int(bool(esp['hasFallback'])),
            'ESP_FREE_MIB': esp['freeMiB'] if esp['freeMiB'] is not None else -1, 'FINGERPRINT': disk['fingerprint']}
+    ch = disk.get('chain')
+    if ch:   # the Linux system whose boot loader is on the ESP (GRUB chainloads it; os-prober skips its partition)
+        out.update({'CHAIN_UUID': ch['uuid'], 'CHAIN_PART': ch['partition']})
+        if ch['id']:
+            out['CHAIN_ID'] = ch['id']
+        if ch['name']:
+            out['CHAIN_NAME'] = ch['name']
     m = re.match(r'^free:(\d{1,9}):(\d{1,9})$', spec)
-    if m:
+    m_reuse = re.match(r'^reuse:(\d{1,3})$', spec)
+    if m_reuse:
+        num = int(m_reuse.group(1))
+        p = next((x for x in parts if x['number'] == num), None)
+        if p is None or not p.get('reuse'):
+            return False, {'CODE': 'bad-plan', 'MESSAGE': f'partition {num} is not a Selene OS partition left by an installation that stopped (a finished installation is never reused)'}
+        out.update({'KIND': 'reuse', 'REUSE_NUM': num, 'REUSE_PART': p['path'], 'NEW_START': p['start'], 'NEW_SECTORS': p['sectors'], 'NEW_SIZE_MIB': p['sectors'] * ss // MIB})
+    elif m:
         s, e = int(m.group(1)), int(m.group(2))
         region = next((f for f in disk['free'] if f['startMiB'] <= s and e <= f['endMiB']), None)
         if region is None or e - s < MIN_SELENE_MIB:
@@ -674,6 +848,8 @@ def check_plan(dev, spec, fingerprint, esp_num, assume_uefi):
         ps, pe = p['start'], p['start'] + p['sectors']
         if out.get('KIND') == 'shrink' and p['number'] == out['SHRINK_NUM']:
             pe = p['start'] + out['SHRINK_NEW_SECTORS']
+        if out.get('KIND') == 'reuse' and p['number'] == out['REUSE_NUM']:
+            continue
         if ps < ne and ns < pe:
             return False, {'CODE': 'bad-plan', 'MESSAGE': f'the new partition would overlap partition {p["number"]}'}
     if ns % align or out['NEW_SECTORS'] % align:
@@ -684,11 +860,15 @@ def check_plan(dev, spec, fingerprint, esp_num, assume_uefi):
 
 def main(argv):
     disks, plan, fp, esp, fmt, assume = [], None, None, None, 'json', False
+    chain = {}
     i = 0
     while i < len(argv):
         a = argv[i]
         val = argv[i + 1] if i + 1 < len(argv) else None
-        if a == '--disk' and val:
+        if a in ('--chainload', '--esp-partuuid', '--efibootmgr', '--name', '--os-id') and val is not None:
+            chain[a[2:]] = val
+            i += 2
+        elif a == '--disk' and val:
             if not RE_DEV.match(val) or '..' in val:
                 print(f'aurora-disk-probe: invalid disk {val}', file=sys.stderr)
                 return 2
@@ -727,6 +907,27 @@ def main(argv):
         else:
             print(f'aurora-disk-probe: unknown argument {a}', file=sys.stderr)
             return 2
+    if chain:
+        # --chainload ESPDIR: reads only ESPDIR and the efibootmgr -v text given (no root, no disk): one line per entry,
+        # PATH<TAB>TITLE<TAB>NAMED (1: the entry of the Linux system --name; its partition is skipped by os-prober).
+        d = chain.get('chainload', '')
+        if not d.startswith('/') or '..' in d.split('/') or not os.path.isdir(d):
+            print('aurora-disk-probe: --chainload needs the folder of the EFI system partition', file=sys.stderr)
+            return 2
+        if not re.match(r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$', chain.get('esp-partuuid', '')):
+            print('aurora-disk-probe: --chainload needs --esp-partuuid GUID', file=sys.stderr)
+            return 2
+        nv = ''
+        if chain.get('efibootmgr'):
+            try:
+                with open(chain['efibootmgr'], errors='replace') as f:
+                    nv = f.read(1 << 20)
+            except OSError as e:
+                print(f'aurora-disk-probe: {e}', file=sys.stderr)
+                return 3
+        for path, title, named in chainload_entries(nv, chain['esp-partuuid'], d, chain.get('name', ''), chain.get('os-id', '')):
+            print(f'{path}\t{title}\t{named}')
+        return 0
     if plan is not None and (len(disks) != 1 or not fp or not re.match(r'^[0-9a-f]{64}$', fp)):
         print('aurora-disk-probe: --plan needs one --disk and --fingerprint', file=sys.stderr)
         return 2

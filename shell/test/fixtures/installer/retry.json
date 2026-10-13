@@ -1,0 +1,158 @@
+{
+ "version": 1,
+ "firmware": "uefi",
+ "minSeleneMiB": 20480,
+ "suggestedSeleneMiB": 40960,
+ "_comment": "The user's PC after an « Installer à côté » that stopped: CachyOS (ext4, Limine on a 4 GiB ESP mounted at /boot) shrunk, and the « Selene OS » partition it left behind (offered again: plan reuse).",
+ "disks": [
+  {
+   "path": "/dev/nvme0n1",
+   "name": "nvme0n1",
+   "model": "Samsung SSD 980 PRO 512GB",
+   "size": 512110190592,
+   "sizeMiB": 488386,
+   "transport": "nvme",
+   "removable": false,
+   "table": "gpt",
+   "sectorSize": 512,
+   "fingerprint": "5e1e9e0c0ffee0ddba11c0de5eed5a1e5e1e9e0c0ffee0ddba11c0de5eed5a1e",
+   "partitions": [
+    {
+     "number": 1,
+     "startMiB": 1,
+     "sizeMiB": 4096,
+     "fstype": "vfat",
+     "label": "",
+     "os": null,
+     "usedMiB": null,
+     "flags": [],
+     "esp": true,
+     "type": "esp",
+     "mounted": [],
+     "path": "/dev/nvme0n1p1",
+     "start": 2048,
+     "sectors": 8388608,
+     "shrink": {
+      "possible": false,
+      "reason": "unsupported",
+      "spaceMiB": 4096,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    },
+    {
+     "number": 2,
+     "startMiB": 4097,
+     "sizeMiB": 400000,
+     "fstype": "ext4",
+     "label": "",
+     "os": "CachyOS",
+     "usedMiB": 150000,
+     "flags": [],
+     "esp": false,
+     "type": "linux",
+     "mounted": [],
+     "path": "/dev/nvme0n1p2",
+     "start": 8390656,
+     "sectors": 819200000,
+     "shrink": {
+      "possible": true,
+      "reason": null,
+      "spaceMiB": 400000,
+      "minSizeMiB": 166667,
+      "maxSizeMiB": 380925,
+      "suggestedSizeMiB": 283333
+     }
+    },
+    {
+     "number": 3,
+     "startMiB": 404097,
+     "sizeMiB": 84288,
+     "fstype": "ext4",
+     "label": "AURORA",
+     "name": "Selene OS",
+     "os": null,
+     "usedMiB": 2100,
+     "flags": [],
+     "esp": false,
+     "type": "linux",
+     "mounted": [],
+     "path": "/dev/nvme0n1p3",
+     "start": 827590656,
+     "sectors": 172621824,
+     "reuse": true,
+     "shrink": {
+      "possible": false,
+      "reason": "unsupported",
+      "spaceMiB": 84288,
+      "message": "(aurora-disk-probe MESSAGES)"
+     }
+    }
+   ],
+   "free": [],
+   "esp": {
+    "number": 1,
+    "path": "/dev/nvme0n1p1",
+    "sizeMiB": 4096,
+    "readable": true,
+    "loaderEntries": [],
+    "freeMiB": 3650,
+    "folders": [
+     "BOOT",
+     "limine"
+    ],
+    "hasFallback": true,
+    "ubuntuFolder": false
+   },
+   "systems": [
+    {
+     "name": "limine",
+     "kind": "other",
+     "partition": 1,
+     "loader": true
+    },
+    {
+     "name": "CachyOS",
+     "kind": "linux",
+     "partition": 2
+    }
+   ],
+   "chain": {
+    "name": "CachyOS",
+    "id": "cachyos",
+    "uuid": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
+    "partition": 2,
+    "espOnBoot": true
+   },
+   "bitlocker": false,
+   "warnings": [],
+   "alongside": {
+    "possible": true,
+    "reason": null,
+    "message": "",
+    "plans": [
+     {
+      "kind": "reuse",
+      "partition": 3,
+      "path": "/dev/nvme0n1p3",
+      "startMiB": 404097,
+      "sizeMiB": 84288
+     },
+     {
+      "kind": "shrink",
+      "partition": 2,
+      "path": "/dev/nvme0n1p2",
+      "fstype": "ext4",
+      "label": "",
+      "os": "CachyOS",
+      "currentSizeMiB": 400000,
+      "usedMiB": 150000,
+      "minSizeMiB": 166667,
+      "maxSizeMiB": 380925,
+      "suggestedSizeMiB": 283333,
+      "spaceMiB": 400000
+     }
+    ]
+   }
+  }
+ ]
+}

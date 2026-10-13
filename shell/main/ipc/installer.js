@@ -11,12 +11,16 @@
 //                                     whole disks only: no live medium, loop, zram, sr, read-only or in-use disk.
 //                                     alongside (analyzeDisk, unit-tested): can Selene be installed next to the
 //                                     systems already on this disk, and how (sizes in MiB) —
-//                                       { possible, reason, reasonPart, reasonFs, reasonOs, os, systems: [{ name, kind, part }],
+//                                       { possible, reason, reasonPart, reasonFs, reasonOs, os, menuName, systems: [{ name, kind, part }],
 //                                         esp: { number, path, freeMiB }, fingerprint, bitlocker, rootMinMiB, rootSuggestedMiB,
-//                                         options: [ { method: 'free', startMiB, endMiB, sizeMiB, rootMinMiB, rootMaxMiB }
+//                                         options: [ { method: 'reuse', number, part, sizeMiB, rootMinMiB, rootMaxMiB } (the « Selene OS »
+//                                                    partition an installation that stopped left behind: offered first)
+//                                                  | { method: 'free', startMiB, endMiB, sizeMiB, rootMinMiB, rootMaxMiB }
 //                                                  | { method: 'shrink', number, part, fstype, os, kind, label, sizeMiB, usedMiB,
 //                                                      newMinMiB, newMaxMiB, spaceMiB, rootMinMiB, rootMaxMiB, rootSuggestedMiB } ],
 //                                         blocked: [{ part, number, reason, code, fstype, os }] }
+//                                     menuName: the other system's entry in Selene OS's 5 s boot menu (the probe's chain
+//                                     name: the Linux started through its own boot loader, e.g. « CachyOS »; else os)
 //                                     reason (when !possible): empty | bios | mbr | noEsp | espFull | espUbuntu | bitlocker |
 //                                     hibernated | dirty | mounted | fsUnsupported | noSpace | probeFailed
 //
@@ -27,8 +31,8 @@
 //       esp, systems, bitlocker, alongside: { possible, reason, plans } }] }
 //   The rules (20 GiB minimum, a shrunk partition keeps max(5 GiB, 10 %) free, UEFI + GPT, ESP reused) live there;
 //   analyzeDisk only reshapes them for the UI. Dev mode reads the same shape from test/fixtures/installer/.
-//   Install: installer:start opts.mode 'alongside', opts.alongside = { method, fingerprint, esp, start, end | part, newSize }
-//   -> aurora-install … --alongside --fingerprint SHA256 --esp N (--free-space S:E | --shrink N --new-size MIB);
+//   Install: installer:start opts.mode 'alongside', opts.alongside = { method, fingerprint, esp, start, end | part, newSize | part }
+//   -> aurora-install … --alongside --fingerprint SHA256 --esp N (--free-space S:E | --shrink N --new-size MIB | --reuse-partition N);
 //   the helper re-checks the plan (`aurora-disk-probe --plan`, fresh survey + fingerprint) before anything is written.
 //   Events: an optional 'shrink' stage before 'partition'; {"bootentry":"added|failed|skipped"} -> { type: 'bootentry' }.
 //   installer:keyboards            -> [{ id: 'fr(oss)', layout: 'fr', variant: 'oss', name: { en, fr } }]
@@ -174,6 +178,7 @@ function analyzeDisk(d, survey = {}) {
     res.systems.push({ name, kind: s.kind === 'windows' || /^windows/i.test(name) ? 'windows' : s.kind === 'linux' ? 'linux' : 'other', part: part?.path || null });
   }
   res.os = res.systems[0]?.name || null;
+  res.menuName = (d?.chain?.name && systemName(d.chain.name)) || res.os;
   if (d?.esp) res.esp = { number: int(d.esp.number), path: String(d.esp.path || ''), freeMiB: d.esp.freeMiB == null ? null : int(d.esp.freeMiB) };
   res.fingerprint = RE_FP.test(String(d?.fingerprint || '')) ? d.fingerprint : null;
   for (const p of parts) {
@@ -199,7 +204,12 @@ function analyzeDisk(d, survey = {}) {
     return res;
   }
   for (const pl of al.plans || []) {
-    if (pl.kind === 'free') {
+    if (pl.kind === 'reuse') {
+      // The « Selene OS » partition an installation that stopped left behind: formatted again, nothing else changes.
+      const p = parts.find((x) => x.number === pl.partition);
+      const size = int(pl.sizeMiB);
+      if (p && size >= rootMin) res.options.push({ method: 'reuse', number: int(pl.partition), part: String(pl.path || p.path), sizeMiB: size, rootMinMiB: size, rootMaxMiB: size, rootSuggestedMiB: size });
+    } else if (pl.kind === 'free') {
       const start = int(pl.startMiB);
       const end = int(pl.endMiB);
       if (start >= 1 && end - start >= rootMin) res.options.push({ method: 'free', startMiB: start, endMiB: end, sizeMiB: end - start, rootMinMiB: rootMin, rootMaxMiB: end - start, rootSuggestedMiB: end - start });
@@ -222,8 +232,9 @@ function analyzeDisk(d, survey = {}) {
       });
     }
   }
-  // Free space first (nothing is shrunk), then the systems' partitions.
-  res.options.sort((x, y) => (x.method === 'free' ? 0 : 1) - (y.method === 'free' ? 0 : 1) || (y.os ? 1 : 0) - (x.os ? 1 : 0) || y.rootMaxMiB - x.rootMaxMiB);
+  // The previous attempt's partition first, then free space (nothing is shrunk), then the systems' partitions.
+  const rank = { reuse: 0, free: 1, shrink: 2 };
+  res.options.sort((x, y) => rank[x.method] - rank[y.method] || (y.os ? 1 : 0) - (x.os ? 1 : 0) || y.rootMaxMiB - x.rootMaxMiB);
   res.possible = res.options.length > 0;
   if (!res.possible) res.reason = 'noSpace';
   return res;
@@ -388,6 +399,7 @@ function buildArgs(opts, { dryRun = false, delay, failAt } = {}) {
  *   { method: 'shrink', fingerprint, esp, part, newSize[, rootSize] }
  *                                                  -> --alongside --fingerprint H --esp N --shrink N --new-size MIB [--root-size MIB]
  *   rootSize: the exact size of Selene OS (the UI's); without it the helper takes all the space freed.
+ *   { method: 'reuse', fingerprint, esp, part }     -> --alongside --fingerprint H --esp N --reuse-partition N
  */
 const isInt = (v, min, max) => Number.isSafeInteger(v) && v >= min && v <= max;
 const MAX_MIB = 999999999; // the helper's 9 digits
@@ -404,6 +416,9 @@ function alongsideArgs(a, bad) {
       if (!isInt(a.rootSize, 19074, MAX_MIB)) bad('alongside.rootSize');
       args.push('--root-size', String(a.rootSize));
     }
+  } else if (a.method === 'reuse') {
+    if (!isInt(a.part, 1, 128) || a.part === a.esp) bad('alongside.part');
+    args.push('--reuse-partition', String(a.part));
   } else if (a.method === 'free') {
     if (!isInt(a.start, 1, MAX_MIB) || !isInt(a.end, 1, MAX_MIB) || a.end - a.start < ROOT_MIN_MIB) bad('alongside.free');
     args.push('--free-space', `${a.start}:${a.end}`);
@@ -421,6 +436,11 @@ function checkPlan(a, analysis) {
   if (!analysis?.possible) no(analysis?.reason || 'no analysis of this disk');
   if (a.fingerprint !== analysis.fingerprint) no('the partition table changed');
   if (a.esp !== analysis.esp?.number) no('EFI system partition');
+  if (a.method === 'reuse') {
+    const opt = analysis.options.find((x) => x.method === 'reuse' && x.number === a.part);
+    if (!opt) no('partition');
+    return opt;
+  }
   if (a.method === 'free') {
     const opt = analysis.options.find((x) => x.method === 'free' && x.startMiB <= a.start && a.end <= x.endMiB);
     if (!opt) no('free space');

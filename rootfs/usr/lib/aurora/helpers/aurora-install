@@ -14,6 +14,7 @@
 #                  [--autologin] [--nvidia-driver PACKAGE|recommended] [--gaming APPID[,APPID...]]
 #                  [--alongside --fingerprint SHA256 --esp N (--free-space STARTMIB:ENDMIB | --shrink N --new-size MIB)]
 #                  [--alongside --expect-table SHA256 --esp N --root-size MIB (--free-start MIB | --shrink N --shrink-to MIB)]
+#                  [--alongside --fingerprint SHA256 --esp N --reuse-partition N]
 #   aurora-install --probe --json [--disk DEV]...
 #                  [--source DIR|FILE.squashfs] [--medium DIR] [--log FILE]
 #                  [--json] [--dry-run [--dry-run-delay SECONDS]] [--fail-at STAGE]
@@ -24,9 +25,15 @@
 #                       every partition stays as it is, except the one shrunk with --shrink; the existing EFI system
 #                       partition is reused (never formatted; only EFI/ubuntu is written, plus the removable
 #                       EFI/BOOT/BOOTX64.EFI when the disk has no EFI/BOOT folder), a firmware boot entry « Selene » is
-#                       added first in BootOrder (efibootmgr) and GRUB lists the other systems (os-prober) with a 5 s
-#                       menu. No BIOS boot loader is written. The read-only survey the plan comes from is
-#                       /usr/lib/aurora/helpers/aurora-disk-probe (run by the installer as root).
+#                       added first in BootOrder (efibootmgr) and GRUB lists the other systems with a 5 s menu: Windows
+#                       through os-prober; another Linux (or any other system) through its OWN EFI boot loader, chainloaded
+#                       (« {name} »: its os-release PRETTY_NAME, else its firmware label; Limine, systemd-boot, rEFInd,
+#                       GRUB…), from the firmware's boot entries on this ESP read before « Selene » is added (efibootmgr -v),
+#                       else the known loader paths of the ESP. Written to /etc/grub.d/25_aurora_chainload, which reads
+#                       /etc/aurora/boot-chainload.list (update-grub keeps them); the partition of that Linux is in
+#                       GRUB_OS_PROBER_SKIP_LIST (no second, fragile os-prober entry for it). No BIOS boot loader is
+#                       written. The read-only survey the plan comes from is /usr/lib/aurora/helpers/aurora-disk-probe
+#                       (run by the installer as root).
 #     --fingerprint H   sha256 of `sfdisk --dump DISK` when the plan was shown (the survey's "fingerprint"): refused,
 #                       with nothing written, when the partition table changed since (checked again right before
 #                       the partition table is written)
@@ -40,6 +47,9 @@
 #                       Selene OS partition takes the space freed after it, up to the next partition (1 MiB aligned).
 #                       The file system is shrunk first, then its partition entry, and the new partition is created
 #                       only after a successful shrink.
+#     --reuse-partition N  format again the « Selene OS » partition N an installation that stopped left behind
+#                       (aurora-disk-probe plan « reuse »: GPT name « Selene OS », ext4 « AURORA » or not formatted, no
+#                       AURORA_INSTALL_COMPLETE in it; a finished installation is refused); the partition table is not changed
 #     --expect-table H, --free-start S, --shrink-to MIB: other spellings of --fingerprint, --free-space S:S+R, --new-size
 #     --root-size R     size of the Selene OS partition in MiB (default: all the free space / all the space freed)
 #                       Every plan is checked again by `aurora-disk-probe --plan` (fresh survey, same rules) before
@@ -121,7 +131,7 @@ RESERVED_USERS=" root daemon bin sys sync games man lp mail news uucp proxy www-
 DISK="" USERNAME="" FULLNAME="" HOST_NAME="" LANGUAGE_ID="en" KEYBOARD="us" TIMEZONE="UTC"
 AUTOLOGIN=0 SOURCE="" MEDIUM="" LOG_FILE="" JSON=0 DRY_RUN=0 DRY_DELAY=0.35 FAIL_AT="" PASSWORD_STDIN=0 NVIDIA_DRIVER=
 GAMING="" GAMING_APPS=()
-ALONGSIDE=0 FINGERPRINT="" FREE_SPACE="" FREE_START_ARG="" SHRINK_NUM_ARG="" NEW_SIZE_ARG="" ROOT_SIZE_ARG="" ESP_NUM_ARG=""
+ALONGSIDE=0 FINGERPRINT="" FREE_SPACE="" FREE_START_ARG="" SHRINK_NUM_ARG="" NEW_SIZE_ARG="" ROOT_SIZE_ARG="" ESP_NUM_ARG="" REUSE_NUM_ARG=""
 PROBE_MODE=0 PROBE_DISKS=()
 # The only Flathub apps --gaming accepts (same list as shell/main/ipc/installer.js GAMING_APPS).
 GAMING_ALLOWED=(com.valvesoftware.Steam com.heroicgameslauncher.hgl net.lutris.Lutris net.davidotek.pupgui2 com.usebottles.bottles com.discordapp.Discord)
@@ -156,6 +166,7 @@ while (($#)); do
     --new-size|--shrink-to) need_val "$@" || break; NEW_SIZE_ARG=$2; shift 2 ;;
     --root-size) need_val "$@" || break; ROOT_SIZE_ARG=$2; shift 2 ;;
     --esp) need_val "$@" || break; ESP_NUM_ARG=$2; shift 2 ;;
+    --reuse-partition) need_val "$@" || break; REUSE_NUM_ARG=$2; shift 2 ;;
     --password-stdin) PASSWORD_STDIN=1; shift ;;
     --autologin) AUTOLOGIN=1; shift ;;
     --json) JSON=1; shift ;;
@@ -306,6 +317,7 @@ if [[ -n "$FAIL_AT" ]]; then
 fi
 # --alongside: one plan, strict numbers (MiB within bounds, partition numbers 1..128, sha256 fingerprint).
 MIN_ALONGSIDE_MIB=19074   # 20 GB, aurora-disk-probe MIN_SELENE_MIB (installer.js ROOT_MIN)
+RE_MENU_NAME='^[A-Za-z0-9][A-Za-z0-9 ._+(),/-]{0,63}$'   # GRUB menu entry titles we write (aurora-disk-probe RE_MENU_NAME)
 num_ok() { [[ "$1" =~ ^[0-9]{1,9}$ ]] && ((10#$1 >= $2 && 10#$1 <= $3)); }
 if ((ALONGSIDE)); then
   [[ "$FINGERPRINT" =~ ^[0-9a-f]{64}$ ]] || die 2 "--alongside needs --fingerprint (sha256 of the partition table shown)"
@@ -316,12 +328,19 @@ if ((ALONGSIDE)); then
     num_ok "$ROOT_SIZE_ARG" "$MIN_ALONGSIDE_MIB" 999999999 || die 2 "invalid --root-size: $ROOT_SIZE_ARG (MiB, at least $MIN_ALONGSIDE_MIB)"
     ROOT_SIZE_MIB=$((10#$ROOT_SIZE_ARG))
   fi
-  if [[ -n "$FREE_START_ARG" ]]; then   # --free-start S --root-size R == --free-space S:S+R
+  if [[ -n "$REUSE_NUM_ARG" ]]; then   # the partition an installation that stopped left behind: nothing else changes
+    [[ -z "$FREE_SPACE$FREE_START_ARG$SHRINK_NUM_ARG$NEW_SIZE_ARG$ROOT_SIZE_ARG" ]] || die 2 "--reuse-partition cannot be combined with another plan or --root-size"
+    num_ok "$REUSE_NUM_ARG" 1 128 || die 2 "invalid --reuse-partition: $REUSE_NUM_ARG (partition number)"
+    ((10#$REUSE_NUM_ARG != ESP_NUM_ARG)) || die 2 "the EFI system partition cannot be reused for Selene OS"
+    PLAN_SPEC="reuse:$((10#$REUSE_NUM_ARG))"
+  elif [[ -n "$FREE_START_ARG" ]]; then   # --free-start S --root-size R == --free-space S:S+R
     [[ -z "$FREE_SPACE" && -n "$ROOT_SIZE_MIB" ]] || die 2 "--free-start needs --root-size (and no --free-space)"
     num_ok "$FREE_START_ARG" 1 999999999 || die 2 "invalid --free-start: $FREE_START_ARG (MiB)"
     FREE_SPACE="$((10#$FREE_START_ARG)):$((10#$FREE_START_ARG + ROOT_SIZE_MIB))"
   fi
-  if [[ -n "$FREE_SPACE" ]]; then
+  if [[ -n "$REUSE_NUM_ARG" ]]; then
+    :   # PLAN_SPEC=reuse:N (above)
+  elif [[ -n "$FREE_SPACE" ]]; then
     [[ -z "$SHRINK_NUM_ARG$NEW_SIZE_ARG" ]] || die 2 "--free-space and --shrink cannot be combined"
     [[ "$FREE_SPACE" =~ ^([0-9]{1,9}):([0-9]{1,9})$ ]] || die 2 "invalid --free-space: $FREE_SPACE (STARTMIB:ENDMIB)"
     FS_START=$((10#${BASH_REMATCH[1]})) FS_END=$((10#${BASH_REMATCH[2]}))
@@ -335,11 +354,11 @@ if ((ALONGSIDE)); then
     ((10#$SHRINK_NUM_ARG != ESP_NUM_ARG)) || die 2 "the EFI system partition cannot be shrunk"
     PLAN_SPEC="shrink:$((10#$SHRINK_NUM_ARG)):$((10#$NEW_SIZE_ARG))${ROOT_SIZE_MIB:+:$ROOT_SIZE_MIB}"
   else
-    die 2 "--alongside needs --free-space STARTMIB:ENDMIB or --shrink N --new-size MIB"
+    die 2 "--alongside needs --free-space STARTMIB:ENDMIB, --shrink N --new-size MIB or --reuse-partition N"
   fi
 else
-  [[ -z "$FINGERPRINT$FREE_SPACE$FREE_START_ARG$SHRINK_NUM_ARG$NEW_SIZE_ARG$ROOT_SIZE_ARG$ESP_NUM_ARG" ]] \
-    || die 2 "--fingerprint, --esp, --free-space, --shrink, --new-size and --root-size need --alongside"
+  [[ -z "$FINGERPRINT$FREE_SPACE$FREE_START_ARG$SHRINK_NUM_ARG$NEW_SIZE_ARG$ROOT_SIZE_ARG$ESP_NUM_ARG$REUSE_NUM_ARG" ]] \
+    || die 2 "--fingerprint, --esp, --free-space, --shrink, --new-size, --root-size and --reuse-partition need --alongside"
 fi
 for _p in "$SOURCE" "$MEDIUM" "$LOG_FILE"; do
   [[ -z "$_p" ]] || { [[ "$_p" =~ $RE_PATH && "$_p" != *..* ]] || die 2 "invalid path: $_p (absolute paths only)"; }
@@ -385,8 +404,13 @@ if ((DRY_RUN)); then
       sim partition 1 3 "Shrinking partition ${DISK}${pp}${_sn} to ${_ss} MiB (your files are kept)" "\$ ntfsresize --size ${_ss}M ${DISK}${pp}${_sn}"
       dsleep
     fi
-    sim partition 3 4 "Creating the Selene OS partition next to your systems" "\$ sfdisk --append $DISK (Selene OS ext4, ${PLAN_SPEC})"
-    sim format 4 7 "Formatting the Selene OS partition" "\$ mkfs.ext4 -L AURORA ${DISK}${pp}N (the EFI system partition is kept)"
+    if [[ "$PLAN_SPEC" == reuse:* ]]; then
+      sim partition 1 4 "Reusing the Selene OS partition ${DISK}${pp}${PLAN_SPEC#reuse:} of the previous attempt (nothing else changes)" "partition table unchanged (${PLAN_SPEC})"
+      sim format 4 7 "Formatting the Selene OS partition" "\$ mkfs.ext4 -L AURORA ${DISK}${pp}${PLAN_SPEC#reuse:} (the EFI system partition is kept)"
+    else
+      sim partition 3 4 "Creating the Selene OS partition next to your systems" "\$ sfdisk --append $DISK (Selene OS ext4, ${PLAN_SPEC})"
+      sim format 4 7 "Formatting the Selene OS partition" "\$ mkfs.ext4 -L AURORA ${DISK}${pp}N (the EFI system partition is kept)"
+    fi
   else
     sim partition 1 4 "Partitioning $DISK" "\$ wipefs --all $DISK" "\$ sfdisk --label gpt $DISK (BIOS boot 1 MiB, EFI System 512 MiB, Selene OS ext4)"
     sim format 4 7 "Formatting the partitions" "\$ mkfs.vfat -F 32 -n EFI ${DISK}${pp}2" "\$ mkfs.ext4 -L AURORA ${DISK}${pp}3"
@@ -430,6 +454,7 @@ if ((DRY_RUN)); then
   fi
   if ((ALONGSIDE)); then
     sim bootloader 87 91 "Installing the boot loader (UEFI, next to your other systems)" "\$ grub-install --target=x86_64-efi --bootloader-id=ubuntu --no-nvram (EFI/ubuntu only)"
+    log "\$ efibootmgr -v (the other systems' own boot loaders on this EFI system partition: GRUB chainloads them)"
     progress bootloader 94 "Writing the boot menu (with your other systems)"; dsleep
     progress bootloader 96 "Adding « Selene » to the computer's boot menu"; dsleep
     # AURORA_DRYRUN_BOOTENTRY_FAIL=1 simulates firmware that refuses the new boot entry (reported, not fatal).
@@ -855,7 +880,11 @@ plan_alongside() {
   while IFS= read -r line; do
     [[ "$line" =~ ^([A-Z_]{2,32})=(.*)$ ]] || continue
     k=${BASH_REMATCH[1]} v=${BASH_REMATCH[2]}
-    [[ "$k" == MESSAGE || "$v" =~ ^[A-Za-z0-9/._:-]*$ ]] || die 5 "unexpected value from aurora-disk-probe: $k"
+    if [[ "$k" == CHAIN_NAME ]]; then   # a menu entry title (spaces allowed; never a quote or shell / GRUB metacharacter)
+      [[ "$v" =~ $RE_MENU_NAME ]] || { log "warning: unexpected name of the other system from aurora-disk-probe: ignored"; continue; }
+    else
+      [[ "$k" == MESSAGE || "$v" =~ ^[A-Za-z0-9/._:-]*$ ]] || die 5 "unexpected value from aurora-disk-probe: $k"
+    fi
     PLAN[$k]=$v
   done <<<"$out"
   if [[ "${PLAN[OK]:-0}" != 1 ]]; then
@@ -884,12 +913,23 @@ plan_alongside() {
     ((PLAN[SHRINK_NEW_SECTORS] < PLAN[SHRINK_OLD_SECTORS])) || die 4 "the new size must be smaller than the current one"
     ((PLAN[NEW_START] >= PLAN[SHRINK_START] + PLAN[SHRINK_NEW_SECTORS])) || die 5 "the new partition would overlap the shrunk one"
     [[ "${PLAN[SHRINK_NUM]}" != "${PLAN[ESP_NUM]}" ]] || die 4 "the EFI system partition cannot be shrunk"
+  elif [[ "${PLAN[KIND]}" == reuse ]]; then
+    [[ "${PLAN[REUSE_NUM]:-}" =~ ^[0-9]{1,3}$ && "${PLAN[REUSE_NUM]}" == "$((10#$REUSE_NUM_ARG))" ]] || die 5 "invalid plan value REUSE_NUM"
+    [[ "${PLAN[REUSE_PART]:-}" == "$(part_path "${PLAN[REUSE_NUM]}")" ]] || die 5 "unexpected partition ${PLAN[REUSE_PART]:-}"
+    [[ "${PLAN[REUSE_NUM]}" != "${PLAN[ESP_NUM]}" ]] || die 4 "the EFI system partition cannot be reused"
   elif [[ "${PLAN[KIND]}" != free ]]; then
     die 5 "unknown plan kind ${PLAN[KIND]}"
   fi
+  # The Linux system whose own boot loader is on the ESP (stage_bootloader_alongside chainloads it).
+  if [[ -n "${PLAN[CHAIN_UUID]:-}" ]]; then
+    [[ "${PLAN[CHAIN_UUID]}" =~ ^[0-9A-Fa-f-]{4,36}$ && "${PLAN[CHAIN_PART]:-}" =~ ^[0-9]{1,3}$ ]] \
+      || { log "warning: unexpected other-system values from aurora-disk-probe: ignored"; PLAN[CHAIN_UUID]="" PLAN[CHAIN_NAME]=""; }
+  fi
   P_ESP=${PLAN[ESP_PART]}
   [[ "${PLAN[ESP_HAS_BOOT_DIR]:-1}" == 0 ]] && ESP_OWN_FALLBACK=1
-  if [[ "${PLAN[KIND]}" == shrink ]]; then
+  if [[ "${PLAN[KIND]}" == reuse ]]; then
+    log "plan: reuse ${PLAN[REUSE_PART]} (the Selene OS partition an installation that stopped left behind, ${PLAN[NEW_SIZE_MIB]} MiB): formatted again, the partition table is not changed, EFI system partition $P_ESP kept"
+  elif [[ "${PLAN[KIND]}" == shrink ]]; then
     log "plan: shrink ${PLAN[SHRINK_PART]} (${PLAN[SHRINK_FS]}) ${PLAN[SHRINK_OLD_MIB]} MiB -> ${PLAN[SHRINK_NEW_MIB]} MiB, new Selene OS partition ${PLAN[NEW_SIZE_MIB]} MiB at sector ${PLAN[NEW_START]}, EFI system partition $P_ESP kept"
   else
     log "plan: new Selene OS partition ${PLAN[NEW_SIZE_MIB]} MiB at sector ${PLAN[NEW_START]} (free space), EFI system partition $P_ESP kept"
@@ -977,12 +1017,14 @@ stage_partition_alongside() {
   sfdisk --dump "$DISK" >"$before" || die 5 "cannot read the partition table of $DISK"
   log "partition table before the change (restore with: sfdisk $DISK < this dump):"; cat "$before" >&2
   [[ "$(sha256sum <"$before" | cut -d' ' -f1)" == "$FINGERPRINT" ]] || die 4 "the partition table changed since it was shown: nothing was changed"
+  if [[ "${PLAN[KIND]}" == reuse ]]; then reuse_partition_alongside "$before"; return 0; fi
   others_before=$(dump_without ${PLAN[SHRINK_NUM]:-})
   local shrunk_before="" shrunk_after=""
   [[ "${PLAN[KIND]}" == shrink ]] && shrunk_before=$(entry_without_size "${PLAN[SHRINK_NUM]}" <"$before")
   if [[ "${PLAN[KIND]}" == shrink ]]; then
     maybe_fail shrink
-    progress partition 1 "Shrinking ${PLAN[SHRINK_PART]} from ${PLAN[SHRINK_OLD_MIB]} MiB to ${PLAN[SHRINK_NEW_MIB]} MiB (your files are kept)"
+    local slow=""; [[ "${PLAN[SHRINK_FS]}" == ext4 ]] && slow="; this can take from a few minutes to an hour, depending on the data"
+    progress partition 1 "Shrinking ${PLAN[SHRINK_PART]} from ${PLAN[SHRINK_OLD_MIB]} MiB to ${PLAN[SHRINK_NEW_MIB]} MiB (your files are kept$slow)"
     findmnt -rn -S "${PLAN[SHRINK_PART]}" >/dev/null 2>&1 && die 4 "${PLAN[SHRINK_PART]} is mounted: nothing was changed"
     case "${PLAN[SHRINK_FS]}" in
       ntfs) shrink_ntfs ;;
@@ -1029,6 +1071,32 @@ stage_partition_alongside() {
     || die 5 "the kernel does not show $P_ROOT at sector ${PLAN[NEW_START]} (start: $kstart): nothing was formatted"
   P_BIOS=""
   sfdisk --dump "$DISK" >&2 || true
+  progress partition 4 ""
+}
+
+# --reuse-partition: the « Selene OS » partition an installation that stopped left behind is formatted again; the
+# partition table is not written. Checked once more right here: same entry (start, size, Linux type, name « Selene OS »),
+# not mounted, and either no file system or the ext4 « AURORA » (aurora-disk-probe checked the completion marker).
+reuse_partition_alongside() {
+  local before=$1 line entry="" fstype label
+  P_ROOT=${PLAN[REUSE_PART]}
+  progress partition 2 "Reusing the Selene OS partition of the previous attempt ($P_ROOT; nothing else changes)"
+  while IFS= read -r line; do
+    [[ "$line" =~ ^(/dev/[^ ]+)[[:space:]]*: && "${BASH_REMATCH[1]}" == "$P_ROOT" ]] && entry=$line
+  done <"$before"
+  [[ -n "$entry" && "$entry" =~ start=\ *${PLAN[NEW_START]}, && "$entry" =~ size=\ *${PLAN[NEW_SECTORS]}, \
+     && "${entry^^}" == *"TYPE=0FC63DAF-8483-4772-8E79-3D69D8477DE4"* && "$entry" == *'name="Selene OS"'* ]] \
+    || die 4 "$P_ROOT is not the Selene OS partition of an installation that stopped: nothing was changed"
+  findmnt -rn -S "$P_ROOT" >/dev/null 2>&1 && die 4 "$P_ROOT is mounted: nothing was changed"
+  fstype=$(blkid -p -s TYPE -o value "$P_ROOT" 2>/dev/null || true) label=$(blkid -p -s LABEL -o value "$P_ROOT" 2>/dev/null || true)
+  [[ -z "$fstype" || ( "$fstype" == ext4 && "$label" == AURORA ) ]] \
+    || die 4 "$P_ROOT holds a $fstype file system that is not Selene OS's: nothing was changed"
+  wait_for_node "$P_ROOT" "$((PLAN[NEW_SECTORS] * PLAN[SECTOR_SIZE]))"
+  local kstart; kstart=$(cat "/sys/class/block/${P_ROOT#/dev/}/start" 2>/dev/null || echo -1)
+  [[ "$kstart" =~ ^[0-9]+$ ]] && ((kstart * 512 == PLAN[NEW_START] * PLAN[SECTOR_SIZE])) \
+    || die 5 "the kernel does not show $P_ROOT at sector ${PLAN[NEW_START]} (start: $kstart): nothing was formatted"
+  P_BIOS=""
+  log "reusing $P_ROOT (${PLAN[NEW_SIZE_MIB]} MiB, left by an installation that stopped); the partition table is not changed"
   progress partition 4 ""
 }
 
@@ -1217,6 +1285,105 @@ fi
 exec "$real" "$@"
 EOF
   log "GRUB updates: /usr/local/sbin/grub-install adds --no-extra-removable (another system boots through EFI/BOOT)"
+}
+
+# GRUB entries that start the other systems' OWN EFI boot loaders (Limine, systemd-boot, rEFInd, another distribution's
+# GRUB), so the person gets the menu they know: os-prober does not know Limine, and its linux-boot-prober builds fragile
+# entries for a Linux whose kernels live on the ESP. Source of truth: the firmware's boot entries on this ESP, read
+# before « Selene » is added (efibootmgr -v; test mode: AURORA_INSTALL_TEST_EFIBOOTMGR_V=<file>, only with
+# AURORA_INSTALL_TEST_NO_FIRMWARE=1), else the known loader paths of the ESP (aurora-disk-probe --chainload, on the copy
+# esp_backup just made). Title: the other Linux's PRETTY_NAME (the plan's CHAIN_NAME), else the firmware label. Its
+# partition goes to GRUB_OS_PROBER_SKIP_LIST: one clean entry. Written as /etc/aurora/boot-chainload.list (read by
+# /etc/grub.d/25_aurora_chainload at every update-grub). Never fatal: without it the menu is os-prober's.
+CHAIN_ENTRIES=0 CHAIN_SKIP_UUID=""
+write_chainload_entries() {
+  local nv="$WORKDIR/efibootmgr-v.txt" partuuid out path title named list="" re_path='^/EFI/[A-Za-z0-9._+-]{1,64}(/[A-Za-z0-9._+-]{1,64}){1,3}$'
+  : >"$nv"
+  if ((TEST_NO_FIRMWARE)); then
+    if [[ -n "${AURORA_INSTALL_TEST_EFIBOOTMGR_V:-}" && -f "${AURORA_INSTALL_TEST_EFIBOOTMGR_V}" ]]; then
+      head -c 1048576 "$AURORA_INSTALL_TEST_EFIBOOTMGR_V" >"$nv"
+      log "test mode: firmware boot entries read from $AURORA_INSTALL_TEST_EFIBOOTMGR_V"
+    fi
+  elif command -v efibootmgr >/dev/null 2>&1; then
+    efibootmgr -v >"$nv" 2>/dev/null || log "warning: efibootmgr -v failed: the known boot loader paths of the EFI system partition are used"
+  fi
+  [[ -s "$nv" ]] && { log "firmware boot entries before « Selene » is added:"; grep -E '^Boot(Order|[0-9A-Fa-f]{4})' "$nv" | cut -c1-200 >&2 || true; }
+  partuuid=$(blkid -p -s PART_ENTRY_UUID -o value "$P_ESP" 2>/dev/null || true)
+  [[ "$partuuid" =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ ]] \
+    || { log "warning: no PARTUUID for $P_ESP: the other systems' boot loaders are not chainloaded"; return 0; }
+  [[ "$ESP_UUID" =~ ^[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}$ && -n "$ESP_BACKUP" && -d "$ESP_BACKUP/files" ]] || return 0
+  local args=(--chainload "$ESP_BACKUP/files" --esp-partuuid "$partuuid" --efibootmgr "$nv")
+  [[ -n "${PLAN[CHAIN_NAME]:-}" ]] && args+=(--name "${PLAN[CHAIN_NAME]}")
+  [[ -n "${PLAN[CHAIN_ID]:-}" ]] && args+=(--os-id "${PLAN[CHAIN_ID]}")
+  out=$("$PROBE" "${args[@]}" 2>"$WORKDIR/chain.err") || { cat "$WORKDIR/chain.err" >&2; log "warning: aurora-disk-probe --chainload failed: no chainload entries"; return 0; }
+  while IFS=$'\t' read -r path title named; do
+    [[ -n "$path" ]] || continue
+    if [[ ! "$path" =~ $re_path || ! "${path,,}" =~ \.efi$ || ! "$title" =~ $RE_MENU_NAME || ! "$named" =~ ^[01]$ ]]; then
+      log "warning: unexpected chainload entry from aurora-disk-probe: skipped"; continue
+    fi
+    list+="$ESP_UUID"$'\t'"$path"$'\t'"$title"$'\n'
+    CHAIN_ENTRIES=$((CHAIN_ENTRIES + 1))
+    log "boot menu: « $title » starts its own boot loader $path (EFI system partition $ESP_UUID)"
+    if [[ "$named" == 1 && -n "${PLAN[CHAIN_UUID]:-}" ]]; then CHAIN_SKIP_UUID=${PLAN[CHAIN_UUID]}; fi
+  done <<<"$out"
+  if ((!CHAIN_ENTRIES)); then log "no other boot loader to chainload on the EFI system partition (Windows: os-prober)"; return 0; fi
+  { printf '# Written by the Selene OS installer: the other systems of this computer, started through their own boot loader\n'
+    printf '# by /etc/grub.d/25_aurora_chainload (run sudo update-grub after a change). ESP_FS_UUID<TAB>/EFI/path.efi<TAB>Title\n'
+    printf '%s' "$list"; } | write_file "$TARGET/etc/aurora/boot-chainload.list" 0644
+  write_file "$TARGET/etc/grub.d/25_aurora_chainload" 0755 <<'EOF'
+#!/bin/sh
+# Selene OS (written by its installer next to another system): one GRUB menu entry per line of
+# /etc/aurora/boot-chainload.list (ESP_FS_UUID<TAB>/EFI/…/loader.efi<TAB>Title). Each entry starts that system's OWN
+# boot loader (chainloader), so it boots exactly as it does on its own (Limine, systemd-boot, rEFInd, GRUB…).
+# Every field is checked again here: a line that does not match is skipped. When that EFI system partition is mounted
+# (FAT) on /boot/efi and the loader is gone (that system was removed), its entry is left out. (The installer stages
+# /boot/efi on a tmpfs when the live kernel cannot mount FAT: no check then.)
+set -e
+list=/etc/aurora/boot-chainload.list
+[ -r "$list" ] || exit 0
+tab=$(printf '\t')
+n=0
+while IFS="$tab" read -r uuid path title; do
+  case "$uuid" in ''|'#'*) continue ;; esac
+  if ! printf '%s\n' "$uuid" | grep -Eqx '[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}|[0-9A-Fa-f-]{8,36}' \
+    || ! printf '%s\n' "$path" | grep -Eqx '/EFI/[A-Za-z0-9._+-]{1,64}(/[A-Za-z0-9._+-]{1,64}){1,3}' \
+    || ! printf '%s\n' "$path" | grep -Eqi '\.efi$' \
+    || ! printf '%s\n' "$title" | grep -Eqx '[A-Za-z0-9][A-Za-z0-9 ._+(),/-]{0,63}'; then
+    echo "25_aurora_chainload: invalid line in $list skipped" >&2
+    continue
+  fi
+  if [ "$(stat -f -c %T /boot/efi 2>/dev/null || true)" = msdos ] && [ "$(grub-probe --target=fs_uuid /boot/efi 2>/dev/null || true)" = "$uuid" ] \
+    && [ ! -e "/boot/efi$path" ]; then
+    echo "25_aurora_chainload: $path is no longer on the EFI system partition: $title left out" >&2
+    continue
+  fi
+  n=$((n + 1))
+  echo "Found $title (its own boot loader $path)" >&2
+  cat <<ENTRY
+menuentry '$title' --class os --class efi \$menuentry_id_option 'aurora-chainload-$n' {
+	insmod part_gpt
+	insmod fat
+	insmod chain
+	search --no-floppy --fs-uuid --set=root $uuid
+	chainloader $path
+}
+ENTRY
+done <"$list"
+EOF
+  if [[ -n "$CHAIN_SKIP_UUID" ]]; then
+    write_file "$TARGET/etc/default/grub.d/51-aurora-chainload.cfg" 0644 <<EOF
+# Written by the Selene OS installer: ${PLAN[CHAIN_NAME]:-the other Linux} starts through its own boot loader
+# (/etc/grub.d/25_aurora_chainload), so os-prober must not add a second entry for its partition (file system UUID below).
+# GRUB's 30_os-prober compares « UUID@/dev/<partition> » for a Linux partition (\${DEVICE#*@} is the whole device name
+# when it has no @), so the partition's current name is looked up at every update-grub; the bare UUID is kept as well.
+_aurora_skip=$CHAIN_SKIP_UUID
+_aurora_dev=\$(blkid -U "\$_aurora_skip" 2>/dev/null || true)
+case "\$_aurora_dev" in /dev/*) ;; *) _aurora_dev="" ;; esac
+GRUB_OS_PROBER_SKIP_LIST="\${GRUB_OS_PROBER_SKIP_LIST:+\$GRUB_OS_PROBER_SKIP_LIST }\$_aurora_skip\${_aurora_dev:+ \$_aurora_skip@\$_aurora_dev}"
+unset _aurora_skip _aurora_dev
+EOF
+    log "os-prober skips partition ${PLAN[CHAIN_PART]:-?} (UUID $CHAIN_SKIP_UUID): « ${PLAN[CHAIN_NAME]:-} » is started by its own boot loader"
+  fi
 }
 
 # add_boot_entry: firmware boot entry « Selene » (shim) first in BootOrder. Never fatal: reported with emit_bootentry.
@@ -1868,6 +2035,7 @@ EOF
   local before="$WORKDIR/esp-before.sha256" after="$WORKDIR/esp-after.sha256" snap=1
   esp_snapshot "$before" || { snap=0; log "warning: could not read the EFI system partition for the before/after check"; }
   esp_backup   # from here on, a failure puts the EFI system partition back as it was (esp_rollback)
+  write_chainload_entries   # from the copy just made, before « Selene » is added to the firmware's boot entries
   # EFI/ubuntu: Ubuntu's signed shim + GRUB (their built-in prefix is /EFI/ubuntu); the NVRAM entry is added below.
   # --no-extra-removable: without it this grub-install also replaces EFI/BOOT/BOOTX64.EFI (and adds fbx64/mmx64.efi
   # there), i.e. another system's fallback loader (seen in QEMU/OVMF next to Windows and next to Arch).
@@ -1898,6 +2066,9 @@ EOF
   grep -q "root=UUID=$ROOT_UUID" "$cfg" || die 5 "the boot menu does not boot the system partition by UUID"
   grep -q 'scripts/casper\|boot=casper' "$cfg" && die 5 "the boot menu still refers to the live system"
   log "boot menu entries: $(grep -o "^menuentry '[^']*'" "$cfg" | sed "s/^menuentry //" | tr '\n' ' ' || true)"
+  if ((CHAIN_ENTRIES)) && (($(grep -c '^[[:space:]]*chainloader /EFI/' "$cfg" || true) < CHAIN_ENTRIES)); then
+    log "warning: the boot menu lacks some of the other systems' boot loaders (see /etc/aurora/boot-chainload.list)"
+  fi
   flush_esp
   if ((snap)) && esp_snapshot "$after"; then
     if ! cmp -s "$before" "$after"; then

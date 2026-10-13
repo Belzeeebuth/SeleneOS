@@ -25,6 +25,16 @@
 # (AURORA_INSTALL_TEST_TAMPER_ESP=1): it must fail and leave the ESP exactly as before (Windows files byte for byte,
 # no EFI/ubuntu); then a normal one: only EFI/ubuntu added, every other ESP file unchanged; GRUB_DISABLE_OS_PROBER=false;
 # the grub-install wrapper and the debconf keys in the target; NVRAM entry skipped.
+# cachy.img (40 GiB): the user's PC at a smaller scale — GPT, 1 GiB FAT32 ESP holding Limine (EFI/limine/BOOTX64.EFI,
+#            EFI/BOOT/BOOTX64.EFI, limine.conf, vmlinuz-linux-cachyos + initramfs: the kernels live on the ESP), ext4 root
+#            (/etc/os-release CachyOS, /etc/fstab mounting the ESP on /boot), no free space. Probe (CachyOS, the chain
+#            owner of the ESP), then an install --alongside --shrink 2 that stops (at copy; with --full: at the boot loader,
+#            after copy + configure), then the retry: the probe offers the left « Selene OS » partition (plan reuse),
+#            --reuse-partition 3 (stops at copy; with --full: complete, with an injected `efibootmgr -v` — Limine first in
+#            BootOrder — through AURORA_INSTALL_TEST_EFIBOOTMGR_V): ESP byte-identical except EFI/ubuntu, CachyOS's files
+#            intact, one « CachyOS » entry chainloading /EFI/limine/BOOTX64.EFI on the ESP's UUID, the CachyOS partition in
+#            GRUB_OS_PROBER_SKIP_LIST (checked against GRUB's own 30_os-prober with a fake os-prober), and a finished
+#            installation is never offered for reuse.
 set -Eeuo pipefail
 export LC_ALL=C PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -33,8 +43,9 @@ PROBE=$HERE/rootfs/usr/lib/aurora/helpers/aurora-disk-probe
 W=${1:?usage: tools/test-alongside.sh WORKDIR [--full SQUASHFS]}
 FULL=""
 [[ "${2:-}" == --full ]] && FULL=${3:?--full needs a squashfs image}
+if [[ -n "$FULL" ]]; then FULL=$(readlink -f "$FULL"); [[ -f "$FULL" ]] || { echo "test-alongside: $3 not found" >&2; exit 1; }; fi   # aurora-install takes absolute paths only
 [[ $EUID -eq 0 ]] || { echo "test-alongside: run as root (loop devices)" >&2; exit 1; }
-for t in losetup sfdisk partx mkfs.vfat mkfs.ext4 mkntfs ntfscp ntfscat ntfsresize ntfs-3g mmd mcopy mtype mdir debugfs python3 sha256sum; do
+for t in losetup sfdisk partx mkfs.vfat mkfs.ext4 mkntfs ntfscp ntfscat ntfsresize ntfs-3g mmd mcopy mtype mdir debugfs python3 sha256sum blkdiscard; do
   command -v "$t" >/dev/null || { echo "test-alongside: $t is required (util-linux fdisk dosfstools e2fsprogs ntfs-3g mtools python3)" >&2; exit 1; }
 done
 mkdir -p "$W"; W=$(cd "$W" && pwd)
@@ -147,7 +158,7 @@ check "wrapper: written only by the install « à côté » when the disk has EF
 
 # ====================================================================== images
 echo "== building the test disks in $W"
-rm -f "$W"/win.img "$W"/arch.img
+rm -f "$W"/win.img "$W"/arch.img "$W"/cachy.img
 truncate -s 64G "$W/win.img"
 sfdisk -q "$W/win.img" <<'EOF'
 label: gpt
@@ -218,10 +229,10 @@ ntfs_files() { # ntfs_files PART -> sha256 of the files listed in win-files.sha2
     local f; while read -r _ f; do ntfscat "$1" "${f#./}" | sha256sum -c --quiet <(grep -F "  $f" "$W/win-files.sha256" | sed "s|  .*|  -|") || return 1; done <"$W/win-files.sha256"
   fi
 }
-ext4_files() { # ext4_files PART -> checks arch-files.sha256 on a read-only mount
-  local m=$W/ext4-mnt; mkdir -p "$m"; MNTS+=("$m")
+ext4_files() { # ext4_files PART [SUMS] -> checks SUMS (default arch-files.sha256) on a read-only mount
+  local m=$W/ext4-mnt sums=${2:-$W/arch-files.sha256}; mkdir -p "$m"; MNTS+=("$m")
   mount -t ext4 -o ro,noload "$1" "$m" || return 1
-  (cd "$m" && sha256sum --quiet -c "$W/arch-files.sha256"); local rc=$?
+  (cd "$m" && sha256sum --quiet -c "$sums"); local rc=$?
   umount "$m"; return $rc
 }
 WIN_ESP_FILES=$(esp_files "${WIN}p1")
@@ -402,7 +413,143 @@ if [[ -n "$FULL" ]]; then
   check "installed: initramfs checked by the python3 scan (no lsinitramfs) and free of casper" bash -c 'grep -q "\] initramfs: " "$1" && ! grep -q "using lsinitramfs" "$1"' _ "$W/install.log"
   umount "$m"
   check "NTFS files still intact after the full installation" ntfs_files "${WIN}p3"
+  ours "${WIN}p5"; blkdiscard -f "${WIN}p5" >/dev/null 2>&1 || true   # gives the image's blocks back (disk space)
 fi
+
+# ====================================================================== CachyOS + Limine (the user's PC, smaller)
+echo "== CachyOS-like disk: GPT, 1 GiB ESP with Limine (kernels on the ESP, mounted at /boot), ext4 root, no free space"
+truncate -s 40G "$W/cachy.img"
+sfdisk -q "$W/cachy.img" <<'EOF'
+label: gpt
+size=1GiB, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI System"
+type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Linux filesystem"
+EOF
+attach "$W/cachy.img"; CACHY=$ATTACHED
+CACHY_UUID=6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5 CACHY_ESP_UUID=1A2B-3C4D
+ours "${CACHY}p1"; mkfs.vfat -F 32 -i 1A2B3C4D "${CACHY}p1" >/dev/null
+mmd -i "${CACHY}p1" ::/EFI ::/EFI/limine ::/EFI/BOOT
+if [[ -f /usr/share/limine/BOOTX64.EFI ]]; then cp /usr/share/limine/BOOTX64.EFI "$W/limine.efi"; else rand "$W/limine.efi" 90000; fi
+rand "$W/cachy-bootx64.efi" 90000; rand "$W/vmlinuz-linux-cachyos" 14000000; rand "$W/initramfs-linux-cachyos.img" 20000000
+printf 'timeout: 5\n\n/+CachyOS\n    comment: CachyOS linux-cachyos\n    //linux-cachyos\n        protocol: linux\n        kernel_path: boot():/vmlinuz-linux-cachyos\n        kernel_cmdline: root=UUID=%s rw quiet\n        module_path: boot():/initramfs-linux-cachyos.img\n' "$CACHY_UUID" >"$W/limine.conf"
+mcopy -i "${CACHY}p1" "$W/limine.efi" ::/EFI/limine/BOOTX64.EFI; mcopy -i "${CACHY}p1" "$W/cachy-bootx64.efi" ::/EFI/BOOT/BOOTX64.EFI
+mcopy -i "${CACHY}p1" "$W/limine.conf" "$W/vmlinuz-linux-cachyos" "$W/initramfs-linux-cachyos.img" ::/
+CR=$W/cachy-root; rm -rf "$CR"; mkdir -p "$CR/etc" "$CR/boot" "$CR/home/anna/Documents" "$CR/home/anna/Images"
+printf 'NAME=CachyOS\nPRETTY_NAME=CachyOS\nID=cachyos\nID_LIKE=arch\nBUILD_ID=rolling\n' >"$CR/etc/os-release"
+printf '# /etc/fstab (CachyOS)\nUUID=%s  /      ext4  noatime  0 1\nUUID=%s  /boot  vfat  defaults,umask=0077  0 2\n' "$CACHY_UUID" "$CACHY_ESP_UUID" >"$CR/etc/fstab"
+for i in 1 2 3; do rand "$CR/home/anna/Documents/c$i.bin" 4000000; rand "$CR/home/anna/Images/i$i.png" 5000000; done
+(cd "$CR" && find . -type f -print0 | sort -z | xargs -0 sha256sum) >"$W/cachy-files.sha256"
+ours "${CACHY}p2"; mkfs.ext4 -q -F -U "$CACHY_UUID" -d "$CR" "${CACHY}p2"
+CACHY_ESP_FILES=$(esp_files "${CACHY}p1") CACHY_ESP_RAW=$(rawsum "${CACHY}p1")
+ESP_PARTUUID=$(blkid -p -s PART_ENTRY_UUID -o value "${CACHY}p1")
+# What `efibootmgr -v` shows on such a PC (efibootmgr 18 and older spellings): Limine first, the removable path, PXE.
+cat >"$W/efibootmgr-cachy.txt" <<EOF
+BootCurrent: 0001
+Timeout: 0 seconds
+BootOrder: 0001,0002,0003
+Boot0001* Limine	HD(1,GPT,${ESP_PARTUUID},0x800,0x200000)/\\EFI\\limine\\BOOTX64.EFI
+      dp: 04 01 2a 00 01 00 00 00 00 08 00 00 00 00 00 00 00 00 20 00 00 00 00 00
+Boot0002* UEFI OS	HD(1,GPT,${ESP_PARTUUID},0x800,0x200000)/File(\\EFI\\BOOT\\BOOTX64.EFI)..BO
+Boot0003* UEFI: PXE IPv4 Intel(R) Ethernet	PciRoot(0x0)/Pci(0x1f,0x6)/MAC(001122334455,0)/IPv4(0.0.0.0,0,DHCP)..BO
+EOF
+check "CachyOS disk built ($CACHY): ESP $CACHY_ESP_UUID with Limine + kernels, ext4 $CACHY_UUID with $(wc -l <"$W/cachy-files.sha256") files" true
+
+"$PROBE" --disk "$CACHY" --assume-uefi >"$W/probe-cachy.json"
+check "probe CachyOS: system « CachyOS » (linux, partition 2, /etc/os-release), ESP folders BOOT + limine, no free space, plan: shrink ext4 p2" \
+  python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1]))["disks"][0]; n=[(s["name"],s["kind"],s["partition"]) for s in d["systems"] if not s.get("loader")]; p=[(x["kind"],x.get("partition"),x.get("fstype")) for x in d["alongside"]["plans"]]; print(n, p, d["free"], d["esp"]["folders"]); sys.exit(0 if n==[("CachyOS","linux",2)] and p==[("shrink",2,"ext4")] and not d["free"] and sorted(f.lower() for f in d["esp"]["folders"])==["boot","limine"] else 1)' "$W/probe-cachy.json"
+check "probe CachyOS: chain = CachyOS (id cachyos, its fstab mounts the ESP on /boot, ext4 UUID, partition 2)" \
+  python3 -I -c 'import json,sys; c=json.load(open(sys.argv[1]))["disks"][0]["chain"]; print(c); sys.exit(0 if c=={"name":"CachyOS","id":"cachyos","uuid":sys.argv[2],"partition":2,"espOnBoot":True} else 1)' "$W/probe-cachy.json" "$CACHY_UUID"
+check "installer.js: « Installer à côté de CachyOS », shrink ext4 offered, 5 s menu entry « CachyOS »" \
+  node -e 'const be=require(process.argv[1]); const sv=be.parseSurvey(require("fs").readFileSync(process.argv[2],"utf8")); const a=be.analyzeDisk(sv.disks[0],sv); console.log(a.os, a.menuName, a.options.map((o)=>o.method+":"+o.fstype)); process.exit(a.possible && a.os==="CachyOS" && a.menuName==="CachyOS" && a.options.length===1 && a.options[0].method==="shrink" && a.options[0].fstype==="ext4" ? 0 : 1)' \
+  "$HERE/shell/main/ipc/installer.js" "$W/probe-cachy.json"
+
+# 1) An installation that stops: the ext4 root is shrunk, the Selene OS partition created (and, with --full, filled).
+echo "== CachyOS: shrink ext4 -> 12000 MiB, Selene takes the space freed; the installation stops ($([[ -n "$FULL" ]] && echo 'at the boot loader, after copy + configure' || echo 'at copy'))"
+CACHY_FP=$(fp "$CACHY"); OLD_DUMP=$(sfdisk --dump "$CACHY")
+if [[ -n "$FULL" ]]; then
+  mapfile -t cbase < <(install_args "$CACHY" | sed "s|^$FAKE_SRC\$|$FULL|; s|^$W\$|$(dirname "$(dirname "$FULL")")|"); stop=bootloader
+else
+  mapfile -t cbase < <(install_args "$CACHY"); stop=copy
+fi
+rc=0; echo 'pw-test-123' | "$HELPER" "${cbase[@]}" --alongside --esp 1 --fingerprint "$CACHY_FP" --shrink 2 --new-size 12000 --fail-at "$stop" >"$W/out-cachy1.json" 2>>"$W/install.stderr" || rc=$?
+check "aurora-install --alongside --shrink 2 (ext4): shrunk, partitioned, formatted, stopped at $stop (exit 5)" \
+  bash -c '[[ $1 == 5 ]] && grep -q "simulated failure at stage .$3." "$2"' _ "$rc" "$W/out-cachy1.json" "$stop"
+check "the shrink message says it can take from a few minutes to an hour" grep -q 'this can take from a few minutes to an hour, depending on the data' "$W/out-cachy1.json"
+partx -u "$CACHY" >/dev/null 2>&1 || true
+NEW=$(sfdisk --dump "$CACHY"); p2=$(grep "^${CACHY}p2 " <<<"$NEW"); p3=$(grep "^${CACHY}p3 " <<<"$NEW" || true)
+check "CachyOS entry now 12000 MiB (same start / type / UUID / name); « Selene OS » p3 after it" \
+  bash -c '[[ "$(sed "s/size= *[0-9]*/size=X/" <<<"$1")" == "$(sed "s/size= *[0-9]*/size=X/" <<<"$2")" && $1 =~ size=\ +$((12000 * 2048)), && $3 == *"Selene OS"* ]]' _ "$p2" "$(grep "^${CACHY}p2 " <<<"$OLD_DUMP")" "$p3"
+check "CachyOS ESP byte-identical after the stopped installation" [ "$(rawsum "${CACHY}p1")" = "$CACHY_ESP_RAW" ]
+check "CachyOS ext4: e2fsck -f -n clean after the shrink" bash -c 'e2fsck -f -n "$1" >/dev/null 2>&1' _ "${CACHY}p2"
+check "CachyOS ext4 files keep their checksums after the shrink" ext4_files "${CACHY}p2" "$W/cachy-files.sha256"
+check "CachyOS ext4 UUID unchanged by the shrink (os-prober skip list / its own fstab)" [ "$(blkid -p -s UUID -o value "${CACHY}p2")" = "$CACHY_UUID" ]
+
+# 2) The retry: the left « Selene OS » partition is offered again (nothing else changes).
+echo "== CachyOS: retry — the probe offers the Selene OS partition left behind (plan reuse)"
+"$PROBE" --disk "$CACHY" --assume-uefi >"$W/probe-cachy2.json"
+check "probe after the stopped installation: plan « reuse » p3 first; p3 is neither a system nor shrinkable; CachyOS still the chain" \
+  python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1]))["disks"][0]; pl=d["alongside"]["plans"]; p3=[p for p in d["partitions"] if p["number"]==3][0]; n=[s["name"] for s in d["systems"] if not s.get("loader")]; print([x["kind"] for x in pl], n, p3.get("reuse"), p3["shrink"]["possible"]); sys.exit(0 if pl and pl[0]["kind"]=="reuse" and pl[0]["partition"]==3 and p3.get("reuse") and not p3["shrink"]["possible"] and n==["CachyOS"] and d["chain"]["name"]=="CachyOS" else 1)' "$W/probe-cachy2.json"
+check "installer.js: the reuse option first (its exact size), « Installer à côté de CachyOS »" \
+  node -e 'const be=require(process.argv[1]); const sv=be.parseSurvey(require("fs").readFileSync(process.argv[2],"utf8")); const a=be.analyzeDisk(sv.disks[0],sv); const o=a.options[0]; console.log(a.os, a.options.map((x)=>x.method)); process.exit(a.possible && a.os==="CachyOS" && o.method==="reuse" && o.number===3 && o.rootMinMiB===o.sizeMiB ? 0 : 1)' \
+  "$HERE/shell/main/ipc/installer.js" "$W/probe-cachy2.json"
+CACHY_FP=$(fp "$CACHY"); P3_UUID_BEFORE=$(blkid -p -s UUID -o value "${CACHY}p3")
+rc=0; echo 'pw-test-123' | "$HELPER" "${cbase[@]}" --alongside --esp 1 --fingerprint "$CACHY_FP" --reuse-partition 2 >"$W/out-cachy-bad.json" 2>>"$W/install.stderr" || rc=$?
+check "--reuse-partition 2 (CachyOS itself) refused (exit 4), nothing written" [ "$rc:$(fp "$CACHY"):$(blkid -p -s UUID -o value "${CACHY}p2")" = "4:$CACHY_FP:$CACHY_UUID" ]
+rc=0
+if [[ -n "$FULL" ]]; then
+  echo "== CachyOS: complete installation in the reused partition (boot loader on the shared ESP, injected efibootmgr -v)"
+  echo 'pw-test-123' | AURORA_INSTALL_TEST_EFIBOOTMGR_V="$W/efibootmgr-cachy.txt" "$HELPER" "${cbase[@]}" --alongside --esp 1 --fingerprint "$CACHY_FP" --reuse-partition 3 >"$W/out-cachy2.json" 2>>"$W/install.stderr" || rc=$?
+  check "full installation reusing p3: exit 0, done" bash -c '[[ $1 == 0 ]] && grep -q "\"stage\":\"done\"" "$2"' _ "$rc" "$W/out-cachy2.json"
+else
+  echo 'pw-test-123' | "$HELPER" "${cbase[@]}" --alongside --esp 1 --fingerprint "$CACHY_FP" --reuse-partition 3 --fail-at copy >"$W/out-cachy2.json" 2>>"$W/install.stderr" || rc=$?
+  check "aurora-install --reuse-partition 3: formatted again, stopped at copy" bash -c '[[ $1 == 5 ]] && grep -q "Reusing the Selene OS partition of the previous attempt" "$2" && grep -q "simulated failure at stage .copy." "$2"' _ "$rc" "$W/out-cachy2.json"
+fi
+check "reuse: the partition table is not written (same fingerprint), p3 formatted again (ext4 AURORA, new UUID)" \
+  bash -c '[[ $1 == "$2" && $3 == "ext4 AURORA" && -n $4 && $4 != "$5" ]]' _ "$(fp "$CACHY")" "$CACHY_FP" "$(blkid -p -s TYPE -o value "${CACHY}p3") $(blkid -p -s LABEL -o value "${CACHY}p3")" "$(blkid -p -s UUID -o value "${CACHY}p3")" "$P3_UUID_BEFORE"
+check "CachyOS ext4 files intact after the retry" ext4_files "${CACHY}p2" "$W/cachy-files.sha256"
+after=$(esp_files "${CACHY}p1")
+check "CachyOS ESP: every file byte-identical except EFI/ubuntu (Limine, EFI/BOOT, limine.conf, kernels, initramfs)" \
+  bash -c '[[ "$(grep -vi "/efi/ubuntu/" <<<"$1")" == "$2" ]]' _ "$after" "$CACHY_ESP_FILES"
+if [[ -n "$FULL" ]]; then
+  m=$W/cachy-sel; mkdir -p "$m"; MNTS+=("$m"); mount -t ext4 -o ro "${CACHY}p3" "$m"
+  cfg=$m/boot/grub/grub.cfg
+  check "installed: EFI/ubuntu added on the ESP (shimx64.efi, grubx64.efi)" bash -c 'grep -qi "/efi/ubuntu/shimx64.efi" <<<"$1" && grep -qi "/efi/ubuntu/grubx64.efi" <<<"$1"' _ "$after"
+  check "installed: /etc/aurora/boot-chainload.list = one line « $CACHY_ESP_UUID /EFI/limine/BOOTX64.EFI CachyOS »" \
+    [ "$(grep -v '^#' "$m/etc/aurora/boot-chainload.list")" = "$(printf '%s\t%s\t%s' "$CACHY_ESP_UUID" /EFI/limine/BOOTX64.EFI CachyOS)" ]
+  check "installed: /etc/grub.d/25_aurora_chainload executable (update-grub keeps the entry)" test -x "$m/etc/grub.d/25_aurora_chainload"
+  check "grub.cfg: exactly one « CachyOS » entry" [ "$(grep -c "^menuentry 'CachyOS' " "$cfg")" = 1 ]
+  check "grub.cfg: it searches the ESP by UUID and chainloads /EFI/limine/BOOTX64.EFI" \
+    python3 -I -c 'import re,sys; t=open(sys.argv[1]).read(); m=re.search(r"^menuentry .CachyOS. [^{]*\{\n(.*?)\n\}", t, re.S|re.M); b=m.group(1) if m else ""; print(b); sys.exit(0 if ("search --no-floppy --fs-uuid --set=root "+sys.argv[2]) in b and re.search(r"^\s*chainloader /EFI/limine/BOOTX64\.EFI$", b, re.M) and "linux" not in b else 1)' "$cfg" "$CACHY_ESP_UUID"
+  check "grub.cfg: Selene OS first, then CachyOS; 5 s menu" \
+    python3 -I -c 'import re,sys; t=re.findall(r"^menuentry .([^\x27]*).", open(sys.argv[1]).read(), re.M); print(t); sys.exit(0 if t[:2]==["Selene OS GNU/Linux","CachyOS"] and re.search(r"^GRUB_TIMEOUT=5$", open(sys.argv[2]).read(), re.M) else 1)' "$cfg" "$m/etc/default/grub.d/50-aurora.cfg"
+  check "grub.cfg: no os-prober Linux entry (osprober-gnulinux), nothing booting vmlinuz-linux-cachyos directly" bash -c '! grep -q "osprober-gnulinux\|vmlinuz-linux-cachyos" "$1"' _ "$cfg"
+  skip=$( . "$m/etc/default/grub.d/51-aurora-chainload.cfg"; printf '%s' "$GRUB_OS_PROBER_SKIP_LIST")
+  check "installed: GRUB_OS_PROBER_SKIP_LIST = the CachyOS partition's UUID and UUID@device (the key 30_os-prober compares)" [ "$skip" = "$CACHY_UUID $CACHY_UUID@${CACHY}p2" ]
+  # GRUB's own 30_os-prober (from the installed system) with a fake os-prober that finds CachyOS and a fake
+  # linux-boot-prober that returns its kernel on the ESP: an entry without the skip list, none with it.
+  fb=$W/fake-prober; mkdir -p "$fb"
+  printf '#!/bin/sh\necho "%s:CachyOS:CachyOS:linux"\n' "${CACHY}p2" >"$fb/os-prober"
+  printf '#!/bin/sh\necho "%s:%s:CachyOS:/vmlinuz-linux-cachyos:/initramfs-linux-cachyos.img:root=UUID=%s rw"\n' "${CACHY}p2" "${CACHY}p1" "$CACHY_UUID" >"$fb/linux-boot-prober"
+  chmod +x "$fb/os-prober" "$fb/linux-boot-prober"
+  osp() { env -i PATH="$fb:/usr/sbin:/usr/bin:/sbin:/bin" pkgdatadir=/usr/share/grub grub_probe=/usr/sbin/grub-probe GRUB_DISABLE_OS_PROBER=false "$@" sh "$m/etc/grub.d/30_os-prober" 2>"$W/osp.err"; }
+  check "30_os-prober without the skip list: an os-prober entry for CachyOS (the test is meaningful)" bash -c 'grep -q "osprober-gnulinux" <<<"$1"' _ "$(osp || true)"
+  out=$(osp GRUB_OS_PROBER_SKIP_LIST="$skip" || true)
+  check "30_os-prober with the installed skip list: « Skipped CachyOS … by user request », no entry" bash -c '! grep -q "menuentry" <<<"$1" && grep -q "Skipped CachyOS on .* by user request" "$2"' _ "$out" "$W/osp.err"
+  check "installed: grub-install wrapper (the ESP has EFI/BOOT)" test -x "$m/usr/local/sbin/grub-install"
+  check "the install log names the chainload entry and the skip" bash -c 'grep -q "boot menu: « CachyOS » starts its own boot loader /EFI/limine/BOOTX64.EFI" "$1" && grep -q "os-prober skips partition 2" "$1"' _ "$W/install.log"
+  umount "$m"
+else
+  # The completion marker, as a finished installation writes it (debugfs on our loop partition only).
+  ours "${CACHY}p3"; printf 'AURORA_INSTALL_COMPLETE=2026-10-13T00:00:00Z\n' >"$W/install-info"
+  debugfs -w -R "mkdir etc" "${CACHY}p3" >/dev/null 2>&1; debugfs -w -R "mkdir etc/aurora" "${CACHY}p3" >/dev/null 2>&1
+  debugfs -w -R "write $W/install-info etc/aurora/install-info" "${CACHY}p3" >/dev/null 2>&1
+fi
+# 3) A finished installation is never offered again.
+"$PROBE" --disk "$CACHY" --assume-uefi >"$W/probe-cachy3.json"
+check "probe after a finished installation: no plan « reuse », p3 marked as an installed Selene OS" \
+  python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1]))["disks"][0]; p3=[p for p in d["partitions"] if p["number"]==3][0]; print(d["alongside"]["reason"], [x["kind"] for x in d["alongside"]["plans"]]); sys.exit(0 if not any(x["kind"]=="reuse" for x in d["alongside"]["plans"]) and p3.get("seleneInstalled") and not p3.get("reuse") else 1)' "$W/probe-cachy3.json"
+CACHY_FP=$(fp "$CACHY"); P3_UUID=$(blkid -p -s UUID -o value "${CACHY}p3")
+rc=0; echo 'pw-test-123' | "$HELPER" "${cbase[@]}" --alongside --esp 1 --fingerprint "$CACHY_FP" --reuse-partition 3 --fail-at copy >"$W/out-cachy3.json" 2>>"$W/install.stderr" || rc=$?
+check "--reuse-partition 3 on a finished installation: refused (exit 4), nothing written" [ "$rc:$(fp "$CACHY"):$(blkid -p -s UUID -o value "${CACHY}p3")" = "4:$CACHY_FP:$P3_UUID" ]
 
 echo
 echo "test-alongside: $PASS passed, $FAILS failed (log: $W/install.log)"

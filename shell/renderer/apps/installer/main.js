@@ -70,9 +70,13 @@ export function rootBoundsGiB(opt) {
  * request for installer:start (main/ipc/installer.js alongsideArgs). Sizes in MiB.
  *   free:   { method, rootGiB, rootMiB, freeLeftMiB, request: { method, fingerprint, esp, start, end } }
  *   shrink: { method, rootGiB, rootMiB, oldMiB, newMiB, usedMiB, request: { method, fingerprint, esp, part, newSize, rootSize } }
+ *   reuse:  { method, rootGiB, rootMiB, request: { method, fingerprint, esp, part } }   (the partition of a previous attempt: its size)
  */
 export function alongsidePlan(analysis, opt, rootGiB) {
   if (!analysis?.possible || !opt || !analysis.esp) return null;
+  if (opt.method === 'reuse') {
+    return { method: 'reuse', rootGiB: Math.floor(opt.sizeMiB / 1024), rootMiB: opt.sizeMiB, request: { method: 'reuse', fingerprint: analysis.fingerprint, esp: analysis.esp.number, part: opt.number } };
+  }
   const b = rootBoundsGiB(opt);
   if (b.max < b.min) return null;
   const g = Math.max(b.min, Math.min(b.max, Math.round(Number(rootGiB) || b.def)));
@@ -747,8 +751,12 @@ export default {
                   h(
                     'span',
                     { class: 'ins-mode-text' },
-                    h('span', { class: 'ins-mode-title' }, o.method === 'free' ? t('space.useFree') : t('space.shrink', { name: partName(o) })),
-                    h('span', { class: 'ins-mode-desc' }, o.method === 'free' ? t('space.useFreeDesc', { size: g(o.sizeMiB) }) : t('space.shrinkDesc', { size: g(o.sizeMiB), used: g(o.usedMiB) })),
+                    h('span', { class: 'ins-mode-title' }, o.method === 'reuse' ? t('space.reuse') : o.method === 'free' ? t('space.useFree') : t('space.shrink', { name: partName(o) })),
+                    h(
+                      'span',
+                      { class: 'ins-mode-desc' },
+                      o.method === 'reuse' ? t('space.reuseDesc', { size: g(o.sizeMiB), part: o.part.replace(/^\/dev\//, '') }) : o.method === 'free' ? t('space.useFreeDesc', { size: g(o.sizeMiB) }) : t('space.shrinkDesc', { size: g(o.sizeMiB), used: g(o.usedMiB) }),
+                    ),
                   ),
                 ),
               ),
@@ -757,6 +765,22 @@ export default {
       // The split: the other system (or the free space left) and Selene, to scale.
       const bar = h('div', { class: 'ins-split', 'aria-hidden': 'true' });
       const legend = h('div', { class: 'ins-split-legend' });
+      if (opt.method === 'reuse') {
+        // The partition of the previous attempt: its size is fixed, nothing else on the disk changes.
+        const plan = alongsidePlan(a, opt);
+        S.rootGiB = plan.rootGiB;
+        bar.replaceChildren(h('span', { class: 'ins-split-part selene', style: { flexGrow: '1' } }));
+        legend.replaceChildren(h('span', { class: 'ins-legend selene', dataset: { k: 'selene' } }, h('span', { class: 'ins-dot selene' }), h('span', { class: 'ins-legend-name' }, 'Selene OS'), h('strong', { class: 'ins-legend-size' }, g(plan.rootMiB))));
+        content.replaceChildren(
+          ...[
+            methods,
+            h('div', { class: 'ins-space card' }, bar, legend),
+            h('div', { class: 'ins-space-note' }, h('div', { class: 'ins-space-line', dataset: { k: 'reuse' } }, icon('info', { size: 16 }), h('span', null, t('space.reuseNote', { size: g(plan.rootMiB), os })))),
+          ].filter(Boolean),
+        );
+        refreshNext();
+        return;
+      }
       const note = h('div', { class: 'ins-space-note', 'aria-live': 'polite' });
       const range = h('input', { type: 'range', class: 'slider ins-range', min: b.min, max: b.max, step: 1, value: S.rootGiB ?? b.def, 'aria-label': t('space.sizeLabel') });
       const num = h('input', { type: 'number', class: 'input ins-num', min: b.min, max: b.max, step: 1, value: S.rootGiB ?? b.def, 'aria-label': `${t('space.sizeLabel')} (${t('space.unit')})` });
@@ -785,6 +809,7 @@ export default {
                 ? h('div', { class: 'ins-space-line', dataset: { k: 'freeLeft' } }, icon('info', { size: 16 }), h('span', null, t('space.freeLeft', { size: g(plan.freeLeftMiB) })))
                 : null,
             plan.rootMiB < a.rootSuggestedMiB - 512 ? h('div', { class: 'ins-space-line warn', dataset: { k: 'small' } }, icon('warning', { size: 16 }), h('span', null, t('space.small', { suggested: g(a.rootSuggestedMiB) }))) : null,
+            opt.method === 'shrink' && opt.fstype === 'ext4' ? h('div', { class: 'ins-space-line', dataset: { k: 'slow' } }, icon('clock', { size: 16 }), h('span', null, t('space.slowExt4'))) : null,
           ].filter(Boolean),
         );
         refreshNext();
@@ -1161,12 +1186,17 @@ export default {
     /** The exact changes of a dual boot, as sentences (summary, confirmation). */
     function changesFor(plan, opt, a) {
       const g = (x) => fmtGiB(x, S.lang);
+      if (plan.method === 'reuse') {
+        return [t('summary.changeReuse', { size: g(plan.rootMiB) }), t('summary.changeEsp'), t('summary.changeKeep', { os: osName(a) }), t('summary.changeBoot', { os: a?.menuName || osName(a) })];
+      }
       return [
         plan.method === 'shrink' ? t('summary.changeShrink', { name: partName(opt), from: g(plan.oldMiB), to: g(plan.newMiB) }) : t('summary.changeFree', { size: g(plan.rootMiB) }),
+        plan.method === 'shrink' && opt?.fstype === 'ext4' ? t('summary.changeSlow') : null,
         t('summary.changeNew', { size: g(plan.rootMiB) }),
         t('summary.changeEsp'),
         t('summary.changeKeep', { os: osName(a) }),
-      ];
+        t('summary.changeBoot', { os: a?.menuName || osName(a) }),
+      ].filter(Boolean);
     }
 
     function pageSummary() {

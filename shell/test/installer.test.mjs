@@ -376,7 +376,7 @@ async function waitFor(fn, { timeout = 10000, step = 100 } = {}) {
     const sv = fx(n);
     return be.analyzeDisk({ ...sv.disks.find((d) => d.path === dev), ...(patch || {}) }, sv);
   };
-  for (const n of ['default', 'bitlocker', 'hibernated', 'bios', 'refusals']) {
+  for (const n of ['default', 'bitlocker', 'hibernated', 'bios', 'refusals', 'retry']) {
     const sv = fx(n);
     check(`dual boot fixture ${n}: the probe's survey shape`, sv?.version === 1 && ['uefi', 'bios'].includes(sv.firmware) && sv.minSeleneMiB === 20480 && sv.disks.every((d) => d.path && d.alongside && Array.isArray(d.partitions) && Array.isArray(d.free)));
   }
@@ -429,6 +429,18 @@ async function waitFor(fn, { timeout = 10000, step = 100 } = {}) {
     'buildArgs rejects a malformed plan (fingerprint, ESP, partition, size, method, free span < 20 GiB)',
     rejectsA({ fingerprint: 'abc' }, 'alongside.fingerprint') && rejectsA({ fingerprint: `${win.fingerprint}\n--x` }, 'alongside.fingerprint') && rejectsA({ esp: 0 }, 'alongside.esp') && rejectsA({ esp: '1' }, 'alongside.esp') && rejectsA({ part: 1 }, 'alongside.part') && rejectsA({ part: 129 }, 'alongside.part') && rejectsA({ newSize: 12.5 }, 'alongside.newSize') && rejectsA({ newSize: '1;reboot' }, 'alongside.newSize') && rejectsA({ method: 'resize' }, 'alongside.method') && rejectsA({ method: 'free', start: 100, end: 200 }, 'alongside.free'),
   );
+  // After an installation that stopped (the user's PC: CachyOS ext4 + Limine on a 4 GiB ESP): the « Selene OS » partition
+  // it left behind is offered first (reuse: formatted again, nothing else changes); the menu name is the probe's chain.
+  const rt = an('retry', '/dev/nvme0n1');
+  const ro = rt.options[0];
+  check('retry: reuse offered first (partition 3, its exact size), then shrinking CachyOS; one system « CachyOS »; menu « CachyOS »', rt.possible && ro.method === 'reuse' && ro.number === 3 && ro.rootMinMiB === ro.sizeMiB && ro.rootMaxMiB === ro.sizeMiB && rt.options[1]?.method === 'shrink' && rt.options[1].fstype === 'ext4' && rt.systems.length === 1 && rt.os === 'CachyOS' && rt.menuName === 'CachyOS', rt);
+  const rplan = ui.alongsidePlan(rt, ro, 999);
+  check('alongsidePlan reuse: the partition as it is, request { method: reuse, part 3, ESP 1 }', rplan?.method === 'reuse' && rplan.rootMiB === ro.sizeMiB && rplan.request.part === 3 && rplan.request.esp === 1 && rplan.request.fingerprint === rt.fingerprint && rplan.request.newSize === undefined, rplan);
+  const rav = be.buildArgs({ ...okA, alongside: rplan.request });
+  check('buildArgs reuse: --alongside --fingerprint H --esp 1 --reuse-partition 3 (no --shrink / --free-space)', rav.join(' ').includes(`--alongside --fingerprint ${rt.fingerprint} --esp 1 --reuse-partition 3`) && !rav.includes('--shrink') && !rav.includes('--free-space'), rav.join(' '));
+  check('buildArgs reuse: the ESP, partition 0 or 129, a string are refused', rejectsA({ method: 'reuse', part: 1 }, 'alongside.part') && rejectsA({ method: 'reuse', part: 0 }, 'alongside.part') && rejectsA({ method: 'reuse', part: 129 }, 'alongside.part') && rejectsA({ method: 'reuse', part: '3' }, 'alongside.part'));
+  check('checkPlan reuse: the offered partition passes, another one is refused (EPLAN)', be.checkPlan(rplan.request, rt) === ro && (() => { try { be.checkPlan({ ...rplan.request, part: 2 }, rt); return false; } catch (e) { return e.code === 'EPLAN'; } })());
+  check('menuName: Windows -> its name (os-prober lists it), Arch Linux without a chain -> its name', win.menuName === 'Windows 11' && arch.menuName === 'Arch Linux');
   check('buildArgs rejects an unknown mode', (() => { try { be.buildArgs({ ...okA, mode: 'wipe' }); return false; } catch (e) { return e.field === 'mode'; } })());
   const planErr = (a, analysis = win) => {
     try {
@@ -1071,8 +1083,8 @@ async function uiTests() {
     check('summary: step 8 of 8', (await text(page, '.ins-kicker')) === 'Étape 8 sur 8');
     const items = await page.evaluate(() => [...document.querySelectorAll('.app-installer .ins-changes-list li')].map((li) => li.textContent));
     check(
-      'summary: the exact changes (C: 476 -> 400 Go, new 76 Go partition, EFI kept, nothing else)',
-      JSON.stringify(items) === JSON.stringify(['La partition Windows (C:) passe de 476 Go à 400 Go.', 'Une nouvelle partition de 76 Go est créée pour Selene OS.', 'La partition de démarrage EFI est conservée ; Selene OS y ajoute son propre dossier.', "Rien d'autre n'est modifié : Windows 11 et vos fichiers restent en place."]),
+      'summary: the exact changes (C: 476 -> 400 Go, new 76 Go partition, EFI kept, nothing else, starts on Selene with a 5 s menu for « Windows 11 »)',
+      JSON.stringify(items) === JSON.stringify(['La partition Windows (C:) passe de 476 Go à 400 Go.', 'Une nouvelle partition de 76 Go est créée pour Selene OS.', 'La partition de démarrage EFI est conservée ; Selene OS y ajoute son propre dossier.', "Rien d'autre n'est modifié : Windows 11 et vos fichiers restent en place.", 'Le PC démarrera sur Selene OS, avec un menu de 5 secondes pour choisir «\u00a0Windows 11\u00a0».']),
       items,
     );
     check('summary: « Ce qui va changer sur Samsung SSD 980 PRO 512GB »', (await text(page, '.ins-changes-title')) === 'Ce qui va changer sur Samsung SSD 980 PRO 512GB');
@@ -1125,7 +1137,9 @@ async function uiTests() {
     await s.shot('installer-dualboot-space-fr-dark');
     await page.click('.app-installer .ins-method[data-method="shrink"]');
     check('Arch: shrinking ext4 instead -> its own bounds, Next still enabled', (await page.getAttribute('.app-installer .ins-method[data-method="shrink"]', 'aria-checked')) === 'true' && (await text(page, '.ins-space-line[data-k="keeps"]'))?.startsWith('Arch Linux passe de') && (await nextDisabled(page)) === false);
+    check('Arch: shrinking ext4 -> « de quelques minutes à une heure, selon la quantité de données »', (await text(page, '.ins-space-line[data-k="slow"]')) === 'Réduire une partition ext4 peut prendre de quelques minutes à une heure, selon la quantité de données. Laissez le PC branché.', await text(page, '.ins-space-line[data-k="slow"]'));
     await page.click('.app-installer .ins-method[data-method="free"]');
+    check('Arch: the free space has no « slow » note', (await page.locator('.app-installer .ins-space-line[data-k="slow"]').count()) === 0);
     await setSize(page, 120);
     await clickNext(page);
     check('Arch: summary reached', await accountToSummaryFr(page));
@@ -1170,6 +1184,33 @@ async function uiTests() {
     check('Btrfs (Fedora): « Selene OS ne sait pas réduire une partition Btrfs » + make room from Fedora Linux 40', wbt.reason === 'fsUnsupported' && wbt.title === 'Selene OS ne sait pas réduire une partition Btrfs' && wbt.body.includes('depuis Fedora Linux 40') && (await modeText(page, 'alongside'))?.startsWith('Installer à côté de Fedora Linux 40'), wbt);
     await page.evaluate(() => document.querySelector('.app-installer .ins-why')?.scrollIntoView({ block: 'end' }));
     await s.shot('installer-dualboot-btrfs-fr-dark');
+    // After an installation that stopped (the user's PC: CachyOS + Limine): the previous attempt's partition first.
+    await fixture('retry');
+    await page.click('.app-installer .ins-row[data-id="/dev/nvme0n1"]');
+    check('retry: « Installer à côté de CachyOS »', (await modeText(page, 'alongside'))?.startsWith('Installer à côté de CachyOS'), await modeText(page, 'alongside'));
+    await page.click('.app-installer .ins-mode[data-mode="alongside"]');
+    await clickNext(page);
+    check('retry: two ways, « Reprendre l\'espace de l\'essai précédent » first and selected, no slider', (await page.locator('.app-installer .ins-method').count()) === 2 && (await page.getAttribute('.app-installer .ins-method[data-method="reuse"]', 'aria-checked')) === 'true' && (await text(page, '.ins-method[data-method="reuse"]'))?.includes("Reprendre l'espace de l'essai précédent") && (await page.locator('.app-installer .ins-range').count()) === 0);
+    check('retry: « Selene OS réutilise la partition de 82 Go créée lors de l\'essai précédent. Rien d\'autre ne change : CachyOS … »', (await text(page, '.ins-space-line[data-k="reuse"]')) === "Selene OS réutilise la partition de 82 Go créée lors de l'essai précédent. Rien d'autre ne change : CachyOS et vos fichiers restent en place." && (await text(page, '.ins-legend.selene .ins-legend-size')) === '82 Go', await text(page, '.ins-space-line[data-k="reuse"]'));
+    await s.shot('installer-dualboot-retry-space-fr-dark');
+    await page.click('.app-installer .ins-method[data-method="shrink"]');
+    check('retry: shrinking CachyOS (ext4) instead -> slider + « de quelques minutes à une heure »', (await page.locator('.app-installer .ins-range').count()) === 1 && (await text(page, '.ins-space-line[data-k="slow"]'))?.includes('de quelques minutes à une heure'));
+    await clickNext(page);
+    check('retry (shrink): summary reached', await accountToSummaryFr(page));
+    const rItems = await page.evaluate(() => [...document.querySelectorAll('.app-installer .ins-changes-list li')].map((li) => li.textContent));
+    check('retry (shrink ext4): the summary says it can take up to an hour and names « CachyOS » in the 5 s menu', rItems[0]?.startsWith('La partition CachyOS (nvme0n1p2) passe de') && rItems[1] === 'Cette réduction peut prendre de quelques minutes à une heure, selon la quantité de données.' && rItems.at(-1) === 'Le PC démarrera sur Selene OS, avec un menu de 5 secondes pour choisir «\u00a0CachyOS\u00a0».', rItems);
+    await page.click('.app-installer .ins-step:nth-child(4) .ins-step-btn');
+    check('retry: back on « Espace » from the stepper', await stepIs(page, 'space'));
+    await page.click('.app-installer .ins-method[data-method="reuse"]');
+    await clickNext(page);
+    check('retry (reuse): summary reached', await accountToSummaryFr(page));
+    const uItems = await page.evaluate(() => [...document.querySelectorAll('.app-installer .ins-changes-list li')].map((li) => li.textContent));
+    check(
+      'retry (reuse): the exact changes (partition reused, EFI kept, nothing else, 5 s menu « CachyOS »), the gentler backup note',
+      JSON.stringify(uItems) === JSON.stringify(["La partition de 82 Go créée lors de l'essai précédent est réutilisée pour Selene OS (elle est formatée).", 'La partition de démarrage EFI est conservée ; Selene OS y ajoute son propre dossier.', "Rien d'autre n'est modifié : CachyOS et vos fichiers restent en place.", 'Le PC démarrera sur Selene OS, avec un menu de 5 secondes pour choisir «\u00a0CachyOS\u00a0».']) && (await text(page, '.ins-backup'))?.includes("c'est toujours plus prudent"),
+      uItems,
+    );
+    await s.shot('installer-dualboot-retry-summary-fr-dark');
     check('dual boot pages: no untranslated keys or {placeholders}', [...raw1, ...(await leafKeys(page))].length === 0, [...raw1, ...(await leafKeys(page))]);
     check('dual boot (dark): no page errors', !s.logs.some((l) => /pageerror/.test(l)), s.logs.filter((l) => /pageerror/.test(l)));
     await s.close();
