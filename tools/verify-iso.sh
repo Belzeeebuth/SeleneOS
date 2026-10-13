@@ -353,6 +353,23 @@ tr -d '\n' <<<"$btconf" | grep -Eq '<policy context="default">[[:space:]]*<allow
   && pass "bluez D-Bus policy: any local user may talk to org.bluez" || fail "bluez D-Bus policy does not allow the session user"
 grep -qs 'KERNEL=="rfkill".*uaccess' "$S/usr/lib/udev/rules.d/70-uaccess.rules" && pass "/dev/rfkill is uaccess (session user can unblock Bluetooth)" || warn "/dev/rfkill is not tagged uaccess"
 
+# Links and files from Linux / Flatpak apps open in Selene (rootfs: aurora-open, NoDisplay aurora-*.desktop handlers,
+# /etc/xdg/mimeapps.list) + local spell-check dictionaries (Chromium .bdic, tools/fetch-dictionaries.sh).
+[[ -x "$S/usr/bin/aurora-open" ]] && head -1 "$S/usr/bin/aurora-open" | grep -q python3 && pass "aurora-open is executable" || fail "aurora-open missing or not executable"
+for a in browser mail files notepad photos media pdf archive; do
+  d="$S/usr/share/applications/aurora-$a.desktop"
+  grep -qx "Exec=aurora-open $a %U" "$d" 2>/dev/null && grep -qx 'NoDisplay=true' "$d" && pass "aurora-$a.desktop hands requests to aurora-open" || fail "aurora-$a.desktop missing or wrong"
+done
+for m in x-scheme-handler/http=aurora-browser x-scheme-handler/https=aurora-browser x-scheme-handler/mailto=aurora-mail inode/directory=aurora-files application/pdf=aurora-pdf; do
+  grep -qx "$m.desktop" "$S/etc/xdg/mimeapps.list" 2>/dev/null && pass "mimeapps default $m" || fail "mimeapps default $m missing"
+done
+for f in fr-FR-3-0.bdic en-US-10-1.bdic; do
+  [[ "$(head -c 4 "$S/usr/share/aurora/dictionaries/$f" 2>/dev/null)" == BDic ]] && pass "spell-check dictionary $f" || fail "spell-check dictionary $f missing"
+done
+for p in xdg-utils xdg-desktop-portal; do
+  grep -A1 -x "Package: $p" "$S/var/lib/dpkg/status" | grep -q '^Status: install ok installed' && pass "package $p installed" || fail "package $p missing"
+done
+
 # Firmware updates (iso/packages.d/firmware-updates.list): fwupd + its D-Bus activation for the session, the daily
 # metadata refresh timer (iso/build.sh configure_services), the signed UEFI capsule loader, aurora-admin firmware-update.
 for p in fwupd fwupd-signed; do
@@ -421,6 +438,7 @@ done
 grep -qx '/etc/sudoers.d/aurora' "$S/var/lib/dpkg/info/aurora-base.conffiles" 2>/dev/null && pass "aurora-base: /etc files are conffiles" || fail "aurora-base: /etc/sudoers.d/aurora is not a conffile"
 for f in /etc/greetd/config.toml /etc/systemd/zram-generator.conf; do
   [[ "$(dpkg-divert --admindir "$S/var/lib/dpkg" --listpackage "$f" 2>/dev/null)" == aurora-base ]] && pass "$f diverted by aurora-base (Ubuntu's kept as $f.ubuntu)" || fail "$f is not diverted by aurora-base"
+  [[ "$(readlink "$S$f")" == "$(basename "$f").selene" ]] && pass "$f -> $(basename "$f").selene (aurora-base)" || fail "$f is not the aurora-base symlink to $(basename "$f").selene"
 done
 [[ -n "$(dpkg-divert --admindir "$S/var/lib/dpkg" --listpackage /usr/lib/os-release 2>/dev/null)" ]] && pass "/usr/lib/os-release is diverted (base-files upgrades keep the Selene one)" || fail "/usr/lib/os-release is not diverted"
 src="$S/etc/apt/sources.list.d/selene.sources"
@@ -428,7 +446,7 @@ if [[ -f "$src" ]] && grep -qx 'Signed-By: /usr/share/keyrings/selene-archive-ke
   pass "Selene apt source: $(sed -n 's/^URIs: //p' "$src") (Signed-By the Selene keyring)"
 else fail "Selene apt source missing or not signed-by the Selene keyring"; fi
 if command -v gpg >/dev/null 2>&1 && [[ -s "$S/usr/share/keyrings/selene-archive-keyring.gpg" ]]; then
-  mkdir -p -m 0700 "$T/gnupg"
+  mkdir -m 0700 "$T/gnupg"
   GNUPGHOME="$T/gnupg" gpg --batch --no-default-keyring --keyring "$S/usr/share/keyrings/selene-archive-keyring.gpg" --with-colons --list-keys 2>/dev/null | grep -q '^pub' \
     && pass "Selene archive keyring holds a public key" || fail "Selene archive keyring is not a valid keyring"
 fi

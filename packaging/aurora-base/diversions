@@ -1,6 +1,8 @@
 # Ubuntu-owned files that aurora-base replaces (one absolute path per line).
-# aurora-base's preinst diverts each one to <file>.ubuntu (dpkg-divert --rename), its postrm restores them.
-# dpkg refuses to install aurora-base when a rootfs/ file belongs to another package and is not listed here
-# (iso/build.sh then names the file).
+# The Selene version ships as <file>.selene (a conffile of aurora-base); preinst diverts Ubuntu's file to
+# <file>.ubuntu (dpkg-divert --rename: the Ubuntu package's updates land there), postinst points <file> at
+# <file>.selene with a symlink, postrm gives Ubuntu's file back (config-package-dev's "displace" scheme: a conffile
+# itself is never diverted). dpkg refuses to install aurora-base when a rootfs/ file belongs to another package
+# and is not listed here (iso/build.sh then names the file).
 /etc/greetd/config.toml
 /etc/systemd/zram-generator.conf

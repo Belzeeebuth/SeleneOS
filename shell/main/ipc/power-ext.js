@@ -33,6 +33,8 @@ function batteryFrom(supplies) {
       continue;
     }
     if (f.type !== 'Battery' || (f.scope && f.scope.toLowerCase() === 'device') || f.present === '0') continue;
+    // No level at all (broken firmware / driver): ignored, never read as 0 % (that would start the 3 % countdown).
+    if (num(f.capacity) == null && num(f.energy_now) == null && num(f.charge_now) == null) continue;
     bats.push(f);
   }
   if (!bats.length) return null;

@@ -1,8 +1,9 @@
 /* Safe mode banner (features/robust.js): a calm glass card at the top centre, above the windows, hidden by the lock
    screen. Tokens only. */
 .safe-banner {
+  /* bottom centre, above the bar: notifications use the top-right corner */
   position: fixed;
-  top: 12px;
+  bottom: calc(var(--taskbar-h, 48px) + 28px);
   left: 50%;
   transform: translateX(-50%);
   width: min(760px, calc(100vw - 32px));

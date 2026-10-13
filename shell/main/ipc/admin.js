@@ -369,9 +369,9 @@ async function devRun(action, args, secret, onLine) {
       // Selene self-updates (selene-update.js, docs/UPDATES.md): AURORA_DEV_SELENE_UPDATE=1 adds Selene's packages.
       if (process.env.AURORA_DEV_SELENE_UPDATE === '1' && !dev.upgradable.some((p) => p[0] === 'aurora-shell')) {
         dev.upgradable.push(
-          ['aurora-base', '', '1.0.0-324', '1.0.1-331', 'Selene OS:noble [amd64]'],
-          ['aurora-electron', '', '44.7.0-1', '44.7.1-1', 'Selene OS:noble [amd64]'],
-          ['aurora-shell', '', '1.0.0-324', '1.0.1-331', 'Selene OS:noble [amd64]'],
+          ['aurora-base', '', '1.0.0-324', '1.0.1-331', 'Selene OS:1.0.1/noble [amd64]'],
+          ['aurora-electron', '', '44.7.0-1', '44.7.1-1', 'Selene OS:1.0.1/noble [amd64]'],
+          ['aurora-shell', '', '1.0.0-324', '1.0.1-331', 'Selene OS:1.0.1/noble [amd64]'],
         );
       }
       dev.aptListsFetched = true; // package lists downloaded (drivers.js: ubuntu-drivers now lists the NVIDIA drivers)

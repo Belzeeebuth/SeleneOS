@@ -213,7 +213,19 @@ function register(api) {
 
   // Session start: the saved touchpad preferences (tap-to-click on by default).
   if (api.env?.mode === 'shell' && (!DEV || env.AURORA_XINPUT)) {
-    setTimeout(() => applyTouchpad(saved()).catch(() => {}), DEV ? 300 : 3000).unref?.();
+    // Never locks the person out: a touchpad turned off stays on at sign-in when it is the only pointer (no mouse).
+    const atStart = async () => {
+      const s = saved();
+      if (s.enabled === false) {
+        const x = bin('xinput', 'AURORA_XINPUT');
+        const r = x ? await run(x, ['list'], { timeout: 4000 }).catch(() => null) : null;
+        const tpIds = new Set((await touchpads()).map((d) => d.id));
+        const others = r?.code === 0 ? parsePointers(r.stdout).filter((d) => !tpIds.has(d.id)) : [];
+        if (!others.length) s.enabled = true;
+      }
+      return applyTouchpad(s);
+    };
+    setTimeout(() => atStart().catch(() => {}), DEV ? 300 : 3000).unref?.();
   }
 }
 

@@ -353,6 +353,16 @@
     "doneReboot": "Restart your computer to finish. Keep it plugged in.",
     "failed": "The firmware of {name} could not be updated: {msg}",
     "offline": "No network connection: the list of firmware updates could not be downloaded."
+   },
+   "selene": {
+    "name": "Selene {version}",
+    "nameElectron": "Selene — Electron {version}",
+    "desc": "Desktop, apps and system tools",
+    "descElectron": "Engine of the desktop and apps",
+    "restartTitle": "Selene has been updated",
+    "restartDesc": "Restart your session to use the new version. Save your work first: your open apps will close.",
+    "restart": "Restart the session",
+    "version": "Selene packages"
    }
   },
   "a11y": {
@@ -626,6 +636,7 @@
   "diag": {
    "title": "Diagnostics",
    "create": "Create a diagnostic report",
+   "button": "Create report",
    "notice": "A .tar.gz file in your home folder with Selene's session log, versions, your settings without passwords, and the list of USB and PCI devices. Nothing is sent: you choose who gets it.",
    "done": "Report saved: {name}",
    "show": "Show in Files",
@@ -1842,6 +1853,16 @@
     "doneReboot": "Redémarrez votre ordinateur pour terminer. Laissez-le branché.",
     "failed": "Impossible de mettre à jour le microprogramme de {name} : {msg}",
     "offline": "Pas de connexion réseau : la liste des mises à jour de microprogrammes n'a pas pu être téléchargée."
+   },
+   "selene": {
+    "name": "Selene {version}",
+    "nameElectron": "Selene — Electron {version}",
+    "desc": "Bureau, applications et outils système",
+    "descElectron": "Moteur du bureau et des applications",
+    "restartTitle": "Selene a été mise à jour",
+    "restartDesc": "Redémarrez votre session pour utiliser la nouvelle version. Enregistrez d'abord votre travail : vos applications ouvertes seront fermées.",
+    "restart": "Redémarrer la session",
+    "version": "Paquets Selene"
    }
   },
   "a11y": {
@@ -2115,6 +2136,7 @@
   "diag": {
    "title": "Diagnostic",
    "create": "Créer un rapport de diagnostic",
+   "button": "Créer le rapport",
    "notice": "Un fichier .tar.gz dans votre dossier personnel, avec le journal de votre session Selene, les versions, vos réglages sans mots de passe et la liste des appareils USB et PCI. Rien n’est envoyé : vous choisissez à qui le donner.",
    "done": "Rapport enregistré : {name}",
    "show": "Afficher dans Fichiers",

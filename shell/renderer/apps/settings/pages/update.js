@@ -4,6 +4,7 @@
 // itself through the UAC prompt (aurora-admin firmware-update <40 hex device id>); keep-plugged-in warning, restart
 // offered when fwupd says one is needed; the section is hidden when fwupd sees no updatable device.
 import { parseAptSimulation, parseAptStatus, parseAptHistory } from '../lib/parse.js';
+import { groupSelene } from '../lib/selene-updates.js';
 
 // Survives page changes while the Settings window is open (an install keeps running in the background).
 const state = { phase: null, packages: null, progress: null, step: '', error: null, reboot: false, lastCheck: null, loaded: false };
@@ -21,6 +22,31 @@ async function loadSaved(pc) {
   }
 }
 const persist = (pc) => pc.storage.set('update-state', { lastCheck: state.lastCheck, packages: state.packages, reboot: state.reboot }).catch(() => {});
+
+// ---- BEGIN Selene self-updates (docs/UPDATES.md, main/ipc/selene-update.js) ----
+// Selene's packages are listed as one « Selene x.y.z » entry; after a new aurora-shell (or Electron) is installed the
+// page offers « Redémarrer la session » (sign out and back in: the running shell is the old version until then).
+const selene = { status: null };
+async function seleneLoad(pc) {
+  selene.status = (await pc.tryInvoke('selene:status')) || null;
+  emit();
+}
+function seleneRow(pc, s) {
+  const { h, t } = pc;
+  return h(
+    'div',
+    { class: 'st-pkg st-pkg-selene' },
+    h('div', { class: 'row', style: { gap: '8px' } }, h('span', { class: 'body-strong' }, s.electron ? t('update.selene.nameElectron', { version: s.version }) : t('update.selene.name', { version: s.version })), s.security ? h('span', { class: 'st-pill accent' }, t('update.security')) : null),
+    h('span', { class: 'caption text-2' }, s.electron ? t('update.selene.descElectron') : t('update.selene.desc')),
+    h('span', { class: 'caption text-2' }, s.from ? t('update.fromTo', { from: s.from }) : t('update.newPackage')),
+  );
+}
+function seleneRestart(pc) {
+  if (!selene.status?.restartNeeded) return null;
+  const { t, kit } = pc;
+  return kit.infobar({ kind: 'info', title: t('update.selene.restartTitle'), message: t('update.selene.restartDesc'), className: 'st-selene-restart', action: kit.button(t('update.selene.restart'), () => pc.shell.logout().catch(pc.toastError), { primary: true, icon: 'arrow_clockwise' }) });
+}
+// ---- END Selene self-updates ----
 
 // ---- BEGIN firmware (fwupd) ----
 const fw = { status: null, loading: null, refreshing: false, updating: null, error: null, reboot: false, done: new Set() };
@@ -177,6 +203,7 @@ async function install(pc) {
     persist(pc);
     pc.tryInvoke('updates:clear'); // background check (core/features/update-check.js): badge and count back to 0
     pc.shell.notify({ title: pc.t('update.installedTitle'), body: state.reboot ? pc.t('update.installedReboot') : pc.t('update.installedBody'), appId: 'settings' });
+    await seleneLoad(pc); // a new aurora-shell: « Redémarrer la session »
   } catch (err) {
     state.phase = null;
     if (err.code !== 'ECANCELED') state.error = err.message;
@@ -213,7 +240,8 @@ async function update(pc) {
   const root = h('div');
   const paint = () => {
     pc.ui.clear(root);
-    const pk = state.packages;
+    const grp = groupSelene(state.packages || []);
+    const pk = state.packages ? [...(grp.selene ? [{ ...grp.selene.packages[0], security: grp.selene.security }] : []), ...grp.others] : null; // Selene counts once
     const n = pk?.length || 0;
     let title;
     let sub;
@@ -282,7 +310,8 @@ async function update(pc) {
               h(
                 'div',
                 { class: 'st-pkg-list' },
-                pk.map((p) =>
+                grp.selene ? seleneRow(pc, grp.selene) : null,
+                grp.others.map((p) =>
                   h(
                     'div',
                     { class: 'st-pkg' },
@@ -296,6 +325,8 @@ async function update(pc) {
         ),
       );
     }
+    const selRestart = seleneRestart(pc);
+    if (selRestart) blocks.splice(1, 0, selRestart);
     const fwBlock = fwSection(pc);
     if (fwBlock) blocks.push(fwBlock);
     blocks.push(
@@ -328,6 +359,7 @@ async function update(pc) {
   listeners.add(paint);
   pc.onDispose(() => listeners.delete(paint));
   fwLoad(pc); // firmware section: read in the background, painted when fwupd answers
+  seleneLoad(pc);
   // The network coming back (or going away) enables / disables the buttons without leaving the page.
   pc.on('net:changed', (st) => {
     const now = !st || st.connectivity !== 'none';

@@ -909,10 +909,11 @@ function specText(rows) {
 // the notice says what is inside before anything is created.
 function diagnosticGroup(pc) {
   const { h, t, kit, api } = pc;
-  const result = h('div', { class: 'st-diag-result', role: 'status', 'aria-live': 'polite' });
-  const btn = kit.button(t('diag.create'), () =>
+  const result = h('div', { class: 'st-diag-result', role: 'status', 'aria-live': 'polite', hidden: true, style: 'padding: 0 16px 14px 56px; font-size: var(--fs-small); color: var(--text-2)' });
+  const btn = kit.button(t('diag.button'), () =>
     kit.busy(btn, async () => {
       result.textContent = '';
+      result.hidden = false;
       try {
         const r = await api.invoke('robust:report');
         result.replaceChildren(

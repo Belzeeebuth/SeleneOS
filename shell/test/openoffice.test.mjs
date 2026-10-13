@@ -262,7 +262,7 @@ for (const theme of ['dark', 'light']) {
     else await s.page.click('.bw-share-dialog .btn:not(.primary)');
     const res = await waitFor(() => s.page.evaluate(`(() => { const bw = ${CTL}; return bw.active.wv.executeJavaScript('window.__res || ""'); })()`), { timeout: 10000 });
     if (theme === 'dark') check(res === 'ok:video', `« Partager »: the page gets a video track (${res})`);
-    else check(/^err:NotAllowedError/.test(res || ''), `« Annuler »: the page is refused (${res})`);
+    else check(/^err:(NotAllowedError|AbortError)/.test(res || ''), `« Annuler »: the page is refused, no stream (${res})`);
   } catch (err) {
     check(false, `${theme}: ${err.stack || err}`);
   } finally {

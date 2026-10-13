@@ -1,7 +1,10 @@
 #!/bin/bash
 # Selene OS — end-to-end test of the Selene packages and their apt repository (docs/UPDATES.md). Needs root.
 #
-#   tools/test-selfupdate.sh [--debs DIR]      DIR: aurora-{electron,shell,base}_*.deb (default: out/debs)
+#   tools/test-selfupdate.sh [--debs DIR] [--layer DIR]
+#     --debs   aurora-{electron,shell,base}_*.deb (default: out/debs)
+#     --layer  run on a read-only overlay of an image layer instead (e.g. work/layers/packages: the real Ubuntu
+#              package set, real greetd / systemd-zram-generator / base-files); the layer itself is never written
 #
 # In a throwaway Ubuntu root (the cached debootstrap minbase tarball, unpacked under work/test-selfupdate.*; the image
 # build tree is never touched):
@@ -16,12 +19,14 @@
 set -euo pipefail
 AURORA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEBS="$AURORA_ROOT/out/debs"
+LAYER=""
 while (($#)); do
-  case "$1" in --debs) DEBS="${2:?}"; shift 2 ;; *) echo "usage: $0 [--debs DIR]" >&2; exit 2 ;; esac
+  case "$1" in --debs) DEBS="${2:?}"; shift 2 ;; --layer) LAYER="$(readlink -f "${2:?}")"; shift 2 ;; *) echo "usage: $0 [--debs DIR] [--layer DIR]" >&2; exit 2 ;; esac
 done
 [[ $(id -u) == 0 ]] || { echo "test-selfupdate: needs root (chroot)" >&2; exit 77; }
+[[ -z "$LAYER" || -d "$LAYER/var/lib/dpkg" ]] || { echo "test-selfupdate: $LAYER is not a root filesystem" >&2; exit 1; }
 BASE_TAR="$(ls -1t "$AURORA_ROOT"/cache/base/noble-amd64-minbase-*.tar.zst 2>/dev/null | head -n1 || true)"
-[[ -n "$BASE_TAR" ]] || { echo "test-selfupdate: no cache/base/noble-amd64-minbase-*.tar.zst (run the base stage once)" >&2; exit 77; }
+[[ -n "$BASE_TAR" || -n "$LAYER" ]] || { echo "test-selfupdate: no cache/base/noble-amd64-minbase-*.tar.zst (run the base stage once)" >&2; exit 77; }
 for p in aurora-electron aurora-shell aurora-base; do
   compgen -G "$DEBS/${p}_*.deb" >/dev/null || { echo "test-selfupdate: no $p deb in $DEBS (make debs)" >&2; exit 1; }
 done
@@ -37,11 +42,17 @@ R="$T/root"
 cleanup() {
   local m
   for m in srv/apt srv/apt-other srv/apt-bad dev proc; do mountpoint -q "$R/$m" 2>/dev/null && umount -l "$R/$m"; done
+  mountpoint -q "$R" 2>/dev/null && umount -l "$R"
   rm -rf "$T"
 }
 trap cleanup EXIT
 mkdir -p "$R"
-zstd -dc "$BASE_TAR" | tar -C "$R" -xf -
+if [[ -n "$LAYER" ]]; then
+  mkdir -p "$T/upper" "$T/wd"
+  mount -t overlay overlay -o "lowerdir=$LAYER,upperdir=$T/upper,workdir=$T/wd" "$R"
+else
+  zstd -dc "$BASE_TAR" | tar -C "$R" -xf -
+fi
 mount -t proc proc "$R/proc"
 mount -t tmpfs -o mode=0755 tmpfs "$R/dev"
 for n in null:1:3 zero:1:5 random:1:8 urandom:1:9; do IFS=: read -r a b c <<<"$n"; mknod -m 666 "$R/dev/$a" c "$b" "$c"; done
@@ -50,15 +61,20 @@ rm -f "$R"/etc/apt/sources.list "$R"/etc/apt/sources.list.d/*   # offline: only 
 
 # ---- 1. install ---------------------------------------------------------------------------------------------
 fake="$T/fake-greetd"
-mkdir -p "$fake/DEBIAN" "$fake/etc/greetd"
+mkdir -p "$fake/DEBIAN" "$fake/etc/greetd" "$fake/usr/sbin"
+printf '#!/bin/sh\n' >"$fake/usr/sbin/greetd"; chmod 755 "$fake/usr/sbin/greetd"
 printf 'Package: greetd\nVersion: 0.0-fake\nArchitecture: amd64\nMaintainer: test <t@t.invalid>\nDescription: stand-in for Ubuntu greetd\n' >"$fake/DEBIAN/control"
 echo '# ubuntu greetd config' >"$fake/etc/greetd/config.toml"
 echo /etc/greetd/config.toml >"$fake/DEBIAN/conffiles"
 dpkg-deb --root-owner-group -b "$fake" "$T/greetd.deb" >/dev/null
 mkdir -p "$R/tmp/debs"
 cp "$T/greetd.deb" "$DEBS"/aurora-{electron,shell,base}_*.deb "$R/tmp/debs/"
-ch dpkg -i /tmp/debs/greetd.deb >/dev/null
-if ch /bin/sh -c 'dpkg -i /tmp/debs/aurora-electron_*.deb /tmp/debs/aurora-base_*.deb /tmp/debs/aurora-shell_*.deb' >"$T/dpkg.log" 2>&1; then
+if ch dpkg-query -W greetd >/dev/null 2>&1; then
+  sed -i '/^# ubuntu greetd config$/d' "$R/etc/greetd/config.toml"; echo '# ubuntu greetd config' >>"$R/etc/greetd/config.toml"
+else
+  ch dpkg -i /tmp/debs/greetd.deb </dev/null >/dev/null
+fi
+if ch /bin/sh -c 'dpkg -i /tmp/debs/aurora-electron_*.deb /tmp/debs/aurora-base_*.deb /tmp/debs/aurora-shell_*.deb' </dev/null >"$T/dpkg.log" 2>&1; then
   pass "dpkg -i aurora-electron aurora-base aurora-shell"
 else
   fail "dpkg -i of the Selene packages"; cat "$T/dpkg.log"
@@ -71,7 +87,10 @@ t "aurora-shell $v0 installed" grep -q "install ok installed" <(ch dpkg-query -W
 [[ "$(stat -c '%U:%G %a' "$R/opt/aurora/electron/chrome-sandbox")" == "root:root 4755" ]] && pass "chrome-sandbox root:root 4755" || fail "chrome-sandbox mode $(stat -c '%U:%G %a' "$R/opt/aurora/electron/chrome-sandbox")"
 [[ "$(stat -c '%a' "$R/etc/sudoers.d/aurora")" == 440 ]] && pass "sudoers.d/aurora is 0440" || fail "sudoers.d/aurora mode"
 t "Ubuntu's greetd config kept as config.toml.ubuntu" grep -qx '# ubuntu greetd config' "$R/etc/greetd/config.toml.ubuntu"
+[[ "$(readlink "$R/etc/systemd/zram-generator.conf")" == zram-generator.conf.selene ]] && pass "/etc/systemd/zram-generator.conf -> zram-generator.conf.selene" || fail "zram-generator.conf is not the Selene symlink"
 t "Selene's greetd config installed" grep -q aurora "$R/etc/greetd/config.toml"
+[[ "$(readlink "$R/etc/greetd/config.toml")" == config.toml.selene ]] && pass "/etc/greetd/config.toml -> config.toml.selene" || fail "greetd config is not the Selene symlink"
+t "greetd still installed (nothing clobbered)" grep -q "install ok installed" <(ch dpkg-query -W -f='${Status}' greetd)
 [[ "$(ch dpkg-divert --listpackage /etc/greetd/config.toml)" == aurora-base ]] && pass "greetd config diverted by aurora-base" || fail "greetd config not diverted"
 t "os-release: Selene OS (ID=ubuntu kept)" grep -q '^NAME="Selene OS"' "$R/usr/lib/os-release"
 t "os-release keeps ID=ubuntu" grep -qx 'ID=ubuntu' "$R/usr/lib/os-release"
@@ -103,8 +122,8 @@ sed -i 's|^URIs: .*|URIs: file:/srv/apt|' "$R/etc/apt/sources.list.d/selene.sour
 if ch apt-get -q update >"$T/upd.log" 2>&1 && ! grep -q '^[WE]:' "$T/upd.log"; then pass "apt-get update: Selene repository verified with the image's keyring"
 else fail "apt-get update of the Selene repository"; cat "$T/upd.log"; fi
 sim="$(ch apt-get -s -q upgrade --with-new-pkgs 2>/dev/null | grep '^Inst ' || true)"
-grep -q "^Inst aurora-shell \[$v0\] ($v1 Selene OS:noble \[amd64\])" <<<"$sim" && pass "apt-check view: Inst aurora-shell [$v0] ($v1 Selene OS:noble)" || { fail "upgrade simulation"; echo "$sim"; }
-if ch apt-get -q -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold upgrade --with-new-pkgs >"$T/up.log" 2>&1; then pass "apt-get upgrade installs the update"
+grep -Eq "^Inst aurora-shell \[$v0\] \($v1 Selene OS:[^ ]*noble \[amd64\]\)" <<<"$sim" && pass "apt-check view: Inst aurora-shell [$v0] ($v1 Selene OS:…noble)" || { fail "upgrade simulation"; echo "$sim"; }
+if ch apt-get -q -y -o Dpkg::Options::=--force-confdef -o Dpkg::Use-Pty=0 -o Dpkg::Options::=--force-confold upgrade --with-new-pkgs </dev/null >"$T/up.log" 2>&1; then pass "apt-get upgrade installs the update"
 else fail "apt-get upgrade"; tail -20 "$T/up.log"; fi
 [[ "$(ch dpkg-query -W -f='${Version}' aurora-shell)" == "$v1" ]] && pass "aurora-shell is now $v1" || fail "aurora-shell not upgraded"
 [[ "$(cat "$R/opt/aurora/shell/selene-version")" == "$v1" ]] && pass "selene-version file updated (the shell offers « Redémarrer la session »)" || fail "selene-version"
@@ -147,7 +166,7 @@ try_update "Selene repository signed by another key"
 t "the Selene source file is untouched" grep -q '^URIs: file:/srv/apt-bad' "$R/etc/apt/sources.list.d/selene.sources"
 
 # ---- 4. removal gives Ubuntu's files back -------------------------------------------------------------------------
-if ch dpkg -r aurora-shell aurora-base >"$T/rm.log" 2>&1; then pass "dpkg -r aurora-shell aurora-base"; else fail "dpkg -r"; cat "$T/rm.log"; fi
+if ch dpkg -r aurora-shell aurora-base </dev/null >"$T/rm.log" 2>&1; then pass "dpkg -r aurora-shell aurora-base"; else fail "dpkg -r"; cat "$T/rm.log"; fi
 t "Ubuntu's greetd config restored" grep -qx '# ubuntu greetd config' "$R/etc/greetd/config.toml"
 [[ -z "$(ch dpkg-divert --listpackage /etc/greetd/config.toml)" ]] && pass "greetd diversion removed" || fail "greetd diversion left"
 t "Ubuntu's os-release restored" grep -q '^NAME="Ubuntu"' "$R/usr/lib/os-release"

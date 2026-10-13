@@ -554,7 +554,11 @@ export class BrowserWindowCtl {
     if (this.dialogOpen()) return; // never pull focus out of a modal dialog
     if (this.isWeb(tab) && tab.wv) {
       setTimeout(() => {
-        if (this.active === tab && !this.omni.editing && !this.dialogOpen()) tab.wv.focus();
+        if (this.active === tab && !this.omni.editing && !this.dialogOpen() && tab.wv?.isConnected) {
+          try {
+            tab.wv.focus();
+          } catch {} // a webview still attaching (or already torn down) has no inner element yet
+        }
       }, 0);
     } else tab.pageEl?.focus?.({ preventScroll: true });
   }

@@ -687,7 +687,8 @@ install_selene_debs() {
   local debs=("$out"/aurora-electron_*.deb "$out"/aurora-base_*.deb "$out"/aurora-shell_*.deb)
   for d in "${debs[@]}"; do [[ -s "$d" ]] || die "missing Selene package $d"; done
   # dpkg refuses to overwrite another package's file: name the file and the list that allows it.
-  local diverted=" $(grep -E '^/' "$AURORA_ROOT/packaging/aurora-base/diversions" | tr '\n' ' ') "
+  local diverted
+  diverted=" $(grep -E '^/' "$AURORA_ROOT/packaging/aurora-base/diversions" | tr '\n' ' ') "
   while IFS= read -r f; do
     f="${f#.}"
     owner="$(in_chroot "$ROOT" dpkg-query -S "$f" 2>/dev/null | head -n1 | cut -d: -f1 || true)"

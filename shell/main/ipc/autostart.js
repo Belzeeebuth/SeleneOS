@@ -115,6 +115,8 @@ function register(api) {
 
   api.handle('autostart:run', () => {
     if (done) return done;
+    // Safe mode (track "robust", main/lib/robust.js): no autostart; not cached, so « Redémarrer normalement » runs them.
+    if (require('../lib/robust').state.safeMode) return { started: [], skipped: [], safeMode: true };
     if (api.DEV && process.env.AURORA_AUTOSTART !== '1') return (done = { started: [], skipped: [], dev: true });
     if (marker && fs.existsSync(marker) && process.env.AURORA_AUTOSTART !== '1') return (done = { started: [], skipped: [], already: true });
     const dirs = [configHome(), ...(process.env.XDG_CONFIG_DIRS || '/etc/xdg').split(':').filter(Boolean)].map((d) => path.join(d, 'autostart'));

@@ -124,7 +124,7 @@ for (const theme of ['dark', 'light']) {
   const s = await launchShell({ lang: 'fr', theme, size: '1280x720', env: ENV });
   const P = s.page;
   // Toasts from other features (e.g. « Espace disque faible » in dev) would cover the screenshots.
-  const hideToasts = () => s.aurora(() => window.__aurora.notifications.list().forEach((n) => window.__aurora.notifications.hide(n.id)));
+  const hideToasts = () => s.aurora(() => window.__aurora.notifications.list().forEach((n) => window.__aurora.notifications.hide(n.id))).then(() => sleep(500));
   try {
     await hideToasts();
     // ---- session start: the defaults (tap to click, disable while typing) are applied with xinput

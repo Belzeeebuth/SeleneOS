@@ -29,6 +29,10 @@ write_os_release() {
 }
 
 if [ "$1" = configure ]; then
+  # Files displaced from Ubuntu packages (packaging/aurora-base/diversions): <file> -> <file>.selene.
+  for f in @DIVERSIONS@; do
+    if [ ! -e "$f" ] || [ -L "$f" ]; then ln -sfn "$(basename "$f").selene" "$f"; fi
+  done
   write_os_release
   # systemd units shipped by aurora-base that have an [Install] section (same logic as dh_installsystemd:
   # enabled on first install, the administrator's choice kept on upgrades).

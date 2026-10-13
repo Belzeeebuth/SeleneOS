@@ -70,7 +70,7 @@ try {
     check('broadcast updates:changed', api.sent.map((x) => x[0]), ['updates:changed']);
     check('updates:last returns the result', (await api.handlers['updates:last']()).count, 3);
     check('updates:clear -> 0', (await api.handlers['updates:clear']()).count, 0);
-    check('schedule: 5 min then daily', await api.handlers['updates:schedule'](), { live: false, firstDelay: 300000, interval: 86400000 });
+    check('schedule: 5 min then daily', await api.handlers['updates:schedule'](), { live: false, enabled: true, firstDelay: 300000, interval: 86400000 });
     process.env.FAKE_APT_FAIL = '1';
     const e = await api.handlers['updates:pending']();
     check('apt failure: count 0 + error', [e.count, /lock/.test(e.error || '')], [0, true]);
@@ -83,6 +83,13 @@ try {
     const r = await api.handlers['updates:pending']();
     check('live session: never runs apt', [r.live, r.count, fs.existsSync(argsFile)], [true, 0, false]);
     check('live session: schedule says live', (await api.handlers['updates:schedule']()).live, true);
+    check('live session: schedule disabled', (await api.handlers['updates:schedule']()).enabled, false);
+  }
+  {
+    const api = fakeApi({ DEV: true });
+    U(api);
+    delete process.env.AURORA_UPDATE_CHECK_DELAY_MS;
+    check('dev: off unless a test sets AURORA_UPDATE_CHECK_DELAY_MS', (await api.handlers['updates:schedule']()).enabled, false);
   }
   delete process.env.AURORA_APT_GET;
   {

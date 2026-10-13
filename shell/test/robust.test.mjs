@@ -155,6 +155,17 @@ const mainDo = (s, what) =>
     else w.webContents.emit(op);
     return true;
   }, what);
+// Playwright's page stays "crashed" after forcefullyCrashRenderer: screenshots and clicks go through the main process.
+async function shotMain(s, name) {
+  const b64 = await s.app.evaluate(async ({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('shell.html'));
+    return (await w.webContents.capturePage()).toPNG().toString('base64');
+  });
+  const file = path.join(ROOT, 'test', 'out', `${name}.png`);
+  fs.writeFileSync(file, Buffer.from(b64, 'base64'));
+  return file;
+}
+const clickText = (s, sel, text) => wcEval(s, `(() => { const b = [...document.querySelectorAll(${JSON.stringify(sel)})].find((x) => x.innerText.includes(${JSON.stringify(text)})); b?.click(); return !!b; })()`);
 const ready = (s) => until(() => wcEval(s, `document.body.classList.contains('ready') && !window.__robustMarker`), 30000);
 
 console.log('\n# crash / hang recovery, lock kept, safe mode (FR, Halo dark)');
@@ -202,14 +213,14 @@ console.log('\n# crash / hang recovery, lock kept, safe mode (FR, Halo dark)');
     check('safe mode: Sobre finish, default wallpaper, packs off (user file untouched)', await wcEval(s, "[window.__aurora.settings.get('finish'), window.__aurora.settings.get('wallpaper'), window.__aurora.settings.get('iconPack'), document.documentElement.dataset.finish]"), ['sobre', 'builtin:nocturne', 'auto', 'sobre']);
     check('safe mode: settings.json keeps the user look', JSON.parse(fs.readFileSync(path.join(s.home, '.config/aurora/settings.json'), 'utf8')).iconPack, 'prisme');
     await sleep(600);
-    await s.shot('robust-safemode-fr-dark');
+    await shotMain(s, 'robust-safemode-fr-dark');
     // « Réinitialiser l'apparence » resets the look keys; « Redémarrer normalement » leaves safe mode.
-    await s.page.locator('.safe-banner button', { hasText: 'Réinitialiser' }).click();
+    check('click « Réinitialiser l’apparence »', await clickText(s, '.safe-banner button', 'Réinitialiser'), true);
     await until(async () => !('iconPack' in JSON.parse(fs.readFileSync(path.join(s.home, '.config/aurora/settings.json'), 'utf8'))), 5000);
     const after = JSON.parse(fs.readFileSync(path.join(s.home, '.config/aurora/settings.json'), 'utf8'));
     check('« Réinitialiser l’apparence »: look keys removed, theme / lang kept', [after.iconPack, after.finish, after.theme, after.lang], [undefined, undefined, 'dark', 'fr']);
     await wcEval(s, 'window.__robustMarker = 1');
-    await s.page.locator('.safe-banner button', { hasText: 'Redémarrer normalement' }).click();
+    check('click « Redémarrer normalement »', await clickText(s, '.safe-banner button', 'Redémarrer normalement'), true);
     await ready(s);
     const st2 = await until(() => wcEval(s, "window.__aurora.api.invoke('robust:status')"));
     check('« Redémarrer normalement »: safe mode off, no banner, Halo again', [st2?.safeMode, await wcEval(s, "!!document.querySelector('.safe-banner')"), await wcEval(s, "window.__aurora.settings.get('finish')")], [false, false, 'halo']);
@@ -235,7 +246,7 @@ console.log('\n# corrupt settings.json restored and told once');
     await mainDo(s, 'crash');
     await ready(s);
     await sleep(2500);
-    check('told once: no second notice after a reload', await s.page.evaluate(() => [...document.querySelectorAll('#toasts .toast')].some((t) => /Vos réglages ont été restaurés/.test(t.innerText))), false);
+    check('told once: no second notice after a reload', await wcEval(s, "[...document.querySelectorAll('#toasts .toast')].some((t) => /Vos réglages ont été restaurés/.test(t.innerText))"), false);
   } finally {
     await s.close();
     fs.rmSync(home, { recursive: true, force: true });
@@ -253,6 +264,7 @@ console.log('\n# AURORA_SAFE_MODE=1 launch (Halo light), low disk, diagnostic re
   });
   try {
     check('safe mode from the session: banner', !!(await until(() => wcEval(s, "!!document.querySelector('.safe-banner')"))), true);
+    check('safe mode: XDG autostart skipped', await s.aurora(() => window.__aurora.api.invoke('autostart:run')), (r) => r?.safeMode === true && r.started.length === 0);
     check('safe mode: Prisme / animated wallpaper / cursor pack ignored', await s.aurora(() => ['finish', 'wallpaperMode', 'cursorPack', 'theme'].map((k) => window.__aurora.settings.get(k))), ['sobre', 'static', 'default', 'light']);
     const toast = await until(() => s.page.evaluate(() => [...document.querySelectorAll('#toasts .toast:not(.leaving)')].map((t) => t.innerText).join('\n')).then((t) => (/Espace disque faible/.test(t) ? t : null)));
     check('low disk notification (600 Mo of 64 Go)', !!toast && /600 Mo/.test(toast) && /Ouvrir Stockage/.test(toast), true);
@@ -262,7 +274,7 @@ console.log('\n# AURORA_SAFE_MODE=1 launch (Halo light), low disk, diagnostic re
 
     // Paramètres > À propos > Créer un rapport de diagnostic
     await s.aurora(() => window.__aurora.shell.launch('settings', { page: 'about' }));
-    const btn = s.page.locator('.st-diag-row button', { hasText: 'Créer un rapport de diagnostic' });
+    const btn = s.page.locator('.st-diag-row button', { hasText: 'Créer le rapport' });
     await btn.waitFor({ timeout: 15000 });
     check('À propos: the notice says what is inside', await s.page.locator('.st-diag-row').innerText(), (t) => /journal/.test(t) && /sans mots de passe/.test(t) && /USB et PCI/.test(t));
     await btn.scrollIntoViewIfNeeded();
@@ -284,6 +296,8 @@ console.log('\n# AURORA_SAFE_MODE=1 launch (Halo light), low disk, diagnostic re
     await sleep(300);
     await s.shot('robust-diagnostic-fr-light');
 
+    await s.page.locator('.safe-banner-hide').click();
+    check('« Masquer » hides the banner', await s.page.locator('.safe-banner').count(), 0);
     // Installer: under 4 GB of RAM -> a warning on the first step, Next still enabled.
     await s.aurora(() => window.__aurora.shell.launch('installer'));
     const warnEl = s.page.locator('.ins-lowram');

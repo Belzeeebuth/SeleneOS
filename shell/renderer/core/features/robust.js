@@ -21,6 +21,7 @@ const STRINGS = {
       diskTitle: 'Low disk space',
       diskBody: 'Only {free} left on your home drive. Free some space to keep Selene running smoothly.',
       openStorage: 'Open Storage',
+      hide: 'Hide',
     },
   },
   fr: {
@@ -38,6 +39,7 @@ const STRINGS = {
       diskTitle: 'Espace disque faible',
       diskBody: 'Il ne reste que {free} sur votre disque personnel. Libérez de l’espace pour que Selene reste fluide.',
       openStorage: 'Ouvrir Stockage',
+      hide: 'Masquer',
     },
   },
 };
@@ -78,13 +80,15 @@ export async function mount(ctx) {
         restartBtn.disabled = false;
       });
     });
+    const hideBtn = h('button', { class: 'btn subtle icon-btn safe-banner-hide', type: 'button', 'aria-label': t('robust.hide'), title: t('robust.hide') }, icon('dismiss', { size: 16 }));
     const banner = h(
       'div',
       { class: 'safe-banner', role: 'status', 'aria-live': 'polite' },
       h('div', { class: 'safe-banner-icon', 'aria-hidden': 'true' }, icon('info', { size: 20 })),
       h('div', { class: 'safe-banner-text' }, h('div', { class: 'safe-banner-title' }, t('robust.safeTitle')), h('div', { class: 'safe-banner-body' }, t('robust.safeBody'))),
-      h('div', { class: 'safe-banner-actions' }, resetBtn, restartBtn),
+      h('div', { class: 'safe-banner-actions' }, resetBtn, restartBtn, hideBtn),
     );
+    hideBtn.addEventListener('click', () => banner.remove()); // until the shell starts again (still in safe mode)
     document.body.append(banner);
     self.banner = banner;
   }

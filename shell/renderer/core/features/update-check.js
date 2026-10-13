@@ -35,7 +35,7 @@ export async function mount(ctx) {
   if (env?.live) return;
   i18n.extend(STRINGS);
   const sched = await api.invoke('updates:schedule').catch(() => null);
-  if (!sched || sched.live) return;
+  if (!sched || sched.live || sched.enabled === false) return;
 
   let nid = null;
   const open = () => shell.launch('settings', { page: 'update' });

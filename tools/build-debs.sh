@@ -179,7 +179,10 @@ Signed-By: /usr/share/keyrings/selene-archive-keyring.gpg
 EOF
   chmod 0644 "$root/etc/apt/sources.list.d/selene.sources"
   DIVERSIONS="$(grep -E '^/' "$AURORA_ROOT/packaging/aurora-base/diversions" | tr '\n' ' ' | sed 's/ $//')"
-  for f in $DIVERSIONS; do [[ -e "$root$f" ]] || die "packaging/aurora-base/diversions: $f is not in rootfs/"; done
+  for f in $DIVERSIONS; do
+    [[ -f "$root$f" ]] || die "packaging/aurora-base/diversions: $f is not in rootfs/"
+    mv "$root$f" "$root$f.selene"   # displaced: postinst links $f -> $f.selene
+  done
   UNITS=""
   for f in "$root"/usr/lib/systemd/system/aurora-* "$root"/etc/systemd/system/aurora-*; do
     [[ -f "$f" ]] || continue

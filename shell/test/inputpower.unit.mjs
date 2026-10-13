@@ -70,6 +70,7 @@ console.log('# battery (power-ext)');
 const { batteryFrom } = require('../main/ipc/power-ext.js').parsers;
 const b = batteryFrom({ AC: { type: 'Mains', online: '0' }, BAT0: { type: 'Battery', present: '1', status: 'Discharging', capacity: '9', energy_now: '4500000', energy_full: '50000000', power_now: '9000000' } });
 check(b.percent === 9 && !b.charging && b.ac === false && b.timeLeftMin === 30, 'fixture: 9 % discharging, 30 min left, not on mains');
+check(batteryFrom({ BAT0: { type: 'Battery', present: '1', status: 'Discharging' } }) === null, 'a battery without any level is ignored (never 0 %, no 3 % countdown)');
 
 console.log('# admin.js + aurora-admin power-lid');
 const { validate } = require('../main/ipc/admin.js').parsers;

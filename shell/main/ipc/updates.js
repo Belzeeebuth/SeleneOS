@@ -98,7 +98,9 @@ function register(api) {
   // When the shell checks: 5 minutes after sign-in, then every day (tests: AURORA_UPDATE_CHECK_DELAY_MS / _INTERVAL_MS).
   api.handle('updates:schedule', () => {
     const num = (v, d) => (v != null && /^\d+$/.test(v) ? Number(v) : d);
-    return { live, firstDelay: num(process.env.AURORA_UPDATE_CHECK_DELAY_MS, 5 * 60 * 1000), interval: num(process.env.AURORA_UPDATE_CHECK_INTERVAL_MS, 24 * 3600 * 1000) };
+    // Dev: off unless a test asks for it (AURORA_UPDATE_CHECK_DELAY_MS), so other suites never see the notification.
+    const enabled = !live && (!useMock || process.env.AURORA_UPDATE_CHECK_DELAY_MS != null);
+    return { live, enabled, firstDelay: num(process.env.AURORA_UPDATE_CHECK_DELAY_MS, 5 * 60 * 1000), interval: num(process.env.AURORA_UPDATE_CHECK_INTERVAL_MS, 24 * 3600 * 1000) };
   });
   api.handle('updates:clear', () => {
     last = result([], { live });

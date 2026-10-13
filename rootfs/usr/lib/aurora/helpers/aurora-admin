@@ -829,11 +829,12 @@ power-lid)
   }
   need_args $# 1
   [[ $1 =~ ^(suspend|ignore|poweroff)$ ]] || die 2 "invalid lid action"
-  install -d -m 0755 /etc/systemd/logind.conf.d
-  power_lid_tmp="$(mktemp /etc/systemd/logind.conf.d/.aurora-lid.XXXXXX)"
-  power_lid_conf "$1" >"$power_lid_tmp"
-  chmod 0644 "$power_lid_tmp"
-  mv -f -- "$power_lid_tmp" /etc/systemd/logind.conf.d/50-aurora-lid.conf
+  run_or_die "cannot create /etc/systemd/logind.conf.d" install -d -m 0755 /etc/systemd/logind.conf.d
+  power_lid_tmp="$(mktemp /etc/systemd/logind.conf.d/.aurora-lid.XXXXXX)" || die 5 "cannot write the logind drop-in"
+  if ! { power_lid_conf "$1" >"$power_lid_tmp" && chmod 0644 "$power_lid_tmp" && mv -f -- "$power_lid_tmp" /etc/systemd/logind.conf.d/50-aurora-lid.conf; }; then
+    rm -f -- "$power_lid_tmp"
+    die 5 "cannot write the logind drop-in"
+  fi
   systemctl kill -s HUP systemd-logind >/dev/null 2>&1 || true
   log "user=$CALLER lid action set to $1"
   echo "ok"

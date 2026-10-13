@@ -6,7 +6,7 @@
 //   robust:report          -> { path, name, files } ~/selene-diagnostic-<date>.tar.gz (see REPORT_NOTICE)
 // Events: 'robust:changed' (status) when a notice appears (save failure, low disk found by the hourly check).
 // Low disk space: the home partition with less than 5 % or less than 1 GB free, checked at sign-in and every hour.
-// Dev / tests: AURORA_FAKE_DISK="<availBytes>,<totalBytes>" replaces the real statfs.
+// Dev / tests: AURORA_FAKE_DISK="<availBytes>,<totalBytes>" replaces the real statfs (dev mode without it: no check).
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -142,6 +142,8 @@ module.exports = function register(api) {
   api.robust = { status, changed: () => api.broadcast('robust:changed', status()) };
 
   const checkDisk = () => {
+    // Dev mode (tests, xvfb): never the build machine's real disk, only AURORA_FAKE_DISK (no stray toasts in other suites).
+    if (api.DEV && !process.env.AURORA_FAKE_DISK) return;
     let d = null;
     try {
       d = diskOf(api.env.home || os.homedir());

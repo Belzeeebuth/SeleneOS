@@ -4,6 +4,7 @@ set -e
 case "$1" in
 remove|abort-install|disappear)
   for f in @DIVERSIONS@; do
+    [ -L "$f" ] && [ "$(readlink "$f")" = "$(basename "$f").selene" ] && rm -f "$f"
     dpkg-divert --package aurora-base --rename --divert "$f.ubuntu" --remove "$f" >/dev/null || true
   done
   if [ "$(dpkg-divert --listpackage /usr/lib/os-release)" = aurora-base ]; then
