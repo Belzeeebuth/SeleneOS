@@ -13,8 +13,8 @@ let busy = Promise.resolve();
 let toastId = null;
 
 const STRINGS = {
-  en: { screenreader: { title: 'Screen reader', taskbar: 'Taskbar', on: 'Screen reader on', off: 'Screen reader off', onBody: 'Press Super + Alt + S to turn it off.', failed: 'The screen reader stopped', failedBody: 'Orca quit unexpectedly. You can turn it back on in Accessibility settings.', missing: 'The screen reader isn’t installed' } },
-  fr: { screenreader: { title: 'Lecteur d’écran', taskbar: 'Barre des tâches', on: 'Lecteur d’écran activé', off: 'Lecteur d’écran désactivé', onBody: 'Appuyez sur Super + Alt + S pour le désactiver.', failed: 'Le lecteur d’écran s’est arrêté', failedBody: 'Orca s’est fermé de façon inattendue. Vous pouvez le réactiver dans les paramètres d’accessibilité.', missing: 'Le lecteur d’écran n’est pas installé' } },
+  en: { screenreader: { title: 'Screen reader', taskbar: 'Taskbar', on: 'Screen reader on', off: 'Screen reader off', onBody: 'Press Super + Alt + S to turn it off.', failed: 'The screen reader stopped', failedBody: 'Orca quit unexpectedly. You can turn it back on in Accessibility settings.', missing: 'The screen reader isn’t installed', startFailed: 'The screen reader couldn’t start', startFailedBody: 'You can try again in Accessibility settings.' } },
+  fr: { screenreader: { title: 'Lecteur d’écran', taskbar: 'Barre des tâches', on: 'Lecteur d’écran activé', off: 'Lecteur d’écran désactivé', onBody: 'Appuyez sur Super + Alt + S pour le désactiver.', failed: 'Le lecteur d’écran s’est arrêté', failedBody: 'Orca s’est fermé de façon inattendue. Vous pouvez le réactiver dans les paramètres d’accessibilité.', missing: 'Le lecteur d’écran n’est pas installé', startFailed: 'Le lecteur d’écran n’a pas pu démarrer', startFailedBody: 'Vous pouvez réessayer dans les paramètres d’accessibilité.' } },
 };
 
 const conf = () => {
@@ -52,6 +52,7 @@ function sync() {
       console.warn('[screenreader]', err?.message || err);
       if (c.enabled) {
         if (err?.code === 'ENOENT') toast(ctx.t('screenreader.missing'), '', 'warning', true);
+        else toast(ctx.t('screenreader.startFailed'), ctx.t('screenreader.startFailedBody'), 'warning', true);
         await ctx.settings.set('screenReader.enabled', false).catch(() => {});
       }
     }

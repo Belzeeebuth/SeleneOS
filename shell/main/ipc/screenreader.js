@@ -236,7 +236,14 @@ module.exports = function register(api) {
     child = c;
     running = true;
     const t0 = Date.now();
-    c.on('error', (err) => console.warn('[screenreader] orca:', err.message));
+    c.on('error', (err) => {
+      console.warn('[screenreader] orca:', err.message);
+      // could not start at all (no 'exit' follows): the switch must not stay on
+      if (child !== c || c.exitCode != null) return;
+      child = null;
+      running = false;
+      changed({ crashed: true, early: true });
+    });
     c.on('exit', (code, sig) => {
       if (child !== c) return; // replaced by a newer Orca
       child = null;
