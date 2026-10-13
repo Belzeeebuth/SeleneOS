@@ -222,6 +222,7 @@ Settings uses `system-settings.test.mjs`.
 - `passwords` - Passwords: encrypted vault (AES-GCM, PBKDF2), generator, CSV import/export
 - `pdf` - PDF Reader: read, search, annotate and present PDFs
 - `photos` - Photos: gallery, viewer, slideshow and editor
+- `recorder` - Voice Recorder: MediaRecorder Opus/WebM, pause, markers, live waveform, microphone choice, seekable playback (WebAudio), trim re-encoded with WebCodecs (`lib/webm.js` writes the Duration and muxes Opus); Documents/Sound recordings
 - `remote` - Remote Desktop: VNC client (RFB 3.8, None / VNC authentication); RDP later
 - `settings` - Settings: system, devices, network, personalization, accounts, time and language, updates
 - `snake` - Snake

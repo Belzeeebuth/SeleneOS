@@ -1,0 +1,5 @@
+# Screen Recorder (shell/renderer/apps/screenrec + main/ipc/screenrec.js)
+# Capture (desktopCapturer + MediaRecorder, VP8/Opus WebM) is Chromium's. ffmpeg remuxes the WebM so players can seek
+# (duration and cues) and converts it to MP4 (H.264 + AAC) when « MP4 » is chosen; without it the WebM is kept as is.
+# The computer sound comes from Chromium's desktop audio loopback through PipeWire's PulseAudio server (base.list).
+ffmpeg

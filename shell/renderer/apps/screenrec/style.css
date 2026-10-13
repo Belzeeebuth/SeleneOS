@@ -46,6 +46,8 @@
 }
 .app-screenrec .sr-modes > button {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
   gap: var(--sp-2);
 }

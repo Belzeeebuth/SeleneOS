@@ -1024,7 +1024,6 @@ class Recorder {
       this.selected = null;
       await this.refresh();
       await this.select(target);
-      this.ctx.shell.notify?.({ title: this.t('trimSaved'), body: baseOf(target), appId: 'recorder', silent: true, timeout: 3000 });
     } catch (err) {
       this.saving = false;
       this.els.trimBar.querySelectorAll('button').forEach((b) => (b.disabled = false));

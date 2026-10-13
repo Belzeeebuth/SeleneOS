@@ -585,6 +585,30 @@ done
 grep -qs '"Enregistrements audio"' "$S/opt/aurora/shell/renderer/apps/recorder/i18n.json" && pass "Voice Recorder saves to Documents/Enregistrements audio in French" || fail "Voice Recorder i18n lacks the Enregistrements audio folder name"
 # ---- END recorder -----------------------------------------------------------------------------------------------
 
+# ---- BEGIN code (App phase 2, renderer/apps/code: Code Editor + main/ipc/code.js) ---------------------------------
+# The editor is the vendored CodeMirror 6 bundle (shell/tools/vendor-codemirror.mjs); git status needs git and the
+# terminal panel the PTY helper, both already in the image (terminal.list).
+for f in renderer/apps/code/manifest.json renderer/apps/code/main.js renderer/apps/code/i18n.json renderer/apps/code/icon.svg \
+  renderer/apps/code/style.css renderer/apps/code/lib/cm.js renderer/apps/code/vendor/codemirror.js main/ipc/code.js \
+  renderer/assets/icons/packs/halo/code.svg renderer/assets/icons/packs/prisme/code.svg; do
+  [[ -f "$S/opt/aurora/shell/$f" ]] && pass "Code Editor: shell has $f" || fail "Code Editor: shell lacks $f"
+done
+[[ -x "$S/usr/bin/git" ]] && pass "Code Editor: git (status in the explorer, branch in the status bar)" || fail "Code Editor: no /usr/bin/git"
+# ---- END code ---------------------------------------------------------------------------------------------------
+
+# ---- BEGIN screenrec (App phase 2, renderer/apps/screenrec: Screen Recorder + main/ipc/screenrec.js) ---------------
+# ffmpeg (iso/packages.d/screenrec.list) remuxes the WebM (duration, seeking) and makes the MP4 (H.264 + AAC).
+for f in renderer/apps/screenrec/manifest.json renderer/apps/screenrec/main.js renderer/apps/screenrec/i18n.json renderer/apps/screenrec/icon.svg \
+  renderer/apps/screenrec/style.css renderer/apps/screenrec/lib/capture.js main/ipc/screenrec.js \
+  renderer/assets/icons/packs/halo/screenrec.svg renderer/assets/icons/packs/prisme/screenrec.svg; do
+  [[ -f "$S/opt/aurora/shell/$f" ]] && pass "Screen Recorder: shell has $f" || fail "Screen Recorder: shell lacks $f"
+done
+grep -qs "Enregistrements d'écran" "$S/opt/aurora/shell/renderer/apps/screenrec/i18n.json" && pass "Screen Recorder saves to Vidéos/Enregistrements d'écran in French" || fail "Screen Recorder i18n lacks the Enregistrements d'écran folder name"
+grep -qs "'Super+Shift+R'" "$S/opt/aurora/shell/renderer/core/features/hotkeys.js" && pass "Screen Recorder: Super+Shift+R starts / stops" || fail "Screen Recorder: no Super+Shift+R hotkey"
+[[ -x "$S/usr/bin/ffmpeg" ]] && pass "Screen Recorder: ffmpeg (WebM remux, MP4 export)" || fail "Screen Recorder: no /usr/bin/ffmpeg"
+chroot "$S" ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libx264 && pass "Screen Recorder: ffmpeg has libx264 (MP4)" || warn "Screen Recorder: ffmpeg without libx264 (MP4 export fails, WebM kept)"
+# ---- END screenrec ----------------------------------------------------------------------------------------------
+
 # initramfs: casper + Selene OS splash.
 if [[ -x "$S/usr/bin/lsinitramfs" ]]; then
   mount -t tmpfs tmpfs "$S/tmp" && mount -t tmpfs tmpfs "$S/var/tmp" && mount -t proc proc "$S/proc" && mount --bind /dev "$S/dev"

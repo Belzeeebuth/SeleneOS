@@ -82,6 +82,11 @@ class ScreenRecorder {
     const l = this.last;
     this.lastBox.hidden = !l;
     if (!l) return;
+    // room for the card under the start button (grows the window if needed)
+    if (!this.grown) {
+      this.grown = true;
+      this.ctx.win.setMinSize?.(380, 590);
+    }
     const name = l.path.split('/').pop();
     const preview = h('video', { class: 'sr-last-thumb', src: `${api.mediaUrl(l.path)}#t=0.1`, muted: true, preload: 'metadata', 'aria-hidden': 'true' });
     const sizeTxt = this.ctx.i18n?.formatSize ? this.ctx.i18n.formatSize(l.size || 0) : `${Math.round((l.size || 0) / 1024)} KB`;

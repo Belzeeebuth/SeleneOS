@@ -210,10 +210,10 @@ HALO.media = haloSvg(
   '<circle cx="32" cy="32" r="25" fill="url(#d)"/><ellipse cx="32" cy="19" rx="17" ry="9" fill="url(#gloss)"/>' +
     '<path d="M27 21.6v20.8a2.2 2.2 0 0 0 3.4 1.9l16.6-10.4a2.2 2.2 0 0 0 0-3.8L30.4 19.7a2.2 2.2 0 0 0-3.4 1.9Z" fill="#fff"/>',
 );
-// Musique (launcher alias of the Lecteur): two notes in the Lecteur's sunset gradient on a soft disc
+// Musique (launcher alias of the Lecteur): white notes on a saturated disc in the Lecteur's sunset family (like its neighbours)
 HALO.music = haloSvg(
-  lg('mu', [[0, '#FFB86B'], [0.5, '#FF4F8B'], [1, '#9B35E0']], 0, 0, 1, 1) + lg('mb', [[0, '#FFE3EE'], [1, '#F6D3FF']]) + GLOSS_DEF,
-  '<circle cx="32" cy="32" r="25" fill="url(#mb)"/><ellipse class="d" cx="32" cy="19" rx="17" ry="9" fill="url(#gloss)"/>' + gl(G('music-notes', 'f'), 14, 14, 36, 'url(#mu)'),
+  lg('mu', [[0, '#FFB86B'], [0.5, '#FF4F8B'], [1, '#9B35E0']], 0, 0, 1, 1) + GLOSS_DEF,
+  '<circle cx="32" cy="32" r="25" fill="url(#mu)"/><ellipse class="d" cx="32" cy="19" rx="17" ry="9" fill="url(#gloss)"/>' + gl(G('music-notes', 'f'), 15, 15, 34, '#fff'),
 );
 // Caméra: an indigo camera body with a white lens ring, a deep glass lens and a small warm flash
 HALO.camera = haloSvg(
@@ -650,11 +650,12 @@ for (const [pack, apps, files] of [['halo', HALO, HALO_FILES], ['prisme', PRISME
     for (const [id, svg] of Object.entries({ ...apps, ...files })) if (!existsSync(join(dir, `${id}.svg`)) || readFileSync(join(dir, `${id}.svg`), 'utf8') !== svg) stale.push(`${pack}/${id}`);
     continue;
   }
-  rmSync(dir, { recursive: true, force: true });
-  mkdirSync(dir, { recursive: true });
+  // check first, so a missing icon never leaves the pack folder empty
   const missingApps = [...APP_IDS, ...SPECIAL_FILES].filter((id) => !apps[id]);
   const missingFiles = Object.keys(FILE_ICONS).filter((k) => !files[k]);
   if (missingApps.length || missingFiles.length) throw new Error(`${pack}: no icon for ${[...missingApps, ...missingFiles].join(', ')}`);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
   for (const [id, svg] of Object.entries({ ...apps, ...files })) {
     if (/\]|undefined|NaN/.test(svg)) throw new Error(`${pack}/${id}: bad SVG`);
     writeFileSync(join(dir, `${id}.svg`), svg);

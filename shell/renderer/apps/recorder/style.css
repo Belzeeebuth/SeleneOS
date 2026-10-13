@@ -91,7 +91,10 @@
   gap: 8px;
   justify-content: flex-start;
   color: var(--text-2);
+  min-width: 0;
 }
+.app-recorder .rc-folder span,
+.app-recorder .rc-new span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ------------------------------------------------------------ main */
 .app-recorder .rc-main {
@@ -158,7 +161,7 @@
   font: var(--fs-small) / 1 var(--font);
   font-variant-numeric: tabular-nums;
 }
-.app-recorder .rc-chip .icon { color: var(--accent-text); }
+.app-recorder .rc-chip .icon { color: var(--warning); }
 .app-recorder button.rc-chip { cursor: pointer; }
 .app-recorder button.rc-chip:hover { background: var(--subtle-hover); }
 .app-recorder button.rc-chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
