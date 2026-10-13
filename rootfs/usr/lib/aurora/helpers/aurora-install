@@ -498,7 +498,9 @@ cleanup() {
   if ((!DONE)); then
     ((rc == 0)) && rc=5
     emit_error "$rc" "installation failed (exit $rc)"
+    esp_rollback
   fi
+  ((DONE)) && [[ -n "$ESP_BACKUP" ]] && rm -rf "$ESP_BACKUP"
   rm -f "$TARGET/usr/sbin/policy-rc.d" 2>/dev/null
   sync
   umount_under "$WORKDIR"
@@ -1065,6 +1067,158 @@ esp_snapshot() {
   return 0
 }
 
+# ------------------------------------------------------------------ shared EFI system partition safety net (--alongside)
+# Right before the boot loader stage, the whole EFI system partition (small: it only holds boot files) is copied to a
+# root-only folder under /run (esp_backup). When a file of another system (anything outside EFI/ubuntu, and EFI/BOOT
+# when the disk had none) changed during the boot loader stage, or when the installation fails after that stage
+# started, the partition is put back exactly as it was (esp_restore: every file byte for byte, the files and folders
+# added — EFI/ubuntu when it did not exist before — removed) and the « Selene » firmware entry this run added is
+# deleted again (esp_rollback, from cleanup), so that the other systems start as before and a retry is possible.
+ESP_BACKUP="" ESP_ROLLBACK=0 ESP_DIR="" ESP_TMP_MNT="" BOOTENTRY_ADDED="" BOOTORDER_BEFORE=""
+esp_open() { # ESP_DIR = the mounted partition, or "" (written with mtools: this kernel cannot mount FAT)
+  ESP_DIR=""
+  if [[ "$ESP_MODE" == mount ]]; then
+    if mountpoint -q "$TARGET/boot/efi"; then ESP_DIR=$TARGET/boot/efi; return 0; fi
+    ESP_TMP_MNT=$(mktemp -d /run/aurora-esp-mnt.XXXXXX) || return 1
+    mount -t vfat -o umask=0077 "$P_ESP" "$ESP_TMP_MNT" || { rmdir "$ESP_TMP_MNT"; ESP_TMP_MNT=""; return 1; }
+    ESP_DIR=$ESP_TMP_MNT; return 0
+  fi
+  [[ -z "$(findmnt -rn -t vfat -S "$P_ESP" -o TARGET 2>/dev/null)" ]] || { log "the EFI system partition is mounted elsewhere"; return 1; }
+  command -v mcopy >/dev/null 2>&1
+}
+esp_close() {
+  if [[ -n "$ESP_TMP_MNT" ]]; then
+    umount "$ESP_TMP_MNT" 2>/dev/null || umount -l "$ESP_TMP_MNT" 2>/dev/null || true
+    rmdir "$ESP_TMP_MNT" 2>/dev/null || true
+    ESP_TMP_MNT=""
+  fi
+  ESP_DIR=""
+}
+esp_m() { MTOOLS_SKIP_CHECK=1 "$@"; }   # mtools on $P_ESP (never while it is mounted as vfat: see esp_open)
+esp_dump() { # esp_dump DIR: copy of every file and folder of the partition into the empty folder DIR
+  if [[ -n "$ESP_DIR" ]]; then cp -r --preserve=timestamps "$ESP_DIR"/. "$1"/
+  else esp_m mcopy -s -n -m -Q -i "$P_ESP" '::*' "$1"/ >/dev/null 2>&1; fi
+}
+esp_files() { (cd "$1" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0r sha256sum); }   # "sha256  ./path"
+esp_dirs() { (cd "$1" && find . -mindepth 1 -type d | LC_ALL=C sort); }
+esp_backup() {
+  local d; d=$(mktemp -d /run/aurora-esp-backup.XXXXXX) || die 5 "could not prepare the copy of the EFI system partition in /run: nothing was written to it"
+  chmod 0700 "$d"; mkdir -m 0700 "$d/files"
+  ESP_BACKUP=$d
+  if ! esp_open || ! esp_dump "$d/files"; then
+    esp_close; rm -rf "$d"; ESP_BACKUP=""
+    die 5 "could not copy the EFI system partition to /run before writing the boot loader (not enough memory?): nothing was written to it"
+  fi
+  esp_close
+  esp_files "$d/files" >"$d/files.sha256"; esp_dirs "$d/files" >"$d/dirs"
+  ESP_ROLLBACK=1
+  log "EFI system partition copied to $d ($(wc -l <"$d/files.sha256") files, $(du -sh "$d/files" | cut -f1)); put back if the boot loader stage changes a file of another system or fails"
+}
+esp_restore() { # the partition exactly as in ESP_BACKUP (file contents byte for byte, files and folders added removed)
+  # FAT names are case-insensitive: paths are compared in lower case (a file written as EFI/BOOT/BOOTX64.EFI over
+  # EFI/Boot/bootx64.efi is the same file). 0 = put back and checked again from the partition.
+  [[ -n "$ESP_BACKUP" && -s "$ESP_BACKUP/files.sha256" ]] || return 1
+  local cur f line ok=0 p seg
+  local -A have=() keep=() keepd=()
+  esp_open || return 1
+  cur=$ESP_DIR
+  if [[ -z "$cur" ]]; then cur=$ESP_BACKUP/now; rm -rf "$cur"; mkdir "$cur"; esp_dump "$cur" || { esp_close; return 1; }; fi
+  while IFS= read -r line; do have[${line,,}]=1; done < <(esp_files "$cur")
+  while IFS= read -r line; do   # files missing or different: copied back
+    f=${line#*  }; keep[${f,,}]=1
+    [[ -n "${have[${line,,}]:-}" ]] && continue
+    log "restoring ${f#./} on the EFI system partition"
+    if [[ -n "$ESP_DIR" ]]; then
+      { mkdir -p "$(dirname "$ESP_DIR/$f")" && cp --preserve=timestamps "$ESP_BACKUP/files/$f" "$ESP_DIR/$f"; } || ok=1
+    else
+      p=""; IFS=/ read -r -a seg <<<"$(dirname "${f#./}")"
+      for s in "${seg[@]}"; do [[ -z "$s" || "$s" == . ]] && continue; p+=/$s; esp_m mmd -i "$P_ESP" "::$p" >/dev/null 2>&1 || true; done
+      esp_m mcopy -o -m -Q -i "$P_ESP" "$ESP_BACKUP/files/$f" "::/${f#./}" >/dev/null 2>&1 || ok=1
+    fi
+  done <"$ESP_BACKUP/files.sha256"
+  while IFS= read -r line; do   # files that were not there: removed
+    f=${line#*  }
+    [[ -n "${keep[${f,,}]:-}" ]] && continue
+    log "removing ${f#./} from the EFI system partition"
+    if [[ -n "$ESP_DIR" ]]; then rm -f "$ESP_DIR/$f" || ok=1; else esp_m mdel -i "$P_ESP" "::/${f#./}" >/dev/null 2>&1 || ok=1; fi
+  done < <(esp_files "$cur")
+  while IFS= read -r f; do keepd[${f,,}]=1; done <"$ESP_BACKUP/dirs"
+  while IFS= read -r f; do   # folders that were not there (EFI/ubuntu, …): deepest first
+    [[ -n "${keepd[${f,,}]:-}" ]] && continue
+    if [[ -n "$ESP_DIR" ]]; then rmdir "$ESP_DIR/$f" 2>/dev/null || ok=1; else esp_m mrd -i "$P_ESP" "::/${f#./}" >/dev/null 2>&1 || ok=1; fi
+  done < <(esp_dirs "$cur" | LC_ALL=C sort -r)
+  # Checked again from the partition itself.
+  if [[ -z "$ESP_DIR" ]]; then rm -rf "$cur"; mkdir "$cur"; esp_dump "$cur" || ok=1; fi
+  [[ "$(esp_files "$cur" | tr 'A-Z' 'a-z' | LC_ALL=C sort)" == "$(tr 'A-Z' 'a-z' <"$ESP_BACKUP/files.sha256" | LC_ALL=C sort)" ]] || ok=1
+  [[ "$(esp_dirs "$cur" | tr 'A-Z' 'a-z' | LC_ALL=C sort)" == "$(tr 'A-Z' 'a-z' <"$ESP_BACKUP/dirs" | LC_ALL=C sort)" ]] || ok=1
+  if [[ -n "$ESP_DIR" ]]; then sync -f "$ESP_DIR/." 2>/dev/null || true; else rm -rf "$cur"; fi
+  esp_close
+  return "$ok"
+}
+# esp_rollback (cleanup, failed run): the « Selene » firmware entry added by this run removed, the boot order and the
+# EFI system partition put back as they were before the boot loader stage.
+esp_rollback() {
+  ((ESP_ROLLBACK)) || return 0
+  ESP_ROLLBACK=0
+  log "the installation stopped after the boot loader stage started: putting the boot files and the firmware boot entries back as they were"
+  if [[ -n "$BOOTENTRY_ADDED" ]]; then
+    if efibootmgr -q -b "$BOOTENTRY_ADDED" -B >&2 2>&1; then log "firmware boot entry Boot$BOOTENTRY_ADDED « Selene » removed"
+    else log "warning: could not remove the firmware boot entry Boot$BOOTENTRY_ADDED « Selene »"; fi
+    if [[ -n "$BOOTORDER_BEFORE" ]]; then
+      efibootmgr -q --bootorder "$BOOTORDER_BEFORE" >&2 2>&1 || log "warning: could not set the boot order back to $BOOTORDER_BEFORE"
+    fi
+    BOOTENTRY_ADDED=""
+  fi
+  if esp_restore; then
+    log "EFI system partition: exactly as before the installation (checked file by file)"
+    rm -rf "$ESP_BACKUP"; ESP_BACKUP=""
+  else
+    log "WARNING: the EFI system partition could not be put back exactly as before; its copy is in $ESP_BACKUP (root only; lost at restart: copy it to a USB drive)"
+  fi
+}
+# test_tamper_esp (tools/test-alongside.sh only, test mode): a grub-install that replaced another system's removable
+# EFI/BOOT/BOOTX64.EFI and added EFI/BOOT/fbx64.efi anyway, written on the partition itself.
+test_tamper_esp() {
+  local junk="$WORKDIR/tamper.efi"
+  head -c 4096 /dev/urandom >"$junk"
+  esp_open || die 5 "test: cannot open the EFI system partition"
+  log "TEST: replacing EFI/BOOT/BOOTX64.EFI and adding EFI/BOOT/fbx64.efi on the EFI system partition"
+  if [[ -n "$ESP_DIR" ]]; then mkdir -p "$ESP_DIR/EFI/BOOT"; cp "$junk" "$ESP_DIR/EFI/BOOT/BOOTX64.EFI"; cp "$junk" "$ESP_DIR/EFI/BOOT/fbx64.efi"
+  else esp_m mcopy -o -Q -i "$P_ESP" "$junk" ::/EFI/BOOT/BOOTX64.EFI >/dev/null 2>&1; esp_m mcopy -o -Q -i "$P_ESP" "$junk" ::/EFI/BOOT/fbx64.efi >/dev/null 2>&1; fi
+  esp_close; rm -f "$junk"
+}
+
+# GRUB updates on the installed system (grub-multi-install, run by the grub-efi-amd64 / shim packages, calls
+# grub-install through PATH) must never replace another system's removable EFI/BOOT/BOOTX64.EFI: next to a system that
+# has one, /usr/local/sbin/grub-install adds --no-extra-removable to every x86_64-efi install (and drops
+# --force-extra-removable). Only written by an installation « à côté » on a disk with an EFI/BOOT folder.
+write_grub_wrapper() {
+  mkdir -p "$TARGET/usr/local/sbin"
+  write_file "$TARGET/usr/local/sbin/grub-install" 0755 <<'EOF'
+#!/bin/sh
+# Selene OS was installed next to another system that boots through the removable path EFI/BOOT/BOOTX64.EFI of the
+# shared EFI system partition. GRUB updates call grub-install through PATH: this wrapper (written by the Selene OS
+# installer) adds --no-extra-removable to every UEFI (x86_64-efi) installation so that they never replace that file.
+real=/usr/sbin/grub-install
+target="" prev=""
+for a in "$@"; do
+  case "$a" in --target=*) target=${a#--target=} ;; esac
+  [ "$prev" = --target ] && target=$a
+  prev=$a
+done
+[ -z "$target" ] && [ -d /sys/firmware/efi ] && target=x86_64-efi
+if [ "$target" = x86_64-efi ]; then
+  for a in "$@"; do
+    shift
+    [ "$a" = --force-extra-removable ] || set -- "$@" "$a"
+  done
+  exec "$real" "$@" --no-extra-removable
+fi
+exec "$real" "$@"
+EOF
+  log "GRUB updates: /usr/local/sbin/grub-install adds --no-extra-removable (another system boots through EFI/BOOT)"
+}
+
 # add_boot_entry: firmware boot entry « Selene » (shim) first in BootOrder. Never fatal: reported with emit_bootentry.
 add_boot_entry() {
   if ((TEST_NO_FIRMWARE)); then emit_bootentry skipped "test mode: no firmware boot entry"; return 0; fi
@@ -1079,6 +1233,7 @@ add_boot_entry() {
       efibootmgr -q -b "${BASH_REMATCH[1]}" -B >&2 2>&1 || log "warning: could not remove the earlier entry Boot${BASH_REMATCH[1]}"
     fi
   done < <(efibootmgr -v 2>/dev/null || true)
+  BOOTORDER_BEFORE=$(efibootmgr 2>/dev/null | sed -n 's/^BootOrder: *//p' || true)
   log "\$ efibootmgr --create --disk $DISK --part ${PLAN[ESP_NUM]} --label Selene --loader $loader"
   if ! out=$(efibootmgr --create --disk "$DISK" --part "${PLAN[ESP_NUM]}" --label Selene --loader "$loader" 2>&1); then
     printf '%s\n' "$out" >&2
@@ -1089,6 +1244,7 @@ add_boot_entry() {
   num=$(sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\}[[:space:]]\{1,\}Selene\([[:space:]].*\)\{0,1\}$/\1/p' <<<"$out" | tail -n1)
   order=$(sed -n 's/^BootOrder: *//p' <<<"$out")
   if [[ -z "$num" ]]; then emit_bootentry failed "the new boot entry was not found after efibootmgr --create"; return 0; fi
+  BOOTENTRY_ADDED=$num   # removed again if the installation fails after this (esp_rollback)
   if [[ "$order" != "$num"* ]]; then
     order=$num$(tr ',' '\n' <<<"$order" | grep -vix "$num" | sed 's/^/,/' | tr -d '\n')
     log "\$ efibootmgr --bootorder $order"
@@ -1199,8 +1355,96 @@ purge_live_packages() {
   fi
 }
 
-initramfs_list() { # initramfs_list KVER -> content listing (run in the background: interruptible)
-  local out="$WORKDIR/initramfs.list"
+# The live-session scripts (scripts/casper, scripts/casper-bottom, …) must not be in the installed system's initramfs.
+# initramfs_list KVER prints the names of the initramfs members that contain "scripts/casper" (nothing: there are none)
+# and fails when the image could not be read to its end. It scans the cpio headers with python3: the uncompressed
+# early archives (microcode, ~48 MB) are skipped by their sizes and the compressed main archive is streamed through its
+# decompressor, in seconds — lsinitramfs took ~40 min for the same answer in a virtual machine without KVM. lsinitramfs
+# (in the target, full listing) is the fallback when python3 or the decompressor is missing. Interruptible (bg_wait).
+INITRAMFS_SCAN_PY='
+import os, subprocess, sys
+NEEDLE = b"scripts/casper"
+CPIO = (b"070701", b"070702")
+DECOMP = ((b"\x28\xb5\x2f\xfd", ["zstd", "-dcq"]), (b"\x1f\x8b", ["gzip", "-dc"]), (b"\xfd7zXZ\x00", ["xz", "-dc"]),
+          (b"\x02\x21\x4c\x18", ["lz4", "-dc"]), (b"\x89LZO", ["lzop", "-dc"]), (b"BZh", ["bzip2", "-dc"]),
+          (b"\x5d\x00\x00", ["xz", "--format=lzma", "-dc"]))
+class Bad(Exception): pass
+class R:
+    def __init__(s, f): s.f, s.b, s.i, s.pos = f, b"", 0, 0
+    def peek(s, n):
+        if len(s.b) - s.i < n:
+            parts, have = [s.b[s.i:]], len(s.b) - s.i
+            while have < n:
+                c = s.f.read(max(n - have, 1 << 20))
+                if not c: break
+                parts.append(c); have += len(c)
+            s.b, s.i = b"".join(parts), 0
+        return s.b[s.i:s.i + n]
+    def read(s, n):
+        out = s.peek(n); s.i += len(out); s.pos += len(out)
+        if len(out) < n: raise Bad("truncated at byte %d" % s.pos)
+        return out
+    def skip(s, n):
+        a = min(n, len(s.b) - s.i); s.i += a; s.pos += a; n -= a
+        while n > 0:
+            c = s.f.read(min(n, 1 << 20))
+            if not c: raise Bad("truncated at byte %d" % s.pos)
+            n -= len(c); s.pos += len(c)
+def archives(r, found):  # consecutive newc archives -> "eof" or "other" (data that is not a cpio archive); count
+    count = 0
+    while True:
+        while True:  # zero padding between archives
+            p = r.peek(512)
+            z = len(p) - len(p.lstrip(b"\0"))
+            if not z: break
+            r.skip(z)
+        if not r.peek(1): return "eof", count
+        if r.peek(6) not in CPIO: return "other", count
+        if r.pos % 4: raise Bad("misaligned archive at byte %d" % r.pos)
+        while True:
+            h = r.read(110)
+            if h[:6] not in CPIO: raise Bad("bad cpio header at byte %d" % (r.pos - 110))
+            try: size, nsize = int(h[54:62], 16), int(h[94:102], 16)
+            except ValueError: raise Bad("bad cpio header at byte %d" % (r.pos - 110))
+            name = r.read(nsize).rstrip(b"\0")
+            r.skip(-r.pos % 4)
+            if name == b"TRAILER!!!": break
+            if NEEDLE in name: found.append(name.decode("utf-8", "replace"))
+            r.skip(size); r.skip(-r.pos % 4)
+        count += 1
+def main(path):
+    found = []
+    with open(path, "rb") as f:
+        r = R(f)
+        what, n = archives(r, found)
+        if what == "other":
+            magic = r.peek(6)
+            cmd = next((c for m, c in DECOMP if magic.startswith(m)), None)
+            if cmd is None: raise Bad("unknown data at byte %d" % r.pos)
+            fd = os.open(path, os.O_RDONLY); os.lseek(fd, r.pos, 0)
+            try: p = subprocess.Popen(cmd, stdin=fd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            except OSError: sys.exit(3)  # no decompressor here
+            finally: os.close(fd)
+            what, m = archives(R(p.stdout), found)
+            p.stdout.close()
+            if p.wait() != 0 or what != "eof" or m < 1: raise Bad("the compressed archive could not be read (%s)" % cmd[0])
+            n += m
+    if n < 1: raise Bad("no cpio archive")
+    for x in found: print(x)
+try: main(sys.argv[1])
+except (Bad, OSError) as e:
+    print("initramfs scan: %s" % e, file=sys.stderr); sys.exit(2)
+'
+initramfs_list() {
+  local out="$WORKDIR/initramfs.list" img="$TARGET/boot/initrd.img-$1" rc=0
+  [[ -s "$img" ]] || return 1
+  if command -v python3 >/dev/null 2>&1; then
+    bg_wait python3 -I -c "$INITRAMFS_SCAN_PY" "$img" >"$out" || rc=$?
+    if ((rc == 0)); then cat "$out"; rm -f "$out"; return 0; fi
+    rm -f "$out"
+    ((rc == 3)) || return 1   # unreadable: never taken as "no casper scripts"
+    log "initramfs scan: no decompressor for $img here; using lsinitramfs (slow)"
+  fi
   bg_wait in_target lsinitramfs "/boot/initrd.img-$1" >"$out" 2>/dev/null || { rm -f "$out"; return 1; }
   cat "$out"; rm -f "$out"
 }
@@ -1620,8 +1864,10 @@ EOF
 grub-efi-amd64 grub2/force_efi_extra_removable boolean $extra
 grub-efi-amd64 grub2/no_efi_extra_removable boolean $noextra
 EOF
+  ((ESP_OWN_FALLBACK)) || write_grub_wrapper   # before grub-install: this installation runs through it too
   local before="$WORKDIR/esp-before.sha256" after="$WORKDIR/esp-after.sha256" snap=1
   esp_snapshot "$before" || { snap=0; log "warning: could not read the EFI system partition for the before/after check"; }
+  esp_backup   # from here on, a failure puts the EFI system partition back as it was (esp_rollback)
   # EFI/ubuntu: Ubuntu's signed shim + GRUB (their built-in prefix is /EFI/ubuntu); the NVRAM entry is added below.
   # --no-extra-removable: without it this grub-install also replaces EFI/BOOT/BOOTX64.EFI (and adds fbx64/mmx64.efi
   # there), i.e. another system's fallback loader (seen in QEMU/OVMF next to Windows and next to Arch).
@@ -1629,6 +1875,7 @@ EOF
     in_target grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot \
       --bootloader-id=ubuntu --no-nvram --no-extra-removable --recheck
   [[ -s "$TARGET/boot/efi/EFI/ubuntu/grubx64.efi" ]] || die 5 "EFI/ubuntu/grubx64.efi was not installed"
+  ((TEST_NO_FIRMWARE)) && [[ "${AURORA_INSTALL_TEST_TAMPER_ESP:-}" == 1 ]] && test_tamper_esp
   if ((ESP_OWN_FALLBACK)); then
     run "could not install the removable UEFI boot loader" \
       in_target grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot \
@@ -1655,7 +1902,12 @@ EOF
   if ((snap)) && esp_snapshot "$after"; then
     if ! cmp -s "$before" "$after"; then
       diff "$before" "$after" >&2 || true
-      die 5 "a file of another system changed on the EFI system partition (see the log)"
+      ESP_ROLLBACK=0
+      if esp_restore; then
+        rm -rf "$ESP_BACKUP"; ESP_BACKUP=""
+        die 5 "the boot loader installation changed a boot file of another system on the EFI system partition: the original files were put back byte for byte and Selene OS's boot files removed, so your other systems start as before (details in the log). Selene OS was not installed."
+      fi
+      die 5 "the boot loader installation changed a boot file of another system on the EFI system partition and it could not be put back: do not restart; the original files are in $ESP_BACKUP (see the log)"
     fi
     log "EFI system partition: the $(wc -l <"$before") files of the other systems are unchanged"
   fi
