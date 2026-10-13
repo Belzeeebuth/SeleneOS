@@ -85,7 +85,7 @@ class ScreenRecorder {
     // room for the card under the start button (grows the window if needed)
     if (!this.grown) {
       this.grown = true;
-      this.ctx.win.setMinSize?.(380, 590);
+      this.ctx.win.setMinSize?.(380, 612);
       // still above the bar? (a window opened low on the screen) -> centre it
       const r = this.ctx.win.el.getBoundingClientRect();
       const tb = document.getElementById('taskbar')?.getBoundingClientRect();

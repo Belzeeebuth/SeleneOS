@@ -140,7 +140,7 @@ module.exports = function register(api) {
     if (opts && opts.mp4) {
       const mp4 = await uniquePath(path.dirname(f.path), path.basename(f.path, '.webm'), 'mp4');
       const args = ['-hide_banner', '-loglevel', 'error', '-y', '-i', f.path, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-pix_fmt', 'yuv420p',
-        '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', mp4];
+        '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-fps_mode', 'cfr', '-r', '30', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', mp4];
       const conv = await run('ffmpeg', args, { timeout: 30 * 60000 }).catch((e) => ({ code: 1, stderr: e.message }));
       if (conv.code === 0 && fs.existsSync(mp4)) {
         await fsp.rm(f.path, { force: true }).catch(() => {});

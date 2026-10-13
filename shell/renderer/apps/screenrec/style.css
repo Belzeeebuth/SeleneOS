@@ -340,6 +340,17 @@
   pointer-events: none;
 }
 
+/* the screen stream's <video> (lib/capture.js): rendered, but invisible and out of the way */
+video.sr-source {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* ------------------------------------------------------------------ tray chip (core/taskbar.js status item) */
 .tb-btn[data-status='screenrec'] .icon {
   color: var(--danger);

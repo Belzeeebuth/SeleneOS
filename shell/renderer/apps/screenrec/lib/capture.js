@@ -201,6 +201,10 @@ export class Recording {
     v.muted = true;
     v.playsInline = true;
     v.srcObject = new MediaStream(screen.getVideoTracks());
+    // in the page (1 px, invisible): Chromium stops updating a <video> that is not rendered anywhere
+    v.className = 'sr-source';
+    v.setAttribute('aria-hidden', 'true');
+    (document.getElementById('overlays') || document.body).appendChild(v);
     await v.play().catch(() => {});
     for (let i = 0; i < 50 && !v.videoWidth; i++) await new Promise((r) => setTimeout(r, 40));
     if (!v.videoWidth) throw Object.assign(new Error('no frames'), { code: 'ENOSCREEN' });
@@ -383,7 +387,10 @@ export class Recording {
     for (const s of this.streams) for (const tr of s.getTracks()) tr.stop();
     this.audioTrack?.stop();
     this.audioCtx?.close().catch(() => {});
-    if (this.video) this.video.srcObject = null;
+    if (this.video) {
+      this.video.srcObject = null;
+      this.video.remove();
+    }
   }
 }
 

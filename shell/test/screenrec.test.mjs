@@ -204,9 +204,8 @@ async function main() {
       const p = probe(fullFile);
       check('vp8/vp9 video', p.video, (v) => v === 'vp8' || v === 'vp9');
       check('size of the shell (1280x720)', `${p.width}x${p.height}`, '1280x720');
-      // (the remux gives the WebM a duration; on a loaded test machine the VP8 encoder drops frames and the last ones
-      // are lost at stop, so only a lower bound is checked here)
-      check('duration known after the remux (pause excluded)', p.duration, (d) => d >= 0.3 && d < 8);
+      // (the remux gives the WebM a duration; a loaded test machine drops frames, so only bounds are checked)
+      check('duration known after the remux (pause excluded)', p.duration, (d) => d >= 1.5 && d < 9);
       check('frames in the video', countFrames(fullFile), (n) => n >= 3);
       check('no audio track', p.audio, null);
       const last = await SR(s, (app) => app.last);
@@ -301,7 +300,7 @@ async function main() {
       check('no WebM left beside it', fs.existsSync(last.path.replace(/\.mp4$/, '.webm')), false);
       const p = probe(last.path);
       check('h264', p.video, 'h264');
-      check('mp4 duration', p.duration, (d) => d > 0.1);
+      check('mp4 duration', p.duration, (d) => d > 0.8);
       await s.page.selectOption(`${WIN} select.sr-format`, 'webm');
     });
 
