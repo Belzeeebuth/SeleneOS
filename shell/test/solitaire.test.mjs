@@ -1094,8 +1094,14 @@ async function uiTests() {
       await T('load', LAST_CARD);
       await s.page.waitForTimeout(150);
       const k = await center('KS');
+      // F2 right after the pointerup that wins (the move is made on pointerup): a separate keyboard.press can land
+      // after the celebration started on a loaded machine (MOVE_MS + 80 ms later), and F2 then only skips the cascade.
+      await s.page.evaluate(() => {
+        const root = document.querySelector('.app-solitaire .sol');
+        const f2 = () => setTimeout(() => root.querySelector('.sol-table').dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true, cancelable: true })));
+        root.addEventListener('pointerup', f2, { capture: true, once: true });
+      });
       await s.page.mouse.click(k.x, k.y);
-      await s.page.keyboard.press('F2');
       await s.page.waitForTimeout(900);
       await idle();
       assert.equal(await wins(), before + 1);
