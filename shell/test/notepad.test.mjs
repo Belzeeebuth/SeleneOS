@@ -21,6 +21,9 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { launchShell, ROOT } from './lib.mjs';
 
+// dark --text of the default Halo theme (core/styles/finish-halo.css --amb-d-text #eef3ff)
+const DARK_TEXT = 'rgb(238, 243, 255)';
+
 const DOCS = path.join(ROOT, '..', 'docs', 'screenshots');
 fs.mkdirSync(DOCS, { recursive: true });
 const only = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7).toLowerCase();
@@ -1024,7 +1027,7 @@ async function mainRun() {
       await s.page.click(`${WIN} .np-set-card[data-key="theme"] input[value="dark"]`);
       await sleep(150);
       check('app theme dark while system light', await run(s, `document.querySelector('${WIN}').classList.contains('np-theme-dark')`), true);
-      check('dark text color', await run(s, `getComputedStyle(document.querySelector('${WIN} .np-set-title')).color`), 'rgb(230, 234, 242)');
+      check('dark text color', await run(s, `getComputedStyle(document.querySelector('${WIN} .np-set-title')).color`), DARK_TEXT);
       await shot(s, 'settings-app-dark', true);
       await s.page.click(`${WIN} .np-set-card[data-key="theme"] input[value="system"]`);
       await sleep(100);
@@ -1235,7 +1238,7 @@ async function mainRun() {
       await sleep(200);
       await s.page.hover(`${WIN} .np-more`);
       await until(() => run(s, `!!document.querySelector('.tooltip')`), { label: 'tooltip', timeout: 4000 });
-      check('tooltip gets the dark theme', await run(s, `(() => { const t = document.querySelector('.tooltip'); return t.classList.contains('np-theme-dark') && getComputedStyle(t).color; })()`), 'rgb(230, 234, 242)');
+      check('tooltip gets the dark theme', await run(s, `(() => { const t = document.querySelector('.tooltip'); return t.classList.contains('np-theme-dark') && getComputedStyle(t).color; })()`), DARK_TEXT);
       await s.page.mouse.move(5, 5);
       await NP(s, (np) => np.shared.setPref('theme', 'system'));
       await sleep(200);
@@ -1251,7 +1254,7 @@ async function mainRun() {
       await until(() => run(s, `!!document.querySelector('#overlays > .dialog-layer.global:not(.closing) .np-font-dlg')`), { label: 'screen-level font dialog' });
       await sleep(350);
       const g = await run(s, `(() => { const d = document.querySelector('#overlays > .dialog-layer.global:not(.closing) .np-font-dlg'); const r = d.getBoundingClientRect(); const w = document.querySelector('${WIN}').getBoundingClientRect(); return { themed: d.classList.contains('np-theme-dark'), color: getComputedStyle(d).color, onScreen: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, overlaps: r.left < w.right && r.right > w.left && r.top < w.bottom && r.bottom > w.top, preview: d.querySelector('.np-font-preview').getBoundingClientRect().bottom <= r.bottom }; })()`);
-      check('font dialog keeps the app theme', [g.themed, g.color], [true, 'rgb(230, 234, 242)']);
+      check('font dialog keeps the app theme', [g.themed, g.color], [true, DARK_TEXT]);
       check('font dialog on screen, over the window, preview visible', [g.onScreen, g.overlaps, g.preview], [true, true, true]);
       await s.page.keyboard.press('Escape');
       await sleep(300);
@@ -1347,7 +1350,7 @@ async function frenchDarkRun() {
       await s.page.keyboard.type('Bonjour');
       await sleep(80);
       check('plural', (await status(s)).chars, '7 caractères');
-      check('dark text color', await NP(s, (np) => getComputedStyle(np.active.ta).color), 'rgb(230, 234, 242)');
+      check('dark text color', await NP(s, (np) => getComputedStyle(np.active.ta).color), DARK_TEXT);
       await s.page.keyboard.press('Alt+m');
       await sleep(150);
       check('Alt+M opens the "…" menu on Modifier', await run(s, `document.querySelector('.np-menu .menu-item.active .label')?.textContent`), 'Rechercher');
