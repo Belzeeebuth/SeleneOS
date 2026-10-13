@@ -939,7 +939,7 @@ shrink_ntfs() {
   # silently, so it is made here without it (read-only).
   out=$(ntfsresize --info --no-progress-bar "$dev" </dev/null 2>&1 || true)
   if has_text 'scheduled for check' "$out"; then
-    die 4 "Windows must check this partition first: start Windows (twice if needed), shut it down fully, then try again (nothing was changed)"
+    die 4 "Windows must check this partition first: start Windows (twice if needed), shut it down fully, then try again (nothing was changed). After an installation that stopped once the partition was shrunk, this is expected: Windows checks the disk (chkdsk) at its next start, once"
   fi
   # One --force only: it skips the interactive question. (A second one would also skip the dirty-volume check.)
   log "\$ ntfsresize --no-action --size $bytes $dev"
@@ -1118,7 +1118,7 @@ esp_restore() { # the partition exactly as in ESP_BACKUP (file contents byte for
   # FAT names are case-insensitive: paths are compared in lower case (a file written as EFI/BOOT/BOOTX64.EFI over
   # EFI/Boot/bootx64.efi is the same file). 0 = put back and checked again from the partition.
   [[ -n "$ESP_BACKUP" && -s "$ESP_BACKUP/files.sha256" ]] || return 1
-  local cur f line ok=0 p seg
+  local cur f line ok=0 p seg s
   local -A have=() keep=() keepd=()
   esp_open || return 1
   cur=$ESP_DIR

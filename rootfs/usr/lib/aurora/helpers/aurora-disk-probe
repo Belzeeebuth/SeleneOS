@@ -76,7 +76,7 @@ MESSAGES = {
     'lvm': 'This partition holds LVM volumes: the installer does not shrink it. Free some space from the other system first.',
     'bitlocker': 'This partition is encrypted with BitLocker. In Windows, shrink it in Disk Management (or suspend BitLocker), then come back to use the free space.',
     'hibernated': 'Windows is hibernated or uses Fast Startup. In Windows, turn off Fast Startup (Control Panel > Power Options > Choose what the power buttons do), then shut down fully (Shift + Shut down) and come back.',
-    'dirty': 'Windows must check this partition first. Restart Windows (twice if needed), shut it down fully, then come back.',
+    'dirty': 'Windows must check this partition first. Restart Windows (twice if needed), shut it down fully, then come back. After a shrink by Selene OS (an installation that stopped), Windows checks the disk (chkdsk) once at its next start: let it finish before trying again.',
     'needs-recovery': 'This partition was not closed cleanly (its journal needs recovery). Start its system and shut it down normally, then come back.',
     'unsupported': 'The installer can shrink only NTFS (Windows) and ext4 partitions.',
     'too-full': 'This partition does not have enough free space to make room for Selene OS.',

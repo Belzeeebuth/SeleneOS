@@ -312,7 +312,7 @@
       },
       "dirty": {
         "title": "{os} needs to check its disk first",
-        "body": "Its file system was not closed properly. Start {os} and shut it down normally (in Windows you can also run « chkdsk C: /f »), then come back here and select Refresh."
+        "body": "Its file system was not closed properly. Start {os} and shut it down normally (in Windows you can also run « chkdsk C: /f »), then come back here and select Refresh. If Selene OS has already shrunk this partition (an installation that stopped), Windows must check it before any new attempt: start Windows once, let it finish its disk check (chkdsk) on its own, shut it down fully, then come back here."
       },
       "mounted": {
         "title": "A partition of this disk is in use",
@@ -667,7 +667,7 @@
       },
       "dirty": {
         "title": "{os} doit d'abord vérifier son disque",
-        "body": "Son système de fichiers n'a pas été fermé correctement. Démarrez {os} et arrêtez-le normalement (dans Windows, vous pouvez aussi lancer « chkdsk C: /f »), puis revenez ici et sélectionnez Actualiser."
+        "body": "Son système de fichiers n'a pas été fermé correctement. Démarrez {os} et arrêtez-le normalement (dans Windows, vous pouvez aussi lancer « chkdsk C: /f »), puis revenez ici et sélectionnez Actualiser. Si Selene OS a déjà réduit cette partition (une installation interrompue), Windows doit la vérifier avant toute nouvelle tentative : démarrez Windows une fois, laissez-le terminer seul la vérification du disque (chkdsk), arrêtez-le complètement, puis revenez ici."
       },
       "mounted": {
         "title": "Une partition de ce disque est en cours d'utilisation",

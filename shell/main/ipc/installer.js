@@ -385,7 +385,9 @@ function buildArgs(opts, { dryRun = false, delay, failAt } = {}) {
  * Dual boot plan -> helper argv (aurora-install --alongside …). Structure and bounds only: whole MiB, partition numbers
  * 1..128, a sha256 fingerprint; checkPlan() matches it against the disk's analysis. (unit-tested)
  *   { method: 'free', fingerprint, esp, start, end }        -> --alongside --fingerprint H --esp N --free-space S:E
- *   { method: 'shrink', fingerprint, esp, part, newSize }   -> --alongside --fingerprint H --esp N --shrink N --new-size MIB
+ *   { method: 'shrink', fingerprint, esp, part, newSize[, rootSize] }
+ *                                                  -> --alongside --fingerprint H --esp N --shrink N --new-size MIB [--root-size MIB]
+ *   rootSize: the exact size of Selene OS (the UI's); without it the helper takes all the space freed.
  */
 const isInt = (v, min, max) => Number.isSafeInteger(v) && v >= min && v <= max;
 const MAX_MIB = 999999999; // the helper's 9 digits
@@ -398,6 +400,10 @@ function alongsideArgs(a, bad) {
     if (!isInt(a.part, 1, 128) || a.part === a.esp) bad('alongside.part');
     if (!isInt(a.newSize, 1024, MAX_MIB)) bad('alongside.newSize');
     args.push('--shrink', String(a.part), '--new-size', String(a.newSize));
+    if (a.rootSize !== undefined) {
+      if (!isInt(a.rootSize, 19074, MAX_MIB)) bad('alongside.rootSize');
+      args.push('--root-size', String(a.rootSize));
+    }
   } else if (a.method === 'free') {
     if (!isInt(a.start, 1, MAX_MIB) || !isInt(a.end, 1, MAX_MIB) || a.end - a.start < ROOT_MIN_MIB) bad('alongside.free');
     args.push('--free-space', `${a.start}:${a.end}`);
@@ -424,6 +430,7 @@ function checkPlan(a, analysis) {
   const opt = analysis.options.find((x) => x.method === 'shrink' && x.number === a.part);
   if (!opt) no('partition');
   if (a.newSize < opt.newMinMiB || a.newSize > opt.newMaxMiB) no('new size out of bounds');
+  if (a.rootSize !== undefined && (a.rootSize < analysis.rootMinMiB || a.rootSize > opt.spaceMiB - 1 - a.newSize)) no('Selene OS size');
   return opt;
 }
 

@@ -69,7 +69,7 @@ export function rootBoundsGiB(opt) {
  * The exact dual boot plan for an option of the disk's analysis and a Selene size (GiB): the sizes to show and the
  * request for installer:start (main/ipc/installer.js alongsideArgs). Sizes in MiB.
  *   free:   { method, rootGiB, rootMiB, freeLeftMiB, request: { method, fingerprint, esp, start, end } }
- *   shrink: { method, rootGiB, rootMiB, oldMiB, newMiB, usedMiB, request: { method, fingerprint, esp, part, newSize } }
+ *   shrink: { method, rootGiB, rootMiB, oldMiB, newMiB, usedMiB, request: { method, fingerprint, esp, part, newSize, rootSize } }
  */
 export function alongsidePlan(analysis, opt, rootGiB) {
   if (!analysis?.possible || !opt || !analysis.esp) return null;
@@ -81,9 +81,11 @@ export function alongsidePlan(analysis, opt, rootGiB) {
     const rootMiB = Math.max(opt.rootMinMiB, Math.min(g * 1024, opt.rootMaxMiB));
     return { method: 'free', rootGiB: g, rootMiB, freeLeftMiB: opt.sizeMiB - rootMiB, request: { method: 'free', ...base, start: opt.startMiB, end: opt.startMiB + rootMiB } };
   }
-  // The new partition takes the space after the shrunk one (spaceMiB, minus 1 MiB of alignment).
+  // The new partition goes after the shrunk one (spaceMiB, minus 1 MiB of alignment) and has exactly the size shown:
+  // rootSize is sent to the helper (--root-size), which creates that size, not « everything up to the next partition ».
   const newMiB = Math.max(opt.newMinMiB, Math.min(opt.newMaxMiB, opt.spaceMiB - 1 - g * 1024));
-  return { method: 'shrink', rootGiB: g, rootMiB: opt.spaceMiB - 1 - newMiB, oldMiB: opt.sizeMiB, newMiB, usedMiB: opt.usedMiB, request: { method: 'shrink', ...base, part: opt.number, newSize: newMiB } };
+  const rootMiB = opt.spaceMiB - 1 - newMiB;
+  return { method: 'shrink', rootGiB: g, rootMiB, oldMiB: opt.sizeMiB, newMiB, usedMiB: opt.usedMiB, request: { method: 'shrink', ...base, part: opt.number, newSize: newMiB, rootSize: rootMiB } };
 }
 
 /** Flathub ids to send to the helper (--gaming): none while the switch is off; catalog order, known ids only. */
