@@ -1306,6 +1306,9 @@ async function qaRun() {
     // Ctrl+Alt+Del: Tab never walks out of the screen into the windows / taskbar behind it.
     await newWin('Behind the screen');
     await sleep(250);
+    // let the shell finish painting the 60-window step above first (in software rendering the Halo / Prisme glass takes
+    // ~10 ms per window to repaint): only the screen's own delay is measured
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     const t0 = Date.now();
     await hk('Ctrl+Alt+Delete');
     await page.waitForFunction(() => !!document.activeElement?.closest('.sec-screen'), null, { timeout: 3000 }).catch(() => {});

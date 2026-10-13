@@ -122,6 +122,9 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
   Dessin's « Image » menu name is also a Windows Paint group name; Vue d'ensemble / lock / Ctrl+Alt+Del not checked in
   high contrast. Workflow scripts for the redesign phases were in the session scratchpad (redesign-a…e.js).
 
+- Halo / Prisme glass in software rendering (no GPU, xvfb / QEMU without 3D): each window repaints the pre-blurred
+  wallpaper (`fixed` background), ~10 ms per window; opening or closing 60 windows at once stalls the shell ~600 ms
+  (Sobre: none). Normal use (a few windows) is fine; a cheaper material for many windows is a possible follow-up.
 - Sounds were never heard (no audio device in the build container).
 - Boot fixes (2026-10-11, after the user saw a black screen after the splash in QEMU):
   - Plymouth used to quit with `--retain-splash`, which left tty1 in graphics mode, so greetd's switch to vt7 was refused.
