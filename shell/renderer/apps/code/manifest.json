@@ -1,0 +1,16 @@
+{
+  "id": "code",
+  "name": { "en": "Code Editor", "fr": "Éditeur de code" },
+  "description": { "en": "Edit the code of a folder with syntax highlighting, a terminal and git status", "fr": "Modifiez le code d'un dossier, avec la coloration syntaxique, un terminal et l'état git" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1180, "height": 760, "minWidth": 560, "minHeight": 360, "background": "mica" },
+  "category": "productivity",
+  "keywords": {
+    "en": ["code", "editor", "programming", "developer", "ide", "git", "source", "javascript", "python", "rust", "terminal"],
+    "fr": ["code", "éditeur", "programmation", "développeur", "développement", "ide", "git", "source", "javascript", "python", "terminal"]
+  },
+  "singleInstance": true,
+  "fileTypes": [".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".py", ".html", ".htm", ".css", ".scss", ".json", ".md", ".c", ".h", ".cpp", ".hpp", ".rs", ".go", ".sh", ".bash", ".yml", ".yaml", ".toml", ".txt"]
+}

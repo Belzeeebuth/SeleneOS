@@ -1,0 +1,15 @@
+{
+  "id": "screenrec",
+  "name": { "en": "Screen Recorder", "fr": "Enregistreur d'écran" },
+  "description": { "en": "Record the whole screen or an area, with your voice and the computer's sound if you like", "fr": "Enregistrez tout l'écran ou une zone, avec votre voix et le son de l'ordinateur si vous le souhaitez" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 440, "height": 430, "minWidth": 380, "minHeight": 400, "background": "mica" },
+  "category": "utilities",
+  "keywords": {
+    "en": ["screen recorder", "record screen", "screencast", "video capture", "screen video", "record", "capture"],
+    "fr": ["enregistreur d'écran", "enregistrer l'écran", "enregistrement d'écran", "capture vidéo", "vidéo de l'écran", "screencast", "enregistrer", "capture"]
+  },
+  "singleInstance": true
+}

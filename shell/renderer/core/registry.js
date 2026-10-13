@@ -17,7 +17,9 @@
 //   "fileTypes": [".txt", ".md"],       // extensions this app can open (ctx.args.file)
 //   "defaultFor": [".txt"],             // extensions this app should open by default (beats other fileTypes)
 //   "hidden": false,                    // hide from Start "All apps"
-//   "liveOnly": false                   // only in the live session (installer)
+//   "liveOnly": false,                  // only in the live session (installer)
+//   "alias": { "app": "media", "args": { "view": "music" } }  // optional: a Lanceur / search entry with its own name
+//                                       // and icon that launches another app with these args (no entry module)
 // }
 //
 // The entry module's launch(ctx) receives:
@@ -154,6 +156,10 @@ export const registry = {
     if (!m) {
       console.error(`[registry] unknown app ${id}`);
       return null;
+    }
+    // Launcher alias (e.g. Musique -> the Lecteur on its music library): launches the target app instead.
+    if (m.alias && typeof m.alias.app === 'string' && m.alias.app !== id && apps.has(m.alias.app) && !apps.get(m.alias.app).alias) {
+      return registry.launch(m.alias.app, { ...(m.alias.args && typeof m.alias.args === 'object' ? m.alias.args : {}), ...(args || {}) });
     }
     if (m.kind === 'linux') {
       // An external program: its window arrives later through core/features/xwin.js (matched by xapps:match).

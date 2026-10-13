@@ -1,0 +1,15 @@
+{
+  "id": "videoeditor",
+  "name": { "en": "Video Editor", "fr": "Éditeur vidéo" },
+  "description": { "en": "Cut your clips, add titles and music, then export an MP4 video", "fr": "Coupez vos clips, ajoutez des titres et de la musique, puis exportez une vidéo MP4" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1240, "height": 800, "minWidth": 900, "minHeight": 600, "background": "mica" },
+  "category": "media",
+  "keywords": {
+    "en": ["video", "editor", "movie", "montage", "clip", "timeline", "trim", "cut", "titles", "export", "mp4"],
+    "fr": ["vidéo", "montage", "éditeur", "film", "clip", "frise", "couper", "titre", "exporter", "mp4"]
+  },
+  "singleInstance": true
+}

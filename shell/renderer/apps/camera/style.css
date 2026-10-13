@@ -1,0 +1,440 @@
+/* Camera (apps/camera). Tokens only; the preview area is a picture (black letterbox, white overlays), like the
+   Lecteur's video view. */
+.app-camera .cam-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ top bar */
+.app-camera .cam-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--line-soft);
+  min-height: 48px;
+  box-sizing: border-box;
+}
+.app-camera .cam-bar-l,
+.app-camera .cam-bar-r {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.app-camera .cam-bar-l .select {
+  max-width: 220px;
+  min-width: 0;
+}
+.app-camera .cam-select {
+  max-width: 240px;
+}
+.app-camera .cam-ib {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 var(--sp-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-2);
+}
+.app-camera .cam-ib:hover {
+  color: var(--text);
+}
+.app-camera .cam-ib.on {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-camera .cam-ib[hidden],
+.app-camera .select[hidden] {
+  display: none;
+}
+.app-camera .cam-timer-label {
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+.app-camera .cam-timer-label:empty {
+  display: none;
+}
+.app-camera .cam-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 var(--sp-1);
+  background: var(--line-soft);
+}
+
+/* no camera: only the folder stays in the bar */
+.app-camera .cam-root:not([data-status='live']) .cam-bar-r > :not(.cam-folder-btn) {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ preview */
+.app-camera .cam-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: rgb(0 0 0);
+}
+.app-camera .cam-root[data-status='error'] .cam-stage,
+.app-camera .cam-root[data-status='starting'] .cam-stage {
+  background: var(--bg-alt);
+}
+.app-camera .cam-frame {
+  position: absolute;
+  overflow: hidden;
+}
+.app-camera .cam-root:not([data-status='live']) .cam-frame {
+  visibility: hidden;
+}
+.app-camera .cam-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: rgb(0 0 0);
+}
+.app-camera .cam-frame.mirror .cam-video {
+  transform: scaleX(-1);
+}
+.app-camera .cam-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.app-camera .cam-grid[hidden] {
+  display: none;
+}
+.app-camera .cam-grid i {
+  position: absolute;
+  background: rgb(255 255 255 / 0.42);
+  box-shadow: 0 0 2px rgb(0 0 0 / 0.35);
+}
+.app-camera .cam-grid i:nth-child(1),
+.app-camera .cam-grid i:nth-child(2) {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.app-camera .cam-grid i:nth-child(1) {
+  left: 33.333%;
+}
+.app-camera .cam-grid i:nth-child(2) {
+  left: 66.666%;
+}
+.app-camera .cam-grid i:nth-child(3),
+.app-camera .cam-grid i:nth-child(4) {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+.app-camera .cam-grid i:nth-child(3) {
+  top: 33.333%;
+}
+.app-camera .cam-grid i:nth-child(4) {
+  top: 66.666%;
+}
+.app-camera .cam-count {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-family: var(--font-display);
+  font-size: 112px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255);
+  text-shadow: 0 2px 18px rgb(0 0 0 / 0.55);
+}
+.app-camera .cam-count:empty {
+  display: none;
+}
+.app-camera .cam-flash {
+  position: absolute;
+  inset: 0;
+  background: rgb(255 255 255);
+  opacity: 0;
+  pointer-events: none;
+}
+.app-camera .cam-flash.go {
+  animation: cam-flash var(--dur-slower) var(--ease);
+}
+@keyframes cam-flash {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 0;
+  }
+}
+[data-animations='off'] .app-camera .cam-flash.go {
+  animation: none;
+}
+
+/* recording badge (top centre) */
+.app-camera .cam-rec {
+  position: absolute;
+  top: var(--sp-3);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 5px 12px 5px 10px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.55);
+  color: rgb(255 255 255);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+.app-camera .cam-rec[hidden] {
+  display: none;
+}
+.app-camera .cam-rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.85);
+  animation: cam-blink 1.2s steps(2, jump-none) infinite;
+}
+@keyframes cam-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+[data-animations='off'] .app-camera .cam-rec-dot {
+  animation: none;
+}
+.app-camera .cam-rec-time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* transient note (bottom centre) */
+.app-camera .cam-note {
+  position: absolute;
+  left: 50%;
+  bottom: var(--sp-4);
+  max-width: min(560px, calc(100% - 32px));
+  transform: translate(-50%, 6px);
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-flyout);
+  font-size: var(--fs-small);
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--dur) var(--ease),
+    transform var(--dur) var(--ease);
+}
+.app-camera .cam-note.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* empty / starting state */
+.app-camera .cam-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-6);
+}
+.app-camera .cam-empty[hidden] {
+  display: none;
+}
+.app-camera .cam-empty-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 420px;
+  text-align: center;
+}
+.app-camera .cam-empty-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--sp-2);
+  background: var(--layer);
+  border: 1px solid var(--line-soft);
+  color: var(--text-2);
+}
+.app-camera .cam-empty-title {
+  font-family: var(--font-display);
+  color: var(--text);
+}
+.app-camera .cam-empty-help {
+  line-height: 1.5;
+}
+.app-camera .cam-retry {
+  margin-top: var(--sp-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.app-camera .cam-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--line-soft);
+  border-top-color: var(--accent);
+  animation: cam-spin 0.9s linear infinite;
+}
+@keyframes cam-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+[data-animations='off'] .app-camera .cam-spinner {
+  animation: none;
+}
+
+/* ------------------------------------------------------------------ bottom controls */
+.app-camera .cam-controls {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-5);
+  border-top: 1px solid var(--line-soft);
+}
+.app-camera .cam-c-l {
+  justify-self: start;
+}
+.app-camera .cam-c-r {
+  justify-self: end;
+}
+.app-camera .cam-thumb {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--bg-alt);
+  color: var(--text-3);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.app-camera .cam-thumb:disabled {
+  cursor: default;
+}
+.app-camera .cam-thumb:not(:disabled):hover {
+  transform: scale(1.04);
+}
+.app-camera .cam-thumb img,
+.app-camera .cam-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.app-camera .cam-thumb-badge {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 0.6);
+  color: rgb(255 255 255);
+}
+.app-camera .cam-shutter {
+  width: 68px;
+  height: 68px;
+  padding: 0;
+  border-radius: 50%;
+  border: 3px solid var(--text);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.app-camera .cam-shutter:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.app-camera .cam-shutter:focus-visible,
+.app-camera .cam-thumb:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+.app-camera .cam-shutter-in {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--text);
+  transition:
+    transform var(--dur) var(--ease),
+    border-radius var(--dur) var(--ease),
+    background-color var(--dur) var(--ease);
+}
+.app-camera .cam-shutter:not(:disabled):hover .cam-shutter-in {
+  transform: scale(0.94);
+}
+.app-camera .cam-shutter:not(:disabled):active .cam-shutter-in {
+  transform: scale(0.86);
+}
+.app-camera .cam-root[data-mode='video'] .cam-shutter-in {
+  background: var(--danger);
+}
+.app-camera .cam-root.is-recording .cam-shutter-in {
+  border-radius: var(--radius);
+  transform: scale(0.5);
+}
+.app-camera .cam-root.is-recording .cam-shutter:not(:disabled):hover .cam-shutter-in {
+  transform: scale(0.46);
+}
+.app-camera .cam-root.is-counting .cam-shutter-in {
+  transform: scale(0.5);
+  border-radius: var(--radius);
+  background: var(--text-2);
+}
+.app-camera .cam-mode button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 620px) {
+  .app-camera .cam-mode button span {
+    display: none;
+  }
+  .app-camera .cam-controls {
+    padding: var(--sp-3);
+  }
+}
+
+/* the red dot of the recording button in the bar (shell.setStatusItem('camera-rec')) */
+[data-status='camera-rec'] .icon {
+  color: var(--danger);
+}
+[data-status='camera-rec'] .tb-status-text {
+  font-variant-numeric: tabular-nums;
+}

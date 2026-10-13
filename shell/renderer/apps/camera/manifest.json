@@ -1,0 +1,15 @@
+{
+  "id": "camera",
+  "name": { "en": "Camera", "fr": "Caméra" },
+  "description": { "en": "Take photos and videos with your webcam", "fr": "Prenez des photos et des vidéos avec votre webcam" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 960, "height": 660, "minWidth": 520, "minHeight": 440, "background": "mica" },
+  "category": "media",
+  "keywords": {
+    "en": ["camera", "webcam", "photo", "selfie", "video", "record", "picture", "camera roll"],
+    "fr": ["caméra", "webcam", "photo", "selfie", "vidéo", "enregistrer", "filmer", "pellicule", "appareil photo"]
+  },
+  "singleInstance": true
+}

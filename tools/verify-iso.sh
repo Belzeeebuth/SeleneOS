@@ -565,6 +565,15 @@ for f in main/ipc/updates.js renderer/core/features/update-check.js; do
 done
 # ---- END image ----------------------------------------------------------------------------------------------
 
+# ---- BEGIN camera (App phase 2, renderer/apps/camera + main/ipc/camera.js) ----------------------------------------
+# Webcams are read by Chromium's own V4L2 capture and microphones through PipeWire (base.list): no extra package.
+for f in renderer/apps/camera/manifest.json renderer/apps/camera/main.js renderer/apps/camera/i18n.json renderer/apps/camera/icon.svg \
+  main/ipc/camera.js renderer/assets/icons/packs/halo/camera.svg renderer/assets/icons/packs/prisme/camera.svg; do
+  [[ -f "$S/opt/aurora/shell/$f" ]] && pass "Camera: shell has $f" || fail "Camera: shell lacks $f"
+done
+grep -qs '"Pellicule"' "$S/opt/aurora/shell/renderer/apps/camera/i18n.json" && pass "Camera saves to Images/Pellicule in French" || fail "Camera i18n lacks the Pellicule folder name"
+# ---- END camera -------------------------------------------------------------------------------------------------
+
 # initramfs: casper + Selene OS splash.
 if [[ -x "$S/usr/bin/lsinitramfs" ]]; then
   mount -t tmpfs tmpfs "$S/tmp" && mount -t tmpfs tmpfs "$S/var/tmp" && mount -t proc proc "$S/proc" && mount --bind /dev "$S/dev"

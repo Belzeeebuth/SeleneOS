@@ -225,6 +225,12 @@ export function parseId3v2(buf) {
         const ms = Number(txt);
         if (ms > 0) out.duration ??= ms / 1000;
       }
+    } else if (key === 'USLT' || id === 'ULT') {
+      // unsynchronised lyrics: encoding, language (3), content descriptor, text
+      const enc = body[0];
+      const [, after] = skipTerm(body, 4, enc);
+      const txt = decodeText(body.subarray(after), enc).replace(/\0+$/, '').trim();
+      if (txt) out.lyrics ??= txt.slice(0, 20000);
     } else if (key === 'APIC') {
       const enc = body[0];
       let mime;
@@ -304,6 +310,10 @@ export function parseVorbisComments(b, o = 0) {
       }
       const val = clean(utf8(raw.subarray(eq + 1)));
       if (!val) continue;
+      if (key === 'LYRICS' || key === 'UNSYNCEDLYRICS') {
+        out.lyrics ??= utf8(raw.subarray(eq + 1)).trim().slice(0, 20000) || undefined;
+        continue;
+      }
       if (key === 'COVERART') coverArt = val;
       else if (key === 'COVERARTMIME') coverMime = val;
       else if (key === 'TITLE') out.title ??= val;
@@ -480,6 +490,9 @@ async function parseMp4(reader) {
         break;
       case '©day':
         out.year ??= yearOf(text());
+        break;
+      case '©lyr':
+        out.lyrics ??= utf8(val).trim().slice(0, 20000) || undefined;
         break;
       case '©gen':
         out.genre ??= text();

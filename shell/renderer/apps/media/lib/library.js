@@ -270,6 +270,11 @@ export class Library {
         data.art = await this._writeCache('art', `${hash(tags.picture.data)}.${ext}`, tags.picture.data);
       } catch {}
     }
+    if (!data.art) {
+      // no embedded picture: the album cover next to the files (folder.jpg, cover.jpg…), copied to the art cache once
+      const cover = await this._folderCover(e.dir);
+      if (cover) data.art = cover;
+    }
     if (Number.isFinite(tags.duration) && tags.duration > 0) data.duration = tags.duration;
     else {
       try {
@@ -279,6 +284,29 @@ export class Library {
       }
     }
     this._store(e, data);
+  }
+
+  _folderCover(dir) {
+    this._covers ||= new Map();
+    if (!this._covers.has(dir)) {
+      this._covers.set(
+        dir,
+        (async () => {
+          const list = await this.api.invoke('fs:list', dir).catch(() => []);
+          const names = ['folder', 'cover', 'front', 'album', 'albumart'];
+          const pick = list
+            .filter((f) => !f.dir && /\.(jpe?g|png|webp)$/i.test(f.name) && f.size > 64 && f.size < 20 * 1024 * 1024)
+            .map((f) => ({ f, rank: names.indexOf(f.name.replace(/\.[^.]+$/, '').toLowerCase()) }))
+            .filter((x) => x.rank >= 0)
+            .sort((a, b) => a.rank - b.rank)[0]?.f;
+          if (!pick) return null;
+          const bytes = await this.api.invoke('fs:readBytes', pick.path);
+          const ext = /\.png$/i.test(pick.name) ? 'png' : /\.webp$/i.test(pick.name) ? 'webp' : 'jpg';
+          return this._writeCache('art', `${hash(bytes)}.${ext}`, bytes);
+        })().catch(() => null),
+      );
+    }
+    return this._covers.get(dir);
   }
 
   async probeDuration(url) {

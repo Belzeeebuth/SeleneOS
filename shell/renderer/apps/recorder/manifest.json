@@ -1,0 +1,15 @@
+{
+  "id": "recorder",
+  "name": { "en": "Voice Recorder", "fr": "Enregistreur vocal" },
+  "description": { "en": "Record your voice or a meeting, add markers, trim and share your recordings", "fr": "Enregistrez votre voix ou une réunion, ajoutez des repères, rognez et partagez vos enregistrements" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 940, "height": 600, "minWidth": 560, "minHeight": 440, "background": "mica" },
+  "category": "media",
+  "keywords": {
+    "en": ["voice", "recorder", "sound", "audio", "microphone", "record", "memo", "dictaphone", "meeting"],
+    "fr": ["voix", "enregistreur", "son", "audio", "micro", "microphone", "enregistrer", "mémo vocal", "dictaphone", "réunion"]
+  },
+  "singleInstance": true
+}

@@ -42,8 +42,10 @@ const APPS = {
   browser: ['compass', 'blue'],
   calculator: ['calculator', 'silver'],
   calendar: ['calendar-dots', 'rose'],
+  camera: ['camera', 'terra'],
   chess: ['horse', 'sand'],
   clock: ['clock', 'silver'],
+  code: ['bold:code', 'teal'],
   cloud: ['cloud', 'blue'],
   contacts: ['address-book', 'lavender'],
   disks: ['hard-drives', 'silver'],
@@ -53,6 +55,7 @@ const APPS = {
   mail: ['envelope-simple', 'blue'],
   maps: ['map-trifold', 'sage'],
   media: ['play-circle', 'rose'],
+  music: ['music-notes', 'lavender'], // launcher alias of the Lecteur (apps/music/manifest.json "alias")
   minesweeper: ['flag', 'terra'],
   nettools: ['network', 'teal'],
   notepad: ['file-text', 'silver'],
@@ -61,7 +64,9 @@ const APPS = {
   passwords: ['key', 'amber'],
   pdf: ['file-pdf', 'terra'],
   photos: ['image', 'teal'],
+  recorder: ['microphone', 'rose'],
   remote: ['screencast', 'blue'],
+  screenrec: ['record', 'terra'], // Enregistreur d'écran: the « rec » ring and dot
   settings: ['gear-six', 'silver'],
   snake: ['game-controller', 'sage'],
   snipping: ['bold:scan', 'rose'],
@@ -72,6 +77,7 @@ const APPS = {
   terminal: ['bold:terminal', 'sage'],
   todo: ['check-circle', 'blue'],
   translate: ['bold:translate', 'teal'],
+  videoeditor: ['film-slate', 'amber'], // Éditeur vidéo: a clapperboard
   weather: ['cloud-sun', 'amber'],
   winver: ['@logo', 'silver'],
 };

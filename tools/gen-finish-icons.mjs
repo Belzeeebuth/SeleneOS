@@ -194,6 +194,13 @@ HALO.notepad = haloSvg(
     [[32, 28], [38.5, 24], [45, 27]].map(([y, w]) => `<rect x="16" y="${y}" width="${w}" height="2.8" rx="1.4" fill="#AEB8DA"/>`).join('') +
     '<g transform="rotate(40 50 44)"><rect x="46" y="26" width="8" height="24" rx="2" fill="url(#pen)"/><path d="M46 50h8l-4 7Z" fill="#FFD6B3"/><path d="M48.6 54.6h2.8L50 57Z" fill="#3B2F5C"/><rect x="46" y="26" width="8" height="4" rx="2" fill="#FF8FB1"/></g>',
 );
+// Éditeur de code: an indigo editor window with white angle brackets and a cyan slash
+HALO.code = haloSvg(
+  lg('cw', [[0, '#7FA6FF'], [1, '#4A36D8']], 0, 0, 1, 1) + GLOSS_DEF,
+  '<rect x="6" y="9" width="52" height="46" rx="11" fill="url(#cw)"/><path class="d" d="M17 9h30a11 11 0 0 1 11 11v3H6v-3A11 11 0 0 1 17 9Z" fill="url(#gloss)"/>' +
+    '<path d="M24 23.5l-9.5 8.5 9.5 8.5M40 23.5l9.5 8.5-9.5 8.5" fill="none" stroke="#fff" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M35.5 20.5l-7 23" fill="none" stroke="#8FF4FF" stroke-width="4.4" stroke-linecap="round"/>',
+);
 HALO.terminal = haloSvg(
   lg('t', [[0, '#3E4A66'], [1, '#141A2A']]) + SHEEN_DEF + lg('m', [[0, '#7CFFCB'], [1, '#2BD4A0']]),
   TILE('t') + SHEEN + '<path d="M17 26l9 7-9 7" fill="none" stroke="url(#m)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="30" y="38" width="16" height="4.2" rx="2.1" fill="url(#m)"/>',
@@ -202,6 +209,19 @@ HALO.media = haloSvg(
   lg('d', [[0, '#FF8A5B'], [0.5, '#F0386B'], [1, '#B21AA5']], 0, 0, 1, 1) + GLOSS_DEF,
   '<circle cx="32" cy="32" r="25" fill="url(#d)"/><ellipse cx="32" cy="19" rx="17" ry="9" fill="url(#gloss)"/>' +
     '<path d="M27 21.6v20.8a2.2 2.2 0 0 0 3.4 1.9l16.6-10.4a2.2 2.2 0 0 0 0-3.8L30.4 19.7a2.2 2.2 0 0 0-3.4 1.9Z" fill="#fff"/>',
+);
+// Musique (launcher alias of the Lecteur): two notes in the Lecteur's sunset gradient on a soft disc
+HALO.music = haloSvg(
+  lg('mu', [[0, '#FFB86B'], [0.5, '#FF4F8B'], [1, '#9B35E0']], 0, 0, 1, 1) + lg('mb', [[0, '#FFE3EE'], [1, '#F6D3FF']]) + GLOSS_DEF,
+  '<circle cx="32" cy="32" r="25" fill="url(#mb)"/><ellipse class="d" cx="32" cy="19" rx="17" ry="9" fill="url(#gloss)"/>' + gl(G('music-notes', 'f'), 14, 14, 36, 'url(#mu)'),
+);
+// Caméra: an indigo camera body with a white lens ring, a deep glass lens and a small warm flash
+HALO.camera = haloSvg(
+  lg('cb', [[0, '#7FD8FF'], [0.5, '#4D7CFF'], [1, '#5B34D6']], 0, 0, 1, 1) + rg('ln', [[0, '#A8ECFF'], [0.45, '#2B4FC9'], [1, '#141A3A']], 0.38, 0.35, 0.7) + GLOSS_DEF,
+  '<path d="M22.5 11h19a3 3 0 0 1 2.6 1.5L47 18h5a6 6 0 0 1 6 6v24a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6V24a6 6 0 0 1 6-6h5l2.9-5.5A3 3 0 0 1 22.5 11Z" fill="url(#cb)"/>' +
+    '<path class="d" d="M12 18h40a6 6 0 0 1 6 6v6H6v-6a6 6 0 0 1 6-6Z" fill="url(#gloss)"/>' +
+    '<circle cx="32" cy="36" r="13.5" fill="#fff"/><circle cx="32" cy="36" r="10.2" fill="url(#ln)"/>' +
+    '<circle class="d" cx="28.4" cy="32.2" r="3" fill="#fff" opacity=".7"/><circle cx="50" cy="24.5" r="2.4" fill="#FFE7A3"/>',
 );
 const PHOTO_DEFS = lg('sky', [[0, '#FFD6A0'], [0.55, '#FF92B5'], [1, '#B77BFF']]) + lg('m1', [[0, '#8A5CFF'], [1, '#5530D0']]) + lg('m2', [[0, '#C26BFF'], [1, '#8E3FE0']]) + SHEEN_DEF;
 const photo = (x, y, s, id) =>
@@ -322,9 +342,16 @@ HALO.pdf = haloSvg(
     '<g class="d" fill="#C9D0E2"><rect x="16" y="16" width="18" height="2.8" rx="1.4"/><rect x="16" y="22" width="26" height="2.8" rx="1.4"/></g>' +
     '<rect x="6" y="32" width="34" height="15" rx="4" fill="url(#r)"/><path d="M11.5 43.5v-8h3a2.5 2.5 0 0 1 0 5h-3M20 35.5v8h2.4a4 4 0 0 0 0-8ZM30 43.5v-8h5M30 39.5h4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
 );
+// Enregistreur vocal: a free-shape microphone, peach to raspberry
+HALO.recorder = haloSvg(lg('g', [[0, '#FFC07A'], [0.5, '#FF6A6A'], [1, '#D41E6A']], 0, 0, 1, 1) + GLOSS_DEF + SHEEN_DEF, shape(G('microphone'), 2, 2, 60, 'g'));
 HALO.remote = haloSvg(
   MONITOR_DEFS + lg('s', [[0, '#5FE0F5'], [1, '#4338E0']], 0, 0, 1, 1),
   MONITOR('s') + gl(G('screencast'), 19, 13, 30, '#fff'),
+);
+// Enregistreur d'écran: the silver monitor of Ordinateur, a coral screen and a white « rec » ring with a red dot
+HALO.screenrec = haloSvg(
+  MONITOR_DEFS + lg('s', [[0, '#FF9A7A'], [0.55, '#F2456B'], [1, '#B21AA5']], 0, 0, 1, 1) + rg('rd', [[0, '#FF8A8A'], [1, '#E0182F']], 0.4, 0.35, 0.65),
+  MONITOR('s') + '<circle cx="32" cy="28.5" r="10.5" fill="none" stroke="#fff" stroke-width="2.6"/><circle cx="32" cy="28.5" r="6.4" fill="#fff"/><circle cx="32" cy="28.5" r="5" fill="url(#rd)"/>',
 );
 HALO.snake = haloSvg(lg('g', [[0, '#A8F59A'], [1, '#15994A']], 0, 0, 1, 1) + GLOSS_DEF + SHEEN_DEF, shape(G('game-controller'), 2, 2, 60, 'g'));
 HALO.snipping = haloSvg(
@@ -357,6 +384,8 @@ HALO.translate = haloSvg(
     '<path d="M14 24h22a8 8 0 0 1 8 8v14a8 8 0 0 1-8 8H21l-8 6v-6.2A8 8 0 0 1 6 46V32a8 8 0 0 1 8-8Z" fill="url(#b)"/>' +
     '<path d="M17.5 48.5l7.5-18 7.5 18M20.3 42h9.4" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>',
 );
+// Éditeur vidéo: a clapperboard as a free shape, sky blue to violet
+HALO.videoeditor = haloSvg(lg('g', [[0, '#8FD8FF'], [0.5, '#7A7CFF'], [1, '#6A2FD6']], 0, 0, 1, 1) + GLOSS_DEF + SHEEN_DEF, shape(G('film-slate'), 2, 2, 60, 'g'));
 HALO.weather = haloSvg(
   rg('sun', [[0, '#FFF3B0'], [0.55, '#FFC23D'], [1, '#FF8A1F']], 0.4, 0.35, 0.7) + lg('c', [[0, '#FFFFFF'], [1, '#C9DAF7']]) + GLOSS_DEF,
   '<circle cx="24" cy="24" r="17" fill="url(#sun)"/>' +
@@ -493,6 +522,11 @@ const PRISME_APPS = {
   paint: ['#F08CFF', '#A83CF0', 'paint-brush'],
   snipping: ['#FF9BD2', '#D93A92', ['scan', 'b']],
   media: ['#A88DFF', '#5B3BF0', 'play'],
+  recorder: ['#FFB38A', '#E8457A', 'microphone'],
+  screenrec: ['#FF8A7A', '#D9264F', 'record'],
+  camera: ['#FF8EC7', '#6A3BE6', 'camera'],
+  music: ['#FF9ACB', '#B8329A', 'music-notes'],
+  videoeditor: ['#9AA8FF', '#6A2FD6', 'film-slate'],
   // games (play): one hue each, from the same warm-to-violet arc
   chess: ['#C6A6FF', '#6A36DE', 'horse'],
   solitaire: ['#FF8FB3', '#D42D62', 'spade'],
@@ -517,6 +551,7 @@ const PRISME_APPS = {
   settings: ['#B9C5DE', '#56648A', 'gear-six'],
   disks: ['#AFC0DA', '#4E5D80', 'hard-drives'],
   installer: ['#8FB0FF', '#3550D8', ['download-simple', 'b']],
+  code: ['#8C9EFF', '#2A2F9E', ['code', 'b'], { size: 36 }],
   terminal: ['#465172', '#121624', ['terminal', 'b'], { size: 36, glyphColor: '#7DFFC9' }],
   winver: ['#4A5680', '#161B2E', null, { logo: true, glyphColor: '#E9EEFF' }],
   'this-pc': ['#7FB6FF', '#3A5BE0', 'desktop'],

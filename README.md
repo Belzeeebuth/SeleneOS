@@ -58,7 +58,9 @@ Everything is available in **English and French**, dark by default, with a light
 | Text Editor | Tabs, find/replace, go to line, word wrap, encodings and line endings |
 | Terminal | Real PTY with Bash, tabs, split panes, color schemes |
 | Player | Music and video libraries, queue, playlists, audio visualizer, sample media included |
+| Music | Lanceur entry (alias of the Player) that opens its music library: albums with covers (embedded art or folder.jpg), artists, songs, synced lyrics from .lrc files or embedded lyrics |
 | Photos | Gallery by date, folders, favorites and albums; viewer with zoom and filmstrip, slideshow; editor with crop, straighten, adjustments and filters |
+| Camera | Webcam photos and videos (WebM with sound), 3 / 10 s timer, grid, mirrored preview, camera and resolution choice; saved to Pictures/Camera Roll |
 | PDF Reader | Tabs, page thumbnails and outline, find, zoom and page layouts, highlight and draw, presentation mode |
 | Archives | Browse, extract and create ZIP, 7z, RAR and TAR archives, password-protected archives, test and preview |
 | Notes | Notebooks, rich text, checklists, pictures and tags, Markdown import/export, saved as you type |

@@ -1,0 +1,353 @@
+/* Screen Recorder — every rule is scoped under .app-screenrec (the window, and the overlays that live outside it:
+   area picker, countdown, floating control, area frame, which also carry the class), plus the tray chip
+   .tb-btn[data-status="screenrec"]. Tokens only. */
+
+/* ------------------------------------------------------------------ window states */
+/* Until launch() decides (Super+Shift+R starts with the window hidden), the window stays invisible.
+   Failsafe: it shows up after 3 s anyway. */
+.win.app-screenrec:not(.sr-ready) {
+  visibility: hidden;
+  animation: sr-failsafe 1ms linear 3s forwards;
+}
+@keyframes sr-failsafe {
+  to {
+    visibility: visible;
+  }
+}
+.win.app-screenrec.sr-hidden {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+.app-screenrec [hidden] {
+  display: none !important;
+}
+
+/* ------------------------------------------------------------------ window */
+.app-screenrec .sr-root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5) var(--sp-4);
+  height: 100%;
+  box-sizing: border-box;
+  overflow: auto;
+  font-family: var(--font);
+  color: var(--text);
+}
+.app-screenrec .sr-section-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text);
+}
+.app-screenrec .sr-modes {
+  display: flex;
+  width: 100%;
+}
+.app-screenrec .sr-modes > button {
+  flex: 1;
+  justify-content: center;
+  gap: var(--sp-2);
+}
+.app-screenrec .sr-card {
+  background: var(--card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: var(--sp-1) 0;
+}
+.app-screenrec .sr-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  min-height: 44px;
+}
+.app-screenrec .sr-row + .sr-row {
+  border-top: 1px solid var(--line-soft);
+}
+.app-screenrec .sr-row > .icon {
+  color: var(--text-2);
+  flex: none;
+}
+.app-screenrec .sr-row-text {
+  flex: 1;
+  min-width: 0;
+}
+.app-screenrec .sr-row-title {
+  font-size: var(--fs-body);
+}
+.app-screenrec .sr-row-desc {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+}
+.app-screenrec .sr-format {
+  min-width: 190px;
+}
+.app-screenrec .sr-info:empty {
+  display: none;
+}
+.app-screenrec .sr-start {
+  align-self: stretch;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 40px;
+  font-size: var(--fs-body);
+}
+.app-screenrec .sr-start-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--on-accent);
+  flex: none;
+}
+.app-screenrec .sr-root.busy .sr-start {
+  opacity: 0.6;
+}
+.app-screenrec .sr-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: auto;
+}
+.app-screenrec .sr-hint {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+}
+.app-screenrec .sr-folder {
+  flex: none;
+  gap: var(--sp-1);
+}
+.app-screenrec .sr-last {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.app-screenrec .sr-last-card {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-2);
+  align-items: center;
+  padding: var(--sp-3);
+  background: var(--card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+}
+.app-screenrec .sr-last-thumb {
+  grid-row: 1 / span 2;
+  width: 96px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+  border: 1px solid var(--line-soft);
+}
+.app-screenrec .sr-last-text {
+  min-width: 0;
+}
+.app-screenrec .sr-last-name {
+  font-size: var(--fs-body);
+}
+.app-screenrec .sr-last-meta {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.app-screenrec .sr-last-actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.app-screenrec .sr-last-actions .btn {
+  gap: var(--sp-1);
+}
+
+/* ------------------------------------------------------------------ area picker */
+.app-screenrec.sr-region {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  cursor: crosshair;
+  background: rgb(0 0 0 / 0.38);
+  outline: none;
+}
+.app-screenrec.sr-region.drawing {
+  background: transparent;
+}
+.app-screenrec .sr-region-box {
+  position: absolute;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.38);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.app-screenrec .sr-region-size {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+.app-screenrec .sr-region-hint {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(640px, calc(100vw - 32px));
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-flyout);
+  font-size: var(--fs-body);
+  text-align: center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ------------------------------------------------------------------ countdown */
+.app-screenrec.sr-countdown {
+  position: fixed;
+  z-index: 100000;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.app-screenrec .sr-count-disc {
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-dialog);
+}
+.app-screenrec .sr-count-num {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.app-screenrec .sr-count-num.pop {
+  animation: sr-pop var(--dur-slower) var(--ease);
+}
+@keyframes sr-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+:root[data-animations='off'] .app-screenrec .sr-count-num.pop {
+  animation: none;
+}
+
+/* ------------------------------------------------------------------ floating control */
+.app-screenrec.sr-control {
+  position: fixed;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-3);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-flyout);
+  color: var(--text);
+  font-family: var(--font);
+}
+.app-screenrec .sr-ctl-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: sr-blink 1.6s ease-in-out infinite;
+}
+.app-screenrec.sr-control.paused .sr-ctl-dot {
+  animation: none;
+  opacity: 0.45;
+}
+:root[data-animations='off'] .app-screenrec .sr-ctl-dot {
+  animation: none;
+}
+@keyframes sr-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+.app-screenrec .sr-ctl-time {
+  min-width: 44px;
+  padding: 0 var(--sp-1);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.app-screenrec .sr-ctl-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.app-screenrec .sr-ctl-btn:hover {
+  background: var(--subtle-hover);
+}
+.app-screenrec .sr-ctl-btn:active {
+  background: var(--subtle-pressed);
+}
+.app-screenrec .sr-ctl-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.app-screenrec .sr-ctl-stop {
+  background: var(--danger);
+  color: var(--on-danger);
+}
+.app-screenrec .sr-ctl-stop:hover {
+  background: var(--danger);
+  filter: brightness(1.08);
+}
+
+/* the area being recorded: a dashed frame just outside it */
+.app-screenrec.sr-frame {
+  position: fixed;
+  z-index: 99990;
+  border: 2px dashed var(--danger);
+  border-radius: 2px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ tray chip (core/taskbar.js status item) */
+.tb-btn[data-status='screenrec'] .icon {
+  color: var(--danger);
+}
+.tb-btn[data-status='screenrec'] .tb-status-text {
+  font-variant-numeric: tabular-nums;
+}
+.tb-btn[data-status='screenrec']:not(.sr-paused) .icon {
+  animation: sr-blink 1.6s ease-in-out infinite;
+}
+:root[data-animations='off'] .tb-btn[data-status='screenrec'] .icon {
+  animation: none;
+}

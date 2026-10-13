@@ -202,6 +202,7 @@ Settings uses `system-settings.test.mjs`.
 - `browser` - Browser: Chromium `<webview>` tabs, favorites, history, downloads, private windows
 - `calculator` - Calculator: standard, scientific, programmer, date calculation, unit converters
 - `calendar` - Calendar: month/week/day/agenda views, recurring events, reminders, holidays, .ics import/export
+- `camera` - Camera: webcam photos (JPEG) and videos (WebM VP9/Opus), timer, grid, mirror; Pictures/Camera Roll (`camera.js` backend streams recordings to disk and writes their duration)
 - `chess` - Chess against the computer or a friend
 - `clock` - Clock: alarms, timers, stopwatch, world clock, focus sessions
 - `cloud` - Cloud: browse, upload and download Nextcloud / WebDAV files (other services later)

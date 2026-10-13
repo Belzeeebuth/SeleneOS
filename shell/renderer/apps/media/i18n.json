@@ -56,7 +56,7 @@
       "more": "More options", "seek": "Seek", "elapsed": "Elapsed time", "remaining": "Remaining time", "total": "Total time", "timeToggle": "Show total or remaining time",
       "openNowPlaying": "Now playing"
     },
-    "np": { "nowPlaying": "Now playing", "upNext": "Up next: {title}" },
+    "np": { "nowPlaying": "Now playing", "upNext": "Up next: {title}", "lyrics": "Lyrics" },
     "toast": {
       "addedQueue_one": "Added {count} item to the play queue", "addedQueue_other": "Added {count} items to the play queue",
       "playNext_one": "{count} item will play next", "playNext_other": "{count} items will play next",
@@ -148,7 +148,7 @@
       "more": "Plus d'options", "seek": "Position", "elapsed": "Temps écoulé", "remaining": "Temps restant", "total": "Durée totale", "timeToggle": "Afficher la durée totale ou le temps restant",
       "openNowPlaying": "En cours de lecture"
     },
-    "np": { "nowPlaying": "En cours de lecture", "upNext": "À suivre : {title}" },
+    "np": { "nowPlaying": "En cours de lecture", "upNext": "À suivre : {title}", "lyrics": "Paroles" },
     "toast": {
       "addedQueue_one": "{count} élément ajouté à la file d'attente", "addedQueue_other": "{count} éléments ajoutés à la file d'attente",
       "playNext_one": "{count} élément sera lu ensuite", "playNext_other": "{count} éléments seront lus ensuite",

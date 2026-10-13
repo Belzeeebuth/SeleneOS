@@ -31,6 +31,8 @@ export async function launchShell(opts = {}) {
   const [w, h] = (opts.size || '1600x900').split('x').map(Number);
   const args = [ROOT, '--dev', '--no-sandbox', `--size=${w}x${h}`, `--mode=${opts.mode || 'shell'}`];
   if (opts.open?.length) args.push(`--open=${opts.open.join(',')}`);
+  // extra Electron / Chromium switches, e.g. ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream']
+  if (Array.isArray(opts.args)) args.push(...opts.args);
   const app = await electron.launch({
     executablePath: require('electron'),
     args,

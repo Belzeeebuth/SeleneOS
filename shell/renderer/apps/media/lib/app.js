@@ -61,6 +61,9 @@ export class MediaApp {
     this._disposers = [];
     // A launch with one file starts a "burst": files opened right after it join its queue.
     this._singleAt = typeof ctx.args?.file === 'string' && !Array.isArray(ctx.args?.files) ? performance.now() : 0;
+    // ... and so do single files opened while the window is still starting, however long that takes: a busy shell
+    // (a heavy page, garbage collection) can hold a relaunch back for more than the 80 ms of a burst.
+    this._starting = true;
     // Listeners on the shell-owned window element are removed on close (see destroy()).
     this._winSignal = new AbortController();
   }
@@ -121,6 +124,8 @@ export class MediaApp {
         this.player.load(this.queue.current.path, { autoplay: false, at: Number(state.pos) || 0 });
       }
     }
+    // Opened from the « Musique » launcher entry (apps/music, a registry alias): start on the music library.
+    if (args.view === 'music') this.route = { name: 'music', arg: ['songs', 'albums', 'artists', 'genres'].includes(args.tab) ? args.tab : 'albums' };
     this.render();
     this.updateNow();
     for (const p of this.recent.slice(0, 12)) this.lib.ensure(p).catch(() => {});
@@ -129,6 +134,9 @@ export class MediaApp {
     try {
       if (wantFiles.length) await this.handleArgs(args);
     } finally {
+      this._starting = false;
+      // the burst of the launch file goes on for 80 ms after the start-up
+      if (this._singleAt) this._singleAt = performance.now();
       this._argsGate();
     }
   }
@@ -137,6 +145,7 @@ export class MediaApp {
   fail(err) {
     console.error('[media] start-up failed', err);
     this._failed = true;
+    this._starting = false;
     this._argsGate?.();
     if (this._destroyed) return;
     const { h, icon, t } = this;
@@ -164,7 +173,7 @@ export class MediaApp {
       return this._queueArgs(() => this.handleArgs(args), after);
     }
     const now = performance.now();
-    const burst = now - (this._singleAt || -1e9) < 80;
+    const burst = (this._starting && !!this._singleAt) || now - (this._singleAt || -1e9) < 80;
     this._singleAt = now;
     let batch = this._batch;
     if (!batch) {
@@ -199,6 +208,11 @@ export class MediaApp {
   }
 
   async handleArgs(args = {}, { join = false } = {}) {
+    if (args.view === 'music' && !this._argPaths(args).length) {
+      if (this.stageOpen && !this.mini) this.closeStage();
+      if (this.route.name !== 'music') this.go({ name: 'music', arg: ['songs', 'albums', 'artists', 'genres'].includes(args.tab) ? args.tab : 'albums' });
+      return;
+    }
     const paths = this._argPaths(args);
     if (typeof args.folder === 'string') paths.push(...(await this._expand([args.folder])));
     if (!paths.length) return;

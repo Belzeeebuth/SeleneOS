@@ -351,6 +351,7 @@ const ACTIONS = {
   'Super+Ctrl+F4': () => wm.removeDesktop(wm.currentDesktop, { animate: !taskViewOpen() }),
   'Super+Shift+S': () => launch('snipping', { mode: 'region', immediate: true }),
   PrintScreen: () => launch('snipping', { mode: 'region', immediate: true }),
+  'Super+Shift+R': () => launch('screenrec', { toggle: true }), // Enregistreur d'écran: start or stop (apps/screenrec)
   'Alt+Tab': () => alttab.open(1),
   'Alt+Shift+Tab': () => alttab.open(-1),
   'Ctrl+Alt+Tab': () => alttab.open(1, { sticky: true }),

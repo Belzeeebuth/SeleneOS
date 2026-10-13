@@ -1,0 +1,12 @@
+{
+  "id": "music",
+  "name": { "en": "Music", "fr": "Musique" },
+  "description": { "en": "Your music library: albums, artists, songs and lyrics, played in the Player", "fr": "Votre bibliothèque musicale : albums, artistes, morceaux et paroles, dans le Lecteur" },
+  "icon": "icon.svg",
+  "alias": { "app": "media", "args": { "view": "music" } },
+  "category": "media",
+  "keywords": {
+    "en": ["music", "songs", "albums", "artists", "lyrics", "library", "mp3", "flac", "playlist"],
+    "fr": ["musique", "morceaux", "chansons", "albums", "artistes", "paroles", "bibliothèque", "mp3", "flac"]
+  }
+}

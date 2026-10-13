@@ -1,0 +1,171 @@
+/* Éditeur de code: explorer, tabs, CodeMirror editor, terminal panel, status bar. Tokens only (docs/design/SYSTEM.md). */
+.app-code .code-root {
+  display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; color: var(--text);
+  font-size: var(--fs-small);
+}
+.app-code .code-grow { flex: 1; }
+
+/* ------------------------------------------------------------ toolbar */
+.app-code .code-toolbar {
+  display: flex; align-items: center; gap: 2px; padding: 4px 8px; border-bottom: 1px solid var(--line-soft); min-height: 40px;
+}
+.app-code .code-tbtn {
+  width: 32px; min-width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+}
+.app-code .code-tbtn.on { background: var(--subtle-selected); color: var(--accent-text); }
+.app-code .code-tbtn:disabled { color: var(--text-disabled); }
+.app-code .code-open { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; }
+.app-code .code-sep { width: 1px; height: 20px; background: var(--line-soft); margin: 0 6px; }
+
+/* ------------------------------------------------------------ layout */
+.app-code .code-main { flex: 1; min-height: 0; display: flex; }
+.app-code .code-side {
+  width: var(--code-side-w, 260px); flex: none; display: flex; flex-direction: column; min-height: 0; background: var(--bg-alt);
+}
+.app-code .code-root.no-side .code-side, .app-code .code-root.no-side .code-split { display: none; }
+.app-code .code-split { width: 4px; margin: 0 -2px; z-index: 2; cursor: col-resize; flex: none; position: relative; }
+.app-code .code-split::after { content: ''; position: absolute; inset: 0 1.5px; background: var(--line-soft); }
+.app-code .code-split:hover::after { background: var(--accent); }
+.app-code .code-center { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+
+/* ------------------------------------------------------------ explorer */
+.app-code .code-side-head { display: flex; align-items: center; gap: 4px; padding: 6px 6px 4px 14px; min-height: 36px; }
+.app-code .code-side-title {
+  flex: 1; min-width: 0; font-family: var(--font-display); font-weight: 700; font-size: var(--fs-small); text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.app-code .code-side-actions { display: flex; gap: 0; opacity: .85; }
+.app-code .code-side-actions .code-tbtn { width: 28px; min-width: 28px; height: 28px; }
+.app-code .code-side.empty .code-side-actions { display: none; }
+.app-code .code-tree { flex: 1; min-height: 0; overflow: auto; padding: 2px 6px 10px; outline: none; }
+.app-code .code-tree:focus-visible { box-shadow: inset 0 0 0 2px var(--focus-ring); border-radius: var(--radius-sm); }
+.app-code .code-row {
+  display: flex; align-items: center; gap: 6px; height: 26px; padding-right: 8px; border-radius: var(--radius-sm); cursor: default;
+  white-space: nowrap; color: var(--text); transition: background var(--dur-fast) var(--ease);
+}
+.app-code .code-row:hover { background: var(--subtle-hover); }
+.app-code .code-row.active { background: var(--sel-bg); box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar); }
+.app-code .code-tree:focus .code-row.focused { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.app-code .code-caret { width: 12px; flex: none; display: inline-flex; color: var(--text-2); }
+.app-code .code-row .folder-icon { color: var(--accent-text); }
+.app-code .code-row .file-icon { color: var(--text-2); }
+.app-code .code-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.app-code .code-row.ignored .code-name, .app-code .code-row.ignored .icon { opacity: .55; }
+.app-code .code-git { font-size: var(--fs-caption); font-weight: 700; width: 14px; text-align: center; flex: none; }
+.app-code .code-row.git-M .code-name, .app-code .code-row.git-M .code-git,
+.app-code .code-row.git-R .code-name, .app-code .code-row.git-R .code-git { color: var(--warning); }
+.app-code .code-row.git-A .code-name, .app-code .code-row.git-A .code-git,
+.app-code .code-row.git-U-new .code-name, .app-code .code-row.git-U-new .code-git { color: var(--success); }
+.app-code .code-row.git-D .code-name, .app-code .code-row.git-D .code-git,
+.app-code .code-row.git-U .code-name, .app-code .code-row.git-U .code-git { color: var(--danger); }
+.app-code .code-tree-empty { padding: 16px 10px; color: var(--text-2); display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.app-code .code-tree-empty p { margin: 0; }
+
+/* ------------------------------------------------------------ tabs */
+.app-code .code-tabs {
+  display: flex; align-items: stretch; height: 36px; flex: none; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin;
+  border-bottom: 1px solid var(--line-soft); background: var(--bg-alt);
+}
+.app-code .code-tabs.empty { display: none; }
+.app-code .code-tab {
+  display: flex; align-items: center; gap: 6px; padding: 0 4px 0 12px; min-width: 0; max-width: 220px; flex: none; cursor: default;
+  color: var(--text-2); border-right: 1px solid var(--line-soft); position: relative; outline: none;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.app-code .code-tab:hover { background: var(--subtle-hover); color: var(--text); }
+.app-code .code-tab.active { background: var(--bg); color: var(--text); }
+.app-code .code-tab.active::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--accent); }
+.app-code .code-tab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.app-code .code-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-code .code-tab-x {
+  width: 24px; height: 24px; flex: none; border: 0; padding: 0; border-radius: var(--radius-xs); background: none; color: inherit;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; position: relative;
+}
+.app-code .code-tab-x:hover { background: var(--subtle-hover); }
+.app-code .code-tab-x:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.app-code .code-tab-x .icon { opacity: 0; }
+.app-code .code-tab.active .code-tab-x .icon, .app-code .code-tab:hover .code-tab-x .icon, .app-code .code-tab-x:focus-visible .icon { opacity: 1; }
+.app-code .code-dot { display: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text); position: absolute; }
+.app-code .code-tab.dirty .code-dot { display: block; }
+.app-code .code-tab.dirty .code-tab-x .icon { opacity: 0; }
+.app-code .code-tab.dirty .code-tab-x:hover .code-dot { display: none; }
+.app-code .code-tab.dirty .code-tab-x:hover .icon { opacity: 1; }
+
+/* ------------------------------------------------------------ editor */
+.app-code .code-editor { flex: 1; min-height: 0; position: relative; display: flex; background: var(--bg); }
+.app-code .code-host { flex: 1; min-width: 0; min-height: 0; display: flex; }
+.app-code .code-host > .cm-editor { flex: 1; min-width: 0; }
+.app-code .code-root.no-doc .code-host { display: none; }
+.app-code .code-welcome { display: none; }
+.app-code .code-root.no-doc .code-welcome { display: flex; flex: 1; overflow: auto; align-items: center; justify-content: center; padding: 24px; }
+.app-code .code-welcome-inner { max-width: 460px; width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+.app-code .code-welcome-icon {
+  width: 72px; height: 72px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center;
+  background: var(--accent-subtle); color: var(--accent-text); margin-bottom: 4px;
+}
+.app-code .code-welcome-title { margin: 0; font-family: var(--font-display); font-size: var(--fs-subtitle); font-weight: 700; }
+.app-code .code-welcome-text { margin: 0; color: var(--text-2); font-size: var(--fs-body); line-height: var(--lh-body); }
+.app-code .code-welcome-actions { display: flex; gap: 8px; margin: 8px 0 4px; flex-wrap: wrap; justify-content: center; }
+.app-code .code-welcome-actions .btn { display: inline-flex; align-items: center; gap: 8px; }
+.app-code .code-recent { width: 100%; text-align: left; margin-top: 8px; }
+.app-code .code-recent-title { color: var(--text-2); font-weight: 600; margin: 0 0 4px 8px; }
+.app-code .code-recent-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; background: none; color: var(--text);
+  border-radius: var(--radius-sm); cursor: pointer; text-align: left; font: inherit;
+}
+.app-code .code-recent-item:hover { background: var(--subtle-hover); }
+.app-code .code-recent-item:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.app-code .code-recent-item .icon { color: var(--accent-text); }
+.app-code .code-recent-name { font-weight: 600; }
+.app-code .code-recent-path { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.app-code .code-keys { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; margin: 18px 0 0; width: 100%; }
+.app-code .code-key { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--text-2); }
+.app-code .code-key dt { margin: 0; }
+.app-code .code-key dd { margin: 0; }
+.app-code .code-key kbd {
+  font-family: var(--font-mono); font-size: var(--fs-caption); padding: 2px 6px; border-radius: var(--radius-xs);
+  border: 1px solid var(--line-soft); background: var(--card); color: var(--text);
+}
+
+/* syntax colours (lib/cm.js seleneHighlight): tokens and mixes of tokens only */
+.app-code .cm-editor .tk-kw { color: var(--accent-text); font-weight: 600; }
+.app-code .cm-editor .tk-str { color: var(--success); }
+.app-code .cm-editor .tk-num { color: var(--warning); }
+.app-code .cm-editor .tk-com { color: var(--text-3); font-style: italic; }
+.app-code .cm-editor .tk-fn { color: color-mix(in oklab, var(--accent-text) 55%, var(--text)); }
+.app-code .cm-editor .tk-type { color: color-mix(in oklab, var(--warning) 60%, var(--text)); }
+.app-code .cm-editor .tk-tag { color: var(--danger); }
+.app-code .cm-editor .tk-prop { color: color-mix(in oklab, var(--success) 45%, var(--text)); }
+.app-code .cm-editor .tk-def { color: var(--text); font-weight: 600; }
+.app-code .cm-editor .tk-op { color: var(--text-2); }
+.app-code .cm-editor .tk-head { color: var(--accent-text); font-weight: 700; }
+.app-code .cm-editor .tk-link { color: var(--accent-text); text-decoration: underline; }
+.app-code .cm-editor .tk-em { font-style: italic; }
+.app-code .cm-editor .tk-strong { font-weight: 700; }
+.app-code .cm-editor .tk-bad { color: var(--danger); text-decoration: wavy underline; }
+
+/* ------------------------------------------------------------ terminal panel */
+.app-code .code-panel { display: none; flex: none; height: var(--code-panel-h, 220px); flex-direction: column; border-top: 1px solid var(--line-soft); position: relative; background: var(--bg-alt); }
+.app-code .code-root.term-open .code-panel { display: flex; }
+.app-code .code-panel-split { position: absolute; left: 0; right: 0; top: -3px; height: 6px; cursor: row-resize; z-index: 2; }
+.app-code .code-panel-split:hover { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+.app-code .code-panel-head { display: flex; align-items: center; gap: 4px; padding: 2px 6px 2px 12px; min-height: 32px; }
+.app-code .code-panel-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; font-size: var(--fs-caption); }
+.app-code .code-panel-head .code-tbtn { width: 28px; min-width: 28px; height: 28px; }
+.app-code .code-term-host { flex: 1; min-height: 0; padding: 0 0 4px 12px; overflow: hidden; }
+.app-code .code-term-host .xterm { height: 100%; }
+
+/* ------------------------------------------------------------ status bar */
+.app-code .code-status {
+  display: flex; align-items: center; gap: 2px; height: 26px; padding: 0 6px; flex: none; border-top: 1px solid var(--line-soft);
+  background: var(--bg-alt); color: var(--text-2); font-size: var(--fs-caption);
+}
+.app-code .code-st {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border: 0; background: none; color: inherit; font: inherit;
+  border-radius: var(--radius-xs); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.app-code button.code-st { cursor: pointer; }
+.app-code button.code-st:hover { background: var(--subtle-hover); color: var(--text); }
+.app-code .code-st:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.app-code .code-st[hidden] { display: none; }
+.app-code .code-branch { font-weight: 600; color: var(--text); }

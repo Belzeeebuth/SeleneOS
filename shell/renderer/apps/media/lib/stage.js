@@ -6,6 +6,8 @@
 import { artColors, formatTime } from './util.js';
 import { entryArt } from './components.js';
 import { Visualizer } from './visualizer.js';
+import { parseLrc, lineAt, lrcPathOf } from './lyrics.js';
+import { readTags, urlReader } from './tags.js';
 
 export class Stage {
   constructor(app) {
@@ -25,6 +27,10 @@ export class Stage {
       this.artWrap,
       h('div', { class: 'mp-np-meta' }, h('div', { class: 'mp-np-kicker caption' }, t('np.nowPlaying')), this.npTitle, this.npArtist, this.npAlbum, this.npNext),
     );
+    // Lyrics: the .lrc file next to the track (synced: the current line is highlighted) or the embedded lyrics.
+    this.lyricsList = h('div', { class: 'mp-lyrics-list', role: 'list' });
+    this.lyricsEl = h('div', { class: 'mp-lyrics', hidden: true, 'aria-label': t('np.lyrics') }, h('div', { class: 'mp-np-kicker caption' }, t('np.lyrics')), this.lyricsList);
+    this.np.appendChild(this.lyricsEl);
     this.canvas = h('canvas', { class: 'mp-viz', 'aria-hidden': 'true' });
     this.viz = new Visualizer(this.canvas, () => app.player.analyser, { style: app.prefs.visualizer || 'bars', isPlaying: () => !app.player.paused });
     this.back = h('button', { class: 'btn subtle icon-btn mp-stage-back', 'aria-label': t('nav.back'), 'data-tip': t('nav.back'), onclick: () => app.closeStage() }, icon('arrow_left'));
@@ -79,6 +85,7 @@ export class Stage {
     const isVideo = app.isVideo();
     this.el.classList.toggle('video', isVideo);
     const key = e ? `${e.path}|${e.art || ''}|${e.thumb || ''}` : '';
+    this.loadLyrics(e).catch(() => {});
     if (key !== this._key) {
       this._key = key;
       this.artWrap.replaceChildren(e ? entryArt(app, e) : app.h('div'));
@@ -141,7 +148,65 @@ export class Stage {
     img.src = url;
   }
 
+  /** Finds and shows the lyrics of the current audio track (once per track). */
+  async loadLyrics(e) {
+    const path = e && e.kind === 'audio' ? e.path : null;
+    if (path === this._lyrPath) return;
+    this._lyrPath = path;
+    this.lyrics = null;
+    this._lyrIdx = -1;
+    this.lyricsList.replaceChildren();
+    this.lyricsEl.hidden = true;
+    this.el.classList.remove('has-lyrics');
+    if (!path) return;
+    const { api } = this.app;
+    let text = null;
+    const lrc = lrcPathOf(path);
+    if (await api.invoke('fs:exists', lrc).catch(() => false)) text = await api.invoke('fs:readText', lrc, { maxBytes: 512 * 1024 }).catch(() => null);
+    if (!text) {
+      try {
+        text = (await readTags(urlReader(api.mediaUrl(path), e.size), e.ext)).lyrics || null;
+      } catch {}
+    }
+    if (this._lyrPath !== path || this.app._destroyed || typeof text !== 'string') return;
+    const parsed = parseLrc(text);
+    if (!parsed.lines.some((l) => l.text)) return;
+    this.lyrics = parsed;
+    const { h } = this.app;
+    this.lyricsEl.classList.toggle('synced', parsed.synced);
+    this.lyricsList.replaceChildren(
+      ...parsed.lines.map((l, i) =>
+        h(
+          'div',
+          {
+            class: 'mp-lyr-line',
+            role: 'listitem',
+            dataset: { i: String(i) },
+            onclick: parsed.synced ? () => this.app.player.seek(l.t) : null,
+          },
+          l.text || '\u266a',
+        ),
+      ),
+    );
+    this.lyricsEl.hidden = false;
+    this.el.classList.add('has-lyrics');
+    this.syncLyrics(this.app.player.currentTime);
+  }
+  syncLyrics(time) {
+    if (!this.lyrics?.synced) return;
+    const i = lineAt(this.lyrics.lines, time);
+    if (i === this._lyrIdx) return;
+    this.lyricsList.children[this._lyrIdx]?.classList.remove('current');
+    this._lyrIdx = i;
+    const el = this.lyricsList.children[i];
+    if (!el) return;
+    el.classList.add('current');
+    const box = this.lyricsList;
+    box.scrollTo({ top: el.offsetTop - box.clientHeight / 2 + el.offsetHeight / 2, behavior: document.documentElement.dataset.animations === 'off' ? 'auto' : 'smooth' });
+  }
+
   updateTime() {
+    this.syncLyrics(this.app.player.currentTime);
     const p = this.app.player;
     const d = p.duration;
     this.miniBar.firstChild.style.transform = `scaleX(${d ? Math.min(1, p.currentTime / d) : 0})`;

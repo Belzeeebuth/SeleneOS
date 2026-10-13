@@ -1,0 +1,319 @@
+/* Voice Recorder (Enregistreur vocal). Scoped under .app-recorder; tokens only (docs/design/SYSTEM.md). */
+.app-recorder .rc-app {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  color: var(--text);
+  font: var(--fs-body) / 1.4 var(--font);
+}
+
+/* ------------------------------------------------------------ list */
+.app-recorder .rc-side {
+  width: 280px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 10px 10px;
+  background: var(--bg-alt);
+  border-right: 1px solid var(--line-soft);
+  min-height: 0;
+}
+.app-recorder .rc-new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+}
+.app-recorder .rc-side-title {
+  margin: 8px 6px 0;
+  font: 600 var(--fs-small) / 1.3 var(--font);
+  color: var(--text-2);
+}
+.app-recorder .rc-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  margin: -2px;
+}
+.app-recorder .rc-empty {
+  flex: 1;
+  padding: 24px 12px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  text-align: center;
+}
+.app-recorder .rc-empty[hidden] { display: none; }
+.app-recorder .rc-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: default;
+  transition: background var(--dur-fast) var(--ease);
+}
+.app-recorder .rc-item:hover { background: var(--subtle-hover); }
+.app-recorder .rc-item.selected { background: var(--sel-bg); box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar); }
+.app-recorder .rc-item:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.app-recorder .rc-item-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--layer);
+  color: var(--text-2);
+}
+.app-recorder .rc-item.selected .rc-item-icon { color: var(--accent-text); }
+.app-recorder .rc-item-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.app-recorder .rc-item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.app-recorder .rc-item-sub {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+.app-recorder .rc-item-date { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-recorder .rc-item-dur { flex: none; }
+.app-recorder .rc-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+  color: var(--text-2);
+}
+
+/* ------------------------------------------------------------ main */
+.app-recorder .rc-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.app-recorder .rc-recview,
+.app-recorder .rc-playview {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 28px 16px;
+  gap: 14px;
+  overflow-y: auto;
+}
+.app-recorder .rc-recview[hidden],
+.app-recorder .rc-playview[hidden] { display: none; }
+
+/* record view */
+.app-recorder .rc-rec-top { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 8px; }
+.app-recorder .rc-timer {
+  font: 600 var(--fs-title-large) / 1.1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+.app-recorder .rc-state { color: var(--text-2); font-size: var(--fs-small); display: flex; align-items: center; gap: 6px; }
+.app-recorder .rc-recview.recording .rc-state::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: rc-blink 1.2s var(--ease-std) infinite;
+}
+@keyframes rc-blink { 50% { opacity: 0.25; } }
+:root[data-animations="off"] .app-recorder .rc-recview.recording .rc-state::before { animation: none; }
+.app-recorder .rc-live-wrap {
+  flex: 1;
+  min-height: 110px;
+  max-height: 220px;
+  border-radius: var(--radius);
+  background: var(--bg-alt);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+.app-recorder .rc-live { display: block; width: 100%; height: 100%; }
+.app-recorder .rc-live-marks,
+.app-recorder .rc-marks { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; }
+.app-recorder .rc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  border: 1px solid var(--line-soft);
+  background: var(--layer);
+  color: var(--text);
+  font: var(--fs-small) / 1 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.app-recorder .rc-chip .icon { color: var(--accent-text); }
+.app-recorder button.rc-chip { cursor: pointer; }
+.app-recorder button.rc-chip:hover { background: var(--subtle-hover); }
+.app-recorder button.rc-chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.app-recorder .rc-controls { display: flex; align-items: center; justify-content: center; gap: 28px; padding: 4px 0; }
+.app-recorder .rc-rec {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--surface-raised);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.app-recorder .rc-rec:hover { background: var(--subtle-hover); }
+.app-recorder .rc-rec:active { transform: scale(0.96); }
+.app-recorder .rc-rec:focus-visible,
+.app-recorder .rc-round:focus-visible,
+.app-recorder .rc-play:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.app-recorder .rc-rec-dot {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--danger);
+  transition: border-radius var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.app-recorder .rc-rec.on .rc-rec-dot { border-radius: var(--radius-sm); transform: scale(0.8); }
+.app-recorder .rc-round,
+.app-recorder .rc-play {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--control);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.app-recorder .rc-round:hover:not(:disabled),
+.app-recorder .rc-play:hover:not(:disabled) { background: var(--subtle-hover); }
+.app-recorder .rc-round:disabled,
+.app-recorder .rc-play:disabled { color: var(--text-disabled); cursor: default; }
+.app-recorder .rc-recview.paused .rc-round .icon { color: var(--danger); }
+.app-recorder .rc-play { width: 52px; height: 52px; background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.app-recorder .rc-play:hover:not(:disabled) { background: var(--accent-hover); }
+.app-recorder .rc-mic {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.app-recorder .rc-mic-label { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); }
+.app-recorder .rc-mic-select { max-width: 260px; min-width: 180px; }
+.app-recorder .rc-meter {
+  width: 140px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--layer-alt);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+.app-recorder .rc-meter i {
+  display: block;
+  height: 100%;
+  background: var(--success);
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+.app-recorder .rc-mic-msg { text-align: center; color: var(--danger); font-size: var(--fs-small); min-height: 1em; }
+.app-recorder .rc-hint { text-align: center; color: var(--text-3); font-size: var(--fs-small); }
+
+/* playback view */
+.app-recorder .rc-play-head { display: flex; align-items: flex-start; gap: 12px; }
+.app-recorder .rc-titles { flex: 1; min-width: 0; }
+.app-recorder .rc-name {
+  margin: 0;
+  font: 600 var(--fs-subtitle) / 1.25 var(--font-display);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-recorder .rc-date { color: var(--text-2); font-size: var(--fs-small); }
+.app-recorder .rc-actions { display: flex; gap: 2px; flex: none; }
+.app-recorder .rc-act { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; }
+.app-recorder .rc-act[data-act="delete"]:hover:not(:disabled) { color: var(--danger); }
+.app-recorder .rc-wave-wrap {
+  position: relative;
+  height: 160px;
+  flex: none;
+  border-radius: var(--radius);
+  background: var(--bg-alt);
+  border: 1px solid var(--line-soft);
+}
+.app-recorder .rc-wave { display: block; width: 100%; height: 100%; }
+.app-recorder .rc-seek { position: absolute; inset: 0; cursor: pointer; border-radius: var(--radius); }
+.app-recorder .rc-seek:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.app-recorder .rc-handle {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 14px;
+  margin-left: -7px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  cursor: ew-resize;
+  touch-action: none;
+  box-shadow: var(--shadow-tooltip);
+}
+.app-recorder .rc-handle::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  width: 4px;
+  height: 22px;
+  margin-top: -11px;
+  border-left: 1px solid var(--on-accent);
+  border-right: 1px solid var(--on-accent);
+}
+.app-recorder .rc-handle[hidden] { display: none; }
+.app-recorder .rc-handle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.app-recorder .rc-load-msg { color: var(--danger); font-size: var(--fs-small); }
+.app-recorder .rc-load-msg[hidden] { display: none; }
+.app-recorder .rc-transport { display: flex; align-items: center; justify-content: center; gap: 14px; font-variant-numeric: tabular-nums; }
+.app-recorder .rc-cur,
+.app-recorder .rc-total { min-width: 56px; color: var(--text-2); font-size: var(--fs-small); }
+.app-recorder .rc-cur { text-align: right; }
+.app-recorder .rc-skip { display: inline-flex; align-items: center; gap: 2px; height: 36px; font-size: var(--fs-caption); }
+.app-recorder .rc-trimbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--line-soft);
+}
+.app-recorder .rc-trimbar[hidden] { display: none; }
+.app-recorder .rc-trim-info { flex: 1; min-width: 200px; }
+.app-recorder .rc-trim-hint { font-size: var(--fs-small); color: var(--text-2); }
+.app-recorder .rc-trim-times { font-variant-numeric: tabular-nums; }
+.app-recorder .rc-trim-time { font-weight: 600; }
+.app-recorder .rc-trim-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.app-recorder .rc-marks-title { font: 600 var(--fs-small) / 1.3 var(--font); color: var(--text-2); }
+.app-recorder .rc-marks-empty { color: var(--text-3); font-size: var(--fs-small); }
+
+@media (max-width: 720px) {
+  .app-recorder .rc-side { width: 220px; }
+}
+
+/* the tray button (shell.setStatusItem 'recorder') while recording: a red dot and the elapsed time */
+#taskbar .tb-focus-pill[data-status="recorder"] .icon { color: var(--danger); }
+#taskbar .tb-focus-pill[data-status="recorder"] .tb-status-text { font-variant-numeric: tabular-nums; }
