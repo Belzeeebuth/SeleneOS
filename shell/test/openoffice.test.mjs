@@ -129,6 +129,7 @@ const pageUrl = `http://127.0.0.1:${server.address().port}/share.html`;
 for (const theme of ['dark', 'light']) {
   const s = await launchShell({ lang: 'fr', theme, size: '1280x720', env: { AURORA_OPEN_SOCKET: sock, AURORA_XAPPS_DIRS: appsDir } });
   const shotOut = (n) => s.shot(`openoffice-${n}-${theme}`);
+  for (const st of [s.app.process().stdout, s.app.process().stderr]) st?.on('data', (d) => String(d).split('\n').filter((l) => /DBGSHARE|display media|desktopCapturer|\[browser\]/.test(l)).forEach((l) => console.log('  [main]', l)));
   const open = (...args) => spawnSync('python3', [AURORA_OPEN, ...args], { env: { ...process.env, AURORA_OPEN_SOCKET: sock }, encoding: 'utf8', cwd: s.home });
   const winsOf = (app) => s.aurora((a) => window.__aurora.wm.byApp(a).length, app);
   const closeAll = () => s.aurora(() => window.__aurora.wm.list?.().forEach((w) => w.close()) ?? [...document.querySelectorAll('.window')].length);

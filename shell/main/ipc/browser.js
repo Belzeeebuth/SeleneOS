@@ -559,6 +559,7 @@ module.exports = function register(api) {
     } catch {}
     const origin = originOf(request.securityOrigin || request.frame?.url || wc?.getURL?.() || '');
     if (api.DEV) console.log(`[browser] display media request from ${origin || '?'} (tab ${wc?.id ?? '?'})`);
+    console.log('[DBGSHARE] req', JSON.stringify({ so: request.securityOrigin, furl: request.frame?.url, hasFrame: !!request.frame, wc: wc?.id, type: wc?.getType?.(), origin }));
     if (!wc || !origin) return callback({});
     let sources = [];
     try {
@@ -567,6 +568,7 @@ module.exports = function register(api) {
     } catch (err) {
       console.warn('[browser] desktopCapturer failed', err?.message || err);
     }
+    console.log('[DBGSHARE] sources', sources.length, sources.map((x) => x.id).join(','));
     if (!sources.length) return callback({});
     const id = `d${++seq}`;
     const timer = setTimeout(() => finishShare(id, null), 120000);

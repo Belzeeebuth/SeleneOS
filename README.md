@@ -27,6 +27,12 @@ Everything is available in **English and French**, dark by default, with a light
 - Bluetooth pairing (headsets, mice, keyboards, phones, gamepads), printers (driverless IPP Everywhere) with a print
   dialog in the apps, app and firmware updates (Flathub, fwupd), Orca screen reader (Super+Alt+S)
 - Optional NVIDIA driver and gaming apps (Steam, Heroic, Lutris…) offered by the installer
+- Ready for real PCs: hardware firmware included, boots with Secure Boot, recent (HWE) kernel, touchpad and power
+  settings (screen off, sleep, lid, power modes, battery alerts), automatic security updates
+- Linux and Flatpak apps fit in: their notifications, tray icons and startup entries, links and files they open land in
+  Selene apps, spell check in French and English, screen sharing in the browser
+- Selene updates itself like the rest of the system (signed apt repository, see [docs/UPDATES.md](docs/UPDATES.md));
+  crash recovery, safe mode and a diagnostic report
 
 **Personalization** (details in [docs/PERSONALIZATION.md](docs/PERSONALIZATION.md))
 - Theme designer: style, ambiance, accent color, wallpaper, lock screen, bar color, window transparency and blur intensity;
