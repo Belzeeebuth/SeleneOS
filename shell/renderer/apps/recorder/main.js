@@ -8,7 +8,7 @@
 //                 exact seeking), its markers, rename, delete (to the Trash), show in Files, trim (two handles, save as
 //                 a copy or replace). Trimming re-encodes the kept part to Opus with WebCodecs (lib/audio.js), muxed by
 //                 lib/webm.js; MediaRecorder files get their missing Duration written (fixDuration) so other players
-//                 can seek them.
+//                 can seek them. With ffmpeg in the image, MP3 / M4A copies via main/ipc/recorder.js (Export button).
 //   Metadata      per-file duration and markers in the app storage ('meta': { [fileName]: { duration, markers } }).
 //   Keyboard      Ctrl+R record / stop, Space pause / resume (play / pause on a recording), M add a marker,
 //                 F2 rename, Delete delete, arrows seek 5 s.
@@ -52,6 +52,7 @@ class Recorder {
     this.deviceId = prefs.deviceId || '';
     this.xdg = await api.invoke('fs:xdg').catch(async () => ({ documents: `${await api.invoke('fs:home')}/Documents` }));
     this.dir = await this.folder();
+    this.tools = (await api.invoke('recorder:tools').catch(() => null)) || { ffmpeg: false };
     this.render();
     await this.refresh();
     this.listDevices();
@@ -203,6 +204,7 @@ class Recorder {
       { label: t('rename'), icon: 'pencil-simple', shortcut: 'F2', action: () => this.rename(name) },
       { label: t('trim'), icon: 'scissors', action: () => this.select(name).then(() => this.startTrim()) },
       { label: t('showInFiles'), icon: 'folder-open', action: () => this.showInFiles(name) },
+      ...(this.tools?.ffmpeg ? ['-', ...this.exportItems(name)] : []),
       '-',
       { label: t('delete'), icon: 'trash', danger: true, shortcut: t('delete') === 'Supprimer' ? 'Suppr' : 'Del', action: () => this.remove(name) },
     ]);
@@ -262,6 +264,7 @@ class Recorder {
       act('trim', 'scissors', () => this.startTrim()),
       act('rename', 'pencil-simple', () => this.rename(this.selected)),
       act('showInFiles', 'folder-open', () => this.showInFiles(this.selected)),
+      ...(this.tools?.ffmpeg ? [act('export', 'export', (e) => this.ctx.ui.menu(e.currentTarget, this.exportItems(this.selected)))] : []),
       act('delete', 'trash', () => this.remove(this.selected)),
     );
     els.wave = h('canvas', { class: 'rc-wave', 'aria-hidden': 'true' });
@@ -1028,6 +1031,36 @@ class Recorder {
       this.saving = false;
       this.els.trimBar.querySelectorAll('button').forEach((b) => (b.disabled = false));
       ui.alert(this.t('saveError', { error: err?.message || String(err) }), { title: this.t('title'), parent: win });
+    }
+  }
+
+  // ------------------------------------------------------------------ export (.m4a / .mp3 through ffmpeg, main/ipc/recorder.js)
+  exportItems(name) {
+    return [
+      { label: this.t('exportMp3'), icon: 'export', action: () => this.exportAs(name, 'mp3') },
+      { label: this.t('exportM4a'), icon: 'export', action: () => this.exportAs(name, 'm4a') },
+    ];
+  }
+
+  async exportAs(name, fmt) {
+    if (!name || this.rec || this.saving) return;
+    const { api, ui, win } = this.ctx;
+    this.saving = true;
+    this.els.actions.querySelectorAll('button').forEach((b) => (b.disabled = true));
+    try {
+      const { path } = await api.invoke('recorder:export', `${this.dir}/${name}`, fmt);
+      const target = path.split('/').pop();
+      if (this.meta[name]) this.meta[target] = { ...this.meta[name] };
+      await this.saveMeta();
+      this.saving = false;
+      this.selected = null;
+      await this.refresh();
+      await this.select(target);
+    } catch (err) {
+      ui.alert(this.t('saveError', { error: err?.message || String(err) }), { title: this.t('title'), parent: win });
+    } finally {
+      this.saving = false;
+      if (!this.trim) this.els.actions.querySelectorAll('button').forEach((b) => (b.disabled = false));
     }
   }
 

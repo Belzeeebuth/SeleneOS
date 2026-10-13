@@ -579,10 +579,11 @@ grep -qs '"Pellicule"' "$S/opt/aurora/shell/renderer/apps/camera/i18n.json" && p
 # trim re-encode (WebCodecs) are Chromium's: no extra package. No ffmpeg in the image, so no .m4a / .mp3 export.
 for f in renderer/apps/recorder/manifest.json renderer/apps/recorder/main.js renderer/apps/recorder/i18n.json renderer/apps/recorder/icon.svg \
   renderer/apps/recorder/style.css renderer/apps/recorder/lib/webm.js renderer/apps/recorder/lib/audio.js \
-  renderer/assets/icons/packs/halo/recorder.svg renderer/assets/icons/packs/prisme/recorder.svg; do
+  renderer/assets/icons/packs/halo/recorder.svg renderer/assets/icons/packs/prisme/recorder.svg main/ipc/recorder.js; do
   [[ -f "$S/opt/aurora/shell/$f" ]] && pass "Voice Recorder: shell has $f" || fail "Voice Recorder: shell lacks $f"
 done
 grep -qs '"Enregistrements audio"' "$S/opt/aurora/shell/renderer/apps/recorder/i18n.json" && pass "Voice Recorder saves to Documents/Enregistrements audio in French" || fail "Voice Recorder i18n lacks the Enregistrements audio folder name"
+chroot "$S" ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libmp3lame && pass "Voice Recorder: ffmpeg has libmp3lame (MP3 / M4A export)" || warn "Voice Recorder: ffmpeg without libmp3lame (MP3 export fails, Opus/WebM kept)"
 # ---- END recorder -----------------------------------------------------------------------------------------------
 
 # ---- BEGIN code (App phase 2, renderer/apps/code: Code Editor + main/ipc/code.js) ---------------------------------

@@ -409,16 +409,28 @@ async function mainRun() {
       // Alt+Tab pressed while a webview has the keyboard: the guest swallows the combo, the shell pulls
       // focus into its own page at once, so the Alt release (sent where the OS would send it: the
       // now-focused shell page) still commits the switch.
-      await A(() => (window.__wvTarget = window.__aurora.wm.mru()[1]?.title));
+      // The keyboard goes to the switcher's focus sink at once, then to the panel once it shows (140 ms or
+      // more, after the thumbnail capture): record the first focus target instead of sampling after a
+      // fixed delay (a busy renderer answers that sample only after the panel took over).
+      await A(() => {
+        window.__wvTarget = window.__aurora.wm.mru()[1]?.title;
+        window.__wvFocus = [];
+        window.__wvFocusIn = (e) => window.__wvFocus.push(e.target);
+        document.addEventListener('focusin', window.__wvFocusIn, true);
+      });
       await s.app.evaluate(({ webContents }) => {
         const g = webContents.getAllWebContents().find((w) => w.getType() === 'webview');
         g.sendInputEvent({ type: 'keyDown', keyCode: 'Alt', modifiers: [] });
         g.sendInputEvent({ type: 'keyDown', keyCode: 'Tab', modifiers: ['alt'] });
       });
-      await sleep(150);
-      check('Alt+Tab from inside a webview opens the switcher and takes the keyboard', await A(() => window.__aurora.alttab.isOpen && document.activeElement?.classList.contains('alttab-sink')));
+      await page.waitForFunction(() => window.__aurora.alttab.isOpen && window.__wvFocus.length > 0, null, { timeout: 3000 }).catch(() => {});
+      const wvKb = await A(() => {
+        document.removeEventListener('focusin', window.__wvFocusIn, true);
+        return { open: window.__aurora.alttab.isOpen, first: window.__wvFocus[0]?.className || null, now: document.activeElement?.className || null, inSwitcher: !!document.activeElement?.closest('.alttab-sink, .alttab') };
+      });
+      check('Alt+Tab from inside a webview opens the switcher and takes the keyboard', wvKb.open && wvKb.first === 'alttab-sink' && wvKb.inSwitcher, JSON.stringify(wvKb));
       await T.send([['keyUp', 'Alt', []]]);
-      await sleep(300);
+      await page.waitForFunction(() => !window.__aurora.alttab.isOpen, null, { timeout: 3000 }).catch(() => {});
       check('… and releasing Alt switches', !(await A(() => window.__aurora.alttab.isOpen)) && (await focusedTitle()) === (await A(() => window.__wvTarget)));
       await A((id) => window.__aurora.wm.get(id).close(true), wv);
       await closeAll();

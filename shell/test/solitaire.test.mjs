@@ -1125,14 +1125,22 @@ async function uiTests() {
 
     await test('auto-complete waits while a dialog is open, then finishes and celebrates', async () => {
       await T('load', NEAR_WIN);
-      await s.page.waitForTimeout(200);
-      await s.page.click('.app-solitaire .sol-auto');
-      await s.page.click('.app-solitaire .sol-toolbar button[aria-label="How to play"]');
+      await s.page.waitForSelector('.app-solitaire .sol-auto:not([hidden])');
+      // Start the run and open the dialog in the same task: the first card flies at once and the dialog is up before
+      // the next 110 ms step. Two Playwright clicks are 300–550 ms apart on a loaded machine (3–5 steps: the game
+      // was often won before the dialog opened).
+      await s.page.evaluate(() => {
+        const root = document.querySelector('.app-solitaire');
+        root.querySelector('.sol-auto').click();
+        root.querySelector('.sol-toolbar button[aria-label="How to play"]').click();
+      });
       await s.page.waitForSelector('.app-solitaire .sol-help');
+      const opened = (await T('state')).f.flat().length;
       await s.page.waitForTimeout(1200);
       const mid = await T('state');
       assert.equal(mid.won, false, 'paused under the dialog');
       assert.ok(mid.f.flat().length < 50, `only the first card flew (${mid.f.flat().length} home)`);
+      assert.equal(mid.f.flat().length, opened, 'no card flew while the dialog was open');
       await s.page.keyboard.press('Escape');
       for (let i = 0; i < 40 && !(await T('state')).won; i++) await s.page.waitForTimeout(100);
       assert.equal((await T('state')).won, true);

@@ -62,7 +62,7 @@ Everything is available in **English and French**, dark by default, with a light
 | Music | Lanceur entry (alias of the Player) that opens its music library: albums with covers (embedded art or folder.jpg), artists, songs, synced lyrics from .lrc files or embedded lyrics |
 | Photos | Gallery by date, folders, favorites and albums; viewer with zoom and filmstrip, slideshow; editor with crop, straighten, adjustments and filters |
 | Camera | Webcam photos and videos (WebM with sound), 3 / 10 s timer, grid, mirrored preview, camera and resolution choice; saved to Pictures/Camera Roll |
-| Voice Recorder | One-button recording with pause, markers and a live waveform, microphone choice and level, playback with a seekable waveform, trim (copy or replace), rename, share in Files; Opus/WebM in Documents/Sound recordings |
+| Voice Recorder | One-button recording with pause, markers and a live waveform, microphone choice and level, playback with a seekable waveform, trim (copy or replace), rename, share in Files, MP3 / M4A export (ffmpeg); Opus/WebM in Documents/Sound recordings |
 | PDF Reader | Tabs, page thumbnails and outline, find, zoom and page layouts, highlight and draw, presentation mode |
 | Archives | Browse, extract and create ZIP, 7z, RAR and TAR archives, password-protected archives, test and preview |
 | Notes | Notebooks, rich text, checklists, pictures and tags, Markdown import/export, saved as you type |
@@ -70,6 +70,7 @@ Everything is available in **English and French**, dark by default, with a light
 | Clock | Alarms, timers, stopwatch, world clock and focus sessions; alarms ring even when the app is closed |
 | Tasks | Lists, My Day, reminders, due dates, repeats and steps |
 | Screenshot | Rectangle/window/full-screen/free-form captures, markup, save and copy |
+| Screen Recorder | Whole screen or a drawn area, microphone and computer sound, 3-2-1 countdown, floating pause / stop control kept out of the video, red bar indicator, Super+Shift+R; WebM (or MP4 through ffmpeg) in Videos/Screen recordings |
 | System Monitor | Processes with heat map, live performance graphs, users, details, services |
 | Settings | System, network, Bluetooth, printers, personalization, apps, accounts, time & language, accessibility (screen reader), privacy & security, updates (system and firmware), graphics drivers |
 | Weather | Current conditions, 24-hour and 7-day forecasts, saved places; sets the dynamic wallpaper location |

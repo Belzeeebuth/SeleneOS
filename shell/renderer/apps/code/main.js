@@ -50,6 +50,7 @@ class CodeApp {
     this.focusedRow = null;
     this.prefs = { recent: [], showIgnored: false, wrap: false, terminal: false, sideW: 260, panelH: 220, sideHidden: false };
     this.term = null;
+    this.termOpen = false;
   }
 
   icon(name, opts) {
@@ -800,7 +801,7 @@ class CodeApp {
     const g = this.git;
     if (this.folder && g.repo && g.branch) {
       const extra = [g.ahead ? `↑${g.ahead}` : '', g.behind ? `↓${g.behind}` : ''].filter(Boolean).join(' ');
-      this.stBranch.replaceChildren(this.icon('git-branch', { size: 14 }), h('span', { class: 'code-branch' }, g.branch), extra ? h('span', null, extra) : null);
+      this.stBranch.replaceChildren(...[this.icon('git-branch', { size: 14 }), h('span', { class: 'code-branch' }, g.branch), extra ? h('span', null, extra) : null].filter(Boolean));
       this.stBranch.hidden = false;
       const changed = Object.keys(g.files || {}).length;
       this.stBranch.dataset.tip = changed ? t('gitChanges', { count: changed }) : t('gitClean');
@@ -1041,7 +1042,7 @@ class CodeApp {
       const { Terminal, FitAddon } = await loadXterm(this.ui);
       bus.attach(this.api);
       const mono = getComputedStyle(this.root).getPropertyValue('--font-mono').trim() || 'monospace';
-      const term = new Terminal({ fontFamily: mono, fontSize: 13, cursorBlink: true, allowProposedApi: true, scrollback: 5000, theme: this.termTheme() });
+      const term = new Terminal({ fontFamily: mono, fontSize: 13, cursorBlink: true, allowProposedApi: true, allowTransparency: true, scrollback: 5000, theme: this.termTheme() });
       const fit = new FitAddon();
       term.loadAddon(fit);
       this.termHost.replaceChildren();
@@ -1079,7 +1080,8 @@ class CodeApp {
 
   termTheme() {
     const mode = effectiveTheme(this.win.el) === 'light' ? 'light' : 'dark';
-    return xtermTheme(resolveScheme('system', mode, pageAmbiance()));
+    // the Terminal's default scheme for the mode and ambiance, drawn on the panel's own surface (transparent background)
+    return { ...xtermTheme(resolveScheme('system', mode, pageAmbiance())), background: 'rgba(0, 0, 0, 0)' };
   }
 
   applyTermTheme() {

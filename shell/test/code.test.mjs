@@ -138,6 +138,7 @@ try {
     if (hasGit) {
       check('git repo detected', t.git, true);
       check('branch in status bar', t.branch, 'main');
+      check('status bar branch has no stray text', await C(s, (a) => a.stBranch.textContent.trim()), 'main');
       const g = await C(s, () => {
         const row = (n) => [...document.querySelectorAll('.app-code .code-row')].find((r) => r.querySelector('.code-name').textContent === n);
         return { src: row('src')?.className, notes: row('notes.txt')?.className, notesBadge: row('notes.txt')?.querySelector('.code-git')?.textContent, readme: row('README.md')?.className };
@@ -238,18 +239,18 @@ try {
     await s.page.keyboard.press('Enter');
     await until(s, (a) => !document.querySelector('.dialog') && a.view.state.doc.lineAt(a.view.state.selection.main.head).number === 5, { label: 'line 5' });
     check('status shows line 5, col 3', await C(s, (a) => a.stPos.textContent), 'Ligne 5, col. 3');
-    // multi-cursor: cursor in « count » then Ctrl+D twice
+    // multi-cursor: cursor in « greet » then Ctrl+D twice
     await C(s, (a) => {
       const doc = a.view.state.doc.toString();
-      const i = doc.indexOf('count');
+      const i = doc.indexOf('greet');
       a.view.dispatch({ selection: { anchor: i + 1 } });
       a.view.focus();
     });
     await s.page.keyboard.press('Control+d');
     await s.page.keyboard.press('Control+d');
     const sel = await C(s, (a) => ({ n: a.view.state.selection.ranges.length, texts: a.view.state.selection.ranges.map((r) => a.view.state.sliceDoc(r.from, r.to)), st: a.stPos.textContent }));
-    check('two selections on « count »', sel.n, (n) => n >= 2);
-    check('both select « count »', sel.texts.every((x) => x === 'count'), true);
+    check('two selections on « greet »', sel.n, (n) => n >= 2);
+    check('both select « greet »', sel.texts.every((x) => x === 'greet'), true);
     check('status counts selections', sel.st, (t) => /2 sélections/.test(t));
     // auto-indent + bracket closing at the end of the document
     await C(s, (a) => {
@@ -285,7 +286,7 @@ try {
 
   await section('explorer: create, rename, delete to the Recycle Bin', async () => {
     // new file in src through the prompt
-    await C(s, (a, dir) => a.createIn(dir, false), path.join(project, 'src'));
+    await C(s, (a, dir) => void a.createIn(dir, false), path.join(project, 'src'));
     await until(s, () => document.querySelector('.dialog input'), { label: 'new file prompt' });
     await s.page.fill('.dialog input', 'lune.ts');
     await s.page.keyboard.press('Enter');
@@ -293,7 +294,7 @@ try {
     check('file created', fs.existsSync(path.join(project, 'src/lune.ts')), true);
     check('TypeScript detected', await C(s, (a) => a.stLang.textContent), 'TypeScript');
     // invalid name is refused
-    await C(s, (a, dir) => a.createIn(dir, true), path.join(project, 'src'));
+    await C(s, (a, dir) => void a.createIn(dir, true), path.join(project, 'src'));
     await until(s, () => document.querySelector('.dialog input'), { label: 'new folder prompt' });
     await s.page.fill('.dialog input', 'moon.js');
     await s.page.keyboard.press('Enter');
@@ -318,10 +319,9 @@ try {
       const e = a.entries.get(p.dir).find((x) => x.name === p.name);
       a.trashEntry(e);
     }, { dir: path.join(project, 'src'), name: 'satellite.ts' });
-    await until(s, () => document.querySelector('.dialog .btn.danger, .dialog .btn.primary'), { label: 'trash confirm' });
-    const confirmText = await C(s, () => document.querySelector('.dialog').textContent);
+    const confirmText = await until(s, () => [...document.querySelectorAll('.dialog')].map((d) => d.textContent).find((t) => t.includes('corbeille')), { label: 'trash confirm' });
     check('trash confirm FR', confirmText, (t) => t.includes('Mettre « satellite.ts » à la corbeille ?'));
-    await s.page.click('.dialog .btn.danger, .dialog .btn.primary');
+    await s.page.click('.dialog:has-text("corbeille") .dialog-footer .btn.danger');
     await until(s, (a) => !a.tabs.some((x) => x.name === 'satellite.ts'), { label: 'tab closed after trash' });
     check('gone from the folder', fs.existsSync(path.join(project, 'src/satellite.ts')), false);
     check('in the Recycle Bin', fs.existsSync(path.join(s.home, '.local/share/Trash/files/satellite.ts')), true);
@@ -366,7 +366,8 @@ try {
     await sleep(900);
     const light = await s.shot('code-fr-light');
     fs.copyFileSync(light, path.join(DOCS, 'code-fr-light.png'));
-    const colors = await C(s, () => ({ bg: getComputedStyle(document.querySelector('.app-code .cm-editor')).backgroundColor, text: getComputedStyle(document.querySelector('.app-code .cm-content')).color }));
+    const colors = await C(s, () => ({ bg: getComputedStyle(document.querySelector('.app-code .cm-editor')).backgroundColor, text: getComputedStyle(document.querySelector('.app-code .cm-content')).color, termVp: getComputedStyle(document.querySelector('.app-code .xterm-viewport')).backgroundColor }));
+    check('terminal draws on the panel surface (transparent viewport)', colors.termVp, (c) => /rgba\(0, 0, 0, 0\)|transparent/.test(c));
     check('light editor: dark text', colors.text, (c) => {
       const [r, g, b] = c.match(/\d+/g).map(Number);
       return r + g + b < 200;
@@ -377,7 +378,7 @@ try {
   });
 
   await section('unsaved changes prompt on close', async () => {
-    await C(s, (a) => a.win.close());
+    await C(s, (a) => void a.win.close());
     await until(s, () => document.querySelector('.dialog'), { label: 'unsaved dialog' });
     const txt = await C(s, () => ({ title: document.querySelector('.dialog .dialog-title')?.textContent, buttons: [...document.querySelectorAll('.dialog .dialog-footer .btn')].map((b) => b.textContent) }));
     check('unsaved title', txt.title, 'Modifications non enregistrées');
@@ -386,7 +387,7 @@ try {
     await s.page.click('.dialog .dialog-footer .btn >> text=Annuler');
     await sleep(300);
     check('cancel keeps the window', await C(s, (a) => !!a && !a.win.closed), true);
-    await C(s, (a) => a.win.close());
+    await C(s, (a) => void a.win.close());
     await until(s, () => document.querySelector('.dialog'), { label: 'unsaved dialog 2' });
     await s.page.click('.dialog .dialog-footer .btn >> text=Ne pas enregistrer');
     await until(s, () => !document.querySelector('.win.app-code') || 'gone', { label: 'closed' });
@@ -399,7 +400,7 @@ try {
     await s.aurora(() => window.__aurora.shell.launch('code'));
     await until(s, (a) => a && a.folder && document.querySelectorAll('.app-code .code-row').length > 3, { label: 'folder restored' });
     check('folder restored', await C(s, (a) => a.folder), project);
-    check('terminal reopened as left', await C(s, (a) => a.termOpen), (v) => v === false || v === true);
+    check('terminal stays closed as it was left', await C(s, (a) => a.termOpen), false);
     await C(s, (a) => a.win.close());
     await sleep(400);
   });

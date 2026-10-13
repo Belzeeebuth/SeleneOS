@@ -137,7 +137,6 @@ async function main() {
       });
       check('Lanceur search', found, (v) => v === true || v === 'n/a');
       await s.shot('screenrec-window-fr-dark');
-      fs.copyFileSync(path.join(ROOT, 'test', 'out', 'screenrec-window-fr-dark.png'), path.join(DOCS, 'screenrec-dark-fr.png'));
     });
 
     await section('choices are saved (mode, microphone, format)', async () => {
@@ -215,7 +214,9 @@ async function main() {
       check('window back with the last recording', await s.page.evaluate((W) => getComputedStyle(document.querySelector(W)).visibility + ' ' + !document.querySelector(`${W} .sr-last`).hidden, WIN), 'visible true');
       const toast = await notifTexts(s);
       check('notification « Enregistrement sauvegardé »', toast, (v) => v.includes('Enregistrement sauvegardé') && v.includes('Ouvrir') && v.includes('Afficher dans Fichiers'));
+      check('window grew for the last recording', await s.page.evaluate((W) => document.querySelector(W).getBoundingClientRect().height, WIN), (h) => h >= 580);
       await s.shot('screenrec-saved-fr-dark');
+      fs.copyFileSync(path.join(ROOT, 'test', 'out', 'screenrec-saved-fr-dark.png'), path.join(DOCS, 'screenrec-dark-fr.png'));
     });
 
     await section('the floating control is not in the video', async () => {
@@ -315,9 +316,10 @@ async function main() {
       await s.page.waitForSelector('.sr-countdown', { timeout: 10000 });
       check('window hidden', await s.page.evaluate((W) => getComputedStyle(document.querySelector(W)).visibility, WIN), 'hidden');
       await until(s, (app) => app.state === 'recording', { label: 'recording', timeout: 8000 });
-      await sleep(1200);
+      await sleep(2500);
       await s.aurora(() => window.__aurora.hotkeys.trigger('Super+Shift+R'));
-      await until(s, (app) => app.state === 'idle' && app.last, { label: 'saved', timeout: 20000 });
+      await until(s, (app) => app.state === 'idle' && (app.last || app.info.textContent || 'failed'), { label: 'saved', timeout: 20000 });
+      check('saved (no error)', await SR(s, (app) => (app.last ? 'ok' : app.info.textContent)), 'ok');
       check('new file', listRec(s.home).length, before + 1);
       check('window stays hidden after a hotkey recording', await s.page.evaluate((W) => getComputedStyle(document.querySelector(W)).visibility, WIN), 'hidden');
       const sc2 = await s.aurora(async () => {
@@ -355,6 +357,7 @@ async function main() {
     });
 
     await section('light theme screenshot', async () => {
+      await SR(s, (app) => app.showInfo(null));
       await s.aurora(() => window.__aurora.settings.set('theme', 'light'));
       await sleep(600);
       await s.shot('screenrec-window-fr-light');

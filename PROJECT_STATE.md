@@ -62,7 +62,9 @@ A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a W
 | Paint, Calculator, Notepad, Terminal, Media, Snipping, Task Manager, Installer | paint 51 tests, calculator 672, notepad 289, terminal 246, media 48, snipping 40, taskmgr 173, installer 161 |
 | Games | games-classic 85, solitaire 72, chess 68 |
 | Phase 1 apps | photos 46, pdf 244, archive 468, notes 262 + 156 unit, calendar 378 + 131 unit, clock 448, todo 361 |
-| Voice Recorder (phase 2, recorder) | recorder 51 + 17 unit (fake microphone; no real microphone tested) |
+| Voice Recorder (phase 2, recorder) | recorder 56 + 17 unit (fake microphone; no real microphone tested) |
+| Screen Recorder (phase 2, screenrec) | screenrec 64 + 34 unit (Xvfb screen capture, Chromium fake microphone; computer sound and real hardware not tested) |
+| Code Editor (phase 2, code) | code 74 + 11 unit (CodeMirror 6 vendored bundle; git and the PTY terminal tested for real under Xvfb) |
 | Personalization | personalization-core 144, personalization-shell 90, taskbar-start-focus 269, packs-input 148, wallpapers 300 |
 | Core | smoke, core-dialogs 6 |
 | Linux GUI apps + Store sources | xwm-helper 78, xwin 63 (incl. real xterm end-to-end), xapps 71, store 128, store-flathub 83, store-ubuntu 84 |

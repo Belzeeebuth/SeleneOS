@@ -53,7 +53,10 @@
     "stopAndSave": "Stop and save",
     "durationUnknown": "—",
     "dateAt": "{date} at {time}",
-    "shortcuts": "Ctrl+R record or stop · Space pause · M marker"
+    "shortcuts": "Ctrl+R record or stop · Space pause · M marker",
+    "export": "Export",
+    "exportMp3": "Export as MP3",
+    "exportM4a": "Export as M4A"
   },
   "fr": {
     "title": "Enregistreur vocal",
@@ -109,6 +112,9 @@
     "stopAndSave": "Arrêter et enregistrer",
     "durationUnknown": "—",
     "dateAt": "{date} à {time}",
-    "shortcuts": "Ctrl+R enregistrer ou arrêter · Espace pause · M repère"
+    "shortcuts": "Ctrl+R enregistrer ou arrêter · Espace pause · M repère",
+    "export": "Exporter",
+    "exportMp3": "Exporter en MP3",
+    "exportM4a": "Exporter en M4A"
   }
 }

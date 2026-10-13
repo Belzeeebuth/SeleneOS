@@ -171,6 +171,7 @@ window that asked. In greeter mode (`--mode=greeter`) only `settings`, `sys`, `g
 | notes (`notes.js`) | `notes:root` `notes:open` `notes:writeIndex` `notes:writeNote` `notes:remove` `notes:duplicate` `notes:attach` `notes:dataUrl` `notes:exportAssets` `notes:gc` `notes:clipboard` `notes:clipboardWriteImage` |
 | archive (`archive.js`) | `archive:tools` `archive:list` `archive:preview` `archive:test` `archive:extract` `archive:extractTemp` `archive:create` `archive:add` `archive:delete` `archive:cancel` `archive:tempDir` `archive:cleanup` (+`archive:progress`) |
 | pdf (`pdf.js`) | `pdf:save(path, bytes)` |
+| code (`code.js`, Code Editor) | `code:git(dir)` -> `{ repo, root, branch, detached, ahead, behind, files: { relPath: 'M'\|'A'\|'D'\|'R'\|'U'\|'?' }, ignored: [relPath] }` (git with an argument vector) `code:gitAvailable` |
 | weather (`weather.js`) | `weather:current(place?, { force })` `weather:search(query, { lang, count })` `weather:stats` (+`weather:changed`) — Open-Meteo, cached 30 min, offline fallback; see docs/PERSONALIZATION.md §9.4 |
 | app helpers | `notepad:fonts` `paint:fonts`; legacy `paint:clipboard*Image` and `snipping:clipboard*Image` (new code uses `clipboard:*Image`) |
 
@@ -206,6 +207,7 @@ Settings uses `system-settings.test.mjs`.
 - `chess` - Chess against the computer or a friend
 - `clock` - Clock: alarms, timers, stopwatch, world clock, focus sessions
 - `cloud` - Cloud: browse, upload and download Nextcloud / WebDAV files (other services later)
+- `code` - Code Editor: folder explorer (.gitignore-aware, git status), tabs, CodeMirror 6 (vendored ES module `apps/code/vendor/codemirror.js`, rebuilt with `node tools/vendor-codemirror.mjs`), find/replace, go to line, multi-cursor, terminal panel on the `pty.js` backend, git branch (`code.js` backend)
 - `contacts` - Contacts: people, e-mails, phones, addresses, birthdays, vCard import/export; feeds Mail's recipient suggestions
 - `disks` - Disks: drives and partitions, mount, eject; format removable drives only
 - `files` - Files: tabs, drives, Recycle Bin, search, properties
@@ -222,7 +224,7 @@ Settings uses `system-settings.test.mjs`.
 - `passwords` - Passwords: encrypted vault (AES-GCM, PBKDF2), generator, CSV import/export
 - `pdf` - PDF Reader: read, search, annotate and present PDFs
 - `photos` - Photos: gallery, viewer, slideshow and editor
-- `recorder` - Voice Recorder: MediaRecorder Opus/WebM, pause, markers, live waveform, microphone choice, seekable playback (WebAudio), trim re-encoded with WebCodecs (`lib/webm.js` writes the Duration and muxes Opus); Documents/Sound recordings
+- `recorder` - Voice Recorder: MediaRecorder Opus/WebM, pause, markers, live waveform, microphone choice, seekable playback (WebAudio), trim re-encoded with WebCodecs (`lib/webm.js` writes the Duration and muxes Opus), MP3 / M4A export through ffmpeg (`main/ipc/recorder.js`); Documents/Sound recordings
 - `remote` - Remote Desktop: VNC client (RFB 3.8, None / VNC authentication); RDP later
 - `settings` - Settings: system, devices, network, personalization, accounts, time and language, updates
 - `snake` - Snake

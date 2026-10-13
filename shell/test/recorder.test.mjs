@@ -3,7 +3,8 @@
 //   Empty state, French folder (~/Documents/Enregistrements audio), microphone list + test meter, record with
 //   pause / resume and markers (button and M), the red tray dot with the elapsed time, recording goes on while the
 //   window is minimized, stop (Ctrl+R) saves a WebM/Opus file with its Duration written, list (name, date, duration),
-//   playback with seek on the waveform, rename (F2), trim (save as a copy, replace), show in Files, delete to the
+//   playback with seek on the waveform, rename (F2), trim (save as a copy, replace), MP3 / M4A export (ffmpeg,
+//   main/ipc/recorder.js, paths outside home refused), show in Files, delete to the
 //   Trash, close while recording (stop and save), English folder name, light theme, no console errors.
 //   Unit tests of the WebM helpers: test/recorder.unit.mjs.
 //   Screenshots (1280x720, French, Halo): docs/screenshots/recorder-recording-dark.png, recorder-playback-dark.png,
@@ -230,6 +231,36 @@ try {
     check('replace: same file, one second shorter', Math.abs(info2.duration / 1000 - (want - 1)) < 0.15, true);
     check('two recordings listed', await RC(s, (R) => R.items.map((i) => i.name).sort()), ['Réunion (rogné).webm', 'Réunion.webm']);
     check('dur dec', dur > 3, true);
+  });
+
+  await section('export as MP3 / M4A through ffmpeg', async () => {
+    const has = await RC(s, (R) => R.tools.ffmpeg);
+    if (!has) {
+      check('no ffmpeg: no export button', await RC(s, (R) => !R.els.actions.querySelector('[data-act="export"]')), true);
+      return;
+    }
+    for (const [label, ext] of [['Exporter en MP3', 'mp3'], ['Exporter en M4A', 'm4a']]) {
+      await RC(s, (R) => R.select('Réunion (rogné).webm'));
+      await until(s, (R) => R.selected === 'Réunion (rogné).webm' && R.play?.buffer, { label: 'webm selected' });
+      await s.page.click(`${WIN} .rc-act[data-act="export"]`);
+      await s.page.locator('body > .menu .menu-item', { hasText: label }).first().click();
+      const out = `Réunion (rogné).${ext}`;
+      await until(s, (R, n) => R.selected === n && R.play?.buffer && !R.saving, { label: `exported ${ext}`, arg: out, timeout: 30000 });
+      const bytes = fs.readFileSync(path.join(dir, out));
+      const magic = ext === 'mp3' ? bytes.subarray(0, 3).toString('latin1') === 'ID3' || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) : bytes.subarray(4, 8).toString('latin1') === 'ftyp';
+      check(`${ext}: a real ${ext} file next to the original`, magic, true);
+      check(`${ext}: decodes to the same length`, Math.abs((await RC(s, (R) => R.duration)) - (await RC(s, (R) => R.meta['Réunion (rogné).webm'].duration))) < 0.2, true);
+    }
+    for (const ext of ['mp3', 'm4a']) fs.rmSync(path.join(dir, `Réunion (rogné).${ext}`), { force: true });
+    await RC(s, (R) => R.refresh());
+    await RC(s, (R) => R.select('Réunion (rogné).webm'));
+    await until(s, (R) => R.selected === 'Réunion (rogné).webm' && R.play?.buffer, { label: 'back to the webm' });
+    const bad = await s.page.evaluate(async () => {
+      const out = [];
+      for (const args of [['/etc/passwd', 'mp3'], ['/tmp/x.webm', 'mp3'], [`${await window.__aurora.api.invoke('fs:home')}/Documents`, 'mp3'], ['x', 'exe']]) out.push(await window.__aurora.api.invoke('recorder:export', ...args).then(() => 'ok', (e) => 'refused'));
+      return out;
+    }).catch((e) => [`ERR ${e.message}`]);
+    check('backend refuses paths outside home, folders and unknown formats', bad, ['refused', 'refused', 'refused', 'refused']);
   });
 
   await section('show in Files', async () => {

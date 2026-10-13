@@ -154,6 +154,9 @@
 .app-code .code-panel-head .code-tbtn { width: 28px; min-width: 28px; height: 28px; }
 .app-code .code-term-host { flex: 1; min-height: 0; padding: 0 0 4px 12px; overflow: hidden; }
 .app-code .code-term-host .xterm { height: 100%; }
+/* xterm draws on the panel's surface (theme background is transparent, as in the Terminal app) */
+.app-code .code-term-host .xterm .xterm-viewport { background-color: transparent !important; }
+.app-code .code-term-host .xterm .xterm-screen { cursor: text; }
 
 /* ------------------------------------------------------------ status bar */
 .app-code .code-status {
