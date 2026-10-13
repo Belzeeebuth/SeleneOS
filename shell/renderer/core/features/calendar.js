@@ -241,22 +241,23 @@ function notifItem(n) {
       ),
     ),
     n.body ? h('div', { class: 'nc-body' }, n.body) : null,
-    n.actions?.length
+    notifications.progressNode?.(n) || null,
+    n.actions?.some((a) => !a.toastOnly)
       ? h(
           'div',
           { class: 'nc-actions' },
-          n.actions.map((a, i) =>
+          n.actions.filter((a) => !a.toastOnly).map((a, i, list) =>
             h(
               'button',
               {
-                class: ['btn', 'small', i === 0 && n.actions.length > 1 && 'primary'],
+                class: ['btn', 'small', i === 0 && list.length > 1 && 'primary'],
                 onclick: () => {
                   try {
                     a.onClick?.();
                   } catch (err) {
                     console.error(err);
                   }
-                  notifications.dismiss(n.id);
+                  if (!a.keep) notifications.dismiss(n.id);
                 },
               },
               a.label,

@@ -1,9 +1,12 @@
 // Install Selene OS: the installer of the live session (Nocturne look: a night side panel with the steps
 // drawn as moon phases, flat pages on the right).
 //
-// Steps: welcome (language) -> keyboard -> disk -> account -> time zone -> [graphics driver] -> summary -> installing
-// -> done | error. The graphics driver step only exists when an NVIDIA card is detected (installer:gpu): the
-// recommended NVIDIA driver is then downloaded from the Ubuntu archive during the installation (needs the Internet).
+// Steps: welcome (language) -> keyboard -> disk -> account -> time zone -> [graphics driver] -> games -> summary
+// -> installing -> done | error. The graphics driver step only exists when an NVIDIA card is detected (installer:gpu):
+// the recommended NVIDIA driver is then downloaded from the Ubuntu archive during the installation (needs the Internet).
+// The games step (« Jeux ») offers the usual Linux gaming apps (Flathub, off by default): they are NOT downloaded
+// during the installation; the helper records the choice (--gaming, ~/.config/aurora/first-login/gaming.json) and
+// the session installs them for the new account at its first sign-in.
 // The installer has its own UI language (chosen on the first page, switched live); it is also the
 // language of the installed system. Backend: main/ipc/installer.js (installer:* channels), which runs
 // /usr/lib/aurora/helpers/aurora-install as root (dry run in dev mode / outside the live session).
@@ -11,7 +14,7 @@
 // Test hooks: the root element carries data-step / data-phase; window.__installer exposes the state.
 import { ART, BRAND } from './art.js';
 
-const BASE_STEPS = ['welcome', 'keyboard', 'disk', 'account', 'timezone', 'summary'];
+const BASE_STEPS = ['welcome', 'keyboard', 'disk', 'account', 'timezone', 'games', 'summary'];
 const BASE_STAGES = ['partition', 'format', 'copy', 'configure', 'bootloader', 'cleanup'];
 const RE_USER = /^[a-z_][a-z0-9_-]*$/;
 const RE_HOST = /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
@@ -27,10 +30,28 @@ const DEFAULTS = {
 };
 const LOCALES = { en: 'en-US', fr: 'fr-FR' };
 
+// Gaming apps offered by the « Jeux » step (Flathub ids: the same allow-list as main/ipc/installer.js GAMING_APPS
+// and the helper's --gaming). Names are brand names (not translated); descriptions and sizes are in i18n.json
+// (games.app.<key>.desc / .size, rough download hints).
+export const GAMING_APPS = [
+  { id: 'com.valvesoftware.Steam', key: 'steam', name: 'Steam', icon: 'game-controller', checked: true },
+  { id: 'com.heroicgameslauncher.hgl', key: 'heroic', name: 'Heroic Games Launcher', short: 'Heroic', icon: 'rocket-launch', checked: true },
+  { id: 'net.lutris.Lutris', key: 'lutris', name: 'Lutris', icon: 'stack', checked: true },
+  { id: 'net.davidotek.pupgui2', key: 'protonup', name: 'ProtonUp-Qt', icon: 'sliders-horizontal', checked: true },
+  { id: 'com.usebottles.bottles', key: 'bottles', name: 'Bottles', icon: 'flask', checked: false },
+  { id: 'com.discordapp.Discord', key: 'discord', name: 'Discord', icon: 'chat-circle-dots', checked: false },
+];
+
 // ------------------------------------------------------------------ pure helpers (exported for tests)
-/** Steps of the installer: the graphics driver step (before the summary) only for a computer with an NVIDIA card. */
+/** Steps of the installer: the graphics driver step only for a computer with an NVIDIA card, then the games step. */
 export function stepsFor(gpu) {
-  return gpu?.nvidia?.length ? [...BASE_STEPS.slice(0, -1), 'drivers', 'summary'] : BASE_STEPS.slice();
+  return gpu?.nvidia?.length ? [...BASE_STEPS.slice(0, -2), 'drivers', 'games', 'summary'] : BASE_STEPS.slice();
+}
+
+/** Flathub ids to send to the helper (--gaming): none while the switch is off; catalog order, known ids only. */
+export function gamingRequest(wanted, apps) {
+  if (!wanted || !Array.isArray(apps)) return [];
+  return GAMING_APPS.filter((a) => apps.includes(a.id)).map((a) => a.id);
 }
 
 /** Driver to ask the helper for: the recommended package when known, else 'recommended' (picked in the target). */
@@ -140,6 +161,10 @@ export default {
       driverChecking: false,
       driverRequested: null, // package (or 'recommended') sent to the helper
       driverResult: null, // { status: 'installed'|'failed', pkg, message }
+      gamingWanted: false, // « Installer les applications de jeu » (off by default)
+      gamingApps: GAMING_APPS.filter((a) => a.checked).map((a) => a.id), // checked in the list
+      gamingRequested: [], // ids sent to the helper (--gaming)
+      gamingResult: null, // { status: 'saved'|'failed', apps, message }
       lang: ctx.lang === 'fr' ? 'fr' : 'en',
       step: 0,
       phase: 'setup', // setup | installing | done | error
@@ -791,6 +816,77 @@ export default {
       content.replaceChildren(cards, h('div', { class: 'ins-driver-toggle' }, sw), ...notes);
     }
 
+    // ---------------------------------------------------------------- games (Flathub apps, installed at the first sign-in)
+    const listFmt = (items) => {
+      try {
+        return new Intl.ListFormat(LOCALES[S.lang], { style: 'long', type: 'conjunction' }).format(items);
+      } catch {
+        return items.join(', ');
+      }
+    };
+    const gamingNames = (ids, { short = false } = {}) => GAMING_APPS.filter((a) => ids.includes(a.id)).map((a) => (short && a.short) || a.name);
+    const gamingOn = () => gamingRequest(S.gamingWanted, S.gamingApps).length > 0;
+
+    function pageGames() {
+      setHeader(stepOf('games'), t('games.title'), t('games.subtitle'));
+      const on = S.gamingWanted;
+      const sw = ui.toggle({
+        checked: on,
+        label: t('games.switch'),
+        onchange: (v) => {
+          S.gamingWanted = v;
+          pageGames();
+          content.querySelector('.ins-games-switch input')?.focus();
+        },
+      });
+      sw.classList.add('ins-games-switch');
+      const count = h('span', { class: 'ins-games-count', 'aria-live': 'polite' });
+      // One slot under the list: « later from the Store » (off), the Flathub note (on), or « nothing checked ».
+      const status = h('div', { class: 'ins-games-status' });
+      const refreshStatus = () => {
+        const n = gamingRequest(true, S.gamingApps).length;
+        count.textContent = on ? t('games.count', { count: n }) : '';
+        count.hidden = !on;
+        status.replaceChildren(
+          !on
+            ? h('div', { class: 'ins-games-line ins-games-hint' }, icon('storefront', { size: 16 }), h('span', null, t('games.offHint')))
+            : n
+              ? h('div', { class: 'ins-games-line ins-games-note', role: 'note' }, icon('cloud-arrow-down', { size: 16 }), h('span', null, t('games.note')))
+              : h('div', { class: 'ins-games-line ins-games-none', role: 'note' }, icon('warning', { size: 16 }), h('span', null, t('games.none'))),
+        );
+      };
+      const cards = GAMING_APPS.map((a) => {
+        const checked = S.gamingApps.includes(a.id);
+        const descId = `ins-game-${win.id}-${a.key}`;
+        const input = h('input', {
+          type: 'checkbox',
+          checked,
+          disabled: !on,
+          'aria-describedby': descId,
+          onchange: (e) => {
+            S.gamingApps = e.target.checked ? [...new Set([...S.gamingApps, a.id])] : S.gamingApps.filter((x) => x !== a.id);
+            card.classList.toggle('selected', e.target.checked);
+            refreshStatus();
+          },
+        });
+        const card = h(
+          'label',
+          { class: ['ins-game', checked && 'selected'], dataset: { app: a.id } },
+          h('span', { class: 'ins-game-icon', 'aria-hidden': 'true' }, icon(a.icon, { size: 20 })),
+          h(
+            'span',
+            { class: 'ins-game-text' },
+            h('span', { class: 'ins-game-head' }, h('span', { class: 'ins-game-name' }, a.name), h('span', { class: 'checkbox ins-game-check' }, input)),
+            h('span', { class: 'ins-game-desc', id: descId }, t(`games.app.${a.key}.desc`), h('span', { class: 'ins-game-size' }, t(`games.app.${a.key}.size`))),
+          ),
+        );
+        return card;
+      });
+      const grid = h('div', { class: ['ins-games', !on && 'off'], role: 'group', 'aria-label': t('games.listLabel'), 'aria-disabled': on ? null : 'true' }, cards);
+      refreshStatus();
+      content.replaceChildren(h('div', { class: 'ins-games-toggle' }, sw, count), grid, status);
+    }
+
     function kbLabel(id) {
       const k = keyboards.find((x) => x.id === id);
       return k ? k.name[S.lang] || k.name.en : id;
@@ -834,6 +930,16 @@ export default {
                 { key: 'driver' },
               )
             : null,
+          STEPS.includes('games')
+            ? row(
+                'game-controller',
+                t('summary.gaming'),
+                gamingOn() ? gamingNames(gamingRequest(S.gamingWanted, S.gamingApps), { short: true }).join(', ') : t('summary.gamingOff'),
+                gamingOn() ? t('summary.gamingOnSub') : t('summary.gamingOffSub'),
+                STEPS.indexOf('games'),
+                { key: 'gaming' },
+              )
+            : null,
         ),
       );
     }
@@ -862,6 +968,8 @@ export default {
       S.cancelling = false;
       S.driverRequested = driverRequest(S.gpu, S.driverWanted);
       S.driverResult = null;
+      S.gamingRequested = gamingRequest(S.gamingWanted, S.gamingApps);
+      S.gamingResult = null;
       STAGES = S.driverRequested ? [...BASE_STAGES.slice(0, 4), 'drivers', ...BASE_STAGES.slice(4)] : BASE_STAGES.slice();
       render();
       offProgress?.();
@@ -878,6 +986,7 @@ export default {
           timezone: S.timezone,
           autologin: S.autologin,
           ...(S.driverRequested ? { nvidiaDriver: S.driverRequested } : {}),
+          ...(S.gamingRequested.length ? { gaming: S.gamingRequested } : {}),
         });
         S.dryRun = !!r?.dryRun;
       } catch (e) {
@@ -904,6 +1013,8 @@ export default {
         }
       } else if (ev.type === 'driver') {
         S.driverResult = ev; // never an error: reported on the done page
+      } else if (ev.type === 'gaming') {
+        S.gamingResult = ev; // never an error either (the apps are installed at the first sign-in)
       } else if (ev.type === 'error') {
         S.error = ev;
       } else if (ev.type === 'done') {
@@ -1015,6 +1126,11 @@ export default {
           : S.driverRequested && S.driverResult?.status !== 'installed'
             ? h('div', { class: 'infobar warning ins-note ins-driver-result', role: 'note', dataset: { status: 'failed' } }, icon('developer_board', { size: 16 }), h('div', null, t('done.driverFailed')))
             : null,
+        S.gamingRequested.length
+          ? S.gamingResult?.status === 'failed'
+            ? h('div', { class: 'infobar warning ins-note ins-gaming-result', role: 'note', dataset: { status: 'failed' } }, icon('game-controller', { size: 16 }), h('div', null, t('done.gamingFailed')))
+            : h('div', { class: 'infobar ins-note ins-gaming-result', dataset: { status: 'saved' } }, icon('game-controller', { size: 16 }), h('div', null, t('done.gaming', { apps: listFmt(gamingNames(S.gamingRequested, { short: true })) })))
+          : null,
         h('div', { class: 'infobar warning ins-note' }, icon('usb_stick', { size: 16 }), h('div', null, t('done.removeMedia'))),
         h('p', { class: 'ins-done-account' }, t('done.account', { name: S.fullname.trim(), user: S.user })),
         h('div', { class: 'ins-done-msg', role: 'status', 'aria-live': 'polite' }),
@@ -1079,11 +1195,11 @@ export default {
       root.dataset.phase = S.phase;
       root.lang = S.lang;
       const key = `${name}`;
-      const artName = { welcome: 'welcome', keyboard: 'keyboard', disk: 'disk', account: 'account', timezone: 'timezone', drivers: 'drivers', summary: 'summary', installing: 'installing', done: 'done', error: 'error' }[name];
+      const artName = { welcome: 'welcome', keyboard: 'keyboard', disk: 'disk', account: 'account', timezone: 'timezone', drivers: 'drivers', games: 'games', summary: 'summary', installing: 'installing', done: 'done', error: 'error' }[name];
       renderChrome(artName);
       refreshAccount = null;
       if (S.phase === 'setup') {
-        ({ welcome: pageWelcome, keyboard: pageKeyboard, disk: pageDisk, account: pageAccount, timezone: pageTimezone, drivers: pageDrivers, summary: pageSummary })[name]();
+        ({ welcome: pageWelcome, keyboard: pageKeyboard, disk: pageDisk, account: pageAccount, timezone: pageTimezone, drivers: pageDrivers, games: pageGames, summary: pageSummary })[name]();
         setupFooter();
         if (name === 'disk' && S.disks == null) loadDisks();
       } else if (S.phase === 'installing') pageInstalling();

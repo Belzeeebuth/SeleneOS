@@ -223,6 +223,15 @@ nvd="$(find "$S/usr/lib/modules" \( -name 'nvidia.ko*' -o -name 'nvidia-drm.ko*'
   && pass "no NVIDIA driver bundled in the image (downloaded during the installation)" || warn "an NVIDIA driver is bundled in the image: $nvd"
 grep -qs 'Driver' "$S"/etc/X11/xorg.conf.d/*.conf && fail "an /etc/X11/xorg.conf.d file forces an Xorg driver (the NVIDIA driver must stay possible)" \
   || pass "no Xorg driver forced in /etc/X11/xorg.conf.d (noaccel.conf is only used without a GPU / nvidia)"
+# Games (iso/packages.d/gaming.list): GameMode is always in the image; the gaming apps come from Flathub at the
+# first sign-in (installer « Jeux » step), never from the image.
+# Ubuntu's gamemode ships gamemoderun in /usr/games (gamemoded comes with gamemode-daemon): both dirs are accepted.
+for b in gamemoderun gamemoded; do
+  if [[ -x "$S/usr/games/$b" || -x "$S/usr/bin/$b" ]]; then pass "image has $b (GameMode)"
+  else fail "image lacks $b in /usr/games or /usr/bin (GameMode: rebuild with --from packages)"; fi
+done
+compgen -G "$S/usr/lib/*-linux-gnu/libgamemode.so*" >/dev/null && pass "libgamemode is installed (GameMode)" || fail "libgamemode is missing (GameMode)"
+grep -q -- '--gaming' "$S/usr/lib/aurora/helpers/aurora-install" 2>/dev/null && pass "the installer helper records the gaming apps (--gaming)" || fail "aurora-install has no --gaming (installer « Jeux » step)"
 bad="$(find "$S/usr/bin" "$S/usr/lib/aurora" -maxdepth 1 -name 'aurora-*' -type f ! -perm -0755 ! -name aurora-common | sed "s|^$S||")"
 [[ -z "$bad" ]] && pass "session entry points are executable" || fail "not executable: $bad"
 

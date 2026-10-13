@@ -882,3 +882,131 @@
   align-items: flex-start;
   gap: var(--sp-2);
 }
+
+/* ---------------------------------------------------------------- games (Flathub apps, installed at the first sign-in) */
+.app-installer .ins-games-toggle {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+.app-installer .ins-games-count {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+/* Two columns of cards (reading order = Tab order); a card is a label: a click anywhere toggles its checkbox. */
+.app-installer .ins-games {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  transition: opacity var(--dur) var(--ease);
+}
+.app-installer .ins-games.off {
+  opacity: 0.55;
+}
+.app-installer .ins-game {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-soft);
+  background: var(--surface-raised);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.app-installer .ins-games:not(.off) .ins-game:hover {
+  background: linear-gradient(var(--subtle-hover), var(--subtle-hover)), var(--surface-raised);
+}
+.app-installer .ins-games:not(.off) .ins-game.selected {
+  border-color: var(--accent);
+  background: linear-gradient(var(--accent-subtle), var(--accent-subtle)), var(--surface-raised);
+}
+.app-installer .ins-games.off .ins-game {
+  cursor: default;
+}
+.app-installer .ins-game:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.app-installer .ins-game .checkbox input:focus-visible {
+  outline: none;
+}
+.app-installer .ins-game-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+  color: var(--text-2);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.app-installer .ins-games:not(.off) .ins-game.selected .ins-game-icon {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.app-installer .ins-game-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+.app-installer .ins-game-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.app-installer .ins-game-name {
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-installer .ins-game-desc {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  line-height: 1.35;
+}
+.app-installer .ins-game-size {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.app-installer .ins-game-check {
+  min-height: 0;
+  flex: none;
+}
+.app-installer .ins-games-status {
+  flex: none;
+}
+.app-installer .ins-games-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  line-height: 1.4;
+}
+.app-installer .ins-games-line .icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--accent-text);
+}
+.app-installer .ins-games-note {
+  color: var(--text);
+}
+.app-installer .ins-games-none .icon {
+  color: var(--warning);
+}

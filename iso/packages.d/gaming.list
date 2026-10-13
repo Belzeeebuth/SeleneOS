@@ -1,0 +1,8 @@
+# Games: GameMode (Feral Interactive) is always in the image: `gamemoderun %command%` (Steam launch options) or
+# Lutris / Heroic's GameMode switch ask its daemon (gamemoded, D-Bus activated per user) to boost the CPU governor
+# and the game's priority while a game runs. Small (a daemon and two libraries), universe.
+# The gaming apps themselves (Steam, Heroic, Lutris, ProtonUp-Qt, Bottles, Discord) are NOT in the image: the
+# installer's « Jeux » step records them (aurora-install --gaming, ~/.config/aurora/first-login/gaming.json) and the
+# session installs them from Flathub, per user, at the first sign-in; inside Flatpak they reach this daemon through
+# xdg-desktop-portal's GameMode portal (D-Bus), store-sources.list installs the portal.
+gamemode

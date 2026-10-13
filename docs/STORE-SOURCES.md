@@ -153,3 +153,11 @@ saved in `~/.config/aurora/store-sources.json`), `store:refresh` (+`store:progre
   `store:refresh` for that source.
 - **UI stubs.** In DEV only, `AURORA_STORE_SOURCES_DIR=<absolute dir>` loads `ubuntu.js` and `flathub.js` from
   that directory instead. `test/store.test.mjs` uses the tiny stubs in `shell/test/fixtures/store-ui-sources/`.
+- **In-process installs.** `store.js` also sets `api.storeService = { install(source, id, onProgress),
+  installedIds(source), available(source) }` for other main modules. It runs the same code as `store:install`:
+  one operation at a time (`EBUSY` otherwise), `store:progress` broadcasts, and `store:changed` once it finishes.
+  `main/ipc/firstlogin.js` uses it to install the gaming apps chosen in the installer's « Jeux » step
+  (`~/.config/aurora/first-login/gaming.json`, written by `aurora-install --gaming`), one after the other, at
+  the first session. Those apps then show up in Installed like any other Flathub app.
+  Tests: `test/gaming-setup.test.mjs` (stub `flatpak` through `AURORA_FLATPAK`, plus the stub source in
+  `shell/test/fixtures/gaming-setup/`).

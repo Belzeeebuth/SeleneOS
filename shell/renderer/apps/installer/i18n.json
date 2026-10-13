@@ -18,6 +18,7 @@
       "account": "Account",
       "timezone": "Time zone",
       "drivers": "Graphics driver",
+      "games": "Games",
       "summary": "Summary",
       "install": "Install"
     },
@@ -131,6 +132,43 @@
       "secureBoot": "Secure Boot is on: the driver is signed by Canonical, so it works without any extra step.",
       "hybrid": "This computer also has {other} graphics: it keeps driving the screen to save battery, and the NVIDIA card stays available to the apps that ask for it."
     },
+    "games": {
+      "title": "Want to play games?",
+      "subtitle": "Selene OS can add the most popular gaming apps for Linux. GameMode, which optimizes your games, is already included.",
+      "switch": "Install the gaming apps",
+      "listLabel": "Gaming apps",
+      "count_one": "{count} app selected",
+      "count_other": "{count} apps selected",
+      "none": "No app is checked: nothing will be installed.",
+      "offHint": "You can install them later from Software.",
+      "note": "They will be downloaded from Flathub the first time you sign in (Internet needed).",
+      "app": {
+        "steam": {
+          "desc": "Valve's store, with Proton for Windows games.",
+          "size": "about 1 GB with its components"
+        },
+        "heroic": {
+          "desc": "Your Epic Games, GOG and Amazon games.",
+          "size": "about 400 MB"
+        },
+        "lutris": {
+          "desc": "All your games in one place, emulators included.",
+          "size": "about 300 MB"
+        },
+        "protonup": {
+          "desc": "Adds the GE versions of Proton to Steam, Heroic and Lutris.",
+          "size": "about 200 MB"
+        },
+        "bottles": {
+          "desc": "Runs Windows apps and games, each in its own bottle.",
+          "size": "about 500 MB"
+        },
+        "discord": {
+          "desc": "Chat by voice or text with your friends while you play.",
+          "size": "about 300 MB"
+        }
+      }
+    },
     "summary": {
       "title": "Ready to install",
       "subtitle": "Check your choices, then select Install. It takes a few minutes.",
@@ -149,7 +187,11 @@
       "driverOn": "Recommended NVIDIA driver",
       "driverOnSub": "Downloaded during the installation",
       "driverOff": "Free driver",
-      "driverOffSub": "NVIDIA driver: later, in Settings > Graphics drivers"
+      "driverOffSub": "NVIDIA driver: later, in Settings > Graphics drivers",
+      "gaming": "Gaming apps",
+      "gamingOff": "None",
+      "gamingOnSub": "At your first sign-in, from Flathub",
+      "gamingOffSub": "You can add them later from Software"
     },
     "confirm": {
       "title": "Erase this disk?",
@@ -188,7 +230,9 @@
       "restartSimulated": "Restart skipped: this was a simulation.",
       "restartFailed": "The computer could not be restarted: {error}",
       "driverOk": "The NVIDIA driver ({pkg}) is installed. It will be used as soon as you restart.",
-      "driverFailed": "The driver couldn't be installed; you can install it later in Settings > Graphics drivers."
+      "driverFailed": "The driver couldn't be installed; you can install it later in Settings > Graphics drivers.",
+      "gaming": "The first time you sign in, Selene OS will install {apps} (Internet needed).",
+      "gamingFailed": "The gaming apps couldn't be set up for your first sign-in; you can install them from Software."
     },
     "error": {
       "title": "The installation failed",
@@ -223,6 +267,7 @@
       "account": "Compte",
       "timezone": "Fuseau horaire",
       "drivers": "Pilote graphique",
+      "games": "Jeux",
       "summary": "Récapitulatif",
       "install": "Installation"
     },
@@ -336,6 +381,43 @@
       "secureBoot": "Le démarrage sécurisé (Secure Boot) est activé : le pilote est signé par Canonical, il fonctionnera sans réglage supplémentaire.",
       "hybrid": "Cet ordinateur a aussi une puce graphique {other} : elle continue d'afficher l'écran pour ménager la batterie, et la carte NVIDIA reste disponible pour les applications qui la demandent."
     },
+    "games": {
+      "title": "Envie de jouer ?",
+      "subtitle": "Selene OS peut ajouter pour vous les applications de jeu les plus utilisées sous Linux. GameMode, qui optimise vos jeux, est déjà inclus.",
+      "switch": "Installer les applications de jeu",
+      "listLabel": "Applications de jeu",
+      "count_one": "{count} application choisie",
+      "count_other": "{count} applications choisies",
+      "none": "Aucune application n'est cochée : rien ne sera installé.",
+      "offHint": "Vous pourrez les installer plus tard depuis la Logithèque.",
+      "note": "Elles seront téléchargées depuis Flathub à votre première connexion (Internet nécessaire).",
+      "app": {
+        "steam": {
+          "desc": "La boutique de Valve, avec Proton pour les jeux Windows.",
+          "size": "environ 1 Go avec ses composants"
+        },
+        "heroic": {
+          "desc": "Vos jeux Epic Games, GOG et Amazon.",
+          "size": "environ 400 Mo"
+        },
+        "lutris": {
+          "desc": "Tous vos jeux au même endroit, émulateurs compris.",
+          "size": "environ 300 Mo"
+        },
+        "protonup": {
+          "desc": "Ajoute les versions GE de Proton à Steam, Heroic et Lutris.",
+          "size": "environ 200 Mo"
+        },
+        "bottles": {
+          "desc": "Lance des applications et des jeux Windows, chacun dans sa bouteille.",
+          "size": "environ 500 Mo"
+        },
+        "discord": {
+          "desc": "Discutez en vocal ou par écrit avec vos amis pendant vos parties.",
+          "size": "environ 300 Mo"
+        }
+      }
+    },
     "summary": {
       "title": "Prêt pour l'installation",
       "subtitle": "Vérifiez vos choix, puis sélectionnez Installer. L'installation prend quelques minutes.",
@@ -354,7 +436,11 @@
       "driverOn": "Pilote NVIDIA recommandé",
       "driverOnSub": "Téléchargé pendant l'installation",
       "driverOff": "Pilote libre",
-      "driverOffSub": "Pilote NVIDIA : plus tard, dans Paramètres > Pilotes graphiques"
+      "driverOffSub": "Pilote NVIDIA : plus tard, dans Paramètres > Pilotes graphiques",
+      "gaming": "Applications de jeu",
+      "gamingOff": "Aucune",
+      "gamingOnSub": "À votre première connexion, depuis Flathub",
+      "gamingOffSub": "Vous pourrez les ajouter plus tard depuis la Logithèque"
     },
     "confirm": {
       "title": "Effacer ce disque ?",
@@ -393,7 +479,9 @@
       "restartSimulated": "Redémarrage ignoré : il s'agissait d'une simulation.",
       "restartFailed": "Impossible de redémarrer l'ordinateur : {error}",
       "driverOk": "Le pilote NVIDIA ({pkg}) est installé. Il sera utilisé dès le redémarrage.",
-      "driverFailed": "Le pilote n'a pas pu être installé ; vous pourrez l'installer plus tard dans Paramètres > Pilotes graphiques."
+      "driverFailed": "Le pilote n'a pas pu être installé ; vous pourrez l'installer plus tard dans Paramètres > Pilotes graphiques.",
+      "gaming": "À votre première connexion, Selene OS installera {apps} (Internet nécessaire).",
+      "gamingFailed": "Les applications de jeu n'ont pas pu être préparées pour votre première connexion ; vous pourrez les installer depuis la Logithèque."
     },
     "error": {
       "title": "L'installation a échoué",

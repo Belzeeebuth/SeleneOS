@@ -122,6 +122,24 @@ export const ART = {
       </g>
     </g>`),
 
+  // A game controller, a sparkle and a download cloud (the apps arrive at the first sign-in).
+  games: () =>
+    svg(`
+    <g>
+      <path d="M62 92h116c22 0 36 18 40 42l6 34c3 18-16 30-30 18l-20-18H66l-20 18c-14 12-33 0-30-18l6-34c4-24 18-42 40-42z" class="s-surface s-stroke"/>
+      <path d="M70 126h28M84 112v28" fill="none" class="s-accent-stroke" stroke-width="7" stroke-linecap="round"/>
+      <circle cx="160" cy="116" r="8" fill="url(#ins-g)"/>
+      <circle cx="180" cy="134" r="8" fill="url(#ins-g)"/>
+      <circle cx="142" cy="134" r="6" class="s-line"/>
+      <circle cx="160" cy="152" r="6" class="s-line"/>
+      <rect x="106" y="150" width="28" height="8" rx="4" class="s-key"/>
+      <g transform="translate(150 26)">
+        <rect width="58" height="40" rx="10" fill="url(#ins-g)"/>
+        <path d="M29 9v16m-7-7 7 7 7-7M19 31h20" fill="none" class="s-on-stroke" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <path d="M48 44l4 10 10 4-10 4-4 10-4-10-10-4 10-4z" class="s-accent"/>
+    </g>`),
+
   summary: () =>
     svg(`
     <g>

@@ -19,13 +19,17 @@
 //                                     No root needed. Dev: AURORA_GPU_FIXTURE=<test/fixtures/gpu/NAME> (default: no
 //                                     graphics card offered a driver), AURORA_GPU_ONLINE=0 (offline).
 //   installer:start (opts)         -> { dryRun }   opts: { disk, user, fullname, password, hostname, lang,
-//                                                          keyboard, timezone, autologin, nvidiaDriver }
+//                                                          keyboard, timezone, autologin, nvidiaDriver, gaming }
 //                                     nvidiaDriver: 'nvidia-driver-NNN[-open|-server|-server-open]' or 'recommended'
 //                                     (downloaded from the Ubuntu archive during the installation; optional)
+//                                     gaming: Flathub ids from GAMING_APPS (optional; nothing is downloaded during the
+//                                     installation: the helper writes <home>/.config/aurora/first-login/gaming.json and
+//                                     the session installs them per user at the first sign-in)
 //       events 'installer:progress' (to the window that started it):
 //         { type: 'progress', stage, progress, message }   stage: partition|format|copy|configure|drivers|bootloader|
 //                                                                 cleanup|done
 //         { type: 'driver', status: 'installed'|'failed', pkg, message }   (graphics driver; never an error)
+//         { type: 'gaming', status: 'saved'|'failed', apps, message }      (gaming apps request; never an error)
 //         { type: 'log', line }      { type: 'error', message, stage, code }      { type: 'done' }
 //                                    code: EAUTH (sudo wants a password), ENOTADMIN (sudo refuses this account), exit code
 //         { type: 'exit', code, cancelled }
@@ -61,6 +65,9 @@ const RESERVED_USERS = new Set(
     'systemd-resolve systemd-timesync systemd-coredump messagebus syslog _apt tss uuidd tcpdump sshd polkitd _greetd ' +
     'greeter aurora-greeter admin sudo adm users wheel staff operator ubuntu').split(' '),
 );
+// Gaming apps the installer may ask the first sign-in to install (Flathub, per user): the « Jeux » step. The helper
+// accepts exactly these ids (--gaming), nothing else.
+const GAMING_APPS = Object.freeze(['com.valvesoftware.Steam', 'com.heroicgameslauncher.hgl', 'net.lutris.Lutris', 'net.davidotek.pupgui2', 'com.usebottles.bottles', 'com.discordapp.Discord']);
 // Mount points that mark a disk as the running system or the live medium (never offered).
 const SYSTEM_MOUNTS = new Set(['/', '/cdrom', '/rofs', '/isodevice', '/run/live/medium', '/media/cdrom', '/run/initramfs/live', '/boot', '/boot/efi', '/usr', '/home', '/var']);
 
@@ -207,6 +214,13 @@ function buildArgs(opts, { dryRun = false, delay, failAt } = {}) {
     const drv = String(o.nvidiaDriver);
     if (drv !== 'recommended' && !gpu.validDriverPkg(drv)) bad('nvidiaDriver');
     args.push('--nvidia-driver', drv);
+  }
+  if (o.gaming != null && o.gaming !== false && o.gaming !== '') {
+    // An array of ids (or 'id,id'); each one must be in the allow-list. Duplicates are dropped, catalog order kept.
+    const list = Array.isArray(o.gaming) ? o.gaming : typeof o.gaming === 'string' ? o.gaming.split(',') : bad('gaming');
+    if (list.length > GAMING_APPS.length * 2 || !list.every((id) => typeof id === 'string' && GAMING_APPS.includes(id))) bad('gaming');
+    const ids = GAMING_APPS.filter((id) => list.includes(id));
+    if (ids.length) args.push('--gaming', ids.join(','));
   }
   if (dryRun) {
     args.push('--dry-run');
@@ -392,6 +406,10 @@ function register(api) {
         // Graphics driver result: never fails the installation.
         const status = ev.driver === 'installed' ? 'installed' : 'failed';
         send({ type: 'driver', status, pkg: gpu.validDriverPkg(ev.package) ? ev.package : null, message: String(ev.message || '') });
+      } else if (ev && typeof ev === 'object' && typeof ev.gaming === 'string') {
+        // Gaming apps request for the first sign-in: never fails the installation either.
+        const apps = String(ev.apps || '').split(',').filter((id) => GAMING_APPS.includes(id));
+        send({ type: 'gaming', status: ev.gaming === 'saved' ? 'saved' : 'failed', apps, message: String(ev.message || '') });
       } else if (ev && typeof ev === 'object' && ev.error) {
         sawError = true;
         send({ type: 'error', message: String(ev.error), stage: ev.stage || null, code: ev.code ?? null });
@@ -474,3 +492,4 @@ module.exports.KEYBOARDS = KEYBOARDS;
 module.exports.RESERVED_USERS = RESERVED_USERS;
 module.exports.MIN_SIZE = MIN_SIZE;
 module.exports.STAGES = STAGES;
+module.exports.GAMING_APPS = GAMING_APPS;

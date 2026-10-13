@@ -15,6 +15,10 @@
 //          offline: switch disabled, « Vérifier à nouveau »; Optimus laptop: hybrid note, driver failure reported
 //          on the done page without failing the installation), none for AMD / Intel; the helper's --nvidia-driver
 //          (validation, dry run, its ubuntu-drivers / APT status parsers) and the session's GPU mode with nvidia.
+//   Part 6 (FR, 1280x720): the « Jeux » step (switch off by default, checklist of Flathub gaming apps, keyboard
+//          paths), the summary row, --gaming to the helper and the done-page note; the helper's --gaming (strict
+//          allow-list, dry run, gaming.json written for the new account with its owner and modes, never fatal);
+//          GameMode in the image (iso/packages.d/gaming.list, tools/verify-iso.sh).
 // No screenshots are written unless --shots is given (test/out/installer-*.png).
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/installer.test.mjs [--node-only] [--shots]
 import fs from 'node:fs';
@@ -209,6 +213,98 @@ async function waitFor(fn, { timeout = 10000, step = 100 } = {}) {
     check('helper: the target gets nvidia-drm modeset=1 when the driver package does not set it', /options nvidia-drm modeset=1/.test(helperSrc) && /nvidia-graphics-drivers-kms\.conf/.test(helperSrc));
   }
 
+  // ---- gaming apps (« Jeux » step): allow-list shared by the UI, the backend and the helper; --gaming; gaming.json
+  {
+    const STEAM = 'com.valvesoftware.Steam';
+    const DEFAULTS = ['com.valvesoftware.Steam', 'com.heroicgameslauncher.hgl', 'net.lutris.Lutris', 'net.davidotek.pupgui2'];
+    const ALL = [...DEFAULTS, 'com.usebottles.bottles', 'com.discordapp.Discord'];
+    const ui = await import(new URL('../renderer/apps/installer/main.js', import.meta.url));
+    check('gaming: the UI offers the six apps, Steam / Heroic / Lutris / ProtonUp-Qt checked by default', JSON.stringify(ui.GAMING_APPS.map((a) => a.id)) === JSON.stringify(ALL) && JSON.stringify(ui.GAMING_APPS.filter((a) => a.checked).map((a) => a.id)) === JSON.stringify(DEFAULTS), ui.GAMING_APPS);
+    check('gaming: backend allow-list = UI list', JSON.stringify([...be.GAMING_APPS]) === JSON.stringify(ALL), be.GAMING_APPS);
+    const helperGaming = /^GAMING_ALLOWED=\(([^)]*)\)$/m.exec(fs.readFileSync(HELPER, 'utf8'))?.[1].trim().split(/\s+/);
+    check('gaming: helper allow-list = UI list', JSON.stringify(helperGaming) === JSON.stringify(ALL), helperGaming);
+    check('gaming: steps — « Jeux » before the summary, after the driver step', ui.stepsFor(null).join(' ') === 'welcome keyboard disk account timezone games summary' && ui.stepsFor({ nvidia: [{}] }).join(' ') === 'welcome keyboard disk account timezone drivers games summary');
+    check('gaming: request = checked apps only when the switch is on, catalog order', ui.gamingRequest(false, DEFAULTS).length === 0 && ui.gamingRequest(true, []).length === 0 && ui.gamingRequest(true, ['com.discordapp.Discord', STEAM, 'org.evil.App']).join(',') === `${STEAM},com.discordapp.Discord`);
+    for (const lang of ['en', 'fr']) {
+      const missing = ui.GAMING_APPS.filter((a) => !dict[lang].games?.app?.[a.key]?.desc || !dict[lang].games.app[a.key].size).map((a) => a.key);
+      check(`gaming: ${lang.toUpperCase()} description + size hint for every app`, missing.length === 0, missing);
+    }
+    check('gaming: FR copy (switch, Flathub note, Steam size)', dict.fr.games.switch === 'Installer les applications de jeu' && dict.fr.games.note === 'Elles seront téléchargées depuis Flathub à votre première connexion (Internet nécessaire).' && dict.fr.games.app.steam.size === 'environ 1 Go avec ses composants' && dict.fr.steps.games === 'Jeux');
+    const okG = { disk: '/dev/vda', user: 'jane', fullname: 'Jane Doe', password: 'pw', lang: 'fr' };
+    const gArgs = (g) => be.buildArgs({ ...okG, gaming: g }).join(' ');
+    check('buildArgs: --gaming ids (catalog order, duplicates dropped)', gArgs(['net.lutris.Lutris', STEAM, 'net.lutris.Lutris']).endsWith(`--gaming ${STEAM},net.lutris.Lutris`) && gArgs(`${STEAM},com.discordapp.Discord`).endsWith(`--gaming ${STEAM},com.discordapp.Discord`), gArgs(['net.lutris.Lutris', STEAM]));
+    check('buildArgs: no gaming -> no --gaming', !gArgs([]).includes('--gaming') && !gArgs(null).includes('--gaming') && !gArgs(false).includes('--gaming') && !be.buildArgs(okG).includes('--gaming'));
+    const rejectsG = (g) => {
+      try {
+        be.buildArgs({ ...okG, gaming: g });
+        return false;
+      } catch (e) {
+        return e.code === 'EINVAL' && e.field === 'gaming';
+      }
+    };
+    check('buildArgs rejects: a gaming id outside the allow-list, injections, wrong types', rejectsG(['org.evil.App']) && rejectsG([STEAM, 'com.valvesoftware.Steam;reboot']) && rejectsG(`${STEAM},--dry-run`) && rejectsG(true) && rejectsG(42) && rejectsG({ id: STEAM }) && rejectsG([STEAM, 1]) && rejectsG(['com.valvesoftware.steam']));
+    // helper: dry run, validation
+    const dg = runHelper([...base, '--gaming', `net.lutris.Lutris,${STEAM},net.lutris.Lutris`, '--dry-run', '--dry-run-delay', '0']);
+    const dgStages = [...new Set(dg.events.map((e) => e.stage).filter(Boolean))];
+    check('helper dry run + --gaming: exit 0, same stages (nothing downloaded during the installation)', dg.status === 0 && dgStages.join(' ') === 'partition format copy configure bootloader cleanup done', { status: dg.status, dgStages, err: dg.stderr.slice(-300) });
+    check('helper dry run + --gaming: {"gaming":"saved"} with the apps (allow-list order, no duplicate)', dg.events.some((e) => e.gaming === 'saved' && e.apps === `${STEAM},net.lutris.Lutris`), dg.events.filter((e) => e.gaming));
+    check('helper dry run + --gaming: logged (gaming.json path)', /gaming=com\.valvesoftware\.Steam,net\.lutris\.Lutris/.test(dg.stderr) && /first-login\/gaming\.json/.test(dg.stderr));
+    const dgf = spawnSync('bash', [HELPER, ...base, '--gaming', STEAM, '--dry-run', '--dry-run-delay', '0'], { input: 'pw\n', encoding: 'utf8', env: { ...process.env, AURORA_DRYRUN_GAMING_FAIL: '1' } });
+    const dgfe = dgf.stdout.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    check('helper: a gaming request that cannot be written never fails the installation', dgf.status === 0 && dgfe.some((e) => e.gaming === 'failed' && e.apps === STEAM) && dgfe.some((e) => e.stage === 'done') && !dgfe.some((e) => e.error), dgfe.filter((e) => e.gaming || e.error));
+    check('helper without --gaming: no gaming event', !runHelper([...base, '--dry-run', '--dry-run-delay', '0']).events.some((e) => e.gaming));
+    for (const badG of ['org.evil.App', `${STEAM};reboot`, '$(reboot)', '*', `${STEAM},,net.lutris.Lutris`, `${STEAM} net.lutris.Lutris`, 'com.valvesoftware.Steam/../x', ',']) {
+      const r = runHelper([...base, '--gaming', badG, '--dry-run', '--dry-run-delay', '0']);
+      check(`helper refuses --gaming ${JSON.stringify(badG)} (exit 2)`, r.status === 2 && /invalid --gaming/.test(r.events.at(-1)?.error || ''), { status: r.status, ev: r.events.at(-1) });
+    }
+    check('helper refuses --gaming without a value (exit 2)', runHelper([...base, '--dry-run', '--gaming']).status === 2);
+    // the real writer, extracted from the helper and run on a temporary home (as root: a foreign owner)
+    const src = fs.readFileSync(HELPER, 'utf8');
+    const fnSrc = (name) => new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?^\\}$`, 'm').exec(src)?.[0] || '';
+    const root = process.getuid?.() === 0;
+    const uid = root ? 4242 : process.getuid();
+    const gid = root ? 4343 : process.getgid();
+    const tmpG = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'aurora-gaming-'));
+    const writeReq = (home, apps = [STEAM, 'net.lutris.Lutris']) =>
+      spawnSync('bash', ['-c', `set -Eeuo pipefail; JSON=0; ${fnSrc('log')}\n${fnSrc('write_gaming_request')}\nGAMING_APPS=(${apps.join(' ')}); GAMING_ERR=""\nif write_gaming_request "$1" "$2" "$3"; then echo OK; else echo "FAILED: $GAMING_ERR"; fi`, '_', home, String(uid), String(gid)], { encoding: 'utf8' });
+    const home = path.join(tmpG, 'home/jane');
+    fs.mkdirSync(path.join(home, '.config/aurora'), { recursive: true });
+    if (root) spawnSync('chown', ['-R', `${uid}:${gid}`, home]);
+    const w = writeReq(home);
+    const gf = path.join(home, '.config/aurora/first-login/gaming.json');
+    let gj = null;
+    try {
+      gj = JSON.parse(fs.readFileSync(gf, 'utf8'));
+    } catch {}
+    check('helper write_gaming_request: gaming.json = { version 1, apps, requestedAt (ISO) }', w.stdout.trim() === 'OK' && gj?.version === 1 && JSON.stringify(gj.apps) === JSON.stringify([STEAM, 'net.lutris.Lutris']) && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(gj.requestedAt) && !Number.isNaN(Date.parse(gj.requestedAt)), { out: w.stdout + w.stderr, gj });
+    const st = fs.existsSync(gf) ? fs.statSync(gf) : null;
+    const sd = fs.existsSync(path.dirname(gf)) ? fs.statSync(path.dirname(gf)) : null;
+    check('helper write_gaming_request: owned by the new account, file 0644, directory 0755', st?.uid === uid && st.gid === gid && (st.mode & 0o777) === 0o644 && sd?.uid === uid && sd.gid === gid && (sd.mode & 0o777) === 0o755, st && { uid: st.uid, gid: st.gid, mode: (st.mode & 0o777).toString(8), dir: sd && (sd.mode & 0o777).toString(8) });
+    check('helper write_gaming_request: no temporary file left', fs.readdirSync(path.dirname(gf)).join(' ') === 'gaming.json', fs.readdirSync(path.dirname(gf)));
+    const w2 = writeReq(home, ['com.discordapp.Discord']);
+    check('helper write_gaming_request: rewriting replaces the request', w2.stdout.trim() === 'OK' && JSON.parse(fs.readFileSync(gf, 'utf8')).apps.join() === 'com.discordapp.Discord');
+    // a symbolic link in the way (never followed) / a file where a directory goes: refused, not fatal
+    const home2 = path.join(tmpG, 'home/link');
+    const outside = path.join(tmpG, 'outside');
+    fs.mkdirSync(outside, { recursive: true });
+    fs.mkdirSync(home2, { recursive: true });
+    fs.symlinkSync(outside, path.join(home2, '.config'));
+    const w3 = writeReq(home2);
+    check('helper write_gaming_request: a symbolic link in the path is refused (nothing written through it)', /^FAILED: .*symbolic link/.test(w3.stdout.trim()) && w3.status === 0 && fs.readdirSync(outside).length === 0, w3.stdout + w3.stderr);
+    const home3 = path.join(tmpG, 'home/file');
+    fs.mkdirSync(path.join(home3, '.config/aurora'), { recursive: true });
+    fs.writeFileSync(path.join(home3, '.config/aurora/first-login'), 'x');
+    const w4 = writeReq(home3);
+    check('helper write_gaming_request: a file in the way -> FAILED, the script goes on', /^FAILED: .*not a directory/.test(w4.stdout.trim()) && w4.status === 0, w4.stdout + w4.stderr);
+    fs.rmSync(tmpG, { recursive: true, force: true });
+    check('helper: the real configure stage calls the writer in a condition (never fatal) and reports the result', /if write_gaming_request "\$TARGET\$home" "\$uid" "\$gid"; then emit_gaming saved\s+else emit_gaming failed "\$GAMING_ERR"; fi/.test(src));
+    // GameMode in the image
+    const gl = fs.readFileSync(path.join(OS_ROOT, 'iso/packages.d/gaming.list'), 'utf8');
+    check('image: gamemode in iso/packages.d/gaming.list', /^gamemode$/m.test(gl), gl);
+    const vi = fs.readFileSync(path.join(OS_ROOT, 'tools/verify-iso.sh'), 'utf8');
+    check('verify-iso: checks gamemoderun / gamemoded / libgamemode and the helper --gaming', /usr\/games\/\$b/.test(vi) && /gamemoderun/.test(vi) && /gamemoded/.test(vi) && /libgamemode/.test(vi) && /--gaming/.test(vi) && spawnSync('bash', ['-n', path.join(OS_ROOT, 'tools/verify-iso.sh')]).status === 0);
+  }
+
   // ---- session: GPU mode with the NVIDIA driver (aurora-common on fake /sys and /proc trees)
   {
     const COMMON = path.join(OS_ROOT, 'rootfs/usr/lib/aurora/aurora-common');
@@ -327,7 +423,7 @@ async function uiTests() {
     await page.evaluate(() => document.querySelector('.app-installer .ins-content').focus?.());
     await page.evaluate(() => document.querySelector('.app-installer .ins').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     check('Enter goes to the keyboard step', await stepIs(page, 'keyboard'));
-    check('keyboard: kicker "Step 2 of 6"', (await text(page, '.ins-kicker')) === 'Step 2 of 6');
+    check('keyboard: kicker "Step 2 of 7"', (await text(page, '.ins-kicker')) === 'Step 2 of 7', await text(page, '.ins-kicker'));
     check('keyboard: us preselected', (await page.getAttribute('.app-installer .ins-row[data-id="us"]', 'aria-selected')) === 'true');
     await page.fill('.app-installer .ins-search', 'french');
     const kbRows = await page.evaluate(() => [...document.querySelectorAll('.app-installer .ins-list .ins-row')].map((r) => r.dataset.id));
@@ -412,6 +508,11 @@ async function uiTests() {
     check('time zone: search by region', (await page.locator('.app-installer .ins-list .ins-row').count()) > 20);
     await clickNext(page);
 
+    // games (EN): off by default, nothing requested
+    check('games step (EN) after the time zone', await stepIs(page, 'games'));
+    check('games (EN): title, switch off, list disabled', (await text(page, '.ins-title')) === 'Want to play games?' && !(await page.isChecked('.app-installer .ins-games-switch input')) && (await page.locator('.app-installer .ins-game input:disabled').count()) === 6);
+    await clickNext(page);
+
     // summary
     check('summary step', await stepIs(page, 'summary'));
     check('summary: Install button', (await text(page, '[data-act="next"]')) === 'Install');
@@ -423,12 +524,13 @@ async function uiTests() {
     check('summary: sign-in automatic', sum.signin?.includes('automatically'), sum.signin);
     check('summary: computer name', sum.hostname?.includes('jane-laptop'), sum.hostname);
     check('summary: time zone', sum.timezone?.includes('Paris'), sum.timezone);
+    check('summary: gaming apps « None » (switch off)', sum.gaming?.includes('Gaming apps') && sum.gaming.includes('None') && sum.gaming.includes('later from Software'), sum.gaming);
     await page.click('.app-installer .ins-sum-row[data-row="hostname"] .btn');
     check('summary: Change goes back to the account step', await stepIs(page, 'account'));
     check('account: values kept', (await page.inputValue('.app-installer input[name="hostname"]')) === 'jane-laptop' && (await page.inputValue('.app-installer input[name="password"]')) === 'S3cret pass:word!');
     await page.click('.app-installer .ins-step:nth-child(2) .ins-step-btn');
     check('stepper: a done step is clickable', await stepIs(page, 'keyboard'));
-    for (let i = 0; i < 4; i++) await clickNext(page);
+    for (let i = 0; i < 5; i++) await clickNext(page);
     check('back on the summary', await stepIs(page, 'summary'));
 
     // erase confirmation
@@ -468,7 +570,8 @@ async function uiTests() {
     check('done: ring at 100%', (await text(page, '.ins-ring-pct')) === null && st.progress === 100);
     check('done page: title + remove-media reminder', (await text(page, '.ins-title')) === 'Selene OS is installed' && (await page.textContent('.app-installer .ins-content'))?.includes('Remove the installation media'));
     check('done page: account reminder', (await text(page, '.ins-done-account'))?.includes('Jane Doe (jane)'));
-    check('done page: stepper all done', (await page.locator('.app-installer .ins-step.done').count()) === 7);
+    check('done page: stepper all done', (await page.locator('.app-installer .ins-step.done').count()) === 8);
+    check('done page: no gaming note, no --gaming (switch off)', (await page.locator('.app-installer .ins-gaming-result').count()) === 0 && !evs.some((e) => e.type === 'gaming'));
     await page.click('.app-installer [data-act="restart"]');
     check('restart is simulated in dev mode', await waitFor(() => page.evaluate(() => document.querySelector('.app-installer .ins-done-msg')?.textContent.includes('simulation'))));
     if (shots) await ins(page).screenshot({ path: path.join(ROOT, 'test/out/installer-done-en.png') });
@@ -492,6 +595,7 @@ async function uiTests() {
     await page.fill('.app-installer input[name="fullname"]', 'Jane Doe');
     await page.fill('.app-installer input[name="password"]', 'pw');
     await page.fill('.app-installer input[name="confirm"]', 'pw');
+    await clickNext(page);
     await clickNext(page);
     await clickNext(page);
     await clickNext(page);
@@ -542,7 +646,7 @@ async function uiTests() {
     const st = await state(page);
     check('FR: defaults fr keyboard + Europe/Paris', st.lang === 'fr' && st.keyboard === 'fr' && st.timezone === 'Europe/Paris', st);
     const rawKeys = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 7; i++) {
       const found = await page.evaluate(() =>
         [...document.querySelectorAll('.app-installer *')]
           .filter((e) => e.children.length === 0 && /^[a-z]+(\.[a-zA-Z]+)+$/.test(e.textContent.trim()))
@@ -561,7 +665,7 @@ async function uiTests() {
         check('FR: mismatch message in French', (await text(page, '[data-field="confirm"] .ins-err')) === 'Les mots de passe ne correspondent pas.');
         await page.fill('.app-installer input[name="confirm"]', 'a');
       }
-      if (i < 5) await clickNext(page);
+      if (i < 6) await clickNext(page);
     }
     check('FR: no untranslated keys on any page', rawKeys.length === 0, rawKeys);
     check('FR: summary in French', (await text(page, '.ins-title')) === "Prêt pour l'installation" && (await text(page, '[data-act="next"]')) === 'Installer');
@@ -585,6 +689,8 @@ async function uiTests() {
       await stepIs(page, 'drivers');
       await clickNext(page);
     }
+    await stepIs(page, 'games');
+    await clickNext(page);
     return stepIs(page, 'summary');
   };
   const confirmInstall = async (page) => {
@@ -597,10 +703,10 @@ async function uiTests() {
     const s = await launchShell({ open: ['installer'], live: true, lang: 'fr', theme: 'light', size: '1280x720', env: { AURORA_INSTALLER_DRYRUN_DELAY: '0.03', AURORA_GPU_FIXTURE: 'rtx4070' } });
     const { page } = s;
     await page.waitForSelector('.app-installer .ins[data-step="welcome"]', { timeout: 20000 });
-    check('RTX 4070: the « Pilote graphique » step is added before the summary', await waitFor(async () => (await page.evaluate(() => window.__installer.steps.join(' '))) === 'welcome keyboard disk account timezone drivers summary'), await page.evaluate(() => window.__installer.steps));
-    check('RTX 4070: stepper has 8 entries (7 steps + installation), step 6 is « Pilote graphique »', (await page.locator('.app-installer .ins-step').count()) === 8 && (await text(page, '.ins-step:nth-child(6) .ins-step-label')) === 'Pilote graphique');
+    check('RTX 4070: the « Pilote graphique » step is added before the summary', await waitFor(async () => (await page.evaluate(() => window.__installer.steps.join(' '))) === 'welcome keyboard disk account timezone drivers games summary'), await page.evaluate(() => window.__installer.steps));
+    check('RTX 4070: stepper has 9 entries (8 steps + installation), step 6 is « Pilote graphique », step 7 « Jeux »', (await page.locator('.app-installer .ins-step').count()) === 9 && (await text(page, '.ins-step:nth-child(6) .ins-step-label')) === 'Pilote graphique' && (await text(page, '.ins-step:nth-child(7) .ins-step-label')) === 'Jeux');
     await clickNext(page);
-    check('RTX 4070: kicker counts 7 steps', (await text(page, '.ins-kicker')) === 'Étape 2 sur 7');
+    check('RTX 4070: kicker counts 8 steps', (await text(page, '.ins-kicker')) === 'Étape 2 sur 8');
     await clickNext(page);
     await page.waitForSelector('.app-installer .ins-disks .ins-row');
     await page.click('.app-installer .ins-row[data-id="/dev/vda"]');
@@ -611,7 +717,7 @@ async function uiTests() {
     await clickNext(page);
     await clickNext(page);
     check('RTX 4070: drivers step reached from the time zone', await stepIs(page, 'drivers'));
-    check('RTX 4070: title, kicker « Étape 6 sur 7 »', (await text(page, '.ins-title')) === 'Votre carte graphique NVIDIA' && (await text(page, '.ins-kicker')) === 'Étape 6 sur 7');
+    check('RTX 4070: title, kicker « Étape 6 sur 8 »', (await text(page, '.ins-title')) === 'Votre carte graphique NVIDIA' && (await text(page, '.ins-kicker')) === 'Étape 6 sur 8');
     check('RTX 4070: card name and current driver', (await text(page, '.ins-gpu-row[data-slot="01:00.0"] .ins-row-title')) === 'NVIDIA GeForce RTX 4070' && (await text(page, '.ins-gpu-row[data-slot="01:00.0"] .ins-row-sub')) === 'Pilote actuel : pilote libre (nouveau)');
     check('RTX 4070: recommended driver', (await text(page, '.ins-gpu-driver .ins-row-title')) === 'Pilote NVIDIA 550' && (await text(page, '.ins-gpu-driver .ins-row-sub')) === 'nvidia-driver-550');
     check('RTX 4070: switch « Installer le pilote NVIDIA recommandé » on by default (online)', (await text(page, '.ins-driver-toggle .toggle-label')) === 'Installer le pilote NVIDIA recommandé' && (await page.isChecked('.app-installer .ins-driver-toggle input')) && !(await page.isDisabled('.app-installer .ins-driver-toggle input')));
@@ -626,14 +732,16 @@ async function uiTests() {
     await page.keyboard.press('Space');
     check('RTX 4070: Space turns it back on', (await state(page)).driverWanted === true);
     await page.keyboard.press('Enter');
-    check('RTX 4070: Enter on the switch = Next (summary)', await stepIs(page, 'summary'));
-    check('RTX 4070: summary kicker « Étape 7 sur 7 »', (await text(page, '.ins-kicker')) === 'Étape 7 sur 7');
+    check('RTX 4070: Enter on the switch = Next (« Jeux », after the driver step)', (await stepIs(page, 'games')) && (await text(page, '.ins-kicker')) === 'Étape 7 sur 8');
+    await clickNext(page);
+    check('RTX 4070: summary kicker « Étape 8 sur 8 »', (await stepIs(page, 'summary')) && (await text(page, '.ins-kicker')) === 'Étape 8 sur 8');
     const drvRow = await text(page, '.ins-sum-row[data-row="driver"]');
     check('RTX 4070: summary row « Pilote graphique »', drvRow?.includes('Pilote NVIDIA recommandé · Pilote NVIDIA 550') && drvRow.includes("Téléchargé pendant l'installation"), drvRow);
     await page.evaluate(() => document.querySelector('.app-installer .ins-sum-row[data-row="driver"]')?.scrollIntoView({ block: 'end' }));
     await s.shot('installer-drivers-summary-fr');
     await page.click('.app-installer .ins-sum-row[data-row="driver"] .btn');
     check('RTX 4070: Change goes back to the drivers step', await stepIs(page, 'drivers'));
+    await clickNext(page);
     await clickNext(page);
     await page.evaluate(() => {
       window.__insEvents = [];
@@ -706,6 +814,111 @@ async function uiTests() {
     check('Optimus: « Le pilote n\'a pas pu être installé… » on the done page', (await text(page, '.ins-driver-result[data-status="failed"]')) === "Le pilote n'a pas pu être installé ; vous pourrez l'installer plus tard dans Paramètres > Pilotes graphiques.", await text(page, '.ins-driver-result'));
     await s.shot('installer-drivers-failed-fr-dark');
     check('Optimus: no page errors', !s.logs.some((l) => /pageerror/.test(l)), s.logs.filter((l) => /pageerror/.test(l)));
+    await s.close();
+  }
+  // ---------------------------------------------------------------- Part 6: the « Jeux » step (FR, 1280x720)
+  const toGamesFr = async (page) => {
+    await page.waitForSelector('.app-installer .ins[data-step="welcome"]', { timeout: 20000 });
+    await clickNext(page);
+    await clickNext(page);
+    await page.waitForSelector('.app-installer .ins-disks .ins-row');
+    await page.click('.app-installer .ins-row[data-id="/dev/vda"]');
+    await clickNext(page);
+    await page.fill('.app-installer input[name="fullname"]', 'Élodie Dupont');
+    await page.fill('.app-installer input[name="password"]', 'pw');
+    await page.fill('.app-installer input[name="confirm"]', 'pw');
+    await clickNext(page);
+    await clickNext(page);
+    return stepIs(page, 'games');
+  };
+  const gamesState = (page) =>
+    page.evaluate(() => ({
+      on: document.querySelector('.app-installer .ins-games-switch input')?.checked,
+      off: document.querySelector('.app-installer .ins-games')?.classList.contains('off'),
+      rows: [...document.querySelectorAll('.app-installer .ins-game')].map((r) => ({ id: r.dataset.app, checked: r.querySelector('input').checked, disabled: r.querySelector('input').disabled, name: r.querySelector('.ins-game-name').textContent, size: r.querySelector('.ins-game-size').textContent })),
+      count: document.querySelector('.app-installer .ins-games-count')?.hidden ? null : document.querySelector('.app-installer .ins-games-count')?.textContent,
+      hint: document.querySelector('.app-installer .ins-games-status')?.textContent,
+      note: document.querySelector('.app-installer .ins-games-note')?.textContent ?? null,
+    }));
+  {
+    const s = await launchShell({ open: ['installer'], live: true, lang: 'fr', theme: 'light', size: '1280x720', env: { AURORA_INSTALLER_DRYRUN_DELAY: '0.02' } });
+    const { page } = s;
+    check('games: reached from the time zone (no NVIDIA card)', await toGamesFr(page));
+    check('games: title, kicker « Étape 6 sur 7 », stepper « Jeux »', (await text(page, '.ins-title')) === 'Envie de jouer ?' && (await text(page, '.ins-kicker')) === 'Étape 6 sur 7' && (await text(page, '.ins-step:nth-child(6) .ins-step-label')) === 'Jeux');
+    let g = await gamesState(page);
+    check('games: switch « Installer les applications de jeu » off by default, list disabled', g.on === false && g.off === true && g.rows.length === 6 && g.rows.every((r) => r.disabled) && (await text(page, '.ins-games-switch .toggle-label')) === 'Installer les applications de jeu', g);
+    check('games: Steam, Heroic, Lutris, ProtonUp-Qt checked; Bottles, Discord not', JSON.stringify(g.rows.filter((r) => r.checked).map((r) => r.name)) === JSON.stringify(['Steam', 'Heroic Games Launcher', 'Lutris', 'ProtonUp-Qt']) && g.rows.filter((r) => !r.checked).map((r) => r.name).join() === 'Bottles,Discord', g.rows);
+    check('games: size hints (Steam « environ 1 Go avec ses composants »)', g.rows[0].size === 'environ 1 Go avec ses composants' && g.rows.every((r) => /^environ \d/.test(r.size)), g.rows.map((r) => r.size));
+    check('games: off -> « plus tard depuis la Logithèque », no Flathub note, no count; GameMode « déjà inclus » in the subtitle', g.hint === 'Vous pourrez les installer plus tard depuis la Logithèque.' && g.note === null && g.count === null && (await text(page, '.ins-sub'))?.includes('GameMode') && (await text(page, '.ins-sub')).includes('est déjà inclus'), g);
+    check('games: the step fits at 1280x720 (no scrolling)', await page.evaluate(() => { const c = document.querySelector('.app-installer .ins-content'); return c.scrollHeight <= c.clientHeight + 1; }));
+    check('games: descriptions are not cut', await page.evaluate(() => [...document.querySelectorAll('.app-installer .ins-game-desc, .app-installer .ins-game-name')].every((e) => e.scrollWidth <= e.clientWidth + 1)));
+    check('games: Next enabled with the switch off', (await nextDisabled(page)) === false);
+    await s.shot('installer-games-off-fr');
+    // keyboard: Space turns the switch on, focus stays; Tab walks the checklist, Space checks Bottles
+    await page.focus('.app-installer .ins-games-switch input');
+    await page.keyboard.press('Space');
+    g = await gamesState(page);
+    check('games: Space turns the switch on -> list enabled, « 4 applications choisies »', g.on === true && g.off === false && g.rows.every((r) => !r.disabled) && g.count === '4 applications choisies', g);
+    check('games: still fits at 1280x720 with the Flathub note', await page.evaluate(() => { const c = document.querySelector('.app-installer .ins-content'); return c.scrollHeight <= c.clientHeight + 1; }));
+    check('games: Flathub note « Elles seront téléchargées depuis Flathub à votre première connexion (Internet nécessaire). »', g.note === 'Elles seront téléchargées depuis Flathub à votre première connexion (Internet nécessaire).', g.note);
+    check('games: focus stays on the switch', await page.evaluate(() => document.activeElement?.closest('.ins-games-switch') != null));
+    for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
+    check('games: Tab x5 reaches the Bottles checkbox', await page.evaluate(() => document.activeElement?.closest('.ins-game')?.dataset.app === 'com.usebottles.bottles'));
+    await page.keyboard.press('Space');
+    g = await gamesState(page);
+    check('games: Space checks Bottles -> « 5 applications choisies »', g.rows.find((r) => r.id === 'com.usebottles.bottles').checked && g.count === '5 applications choisies' && (await state(page)).gamingApps.includes('com.usebottles.bottles'), g);
+    check('games: the checked row is highlighted', await page.evaluate(() => document.querySelector('.app-installer .ins-game[data-app="com.usebottles.bottles"]').classList.contains('selected')));
+    // a click anywhere on a row toggles it
+    await page.click('.app-installer .ins-game[data-app="com.discordapp.Discord"] .ins-game-desc');
+    check('games: clicking the Discord card checks it (6)', (await gamesState(page)).count === '6 applications choisies');
+    await page.click('.app-installer .ins-game[data-app="com.discordapp.Discord"] .ins-game-name');
+    check('games: clicking it again unchecks it (5)', (await gamesState(page)).count === '5 applications choisies');
+    await s.shot('installer-games-on-fr');
+    // nothing checked: a clear hint, the summary says « Aucune »
+    for (const id of ['com.valvesoftware.Steam', 'com.heroicgameslauncher.hgl', 'net.lutris.Lutris', 'net.davidotek.pupgui2', 'com.usebottles.bottles']) await page.click(`.app-installer .ins-game[data-app="${id}"] .ins-game-icon`);
+    check('games: nothing checked -> « Aucune application n\'est cochée : rien ne sera installé. »', (await text(page, '.ins-games-none')) === "Aucune application n'est cochée : rien ne sera installé." && (await gamesState(page)).note === null, await gamesState(page));
+    await clickNext(page);
+    check('games: nothing checked -> summary « Aucune »', (await stepIs(page, 'summary')) && (await text(page, '.ins-sum-row[data-row="gaming"] .ins-row-title')) === 'Aucune');
+    await page.click('.app-installer .ins-sum-row[data-row="gaming"] .btn');
+    check('summary « Modifier » goes back to « Jeux », the switch kept on', (await stepIs(page, 'games')) && (await gamesState(page)).on === true);
+    for (const id of ['com.valvesoftware.Steam', 'com.heroicgameslauncher.hgl', 'net.lutris.Lutris', 'net.davidotek.pupgui2', 'com.usebottles.bottles']) await page.click(`.app-installer .ins-game[data-app="${id}"] .ins-game-icon`);
+    // Enter on a checkbox = Next
+    await page.focus('.app-installer .ins-game[data-app="com.valvesoftware.Steam"] input');
+    await page.keyboard.press('Enter');
+    check('games: Enter on a checkbox = Next (summary)', await stepIs(page, 'summary'));
+    const gRow = await text(page, '.ins-sum-row[data-row="gaming"]');
+    check('summary row « Applications de jeu : Steam, Heroic, Lutris, ProtonUp-Qt, Bottles — à la première connexion »', gRow?.includes('Applications de jeu') && (await text(page, '.ins-sum-row[data-row="gaming"] .ins-row-title')) === 'Steam, Heroic, Lutris, ProtonUp-Qt, Bottles' && gRow.includes('À votre première connexion, depuis Flathub'), gRow);
+    await page.evaluate(() => document.querySelector('.app-installer .ins-sum-row[data-row="gaming"]')?.scrollIntoView({ block: 'end' }));
+    await s.shot('installer-games-summary-fr');
+    await page.evaluate(() => {
+      window.__insEvents = [];
+      window.aurora.on('installer:progress', (e) => window.__insEvents.push(e));
+    });
+    await confirmInstall(page);
+    check('games: installation done', await phaseIs(page, 'done', 60000));
+    const evs = await page.evaluate(() => window.__insEvents);
+    const all5 = 'com.valvesoftware.Steam,com.heroicgameslauncher.hgl,net.lutris.Lutris,net.davidotek.pupgui2,com.usebottles.bottles';
+    check('games: the helper got --gaming with the five ids (log)', (await page.evaluate(() => window.aurora.invoke('installer:log'))).includes(`gaming=${all5}`));
+    check('games: event { type: gaming, status: saved, apps }', evs.some((e) => e.type === 'gaming' && e.status === 'saved' && e.apps.join(',') === all5), evs.filter((e) => e.type === 'gaming'));
+    check('games: no extra installation stage (nothing downloaded now)', (await page.locator('.app-installer .ins-stage').count()) === 0 || !evs.some((e) => e.type === 'progress' && !['partition', 'format', 'copy', 'configure', 'bootloader', 'cleanup', 'done'].includes(e.stage)));
+    check('games: done page « À votre première connexion, Selene OS installera Steam, Heroic, Lutris, ProtonUp-Qt et Bottles (Internet nécessaire). »', (await text(page, '.ins-gaming-result[data-status="saved"]')) === 'À votre première connexion, Selene OS installera Steam, Heroic, Lutris, ProtonUp-Qt et Bottles (Internet nécessaire).', await text(page, '.ins-gaming-result'));
+    await s.shot('installer-games-done-fr');
+    check('games: no page errors', !s.logs.some((l) => /pageerror/.test(l)), s.logs.filter((l) => /pageerror/.test(l)));
+    await s.close();
+  }
+  {
+    // FR dark, the request cannot be written (simulated): the installation still succeeds, the done page says so.
+    const s = await launchShell({ open: ['installer'], live: true, lang: 'fr', theme: 'dark', size: '1280x720', env: { AURORA_INSTALLER_DRYRUN_DELAY: '0.02', AURORA_DRYRUN_GAMING_FAIL: '1' } });
+    const { page } = s;
+    check('games (dark): reached', await toGamesFr(page));
+    await page.click('.app-installer .ins-games-switch .toggle-label');
+    check('games (dark): clicking the label turns the switch on', (await gamesState(page)).on === true);
+    await s.shot('installer-games-on-fr-dark');
+    await clickNext(page);
+    await confirmInstall(page);
+    check('games (dark): the installation succeeds although the request failed', await phaseIs(page, 'done', 60000));
+    check('games (dark): « Les applications de jeu n\'ont pas pu être préparées… » on the done page', (await text(page, '.ins-gaming-result[data-status="failed"]'))?.startsWith("Les applications de jeu n'ont pas pu être préparées"), await text(page, '.ins-gaming-result'));
+    await s.shot('installer-games-failed-fr-dark');
     await s.close();
   }
   {

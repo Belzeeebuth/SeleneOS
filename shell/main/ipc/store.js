@@ -498,14 +498,23 @@ function register(api) {
   });
 
   let op = null;
-  async function runOp(action, source, id) {
+  // onProgress (optional, in-process callers only): also gets every store:progress payload of this operation.
+  async function runOp(action, source, id, onProgress) {
     const mod = modules.get(source);
     if (ADMIN_SOURCES.has(source)) throw quiet(`${source} apps are installed through the administrator prompt (store-${action})`, 'EADMIN');
     if (!mod || !enabled(source)) throw quiet(`unknown source: ${source}`, 'EINVAL');
     if (typeof id !== 'string' || !(source === 'flathub' ? FLATPAK_ID.test(id) && id.length <= 255 : PKG.test(id))) throw quiet('invalid app id', 'EINVAL');
     if (op) throw quiet('Another installation is in progress.', 'EBUSY');
     op = { action, source, id };
-    const send = (ev) => api.broadcast('store:progress', { kind: action, source, id, percent: Math.max(0, Math.min(100, Number(ev?.percent) || 0)), message: str(ev?.message, 200) });
+    const send = (ev) => {
+      const payload = { kind: action, source, id, percent: Math.max(0, Math.min(100, Number(ev?.percent) || 0)), message: str(ev?.message, 200) };
+      api.broadcast('store:progress', payload);
+      if (typeof onProgress === 'function') {
+        try {
+          onProgress(payload);
+        } catch {}
+      }
+    };
     send({ percent: 0 });
     try {
       const r = (await mod[action](id, send)) || {};
@@ -519,6 +528,17 @@ function register(api) {
   }
   api.handle('store:install', (source, id) => runOp('install', source, id));
   api.handle('store:remove', (source, id) => runOp('remove', source, id));
+  // In-process access for other main modules (main/ipc/firstlogin.js installs the gaming apps chosen in the
+  // installer): the very same path as store:install (progress broadcast, index invalidation, one operation at a time).
+  api.storeService = {
+    install: (source, id, onProgress) => runOp('install', source, id, onProgress),
+    available: (source) => modules.has(source) && enabled(source),
+    async installedIds(source) {
+      const mod = modules.get(source);
+      const list = (await mod?.installed?.()) || [];
+      return new Set(list.filter((x) => x && typeof x.id === 'string').map((x) => x.id));
+    },
+  };
 
   api.handle('store:installedAll', async () => {
     const { list } = await getIndex();

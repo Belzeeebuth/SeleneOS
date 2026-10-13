@@ -11,7 +11,7 @@
 # Usage:
 #   aurora-install --disk /dev/vda --user NAME --fullname "Full Name" --password-stdin
 #                  --hostname aurora-pc --lang en|fr --keyboard us|fr|fr(oss)|ch(fr)|... --timezone Europe/Paris
-#                  [--autologin] [--nvidia-driver PACKAGE|recommended]
+#                  [--autologin] [--nvidia-driver PACKAGE|recommended] [--gaming APPID[,APPID...]]
 #                  [--source DIR|FILE.squashfs] [--medium DIR] [--log FILE]
 #                  [--json] [--dry-run [--dry-run-delay SECONDS]] [--fail-at STAGE]
 #
@@ -31,6 +31,14 @@
 #                       enrolling a key. A failure here never fails the installation: it is reported as
 #                       {"driver":"failed","package":…,"message":…} (else {"driver":"installed","package":…}) and the
 #                       driver can be installed later in Settings > Graphics drivers.
+#   --gaming IDS        gaming apps to install from Flathub at the new account's first sign-in (the « Jeux » step):
+#                       comma-separated Flathub ids, each one of com.valvesoftware.Steam, com.heroicgameslauncher.hgl,
+#                       net.lutris.Lutris, net.davidotek.pupgui2, com.usebottles.bottles, com.discordapp.Discord (nothing
+#                       else is accepted). Nothing is downloaded during the installation: the choice is written to
+#                       <home>/.config/aurora/first-login/gaming.json ({"version":1,"apps":[…],"requestedAt":"<ISO date>"},
+#                       owned by the new account, 0644, directories 0755) and the session installs the apps per user
+#                       (flatpak --user) when that account signs in. A failure here never fails the installation: it is
+#                       reported as {"gaming":"failed","apps":"…","message":…} (else {"gaming":"saved","apps":"id,id"}).
 #   --source            system to copy: a squashfs image (unsquashfs) or a directory (rsync).
 #                       Default: /cdrom/casper/filesystem.squashfs, else the casper live root /rofs
 #   --medium DIR        root of the live medium (filesystem.manifest-remove, GRUB theme, build id).
@@ -40,6 +48,7 @@
 #                         {"stage":"partition|format|copy|configure|bootloader|cleanup|done","progress":0..100,"message":"…"}
 #                         {"error":"…","stage":"…","code":N}
 #                         {"driver":"installed|failed","package":"nvidia-driver-NNN","message":"…"}  (--nvidia-driver)
+#                         {"gaming":"saved|failed","apps":"com.valvesoftware.Steam,…","message":"…"}  (--gaming)
 #                       Human-readable log lines always go to stderr (and to the log file).
 #   --dry-run           validate the arguments, then simulate every stage with short sleeps: touches
 #                       nothing, needs no root (UI development, tests)
@@ -49,7 +58,7 @@
 # Stages: partition (wipefs, GPT: 1 MiB BIOS boot + 512 MiB EFI System + ext4 "AURORA"), format,
 # copy (unsquashfs/rsync with progress), configure (fstab by UUID, hostname, live-session remnants
 # removed, live-only packages purged offline from filesystem.manifest-remove, locale, keyboard, time
-# zone, user + password, per-user settings, greetd, machine-id, initramfs), drivers (only with --nvidia-driver:
+# zone, user + password, per-user settings, the gaming apps request (--gaming), greetd, machine-id, initramfs), drivers (only with --nvidia-driver:
 # apt-get update + ubuntu-drivers install in the target, DNS from the live session), bootloader (GRUB for BIOS
 # on the disk AND UEFI on the ESP: EFI/ubuntu + removable EFI/BOOT/BOOTX64.EFI via shim, no NVRAM
 # writes; /etc/default/grub.d/50-aurora.cfg, Selene OS GRUB theme, update-grub), cleanup (sync, unmount).
@@ -79,6 +88,9 @@ RESERVED_USERS=" root daemon bin sys sync games man lp mail news uucp proxy www-
 # ------------------------------------------------------------------ arguments
 DISK="" USERNAME="" FULLNAME="" HOST_NAME="" LANGUAGE_ID="en" KEYBOARD="us" TIMEZONE="UTC"
 AUTOLOGIN=0 SOURCE="" MEDIUM="" LOG_FILE="" JSON=0 DRY_RUN=0 DRY_DELAY=0.35 FAIL_AT="" PASSWORD_STDIN=0 NVIDIA_DRIVER=
+GAMING="" GAMING_APPS=()
+# The only Flathub apps --gaming accepts (same list as shell/main/ipc/installer.js GAMING_APPS).
+GAMING_ALLOWED=(com.valvesoftware.Steam com.heroicgameslauncher.hgl net.lutris.Lutris net.davidotek.pupgui2 com.usebottles.bottles com.discordapp.Discord)
 PASSWORD=""
 
 usage() { sed -n '2,/^set -E/p' "${BASH_SOURCE[0]}" | sed -e '$d' -e 's/^# \{0,1\}//'; }
@@ -100,6 +112,7 @@ while (($#)); do
     --dry-run-delay) need_val "$@" || break; DRY_DELAY=$2; shift 2 ;;
     --fail-at) need_val "$@" || break; FAIL_AT=$2; shift 2 ;;
     --nvidia-driver) need_val "$@" || break; NVIDIA_DRIVER=$2; shift 2 ;;
+    --gaming) need_val "$@" || break; GAMING=$2; shift 2 ;;
     --password-stdin) PASSWORD_STDIN=1; shift ;;
     --autologin) AUTOLOGIN=1; shift ;;
     --json) JSON=1; shift ;;
@@ -148,6 +161,13 @@ emit_driver() { # emit_driver installed|failed PACKAGE [MESSAGE]
   log "graphics driver $2: $1${3:+ ($3)}"
   if ((JSON)); then
     printf '{"driver":"%s","package":%s,"message":%s}\n' "$1" "$(json_str "$2")" "$(json_str "${3:-}")" >&3 2>/dev/null || true
+  fi
+}
+emit_gaming() { # emit_gaming saved|failed [MESSAGE]
+  local apps; apps=$(IFS=,; printf '%s' "${GAMING_APPS[*]}")
+  log "gaming apps for the first sign-in ($apps): $1${2:+ ($2)}"
+  if ((JSON)); then
+    printf '{"gaming":"%s","apps":%s,"message":%s}\n' "$1" "$(json_str "$apps")" "$(json_str "${2:-}")" >&3 2>/dev/null || true
   fi
 }
 emit_error() { # emit_error CODE MESSAGE
@@ -206,6 +226,19 @@ if [[ -n "$NVIDIA_DRIVER" ]]; then
   [[ "$NVIDIA_DRIVER" == recommended || "$NVIDIA_DRIVER" =~ $RE_NVIDIA ]] \
     || die 2 "invalid --nvidia-driver: $NVIDIA_DRIVER (nvidia-driver-NNN[-open|-server|-server-open] or recommended)"
 fi
+# --gaming: comma-separated ids, each one from the allow-list (duplicates dropped, allow-list order kept).
+if [[ -n "$GAMING" ]]; then
+  [[ "$GAMING" =~ ^[A-Za-z0-9.,]{1,400}$ ]] || die 2 "invalid --gaming: $GAMING (comma-separated Flathub ids)"
+  IFS=, read -r -a _ids <<<"$GAMING"
+  ((${#_ids[@]})) || die 2 "invalid --gaming: no app"
+  for _id in "${_ids[@]}"; do
+    [[ " ${GAMING_ALLOWED[*]} " == *" $_id "* ]] || die 2 "invalid --gaming: $_id is not one of the gaming apps (${GAMING_ALLOWED[*]})"
+  done
+  for _id in "${GAMING_ALLOWED[@]}"; do
+    [[ ",$GAMING," == *",$_id,"* ]] && GAMING_APPS+=("$_id")
+  done
+  unset _ids _id
+fi
 if [[ -n "$FAIL_AT" ]]; then
   [[ " ${STAGES[*]} " == *" $FAIL_AT "* ]] || die 2 "--fail-at: unknown stage $FAIL_AT (${STAGES[*]})"
 fi
@@ -231,7 +264,7 @@ if ((DRY_RUN)); then
   trap 'rc=$?; ((DONE || rc == 0)) || emit_error "$rc" "installation failed (exit $rc)"' EXIT
   dsleep() { sleep "$DRY_DELAY"; }
   # A dry run never opens the named device (it may well be the disk of the machine running it).
-  log "DRY RUN — nothing will be written. disk=$DISK user=$USERNAME host=$HOST_NAME lang=$LANGUAGE_ID keyboard=$KEYBOARD timezone=$TIMEZONE autologin=$AUTOLOGIN${NVIDIA_DRIVER:+ nvidia-driver=$NVIDIA_DRIVER}"
+  log "DRY RUN — nothing will be written. disk=$DISK user=$USERNAME host=$HOST_NAME lang=$LANGUAGE_ID keyboard=$KEYBOARD timezone=$TIMEZONE autologin=$AUTOLOGIN${NVIDIA_DRIVER:+ nvidia-driver=$NVIDIA_DRIVER}${GAMING:+ gaming=$(IFS=,; printf '%s' "${GAMING_APPS[*]}")}"
   sim() { # sim STAGE FROM TO MESSAGE [log lines...]
     local st=$1 from=$2 to=$3 msg=$4 i; shift 4
     maybe_fail "$st"
@@ -251,6 +284,12 @@ if ((DRY_RUN)); then
   done
   sim configure 76 79 "Configuring the system" "fstab, hostname $HOST_NAME, locale $LOCALE, keyboard $KEYBOARD, time zone $TIMEZONE"
   progress configure 81 "Creating the user account $USERNAME"; dsleep
+  if ((${#GAMING_APPS[@]})); then
+    # Simulated too (nothing is written); AURORA_DRYRUN_GAMING_FAIL=1 simulates a request that cannot be written.
+    log "\$ write /home/$USERNAME/.config/aurora/first-login/gaming.json (apps for the first sign-in: ${GAMING_APPS[*]})"
+    if [[ "${AURORA_DRYRUN_GAMING_FAIL:-}" == 1 ]]; then emit_gaming failed "simulated failure (AURORA_DRYRUN_GAMING_FAIL)"
+    else emit_gaming saved; fi
+  fi
   progress configure 83 "Removing live-session packages"; dsleep
   progress configure 86 "Updating the initramfs"; dsleep
   if [[ -n "$NVIDIA_DRIVER" ]]; then
@@ -298,7 +337,7 @@ exec 2> >(exec tee -p -a "$LOG_FILE" >&2)
   echo
   echo "======================================================================"
   echo "aurora-install $(date -u '+%F %T') UTC — caller: ${SUDO_USER:-root}"
-  echo "disk=$DISK user=$USERNAME host=$HOST_NAME lang=$LANGUAGE_ID keyboard=$KEYBOARD timezone=$TIMEZONE autologin=$AUTOLOGIN"
+  echo "disk=$DISK user=$USERNAME host=$HOST_NAME lang=$LANGUAGE_ID keyboard=$KEYBOARD timezone=$TIMEZONE autologin=$AUTOLOGIN${NVIDIA_DRIVER:+ nvidia-driver=$NVIDIA_DRIVER}${GAMING:+ gaming=$GAMING}"
 } >&2
 
 exec 9>"$LOCK"
@@ -761,6 +800,32 @@ regenerate_initramfs() {
   log "initramfs: ${kvers[*]}"
 }
 
+# write_gaming_request HOME UID GID: HOME/.config/aurora/first-login/gaming.json for the gaming apps (--gaming), owned by
+# the new account (file 0644, directories 0755). Never dies: returns 1 with GAMING_ERR set (the installation goes on).
+GAMING_ERR=""
+write_gaming_request() {
+  local home=$1 uid=$2 gid=$3 dir p f tmp ids_json="" id
+  dir=$home/.config/aurora/first-login
+  for p in "$home" "$home/.config" "$home/.config/aurora" "$dir"; do
+    # never follow a link out of the account's home (it is written as root)
+    if [[ -L "$p" ]]; then GAMING_ERR="~${p#"$home"} is a symbolic link"; return 1; fi
+    [[ -d "$p" ]] && continue
+    if [[ -e "$p" || "$p" == "$home" ]]; then GAMING_ERR="~${p#"$home"} is not a directory"; return 1; fi
+    install -d -m 0755 -o "$uid" -g "$gid" "$p" 2>/dev/null || { GAMING_ERR="could not create ~${p#"$home"}"; return 1; }
+  done
+  for id in "${GAMING_APPS[@]}"; do ids_json+="${ids_json:+, }\"$id\""; done
+  f=$dir/gaming.json tmp=$dir/.gaming.json.aurora-tmp
+  rm -f "$tmp" 2>/dev/null
+  if ! printf '{\n  "version": 1,\n  "apps": [%s],\n  "requestedAt": "%s"\n}\n' "$ids_json" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$tmp" 2>/dev/null \
+     || ! chown "$uid:$gid" "$tmp" 2>/dev/null || ! chmod 0644 "$tmp" 2>/dev/null || ! mv -fT "$tmp" "$f" 2>/dev/null; then
+    rm -f "$tmp" 2>/dev/null
+    GAMING_ERR="could not write ~/.config/aurora/first-login/gaming.json"
+    return 1
+  fi
+  log "gaming apps for the first sign-in written to ~/.config/aurora/first-login/gaming.json: ${GAMING_APPS[*]}"
+  return 0
+}
+
 stage_configure() {
   maybe_fail configure
   progress configure 76 "Configuring the system"
@@ -848,6 +913,11 @@ EOF
     printf '{\n  "lang": "%s"\n}\n' "$LANGUAGE_ID" >"$sf"
   fi
   chown "$uid:$gid" "$sf"; chmod 0644 "$sf"
+  # Gaming apps (--gaming): recorded for the session, which installs them from Flathub at the first sign-in.
+  if ((${#GAMING_APPS[@]})); then
+    if write_gaming_request "$TARGET$home" "$uid" "$gid"; then emit_gaming saved
+    else emit_gaming failed "$GAMING_ERR"; fi
+  fi
   progress configure 82 ""
 
   # Sign-in screen (greetd): no live autologin; the new account when --autologin is set.

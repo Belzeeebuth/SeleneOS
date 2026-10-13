@@ -6,6 +6,11 @@
 //   notifications.groups() -> [{ appId, appName, icon, items: [...] }]  (newest first)
 //   notifications.activate(id)  -> runs the notification's onClick and removes it
 //   notifications.on('change', fn)
+//   notifications.update(id, { title, body, icon, progress, actions, onClick }) -> updates the entry and its toast in place
+//   notifications.hide(id)  -> closes the toast only (the entry stays in the notification center)
+// progress: optional number 0..100 (a bar under the text) or 'indeterminate'; null removes it.
+// An action with keep: true closes the toast without removing the notification (« Masquer »); toastOnly: true
+// keeps an action out of the notification center.
 // Icon may be a Fluent icon name or a URL. If no icon is given, the app icon is used.
 // Do not disturb (settings.notifications.dnd), Focus mode's quiet (<html data-focus-quiet="on">) and
 // notifications.enabled === false keep history but suppress toasts and sounds. `urgent: true` (alarms and timers, see reminders.js) still shows its
@@ -19,6 +24,8 @@ import { sounds } from './sounds.js';
 const emitter = new Emitter();
 const history = [];
 const toasts = new Map(); // id -> close()
+const toastViews = new Map(); // id -> render() of a live toast (notifications.update)
+const progressOf = (v) => (v === 'indeterminate' ? v : Number.isFinite(Number(v)) && v !== null && v !== '' ? Math.max(0, Math.min(100, Number(v))) : null);
 let seq = 0;
 let host = null;
 let iconFor = () => null;
@@ -65,6 +72,20 @@ export const notifications = {
     }
     emitter.emit('change');
   },
+  update(id, patch = {}) {
+    const n = history.find((x) => x.id === id);
+    if (!n || !patch || typeof patch !== 'object') return false;
+    for (const k of ['title', 'body', 'icon', 'onClick']) if (k in patch) n[k] = patch[k];
+    if ('actions' in patch) n.actions = Array.isArray(patch.actions) ? patch.actions : [];
+    if ('progress' in patch) n.progress = progressOf(patch.progress);
+    toastViews.get(id)?.();
+    emitter.emit('change');
+    return true;
+  },
+  hide(id) {
+    toasts.get(id)?.();
+  },
+  progressNode: (n) => progressNode(n),
   activate(id) {
     const n = history.find((x) => x.id === id);
     if (!n) return;
@@ -98,6 +119,16 @@ function iconNode(n, size = 16) {
   return icon(String(src), { size });
 }
 
+function progressNode(n) {
+  if (n.progress == null) return null;
+  const ind = n.progress === 'indeterminate';
+  return h(
+    'div',
+    { class: ['progress', 'notif-progress', ind && 'indeterminate'], role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', ...(ind ? {} : { 'aria-valuenow': String(Math.round(n.progress)) }) },
+    h('div', { class: 'bar', style: ind ? {} : { width: `${n.progress}%` } }),
+  );
+}
+
 export function notify(opts = {}) {
   const n = {
     id: ++seq,
@@ -111,6 +142,7 @@ export function notify(opts = {}) {
     read: false,
     actions: opts.actions || [],
     onClick: opts.onClick,
+    progress: progressOf(opts.progress),
   };
   history.unshift(n);
   if (history.length > 100) history.pop();
@@ -129,22 +161,22 @@ export function notify(opts = {}) {
     closed = true;
     clearTimeout(timer);
     toasts.delete(n.id);
+    toastViews.delete(n.id);
     toast.classList.add('leaving');
     setTimeout(() => toast.remove(), 260);
   };
-  const toast = h(
-    'div',
-    {
-      class: 'toast',
-      role: 'status',
-      'aria-live': 'polite',
-      dataset: { id: String(n.id) },
-      onclick: (e) => {
-        if (e.target.closest('button')) return;
-        close();
-        notifications.activate(n.id);
-      },
+  const toast = h('div', {
+    class: 'toast',
+    role: 'status',
+    'aria-live': 'polite',
+    dataset: { id: String(n.id) },
+    onclick: (e) => {
+      if (e.target.closest('button')) return;
+      close();
+      notifications.activate(n.id);
     },
+  });
+  const content = () => [
     h(
       'div',
       { class: 'toast-head caption' },
@@ -166,6 +198,7 @@ export function notify(opts = {}) {
     ),
     h('div', { class: 'toast-title body-strong' }, n.title),
     n.body ? h('div', { class: 'toast-body' }, n.body) : null,
+    progressNode(n),
     n.image && /^(app|media|blob|data):/.test(n.image)
       ? h('img', { class: 'toast-image', src: n.image, alt: '', style: { display: 'block', width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', marginTop: '10px' } })
       : null,
@@ -186,7 +219,7 @@ export function notify(opts = {}) {
                     console.error(err);
                   }
                   close();
-                  notifications.dismiss(n.id);
+                  if (!a.keep) notifications.dismiss(n.id);
                 },
               },
               a.label,
@@ -194,7 +227,9 @@ export function notify(opts = {}) {
           ),
         )
       : null,
-  );
+  ];
+  toast.replaceChildren(...content().filter(Boolean));
+  toastViews.set(n.id, () => toast.replaceChildren(...content().filter(Boolean)));
   toasts.set(n.id, close);
   host.appendChild(toast);
   // Never stack more than a few toasts: the oldest go to the notification center.

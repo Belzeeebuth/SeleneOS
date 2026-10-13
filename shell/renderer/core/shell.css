@@ -1891,6 +1891,9 @@ body.tb-autohide #toasts {
 .toast-body {
   color: var(--text-2);
 }
+.toast .notif-progress {
+  margin-top: 10px;
+}
 .toast-actions {
   display: flex;
   gap: 8px;

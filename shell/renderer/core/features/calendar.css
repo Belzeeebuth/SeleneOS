@@ -635,6 +635,9 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.nc-item .notif-progress {
+  margin-top: 8px;
+}
 .nc-actions {
   display: flex;
   gap: 8px;
