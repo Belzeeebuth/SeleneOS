@@ -88,6 +88,12 @@ class CodeApp {
     this.splitter = h('div', { class: 'code-split', role: 'separator', 'aria-orientation': 'vertical', onpointerdown: (e) => this.dragSide(e) });
 
     this.tabsEl = h('div', { class: 'code-tabs', role: 'tablist', 'aria-label': t('openFiles') });
+    // no scrollbar on the tab strip: a vertical wheel scrolls it sideways
+    this.tabsEl.addEventListener('wheel', (e) => {
+      if (!e.deltaY || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      this.tabsEl.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }, { passive: false });
     this.host = h('div', { class: 'code-host' });
     this.welcome = h('div', { class: 'code-welcome' });
     this.termHost = h('div', { class: 'code-term-host' });
@@ -259,8 +265,9 @@ class CodeApp {
   async refresh() {
     if (!this.folder) return;
     const dirs = [...this.expanded].filter((d) => within(d, this.folder));
-    this.entries.clear();
+    // reload in place (no clear first): a rename / new-name check during the reload still sees the listing
     await Promise.all([...dirs.map((d) => this.loadDir(d)), this.loadGit()]);
+    for (const d of [...this.entries.keys()]) if (!dirs.includes(d)) this.entries.delete(d);
     this.renderTree();
     this.renderStatus();
   }
@@ -428,7 +435,11 @@ class CodeApp {
     const path = join(dir, name.trim());
     try {
       if (folder) await this.api.invoke('fs:mkdir', path);
-      else await this.api.invoke('fs:writeText', path, '');
+      else {
+        // never empty an existing file (the listing may be stale)
+        if (await this.api.invoke('fs:exists', path).catch(() => false)) throw new Error(this.t('nameExists'));
+        await this.api.invoke('fs:writeText', path, '');
+      }
     } catch (err) {
       this.ui.alert(this.t('createFailed', { error: err.message }), { parent: this.win });
       return null;

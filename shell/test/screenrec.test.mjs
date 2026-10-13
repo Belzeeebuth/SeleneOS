@@ -296,6 +296,7 @@ async function main() {
       await SR(s, (app) => app.stop());
       await until(s, (app) => app.state === 'idle', { label: 'idle', timeout: 60000 });
       const last = await SR(s, (app) => app.last);
+      if (last?.format !== 'mp4') console.log(`      MP4 conversion: ${JSON.stringify(last)} ${JSON.stringify(probe(last.path))}`);
       check('mp4 file', last?.format, 'mp4');
       check('no WebM left beside it', fs.existsSync(last.path.replace(/\.mp4$/, '.webm')), false);
       const p = probe(last.path);

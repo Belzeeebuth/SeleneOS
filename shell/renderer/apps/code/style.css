@@ -63,7 +63,7 @@
 
 /* ------------------------------------------------------------ tabs */
 .app-code .code-tabs {
-  display: flex; align-items: stretch; height: 36px; flex: none; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin;
+  display: flex; align-items: stretch; height: 36px; flex: none; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; /* the wheel scrolls it (main.js) */
   border-bottom: 1px solid var(--line-soft); background: var(--bg-alt);
 }
 .app-code .code-tabs.empty { display: none; }

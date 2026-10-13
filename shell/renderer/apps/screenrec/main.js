@@ -86,6 +86,11 @@ class ScreenRecorder {
     if (!this.grown) {
       this.grown = true;
       this.ctx.win.setMinSize?.(380, 590);
+      // still above the bar? (a window opened low on the screen) -> centre it
+      const r = this.ctx.win.el.getBoundingClientRect();
+      const tb = document.getElementById('taskbar')?.getBoundingClientRect();
+      const limit = tb && tb.top > window.innerHeight / 2 ? tb.top : window.innerHeight;
+      if (r.bottom > limit - 4 && !this.ctx.win.maximized) this.ctx.win.center?.();
     }
     const name = l.path.split('/').pop();
     const preview = h('video', { class: 'sr-last-thumb', src: `${api.mediaUrl(l.path)}#t=0.1`, muted: true, preload: 'metadata', 'aria-hidden': 'true' });
@@ -176,6 +181,7 @@ class ScreenRecorder {
         if (r !== 'full') rect = r;
       }
       this.state = 'starting';
+      this.cancelRequested = false;
       this.rect = rect;
       // the file first: chunks are written as they come
       const dir = await this.folder();
@@ -197,9 +203,10 @@ class ScreenRecorder {
       this.warnings = warnings;
       this.file = await this.ctx.api.invoke('screenrec:open', dir, t('fileBase', { date }));
       this.state = 'countdown';
-      const go = await countdown({ h: this.ctx.h, t, rect });
+      const go = !this.cancelRequested && (await countdown({ h: this.ctx.h, t, rect }));
       if (!go || this.state !== 'countdown') {
         rec.dispose();
+        this.rec = null;
         await this.ctx.api.invoke('screenrec:abort', this.file.id).catch(() => {});
         this.file = null;
         return this.backToIdle();
@@ -309,7 +316,11 @@ class ScreenRecorder {
   }
 
   async stop() {
-    if (this.state === 'countdown' || this.state === 'picking' || this.state === 'starting') {
+    if (this.state === 'starting') {
+      this.cancelRequested = true; // checked once the screen is open
+      return;
+    }
+    if (this.state === 'countdown' || this.state === 'picking') {
       // Esc-like cancel: the countdown / picker listen to Escape
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       return;

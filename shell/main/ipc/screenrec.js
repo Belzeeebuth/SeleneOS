@@ -150,6 +150,7 @@ module.exports = function register(api) {
         console.warn('[screenrec] MP4 conversion failed', String(conv.stderr || '').slice(0, 400));
         await fsp.rm(mp4, { force: true }).catch(() => {});
         out.warning = 'EMP4';
+        out.detail = String(conv.stderr || '').trim().split('\n').slice(-3).join(' ').slice(0, 300);
       }
     }
     try {

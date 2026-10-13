@@ -1517,14 +1517,18 @@ await test('French UI strings and dark theme', async () => {
     menus: el.querySelector('.pt-more').getAttribute('aria-label'),
     tip: el.querySelector('[data-tool="fill"]').dataset.tip,
     ws: getComputedStyle(el.querySelector('.pt-main')).backgroundColor,
+    glass: getComputedStyle(el).backgroundColor,
     text: getComputedStyle(el).color,
   }));
   assert.equal(info.title, 'Sans titre - Dessin');
   assert.deepEqual(info.groups, ['Contour et remplissage', 'Taille', 'Couleurs', 'Image', 'Outils', 'Pinceaux', 'Formes']);
   assert.equal(info.menus, 'Plus : fichier, modification et affichage');
   assert.equal(info.tip, 'Remplissage (F)');
-  assert.equal(info.ws, 'rgb(14, 19, 31)', 'dark workspace (--bg-alt, cold ambiance)');
-  assert.equal(info.text, 'rgb(230, 234, 242)');
+  // Default Halo finish: inside a Mica window --bg-alt is see-through (core/tokens.css, glass finishes), so the
+  // workspace shows the window's dark tinted glass (Sobre keeps an opaque #0e131f workspace and #e6eaf2 text).
+  assert.equal(info.ws, 'rgba(0, 0, 0, 0)', 'workspace shows the glass (--bg-alt transparent in Halo)');
+  assert.ok(Math.max(...info.glass.match(/\d+/g).slice(0, 3).map(Number)) < 80, `dark glass tint under the workspace (${info.glass})`);
+  assert.equal(info.text, 'rgb(238, 243, 255)', 'dark --text of Halo (finish-halo.css --amb-d-text #eef3ff)');
 });
 await test('demo drawing + screenshots (dark, fr) and dialogs in French', async () => {
   await P(f, (p, el) => window.__aurora.wm.get(el.dataset.id).maximize());

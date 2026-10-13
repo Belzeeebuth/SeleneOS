@@ -219,8 +219,8 @@ try {
       re: [...document.querySelectorAll('.app-code .cm-search label')].map((l) => l.textContent.trim()),
     }));
     check('search placeholder FR', labels.ph, 'Rechercher');
-    check('replace all FR', labels.all, 'tout remplacer');
-    check('regexp label FR', labels.re.includes('expression régulière'), true);
+    check('replace all FR', labels.all, 'Tout remplacer');
+    check('regexp label FR', labels.re.includes('Expression régulière'), true);
     await s.page.fill('.app-code .cm-search input[name=search]', 'phase\\(\\w+\\)');
     await s.page.check('.app-code .cm-search input[name=re]');
     await s.page.fill('.app-code .cm-search input[name=replace]', 'phase(1)');

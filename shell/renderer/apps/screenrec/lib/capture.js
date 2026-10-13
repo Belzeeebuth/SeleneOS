@@ -147,7 +147,7 @@ export class Recording {
   constructor({ api, rect, mic = false, system = false, onChunk, onEnded }) {
     Object.assign(this, { api, rect, wantMic: mic, wantSystem: system, onChunk, onEnded });
     this.streams = [];
-    this.state = 'idle'; // idle | ready | recording | paused | stopped
+    this.state = 'idle'; // idle | ready | recording | paused | draining | stopped
     this.acc = 0;
     this.since = 0;
     this.patch = null; // { x, y, width, height } in canvas px, painted from the clean picture
@@ -264,7 +264,7 @@ export class Recording {
   // A frame each display refresh, at most ~30 per second (requestVideoFrameCallback is not reliable for a <video> that
   // is not in the page).
   loop() {
-    if (this.state === 'stopped' || !this.video) return;
+    if (this.state === 'stopped' || this.state === 'draining' || !this.video) return;
     const now = performance.now();
     if (!this.lastDraw || now - this.lastDraw >= 30) {
       this.lastDraw = now;
@@ -345,6 +345,34 @@ export class Recording {
   async stop() {
     if (this.state !== 'recording' && this.state !== 'paused') return this.dispose();
     this.duration = this.elapsed();
+    const wasPaused = this.state === 'paused';
+    // MediaRecorder.stop() drops the frames still waiting for the encoder (seconds of video on a busy machine):
+    // stop painting, mute, and collect what the encoder still delivers until it goes quiet (at most 3 s)
+    this.state = 'draining';
+    if (this.audioTrack) this.audioTrack.enabled = false;
+    if (!wasPaused && this.recorder.state === 'recording') {
+      const t0 = performance.now();
+      let quiet = 0;
+      while (quiet < 2 && performance.now() - t0 < 3000) {
+        const size = await new Promise((resolve) => {
+          const timer = setTimeout(() => done(-1), 700);
+          const done = (n) => {
+            clearTimeout(timer);
+            this.recorder.removeEventListener('dataavailable', on);
+            resolve(n);
+          };
+          const on = (e) => done(e.data?.size || 0);
+          this.recorder.addEventListener('dataavailable', on);
+          try {
+            this.recorder.requestData();
+          } catch {
+            done(-1);
+          }
+        });
+        quiet = size > 0 ? 0 : quiet + 1;
+        await new Promise((r) => setTimeout(r, 120));
+      }
+    }
     if (this.recorder.state !== 'inactive') this.recorder.stop();
     await Promise.race([this.stopped, new Promise((r) => setTimeout(r, 4000))]);
     this.dispose();

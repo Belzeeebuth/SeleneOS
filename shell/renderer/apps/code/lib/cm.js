@@ -127,11 +127,11 @@ export const seleneTheme = EditorView.theme({
 
 // ------------------------------------------------------------------ phrases (CodeMirror's own UI)
 export const PHRASES_FR = {
-  Find: 'Rechercher', Replace: 'Remplacer', next: 'suivant', previous: 'précédent', all: 'tout',
-  'match case': 'respecter la casse', regexp: 'expression régulière', 'by word': 'mot entier',
-  replace: 'remplacer', 'replace all': 'tout remplacer', close: 'fermer',
+  Find: 'Rechercher', Replace: 'Remplacer', next: 'Suivant', previous: 'Précédent', all: 'Tout',
+  'match case': 'Respecter la casse', regexp: 'Expression régulière', 'by word': 'Mot entier',
+  replace: 'Remplacer', 'replace all': 'Tout remplacer', close: 'Fermer',
   'current match': 'résultat actuel', 'on line': 'à la ligne', 'replaced match on line $': 'résultat remplacé à la ligne $',
-  'replaced $ matches': '$ résultats remplacés', 'Go to line': 'Aller à la ligne', go: 'aller',
+  'replaced $ matches': '$ résultats remplacés', 'Go to line': 'Aller à la ligne', go: 'Aller',
   'Folded lines': 'Lignes repliées', 'Unfolded lines': 'Lignes dépliées', to: 'à', 'folded code': 'code replié',
   unfold: 'déplier', 'Fold line': 'Replier la ligne', 'Unfold line': 'Déplier la ligne', 'Control character': 'Caractère de contrôle',
   'Selection deleted': 'Sélection supprimée',
