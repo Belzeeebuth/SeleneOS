@@ -407,6 +407,13 @@ async function waitFor(fn, { timeout = 10000, step = 100 } = {}) {
   const okA = { disk: '/dev/nvme0n1', user: 'jane', fullname: 'Jane', password: 'pw', lang: 'fr', mode: 'alongside', alongside: plan.request };
   const av = be.buildArgs(okA);
   check('buildArgs alongside shrink: --alongside --fingerprint H --esp 1 --shrink 3 --new-size N', av.join(' ').includes(`--alongside --fingerprint ${win.fingerprint} --esp 1 --shrink 3 --new-size ${plan.newMiB}`), av.join(' '));
+  check('alongsidePlan shrink: Selene OS gets exactly the size shown (request.rootSize = rootMiB -> --root-size, not « up to the next partition »)', plan.request.rootSize === plan.rootMiB && av.join(' ').includes(`--new-size ${plan.newMiB} --root-size ${plan.rootMiB}`), av.join(' '));
+  check(
+    'rootSize: malformed refused by buildArgs, larger than the space freed or below the minimum refused by checkPlan',
+    (() => { try { be.buildArgs({ ...okA, alongside: { ...plan.request, rootSize: '1;reboot' } }); return false; } catch (e) { return e.field === 'alongside.rootSize'; } })() &&
+      (() => { try { be.checkPlan({ ...plan.request, rootSize: plan.rootMiB + 1 }, win); return false; } catch (e) { return e.code === 'EPLAN'; } })() &&
+      (() => { try { be.checkPlan({ ...plan.request, rootSize: win.rootMinMiB - 1 }, win); return false; } catch (e) { return e.code === 'EPLAN'; } })(),
+  );
   const avf = be.buildArgs({ ...okA, disk: '/dev/sda', alongside: fplan.request });
   check('buildArgs alongside free: --free-space S:E, no --shrink', avf.join(' ').includes(`--free-space ${fplan.request.start}:${fplan.request.end}`) && !avf.includes('--shrink'), avf.join(' '));
   check('buildArgs erase (default or explicit): no --alongside', !be.buildArgs({ ...okA, mode: 'erase' }).includes('--alongside') && !be.buildArgs({ ...okA, mode: undefined, alongside: undefined }).includes('--alongside'));

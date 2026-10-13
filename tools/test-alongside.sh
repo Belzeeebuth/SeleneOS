@@ -17,8 +17,14 @@
 # partitioning of --alongside (NTFS shrink, ext4 shrink, free space) stopped after the format stage (--fail-at copy):
 # sizes, 1 MiB alignment, the other partitions' entries unchanged, the shrunk file systems' files (sha256), the
 # untouched partitions byte for byte (ESP, MSR, recovery), the new ext4 "AURORA".
-# --full SQUASHFS: also runs one complete installation next to "Windows" (copy, configure, boot loader on the shared
-# ESP: only EFI/ubuntu added, every other ESP file unchanged; GRUB_DISABLE_OS_PROBER=false; NVRAM entry skipped).
+# Without loop devices: the initramfs check (python3 scan of the cpio headers that replaced lsinitramfs) on synthetic
+# images (early + zstd / gzip main archive, with / without scripts/casper, truncated, garbage), and the GRUB wrapper
+# /usr/local/sbin/grub-install (adds --no-extra-removable for x86_64-efi; only written by an install « à côté »).
+# --full SQUASHFS: also runs complete installations next to "Windows" (copy, configure, boot loader on the shared ESP):
+# first one whose boot loader stage « replaces » EFI/BOOT/BOOTX64.EFI and adds EFI/BOOT/fbx64.efi
+# (AURORA_INSTALL_TEST_TAMPER_ESP=1): it must fail and leave the ESP exactly as before (Windows files byte for byte,
+# no EFI/ubuntu); then a normal one: only EFI/ubuntu added, every other ESP file unchanged; GRUB_DISABLE_OS_PROBER=false;
+# the grub-install wrapper and the debconf keys in the target; NVRAM entry skipped.
 set -Eeuo pipefail
 export LC_ALL=C PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -89,6 +95,55 @@ run_install() { # run_install OUTFILE DISK ARGS... -> exit code (JSON lines in O
   return "$rc"
 }
 jget() { python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(eval(sys.argv[2], {"d": d}))' "$@"; }
+
+# ====================================================================== initramfs check (no loop device)
+echo "== initramfs check: python3 scan of the cpio headers (replaces lsinitramfs)"
+eval "$(sed -n "/^INITRAMFS_SCAN_PY='/,/^'\$/p" "$HELPER")"
+[[ -n "${INITRAMFS_SCAN_PY:-}" ]] || fail "INITRAMFS_SCAN_PY not found in the helper"
+python3 -I - "$W" <<'MKINITRD'
+import os, subprocess, sys
+w = sys.argv[1]
+def cpio(entries):
+    out, ino = b"", 1
+    for name, data in entries + [("TRAILER!!!", b"")]:
+        n = name.encode() + b"\0"
+        mode = 0o100644 if data is not None else 0o040755
+        data = data or b""
+        h = b"070701" + b"".join(b"%08X" % v for v in (ino, mode, 0, 0, 1, 0, len(data), 0, 0, 0, 0, len(n), 0))
+        out += h + n; out += b"\0" * (-len(out) % 4); out += data; out += b"\0" * (-len(out) % 4); ino += 1
+    return out + b"\0" * (-len(out) % 512)
+early = cpio([("kernel", None), ("kernel/x86/microcode/GenuineIntel.bin", os.urandom(3 << 20))])
+main_ok = [("scripts", None), ("scripts/init-top/udev", b"#!/bin/sh\n"), ("init", b"#!/bin/sh\n" * 1000)]
+main_casper = main_ok + [("scripts/casper", b"#!/bin/sh\n"), ("scripts/casper-bottom/25adduser", b"x")]
+def zst(b): return subprocess.run(["zstd", "-q", "-c", "-19"], input=b, stdout=subprocess.PIPE, check=True).stdout
+open(f"{w}/initrd-clean.img", "wb").write(early + early + zst(cpio(main_ok)))
+open(f"{w}/initrd-casper.img", "wb").write(early + zst(cpio(main_casper)))
+open(f"{w}/initrd-gzip-casper.img", "wb").write(early + subprocess.run(["gzip", "-c"], input=cpio(main_casper), stdout=subprocess.PIPE, check=True).stdout)
+z = zst(cpio(main_casper)); open(f"{w}/initrd-truncated.img", "wb").write(early + z[: len(z) // 2])
+open(f"{w}/initrd-garbage.img", "wb").write(early + b"\x42" * 4096)
+open(f"{w}/initrd-cut-early.img", "wb").write(early[: len(early) // 2])
+MKINITRD
+scan() { local rc=0; python3 -I -c "$INITRAMFS_SCAN_PY" "$W/$1" >"$W/scan.out" 2>"$W/scan.err" || rc=$?; echo "$rc:$(tr '\n' ' ' <"$W/scan.out")"; }
+check "initramfs scan: early archives + zstd main without casper -> complete, nothing found" [ "$(scan initrd-clean.img)" = "0:" ]
+check "initramfs scan: zstd main with scripts/casper* -> both names" [ "$(scan initrd-casper.img)" = "0:scripts/casper scripts/casper-bottom/25adduser " ]
+check "initramfs scan: gzip main with scripts/casper* -> found" [ "$(scan initrd-gzip-casper.img)" = "0:scripts/casper scripts/casper-bottom/25adduser " ]
+check "initramfs scan: truncated compressed archive -> unreadable (exit 2), never « clean »" [ "$(scan initrd-truncated.img | cut -d: -f1)" = 2 ]
+check "initramfs scan: unknown data after the early archive -> unreadable (exit 2)" [ "$(scan initrd-garbage.img | cut -d: -f1)" = 2 ]
+check "initramfs scan: truncated early archive -> unreadable (exit 2)" [ "$(scan initrd-cut-early.img | cut -d: -f1)" = 2 ]
+
+# ====================================================================== GRUB wrapper (no loop device)
+echo "== GRUB updates next to another system: /usr/local/sbin/grub-install adds --no-extra-removable"
+sed -n "/^write_grub_wrapper() {/,/^}/p" "$HELPER" | sed -n "/<<'EOF'/,/^EOF\$/p" | sed '1d;$d' >"$W/grub-wrapper"
+printf '#!/bin/sh\nprintf "%%s|" "$@"\n' >"$W/fake-grub-install"; chmod +x "$W/fake-grub-install"
+sed "s|^real=/usr/sbin/grub-install\$|real=$W/fake-grub-install|" "$W/grub-wrapper" >"$W/grub-wrapper-test"; chmod +x "$W/grub-wrapper-test"
+check "wrapper: calls /usr/sbin/grub-install (test copy: a fake that prints its arguments)" bash -c 'grep -qx "real=/usr/sbin/grub-install" "$1" && grep -q "fake-grub-install" "$2"' _ "$W/grub-wrapper" "$W/grub-wrapper-test"
+check "wrapper: --target=x86_64-efi -> --no-extra-removable added, --force-extra-removable dropped" \
+  [ "$("$W/grub-wrapper-test" --target=x86_64-efi --efi-directory=/boot/efi --force-extra-removable --bootloader-id=ubuntu)" = "--target=x86_64-efi|--efi-directory=/boot/efi|--bootloader-id=ubuntu|--no-extra-removable|" ]
+check "wrapper: --target x86_64-efi (two words) -> --no-extra-removable added" [ "$("$W/grub-wrapper-test" --target x86_64-efi --recheck)" = "--target|x86_64-efi|--recheck|--no-extra-removable|" ]
+check "wrapper: --target=i386-pc -> arguments unchanged" [ "$("$W/grub-wrapper-test" --target=i386-pc /dev/sda)" = "--target=i386-pc|/dev/sda|" ]
+check "wrapper: arguments with spaces kept" [ "$("$W/grub-wrapper-test" --target=x86_64-efi '--bootloader-id=a b')" = "--target=x86_64-efi|--bootloader-id=a b|--no-extra-removable|" ]
+check "wrapper: written only by the install « à côté » when the disk has EFI/BOOT (one call, in stage_bootloader_alongside; none in erase mode)" \
+  bash -c '[[ $(grep -c "write_grub_wrapper" "$1") == 2 ]] && sed -n "/^stage_bootloader_alongside() {/,/^}/p" "$1" | grep -q "^  ((ESP_OWN_FALLBACK)) || write_grub_wrapper" && ! sed -n "/^stage_bootloader() {/,/^}/p" "$1" | grep -q write_grub_wrapper' _ "$HELPER"
 
 # ====================================================================== images
 echo "== building the test disks in $W"
@@ -313,9 +368,23 @@ if [[ -n "$FULL" ]]; then
   ours "$WIN"; sfdisk --quiet --delete "$WIN" 5 >/dev/null 2>&1; partx -d --nr 5 "$WIN" >/dev/null 2>&1 || true; partx -u "$WIN" >/dev/null 2>&1 || true
   "$PROBE" --disk "$WIN" --assume-uefi >"$W/probe-full.json"
   WIN_FP=$(fp "$WIN"); fstart=$(jget "$W/probe-full.json" "d['disks'][0]['free'][0]['startMiB']"); fend=$(jget "$W/probe-full.json" "d['disks'][0]['free'][0]['endMiB']")
-  rc=0
   ours "$WIN"
   mapfile -t base < <(install_args "$WIN" | sed "s|^$FAKE_SRC\$|$FULL|; s|^$W\$|$(dirname "$(dirname "$FULL")")|")
+  # 1) a boot loader stage that replaces the other system's EFI/BOOT/BOOTX64.EFI: the ESP must come back as it was.
+  rc=0
+  echo 'pw-test-123' | AURORA_INSTALL_TEST_TAMPER_ESP=1 "$HELPER" "${base[@]}" --alongside --esp 1 --fingerprint "$WIN_FP" --free-space "$fstart:$fend" >"$W/out-tamper.json" 2>>"$W/install.stderr" || rc=$?
+  check "EFI/BOOT replaced during the boot loader stage: installation fails (exit 5) with a clear message" \
+    bash -c '[[ $1 == 5 ]] && grep -q "original files were put back byte for byte" "$2"' _ "$rc" "$W/out-tamper.json"
+  check "ESP after the failure: exactly the files before (bootmgfw.efi, BCD, EFI/Boot/bootx64.efi byte for byte; no EFI/ubuntu, no fbx64.efi)" \
+    bash -c '[[ "$1" == "$2" ]]' _ "$(esp_files "${WIN}p1")" "$WIN_ESP_FILES"
+  check "ESP folders after the failure: no EFI/ubuntu left (a retry is not refused for « ubuntu-folder »)" bash -c '! mdir -b -i "$1" ::/EFI 2>/dev/null | grep -qi "/ubuntu"' _ "${WIN}p1"
+  check "the ESP copy in /run is removed once put back" bash -c '! compgen -G "/run/aurora-esp-backup.*" >/dev/null'
+  check "the log tells what was put back and removed" bash -c 'grep -qi "restoring EFI/Boot/bootx64.efi on the EFI system partition" "$1" && grep -qi "removing EFI/Boot/fbx64.efi" "$1"' _ "$W/install.log"
+  # The failed run left its Selene OS partition: removed (our loop device only), then the normal installation.
+  ours "$WIN"; sfdisk --quiet --delete "$WIN" 5 >/dev/null 2>&1; partx -d --nr 5 "$WIN" >/dev/null 2>&1 || true; partx -u "$WIN" >/dev/null 2>&1 || true
+  check "partition table back to the one before the failed run" [ "$(fp "$WIN")" = "$WIN_FP" ]
+  # 2) the normal installation.
+  rc=0
   echo 'pw-test-123' | "$HELPER" "${base[@]}" --alongside --esp 1 --fingerprint "$WIN_FP" --free-space "$fstart:$fend" >"$W/out-full.json" 2>>"$W/install.stderr" || rc=$?
   check "full installation next to Windows: exit 0, done" bash -c '[[ $1 == 0 ]] && grep -q "\"stage\":\"done\"" "$2"' _ "$rc" "$W/out-full.json"
   check "boot entry reported as skipped in test mode" grep -q '"bootentry":"skipped"' "$W/out-full.json"
@@ -326,6 +395,11 @@ if [[ -n "$FULL" ]]; then
   check "installed: GRUB_DISABLE_OS_PROBER=false, 5 s menu" grep -q '^GRUB_DISABLE_OS_PROBER=false' "$m/etc/default/grub.d/50-aurora.cfg"
   check "installed: fstab mounts the shared ESP by UUID" grep -q "UUID=$(blkid -p -s UUID -o value "${WIN}p1") */boot/efi" "$m/etc/fstab"
   check "installed: the partition table before the change is kept in /var/log" test -s "$m/var/log/aurora-install-partitions.sfdisk"
+  check "installed: /usr/local/sbin/grub-install wrapper (Windows' disk has EFI/Boot): executable, adds --no-extra-removable" \
+    bash -c '[[ -x $1 ]] && grep -q -- "--no-extra-removable" "$1" && cmp -s "$1" "$2"' _ "$m/usr/local/sbin/grub-install" "$W/grub-wrapper"
+  check "installed: debconf grub2/no_efi_extra_removable true, grub2/force_efi_extra_removable false" \
+    python3 -I -c 'import sys; t=open(sys.argv[1]).read().split("\n\n"); g=lambda n: [b for b in t if ("Name: grub2/"+n+"\n") in b+"\n"]; sys.exit(0 if any("Value: true" in b for b in g("no_efi_extra_removable")) and any("Value: false" in b for b in g("force_efi_extra_removable")) else 1)' "$m/var/cache/debconf/config.dat"
+  check "installed: initramfs checked by the python3 scan (no lsinitramfs) and free of casper" bash -c 'grep -q "\] initramfs: " "$1" && ! grep -q "using lsinitramfs" "$1"' _ "$W/install.log"
   umount "$m"
   check "NTFS files still intact after the full installation" ntfs_files "${WIN}p3"
 fi
