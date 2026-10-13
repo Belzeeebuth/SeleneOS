@@ -675,6 +675,13 @@ chroot_mount() {
   mountpoint -q "$t/dev" || mount --bind /dev "$t/dev"
   mountpoint -q "$t/dev/pts" || mount --bind /dev/pts "$t/dev/pts"
   mountpoint -q "$t/run" || mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs "$t/run"
+  # udev's database (read-only): os-prober (update-grub) recognises an EFI system partition by its udev
+  # ID_PART_ENTRY_TYPE; without it « Windows Boot Manager » is missing from the menu of a dual boot install.
+  if [[ -d /run/udev ]] && ! mountpoint -q "$t/run/udev"; then
+    mkdir -p "$t/run/udev"
+    { mount --bind /run/udev "$t/run/udev" && mount -o remount,bind,ro "$t/run/udev"; } \
+      || log "warning: could not show udev's database in the target (os-prober may miss Windows)"
+  fi
   # Maintainer scripts must not start services in the target.
   printf '#!/bin/sh\n# aurora-install: do not start daemons in the target\nexit 101\n' >"$t/usr/sbin/policy-rc.d"
   chmod 0755 "$t/usr/sbin/policy-rc.d"
@@ -1604,17 +1611,23 @@ GRUB_GFXPAYLOAD_LINUX=keep
 GRUB_DISABLE_OS_PROBER=false
 $theme_line
 EOF
-  # GRUB package updates must never overwrite another system's removable EFI/BOOT/BOOTX64.EFI.
-  local extra=false; ((ESP_OWN_FALLBACK)) && extra=true
+  # GRUB package updates must never overwrite another system's removable EFI/BOOT/BOOTX64.EFI. Ubuntu 24.04's
+  # grub-install writes EFI/BOOT/{BOOTX64,fbx64,mmx64}.efi BY DEFAULT ("extra removable"); grub-efi-amd64's postinst
+  # passes --no-extra-removable only when grub2/no_efi_extra_removable is true (force_efi_extra_removable is the old
+  # Debian opt-in and has no effect on that default).
+  local extra=false noextra=true; ((ESP_OWN_FALLBACK)) && { extra=true; noextra=false; }
   in_target debconf-set-selections >&2 2>&1 <<EOF || log "warning: debconf-set-selections (grub) failed"
 grub-efi-amd64 grub2/force_efi_extra_removable boolean $extra
+grub-efi-amd64 grub2/no_efi_extra_removable boolean $noextra
 EOF
   local before="$WORKDIR/esp-before.sha256" after="$WORKDIR/esp-after.sha256" snap=1
   esp_snapshot "$before" || { snap=0; log "warning: could not read the EFI system partition for the before/after check"; }
   # EFI/ubuntu: Ubuntu's signed shim + GRUB (their built-in prefix is /EFI/ubuntu); the NVRAM entry is added below.
+  # --no-extra-removable: without it this grub-install also replaces EFI/BOOT/BOOTX64.EFI (and adds fbx64/mmx64.efi
+  # there), i.e. another system's fallback loader (seen in QEMU/OVMF next to Windows and next to Arch).
   run "could not install the UEFI boot loader" \
     in_target grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot \
-      --bootloader-id=ubuntu --no-nvram --recheck
+      --bootloader-id=ubuntu --no-nvram --no-extra-removable --recheck
   [[ -s "$TARGET/boot/efi/EFI/ubuntu/grubx64.efi" ]] || die 5 "EFI/ubuntu/grubx64.efi was not installed"
   if ((ESP_OWN_FALLBACK)); then
     run "could not install the removable UEFI boot loader" \
