@@ -1,0 +1,9 @@
+# Selene OS (track "robust", iso/packages.d/robust.list): earlyoom options, read after Ubuntu's /etc/default/earlyoom
+# (drop-in /etc/systemd/system/earlyoom.service.d/aurora.conf), so this value wins. No quotes or spaces inside the
+# regexes: systemd splits $EARLYOOM_ARGS at whitespace and passes quotes through literally.
+#   -m 5 -s 10  act when available memory is under 5 % and free swap under 10 %
+#   -r 0        no periodic memory report in the journal (kills are still logged)
+#   --avoid     the desktop itself is the last candidate: Xorg, greetd, the Selene shell and sign-in screen
+#               (electron), the X window helper, D-Bus, audio, NetworkManager, systemd
+#   --prefer    big apps first: web browsers, Steam, Wine games, Java
+EARLYOOM_ARGS="-m 5 -s 10 -r 0 --avoid ^(Xorg|Xwayland|greetd|agreety|electron|aurora-xwm|aurora-session|aurora-xsession|systemd|systemd-.*|dbus-daemon|dbus-broker|pipewire|pipewire-pulse|wireplumber|NetworkManager|sshd|polkitd)$ --prefer ^(chromium|chrome|firefox|steam|steamwebhelper|wine.*|java)$"

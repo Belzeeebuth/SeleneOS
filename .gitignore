@@ -10,3 +10,6 @@ node_modules/
 # The repository root ignores every "bin/" directory (generic template): keep the image's
 # /usr/bin scripts (aurora-shell, aurora-session) in git.
 !/rootfs/usr/bin/
+
+# Selene archive signing key (private; tools/selene-key.sh). Only iso/keys/*.gpg (public) is committed.
+/keys/

@@ -1,0 +1,9 @@
+# Selene OS release image: system updates (owned by the "image" track).
+# The kernel (KERNEL_PACKAGE, HWE by default) and linux-firmware (WITH_FIRMWARE=1, default) are
+# added by iso/build.sh from iso/config.sh; the HWE kernel metapackage also pulls intel-microcode
+# and amd64-microcode.
+#
+# Security updates install themselves on INSTALLED systems (APT::Periodic in
+# rootfs/etc/apt/apt.conf.d/21aurora-auto-upgrades, -security origins only, old kernels removed); the
+# apt-daily units are skipped in the live session (rootfs/etc/systemd/system/apt-daily*.d/).
+unattended-upgrades

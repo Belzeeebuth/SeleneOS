@@ -1,0 +1,8 @@
+# Low memory (track "robust"): earlyoom kills the biggest app (by oom_score) when available memory AND swap run
+# low, before the kernel OOM killer stalls the desktop for minutes. Chosen over systemd-oomd (Ubuntu desktop's
+# default) because Selene's shell, Xorg and the apps it starts all live in ONE session scope: systemd-oomd kills
+# whole cgroups, so it would end the whole session instead of one app. earlyoom picks a single process, and
+# /etc/default/aurora-earlyoom (rootfs/, via a drop-in) never picks Xorg, greetd or the shell (electron) unless
+# nothing else is left.
+# Enabled by iso/build.sh configure_services; checked by tools/verify-iso.sh.
+earlyoom

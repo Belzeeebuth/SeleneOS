@@ -1,0 +1,16 @@
+#!/bin/sh
+# aurora-base postrm: give the diverted Ubuntu files back when Selene's are removed.
+set -e
+case "$1" in
+remove|abort-install|disappear)
+  for f in @DIVERSIONS@; do
+    dpkg-divert --package aurora-base --rename --divert "$f.ubuntu" --remove "$f" >/dev/null || true
+  done
+  if [ "$(dpkg-divert --listpackage /usr/lib/os-release)" = aurora-base ]; then
+    dpkg-divert --package aurora-base --no-rename --remove /usr/lib/os-release >/dev/null
+    [ -f /usr/lib/os-release.ubuntu ] && mv /usr/lib/os-release.ubuntu /usr/lib/os-release
+  fi
+  [ -d /run/systemd/system ] && systemctl daemon-reload || true
+  ;;
+esac
+exit 0

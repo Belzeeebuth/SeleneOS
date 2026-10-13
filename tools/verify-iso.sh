@@ -367,6 +367,19 @@ st="$(systemctl --root="$S" is-enabled fwupd-refresh.timer 2>/dev/null || true)"
 [[ "$st" == enabled ]] && pass "systemctl --root: fwupd-refresh.timer is $st" || fail "systemctl --root: fwupd-refresh.timer is '$st'"
 grep -q '^firmware-update)' "$S/usr/lib/aurora/helpers/aurora-admin" && pass "aurora-admin has the firmware-update action" || fail "aurora-admin lacks firmware-update"
 
+# Input + power (iso/packages.d/power.list, inputpower track): tap-to-click for touchpads, power modes, lid action.
+for p in power-profiles-daemon upower xinput x11-xserver-utils; do
+  grep -A1 -x "Package: $p" "$S/var/lib/dpkg/status" | grep -q '^Status: install ok installed' && pass "package $p installed (power / input)" || fail "package $p missing (power / input)"
+done
+for b in /usr/bin/powerprofilesctl /usr/bin/xinput /usr/bin/xset; do
+  [[ -x "$S$b" ]] && pass "image has $b (power / input)" || fail "image lacks $b (power / input: rebuild with --from packages)"
+done
+st="$(systemctl --root="$S" is-enabled power-profiles-daemon.service 2>/dev/null || true)"
+[[ "$st" == enabled ]] && pass "systemctl --root: power-profiles-daemon.service is $st" || fail "systemctl --root: power-profiles-daemon.service is '$st'"
+grep -qs 'Option "Tapping" "on"' "$S/etc/X11/xorg.conf.d/40-aurora-touchpad.conf" && pass "touchpads tap to click by default (xorg.conf.d)" || fail "40-aurora-touchpad.conf missing (no tap-to-click)"
+grep -q '^power-lid)' "$S/usr/lib/aurora/helpers/aurora-admin" && pass "aurora-admin has the power-lid action" || fail "aurora-admin lacks power-lid"
+[[ -f "$S/opt/aurora/shell/main/ipc/inputpower.js" && -f "$S/opt/aurora/shell/renderer/core/features/power.js" ]] && pass "shell has the touchpad / power backends (inputpower.js, features/power.js)" || fail "shell lacks inputpower.js or features/power.js"
+
 # Build leftovers / host leaks.
 [[ ! -s "$S/etc/machine-id" ]] && pass "/etc/machine-id is empty (generated at boot)" || fail "/etc/machine-id is set"
 compgen -G "$S/etc/ssh/ssh_host_*" >/dev/null && fail "SSH host keys shipped" || pass "no SSH host keys"
@@ -392,6 +405,143 @@ leftover="$(find "$S/var/log" -type f -size +0 -printf '/var/log/%P ' 2>/dev/nul
 [[ -z "$leftover" ]] && pass "logs and temporary files are empty" || fail "build leftovers: $leftover"
 nlists="$(find "$S/var/lib/apt/lists" -type f ! -name lock 2>/dev/null | wc -l)"; ndebs="$(find "$S/var/cache/apt/archives" -name '*.deb' 2>/dev/null | wc -l)"
 ((nlists == 0 && ndebs == 0)) && pass "apt lists and .deb cache are empty" || fail "apt caches not cleaned ($nlists list files, $ndebs debs)"
+
+# ---- BEGIN Selene packages (self-updates, docs/UPDATES.md) -----------------------------------
+# Selene's files come from its own packages (tools/build-debs.sh), so installed systems can update them.
+for p in aurora-electron aurora-shell aurora-base; do
+  grep -A1 -x "Package: $p" "$S/var/lib/dpkg/status" | grep -q '^Status: install ok installed' && pass "package $p installed (Selene)" || fail "package $p missing (Selene)"
+done
+for pf in aurora-electron:/opt/aurora/electron/electron aurora-shell:/opt/aurora/shell/main/index.js \
+          aurora-shell:/opt/aurora/shell/node_modules aurora-base:/usr/lib/aurora/helpers/aurora-admin \
+          aurora-base:/usr/lib/aurora/aurora-xsession aurora-base:/etc/apparmor.d/aurora-shell \
+          aurora-base:/etc/apt/sources.list.d/selene.sources aurora-base:/usr/share/keyrings/selene-archive-keyring.gpg; do
+  own="$(dpkg-query --admindir="$S/var/lib/dpkg" -S "${pf#*:}" 2>/dev/null | head -n1 | cut -d: -f1)"
+  [[ "$own" == "${pf%%:*}" ]] && pass "${pf#*:} belongs to ${pf%%:*} (dpkg -S)" || fail "${pf#*:} is not owned by ${pf%%:*} (dpkg -S: ${own:-none})"
+done
+grep -qx '/etc/sudoers.d/aurora' "$S/var/lib/dpkg/info/aurora-base.conffiles" 2>/dev/null && pass "aurora-base: /etc files are conffiles" || fail "aurora-base: /etc/sudoers.d/aurora is not a conffile"
+for f in /etc/greetd/config.toml /etc/systemd/zram-generator.conf; do
+  [[ "$(dpkg-divert --admindir "$S/var/lib/dpkg" --listpackage "$f" 2>/dev/null)" == aurora-base ]] && pass "$f diverted by aurora-base (Ubuntu's kept as $f.ubuntu)" || fail "$f is not diverted by aurora-base"
+done
+[[ -n "$(dpkg-divert --admindir "$S/var/lib/dpkg" --listpackage /usr/lib/os-release 2>/dev/null)" ]] && pass "/usr/lib/os-release is diverted (base-files upgrades keep the Selene one)" || fail "/usr/lib/os-release is not diverted"
+src="$S/etc/apt/sources.list.d/selene.sources"
+if [[ -f "$src" ]] && grep -qx 'Signed-By: /usr/share/keyrings/selene-archive-keyring.gpg' "$src" && grep -q '^URIs: https\?://' "$src"; then
+  pass "Selene apt source: $(sed -n 's/^URIs: //p' "$src") (Signed-By the Selene keyring)"
+else fail "Selene apt source missing or not signed-by the Selene keyring"; fi
+if command -v gpg >/dev/null 2>&1 && [[ -s "$S/usr/share/keyrings/selene-archive-keyring.gpg" ]]; then
+  mkdir -p -m 0700 "$T/gnupg"
+  GNUPGHOME="$T/gnupg" gpg --batch --no-default-keyring --keyring "$S/usr/share/keyrings/selene-archive-keyring.gpg" --with-colons --list-keys 2>/dev/null | grep -q '^pub' \
+    && pass "Selene archive keyring holds a public key" || fail "Selene archive keyring is not a valid keyring"
+fi
+[[ -s "$S/opt/aurora/shell/selene-version" ]] && pass "shell package version $(cat "$S/opt/aurora/shell/selene-version")" || fail "/opt/aurora/shell/selene-version missing"
+# ---- END Selene packages ---------------------------------------------------------------------
+
+# ---- robust (track "robust"): low memory killer, bug report URLs -------------------------------
+grep -A1 -x "Package: earlyoom" "$S/var/lib/dpkg/status" | grep -q '^Status: install ok installed' && pass "package earlyoom installed (low memory)" || fail "package earlyoom missing (iso/packages.d/robust.list)"
+st="$(systemctl --root="$S" is-enabled earlyoom.service 2>/dev/null || true)"
+[[ "$st" == enabled ]] && pass "systemctl --root: earlyoom.service is $st" || fail "systemctl --root: earlyoom.service is '$st'"
+grep -q -- '--avoid ^(Xorg|Xwayland|greetd|agreety|electron|' "$S/etc/default/aurora-earlyoom" 2>/dev/null && grep -qx 'EnvironmentFile=-/etc/default/aurora-earlyoom' "$S/etc/systemd/system/earlyoom.service.d/aurora.conf" 2>/dev/null \
+  && grep -q 'EARLYOOM_ARGS' "$S/usr/lib/systemd/system/earlyoom.service" && pass "earlyoom avoids Xorg, greetd and the shell (/etc/default/aurora-earlyoom + drop-in)" || fail "earlyoom options do not protect Xorg / the shell"
+grep -qx 'BUG_REPORT_URL="https://github.com/Belzeeebuth/claudeai-test/issues"' "$S/usr/lib/os-release" && grep -qx 'SUPPORT_URL="https://github.com/Belzeeebuth/claudeai-test/issues"' "$S/usr/lib/os-release" \
+  && pass "os-release BUG_REPORT_URL / SUPPORT_URL point to the Selene issues" || fail "os-release BUG_REPORT_URL / SUPPORT_URL are not the Selene issues page"
+grep -q 'AURORA_SAFE_MODE=1' "$S/usr/lib/aurora/aurora-xsession" && pass "aurora-xsession starts the shell in safe mode after 2 crashes" || fail "aurora-xsession has no safe mode"
+# ---- END robust --------------------------------------------------------------------------------
+
+# ---- trayn (iso/packages.d/tray.list): notification server, tray, notify-send ---------------------
+for p in libnotify-bin python3-dbus python3-gi; do
+  grep -A1 -x "Package: $p" "$S/var/lib/dpkg/status" | grep -q '^Status: install ok installed' && pass "package $p installed (notifications / tray)" || fail "package $p missing (iso/packages.d/tray.list)"
+done
+[[ -x "$S/usr/bin/notify-send" ]] && pass "image has notify-send" || fail "image lacks notify-send"
+[[ -x "$S/usr/lib/aurora/helpers/aurora-sessionbus" ]] && pass "aurora-sessionbus helper is executable" || fail "aurora-sessionbus helper missing"
+for f in main/ipc/sessionbus.js main/ipc/autostart.js renderer/core/features/dbus-notify.js renderer/core/features/tray.js; do
+  [[ -f "$S/opt/aurora/shell/$f" ]] && pass "shell has $f" || fail "shell lacks $f"
+done
+# no other notification daemon may take org.freedesktop.Notifications before Selene's helper
+grep -Eqs '^Name=(org\.freedesktop\.Notifications|org\.kde\.StatusNotifierWatcher)$' "$S"/usr/share/dbus-1/services/* \
+  && warn "a D-Bus activatable notification daemon is installed: $(grep -lE "^Name=(org.freedesktop.Notifications|org.kde.StatusNotifierWatcher)$" "$S"/usr/share/dbus-1/services/* 2>/dev/null | tr '\n' ' ')" \
+  || pass "no D-Bus activated notification daemon competes with Selene"
+# ---- END trayn ---------------------------------------------------------------------------------
+
+# ---- BEGIN image (track "image"): Secure Boot EFI image, firmware, HWE kernel, system updates ---------------
+installed() { grep -A1 -x "Package: $1" "$S/var/lib/dpkg/status" | grep -q '^Status: install ok installed'; }
+# Secure Boot: the EFI image boots Ubuntu's Microsoft-signed shim, which loads the Canonical-signed CD GRUB.
+if [[ -s "$T/efi.img" ]]; then
+  mkdir -p "$T/sb"
+  for f in BOOTX64.EFI grubx64.efi mmx64.efi grub.cfg; do mcopy -n -i "$T/efi.img" "::/EFI/BOOT/$f" "$T/sb/$f" 2>/dev/null || true; done
+  if [[ -s "$T/sb/BOOTX64.EFI" ]] && grep -aq 'Microsoft Corporation UEFI CA 2011' "$T/sb/BOOTX64.EFI" && grep -aq 'shim' "$T/sb/BOOTX64.EFI"; then
+    pass "EFI image: BOOTX64.EFI is the Microsoft-signed shim (Secure Boot)"
+  else
+    fail "EFI image: BOOTX64.EFI is not the signed shim (the live ISO would not boot with Secure Boot on)"
+  fi
+  if [[ -s "$T/sb/grubx64.efi" ]] && grep -aq 'Canonical Ltd. Secure Boot Signing' "$T/sb/grubx64.efi"; then
+    pass "EFI image: grubx64.efi is Canonical's signed GRUB"
+  else
+    fail "EFI image: no Canonical-signed grubx64.efi next to shim"
+  fi
+  [[ -s "$T/sb/mmx64.efi" ]] && pass "EFI image: MokManager (mmx64.efi)" || warn "EFI image: no mmx64.efi (MOK enrolment for the NVIDIA driver needs it on the installed system only)"
+  grep -q 'configfile $prefix/grub.cfg' "$T/sb/grub.cfg" 2>/dev/null && grep -q '/.disk/aurora-build-id' "$T/sb/grub.cfg" \
+    && pass "EFI image: grub.cfg stub finds the ISO and reads /boot/grub/grub.cfg" || fail "EFI image: grub.cfg stub missing"
+  if [[ -s "$I/efi/boot/bootx64.efi" ]] && cmp -s "$I/efi/boot/bootx64.efi" "$T/sb/BOOTX64.EFI" && cmp -s "$I/efi/boot/grubx64.efi" "$T/sb/grubx64.efi"; then
+    pass "ISO /efi/boot: the same signed shim + GRUB"
+  else
+    warn "ISO /efi/boot does not hold the signed shim + GRUB (only firmware reading ISO 9660 directly uses it)"
+  fi
+  if command -v sbverify >/dev/null 2>&1; then
+    sbverify --list "$I/casper/vmlinuz" 2>/dev/null | grep -q 'Canonical' && pass "casper/vmlinuz is signed by Canonical (verified by shim under Secure Boot)" || fail "casper/vmlinuz is not signed (Secure Boot would refuse it)"
+  fi
+fi
+# Kernel: HWE by default (iso/config.sh KERNEL_PACKAGE), the same version on the ISO and in the image.
+kver="$(grep -aoE -m1 '[0-9]+\.[0-9]+\.[0-9]+-[0-9]+-generic \(' "$I/casper/vmlinuz" 2>/dev/null | head -n1 | sed 's/ ($//' || true)"
+if [[ -n "$kver" && -d "$S/usr/lib/modules/$kver" ]]; then pass "kernel $kver: casper/vmlinuz matches /usr/lib/modules/$kver"
+else fail "casper/vmlinuz ($kver) has no modules in the image ($(ls "$S/usr/lib/modules" 2>/dev/null | tr '\n' ' '))"; fi
+if installed linux-image-generic-hwe-24.04; then pass "HWE kernel (linux-image-generic-hwe-24.04): ubuntu-drivers picks linux-modules-nvidia-*-generic-hwe-24.04"
+elif installed linux-image-generic; then warn "GA kernel (linux-image-generic): KERNEL_PACKAGE overridden?"
+else fail "no kernel metapackage installed (the installed system would not get kernel updates)"; fi
+for p in intel-microcode amd64-microcode; do installed "$p" && pass "package $p installed" || warn "package $p missing (CPU microcode updates)"; done
+# Firmware: WITH_FIRMWARE=1 (default) ships linux-firmware; the placeholder only in WITH_FIRMWARE=0 builds.
+fwflag="$(sed -n 's/^AURORA_FIRMWARE=//p' "$S/etc/aurora/build-info" 2>/dev/null)"
+if [[ "$fwflag" == 1 ]]; then
+  installed linux-firmware && pass "linux-firmware installed (real hardware)" || fail "linux-firmware not installed although AURORA_FIRMWARE=1"
+  installed aurora-firmware-placeholder && fail "aurora-firmware-placeholder installed next to the real linux-firmware" || pass "no aurora-firmware-placeholder"
+  FW="$S/usr/lib/firmware"
+  fwcheck() { # description glob...
+    local d="$1" g; shift
+    for g in "$@"; do compgen -G "$FW/$g" >/dev/null && { pass "firmware: $d"; return; }; done
+    fail "firmware: $d missing ($*)"
+  }
+  fwcheck "Intel Wi-Fi (iwlwifi)" 'iwlwifi-*.ucode' 'iwlwifi-*.ucode.zst'
+  fwcheck "AMD GPUs (amdgpu)" 'amdgpu/*.bin' 'amdgpu/*.bin.zst'
+  fwcheck "Intel GPU GuC (i915)" 'i915/*_guc_*.bin' 'i915/*_guc_*.bin.zst'
+  fwcheck "Intel GPU DMC (i915)" 'i915/*_dmc*.bin' 'i915/*_dmc*.bin.zst'
+  fwcheck "Realtek Wi-Fi rtw88" 'rtw88/*.bin' 'rtw88/*.bin.zst'
+  fwcheck "Realtek Wi-Fi rtw89" 'rtw89/*.bin' 'rtw89/*.bin.zst'
+  fwcheck "Broadcom Wi-Fi (brcmfmac)" 'brcm/brcmfmac*' 'brcm/brcmfmac*.zst'
+  fwcheck "Realtek Bluetooth" 'rtl_bt/*.bin' 'rtl_bt/*.bin.zst'
+else
+  warn "built with WITH_FIRMWARE=${fwflag:-?}: no linux-firmware (VM image, not for real PCs)"
+  installed aurora-firmware-placeholder && pass "aurora-firmware-placeholder stands in for linux-firmware" || fail "neither linux-firmware nor the placeholder installed"
+fi
+# System updates: unattended-upgrades on installed systems only (-security), lists refreshed daily, old kernels removed.
+installed unattended-upgrades && pass "unattended-upgrades installed" || fail "unattended-upgrades missing (iso/packages.d/release.list)"
+pc="$S/etc/apt/apt.conf.d/21aurora-auto-upgrades"
+grep -q 'APT::Periodic::Update-Package-Lists "1"' "$pc" 2>/dev/null && grep -q 'APT::Periodic::Unattended-Upgrade "1"' "$pc" && grep -q 'APT::Periodic::AutocleanInterval' "$pc" \
+  && pass "APT::Periodic: lists daily, unattended-upgrade, autoclean (21aurora-auto-upgrades)" || fail "APT::Periodic settings missing ($pc)"
+grep -q 'Unattended-Upgrade::Remove-Unused-Kernel-Packages "true"' "$S/etc/apt/apt.conf.d/52aurora-unattended-upgrades" 2>/dev/null \
+  && pass "unattended-upgrades removes old kernels" || fail "Remove-Unused-Kernel-Packages not set"
+grep -Eq '^[[:space:]]*"\$\{distro_id\}:\$\{distro_codename\}-security";' "$S/etc/apt/apt.conf.d/50unattended-upgrades" 2>/dev/null \
+  && ! grep -Eq '^[[:space:]]*"\$\{distro_id\}:\$\{distro_codename\}-updates";' "$S/etc/apt/apt.conf.d/50unattended-upgrades" \
+  && pass "unattended-upgrades origins: -security only" || warn "unattended-upgrades origins are not -security only"
+for u in apt-daily.timer apt-daily-upgrade.timer; do
+  [[ -L "$S/etc/systemd/system/timers.target.wants/$u" ]] && pass "$u enabled" || fail "$u not enabled (no automatic updates on installed systems)"
+done
+for u in apt-daily.service apt-daily-upgrade.service unattended-upgrades.service apt-daily.timer apt-daily-upgrade.timer; do
+  grep -qs 'ConditionKernelCommandLine=!boot=casper' "$S/etc/systemd/system/$u.d/aurora-live.conf" || { fail "$u runs in the live session (no aurora-live.conf drop-in)"; continue; }
+done
+pass "apt-daily / unattended-upgrades skipped in the live session (ConditionKernelCommandLine=!boot=casper)"
+grep -q '^apt-autoremove)' "$S/usr/lib/aurora/helpers/aurora-admin" && pass "aurora-admin apt-autoremove (after « Mettre à jour »)" || fail "aurora-admin has no apt-autoremove action"
+for f in main/ipc/updates.js renderer/core/features/update-check.js; do
+  [[ -f "$S/opt/aurora/shell/$f" ]] && pass "shell has $f (background update check)" || fail "shell lacks $f"
+done
+# ---- END image ----------------------------------------------------------------------------------------------
 
 # initramfs: casper + Selene OS splash.
 if [[ -x "$S/usr/bin/lsinitramfs" ]]; then

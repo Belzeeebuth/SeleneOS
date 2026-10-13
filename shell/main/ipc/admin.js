@@ -58,6 +58,14 @@ const ACTIONS = {
   'apt-upgrade': { args: [], timeout: 0, stream: true },
 };
 
+// ---- BEGIN apt-autoremove (image track: Paramètres > Mises à jour, main/ipc/updates.js) ----
+// apt-autoremove: unused packages (old kernels) removed after « Mettre à jour ». It runs as the follow-up (`then`) of
+// apt-upgrade with the same authorization (one prompt); its failure never fails the update ("apt-autoremove-failed"
+// line). Progress streamed as admin:progress { action: 'apt-autoremove' }. Dev: simulated in updates.js (devRun).
+ACTIONS['apt-autoremove'] = { args: [], timeout: 30 * 60 * 1000, stream: true };
+ACTIONS['apt-upgrade'].then = 'apt-autoremove';
+// ---- END apt-autoremove ----
+
 // ---- BEGIN disks (Disks app: renderer/apps/disks, main/ipc/disks.js) ----
 // format-removable <whole removable disk> <vfat|exfat|ext4> <label>: one msdos partition + mkfs (helper re-checks
 // that the disk is removable, not the system / live medium, and unmounts its partitions).
@@ -94,6 +102,12 @@ ACTIONS['drivers-remove'] = { args: [], timeout: 0, stream: true };
 // "reboot-required" when the device needs a restart to finish). Dev: simulated in firmware.js (devRun).
 ACTIONS['firmware-update'] = { args: [/^[0-9a-f]{40}$/], timeout: 60 * 60 * 1000 };
 // ---- END firmware ----
+
+// ---- BEGIN power (Settings > Power > lid: renderer/apps/settings/pages/system.js, main/ipc/inputpower.js) ----
+// power-lid <suspend|ignore|poweroff>: logind drop-in /etc/systemd/logind.conf.d/50-aurora-lid.conf (HandleLidSwitch and
+// HandleLidSwitchExternalPower), then logind reloads it. Dev: simulated in inputpower.js (devRun).
+ACTIONS['power-lid'] = { args: [/^(suspend|ignore|poweroff)$/] };
+// ---- END power ----
 
 function err(message, code) {
   const e = new Error(message);
@@ -271,6 +285,8 @@ async function devRun(action, args, secret, onLine) {
   if (action.startsWith('drivers-')) return require('./drivers').devRun(action, args, onLine); // graphics drivers: simulated in drivers.js
   if (action.startsWith('printer-')) return require('./printers').devRun(action, args); // printers: simulated CUPS in printers.js
   if (action === 'firmware-update') return require('./firmware').devRun(action, args); // firmware: simulated fwupd in firmware.js
+  if (action === 'power-lid') return require('./inputpower').devRun(action, args); // lid action: simulated in inputpower.js
+  if (action === 'apt-autoremove') return require('./updates').devRun(action, args, onLine); // after apt-upgrade: simulated in updates.js
   const users = dev.users || [];
   const find = (n) => users.find((u) => u.name === n);
   const need = (n) => {
@@ -350,11 +366,20 @@ async function devRun(action, args, secret, onLine) {
       return 'ok\n';
     case 'apt-check':
       await sleep(1600);
+      // Selene self-updates (selene-update.js, docs/UPDATES.md): AURORA_DEV_SELENE_UPDATE=1 adds Selene's packages.
+      if (process.env.AURORA_DEV_SELENE_UPDATE === '1' && !dev.upgradable.some((p) => p[0] === 'aurora-shell')) {
+        dev.upgradable.push(
+          ['aurora-base', '', '1.0.0-324', '1.0.1-331', 'Selene OS:noble [amd64]'],
+          ['aurora-electron', '', '44.7.0-1', '44.7.1-1', 'Selene OS:noble [amd64]'],
+          ['aurora-shell', '', '1.0.0-324', '1.0.1-331', 'Selene OS:noble [amd64]'],
+        );
+      }
       dev.aptListsFetched = true; // package lists downloaded (drivers.js: ubuntu-drivers now lists the NVIDIA drivers)
       if (dev.updated) return '';
       return `${dev.upgradable.map(([n, epoch, from, to, origin]) => `Inst ${n} [${epoch ? `${epoch}:` : ''}${from}] (${to} ${origin})`).join('\n')}\n`;
     case 'apt-upgrade': {
       const pkgs = dev.updated ? [] : dev.upgradable.map((p) => p[0]);
+      const shellUp = dev.updated ? null : dev.upgradable.find((p) => p[0] === 'aurora-shell');
       const emit = (l) => onLine?.(`${l}\n`);
       for (let i = 0; i < pkgs.length; i++) {
         emit(`dlstatus:${i + 1}:${(((i + 1) / pkgs.length) * 100).toFixed(4)}:Retrieving file ${i + 1} of ${pkgs.length}`);
@@ -369,6 +394,7 @@ async function devRun(action, args, secret, onLine) {
           await sleep(90);
         }
       }
+      if (shellUp) require('./selene-update').devUpdated(shellUp[3]);
       dev.updated = true;
       return 'done\n';
     }
@@ -413,27 +439,32 @@ function register(api) {
       args = [];
     }
     const { spec, args: clean, secret } = validate(String(action), args || []);
-    const onLine = spec.stream
-      ? (() => {
-          let buf = '';
-          return (chunk) => {
-            buf += chunk;
-            let i;
-            while ((i = buf.indexOf('\n')) >= 0) {
-              const line = buf.slice(0, i);
-              buf = buf.slice(i + 1);
-              if (line) api.sendTo(event?.sender, 'admin:progress', { action, line });
-            }
-          };
-        })()
-      : null;
+    const lineSink = (name) => {
+      let buf = '';
+      return (chunk) => {
+        buf += chunk;
+        let i;
+        while ((i = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, i);
+          buf = buf.slice(i + 1);
+          if (line) api.sendTo(event?.sender, 'admin:progress', { action: name, line });
+        }
+      };
+    };
+    const onLine = spec.stream ? lineSink(action) : null;
+    // spec.then (apt-upgrade -> apt-autoremove): run with the same authorization once the action succeeded; its
+    // failure is reported as a "<then>-failed" line, never as a failure of the action itself.
+    const followUp = async (runOne) => {
+      if (!spec.then) return '';
+      return runOne(spec.then, ACTIONS[spec.then].stream ? lineSink(spec.then) : null).catch(() => `${spec.then}-failed\n`);
+    };
     if (useMock) {
       // Simulation: any password works except "wrong" (lets tests exercise the retry path); a
       // standard (non-administrator) current user is refused like sudo refuses it.
       if (password === 'wrong') throw err('Authentication failed', 'EAUTH');
       if (!isAdmin()) throw err('This account is not allowed to make administrator changes', 'ENOTADMIN');
       const stdout = await devRun(action, clean, secret, onLine);
-      return { stdout };
+      return { stdout: stdout + (await followUp((then, sink) => devRun(then, [], null, sink))) };
     }
     const argv = [action, ...clean];
     let input = '';
@@ -448,7 +479,10 @@ function register(api) {
         timeout: spec.timeout === 0 ? undefined : spec.timeout || 120000,
         onStdout: onLine || undefined,
       });
-      return { stdout: res.stdout };
+      const more = await followUp((then, sink) =>
+        sudoRun(String(password ?? ''), helperPath('aurora-admin'), [then], { timeout: ACTIONS[then].timeout, onStdout: sink || undefined }).then((r) => r.stdout),
+      );
+      return { stdout: res.stdout + more };
     } catch (e) {
       throw helperError(e);
     }

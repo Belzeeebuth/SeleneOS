@@ -1377,6 +1377,8 @@ export class Explorer {
     const handler = reg.handlerFor(entry.path);
     if (!handler) {
       if (T.isArchive(entry)) return dlg.extractDialog(this, entry);
+      // Office documents: « installez LibreOffice » (core/features/office.js, through shell.openFile).
+      if (/\.(docx?|xlsx?|pptx?|od[tsp]|rtf)$/i.test(entry.path)) return this.ctx.shell.openFile(entry.path, { parent: this.ctx.win }).catch((err) => ops.alertError(this, err));
       return dlg.chooseApp(this, entry);
     }
     addRecent(entry.path);

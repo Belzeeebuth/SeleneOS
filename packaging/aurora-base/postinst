@@ -1,0 +1,51 @@
+#!/bin/sh
+# aurora-base postinst: os-release branding, then (on a running system only, never in a build chroot)
+# systemd reload, tmpfiles and the AppArmor profile of the Selene Shell.
+set -e
+SELENE_VERSION=@UPSTREAM@
+OS_NAME="Selene OS"
+
+write_os_release() {
+  src=/usr/lib/os-release.ubuntu
+  grep -q '^ID=ubuntu$' "$src" 2>/dev/null || return 0
+  build=$(sed -n 's/^AURORA_BUILD_ID=//p' /etc/aurora/build-info 2>/dev/null || true)
+  base=$(sed -n 's/^VERSION="\(.*\)"/\1/p' "$src" | sed 's/ (.*//')
+  {
+    echo "PRETTY_NAME=\"$OS_NAME $SELENE_VERSION\""
+    echo "NAME=\"$OS_NAME\""
+    grep -E '^VERSION_ID=' "$src"
+    echo "VERSION=\"$SELENE_VERSION (based on Ubuntu $base)\""
+    grep -E '^(VERSION_CODENAME|ID|ID_LIKE|HOME_URL|SUPPORT_URL|BUG_REPORT_URL|PRIVACY_POLICY_URL|UBUNTU_CODENAME)=' "$src"
+    echo "LOGO=aurora-logo"
+    echo "IMAGE_ID=aurora-os"
+    echo "IMAGE_VERSION=$SELENE_VERSION"
+    [ -n "$build" ] && echo "BUILD_ID=$build"
+  } >/usr/lib/os-release.selene-new
+  mv /usr/lib/os-release.selene-new /usr/lib/os-release
+  ln -sf ../usr/lib/os-release /etc/os-release
+  if [ -f /etc/lsb-release ]; then
+    sed -i "s/^DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION=\"$OS_NAME $SELENE_VERSION\"/" /etc/lsb-release
+  fi
+}
+
+if [ "$1" = configure ]; then
+  write_os_release
+  # systemd units shipped by aurora-base that have an [Install] section (same logic as dh_installsystemd:
+  # enabled on first install, the administrator's choice kept on upgrades).
+  for u in @UNITS@; do
+    deb-systemd-helper unmask "$u" >/dev/null || true
+    if deb-systemd-helper --quiet was-enabled "$u"; then
+      deb-systemd-helper enable "$u" >/dev/null || true
+    else
+      deb-systemd-helper update-state "$u" >/dev/null || true
+    fi
+  done
+  if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload || true
+    systemd-tmpfiles --create /usr/lib/tmpfiles.d/aurora.conf >/dev/null 2>&1 || true
+    if [ -d /sys/kernel/security/apparmor ] && [ -x /usr/sbin/apparmor_parser ] && [ -f /etc/apparmor.d/aurora-shell ]; then
+      apparmor_parser -r -W -T /etc/apparmor.d/aurora-shell || true
+    fi
+  fi
+fi
+exit 0

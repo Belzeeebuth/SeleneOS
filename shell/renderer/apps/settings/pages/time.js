@@ -206,6 +206,17 @@ async function language(pc) {
         body: () => h('div', { class: 'st-kv st-sub-pad' }, fmt.flatMap(([k, v]) => [h('div', { class: 'k' }, k), h('div', { class: 'v' }, v)])),
       }),
     ),
+    // Spell check (core/features/spell.js + main/ipc/spell.js); on by default.
+    kit.group(
+      t('lang.spelling'),
+      kit.row({
+        icon: 'text_t',
+        title: t('lang.spellcheck'),
+        desc: t('lang.spellcheckDesc'),
+        section: 'spellcheck',
+        control: kit.toggle({ value: settings.get('spellcheck') !== false, label: t('lang.spellcheck'), onChange: (v) => settings.set('spellcheck', !!v) }),
+      }),
+    ),
     kit.related([{ icon: 'keyboard', title: pc.pageTitle('keyboard'), desc: pc.L(PAGES.keyboard.desc), onClick: () => pc.go('keyboard') }]),
   );
 }

@@ -134,6 +134,7 @@ async function check(pc) {
     state.lastCheck = Date.now();
     state.phase = null;
     persist(pc);
+    pc.tryInvoke('updates:pending'); // fresh lists: the background check's count and badge follow
   } catch (err) {
     state.phase = null;
     if (err.code !== 'ECANCELED') state.error = err.message;
@@ -149,6 +150,11 @@ async function install(pc) {
   state.error = null;
   emit();
   const off = pc.api.on('admin:progress', ({ action, line }) => {
+    // apt-autoremove: admin.js runs it right after apt-upgrade (old kernels, unused dependencies).
+    if (action === 'apt-autoremove') {
+      state.step = pc.t('update.cleaning');
+      return emit();
+    }
     if (action !== 'apt-upgrade') return;
     if (line === 'reboot-required') state.reboot = true;
     const s = parseAptStatus(line);
@@ -169,6 +175,7 @@ async function install(pc) {
     state.lastCheck = Date.now();
     state.phase = 'done';
     persist(pc);
+    pc.tryInvoke('updates:clear'); // background check (core/features/update-check.js): badge and count back to 0
     pc.shell.notify({ title: pc.t('update.installedTitle'), body: state.reboot ? pc.t('update.installedReboot') : pc.t('update.installedBody'), appId: 'settings' });
   } catch (err) {
     state.phase = null;
@@ -191,6 +198,16 @@ function when(pc, ms) {
 async function update(pc) {
   const { h, t, kit, icon } = pc;
   await loadSaved(pc);
+  // ---- BEGIN background check (core/features/update-check.js, main/ipc/updates.js) ----
+  // Its newer result (from the lists apt-daily refreshes) shows the pending updates without « Rechercher ».
+  if (!state.phase) {
+    const last = await pc.tryInvoke('updates:last');
+    if (last && !last.live && !last.error && last.checkedAt > (state.lastCheck || 0)) {
+      state.packages = last.packages.map((p) => ({ ...p, origin: '' }));
+      state.lastCheck = last.checkedAt;
+    }
+  }
+  // ---- END background check ----
   const [adm, info, onlineNow] = await Promise.all([pc.adminStatus(), pc.tryInvoke('sys:info'), online(pc)]);
   let isOnline = onlineNow;
   const root = h('div');

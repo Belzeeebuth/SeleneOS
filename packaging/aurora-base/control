@@ -1,0 +1,11 @@
+Package: aurora-base
+Version: @VERSION@
+Architecture: amd64
+Section: misc
+Priority: optional
+Maintainer: Selene OS <selene@selene-os.invalid>
+Installed-Size: @SIZE@
+Description: Selene OS — system integration
+ Session scripts, privileged helpers, systemd units, greetd, sudoers, polkit,
+ AppArmor, X11 and apt settings of Selene OS, the os-release branding and the
+ Selene apt repository (signed with the Selene archive key).

@@ -1,0 +1,17 @@
+#!/bin/sh
+# aurora-base preinst: keep Ubuntu's version of the files Selene replaces (packaging/aurora-base/diversions).
+set -e
+case "$1" in
+install|upgrade)
+  for f in @DIVERSIONS@; do
+    dpkg-divert --package aurora-base --rename --divert "$f.ubuntu" --add "$f" >/dev/null
+  done
+  # os-release: Ubuntu's copy stays as /usr/lib/os-release.ubuntu (base-files upgrades write there); postinst
+  # writes the Selene one. iso/build.sh used a --local diversion before Selene was packaged: keep any existing one.
+  if [ -z "$(dpkg-divert --listpackage /usr/lib/os-release)" ] && [ -f /usr/lib/os-release ]; then
+    cp -a /usr/lib/os-release /usr/lib/os-release.ubuntu
+    dpkg-divert --package aurora-base --no-rename --divert /usr/lib/os-release.ubuntu --add /usr/lib/os-release >/dev/null
+  fi
+  ;;
+esac
+exit 0

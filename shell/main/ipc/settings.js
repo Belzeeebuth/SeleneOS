@@ -147,11 +147,87 @@ function readJson(file, fallback) {
   }
 }
 
+// ENOSPC-safe: the new content goes to a temp file first; on any error (disk full, quota…) the temp file is removed
+// and the old file stays as it was. Throws the original error (err.code 'ENOSPC').
 function writeJsonAtomic(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(value, null, 2));
-  fs.renameSync(tmp, file);
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(value, null, 2));
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {}
+    throw err;
+  }
+}
+
+// ---- robustness (track "robust"): last-good backup of settings.json, restored on a parse error.
+// settings.json.last-good = the file as it was at the last sign-in where it parsed. A file that does not parse
+// (crash during a write by an older release, disk full, hand edit) is kept as settings.json.corrupt and replaced by
+// the backup (or by the defaults); `recovered` tells the shell to say so once (core/features/robust.js).
+function loadUserSettings(file) {
+  const backup = `${file}.last-good`;
+  let text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch {
+    return { user: {}, recovered: null };
+  }
+  try {
+    const user = JSON.parse(text);
+    if (!isObj(user)) throw new Error('not an object');
+    try {
+      if (!fs.existsSync(backup) || fs.readFileSync(backup, 'utf8') !== text) writeTextAtomic(backup, text);
+    } catch (err) {
+      console.error('[settings] backup not saved:', err.message);
+    }
+    return { user, recovered: null };
+  } catch (err) {
+    console.error(`[settings] ${file} is unreadable (${err.message}); restoring the last good copy`);
+  }
+  try {
+    fs.copyFileSync(file, `${file}.corrupt`);
+  } catch {}
+  let user = null;
+  try {
+    user = JSON.parse(fs.readFileSync(backup, 'utf8'));
+  } catch {}
+  const recovered = isObj(user) ? 'backup' : 'defaults';
+  if (!isObj(user)) user = {};
+  try {
+    writeJsonAtomic(file, user);
+  } catch (err) {
+    console.error('[settings] restored settings not saved:', err.message);
+  }
+  return { user, recovered };
+}
+function writeTextAtomic(file, text) {
+  const tmp = `${file}.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(tmp, text);
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {}
+    throw err;
+  }
+}
+// Safe mode (main/lib/robust.js state.safeMode): the user's look is ignored (not deleted): finish Sobre, default
+// style / wallpaper, no packs, no animated wallpaper. « Réinitialiser l'apparence » resets exactly these keys.
+const SAFE_LOOK_KEYS = [
+  'finish', 'style', 'ambiance', 'accent', 'wallpaper', 'wallpaperFit', 'wallpaperMode', 'animatedWallpaper', 'dynamicWallpaper',
+  'slideshow', 'lockScreen', 'lockWallpaper', 'tintFromWallpaper', 'accentFromWallpaper', 'transparencyLevel', 'blur', 'cornerRadius',
+  'fontFamily', 'appThemes', 'cursorPack', 'cursorSize', 'iconPack', 'soundPack', 'soundEvents', 'autoTheme', 'taskbar.color', 'taskbar.opacity',
+];
+function safeLook(base) {
+  const look = {};
+  for (const k of SAFE_LOOK_KEYS) setPath(look, k, structuredClone(getPath(base, k) ?? null));
+  Object.assign(look, { finish: 'sobre', style: 'nocturne', ambiance: null, accent: '#c9d3e6', wallpaper: 'builtin:nocturne', wallpaperMode: 'static', iconPack: 'auto', cursorPack: 'default' });
+  look.autoTheme = { ...(look.autoTheme || {}), enabled: false };
+  return look;
 }
 
 function getPath(obj, key) {
@@ -258,7 +334,10 @@ module.exports = function register(api) {
   migrate(system);
   const base = deepMerge(DEFAULTS, system);
   // user overrides only (so new defaults reach existing users)
-  let user = readJson(FILE, {});
+  const robust = require('../lib/robust');
+  const loaded = loadUserSettings(FILE);
+  let user = loaded.user;
+  if (loaded.recovered) robust.state.settingsRecovered = loaded.recovered;
   if ([migrate(user), migrateFinish(user)].some(Boolean)) {
     try {
       writeJsonAtomic(FILE, user);
@@ -266,15 +345,24 @@ module.exports = function register(api) {
       console.error('[settings] migration not saved', err);
     }
   }
-  const merged = () => deepMerge(base, user);
+  const merged = () => (robust.state.safeMode ? deepMerge(deepMerge(base, user), safeLook(base)) : deepMerge(base, user));
   let saveTimer = null;
   const save = () => {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try {
         writeJsonAtomic(FILE, user);
+        if (robust.state.saveFailed) {
+          robust.state.saveFailed = null;
+          delete robust.state.acked.save;
+        }
       } catch (err) {
         console.error('[settings] save failed', err);
+        // Disk full (or read-only home): the previous file is intact; the shell tells the user once.
+        if (!robust.state.saveFailed) {
+          robust.state.saveFailed = { code: err.code || 'EFAIL', at: Date.now() };
+          api.robust?.changed?.();
+        }
       }
     }, 150);
   };
@@ -356,3 +444,7 @@ module.exports = function register(api) {
 module.exports.DEFAULTS = DEFAULTS;
 module.exports.migrate = migrate;
 module.exports.migrateFinish = migrateFinish;
+module.exports.writeJsonAtomic = writeJsonAtomic;
+module.exports.loadUserSettings = loadUserSettings;
+module.exports.SAFE_LOOK_KEYS = SAFE_LOOK_KEYS;
+module.exports.safeLook = safeLook;

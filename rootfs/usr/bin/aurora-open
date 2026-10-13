@@ -1,0 +1,115 @@
+#!/usr/bin/python3
+# aurora-open — hand "open this link / file" requests from Linux and Flatpak apps to the running Selene Shell.
+#
+# Called by the NoDisplay .desktop files /usr/share/applications/aurora-*.desktop (Exec=aurora-open <app> %U),
+# which /etc/xdg/mimeapps.list makes the defaults, so xdg-open, GIO and the OpenURI portal end up here:
+#   aurora-open browser https://example.org      aurora-open mail mailto:someone@example.org
+#   aurora-open files /home/me/Documents         aurora-open photos file:///home/me/a.png
+#   aurora-open - <path or URL>…                 (no preferred app: the shell picks one, like a double-click)
+#
+# Only http(s) and mailto URLs, and existing local files / folders (plain paths or file:// URIs) are accepted;
+# anything else is refused here and again by the shell (shell/main/ipc/xdgopen.js, the authority).
+# Transport: one JSON line over the unix socket $XDG_RUNTIME_DIR/aurora/open.sock (directory 0700, owned by the
+# user), reply {"ok": true} or {"ok": false, "error": "..."}. Exit status 0 = handed over, 1 = refused, 2 = the
+# shell is not running.  AURORA_OPEN_SOCKET overrides the socket path (tests).
+import json
+import os
+import socket
+import sys
+import urllib.parse
+
+APPS = ("browser", "mail", "files", "notepad", "photos", "media", "pdf", "archive", "-")
+MAX_ITEMS = 32
+MAX_URL = 8192
+
+
+def socket_path():
+    forced = os.environ.get("AURORA_OPEN_SOCKET")
+    if forced:
+        return forced
+    run = os.environ.get("XDG_RUNTIME_DIR") or "/run/user/%d" % os.getuid()
+    return os.path.join(run, "aurora", "open.sock")
+
+
+def normalize(item, cwd):
+    """-> ("url", url) | ("path", absolute path); raises ValueError when refused."""
+    if not isinstance(item, str) or not item or len(item) > MAX_URL or any(ord(c) < 32 or ord(c) == 127 for c in item):
+        raise ValueError("invalid argument")
+    low = item.lower()
+    if low.startswith(("http://", "https://")):
+        u = urllib.parse.urlsplit(item)
+        if not u.netloc:
+            raise ValueError("invalid web address: %s" % item)
+        return ("url", item)
+    if low.startswith("mailto:"):
+        return ("url", item)
+    if low.startswith("file:"):
+        u = urllib.parse.urlsplit(item)
+        if u.netloc not in ("", "localhost"):
+            raise ValueError("remote files are not supported: %s" % item)
+        path = urllib.parse.unquote(u.path)
+    elif ":" in item.split("/", 1)[0] and not os.path.exists(os.path.join(cwd, item)):
+        raise ValueError("unsupported address: %s" % item.split(":", 1)[0] + ":")
+    else:
+        path = item
+    path = os.path.normpath(os.path.join(cwd, path))
+    if not os.path.exists(path):
+        raise ValueError("no such file: %s" % path)
+    return ("path", path)
+
+
+def main(argv):
+    if len(argv) < 2 or argv[1] in ("-h", "--help"):
+        sys.stderr.write("usage: aurora-open <%s> <URL or file>...\n" % "|".join(APPS))
+        return 1
+    app = argv[1]
+    if app not in APPS:
+        sys.stderr.write("aurora-open: unknown app %r\n" % app)
+        return 1
+    items = argv[2:]
+    if not items:
+        items = [os.path.expanduser("~")] if app == "files" else []
+    if not items and app not in ("browser", "mail"):
+        sys.stderr.write("aurora-open: nothing to open\n")
+        return 1
+    if len(items) > MAX_ITEMS:
+        sys.stderr.write("aurora-open: too many items (max %d)\n" % MAX_ITEMS)
+        return 1
+    cwd = os.getcwd() if os.path.isdir(os.getcwd()) else "/"
+    req = {"v": 1, "app": "" if app == "-" else app, "items": []}
+    for it in items:
+        try:
+            kind, value = normalize(it, cwd)
+        except ValueError as e:
+            sys.stderr.write("aurora-open: %s\n" % e)
+            return 1
+        req["items"].append({"kind": kind, "value": value})
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(10)
+    try:
+        s.connect(socket_path())
+    except OSError as e:
+        sys.stderr.write("aurora-open: Selene Shell is not running (%s)\n" % e.strerror)
+        return 2
+    try:
+        s.sendall((json.dumps(req) + "\n").encode())
+        buf = b""
+        while not buf.endswith(b"\n"):
+            chunk = s.recv(4096)
+            if not chunk:
+                break
+            buf += chunk
+        res = json.loads(buf.decode() or "{}")
+    except (OSError, ValueError) as e:
+        sys.stderr.write("aurora-open: no answer from Selene Shell (%s)\n" % e)
+        return 2
+    finally:
+        s.close()
+    if not res.get("ok"):
+        sys.stderr.write("aurora-open: %s\n" % (res.get("error") or "refused"))
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

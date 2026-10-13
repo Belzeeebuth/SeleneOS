@@ -125,8 +125,8 @@ Set them on the `make` command line (`make iso NAME=value`) or in the environmen
 | `SNAPSHOT` | `1` | `1`: pinned snapshot (reproducible); `0`: live archive `archive.ubuntu.com` (newest packages); `auto`: snapshot, falling back to the archive when snapshot.ubuntu.com is unreachable |
 | `STAMP` (= `SNAPSHOT_STAMP`) | `20261001T000000Z` | snapshot date, format `YYYYMMDDTHHMMSSZ` |
 | `MIRROR` | from the two above | any Ubuntu mirror URL, overrides both |
-| `WITH_FIRMWARE` | `0` | `1` adds `linux-firmware` (~600 MB more, needed on real hardware for Wi-Fi/GPUs) |
-| `KERNEL_PACKAGE` | `linux-image-generic` | e.g. `linux-image-generic-hwe-24.04` for a newer kernel |
+| `WITH_FIRMWARE` | `1` | `linux-firmware` for real PCs (Wi-Fi, GPUs, Bluetooth); `0` = quick VM build, ~600 MB smaller (a placeholder package stands in) |
+| `KERNEL_PACKAGE` | `linux-image-generic-hwe-24.04` | HWE kernel (newer hardware); `linux-image-generic` = GA 6.8 kernel |
 | `INSTALL_RECOMMENDS` | `0` | `1` installs Recommends too (bigger image) |
 | `ALLOW_MISSING_PACKAGES` | `0` | `1` skips unknown package names with a warning instead of failing |
 | `SQUASHFS_COMP` / `SQUASHFS_LEVEL` | `zstd` / `19` | squashfs compression (`xz` = smaller, slower to boot) |
@@ -284,15 +284,16 @@ Arch `/usr/share/edk2/x64/OVMF_CODE.4m.fd` + `OVMF_VARS.4m.fd`; openSUSE
 them automatically, also through QEMU's firmware descriptors in `/usr/share/qemu/firmware/`).
 Use `-audiodev pa,id=snd0` on hosts with PulseAudio or QEMU older than 8.1, and
 `-device VGA,xres=1920,yres=1080` instead of `virtio-vga` if the screen stays black.
-The ISO's boot loader is not signed for Secure Boot: use OVMF without Secure Boot
-(`OVMF_CODE_4M.fd`, not `.secboot`/`.ms`) or disable Secure Boot in the firmware setup.
+The live ISO boots with Secure Boot on: its EFI image holds Ubuntu's Microsoft-signed shim and Canonical's
+signed GRUB (the menu then falls back to plain text). In QEMU, `OVMF_CODE_4M.secboot.fd` with
+`OVMF_VARS_4M.ms.fd` (Microsoft keys enrolled) tests it.
 
 ### On a real PC
 
 Write the ISO to a USB stick (all its data is erased) with
 `sudo dd if=out/selene-os-1.0.0-amd64.iso of=/dev/sdX bs=4M status=progress oflag=sync`
-(or Ventoy, balenaEtcher, Rufus in DD mode), disable Secure Boot, and build with
-`WITH_FIRMWARE=1` for Wi-Fi and GPU firmware.
+(or Ventoy, balenaEtcher, Rufus in DD mode). Secure Boot can stay on; the default build ships
+`linux-firmware` (Wi-Fi, GPU and Bluetooth firmware) and the HWE kernel.
 
 ## What to expect
 
@@ -528,8 +529,8 @@ système de fichiers Linux local (ext4, xfs, btrfs). Les mêmes réglages s'appl
 | `SNAPSHOT` | `1` | `1` : instantané figé (reproductible) ; `0` : archive à jour `archive.ubuntu.com` ; `auto` : instantané, ou l'archive si snapshot.ubuntu.com est injoignable |
 | `STAMP` (= `SNAPSHOT_STAMP`) | `20261001T000000Z` | date de l'instantané |
 | `MIRROR` | — | miroir Ubuntu imposé |
-| `WITH_FIRMWARE` | `0` | `1` ajoute `linux-firmware` (~600 Mo, utile sur une vraie machine) |
-| `KERNEL_PACKAGE` | `linux-image-generic` | ex. `linux-image-generic-hwe-24.04` |
+| `WITH_FIRMWARE` | `1` | `linux-firmware` pour les vrais PC (Wi-Fi, cartes graphiques, Bluetooth) ; `0` = construction rapide pour VM, ~600 Mo de moins |
+| `KERNEL_PACKAGE` | `linux-image-generic-hwe-24.04` | noyau HWE (matériel récent) ; `linux-image-generic` = noyau GA 6.8 |
 | `INSTALL_RECOMMENDS` | `0` | `1` installe aussi les paquets recommandés |
 | `ALLOW_MISSING_PACKAGES` | `0` | `1` ignore les paquets inconnus (avertissement) |
 | `SQUASHFS_COMP` / `SQUASHFS_LEVEL` | `zstd` / `19` | compression du squashfs |
@@ -599,10 +600,10 @@ série est écrite dans `work/qemu/aurora.serial.log` (entrée *débogage* du me
 graphique, l'écran de la VM est servi en VNC sur `127.0.0.1:5900`.
 
 Les commandes QEMU complètes sans script (BIOS et UEFI) sont dans la
-[section anglaise](#plain-qemu-commands) ; elles sont identiques. Le chargeur de l'ISO n'est pas
-signé pour Secure Boot : utilisez OVMF sans Secure Boot (`OVMF_CODE_4M.fd`) ou désactivez Secure
-Boot. Sur un vrai PC : copiez l'ISO sur une clé USB (`dd`, Ventoy, balenaEtcher, Rufus en mode DD)
-et construisez avec `WITH_FIRMWARE=1`.
+[section anglaise](#plain-qemu-commands) ; elles sont identiques. L'ISO démarre avec Secure Boot
+activé (shim signé par Microsoft et GRUB signé par Canonical ; le menu passe alors en mode texte).
+Sur un vrai PC : copiez l'ISO sur une clé USB (`dd`, Ventoy, balenaEtcher, Rufus en mode DD) ; la
+construction par défaut inclut `linux-firmware` et le noyau HWE.
 
 ### Ce que vous verrez
 

@@ -432,7 +432,16 @@ part_path() { # part_path N -> /dev/sda3, /dev/nvme0n1p3, /dev/loop0p3
   if [[ "$DISK" =~ [0-9]$ ]]; then echo "${DISK}p$1"; else echo "${DISK}$1"; fi
 }
 
+# Low memory (track "robust"): a warning in the log only, never a failure (4 GB recommended, README).
+warn_low_ram() {
+  local kb
+  kb=$(sed -n 's/^MemTotal: *\([0-9]*\) kB$/\1/p' /proc/meminfo 2>/dev/null) || return 0
+  [[ -n "$kb" ]] && ((kb < 3670016)) && log "warning: $((kb / 1024)) MB of RAM; 4 GB recommended (installing anyway)"
+  return 0
+}
+
 check_disk() {
+  warn_low_ram
   local real name type ro size d mp part
   real=$(readlink -f "$DISK") || die 3 "disk $DISK not found"
   [[ -b "$real" ]] || die 3 "$DISK is not a block device"

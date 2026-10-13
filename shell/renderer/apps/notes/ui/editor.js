@@ -246,6 +246,7 @@ export class Editor {
       'aria-multiline': 'true',
       'aria-label': t('ed.body'),
       spellcheck: true,
+      'data-prose': '', // spell check follows the setting (core/features/spell.js)
       'data-placeholder': t('ed.bodyPlaceholder'),
     });
     this.page = h('div', { class: 'nt-page' }, this.metaEl, this.title, this.body);

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+# Selene OS: hands links and files from Linux / Flatpak apps to the Selene app (aurora-open -> the shell).
+# NoDisplay: the Lanceur already lists the Selene app itself.
+Name=Selene Text Editor
+Name[fr]=Selene Éditeur de texte
+Exec=aurora-open notepad %U
+TryExec=aurora-open
+NoDisplay=true
+Terminal=false
+StartupNotify=false
+MimeType=text/plain;text/markdown;text/x-log;text/csv;application/json;application/xml;text/xml;application/x-yaml;application/x-shellscript;text/x-python;text/x-csrc;text/x-chdr;text/x-c++src;application/toml;application/x-subrip;

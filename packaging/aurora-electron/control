@@ -1,0 +1,11 @@
+Package: aurora-electron
+Version: @VERSION@
+Architecture: amd64
+Section: misc
+Priority: optional
+Maintainer: Selene OS <selene@selene-os.invalid>
+Installed-Size: @SIZE@
+Description: Selene OS — Electron runtime
+ The pinned Electron runtime (/opt/aurora/electron) that runs the Selene Shell,
+ its sign-in screen and its apps. Electron security updates ship as new
+ versions of this package.

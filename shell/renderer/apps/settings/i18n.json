@@ -274,6 +274,7 @@
   "update": {
    "reasonCheck": "Settings wants to look for software updates.",
    "reasonInstall": "Settings wants to install software updates.",
+   "cleaning": "Cleaning up old versions…",
    "preparing": "Preparing…",
    "downloading": "Downloading — {pct}%",
    "keepOn": "Keep your computer on until the updates are installed.",
@@ -622,6 +623,15 @@
    "clearBtn": "Clear",
    "cleared": "Cleared"
   },
+  "diag": {
+   "title": "Diagnostics",
+   "create": "Create a diagnostic report",
+   "notice": "A .tar.gz file in your home folder with Selene's session log, versions, your settings without passwords, and the list of USB and PCI devices. Nothing is sent: you choose who gets it.",
+   "done": "Report saved: {name}",
+   "show": "Show in Files",
+   "failed": "The report couldn't be created.",
+   "noSpace": "Not enough disk space to create the report."
+  },
   "about": {
    "deviceSpecs": "Device specifications",
    "osSpecs": "Selene OS specifications",
@@ -675,6 +685,9 @@
   },
   "lang": {
    "language": "Language",
+   "spelling": "Spelling",
+   "spellcheck": "Check spelling",
+   "spellcheckDesc": "Underlines misspelled words in Mail, Notes, Text Editor and Web Browser text fields, with suggestions on right-click. The French and English dictionaries stay on this computer.",
    "display": "Selene display language",
    "displayDesc": "Selene features like Settings and Files appear in this language",
    "system": "System locale",
@@ -1431,6 +1444,48 @@
     "blackToner": "Black toner",
     "waste": "Waste ink"
    }
+  },
+  "tpad": {
+   "section": "Touchpad",
+   "enabled": "Touchpad",
+   "enabledDesc": "Turn it off when you use a mouse",
+   "tap": "Tap to click",
+   "tapDesc": "One finger to click, two fingers to right-click",
+   "natural": "Natural scrolling",
+   "naturalDesc": "The content follows your fingers, like on a phone",
+   "scrollSpeed": "Scrolling speed",
+   "scrollSpeedDesc": "When you scroll with two fingers",
+   "dwt": "Turn off while typing",
+   "dwtDesc": "So your palm does not move the pointer",
+   "gestures": "Multi-finger gestures (to switch windows or desktops) are not available yet.",
+   "mouse": "Mouse"
+  },
+  "energy": {
+   "screenSleep": "Screen and sleep",
+   "screenOff": "Turn off the screen after",
+   "screenOffBattery": "On battery, turn off the screen after",
+   "screenOffAc": "Plugged in, turn off the screen after",
+   "screenOffDesc": "A key or a mouse movement turns it back on",
+   "sleep": "Put the computer to sleep after",
+   "sleepBattery": "On battery, put the computer to sleep after",
+   "sleepAc": "Plugged in, put the computer to sleep after",
+   "sleepDesc": "Your open work is kept while the computer sleeps",
+   "lockOnOff": "Lock when the screen turns off",
+   "lockOnOffDesc": "Your password is asked when you come back",
+   "lid": "When I close the lid",
+   "lidDesc": "For every account on this computer",
+   "lidSuspend": "Sleep",
+   "lidIgnore": "Do nothing",
+   "lidPoweroff": "Shut down",
+   "mode": "Power mode",
+   "modeDesc": "Performance uses more energy, Power saver makes the battery last longer",
+   "modeSaver": "Power saver",
+   "modeBalanced": "Balanced",
+   "modePerformance": "Performance",
+   "lowBattery": "Low battery",
+   "lowBatteryDesc": "You are warned at 10% and 5%. At 3%, the computer goes to sleep after one minute, unless you plug it in.",
+   "lidDone": "Saved: it applies the next time you close the lid",
+   "reasonLid": "Settings wants to change what happens when you close the lid."
   }
  },
  "fr": {
@@ -1708,6 +1763,7 @@
   "update": {
    "reasonCheck": "Paramètres veut rechercher des mises à jour logicielles.",
    "reasonInstall": "Paramètres veut installer des mises à jour logicielles.",
+   "cleaning": "Nettoyage des anciennes versions…",
    "preparing": "Préparation…",
    "downloading": "Téléchargement — {pct} %",
    "keepOn": "Laissez votre ordinateur allumé jusqu’à la fin de l’installation.",
@@ -2056,6 +2112,15 @@
    "clearBtn": "Effacer",
    "cleared": "Effacé"
   },
+  "diag": {
+   "title": "Diagnostic",
+   "create": "Créer un rapport de diagnostic",
+   "notice": "Un fichier .tar.gz dans votre dossier personnel, avec le journal de votre session Selene, les versions, vos réglages sans mots de passe et la liste des appareils USB et PCI. Rien n’est envoyé : vous choisissez à qui le donner.",
+   "done": "Rapport enregistré : {name}",
+   "show": "Afficher dans Fichiers",
+   "failed": "Le rapport n’a pas pu être créé.",
+   "noSpace": "Pas assez d’espace disque pour créer le rapport."
+  },
   "about": {
    "deviceSpecs": "Caractéristiques de l’appareil",
    "osSpecs": "Caractéristiques de Selene OS",
@@ -2109,6 +2174,9 @@
   },
   "lang": {
    "language": "Langue",
+   "spelling": "Orthographe",
+   "spellcheck": "Vérifier l’orthographe",
+   "spellcheckDesc": "Souligne les fautes dans Courrier, Notes, l’Éditeur de texte et les champs du Navigateur, avec des suggestions au clic droit. Les dictionnaires français et anglais restent sur cet ordinateur.",
    "display": "Langue d’affichage de Selene",
    "displayDesc": "Les fonctionnalités de Selene comme Paramètres et Fichiers apparaissent dans cette langue",
    "system": "Paramètres régionaux du système",
@@ -2865,6 +2933,48 @@
     "blackToner": "Toner noir",
     "waste": "Encre usagée"
    }
+  },
+  "tpad": {
+   "section": "Pavé tactile",
+   "enabled": "Pavé tactile",
+   "enabledDesc": "Désactivez-le quand vous utilisez une souris",
+   "tap": "Toucher pour cliquer",
+   "tapDesc": "Un doigt pour cliquer, deux doigts pour le clic droit",
+   "natural": "Défilement naturel",
+   "naturalDesc": "Le contenu suit vos doigts, comme sur un téléphone",
+   "scrollSpeed": "Vitesse du défilement",
+   "scrollSpeedDesc": "Quand vous faites défiler avec deux doigts",
+   "dwt": "Désactiver pendant la saisie",
+   "dwtDesc": "Pour que votre paume ne déplace pas le pointeur",
+   "gestures": "Les gestes à plusieurs doigts (pour changer de fenêtre ou de bureau) ne sont pas encore disponibles.",
+   "mouse": "Souris"
+  },
+  "energy": {
+   "screenSleep": "Écran et mise en veille",
+   "screenOff": "Éteindre l’écran après",
+   "screenOffBattery": "Sur batterie, éteindre l’écran après",
+   "screenOffAc": "Sur secteur, éteindre l’écran après",
+   "screenOffDesc": "Une touche ou un mouvement de la souris le rallume",
+   "sleep": "Mettre l’ordinateur en veille après",
+   "sleepBattery": "Sur batterie, mettre en veille après",
+   "sleepAc": "Sur secteur, mettre en veille après",
+   "sleepDesc": "Votre travail ouvert est conservé pendant la veille",
+   "lockOnOff": "Verrouiller quand l’écran s’éteint",
+   "lockOnOffDesc": "Votre mot de passe vous est demandé à votre retour",
+   "lid": "Quand je ferme le capot",
+   "lidDesc": "Pour tous les comptes de cet ordinateur",
+   "lidSuspend": "Mettre en veille",
+   "lidIgnore": "Ne rien faire",
+   "lidPoweroff": "Éteindre",
+   "mode": "Mode d’alimentation",
+   "modeDesc": "Performances consomme davantage, Économie d’énergie fait durer la batterie",
+   "modeSaver": "Économie d’énergie",
+   "modeBalanced": "Équilibré",
+   "modePerformance": "Performances",
+   "lowBattery": "Batterie faible",
+   "lowBatteryDesc": "Vous êtes prévenu à 10 % et à 5 %. À 3 %, l’ordinateur se met en veille au bout d’une minute, sauf si vous le branchez.",
+   "lidDone": "Enregistré : cela s’appliquera la prochaine fois que vous fermerez le capot",
+   "reasonLid": "Paramètres veut changer ce qui se passe quand vous fermez le capot."
   }
  }
 }

@@ -512,6 +512,27 @@ export default {
       }),
     );
 
+    // ---- BEGIN update badge (image track: core/features/update-check.js, main/ipc/updates.js) ----
+    // Pending system updates found by the background check: a count badge on « Mises à jour » in the navigation.
+    let updCount = 0;
+    const paintUpdBadge = () => {
+      const item = nav.querySelector('.st-nav-item[data-page="update"]');
+      if (!item) return;
+      item.querySelector('.st-nav-badge')?.remove();
+      if (updCount > 0) item.appendChild(h('span', { class: 'badge st-nav-badge', 'aria-label': t('update.available', { count: updCount }) }, updCount > 99 ? '99+' : String(updCount)));
+    };
+    const setUpd = (r) => {
+      updCount = r && !r.live && !r.error ? r.count || 0 : 0;
+      paintUpdBadge();
+    };
+    globalDisposers.push(api.on('updates:changed', setUpd));
+    const buildNavBase = buildNav;
+    buildNav = () => {
+      buildNavBase();
+      paintUpdBadge();
+    };
+    pc.tryInvoke('updates:last').then(setUpd);
+    // ---- END update badge ----
     buildNav();
     loadUser();
     await navigate(ctx.args?.page || 'system', { section: ctx.args?.section, push: false });

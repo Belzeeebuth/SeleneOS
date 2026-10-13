@@ -81,7 +81,8 @@ export class Doc {
       autocapitalize: 'off',
       wrap: 'soft',
       'aria-multiline': 'true',
-      dataset: { doc: this.id },
+      // Spell check (core/features/spell.js): prose files only (.txt, .md, new documents), never source code.
+      dataset: { doc: this.id, prose: proseKind(this.path) },
     });
     this.hlInner = h('div', { class: 'np-hl-inner' });
     this.hl = h('div', { class: 'np-hl', 'aria-hidden': 'true', hidden: true }, this.hlInner);
@@ -392,4 +393,10 @@ function diff(old, cur, before, after) {
   let b = 0;
   while (b < m - a && old.charCodeAt(old.length - 1 - b) === cur.charCodeAt(cur.length - 1 - b)) b++;
   return { pos: a, removed: old.slice(a, old.length - b), inserted: cur.slice(a, cur.length - b) };
+}
+
+/** data-prose value for a Notepad file: '' (spell-checked prose) or 'code'. */
+export function proseKind(p) {
+  const ext = (/\.([^./]+)$/.exec(p || '')?.[1] || '').toLowerCase();
+  return !p || ['txt', 'md', 'markdown', 'text', 'rst', 'org', 'tex', 'eml', ''].includes(ext) ? '' : 'code';
 }

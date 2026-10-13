@@ -1,0 +1,39 @@
+/* App tray icons (StatusNotifierItem): core/features/tray.js. Tokens only (docs/design/SYSTEM.md). */
+#taskbar .tb-sni {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+#taskbar .tb-sni[hidden] {
+  display: none;
+}
+:root[data-tb-pos="left"] #taskbar .tb-sni,
+:root[data-tb-pos="right"] #taskbar .tb-sni {
+  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+#taskbar .tb-sni-item {
+  position: relative;
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+  justify-content: center;
+}
+#taskbar .tb-sni-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  pointer-events: none;
+}
+#taskbar .tb-sni-item.attention::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bar-bg, transparent);
+}

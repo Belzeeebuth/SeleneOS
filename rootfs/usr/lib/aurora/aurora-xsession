@@ -1,9 +1,10 @@
 #!/bin/sh
 # X client of the desktop session (started by aurora-session through aurora-xstart):
 # X settings, environment for user services, then the shell. A crashed shell is restarted
-# (at most 3 times within 2 minutes); a normal exit (sign out) ends the session.
+# (at most 3 times within 2 minutes; the third start is in safe mode); a normal exit (sign out) ends the session.
 set -u
-. /usr/lib/aurora/aurora-common
+# AURORA_COMMON / AURORA_SHELL_BIN: test hooks only (shell/test/robust.test.mjs); this script runs as the user.
+. "${AURORA_COMMON:-/usr/lib/aurora/aurora-common}"
 
 aurora_x_setup
 
@@ -32,7 +33,7 @@ fi
 crashes=0
 window=$(date +%s)
 while :; do
-  /usr/bin/aurora-shell
+  "${AURORA_SHELL_BIN:-/usr/bin/aurora-shell}"
   rc=$?
   [ "$rc" -eq 0 ] && exit 0
   now=$(date +%s)
@@ -48,6 +49,12 @@ while :; do
   if [ "$crashes" -ge 3 ]; then
     aurora_log "aurora-shell keeps failing; ending the session"
     exit "$rc"
+  fi
+  # Safe mode after 2 crashes in a row (before giving up): the shell ignores the user's look and startup apps
+  # and shows a banner to restart normally (shell/main/lib/robust.js, core/features/robust.js).
+  if [ "$crashes" -ge 2 ] && [ "${AURORA_SAFE_MODE:-}" != 1 ]; then
+    export AURORA_SAFE_MODE=1
+    aurora_log "starting the shell in safe mode (AURORA_SAFE_MODE=1)"
   fi
   sleep 1
 done

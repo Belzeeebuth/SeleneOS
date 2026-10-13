@@ -139,7 +139,7 @@ export class MailWindowBase {
     try {
       // Saved to Downloads first; opening it again reuses that copy instead of making "name (1).ext".
       const path = await api.invoke('mail:attachment', msg.accountId, msg.folder, msg.uid, a.id, { reuse: true });
-      await shell.openFile(path);
+      await shell.openFile(path, { parent: this.ctx.win }); // parent: the office prompt (core/features/office.js)
     } catch (e) {
       this.alertError(e);
     }

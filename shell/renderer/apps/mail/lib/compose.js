@@ -140,7 +140,7 @@ export class Composer {
     this.bcc.el.hidden = !bcc.length;
     this.ccBtn.hidden = !!cc.length;
     this.bccBtn.hidden = !!bcc.length;
-    this.subject = h('input', { class: 'ml-subject', name: 'subject', placeholder: t('compose.subject'), 'aria-label': t('compose.subject'), value: subject, spellcheck: true });
+    this.subject = h('input', { class: 'ml-subject', name: 'subject', placeholder: t('compose.subject'), 'aria-label': t('compose.subject'), value: subject, spellcheck: true, 'data-prose': '' });
     this.subject.addEventListener('input', () => {
       mark();
       this.opts.onTitle?.(this.subject.value);
@@ -181,8 +181,8 @@ export class Composer {
     );
 
     // Editor
-    this.editor = h('div', { class: 'ml-editor', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': t('compose.body'), spellcheck: true });
-    this.textarea = h('textarea', { class: 'ml-editor-plain', name: 'body-plain', 'aria-label': t('compose.body'), spellcheck: true, hidden: true });
+    this.editor = h('div', { class: 'ml-editor', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': t('compose.body'), spellcheck: true, 'data-prose': '' });
+    this.textarea = h('textarea', { class: 'ml-editor-plain', name: 'body-plain', 'aria-label': t('compose.body'), spellcheck: true, 'data-prose': '', hidden: true });
     this.editor.addEventListener('input', mark);
     this.textarea.addEventListener('input', mark);
     this.editor.addEventListener('paste', (e) => this.onPaste(e));

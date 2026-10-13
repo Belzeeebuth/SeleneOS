@@ -676,102 +676,40 @@ mount_system_overlay() {
   mount -t overlay overlay -o "lowerdir=$PKG_LAYER,upperdir=$SYS_UPPER/upper,workdir=$SYS_UPPER/work" "$ROOT"
 }
 
-install_electron() {
-  local v="$ELECTRON_VERSION" zip sums dest="$ROOT/opt/aurora/electron"
-  local name="electron-v$v-linux-x64.zip"
-  mkdir -p "$CACHE/electron"
-  zip="$CACHE/electron/$name"
-  sums="$CACHE/electron/SHASUMS256-v$v.txt"
-  local curl_opts=(--fail --location --silent --show-error --retry 4 --retry-delay 3 --connect-timeout 30)
-  if [[ ! -s "$sums" ]]; then
-    log "downloading SHASUMS256.txt for Electron $v"
-    curl "${curl_opts[@]}" -o "$sums.part" "$ELECTRON_MIRROR/v$v/SHASUMS256.txt"
-    mv "$sums.part" "$sums"
-  fi
-  local want
-  want="$(awk -v n="$name" '$2 == n || $2 == "*" n {print $1}' "$sums")"
-  [[ "$want" =~ ^[0-9a-f]{64}$ ]] || die "no checksum for $name in SHASUMS256.txt"
-  if [[ -n "$ELECTRON_SHA256" ]]; then
-    # The pinned checksum (iso/config.sh) must agree with the release's SHASUMS256.txt.
-    [[ "$want" == "$ELECTRON_SHA256" ]] || { rm -f "$sums"; die "SHASUMS256.txt of Electron $v disagrees with the pinned ELECTRON_SHA256 ($ELECTRON_SHA256)"; }
-  else
-    warn "no pinned SHA256 for Electron $v in iso/config.sh — trusting the release's SHASUMS256.txt ($want)"
-  fi
-  if [[ ! -s "$zip" ]] || [[ "$(sha256sum "$zip" | cut -d' ' -f1)" != "$want" ]]; then
-    log "downloading $name"
-    curl "${curl_opts[@]}" -o "$zip.part" "$ELECTRON_MIRROR/v$v/$name"
-    mv "$zip.part" "$zip"
-  fi
-  [[ "$(sha256sum "$zip" | cut -d' ' -f1)" == "$want" ]] || { rm -f "$zip"; die "SHA256 mismatch for $name"; }
-  ok "Electron $v verified (sha256 $want)"
-  rm -rf "$dest"; mkdir -p "$dest"
-  unzip -q "$zip" -d "$dest"
-  # Keep only the UI locales the OS ships (en/fr); everything else falls back to en-US.
-  local keep=" $ELECTRON_LOCALES " f base
-  for f in "$dest"/locales/*.pak; do
-    base="$(basename "$f" .pak)"
-    [[ "$keep" == *" $base "* ]] || rm -f "$f"
+# Selene's own files (Electron runtime, shell, rootfs/ overlay) come from its Debian packages, built by
+# tools/build-debs.sh (aurora-electron, aurora-shell, aurora-base) and installed with dpkg, so that installed systems
+# update them from the Selene apt repository (docs/UPDATES.md). The image content is the same as a plain copy.
+install_selene_debs() {
+  local out="$WORK/debs/selene" d f owner
+  log "building the Selene packages (tools/build-debs.sh)"
+  run_bg env WORK="$WORK" CACHE="$CACHE" OUT="$OUT" "$AURORA_ROOT/tools/build-debs.sh" --out "$out" \
+    || die "building the Selene packages failed"
+  local debs=("$out"/aurora-electron_*.deb "$out"/aurora-base_*.deb "$out"/aurora-shell_*.deb)
+  for d in "${debs[@]}"; do [[ -s "$d" ]] || die "missing Selene package $d"; done
+  # dpkg refuses to overwrite another package's file: name the file and the list that allows it.
+  local diverted=" $(grep -E '^/' "$AURORA_ROOT/packaging/aurora-base/diversions" | tr '\n' ' ') "
+  while IFS= read -r f; do
+    f="${f#.}"
+    owner="$(in_chroot "$ROOT" dpkg-query -S "$f" 2>/dev/null | head -n1 | cut -d: -f1 || true)"
+    [[ -z "$owner" || "$diverted" == *" $f "* || "$owner" == aurora-* || "$owner" == diversion* ]] && continue
+    die "rootfs$f belongs to Ubuntu's $owner: add it to packaging/aurora-base/diversions (or move it out of the way)"
+  done < <(dpkg-deb --fsys-tarfile "$out"/aurora-base_*.deb | tar -t | grep -v '/$')
+  rm -rf "$ROOT/tmp/selene-debs"; mkdir -p "$ROOT/tmp/selene-debs"
+  cp "${debs[@]}" "$ROOT/tmp/selene-debs/"
+  in_chroot "$ROOT" dpkg -i /tmp/selene-debs/aurora-electron_*.deb /tmp/selene-debs/aurora-base_*.deb \
+    /tmp/selene-debs/aurora-shell_*.deb >/dev/null || die "dpkg -i of the Selene packages failed"
+  rm -rf "$ROOT/tmp/selene-debs"
+  for d in aurora-electron aurora-base aurora-shell; do
+    in_chroot "$ROOT" dpkg-query -W -f='${Status}' "$d" | grep -q 'install ok installed' || die "$d is not installed"
   done
-  chown -R root:root "$dest"
-  chmod -R u+rwX,go+rX,go-w "$dest"
-  chmod 4755 "$dest/chrome-sandbox"
-  echo "$v" >"$dest/version.aurora"
-}
-
-# shellcheck disable=SC2317  # invoked through run_bg
-npm_ci_runtime() { # dir  (runs in a subshell through run_bg)
-  cd "$1" || return 1
-  export PATH="$NODE_BIN:$PATH" npm_config_cache="$CACHE/npm" npm_config_update_notifier=false
-  if [[ -n "$BUILD_CA_BUNDLE" ]]; then export NODE_EXTRA_CA_CERTS="$BUILD_CA_BUNDLE"; fi
-  npm ci --omit=dev --ignore-scripts --no-audit --no-fund --prefer-offline --loglevel=error || return 1
-  # npm cannot always tell glibc from musl here and then also installs the musl builds of prebuilt
-  # native modules (e.g. @napi-rs/canvas, an optional dependency of pdfjs-dist). The image is glibc.
-  find node_modules -mindepth 1 -maxdepth 2 -type d -name '*-linux-*-musl*' -prune -exec rm -rf {} +
-}
-
-install_shell() {
-  local stage_dir="$WORK/staging/shell" dest="$ROOT/opt/aurora/shell"
-  log "staging Selene Shell and installing runtime npm dependencies (npm ci --omit=dev)"
-  rm -rf "$stage_dir"; mkdir -p "$stage_dir"
-  local p
-  for p in package.json package-lock.json main preload renderer; do
-    [[ -e "$SHELL_SRC/$p" ]] || die "missing $SHELL_SRC/$p"
-    cp -a "$SHELL_SRC/$p" "$stage_dir/"
-  done
-  run_bg npm_ci_runtime "$stage_dir" || die "npm ci failed for the shell"
-  # The image only needs the runtime files.
-  rm -f "$stage_dir/node_modules/.package-lock.json"
-  rm -rf "$dest"; mkdir -p "$(dirname "$dest")"
-  cp -a "$stage_dir" "$dest"
-  chown -R root:root "$dest"
-  chmod -R u+rwX,go+rX,go-w "$dest"
-  log "shell installed: $(du -sh "$dest" | cut -f1) ($(find "$dest/node_modules" -maxdepth 2 -name package.json | wc -l) npm packages)"
-}
-
-install_rootfs_overlay() {
-  [[ -d "$ROOTFS_SRC" ]] || die "$ROOTFS_SRC is missing"
-  log "copying rootfs/ overlay"
-  # tar keeps symlinks and modes, never changes the metadata of existing directories, and
-  # makes everything root-owned and not group/world writable.
-  # Development leftovers (Python bytecode caches, editor backups) are never shipped.
-  tar -C "$ROOTFS_SRC" --exclude='.gitkeep' --exclude='./README*' --exclude='__pycache__' --exclude='*.pyc' \
-      --exclude='*~' --exclude='.*.swp' \
-      --owner=0 --group=0 --numeric-owner --mode='go-w' -cf - . \
-    | tar -C "$ROOT" --no-overwrite-dir --same-permissions -xf -
-  # Executables (git only tracks the x bit; enforce it for the documented entry points).
-  local f
-  for f in "$ROOT"/usr/bin/aurora-* "$ROOT"/usr/lib/aurora/aurora-* "$ROOT"/usr/lib/aurora/helpers/* \
-           "$ROOT"/usr/lib/aurora/autoinstall/aurora-*; do
-    [[ -f "$f" ]] && chmod 0755 "$f"
-  done
-  for f in "$ROOT"/etc/netplan/*.yaml; do [[ -f "$f" ]] && chmod 0600 "$f"; done
   if [[ -d "$ROOT/etc/sudoers.d" ]]; then
     for f in "$ROOT"/etc/sudoers.d/aurora*; do
       [[ -f "$f" ]] || continue
-      chmod 0440 "$f"
       in_chroot "$ROOT" visudo -c -q -f "/etc/sudoers.d/$(basename "$f")" || die "sudoers syntax error in $f"
     done
   fi
+  log "Selene packages installed: $(in_chroot "$ROOT" dpkg-query -W -f='${Package} ${Version}, ' aurora-electron aurora-base aurora-shell)"
+  log "shell: $(du -sh "$ROOT/opt/aurora/shell" | cut -f1) ($(find "$ROOT/opt/aurora/shell/node_modules" -maxdepth 2 -name package.json | wc -l) npm packages)"
 }
 
 write_os_identity() {
@@ -796,6 +734,10 @@ write_os_identity() {
     echo "BUILD_ID=$BUILD_ID"
   } >"$ROOT/usr/lib/os-release"
   ln -sf ../usr/lib/os-release "$ROOT/etc/os-release"
+  # Bug reports and support go to the Selene project, not to Launchpad (track "robust").
+  sed -i -e '/^SUPPORT_URL=/d' -e '/^BUG_REPORT_URL=/d' "$ROOT/usr/lib/os-release"
+  printf '%s\n' 'SUPPORT_URL="https://github.com/Belzeeebuth/claudeai-test/issues"' \
+    'BUG_REPORT_URL="https://github.com/Belzeeebuth/claudeai-test/issues"' >>"$ROOT/usr/lib/os-release"
   grep -q '^ID=ubuntu$' "$ROOT/usr/lib/os-release" || die "os-release lost ID=ubuntu"
 
   sed -i "s/^DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION=\"$OS_NAME $ISO_VERSION\"/" "$ROOT/etc/lsb-release"
@@ -895,6 +837,11 @@ configure_services() {
   # devices without root); fwupd-refresh.timer downloads the LVFS metadata once a day.
   if [[ -f "$ROOT/usr/lib/systemd/system/fwupd-refresh.timer" ]]; then
     in_chroot "$ROOT" systemctl enable fwupd-refresh.timer >/dev/null 2>&1 || die "cannot enable fwupd-refresh.timer"
+  fi
+  # Low memory (iso/packages.d/robust.list, track "robust"): earlyoom kills the biggest app before the kernel OOM
+  # killer freezes the desktop; /etc/default/aurora-earlyoom (rootfs/) keeps Xorg, greetd and the shell last.
+  if [[ -f "$ROOT/usr/lib/systemd/system/earlyoom.service" ]]; then
+    in_chroot "$ROOT" systemctl enable earlyoom.service >/dev/null 2>&1 || die "cannot enable earlyoom.service"
   fi
   # Text console on tty1 stays available (Ctrl+Alt+F1); greetd owns tty7. Plymouth must quit normally
   # (no --retain-splash): a console left in graphics mode makes the kernel ignore greetd's switch to tty7.
@@ -1141,9 +1088,7 @@ stage_system() {
   chroot_mount "$ROOT"
   undivert_initramfs "$ROOT"
 
-  install_electron
-  install_shell
-  install_rootfs_overlay
+  install_selene_debs
   write_os_identity
   configure_locale_time
   configure_skel
@@ -1485,6 +1430,67 @@ submenu "Advanced options / Options avancées" --class advanced {
 EOF
 }
 
+# ---- Secure Boot EFI boot image -------------------------------------------------------------
+# grub-mkrescue builds the BIOS side (eltorito.img, hybrid MBR) and a FAT EFI image with its own,
+# unsigned GRUB. Its xorriso call goes through a small wrapper that swaps that EFI image (and the
+# ISO's /efi/boot/) for Ubuntu's signed boot chain, taken from the image's own packages:
+#   EFI/BOOT/BOOTX64.EFI = shim-signed (Microsoft-signed shim), grubx64.efi = grub-efi-amd64-signed's
+#   CD GRUB (gcdx64.efi.signed, Canonical-signed), mmx64.efi = MokManager.
+# The signed GRUB finds /.disk/info and reads /boot/grub/grub.cfg; grub.cfg stubs next to it (and in
+# EFI/ubuntu, its built-in prefix) do the same. Under Secure Boot GRUB only uses its built-in modules
+# and verifies the kernel through shim; the theme may fall back to the text menu.
+layer_file() { # path-in-image -> the file in the package layer (symlinks resolved inside the layer)
+  local p="$1" t i
+  for i in 1 2 3 4 5 6; do
+    [[ -L "$PKG_LAYER$p" ]] || break
+    t="$(readlink "$PKG_LAYER$p")"
+    [[ "$t" == /* ]] || t="$(dirname "$p")/$t"
+    p="$t"
+  done
+  [[ -f "$PKG_LAYER$p" ]] || die "$p is missing from the package layer (shim-signed / grub-efi-amd64-signed in base.list?)"
+  echo "$PKG_LAYER$p"
+}
+
+make_secureboot_efi() { # dir -> $dir/efi.img, $dir/boot/ (the ISO's /efi/boot/), $dir/xorriso (wrapper)
+  local d="$1" f size_kb
+  [[ -n "$d" ]] || die "make_secureboot_efi: no directory"
+  rm -rf "$d"; mkdir -p "$d/boot"
+  cp "$(layer_file /usr/lib/shim/shimx64.efi.signed)" "$d/boot/bootx64.efi"
+  cp "$(layer_file /usr/lib/grub/x86_64-efi-signed/gcdx64.efi.signed)" "$d/boot/grubx64.efi"
+  cp "$(layer_file /usr/lib/shim/mmx64.efi)" "$d/boot/mmx64.efi"
+  printf '%s\n' "# Selene OS live media: the signed GRUB reads the menu from the ISO (iso/build.sh)." \
+    'search --no-floppy --set=root --file /.disk/aurora-build-id' \
+    'set prefix=($root)/boot/grub' \
+    'configfile $prefix/grub.cfg' >"$d/boot/grub.cfg"
+  find "$d/boot" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+  size_kb=$(( $(du -sk --apparent-size "$d/boot" | cut -f1) + 1024 ))
+  mkfs.vfat -C -n SELENE_EFI -i "$(printf '%08x' $(( SOURCE_DATE_EPOCH & 0xffffffff )))" "$d/efi.img" "$size_kb" >/dev/null \
+    || die "mkfs.vfat failed for the EFI image"
+  mmd -i "$d/efi.img" ::/EFI ::/EFI/BOOT ::/EFI/ubuntu || die "mmd failed for the EFI image"
+  for f in bootx64.efi grubx64.efi mmx64.efi grub.cfg; do
+    mcopy -m -i "$d/efi.img" "$d/boot/$f" "::/EFI/BOOT/$f" || die "mcopy $f failed"
+  done
+  mcopy -m -i "$d/efi.img" "$d/boot/grub.cfg" ::/EFI/ubuntu/grub.cfg || die "mcopy grub.cfg failed"
+  # Wrapper used as grub-mkrescue --xorriso: replaces grub-mkrescue's EFI image, then runs xorriso.
+  printf '%s\n' '#!/bin/bash' \
+    '# Selene OS (iso/build.sh): swap grub-mkrescue'"'"'s EFI image for the signed one in $AURORA_SB_DIR.' \
+    'set -eu' \
+    'prev="" img="" done=0' \
+    'for a in "$@"; do [[ "$prev" == --efi-boot ]] && img="$a"; prev="$a"; done' \
+    'if [[ -n "$img" ]]; then' \
+    '  for a in "$@"; do' \
+    '    [[ -d "$a" && -f "$a/$img" && -d "$a/efi" ]] || continue' \
+    '    cp "$AURORA_SB_DIR/efi.img" "$a/$img"' \
+    '    rm -rf "${a:?}/efi"; mkdir -p "$a/efi/boot"' \
+    '    cp "$AURORA_SB_DIR"/boot/* "$a/efi/boot/"' \
+    '    done=1; break' \
+    '  done' \
+    '  [[ "$done" == 1 ]] || { echo "aurora xorriso wrapper: grub-mkrescue EFI image not found" >&2; exit 1; }' \
+    'fi' \
+    'exec xorriso "$@"' >"$d/xorriso"
+  chmod 0755 "$d/xorriso"
+}
+
 stage_iso() {
   stage iso
   [[ -f "$ISO_TREE/casper/filesystem.squashfs" ]] || die "no squashfs — run the squashfs stage first"
@@ -1502,7 +1508,10 @@ stage_iso() {
   log "creating hybrid BIOS+UEFI ISO with grub-mkrescue"
   local tmp_iso="$ISO_PATH.part"
   rm -f "$tmp_iso"
-  grub-mkrescue --output="$tmp_iso" --themes= --locales= --fonts=unicode \
+  make_secureboot_efi "$WORK/secureboot"
+  log "EFI boot image: signed shim + GRUB for Secure Boot ($(du -h --apparent-size "$WORK/secureboot/efi.img" | cut -f1))"
+  AURORA_SB_DIR="$WORK/secureboot" grub-mkrescue --xorriso="$WORK/secureboot/xorriso" \
+      --output="$tmp_iso" --themes= --locales= --fonts=unicode \
       --product-name="$OS_NAME" --product-version="$ISO_VERSION" \
       "$ISO_TREE" -- -volid "$ISO_VOLID" -joliet on >"$WORK/grub-mkrescue.log" 2>&1 \
     || { tail -n 30 "$WORK/grub-mkrescue.log" >&2; die "grub-mkrescue failed"; }
@@ -1531,7 +1540,10 @@ main() {
   [[ $EUID -eq 0 ]] || die "run as root: sudo $0 (or: make iso)"
   mkdir -p "$WORK" "$CACHE" "$OUT"
   exec {LOCK_FD}>"$WORK/.build.lock"
-  flock -n "$LOCK_FD" || die "another build is running (lock: $WORK/.build.lock)"
+  # AURORA_BUILD_LOCK_HELD=1: the caller already holds this lock (flock work/.build.lock iso/build.sh ...).
+  if [[ "${AURORA_BUILD_LOCK_HELD:-0}" != 1 ]]; then
+    flock -n "$LOCK_FD" || die "another build is running (lock: $WORK/.build.lock)"
+  fi
   start_log
   log "logging to $LOG_FILE"
   preflight

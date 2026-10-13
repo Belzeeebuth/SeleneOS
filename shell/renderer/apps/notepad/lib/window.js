@@ -1,7 +1,7 @@
 // One Notepad window: the title bar (tabs, "+", undo / redo and the "…" menu), the editor area
 // (find bar, notices, documents, the floating document info pill) and the Settings page.
 // Commands are shared by the menus and the shortcuts.
-import { Doc, basename, dirname } from './doc.js';
+import { Doc, basename, dirname, proseKind } from './doc.js';
 import { FindBar } from './find.js';
 import { Menus } from './menu.js';
 import { SettingsPage } from './settings.js';
@@ -1263,6 +1263,7 @@ export class NotepadWindow {
       const { bytes } = encode(doc.text, enc, doc.eol);
       const entry = await this.api.invoke('fs:writeBytes', path, bytes);
       doc.path = path;
+      if (doc.ta) doc.ta.dataset.prose = proseKind(path); // spell check follows the new file type
       doc.encoding = enc;
       doc.mtime = entry?.mtime ?? Date.now();
       doc.size = entry?.size ?? bytes.length;

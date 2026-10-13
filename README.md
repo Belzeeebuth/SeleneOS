@@ -120,6 +120,9 @@ installation, the installed system starts even with the ISO attached.
 
 ## Installing in QEMU
 
+**System requirements:** 64-bit PC or VM, **4 GB of RAM recommended** (the installer warns below that but does not
+stop you; with less, the desktop gets slow once several apps are open), 12 GB of disk at least.
+
 1. Run `make run` and pick **Selene OS (English)** or **Selene OS (Français)** in the boot menu.
 2. The live session signs in automatically. Open **Install Selene OS** from the desktop.
 3. Choose language, keyboard, the virtual disk (it will be **erased**), your account and time zone,

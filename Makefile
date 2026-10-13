@@ -12,6 +12,9 @@
 #   make test           shell smoke test under Xvfb
 #   make test-all       every shell test suite (TEST_ARGS="-j 3 --retry --only=files,mail")
 #   make docker-iso     build the ISO inside a privileged ubuntu:24.04 container (iso/Dockerfile)
+#   make debs           Selene's own packages (aurora-electron, aurora-shell, aurora-base) into out/debs/
+#   make repo           signed apt repository out/apt/ from out/debs/ (key: keys/, created once; docs/UPDATES.md)
+#   make release VERSION=x.y.z   bump VERSION, build debs + repo, release notes skeleton in docs/releases/
 #   make clean          remove the build tree in work/ (chroot layers, ISO tree); keeps cache/, out/
 #                       and the VM disk/state in work/qemu/
 #   make clean-vm       remove the VM disk and UEFI variables (work/qemu/)
@@ -35,7 +38,7 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 ROOT        := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-VERSION     := $(shell sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' $(ROOT)/shell/package.json | head -n1)
+VERSION     := $(or $(shell cat $(ROOT)/VERSION 2>/dev/null),$(shell sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' $(ROOT)/shell/package.json | head -n1))
 ISO         ?= $(ROOT)/out/selene-os-$(VERSION)-amd64.iso
 DISK        ?= $(ROOT)/work/qemu/aurora-disk.qcow2
 DISK_SIZE   ?= 32G
@@ -119,3 +122,15 @@ clean-vm:
 
 distclean: clean clean-vm
 	$(SUDO) rm -rf $(ROOT)/work $(ROOT)/cache $(ROOT)/out
+
+# ---- Selene self-updates (docs/UPDATES.md) ----------------------------------------------------
+.PHONY: debs repo release
+debs:
+	PATH="$(NODE_BIN):$$PATH" $(ROOT)/tools/build-debs.sh
+
+repo: debs
+	$(ROOT)/tools/build-repo.sh
+
+release:
+	@$(if $(filter command line,$(origin VERSION)),,echo "usage: make release VERSION=x.y.z"; exit 2)
+	PATH="$(NODE_BIN):$$PATH" $(ROOT)/tools/release.sh '$(VERSION)'

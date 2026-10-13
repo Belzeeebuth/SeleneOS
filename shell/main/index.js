@@ -132,7 +132,8 @@ function createWindow() {
       sandbox: true,
       nodeIntegration: false,
       webviewTag: MODE === 'shell',
-      spellcheck: false,
+      // Shell windows: prose fields only (core/features/spell.js), local dictionaries (main/ipc/spell.js).
+      spellcheck: MODE === 'shell',
       backgroundThrottling: false,
       additionalArguments: [`--aurora-env=${Buffer.from(JSON.stringify(env)).toString('base64')}`],
     },
@@ -166,6 +167,8 @@ function createWindow() {
     return { action: 'deny' };
   });
   if (DEV && process.env.AURORA_DEVTOOLS === '1') mainWindow.webContents.openDevTools({ mode: 'detach' });
+  // Robustness: renderer crash / hang recovery (reload, stays locked), safe mode after 3 crashes, renderer errors -> journal.
+  require('./lib/robust').watchWindow(mainWindow, { mode: MODE });
   return mainWindow;
 }
 

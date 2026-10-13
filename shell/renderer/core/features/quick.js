@@ -173,6 +173,14 @@ async function load(kind) {
   // Keep the taskbar tray in sync (a backend pushes only changes, and this read can swallow one).
   if (kind !== 'display') ctx.taskbar?.applyStatus?.(kind, state[kind]);
 }
+// Power mode for the tile (inputpower track, main/ipc/inputpower.js): null without power-profiles-daemon.
+async function loadPowerProfiles() {
+  try {
+    state.powerProfiles = (await ctx.api.invoke('power:profiles')) ?? null;
+  } catch {
+    state.powerProfiles = null;
+  }
+}
 // Bluetooth state for the tile (bluetooth track); null when there is no adapter / no backend.
 async function loadBluetooth() {
   try {
@@ -307,6 +315,35 @@ function renderMain() {
         onMore: () => {
           fly.close('launch');
           shell.launch('settings', { page: 'bluetooth' });
+        },
+      }),
+    );
+  }
+  // Power mode tile (inputpower track): a click moves to the next mode (Économie d'énergie > Équilibré > Performances);
+  // the arrow opens Paramètres > Alimentation. Only when power-profiles-daemon offers several modes.
+  const pp = state.powerProfiles;
+  if (pp?.profiles?.length > 1) {
+    const PP_ICONS = { 'power-saver': 'leaf', balanced: 'scales', performance: 'rocket-launch' };
+    tiles.appendChild(
+      tile({
+        key: 'powerMode',
+        label: t('pwr.tile'),
+        sub: t(`pwr.profile.${pp.active}`),
+        iconName: PP_ICONS[pp.active] || 'gauge',
+        on: pp.active !== 'balanced',
+        moreLabel: t('quick.batterySettings'),
+        onToggle: () => {
+          const next = pp.profiles[(pp.profiles.indexOf(pp.active) + 1) % pp.profiles.length];
+          state.powerProfiles = { ...pp, active: next };
+          refreshPage();
+          ctx.api
+            .invoke('power:setProfile', next)
+            .catch(toastError)
+            .finally(() => loadPowerProfiles().then(() => fly.isOpen && !currentPage && refreshPage()));
+        },
+        onMore: () => {
+          fly.close('launch');
+          shell.launch('settings', { page: 'power' });
         },
       }),
     );
@@ -831,7 +868,7 @@ function toastError(err) {
 async function onOpen() {
   currentPage = null;
   pagesEl.replaceChildren(renderMain());
-  await Promise.all([...['net', 'audio', 'display', 'battery'].map(load), loadBluetooth()]);
+  await Promise.all([...['net', 'audio', 'display', 'battery'].map(load), loadBluetooth(), loadPowerProfiles()]);
   if (fly.isOpen && !currentPage) refreshPage();
 }
 

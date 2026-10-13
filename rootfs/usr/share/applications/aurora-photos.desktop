@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+# Selene OS: hands links and files from Linux / Flatpak apps to the Selene app (aurora-open -> the shell).
+# NoDisplay: the Lanceur already lists the Selene app itself.
+Name=Selene Photos
+Name[fr]=Selene Photos
+Exec=aurora-open photos %U
+TryExec=aurora-open
+NoDisplay=true
+Terminal=false
+StartupNotify=false
+MimeType=image/png;image/jpeg;image/gif;image/webp;image/bmp;image/svg+xml;image/avif;image/vnd.microsoft.icon;

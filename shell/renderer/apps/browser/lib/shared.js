@@ -162,6 +162,13 @@ export function initShared(ctx) {
       else api.invoke('browser:permissionReply', p.id, { allow: false }).catch(() => {});
     });
     api.on('browser:permission-done', (p) => shared.windows.forEach((w) => w.dropPermission(p.id)));
+    // Screen sharing picker (lib/screenshare.js); no window for the tab -> denied.
+    api.on('browser:display-media', (p) => {
+      const hit = shared.findTab(p.sourceId);
+      if (hit) import('./screenshare.js').then((m) => m.pickSource(hit.bw, hit.tab, p)).catch(() => api.invoke('browser:displayMediaReply', p.id, null).catch(() => {}));
+      else api.invoke('browser:displayMediaReply', p.id, null).catch(() => {});
+    });
+    api.on('browser:display-media-done', (p) => import('./screenshare.js').then((m) => m.dropPicker(p.id)).catch(() => {}));
     api.on('browser:auth', (p) => {
       const hit = shared.findTab(p.sourceId);
       if (hit) hit.bw.showAuth(hit.tab, p);

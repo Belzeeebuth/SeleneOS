@@ -29,7 +29,8 @@
       "enRegion": "United States",
       "frName": "Français",
       "frRegion": "France",
-      "note": "You can keep using the live session while Selene OS is being installed."
+      "note": "You can keep using the live session while Selene OS is being installed.",
+      "lowRam": "This computer has {ram} of memory. Selene OS runs best with 4 GB or more: you can still install it, but it may be slow with several apps open."
     },
     "keyboard": {
       "title": "Is this the right keyboard layout?",
@@ -278,7 +279,8 @@
       "enRegion": "États-Unis",
       "frName": "Français",
       "frRegion": "France",
-      "note": "Vous pouvez continuer à utiliser la session live pendant l'installation de Selene OS."
+      "note": "Vous pouvez continuer à utiliser la session live pendant l'installation de Selene OS.",
+      "lowRam": "Cet ordinateur a {ram} de mémoire. Selene OS fonctionne mieux avec 4 Go ou plus : vous pouvez l'installer quand même, mais il risque d'être lent avec plusieurs applications ouvertes."
     },
     "keyboard": {
       "title": "Est-ce la bonne disposition de clavier ?",

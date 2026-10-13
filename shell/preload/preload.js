@@ -6,7 +6,7 @@
 //   aurora.send(channel, ...args)      -> fire-and-forget message to main
 //   aurora.mediaUrl(absPath)           -> 'media://local/...' URL usable in <img>/<video>/<audio>
 //   aurora.pathForFile(file)           -> absolute path of a File from drag & drop
-const { contextBridge, ipcRenderer, webUtils } = require('electron');
+const { contextBridge, ipcRenderer, webUtils, webFrame } = require('electron');
 
 function readEnv() {
   const a = (process.argv || []).find((x) => x.startsWith('--aurora-env='));
@@ -72,5 +72,22 @@ contextBridge.exposeInMainWorld('aurora', {
     } catch {
       return '';
     }
+  },
+  // Spell check of the shell's own text fields (core/features/spell.js; dictionaries: main/ipc/spell.js).
+  spell: {
+    misspelled(word) {
+      try {
+        return webFrame.isWordMisspelled(String(word || ''));
+      } catch {
+        return false;
+      }
+    },
+    suggestions(word) {
+      try {
+        return webFrame.getWordSuggestions(String(word || '')).slice(0, 6);
+      } catch {
+        return [];
+      }
+    },
   },
 });

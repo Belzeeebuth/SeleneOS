@@ -1,0 +1,554 @@
+#!/usr/bin/python3
+# aurora-sessionbus — Selene's session D-Bus helper, run as the signed-in user by shell/main/ipc/sessionbus.js.
+#
+# 1. Notification server: owns org.freedesktop.Notifications (Desktop Notifications spec 1.2). Each Notify becomes a
+#    Selene notification (toast + notification centre) drawn by the shell; NotificationClosed / ActionInvoked go
+#    back to the app. Flatpak apps reach it through xdg-desktop-portal(-gtk), which forwards to this name.
+# 2. System tray: owns org.kde.StatusNotifierWatcher and is its host. Registered StatusNotifierItems are read
+#    (icon name / ARGB pixmap -> PNG data URL, status, tooltip, menu) and listed to the shell; items go away when
+#    their owner leaves the bus. Right click: the item's com.canonical.dbusmenu layout, Event "clicked" back.
+#    Legacy XEmbed tray icons are not bridged (no cheap bridge in noble: snixembed is not packaged,
+#    xembedsniproxy comes only with plasma-workspace).
+# Either name already owned by someone else: that part is off ("ready" says which), the other keeps working.
+#
+# Protocol: JSON lines.
+#   stdin   {"id": 1, "cmd": "state"}                                  -> {"id": 1, "ok": true, "result": <state>}
+#           {"id": 2, "cmd": "closed", "nid": 7, "reason": 2}          the shell removed it (1 expired, 2 dismissed)
+#           {"id": 3, "cmd": "action", "nid": 7, "key": "reply"}       ActionInvoked (+ NotificationClosed 2 unless
+#                                                                       the notification is resident)
+#           {"id": 4, "cmd": "activate"|"secondary"|"context", "item": "<key>", "x": 0, "y": 0}
+#           {"id": 5, "cmd": "scroll", "item": "<key>", "delta": 1, "orientation": "vertical"}
+#           {"id": 6, "cmd": "menu", "item": "<key>"}                  -> {"items": [<menu entry>]}
+#           {"id": 7, "cmd": "menu-event", "item": "<key>", "mid": 12}  Event(mid, "clicked")
+#   stdout  {"id": n, "ok": false, "error": "…", "code": "ENOTFOUND"|"EFAIL"|…}
+#           {"event": "ready", "notifications": bool, "tray": bool}
+#           {"event": "notify", "n": {id, app, icon, image, summary, body, actions: [[key, label]], urgency,
+#                    timeout, entry, resident, transient, silent, replaces}}
+#           {"event": "notify-close", "id": 7}                          CloseNotification from the app
+#           {"event": "items", "items": [<item>]}                       whenever the tray changes (debounced)
+# <item> = {key, id, title, category, status, icon, iconPng, attentionIcon, attentionPng, themePath,
+#           tooltip: {title, body}, menu: bool, itemIsMenu: bool}
+# <menu entry> = {id, label, type: "standard"|"separator", enabled, toggle: "checkmark"|"radio"|null, state, icon,
+#                 children: [...]}
+# Environment: DBUS_SESSION_BUS_ADDRESS picks the bus (tests use a private dbus-daemon).
+import base64
+import html
+import json
+import os
+import re
+import signal
+import struct
+import sys
+import time
+import zlib
+
+import dbus
+import dbus.mainloop.glib
+import dbus.service
+from gi.repository import GLib
+
+NOTIF = 'org.freedesktop.Notifications'
+NOTIF_PATH = '/org/freedesktop/Notifications'
+WATCHER = 'org.kde.StatusNotifierWatcher'
+WATCHER_PATH = '/StatusNotifierWatcher'
+SNI = 'org.kde.StatusNotifierItem'
+MENU = 'com.canonical.dbusmenu'
+PROPS = 'org.freedesktop.DBus.Properties'
+VERSION = os.environ.get('AURORA_VERSION') or '1.0'
+MAX_SIDE = 512  # larger pictures are refused (a tray icon or an avatar does not need more)
+
+
+def out(obj):
+    sys.stdout.write(json.dumps(obj, ensure_ascii=False) + '\n')
+    sys.stdout.flush()
+
+
+def plain(v):
+    if isinstance(v, dbus.Boolean):
+        return bool(v)
+    if isinstance(v, (dbus.Byte, dbus.Int16, dbus.UInt16, dbus.Int32, dbus.UInt32, dbus.Int64, dbus.UInt64)):
+        return int(v)
+    if isinstance(v, (dbus.String, dbus.ObjectPath, dbus.Signature)):
+        return str(v)
+    if isinstance(v, (dbus.Array, list, dbus.Struct, tuple)):
+        if isinstance(v, dbus.Array) and v.signature == 'y':
+            return bytes(bytearray(int(b) for b in v))
+        return [plain(x) for x in v]
+    if isinstance(v, (dbus.Dictionary, dict)):
+        return {str(k): plain(x) for k, x in v.items()}
+    return v
+
+
+# ------------------------------------------------------------------ pictures -> PNG data URLs
+def png_data_url(width, height, rgba):
+    def chunk(tag, data):
+        return struct.pack('>I', len(data)) + tag + data + struct.pack('>I', zlib.crc32(tag + data) & 0xffffffff)
+
+    stride = width * 4
+    raw = b''.join(b'\x00' + rgba[y * stride:(y + 1) * stride] for y in range(height))
+    png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 6)) + chunk(b'IEND', b'')
+    return 'data:image/png;base64,' + base64.b64encode(png).decode('ascii')
+
+
+def argb_to_png(width, height, data):
+    """StatusNotifierItem IconPixmap: ARGB32, network byte order (A, R, G, B per pixel)."""
+    width, height = int(width), int(height)
+    if not (0 < width <= MAX_SIDE and 0 < height <= MAX_SIDE) or len(data) < width * height * 4:
+        return None
+    data = bytes(data[:width * height * 4])
+    rgba = bytearray(len(data))
+    rgba[0::4] = data[1::4]
+    rgba[1::4] = data[2::4]
+    rgba[2::4] = data[3::4]
+    rgba[3::4] = data[0::4]
+    return png_data_url(width, height, bytes(rgba))
+
+
+def best_pixmap(pixmaps, want=32):
+    """[(w, h, bytes)] -> PNG of the smallest one at least `want` px wide (else the largest)."""
+    ok = [p for p in pixmaps or [] if len(p) == 3 and int(p[0]) > 0 and int(p[1]) > 0]
+    if not ok:
+        return None
+    ok.sort(key=lambda p: int(p[0]))
+    pick = next((p for p in ok if int(p[0]) >= want), ok[-1])
+    return argb_to_png(pick[0], pick[1], plain(pick[2]) if not isinstance(pick[2], bytes) else pick[2])
+
+
+def image_data_to_png(v):
+    """Notification hint image-data (iiibiiay): width, height, rowstride, has_alpha, bits, channels, data."""
+    try:
+        w, h, stride, alpha, bits, channels, data = v
+        w, h, stride, channels = int(w), int(h), int(stride), int(channels)
+        data = plain(data) if not isinstance(data, bytes) else data
+    except (TypeError, ValueError):
+        return None
+    if int(bits) != 8 or channels not in (3, 4) or not (0 < w <= MAX_SIDE * 2 and 0 < h <= MAX_SIDE * 2) or stride < w * channels:
+        return None
+    if len(data) < stride * (h - 1) + w * channels:
+        return None
+    rgba = bytearray(w * h * 4)
+    for y in range(h):
+        row = data[y * stride:y * stride + w * channels]
+        o = y * w * 4
+        if channels == 4:
+            rgba[o:o + w * 4] = row
+        else:
+            seg = bytearray(w * 4)
+            seg[0::4] = row[0::3]
+            seg[1::4] = row[1::3]
+            seg[2::4] = row[2::3]
+            seg[3::4] = b'\xff' * w
+            rgba[o:o + w * 4] = seg
+    return png_data_url(w, h, bytes(rgba))
+
+
+# ------------------------------------------------------------------ text
+TAG_RE = re.compile(r'<[^>]*>')
+
+
+def strip_markup(text):
+    """Body markup (b, i, u, a, img, br) -> plain text; the shell sets it as text, never as HTML."""
+    s = str(text or '')
+    s = re.sub(r'<br\s*/?>', '\n', s, flags=re.I)
+    s = re.sub(r'<img\b[^>]*\balt\s*=\s*"([^"]*)"[^>]*>', r'\1', s, flags=re.I)
+    s = TAG_RE.sub('', s)
+    s = html.unescape(s)
+    return s.replace('\r', '').strip()[:2000]
+
+
+def icon_ref(v):
+    """app_icon / image-path: an icon name, an absolute path or a file:// URI -> name or path (or '')."""
+    s = str(v or '').strip()
+    if s.startswith('file://'):
+        from urllib.parse import unquote
+        s = unquote(s[7:])
+    if s.startswith('/'):
+        return s if len(s) < 4096 else ''
+    return s if re.match(r'^[A-Za-z0-9._+-]{1,200}$', s) else ''
+
+
+# ------------------------------------------------------------------ notification server
+class Notifications(dbus.service.Object):
+    def __init__(self, helper, bus):
+        super().__init__(bus, NOTIF_PATH)
+        self.h = helper
+        self.seq = 0
+        self.live = {}  # id -> {resident, sender}
+
+    @dbus.service.method(NOTIF, in_signature='', out_signature='as')
+    def GetCapabilities(self):
+        return ['actions', 'body', 'body-markup', 'icon-static', 'persistence']
+
+    @dbus.service.method(NOTIF, in_signature='', out_signature='ssss')
+    def GetServerInformation(self):
+        return ('Selene', 'Selene OS', VERSION, '1.2')
+
+    @dbus.service.method(NOTIF, in_signature='susssasa{sv}i', out_signature='u', sender_keyword='sender')
+    def Notify(self, app_name, replaces_id, app_icon, summary, body, actions, hints, expire_timeout, sender=None):
+        rid = int(replaces_id)
+        if rid and rid in self.live:
+            nid = rid
+        else:
+            self.seq += 1
+            nid = self.seq
+        hints = dict(hints or {})
+        image = None
+        for k in ('image-data', 'image_data'):
+            if k in hints:
+                image = image_data_to_png(hints[k])
+                break
+        image_path = ''
+        if not image:
+            image_path = icon_ref(hints.get('image-path') or hints.get('image_path') or '')
+        icon = icon_ref(app_icon)
+        if not image and not image_path and not icon and 'icon_data' in hints:
+            image = image_data_to_png(hints['icon_data'])
+        acts = [str(x) for x in actions or []]
+        pairs = [[acts[i], strip_markup(acts[i + 1]) or acts[i]] for i in range(0, len(acts) - 1, 2)][:4]
+        urgency = hints.get('urgency')
+        try:
+            urgency = int(urgency) if urgency is not None else 1
+        except (TypeError, ValueError):
+            urgency = 1
+        resident = bool(hints.get('resident', False))
+        self.live[nid] = {'resident': resident}
+        out({'event': 'notify', 'n': {
+            'id': nid,
+            'replaces': nid == rid,
+            'app': strip_markup(app_name)[:100],
+            'icon': icon,
+            'image': image,
+            'imagePath': image_path,
+            'summary': strip_markup(summary)[:300],
+            'body': strip_markup(body),
+            'actions': pairs,
+            'urgency': max(0, min(2, urgency)),
+            'timeout': int(expire_timeout),
+            'entry': str(hints.get('desktop-entry') or '')[:200],
+            'category': str(hints.get('category') or '')[:100],
+            'resident': resident,
+            'transient': bool(hints.get('transient', False)),
+            'silent': bool(hints.get('suppress-sound', False)),
+        }})
+        return dbus.UInt32(nid)
+
+    @dbus.service.method(NOTIF, in_signature='u', out_signature='')
+    def CloseNotification(self, nid):
+        nid = int(nid)
+        if nid in self.live:
+            del self.live[nid]
+            out({'event': 'notify-close', 'id': nid})
+            self.NotificationClosed(nid, 3)
+
+    @dbus.service.signal(NOTIF, signature='uu')
+    def NotificationClosed(self, nid, reason):
+        pass
+
+    @dbus.service.signal(NOTIF, signature='us')
+    def ActionInvoked(self, nid, key):
+        pass
+
+    def closed(self, nid, reason):
+        if nid in self.live:
+            del self.live[nid]
+            self.NotificationClosed(dbus.UInt32(nid), dbus.UInt32(reason if reason in (1, 2, 3, 4) else 4))
+            return True
+        return False
+
+    def action(self, nid, key):
+        if nid not in self.live:
+            return False
+        self.ActionInvoked(dbus.UInt32(nid), key)
+        if not self.live[nid]['resident']:
+            self.closed(nid, 2)
+        return True
+
+
+# ------------------------------------------------------------------ StatusNotifierWatcher (+ host)
+class Watcher(dbus.service.Object):
+    def __init__(self, helper, bus):
+        super().__init__(bus, WATCHER_PATH)
+        self.h = helper
+
+    @dbus.service.method(WATCHER, in_signature='s', out_signature='', sender_keyword='sender')
+    def RegisterStatusNotifierItem(self, service, sender=None):
+        service = str(service)
+        # libappindicator / Qt pass a bus name, some (Ayatana, Electron) an object path on their own connection
+        if service.startswith('/'):
+            name, path = str(sender), service
+        else:
+            name, path = service, '/StatusNotifierItem'
+        self.h.add_item(name, path, str(sender))
+
+    @dbus.service.method(WATCHER, in_signature='s', out_signature='')
+    def RegisterStatusNotifierHost(self, service):
+        pass  # Selene is the host; other hosts are welcome but not tracked
+
+    @dbus.service.signal(WATCHER, signature='s')
+    def StatusNotifierItemRegistered(self, key):
+        pass
+
+    @dbus.service.signal(WATCHER, signature='s')
+    def StatusNotifierItemUnregistered(self, key):
+        pass
+
+    @dbus.service.signal(WATCHER, signature='')
+    def StatusNotifierHostRegistered(self):
+        pass
+
+    def props(self):
+        return {
+            'RegisteredStatusNotifierItems': dbus.Array(list(self.h.items.keys()), signature='s'),
+            'IsStatusNotifierHostRegistered': dbus.Boolean(True),
+            'ProtocolVersion': dbus.Int32(0),
+        }
+
+    @dbus.service.method(PROPS, in_signature='ss', out_signature='v')
+    def Get(self, iface, prop):
+        p = self.props()
+        if iface != WATCHER or prop not in p:
+            raise dbus.exceptions.DBusException('No such property', name='org.freedesktop.DBus.Error.UnknownProperty')
+        return p[prop]
+
+    @dbus.service.method(PROPS, in_signature='s', out_signature='a{sv}')
+    def GetAll(self, iface):
+        return self.props() if iface == WATCHER else {}
+
+    @dbus.service.method(PROPS, in_signature='ssv', out_signature='')
+    def Set(self, iface, prop, value):
+        raise dbus.exceptions.DBusException('Read-only', name='org.freedesktop.DBus.Error.PropertyReadOnly')
+
+
+def menu_entry(node):
+    """GetLayout node (i, a{sv}, av) -> JSON entry; invisible entries are None."""
+    mid, props, children = node
+    p = plain(props)
+    if p.get('visible') is False:
+        return None
+    label = str(p.get('label', ''))
+    label = re.sub(r'_(.)', r'\1', label.replace('__', '\0')).replace('\0', '_')  # mnemonics: "_Quit" -> "Quit"
+    toggle = p.get('toggle-type')
+    kids = [e for e in (menu_entry(c) for c in children or []) if e]
+    return {
+        'id': int(mid),
+        'type': 'separator' if p.get('type') == 'separator' else 'standard',
+        'label': label[:200],
+        'enabled': p.get('enabled', True) is not False,
+        'toggle': toggle if toggle in ('checkmark', 'radio') else None,
+        'state': int(p.get('toggle-state', -1)) if isinstance(p.get('toggle-state', -1), int) else -1,
+        'icon': icon_ref(p.get('icon-name', '')),
+        'children': kids,
+    }
+
+
+class Helper:
+    def __init__(self, bus):
+        self.bus = bus
+        self.items = {}  # key -> {name, path, owner, data}
+        self.emit_pending = False
+        self.notif = None
+        self.watcher = None
+        bus.add_signal_receiver(self.on_owner_changed, 'NameOwnerChanged', 'org.freedesktop.DBus', 'org.freedesktop.DBus')
+        bus.add_signal_receiver(self.on_sni_signal, dbus_interface=SNI, sender_keyword='sender', path_keyword='path', member_keyword='member')
+
+    def own(self, name, factory):
+        try:
+            r = self.bus.request_name(name, dbus.bus.NAME_FLAG_DO_NOT_QUEUE)
+        except dbus.DBusException:
+            return None
+        if r not in (dbus.bus.REQUEST_NAME_REPLY_PRIMARY_OWNER, dbus.bus.REQUEST_NAME_REPLY_ALREADY_OWNER):
+            return None
+        return factory(self, self.bus)
+
+    def start(self):
+        self.notif = self.own(NOTIF, Notifications)
+        self.watcher = self.own(WATCHER, Watcher)
+        if self.watcher:
+            self.watcher.StatusNotifierHostRegistered()
+        out({'event': 'ready', 'notifications': bool(self.notif), 'tray': bool(self.watcher)})
+
+    # ---- tray items
+    def add_item(self, name, path, sender):
+        try:
+            owner = name if name.startswith(':') else str(self.bus.get_name_owner(name))
+        except dbus.DBusException:
+            return
+        key = name + path
+        if key in self.items:
+            return self.refresh(key)
+        self.items[key] = {'name': name, 'path': path, 'owner': owner, 'data': None}
+        if self.watcher:
+            self.watcher.StatusNotifierItemRegistered(key)
+        self.refresh(key)
+
+    def remove_item(self, key):
+        if self.items.pop(key, None) is not None:
+            if self.watcher:
+                self.watcher.StatusNotifierItemUnregistered(key)
+            self.emit_soon()
+
+    def on_owner_changed(self, name, old, new):
+        if new:
+            return
+        for key, it in list(self.items.items()):
+            if it['owner'] == old or it['name'] == name:
+                self.remove_item(key)
+
+    def on_sni_signal(self, *args, sender=None, path=None, member=None):
+        for key, it in self.items.items():
+            if it['owner'] == sender and it['path'] == path:
+                self.refresh(key)
+
+    def refresh(self, key):
+        it = self.items.get(key)
+        if not it:
+            return
+        try:
+            obj = self.bus.get_object(it['name'], it['path'], introspect=False)
+        except dbus.DBusException:
+            return self.remove_item(key)
+
+        def ok(props):
+            if key not in self.items:
+                return
+            p = {str(k): v for k, v in props.items()}
+            tip = p.get('ToolTip')
+            tooltip = {'title': '', 'body': ''}
+            if tip is not None and len(tip) >= 4:
+                tooltip = {'title': strip_markup(tip[2])[:200], 'body': strip_markup(tip[3])[:500]}
+            menu = str(p.get('Menu', '') or '')
+            self.items[key]['data'] = {
+                'key': key,
+                'id': str(p.get('Id', '') or '')[:100],
+                'title': strip_markup(p.get('Title', ''))[:200],
+                'category': str(p.get('Category', '') or ''),
+                'status': str(p.get('Status', 'Active') or 'Active'),
+                'icon': icon_ref(p.get('IconName', '')),
+                'iconPng': best_pixmap(p.get('IconPixmap')),
+                'attentionIcon': icon_ref(p.get('AttentionIconName', '')),
+                'attentionPng': best_pixmap(p.get('AttentionIconPixmap')),
+                'themePath': str(p.get('IconThemePath', '') or ''),
+                'tooltip': tooltip,
+                'menu': bool(menu) and menu != '/',
+                'menuPath': menu,
+                'itemIsMenu': bool(p.get('ItemIsMenu', False)),
+            }
+            self.emit_soon()
+
+        def err(e):
+            # an item that never answers is dropped; one still on the bus may come back with its next signal
+            if key in self.items and self.items[key]['data'] is None:
+                self.remove_item(key)
+
+        obj.GetAll(SNI, dbus_interface=PROPS, reply_handler=ok, error_handler=err, timeout=5)
+
+    def emit_soon(self):
+        if self.emit_pending:
+            return
+        self.emit_pending = True
+
+        def go():
+            self.emit_pending = False
+            out({'event': 'items', 'items': self.item_list()})
+            return False
+
+        GLib.timeout_add(60, go)
+
+    def item_list(self):
+        return [it['data'] for it in self.items.values() if it['data']]
+
+    def item(self, key):
+        it = self.items.get(str(key or ''))
+        if not it or not it['data']:
+            raise LookupError('no such tray item')
+        return it
+
+    # ---- commands
+    def command(self, msg):
+        mid = msg.get('id')
+        cmd = msg.get('cmd')
+
+        def reply(result=True):
+            out({'id': mid, 'ok': True, 'result': result})
+
+        def fail(e, code='EFAIL'):
+            out({'id': mid, 'ok': False, 'error': str(e), 'code': code})
+
+        try:
+            if cmd == 'state':
+                return reply({'notifications': bool(self.notif), 'tray': bool(self.watcher), 'items': self.item_list()})
+            if cmd == 'closed':
+                return reply(bool(self.notif) and self.notif.closed(int(msg.get('nid', 0)), int(msg.get('reason', 2))))
+            if cmd == 'action':
+                return reply(bool(self.notif) and self.notif.action(int(msg.get('nid', 0)), str(msg.get('key', ''))[:200]))
+            if cmd in ('activate', 'secondary', 'context', 'scroll', 'menu', 'menu-event'):
+                it = self.item(msg.get('item'))
+                obj = self.bus.get_object(it['name'], it['path'], introspect=False)
+                x, y = int(msg.get('x', 0)), int(msg.get('y', 0))
+                eh = lambda e: fail(e.get_dbus_message() if isinstance(e, dbus.DBusException) else e, 'ENOMETHOD' if isinstance(e, dbus.DBusException) and 'UnknownMethod' in (e.get_dbus_name() or '') else 'EFAIL')
+                if cmd == 'activate':
+                    return obj.Activate(dbus.Int32(x), dbus.Int32(y), dbus_interface=SNI, reply_handler=lambda: reply(True), error_handler=eh, timeout=5)
+                if cmd == 'secondary':
+                    return obj.SecondaryActivate(dbus.Int32(x), dbus.Int32(y), dbus_interface=SNI, reply_handler=lambda: reply(True), error_handler=eh, timeout=5)
+                if cmd == 'context':
+                    return obj.ContextMenu(dbus.Int32(x), dbus.Int32(y), dbus_interface=SNI, reply_handler=lambda: reply(True), error_handler=eh, timeout=5)
+                if cmd == 'scroll':
+                    return obj.Scroll(dbus.Int32(int(msg.get('delta', 0))), 'horizontal' if msg.get('orientation') == 'horizontal' else 'vertical', dbus_interface=SNI, reply_handler=lambda: reply(True), error_handler=eh, timeout=5)
+                path = it['data']['menuPath']
+                if not it['data']['menu']:
+                    return fail('this item has no menu', 'ENOMENU')
+                menu = self.bus.get_object(it['name'], path, introspect=False)
+                if cmd == 'menu':
+                    def got(revision, layout):
+                        root = menu_entry(layout)
+                        reply({'items': root['children'] if root else []})
+
+                    def layout(*_):
+                        menu.GetLayout(dbus.Int32(0), dbus.Int32(-1), dbus.Array([], signature='s'), dbus_interface=MENU, reply_handler=got, error_handler=eh, timeout=5)
+
+                    return menu.AboutToShow(dbus.Int32(0), dbus_interface=MENU, reply_handler=layout, error_handler=layout, timeout=2)
+                return menu.Event(dbus.Int32(int(msg.get('mid', 0))), 'clicked', dbus.String('', variant_level=1), dbus.UInt32(int(time.time()) & 0xffffffff), dbus_interface=MENU, reply_handler=lambda: reply(True), error_handler=eh, timeout=5)
+            return fail('unknown command', 'EINVAL')
+        except LookupError as e:
+            return fail(e, 'ENOTFOUND')
+        except (dbus.DBusException, ValueError, TypeError) as e:
+            return fail(e)
+
+
+def main():
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    try:
+        bus = dbus.SessionBus()
+    except dbus.DBusException as e:
+        out({'event': 'fatal', 'code': 'ENOBUS', 'error': str(e)})
+        return 3
+    loop = GLib.MainLoop()
+    helper = Helper(bus)
+    helper.start()
+    buf = [b'']
+
+    def on_stdin(fd, cond):
+        data = os.read(fd, 65536) if cond & GLib.IO_IN else b''
+        if not data:
+            loop.quit()
+            return False
+        buf[0] += data
+        *lines, buf[0] = buf[0].split(b'\n')
+        for line in lines:
+            try:
+                msg = json.loads(line.decode('utf-8', 'replace'))
+            except ValueError:
+                continue
+            if isinstance(msg, dict):
+                helper.command(msg)
+        return True
+
+    GLib.io_add_watch(sys.stdin.fileno(), GLib.PRIORITY_DEFAULT, GLib.IO_IN | GLib.IO_HUP | GLib.IO_ERR, on_stdin)
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        GLib.unix_signal_add(GLib.PRIORITY_HIGH, sig, lambda *_: loop.quit() or False)
+    loop.run()
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

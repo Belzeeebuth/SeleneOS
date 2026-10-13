@@ -259,6 +259,7 @@ const buttons = new Map(); // key -> button (key = appId, or appId::winId for a 
 const thumbs = new Map(); // winId -> blob URL
 const status = { net: undefined, audio: undefined, battery: undefined };
 const statusItems = new Map(); // id -> { icon, text, tip, onClick } (extra tray buttons, e.g. Focus mode)
+let sniRender = null; // draws the app tray icons (StatusNotifierItem) into .tb-sni: taskbar.setTrayRenderer
 let suppressClick = false;
 let bulk = false; // true while the whole taskbar is rebuilt (no per-button entrance animation)
 
@@ -1402,6 +1403,7 @@ function renderStatic() {
     { class: 'tb-tray tb-part' },
     tb.showWidgets && wpos === 'end' ? widgetsBtn(!vertical) : null,
     h('div', { class: 'tb-status' }),
+    h('div', { class: 'tb-sni', hidden: true }), // app tray icons (StatusNotifierItem): core/features/tray.js
     (minisEl = h('div', { class: 'tb-minis', hidden: true })),
     h(
       'button',
@@ -1424,6 +1426,7 @@ function renderStatic() {
   trayObserver.observe(trayEl);
   trayObserver.observe(leftEl);
   renderStatusItems();
+  sniRender?.(trayEl.querySelector('.tb-sni'));
   renderMinis();
   bulk = true;
   renderApps();
@@ -1592,6 +1595,17 @@ export const taskbar = {
     if (item) statusItems.set(id, item);
     else statusItems.delete(id);
     renderStatusItems();
+    fitApps();
+  },
+  /** App tray icons (core/features/tray.js): fn(host) draws them into the tray's .tb-sni box, again after each rebuild. */
+  setTrayRenderer(fn) {
+    sniRender = typeof fn === 'function' ? fn : null;
+    const host = trayEl?.querySelector('.tb-sni');
+    if (host && sniRender) sniRender(host);
+    fitApps();
+  },
+  /** The app tray icons changed (their number): re-check how many app buttons fit. */
+  trayChanged() {
     fitApps();
   },
   /** Mini widget values (tests / Settings): refresh now. */

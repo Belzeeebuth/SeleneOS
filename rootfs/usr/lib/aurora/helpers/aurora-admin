@@ -28,11 +28,13 @@
 #   apt-check                                    apt-get update, then one "Inst …" line per pending upgrade
 #   apt-upgrade                                  non-interactive upgrade; APT status lines on stdout
 #                                                ("dlstatus:…" / "pmstatus:pkg:percent:message"), apt's own output on stderr
+#   apt-autoremove                               apt-get autoremove (old kernels, unused dependencies) after an upgrade
 #   drivers-install <nvidia-driver-NNN[-open|-server|-server-open]>    NVIDIA driver offered by ubuntu-drivers (see below)
 #   drivers-remove                               purge the NVIDIA driver, back to nouveau
 #   printer-add <queue> <uri> <label>  printer-remove <queue>  printer-default <queue>  printer-enable <queue> <0|1>
 #   printer-rename <queue> <label>  printer-job-cancel <queue-N>      CUPS printers (driverless IPP Everywhere, see below)
 #   firmware-update <device-id>                  fwupd: install the available firmware of one device (40 hex id, see below)
+#   power-lid <suspend|ignore|poweroff>          what closing the lid does (logind drop-in, see below)
 #
 # Secrets: passwords never appear on a command line. The caller passes a random nonce (32 hex
 # digits) as the last argument and writes "<nonce>:<base64 of the password>" on stdin, after the
@@ -72,6 +74,26 @@ run_or_die() { # run_or_die <message> cmd args... : runs cmd, maps a failure to 
 [ $# -ge 1 ] || die 2 "usage: $PROG <action> [arguments]"
 ACTION=$1
 shift
+
+# ------------------------------------------------------------------ BEGIN apt_update (Selene updates, docs/UPDATES.md)
+# apt_update [apt-get options...]: "apt-get update". When it fails and the Selene repository is configured
+# (/etc/apt/sources.list.d/selene.sources), retry without that one source, so that an unreachable, unpublished
+# (404) or wrongly signed Selene repository never blocks Ubuntu updates or the drivers path (--error-on=any).
+apt_update() {
+  apt-get -q "$@" -o DPkg::Lock::Timeout=120 update && return 0
+  local sel=/etc/apt/sources.list.d/selene.sources parts f rc=0
+  [ -f "$sel" ] || return 1
+  log "apt-get update failed; retrying without the Selene repository"
+  echo "W: the Selene repository could not be used; Ubuntu updates continue without it" >&2
+  parts=$(mktemp -d /run/aurora-apt-parts.XXXXXX) || return 1
+  for f in /etc/apt/sources.list.d/*; do
+    [ -f "$f" ] && [ "$f" != "$sel" ] && ln -s "$f" "$parts/"
+  done
+  apt-get -q "$@" -o DPkg::Lock::Timeout=120 -o Dir::Etc::SourceParts="$parts" update || rc=$?
+  rm -rf -- "$parts"
+  return "$rc"
+}
+# ------------------------------------------------------------------ END apt_update
 
 # ------------------------------------------------------------------ validation helpers
 RE_USER='^[a-z_][a-z0-9_-]{0,31}$'
@@ -375,7 +397,7 @@ service)
 apt-check)
   need_args $# 0
   export DEBIAN_FRONTEND=noninteractive
-  apt-get -q -o DPkg::Lock::Timeout=120 update >&2 || die 5 "could not refresh the package lists (check the network connection)"
+  apt_update >&2 || die 5 "could not refresh the package lists (check the network connection)"
   sim=$(apt-get -s -q -o Debug::NoLocking=1 upgrade --with-new-pkgs) || die 5 "could not compute the available updates"
   printf '%s\n' "$sim" | grep '^Inst ' || true
   ;;
@@ -390,6 +412,19 @@ apt-upgrade)
   [ -e /run/reboot-required ] && echo "reboot-required"
   echo "done"
   ;;
+
+# ------------------------------------------------------------------ BEGIN apt-autoremove (image track)
+# apt-autoremove: after « Mettre à jour » (Paramètres > Mises à jour), remove the packages nothing needs any more
+# (old kernels: apt always keeps the running and the newest one; image packages are marked manual and stay).
+# APT status lines on stdout, apt's own output on stderr, then "done".
+apt-autoremove)
+  need_args $# 0
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get -q -y -o DPkg::Lock::Timeout=120 -o APT::Status-Fd=3 autoremove 3>&1 1>&2 \
+    || die 5 "could not remove the unused packages (see the system journal)"
+  echo "done"
+  ;;
+# ------------------------------------------------------------------ END apt-autoremove
 
 # ------------------------------------------------------------------ BEGIN store actions (Store app)
 #   store-install <package>    apt-get -y install --no-install-recommends; APT status lines on stdout
@@ -452,7 +487,7 @@ sys.exit(1)' "$1" "$2"
       store_kind=removable
     elif [ "$ACTION" = store-install ]; then
       # Missing or stale lists (fresh install): refresh them once and look again.
-      apt-get -q -o DPkg::Lock::Timeout=120 update >&2 || die 5 "could not refresh the package lists (check the network connection)"
+      apt_update >&2 || die 5 "could not refresh the package lists (check the network connection)"
       store_dep11_has "$pkg" "$STORE_APT_LISTS" && store_kind=removable
     fi
     [ -n "$store_kind" ] || die 4 "this package is not in the store catalog: $pkg"
@@ -469,7 +504,7 @@ sys.exit(1)' "$1" "$2"
     }
     # Stale or missing package lists (fresh install): refresh them once and retry.
     if ! store_apt_install; then
-      apt-get -q -o DPkg::Lock::Timeout=120 update >&2 || die 5 "could not refresh the package lists (check the network connection)"
+      apt_update >&2 || die 5 "could not refresh the package lists (check the network connection)"
       store_apt_install || die 5 "could not install $pkg (see the system journal)"
     fi
   else
@@ -620,7 +655,7 @@ drivers-install | drivers-remove)
     [[ $pkg =~ ^nvidia-driver-[0-9]{3}(-open|-server|-server-open)?$ ]] || die 2 "invalid driver package name"
     command -v ubuntu-drivers >/dev/null 2>&1 || die 3 "ubuntu-drivers is not installed (package ubuntu-drivers-common)"
     echo "step:refresh"
-    apt-get -q --error-on=any -o DPkg::Lock::Timeout=120 update >&2 || die 5 "could not refresh the package lists (check the Internet connection)"
+    apt_update --error-on=any >&2 || die 5 "could not refresh the package lists (check the Internet connection)"
     echo "step:check"
     drv_devices=$(ubuntu-drivers devices 2>/dev/null) || die 5 "could not list the drivers available for this computer"
     printf '%s\n' "$drv_devices" | drivers_listed "$pkg" || die 4 "$pkg is not offered for the graphics card of this computer"
@@ -783,6 +818,27 @@ firmware-update)
   echo "done"
   ;;
 # ------------------------------------------------------------------ END firmware
+
+# ------------------------------------------------------------------ BEGIN power (Paramètres > Alimentation > capot)
+#   power-lid <suspend|ignore|poweroff>
+#       What closing the lid does (on battery and on mains): writes /etc/systemd/logind.conf.d/50-aurora-lid.conf, then
+#       asks systemd-logind to reload its configuration (SIGHUP; sessions are untouched). Docked: logind's default.
+power-lid)
+  power_lid_conf() {
+    printf '# Selene OS: written by aurora-admin power-lid (Paramètres > Alimentation)\n[Login]\nHandleLidSwitch=%s\nHandleLidSwitchExternalPower=%s\n' "$1" "$1"
+  }
+  need_args $# 1
+  [[ $1 =~ ^(suspend|ignore|poweroff)$ ]] || die 2 "invalid lid action"
+  install -d -m 0755 /etc/systemd/logind.conf.d
+  power_lid_tmp="$(mktemp /etc/systemd/logind.conf.d/.aurora-lid.XXXXXX)"
+  power_lid_conf "$1" >"$power_lid_tmp"
+  chmod 0644 "$power_lid_tmp"
+  mv -f -- "$power_lid_tmp" /etc/systemd/logind.conf.d/50-aurora-lid.conf
+  systemctl kill -s HUP systemd-logind >/dev/null 2>&1 || true
+  log "user=$CALLER lid action set to $1"
+  echo "ok"
+  ;;
+# ------------------------------------------------------------------ END power
 
 *)
   die 2 "unknown action: $ACTION"

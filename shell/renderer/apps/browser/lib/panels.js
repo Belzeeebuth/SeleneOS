@@ -289,6 +289,10 @@ export function pageMenu(bw, tab, p) {
       for (const s of p.dictionarySuggestions.slice(0, 4)) items.push({ label: s, action: () => tab.wv.replaceMisspelling(s) });
       items.push('-');
     }
+    // « Ajouter au dictionnaire » (main/ipc/spell.js; the custom dictionary is shared with the shell's apps).
+    if (p.misspelledWord) {
+      items.push({ label: t('ctx.addToDictionary'), icon: 'book_add', action: () => shared.api.invoke('spell:add', p.misspelledWord).then(() => tab.wv.replaceMisspelling(p.misspelledWord)).catch(() => {}) }, '-');
+    }
     items.push(
       { label: t('ctx.undo'), icon: 'arrow_undo', shortcut: 'Ctrl+Z', disabled: !ef.canUndo, action: () => tab.wv.undo() },
       { label: t('ctx.redo'), icon: 'arrow_redo', shortcut: 'Ctrl+Y', disabled: !ef.canRedo, action: () => tab.wv.redo() },

@@ -603,6 +603,84 @@ function fmtDuration(pc, min) {
   return pc.t('power.m', { count: mm });
 }
 
+// Screen and sleep, lid, power mode, low battery (inputpower track: core/features/power.js applies settings.power,
+// main/ipc/inputpower.js: power:profiles / power:lid, aurora-admin power-lid). Defaults = core/features/power.js POWER_DEFAULTS.
+const POWER_DEFAULTS = { screenOffBattery: 5, screenOffAc: 10, sleepBattery: 15, sleepAc: 0, lockOnScreenOff: true };
+async function energyGroups(pc, bat) {
+  const { t, kit, settings, api } = pc;
+  const cfg = { ...POWER_DEFAULTS, ...(settings.get('power') || {}) };
+  const minLabel = (m) => (m === 0 ? t('power.never') : m >= 60 ? t('power.h', { count: m / 60 }) : t('power.m', { count: m }));
+  const OFF = [1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 0];
+  const SLEEP = [5, 10, 15, 20, 30, 45, 60, 120, 0];
+  const minRow = (key, list, titleKey, descKey, icon) => {
+    const v = Number(cfg[key]) || 0;
+    const opts = (list.includes(v) ? list : [...list, v].sort((a, b) => (a || 1e9) - (b || 1e9))).map((m) => ({ value: m, label: minLabel(m) }));
+    return kit.row({ icon, title: t(titleKey), desc: t(descKey), section: key, control: kit.combo({ options: opts, value: v, label: t(titleKey), onChange: (x) => settings.set(`power.${key}`, Number(x)) }) });
+  };
+  const rows = bat
+    ? [
+        minRow('screenOffBattery', OFF, 'energy.screenOffBattery', 'energy.screenOffDesc', 'monitor'),
+        minRow('screenOffAc', OFF, 'energy.screenOffAc', 'energy.screenOffDesc', 'monitor'),
+        minRow('sleepBattery', SLEEP, 'energy.sleepBattery', 'energy.sleepDesc', 'moon'),
+        minRow('sleepAc', SLEEP, 'energy.sleepAc', 'energy.sleepDesc', 'moon'),
+      ]
+    : [minRow('screenOffAc', OFF, 'energy.screenOff', 'energy.screenOffDesc', 'monitor'), minRow('sleepAc', SLEEP, 'energy.sleep', 'energy.sleepDesc', 'moon')];
+  rows.push(
+    kit.row({
+      icon: 'lock-simple',
+      title: t('energy.lockOnOff'),
+      desc: t('energy.lockOnOffDesc'),
+      section: 'lockOnScreenOff',
+      control: kit.toggle({ value: cfg.lockOnScreenOff !== false, label: t('energy.lockOnOff'), onChange: (v) => settings.set('power.lockOnScreenOff', !!v) }),
+    }),
+  );
+  const groups = [kit.group(t('energy.screenSleep'), ...rows)];
+  const [profiles, lid] = await Promise.all([pc.tryInvoke('power:profiles'), bat ? pc.tryInvoke('power:lid') : null]);
+  const more = [];
+  if (profiles?.profiles?.length > 1) {
+    const names = { 'power-saver': t('energy.modeSaver'), balanced: t('energy.modeBalanced'), performance: t('energy.modePerformance') };
+    more.push(
+      kit.row({
+        icon: 'gauge',
+        title: t('energy.mode'),
+        desc: t('energy.modeDesc'),
+        section: 'mode',
+        control: kit.combo({ options: profiles.profiles.map((p) => ({ value: p, label: names[p] || p })), value: profiles.active, label: t('energy.mode'), onChange: (v) => api.invoke('power:setProfile', v).catch(pc.toastError) }),
+      }),
+    );
+  }
+  if (lid) {
+    more.push(
+      kit.row({
+        icon: 'laptop',
+        title: t('energy.lid'),
+        desc: t('energy.lidDesc'),
+        section: 'lid',
+        control: kit.combo({
+          options: [
+            { value: 'suspend', label: t('energy.lidSuspend') },
+            { value: 'ignore', label: t('energy.lidIgnore') },
+            { value: 'poweroff', label: t('energy.lidPoweroff') },
+          ],
+          value: lid.action,
+          label: t('energy.lid'),
+          onChange: async (v) => {
+            try {
+              await pc.runAdmin('power-lid', [v], 'energy.reasonLid');
+            } catch (e) {
+              if (e?.code !== 'ECANCELED') pc.toastError(e);
+              pc.refresh();
+            }
+          },
+        }),
+      }),
+    );
+  }
+  if (bat) more.push(kit.row({ icon: 'battery-low', title: t('energy.lowBattery'), desc: t('energy.lowBatteryDesc'), section: 'lowBattery' }));
+  if (more.length) groups.push(kit.group(null, ...more));
+  return groups;
+}
+
 async function power(pc) {
   const { h, t, kit, settings, icon, ui } = pc;
   const bat = await pc.tryInvoke('power:battery');
@@ -628,6 +706,7 @@ async function power(pc) {
       kit.row({ icon: 'lock_closed_key', title: t('power.lockNow'), desc: t('power.lockNowDesc'), control: kit.button(t('power.lockBtn'), () => pc.shell.lock()) }),
     ),
   );
+  parts.push(...(await energyGroups(pc, bat)));
   const confirmThen = async (msg, okLabel, fn) => {
     if (await ui.confirm(msg, { title: okLabel, okLabel, parent: pc.win })) fn().catch?.(pc.toastError);
   };
@@ -826,6 +905,33 @@ function specText(rows) {
   return rows.map(([k, v]) => `${k}\t${v}`).join('\n');
 }
 
+// « Créer un rapport de diagnostic » (track "robust"): main/ipc/robust.js robust:report writes ~/selene-diagnostic-<date>.tar.gz;
+// the notice says what is inside before anything is created.
+function diagnosticGroup(pc) {
+  const { h, t, kit, api } = pc;
+  const result = h('div', { class: 'st-diag-result', role: 'status', 'aria-live': 'polite' });
+  const btn = kit.button(t('diag.create'), () =>
+    kit.busy(btn, async () => {
+      result.textContent = '';
+      try {
+        const r = await api.invoke('robust:report');
+        result.replaceChildren(
+          h('span', null, t('diag.done', { name: r.name })),
+          ' ',
+          kit.link(t('diag.show'), () => pc.shell.launch('files', { path: r.path.replace(/\/[^/]*$/, ''), select: r.path })),
+        );
+      } catch (err) {
+        result.textContent = err?.code === 'ENOSPC' ? t('diag.noSpace') : t('diag.failed');
+      }
+    }),
+  );
+  return kit.group(
+    t('diag.title'),
+    kit.row({ icon: 'folder_zip', title: t('diag.create'), desc: t('diag.notice'), control: btn, section: 'diagnostic', className: 'st-diag-row' }),
+    result,
+  );
+}
+
 async function about(pc) {
   const { h, t, kit, api, icon } = pc;
   const [info, host, adm, usage] = await Promise.all([pc.tryInvoke('sys:info'), hostname(pc), pc.adminStatus(), pc.tryInvoke('fs:usage', '/')]);
@@ -867,6 +973,7 @@ async function about(pc) {
     'div',
     null,
     h('section', { class: 'st-group st-about' }, h('div', { class: 'st-group-rows' }, list, h('div', { class: 'st-about-foot' }, copyBtn))),
+    diagnosticGroup(pc),
     kit.related([
       { icon: 'arrow_sync', title: pc.pageTitle('update'), desc: t('about.relatedUpdate'), onClick: () => pc.go('update') },
       ...(pc.ctx.shell.registry?.get?.('winver') ? [{ icon: 'info', title: t('about.aboutAurora'), desc: t('about.aboutAuroraDesc'), onClick: () => pc.shell.launch('winver'), external: true }] : []),

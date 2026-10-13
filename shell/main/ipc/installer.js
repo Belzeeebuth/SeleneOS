@@ -272,6 +272,8 @@ function register(api) {
     running: !!job,
     finished,
     helper: dryRun ? helperPath(HELPER) : path.join('/usr/lib/aurora/helpers', HELPER),
+    // RAM of this computer (the installer warns under 4 GB, never blocks; AURORA_FAKE_RAM=<bytes> in tests).
+    memTotal: Number(process.env.AURORA_FAKE_RAM) || require('os').totalmem(),
   }));
 
   api.handle('installer:disks', async () => {

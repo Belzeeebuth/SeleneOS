@@ -38,6 +38,14 @@ export const shell = {
     const st = await api.invoke('fs:stat', path);
     if (st?.dir) return registry.launch('files', { path });
     const win = await registry.openFile(path, opts);
+    // Office documents with nothing to open them: offer LibreOffice (core/features/office.js).
+    if (!win && !opts.appId && !registry.handlerFor(path)) {
+      const office = await import('./features/office.js').catch(() => null);
+      if (office?.isOffice(path)) {
+        await office.prompt(path, { parent: opts.parent });
+        return null;
+      }
+    }
     if (!win) {
       notify({ title: t('shell.noHandlerTitle'), body: t('shell.noHandlerBody', { name: path.split('/').pop() }), icon: 'warning' });
     }

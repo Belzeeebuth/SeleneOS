@@ -51,6 +51,20 @@ export function setShellServices(s) {
   shellServices = s;
 }
 
+// Extension -> MIME type of office documents (handlerFor's Linux-app fallback; same table as core/features/office.js).
+const OFFICE_MIME = {
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.doc': 'application/msword',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.xls': 'application/vnd.ms-excel',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.odt': 'application/vnd.oasis.opendocument.text',
+  '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
+  '.odp': 'application/vnd.oasis.opendocument.presentation',
+  '.rtf': 'application/rtf',
+};
+
 export const registry = {
   async load() {
     const list = await api.invoke('apps:list');
@@ -125,6 +139,9 @@ export const registry = {
     // An app that declares the extension in "defaultFor" wins over apps that merely support it.
     for (const m of apps.values()) if ((m.defaultFor || []).includes(ext)) return m.id;
     for (const m of apps.values()) if ((m.fileTypes || []).includes(ext)) return m.id;
+    // Linux apps declare MIME types, not extensions: office documents open in an installed office suite.
+    const mime = OFFICE_MIME[ext];
+    if (mime) for (const m of apps.values()) if (m.kind === 'linux' && (m.mimeTypes || []).includes(mime)) return m.id;
     return null;
   },
   async openFile(path, opts = {}) {

@@ -1629,3 +1629,10 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* ---- BEGIN update badge (pending system updates on « Mises à jour », main.js) ---- */
+.app-settings .st-nav-item .st-nav-badge {
+  margin-left: auto;
+  flex: none;
+}
+/* ---- END update badge ---- */

@@ -874,7 +874,7 @@ export class BrowserWindowCtl {
     const wv = document.createElement('webview');
     wv.setAttribute('partition', this.partition);
     wv.setAttribute('allowpopups', '');
-    wv.setAttribute('webpreferences', 'spellcheck=no, autoplayPolicy=document-user-activation-required');
+    wv.setAttribute('webpreferences', 'spellcheck=yes, autoplayPolicy=document-user-activation-required');
     wv.className = 'bw-webview';
     wv.setAttribute('src', url);
     tab.wv = wv;

@@ -1,0 +1,8 @@
+# Linux app integration (track "trayn"): notification server + system tray + XDG autostart.
+# The session helper /usr/lib/aurora/helpers/aurora-sessionbus (org.freedesktop.Notifications,
+# org.kde.StatusNotifierWatcher) needs python3-dbus + python3-gi (also in bluetooth.list).
+# libnotify-bin: notify-send, for scripts and apps that call it.
+# Legacy XEmbed tray icons are not bridged: snixembed is not in noble, xembedsniproxy only comes with plasma-workspace.
+libnotify-bin
+python3-dbus
+python3-gi

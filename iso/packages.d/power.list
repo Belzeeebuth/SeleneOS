@@ -1,0 +1,6 @@
+# Power (inputpower track): power modes Économie d'énergie / Équilibré / Performances in Paramètres > Alimentation and
+# Réglages rapides (powerprofilesctl; polkit lets the active session switch), battery state for upower-aware apps.
+# Screen off uses xset (x11-xserver-utils), touchpad settings use xinput (both in system.list); suspend and the lid
+# action are systemd-logind's (aurora-admin power-lid writes a logind.conf.d drop-in).
+power-profiles-daemon
+upower

@@ -394,6 +394,10 @@ export default {
           opt('fr', 'FR', t('welcome.frName'), t('welcome.frRegion')),
         ),
         h('div', { class: 'infobar ins-note' }, icon('info', { size: 16 }), h('div', null, t('welcome.note'))),
+        // Under 4 GB of RAM (a "4 GB" machine reports ~3.7 GiB): a warning, the install stays possible.
+        status.memTotal && status.memTotal < 3.5 * 1024 ** 3
+          ? h('div', { class: 'infobar warning ins-note ins-lowram', role: 'note' }, icon('warning', { size: 16 }), h('div', null, t('welcome.lowRam', { ram: `${(status.memTotal / 1024 ** 3).toFixed(1).replace('.', S.lang === 'fr' ? ',' : '.')} ${S.lang === 'fr' ? 'Go' : 'GB'}` })))
+          : null,
       );
     }
 

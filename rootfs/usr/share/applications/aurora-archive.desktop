@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+# Selene OS: hands links and files from Linux / Flatpak apps to the Selene app (aurora-open -> the shell).
+# NoDisplay: the Lanceur already lists the Selene app itself.
+Name=Selene Archives
+Name[fr]=Selene Archives
+Exec=aurora-open archive %U
+TryExec=aurora-open
+NoDisplay=true
+Terminal=false
+StartupNotify=false
+MimeType=application/zip;application/x-tar;application/gzip;application/x-compressed-tar;application/x-xz;application/x-xz-compressed-tar;application/x-bzip2;application/x-bzip2-compressed-tar;application/zstd;application/x-zstd-compressed-tar;application/x-7z-compressed;application/vnd.rar;application/vnd.ms-cab-compressed;application/x-java-archive;

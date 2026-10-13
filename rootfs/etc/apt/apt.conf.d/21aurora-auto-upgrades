@@ -1,0 +1,10 @@
+// Selene OS: automatic system updates on installed systems (apt-daily.timer / apt-daily-upgrade.timer).
+// Read after unattended-upgrades' own 20auto-upgrades, so these values win.
+// Package lists are refreshed every day (Paramètres > Mises à jour and the background check read
+// them without root), security updates install themselves (origins: 50unattended-upgrades,
+// -security only), the package cache is cleaned every week. Nothing runs in the live session
+// (see /etc/systemd/system/apt-daily*.service.d/aurora-live.conf).
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Download-Upgradeable-Packages "0";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";

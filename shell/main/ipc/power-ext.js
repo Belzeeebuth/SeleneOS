@@ -7,7 +7,8 @@
 //
 // Reads /sys/class/power_supply: devices of type "Battery" whose scope is not "Device" (mice and
 // headsets report their own batteries) and "Mains"/"USB" adapters for the AC state.
-// Dev mode: AURORA_MOCK_BATTERY=<percent>[,charging] simulates a laptop battery.
+// Dev mode: AURORA_MOCK_BATTERY=<percent>[,charging] simulates a laptop battery; AURORA_POWER_SUPPLY=<dir> reads a fake
+// power_supply tree (AURORA_POWER_POLL_MS shortens the 30 s poll), see test/inputpower.test.mjs.
 const fs = require('fs');
 const path = require('path');
 
@@ -73,17 +74,17 @@ function batteryFrom(supplies) {
   };
 }
 
-function readSupplies() {
+function readSupplies(PS_DIR = PS) {
   const out = {};
   let names = [];
   try {
-    names = fs.readdirSync(PS);
+    names = fs.readdirSync(PS_DIR);
   } catch {
     return out;
   }
   const files = ['type', 'scope', 'present', 'online', 'status', 'capacity', 'energy_now', 'energy_full', 'power_now', 'charge_now', 'charge_full', 'current_now', 'manufacturer', 'model_name'];
   for (const n of names) {
-    const d = path.join(PS, n);
+    const d = path.join(PS_DIR, n);
     const f = {};
     for (const k of files) {
       const v = read(d, k);
@@ -103,21 +104,27 @@ function register(api) {
       const charging = flag === 'charging';
       return { percent, charging, full: false, timeLeftMin: charging ? 48 : Math.round(percent * 3.1), ac: charging, vendor: 'SMP', model: '5B10W13930' };
     }
+    // Tests (inputpower track): AURORA_POWER_SUPPLY=<dir> = a fake /sys/class/power_supply the test rewrites.
+    if (api.DEV && process.env.AURORA_POWER_SUPPLY) return batteryFrom(readSupplies(process.env.AURORA_POWER_SUPPLY));
     if (api.DEV && process.env.AURORA_REAL_BACKENDS !== '1') return null;
     return batteryFrom(readSupplies());
   };
-  api.handle('power:battery', () => battery());
-
   let last = JSON.stringify(battery());
+  // A state read by a caller (e.g. the low-battery countdown polling every 2 s) is broadcast too when it changed, so
+  // the 30 s poll below never misses a quick unplug / plug back.
+  const changed = (b) => {
+    const j = JSON.stringify(b);
+    if (j === last) return;
+    last = j;
+    api.broadcast('power:changed', b);
+  };
+  api.handle('power:battery', () => {
+    const b = battery();
+    if (last !== 'null') changed(b);
+    return b;
+  });
   if (last !== 'null') {
-    setInterval(() => {
-      const b = battery();
-      const j = JSON.stringify(b);
-      if (j !== last) {
-        last = j;
-        api.broadcast('power:changed', b);
-      }
-    }, 30000).unref?.();
+    setInterval(() => changed(battery()), (api.DEV && Number(process.env.AURORA_POWER_POLL_MS)) || 30000).unref?.();
   }
 }
 

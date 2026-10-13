@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+# Selene OS: hands links and files from Linux / Flatpak apps to the Selene app (aurora-open -> the shell).
+# NoDisplay: the Lanceur already lists the Selene app itself.
+Name=Selene Mail
+Name[fr]=Selene Courrier
+Exec=aurora-open mail %U
+TryExec=aurora-open
+NoDisplay=true
+Terminal=false
+StartupNotify=false
+MimeType=x-scheme-handler/mailto;message/rfc822;

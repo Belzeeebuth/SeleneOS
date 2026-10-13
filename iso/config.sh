@@ -46,11 +46,13 @@ FINAL_MIRROR="${FINAL_MIRROR:-http://archive.ubuntu.com/ubuntu}"
 FINAL_SECURITY_MIRROR="${FINAL_SECURITY_MIRROR:-http://security.ubuntu.com/ubuntu}"
 KEYRING="${KEYRING:-/usr/share/keyrings/ubuntu-archive-keyring.gpg}"
 
-# Kernel metapackage. linux-image-generic = GA kernel (6.8 on noble);
-# linux-image-generic-hwe-24.04 = newer hardware-enablement kernel.
-KERNEL_PACKAGE="${KERNEL_PACKAGE:-linux-image-generic}"
-# 0 = no linux-firmware (VM-oriented, ~600 MB smaller); 1 = ship linux-firmware for real hardware.
-WITH_FIRMWARE="${WITH_FIRMWARE:-0}"
+# Kernel metapackage. linux-image-generic-hwe-24.04 = hardware-enablement kernel (default: newer
+# GPUs, Wi-Fi and laptops; ubuntu-drivers then picks linux-modules-nvidia-*-generic-hwe-24.04);
+# linux-image-generic = GA kernel (6.8 on noble).
+KERNEL_PACKAGE="${KERNEL_PACKAGE:-linux-image-generic-hwe-24.04}"
+# 1 = ship linux-firmware for real hardware (default, release ISO); 0 = no linux-firmware
+# (quick VM builds, ~600 MB smaller: a placeholder package Provides linux-firmware).
+WITH_FIRMWARE="${WITH_FIRMWARE:-1}"
 # Packages are installed without Recommends so the image only contains what packages.d asks for.
 INSTALL_RECOMMENDS="${INSTALL_RECOMMENDS:-0}"
 # 1 = warn about (and skip) packages that do not exist instead of failing.
@@ -76,6 +78,8 @@ ELECTRON_SHA256="${ELECTRON_SHA256:-$(_aurora_electron_sha256_known "$ELECTRON_V
 ELECTRON_LOCALES="${ELECTRON_LOCALES:-en-US en-GB fr}"
 NODE_BIN="${NODE_BIN:-/opt/node22/bin}"
 
+# Selene version: the VERSION file (make release VERSION=x.y.z bumps it; docs/UPDATES.md).
+ISO_VERSION="${ISO_VERSION:-$(tr -d ' \n' <"$AURORA_ROOT/VERSION" 2>/dev/null)}"
 ISO_VERSION="${ISO_VERSION:-$(_aurora_json_field "$SHELL_SRC/package.json" version)}"
 ISO_VERSION="${ISO_VERSION:-1.0.0}"
 OS_NAME="${OS_NAME:-Selene OS}"
@@ -127,3 +131,8 @@ fi
 BUILD_CA_BUNDLE="${BUILD_CA_BUNDLE:-}"
 BUILD_HTTPS_PROXY="${BUILD_HTTPS_PROXY:-${https_proxy:-${HTTPS_PROXY:-}}}"
 BUILD_HTTP_PROXY="${BUILD_HTTP_PROXY:-${http_proxy:-}}"
+
+# ---- Selene updates (docs/UPDATES.md) -----------------------------------------------------
+# Selene apt repository written into the image (/etc/apt/sources.list.d/selene.sources, signed by
+# iso/keys/selene-archive-keyring.gpg). `make repo` builds it into out/apt/; publish that directory here.
+SELENE_APT_URL="${SELENE_APT_URL:-https://belzeeebuth.github.io/claudeai-test/apt/}"

@@ -1,0 +1,6 @@
+# Ubuntu-owned files that aurora-base replaces (one absolute path per line).
+# aurora-base's preinst diverts each one to <file>.ubuntu (dpkg-divert --rename), its postrm restores them.
+# dpkg refuses to install aurora-base when a rootfs/ file belongs to another package and is not listed here
+# (iso/build.sh then names the file).
+/etc/greetd/config.toml
+/etc/systemd/zram-generator.conf

@@ -1,0 +1,12 @@
+Package: aurora-shell
+Version: @VERSION@
+Architecture: amd64
+Section: misc
+Priority: optional
+Maintainer: Selene OS <selene@selene-os.invalid>
+Installed-Size: @SIZE@
+Depends: aurora-electron (>= @ELECTRON_VERSION@), aurora-base (>= @UPSTREAM@)
+Description: Selene OS — desktop shell and apps
+ The Selene Shell (/opt/aurora/shell): taskbar, Launcher, windows, the
+ sign-in screen and every Selene app, with their runtime npm modules.
+ A new version is used from the next session.

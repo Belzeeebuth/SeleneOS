@@ -172,10 +172,14 @@ module.exports = function register(api) {
     sessions.set(partition, ses);
     partitionOf.set(ses, partition);
     ses.setUserAgent(cleanUserAgent(ses.getUserAgent()), acceptLanguages(prefs.lang));
-    // No spell-checker dictionaries fetched from Google servers behind the user's back.
+    // Spell check with the local dictionaries only (main/ipc/spell.js): nothing is fetched from Google servers.
     try {
-      ses.setSpellCheckerEnabled(false);
-    } catch {}
+      require('./spell.js').prepare(ses, api.env.lang);
+    } catch {
+      try {
+        ses.setSpellCheckerEnabled(false);
+      } catch {}
+    }
     try {
       if (fs.existsSync(GUEST_PRELOAD)) ses.registerPreloadScript({ type: 'frame', id: 'aurora-browser-dialogs', filePath: GUEST_PRELOAD });
     } catch (err) {
@@ -184,6 +188,12 @@ module.exports = function register(api) {
     ses.on('will-download', (event, item, wc) => onWillDownload(partition, item, wc));
     ses.setPermissionRequestHandler((wc, permission, callback, details) => onPermissionRequest(partition, wc, permission, callback, details || {}));
     ses.setPermissionCheckHandler((wc, permission, requestingOrigin, details) => onPermissionCheck(partition, permission, requestingOrigin, details || {}));
+    // Screen sharing (getDisplayMedia): a Selene picker in the tab's window (« Écran entier » or a window); cancel = deny.
+    try {
+      ses.setDisplayMediaRequestHandler((request, callback) => onDisplayMedia(request, callback));
+    } catch (err) {
+      console.warn('[browser] no display media handler', err?.message || err);
+    }
     applyWebRequest(ses);
     return ses;
   }
@@ -470,6 +480,9 @@ module.exports = function register(api) {
 
   function onPermissionRequest(partition, wc, permission, callback, details) {
     if (ALLOW.has(permission)) return callback(true);
+    // getDisplayMedia asks for 'media' with no camera / microphone type: the screen sharing picker (onDisplayMedia)
+    // is where the user consents, so no second « caméra / micro » prompt here.
+    if (permission === 'media' && Array.isArray(details.mediaTypes) && details.mediaTypes.length === 0) return callback(true);
     if (permission === 'openExternal') {
       const ext = details.externalURL || '';
       if (/^(mailto|tel|sms|webcal|magnet):/i.test(ext)) api.broadcast('browser:external', { sourceId: wc?.id, url: ext });
@@ -519,6 +532,53 @@ module.exports = function register(api) {
   }
 
   api.handle('browser:permissionReply', (id, decision) => finishPermission(id, decision || {}));
+
+  // ------------------------------------------------------------------ screen sharing
+  //   browser:display-media { id, sourceId, origin, sources: [{ id, name, kind: 'screen'|'window', thumb }] }
+  //   browser:displayMediaReply (id, sourceId | null) -> true   (null / unknown source / 2 min = denied)
+  const pendingShares = new Map(); // id -> { callback, sources, timer }
+  function finishShare(id, chosen) {
+    const p = pendingShares.get(id);
+    if (!p) return false;
+    pendingShares.delete(id);
+    clearTimeout(p.timer);
+    const src = chosen ? p.sources.find((x) => x.id === chosen) : null;
+    try {
+      if (src) p.callback({ video: src });
+      else p.callback({});
+    } catch (err) {
+      console.warn('[browser] display media answer failed', err?.message || err);
+    }
+    api.broadcast('browser:display-media-done', { id });
+    return true;
+  }
+  async function onDisplayMedia(request, callback) {
+    let wc = null;
+    try {
+      wc = request.frame ? webContents.fromFrame(request.frame) : null;
+    } catch {}
+    const origin = originOf(request.securityOrigin || request.frame?.url || wc?.getURL?.() || '');
+    if (api.DEV) console.log(`[browser] display media request from ${origin || '?'} (tab ${wc?.id ?? '?'})`);
+    if (!wc || !origin) return callback({});
+    let sources = [];
+    try {
+      const { desktopCapturer } = require('electron');
+      sources = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: false });
+    } catch (err) {
+      console.warn('[browser] desktopCapturer failed', err?.message || err);
+    }
+    if (!sources.length) return callback({});
+    const id = `d${++seq}`;
+    const timer = setTimeout(() => finishShare(id, null), 120000);
+    pendingShares.set(id, { callback, sources, timer });
+    api.broadcast('browser:display-media', {
+      id,
+      sourceId: wc.id,
+      origin,
+      sources: sources.map((x) => ({ id: x.id, name: String(x.name || '').slice(0, 200), kind: x.id.startsWith('screen:') ? 'screen' : 'window', thumb: x.thumbnail && !x.thumbnail.isEmpty() ? x.thumbnail.toDataURL() : '' })),
+    });
+  }
+  api.handle('browser:displayMediaReply', (id, sourceId) => finishShare(String(id || ''), typeof sourceId === 'string' ? sourceId : null));
   // Note: the IPC layer appends the event as the last argument, so optional parameters are type-checked.
   const optPartition = (p) => (typeof p === 'string' && validPartition(p) ? p : PERSIST);
   api.handle('browser:sitePermissions', (partition) => {
