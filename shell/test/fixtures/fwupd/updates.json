@@ -1,0 +1,52 @@
+{
+  "Devices" : [
+    {
+      "Name" : "System Firmware",
+      "DeviceId" : "a45df35ac0e948ee180fe216a5f703f32dda163f",
+      "Plugin" : "uefi_capsule",
+      "Flags" : [ "internal", "updatable", "require-ac", "supported", "registered", "needs-reboot" ],
+      "Vendor" : "LENOVO",
+      "Version" : "0.1.56",
+      "Releases" : [
+        {
+          "AppstreamId" : "com.lenovo.ThinkPadN2HET.firmware",
+          "Name" : "ThinkPad T14 Gen 2 System Update",
+          "Summary" : "Lenovo ThinkPad T14 Gen 2 System Firmware",
+          "Version" : "0.1.58",
+          "Description" : "<p>This stable release fixes the following problems:</p><ul><li>Fixed an issue where the system could not wake up from sleep &amp; hibernation.</li><li>Security fixes (CVE-2026-1234).</li></ul>",
+          "Size" : 17285432,
+          "Urgency" : "high",
+          "Flags" : [ "is-upgrade" ]
+        },
+        {
+          "Version" : "0.1.50",
+          "Flags" : [ "is-downgrade" ]
+        }
+      ]
+    },
+    {
+      "Name" : "Samsung SSD 980 PRO 1TB",
+      "DeviceId" : "71b677ca0f1bc2c5b804fa1d59e52064ce589293",
+      "Plugin" : "nvme",
+      "Flags" : [ "internal", "updatable", "require-ac", "registered", "usable-during-update" ],
+      "Vendor" : "Samsung",
+      "Version" : "5B2QGXA7",
+      "Releases" : [
+        {
+          "Summary" : "Firmware for the Samsung 980 PRO SSD",
+          "Version" : "5B2QGXA9",
+          "Description" : "<p>Improves reliability.</p>",
+          "Size" : 2408448,
+          "Urgency" : "medium",
+          "Flags" : [ "is-upgrade" ]
+        }
+      ]
+    },
+    {
+      "Name" : "Only a downgrade",
+      "DeviceId" : "362301da643102b9f38477387e2193e57abaa590",
+      "Version" : "0.1.30",
+      "Releases" : [ { "Version" : "0.1.20", "Flags" : [ "is-downgrade" ] } ]
+    }
+  ]
+}

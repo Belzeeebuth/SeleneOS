@@ -19,6 +19,15 @@
 // either the old state or complete refs; the refs that appeared since the install started (`flatpak list --user --all
 // --columns=ref` before / after) are then uninstalled one by one: the app itself, and runtimes / extensions no
 // remaining app uses. Partial downloads stay in OSTree's staging area (reused by the next try, pruned by OSTree).
+// When that clean-up cannot be confirmed (a ref could not be uninstalled, or flatpak could not list the refs), the
+// ECANCELED error carries partial: true and leftovers: [refs] so the Logithèque never claims « Rien n'a été modifié ».
+//
+// Updates (Logithèque > Mises à jour): updates() = `flatpak remote-ls --user --updates --app
+// --columns=application,version,branch,download-size` (parseUpdates), update(id) = `flatpak update --user -y
+// --noninteractive <id>` with progress, cancelable like install (flatpak deploys the new version atomically: a
+// stopped update leaves the installed version as it was, nothing to roll back).
+// Dev: AURORA_STORE_DEV_UPDATES=<id>[:<installed version>],... starts with those apps installed in an older version.
+// AURORA_STORE_DEV_ROLLBACK_FAIL=<id>: a cancelled install of <id> reports an incomplete clean-up.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -52,6 +61,7 @@ const MSG = {
   download: { en: 'Downloading…', fr: 'Téléchargement…' },
   install: { en: 'Installing…', fr: 'Installation…' },
   remove: { en: 'Uninstalling…', fr: 'Désinstallation…' },
+  update: { en: 'Updating…', fr: 'Mise à jour…' },
   parse: { en: 'Reading the catalogue…', fr: 'Lecture du catalogue…' },
   done: { en: 'Done', fr: 'Terminé' },
   cancel: { en: 'Cancelling…', fr: 'Annulation…' },
@@ -126,6 +136,30 @@ function parseList(text) {
   }
   return out;
 }
+/**
+ * `flatpak remote-ls --user --updates --app --columns=application,version,branch,download-size` ->
+ * [{ id, version?, branch?, downloadSize? }] (unit-tested). Tab-separated columns (flatpak's non-tty output); a line
+ * padded with runs of spaces instead (tty-style table) is split on 2+ spaces. Header, "Looking for updates…", blank
+ * and invalid lines are skipped; an app listed twice (two branches) is kept once.
+ */
+function parseUpdates(text) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    if (!cleanLine(raw)) continue;
+    const cols = (raw.includes('\t') ? raw.split('\t') : raw.trim().split(/\s{2,}/)).map((c) => cleanLine(c));
+    const [id, version, branch, size] = cols;
+    if (!validId(id) || seen.has(id)) continue;
+    seen.add(id);
+    const it = { id };
+    if (version && version.length <= 60 && !/[\x00-\x1f]/.test(version)) it.version = version;
+    if (branch && /^[A-Za-z0-9_.-]{1,60}$/.test(branch)) it.branch = branch;
+    const bytes = parseSize(size);
+    if (bytes != null) it.downloadSize = bytes;
+    out.push(it);
+  }
+  return out;
+}
 // One installed ref as `flatpak list --columns=ref` prints it: <id>/<arch>/<branch>; never a leading '-'.
 const REF_RE = /^[A-Za-z0-9_][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+){2,}\/[A-Za-z0-9_]+\/[A-Za-z0-9_.-]+$/;
 /** `flatpak list --columns=ref[,runtime]` -> [{ ref, runtime? }] (anything else skipped) */
@@ -182,6 +216,7 @@ let remoteReady = false;
 const busy = new Map(); // id -> 'install' | 'remove'
 const jobs = new Map(); // id -> { kind, canceled, child } of a cancelable operation (install)
 const devInstalled = new Map();
+const devUpdatable = new Set(); // dev: installed apps that have an update (AURORA_STORE_DEV_UPDATES)
 
 const env = () => process.env;
 function lang() {
@@ -435,14 +470,22 @@ async function snapshotRefs() {
   return apps && runtimes ? { apps, all: [...apps, ...runtimes].map((x) => x.ref) } : null;
 }
 /** After a cancelled install: uninstall what the stopped transaction added (each ref on its own, errors ignored). */
+// Resolves { refs: what it tried to remove, complete: true only when flatpak confirms nothing added is left,
+// leftovers: refs still there }.
 async function rollback(before, id, report) {
-  if (!before) return [];
+  if (!before) return { refs: [], complete: false, leftovers: [] };
   report({ message: t('cancel') });
   const after = await snapshotRefs();
-  if (!after) return [];
+  if (!after) return { refs: [], complete: false, leftovers: [] };
   const refs = rollbackRefs(before.all, after.all, after.apps, id);
-  for (const ref of refs) await flatpak(['uninstall', '--user', '-y', '--noninteractive', ref], { timeout: 120000 }).catch(() => {});
-  return refs;
+  let failed = false;
+  for (const ref of refs) await flatpak(['uninstall', '--user', '-y', '--noninteractive', ref], { timeout: 120000 }).catch(() => (failed = true));
+  if (!refs.length) return { refs, complete: true, leftovers: [] };
+  const check = await snapshotRefs();
+  if (!check) return { refs, complete: false, leftovers: failed ? refs : [] };
+  const still = new Set(check.all);
+  const leftovers = refs.filter((r) => still.has(r));
+  return { refs, complete: !leftovers.length, leftovers };
 }
 
 async function ensureRemote() {
@@ -491,6 +534,9 @@ function devFailure(id) {
   }
   return null;
 }
+function devRollbackFails(id) {
+  return String(env().AURORA_STORE_DEV_ROLLBACK_FAIL || '').split(',').map((x) => x.trim()).includes(id);
+}
 async function simulate(id, kind, onProgress, job = null) {
   const steps = [0, 20, 45, 70, 90, 100];
   const failCode = devFailure(id);
@@ -525,6 +571,15 @@ const api = {
     for (const j of jobs.values()) j.canceled = true;
     jobs.clear();
     devInstalled.clear();
+    devUpdatable.clear();
+    if (useMock) {
+      for (const part of String(env().AURORA_STORE_DEV_UPDATES || '').split(',')) {
+        const [uid, ver] = part.trim().split(':');
+        if (!validId(uid)) continue;
+        devInstalled.set(uid, { id: uid, version: (ver || '1.0').slice(0, 60), size: 120e6 });
+        devUpdatable.add(uid);
+      }
+    }
     return api;
   },
 
@@ -678,9 +733,12 @@ const api = {
       return { desktopId: `${id}.desktop` };
     } catch (e) {
       if (e?.code === 'ECANCELED' && !useMock) {
-        await rollback(before, id, report).catch(() => {});
+        const rb = await rollback(before, id, report).catch(() => ({ complete: false, leftovers: [] }));
+        if (!rb.complete) Object.assign(e, { partial: true, leftovers: rb.leftovers || [] });
         installedMap = null;
         await api.installed().catch(() => {});
+      } else if (e?.code === 'ECANCELED' && devRollbackFails(id)) {
+        Object.assign(e, { partial: true, leftovers: ['org.freedesktop.Platform/x86_64/24.08'] });
       }
       throw e;
     } finally {
@@ -700,6 +758,61 @@ const api = {
     job.canceled = true;
     stopChild(job.child);
     return { canceled: true };
+  },
+
+  /** Installed apps with an update on their remote: [{ id, version (new), branch?, downloadSize?, installedVersion }]. */
+  async updates() {
+    if (useMock) {
+      const c = await loadCatalog();
+      return [...devUpdatable]
+        .filter((id) => devInstalled.has(id))
+        .map((id) => {
+          const a = c.byId.get(id);
+          const cur = devInstalled.get(id).version || '';
+          return { id, version: a?.version && a.version !== cur ? a.version : `${cur}.1`, branch: 'stable', downloadSize: 20e6 + id.length * 1e6, installedVersion: cur };
+        });
+    }
+    if (!flatpakBin()) throw fail('EFLATPAK', '', 'NOFLATPAK');
+    const r = await flatpak(['remote-ls', '--user', '--updates', '--app', '--columns=application,version,branch,download-size'], { timeout: 180000 });
+    const list = parseUpdates(r.stdout);
+    const inst = await api.installed().then((l) => new Map(l.map((x) => [x.id, x])), () => installedMap || new Map());
+    return list.map((u) => ({ ...u, installedVersion: inst.get(u.id)?.version || '' }));
+  },
+
+  /** Update one installed app (and the runtime it needs). Cancelable with cancel(id): the old version stays. */
+  async update(id, onProgress = () => {}) {
+    if (!validId(id)) throw fail('EINVAL');
+    if (busy.has(id)) throw fail('EBUSY');
+    busy.set(id, 'update');
+    const job = { kind: 'update', canceled: false, child: null };
+    jobs.set(id, job);
+    const report = (ev) => {
+      try {
+        onProgress(ev);
+      } catch {}
+    };
+    try {
+      if (useMock) {
+        if (!devInstalled.has(id)) throw fail('ENOENT');
+        const next = (await api.updates()).find((u) => u.id === id);
+        await simulate(id, 'update', report, job);
+        if (next) devInstalled.set(id, { ...devInstalled.get(id), version: next.version });
+        devUpdatable.delete(id);
+        return { desktopId: `${id}.desktop` };
+      }
+      report({ percent: 0, message: t('update') });
+      await flatpak(['update', '--user', '-y', '--noninteractive', id], { onLine: report, job });
+      report({ percent: 100, message: t('done') });
+      return { desktopId: `${id}.desktop` };
+    } catch (e) {
+      if (e?.code === 'ECANCELED') report({ message: t('cancel') });
+      throw e;
+    } finally {
+      installedMap = null;
+      if (!useMock) await api.installed().catch(() => {});
+      if (jobs.get(id) === job) jobs.delete(id);
+      busy.delete(id);
+    }
   },
 
   async remove(id, onProgress = () => {}) {
@@ -732,4 +845,4 @@ const api = {
 
 api.init({ DEV: false });
 module.exports = api;
-module.exports._internal = { validId, errorCode, errorDetail, parseProgress, parseList, parseSize, cleanLine, score, deaccent, FIXTURE_DIR, DEV_HELPER, MAIN_CATEGORIES, parseRefs, rollbackRefs };
+module.exports._internal = { validId, errorCode, errorDetail, parseProgress, parseList, parseSize, cleanLine, score, deaccent, FIXTURE_DIR, DEV_HELPER, MAIN_CATEGORIES, parseRefs, rollbackRefs, parseUpdates };

@@ -93,6 +93,12 @@ for (const theme of ['dark', 'light']) {
       // rename
       await P.click('.st-prn-printer[data-printer="Canon_PIXMA_G3570"] .st-prn-rename');
       await P.waitForSelector('.dialog input', { timeout: 5000 });
+      // 127 bytes at most, like aurora-admin (LC_ALL=C): 71 characters with accents are too long
+      check('rename field: maxlength 127', await P.getAttribute('.dialog input', 'maxlength'), '127');
+      await P.fill('.dialog input', `Imprimante ${'é'.repeat(60)}`);
+      await P.locator('.dialog .dialog-footer .btn.primary').click();
+      await P.waitForTimeout(200);
+      check('rename: too long (bytes) said simply, no prompt', [await P.textContent('.dialog .field'), await P.locator('.uac-dialog').count()], (v) => v[0].includes('Ce nom est trop long') && v[1] === 0);
       await P.fill('.dialog input', 'Imprimante du salon');
       await P.locator('.dialog .dialog-footer .btn.primary').click();
       await uac(s);
@@ -121,8 +127,12 @@ for (const theme of ['dark', 'light']) {
       await uac(s);
       await P.waitForSelector('.st-prn-error', { timeout: 8000 });
       check('add failure explained simply', await P.textContent('.st-prn-error'), (v) => /n’a pas répondu/.test(v));
+      // the Epson « est prête » toast is not part of this picture
+      await s.aurora(() => window.__aurora.notifications.clear());
+      await P.waitForFunction(() => !document.querySelector('.toast'), null, { timeout: 5000 });
       shots.push(await s.shot('printers-adderror-fr-dark'));
-      await inv(s, 'printers:devSet', { fail: false, kind: 'office' });
+      // CUPS holds a temporary queue named like the Brother (made when an app printed to it), not listed
+      await inv(s, 'printers:devSet', { fail: false, kind: 'office', tempQueue: 'Brother_MFC-L2710DW_series' });
       // remove (confirm dialog)
       await s.aurora(() => window.__aurora.registry.launch('settings', { page: 'printers' }));
       await P.waitForSelector('.st-prn-printer[data-printer="Canon_PIXMA_G3570"]', { timeout: 8000 });
@@ -135,6 +145,14 @@ for (const theme of ['dark', 'light']) {
       await uac(s);
       await P.waitForSelector('.st-prn-printer[data-printer="Canon_PIXMA_G3570"]', { state: 'detached', timeout: 8000 });
       check('Canon removed', (await inv(s, 'printers:list')).printers.map((p) => p.name), ['HP_LaserJet_M110w']);
+      // add the Brother: « already exists » (the temporary queue) -> a free name, asked once more, no error shown
+      await P.click('.st-prn-search');
+      await P.waitForSelector('.st-prn-found:has-text("Brother") .st-prn-addbtn:not([disabled])', { timeout: 8000 });
+      await P.click('.st-prn-found:has-text("Brother") .st-prn-addbtn');
+      await uac(s);
+      await uac(s);
+      await P.waitForSelector('.st-prn-printer[data-printer="Brother_MFC-L2710DW_series_2"]', { timeout: 8000 });
+      check('temporary queue in the way: added as Brother_MFC-L2710DW_series_2, « (2) » label, no error', [(await inv(s, 'printers:list')).printers.find((p) => p.name === 'Brother_MFC-L2710DW_series_2')?.label, await P.locator('.st-prn-error').count()], ['Brother MFC-L2710DW series (2)', 0]);
       // the print dialog's channel
       const doc = path.join(os.tmpdir(), 'aurora-printers-doc.pdf');
       fs.writeFileSync(doc, '%PDF-1.4\n');

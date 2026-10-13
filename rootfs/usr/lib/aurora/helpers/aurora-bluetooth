@@ -15,16 +15,24 @@
 #           {"id": 3, "cmd": "scan", "on": true, "timeout": 30}   discovery stops by itself after timeout s
 #           {"id": 4, "cmd": "pair"|"connect"|"disconnect"|"remove"|"cancel-pair", "address": "AA:BB:…"}
 #           {"id": 5, "cmd": "agent-reply", "req": 7, "accept": true, "value": "0000"}
+#           {"id": 6, "cmd": "visible", "on": true}   the computer can be found by phones (Discoverable) while the
+#                    Bluetooth page is open; a search does the same while it runs. Off again when both end, and when
+#                    the helper exits. Held as a lease: DiscoverableTimeout 180 s, renewed every 120 s, so a helper
+#                    killed hard leaves the adapter hidden again within 3 minutes.
 #   stdout  {"id": n, "ok": false, "error": "…", "code": "EREJECTED"|…}
 #           {"event": "state", "state": <state>}            whenever BlueZ objects change (debounced)
 #           {"event": "agent", "req": 7, "kind": "confirm"|"pin"|"passkey"|"display-pin"|"display-passkey"|
 #                    "authorize"|"cancel", "address": "…", "name": "…", "icon": "…", "passkey": "123456"}
-# <state> = {"available": bool, "adapter": {path, address, name, powered, discovering, powerState} | null,
+#           req 0 = no answer expected (display-pin / display-passkey, sent again as keys are typed); a "cancel" with
+#           req 0 closes the code shown for that address (BlueZ called Cancel, or the pairing ended).
+#           A request BlueZ never answers nor cancels is dropped after AGENT_TIMEOUT s ("cancel" event).
+# <state> = {"available": bool, "adapter": {path, address, name, powered, discovering, discoverable, powerState} | null,
 #            "devices": [{address, name, icon, class, appearance, paired, connected, trusted, blocked, rssi, battery}]}
 # Environment: DBUS_SYSTEM_BUS_ADDRESS (libdbus) points the helper at another bus (tests use a fake BlueZ).
 import json
 import os
 import re
+import signal
 import sys
 
 import dbus
@@ -40,6 +48,10 @@ AGENT_MGR = 'org.bluez.AgentManager1'
 AGENT_IFACE = 'org.bluez.Agent1'
 AGENT_PATH = '/org/selene/bluetooth/agent'
 ADDR_RE = re.compile(r'^[0-9A-F]{2}(:[0-9A-F]{2}){5}$')
+# BlueZ gives up on an agent request after 60 s (agent.c REQUEST_TIMEOUT) and then calls Cancel; drop ours a bit
+# later if that Cancel never comes (bluetoothd restarted, …). AURORA_BT_AGENT_TIMEOUT: tests.
+AGENT_TIMEOUT = max(1, int(os.environ.get('AURORA_BT_AGENT_TIMEOUT') or 65))
+VISIBLE_SECONDS = 180
 
 
 def out(obj):
@@ -95,8 +107,12 @@ class Helper:
         self.objects = {}  # path -> {iface: {prop: value}}
         self.emit_pending = False
         self.scan_timer = None
-        self.reqs = {}  # agent request id -> (ok, err, kind)
+        self.reqs = {}  # agent request id -> (ok, err, kind, timer)
         self.req_seq = 0
+        self.displaying = None  # address whose code is shown (display-pin / display-passkey)
+        self.visible = set()  # who wants the computer discoverable: 'page', 'scan'
+        self.visible_timer = None
+        self.made_visible = False
         self.agent = Agent(self, bus)
         bus.add_signal_receiver(self.on_added, 'InterfacesAdded', 'org.freedesktop.DBus.ObjectManager', BLUEZ)
         bus.add_signal_receiver(self.on_removed, 'InterfacesRemoved', 'org.freedesktop.DBus.ObjectManager', BLUEZ)
@@ -163,6 +179,8 @@ class Helper:
         cur[str(iface)].update(plain(changed))
         for k in invalidated:
             cur[str(iface)].pop(str(k), None)
+        if str(iface) == ADAPTER and 'Powered' in changed and changed['Powered'] and self.visible:
+            self.apply_visible()  # turned on (here or from the quick tile) while the page is open
         self.emit_soon()
 
     def adapter_path(self):
@@ -203,6 +221,7 @@ class Helper:
                 'powered': bool(a.get('Powered')),
                 'powerState': a.get('PowerState'),
                 'discovering': bool(a.get('Discovering')),
+                'discoverable': bool(a.get('Discoverable')),
             },
             'devices': devices,
         }
@@ -263,10 +282,16 @@ class Helper:
                 return props.Set(ADAPTER, 'Powered', dbus.Boolean(bool(msg.get('on'))), reply_handler=lambda: ok(), error_handler=dfail)
             if cmd == 'scan':
                 return self.scan(adapter, bool(msg.get('on')), msg.get('timeout'), ok, dfail)
+            if cmd == 'visible':
+                self.want_visible('page', bool(msg.get('on')))
+                return ok()
             if cmd in ('pair', 'connect', 'disconnect', 'cancel-pair'):
                 dev = dbus.Interface(self.bus.get_object(BLUEZ, self.device_path(msg.get('address'))), DEVICE)
                 if cmd == 'pair':
-                    return dev.Pair(reply_handler=lambda: self.after_pair(dev, ok), error_handler=dfail, timeout=120)
+                    def pair_failed(e):
+                        self.end_display()
+                        dfail(e)
+                    return dev.Pair(reply_handler=lambda: self.after_pair(dev, ok), error_handler=pair_failed, timeout=120)
                 method = {'connect': dev.Connect, 'disconnect': dev.Disconnect, 'cancel-pair': dev.CancelPairing}[cmd]
                 return method(reply_handler=lambda: ok(), error_handler=dfail, timeout=60)
             if cmd == 'remove':
@@ -290,16 +315,19 @@ class Helper:
             dfail(e)
 
         if not on:
+            self.want_visible('scan', False)
             return a.StopDiscovery(reply_handler=lambda: ok(), error_handler=ignore_state)
         secs = max(5, min(120, int(timeout or 30)))
 
         def stop():
             self.scan_timer = None
+            self.want_visible('scan', False)
             a.StopDiscovery(reply_handler=lambda: None, error_handler=lambda e: None)
             return False
 
         def started():
             self.scan_timer = GLib.timeout_add_seconds(secs, stop)
+            self.want_visible('scan', True)  # a phone searching at the same time finds this computer too
             ok()
 
         try:
@@ -307,6 +335,63 @@ class Helper:
         except dbus.DBusException:
             pass
         a.StartDiscovery(reply_handler=started, error_handler=ignore_state)
+
+    # ---------------------------------------------------------------- discoverable (visible to phones)
+    def want_visible(self, who, on):
+        before = bool(self.visible)
+        if on:
+            self.visible.add(who)
+        else:
+            self.visible.discard(who)
+        if bool(self.visible) != before:
+            self.apply_visible()
+
+    def set_adapter(self, name, value, sync=False):
+        ap = self.adapter_path()
+        if not ap:
+            return False
+        props = dbus.Interface(self.bus.get_object(BLUEZ, ap), 'org.freedesktop.DBus.Properties')
+        if sync:
+            props.Set(ADAPTER, name, value, timeout=3)
+        else:
+            props.Set(ADAPTER, name, value, reply_handler=lambda: None, error_handler=lambda e: None)
+        return True
+
+    def apply_visible(self):
+        if self.visible_timer:
+            GLib.source_remove(self.visible_timer)
+            self.visible_timer = None
+        ap = self.adapter_path()
+        if not ap:
+            return
+        if not self.visible:
+            if self.made_visible:
+                self.made_visible = False
+                self.set_adapter('Discoverable', dbus.Boolean(False))
+            return
+        if not self.objects[ap][ADAPTER].get('Powered'):
+            return  # BlueZ refuses (NotReady); applied when the adapter is turned on (on_props)
+        # Setting the timeout again restarts BlueZ's countdown while the computer is already discoverable.
+        self.set_adapter('DiscoverableTimeout', dbus.UInt32(VISIBLE_SECONDS))
+        self.set_adapter('Discoverable', dbus.Boolean(True))
+        self.made_visible = True
+
+        def renew():
+            self.visible_timer = None
+            self.apply_visible()
+            return False
+
+        self.visible_timer = GLib.timeout_add_seconds(VISIBLE_SECONDS - 60, renew)
+
+    def hide_now(self):
+        """On exit: not discoverable any more (synchronous: the main loop has stopped)."""
+        self.visible.clear()
+        if self.made_visible:
+            self.made_visible = False
+            try:
+                self.set_adapter('Discoverable', dbus.Boolean(False), sync=True)
+            except dbus.DBusException:
+                pass
 
     def after_pair(self, dev, ok):
         # Trust the device (it reconnects by itself later), then connect its profiles (audio, input).
@@ -316,23 +401,51 @@ class Helper:
         except dbus.DBusException:
             pass
         dev.Connect(reply_handler=lambda: None, error_handler=lambda e: None, timeout=60)
+        self.end_display()  # the code typed on the keyboard was right: its dialog closes
         ok()
 
     # ---------------------------------------------------------------- agent
     def ask(self, kind, device, ok, err, **extra):
         self.req_seq += 1
         rid = self.req_seq
-        self.reqs[rid] = (ok, err, kind)
+
+        def expire():  # BlueZ never answered nor cancelled: forget the request (and close its dialog)
+            entry = self.reqs.pop(rid, None)
+            if entry:
+                out({'event': 'agent', 'req': rid, 'kind': 'cancel'})
+                try:
+                    entry[1](Canceled('Timed out'))
+                except Exception:
+                    pass
+            return False
+
+        self.reqs[rid] = (ok, err, kind, GLib.timeout_add_seconds(AGENT_TIMEOUT, expire))
         info = self.device_info(device)
         out(dict({'event': 'agent', 'req': rid, 'kind': kind}, **info, **extra))
         return rid
 
+    def take(self, rid):
+        entry = self.reqs.pop(rid, None)
+        if entry:
+            GLib.source_remove(entry[3])
+        return entry
+
+    def display(self, kind, device, passkey, **extra):
+        info = self.device_info(device)
+        self.displaying = info['address']
+        out(dict({'event': 'agent', 'req': 0, 'kind': kind, 'passkey': passkey}, **info, **extra))
+
+    def end_display(self):
+        if self.displaying:
+            out({'event': 'agent', 'req': 0, 'kind': 'cancel', 'address': self.displaying})
+            self.displaying = None
+
     def agent_reply(self, msg):
         rid = msg.get('req')
-        entry = self.reqs.pop(rid, None)
+        entry = self.take(rid)
         if not entry:
             return False
-        ok, err, kind = entry
+        ok, err, kind, _timer = entry
         if not msg.get('accept'):
             err(Rejected('Rejected by the user'))
             return True
@@ -352,8 +465,9 @@ class Helper:
         return True
 
     def cancel_all(self):
-        for rid, (_ok, err, _kind) in list(self.reqs.items()):
-            self.reqs.pop(rid, None)
+        self.end_display()
+        for rid in list(self.reqs):
+            _ok, err, _kind, _timer = self.take(rid)
             out({'event': 'agent', 'req': rid, 'kind': 'cancel'})
             try:
                 err(Canceled('Canceled'))
@@ -380,13 +494,11 @@ class Agent(dbus.service.Object):
 
     @dbus.service.method(AGENT_IFACE, in_signature='os', out_signature='')
     def DisplayPinCode(self, device, pincode):
-        info = self.h.device_info(device)
-        out(dict({'event': 'agent', 'req': 0, 'kind': 'display-pin', 'passkey': str(pincode)}, **info))
+        self.h.display('display-pin', device, str(pincode))
 
     @dbus.service.method(AGENT_IFACE, in_signature='ouq', out_signature='')
     def DisplayPasskey(self, device, passkey, entered):
-        info = self.h.device_info(device)
-        out(dict({'event': 'agent', 'req': 0, 'kind': 'display-passkey', 'passkey': '%06d' % int(passkey), 'entered': int(entered)}, **info))
+        self.h.display('display-passkey', device, '%06d' % int(passkey), entered=int(entered))
 
     @dbus.service.method(AGENT_IFACE, in_signature='ou', out_signature='', async_callbacks=('ok', 'err'))
     def RequestConfirmation(self, device, passkey, ok, err):
@@ -440,8 +552,11 @@ def main():
         return True
 
     GLib.io_add_watch(sys.stdin.fileno(), GLib.PRIORITY_DEFAULT, GLib.IO_IN | GLib.IO_HUP | GLib.IO_ERR, on_stdin)
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        GLib.unix_signal_add(GLib.PRIORITY_HIGH, sig, lambda *_: loop.quit() or False)
     out({'event': 'ready'})
     loop.run()
+    helper.hide_now()  # the shell left (or restarts the helper): the computer is not discoverable any more
     return 0
 
 

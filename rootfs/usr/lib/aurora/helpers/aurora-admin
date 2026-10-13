@@ -32,6 +32,7 @@
 #   drivers-remove                               purge the NVIDIA driver, back to nouveau
 #   printer-add <queue> <uri> <label>  printer-remove <queue>  printer-default <queue>  printer-enable <queue> <0|1>
 #   printer-rename <queue> <label>  printer-job-cancel <queue-N>      CUPS printers (driverless IPP Everywhere, see below)
+#   firmware-update <device-id>                  fwupd: install the available firmware of one device (40 hex id, see below)
 #
 # Secrets: passwords never appear on a command line. The caller passes a random nonce (32 hex
 # digits) as the last argument and writes "<nonce>:<base64 of the password>" on stdin, after the
@@ -672,7 +673,8 @@ printer-add | printer-remove | printer-default | printer-enable | printer-rename
   RE_PRINTER_QUEUE='^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$'
   RE_PRINTER_URI='^(ipp|ipps|dnssd)://[]A-Za-z0-9._~%:/?=&+@[-]{1,480}$'
   RE_PRINTER_JOB='^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}-[1-9][0-9]{0,9}$'
-  # printer_valid_label <label>: 1–127 characters, no control characters, no " or \, no space at either end.
+  # printer_valid_label <label>: 1–127 bytes (${#v} counts bytes under LC_ALL=C: an accented letter is 2), no control
+  # characters, no " or \, no space at either end. admin.js and cups.js check the same UTF-8 byte length.
   printer_valid_label() {
     local v=$1
     { [ -n "$v" ] && [ ${#v} -le 127 ]; } || die 2 "invalid printer label"
@@ -752,6 +754,33 @@ printer-add | printer-remove | printer-default | printer-enable | printer-rename
   esac
   ;;
 # ------------------------------------------------------------------ END printers
+
+# ------------------------------------------------------------------ BEGIN firmware (Paramètres > Mises à jour > Microprogrammes)
+#   firmware-update <device-id>
+#       fwupdmgr update of that one device (device ids are SHA-1 strings: exactly 40 lowercase hex digits), never
+#       interactive (--assume-yes, no reboot / unreported / metadata prompts). The firmware comes from the LVFS
+#       metadata fwupd already checked (signed cabinet archives). Prints fwupdmgr's output, then "reboot-required"
+#       when a device waits for a restart to finish (UEFI capsules, NVMe…), then "done".
+#       Exit 3 when there is nothing to install for that device (fwupdmgr exit 2), 5 when the update failed.
+firmware-update)
+  need_args $# 1
+  [[ $1 =~ ^[0-9a-f]{40}$ ]] || die 2 "invalid firmware device id"
+  command -v fwupdmgr >/dev/null 2>&1 || die 3 "fwupd is not installed (package fwupd)"
+  fw_rc=0
+  fw_out="$(timeout 3600 fwupdmgr --assume-yes --no-reboot-check --no-unreported-check --no-metadata-check update -- "$1" 2>&1)" || fw_rc=$?
+  printf '%s\n' "$fw_out"
+  case $fw_rc in
+  0) ;;
+  2) die 3 "no firmware update is available for this device" ;;
+  *) printf '%s\n' "$fw_out" | tail -n 3 >&2; die 5 "the firmware update failed (see the system journal)" ;;
+  esac
+  log "user=$CALLER firmware update of device $1"
+  if fwupdmgr get-devices --json 2>/dev/null | grep -Eq '"(UpdateState)"[[:space:]]*:[[:space:]]*"needs-reboot"|"update-pending"'; then
+    echo "reboot-required"
+  fi
+  echo "done"
+  ;;
+# ------------------------------------------------------------------ END firmware
 
 *)
   die 2 "unknown action: $ACTION"

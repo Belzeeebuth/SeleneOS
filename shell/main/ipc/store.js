@@ -37,6 +37,17 @@
 //                                       { kind, source, id, percent, message, canceling: true }).
 //   store:current ()                    -> { op: { action, source, id, percent, canceling, cancelable } | null }
 //                                       the operation running now (a Logithèque window opened meanwhile shows it).
+//   store:lastCancel (source, id)       -> { partial, leftovers } how the last cancelled install of that app ended:
+//                                       partial when the clean-up could not be confirmed (never say « Rien n'a été
+//                                       modifié » then). store:changed { canceled: true, partial } says the same.
+//   store:update (source, id)           -> { desktopId } update one installed Flathub app (store:progress kind 'update';
+//                                       « Annuler » through store:cancel works the same: the old version stays).
+//   store:updates ()                    -> Updates  the last check (no network); store:checkUpdates () -> Updates (checks now)
+//                                       Updates = { items: [{ key, source, id, name, icon, categories, version, installedVersion,
+//                                       downloadSize }], count, checkedAt, checking, error, errorCode }
+//                                       (+store:updates Updates after every check / update). A check runs once at shell
+//                                       session start (delayed: AURORA_STORE_UPDATES_DELAY_MS, default 2 min) and then
+//                                       once a day; nothing is installed on its own.
 //   store:installedAll ()               -> { items: [Entry] }   installed apps of every source
 //   store:invalidate ()                 -> drop the merged index (after a UAC install); broadcasts store:changed
 //   (+store:changed { source?, id?, action? })  the catalogue or installed state changed
@@ -72,7 +83,7 @@ const ORDER = { selene: 0, ubuntu: 1, flathub: 2 };
 const ADMIN_SOURCES = new Set(['selene', 'ubuntu']);
 const FD_CATEGORIES = ['AudioVideo', 'Development', 'Education', 'Game', 'Graphics', 'Network', 'Office', 'Science', 'Settings', 'System', 'Utility'];
 const SELENE_FD = { development: 'Development', editors: 'Development', shells: 'System', system: 'System', utilities: 'Utility', multimedia: 'AudioVideo', network: 'Network', graphics: 'Graphics', office: 'Office' };
-const FEATURED = ['org.mozilla.firefox', 'org.gimp.GIMP', 'org.videolan.VLC', 'org.libreoffice.LibreOffice', 'com.spotify.Client', 'com.discordapp.Discord', 'org.inkscape.Inkscape', 'org.kde.krita', 'com.obsproject.Studio', 'org.blender.Blender', 'org.audacityteam.Audacity', 'org.telegram.desktop'];
+const FEATURED = ['org.mozilla.firefox', 'org.chromium.Chromium', 'org.gimp.GIMP', 'org.videolan.VLC', 'org.libreoffice.LibreOffice', 'com.spotify.Client', 'com.discordapp.Discord', 'org.inkscape.Inkscape', 'org.kde.krita', 'com.obsproject.Studio', 'org.blender.Blender', 'org.audacityteam.Audacity', 'org.telegram.desktop'];
 const MAX_PAGE = 60;
 const SOURCE_CAP = 20000; // items read from one source to build the merged index
 
@@ -511,8 +522,9 @@ function register(api) {
     if (ADMIN_SOURCES.has(source)) throw quiet(`${source} apps are installed through the administrator prompt (store-${action})`, 'EADMIN');
     if (!mod || !enabled(source)) throw quiet(`unknown source: ${source}`, 'EINVAL');
     if (typeof id !== 'string' || !(source === 'flathub' ? FLATPAK_ID.test(id) && id.length <= 255 : PKG.test(id))) throw quiet('invalid app id', 'EINVAL');
+    if (typeof mod[action] !== 'function') throw quiet(`${source} cannot ${action} apps`, 'EINVAL');
     if (op) throw quiet('Another installation is in progress.', 'EBUSY');
-    op = { action, source, id, percent: 0, canceling: false, cancelable: action === 'install' && typeof mod.cancel === 'function' };
+    op = { action, source, id, percent: 0, canceling: false, cancelable: (action === 'install' || action === 'update') && typeof mod.cancel === 'function' };
     const mine = op;
     const send = (ev) => {
       if (ev?.percent != null) mine.percent = Math.max(mine.percent, Math.max(0, Math.min(100, Number(ev.percent) || 0)));
@@ -527,16 +539,104 @@ function register(api) {
     };
     send({ percent: 0 });
     let canceledOut = false; // ended by « Annuler » (a cancel that came after a success leaves canceled unset)
+    let partial = false; // cancelled, but the source could not confirm that everything it had added is gone
     try {
       const r = (await mod[action](id, send)) || {};
+      if (action === 'update') dropUpdate(source, id);
       return { desktopId: DESKTOP.test(r.desktopId || '') ? r.desktopId : null };
     } catch (e) {
       canceledOut = mine.canceling && e?.code === 'ECANCELED';
-      throw quiet(e?.message || String(e), canceledOut ? 'ECANCELED' : e?.code === 'ECANCELED' ? 'ECMD' : e?.code || 'ECMD');
+      partial = canceledOut && e?.partial === true;
+      if (canceledOut) lastCancel.set(`${source}:${id}`, { partial, leftovers: (Array.isArray(e?.leftovers) ? e.leftovers : []).map((x) => str(x, 300)).slice(0, 20) });
+      const err = quiet(e?.message || String(e), canceledOut ? 'ECANCELED' : e?.code === 'ECANCELED' ? 'ECMD' : e?.code || 'ECMD');
+      if (partial) err.partial = true;
+      throw err;
     } finally {
       op = null;
-      invalidate({ source, id, action, ...(canceledOut ? { canceled: true } : {}) });
+      invalidate({ source, id, action, ...(canceledOut ? { canceled: true, partial } : {}) });
+      if (action === 'update') api.broadcast('store:updates', updatesView());
     }
+  }
+  const lastCancel = new Map(); // 'source:id' -> { partial, leftovers }
+  api.handle('store:lastCancel', async (source, id) => lastCancel.get(`${source}:${id}`) || { partial: false, leftovers: [] });
+
+  // ------------------------------------------------------------------ app updates (Flathub)
+  // updates = { items: [{ source, id, version, installedVersion, downloadSize }], checkedAt, error, errorCode }
+  const UPD_FILE = path.join(os.homedir(), '.cache', 'aurora', 'store', 'updates.json');
+  let updates = { items: [], checkedAt: null, error: null, errorCode: null };
+  try {
+    const u = JSON.parse(fs.readFileSync(UPD_FILE, 'utf8'));
+    if (Array.isArray(u?.items)) updates = { items: u.items.filter((x) => x && x.source === 'flathub' && FLATPAK_ID.test(x.id || '')), checkedAt: Number(u.checkedAt) || null, error: null, errorCode: null };
+  } catch {}
+  let checking = null;
+  function saveUpdates() {
+    try {
+      fs.mkdirSync(path.dirname(UPD_FILE), { recursive: true });
+      fs.writeFileSync(UPD_FILE, JSON.stringify({ items: updates.items, checkedAt: updates.checkedAt }));
+    } catch {}
+  }
+  function dropUpdate(source, id) {
+    const n = updates.items.length;
+    updates.items = updates.items.filter((x) => !(x.source === source && x.id === id));
+    if (updates.items.length !== n) saveUpdates();
+  }
+  // Names and icons come from the merged index when it is built (never built just for this).
+  function updatesView() {
+    const items = updates.items.map((u) => {
+      const e = index?.list.find((x) => x.sources.some((s) => s.source === u.source && s.id === u.id));
+      return { key: e?.key || u.id.toLowerCase(), source: u.source, id: u.id, name: e?.name || u.name || u.id, icon: e?.icon || null, categories: e?.categories || [], version: u.version || '', installedVersion: u.installedVersion || '', downloadSize: Number(u.downloadSize) > 0 ? Number(u.downloadSize) : null };
+    });
+    return { items, count: items.length, checkedAt: updates.checkedAt, checking: !!checking, error: updates.error, errorCode: updates.errorCode };
+  }
+  async function checkUpdates() {
+    if (checking) return checking;
+    checking = (async () => {
+      api.broadcast('store:updates', { ...updatesView(), checking: true });
+      const items = [];
+      let error = null;
+      for (const [id, mod] of modules) {
+        if (!enabled(id) || typeof mod.updates !== 'function') continue;
+        try {
+          for (const u of (await mod.updates()) || []) {
+            if (!u || typeof u.id !== 'string' || !(id === 'flathub' ? FLATPAK_ID.test(u.id) : PKG.test(u.id))) continue;
+            items.push({ source: id, id: u.id, version: str(u.version, 60), installedVersion: str(u.installedVersion, 60), downloadSize: Number(u.downloadSize) > 0 ? Number(u.downloadSize) : null });
+          }
+        } catch (e) {
+          error = { message: str(e?.message || String(e), 300), code: /^E[A-Z]{2,15}$/.test(e?.code || '') ? e.code : 'ECMD' };
+        }
+      }
+      // A failed check (offline) keeps the previous list.
+      if (error) updates = { ...updates, error: error.message, errorCode: error.code };
+      else updates = { items, checkedAt: Date.now(), error: null, errorCode: null };
+      saveUpdates();
+    })().finally(() => {
+      checking = null;
+      api.broadcast('store:updates', updatesView());
+    });
+    await checking;
+    return updatesView();
+  }
+  api.handle('store:updates', async () => {
+    await getIndex().catch(() => null);
+    return updatesView();
+  });
+  api.handle('store:checkUpdates', async () => {
+    await checkUpdates();
+    await getIndex().catch(() => null);
+    return updatesView();
+  });
+  api.handle('store:update', (source, id) => runOp('update', source, id));
+  // Session start (delayed, never blocks startup), then once a day. Only checks: nothing installs on its own.
+  if ((api.env?.mode || 'shell') === 'shell') {
+    const raw = process.env.AURORA_STORE_UPDATES_DELAY_MS;
+    const delay = raw != null && raw !== '' && Number(raw) >= 0 ? Number(raw) : 120000;
+    const DAY = 24 * 3600 * 1000;
+    const t1 = setTimeout(() => {
+      checkUpdates().catch(() => {});
+      const t2 = setInterval(() => checkUpdates().catch(() => {}), DAY);
+      t2.unref?.();
+    }, delay);
+    t1.unref?.();
   }
   api.handle('store:cancel', async (source, id) => {
     if (typeof source !== 'string' || typeof id !== 'string') throw quiet('invalid app id', 'EINVAL');
@@ -560,6 +660,7 @@ function register(api) {
   // installer): the very same path as store:install (progress broadcast, index invalidation, one operation at a time).
   api.storeService = {
     install: (source, id, onProgress) => runOp('install', source, id, onProgress),
+    checkUpdates: () => checkUpdates(),
     available: (source) => modules.has(source) && enabled(source),
     async installedIds(source) {
       const mod = modules.get(source);

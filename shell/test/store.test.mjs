@@ -120,7 +120,7 @@ const W = '.app-store';
   check('mergeItems: icon taken from any source, installed state kept', [chess?.icon, chess?.installed, chess?.installedSource, chess?.desktopId], ['https://x/y.png', true, 'ubuntu', 'org.gnome.Chess.desktop']);
   const ranked = parsers.rankEntries([{ key: 'b', name: 'Super Chess', sources: [1], icon: 'x' }, { key: 'a', name: 'Chessboard', sources: [1], icon: 'x' }, { key: 'c', name: 'Other', sources: [1, 2], icon: null }], 'chess');
   check('rankEntries: name prefix first, then name match, then others', ranked.map((e) => e.key), ['a', 'b', 'c']);
-  check('featured list: the 12 well-known ids', parsers.FEATURED.length, 12);
+  check('featured list: the 13 well-known ids, Chromium right after Firefox', [parsers.FEATURED.length, parsers.FEATURED.slice(0, 2)], [13, ['org.mozilla.firefox', 'org.chromium.Chromium']]);
   const ui = await import(path.join(ROOT, 'renderer', 'apps', 'store', 'main.js'));
   check('parseStatus: dlstatus line', ui.parseStatus('dlstatus:1:33.3333:Retrieving file 1 of 3'), { phase: 'download', percent: 33.3333, pkg: '', message: 'Retrieving file 1 of 3' });
   check('formatSize: EN and FR units', [ui.formatSize(52428800, 'en'), ui.formatSize(1536, 'fr')], ['50 MB', '1,5 Ko']);
@@ -146,8 +146,8 @@ try {
   check('home: hero title', (await page.locator(`${W} .st-hero h1`).innerText()).trim(), 'Apps for Selene');
   check('home: no live note outside the live session', await page.locator(`${W} .st-live`).count(), 0);
   const featured = await keys(page, `${W} .st-section[data-row=featured] .st-card`);
-  check('home: featured row in the fixed order, only apps a source has', featured.slice(0, 4), ['org.mozilla.firefox', 'org.gimp.gimp', 'org.videolan.vlc', 'org.libreoffice.libreoffice']);
-  check('home: all 12 featured apps exist in the stubs', featured.length, 12);
+  check('home: featured row in the fixed order, only apps a source has', featured.slice(0, 5), ['org.mozilla.firefox', 'org.chromium.chromium', 'org.gimp.gimp', 'org.videolan.vlc', 'org.libreoffice.libreoffice']);
+  check('home: all 13 featured apps exist in the stubs', featured.length, 13);
   check('card: GIMP merged from three sources (three badges)', await page.locator(`${W} .st-section[data-row=featured] .st-card[data-key="org.gimp.gimp"] .st-badge`).allInnerTexts(), ['Selene', 'Ubuntu', 'Flathub']);
   check('card: Firefox is Flathub only', await page.locator(`${W} .st-section[data-row=featured] .st-card[data-key="org.mozilla.firefox"] .st-badge`).allInnerTexts(), ['Flathub']);
   check('card: real icon shown when a source has one', await page.locator(`${W} .st-section[data-row=featured] .st-card[data-key="org.mozilla.firefox"] img.st-icon`).count(), 1);
@@ -479,6 +479,88 @@ if (REAL_SOURCES) {
       failures.push(`cancel ${theme} run crashed: ${e.stack || e.message}`);
     } finally {
       check(`cancel ${theme}: no console errors`, errs.filter((e) => !/favicon|ResizeObserver|net::|ERR_/.test(e)), []);
+      await s.close();
+    }
+  }
+}
+
+// ------------------------------------------------------------------ « Mises à jour » (French, 1280x720, dark + light)
+// The real flathub module on its dev fixtures with three installed apps that have an update (AURORA_STORE_DEV_UPDATES);
+// the session-start check runs at once (AURORA_STORE_UPDATES_DELAY_MS=0). Badge, list, « Mettre à jour » with progress,
+// « Tout mettre à jour » + « Annuler », calm empty state; an install whose clean-up is not confirmed gets an honest notice.
+//   Screenshots: test/out/store-updates-fr-{dark,light}.png, store-updates-progress-fr-dark.png, store-updates-empty-fr-{dark,light}.png
+if (REAL_SOURCES) {
+  for (const theme of ['dark', 'light']) {
+    s = await launchShell({ lang: 'fr', theme, size: '1280x720', env: { AURORA_STORE_DEV_UPDATES: 'org.gimp.GIMP:2.10.36,com.spotify.Client:1.2.40,org.inkscape.Inkscape:1.3.2', AURORA_STORE_UPDATES_DELAY_MS: '0', AURORA_STORE_DEV_DELAY: '500', AURORA_STORE_DEV_ROLLBACK_FAIL: 'org.mozilla.firefox' } });
+    const errs = [];
+    s.page.on('pageerror', (e) => errs.push(e.message));
+    s.page.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+    try {
+      const { page } = s;
+      const inv = (...a) => page.evaluate((a) => window.__aurora.api.invoke(...a).then((r) => r, (e) => ({ code: e.code })), a);
+      check(`updates ${theme}: checked at session start (no window open)`, await until(async () => (await inv('store:updates')).checkedAt && (await inv('store:updates')).count === 3, { timeout: 15000 }), true);
+      await page.evaluate(() => window.__aurora.registry.launch('store', { view: 'updates' }));
+      await page.waitForSelector(`${W} .st-upd-row`, { timeout: 30000 });
+      await page.evaluate(() => window.__aurora.wm.byApp('store')[0].maximize?.());
+      await sleep(400);
+      check(`updates ${theme}: nav entry « Mises à jour » with a badge of 3`, [(await page.locator(`${W} [data-nav=updates] .st-nav-label`).innerText()).trim(), (await page.locator(`${W} [data-nav=updates] .st-upd-count`).innerText()).trim(), await page.locator(`${W} [data-nav=updates] .st-upd-count`).getAttribute('aria-label')], ['Mises à jour', '3', '3 mises à jour disponibles']);
+      check(`updates ${theme}: three rows, names and versions`, await page.locator(`${W} .st-upd-row .st-row-name`).allInnerTexts(), (n) => n.length === 3 && n.some((x) => /GNU|GIMP|Programme/.test(x)) && n.includes('Spotify') && n.includes('Inkscape'));
+      check(`updates ${theme}: GIMP version 2.10.36 → 2.10.38 + size`, await page.locator(`${W} .st-upd-row[data-id="org.gimp.GIMP"] .st-upd-ver`).innerText(), (v) => /2\.10\.36 → 2\.10\.38 · \d/.test(v));
+      check(`updates ${theme}: « Tout mettre à jour » + « Rechercher »`, [(await page.locator(`${W} .st-update-all`).innerText()).trim(), (await page.locator(`${W} .st-check`).innerText()).trim()], ['Tout mettre à jour', 'Rechercher']);
+      await s.shot(`store-updates-fr-${theme}`);
+      if (theme === 'dark') {
+        // one app, with progress and « Annuler »
+        await page.click(`${W} .st-upd-row[data-id="org.inkscape.Inkscape"] .st-update`);
+        await page.waitForSelector(`${W} .st-upd-row[data-id="org.inkscape.Inkscape"] .st-cancel`, { timeout: 8000 });
+        await until(async () => Number(await page.locator(`${W} .st-upd-row .st-progress`).getAttribute('aria-valuenow')) >= 20, { timeout: 8000, every: 50 });
+        check('update one: progress + « Annuler » in its row, other buttons disabled', [await page.locator(`${W} .st-upd-row[data-id="org.inkscape.Inkscape"] .st-progress`).count(), await page.locator(`${W} .st-upd-row[data-id="org.gimp.GIMP"] .st-update`).isDisabled(), await page.locator(`${W} .st-update-all`).isDisabled()], [1, true, true]);
+        await s.shot('store-updates-progress-fr-dark');
+        await page.click(`${W} .st-upd-row[data-id="org.inkscape.Inkscape"] .st-cancel`);
+        await page.waitForSelector(`${W} .st-upd-row[data-id="org.inkscape.Inkscape"] .st-canceled`, { timeout: 10000 });
+        check('update one: cancelled calmly, version unchanged, still listed', [await page.locator(`${W} .st-upd-row[data-id="org.inkscape.Inkscape"] .st-canceled`).innerText(), (await inv('store:updates')).count], (v) => /La mise à jour de Inkscape a été annulée\. La version installée reste inchangée\./.test(v[0]) && v[1] === 3);
+        await page.click(`${W} .st-upd-row[data-id="org.inkscape.Inkscape"] .st-update`);
+        await until(async () => (await inv('store:updates')).count === 2, { timeout: 15000 });
+        await until(async () => (await page.locator(`${W} [data-nav=updates] .st-upd-count`).innerText().catch(() => '')).trim() === '2');
+        check('update one: done, badge 2, row gone', [(await page.locator(`${W} [data-nav=updates] .st-upd-count`).innerText()).trim(), await page.locator(`${W} .st-upd-row[data-id="org.inkscape.Inkscape"]`).count()], ['2', 0]);
+        // « Tout mettre à jour », then « Annuler » on the first app stops the batch
+        await page.click(`${W} .st-update-all`);
+        await page.waitForSelector(`${W} .st-batch`, { timeout: 8000 });
+        check('update all: « Mise à jour de l\'application 1 sur 2… »', (await page.locator(`${W} .st-batch`).innerText()).trim(), "Mise à jour de l'application 1 sur 2…");
+        await page.waitForSelector(`${W} .st-upd-row .st-cancel`, { timeout: 8000 });
+        await page.click(`${W} .st-upd-row .st-cancel`);
+        await until(async () => !(await page.evaluate(() => window.__aurora.registry.instance(window.__aurora.wm.byApp('store')[0].id).hooks.state.batch)), { timeout: 10000 });
+        check('update all + Annuler: batch stopped, both still listed', (await inv('store:updates')).count, 2);
+        // « Tout mettre à jour » to the end -> calm empty state
+        await page.click(`${W} .st-update-all`);
+        await page.waitForSelector(`${W} .st-upd-empty`, { timeout: 20000 });
+        check('update all: « Vos applications sont à jour », no badge', [(await page.locator(`${W} .st-upd-empty .subtitle`).innerText()).trim(), await page.locator(`${W} [data-nav=updates] .st-upd-count`).count(), (await inv('store:updates')).count], ['Vos applications sont à jour', 0, 0]);
+        await s.shot('store-updates-empty-fr-dark');
+        // « Rechercher » again: still up to date
+        await page.click(`${W} .st-check`);
+        await until(async () => !(await inv('store:updates')).checking && (await page.locator(`${W} .st-check`).innerText()).trim() === 'Rechercher');
+        check('check: still up to date after « Rechercher »', await page.locator(`${W} .st-upd-empty`).count(), 1);
+        // honest notice when the rollback of a cancelled install is not complete
+        await page.evaluate(() => window.__aurora.registry.launch('store', { id: 'org.mozilla.firefox' }));
+        await page.waitForSelector(`${W} .st-detail-head .st-install`, { timeout: 15000 });
+        if (await page.locator(`${W} .st-src-opt[data-source=flathub]`).count()) await page.click(`${W} .st-src-opt[data-source=flathub]`);
+        await page.click(`${W} .st-install`);
+        await page.waitForSelector(`${W} .st-actions .st-cancel`, { timeout: 8000 });
+        await page.click(`${W} .st-cancel`);
+        await page.waitForSelector(`${W} .st-canceled`, { timeout: 10000 });
+        const note = await page.locator(`${W} .st-canceled`).innerText();
+        check('partial cancel: no « Rien n\'a été modifié », says what is left', [/Rien n'a été modifié/.test(note), /n'a pas pu être retirée/.test(note), (await inv('store:lastCancel', 'flathub', 'org.mozilla.firefox')).partial], [false, true, true]);
+        await s.shot('store-canceled-partial-fr-dark');
+      } else {
+        await page.click(`${W} .st-update-all`);
+        await page.waitForSelector(`${W} .st-upd-empty`, { timeout: 30000 });
+        await sleep(300);
+        await s.shot('store-updates-empty-fr-light');
+        check('light: empty state after « Tout mettre à jour »', (await page.locator(`${W} .st-upd-empty .subtitle`).innerText()).trim(), 'Vos applications sont à jour');
+      }
+    } catch (e) {
+      failures.push(`updates ${theme} run crashed: ${e.stack || e.message}`);
+    } finally {
+      check(`updates ${theme}: no console errors`, errs.filter((e) => !/favicon|ResizeObserver|net::|ERR_/.test(e)), []);
       await s.close();
     }
   }

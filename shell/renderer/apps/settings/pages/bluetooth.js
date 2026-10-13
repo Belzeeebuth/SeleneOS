@@ -2,6 +2,7 @@
 // The adapter switch, « Mes appareils » (paired: connect / disconnect / oublier), « Appareils à proximité »
 // (« Rechercher des appareils », pair). Pairing questions (code to compare, PIN) are asked by the shell's
 // pairing dialog (core/features/bluetooth.js), so they also show up when Paramètres is closed.
+// While this page is open, phones can find the computer (bluetooth:visible, like GNOME / Windows).
 export const KIND_ICONS = {
   headphones: 'headphones',
   headset: 'headphones',
@@ -32,6 +33,7 @@ export async function bluetoothPage(pc, subRows = []) {
   const busy = new Set(); // addresses with an action running
   let searchedOnce = false;
 
+  // BlueZ's own (English) text only goes to the log: the person gets a sentence in their language.
   const errText = (e, name) => {
     const code = e?.code;
     if (code === 'EREJECTED' || code === 'ECANCELED') return t('bt.errRejected', { name });
@@ -39,7 +41,13 @@ export async function bluetoothPage(pc, subRows = []) {
     if (code === 'ETIMEDOUT') return t('bt.errTimeout', { name });
     if (code === 'EHARDBLOCK') return t('bt.hardBlocked');
     if (code === 'ECONNECT') return t('bt.errConnect', { name });
-    return t('bt.errGeneric', { name, msg: e?.message || String(e) });
+    if (code === 'ENOTREADY') return t('bt.errNotReady');
+    if (code === 'EINPROGRESS') return t('bt.errInProgress');
+    if (code === 'ERFKILL') return t('bt.errRfkill');
+    if (code === 'ENOADAPTER') return t('dev.btNone');
+    if (code === 'ENOSERVICE' || code === 'ENOTSUP' || code === 'EHELPER') return t('bt.service');
+    console.warn('[bluetooth]', code || '', e?.message || String(e));
+    return name ? t('bt.errGenericNamed', { name }) : t('bt.errGenericPlain');
   };
   const act = async (address, name, fn) => {
     busy.add(address);
@@ -58,7 +66,8 @@ export async function bluetoothPage(pc, subRows = []) {
     const parts = [];
     if (d.paired) parts.push(d.connected ? t('bt.connected') : t('bt.notConnected'));
     else parts.push(t(`bt.kind.${d.kind}`));
-    if (d.battery != null) parts.push(t('bt.battery', { n: d.battery }));
+    // paired devices show their battery in the badge on the right (pairedRow), once
+    if (d.battery != null && !d.paired) parts.push(t('bt.battery', { n: d.battery }));
     return parts.join(' · ');
   }
   function deviceIcon(d) {
@@ -83,7 +92,7 @@ export async function bluetoothPage(pc, subRows = []) {
       icon('trash', { size: 16 }),
     );
     if (working) btn.disabled = true;
-    const badge = d.battery != null ? h('span', { class: 'st-bt-batt caption', 'aria-hidden': 'true' }, icon(batteryIcon(d.battery), { size: 16 }), `${d.battery} %`) : null;
+    const badge = d.battery != null ? h('span', { class: 'st-bt-batt caption', role: 'img', 'aria-label': t('bt.battery', { n: d.battery }), title: t('bt.battery', { n: d.battery }) }, icon(batteryIcon(d.battery), { size: 16 }), `${d.battery} %`) : null;
     return kit.row({ icon: deviceIcon(d), title: d.name, desc: deviceDesc(d), badge, control: h('div', { class: 'st-bt-actions' }, working ? h('span', { class: 'spinner small', role: 'status', 'aria-label': t('bt.working') }) : null, btn, forget), className: 'st-bt-dev', section: `dev-${d.address}` });
   }
   function nearbyRow(d) {
@@ -106,7 +115,9 @@ export async function bluetoothPage(pc, subRows = []) {
       : st.blocked === 'hard'
         ? t('bt.hardBlocked')
         : st.powered
-          ? t('bt.onDesc', { name: st.name || 'selene' })
+          ? st.discoverable
+            ? t('bt.visibleDesc', { name: st.name || 'selene' })
+            : t('bt.onPlain')
           : t('bt.offDesc');
     return kit.row({
       icon: st.available && st.powered ? 'bluetooth' : 'bluetooth_disabled',
@@ -194,7 +205,10 @@ export async function bluetoothPage(pc, subRows = []) {
   });
   pc.onDispose(() => {
     if (st.discovering) api.invoke('bluetooth:scan', false).catch(() => {});
+    api.invoke('bluetooth:visible', false).catch(() => {});
   });
+  // phones can find this computer while the page is open (turned off again by onDispose)
+  if (st.available) api.invoke('bluetooth:visible', true).catch(() => {});
   render();
   return root;
 }

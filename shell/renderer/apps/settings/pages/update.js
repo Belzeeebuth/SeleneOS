@@ -1,5 +1,8 @@
 // Settings > Updates (Mises à jour): check (apt-get update + simulation), install (apt-get upgrade with live
 // progress from APT's status fd), update history (/var/log/apt/history.log).
+// « Microprogrammes » (fwupd, main/ipc/firmware.js): firmware:status / firmware:refresh (« Rechercher »), the update
+// itself through the UAC prompt (aurora-admin firmware-update <40 hex device id>); keep-plugged-in warning, restart
+// offered when fwupd says one is needed; the section is hidden when fwupd sees no updatable device.
 import { parseAptSimulation, parseAptStatus, parseAptHistory } from '../lib/parse.js';
 
 // Survives page changes while the Settings window is open (an install keeps running in the background).
@@ -18,6 +21,102 @@ async function loadSaved(pc) {
   }
 }
 const persist = (pc) => pc.storage.set('update-state', { lastCheck: state.lastCheck, packages: state.packages, reboot: state.reboot }).catch(() => {});
+
+// ---- BEGIN firmware (fwupd) ----
+const fw = { status: null, loading: null, refreshing: false, updating: null, error: null, reboot: false, done: new Set() };
+async function fwLoad(pc) {
+  if (fw.loading) return fw.loading;
+  fw.loading = pc
+    .tryInvoke('firmware:status')
+    .then((st) => {
+      fw.status = st || { available: false, devices: [], updates: [] };
+      if (st?.pendingReboot) fw.reboot = true;
+    })
+    .finally(() => {
+      fw.loading = null;
+      emit();
+    });
+  return fw.loading;
+}
+async function fwRefresh(pc) {
+  if (fw.refreshing || fw.updating) return;
+  fw.refreshing = true;
+  fw.error = null;
+  emit();
+  try {
+    fw.status = (await pc.api.invoke('firmware:refresh')) || fw.status;
+    if (fw.status?.pendingReboot) fw.reboot = true;
+  } catch (err) {
+    fw.error = err.message;
+  }
+  fw.refreshing = false;
+  emit();
+}
+async function fwUpdate(pc, u) {
+  if (fw.updating || fw.refreshing) return;
+  fw.updating = u.deviceId;
+  fw.error = null;
+  emit();
+  try {
+    const out = await pc.runAdmin('firmware-update', [u.deviceId], 'update.fw.reason', { name: u.deviceName, version: u.to });
+    const reboot = /^reboot-required$/m.test(out || '') || !!u.needsReboot;
+    if (reboot) fw.reboot = true;
+    fw.done.add(u.deviceId);
+    pc.shell.notify({ title: pc.t('update.fw.doneTitle', { name: u.deviceName }), body: reboot ? pc.t('update.fw.doneReboot') : pc.t('update.fw.doneBody'), appId: 'settings' });
+  } catch (err) {
+    if (err.code !== 'ECANCELED') fw.error = pc.t('update.fw.failed', { name: u.deviceName, msg: err.message });
+  }
+  fw.updating = null;
+  await fwLoad(pc);
+}
+function fwSection(pc) {
+  const { h, t, kit } = pc;
+  const st = fw.status;
+  // Hidden while loading, without fwupd, and when fwupd sees no device it can update.
+  if (!st || !st.available || !st.devices?.length) return null;
+  const ups = (st.updates || []).filter((u) => !fw.done.has(u.deviceId));
+  const busy = !!fw.updating || fw.refreshing;
+  const fmtSize = (n) => (n ? (n >= 1e6 ? `${(n / 1e6).toLocaleString(pc.lang === 'fr' ? 'fr-FR' : 'en-US', { maximumFractionDigits: 1 })} ${pc.lang === 'fr' ? 'Mo' : 'MB'}` : `${Math.max(1, Math.round(n / 1e3))} ${pc.lang === 'fr' ? 'Ko' : 'KB'}`) : '');
+  const rows = [
+    kit.row({
+      icon: 'cpu',
+      title: fw.refreshing ? t('update.fw.checking') : ups.length ? t('update.fw.available', { count: ups.length }) : t('update.fw.upToDate'),
+      desc: t('update.fw.desc', { count: st.devices.length }),
+      className: 'st-fw-head',
+      control: kit.button(t('update.fw.check'), () => fwRefresh(pc), { icon: 'arrow_sync', disabled: busy, className: 'st-fw-check' }),
+    }),
+  ];
+  for (const u of ups) {
+    const updating = fw.updating === u.deviceId;
+    const control = updating
+      ? h('div', { class: 'row st-fw-busy', style: { gap: '8px' } }, h('span', { class: 'spinner small' }), h('span', { class: 'caption text-2' }, t('update.fw.updating')))
+      : kit.button(t('update.fw.install'), () => fwUpdate(pc, u), { primary: true, disabled: busy, className: 'st-fw-install' });
+    rows.push(
+      kit.expander({
+        icon: 'circuitry',
+        title: u.deviceName,
+        desc: [u.vendor, u.from && u.to ? t('update.fw.fromTo', { from: u.from, to: u.to }) : u.to, fmtSize(u.size)].filter(Boolean).join(' · '),
+        className: 'st-fw-update',
+        control,
+        body: () =>
+          h(
+            'div',
+            { class: 'st-sub-pad st-fw-notes' },
+            u.summary ? h('div', { class: 'body-strong' }, u.summary) : null,
+            ...(u.description || '').split('\n').map((l) => h('div', { class: 'caption text-2' }, l)),
+            u.needsReboot ? h('div', { class: 'caption' }, t('update.fw.needsRebootNote')) : null,
+          ),
+      }),
+    );
+  }
+  const out = [kit.group(t('update.fw.title'), ...rows)];
+  if (ups.some((u) => u.requireAc) || fw.updating) out.push(kit.infobar({ kind: 'warning', title: t('update.fw.plugTitle'), message: t('update.fw.plug'), className: 'st-fw-plug' }));
+  if (fw.reboot) out.push(kit.infobar({ kind: 'info', title: t('update.fw.restartTitle'), message: t('update.fw.restartDesc'), className: 'st-fw-restart', action: kit.button(t('update.restartNow'), () => pc.shell.reboot().catch(pc.toastError), { primary: true, icon: 'arrow_clockwise' }) }));
+  if (fw.error) out.push(kit.infobar({ kind: 'error', message: fw.error, className: 'st-fw-error' }));
+  else if (st.error && !fw.refreshing) out.push(kit.infobar({ kind: 'warning', message: st.errorCode === 'ENET' ? t('update.fw.offline') : st.error, className: 'st-fw-error' }));
+  return h('div', { class: 'st-fw', dataset: { count: String(ups.length) } }, out);
+}
+// ---- END firmware ----
 
 async function online(pc) {
   const st = await pc.tryInvoke('net:status');
@@ -180,6 +279,8 @@ async function update(pc) {
         ),
       );
     }
+    const fwBlock = fwSection(pc);
+    if (fwBlock) blocks.push(fwBlock);
     blocks.push(
       kit.group(
         t('update.more'),
@@ -209,6 +310,7 @@ async function update(pc) {
   paint();
   listeners.add(paint);
   pc.onDispose(() => listeners.delete(paint));
+  fwLoad(pc); // firmware section: read in the background, painted when fwupd answers
   // The network coming back (or going away) enables / disables the buttons without leaving the page.
   pc.on('net:changed', (st) => {
     const now = !st || st.connectivity !== 'none';

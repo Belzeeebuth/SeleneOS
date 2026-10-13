@@ -161,6 +161,24 @@ try {
   check('discovery: queue names unique and valid, labels valid, URIs valid', found.every((f) => c.validQueue(f.queue) && c.validInfo(f.label) && (!f.driverless || c.validUri(f.uri))) && new Set(found.map((f) => f.queue)).size === found.length, true);
   check('discovery: weird names sanitised (quotes)', found.find((f) => /Weird/.test(f.model))?.label, (l) => l && !/["\\]/.test(l));
   check('discovery: driverless first', found.map((f) => f.driverless), (a) => a.indexOf(false) === a.length - 1);
+  // labels: 127 UTF-8 BYTES, like aurora-admin (${#v} under LC_ALL=C)
+  check('labels: byte length (accents count twice), 127 bytes max', [c.labelBytes('Imprimante de l’étage'), c.validInfo('é'.repeat(63)), c.validInfo('é'.repeat(64)), c.validInfo('x'.repeat(127))], [24, true, false, true]);
+  check('labels: fitLabel cuts at 127 bytes without splitting a character', [c.labelBytes(c.fitLabel('é'.repeat(100))), c.fitLabel('é'.repeat(100)).endsWith('é'), c.fitLabel('  Bureau  ')], [126, true, 'Bureau']);
+  const longModel = `Imprimante très spéciale ${'é'.repeat(80)}`;
+  const longFound = c.discoveredPrinters({ services: [{ ...av[0], name: 'Longue', txt: { ...av[0].txt, ty: longModel, uuid: 'long-1' } }] });
+  check('discovery: a long accented model gives a label the helper accepts', longFound.map((f) => [c.validInfo(f.label), c.labelBytes(f.label) <= 127]), (v) => v.length === 1 && v[0][0] === true && v[0][1] === true);
+  // the page's free name (a temporary CUPS queue of the same name, a printer with the same label)
+  {
+    const pageSrc = path.join(tmp, 'printers-page.mjs');
+    fs.writeFileSync(pageSrc, fs.readFileSync(path.join(ROOT, 'renderer', 'apps', 'settings', 'pages', 'printers.js'), 'utf8'));
+    const { freeName } = await import(pageSrc);
+    const ep = { queue: 'EPSON_ET-2850_Series', label: 'EPSON ET-2850 Series' };
+    check('free name: nothing in the way -> unchanged', freeName(ep, [{ name: 'HP', label: 'HP' }]), ep);
+    check('free name: the helper said « already exists » -> _2 queue, « (2) » label', freeName(ep, [], ['EPSON_ET-2850_Series']), { queue: 'EPSON_ET-2850_Series_2', label: 'EPSON ET-2850 Series (2)' });
+    check('free name: same label and _2 taken -> (3)', freeName(ep, [{ name: 'Old', label: 'EPSON ET-2850 Series' }, { name: 'epson_et-2850_series_2', label: 'x' }]), { queue: 'EPSON_ET-2850_Series_3', label: 'EPSON ET-2850 Series (3)' });
+    const long = freeName({ queue: 'Q'.repeat(63), label: 'é'.repeat(63) }, [{ name: 'Q'.repeat(63), label: 'y' }]);
+    check('free name: long names stay valid (63-char queue, 127-byte label)', [c.validQueue(long.queue), c.validInfo(long.label), long.label.endsWith(' (2)')], [true, true, true]);
+  }
   // lp argv
   check('lp argv: everything', c.lpArgs('/home/a/doc.pdf', { printer: 'HP_LaserJet_M110w', copies: 2, pages: '1-3, 5', duplex: true, orientation: 'portrait', media: 'a4', color: 'monochrome', collate: true, title: 'Rapport' }), ['-d', 'HP_LaserJet_M110w', '-n', '2', '-t', 'Rapport', '-o', 'page-ranges=1-3,5', '-o', 'sides=two-sided-long-edge', '-o', 'orientation-requested=3', '-o', 'media=A4', '-o', 'print-color-mode=monochrome', '-o', 'collate=true', '--', '/home/a/doc.pdf']);
   check('lp argv: landscape duplex = short edge, Letter, defaults omitted', c.lpArgs('/f.pdf', { landscape: true, duplex: true, pageSize: 'Letter' }), ['-o', 'sides=two-sided-short-edge', '-o', 'orientation-requested=4', '-o', 'media=Letter', '--', '/f.pdf']);
@@ -290,7 +308,7 @@ esac`);
   const runBranch = (...args) => {
     fs.writeFileSync(alog, '');
     const script = `set -euo pipefail\nPROG=aurora-admin\nCALLER=tester\nlog() { :; }\n${helpers.join('')}\nACTION=$1\nshift\ncase $ACTION in\n${branch}\nesac\n`;
-    const r = spawnSync('bash', ['-c', script, 'x', ...args], { encoding: 'utf8', env: { ...process.env, PATH: `${abin}:/usr/bin:/bin` } });
+    const r = spawnSync('bash', ['-c', script, 'x', ...args], { encoding: 'utf8', env: { ...process.env, LC_ALL: 'C', PATH: `${abin}:/usr/bin:/bin` } }); // the helper exports LC_ALL=C
     return { code: r.status, out: r.stdout, err: r.stderr, argv: fs.readFileSync(alog, 'utf8').split('\n').filter(Boolean).map((l) => l.split('\0').filter(Boolean)) };
   };
   const a1 = runBranch('printer-add', 'EPSON_ET-2850', 'dnssd://EPSON%20ET-2850%20Series._ipps._tcp.local/?uuid=cfe92100', 'EPSON ET-2850 Series');
@@ -310,6 +328,8 @@ esac`);
     ['printer-add', 'HP2', 'ipp://a/b', 'L\\x'],
     ['printer-add', 'HP2', 'ipp://a/b', ' L'],
     ['printer-add', 'HP2', 'ipp://a/b', 'x'.repeat(128)],
+    ['printer-add', 'HP2', 'ipp://a/b', 'é'.repeat(64)], // 64 characters but 128 bytes
+    ['printer-rename', 'HP', `Imprimante ${'é'.repeat(60)}`],
     ['printer-add', 'HP2', 'ipp://a/b'],
     ['printer-rename', 'HP', 'a\nb'],
     ['printer-enable', 'HP', 'yes'],
@@ -327,6 +347,7 @@ esac`);
     check(`real aurora-admin (root) refuses bad printer arguments before anything runs${w2.length ? ` wrong: ${w2.map((w) => w.join(' ')).join(' | ')}` : ''}`, w2.length, 0);
   }
   if (spawnSync('which', ['shellcheck']).status === 0) check('aurora-admin passes shellcheck', spawnSync('shellcheck', [HELPER]).status, 0);
+  check('helper + admin.js accept 127 bytes of accents (63 é + 1)', [runBranch('printer-rename', 'HP', `${'é'.repeat(63)}x`).code, (() => { try { admin.validate('printer-rename', ['HP', `${'é'.repeat(63)}x`]); return 0; } catch (e) { return e.code; } })()], [0, 0]);
   check('admin.js: same refusals', badArgs.filter((a) => { try { admin.validate(a[0], a.slice(1)); return true; } catch (e) { return e.code !== 'EINVAL'; } }).map((a) => a.join(' ')), []);
 
   // ================================================================ 5. image: package list, services, verify-iso

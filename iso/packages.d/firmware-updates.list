@@ -1,0 +1,8 @@
+# Firmware updates: Paramètres > Mises à jour > « Microprogrammes » (shell/main/ipc/firmware.js, aurora-admin
+# firmware-update). fwupd talks to the LVFS (signed firmware from the hardware vendors): UEFI capsules (system
+# firmware, embedded controller, UEFI dbx), NVMe drives, Thunderbolt, docks, keyboards, mice…
+# fwupd.service is D-Bus activated (the session reads devices and updates without root); fwupd-refresh.timer keeps
+# the metadata fresh (enabled in iso/build.sh configure_services).
+fwupd
+# UEFI capsule updates on Secure Boot machines need the signed EFI binary (fwupdx64.efi.signed).
+fwupd-signed

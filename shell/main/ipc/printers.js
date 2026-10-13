@@ -185,7 +185,8 @@ async function devRun(action, args) {
   switch (action) {
     case 'printer-add': {
       const [name, uri, info] = args;
-      if (devQueue(name)) throw err(`a printer named ${name} already exists`, 'EPERM');
+      // st.temp: a queue CUPS holds without listing it (a temporary queue made when an app printed to the printer)
+      if (devQueue(name) || st.temp?.includes(name)) throw err(`a printer named ${name} already exists`, 'EPERM');
       if (process.env.AURORA_PRINTERS_DEV_FAIL === '1') throw err(`could not add ${name}: the printer did not answer (IPP Everywhere)`, 'ECMD');
       st.queues.push({ name, description: info || name, location: '', uri, enabled: true, accepting: true, reasons: [], message: '', markers: null });
       if (!st.def) st.def = name;
@@ -349,11 +350,13 @@ function register(api) {
   });
 
   if (useMock) {
-    // Dev helpers for tests: another simulated system, or the arguments of the last lp call.
+    // Dev helpers for tests: another simulated system (tempQueue: a hidden queue name, « already exists »), or the
+    // arguments of the last lp call.
     api.handle('printers:devSet', async (o = {}) => {
       if (o.kind) process.env.AURORA_DEV_PRINTERS = String(o.kind);
       if ('fail' in o) process.env.AURORA_PRINTERS_DEV_FAIL = o.fail ? '1' : '0';
       devState = null;
+      if (o.tempQueue) dev().temp = [String(o.tempQueue)];
       return dev().kind;
     });
     api.handle('printers:devLastLp', async () => dev().lastLp || null);

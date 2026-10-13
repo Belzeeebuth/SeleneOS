@@ -1,0 +1,53 @@
+{
+  "Devices" : [
+    {
+      "Name" : "System Firmware",
+      "DeviceId" : "a45df35ac0e948ee180fe216a5f703f32dda163f",
+      "Guid" : [ "230c8b18-8d9b-53ec-838b-6cfc0383493a" ],
+      "Plugin" : "uefi_capsule",
+      "Flags" : [ "internal", "updatable", "require-ac", "supported", "registered", "needs-reboot", "usable-during-update" ],
+      "Vendor" : "LENOVO",
+      "Version" : "0.1.56",
+      "VersionFormat" : "triplet",
+      "UpdateState" : "success",
+      "Icons" : [ "computer" ]
+    },
+    {
+      "Name" : "Embedded Controller",
+      "DeviceId" : "362301da643102b9f38477387e2193e57abaa590",
+      "Plugin" : "uefi_capsule",
+      "Flags" : [ "internal", "updatable", "require-ac", "registered", "needs-reboot" ],
+      "Vendor" : "LENOVO",
+      "Version" : "0.1.30"
+    },
+    {
+      "Name" : "UEFI dbx",
+      "DeviceId" : "362301da643102b9f38477387e2193e57abaa591",
+      "Plugin" : "uefi_dbx",
+      "Flags" : [ "internal", "updatable", "registered", "needs-reboot", "only-version-upgrade" ],
+      "Vendor" : "UEFI:Microsoft",
+      "Version" : "371"
+    },
+    {
+      "Name" : "Samsung SSD 980 PRO 1TB",
+      "DeviceId" : "71b677ca0f1bc2c5b804fa1d59e52064ce589293",
+      "Plugin" : "nvme",
+      "Flags" : [ "internal", "updatable", "require-ac", "registered", "needs-reboot", "usable-during-update" ],
+      "Vendor" : "Samsung",
+      "Version" : "5B2QGXA7"
+    },
+    {
+      "Name" : "TPM",
+      "DeviceId" : "c6a80ac3a22083423992a3cb15018989f37834d6",
+      "Plugin" : "tpm",
+      "Flags" : [ "internal", "registered" ],
+      "Vendor" : "Infineon",
+      "Version" : "7.2.2.0"
+    },
+    {
+      "Name" : "Bad id",
+      "DeviceId" : "../../etc/passwd",
+      "Flags" : [ "updatable" ]
+    }
+  ]
+}

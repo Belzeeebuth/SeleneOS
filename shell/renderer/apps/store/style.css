@@ -200,3 +200,20 @@
 /* « Annuler » next to the progress of a Flathub install; notice after a cancel */
 .app-store .st-actions .btn.st-cancel { min-width: 0; }
 .app-store .st-canceled > .icon { color: var(--accent); }
+
+/* ---- Mises à jour (view 'updates') ---- */
+.app-store .st-upd-count { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.app-store .st-upd-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.app-store .st-upd-head .st-page-sub { margin-bottom: 0; }
+.app-store .st-upd-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.app-store .st-upd-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+.app-store .st-upd-note { margin: 12px 0 8px; }
+.app-store .st-upd-row { flex-direction: column; align-items: stretch; gap: 8px; }
+.app-store .st-upd-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.app-store .st-upd-ver { font-variant-numeric: tabular-nums; }
+.app-store .st-upd-progress { width: 220px; flex-shrink: 0; }
+.app-store .st-upd-row .infobar { margin: 0; }
+.app-store .st-upd-empty { margin-top: 48px; }
+.app-store .st-upd-empty svg, .app-store .st-upd-empty .icon { color: var(--success, var(--accent)); }
+.app-store .st-batch, .app-store .st-upd-error { margin-top: 12px; }
+@media (max-width: 720px) { .app-store .st-upd-progress { width: 140px; } }

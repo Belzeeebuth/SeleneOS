@@ -34,6 +34,33 @@ function friendly(pc, err) {
   return pc.t('prn.errGeneric', { msg: m.replace(/^aurora-admin:\s*/, '') });
 }
 
+// Printer labels: aurora-admin counts BYTES (LC_ALL=C), 127 at most; an accented letter is 2 bytes in UTF-8.
+const LABEL_MAX_BYTES = 127;
+const LABEL_RE = /^[^\x00-\x1f\x7f"\\\s](?:[^\x00-\x1f\x7f"\\]{0,125}[^\x00-\x1f\x7f"\\\s])?$/;
+const labelBytes = (s) => new TextEncoder().encode(String(s)).length;
+function fitLabel(s, max = LABEL_MAX_BYTES) {
+  let out = String(s || '').trim();
+  while (labelBytes(out) > max) out = [...out].slice(0, -1).join('');
+  return out.trim();
+}
+
+/**
+ * A queue name and label nobody uses yet. CUPS may already hold a queue of that name that the list did not show
+ * (a temporary queue it made for this printer when an app printed to it): « EPSON ET-2850 Series (2) » on the
+ * queue EPSON_ET-2850_Series_2 then. `taken`: names the helper refused (« already exists »). (unit-tested)
+ */
+export function freeName(d, printers = [], taken = []) {
+  const names = new Set([...printers.map((p) => p.name), ...taken].map((n) => String(n).toLowerCase()));
+  const labels = new Set(printers.map((p) => p.label));
+  let queue = d.queue;
+  let label = fitLabel(d.label);
+  for (let i = 2; names.has(queue.toLowerCase()) || labels.has(label); i++) {
+    queue = `${d.queue.slice(0, 63 - String(i).length - 1)}_${i}`;
+    label = `${fitLabel(d.label, LABEL_MAX_BYTES - labelBytes(` (${i})`))} (${i})`;
+  }
+  return { queue, label };
+}
+
 async function adminRun(pc, action, args, reasonKey, vars) {
   try {
     await pc.runAdmin(action, args, reasonKey, vars);
@@ -97,12 +124,30 @@ async function printers(pc) {
     state.adding = d.key;
     state.error = null;
     render();
-    const ok = await adminRun(pc, 'printer-add', [d.queue, d.uri, d.label], 'prn.reasonAdd', { name: d.label });
+    // A free name from a fresh list; once more if CUPS still says « already exists » (a temporary queue it made).
+    const taken = [];
+    let ok = false;
+    let pick = null;
+    for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+      const fresh = await pc.tryInvoke('printers:list');
+      pick = freeName(d, fresh?.printers || data?.printers || [], taken);
+      try {
+        await pc.runAdmin('printer-add', [pick.queue, d.uri, pick.label], 'prn.reasonAdd', { name: pick.label });
+        ok = true;
+      } catch (err) {
+        if (attempt === 0 && /already exists/i.test(String(err?.message || ''))) {
+          taken.push(pick.queue);
+          continue;
+        }
+        if (err.code !== 'ECANCELED') state.error = friendly(pc, err);
+        break;
+      }
+    }
     state.adding = null;
     if (ok) {
       state.found = (state.found || []).filter((x) => x.key !== d.key);
-      state.open.add(d.queue);
-      pc.shell.notify({ title: t('prn.added', { name: d.label }), body: t('prn.addedBody'), appId: 'settings', icon: 'print' });
+      state.open.add(pick.queue);
+      pc.shell.notify({ title: t('prn.added', { name: pick.label }), body: t('prn.addedBody'), appId: 'settings', icon: 'print' });
     }
     await refresh(true);
   }
@@ -120,7 +165,9 @@ async function printers(pc) {
       value: p.label,
       okLabel: t('prn.rename'),
       parent: pc.win,
-      validate: (s) => (/^[^\x00-\x1f\x7f"\\\s](?:[^\x00-\x1f\x7f"\\]{0,125}[^\x00-\x1f\x7f"\\\s])?$/.test(s.trim()) ? null : t('prn.renameInvalid')),
+      maxlength: LABEL_MAX_BYTES,
+      // same limit as aurora-admin: 127 bytes (accented letters count twice)
+      validate: (s) => (labelBytes(s.trim()) > LABEL_MAX_BYTES ? t('prn.renameTooLong') : LABEL_RE.test(s.trim()) ? null : t('prn.renameInvalid')),
     });
     if (v == null || v.trim() === p.label) return;
     await act(p, 'printer-rename', [p.name, v.trim()], 'prn.reasonRename');

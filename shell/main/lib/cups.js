@@ -21,11 +21,21 @@ const JOB_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}-[1-9][0-9]{0,9}$/;
 // Device URIs a driverless (IPP Everywhere) queue can use. Same pattern as aurora-admin's printer-add.
 const URI_RE = /^(ipp|ipps|dnssd):\/\/[A-Za-z0-9._~%:/?=&+@[\]-]{1,480}$/;
 const INFO_RE = /^[^\x00-\x1f\x7f"\\]{1,127}$/;
+// aurora-admin checks a label's length in BYTES (bash ${#v} under LC_ALL=C): « Imprimante de l’étage » is 21
+// characters but 24 bytes. Same limit here, in UTF-8 bytes.
+const LABEL_MAX_BYTES = 127;
+const labelBytes = (s) => Buffer.byteLength(String(s), 'utf8');
 
 const validQueue = (n) => typeof n === 'string' && QUEUE_RE.test(n);
 const validJob = (j) => typeof j === 'string' && JOB_RE.test(j);
 const validUri = (u) => typeof u === 'string' && URI_RE.test(u) && !/\s/.test(u);
-const validInfo = (s) => typeof s === 'string' && INFO_RE.test(s) && s.trim() === s;
+const validInfo = (s) => typeof s === 'string' && INFO_RE.test(s) && s.trim() === s && labelBytes(s) <= LABEL_MAX_BYTES;
+/** Cut a label to LABEL_MAX_BYTES UTF-8 bytes without splitting a character. */
+function fitLabel(s) {
+  let out = String(s || '').trim();
+  while (labelBytes(out) > LABEL_MAX_BYTES) out = [...out].slice(0, -1).join('');
+  return out.trim();
+}
 
 const lines = (text) => String(text || '').split('\n');
 
@@ -307,7 +317,7 @@ function discoveredPrinters({ services = [], lpinfo = [], queues = [] } = {}) {
     if (p.driverless && !validUri(p.uri)) continue;
     const queue = queueName(p.model || p.info, taken);
     taken.push(queue);
-    const info = (p.model || p.info).replace(/[\x00-\x1f\x7f"\\]/g, '').slice(0, 127).trim() || queue;
+    const info = fitLabel((p.model || p.info).replace(/[\x00-\x1f\x7f"\\]/g, '')) || queue;
     out.push({ ...p, queue, label: info });
   }
   out.sort((a, b) => Number(b.driverless) - Number(a.driverless) || a.label.localeCompare(b.label));
@@ -403,6 +413,9 @@ function parseRequestId(text) {
 module.exports = {
   QUEUE_RE,
   URI_RE,
+  LABEL_MAX_BYTES,
+  labelBytes,
+  fitLabel,
   validQueue,
   validJob,
   validUri,

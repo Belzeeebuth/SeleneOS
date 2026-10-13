@@ -77,7 +77,9 @@ ACTIONS['drivers-remove'] = { args: [], timeout: 0, stream: true };
 // printer-job-cancel <queue-N> (another user's job). The helper validates again. Dev: simulated in printers.js (devRun).
 {
   const queue = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$/;
-  const label = /^[^\x00-\x1f\x7f"\\\s](?:[^\x00-\x1f\x7f"\\]{0,125}[^\x00-\x1f\x7f"\\\s])?$/;
+  // Labels: the helper counts BYTES (LC_ALL=C), so 127 UTF-8 bytes here too (an object with test(), like a regex).
+  const labelRe = /^[^\x00-\x1f\x7f"\\\s](?:[^\x00-\x1f\x7f"\\]{0,125}[^\x00-\x1f\x7f"\\\s])?$/;
+  const label = { test: (s) => typeof s === 'string' && labelRe.test(s) && Buffer.byteLength(s, 'utf8') <= 127 };
   ACTIONS['printer-add'] = { args: [queue, /^(ipp|ipps|dnssd):\/\/[A-Za-z0-9._~%:/?=&+@[\]-]{1,480}$/, label], timeout: 90000 };
   ACTIONS['printer-remove'] = { args: [queue] };
   ACTIONS['printer-default'] = { args: [queue] };
@@ -86,6 +88,12 @@ ACTIONS['drivers-remove'] = { args: [], timeout: 0, stream: true };
   ACTIONS['printer-job-cancel'] = { args: [/^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}-[1-9][0-9]{0,9}$/] };
 }
 // ---- END printers ----
+
+// ---- BEGIN firmware (Settings > Updates > Firmware: renderer/apps/settings/pages/update.js, main/ipc/firmware.js) ----
+// firmware-update <fwupd device id, 40 hex>: fwupdmgr update for that one device (the helper validates again; prints
+// "reboot-required" when the device needs a restart to finish). Dev: simulated in firmware.js (devRun).
+ACTIONS['firmware-update'] = { args: [/^[0-9a-f]{40}$/], timeout: 60 * 60 * 1000 };
+// ---- END firmware ----
 
 function err(message, code) {
   const e = new Error(message);
@@ -262,6 +270,7 @@ async function devRun(action, args, secret, onLine) {
   if (action === 'format-removable') return require('./disks').devFormat(args); // disks (Disks app): simulated in disks.js
   if (action.startsWith('drivers-')) return require('./drivers').devRun(action, args, onLine); // graphics drivers: simulated in drivers.js
   if (action.startsWith('printer-')) return require('./printers').devRun(action, args); // printers: simulated CUPS in printers.js
+  if (action === 'firmware-update') return require('./firmware').devRun(action, args); // firmware: simulated fwupd in firmware.js
   const users = dev.users || [];
   const find = (n) => users.find((u) => u.name === n);
   const need = (n) => {

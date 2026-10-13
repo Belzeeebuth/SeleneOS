@@ -21,7 +21,9 @@
 //   firstlogin:gaming:online ()  -> State   the network is back: retry now when waiting
 //   (+firstlogin:gaming State)   every change
 //   State = { state: 'none'|'pending'|'running'|'cancelling'|'waiting'|'done'|'failed'|'cancelled'|'invalid',
-//             apps: [{ id, name, status: 'pending'|'installing'|'installed'|'failed', percent, error, code }],
+//             apps: [{ id, name, status: 'pending'|'installing'|'installed'|'failed'|'skipped', percent, error, code }],
+//             'skipped': the person cancelled that app's install in the Logithèque (« Annuler », ECANCELED): their
+//             choice, not a failure (no retry, no « échec »); the other apps go on.
 //             total, index (1-based, current app), current (id|null), percent (overall 0..100), retryAt (ms|null),
 //             autoStart (start on its own at session start), startDelay (ms) }
 //
@@ -94,7 +96,7 @@ function createGamingSetup({ home = os.homedir(), store, broadcast = () => {}, i
   };
   const set = (patch) => {
     Object.assign(st, patch);
-    const done = st.apps.filter((a) => a.status === 'installed' || a.status === 'failed').length;
+    const done = st.apps.filter((a) => a.status === 'installed' || a.status === 'failed' || a.status === 'skipped').length;
     const cur = st.apps.find((a) => a.status === 'installing');
     st.percent = st.total ? Math.round(((done + (cur ? cur.percent / 100 : 0)) / st.total) * 100) : 0;
     emit();
@@ -197,7 +199,7 @@ function createGamingSetup({ home = os.homedir(), store, broadcast = () => {}, i
     set({ state: 'running', retryAt: null, current: null, index: Math.max(1, st.apps.findIndex((a) => a.status !== 'installed') + 1) });
     for (let i = 0; i < st.apps.length; i++) {
       const a = st.apps[i];
-      if (a.status === 'installed' || a.status === 'failed') continue;
+      if (a.status === 'installed' || a.status === 'failed' || a.status === 'skipped') continue;
       if (cancelRequested) break;
       for (;;) {
         Object.assign(a, { status: 'installing', percent: 0, error: null, code: null });
@@ -231,13 +233,18 @@ function createGamingSetup({ home = os.homedir(), store, broadcast = () => {}, i
             if (cancelRequested) break;
             continue;
           }
+          if (code === 'ECANCELED') {
+            // « Annuler » in the Logithèque: skipped by choice, not failed.
+            Object.assign(a, { status: 'skipped', percent: 0, error: null, code });
+            break;
+          }
           Object.assign(a, { status: 'failed', percent: 0, error: String(e?.message || e).slice(0, 300), code });
           break;
         }
       }
       set({});
     }
-    const left = st.apps.filter((a) => a.status !== 'installed');
+    const left = st.apps.filter((a) => a.status !== 'installed' && a.status !== 'skipped');
     if (!left.length) {
       markDone();
       set({ state: 'done', current: null, index: st.total, retryAt: null, autoStart: false });

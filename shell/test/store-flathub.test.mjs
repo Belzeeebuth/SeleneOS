@@ -295,6 +295,105 @@ exit 3
   check('real cancel: nothing running -> canceled false', await F.cancel('org.example.SlowApp'), { canceled: false });
   delete process.env.AURORA_FLATPAK;
 
+  // ---------------------------------------------------------------- updates (Logithèque > Mises à jour), honest cancel
+  check('updates parser: tab columns, header / progress / junk skipped, duplicates once, SI sizes', I.parseUpdates('Application ID\tVersion\tBranch\tDownload size\nLooking for updates…\norg.gimp.GIMP\t2.10.38\tstable\t1.2 MB\norg.gimp.GIMP\t2.10.38\tbeta\t1 MB\ncom.spotify.Client\t\tstable\t\n-bad.x.y\t1\tstable\t1 MB\norg.x\t1\n\n'), [{ id: 'org.gimp.GIMP', version: '2.10.38', branch: 'stable', downloadSize: 1.2e6 }, { id: 'com.spotify.Client', branch: 'stable' }]);
+  check('updates parser: space-padded table and ANSI codes', I.parseUpdates('\x1b[1mOBS Studio row\x1b[0m\ncom.obsproject.Studio   30.2.3   stable   152.4 MB\n'), [{ id: 'com.obsproject.Studio', version: '30.2.3', branch: 'stable', downloadSize: 152.4e6 }]);
+  check('updates parser: empty / nothing to update', [I.parseUpdates(''), I.parseUpdates('Nothing to do.\n')], [[], []]);
+  process.env.AURORA_STORE_DEV_UPDATES = 'org.gimp.GIMP:2.10.36,com.spotify.Client,../evil';
+  F.init({ DEV: true, home: tmp, env: { lang: 'en' } });
+  const du = await F.updates();
+  check('dev updates: seeded apps listed with installed and new version', du.map((u) => [u.id, u.installedVersion, u.version]), [['org.gimp.GIMP', '2.10.36', '2.10.38'], ['com.spotify.Client', '1.0', '1.2.45']]);
+  const uev = [];
+  check('dev update: resolves the desktop id', await F.update('org.gimp.GIMP', (e) => uev.push(e)), { desktopId: 'org.gimp.GIMP.desktop' });
+  check('dev update: progress 0..100 with "Updating…", new version installed, gone from the list', [uev[0].percent, uev.at(-1).percent, uev.some((e) => /Updating/.test(e.message)), (await F.installed()).find((x) => x.id === 'org.gimp.GIMP').version, (await F.updates()).map((u) => u.id)], [0, 100, true, '2.10.38', ['com.spotify.Client']]);
+  process.env.AURORA_STORE_DEV_DELAY = '120';
+  const cu = F.update('com.spotify.Client', () => {});
+  await sleep(150);
+  check('dev update cancel: accepted', await F.cancel('com.spotify.Client'), { canceled: true });
+  await rejects('dev update cancel: rejects with ECANCELED', cu, 'ECANCELED');
+  check('dev update cancel: old version kept, still listed', [(await F.installed()).find((x) => x.id === 'com.spotify.Client').version, (await F.updates()).map((u) => u.id)], ['1.0', ['com.spotify.Client']]);
+  await rejects('dev update: app not installed -> ENOENT', F.update('org.videolan.VLC', () => {}), 'ENOENT');
+  await rejects('dev update: bad id -> EINVAL', F.update('-x.y.z', () => {}), 'EINVAL');
+  // a cancelled install whose clean-up is not confirmed carries partial + leftovers (no « Rien n'a été modifié »)
+  process.env.AURORA_STORE_DEV_ROLLBACK_FAIL = 'org.videolan.VLC';
+  const pinst = F.install('org.videolan.VLC', () => {});
+  await sleep(150);
+  await F.cancel('org.videolan.VLC');
+  const perr = await rejects('dev cancel (clean-up not confirmed): ECANCELED', pinst, 'ECANCELED');
+  check('dev cancel (clean-up not confirmed): partial + leftovers', [perr?.partial, perr?.leftovers?.length > 0], [true, true]);
+  delete process.env.AURORA_STORE_DEV_ROLLBACK_FAIL;
+  const pinst2 = F.install('org.videolan.VLC', () => {});
+  await sleep(150);
+  await F.cancel('org.videolan.VLC');
+  const perr2 = await rejects('dev cancel (clean): ECANCELED', pinst2, 'ECANCELED');
+  check('dev cancel (clean): not partial', perr2?.partial, undefined);
+  delete process.env.AURORA_STORE_DEV_DELAY;
+  delete process.env.AURORA_STORE_DEV_UPDATES;
+  // real mode against a stub flatpak: argv of remote-ls --updates and update, uninstall failing during a rollback
+  const stub3 = path.join(stubDir, 'flatpak-upd');
+  const state3 = path.join(tmp, 'refs3.state');
+  fs.writeFileSync(
+    stub3,
+    `#!/bin/sh
+printf '%s\\n' "$*" >> "$FAKE_LOG"
+case "$1" in
+  remote-add) exit 0 ;;
+  remote-ls) printf 'org.gimp.GIMP\\t2.10.38\\tstable\\t12.0 MB\\ncom.spotify.Client\\t1.2.31\\tstable\\t180.5 MB\\n'; exit 0 ;;
+  list) case "$*" in
+          *--columns=application*) printf 'org.gimp.GIMP\\t2.10.36\\t1.2 GB\\ncom.spotify.Client\\t1.2.30\\t800 MB\\n' ;;
+          *--app*) grep '^app ' "$FAKE_STATE" | while read -r k ref rt; do printf '%s\\t%s\\n' "$ref" "$rt"; done ;;
+          *) grep '^rt ' "$FAKE_STATE" | while read -r k ref rt; do printf '%s\\n' "$ref"; done ;;
+        esac; exit 0 ;;
+  update) printf 'Updating 1/1… 40%%\\rUpdating 1/1… 100%%\\n'; exit 0 ;;
+  install) echo "rt org.example.Platform/x86_64/1" >> "$FAKE_STATE"; sleep 30 & echo $! > "$FAKE_SLEEP_PID"; wait; exit 0 ;;
+  uninstall) echo "error: could not remove $5: Device or resource busy" >&2; exit 1 ;;
+esac
+exit 3
+`,
+  );
+  fs.chmodSync(stub3, 0o755);
+  fs.writeFileSync(state3, 'rt org.gnome.Platform/x86_64/46\n');
+  fs.writeFileSync(log, '');
+  fs.rmSync(sleepPid, { force: true });
+  Object.assign(process.env, { AURORA_FLATPAK: stub3, FAKE_STATE: state3, FAKE_SLEEP_PID: sleepPid });
+  F.init({ DEV: false, home: realHome, env: { lang: 'en' } });
+  const ru = await F.updates();
+  check('real updates: remote-ls --user --updates --app with columns (no shell)', fs.readFileSync(log, 'utf8').split('\n').find((l) => l.startsWith('remote-ls')), 'remote-ls --user --updates --app --columns=application,version,branch,download-size');
+  check('real updates: new + installed versions, download size', ru, [{ id: 'org.gimp.GIMP', version: '2.10.38', branch: 'stable', downloadSize: 12e6, installedVersion: '2.10.36' }, { id: 'com.spotify.Client', version: '1.2.31', branch: 'stable', downloadSize: 180.5e6, installedVersion: '1.2.30' }]);
+  const ruev = [];
+  check('real update: resolves', await F.update('org.gimp.GIMP', (e) => ruev.push(e)), { desktopId: 'org.gimp.GIMP.desktop' });
+  check('real update: argv (--user -y --noninteractive <id>) and progress', [fs.readFileSync(log, 'utf8').split('\n').find((l) => l.startsWith('update')), ruev.filter((e) => e.percent != null).map((e) => e.percent).includes(40), ruev.at(-1).percent], ['update --user -y --noninteractive org.gimp.GIMP', true, 100]);
+  const rp = F.install('org.example.StuckApp', () => {});
+  rp.catch(() => {});
+  for (let i = 0; i < 100 && !fs.existsSync(sleepPid); i++) await sleep(50);
+  await F.cancel('org.example.StuckApp');
+  const rerr = await rejects('real cancel, uninstall fails: ECANCELED', rp, 'ECANCELED');
+  check('real cancel, uninstall fails: partial with the ref left behind', [rerr?.partial, rerr?.leftovers], [true, ['org.example.Platform/x86_64/1']]);
+  delete process.env.AURORA_FLATPAK;
+
+  // firstlogin: an ECANCELED from the Logithèque's « Annuler » counts as skipped, not failed
+  {
+    const { createGamingSetup } = require(path.join(ROOT, 'main', 'ipc', 'firstlogin.js'));
+    const gh = path.join(tmp, 'gaming-home');
+    fs.mkdirSync(path.join(gh, '.config', 'aurora', 'first-login'), { recursive: true });
+    fs.writeFileSync(path.join(gh, '.config', 'aurora', 'first-login', 'gaming.json'), JSON.stringify({ version: 1, apps: ['com.valvesoftware.Steam', 'net.lutris.Lutris'], requestedAt: '2026-10-13T09:00:00.000Z' }));
+    const done = [];
+    const store = {
+      available: () => true,
+      installedIds: async () => new Set(),
+      install: async (src, id) => {
+        if (id === 'com.valvesoftware.Steam') throw Object.assign(new Error('Cancelled'), { code: 'ECANCELED' });
+        done.push(id);
+      },
+    };
+    const g = createGamingSetup({ home: gh, store, startDelay: 0, retryBase: 10 });
+    g.start();
+    for (let i = 0; i < 100 && ['pending', 'running'].includes(g.status().state); i++) await sleep(20);
+    const end = g.status();
+    check('firstlogin: Steam cancelled in the Logithèque is skipped, Lutris still installed, setup done (not failed)', [end.state, end.apps.map((a) => a.status), done], ['done', ['skipped', 'installed'], ['net.lutris.Lutris']]);
+    check('firstlogin: no failure recorded (gaming.done.json written, no attempts)', [fs.existsSync(path.join(gh, '.config', 'aurora', 'first-login', 'gaming.done.json')), fs.existsSync(path.join(gh, '.config', 'aurora', 'first-login', 'gaming.json'))], [true, false]);
+  }
+
   // ---------------------------------------------------------------- xapps: flatpak Exec lines, theme
   const { parsers: X } = require(path.join(ROOT, 'main', 'ipc', 'xapps.js'));
   const gimpExec = { exec: '/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=gimp-2.10 --file-forwarding org.gimp.GIMP @@u %U @@' };

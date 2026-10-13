@@ -2,7 +2,9 @@
 # A tiny fake BlueZ (org.bluez) for shell/test/bluetooth.test.mjs: run on a private dbus-daemon, never on
 # the real system bus. One adapter (hci0), two paired devices (headphones with Battery1, keyboard) and,
 # once discovery starts, a phone (pairing asks the agent RequestConfirmation 123456) and a gamepad
-# (pairing asks RequestPinCode; the PIN must be 0000).
+# (pairing asks RequestPinCode; the PIN must be 0000) and a keyboard (pairing shows a code with DisplayPasskey,
+# sent again as keys are « typed », then the person gives up: Cancel + AuthenticationCanceled).
+# Like bluetoothd, Discoverable cannot be set while the adapter is off (NotReady).
 # Prints "READY" when the name is owned. Writes the agent calls it made to stdout ("AGENT <method> …").
 import sys
 
@@ -33,6 +35,10 @@ class Obj(dbus.service.Object):
     def Set(self, iface, name, value):
         if iface == 'org.bluez.Adapter1' and name == 'Powered' and ROOT.blocked and value:
             raise dbus.DBusException('Blocked through rfkill', name='org.bluez.Error.Blocked')
+        if iface == 'org.bluez.Adapter1' and name == 'Discoverable' and not self.ifaces[iface]['Powered']:
+            raise dbus.DBusException('Resource Not Ready', name='org.bluez.Error.NotReady')
+        if iface == 'org.bluez.Adapter1' and name in ('Discoverable', 'DiscoverableTimeout'):
+            print('ADAPTER %s=%s' % (name, int(value)), flush=True)
         self.set(iface, name, value)
 
     def set(self, iface, name, value):
@@ -102,7 +108,7 @@ class Adapter(Obj):
         GLib.timeout_add(200, self.found)
 
     def found(self):
-        for addr, name, icon, cls in (('11:22:33:44:55:66', 'Pixel 8 de Camille', 'phone', 0x5A020C), ('77:88:99:AA:BB:CC', 'Manette sans fil', 'input-gaming', 0x002508)):
+        for addr, name, icon, cls in (('11:22:33:44:55:66', 'Pixel 8 de Camille', 'phone', 0x5A020C), ('77:88:99:AA:BB:CC', 'Manette sans fil', 'input-gaming', 0x002508), ('DD:EE:FF:00:11:22', 'Clavier MX Keys', 'input-keyboard', 0x002540)):
             path = '/org/bluez/hci0/dev_' + addr.replace(':', '_')
             if path not in ROOT.objs:
                 ROOT.add(Device(self.connection, path, device(addr, name, icon, cls, paired=False, rssi=-52)))
@@ -145,6 +151,23 @@ class Device(Obj):
             print('AGENT error %s' % e.get_dbus_name(), flush=True)
             err(dbus.DBusException('Authentication Rejected', name='org.bluez.Error.AuthenticationRejected'))
 
+        if d['Icon'] == 'input-keyboard':
+            path = dbus.ObjectPath(self.path)
+
+            def typed(n):
+                agent.DisplayPasskey(path, dbus.UInt32(48213), dbus.UInt16(n), reply_handler=lambda: None, error_handler=lambda e: None)
+                return False
+
+            def give_up():
+                print('AGENT Cancel', flush=True)
+                agent.Cancel(reply_handler=lambda: None, error_handler=lambda e: None)
+                err(dbus.DBusException('Authentication Canceled', name='org.bluez.Error.AuthenticationCanceled'))
+                return False
+
+            typed(0)
+            GLib.timeout_add(150, typed, 2)
+            GLib.timeout_add(400, give_up)
+            return
         if d['Icon'] == 'input-gaming':
             def pin(value):
                 print('AGENT RequestPinCode -> %s' % value, flush=True)

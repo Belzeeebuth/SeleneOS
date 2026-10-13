@@ -3,11 +3,15 @@
 // Backend: main/ipc/store.js (store:home, store:search, store:details, store:installedAll, store:sources,
 // store:refresh, store:setEnabled, store:install / store:remove for Flathub, store:cancel (« Annuler » while a Flathub
 // install runs), store:current (an operation started before this window opened); +store:progress, +store:changed).
+// Mises à jour (view 'updates'): store:updates / store:checkUpdates (+store:updates), store:update per app,
+// « Tout mettre à jour » = one store:update after the other (« Annuler » stops the current one and the rest);
+// the nav entry shows the number of pending updates. store:lastCancel says whether a cancelled install was
+// fully undone (otherwise the notice says so instead of « Rien n'a été modifié »).
 // apt sources (selene, ubuntu) install through the elevation prompt: shell.runAdmin('store-install' |
 // 'store-remove', [apt]), with APT progress lines on admin:progress. Installed graphical apps open as Linux apps
 // through the registry ('linux.<desktop id>', kind 'linux').
 //   shell.launch('store', { id: 'org.gimp.GIMP' })  opens a detail page (merged key, appId or curated id);
-//   { view: 'installed' | 'sources' | 'categories' }  opens that page;  { query: 'gimp' }  searches
+//   { view: 'installed' | 'sources' | 'categories' | 'updates' }  opens that page;  { query: 'gimp' }  searches
 const SOURCES = ['selene', 'ubuntu', 'flathub'];
 const ADMIN = new Set(['selene', 'ubuntu']);
 const CATS = ['AudioVideo', 'Development', 'Education', 'Game', 'Graphics', 'Network', 'Office', 'Science', 'Settings', 'System', 'Utility'];
@@ -57,6 +61,8 @@ export default {
     const refreshErr = new Map();
     let searchTimer = 0;
     let listSeq = 0;
+    let updates = { items: [], count: 0, checkedAt: null, checking: false, error: null, errorCode: null };
+    let batch = null; // { total, done, canceled } while « Tout mettre à jour » runs
 
     const srcLabel = (id) => t(`src.${id}`);
     const catLabel = (c) => t(`cat.${c}`);
@@ -138,8 +144,14 @@ export default {
         installedList = (await api.invoke('store:installedAll'))?.items || [];
       } catch {}
     }
+    async function loadUpdates() {
+      try {
+        const u = await api.invoke('store:updates');
+        if (u && Array.isArray(u.items)) updates = u;
+      } catch {}
+    }
     async function loadAll() {
-      await Promise.all([loadSources(), loadHome(), loadInstalled()]);
+      await Promise.all([loadSources(), loadHome(), loadInstalled(), loadUpdates()]);
     }
     function listParams() {
       if (view.kind === 'search') return { query };
@@ -247,14 +259,18 @@ export default {
       if (code === 'EAUTH' || code === 'ENOTADMIN' || code === 'EPERM') return t('errAdmin');
       if (code === 'ENETWORK' || code === 'ENET' || /network|resolve|unreachable|timed? ?out/i.test(e?.message || '')) return t('errNetwork');
       if (code === 'EBUSY') return t('waitOther');
-      return t(action === 'install' ? 'errInstall' : action === 'refresh' ? 'errRefresh' : 'errRemove', { name, msg: e?.message || String(e) });
+      if (action === 'check') return t('errCheckUpdates', { msg: e?.message || String(e) });
+      return t(action === 'install' ? 'errInstall' : action === 'refresh' ? 'errRefresh' : action === 'update' ? 'errUpdate' : 'errRemove', { name, msg: e?.message || String(e) });
     }
-    async function runOp(entry, source, action) {
-      if (op) return;
+    const stepText = (action, name) => t(action === 'install' ? 'installingStep' : action === 'update' ? 'updatingStep' : 'removingStep', { name });
+    // -> 'ok' | 'canceled' | 'failed' (opts.batch: part of « Tout mettre à jour »: no notification, no reload)
+    async function runOp(entry, source, action, opts = {}) {
+      if (op) return 'failed';
       const src = entry.sources.find((s) => s.source === source) || entry.sources[0];
       const id = src.source === 'selene' ? entry.selene?.apt : src.id;
-      const cancelable = action === 'install' && !ADMIN.has(src.source) && !!sources.find((s) => s.id === src.source)?.cancelable;
-      op = { key: entry.key, source: src.source, id, action, percent: 0, step: t(action === 'install' ? 'preparing' : 'preparingRemove'), cancelable, canceling: false };
+      const cancelable = (action === 'install' || action === 'update') && !ADMIN.has(src.source) && !!sources.find((s) => s.id === src.source)?.cancelable;
+      op = { key: entry.key, source: src.source, id, action, percent: 0, step: t(action === 'install' ? 'preparing' : action === 'update' ? 'preparingUpdate' : 'preparingRemove'), cancelable, canceling: false };
+      let outcome = 'ok';
       errors.delete(entry.key);
       notices.delete(entry.key);
       render();
@@ -280,27 +296,72 @@ export default {
             if (!op || p?.kind !== action || p.source !== op.source || p.id !== op.id) return;
             op.percent = Math.max(op.percent, Math.round(Number(p.percent) || 0));
             if (p.canceling && !op.canceling) markCanceling();
-            op.step = op.canceling ? t('canceling') : t(action === 'install' ? 'installingStep' : 'removingStep', { name: entry.name });
+            op.step = op.canceling ? t('canceling') : stepText(action, entry.name);
             updateProgress();
           });
-          result = await api.invoke(action === 'install' ? 'store:install' : 'store:remove', src.source, id);
+          result = await api.invoke(action === 'install' ? 'store:install' : action === 'update' ? 'store:update' : 'store:remove', src.source, id);
         }
-        if (win.closed) return;
-        ctx.shell.notify({
-          title: t(action === 'install' ? 'doneInstallTitle' : 'doneRemoveTitle', { name: entry.name }),
-          body: action === 'install' ? (entry.selene && !entry.selene.gui ? (entry.selene.command ? t('doneInstallBody', { cmd: entry.selene.command }) : t('doneInstallService')) : t('doneInstallGui')) : '',
-          appId: 'store',
-          silent: true,
-        });
+        if (win.closed) return outcome;
+        if (!opts.batch) {
+          ctx.shell.notify({
+            title: t(action === 'install' ? 'doneInstallTitle' : action === 'update' ? 'doneUpdateTitle' : 'doneRemoveTitle', { name: entry.name }),
+            body: action === 'install' ? (entry.selene && !entry.selene.gui ? (entry.selene.command ? t('doneInstallBody', { cmd: entry.selene.command }) : t('doneInstallService')) : t('doneInstallGui')) : '',
+            appId: 'store',
+            silent: true,
+          });
+        }
         if (result?.desktopId) ctx.shell.registry?.load?.().catch?.(() => {});
       } catch (e) {
-        if (e?.code === 'ECANCELED' && op?.canceling) notices.set(entry.key, t('canceledInstall', { name: entry.name }));
+        outcome = e?.code === 'ECANCELED' ? 'canceled' : 'failed';
+        if (e?.code === 'ECANCELED' && op?.canceling) notices.set(entry.key, await canceledText(action, src.source, id, entry.name));
         else if (e?.code !== 'ECANCELED') errors.set(entry.key, errorText(e, action, entry.name));
       } finally {
         off?.();
         op = null;
       }
-      if (!win.closed) await reloadAfterChange();
+      if (!win.closed && !opts.batch) await reloadAfterChange();
+      return outcome;
+    }
+    // The notice after « Annuler »: « Rien n'a été modifié » only when the backend confirms the clean-up.
+    async function canceledText(action, source, id, name) {
+      if (action === 'update') return t('canceledUpdate', { name });
+      if (action !== 'install') return t('canceledInstall', { name });
+      const r = await api.invoke('store:lastCancel', source, id).catch(() => null);
+      return t(r?.partial ? 'canceledInstallPartial' : 'canceledInstall', { name });
+    }
+    // « Tout mettre à jour »: one app after the other; « Annuler » stops the current one and the rest.
+    const updEntry = (u) => ({ key: u.key, name: u.name, icon: u.icon, categories: u.categories || [], sources: [{ source: u.source, id: u.id, installed: true }] });
+    async function updateAll() {
+      if (op || batch || !updates.items.length) return;
+      const queue = updates.items.slice();
+      for (const u of queue) errors.delete(u.key), notices.delete(u.key);
+      batch = { total: queue.length, done: 0, canceled: false };
+      let ok = 0;
+      for (const u of queue) {
+        if (!batch || batch.canceled || win.closed) break;
+        render();
+        const r = await runOp(updEntry(u), u.source, 'update', { batch: true });
+        if (r === 'ok') ok++;
+        if (r === 'canceled') batch.canceled = true;
+        batch.done++;
+      }
+      const b = batch;
+      batch = null;
+      if (win.closed) return;
+      if (ok) ctx.shell.notify({ title: t('doneUpdateAllTitle', { count: ok }), body: b.canceled ? t('doneUpdateAllStopped') : '', appId: 'store', silent: true });
+      await reloadAfterChange();
+    }
+    async function checkNow() {
+      if (updates.checking) return;
+      updates = { ...updates, checking: true };
+      render();
+      try {
+        const u = await api.invoke('store:checkUpdates');
+        if (u && Array.isArray(u.items)) updates = u;
+      } catch (e) {
+        updates = { ...updates, checking: false, error: e?.message || String(e), errorCode: e?.code || null };
+      }
+      if (!win.closed) render();
     }
     // « Annuler »: the backend stops flatpak and removes what it had added; store:install then rejects (ECANCELED).
     function markCanceling() {
@@ -340,7 +401,7 @@ export default {
         const cur = (await api.invoke('store:current'))?.op;
         if (!cur || op || ADMIN.has(cur.source)) return;
         const key = (installedList.concat(home?.featured || []).find((e) => e.sources.some((s) => s.source === cur.source && s.id === cur.id))?.key) || String(cur.id).toLowerCase();
-        op = { key, source: cur.source, id: cur.id, action: cur.action, percent: Math.round(Number(cur.percent) || 0), step: cur.canceling ? t('canceling') : t(cur.action === 'install' ? 'preparing' : 'preparingRemove'), cancelable: !!cur.cancelable, canceling: !!cur.canceling, adopted: true };
+        op = { key, source: cur.source, id: cur.id, action: cur.action, percent: Math.round(Number(cur.percent) || 0), step: cur.canceling ? t('canceling') : t(cur.action === 'install' ? 'preparing' : cur.action === 'update' ? 'preparingUpdate' : 'preparingRemove'), cancelable: !!cur.cancelable, canceling: !!cur.canceling, adopted: true };
         render();
       } catch {}
     }
@@ -389,7 +450,7 @@ export default {
       return h('span', { class: 'st-badges' }, e.sources.map((s) => h('span', { class: ['st-badge', `src-${s.source}`], dataset: { source: s.source }, title: t('fromSource', { src: srcLabel(s.source) }) }, srcLabel(s.source))));
     }
     function statusChip(e) {
-      if (isBusy(e)) return h('span', { class: 'st-chip busy' }, h('span', { class: 'spinner small' }), t(op.action === 'install' ? 'installing' : 'removing'));
+      if (isBusy(e)) return h('span', { class: 'st-chip busy' }, h('span', { class: 'spinner small' }), t(op.action === 'install' ? 'installing' : op.action === 'update' ? 'updating' : 'removing'));
       if (e.installed) return h('span', { class: 'st-chip ok' }, icon('checkmark'), t('installed'));
       return null;
     }
@@ -445,6 +506,7 @@ export default {
         navBtn('home', 'home', t('home'), sel === 'home', () => go({ kind: 'home' })),
         navBtn('categories', 'grid', t('categories'), sel === 'categories', () => go({ kind: 'categories' })),
         navBtn('installed', 'apps_list', t('installedNav'), sel === 'installed', () => go({ kind: 'installed' }), nInst ? h('span', { class: 'st-count caption' }, String(nInst)) : null),
+        navBtn('updates', 'arrow_sync', t('updatesNav'), sel === 'updates', () => go({ kind: 'updates' }), updates.count ? h('span', { class: 'st-count st-upd-count caption', title: t('updatesCount', { count: updates.count }), 'aria-label': t('updatesCount', { count: updates.count }) }, String(updates.count)) : updates.checking ? h('span', { class: 'spinner small st-nav-spin' }) : null),
         navBtn('sources', 'cloud_sync', t('sourcesNav'), sel === 'sources', () => go({ kind: 'sources' }), refreshPct.size ? h('span', { class: 'spinner small st-nav-spin' }) : null),
         cats.length ? h('div', { class: 'st-nav-sep caption' }, t('browse')) : null,
         ...cats.map((c) => navBtn(`cat:${c}`, CAT_ICON[c] || 'apps', catLabel(c), sel === `cat:${c}`, () => go({ kind: 'category', category: c }))),
@@ -530,6 +592,64 @@ export default {
         installedList.some((e) => errors.has(e.key)) ? h('div', { class: 'infobar error st-error', role: 'alert' }, icon('error_circle'), h('div', null, [...errors.values()].pop())) : null,
         installedList.length ? h('div', { class: 'st-rows' }, rows) : empty('apps_list', t('noneInstalled'), t('noneInstalledBody')),
       ];
+    }
+
+    function renderUpdates() {
+      const items = updates.items;
+      const busyAny = !!op || !!batch;
+      const sub = updates.checking ? t('updatesChecking') : updates.checkedAt ? t('updatesChecked', { when: fmtDate(updates.checkedAt) }) : t('updatesNeverChecked');
+      const head = h(
+        'div',
+        { class: 'st-upd-head' },
+        h('div', { class: 'st-upd-head-text' }, h('h1', { class: 'title st-page-title' }, t('updatesTitle')), h('div', { class: 'text-2 st-page-sub st-upd-when', 'aria-live': 'polite' }, sub)),
+        h(
+          'div',
+          { class: 'st-upd-actions' },
+          items.length ? h('button', { class: 'btn primary st-update-all', disabled: busyAny || updates.checking, onclick: () => updateAll() }, icon('arrow_download'), t('updateAll')) : null,
+          h('button', { class: ['btn', 'st-check', !items.length && 'primary'], disabled: updates.checking || busyAny, onclick: () => checkNow() }, updates.checking ? h('span', { class: 'spinner small' }) : icon('arrow_sync'), t(updates.checking ? 'checkingUpdates' : 'checkUpdates')),
+        ),
+      );
+      const blocks = [head, liveNote()];
+      if (batch) blocks.push(h('div', { class: 'infobar st-batch', role: 'status' }, h('span', { class: 'spinner small' }), h('div', null, t('updatingN', { n: Math.min(batch.done + 1, batch.total), total: batch.total }))));
+      if (updates.error && !updates.checking) blocks.push(h('div', { class: 'infobar warning st-error st-upd-error', role: 'alert' }, icon('warning'), h('div', null, errorText({ message: updates.error, code: updates.errorCode }, 'check', ''))));
+      if (!items.length) {
+        if (updates.checking) blocks.push(h('div', { class: 'st-loading' }, h('div', { class: 'spinner' })));
+        else blocks.push(h('div', { class: 'empty st-empty st-upd-empty' }, icon('checkmark_circle'), h('div', { class: 'subtitle' }, t('upToDate')), h('div', { class: 'text-2' }, t('upToDateBody'))));
+        // A notice left by a cancelled update stays readable.
+        const left = [...notices.entries()].pop();
+        if (left) blocks.push(h('div', { class: 'infobar st-canceled', role: 'status' }, icon('info'), h('div', null, left[1])));
+        return blocks;
+      }
+      blocks.push(h('div', { class: 'caption text-2 st-upd-note' }, t('updatesNote')));
+      const rows = items.map((u) => {
+        const e = updEntry(u);
+        const busy = isBusy(e);
+        const err = errors.get(u.key);
+        const notice = !busy && !err ? notices.get(u.key) : null;
+        const ver = [u.installedVersion && u.version ? t('versionFromTo', { from: u.installedVersion, to: u.version }) : u.version ? t('versionTo', { to: u.version }) : '', u.downloadSize ? formatSize(u.downloadSize, lang()) : ''].filter(Boolean).join(' · ');
+        let actions;
+        if (busy) {
+          actions = [
+            h('div', { class: 'st-progress-wrap st-upd-progress' }, h('div', { class: 'progress st-progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(op.percent), 'aria-label': op.step }, h('div', { class: 'bar', style: { width: `${op.percent}%` } })), h('div', { class: 'caption text-2 st-step', 'aria-live': 'polite' }, op.step)),
+            op.cancelable ? h('button', { class: 'btn st-cancel', disabled: op.canceling, 'aria-label': t('cancelUpdateName', { name: u.name }), onclick: () => cancelOp() }, icon('dismiss'), t('cancel')) : null,
+          ];
+        } else {
+          actions = h('button', { class: 'btn st-update', disabled: busyAny, 'aria-label': t('updateName', { name: u.name }), onclick: () => runOp(e, u.source, 'update') }, t('update'));
+        }
+        return h(
+          'div',
+          { class: 'st-row st-upd-row card', dataset: { key: u.key, id: u.id } },
+          h('div', { class: 'st-upd-line' },
+            h('button', { class: 'st-row-main', onclick: () => go({ kind: 'detail', key: u.key, source: u.source }), 'aria-label': u.name }, appIcon(e, 'small'), h('div', { class: 'st-row-text' }, h('div', { class: 'st-row-name' }, u.name), h('div', { class: 'caption text-2 st-upd-ver' }, ver))),
+            h('span', { class: ['st-badge', `src-${u.source}`], dataset: { source: u.source } }, srcLabel(u.source)),
+            actions,
+          ),
+          err ? h('div', { class: 'infobar error st-error', role: 'alert' }, icon('error_circle'), h('div', null, err)) : null,
+          notice ? h('div', { class: 'infobar st-canceled', role: 'status' }, icon('info'), h('div', null, notice)) : null,
+        );
+      });
+      blocks.push(h('div', { class: 'st-rows st-upd-rows' }, rows));
+      return blocks;
     }
 
     function fmtDate(ms) {
@@ -715,12 +835,13 @@ export default {
 
     function updateProgress() {
       if (!op) return;
-      const bar = content.querySelector('.st-actions .st-progress');
-      if (bar && view.kind === 'detail' && detail?.key === op.key) {
+      const scope = view.kind === 'detail' && detail?.key === op.key ? content.querySelector('.st-actions') : view.kind === 'updates' ? content.querySelector(`.st-upd-row[data-key="${CSS.escape(op.key)}"]`) : null;
+      const bar = scope?.querySelector('.st-progress');
+      if (bar) {
         bar.firstChild.style.width = `${op.percent}%`;
         bar.setAttribute('aria-valuenow', String(op.percent));
         bar.setAttribute('aria-label', op.step);
-        const step = content.querySelector('.st-step');
+        const step = scope.querySelector('.st-step');
         if (step) step.textContent = op.step;
       }
     }
@@ -741,6 +862,7 @@ export default {
       else if (view.kind === 'search') body = renderList(t('resultsFor', { q: query }));
       else if (view.kind === 'detail') body = renderDetail();
       else if (view.kind === 'installed') body = renderInstalled();
+      else if (view.kind === 'updates') body = renderUpdates();
       else if (view.kind === 'categories') body = renderCategories();
       else if (view.kind === 'sources') body = renderSources();
       else if (view.kind === 'category') body = renderList(catLabel(view.category));
@@ -789,7 +911,8 @@ export default {
       api.on('store:changed', (p) => {
         // An adopted operation (started before this window) ends with its own store:changed.
         if (op?.adopted && p?.source === op.source && p?.id === op.id && p?.action === op.action) {
-          if (p.canceled) notices.set(op.key, t('canceledInstall', { name: detail?.data?.entry?.key === op.key ? detail.data.entry.name : op.id }));
+          const nm = detail?.data?.entry?.key === op.key ? detail.data.entry.name : updates.items.find((u) => u.key === op.key)?.name || op.id;
+          if (p.canceled) notices.set(op.key, t(op.action === 'update' ? 'canceledUpdate' : p.partial ? 'canceledInstallPartial' : 'canceledInstall', { name: nm }));
           op = null;
         }
         // Coalesce bursts; our own operations reload when they finish.
@@ -797,17 +920,27 @@ export default {
         clearTimeout(changeTimer);
         changeTimer = setTimeout(() => !op && !win.closed && reloadAfterChange(), 150);
       }),
+      api.on('store:updates', (u) => {
+        if (!u || !Array.isArray(u.items)) return;
+        const names = new Map(updates.items.map((x) => [`${x.source}:${x.id}`, x]));
+        // Broadcasts may come before the merged index is built: keep the names and icons already known.
+        updates = { ...u, items: u.items.map((x) => (x.name === x.id && names.has(`${x.source}:${x.id}`) ? { ...x, name: names.get(`${x.source}:${x.id}`).name, icon: x.icon || names.get(`${x.source}:${x.id}`).icon, key: names.get(`${x.source}:${x.id}`).key } : x)) };
+        if (win.closed) return;
+        if (view.kind === 'updates') render();
+        else renderNav();
+      }),
       api.on('store:progress', (p) => {
         // An operation started elsewhere while this window is open (first sign-in gaming setup, another window).
-        if (!op && (p?.kind === 'install' || p?.kind === 'remove') && typeof p.source === 'string' && typeof p.id === 'string' && !ADMIN.has(p.source)) {
+        if (!op && (p?.kind === 'install' || p?.kind === 'remove' || p?.kind === 'update') && typeof p.source === 'string' && typeof p.id === 'string' && !ADMIN.has(p.source)) {
           const e = installedList.concat(home?.featured || []).find((x) => x.sources.some((s) => s.source === p.source && s.id === p.id));
-          op = { key: e?.key || p.id.toLowerCase(), source: p.source, id: p.id, action: p.kind, percent: 0, step: '', cancelable: p.kind === 'install' && !!sources.find((x) => x.id === p.source)?.cancelable, canceling: !!p.canceling, adopted: true };
+          const ue = updates.items.find((u) => u.source === p.source && u.id === p.id);
+          op = { key: e?.key || ue?.key || p.id.toLowerCase(), source: p.source, id: p.id, action: p.kind, percent: 0, step: '', cancelable: (p.kind === 'install' || p.kind === 'update') && !!sources.find((x) => x.id === p.source)?.cancelable, canceling: !!p.canceling, adopted: true };
           render();
         }
         if (op?.adopted && p?.kind === op.action && p.source === op.source && p.id === op.id) {
           op.percent = Math.max(op.percent, Math.round(Number(p.percent) || 0));
           if (p.canceling && !op.canceling) markCanceling();
-          op.step = op.canceling ? t('canceling') : t(op.action === 'install' ? 'installingStep' : 'removingStep', { name: detail?.data?.entry?.key === op.key ? detail.data.entry.name : op.id });
+          op.step = op.canceling ? t('canceling') : stepText(op.action, detail?.data?.entry?.key === op.key ? detail.data.entry.name : updates.items.find((u) => u.key === op.key)?.name || op.id);
           updateProgress();
           return;
         }
@@ -831,7 +964,7 @@ export default {
     };
     function applyArgs(args, push) {
       if (typeof args?.id === 'string' && args.id) go({ kind: 'detail', key: findKey(args.id) }, { push });
-      else if (['installed', 'sources', 'categories'].includes(args?.view)) go({ kind: args.view }, { push });
+      else if (['installed', 'sources', 'categories', 'updates'].includes(args?.view)) go({ kind: args.view }, { push });
       else if (typeof args?.query === 'string' && args.query.trim()) {
         searchInput.value = args.query.trim().slice(0, 200);
         query = searchInput.value;
@@ -851,7 +984,7 @@ export default {
         win.focus();
       },
       get state() {
-        return { view, query, op, sources, live, installed: installedList.map((e) => e.key), listCount: list?.items.length || 0, listTotal: list?.total || 0 };
+        return { view, query, op, sources, live, installed: installedList.map((e) => e.key), listCount: list?.items.length || 0, listTotal: list?.total || 0, updates: updates.items.map((u) => u.id), updatesCount: updates.count, batch };
       },
     };
   },

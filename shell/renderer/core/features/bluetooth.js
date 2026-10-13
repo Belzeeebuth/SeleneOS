@@ -4,6 +4,8 @@
 //   confirm   « Le code 123456 s'affiche-t-il sur l'appareil ? »     Oui, associer / Non
 //   pin       PIN to type (old keyboards, game controllers)          passkey: 6 digits
 //   display-* code to type on the device (no answer needed)          authorize: the device asks to pair
+//             sent again as keys are typed: the code is updated in place; the dialog closes by itself when the
+//             pairing ends (a { req: 0, kind: 'cancel', address } event, or the device shows up paired)
 //   cancel    BlueZ gave up: the open dialog closes
 const STRINGS = {
   en: {
@@ -55,7 +57,7 @@ const STRINGS = {
 const KIND_ICONS = { headphones: 'headphones', headset: 'headphones', speaker: 'speaker-high', mouse: 'cursor', keyboard: 'keyboard', gamepad: 'game-controller', phone: 'device-mobile', computer: 'laptop', tablet: 'device-tablet', printer: 'printer' };
 
 let ctx = null;
-let open = null; // { req, layer }
+let open = null; // { req, kind, address, layer, setCode }
 
 function codeBox(code) {
   const { h } = ctx;
@@ -104,9 +106,15 @@ async function ask(r) {
       { label: t('btagent.refuse'), value: null },
     ];
   } else {
-    // display-pin / display-passkey: just show the code to type on the device
-    body = h('div', { class: 'bt-agent', style: { minWidth: '360px' } }, head, h('div', null, t('btagent.display', { code: r.passkey })), codeBox(r.passkey));
+    // display-pin / display-passkey: just show the code to type on the device (updated in place by setCode)
+    const line = h('div', { class: 'bt-display-line' }, t('btagent.display', { code: r.passkey }));
+    const box = codeBox(r.passkey);
+    body = h('div', { class: 'bt-agent', style: { minWidth: '360px' } }, head, line, box);
     buttons = [{ label: t('btagent.close'), value: null, primary: true }];
+    r.setCode = (code) => {
+      line.textContent = t('btagent.display', { code });
+      box.textContent = String(code).replace(/^(\d{3})(\d{3})$/, '$1 $2');
+    };
   }
   const v = await ui.dialog({
     title: t('btagent.title', { name }),
@@ -114,7 +122,7 @@ async function ask(r) {
     buttons,
     className: 'bt-agent-dialog',
     onOpen: (dlg) => {
-      open = { req: r.req, layer: dlg.closest('.dialog-layer') || dlg.parentElement };
+      open = { req: r.req, kind: r.kind, address: r.address, setCode: r.setCode, layer: dlg.closest('.dialog-layer') || dlg.parentElement };
       if (input) {
         dlg._validate = () => {
           const ok = r.kind === 'pin' ? /^[0-9A-Za-z]{1,16}$/.test(input.value) : /^[0-9]{1,6}$/.test(input.value);
@@ -138,6 +146,12 @@ function closeOpen(req) {
   open.layer?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 }
 
+const isDisplay = (r) => String(r?.kind).startsWith('display');
+/** The code shown for this address (any, without one) is no longer needed: pairing succeeded or ended. */
+function closeDisplay(address) {
+  if (open && isDisplay(open) && (!address || open.address === address)) closeOpen();
+}
+
 export function mount(c) {
   ctx = c;
   c.i18n.extend(STRINGS);
@@ -159,14 +173,29 @@ export function mount(c) {
   c.api.on('bluetooth:agent', (r) => {
     if (!r) return;
     if (r.kind === 'cancel') {
+      if (!r.req) {
+        // the code to type is no longer needed (req 0: display-*)
+        for (let i = queue.length - 1; i >= 0; i--) if (isDisplay(queue[i]) && (!r.address || queue[i].address === r.address)) queue.splice(i, 1);
+        return closeDisplay(r.address);
+      }
       const i = queue.findIndex((x) => x.req === r.req);
       if (i >= 0) queue.splice(i, 1);
       return closeOpen(r.req);
     }
-    // a new code replaces the code shown before (display-passkey is sent again as keys are typed)
-    if (String(r.kind).startsWith('display') && open && !open.req) closeOpen();
+    if (isDisplay(r)) {
+      // sent again as keys are typed: same device -> update the code in place (no close / reopen)
+      if (open && isDisplay(open) && open.address === r.address) return open.setCode?.(r.passkey);
+      const queued = queue.find((x) => isDisplay(x) && x.address === r.address);
+      if (queued) return void (queued.passkey = r.passkey);
+      if (open && isDisplay(open)) closeOpen(); // another device's code replaces this one
+    }
     queue.push(r);
     pump();
+  });
+  // paired (whoever started it): its code dialog closes
+  c.api.on('bluetooth:changed', (st) => {
+    if (!open || !isDisplay(open)) return;
+    if (st?.devices?.some((d) => d.address === open.address && d.paired)) closeDisplay(open.address);
   });
   c.bluetoothAgent = { closeOpen };
 }

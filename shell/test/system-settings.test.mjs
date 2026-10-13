@@ -1210,6 +1210,107 @@ async function graphicsDrivers() {
   }
 }
 
+// ===================================================================== Firmware (Mises à jour > Microprogrammes, fwupd)
+// Fixtures test/fixtures/fwupd (fwupdmgr get-devices / get-updates --json), simulated aurora-admin firmware-update.
+//   Screenshots: test/out/settings-firmware-fr-{dark,light}.png, settings-firmware-restart-fr-dark.png
+async function firmwareUpdates() {
+  console.log('\n# Settings — Microprogrammes (fr, 1280x720, dark + light)');
+  // parsers (no Electron)
+  const fwm = require(path.join(ROOT, 'main', 'ipc', 'firmware.js'));
+  const FX = path.join(ROOT, 'test', 'fixtures', 'fwupd');
+  const devs = fwm.parsers.parseDevices(fs.readFileSync(path.join(FX, 'devices.json'), 'utf8'));
+  check(devs.length === 5 && !devs.some((d) => d.id.includes('/')) && devs.filter((d) => d.updatable).length === 4, 'fwupd devices: 5 valid devices (bad id dropped), 4 updatable');
+  const ups = fwm.parsers.parseUpdates(fs.readFileSync(path.join(FX, 'updates.json'), 'utf8'));
+  check(ups.length === 2 && ups[0].to === '0.1.58' && ups[0].from === '0.1.56' && ups[0].requireAc && ups[0].needsReboot && ups[0].size === 17285432 && !ups[1].needsReboot, 'fwupd updates: newest non-downgrade release per device, AC / reboot flags, size');
+  check(ups[0].description === 'This stable release fixes the following problems:\n• Fixed an issue where the system could not wake up from sleep & hibernation.\n• Security fixes (CVE-2026-1234).', 'fwupd release markup -> plain text');
+  check(fwm.parsers.parseUpdates('No updatable devices\n').length === 0 && fwm.parsers.parseUpdates('Devices with no available firmware updates:\n • TPM\n{\n  "Devices" : [ ]\n}').length === 0 && fwm.parsers.parseDevices('garbage').length === 0, 'fwupd: text before / instead of JSON tolerated');
+  const admin = require(path.join(ROOT, 'main', 'ipc', 'admin.js'));
+  const refused = ['A45DF35AC0E948EE180FE216A5F703F32DDA163F', '--force', 'a45df35ac0e948ee180fe216a5f703f32dda163', 'a45df35ac0e948ee180fe216a5f703f32dda163f;reboot', '../a45df35ac0e948ee180fe216a5f703f32dda1'].filter((a) => {
+    try {
+      admin.parsers.validate('firmware-update', [a]);
+      return false;
+    } catch (e) {
+      return e.code === 'EINVAL';
+    }
+  });
+  check(refused.length === 5 && admin.parsers.validate('firmware-update', ['a45df35ac0e948ee180fe216a5f703f32dda163f']).args[0] === 'a45df35ac0e948ee180fe216a5f703f32dda163f', 'admin: firmware-update takes exactly one 40-hex device id');
+  const helperSrc = fs.readFileSync(path.join(ROOT, '..', 'rootfs', 'usr', 'lib', 'aurora', 'helpers', 'aurora-admin'), 'utf8');
+  check(/^firmware-update\)\n  need_args \$# 1\n  \[\[ \$1 =~ \^\[0-9a-f\]\{40\}\$ \]\]/m.test(helperSrc) && /fwupdmgr --assume-yes --no-reboot-check --no-unreported-check --no-metadata-check update -- "\$1"/.test(helperSrc), 'helper: firmware-update validates the id again and runs fwupdmgr update with argv only');
+  // helper run as a fake root with a fake fwupdmgr on PATH: argv, reboot-required, refusal of a bad id
+  {
+    const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'aurora-fw-'));
+    const bin = path.join(tmp, 'bin');
+    fs.mkdirSync(bin);
+    fs.writeFileSync(path.join(bin, 'fwupdmgr'), `#!/bin/sh\nprintf '%s\\n' "$*" >> "${tmp}/log"\ncase "$*" in *get-devices*) echo '{"Devices":[{"DeviceId":"a45df35ac0e948ee180fe216a5f703f32dda163f","UpdateState":"needs-reboot"}]}';; *update*) echo 'Successfully installed firmware';; esac\n`, { mode: 0o755 });
+    fs.writeFileSync(path.join(bin, 'id'), '#!/bin/sh\n[ "$1" = "-u" ] && { echo 0; exit 0; }\nexec /usr/bin/id "$@"\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(bin, 'logger'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    // the helper resets PATH: run a copy whose PATH line points at the fakes first
+    const copy = path.join(tmp, 'aurora-admin');
+    fs.writeFileSync(copy, helperSrc.replace(/^export PATH=.*$/m, `export PATH=${bin}:/usr/bin:/bin`), { mode: 0o755 });
+    const r1 = spawnSync('bash', [copy, 'firmware-update', 'a45df35ac0e948ee180fe216a5f703f32dda163f'], { encoding: 'utf8' });
+    const log = fs.readFileSync(path.join(tmp, 'log'), 'utf8');
+    check(r1.status === 0 && /reboot-required\ndone\n$/.test(r1.stdout) && log.split('\n')[0] === '--assume-yes --no-reboot-check --no-unreported-check --no-metadata-check update -- a45df35ac0e948ee180fe216a5f703f32dda163f', `helper (fake fwupdmgr): update argv, then reboot-required + done (${r1.status} ${r1.stderr})`);
+    const r2 = spawnSync('bash', [copy, 'firmware-update', 'a45df35ac0e948ee180fe216a5f703f32dda163f;reboot'], { encoding: 'utf8' });
+    check(r2.status === 2 && /invalid firmware device id/.test(r2.stderr), 'helper: bad device id refused (exit 2)');
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+  for (const theme of ['dark', 'light']) {
+    const s = await launchShell({ theme, lang: 'fr', size: '1280x720', open: ['settings'], env: { AURORA_FWUPD_DEV_DELAY: '400' } });
+    const text = (sel) => s.page.locator(S(sel)).first().innerText().then((x) => x.trim()).catch(() => '');
+    try {
+      await s.page.waitForSelector(S('.st-page'), { timeout: 20000 });
+      await go(s, 'update');
+      await s.page.waitForSelector(S('.st-fw'), { timeout: 10000 });
+      check((await s.page.locator(S('.st-fw .st-group-title, .st-fw h2, .st-fw .subtitle')).first().innerText().catch(() => '')).includes('Microprogrammes') || (await text('.st-fw')).includes('Microprogrammes'), `${theme}: « Microprogrammes » section on Mises à jour`);
+      check((await text('.st-fw-head')).includes('2 mises à jour de microprogrammes disponibles') && (await text('.st-fw-head')).includes('4 composants'), `${theme}: 2 firmware updates for 4 updatable components`);
+      check((await s.page.locator(S('.st-fw-update')).count()) === 2 && (await text('.st-fw-update')).includes('System Firmware') && (await text('.st-fw-update')).includes('0.1.56 → 0.1.58'), `${theme}: one row per update with its versions`);
+      check((await text('.st-fw-plug')).includes('Gardez votre ordinateur portable branché'), `${theme}: keep-plugged-in warning`);
+      await s.page.locator(S('.st-fw')).scrollIntoViewIfNeeded();
+      await sleep(300);
+      await docShot(s, `firmware-fr-${theme}`);
+      if (theme === 'dark') {
+        // « Rechercher » refreshes the metadata
+        await s.page.locator(S('.st-fw-check')).click();
+        await s.page.waitForFunction(() => document.querySelector('.app-settings .st-fw-head')?.innerText.includes('disponible'), null, { timeout: 8000 });
+        check(true, 'Rechercher: refresh then the list again');
+        // update the system firmware through the UAC prompt -> restart offered
+        await s.page.locator(S('.st-fw-update .st-fw-install')).first().click();
+        await uac(s);
+        await s.page.waitForSelector(S('.st-fw-restart'), { timeout: 10000 });
+        check((await text('.st-fw-restart')).includes('Redémarrez pour terminer') && (await s.page.locator(S('.st-fw-restart .btn.primary')).count()) === 1, 'after a firmware needing a restart: « Redémarrer maintenant » offered');
+        check((await text('.st-fw-head')).includes('1 mise à jour de microprogramme disponible') && (await s.page.locator(S('.st-fw-update')).count()) === 1, 'the updated device leaves the list');
+        await docShot(s, 'firmware-restart-fr-dark');
+        // the SSD (no reboot) updates too -> up to date
+        await s.page.locator(S('.st-fw-update .st-fw-install')).first().click();
+        await uac(s);
+        await s.page.waitForFunction(() => document.querySelector('.app-settings .st-fw-head')?.innerText.includes('Vos microprogrammes sont à jour'), null, { timeout: 10000 });
+        check((await s.page.locator(S('.st-fw-update')).count()) === 0, 'all firmware up to date');
+      }
+      check(errorsOf(s).length === 0, `${theme}: no console errors (${errorsOf(s).slice(0, 2).join(' | ')})`);
+    } catch (err) {
+      check(false, `firmware ${theme} flow crashed: ${err.stack || err}`);
+    } finally {
+      await s.close();
+    }
+  }
+  // fwupd sees no updatable device: the section is hidden
+  const s2 = await launchShell({ theme: 'light', lang: 'fr', size: '1280x720', open: ['settings'], env: { AURORA_FWUPD_FIXTURE: 'none' } });
+  try {
+    await s2.page.waitForSelector(S('.st-page'), { timeout: 20000 });
+    await go(s2, 'update');
+    await sleep(800);
+    check((await s2.page.locator(S('.st-fw')).count()) === 0, 'no updatable device: « Microprogrammes » hidden');
+  } catch (err) {
+    check(false, `firmware hidden flow crashed: ${err.stack || err}`);
+  } finally {
+    await s2.close();
+  }
+}
+
+if (ARGS.has('--firmware')) {
+  await firmwareUpdates();
+  finish();
+}
 if (ARGS.has('--drivers')) {
   await graphicsDrivers();
   finish();
@@ -1227,6 +1328,7 @@ if (!ARGS.has('--skip-dark')) await darkFrench();
 await realSystemPages();
 await qaRegressions();
 await graphicsDrivers();
+await firmwareUpdates();
 finish();
 
 function finish() {

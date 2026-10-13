@@ -353,6 +353,20 @@ tr -d '\n' <<<"$btconf" | grep -Eq '<policy context="default">[[:space:]]*<allow
   && pass "bluez D-Bus policy: any local user may talk to org.bluez" || fail "bluez D-Bus policy does not allow the session user"
 grep -qs 'KERNEL=="rfkill".*uaccess' "$S/usr/lib/udev/rules.d/70-uaccess.rules" && pass "/dev/rfkill is uaccess (session user can unblock Bluetooth)" || warn "/dev/rfkill is not tagged uaccess"
 
+# Firmware updates (iso/packages.d/firmware-updates.list): fwupd + its D-Bus activation for the session, the daily
+# metadata refresh timer (iso/build.sh configure_services), the signed UEFI capsule loader, aurora-admin firmware-update.
+for p in fwupd fwupd-signed; do
+  grep -A1 -x "Package: $p" "$S/var/lib/dpkg/status" | grep -q '^Status: install ok installed' && pass "package $p installed (firmware updates)" || fail "package $p missing (firmware updates)"
+done
+for b in /usr/bin/fwupdmgr /usr/libexec/fwupd/fwupd; do
+  [[ -x "$S$b" ]] && pass "image has $b (firmware updates)" || fail "image lacks $b (firmware updates: rebuild with --from packages)"
+done
+[[ -f "$S/usr/share/dbus-1/system-services/org.freedesktop.fwupd.service" ]] && pass "fwupd is D-Bus activated (org.freedesktop.fwupd)" || fail "no D-Bus activation file for fwupd"
+compgen -G "$S/usr/libexec/fwupd/efi/fwupd*.efi.signed" >/dev/null && pass "signed fwupd EFI binary present (UEFI capsules with Secure Boot)" || warn "no signed fwupd EFI binary: UEFI capsule updates need Secure Boot off"
+st="$(systemctl --root="$S" is-enabled fwupd-refresh.timer 2>/dev/null || true)"
+[[ "$st" == enabled ]] && pass "systemctl --root: fwupd-refresh.timer is $st" || fail "systemctl --root: fwupd-refresh.timer is '$st'"
+grep -q '^firmware-update)' "$S/usr/lib/aurora/helpers/aurora-admin" && pass "aurora-admin has the firmware-update action" || fail "aurora-admin lacks firmware-update"
+
 # Build leftovers / host leaks.
 [[ ! -s "$S/etc/machine-id" ]] && pass "/etc/machine-id is empty (generated at boot)" || fail "/etc/machine-id is set"
 compgen -G "$S/etc/ssh/ssh_host_*" >/dev/null && fail "SSH host keys shipped" || pass "no SSH host keys"

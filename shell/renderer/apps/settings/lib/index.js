@@ -368,6 +368,8 @@ const ENTRIES = [
   ['privacy', 'device', 'shield_checkmark', 'Device security', 'Sécurité de l’appareil', 'apparmor secure boot tpm', 'apparmor démarrage sécurisé tpm'],
   ['update', null, 'arrow_sync', 'Updates', 'Mises à jour', 'update upgrade patches apt check', 'mise à jour correctifs apt rechercher'],
   ['updateHistory', null, 'history', 'Update history', 'Historique des mises à jour', 'installed updates log', 'mises à jour installées journal'],
+  // updates2 track: firmware updates through fwupd (pages/update.js « Microprogrammes »)
+  ['update', null, 'circuitry', 'Firmware updates', 'Mises à jour des microprogrammes', 'firmware bios uefi fwupd lvfs ssd nvme embedded controller dock', 'microprogramme micrologiciel firmware bios uefi fwupd lvfs ssd nvme contrôleur station'],
   ['gpuDrivers', null, 'developer_board', 'Graphics drivers', 'Pilotes graphiques', 'driver drivers nvidia graphics card gpu geforce rtx gtx video', 'pilote pilotes nvidia carte graphique gpu geforce rtx gtx vidéo'],
   ['gpuDrivers', 'nvidia', 'developer_board', 'NVIDIA driver', 'Pilote NVIDIA', 'geforce rtx gtx proprietary open install driver', 'geforce rtx gtx propriétaire open installer pilote'],
   ['gpuDrivers', 'cards', 'developer_board', 'Graphics card', 'Carte graphique', 'gpu video card amd radeon intel driver', 'gpu carte vidéo amd radeon intel pilote'],

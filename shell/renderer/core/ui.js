@@ -7,7 +7,7 @@
 //   await ui.dialog({ title, body, buttons: [{ label, value, primary }], parent: win })   -> value | null (Esc)
 //   await ui.alert(message, { title, parent })
 //   await ui.confirm(message, { title, okLabel, cancelLabel, danger, parent })          -> boolean
-//   await ui.prompt({ title, label, value, placeholder, okLabel, parent, validate })    -> string | null
+//   await ui.prompt({ title, label, value, placeholder, okLabel, parent, validate, maxlength })    -> string | null
 //   await ui.filePicker({ mode: 'open'|'save'|'folder', title, filters: [{ name, ext: ['.png'] }],
 //                         path, name, multiple, parent })                                -> path | [paths] | null
 //   ui.toggle({ checked, label, onchange, ariaLabel })  ui.slider({ min, max, value, step, oninput })  ui.select({ options:[{value,label}], value, onchange })
@@ -385,8 +385,9 @@ export const ui = {
     return v === true;
   },
 
-  async prompt({ title, label, value = '', placeholder = '', okLabel, parent, validate, select = true, type = 'text' } = {}) {
+  async prompt({ title, label, value = '', placeholder = '', okLabel, parent, validate, select = true, type = 'text', maxlength } = {}) {
     const input = h('input', { class: 'input', type, value, placeholder, style: { width: '100%' } });
+    if (maxlength > 0) input.maxLength = maxlength;
     const err = h('div', { class: 'field-hint', style: { color: 'var(--danger)', minHeight: '16px' } });
     const body = h('div', { class: 'field', style: { minWidth: '340px', margin: 0 } }, label ? h('label', null, label) : null, input, err);
     let ok = false;

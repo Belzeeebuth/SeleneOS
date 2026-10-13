@@ -891,6 +891,11 @@ configure_services() {
     in_chroot "$ROOT" systemctl --global enable speech-dispatcher.socket >/dev/null 2>&1 || die "cannot enable speech-dispatcher.socket (user)"
     in_chroot "$ROOT" systemctl disable speech-dispatcherd.service >/dev/null 2>&1 || true
   fi
+  # Firmware updates (iso/packages.d/firmware-updates.list): fwupd.service is D-Bus activated (Paramètres reads the
+  # devices without root); fwupd-refresh.timer downloads the LVFS metadata once a day.
+  if [[ -f "$ROOT/usr/lib/systemd/system/fwupd-refresh.timer" ]]; then
+    in_chroot "$ROOT" systemctl enable fwupd-refresh.timer >/dev/null 2>&1 || die "cannot enable fwupd-refresh.timer"
+  fi
   # Text console on tty1 stays available (Ctrl+Alt+F1); greetd owns tty7. Plymouth must quit normally
   # (no --retain-splash): a console left in graphics mode makes the kernel ignore greetd's switch to tty7.
   # Other aurora-* units shipped in rootfs/ are enabled when they have an [Install] section.

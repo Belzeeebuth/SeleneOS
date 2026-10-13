@@ -72,6 +72,13 @@ console.log('\n# parsers');
   check('state: off-blocked adapter -> blocked soft, not powered', [bl.blocked, bl.powered], ['soft', false]);
   check('state: hard rfkill wins', P.normalizeState(raw, { soft: true, hard: true }).blocked, 'hard');
   check('state: no adapter', P.normalizeState({ available: false, adapter: null, devices: [] }), (s) => s.available === false && s.reason === 'noadapter' && s.devices.length === 0);
+  check('state: discoverable only while powered', [P.normalizeState({ ...raw, adapter: { ...raw.adapter, discoverable: true } }, null).discoverable, P.normalizeState({ ...raw, adapter: { ...raw.adapter, discoverable: true, powered: false } }, null).discoverable], [true, false]);
+  // error codes said in French (and English), never BlueZ's English text inside a sentence
+  const i18n = JSON.parse(fs.readFileSync(path.join(ROOT, 'renderer', 'apps', 'settings', 'i18n.json'), 'utf8'));
+  const page = fs.readFileSync(path.join(ROOT, 'renderer', 'apps', 'settings', 'pages', 'bluetooth.js'), 'utf8');
+  const keys = ['errNotReady', 'errInProgress', 'errRfkill', 'errGenericNamed', 'errGenericPlain', 'visibleDesc', 'onPlain'];
+  check('i18n: FR + EN messages for ENOTREADY / EINPROGRESS / ERFKILL / generic, without {msg}', ['en', 'fr'].flatMap((l) => keys.map((k) => i18n[l].bt[k])).every((v) => v && !v.includes('{msg}')), true);
+  check('page: each error code has its own sentence (ENOADAPTER, ENOSERVICE too); the raw text only in the log', ['ENOTREADY', 'EINPROGRESS', 'ERFKILL', 'ENOADAPTER', 'ENOSERVICE'].every((c) => page.includes(`'${c}'`)) && !/errGeneric'/.test(page) && /console\.warn\('\[bluetooth\]'/.test(page), true);
 }
 
 // ===================================================================== 2. helper + backend vs fake BlueZ
@@ -95,7 +102,7 @@ async function helperTests() {
     { mode: 0o755 },
   );
   const env0 = { ...process.env };
-  Object.assign(process.env, { DBUS_SYSTEM_BUS_ADDRESS: address, AURORA_BT_HELPER: HELPER, AURORA_BT_PYTHON: spawnSync('sh', ['-c', `command -v ${PY}`], { encoding: 'utf8' }).stdout.trim(), PATH: `${bin}:${process.env.PATH}` });
+  Object.assign(process.env, { AURORA_BT_AGENT_TIMEOUT: '3', DBUS_SYSTEM_BUS_ADDRESS: address, AURORA_BT_HELPER: HELPER, AURORA_BT_PYTHON: spawnSync('sh', ['-c', `command -v ${PY}`], { encoding: 'utf8' }).stdout.trim(), PATH: `${bin}:${process.env.PATH}` });
   delete process.env.AURORA_BT_DEV;
   const fake = spawn(PY, ['-I', FAKE], { env: process.env, stdio: ['ignore', 'pipe', 'inherit'] });
   let fakeOut = '';
@@ -120,13 +127,19 @@ async function helperTests() {
     let st = await call('bluetooth:status');
     check('agent registered as KeyboardDisplay + default agent', await until(() => /RegisterAgent \/org\/selene\/bluetooth\/agent KeyboardDisplay[\s\S]*RequestDefaultAgent/.test(fakeOut)), (v) => !!v);
     check('status: adapter, paired devices with battery, soft rfkill block', [st.available, st.name, st.blocked, st.powered, st.devices.map((d) => `${d.name}|${d.kind}|${d.paired}|${d.connected}|${d.battery}`)], [true, 'selene', 'soft', false, ['Casque WH-1000XM4|headphones|true|true|80', 'Clavier K380|keyboard|true|false|null']]);
+    // the Bluetooth page opens while the adapter is off: remembered, applied once it is on (BlueZ refuses before)
+    check('visible (page open) while off: accepted, not discoverable yet', [await call('bluetooth:visible', true), st.discoverable], [true, false]);
     check('turn on: rfkill unblock as the user, then Powered', await call('bluetooth:setPowered', true), true);
     check('rfkill was called with "unblock bluetooth"', fs.readFileSync(path.join(tmp, 'rfkill.log'), 'utf8').includes('unblock bluetooth'), true);
     st = await call('bluetooth:status');
     check('status: powered, not blocked', [st.powered, st.blocked], [true, null]);
+    check('turned on with the page open: discoverable (lease of 180 s, renewed)', [!!(await until(async () => (await call('bluetooth:status')).discoverable)), /ADAPTER DiscoverableTimeout=180[\s\S]*ADAPTER Discoverable=1/.test(fakeOut)], [true, true]);
+    await call('bluetooth:visible', false);
+    check('page closed: not discoverable any more', !!(await until(async () => !(await call('bluetooth:status')).discoverable && fakeOut.includes('ADAPTER Discoverable=0'))), true);
     check('scan starts (discovery)', await call('bluetooth:scan', true), true);
-    const found = await until(() => last()?.devices?.filter((d) => !d.paired).length === 2 && last());
-    check('nearby devices pushed by bluetooth:changed (phone + gamepad, discovering)', found && [found.discovering, found.devices.filter((d) => !d.paired).map((d) => `${d.name}|${d.kind}`)], [true, ['Manette sans fil|gamepad', 'Pixel 8 de Camille|phone']]);
+    const found = await until(() => last()?.devices?.filter((d) => !d.paired).length === 3 && last());
+    check('nearby devices pushed by bluetooth:changed (keyboard, gamepad, phone; discovering)', found && [found.discovering, found.devices.filter((d) => !d.paired).map((d) => `${d.name}|${d.kind}`)], [true, ['Clavier MX Keys|keyboard', 'Manette sans fil|gamepad', 'Pixel 8 de Camille|phone']]);
+    check('discoverable while a search runs', !!(await until(async () => (await call('bluetooth:status')).discoverable)), true);
     // pairing the phone: the agent asks to confirm 123456
     const pairing = call('bluetooth:pair', '11:22:33:44:55:66');
     const ask = await until(() => events.find(([ch, p]) => ch === 'bluetooth:agent' && p.kind === 'confirm')?.[1]);
@@ -146,6 +159,19 @@ async function helperTests() {
     pin = await until(() => events.find(([ch, p]) => ch === 'bluetooth:agent' && p.kind === 'pin')?.[1]);
     await call('bluetooth:agentReply', { req: pin.req, accept: false });
     check('declined -> EREJECTED', (await p2).ERR, 'EREJECTED');
+    // a request BlueZ never answers nor cancels is dropped (AURORA_BT_AGENT_TIMEOUT=3 here, 65 s by default)
+    events.length = 0;
+    p2 = call('bluetooth:pair', '77:88:99:AA:BB:CC');
+    pin = await until(() => events.find(([ch, p]) => ch === 'bluetooth:agent' && p.kind === 'pin')?.[1]);
+    const dropped = await until(() => events.find(([ch, p]) => ch === 'bluetooth:agent' && p.kind === 'cancel' && p.req === pin?.req), 6000);
+    check('unanswered PIN request dropped after the timeout (dialog closed, pairing refused)', [!!dropped, (await p2).ERR, await call('bluetooth:agentReply', { req: pin?.req, accept: true, value: '0000' })], [true, 'EREJECTED', false]);
+    // keyboard: the code to type, sent again as keys are typed, then BlueZ cancels -> the code dialog closes
+    events.length = 0;
+    const p3 = call('bluetooth:pair', 'DD:EE:FF:00:11:22');
+    const shown = await until(() => events.filter(([ch, p]) => ch === 'bluetooth:agent' && p.kind === 'display-passkey').length === 2 && events.some(([ch, p]) => ch === 'bluetooth:agent' && p.kind === 'cancel') && events);
+    const codes = (shown || []).filter(([ch]) => ch === 'bluetooth:agent').map(([, p]) => `${p.kind}|${p.req}|${p.passkey ?? ''}|${p.address}`);
+    check('display-passkey twice (req 0), then a cancel for that address', codes, ['display-passkey|0|048213|DD:EE:FF:00:11:22', 'display-passkey|0|048213|DD:EE:FF:00:11:22', 'cancel|0||DD:EE:FF:00:11:22']);
+    check('keyboard pairing cancelled -> ECANCELED', (await p3).ERR, 'ECANCELED');
     check('PIN with a shell metacharacter refused before reaching the helper', (await call('bluetooth:agentReply', { req: 1, accept: true, value: '0;rm' })).ERR, 'EINVAL');
     check('disconnect / connect the headphones', [await call('bluetooth:disconnect', 'AC:80:0A:12:34:56'), await call('bluetooth:connect', 'ac:80:0a:12:34:56')], [true, true]);
     check('forget the keyboard', await call('bluetooth:forget', 'E4:17:D8:00:00:01'), true);
@@ -153,6 +179,13 @@ async function helperTests() {
     check('invalid address -> EINVAL', [(await call('bluetooth:pair', '11:22:33')).ERR, (await call('bluetooth:connect', 'AA:BB:CC:DD:EE:FF; reboot')).ERR], ['EINVAL', 'EINVAL']);
     check('unknown device -> ENOTFOUND', (await call('bluetooth:connect', '00:00:00:00:00:01')).ERR, 'ENOTFOUND');
     check('stop the scan', await call('bluetooth:scan', false), true);
+    check('search over: not discoverable', !!(await until(async () => !(await call('bluetooth:status')).discoverable)), true);
+    // the helper exits (shell quits / restarts it) while the page is open: the computer is hidden again
+    await call('bluetooth:visible', true);
+    await until(async () => (await call('bluetooth:status')).discoverable);
+    const hidden = fakeOut.split('ADAPTER Discoverable=0').length;
+    be.stop();
+    check('helper stopped (SIGTERM): Discoverable set back to false', !!(await until(() => fakeOut.split('ADAPTER Discoverable=0').length > hidden, 5000)), true);
     check('turn off', [await call('bluetooth:setPowered', false), (await call('bluetooth:status')).powered], [true, false]);
   } finally {
     be?.stop?.();
@@ -161,7 +194,7 @@ async function helperTests() {
       process.kill(Number(pid));
     } catch {}
     for (const k of Object.keys(env0)) process.env[k] = env0[k];
-    for (const k of ['DBUS_SYSTEM_BUS_ADDRESS', 'AURORA_BT_HELPER', 'AURORA_BT_PYTHON']) if (!(k in env0)) delete process.env[k];
+    for (const k of ['DBUS_SYSTEM_BUS_ADDRESS', 'AURORA_BT_HELPER', 'AURORA_BT_PYTHON', 'AURORA_BT_AGENT_TIMEOUT']) if (!(k in env0)) delete process.env[k];
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 }
@@ -181,12 +214,14 @@ async function uiTests() {
       check(`[${theme}] page title « Bluetooth et appareils »`, title, (v) => /Bluetooth et appareils/.test(v || ''));
       const mine = await P.$$eval('.st-bt .st-bt-dev .st-row-title', (els) => els.map((e) => e.textContent));
       check(`[${theme}] « Mes appareils » lists the paired devices`, mine, ['Casque WH-1000XM4', 'Souris MX Master 3', 'Clavier K380']);
-      check(`[${theme}] battery shown`, await P.textContent('.st-bt-dev .st-row-desc'), 'Connecté · Batterie 80 %');
+      check(`[${theme}] battery shown once (badge, read as « Batterie 80 % »), not in the description`, [await P.textContent('.st-bt-dev .st-row-desc'), await P.textContent('.st-bt-dev .st-bt-batt'), await P.getAttribute('.st-bt-dev .st-bt-batt', 'aria-label')], ['Connecté', '80 %', 'Batterie 80 %']);
+      await P.waitForFunction(() => /visible sous le nom/.test(document.querySelector('.st-bt .st-row[data-section="bluetooth"] .st-row-desc')?.textContent || ''), null, { timeout: 5000 }).catch(() => {});
+      check(`[${theme}] page open: « visible sous le nom « selene » tant que cette page est ouverte »`, [await P.textContent('.st-bt .st-row[data-section="bluetooth"] .st-row-desc'), (await s.aurora(() => window.__aurora.api.invoke('bluetooth:status'))).discoverable], ['Activé — visible sous le nom « selene » tant que cette page est ouverte', true]);
       check(`[${theme}] mouse / typing / printers rows kept below`, await P.$$eval('.st-bt .st-group-title', (els) => els.map((e) => e.textContent)), (v) => v.includes('Mes appareils') && v.includes('Appareils à proximité') && v.length >= 3);
       await P.click('.st-bt-search');
-      await P.waitForSelector('text=Manette sans fil', { timeout: 5000 });
+      await P.waitForSelector('text=Clavier MX Keys', { timeout: 5000 });
       await P.waitForTimeout(600);
-      check(`[${theme}] search: « Recherche… » and nearby devices`, await P.$$eval('.st-bt-nearby .st-row-title', (els) => els.map((e) => e.textContent)), ['Pixel 8 de Camille', 'Manette sans fil', 'JBL Flip 6']);
+      check(`[${theme}] search: « Recherche… » and nearby devices`, await P.$$eval('.st-bt-nearby .st-row-title', (els) => els.map((e) => e.textContent)), ['Pixel 8 de Camille', 'Clavier MX Keys', 'Manette sans fil', 'JBL Flip 6']);
       shots.push(await s.shot(`bluetooth-page-fr-${theme}`));
       // pair the phone -> the Selene dialog with the code
       await P.click('.st-bt-nearby .st-bt-dev:has-text("Pixel 8 de Camille") button');
@@ -213,6 +248,16 @@ async function uiTests() {
         await P.click('.bt-agent-dialog button:has-text("Associer")');
         await P.waitForFunction(() => [...document.querySelectorAll('.st-bt .st-group')].find((g) => g.textContent.includes('Mes appareils'))?.textContent.includes('Manette sans fil'), null, { timeout: 5000 });
         check('[dark] gamepad paired with PIN 0000', true, true);
+        // keyboard: the code to type on it; sent again as keys are typed (updated in place), closes by itself once paired
+        await P.click('.st-bt-nearby .st-bt-dev:has-text("Clavier MX Keys") button');
+        await P.waitForSelector('.bt-agent-dialog .bt-code', { timeout: 5000 });
+        await P.$eval('.bt-agent-dialog', (e) => (e.dataset.first = '1'));
+        await P.waitForTimeout(1000); // the code is sent again at 700 ms
+        check('[dark] passkey dialog: « Tapez 482913 sur l’appareil », same dialog after the code is sent again', [await P.textContent('.bt-agent-dialog .bt-display-line'), await P.textContent('.bt-agent-dialog .bt-code'), await P.locator('.bt-agent-dialog[data-first="1"]').count(), await P.locator('.bt-agent-dialog').count()], ['Tapez 482913 sur l’appareil, puis appuyez sur Entrée.', '482 913', 1, 1]);
+        shots.push(await s.shot('bluetooth-passkey-fr-dark'));
+        await P.waitForSelector('.bt-agent-dialog', { state: 'detached', timeout: 6000 });
+        await P.waitForFunction(() => [...document.querySelectorAll('.st-bt .st-group')].find((g) => g.textContent.includes('Mes appareils'))?.textContent.includes('Clavier MX Keys'), null, { timeout: 5000 });
+        check('[dark] keyboard paired: the code dialog closed by itself', true, true);
         // disconnect + forget the keyboard (confirm dialog)
         await P.click('.st-bt-dev:has-text("Casque WH-1000XM4") button:has-text("Déconnecter")');
         await P.waitForSelector('.st-bt-dev:has-text("Casque WH-1000XM4") button:has-text("Connecter")', { timeout: 5000 });
@@ -245,6 +290,9 @@ async function uiTests() {
       await P.click('.qs-tile[data-key="bluetooth"] .qs-tile-more');
       await P.waitForTimeout(500);
       check(`[${theme}] tile arrow closes the flyout`, await s.aurora(() => window.__aurora.quick?.isOpen ?? false), false);
+      // leaving the page: not discoverable any more
+      await s.aurora(() => window.__aurora.registry.launch('settings', { page: 'printers' }));
+      check(`[${theme}] page left: not discoverable`, !!(await until(async () => !(await s.aurora(() => window.__aurora.api.invoke('bluetooth:status'))).discoverable)), true);
       const errs = s.logs.filter((l) => /\[pageerror\]|\[error\]/.test(l) && !/favicon|ERR_FILE_NOT_FOUND/.test(l));
       check(`[${theme}] no page errors`, errs, []);
     } catch (e) {

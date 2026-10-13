@@ -2,13 +2,17 @@
 // Bluetooth backend: BlueZ over D-Bus through the session helper rootfs/usr/lib/aurora/helpers/aurora-bluetooth
 // (python3-dbus, JSON lines; it also is the pairing agent), rfkill for the radio switch.
 //
-//   bluetooth:status            -> { available, reason?, powered, blocked: 'soft'|'hard'|null, discovering, name, address,
+//   bluetooth:status            -> { available, reason?, powered, blocked: 'soft'|'hard'|null, discovering, discoverable, name, address,
 //                                    devices: [{ address, name, kind, icon, paired, connected, battery, rssi }] }
 //   bluetooth:setPowered (bool)   unblocks rfkill (the session user may: 70-uaccess.rules tags /dev/rfkill) then Powered
-//   bluetooth:scan (bool)         discovery for 30 s (« Rechercher des appareils »)
+//   bluetooth:scan (bool)         discovery for 30 s (« Rechercher des appareils »); the computer is discoverable meanwhile
+//   bluetooth:visible (bool)      the Bluetooth page is open (true) / closed (false): phones can find this computer
+//                                 while at least one page is open (like GNOME / Windows); off when the helper exits
 //   bluetooth:pair|connect|disconnect|forget (address)
 //   bluetooth:agentReply ({ req, accept, value })   answer to a pairing request
 //   event bluetooth:changed (status)    event bluetooth:agent ({ req, kind, address, name, kind, passkey })
+//       req 0: a code to type on the device (display-*, sent again as keys are typed); { req: 0, kind: 'cancel', address }
+//       closes it (pairing ended: success, failure or BlueZ's Cancel)
 //
 // No root: Ubuntu's bluez D-Bus policy lets any local user talk to org.bluez (see the helper's header).
 // Dev mode (and AURORA_BT_DEV=1) simulates an adapter; AURORA_BT_DEV=none|off|blocked|hard picks a fixture.
@@ -101,7 +105,7 @@ function normalizeState(raw, rf) {
       rssi: Number.isFinite(d.rssi) ? d.rssi : null,
     }))
     .sort((x, y) => Number(y.paired) - Number(x.paired) || Number(y.connected) - Number(x.connected) || (y.rssi ?? -999) - (x.rssi ?? -999) || x.name.localeCompare(y.name));
-  return { available: true, powered: !!a.powered && !blocked, blocked, discovering: !!a.discovering && !!a.powered, name: a.name || '', address: a.address || '', devices };
+  return { available: true, powered: !!a.powered && !blocked, blocked, discovering: !!a.discovering && !!a.powered, discoverable: !!a.discoverable && !!a.powered && !blocked, name: a.name || '', address: a.address || '', devices };
 }
 
 const parsers = { deviceKind, parseRfkill, normalizeState };
@@ -234,6 +238,7 @@ function helperBackend(api) {
       return true;
     },
     scan: (on) => call('scan', { on: !!on, timeout: SCAN_SECONDS }),
+    visible: (on) => call('visible', { on: !!on }, 8000),
     pair: (a) => call('pair', { address: a }),
     connect: (a) => call('connect', { address: a }, 70000),
     disconnect: (a) => call('disconnect', { address: a }, 70000),
@@ -260,12 +265,14 @@ function mockBackend(api, variant) {
     { address: '11:22:33:44:55:66', name: 'Pixel 8 de Camille', icon: 'phone', rssi: -48 },
     { address: '77:88:99:AA:BB:CC', name: 'Manette sans fil', icon: 'input-gaming', rssi: -60 },
     { address: '40:EF:4C:01:02:03', name: 'JBL Flip 6', icon: 'audio-card', rssi: -71 },
+    { address: 'DD:EE:FF:00:11:22', name: 'Clavier MX Keys', icon: 'input-keyboard', rssi: -55 },
   ];
   let rf = variant === 'hard' ? { soft: false, hard: true } : variant === 'blocked' ? { soft: true, hard: false } : { soft: false, hard: false };
   let scanTimer = null;
   let req = 0;
   const waiting = new Map();
-  const raw = () => ({ available: !!st.adapter, adapter: st.adapter, devices: st.devices.map((d) => ({ ...d })) });
+  let visible = 0; // open Bluetooth pages
+  const raw = () => ({ available: !!st.adapter, adapter: st.adapter && { ...st.adapter, discoverable: st.adapter.powered && (visible > 0 || st.adapter.discovering) }, devices: st.devices.map((d) => ({ ...d })) });
   const status = () => normalizeState(raw(), rf);
   const push = () => api.broadcast('bluetooth:changed', status());
   const find = (a) => {
@@ -312,10 +319,27 @@ function mockBackend(api, variant) {
       }, (Number(process.env.AURORA_BT_SCAN_MS) || SCAN_SECONDS * 1000));
       return true;
     },
+    async visible(on) {
+      visible = Math.max(0, visible + (on ? 1 : -1));
+      push();
+      return true;
+    },
     async pair(a) {
       need();
       const d = find(a);
       if (d.paired) throw err('Already paired', 'EEXIST');
+      if (d.icon === 'input-keyboard') {
+        // like BlueZ's DisplayPasskey: the code to type on the keyboard, sent again as keys are typed, then paired
+        const show = (entered) => api.broadcast('bluetooth:agent', { req: 0, kind: 'display-passkey', address: d.address, name: d.name, deviceKind: deviceKind(d), passkey: '482913', entered });
+        show(0);
+        await new Promise((r) => setTimeout(r, 700));
+        show(3);
+        await new Promise((r) => setTimeout(r, Number(process.env.AURORA_BT_PASSKEY_MS) || 2500));
+        Object.assign(d, { paired: true, connected: true });
+        api.broadcast('bluetooth:agent', { req: 0, kind: 'cancel', address: d.address });
+        push();
+        return true;
+      }
       const id = ++req;
       const kind = d.icon === 'input-gaming' ? 'pin' : 'confirm';
       const answer = new Promise((resolve) => waiting.set(id, resolve));
@@ -368,6 +392,7 @@ function register(api) {
   api.handle('bluetooth:status', () => be.status());
   api.handle('bluetooth:setPowered', (on) => be.setPowered(!!on));
   api.handle('bluetooth:scan', (on) => be.scan(!!on));
+  api.handle('bluetooth:visible', (on) => be.visible(!!on));
   api.handle('bluetooth:pair', (a) => be.pair(checkAddr(a)));
   api.handle('bluetooth:connect', (a) => be.connect(checkAddr(a)));
   api.handle('bluetooth:disconnect', (a) => be.disconnect(checkAddr(a)));

@@ -3,6 +3,7 @@
 const A = (id, name, summary, categories, extra = {}) => ({ id, appId: id, name, summary, categories, ...extra });
 module.exports = require('./_stub')('flathub', 'Flathub', [
   A('org.mozilla.firefox', 'Firefox', 'Fast, Private & Safe Web Browser', ['Network'], { summaryFr: 'Navigateur web rapide, privé et sûr', developer: 'Mozilla' }),
+  A('org.chromium.Chromium', 'Chromium', 'The web browser from Chromium project', ['Network']),
   A('com.spotify.Client', 'Spotify', 'Online music streaming service', ['AudioVideo']),
   A('com.discordapp.Discord', 'Discord', 'Messaging, voice and video client', ['Network']),
   A('org.gimp.GIMP', 'GNU Image Manipulation Program', 'Create images and edit photographs', ['Graphics'], { developer: 'The GIMP team' }),
