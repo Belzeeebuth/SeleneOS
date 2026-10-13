@@ -186,6 +186,12 @@ for (const theme of ['dark', 'light']) {
       const launched = await waitFor(() => s.aurora(() => window.__launched.find(([id, a]) => /libreoffice/i.test(id) && /rapport\.docx$/.test(a?.file || ''))), { timeout: 40000 });
       check(!!launched, `after the install the document opens in LibreOffice (${JSON.stringify(launched)})`);
       check(await s.aurora(() => /libreoffice/i.test(window.__aurora.registry.handlerFor('/x/y.odt') || '')), 'registry.handlerFor finds LibreOffice by MIME type');
+      // Opening it again (Fichiers double-click path) launches LibreOffice without a « no app » warning.
+      const warnBefore = await s.aurora(() => [...document.querySelectorAll('.toast, .notification')].filter((n) => /Aucune application/.test(n.textContent)).length);
+      await s.aurora((p) => window.__aurora.shell.openFile(p), doc);
+      await sleep(600);
+      const warnAfter = await s.aurora(() => [...document.querySelectorAll('.toast, .notification')].filter((n) => /Aucune application/.test(n.textContent)).length);
+      check(warnAfter === warnBefore, `shell.openFile on a .docx with LibreOffice installed shows no « no app » warning (${warnBefore} -> ${warnAfter})`);
       // Files: same prompt from a double-click (no handler -> office prompt, not « Ouvrir avec »).
       fs.rmSync(path.join(appsDir, 'org.libreoffice.LibreOffice.desktop'));
       await waitFor(() => s.aurora(async () => (await window.__aurora.registry.load(), !window.__aurora.registry.handlerFor('/a.docx'))));

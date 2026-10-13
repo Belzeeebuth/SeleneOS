@@ -46,7 +46,9 @@ export const shell = {
         return null;
       }
     }
-    if (!win) {
+    // (a Linux app, e.g. LibreOffice found by MIME type, opens its own window later: launch() returns null for it)
+    const handler = opts.appId || registry.handlerFor(path);
+    if (!win && registry.get(handler)?.kind !== 'linux') {
       notify({ title: t('shell.noHandlerTitle'), body: t('shell.noHandlerBody', { name: path.split('/').pop() }), icon: 'warning' });
     }
     return win;
