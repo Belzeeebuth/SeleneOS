@@ -22,15 +22,17 @@ light and dark themes, and a Playwright test in `shell/test/<id>.test.mjs`.
 All seven are built and independently verified, each with its own test suite (`shell/test/<id>.test.mjs`;
 Calendar and Notes also have `*.unit.mjs`).
 
-## Phase 2 — Media and productivity (in progress, 2026-10-13; Video Editor dropped by the user: DaVinci Resolve and the Flathub editors cover it)
+## Phase 2 — Media and productivity (done, 2026-10-13)
 
-| App | id (planned) | Notes for later |
+| App | id | Notes |
 |---|---|---|
-| Camera | `camera` | `getUserMedia`; photo + video capture to ~/Pictures/Camera Roll; QEMU needs a webcam passthrough to test |
-| Voice Recorder | `recorder` | MediaRecorder (Opus/WebM), waveform, trim, markers; saves to ~/Documents/Sound recordings |
-| Screen Recorder | `screenrec` | `desktopCapturer` / shell capture stream → WebM; could live inside Snipping Tool as "Record" mode |
-| Music | `music` | Could extend the Media Player library (albums/artists views, lyrics) or be a separate music app |
-| Code Editor | `code` | Monaco or CodeMirror (new npm dependency), file tree, tabs, terminal panel (reuse pty backend), git status |
+| Camera | `camera` | `getUserMedia`; photo (JPEG) + video (WebM VP9/Opus) to Pictures/Camera Roll (FR « Pellicule »), timer, mirror, grid, camera / resolution choice; the webcam is released when minimized; QEMU needs a webcam passthrough to test |
+| Voice Recorder | `recorder` | MediaRecorder (Opus/WebM), live waveform, pause, markers, trim (copy / replace), microphone choice + level, MP3 / M4A export (ffmpeg); Documents/Sound recordings |
+| Screen Recorder | `screenrec` | `desktopCapturer` (screens only, queued) → WebM, MP4 through ffmpeg; whole screen or an area, microphone / computer sound, countdown, floating control kept out of the video, tray chip, Super+Shift+R |
+| Music | `music` | Lanceur alias of the Lecteur (no second player): Albums, Artistes, Titres (+ Genres), synced .lrc / embedded lyrics, shuffle all. Later: MPRIS / global media keys |
+| Code Editor | `code` | CodeMirror 6 (vendored bundle, tools/vendor-codemirror.mjs), folder tree with git status, tabs, find / replace, terminal panel (pty backend), branch in the status bar. Later: search across files, split view, diff |
+
+The Video Editor was dropped at the user's request (DaVinci Resolve and the Flathub editors such as Kdenlive / Shotcut cover it).
 
 ## Phase 3 — System and connectivity (done, 2026-10-11)
 
