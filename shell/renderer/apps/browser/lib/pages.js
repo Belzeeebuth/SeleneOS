@@ -909,7 +909,7 @@ function aboutPage(bw) {
     ['Alt+←, Alt+→', `${t('nav.back')} / ${t('nav.forward')}`],
     ['Ctrl++, Ctrl+-, Ctrl+0', t('zoom.label')],
     ['F11', t('fs.enter')],
-    ['Ctrl+P', t('menu.savePdf')],
+    ['Ctrl+P', t('menu.print')],
   ];
   el.appendChild(
     h(

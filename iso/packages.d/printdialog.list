@@ -1,0 +1,5 @@
+# Print dialog (shell/renderer/core/print.js, shell/main/ipc/print.js): the apps render to PDF in Electron
+# (webContents.printToPDF); « Pages : Plage » on an existing PDF (Lecteur PDF) cuts the chosen pages out with qpdf,
+# or with pdfseparate + pdfunite (poppler-utils) when qpdf is missing. The job then goes to CUPS (printing.list).
+qpdf
+poppler-utils

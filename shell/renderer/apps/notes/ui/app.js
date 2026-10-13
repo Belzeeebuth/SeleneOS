@@ -7,6 +7,7 @@ import { sanitizeFragment, inertDocument } from '../lib/sanitize.js';
 import { Editor } from './editor.js';
 import { closePopover } from './popover.js';
 import { notebookDialog, exportNote, importFiles, shortcutsDialog } from './dialogs.js';
+import { printNote } from './dialogs.js';
 import { welcomeSeed } from './welcome.js';
 import { keyLabel } from './keys.js';
 
@@ -1182,6 +1183,7 @@ export class NotesApp {
           { label: t('fmt.html'), icon: 'globe', action: () => exportNote(this, note, 'html') },
         ],
       },
+      { label: t('print'), icon: 'printer', shortcut: 'Ctrl+Shift+P', action: () => printNote(this, note) },
       { label: t('shareMail'), icon: 'mail', action: () => this.share(note) },
       { label: t('ed.find'), icon: 'search', shortcut: 'Ctrl+F', action: () => (this.select(note.id, { focus: false }), this.editor.openFind()) },
       '-',
@@ -1338,6 +1340,7 @@ export class NotesApp {
       if (k === 'e' || (k === 'f' && e.shiftKey)) return go(() => (this.searchInput.focus(), this.searchInput.select()));
       if (k === 'f' && !e.shiftKey) return go(() => (this.editor.note ? this.editor.openFind() : this.searchInput.focus()));
       if (k === 'p' && !e.shiftKey) return go(() => this.togglePin(this.selectedId));
+      if (k === 'p' && e.shiftKey && this.selectedId) return go(() => printNote(this, this.store.get(this.selectedId)));
       if (k === 's' && !e.shiftKey) return go(() => this.saveCurrent());
       if (k === '/') return go(() => shortcutsDialog(this));
     }

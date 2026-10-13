@@ -27,6 +27,7 @@ module.exports = {
   async installed(),                   // -> [ { id, version?, size? } ]
   async install(id, onProgress),       // onProgress({ percent?, message? }); resolves { desktopId? }
   async remove(id, onProgress),
+  async cancel(id),                    // optional: stop a running install -> { canceled }; install() then rejects ECANCELED
 };
 ```
 
@@ -86,6 +87,15 @@ The `ubuntu` module installs and removes through the existing admin path, using 
     this app), `ENET`, `ENOSPC`, `EFLATPAK` (flatpak is missing or failed, or remote-add failed).
   - Dev: `AURORA_STORE_DEV_FAIL=<id>[:ENET|ENOSPC|EFLATPAK][,…]`, `AURORA_STORE_DEV_DELAY=<ms>` (the delay between
     simulated progress steps, 40 by default). Tests: `AURORA_FLATPAK=<path>` replaces the flatpak binary with a stub.
+  - **Cancel** (« Annuler » on the app page while a Flathub install runs; `store:cancel (source, id)`, and
+    `store:current ()` so a window opened meanwhile shows the running operation): `cancel(id)` sends SIGTERM to the
+    flatpak process group (it runs `detached`, so bwrap triggers stop too), then SIGKILL after 5 s
+    (`AURORA_FLATPAK_KILL_MS`). flatpak deploys each ref atomically, so nothing is half-installed; the refs that
+    appeared since the install started (`flatpak list --user --all --app|--runtime --columns=ref[,runtime]` before and
+    after) are then uninstalled one by one — the app, then runtimes / extensions that no remaining app uses — and
+    `install()` rejects with `ECANCELED`. Partial downloads stay in OSTree's staging area (the next try resumes from
+    them; OSTree prunes them). A cancel that arrives after flatpak has already succeeded leaves the app installed.
+    Removals and apt (UAC) installs cannot be cancelled. Dev: the simulation stops at its next step.
   - xapps.js drops an empty `@@u @@` / `@@ @@` pair from the argv when no file is given. When a missing applications
     directory appears, xapps.js sees it, because it watches the nearest existing ancestor, up to 4 levels up.
 

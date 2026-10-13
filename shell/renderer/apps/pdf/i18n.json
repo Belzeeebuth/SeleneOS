@@ -98,7 +98,8 @@
       "selectAll": "Select all",
       "openLocation": "Open file location",
       "openWith": "Open with",
-      "properties": "Document properties"
+      "properties": "Document properties",
+      "print": "Print…"
     },
     "ctx": {
       "openLink": "Open link",
@@ -348,7 +349,8 @@
       "selectAll": "Tout sélectionner",
       "openLocation": "Ouvrir l’emplacement du fichier",
       "openWith": "Ouvrir avec",
-      "properties": "Propriétés du document"
+      "properties": "Propriétés du document",
+      "print": "Imprimer…"
     },
     "ctx": {
       "openLink": "Ouvrir le lien",

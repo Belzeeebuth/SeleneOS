@@ -852,6 +852,7 @@ export class NotepadWindow {
       { id: 'save', label: t('file.save'), icon: 'floppy-disk', shortcut: 'Ctrl+S', action: () => this.save() },
       { id: 'saveAs', label: t('file.saveAs'), icon: 'floppy-disk-back', shortcut: 'Ctrl+Shift+S', action: () => this.saveAs() },
       { id: 'saveAll', label: t('file.saveAll'), icon: 'files', shortcut: 'Ctrl+Alt+S', action: () => this.saveAll() },
+      { id: 'print', label: t('file.print'), icon: 'printer', shortcut: 'Ctrl+P', action: () => this.print() },
       {
         id: 'close',
         label: t('file.close'),
@@ -1173,6 +1174,30 @@ export class NotepadWindow {
   save(doc = this.active) {
     return this._once(doc, () => (doc.path ? this.writeDoc(doc, doc.path) : this._saveAs(doc)));
   }
+  // Print the active document: its text with the editor font (size in points, without the zoom), wrapped
+  // to the page width so nothing is cut at the paper edge.
+  async print(doc = this.active) {
+    if (!doc || this._printing) return null;
+    this._printing = true;
+    try {
+      const { printDialog, printDocument, escapeHtml } = await import('../../../core/print.js');
+      const f = this.prefs.font || {};
+      const css = `body{margin:0}pre{margin:0;font-family:${dlg.fontCss(f)};font-size:${Number(f.size) || 11}pt;font-weight:${Number(f.weight) || 400};font-style:${f.italic ? 'italic' : 'normal'};line-height:1.35;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:8}`;
+      const text = doc.ta.value;
+      return await printDialog({
+        title: doc.title,
+        parent: this.win,
+        appId: 'notepad',
+        shell: this.ctx?.shell,
+        render: 'webcontents',
+        html: () => printDocument({ title: doc.title, css, body: `<pre>${escapeHtml(text)}</pre>` }),
+      });
+    } finally {
+      this._printing = false;
+      if (doc.ta?.isConnected) doc.ta.focus({ preventScroll: true });
+    }
+  }
+
   saveAs(doc = this.active) {
     return this._once(doc, () => this._saveAs(doc));
   }
@@ -1625,8 +1650,8 @@ export class NotepadWindow {
         if (!shift) return run(() => this.searchWeb());
         return;
       case 'p':
-        // Printing is not supported; keep Chromium's print dialog away.
-        return run(() => {});
+        // The Selene print dialog (core/print.js); Chromium's own print dialog stays away.
+        return run(() => (shift ? null : this.print()));
       default:
     }
   }

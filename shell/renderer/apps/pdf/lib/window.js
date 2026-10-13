@@ -1326,9 +1326,24 @@ export class PdfWindow {
       { label: t('menu.openLocation'), icon: 'folder_open', disabled: !doc, action: () => this.openLocation(doc.path) },
       { label: t('menu.openWith'), icon: 'open', disabled: !doc, submenu: this.openWithItems() },
       { label: t('menu.properties'), icon: 'info', shortcut: 'Ctrl+D', disabled: !ready, action: () => dlg.properties(doc) },
+      { label: t('menu.print'), icon: 'printer', shortcut: 'Ctrl+P', disabled: !ready, action: () => this.print() },
       '-',
       { label: t('tabs.close'), icon: 'dismiss', shortcut: 'Ctrl+W', action: () => this.closeTab() },
     ]);
+  }
+
+  // Print the PDF itself (with the annotations added here, when there are some): core/print.js.
+  async print(doc = this.active) {
+    if (!doc?.ready || this._printing) return null;
+    this._printing = true;
+    try {
+      const { printDialog } = await import('../../../core/print.js');
+      const edited = !!doc.dirty || doc.pdf?.annotationStorage?.size > 0;
+      const data = edited || !doc.path ? await doc.bytes() : null;
+      return await printDialog({ title: doc.name, parent: this.win, appId: 'pdf', shell: this.ctx?.shell, render: 'pdf', file: data ? null : doc.path, data });
+    } finally {
+      this._printing = false;
+    }
   }
 
   onContextMenu(e) {
@@ -1648,7 +1663,7 @@ export class PdfWindow {
       if (lower === 'w' || k === 'F4') return run(() => this.closeTab());
       if (lower === 's' && e.shiftKey) return run(() => ready && this.saveAs());
       if (lower === 's') return run(() => ready && this.save());
-      if (lower === 'p') return run(() => {}); // no printers in this system
+      if (lower === 'p') return run(() => ready && !e.shiftKey && this.print()); // the Selene print dialog
       if (!ready) return;
       if (lower === 'f') return run(() => this.find.open());
       if (lower === 'g') return run(() => this.gotoPrompt());

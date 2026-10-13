@@ -313,7 +313,8 @@ export function pageMenu(bw, tab, p) {
       { label: t('nav.reload'), icon: 'arrow_clockwise', shortcut: 'Ctrl+R', action: () => bw.reload(false, tab) },
       '-',
       { label: t('menu.savePage'), icon: 'save', shortcut: 'Ctrl+S', action: () => savePage(bw) },
-      { label: t('menu.savePdf'), icon: 'document_pdf', shortcut: 'Ctrl+P', action: () => savePdf(bw) },
+      { label: t('menu.print'), icon: 'printer', shortcut: 'Ctrl+P', action: () => printPage(bw) },
+      { label: t('menu.savePdf'), icon: 'document_pdf', action: () => savePdf(bw) },
       { label: t('ctx.selectAll'), icon: 'select_all_on', shortcut: 'Ctrl+A', action: () => tab.wv.selectAll() },
     );
   }
@@ -368,6 +369,21 @@ export async function savePage(bw) {
   if (!tab || !bw.isWeb(tab) || !isWebUrl(tab.web.url)) return;
   const base = (tab.web.title || bareHost(tab.web.url) || 'page').replace(/[/\\:*?"<>|]+/g, ' ').trim().slice(0, 80) || 'page';
   await saveUrlAs(bw, tab, tab.web.url, `${base}.html`);
+}
+
+// Print the current page (core/print.js): the page is rendered by its own <webview> (printToPDF), so the
+// printout is what the page's print style sheet gives, like in any browser.
+export async function printPage(bw) {
+  const tab = bw.active;
+  if (!tab || !bw.isWeb(tab) || !tab.wv || !tab.ready || tab.web.error || bw._printing) return null;
+  bw._printing = true;
+  try {
+    const { printDialog } = await import('../../../core/print.js');
+    const title = (tab.web.title || bareHost(tab.web.url) || 'page').replace(/[/\\:*?"<>|]+/g, ' ').trim().slice(0, 80) || 'page';
+    return await printDialog({ title, parent: bw.win, appId: 'browser', shell: shared.shell, render: 'webcontents', webview: tab.wv, margin: 0.4 });
+  } finally {
+    bw._printing = false;
+  }
 }
 
 export async function savePdf(bw) {
@@ -440,7 +456,8 @@ export function moreMenu(bw, anchor) {
       { label: t('dl.title'), icon: 'arrow_download', shortcut: 'Ctrl+J', action: () => bw.openInternal('downloads') },
       '-',
       { label: t('find.title'), icon: 'search', shortcut: 'Ctrl+F', action: () => bw.findBar.open(), disabled: !web },
-      { label: t('menu.savePdf'), icon: 'document_pdf', shortcut: 'Ctrl+P', action: () => savePdf(bw), disabled: !web },
+      { label: t('menu.print'), icon: 'printer', shortcut: 'Ctrl+P', action: () => printPage(bw), disabled: !web },
+      { label: t('menu.savePdf'), icon: 'document_pdf', action: () => savePdf(bw), disabled: !web },
       {
         label: t('menu.moreTools'),
         icon: 'toolbox',

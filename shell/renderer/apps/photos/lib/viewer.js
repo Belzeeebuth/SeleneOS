@@ -751,6 +751,7 @@ export class Viewer {
     if (ctrl && (k === 'r' || k === 'R')) return this.rotate(e.shiftKey ? -1 : 1), true;
     if (ctrl && (k === 'c' || k === 'C')) return this.app.copyItems([this.item]), true;
     if (ctrl && e.shiftKey && (k === 's' || k === 'S')) return this.app.saveAs(this.item), true;
+    if (ctrl && !e.shiftKey && (k === 'p' || k === 'P')) return this.app.printItem(this.item), true;
     if (ctrl) return false;
     if (e.altKey && k === 'Enter') return this.toggleInfo(), true;
     if (e.altKey) return false;

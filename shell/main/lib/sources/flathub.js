@@ -11,8 +11,14 @@
 // AURORA_STORE_DEV_FAIL=<id>[:CODE] makes install (and remove) of <id> fail with CODE (default EFLATPAK).
 //
 // Errors carry a code: EINVAL (bad id), ENOENT (unknown app), EBUSY (an operation already runs for this app),
-// ENET (no network), ENOSPC (no space), EFLATPAK (flatpak missing or failed; remote-add failure). Messages follow the
-// shell language (en / fr).
+// ENET (no network), ENOSPC (no space), EFLATPAK (flatpak missing or failed; remote-add failure), ECANCELED (cancel()
+// stopped it). Messages follow the shell language (en / fr).
+//
+// Cancel (cancel(id), for a running install): the flatpak process runs in its own process group, which gets SIGTERM
+// (SIGKILL after AURORA_FLATPAK_KILL_MS, 5 s). flatpak deploys each ref atomically, so a stopped transaction leaves
+// either the old state or complete refs; the refs that appeared since the install started (`flatpak list --user --all
+// --columns=ref` before / after) are then uninstalled one by one: the app itself, and runtimes / extensions no
+// remaining app uses. Partial downloads stay in OSTree's staging area (reused by the next try, pruned by OSTree).
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -40,6 +46,7 @@ const MSG = {
   NOFLATPAK: { en: 'Flatpak is not installed', fr: 'Flatpak n’est pas installé' },
   EREMOTE: { en: 'The Flathub remote could not be added', fr: 'Impossible d’ajouter le dépôt Flathub' },
   ECATALOG: { en: 'The Flathub catalogue could not be read', fr: 'Impossible de lire le catalogue Flathub' },
+  ECANCELED: { en: 'Cancelled', fr: 'Annulé' },
   // progress messages
   remote: { en: 'Connecting to Flathub…', fr: 'Connexion à Flathub…' },
   download: { en: 'Downloading…', fr: 'Téléchargement…' },
@@ -47,6 +54,7 @@ const MSG = {
   remove: { en: 'Uninstalling…', fr: 'Désinstallation…' },
   parse: { en: 'Reading the catalogue…', fr: 'Lecture du catalogue…' },
   done: { en: 'Done', fr: 'Terminé' },
+  cancel: { en: 'Cancelling…', fr: 'Annulation…' },
 };
 
 // ------------------------------------------------------------------ pure helpers (unit-tested)
@@ -118,6 +126,35 @@ function parseList(text) {
   }
   return out;
 }
+// One installed ref as `flatpak list --columns=ref` prints it: <id>/<arch>/<branch>; never a leading '-'.
+const REF_RE = /^[A-Za-z0-9_][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+){2,}\/[A-Za-z0-9_]+\/[A-Za-z0-9_.-]+$/;
+/** `flatpak list --columns=ref[,runtime]` -> [{ ref, runtime? }] (anything else skipped) */
+function parseRefs(text) {
+  const out = [];
+  const seen = new Set();
+  for (const line of String(text || '').split('\n')) {
+    const [ref, runtime] = line.split('\t').map((c) => c.trim());
+    if (!ref || ref.length > 400 || !REF_RE.test(ref) || seen.has(ref)) continue;
+    seen.add(ref);
+    out.push(runtime && REF_RE.test(runtime) ? { ref, runtime } : { ref });
+  }
+  return out;
+}
+const refId = (ref) => String(ref).split('/')[0];
+/**
+ * Refs to uninstall after a cancelled install of `id` (pure, unit-tested): what appeared since `before`, minus apps
+ * other than `id` and minus runtimes a remaining app uses. Order: the app (and its own extensions), runtimes,
+ * then .Locale / .Debug extensions (often already removed with their parent).
+ */
+function rollbackRefs(before, after, apps, id) {
+  const had = new Set(before);
+  const appRefs = new Set(apps.map((a) => a.ref));
+  const mine = (r) => refId(r) === id || refId(r).startsWith(`${id}.`);
+  const used = new Set(apps.filter((a) => !mine(a.ref) && a.runtime).map((a) => a.runtime));
+  const added = after.filter((r) => !had.has(r) && (appRefs.has(r) ? mine(r) : !used.has(r)));
+  const rank = (r) => (mine(r) && !/\.(Locale|Debug)$/.test(refId(r)) ? 0 : /\.(Locale|Debug)$/.test(refId(r)) ? 2 : 1);
+  return added.sort((a, b) => rank(a) - rank(b));
+}
 /** Search score (lower is better) or -1 when the app does not match. q is deaccented + lowercased. */
 function score(app, q) {
   if (!q) return 10;
@@ -143,6 +180,7 @@ let installedMap = null; // Map id -> { id, version?, size? }
 let lastError = null; // { code, message }
 let remoteReady = false;
 const busy = new Map(); // id -> 'install' | 'remove'
+const jobs = new Map(); // id -> { kind, canceled, child } of a cancelable operation (install)
 const devInstalled = new Map();
 
 const env = () => process.env;
@@ -316,16 +354,19 @@ async function loadCatalog() {
  * Run flatpak with an argv array. onLine({ percent?, message }) gets parsed progress lines. Resolves { stdout };
  * rejects with ENET / ENOSPC / EFLATPAK.
  */
-function flatpak(args, { onLine, timeout = 0 } = {}) {
+function flatpak(args, { onLine, timeout = 0, job = null } = {}) {
   return new Promise((resolve, reject) => {
     const bin = flatpakBin();
     if (!bin) return reject(fail('EFLATPAK', '', 'NOFLATPAK'));
+    if (job?.canceled) return reject(fail('ECANCELED'));
     let child;
     try {
-      child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], env: { ...env(), LC_ALL: 'C.UTF-8', LANGUAGE: '' } });
+      // A cancelable run leads its own process group, so cancel() also stops what flatpak started (bwrap triggers).
+      child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], env: { ...env(), LC_ALL: 'C.UTF-8', LANGUAGE: '' }, detached: !!job });
     } catch (e) {
       return reject(fail('EFLATPAK', e.message));
     }
+    if (job) job.child = child;
     let stdout = '';
     let tail = '';
     let pending = '';
@@ -354,11 +395,54 @@ function flatpak(args, { onLine, timeout = 0 } = {}) {
     });
     child.on('close', (code) => {
       clearTimeout(timer);
+      if (job) job.child = null;
       if (code === 0) return resolve({ stdout });
+      if (job?.canceled) return reject(fail('ECANCELED'));
       const c = errorCode(tail);
       reject(fail(c, errorDetail(tail), c));
     });
   });
+}
+
+/** Stop a cancelable flatpak run: SIGTERM to its process group, SIGKILL if it is still there after the grace time. */
+function stopChild(child) {
+  if (!child || child.exitCode != null || child.signalCode != null) return;
+  const sig = (s) => {
+    try {
+      process.kill(-child.pid, s);
+    } catch {
+      try {
+        child.kill(s);
+      } catch {}
+    }
+  };
+  sig('SIGTERM');
+  const grace = Number(env().AURORA_FLATPAK_KILL_MS) > 0 ? Number(env().AURORA_FLATPAK_KILL_MS) : 5000;
+  const timer = setTimeout(() => sig('SIGKILL'), grace);
+  child.once('close', () => clearTimeout(timer));
+}
+/** Installed refs (null when flatpak cannot list them: no rollback then). */
+async function listRefs(app = false) {
+  const args = ['list', '--user', '--all', app ? '--app' : '--runtime', `--columns=${app ? 'ref,runtime' : 'ref'}`];
+  try {
+    return parseRefs((await flatpak(args, { timeout: 30000 })).stdout);
+  } catch {
+    return null;
+  }
+}
+async function snapshotRefs() {
+  const [apps, runtimes] = await Promise.all([listRefs(true), listRefs(false)]);
+  return apps && runtimes ? { apps, all: [...apps, ...runtimes].map((x) => x.ref) } : null;
+}
+/** After a cancelled install: uninstall what the stopped transaction added (each ref on its own, errors ignored). */
+async function rollback(before, id, report) {
+  if (!before) return [];
+  report({ message: t('cancel') });
+  const after = await snapshotRefs();
+  if (!after) return [];
+  const refs = rollbackRefs(before.all, after.all, after.apps, id);
+  for (const ref of refs) await flatpak(['uninstall', '--user', '-y', '--noninteractive', ref], { timeout: 120000 }).catch(() => {});
+  return refs;
 }
 
 async function ensureRemote() {
@@ -407,10 +491,14 @@ function devFailure(id) {
   }
   return null;
 }
-async function simulate(id, kind, onProgress) {
+async function simulate(id, kind, onProgress, job = null) {
   const steps = [0, 20, 45, 70, 90, 100];
   const failCode = devFailure(id);
   for (const p of steps) {
+    if (job?.canceled) {
+      onProgress({ message: t('cancel') });
+      throw fail('ECANCELED');
+    }
     if (failCode && p >= 45) throw fail(failCode, failCode === 'EFLATPAK' ? `simulated failure for ${id}` : '', failCode);
     onProgress({ percent: p, message: p === 100 ? t('done') : t(kind) });
     await sleep(env().AURORA_STORE_DEV_DELAY != null ? Number(env().AURORA_STORE_DEV_DELAY) || 0 : 40);
@@ -434,6 +522,8 @@ const api = {
     lastError = null;
     remoteReady = false;
     busy.clear();
+    for (const j of jobs.values()) j.canceled = true;
+    jobs.clear();
     devInstalled.clear();
     return api;
   },
@@ -558,32 +648,58 @@ const api = {
     if (!validId(id)) throw fail('EINVAL');
     if (busy.has(id)) throw fail('EBUSY');
     busy.set(id, 'install');
+    const job = { kind: 'install', canceled: false, child: null };
+    jobs.set(id, job);
     const report = (ev) => {
       try {
         onProgress(ev);
       } catch {}
     };
+    let before = null;
     try {
       if (useMock) {
         const c = await loadCatalog();
         const a = c.byId.get(id);
         if (!a) throw fail('ENOENT');
         if (!devInstalled.has(id)) {
-          await simulate(id, 'install', report);
+          await simulate(id, 'install', report, job);
           devInstalled.set(id, { id, version: a.version || '1.0', size: 100e6 + a.id.length * 1e6 });
         }
         return { desktopId: `${id}.desktop` };
       }
       report({ message: t('remote') });
       await ensureRemote();
+      if (job.canceled) throw fail('ECANCELED');
+      before = await snapshotRefs();
       report({ percent: 0, message: t('install') });
-      await flatpak(['install', '--user', '-y', '--noninteractive', REMOTE, id], { onLine: report });
+      await flatpak(['install', '--user', '-y', '--noninteractive', REMOTE, id], { onLine: report, job });
       await api.installed().catch(() => {});
       report({ percent: 100, message: t('done') });
       return { desktopId: `${id}.desktop` };
+    } catch (e) {
+      if (e?.code === 'ECANCELED' && !useMock) {
+        await rollback(before, id, report).catch(() => {});
+        installedMap = null;
+        await api.installed().catch(() => {});
+      }
+      throw e;
     } finally {
+      if (jobs.get(id) === job) jobs.delete(id);
       busy.delete(id);
     }
+  },
+
+  /**
+   * Stop the running install of `id` (the install() promise then rejects with ECANCELED once flatpak has exited and
+   * what it added is uninstalled). Resolves { canceled: true } when there was something to stop.
+   */
+  async cancel(id) {
+    if (!validId(id)) throw fail('EINVAL');
+    const job = jobs.get(id);
+    if (!job || job.canceled) return { canceled: !!job };
+    job.canceled = true;
+    stopChild(job.child);
+    return { canceled: true };
   },
 
   async remove(id, onProgress = () => {}) {
@@ -616,4 +732,4 @@ const api = {
 
 api.init({ DEV: false });
 module.exports = api;
-module.exports._internal = { validId, errorCode, errorDetail, parseProgress, parseList, parseSize, cleanLine, score, deaccent, FIXTURE_DIR, DEV_HELPER, MAIN_CATEGORIES };
+module.exports._internal = { validId, errorCode, errorDetail, parseProgress, parseList, parseSize, cleanLine, score, deaccent, FIXTURE_DIR, DEV_HELPER, MAIN_CATEGORIES, parseRefs, rollbackRefs };

@@ -685,6 +685,51 @@ export class PhotosApp {
     ].filter(Boolean);
   }
 
+  // Print a photo fitted to the page (centred, never cropped; landscape paper for a wide photo): core/print.js.
+  async printItem(item) {
+    if (!item || this._printing) return null;
+    this._printing = true;
+    try {
+      const { printDialog, printDocument, escapeHtml } = await import('../../../core/print.js');
+      // The print page is a local file: it reads the photo straight from its file:// URL.
+      const src = `file://${item.path.split('/').map(encodeURIComponent).join('/')}`;
+      let w = Number(item.width) || 0;
+      let hgt = Number(item.height) || 0;
+      if (!w || !hgt) {
+        const img = new Image();
+        img.src = `${this.api.mediaUrl(item.path)}?v=${Math.round(item.mtime || 0)}-${item.size || 0}`;
+        await img.decode().catch(() => {});
+        w = img.naturalWidth;
+        hgt = img.naturalHeight;
+      }
+      const PAGE = { A4: [8.27, 11.69], Letter: [8.5, 11], Legal: [8.5, 14], A5: [5.83, 8.27], A3: [11.69, 16.54] };
+      const margin = 0.4;
+      const name = item.path.split('/').pop();
+      return await printDialog({
+        title: name,
+        parent: this.win,
+        appId: 'photos',
+        shell: this.ctx?.shell,
+        render: 'webcontents',
+        landscape: w > 0 && hgt > 0 && w > hgt * 1.05,
+        margin,
+        html: ({ pageSize, landscape }) => {
+          // The printable box of one sheet, in inches (a hair smaller so the photo never spills onto a 2nd page).
+          let [pw, ph] = PAGE[pageSize] || PAGE.A4;
+          if (landscape) [pw, ph] = [ph, pw];
+          const bw = (pw - 2 * margin - 0.05).toFixed(2);
+          const bh = (ph - 2 * margin - 0.05).toFixed(2);
+          const css =
+            `.ph-page{width:${bw}in;height:${bh}in;display:flex;align-items:center;justify-content:center;overflow:hidden;break-inside:avoid}` +
+            '.ph-page img{max-width:100%;max-height:100%;object-fit:contain;image-orientation:from-image}';
+          return printDocument({ title: name, css, body: `<div class="ph-page"><img src="${escapeHtml(src)}" alt=""></div>` });
+        },
+      });
+    } finally {
+      this._printing = false;
+    }
+  }
+
   itemMenu(e, item, items, { album = null, viewer = false } = {}) {
     const { t } = this;
     const single = items.length === 1;
@@ -715,6 +760,7 @@ export class PhotosApp {
         : null,
       { label: t('copy'), icon: 'copy', shortcut: 'Ctrl+C', action: () => this.copyItems(items) },
       viewer ? { label: t('saveAs'), icon: 'save', shortcut: `Ctrl+${t('key.shift')}+S`, action: () => this.saveAs(item) } : null,
+      single ? { label: t('print'), icon: 'printer', shortcut: 'Ctrl+P', action: () => this.printItem(item) } : null,
       single ? { label: t('rename'), icon: 'rename', shortcut: 'F2', action: () => this.renameItem(item) } : null,
       { label: t('openFileLocation'), icon: 'folder_open', action: () => this.showInFolder(item) },
       viewer ? '-' : null,

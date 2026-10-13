@@ -1,7 +1,8 @@
 // Selene Store — one catalogue merged from three sources (docs/STORE-SOURCES.md): Selene picks (curated apt
 // packages), Ubuntu (every desktop app of the archive, apt) and Flathub (flatpak --user).
 // Backend: main/ipc/store.js (store:home, store:search, store:details, store:installedAll, store:sources,
-// store:refresh, store:setEnabled, store:install / store:remove for Flathub; +store:progress, +store:changed).
+// store:refresh, store:setEnabled, store:install / store:remove for Flathub, store:cancel (« Annuler » while a Flathub
+// install runs), store:current (an operation started before this window opened); +store:progress, +store:changed).
 // apt sources (selene, ubuntu) install through the elevation prompt: shell.runAdmin('store-install' |
 // 'store-remove', [apt]), with APT progress lines on admin:progress. Installed graphical apps open as Linux apps
 // through the registry ('linux.<desktop id>', kind 'linux').
@@ -49,8 +50,9 @@ export default {
     let query = '';
     let list = null; // { sig, items, total, loading, error }
     let detail = null; // { key, source, data, loading, error }
-    let op = null; // { key, source, id, action, percent, step }
+    let op = null; // { key, source, id, action, percent, step, cancelable, canceling, adopted }
     const errors = new Map(); // key -> message of the last failure
+    const notices = new Map(); // key -> message of a cancelled operation (« … annulée »)
     const refreshPct = new Map(); // source -> percent while its catalogue is refreshed
     const refreshErr = new Map();
     let searchTimer = 0;
@@ -251,8 +253,10 @@ export default {
       if (op) return;
       const src = entry.sources.find((s) => s.source === source) || entry.sources[0];
       const id = src.source === 'selene' ? entry.selene?.apt : src.id;
-      op = { key: entry.key, source: src.source, id, action, percent: 0, step: t(action === 'install' ? 'preparing' : 'preparingRemove') };
+      const cancelable = action === 'install' && !ADMIN.has(src.source) && !!sources.find((s) => s.id === src.source)?.cancelable;
+      op = { key: entry.key, source: src.source, id, action, percent: 0, step: t(action === 'install' ? 'preparing' : 'preparingRemove'), cancelable, canceling: false };
       errors.delete(entry.key);
+      notices.delete(entry.key);
       render();
       let off = null;
       let result = null;
@@ -275,7 +279,8 @@ export default {
           off = api.on('store:progress', (p) => {
             if (!op || p?.kind !== action || p.source !== op.source || p.id !== op.id) return;
             op.percent = Math.max(op.percent, Math.round(Number(p.percent) || 0));
-            op.step = t(action === 'install' ? 'installingStep' : 'removingStep', { name: entry.name });
+            if (p.canceling && !op.canceling) markCanceling();
+            op.step = op.canceling ? t('canceling') : t(action === 'install' ? 'installingStep' : 'removingStep', { name: entry.name });
             updateProgress();
           });
           result = await api.invoke(action === 'install' ? 'store:install' : 'store:remove', src.source, id);
@@ -289,12 +294,55 @@ export default {
         });
         if (result?.desktopId) ctx.shell.registry?.load?.().catch?.(() => {});
       } catch (e) {
-        if (e?.code !== 'ECANCELED') errors.set(entry.key, errorText(e, action, entry.name));
+        if (e?.code === 'ECANCELED' && op?.canceling) notices.set(entry.key, t('canceledInstall', { name: entry.name }));
+        else if (e?.code !== 'ECANCELED') errors.set(entry.key, errorText(e, action, entry.name));
       } finally {
         off?.();
         op = null;
       }
       if (!win.closed) await reloadAfterChange();
+    }
+    // « Annuler »: the backend stops flatpak and removes what it had added; store:install then rejects (ECANCELED).
+    function markCanceling() {
+      if (!op) return;
+      op.canceling = true;
+      op.step = t('canceling');
+      const btn = content.querySelector('.st-cancel');
+      if (btn) {
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
+      }
+      updateProgress();
+    }
+    async function cancelOp() {
+      if (!op || !op.cancelable || op.canceling) return;
+      const mine = op;
+      markCanceling();
+      try {
+        const r = await api.invoke('store:cancel', mine.source, mine.id);
+        if (!r?.canceled && op === mine) {
+          // Nothing to stop any more (it had just finished): the operation's own end reloads the view.
+          op.canceling = false;
+          render();
+        }
+      } catch (e) {
+        if (op === mine) {
+          op.canceling = false;
+          render();
+        }
+        console.warn('store: cancel failed', e);
+      }
+    }
+    // An operation started before this window opened (another window, the first sign-in gaming setup): shown with
+    // its progress and « Annuler »; it ends with its store:changed broadcast.
+    async function adoptCurrent() {
+      try {
+        const cur = (await api.invoke('store:current'))?.op;
+        if (!cur || op || ADMIN.has(cur.source)) return;
+        const key = (installedList.concat(home?.featured || []).find((e) => e.sources.some((s) => s.source === cur.source && s.id === cur.id))?.key) || String(cur.id).toLowerCase();
+        op = { key, source: cur.source, id: cur.id, action: cur.action, percent: Math.round(Number(cur.percent) || 0), step: cur.canceling ? t('canceling') : t(cur.action === 'install' ? 'preparing' : 'preparingRemove'), cancelable: !!cur.cancelable, canceling: !!cur.canceling, adopted: true };
+        render();
+      } catch {}
     }
 
     // Graphical app: launch the Linux app (.desktop entry) through the registry; reload once if it is not known yet.
@@ -566,6 +614,7 @@ export default {
       const actions = h('div', { class: 'st-actions' });
       if (busy) {
         actions.append(h('div', { class: 'st-progress-wrap' }, h('div', { class: 'progress st-progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(op.percent), 'aria-label': op.step }, h('div', { class: 'bar', style: { width: `${op.percent}%` } })), h('div', { class: 'caption text-2 st-step', 'aria-live': 'polite' }, op.step)));
+        if (op.cancelable) actions.append(h('button', { class: 'btn st-cancel', disabled: op.canceling, 'aria-label': t('cancelName', { name: e.name }), onclick: () => cancelOp() }, icon('dismiss'), t('cancel')));
       } else if (inst) {
         const ob = openButton(e, 'primary', src);
         if (ob) actions.append(ob);
@@ -610,6 +659,7 @@ export default {
             )
           : h('div', { class: 'caption text-2 st-single-src' }, t('fromSource', { src: srcLabel(src.source) }));
       const err = errors.get(e.key);
+      const notice = !busy && !err ? notices.get(e.key) : null;
       const pkgLabel = src.source === 'flathub' ? t('appIdLabel') : t('package');
       const info = [
         [t('source'), t(`srcName.${src.source}`)],
@@ -642,6 +692,7 @@ export default {
           ),
         ),
         err ? h('div', { class: 'infobar error st-error', role: 'alert' }, icon('error_circle'), h('div', null, h('b', null, t('failed')), ' ', err)) : null,
+        notice ? h('div', { class: 'infobar st-canceled', role: 'status' }, icon('info'), h('div', null, notice)) : null,
         src.source === 'flathub' && live && !inst ? liveNote() : null,
         d.screenshots?.length
           ? h('section', { class: 'st-section' }, h('h2', { class: 'subtitle' }, t('screenshots')), h('div', { class: 'st-shots', role: 'list' }, d.screenshots.map((u, i) => h('img', { class: 'st-shot', role: 'listitem', src: u, alt: t('screenshotN', { n: i + 1, name: e.name }), loading: 'lazy', draggable: false, onerror: (ev) => ev.target.remove() }))))
@@ -735,13 +786,31 @@ export default {
       api.on('admin:devChanged', ({ what } = {}) => {
         if (what === 'store' && !op) api.invoke('store:invalidate').catch(() => {});
       }),
-      api.on('store:changed', () => {
+      api.on('store:changed', (p) => {
+        // An adopted operation (started before this window) ends with its own store:changed.
+        if (op?.adopted && p?.source === op.source && p?.id === op.id && p?.action === op.action) {
+          if (p.canceled) notices.set(op.key, t('canceledInstall', { name: detail?.data?.entry?.key === op.key ? detail.data.entry.name : op.id }));
+          op = null;
+        }
         // Coalesce bursts; our own operations reload when they finish.
         if (op) return;
         clearTimeout(changeTimer);
         changeTimer = setTimeout(() => !op && !win.closed && reloadAfterChange(), 150);
       }),
       api.on('store:progress', (p) => {
+        // An operation started elsewhere while this window is open (first sign-in gaming setup, another window).
+        if (!op && (p?.kind === 'install' || p?.kind === 'remove') && typeof p.source === 'string' && typeof p.id === 'string' && !ADMIN.has(p.source)) {
+          const e = installedList.concat(home?.featured || []).find((x) => x.sources.some((s) => s.source === p.source && s.id === p.id));
+          op = { key: e?.key || p.id.toLowerCase(), source: p.source, id: p.id, action: p.kind, percent: 0, step: '', cancelable: p.kind === 'install' && !!sources.find((x) => x.id === p.source)?.cancelable, canceling: !!p.canceling, adopted: true };
+          render();
+        }
+        if (op?.adopted && p?.kind === op.action && p.source === op.source && p.id === op.id) {
+          op.percent = Math.max(op.percent, Math.round(Number(p.percent) || 0));
+          if (p.canceling && !op.canceling) markCanceling();
+          op.step = op.canceling ? t('canceling') : t(op.action === 'install' ? 'installingStep' : 'removingStep', { name: detail?.data?.entry?.key === op.key ? detail.data.entry.name : op.id });
+          updateProgress();
+          return;
+        }
         if (p?.kind !== 'refresh' || !p.source) return;
         refreshPct.set(p.source, Number(p.percent) || 0);
         updateRefresh();
@@ -751,6 +820,7 @@ export default {
 
     content.append(h('div', { class: 'st-loading' }, h('div', { class: 'spinner' })));
     await loadAll();
+    await adoptCurrent();
     const a = ctx.args && typeof ctx.args === 'object' ? ctx.args : {};
     const findKey = (id) => {
       if (typeof id !== 'string' || !id) return null;

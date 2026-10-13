@@ -410,6 +410,80 @@ if (REAL_SOURCES) {
   }
 } else console.log('(real source modules not found: their run is skipped)');
 
+// ------------------------------------------------------------------ « Annuler » a Flathub install (French, 1280x720, dark + light)
+// The real flathub module on its dev fixtures, slowed down (AURORA_STORE_DEV_DELAY) so the install can be cancelled.
+//   Screenshots: test/out/store-cancel-fr-{dark,light}.png (in progress), store-canceled-fr-{dark,light}.png (after)
+if (REAL_SOURCES) {
+  for (const theme of ['dark', 'light']) {
+    s = await launchShell({ lang: 'fr', theme, size: '1280x720', env: { AURORA_STORE_DEV_DELAY: theme === 'dark' ? '1500' : '700' } });
+    const errs = [];
+    s.page.on('pageerror', (e) => errs.push(e.message));
+    s.page.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+    try {
+      const { page } = s;
+      const inv = (...a) => page.evaluate((a) => window.__aurora.api.invoke(...a).then((r) => r, (e) => ({ code: e.code })), a);
+      await page.evaluate(() => window.__aurora.registry.launch('store', { id: 'org.mozilla.firefox' }));
+      await page.waitForSelector(`${W} .st-detail-head .st-install`, { timeout: 30000 });
+      await page.evaluate(() => window.__aurora.wm.byApp('store')[0].maximize?.());
+      if (await page.locator(`${W} .st-src-opt[data-source=flathub]`).count()) await page.click(`${W} .st-src-opt[data-source=flathub]`);
+      await until(async () => /Flathub/.test(await page.locator(`${W} .st-install`).innerText()));
+      await page.click(`${W} .st-install`);
+      await page.waitForSelector(`${W} .st-actions .st-cancel`, { timeout: 8000 });
+      await until(async () => Number(await page.locator(`${W} .st-actions .st-progress`).getAttribute('aria-valuenow')) >= 20, { timeout: 8000, every: 50 });
+      check(`cancel ${theme}: « Annuler » next to the progress`, [(await page.locator(`${W} .st-cancel`).innerText()).trim(), await page.locator(`${W} .st-cancel`).getAttribute('aria-label')], ['Annuler', "Annuler l'installation de Firefox"]);
+      check(`cancel ${theme}: backend reports the cancelable operation`, (await inv('store:current')).op, (o) => o && o.id === 'org.mozilla.firefox' && o.cancelable === true && o.canceling === false);
+      await s.shot(`store-cancel-fr-${theme}`);
+      await page.click(`${W} .st-cancel`);
+      check(`cancel ${theme}: button disabled, « Annulation en cours… »`, [await page.locator(`${W} .st-cancel`).isDisabled().catch(() => null), await page.locator(`${W} .st-step`).innerText().catch(() => '')], [true, 'Annulation en cours…']);
+      await page.waitForSelector(`${W} .st-canceled`, { timeout: 10000 });
+      check(`cancel ${theme}: calm notice, no error`, [await page.locator(`${W} .st-canceled`).innerText(), await page.locator(`${W} .st-error`).count()], (v) => /L'installation de Firefox a été annulée\. Rien n'a été modifié\./.test(v[0]) && v[1] === 0);
+      check(`cancel ${theme}: Install offered again, not installed`, [await page.locator(`${W} .st-install`).count(), await page.locator(`${W} .st-detail-head .st-chip.ok`).count(), (await inv('store:installedAll')).items.some((e) => e.key === 'org.mozilla.firefox')], [1, 0, false]);
+      check(`cancel ${theme}: state cleared (window + backend)`, [await page.evaluate(() => window.__aurora.registry.instance(window.__aurora.wm.byApp('store')[0].id).hooks.state.op), (await inv('store:current')).op], [null, null]);
+      check(`cancel ${theme}: no « Installation… » chip left on the home cards`, await page.evaluate(() => document.querySelectorAll('.app-store .st-chip.busy').length), 0);
+      await s.shot(`store-canceled-fr-${theme}`);
+      if (theme === 'dark') {
+        // nothing left behind: the same app installs right away
+        await page.click(`${W} .st-install`);
+        await page.waitForSelector(`${W} .st-detail-head .st-open`, { timeout: 20000 });
+        check('cancel: installing again works, the notice is gone', [await page.locator(`${W} .st-detail-head .st-chip.ok`).count(), await page.locator(`${W} .st-canceled`).count()], [1, 0]);
+        check('cancel: store:cancel with nothing running', await inv('store:cancel', 'flathub', 'org.mozilla.firefox'), { canceled: false });
+        // an install started while the Logithèque was closed shows up with « Annuler » when it opens
+        // an install started elsewhere (first sign-in gaming setup) shows up with « Annuler » in the open window…
+        await page.evaluate(() => window.__aurora.registry.launch('store', { id: 'com.spotify.Client' }));
+        await page.waitForSelector(`${W} .st-detail-head .st-install`, { timeout: 15000 });
+        await page.evaluate(() => {
+          window.__bg = undefined;
+          window.__aurora.api.invoke('store:install', 'flathub', 'com.spotify.Client').then(() => (window.__bg = 'ok'), (e) => (window.__bg = e.code));
+        });
+        await page.waitForSelector(`${W} .st-actions .st-cancel`, { timeout: 8000 });
+        check('adopted (open window): progress + « Annuler » for the running install', await page.locator(`${W} .st-actions .st-progress`).count(), 1);
+        await page.click(`${W} .st-cancel`);
+        check('adopted (open window): cancel stops it', await until(() => page.evaluate(() => window.__bg), { timeout: 10000 }), 'ECANCELED');
+        await page.waitForSelector(`${W} .st-canceled`, { timeout: 10000 }).catch(() => {});
+        check('adopted (open window): notice + Install offered again', [await page.locator(`${W} .st-canceled`).count(), await page.locator(`${W} .st-install`).count()], [1, 1]);
+        // …and in a window opened while it runs (store:current)
+        await page.evaluate(() => window.__aurora.wm.byApp('store')[0].close());
+        await until(async () => (await page.evaluate(() => window.__aurora.wm.byApp('store').length)) === 0);
+        await page.evaluate(() => {
+          window.__bg = undefined;
+          window.__aurora.api.invoke('store:install', 'flathub', 'org.inkscape.Inkscape').then(() => (window.__bg = 'ok'), (e) => (window.__bg = e.code));
+        });
+        await page.evaluate(() => window.__aurora.registry.launch('store', { id: 'org.inkscape.Inkscape' }));
+        const adopted = await page.waitForSelector(`${W} .st-actions .st-cancel`, { timeout: 15000 }).then(() => true, async () => `bg=${await page.evaluate(() => window.__bg)}`);
+        if (check('adopted (new window): « Annuler » shown', adopted, true)) {
+          await page.click(`${W} .st-cancel`);
+          check('adopted (new window): cancel stops it', await until(() => page.evaluate(() => window.__bg), { timeout: 10000 }), 'ECANCELED');
+        }
+      }
+    } catch (e) {
+      failures.push(`cancel ${theme} run crashed: ${e.stack || e.message}`);
+    } finally {
+      check(`cancel ${theme}: no console errors`, errs.filter((e) => !/favicon|ResizeObserver|net::|ERR_/.test(e)), []);
+      await s.close();
+    }
+  }
+}
+
 console.log(`\n${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log(`  FAIL ${f}`);
 process.exit(failures.length ? 1 : 0);

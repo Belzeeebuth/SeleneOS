@@ -124,7 +124,11 @@
     "refreshingPct": "Refreshing… {pct} %",
     "refreshingSource": "Downloading the {src} catalogue… {pct} %",
     "never": "Never",
-    "cat.Settings": "Settings"
+    "cat.Settings": "Settings",
+    "cancel": "Cancel",
+    "cancelName": "Cancel installing {name}",
+    "canceling": "Cancelling…",
+    "canceledInstall": "Installation of {name} cancelled. Nothing was changed."
   },
   "fr": {
     "appName": "Logithèque",
@@ -251,6 +255,10 @@
     "refreshingPct": "Actualisation… {pct} %",
     "refreshingSource": "Téléchargement du catalogue {src}… {pct} %",
     "never": "Jamais",
-    "cat.Settings": "Paramètres"
+    "cat.Settings": "Paramètres",
+    "cancel": "Annuler",
+    "cancelName": "Annuler l'installation de {name}",
+    "canceling": "Annulation en cours…",
+    "canceledInstall": "L'installation de {name} a été annulée. Rien n'a été modifié."
   }
 }

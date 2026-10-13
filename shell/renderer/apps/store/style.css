@@ -8,7 +8,7 @@
 .app-store .st-nav-item { width: 100%; border: 0; background: transparent; font: inherit; text-align: start; cursor: default; flex-shrink: 0; }
 .app-store .st-nav-item:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: -2px; }
 .app-store .st-nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.app-store .st-count { min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--control-strong, var(--subtle-hover)); text-align: center; color: var(--text-2); }
+.app-store .st-count { min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--subtle-pressed, var(--subtle-hover)); text-align: center; color: var(--text); font-variant-numeric: tabular-nums; }
 .app-store .st-nav-sep { padding: 14px 12px 6px; color: var(--text-2); }
 
 /* ------------------------------------------------------------------ main */
@@ -197,3 +197,6 @@
 .app-store .st-grid { align-items: stretch; }
 .app-store .st-grid-cell { align-items: stretch; }
 .app-store .st-grid-cell > .st-card { align-self: stretch; height: auto; }
+/* « Annuler » next to the progress of a Flathub install; notice after a cancel */
+.app-store .st-actions .btn.st-cancel { min-width: 0; }
+.app-store .st-canceled > .icon { color: var(--accent); }

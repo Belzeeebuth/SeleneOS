@@ -1684,7 +1684,7 @@ export class BrowserWindowCtl {
         panels.moreMenu(this, this.moreBtn);
         return true;
       case 'Ctrl+P':
-        panels.savePdf(this);
+        panels.printPage(this);
         return true;
       case 'Ctrl+S':
         panels.savePage(this);

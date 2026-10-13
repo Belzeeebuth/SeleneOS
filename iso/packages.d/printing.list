@@ -1,0 +1,19 @@
+# Printing: Paramètres > Appareils > Imprimantes et scanners (shell/main/ipc/printers.js, shell/main/lib/cups.js,
+# aurora-admin printer-* actions) and the print dialog (printers:print -> lp).
+# Driverless only: IPP Everywhere / AirPrint / Mopria printers (nearly every network or USB printer sold since ~2015)
+# are added with `lpadmin -m everywhere`; CUPS asks the printer itself for its capabilities, no PPD or vendor driver.
+# Not in the image: printer-driver-gutenprint / hplip (vendor drivers for older printers, tens of MB with their Python
+# and data dependencies) — they can be installed from the Store when an old printer needs them.
+# Not in the image: cups-browsed (CUPS 2.4 already offers network IPP printers as temporary destinations, the add
+# list in Paramètres covers the rest, and it was the entry point of the 2024 remote CUPS vulnerabilities).
+# cups pulls cups-daemon, cups-client (lp, lpstat, lpadmin, cancel, cupsenable…), cups-filters, ghostscript, poppler-utils.
+cups
+cups-filters
+# ipptool: ink / toner levels of a queue (marker-levels) for Paramètres.
+cups-ipp-utils
+# USB printers that speak IPP-over-USB (IPP Everywhere through USB), shared on localhost and announced over DNS-SD.
+ipp-usb
+# DNS-SD / mDNS: discovery of network printers (avahi-browse in Paramètres) and *.local host names (libnss-mdns).
+avahi-daemon
+avahi-utils
+libnss-mdns

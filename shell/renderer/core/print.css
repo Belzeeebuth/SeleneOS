@@ -1,0 +1,190 @@
+/* Selene print dialog (core/print.js). Tokens only (docs/design/SYSTEM.md). */
+.dialog.pd-dialog {
+  max-width: min(760px, calc(100% - 32px));
+}
+.pd-body {
+  display: flex;
+  gap: var(--sp-6, 24px);
+  align-items: flex-start;
+  min-width: 0;
+}
+.pd-preview {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2, 8px);
+  padding: var(--sp-3, 12px);
+  border-radius: var(--radius);
+  background: var(--bg-alt);
+  border: 1px solid var(--line-soft);
+}
+.pd-thumb {
+  width: 196px;
+  min-height: 252px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2, 8px);
+  color: var(--text-2);
+  text-align: center;
+}
+.pd-thumb canvas {
+  display: block;
+  background: #fff; /* paper */
+  border-radius: var(--radius-xs);
+  box-shadow: var(--shadow-flyout);
+  outline: 1px solid var(--line-soft);
+  transition: opacity var(--dur) var(--ease);
+}
+.pd-thumb.landscape {
+  min-height: 160px;
+}
+.pd-thumb.loading canvas {
+  opacity: 0.55;
+}
+.pd-thumb.failed {
+  color: var(--text-3);
+}
+.pd-pageinfo {
+  min-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.pd-spinner {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  animation: pd-spin 0.9s linear infinite;
+}
+[data-animations='off'] .pd-spinner {
+  animation: none;
+}
+@keyframes pd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.pd-form {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3, 12px);
+}
+.pd-row {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3, 12px);
+}
+.pd-row[hidden] {
+  display: none;
+}
+.pd-row-toggle {
+  grid-template-columns: minmax(0, 1fr);
+  padding-left: calc(128px + var(--sp-3, 12px));
+}
+.pd-label {
+  color: var(--text-2);
+  font-size: var(--fs-body);
+}
+.pd-printer-line {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2, 8px);
+  min-width: 0;
+}
+.pd-printer-icon {
+  display: inline-flex;
+  color: var(--text-2);
+}
+.pd-printer-line .select,
+.pd-paper {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+.pd-note {
+  padding-left: calc(128px + var(--sp-3, 12px));
+  margin-top: -4px;
+}
+.pd-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1, 4px);
+}
+.pd-copies {
+  width: 64px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.pd-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2, 8px);
+  min-width: 0;
+}
+.pd-rangewrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1, 4px);
+  width: 100%;
+}
+.pd-rangewrap[hidden] {
+  display: none;
+}
+.pd-range {
+  width: 100%;
+  max-width: 220px;
+}
+.pd-hint {
+  color: var(--text-2);
+  min-height: 16px;
+}
+.pd-hint.bad {
+  color: var(--danger);
+}
+.pd-error {
+  padding: var(--sp-2, 8px) var(--sp-3, 12px);
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg, var(--subtle-hover));
+  color: var(--text);
+  border: 1px solid var(--danger);
+  font-size: var(--fs-small);
+}
+.pd-error[hidden] {
+  display: none;
+}
+.pd-dialog .dialog-footer .pd-go[disabled] {
+  opacity: 0.6;
+}
+@media (max-width: 640px) {
+  .pd-body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pd-preview {
+    flex: none;
+  }
+}
+.pd-orient > button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2, 8px);
+}
+/* Same width as its two buttons, like « Toutes / Plage » (the grid cell would stretch the frame). */
+.pd-orient {
+  justify-self: start;
+  width: max-content;
+}
+/* « Pages » : the label stays level with « Toutes / Plage », not centred on the range field under it. */
+.pd-row:has(> .pd-col) > .pd-label {
+  align-self: start;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+}

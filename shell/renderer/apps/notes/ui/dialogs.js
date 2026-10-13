@@ -182,6 +182,36 @@ export async function exportNote(app, note, format) {
   }
 }
 
+// ---------------------------------------------------------------- print
+// The note as it reads (title, date, body with its pictures, checklists, colours) in the Selene print dialog.
+export async function printNote(app, note) {
+  if (!note || app._printing) return null;
+  app._printing = true;
+  try {
+    const { api } = app.ctx;
+    await app.saveCurrent();
+    note = app.store.get(note.id) || note;
+    const title = displayTitle(note) || app.t('untitled');
+    const box = stored(note);
+    for (const img of box.querySelectorAll('img')) {
+      const n = attName(img);
+      if (!n) continue;
+      try {
+        img.setAttribute('src', await api.invoke('notes:dataUrl', `${app.store.root}/${note.id}/${n}`));
+      } catch {
+        img.remove();
+      }
+      img.removeAttribute('data-att');
+    }
+    const { printDialog, printDocument } = await import('../../../core/print.js');
+    const css = `${EXPORT_CSS}\nbody{margin:0 auto;padding:0;max-width:none;font-family:Inter,"Noto Sans",sans-serif;font-size:11pt}img{max-width:100%;height:auto;break-inside:avoid}h1.title{font-family:Manrope,Inter,sans-serif}`;
+    const body = `<h1 class="title">${escapeHtml(title)}</h1>\n<p class="meta">${escapeHtml(app.fmtDate(note.modified, true))}</p>\n${box.innerHTML}`;
+    return await printDialog({ title, parent: app.ctx.win, appId: 'notes', shell: app.ctx.shell, render: 'webcontents', html: () => printDocument({ title, css, body }) });
+  } finally {
+    app._printing = false;
+  }
+}
+
 // ---------------------------------------------------------------- import
 export async function importFiles(app, paths) {
   const { ui, api } = app.ctx;

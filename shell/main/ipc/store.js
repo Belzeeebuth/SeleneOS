@@ -31,6 +31,12 @@
 //                                       -> { desktopId } ; (+store:progress { kind, source, id, percent, message })
 //                                       Admin sources (selene, ubuntu) are installed by the app through
 //                                       shell.runAdmin('store-install' | 'store-remove', [apt]) (UAC prompt).
+//   store:cancel (source, id)           -> { canceled } stop the running install of that app (sources with cancel():
+//                                       flathub); store:install then rejects with ECANCELED once the source has
+//                                       stopped flatpak and uninstalled what it had added (+store:progress
+//                                       { kind, source, id, percent, message, canceling: true }).
+//   store:current ()                    -> { op: { action, source, id, percent, canceling, cancelable } | null }
+//                                       the operation running now (a Logithèque window opened meanwhile shows it).
 //   store:installedAll ()               -> { items: [Entry] }   installed apps of every source
 //   store:invalidate ()                 -> drop the merged index (after a UAC install); broadcasts store:changed
 //   (+store:changed { source?, id?, action? })  the catalogue or installed state changed
@@ -366,6 +372,7 @@ function register(api) {
         error: lastError.has(id) ? lastError.get(id).message : st.error ? str(String(st.error), 300) : null,
         errorCode: lastError.has(id) ? lastError.get(id).code : /^E[A-Z]{2,15}$/.test(st.errorCode || '') ? st.errorCode : null,
         refreshing: refreshing.has(id),
+        cancelable: typeof mod.cancel === 'function',
       });
     }
     return { sources: out, live: !!api.env?.live };
@@ -505,9 +512,12 @@ function register(api) {
     if (!mod || !enabled(source)) throw quiet(`unknown source: ${source}`, 'EINVAL');
     if (typeof id !== 'string' || !(source === 'flathub' ? FLATPAK_ID.test(id) && id.length <= 255 : PKG.test(id))) throw quiet('invalid app id', 'EINVAL');
     if (op) throw quiet('Another installation is in progress.', 'EBUSY');
-    op = { action, source, id };
+    op = { action, source, id, percent: 0, canceling: false, cancelable: action === 'install' && typeof mod.cancel === 'function' };
+    const mine = op;
     const send = (ev) => {
+      if (ev?.percent != null) mine.percent = Math.max(mine.percent, Math.max(0, Math.min(100, Number(ev.percent) || 0)));
       const payload = { kind: action, source, id, percent: Math.max(0, Math.min(100, Number(ev?.percent) || 0)), message: str(ev?.message, 200) };
+      if (mine.canceling) payload.canceling = true;
       api.broadcast('store:progress', payload);
       if (typeof onProgress === 'function') {
         try {
@@ -516,16 +526,34 @@ function register(api) {
       }
     };
     send({ percent: 0 });
+    let canceledOut = false; // ended by « Annuler » (a cancel that came after a success leaves canceled unset)
     try {
       const r = (await mod[action](id, send)) || {};
       return { desktopId: DESKTOP.test(r.desktopId || '') ? r.desktopId : null };
     } catch (e) {
-      throw quiet(e?.message || String(e), e?.code || 'ECMD');
+      canceledOut = mine.canceling && e?.code === 'ECANCELED';
+      throw quiet(e?.message || String(e), canceledOut ? 'ECANCELED' : e?.code === 'ECANCELED' ? 'ECMD' : e?.code || 'ECMD');
     } finally {
       op = null;
-      invalidate({ source, id, action });
+      invalidate({ source, id, action, ...(canceledOut ? { canceled: true } : {}) });
     }
   }
+  api.handle('store:cancel', async (source, id) => {
+    if (typeof source !== 'string' || typeof id !== 'string') throw quiet('invalid app id', 'EINVAL');
+    if (!op || op.source !== source || op.id !== id || !op.cancelable) return { canceled: false };
+    if (op.canceling) return { canceled: true };
+    op.canceling = true;
+    api.broadcast('store:progress', { kind: op.action, source, id, percent: op.percent, message: '', canceling: true });
+    try {
+      const r = (await modules.get(source).cancel(id)) || {};
+      if (r.canceled === false && op?.id === id) op.canceling = false;
+      return { canceled: r.canceled !== false };
+    } catch (e) {
+      if (op?.id === id) op.canceling = false;
+      throw quiet(e?.message || String(e), e?.code || 'ECMD');
+    }
+  });
+  api.handle('store:current', async () => ({ op: op ? { action: op.action, source: op.source, id: op.id, percent: op.percent, canceling: op.canceling, cancelable: op.cancelable } : null }));
   api.handle('store:install', (source, id) => runOp('install', source, id));
   api.handle('store:remove', (source, id) => runOp('remove', source, id));
   // In-process access for other main modules (main/ipc/firstlogin.js installs the gaming apps chosen in the
