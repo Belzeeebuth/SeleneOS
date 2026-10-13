@@ -43,7 +43,8 @@ function resolve(name) {
   check(legacy.size >= 600 && !unresolvedLegacy.length, `${legacy.size} legacy (Fluent) names found in the code all resolve to a Phosphor glyph`, unresolvedLegacy.join(', '));
   check(DYNAMIC.every((n) => resolve(n)), 'names built at run time (battery_N, battery_charge_N, wifi_N, speaker_N) resolve');
   // Terminal profiles use { icon: 'shell' | 'python' | 'root' } for their own drawings (apps/terminal/lib/icons.js).
-  const NOT_ICONS = new Set(['shell', 'python', 'root']);
+  // BlueZ device Icon values in main/ipc/bluetooth.js (its dev fixtures and the table that maps them to Phosphor names).
+  const NOT_ICONS = new Set(['shell', 'python', 'root', 'audio-headphones', 'audio-headset', 'audio-card', 'input-mouse', 'input-keyboard', 'input-gaming', 'input-tablet', 'phone', 'computer']);
   const unresolvedDirect = [...direct].filter(([n]) => !NOT_ICONS.has(n) && !resolve(n));
   check(direct.size > 300 && !unresolvedDirect.length, `${direct.size} names at icon call sites resolve`, unresolvedDirect.map(([n, f]) => `${n} (${f})`).join(', '));
   const winLike = Object.entries(pack.aliases).filter(([, v]) => /^(squares-four|windows-logo)/.test(v));

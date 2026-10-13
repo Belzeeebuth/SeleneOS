@@ -291,7 +291,7 @@ export function pageMenu(bw, tab, p) {
     }
     // « Ajouter au dictionnaire » (main/ipc/spell.js; the custom dictionary is shared with the shell's apps).
     if (p.misspelledWord) {
-      items.push({ label: t('ctx.addToDictionary'), icon: 'book_add', action: () => shared.api.invoke('spell:add', p.misspelledWord).then(() => tab.wv.replaceMisspelling(p.misspelledWord)).catch(() => {}) }, '-');
+      items.push({ label: t('ctx.addToDictionary'), icon: 'book', action: () => shared.api.invoke('spell:add', p.misspelledWord).then(() => tab.wv.replaceMisspelling(p.misspelledWord)).catch(() => {}) }, '-');
     }
     items.push(
       { label: t('ctx.undo'), icon: 'arrow_undo', shortcut: 'Ctrl+Z', disabled: !ef.canUndo, action: () => tab.wv.undo() },
