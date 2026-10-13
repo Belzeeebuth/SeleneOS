@@ -4,7 +4,7 @@ Apps are added phase by phase. Only one phase is built at a time; the next one s
 user asks for it. Status is also tracked in [PROJECT_STATE.md](PROJECT_STATE.md).
 
 Every new app follows the app contract in [docs/DEVELOPING.md](docs/DEVELOPING.md): an app folder
-under `shell/renderer/apps/<id>/` with a manifest, EN + FR strings, an original Fluent-style icon,
+under `shell/renderer/apps/<id>/` with a manifest, EN + FR strings, a Selene app icon (docs/design/SYSTEM.md),
 light and dark themes, and a Playwright test in `shell/test/<id>.test.mjs`.
 
 ## Phase 1 — Core apps (done, 2026-10-11)
@@ -16,7 +16,7 @@ light and dark themes, and a Playwright test in `shell/test/<id>.test.mjs`.
 | Clock | `clock` | Alarms (`shell.reminders`, kind `alarm`), timers, stopwatch, world clock, focus sessions |
 | Notes | `notes` | Notebooks, rich text, search, pin, autosave |
 | To Do / Reminders | `todo` | Lists, My Day, Important, Planned, steps, due dates, reminders via `shell.reminders` |
-| PDF Reader | `pdf` | pdf.js (`pdfjs-dist`), thumbnails, search, zoom, rotate, print-free, highlights/notes |
+| PDF Reader | `pdf` | pdf.js (`pdfjs-dist`), thumbnails, search, zoom, rotate, highlights/notes; printing through the Selene print dialog (2026-10-13) |
 | Archive Manager | `archive` | zip / tar / tar.gz / tar.xz / 7z / rar (read) via libarchive `bsdtar` + `7z` |
 
 All seven are built and independently verified, each with its own test suite (`shell/test/<id>.test.mjs`;
@@ -37,7 +37,7 @@ Calendar and Notes also have `*.unit.mjs`).
 
 | App | id (planned) | Notes for later |
 |---|---|---|
-| App Store | `store` | Curated catalog of command-line tools/services installed with APT through `aurora-admin` (allow-listed; tools shipped with the image cannot be removed). Later: graphical apps, Flatpak, updates view |
+| App Store | `store` | Curated catalog of command-line tools/services installed with APT through `aurora-admin` (allow-listed; tools shipped with the image cannot be removed). Since then: the whole Flathub and Ubuntu desktop catalogues, Flatpak updates view and install cancel (done 2026-10-13) |
 | Disk Utility | `disks` | `lsblk`/`udisksctl`: drives, partitions, mount, eject; format removable drives only (`aurora-admin format-removable`). Later: SMART |
 | Backup | `backup` | rsync snapshots (`--link-dest`) of chosen home folders to a drive/folder, browse, restore, keep last N, reminders |
 | Password Manager | `passwords` | Encrypted vault (WebCrypto AES-GCM + PBKDF2 600k), auto-lock, generator, CSV import/export. Later: browser autofill |
