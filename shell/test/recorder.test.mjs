@@ -268,7 +268,9 @@ try {
   });
 
   await section('closing while recording asks, then stops and saves', async () => {
-    await s.aurora(() => window.__aurora.wm.list().find((x) => x.appId === 'recorder').close());
+    await s.aurora(() => {
+      window.__aurora.wm.list().find((x) => x.appId === 'recorder').close(); // (not awaited: it waits for the dialog)
+    });
     await clickDialogButton(s, 'Arrêter et enregistrer');
     const t0 = Date.now();
     while (Date.now() - t0 < 10000 && (await s.page.$(WIN))) await sleep(150);

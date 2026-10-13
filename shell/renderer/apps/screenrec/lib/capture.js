@@ -213,7 +213,7 @@ export class Recording {
     crop.height &= ~1;
     this.crop = crop;
     this.canvas = Object.assign(document.createElement('canvas'), { width: crop.width, height: crop.height });
-    this.ctx2d = this.canvas.getContext('2d', { alpha: false });
+    this.ctx2d = this.canvas.getContext('2d', { alpha: false, willReadFrequently: true }); // a CPU canvas: X11 capture frames are in memory, and captureStream needs no GPU readback
     this.clean = Object.assign(document.createElement('canvas'), { width: crop.width, height: crop.height });
     // one audio track: microphone and computer sound mixed
     const sources = [systemTrack && new MediaStream([systemTrack]), micStream].filter(Boolean);
@@ -247,6 +247,7 @@ export class Recording {
   }
 
   draw() {
+    this.frames = (this.frames || 0) + 1;
     const { ctx2d, video, crop, patch } = this;
     const src = video.videoWidth === this.srcW && video.videoHeight === this.srcH ? this.src : this.remeasure();
     ctx2d.drawImage(video, src.x, src.y, src.width, src.height, 0, 0, crop.width, crop.height);

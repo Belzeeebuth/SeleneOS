@@ -574,6 +574,17 @@ done
 grep -qs '"Pellicule"' "$S/opt/aurora/shell/renderer/apps/camera/i18n.json" && pass "Camera saves to Images/Pellicule in French" || fail "Camera i18n lacks the Pellicule folder name"
 # ---- END camera -------------------------------------------------------------------------------------------------
 
+# ---- BEGIN recorder (App phase 2, renderer/apps/recorder: Voice Recorder) -----------------------------------------
+# Microphones come through PipeWire / PulseAudio (base.list); recording (MediaRecorder, Opus/WebM), decoding and the
+# trim re-encode (WebCodecs) are Chromium's: no extra package. No ffmpeg in the image, so no .m4a / .mp3 export.
+for f in renderer/apps/recorder/manifest.json renderer/apps/recorder/main.js renderer/apps/recorder/i18n.json renderer/apps/recorder/icon.svg \
+  renderer/apps/recorder/style.css renderer/apps/recorder/lib/webm.js renderer/apps/recorder/lib/audio.js \
+  renderer/assets/icons/packs/halo/recorder.svg renderer/assets/icons/packs/prisme/recorder.svg; do
+  [[ -f "$S/opt/aurora/shell/$f" ]] && pass "Voice Recorder: shell has $f" || fail "Voice Recorder: shell lacks $f"
+done
+grep -qs '"Enregistrements audio"' "$S/opt/aurora/shell/renderer/apps/recorder/i18n.json" && pass "Voice Recorder saves to Documents/Enregistrements audio in French" || fail "Voice Recorder i18n lacks the Enregistrements audio folder name"
+# ---- END recorder -----------------------------------------------------------------------------------------------
+
 # initramfs: casper + Selene OS splash.
 if [[ -x "$S/usr/bin/lsinitramfs" ]]; then
   mount -t tmpfs tmpfs "$S/tmp" && mount -t tmpfs tmpfs "$S/var/tmp" && mount -t proc proc "$S/proc" && mount --bind /dev "$S/dev"

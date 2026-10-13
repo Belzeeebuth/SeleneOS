@@ -668,7 +668,7 @@ class Recorder {
       g.fillRect(x, mid - amp, 2.5, amp * 2);
     }
     // markers
-    g.fillStyle = css(cv, '--accent');
+    g.fillStyle = css(cv, '--warning') || css(cv, '--accent');
     for (const m of r?.markers || []) {
       const i = Math.floor(m * LIVE_RATE);
       if (i < start) continue;
