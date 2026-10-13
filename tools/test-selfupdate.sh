@@ -118,7 +118,7 @@ t "repository has InRelease and Release.gpg" test -s "$up/apt/dists/noble/InRele
 mkdir -p "$R/srv/apt"; mount --bind "$up/apt" "$R/srv/apt"
 # The admin edits a conffile: the change must survive the update (--force-confold, as aurora-admin apt-upgrade).
 echo '# local change' >>"$R/etc/aurora/session.conf"
-sed -i 's|^URIs: .*|URIs: file:/srv/apt|' "$R/etc/apt/sources.list.d/selene.sources"
+sed -i 's|^URIs: .*|URIs: file:/srv/apt|; s|^Enabled: no$|Enabled: yes|' "$R/etc/apt/sources.list.d/selene.sources"
 if ch apt-get -q update >"$T/upd.log" 2>&1 && ! grep -q '^[WE]:' "$T/upd.log"; then pass "apt-get update: Selene repository verified with the image's keyring"
 else fail "apt-get update of the Selene repository"; cat "$T/upd.log"; fi
 sim="$(ch apt-get -s -q upgrade --with-new-pkgs 2>/dev/null | grep '^Inst ' || true)"

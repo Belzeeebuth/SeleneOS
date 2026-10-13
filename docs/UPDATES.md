@@ -46,11 +46,19 @@ example a `gh-pages` branch), or upload it with the `actions/upload-pages-artifa
 `out/apt/.nojekyll` keeps Pages from processing the files. GitHub refuses files over 100 MB: `aurora-electron` is
 ~86 MB (xz); watch it when Electron grows (another host, or Git LFS is not an option for Pages).
 
+## Before the repository is published
+
+The image build checks `SELENE_APT_URL` for `dists/noble/InRelease`. While nothing answers there, `selene.sources`
+ships with `Enabled: no` (and the line `# auto-enable when published`), so installed systems log no errors; the first
+« Rechercher des mises à jour » after the repository goes online turns it on (`aurora-admin` checks the URL, root only,
+fixed URL from the root-owned file). `SELENE_APT_ENABLED=yes|no` forces the choice at build time.
+
 ## The archive key
 
 - `tools/selene-key.sh ensure` (run by `make debs` / `make repo` when needed) creates the key once, RSA 4096,
   signing only, valid 5 years, in `keys/gnupg` (**gitignored, never commit it**; `SELENE_KEYS_DIR` puts it elsewhere,
-  e.g. a removable disk), and exports the public keyring to `iso/keys/selene-archive-keyring.gpg` (committed).
+  e.g. a removable disk), and exports the public keyring to `iso/keys/selene-archive-keyring.gpg` (also gitignored:
+  the key belongs to the machine that builds and publishes Selene, so build every release ISO and repository there).
 - Back up `keys/` (offline). Without it no update can be signed for the systems already installed.
 - The image ships the public key as `/usr/share/keyrings/selene-archive-keyring.gpg` and the source
   `/etc/apt/sources.list.d/selene.sources` with `Signed-By:` that keyring only (the key is trusted for this

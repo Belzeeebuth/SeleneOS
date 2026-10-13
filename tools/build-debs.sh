@@ -163,19 +163,32 @@ build_base() {
   for f in "$root"/etc/netplan/*.yaml; do [[ -f "$f" ]] && chmod 0600 "$f"; done
   for f in "$root"/etc/sudoers.d/aurora*; do [[ -f "$f" ]] && chmod 0440 "$f"; done
   # Selene apt repository: archive keyring + deb822 source (docs/UPDATES.md).
-  local keyring="$AURORA_ROOT/iso/keys/selene-archive-keyring.gpg"
+  local keyring="$AURORA_ROOT/iso/keys/selene-archive-keyring.gpg" enabled=yes
+  # The key is made on the machine that builds and publishes Selene (keys/, gitignored; back it up).
   [[ -s "$keyring" ]] || "$AURORA_ROOT/tools/selene-key.sh" ensure
   install -D -m 0644 "$keyring" "$root/usr/share/keyrings/selene-archive-keyring.gpg"
   install -d -m 0755 "$root/etc/apt/sources.list.d"
+  # Not published yet (no InRelease at the URL): the source ships disabled, and aurora-admin turns it on by itself
+  # the first time « Rechercher des mises à jour » finds it published (marker line below). SELENE_APT_ENABLED=yes|no forces it.
+  case "${SELENE_APT_ENABLED:-auto}" in
+    yes) enabled=yes ;;
+    no) enabled=no ;;
+    *) if ! curl -fsS --max-time 15 -o /dev/null "${SELENE_APT_URL%/}/dists/$SUITE/InRelease" 2>/dev/null; then
+         enabled=no
+         log "the Selene repository is not published at $SELENE_APT_URL yet: selene.sources ships disabled (it turns itself on once published)"
+       fi ;;
+  esac
   cat >"$root/etc/apt/sources.list.d/selene.sources" <<EOF
 # Selene OS updates (shell, apps, helpers, Electron). Signed with the Selene archive key.
 # Ubuntu updates keep working when this repository cannot be reached.
+# auto-enable when published
 Types: deb
 URIs: $SELENE_APT_URL
 Suites: $SUITE
 Components: main
 Architectures: $ARCH
 Signed-By: /usr/share/keyrings/selene-archive-keyring.gpg
+Enabled: $enabled
 EOF
   chmod 0644 "$root/etc/apt/sources.list.d/selene.sources"
   DIVERSIONS="$(grep -E '^/' "$AURORA_ROOT/packaging/aurora-base/diversions" | tr '\n' ' ' | sed 's/ $//')"

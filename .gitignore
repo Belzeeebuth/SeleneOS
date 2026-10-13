@@ -13,3 +13,5 @@ node_modules/
 
 # Selene archive signing key (private; tools/selene-key.sh). Only iso/keys/*.gpg (public) is committed.
 /keys/
+# its public half is exported next to the image sources on the build machine (made there, never shared)
+/iso/keys/selene-archive-keyring.gpg

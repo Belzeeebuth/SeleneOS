@@ -11,7 +11,7 @@ ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      ca-certificates curl git xz-utils zstd unzip util-linux \
+      ca-certificates curl git xz-utils zstd unzip util-linux gnupg \
       debootstrap ubuntu-keyring squashfs-tools xorriso mtools dosfstools \
       grub-common grub-pc-bin grub-efi-amd64-bin \
       librsvg2-bin imagemagick \
