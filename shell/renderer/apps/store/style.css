@@ -204,7 +204,7 @@
 /* ---- Mises à jour (view 'updates') ---- */
 .app-store .st-upd-count { background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .app-store .st-upd-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.app-store .st-upd-head .st-page-sub { margin-bottom: 0; }
+.app-store .st-upd-head .st-page-sub { margin: 4px 0 0; }
 .app-store .st-upd-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .app-store .st-upd-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
 .app-store .st-upd-note { margin: 12px 0 8px; }

@@ -775,7 +775,9 @@ firmware-update)
   *) printf '%s\n' "$fw_out" | tail -n 3 >&2; die 5 "the firmware update failed (see the system journal)" ;;
   esac
   log "user=$CALLER firmware update of device $1"
-  if fwupdmgr get-devices --json 2>/dev/null | grep -Eq '"(UpdateState)"[[:space:]]*:[[:space:]]*"needs-reboot"|"update-pending"'; then
+  # Read into a variable first: with pipefail, `fwupdmgr … | grep -q` can fail on SIGPIPE when the JSON is large.
+  fw_devs="$(fwupdmgr get-devices --json 2>/dev/null || true)"
+  if grep -Eq '"(UpdateState)"[[:space:]]*:[[:space:]]*"needs-reboot"|"update-pending"' <<<"$fw_devs"; then
     echo "reboot-required"
   fi
   echo "done"

@@ -153,7 +153,7 @@ try {
   check('card: real icon shown when a source has one', await page.locator(`${W} .st-section[data-row=featured] .st-card[data-key="org.mozilla.firefox"] img.st-icon`).count(), 1);
   check('home: per-category rows', await page.locator(`${W} .st-section[data-category]`).evaluateAll((els) => els.map((e) => e.dataset.category)), (v) => ['Game', 'Graphics', 'Office', 'Science'].every((c) => v.includes(c)));
   check('home: command-line tools row', await page.locator(`${W} .st-section[data-row=tools] .st-card`).count(), (n) => n > 0);
-  check('nav: Home, Categories, Installed, Sources + categories', await page.locator(`${W} .st-nav-item`).evaluateAll((els) => els.map((e) => e.dataset.nav).slice(0, 4)), ['home', 'categories', 'installed', 'sources']);
+  check('nav: Home, Categories, Installed, Updates, Sources + categories', await page.locator(`${W} .st-nav-item`).evaluateAll((els) => els.map((e) => e.dataset.nav).slice(0, 5)), ['home', 'categories', 'installed', 'updates', 'sources']);
   check('nav: installed count badge (5 simulated)', (await page.locator(`${W} [data-nav=installed] .st-count`).innerText()).trim(), '5');
   check('home: no null/undefined text', await page.locator(W).innerText(), (v) => !/\bundefined\b|\bnull\b|NaN/.test(v));
   await s.shot('store-home-en');
@@ -363,7 +363,7 @@ try {
   });
   await page.click(`${W} [data-nav=sources]`);
   await page.waitForSelector(`${W} .st-src`);
-  check('FR: Sources page in French', await page.locator(`${W} .st-page`).innerText(), (v) => /Archive Ubuntu/.test(v) && /Dernière actualisation/.test(v) && /Actualiser/.test(v) && /Prêt · 16 applications/.test(v));
+  check('FR: Sources page in French', await page.locator(`${W} .st-page`).innerText(), (v) => /Archive Ubuntu/.test(v) && /Dernière actualisation/.test(v) && /Actualiser/.test(v) && /Prêt · 17 applications/.test(v));
 } catch (e) {
   failures.push(`FR run crashed: ${e.stack || e.message}`);
 } finally {
@@ -430,13 +430,13 @@ if (REAL_SOURCES) {
       await page.click(`${W} .st-install`);
       await page.waitForSelector(`${W} .st-actions .st-cancel`, { timeout: 8000 });
       await until(async () => Number(await page.locator(`${W} .st-actions .st-progress`).getAttribute('aria-valuenow')) >= 20, { timeout: 8000, every: 50 });
-      check(`cancel ${theme}: « Annuler » next to the progress`, [(await page.locator(`${W} .st-cancel`).innerText()).trim(), await page.locator(`${W} .st-cancel`).getAttribute('aria-label')], ['Annuler', "Annuler l'installation de Firefox"]);
+      check(`cancel ${theme}: « Annuler » next to the progress`, [(await page.locator(`${W} .st-cancel`).innerText()).trim(), await page.locator(`${W} .st-cancel`).getAttribute('aria-label')], ['Annuler', "Annuler l'installation (Firefox)"]);
       check(`cancel ${theme}: backend reports the cancelable operation`, (await inv('store:current')).op, (o) => o && o.id === 'org.mozilla.firefox' && o.cancelable === true && o.canceling === false);
       await s.shot(`store-cancel-fr-${theme}`);
       await page.click(`${W} .st-cancel`);
       check(`cancel ${theme}: button disabled, « Annulation en cours… »`, [await page.locator(`${W} .st-cancel`).isDisabled().catch(() => null), await page.locator(`${W} .st-step`).innerText().catch(() => '')], [true, 'Annulation en cours…']);
       await page.waitForSelector(`${W} .st-canceled`, { timeout: 10000 });
-      check(`cancel ${theme}: calm notice, no error`, [await page.locator(`${W} .st-canceled`).innerText(), await page.locator(`${W} .st-error`).count()], (v) => /L'installation de Firefox a été annulée\. Rien n'a été modifié\./.test(v[0]) && v[1] === 0);
+      check(`cancel ${theme}: calm notice, no error`, [await page.locator(`${W} .st-canceled`).innerText(), await page.locator(`${W} .st-error`).count()], (v) => /Firefox : installation annulée\. Rien n'a été modifié\./.test(v[0]) && v[1] === 0);
       check(`cancel ${theme}: Install offered again, not installed`, [await page.locator(`${W} .st-install`).count(), await page.locator(`${W} .st-detail-head .st-chip.ok`).count(), (await inv('store:installedAll')).items.some((e) => e.key === 'org.mozilla.firefox')], [1, 0, false]);
       check(`cancel ${theme}: state cleared (window + backend)`, [await page.evaluate(() => window.__aurora.registry.instance(window.__aurora.wm.byApp('store')[0].id).hooks.state.op), (await inv('store:current')).op], [null, null]);
       check(`cancel ${theme}: no « Installation… » chip left on the home cards`, await page.evaluate(() => document.querySelectorAll('.app-store .st-chip.busy').length), 0);
@@ -517,7 +517,7 @@ if (REAL_SOURCES) {
         await s.shot('store-updates-progress-fr-dark');
         await page.click(`${W} .st-upd-row[data-id="org.inkscape.Inkscape"] .st-cancel`);
         await page.waitForSelector(`${W} .st-upd-row[data-id="org.inkscape.Inkscape"] .st-canceled`, { timeout: 10000 });
-        check('update one: cancelled calmly, version unchanged, still listed', [await page.locator(`${W} .st-upd-row[data-id="org.inkscape.Inkscape"] .st-canceled`).innerText(), (await inv('store:updates')).count], (v) => /La mise à jour de Inkscape a été annulée\. La version installée reste inchangée\./.test(v[0]) && v[1] === 3);
+        check('update one: cancelled calmly, version unchanged, still listed', [await page.locator(`${W} .st-upd-row[data-id="org.inkscape.Inkscape"] .st-canceled`).innerText(), (await inv('store:updates')).count], (v) => /Inkscape : mise à jour annulée\. La version installée reste inchangée\./.test(v[0]) && v[1] === 3);
         await page.click(`${W} .st-upd-row[data-id="org.inkscape.Inkscape"] .st-update`);
         await until(async () => (await inv('store:updates')).count === 2, { timeout: 15000 });
         await until(async () => (await page.locator(`${W} [data-nav=updates] .st-upd-count`).innerText().catch(() => '')).trim() === '2');
