@@ -22,7 +22,7 @@ light and dark themes, and a Playwright test in `shell/test/<id>.test.mjs`.
 All seven are built and independently verified, each with its own test suite (`shell/test/<id>.test.mjs`;
 Calendar and Notes also have `*.unit.mjs`).
 
-## Phase 2 — Media and productivity (waits for the user's go)
+## Phase 2 — Media and productivity (in progress, 2026-10-13; Video Editor dropped by the user: DaVinci Resolve and the Flathub editors cover it)
 
 | App | id (planned) | Notes for later |
 |---|---|---|
@@ -30,7 +30,6 @@ Calendar and Notes also have `*.unit.mjs`).
 | Voice Recorder | `recorder` | MediaRecorder (Opus/WebM), waveform, trim, markers; saves to ~/Documents/Sound recordings |
 | Screen Recorder | `screenrec` | `desktopCapturer` / shell capture stream → WebM; could live inside Snipping Tool as "Record" mode |
 | Music | `music` | Could extend the Media Player library (albums/artists views, lyrics) or be a separate music app |
-| Video Editor | `videoeditor` | Timeline (trim, split, text, transitions) → export via WebCodecs/MediaRecorder or ffmpeg in the image |
 | Code Editor | `code` | Monaco or CodeMirror (new npm dependency), file tree, tabs, terminal panel (reuse pty backend), git status |
 
 ## Phase 3 — System and connectivity (done, 2026-10-11)

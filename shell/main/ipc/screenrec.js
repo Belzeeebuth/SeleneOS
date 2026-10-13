@@ -1,6 +1,8 @@
 'use strict';
 // Screen recorder backend (apps/screenrec): the screen to capture, and the WebM file written while recording.
-//   screenrec:source()                 -> { id, name } | null   the primary screen, for getUserMedia({ video: { mandatory:
+//   screenrec:source()                 -> { id, name, display, content, zoom } | null   the primary screen (display:
+//                                         its bounds in DIP; content: the shell page's bounds; zoom: the page zoom), for
+//                                         getUserMedia({ video: { mandatory:
 //                                         { chromeMediaSource: 'desktop', chromeMediaSourceId: id } } }).
 //                                         desktopCapturer is asked for screens ALONE (a window lookup at the same time
 //                                         makes X11 return no screen, see main/ipc/browser.js), retried once.
@@ -63,7 +65,19 @@ module.exports = function register(api) {
       primary = String(require('electron').screen.getPrimaryDisplay().id);
     } catch {}
     const src = list.find((s) => s.display_id && s.display_id === primary) || list[0];
-    return { id: src.id, name: String(src.name || '') };
+    // where the shell page sits on that screen (DIP), to map CSS px to pixels of the capture
+    const geo = { display: null, content: null, zoom: 1 };
+    try {
+      const { screen } = require('electron');
+      const d = screen.getAllDisplays().find((x) => String(x.id) === String(src.display_id)) || screen.getPrimaryDisplay();
+      geo.display = { ...d.bounds };
+      const w = api.getMainWindow();
+      if (w && !w.isDestroyed()) {
+        geo.content = w.getContentBounds();
+        geo.zoom = w.webContents.getZoomFactor() || 1;
+      }
+    } catch {}
+    return { id: src.id, name: String(src.name || ''), ...geo };
   });
 
   api.handle('screenrec:tools', () => ({ ffmpeg: !!which('ffmpeg') }));

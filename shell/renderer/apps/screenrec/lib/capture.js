@@ -154,10 +154,12 @@ export class Recording {
     const warnings = [];
     const src = await this.api.invoke('screenrec:source').catch(() => null);
     if (!src) throw Object.assign(new Error('no screen'), { code: 'ENOSCREEN' });
+    this.geo = src;
     const dpr = window.devicePixelRatio || 1;
+    const zoom = src.zoom || 1;
     // the screen at its own resolution (min = max: Chromium would otherwise scale the capture down under load)
-    const sw = Math.round(window.screen.width * dpr);
-    const sh = Math.round(window.screen.height * dpr);
+    const sw = Math.round((src.display?.width || window.screen.width) * (dpr / zoom));
+    const sh = Math.round((src.display?.height || window.screen.height) * (dpr / zoom));
     const video = {
       mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: src.id, minWidth: sw, maxWidth: sw, minHeight: sh, maxHeight: sh, maxFrameRate: 30 },
     };
@@ -225,17 +227,19 @@ export class Recording {
 
   /** The area in pixels of the screen picture as it is now: { x, y, width, height, sx, sy, ox, oy }. */
   measure() {
+    // CSS px -> DIP on the screen: content origin + px × page zoom; DIP -> capture px: video size / display size
     const v = this.video;
-    const sx = v.videoWidth / window.screen.width;
-    const sy = v.videoHeight / window.screen.height;
-    const ox = window.screenX || 0;
-    const oy = window.screenY || 0;
+    const g = this.geo || {};
+    const disp = g.display || { x: 0, y: 0, width: window.screen.width, height: window.screen.height };
+    const cont = g.content || { x: disp.x + (window.screenX || 0), y: disp.y + (window.screenY || 0) };
+    const zoom = g.zoom || 1;
+    const kx = v.videoWidth / disp.width;
+    const ky = v.videoHeight / disp.height;
     const r = this.rect;
-    const x = Math.max(0, Math.round((r.x + ox) * sx));
-    const y = Math.max(0, Math.round((r.y + oy) * sy));
-    const width = Math.max(2, Math.min(v.videoWidth - x, Math.round(r.width * sx)));
-    const height = Math.max(2, Math.min(v.videoHeight - y, Math.round(r.height * sy)));
-    this.scale = { sx, sy, ox, oy };
+    const x = Math.max(0, Math.round((cont.x - disp.x + r.x * zoom) * kx));
+    const y = Math.max(0, Math.round((cont.y - disp.y + r.y * zoom) * ky));
+    const width = Math.max(2, Math.min(v.videoWidth - x, Math.round(r.width * zoom * kx)));
+    const height = Math.max(2, Math.min(v.videoHeight - y, Math.round(r.height * zoom * ky)));
     return { x, y, width, height };
   }
 

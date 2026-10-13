@@ -179,7 +179,13 @@ export const registry = {
       const existing = wm.byApp(id).find((w) => !w._closing);
       if (existing) {
         existing.focus();
-        const inst = instances.get(existing.id);
+        let inst = instances.get(existing.id);
+        // The window is up but its app is still starting (launch() has not returned): wait for it, or the
+        // relaunch (a second file opened right after the first) would be dropped.
+        if (!inst && pendingLaunches.has(id)) {
+          await pendingLaunches.get(id);
+          inst = instances.get(existing.id);
+        }
         try {
           inst?.hooks?.onRelaunch?.(args);
         } catch (err) {

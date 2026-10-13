@@ -16,6 +16,7 @@
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
+const os = require('node:os');
 const { pipeline } = require('node:stream/promises');
 
 // ------------------------------------------------------------------ EBML (WebM) helpers
@@ -150,6 +151,9 @@ function register(api) {
   api.handle('camera:begin', async (finalPath) => {
     const p = String(finalPath || '');
     if (!path.isAbsolute(p) || !/\.webm$/i.test(p) || /\0/.test(p)) throw api.error('Invalid recording path', 'EINVAL');
+    // recordings only go inside the home folder (the Camera Roll), like screenrec:open
+    const home = path.resolve(os.homedir());
+    if (!path.resolve(p).startsWith(home + path.sep)) throw api.error('The folder must be in your home folder', 'EPERM');
     await fsp.mkdir(path.dirname(p), { recursive: true });
     const part = path.join(path.dirname(p), `.${path.basename(p)}.part`);
     const fd = await fsp.open(part, 'w');

@@ -139,6 +139,8 @@ check('truncated head -> null', patchWebmDuration(Buffer.concat([EBML, idBytes(0
 const handlers = {};
 camera({ handle: (ch, fn) => (handlers[ch] = fn), error: (m, c) => Object.assign(new Error(m), { code: c }) });
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'camera-unit-'));
+const realHome = process.env.HOME;
+process.env.HOME = dir; // camera:begin only writes inside the home folder
 try {
   const target = path.join(dir, 'Pellicule', 'Vidéo 2026-10-13 10.00.00.webm');
   const { id } = await handlers['camera:begin'](target);
@@ -167,7 +169,14 @@ try {
   err = null;
   await handlers['camera:begin'](path.join(dir, 'x.sh')).catch((e) => (err = e.code));
   check('non-.webm path refused', err, 'EINVAL');
+  err = null;
+  await handlers['camera:begin']('/etc/x.webm').catch((e) => (err = e.code));
+  check('path outside the home folder refused', err, 'EPERM');
+  err = null;
+  await handlers['camera:begin'](path.join(dir, '..', 'escape.webm')).catch((e) => (err = e.code));
+  check('.. escaping the home folder refused', err, 'EPERM');
 } finally {
+  process.env.HOME = realHome;
   fs.rmSync(dir, { recursive: true, force: true });
 }
 

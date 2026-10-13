@@ -77,7 +77,6 @@ const APPS = {
   terminal: ['bold:terminal', 'sage'],
   todo: ['check-circle', 'blue'],
   translate: ['bold:translate', 'teal'],
-  videoeditor: ['film-slate', 'amber'], // Éditeur vidéo: a clapperboard
   weather: ['cloud-sun', 'amber'],
   winver: ['@logo', 'silver'],
 };

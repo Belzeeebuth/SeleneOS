@@ -385,7 +385,6 @@ HALO.translate = haloSvg(
     '<path d="M17.5 48.5l7.5-18 7.5 18M20.3 42h9.4" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>',
 );
 // Éditeur vidéo: a clapperboard as a free shape, sky blue to violet
-HALO.videoeditor = haloSvg(lg('g', [[0, '#8FD8FF'], [0.5, '#7A7CFF'], [1, '#6A2FD6']], 0, 0, 1, 1) + GLOSS_DEF + SHEEN_DEF, shape(G('film-slate'), 2, 2, 60, 'g'));
 HALO.weather = haloSvg(
   rg('sun', [[0, '#FFF3B0'], [0.55, '#FFC23D'], [1, '#FF8A1F']], 0.4, 0.35, 0.7) + lg('c', [[0, '#FFFFFF'], [1, '#C9DAF7']]) + GLOSS_DEF,
   '<circle cx="24" cy="24" r="17" fill="url(#sun)"/>' +
@@ -526,7 +525,6 @@ const PRISME_APPS = {
   screenrec: ['#FF8A7A', '#D9264F', 'record'],
   camera: ['#FF8EC7', '#6A3BE6', 'camera'],
   music: ['#FF9ACB', '#B8329A', 'music-notes'],
-  videoeditor: ['#9AA8FF', '#6A2FD6', 'film-slate'],
   // games (play): one hue each, from the same warm-to-violet arc
   chess: ['#C6A6FF', '#6A36DE', 'horse'],
   solitaire: ['#FF8FB3', '#D42D62', 'spade'],
