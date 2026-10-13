@@ -1,19 +1,23 @@
-// critic one-off: Lanceur search shots (Halo dark + light, FR) — deleted after use
+// critic one-off: last-recording card after the CSS fix (Halo dark + light, FR) — deleted after use
+import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { launchShell } from './lib.mjs';
 const OUTDIR = process.argv[2];
 for (const theme of ['dark', 'light']) {
-  const s = await launchShell({ lang: 'fr', theme, size: '1280x720' });
+  const s = await launchShell({ open: ['screenrec'], lang: 'fr', theme, size: '1280x720' });
   try {
-    await s.aurora(() => window.__aurora.shell.emit('start:open'));
-    await s.page.waitForSelector('#start .start-search', { timeout: 10000 });
-    await s.page.fill('#start .start-search', 'enregistr');
-    await s.page.waitForTimeout(900);
-    await s.page.screenshot({ path: `${OUTDIR}/lanceur-search-${theme}.png` });
-    await s.page.fill('#start .start-search', 'capture');
-    await s.page.waitForTimeout(900);
-    await s.page.screenshot({ path: `${OUTDIR}/lanceur-capture-${theme}.png` });
-    const txt = await s.page.evaluate(() => document.querySelector('#start').innerText.slice(0, 600));
-    console.log(theme, JSON.stringify(txt));
+    const dir = `${s.home}/Videos/Enregistrements d'écran`;
+    fs.mkdirSync(dir, { recursive: true });
+    const f = `${dir}/Enregistrement d'écran 2026-10-13 17.01.05.webm`;
+    execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=10', '-t', '2', '-c:v', 'libvpx', f]);
+    await s.page.waitForSelector('.win.app-screenrec.sr-ready .sr-start', { timeout: 10000 });
+    await s.page.evaluate((p) => {
+      const app = document.querySelector('.win.app-screenrec').__screenrec.app;
+      app.last = { path: p, size: 275000, duration: 4, format: 'webm' };
+      app.renderLast();
+    }, f);
+    await s.page.waitForTimeout(800);
+    await s.page.screenshot({ path: `${OUTDIR}/card-${theme}.png` });
   } finally {
     await s.close();
   }

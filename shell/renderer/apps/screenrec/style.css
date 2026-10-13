@@ -139,7 +139,7 @@
   border-radius: var(--radius);
 }
 .app-screenrec .sr-last-thumb {
-  grid-row: 1 / span 2;
+  grid-row: 1;
   width: 96px;
   height: 54px;
   object-fit: cover;
@@ -159,7 +159,9 @@
   font-variant-numeric: tabular-nums;
 }
 .app-screenrec .sr-last-actions {
+  grid-column: 1 / -1;
   display: flex;
+  justify-content: flex-end;
   gap: var(--sp-2);
   flex-wrap: wrap;
 }
