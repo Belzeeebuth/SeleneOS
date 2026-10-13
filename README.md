@@ -24,6 +24,9 @@ Everything is available in **English and French**, dark by default, with a light
   snapping and the light/dark theme; installed programs appear in the Launcher and search ([docs/XWINDOWS.md](docs/XWINDOWS.md))
 - Login screen and lock screen with PAM authentication, "Administrator permission" prompts for admin
   actions, firewall (ufw) enabled by default
+- Bluetooth pairing (headsets, mice, keyboards, phones, gamepads), printers (driverless IPP Everywhere) with a print
+  dialog in the apps, app and firmware updates (Flathub, fwupd), Orca screen reader (Super+Alt+S)
+- Optional NVIDIA driver and gaming apps (Steam, Heroic, Lutris…) offered by the installer
 
 **Personalization** (details in [docs/PERSONALIZATION.md](docs/PERSONALIZATION.md))
 - Theme designer: style, ambiance, accent color, wallpaper, lock screen, bar color, window transparency and blur intensity;
@@ -58,21 +61,21 @@ Everything is available in **English and French**, dark by default, with a light
 | Tasks | Lists, My Day, reminders, due dates, repeats and steps |
 | Screenshot | Rectangle/window/full-screen/free-form captures, markup, save and copy |
 | System Monitor | Processes with heat map, live performance graphs, users, details, services |
-| Settings | System, network, personalization, apps, accounts, time & language, accessibility, privacy & security, updates |
+| Settings | System, network, Bluetooth, printers, personalization, apps, accounts, time & language, accessibility (screen reader), privacy & security, updates (system and firmware), graphics drivers |
 | Weather | Current conditions, 24-hour and 7-day forecasts, saved places; sets the dynamic wallpaper location |
 | Maps | OpenStreetMap maps, place search, saved places |
 | Contacts | People, e-mails, phones, addresses, birthdays, vCard import/export; suggestions in Mail |
 | Memos | Colourful notes that can stay on top, saved as you type, copy to Notes |
 | Translator | Seven languages (MyMemory or your LibreTranslate server), English dictionary, offline EN↔FR glossary |
 | Remote Desktop | VNC client (RDP later) |
-| Software | The whole Flathub catalogue (Firefox, Spotify, Discord, Steam, Blender…) and every desktop app of the Ubuntu archive, with icons, search, categories and screenshots; plus curated tools and services ([docs/STORE-SOURCES.md](docs/STORE-SOURCES.md)) |
+| Software | The whole Flathub catalogue (Firefox, Chromium, Spotify, Discord, Steam, Blender…) with an Updates view and every desktop app of the Ubuntu archive, with icons, search, categories and screenshots; plus curated tools and services ([docs/STORE-SOURCES.md](docs/STORE-SOURCES.md)) |
 | Disks | Drives and partitions, mount and eject, format USB sticks and SD cards |
 | Backup | Incremental snapshots of your folders to a drive; browse and restore |
 | Passwords | Encrypted password vault with a generator |
 | Cloud | Nextcloud / WebDAV files: browse, upload, download |
 | Network tools | VPN and WireGuard connections, ping, DNS lookup |
 | Games | Minesweeper, Solitaire, Snake, 2048, Chess (with a computer opponent) |
-| Installer | Language, keyboard, disk, account, time zone |
+| Installer | Language, keyboard, disk, account, time zone, NVIDIA driver, gaming apps |
 
 ## Quick start
 

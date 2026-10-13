@@ -44,6 +44,7 @@ A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a W
 | Themes Halo / Prisme / Sobre (user request, 2026-10-12) | **done** — mockups in docs/design/mockups-mix/{halo,prisme}; setting `finish` (core/finishes.js), wallpaper-tinted Mica-like glass (pre-blurred wallpaper behind windows, live blur only on bar / Lanceur / panels), icon packs halo / prisme (+ 'auto' follows the theme), wallpapers halo-* / prisme-* (light + dark); Sobre = the previous Selene look |
 | NVIDIA drivers (user request, 2026-10-12) | **done (untested on real hardware)** — iso/packages.d/drivers.list (ubuntu-drivers-common, mokutil, pciutils), shell/main/lib/gpu-drivers.js, installer « Pilote graphique » step + aurora-install --nvidia-driver (apt in the target, ubuntu-drivers install, never fails the install), session uses nvidia when loaded (aurora_gpu_mode / aurora-xstart), Paramètres > Pilotes graphiques (main/ipc/drivers.js, aurora-admin drivers-install / drivers-remove) |
 | Gaming apps option (user request, 2026-10-13) | **done** — installer « Jeux » step (Steam, Heroic, Lutris, ProtonUp-Qt checked; Bottles, Discord optional), aurora-install --gaming (allow-list) writes ~/.config/aurora/first-login/gaming.json, shell/main/ipc/firstlogin.js + core/features/gaming-setup.js install them per user from Flathub at the first sign-in (progress notification, offline retry, once only); gamemode in iso/packages.d/gaming.list |
+| System features (user request « occupe toi du 2. », 2026-10-13) | **done (untested on real hardware)** — Bluetooth: iso/packages.d/bluetooth.list (bluez, libspa-0.2-bluetooth), helpers/aurora-bluetooth (python, BlueZ D-Bus, pairing agent, no root), main/ipc/bluetooth.js, Paramètres > Bluetooth et appareils (pages/bluetooth.js), Réglages rapides tile, visible to phones while the page is open; Printing: iso/packages.d/printing.list (cups, cups-filters, ipp-usb, avahi + libnss-mdns, driverless IPP Everywhere), main/lib/cups.js + main/ipc/printers.js, aurora-admin printer-* actions, Paramètres > Imprimantes et scanners (pages/printers.js); print dialog core/print.js + main/ipc/print.js (qpdf / poppler-utils, iso/packages.d/printdialog.list) in Éditeur de texte, Lecteur PDF, Photos, Navigateur, Notes; Updates: Logithèque « Mises à jour » (Flathub app updates, badge, all / per app, « Annuler », check 2 min after sign-in then daily), install « Annuler » (process group, rollback, honest partial notice), Paramètres > Mises à jour « Microprogrammes » (fwupd, main/ipc/firmware.js, aurora-admin firmware-update, iso/packages.d/firmware-updates.list), Chromium in « À la une »; Screen reader: iso/packages.d/screen-reader.list (orca, speech-dispatcher, espeak-ng), main/ipc/screenreader.js, Accessibilité « Lecteur d'écran » + Super+Alt+S, Chromium accessibility on while Orca runs |
 | App phase 2 | not started — wait for the user's go; run it like phases 3–4 (one workflow per app, all in parallel) |
 
 ### App / area status (every area has its own test suite in shell/test/)
@@ -157,8 +158,18 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
   Store installs use --no-install-recommends (LibreOffice without libreoffice-gtk3 uses its plain X11 look).
 - Store sources (first version): Flathub could not be reached from the build container (proxy 403), so Flathub was
   developed against a fixture catalogue; the real `flatpak remote-add/update --appstream/install` runs only in the VM.
-  No Updates page yet, no install cancel, Flatpak runtimes are big (live session keeps them in RAM).
+  Flatpak runtimes are big (live session keeps them in RAM). Updates view and install cancel added 2026-10-13.
 - Build host leftovers: empty /cdrom and /usr/lib/aurora (harmless).
+- System features (2026-10-13) were built against fixtures and fake binaries (no adapter, printer, firmware device or
+  sound card in the build container). To check on real hardware: Bluetooth pairing (phone, headset with A2DP / HFP in
+  Son, mouse, keyboard passkey, gamepad), rfkill blocks; a real IPP Everywhere printer (discovery, add, test page, ink
+  levels, lp -o options, landscape rotation of the print dialog's PDF); fwupd JSON from a real daemon, whether
+  `fwupdmgr refresh` needs polkit, a UEFI capsule update with Secure Boot; real `flatpak remote-ls --updates` / update
+  progress / cancel; Orca speech in French, hot-enabling Chromium accessibility, GTK / Qt apps read by Orca.
+  Small leftovers: printer-add retry after « already exists » asks for the admin password twice; the screen reader
+  toast briefly shows a notification badge; ui.toggle switches are announced as checkboxes (no role="switch"); no
+  desktop notification for new app updates (badge only); « Tout mettre à jour » stops if the Logithèque is closed;
+  no screen reader on the login screen; scanners not supported.
 
 ## Next steps (exact)
 
