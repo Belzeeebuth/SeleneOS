@@ -7,8 +7,9 @@
 // rewrites, and a logind drop-in directory (AURORA_LOGIND_DIR) for the simulated aurora-admin power-lid.
 // Screenshots (1280x720, FR, Halo dark + light): test/out/inputpower-*.png
 // Idle inhibitors: the shell on a PRIVATE dbus-daemon with the real session-bus helper and the fake app of
-// test/sessionbus.test.mjs (a film in VLC / Firefox): no screen off, lock or idle sleep while it is held; released ->
-// the delays apply again; the 3 % countdown still sleeps (skipped without python3-dbus / dbus-daemon).
+// test/sessionbus.test.mjs: a film in VLC (ScreenSaver.Inhibit) -> no screen off, lock or idle sleep while it is held,
+// released -> the delays apply again; music (PowerManagement.Inhibit) -> the screen turns off but no idle sleep; the
+// 3 % countdown still sleeps (skipped without python3-dbus / dbus-daemon).
 import { launchShell } from './lib.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -285,9 +286,10 @@ for (const theme of ['dark', 'light']) {
       const vlc = fakeApp();
       await waitFor(() => vlc.lines.includes('READY'), 8000);
       vlc.send({ cmd: 'inhibit', kind: 'screen', app: 'VLC', reason: 'Lecture d’une vidéo' });
-      check(await waitFor(() => pw(() => window.__aurora.power.inhibitors.count === 1), 6000), 'a film in VLC (ScreenSaver.Inhibit) reaches the shell: 1 inhibitor');
-      const named = await pw(() => window.__aurora.power.inhibitors);
-      check(JSON.stringify(named.apps) === '["VLC"]', `the inhibitor is named after its app (VLC) (${JSON.stringify(named)})`);
+      // (the shell's own Electron may hold a short 'power' one of its own: Chromium's audio wake lock for UI sounds)
+      const vlcHeld = () => pw(() => (window.__aurora.power.inhibitors.list || []).some((i) => i.app === 'VLC' && i.kind === 'screen'));
+      check(await waitFor(vlcHeld, 6000), 'a film in VLC (ScreenSaver.Inhibit) reaches the shell as a « screen » inhibitor');
+      check((await pw(() => window.__aurora.power.inhibitors.apps)).includes('VLC'), 'the inhibitor is named after its app (VLC)');
       setBat(80, 'Discharging', 0);
       fs.writeFileSync(path.join(ST, 'log'), '');
       await pw(() => {
@@ -306,15 +308,29 @@ for (const theme of ['dark', 'light']) {
       check(await waitFor(async () => (await pw(() => window.__aurora.power.lastActivity)) > before + 20, 5000), 'SimulateUserActivity -> the idle timer starts again');
       // released (the app quits without UnInhibit): the delays apply again
       vlc.quit();
-      check(await waitFor(() => pw(() => window.__aurora.power.inhibitors.count === 0), 6000), 'VLC leaves the bus -> its inhibitor is released');
+      check(await waitFor(async () => !(await vlcHeld()), 6000), 'VLC leaves the bus -> its inhibitor is released');
       await tickFor(4500);
       check(await waitFor(() => /xset dpms force off/.test(log()), 4000), 'no inhibitor any more -> the screen turns off after the delay');
       check(await waitFor(() => pw(() => !!window.__aurora.lockScreen?.locked), 4000), 'and the session locks');
-      // battery safety first: the 3 % countdown still sleeps while a film plays
+      // music (PowerManagement.Inhibit): the screen turns off, the computer does not sleep until it stops
       const ff = fakeApp();
       await waitFor(() => ff.lines.includes('READY'), 8000);
-      ff.send({ cmd: 'inhibit', kind: 'power', app: 'Firefox', reason: 'video-playing' });
-      check(await waitFor(() => pw(() => window.__aurora.power.inhibitors.count === 1), 6000), 'PowerManagement.Inhibit (Firefox) counts too');
+      ff.send({ cmd: 'inhibit', kind: 'power', app: 'Firefox', reason: 'audio-playing' });
+      check(await waitFor(() => pw(() => (window.__aurora.power.inhibitors.list || []).some((i) => i.app === 'Firefox' && i.kind === 'power')), 6000), 'PowerManagement.Inhibit (music in Firefox) reaches the shell as a « power » inhibitor');
+      const st0 = await pw(() => ({ off: window.__aurora.power.state.screenOffCount, sleep: window.__aurora.power.state.sleepCount }));
+      await pw(() => window.dispatchEvent(new PointerEvent('pointermove'))); // someone moves the mouse, then leaves
+      await tickFor(7000);
+      const st1 = await pw(() => ({ off: window.__aurora.power.state.screenOffCount, sleep: window.__aurora.power.state.sleepCount }));
+      check(st1.off > st0.off && st1.sleep === st0.sleep, `music: the screen turns off after 3 s, no idle sleep after 7 s with a 4.8 s delay (${JSON.stringify([st0, st1])})`);
+      const ffCookie = ff.lines.find((l) => l?.inhibited)?.inhibited;
+      ff.send({ cmd: 'uninhibit', kind: 'power', cookie: ffCookie });
+      await waitFor(() => pw(() => !(window.__aurora.power.inhibitors.list || []).some((i) => i.app === 'Firefox')), 6000);
+      await tickFor(1500);
+      check(await waitFor(() => pw((n) => window.__aurora.power.state.sleepCount > n, st0.sleep), 6000), 'music stopped (UnInhibit) -> idle sleep');
+      // battery safety first: the 3 % countdown still sleeps while a film and music play
+      ff.send({ cmd: 'inhibit', kind: 'power', app: 'Firefox', reason: 'audio-playing' });
+      ff.send({ cmd: 'inhibit', kind: 'screen', app: 'Firefox', reason: 'video-playing' });
+      check(await waitFor(() => pw(() => (window.__aurora.power.inhibitors.list || []).filter((i) => i.app === 'Firefox').length === 2), 6000), 'Firefox holds both kinds');
       await pw(() => {
         window.__aurora.settings.set('power', { screenOffBattery: 0, screenOffAc: 0, sleepBattery: 0, sleepAc: 0, lockOnScreenOff: false });
         window.__aurora.power.countdownSec = 2;

@@ -15,7 +15,10 @@ write_os_release() {
     echo "NAME=\"$OS_NAME\""
     grep -E '^VERSION_ID=' "$src"
     echo "VERSION=\"$SELENE_VERSION (based on Ubuntu $base)\""
-    grep -E '^(VERSION_CODENAME|ID|ID_LIKE|HOME_URL|SUPPORT_URL|BUG_REPORT_URL|PRIVACY_POLICY_URL|UBUNTU_CODENAME)=' "$src"
+    grep -E '^(VERSION_CODENAME|ID|ID_LIKE|HOME_URL|PRIVACY_POLICY_URL|UBUNTU_CODENAME)=' "$src"
+    # Same as iso/build.sh write_os_identity: support and bug reports go to the Selene project.
+    echo 'SUPPORT_URL="https://github.com/Belzeeebuth/claudeai-test/issues"'
+    echo 'BUG_REPORT_URL="https://github.com/Belzeeebuth/claudeai-test/issues"'
     echo "LOGO=aurora-logo"
     echo "IMAGE_ID=aurora-os"
     echo "IMAGE_VERSION=$SELENE_VERSION"

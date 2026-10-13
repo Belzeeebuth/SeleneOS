@@ -293,11 +293,12 @@ export async function mount(ctx) {
   for (const ev of ACTIVITY_EVENTS) window.addEventListener(ev, bump, { capture: true, passive: true });
   api.on('shell:hotkey', bump); // keys typed in webviews (browser tabs) count too
   api.on('power:userActivity', bump); // org.freedesktop.ScreenSaver.SimulateUserActivity
-  // Idle inhibitors on the session bus (a film in Firefox / VLC / the Navigateur, see main/ipc/sessionbus.js) count as
-  // activity, like media playing in the shell page.
+  // org.freedesktop.ScreenSaver inhibitors on the session bus (a film in Firefox / VLC / the Navigateur, see
+  // main/ipc/sessionbus.js) count as activity, like media playing in the shell page. PowerManagement ones (audio) only
+  // hold back idle sleep (features/power.js).
   let inhibited = 0;
   const setInhibitors = (st) => {
-    inhibited = Math.max(0, Number(st?.count) || 0);
+    inhibited = Array.isArray(st?.list) ? st.list.filter((i) => i.kind !== 'power').length : Math.max(0, Number(st?.count) || 0);
     if (inhibited) bump();
   };
   api.on('power:inhibitors', setInhibitors);

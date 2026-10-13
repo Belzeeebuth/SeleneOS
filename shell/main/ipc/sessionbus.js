@@ -16,7 +16,8 @@
 //   event    power:inhibitors ({ count, apps: [names], list: [{ cookie, app, reason, kind: 'screen'|'power' }] })
 //            power:userActivity ()                          SimulateUserActivity: the idle timers start again
 //   handler  power:inhibitors -> the same object
-//   core/features/power.js and lock.js treat count > 0 as activity (no screen off, lock or idle sleep). Chromium's own
+//   core/features/power.js and lock.js: a 'screen' one (ScreenSaver: video) is activity (no screen off, lock or idle
+//   sleep), a 'power' one (PowerManagement: audio) only holds back idle sleep. Chromium's own
 //   wake locks (videos in the shell's webviews, the Navigateur) go through the bus to the helper like any other app's;
 //   nothing in the shell calls Electron's powerSaveBlocker (it would reach the helper the same way).
 // Icons: names resolved in the icon theme (the item's IconThemePath first) -> media:// URLs; pixmaps -> PNG data URLs.

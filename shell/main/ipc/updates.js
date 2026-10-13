@@ -30,8 +30,13 @@ function parseSimulation(text) {
   return out;
 }
 
+// Selene's own packages (docs/UPDATES.md) count as one update, as in Paramètres > Mises à jour (lib/selene-updates.js).
+const SELENE_PACKAGES = ['aurora-shell', 'aurora-base', 'aurora-electron'];
+const updateCount = (packages) =>
+  packages.filter((p) => !SELENE_PACKAGES.includes(p.name)).length + (packages.some((p) => SELENE_PACKAGES.includes(p.name)) ? 1 : 0);
+
 const result = (packages, extra = {}) => ({
-  count: packages.length,
+  count: updateCount(packages),
   security: packages.filter((p) => p.security).length,
   packages: packages.slice(0, 200),
   checkedAt: Date.now(),

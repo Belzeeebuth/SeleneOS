@@ -12,9 +12,10 @@
 # 3. Idle inhibitors: owns org.freedesktop.ScreenSaver (/org/freedesktop/ScreenSaver and /ScreenSaver) and
 #    org.freedesktop.PowerManagement (/org/freedesktop/PowerManagement/Inhibit). Video players and browsers call
 #    Inhibit while they play (Firefox, VLC, Chromium / Electron wake locks — the shell's own webviews and the
-#    Navigateur included —, Flatpak apps through xdg-desktop-portal-gtk); the shell treats a held inhibitor as
-#    activity (no screen off, no lock, no idle sleep). Cookies belong to the D-Bus connection that took them and are
-#    dropped when it leaves the bus (an app that crashes mid-film does not keep the screen on forever).
+#    Navigateur included —, Flatpak apps through xdg-desktop-portal-gtk). ScreenSaver ones (kind "screen": video)
+#    count as activity in the shell (no screen off, lock or idle sleep); PowerManagement ones (kind "power": audio,
+#    Chromium's audio wake lock) only hold back idle sleep. Cookies belong to the D-Bus connection that took them and
+#    are dropped when it leaves the bus (an app that crashes mid-film does not keep the screen on forever).
 # Any name already owned by someone else: that part is off ("ready" says which, stderr logs it), the rest keeps working.
 #
 # Protocol: JSON lines.

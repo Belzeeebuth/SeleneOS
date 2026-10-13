@@ -195,8 +195,11 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
   installed system's GRUB / shim come from aurora-install (not changed here). The background check counts what the
   lists apt-daily refreshed (as root, daily): before the first refresh it shows nothing.
 
-- Selene self-updates (2026-10-13): ISOs built before this change (by an iso/build.sh started before ~14:00) fail
-  verify-iso's « Selene packages » checks: rebuild from the system stage. The Selene repository is not published yet:
+- Selene self-updates (2026-10-13): the system stage with the debs ran here (14:27, `--from system --until system`:
+  dpkg -i OK, validate_system / assert_clean_image OK, verify-iso's « Selene packages » block 20/20 on the layer, shell
+  108M / 42 npm packages as before) but the squashfs / ISO were NOT rebuilt (time box): out/*.iso predates the
+  packaging and fails that block with one line (« no Selene packages in the image »). Next image build:
+  `flock work/.build.lock iso/build.sh --from squashfs` (or --from system), then make verify-iso / smoke-image. The Selene repository is not published yet:
   until it is, installed systems see a 404 for selene.sources (aurora-admin falls back; `apt update` by hand and
   apt.systemd.daily report an error) — publish out/apt/ before shipping the image. To check on an installed system:
   a real update through Paramètres (download from the published repo, session restart into the new shell, AppArmor

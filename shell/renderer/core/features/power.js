@@ -5,11 +5,15 @@
 //   * Sleep after inactivity (sleepBattery / sleepAc, 0 = never; never on mains by default so VMs stay awake).
 //   * Battery: a notification at 10 % and 5 %; at 3 % while discharging, a 60 s countdown notification, then sleep
 //     (plugging in cancels it).
-// Playing audio / video counts as activity (like features/lock.js): <video>/<audio> in the shell page, and any idle
-// inhibitor held on the session bus (org.freedesktop.ScreenSaver / PowerManagement.Inhibit, owned by
-// main/ipc/sessionbus.js's helper: Firefox, VLC, Flatpak apps, Chromium wake locks of the webviews and the Navigateur).
-// While one is held: no screen off, no lock at screen off, no idle sleep. SimulateUserActivity restarts the delays.
-// The 3 % battery countdown is NOT held back by inhibitors (battery safety first).
+// Playing audio / video counts as activity (like features/lock.js): <video>/<audio> in the shell page, and idle
+// inhibitors held on the session bus (owned by main/ipc/sessionbus.js's helper; Firefox, VLC, Flatpak apps, Chromium
+// wake locks of the webviews and the Navigateur):
+//   * org.freedesktop.ScreenSaver.Inhibit (kind 'screen': a video playing) = activity: no screen off, no lock at screen
+//     off, no idle sleep; the delays start again when it is released.
+//   * org.freedesktop.PowerManagement.Inhibit (kind 'power': Chromium / VLC audio, downloads…) = no idle SLEEP while
+//     held, the screen still turns off (and locks). Chromium takes one for every audible sound, the shell's own
+//     sounds included: counting it as activity would let notification sounds keep the screen on.
+//   SimulateUserActivity restarts the delays. The 3 % battery countdown is NOT held back (battery safety first).
 // settings.power is not in the shell defaults: in dev mode (tests) nothing happens unless a test sets it, so long test
 // runs never blank or sleep.
 //   ctx.power = { config(), state, countdownSec, tick(), inhibitors, lastActivity }   (tests)
@@ -74,17 +78,19 @@ export function mount(ctx) {
   for (const ev of ACTIVITY_EVENTS) window.addEventListener(ev, bump, { capture: true, passive: true });
   api.on('shell:hotkey', bump);
   api.on('power:userActivity', bump);
-  let inhibitors = { count: 0, apps: [] };
+  let inhibitors = { count: 0, apps: [], list: [] };
+  // kind 'screen' | 'power' held right now (no list from an older backend: any inhibitor counts as 'screen')
+  const held = (kind) => (Array.isArray(inhibitors.list) ? inhibitors.list.some((i) => (i.kind === 'power' ? 'power' : 'screen') === kind) : kind === 'screen' && inhibitors.count > 0);
   const setInhibitors = (st) => {
-    inhibitors = st && typeof st === 'object' ? st : { count: 0, apps: [] };
-    if (inhibitors.count > 0) bump();
+    inhibitors = st && typeof st === 'object' ? st : { count: 0, apps: [], list: [] };
+    if (held('screen')) bump();
   };
   api.on('power:inhibitors', setInhibitors);
   api
     .invoke('power:inhibitors')
     .then(setInhibitors)
     .catch(() => {});
-  const mediaPlaying = () => inhibitors.count > 0 || [...document.querySelectorAll('video, audio')].some((m) => !m.paused && !m.ended && !m.muted);
+  const mediaPlaying = () => held('screen') || [...document.querySelectorAll('video, audio')].some((m) => !m.paused && !m.ended && !m.muted);
   let lastTick = Date.now();
   async function tick() {
     const cfg = config();
@@ -112,7 +118,7 @@ export function mount(ctx) {
       if (cfg.lockOnScreenOff && state.needsPassword && !ctx.lockScreen?.locked) shell.lock();
       api.invoke('power:screenOff').catch(() => {});
     }
-    if (sleepMin > 0 && idle >= sleepMin * 60 && !state.slept) {
+    if (sleepMin > 0 && idle >= sleepMin * 60 && !state.slept && !held('power')) {
       state.slept = true;
       state.sleepCount++;
       shell.suspend?.().catch?.(() => {});

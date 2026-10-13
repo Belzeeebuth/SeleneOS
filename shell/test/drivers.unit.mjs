@@ -132,7 +132,7 @@ const listed = (text, pkg) => bash('drivers_listed "$1"', text, pkg).status === 
   check(f.stdout === 'dlstatus:1:10.0000:Retrieving file 1 of 9\npmstatus:nvidia-utils-580:42.0000:Unpacking nvidia-utils-580\npmerror:x:1:failed\n' && /Reading package lists/.test(f.stderr) && /Setting up/.test(f.stderr), 'drivers_status_filter: APT status lines on stdout (progress bar), apt chatter on stderr');
   check(/ubuntu-drivers install "nvidia:\$\{pkg#nvidia-driver-\}"/.test(src) && gd.driverSpec('nvidia-driver-535-server-open') === 'nvidia:535-server-open', 'install goes through `ubuntu-drivers install nvidia:NNN[-flavour]` (Canonical-signed prebuilt modules)');
   const block = src.slice(src.indexOf('\ndrivers-install | drivers-remove)'));
-  const order = ['[[ $pkg =~ ^nvidia-driver-[0-9]{3}(-open|-server|-server-open)?$ ]]', 'apt-get -q --error-on=any -o DPkg::Lock::Timeout=120 update', 'drivers_listed "$pkg"', 'ubuntu-drivers install'].map((x) => block.indexOf(x));
+  const order = ['[[ $pkg =~ ^nvidia-driver-[0-9]{3}(-open|-server|-server-open)?$ ]]', 'apt_update --error-on=any', 'drivers_listed "$pkg"', 'ubuntu-drivers install'].map((x) => block.indexOf(x));
   check(order.every((i, k) => i > 0 && (k === 0 || i > order[k - 1])), 'helper order: strict name check, apt-get update, offered by ubuntu-drivers, then install');
   if (spawnSync('which', ['shellcheck']).status === 0) check(spawnSync('shellcheck', [HELPER]).status === 0, 'aurora-admin passes shellcheck');
   if (process.getuid?.() === 0) {
