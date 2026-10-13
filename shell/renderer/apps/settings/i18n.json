@@ -386,7 +386,7 @@
    "missing": "The screen reader (Orca) isn’t installed on this system.",
    "tipsTitle": "Getting started",
    "tipMove": "Use Tab and the arrow keys to move around: the screen reader tells you where you are.",
-   "tipOrca": "The Orca key is Insert. Insert + H starts Orca’s learn mode, Insert + S turns speech off for a moment."
+   "tipOrca": "The Orca key is Insert. Insert + H starts Orca’s learn mode, Insert + S turns speech off or back on."
   },
   "priv": {
    "overview": "Selene Security",
@@ -1820,7 +1820,7 @@
    "missing": "Le lecteur d’écran (Orca) n’est pas installé sur ce système.",
    "tipsTitle": "Pour bien commencer",
    "tipMove": "Utilisez Tab et les flèches pour vous déplacer : le lecteur d’écran vous dit où vous êtes.",
-   "tipOrca": "La touche Orca est Inser. Inser + H lance le mode d’apprentissage d’Orca, Inser + S coupe la voix un instant."
+   "tipOrca": "La touche Orca est Inser. Inser + H lance le mode d’apprentissage d’Orca, Inser + S coupe ou rétablit la voix."
   },
   "priv": {
    "overview": "Sécurité Selene",

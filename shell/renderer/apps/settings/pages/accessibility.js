@@ -78,7 +78,18 @@ async function screenReader(pc) {
   // voice: automatic (the display language) or one of speech-dispatcher's voices of that language
   const voices = await pc.api.invoke('screenreader:voices', lang).catch(() => []);
   const cur = typeof conf().voice === 'string' ? conf().voice : '';
-  const options = [{ value: '', label: `${t('sr.voiceAuto')} (${langName})` }, ...voices.map((v) => ({ value: v.name, label: v.name }))];
+  // speech-dispatcher names its voices in English (« French (Belgium) »): show them in the display language from
+  // their language code (« Français (Belgique) »), with the voice's own name only when two share one code
+  const voiceLabels = voices.map((v) => {
+    try {
+      const s = new Intl.DisplayNames([lang], { type: 'language', languageDisplay: 'standard' }).of(v.lang);
+      return s && s.toLowerCase() !== String(v.lang).toLowerCase() ? s.charAt(0).toLocaleUpperCase(lang) + s.slice(1) : v.name;
+    } catch {
+      return v.name;
+    }
+  });
+  const voiceLabel = (i) => (voiceLabels.filter((l) => l === voiceLabels[i]).length > 1 ? `${voiceLabels[i]} – ${voices[i].name}` : voiceLabels[i]);
+  const options = [{ value: '', label: `${t('sr.voiceAuto')} (${langName})` }, ...voices.map((v, i) => ({ value: v.name, label: voiceLabel(i) }))];
   if (cur && !voices.some((v) => v.name === cur)) options.push({ value: cur, label: cur });
   const voice = kit.combo({ options, value: cur, width: 220, label: t('sr.voice'), onChange: (v) => pc.settings.set('screenReader.voice', v) });
   const voiceRow = kit.row({ icon: 'speaker-high', title: t('sr.voice'), desc: t('sr.voiceDesc'), control: voice, section: 'voice' });

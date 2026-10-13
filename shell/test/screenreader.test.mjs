@@ -128,7 +128,7 @@ try {
 
   // voice, picked in the combo
   await page.locator('.st-screenreader [data-section="voice"] .st-combo').click();
-  await page.locator('.menu.st-combo-menu .menu-item', { hasText: 'French (Belgium)' }).click();
+  await page.locator('.menu.st-combo-menu .menu-item', { hasText: 'Français (Belgique)' }).click();
   check(
     await waitFor(() => {
       const f = prefs()?.profiles?.default?.voices?.default?.family;
