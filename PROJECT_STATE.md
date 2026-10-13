@@ -176,6 +176,23 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 
 ## Next steps (exact)
 
+0. Gap list (2026-10-13 afternoon, two verified sweeps; details in the session transcript), proposed order:
+   a. Real-PC readiness: linux-firmware in the release ISO (WITH_FIRMWARE=1, ~+600 MB; the placeholder Provides
+      linux-firmware), live ISO boots with Secure Boot (signed shim/GRUB in the EFI image), HWE kernel, libinput
+      tap-to-click, power (screen off, idle sleep, auto-lock default, low / critical battery, power-profiles-daemon),
+      unattended-upgrades + background apt check + autoremove of old kernels, systemd-oomd / earlyoom, shell renderer
+      crash / hang recovery (render-process-gone, unresponsive) + safe mode / settings backup.
+   b. Linux / Flatpak app integration: notification server (org.freedesktop.Notifications), system tray
+      (StatusNotifierItem / XEmbed), XDG autostart, default browser / xdg-open + mimeapps for Selene apps, an office
+      answer for .docx/.xlsx (LibreOffice or a Logithèque link), spell check (hunspell-fr / en), screen sharing in
+      Navigateur (setDisplayMediaRequestHandler).
+   c. Selene self-updates: aurora-* .debs (shell, electron, helpers / rootfs conffiles) + signed apt repo; Electron
+      security updates depend on it.
+   d. Later: multi-monitor, HiDPI for X apps, keyboard layouts switcher + IME, per-app volume + Bluetooth profiles,
+      network (static IP, proxy, 802.1X, hotspot, captive portal, OpenVPN), USB automount / MTP / SMB, keyring
+      (gnome-keyring + PAM), installer (dual boot, LUKS), recovery, accessibility (magnifier, OSK, sticky keys),
+      online accounts / CalDAV / Mail OAuth2, codecs / HEIC, CI, LICENSE for aurora-os, release notes + signed ISO.
+
 1. Wait for the user's QEMU feedback on the redesigned ISO. Open design question put to the user: the Éclipse bar
    (validated mockup: search field + labelled running apps) still reads like Windows 10 to the reviewers; offer to make
    it icon-only by default like the two other styles.
