@@ -7,7 +7,9 @@
 // the window crashes mid-way), and camera:finish writes the final file: the Segment Info element gets a Duration
 // (EBML float64, in TimecodeScale units), the rest of the file is copied as is.
 //
-//   camera:begin(path)            -> { id, path }   path: the final .webm path (the renderer picks a unique name)
+//   camera:begin(path)            -> { id, path }   path: the final .webm path (the renderer picks a unique name); its
+//                                   folder must be in $HOME once symlinks are resolved (main/lib/homepath.js), and
+//                                   the '.part' file is never written through a link
 //   camera:append(id, bytes)      -> bytes written so far (ArrayBuffer / Uint8Array); calls are serialized per id
 //   camera:finish(id, durationMs) -> { path, size, duration: bool }   (duration false: the file is kept without one)
 //   camera:abort(id)              -> true   (the partial file is removed)
@@ -16,8 +18,8 @@
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const os = require('node:os');
 const { pipeline } = require('node:stream/promises');
+const { realInsideHome } = require('../lib/homepath');
 
 // ------------------------------------------------------------------ EBML (WebM) helpers
 const ID_EBML = 0x1a45dfa3;
@@ -151,15 +153,20 @@ function register(api) {
   api.handle('camera:begin', async (finalPath) => {
     const p = String(finalPath || '');
     if (!path.isAbsolute(p) || !/\.webm$/i.test(p) || /\0/.test(p)) throw api.error('Invalid recording path', 'EINVAL');
-    // recordings only go inside the home folder (the Camera Roll), like screenrec:open
-    const home = path.resolve(os.homedir());
-    if (!path.resolve(p).startsWith(home + path.sep)) throw api.error('The folder must be in your home folder', 'EPERM');
-    await fsp.mkdir(path.dirname(p), { recursive: true });
-    const part = path.join(path.dirname(p), `.${path.basename(p)}.part`);
-    const fd = await fsp.open(part, 'w');
+    // recordings only go inside the home folder (the Camera Roll), like screenrec:open; links are resolved, so a
+    // link in $HOME cannot lead outside
+    const dir = await realInsideHome(path.dirname(path.resolve(p)), { allowHome: true });
+    if (!dir) throw api.error('The folder must be in your home folder', 'EPERM');
+    await fsp.mkdir(dir, { recursive: true });
+    const final = path.join(dir, path.basename(p));
+    const part = path.join(dir, `.${path.basename(p)}.part`);
+    const { O_WRONLY, O_CREAT, O_TRUNC, O_NOFOLLOW } = fs.constants;
+    const fd = await fsp.open(part, O_WRONLY | O_CREAT | O_TRUNC | (O_NOFOLLOW || 0)).catch((e) => {
+      throw e.code === 'ELOOP' ? api.error('Invalid recording path', 'EINVAL') : e;
+    });
     const id = `rec${++seq}`;
-    recs.set(id, { final: p, part, fd, written: 0, queue: Promise.resolve() });
-    return { id, path: p };
+    recs.set(id, { final, part, fd, written: 0, queue: Promise.resolve() });
+    return { id, path: final };
   });
 
   api.handle('camera:append', (id, data) => {
@@ -192,7 +199,8 @@ function register(api) {
     if (patched) {
       const tmp = `${r.part}.fix`;
       try {
-        const out = fs.createWriteStream(tmp);
+        await fsp.rm(tmp, { force: true }).catch(() => {}); // (a leftover or a link there: never written through)
+        const out = fs.createWriteStream(tmp, { flags: 'wx' });
         out.write(patched.head);
         await pipeline(fs.createReadStream(r.part, { start: patched.cut }), out);
         await fsp.rename(tmp, r.final);

@@ -441,7 +441,7 @@ export class MediaApp {
 
   _navKey() {
     const r = this.route.name;
-    if (r === 'album' || r === 'artist') return 'music';
+    if (r === 'album' || r === 'artist' || r === 'genre') return 'music';
     if (r === 'playlist') return `pl:${this.route.arg}`;
     return r;
   }
@@ -516,6 +516,7 @@ export class MediaApp {
       music: V.musicView,
       album: V.albumView,
       artist: V.artistView,
+      genre: V.genreView,
       videos: V.videosView,
       queue: V.queueView,
       playlists: V.playlistsView,
@@ -598,6 +599,9 @@ export class MediaApp {
   }
   artists() {
     return this.lib.artists(this.t('library.unknownArtist'));
+  }
+  genres() {
+    return this.lib.genres(this.t('library.unknownGenre'));
   }
   fmtTotal(sec) {
     if (!sec) return '';
@@ -776,7 +780,7 @@ export class MediaApp {
       if (cur && ev.paths.includes(cur)) this.updateNow();
     } else if (ev.type === 'scan' || ev.type === 'scanning') {
       if (ev.type === 'scan' && ev.quiet && !ev.changed) return;
-      if (['home', 'music', 'videos', 'album', 'artist', 'search', 'settings'].includes(this.route.name)) this.render({ keepScroll: true });
+      if (['home', 'music', 'videos', 'album', 'artist', 'genre', 'search', 'settings'].includes(this.route.name)) this.render({ keepScroll: true });
     }
   }
   _onPlaylists() {

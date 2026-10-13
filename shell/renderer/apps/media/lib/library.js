@@ -422,4 +422,16 @@ export class Library {
     const loc = this.locale();
     return [...map.values()].sort((a, b) => a.unknown - b.unknown || compareText(a.name, b.name, loc));
   }
+  // Genres from the tags (« Rock », « rock » are one genre); songs without one are grouped last.
+  genres(unknownGenre = 'Unknown genre') {
+    const map = new Map();
+    for (const s of this.songs()) {
+      const name = String(s.genre || '').trim();
+      const key = name.toLowerCase();
+      if (!map.has(key)) map.set(key, { key, name: name || unknownGenre, unknown: !name, songs: [] });
+      map.get(key).songs.push(s);
+    }
+    const loc = this.locale();
+    return [...map.values()].sort((a, b) => a.unknown - b.unknown || compareText(a.name, b.name, loc));
+  }
 }
