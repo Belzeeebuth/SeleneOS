@@ -261,9 +261,14 @@ run_mode() {
   local left=$(( SECS - waited ))
   ((left > 0)) && sleep "$left"
   kill -0 -- "-$APP_PGID" 2>/dev/null || fail "[$name] the app exited early (see $log)"
+  local before; before="$(wc -l <"$log")"
   stop_app
+  # The whole process group gets SIGTERM at once, so the GPU process can die before the browser process; Chromium
+  # then fails to relaunch it and logs "GPU process isn't usable" while quitting. Only that one shutdown message is
+  # tolerated, and only after the stop signal.
   local bad
-  bad="$(grep -E 'error while loading shared libraries|cannot open shared object|FATAL:|Segmentation fault|Trace/breakpoint trap|core dumped' "$log" || true)"
+  bad="$( { head -n "$before" "$log"; tail -n +"$((before + 1))" "$log" | grep -v 'GPU process isn.t usable'; } \
+    | grep -E 'error while loading shared libraries|cannot open shared object|FATAL:|Segmentation fault|Trace/breakpoint trap|core dumped' || true)"
   if [[ -n "$bad" ]]; then fail "[$name] fatal messages on stderr:"; echo "$bad" >&2
   else pass "[$name] stderr has no missing-library/fatal/crash messages ($(wc -l <"$log") lines, log: $log)"; fi
   grep -q '"exceptions": \[\]' "$LOGS/$name.probe.json" \
