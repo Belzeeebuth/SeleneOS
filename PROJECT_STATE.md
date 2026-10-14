@@ -227,6 +227,32 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
 
 ## Next steps (exact)
 
+000. **Session of 2026-10-14 afternoon, stopped early (weekly usage limit).** State:
+    - DONE, each with its own green suite (run on this PC under a local Xvfb, ~/.cache/selene-dev/): Livres `books`
+      (EPUB, books.test 241), Numérisation `scan` (SANE / airscan, scan.test 148 + 83 unit; Settings > Imprimantes et
+      scanners section), Journaux système `logs` (journalctl, logs.test 332; Moniteur système Services « Voir le journal »),
+      Polices `fonts` (fonts.test 142), Aide `help` (70 articles + « Bien démarrer », help.test 115, features/help-welcome.js),
+      Podcasts et actus `feeds` (feeds.test 172), emoji / symbols panel Super+. (features/emoji.js, emoji.test 154),
+      Loupe (features/magnifier.js, magnifier.test 122), Clavier visuel (features/osk.js, osk.test 141, greeter too).
+      Icons for the 6 apps generated (gen-app-icons + gen-finish-icons, Phosphor kit in ~/.cache/selene-dev/phosphor).
+      Removed at the user's request: Mémos (`sticky`), Traducteur (`translate`). Image: desktop firmware only + firmware-sof-signed.
+    - STOPPED HALF-WAY (agents killed, partial code committed in 0c3df6ab, never re-tested; finish or revert each):
+      Éditeur de code (search in files / split view / diff with @codemirror/merge vendored), Disques SMART (udisks2),
+      Outils réseau (OpenVPN import, traceroute, port check; speed test not started), Cartes itinéraires (OSRM; UI module
+      not written), Bureau à distance (FreeRDP helper module started; VNC rfb.js touched), Lecteur MPRIS (aurora-sessionbus
+      MPRIS + media keys, partial). Google Drive/OneDrive and password autofill were dropped by the user.
+    - Smoke test passes on the current tree. NOT done yet: full `make test-all` sweep, docs (DEVELOPING app list / backend
+      table, PERSONALIZATION settings keys for magnifier/osk, PHASEAPP phase 5), verify-iso checks suggested by the agents,
+      icons.test « ≥ 600 legacy names » threshold (584 after the removals), ISO rebuild by the user.
+    - Fixed: tests launched Electron on the developer's real Wayland session (real screen + clipboard) when WAYLAND_DISPLAY
+      was set; lib.mjs / login-lock now force `--ozone-platform=x11` and drop the Wayland variables.
+    - Small inconsistencies found by the Help agent (to fix): « Restaurer tous les raccourcis » shows the pinned-apps toast;
+      Réglages rapides Wi-Fi « Se connecter automatiquement » never sent; Ethernet page promises IP/DNS settings but is
+      read-only; « Changer d'utilisateur » signs out from the lock screen but only locks from Ctrl+Alt+Del; forgotten-password
+      text points to Paramètres > Comptes (reset is under Autres utilisateurs); taskview.js straight apostrophe;
+      docs/STORE-SOURCES.md says the Updates page covers every source (Flathub only).
+    - Pending the user's go: aurora-disk-probe should read /etc/os-release before /usr/lib/os-release (« CachyOS », not « Arch Linux »).
+
 00. Dual boot naming (waiting for the user's go): aurora-disk-probe line 350 should read /etc/os-release first, then
     /usr/lib/os-release (a symlinked /etc/os-release gives no NAME and falls through); add /usr/lib/os-release « Arch
     Linux » to test-alongside.sh's cachy.img; rebuild the ISO and re-run the VM validation from work/qemu/dualboot
