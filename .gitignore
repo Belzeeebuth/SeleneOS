@@ -12,6 +12,9 @@ node_modules/
 !/rootfs/usr/bin/
 # and the fake scanimage that test/scan.test.mjs puts first on PATH
 !/shell/test/fixtures/scan/bin/
+# the fake Linux application of test/xapps.test.mjs and the fake FreeRDP of test/remote-extra.test.mjs
+!/shell/test/fixtures/xapps/bin/
+!/shell/test/fixtures/remote/bin/
 
 # Selene archive signing key (private; tools/selene-key.sh). Only iso/keys/*.gpg (public) is committed.
 /keys/

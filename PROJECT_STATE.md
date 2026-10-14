@@ -76,7 +76,13 @@ A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a W
 | Core | smoke, core-dialogs 6 |
 | Linux GUI apps + Store sources | xwm-helper 78, xwin 63 (incl. real xterm end-to-end), xapps 71, store 128, store-flathub 83, store-ubuntu 84 |
 
-**No full sweep since 2026-10-12**: the suites added or changed on 2026-10-13/14 were run one by one, or (« later » items) together in a 19-suite run on 2026-10-14 evening (next step 3).
+**Full sweep 2026-10-14 night, on the user's PC** (85 suites: the 19 « later » suites, then the other 66 with -j 6):
+82 green. Fixed during the sweep (test-side, host differences): xapps (its fake program fixtures/xapps/bin/ had never
+been committed: the root .gitignore ignores every bin/), taskmgr (Node 26 names its main thread « node-MainThread »),
+terminal (the developer's login shell is fish: tests now pin bash with AURORA_PTY_LOGIN_SHELL, honoured by aurora-pty
+and main/ipc/pty.js). Still red on this PC only: terminal « tab title shows the running command » (CachyOS's
+/etc/bash.bashrc rewrites the title; Ubuntu's does not), xwm-helper (needs xeyes, xterm and a system python3-xlib),
+and xvfb-run sometimes exits non-zero after a green suite (run-all --retry).
 Last full sweep (2026-10-12 ~12:00 Paris, after the follow-ups): 52/52 suites green (pdf needed its retry; personalization-core's leak check fixed to count from a quiet screen). Previous sweep (2026-10-12, after the redesign): 50/50 suites green (48 in the sweep with --retry: wm-nav, personalization-core and personalization-shell needed their retry; icons and packs-input fixed for renamed labels and re-run alone; taskmgr 192 and paint 51 run separately).
 
 ## File structure
@@ -273,7 +279,7 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
    separately, then the 19 suites they touch run together: 19/19 green (code, code.unit and login-lock on retry —
    see Known issues).
 
-3. **Full `make test-all` sweep** (none since 2026-10-12), then fix what it finds; add the verify-iso checks for the
+3. **Add the verify-iso checks for the
    new packages.d lists (books, emoji, fonts, scanner, disks: smartmontools, nettools: network-manager-openvpn +
    iputils-tracepath, remote: freerdp3-x11) and the files the agents suggested (aurora-sessionbus MPRIS name,
    aurora-xwm media keysyms, aurora-admin smart-info, polkit udisks2 self-test actions, nm-openvpn plugin files,

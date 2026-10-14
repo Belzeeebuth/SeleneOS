@@ -149,7 +149,7 @@ const alive = (pid) => {
   // proc:list straight from the backend (plain Node): this test process is in it with sane values.
   const list = await H['proc:list']();
   const self = list.find((p) => p.pid === process.pid);
-  check('backend proc:list sees this process', self && self.name === 'node' && self.mem > 1e6 && self.threads >= 1 && self.cpu >= 0 && self.cpu <= 100, self);
+  check('backend proc:list sees this process', self && /^node/.test(self.name) && self.mem > 1e6 && self.threads >= 1 && self.cpu >= 0 && self.cpu <= 100, self);
   const snap = await H['perf:snapshot']();
   check('backend perf:snapshot', snap.cpu.logical >= 1 && snap.mem.total > 0 && Array.isArray(snap.disks) && Array.isArray(snap.net), snap.cpu);
 

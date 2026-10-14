@@ -1,0 +1,16 @@
+#!/bin/bash
+# Stand-in Linux application for test/xapps.test.mjs (the fixture .desktop files run it; the test puts this folder
+# first on PATH). It writes $XAPPS_RECORD_DIR/<pid>.args: GTK_THEME, PWD and CHILD as NAME=value, then its argv
+# (without $0), every part ended by a NUL byte. With --hold it starts a child (sleep) and waits for it, so the test
+# can match a window by the parent pid of a launched process (CHILD = the child's pid).
+child=
+for a in "$@"; do
+  if [[ "$a" == --hold ]]; then sleep 120 & child=$!; fi
+done
+f="${XAPPS_RECORD_DIR:-/tmp}/$$.args"
+{
+  printf 'GTK_THEME=%s\0PWD=%s\0CHILD=%s\0' "${GTK_THEME-}" "$(pwd)" "$child"
+  for a in "$@"; do printf '%s\0' "$a"; done
+} > "$f.part" && mv "$f.part" "$f"
+if [[ -n "$child" ]]; then wait "$child"; fi
+exit 0

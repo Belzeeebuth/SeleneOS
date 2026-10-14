@@ -84,6 +84,9 @@ function monoFonts() {
 }
 
 function loginShell() {
+  // tests pin the shell (same variable as rootfs/usr/lib/aurora/helpers/aurora-pty), whatever the developer's own is
+  const forced = process.env.AURORA_PTY_LOGIN_SHELL || '';
+  if (forced.startsWith('/') && fs.existsSync(forced)) return forced;
   try {
     const uid = process.getuid?.() ?? -1;
     for (const line of fs.readFileSync('/etc/passwd', 'utf8').split('\n')) {

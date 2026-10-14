@@ -66,6 +66,9 @@ async function until(fn, { timeout = 6000, step = 50, label = 'condition' } = {}
 }
 
 // ================================================================== part 1: the helper
+// The commands typed below are POSIX shell: pin bash as the login shell (aurora-pty, inherited by the test shells
+// through the environment) instead of the developer's own (fish on the user's PC never ran `...; exit`).
+process.env.AURORA_PTY_LOGIN_SHELL = fs.existsSync('/bin/bash') ? '/bin/bash' : '/usr/bin/bash';
 function pty(args, { env = {}, cwd } = {}) {
   const child = spawn(HELPER, args, { stdio: ['pipe', 'pipe', 'pipe', 'pipe'], env: { ...process.env, LANG: 'C.UTF-8', ...env }, cwd });
   const st = { child, out: Buffer.alloc(0), err: '', code: null, signal: null, pid: 0 };
