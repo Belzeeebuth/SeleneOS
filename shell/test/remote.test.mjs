@@ -1,6 +1,7 @@
 // Remote Desktop tests: DES / keysym / RFB units, backend helpers, and the real Electron shell driving the app against a
 // tiny fake RFB 3.8 server written here (Node net): VNC auth, Raw + CopyRect + DesktopSize, pointer + keyboard events,
 // Ctrl+Alt+Del, scaling, full screen, errors (refused, password, wrong password, closed), saved connections, FR + dark.
+// More encodings, the clipboard and RDP (FreeRDP): test/remote-extra.test.mjs.
 // Usage:  cd aurora-os/shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/remote.test.mjs
 import fs from 'node:fs';
 import net from 'node:net';
@@ -249,7 +250,7 @@ await section('RFB client against the fake server (Node, 3.3 + None, 3.8 + VNC a
     check(`${version}: init size + name`, ev.init, { width: 8, height: 4, name: 'Fake VNC' });
     check(`${version}: client version echoed`, srv.rec.versions[0], `RFB ${version}\n`);
     check(`${version}: pixel format R G B X`, srv.rec.pixelFormats[0], [32, 24, 0, 1, 0, 255, 0, 255, 0, 255, 0, 8, 16]);
-    check(`${version}: encodings CopyRect, Raw, DesktopSize`, srv.rec.encodings[0], [1, 0, -223]);
+    check(`${version}: encodings CopyRect, Tight, ZRLE, Hextile, Raw + pseudo-encodings`, srv.rec.encodings[0], [1, 7, 16, 5, 0, -254, -223, -224, -1063131698]);
     check(`${version}: raw pixels red .. blue (alpha 255)`, [ev.raws[0].px, ev.raws[0].last], [[255, 0, 0, 255], [0, 0, 255, 255]]);
     check(`${version}: incremental request after the update`, await until(() => srv.rec.requests.some((r) => r.incremental === 1), 3000), true);
     check(`${version}: no errors`, ev.errors, []);
@@ -325,9 +326,8 @@ const homeShown = () => until(() => page.evaluate(`!document.querySelector('${WI
 await section('home view', async () => {
   check('window opened', await until(() => page.evaluate(`!!document.querySelector('${WIN} .rd-form')`), 20000), true);
   check('title', await q(`${WIN} .rd-h1`), 'Remote Desktop');
-  check('VNC protocol shown', await q(`${WIN} .rd-proto-badge`), 'VNC');
-  check('RDP later note', (await q(`${WIN} .rd-proto`)).includes('RDP: coming in a later version'), true);
-  check('no RDP button', await page.evaluate(`[...document.querySelectorAll('${WIN} button')].some((b) => /rdp/i.test(b.textContent))`), false);
+  check('VNC protocol selected', await page.getAttribute(`${WIN} [data-proto=vnc]`, 'aria-checked'), 'true');
+  check('RDP offered next to it', await q(`${WIN} [data-proto=rdp]`), 'RDP (Windows)');
   check('empty saved list', (await q(`${WIN} .rd-empty`)).includes('No saved connections'), true);
   check('default port 5900', await page.inputValue(`${WIN} input[name=port]`), '5900');
   check('host field focused', await page.evaluate(`document.activeElement?.name`), 'host');
@@ -533,7 +533,7 @@ await section('French + dark', async () => {
   check('window opened', await until(() => page.evaluate(`!!document.querySelector('${WIN} .rd-form')`), 20000), true);
   check('FR title', await q(`${WIN} .rd-h1`), 'Bureau à distance');
   check('FR connect button', await q(`${WIN} [data-act=connect]`), 'Se connecter');
-  check('FR RDP note', (await q(`${WIN} .rd-proto`)).includes('RDP : dans une version ultérieure'), true);
+  check('FR protocols', [await q(`${WIN} [data-proto=vnc]`), await q(`${WIN} [data-proto=rdp]`)], ['VNC', 'RDP (Windows)']);
   await fillForm({ host: '', port: srv2.port });
   await page.click(`${WIN} [data-act=connect]`);
   check('FR empty host message', await infoText(), "Saisissez le nom ou l'adresse IP de l'ordinateur.");

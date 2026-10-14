@@ -1,7 +1,8 @@
 'use strict';
-// Remote Desktop backend: a raw TCP pipe for the app's VNC (RFB) client, plus the saved connections.
-// The renderer's CSP has no network access: the RFB protocol runs in apps/remote/lib/rfb.js and its bytes go through here.
-// Nothing else is reachable from this module: one TCP socket to the host and port the user typed.
+// Remote Desktop backend: a raw TCP pipe for the app's VNC (RFB) client, FreeRDP sessions for RDP, and the saved
+// connections. The renderer's CSP has no network access: the RFB protocol runs in apps/remote/lib/rfb.js and its bytes
+// go through here. Nothing else is reachable from this module: one TCP socket to the host and port the user typed, or
+// one FreeRDP process (main/lib/freerdp.js builds its arguments) for that host and port.
 //
 // Channels:
 //   remote:connect (host, port, { key, timeoutMs }) -> { id, remoteAddress }
@@ -10,9 +11,20 @@
 //        (one connection per window). Rejects with code EINVAL, ECONNREFUSED, ETIMEDOUT, ENOTFOUND, EHOSTUNREACH,
 //        ENETUNREACH, ELIMIT (too many connections) or EOFFLINE (dev/tests: only loopback hosts, no real network).
 //   remote:close (id) -> true
-//   remote:list () -> [{ id, name, host, port, remember }]   (saved connections, never with the password)
-//   remote:save ({ id?, name, host, port, password?, remember }) -> entry   (password kept only when remember is true;
-//        remember with no password keeps the stored one)
+//   remote:list () -> [{ id, protocol: 'vnc'|'rdp', name, host, port, remember, clipboard (vnc) | user, domain, options (rdp) }]
+//        (saved connections, never with the password)
+//   remote:save ({ id?, protocol?, name, host, port, password?, remember, clipboard?, user?, domain?, options? }) -> entry
+//        (password kept only when remember is true; remember with no password keeps the stored one).
+//        RDP options: { display: 'fit'|'fullscreen'|'fixed', size: 'WxH', multimon, clipboard, audio, drive: path|null }
+//   remote:rdp-status () -> { available, program, version }   (FreeRDP 3: xfreerdp3, or xfreerdp when it is 3.x)
+//   remote:rdp-start ({ entryId?, host, port, user, domain, password?, name, options, screen: { width, height } })
+//        -> { id, pid, title }. Password: the one given, else the one remembered for entryId. FreeRDP gets every
+//        argument on stdin (never in argv). Rejects EINVAL (bad host, port, user, domain, password with a line break,
+//        folder with a comma), EDRIVE (shared folder missing), ENOFREERDP, EOFFLINE (dev: loopback only), ELIMIT.
+//   remote:rdp-stop (id) -> true          remote:rdp-list () -> [{ id, pid, host, port, title, startedAt }]
+//   remote:rdp-trust (host, port, sha256hex) -> true   (the person accepted this certificate in Selene's dialog)
+// Event remote:rdp { id, state: 'ended', code, ended, fingerprint?, previous? (sha256 Selene trusted before), detail,
+//   host, port } when a FreeRDP process exits (classification: main/lib/freerdp.js classifyExit).
 //   remote:remove (id) -> true
 //   remote:secret (id) -> string ('' when none is stored)
 //   remote:storage () -> { file, secure }
@@ -26,7 +38,11 @@
 // Saved connections: ~/.local/share/aurora/remote.json ($XDG_DATA_HOME). Passwords are sealed like Mail's: Electron
 // safeStorage with a real keyring, else AES-256-GCM with a per-machine key (obfuscation, not secrecy).
 // Timeouts: AURORA_REMOTE_TIMEOUT (ms, default 10000) for the TCP connect; idle sockets close after 2 hours.
+// Certificates Selene trusted for RDP: "certs": { "host:port": { sha256, at } } in the same file.
+// FreeRDP sessions are not tied to the app window (the session is its own X11 window, closing it ends the session);
+// they end with the shell (killed on exit).
 const net = require('net');
+const { spawn, execFile } = require('child_process');
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
@@ -257,7 +273,17 @@ module.exports = function register(api) {
     if (!hostKind(host)) throw err('Invalid host name or address.', 'EINVAL');
     const port = validPort(entry.port);
     if (!port) throw err('Invalid port (1-65535).', 'EINVAL');
-    const name = (typeof entry.name === 'string' ? entry.name.trim() : '').slice(0, 80) || host;
+    const name = (typeof entry.name === 'string' ? entry.name.trim() : '').replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 80) || host;
+    const protocol = entry.protocol === 'rdp' ? 'rdp' : 'vnc';
+    let extra;
+    if (protocol === 'rdp') {
+      const user = rdp.validText(typeof entry.user === 'string' ? entry.user.trim() : '', 256);
+      const domain = rdp.validText(typeof entry.domain === 'string' ? entry.domain.trim() : '', 256);
+      if (user == null) throw err('Invalid user name.', 'EINVAL');
+      if (domain == null) throw err('Invalid domain.', 'EINVAL');
+      extra = { protocol, user, domain, options: rdp.cleanOptions(entry.options) };
+    } else extra = { protocol, clipboard: entry.clipboard !== false };
+    if (typeof entry.password === 'string' && entry.password && rdp.validText(entry.password, 512) == null) throw err('Invalid password.', 'EINVAL');
     const list = await readStore();
     let c = typeof entry.id === 'string' ? list.find((x) => x.id === entry.id) : null;
     if (!c) {
@@ -265,7 +291,8 @@ module.exports = function register(api) {
       list.push(c);
     }
     const oldSecret = c.secret || null;
-    Object.assign(c, { name, host, port });
+    for (const k of ['protocol', 'user', 'domain', 'options', 'clipboard']) delete c[k];
+    Object.assign(c, { name, host, port }, extra);
     if (!entry.remember) delete c.secret;
     else if (typeof entry.password === 'string' && entry.password !== '') c.secret = sealSecret(entry.password.slice(0, 256));
     else if (oldSecret) c.secret = oldSecret;
@@ -282,6 +309,161 @@ module.exports = function register(api) {
   api.handle('remote:secret', async (id) => {
     const c = (await readStore()).find((x) => x.id === id);
     return c ? openSecret(c.secret) : '';
+  });
+
+  // ---------------------------------------------------------------- RDP through FreeRDP
+  const sessions = new Map(); // id -> { child, pid, host, port, title, startedAt, log, stopped, sender, secret }
+  let rseq = 0;
+  const versions = new Map(); // program path -> major version (xfreerdp)
+
+  function inPath(name) {
+    for (const d of (process.env.PATH || '/usr/local/bin:/usr/bin:/bin').split(':')) {
+      if (!d) continue;
+      const p = path.join(d, name);
+      try {
+        fs.accessSync(p, fs.constants.X_OK);
+        if (fs.statSync(p).isFile()) return p;
+      } catch {}
+    }
+    return null;
+  }
+  function majorVersion(prog) {
+    if (versions.has(prog)) return Promise.resolve(versions.get(prog));
+    return new Promise((resolve) => {
+      execFile(prog, ['--version'], { timeout: 4000, env: { ...process.env, LC_ALL: 'C' } }, (e, out) => {
+        const m = /version\s+(\d+)\./i.exec(String(out || ''));
+        const v = m ? Number(m[1]) : 0;
+        versions.set(prog, v);
+        resolve(v);
+      });
+    });
+  }
+  /** FreeRDP 3 X11 client: xfreerdp3 (Ubuntu / Debian name), else xfreerdp when it is version 3 (other distros). */
+  async function freerdp() {
+    // AURORA_REMOTE_FREERDP: 'none' (tests: FreeRDP missing) or the absolute path of a FreeRDP 3 X11 client
+    const forced = process.env.AURORA_REMOTE_FREERDP;
+    if (forced === 'none') return null;
+    if (forced) {
+      try {
+        fs.accessSync(forced, fs.constants.X_OK);
+        return path.isAbsolute(forced) ? { program: forced, version: 3 } : null;
+      } catch {
+        return null;
+      }
+    }
+    const p3 = inPath('xfreerdp3');
+    if (p3) return { program: p3, version: 3 };
+    const p = inPath('xfreerdp');
+    if (p && (await majorVersion(p)) === 3) return { program: p, version: 3 };
+    return null;
+  }
+
+  api.handle('remote:rdp-status', async () => {
+    const f = await freerdp();
+    return { available: !!f, program: f ? path.basename(f.program) : null, version: f?.version || null };
+  });
+
+  api.handle('remote:rdp-start', async (...args) => {
+    const event = args.pop();
+    const c = args[0] && typeof args[0] === 'object' ? args[0] : {};
+    const bad = (field, message) => err(message, 'EINVAL');
+    let host = typeof c.host === 'string' ? c.host.trim() : '';
+    if (/^\[.*\]$/.test(host)) host = host.slice(1, -1);
+    const kind = hostKind(host);
+    if (!kind) throw bad('host', 'Invalid host name or address.');
+    const port = validPort(c.port);
+    if (!port) throw bad('port', 'Invalid port (1-65535).');
+    const user = rdp.validText(typeof c.user === 'string' ? c.user.trim() : '', 256);
+    if (user == null) throw bad('user', 'Invalid user name.');
+    const domain = rdp.validText(typeof c.domain === 'string' ? c.domain.trim() : '', 256);
+    if (domain == null) throw bad('domain', 'Invalid domain.');
+    let password = typeof c.password === 'string' ? c.password : '';
+    if (!password && typeof c.entryId === 'string') {
+      const saved = (await readStore()).find((x) => x.id === c.entryId);
+      if (saved?.secret) password = openSecret(saved.secret);
+    }
+    if (rdp.validText(password, 512) == null) throw bad('password', 'The password contains a line break or another control character.');
+    const options = rdp.cleanOptions(c.options);
+    if (options.drive) {
+      const p = rdp.driveProblem(options.drive);
+      if (p) throw err('The shared folder cannot be used.', p === 'EDRIVECHARS' ? 'EINVAL' : 'EDRIVE');
+    }
+    const title = String(rdp.validText(typeof c.name === 'string' ? c.name.trim().slice(0, 120) : '', 120) || host);
+    if (MOCK && !isLoopback(host)) throw err('Network access is disabled in development mode (only this computer can be reached).', 'EOFFLINE');
+    if (sessions.size >= MAX_PER_SENDER) throw err('Too many open sessions.', 'ELIMIT');
+    const f = await freerdp();
+    if (!f) throw err('FreeRDP 3 (xfreerdp3) is not installed.', 'ENOFREERDP');
+    const doc = await readDoc();
+    const trusted = doc.certs[`${host}:${port}`]?.sha256 || null;
+    const lines = rdp.buildArgs({ host, kind, port, user, domain, password, title, options, fingerprint: trusted, screen: c.screen });
+    const env = { ...process.env };
+    delete env.FREERDP_ASKPASS; // never pop up a separate password program
+    const child = spawn(f.program, ['/args-from:stdin'], { stdio: ['pipe', 'pipe', 'pipe'], detached: true, env, cwd: os.homedir() });
+    const id = `rdp${++rseq}`;
+    const s = { id, child, pid: child.pid, host, port, title, startedAt: Date.now(), log: '', stopped: false, sender: event?.sender || null, secret: password, trusted };
+    sessions.set(id, s);
+    const keep = (d) => {
+      s.log += d.toString('utf8');
+      if (s.log.length > 65536) s.log = s.log.slice(-49152);
+    };
+    child.stdout.on('data', keep);
+    child.stderr.on('data', keep);
+    child.stdin.on('error', () => {});
+    child.on('error', (e) => keep(Buffer.from(`\nspawn error: ${e.message}\n`)));
+    child.on('close', (code, signal) => {
+      clearTimeout(s.killTimer);
+      sessions.delete(id);
+      const r = rdp.classifyExit(code, signal, s.log, { stopped: s.stopped });
+      const msg = { id, state: 'ended', host, port, code: r.code, ended: !!r.ended, exitCode: code, detail: r.ended ? '' : rdp.logExcerpt(s.log, [password]) };
+      if (r.fingerprint) msg.fingerprint = r.fingerprint;
+      if (r.code === 'ECERTNEW' && s.trusted && r.fingerprint && r.fingerprint !== s.trusted) msg.code = 'ECERTCHANGED';
+      if (msg.code === 'ECERTCHANGED' && s.trusted) msg.previous = s.trusted;
+      s.secret = '';
+      const to = s.sender && !s.sender.isDestroyed?.() ? s.sender : null;
+      if (to) api.sendTo(to, 'remote:rdp', msg);
+      else api.broadcast?.('remote:rdp', msg);
+    });
+    child.stdin.end(rdp.stdinText(lines));
+    return { id, pid: child.pid, title };
+  });
+
+  function stopSession(s) {
+    if (!s || s.stopped) return;
+    s.stopped = true;
+    const sig = (name) => {
+      try {
+        process.kill(-s.pid, name); // its own process group (detached)
+      } catch {
+        try {
+          s.child.kill(name);
+        } catch {}
+      }
+    };
+    sig('SIGTERM');
+    s.killTimer = setTimeout(() => sig('SIGKILL'), 3000);
+  }
+  api.handle('remote:rdp-stop', async (id) => {
+    stopSession(sessions.get(id));
+    return true;
+  });
+  api.handle('remote:rdp-list', async () => [...sessions.values()].map((s) => ({ id: s.id, pid: s.pid, host: s.host, port: s.port, title: s.title, startedAt: s.startedAt })));
+  api.handle('remote:rdp-trust', async (host, port, fp) => {
+    host = typeof host === 'string' ? host.trim() : '';
+    if (/^\[.*\]$/.test(host)) host = host.slice(1, -1);
+    const p = validPort(port);
+    if (!hostKind(host) || !p || typeof fp !== 'string' || !/^[0-9a-f]{64}$/.test(fp)) throw err('Invalid certificate.', 'EINVAL');
+    const doc = await readDoc();
+    doc.certs[`${host}:${p}`] = { sha256: fp, at: new Date().toISOString() };
+    await writeDoc(doc);
+    return true;
+  });
+  // FreeRDP runs in its own process group: end the sessions with the shell.
+  process.once('exit', () => {
+    for (const s of sessions.values()) {
+      try {
+        process.kill(-s.pid, 'SIGTERM');
+      } catch {}
+    }
   });
 };
 

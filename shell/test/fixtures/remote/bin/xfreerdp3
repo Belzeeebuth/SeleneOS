@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+// Fake FreeRDP 3 X11 client for test/remote-extra.test.mjs (put first on PATH). Opens no X window and makes no
+// network connection. Like the real one started as `xfreerdp3 /args-from:stdin`, it reads one argument per line from
+// stdin up to the first empty line. Then:
+//   - appends { argv, cmdline (/proc/self/cmdline), lines, pid, askpass } as one JSON line to $AURORA_FAKE_FREERDP_LOG;
+//   - follows the plan for its /v: host in the JSON file $AURORA_FAKE_FREERDP_PLAN ({ "<host>": step, "*": step }):
+//       step = { stdout, stderr, exit (default 0), delay (ms, default 0), window (bool), untilSignal (bool),
+//                trusted: step (used instead when a fingerprint:sha256: was passed in /cert:) }
+//   - window: true -> announces a client window to the fake aurora-xwm ($AURORA_XWM_FAKE_CTL, test/fixtures/xwm-fake):
+//       { ev: 'new', title: /t:, wmClass: ['xfreerdp', /wm-class:], pid } and { ev: 'gone' } when it ends;
+//   - untilSignal: runs until SIGTERM (the app's Disconnect), then exits 0.
+'use strict';
+const fs = require('fs');
+
+let input = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (d) => (input += d));
+process.stdin.on('end', run);
+
+function run() {
+  const lines = [];
+  for (const l of input.split('\n')) {
+    if (l === '') break;
+    lines.push(l);
+  }
+  const arg = (name) => {
+    const l = lines.find((x) => x.startsWith(`/${name}:`));
+    return l == null ? null : l.slice(name.length + 2);
+  };
+  const v = arg('v') || '';
+  const host = v.replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
+  let cmdline = [];
+  try {
+    cmdline = fs.readFileSync(`/proc/${process.pid}/cmdline`, 'utf8').split('\0').filter(Boolean);
+  } catch {}
+  const rec = { argv: process.argv.slice(2), cmdline, lines, pid: process.pid, askpass: 'FREERDP_ASKPASS' in process.env };
+  if (process.env.AURORA_FAKE_FREERDP_LOG) fs.appendFileSync(process.env.AURORA_FAKE_FREERDP_LOG, `${JSON.stringify(rec)}\n`);
+  let plan = {};
+  try {
+    plan = JSON.parse(fs.readFileSync(process.env.AURORA_FAKE_FREERDP_PLAN, 'utf8'));
+  } catch {}
+  let step = plan[host] || plan['*'] || {};
+  if (step.trusted && /fingerprint:sha256:/.test(arg('cert') || '')) step = step.trusted;
+  const ctl = process.env.AURORA_XWM_FAKE_CTL;
+  const xid = 0x500000 + (process.pid % 0xffff);
+  const emit = (o) => ctl && fs.appendFileSync(ctl, `${JSON.stringify(o)}\n`);
+  let shown = false;
+  const end = (code) => {
+    if (shown) emit({ ev: 'gone', id: xid });
+    process.exit(code);
+  };
+  if (step.stdout) process.stdout.write(step.stdout);
+  if (step.stderr) process.stderr.write(step.stderr);
+  process.on('SIGTERM', () => end(0));
+  setTimeout(() => {
+    if (step.window) {
+      const [w, h] = (arg('size') || '1024x768').split('x').map(Number);
+      emit({ ev: 'new', id: xid, title: arg('t') || `FreeRDP: ${v}`, wmClass: ['xfreerdp', arg('wm-class') || 'xfreerdp'], pid: process.pid, type: 'normal', transientFor: null, modal: false, x: 0, y: 0, width: w || 1024, height: h || 768, minWidth: 0, minHeight: 0, maxWidth: 0, maxHeight: 0, decorated: true, fullscreen: lines.includes('/f'), icon: null, startupId: null, gtkAppId: null });
+      shown = true;
+    }
+    if (step.untilSignal) setInterval(() => {}, 1000);
+    else end(Number(step.exit) || 0);
+  }, Number(step.delay) || 0);
+}

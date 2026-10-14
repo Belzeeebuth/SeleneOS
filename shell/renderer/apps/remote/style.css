@@ -87,18 +87,185 @@
   font-size: var(--fs-body, 14px);
 }
 .app-remote .rd-proto {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--subtle-hover);
+  align-self: flex-start;
+}
+.app-remote .rd-proto-btn {
+  min-width: 96px;
+}
+.app-remote .rd-proto-btn.selected {
+  background: var(--card);
+  box-shadow: 0 0 0 1px var(--stroke);
+  font-weight: 600;
+}
+.app-remote .rd-form:not(.is-rdp) .rd-rdp-only,
+.app-remote .rd-form.is-rdp .rd-vnc-only,
+.app-remote .rd-rdp-missing[hidden],
+.app-remote .rd-size-field[hidden],
+.app-remote .rd-rdp-sessions[hidden],
+.app-remote .rd-form button[hidden],
+.app-remote .rd-rdp-item button[hidden] {
+  display: none;
+}
+.app-remote .rd-rdp-missing .infobar {
+  margin: 0 0 10px;
+}
+.app-remote .rd-clip {
+  margin: 0 0 10px;
+}
+.app-remote .rd-options {
+  margin: 0 0 12px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm, 6px);
+}
+.app-remote .rd-options-summary {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+  border-radius: var(--radius-sm, 6px);
+}
+.app-remote .rd-options-summary::-webkit-details-marker {
+  display: none;
+}
+.app-remote .rd-options-summary::after {
+  content: '';
+  margin-left: auto;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--text-2);
+  border-bottom: 1.5px solid var(--text-2);
+  transform: rotate(45deg);
+  transition: transform var(--dur-fast, 0.12s) var(--ease);
+}
+.app-remote .rd-options[open] > .rd-options-summary::after {
+  transform: rotate(225deg);
+}
+.app-remote .rd-options-summary:hover {
+  background: var(--subtle-hover);
+}
+.app-remote .rd-options-summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.app-remote .rd-options-body {
+  padding: 4px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-remote .rd-options-body .field {
+  margin-bottom: 0;
+}
+.app-remote .rd-options-body .select {
+  width: 100%;
+  box-sizing: border-box;
+}
+.app-remote .rd-options-body .checkbox.disabled {
+  color: var(--text-2);
+}
+.app-remote .rd-drive-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-wrap: wrap;
 }
-.app-remote .rd-proto-badge {
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  background: var(--accent);
-  color: var(--on-accent);
-  border-radius: 4px;
-  padding: 2px 8px;
+.app-remote .rd-drive-path {
+  flex: 1;
+  min-width: 120px;
+  font-size: var(--fs-caption, 12px);
+}
+.app-remote .rd-rdp-sessions {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-remote .rd-rdp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-remote .rd-rdp-item .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-remote .rd-spin {
+  width: 18px;
+  height: 18px;
+}
+.app-remote .rd-info-body {
+  min-width: 0;
+  flex: 1;
+}
+.app-remote .rd-detail {
+  margin-top: 6px;
+}
+.app-remote .rd-detail summary {
+  cursor: pointer;
+  font-size: var(--fs-caption, 12px);
+}
+.app-remote .rd-detail-log {
+  margin: 6px 0 0;
+  padding: 8px;
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--subtle-hover);
+  border-radius: var(--radius-sm, 6px);
+}
+/* certificate dialog (ui.dialog with className app-remote) */
+.app-remote .rd-cert {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.app-remote .rd-cert-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.app-remote .rd-cert-head .icon {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  color: var(--accent-text);
+}
+.app-remote .rd-cert.changed .rd-cert-head .icon {
+  color: var(--danger);
+}
+.app-remote .rd-cert-head p {
+  margin: 0;
+}
+.app-remote .rd-fp {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-remote .rd-fp-code {
+  display: block;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-all;
+  background: var(--subtle-hover);
+  border-radius: var(--radius-sm, 6px);
+}
+.app-remote .rd-fp.old .rd-fp-code {
+  text-decoration: line-through;
+  color: var(--text-2);
 }
 .app-remote .rd-row {
   display: flex;
@@ -273,6 +440,7 @@
 .app-remote .rd-root.fullscreen .rd-hint {
   display: none;
 }
-:root[data-animations='off'] .app-remote .rd-item {
+:root[data-animations='off'] .app-remote .rd-item,
+:root[data-animations='off'] .app-remote .rd-options-summary::after {
   transition: none;
 }

@@ -1,0 +1,7 @@
+# Bureau à distance (renderer/apps/remote + main/ipc/remote.js + main/lib/freerdp.js)
+# VNC is spoken by the app itself (no package). RDP runs FreeRDP 3's X11 client `xfreerdp3 /args-from:stdin`
+# (password on stdin, /cert:deny + Selene's certificate dialog); its window is managed by aurora-xwm.
+# freerdp3-x11 pulls libfreerdp-client3-3, libfreerdp3-3 and libwinpr3-3: about 5.5 MB installed, the other
+# dependencies (X11 libs, libpulse0, libcups2t64, libssl3t64, libkrb5-3, libicu74, libfuse3-3, libusb-1.0-0) are
+# already in a desktop image. Do not use freerdp2-x11: FreeRDP 2 has no /args-from (the password would be in argv).
+freerdp3-x11
