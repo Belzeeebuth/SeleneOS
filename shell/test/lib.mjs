@@ -33,10 +33,16 @@ export async function launchShell(opts = {}) {
   if (opts.open?.length) args.push(`--open=${opts.open.join(',')}`);
   // extra Electron / Chromium switches, e.g. ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream']
   if (Array.isArray(opts.args)) args.push(...opts.args);
+  // Always the X display of xvfb-run: on a developer's Wayland desktop, Electron would otherwise open the shell on the
+  // real session (real screen, real clipboard) instead of the throwaway X server.
+  args.push('--ozone-platform=x11');
+  const baseEnv = { ...process.env };
+  for (const k of ['WAYLAND_DISPLAY', 'WAYLAND_SOCKET', 'ELECTRON_OZONE_PLATFORM_HINT']) delete baseEnv[k];
+  baseEnv.XDG_SESSION_TYPE = 'x11';
   const app = await electron.launch({
     executablePath: require('electron'),
     args,
-    env: { ...process.env, HOME: home, AURORA_LIVE: opts.live ? '1' : '0', LANG: opts.lang === 'fr' ? 'fr_FR.UTF-8' : 'en_US.UTF-8', ...(opts.env || {}) },
+    env: { ...baseEnv, HOME: home, AURORA_LIVE: opts.live ? '1' : '0', LANG: opts.lang === 'fr' ? 'fr_FR.UTF-8' : 'en_US.UTF-8', ...(opts.env || {}) },
     timeout: 60000,
   });
   const page = await app.firstWindow();

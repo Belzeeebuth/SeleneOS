@@ -423,8 +423,9 @@ async function launchRaw({ env = {}, settings = {}, size = '1600x900', mode = 's
   fs.writeFileSync(path.join(home, '.config', 'aurora', 'settings.json'), JSON.stringify(settings));
   const app = await electron.launch({
     executablePath: require('electron'),
-    args: [ROOT, '--dev', '--no-sandbox', `--size=${size}`, `--mode=${mode}`],
-    env: { ...process.env, HOME: home, AURORA_LIVE: '0', LANG: settings.lang === 'fr' ? 'fr_FR.UTF-8' : 'en_US.UTF-8', ...env },
+    args: [ROOT, '--dev', '--no-sandbox', `--size=${size}`, `--mode=${mode}`, '--ozone-platform=x11'],
+    // the X display of xvfb-run, never a developer's real Wayland session (see lib.mjs)
+    env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !['WAYLAND_DISPLAY', 'WAYLAND_SOCKET', 'ELECTRON_OZONE_PLATFORM_HINT'].includes(k))), XDG_SESSION_TYPE: 'x11', HOME: home, AURORA_LIVE: '0', LANG: settings.lang === 'fr' ? 'fr_FR.UTF-8' : 'en_US.UTF-8', ...env },
     timeout: 60000,
   });
   const page = await app.firstWindow();

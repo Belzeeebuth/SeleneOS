@@ -28,6 +28,8 @@
 #           {"id": 6, "cmd": "menu", "item": "<key>"}                  -> {"items": [<menu entry>]}
 #           {"id": 7, "cmd": "menu-event", "item": "<key>", "mid": 12}  Event(mid, "clicked")
 #           {"id": 8, "cmd": "inhibitors"}                             -> <inhibitors>
+#           {"id": 9, "cmd": "mpris-self", "state": <mpris state> | null}  export / update / withdraw the Lecteur
+#           {"id": 10, "cmd": "mpris-seeked", "position": 12.5}        Seeked(µs) after a jump in the Lecteur
 #   stdout  {"id": n, "ok": false, "error": "…", "code": "ENOTFOUND"|"EFAIL"|…}
 #           {"event": "ready", "notifications": bool, "tray": bool, "screensaver": bool, "power": bool}
 #           {"event": "inhibitors", "count": n, "apps": [names], "list": [{cookie, app, reason, kind}]}  on change
@@ -36,6 +38,14 @@
 #                    timeout, entry, resident, transient, silent, replaces}}
 #           {"event": "notify-close", "id": 7}                          CloseNotification from the app
 #           {"event": "items", "items": [<item>]}                       whenever the tray changes (debounced)
+#           {"event": "mpris-call", "method": "PlayPause"|"Play"|"Pause"|"Stop"|"Next"|"Previous"|"Raise"|"Quit"|
+#                    "Seek" (offset s)|"SetPosition" (position s)|"OpenUri" (path)|"Set" (prop, value)}
+# 4. MPRIS: while the Lecteur is open the shell sends its state and the helper owns org.mpris.MediaPlayer2.selene
+#    (/org/mpris/MediaPlayer2: MediaPlayer2 + Player, PropertiesChanged on every change but Position, Seeked);
+#    method calls (KDE Connect, playerctl, any MPRIS client) go back to the Lecteur. OpenUri: local file:// media only.
+# <mpris state> = {active, identity, status: Playing|Paused|Stopped, track: {id, title, artist, album, length (s),
+#                  art (absolute path)} | null, position (s), rate, volume (0-1), loop: None|Track|Playlist, shuffle,
+#                  canNext, canPrev, canPlay, canPause, canSeek}
 # <item> = {key, id, title, category, status, icon, iconPng, attentionIcon, attentionPng, themePath,
 #           tooltip: {title, body}, menu: bool, itemIsMenu: bool}
 # <menu entry> = {id, label, type: "standard"|"separator", enabled, toggle: "checkmark"|"radio"|null, state, icon,
@@ -70,6 +80,11 @@ PM_IFACE = 'org.freedesktop.PowerManagement.Inhibit'
 PM_PATH = '/org/freedesktop/PowerManagement/Inhibit'
 MAX_INHIBITORS = 64  # per connection: a looping bug in one app cannot grow the table without end
 PROPS = 'org.freedesktop.DBus.Properties'
+MPRIS_NAME = 'org.mpris.MediaPlayer2.selene'
+MPRIS = 'org.mpris.MediaPlayer2'
+MPRIS_PLAYER = 'org.mpris.MediaPlayer2.Player'
+MPRIS_PATH = '/org/mpris/MediaPlayer2'
+MPRIS_EXT = ('.mp3', '.wav', '.ogg', '.oga', '.opus', '.flac', '.m4a', '.aac', '.mp4', '.m4v', '.webm', '.ogv', '.mkv', '.mov')
 VERSION = os.environ.get('AURORA_VERSION') or '1.0'
 MAX_SIDE = 512  # larger pictures are refused (a tray icon or an avatar does not need more)
 
@@ -390,6 +405,185 @@ class PowerInhibit(dbus.service.Object):
         pass
 
 
+# ------------------------------------------------------------------ MPRIS: the Lecteur on the bus
+def mpris_path_of_uri(uri):
+    """OpenUri: only file:// URIs (no host but localhost) of a local file with a media extension -> path, else None."""
+    from urllib.parse import urlsplit, unquote
+    s = str(uri or '')
+    if len(s) > 8192:
+        return None
+    u = urlsplit(s)
+    if u.scheme != 'file' or u.netloc not in ('', 'localhost') or u.query or u.fragment:
+        return None
+    p = os.path.normpath(unquote(u.path))
+    if not p.startswith('/') or '\0' in p or not p.lower().endswith(MPRIS_EXT) or not os.path.isfile(p):
+        return None
+    return p
+
+
+class MprisPlayer(dbus.service.Object):
+    """org.mpris.MediaPlayer2(.Player) for the Lecteur, exported while the shell says it is open ('mpris-self').
+    Property values come from the shell; method calls and property writes go back as 'mpris-call' events."""
+
+    def __init__(self, helper, bus):
+        super().__init__(bus, MPRIS_PATH)
+        self.h = helper
+        self.s = {}
+        self.at = time.monotonic()
+
+    def _track_path(self):
+        t = self.s.get('track') or {}
+        tid = re.sub(r'[^A-Za-z0-9_]', '_', str(t.get('id') or ''))[:100]
+        return dbus.ObjectPath('/org/mpris/MediaPlayer2/selene/track/' + tid if tid else '/org/mpris/MediaPlayer2/TrackList/NoTrack')
+
+    def _metadata(self):
+        t = self.s.get('track')
+        m = {'mpris:trackid': self._track_path()}
+        if t:
+            from urllib.parse import quote
+            m['xesam:title'] = dbus.String(t.get('title') or '')
+            if t.get('artist'):
+                m['xesam:artist'] = dbus.Array([t['artist']], signature='s')
+            if t.get('album'):
+                m['xesam:album'] = dbus.String(t['album'])
+            if t.get('length'):
+                m['mpris:length'] = dbus.Int64(int(t['length'] * 1e6))
+            if t.get('art'):
+                m['mpris:artUrl'] = dbus.String('file://' + quote(t['art']))
+        return dbus.Dictionary(m, signature='sv')
+
+    def position(self):
+        pos = float(self.s.get('position') or 0)
+        if self.s.get('status') == 'Playing':
+            pos += (time.monotonic() - self.at) * float(self.s.get('rate') or 1)
+        length = float((self.s.get('track') or {}).get('length') or 0)
+        if length:
+            pos = min(pos, length)
+        return dbus.Int64(int(max(0, pos) * 1e6))
+
+    def props(self, iface):
+        s = self.s
+        if iface == MPRIS:
+            return {'CanQuit': dbus.Boolean(True), 'CanRaise': dbus.Boolean(True), 'HasTrackList': dbus.Boolean(False),
+                    'Identity': dbus.String(s.get('identity') or 'Selene'),
+                    'SupportedUriSchemes': dbus.Array(['file'], signature='s'),
+                    'SupportedMimeTypes': dbus.Array(['audio/mpeg', 'audio/ogg', 'audio/flac', 'audio/wav', 'audio/mp4', 'audio/aac', 'video/mp4', 'video/webm', 'video/x-matroska', 'video/ogg', 'video/quicktime'], signature='s')}
+        if iface == MPRIS_PLAYER:
+            return {'PlaybackStatus': dbus.String(s.get('status') or 'Stopped'), 'LoopStatus': dbus.String(s.get('loop') or 'None'),
+                    'Rate': dbus.Double(float(s.get('rate') or 1)), 'Shuffle': dbus.Boolean(bool(s.get('shuffle'))),
+                    'Metadata': self._metadata(), 'Volume': dbus.Double(float(s.get('volume') or 0)), 'Position': self.position(),
+                    'MinimumRate': dbus.Double(0.5), 'MaximumRate': dbus.Double(2.0),
+                    'CanGoNext': dbus.Boolean(bool(s.get('canNext'))), 'CanGoPrevious': dbus.Boolean(bool(s.get('canPrev'))),
+                    'CanPlay': dbus.Boolean(bool(s.get('canPlay'))), 'CanPause': dbus.Boolean(bool(s.get('canPause'))),
+                    'CanSeek': dbus.Boolean(bool(s.get('canSeek'))), 'CanControl': dbus.Boolean(True)}
+        return {}
+
+    def update(self, state):
+        before = {i: {k: v for k, v in self.props(i).items() if k != 'Position'} for i in (MPRIS, MPRIS_PLAYER)}
+        self.s = state
+        self.at = time.monotonic()
+        for iface in (MPRIS, MPRIS_PLAYER):
+            now = {k: v for k, v in self.props(iface).items() if k != 'Position'}  # Position is never signalled (spec)
+            changed = {k: v for k, v in now.items() if before[iface].get(k) != v}
+            if changed:
+                self.PropertiesChanged(iface, dbus.Dictionary(changed, signature='sv'), dbus.Array([], signature='s'))
+
+    def call(self, method, **extra):
+        out({'event': 'mpris-call', 'method': method, **extra})
+
+    @dbus.service.method(PROPS, in_signature='ss', out_signature='v')
+    def Get(self, iface, prop):
+        p = self.props(str(iface))
+        if prop not in p:
+            raise dbus.exceptions.DBusException('No such property', name='org.freedesktop.DBus.Error.UnknownProperty')
+        return p[prop]
+
+    @dbus.service.method(PROPS, in_signature='s', out_signature='a{sv}')
+    def GetAll(self, iface):
+        return dbus.Dictionary(self.props(str(iface)), signature='sv')
+
+    @dbus.service.method(PROPS, in_signature='ssv', out_signature='')
+    def Set(self, iface, prop, value):
+        prop = str(prop)
+        if str(iface) != MPRIS_PLAYER or prop not in ('Volume', 'Rate', 'LoopStatus', 'Shuffle'):
+            raise dbus.exceptions.DBusException('Read-only property', name='org.freedesktop.DBus.Error.PropertyReadOnly')
+        if prop == 'LoopStatus':
+            v = str(value)
+            if v not in ('None', 'Track', 'Playlist'):
+                raise dbus.exceptions.DBusException('Bad LoopStatus', name='org.freedesktop.DBus.Error.InvalidArgs')
+        elif prop == 'Shuffle':
+            v = bool(value)
+        else:
+            v = float(value)
+            if v != v or v in (float('inf'), float('-inf')):
+                raise dbus.exceptions.DBusException('Bad value', name='org.freedesktop.DBus.Error.InvalidArgs')
+            v = max(0.0, min(1.0, v)) if prop == 'Volume' else (0.0 if v <= 0 else max(0.5, min(2.0, v)))
+        self.call('Set', prop=prop, value=v)
+
+    @dbus.service.signal(PROPS, signature='sa{sv}as')
+    def PropertiesChanged(self, iface, changed, invalidated):
+        pass
+
+    @dbus.service.signal(MPRIS_PLAYER, signature='x')
+    def Seeked(self, position):
+        pass
+
+    @dbus.service.method(MPRIS, in_signature='', out_signature='')
+    def Raise(self):
+        self.call('Raise')
+
+    @dbus.service.method(MPRIS, in_signature='', out_signature='')
+    def Quit(self):
+        self.call('Quit')
+
+    def _if(self, flag, method, **extra):
+        if self.s.get(flag):  # spec: a method whose Can* is false has no effect
+            self.call(method, **extra)
+
+    @dbus.service.method(MPRIS_PLAYER, in_signature='', out_signature='')
+    def Next(self):
+        self._if('canNext', 'Next')
+
+    @dbus.service.method(MPRIS_PLAYER, in_signature='', out_signature='')
+    def Previous(self):
+        self._if('canPrev', 'Previous')
+
+    @dbus.service.method(MPRIS_PLAYER, in_signature='', out_signature='')
+    def Pause(self):
+        self._if('canPause', 'Pause')
+
+    @dbus.service.method(MPRIS_PLAYER, in_signature='', out_signature='')
+    def PlayPause(self):
+        self._if('canPause' if self.s.get('status') == 'Playing' else 'canPlay', 'PlayPause')
+
+    @dbus.service.method(MPRIS_PLAYER, in_signature='', out_signature='')
+    def Stop(self):
+        self.call('Stop')
+
+    @dbus.service.method(MPRIS_PLAYER, in_signature='', out_signature='')
+    def Play(self):
+        self._if('canPlay', 'Play')
+
+    @dbus.service.method(MPRIS_PLAYER, in_signature='x', out_signature='')
+    def Seek(self, offset):
+        self._if('canSeek', 'Seek', offset=int(offset) / 1e6)
+
+    @dbus.service.method(MPRIS_PLAYER, in_signature='ox', out_signature='')
+    def SetPosition(self, track, position):
+        # spec: ignored when the track id is not the current one or the position is outside the track
+        length = float((self.s.get('track') or {}).get('length') or 0)
+        pos = int(position) / 1e6
+        if str(track) == str(self._track_path()) and pos >= 0 and (not length or pos <= length):
+            self._if('canSeek', 'SetPosition', position=pos)
+
+    @dbus.service.method(MPRIS_PLAYER, in_signature='s', out_signature='')
+    def OpenUri(self, uri):
+        path = mpris_path_of_uri(uri)
+        if not path:
+            raise dbus.exceptions.DBusException('Only local media files (file://) can be opened', name='org.freedesktop.DBus.Error.InvalidArgs')
+        self.call('OpenUri', path=path)
+
+
 def menu_entry(node):
     """GetLayout node (i, a{sv}, av) -> JSON entry; invisible entries are None."""
     mid, props, children = node
@@ -421,6 +615,7 @@ class Helper:
         self.watcher = None
         self.saver = []
         self.pm = None
+        self.mpris = None  # MprisPlayer while the Lecteur is open
         self.inhibitors = {}  # cookie -> {sender, app, reason, kind}
         self.cookie = 0
         bus.add_signal_receiver(self.on_owner_changed, 'NameOwnerChanged', 'org.freedesktop.DBus', 'org.freedesktop.DBus')
@@ -478,6 +673,25 @@ class Helper:
         out({'event': 'inhibitors', **self.inhibitor_state()})
         if self.pm:
             self.pm.HasInhibitChanged(bool(self.inhibitors))
+
+    # ---- MPRIS (the Lecteur)
+    def mpris_self(self, state):
+        """state (already checked by sessionbus.js) or None: export / update / withdraw org.mpris.MediaPlayer2.selene."""
+        if not isinstance(state, dict) or not state.get('active'):
+            if self.mpris:
+                self.mpris.remove_from_connection()
+                self.mpris = None
+                try:
+                    self.bus.release_name(MPRIS_NAME)
+                except dbus.DBusException:
+                    pass
+            return False
+        if not self.mpris:
+            self.mpris = self.own(MPRIS_NAME, MprisPlayer)
+            if not self.mpris:
+                return False
+        self.mpris.update(state)
+        return True
 
     # ---- tray items
     def add_item(self, name, path, sender):
@@ -596,6 +810,14 @@ class Helper:
                 return reply({'notifications': bool(self.notif), 'tray': bool(self.watcher), 'screensaver': bool(self.saver), 'power': bool(self.pm), 'items': self.item_list(), 'inhibitors': self.inhibitor_state()})
             if cmd == 'inhibitors':
                 return reply(self.inhibitor_state())
+            if cmd == 'mpris-self':
+                return reply(self.mpris_self(msg.get('state')))
+            if cmd == 'mpris-seeked':
+                if self.mpris:
+                    self.mpris.s['position'] = max(0.0, float(msg.get('position', 0)))
+                    self.mpris.at = time.monotonic()
+                    self.mpris.Seeked(self.mpris.position())
+                return reply(bool(self.mpris))
             if cmd == 'closed':
                 return reply(bool(self.notif) and self.notif.closed(int(msg.get('nid', 0)), int(msg.get('reason', 2))))
             if cmd == 'action':

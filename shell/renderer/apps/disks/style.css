@@ -282,6 +282,353 @@
   color: var(--danger);
   min-height: 16px;
 }
+/* ---------------------------------------------------------------- views (Volumes | Santé) */
+.app-disks .dk-tabs {
+  margin-top: 2px;
+}
+.app-disks .dk-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+}
+.app-disks .dk-tab-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dk-st);
+}
+.app-disks .dk-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+/* Status colour of a drive's health (list marker, tab dot, hero, smart row). */
+.app-disks .st-good {
+  --dk-st: var(--success);
+  --dk-st-bg: var(--success-bg);
+}
+.app-disks .st-warning {
+  --dk-st: var(--warning);
+  --dk-st-bg: var(--warning-bg);
+}
+.app-disks .st-failing {
+  --dk-st: var(--danger);
+  --dk-st-bg: var(--danger-bg);
+}
+.app-disks .st-unknown {
+  --dk-st: var(--text-2);
+  --dk-st-bg: transparent;
+}
+.app-disks .dk-drive-health {
+  display: flex;
+  margin-left: auto;
+  flex: none;
+  color: var(--dk-st);
+}
+.app-disks .dk-smart-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dk-st);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+.app-disks .dk-smart-link:hover {
+  text-decoration-color: currentColor;
+}
+.app-disks .dk-smart-link:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs, 2px);
+}
+
+/* ---------------------------------------------------------------- health: status card */
+.app-disks .dk-hero {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 16px;
+  border-left: 4px solid var(--dk-st);
+}
+.app-disks .dk-hero.st-warning,
+.app-disks .dk-hero.st-failing {
+  background: color-mix(in srgb, var(--dk-st-bg) 70%, var(--card));
+}
+.app-disks .dk-hero-main {
+  display: flex;
+  gap: 14px;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.app-disks .dk-hero-icon {
+  display: flex;
+  flex: none;
+  color: var(--dk-st);
+}
+.app-disks .dk-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.app-disks .dk-hero-status {
+  color: var(--dk-st);
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+.app-disks .dk-hero.st-unknown .dk-hero-status {
+  color: var(--text);
+}
+.app-disks .dk-hero-text p {
+  margin: 0;
+}
+.app-disks .dk-hero-summary {
+  line-height: 20px;
+}
+.app-disks .dk-hero-detail {
+  overflow-wrap: anywhere;
+}
+.app-disks .dk-hero-meta {
+  margin-top: 2px;
+}
+.app-disks .dk-hero-busy {
+  flex: 0 0 80px;
+  align-self: center;
+}
+.app-disks .dk-problems {
+  margin: 2px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 20px;
+}
+.app-disks .dk-problems li.lv-failing::marker {
+  color: var(--danger);
+}
+.app-disks .dk-problems li.lv-warning::marker {
+  color: var(--warning);
+}
+.app-disks .dk-hero-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.app-disks .dk-hero-actions .btn,
+.app-disks .dk-st-buttons .btn {
+  gap: 6px;
+}
+
+/* ---------------------------------------------------------------- health: figures */
+.app-disks .dk-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.app-disks .dk-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+.app-disks .dk-tile-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-disks .dk-tile-value {
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle, 20px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.app-disks .dk-meter {
+  margin-top: 4px;
+}
+.app-disks .dk-meter.lv-watch > .bar {
+  background: var(--warning);
+}
+.app-disks .dk-meter.lv-bad > .bar {
+  background: var(--danger);
+}
+
+/* ---------------------------------------------------------------- health: indicators */
+.app-disks .dk-ind-list {
+  display: flex;
+  flex-direction: column;
+}
+.app-disks .dk-ind {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.app-disks .dk-ind:first-child {
+  border-top: 0;
+}
+.app-disks .dk-ind-head {
+  display: flex;
+  align-items: center;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+.app-disks .dk-ind-label {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.app-disks .dk-ind-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.app-disks .dk-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: var(--fs-caption, 12px);
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+.app-disks .dk-chip.lv-watch {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+}
+.app-disks .dk-chip.lv-bad {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+}
+.app-disks .dk-ind-x {
+  line-height: 18px;
+  max-width: 72ch;
+}
+
+/* ---------------------------------------------------------------- health: self-test */
+.app-disks .dk-selftest p {
+  margin: 0;
+}
+.app-disks .dk-selftest .body-strong {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.app-disks .dk-st-running {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-disks .dk-st-last {
+  font-size: 13px;
+}
+.app-disks .dk-st-last.lv-bad,
+.app-disks .dk-st-history li.lv-bad {
+  color: var(--danger);
+}
+.app-disks .dk-st-history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.app-disks .dk-st-history li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.app-disks .dk-st-when {
+  min-width: 150px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- health: expert tables */
+.app-disks .dk-expert > summary {
+  cursor: pointer;
+  border-radius: var(--radius-xs, 2px);
+}
+.app-disks .dk-expert > summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.app-disks .dk-expert p {
+  margin: 4px 0 8px;
+}
+.app-disks .dk-table-wrap {
+  overflow-x: auto;
+  min-width: 0;
+  border-radius: var(--radius-sm, 4px);
+}
+.app-disks .dk-table-wrap:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.app-disks .dk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.app-disks .dk-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-2);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.app-disks .dk-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: top;
+}
+.app-disks .dk-table .c-id,
+.app-disks .dk-table .c-value,
+.app-disks .dk-table .c-worst,
+.app-disks .dk-table .c-threshold {
+  text-align: right;
+  white-space: nowrap;
+}
+.app-disks .dk-table .c-raw {
+  white-space: nowrap;
+}
+.app-disks .dk-table tr.failing td {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.app-disks .dk-table tr.failing .c-value,
+.app-disks .dk-table tr.failing .c-name > div:first-child {
+  color: var(--danger);
+  font-weight: 600;
+}
+.app-disks .dk-table tr.past td {
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+.app-disks .dk-mono {
+  font-family: var(--font-mono);
+}
+.app-disks .dk-hloading {
+  gap: 8px;
+}
+
 @media (max-width: 720px) {
   .app-disks .disks {
     grid-template-columns: 200px minmax(0, 1fr);

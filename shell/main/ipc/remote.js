@@ -32,6 +32,7 @@ const fsp = fs.promises;
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const rdp = require('../lib/freerdp');
 
 const MAX_PER_SENDER = 8;
 const IDLE_MS = 2 * 3600000;
@@ -105,21 +106,40 @@ function openSecret(sealed) {
 }
 
 // ------------------------------------------------------------------ saved connections
-async function readStore() {
+async function readDoc() {
   try {
     const j = JSON.parse(await fsp.readFile(storeFile(), 'utf8'));
-    return Array.isArray(j?.connections) ? j.connections.filter((c) => c && typeof c.id === 'string' && hostKind(c.host) && validPort(c.port)) : [];
+    return { connections: Array.isArray(j?.connections) ? j.connections.filter((c) => c && typeof c.id === 'string' && hostKind(c.host) && validPort(c.port)) : [], certs: j?.certs && typeof j.certs === 'object' ? j.certs : {} };
   } catch {
-    return [];
+    return { connections: [], certs: {} };
   }
 }
-async function writeStore(list) {
-  await fsp.mkdir(dataDir(), { recursive: true, mode: 0o700 });
-  const tmp = `${storeFile()}.${process.pid}.tmp`;
-  await fsp.writeFile(tmp, JSON.stringify({ version: 1, connections: list }, null, 2), { mode: 0o600 });
-  await fsp.rename(tmp, storeFile());
+async function readStore() {
+  return (await readDoc()).connections;
 }
-const publicEntry = (c) => ({ id: c.id, name: typeof c.name === 'string' && c.name ? c.name : c.host, host: c.host, port: validPort(c.port), remember: !!c.secret });
+let writing = Promise.resolve();
+function writeDoc(doc) {
+  writing = writing.catch(() => {}).then(async () => {
+    await fsp.mkdir(dataDir(), { recursive: true, mode: 0o700 });
+    const tmp = `${storeFile()}.${process.pid}.tmp`;
+    await fsp.writeFile(tmp, JSON.stringify({ version: 2, connections: doc.connections, certs: doc.certs || {} }, null, 2), { mode: 0o600 });
+    await fsp.rename(tmp, storeFile());
+  });
+  return writing;
+}
+async function writeStore(list) {
+  const doc = await readDoc();
+  await writeDoc({ connections: list, certs: doc.certs });
+}
+const publicEntry = (c) => ({
+  id: c.id,
+  protocol: c.protocol === 'rdp' ? 'rdp' : 'vnc',
+  name: typeof c.name === 'string' && c.name ? c.name : c.host,
+  host: c.host,
+  port: validPort(c.port),
+  remember: !!c.secret,
+  ...(c.protocol === 'rdp' ? { user: c.user || '', domain: c.domain || '', options: rdp.cleanOptions(c.options) } : { clipboard: c.clipboard !== false }),
+});
 function err(message, code) {
   const e = new Error(message);
   e.code = code;
