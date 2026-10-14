@@ -215,7 +215,7 @@ function prepareCopy(info, name, baseDir) {
       }
       const st = fs.statSync(f.path);
       total += st.size;
-      if (!st.isFile() || st.size > MAX_REF || total > MAX_COPY) throw Object.assign(new Error(`${f.arg}: file too large`), { code: 'EINVAL' });
+      if (!st.isFile() || st.size > MAX_REF || total > MAX_COPY) throw Object.assign(new Error(`${f.arg}: ${st.isFile() ? 'too large' : 'not a regular file'}`), { code: 'EINVAL' });
       let base = path.basename(f.path).replace(/[^a-zA-Z0-9_.-]+/g, '_') || 'file';
       if (base.startsWith('.')) base = `_${base}`;
       let n = 1;
@@ -234,6 +234,20 @@ function prepareCopy(info, name, baseDir) {
     fs.rmSync(dir, { recursive: true, force: true });
     throw e;
   }
+}
+
+/** vpn.data { ca: '/…/openvpn/work-1a2b/ca.crt', … } -> private copy folders (direct children of baseDir) it uses. */
+function copyDirsIn(data, baseDir) {
+  const out = new Set();
+  const root = path.resolve(baseDir) + path.sep;
+  for (const v of Object.values(data || {})) {
+    if (typeof v !== 'string' || !path.isAbsolute(v)) continue;
+    const abs = path.resolve(v);
+    if (!abs.startsWith(root)) continue;
+    const first = abs.slice(root.length).split(path.sep)[0];
+    if (first && first !== '.' && first !== '..' && /^[a-zA-Z0-9_.-]+-[0-9a-f]{8}$/.test(first)) out.add(path.join(root, first));
+  }
+  return [...out];
 }
 
 // ---------------------------------------------------------------- nmcli escaping
@@ -344,6 +358,7 @@ module.exports = {
   parseAuthFile,
   cleanName,
   prepareCopy,
+  copyDirsIn,
   nmOptEscape,
   parseVpnData,
   passwdFileEscape,

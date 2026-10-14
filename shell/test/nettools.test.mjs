@@ -90,14 +90,14 @@ page.on('pageerror', (e) => errors.push(e.message));
 
 await section('launch: window, tabs, VPN list', async () => {
   check('window opened', await until(page, `!!document.querySelector('${WIN} .nt-vpn')`, 20000), true);
-  check('three tabs', await page.evaluate(`[...document.querySelectorAll('${WIN} [role=tab]')].map((t) => t.textContent)`), ['VPN', 'Ping', 'DNS lookup']);
+  check('six tabs', await page.evaluate(`[...document.querySelectorAll('${WIN} [role=tab]')].map((t) => t.textContent)`), ['VPN', 'Ping', 'Traceroute', 'DNS lookup', 'Ports', 'Speed test']);
   check('VPN tab selected', await page.evaluate(`document.querySelector('${WIN} #nt-tab-vpn').getAttribute('aria-selected')`), 'true');
-  check('other panels hidden', await page.evaluate(`[...document.querySelectorAll('${WIN} [role=tabpanel]')].map((p) => p.hidden)`), [false, true, true]);
+  check('other panels hidden', await page.evaluate(`[...document.querySelectorAll('${WIN} [role=tabpanel]')].map((p) => p.hidden)`), [false, true, true, true, true, true]);
   const r = await rows(page);
   check('two mock connections', r.map((x) => x.name), ['Home WireGuard', 'Office VPN']);
   check('Home WireGuard connected', r[0].status, 'Connected · wg-home');
   check('Office VPN not connected', [r[1].status, r[1].btn], ['Not connected', 'Connect']);
-  check('later note', await text(page, `${WIN} .nt-later`), 'OpenVPN and a speed test are coming later.');
+  check('import hint', await text(page, `${WIN} .nt-later`), 'Import a WireGuard .conf or an OpenVPN .ovpn file, or drop it here. Certificates and keys next to an .ovpn file are copied with it.');
   check('title shows app name', await page.evaluate(`document.querySelector('${WIN}').textContent.includes('Network tools')`), true);
   check('no "null"/"undefined" text', await page.evaluate(`/\\b(null|undefined)\\b/.test(document.querySelector('${WIN} .nt-root').textContent)`), false);
 });
@@ -168,12 +168,12 @@ await section('keyboard: arrow keys move between tabs', async () => {
   check('Ping tab focused', await page.evaluate(`document.activeElement?.id`), 'nt-tab-ping');
   check('ping panel visible', await page.evaluate(`document.querySelector('${WIN} #nt-panel-ping').hidden`), false);
   await page.keyboard.press('End');
-  check('End -> DNS', await page.evaluate(`document.activeElement?.id`), 'nt-tab-dns');
+  check('End -> Speed test', await page.evaluate(`document.activeElement?.id`), 'nt-tab-speed');
   await page.keyboard.press('ArrowRight');
   check('wraps to VPN', await page.evaluate(`document.activeElement?.id`), 'nt-tab-vpn');
   await page.keyboard.press('ArrowLeft');
-  check('ArrowLeft wraps to DNS', await page.evaluate(`document.activeElement?.id`), 'nt-tab-dns');
-  check('roving tabindex', await page.evaluate(`[...document.querySelectorAll('${WIN} [role=tab]')].map((t) => t.tabIndex)`), [-1, -1, 0]);
+  check('ArrowLeft wraps to Speed test', await page.evaluate(`document.activeElement?.id`), 'nt-tab-speed');
+  check('roving tabindex', await page.evaluate(`[...document.querySelectorAll('${WIN} [role=tab]')].map((t) => t.tabIndex)`), [-1, -1, -1, -1, -1, 0]);
 });
 
 await section('ping: stream, invalid host, failure, cancel', async () => {
@@ -254,12 +254,12 @@ s = await launchShell({ open: ['nettools'], lang: 'fr', theme: 'dark', env: { AU
 await section('French + dark theme', async () => {
   const p = s.page;
   check('window opened (fr)', await until(p, `!!document.querySelector('${WIN} .nt-vpn')`, 20000), true);
-  check('FR tabs', await p.evaluate(`[...document.querySelectorAll('${WIN} [role=tab]')].map((t) => t.textContent)`), ['VPN', 'Ping', 'Recherche DNS']);
+  check('FR tabs', await p.evaluate(`[...document.querySelectorAll('${WIN} [role=tab]')].map((t) => t.textContent)`), ['VPN', 'Ping', 'Traceroute', 'Recherche DNS', 'Ports', 'Test de débit']);
   check('FR title', await text(p, `${WIN} .nt-h2`), 'Connexions VPN');
   check('FR status', (await rows(p))[0].status, 'Connecté · wg-home');
   check('FR connect button', (await rows(p))[1].btn, 'Se connecter');
-  check('FR later note', await text(p, `${WIN} .nt-later`), 'OpenVPN et un test de débit arriveront plus tard.');
-  check('FR import label', await text(p, `${WIN} [data-act=import]`), 'Importer un fichier WireGuard');
+  check('FR import hint', (await text(p, `${WIN} .nt-later`)).startsWith('Importez un fichier .conf WireGuard ou .ovpn OpenVPN'), true);
+  check('FR import label', await text(p, `${WIN} [data-act=import]`), 'Importer un fichier VPN');
   const dark = await p.evaluate(`(() => { const c = getComputedStyle(document.querySelector('${WIN} .nt-vpn-name')).color.match(/\\d+/g).map(Number); return (c[0] + c[1] + c[2]) / 3; })()`);
   check('dark theme: light text', dark, (v) => v > 180);
   await p.locator(WIN).screenshot({ path: path.join(DOCS, 'nettools-dark-fr.png') });

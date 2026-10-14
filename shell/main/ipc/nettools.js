@@ -1,11 +1,14 @@
 'use strict';
-// Network tools app backend (apps/nettools): VPN connections (NetworkManager), ping and DNS lookup.
+// Network tools app backend (apps/nettools): VPN connections (NetworkManager: WireGuard, OpenVPN), ping, traceroute,
+// DNS lookup, port checks, listening sockets and a speed test.
 // No root, never a shell: commands run through execFile/spawn with fixed argument lists, and every host goes
 // through validHost() (hostname, IPv4 or IPv6 only). Mock data in dev/tests (api.DEV unless AURORA_REAL_BACKENDS=1).
 //
 // Channels:
-//   nettools:vpnList () -> { available, mock, items: [{ uuid, name, type: 'vpn'|'wireguard', device, active }] }
-//        available: false when nmcli is missing (items is then []).
+//   nettools:vpnList () -> { available, mock, items: [{ uuid, name, type: 'vpn'|'wireguard', service, device, active }] }
+//        available: false when nmcli is missing (items is then []). service: 'openvpn', 'wireguard', other VPN plugin
+//        names ('' when unknown).
+//   nettools:vpnInfo (uuid) -> { service, remote, username, auth, needsPassword, passwordSaved, keyPass: 'none'|'saved'|'ask' }
 //   nettools:vpnUp (uuid) / nettools:vpnDown (uuid) -> { ok: true }      (nmcli connection up|down uuid <uuid>)
 //   nettools:vpnImport (path) -> { name }   imports a WireGuard .conf (nmcli connection import type wireguard file <path>)
 //   nettools:vpnDelete (uuid) -> { ok: true }
@@ -13,10 +16,14 @@
 //        to the asking window only.
 //   nettools:pingCancel (id) -> { ok }
 //   nettools:dns (host, type) -> { host, type, records: [string] }   type: A AAAA MX TXT NS CNAME (node dns, 5 s timeout)
-//   nettools:vpnUp (uuid, { username?, password?, keyPassword? }?) — OpenVPN secrets go through an nmcli passwd-file
-//        (0600, private folder in $XDG_RUNTIME_DIR, deleted when nmcli exits), never argv; password-flags=2.
+//   nettools:vpnUp (uuid, { username?, password?, keyPassword?, remember? }?) — secrets never go on a command line:
+//        remember false: nmcli passwd-file (0600 file in a 0700 folder of $XDG_RUNTIME_DIR, deleted as soon as nmcli
+//        exits), flags 2 (« ask every time »); remember true: flags 0 and `nmcli connection edit` with the
+//        `set vpn.secrets …` / `save` commands on its stdin, so NetworkManager keeps the secret (root-only keyfile).
+//        The user name is not a secret: `nmcli connection modify uuid U +vpn.data username=…`.
 //   nettools:vpnImport (path) also takes an OpenVPN .ovpn: the profile and the files it references are copied to
-//        ~/.local/share/aurora/nettools/openvpn/<name>-<hex>/ (0700) then `nmcli connection import type openvpn file …`.
+//        ~/.local/share/aurora/nettools/openvpn/<name>-<hex>/ (0700) then `nmcli connection import type openvpn file …`
+//        -> { name, uuid, type: 'openvpn', needsAuth, needsKeyPass }.
 //   nettools:trace (host, { maxHops 1-64, family 'auto'|'4'|'6' }) -> { id, tool }; streams (+nettools:trace)
 //        { id, hop: { n, host, ip, ms: [], timeouts, reached } } then { id, done, code, cancelled, reached, error }.
 //   nettools:traceCancel (id)
@@ -24,10 +31,17 @@
 //        results: [{ port, status: 'open'|'closed'|'filtered'|'unreachable'|'error', ms, code, service }] }  (Node net)
 //   nettools:listening () -> { items: [{ proto, addr, iface, port, scope: 'local'|'all'|'address', service,
 //        processes: [{ name, pid }] }], hidden }   (ss -H -tulpn as the user: other accounts' processes hidden)
-// Dev/tests: mock unless AURORA_REAL_BACKENDS=1 or AURORA_NETTOOLS_REAL=1 (port checks are always real).
+//   nettools:speed () -> { id, host }; streams (+nettools:speed) { id, phase: 'latency'|'download'|'upload', progress 0-1,
+//        mbps?, ping?, jitter? } then { id, done, result?: { download, upload, ping, jitter, server, ip, bytes, at },
+//        error?, code?, cancelled }. Cloudflare's __down / __up endpoints (AURORA_NETTOOLS_SPEED_URL overrides the base
+//        URL, AURORA_NETTOOLS_SPEED_MAX the largest request in bytes). One test at a time (EBUSY).
+//   nettools:speedCancel (id)
+// Dev/tests: mock unless AURORA_REAL_BACKENDS=1 or AURORA_NETTOOLS_REAL=1 (port checks and the speed test are always
+// real; the speed test goes to AURORA_NETTOOLS_SPEED_URL in tests).
 // Errors: EINVAL (bad host / uuid / path / type), ENOTFOUND / ENODATA / ETIMEOUT (DNS), ECMD (nmcli failed, message = its stderr),
-//   ENOPLUGIN (NetworkManager-openvpn missing), EBADFILE (profile refused), EMISSING (referenced files missing: message
-//   lists them), ENEEDAUTH (secrets needed), EAUTH (secrets refused).
+//   ENOPLUGIN (NetworkManager-openvpn missing), EBADFILE (profile refused), EMISSING (referenced files missing or
+//   unreadable: message lists them), EBADREF (a referenced file is not a regular file or too large), ENEEDAUTH
+//   (secrets needed), EAUTH (secrets refused).
 const fs = require('fs');
 const net = require('net');
 const path = require('path');
@@ -37,6 +51,7 @@ const { run, which } = require('../lib/exec');
 const ovpn = require('../lib/nettools/openvpn');
 const tr = require('../lib/nettools/trace');
 const ports = require('../lib/nettools/ports');
+const speed = require('../lib/nettools/speed');
 
 const DNS_TYPES = ['A', 'AAAA', 'MX', 'TXT', 'NS', 'CNAME'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -106,9 +121,11 @@ function checkOvpnPath(p) {
   if (!st.isFile() || st.size > ovpn.MAX_OVPN) throw err('Choose an OpenVPN .ovpn file', 'EINVAL');
   return p;
 }
+// Regular files only: a FIFO or device named by `key` must never block the main process.
 const readSmall = (p) => {
   try {
-    return fs.statSync(p).size <= 1024 * 1024 ? fs.readFileSync(p, 'utf8') : null;
+    const st = fs.statSync(p);
+    return st.isFile() && st.size <= 1024 * 1024 ? fs.readFileSync(p, 'utf8') : null;
   } catch {
     return null;
   }
@@ -152,11 +169,12 @@ function mockState() {
   return {
     conns: [
       { uuid: '5b1e0c4a-1f7e-4c3b-9a43-0d2a6c1e8f01', name: 'Home WireGuard', type: 'wireguard', device: 'wg-home', active: true },
-      { uuid: '9d3f2b77-6a10-4e8d-b2c5-71f0a9e4d302', name: 'Office VPN', type: 'vpn', service: 'openvpn', device: '', active: false },
+      { uuid: '9d3f2b77-6a10-4e8d-b2c5-71f0a9e4d302', name: 'Office VPN', type: 'vpn', service: 'openvpn', device: '', active: false, remote: 'vpn.example.org' },
     ],
     seq: 3,
   };
 }
+const publicConn = (c) => ({ uuid: c.uuid, name: c.name, type: c.type, service: c.service || (c.type === 'wireguard' ? 'wireguard' : ''), device: c.device, active: c.active });
 const MOCK_DNS = {
   A: ['93.184.215.14'],
   AAAA: ['2606:2800:21f:cb07:6820:80da:af6b:8b2c'],
@@ -214,19 +232,52 @@ function register(api) {
   }
 
   api.handle('nettools:vpnList', async () => {
-    if (MOCK) return { available: true, mock: true, items: mock.conns.map((c) => ({ ...c })).sort((a, b) => a.name.localeCompare(b.name)) };
+    if (MOCK) return { available: true, mock: true, items: mock.conns.map(publicConn).sort((a, b) => a.name.localeCompare(b.name)) };
     try {
       const out = await nmcli(['-t', '-f', 'NAME,UUID,TYPE,DEVICE,ACTIVE', 'connection', 'show']);
-      return { available: true, mock: false, items: parseConnections(out) };
+      const items = parseConnections(out);
+      // VPN plugin name (OpenVPN, …) for the badge: one small nmcli call per VPN connection (at most 24).
+      await Promise.all(
+        items
+          .filter((c) => c.type === 'vpn')
+          .slice(0, 24)
+          .map(async (c) => {
+            try {
+              c.service = (await vpnDetails(c.uuid)).service;
+            } catch {
+              c.service = '';
+            }
+          }),
+      );
+      for (const c of items) if (c.service == null) c.service = c.type === 'wireguard' ? 'wireguard' : '';
+      return { available: true, mock: false, items };
     } catch (e) {
       if (e.code === 'ENOENT') return { available: false, mock: false, items: [] };
       throw e;
     }
   });
 
-  // creds (OpenVPN): { username?, password?, keyPassword? } -> username stored with nmcli modify (not a secret),
-  // secrets given to nmcli's own agent through a passwd-file (0600, private 0700 folder, deleted as soon as nmcli
-  // exits); password-flags=2 ("ask every time"). Never on a command line.
+  async function vpnDetails(uuid) {
+    const out = await nmcli(['-e', 'no', '-t', '-f', 'vpn.service-type,vpn.data', 'connection', 'show', 'uuid', uuid]);
+    return ovpn.parseVpnDetails(out);
+  }
+
+  api.handle('nettools:vpnInfo', async (uuid) => {
+    checkUuid(uuid);
+    if (MOCK) {
+      const m = mock.conns.find((x) => x.uuid === uuid);
+      if (!m) throw err('Unknown connection', 'ENOENT');
+      const pass = m.type === 'vpn' && !!m.needsAuth;
+      return { service: publicConn(m).service, remote: m.remote || '', username: m.username || '', auth: pass ? 'password' : m.type === 'vpn' ? 'tls' : '', needsPassword: pass && !m.saved, passwordSaved: pass && !!m.saved, keyPass: m.needsKeyPass ? 'ask' : 'none' };
+    }
+    const d = await vpnDetails(uuid);
+    return { service: d.service, remote: d.remote, username: d.username, auth: d.auth, needsPassword: d.needsPassword, passwordSaved: d.passwordSaved, keyPass: d.keyPass };
+  });
+
+  // creds (OpenVPN): { username?, password?, keyPassword?, remember? } -> username stored with nmcli modify (not a
+  // secret). Secrets: remember -> flags 0 + `nmcli connection edit` reading `set vpn.secrets …` / `save` on stdin
+  // (NetworkManager keeps them); otherwise nmcli's own agent answers from a passwd-file (0600, private 0700 folder,
+  // deleted as soon as nmcli exits) with flags 2 ("ask every time"). Never on a command line.
   async function setActive(uuid, up, creds) {
     checkUuid(uuid);
     const c = creds && typeof creds === 'object' ? creds : null;
@@ -240,8 +291,10 @@ function register(api) {
       if (!m) throw err('Unknown connection', 'ENOENT');
       await new Promise((r) => setTimeout(r, 250));
       if (up && m.needsAuth) {
-        if (!c?.password) throw err('No valid secrets', 'ENEEDAUTH');
-        if (c.password === 'wrong') throw err('Invalid secrets', 'EAUTH');
+        if (!c?.password && !m.saved) throw err('No valid secrets', 'ENEEDAUTH');
+        if (c?.password === 'wrong') throw err('Invalid secrets', 'EAUTH');
+        if (c?.username) m.username = c.username;
+        if (c?.password) m.saved = !!c.remember;
       }
       m.active = up;
       m.device = up ? (m.type === 'wireguard' ? m.name.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 12) || 'wg0' : 'tun0') : '';
@@ -255,14 +308,28 @@ function register(api) {
     let tmp = null;
     try {
       if (c && (c.username || c.password || c.keyPassword)) {
+        const keep = !!c.remember;
+        const flags = keep ? '0' : '2';
         const data = [];
         if (c.username) data.push(`username=${ovpn.nmOptEscape(c.username)}`);
-        if (c.password) data.push('password-flags=2');
-        if (c.keyPassword) data.push('cert-pass-flags=2');
+        if (c.password) data.push(`password-flags=${flags}`);
+        if (c.keyPassword) data.push(`cert-pass-flags=${flags}`);
         if (data.length) await nmcli(['connection', 'modify', 'uuid', uuid, '+vpn.data', data.join(', ')]);
+        const secrets = [];
+        if (c.password) secrets.push(`password=${ovpn.nmOptEscape(c.password)}`);
+        if (c.keyPassword) secrets.push(`cert-pass=${ovpn.nmOptEscape(c.keyPassword)}`);
+        if (keep && secrets.length) {
+          // nmcli's editor reads its commands from stdin: the secret never appears in /proc/<pid>/cmdline.
+          const res = await run('nmcli', ['connection', 'edit', 'uuid', uuid], { timeout: 30000, input: `set vpn.secrets ${secrets.join(', ')}\nsave persistent\nquit\n` });
+          const bad = `${res.stdout}\n${res.stderr}`.split('\n').find((l) => /^Error:/.test(l.trim()));
+          if (res.code !== 0 || bad) {
+            const msg = (bad || res.stderr || 'nmcli failed').trim().replace(/^Error:\s*/, '').slice(0, 300);
+            throw err(msg, ovpn.classifyNmError(msg));
+          }
+        }
         const lines = [];
-        if (c.password) lines.push(`vpn.secrets.password:${ovpn.passwdFileEscape(c.password)}`);
-        if (c.keyPassword) lines.push(`vpn.secrets.cert-pass:${ovpn.passwdFileEscape(c.keyPassword)}`);
+        if (!keep && c.password) lines.push(`vpn.secrets.password:${ovpn.passwdFileEscape(c.password)}`);
+        if (!keep && c.keyPassword) lines.push(`vpn.secrets.cert-pass:${ovpn.passwdFileEscape(c.keyPassword)}`);
         if (lines.length) {
           const base = process.env.AURORA_NETTOOLS_TMPDIR || process.env.XDG_RUNTIME_DIR || os.tmpdir();
           const dir = fs.mkdtempSync(path.join(base, 'aurora-nettools-'));
@@ -289,18 +356,26 @@ function register(api) {
       if (MOCK) {
         if (process.env.AURORA_NETTOOLS_MOCK_NO_OPENVPN === '1') throw err('failed to find VPN plugin for openvpn.', 'ENOPLUGIN');
         const n = String(mock.seq++).padStart(12, '0');
-        mock.conns.push({ uuid: `00000000-0000-4000-8000-${n}`, name, type: 'vpn', service: 'openvpn', device: '', active: false, needsAuth: info.needsAuth });
-        return { name, type: 'openvpn', needsAuth: info.needsAuth };
+        const uuid = `00000000-0000-4000-8000-${n}`;
+        mock.conns.push({ uuid, name, type: 'vpn', service: 'openvpn', device: '', active: false, needsAuth: info.needsAuth, needsKeyPass: info.needsKeyPass, remote: info.remotes[0]?.host || '' });
+        return { name, uuid, type: 'openvpn', needsAuth: info.needsAuth, needsKeyPass: info.needsKeyPass };
       }
       const base = path.join(os.homedir(), '.local', 'share', 'aurora', 'nettools', 'openvpn');
-      const copy = ovpn.prepareCopy(info, name, base);
+      let copy;
       try {
-        await nmcli(['connection', 'import', 'type', 'openvpn', 'file', copy.file]);
+        copy = ovpn.prepareCopy(info, name, base);
+      } catch (e) {
+        throw err(e.code === 'EINVAL' ? e.message : `${e.path ? path.basename(e.path) : name} (${e.code || e.message})`, e.code === 'EINVAL' ? 'EBADREF' : 'EMISSING');
+      }
+      let out;
+      try {
+        out = await nmcli(['connection', 'import', 'type', 'openvpn', 'file', copy.file]);
       } catch (e) {
         fs.rmSync(copy.dir, { recursive: true, force: true });
         throw e;
       }
-      return { name, type: 'openvpn', needsAuth: info.needsAuth };
+      const uuid = (/\(([0-9a-f-]{36})\)/i.exec(out || '') || [])[1] || '';
+      return { name, uuid, type: 'openvpn', needsAuth: info.needsAuth, needsKeyPass: info.needsKeyPass };
     }
     const p = checkConfPath(file);
     const name = path.basename(p).replace(/\.conf$/i, '');
@@ -323,7 +398,15 @@ function register(api) {
       mock.conns.splice(i, 1);
       return { ok: true };
     }
+    // OpenVPN profiles imported here keep their certificates in a private copy folder: removed with the connection.
+    const base = path.join(os.homedir(), '.local', 'share', 'aurora', 'nettools', 'openvpn');
+    let copies = [];
+    try {
+      const out = await nmcli(['-e', 'no', '-t', '-f', 'vpn.data', 'connection', 'show', 'uuid', uuid]);
+      copies = ovpn.copyDirsIn(ovpn.parseVpnData(out.replace(/^vpn\.data:/m, '')), base);
+    } catch {}
     await nmcli(['connection', 'delete', 'uuid', uuid]);
+    for (const d of copies) fs.rmSync(d, { recursive: true, force: true });
     return { ok: true };
   });
 
@@ -498,6 +581,7 @@ function register(api) {
     const timeout = Math.min(15000, Math.max(200, Math.round(Number(optsIn?.timeout) || 3000)));
     let target;
     try {
+      if (MOCK && kind === 'hostname' && /\.invalid$/i.test(host)) throw Object.assign(new Error('ENOTFOUND'), { code: 'ENOTFOUND' });
       target = await ports.resolveHost(host, kind);
     } catch (e) {
       throw err(`${host}: ${e.code || e.message}`, e.code === 'ENOTFOUND' || e.code === 'EAI_AGAIN' || e.code === 'ENODATA' ? 'ENOTFOUND' : 'EDNS');
@@ -517,6 +601,37 @@ function register(api) {
     }
     if (res.code !== 0) throw err((res.stderr || 'ss failed').trim().slice(0, 300), 'ECMD');
     return { ...ports.parseSs(res.stdout), mock: false };
+  });
+
+  // ---------------------------------------------------------------- speed test (Cloudflare __down / __up)
+  let speedRun = null; // { id, ctrl }
+  let speedSeq = 0;
+  api.handle('nettools:speed', async (...args) => {
+    const event = args[args.length - 1];
+    if (speedRun) throw err('A speed test is already running', 'EBUSY');
+    const base = speed.baseUrl(process.env.AURORA_NETTOOLS_SPEED_URL);
+    if (!base) throw err('Invalid speed test server', 'EINVAL');
+    const id = ++speedSeq;
+    const ctrl = new AbortController();
+    speedRun = { id, ctrl };
+    const emit = (payload) => api.sendTo(event?.sender, 'nettools:speed', { id, ...payload });
+    const maxBytes = Number(process.env.AURORA_NETTOOLS_SPEED_MAX) || 0;
+    // Started after the reply so the window knows the id before the first progress event.
+    setTimeout(() => {
+      speed
+        .runSpeedTest({ base, maxBytes, signal: ctrl.signal, onProgress: (p) => emit(p) })
+        .then((result) => emit({ done: true, result, cancelled: false }))
+        .catch((e) => emit({ done: true, cancelled: ctrl.signal.aborted, error: ctrl.signal.aborted ? '' : String(e.message || e).slice(0, 300), code: ctrl.signal.aborted ? 'ECANCELED' : e.code || 'ENET' }))
+        .finally(() => {
+          if (speedRun?.id === id) speedRun = null;
+        });
+    }, 0);
+    return { id, host: new URL(base).hostname };
+  });
+  api.handle('nettools:speedCancel', (id) => {
+    if (!speedRun || speedRun.id !== Number(id)) return { ok: false };
+    speedRun.ctrl.abort();
+    return { ok: true };
   });
 
 }

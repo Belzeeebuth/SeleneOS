@@ -1,0 +1,5 @@
+# Outils réseau (apps/nettools): OpenVPN profiles imported through NetworkManager (`nmcli connection import type openvpn`;
+# brings the nm-openvpn service, the libnm import plug-in and openvpn itself; no GTK: secrets go through nmcli, so
+# network-manager-openvpn-gnome is not needed), traceroute without root (tracepath). ss comes from iproute2 (base.list).
+network-manager-openvpn
+iputils-tracepath

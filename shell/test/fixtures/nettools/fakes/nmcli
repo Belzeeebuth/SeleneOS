@@ -1,0 +1,149 @@
+#!/usr/bin/env node
+// Fake nmcli for test/nettools-extra.test.mjs. Never touches NetworkManager: the "connections" live in
+// $FAKE_NM_DIR/state.json and every call is appended to $FAKE_NM_DIR/log.jsonl ({ argv, stdin, passwd }).
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const dir = process.env.FAKE_NM_DIR;
+if (!dir) {
+  process.stderr.write('Error: FAKE_NM_DIR is not set (fake nmcli)\n');
+  process.exit(8);
+}
+const stateFile = path.join(dir, 'state.json');
+const state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : { conns: [], good: 'correct horse' };
+const argv = process.argv.slice(2);
+const entry = { argv };
+const save = () => fs.writeFileSync(stateFile, JSON.stringify(state, null, 1));
+const log = () => fs.appendFileSync(path.join(dir, 'log.jsonl'), JSON.stringify(entry) + '\n');
+const out = (s) => process.stdout.write(s + '\n');
+const fail = (msg, code = 1) => {
+  entry.error = msg;
+  log();
+  process.stderr.write(msg + '\n');
+  process.exit(code);
+};
+const esc = (s) => String(s).replace(/\\/g, '\\\\').replace(/:/g, '\\:');
+const unOpt = (s) => String(s).replace(/\\(.)/g, '$1');
+const unPasswd = (s) => String(s).replace(/\\([0-7]{3})|\\\\/g, (m, o) => (o ? String.fromCharCode(parseInt(o, 8)) : '\\'));
+/** "a=1, b=x\, y" -> { a: '1', b: 'x, y' } (nmcli option list, backslash escapes). */
+function splitOpts(s) {
+  const res = {};
+  const parts = [];
+  let cur = '';
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '\\' && i + 1 < s.length) cur += s[i] + s[++i];
+    else if (s[i] === ',') parts.push(cur), (cur = '');
+    else cur += s[i];
+  }
+  parts.push(cur);
+  for (const p of parts) {
+    const m = /^\s*((?:\\.|[^=\\])+?)\s*=\s*(.*?)\s*$/.exec(p);
+    if (m) res[unOpt(m[1])] = unOpt(m[2]);
+  }
+  return res;
+}
+
+// global options
+const rest = [];
+let fields = null;
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i];
+  if (a === '-t' || a === '--terse') continue;
+  if (a === '-f' || a === '--fields') {
+    fields = String(argv[++i] || '').split(',');
+    continue;
+  }
+  if (a === '-e' || a === '--wait' || a === '--escape') {
+    i++;
+    continue;
+  }
+  rest.push(a);
+}
+const find = (uuid) => state.conns.find((c) => c.uuid === uuid);
+const [obj, verb, ...args] = rest;
+if (obj !== 'connection') fail('Error: unsupported by the fake nmcli', 2);
+
+if (verb === 'show' && !args.length) {
+  for (const c of state.conns) out([c.name, c.uuid, c.type, c.device || '--', c.active ? 'yes' : 'no'].map(esc).join(':'));
+} else if (verb === 'show' && args[0] === 'uuid') {
+  const c = find(args[1]);
+  if (!c) fail(`Error: ${args[1]} - no such connection profile.`, 10);
+  if (!fields || fields.includes('vpn.service-type')) out(`vpn.service-type:${c.type === 'vpn' ? `org.freedesktop.NetworkManager.${c.service}` : ''}`);
+  if (!fields || fields.includes('vpn.data')) out(`vpn.data:${Object.entries(c.data || {}).map(([k, v]) => `${k} = ${String(v).replace(/,/g, '\\,')}`).join(', ')}`);
+} else if (verb === 'import') {
+  const type = args[1];
+  const file = args[3];
+  entry.file = file;
+  if (type === 'openvpn' && state.noPlugin) fail('Error: failed to load VPN plugin: unknown VPN plugin "org.freedesktop.NetworkManager.openvpn".');
+  const text = fs.readFileSync(file, 'utf8');
+  entry.content = text;
+  const name = path.basename(file).replace(/\.(ovpn|conf)$/, '');
+  const uuid = crypto.randomUUID();
+  const auth = /^\s*auth-user-pass\b/m.test(text);
+  const data = type === 'openvpn' ? { 'connection-type': auth ? 'password-tls' : 'tls', remote: (/^\s*remote\s+(\S+)/m.exec(text) || [])[1] || '' } : {};
+  if (auth) data['password-flags'] = '1';
+  for (const k of ['ca', 'cert', 'key', 'tls-auth']) {
+    const m = new RegExp(`^\\s*${k}\\s+(\\S+)`, 'm').exec(text);
+    if (m && type === 'openvpn') data[k === 'tls-auth' ? 'ta' : k] = m[1];
+  }
+  if (/BEGIN ENCRYPTED PRIVATE KEY/.test(text) || /^\s*key\s+\S*enc/m.test(text)) data['cert-pass-flags'] = '1';
+  state.conns.push({ name, uuid, type: type === 'openvpn' ? 'vpn' : 'wireguard', service: type, device: '', active: false, data, secrets: {} });
+  save();
+  out(`Connection '${name}' (${uuid}) successfully added.`);
+} else if (verb === 'modify') {
+  const c = find(args[1]);
+  if (!c) fail(`Error: unknown connection '${args[1]}'.`, 10);
+  if (args[2] === '+vpn.data') Object.assign(c.data, splitOpts(args[3] || ''));
+  save();
+} else if (verb === 'edit') {
+  const c = find(args[1]);
+  const stdin = fs.readFileSync(0, 'utf8');
+  entry.stdin = stdin;
+  if (!c) fail(`Error: unknown connection '${args[1]}'.`, 10);
+  const m = /^set vpn\.secrets (.*)$/m.exec(stdin);
+  if (m && /^save persistent$/m.test(stdin)) Object.assign(c.secrets, splitOpts(m[1]));
+  save();
+  out('Connection successfully saved.');
+} else if (verb === 'up') {
+  const c = find(args[1]);
+  if (!c) fail(`Error: unknown connection '${args[1]}'.`, 10);
+  const pf = args.indexOf('passwd-file');
+  const given = {};
+  if (pf >= 0) {
+    const file = args[pf + 1];
+    const st = fs.statSync(file);
+    const text = fs.readFileSync(file, 'utf8');
+    entry.passwd = { file, mode: (st.mode & 0o777).toString(8), dirMode: (fs.statSync(path.dirname(file)).mode & 0o777).toString(8), content: text };
+    for (const line of text.split('\n')) {
+      const i = line.indexOf(':');
+      if (i > 0) given[line.slice(0, i)] = unPasswd(line.slice(i + 1));
+    }
+  }
+  const d = c.data || {};
+  const needPass = /password/.test(d['connection-type'] || '');
+  if (needPass) {
+    const flags = d['password-flags'] || '0';
+    const pw = flags === '0' ? c.secrets.password : given['vpn.secrets.password'];
+    if (pw == null) fail('Error: Connection activation failed: Secrets were required, but not provided.', 4);
+    if (pw !== state.good || (d.username && d.username !== 'ana')) fail('Error: Connection activation failed: The VPN login failed.', 4);
+  }
+  c.active = true;
+  c.device = c.type === 'vpn' ? 'tun0' : c.name;
+  save();
+  out(`Connection successfully activated (D-Bus active path: /org/freedesktop/NetworkManager/ActiveConnection/7)`);
+} else if (verb === 'down') {
+  const c = find(args[1]);
+  if (!c) fail(`Error: '${args[1]}' is not an active connection.`, 10);
+  c.active = false;
+  c.device = '';
+  save();
+  out(`Connection '${c.name}' successfully deactivated.`);
+} else if (verb === 'delete') {
+  const i = state.conns.findIndex((c) => c.uuid === args[1]);
+  if (i < 0) fail(`Error: unknown connection: ${args[1]}.`, 10);
+  const [c] = state.conns.splice(i, 1);
+  save();
+  out(`Connection '${c.name}' (${c.uuid}) successfully deleted.`);
+} else fail('Error: unsupported by the fake nmcli', 2);
+log();

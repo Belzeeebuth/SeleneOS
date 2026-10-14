@@ -1,0 +1,36 @@
+#!/usr/bin/env node
+// Fake tracepath (iputils style, run with -b) for test/nettools-extra.test.mjs: prints a fixed route one hop at a
+// time ($FAKE_TRACE_MS between lines), logs its argv to $FAKE_NM_DIR/trace.jsonl. "slow.example" never ends
+// (until SIGINT), "*.invalid" fails like an unknown host.
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const argv = process.argv.slice(2);
+if (process.env.FAKE_NM_DIR) fs.appendFileSync(path.join(process.env.FAKE_NM_DIR, 'trace.jsonl'), JSON.stringify({ argv, pid: process.pid }) + '\n');
+const host = argv[argv.length - 1];
+const step = Number(process.env.FAKE_TRACE_MS) || 120;
+process.on('SIGINT', () => process.exit(130));
+if (/\.invalid$/.test(host)) {
+  process.stderr.write(`tracepath: ${host}: Name or service not known\n`);
+  process.exit(2);
+}
+const lines = [
+  ' 1?: [LOCALHOST]                      pmtu 1500',
+  ' 1:  _gateway (192.168.1.1)                                 0.512ms ',
+  ' 1:  _gateway (192.168.1.1)                                 0.498ms ',
+  ' 2:  no reply',
+  ' 3:  core1.example.net (203.0.113.9)                        7.802ms asymm  4 ',
+  ` 4:  ${host} (93.184.215.14)                             12.345ms reached`,
+  '     Resume: pmtu 1500 hops 4 back 4 ',
+];
+let i = 0;
+const tick = () => {
+  if (host === 'slow.example') {
+    process.stdout.write(` ${++i}:  no reply\n`);
+    return setTimeout(tick, 400);
+  }
+  if (i >= lines.length) return process.exit(0);
+  process.stdout.write(lines[i++] + '\n');
+  setTimeout(tick, step);
+};
+tick();

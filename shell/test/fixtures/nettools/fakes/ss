@@ -1,0 +1,19 @@
+#!/usr/bin/env node
+// Fake ss for test/nettools-extra.test.mjs: `ss -H -tulpn` as a normal user (other accounts' processes hidden).
+'use strict';
+const fs = require('fs');
+const path = require('path');
+if (process.env.FAKE_NM_DIR) fs.appendFileSync(path.join(process.env.FAKE_NM_DIR, 'ss.jsonl'), JSON.stringify({ argv: process.argv.slice(2) }) + '\n');
+process.stdout.write(
+  [
+    'udp   UNCONN 0      0          127.0.0.53%lo:53         0.0.0.0:*',
+    'udp   UNCONN 0      0                0.0.0.0:5353       0.0.0.0:*',
+    'udp   UNCONN 0      0                0.0.0.0:5353       0.0.0.0:*',
+    'tcp   LISTEN 0      4096       127.0.0.53%lo:53         0.0.0.0:*',
+    'tcp   LISTEN 0      128              0.0.0.0:22         0.0.0.0:*',
+    'tcp   LISTEN 0      128                 [::]:22            [::]:*',
+    'tcp   ESTAB  0      0           192.168.1.20:41234   93.184.215.14:443   users:(("firefox",pid=999,fd=80))',
+    'tcp   LISTEN 0      511            127.0.0.1:5173       0.0.0.0:*    users:(("node",pid=4242,fd=21))',
+    'tcp   LISTEN 0      10          192.168.1.20:8000       0.0.0.0:*    users:(("python3",pid=5150,fd=3))',
+  ].join('\n') + '\n',
+);

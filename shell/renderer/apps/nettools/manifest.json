@@ -1,15 +1,20 @@
 {
   "id": "nettools",
   "name": { "en": "Network tools", "fr": "Outils réseau" },
-  "description": { "en": "VPN and WireGuard connections, ping and DNS lookup", "fr": "Connexions VPN et WireGuard, ping et recherche DNS" },
+  "description": {
+    "en": "VPN connections (WireGuard, OpenVPN), ping, traceroute, DNS lookup, port check and speed test",
+    "fr": "Connexions VPN (WireGuard, OpenVPN), ping, traceroute, recherche DNS, vérification de ports et test de débit"
+  },
   "icon": "icon.svg",
   "entry": "main.js",
   "styles": ["style.css"],
-  "window": { "width": 720, "height": 560, "minWidth": 420, "minHeight": 400, "background": "mica" },
+  "window": { "width": 760, "height": 620, "minWidth": 440, "minHeight": 420, "background": "mica" },
   "category": "system",
   "keywords": {
-    "en": ["network", "vpn", "wireguard", "ping", "dns", "lookup", "nslookup", "dig", "connection"],
-    "fr": ["réseau", "vpn", "wireguard", "ping", "dns", "recherche", "nslookup", "dig", "connexion"]
+    "en": ["network", "vpn", "wireguard", "openvpn", "ovpn", "ping", "traceroute", "tracepath", "dns", "lookup", "nslookup", "dig", "port", "scan", "speed", "speedtest", "bandwidth", "connection"],
+    "fr": ["réseau", "vpn", "wireguard", "openvpn", "ovpn", "ping", "traceroute", "itinéraire", "dns", "recherche", "nslookup", "dig", "port", "débit", "vitesse", "bande passante", "connexion"]
   },
+  "fileTypes": [".ovpn"],
+  "defaultFor": [".ovpn"],
   "singleInstance": true
 }

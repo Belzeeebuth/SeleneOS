@@ -1,5 +1,6 @@
 /* Network tools — scoped under .app-nettools */
 .app-nettools .nt-root {
+  container: nettools / inline-size;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -8,6 +9,11 @@
 }
 .app-nettools .nt-tabs {
   padding: 0 16px;
+  flex: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.app-nettools .nt-tabs .tab {
   flex: none;
 }
 .app-nettools .nt-tabs .tab {
@@ -40,6 +46,9 @@
   padding: 16px;
   min-height: 100%;
   box-sizing: border-box;
+}
+.app-nettools .nt-panel[data-panel="vpn"] {
+  position: relative;
 }
 .app-nettools .nt-panel[hidden] {
   display: none;
@@ -208,4 +217,469 @@
   font-family: var(--font-mono);
   font-size: 13px;
   overflow-wrap: anywhere;
+}
+
+/* ---------- VPN: drop zone, credentials dialog */
+.app-nettools .nt-drop {
+  position: absolute;
+  inset: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  font-weight: 600;
+  pointer-events: none;
+}
+.app-nettools .nt-drop[hidden] {
+  display: none;
+}
+.app-nettools .nt-cred-dialog {
+  width: 400px;
+  max-width: calc(100% - 32px);
+}
+.app-nettools .nt-cred {
+  display: flex;
+  flex-direction: column;
+}
+.app-nettools .nt-cred-intro {
+  margin: 0 0 12px;
+  color: var(--text-2);
+}
+.app-nettools .nt-cred .field {
+  margin-bottom: 10px;
+}
+.app-nettools .nt-cred-error {
+  min-height: 18px;
+  margin-top: 6px;
+  color: var(--danger);
+}
+
+/* ---------- shared form bits */
+.app-nettools .nt-options {
+  gap: 8px 10px;
+}
+.app-nettools .nt-inline {
+  font-size: var(--fs-small, 13px);
+  color: var(--text-2);
+}
+.app-nettools .nt-row .input.nt-num {
+  flex: 0 0 76px;
+  width: 76px;
+}
+.app-nettools .nt-nowrap {
+  flex-wrap: nowrap;
+}
+.app-nettools .nt-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-nettools .nt-section + .nt-section {
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+.app-nettools .nt-section[hidden] {
+  display: none;
+}
+.app-nettools .nt-h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle, 16px);
+  font-weight: 600;
+}
+.app-nettools .nt-grid2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+.app-nettools .nt-grid2 .input {
+  min-width: 0;
+}
+.app-nettools .nt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.app-nettools .nt-ports-in {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.app-nettools .nt-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.app-nettools .nt-note[hidden] {
+  display: none;
+}
+.app-nettools .nt-note .icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+/* ---------- traceroute: hops on a vertical line */
+.app-nettools .nt-hops {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-nettools .nt-hop {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px 28px minmax(0, 1fr) minmax(60px, 140px) minmax(70px, auto);
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 8px 4px 4px;
+  border-radius: var(--radius-sm, 4px);
+}
+.app-nettools .nt-hop:hover {
+  background: var(--subtle-hover);
+}
+.app-nettools .nt-hop::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+.app-nettools .nt-hop:first-child::before {
+  top: 50%;
+}
+.app-nettools .nt-hop:last-child::before {
+  bottom: 50%;
+}
+.app-nettools .nt-hop:only-child::before {
+  display: none;
+}
+.app-nettools .nt-hop-dot {
+  position: relative;
+  z-index: 1;
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--card-solid, var(--card));
+  color: var(--on-accent);
+}
+.app-nettools .nt-hop.timeout .nt-hop-dot {
+  background: var(--control-strong);
+}
+.app-nettools .nt-hop.reached .nt-hop-dot {
+  width: 22px;
+  height: 22px;
+  background: var(--success);
+}
+.app-nettools .nt-hop.reached .nt-hop-dot .icon {
+  width: 13px;
+  height: 13px;
+}
+.app-nettools .nt-hop-n {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  text-align: right;
+}
+.app-nettools .nt-hop-main {
+  min-width: 0;
+}
+.app-nettools .nt-hop-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-nettools .nt-hop.timeout .nt-hop-name {
+  color: var(--text-2);
+  font-style: italic;
+}
+.app-nettools .nt-hop-ip {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.app-nettools .nt-hop-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+.app-nettools .nt-hop-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.app-nettools .nt-hop-ms {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+
+/* ---------- ports */
+.app-nettools .nt-port-results,
+.app-nettools .nt-listen {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-nettools .nt-port,
+.app-nettools .nt-listen-row {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm, 4px);
+}
+.app-nettools .nt-port {
+  grid-template-columns: 56px minmax(60px, 1fr) auto minmax(64px, auto);
+}
+.app-nettools .nt-listen-row {
+  grid-template-columns: 40px 56px minmax(48px, 0.6fr) minmax(0, 1.4fr) minmax(0, 1fr);
+}
+.app-nettools .nt-port-n {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.app-nettools .nt-port-ms {
+  text-align: right;
+  white-space: nowrap;
+}
+.app-nettools .nt-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 6px;
+  border-radius: 999px;
+  font-size: var(--fs-caption, 12px);
+  font-weight: 600;
+  background: var(--subtle-hover);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.app-nettools .nt-pill .icon {
+  width: 14px;
+  height: 14px;
+}
+.app-nettools .st-open .nt-pill {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.app-nettools .st-closed .nt-pill {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.app-nettools .st-filtered .nt-pill,
+.app-nettools .st-unreachable .nt-pill,
+.app-nettools .st-error .nt-pill {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.app-nettools .nt-proto {
+  font-size: var(--fs-caption, 12px);
+  font-weight: 600;
+  color: var(--accent-text);
+}
+.app-nettools .nt-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-nettools .nt-scope .icon {
+  flex: none;
+  color: var(--text-2);
+}
+.app-nettools .scope-all .nt-scope .icon {
+  color: var(--warning);
+}
+.app-nettools .nt-proc {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+}
+
+/* ---------- speed test */
+.app-nettools .nt-speed-note {
+  flex: none;
+}
+.app-nettools .nt-speed-top {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.app-nettools .nt-gauge {
+  position: relative;
+  width: 240px;
+  flex: none;
+}
+.app-nettools .nt-gauge-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.app-nettools .nt-gauge-track,
+.app-nettools .nt-gauge-value {
+  fill: none;
+  stroke-width: 14;
+  stroke-linecap: round;
+}
+.app-nettools .nt-gauge-track {
+  stroke: var(--line);
+}
+.app-nettools .nt-gauge-value {
+  stroke: var(--accent);
+  transition: stroke-dasharray var(--dur-slow, 250ms) var(--ease);
+}
+:root[data-animations="off"] .app-nettools .nt-gauge-value,
+:root[data-animations="off"] .app-nettools .nt-speed-progress > .bar {
+  transition: none;
+}
+.app-nettools .nt-gauge-center {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  text-align: center;
+}
+.app-nettools .nt-gauge-num {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.app-nettools .nt-gauge-scale {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 6px 0;
+}
+.app-nettools .nt-speed-side {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.app-nettools .nt-gauge-phase {
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle, 16px);
+  font-weight: 600;
+}
+.app-nettools .nt-speed-start[hidden],
+.app-nettools [data-act="speed-cancel"][hidden] {
+  display: none;
+}
+.app-nettools .nt-speed-card {
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius, 8px);
+  padding: 12px 16px;
+}
+.app-nettools .nt-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.app-nettools .nt-stat-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-nettools .nt-stat-label .icon {
+  width: 14px;
+  height: 14px;
+}
+.app-nettools .nt-stat-value {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.app-nettools .nt-server {
+  margin-top: 8px;
+}
+.app-nettools .nt-server:empty {
+  display: none;
+}
+.app-nettools .nt-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-nettools .nt-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 1fr)) minmax(0, 1fr) minmax(0, 0.6fr);
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--line-soft);
+  font-variant-numeric: tabular-nums;
+}
+.app-nettools .nt-history-row:last-child {
+  border-bottom: 0;
+}
+.app-nettools .nt-history-v {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+.app-nettools .nt-history-v .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--text-2);
+}
+@container nettools (max-width: 560px) {
+  .app-nettools .nt-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .app-nettools .nt-grid2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-nettools .nt-hop {
+    grid-template-columns: 22px 22px minmax(0, 1fr) 56px auto;
+  }
+  .app-nettools .nt-listen-row {
+    grid-template-columns: 40px 56px minmax(0, 1fr);
+    row-gap: 2px;
+  }
+  .app-nettools .nt-listen-row .nt-port-svc {
+    display: none;
+  }
+  .app-nettools .nt-listen-row .nt-proc {
+    grid-column: 3 / -1;
+  }
+  .app-nettools .nt-port {
+    grid-template-columns: 56px minmax(0, 1fr) auto 64px;
+  }
 }
