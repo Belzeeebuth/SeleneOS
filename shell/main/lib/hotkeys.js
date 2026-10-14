@@ -6,7 +6,7 @@
 // Combos are normalised strings: modifiers in the order Super, Ctrl, Alt, Shift, then the key
 // (KeyboardEvent.key, letters upper-cased): "Super", "Super+D", "Alt+Tab", "Alt+Shift+Tab",
 // "Ctrl+Alt+Delete", "Ctrl+Shift+Escape", "PrintScreen", "Super+Shift+S", "Alt+F4",
-// "Super+ArrowLeft", "Super+Ctrl+ArrowRight", "Super+Ctrl+D", "Alt+Space", "AudioVolumeUp".
+// "Super+ArrowLeft", "Super+Ctrl+ArrowRight", "Super+Ctrl+D", "Alt+Space", "AudioVolumeUp", "MediaPlayPause".
 // "Alt:up" is sent when Alt is released (commits the Alt+Tab switcher).
 // Every combo that includes Super is forwarded (and swallowed); other combos only when listed in SYSTEM.
 // Auto-repeated presses are forwarded with repeat=true (the renderer ignores repeats except for
@@ -28,6 +28,8 @@ const SYSTEM = new Set([
   'Super+ArrowUp', 'Super+ArrowDown', 'Super+1', 'Super+2', 'Super+3', 'Super+4', 'Super+5',
   'Super+6', 'Super+7', 'Super+8', 'Super+9', 'Super+Period', 'Super+Comma', 'Super+H', 'Super+K', 'Super+P', 'Super+U',
   'AudioVolumeUp', 'AudioVolumeDown', 'AudioVolumeMute', 'BrightnessUp', 'BrightnessDown',
+  // media keys (and headset buttons, which reach X as the same keys): the active MPRIS player (features/mediactl.js)
+  'MediaPlayPause', 'MediaPlay', 'MediaPause', 'MediaStop', 'MediaTrackNext', 'MediaTrackPrevious',
 ]);
 
 function comboOf(input) {

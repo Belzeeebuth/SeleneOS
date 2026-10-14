@@ -81,3 +81,67 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+/* Media OSD (kind 'media': media keys, features/mediactl.js): the same glass at the same place, wider and short, with
+   the cover, the title, the artist and the player, and the new playback state. */
+.osd.osd-media {
+  /* a fixed height: the bar's rules give .osd a bottom, which an auto height would stretch to */
+  height: 74px;
+  margin-top: -37px;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  flex-direction: row;
+  gap: 12px;
+  padding: 12px 14px 12px 12px;
+}
+.osd-media-art {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius);
+  object-fit: cover;
+  background: var(--card);
+}
+.osd-media-noart {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  border: 1px solid var(--stroke);
+}
+.osd-media-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.osd-media-title,
+.osd-media-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.osd-media-title {
+  font-weight: 600;
+}
+.osd-media-sub {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+}
+.osd-media-state {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.osd-media[data-status='Paused'] .osd-media-state,
+.osd-media[data-status='Stopped'] .osd-media-state {
+  background: var(--subtle-hover);
+  color: var(--text);
+}

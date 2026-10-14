@@ -32,8 +32,9 @@ function once(el, ok, ms = 10000) {
 }
 
 export class Library {
-  constructor({ api, storage, home, xdg = {}, locale = () => 'en' }) {
+  constructor({ api, storage, home, xdg = {}, locale = () => 'en', skip = () => [] }) {
     this.api = api;
+    this.skip = skip; // folders left out of the walk (not when the user added one of them as a library folder itself)
     this.storage = storage;
     this.home = home;
     this.locale = locale;
@@ -126,6 +127,7 @@ export class Library {
     const files = [];
     const queue = [[root, 0]];
     const seen = new Set();
+    const skip = new Set((this.skip?.() || []).filter((d) => d !== root));
     let dirs = 0;
     while (queue.length && dirs < limits.dirs && files.length < limits.files) {
       const batch = queue.splice(0, 8);
@@ -134,7 +136,7 @@ export class Library {
         dirs++;
         for (const e of lists[bi]) {
           if (e.dir) {
-            if (depth < limits.depth && !seen.has(e.path) && !e.link) {
+            if (depth < limits.depth && !seen.has(e.path) && !e.link && !skip.has(e.path)) {
               seen.add(e.path);
               queue.push([e.path, depth + 1]);
             }

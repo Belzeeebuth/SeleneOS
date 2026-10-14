@@ -110,7 +110,12 @@ KEY_NAMES = {
     XK.XK_KP_Add: '+', XK.XK_KP_Subtract: '-',  # keypad + / - as Chromium names them (Loupe: Super++ / Super+-)
     0x1008FF13: 'AudioVolumeUp', 0x1008FF11: 'AudioVolumeDown', 0x1008FF12: 'AudioVolumeMute',
     0x1008FF02: 'BrightnessUp', 0x1008FF03: 'BrightnessDown',
+    # media keys; a headset's buttons arrive as these too (wired: KEY_PLAYPAUSE…; Bluetooth AVRCP: BlueZ's uinput
+    # device « <name> (AVRCP) » sends KEY_PLAYCD / KEY_PAUSECD / KEY_NEXTSONG…)
+    0x1008FF14: 'MediaPlay', 0x1008FF31: 'MediaPause', 0x1008FF15: 'MediaStop', 0x1008FF16: 'MediaTrackPrevious',
+    0x1008FF17: 'MediaTrackNext',
 }
+MEDIA_KEYSYMS = (0x1008FF14, 0x1008FF31, 0x1008FF15, 0x1008FF16, 0x1008FF17)
 for _n in range(1, 25):
     KEY_NAMES[XK.XK_F1 + _n - 1] = 'F%d' % _n
 MODIFIER_KEYSYMS = {getattr(XK, 'XK_' + n) for n in (
@@ -121,7 +126,7 @@ ALT_KEYSYMS = (XK.XK_Alt_L, XK.XK_Alt_R, XK.XK_Meta_L, XK.XK_Meta_R)
 # Combos without Super that the helper forwards (Super combos are always forwarded).
 SYSTEM_COMBOS = {'Alt+Tab', 'Alt+Shift+Tab', 'Ctrl+Alt+Tab', 'Alt+F4', 'Ctrl+Alt+Delete', 'Ctrl+Shift+Escape',
                  'PrintScreen', 'AudioVolumeUp', 'AudioVolumeDown', 'AudioVolumeMute', 'BrightnessUp',
-                 'BrightnessDown'}
+                 'BrightnessDown', 'MediaPlay', 'MediaPause', 'MediaStop', 'MediaTrackPrevious', 'MediaTrackNext'}
 # For these the shell gets X focus before the event, so the Alt / Super release reaches its page.
 FOCUS_SHELL_FIRST = {'Alt+Tab', 'Alt+Shift+Tab', 'Super', 'Super+Tab'}
 
@@ -663,7 +668,7 @@ class XWM(object):
         specs += [(kc(XK.XK_Tab), alt), (kc(XK.XK_Tab), alt | X.ShiftMask), (kc(XK.XK_Tab), alt | X.ControlMask),
                   (kc(XK.XK_F4), alt), (kc(XK.XK_Delete), X.ControlMask | alt),
                   (kc(XK.XK_Escape), X.ControlMask | X.ShiftMask), (kc(XK.XK_Print), 0)]
-        for ks in (0x1008FF13, 0x1008FF11, 0x1008FF12, 0x1008FF02, 0x1008FF03):
+        for ks in (0x1008FF13, 0x1008FF11, 0x1008FF12, 0x1008FF02, 0x1008FF03) + MEDIA_KEYSYMS:
             specs.append((kc(ks), 0))
         for keycode, mods in specs:
             if keycode == 'any':

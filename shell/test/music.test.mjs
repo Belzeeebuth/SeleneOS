@@ -4,7 +4,13 @@
 // 2. Shell (FR, Halo, 1280x720): the alias opens the Lecteur on its albums; folder.jpg becomes the album cover;
 //    the Genres tab groups the songs by their genre tag (a genre page: its albums, its songs, « Lecture aléatoire »);
 //    a .lrc next to a track shows synced lyrics in the now playing view, the current line follows the playback.
-// Screenshots: test/out/music-*.png (Halo dark + light).
+// 3. Media session (MPRIS, core/features/mediactl.js, apps/media/lib/session.js): <Music>/Podcasts left out of the
+//    library (setting); the media card in Réglages rapides (track, cover, play / pause, next, seek; EN + FR, dark +
+//    light); media keys through the real hotkeys path (main/lib/hotkeys.js -> shell:hotkey) and the media OSD;
+//    with python3-dbus (AURORA_SESSIONBUS_PYTHON, default python3.12) the shell runs on a PRIVATE dbus-daemon: the
+//    Lecteur as org.mpris.MediaPlayer2.selene (read and driven by a probe client), a fake external player
+//    (test/fixtures/sessionbus/fake-player.py) shown in the card, followed by the media keys, the player menu.
+// Screenshots: test/out/music-*.png (Halo dark + light), test/out/mediactl-*.png (media card, OSD).
 import { launchShell } from './lib.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,6 +18,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
+import { spawn, spawnSync } from 'node:child_process';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.join(here, '..', 'renderer', 'apps', 'media');
@@ -162,9 +169,74 @@ function gradientPng(W = 96, H = 96) {
 }
 const PNG = gradientPng();
 fs.writeFileSync(path.join(ALBUM, 'folder.jpg'), PNG);
+// « Podcasts et actus » downloads episodes to <Music>/Podcasts: not music, left out of the library by default
+const PODCAST = path.join(home, 'Music', 'Podcasts', 'Radio Lune', 'Épisode 1.wav');
+fs.mkdirSync(path.dirname(PODCAST), { recursive: true });
+fs.writeFileSync(PODCAST, wavFile({ seconds: 2, freq: 600, title: 'Épisode 1', artist: 'Radio Lune', album: 'Radio Lune', genre: 'Podcast' }));
+
+// private session bus (never the machine's): the sessionbus helper exports the Lecteur, a fake player joins it
+const PY = process.env.AURORA_SESSIONBUS_PYTHON || 'python3.12';
+const pyPath = spawnSync('sh', ['-c', `command -v ${PY}`], { encoding: 'utf8' }).stdout.trim();
+const HAVE_BUS = !!pyPath && spawnSync(pyPath, ['-c', 'import dbus, gi; from gi.repository import GLib'], { stdio: 'ignore' }).status === 0 && spawnSync('sh', ['-c', 'command -v dbus-daemon'], { stdio: 'ignore' }).status === 0;
+const ROOT = path.join(here, '..');
+let bus = null;
+if (HAVE_BUS) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-music-bus-'));
+  const r = spawnSync('dbus-daemon', ['--session', '--fork', '--print-address=1', '--print-pid=1', `--address=unix:path=${tmp}/bus`], { encoding: 'utf8' });
+  const [address, pid] = r.stdout.trim().split('\n');
+  bus = { tmp, address, pid: Number(pid), stop: () => (process.kill(Number(pid), 'SIGTERM'), fs.rmSync(tmp, { recursive: true, force: true })) };
+} else console.log(`(no python3-dbus for ${PY}: the session bus checks are skipped)`);
+function fakePlayer() {
+  const p = spawn(pyPath, ['-I', path.join(here, 'fixtures', 'sessionbus', 'fake-player.py')], { env: { ...process.env, DBUS_SESSION_BUS_ADDRESS: bus.address }, stdio: ['pipe', 'pipe', 'inherit'] });
+  const lines = [];
+  let buf = '';
+  let mark = 0;
+  p.stdout.on('data', (d) => {
+    buf += d;
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      try {
+        lines.push(JSON.parse(buf.slice(0, i)));
+      } catch {}
+      buf = buf.slice(i + 1);
+    }
+  });
+  const until = async (fn, ms = 5000) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms) {
+      const v = fn();
+      if (v) return v;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return null;
+  };
+  return {
+    lines,
+    since: () => (mark = lines.length),
+    wait: (pred, ms) => until(() => lines.slice(mark).find(pred), ms),
+    ask(o, pred, ms) {
+      mark = lines.length;
+      p.stdin.write(`${JSON.stringify(o)}\n`);
+      return until(() => lines.slice(mark).find(pred), ms);
+    },
+    quit() {
+      try {
+        p.stdin.write('{"cmd":"quit"}\n');
+      } catch {}
+      setTimeout(() => p.kill(), 1000);
+    },
+  };
+}
 
 // ------------------------------------------------------------------ shell
-const s = await launchShell({ home, lang: 'fr', theme: 'dark', size: '1280x720', keepHome: true });
+const s = await launchShell({
+  home,
+  lang: 'fr',
+  theme: 'dark',
+  size: '1280x720',
+  keepHome: true,
+  env: bus ? { DBUS_SESSION_BUS_ADDRESS: bus.address, AURORA_SESSIONBUS: '1', AURORA_SESSIONBUS_HELPER: path.join(ROOT, '..', 'rootfs', 'usr', 'lib', 'aurora', 'helpers', 'aurora-sessionbus'), AURORA_SESSIONBUS_PYTHON: pyPath } : {},
+});
 const WIN = '.win.app-media';
 const M = (fn, arg) => s.page.evaluate(`(${fn.toString()})([...document.querySelectorAll(${JSON.stringify(WIN)})].pop()?.__media, ${JSON.stringify(arg ?? null)})`);
 async function waitFor(fn, arg, { timeout = 10000, what } = {}) {
@@ -296,12 +368,288 @@ await test('lyrics: a track without lyrics shows none', async () => {
   await M((a) => (a.player.pause(), a.closeStage()));
 });
 
+// ------------------------------------------------------------------ media session
+const A = (fn, arg) => s.aurora(fn, arg);
+const PHARE = path.join(ALBUM, '02 - Lune Rousse - Phare.wav');
+const fromMain = (combo) =>
+  s.app.evaluate(({ BrowserWindow }, c) => {
+    for (const w of BrowserWindow.getAllWindows()) w.webContents.send('aurora:event', 'shell:hotkey', { combo: c, repeat: false });
+  }, combo);
+// a real key press through Chromium's input path (main's before-input-event sees it, like a keyboard's media key; the
+// CDP keys of page.keyboard skip that path); Electron names: MediaPlayPause, MediaNextTrack, MediaPreviousTrack, MediaStop
+const pressKey = (code) =>
+  s.app.evaluate(({ BrowserWindow }, k) => {
+    const w = BrowserWindow.getAllWindows()[0];
+    w.webContents.sendInputEvent({ type: 'keyDown', keyCode: k });
+    w.webContents.sendInputEvent({ type: 'keyUp', keyCode: k });
+  }, code);
+async function until(fn, { timeout = 6000, what } = {}) {
+  const t0 = Date.now();
+  for (;;) {
+    const v = await fn();
+    if (v) return v;
+    if (Date.now() - t0 > timeout) throw new Error(`timeout waiting for ${what}`);
+    await s.page.waitForTimeout(80);
+  }
+}
+const card = () =>
+  s.page.evaluate(() => {
+    const c = document.querySelector('#quick-settings .mc-card');
+    if (!c || c.hidden || !document.querySelector('#quick-settings.open')) return null;
+    return {
+      player: c.dataset.player,
+      status: c.dataset.status,
+      title: c.querySelector('.mc-title').textContent,
+      artist: c.querySelector('.mc-artist').textContent,
+      art: c.querySelector('.mc-art img')?.getAttribute('src') || null,
+      name: c.querySelector('.mc-player-name')?.textContent,
+      menu: !c.querySelector('.mc-player').disabled,
+      play: c.querySelector('.mc-play').getAttribute('aria-label'),
+      next: !c.querySelector('.mc-next').disabled,
+      at: c.querySelector('.mc-at').textContent,
+      len: c.querySelector('.mc-len').textContent,
+      label: c.getAttribute('aria-label'),
+    };
+  });
+const openQuick = async () => {
+  await A(() => window.__aurora.quick.open());
+  await s.page.waitForSelector('#quick-settings.open .mc-card:not([hidden])', { timeout: 5000 });
+  await s.page.waitForTimeout(350);
+};
+const closeQuick = () => A(() => window.__aurora.quick.close());
+
+await test('Podcasts: <Musique>/Podcasts stays out of the music library (setting « Ignorer le dossier Podcasts », on by default)', async () => {
+  await waitFor((a) => !a.lib.scanning && a.lib.songs().length === 6, null, { what: 'six songs' });
+  assert.equal(await M((a, p) => a.lib.songs().some((e) => e.path === p) || a.lib.inLibrary.has(p), PODCAST), false, 'the episode is not in the library');
+  assert.equal(await M((a) => a.prefs.skipPodcasts), true);
+  await M((a) => a.go({ name: 'settings' }));
+  await s.page.waitForSelector(`${WIN} .mp-skip-podcasts`, { timeout: 5000 });
+  assert.equal(await s.page.$eval(`${WIN} .mp-skip-podcasts input`, (i) => [i.checked, i.getAttribute('aria-label')].join('|')), 'true|Ignorer le dossier Podcasts');
+  const hint = await s.page.$eval(`${WIN} .mp-skip-podcasts`, (t) => t.closest('.mp-set-row').textContent);
+  assert.match(hint, /Podcasts et actus \(~\/Music\/Podcasts\)/);
+  await s.page.waitForTimeout(300);
+  await s.shot('music-settings-podcasts-fr-light');
+  await s.page.click(`${WIN} .mp-skip-podcasts`);
+  await waitFor((a, p) => a.prefs.skipPodcasts === false && a.lib.songs().some((e) => e.path === p), PODCAST, { what: 'the episode joins the library when the setting is off' });
+  await s.page.click(`${WIN} .mp-skip-podcasts`);
+  await waitFor((a, p) => a.prefs.skipPodcasts === true && !a.lib.scanning && !a.lib.songs().some((e) => e.path === p) && a.lib.songs().length === 6, PODCAST, { what: 'and leaves it again' });
+  await M((a) => a.go({ name: 'music', arg: 'albums' }));
+});
+
+await test('media card in Réglages rapides: the Lecteur, cover, title, artist; pause / play, next, seek; EN + FR, dark + light', async () => {
+  await A(() => window.__aurora.settings.set('theme', 'dark'));
+  await M((a, list) => a.playEntries(list, 0), [TRACK, PHARE]);
+  await waitFor((a) => !a.player.paused && a.player.currentTime > 0.3, null, { what: 'playing' });
+  assert.equal(await A(() => window.__aurora.mediactl.active()?.id), 'selene');
+  await openQuick();
+  let c = await until(card, { what: 'card' });
+  assert.deepEqual([c.player, c.status, c.title, c.artist, c.name, c.menu, c.play, c.next, c.len, c.label], ['selene', 'Playing', 'Marée haute', 'Lune Rousse · Nuits claires', 'Lecteur', false, 'Pause', true, '0:12', 'Lecture en cours']);
+  assert.match(c.art || '', /^media:\/\/.*\.cache\/aurora\/media\/art\//, 'the album cover');
+  assert.equal(await s.page.$eval('#quick-settings .qs-body > :first-child', (e) => e.className), 'mc-card', 'above the tiles');
+  // pause from the card
+  await s.page.click('#quick-settings .mc-play');
+  await waitFor((a) => a.player.paused, null, { what: 'paused from the card' });
+  c = await until(async () => (await card())?.status === 'Paused' && card(), { what: 'card paused' });
+  assert.equal(c.play, 'Lecture');
+  // seek: the middle of the 12 s track
+  await s.page.$eval('#quick-settings .mc-seek', (el) => {
+    el.value = 500;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await waitFor((a) => a.player.currentTime > 5.5 && a.player.currentTime < 6.5, null, { what: 'seek to 6 s' });
+  await until(async () => (await card())?.at === '0:06', { what: 'card at 0:06' });
+  await s.page.waitForTimeout(300);
+  await s.shot('mediactl-card-fr-dark');
+  await A(() => window.__aurora.settings.set('theme', 'light'));
+  await s.page.waitForTimeout(700);
+  await s.shot('mediactl-card-fr-light');
+  // next from the card: the second track, playing
+  await s.page.click('#quick-settings .mc-next');
+  await waitFor((a) => a.queue.index === 1 && !a.player.paused, null, { what: 'next track playing' });
+  c = await until(async () => (await card())?.title === 'Phare' && card(), { what: 'card shows Phare' });
+  assert.deepEqual([c.status, c.next, c.play], ['Playing', false, 'Pause']);
+  // English
+  await M((a) => a.player.pause());
+  await A(() => window.__aurora.settings.set('lang', 'en'));
+  c = await until(async () => (await card())?.name === 'Player' && card(), { what: 'card in English' });
+  assert.deepEqual([c.play, c.label], ['Play', 'Now playing']);
+  await s.page.waitForTimeout(500);
+  await s.shot('mediactl-card-en-light');
+  await A(() => window.__aurora.settings.set('theme', 'dark'));
+  await s.page.waitForTimeout(700);
+  await s.shot('mediactl-card-en-dark');
+  await A(() => window.__aurora.settings.set('lang', 'fr'));
+  await until(async () => (await card())?.name === 'Lecteur', { what: 'back in French' });
+  // the cover opens the Lecteur (Raise) and closes the flyout
+  await A(() => window.__aurora.wm.byApp('media')[0].minimize());
+  await s.page.waitForTimeout(400);
+  await s.page.click('#quick-settings .mc-art');
+  await until(() => A(() => !window.__aurora.quick.isOpen && !window.__aurora.wm.byApp('media')[0].minimized && window.__aurora.wm.focused()?.appId === 'media'), { what: 'Lecteur raised' });
+});
+
+await test('media keys (real key press and shell:hotkey from main): play / pause, next, previous on the Lecteur; the OSD shows the track', async () => {
+  await M((a) => a.playQueueIndex(0));
+  await waitFor((a) => !a.player.paused && a.queue.index === 0, null, { what: 'track 1 playing' });
+  // a real key press in the shell page: main/lib/hotkeys.js forwards it as shell:hotkey
+  await pressKey('MediaPlayPause');
+  await waitFor((a) => a.player.paused, null, { what: 'paused by MediaPlayPause' });
+  await s.page.waitForSelector('#osd-media.show', { timeout: 3000 });
+  const osd = await s.page.$eval('#osd-media', (e) => ({ title: e.querySelector('.osd-media-title').textContent, sub: e.querySelector('.osd-media-sub')?.textContent, status: e.dataset.status, label: e.getAttribute('aria-label'), art: !!e.querySelector('img.osd-media-art') }));
+  assert.deepEqual(osd, { title: 'Marée haute', sub: 'Lune Rousse · Lecteur', status: 'Paused', label: 'En pause : Marée haute — Lune Rousse · Lecteur', art: true });
+  await s.page.waitForTimeout(250);
+  await s.shot('mediactl-osd-fr-dark');
+  await pressKey('MediaPlayPause');
+  await waitFor((a) => !a.player.paused, null, { what: 'playing again' });
+  await s.page.waitForTimeout(400);
+  assert.equal(await M((a) => a.player.paused), false, 'one key press toggles once (the Lecteur did not also get the DOM key)');
+  // from main (what aurora-xwm sends while an X11 app has the focus: XF86AudioNext -> MediaTrackNext)
+  await fromMain('MediaTrackNext');
+  await waitFor((a) => a.queue.index === 1, null, { what: 'next' });
+  await until(() => s.page.$eval('#osd-media', (e) => !e.hidden && e.querySelector('.osd-media-title').textContent === 'Phare'), { what: 'OSD shows the next track' });
+  await pressKey('MediaPreviousTrack');
+  await waitFor((a) => a.queue.index === 0 || a.player.currentTime < 1, null, { what: 'previous (or back to the start)' });
+  await fromMain('MediaPause');
+  await waitFor((a) => a.player.paused, null, { what: 'MediaPause pauses' });
+  await fromMain('MediaPause');
+  await s.page.waitForTimeout(300);
+  assert.equal(await M((a) => a.player.paused), true, 'MediaPause does not toggle');
+  await fromMain('MediaPlay'); // XF86AudioPlay: a toggle, as in GNOME
+  await waitFor((a) => !a.player.paused, null, { what: 'MediaPlay plays' });
+  await fromMain('MediaStop');
+  await waitFor((a) => a.player.paused && a.player.currentTime < 0.5, null, { what: 'MediaStop: paused at the start' });
+  // the volume keys still work and still show their own OSD
+  await fromMain('AudioVolumeUp');
+  await s.page.waitForSelector('#osd.show', { timeout: 3000 });
+  assert.equal(await s.page.$eval('#osd-media', (e) => e.hidden), true, 'one OSD at a time');
+});
+
+if (bus) {
+  await test('MPRIS: the Lecteur is org.mpris.MediaPlayer2.selene on the session bus (read and driven by a client)', async () => {
+    const probe = fakePlayer();
+    try {
+      await probe.wait((l) => l === 'READY', 8000);
+      const SEL = 'org.mpris.MediaPlayer2.selene';
+      await until(async () => (await probe.ask({ cmd: 'names' }, (l) => l.names))?.names.includes(SEL), { what: 'org.mpris.MediaPlayer2.selene on the bus' });
+      await M((a) => a.playQueueIndex(1));
+      await waitFor((a) => !a.player.paused && a.queue.index === 1, null, { what: 'Phare playing' });
+      const all = await until(async () => {
+        const r = (await probe.ask({ cmd: 'getall', name: SEL, iface: 'org.mpris.MediaPlayer2.Player' }, (l) => l.all || l.error))?.value;
+        return r?.PlaybackStatus === 'Playing' && r.Metadata?.['xesam:title'] === 'Phare' && r;
+      }, { what: 'Playing Phare on the bus' });
+      assert.deepEqual([all.Metadata['xesam:artist'], all.Metadata['xesam:album'], Math.round(all.Metadata['mpris:length'] / 1e6), all.CanGoNext, all.CanGoPrevious, all.CanSeek], [['Lune Rousse'], 'Nuits claires', 6, false, true, true]);
+      assert.match(all.Metadata['mpris:artUrl'], /^file:\/\/.*\/\.cache\/aurora\/media\/art\//);
+      const root = (await probe.ask({ cmd: 'getall', name: SEL, iface: 'org.mpris.MediaPlayer2' }, (l) => l.all || l.error))?.value;
+      assert.equal(root.Identity, 'Lecteur');
+      // a client (KDE Connect, playerctl…) pauses it, seeks, raises it
+      await probe.ask({ cmd: 'call', name: SEL, method: 'PlayPause' }, (l) => l.called || l.error);
+      await waitFor((a) => a.player.paused, null, { what: 'paused over D-Bus' });
+      await probe.ask({ cmd: 'watch', name: SEL }, (l) => l.watching);
+      probe.since();
+      await probe.ask({ cmd: 'call', name: SEL, method: 'SetPosition', args: [all.Metadata['mpris:trackid'], 3000000], sig: 'ox' }, (l) => l.called || l.error);
+      await waitFor((a) => Math.abs(a.player.currentTime - 3) < 0.3, null, { what: 'SetPosition over D-Bus' });
+      const seeked = await probe.wait((l) => l.signal === 'Seeked', 4000);
+      assert.ok(seeked && Math.abs(seeked.position - 3e6) < 3e5, `Seeked after the jump (${JSON.stringify(seeked)})`);
+      await probe.ask({ cmd: 'setprop', name: SEL, prop: 'Volume', value: 0.5, sig: 'd' }, (l) => l.setprop || l.error);
+      await waitFor((a) => Math.abs(a.player.volume - 0.5) < 0.01, null, { what: 'Volume over D-Bus' });
+      await probe.ask({ cmd: 'call', name: SEL, method: 'Play' }, (l) => l.called || l.error);
+      await waitFor((a) => !a.player.paused, null, { what: 'Play over D-Bus' });
+      const pc = await probe.wait((l) => l.signal === 'PropertiesChanged' && l.changed.PlaybackStatus === 'Playing', 4000);
+      assert.ok(pc, 'PropertiesChanged PlaybackStatus Playing');
+    } finally {
+      probe.quit();
+    }
+  });
+
+  await test('another player (fake, on the bus) in the card: followed when it starts, media keys go to it, the menu switches players', async () => {
+    const other = fakePlayer();
+    try {
+      await other.wait((l) => l === 'READY', 8000);
+      await M((a) => a.player.pause());
+      const cover = path.join(home, 'cover-test.png');
+      fs.writeFileSync(cover, PNG);
+      await other.ask({ cmd: 'own', name: 'org.mpris.MediaPlayer2.fakeplayer', identity: 'Radio Test', state: { PlaybackStatus: 'Playing', Metadata: { trackid: '/fake/track/7', title: 'Ondes courtes', artist: 'Radio Test', album: 'Direct', length: 300, art: `file://${cover}` } } }, (l) => l.owned);
+      await other.ask({ cmd: 'position', value: 75 }, (l) => l.position);
+      await until(() => A(() => window.__aurora.mediactl.active()?.id === 'org.mpris.MediaPlayer2.fakeplayer'), { what: 'the started player becomes the active one' });
+      await openQuick();
+      let c = await until(async () => (await card())?.title === 'Ondes courtes' && card(), { what: 'card shows the other player' });
+      assert.deepEqual([c.name, c.menu, c.status, c.artist, c.len], ['Radio Test', true, 'Playing', 'Radio Test · Direct', '5:00']);
+      assert.match(c.art || '', /^media:\/\/local\/.*cover-test\.png$/);
+      await s.page.waitForTimeout(300);
+      await s.shot('mediactl-card-other-fr-dark');
+      // media key: the other player, not the Lecteur
+      other.since();
+      await fromMain('MediaPlayPause');
+      assert.ok(await other.wait((l) => l.call === 'PlayPause', 4000), 'PlayPause reached the other player');
+      c = await until(async () => (await card())?.status === 'Paused' && card(), { what: 'card follows its state' });
+      assert.equal(await M((a) => a.player.paused), true, 'the Lecteur did not start');
+      await until(() => s.page.$eval('#osd-media', (e) => !e.hidden && e.querySelector('.osd-media-title').textContent === 'Ondes courtes'), { what: 'OSD shows the other player' });
+      // seek from the card -> SetPosition with its track id
+      other.since();
+      await s.page.$eval('#quick-settings .mc-seek', (el) => {
+        el.value = 500;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      const sp = await other.wait((l) => l.call === 'SetPosition', 4000);
+      assert.deepEqual(sp && [sp.track, sp.position], ['/fake/track/7', 150000000]);
+      // the menu: switch to the Lecteur
+      await s.page.click('#quick-settings .mc-player');
+      await s.page.waitForSelector('.menu .menu-item', { timeout: 3000 });
+      const items = await s.page.$$eval('.menu .menu-item .label', (els) => els.map((e) => e.textContent));
+      assert.deepEqual(items.sort(), ['Lecteur — Phare', 'Radio Test — Ondes courtes']);
+      await s.page.waitForTimeout(200);
+      await s.shot('mediactl-menu-fr-dark');
+      await s.page.click('.menu .menu-item:has-text("Lecteur")');
+      c = await until(async () => (await card())?.player === 'selene' && card(), { what: 'card switched to the Lecteur' });
+      assert.equal(c.title, 'Phare');
+      await fromMain('MediaPlayPause');
+      await waitFor((a) => !a.player.paused, null, { what: 'the key now plays the Lecteur' });
+      // the other one starts again: followed again
+      await other.ask({ cmd: 'set', state: { PlaybackStatus: 'Playing' } }, (l) => l.set);
+      await until(async () => (await card())?.player === 'org.mpris.MediaPlayer2.fakeplayer', { what: 'followed again when it starts' });
+      await M((a) => a.player.pause());
+      // it leaves the bus: back to the Lecteur
+      await other.ask({ cmd: 'release' }, (l) => l.released);
+      c = await until(async () => (await card())?.player === 'selene' && card(), { what: 'back to the Lecteur' });
+      assert.equal(c.menu, false);
+      await closeQuick();
+    } finally {
+      other.quit();
+    }
+  });
+}
+
+await test('the Lecteur closes: no player left, the card goes, org.mpris.MediaPlayer2.selene leaves the bus', async () => {
+  await M((a) => a.player.pause());
+  await A(() => window.__aurora.wm.byApp('media')[0].close());
+  await until(() => A(() => window.__aurora.mediactl.players().length === 0), { what: 'no player' });
+  await A(() => window.__aurora.quick.open());
+  await s.page.waitForTimeout(300);
+  assert.equal(await s.page.$eval('#quick-settings .mc-card', (e) => e.hidden), true);
+  await closeQuick();
+  if (bus) {
+    const probe = fakePlayer();
+    try {
+      await probe.wait((l) => l === 'READY', 8000);
+      await until(async () => !(await probe.ask({ cmd: 'names' }, (l) => l.names))?.names.includes('org.mpris.MediaPlayer2.selene'), { what: 'name released' });
+    } finally {
+      probe.quit();
+    }
+  }
+  // a media key with no player does nothing (and throws nothing)
+  await fromMain('MediaPlayPause');
+  await s.page.waitForTimeout(300);
+  assert.equal(await s.page.$eval('#osd-media', (e) => e.hidden), true);
+});
+
 await test('no console errors', async () => {
   const errs = s.logs.filter((l) => (l.startsWith('[pageerror]') || (l.startsWith('[error]') && !/Failed to load resource/.test(l))) && !/aurora-pty|terminal/i.test(l));
   assert.deepEqual(errs, []);
 });
 
 await s.close();
+bus?.stop();
 fs.rmSync(home, { recursive: true, force: true });
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} tests passed`);

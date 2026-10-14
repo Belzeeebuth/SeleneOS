@@ -741,6 +741,8 @@ export function settingsView(app) {
   const resume = ui.toggle({ checked: app.prefs.resume !== false, onchange: (v) => app.setPref('resume', v) });
   resume.classList.add('mp-resume-toggle');
   const autoStage = ui.toggle({ checked: app.prefs.videoStage !== false, onchange: (v) => app.setPref('videoStage', v) });
+  const skipPodcasts = ui.toggle({ checked: app.prefs.skipPodcasts !== false, ariaLabel: t('settings.skipPodcasts'), onchange: (v) => app.setPref('skipPodcasts', v) });
+  skipPodcasts.classList.add('mp-skip-podcasts');
   const row = (ic, title, hint, control) =>
     h(
       'div',
@@ -751,6 +753,7 @@ export function settingsView(app) {
     h('h2', { class: 'mp-set-section' }, t('settings.library')),
     folderCard('music'),
     folderCard('video'),
+    row('rss', t('settings.skipPodcasts'), t('settings.skipPodcastsHint', { path: tildify(app.podcastsDir(), app.home) }), skipPodcasts),
     row('arrow_sync', t('settings.rescan'), t('settings.rescanHint'), btn(app, { label: t('library.refresh'), onClick: () => app.refreshLibrary() })),
     h('h2', { class: 'mp-set-section' }, t('settings.playback')),
     row('data_bar_vertical_add', t('settings.visualizer'), document.documentElement.dataset.animations === 'off' ? t('settings.vizAnimOff') : t('settings.visualizerHint'), vizSel),

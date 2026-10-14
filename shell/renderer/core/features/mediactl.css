@@ -1,0 +1,198 @@
+/* Media card (features/mediactl.js) at the top of Réglages rapides: the active player's cover, title and artist, a seek
+   bar with the times, the player's name (a menu when there are several players) and previous / play-pause / next.
+   Same raised glass as the tiles; tokens only. */
+.mc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--glass-line);
+  background: var(--glass-fill);
+  color: var(--text);
+}
+.mc-card[hidden] {
+  display: none;
+}
+.mc-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.mc-art {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text-3);
+  cursor: pointer;
+}
+.mc-art:disabled {
+  cursor: default;
+}
+.mc-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  -webkit-user-drag: none;
+}
+.mc-art.noart {
+  box-shadow: inset 0 0 0 1px var(--stroke);
+}
+.mc-art img.mc-art-app {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+.mc-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mc-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 20px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.mc-artist {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mc-seekrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mc-card.noseek .mc-seekrow {
+  display: none;
+}
+.mc-seekwrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.mc-seek {
+  width: 100%;
+}
+.mc-time {
+  flex: none;
+  min-width: 34px;
+  font-size: var(--fs-caption, 12px);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.mc-len {
+  text-align: right;
+}
+.mc-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mc-player {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  margin-left: -4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  text-align: left;
+}
+.mc-player:not(:disabled):hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.mc-player:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.mc-player-ico {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+.mc-player-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mc-ctl {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mc-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  transition: background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.mc-btn:not(:disabled):hover {
+  background: var(--subtle-hover);
+}
+.mc-btn:not(:disabled):active {
+  transform: scale(0.94);
+}
+.mc-btn:disabled {
+  color: var(--text-3);
+  opacity: 0.6;
+}
+.mc-btn.mc-play {
+  width: 40px;
+  height: 40px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.mc-btn.mc-play:not(:disabled):hover {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+.mc-btn.mc-play:disabled {
+  background: var(--subtle-hover);
+  color: var(--text-3);
+}
+.mc-card :focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+:root[data-animations="off"] .mc-btn {
+  transition: none;
+}
+:root[data-animations="off"] .mc-btn:active {
+  transform: none;
+}

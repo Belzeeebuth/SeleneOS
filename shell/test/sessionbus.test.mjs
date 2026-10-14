@@ -4,6 +4,9 @@
 //      (main/ipc/sessionbus.js)
 //   2. helper + backend against a fake app (test/fixtures/sessionbus/fake-app.py) and gdbus (an independent client,
 //      like notify-send) on a PRIVATE dbus-daemon — never the machine's session bus
+//   2b. MPRIS: the Lecteur's org.mpris.MediaPlayer2.selene (properties, PropertiesChanged, Seeked, calls forwarded,
+//      OpenUri / Set checks, gone with the Lecteur) and the client side (a fake external player listed, controlled,
+//      followed; playerctld skipped) — test/fixtures/sessionbus/fake-player.py is both the fake player and the probe
 //   3. UI: the real shell on that private bus: toasts with actions, Ne pas déranger, the tray icon, its menu, the item
 //      leaving with its app, autostart; screenshots 1280x720 FR, Halo dark + light -> test/out/sessionbus-*.png
 // Needs python3 with dbus + gi (AURORA_SESSIONBUS_PYTHON, default python3.12); 2 and 3 are skipped without it.
@@ -20,6 +23,7 @@ const require = createRequire(import.meta.url);
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HELPER = path.join(ROOT, '..', 'rootfs', 'usr', 'lib', 'aurora', 'helpers', 'aurora-sessionbus');
 const FAKE = path.join(ROOT, 'test', 'fixtures', 'sessionbus', 'fake-app.py');
+const FAKE_PLAYER = path.join(ROOT, 'test', 'fixtures', 'sessionbus', 'fake-player.py');
 const ARGS = new Set(process.argv.slice(2));
 const PY = process.env.AURORA_SESSIONBUS_PYTHON || 'python3.12';
 
@@ -108,6 +112,20 @@ console.log('\n# notification / tray mapping, icon lookup');
   fs.writeFileSync(path.join(tmp, 'own', 'own-icon.svg'), '<svg/>');
   check('findIcon: theme status icon, IconThemePath dir, bad names refused', [S.findIcon('app-tray', { bases: [path.join(tmp, 'icons')] }), S.findIcon('own-icon', { bases: [], extra: [path.join(tmp, 'own')] }), S.findIcon('../etc/passwd', { bases: [path.join(tmp, 'icons')] })], [path.join(tmp, 'icons', 'hicolor', '22x22', 'status', 'app-tray.png'), path.join(tmp, 'own', 'own-icon.svg'), null]);
   fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+console.log('\n# MPRIS mapping (sessionbus.js)');
+{
+  const { parsers: S } = require(path.join(ROOT, 'main', 'ipc', 'sessionbus.js'));
+  const exists = (p) => ['/home/u/.cache/aurora/media/art/ab.jpg', '/tmp/.org.chromium.Chromium.x1'].includes(p);
+  check('artUrl: file:// image -> media://, extensionless browser cover ok, https kept', [S.artUrl('file:///home/u/.cache/aurora/media/art/ab.jpg', { exists }), S.artUrl('file:///tmp/.org.chromium.Chromium.x1', { exists }), S.artUrl('https://i.scdn.co/image/ab67', { exists })], ['media://local/home/u/.cache/aurora/media/art/ab.jpg', 'media://local/tmp/.org.chromium.Chromium.x1', 'https://i.scdn.co/image/ab67']);
+  check('artUrl: http, data:, missing file, remote host, encoded ../ and junk refused', [S.artUrl('http://x/a.png', { exists }), S.artUrl('data:image/png;base64,AA', { exists }), S.artUrl('file:///nope.png', { exists }), S.artUrl('file://host/home/u/.cache/aurora/media/art/ab.jpg', { exists }), S.artUrl('file:///home/u/x%2F..%2F.cache/aurora/media/art/ab.jpg', { exists: () => true }), S.artUrl(42)], [null, null, null, null, null, null]);
+  const pl = S.toPlayer({ name: 'org.mpris.MediaPlayer2.vlc', identity: 'VLC', desktop: 'vlc', status: 'Weird', track: { id: '/t/1', title: 'T'.repeat(400), artist: 'A', album: '', length: 12.5, art: 'https://x/y.jpg' }, position: -3, positionAt: 5, rate: 0, activeAt: 7, canNext: 1, canControl: undefined }, { entry: (id) => (id === 'vlc' ? { name: 'VLC media player', icon: 'media://local/vlc.svg' } : null) });
+  check('toPlayer: unknown status -> Stopped, title capped, position >= 0, rate 0 -> 1, desktop entry name + icon', [pl.status, pl.track.title.length, pl.position, pl.rate, pl.appName, pl.icon, pl.canNext, pl.canControl, pl.track.art], ['Stopped', 300, 0, 1, 'VLC media player', 'media://local/vlc.svg', true, true, 'https://x/y.jpg']);
+  const st = S.cleanSelf({ active: true, identity: 'Lecteur', status: 'Playing', track: { id: 'q1', title: 'Lune', artist: 'X', album: 'Y', length: 1e9, art: '/home/u/.cache/aurora/media/art/ab.jpg' }, position: -1, rate: 9, volume: 2, loop: 'Bad', shuffle: 1, canNext: 1 }, { exists });
+  check('cleanSelf: clamps (length, position, rate, volume), checks loop / art', [st.track.length, st.position, st.rate, st.volume, st.loop, st.shuffle, st.track.art, st.canNext, st.canSeek], [1e7, 0, 4, 1, 'None', true, '/home/u/.cache/aurora/media/art/ab.jpg', true, false]);
+  check('cleanSelf: art outside an image file / relative refused; inactive -> null', [S.cleanSelf({ active: true, track: { art: '/etc/passwd' } }, { exists: () => true }).track.art, S.cleanSelf({ active: true, track: { art: 'rel.jpg' } }, { exists: () => true }).track.art, S.cleanSelf({ active: false }), S.cleanSelf(null)], ['', '', null, null]);
+  check('toCall: known methods only, Set props checked, OpenUri needs an absolute path', [S.toCall({ method: 'Seek', offset: '2.5' }), S.toCall({ method: 'Set', prop: 'Volume', value: '0.4' }), S.toCall({ method: 'Set', prop: 'Metadata', value: 1 }), S.toCall({ method: 'OpenUri', path: 'rel.mp3' }), S.toCall({ method: 'Exec' })], [{ method: 'Seek', offset: 2.5 }, { method: 'Set', prop: 'Volume', value: 0.4 }, null, null, null]);
 }
 
 // ===================================================================== private bus + fake app
@@ -276,6 +294,178 @@ async function helperTests() {
   }
 }
 
+// ===================================================================== 2b. MPRIS
+function fakePlayer(address) {
+  const p = spawn(PY, ['-I', FAKE_PLAYER], { env: { ...process.env, DBUS_SESSION_BUS_ADDRESS: address }, stdio: ['pipe', 'pipe', 'inherit'] });
+  const lines = [];
+  let buf = '';
+  p.stdout.on('data', (d) => {
+    buf += d;
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      try {
+        lines.push(JSON.parse(buf.slice(0, i)));
+      } catch {}
+      buf = buf.slice(i + 1);
+    }
+  });
+  let mark = 0;
+  return {
+    lines,
+    send: (o) => p.stdin.write(`${JSON.stringify(o)}\n`),
+    /** the first line matching pred after the last ask() / since(): answers are not mixed up with older ones */
+    since: () => (mark = lines.length),
+    fresh: () => lines.slice(mark),
+    wait: (pred, ms = 5000) => until(() => lines.slice(mark).find(pred), ms),
+    async ask(o, pred, ms = 5000) {
+      mark = lines.length;
+      p.stdin.write(`${JSON.stringify(o)}\n`);
+      return until(() => lines.slice(mark).find(pred), ms);
+    },
+    quit: () => {
+      try {
+        p.stdin.write('{"cmd":"quit"}\n');
+      } catch {}
+      setTimeout(() => p.kill(), 1000);
+    },
+  };
+}
+
+async function mprisTests() {
+  console.log('\n# MPRIS on a private bus: the Lecteur exported, other players listed and driven');
+  const bus = startBus();
+  const env0 = { ...process.env };
+  Object.assign(process.env, { DBUS_SESSION_BUS_ADDRESS: bus.address, AURORA_SESSIONBUS_HELPER: HELPER, AURORA_SESSIONBUS_PYTHON: spawnSync('sh', ['-c', `command -v ${PY}`], { encoding: 'utf8' }).stdout.trim() });
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'aurora-mpris-'));
+  const art = path.join(tmp, 'cover.png');
+  fs.writeFileSync(art, Buffer.from('89504e470d0a1a0a', 'hex'));
+  const song = path.join(tmp, 'chanson été.mp3');
+  fs.writeFileSync(song, 'x');
+  let be = null;
+  const probe = fakePlayer(bus.address);
+  const other = fakePlayer(bus.address);
+  const dup = fakePlayer(bus.address);
+  try {
+    for (const k of Object.keys(require.cache)) if (/main[\\/]ipc[\\/]sessionbus\.js$/.test(k)) delete require.cache[k];
+    const register = require(path.join(ROOT, 'main', 'ipc', 'sessionbus.js'));
+    const handlers = new Map();
+    const events = [];
+    be = register({ DEV: false, env: { version: '9.9' }, handle: (c, f) => handlers.set(c, f), broadcast: (ch, p) => events.push([ch, p]) });
+    const call = (ch, ...a) => Promise.resolve().then(() => handlers.get(ch)(...a));
+    await until(async () => (await call('sessionbus:status')).notifications, 8000);
+    await probe.wait((l) => l === 'READY', 8000);
+    const SEL = 'org.mpris.MediaPlayer2.selene';
+    const PLAYER = 'org.mpris.MediaPlayer2.Player';
+    const names = async () => (await probe.ask({ cmd: 'names' }, (l) => l.names))?.names || [];
+    check('no Lecteur, no org.mpris.MediaPlayer2.selene', (await names()).includes(SEL), false);
+    const state = { active: true, identity: 'Lecteur', status: 'Playing', track: { id: 'q1a', title: 'Marée haute', artist: 'Lune Rousse', album: 'Nuits claires', length: 182.5, art }, position: 12, rate: 1, volume: 0.8, loop: 'None', shuffle: false, canNext: true, canPrev: false, canPlay: true, canPause: true, canSeek: true };
+    check('mpris:self (Lecteur open) -> true', await call('mpris:self', state), true);
+    check('org.mpris.MediaPlayer2.selene appears', !!(await until(async () => (await names()).includes(SEL), 5000)), true);
+    const root = (await probe.ask({ cmd: 'getall', name: SEL, iface: 'org.mpris.MediaPlayer2' }, (l) => l.all || l.error))?.value || {};
+    check('MediaPlayer2: Identity, CanRaise / CanQuit, file:// only, no track list', [root.Identity, root.CanRaise, root.CanQuit, root.SupportedUriSchemes, root.HasTrackList], ['Lecteur', true, true, ['file'], false]);
+    const all = (await probe.ask({ cmd: 'getall', name: SEL, iface: PLAYER }, (l) => l.all || l.error))?.value || {};
+    const md = all.Metadata || {};
+    check('Player: status, Metadata (trackid, title, artist list, album, length µs, artUrl file://)', [all.PlaybackStatus, md['mpris:trackid'], md['xesam:title'], md['xesam:artist'], md['xesam:album'], md['mpris:length'], md['mpris:artUrl']], ['Playing', '/org/mpris/MediaPlayer2/selene/track/q1a', 'Marée haute', ['Lune Rousse'], 'Nuits claires', 182500000, `file://${art}`]);
+    check('Player: capabilities, volume, rate, loop, shuffle', [all.CanGoNext, all.CanGoPrevious, all.CanPlay, all.CanPause, all.CanSeek, all.CanControl, all.Volume, all.Rate, all.LoopStatus, all.Shuffle], [true, false, true, true, true, true, 0.8, 1, 'None', false]);
+    check('Position while playing moves on from the last state (µs)', all.Position, (v) => v >= 12e6 && v < 14e6);
+    await probe.ask({ cmd: 'watch', name: SEL }, (l) => l.watching);
+    probe.since();
+    await call('mpris:self', { ...state, status: 'Paused', position: 20 });
+    const pc = await probe.wait((l) => l.signal === 'PropertiesChanged');
+    check('PropertiesChanged on a change: only what changed (PlaybackStatus), never Position', pc && [pc.iface, Object.keys(pc.changed)], [PLAYER, ['PlaybackStatus']]);
+    check('paused: Position is the state position', (await probe.ask({ cmd: 'get', name: SEL, iface: PLAYER, prop: 'Position' }, (l) => l.got || l.error))?.value, 20e6);
+    probe.since();
+    await call('mpris:self', { ...state, status: 'Paused', position: 20, track: { ...state.track, id: 'q2b', title: 'Phare' } });
+    const pc2 = await probe.wait((l) => l.signal === 'PropertiesChanged');
+    check('new track -> PropertiesChanged Metadata', pc2?.changed?.Metadata?.['xesam:title'], 'Phare');
+    probe.since();
+    await call('mpris:self', { ...state, status: 'Paused', position: 20, track: { ...state.track, id: 'q2b', title: 'Phare' } });
+    await sleep(300);
+    check('same state again: no signal', probe.fresh().some((l) => l.signal === 'PropertiesChanged'), false);
+    probe.since();
+    await call('mpris:seeked', 30.5);
+    check('mpris:seeked -> Seeked(µs)', (await probe.wait((l) => l.signal === 'Seeked'))?.position, 30500000);
+    // calls from an MPRIS client go back to the Lecteur
+    const callEv = (pred) => until(() => events.filter(([c]) => c === 'mpris:call').map(([, p]) => p).find(pred), 3000);
+    const n0 = () => events.filter(([c]) => c === 'mpris:call').length;
+    await probe.ask({ cmd: 'call', name: SEL, method: 'PlayPause' }, (l) => l.called || l.error);
+    check('PlayPause -> mpris:call', !!(await callEv((c) => c.method === 'PlayPause')), true);
+    await probe.ask({ cmd: 'call', name: SEL, method: 'Next' }, (l) => l.called || l.error);
+    check('Next (CanGoNext) -> mpris:call', !!(await callEv((c) => c.method === 'Next')), true);
+    const before = n0();
+    await probe.ask({ cmd: 'call', name: SEL, method: 'Previous' }, (l) => l.called || l.error);
+    await sleep(300);
+    check('Previous with CanGoPrevious false: no effect (spec)', n0(), before);
+    await probe.ask({ cmd: 'call', name: SEL, method: 'Seek', args: [-5000000], sig: 'x' }, (l) => l.called || l.error);
+    check('Seek(-5 s) -> { offset: -5 }', (await callEv((c) => c.method === 'Seek'))?.offset, -5);
+    await probe.ask({ cmd: 'call', name: SEL, method: 'SetPosition', args: ['/org/mpris/MediaPlayer2/selene/track/q2b', 60000000], sig: 'ox' }, (l) => l.called || l.error);
+    check('SetPosition(current track, 60 s) -> { position: 60 }', (await callEv((c) => c.method === 'SetPosition'))?.position, 60);
+    const b2 = n0();
+    await probe.ask({ cmd: 'call', name: SEL, method: 'SetPosition', args: ['/org/mpris/MediaPlayer2/selene/track/q1a', 1000000], sig: 'ox' }, (l) => l.called || l.error);
+    await probe.ask({ cmd: 'call', name: SEL, method: 'SetPosition', args: ['/org/mpris/MediaPlayer2/selene/track/q2b', 999000000], sig: 'ox' }, (l) => l.called || l.error);
+    await sleep(300);
+    check('SetPosition with another track id or past the end: ignored (spec)', n0(), b2);
+    await probe.ask({ cmd: 'call', name: SEL, method: 'OpenUri', args: [`file://${encodeURI(song)}`], sig: 's' }, (l) => l.called || l.error);
+    check('OpenUri(file:// local media, percent-encoded) -> { path }', (await callEv((c) => c.method === 'OpenUri'))?.path, song);
+    const bad = [];
+    for (const u of ['https://example.com/a.mp3', `file://${tmp}/missing.mp3`, `file://${art}`, 'file://evil/etc/passwd.mp3', `file://${encodeURI(song)}?x=1`]) bad.push((await probe.ask({ cmd: 'call', name: SEL, method: 'OpenUri', args: [u], sig: 's' }, (l) => l.called || l.error))?.error);
+    check('OpenUri refuses http(s), missing files, non-media, remote hosts, queries', bad, Array(5).fill('org.freedesktop.DBus.Error.InvalidArgs'));
+    await probe.ask({ cmd: 'setprop', name: SEL, prop: 'Volume', value: 1.7, sig: 'd' }, (l) => l.setprop || l.error);
+    check('Set Volume 1.7 -> clamped to 1, sent to the Lecteur', (await callEv((c) => c.method === 'Set' && c.prop === 'Volume'))?.value, 1);
+    await probe.ask({ cmd: 'setprop', name: SEL, prop: 'LoopStatus', value: 'Track', sig: 's' }, (l) => l.setprop || l.error);
+    check('Set LoopStatus Track', (await callEv((c) => c.method === 'Set' && c.prop === 'LoopStatus'))?.value, 'Track');
+    check('Set LoopStatus junk / PlaybackStatus -> errors', [(await probe.ask({ cmd: 'setprop', name: SEL, prop: 'LoopStatus', value: 'Forever', sig: 's' }, (l) => l.setprop || l.error))?.error, (await probe.ask({ cmd: 'setprop', name: SEL, prop: 'PlaybackStatus', value: 'Playing', sig: 's' }, (l) => l.setprop || l.error))?.error], ['org.freedesktop.DBus.Error.InvalidArgs', 'org.freedesktop.DBus.Error.PropertyReadOnly']);
+    await probe.ask({ cmd: 'call', name: SEL, method: 'Raise', iface: 'org.mpris.MediaPlayer2' }, (l) => l.called || l.error);
+    check('Raise -> mpris:call', !!(await callEv((c) => c.method === 'Raise')), true);
+    // the client side: other players
+    const players = () => events.filter(([c]) => c === 'mpris:players').pop()?.[1] || [];
+    check('the Lecteur is not listed among the other players', players().some((p) => p.name === SEL), false);
+    await other.wait((l) => l === 'READY', 8000);
+    await other.ask({ cmd: 'own', name: 'org.mpris.MediaPlayer2.fakeplayer', identity: 'Lecteur Test', state: { PlaybackStatus: 'Playing', Metadata: { trackid: '/fake/track/7', title: 'Song Seven', artist: 'Band', album: 'LP', length: 200, art: `file://${art}` } } }, (l) => l.owned);
+    const fp = await until(() => players().find((p) => p.name === 'org.mpris.MediaPlayer2.fakeplayer' && p.track?.title === 'Song Seven'), 5000);
+    check('external player listed: identity, status, track, length, cover as media://, activeAt set (it is playing)', fp && [fp.identity, fp.status, fp.track.artist, fp.track.album, fp.track.length, fp.track.art, fp.activeAt > 0, fp.canRaise], ['Lecteur Test', 'Playing', 'Band', 'LP', 200, `media://local${art.split('/').map(encodeURIComponent).join('/')}`, true, true]);
+    check('mpris:players handler returns the same list', (await call('mpris:players')).map((p) => p.name), ['org.mpris.MediaPlayer2.fakeplayer']);
+    await other.ask({ cmd: 'position', value: 42 }, (l) => l.position);
+    check('mpris:position reads it from the player', await call('mpris:position', 'org.mpris.MediaPlayer2.fakeplayer'), 42);
+    other.since();
+    await call('mpris:control', 'org.mpris.MediaPlayer2.fakeplayer', 'PlayPause');
+    check('mpris:control PlayPause reaches the player; its PropertiesChanged is followed (Paused)', [!!(await other.wait((l) => l.call === 'PlayPause')), !!(await until(() => players()[0]?.status === 'Paused', 3000))], [true, true]);
+    await call('mpris:control', 'org.mpris.MediaPlayer2.fakeplayer', 'SetPosition', 90);
+    const sp = await other.wait((l) => l.call === 'SetPosition');
+    check('SetPosition(90 s) uses the current track id; Seeked updates the position', [sp?.track, sp?.position, !!(await until(() => players()[0]?.position === 90, 3000))], ['/fake/track/7', 90000000, true]);
+    await call('mpris:control', 'org.mpris.MediaPlayer2.fakeplayer', 'Next');
+    await call('mpris:control', 'org.mpris.MediaPlayer2.fakeplayer', 'Raise');
+    check('Next / Raise reach the player', [!!(await other.wait((l) => l.call === 'Next')), !!(await other.wait((l) => l.call === 'Raise'))], [true, true]);
+    const t0 = players()[0].activeAt;
+    await sleep(20);
+    await other.ask({ cmd: 'set', state: { PlaybackStatus: 'Playing' } }, (l) => l.set);
+    check('starting again moves activeAt on (the shell follows the most recently active player)', !!(await until(() => players()[0]?.status === 'Playing' && players()[0].activeAt > t0, 3000)), true);
+    check('mpris:control: unknown player -> ENOTFOUND, bad name / method -> EINVAL', [await call('mpris:control', 'org.mpris.MediaPlayer2.nobody', 'Play').catch((e) => e.code), await call('mpris:control', 'org.example.evil', 'Play').catch((e) => e.code), await call('mpris:control', 'org.mpris.MediaPlayer2.fakeplayer', 'Quit').catch((e) => e.code)], ['ENOTFOUND', 'EINVAL', 'EINVAL']);
+    await dup.wait((l) => l === 'READY', 8000);
+    await dup.ask({ cmd: 'own', name: 'org.mpris.MediaPlayer2.playerctld', identity: 'playerctld', state: { PlaybackStatus: 'Playing' } }, (l) => l.owned);
+    await sleep(400);
+    check('playerctld (a proxy of the active player) is not listed', players().map((p) => p.name), ['org.mpris.MediaPlayer2.fakeplayer']);
+    await other.ask({ cmd: 'release' }, (l) => l.released);
+    check('a player that leaves the bus leaves the list', !!(await until(() => players().length === 0, 4000)), true);
+    // the Lecteur closes
+    await call('mpris:self', null);
+    check('mpris:self(null) (Lecteur closed) -> the name is released', !!(await until(async () => !(await names()).includes(SEL), 4000)), true);
+    check('mpris:seeked without the Lecteur is harmless', await call('mpris:seeked', 3), false);
+  } catch (e) {
+    check('MPRIS flow', e.stack, '(no exception)');
+  } finally {
+    for (const p of [probe, other, dup]) p.quit();
+    be?.stop();
+    await sleep(300);
+    bus.stop();
+    fs.rmSync(tmp, { recursive: true, force: true });
+    for (const k of ['DBUS_SESSION_BUS_ADDRESS', 'AURORA_SESSIONBUS_HELPER', 'AURORA_SESSIONBUS_PYTHON']) {
+      if (env0[k] === undefined) delete process.env[k];
+      else process.env[k] = env0[k];
+    }
+  }
+}
+
 // ===================================================================== 3. UI
 async function uiTests() {
   console.log('\n# shell on a private bus (FR, 1280x720)');
@@ -363,6 +553,7 @@ async function uiTests() {
 
 if (haveDbusPython()) {
   await helperTests();
+  await mprisTests();
   if (!ARGS.has('--unit')) await uiTests();
 } else console.log(`\n# helper + UI: SKIPPED (${PY} without python3-dbus / python3-gi)`);
 console.log(`\n${passed} passed, ${failures.length} failed`);

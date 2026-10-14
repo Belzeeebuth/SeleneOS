@@ -11,11 +11,13 @@ import { Stage } from './stage.js';
 import { ROW_MIME } from './components.js';
 import * as V from './views.js';
 import { trustedDragPaths } from '../../../core/desktop.js';
+import { bindSession } from './session.js';
 
 const FILES_MIME = 'application/x-aurora-paths';
 const EASE = 'cubic-bezier(0.1, 0.9, 0.2, 1)';
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-const DEFAULT_PREFS = { visualizer: 'bars', resume: true, videoStage: true, songSort: 'az', videoSort: 'az', navCollapsed: false, playlistsOpen: true, showRemaining: false };
+// skipPodcasts: the music library leaves out <Music>/Podcasts (episodes downloaded by « Podcasts et actus », apps/feeds)
+const DEFAULT_PREFS = { visualizer: 'bars', resume: true, videoStage: true, songSort: 'az', videoSort: 'az', navCollapsed: false, playlistsOpen: true, showRemaining: false, skipPodcasts: true };
 const reduceMotion = () => document.documentElement.dataset.animations === 'off';
 
 /** Hooks the shell keeps on the window object reach the app only through a holder that is
@@ -81,7 +83,7 @@ export class MediaApp {
     this.home = xdg.home;
     this.queue = new PlayQueue();
     this.player = new Player({ api });
-    this.lib = new Library({ api, storage: this.storage, home: this.home, xdg, locale: () => this.locale });
+    this.lib = new Library({ api, storage: this.storage, home: this.home, xdg, locale: () => this.locale, skip: () => (this.prefs.skipPodcasts !== false ? [this.podcastsDir()] : []) });
     this.playlists = new Playlists(this.storage);
     const [prefs, recent, state] = await Promise.all([
       this.storage.get('prefs', {}).catch(() => ({})),
@@ -128,6 +130,8 @@ export class MediaApp {
     if (args.view === 'music') this.route = { name: 'music', arg: ['songs', 'albums', 'artists', 'genres'].includes(args.tab) ? args.tab : 'albums' };
     this.render();
     this.updateNow();
+    // media session: the media card, the media keys and MPRIS (org.mpris.MediaPlayer2.selene) control this window
+    this._session = bindSession(this);
     for (const p of this.recent.slice(0, 12)) this.lib.ensure(p).catch(() => {});
     this.lib.scan().catch((err) => console.error('[media] scan failed', err));
     this._watchLibrary();
@@ -631,6 +635,11 @@ export class MediaApp {
     this.prefs[k] = v;
     this.storage.set('prefs', this.prefs).catch(() => {});
     if (k === 'visualizer') this.stage.syncViz();
+    if (k === 'skipPodcasts') this.refreshLibrary();
+  }
+  /** Where « Podcasts et actus » downloads episodes (main/ipc/feeds.js): <XDG music>/Podcasts. */
+  podcastsDir() {
+    return `${this.xdg?.music || `${this.home}/Music`}/Podcasts`;
   }
   _saveState = debounce(() => {
     this.storage.set('state', { queue: this.queue.toJSON(), pos: this.player.currentTime || 0, volume: this.player.volume, muted: this.player.muted, rate: this.player.rate }).catch(() => {});
@@ -746,6 +755,7 @@ export class MediaApp {
     const noop = Object.assign(() => {}, { flush() {}, cancel() {} });
     this._saveState = noop;
     this._saveRecent = noop;
+    this._session?.();
     this._rerenderSoon.cancel();
     this._rescanSoon.cancel();
     clearTimeout(this._skipT);

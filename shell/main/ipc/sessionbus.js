@@ -20,6 +20,17 @@
 //   sleep), a 'power' one (PowerManagement: audio) only holds back idle sleep. Chromium's own
 //   wake locks (videos in the shell's webviews, the Navigateur) go through the bus to the helper like any other app's;
 //   nothing in the shell calls Electron's powerSaveBlocker (it would reach the helper the same way).
+// MPRIS (media players; renderer side core/features/mediactl.js, the Lecteur in apps/media/lib/session.js):
+//   handlers mpris:self (state | null)   the Lecteur's state -> org.mpris.MediaPlayer2.selene (exported while non-null)
+//            mpris:seeked (position s)   Seeked after a jump in the Lecteur
+//            mpris:players -> [player]   the OTHER players on the bus (Spotify, VLC, browsers…)
+//            mpris:control (name, method, value)   Play|Pause|PlayPause|Stop|Next|Previous|Raise|Seek (offset s)|
+//                                                  SetPosition (s) on one of them
+//            mpris:position (name) -> s  read now from that player
+//   events   mpris:call ({ method, offset, position, path, prop, value })   a client called Selene's player
+//            mpris:players ([player])   player = { name, identity, desktop, appName, icon, status, track: { id, title,
+//                 artist, album, length, art (media:// or https: URL | null) } | null, position, positionAt, rate,
+//                 volume, activeAt, canNext, canPrev, canPlay, canPause, canSeek, canControl, canRaise }
 // Icons: names resolved in the icon theme (the item's IconThemePath first) -> media:// URLs; pixmaps -> PNG data URLs.
 // Dev mode: the helper is not started (no fixture items in the bar) unless AURORA_SESSIONBUS=1 (tests run it on a
 // private dbus-daemon: DBUS_SESSION_BUS_ADDRESS).
@@ -116,7 +127,98 @@ function toItem(it, { iconUrl = () => null } = {}) {
   };
 }
 
-const parsers = { findIcon, toNotification, toItem };
+const IMAGE_RE = /\.(png|jpe?g|webp|gif|svg|bmp)$/i;
+/** artUrl -> URL the shell may load: file:// image -> media://, https: kept, anything else null (pure; unit-tested). */
+function artUrl(u, { exists = isFile } = {}) {
+  if (typeof u !== 'string' || !u || u.length > 4096) return null;
+  if (/^https:\/\/[^\s"'<>]+$/i.test(u)) return u;
+  let p = null;
+  try {
+    const url = new URL(u);
+    if (url.protocol === 'file:' && (url.host === '' || url.host === 'localhost')) p = decodeURIComponent(url.pathname);
+  } catch {}
+  if (!p || p.includes('\0') || !path.isAbsolute(p) || path.normalize(p) !== p) return null;
+  // players write covers without an extension (Chromium: /tmp/.org.chromium.Chromium.XXXX), so the type is not required
+  return exists(p) ? mediaUrl(p) : null;
+}
+
+/** Helper player -> renderer payload (pure; unit-tested). */
+function toPlayer(pl, { art = artUrl, entry = () => null } = {}) {
+  const app = entry(pl.desktop) || null;
+  const num = (v, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
+  const tr = pl.track && typeof pl.track === 'object' ? pl.track : null;
+  return {
+    name: String(pl.name || ''),
+    identity: String(pl.identity || app?.name || '').slice(0, 100),
+    desktop: String(pl.desktop || ''),
+    appName: app?.name || null,
+    icon: app?.icon || null,
+    status: ['Playing', 'Paused', 'Stopped'].includes(pl.status) ? pl.status : 'Stopped',
+    track: tr
+      ? { id: String(tr.id || ''), title: String(tr.title || '').slice(0, 300), artist: String(tr.artist || '').slice(0, 300), album: String(tr.album || '').slice(0, 300), length: Math.max(0, num(tr.length)), art: art(tr.art) }
+      : null,
+    position: Math.max(0, num(pl.position)),
+    positionAt: num(pl.positionAt),
+    rate: num(pl.rate, 1) || 1,
+    volume: num(pl.volume, 1),
+    activeAt: num(pl.activeAt),
+    canNext: !!pl.canNext,
+    canPrev: !!pl.canPrev,
+    canPlay: !!pl.canPlay,
+    canPause: !!pl.canPause,
+    canSeek: !!pl.canSeek,
+    canControl: pl.canControl !== false,
+    canRaise: !!pl.canRaise,
+  };
+}
+
+/** The Lecteur's state for the helper, checked (pure; unit-tested): null withdraws org.mpris.MediaPlayer2.selene. */
+function cleanSelf(st, { exists = isFile } = {}) {
+  if (!st || typeof st !== 'object' || !st.active) return null;
+  const num = (v, lo, hi, d) => (Number.isFinite(Number(v)) ? Math.max(lo, Math.min(hi, Number(v))) : d);
+  const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+  const t = st.track && typeof st.track === 'object' ? st.track : null;
+  const art = t && typeof t.art === 'string' && path.isAbsolute(t.art) && !t.art.includes('\0') && path.normalize(t.art) === t.art && IMAGE_RE.test(t.art) && exists(t.art) ? t.art : '';
+  return {
+    active: true,
+    identity: str(st.identity, 100) || 'Selene',
+    status: ['Playing', 'Paused', 'Stopped'].includes(st.status) ? st.status : 'Stopped',
+    track: t ? { id: str(t.id, 100), title: str(t.title, 300), artist: str(t.artist, 300), album: str(t.album, 300), length: num(t.length, 0, 1e7, 0), art } : null,
+    position: num(st.position, 0, 1e7, 0),
+    rate: num(st.rate, 0.25, 4, 1),
+    volume: num(st.volume, 0, 1, 1),
+    loop: ['None', 'Track', 'Playlist'].includes(st.loop) ? st.loop : 'None',
+    shuffle: !!st.shuffle,
+    canNext: !!st.canNext,
+    canPrev: !!st.canPrev,
+    canPlay: !!st.canPlay,
+    canPause: !!st.canPause,
+    canSeek: !!st.canSeek,
+  };
+}
+
+const MPRIS_NAME_RE = /^org\.mpris\.MediaPlayer2\.[A-Za-z0-9_.-]{1,200}$/;
+const MPRIS_CONTROL = new Set(['Play', 'Pause', 'PlayPause', 'Stop', 'Next', 'Previous', 'Raise', 'Seek', 'SetPosition']);
+const MPRIS_CALLS = new Set(['PlayPause', 'Play', 'Pause', 'Stop', 'Next', 'Previous', 'Raise', 'Quit', 'Seek', 'SetPosition', 'OpenUri', 'Set']);
+/** Helper 'mpris-call' event -> renderer payload, or null (pure; unit-tested). */
+function toCall(m) {
+  if (!MPRIS_CALLS.has(m?.method)) return null;
+  const out = { method: m.method };
+  if (m.method === 'Seek') out.offset = Number(m.offset) || 0;
+  if (m.method === 'SetPosition') out.position = Math.max(0, Number(m.position) || 0);
+  if (m.method === 'OpenUri') {
+    if (typeof m.path !== 'string' || !path.isAbsolute(m.path)) return null;
+    out.path = m.path;
+  }
+  if (m.method === 'Set') {
+    if (!['Volume', 'Rate', 'LoopStatus', 'Shuffle'].includes(m.prop)) return null;
+    out.prop = m.prop;
+    out.value = m.prop === 'LoopStatus' ? String(m.value) : m.prop === 'Shuffle' ? !!m.value : Number(m.value) || 0;
+  }
+  return out;
+}
+
+const parsers = { findIcon, toNotification, toItem, artUrl, toPlayer, cleanSelf, toCall };
 
 function err(message, code) {
   return Object.assign(new Error(message), { code });
@@ -178,6 +280,8 @@ function register(api) {
   };
   let restarts = 0;
   let stopping = false;
+  let players = [];
+  let selfState = null; // the Lecteur's last state, sent again when the helper (re)starts
 
   function start() {
     if (!real || child || stopping) return child;
@@ -209,6 +313,10 @@ function register(api) {
       }
       ready = { ...NONE };
       setInhibitors(NO_INHIBITORS); // the helper's cookies went with it
+      if (players.length) {
+        players = [];
+        api.broadcast('mpris:players', []);
+      }
       if (restarts++ < 5 && !stopping) setTimeout(start, 2000);
     });
     return child;
@@ -228,6 +336,7 @@ function register(api) {
       if (!m.tray) console.warn('[sessionbus] org.kde.StatusNotifierWatcher is owned by another program');
       if (!m.screensaver) console.warn('[sessionbus] org.freedesktop.ScreenSaver is owned by another program: its inhibitors are not seen');
       if (!m.power) console.warn('[sessionbus] org.freedesktop.PowerManagement is owned by another program: its inhibitors are not seen');
+      if (selfState) call('mpris-self', { state: selfState }).catch(() => {});
     } else if (m.event === 'inhibitors') {
       setInhibitors(m);
     } else if (m.event === 'activity') {
@@ -236,6 +345,12 @@ function register(api) {
       api.broadcast('notify:desktop', toNotification(m.n, { iconUrl, entry }));
     } else if (m.event === 'notify-close') {
       api.broadcast('notify:desktopClose', { id: m.id });
+    } else if (m.event === 'mpris-call') {
+      const c = toCall(m);
+      if (c) api.broadcast('mpris:call', c);
+    } else if (m.event === 'mpris-players') {
+      players = (Array.isArray(m.players) ? m.players : []).slice(0, 32).map((p) => toPlayer(p, { entry }));
+      api.broadcast('mpris:players', players);
     } else if (m.event === 'items') {
       items = (m.items || []).map((it) => toItem(it, { iconUrl }));
       api.broadcast('tray:items', items);
@@ -276,6 +391,24 @@ function register(api) {
     return (r?.items || []).map(fix);
   });
   api.handle('tray:menuEvent', (k, mid) => call('menu-event', { item: key(k), mid: int(mid, 2 ** 31) }));
+  // MPRIS: without the helper (dev) the Lecteur is simply not on the bus and there are no other players
+  api.handle('mpris:self', async (st) => {
+    selfState = cleanSelf(st);
+    if (!child) return false;
+    return call('mpris-self', { state: selfState });
+  });
+  api.handle('mpris:seeked', (pos) => (child && selfState ? call('mpris-seeked', { position: Math.max(0, Math.min(1e7, Number(pos) || 0)) }) : false));
+  api.handle('mpris:players', () => players);
+  const player = (n) => {
+    if (typeof n !== 'string' || !MPRIS_NAME_RE.test(n)) throw err('Invalid player', 'EINVAL');
+    return n;
+  };
+  api.handle('mpris:control', (n, method, value) => {
+    if (!MPRIS_CONTROL.has(method)) throw err('Invalid method', 'EINVAL');
+    const v = Number(value) || 0;
+    return call('mpris-control', { player: player(n), method, value: Math.max(-1e7, Math.min(1e7, v)) });
+  });
+  api.handle('mpris:position', (n) => call('mpris-position', { player: player(n) }));
 
   start();
   return {

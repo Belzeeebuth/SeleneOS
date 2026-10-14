@@ -30,6 +30,10 @@
 #           {"id": 8, "cmd": "inhibitors"}                             -> <inhibitors>
 #           {"id": 9, "cmd": "mpris-self", "state": <mpris state> | null}  export / update / withdraw the Lecteur
 #           {"id": 10, "cmd": "mpris-seeked", "position": 12.5}        Seeked(µs) after a jump in the Lecteur
+#           {"id": 11, "cmd": "mpris-players"}                          -> [<player>]  (the other MPRIS players)
+#           {"id": 12, "cmd": "mpris-control", "player": "org.mpris.MediaPlayer2.vlc", "method": "PlayPause"|"Play"|
+#                    "Pause"|"Stop"|"Next"|"Previous"|"Raise"|"Seek" (offset s)|"SetPosition" (position s)}
+#           {"id": 13, "cmd": "mpris-position", "player": "<bus name>"} -> position (s), read from the player
 #   stdout  {"id": n, "ok": false, "error": "…", "code": "ENOTFOUND"|"EFAIL"|…}
 #           {"event": "ready", "notifications": bool, "tray": bool, "screensaver": bool, "power": bool}
 #           {"event": "inhibitors", "count": n, "apps": [names], "list": [{cookie, app, reason, kind}]}  on change
@@ -40,9 +44,16 @@
 #           {"event": "items", "items": [<item>]}                       whenever the tray changes (debounced)
 #           {"event": "mpris-call", "method": "PlayPause"|"Play"|"Pause"|"Stop"|"Next"|"Previous"|"Raise"|"Quit"|
 #                    "Seek" (offset s)|"SetPosition" (position s)|"OpenUri" (path)|"Set" (prop, value)}
+#           {"event": "mpris-players", "players": [<player>]}          whenever another player changes (debounced)
 # 4. MPRIS: while the Lecteur is open the shell sends its state and the helper owns org.mpris.MediaPlayer2.selene
 #    (/org/mpris/MediaPlayer2: MediaPlayer2 + Player, PropertiesChanged on every change but Position, Seeked);
 #    method calls (KDE Connect, playerctl, any MPRIS client) go back to the Lecteur. OpenUri: local file:// media only.
+# 5. MPRIS client: every other org.mpris.MediaPlayer2.* name (Spotify, VLC, browsers, KDE Connect's phone players…;
+#    not Selene's own name nor playerctld, a proxy that would duplicate the active player) is watched (GetAll,
+#    PropertiesChanged, Seeked, NameOwnerChanged) and listed to the shell's media card; 'mpris-control' drives one.
+# <player> = {name, identity, desktop, status, track: {id, title, artist, album, length (s), art (artUrl)} | null,
+#             position (s), positionAt (epoch ms), rate, volume, activeAt (epoch ms of its last start, 0 = never seen
+#             playing), canNext, canPrev, canPlay, canPause, canSeek, canControl, canRaise}
 # <mpris state> = {active, identity, status: Playing|Paused|Stopped, track: {id, title, artist, album, length (s),
 #                  art (absolute path)} | null, position (s), rate, volume (0-1), loop: None|Track|Playlist, shuffle,
 #                  canNext, canPrev, canPlay, canPause, canSeek}
@@ -84,9 +95,17 @@ MPRIS_NAME = 'org.mpris.MediaPlayer2.selene'
 MPRIS = 'org.mpris.MediaPlayer2'
 MPRIS_PLAYER = 'org.mpris.MediaPlayer2.Player'
 MPRIS_PATH = '/org/mpris/MediaPlayer2'
+MPRIS_PREFIX = MPRIS + '.'
+MPRIS_SKIP = (MPRIS_NAME, MPRIS_PREFIX + 'playerctld')  # ours (the shell knows it) and playerctl's proxy (a duplicate)
+MPRIS_METHODS = ('Play', 'Pause', 'PlayPause', 'Stop', 'Next', 'Previous', 'Seek', 'SetPosition', 'Raise')
+MAX_PLAYERS = 32
 MPRIS_EXT = ('.mp3', '.wav', '.ogg', '.oga', '.opus', '.flac', '.m4a', '.aac', '.mp4', '.m4v', '.webm', '.ogv', '.mkv', '.mov')
 VERSION = os.environ.get('AURORA_VERSION') or '1.0'
 MAX_SIDE = 512  # larger pictures are refused (a tray icon or an avatar does not need more)
+
+
+def now_ms():
+    return int(time.time() * 1000)
 
 
 def out(obj):
@@ -616,10 +635,14 @@ class Helper:
         self.saver = []
         self.pm = None
         self.mpris = None  # MprisPlayer while the Lecteur is open
+        self.players = {}  # other MPRIS players: bus name -> {owner, props: {iface: {...}}, pos, posAt, activeAt, ready}
+        self.players_pending = False
         self.inhibitors = {}  # cookie -> {sender, app, reason, kind}
         self.cookie = 0
         bus.add_signal_receiver(self.on_owner_changed, 'NameOwnerChanged', 'org.freedesktop.DBus', 'org.freedesktop.DBus')
         bus.add_signal_receiver(self.on_sni_signal, dbus_interface=SNI, sender_keyword='sender', path_keyword='path', member_keyword='member')
+        bus.add_signal_receiver(self.on_player_props, 'PropertiesChanged', PROPS, path=MPRIS_PATH, sender_keyword='sender')
+        bus.add_signal_receiver(self.on_player_seeked, 'Seeked', MPRIS_PLAYER, path=MPRIS_PATH, sender_keyword='sender')
 
     def own(self, name, factory):
         try:
@@ -639,6 +662,12 @@ class Helper:
             self.watcher.StatusNotifierHostRegistered()
         self.saver = self.own(SAVER, lambda h, bus: [ScreenSaver(h, bus, p) for p in SAVER_PATHS]) or []
         self.pm = self.own(PM, PowerInhibit)
+        try:
+            for name in self.bus.list_names():
+                if str(name).startswith(MPRIS_PREFIX):
+                    self.add_player(str(name))
+        except dbus.DBusException:
+            pass
         sys.stderr.flush()
         out({'event': 'ready', 'notifications': bool(self.notif), 'tray': bool(self.watcher), 'screensaver': bool(self.saver), 'power': bool(self.pm)})
 
@@ -693,6 +722,163 @@ class Helper:
         self.mpris.update(state)
         return True
 
+    # ---- MPRIS client (the other players, for the shell's media card)
+    def add_player(self, name, owner=None):
+        if name in MPRIS_SKIP or name in self.players or len(self.players) >= MAX_PLAYERS:
+            return
+        try:
+            owner = owner or str(self.bus.get_name_owner(name))
+            obj = self.bus.get_object(name, MPRIS_PATH, introspect=False)
+        except dbus.DBusException:
+            return
+        p = self.players[name] = {'owner': owner, 'props': {MPRIS: {}, MPRIS_PLAYER: {}}, 'pos': 0.0, 'posAt': 0, 'activeAt': 0, 'ready': False}
+
+        def got(iface, props):
+            if self.players.get(name) is not p:
+                return
+            p['props'][iface] = plain(props)
+            if iface == MPRIS_PLAYER:
+                p['ready'] = True
+                if p['props'][iface].get('PlaybackStatus') == 'Playing' and not p['activeAt']:
+                    p['activeAt'] = now_ms()
+                self.read_position(name)
+            self.players_changed()
+
+        for iface in (MPRIS, MPRIS_PLAYER):
+            obj.GetAll(iface, dbus_interface=PROPS, reply_handler=lambda props, i=iface: got(i, props), error_handler=lambda e: None, timeout=5)
+
+    def player_of(self, sender):
+        for name, p in self.players.items():
+            if p['owner'] == sender:
+                return name, p
+        return None, None
+
+    def on_player_props(self, iface, changed, invalidated, sender=None):
+        iface = str(iface)
+        name, p = self.player_of(str(sender or ''))
+        if not p or iface not in (MPRIS, MPRIS_PLAYER):
+            return
+        changed = plain(changed)
+        before = p['props'][iface].get('PlaybackStatus')
+        p['props'][iface].update(changed)
+        if iface == MPRIS_PLAYER:
+            status = p['props'][iface].get('PlaybackStatus')
+            if 'PlaybackStatus' in changed and status == 'Playing' and before != 'Playing':
+                p['activeAt'] = now_ms()
+            if {'PlaybackStatus', 'Metadata', 'Rate'} & set(changed):
+                self.read_position(name)  # Position is never signalled: read it again when it may have jumped
+        if invalidated:
+            obj = self.bus.get_object(name, MPRIS_PATH, introspect=False)
+
+            def got(props):
+                if self.players.get(name) is p:
+                    p['props'][iface].update(plain(props))
+                    self.players_changed()
+
+            obj.GetAll(iface, dbus_interface=PROPS, reply_handler=got, error_handler=lambda e: None, timeout=5)
+        self.players_changed()
+
+    def on_player_seeked(self, position, sender=None):
+        name, p = self.player_of(str(sender or ''))
+        if p:
+            p['pos'], p['posAt'] = max(0, int(position)) / 1e6, now_ms()
+            self.players_changed()
+
+    def read_position(self, name, done=None):
+        p = self.players.get(name)
+        if not p:
+            return done and done(None)
+
+        def ok(v):
+            if self.players.get(name) is p:
+                p['pos'], p['posAt'] = max(0, int(v)) / 1e6, now_ms()
+                self.players_changed()
+            if done:
+                done(p['pos'])
+
+        def err(e):
+            if done:
+                done(None)
+
+        try:
+            obj = self.bus.get_object(name, MPRIS_PATH, introspect=False)
+            obj.Get(MPRIS_PLAYER, 'Position', dbus_interface=PROPS, reply_handler=ok, error_handler=err, timeout=3)
+        except dbus.DBusException as e:
+            err(e)
+
+    def players_changed(self):
+        if self.players_pending:
+            return
+        self.players_pending = True
+
+        def go():
+            self.players_pending = False
+            out({'event': 'mpris-players', 'players': self.player_list()})
+            return False
+
+        GLib.timeout_add(80, go)
+
+    def player_list(self):
+        return [self.player_json(n, p) for n, p in self.players.items() if p['ready']]
+
+    @staticmethod
+    def player_json(name, p):
+        root, pl = p['props'][MPRIS], p['props'][MPRIS_PLAYER]
+        md = pl.get('Metadata') if isinstance(pl.get('Metadata'), dict) else {}
+
+        def text(v, n=300):
+            if isinstance(v, list):
+                v = ', '.join(str(x) for x in v if isinstance(x, str) and x)
+            return v[:n] if isinstance(v, str) else ''
+
+        def num(v):
+            return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v == v and abs(v) < 1e15 else 0.0
+
+        track = None
+        if md:
+            track = {'id': text(md.get('mpris:trackid'), 300), 'title': text(md.get('xesam:title')), 'artist': text(md.get('xesam:artist')),
+                     'album': text(md.get('xesam:album')), 'length': max(0.0, num(md.get('mpris:length')) / 1e6), 'art': text(md.get('mpris:artUrl'), 4096)}
+        flag = lambda k, d=False: bool(pl.get(k, d))
+        status = pl.get('PlaybackStatus')
+        return {'name': name, 'identity': text(root.get('Identity'), 100) or name[len(MPRIS_PREFIX):].split('.')[0],
+                'desktop': text(root.get('DesktopEntry'), 200), 'status': status if status in ('Playing', 'Paused', 'Stopped') else 'Stopped',
+                'track': track, 'position': p['pos'], 'positionAt': p['posAt'], 'rate': num(pl.get('Rate', 1.0)) or 1.0,
+                'volume': num(pl.get('Volume', 1.0)), 'activeAt': p['activeAt'],
+                'canNext': flag('CanGoNext'), 'canPrev': flag('CanGoPrevious'), 'canPlay': flag('CanPlay'), 'canPause': flag('CanPause'),
+                'canSeek': flag('CanSeek'), 'canControl': flag('CanControl', True), 'canRaise': bool(root.get('CanRaise', False))}
+
+    def control(self, name, method, value, reply, fail):
+        p = self.players.get(str(name or ''))
+        if not p:
+            return fail('no such player', 'ENOTFOUND')
+        if method not in MPRIS_METHODS:
+            return fail('unknown method', 'EINVAL')
+        obj = self.bus.get_object(name, MPRIS_PATH, introspect=False)
+        eh = lambda e: fail(e.get_dbus_message() if isinstance(e, dbus.DBusException) else e)
+        ok = lambda *_: reply(True)
+        if method == 'Raise':
+            return obj.Raise(dbus_interface=MPRIS, reply_handler=ok, error_handler=eh, timeout=5)
+        value = float(value or 0)
+        if value != value or abs(value) > 1e7:
+            return fail('bad value', 'EINVAL')
+        if method == 'SetPosition':
+            tid = ((p['props'][MPRIS_PLAYER].get('Metadata') or {}).get('mpris:trackid') or '')
+            if isinstance(tid, str) and tid.startswith('/'):
+                return obj.SetPosition(dbus.ObjectPath(tid), dbus.Int64(int(max(0.0, value) * 1e6)), dbus_interface=MPRIS_PLAYER, reply_handler=ok, error_handler=eh, timeout=5)
+            # no track id (some players): a relative jump from where it is now
+            method, value = 'Seek', value - Helper.estimate(p)
+        if method == 'Seek':
+            return obj.Seek(dbus.Int64(int(value * 1e6)), dbus_interface=MPRIS_PLAYER, reply_handler=ok, error_handler=eh, timeout=5)
+        getattr(obj, method)(dbus_interface=MPRIS_PLAYER, reply_handler=ok, error_handler=eh, timeout=5)
+
+    @staticmethod
+    def estimate(p):
+        pos = p['pos']
+        pl = p['props'][MPRIS_PLAYER]
+        if pl.get('PlaybackStatus') == 'Playing' and p['posAt']:
+            pos += (now_ms() - p['posAt']) / 1000.0 * float(pl.get('Rate', 1.0) or 1.0)
+        return pos
+
     # ---- tray items
     def add_item(self, name, path, sender):
         try:
@@ -714,6 +900,11 @@ class Helper:
             self.emit_soon()
 
     def on_owner_changed(self, name, old, new):
+        if str(name).startswith(MPRIS_PREFIX):
+            if old and self.players.pop(str(name), None) is not None:
+                self.players_changed()
+            if new:
+                self.add_player(str(name), str(new))
         if new:
             return
         for key, it in list(self.items.items()):
@@ -818,6 +1009,14 @@ class Helper:
                     self.mpris.at = time.monotonic()
                     self.mpris.Seeked(self.mpris.position())
                 return reply(bool(self.mpris))
+            if cmd == 'mpris-players':
+                return reply(self.player_list())
+            if cmd == 'mpris-control':
+                return self.control(msg.get('player'), str(msg.get('method', '')), msg.get('value', 0), reply, fail)
+            if cmd == 'mpris-position':
+                if str(msg.get('player', '')) not in self.players:
+                    return fail('no such player', 'ENOTFOUND')
+                return self.read_position(str(msg.get('player')), lambda v: reply(v))
             if cmd == 'closed':
                 return reply(bool(self.notif) and self.notif.closed(int(msg.get('nid', 0)), int(msg.get('reason', 2))))
             if cmd == 'action':

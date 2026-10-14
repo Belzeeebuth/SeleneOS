@@ -11,6 +11,8 @@
 //   Alt+Tab, Alt+Shift+Tab, Ctrl+Alt+Tab  switcher ("Alt:up" commits)   Alt+F4  close window / shut down dialog
 //   Alt+Space  window menu   Ctrl+Shift+Esc  Task Manager   Ctrl+Alt+Del  security screen
 //   AudioVolumeUp/Down/Mute, BrightnessUp/Down  -> audio:* / display:* + shell.emit('osd', …)
+//   MediaPlayPause/Play/Pause/Stop/TrackNext/TrackPrevious  -> shell.emit('media:key', 'playpause'|'pause'|'stop'|'next'|
+//            'previous') for the active media player (features/mediactl.js; also while locked, like the volume keys)
 //   Super+V  clipboard history flyout (Windows 11 style; off until turned on, setting 'clipboard.history';
 //            text only, pinned items persist in storage 'shell' / 'clipboard-pins')
 //   Super+. / Super+;  emoji and symbols panel (features/emoji.js, shell event 'emoji:toggle')
@@ -112,6 +114,7 @@ export function comboOfEvent(e) {
 let systemCombos = new Set([
   'Alt+Tab', 'Alt+Shift+Tab', 'Ctrl+Alt+Tab', 'Alt+F4', 'Alt+Space', 'Ctrl+Alt+Delete', 'Ctrl+Shift+Escape', 'PrintScreen',
   'AudioVolumeUp', 'AudioVolumeDown', 'AudioVolumeMute', 'BrightnessUp', 'BrightnessDown',
+  'MediaPlayPause', 'MediaPlay', 'MediaPause', 'MediaStop', 'MediaTrackNext', 'MediaTrackPrevious',
 ]);
 let customCombos = new Set(); // the user's own non-Super shortcuts, also captured by main (hotkeys:setCustom)
 function isSystemEvent(e) {
@@ -376,6 +379,13 @@ const ACTIONS = {
   AudioVolumeMute: () => volume('mute'),
   BrightnessUp: () => brightness(10),
   BrightnessDown: () => brightness(-10),
+  // media keys: X's XF86AudioPlay is a play / pause toggle (as in GNOME), XF86AudioPause only pauses
+  MediaPlayPause: () => shell.emit('media:key', 'playpause'),
+  MediaPlay: () => shell.emit('media:key', 'playpause'),
+  MediaPause: () => shell.emit('media:key', 'pause'),
+  MediaStop: () => shell.emit('media:key', 'stop'),
+  MediaTrackNext: () => shell.emit('media:key', 'next'),
+  MediaTrackPrevious: () => shell.emit('media:key', 'previous'),
 };
 for (let n = 1; n <= 9; n++) ACTIONS[`Super+${n}`] = () => activateNth(n);
 
@@ -657,7 +667,7 @@ function trigger(combo, { repeat = false } = {}) {
   }
   if (repeat && !REPEATABLE.has(c)) return false;
   // While the lock screen or the Ctrl+Alt+Del screen is up only the hardware keys keep working.
-  if ((isLocked() || document.querySelector('.sec-screen:not(.closing)')) && !/^(Audio|Brightness)/.test(c)) return false;
+  if ((isLocked() || document.querySelector('.sec-screen:not(.closing)')) && !/^(Audio|Brightness|Media)/.test(c)) return false;
   const fn = effective[c];
   if (!fn) return false;
   try {

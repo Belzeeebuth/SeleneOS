@@ -6,7 +6,7 @@
 //   (core/theme.js API).
 //   Sub-pages slide horizontally; backend channels (net:*, audio:*, display:*, power:battery) are
 //   optional — controls whose backend is missing are hidden, failures are reported inline.
-//   Opens on shell 'quick:toggle' / 'quick:open'.
+//   Opens on shell 'quick:toggle' / 'quick:open'. Above the tiles: the media card of features/mediactl.js (ctx.mediaCard()).
 import { createFlyout } from '../taskbar.js';
 import { STYLES, AMBIANCES, ACCENT_PRESETS, chooseStyle, accentPreset, ambianceOf } from '../theme.js';
 import { FINISHES, DEFAULT_FINISH, finishDefaults, finishAccent, offeredAccents } from '../finishes.js';
@@ -440,7 +440,9 @@ function renderMain() {
       : null,
     h('button', { class: 'qs-foot-btn qs-gear', 'aria-label': t('quick.allSettings'), 'data-tip': t('quick.allSettings'), onclick: () => (fly.close('launch'), shell.launch('settings')) }, icon('gear-six', { size: 20 })),
   );
-  const page = h('div', { class: 'qs-page qs-main' }, head, h('div', { class: 'qs-body' }, tiles, sliders.children.length ? sliders : null, renderAppearance(s)));
+  // media card (features/mediactl.js: the active MPRIS player, Selene's Lecteur or another one) above the tiles
+  const media = ctx.mediaCard?.() || null;
+  const page = h('div', { class: 'qs-page qs-main' }, head, h('div', { class: 'qs-body' }, media, tiles, sliders.children.length ? sliders : null, renderAppearance(s)));
   return page;
 }
 
