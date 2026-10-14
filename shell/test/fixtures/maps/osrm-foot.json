@@ -1,0 +1,347 @@
+{
+ "code": "Ok",
+ "routes": [
+  {
+   "geometry": "m~wd|AouinC}`Aoq@syAsg@_XbqDod@~mDwj@ftDwj@vnC_jAneG_jAnlFgiBnzDw|A~xFn}@n}@v|Af^g^vsMg^~rNf^~xF~iAfiBnvAvkGffAf{C",
+   "legs": [
+    {
+     "steps": [
+      {
+       "geometry": "m~wd|AouinC}`Aoq@syAsg@",
+       "maneuver": {
+        "bearing_after": 27,
+        "bearing_before": 0,
+        "location": [
+         2.348392,
+         48.853495
+        ],
+        "type": "depart"
+       },
+       "mode": "walking",
+       "driving_side": "right",
+       "name": "Rue d’Arcole",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          27
+         ],
+         "location": [
+          2.348392,
+          48.853495
+         ]
+        }
+       ],
+       "weight": 213.9,
+       "duration": 213.9,
+       "distance": 299.5
+      },
+      {
+       "geometry": "_{|d|AsplnC_XbqDod@~mD",
+       "maneuver": {
+        "bearing_after": 282,
+        "bearing_before": 16,
+        "location": [
+         2.34985,
+         48.856
+        ],
+        "type": "turn",
+        "modifier": "left"
+       },
+       "mode": "walking",
+       "driving_side": "right",
+       "name": "Quai de Gesvres",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          282
+         ],
+         "location": [
+          2.34985,
+          48.856
+         ]
+        }
+       ],
+       "weight": 306.1,
+       "duration": 306.1,
+       "distance": 428.6
+      },
+      {
+       "geometry": "oy~d|AooanCwj@ftDwj@vnC",
+       "maneuver": {
+        "bearing_after": 290,
+        "bearing_before": 288,
+        "location": [
+         2.3442,
+         48.857
+        ],
+        "type": "new name",
+        "modifier": "straight"
+       },
+       "mode": "walking",
+       "driving_side": "right",
+       "name": "Quai de la Mégisserie",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          290
+         ],
+         "location": [
+          2.3442,
+          48.857
+         ]
+        }
+       ],
+       "weight": 293.9,
+       "duration": 293.9,
+       "distance": 411.4
+      },
+      {
+       "geometry": "_qae|AojwmC_jAneG_jAnlF",
+       "maneuver": {
+        "bearing_after": 293,
+        "bearing_before": 295,
+        "location": [
+         2.339,
+         48.8584
+        ],
+        "type": "new name",
+        "modifier": "straight"
+       },
+       "mode": "walking",
+       "driving_side": "right",
+       "name": "Quai du Louvre",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          293
+         ],
+         "location": [
+          2.339,
+          48.8584
+         ]
+        }
+       ],
+       "weight": 459.5,
+       "duration": 459.5,
+       "distance": 643.3
+      },
+      {
+       "geometry": "_gfe|AovgmCgiBnzDw|A~xF",
+       "maneuver": {
+        "bearing_after": 311,
+        "bearing_before": 296,
+        "location": [
+         2.331,
+         48.8608
+        ],
+        "type": "turn",
+        "modifier": "slight right"
+       },
+       "mode": "walking",
+       "driving_side": "right",
+       "name": "",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          311
+         ],
+         "location": [
+          2.331,
+          48.8608
+         ]
+        }
+       ],
+       "weight": 447.4,
+       "duration": 447.4,
+       "distance": 626.4
+      },
+      {
+       "geometry": "_ole|A_azlCn}@n}@v|Af^",
+       "maneuver": {
+        "bearing_after": 213,
+        "bearing_before": 300,
+        "location": [
+         2.324,
+         48.864
+        ],
+        "type": "fork",
+        "modifier": "slight left"
+       },
+       "mode": "walking",
+       "driving_side": "right",
+       "name": "Passerelle Léopold-Sédar-Senghor",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          213
+         ],
+         "location": [
+          2.324,
+          48.864
+         ]
+        }
+       ],
+       "weight": 217.1,
+       "duration": 217.1,
+       "distance": 303.9
+      },
+      {
+       "geometry": "wrge|AgcwlCg^vsMg^~rNf^~xF",
+       "maneuver": {
+        "bearing_after": 276,
+        "bearing_before": 192,
+        "location": [
+         2.3225,
+         48.8615
+        ],
+        "type": "turn",
+        "modifier": "right"
+       },
+       "mode": "walking",
+       "driving_side": "right",
+       "name": "Quai d’Orsay",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          276
+         ],
+         "location": [
+          2.3225,
+          48.8615
+         ]
+        }
+       ],
+       "weight": 1026.6,
+       "duration": 1026.6,
+       "distance": 1437.2
+      },
+      {
+       "geometry": "_rhe|Ao`qkC~iAfiBnvAvkGffAf{C",
+       "maneuver": {
+        "bearing_after": 223,
+        "bearing_before": 259,
+        "location": [
+         2.303,
+         48.862
+        ],
+        "type": "continue",
+        "modifier": "slight left"
+       },
+       "mode": "walking",
+       "driving_side": "right",
+       "name": "Quai Branly",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          223
+         ],
+         "location": [
+          2.303,
+          48.862
+         ]
+        }
+       ],
+       "weight": 539.9,
+       "duration": 539.9,
+       "distance": 755.9
+      },
+      {
+       "geometry": "ghae|Agm`kC??",
+       "maneuver": {
+        "bearing_after": 0,
+        "bearing_before": 235,
+        "location": [
+         2.2945,
+         48.85826
+        ],
+        "type": "arrive",
+        "modifier": "left"
+       },
+       "mode": "walking",
+       "driving_side": "right",
+       "name": "Quai Branly",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          0
+         ],
+         "location": [
+          2.2945,
+          48.85826
+         ]
+        }
+       ],
+       "weight": 0,
+       "duration": 0,
+       "distance": 0
+      }
+     ],
+     "summary": "Quai du Louvre, Quai d’Orsay",
+     "weight": 3504.4,
+     "duration": 3504.4,
+     "distance": 4906.2
+    }
+   ],
+   "weight_name": "routability",
+   "weight": 3504.4,
+   "duration": 3504.4,
+   "distance": 4906.2
+  }
+ ],
+ "waypoints": [
+  {
+   "hint": "fixture-start",
+   "distance": 2.1,
+   "name": "Rue d’Arcole",
+   "location": [
+    2.348392,
+    48.853495
+   ]
+  },
+  {
+   "hint": "fixture-end",
+   "distance": 3.4,
+   "name": "Quai Branly",
+   "location": [
+    2.2945,
+    48.85826
+   ]
+  }
+ ]
+}

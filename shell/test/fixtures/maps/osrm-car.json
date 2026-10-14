@@ -1,0 +1,844 @@
+{
+ "code": "Ok",
+ "routes": [
+  {
+   "geometry": "m~wd|AouinC}`Aoq@syAsg@_XbqDod@~mDwj@ftDwj@vnC_jAneG_jAnlFwcAvyEwcAfmE_jAvuBwcA~iAod@vQoKvj@~Wvj@vj@nvAvj@nwHnd@nwHf^fxG~iA~iA~iAn}@vj@vnCvj@~{Bvj@fiBnZ~p@",
+   "legs": [
+    {
+     "steps": [
+      {
+       "geometry": "m~wd|AouinC}`Aoq@syAsg@",
+       "maneuver": {
+        "bearing_after": 27,
+        "bearing_before": 0,
+        "location": [
+         2.348392,
+         48.853495
+        ],
+        "type": "depart"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Rue d’Arcole",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          27
+         ],
+         "location": [
+          2.348392,
+          48.853495
+         ]
+        }
+       ],
+       "weight": 35.2,
+       "duration": 35.2,
+       "distance": 299.5
+      },
+      {
+       "geometry": "_{|d|AsplnC_XbqDod@~mD",
+       "maneuver": {
+        "bearing_after": 282,
+        "bearing_before": 16,
+        "location": [
+         2.34985,
+         48.856
+        ],
+        "type": "turn",
+        "modifier": "left"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Quai de Gesvres",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          282
+         ],
+         "location": [
+          2.34985,
+          48.856
+         ]
+        }
+       ],
+       "weight": 50.4,
+       "duration": 50.4,
+       "distance": 428.6
+      },
+      {
+       "geometry": "oy~d|AooanCwj@ftDwj@vnC",
+       "maneuver": {
+        "bearing_after": 290,
+        "bearing_before": 288,
+        "location": [
+         2.3442,
+         48.857
+        ],
+        "type": "new name",
+        "modifier": "straight"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Quai de la Mégisserie",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          290
+         ],
+         "location": [
+          2.3442,
+          48.857
+         ]
+        }
+       ],
+       "weight": 48.4,
+       "duration": 48.4,
+       "distance": 411.4
+      },
+      {
+       "geometry": "_qae|AojwmC_jAneG_jAnlF",
+       "maneuver": {
+        "bearing_after": 293,
+        "bearing_before": 295,
+        "location": [
+         2.339,
+         48.8584
+        ],
+        "type": "new name",
+        "modifier": "straight"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Quai du Louvre",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          293
+         ],
+         "location": [
+          2.339,
+          48.8584
+         ]
+        }
+       ],
+       "weight": 75.7,
+       "duration": 75.7,
+       "distance": 643.3
+      },
+      {
+       "geometry": "_gfe|AovgmCwcAvyEwcAfmE",
+       "maneuver": {
+        "bearing_after": 296,
+        "bearing_before": 296,
+        "location": [
+         2.331,
+         48.8608
+        ],
+        "type": "continue",
+        "modifier": "straight"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Quai François Mitterrand",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          296
+         ],
+         "location": [
+          2.331,
+          48.8608
+         ]
+        }
+       ],
+       "weight": 65.2,
+       "duration": 65.2,
+       "distance": 554.4
+      },
+      {
+       "geometry": "opje|AomzlC_jAvuBwcA~iA",
+       "maneuver": {
+        "bearing_after": 314,
+        "bearing_before": 297,
+        "location": [
+         2.3242,
+         48.863
+        ],
+        "type": "new name",
+        "modifier": "straight"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Quai des Tuileries",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          314
+         ],
+         "location": [
+          2.3242,
+          48.863
+         ]
+        }
+       ],
+       "weight": 40.4,
+       "duration": 40.4,
+       "distance": 343.2
+      },
+      {
+       "geometry": "g`oe|AwktlCod@vQoKvj@~Wvj@",
+       "maneuver": {
+        "bearing_after": 342,
+        "bearing_before": 324,
+        "location": [
+         2.3211,
+         48.8653
+        ],
+        "type": "roundabout",
+        "modifier": "straight",
+        "exit": 2
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Cours la Reine",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          342
+         ],
+         "location": [
+          2.3211,
+          48.8653
+         ]
+        }
+       ],
+       "weight": 22.8,
+       "duration": 22.8,
+       "distance": 193.9
+      },
+      {
+       "geometry": "gyoe|AoaqlCvj@nvA",
+       "maneuver": {
+        "bearing_after": 233,
+        "bearing_before": 229,
+        "location": [
+         2.3194,
+         48.8657
+        ],
+        "type": "exit roundabout",
+        "modifier": "straight",
+        "exit": 2
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Cours la Reine",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          233
+         ],
+         "location": [
+          2.3194,
+          48.8657
+         ]
+        }
+       ],
+       "weight": 15.1,
+       "duration": 15.1,
+       "distance": 128.6
+      },
+      {
+       "geometry": "omne|A_jnlCvj@nwHnd@nwHf^fxG",
+       "maneuver": {
+        "bearing_after": 258,
+        "bearing_before": 233,
+        "location": [
+         2.318,
+         48.865
+        ],
+        "type": "turn",
+        "modifier": "slight right"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Cours Albert-Ier",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          258
+         ],
+         "location": [
+          2.318,
+          48.865
+         ]
+        }
+       ],
+       "weight": 127,
+       "duration": 127,
+       "distance": 1079.6
+      },
+      {
+       "geometry": "_}je|Aw_rkC~iA~iA~iAn}@",
+       "maneuver": {
+        "bearing_after": 213,
+        "bearing_before": 260,
+        "location": [
+         2.3035,
+         48.8632
+        ],
+        "type": "turn",
+        "modifier": "left"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Pont de l’Alma",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          213
+         ],
+         "location": [
+          2.3035,
+          48.8632
+         ]
+        }
+       ],
+       "weight": 36.7,
+       "duration": 36.7,
+       "distance": 311.9
+      },
+      {
+       "geometry": "_gfe|AgvmkCvj@vnCvj@~{Bvj@fiBnZ~p@",
+       "maneuver": {
+        "bearing_after": 245,
+        "bearing_before": 209,
+        "location": [
+         2.3013,
+         48.8608
+        ],
+        "type": "turn",
+        "modifier": "right"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Quai Branly",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          245
+         ],
+         "location": [
+          2.3013,
+          48.8608
+         ]
+        }
+       ],
+       "weight": 67.5,
+       "duration": 67.5,
+       "distance": 574.1
+      },
+      {
+       "geometry": "ghae|Agm`kC??",
+       "maneuver": {
+        "bearing_after": 0,
+        "bearing_before": 230,
+        "location": [
+         2.2945,
+         48.85826
+        ],
+        "type": "arrive",
+        "modifier": "left"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Quai Branly",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          0
+         ],
+         "location": [
+          2.2945,
+          48.85826
+         ]
+        }
+       ],
+       "weight": 0,
+       "duration": 0,
+       "distance": 0
+      }
+     ],
+     "summary": "Quai du Louvre, Cours Albert-Ier",
+     "weight": 584.4,
+     "duration": 584.4,
+     "distance": 4968.5
+    }
+   ],
+   "weight_name": "routability",
+   "weight": 584.4,
+   "duration": 584.4,
+   "distance": 4968.5
+  },
+  {
+   "geometry": "m~wd|AouinC}`Aoq@syAsg@_q@c[od@wQ_jAneGovAnpIw|AnwHgiB~uJ_cBnwH_q@~{Bod@nzDooB~uJ_|B~uJ_|BfuKgpAn~G_q@n}@vQfiB~p@?n}@gEnzDoKf{Cf^v|AnK~{B~{Bv|AnoBv|AooBn}@_jAvQ_q@nZwj@",
+   "legs": [
+    {
+     "steps": [
+      {
+       "geometry": "m~wd|AouinC}`Aoq@syAsg@",
+       "maneuver": {
+        "bearing_after": 27,
+        "bearing_before": 0,
+        "location": [
+         2.348392,
+         48.853495
+        ],
+        "type": "depart"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Rue d’Arcole",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          27
+         ],
+         "location": [
+          2.348392,
+          48.853495
+         ]
+        }
+       ],
+       "weight": 37.4,
+       "duration": 37.4,
+       "distance": 299.5
+      },
+      {
+       "geometry": "_{|d|AsplnC_q@c[od@wQ",
+       "maneuver": {
+        "bearing_after": 20,
+        "bearing_before": 16,
+        "location": [
+         2.34985,
+         48.856
+        ],
+        "type": "continue",
+        "modifier": "straight"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Pont d’Arcole",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          20
+         ],
+         "location": [
+          2.34985,
+          48.856
+         ]
+        }
+       ],
+       "weight": 20.6,
+       "duration": 20.6,
+       "distance": 165.1
+      },
+      {
+       "geometry": "or_e|Ao_nnC_jAneGovAnpIw|AnwHgiB~uJ_cBnwH_q@~{B",
+       "maneuver": {
+        "bearing_after": 293,
+        "bearing_before": 18,
+        "location": [
+         2.3506,
+         48.8574
+        ],
+        "type": "turn",
+        "modifier": "left"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Rue de Rivoli",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          293
+         ],
+         "location": [
+          2.3506,
+          48.8574
+         ]
+        }
+       ],
+       "weight": 277.2,
+       "duration": 277.2,
+       "distance": 2217.4
+      },
+      {
+       "geometry": "_soe|AobxlCod@nzDooB~uJ_|B~uJ_|BfuKgpAn~G",
+       "maneuver": {
+        "bearing_after": 287,
+        "bearing_before": 301,
+        "location": [
+         2.323,
+         48.8656
+        ],
+        "type": "turn",
+        "modifier": "slight right"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Avenue des Champs-Élysées",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          287
+         ],
+         "location": [
+          2.323,
+          48.8656
+         ]
+        }
+       ],
+       "weight": 261.8,
+       "duration": 261.8,
+       "distance": 2094.7
+      },
+      {
+       "geometry": "gt~e|AgcekC_q@n}@vQfiB~p@?",
+       "maneuver": {
+        "bearing_after": 321,
+        "bearing_before": 293,
+        "location": [
+         2.2969,
+         48.8733
+        ],
+        "type": "rotary",
+        "modifier": "right",
+        "exit": 5
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Avenue d’Iéna",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          321
+         ],
+         "location": [
+          2.2969,
+          48.8733
+         ]
+        }
+       ],
+       "weight": 41.6,
+       "duration": 41.6,
+       "distance": 332.8,
+       "rotary_name": "Place Charles de Gaulle"
+      },
+      {
+       "geometry": "oa~e|Aoz_kCn}@gE",
+       "maneuver": {
+        "bearing_after": 176,
+        "bearing_before": 180,
+        "location": [
+         2.2942,
+         48.873
+        ],
+        "type": "exit rotary",
+        "modifier": "right",
+        "exit": 5
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Avenue d’Iéna",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          176
+         ],
+         "location": [
+          2.2942,
+          48.873
+         ]
+        }
+       ],
+       "weight": 13.9,
+       "duration": 13.9,
+       "distance": 111.4
+      },
+      {
+       "geometry": "_c|e|Aw``kCnzDoKf{Cf^v|AnK",
+       "maneuver": {
+        "bearing_after": 177,
+        "bearing_before": 176,
+        "location": [
+         2.2943,
+         48.872
+        ],
+        "type": "new name",
+        "modifier": "straight"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Avenue d’Iéna",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          177
+         ],
+         "location": [
+          2.2943,
+          48.872
+         ]
+        }
+       ],
+       "weight": 97.7,
+       "duration": 97.7,
+       "distance": 781.7
+      },
+      {
+       "geometry": "omne|Aoa_kC~{B~{Bv|AnoB",
+       "maneuver": {
+        "bearing_after": 213,
+        "bearing_before": 185,
+        "location": [
+         2.2938,
+         48.865
+        ],
+        "type": "fork",
+        "modifier": "slight right"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Avenue des Nations Unies",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          213
+         ],
+         "location": [
+          2.2938,
+          48.865
+         ]
+        }
+       ],
+       "weight": 59.8,
+       "duration": 59.8,
+       "distance": 478.7
+      },
+      {
+       "geometry": "wrge|A_twjCv|AooBn}@_jA",
+       "maneuver": {
+        "bearing_after": 142,
+        "bearing_before": 218,
+        "location": [
+         2.29,
+         48.8615
+        ],
+        "type": "continue",
+        "modifier": "straight"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Pont d’Iéna",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          142
+         ],
+         "location": [
+          2.29,
+          48.8615
+         ]
+        }
+       ],
+       "weight": 44.3,
+       "duration": 44.3,
+       "distance": 354.2
+      },
+      {
+       "geometry": "ovbe|Aoo}jCvQ_q@nZwj@",
+       "maneuver": {
+        "bearing_after": 120,
+        "bearing_before": 142,
+        "location": [
+         2.293,
+         48.859
+        ],
+        "type": "end of road",
+        "modifier": "left"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Quai Branly",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          120
+         ],
+         "location": [
+          2.293,
+          48.859
+         ]
+        }
+       ],
+       "weight": 17.3,
+       "duration": 17.3,
+       "distance": 138.2
+      },
+      {
+       "geometry": "ghae|Agm`kC??",
+       "maneuver": {
+        "bearing_after": 0,
+        "bearing_before": 134,
+        "location": [
+         2.2945,
+         48.85826
+        ],
+        "type": "arrive",
+        "modifier": "right"
+       },
+       "mode": "driving",
+       "driving_side": "right",
+       "name": "Quai Branly",
+       "intersections": [
+        {
+         "out": 0,
+         "entry": [
+          true
+         ],
+         "bearings": [
+          0
+         ],
+         "location": [
+          2.2945,
+          48.85826
+         ]
+        }
+       ],
+       "weight": 0,
+       "duration": 0,
+       "distance": 0
+      }
+     ],
+     "summary": "Rue de Rivoli, Avenue des Champs-Élysées",
+     "weight": 871.6,
+     "duration": 871.6,
+     "distance": 6973.7
+    }
+   ],
+   "weight_name": "routability",
+   "weight": 871.6,
+   "duration": 871.6,
+   "distance": 6973.7
+  }
+ ],
+ "waypoints": [
+  {
+   "hint": "fixture-start",
+   "distance": 2.1,
+   "name": "Rue d’Arcole",
+   "location": [
+    2.348392,
+    48.853495
+   ]
+  },
+  {
+   "hint": "fixture-end",
+   "distance": 3.4,
+   "name": "Quai Branly",
+   "location": [
+    2.2945,
+    48.85826
+   ]
+  }
+ ]
+}

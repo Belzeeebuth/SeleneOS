@@ -13,7 +13,11 @@
    "results_other": "{count} results",
    "hint": "Type a city, an address or a landmark, then press Enter."
   },
-  "tabs": { "label": "Side panel", "results": "Results", "places": "My places" },
+  "tabs": {
+   "label": "Side panel",
+   "results": "Results",
+   "places": "My places"
+  },
   "places": {
    "empty": "No saved places yet. Search for a place and select Save.",
    "save": "Save",
@@ -40,8 +44,85 @@
    "close": "Close",
    "center": "Show on map"
   },
-  "scale": { "m": "{n} m", "km": "{n} km" },
-  "dir": { "n": "N", "s": "S", "e": "E", "w": "W" }
+  "scale": {
+   "m": "{n} m",
+   "km": "{n} km"
+  },
+  "dir": {
+   "n": "N",
+   "s": "S",
+   "e": "E",
+   "w": "W"
+  },
+  "route": {
+   "openTip": "Directions",
+   "cardBtn": "Directions",
+   "title": "Directions",
+   "close": "Back to search",
+   "modes": "Travel mode",
+   "mode": {
+    "car": "Car",
+    "bike": "Bike",
+    "foot": "Walk"
+   },
+   "fromLabel": "Starting point",
+   "fromPlaceholder": "Choose a starting point",
+   "toLabel": "Destination",
+   "toPlaceholder": "Choose a destination",
+   "stopLabel": "Stop {n}",
+   "stopPlaceholder": "Choose a stop",
+   "addStop": "Add a stop",
+   "maxStops": "You can add up to 8 stops.",
+   "swap": "Reverse the route",
+   "pointMenu": "Options for {name}",
+   "moveUp": "Move up",
+   "moveDown": "Move down",
+   "moved": "{pos}: {name}",
+   "remove": "Remove",
+   "clear": "Clear",
+   "sugg": {
+    "label": "Suggestions",
+    "selected": "Selected place",
+    "pick": "Choose on the map",
+    "search": "Search for “{q}”",
+    "coords": "Coordinates",
+    "searching": "Searching…",
+    "none": "No places found for “{q}”",
+    "error": "Search is unavailable. Check your connection and try again."
+   },
+   "pickHint": "Click the map to place the point “{name}”. Press Escape to cancel.",
+   "here": {
+    "from": "Directions from here",
+    "to": "Directions to here",
+    "stop": "Add a stop here"
+   },
+   "hint": "Choose a starting point and a destination: type a place and press Enter, pick one of My places, or right-click the map.",
+   "loading": "Calculating the route…",
+   "routes": "Suggested routes",
+   "choose": "Route {n}: {duration}, {distance}",
+   "chosen": "Route chosen: {duration}, {distance}",
+   "altTip": "Other route: {duration}, {distance}. Click to choose it.",
+   "arrival": "Arrival around {time}",
+   "via": "Via {summary}",
+   "steps": "Turn-by-turn directions",
+   "stepTip": "Show on the map",
+   "copy": "Copy",
+   "copied": "Directions copied to the clipboard",
+   "copyError": "Could not copy the directions.",
+   "print": "Print",
+   "osm": "Open in OpenStreetMap",
+   "osmTip": "Open the same route on openstreetmap.org",
+   "osmStopsTip": "Open the route on openstreetmap.org (the website ignores the stops)",
+   "retry": "Try again",
+   "err": {
+    "ENOROUTE": "No route found between these places with this travel mode.",
+    "ENOSEGMENT": "One of the points is too far from any road or path. Choose a point closer to a road.",
+    "ETOOBIG": "This route is too long for the route service. Try a shorter route or fewer stops.",
+    "ERATELIMIT": "The route service is receiving too many requests. Wait a moment, then try again.",
+    "EOFFLINE": "You are offline. Connect to the Internet to get directions.",
+    "EUNREACHABLE": "The route service cannot be reached. Check your connection and try again."
+   }
+  }
  },
  "fr": {
   "app": "Cartes",
@@ -57,7 +138,11 @@
    "results_other": "{count} résultats",
    "hint": "Saisissez une ville, une adresse ou un monument, puis appuyez sur Entrée."
   },
-  "tabs": { "label": "Volet latéral", "results": "Résultats", "places": "Mes lieux" },
+  "tabs": {
+   "label": "Volet latéral",
+   "results": "Résultats",
+   "places": "Mes lieux"
+  },
   "places": {
    "empty": "Aucun lieu enregistré. Recherchez un lieu et sélectionnez Enregistrer.",
    "save": "Enregistrer",
@@ -84,7 +169,84 @@
    "close": "Fermer",
    "center": "Afficher sur la carte"
   },
-  "scale": { "m": "{n} m", "km": "{n} km" },
-  "dir": { "n": "N", "s": "S", "e": "E", "w": "O" }
+  "scale": {
+   "m": "{n} m",
+   "km": "{n} km"
+  },
+  "dir": {
+   "n": "N",
+   "s": "S",
+   "e": "E",
+   "w": "O"
+  },
+  "route": {
+   "openTip": "Itinéraire",
+   "cardBtn": "Itinéraire",
+   "title": "Itinéraire",
+   "close": "Retour à la recherche",
+   "modes": "Mode de déplacement",
+   "mode": {
+    "car": "Voiture",
+    "bike": "Vélo",
+    "foot": "À pied"
+   },
+   "fromLabel": "Point de départ",
+   "fromPlaceholder": "Choisissez un point de départ",
+   "toLabel": "Destination",
+   "toPlaceholder": "Choisissez une destination",
+   "stopLabel": "Étape {n}",
+   "stopPlaceholder": "Choisissez une étape",
+   "addStop": "Ajouter une étape",
+   "maxStops": "Vous pouvez ajouter jusqu’à 8 étapes.",
+   "swap": "Inverser l’itinéraire",
+   "pointMenu": "Options de « {name} »",
+   "moveUp": "Monter",
+   "moveDown": "Descendre",
+   "moved": "{pos} : {name}",
+   "remove": "Supprimer",
+   "clear": "Effacer",
+   "sugg": {
+    "label": "Suggestions",
+    "selected": "Lieu sélectionné",
+    "pick": "Choisir sur la carte",
+    "search": "Rechercher « {q} »",
+    "coords": "Coordonnées",
+    "searching": "Recherche…",
+    "none": "Aucun lieu trouvé pour « {q} »",
+    "error": "La recherche n’est pas disponible. Vérifiez votre connexion et réessayez."
+   },
+   "pickHint": "Cliquez sur la carte pour placer le point « {name} ». Appuyez sur Échap pour annuler.",
+   "here": {
+    "from": "Itinéraire depuis ici",
+    "to": "Itinéraire vers ici",
+    "stop": "Ajouter une étape ici"
+   },
+   "hint": "Choisissez un départ et une destination : saisissez un lieu puis appuyez sur Entrée, choisissez un de vos lieux ou faites un clic droit sur la carte.",
+   "loading": "Calcul de l’itinéraire…",
+   "routes": "Itinéraires proposés",
+   "choose": "Itinéraire {n} : {duration}, {distance}",
+   "chosen": "Itinéraire choisi : {duration}, {distance}",
+   "altTip": "Autre itinéraire : {duration}, {distance}. Cliquez pour le choisir.",
+   "arrival": "Arrivée vers {time}",
+   "via": "Par {summary}",
+   "steps": "Instructions détaillées",
+   "stepTip": "Afficher sur la carte",
+   "copy": "Copier",
+   "copied": "Itinéraire copié dans le presse-papiers",
+   "copyError": "Impossible de copier l’itinéraire.",
+   "print": "Imprimer",
+   "osm": "Ouvrir dans OpenStreetMap",
+   "osmTip": "Ouvrir le même itinéraire sur openstreetmap.org",
+   "osmStopsTip": "Ouvrir l’itinéraire sur openstreetmap.org (le site ne tient pas compte des étapes)",
+   "retry": "Réessayer",
+   "err": {
+    "ENOROUTE": "Aucun itinéraire trouvé entre ces lieux avec ce mode de déplacement.",
+    "ENOSEGMENT": "Un des points est trop loin de toute route ou chemin. Choisissez un point plus proche d’une route.",
+    "ETOOBIG": "Cet itinéraire est trop long pour le service de calcul. Essayez un trajet plus court ou moins d’étapes.",
+    "ERATELIMIT": "Le service d’itinéraires reçoit trop de demandes. Patientez un instant, puis réessayez.",
+    "EOFFLINE": "Vous êtes hors ligne. Connectez-vous à Internet pour obtenir un itinéraire.",
+    "EUNREACHABLE": "Le service d’itinéraires est injoignable. Vérifiez votre connexion et réessayez."
+   }
+  }
  }
 }

@@ -1,7 +1,10 @@
-// Maps: OpenStreetMap raster tiles in a custom viewer, Nominatim place search and "My places".
-// Backend: main/ipc/maps.js (tiles, search and saved places; mock tiles + gazetteer in dev/tests, never network).
-// Test hooks: the window body element gets __maps.
+// Maps: OpenStreetMap raster tiles in a custom viewer, Nominatim place search, "My places" and directions
+// (« Itinéraire », lib/directions.js: OSRM routes drawn over the tiles, turn-by-turn steps).
+// Backend: main/ipc/maps.js (tiles, search, saved places, routes; mock tiles + gazetteer + mock routes in dev/tests,
+// never network; AURORA_MAPS_OSRM_URL points routes at a local fake OSRM server in tests).
+// Test hooks: the window body element gets __maps (__maps.route: the directions state).
 import { MIN_ZOOM, MAX_ZOOM, clampZoom, clampLat, wrapLon, project, unproject, scaleBar, visibleTiles, fitZoom, formatCoords } from './lib/geo.js';
+import { createDirections } from './lib/directions.js';
 
 const OSM_COPYRIGHT = 'https://www.openstreetmap.org/copyright';
 const MAX_TILE_REQUESTS = 2; // OSM tile usage policy: at most 2 parallel requests
@@ -50,7 +53,8 @@ export default {
     });
     const clearBtn = h('button', { class: 'btn subtle mp-icon-btn mp-clear', type: 'button', title: t('search.clear'), 'aria-label': t('search.clear'), hidden: true, onclick: () => clearSearch() }, icon('dismiss'));
     const goBtn = h('button', { class: 'btn primary mp-icon-btn mp-go', type: 'submit', title: t('search.go'), 'aria-label': t('search.go') }, icon('search'));
-    const form = h('form', { class: 'mp-search', role: 'search', onsubmit: (e) => (e.preventDefault(), runSearch(input.value)) }, input, clearBtn, goBtn);
+    const dirBtn = h('button', { class: 'btn subtle mp-icon-btn mp-dir-btn', type: 'button', title: t('route.openTip'), 'aria-label': t('route.openTip'), onclick: () => dir.open(selected ? { to: selected } : {}) }, icon('directions'));
+    const form = h('form', { class: 'mp-search', role: 'search', onsubmit: (e) => (e.preventDefault(), runSearch(input.value)) }, input, clearBtn, goBtn, dirBtn);
     input.addEventListener('input', () => (clearBtn.hidden = !input.value));
     input.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowDown' && tab === 'results') {
@@ -117,6 +121,40 @@ export default {
     const root = h('div', { class: 'mp-root' }, side, mapWrap);
     win.body.append(root);
 
+    // ------------------------------------------------------------ directions (« Itinéraire »)
+    const dir = createDirections({
+      h,
+      icon,
+      ui,
+      t,
+      api,
+      shell,
+      lang,
+      win,
+      storage,
+      mapEl: map,
+      fmtCoords: (lat, lon) => formatCoords(lat, lon, 5, dirs),
+      getPlaces: () => places,
+      getSelected: () => selected,
+      geoToScreen: (lat, lon) => geoToScreen(lat, lon),
+      screenToGeo: (x, y) => screenToGeo(x, y),
+      getSize: () => ({ W, H }),
+      getView: () => ({ ...view }),
+      fitBounds: (bb) => fitBounds(bb),
+      setView: (lat, lon, z) => setView(lat, lon, z),
+      scheduleRender: () => scheduleRender(),
+      onOpenChange: (open, focusBack) => {
+        root.classList.toggle('routing', open);
+        if (open) openPanel(true);
+        scheduleRender();
+        if (!open && focusBack) dirBtn.focus();
+      },
+      onPickChange: (on) => root.classList.toggle('picking', on),
+    });
+    map.insertBefore(dir.svg, markersLayer);
+    map.append(dir.markersEl);
+    side.append(dir.panel);
+
     // ------------------------------------------------------------ geometry
     let W = 1;
     let H = 1;
@@ -170,6 +208,15 @@ export default {
       view.lon = wrapLon(Number(lon));
       if (zoom != null) view.zoom = clampZoom(Number(zoom));
       changed();
+    }
+    /** Shows a bounding box [south, north, west, east] (a route) with some margin. */
+    function fitBounds(bb) {
+      measure();
+      const z = fitZoom(bb, W, H, 56);
+      const a = project(bb[1], bb[2], 0);
+      const b = project(bb[0], bb[3], 0);
+      const c = unproject((a.x + b.x) / 2, (a.y + b.y) / 2, 0);
+      setView(c.lat, c.lon, Math.min(18, z ?? view.zoom));
     }
 
     // ------------------------------------------------------------ tiles (max 2 requests in flight, no prefetch)
@@ -260,7 +307,7 @@ export default {
         if (s.x < -20 || s.y < -20 || s.x > W + 20 || s.y > H + 20) continue;
         markersLayer.append(h('div', { class: 'mp-dot', style: { transform: `translate(${s.x}px, ${s.y}px)` }, dataset: { id: p.id }, title: p.name }));
       }
-      if (selected) {
+      if (selected && !dir.isOpen) {
         const s = geoToScreen(selected.lat, selected.lon);
         const pin = h('div', { class: 'mp-pin', html: PIN_SVG });
         pin.style.transform = `translate(${s.x}px, ${s.y}px)`;
@@ -283,6 +330,7 @@ export default {
       measure();
       renderTiles();
       renderMarkers();
+      dir.render();
       renderChrome();
     }
     const scheduleRender = () => {
@@ -303,11 +351,13 @@ export default {
       const r = map.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     };
+    let downAt = null; // first pointer of a gesture: a click (no drag) picks a route point or an alternative
     map.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
       map.focus({ preventScroll: true });
       map.setPointerCapture?.(e.pointerId);
       pointers.set(e.pointerId, local(e));
+      downAt = pointers.size === 1 ? { id: e.pointerId, ...local(e) } : null;
       dragged = false;
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
@@ -335,12 +385,31 @@ export default {
       }
     });
     const endPointer = (e) => {
+      if (e.type === 'pointerup' && downAt && downAt.id === e.pointerId && pointers.size === 1) {
+        const p = local(e);
+        if (Math.hypot(p.x - downAt.x, p.y - downAt.y) < 5) dir.mapClick(p);
+      }
+      if (pointers.size <= 1) downAt = null;
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinch = null;
       if (!pointers.size) map.classList.remove('dragging');
     };
     map.addEventListener('pointerup', endPointer);
     map.addEventListener('pointercancel', endPointer);
+    // right-click / menu key: « Itinéraire depuis ici / vers ici », « Ajouter une étape ici »
+    map.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      measure();
+      let p = local(e);
+      let at = e;
+      if (!e.clientX && !e.clientY) {
+        // keyboard (menu key, Shift+F10): the map centre
+        const r = map.getBoundingClientRect();
+        p = { x: W / 2, y: H / 2 };
+        at = { x: r.left + W / 2, y: r.top + H / 2 };
+      }
+      dir.contextMenu(at, screenToGeo(p.x, p.y));
+    });
     map.addEventListener('dblclick', (e) => {
       e.preventDefault();
       zoomBy(e.shiftKey ? -1 : 1, local(e));
@@ -376,8 +445,14 @@ export default {
       e.preventDefault();
     });
     win.body.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && dir.picking) {
+        e.preventDefault();
+        dir.cancelPick(true);
+        return;
+      }
       if ((e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') || (e.key === '/' && document.activeElement === map)) {
         e.preventDefault();
+        if (dir.isOpen) dir.close();
         openPanel(true);
         input.focus();
         input.select();
@@ -535,7 +610,13 @@ export default {
         ),
         selected.display ? h('div', { class: 'mp-card-sub caption' }, selected.display) : '',
         h('div', { class: 'mp-card-coords caption' }, formatCoords(selected.lat, selected.lon, 5, dirs)),
-        h('div', { class: 'mp-card-actions' }, saveBtn, h('button', { class: 'btn mp-center', type: 'button', onclick: () => setView(selected.lat, selected.lon) }, icon('location'), h('span', null, t('map.center')))),
+        h(
+          'div',
+          { class: 'mp-card-actions' },
+          saveBtn,
+          h('button', { class: 'btn mp-center', type: 'button', onclick: () => setView(selected.lat, selected.lon) }, icon('location'), h('span', null, t('map.center'))),
+          h('button', { class: 'btn mp-card-route', type: 'button', onclick: () => dir.open({ to: selected }) }, icon('directions'), h('span', null, t('route.cardBtn'))),
+        ),
       );
       card.hidden = false;
     }
@@ -614,6 +695,7 @@ export default {
       cancelAnimationFrame(raf);
       clearTimeout(saveTimer);
       clearTimeout(snapTimer);
+      dir.destroy();
       for (const fn of cleanups) fn();
     });
     selectTab(tab);
@@ -643,7 +725,13 @@ export default {
       get size() {
         return { W, H };
       },
+      get route() {
+        return dir.debug;
+      },
+      openDirections: (opts) => dir.open(opts || {}),
+      closeDirections: () => dir.close(),
       setView,
+      fitBounds,
       renderNow,
       runSearch,
       selectTab,

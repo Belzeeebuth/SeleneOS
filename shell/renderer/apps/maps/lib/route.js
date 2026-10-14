@@ -137,7 +137,12 @@ export function formatDuration(s, lang = 'en') {
   return fr ? `${hTotal}${NBSP}h${NBSP}${String(m).padStart(2, '0')}` : `${hTotal}${NBSP}h ${m}${NBSP}min`;
 }
 
-/** Arrival clock time ("14:35" / "2:35 PM"); another day adds the weekday ("mer. 08:10"). */
+/** Arrival after `seconds` from now, rounded to the minute like the displayed duration. */
+export function arrivalDate(now, seconds) {
+  return new Date(Math.round((now.getTime() + (Number(seconds) || 0) * 1000) / 60000) * 60000);
+}
+
+/** Arrival clock time ("14:35" / "2:35 PM"); another day adds the weekday ("mer. 8:10"). */
 export function formatArrival(date, lang = 'en', now = new Date()) {
   const loc = LOCALE[L(lang)];
   const time = new Intl.DateTimeFormat(loc, { hour: 'numeric', minute: '2-digit' }).format(date);
@@ -274,6 +279,7 @@ const CONTINUING = new Set(['new name', 'continue', 'notification', 'use lane'])
  * folded into the roundabout step before it (one instruction, distances added).
  * Step: { type, modifier, exit, name, ref, destinations, exits, rotary, mode, drivingSide, bearingAfter, distance,
  *         duration, location: { lat, lon }, geometries: [polyline6], leg, legCount }
+ * (the caller may add stopNo to an « arrive » step: the number its panel shows for that stop)
  */
 export function prepareSteps(route) {
   const legs = Array.isArray(route?.legs) ? route.legs : [];
@@ -344,7 +350,7 @@ export function instruction(step, lang = 'en') {
     }
     case 'arrive': {
       const last = (step?.leg ?? 0) >= (step?.legCount ?? 1) - 1;
-      const s = last ? S.arrive : fill(S.arriveStop, { n: (step?.leg ?? 0) + 1 });
+      const s = last ? S.arrive : fill(S.arriveStop, { n: step?.stopNo || (step?.leg ?? 0) + 1 });
       const at = /left/.test(mod) ? S.arriveSide.left : /right/.test(mod) ? S.arriveSide.right : '';
       return s + at;
     }
@@ -460,7 +466,7 @@ export function routeSummary(route) {
 export function itineraryText({ route, steps, names = [], mode = 'car', lang = 'en', now = new Date(), url = '' }) {
   const Ls = LINES[L(lang)];
   const lines = [`${modeTitle(mode, lang)}${L(lang) === 'fr' ? '\u00a0: ' : ': '}${names.filter(Boolean).join(' → ')}`];
-  const arrival = formatArrival(new Date(now.getTime() + (route?.duration || 0) * 1000), lang, now);
+  const arrival = formatArrival(arrivalDate(now, route?.duration), lang, now);
   lines.push(`${formatDistance(route?.distance, lang)} · ${formatDuration(route?.duration, lang)} · ${fill(Ls.arrival, { time: arrival })}`);
   const sum = routeSummary(route);
   if (sum) lines.push(fill(Ls.via, { summary: sum }));

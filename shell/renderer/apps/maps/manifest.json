@@ -1,15 +1,15 @@
 {
   "id": "maps",
   "name": { "en": "Maps", "fr": "Cartes" },
-  "description": { "en": "OpenStreetMap maps: search places, zoom and pan, and keep your favourite places", "fr": "Cartes OpenStreetMap : recherchez des lieux, zoomez, déplacez-vous et gardez vos lieux favoris" },
+  "description": { "en": "OpenStreetMap maps: search places, get directions by car, bike or on foot, and keep your favourite places", "fr": "Cartes OpenStreetMap : recherchez des lieux, obtenez un itinéraire en voiture, à vélo ou à pied, et gardez vos lieux favoris" },
   "icon": "icon.svg",
   "entry": "main.js",
   "styles": ["style.css"],
   "window": { "width": 1100, "height": 720, "minWidth": 420, "minHeight": 400, "background": "mica" },
   "category": "utilities",
   "keywords": {
-    "en": ["maps", "map", "openstreetmap", "osm", "places", "search", "location", "directions", "atlas"],
-    "fr": ["cartes", "carte", "plan", "openstreetmap", "osm", "lieux", "recherche", "localisation", "itinéraire", "atlas"]
+    "en": ["maps", "map", "openstreetmap", "osm", "places", "search", "location", "directions", "route", "navigation", "atlas"],
+    "fr": ["cartes", "carte", "plan", "openstreetmap", "osm", "lieux", "recherche", "localisation", "itinéraire", "trajet", "navigation", "atlas"]
   },
   "singleInstance": true
 }

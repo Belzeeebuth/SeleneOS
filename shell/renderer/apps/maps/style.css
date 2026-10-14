@@ -466,3 +466,516 @@
   width: auto;
   right: 60px;
 }
+/* ---------------------------------------------------------------- directions (« Itinéraire ») */
+.app-maps .mp-root.routing .mp-search,
+.app-maps .mp-root.routing .mp-tabs,
+.app-maps .mp-root.routing .mp-status,
+.app-maps .mp-root.routing .mp-list,
+.app-maps .mp-root.routing .mp-card {
+  display: none;
+}
+.app-maps .mp-route {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px 14px;
+}
+.app-maps .mp-route[hidden] {
+  display: none;
+}
+.app-maps .mp-route-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-maps .mp-route-title {
+  margin: 0;
+  font-size: var(--fs-subtitle, 16px);
+  font-weight: 600;
+}
+.app-maps .mp-modes {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--radius, 8px);
+  background: var(--control, var(--subtle-hover));
+  border: 1px solid var(--stroke);
+}
+.app-maps .mp-mode {
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: var(--radius-sm, 4px);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  padding: 6px 4px;
+  white-space: nowrap;
+}
+.app-maps .mp-mode:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-maps .mp-mode.selected {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.app-maps .mp-mode svg {
+  width: 18px;
+  height: 18px;
+}
+.app-maps .mp-mode:focus-visible,
+.app-maps .mp-ropt:focus-visible,
+.app-maps .mp-step:focus-visible,
+.app-maps .mp-osm-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.app-maps .mp-wpbox {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.app-maps .mp-wps {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-maps .mp-wp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+/* dotted line linking the badges */
+.app-maps .mp-wp:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: calc(50% + 11px);
+  height: calc(100% - 16px);
+  border-left: 2px dotted var(--text-3);
+  pointer-events: none;
+}
+.app-maps .mp-wp-field {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+.app-maps .mp-wp-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+/* start / stop / destination badges (panel) and markers (map) */
+.app-maps .mp-wp-badge,
+.app-maps .mp-rmarker {
+  flex: none;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.app-maps .mp-wp-badge {
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+}
+.app-maps .mp-wp-badge.from,
+.app-maps .mp-rmarker.from {
+  background: var(--card-solid);
+  border: 5px solid var(--success);
+}
+.app-maps .mp-wp-badge.stop,
+.app-maps .mp-rmarker.stop {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 2px solid var(--card-solid);
+}
+.app-maps .mp-wp-badge.to,
+.app-maps .mp-rmarker.to {
+  background: var(--danger);
+  color: var(--card-solid);
+  border: 2px solid var(--card-solid);
+}
+.app-maps .mp-wp-badge svg {
+  width: 11px;
+  height: 11px;
+}
+.app-maps .mp-wp-badge.stop,
+.app-maps .mp-wp-badge.to {
+  box-shadow: 0 0 0 1px var(--stroke);
+}
+.app-maps .mp-swap svg {
+  width: 18px;
+  height: 18px;
+}
+.app-maps .mp-route-tools {
+  display: flex;
+  padding-left: 22px;
+}
+.app-maps .mp-add-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-maps .mp-add-stop svg,
+.app-maps .mp-route-actions .btn svg,
+.app-maps .mp-retry svg,
+.app-maps .mp-osm-link svg {
+  width: 16px;
+  height: 16px;
+}
+/* suggestions under a field */
+.app-maps .mp-sugg {
+  position: absolute;
+  /* as wide as the field row (badge, field, menu and swap buttons) */
+  left: -26px;
+  right: -72px;
+  top: calc(100% + 4px);
+  z-index: 5;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 320px;
+  overflow: auto;
+  border-radius: var(--radius, 8px);
+  border: 1px solid var(--stroke);
+  background: var(--card-solid, var(--solid, var(--card)));
+  box-shadow: var(--shadow-flyout);
+}
+.app-maps .mp-sugg[hidden] {
+  display: none;
+}
+.app-maps .mp-sugg-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm, 4px);
+  cursor: default;
+}
+.app-maps .mp-sugg-item:hover,
+.app-maps .mp-sugg-item.active {
+  background: var(--subtle-hover);
+}
+.app-maps .mp-sugg-item.active {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+.app-maps .mp-sugg-icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--accent-text, var(--accent));
+}
+.app-maps .mp-sugg-icon.star {
+  color: var(--warning);
+}
+.app-maps .mp-sugg-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.app-maps .mp-sugg-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.app-maps .mp-sugg-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-maps .mp-sugg-sub {
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-maps .mp-sugg-msg {
+  padding: 8px;
+  color: var(--text-2);
+}
+.app-maps .mp-route-live:empty {
+  display: none;
+}
+.app-maps .mp-route-live {
+  color: var(--text-2);
+}
+.app-maps .mp-route-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-maps .mp-route-hint {
+  margin: 4px 0;
+  color: var(--text-2);
+}
+.app-maps .mp-route-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 2px;
+  color: var(--text-2);
+}
+.app-maps .mp-route-error {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius, 8px);
+  background: var(--danger-bg);
+  color: var(--text);
+  border: 1px solid var(--stroke);
+}
+.app-maps .mp-route-error-icon {
+  flex: none;
+  color: var(--danger);
+}
+.app-maps .mp-route-error-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.app-maps .mp-route-error-body p {
+  margin: 0 0 8px;
+}
+.app-maps .mp-route-error-body p:last-child {
+  margin: 0;
+}
+.app-maps .mp-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+:root[data-theme='dark'] .app-maps .mp-route-error {
+  background: var(--danger-bg);
+  color: var(--text);
+}
+.app-maps .mp-ropts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-maps .mp-ropt {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  padding: 8px 12px;
+  border-radius: var(--radius, 8px);
+  border: 1px solid var(--stroke);
+  background: var(--card, transparent);
+  position: relative;
+}
+.app-maps button.mp-ropt:hover {
+  background: var(--subtle-hover);
+}
+.app-maps .mp-ropt.selected {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: var(--accent-subtle, var(--subtle-selected));
+}
+.app-maps .mp-ropt-top {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.app-maps .mp-ropt-dur {
+  font-size: 18px;
+  font-weight: 650;
+}
+.app-maps .mp-ropt.selected .mp-ropt-dur {
+  color: var(--accent-text, var(--text));
+}
+.app-maps .mp-ropt-dist {
+  color: var(--text-2);
+}
+.app-maps .mp-ropt-sub {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.app-maps .mp-route-actions {
+  display: flex;
+  gap: 8px;
+}
+.app-maps .mp-route-actions .btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.app-maps .mp-osm-link {
+  appearance: none;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  font: inherit;
+  padding: 2px 0;
+  color: var(--accent-text, var(--accent));
+  border-radius: var(--radius-sm, 4px);
+}
+.app-maps .mp-osm-link:hover span {
+  text-decoration: underline;
+}
+.app-maps .mp-steps-title {
+  margin: 6px 0 0;
+  font-size: inherit;
+}
+.app-maps .mp-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-maps .mp-step {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--stroke);
+  background: none;
+  color: inherit;
+  font: inherit;
+  padding: 8px 4px;
+  border-radius: 0;
+}
+.app-maps .mp-step:hover {
+  background: var(--subtle-hover);
+}
+.app-maps .mp-step.active {
+  background: var(--subtle-selected, var(--subtle-hover));
+}
+.app-maps .mp-step-icon {
+  flex: none;
+  color: var(--accent-text, var(--accent));
+  margin-top: 1px;
+}
+.app-maps .mp-step.arrive .mp-step-icon {
+  color: var(--danger);
+}
+.app-maps .mp-step-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.app-maps .mp-step-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.app-maps .mp-step-dist {
+  flex: none;
+  color: var(--text-2);
+  white-space: nowrap;
+  margin-top: 1px;
+}
+.app-maps .mp-route-credit {
+  margin: 4px 0 0;
+  color: var(--text-3, var(--text-2));
+}
+/* route on the map: SVG layer over the tiles */
+.app-maps .mp-route-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.app-maps .mp-route-layer path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.app-maps .mp-rt-casing {
+  stroke: var(--on-accent);
+  stroke-width: 10px;
+  stroke-opacity: 0.85;
+}
+.app-maps .mp-rt-line {
+  stroke: var(--accent);
+  stroke-width: 6px;
+}
+.app-maps .mp-rt-alt-casing {
+  stroke: var(--card-solid);
+  stroke-width: 9px;
+  stroke-opacity: 0.9;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.app-maps .mp-rt-alt-line {
+  stroke: var(--text-3);
+  stroke-width: 5px;
+  stroke-opacity: 0.9;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.app-maps .mp-rt-alts g:hover .mp-rt-alt-line {
+  stroke: var(--text-2);
+}
+.app-maps .mp-rt-step {
+  fill: var(--card-solid);
+  stroke: var(--accent);
+  stroke-width: 3px;
+}
+.app-maps .mp-rmarkers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.app-maps .mp-rmarkers[hidden] {
+  display: none;
+}
+.app-maps .mp-rmarker {
+  position: absolute;
+  left: -13px;
+  top: -13px;
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  box-shadow: var(--shadow-tooltip, var(--shadow-flyout));
+}
+.app-maps .mp-rmarker.from {
+  border-width: 7px;
+}
+.app-maps .mp-rmarker svg {
+  width: 13px;
+  height: 13px;
+}
+.app-maps .mp-rmarker.dragging {
+  cursor: grabbing;
+  transform-origin: center;
+  z-index: 1;
+}
+.app-maps .mp-root.picking .mp-map,
+.app-maps .mp-root.picking .mp-map.dragging {
+  cursor: crosshair;
+}
+/* narrow window: the side panel floats over the map, so it needs an opaque surface */
+.app-maps .mp-root.narrow .mp-side {
+  background: var(--card-solid, var(--solid, var(--card)));
+}
