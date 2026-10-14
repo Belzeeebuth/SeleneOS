@@ -60,8 +60,8 @@ Everything is available in **English and French**, dark by default, with a light
 | Calculator | Standard, Scientific, Programmer, date calculation and unit converters, history and memory |
 | Text Editor | Tabs, find/replace, go to line, word wrap, encodings and line endings |
 | Terminal | Real PTY with Bash, tabs, split panes, color schemes |
-| Code Editor | Folder explorer with git status (.gitignore-aware), tabs, syntax highlighting (CodeMirror 6: JS/TS, Python, HTML/CSS, JSON, Markdown, C/C++, Rust, Go, shell, YAML, TOML), find/replace with regex, go to line, multi-cursor, built-in terminal, branch in the status bar |
-| Player | Music and video libraries, queue, playlists, audio visualizer, sample media included |
+| Code Editor | Folder explorer with git status (.gitignore-aware), tabs, syntax highlighting (CodeMirror 6: JS/TS, Python, HTML/CSS, JSON, Markdown, C/C++, Rust, Go, shell, YAML, TOML), find/replace with regex, search and replace across files, split view, compare with git or another file, go to line, multi-cursor, built-in terminal, branch in the status bar |
+| Player | Music and video libraries, queue, playlists, audio visualizer, sample media included; media card in Quick settings and media keys for any player (MPRIS) |
 | Music | Lanceur entry (alias of the Player) that opens its music library: albums with covers (embedded art or folder.jpg), artists, songs, synced lyrics from .lrc files or embedded lyrics |
 | Photos | Gallery by date, folders, favorites and albums; viewer with zoom and filmstrip, slideshow; editor with crop, straighten, adjustments and filters |
 | Camera | Webcam photos and videos (WebM with sound), 3 / 10 s timer, grid, mirrored preview, camera and resolution choice; saved to Pictures/Camera Roll |
@@ -82,16 +82,16 @@ Everything is available in **English and French**, dark by default, with a light
 | Settings | System, network, Bluetooth, printers and scanners, personalization, apps, accounts, time & language, accessibility (screen reader, magnifier, on-screen keyboard), privacy & security, updates (system and firmware), graphics drivers |
 | Help | Offline help in English and French (about 70 articles), search, « Get started » tour; buttons open the right setting |
 | Weather | Current conditions, 24-hour and 7-day forecasts, saved places; sets the dynamic wallpaper location |
-| Maps | OpenStreetMap maps, place search, saved places |
+| Maps | OpenStreetMap maps, place search, saved places, directions by car, bike or on foot with stops and turn-by-turn steps |
 | Contacts | People, e-mails, phones, addresses, birthdays, vCard import/export; suggestions in Mail |
-| Remote Desktop | VNC client (RDP later) |
+| Remote Desktop | Windows PCs over RDP (FreeRDP) and VNC with a shared clipboard |
 | Software | The whole Flathub catalogue (Firefox, Chromium, Spotify, Discord, Steam, Blender…) with an Updates view and every desktop app of the Ubuntu archive, with icons, search, categories and screenshots; plus curated tools and services ([docs/STORE-SOURCES.md](docs/STORE-SOURCES.md)) |
-| Disks | Drives and partitions, mount and eject, format USB sticks and SD cards |
+| Disks | Drives and partitions, mount and eject, format USB sticks and SD cards, drive health (SMART) and self-tests with a warning when a drive starts failing |
 | Fonts | Browse and preview installed fonts, character map, install fonts for your account |
 | Backup | Incremental snapshots of your folders to a drive; browse and restore |
 | Passwords | Encrypted password vault with a generator |
 | Cloud | Nextcloud / WebDAV files: browse, upload, download |
-| Network tools | VPN and WireGuard connections, ping, DNS lookup |
+| Network tools | VPN (WireGuard, OpenVPN files), ping, traceroute, DNS lookup, port check, speed test |
 | Games | Minesweeper, Solitaire, Snake, 2048, Chess (with a computer opponent) |
 | Installer | Language, keyboard, disk (next to another system or the whole disk), account, time zone, NVIDIA driver, gaming apps |
 

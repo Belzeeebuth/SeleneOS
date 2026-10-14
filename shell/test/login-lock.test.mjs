@@ -1083,7 +1083,9 @@ async function unitQaTests() {
   const sudoEnv = { ...process.env, SUDO_UID: '1000', SUDO_USER: 'admin' };
   for (const args of [['--user', 'root'], ['--confdir', TMP], ['--service', 'login']]) {
     const r = spawnSync(HELPER, args, { input: 'x\n', encoding: 'utf8', env: sudoEnv, timeout: 20000 });
-    check(r.status === 2 && (process.getuid() !== 0 || /sudo/.test(r.stderr)), `through sudo, ${args[0]} is refused (exit ${r.status}: ${r.stderr.trim()})`);
+    // Only root reaches the sudo refusal (exit 2). Unprivileged, the options are allowed and the result depends on
+    // the host's PAM (Ubuntu: exit 2; CachyOS: pam_start_confdir fails, exit 3): it just must never authenticate.
+    check(process.getuid() === 0 ? r.status === 2 && /sudo/.test(r.stderr) : r.status !== 0, `through sudo, ${args[0]} is refused (exit ${r.status}: ${r.stderr.trim()})`);
   }
   const src = fs.readFileSync(HELPER, 'utf8');
   check(/except Exception/.test(src) && /return PAM_CONV_ERR/.test(src), 'conversation callback never lets an exception turn into PAM_SUCCESS');

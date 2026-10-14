@@ -171,7 +171,7 @@ window that asked. In greeter mode (`--mode=greeter`) only `settings`, `sys`, `g
 | notes (`notes.js`) | `notes:root` `notes:open` `notes:writeIndex` `notes:writeNote` `notes:remove` `notes:duplicate` `notes:attach` `notes:dataUrl` `notes:exportAssets` `notes:gc` `notes:clipboard` `notes:clipboardWriteImage` |
 | archive (`archive.js`) | `archive:tools` `archive:list` `archive:preview` `archive:test` `archive:extract` `archive:extractTemp` `archive:create` `archive:add` `archive:delete` `archive:cancel` `archive:tempDir` `archive:cleanup` (+`archive:progress`) |
 | pdf (`pdf.js`) | `pdf:save(path, bytes)` |
-| code (`code.js`, Code Editor) | `code:git(dir)` -> `{ repo, root, branch, detached, ahead, behind, files: { relPath: 'M'\|'A'\|'D'\|'R'\|'U'\|'?' }, ignored: [relPath] }` (git with an argument vector) `code:gitAvailable` `code:gitShow` `code:openFolder`; search across files (`code-search.js`, in progress): `code:search` `code:searchCancel` `code:replace` `code:replaceUndo` |
+| code (`code.js`, Code Editor) | `code:git(dir)` -> `{ repo, root, branch, detached, ahead, behind, files: { relPath: 'M'\|'A'\|'D'\|'R'\|'U'\|'?' }, ignored: [relPath] }` (git with an argument vector) `code:gitAvailable` `code:gitShow` `code:openFolder`; search across files (`code-search.js`): `code:search` (+`code:search-batch`) `code:searchCancel` `code:replace` `code:replaceUndo` |
 | weather (`weather.js`) | `weather:current(place?, { force })` `weather:search(query, { lang, count })` `weather:stats` (+`weather:changed`) — Open-Meteo, cached 30 min, offline fallback; see docs/PERSONALIZATION.md §9.4 |
 | books (`books.js`) | `books:scan` `books:open` `books:meta` `books:resource` |
 | feeds (`feeds.js`, Podcasts & News) | `feeds:fetch` `feeds:search` (iTunes podcast directory) `feeds:image` `feeds:download` `feeds:cancel` `feeds:downloads` `feeds:files` `feeds:deleteFile` `feeds:dirs` `feeds:stats` (+`feeds:progress`) |
@@ -180,8 +180,8 @@ window that asked. In greeter mode (`--mode=greeter`) only `settings`, `sys`, `g
 | scan (`scan.js`, SANE) | `scan:devices` `scan:options` `scan:scan` `scan:cancel` `scan:discard` `scan:cleanup` (+`scan:progress` `scan:page`) |
 | help (`help.js`) | `help:welcome` (first sign-in « Bien démarrer » notification) |
 | accessibility (`magnifier.js`, `osk.js`, `screenreader.js`) | `magnifier:cursor`; `osk:input` `osk:status`; `screenreader:start` `screenreader:stop` `screenreader:status` `screenreader:test` `screenreader:voices` (+`screenreader:changed`) |
-| devices (`bluetooth.js`, `printers.js`, `print.js`, `disks.js`) | `bluetooth:*` (+`bluetooth:changed` `bluetooth:agent`), `printers:*`, print dialog `print:*`, `disks:list` `disks:mount` `disks:unmount` `disks:powerOff` `disks:watch` (+`disks:changed`); disk health (`disks-smart.js`, in progress): `disks:health*` `disks:selftest*` (+`disks:health-alert`) |
-| other areas | `backup:*`, `cloud:*`, `contacts:*`, `maps:*` (`maps:route` in progress), `nettools:*` (`vpnImport`, `trace`, `portCheck` in progress), `passwords:*`, `remote:*`, `camera:*`, `recorder:*`, `screenrec:*`, `store:*` (docs/STORE-SOURCES.md), `xwin:*` / `xapps:*` (docs/XWINDOWS.md), `drivers:*`, `firmware:*`, `updates:*`, `selene:status`, `inputpower.js` (`input:touchpad` `power:*`), `sessionbus.js` (desktop notifications, tray, inhibitors), `autostart:run`, `xdg:socket`, `spell:*`, `robust:*`, `firstlogin:gaming:*` — see each file's header |
+| devices (`bluetooth.js`, `printers.js`, `print.js`, `disks.js`) | `bluetooth:*` (+`bluetooth:changed` `bluetooth:agent`), `printers:*`, print dialog `print:*`, `disks:list` `disks:mount` `disks:unmount` `disks:powerOff` `disks:watch` (+`disks:changed`); disk health (`disks-smart.js` parsers): `disks:health` `disks:healthCheck` `disks:healthSchedule` `disks:selftestStart` `disks:selftestAbort` `disks:smartctlImport` (+`disks:health-alert`); dev: `AURORA_DISKS_FIXTURE=default\|health` |
+| other areas | `backup:*`, `cloud:*`, `contacts:*`, `maps:*` (`maps:route`: OSRM, `AURORA_MAPS_OSRM_URL`), `nettools:*` (VPN incl. OpenVPN import, ping, dns, trace, portCheck, listening, speed; `main/lib/nettools/`), `passwords:*`, `remote:*` (VNC pipe, saved connections, `remote:rdp-start\|stop\|list\|status\|trust` + `remote:rdp`; FreeRDP helpers in `main/lib/freerdp.js`), `camera:*`, `recorder:*`, `screenrec:*`, `store:*` (docs/STORE-SOURCES.md), `xwin:*` / `xapps:*` (docs/XWINDOWS.md), `drivers:*`, `firmware:*`, `updates:*`, `selene:status`, `inputpower.js` (`input:touchpad` `power:*`), `sessionbus.js` (desktop notifications, tray, inhibitors; MPRIS: `mpris:self` `mpris:seeked` `mpris:players` `mpris:control` `mpris:position`, +`mpris:call` `mpris:players`), `autostart:run`, `xdg:socket`, `spell:*`, `robust:*`, `firstlogin:gaming:*` — see each file's header |
 | app helpers | `notepad:fonts` `paint:fonts`; legacy `paint:clipboard*Image` and `snipping:clipboard*Image` (new code uses `clipboard:*Image`) |
 
 The header of each file is the reference; this table is a map.
@@ -221,9 +221,9 @@ Wayland variables removed), never on the developer's own session.
 - `chess` - Chess against the computer or a friend
 - `clock` - Clock: alarms, timers, stopwatch, world clock, focus sessions
 - `cloud` - Cloud: browse, upload and download Nextcloud / WebDAV files (other services later)
-- `code` - Code Editor: folder explorer (.gitignore-aware, git status), tabs, CodeMirror 6 (vendored ES module `apps/code/vendor/codemirror.js`, rebuilt with `node tools/vendor-codemirror.mjs`), find/replace, go to line, multi-cursor, terminal panel on the `pty.js` backend, git branch (`code.js` backend); search across files, split view and diff are in progress (untested)
+- `code` - Code Editor: folder explorer (.gitignore-aware, git status), tabs, CodeMirror 6 (vendored ES module `apps/code/vendor/codemirror.js`, rebuilt with `node tools/vendor-codemirror.mjs`), find/replace, go to line, multi-cursor, terminal panel on the `pty.js` backend, git branch (`code.js` backend); search and replace across files (Ctrl+Shift+F), split view (Ctrl+\\), diff with HEAD / the saved file / another file (`@codemirror/merge`)
 - `contacts` - Contacts: people, e-mails, phones, addresses, birthdays, vCard import/export; feeds Mail's recipient suggestions
-- `disks` - Disks: drives and partitions, mount, eject; format removable drives only; « Santé du disque » (SMART) in progress (untested)
+- `disks` - Disks: drives and partitions, mount, eject; format removable drives only; « Santé du disque » (SMART through udisks2, self-tests, `aurora-admin smart-info`; `core/features/disk-health.js` notifies once per drive)
 - `feeds` - Podcasts & News: RSS / Atom / RDF / JSON Feed reader and podcast player, OPML import / export
 - `files` - Files: tabs, drives, Recycle Bin, search, properties
 - `fonts` - Fonts: installed fonts, previews, character map, per-user install (`~/.local/share/fonts`)
@@ -232,11 +232,11 @@ Wayland variables removed), never on the developer's own session.
 - `installer` - Install Selene OS (live session only): language, keyboard, disk (next to another system or the whole disk), account, time zone, NVIDIA driver, gaming apps
 - `logs` - System Logs: the systemd journal (`journal.js` backend, `journalctl` with an argument vector)
 - `mail` - Mail: IMAP/SMTP accounts, compose, attachments
-- `maps` - Maps: OpenStreetMap tiles, place search (Nominatim), saved places
-- `media` - Player: music and video libraries, queue, playlists
+- `maps` - Maps: OpenStreetMap tiles, place search (Nominatim), saved places, directions (OSRM, `lib/directions.js` + `lib/route.js`)
+- `media` - Player: music and video libraries, queue, playlists; on MPRIS as `org.mpris.MediaPlayer2.selene` (`lib/session.js`); the music library leaves out Music/Podcasts. The media card in Réglages rapides and the media keys are `core/features/mediactl.js` (shell event `media:key`)
 - `music` - Music: Lanceur entry that opens the Player on its music library (albums, artists, songs, lyrics)
 - `minesweeper` - Minesweeper
-- `nettools` - Network tools: VPN / WireGuard connections (NetworkManager), ping, DNS lookup; OpenVPN import in progress (untested)
+- `nettools` - Network tools: VPN / WireGuard connections (NetworkManager), OpenVPN import (opens `.ovpn`), ping, traceroute, DNS lookup, port check and listening ports, speed test
 - `notepad` - Text Editor: plain text with tabs, find/replace, encodings
 - `notes` - Notes: notebooks, rich text, checklists, pictures and tags, saved as you type
 - `paint` - Draw: draw and edit pictures
@@ -244,7 +244,7 @@ Wayland variables removed), never on the developer's own session.
 - `pdf` - PDF Reader: read, search, annotate and present PDFs
 - `photos` - Photos: gallery, viewer, slideshow and editor
 - `recorder` - Voice Recorder: MediaRecorder Opus/WebM, pause, markers, live waveform, microphone choice, seekable playback (WebAudio), trim re-encoded with WebCodecs (`lib/webm.js` writes the Duration and muxes Opus), MP3 / M4A export through ffmpeg (`main/ipc/recorder.js`); Documents/Sound recordings
-- `remote` - Remote Desktop: VNC client (RFB 3.8, None / VNC authentication); RDP in progress (`main/lib/freerdp.js`, not in the app yet)
+- `remote` - Remote Desktop: VNC client (RFB 3.8: Raw, CopyRect, Hextile, ZRLE, Tight, clipboard) and RDP through FreeRDP 3 (`xfreerdp3 /args-from:stdin`) in a Selene window
 - `scan` - Scan: SANE scanners (`scan.js` backend, `scanimage` as the user), preview, feeder batches, PDF / JPEG / PNG
 - `screenrec` - Screen Recorder: whole screen or an area, microphone / computer sound, WebM or MP4 (ffmpeg)
 - `settings` - Settings: system, devices (Bluetooth, printers and scanners), network, personalization, accounts, time and language, accessibility, updates, graphics drivers

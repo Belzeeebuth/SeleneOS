@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-14 — app phase 5 done and tested app by app (Livres, Numérisation, Journaux système, Polices, Aide, Podcasts et actus, émojis, Loupe, Clavier visuel); six « later » items stopped half-way (see Next steps 3); Mémos and Traducteur removed; docs reviewed (README, PHASEAPP, DEVELOPING, PERSONALIZATION, BUILDING install section, STORE-SOURCES). Previous: 2026-10-14 10:10 Paris dual boot « Installer à côté » validated end to end in QEMU/KVM; 2026-10-13 18:00 release readiness lots 1–3, ISO rebuilt (1.6 GB), verify-iso 292 checks, 0 failures._
+_Last updated: 2026-10-14 evening — the six « later » items stopped half-way were finished and tested (Éditeur de code search / split / diff, Disques SMART, Outils réseau OpenVPN / traceroute / ports / speed test, Cartes routes, Bureau à distance RDP + VNC clipboard / encodings, Lecteur MPRIS + media keys); the 19 suites they touch passed together (17 min). Tests now run with --mute-audio. Earlier the same day: app phase 5, Mémos / Traducteur removed, docs reviewed, dual boot validated in QEMU/KVM. Previous ISO: 2026-10-13 18:00 (verify-iso 292 checks, 0 failures)._
 
 ## What this is
 
@@ -56,7 +56,7 @@ A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a W
 | Dual boot « Installer à côté » (user request, 2026-10-13) | **built, loop-tested (112 checks); validated end to end in QEMU/KVM on 2026-10-14 with no hand fix (ISO sha256 37d24971…)** on a 64 GiB copy of the user's PC built without root (NVMe GPT, same sector layout; 4 GiB FAT32 ESP with the real Limine 12.9 in EFI/limine + EFI/BOOT, limine.conf, fake kernels; ext4 CachyOS root with no free space, /etc/os-release CachyOS + /usr/lib/os-release Arch as on the real system, 2.3 GiB of data and 251 inodes past the cut; NVRAM « Limine » first, live ISO started through BootNext): installer argv computed by the app's own code for 25 GiB (`--shrink 2 --new-size 35836 --root-size 25600`), install 30 s, then NVRAM « Selene » first and Limine second, GRUB menu Selene / other system, that entry shows the real Limine menu, Selene reaches the greeter; all 1189 ext4 entries (content, mode, owner, mtime) and the 9 ESP files identical, only EFI/ubuntu added, e2fsck clean. **Open: the other system is named « Arch Linux » instead of « CachyOS »** in the installer and in GRUB (aurora-disk-probe probe_ext4 reads /usr/lib/os-release before /etc/os-release, contrary to os-release(5); test-alongside.sh's cachy.img has only /etc/os-release). Images, manifests and scripts: work/qemu/dualboot/ (local, gitignored) — helpers/aurora-disk-probe (read-only survey: UEFI/GPT, free space, NTFS / ext4 shrink bounds, BitLocker, Fast Startup, dirty, LUKS / LVM / btrfs / xfs refusals, ESP checks, chain-loader name), aurora-install --alongside (--free-space / --shrink / --reuse-partition, fingerprint re-check, shrink then create, other entries unchanged, ESP backup + byte-exact restore + NVRAM rollback on failure, grub-install --no-extra-removable + wrapper on the installed system, efibootmgr « Selene » first, os-prober for Windows, chainload entries for Limine / systemd-boot / rEFInd / other GRUB named after the other system, 5 s menu), installer UI (à côté / effacer, size slider, exact summary, backup checkbox, reasons). User's PC: NVMe 477 G, ESP 4 G on /boot with Limine, ext4 root 473 G, UEFI, SB off. |
 | App phase 2 (PHASEAPP.md, 2026-10-13) | **done** — camera, recorder (Enregistreur vocal), screenrec (Enregistreur d'écran), code (Éditeur de code, CodeMirror 6 vendored by tools/vendor-codemirror.mjs), « Musique » = Lanceur alias of the Lecteur on its music library (albums, artists, songs, lyrics); Video Editor dropped by the user (DaVinci Resolve / Flathub editors); ffmpeg in the image (iso/packages.d/screenrec.list) |
 | App phase 5 (PHASEAPP.md, 2026-10-14) | **done** — books (Livres, EPUB), scan (Numérisation, SANE + airscan; Paramètres > Imprimantes et scanners section), logs (Journaux système, journalctl; « Voir le journal » from the Moniteur système), fonts (Polices), help (Aide, ~70 articles + « Bien démarrer » tour), feeds (Podcasts et actus); shell features emoji / symbols panel (Super+.), Loupe (magnifier), Clavier visuel (on-screen keyboard, also on the greeter); icons in the three styles. Image: desktop firmware only (aurora-firmware-desktop Provides linux-firmware, ~165 MB of server firmware dropped) + firmware-sof-signed (Intel laptop audio) |
-| « Later » items of phases 2–4 (2026-10-14) | **stopped half-way, untested** — see Next steps 3 and PHASEAPP.md |
+| « Later » items of phases 2–4 (2026-10-14) | **done (tested with fakes only)** — code: search / replace across files, split view, diff (@codemirror/merge); disks: « Santé du disque » (udisks2 SMART over busctl, self-tests, aurora-admin smart-info, core/features/disk-health.js notification, smartmontools); nettools: OpenVPN import (passwords via nmcli passwd-file or `connection edit` stdin), traceroute, port check, listening ports, Cloudflare speed test (network-manager-openvpn, iputils-tracepath); maps: « Itinéraire » (OSRM FOSSGIS, lib/directions.js); remote: RDP through FreeRDP 3 (`xfreerdp3 /args-from:stdin`, /cert:deny + fingerprint dialog, freerdp3-x11), VNC Hextile / ZRLE / Tight / Cursor + clipboard; media: MPRIS (aurora-sessionbus exports org.mpris.MediaPlayer2.selene and watches other players), media card in Réglages rapides (core/features/mediactl.js), media keys (also grabbed by aurora-xwm), Podcasts folder left out of the music library. Details in PHASEAPP.md |
 
 ### App / area status (every area has its own test suite in shell/test/)
 
@@ -69,13 +69,14 @@ A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a W
 | Phase 1 apps | photos 46, pdf 244, archive 468, notes 262 + 156 unit, calendar 378 + 131 unit, clock 448, todo 361 |
 | Voice Recorder (phase 2, recorder) | recorder 56 + 17 unit (fake microphone; no real microphone tested) |
 | Screen Recorder (phase 2, screenrec) | screenrec 64 + 34 unit (Xvfb screen capture, Chromium fake microphone; computer sound and real hardware not tested) |
-| Code Editor (phase 2, code) | code 74 + 11 unit (CodeMirror 6 vendored bundle; git and the PTY terminal tested for real under Xvfb); code-extra (search / split / diff, half-way) not run since the agents were stopped |
+| Code Editor (phase 2, code) | code 74 + 11 unit (CodeMirror 6 vendored bundle; git and the PTY terminal tested for real under Xvfb); code-extra 115 (search / split / diff) |
+| « Later » items (2026-10-14 evening, 19 suites run together) | disks 68 + disks-health 172, nettools 105 + nettools-extra 263, maps 124 + maps-routes 208, remote 135 + remote-extra 149, sessionbus 118, music 14, media 48, shell-ux 457, wm-nav 255, login-lock 298, icons 118 |
 | Phase 5 apps and features (2026-10-14, each run alone, not yet in a full sweep) | books 241, scan 148 + 83 unit, logs 332, fonts 142, help 115, feeds 172, emoji 154, magnifier 122, osk 141 |
 | Personalization | personalization-core 144, personalization-shell 90, taskbar-start-focus 269, packs-input 148, wallpapers 300 |
 | Core | smoke, core-dialogs 6 |
 | Linux GUI apps + Store sources | xwm-helper 78, xwin 63 (incl. real xterm end-to-end), xapps 71, store 128, store-flathub 83, store-ubuntu 84 |
 
-**No full sweep since 2026-10-12**: the suites added or changed on 2026-10-13/14 were run one by one (next step 4).
+**No full sweep since 2026-10-12**: the suites added or changed on 2026-10-13/14 were run one by one, or (« later » items) together in a 19-suite run on 2026-10-14 evening (next step 3).
 Last full sweep (2026-10-12 ~12:00 Paris, after the follow-ups): 52/52 suites green (pdf needed its retry; personalization-core's leak check fixed to count from a quiet screen). Previous sweep (2026-10-12, after the redesign): 50/50 suites green (48 in the sweep with --retry: wm-nav, personalization-core and personalization-shell needed their retry; icons and packs-input fixed for renamed labels and re-run alone; taskmgr 192 and paint 51 run separately).
 
 ## File structure
@@ -238,6 +239,21 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
   the Ethernet page promises IP / DNS settings but is read-only; « Changer d'utilisateur » signs out from the lock
   screen but only locks from Ctrl+Alt+Del; the forgotten-password text points to Paramètres > Comptes (the reset is
   under Autres utilisateurs); a straight apostrophe in taskview.js.
+- Found while finishing the « later » items (not fixed): `ui.filePicker({ mode: 'folder' })` — Enter in the path field
+  accepts the OLD folder (the dialog's Enter handler runs before the field's navigation); two RDP sessions with the
+  same name can swap their « Afficher » buttons; port checks cannot be cancelled; the speed test ignores proxies;
+  the media card is only in Réglages rapides (not the notification centre), no MPRIS TrackList.
+- To check on real hardware / servers (everything above was built against fakes): udisks2 SMART on real SATA / NVMe /
+  USB drives and the polkit self-test grant; an OpenVPN profile on a real NetworkManager (error wording, the
+  `nmcli connection edit` stdin path); real OSRM / Nominatim answers; a Windows 10/11 RDP server with NLA, its
+  certificate, `/dynamic-resolution` while resizing, clipboard and drive redirection; Spotify / VLC / a browser over
+  MPRIS, real media keys and a Bluetooth headset (AVRCP keys through BlueZ's uinput device).
+- test/xwm-helper.test.mjs cannot run on the user's PC (needs xterm, xeyes and a system python3-xlib): the new media
+  keysyms in aurora-xwm were checked against python-xlib's values only.
+- Tests: Electron now always starts with --mute-audio (2026-10-14): Xvfb has no audio, so test sounds and media
+  played on the developer's real PipeWire session. login-lock's « through sudo » checks no longer depend on the host's
+  PAM (non-root: must not authenticate). xvfb-run sometimes exits non-zero after a suite passed (« kill: no such
+  process » when Xvfb is already gone); run-all's --retry absorbs it.
 - Tests and Wayland (fixed 2026-10-14): when WAYLAND_DISPLAY was set, the tests started Electron on the developer's
   real Wayland session (test windows on the real screen, clipboard overwritten). lib.mjs and login-lock now force
   `--ozone-platform=x11` on xvfb-run's display and drop the Wayland variables.
@@ -251,31 +267,22 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
    cachy.img; rebuild the ISO and re-run the VM validation from work/qemu/dualboot (ref.qcow2 + vars-ref.fd = the
    prepared CachyOS disk; scripts/).
 
-2. **Session of 2026-10-14 afternoon, stopped early (weekly usage limit).** Done and tested app by app (local Xvfb on
-   the user's PC, dev cache ~/.cache/selene-dev/): app phase 5 (see the phase table and PHASEAPP.md), the icons of the
-   6 apps (gen-app-icons + gen-finish-icons, Phosphor kit in ~/.cache/selene-dev/phosphor), Mémos / Traducteur
-   removed, desktop-only firmware + firmware-sof-signed. The smoke test passes on the current tree. Docs reviewed the
-   same day (README, PHASEAPP phase 5, DEVELOPING app list and backend map, PERSONALIZATION §12.4 magnifier / OSK keys,
-   BUILDING install section with the dual boot, STORE-SOURCES).
+2. **Session of 2026-10-14.** Afternoon: app phase 5 (PHASEAPP.md), its icons, Mémos / Traducteur removed,
+   desktop-only firmware + firmware-sof-signed, docs reviewed. Evening: the six « later » items finished by six agents
+   resumed from the stopped ones' prompts (prompts and briefs in ~/.cache/selene-dev/BRIEF-agents.md), each committed
+   separately, then the 19 suites they touch run together: 19/19 green (code, code.unit and login-lock on retry —
+   see Known issues).
 
-3. **Finish or revert the six « later » items stopped half-way** (agents killed; partial code in 8119d565 / 0c3df6ab,
-   never re-tested; table in PHASEAPP.md):
-   - Éditeur de code: search in files (Ctrl+Shift+F), split view, diff with HEAD (@codemirror/merge vendored) —
-     wired into the app; test/code-extra.test.mjs exists but was not run after the agents were stopped.
-   - Disques: « Santé du disque » (SMART through udisks2 / smartctl, self-tests, alerts) — wired into the app.
-   - Outils réseau: OpenVPN import wired into the app; traceroute and port check backend only
-     (main/lib/nettools/); speed test not started.
-   - Cartes: routes (OSRM) — backend maps:route + lib/route.js, the route panel is not written.
-   - Bureau à distance: RDP — main/lib/freerdp.js started, rfb.js touched; the app still says « RDP later ».
-   - Lecteur: MPRIS + media keys through aurora-sessionbus — nothing in the committed code.
-   The three wired items are visible in the shell as they are: re-test them first (or hide them) before an ISO.
+3. **Full `make test-all` sweep** (none since 2026-10-12), then fix what it finds; add the verify-iso checks for the
+   new packages.d lists (books, emoji, fonts, scanner, disks: smartmontools, nettools: network-manager-openvpn +
+   iputils-tracepath, remote: freerdp3-x11) and the files the agents suggested (aurora-sessionbus MPRIS name,
+   aurora-xwm media keysyms, aurora-admin smart-info, polkit udisks2 self-test actions, nm-openvpn plugin files,
+   `xfreerdp3 --version` 3.x). Only then: ISO rebuild by the user (`flock work/.build.lock iso/build.sh --from
+   packages`: new package lists), make verify-iso and make smoke-image. Do not rebuild the ISO before the sweep.
 
-4. **Full `make test-all` sweep**, then fix what it finds; icons.test « ≥ 600 legacy names » threshold must go down
-   (584 after the removals); add verify-iso checks for the new packages.d lists (books, emoji, fonts,
-   scanner). Only then: ISO rebuild by the user (`flock work/.build.lock iso/build.sh --from system`), make verify-iso
-   and make smoke-image. Do not rebuild the ISO before the sweep.
+4. **Real-world checks** of the « later » items in the VM / on the user's PC (list under Known issues).
 
-5. **Small fixes:** the inconsistencies listed under Known issues (Aide list); Cloud real client ignores back-pressure
+5. **Small fixes:** the inconsistencies listed under Known issues (Aide list, filePicker Enter); Cloud real client ignores back-pressure
    and shows 100 % for chunked downloads; Remote Desktop scaled canvas is blurry (image-rendering); weather:current
    still makes a real request in dev (wallpapers test expects it).
 
