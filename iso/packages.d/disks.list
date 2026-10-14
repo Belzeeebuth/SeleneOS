@@ -1,0 +1,6 @@
+# Disques › Santé du disque (renderer/apps/disks/health.js, main/ipc/disks.js). Health data comes from udisks2 over
+# D-Bus (base.list; udisks2 2.10 depends on libatasmart4 for ATA SMART and libblockdev-nvme3 for NVMe health) read
+# with busctl (systemd). smartctl is only the fallback for drives udisks2 has nothing for (USB enclosures whose bridge
+# only smartctl knows, SAS disks), run read-only (-j -a) through aurora-admin smart-info. The package also ships
+# smartd (enabled by Debian; it watches the disks and logs to the journal, -n standby: sleeping disks are not woken).
+smartmontools

@@ -295,6 +295,7 @@ export default {
               'aria-controls': 'dk-view',
               tabindex: state.view === v ? '0' : '-1',
               'data-view': v,
+              'data-fid': `tab-${v}`, // keeps the focus when a health read re-renders the view
               onclick: () => setView(v, true),
             },
             t(`tabs.${v}`),

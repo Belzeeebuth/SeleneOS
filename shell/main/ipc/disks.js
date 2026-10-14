@@ -59,6 +59,10 @@ const SYSTEM_MOUNT_RE = /^\/(|boot(\/.*)?|cdrom(\/.*)?|run\/live(\/.*)?|rofs|usr
 const GB = 1e9;
 const MiB = 1024 * 1024;
 
+// (defined before the mock: freshMock() runs parseLsblk at load time for AURORA_DISKS_FIXTURE)
+const num = (v) => (v == null || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
+const str = (v) => (v == null ? '' : String(v).trim());
+
 function err(message, code) {
   const e = new Error(message);
   e.code = code;
@@ -150,8 +154,6 @@ async function dfUsage() {
   return map;
 }
 
-const num = (v) => (v == null || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
-const str = (v) => (v == null ? '' : String(v).trim());
 
 /** lsblk -J -b -O JSON + df map -> [Drive] (pure, unit-testable) */
 function parseLsblk(json, df = new Map()) {

@@ -140,7 +140,7 @@ try {
 
   await section('search options: match case, whole word, regex, include / exclude, .gitignore off', async () => {
     await s.page.click('.app-code [data-act="opt-case"]');
-    await until(s, (a) => a.search.status === 'done' && a.search.opts.matchCase, { label: 'case' });
+    await until(s, (a) => a.search.status === 'done' && !a.search.pending && a.search.opts.matchCase, { label: 'case' });
     check('match case', await results(), [['README.md', 3], ['notes/todo.txt', 1], ['src/moon.js', 2], ['src/util.js', 2]]);
     check('toggle pressed', await C(s, () => document.querySelector('.app-code [data-act="opt-case"]').getAttribute('aria-pressed')), 'true');
     await C(s, (a) => a.search.search('lune', { matchCase: false, wholeWord: true }));
@@ -165,10 +165,10 @@ try {
     await C(s, (a) => a.search.search('lune', { useIgnore: true }));
     check('.gitignore on again', await results(), [['README.md', 4], ['notes/todo.txt', 1], ['src/moon.js', 3], ['src/util.js', 2]]);
     await s.page.click('.app-code .code-search input[name="useIgnore"]');
-    await until(s, (a) => a.search.status === 'done' && !a.search.opts.useIgnore, { label: 'checkbox' });
+    await until(s, (a) => a.search.status === 'done' && !a.search.pending && !a.search.opts.useIgnore, { label: 'checkbox' });
     check('the checkbox turns it off', (await results()).length, 7);
     await s.page.click('.app-code .code-search input[name="useIgnore"]');
-    await until(s, (a) => a.search.status === 'done' && a.search.opts.useIgnore, { label: 'checkbox on' });
+    await until(s, (a) => a.search.status === 'done' && !a.search.pending && a.search.opts.useIgnore, { label: 'checkbox on' });
     await C(s, (a) => a.search.setOpt('showFilters', false));
   });
 

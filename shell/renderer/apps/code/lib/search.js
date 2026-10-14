@@ -441,12 +441,13 @@ export class SearchPanel {
     const end = Math.min(text.length, start + m.len);
     let lead = /^\s*/.exec(text)[0].length;
     if (lead > start) lead = start;
-    // the side panel is narrow: keep the match in sight, with a few words before it
+    // the side panel is narrow (and the row's buttons take more room on hover): keep the match in sight, with only a
+    // word or two before it
     let from = lead;
-    if (start - from > 16) {
-      from = start - 12;
-      const sp = text.lastIndexOf(' ', start - 1);
-      if (sp >= from - 8 && sp < start - 1) from = sp + 1;
+    if (start - from > 12) {
+      from = start - 8;
+      const sp = text.lastIndexOf(' ', start - 2);
+      if (sp >= from - 6 && sp < start - 1) from = sp + 1;
     }
     const pre = (m.off > 0 || from > lead ? '…' : '') + text.slice(from, start);
     const hit = text.slice(start, end) + (start + m.len > text.length ? '…' : '');
