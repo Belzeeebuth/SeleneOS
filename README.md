@@ -19,14 +19,17 @@ Everything is available in **English and French**, dark by default, with a light
   ambiances, four accents (silver, night blue, violet, amber), Manrope and Inter fonts, Phosphor icons,
   app icons on a common night-blue base, original wallpapers ([docs/design/SYSTEM.md](docs/design/SYSTEM.md))
 - Keyboard shortcuts: Super, Super+D/E/I/L/A/N/S/R/X, Super+Tab, Super+arrows, Alt+Tab, Alt+F4,
-  Ctrl+Shift+Esc, Ctrl+Alt+Del, PrintScreen / Super+Shift+S
+  Ctrl+Shift+Esc, Ctrl+Alt+Del, PrintScreen / Super+Shift+S, Super+. (emoji and symbols)
 - Regular Linux applications (GIMP, LibreOffice, VLC, Inkscape…) open in Selene windows with bar entries, Alt+Tab,
   snapping and the light/dark theme; installed programs appear in the Launcher and search ([docs/XWINDOWS.md](docs/XWINDOWS.md))
 - Login screen and lock screen with PAM authentication, "Administrator permission" prompts for admin
   actions, firewall (ufw) enabled by default
 - Bluetooth pairing (headsets, mice, keyboards, phones, gamepads), printers (driverless IPP Everywhere) with a print
-  dialog in the apps, app and firmware updates (Flathub, fwupd), Orca screen reader (Super+Alt+S)
-- Optional NVIDIA driver and gaming apps (Steam, Heroic, Lutris…) offered by the installer
+  dialog in the apps, scanners (SANE, driverless eSCL / WSD), app and firmware updates (Flathub, fwupd)
+- Accessibility: Orca screen reader (Super+Alt+S), full-screen Magnifier (Super+=), on-screen keyboard (Super+Ctrl+O,
+  also on the sign-in screen); emoji, kaomoji and symbols panel (Super+.); offline Help with a « Get started » tour
+- The installer can keep Windows or another Linux and install Selene next to it (dual boot), or use the whole disk;
+  it also offers the NVIDIA driver and gaming apps (Steam, Heroic, Lutris…)
 - Ready for real PCs: hardware firmware included, boots with Secure Boot, recent (HWE) kernel, touchpad and power
   settings (screen off, sleep, lid, power modes, battery alerts), automatic security updates
 - Linux and Flatpak apps fit in: their notifications, tray icons and startup entries, links and files they open land in
@@ -66,25 +69,31 @@ Everything is available in **English and French**, dark by default, with a light
 | PDF Reader | Tabs, page thumbnails and outline, find, zoom and page layouts, highlight and draw, presentation mode |
 | Archives | Browse, extract and create ZIP, 7z, RAR and TAR archives, password-protected archives, test and preview |
 | Notes | Notebooks, rich text, checklists, pictures and tags, Markdown import/export, saved as you type |
+| Books | EPUB library and reader: table of contents, bookmarks, search, pages or scrolling, text settings and reading themes |
+| Podcasts & News | RSS / Atom feeds and podcasts: subscriptions, podcast search, OPML import / export, episode downloads and player |
 | Calendar | Day, work week, week, month and agenda views, recurring events, reminders, holidays, .ics import/export |
 | Clock | Alarms, timers, stopwatch, world clock and focus sessions; alarms ring even when the app is closed |
 | Tasks | Lists, My Day, reminders, due dates, repeats and steps |
+| Scan | Scanner preview with a selection, multi-page documents from the feeder, PDF / JPEG / PNG, send by e-mail |
 | Screenshot | Rectangle/window/full-screen/free-form captures, markup, save and copy |
 | Screen Recorder | Whole screen or a drawn area, microphone and computer sound, 3-2-1 countdown, floating pause / stop control kept out of the video, red bar indicator, Super+Shift+R; WebM (or MP4 through ffmpeg) in Videos/Screen recordings |
 | System Monitor | Processes with heat map, live performance graphs, users, details, services |
-| Settings | System, network, Bluetooth, printers, personalization, apps, accounts, time & language, accessibility (screen reader), privacy & security, updates (system and firmware), graphics drivers |
+| System Logs | The system journal: errors, previous boot, kernel, per-app filters, search, live view, export |
+| Settings | System, network, Bluetooth, printers and scanners, personalization, apps, accounts, time & language, accessibility (screen reader, magnifier, on-screen keyboard), privacy & security, updates (system and firmware), graphics drivers |
+| Help | Offline help in English and French (about 70 articles), search, « Get started » tour; buttons open the right setting |
 | Weather | Current conditions, 24-hour and 7-day forecasts, saved places; sets the dynamic wallpaper location |
 | Maps | OpenStreetMap maps, place search, saved places |
 | Contacts | People, e-mails, phones, addresses, birthdays, vCard import/export; suggestions in Mail |
 | Remote Desktop | VNC client (RDP later) |
 | Software | The whole Flathub catalogue (Firefox, Chromium, Spotify, Discord, Steam, Blender…) with an Updates view and every desktop app of the Ubuntu archive, with icons, search, categories and screenshots; plus curated tools and services ([docs/STORE-SOURCES.md](docs/STORE-SOURCES.md)) |
 | Disks | Drives and partitions, mount and eject, format USB sticks and SD cards |
+| Fonts | Browse and preview installed fonts, character map, install fonts for your account |
 | Backup | Incremental snapshots of your folders to a drive; browse and restore |
 | Passwords | Encrypted password vault with a generator |
 | Cloud | Nextcloud / WebDAV files: browse, upload, download |
 | Network tools | VPN and WireGuard connections, ping, DNS lookup |
 | Games | Minesweeper, Solitaire, Snake, 2048, Chess (with a computer opponent) |
-| Installer | Language, keyboard, disk, account, time zone, NVIDIA driver, gaming apps |
+| Installer | Language, keyboard, disk (next to another system or the whole disk), account, time zone, NVIDIA driver, gaming apps |
 
 ## Quick start
 
@@ -134,8 +143,10 @@ stop you; with less, the desktop gets slow once several apps are open), 12 GB of
 
 1. Run `make run` and pick **Selene OS (English)** or **Selene OS (Français)** in the boot menu.
 2. The live session signs in automatically. Open **Install Selene OS** from the desktop.
-3. Choose language, keyboard, the virtual disk (it will be **erased**), your account and time zone,
-   then click **Install**.
+3. Choose language, keyboard, the virtual disk (an empty disk is used whole), your account and time zone,
+   then click **Install**. On a disk that already holds Windows or Linux (UEFI, GPT), the installer offers
+   **Install next to …** (dual boot, with the size of each system) or **Erase the whole disk**; see
+   [docs/BUILDING.md](docs/BUILDING.md#install-selene-os).
 4. When it finishes, click **Restart now**. `make run` boots the installed disk first, so the ISO
    can stay attached. To boot only the disk later, use `make run-disk` (or `make run-disk-uefi`).
 5. Sign in with the account you created.

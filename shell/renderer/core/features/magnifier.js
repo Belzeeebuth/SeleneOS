@@ -1,7 +1,7 @@
 // « Loupe » — full-screen magnifier of the session (like Windows' Magnifier, full-screen view).
 //
 //   settings.magnifier = { enabled, zoom (100–1600, %), step (25 | 50 | 100), followPointer, followFocus, followCaret,
-//                          smoothing, invert, toolbar, startAtLogin }   (docs/PERSONALIZATION.md, « Loupe »)
+//                          smoothing, invert, toolbar, startAtLogin }   (docs/PERSONALIZATION.md §12.4)
 //   Shortcuts (core/shortcuts.js, features/hotkeys.js): Super+= start / zoom in (also Super++ on the keypad and
 //   Super+Shift+=), Super+- zoom out, Super+Escape stop, Super+Ctrl+M settings; Ctrl+Alt+wheel zooms while it runs.
 //   ctx.magnifier = shell.magnifier = { start(), stop(), toggle(), zoomIn(), zoomOut(), setZoom(percent), active, zoom,

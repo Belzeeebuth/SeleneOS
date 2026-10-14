@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-14 10:10 Paris — dual boot « Installer à côté » validated end to end in QEMU/KVM on a copy of the user's PC (no hand fix); one naming bug open (« Arch Linux » instead of « CachyOS »). Previous: 2026-10-13 18:00 release readiness lots 1–3; ISO rebuilt (1.6 GB with firmware): verify-iso 292 checks, 0 failures; smoke-image passes._
+_Last updated: 2026-10-14 — app phase 5 done and tested app by app (Livres, Numérisation, Journaux système, Polices, Aide, Podcasts et actus, émojis, Loupe, Clavier visuel); six « later » items stopped half-way (see Next steps 3); Mémos and Traducteur removed; docs reviewed (README, PHASEAPP, DEVELOPING, PERSONALIZATION, BUILDING install section, STORE-SOURCES). Previous: 2026-10-14 10:10 Paris dual boot « Installer à côté » validated end to end in QEMU/KVM; 2026-10-13 18:00 release readiness lots 1–3, ISO rebuilt (1.6 GB), verify-iso 292 checks, 0 failures._
 
 ## What this is
 
@@ -23,6 +23,8 @@ A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a W
 - **QEMU testing:** the user tests in QEMU personally; since 2026-10-11 the agent may also boot it headless here
   (`make run HEADLESS=1`, TCG) to debug boot problems.
 - **Do not send screenshots** unless the user asks.
+- **Dropped by the user:** Video Editor (2026-10-13); Mémos (`sticky`), Traducteur (`translate`), Google Drive / OneDrive in
+  Cloud, password autofill in the Navigateur (2026-10-14).
 - **Arch Linux variant:** discussed and deferred. A possible later `make iso-arch` (archiso profile), but Arch mirrors are blocked in the build container.
 
 ## Current phase
@@ -37,7 +39,7 @@ A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a W
 | UI/UX personalization (user request #2) | **done** — see docs/PERSONALIZATION.md |
 | App phase 1 (PHASEAPP.md) | **done** — photos, calendar, clock, notes, todo, pdf, archive |
 | App phase 3 (PHASEAPP.md) | **done** — store, disks, backup, passwords, cloud (light), nettools (light) |
-| App phase 4 (PHASEAPP.md) | **done** — weather, maps, contacts, sticky, translate, remote (VNC) |
+| App phase 4 (PHASEAPP.md) | **done** — weather, maps, contacts, remote (VNC); sticky and translate were removed on 2026-10-14 at the user's request |
 | Linux GUI apps (external X11 windows) | **done** — aurora-xwm helper (python3-xlib) + shaped shell window + frames, .desktop entries in Start/search, 12 GUI apps in the Store; see docs/XWINDOWS.md |
 | Store sources (Flathub + Ubuntu AppStream) | **done** — per-user Flatpak installs from Flathub (no root), full Ubuntu desktop-app catalogue from DEP-11 (apt installs through aurora-admin, verified against root-owned DEP-11 lists; image packages never removable); merged catalogue UI; see docs/STORE-SOURCES.md |
 | Visual redesign (user request, 2026-10-11) | **done** (2026-10-12) — brief in docs/design/BRIEF.md (all user answers), system in docs/design/SYSTEM.md; styles Nocturne (default) / Éclipse / Clair de lune / Contraste élevé × ambiances × accents; Phosphor icons, Manrope + Inter, new app icons, wallpapers, logo, GRUB/Plymouth; Windows names replaced (Lanceur, Fichiers, Moniteur système…); bar icons centred in every style |
@@ -53,6 +55,8 @@ A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a W
 | Release readiness, lots 1–3 (user request, 2026-10-13) | **done (untested on real hardware)** — image: linux-firmware by default (WITH_FIRMWARE=0 = quick VM build), live ISO boots with Secure Boot (Microsoft-signed shim + Canonical gcdx64 from the image; plain-text GRUB under SB), HWE kernel, unattended-upgrades (security, installed systems only), background apt check + notification + badge, apt-autoremove; input / power: libinput tap-to-click, Pavé tactile settings, screen off / lock at screen off / idle sleep on battery, lid action (aurora-admin power-lid), power-profiles-daemon modes, low battery alerts + 3 % countdown, org.freedesktop.ScreenSaver / PowerManagement inhibitors (video keeps the screen on); robustness: renderer crash / hang reload (stays locked, backs off, gives up after 6), safe mode (AURORA_SAFE_MODE, banner → pill), settings.json backup, low disk notice, earlyoom, renderer errors in the journal, diagnostic report, installer low-RAM warning; Linux apps: helpers/aurora-sessionbus (notification server, StatusNotifierItem tray with dbusmenu, inhibitors), XDG autostart, aurora-open + hidden .desktop handlers + mimeapps, LibreOffice prompt for office files, local fr/en spell check (.bdic), Navigateur screen sharing; self-updates: aurora-electron / aurora-shell / aurora-base .debs (tools/build-debs.sh), signed repo (make repo), make release, selene.sources disabled until the repo answers then auto-enabled, docs/UPDATES.md |
 | Dual boot « Installer à côté » (user request, 2026-10-13) | **built, loop-tested (112 checks); validated end to end in QEMU/KVM on 2026-10-14 with no hand fix (ISO sha256 37d24971…)** on a 64 GiB copy of the user's PC built without root (NVMe GPT, same sector layout; 4 GiB FAT32 ESP with the real Limine 12.9 in EFI/limine + EFI/BOOT, limine.conf, fake kernels; ext4 CachyOS root with no free space, /etc/os-release CachyOS + /usr/lib/os-release Arch as on the real system, 2.3 GiB of data and 251 inodes past the cut; NVRAM « Limine » first, live ISO started through BootNext): installer argv computed by the app's own code for 25 GiB (`--shrink 2 --new-size 35836 --root-size 25600`), install 30 s, then NVRAM « Selene » first and Limine second, GRUB menu Selene / other system, that entry shows the real Limine menu, Selene reaches the greeter; all 1189 ext4 entries (content, mode, owner, mtime) and the 9 ESP files identical, only EFI/ubuntu added, e2fsck clean. **Open: the other system is named « Arch Linux » instead of « CachyOS »** in the installer and in GRUB (aurora-disk-probe probe_ext4 reads /usr/lib/os-release before /etc/os-release, contrary to os-release(5); test-alongside.sh's cachy.img has only /etc/os-release). Images, manifests and scripts: work/qemu/dualboot/ (local, gitignored) — helpers/aurora-disk-probe (read-only survey: UEFI/GPT, free space, NTFS / ext4 shrink bounds, BitLocker, Fast Startup, dirty, LUKS / LVM / btrfs / xfs refusals, ESP checks, chain-loader name), aurora-install --alongside (--free-space / --shrink / --reuse-partition, fingerprint re-check, shrink then create, other entries unchanged, ESP backup + byte-exact restore + NVRAM rollback on failure, grub-install --no-extra-removable + wrapper on the installed system, efibootmgr « Selene » first, os-prober for Windows, chainload entries for Limine / systemd-boot / rEFInd / other GRUB named after the other system, 5 s menu), installer UI (à côté / effacer, size slider, exact summary, backup checkbox, reasons). User's PC: NVMe 477 G, ESP 4 G on /boot with Limine, ext4 root 473 G, UEFI, SB off. |
 | App phase 2 (PHASEAPP.md, 2026-10-13) | **done** — camera, recorder (Enregistreur vocal), screenrec (Enregistreur d'écran), code (Éditeur de code, CodeMirror 6 vendored by tools/vendor-codemirror.mjs), « Musique » = Lanceur alias of the Lecteur on its music library (albums, artists, songs, lyrics); Video Editor dropped by the user (DaVinci Resolve / Flathub editors); ffmpeg in the image (iso/packages.d/screenrec.list) |
+| App phase 5 (PHASEAPP.md, 2026-10-14) | **done** — books (Livres, EPUB), scan (Numérisation, SANE + airscan; Paramètres > Imprimantes et scanners section), logs (Journaux système, journalctl; « Voir le journal » from the Moniteur système), fonts (Polices), help (Aide, ~70 articles + « Bien démarrer » tour), feeds (Podcasts et actus); shell features emoji / symbols panel (Super+.), Loupe (magnifier), Clavier visuel (on-screen keyboard, also on the greeter); icons in the three styles. Image: desktop firmware only (aurora-firmware-desktop Provides linux-firmware, ~165 MB of server firmware dropped) + firmware-sof-signed (Intel laptop audio) |
+| « Later » items of phases 2–4 (2026-10-14) | **stopped half-way, untested** — see Next steps 3 and PHASEAPP.md |
 
 ### App / area status (every area has its own test suite in shell/test/)
 
@@ -65,11 +69,13 @@ A desktop OS delivered as a bootable/installable ISO for QEMU. It started as a W
 | Phase 1 apps | photos 46, pdf 244, archive 468, notes 262 + 156 unit, calendar 378 + 131 unit, clock 448, todo 361 |
 | Voice Recorder (phase 2, recorder) | recorder 56 + 17 unit (fake microphone; no real microphone tested) |
 | Screen Recorder (phase 2, screenrec) | screenrec 64 + 34 unit (Xvfb screen capture, Chromium fake microphone; computer sound and real hardware not tested) |
-| Code Editor (phase 2, code) | code 74 + 11 unit (CodeMirror 6 vendored bundle; git and the PTY terminal tested for real under Xvfb) |
+| Code Editor (phase 2, code) | code 74 + 11 unit (CodeMirror 6 vendored bundle; git and the PTY terminal tested for real under Xvfb); code-extra (search / split / diff, half-way) not run since the agents were stopped |
+| Phase 5 apps and features (2026-10-14, each run alone, not yet in a full sweep) | books 241, scan 148 + 83 unit, logs 332, fonts 142, help 115, feeds 172, emoji 154, magnifier 122, osk 141 |
 | Personalization | personalization-core 144, personalization-shell 90, taskbar-start-focus 269, packs-input 148, wallpapers 300 |
 | Core | smoke, core-dialogs 6 |
 | Linux GUI apps + Store sources | xwm-helper 78, xwin 63 (incl. real xterm end-to-end), xapps 71, store 128, store-flathub 83, store-ubuntu 84 |
 
+**No full sweep since 2026-10-12**: the suites added or changed on 2026-10-13/14 were run one by one (next step 4).
 Last full sweep (2026-10-12 ~12:00 Paris, after the follow-ups): 52/52 suites green (pdf needed its retry; personalization-core's leak check fixed to count from a quiet screen). Previous sweep (2026-10-12, after the redesign): 50/50 suites green (48 in the sweep with --retry: wm-nav, personalization-core and personalization-shell needed their retry; icons and packs-input fixed for renamed labels and re-run alone; taskmgr 192 and paint 51 run separately).
 
 ## File structure
@@ -79,13 +85,15 @@ aurora-os/
   README.md  PHASEAPP.md  PROJECT_STATE.md  Makefile
   docs/BUILDING.md        build, QEMU run/install instructions (EN + FR)
   docs/DEVELOPING.md      architecture, app contract, UI kit, backend API (all channels), app list
-  docs/PERSONALIZATION.md settings schema and behaviour of every personalization feature
+  docs/PERSONALIZATION.md settings schema and behaviour of every personalization feature (+ magnifier / OSK keys)
+  docs/XWINDOWS.md  STORE-SOURCES.md  UPDATES.md   Linux X11 apps, Store sources, Selene self-updates
   docs/design/            redesign brief (user answers), design system, mockups, previews
   docs/screenshots/       test screenshots
   iso/config.sh build.sh Dockerfile packages.d/*.list   ISO build (debootstrap → squashfs → grub-mkrescue)
   rootfs/                 overlay copied into the image (session scripts, greetd, polkit, sudoers, helpers)
-    usr/lib/aurora/helpers/  aurora-admin (allow-listed root actions), aurora-install, aurora-pty,
-                             aurora-checkpass (PAM), aurora-apply-display
+    usr/lib/aurora/helpers/  aurora-admin (allow-listed root actions), aurora-install, aurora-disk-probe (dual boot
+                             survey), aurora-pty, aurora-checkpass (PAM), aurora-apply-display, aurora-xwm,
+                             aurora-sessionbus, aurora-bluetooth
   tools/qemu-run.sh qmp.py   QEMU launcher (KVM/TCG, BIOS/UEFI, --dry-run) and QMP helper
   shell/                  Electron app
     main/index.js         modes: --mode=shell | --mode=greeter ; --dev for windowed dev
@@ -225,62 +233,65 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
   shell under memory pressure; journalctl _UID readable by the user (persistent journal); lsusb/lspci present;
   a real Electron 'unresponsive' (tests emit the event); the image not yet rebuilt with these changes.
 
+- Small inconsistencies found while writing the Aide articles (2026-10-14, not fixed yet): « Restaurer tous les
+  raccourcis » shows the pinned-apps toast; Réglages rapides Wi-Fi « Se connecter automatiquement » is never sent;
+  the Ethernet page promises IP / DNS settings but is read-only; « Changer d'utilisateur » signs out from the lock
+  screen but only locks from Ctrl+Alt+Del; the forgotten-password text points to Paramètres > Comptes (the reset is
+  under Autres utilisateurs); a straight apostrophe in taskview.js.
+- Tests and Wayland (fixed 2026-10-14): when WAYLAND_DISPLAY was set, the tests started Electron on the developer's
+  real Wayland session (test windows on the real screen, clipboard overwritten). lib.mjs and login-lock now force
+  `--ozone-platform=x11` on xvfb-run's display and drop the Wayland variables.
+
 ## Next steps (exact)
 
-000. **Session of 2026-10-14 afternoon, stopped early (weekly usage limit).** State:
-    - DONE, each with its own green suite (run on this PC under a local Xvfb, ~/.cache/selene-dev/): Livres `books`
-      (EPUB, books.test 241), Numérisation `scan` (SANE / airscan, scan.test 148 + 83 unit; Settings > Imprimantes et
-      scanners section), Journaux système `logs` (journalctl, logs.test 332; Moniteur système Services « Voir le journal »),
-      Polices `fonts` (fonts.test 142), Aide `help` (70 articles + « Bien démarrer », help.test 115, features/help-welcome.js),
-      Podcasts et actus `feeds` (feeds.test 172), emoji / symbols panel Super+. (features/emoji.js, emoji.test 154),
-      Loupe (features/magnifier.js, magnifier.test 122), Clavier visuel (features/osk.js, osk.test 141, greeter too).
-      Icons for the 6 apps generated (gen-app-icons + gen-finish-icons, Phosphor kit in ~/.cache/selene-dev/phosphor).
-      Removed at the user's request: Mémos (`sticky`), Traducteur (`translate`). Image: desktop firmware only + firmware-sof-signed.
-    - STOPPED HALF-WAY (agents killed, partial code committed in 0c3df6ab, never re-tested; finish or revert each):
-      Éditeur de code (search in files / split view / diff with @codemirror/merge vendored), Disques SMART (udisks2),
-      Outils réseau (OpenVPN import, traceroute, port check; speed test not started), Cartes itinéraires (OSRM; UI module
-      not written), Bureau à distance (FreeRDP helper module started; VNC rfb.js touched), Lecteur MPRIS (aurora-sessionbus
-      MPRIS + media keys, partial). Google Drive/OneDrive and password autofill were dropped by the user.
-    - Smoke test passes on the current tree. NOT done yet: full `make test-all` sweep, docs (DEVELOPING app list / backend
-      table, PERSONALIZATION settings keys for magnifier/osk, PHASEAPP phase 5), verify-iso checks suggested by the agents,
-      icons.test « ≥ 600 legacy names » threshold (584 after the removals), ISO rebuild by the user.
-    - Fixed: tests launched Electron on the developer's real Wayland session (real screen + clipboard) when WAYLAND_DISPLAY
-      was set; lib.mjs / login-lock now force `--ozone-platform=x11` and drop the Wayland variables.
-    - Small inconsistencies found by the Help agent (to fix): « Restaurer tous les raccourcis » shows the pinned-apps toast;
-      Réglages rapides Wi-Fi « Se connecter automatiquement » never sent; Ethernet page promises IP/DNS settings but is
-      read-only; « Changer d'utilisateur » signs out from the lock screen but only locks from Ctrl+Alt+Del; forgotten-password
-      text points to Paramètres > Comptes (reset is under Autres utilisateurs); taskview.js straight apostrophe;
-      docs/STORE-SOURCES.md says the Updates page covers every source (Flathub only).
-    - Pending the user's go: aurora-disk-probe should read /etc/os-release before /usr/lib/os-release (« CachyOS », not « Arch Linux »).
+1. **Dual boot naming (waiting for the user's go).** The other system shows as « Arch Linux » instead of « CachyOS »
+   in the installer and in GRUB: aurora-disk-probe (probe_ext4, ~line 350) reads /usr/lib/os-release before
+   /etc/os-release, contrary to os-release(5). Fix: read /etc/os-release first, then /usr/lib/os-release (a symlinked
+   /etc/os-release gives no NAME and falls through); add a /usr/lib/os-release « Arch Linux » to test-alongside.sh's
+   cachy.img; rebuild the ISO and re-run the VM validation from work/qemu/dualboot (ref.qcow2 + vars-ref.fd = the
+   prepared CachyOS disk; scripts/).
 
-00. Dual boot naming (waiting for the user's go): aurora-disk-probe line 350 should read /etc/os-release first, then
-    /usr/lib/os-release (a symlinked /etc/os-release gives no NAME and falls through); add /usr/lib/os-release « Arch
-    Linux » to test-alongside.sh's cachy.img; rebuild the ISO and re-run the VM validation from work/qemu/dualboot
-    (ref.qcow2 + vars-ref.fd = the prepared CachyOS disk; scripts/).
+2. **Session of 2026-10-14 afternoon, stopped early (weekly usage limit).** Done and tested app by app (local Xvfb on
+   the user's PC, dev cache ~/.cache/selene-dev/): app phase 5 (see the phase table and PHASEAPP.md), the icons of the
+   6 apps (gen-app-icons + gen-finish-icons, Phosphor kit in ~/.cache/selene-dev/phosphor), Mémos / Traducteur
+   removed, desktop-only firmware + firmware-sof-signed. The smoke test passes on the current tree. Docs reviewed the
+   same day (README, PHASEAPP phase 5, DEVELOPING app list and backend map, PERSONALIZATION §12.4 magnifier / OSK keys,
+   BUILDING install section with the dual boot, STORE-SOURCES).
 
-0. Gap list (2026-10-13 afternoon, two verified sweeps): a (real-PC readiness), b (Linux / Flatpak app integration)
-   and c (Selene self-updates) are DONE (see the « Release readiness » row). Open from them: publish the Selene apt
-   repository (make repo -> out/apt/ on GitHub Pages at SELENE_APT_URL; the archive key is made on the build machine in
-   keys/, gitignored — back it up), XEmbed-only tray icons are not shown (no noble bridge), GRUB is plain text under
-   Secure Boot, LibreOffice is offered from Flathub only, mpv's X11 screensaver inhibit untested, Selene packages are
-   not in unattended-upgrades (manual « Tout installer » + « Redémarrer la session »).
-   d. Later: multi-monitor, HiDPI for X apps, keyboard layouts switcher + IME, per-app volume + Bluetooth profiles,
-      network (static IP, proxy, 802.1X, hotspot, captive portal, OpenVPN), USB automount / MTP / SMB, keyring
-      (gnome-keyring + PAM), installer (dual boot, LUKS), recovery, accessibility (magnifier, OSK, sticky keys),
-      online accounts / CalDAV / Mail OAuth2, codecs / HEIC, CI, LICENSE for aurora-os, release notes + signed ISO.
+3. **Finish or revert the six « later » items stopped half-way** (agents killed; partial code in 8119d565 / 0c3df6ab,
+   never re-tested; table in PHASEAPP.md):
+   - Éditeur de code: search in files (Ctrl+Shift+F), split view, diff with HEAD (@codemirror/merge vendored) —
+     wired into the app; test/code-extra.test.mjs exists but was not run after the agents were stopped.
+   - Disques: « Santé du disque » (SMART through udisks2 / smartctl, self-tests, alerts) — wired into the app.
+   - Outils réseau: OpenVPN import wired into the app; traceroute and port check backend only
+     (main/lib/nettools/); speed test not started.
+   - Cartes: routes (OSRM) — backend maps:route + lib/route.js, the route panel is not written.
+   - Bureau à distance: RDP — main/lib/freerdp.js started, rfb.js touched; the app still says « RDP later ».
+   - Lecteur: MPRIS + media keys through aurora-sessionbus — nothing in the committed code.
+   The three wired items are visible in the shell as they are: re-test them first (or hide them) before an ISO.
 
-1. Wait for the user's QEMU feedback on the redesigned ISO. Open design question put to the user: the Éclipse bar
-   (validated mockup: search field + labelled running apps) still reads like Windows 10 to the reviewers; offer to make
-   it icon-only by default like the two other styles.
-2. Open questions from the user: Snake arrow keys reported as not working (works in the agent's VM with real
-   key events: likely host/QEMU keyboard side; asked the user whether Space works and whether arrows work elsewhere).
-3. App phase 2 is done (2026-10-13). Phase 3 / 4 « later » items still open: Disques SMART, Mots de passe autofill in
-   the Navigateur, Cloud Google Drive / OneDrive + sync, Outils réseau OpenVPN / traceroute / port check / speed test,
-   Cartes routes, Bureau à distance RDP.
-4. Known follow-ups (small): Memos does not tell the user when it restored notes from a backup; Cloud real
-   client ignores back-pressure and shows 100 % for chunked downloads; Remote Desktop scaled canvas is blurry
-   (image-rendering); Translator MyMemory limit is bytes not characters; weather:current still makes a real request
-   in dev (wallpapers test expects it).
+4. **Full `make test-all` sweep**, then fix what it finds; icons.test « ≥ 600 legacy names » threshold must go down
+   (584 after the removals); add verify-iso checks for the new packages.d lists (books, emoji, fonts,
+   scanner). Only then: ISO rebuild by the user (`flock work/.build.lock iso/build.sh --from system`), make verify-iso
+   and make smoke-image. Do not rebuild the ISO before the sweep.
+
+5. **Small fixes:** the inconsistencies listed under Known issues (Aide list); Cloud real client ignores back-pressure
+   and shows 100 % for chunked downloads; Remote Desktop scaled canvas is blurry (image-rendering); weather:current
+   still makes a real request in dev (wallpapers test expects it).
+
+6. **Gap list (2026-10-13), still open:** publish the Selene apt repository (make repo -> out/apt/ on GitHub Pages at
+   SELENE_APT_URL; the archive key is in keys/, gitignored — back it up); XEmbed-only tray icons are not shown (no noble
+   bridge); GRUB is plain text under Secure Boot; LibreOffice is offered from Flathub only; mpv's X11 screensaver
+   inhibit untested; Selene packages are not in unattended-upgrades.
+   Later: multi-monitor, HiDPI for X apps, keyboard layout switcher + IME, per-app volume + Bluetooth profiles,
+   network (static IP, proxy, 802.1X, hotspot, captive portal), USB automount / MTP / SMB, keyring (gnome-keyring +
+   PAM), installer LUKS, recovery, sticky keys, online accounts / CalDAV / Mail OAuth2, codecs / HEIC, CI, LICENSE for
+   aurora-os, release notes + signed ISO (done since: dual boot installer, magnifier, on-screen keyboard).
+
+7. **Waiting for the user:** QEMU feedback on the redesigned ISO; the Éclipse bar (search field + labelled running
+   apps) still reads like Windows 10 to the reviewers — offer to make it icon-only by default like the two other
+   styles; Snake arrow keys reported as not working (fine in the agent's VM with real key events: likely host / QEMU
+   keyboard side; asked whether Space works and whether arrows work elsewhere).
 
 ## Personalization request (verbatim, user request #2)
 

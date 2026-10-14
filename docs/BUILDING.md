@@ -125,7 +125,7 @@ Set them on the `make` command line (`make iso NAME=value`) or in the environmen
 | `SNAPSHOT` | `1` | `1`: pinned snapshot (reproducible); `0`: live archive `archive.ubuntu.com` (newest packages); `auto`: snapshot, falling back to the archive when snapshot.ubuntu.com is unreachable |
 | `STAMP` (= `SNAPSHOT_STAMP`) | `20261001T000000Z` | snapshot date, format `YYYYMMDDTHHMMSSZ` |
 | `MIRROR` | from the two above | any Ubuntu mirror URL, overrides both |
-| `WITH_FIRMWARE` | `1` | `linux-firmware` for real PCs (Wi-Fi, GPUs, Bluetooth); `0` = quick VM build, ~600 MB smaller (a placeholder package stands in) |
+| `WITH_FIRMWARE` | `1` | Firmware for real PCs: the `linux-firmware` sub-packages a desktop or laptop uses (Wi-Fi, GPUs, Bluetooth; the server-only network and storage adapter firmware is left out, ~165 MB) and `firmware-sof-signed` (audio of most Intel laptops); list in `FIRMWARE_PACKAGES`. `0` = quick VM build, several hundred MB smaller (a placeholder package stands in) |
 | `KERNEL_PACKAGE` | `linux-image-generic-hwe-24.04` | HWE kernel (newer hardware); `linux-image-generic` = GA 6.8 kernel |
 | `INSTALL_RECOMMENDS` | `0` | `1` installs Recommends too (bigger image) |
 | `ALLOW_MISSING_PACKAGES` | `0` | `1` skips unknown package names with a warning instead of failing |
@@ -305,9 +305,9 @@ Write the ISO to a USB stick (all its data is erased) with
 2. **Splash screen** (Selene OS logo + spinner), then the **desktop of the live user `aurora`**,
    signed in automatically (no password; administrator rights without password in the live
    session). Nothing is saved across reboots.
-3. On the desktop: **This PC**, **Recycle Bin**, `Welcome.txt` (English/French) and the
+3. On the desktop: **Computer**, **Trash**, `Welcome.txt` (English/French) and the
    **Install Selene OS** icon (live session only, see [Install Selene OS](#install-selene-os)),
-   the taskbar and the Start menu. Signing out shows the Selene sign-in screen.
+   the bar and the Lanceur. Signing out shows the Selene sign-in screen.
 4. In the VM, the screen switches to 1920x1080 (KVM) or 1600x900 (TCG) automatically; the
    network works out of the box (QEMU user networking, NAT).
 
@@ -317,25 +317,37 @@ about 30 seconds later.
 
 ## Install Selene OS
 
-In the live session, open **Install Selene OS** (desktop icon, or Start → All apps). The installer
-looks like Windows 11 Setup, speaks English and French (the language chosen on the first page
+In the live session, open **Install Selene OS** (desktop icon, or Lanceur → All apps). The installer
+shows its steps as moon phases in a side panel, speaks English and French (the language chosen on the first page
 switches it at once and becomes the installed system's language) and follows the light/dark theme.
 
 1. **Language** — English or Français.
 2. **Keyboard** — the layout is applied to the live session right away, so the test field shows
    what your keys produce.
-3. **Disk** — Selene OS uses a **whole disk, which is erased**. Disks smaller than 12 GB are shown
-   but cannot be chosen; the live medium, read-only, loop, zram and in-use disks are not listed.
-4. **Account** — your name, a user name (derived from the first name, editable), password +
+3. **Disk** — choose the disk. Disks smaller than 12 GB are shown but cannot be chosen; the live medium,
+   read-only, loop, zram and in-use disks are not listed. On a disk that already holds a system, choose how:
+   - **Install next to Windows / Linux** (dual boot): everything already on the disk is kept. Selene takes free
+     space, or the space freed by shrinking the Windows (NTFS) or Linux (ext4) partition. Needs a PC started in
+     UEFI mode, a GPT disk and at least 20 GB for Selene. The installer explains why when it is not possible:
+     BitLocker, Windows Fast Startup or hibernation, a partition to check first, LUKS / LVM / btrfs / xfs.
+   - **Erase the whole disk**: everything on it is erased.
+4. **Space** (next to another system only) — Selene's size with a slider or a number, and the resulting size of
+   both systems.
+5. **Account** — your name, a user name (derived from the first name, editable), password +
    confirmation (with a strength hint), computer name, and *Sign in automatically*. The account
    is an administrator (group `sudo`).
-5. **Time zone** — searchable list (default Europe/Paris in French, America/New_York in English).
-6. **Summary** — every choice with a *Change* link. **Install** asks for confirmation before the
-   disk is erased.
+6. **Time zone** — searchable list (default Europe/Paris in French, America/New_York in English).
+7. **Graphics driver** (only on a PC with an NVIDIA card) — the recommended NVIDIA driver, downloaded from the
+   Ubuntu archive during the installation (needs the Internet).
+8. **Games** — Steam, Heroic, Lutris, ProtonUp-Qt, Bottles, Discord from Flathub, installed for the new account at
+   its first sign-in (not during the installation).
+9. **Summary** — every choice with a *Change* link. For a dual boot it lists the exact changes to the disk and asks
+   you to confirm that your files are backed up. **Install** asks for confirmation before the disk is changed.
 
 The progress page lists the stages, shows the percentage and, with *Show details*, the live log.
 *Cancel* (or closing the window) asks first, then stops cleanly: everything is unmounted, but the
-disk stays unusable until an installation succeeds. At the end, **Restart now** reboots (remove the
+disk stays unusable until an installation succeeds (next to another system: that system and its files are kept; the
+space set aside for Selene stays unused until you try again). At the end, **Restart now** reboots (remove the
 ISO first if your firmware starts the CD before the disk; `make run` already boots the disk first).
 On an error the page shows the message and the last lines of the log, and *Try again* goes back to
 the summary.
@@ -351,6 +363,17 @@ line):
 | configure | `/etc/fstab` by UUID; host name; live user, casper's sudo rule and `/etc/casper.conf` removed; live-only packages (`casper/filesystem.manifest-remove`: casper, user-setup, …) purged offline with `dpkg --purge`; locale, keyboard (`/etc/default/keyboard`), time zone; the account (groups sudo, adm, users, netdev, audio, video, plugdev) and its `~/.config/aurora/settings.json` (language); greetd without the live autologin (or `[initial_session]` for the account); new machine-id; initramfs regenerated without casper |
 | bootloader | GRUB for **BIOS** on the disk **and** for **UEFI** on the ESP: Ubuntu's signed shim + GRUB in `EFI/ubuntu` and on the removable path `EFI/BOOT/BOOTX64.EFI` (no NVRAM writes, so the disk boots on any UEFI machine); Selene OS GRUB theme; `/etc/default/grub.d/50-aurora.cfg` (`GRUB_DISTRIBUTOR="Selene OS"`, `quiet splash`, 3 s menu); `update-grub` |
 | cleanup | log copied to the installed system, `sync`, unmount |
+
+**Next to another system** (`--alongside`, UEFI + GPT only) the plan comes from the read-only survey
+`/usr/lib/aurora/helpers/aurora-disk-probe` and is checked again right before anything is written (same partition
+table, same bounds). Every partition stays as it is, except the one that is shrunk (NTFS: `ntfsresize`; ext4:
+`e2fsck -f` then `resize2fs`; the file system first, then its partition); the Selene partition is created only after
+a successful shrink. The existing EFI system partition is reused, never formatted: only `EFI/ubuntu` is added. The
+partition table before the change is kept in the log and in `/var/log/aurora-install-partitions.sfdisk` (`sfdisk DISK <`
+restores it). If the boot loader stage fails, the EFI partition and the firmware boot order are restored. A firmware
+boot entry « Selene » comes first; GRUB shows a 5 s menu with Selene and the other system (Windows through os-prober;
+another Linux through its own boot loader, such as Limine, systemd-boot, rEFInd or GRUB, named after it). No BIOS boot
+loader is written. Tested end to end in QEMU/KVM on a copy of a real disk (CachyOS with Limine).
 
 Logs: `/var/log/aurora-install.log` in the live session, copied to `/var/log/aurora-install.log`
 on the installed system. Measured on the build container (4 vCPUs, loop device): the whole
@@ -529,7 +552,7 @@ système de fichiers Linux local (ext4, xfs, btrfs). Les mêmes réglages s'appl
 | `SNAPSHOT` | `1` | `1` : instantané figé (reproductible) ; `0` : archive à jour `archive.ubuntu.com` ; `auto` : instantané, ou l'archive si snapshot.ubuntu.com est injoignable |
 | `STAMP` (= `SNAPSHOT_STAMP`) | `20261001T000000Z` | date de l'instantané |
 | `MIRROR` | — | miroir Ubuntu imposé |
-| `WITH_FIRMWARE` | `1` | `linux-firmware` pour les vrais PC (Wi-Fi, cartes graphiques, Bluetooth) ; `0` = construction rapide pour VM, ~600 Mo de moins |
+| `WITH_FIRMWARE` | `1` | Micrologiciels pour les vrais PC : les sous-paquets de `linux-firmware` utiles à un PC de bureau ou portable (Wi-Fi, cartes graphiques, Bluetooth ; sans ceux des cartes réseau et de stockage pour serveurs, ~165 Mo) et `firmware-sof-signed` (son de la plupart des portables Intel) ; liste dans `FIRMWARE_PACKAGES`. `0` = construction rapide pour VM, plusieurs centaines de Mo de moins |
 | `KERNEL_PACKAGE` | `linux-image-generic-hwe-24.04` | noyau HWE (matériel récent) ; `linux-image-generic` = noyau GA 6.8 |
 | `INSTALL_RECOMMENDS` | `0` | `1` installe aussi les paquets recommandés |
 | `ALLOW_MISSING_PACKAGES` | `0` | `1` ignore les paquets inconnus (avertissement) |
@@ -615,9 +638,9 @@ construction par défaut inclut `linux-firmware` et le noyau HWE.
 2. **Écran de démarrage** (logo Selene OS), puis le **bureau de l'utilisateur live `aurora`**, connecté
    automatiquement (sans mot de passe ; droits d'administrateur sans mot de passe en session live).
    Rien n'est conservé au redémarrage.
-3. Sur le bureau : **Ce PC**, **Corbeille**, `Welcome.txt` (anglais/français) et l'icône
+3. Sur le bureau : **Ordinateur**, **Corbeille**, `Welcome.txt` (anglais/français) et l'icône
    **Installer Selene OS** (session live uniquement, voir [Installer Selene OS](#installer-selene-os)),
-   la barre des tâches et le menu Démarrer. Se déconnecter affiche l'écran de connexion.
+   la barre et le Lanceur. Se déconnecter affiche l'écran de connexion.
 4. Dans la VM, l'écran passe en 1920x1080 (KVM) ou 1600x900 (TCG) ; le réseau fonctionne
    directement (NAT de QEMU).
 
@@ -627,28 +650,43 @@ le bureau une trentaine de secondes plus tard.
 
 ### Installer Selene OS
 
-Dans la session live, ouvrez **Installer Selene OS** (icône du bureau, ou Démarrer → Toutes les
-applications). L'installateur ressemble au programme d'installation de Windows 11, parle anglais et
+Dans la session live, ouvrez **Installer Selene OS** (icône du bureau, ou Lanceur → Toutes les
+applications). L'installateur montre ses étapes en phases de lune dans un panneau latéral, parle anglais et
 français (la langue choisie en première page change l'interface immédiatement et devient celle du
 système installé) et suit le thème clair/sombre.
 
 1. **Langue** — English ou Français.
 2. **Clavier** — la disposition est appliquée tout de suite à la session live : le champ de test
    montre ce que produisent vos touches.
-3. **Disque** — Selene OS utilise un **disque entier, qui est effacé**. Les disques de moins de
-   12 Go sont affichés mais pas sélectionnables ; le support live, les disques en lecture seule,
-   loop, zram ou utilisés ne sont pas proposés.
-4. **Compte** — votre nom, un nom d'utilisateur (déduit du prénom, modifiable), mot de passe +
+3. **Disque** — choisissez le disque. Les disques de moins de 12 Go sont affichés mais pas sélectionnables ;
+   le support live, les disques en lecture seule, loop, zram ou utilisés ne sont pas proposés. Sur un disque qui
+   contient déjà un système, choisissez comment :
+   - **Installer à côté de Windows / Linux** (double démarrage) : tout ce qui est sur le disque est conservé. Selene
+     prend l'espace libre, ou l'espace libéré en réduisant la partition Windows (NTFS) ou Linux (ext4). Il faut un
+     PC démarré en mode UEFI, un disque GPT et au moins 20 Go pour Selene. L'installateur explique pourquoi quand ce
+     n'est pas possible : BitLocker, démarrage rapide ou veille prolongée de Windows, partition à vérifier d'abord,
+     LUKS / LVM / btrfs / xfs.
+   - **Effacer tout le disque** : tout son contenu est effacé.
+4. **Espace** (installation à côté seulement) — la taille de Selene, avec un curseur ou un nombre, et la taille qui
+   en résulte pour les deux systèmes.
+5. **Compte** — votre nom, un nom d'utilisateur (déduit du prénom, modifiable), mot de passe +
    confirmation (avec indication de robustesse), nom de l'ordinateur et *Se connecter
    automatiquement*. Le compte est administrateur (groupe `sudo`).
-5. **Fuseau horaire** — liste avec recherche (Europe/Paris par défaut en français,
+6. **Fuseau horaire** — liste avec recherche (Europe/Paris par défaut en français,
    America/New_York en anglais).
-6. **Récapitulatif** — chaque choix avec un lien *Modifier*. **Installer** demande confirmation
-   avant d'effacer le disque.
+7. **Pilote graphique** (seulement sur un PC avec une carte NVIDIA) — le pilote NVIDIA recommandé, téléchargé
+   depuis l'archive Ubuntu pendant l'installation (connexion Internet nécessaire).
+8. **Jeux** — Steam, Heroic, Lutris, ProtonUp-Qt, Bottles, Discord depuis Flathub, installés pour le nouveau compte
+   à sa première connexion (pas pendant l'installation).
+9. **Récapitulatif** — chaque choix avec un lien *Modifier*. Pour un double démarrage, il liste les modifications
+   exactes du disque et demande de confirmer que vos fichiers sont sauvegardés. **Installer** demande confirmation
+   avant de modifier le disque.
 
 La page de progression liste les étapes, affiche le pourcentage et, avec *Afficher les détails*, le
 journal en direct. *Annuler* (ou fermer la fenêtre) demande confirmation puis arrête proprement :
-tout est démonté, mais le disque reste inutilisable tant qu'une installation n'a pas réussi. À la
+tout est démonté, mais le disque reste inutilisable tant qu'une installation n'a pas réussi (à côté d'un autre
+système : ce système et ses fichiers sont conservés ; l'espace réservé à Selene reste inutilisé jusqu'au prochain
+essai). À la
 fin, **Redémarrer maintenant** redémarre (retirez l'ISO si votre micrologiciel démarre le CD avant
 le disque ; `make run` démarre déjà le disque en premier). En cas d'erreur, la page affiche le
 message et les dernières lignes du journal ; *Réessayer* revient au récapitulatif.
@@ -664,6 +702,18 @@ standard, jamais par la ligne de commande) :
 | configure | `/etc/fstab` par UUID ; nom d'hôte ; suppression de l'utilisateur live, de la règle sudo de casper et de `/etc/casper.conf` ; purge hors ligne (`dpkg --purge`) des paquets propres au live (`casper/filesystem.manifest-remove` : casper, user-setup…) ; langue, clavier (`/etc/default/keyboard`), fuseau ; le compte (groupes sudo, adm, users, netdev, audio, video, plugdev) et son `~/.config/aurora/settings.json` (langue) ; greetd sans la connexion automatique du live (ou `[initial_session]` pour le compte) ; nouveau machine-id ; initramfs régénéré sans casper |
 | bootloader | GRUB pour le **BIOS** sur le disque **et** pour l'**UEFI** sur l'ESP : shim + GRUB signés d'Ubuntu dans `EFI/ubuntu` et sur le chemin amovible `EFI/BOOT/BOOTX64.EFI` (sans écrire dans la NVRAM : le disque démarre sur toute machine UEFI) ; thème GRUB Selene OS ; `/etc/default/grub.d/50-aurora.cfg` (`GRUB_DISTRIBUTOR="Selene OS"`, `quiet splash`, menu 3 s) ; `update-grub` |
 | cleanup | copie du journal sur le système installé, `sync`, démontage |
+
+**À côté d'un autre système** (`--alongside`, UEFI + GPT uniquement), le plan vient de l'analyse en lecture seule
+`/usr/lib/aurora/helpers/aurora-disk-probe` et il est vérifié à nouveau juste avant toute écriture (même table de
+partitions, mêmes limites). Toutes les partitions restent telles quelles, sauf celle qui est réduite (NTFS :
+`ntfsresize` ; ext4 : `e2fsck -f` puis `resize2fs` ; le système de fichiers d'abord, puis sa partition) ; la partition
+de Selene n'est créée qu'après une réduction réussie. La partition système EFI existante est réutilisée, jamais
+formatée : seul `EFI/ubuntu` est ajouté. La table de partitions d'avant est gardée dans le journal et dans
+`/var/log/aurora-install-partitions.sfdisk` (`sfdisk DISQUE <` la restaure). Si l'étape du chargeur d'amorçage échoue,
+la partition EFI et l'ordre de démarrage du micrologiciel sont restaurés. Une entrée de démarrage « Selene » passe en
+premier ; GRUB affiche un menu de 5 s avec Selene et l'autre système (Windows via os-prober ; un autre Linux via son
+propre chargeur, par exemple Limine, systemd-boot, rEFInd ou GRUB, sous son nom). Aucun chargeur BIOS n'est écrit.
+Testé de bout en bout dans QEMU/KVM sur une copie d'un vrai disque (CachyOS avec Limine).
 
 Journal : `/var/log/aurora-install.log` dans la session live, copié dans `/var/log/aurora-install.log`
 du système installé. Mesuré sur le conteneur de construction (4 vCPU, périphérique loop) :

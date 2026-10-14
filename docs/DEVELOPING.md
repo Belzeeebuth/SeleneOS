@@ -171,9 +171,20 @@ window that asked. In greeter mode (`--mode=greeter`) only `settings`, `sys`, `g
 | notes (`notes.js`) | `notes:root` `notes:open` `notes:writeIndex` `notes:writeNote` `notes:remove` `notes:duplicate` `notes:attach` `notes:dataUrl` `notes:exportAssets` `notes:gc` `notes:clipboard` `notes:clipboardWriteImage` |
 | archive (`archive.js`) | `archive:tools` `archive:list` `archive:preview` `archive:test` `archive:extract` `archive:extractTemp` `archive:create` `archive:add` `archive:delete` `archive:cancel` `archive:tempDir` `archive:cleanup` (+`archive:progress`) |
 | pdf (`pdf.js`) | `pdf:save(path, bytes)` |
-| code (`code.js`, Code Editor) | `code:git(dir)` -> `{ repo, root, branch, detached, ahead, behind, files: { relPath: 'M'\|'A'\|'D'\|'R'\|'U'\|'?' }, ignored: [relPath] }` (git with an argument vector) `code:gitAvailable` |
+| code (`code.js`, Code Editor) | `code:git(dir)` -> `{ repo, root, branch, detached, ahead, behind, files: { relPath: 'M'\|'A'\|'D'\|'R'\|'U'\|'?' }, ignored: [relPath] }` (git with an argument vector) `code:gitAvailable` `code:gitShow` `code:openFolder`; search across files (`code-search.js`, in progress): `code:search` `code:searchCancel` `code:replace` `code:replaceUndo` |
 | weather (`weather.js`) | `weather:current(place?, { force })` `weather:search(query, { lang, count })` `weather:stats` (+`weather:changed`) — Open-Meteo, cached 30 min, offline fallback; see docs/PERSONALIZATION.md §9.4 |
+| books (`books.js`) | `books:scan` `books:open` `books:meta` `books:resource` |
+| feeds (`feeds.js`, Podcasts & News) | `feeds:fetch` `feeds:search` (iTunes podcast directory) `feeds:image` `feeds:download` `feeds:cancel` `feeds:downloads` `feeds:files` `feeds:deleteFile` `feeds:dirs` `feeds:stats` (+`feeds:progress`) |
+| fonts (`fonts.js`) | `fonts:list` `fonts:details` `fonts:charmap` `fonts:bytes` `fonts:install` `fonts:uninstall` `fonts:userDir` (+`fonts:changed`) |
+| journal (`journal.js`, System Logs) | `journal:query` `journal:entry` `journal:context` `journal:boots` `journal:sources` `journal:export` `journal:follow` `journal:unfollow` `journal:follows` |
+| scan (`scan.js`, SANE) | `scan:devices` `scan:options` `scan:scan` `scan:cancel` `scan:discard` `scan:cleanup` (+`scan:progress` `scan:page`) |
+| help (`help.js`) | `help:welcome` (first sign-in « Bien démarrer » notification) |
+| accessibility (`magnifier.js`, `osk.js`, `screenreader.js`) | `magnifier:cursor`; `osk:input` `osk:status`; `screenreader:start` `screenreader:stop` `screenreader:status` `screenreader:test` `screenreader:voices` (+`screenreader:changed`) |
+| devices (`bluetooth.js`, `printers.js`, `print.js`, `disks.js`) | `bluetooth:*` (+`bluetooth:changed` `bluetooth:agent`), `printers:*`, print dialog `print:*`, `disks:list` `disks:mount` `disks:unmount` `disks:powerOff` `disks:watch` (+`disks:changed`); disk health (`disks-smart.js`, in progress): `disks:health*` `disks:selftest*` (+`disks:health-alert`) |
+| other areas | `backup:*`, `cloud:*`, `contacts:*`, `maps:*` (`maps:route` in progress), `nettools:*` (`vpnImport`, `trace`, `portCheck` in progress), `passwords:*`, `remote:*`, `camera:*`, `recorder:*`, `screenrec:*`, `store:*` (docs/STORE-SOURCES.md), `xwin:*` / `xapps:*` (docs/XWINDOWS.md), `drivers:*`, `firmware:*`, `updates:*`, `selene:status`, `inputpower.js` (`input:touchpad` `power:*`), `sessionbus.js` (desktop notifications, tray, inhibitors), `autostart:run`, `xdg:socket`, `spell:*`, `robust:*`, `firstlogin:gaming:*` — see each file's header |
 | app helpers | `notepad:fonts` `paint:fonts`; legacy `paint:clipboard*Image` and `snipping:clipboard*Image` (new code uses `clipboard:*Image`) |
+
+The header of each file is the reference; this table is a map.
 
 New backend areas go in a **new file** `main/ipc/<area>.js`:
 
@@ -196,10 +207,13 @@ actions. Never expose a generic "run this command as root" path.
 ## Built-in apps (`renderer/apps/<id>/`)
 
 Tests live in `shell/test/<id>.test.mjs`; Minesweeper, Snake and 2048 share `games-classic.test.mjs`,
-Settings uses `system-settings.test.mjs`.
+Settings uses `system-settings.test.mjs`. Shell features have their own suites too (`emoji`, `magnifier`, `osk`,
+`screenreader`, `robust`…). Tests always start Electron on the Xvfb display of `xvfb-run` (`--ozone-platform=x11`,
+Wayland variables removed), never on the developer's own session.
 
 - `archive` - Archives: open, extract and create ZIP, 7z, RAR and TAR archives
 - `backup` - Backup: incremental rsync snapshots of your folders to a drive; browse and restore
+- `books` - Books: EPUB library and reader (default for `.epub`; `books.js` backend parses the ZIP / EPUB, chapters render in sandboxed frames without scripts)
 - `browser` - Browser: Chromium `<webview>` tabs, favorites, history, downloads, private windows
 - `calculator` - Calculator: standard, scientific, programmer, date calculation, unit converters
 - `calendar` - Calendar: month/week/day/agenda views, recurring events, reminders, holidays, .ics import/export
@@ -207,17 +221,22 @@ Settings uses `system-settings.test.mjs`.
 - `chess` - Chess against the computer or a friend
 - `clock` - Clock: alarms, timers, stopwatch, world clock, focus sessions
 - `cloud` - Cloud: browse, upload and download Nextcloud / WebDAV files (other services later)
-- `code` - Code Editor: folder explorer (.gitignore-aware, git status), tabs, CodeMirror 6 (vendored ES module `apps/code/vendor/codemirror.js`, rebuilt with `node tools/vendor-codemirror.mjs`), find/replace, go to line, multi-cursor, terminal panel on the `pty.js` backend, git branch (`code.js` backend)
+- `code` - Code Editor: folder explorer (.gitignore-aware, git status), tabs, CodeMirror 6 (vendored ES module `apps/code/vendor/codemirror.js`, rebuilt with `node tools/vendor-codemirror.mjs`), find/replace, go to line, multi-cursor, terminal panel on the `pty.js` backend, git branch (`code.js` backend); search across files, split view and diff are in progress (untested)
 - `contacts` - Contacts: people, e-mails, phones, addresses, birthdays, vCard import/export; feeds Mail's recipient suggestions
-- `disks` - Disks: drives and partitions, mount, eject; format removable drives only
+- `disks` - Disks: drives and partitions, mount, eject; format removable drives only; « Santé du disque » (SMART) in progress (untested)
+- `feeds` - Podcasts & News: RSS / Atom / RDF / JSON Feed reader and podcast player, OPML import / export
 - `files` - Files: tabs, drives, Recycle Bin, search, properties
+- `fonts` - Fonts: installed fonts, previews, character map, per-user install (`~/.local/share/fonts`)
 - `game2048` - 2048
-- `installer` - Install Selene OS (live session only): language, keyboard, disk, account, time zone
+- `help` - Help: offline articles (`content/*.js`, en + fr), search, « Bien démarrer » tour
+- `installer` - Install Selene OS (live session only): language, keyboard, disk (next to another system or the whole disk), account, time zone, NVIDIA driver, gaming apps
+- `logs` - System Logs: the systemd journal (`journal.js` backend, `journalctl` with an argument vector)
 - `mail` - Mail: IMAP/SMTP accounts, compose, attachments
 - `maps` - Maps: OpenStreetMap tiles, place search (Nominatim), saved places
 - `media` - Player: music and video libraries, queue, playlists
+- `music` - Music: Lanceur entry that opens the Player on its music library (albums, artists, songs, lyrics)
 - `minesweeper` - Minesweeper
-- `nettools` - Network tools: VPN / WireGuard connections (NetworkManager), ping, DNS lookup
+- `nettools` - Network tools: VPN / WireGuard connections (NetworkManager), ping, DNS lookup; OpenVPN import in progress (untested)
 - `notepad` - Text Editor: plain text with tabs, find/replace, encodings
 - `notes` - Notes: notebooks, rich text, checklists, pictures and tags, saved as you type
 - `paint` - Draw: draw and edit pictures
@@ -225,12 +244,14 @@ Settings uses `system-settings.test.mjs`.
 - `pdf` - PDF Reader: read, search, annotate and present PDFs
 - `photos` - Photos: gallery, viewer, slideshow and editor
 - `recorder` - Voice Recorder: MediaRecorder Opus/WebM, pause, markers, live waveform, microphone choice, seekable playback (WebAudio), trim re-encoded with WebCodecs (`lib/webm.js` writes the Duration and muxes Opus), MP3 / M4A export through ffmpeg (`main/ipc/recorder.js`); Documents/Sound recordings
-- `remote` - Remote Desktop: VNC client (RFB 3.8, None / VNC authentication); RDP later
-- `settings` - Settings: system, devices, network, personalization, accounts, time and language, updates
+- `remote` - Remote Desktop: VNC client (RFB 3.8, None / VNC authentication); RDP in progress (`main/lib/freerdp.js`, not in the app yet)
+- `scan` - Scan: SANE scanners (`scan.js` backend, `scanimage` as the user), preview, feeder batches, PDF / JPEG / PNG
+- `screenrec` - Screen Recorder: whole screen or an area, microphone / computer sound, WebM or MP4 (ffmpeg)
+- `settings` - Settings: system, devices (Bluetooth, printers and scanners), network, personalization, accounts, time and language, accessibility, updates, graphics drivers
 - `snake` - Snake
 - `snipping` - Screenshot: screen captures with markup
 - `solitaire` - Solitaire (Klondike)
-- `store` - Software: curated command-line tools and services installed with apt (through aurora-admin)
+- `store` - Software: Flathub, the Ubuntu desktop catalogue and curated tools, merged (docs/STORE-SOURCES.md)
 - `taskmgr` - System Monitor: processes, performance, users, details, services
 - `terminal` - Terminal: real PTY, tabs, split panes, profiles
 - `todo` - Tasks: lists, My Day, reminders, due dates, steps

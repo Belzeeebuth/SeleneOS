@@ -815,11 +815,13 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 
 ### 12.1 Keyboard shortcuts (`core/shortcuts.js`, `core/features/hotkeys.js`, `main/lib/hotkeys.js`)
 
-- **Catalog** (`SHORTCUTS`, 46 actions in 5 groups, plus the user's own "open this app" actions `app:<appId>`, ≤ 40):
+- **Catalog** (`SHORTCUTS`, 56 actions in 5 groups, plus the user's own "open this app" actions `app:<appId>`, ≤ 40):
   - *Desktop and Start:* start (Win), search (Win+S), quickSettings (Win+A), notifications (Win+N), widgets (Win+W),
     showDesktop (Win+D), lock (Win+L), run (Win+R), powerMenu (Win+X), clipboard (Win+V), emoji / emojiAlt (Win+. /
     Win+;, the emoji and symbols panel, core/features/emoji.js), focusMode (Win+Shift+F),
-    screenshot (Win+Shift+S).
+    screenshot (Win+Shift+S), screenRecord (Win+Shift+R), screenReader (Win+Alt+S), onScreenKeyboard (Win+Ctrl+O),
+    magnifierZoomIn (Win+=), magnifierZoomOut (Win+-), magnifierStop (Win+Esc), magnifierSettings (Win+Ctrl+M)
+    (§12.4).
   - *Windows:* taskView (Win+Tab), snapLayouts (Win+Z), snapLeft / snapRight (Win+←/→), maximize (Win+↑),
     minimize (Win+↓), maximizeVertically (Win+Shift+↑), minimizeAll (Win+M), restoreAll (Win+Shift+M),
     minimizeOthers (Win+Home), windowMenu (Alt+Space), closeWindow (Alt+F4).
@@ -827,7 +829,7 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
     (Win+Ctrl+←/→).
   - *Taskbar apps:* taskbarApp1…9 (Win+1…9: open or switch to the n-th taskbar app).
   - *Apps:* files (Win+E), settings (Win+I), terminal (Ctrl+Alt+T), taskManager (Ctrl+Shift+Esc), browser, notepad,
-    calculator (no default), accessibility (Win+U), display (Win+P); *Add an app* creates `app:<appId>` (open the app,
+    calculator, help (no default), accessibility (Win+U), display (Win+P); *Add an app* creates `app:<appId>` (open the app,
     or switch to its latest window).
 - **Fixed combos** (never rebound or taken): Alt+Tab, Alt+Shift+Tab, Ctrl+Alt+Tab, Ctrl+Alt+Delete, PrintScreen, the
   volume / brightness keys. **Reserved** (the X server takes them): Ctrl+Alt+F1…F12, Ctrl+Alt+Backspace.
@@ -868,12 +870,28 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
   makes it do nothing; the key press is still swallowed and does not reach the app.
 - Shortcuts apply to the shell session; the sign-in screen keeps its own keys.
 
+### 12.4 Accessibility: Magnifier and on-screen keyboard
+
+Pages Paramètres > Accessibilité > « Loupe » (`pages/accessibility-magnifier.js`) and « Clavier visuel »
+(`pages/accessibility-osk.js`). Unlike the keys above, these two are **not** in `DEFAULTS` of `main/ipc/settings.js`
+and **not** in `PROFILE_KEYS`: each feature merges the stored object with its own defaults, and a profile never turns
+an accessibility aid on or off.
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `magnifier` | `{ enabled, zoom, step, followPointer, followFocus, followCaret, smoothing, invert, toolbar, startAtLogin }` | `{ enabled: false, zoom: 200, step: 100, followPointer: true, followFocus: true, followCaret: true, smoothing: true, invert: false, toolbar: true, startAtLogin: false }` | Full-screen magnifier (`core/features/magnifier.js`): zoom 100–1600 %, step 25 / 50 / 100, what the view follows, smoothed image edges (off: enlarged pictures show their pixels), inverted colours, the floating toolbar, start at sign-in. Linux (X11) windows are shown magnified through a live copy; the lock screen stays magnified |
+| `osk` | `{ enabled, layout, size, mode, float, sound, autoShow, trayButton }` | `{ enabled: false, layout: 'auto', size: 'medium', mode: 'docked', float: null, sound: false, autoShow: false, trayButton: false }` | On-screen keyboard (`core/features/osk.js`, panel `osk/keyboard.js` shared with the sign-in screen): layout `auto` (follows `keyboardLayout`) / `fr` / `fr-oss` / `us` / `ch-fr`, size small / medium / large, docked above the bar or floating (`float` = `{ x, y, width }`), key clicks (never in a password field), shown when a text field gets the focus, a button in the bar's tray |
+
+Shortcuts (§12.1): Win+= starts the magnifier or zooms in (also Win++ on the keypad and Win+Shift+=), Win+- zooms
+out, Win+Esc turns it off, Win+Ctrl+M opens its page; Ctrl+Alt+wheel zooms while it runs. Win+Ctrl+O shows or hides
+the keyboard. The sign-in screen has its own accessibility menu (`greeter:a11y`), not these keys.
+
 ## 13. Feature map and tests
 
 | Request | Where | Checked by |
 |---|---|---|
 | Theme designer: accent, wallpaper, lock screen, taskbar colour, transparency, blur | §1.1, §2, §9, `personalization-designer.js` | `personalization-core` (`--only=e2e`: real clicks in Settings, 1280×720 FR), `personalization-shell` (checklist) |
-| Visual styles: Windows 11-like, minimal, glassmorphism, retro, high contrast | §4 | both |
+| Visual styles (since the 2026-10-11 redesign: Nocturne, Éclipse, Clair de lune, high contrast; themes Halo / Prisme / Sobre) | §4, §1.1 | both |
 | Animated and dynamic wallpapers (time of day, weather) | §9 | `wallpapers` (`--only=perf`: per-effect CPU budget, pauses, 20-toggle leak check), `personalization-shell` |
 | Taskbar: size, position, icons, widgets, transparency, auto-hide | §10.1 | `taskbar-start-focus` (geometry, taskbar, autohide, fit), `personalization-shell` |
 | Start: layout, pinned apps, folders, recommended files, background style | §10.2 | `taskbar-start-focus` (start, folders, labels: whole words on every tile in every style), `personalization-shell` |
@@ -903,7 +921,8 @@ depuis Paramètres › Personnalisation en anglais et en français, et enregistr
 
 - **Concepteur de thème** : couleur d’accentuation, fond d’écran, écran de verrouillage, couleur de la barre des tâches,
   transparence des fenêtres et intensité du flou (§1.1).
-- **Styles visuels** : Windows 11, minimal, verre (glassmorphism), rétro et contraste élevé (§4).
+- **Styles visuels** : Nocturne (par défaut), Éclipse, Clair de lune et Contraste élevé, avec trois ambiances et
+  quatre accents (§4).
 - **Fonds d’écran animés et dynamiques** : six scènes animées (30 i/s max., en pause quand elles sont cachées ou avec
   « réduire les animations »), images qui suivent l’heure du jour et la météo, diaporama, écran de verrouillage (§9).
   La météo du lieu choisi s’affiche aussi dans le panneau Widgets et la barre des tâches.
@@ -928,7 +947,7 @@ depuis Paramètres › Personnalisation en anglais et en français, et enregistr
 - **Police et taille du texte, arrondi des coins, échelle de l’interface, mode « réduire les animations »** (§1.1).
 - **Thèmes par application** : clair, sombre, système ou accent personnalisé (§3).
 - **Dispositions d’ancrage personnalisées** (14 dispositions intégrées à afficher et réordonner, éditeur par découpage
-  de zones) et **raccourcis clavier modifiables** (46 actions + « ouvrir cette application » ; enregistrement d’une
+  de zones) et **raccourcis clavier modifiables** (56 actions + « ouvrir cette application » ; enregistrement d’une
   combinaison avec Win, Ctrl + Alt ou F13–F24, conflits résolus, désactivation, restauration) (§12).
 - **Profils** : enregistrer l’apparence complète et passer d’un thème à l’autre en un clic ; export / import validé (§5).
 - **Thèmes (12 octobre 2026)** : Halo (par défaut), Prisme et Sobre, en haut de Paramètres › Personnalisation sous forme
@@ -936,6 +955,9 @@ depuis Paramètres › Personnalisation en anglais et en français, et enregistr
   transparence des fenêtres, flou, « Teinter les fenêtres selon le fond d’écran », jeu d’icônes avec « Automatique (suit
   le thème) »). Réglages rapides › Apparence propose les trois thèmes au-dessus du style. Clés : `finish`,
   `tintFromWallpaper`, `iconPack: 'auto'` (§1.1, §6).
+
+- **Accessibilité (14 octobre 2026)** : Loupe plein écran (Win+=, clé `magnifier`) et Clavier visuel (Win+Ctrl+O,
+  clé `osk`), dans Paramètres › Accessibilité ; ces deux clés ne font pas partie des profils (§12.4).
 
 Limites connues : les curseurs ne s’appliquent pas dans les pages web ; les packs d’icônes ne changent pas les icônes
 dessinées par les applications elles-mêmes ; un raccourci système désactivé reste intercepté ; l’écran de connexion

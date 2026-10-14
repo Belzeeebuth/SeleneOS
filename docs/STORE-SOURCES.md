@@ -139,7 +139,8 @@ Three views draw on the merged catalogue: Home (featured and per-category rows),
 - The default source is `selene`, then `ubuntu`, then `flathub`, but Flathub is the only one for apps that
   exist only there (Firefox, Spotify, Discord…).
 - Lists are paginated or virtualised: there are thousands of apps.
-- The Installed and Updates pages cover all sources.
+- The Installed page covers all sources. The Updates page covers Flathub apps only; apt packages (Selene picks,
+  Ubuntu apps and the system) are updated from Paramètres > Mises à jour.
 - In the live session, a note says that installed apps are kept in memory and lost at restart. This matters
   most for Flatpak runtimes, which are large.
 
