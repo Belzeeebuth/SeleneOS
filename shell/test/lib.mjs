@@ -36,6 +36,9 @@ export async function launchShell(opts = {}) {
   // Always the X display of xvfb-run: on a developer's Wayland desktop, Electron would otherwise open the shell on the
   // real session (real screen, real clipboard) instead of the throwaway X server.
   args.push('--ozone-platform=x11');
+  // No sound on the developer's speakers: Xvfb has no audio of its own, so Chromium would play through the real
+  // PipeWire / PulseAudio session (media elements, WebAudio and system sounds still run, only the output is muted).
+  if (!args.includes('--mute-audio')) args.push('--mute-audio');
   const baseEnv = { ...process.env };
   for (const k of ['WAYLAND_DISPLAY', 'WAYLAND_SOCKET', 'ELECTRON_OZONE_PLATFORM_HINT']) delete baseEnv[k];
   baseEnv.XDG_SESSION_TYPE = 'x11';
