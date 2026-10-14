@@ -40,7 +40,8 @@ function resolve(name) {
   const fluentNames = fs.existsSync(fluentFile) ? new Set(Object.keys(JSON.parse(fs.readFileSync(fluentFile, 'utf8')))) : null;
   const { legacy, direct } = scanIconNames({ fluentNames });
   const unresolvedLegacy = [...legacy].filter((n) => !resolve(n));
-  check(legacy.size >= 600 && !unresolvedLegacy.length, `${legacy.size} legacy (Fluent) names found in the code all resolve to a Phosphor glyph`, unresolvedLegacy.join(', '));
+  // the floor only proves the scan still finds the names (584 after Mémos / Traducteur were removed, 2026-10-14)
+  check(legacy.size >= 500 && !unresolvedLegacy.length, `${legacy.size} legacy (Fluent) names found in the code all resolve to a Phosphor glyph`, unresolvedLegacy.join(', '));
   check(DYNAMIC.every((n) => resolve(n)), 'names built at run time (battery_N, battery_charge_N, wifi_N, speaker_N) resolve');
   // Terminal profiles use { icon: 'shell' | 'python' | 'root' } for their own drawings (apps/terminal/lib/icons.js).
   // BlueZ device Icon values in main/ipc/bluetooth.js (its dev fixtures and the table that maps them to Phosphor names).
