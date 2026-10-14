@@ -230,12 +230,10 @@ Settings uses `system-settings.test.mjs`.
 - `snake` - Snake
 - `snipping` - Screenshot: screen captures with markup
 - `solitaire` - Solitaire (Klondike)
-- `sticky` - Memos: small always-on-top notes, colours, basic formatting, copy to Notes
 - `store` - Software: curated command-line tools and services installed with apt (through aurora-admin)
 - `taskmgr` - System Monitor: processes, performance, users, details, services
 - `terminal` - Terminal: real PTY, tabs, split panes, profiles
 - `todo` - Tasks: lists, My Day, reminders, due dates, steps
-- `translate` - Translator: MyMemory or LibreTranslate, English dictionary, offline EN↔FR glossary
 - `weather` - Weather: Open-Meteo current conditions, 24 h and 7-day forecasts; sets the dynamic wallpaper location
 - `winver` - About Selene: version and license information
 

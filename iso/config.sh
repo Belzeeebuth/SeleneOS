@@ -50,9 +50,15 @@ KEYRING="${KEYRING:-/usr/share/keyrings/ubuntu-archive-keyring.gpg}"
 # GPUs, Wi-Fi and laptops; ubuntu-drivers then picks linux-modules-nvidia-*-generic-hwe-24.04);
 # linux-image-generic = GA kernel (6.8 on noble).
 KERNEL_PACKAGE="${KERNEL_PACKAGE:-linux-image-generic-hwe-24.04}"
-# 1 = ship linux-firmware for real hardware (default, release ISO); 0 = no linux-firmware
+# 1 = ship firmware for real hardware (default, release ISO); 0 = no firmware at all
 # (quick VM builds, ~600 MB smaller: a placeholder package Provides linux-firmware).
 WITH_FIRMWARE="${WITH_FIRMWARE:-1}"
+# WITH_FIRMWARE=1: the linux-firmware sub-packages a desktop or laptop can use, pulled in by the generated package
+# aurora-firmware-desktop (Provides linux-firmware, so the kernel metapackage does not drag in the whole metapackage).
+# Left out: server-only firmware nobody has in a PC (Mellanox Spectrum and Marvell Prestera switch ASICs, Netronome
+# and QLogic network/storage adapters, ~165 MB installed). firmware-sof-signed (Sound Open Firmware: the audio DSP of
+# most Intel laptops since ~2019) is only a Recommends of linux-firmware, and the image installs without Recommends.
+FIRMWARE_PACKAGES="${FIRMWARE_PACKAGES:-linux-firmware-amd-graphics linux-firmware-amd-misc linux-firmware-broadcom-wireless linux-firmware-intel-graphics linux-firmware-intel-misc linux-firmware-intel-wireless linux-firmware-marvell-wireless linux-firmware-mediatek linux-firmware-misc linux-firmware-nvidia-graphics linux-firmware-qualcomm-graphics linux-firmware-qualcomm-misc linux-firmware-qualcomm-wireless linux-firmware-realtek firmware-sof-signed}"
 # Packages are installed without Recommends so the image only contains what packages.d asks for.
 INSTALL_RECOMMENDS="${INSTALL_RECOMMENDS:-0}"
 # 1 = warn about (and skip) packages that do not exist instead of failing.

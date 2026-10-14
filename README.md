@@ -76,8 +76,6 @@ Everything is available in **English and French**, dark by default, with a light
 | Weather | Current conditions, 24-hour and 7-day forecasts, saved places; sets the dynamic wallpaper location |
 | Maps | OpenStreetMap maps, place search, saved places |
 | Contacts | People, e-mails, phones, addresses, birthdays, vCard import/export; suggestions in Mail |
-| Memos | Colourful notes that can stay on top, saved as you type, copy to Notes |
-| Translator | Seven languages (MyMemory or your LibreTranslate server), English dictionary, offline EN↔FR glossary |
 | Remote Desktop | VNC client (RDP later) |
 | Software | The whole Flathub catalogue (Firefox, Chromium, Spotify, Discord, Steam, Blender…) with an Updates view and every desktop app of the Ubuntu archive, with icons, search, categories and screenshots; plus curated tools and services ([docs/STORE-SOURCES.md](docs/STORE-SOURCES.md)) |
 | Disks | Drives and partitions, mount and eject, format USB sticks and SD cards |

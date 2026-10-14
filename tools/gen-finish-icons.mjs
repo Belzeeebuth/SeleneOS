@@ -366,23 +366,10 @@ HALO.solitaire = haloSvg(
     gl(G('spade'), 28, 20, 24, '#1E2233') +
     '</g>',
 );
-HALO.sticky = haloSvg(
-  lg('n', [[0, '#FFF59A'], [1, '#FFC93C']]) + lg('cr', [[0, '#F5B300'], [1, '#E09400']], 0, 0, 1, 1) + GLOSS_DEF,
-  '<path d="M12 8h40a4 4 0 0 1 4 4v28L40 56H12a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4Z" fill="url(#n)"/><path d="M56 40H44a4 4 0 0 0-4 4v12Z" fill="url(#cr)"/>' +
-    '<rect x="8" y="8" width="48" height="14" rx="4" fill="url(#gloss)"/>' +
-    '<g class="d" fill="#B9860A" opacity=".55"><rect x="16" y="22" width="26" height="3" rx="1.5"/><rect x="16" y="29" width="30" height="3" rx="1.5"/><rect x="16" y="36" width="18" height="3" rx="1.5"/></g>',
-);
 HALO.todo = haloSvg(
   lg('d', [[0, '#7FA8FF'], [1, '#3346D3']], 0, 0, 1, 1) + GLOSS_DEF,
   '<circle cx="32" cy="32" r="25" fill="url(#d)"/><ellipse cx="32" cy="19" rx="17" ry="9" fill="url(#gloss)"/>' +
     '<path d="M20.5 33.5l7.5 7.5 15.5-17" fill="none" stroke="#fff" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>',
-);
-HALO.translate = haloSvg(
-  lg('a', [[0, '#FFB65C'], [1, '#F2620F']], 0, 0, 1, 1) + lg('b', [[0, '#73C0FF'], [1, '#3F4BE8']], 0, 0, 1, 1) + GLOSS_DEF,
-  '<path d="M26 6h24a8 8 0 0 1 8 8v14a8 8 0 0 1-8 8h-1v6l-7-6H26a8 8 0 0 1-8-8V14a8 8 0 0 1 8-8Z" fill="url(#a)"/>' +
-    '<path class="d" d="M30 15h16M38 12v3M43 15c-1.5 6-5 10-11 12M33 18c1.5 4 5 7.5 10 9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>' +
-    '<path d="M14 24h22a8 8 0 0 1 8 8v14a8 8 0 0 1-8 8H21l-8 6v-6.2A8 8 0 0 1 6 46V32a8 8 0 0 1 8-8Z" fill="url(#b)"/>' +
-    '<path d="M17.5 48.5l7.5-18 7.5 18M20.3 42h9.4" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>',
 );
 // Éditeur vidéo: a clapperboard as a free shape, sky blue to violet
 HALO.weather = haloSvg(
@@ -510,7 +497,6 @@ const PRISME_APPS = {
   files: ['#FFD45C', '#FF8F1F', 'folder-simple'],
   notepad: ['#FFB06A', '#F2602E', 'note-pencil'],
   notes: ['#FFE07A', '#F59E1B', 'notebook'],
-  sticky: ['#FFE98A', '#F2B200', 'note'],
   archive: ['#F7CF84', '#C9822F', 'archive'],
   contacts: ['#FFB98A', '#EF6A3A', 'address-book'],
   pdf: ['#FF8C8C', '#E0303C', 'file-pdf'],
@@ -539,7 +525,6 @@ const PRISME_APPS = {
   weather: ['#7FD3FF', '#2F86F0', 'cloud-sun'],
   browser: ['#5BF2EE', '#139AE6', 'compass'],
   nettools: ['#5FE0F5', '#1676C8', 'network'],
-  translate: ['#6EE8D8', '#1A92C4', ['translate', 'b']],
   // system and tools: teal, green, slate, ink
   calculator: ['#52F0C2', '#0E9F96', 'calculator'],
   maps: ['#8FF0B4', '#1FA87A', 'map-trifold'],

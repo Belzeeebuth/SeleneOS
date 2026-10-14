@@ -342,7 +342,12 @@ collect_packages() {
   ((${#lists[@]})) || die "no package lists in $PACKAGES_DIR"
   {
     printf '%s\t%s\n' "$KERNEL_PACKAGE" "config.sh:KERNEL_PACKAGE"
-    if [[ "$WITH_FIRMWARE" == 1 ]]; then printf '%s\t%s\n' linux-firmware "config.sh:WITH_FIRMWARE"; fi
+    if [[ "$WITH_FIRMWARE" == 1 ]]; then   # desktop firmware only (aurora-firmware-desktop Provides linux-firmware)
+      for f in $FIRMWARE_PACKAGES; do
+        [[ "$f" =~ ^[a-z0-9][a-z0-9+.-]*$ ]] || die "invalid package name '$f' in FIRMWARE_PACKAGES"
+        printf '%s\t%s\n' "$f" "config.sh:FIRMWARE_PACKAGES"
+      done
+    fi
     for f in "${lists[@]}"; do
       while IFS= read -r line || [[ -n "$line" ]]; do
         line="${line%%#*}"
@@ -359,9 +364,10 @@ collect_packages() {
 
 packages_key() { # -> hash of everything except the package list itself
   {
-    echo "rev=3"
+    echo "rev=4"
     echo "$BASE_KEY"
     echo "$MIRROR $COMPONENTS $INSTALL_RECOMMENDS $WITH_FIRMWARE $KERNEL_PACKAGE"
+    [[ "$WITH_FIRMWARE" == 1 ]] && echo "firmware: $FIRMWARE_PACKAGES"
     write_dpkg_excludes /dev/stdout "$KEEP_MANPAGES"
   } | sha256_of_text
 }
@@ -506,6 +512,34 @@ EOF
   echo "$WORK/debs/aurora-firmware-placeholder_1.0_all.deb"
 }
 
+# WITH_FIRMWARE=1: Provides linux-firmware (the kernel metapackage depends on it) and depends on the desktop firmware
+# sub-packages of FIRMWARE_PACKAGES, so the server-only ones of the linux-firmware metapackage are never installed.
+build_firmware_desktop() { # -> path of .deb
+  local d="$WORK/debs/aurora-firmware-desktop" deps
+  deps="$(printf '%s\n' $FIRMWARE_PACKAGES | paste -sd, - | sed 's/,/, /g')"
+  [[ -n "$deps" ]] || die "FIRMWARE_PACKAGES is empty"
+  rm -rf "$d"; mkdir -p "$d/DEBIAN" "$d/usr/share/doc/aurora-firmware-desktop"
+  cat >"$d/DEBIAN/control" <<EOF
+Package: aurora-firmware-desktop
+Version: 1.0
+Architecture: all
+Maintainer: Selene OS <aurora-os@localhost>
+Provides: linux-firmware
+Depends: $deps
+Section: kernel
+Priority: optional
+Description: firmware for desktop and laptop hardware (Selene OS)
+ Stands in for the linux-firmware metapackage: installs its desktop sub-packages
+ (graphics, Wi-Fi, Bluetooth, audio DSPs...) but not the server-only ones (Mellanox
+ Spectrum, Marvell Prestera, Netronome, QLogic). Installing the real linux-firmware
+ metapackage instead is harmless.
+EOF
+  printf 'Selene OS firmware selection. Public domain.\n' >"$d/usr/share/doc/aurora-firmware-desktop/copyright"
+  find "$d" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+  dpkg-deb --root-owner-group -Zxz --build "$d" "$WORK/debs/aurora-firmware-desktop_1.0_all.deb" >/dev/null
+  echo "$WORK/debs/aurora-firmware-desktop_1.0_all.deb"
+}
+
 # Check that every requested package exists; print a clear report otherwise.
 validate_packages() { # root pkglist-file(pkg<TAB>source)
   local r="$1" list="$2" missing
@@ -600,11 +634,10 @@ EOF
     if [[ -n "$skip" ]] && grep -qxF "$p" <<<"$skip"; then continue; fi
     pkgs+=("$p")
   done <"$tsv"
-  if [[ "$WITH_FIRMWARE" != 1 ]]; then
-    local deb; deb="$(build_firmware_placeholder)"
-    cp "$deb" "$r/tmp/"
-    extra+=("/tmp/$(basename "$deb")")
-  fi
+  local deb
+  if [[ "$WITH_FIRMWARE" != 1 ]]; then deb="$(build_firmware_placeholder)"; else deb="$(build_firmware_desktop)"; fi
+  cp "$deb" "$r/tmp/"
+  extra+=("/tmp/$(basename "$deb")")
 
   if [[ "$mode" == full ]]; then
     log "apt-get dist-upgrade (base system -> $SUITE-updates/-security)"
@@ -612,7 +645,7 @@ EOF
   fi
   log "installing ${#pkgs[@]} packages (+dependencies)"
   apt_in "$r" install "${extra[@]}" "${pkgs[@]}" || die "apt-get install failed"
-  rm -f "$r"/tmp/aurora-firmware-placeholder_*.deb
+  rm -f "$r"/tmp/aurora-firmware-placeholder_*.deb "$r"/tmp/aurora-firmware-desktop_*.deb
   # Packages pulled in only as dependencies of removed lists are cleaned up as well.
   apt_in "$r" autoremove --purge
   # Unmount the shared .deb cache *before* "apt-get clean", which would otherwise empty it.

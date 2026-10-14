@@ -533,11 +533,19 @@ if installed linux-image-generic-hwe-24.04; then pass "HWE kernel (linux-image-g
 elif installed linux-image-generic; then warn "GA kernel (linux-image-generic): KERNEL_PACKAGE overridden?"
 else fail "no kernel metapackage installed (the installed system would not get kernel updates)"; fi
 for p in intel-microcode amd64-microcode; do installed "$p" && pass "package $p installed" || warn "package $p missing (CPU microcode updates)"; done
-# Firmware: WITH_FIRMWARE=1 (default) ships linux-firmware; the placeholder only in WITH_FIRMWARE=0 builds.
+# Firmware: WITH_FIRMWARE=1 (default) ships the desktop firmware sub-packages through aurora-firmware-desktop (Provides
+# linux-firmware; iso/config.sh FIRMWARE_PACKAGES) without the server-only ones; the placeholder only in WITH_FIRMWARE=0.
 fwflag="$(sed -n 's/^AURORA_FIRMWARE=//p' "$S/etc/aurora/build-info" 2>/dev/null)"
 if [[ "$fwflag" == 1 ]]; then
-  installed linux-firmware && pass "linux-firmware installed (real hardware)" || fail "linux-firmware not installed although AURORA_FIRMWARE=1"
-  installed aurora-firmware-placeholder && fail "aurora-firmware-placeholder installed next to the real linux-firmware" || pass "no aurora-firmware-placeholder"
+  installed aurora-firmware-desktop && pass "aurora-firmware-desktop installed (desktop firmware, Provides linux-firmware)" \
+    || { installed linux-firmware && warn "the whole linux-firmware metapackage is installed (server firmware included)" || fail "no firmware package although AURORA_FIRMWARE=1"; }
+  installed aurora-firmware-placeholder && fail "aurora-firmware-placeholder installed in a firmware build" || pass "no aurora-firmware-placeholder"
+  for p in linux-firmware-amd-graphics linux-firmware-intel-graphics linux-firmware-intel-wireless linux-firmware-nvidia-graphics linux-firmware-realtek linux-firmware-mediatek linux-firmware-broadcom-wireless firmware-sof-signed; do
+    installed "$p" && pass "package $p installed" || fail "package $p missing (desktop firmware)"
+  done
+  srv=""
+  for p in linux-firmware-mellanox-spectrum linux-firmware-marvell-prestera linux-firmware-netronome linux-firmware-qlogic; do installed "$p" && srv+=" $p"; done
+  [[ -z "$srv" ]] && pass "no server-only firmware (Mellanox, Marvell Prestera, Netronome, QLogic)" || warn "server-only firmware installed:$srv"
   FW="$S/usr/lib/firmware"
   fwcheck() { # description glob...
     local d="$1" g; shift
@@ -552,6 +560,7 @@ if [[ "$fwflag" == 1 ]]; then
   fwcheck "Realtek Wi-Fi rtw89" 'rtw89/*.bin' 'rtw89/*.bin.zst'
   fwcheck "Broadcom Wi-Fi (brcmfmac)" 'brcm/brcmfmac*' 'brcm/brcmfmac*.zst'
   fwcheck "Realtek Bluetooth" 'rtl_bt/*.bin' 'rtl_bt/*.bin.zst'
+  fwcheck "Intel audio DSP (Sound Open Firmware)" 'intel/sof*/*.ri*' 'intel/sof*/*/*.ri*' 'intel/sof*/*/*/*.ri*'
 else
   warn "built with WITH_FIRMWARE=${fwflag:-?}: no linux-firmware (VM image, not for real PCs)"
   installed aurora-firmware-placeholder && pass "aurora-firmware-placeholder stands in for linux-firmware" || fail "neither linux-firmware nor the placeholder installed"

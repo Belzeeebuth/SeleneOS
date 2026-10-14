@@ -52,6 +52,6 @@ The Video Editor was dropped at the user's request (DaVinci Resolve and the Flat
 | Weather | `weather` | Open-Meteo (no API key), city search, 24 h + 7-day forecast, saved places, °C/°F; sets the dynamic wallpaper location |
 | Maps | `maps` | OpenStreetMap tiles in a custom viewer, Nominatim search, saved places. Later: routes (OSRM) |
 | Contacts | `contacts` | JSON store, vCard 3.0/4.0 import/export, favourites, Mail recipient suggestions |
-| Sticky Notes | `sticky` | Small always-on-top note windows, 6 colours, formatting, reopened at start, "Copy to Notes" |
-| Dictionary / Translator | `translate` | MyMemory (default) or LibreTranslate, English dictionary (dictionaryapi.dev), offline EN↔FR glossary |
 | Remote Desktop | `remote` | VNC client in the shell (TCP bridged by the main process). Later: RDP, clipboard, more encodings |
+
+Sticky Notes (`sticky`, « Mémos ») and Dictionary / Translator (`translate`) were removed at the user's request on 2026-10-14 (Notes covers the first; online translation sites in the Navigateur do better than the free MyMemory quota).

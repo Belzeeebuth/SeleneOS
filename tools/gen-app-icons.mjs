@@ -71,12 +71,10 @@ const APPS = {
   snake: ['game-controller', 'sage'],
   snipping: ['bold:scan', 'rose'],
   solitaire: ['spade', 'silver'],
-  sticky: ['note', 'amber'],
   store: ['cube', 'lavender'],
   taskmgr: ['bold:pulse', 'sage'],
   terminal: ['bold:terminal', 'sage'],
   todo: ['check-circle', 'blue'],
-  translate: ['bold:translate', 'teal'],
   weather: ['cloud-sun', 'amber'],
   winver: ['@logo', 'silver'],
 };
@@ -236,7 +234,7 @@ if (args.includes('--sheet')) {
   // the validated names of the brief (docs/design/BRIEF.md), the manifests' names otherwise
   const RENAMED = {
     'special:thispc': 'Ordinateur', 'special:trash': 'Corbeille', default: 'Par défaut', files: 'Fichiers', notepad: 'Éditeur de texte',
-    paint: 'Dessin', sticky: 'Mémos', todo: 'Tâches', media: 'Lecteur', store: 'Logithèque', browser: 'Navigateur', archive: 'Archives',
+    paint: 'Dessin', todo: 'Tâches', media: 'Lecteur', store: 'Logithèque', browser: 'Navigateur', archive: 'Archives',
     taskmgr: 'Moniteur système', snipping: 'Capture d’écran', winver: 'À propos de Selene', installer: 'Installer Selene',
   };
   const label = (id) => {
