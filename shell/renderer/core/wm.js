@@ -23,6 +23,8 @@
 //   wm.on('open'|'close'|'focus'|'change', fn)
 //   wm.anchorProvider = (win) => DOMRect | null      (set by the taskbar for minimize animations)
 //   wm.workarea() -> {x, y, width, height}
+//   wm.reserve(id, { top, right, bottom, left } | null)  extra space a shell part keeps on an edge, added to the bar's
+//       insets (the docked on-screen keyboard, features/osk.js); wm.insets is the sum, wm.baseInsets() the bar's part
 //
 // Additions (window management & navigation):
 //   win.snapTo(zone, { animate = true, source })  zones: left right tl tr bl br third-l third-c third-r
@@ -963,10 +965,27 @@ class WindowManager extends Emitter {
     );
   }
   setInsets(insets) {
-    Object.assign(this.insets, insets);
+    // the bar's insets (taskbar.js) plus what wm.reserve() keeps (nothing reserved: exactly the bar's)
+    this._baseInsets = { ...(this._baseInsets || this.insets), ...insets };
+    const eff = { ...this._baseInsets };
+    for (const r of this._reserved?.values() || []) for (const k of ['top', 'right', 'bottom', 'left']) eff[k] = (eff[k] || 0) + (Number(r[k]) || 0);
+    Object.assign(this.insets, eff);
     // the work area for CSS too (--wa-top/-right/-bottom/-left): global dialogs are centred in it, off the bar
     for (const k of ['top', 'right', 'bottom', 'left']) document.documentElement.style.setProperty(`--wa-${k}`, `${this.insets[k] || 0}px`);
     this._refit();
+  }
+  /** Keep extra space on edges for a shell part (id), or give it back (null). */
+  reserve(id, edges) {
+    this._reserved = this._reserved || new Map();
+    const had = this._reserved.has(id);
+    if (edges && typeof edges === 'object') this._reserved.set(id, { ...edges });
+    else if (had) this._reserved.delete(id);
+    else return;
+    this.setInsets({});
+  }
+  /** The bar's insets, without the reserved space. */
+  baseInsets() {
+    return { ...(this._baseInsets || this.insets) };
   }
   workarea() {
     const i = this.insets;

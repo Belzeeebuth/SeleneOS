@@ -80,6 +80,10 @@ export const PAGES = {
   textSize: { module: 'accessibility', parent: 'accessibility', icon: 'text_font_size', title: { en: 'Text size', fr: 'Taille du texte' }, desc: { en: 'Text size throughout Selene and your apps', fr: 'Taille du texte dans Selene et vos applications' } },
   visualEffects: { module: 'accessibility', parent: 'accessibility', icon: 'eye', title: { en: 'Visual effects', fr: 'Effets visuels' }, desc: { en: 'Transparency, animations', fr: 'Transparence, animations' } },
   screenReader: { module: 'accessibility', parent: 'accessibility', icon: 'chat-centered-text', title: { en: 'Screen reader', fr: 'Lecteur d’écran' }, desc: { en: 'Reads aloud what is on the screen (Orca)', fr: 'Lit à voix haute ce qui est à l’écran (Orca)' } },
+  // « Clavier visuel » (core/features/osk.js; page in pages/accessibility-osk.js)
+  onScreenKeyboard: { module: 'accessibility', parent: 'accessibility', icon: 'keyboard', title: { en: 'On-screen keyboard', fr: 'Clavier visuel' }, desc: { en: 'Type with the mouse or a touch screen', fr: 'Taper avec la souris ou un écran tactile' } },
+  // « Loupe » (core/features/magnifier.js; page in pages/accessibility-magnifier.js)
+  magnifier: { module: 'accessibility', parent: 'accessibility', icon: 'magnifying-glass', title: { en: 'Magnifier', fr: 'Loupe' }, desc: { en: 'Enlarge the screen, follow the pointer, invert colours', fr: 'Agrandir l’écran, suivre le pointeur, inverser les couleurs' } },
   // Privacy
   privacy: { module: 'privacy', icon: 'shield', title: { en: 'Privacy', fr: 'Confidentialité' } },
   // Update
@@ -158,6 +162,11 @@ export const ALIASES = {
   screenreader: 'screenReader',
   narrator: 'screenReader',
   'easeofaccess-narrator': 'screenReader',
+  osk: 'onScreenKeyboard',
+  onscreenkeyboard: 'onScreenKeyboard',
+  'easeofaccess-keyboard': 'onScreenKeyboard',
+  loupe: 'magnifier',
+  'easeofaccess-magnifier': 'magnifier',
   orca: 'screenReader',
   'privacy-security': 'privacy',
   security: 'privacy',
@@ -370,6 +379,11 @@ const ENTRIES = [
   ['accessibility', null, 'accessibility', 'Accessibility', 'Accessibilité', 'ease of access vision', 'options d’ergonomie vision'],
   ['screenReader', null, 'chat-centered-text', 'Screen reader', 'Lecteur d’écran', 'narrator orca speech voice blind read aloud tts', 'narrateur orca synthèse vocale voix aveugle lire voix haute'],
   ['screenReader', 'rate', 'gauge', 'Screen reader speech rate', 'Vitesse de la voix du lecteur d’écran', 'narrator orca speed fast slow', 'narrateur orca vitesse rapide lent'],
+  ['onScreenKeyboard', null, 'keyboard', 'On-screen keyboard', 'Clavier visuel', 'osk virtual touch keyboard screen tablet type mouse', 'osk virtuel tactile clavier écran tablette taper souris'],
+  ['onScreenKeyboard', 'autoShow', 'keyboard', 'Show the on-screen keyboard in text fields', 'Afficher le clavier visuel dans les champs de texte', 'touch screen tablet automatic', 'écran tactile tablette automatique'],
+  ['magnifier', null, 'magnifying-glass', 'Magnifier', 'Loupe', 'zoom enlarge magnify bigger screen low vision', 'zoom agrandir grossir écran malvoyant'],
+  ['magnifier', 'zoom', 'magnifying-glass-plus', 'Magnifier zoom level', 'Niveau de zoom de la loupe', 'zoom increment percent', 'zoom incrément pourcentage'],
+  ['magnifier', null, 'circle-half', 'Invert colours', 'Inverser les couleurs', 'invert colors negative magnifier', 'inverser couleurs négatif loupe'],
   ['textSize', null, 'text_font_size', 'Text size', 'Taille du texte', 'bigger font zoom', 'police plus grande zoom'],
   ['visualEffects', 'animations', 'sparkle', 'Animation effects', 'Effets d’animation', 'motion reduce', 'mouvement réduire'],
   ['visualEffects', 'transparency', 'blur', 'Transparency effects', 'Effets de transparence', 'acrylic mica', 'acrylique'],

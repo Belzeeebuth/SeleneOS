@@ -39,24 +39,29 @@ const [BASE_TOP, BASE_BOTTOM] = ICON_LOOKS.cold.dark;
 const APPS = {
   archive: ['archive', 'sand'],
   backup: ['clock-counter-clockwise', 'teal'],
+  books: ['book-open-text', 'sage'], // Livres
   browser: ['compass', 'blue'],
   calculator: ['calculator', 'silver'],
   calendar: ['calendar-dots', 'rose'],
   camera: ['camera', 'terra'],
   chess: ['horse', 'sand'],
   clock: ['clock', 'silver'],
-  code: ['bold:code', 'teal'],
   cloud: ['cloud', 'blue'],
+  code: ['bold:code', 'teal'],
   contacts: ['address-book', 'lavender'],
   disks: ['hard-drives', 'silver'],
+  feeds: ['rss', 'amber'], // Podcasts et actus
   files: ['folder-simple', 'amber'],
+  fonts: ['text-aa', 'rose'], // Polices
   game2048: ['number-square-two', 'terra'], // (not squares-four: a 2 × 2 grid of squares reads as the Windows logo)
+  help: ['lifebuoy', 'terra'], // Aide
   installer: ['download-simple', 'blue'],
+  logs: ['list-magnifying-glass', 'silver'], // Journaux système
   mail: ['envelope-simple', 'blue'],
   maps: ['map-trifold', 'sage'],
   media: ['play-circle', 'rose'],
-  music: ['music-notes', 'lavender'], // launcher alias of the Lecteur (apps/music/manifest.json "alias")
   minesweeper: ['flag', 'terra'],
+  music: ['music-notes', 'lavender'], // launcher alias of the Lecteur (apps/music/manifest.json "alias")
   nettools: ['network', 'teal'],
   notepad: ['file-text', 'silver'],
   notes: ['notebook', 'sand'],
@@ -66,6 +71,7 @@ const APPS = {
   photos: ['image', 'teal'],
   recorder: ['microphone', 'rose'],
   remote: ['screencast', 'blue'],
+  scan: ['scan', 'sand'], // Numérisation (Capture d'écran: the bold line form, rose)
   screenrec: ['record', 'terra'], // Enregistreur d'écran: the « rec » ring and dot
   settings: ['gear-six', 'silver'],
   snake: ['game-controller', 'sage'],

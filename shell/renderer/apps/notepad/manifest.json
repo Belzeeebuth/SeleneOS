@@ -12,5 +12,6 @@
     "fr": ["texte", "éditeur", "txt", "notes", "écrire", "bloc-notes", "modifier"]
   },
   "singleInstance": true,
-  "fileTypes": [".txt", ".md", ".log", ".ini", ".conf", ".cfg", ".csv", ".json", ".xml", ".yml", ".yaml", ".sh", ".py", ".js", ".css", ".c", ".h", ".cpp", ".rs", ".go", ".java", ".toml", ".srt"]
+  "fileTypes": [".txt", ".md", ".log", ".ini", ".conf", ".cfg", ".csv", ".json", ".xml", ".yml", ".yaml", ".sh", ".py", ".js", ".css", ".c", ".h", ".cpp", ".rs", ".go", ".java", ".toml", ".srt"],
+  "defaultFor": [".txt", ".md", ".log", ".ini", ".conf", ".cfg", ".csv", ".srt"]
 }

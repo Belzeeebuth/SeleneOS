@@ -1,0 +1,362 @@
+/* Emoji and symbols panel (features/emoji.js, Super+. / Super+;). Flat, opaque surface like the clipboard history
+   (hotkeys.css .cliph); tokens only. Emoji draw with --font-emoji (Noto Color Emoji). */
+.emo {
+  --emo-cell: 40px;
+  position: fixed;
+  z-index: 60;
+  width: calc(var(--emo-cell) * 9 + 34px);
+  height: min(464px, calc(100vh - 76px));
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-float, var(--radius-lg));
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-dialog);
+  color: var(--text);
+  outline: none;
+  overflow: hidden;
+  animation: emo-in var(--dur-slow) var(--ease);
+}
+.emo.closing {
+  animation: emo-out 140ms var(--ease-in) forwards;
+  pointer-events: none;
+}
+@keyframes emo-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes emo-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* header: tabs + pin + close */
+.emo-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 6px 8px 0 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.emo-tabs {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+  gap: 2px;
+}
+.emo-tab {
+  padding: 8px 10px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-small);
+}
+.emo-head-tools {
+  display: flex;
+  gap: 2px;
+  padding-bottom: 6px;
+}
+.emo-pin.toggled {
+  color: var(--accent-text);
+}
+
+/* search */
+.emo-search {
+  position: relative;
+  padding: 10px 12px 6px;
+}
+.emo-search > .icon {
+  position: absolute;
+  left: 23px;
+  top: 50%;
+  margin-top: 2px;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  pointer-events: none;
+}
+.emo-q {
+  width: 100%;
+  padding-left: 34px;
+}
+.emo-q::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+/* categories / groups + skin tone */
+.emo-cats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px 4px;
+}
+.emo-cats[hidden] {
+  display: none;
+}
+.emo-cat-list {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 1px;
+  overflow: hidden;
+}
+.emo-cat {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  height: 32px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.emo-cat:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.emo-cat.selected {
+  color: var(--accent-text);
+  background: var(--subtle-selected);
+}
+.emo-cat.selected::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 1px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+.emo-cat-text {
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+.emo-cat-kao {
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  white-space: nowrap;
+  min-width: 0;
+  padding: 0 5px;
+}
+.emo-cat:focus-visible,
+.emo-tone-btn:focus-visible,
+.emo-tone:focus-visible,
+.emo-cell:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.emo-tone-btn {
+  flex: none;
+  width: 34px;
+  height: 32px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+}
+.emo-tone-btn:hover {
+  background: var(--subtle-hover);
+}
+.emo-glyph {
+  font-family: var(--font-emoji);
+  font-size: 18px;
+  line-height: 1;
+}
+.emo-tones {
+  position: absolute;
+  right: 10px;
+  top: 128px;
+  z-index: 1;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-flyout);
+  animation: emo-in var(--dur) var(--ease);
+}
+.emo-tone {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+}
+.emo-tone:hover {
+  background: var(--subtle-hover);
+}
+.emo-tone.selected {
+  background: var(--sel-bg);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.emo-tone .emo-glyph {
+  font-size: 22px;
+}
+
+/* grid */
+.emo-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 8px 8px 12px;
+  scrollbar-gutter: stable;
+}
+.emo-h {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 6px 2px 4px;
+  background: var(--surface-raised);
+  color: var(--text-2);
+  font-weight: 600;
+}
+.emo-grid {
+  display: grid;
+  grid-template-columns: repeat(9, var(--emo-cell));
+  margin-bottom: 4px;
+}
+.emo-grid-kaomoji {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding-right: 4px;
+}
+.emo-cell {
+  width: var(--emo-cell);
+  height: var(--emo-cell);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  line-height: 1;
+  user-select: none;
+  transition: background var(--dur-fast) var(--ease);
+}
+.emo-cell:hover {
+  background: var(--subtle-hover);
+}
+.emo-cell:active {
+  background: var(--subtle-pressed);
+}
+.emo-cell:focus-visible {
+  background: var(--sel-bg);
+}
+.emo-cell.emo-emoji {
+  font-family: var(--font-emoji);
+  font-size: 24px;
+}
+.emo-cell.emo-symbols {
+  font-family: var(--font);
+  font-size: 20px;
+}
+.emo-cell.emo-cell-label {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-2);
+  border: 1px dashed var(--line);
+  width: calc(var(--emo-cell) - 4px);
+  height: calc(var(--emo-cell) - 4px);
+  margin: 2px;
+}
+.emo-cell.emo-kaomoji {
+  width: auto;
+  height: 36px;
+  padding: 0 6px;
+  font-family: var(--font);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--bg);
+  border: 1px solid var(--line-soft);
+}
+.emo-cell.emo-kaomoji:hover {
+  background: var(--subtle-hover);
+}
+.emo-empty {
+  padding: 28px 16px;
+  text-align: center;
+}
+
+/* footer: name of the focused / hovered item */
+.emo-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 14px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-alt);
+}
+.emo-prev-c {
+  flex: none;
+  font-size: 22px;
+  line-height: 1;
+}
+.emo-prev-c.emo-emoji {
+  font-family: var(--font-emoji);
+}
+.emo-prev-c.emo-kaomoji {
+  font-size: var(--fs-small);
+}
+.emo-prev-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-small);
+  color: var(--text);
+}
+.emo-prev-name::first-letter {
+  text-transform: uppercase;
+}
+.emo-hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* « Copié — collez avec Ctrl+V » */
+.emo-status {
+  position: fixed;
+  z-index: 61;
+  left: 50%;
+  bottom: 72px;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border-radius: var(--radius-float, var(--radius-lg));
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-flyout);
+  color: var(--text);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  animation: emo-status-in var(--dur-slow) var(--ease);
+  pointer-events: none;
+}
+.emo-status.closing {
+  opacity: 0;
+  transition: opacity 160ms var(--ease-in);
+}
+@keyframes emo-status-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+}

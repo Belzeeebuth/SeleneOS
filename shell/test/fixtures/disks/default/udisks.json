@@ -1,0 +1,1262 @@
+{
+ "managedObjects": {
+  "type": "a{oa{sa{sv}}}",
+  "data": [
+   {
+    "/org/freedesktop/UDisks2/Manager": {
+     "org.freedesktop.UDisks2.Manager": {
+      "Version": {
+       "type": "s",
+       "data": "2.10.1"
+      },
+      "SupportedFilesystems": {
+       "type": "as",
+       "data": [
+        "nilfs2",
+        "btrfs",
+        "swap",
+        "ext3",
+        "udf",
+        "xfs",
+        "f2fs",
+        "ext2",
+        "exfat",
+        "ntfs",
+        "ext4",
+        "vfat",
+        "reiserfs"
+       ]
+      },
+      "SupportedEncryptionTypes": {
+       "type": "as",
+       "data": [
+        "luks1",
+        "luks2"
+       ]
+      },
+      "DefaultEncryptionType": {
+       "type": "s",
+       "data": "luks1"
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/drives/Aurora_NVMe_SSD_512GB_AUR0NVME00042": {
+     "org.freedesktop.UDisks2.Drive": {
+      "Vendor": {
+       "type": "s",
+       "data": ""
+      },
+      "Model": {
+       "type": "s",
+       "data": "Aurora NVMe SSD 512GB"
+      },
+      "Revision": {
+       "type": "s",
+       "data": "2B2QEXM7"
+      },
+      "Serial": {
+       "type": "s",
+       "data": "AUR0NVME00042"
+      },
+      "WWN": {
+       "type": "s",
+       "data": "eui.aur0nvme00042000"
+      },
+      "Id": {
+       "type": "s",
+       "data": "Aurora-NVMe-SSD-512GB-AUR0NVME00042"
+      },
+      "Media": {
+       "type": "s",
+       "data": ""
+      },
+      "MediaCompatibility": {
+       "type": "as",
+       "data": []
+      },
+      "MediaRemovable": {
+       "type": "b",
+       "data": false
+      },
+      "MediaAvailable": {
+       "type": "b",
+       "data": true
+      },
+      "MediaChangeDetected": {
+       "type": "b",
+       "data": true
+      },
+      "Size": {
+       "type": "t",
+       "data": 512110190592
+      },
+      "TimeDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "TimeMediaDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "Optical": {
+       "type": "b",
+       "data": false
+      },
+      "OpticalBlank": {
+       "type": "b",
+       "data": false
+      },
+      "RotationRate": {
+       "type": "i",
+       "data": 0
+      },
+      "ConnectionBus": {
+       "type": "s",
+       "data": ""
+      },
+      "Seat": {
+       "type": "s",
+       "data": "seat0"
+      },
+      "Removable": {
+       "type": "b",
+       "data": false
+      },
+      "Ejectable": {
+       "type": "b",
+       "data": false
+      },
+      "SortKey": {
+       "type": "s",
+       "data": "01hotplug/nvme0n1"
+      },
+      "CanPowerOff": {
+       "type": "b",
+       "data": false
+      },
+      "SiblingId": {
+       "type": "s",
+       "data": ""
+      }
+     },
+     "org.freedesktop.UDisks2.NVMe.Controller": {
+      "State": {
+       "type": "s",
+       "data": "live"
+      },
+      "ControllerID": {
+       "type": "q",
+       "data": 1
+      },
+      "SubsystemNQN": {
+       "type": "ay",
+       "data": [110,113,110,46,50,48,49,52,46,48,56,46,111,114,103,46,110,118,109,101,120,112,114,101,115,115,58,49,52,52,100,49,52,52,100,65,85,82,48,78,86,77,69,48,48,48,52,50,65,117,114,111,114,97,32,78,86,77,101,32,83,83,68,32,53,49,50,71,66,0]
+      },
+      "FGUID": {
+       "type": "s",
+       "data": ""
+      },
+      "NVMeRevision": {
+       "type": "s",
+       "data": "2.0"
+      },
+      "UnallocatedCapacity": {
+       "type": "t",
+       "data": 0
+      },
+      "SmartUpdated": {
+       "type": "t",
+       "data": 1792000000
+      },
+      "SmartCriticalWarning": {
+       "type": "as",
+       "data": []
+      },
+      "SmartPowerOnHours": {
+       "type": "t",
+       "data": 1530
+      },
+      "SmartTemperature": {
+       "type": "q",
+       "data": 310
+      },
+      "SmartSelftestStatus": {
+       "type": "s",
+       "data": "success"
+      },
+      "SmartSelftestPercentRemaining": {
+       "type": "i",
+       "data": -1
+      },
+      "SanitizeStatus": {
+       "type": "s",
+       "data": "never_sanitized"
+      },
+      "SanitizePercentRemaining": {
+       "type": "i",
+       "data": -1
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/nvme0n1": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,105,100,47,65,117,114,111,114,97,95,78,86,77,101,95,83,83,68,95,53,49,50,71,66,95,65,85,82,48,78,86,77,69,48,48,48,52,50,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2049
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-id-Aurora_NVMe_SSD_512GB_AUR0NVME00042"
+      },
+      "Size": {
+       "type": "t",
+       "data": 512110190592
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/Aurora_NVMe_SSD_512GB_AUR0NVME00042"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": ""
+      },
+      "IdType": {
+       "type": "s",
+       "data": ""
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": ""
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": ""
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.PartitionTable": {
+      "Partitions": {
+       "type": "ao",
+       "data": [
+        "/org/freedesktop/UDisks2/block_devices/nvme0n1p1",
+        "/org/freedesktop/UDisks2/block_devices/nvme0n1p2",
+        "/org/freedesktop/UDisks2/block_devices/nvme0n1p3"
+       ]
+      },
+      "Type": {
+       "type": "s",
+       "data": "gpt"
+      }
+     },
+     "org.freedesktop.UDisks2.NVMe.Namespace": {
+      "NSID": {
+       "type": "u",
+       "data": 1
+      },
+      "NGUID": {
+       "type": "s",
+       "data": ""
+      },
+      "EUI64": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "WWN": {
+       "type": "s",
+       "data": ""
+      },
+      "NamespaceSize": {
+       "type": "t",
+       "data": 1000215216
+      },
+      "NamespaceCapacity": {
+       "type": "t",
+       "data": 1000215216
+      },
+      "NamespaceUtilization": {
+       "type": "t",
+       "data": 500107608
+      },
+      "FormatPercentRemaining": {
+       "type": "i",
+       "data": -1
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/nvme0n1p1": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,112,49,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,112,49,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,54,65,49,67,45,48,70,51,69,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2066
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-6A1C-0F3E"
+      },
+      "Size": {
+       "type": "t",
+       "data": 536870912
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/Aurora_NVMe_SSD_512GB_AUR0NVME00042"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "filesystem"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "vfat"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": "FAT32"
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "6A1C-0F3E"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 1
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 1048576
+      },
+      "Size": {
+       "type": "t",
+       "data": 536870912
+      },
+      "Name": {
+       "type": "s",
+       "data": "EFI System Partition"
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/nvme0n1"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Filesystem": {
+      "MountPoints": {
+       "type": "aay",
+       "data": [
+        [47,98,111,111,116,47,101,102,105,0]
+       ]
+      },
+      "Size": {
+       "type": "t",
+       "data": 535822336
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/nvme0n1p2": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,112,50,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,112,50,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,51,102,49,100,50,97,53,101,45,56,97,49,98,45,52,99,55,55,45,57,100,50,101,45,52,98,49,102,54,101,48,99,50,97,49,49,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2067
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-3f1d2a5e-8a1b-4c77-9d2e-4b1f6e0c2a11"
+      },
+      "Size": {
+       "type": "t",
+       "data": 494927642624
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/Aurora_NVMe_SSD_512GB_AUR0NVME00042"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "filesystem"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "ext4"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": "1.0"
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": "Aurora"
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "3f1d2a5e-8a1b-4c77-9d2e-4b1f6e0c2a11"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 2
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 537919488
+      },
+      "Size": {
+       "type": "t",
+       "data": 494927642624
+      },
+      "Name": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/nvme0n1"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Filesystem": {
+      "MountPoints": {
+       "type": "aay",
+       "data": [
+        [47,0]
+       ]
+      },
+      "Size": {
+       "type": "t",
+       "data": 494926594048
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/nvme0n1p3": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,112,51,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,112,51,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,48,98,55,102,52,99,50,100,45,49,101,53,53,45,52,97,48,102,45,57,97,51,97,45,53,99,50,98,57,101,49,100,55,102,54,48,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2068
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-0b7f4c2d-1e55-4a0f-9a3a-5c2b9e1d7f60"
+      },
+      "Size": {
+       "type": "t",
+       "data": 16644997120
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/Aurora_NVMe_SSD_512GB_AUR0NVME00042"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "other"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "swap"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": "1"
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "0b7f4c2d-1e55-4a0f-9a3a-5c2b9e1d7f60"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 3
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 495467888640
+      },
+      "Size": {
+       "type": "t",
+       "data": 16644997120
+      },
+      "Name": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/nvme0n1"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Swapspace": {
+      "Active": {
+       "type": "b",
+       "data": true
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/drives/SanDisk_Ultra_4C530001230817115384": {
+     "org.freedesktop.UDisks2.Drive": {
+      "Vendor": {
+       "type": "s",
+       "data": "SanDisk"
+      },
+      "Model": {
+       "type": "s",
+       "data": "Ultra"
+      },
+      "Revision": {
+       "type": "s",
+       "data": "1.00"
+      },
+      "Serial": {
+       "type": "s",
+       "data": "4C530001230817115384"
+      },
+      "WWN": {
+       "type": "s",
+       "data": ""
+      },
+      "Id": {
+       "type": "s",
+       "data": "SanDisk-Ultra-4C530001230817115384"
+      },
+      "Media": {
+       "type": "s",
+       "data": "thumb"
+      },
+      "MediaCompatibility": {
+       "type": "as",
+       "data": [
+        "thumb"
+       ]
+      },
+      "MediaRemovable": {
+       "type": "b",
+       "data": true
+      },
+      "MediaAvailable": {
+       "type": "b",
+       "data": true
+      },
+      "MediaChangeDetected": {
+       "type": "b",
+       "data": true
+      },
+      "Size": {
+       "type": "t",
+       "data": 30752636928
+      },
+      "TimeDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "TimeMediaDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "Optical": {
+       "type": "b",
+       "data": false
+      },
+      "OpticalBlank": {
+       "type": "b",
+       "data": false
+      },
+      "RotationRate": {
+       "type": "i",
+       "data": -1
+      },
+      "ConnectionBus": {
+       "type": "s",
+       "data": "usb"
+      },
+      "Seat": {
+       "type": "s",
+       "data": "seat0"
+      },
+      "Removable": {
+       "type": "b",
+       "data": true
+      },
+      "Ejectable": {
+       "type": "b",
+       "data": true
+      },
+      "SortKey": {
+       "type": "s",
+       "data": "01hotplug/sdb"
+      },
+      "CanPowerOff": {
+       "type": "b",
+       "data": true
+      },
+      "SiblingId": {
+       "type": "s",
+       "data": ""
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/sdb": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,98,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,98,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,105,100,47,85,108,116,114,97,95,52,67,53,51,48,48,48,49,50,51,48,56,49,55,49,49,53,51,56,52,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2065
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-id-Ultra_4C530001230817115384"
+      },
+      "Size": {
+       "type": "t",
+       "data": 30752636928
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/SanDisk_Ultra_4C530001230817115384"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": ""
+      },
+      "IdType": {
+       "type": "s",
+       "data": ""
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": ""
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": ""
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": false
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": true
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.PartitionTable": {
+      "Partitions": {
+       "type": "ao",
+       "data": [
+        "/org/freedesktop/UDisks2/block_devices/sdb1"
+       ]
+      },
+      "Type": {
+       "type": "s",
+       "data": "dos"
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/sdb1": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,98,49,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,98,49,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,66,50,69,52,45,57,49,67,55,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2082
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-B2E4-91C7"
+      },
+      "Size": {
+       "type": "t",
+       "data": 30751588352
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/SanDisk_Ultra_4C530001230817115384"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "filesystem"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "vfat"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": "FAT32"
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": "USB STICK"
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "B2E4-91C7"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": false
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": true
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 1
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 1048576
+      },
+      "Size": {
+       "type": "t",
+       "data": 30751588352
+      },
+      "Name": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/sdb"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Filesystem": {
+      "MountPoints": {
+       "type": "aay",
+       "data": [
+        [47,109,101,100,105,97,47,117,115,101,114,47,85,83,66,32,83,84,73,67,75,0]
+       ]
+      },
+      "Size": {
+       "type": "t",
+       "data": 30750539776
+      }
+     }
+    }
+   }
+  ]
+ },
+ "attributes": {
+  "/org/freedesktop/UDisks2/drives/Aurora_NVMe_SSD_512GB_AUR0NVME00042": {
+   "type": "a{sv}",
+   "data": [
+    {
+     "avail_spare": {
+      "type": "y",
+      "data": 100
+     },
+     "spare_thresh": {
+      "type": "y",
+      "data": 10
+     },
+     "percent_used": {
+      "type": "y",
+      "data": 3
+     },
+     "total_data_read": {
+      "type": "t",
+      "data": 12754000000000
+     },
+     "total_data_written": {
+      "type": "t",
+      "data": 9631000000000
+     },
+     "ctrl_busy_time": {
+      "type": "t",
+      "data": 912
+     },
+     "power_cycles": {
+      "type": "t",
+      "data": 688
+     },
+     "unsafe_shutdowns": {
+      "type": "t",
+      "data": 14
+     },
+     "media_errors": {
+      "type": "t",
+      "data": 0
+     },
+     "num_err_log_entries": {
+      "type": "t",
+      "data": 0
+     },
+     "temp_sensors": {
+      "type": "aq",
+      "data": [310,316,0,0,0,0,0,0]
+     },
+     "wctemp": {
+      "type": "q",
+      "data": 357
+     },
+     "cctemp": {
+      "type": "q",
+      "data": 361
+     },
+     "warning_temp_time": {
+      "type": "u",
+      "data": 0
+     },
+     "critical_temp_time": {
+      "type": "u",
+      "data": 0
+     }
+    }
+   ]
+  }
+ },
+ "fake": {}
+}

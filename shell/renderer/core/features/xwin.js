@@ -4,7 +4,11 @@
 //
 //   ctx.xwin = { frames: Map(xid -> { id, win, info }), holes() -> CSS rects, refresh() }
 //   win.xwin = xid  on every external frame (taskbar / Alt+Tab / Task view use the window icon).
-const OCCLUDERS = ['#taskbar', '#start.open', '#flyouts > *', '#toasts > *', 'body > .menu', 'body > .flyout', '#overlays > *', '.snap-preview.show', '.tooltip'];
+// « Loupe » (core/features/magnifier.js, ctx.magnifier.xwinState()): while the view is magnified the shell is not cut
+// (it shows live copies of the clients) and the pointer reaches a client only through the shell's X input shape
+// (xwin:input), and only while the view shows every point under the pointer at its real place (pointer tracking).
+//   ctx.xwin.blockInput() -> Promise   no client takes the pointer any more (the view is about to leave the pointer)
+const OCCLUDERS = ['#taskbar', '#start.open', '#flyouts > *', '#toasts > *', 'body > .menu', 'body > .flyout', '#overlays > *', '.snap-preview.show', '.tooltip', '.mag-toolbar:popover-open', '.mag-pill:popover-open'];
 const STUCK_MS = 5000;
 
 export async function mount(ctx) {
@@ -19,6 +23,7 @@ export async function mount(ctx) {
   const send = (cmd) => api.send('xwin:cmd', cmd);
   let xFocus = null; // XID with X input focus (null: the shell)
   let lastHoles = '';
+  let lastInput = 'null'; // input shape sent to main: 'null' = none (follows the cut), else JSON of the CSS holes
   let lastStack = '';
   let timer = 0;
   let raf = 0;
@@ -58,6 +63,19 @@ export async function mount(ctx) {
     const st = { fullscreen: !!win.fullscreen, maximized: win.state === 'maximized', minimized: !!win.minimized };
     const key = JSON.stringify(st);
     if (key === rec.stateKey) return;
+    // Loupe: no live copy of the client may be starting when it becomes iconic (magnifier.js beforeIconic)
+    if (st.minimized) {
+      if (rec.iconicWait) return; // sent once the copy is gone
+      const wait = ctx.magnifier?.beforeIconic?.(rec.id);
+      if (wait) {
+        rec.iconicWait = wait;
+        wait.finally(() => {
+          rec.iconicWait = null;
+          if (frames.get(rec.id) === rec) sendState(rec);
+        });
+        return;
+      }
+    }
     rec.stateKey = key;
     send({ cmd: 'state', id: rec.id, ...st });
   }
@@ -104,14 +122,25 @@ export async function mount(ctx) {
     });
     return out;
   }
+  function sendInput(list) {
+    const key = list == null ? 'null' : JSON.stringify(list);
+    if (key === lastInput) return Promise.resolve();
+    lastInput = key;
+    return api.invoke('xwin:input', list).catch(() => {});
+  }
   function refresh() {
     raf = 0;
     const hs = holes();
-    const key = JSON.stringify(hs);
+    const mag = ctx.magnifier?.xwinState?.() || null;
+    const shape = mag?.magnified ? [] : hs;
+    const key = JSON.stringify(shape);
     if (key !== lastHoles) {
       lastHoles = key;
-      api.send('xwin:shape', hs);
+      api.send('xwin:shape', shape);
     }
+    // magnified: the holes are where the clients really are; they get the pointer there only when the view is exact
+    if (mag?.magnified) sendInput(mag.exact ? hs : []);
+    else sendInput(null);
     // keep the X stacking order in step with the frames (bottom -> top)
     const ids = wm
       .stack()
@@ -354,6 +383,8 @@ export async function mount(ctx) {
       case 'reset':
         for (const id of [...frames.keys()]) remove(id);
         xFocus = null;
+        lastHoles = '';
+        lastInput = 'null'; // main dropped the input shape with the helper
         break;
       default:
         break;
@@ -393,7 +424,9 @@ export async function mount(ctx) {
     schedule();
   });
 
-  ctx.xwin = { frames, holes, refresh, status, get xFocus() { return xFocus; } };
+  const blockInput = () => (frames.size && lastInput !== '[]' ? sendInput([]) : Promise.resolve());
+  ctx.xwin = { frames, holes, refresh, schedule, blockInput, status, get xFocus() { return xFocus; } };
+  api.invoke('xwin:input', null).catch(() => {}); // a reloaded page starts with no input shape
   api.on('xwin:event', onEvent);
   const list = await api.invoke('xwin:list').catch(() => []);
   for (const info of Array.isArray(list) ? list : []) if (!frames.has(info.id)) onEvent({ ...info, ev: 'new' });

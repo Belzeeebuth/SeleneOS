@@ -18,11 +18,11 @@ const KINDS = {
   archive: ['.zip', '.tar', '.gz', '.tgz', '.xz', '.txz', '.bz2', '.tbz', '.tbz2', '.7z', '.rar', '.zst', '.tzst', '.lz', '.lzma', '.cab'],
   package: ['.deb', '.rpm', '.snap', '.flatpak'],
   pdf: ['.pdf'],
-  doc: ['.doc', '.docx', '.odt', '.rtf', '.pages'],
+  doc: ['.doc', '.docx', '.odt', '.rtf', '.pages', '.epub'],
   sheet: ['.xls', '.xlsx', '.ods', '.csv', '.tsv', '.numbers'],
   slides: ['.ppt', '.pptx', '.odp', '.key'],
   disc: ['.iso', '.img', '.dmg'],
-  font: ['.ttf', '.otf', '.woff', '.woff2'],
+  font: ['.ttf', '.otf', '.ttc', '.otc', '.woff', '.woff2'],
   mail: ['.eml', '.msg', '.mbox'],
 };
 const KIND_OF = new Map();
@@ -46,7 +46,7 @@ export const isTextLike = (e) => {
 const NAMED_TYPES = {
   '.txt': 'text', '.log': 'log', '.md': 'markdown', '.markdown': 'markdown', '.pdf': 'pdf', '.zip': 'zip', '.bmp': 'bitmap',
   '.svg': 'svg', '.mp3': 'mp3', '.html': 'html', '.htm': 'html', '.js': 'javascript', '.mjs': 'javascript', '.py': 'python',
-  '.sh': 'shell', '.bash': 'shell', '.deb': 'deb', '.iso': 'iso', '.img': 'iso', '.desktop': 'desktop', '.ttf': 'ttf', '.otf': 'otf',
+  '.sh': 'shell', '.bash': 'shell', '.deb': 'deb', '.iso': 'iso', '.img': 'iso', '.desktop': 'desktop', '.ttf': 'ttf', '.otf': 'otf', '.ttc': 'ttc', '.otc': 'ttc', '.epub': 'epub',
   '.tar': 'archive', '.gz': 'archive', '.tgz': 'archive', '.xz': 'archive', '.txz': 'archive', '.bz2': 'archive', '.7z': 'archive',
   '.rar': 'archive', '.zst': 'archive', '.css': 'css', '.json': 'json', '.csv': 'csv', '.appimage': 'app', '.eml': 'eml',
 };

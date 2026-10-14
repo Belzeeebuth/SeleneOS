@@ -10,6 +10,8 @@ node_modules/
 # The repository root ignores every "bin/" directory (generic template): keep the image's
 # /usr/bin scripts (aurora-shell, aurora-session) in git.
 !/rootfs/usr/bin/
+# and the fake scanimage that test/scan.test.mjs puts first on PATH
+!/shell/test/fixtures/scan/bin/
 
 # Selene archive signing key (private; tools/selene-key.sh). Only iso/keys/*.gpg (public) is committed.
 /keys/

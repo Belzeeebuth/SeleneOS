@@ -1,0 +1,953 @@
+/* Podcasts & News (« Podcasts et actus »). Scoped under .app-feeds; tokens only (docs/design/SYSTEM.md).
+   Layouts (data-layout on .fd, from the window width): wide = subscriptions | list | reader; medium = subscriptions |
+   list or reader (data-pane); narrow = list or reader, the subscriptions slide in over them (data-nav="open"). */
+.app-feeds [hidden] {
+  display: none !important;
+}
+.app-feeds .fd {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--text);
+  font: var(--fs-body) / 1.4 var(--font);
+}
+.app-feeds .fd-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.app-feeds .fd-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.app-feeds .fd-audio {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ artwork */
+.app-feeds .fd-art {
+  flex: none;
+  display: block;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--layer);
+}
+.app-feeds .fd-letter {
+  display: grid;
+  place-items: center;
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1;
+}
+.app-feeds .fd-art-xs { width: 20px; height: 20px; border-radius: var(--radius-xs); font-size: 11px; }
+.app-feeds .fd-art-sm { width: 40px; height: 40px; font-size: 16px; }
+.app-feeds .fd-art-md { width: 52px; height: 52px; font-size: 20px; }
+.app-feeds .fd-art-lg { width: 148px; height: 148px; border-radius: var(--radius); font-size: 48px; }
+
+/* ------------------------------------------------------------------ subscriptions pane */
+.app-feeds .fd-nav {
+  width: 256px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-alt);
+  border-right: 1px solid var(--line-soft);
+}
+.app-feeds .fd-nav-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 10px 8px 12px;
+}
+.app-feeds .fd-add {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.app-feeds .fd-nav-head .fd-add .lbl {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-feeds .fd-refresh.spinning .icon {
+  animation: fd-spin 1s linear infinite;
+}
+:root[data-animations="off"] .app-feeds .fd-refresh.spinning .icon {
+  animation: none;
+  opacity: 0.6;
+}
+@keyframes fd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.app-feeds .fd-nav-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 8px 8px;
+}
+.app-feeds .fd-views,
+.app-feeds .fd-subs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-feeds .fd-nav .nav-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  gap: 10px;
+  padding: 0 10px;
+  cursor: default;
+}
+.app-feeds .fd-nav .nav-item:hover {
+  background: var(--subtle-hover);
+}
+.app-feeds .fd-nav .nav-item.selected {
+  background: var(--sel-bg);
+}
+.app-feeds .fd-nav .nav-item.nested {
+  padding-left: 30px;
+}
+.app-feeds .fd-nav-label {
+  flex: 1;
+  min-width: 0;
+}
+.app-feeds .fd-count {
+  flex: none;
+  min-width: 18px;
+  text-align: right;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.app-feeds .nav-item.selected .fd-count {
+  color: var(--accent-text);
+}
+.app-feeds .fd-nav-error {
+  flex: none;
+  display: inline-flex;
+  color: var(--warning);
+}
+.app-feeds .fd-caret {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-right: -4px;
+  border-radius: var(--radius-xs);
+  color: var(--text-2);
+}
+.app-feeds .fd-caret:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-feeds .fd-subs-title {
+  margin: 14px 10px 6px;
+  color: var(--text-2);
+  font: 600 var(--fs-small) / 1.3 var(--font);
+}
+.app-feeds .fd-subs-empty {
+  padding: 4px 10px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.app-feeds .fd-status {
+  padding: 8px 18px 12px;
+  min-height: 18px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ list pane */
+.app-feeds .fd-list {
+  width: 380px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-right: 1px solid var(--line-soft);
+}
+.app-feeds .fd-list-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 10px 8px 18px;
+}
+.app-feeds .fd-list-heading {
+  flex: 1;
+  min-width: 0;
+}
+.app-feeds .fd-list-title {
+  margin: 0;
+  font: 600 var(--fs-subtitle) / 1.25 var(--font-display);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-feeds .fd-list-sub {
+  margin-top: 2px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+.app-feeds .fd-list-info .infobar {
+  margin: 0 12px 8px;
+  align-items: center;
+}
+.app-feeds .fd-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 8px 12px;
+  outline: none;
+}
+.app-feeds .fd-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 8px 10px 4px;
+  border-radius: var(--radius);
+  cursor: default;
+  transition: background var(--dur-fast) var(--ease);
+}
+.app-feeds .fd-row + .fd-row {
+  margin-top: 2px;
+}
+.app-feeds .fd-row:hover {
+  background: var(--subtle-hover);
+}
+.app-feeds .fd-row.selected {
+  background: var(--sel-bg);
+  box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
+}
+.app-feeds .fd-row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.app-feeds .fd-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 16px;
+  border-radius: 50%;
+}
+.app-feeds .fd-row.unread .fd-dot {
+  background: var(--accent);
+}
+.app-feeds .fd-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-feeds .fd-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.app-feeds .fd-row-source {
+  flex: 1;
+  min-width: 0;
+}
+.app-feeds .fd-row-star {
+  display: inline-flex;
+  color: var(--warning);
+}
+.app-feeds .fd-row-date {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.app-feeds .fd-row-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+.app-feeds .fd-row.unread .fd-row-title {
+  font-weight: 600;
+}
+.app-feeds .fd-row-snippet {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.app-feeds .fd-row-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+.app-feeds .fd-row-sub > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.app-feeds .fd-row-played,
+.app-feeds .fd-row-dl.done {
+  color: var(--success);
+}
+.app-feeds .fd-row-dl {
+  color: var(--accent-text);
+}
+.app-feeds .fd-row-progress {
+  height: 3px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+.app-feeds .fd-row-bar {
+  height: 100%;
+  background: var(--accent);
+}
+.app-feeds .fd-row-play {
+  flex: none;
+  align-self: center;
+  border-radius: 50%;
+  color: var(--accent-text);
+}
+.app-feeds .fd-row-play.on {
+  background: var(--accent-subtle);
+}
+.app-feeds .fd-list-empty,
+.app-feeds .fd-reader-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 24px;
+  text-align: center;
+  color: var(--text-2);
+}
+.app-feeds .fd-empty-art {
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 80px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  background: var(--layer);
+  color: var(--accent-text);
+}
+.app-feeds .fd-empty-title {
+  color: var(--text);
+  font: 600 var(--fs-body-large) / 1.3 var(--font-display);
+}
+.app-feeds .fd-empty-text {
+  max-width: 340px;
+  font-size: var(--fs-body);
+}
+.app-feeds .fd-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.app-feeds .fd-empty-actions .btn,
+.app-feeds .fd-ep-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ------------------------------------------------------------------ reading pane */
+.app-feeds .fd-reader {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  container-type: inline-size;
+}
+.app-feeds .fd-read-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.app-feeds .fd-read-bar .grow {
+  flex: 1;
+}
+.app-feeds .fd-tb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.app-feeds .fd-tb.on .icon {
+  color: var(--warning);
+}
+@container (max-width: 640px) {
+  .app-feeds .fd-tb .lbl {
+    display: none;
+  }
+  .app-feeds .fd-tb {
+    width: 32px;
+    min-width: 32px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+.app-feeds .fd-back {
+  display: none;
+}
+.app-feeds .fd[data-layout="medium"] .fd-back,
+.app-feeds .fd[data-layout="narrow"] .fd-back {
+  display: inline-flex;
+}
+.app-feeds .fd-read-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.app-feeds .fd-read-head {
+  padding: 20px 28px 10px;
+}
+.app-feeds .fd-reader.episode .fd-read-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+}
+.app-feeds .fd-ep-head-text {
+  min-width: 0;
+}
+.app-feeds .fd-read-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 2px 6px 2px 2px;
+  margin-left: -2px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font: 600 var(--fs-small) / 1.3 var(--font);
+  cursor: default;
+}
+.app-feeds .fd-read-source:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-feeds .fd-read-source:focus-visible,
+.app-feeds .fd-read-title:focus-visible,
+.app-feeds .fd-chapter:focus-visible,
+.app-feeds .fd-pl-info:focus-visible,
+.app-feeds .fd-frame:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.app-feeds .fd-read-title {
+  margin: 8px 0 6px;
+  font: 600 var(--fs-title) / 1.25 var(--font-display);
+  overflow-wrap: anywhere;
+}
+@container (max-width: 520px) {
+  .app-feeds .fd-read-title {
+    font-size: var(--fs-subtitle);
+  }
+  .app-feeds .fd-reader.episode .fd-read-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .app-feeds .fd-art-lg {
+    width: 96px;
+    height: 96px;
+    font-size: 32px;
+  }
+}
+.app-feeds .fd-read-meta {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.app-feeds .fd-ep-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 28px 14px;
+}
+.app-feeds .fd-btn-note {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+.app-feeds .btn.primary .fd-btn-note {
+  color: inherit;
+}
+.app-feeds .fd-ep-dl {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+  flex: 0 1 260px;
+}
+.app-feeds .fd-ep-dl-text {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+.app-feeds .fd-ep-error {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--danger);
+  font-size: var(--fs-small);
+}
+.app-feeds .fd-chapters {
+  padding: 0 28px 12px;
+}
+.app-feeds .fd-chapters-title {
+  margin: 4px 0 6px;
+  font: 600 var(--fs-body) / 1.3 var(--font);
+}
+.app-feeds .fd-chapter-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+}
+.app-feeds .fd-chapter {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.app-feeds .fd-chapter:hover {
+  background: var(--subtle-hover);
+}
+.app-feeds .fd-chapter-time {
+  flex: none;
+  min-width: 52px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.app-feeds .fd-read-info .infobar {
+  margin: 0 28px 10px;
+  align-items: center;
+}
+.app-feeds .fd-read-body {
+  position: relative;
+  flex: 1 0 auto;
+  min-height: 320px;
+}
+.app-feeds .fd-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+}
+
+/* ------------------------------------------------------------------ mini-player */
+.app-feeds .fd-player {
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 1.6fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  min-height: 80px;
+  padding: 8px 16px;
+  background: var(--bg-alt);
+  border-top: 1px solid var(--line-soft);
+}
+.app-feeds .fd-pl-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.app-feeds .fd-pl-info:hover {
+  background: var(--subtle-hover);
+}
+.app-feeds .fd-pl-art {
+  flex: none;
+  display: flex;
+}
+.app-feeds .fd-pl-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.app-feeds .fd-pl-title {
+  font-weight: 600;
+}
+.app-feeds .fd-pl-sub {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.app-feeds .fd-pl-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.app-feeds .fd-pl-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.app-feeds .fd-pl-back,
+.app-feeds .fd-pl-fwd {
+  width: auto;
+  min-width: 44px;
+  padding: 0 6px;
+  gap: 2px;
+}
+.app-feeds .fd-skip-n {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.app-feeds .fd-pl-play {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+.app-feeds .fd-pl-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.app-feeds .fd-pl-seek {
+  flex: 1;
+  min-width: 80px;
+}
+.app-feeds .fd-pl-time {
+  flex: none;
+  min-width: 44px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.app-feeds .fd-pl-status {
+  color: var(--accent-text);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+.app-feeds .fd-pl-status:empty {
+  display: none;
+}
+.app-feeds .fd-player.pending .fd-pl-bar {
+  display: none;
+}
+.app-feeds .fd-pl-side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.app-feeds .fd-pl-speed {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.app-feeds .fd-pl-sleep {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.app-feeds .fd-pl-sleep.on {
+  color: var(--accent-text);
+}
+.app-feeds .fd-pl-sleep-left:empty {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ medium and narrow windows */
+.app-feeds .fd-nav-toggle,
+.app-feeds .fd-scrim {
+  display: none;
+}
+.app-feeds .fd[data-layout="medium"] .fd-nav {
+  width: 228px;
+}
+.app-feeds .fd[data-layout="medium"] .fd-list,
+.app-feeds .fd[data-layout="narrow"] .fd-list {
+  flex: 1;
+  width: auto;
+  border-right: 0;
+}
+.app-feeds .fd[data-layout="medium"][data-pane="list"] .fd-reader,
+.app-feeds .fd[data-layout="narrow"][data-pane="list"] .fd-reader,
+.app-feeds .fd[data-layout="medium"][data-pane="reader"] .fd-list,
+.app-feeds .fd[data-layout="narrow"][data-pane="reader"] .fd-list {
+  display: none;
+}
+.app-feeds .fd[data-layout="narrow"] .fd-nav-toggle {
+  display: inline-flex;
+}
+.app-feeds .fd[data-layout="narrow"] .fd-nav {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 6;
+  background: var(--surface-raised);
+  width: min(280px, 85%);
+  box-shadow: var(--shadow-flyout);
+  transform: translateX(-102%);
+  visibility: hidden;
+  transition: transform var(--dur-slow) var(--ease), visibility 0s linear var(--dur-slow);
+}
+.app-feeds .fd[data-layout="narrow"][data-nav="open"] .fd-nav {
+  transform: none;
+  visibility: visible;
+  transition: transform var(--dur-slow) var(--ease);
+}
+.app-feeds .fd[data-layout="narrow"][data-nav="open"] .fd-scrim {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: var(--scrim);
+}
+:root[data-animations="off"] .app-feeds .fd-nav {
+  transition: none;
+}
+.app-feeds .fd[data-layout="narrow"] .fd-player {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.app-feeds .fd[data-layout="narrow"] .fd-pl-info {
+  grid-column: 1;
+  grid-row: 1;
+}
+.app-feeds .fd[data-layout="narrow"] .fd-pl-side {
+  grid-column: 2;
+  grid-row: 1;
+}
+.app-feeds .fd[data-layout="narrow"] .fd-pl-center {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+/* ------------------------------------------------------------------ add dialog */
+.app-feeds .fd-add-dialog {
+  width: 560px;
+}
+.app-feeds .fd-addbox {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 300px;
+}
+.app-feeds .fd-add-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.app-feeds .fd-add-tab {
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  color: var(--text-2);
+  font: 600 var(--fs-body) / 1.3 var(--font);
+  cursor: default;
+}
+.app-feeds .fd-add-tab:hover {
+  color: var(--text);
+}
+.app-feeds .fd-add-tab.selected {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.app-feeds .fd-add-tab:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+  border-radius: var(--radius-xs);
+}
+.app-feeds .fd-add-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.app-feeds .fd-add-label {
+  font-weight: 600;
+}
+.app-feeds .fd-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.app-feeds .fd-add-row.end {
+  justify-content: flex-end;
+}
+.app-feeds .fd-add-row .input {
+  flex: 1;
+  min-width: 0;
+}
+.app-feeds .fd-search-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-feeds .fd-add-hint {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.app-feeds .fd-add-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.app-feeds .fd-add-status.error {
+  color: var(--danger);
+}
+.app-feeds .fd-add-status.ok {
+  color: var(--success);
+}
+.app-feeds .fd-add-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-feeds .fd-choice-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.app-feeds .fd-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+}
+.app-feeds .fd-choice + .fd-choice {
+  border-top: 1px solid var(--line-soft);
+}
+.app-feeds .fd-choice:hover {
+  background: var(--subtle-hover);
+}
+.app-feeds .fd-choice input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+.app-feeds .fd-choice-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.app-feeds .fd-choice-url {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+.app-feeds .fd-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.app-feeds .fd-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+}
+.app-feeds .fd-result + .fd-result {
+  border-top: 1px solid var(--line-soft);
+}
+.app-feeds .fd-result-text {
+  flex: 1;
+  min-width: 0;
+}
+.app-feeds .fd-result-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-feeds .fd-result-meta {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-feeds .fd-result-msg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--danger);
+  font-size: var(--fs-small);
+}
+.app-feeds .fd-result-msg:empty {
+  display: none;
+}
+.app-feeds .fd-result-sub {
+  flex: none;
+}

@@ -1,0 +1,16 @@
+{
+  "id": "feeds",
+  "name": { "en": "Podcasts & News", "fr": "Podcasts et actus" },
+  "description": { "en": "Follow news sites, blogs and podcasts: read new articles, download and listen to episodes", "fr": "Suivez des sites d'actualités, des blogs et des podcasts : lisez les nouveaux articles, téléchargez et écoutez les épisodes" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1240, "height": 780, "minWidth": 560, "minHeight": 460, "background": "mica" },
+  "category": "internet",
+  "keywords": {
+    "en": ["rss", "atom", "feed", "news", "podcast", "podcasts", "episode", "blog", "reader", "subscribe", "opml"],
+    "fr": ["rss", "atom", "flux", "actualités", "actus", "podcast", "podcasts", "épisode", "blog", "lecteur de flux", "abonnement", "opml", "baladodiffusion"]
+  },
+  "singleInstance": true,
+  "fileTypes": [".opml"]
+}

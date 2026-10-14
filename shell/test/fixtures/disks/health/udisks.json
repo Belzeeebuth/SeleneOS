@@ -1,0 +1,4405 @@
+{
+ "managedObjects": {
+  "type": "a{oa{sa{sv}}}",
+  "data": [
+   {
+    "/org/freedesktop/UDisks2/Manager": {
+     "org.freedesktop.UDisks2.Manager": {
+      "Version": {
+       "type": "s",
+       "data": "2.10.1"
+      },
+      "SupportedFilesystems": {
+       "type": "as",
+       "data": [
+        "nilfs2",
+        "btrfs",
+        "swap",
+        "ext3",
+        "udf",
+        "xfs",
+        "f2fs",
+        "ext2",
+        "exfat",
+        "ntfs",
+        "ext4",
+        "vfat",
+        "reiserfs"
+       ]
+      },
+      "SupportedEncryptionTypes": {
+       "type": "as",
+       "data": [
+        "luks1",
+        "luks2"
+       ]
+      },
+      "DefaultEncryptionType": {
+       "type": "s",
+       "data": "luks1"
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/drives/Samsung_SSD_870_EVO_1TB_S75BNL0W123456A": {
+     "org.freedesktop.UDisks2.Drive": {
+      "Vendor": {
+       "type": "s",
+       "data": ""
+      },
+      "Model": {
+       "type": "s",
+       "data": "Samsung SSD 870 EVO 1TB"
+      },
+      "Revision": {
+       "type": "s",
+       "data": "SVT02B6Q"
+      },
+      "Serial": {
+       "type": "s",
+       "data": "S75BNL0W123456A"
+      },
+      "WWN": {
+       "type": "s",
+       "data": ""
+      },
+      "Id": {
+       "type": "s",
+       "data": "Samsung-SSD-870-EVO-1TB-S75BNL0W123456A"
+      },
+      "Media": {
+       "type": "s",
+       "data": ""
+      },
+      "MediaCompatibility": {
+       "type": "as",
+       "data": []
+      },
+      "MediaRemovable": {
+       "type": "b",
+       "data": false
+      },
+      "MediaAvailable": {
+       "type": "b",
+       "data": true
+      },
+      "MediaChangeDetected": {
+       "type": "b",
+       "data": true
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000204886016
+      },
+      "TimeDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "TimeMediaDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "Optical": {
+       "type": "b",
+       "data": false
+      },
+      "OpticalBlank": {
+       "type": "b",
+       "data": false
+      },
+      "RotationRate": {
+       "type": "i",
+       "data": 0
+      },
+      "ConnectionBus": {
+       "type": "s",
+       "data": ""
+      },
+      "Seat": {
+       "type": "s",
+       "data": "seat0"
+      },
+      "Removable": {
+       "type": "b",
+       "data": false
+      },
+      "Ejectable": {
+       "type": "b",
+       "data": false
+      },
+      "SortKey": {
+       "type": "s",
+       "data": "01hotplug/sda"
+      },
+      "CanPowerOff": {
+       "type": "b",
+       "data": false
+      },
+      "SiblingId": {
+       "type": "s",
+       "data": ""
+      }
+     },
+     "org.freedesktop.UDisks2.Drive.Ata": {
+      "SmartSupported": {
+       "type": "b",
+       "data": true
+      },
+      "SmartEnabled": {
+       "type": "b",
+       "data": true
+      },
+      "SmartUpdated": {
+       "type": "t",
+       "data": 1792000000
+      },
+      "SmartFailing": {
+       "type": "b",
+       "data": false
+      },
+      "SmartPowerOnSeconds": {
+       "type": "t",
+       "data": 22359600
+      },
+      "SmartTemperature": {
+       "type": "d",
+       "data": 308.15
+      },
+      "SmartNumAttributesFailing": {
+       "type": "i",
+       "data": 0
+      },
+      "SmartNumAttributesFailedInThePast": {
+       "type": "i",
+       "data": 0
+      },
+      "SmartNumBadSectors": {
+       "type": "x",
+       "data": 0
+      },
+      "SmartSelftestStatus": {
+       "type": "s",
+       "data": "success"
+      },
+      "SmartSelftestPercentRemaining": {
+       "type": "i",
+       "data": 0
+      },
+      "PmSupported": {
+       "type": "b",
+       "data": true
+      },
+      "PmEnabled": {
+       "type": "b",
+       "data": true
+      },
+      "ApmSupported": {
+       "type": "b",
+       "data": false
+      },
+      "ApmEnabled": {
+       "type": "b",
+       "data": false
+      },
+      "AamSupported": {
+       "type": "b",
+       "data": false
+      },
+      "AamEnabled": {
+       "type": "b",
+       "data": false
+      },
+      "AamVendorRecommendedValue": {
+       "type": "i",
+       "data": 0
+      },
+      "WriteCacheSupported": {
+       "type": "b",
+       "data": true
+      },
+      "WriteCacheEnabled": {
+       "type": "b",
+       "data": true
+      },
+      "ReadLookaheadSupported": {
+       "type": "b",
+       "data": true
+      },
+      "ReadLookaheadEnabled": {
+       "type": "b",
+       "data": true
+      },
+      "SecurityEraseUnitMinutes": {
+       "type": "i",
+       "data": 2
+      },
+      "SecurityEnhancedEraseUnitMinutes": {
+       "type": "i",
+       "data": 8
+      },
+      "SecurityFrozen": {
+       "type": "b",
+       "data": true
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/sda": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,97,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,97,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,105,100,47,83,97,109,115,117,110,103,95,83,83,68,95,56,55,48,95,69,86,79,95,49,84,66,95,83,55,53,66,78,76,48,87,49,50,51,52,53,54,65,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2049
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-id-Samsung_SSD_870_EVO_1TB_S75BNL0W123456A"
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000204886016
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/Samsung_SSD_870_EVO_1TB_S75BNL0W123456A"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": ""
+      },
+      "IdType": {
+       "type": "s",
+       "data": ""
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": ""
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": ""
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.PartitionTable": {
+      "Partitions": {
+       "type": "ao",
+       "data": [
+        "/org/freedesktop/UDisks2/block_devices/sda1"
+       ]
+      },
+      "Type": {
+       "type": "s",
+       "data": "gpt"
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/sda1": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,97,49,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,97,49,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,53,98,57,101,49,99,50,100,45,51,97,52,102,45,52,101,54,98,45,56,99,55,100,45,57,101,48,102,49,97,50,98,51,99,52,100,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2066
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-5b9e1c2d-3a4f-4e6b-8c7d-9e0f1a2b3c4d"
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000202788864
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/Samsung_SSD_870_EVO_1TB_S75BNL0W123456A"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "filesystem"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "ext4"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": "1.0"
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": "Projets"
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "5b9e1c2d-3a4f-4e6b-8c7d-9e0f1a2b3c4d"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 1
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 1048576
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000202788864
+      },
+      "Name": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/sda"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Filesystem": {
+      "MountPoints": {
+       "type": "aay",
+       "data": [
+        [47,109,101,100,105,97,47,117,115,101,114,47,80,114,111,106,101,116,115,0]
+       ]
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000201740288
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/drives/WDC_WD10EZEX_08WN4A0_WD_WCC6Y5KX1234": {
+     "org.freedesktop.UDisks2.Drive": {
+      "Vendor": {
+       "type": "s",
+       "data": ""
+      },
+      "Model": {
+       "type": "s",
+       "data": "WDC WD10EZEX-08WN4A0"
+      },
+      "Revision": {
+       "type": "s",
+       "data": "01.01A01"
+      },
+      "Serial": {
+       "type": "s",
+       "data": "WD-WCC6Y5KX1234"
+      },
+      "WWN": {
+       "type": "s",
+       "data": ""
+      },
+      "Id": {
+       "type": "s",
+       "data": "WDC-WD10EZEX-08WN4A0-WD-WCC6Y5KX1234"
+      },
+      "Media": {
+       "type": "s",
+       "data": ""
+      },
+      "MediaCompatibility": {
+       "type": "as",
+       "data": []
+      },
+      "MediaRemovable": {
+       "type": "b",
+       "data": false
+      },
+      "MediaAvailable": {
+       "type": "b",
+       "data": true
+      },
+      "MediaChangeDetected": {
+       "type": "b",
+       "data": true
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000204886016
+      },
+      "TimeDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "TimeMediaDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "Optical": {
+       "type": "b",
+       "data": false
+      },
+      "OpticalBlank": {
+       "type": "b",
+       "data": false
+      },
+      "RotationRate": {
+       "type": "i",
+       "data": 7200
+      },
+      "ConnectionBus": {
+       "type": "s",
+       "data": ""
+      },
+      "Seat": {
+       "type": "s",
+       "data": "seat0"
+      },
+      "Removable": {
+       "type": "b",
+       "data": false
+      },
+      "Ejectable": {
+       "type": "b",
+       "data": false
+      },
+      "SortKey": {
+       "type": "s",
+       "data": "01hotplug/sdb"
+      },
+      "CanPowerOff": {
+       "type": "b",
+       "data": false
+      },
+      "SiblingId": {
+       "type": "s",
+       "data": ""
+      }
+     },
+     "org.freedesktop.UDisks2.Drive.Ata": {
+      "SmartSupported": {
+       "type": "b",
+       "data": true
+      },
+      "SmartEnabled": {
+       "type": "b",
+       "data": true
+      },
+      "SmartUpdated": {
+       "type": "t",
+       "data": 1792000000
+      },
+      "SmartFailing": {
+       "type": "b",
+       "data": true
+      },
+      "SmartPowerOnSeconds": {
+       "type": "t",
+       "data": 137559600
+      },
+      "SmartTemperature": {
+       "type": "d",
+       "data": 318.15
+      },
+      "SmartNumAttributesFailing": {
+       "type": "i",
+       "data": 1
+      },
+      "SmartNumAttributesFailedInThePast": {
+       "type": "i",
+       "data": 1
+      },
+      "SmartNumBadSectors": {
+       "type": "x",
+       "data": 1904
+      },
+      "SmartSelftestStatus": {
+       "type": "s",
+       "data": "error_read"
+      },
+      "SmartSelftestPercentRemaining": {
+       "type": "i",
+       "data": 90
+      },
+      "PmSupported": {
+       "type": "b",
+       "data": true
+      },
+      "PmEnabled": {
+       "type": "b",
+       "data": true
+      },
+      "ApmSupported": {
+       "type": "b",
+       "data": true
+      },
+      "ApmEnabled": {
+       "type": "b",
+       "data": false
+      },
+      "AamSupported": {
+       "type": "b",
+       "data": false
+      },
+      "AamEnabled": {
+       "type": "b",
+       "data": false
+      },
+      "AamVendorRecommendedValue": {
+       "type": "i",
+       "data": 0
+      },
+      "WriteCacheSupported": {
+       "type": "b",
+       "data": true
+      },
+      "WriteCacheEnabled": {
+       "type": "b",
+       "data": true
+      },
+      "ReadLookaheadSupported": {
+       "type": "b",
+       "data": true
+      },
+      "ReadLookaheadEnabled": {
+       "type": "b",
+       "data": true
+      },
+      "SecurityEraseUnitMinutes": {
+       "type": "i",
+       "data": 112
+      },
+      "SecurityEnhancedEraseUnitMinutes": {
+       "type": "i",
+       "data": 0
+      },
+      "SecurityFrozen": {
+       "type": "b",
+       "data": true
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/sdb": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,98,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,98,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,105,100,47,87,68,67,95,87,68,49,48,69,90,69,88,95,48,56,87,78,52,65,48,95,87,68,45,87,67,67,54,89,53,75,88,49,50,51,52,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2065
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-id-WDC_WD10EZEX_08WN4A0_WD-WCC6Y5KX1234"
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000204886016
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/WDC_WD10EZEX_08WN4A0_WD_WCC6Y5KX1234"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": ""
+      },
+      "IdType": {
+       "type": "s",
+       "data": ""
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": ""
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": ""
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.PartitionTable": {
+      "Partitions": {
+       "type": "ao",
+       "data": [
+        "/org/freedesktop/UDisks2/block_devices/sdb1"
+       ]
+      },
+      "Type": {
+       "type": "s",
+       "data": "gpt"
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/sdb1": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,98,49,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,98,49,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,52,69,49,65,50,66,51,67,52,68,53,69,54,70,55,48,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2082
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-4E1A2B3C4D5E6F70"
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000202788864
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/WDC_WD10EZEX_08WN4A0_WD_WCC6Y5KX1234"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "filesystem"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "ntfs"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": ""
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": "Archives"
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "4E1A2B3C4D5E6F70"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 1
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 1048576
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000202788864
+      },
+      "Name": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/sdb"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Filesystem": {
+      "MountPoints": {
+       "type": "aay",
+       "data": [
+        [47,109,101,100,105,97,47,117,115,101,114,47,65,114,99,104,105,118,101,115,0]
+       ]
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000201740288
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/drives/SanDisk_Ultra_4C530001230817115384": {
+     "org.freedesktop.UDisks2.Drive": {
+      "Vendor": {
+       "type": "s",
+       "data": "SanDisk"
+      },
+      "Model": {
+       "type": "s",
+       "data": "Ultra"
+      },
+      "Revision": {
+       "type": "s",
+       "data": "1.00"
+      },
+      "Serial": {
+       "type": "s",
+       "data": "4C530001230817115384"
+      },
+      "WWN": {
+       "type": "s",
+       "data": ""
+      },
+      "Id": {
+       "type": "s",
+       "data": "SanDisk-Ultra-4C530001230817115384"
+      },
+      "Media": {
+       "type": "s",
+       "data": "thumb"
+      },
+      "MediaCompatibility": {
+       "type": "as",
+       "data": [
+        "thumb"
+       ]
+      },
+      "MediaRemovable": {
+       "type": "b",
+       "data": true
+      },
+      "MediaAvailable": {
+       "type": "b",
+       "data": true
+      },
+      "MediaChangeDetected": {
+       "type": "b",
+       "data": true
+      },
+      "Size": {
+       "type": "t",
+       "data": 30752636928
+      },
+      "TimeDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "TimeMediaDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "Optical": {
+       "type": "b",
+       "data": false
+      },
+      "OpticalBlank": {
+       "type": "b",
+       "data": false
+      },
+      "RotationRate": {
+       "type": "i",
+       "data": -1
+      },
+      "ConnectionBus": {
+       "type": "s",
+       "data": "usb"
+      },
+      "Seat": {
+       "type": "s",
+       "data": "seat0"
+      },
+      "Removable": {
+       "type": "b",
+       "data": true
+      },
+      "Ejectable": {
+       "type": "b",
+       "data": true
+      },
+      "SortKey": {
+       "type": "s",
+       "data": "01hotplug/sdc"
+      },
+      "CanPowerOff": {
+       "type": "b",
+       "data": true
+      },
+      "SiblingId": {
+       "type": "s",
+       "data": ""
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/sdc": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,99,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,99,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,105,100,47,85,108,116,114,97,95,52,67,53,51,48,48,48,49,50,51,48,56,49,55,49,49,53,51,56,52,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2081
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-id-Ultra_4C530001230817115384"
+      },
+      "Size": {
+       "type": "t",
+       "data": 30752636928
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/SanDisk_Ultra_4C530001230817115384"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": ""
+      },
+      "IdType": {
+       "type": "s",
+       "data": ""
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": ""
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": ""
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": false
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": true
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.PartitionTable": {
+      "Partitions": {
+       "type": "ao",
+       "data": [
+        "/org/freedesktop/UDisks2/block_devices/sdc1"
+       ]
+      },
+      "Type": {
+       "type": "s",
+       "data": "dos"
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/sdc1": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,99,49,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,99,49,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,66,50,69,52,45,57,49,67,55,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2098
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-B2E4-91C7"
+      },
+      "Size": {
+       "type": "t",
+       "data": 30751588352
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/SanDisk_Ultra_4C530001230817115384"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "filesystem"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "vfat"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": "FAT32"
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": "USB STICK"
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "B2E4-91C7"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": false
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": true
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 1
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 1048576
+      },
+      "Size": {
+       "type": "t",
+       "data": 30751588352
+      },
+      "Name": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/sdc"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Filesystem": {
+      "MountPoints": {
+       "type": "aay",
+       "data": [
+        [47,109,101,100,105,97,47,117,115,101,114,47,85,83,66,32,83,84,73,67,75,0]
+       ]
+      },
+      "Size": {
+       "type": "t",
+       "data": 30750539776
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/drives/Realtek_RTL9210B_CG_012345678906": {
+     "org.freedesktop.UDisks2.Drive": {
+      "Vendor": {
+       "type": "s",
+       "data": "Realtek"
+      },
+      "Model": {
+       "type": "s",
+       "data": "RTL9210B-CG"
+      },
+      "Revision": {
+       "type": "s",
+       "data": "1.00"
+      },
+      "Serial": {
+       "type": "s",
+       "data": "012345678906"
+      },
+      "WWN": {
+       "type": "s",
+       "data": ""
+      },
+      "Id": {
+       "type": "s",
+       "data": "Realtek-RTL9210B-CG-012345678906"
+      },
+      "Media": {
+       "type": "s",
+       "data": ""
+      },
+      "MediaCompatibility": {
+       "type": "as",
+       "data": []
+      },
+      "MediaRemovable": {
+       "type": "b",
+       "data": false
+      },
+      "MediaAvailable": {
+       "type": "b",
+       "data": true
+      },
+      "MediaChangeDetected": {
+       "type": "b",
+       "data": true
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000204886016
+      },
+      "TimeDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "TimeMediaDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "Optical": {
+       "type": "b",
+       "data": false
+      },
+      "OpticalBlank": {
+       "type": "b",
+       "data": false
+      },
+      "RotationRate": {
+       "type": "i",
+       "data": 0
+      },
+      "ConnectionBus": {
+       "type": "s",
+       "data": "usb"
+      },
+      "Seat": {
+       "type": "s",
+       "data": "seat0"
+      },
+      "Removable": {
+       "type": "b",
+       "data": true
+      },
+      "Ejectable": {
+       "type": "b",
+       "data": true
+      },
+      "SortKey": {
+       "type": "s",
+       "data": "01hotplug/sdd"
+      },
+      "CanPowerOff": {
+       "type": "b",
+       "data": true
+      },
+      "SiblingId": {
+       "type": "s",
+       "data": ""
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/sdd": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,100,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,100,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,105,100,47,82,84,76,57,50,49,48,66,95,67,71,95,48,49,50,51,52,53,54,55,56,57,48,54,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2097
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-id-RTL9210B_CG_012345678906"
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000204886016
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/Realtek_RTL9210B_CG_012345678906"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": ""
+      },
+      "IdType": {
+       "type": "s",
+       "data": ""
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": ""
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": ""
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": false
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": true
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.PartitionTable": {
+      "Partitions": {
+       "type": "ao",
+       "data": [
+        "/org/freedesktop/UDisks2/block_devices/sdd1"
+       ]
+      },
+      "Type": {
+       "type": "s",
+       "data": "gpt"
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/sdd1": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,100,49,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,100,49,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,54,52,65,49,45,50,66,51,67,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2114
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-64A1-2B3C"
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000202788864
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/Realtek_RTL9210B_CG_012345678906"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "filesystem"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "exfat"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": "1.0"
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": "SAUVEGARDE"
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "64A1-2B3C"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": false
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": true
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 1
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 1048576
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000202788864
+      },
+      "Name": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/sdd"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Filesystem": {
+      "MountPoints": {
+       "type": "aay",
+       "data": [
+        [47,109,101,100,105,97,47,117,115,101,114,47,83,65,85,86,69,71,65,82,68,69,0]
+       ]
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000201740288
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/drives/WDC_WD40EFRX_68N32N0_WD_WCC7K1234567": {
+     "org.freedesktop.UDisks2.Drive": {
+      "Vendor": {
+       "type": "s",
+       "data": ""
+      },
+      "Model": {
+       "type": "s",
+       "data": "WDC WD40EFRX-68N32N0"
+      },
+      "Revision": {
+       "type": "s",
+       "data": "82.00A82"
+      },
+      "Serial": {
+       "type": "s",
+       "data": "WD-WCC7K1234567"
+      },
+      "WWN": {
+       "type": "s",
+       "data": ""
+      },
+      "Id": {
+       "type": "s",
+       "data": "WDC-WD40EFRX-68N32N0-WD-WCC7K1234567"
+      },
+      "Media": {
+       "type": "s",
+       "data": ""
+      },
+      "MediaCompatibility": {
+       "type": "as",
+       "data": []
+      },
+      "MediaRemovable": {
+       "type": "b",
+       "data": false
+      },
+      "MediaAvailable": {
+       "type": "b",
+       "data": true
+      },
+      "MediaChangeDetected": {
+       "type": "b",
+       "data": true
+      },
+      "Size": {
+       "type": "t",
+       "data": 4000787030016
+      },
+      "TimeDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "TimeMediaDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "Optical": {
+       "type": "b",
+       "data": false
+      },
+      "OpticalBlank": {
+       "type": "b",
+       "data": false
+      },
+      "RotationRate": {
+       "type": "i",
+       "data": 5400
+      },
+      "ConnectionBus": {
+       "type": "s",
+       "data": ""
+      },
+      "Seat": {
+       "type": "s",
+       "data": "seat0"
+      },
+      "Removable": {
+       "type": "b",
+       "data": false
+      },
+      "Ejectable": {
+       "type": "b",
+       "data": false
+      },
+      "SortKey": {
+       "type": "s",
+       "data": "01hotplug/sde"
+      },
+      "CanPowerOff": {
+       "type": "b",
+       "data": false
+      },
+      "SiblingId": {
+       "type": "s",
+       "data": ""
+      }
+     },
+     "org.freedesktop.UDisks2.Drive.Ata": {
+      "SmartSupported": {
+       "type": "b",
+       "data": true
+      },
+      "SmartEnabled": {
+       "type": "b",
+       "data": true
+      },
+      "SmartUpdated": {
+       "type": "t",
+       "data": 1792000000
+      },
+      "SmartFailing": {
+       "type": "b",
+       "data": false
+      },
+      "SmartPowerOnSeconds": {
+       "type": "t",
+       "data": 103082400
+      },
+      "SmartTemperature": {
+       "type": "d",
+       "data": 307.15
+      },
+      "SmartNumAttributesFailing": {
+       "type": "i",
+       "data": 0
+      },
+      "SmartNumAttributesFailedInThePast": {
+       "type": "i",
+       "data": 0
+      },
+      "SmartNumBadSectors": {
+       "type": "x",
+       "data": 0
+      },
+      "SmartSelftestStatus": {
+       "type": "s",
+       "data": "inprogress"
+      },
+      "SmartSelftestPercentRemaining": {
+       "type": "i",
+       "data": 60
+      },
+      "PmSupported": {
+       "type": "b",
+       "data": true
+      },
+      "PmEnabled": {
+       "type": "b",
+       "data": true
+      },
+      "ApmSupported": {
+       "type": "b",
+       "data": true
+      },
+      "ApmEnabled": {
+       "type": "b",
+       "data": false
+      },
+      "AamSupported": {
+       "type": "b",
+       "data": false
+      },
+      "AamEnabled": {
+       "type": "b",
+       "data": false
+      },
+      "AamVendorRecommendedValue": {
+       "type": "i",
+       "data": 0
+      },
+      "WriteCacheSupported": {
+       "type": "b",
+       "data": true
+      },
+      "WriteCacheEnabled": {
+       "type": "b",
+       "data": true
+      },
+      "ReadLookaheadSupported": {
+       "type": "b",
+       "data": true
+      },
+      "ReadLookaheadEnabled": {
+       "type": "b",
+       "data": true
+      },
+      "SecurityEraseUnitMinutes": {
+       "type": "i",
+       "data": 112
+      },
+      "SecurityEnhancedEraseUnitMinutes": {
+       "type": "i",
+       "data": 0
+      },
+      "SecurityFrozen": {
+       "type": "b",
+       "data": true
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/sde": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,101,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,101,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,105,100,47,87,68,67,95,87,68,52,48,69,70,82,88,95,54,56,78,51,50,78,48,95,87,68,45,87,67,67,55,75,49,50,51,52,53,54,55,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2113
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-id-WDC_WD40EFRX_68N32N0_WD-WCC7K1234567"
+      },
+      "Size": {
+       "type": "t",
+       "data": 4000787030016
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/WDC_WD40EFRX_68N32N0_WD_WCC7K1234567"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": ""
+      },
+      "IdType": {
+       "type": "s",
+       "data": ""
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": ""
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": ""
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.PartitionTable": {
+      "Partitions": {
+       "type": "ao",
+       "data": [
+        "/org/freedesktop/UDisks2/block_devices/sde1"
+       ]
+      },
+      "Type": {
+       "type": "s",
+       "data": "gpt"
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/sde1": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,101,49,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,115,100,101,49,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,56,99,49,100,50,101,51,102,45,52,97,53,98,45,52,99,54,100,45,56,101,55,102,45,57,97,48,98,49,99,50,100,51,101,52,102,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2130
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-8c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f"
+      },
+      "Size": {
+       "type": "t",
+       "data": 4000784932864
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/WDC_WD40EFRX_68N32N0_WD_WCC7K1234567"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "filesystem"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "ext4"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": "1.0"
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": "Médias"
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "8c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 1
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 1048576
+      },
+      "Size": {
+       "type": "t",
+       "data": 4000784932864
+      },
+      "Name": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/sde"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Filesystem": {
+      "MountPoints": {
+       "type": "aay",
+       "data": [
+        [47,109,101,100,105,97,47,117,115,101,114,47,77,195,169,100,105,97,115,0]
+       ]
+      },
+      "Size": {
+       "type": "t",
+       "data": 4000783884288
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/vda": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,118,100,97,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,118,100,97,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": []
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2129
+      },
+      "Id": {
+       "type": "s",
+       "data": ""
+      },
+      "Size": {
+       "type": "t",
+       "data": 34359738368
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": ""
+      },
+      "IdType": {
+       "type": "s",
+       "data": ""
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": ""
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": ""
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.PartitionTable": {
+      "Partitions": {
+       "type": "ao",
+       "data": [
+        "/org/freedesktop/UDisks2/block_devices/vda1"
+       ]
+      },
+      "Type": {
+       "type": "s",
+       "data": "gpt"
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/vda1": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,118,100,97,49,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,118,100,97,49,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,49,102,50,101,51,100,52,99,45,53,98,54,97,45,52,57,55,56,45,56,97,57,98,45,48,99,49,100,50,101,51,102,52,97,53,98,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2146
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b"
+      },
+      "Size": {
+       "type": "t",
+       "data": 34357641216
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "filesystem"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "ext4"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": "1.0"
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": "vm-data"
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 1
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 1048576
+      },
+      "Size": {
+       "type": "t",
+       "data": 34357641216
+      },
+      "Name": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/vda"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Filesystem": {
+      "MountPoints": {
+       "type": "aay",
+       "data": []
+      },
+      "Size": {
+       "type": "t",
+       "data": 0
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/drives/Samsung_SSD_990_PRO_1TB_S6Z1NJ0W412345X": {
+     "org.freedesktop.UDisks2.Drive": {
+      "Vendor": {
+       "type": "s",
+       "data": ""
+      },
+      "Model": {
+       "type": "s",
+       "data": "Samsung SSD 990 PRO 1TB"
+      },
+      "Revision": {
+       "type": "s",
+       "data": "4B2QJXD7"
+      },
+      "Serial": {
+       "type": "s",
+       "data": "S6Z1NJ0W412345X"
+      },
+      "WWN": {
+       "type": "s",
+       "data": "eui.s6z1nj0w412345x0"
+      },
+      "Id": {
+       "type": "s",
+       "data": "Samsung-SSD-990-PRO-1TB-S6Z1NJ0W412345X"
+      },
+      "Media": {
+       "type": "s",
+       "data": ""
+      },
+      "MediaCompatibility": {
+       "type": "as",
+       "data": []
+      },
+      "MediaRemovable": {
+       "type": "b",
+       "data": false
+      },
+      "MediaAvailable": {
+       "type": "b",
+       "data": true
+      },
+      "MediaChangeDetected": {
+       "type": "b",
+       "data": true
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000204886016
+      },
+      "TimeDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "TimeMediaDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "Optical": {
+       "type": "b",
+       "data": false
+      },
+      "OpticalBlank": {
+       "type": "b",
+       "data": false
+      },
+      "RotationRate": {
+       "type": "i",
+       "data": 0
+      },
+      "ConnectionBus": {
+       "type": "s",
+       "data": ""
+      },
+      "Seat": {
+       "type": "s",
+       "data": "seat0"
+      },
+      "Removable": {
+       "type": "b",
+       "data": false
+      },
+      "Ejectable": {
+       "type": "b",
+       "data": false
+      },
+      "SortKey": {
+       "type": "s",
+       "data": "01hotplug/nvme0n1"
+      },
+      "CanPowerOff": {
+       "type": "b",
+       "data": false
+      },
+      "SiblingId": {
+       "type": "s",
+       "data": ""
+      }
+     },
+     "org.freedesktop.UDisks2.NVMe.Controller": {
+      "State": {
+       "type": "s",
+       "data": "live"
+      },
+      "ControllerID": {
+       "type": "q",
+       "data": 1
+      },
+      "SubsystemNQN": {
+       "type": "ay",
+       "data": [110,113,110,46,50,48,49,52,46,48,56,46,111,114,103,46,110,118,109,101,120,112,114,101,115,115,58,49,52,52,100,49,52,52,100,83,54,90,49,78,74,48,87,52,49,50,51,52,53,88,83,97,109,115,117,110,103,32,83,83,68,32,57,57,48,32,80,82,79,32,49,84,66,0]
+      },
+      "FGUID": {
+       "type": "s",
+       "data": ""
+      },
+      "NVMeRevision": {
+       "type": "s",
+       "data": "2.0"
+      },
+      "UnallocatedCapacity": {
+       "type": "t",
+       "data": 0
+      },
+      "SmartUpdated": {
+       "type": "t",
+       "data": 1792000000
+      },
+      "SmartCriticalWarning": {
+       "type": "as",
+       "data": []
+      },
+      "SmartPowerOnHours": {
+       "type": "t",
+       "data": 2841
+      },
+      "SmartTemperature": {
+       "type": "q",
+       "data": 312
+      },
+      "SmartSelftestStatus": {
+       "type": "s",
+       "data": "success"
+      },
+      "SmartSelftestPercentRemaining": {
+       "type": "i",
+       "data": -1
+      },
+      "SanitizeStatus": {
+       "type": "s",
+       "data": "never_sanitized"
+      },
+      "SanitizePercentRemaining": {
+       "type": "i",
+       "data": -1
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/nvme0n1": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,105,100,47,83,97,109,115,117,110,103,95,83,83,68,95,57,57,48,95,80,82,79,95,49,84,66,95,83,54,90,49,78,74,48,87,52,49,50,51,52,53,88,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2145
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-id-Samsung_SSD_990_PRO_1TB_S6Z1NJ0W412345X"
+      },
+      "Size": {
+       "type": "t",
+       "data": 1000204886016
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/Samsung_SSD_990_PRO_1TB_S6Z1NJ0W412345X"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": ""
+      },
+      "IdType": {
+       "type": "s",
+       "data": ""
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": ""
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": ""
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.PartitionTable": {
+      "Partitions": {
+       "type": "ao",
+       "data": [
+        "/org/freedesktop/UDisks2/block_devices/nvme0n1p1",
+        "/org/freedesktop/UDisks2/block_devices/nvme0n1p2",
+        "/org/freedesktop/UDisks2/block_devices/nvme0n1p3"
+       ]
+      },
+      "Type": {
+       "type": "s",
+       "data": "gpt"
+      }
+     },
+     "org.freedesktop.UDisks2.NVMe.Namespace": {
+      "NSID": {
+       "type": "u",
+       "data": 1
+      },
+      "NGUID": {
+       "type": "s",
+       "data": ""
+      },
+      "EUI64": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "WWN": {
+       "type": "s",
+       "data": ""
+      },
+      "NamespaceSize": {
+       "type": "t",
+       "data": 1953525168
+      },
+      "NamespaceCapacity": {
+       "type": "t",
+       "data": 1953525168
+      },
+      "NamespaceUtilization": {
+       "type": "t",
+       "data": 976762584
+      },
+      "FormatPercentRemaining": {
+       "type": "i",
+       "data": -1
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/nvme0n1p1": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,112,49,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,112,49,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,55,67,50,68,45,49,69,52,70,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2162
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-7C2D-1E4F"
+      },
+      "Size": {
+       "type": "t",
+       "data": 536870912
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/Samsung_SSD_990_PRO_1TB_S6Z1NJ0W412345X"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "filesystem"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "vfat"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": "FAT32"
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "7C2D-1E4F"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 1
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 1048576
+      },
+      "Size": {
+       "type": "t",
+       "data": 536870912
+      },
+      "Name": {
+       "type": "s",
+       "data": "EFI System Partition"
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/nvme0n1"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Filesystem": {
+      "MountPoints": {
+       "type": "aay",
+       "data": [
+        [47,98,111,111,116,47,101,102,105,0]
+       ]
+      },
+      "Size": {
+       "type": "t",
+       "data": 535822336
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/nvme0n1p2": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,112,50,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,112,50,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,50,97,51,98,52,99,53,100,45,54,101,55,102,45,52,97,56,98,45,57,99,48,100,45,49,101,50,102,51,97,52,98,53,99,54,100,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2163
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-2a3b4c5d-6e7f-4a8b-9c0d-1e2f3a4b5c6d"
+      },
+      "Size": {
+       "type": "t",
+       "data": 982487367680
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/Samsung_SSD_990_PRO_1TB_S6Z1NJ0W412345X"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "filesystem"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "ext4"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": "1.0"
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": "Selene"
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "2a3b4c5d-6e7f-4a8b-9c0d-1e2f3a4b5c6d"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 2
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 537919488
+      },
+      "Size": {
+       "type": "t",
+       "data": 982487367680
+      },
+      "Name": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/nvme0n1"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Filesystem": {
+      "MountPoints": {
+       "type": "aay",
+       "data": [
+        [47,0]
+       ]
+      },
+      "Size": {
+       "type": "t",
+       "data": 982486319104
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/nvme0n1p3": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,112,51,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,48,110,49,112,51,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,57,101,56,100,55,99,54,98,45,53,97,52,57,45,52,51,56,50,45,57,49,55,50,45,54,97,53,98,52,99,51,100,50,101,49,102,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2164
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-9e8d7c6b-5a49-4382-9172-6a5b4c3d2e1f"
+      },
+      "Size": {
+       "type": "t",
+       "data": 17179869184
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/Samsung_SSD_990_PRO_1TB_S6Z1NJ0W412345X"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "other"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "swap"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": "1"
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "9e8d7c6b-5a49-4382-9172-6a5b4c3d2e1f"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 3
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 983025287168
+      },
+      "Size": {
+       "type": "t",
+       "data": 17179869184
+      },
+      "Name": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/nvme0n1"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Swapspace": {
+      "Active": {
+       "type": "b",
+       "data": true
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/drives/WD_Blue_SN570_500GB_22184F801234": {
+     "org.freedesktop.UDisks2.Drive": {
+      "Vendor": {
+       "type": "s",
+       "data": ""
+      },
+      "Model": {
+       "type": "s",
+       "data": "WD Blue SN570 500GB"
+      },
+      "Revision": {
+       "type": "s",
+       "data": "234110WD"
+      },
+      "Serial": {
+       "type": "s",
+       "data": "22184F801234"
+      },
+      "WWN": {
+       "type": "s",
+       "data": "eui.22184f8012340000"
+      },
+      "Id": {
+       "type": "s",
+       "data": "WD-Blue-SN570-500GB-22184F801234"
+      },
+      "Media": {
+       "type": "s",
+       "data": ""
+      },
+      "MediaCompatibility": {
+       "type": "as",
+       "data": []
+      },
+      "MediaRemovable": {
+       "type": "b",
+       "data": false
+      },
+      "MediaAvailable": {
+       "type": "b",
+       "data": true
+      },
+      "MediaChangeDetected": {
+       "type": "b",
+       "data": true
+      },
+      "Size": {
+       "type": "t",
+       "data": 500107862016
+      },
+      "TimeDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "TimeMediaDetected": {
+       "type": "t",
+       "data": 1791990000000000
+      },
+      "Optical": {
+       "type": "b",
+       "data": false
+      },
+      "OpticalBlank": {
+       "type": "b",
+       "data": false
+      },
+      "RotationRate": {
+       "type": "i",
+       "data": 0
+      },
+      "ConnectionBus": {
+       "type": "s",
+       "data": ""
+      },
+      "Seat": {
+       "type": "s",
+       "data": "seat0"
+      },
+      "Removable": {
+       "type": "b",
+       "data": false
+      },
+      "Ejectable": {
+       "type": "b",
+       "data": false
+      },
+      "SortKey": {
+       "type": "s",
+       "data": "01hotplug/nvme1n1"
+      },
+      "CanPowerOff": {
+       "type": "b",
+       "data": false
+      },
+      "SiblingId": {
+       "type": "s",
+       "data": ""
+      }
+     },
+     "org.freedesktop.UDisks2.NVMe.Controller": {
+      "State": {
+       "type": "s",
+       "data": "live"
+      },
+      "ControllerID": {
+       "type": "q",
+       "data": 1
+      },
+      "SubsystemNQN": {
+       "type": "ay",
+       "data": [110,113,110,46,50,48,49,52,46,48,56,46,111,114,103,46,110,118,109,101,120,112,114,101,115,115,58,49,52,52,100,49,52,52,100,50,50,49,56,52,70,56,48,49,50,51,52,87,68,32,66,108,117,101,32,83,78,53,55,48,32,53,48,48,71,66,0]
+      },
+      "FGUID": {
+       "type": "s",
+       "data": ""
+      },
+      "NVMeRevision": {
+       "type": "s",
+       "data": "2.0"
+      },
+      "UnallocatedCapacity": {
+       "type": "t",
+       "data": 0
+      },
+      "SmartUpdated": {
+       "type": "t",
+       "data": 1792000000
+      },
+      "SmartCriticalWarning": {
+       "type": "as",
+       "data": [
+        "spare"
+       ]
+      },
+      "SmartPowerOnHours": {
+       "type": "t",
+       "data": 21940
+      },
+      "SmartTemperature": {
+       "type": "q",
+       "data": 314
+      },
+      "SmartSelftestStatus": {
+       "type": "s",
+       "data": "success"
+      },
+      "SmartSelftestPercentRemaining": {
+       "type": "i",
+       "data": -1
+      },
+      "SanitizeStatus": {
+       "type": "s",
+       "data": "never_sanitized"
+      },
+      "SanitizePercentRemaining": {
+       "type": "i",
+       "data": -1
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/nvme1n1": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,49,110,49,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,49,110,49,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,105,100,47,87,68,95,66,108,117,101,95,83,78,53,55,48,95,53,48,48,71,66,95,50,50,49,56,52,70,56,48,49,50,51,52,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2161
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-id-WD_Blue_SN570_500GB_22184F801234"
+      },
+      "Size": {
+       "type": "t",
+       "data": 500107862016
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/WD_Blue_SN570_500GB_22184F801234"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": ""
+      },
+      "IdType": {
+       "type": "s",
+       "data": ""
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": ""
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": ""
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": ""
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.PartitionTable": {
+      "Partitions": {
+       "type": "ao",
+       "data": [
+        "/org/freedesktop/UDisks2/block_devices/nvme1n1p1"
+       ]
+      },
+      "Type": {
+       "type": "s",
+       "data": "gpt"
+      }
+     },
+     "org.freedesktop.UDisks2.NVMe.Namespace": {
+      "NSID": {
+       "type": "u",
+       "data": 1
+      },
+      "NGUID": {
+       "type": "s",
+       "data": ""
+      },
+      "EUI64": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "WWN": {
+       "type": "s",
+       "data": ""
+      },
+      "NamespaceSize": {
+       "type": "t",
+       "data": 976773168
+      },
+      "NamespaceCapacity": {
+       "type": "t",
+       "data": 976773168
+      },
+      "NamespaceUtilization": {
+       "type": "t",
+       "data": 488386584
+      },
+      "FormatPercentRemaining": {
+       "type": "i",
+       "data": -1
+      }
+     }
+    },
+    "/org/freedesktop/UDisks2/block_devices/nvme1n1p1": {
+     "org.freedesktop.UDisks2.Block": {
+      "Device": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,49,110,49,112,49,0]
+      },
+      "PreferredDevice": {
+       "type": "ay",
+       "data": [47,100,101,118,47,110,118,109,101,49,110,49,112,49,0]
+      },
+      "Symlinks": {
+       "type": "aay",
+       "data": [
+        [47,100,101,118,47,100,105,115,107,47,98,121,45,117,117,105,100,47,54,100,53,99,52,98,51,97,45,50,57,49,56,45,52,102,55,101,45,56,100,54,99,45,53,98,52,97,51,57,50,56,49,55,48,54,0]
+       ]
+      },
+      "DeviceNumber": {
+       "type": "t",
+       "data": 2178
+      },
+      "Id": {
+       "type": "s",
+       "data": "by-uuid-6d5c4b3a-2918-4f7e-8d6c-5b4a39281706"
+      },
+      "Size": {
+       "type": "t",
+       "data": 500105764864
+      },
+      "ReadOnly": {
+       "type": "b",
+       "data": false
+      },
+      "Drive": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/drives/WD_Blue_SN570_500GB_22184F801234"
+      },
+      "MDRaid": {
+       "type": "o",
+       "data": "/"
+      },
+      "MDRaidMember": {
+       "type": "o",
+       "data": "/"
+      },
+      "IdUsage": {
+       "type": "s",
+       "data": "filesystem"
+      },
+      "IdType": {
+       "type": "s",
+       "data": "ext4"
+      },
+      "IdVersion": {
+       "type": "s",
+       "data": "1.0"
+      },
+      "IdLabel": {
+       "type": "s",
+       "data": "Données"
+      },
+      "IdUUID": {
+       "type": "s",
+       "data": "6d5c4b3a-2918-4f7e-8d6c-5b4a39281706"
+      },
+      "CryptoBackingDevice": {
+       "type": "o",
+       "data": "/"
+      },
+      "HintPartitionable": {
+       "type": "b",
+       "data": true
+      },
+      "HintSystem": {
+       "type": "b",
+       "data": true
+      },
+      "HintIgnore": {
+       "type": "b",
+       "data": false
+      },
+      "HintAuto": {
+       "type": "b",
+       "data": false
+      },
+      "HintName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "HintSymbolicIconName": {
+       "type": "s",
+       "data": ""
+      },
+      "UserspaceMountOptions": {
+       "type": "as",
+       "data": []
+      }
+     },
+     "org.freedesktop.UDisks2.Partition": {
+      "Number": {
+       "type": "u",
+       "data": 1
+      },
+      "Type": {
+       "type": "s",
+       "data": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+      },
+      "Flags": {
+       "type": "t",
+       "data": 0
+      },
+      "Offset": {
+       "type": "t",
+       "data": 1048576
+      },
+      "Size": {
+       "type": "t",
+       "data": 500105764864
+      },
+      "Name": {
+       "type": "s",
+       "data": ""
+      },
+      "UUID": {
+       "type": "s",
+       "data": ""
+      },
+      "Table": {
+       "type": "o",
+       "data": "/org/freedesktop/UDisks2/block_devices/nvme1n1"
+      },
+      "IsContainer": {
+       "type": "b",
+       "data": false
+      },
+      "IsContained": {
+       "type": "b",
+       "data": false
+      }
+     },
+     "org.freedesktop.UDisks2.Filesystem": {
+      "MountPoints": {
+       "type": "aay",
+       "data": [
+        [47,109,101,100,105,97,47,117,115,101,114,47,68,111,110,110,195,169,101,115,0]
+       ]
+      },
+      "Size": {
+       "type": "t",
+       "data": 500104716288
+      }
+     }
+    }
+   }
+  ]
+ },
+ "attributes": {
+  "/org/freedesktop/UDisks2/drives/Samsung_SSD_870_EVO_1TB_S75BNL0W123456A": {
+   "type": "a(ysqiiixia{sv})",
+   "data": [
+    [
+     [
+      5,
+      "reallocated-sector-count",
+      51,
+      100,
+      100,
+      10,
+      0,
+      3,
+      {}
+     ],
+     [
+      9,
+      "power-on-hours",
+      50,
+      98,
+      98,
+      0,
+      22359600000,
+      2,
+      {}
+     ],
+     [
+      12,
+      "power-cycle-count",
+      50,
+      99,
+      99,
+      0,
+      845,
+      1,
+      {}
+     ],
+     [
+      177,
+      "wear-leveling-count",
+      19,
+      99,
+      99,
+      0,
+      12,
+      1,
+      {}
+     ],
+     [
+      179,
+      "used-reserved-blocks-total",
+      19,
+      100,
+      100,
+      10,
+      0,
+      1,
+      {}
+     ],
+     [
+      181,
+      "program-fail-count-total",
+      50,
+      100,
+      100,
+      10,
+      0,
+      1,
+      {}
+     ],
+     [
+      182,
+      "erase-fail-count-total",
+      50,
+      100,
+      100,
+      10,
+      0,
+      1,
+      {}
+     ],
+     [
+      183,
+      "runtime-bad-block-total",
+      19,
+      100,
+      100,
+      10,
+      0,
+      1,
+      {}
+     ],
+     [
+      187,
+      "reported-uncorrect",
+      50,
+      100,
+      100,
+      0,
+      0,
+      3,
+      {}
+     ],
+     [
+      190,
+      "airflow-temperature-celsius",
+      50,
+      65,
+      52,
+      0,
+      308150,
+      4,
+      {}
+     ],
+     [
+      195,
+      "hardware-ecc-recovered",
+      26,
+      200,
+      200,
+      0,
+      0,
+      1,
+      {}
+     ],
+     [
+      199,
+      "udma-crc-error-count",
+      62,
+      100,
+      100,
+      0,
+      0,
+      1,
+      {}
+     ],
+     [
+      235,
+      "good-block-rate",
+      18,
+      99,
+      99,
+      0,
+      0,
+      0,
+      {}
+     ],
+     [
+      241,
+      "total-lbas-written",
+      50,
+      99,
+      99,
+      0,
+      825197849519,
+      7,
+      {}
+     ]
+    ]
+   ]
+  },
+  "/org/freedesktop/UDisks2/drives/WDC_WD10EZEX_08WN4A0_WD_WCC6Y5KX1234": {
+   "type": "a(ysqiiixia{sv})",
+   "data": [
+    [
+     [
+      1,
+      "raw-read-error-rate",
+      47,
+      176,
+      163,
+      51,
+      2915,
+      1,
+      {}
+     ],
+     [
+      3,
+      "spin-up-time",
+      39,
+      171,
+      170,
+      21,
+      4425,
+      2,
+      {}
+     ],
+     [
+      4,
+      "start-stop-count",
+      50,
+      98,
+      98,
+      0,
+      2611,
+      1,
+      {}
+     ],
+     [
+      5,
+      "reallocated-sector-count",
+      51,
+      3,
+      3,
+      140,
+      1856,
+      3,
+      {}
+     ],
+     [
+      7,
+      "seek-error-rate",
+      46,
+      200,
+      200,
+      0,
+      0,
+      1,
+      {}
+     ],
+     [
+      9,
+      "power-on-hours",
+      50,
+      48,
+      48,
+      0,
+      137559600000,
+      2,
+      {}
+     ],
+     [
+      10,
+      "spin-retry-count",
+      50,
+      100,
+      100,
+      0,
+      0,
+      1,
+      {}
+     ],
+     [
+      11,
+      "calibration-retry-count",
+      50,
+      100,
+      100,
+      0,
+      0,
+      1,
+      {}
+     ],
+     [
+      12,
+      "power-cycle-count",
+      50,
+      98,
+      98,
+      0,
+      2589,
+      1,
+      {}
+     ],
+     [
+      192,
+      "power-off-retract-count",
+      50,
+      200,
+      200,
+      0,
+      97,
+      1,
+      {}
+     ],
+     [
+      193,
+      "load-cycle-count",
+      50,
+      199,
+      199,
+      0,
+      3802,
+      1,
+      {}
+     ],
+     [
+      194,
+      "temperature-celsius-2",
+      34,
+      98,
+      85,
+      0,
+      318150,
+      4,
+      {}
+     ],
+     [
+      196,
+      "reallocated-event-count",
+      50,
+      1,
+      1,
+      0,
+      412,
+      1,
+      {}
+     ],
+     [
+      197,
+      "current-pending-sector",
+      50,
+      200,
+      199,
+      0,
+      48,
+      3,
+      {}
+     ],
+     [
+      198,
+      "offline-uncorrectable",
+      48,
+      100,
+      253,
+      0,
+      37,
+      3,
+      {}
+     ],
+     [
+      199,
+      "udma-crc-error-count",
+      50,
+      200,
+      200,
+      0,
+      2,
+      1,
+      {}
+     ],
+     [
+      200,
+      "multi-zone-error-rate",
+      8,
+      100,
+      253,
+      0,
+      0,
+      1,
+      {}
+     ]
+    ]
+   ]
+  },
+  "/org/freedesktop/UDisks2/drives/WDC_WD40EFRX_68N32N0_WD_WCC7K1234567": {
+   "type": "a(ysqiiixia{sv})",
+   "data": [
+    [
+     [
+      1,
+      "raw-read-error-rate",
+      47,
+      200,
+      200,
+      51,
+      0,
+      1,
+      {}
+     ],
+     [
+      3,
+      "spin-up-time",
+      39,
+      178,
+      176,
+      21,
+      8075,
+      2,
+      {}
+     ],
+     [
+      4,
+      "start-stop-count",
+      50,
+      100,
+      100,
+      0,
+      312,
+      1,
+      {}
+     ],
+     [
+      5,
+      "reallocated-sector-count",
+      51,
+      200,
+      200,
+      140,
+      0,
+      3,
+      {}
+     ],
+     [
+      7,
+      "seek-error-rate",
+      46,
+      200,
+      200,
+      0,
+      0,
+      1,
+      {}
+     ],
+     [
+      9,
+      "power-on-hours",
+      50,
+      61,
+      61,
+      0,
+      103082400000,
+      2,
+      {}
+     ],
+     [
+      10,
+      "spin-retry-count",
+      50,
+      100,
+      100,
+      0,
+      0,
+      1,
+      {}
+     ],
+     [
+      11,
+      "calibration-retry-count",
+      50,
+      100,
+      253,
+      0,
+      0,
+      1,
+      {}
+     ],
+     [
+      12,
+      "power-cycle-count",
+      50,
+      100,
+      100,
+      0,
+      312,
+      1,
+      {}
+     ],
+     [
+      192,
+      "power-off-retract-count",
+      50,
+      200,
+      200,
+      0,
+      104,
+      1,
+      {}
+     ],
+     [
+      193,
+      "load-cycle-count",
+      50,
+      200,
+      200,
+      0,
+      1823,
+      1,
+      {}
+     ],
+     [
+      194,
+      "temperature-celsius-2",
+      34,
+      116,
+      105,
+      0,
+      307150,
+      4,
+      {}
+     ],
+     [
+      196,
+      "reallocated-event-count",
+      50,
+      200,
+      200,
+      0,
+      0,
+      1,
+      {}
+     ],
+     [
+      197,
+      "current-pending-sector",
+      50,
+      200,
+      200,
+      0,
+      0,
+      3,
+      {}
+     ],
+     [
+      198,
+      "offline-uncorrectable",
+      48,
+      100,
+      253,
+      0,
+      0,
+      3,
+      {}
+     ],
+     [
+      199,
+      "udma-crc-error-count",
+      50,
+      200,
+      200,
+      0,
+      0,
+      1,
+      {}
+     ],
+     [
+      200,
+      "multi-zone-error-rate",
+      8,
+      100,
+      253,
+      0,
+      0,
+      1,
+      {}
+     ]
+    ]
+   ]
+  },
+  "/org/freedesktop/UDisks2/drives/Samsung_SSD_990_PRO_1TB_S6Z1NJ0W412345X": {
+   "type": "a{sv}",
+   "data": [
+    {
+     "avail_spare": {
+      "type": "y",
+      "data": 100
+     },
+     "spare_thresh": {
+      "type": "y",
+      "data": 10
+     },
+     "percent_used": {
+      "type": "y",
+      "data": 2
+     },
+     "total_data_read": {
+      "type": "t",
+      "data": 21337500000000
+     },
+     "total_data_written": {
+      "type": "t",
+      "data": 14812000000000
+     },
+     "ctrl_busy_time": {
+      "type": "t",
+      "data": 1630
+     },
+     "power_cycles": {
+      "type": "t",
+      "data": 1204
+     },
+     "unsafe_shutdowns": {
+      "type": "t",
+      "data": 37
+     },
+     "media_errors": {
+      "type": "t",
+      "data": 0
+     },
+     "num_err_log_entries": {
+      "type": "t",
+      "data": 0
+     },
+     "temp_sensors": {
+      "type": "aq",
+      "data": [312,318,0,0,0,0,0,0]
+     },
+     "wctemp": {
+      "type": "q",
+      "data": 355
+     },
+     "cctemp": {
+      "type": "q",
+      "data": 358
+     },
+     "warning_temp_time": {
+      "type": "u",
+      "data": 0
+     },
+     "critical_temp_time": {
+      "type": "u",
+      "data": 0
+     }
+    }
+   ]
+  },
+  "/org/freedesktop/UDisks2/drives/WD_Blue_SN570_500GB_22184F801234": {
+   "type": "a{sv}",
+   "data": [
+    {
+     "avail_spare": {
+      "type": "y",
+      "data": 7
+     },
+     "spare_thresh": {
+      "type": "y",
+      "data": 10
+     },
+     "percent_used": {
+      "type": "y",
+      "data": 98
+     },
+     "total_data_read": {
+      "type": "t",
+      "data": 181406000000000
+     },
+     "total_data_written": {
+      "type": "t",
+      "data": 296512000000000
+     },
+     "ctrl_busy_time": {
+      "type": "t",
+      "data": 18233
+     },
+     "power_cycles": {
+      "type": "t",
+      "data": 3120
+     },
+     "unsafe_shutdowns": {
+      "type": "t",
+      "data": 412
+     },
+     "media_errors": {
+      "type": "t",
+      "data": 3
+     },
+     "num_err_log_entries": {
+      "type": "t",
+      "data": 57
+     },
+     "temp_sensors": {
+      "type": "aq",
+      "data": [314,323,0,0,0,0,0,0]
+     },
+     "wctemp": {
+      "type": "q",
+      "data": 353
+     },
+     "cctemp": {
+      "type": "q",
+      "data": 358
+     },
+     "warning_temp_time": {
+      "type": "u",
+      "data": 12
+     },
+     "critical_temp_time": {
+      "type": "u",
+      "data": 0
+     }
+    }
+   ]
+  }
+ },
+ "fake": {
+  "/org/freedesktop/UDisks2/drives/WDC_WD10EZEX_08WN4A0_WD_WCC6Y5KX1234": {
+   "selftestResult": "error_read"
+  },
+  "/org/freedesktop/UDisks2/drives/WDC_WD40EFRX_68N32N0_WD_WCC7K1234567": {
+   "selftestStatic": true
+  }
+ }
+}

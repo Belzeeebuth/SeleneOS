@@ -14,9 +14,26 @@
 //   maps:savePlace ({ name, display, lat, lon, zoom }) -> places   (same coordinates already saved: updated, not duplicated)
 //   maps:renamePlace (id, name) -> places
 //   maps:removePlace (id) -> places
+//   maps:route (points: [{ lat, lon }] (2..10: start, stops, destination), { mode: 'car'|'bike'|'foot' })
+//        -> { routes: [{ distance (m), duration (s), geometry (polyline6), legs: [{ distance, duration, summary,
+//             steps: [{ distance, duration, name, ref, mode, destinations, exits, rotary_name, driving_side, geometry,
+//             maneuver: { type, modifier, exit, location: [lon, lat], bearing_before, bearing_after } }] }] }] (1..3),
+//             waypoints: [{ name, location: [lon, lat] }], cached, source: 'osrm'|'mock' }
+//        FOSSGIS OSRM (https://routing.openstreetmap.de/routed-car/route/v1/driving/…, routed-bike/…/cycling,
+//        routed-foot/…/foot; overview=full&geometries=polyline6&steps=true&alternatives=true, alternatives=false with
+//        stops as OSRM only offers alternatives between two points). Usage policy: one request per user action (the
+//        renderer only asks after a choice), at most 1 request per second (serialized), User-Agent "SeleneOS-Maps/1.0",
+//        answers cached 30 min per URL, a 429 blocks further requests until its Retry-After (default 30 s) has passed.
+//        Rejects: EINVAL (bad points / mode), ENOROUTE (OSRM NoRoute), ENOSEGMENT (a point is too far from any road),
+//        ETOOBIG, ERATELIMIT (429 or still blocked), EOFFLINE (no network), EUNREACHABLE (connection failed, timeout,
+//        5xx), EBADDATA (unexpected answer). Dev/tests (api.DEV) without AURORA_MAPS_OSRM_URL: a generated L-shaped
+//        route (two alternatives between two points), never network.
 //   maps:stats () -> { tileRequests, tileNetwork, tileCacheHits, maxParallel, searchRequests, searchNetwork,
-//        searchCacheHits, searchTimes, mock, userAgent }   (diagnostics, tests)
-// Env (tests): AURORA_MAPS_TILE_DELAY (ms, mock tiles only) slows the mock tiles so the queue is observable.
+//        searchCacheHits, searchTimes, routeRequests, routeNetwork, routeCacheHits, routeTimes, lastRouteUrl, mock,
+//        userAgent }   (diagnostics, tests)
+// Env (tests): AURORA_MAPS_TILE_DELAY (ms, mock tiles only) slows the mock tiles so the queue is observable;
+//   AURORA_MAPS_OSRM_URL (base URL, e.g. http://127.0.0.1:PORT) sends maps:route to that server even in dev mode;
+//   AURORA_MAPS_OFFLINE=1 makes maps:route behave as if the network were down (both are read at each request).
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -30,6 +47,15 @@ const SEARCH_TTL = 24 * 3600000;
 const TILE_TTL = 7 * 24 * 3600000;
 const MEM_TILES = 600;
 const TIMEOUT_MS = 10000;
+const OSRM_URL = 'https://routing.openstreetmap.de';
+const OSRM_PROFILES = { car: ['routed-car', 'driving'], bike: ['routed-bike', 'cycling'], foot: ['routed-foot', 'foot'] };
+const ROUTE_GAP_MS = 1000;
+const ROUTE_TTL = 30 * 60000;
+const ROUTE_CACHE = 40;
+const ROUTE_TIMEOUT_MS = 15000;
+const ROUTE_MAX_BYTES = 8 * 1024 * 1024;
+const ROUTE_MAX_POINTS = 10;
+const ROUTE_BLOCK_DEFAULT_MS = 30000;
 
 const DATA_FILE = () => path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'), 'aurora', 'maps.json');
 const TILE_DIR = () => path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'aurora', 'maps-tiles');
@@ -142,9 +168,184 @@ function normPlace(p) {
   };
 }
 
+// ---------------------------------------------------------------- routes (OSRM)
+/** Validated route points (2..10, rounded to 1e-6), or null. */
+function normRoutePoints(points) {
+  if (!Array.isArray(points) || points.length < 2 || points.length > ROUTE_MAX_POINTS) return null;
+  const out = [];
+  for (const p of points) {
+    const lat = Number(p?.lat);
+    const lon = Number(p?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+    out.push({ lat: Math.round(lat * 1e6) / 1e6, lon: Math.round(lon * 1e6) / 1e6 });
+  }
+  return out;
+}
+
+/** OSRM base URL: AURORA_MAPS_OSRM_URL (http/https only) or the FOSSGIS servers. */
+function osrmBase() {
+  const env = String(process.env.AURORA_MAPS_OSRM_URL || '').trim();
+  if (env) {
+    try {
+      const u = new URL(env);
+      if (u.protocol === 'http:' || u.protocol === 'https:') return `${u.origin}${u.pathname.replace(/\/+$/, '')}`;
+    } catch {}
+  }
+  return OSRM_URL;
+}
+
+/** The route request URL (coordinates are lon,lat with 6 decimals). */
+function routeUrl(base, mode, points, alternatives) {
+  const [service, profile] = OSRM_PROFILES[mode];
+  const coords = points.map((p) => `${p.lon.toFixed(6)},${p.lat.toFixed(6)}`).join(';');
+  return `${base}/${service}/route/v1/${profile}/${coords}?overview=full&geometries=polyline6&steps=true&alternatives=${alternatives ? 'true' : 'false'}`;
+}
+
+const POLYLINE_RE = /^[\x3f-\x7e]*$/;
+const MANEUVERS = new Set(['turn', 'new name', 'depart', 'arrive', 'merge', 'ramp', 'on ramp', 'off ramp', 'fork', 'end of road', 'use lane', 'continue', 'roundabout', 'rotary', 'roundabout turn', 'notification', 'exit roundabout', 'exit rotary']);
+const MODIFIERS = new Set(['uturn', 'sharp right', 'right', 'slight right', 'straight', 'slight left', 'left', 'sharp left']);
+const fnum = (v) => (Number.isFinite(Number(v)) ? Math.max(0, Number(v)) : 0);
+const polyline = (v, max) => (typeof v === 'string' && v.length <= max && POLYLINE_RE.test(v) ? v : '');
+const lonLat = (v) => (Array.isArray(v) && v.length >= 2 && v.slice(0, 2).every((x) => Number.isFinite(Number(x))) ? [Number(v[0]), Number(v[1])] : null);
+const OSRM_ERRORS = { NoRoute: 'ENOROUTE', NoSegment: 'ENOSEGMENT', TooBig: 'ETOOBIG' };
+
+/** OSRM answer -> the slim structure maps:route returns (strings cleaned, numbers checked, at most 3 routes). */
+function parseRoute(json) {
+  if (!json || typeof json !== 'object') throw err('Unexpected route answer', 'EBADDATA');
+  if (json.code !== 'Ok') {
+    const code = OSRM_ERRORS[json.code] || 'EBADDATA';
+    throw err(clean(json.message, 200) || `Route service answered ${clean(String(json.code || 'nothing'), 40)}`, code);
+  }
+  const step = (s) => {
+    const m = s?.maneuver || {};
+    const type = MANEUVERS.has(m.type) ? m.type : 'turn';
+    return {
+      distance: fnum(s?.distance),
+      duration: fnum(s?.duration),
+      name: clean(s?.name, 160),
+      ref: clean(s?.ref, 60),
+      mode: clean(s?.mode, 30),
+      destinations: clean(s?.destinations, 200),
+      exits: clean(s?.exits, 40),
+      rotary_name: clean(s?.rotary_name, 160),
+      driving_side: s?.driving_side === 'left' ? 'left' : 'right',
+      geometry: polyline(s?.geometry, 500000),
+      maneuver: {
+        type,
+        modifier: MODIFIERS.has(m.modifier) ? m.modifier : '',
+        exit: Number.isInteger(m.exit) && m.exit > 0 && m.exit < 100 ? m.exit : 0,
+        location: lonLat(m.location) || [0, 0],
+        bearing_before: fnum(m.bearing_before) % 360,
+        bearing_after: fnum(m.bearing_after) % 360,
+      },
+    };
+  };
+  const routes = (Array.isArray(json.routes) ? json.routes : [])
+    .slice(0, 3)
+    .map((r) => ({
+      distance: fnum(r?.distance),
+      duration: fnum(r?.duration),
+      geometry: polyline(r?.geometry, 4000000),
+      legs: (Array.isArray(r?.legs) ? r.legs : []).slice(0, ROUTE_MAX_POINTS).map((l) => ({
+        distance: fnum(l?.distance),
+        duration: fnum(l?.duration),
+        summary: clean(l?.summary, 200),
+        steps: (Array.isArray(l?.steps) ? l.steps : []).slice(0, 3000).map(step),
+      })),
+    }))
+    .filter((r) => r.geometry && r.legs.length);
+  if (!routes.length) throw err('No route between these points', 'ENOROUTE');
+  const waypoints = (Array.isArray(json.waypoints) ? json.waypoints : []).slice(0, ROUTE_MAX_POINTS).map((w) => ({ name: clean(w?.name, 160), location: lonLat(w?.location) || [0, 0] }));
+  return { routes, waypoints };
+}
+
+/** Retry-After (seconds or an HTTP date) -> ms, clamped to 1 s .. 10 min; default when missing. */
+function retryAfterMs(v) {
+  if (v == null || v === '') return ROUTE_BLOCK_DEFAULT_MS;
+  const n = Number(v);
+  const ms = Number.isFinite(n) ? n * 1000 : Date.parse(v) - Date.now();
+  return Number.isFinite(ms) ? Math.max(1000, Math.min(600000, ms)) : ROUTE_BLOCK_DEFAULT_MS;
+}
+
+function encodePolyline(points, precision = 6) {
+  const f = 10 ** precision;
+  let pLat = 0;
+  let pLon = 0;
+  let out = '';
+  const enc = (v) => {
+    let n = v < 0 ? -v * 2 - 1 : v * 2;
+    let r = '';
+    while (n >= 0x20) {
+      r += String.fromCharCode((0x20 | (n % 32)) + 63);
+      n = Math.floor(n / 32);
+    }
+    return r + String.fromCharCode(n + 63);
+  };
+  for (const p of points) {
+    const lat = Math.round(p.lat * f);
+    const lon = Math.round(p.lon * f);
+    out += enc(lat - pLat) + enc(lon - pLon);
+    pLat = lat;
+    pLon = lon;
+  }
+  return out;
+}
+function haversine(a, b) {
+  const r = Math.PI / 180;
+  const x = Math.sin(((b.lat - a.lat) * r) / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lon - a.lon) * r) / 2) ** 2;
+  return 2 * 6371008.8 * Math.asin(Math.min(1, Math.sqrt(x)));
+}
+function bearing(a, b) {
+  const r = Math.PI / 180;
+  const y = Math.sin((b.lon - a.lon) * r) * Math.cos(b.lat * r);
+  const x = Math.cos(a.lat * r) * Math.sin(b.lat * r) - Math.sin(a.lat * r) * Math.cos(b.lat * r) * Math.cos((b.lon - a.lon) * r);
+  return Math.round(((Math.atan2(y, x) / r) + 360) % 360);
+}
+
+/** Dev mock: an L-shaped route through a corner per leg (OSRM format); the alternative takes the other corner. */
+function mockRoute(points, mode, alternatives) {
+  const speed = { car: 13.9, bike: 4.4, foot: 1.4 }[mode] || 13.9;
+  const NAMES = ['Avenue de la Démo', 'Rue Exemple', 'Boulevard du Test', 'Quai Fictif'];
+  const line = (a, b, n = 8) => Array.from({ length: n + 1 }, (_, i) => ({ lat: a.lat + ((b.lat - a.lat) * i) / n, lon: a.lon + ((b.lon - a.lon) * i) / n }));
+  const build = (variant) => {
+    const legs = [];
+    let all = [];
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i];
+      const b = points[i + 1];
+      const c = variant ? { lat: a.lat, lon: b.lon } : { lat: b.lat, lon: a.lon };
+      const k = variant ? 1.12 : 1;
+      const s1 = line(a, c);
+      const s2 = line(c, b);
+      const d1 = haversine(a, c) * k;
+      const d2 = haversine(c, b) * k;
+      const b1 = bearing(a, c);
+      const b2 = bearing(c, b);
+      const turn = ((b2 - b1 + 540) % 360) - 180;
+      const n1 = NAMES[(i * 2 + variant) % 4];
+      const n2 = NAMES[(i * 2 + variant + 1) % 4];
+      const st = (type, at, name, dist, geom, extra = {}) => ({ distance: dist, duration: dist / speed, name, mode, geometry: encodePolyline(geom), maneuver: { type, location: [at.lon, at.lat], bearing_before: 0, bearing_after: 0, ...extra } });
+      legs.push({
+        distance: d1 + d2,
+        duration: (d1 + d2) / speed,
+        summary: `${n1}, ${n2}`,
+        steps: [
+          st('depart', a, n1, d1, s1, { bearing_after: b1 }),
+          st('turn', c, n2, d2, s2, { modifier: Math.abs(turn) < 20 ? 'straight' : turn < 0 ? 'left' : 'right', bearing_before: b1, bearing_after: b2 }),
+          st('arrive', b, n2, 0, [b, b], { bearing_before: b2 }),
+        ],
+      });
+      all = all.concat(i ? [...s1.slice(1), ...s2.slice(1)] : [...s1, ...s2.slice(1)]);
+    }
+    const distance = legs.reduce((x, l) => x + l.distance, 0);
+    return { distance, duration: distance / speed, geometry: encodePolyline(all), legs, weight_name: 'routability' };
+  };
+  return { code: 'Ok', routes: alternatives ? [build(0), build(1)] : [build(0)], waypoints: points.map((p) => ({ name: '', location: [p.lon, p.lat] })) };
+}
+
 function register(api) {
   const mock = !!api.DEV && process.env.AURORA_REAL_BACKENDS !== '1';
-  const stats = { tileRequests: 0, tileNetwork: 0, tileCacheHits: 0, maxParallel: 0, searchRequests: 0, searchNetwork: 0, searchCacheHits: 0, searchTimes: [], mock, userAgent: USER_AGENT };
+  const stats = { tileRequests: 0, tileNetwork: 0, tileCacheHits: 0, maxParallel: 0, searchRequests: 0, searchNetwork: 0, searchCacheHits: 0, searchTimes: [], routeRequests: 0, routeNetwork: 0, routeCacheHits: 0, routeTimes: [], lastRouteUrl: '', mock, userAgent: USER_AGENT };
   const mockDelay = Math.max(0, Number(process.env.AURORA_MAPS_TILE_DELAY) || 0);
 
   async function fetchUrl(url, accept) {
@@ -304,6 +505,100 @@ function register(api) {
     }
   }
 
+  // ---------------------------------------------------------------- routes (FOSSGIS OSRM, 1 request / second, cached)
+  const routes = new Map(); // url -> { at, result } | { pending }
+  let routeChain = Promise.resolve();
+  let routeLastAt = 0;
+  let routeBlockedUntil = 0;
+  const isOnline = () => {
+    if (process.env.AURORA_MAPS_OFFLINE === '1') return false;
+    try {
+      const { net } = require('electron');
+      return typeof net.isOnline === 'function' ? net.isOnline() : true;
+    } catch {
+      return true;
+    }
+  };
+  async function fetchRoute(url) {
+    if (Date.now() < routeBlockedUntil) throw err('Route service asked to wait', 'ERATELIMIT');
+    if (!isOnline()) throw err('No network connection', 'EOFFLINE');
+    const wait = routeLastAt + ROUTE_GAP_MS - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    routeLastAt = Date.now();
+    stats.routeNetwork++;
+    stats.lastRouteUrl = url;
+    stats.routeTimes.push(routeLastAt);
+    if (stats.routeTimes.length > 20) stats.routeTimes.shift();
+    const { net } = require('electron');
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ROUTE_TIMEOUT_MS);
+    let res;
+    let buf;
+    try {
+      try {
+        res = await net.fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } });
+      } catch (e) {
+        if (!isOnline()) throw err('No network connection', 'EOFFLINE');
+        throw err(ctrl.signal.aborted ? 'Route service timed out' : `Route service unreachable (${e.message})`, 'EUNREACHABLE');
+      }
+      if (Number(res.headers.get('content-length')) > ROUTE_MAX_BYTES) throw err('Route answer too large', 'EBADDATA');
+      try {
+        buf = Buffer.from(await res.arrayBuffer());
+      } catch {
+        throw err(ctrl.signal.aborted ? 'Route service timed out' : 'Route answer interrupted', 'EUNREACHABLE');
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+    if (res.status === 429) {
+      routeBlockedUntil = Date.now() + retryAfterMs(res.headers.get('retry-after'));
+      throw err('Route service is rate limiting requests', 'ERATELIMIT');
+    }
+    if (buf.length > ROUTE_MAX_BYTES) throw err('Route answer too large', 'EBADDATA');
+    let json = null;
+    try {
+      json = JSON.parse(buf.toString('utf8'));
+    } catch {}
+    // OSRM answers 400 with { code: 'NoRoute' | 'NoSegment' | … }: its code says more than the status
+    if (json && typeof json === 'object' && typeof json.code === 'string' && json.code !== 'Ok') return parseRoute(json);
+    if (res.status >= 500) throw err(`Route service answered ${res.status}`, 'EUNREACHABLE');
+    if (!res.ok) throw err(`Route service answered ${res.status}`, 'EBADDATA');
+    if (!json) throw err('Unexpected route answer', 'EBADDATA');
+    return parseRoute(json);
+  }
+  async function route(points, opts = {}) {
+    const pts = normRoutePoints(points);
+    if (!pts) throw err('Invalid route points', 'EINVAL');
+    const mode = opts?.mode == null ? 'car' : opts.mode;
+    if (!Object.hasOwn(OSRM_PROFILES, mode)) throw err('Invalid travel mode', 'EINVAL');
+    stats.routeRequests++;
+    const alternatives = pts.length === 2;
+    const useMock = mock && !process.env.AURORA_MAPS_OSRM_URL;
+    const url = routeUrl(osrmBase(), mode, pts, alternatives);
+    const key = useMock ? `mock:${url}` : url;
+    const hit = routes.get(key);
+    if (hit?.result && Date.now() - hit.at < ROUTE_TTL) {
+      stats.routeCacheHits++;
+      routes.delete(key);
+      routes.set(key, hit);
+      return { ...hit.result, cached: true };
+    }
+    if (hit?.pending) return hit.pending;
+    const run = routeChain.then(() => (useMock ? parseRoute(mockRoute(pts, mode, alternatives)) : fetchRoute(url)));
+    routeChain = run.catch(() => {});
+    const pending = run.then((r) => ({ ...r, cached: false, source: useMock ? 'mock' : 'osrm' }));
+    routes.set(key, { pending });
+    try {
+      const result = await pending;
+      routes.set(key, { at: Date.now(), result });
+      while (routes.size > ROUTE_CACHE) routes.delete(routes.keys().next().value);
+      return result;
+    } catch (e) {
+      routes.delete(key);
+      throw e.code ? e : err(e.message || 'Route service unavailable', 'EUNREACHABLE');
+    }
+  }
+
   // ---------------------------------------------------------------- My places
   function readPlaces() {
     try {
@@ -346,7 +641,8 @@ function register(api) {
     return writePlaces(places);
   });
   api.handle('maps:removePlace', (id) => writePlaces(readPlaces().filter((x) => x.id !== id)));
-  api.handle('maps:stats', () => ({ ...stats, searchTimes: stats.searchTimes.slice(), queued: queue.length, active }));
+  api.handle('maps:route', (points, opts) => route(points, opts && typeof opts === 'object' ? opts : {}));
+  api.handle('maps:stats', () => ({ ...stats, searchTimes: stats.searchTimes.slice(), routeTimes: stats.routeTimes.slice(), queued: queue.length, active }));
 }
 
 module.exports = register;
@@ -356,3 +652,9 @@ module.exports.parseSearch = parseSearch;
 module.exports.normPlace = normPlace;
 module.exports.mockSearch = mockSearch;
 module.exports.USER_AGENT = USER_AGENT;
+module.exports.normRoutePoints = normRoutePoints;
+module.exports.routeUrl = routeUrl;
+module.exports.parseRoute = parseRoute;
+module.exports.mockRoute = mockRoute;
+module.exports.retryAfterMs = retryAfterMs;
+module.exports.OSRM_URL = OSRM_URL;

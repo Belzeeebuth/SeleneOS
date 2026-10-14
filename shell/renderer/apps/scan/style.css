@@ -1,0 +1,586 @@
+/* Numérisation (apps/scan). Tokens only. The glass and the pages are pictures (the scanner's colours); everything
+   around them follows the theme. */
+.app-scan .scan-root {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ left panel */
+.app-scan .scan-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-right: 1px solid var(--line-soft);
+  background: var(--bg);
+  min-height: 0;
+}
+.app-scan .scan-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.app-scan .scan-label {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--text-2);
+}
+.app-scan .scan-hint {
+  font-size: var(--fs-small);
+  color: var(--text-3);
+  line-height: 1.35;
+}
+.app-scan .scan-select {
+  width: 100%;
+  min-width: 0;
+}
+.app-scan .scan-dev-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+.app-scan .scan-dev-row .scan-select {
+  flex: 1;
+}
+.app-scan .scan-seg {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+}
+.app-scan .scan-seg > button {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.app-scan .scan-seg > button:disabled {
+  color: var(--text-disabled);
+}
+.app-scan .scan-autocrop {
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.app-scan .scan-autocrop .toggle-label {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  line-height: 1.35;
+}
+.app-scan .scan-actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+.app-scan .scan-actions > .btn {
+  flex: 1;
+  min-width: 0;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.app-scan .scan-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-small);
+  color: var(--text-2);
+}
+.app-scan .scan-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--sp-3);
+  border-radius: var(--radius);
+  background: var(--bg-alt);
+  border: 1px solid var(--line-soft);
+}
+.app-scan .scan-progress[hidden] {
+  display: none;
+}
+.app-scan .scan-progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.app-scan .scan-progress-text {
+  font-size: var(--fs-small);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ main area */
+.app-scan .scan-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.app-scan .scan-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 48px;
+  padding: 6px var(--sp-3);
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--bg);
+}
+.app-scan .scan-tb-title {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding-left: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.app-scan .scan-tb-sp {
+  flex: 1;
+}
+.app-scan .scan-ib {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 var(--sp-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+}
+.app-scan .scan-ib:hover {
+  color: var(--text);
+}
+.app-scan .scan-ib.small {
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 6px;
+}
+.app-scan .scan-toolbar .btn.subtle:not(.scan-ib) {
+  gap: 6px;
+  color: var(--text-2);
+}
+.app-scan .scan-toolbar .btn.subtle:not(.scan-ib):hover {
+  color: var(--text);
+}
+.app-scan .scan-adjust-btn.on {
+  background: var(--accent-subtle);
+  color: var(--accent-text) !important;
+}
+.app-scan .scan-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--line-soft);
+}
+
+.app-scan .scan-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-alt);
+}
+
+/* the glass: the scanner's whole area, in its proportions */
+.app-scan .scan-glass {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  touch-action: none;
+  user-select: none;
+}
+.app-scan .scan-glass[hidden],
+.app-scan .scan-page[hidden],
+.app-scan .scan-empty[hidden],
+.app-scan .scan-adjust[hidden] {
+  display: none;
+}
+.app-scan .scan-glass.has-preview {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  box-shadow: var(--shadow-tooltip);
+  cursor: crosshair;
+}
+.app-scan .scan-preview-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  display: block;
+}
+.app-scan .scan-preview-img[hidden] {
+  display: none;
+}
+.app-scan .scan-glass-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-6);
+  text-align: center;
+  color: var(--text-2);
+}
+.app-scan .scan-glass-hint[hidden] {
+  display: none;
+}
+.app-scan .scan-glass-hint-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  max-width: 300px;
+  line-height: 1.45;
+}
+.app-scan .scan-glass-hint-body .icon {
+  color: var(--text-3);
+}
+
+/* the selection: everything outside it is dimmed */
+.app-scan .scan-sel {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 100vmax rgb(var(--shadow-rgb) / 0.42);
+  cursor: move;
+  outline: none;
+}
+.app-scan .scan-sel[hidden] {
+  display: none;
+}
+.app-scan .scan-glass.has-preview {
+  overflow: hidden;
+}
+.app-scan .scan-sel:focus-visible {
+  border-style: dashed;
+  border-color: var(--focus-ring);
+}
+.app-scan .scan-sel:focus-visible::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border: 2px solid var(--focus-ring);
+  pointer-events: none;
+}
+.app-scan .scan-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  margin: -6px 0 0 -6px;
+  border: 2px solid var(--accent);
+  border-radius: 3px;
+  background: var(--surface-raised);
+}
+.app-scan .scan-handle::before {
+  content: '';
+  position: absolute;
+  inset: -7px;
+}
+.app-scan .h-nw { left: 0; top: 0; cursor: nwse-resize; }
+.app-scan .h-n { left: 50%; top: 0; cursor: ns-resize; }
+.app-scan .h-ne { left: 100%; top: 0; cursor: nesw-resize; }
+.app-scan .h-e { left: 100%; top: 50%; cursor: ew-resize; }
+.app-scan .h-se { left: 100%; top: 100%; cursor: nwse-resize; }
+.app-scan .h-s { left: 50%; top: 100%; cursor: ns-resize; }
+.app-scan .h-sw { left: 0; top: 100%; cursor: nesw-resize; }
+.app-scan .h-w { left: 0; top: 50%; cursor: ew-resize; }
+/* handles stay inside the glass when the selection touches its edges */
+.app-scan .h-nw, .app-scan .h-ne, .app-scan .h-n { margin-top: 0; }
+.app-scan .h-sw, .app-scan .h-se, .app-scan .h-s { margin-top: -12px; }
+.app-scan .h-nw, .app-scan .h-sw, .app-scan .h-w { margin-left: 0; }
+.app-scan .h-ne, .app-scan .h-se, .app-scan .h-e { margin-left: -12px; }
+
+/* a scanned page */
+.app-scan .scan-page {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.app-scan .scan-page-canvas {
+  display: block;
+  box-shadow: var(--shadow-flyout);
+}
+
+/* empty states */
+.app-scan .scan-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-6);
+}
+.app-scan .scan-empty-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 440px;
+  text-align: center;
+}
+.app-scan .scan-empty-icon {
+  color: var(--text-3);
+  margin-bottom: var(--sp-1);
+}
+.app-scan .scan-empty-help {
+  line-height: 1.45;
+}
+.app-scan .scan-retry {
+  margin-top: var(--sp-2);
+}
+
+/* notes */
+.app-scan .scan-note-wrap {
+  position: absolute;
+  top: var(--sp-3);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(580px, calc(100% - 32px));
+  z-index: 3;
+  pointer-events: none;
+}
+.app-scan .scan-note {
+  pointer-events: auto;
+  align-items: flex-start;
+  background-color: var(--surface-raised);
+  box-shadow: var(--shadow-flyout);
+  position: relative;
+}
+.app-scan .scan-note::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--info-bg);
+}
+.app-scan .scan-note.error::before {
+  background: var(--danger-bg);
+}
+.app-scan .scan-note.success::before {
+  background: var(--success-bg);
+}
+.app-scan .scan-note > * {
+  position: relative;
+}
+.app-scan .scan-note-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-scan .scan-note-title {
+  font-weight: 600;
+}
+.app-scan .scan-note-msg {
+  color: var(--text);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.app-scan .scan-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: 4px;
+}
+.app-scan .scan-note-close {
+  margin: -4px -8px -4px 0;
+}
+
+/* brightness / contrast */
+.app-scan .scan-adjust {
+  position: absolute;
+  top: var(--sp-2);
+  right: var(--sp-3);
+  width: 280px;
+  box-sizing: border-box;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-flyout);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.app-scan .scan-adj-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-scan .scan-adj-row .slider {
+  width: 100%;
+}
+.app-scan .scan-adj-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-small);
+  color: var(--text-2);
+}
+.app-scan .scan-adj-val {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.app-scan .scan-adj-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ------------------------------------------------------------------ pages strip */
+.app-scan .scan-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 140px;
+  padding: 6px var(--sp-3);
+  box-sizing: border-box;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg);
+}
+.app-scan .scan-tiles {
+  flex: 0 1 auto;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-width: 94px;
+  padding: 4px 4px 2px;
+  align-items: stretch;
+}
+.app-scan .scan-tile {
+  flex: 0 0 auto;
+  width: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  cursor: pointer;
+  touch-action: none;
+  transition: background var(--dur-fast) var(--ease);
+}
+.app-scan .scan-tile:hover {
+  background: var(--subtle-hover);
+}
+.app-scan .scan-tile.selected {
+  background: var(--sel-bg);
+  border-color: var(--accent);
+  color: var(--text);
+  box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
+}
+.app-scan .scan-tile:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.app-scan .scan-tile:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.app-scan .scan-tile-img {
+  width: 64px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-xs);
+  background: var(--bg-alt);
+  border: 1px solid var(--line-soft);
+  color: var(--text-3);
+}
+.app-scan .scan-tile-img canvas,
+.app-scan .scan-tile-img img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+}
+.app-scan .scan-tile-label {
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-scan .scan-tile.dragging {
+  position: relative;
+  z-index: 2;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-flyout);
+  transition: none;
+}
+.app-scan .scan-tile.drop-before {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.app-scan .scan-tile.drop-after {
+  box-shadow: inset -3px 0 0 var(--accent);
+}
+.app-scan .scan-tile-add .scan-tile-img {
+  border-style: dashed;
+  border-color: var(--line);
+  background: transparent;
+}
+.app-scan .scan-tile-add {
+  align-self: center;
+  width: auto;
+  min-width: 84px;
+  max-width: 104px;
+}
+.app-scan .scan-tile-add .scan-tile-label {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+}
+.app-scan .scan-strip-sp {
+  flex: 1;
+}
+.app-scan .scan-savebox {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-left: var(--sp-3);
+  border-left: 1px solid var(--line-soft);
+  min-width: 0;
+}
+.app-scan .scan-savebox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-scan .scan-savebox-row .scan-label {
+  margin-right: 4px;
+}
+.app-scan .scan-savebox .scan-seg {
+  flex: 1;
+}
+.app-scan .scan-savebox .scan-progress {
+  min-width: 260px;
+}
+.app-scan .scan-strip-empty {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: var(--fs-small);
+  padding-left: var(--sp-2);
+}
+
+:root[data-animations='off'] .app-scan * {
+  transition: none !important;
+}

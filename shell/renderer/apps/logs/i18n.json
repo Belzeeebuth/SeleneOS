@@ -1,0 +1,378 @@
+{
+  "en": {
+    "toolbar": "Journal views and actions",
+    "preset": {
+      "label": "Views",
+      "errors": "Errors this boot",
+      "previous": "Previous boot",
+      "kernel": "Kernel",
+      "mine": "My apps",
+      "all": "Everything"
+    },
+    "presetTip": {
+      "errors": "Errors and more serious problems since the computer started",
+      "previous": "Everything from the previous session: useful after a crash or a freeze",
+      "kernel": "Messages from the Linux kernel and the drivers, this boot",
+      "mine": "Messages from your apps and the services of your session",
+      "all": "Every message of every boot"
+    },
+    "action": {
+      "follow": "Follow",
+      "followTip": "Show new messages as they arrive",
+      "followOff": "Only possible for the current boot",
+      "refresh": "Refresh (F5)",
+      "export": "Export",
+      "exportText": "Text file (.txt)…",
+      "exportJson": "JSON file (.json)…",
+      "copy": "Copy the selected entry",
+      "copyAll": "Copy the entries shown",
+      "details": "Show or hide the details pane",
+      "showDetails": "Details"
+    },
+    "filter": {
+      "label": "Filters",
+      "boot": "Boot",
+      "level": "Level",
+      "scope": "Journal",
+      "period": "Period",
+      "source": "Service or app",
+      "sourcePh": "Service or app",
+      "clearSource": "Show every source",
+      "search": "Search the messages",
+      "searchPh": "Search the messages",
+      "clearSearch": "Clear the search",
+      "clearAll": "Clear the filters"
+    },
+    "boot": {
+      "current": "This boot",
+      "previous": "Previous boot",
+      "all": "All boots",
+      "older": "Older boots",
+      "since": "since {time}",
+      "other": "Boot {id}"
+    },
+    "level": {
+      "0": "Emergencies only",
+      "1": "Alert or more serious",
+      "2": "Critical or more serious",
+      "3": "Error or more serious",
+      "4": "Warning or more serious",
+      "5": "Notice or more serious",
+      "6": "Info or more serious",
+      "7": "All levels"
+    },
+    "prio": {
+      "0": "Emergency",
+      "1": "Alert",
+      "2": "Critical",
+      "3": "Error",
+      "4": "Warning",
+      "5": "Notice",
+      "6": "Info",
+      "7": "Debug",
+      "none": "No level"
+    },
+    "scope": {
+      "all": "Whole journal",
+      "kernel": "Kernel only",
+      "user": "My apps"
+    },
+    "period": {
+      "all": "Any time",
+      "1h": "Last hour",
+      "24h": "Last 24 hours",
+      "7d": "Last 7 days",
+      "custom": "Custom period…",
+      "range": "{from} – {to}",
+      "fromOnly": "Since {from}",
+      "toOnly": "Until {to}",
+      "title": "Choose a period",
+      "from": "From",
+      "to": "To",
+      "toHint": "Leave empty to go up to now.",
+      "invalid": "The end must be after the start.",
+      "apply": "Apply",
+      "edit": "Change the period…"
+    },
+    "col": {
+      "time": "Time",
+      "level": "Level",
+      "source": "Source",
+      "message": "Message"
+    },
+    "list": "Journal entries",
+    "suggest": {
+      "units": "Services",
+      "identifiers": "Programs",
+      "none": "No match"
+    },
+    "count_one": "{n} entry",
+    "count_other": "{n} entries",
+    "status": {
+      "loading": "Reading the journal…",
+      "more": "Load older entries",
+      "loadingMore": "Loading older entries…",
+      "olderAvailable": "older ones available",
+      "live": "live",
+      "newer_one": "{n} new entry above",
+      "newer_other": "{n} new entries above",
+      "toTop": "Go to the newest",
+      "copied": "Copied to the clipboard",
+      "copiedAll_one": "{n} entry copied to the clipboard",
+      "copiedAll_other": "{n} entries copied to the clipboard",
+      "slowSearch": "Search done by Selene: this journalctl has no pattern matching."
+    },
+    "empty": {
+      "errors": "No errors since the computer started.",
+      "errorsHint": "Messages of other levels are still in the journal: choose “Everything” to see them.",
+      "filters": "No entries match these filters.",
+      "noPrevious": "No previous boot is recorded in the journal.",
+      "noPreviousHint": "The journal keeps older boots only when it is saved on the disk (not in the live session).",
+      "noBoot": "This boot is no longer in the journal.",
+      "missing": "journalctl was not found on this system.",
+      "failed": "The journal could not be read.",
+      "timeout": "The journal took too long to answer. Try a narrower filter.",
+      "select": "Select an entry to see its details."
+    },
+    "limited": "You only see the messages of your own account. Messages from the system and from other accounts are hidden: an administrator can add your account to the adm group.",
+    "detail": {
+      "message": "Message",
+      "fields": "All fields",
+      "copy": "Copy",
+      "context": "Show context",
+      "filterSource": "Only this source",
+      "noSource": "Unknown source",
+      "binary": "This message contained bytes that are not valid text: they are shown as �.",
+      "truncated": "Long message ({size}): only its beginning is shown.",
+      "missing": "The journal did not provide this message (too long).",
+      "missingShort": "(message not provided)",
+      "missingValue": "(value not provided)",
+      "loading": "Loading the fields…",
+      "failed": "The fields could not be read: {msg}",
+      "binaryTag": "binary",
+      "truncatedTag": "cut"
+    },
+    "context": {
+      "banner": "Entries written around {time}, every source",
+      "back": "Back to the results",
+      "failed": "The context could not be read: {msg}"
+    },
+    "menu": {
+      "copy": "Copy",
+      "copyMessage": "Copy the message",
+      "copyAll": "Copy the entries shown",
+      "context": "Show context",
+      "only": "Only this source",
+      "details": "Details"
+    },
+    "follow": {
+      "ended": "The live view stopped: {msg}",
+      "failed": "The live view could not start: {msg}"
+    },
+    "export": {
+      "title": "Export the journal",
+      "text": "Text",
+      "json": "JSON",
+      "done_one": "{n} entry exported to {name}",
+      "done_other": "{n} entries exported to {name}",
+      "capped": "Only the newest {n} entries were exported.",
+      "failed": "The export failed: {msg}",
+      "busy": "Exporting…"
+    },
+    "err": {
+      "ENOENT": "journalctl was not found on this system.",
+      "ETIMEDOUT": "The journal took too long to answer.",
+      "ENOSPC": "The disk is full.",
+      "EACCES": "You are not allowed to write there.",
+      "EINVAL": "A filter is not valid."
+    }
+  },
+  "fr": {
+    "toolbar": "Vues et actions du journal",
+    "preset": {
+      "label": "Vues",
+      "errors": "Erreurs de ce démarrage",
+      "previous": "Démarrage précédent",
+      "kernel": "Noyau",
+      "mine": "Mes applications",
+      "all": "Tout"
+    },
+    "presetTip": {
+      "errors": "Erreurs et problèmes plus graves depuis le démarrage de l’ordinateur",
+      "previous": "Tout ce qui s’est passé lors de la session précédente : utile après un plantage ou un blocage",
+      "kernel": "Messages du noyau Linux et des pilotes, pour ce démarrage",
+      "mine": "Messages de vos applications et des services de votre session",
+      "all": "Tous les messages de tous les démarrages"
+    },
+    "action": {
+      "follow": "Suivre",
+      "followTip": "Afficher les nouveaux messages dès leur arrivée",
+      "followOff": "Possible uniquement pour le démarrage en cours",
+      "refresh": "Actualiser (F5)",
+      "export": "Exporter",
+      "exportText": "Fichier texte (.txt)…",
+      "exportJson": "Fichier JSON (.json)…",
+      "copy": "Copier l’entrée sélectionnée",
+      "copyAll": "Copier les entrées affichées",
+      "details": "Afficher ou masquer le volet des détails",
+      "showDetails": "Détails"
+    },
+    "filter": {
+      "label": "Filtres",
+      "boot": "Démarrage",
+      "level": "Niveau",
+      "scope": "Journal",
+      "period": "Période",
+      "source": "Service ou application",
+      "sourcePh": "Service ou application",
+      "clearSource": "Afficher toutes les sources",
+      "search": "Rechercher dans les messages",
+      "searchPh": "Rechercher dans les messages",
+      "clearSearch": "Effacer la recherche",
+      "clearAll": "Effacer les filtres"
+    },
+    "boot": {
+      "current": "Ce démarrage",
+      "previous": "Démarrage précédent",
+      "all": "Tous les démarrages",
+      "older": "Démarrages plus anciens",
+      "since": "depuis {time}",
+      "other": "Démarrage {id}"
+    },
+    "level": {
+      "0": "Urgences uniquement",
+      "1": "Alerte ou plus grave",
+      "2": "Critique ou plus grave",
+      "3": "Erreur ou plus grave",
+      "4": "Avertissement ou plus grave",
+      "5": "Notice ou plus grave",
+      "6": "Information ou plus grave",
+      "7": "Tous les niveaux"
+    },
+    "prio": {
+      "0": "Urgence",
+      "1": "Alerte",
+      "2": "Critique",
+      "3": "Erreur",
+      "4": "Avertissement",
+      "5": "Notice",
+      "6": "Information",
+      "7": "Débogage",
+      "none": "Sans niveau"
+    },
+    "scope": {
+      "all": "Tout le journal",
+      "kernel": "Noyau uniquement",
+      "user": "Mes applications"
+    },
+    "period": {
+      "all": "Toute la période",
+      "1h": "Dernière heure",
+      "24h": "Dernières 24 heures",
+      "7d": "7 derniers jours",
+      "custom": "Période personnalisée…",
+      "range": "Du {from} au {to}",
+      "fromOnly": "Depuis le {from}",
+      "toOnly": "Jusqu’au {to}",
+      "title": "Choisir une période",
+      "from": "Du",
+      "to": "Au",
+      "toHint": "Laissez vide pour aller jusqu’à maintenant.",
+      "invalid": "La fin doit être après le début.",
+      "apply": "Appliquer",
+      "edit": "Changer la période…"
+    },
+    "col": {
+      "time": "Heure",
+      "level": "Niveau",
+      "source": "Source",
+      "message": "Message"
+    },
+    "list": "Entrées du journal",
+    "suggest": {
+      "units": "Services",
+      "identifiers": "Programmes",
+      "none": "Aucune correspondance"
+    },
+    "count_one": "{n} entrée",
+    "count_other": "{n} entrées",
+    "status": {
+      "loading": "Lecture du journal…",
+      "more": "Charger les entrées plus anciennes",
+      "loadingMore": "Chargement des entrées plus anciennes…",
+      "olderAvailable": "d’autres plus anciennes disponibles",
+      "live": "en direct",
+      "newer_one": "{n} nouvelle entrée au-dessus",
+      "newer_other": "{n} nouvelles entrées au-dessus",
+      "toTop": "Aller aux plus récentes",
+      "copied": "Copié dans le presse-papiers",
+      "copiedAll_one": "{n} entrée copiée dans le presse-papiers",
+      "copiedAll_other": "{n} entrées copiées dans le presse-papiers",
+      "slowSearch": "Recherche faite par Selene : ce journalctl ne gère pas les motifs."
+    },
+    "empty": {
+      "errors": "Aucune erreur depuis le démarrage de l’ordinateur.",
+      "errorsHint": "Les messages des autres niveaux restent dans le journal : choisissez « Tout » pour les voir.",
+      "filters": "Aucune entrée ne correspond à ces filtres.",
+      "noPrevious": "Aucun démarrage précédent n’est enregistré dans le journal.",
+      "noPreviousHint": "Le journal ne garde les démarrages précédents que s’il est enregistré sur le disque (pas dans la session live).",
+      "noBoot": "Ce démarrage n’est plus dans le journal.",
+      "missing": "journalctl est introuvable sur ce système.",
+      "failed": "Le journal n’a pas pu être lu.",
+      "timeout": "Le journal a mis trop de temps à répondre. Essayez un filtre plus précis.",
+      "select": "Sélectionnez une entrée pour voir ses détails."
+    },
+    "limited": "Vous ne voyez que les messages de votre compte. Ceux du système et des autres comptes sont masqués : un administrateur peut ajouter votre compte au groupe adm.",
+    "detail": {
+      "message": "Message",
+      "fields": "Tous les champs",
+      "copy": "Copier",
+      "context": "Afficher le contexte",
+      "filterSource": "Seulement cette source",
+      "noSource": "Source inconnue",
+      "binary": "Ce message contenait des octets qui ne sont pas du texte valide : ils sont affichés sous la forme �.",
+      "truncated": "Message long ({size}) : seul son début est affiché.",
+      "missing": "Le journal n’a pas fourni ce message (trop long).",
+      "missingShort": "(message non fourni)",
+      "missingValue": "(valeur non fournie)",
+      "loading": "Chargement des champs…",
+      "failed": "Impossible de lire les champs : {msg}",
+      "binaryTag": "binaire",
+      "truncatedTag": "tronqué"
+    },
+    "context": {
+      "banner": "Entrées écrites autour de {time}, toutes sources confondues",
+      "back": "Revenir aux résultats",
+      "failed": "Impossible de lire le contexte : {msg}"
+    },
+    "menu": {
+      "copy": "Copier",
+      "copyMessage": "Copier le message",
+      "copyAll": "Copier les entrées affichées",
+      "context": "Afficher le contexte",
+      "only": "Seulement cette source",
+      "details": "Détails"
+    },
+    "follow": {
+      "ended": "Le suivi en direct s’est arrêté : {msg}",
+      "failed": "Impossible de lancer le suivi en direct : {msg}"
+    },
+    "export": {
+      "title": "Exporter le journal",
+      "text": "Texte",
+      "json": "JSON",
+      "done_one": "{n} entrée exportée dans {name}",
+      "done_other": "{n} entrées exportées dans {name}",
+      "capped": "Seules les {n} entrées les plus récentes ont été exportées.",
+      "failed": "L’export a échoué : {msg}",
+      "busy": "Export en cours…"
+    },
+    "err": {
+      "ENOENT": "journalctl est introuvable sur ce système.",
+      "ETIMEDOUT": "Le journal a mis trop de temps à répondre.",
+      "ENOSPC": "Le disque est plein.",
+      "EACCES": "Vous n’avez pas le droit d’écrire à cet endroit.",
+      "EINVAL": "Un filtre n’est pas valide."
+    }
+  }
+}

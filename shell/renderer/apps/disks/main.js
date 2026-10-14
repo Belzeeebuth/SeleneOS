@@ -1,12 +1,21 @@
 // Disks: drives and partitions (main/ipc/disks.js), mount / unmount / eject, format removable drives through the
-// elevation prompt (aurora-admin format-removable). Test hook: the window element carries __disks { state, load }.
+// elevation prompt (aurora-admin format-removable), and « Santé du disque » (health.js: SMART status, self-tests).
+// Launch args: { device: '/dev/sda', view: 'health' } (the health notification opens the drive's health view).
+// Test hook: the window element carries __disks { state, load, health }.
+import { createHealth } from './health.js';
+
 const MiB = 1024 * 1024;
 const LABEL_MAX = { vfat: 11, exfat: 15, ext4: 16 };
 
 export default {
   async launch(ctx) {
     const { win, h, icon, ui, t, api, shell, i18n } = ctx;
-    const state = { drives: [], sel: null, part: null, loading: true, error: '', simulated: false, busy: '', note: null };
+    const state = {
+      drives: [], sel: null, part: null, loading: true, error: '', simulated: false, busy: '', note: null,
+      // health view (health.js)
+      view: 'volumes', health: {}, healthFresh: {}, healthLoading: '', healthError: '', healthNote: null, isAdmin: null, pollMs: 10000, expertOpen: false,
+    };
+    const args = ctx.args || {};
     const lang = () => (i18n?.lang || 'en').slice(0, 2);
     const nf = (n, d) => new Intl.NumberFormat(lang(), { maximumFractionDigits: d }).format(n);
     const unitsEn = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -39,10 +48,13 @@ export default {
     const mainEl = h('main', { class: 'dk-main', tabindex: '-1' });
     const root = h('div', { class: 'disks' }, side, mainEl);
     win.body.appendChild(root);
-    win.el && (win.el.__disks = { state, load: () => load() });
+    const hv = createHealth({ ctx, state, renderList, renderMain, size, nf, lang, driveName });
+    win.el && (win.el.__disks = { state, load: () => load(), health: hv });
+    ctx.onClose?.(() => hv.dispose());
 
     // ------------------------------------------------------------ data
     let seq = 0;
+    let firstLoad = true;
     async function load({ quiet = false } = {}) {
       const my = ++seq;
       if (!quiet && !state.drives.length) {
@@ -60,8 +72,20 @@ export default {
         state.error = t('loadFailed', { msg: e?.message || String(e) });
       }
       state.loading = false;
+      if (firstLoad && args.device && state.drives.some((d) => d.path === args.device)) {
+        state.sel = args.device;
+        if (args.view === 'health') state.view = 'health';
+      }
       if (!selDrive()) state.sel = (state.drives.find((d) => d.removable) || state.drives[0])?.path || null;
       if (!selPart()) state.part = volumes(selDrive())[0]?.path || null;
+      // Health of every drive (udisks' cached data, nothing is woken up): the list markers, the « Health (SMART) » row,
+      // and the once-only « Attention » notification (disks:healthCheck). The first time, wait for it briefly.
+      const unknown = state.drives.some((d) => !state.health[d.path]);
+      if (firstLoad) {
+        firstLoad = false;
+        await Promise.race([hv.check(), new Promise((r) => setTimeout(r, 1500))]);
+        if (win.closed || my !== seq) return;
+      } else if (unknown) hv.check().then(() => !win.closed && render());
       render();
     }
     const offChanged = api.on('disks:changed', () => load({ quiet: true }));
@@ -95,6 +119,7 @@ export default {
             h('span', { class: 'dk-drive-name' }, driveName(d)),
             h('span', { class: 'caption text-2' }, [size(d.size), tranLabel(d), d.system ? t('systemDisk') : d.removable ? t('removableDisk') : ''].filter(Boolean).join(' · ')),
           ),
+          hv.listBadge(d),
         );
       });
       if (!items.length) items.push(h('div', { class: 'caption text-2 dk-list-empty' }, state.loading ? t('loading') : t('noDrives')));
@@ -106,6 +131,7 @@ export default {
         state.sel = path;
         state.part = volumes(selDrive())[0]?.path || null;
         state.note = null;
+        state.healthNote = null;
       }
       render();
       if (focus) listEl.querySelector('.dk-drive.selected')?.focus();
@@ -243,13 +269,59 @@ export default {
         row(t('f.media'), d.type === 'rom' ? t('optical') : d.rotational ? t('hdd') : t('ssd')),
         row(t('f.table'), d.pttype ? t(`tables.${d.pttype}`) : t('none')),
         row(t('f.removable'), d.removable ? t('yes') : t('no')),
-        row(t('f.smart'), h('span', { class: 'dk-smart text-2' }, t('notAvailable'))),
+        row(t('f.smart'), hv.smartRow(d, () => setView('health', true))),
       );
+    }
+
+    const VIEWS = ['volumes', 'health'];
+    function setView(v, focus) {
+      if (!VIEWS.includes(v)) return;
+      state.view = v;
+      renderMain();
+      if (focus) mainEl.querySelector(`.dk-tab[data-view="${v}"]`)?.focus();
+    }
+    function tabs(d) {
+      const bar = h(
+        'div',
+        { class: 'tabs dk-tabs', role: 'tablist', 'aria-label': t('tabs.label') },
+        VIEWS.map((v) =>
+          h(
+            'button',
+            {
+              class: ['tab', 'dk-tab', state.view === v && 'selected'],
+              role: 'tab',
+              id: `dk-tab-${v}`,
+              'aria-selected': state.view === v ? 'true' : 'false',
+              'aria-controls': 'dk-view',
+              tabindex: state.view === v ? '0' : '-1',
+              'data-view': v,
+              onclick: () => setView(v, true),
+            },
+            t(`tabs.${v}`),
+            v === 'health' ? hv.tabBadge(d) : '',
+          ),
+        ),
+      );
+      bar.addEventListener('keydown', (e) => {
+        const i = VIEWS.indexOf(state.view);
+        let n = null;
+        if (e.key === 'ArrowRight') n = VIEWS[(i + 1) % VIEWS.length];
+        else if (e.key === 'ArrowLeft') n = VIEWS[(i + VIEWS.length - 1) % VIEWS.length];
+        else if (e.key === 'Home') n = VIEWS[0];
+        else if (e.key === 'End') n = VIEWS[VIEWS.length - 1];
+        if (n) {
+          e.preventDefault();
+          setView(n, true);
+        }
+      });
+      return bar;
     }
 
     function renderMain() {
       const d = selDrive();
       const segFocused = mainEl.contains(document.activeElement) && !!document.activeElement.classList?.contains('dk-seg');
+      // Re-rendering (self-test progress, health reads) keeps the focused button focused.
+      const fid = mainEl.contains(document.activeElement) ? document.activeElement.dataset?.fid || null : null;
       if (state.error) {
         mainEl.replaceChildren(h('div', { class: 'infobar error dk-error', role: 'alert' }, icon('error_circle'), h('div', null, state.error)), h('div', { class: 'dk-actions' }, h('button', { class: 'btn', onclick: () => load() }, t('refresh'))));
         return;
@@ -273,16 +345,22 @@ export default {
           d.formattable ? h('button', { class: 'btn dk-format', disabled: busy, onclick: () => formatDrive(d) }, icon('warning'), t('format')) : '',
         ),
       );
+      const volumesView = () => [
+        d.system ? h('div', { class: 'infobar dk-syshint' }, icon('info'), h('div', null, t('systemHint'))) : '',
+        h('div', { class: 'card dk-card dk-volumes' }, h('div', { class: 'body-strong' }, t('volumes')), partitionBar(d)),
+        h('div', { class: 'dk-grid' }, partDetails(d, selPart()), driveDetails(d)),
+      ];
       const parts = [
         head,
         note(),
         state.busy ? h('div', { class: 'dk-busy', role: 'status' }, h('div', { class: 'progress indeterminate' }, h('div', { class: 'bar' })), h('div', { class: 'caption' }, state.busy)) : '',
-        d.system ? h('div', { class: 'infobar dk-syshint' }, icon('info'), h('div', null, t('systemHint'))) : '',
-        h('div', { class: 'card dk-card dk-volumes' }, h('div', { class: 'body-strong' }, t('volumes')), partitionBar(d)),
-        h('div', { class: 'dk-grid' }, partDetails(d, selPart()), driveDetails(d)),
+        tabs(d),
+        h('div', { class: ['dk-view', `dk-view-${state.view}`], id: 'dk-view', role: 'tabpanel', 'aria-labelledby': `dk-tab-${state.view}` },
+          state.view === 'health' ? hv.view(d) : volumesView()),
       ].filter(Boolean);
       mainEl.replaceChildren(...parts);
       if (segFocused) mainEl.querySelector('.dk-seg.selected')?.focus();
+      else if (fid) mainEl.querySelector(`[data-fid="${fid}"]`)?.focus();
     }
 
     // ------------------------------------------------------------ actions
@@ -408,12 +486,27 @@ export default {
       render();
     });
 
+    api.invoke('admin:status').then((s) => {
+      if (win.closed) return;
+      state.isAdmin = s ? !!s.isAdmin : null;
+      if (state.view === 'health') renderMain();
+    }, () => {});
+    api.invoke('disks:healthSchedule').then((s) => {
+      if (s?.pollMs) state.pollMs = s.pollMs;
+    }, () => {});
+
     render();
     await load();
     listEl.querySelector('.dk-drive.selected')?.focus();
     return {
-      onRelaunch() {
+      onRelaunch(next) {
         win.focus?.();
+        if (next?.device && state.drives.some((d) => d.path === next.device)) {
+          state.sel = next.device;
+          state.part = volumes(selDrive())[0]?.path || null;
+          if (next.view === 'health') state.view = 'health';
+          render();
+        }
         load({ quiet: true });
       },
     };

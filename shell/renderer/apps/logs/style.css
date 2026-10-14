@@ -1,0 +1,613 @@
+/* « Journaux système »: views + actions, filters, a flat virtualised list on the window surface, the details pane.
+   Tokens only (light / dark, every style, accent and ambiance). Scoped under .app-logs. */
+.app-logs {
+  --lg-detail-w: 380px;
+  --lg-row-h: 28px;
+}
+.app-logs [hidden] {
+  display: none !important;
+}
+.app-logs .lg-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  container-type: inline-size;
+}
+
+/* ------------------------------------------------------------------ views + actions */
+.app-logs .lg-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px 6px;
+}
+.app-logs .lg-bar-spacer {
+  flex: 1;
+  min-width: 0;
+}
+.app-logs .lg-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.app-logs .lg-preset {
+  appearance: none;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--control);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-small);
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.app-logs .lg-preset:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-logs .lg-preset:active {
+  background: var(--subtle-pressed);
+}
+.app-logs .lg-preset[aria-pressed="true"] {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+.app-logs .lg-preset:focus-visible,
+.app-logs .lg-actions .btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.app-logs .lg-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.app-logs .lg-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  white-space: nowrap;
+}
+.app-logs .lg-follow {
+  padding: 4px 12px 4px 10px;
+}
+.app-logs .lg-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-2);
+  box-sizing: border-box;
+}
+.app-logs .lg-follow[aria-pressed="true"] {
+  background: var(--accent-subtle);
+  color: var(--text);
+}
+.app-logs .lg-follow[aria-pressed="true"] .lg-live-dot {
+  border-color: var(--success);
+  background: var(--success);
+  animation: lg-pulse 1.6s var(--ease-std, ease-in-out) infinite;
+}
+@keyframes lg-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.app-logs .lg-follow:disabled .lg-live-dot {
+  border-color: var(--text-disabled);
+}
+
+/* ------------------------------------------------------------------ filters */
+.app-logs .lg-filters {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 12px 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.app-logs .lg-filters .select {
+  height: 32px;
+  min-height: 32px;
+  font-size: var(--fs-small);
+  max-width: 340px;
+}
+.app-logs .lg-source,
+.app-logs .lg-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 160px;
+}
+.app-logs .lg-source {
+  flex: 0 1 230px;
+}
+.app-logs .lg-search {
+  flex: 1 1 220px;
+}
+.app-logs .lg-field-ic {
+  position: absolute;
+  left: 10px;
+  color: var(--text-2);
+  pointer-events: none;
+}
+.app-logs .lg-source-input,
+.app-logs .lg-search-input {
+  width: 100%;
+  height: 32px;
+  min-height: 32px;
+  padding: 4px 30px 4px 32px;
+  font-size: var(--fs-small);
+  text-overflow: ellipsis;
+}
+.app-logs .lg-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+.app-logs .lg-field-clear {
+  position: absolute;
+  right: 4px;
+  width: 24px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  display: none;
+  place-items: center;
+}
+.app-logs .lg-field-clear:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.app-logs .has-text > .lg-field-clear {
+  display: grid;
+}
+.app-logs .lg-suggest {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  max-width: 360px;
+  max-height: 320px;
+  overflow: auto;
+  z-index: 20;
+}
+.app-logs .lg-suggest .menu-item {
+  gap: 8px;
+}
+.app-logs .lg-suggest .menu-item.active {
+  background: var(--subtle-hover);
+}
+
+/* ------------------------------------------------------------------ information bars */
+.app-logs .lg-info {
+  flex: none;
+  margin: 8px 12px 0;
+  padding: 8px 12px;
+  align-items: center;
+}
+.app-logs .lg-info-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+}
+.app-logs .lg-context-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+/* ------------------------------------------------------------------ list + details */
+.app-logs .lg-main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--lg-detail-w);
+  grid-template-rows: minmax(0, 1fr);
+}
+.app-logs .lg-main.no-detail {
+  grid-template-columns: minmax(0, 1fr);
+}
+.app-logs .lg-main.no-detail .lg-detail {
+  display: none;
+}
+.app-logs .lg-listwrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-logs .lg-list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--fs-small);
+  outline: none;
+}
+.app-logs .lg-root.loading .lg-list {
+  opacity: 0.6;
+}
+.app-logs .lg-head-wrap {
+  flex: none;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line-soft);
+}
+.app-logs .lg-head {
+  display: grid;
+  grid-template-columns: var(--lg-cols);
+  min-width: var(--lg-minw);
+  box-sizing: content-box;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+.app-logs .lg-th {
+  min-width: 0;
+  padding: 7px 10px 6px;
+  white-space: nowrap;
+}
+.app-logs .lg-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.app-logs .lg-body {
+  position: relative;
+  min-width: var(--lg-minw);
+}
+.app-logs .lg-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: var(--lg-row-h);
+  display: grid;
+  grid-template-columns: var(--lg-cols);
+  align-items: center;
+  contain: layout style;
+  border-radius: var(--radius-xs);
+}
+.app-logs .lg-row::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  transition: background var(--dur-fast) linear;
+}
+.app-logs .lg-row:hover::after {
+  background: var(--subtle-hover);
+}
+.app-logs .lg-row.p-critical {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+.app-logs .lg-row.p-error {
+  background: color-mix(in srgb, var(--danger) 5%, transparent);
+}
+.app-logs .lg-row.sel::after {
+  background: var(--sel-bg);
+  box-shadow: inset var(--sel-bar-w) 0 0 var(--sel-bar);
+}
+.app-logs .lg-list:focus-visible .lg-row.sel::after {
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
+}
+.app-logs .lg-row.anchor .lg-td.c-time {
+  font-weight: 700;
+}
+.app-logs .lg-row.anchor::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.app-logs .lg-row.fresh {
+  animation: lg-fresh 1.4s var(--ease) both;
+}
+@keyframes lg-fresh {
+  from {
+    background: var(--accent-subtle);
+  }
+}
+:root[data-animations="off"] .app-logs .lg-row.fresh,
+:root[data-animations="off"] .app-logs .lg-follow[aria-pressed="true"] .lg-live-dot {
+  animation: none;
+}
+.app-logs .lg-td {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  height: var(--lg-row-h);
+  line-height: var(--lg-row-h);
+  padding: 0 10px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-logs .lg-td.c-time {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.app-logs .lg-td.c-source {
+  color: var(--text-2);
+}
+.app-logs .lg-td.c-message.more::after {
+  content: " …";
+  color: var(--text-3);
+}
+.app-logs .lg-td.c-message.missing,
+.app-logs .lg-row.p-debug .lg-td.c-message {
+  color: var(--text-2);
+}
+.app-logs .lg-ico {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  vertical-align: -3px;
+}
+/* Level colours (text and icon), from the status tokens. */
+.app-logs .tone-critical,
+.app-logs .tone-error {
+  color: var(--danger);
+}
+.app-logs .tone-critical {
+  font-weight: 700;
+}
+.app-logs .tone-warning {
+  color: var(--warning);
+}
+.app-logs .tone-notice {
+  color: var(--accent-text);
+}
+.app-logs .tone-info,
+.app-logs .tone-none {
+  color: var(--text-2);
+}
+.app-logs .tone-debug {
+  color: var(--text-3);
+}
+.app-logs .lg-empty {
+  position: absolute;
+  inset: 36px 0 0;
+  padding: 24px;
+  pointer-events: none;
+}
+.app-logs .lg-empty > * {
+  pointer-events: auto;
+}
+.app-logs .lg-empty .lg-empty-title {
+  color: var(--text);
+  max-width: 520px;
+}
+.app-logs .lg-empty .lg-empty-hint {
+  max-width: 520px;
+}
+.app-logs .lg-newpill {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 3;
+  box-shadow: var(--shadow-flyout);
+}
+
+/* details pane */
+.app-logs .lg-detail {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-left: 1px solid var(--line-soft);
+  background: var(--bg-alt);
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-logs .lg-detail > * {
+  flex: none;
+}
+.app-logs .lg-detail > .lg-detail-empty {
+  flex: 1;
+}
+.app-logs .lg-detail-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-logs .lg-level-chip {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid currentColor;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+.app-logs .lg-detail-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-body-large);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.app-logs .lg-detail-time {
+  font-variant-numeric: tabular-nums;
+}
+.app-logs .lg-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.app-logs .lg-detail-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-logs .lg-detail-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--warning-bg);
+  border: 1px solid var(--line-soft);
+}
+.app-logs .lg-detail-notes .caption {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  color: var(--text);
+}
+.app-logs .lg-detail-notes .icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--warning);
+}
+.app-logs .lg-detail-label {
+  margin-top: 6px;
+  font-weight: 600;
+}
+.app-logs .lg-detail-msg {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 40vh;
+  overflow: auto;
+}
+.app-logs .lg-detail-msg:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.app-logs .lg-fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: fit-content(42%) minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 3px;
+  font-size: var(--fs-caption);
+}
+.app-logs .lg-fields dt {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.app-logs .lg-fields dd {
+  margin: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 12em;
+  overflow: auto;
+}
+.app-logs .lg-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 11px;
+}
+
+/* ------------------------------------------------------------------ status line */
+.app-logs .lg-status {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 34px;
+  padding: 2px 12px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.app-logs .lg-flash {
+  color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-logs .lg-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* custom period dialog (inside the window) */
+.app-logs .lg-period-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 320px;
+}
+.app-logs .lg-period-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+.app-logs .lg-period-err:empty {
+  display: none;
+}
+.app-logs .lg-period-err {
+  color: var(--danger);
+}
+
+/* ------------------------------------------------------------------ narrow windows: details under the list */
+@container (max-width: 860px) {
+  .app-logs .lg-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(160px, 42%);
+  }
+  /* Below the list, the details only take room once an entry is selected. */
+  .app-logs .lg-main.no-detail,
+  .app-logs .lg-main.no-sel {
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .app-logs .lg-main.no-sel .lg-detail {
+    display: none;
+  }
+  .app-logs .lg-detail {
+    border-left: 0;
+    border-top: 1px solid var(--line-soft);
+  }
+}
+@container (max-width: 700px) {
+  /* « Suivre » keeps its label: a dot alone would not say what it does. */
+  .app-logs .lg-export .lg-btn-label {
+    display: none;
+  }
+}

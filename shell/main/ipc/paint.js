@@ -1,6 +1,7 @@
 'use strict';
 // Paint backend.
-//   paint:fonts                      -> ['DejaVu Sans', 'Inter', …]  (sorted, unique; [] when fontconfig is missing)
+//   paint:fonts                      -> ['DejaVu Sans', 'Inter', …]  (sorted, unique; [] when fontconfig is missing;
+//                                       cached until the Fonts app installs or removes a font)
 //   paint:clipboardWriteImage(png)   -> true        puts a PNG picture on the system clipboard
 //   paint:clipboardReadImage()       -> Uint8Array | null   picture currently on the clipboard (PNG, or the
 //                                                    platform's image type when no PNG is offered)
@@ -10,6 +11,15 @@ const electron = require('electron');
 const { run } = require('../lib/exec');
 
 let fontCache = null;
+let fontGen = 0;
+// The Fonts app (main/ipc/fonts.js) bumps a generation when it installs or removes a font: the list is read again.
+const fontsGeneration = () => {
+  try {
+    return require('./fonts').generation();
+  } catch {
+    return 0;
+  }
+};
 
 async function writeImage(bytes) {
   const { clipboard, nativeImage } = electron;
@@ -44,7 +54,8 @@ async function readImage() {
 
 module.exports = function register(api) {
   api.handle('paint:fonts', async () => {
-    if (fontCache) return fontCache;
+    if (fontCache && fontGen === fontsGeneration()) return fontCache;
+    fontGen = fontsGeneration();
     try {
       const { stdout } = await run('fc-list', ['--format', '%{family[0]}\n', ':scalable=true'], { timeout: 15000 });
       const set = new Set();

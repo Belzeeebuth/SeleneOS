@@ -1,0 +1,83 @@
+{
+ "/dev/sdd": {
+  "json_format_version": [1,0],
+  "smartctl": {
+   "version": [7,4],
+   "pre_release": false,
+   "svn_revision": "5530",
+   "platform_info": "x86_64-linux-6.8.0-45-generic",
+   "build_info": "(local build)",
+   "argv": [
+    "smartctl",
+    "-j",
+    "-a",
+    "--",
+    "/dev/sdd"
+   ],
+   "exit_status": 0
+  },
+  "local_time": {
+   "time_t": 1792000000,
+   "asctime": "Wed Oct 14 10:00:00 2026 CEST"
+  },
+  "device": {
+   "name": "/dev/sdd",
+   "info_name": "/dev/sdd [USB NVMe Realtek]",
+   "type": "sntrealtek",
+   "protocol": "NVMe"
+  },
+  "model_name": "Samsung SSD 980 1TB",
+  "serial_number": "S649NF0R123456K",
+  "firmware_version": "1B4QFXO7",
+  "nvme_pci_vendor": {
+   "id": 5197,
+   "subsystem_id": 5197
+  },
+  "nvme_ieee_oui_identifier": 9528,
+  "nvme_total_capacity": 1000204886016,
+  "nvme_unallocated_capacity": 0,
+  "nvme_controller_id": 5,
+  "nvme_version": {
+   "string": "1.4",
+   "value": 66560
+  },
+  "nvme_number_of_namespaces": 1,
+  "smart_support": {
+   "available": true,
+   "enabled": true
+  },
+  "smart_status": {
+   "passed": true,
+   "nvme": {
+    "value": 0
+   }
+  },
+  "nvme_smart_health_information_log": {
+   "critical_warning": 0,
+   "temperature": 36,
+   "available_spare": 100,
+   "available_spare_threshold": 10,
+   "percentage_used": 4,
+   "data_units_read": 25812345,
+   "data_units_written": 19876543,
+   "host_reads": 412345678,
+   "host_writes": 301234567,
+   "controller_busy_time": 412,
+   "power_cycles": 318,
+   "power_on_hours": 1204,
+   "unsafe_shutdowns": 21,
+   "media_errors": 0,
+   "num_err_log_entries": 0,
+   "warning_temp_time": 0,
+   "critical_comp_time": 0,
+   "temperature_sensors": [36,41]
+  },
+  "temperature": {
+   "current": 36
+  },
+  "power_cycle_count": 318,
+  "power_on_time": {
+   "hours": 1204
+  }
+ }
+}

@@ -231,6 +231,13 @@ export const shared = {
   },
 
   async loadFonts() {
+    // A font installed or removed in the Fonts app (event fonts:changed) is seen on the next list.
+    if (!this._fontsWatch && typeof this.api?.on === 'function') {
+      this._fontsWatch = true;
+      this.api.on('fonts:changed', () => {
+        this.fonts = null;
+      });
+    }
     if (this.fonts) return this.fonts;
     try {
       this.fonts = await this.api.invoke('notepad:fonts');

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!-- Fixture for test/feeds.test.mjs: RSS 1.0 / RDF, served in ISO-8859-1 (the server re-encodes it). -->
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel rdf:about="{{BASE}}/rdf/">
+    <title>Gazette RDF à l'ancienne</title>
+    <link>{{BASE}}/rdf/</link>
+    <description>Un flux RSS 1.0</description>
+    <items><rdf:Seq><rdf:li rdf:resource="{{BASE}}/rdf/1"/><rdf:li rdf:resource="{{BASE}}/rdf/2"/></rdf:Seq></items>
+  </channel>
+  <item rdf:about="{{BASE}}/rdf/1">
+    <title>Été indien</title>
+    <link>{{BASE}}/rdf/1</link>
+    <description>Premier élément RDF.</description>
+    <dc:date>2026-10-08T06:00:00Z</dc:date>
+    <dc:creator>Rédaction</dc:creator>
+  </item>
+  <item rdf:about="{{BASE}}/rdf/2">
+    <title>Second élément</title>
+    <link>{{BASE}}/rdf/2</link>
+    <description>Deuxième élément RDF.</description>
+    <dc:date>2026-10-07T06:00:00Z</dc:date>
+  </item>
+</rdf:RDF>

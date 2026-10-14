@@ -199,6 +199,8 @@ export class ServicesPage {
       { label: t('cmd.stop'), icon: 'stop', disabled: mock || busy || !run, action: () => this.act('stop', s) },
       { label: t('cmd.restart'), icon: 'arrow_clockwise', disabled: mock || busy || !run, action: () => this.act('restart', s) },
       '-',
+      // « Journaux système » filtered on this unit (this boot, every level).
+      { label: t('menu.viewLog'), icon: 'scroll', action: () => this.app.ctx.shell.launch('logs', { unit: s.unit }) },
       { label: t('menu.searchOnline'), action: () => this.app.actions.searchOnline(s.name) },
       { label: t('menu.goToDetails'), disabled: !s.pid, action: () => this.app.go('details', { select: s.pid }) },
       { label: t('cmd.copy'), icon: 'copy', action: () => this.app.ctx.api.invoke('clipboard:writeText', `${s.unit}\t${s.description}\t${this.statusText(s)}`).catch(() => {}) },

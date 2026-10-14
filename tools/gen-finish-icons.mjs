@@ -372,6 +372,14 @@ HALO.todo = haloSvg(
     '<path d="M20.5 33.5l7.5 7.5 15.5-17" fill="none" stroke="#fff" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>',
 );
 // Éditeur vidéo: a clapperboard as a free shape, sky blue to violet
+// Livres: an open book; Podcasts et actus: the feed waves; Polices: the « Aa »; Aide: a lifebuoy; Journaux système: a list
+// under a magnifier; Numérisation: a document in the scan corners
+HALO.books = haloSvg(lg('g', [[0, '#FFE0A8'], [0.5, '#FF9A4A'], [1, '#E0562A']], 0, 0, 1, 1) + GLOSS_DEF + SHEEN_DEF, shape(G('book-open-text'), 2, 2, 60, 'g'));
+HALO.feeds = haloSvg(lg('g', [[0, '#FFE08A'], [0.5, '#FFA23A'], [1, '#E8601C']], 0, 0, 1, 1) + GLOSS_DEF + SHEEN_DEF, shape(G('rss'), 3, 3, 58, 'g'));
+HALO.fonts = haloSvg(lg('g', [[0, '#F2C7FF'], [0.5, '#C77BFF'], [1, '#7A3CE6']], 0, 0, 1, 1) + GLOSS_DEF + SHEEN_DEF, shape(G('text-aa'), 2, 2, 60, 'g'));
+HALO.help = haloSvg(lg('g', [[0, '#FFC2C2'], [0.5, '#FF5A5A'], [1, '#C8203A']], 0, 0, 1, 1) + GLOSS_DEF + SHEEN_DEF, shape(G('lifebuoy'), 2, 2, 60, 'g'));
+HALO.logs = haloSvg(lg('g', [[0, '#D6E0F5'], [0.5, '#8A9CC8'], [1, '#4A5A8C']], 0, 0, 1, 1) + GLOSS_DEF + SHEEN_DEF, shape(G('list-magnifying-glass'), 2, 2, 60, 'g'));
+HALO.scan = haloSvg(lg('g', [[0, '#B7F5EA'], [0.5, '#3FC9C0'], [1, '#178A92']], 0, 0, 1, 1) + GLOSS_DEF + SHEEN_DEF, shape(G('scan'), 2, 2, 60, 'g'));
 HALO.weather = haloSvg(
   rg('sun', [[0, '#FFF3B0'], [0.55, '#FFC23D'], [1, '#FF8A1F']], 0.4, 0.35, 0.7) + lg('c', [[0, '#FFFFFF'], [1, '#C9DAF7']]) + GLOSS_DEF,
   '<circle cx="24" cy="24" r="17" fill="url(#sun)"/>' +
@@ -500,11 +508,13 @@ const PRISME_APPS = {
   archive: ['#F7CF84', '#C9822F', 'archive'],
   contacts: ['#FFB98A', '#EF6A3A', 'address-book'],
   pdf: ['#FF8C8C', '#E0303C', 'file-pdf'],
+  books: ['#FFC6A0', '#D96A3A', 'book-open-text'],
   todo: ['#FF9C86', '#EC4462', 'check-circle'],
   clock: ['#FF7FA6', '#D92C6B', 'clock'],
   // creation and media: pink, orchid, violet
   photos: ['#FFC35A', '#F2468F', 'flower'],
   paint: ['#F08CFF', '#A83CF0', 'paint-brush'],
+  fonts: ['#E2AEFF', '#9445E8', 'text-aa'],
   snipping: ['#FF9BD2', '#D93A92', ['scan', 'b']],
   media: ['#A88DFF', '#5B3BF0', 'play'],
   recorder: ['#FFB38A', '#E8457A', 'microphone'],
@@ -525,6 +535,7 @@ const PRISME_APPS = {
   weather: ['#7FD3FF', '#2F86F0', 'cloud-sun'],
   browser: ['#5BF2EE', '#139AE6', 'compass'],
   nettools: ['#5FE0F5', '#1676C8', 'network'],
+  feeds: ['#FFC77A', '#F07A1C', 'rss'],
   // system and tools: teal, green, slate, ink
   calculator: ['#52F0C2', '#0E9F96', 'calculator'],
   maps: ['#8FF0B4', '#1FA87A', 'map-trifold'],
@@ -533,6 +544,9 @@ const PRISME_APPS = {
   taskmgr: ['#9BF26A', '#1FA650', ['pulse', 'b'], { size: 36 }],
   settings: ['#B9C5DE', '#56648A', 'gear-six'],
   disks: ['#AFC0DA', '#4E5D80', 'hard-drives'],
+  logs: ['#A9B8D6', '#3F4C70', 'list-magnifying-glass'],
+  help: ['#FFA3A3', '#E0404F', 'lifebuoy'],
+  scan: ['#7FEAD8', '#178F8A', 'scan'],
   installer: ['#8FB0FF', '#3550D8', ['download-simple', 'b']],
   code: ['#8C9EFF', '#2A2F9E', ['code', 'b'], { size: 36 }],
   terminal: ['#465172', '#121624', ['terminal', 'b'], { size: 36, glyphColor: '#7DFFC9' }],

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+# Selene OS: hands links and files from Linux / Flatpak apps to the Selene app (aurora-open -> the shell).
+# NoDisplay: the Lanceur already lists the Selene app itself.
+Name=Selene Books
+Name[fr]=Selene Livres
+Exec=aurora-open books %U
+TryExec=aurora-open
+NoDisplay=true
+Terminal=false
+StartupNotify=false
+MimeType=application/epub+zip;

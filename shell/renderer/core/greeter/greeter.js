@@ -70,6 +70,25 @@ async function main() {
   const kb = { id: kbInfo?.id || 'us', layouts: kbInfo?.layouts || [] };
   let langChosen = !!info.lastLang;
   let largeText = !!a11yPrefs?.largeText;
+  // « Clavier visuel » (core/features/osk/greeter.js, loaded only when it is turned on): typing without a keyboard;
+  // remembered like the other choices
+  i18n.extend({ en: { osk: { title: 'On-screen keyboard' } }, fr: { osk: { title: 'Clavier visuel' } } });
+  let oskOn = !!a11yPrefs?.osk;
+  let osk = null;
+  const setOsk = async (on) => {
+    oskOn = on;
+    if (on && !osk) {
+      try {
+        const { greeterKeyboard } = await import('../features/osk/greeter.js');
+        osk = osk || greeterKeyboard({ ls, layout: () => kb.id, onClose: () => (setOsk(false), saveA11y({ osk: false })) });
+      } catch (err) {
+        console.warn('[greeter] on-screen keyboard:', err.message);
+        return;
+      }
+    }
+    if (oskOn) osk.show();
+    else osk?.hide();
+  };
   const saveA11y = (patch) => api.invoke('greeter:setA11y', patch).catch((err) => console.warn('[greeter] accessibility:', err.message));
 
   const ls = new LockScreen({
@@ -104,6 +123,7 @@ async function main() {
         try {
           const r = await api.invoke('greeter:setKeyboard', id);
           kb.id = r?.id || id;
+          osk?.setLayout(kb.id);
           ls.refresh();
         } catch (err) {
           console.warn('[greeter] keyboard layout:', err.message);
@@ -127,11 +147,20 @@ async function main() {
           saveA11y({ animations: root.dataset.animations === 'on' });
         },
       },
+      {
+        label: () => t('osk.title'),
+        checked: () => oskOn,
+        toggle() {
+          setOsk(!oskOn);
+          saveA11y({ osk: oskOn });
+        },
+      },
     ],
   });
   i18n.on('change', () => ls.refresh());
   document.getElementById('greeter').append(ls.el);
   ls.show();
+  if (oskOn) setOsk(true);
   if (lockMode(settings.all()) === 'animated') {
     mountLockEffect(ls, { effect: settings.get('lockScreen')?.effect || 'aurora', params: { mode: 'dark', accent: settings.get('accent') || '#0078d4' } }).catch((err) => console.warn('[greeter] animated background:', err.message));
   }
@@ -150,7 +179,7 @@ async function main() {
   battery();
   setInterval(battery, 60000);
 
-  window.__greeter = { ls, users, info, kb, i18n };
+  window.__greeter = { ls, users, info, kb, i18n, get osk() { return osk; } };
   document.body.classList.add('ready');
 }
 

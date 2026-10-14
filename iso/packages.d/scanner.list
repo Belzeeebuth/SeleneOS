@@ -1,0 +1,9 @@
+# Scanning: the « Numérisation » app (shell/renderer/apps/scan) and the Scanners part of Paramètres > Imprimantes et
+# scanners, through shell/main/ipc/scan.js, which runs `scanimage` as the signed-in user (never root).
+# sane-utils: scanimage (sane-utils 1.2.1). It pulls libsane1 (the SANE backends for USB scanners: genesys, pixma,
+# epson2, epsonds, plustek, fujitsu…), whose udev hwdb (20-sane.hwdb, libsane_matched=yes) is turned into an ACL for
+# the user of the active session by systemd's 70-uaccess.rules: no « scanner » group, no root.
+sane-utils
+# sane-airscan: driverless network scanners (eSCL / AirScan and WSD), the scanning side of IPP Everywhere, and USB
+# multifunction devices shared on localhost by ipp-usb (already in printing.list). libsane1 recommends it.
+sane-airscan

@@ -1,0 +1,16 @@
+/* Paramètres > Accessibilité > Loupe (pages/accessibility-magnifier.js). Tokens only. */
+.app-settings .st-mag-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.app-settings .st-mag-value {
+  min-width: 64px;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.app-settings .st-mag-zoom .icon-btn:disabled {
+  color: var(--text-disabled);
+}

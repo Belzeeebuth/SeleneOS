@@ -6,7 +6,8 @@
 // Channels:
 //   disks:list ()            -> { drives: [Drive], simulated, smart: false }
 //       Drive = { name, path, model, vendor, serial, rev, size, tran ('usb'|'sata'|'nvme'|'mmc'|…|''), type ('disk'|'rom'),
-//                 removable, rotational, readonly, pttype ('gpt'|'dos'|null), system (holds / or the live medium),
+//                 removable (rm / hotplug / USB / SD), removableMedia (the kernel's removable flag: sticks, card readers),
+//                 rotational, readonly, pttype ('gpt'|'dos'|null), system (holds / or the live medium),
 //                 mounted (any partition mounted), formattable (removable whole disk that is not the system),
 //                 partitions: [Part], fs: Part|null (file system directly on the disk, no partition table) }
 //       Part  = { name, path, size, start (bytes, null if unknown), fstype, fsver, label, uuid, partlabel, parttypename,
@@ -18,10 +19,40 @@
 //   disks:devReset ()        -> true (dev/tests only: restore the mocked drives)
 // Event: disks:changed {}   (udev block add/remove/change, debounced; mocked actions in dev)
 //
+// Drive health (« Santé du disque », SMART; data model and sources in main/ipc/disks-smart.js):
+//   disks:health (diskPath, { refresh, wake }) -> Health   refresh: SmartUpdate first (allowed for the active session;
+//                            ATA disks are asked with nowakeup unless wake: a sleeping disk gives its cached data or
+//                            reason 'asleep'). Drives udisks has nothing for give the last aurora-admin smart-info read.
+//   disks:healthCheck ()     -> { drives: [Health], alerts: [{ device, key, name, status, problems }] }   every drive from
+//                            udisks' cached data (no disk is woken up); alerts = drives whose status became 'warning' or
+//                            'failing' (or worse than last time) since the last check: remembered in
+//                            ~/.config/aurora/apps/disks/health-notified.json, so each one is announced ONCE (a drive
+//                            back to 'good' is forgotten). Alerts are also broadcast: event disks:health-alert
+//                            { alerts } (core/features/disk-health.js shows the notification). Run when the app opens
+//                            and once a day by that feature.
+//   disks:healthSchedule ()  -> { enabled, firstDelay, interval, pollMs }  (the daily check; dev: off unless
+//                            AURORA_DISK_HEALTH_DELAY_MS is set; AURORA_DISK_HEALTH_INTERVAL_MS overrides the day)
+//   disks:selftestStart (diskPath, 'short'|'extended') -> Health   udisks SmartSelftestStart (non-destructive, the drive
+//                            tests itself in the background). errors: ENOTAUTH (not an administrator: polkit), EBUSY
+//                            (already running), ENOTSUP (no self-test on this drive / connection), ENOSERVICE, EFAIL
+//   disks:selftestAbort (diskPath) -> Health
+//   disks:smartctlImport (diskPath, json text) -> Health   parses what the app got from
+//                            shell.runAdmin('smart-info', [diskPath]) (aurora-admin: smartctl -j -a, read-only) and keeps
+//                            it for this session (drives udisks has no health data for: USB enclosures, SAS)
+//   disks:devHealth (diskPath, patch) / disks:devReset ()   dev / tests only (fake udisks, see below)
+//
 // Dev / tests (api.DEV unless AURORA_REAL_BACKENDS=1): a deterministic mocked system (NVMe system disk + SanDisk USB
 // stick); actions change the mock. admin.js's simulation of 'format-removable' calls devFormat() below.
+// AURORA_DISKS_FIXTURE=<name in test/fixtures/disks | absolute dir> replaces the mock with that fixture's lsblk.json.
+// Health in dev comes from test/fixtures/disks/fake-busctl.js answering the same busctl argument vectors from the
+// fixture's udisks.json (default: test/fixtures/disks/default, the two mocked drives); aurora-admin smart-info is
+// simulated with its smartctl.json (devSmartInfo below).
 const { spawn } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { run } = require('../lib/exec');
+const smart = require('./disks-smart');
 
 const DEVICE_RE = /^\/dev\/[A-Za-z0-9._-]{1,64}(\/[A-Za-z0-9._-]{1,64})?$/;
 const SYSTEM_MOUNT_RE = /^\/(|boot(\/.*)?|cdrom(\/.*)?|run\/live(\/.*)?|rofs|usr|var|home|media\/root-ro)$/;
@@ -35,12 +66,24 @@ function err(message, code) {
 }
 
 // ------------------------------------------------------------------ mock system (dev / tests)
+const FIXTURES = path.join(__dirname, '..', '..', 'test', 'fixtures', 'disks');
+function fixtureDir() {
+  const f = String(process.env.AURORA_DISKS_FIXTURE || '');
+  if (f && path.isAbsolute(f)) return f;
+  if (/^[a-z0-9-]{1,40}$/.test(f)) return path.join(FIXTURES, f);
+  return path.join(FIXTURES, 'default');
+}
 function freshMock() {
+  if (process.env.AURORA_DISKS_FIXTURE) {
+    try {
+      return { drives: parseLsblk(JSON.parse(fs.readFileSync(path.join(fixtureDir(), 'lsblk.json'), 'utf8'))) };
+    } catch {}
+  }
   return {
     drives: [
       {
         name: 'nvme0n1', path: '/dev/nvme0n1', model: 'Aurora NVMe SSD 512GB', vendor: '', serial: 'AUR0NVME00042', rev: '2B2QEXM7',
-        size: 512110190592, tran: 'nvme', type: 'disk', removable: false, rotational: false, readonly: false, pttype: 'gpt',
+        size: 512110190592, tran: 'nvme', type: 'disk', removable: false, removableMedia: false, rotational: false, readonly: false, pttype: 'gpt',
         partitions: [
           { name: 'nvme0n1p1', path: '/dev/nvme0n1p1', start: MiB, size: 536870912, fstype: 'vfat', fsver: 'FAT32', label: '', uuid: '6A1C-0F3E', partlabel: 'EFI System Partition', parttypename: 'EFI System', mountpoints: ['/boot/efi'], used: 6553600, avail: 530317312 },
           { name: 'nvme0n1p2', path: '/dev/nvme0n1p2', start: MiB + 536870912, size: 494927642624, fstype: 'ext4', fsver: '1.0', label: 'Aurora', uuid: '3f1d2a5e-8a1b-4c77-9d2e-4b1f6e0c2a11', partlabel: '', parttypename: 'Linux filesystem', mountpoints: ['/'], used: 41231686041, avail: 428652000000 },
@@ -49,7 +92,7 @@ function freshMock() {
       },
       {
         name: 'sdb', path: '/dev/sdb', model: 'SanDisk Ultra', vendor: 'SanDisk', serial: '4C530001230817115384', rev: '1.00',
-        size: 30752636928, tran: 'usb', type: 'disk', removable: true, rotational: false, readonly: false, pttype: 'dos',
+        size: 30752636928, tran: 'usb', type: 'disk', removable: true, removableMedia: true, rotational: false, readonly: false, pttype: 'dos',
         partitions: [
           { name: 'sdb1', path: '/dev/sdb1', start: MiB, size: 30751588352, fstype: 'vfat', fsver: 'FAT32', label: 'USB STICK', uuid: 'B2E4-91C7', partlabel: '', parttypename: 'W95 FAT32 (LBA)', mountpoints: ['/media/user/USB STICK'], used: 9126805504, avail: 21608185856 },
         ],
@@ -146,7 +189,7 @@ function parseLsblk(json, df = new Map()) {
     if (vendor && model && !model.toLowerCase().startsWith(vendor.toLowerCase())) model = `${vendor} ${model}`;
     drives.push({
       name: str(d.name), path: str(d.path), model, vendor, serial: str(d.serial), rev: str(d.rev), size: num(d.size) || 0, tran, type: d.type,
-      removable, rotational: !!d.rota, readonly: !!d.ro, pttype: d.pttype || null, system,
+      removable, removableMedia: !!d.rm, rotational: !!d.rota, readonly: !!d.ro, pttype: d.pttype || null, system,
       mounted: all.some((p) => p.mountpoints.length), formattable: d.type === 'disk' && removable && !system && !d.ro && /^(sd[a-z]{1,2}|mmcblk\d{1,2})$/.test(d.name || ''),
       partitions, fs,
     });
@@ -287,14 +330,244 @@ function register(api) {
     }
   });
 
+  // ---------------------------------------------------------------- drive health (SMART)
+  if (useMock) {
+    try {
+      fakeBus = require(path.join(FIXTURES, 'fake-busctl.js')).create(fixtureDir());
+    } catch (e) {
+      console.warn('[disks] no udisks fixture:', e.message);
+      fakeBus = null;
+    }
+  }
+  const smartctlCache = new Map(); // device -> Health read through aurora-admin smart-info (this session only)
+
+  /** busctl with an argument vector (real) or the fixture's stand-in (dev) -> parsed JSON; errors carry a code. */
+  async function bus(args) {
+    let r;
+    try {
+      r = useMock ? (fakeBus ? await fakeBus(args) : { code: 1, stdout: '', stderr: 'Call failed: The name org.freedesktop.UDisks2 was not provided by any .service files' }) : await run('busctl', args, { timeout: 40000 });
+    } catch (e) {
+      throw err(e.message || 'busctl failed', 'ENOSERVICE');
+    }
+    if (r.code !== 0) {
+      const msg = String(r.stderr || r.stdout || 'busctl failed').trim().split('\n').pop().replace(/^Call failed:\s*/, '');
+      throw err(msg, smart.classifyBusError(msg));
+    }
+    try {
+      return smart.parseBusctlJson(r.stdout);
+    } catch (e) {
+      throw err(e.message, 'EFAIL');
+    }
+  }
+  const managedObjects = async () => smart.parseManagedObjects(await bus(smart.argv.managedObjects()));
+  const driveKey = (d) => `${d.model || d.name}|${d.serial || d.path}`;
+
+  // The drive list for health calls: lsblk + df at most every 3 s (the app polls while a self-test runs).
+  let listCache = null;
+  async function drivesForHealth() {
+    if (listCache && Date.now() - listCache.at < 3000) return listCache.drives;
+    const { drives } = await list();
+    listCache = { at: Date.now(), drives };
+    return drives;
+  }
+  async function findDrive(dev) {
+    checkDevice(dev);
+    let d = (await drivesForHealth()).find((x) => x.path === dev);
+    if (!d) {
+      listCache = null;
+      d = (await drivesForHealth()).find((x) => x.path === dev);
+    }
+    if (!d) throw err('No such drive', 'EINVAL');
+    return d;
+  }
+
+  /** Health of one lsblk drive. objects: udisks' managed objects (null when udisks did not answer: serviceError). */
+  async function healthFor(d, objects, { refresh = false, wake = false, serviceError = null } = {}) {
+    const keyed = (h) => Object.assign(h, { key: driveKey(d), device: d.path });
+    const cached = smartctlCache.get(d.path);
+    if (d.type === 'rom') return keyed(smart.unknownHealth(d, 'optical'));
+    const hit = smart.findUdisksDrive(objects, d.path);
+    if (hit?.drivePath && (hit.ata || hit.nvme)) {
+      const iface = hit.ata ? smart.IFACE.ata : smart.IFACE.nvme;
+      let props = hit.ata || hit.nvme;
+      if (hit.ata && !props.SmartSupported) return keyed(cached ? cached : smart.unknownHealth(d, 'unsupported'));
+      if (hit.ata && !props.SmartEnabled) return keyed(smart.unknownHealth(d, 'disabled'));
+      let asleep = false;
+      let detail = null;
+      if (refresh || !props.SmartUpdated) {
+        try {
+          await bus(smart.argv.smartUpdate(hit.drivePath, iface, { wake }));
+          props = smart.decodeDict((await bus(smart.argv.getAll(hit.drivePath, iface))).data[0]);
+        } catch (e) {
+          if (e.code === 'EASLEEP') asleep = true;
+          else detail = e.message;
+        }
+      }
+      if (!props.SmartUpdated) return keyed(cached ? cached : smart.unknownHealth(d, asleep ? 'asleep' : 'noData', { detail }));
+      let attrs = null;
+      try {
+        attrs = await bus(smart.argv.smartAttributes(hit.drivePath, iface));
+      } catch (e) {
+        detail = detail || e.message;
+      }
+      const h = hit.ata
+        ? smart.healthFromUdisksAta({ device: d.path, rotational: !!d.rotational, size: d.size, ata: props, attributes: attrs ? smart.ataAttributesFromUdisks(attrs) : [], asleep })
+        : smart.healthFromUdisksNvme({ device: d.path, nvme: props, attrs: attrs ? smart.decodeDict(attrs.data[0]) : {} });
+      h.detail = detail;
+      return keyed(h);
+    }
+    if (cached) return keyed({ ...cached });
+    const reason = serviceError ? (d.tran === 'usb' || d.tran === 'virtio' || /^(mmcblk|vd)/.test(d.name) ? smart.unknownReason(d, null) : 'noService') : smart.unknownReason(d, hit?.drive || null);
+    return keyed(smart.unknownHealth(d, reason, { detail: serviceError?.message || null }));
+  }
+  async function healthOf(dev, opts = {}) {
+    const d = await findDrive(dev);
+    let objects = null;
+    let serviceError = null;
+    try {
+      objects = await managedObjects();
+    } catch (e) {
+      serviceError = e;
+    }
+    return healthFor(d, objects, { ...opts, serviceError });
+  }
+
+  // Notified-once state: ~/.config/aurora/apps/disks/health-notified.json = { key: { status, at } }
+  const notifiedFile = () => path.join(os.homedir(), '.config', 'aurora', 'apps', 'disks', 'health-notified.json');
+  function readNotified() {
+    try {
+      const j = JSON.parse(fs.readFileSync(notifiedFile(), 'utf8'));
+      return j && typeof j === 'object' && !Array.isArray(j) ? j : {};
+    } catch {
+      return {};
+    }
+  }
+  function writeNotified(state) {
+    try {
+      fs.mkdirSync(path.dirname(notifiedFile()), { recursive: true });
+      const tmp = `${notifiedFile()}.${process.pid}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify(state, null, 1));
+      fs.renameSync(tmp, notifiedFile());
+    } catch (e) {
+      console.warn('[disks] cannot save the health notification state:', e.message);
+    }
+  }
+  async function doHealthCheck() {
+    const { drives } = await list();
+    let objects = null;
+    let serviceError = null;
+    try {
+      objects = await managedObjects();
+    } catch (e) {
+      serviceError = e;
+    }
+    const out = [];
+    for (const d of drives) {
+      try {
+        out.push(await healthFor(d, objects, { serviceError }));
+      } catch (e) {
+        out.push(Object.assign(smart.unknownHealth(d, 'noData', { detail: e.message }), { key: driveKey(d), device: d.path }));
+      }
+    }
+    const state = readNotified();
+    const alerts = [];
+    let dirty = false;
+    for (const h of out) {
+      const d = drives.find((x) => x.path === h.device);
+      const rank = smart.RANK[h.status] ?? -1;
+      const before = smart.RANK[state[h.key]?.status] ?? 0;
+      if (rank >= 1 && rank > before) {
+        alerts.push({ device: h.device, key: h.key, name: d?.model || h.device, status: h.status, problems: h.problems.filter((p) => p.level !== 'info').map((p) => p.code) });
+        state[h.key] = { status: h.status, at: Date.now() };
+        dirty = true;
+      } else if (rank === 0 && state[h.key]) {
+        delete state[h.key]; // healthy again: a later problem is announced again
+        dirty = true;
+      }
+    }
+    if (dirty) writeNotified(state);
+    if (alerts.length) api.broadcast('disks:health-alert', { alerts });
+    return { drives: out, alerts, simulated: useMock };
+  }
+  let checkChain = Promise.resolve();
+  function healthCheck() {
+    const p = checkChain.then(doHealthCheck);
+    checkChain = p.catch(() => {});
+    return p;
+  }
+
+  api.handle('disks:health', (dev, opts) => healthOf(dev, { refresh: !!opts?.refresh, wake: !!opts?.wake }));
+  api.handle('disks:healthCheck', () => healthCheck());
+  api.handle('disks:healthSchedule', () => {
+    const delayEnv = process.env.AURORA_DISK_HEALTH_DELAY_MS;
+    const n = (v, def) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Math.max(0, Number(v)) : def);
+    return {
+      enabled: !api.DEV || delayEnv != null,
+      firstDelay: n(delayEnv, 3 * 60 * 1000),
+      interval: Math.max(60 * 1000, n(process.env.AURORA_DISK_HEALTH_INTERVAL_MS, 24 * 3600 * 1000)),
+      pollMs: useMock ? 1000 : 10000,
+    };
+  });
+
+  async function selftest(dev, method, type) {
+    const d = await findDrive(dev);
+    const hit = smart.findUdisksDrive(await managedObjects(), d.path);
+    if (!hit?.drivePath || !(hit.ata || hit.nvme)) throw err('Self-tests are not available for this drive', 'ENOTSUP');
+    const iface = hit.ata ? smart.IFACE.ata : smart.IFACE.nvme;
+    await bus(method === 'start' ? smart.argv.selftestStart(hit.drivePath, iface, type) : smart.argv.selftestAbort(hit.drivePath, iface));
+    return healthOf(dev);
+  }
+  api.handle('disks:selftestStart', (dev, type) => {
+    if (type !== 'short' && type !== 'extended') throw err('Invalid self-test type', 'EINVAL');
+    return selftest(dev, 'start', type);
+  });
+  api.handle('disks:selftestAbort', (dev) => selftest(dev, 'abort'));
+
+  api.handle('disks:smartctlImport', async (dev, text) => {
+    const d = await findDrive(dev);
+    if (!smart.SMARTCTL_DEVICE_RE.test(d.path)) throw err('Invalid device', 'EINVAL');
+    if (typeof text !== 'string' || text.length > 4 * 1024 * 1024) throw err('Invalid report', 'EINVAL');
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw err('The report is not valid JSON', 'EINVAL');
+    }
+    const h = smart.healthFromSmartctl(json, d);
+    Object.assign(h, { key: driveKey(d), device: d.path, readAt: Date.now() });
+    if (h.source === 'smartctl' && h.status !== 'unknown') smartctlCache.set(d.path, h);
+    return h;
+  });
+
+  api.handle('disks:devHealth', (dev, patch) => {
+    if (!useMock || !fakeBus) throw err('Not available', 'EPERM');
+    checkDevice(dev);
+    return fakeBus.patch(dev, patch && typeof patch === 'object' ? patch : {});
+  });
+
   api.handle('disks:devReset', () => {
     if (!useMock) throw err('Not available', 'EPERM');
     mock = freshMock();
+    listCache = null;
+    smartctlCache.clear();
+    fakeBus?.reset();
     changed();
     return true;
   });
 }
 
+/** Called by admin.js (dev simulation of aurora-admin smart-info): the fixture's smartctl -j -a answer. */
+let fakeBus = null;
+async function devSmartInfo(args) {
+  const [device] = args;
+  if (!smart.SMARTCTL_DEVICE_RE.test(String(device))) throw err('expected a whole disk such as /dev/sdb or /dev/nvme0n1', 'EINVAL');
+  await new Promise((r) => setTimeout(r, 300));
+  const j = fakeBus?.smartctl(device);
+  if (!j) throw err('this drive gives no health data', 'ENOTFOUND');
+  return `${JSON.stringify(j)}\n`;
+}
+
 module.exports = register;
 module.exports.devFormat = devFormat;
+module.exports.devSmartInfo = devSmartInfo;
 module.exports.parsers = { parseLsblk, decorate };

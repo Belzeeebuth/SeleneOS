@@ -2,7 +2,8 @@
 //
 // * Administrators (group "sudo") using a local, active session manage networks and
 //   mount/unlock/eject internal drives without a password prompt (Selene OS has no polkit
-//   authentication agent: an "auth_admin" answer would simply fail).
+//   authentication agent: an "auth_admin" answer would simply fail). They can also start and stop
+//   a drive's SMART self-test (Disques > Santé du disque; reading the health data needs no rule).
 // * Standard users keep the packages' defaults: their own removable drives (udisks2) and, with
 //   group "netdev", system-wide network connections (Ubuntu's NetworkManager rule). They cannot
 //   mount internal partitions, unmount other users' drives, change the host name or the global
@@ -24,7 +25,10 @@ var AURORA_UDISKS_ACTIONS = [
   "org.freedesktop.udisks2.power-off-drive",
   "org.freedesktop.udisks2.power-off-drive-system",
   "org.freedesktop.udisks2.loop-setup",
-  "org.freedesktop.udisks2.rescan"
+  "org.freedesktop.udisks2.rescan",
+  // Drive self-tests (non-destructive; the drive tests itself in the background): main/ipc/disks.js
+  "org.freedesktop.udisks2.ata-smart-selftest",
+  "org.freedesktop.udisks2.nvme-smart-selftest"
 ];
 
 var AURORA_POWER_ACTIONS = [

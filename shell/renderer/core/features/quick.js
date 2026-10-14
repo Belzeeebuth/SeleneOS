@@ -84,6 +84,7 @@ const STRINGS = {
       animations: 'Animation effects',
       transparency: 'Transparency effects',
       moreAccessibility: 'More accessibility settings',
+      magnifier: 'Magnifier',
       back: 'Back',
       batterySettings: 'Power & battery settings',
       notAvailable: 'Not available',
@@ -151,6 +152,7 @@ const STRINGS = {
       animations: 'Effets d’animation',
       transparency: 'Effets de transparence',
       moreAccessibility: 'Plus de paramètres d’accessibilité',
+      magnifier: 'Loupe',
       back: 'Retour',
       batterySettings: 'Paramètres d’alimentation et de batterie',
       notAvailable: 'Non disponible',
@@ -264,7 +266,7 @@ function renderMain() {
   const s = settings.all();
   const net = state.net;
   const hasWifi = !!net && (net.devices || []).some((d) => d.type === 'wifi' || d.type === 'wireless');
-  const a11yActive = s.animations === false || s.transparency === false || s.screenReader?.enabled === true;
+  const a11yActive = s.animations === false || s.transparency === false || s.screenReader?.enabled === true || s.magnifier?.enabled === true;
   const tiles = h('div', { class: 'qs-tiles' });
   if (hasWifi) {
     const p = net.primary || {};
@@ -755,6 +757,7 @@ function renderA11y() {
       row(t('quick.animations'), s.animations !== false, (v) => settings.set('animations', v)),
       row(t('quick.transparency'), s.transparency !== false, (v) => settings.set('transparency', v)),
       row(t('screenreader.title'), s.screenReader?.enabled === true, (v) => settings.set('screenReader.enabled', v)), // Lecteur d'écran (features/screenreader.js)
+      row(t('quick.magnifier'), s.magnifier?.enabled === true, (v) => settings.set('magnifier.enabled', v)), // Loupe (features/magnifier.js)
     ),
     h('div', { class: 'qs-sub-foot' }, h('button', { class: 'qs-link', onclick: () => (fly.close('launch'), ctx.shell.launch('settings', { page: 'accessibility' })) }, t('quick.moreAccessibility'))),
   );

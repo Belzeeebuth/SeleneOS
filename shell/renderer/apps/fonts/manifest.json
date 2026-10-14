@@ -1,0 +1,17 @@
+{
+  "id": "fonts",
+  "name": { "en": "Fonts", "fr": "Polices" },
+  "description": { "en": "Browse, preview and install fonts for your account", "fr": "Parcourez, prévisualisez et installez des polices pour votre compte" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1120, "height": 740, "minWidth": 640, "minHeight": 460, "background": "mica" },
+  "category": "utilities",
+  "keywords": {
+    "en": ["fonts", "font", "typeface", "typography", "ttf", "otf", "install font", "characters", "glyphs", "character map"],
+    "fr": ["polices", "police", "fontes", "caractères", "typographie", "ttf", "otf", "installer une police", "table des caractères", "glyphes"]
+  },
+  "singleInstance": false,
+  "fileTypes": [".ttf", ".otf", ".ttc", ".otc", ".woff", ".woff2"],
+  "defaultFor": [".ttf", ".otf", ".ttc", ".otc"]
+}

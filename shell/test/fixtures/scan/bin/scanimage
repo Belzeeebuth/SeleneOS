@@ -1,0 +1,493 @@
+#!/usr/bin/env node
+// Fake `scanimage` (sane-utils 1.2.1) for main/ipc/scan.js in dev mode and test/scan.test.mjs. It answers -L, -f and
+// -A like the real tool (same texts as the genesys and airscan backends), and scans by writing a generated PNG / TIFF
+// (a document on the glass, or numbered sheets from the feeder) with --progress lines, --batch / --batch-print, and
+// SIGTERM handled like scanimage (first signal: "trying to stop scanner", the scan stops; second: abort).
+//
+// Driven by $AURORA_SCAN_FAKE_DIR/ctl.json (read at every run; missing = defaults):
+//   devices: 'office' (default: Canon LiDE 300 on USB + Brother MFC-L2710DW on the network, seen through airscan eSCL,
+//            airscan WSD and the escl backend, + a webcam) | 'usb' (the Canon only) | 'none'
+//   fail:    null | 'busy' | 'cover' | 'nopaper' | 'jam' (feeder, at page jamAt) | 'gone' | 'denied' | 'io' (mid-scan)
+//   failOn:  'scan' (default) | 'all' (also -A)
+//   slowMs:  time to scan one page (default 300)
+//   adfPages: sheets in the feeder (default 3; duplex gives two pages per sheet), jamAt (default 2)
+// Every run appends { pid, uid, args } to $AURORA_SCAN_FAKE_DIR/calls.log.
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const zlib = require('zlib');
+
+const DIR = process.env.AURORA_SCAN_FAKE_DIR || '';
+const argv = process.argv.slice(2);
+let ctl = {};
+try {
+  ctl = JSON.parse(fs.readFileSync(path.join(DIR, 'ctl.json'), 'utf8'));
+} catch {}
+try {
+  if (DIR) fs.appendFileSync(path.join(DIR, 'calls.log'), `${JSON.stringify({ pid: process.pid, uid: process.getuid?.(), args: argv })}\n`);
+} catch {}
+
+const out = (s) => process.stdout.write(s);
+const errw = (s) => process.stderr.write(s);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const exit = (code) => {
+  process.exitCode = code;
+  // let stdout / stderr drain
+  setTimeout(() => process.exit(code), 10);
+};
+
+// ------------------------------------------------------------------ devices and their options
+const LIDE = (dev) => `
+All options specific to device \`${dev}':
+  Scan Mode:
+    --mode Color|Gray|Lineart [Gray]
+        Selects the scan mode (e.g., lineart, monochrome, or color).
+    --source Flatbed [inactive]
+        Selects the scan source (such as a document-feeder).
+    --preview[=(yes|no)] [no]
+        Request a preview-quality scan.
+    --depth 8|16 [8]
+        Number of bits per sample, typical values are 1 for "line-art" and 8
+        for multibit scans.
+    --resolution 4800|2400|1200|600|300|150|100|75dpi [75]
+        Sets the resolution of the scanned image.
+  Geometry:
+    -l 0..216.7mm [0]
+        Top-left x position of scan area.
+    -t 0..299.7mm [0]
+        Top-left y position of scan area.
+    -x 0..216.7mm [216.7]
+        Width of scan-area.
+    -y 0..299.7mm [299.7]
+        Height of scan-area.
+  Enhancement:
+    --custom-gamma[=(yes|no)] [no]
+        Determines whether a builtin or a custom gamma-table should be used.
+    --gamma-table 0..65535,... [inactive]
+        Gamma-correction table.  In color mode this option equally affects the
+        red, green, and blue channels simultaneously (i.e., it is an intensity
+        gamma table).
+    --brightness -100..100 (in steps of 1) [0]
+        Controls the brightness of the acquired image.
+    --contrast -100..100 (in steps of 1) [0]
+        Controls the contrast of the acquired image.
+  Extras:
+    --lamp-off-time 0..60 [15]
+        The lamp will be turned off after the given time (in minutes). A value
+        of 0 means, that the lamp won't be turned off.
+    --lamp-off-scan[=(yes|no)] [no]
+        The lamp will be turned off during scan.
+  Buttons:
+    --button-update
+        Update button state
+`;
+const BROTHER = (dev, source) => `
+All options specific to device \`${dev}':
+  Standard:
+    --resolution 100|200|300|600dpi [300]
+        Sets the resolution of the scanned image.
+    --mode Color|Gray [Color]
+        Selects the scan mode (e.g., lineart, monochrome, or color).
+    --source Flatbed|ADF|ADF Duplex [${source || 'Flatbed'}]
+        Selects the scan source (such as a document-feeder).
+  Geometry:
+    -l 0..215.9mm [0]
+        Top-left x position of scan area.
+    -t 0..${/ADF/.test(source || '') ? '355.6' : '297.011'}mm [0]
+        Top-left y position of scan area.
+    -x 0..215.9mm [215.9]
+        Width of scan-area.
+    -y 0..${/ADF/.test(source || '') ? '355.6' : '297.011'}mm [${/ADF/.test(source || '') ? '355.6' : '297.011'}]
+        Height of scan-area.
+  Enhancement:
+    --brightness -100..100% (in steps of 1) [0]
+        Controls the brightness of the acquired image.
+    --contrast -100..100% (in steps of 1) [0]
+        Controls the contrast of the acquired image.
+    --shadow 0..100% (in steps of 1) [0]
+        Selects what radiance level should be considered "black".
+    --highlight 0..100% (in steps of 1) [100]
+        Selects what radiance level should be considered "white".
+    --analog-gamma 0.0999908..4 [1]
+        Analog gamma-correction
+    --negative[=(yes|no)] [no]
+        Swap black and white
+`;
+const LIDE_DEV = { name: 'genesys:libusb:001:004', vendor: 'Canon', model: 'LiDE 300', type: 'flatbed scanner', options: LIDE, modes: ['Color', 'Gray', 'Lineart'], defMode: 'Gray', sources: ['Flatbed'], res: [75, 100, 150, 300, 600, 1200, 2400, 4800], w: 216.7, h: 299.7 };
+const BRO = { vendor: 'Brother', model: 'MFC-L2710DW series', options: BROTHER, modes: ['Color', 'Gray'], sources: ['Flatbed', 'ADF', 'ADF Duplex'], res: [100, 200, 300, 600], w: 215.9, h: 297.011, adfH: 355.6 };
+const ALL = [
+  LIDE_DEV,
+  { ...BRO, name: 'airscan:e0:Brother MFC-L2710DW series', vendor: 'eSCL', model: 'Brother MFC-L2710DW series', type: 'ip=192.168.1.42, fe80::3e2a:f4ff:fea1:b2c3' },
+  { ...BRO, name: 'airscan:w1:Brother MFC-L2710DW series', vendor: 'WSD', model: 'Brother MFC-L2710DW series', type: 'ip=192.168.1.42' },
+  { ...BRO, name: 'escl:https://192.168.1.42:443', type: 'flatbed scanner' },
+  { name: 'v4l:/dev/video0', vendor: 'Noname', model: 'Integrated Camera: Integrated C', type: 'virtual device', options: () => '\nAll options specific to device `v4l:/dev/video0\':\n', modes: ['Color'], sources: [], res: [], w: 0, h: 0 },
+];
+const kind = ctl.devices || 'office';
+const DEVICES = kind === 'none' ? [] : kind === 'usb' ? [LIDE_DEV] : ALL;
+
+// ------------------------------------------------------------------ argument parsing (scanimage's own syntax)
+const opt = { device: process.env.SANE_DEFAULT_DEVICE || '', format: 'pnm', area: {} };
+const takesValue = new Set(['-d', '--device-name', '-f', '--formatted-device-list', '-o', '--output-file', '--format', '-l', '-t', '-x', '-y']);
+for (let i = 0; i < argv.length; i++) {
+  let a = argv[i];
+  let v = null;
+  const eq = a.indexOf('=');
+  if (a.startsWith('--') && eq > 0) {
+    v = a.slice(eq + 1);
+    a = a.slice(0, eq);
+  } else if (takesValue.has(a)) v = argv[++i];
+  else if (/^--(mode|source|resolution|adf-mode|depth)$/.test(a)) v = argv[++i];
+  switch (a) {
+    case '-L':
+    case '--list-devices':
+      opt.list = true;
+      break;
+    case '-f':
+    case '--formatted-device-list':
+      opt.formatted = v;
+      break;
+    case '-A':
+    case '--all-options':
+      opt.all = true;
+      break;
+    case '-d':
+    case '--device-name':
+      opt.device = v;
+      break;
+    case '-o':
+    case '--output-file':
+      opt.output = v;
+      break;
+    case '--format':
+      opt.format = v;
+      break;
+    case '-p':
+    case '--progress':
+      opt.progress = true;
+      break;
+    case '--batch':
+      opt.batch = v || `out%d.${opt.format === 'tiff' ? 'tif' : opt.format}`;
+      break;
+    case '--batch-print':
+      opt.batchPrint = true;
+      break;
+    case '-l':
+    case '-t':
+    case '-x':
+    case '-y':
+      opt.area[a[1]] = Number(v);
+      break;
+    case '--mode':
+    case '--source':
+    case '--resolution':
+    case '--adf-mode':
+    case '--depth':
+      opt[a.slice(2)] = v;
+      break;
+    default:
+      errw(`scanimage: unrecognized option '${argv[i]}'\n`);
+      exit(1);
+      return;
+  }
+}
+
+// ------------------------------------------------------------------ image generation
+function crc32(buf) {
+  if (zlib.crc32) return zlib.crc32(buf) >>> 0;
+  let c;
+  let crc = 0xffffffff;
+  for (let n = 0; n < buf.length; n++) {
+    c = (crc ^ buf[n]) & 0xff;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    crc = (crc >>> 8) ^ c;
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+function chunk(type, data) {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length);
+  const td = Buffer.concat([Buffer.from(type, 'latin1'), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(td));
+  return Buffer.concat([len, td, crc]);
+}
+
+/** Colour of a point (mm, in the whole glass / sheet), or null for the glass background. */
+function paint(mode, sheet, x, y) {
+  if (sheet == null) {
+    // the glass: a light grey lid; an A5 letter at (20, 15) mm
+    const dx = x - 20;
+    const dy = y - 15;
+    if (dx < 0 || dy < 0 || dx > 148 || dy > 210) return [200, 203, 207];
+    return docPixel(dx, dy, 0, false);
+  }
+  return docPixel(x, y, sheet.n, sheet.back);
+}
+function docPixel(x, y, n, back) {
+  if (y >= 12 && y <= 24 && x >= 12 && x <= 136) return back ? [150, 150, 150] : n ? [30, 120, 80] : [30, 80, 170];
+  // page marker: n black squares at the top right of a sheet
+  if (n && y >= 4 && y <= 9) for (let i = 0; i < n; i++) if (x >= 180 - i * 8 && x <= 185 - i * 8) return back ? [120, 120, 120] : [0, 0, 0];
+  if (y >= 35 && y < 162) {
+    const line = Math.floor((y - 35) / 7);
+    const inLine = (y - 35) % 7 < 2.2;
+    const end = 136 - ((line * 37) % 50);
+    if (inLine && x >= 12 && x <= end) return back ? [170, 170, 175] : [45, 45, 50];
+  }
+  const cx = x - 110;
+  const cy = y - 180;
+  const r = Math.sqrt(cx * cx + cy * cy);
+  if (!n && r > 9 && r < 12) return [200, 40, 40];
+  return [252, 252, 250];
+}
+
+function render(mode, res, area, sheet) {
+  const W = Math.max(1, Math.round((area.x / 25.4) * res));
+  const H = Math.max(1, Math.round((area.y / 25.4) * res));
+  const ch = mode === 'Color' ? 3 : 1;
+  const lineart = mode === 'Lineart';
+  const stride = lineart ? Math.ceil(W / 8) : W * ch;
+  const raw = Buffer.alloc((stride + 1) * H);
+  const k = 25.4 / res;
+  const pix = new Uint8Array(3);
+  for (let j = 0; j < H; j++) {
+    const ymm = area.t + (j + 0.5) * k;
+    const row = j * (stride + 1);
+    raw[row] = 0;
+    for (let i = 0; i < W; i++) {
+      const c = paint(mode, sheet, area.l + (i + 0.5) * k, ymm);
+      pix[0] = c[0];
+      pix[1] = c[1];
+      pix[2] = c[2];
+      if (ch === 3) {
+        const o = row + 1 + i * 3;
+        raw[o] = pix[0];
+        raw[o + 1] = pix[1];
+        raw[o + 2] = pix[2];
+      } else {
+        const l = Math.round(0.299 * pix[0] + 0.587 * pix[1] + 0.114 * pix[2]);
+        if (lineart) {
+          if (l >= 140) raw[row + 1 + (i >> 3)] |= 0x80 >> (i & 7);
+        } else raw[row + 1 + i] = l;
+      }
+    }
+  }
+  return { W, H, ch, lineart, raw, stride };
+}
+
+function png(img, res) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(img.W, 0);
+  ihdr.writeUInt32BE(img.H, 4);
+  ihdr[8] = img.lineart ? 1 : 8;
+  ihdr[9] = img.ch === 3 ? 2 : 0;
+  const phys = Buffer.alloc(9);
+  const ppm = Math.round(res / 0.0254);
+  phys.writeUInt32BE(ppm, 0);
+  phys.writeUInt32BE(ppm, 4);
+  phys[8] = 1;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('pHYs', phys), chunk('IDAT', zlib.deflateSync(img.raw, { level: 1 })), chunk('IEND', Buffer.alloc(0))]);
+}
+
+function tiff(img, res) {
+  // baseline, uncompressed, 8 bits per sample (lineart widened to grey)
+  const W = img.W;
+  const H = img.H;
+  const spp = img.ch;
+  const data = Buffer.alloc(W * H * spp);
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      const row = j * (img.stride + 1) + 1;
+      if (img.lineart) data[j * W + i] = img.raw[row + (i >> 3)] & (0x80 >> (i & 7)) ? 255 : 0;
+      else for (let c = 0; c < spp; c++) data[(j * W + i) * spp + c] = img.raw[row + i * spp + c];
+    }
+  }
+  const tags = [];
+  const extra = [];
+  let extraOff = 8 + 2 + 12 * 12 + 4;
+  const addExtra = (buf) => {
+    const off = extraOff;
+    extra.push(buf);
+    extraOff += buf.length;
+    return off;
+  };
+  const rational = (n) => {
+    const b = Buffer.alloc(8);
+    b.writeUInt32LE(n, 0);
+    b.writeUInt32LE(1, 4);
+    return addExtra(b);
+  };
+  let bps = 8;
+  if (spp === 3) {
+    const b = Buffer.alloc(6);
+    b.writeUInt16LE(8, 0);
+    b.writeUInt16LE(8, 2);
+    b.writeUInt16LE(8, 4);
+    bps = addExtra(b);
+  }
+  const xr = rational(res);
+  const yr = rational(res);
+  const dataOff = extraOff;
+  tags.push([256, 4, 1, W], [257, 4, 1, H], [258, 3, spp, bps], [259, 3, 1, 1], [262, 3, 1, spp === 3 ? 2 : 1], [273, 4, 1, dataOff], [277, 3, 1, spp], [278, 4, 1, H], [279, 4, 1, data.length], [282, 5, 1, xr], [283, 5, 1, yr], [296, 3, 1, 2]);
+  const head = Buffer.alloc(8 + 2 + tags.length * 12 + 4);
+  head.write('II', 0, 'latin1');
+  head.writeUInt16LE(42, 2);
+  head.writeUInt32LE(8, 4);
+  head.writeUInt16LE(tags.length, 8);
+  tags.forEach(([tag, type, count, value], i) => {
+    const o = 10 + i * 12;
+    head.writeUInt16LE(tag, o);
+    head.writeUInt16LE(type, o + 2);
+    head.writeUInt32LE(count, o + 4);
+    if (type === 3 && count === 1) head.writeUInt16LE(value, o + 8);
+    else head.writeUInt32LE(value, o + 8);
+  });
+  return Buffer.concat([head, ...extra, data]);
+}
+
+// ------------------------------------------------------------------ main
+let stopping = 0;
+process.on('SIGTERM', () => {
+  stopping++;
+  errw(`scanimage: received signal 15\n`);
+  if (stopping === 1) errw('scanimage: trying to stop scanner\n');
+  else {
+    errw('scanimage: aborting\n');
+    process.exit(0);
+  }
+});
+
+function fmtBatch(pattern, n) {
+  return pattern.replace(/%(0?)(\d*)d/, (m, z, w) => String(n).padStart(Number(w) || 0, z ? '0' : ' '));
+}
+
+async function scanPage(dev, res, area, sheet, file) {
+  const steps = 20;
+  const total = Number(ctl.slowMs) || 300;
+  for (let s = 0; s <= steps; s++) {
+    if (stopping) return 'cancelled';
+    if (opt.progress) errw(`Progress: ${((s / steps) * 100).toFixed(1)}%\r`);
+    if (ctl.fail === 'io' && s === 8) return 'io';
+    if (ctl.fail === 'jam' && sheet && sheet.page === (Number(ctl.jamAt) || 2) && s === 6) return 'jam';
+    if (s < steps) await sleep(total / steps);
+  }
+  const img = render(opt.mode || dev.defMode || dev.modes[0], res, area, sheet);
+  const data = /tif/.test(opt.format) ? tiff(img, res) : png(img, res);
+  fs.writeFileSync(file, data);
+  return 'ok';
+}
+
+(async () => {
+  if (opt.formatted != null || opt.list) {
+    await sleep(Number(ctl.listMs) || 120);
+    if (opt.formatted != null) {
+      DEVICES.forEach((d, i) => out(opt.formatted.replace(/%([dvmtin%])/g, (m, c) => ({ d: d.name, v: d.vendor, m: d.model, t: d.type, i: String(i), n: '\n', '%': '%' })[c])));
+    } else if (DEVICES.length) {
+      for (const d of DEVICES) out(`device \`${d.name}' is a ${d.vendor} ${d.model} ${d.type}\n`);
+    } else {
+      out('\nNo scanners were identified. If you were expecting something different,\ncheck that the scanner is plugged in, turned on and detected by the\nsane-find-scanner tool (if appropriate). Please read the documentation\nwhich came with this software (README, FAQ, manpages).\n');
+    }
+    return exit(0);
+  }
+  const dev = DEVICES.find((d) => d.name === opt.device);
+  const failsHere = ctl.failOn === 'all' || !opt.all;
+  if (!dev || (ctl.fail === 'gone' && failsHere)) {
+    errw(`scanimage: open of device ${opt.device} failed: Invalid argument\n`);
+    return exit(1);
+  }
+  if (ctl.fail === 'denied' && failsHere) {
+    errw(`scanimage: open of device ${opt.device} failed: Access to resource has been denied\n`);
+    return exit(1);
+  }
+  // option values must be the scanner's
+  for (const [k, list] of [['mode', dev.modes], ['source', dev.sources]]) {
+    if (opt[k] != null && !list.includes(opt[k])) {
+      errw(`scanimage: setting of option --${k} failed (Invalid argument)\n`);
+      return exit(1);
+    }
+  }
+  if (opt.resolution != null && !dev.res.includes(Number(opt.resolution))) {
+    errw('scanimage: setting of option --resolution failed (Invalid argument)\n');
+    return exit(1);
+  }
+  if (opt.all) {
+    await sleep(60);
+    if (ctl.fail === 'busy' && ctl.failOn === 'all') {
+      errw(`scanimage: open of device ${opt.device} failed: Device busy\n`);
+      return exit(1);
+    }
+    out(dev.options(dev.name, opt.source));
+    return exit(0);
+  }
+  const feeder = /ADF/.test(opt.source || '');
+  const res = Number(opt.resolution) || dev.res[0];
+  const maxH = feeder ? dev.adfH || dev.h : dev.h;
+  const area = { l: opt.area.l || 0, t: opt.area.t || 0, x: opt.area.x || dev.w, y: opt.area.y || maxH };
+  area.x = Math.min(area.x, dev.w - area.l);
+  area.y = Math.min(area.y, maxH - area.t);
+  await sleep(40);
+  if (ctl.fail === 'busy') {
+    errw('scanimage: sane_start: Device busy\n');
+    return exit(3);
+  }
+  if (ctl.fail === 'cover') {
+    errw('scanimage: sane_start: Scanner cover is open\n');
+    return exit(8);
+  }
+  if (!opt.batch) {
+    if (feeder && (ctl.fail === 'nopaper' || ctl.adfPages === 0)) {
+      errw('scanimage: sane_start: Document feeder out of documents\n');
+      return exit(7);
+    }
+    const file = opt.output;
+    if (!file) {
+      errw('scanimage: output to the terminal is not simulated\n');
+      return exit(1);
+    }
+    const r = await scanPage(dev, res, area, feeder ? { n: 1, back: false, page: 1 } : null, file);
+    if (r === 'cancelled') {
+      fs.rmSync(file, { force: true });
+      return exit(2);
+    }
+    if (r === 'io') {
+      errw('scanimage: sane_read: Error during device I/O\n');
+      return exit(9);
+    }
+    return exit(0);
+  }
+  // batch: pages until the feeder is empty (the flatbed gives one page, like a real batch on the glass)
+  const sheets = feeder ? (ctl.fail === 'nopaper' ? 0 : ctl.adfPages ?? 3) : 1;
+  const duplex = /Duplex/.test(opt.source || '');
+  const pages = feeder ? sheets * (duplex ? 2 : 1) : 1;
+  let done = 0;
+  for (let p = 1; p <= pages; p++) {
+    const file = fmtBatch(opt.batch, p);
+    const part = `${file}.part`;
+    errw(`Scanning page ${p}\n`);
+    const sheet = feeder ? { n: duplex ? Math.ceil(p / 2) : p, back: duplex && p % 2 === 0, page: p } : null;
+    const r = await scanPage(dev, res, area, sheet, part);
+    if (r === 'cancelled') {
+      fs.rmSync(part, { force: true });
+      errw(`Batch terminated, ${done} page${done === 1 ? '' : 's'} scanned\n`);
+      return exit(2);
+    }
+    if (r === 'jam' || r === 'io') {
+      fs.rmSync(part, { force: true });
+      errw(`scanimage: sane_read: ${r === 'jam' ? 'Document feeder jammed' : 'Error during device I/O'}\n`);
+      errw(`Batch terminated, ${done} page${done === 1 ? '' : 's'} scanned\n`);
+      return exit(r === 'jam' ? 6 : 9);
+    }
+    fs.renameSync(part, file);
+    done++;
+    errw(`Scanned page ${p}. (scanner status = 5)\n`);
+    if (opt.batchPrint) out(`${file}\n`);
+  }
+  if (!done) {
+    errw('scanimage: sane_start: Document feeder out of documents\n');
+    errw('Batch terminated, 0 pages scanned\n');
+    return exit(7);
+  }
+  errw(`Scanning page ${pages + 1}\n`);
+  errw('scanimage: sane_start: Document feeder out of documents\n');
+  errw(`Batch terminated, ${done} page${done === 1 ? '' : 's'} scanned\n`);
+  exit(0);
+})();

@@ -1,9 +1,11 @@
-/* Éditeur de code: explorer, tabs, CodeMirror editor, terminal panel, status bar. Tokens only (docs/design/SYSTEM.md). */
+/* Éditeur de code: explorer and search, panes of tabs, CodeMirror editor, comparisons, terminal panel, status bar.
+   Tokens only (docs/design/SYSTEM.md). */
 .app-code .code-root {
   display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; color: var(--text);
   font-size: var(--fs-small);
 }
 .app-code .code-grow { flex: 1; }
+.app-code [hidden] { display: none !important; }
 
 /* ------------------------------------------------------------ toolbar */
 .app-code .code-toolbar {
@@ -19,14 +21,49 @@
 
 /* ------------------------------------------------------------ layout */
 .app-code .code-main { flex: 1; min-height: 0; display: flex; }
+/* side panel: an activity bar (explorer / search) and the chosen view */
 .app-code .code-side {
-  width: var(--code-side-w, 260px); flex: none; display: flex; flex-direction: column; min-height: 0; background: var(--bg-alt);
+  width: calc(var(--code-side-w, 260px) + 44px); flex: none; display: flex; min-height: 0; background: var(--bg-alt);
 }
 .app-code .code-root.no-side .code-side, .app-code .code-root.no-side .code-split { display: none; }
+.app-code .code-activity {
+  width: 44px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0;
+  border-right: 1px solid var(--line-soft);
+}
+.app-code .code-act {
+  width: 36px; height: 36px; border: 0; padding: 0; border-radius: var(--radius-sm); background: none; color: var(--text-2);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; position: relative;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.app-code .code-act:hover { background: var(--subtle-hover); color: var(--text); }
+.app-code .code-act.on { color: var(--accent-text); background: var(--subtle-selected); }
+.app-code .code-act.on::before {
+  content: ''; position: absolute; left: -4px; top: 8px; bottom: 8px; width: 2px; border-radius: 1px; background: var(--accent);
+}
+.app-code .code-act:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.app-code .code-side-body { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.app-code .code-explorer, .app-code .code-search { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.app-code .code-side[data-view="search"] .code-explorer, .app-code .code-side:not([data-view="search"]) .code-search { display: none; }
 .app-code .code-split { width: 4px; margin: 0 -2px; z-index: 2; cursor: col-resize; flex: none; position: relative; }
 .app-code .code-split::after { content: ''; position: absolute; inset: 0 1.5px; background: var(--line-soft); }
 .app-code .code-split:hover::after { background: var(--accent); }
 .app-code .code-center { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.app-code .code-editors { flex: 1; min-height: 0; display: flex; position: relative; }
+
+/* ------------------------------------------------------------ panes (split view) */
+.app-code .code-panes { flex: 1; min-width: 0; min-height: 0; display: flex; }
+.app-code .code-panes.split-down { flex-direction: column; }
+.app-code .code-root.no-doc .code-panes { display: none; }
+.app-code .code-pane { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.app-code .code-pane-split { flex: none; position: relative; z-index: 3; background: var(--line-soft); outline: none; }
+.app-code .code-panes.split-right > .code-pane-split { width: 1px; cursor: col-resize; }
+.app-code .code-panes.split-down > .code-pane-split { height: 1px; cursor: row-resize; }
+.app-code .code-pane-split::before { content: ''; position: absolute; inset: -3px; }
+.app-code .code-pane-split:hover, .app-code .code-pane-split.dragging { background: var(--accent); }
+.app-code .code-pane-split:focus-visible { background: var(--accent); box-shadow: 0 0 0 2px var(--focus-ring); }
+/* the pane that has the focus: its active tab keeps the accent underline, the other one is dimmed */
+.app-code .code-root.two-panes .code-pane:not(.focused) .code-tab.active::after { background: var(--line); }
+.app-code .code-root.two-panes .code-pane:not(.focused) .code-tab.active { color: var(--text-2); }
 
 /* ------------------------------------------------------------ explorer */
 .app-code .code-side-head { display: flex; align-items: center; gap: 4px; padding: 6px 6px 4px 14px; min-height: 36px; }
@@ -36,7 +73,7 @@
 }
 .app-code .code-side-actions { display: flex; gap: 0; opacity: .85; }
 .app-code .code-side-actions .code-tbtn { width: 28px; min-width: 28px; height: 28px; }
-.app-code .code-side.empty .code-side-actions { display: none; }
+.app-code .code-side.no-folder .code-side-actions { display: none; }
 .app-code .code-tree { flex: 1; min-height: 0; overflow: auto; padding: 2px 6px 10px; outline: none; }
 .app-code .code-tree:focus-visible { box-shadow: inset 0 0 0 2px var(--focus-ring); border-radius: var(--radius-sm); }
 .app-code .code-row {
@@ -62,11 +99,17 @@
 .app-code .code-tree-empty p { margin: 0; }
 
 /* ------------------------------------------------------------ tabs */
+.app-code .code-tabbar { display: flex; align-items: stretch; height: 36px; flex: none; border-bottom: 1px solid var(--line-soft); background: var(--bg-alt); }
+.app-code .code-tabbar.no-tabs { display: none; }
 .app-code .code-tabs {
-  display: flex; align-items: stretch; height: 36px; flex: none; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; /* the wheel scrolls it (main.js) */
-  border-bottom: 1px solid var(--line-soft); background: var(--bg-alt);
+  display: flex; align-items: stretch; flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; /* the wheel scrolls it (main.js) */
 }
 .app-code .code-tabs.empty { display: none; }
+.app-code .code-tabs.drop { box-shadow: inset 0 -2px 0 var(--accent); }
+.app-code .code-pane-acts { display: flex; align-items: center; gap: 2px; padding: 0 4px; flex: none; }
+.app-code .code-pane-acts .code-tbtn { width: 28px; min-width: 28px; height: 28px; }
+.app-code .code-pane-acts [hidden] { display: none; }
+.app-code .code-tab.diff .icon:first-child { color: var(--accent-text); }
 .app-code .code-tab {
   display: flex; align-items: center; gap: 6px; padding: 0 4px 0 12px; min-width: 0; max-width: 220px; flex: none; cursor: default;
   color: var(--text-2); border-right: 1px solid var(--line-soft); position: relative; outline: none;
@@ -96,6 +139,9 @@
 .app-code .code-host { flex: 1; min-width: 0; min-height: 0; display: flex; }
 .app-code .code-host > .cm-editor { flex: 1; min-width: 0; }
 .app-code .code-root.no-doc .code-host { display: none; }
+.app-code .code-diff-host { display: none; flex: 1; min-width: 0; min-height: 0; }
+.app-code .code-pane.diff .code-host { display: none; }
+.app-code .code-pane.diff .code-diff-host { display: flex; }
 .app-code .code-welcome { display: none; }
 .app-code .code-root.no-doc .code-welcome { display: flex; flex: 1; overflow: auto; align-items: center; justify-content: center; padding: 24px; }
 .app-code .code-welcome-inner { max-width: 600px; width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
@@ -174,3 +220,134 @@
 .app-code .code-st:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .app-code .code-st[hidden] { display: none; }
 .app-code .code-branch { font-weight: 600; color: var(--text); }
+
+/* ------------------------------------------------------------ search across files (lib/search.js) */
+.app-code .code-search .code-side-head { padding-right: 6px; }
+.app-code .code-search .code-side-title { text-transform: uppercase; }
+.app-code .code-side.no-folder .code-search .code-side-actions { display: none; }
+.app-code .code-sform { display: flex; flex-direction: column; gap: 6px; padding: 2px 10px 8px 4px; }
+.app-code .code-srow { display: flex; align-items: flex-start; gap: 2px; }
+.app-code .code-sexpand {
+  width: 22px; height: 32px; flex: none; border: 0; padding: 0; background: none; color: var(--text-2); border-radius: var(--radius-xs);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.app-code .code-sexpand:hover { background: var(--subtle-hover); color: var(--text); }
+.app-code .code-sexpand:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.app-code .code-sfields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.app-code .code-sfield { position: relative; display: flex; }
+.app-code .code-sfield[hidden], .app-code .code-sactions[hidden], .app-code .code-sfilters[hidden] { display: none; }
+.app-code .code-sfield .input, .app-code .code-slabel .input {
+  width: 100%; min-width: 0; min-height: 32px; padding: 4px 8px; font-size: var(--fs-small);
+}
+.app-code .code-squery .input { padding-right: 88px; }
+.app-code .code-sopts { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px; }
+.app-code .code-sopt {
+  width: 26px; height: 24px; border: 1px solid transparent; padding: 0; border-radius: var(--radius-xs); background: none; color: var(--text-2);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.app-code .code-sopt:hover { background: var(--subtle-hover); color: var(--text); }
+.app-code .code-sopt.on { background: var(--accent-subtle); color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.app-code .code-sopt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 0; }
+.app-code .code-sactions { display: flex; justify-content: flex-end; }
+.app-code .code-sfilters-row { display: flex; justify-content: flex-end; margin: -2px 0 -4px; }
+.app-code .code-sfilters-row .code-tbtn { width: 28px; min-width: 28px; height: 22px; }
+.app-code .code-sfilters { display: flex; flex-direction: column; gap: 8px; padding-left: 24px; }
+.app-code .code-slabel { display: flex; flex-direction: column; gap: 3px; color: var(--text-2); font-size: var(--fs-small); }
+.app-code .code-signore { font-size: var(--fs-small); color: var(--text); gap: 8px; align-items: flex-start; }
+.app-code .code-signore input { flex: none; margin-top: 1px; }
+.app-code .code-sstatus { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 12px 8px 28px; color: var(--text-2); }
+.app-code .code-sstatus[hidden] { display: none; }
+.app-code .code-sstatus.error { color: var(--danger); }
+.app-code .code-sstatus .btn { display: inline-flex; align-items: center; gap: 6px; }
+.app-code .code-sstatus .btn[hidden] { display: none; }
+.app-code .code-sstatus-text { display: flex; flex-direction: column; gap: 2px; width: 100%; }
+.app-code .code-sline { display: block; overflow-wrap: anywhere; }
+.app-code .code-slist { flex: 1; min-height: 0; overflow: auto; padding: 0 6px 10px; outline: none; }
+.app-code .code-slist:focus-visible { box-shadow: inset 0 0 0 2px var(--focus-ring); border-radius: var(--radius-sm); }
+.app-code .code-sempty { padding: 4px 12px 12px 28px; }
+.app-code .code-sempty[hidden] { display: none; }
+.app-code .code-sr {
+  display: flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 4px 0 6px; border-radius: var(--radius-sm); cursor: default;
+  white-space: nowrap; color: var(--text); outline: none; transition: background var(--dur-fast) var(--ease);
+}
+.app-code .code-sr:hover { background: var(--subtle-hover); }
+.app-code .code-sr:focus-visible, .app-code .code-sr:focus { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.app-code .code-srow-file .file-icon { color: var(--text-2); flex: none; }
+.app-code .code-sname { font-weight: 600; flex: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; }
+.app-code .code-sdir { color: var(--text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.app-code .code-srow-file .code-grow { min-width: 4px; }
+.app-code .code-scount {
+  flex: none; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--card); color: var(--text-2);
+  font-size: var(--fs-caption); line-height: 18px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.app-code .code-srow-match { padding-left: 24px; font-family: var(--font-mono); font-size: var(--fs-small); }
+.app-code .code-sline-no { flex: none; min-width: 26px; text-align: right; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.app-code .code-spreview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.app-code .code-shit { color: inherit; border-radius: 2px; }
+.app-code mark.code-shit { background: color-mix(in srgb, var(--warning) 34%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--warning) 55%, transparent); }
+.app-code del.code-shit { background: color-mix(in srgb, var(--danger) 22%, transparent); text-decoration: line-through; }
+.app-code ins.code-srep { color: inherit; background: color-mix(in srgb, var(--success) 24%, transparent); text-decoration: none; border-radius: 2px; }
+.app-code .code-sacts { display: none; gap: 2px; flex: none; }
+.app-code .code-sr:hover .code-sacts, .app-code .code-sr:focus .code-sacts { display: inline-flex; }
+.app-code .code-sr:hover .code-scount, .app-code .code-sr:focus .code-scount { display: none; }
+.app-code .code-sact {
+  width: 22px; height: 22px; border: 0; padding: 0; border-radius: var(--radius-xs); background: none; color: var(--text-2);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.app-code .code-sact:hover { background: var(--subtle-hover); color: var(--text); }
+.app-code .code-search.busy .code-slist { opacity: .85; }
+
+/* ------------------------------------------------------------ comparisons (lib/diff.js, @codemirror/merge) */
+.app-code .code-diff { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.app-code .code-diff[hidden] { display: none; }
+.app-code .code-diff-bar {
+  display: flex; align-items: center; gap: 4px; min-height: 36px; padding: 2px 6px 2px 12px; flex: none;
+  border-bottom: 1px solid var(--line-soft); background: var(--bg-alt); color: var(--text-2);
+}
+.app-code .code-diff-bar .code-tbtn { width: 28px; min-width: 28px; height: 28px; }
+.app-code .code-diff-icon { color: var(--accent-text); flex: none; }
+.app-code .code-diff-what { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.app-code .code-diff-what[hidden] { display: none; }
+.app-code .code-diff-count { white-space: nowrap; margin-left: 8px; font-variant-numeric: tabular-nums; }
+.app-code .code-diff-mode { flex: none; }
+.app-code .code-diff-heads {
+  display: flex; flex: none; border-bottom: 1px solid var(--line-soft); background: var(--bg-alt); color: var(--text-2);
+  font-size: var(--fs-small); font-weight: 600;
+}
+.app-code .code-diff-heads[hidden] { display: none; }
+.app-code .code-diff-side { flex: 1 1 0; min-width: 0; padding: 4px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-code .code-diff-gap { width: 1.6em; flex: none; }
+.app-code .code-diff-body { flex: 1; min-height: 0; display: flex; }
+.app-code .code-diff-body > .cm-mergeView { flex: 1; min-width: 0; height: 100%; background: var(--bg); }
+/* both sides as tall as the view (gutters and background down to the bottom); the merge view scrolls them together */
+.app-code .code-diff-body .cm-mergeViewEditors { min-height: 100%; }
+.app-code .code-diff-body .cm-mergeViewEditor { display: flex; flex-direction: column; }
+.app-code .code-diff-body .cm-mergeViewEditor > .cm-editor { flex: 1; }
+.app-code .code-diff-body .cm-mergeViewEditor .cm-scroller { flex: 1; }
+.app-code .code-diff-body > .cm-editor { flex: 1; min-width: 0; }
+.app-code .cm-mergeViewEditor + .cm-merge-revert, .app-code .cm-merge-revert { background: var(--bg-alt); border-left: 1px solid var(--line-soft); border-right: 1px solid var(--line-soft); }
+.app-code .cm-merge-revert .code-diff-arrow {
+  height: 22px; padding: 0; border: 0; border-radius: var(--radius-xs); background: none; color: var(--text-2);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.app-code .cm-merge-revert .code-diff-arrow:hover { background: var(--subtle-hover); color: var(--accent-text); }
+/* change colours: tokens only (the package's own colours are hex) */
+.app-code .cm-editor.cm-merge-a .cm-changedLine, .app-code .cm-editor .cm-deletedChunk { background-color: color-mix(in srgb, var(--danger) 10%, transparent); }
+.app-code .cm-editor.cm-merge-b .cm-changedLine, .app-code .cm-editor .cm-inlineChangedLine { background-color: color-mix(in srgb, var(--success) 10%, transparent); }
+.app-code .cm-editor.cm-merge-a .cm-changedText, .app-code .cm-editor .cm-deletedChunk .cm-deletedText { background: color-mix(in srgb, var(--danger) 30%, transparent); }
+.app-code .cm-editor.cm-merge-b .cm-changedText { background: color-mix(in srgb, var(--success) 30%, transparent); }
+.app-code .cm-editor.cm-merge-b .cm-deletedText { background: color-mix(in srgb, var(--danger) 30%, transparent); }
+.app-code .cm-editor .cm-changeGutter { width: 3px; padding-left: 1px; }
+.app-code .cm-editor.cm-merge-a .cm-changedLineGutter, .app-code .cm-editor .cm-deletedLineGutter { background: var(--danger); }
+.app-code .cm-editor.cm-merge-b .cm-changedLineGutter { background: var(--success); }
+.app-code .cm-editor .cm-inlineChangedLineGutter { background: var(--accent); }
+.app-code .cm-editor .cm-deletedChunk { padding-left: 6px; }
+.app-code .cm-editor .cm-deletedChunk .cm-chunkButtons { position: absolute; inset-inline-end: 8px; z-index: 2; }
+/* the package paints its chunk buttons in fixed colours: Selene's button instead */
+.app-code .cm-editor .cm-deletedChunk button.code-diff-chunk-revert[name="reject"] {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 24px; margin: 2px 0; padding: 0 8px; font-family: var(--font); font-size: var(--fs-small);
+  background: var(--control); color: var(--text); border: 1px solid var(--control-stroke); border-radius: var(--radius-sm); cursor: pointer;
+}
+.app-code .cm-editor .cm-deletedChunk button.code-diff-chunk-revert[name="reject"]:hover { background: var(--control-hover); color: var(--accent-text); }
+.app-code .cm-editor .cm-deletedChunk button.code-diff-chunk-revert[name="reject"]:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.app-code .cm-editor .cm-collapsedLines { color: var(--text-2); background: var(--bg-alt); font-family: var(--font); }

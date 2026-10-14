@@ -11,8 +11,9 @@
 //                                      for the _greetd user, see /etc/polkit-1/rules.d/50-aurora.rules)
 //   greeter:keyboard                -> { layout, variant, id, layouts: [{ id, layout, variant }] }
 //   greeter:setKeyboard (id)        -> sets the greeter's X keyboard layout (setxkbmap; allow-listed ids)
-//   greeter:a11y                    -> { largeText, animations } (remembered; applies the zoom factor)
-//   greeter:setA11y ({ largeText?, animations? }) -> the same, after saving the change
+//   greeter:a11y                    -> { largeText, animations, osk } (remembered; applies the zoom factor; osk = the
+//                                      on-screen keyboard « Clavier visuel », core/features/osk/greeter.js)
+//   greeter:setA11y ({ largeText?, animations?, osk? }) -> the same, after saving the change
 // Shell mode:
 //   session:welcome                 -> true once per login session (marker in $XDG_RUNTIME_DIR; dev: only with
 //                                      AURORA_WELCOME=1, { show, hold } with AURORA_WELCOME_HOLD=<ms>): the shell shows
@@ -636,7 +637,7 @@ function registerGreeter(api) {
   // window's zoom factor: Chromium also remembers a per-origin zoom in the profile, so the factor is always set
   // explicitly from the saved choice (the menu's check mark then matches what is on screen).
   const ZOOM_LARGE = 1.25;
-  const a11yPrefs = () => ({ largeText: false, animations: true, ...(state.get().a11y || {}) });
+  const a11yPrefs = () => ({ largeText: false, animations: true, osk: false, ...(state.get().a11y || {}) });
   const applyZoom = (large) => {
     try {
       const w = api.getMainWindow();
@@ -653,9 +654,10 @@ function registerGreeter(api) {
     if (patch && typeof patch === 'object') {
       if (typeof patch.largeText === 'boolean') a.largeText = patch.largeText;
       if (typeof patch.animations === 'boolean') a.animations = patch.animations;
+      if (typeof patch.osk === 'boolean') a.osk = patch.osk;
     }
     applyZoom(a.largeText);
-    state.set({ a11y: { largeText: a.largeText, animations: a.animations } });
+    state.set({ a11y: { largeText: a.largeText, animations: a.animations, osk: !!a.osk } });
     return a;
   });
 

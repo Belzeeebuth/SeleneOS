@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture for test/feeds.test.mjs: an item whose HTML tries every trick. Nothing here may run or load before
+     « Afficher les images »; after it, only the http(s) image may load. -->
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Flux hostile</title>
+    <link>{{BASE}}/hostile/</link>
+    <description>Pour tester le nettoyage</description>
+    <item>
+      <title>Article piégé</title>
+      <link>{{BASE}}/hostile/piege</link>
+      <guid>hostile-1</guid>
+      <pubDate>Tue, 13 Oct 2026 12:00:00 +0000</pubDate>
+      <content:encoded><![CDATA[
+        <script>fetch('{{BASE}}/script-ran'); parent.document.title = 'pwned';</script>
+        <p id="start">Bonjour <b onclick="fetch('{{BASE}}/onclick-ran')">lecteur</b>.</p>
+        <img src="x" onerror="fetch('{{BASE}}/onerror-ran')">
+        <img src="{{BASE}}/tracker.png" alt="Image distante" width="300" height="200">
+        <img src="{{BASE}}/pixel.png" width="1" height="1">
+        <a href="javascript:fetch('{{BASE}}/js-link')">lien piégé</a>
+        <a href="https://example.org/ok">lien sain</a>
+        <iframe src="{{BASE}}/frame"></iframe>
+        <form action="{{BASE}}/form"><input name="q" value="x"><button>Envoyer</button></form>
+        <div style="background:url({{BASE}}/bg.png)">fond</div>
+        <link rel="stylesheet" href="{{BASE}}/style.css">
+        <meta http-equiv="refresh" content="0;url={{BASE}}/meta-refresh">
+        <svg onload="fetch('{{BASE}}/svg-ran')"><circle r="4"/></svg>
+        <object data="{{BASE}}/object"></object>
+        <base href="{{BASE}}/evil/">
+        <p>Fin.</p>
+      ]]></content:encoded>
+    </item>
+  </channel>
+</rss>

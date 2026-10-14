@@ -1,0 +1,15 @@
+{
+  "id": "help",
+  "name": { "en": "Help", "fr": "Aide" },
+  "description": { "en": "Guides for the desktop, the apps and the settings, and a tour to get started", "fr": "Des guides pour le bureau, les applications et les réglages, et une visite pour bien démarrer" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1000, "height": 700, "minWidth": 420, "minHeight": 420, "background": "mica" },
+  "category": "system",
+  "keywords": {
+    "en": ["help", "guide", "manual", "tour", "get started", "how to", "support", "shortcuts"],
+    "fr": ["aide", "guide", "manuel", "visite", "bien démarrer", "comment", "assistance", "raccourcis"]
+  },
+  "singleInstance": true
+}

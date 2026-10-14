@@ -70,6 +70,10 @@ ACTIONS['apt-upgrade'].then = 'apt-autoremove';
 // format-removable <whole removable disk> <vfat|exfat|ext4> <label>: one msdos partition + mkfs (helper re-checks
 // that the disk is removable, not the system / live medium, and unmounts its partitions).
 ACTIONS['format-removable'] = { args: [/^\/dev\/(sd[a-z]{1,2}|mmcblk[0-9]{1,2})$/, oneOf('vfat', 'exfat', 'ext4'), /^[A-Za-z0-9_ -]{0,16}$/], timeout: 15 * 60 * 1000 };
+// smart-info <whole disk /dev/sdX | /dev/nvmeNnM>: read-only health report (smartctl -j -a, JSON on stdout) of a drive
+// udisks2 has no health data for (USB enclosures, SAS). The helper validates again and never passes any other smartctl
+// option than -j -a (and -d sat once for an unknown USB bridge). Dev: simulated in disks.js (devSmartInfo).
+ACTIONS['smart-info'] = { args: [/^\/dev\/(sd[a-z]{1,2}|nvme[0-9]{1,2}n[0-9]{1,2})$/], timeout: 3 * 60 * 1000 };
 // ---- END disks ----
 
 // ---- BEGIN drivers (Settings > Graphics drivers: renderer/apps/settings/pages/drivers.js, main/ipc/drivers.js) ----
@@ -282,6 +286,7 @@ dev.storeRun = devStoreRun; // main/lib/sources/ubuntu.js: simulated install / r
 async function devRun(action, args, secret, onLine) {
   if (action.startsWith('store-')) return devStoreRun(action, args, onLine); // store actions (Store app)
   if (action === 'format-removable') return require('./disks').devFormat(args); // disks (Disks app): simulated in disks.js
+  if (action === 'smart-info') return require('./disks').devSmartInfo(args); // disks health: the fixture's smartctl answer
   if (action.startsWith('drivers-')) return require('./drivers').devRun(action, args, onLine); // graphics drivers: simulated in drivers.js
   if (action.startsWith('printer-')) return require('./printers').devRun(action, args); // printers: simulated CUPS in printers.js
   if (action === 'firmware-update') return require('./firmware').devRun(action, args); // firmware: simulated fwupd in firmware.js

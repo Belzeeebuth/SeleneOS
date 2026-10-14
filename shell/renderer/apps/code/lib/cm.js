@@ -1,9 +1,13 @@
 // CodeMirror 6 setup of the Code Editor: languages by file name, the Selene editor theme (tokens only, so every
 // theme, style, ambiance, accent and mode applies), the search / go-to-line phrases in French, and the extensions of
-// one document. The component itself is the vendored bundle ../vendor/codemirror.js (shell/tools/vendor-codemirror.mjs).
+// one document, the read-only side of a comparison, and the annotation that keeps the views of one document in
+// sync. The component itself is the vendored bundle ../vendor/codemirror.js (shell/tools/vendor-codemirror.mjs).
 import * as CM from '../vendor/codemirror.js';
 
 export { CM };
+
+/** Marks a change copied from another view of the same document (main.js propagate): not copied back again. */
+export const Sync = CM.Annotation.define();
 
 const { EditorView, EditorState, HighlightStyle, tags: T, StreamLanguage, LanguageSupport } = CM;
 
@@ -163,6 +167,8 @@ export const PHRASES_FR = {
   'Folded lines': 'Lignes repliées', 'Unfolded lines': 'Lignes dépliées', to: 'à', 'folded code': 'code replié',
   unfold: 'déplier', 'Fold line': 'Replier la ligne', 'Unfold line': 'Déplier la ligne', 'Control character': 'Caractère de contrôle',
   'Selection deleted': 'Sélection supprimée',
+  // @codemirror/merge (the diff views)
+  '$ unchanged lines': '$ lignes inchangées', 'Revert this chunk': 'Annuler cette modification', Accept: 'Accepter', Reject: 'Rejeter',
 };
 
 /**
@@ -172,7 +178,7 @@ export const PHRASES_FR = {
  */
 export const tabExt = ({ tabs = false, size = 2 } = {}) => [EditorState.tabSize.of(size), CM.indentUnit.of(tabs ? '\t' : ' '.repeat(size))];
 
-export function extensions({ lang, langComp, wrapComp, tabComp, indent, wrap = false, uiLang = 'en', keys = [], closeIcon, onUpdate }) {
+export function extensions({ lang, langComp, wrapComp, tabComp, indent, wrap = false, uiLang = 'en', keys = [], closeIcon, onUpdate, extra = [] }) {
   const {
     lineNumbers, highlightActiveLineGutter, highlightSpecialChars, history, foldGutter, drawSelection, dropCursor,
     indentOnInput, syntaxHighlighting, bracketMatching, closeBrackets, autocompletion, rectangularSelection,
@@ -209,6 +215,26 @@ export function extensions({ lang, langComp, wrapComp, tabComp, indent, wrap = f
       dressSearchPanel(u.view.dom, closeIcon);
       onUpdate?.(u);
     }),
+    extra,
+  ];
+}
+
+/** The read-only side of a comparison (the original text): highlighting, line numbers, selection and copy. */
+export function originalExtensions({ lang, uiLang = 'en', wrap = false, keys = [] }) {
+  const { lineNumbers, highlightSpecialChars, drawSelection, syntaxHighlighting, highlightActiveLine, keymap, defaultKeymap } = CM;
+  return [
+    keymap.of(keys),
+    lineNumbers(),
+    highlightSpecialChars(),
+    drawSelection(),
+    highlightActiveLine(),
+    syntaxHighlighting(seleneHighlight),
+    keymap.of(defaultKeymap),
+    LANGS[lang]?.load() || [],
+    wrap ? EditorView.lineWrapping : [],
+    EditorState.readOnly.of(true),
+    uiLang === 'fr' ? EditorState.phrases.of(PHRASES_FR) : [],
+    seleneTheme,
   ];
 }
 

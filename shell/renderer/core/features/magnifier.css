@@ -1,0 +1,196 @@
+/* « Loupe » (core/features/magnifier.js): the magnified page, the toolbar and the zoom pill. Tokens only.
+   The toolbar and the pill are popovers: they live in the top layer, outside the magnified <html>/<body>, so they keep
+   their normal size and position. */
+
+/* ---- the magnified page (the transform is set inline on <body> by magnifier.js). <body> is fixed while the
+   magnifier runs: a fixed box adds nothing to the viewport's scrollable area, so focus() / scrollIntoView() on a part
+   of the page drawn off screen never scroll the page itself. */
+html.mag-on > body {
+  position: fixed;
+  inset: 0;
+  height: auto;
+  transform-origin: 0 0;
+}
+html.mag-zoomed > body {
+  will-change: transform; /* panning moves one composited layer */
+}
+html.mag-invert > body {
+  filter: invert(1);
+}
+html.mag-crisp > body {
+  image-rendering: pixelated; /* inherited: pictures, canvases, videos and the copies of Linux windows */
+}
+
+/* ---- live copies of Linux (X11) windows while magnified */
+.win.xwin > .win-body.xwin-content:has(> .mag-mirror) > .xwin-ph {
+  display: flex; /* the app icon until the first picture arrives */
+}
+.mag-mirror {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  background: transparent;
+  z-index: 1;
+}
+
+/* ---- announcements for screen readers */
+.mag-live {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ---- toolbar */
+.mag-toolbar[popover] {
+  position: fixed;
+  inset: 10px auto auto 50%;
+  translate: -50% 0;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-float, 16px);
+  background-color: var(--glass);
+  background-image: var(--panel-grain);
+  box-shadow: var(--shadow-flyout);
+  backdrop-filter: blur(var(--blur)) saturate(var(--blur-sat, 140%));
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  overflow: visible;
+  user-select: none;
+}
+.mag-toolbar:popover-open {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+:root[data-transparency="off"] .mag-toolbar[popover],
+:root[data-transparency="off"] .mag-pill[popover] {
+  background-color: var(--glass-strong);
+  backdrop-filter: none;
+}
+.mag-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  color: var(--text-2);
+}
+.mag-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: default;
+  transition: background var(--dur-fast) var(--ease);
+}
+.mag-btn:hover {
+  background: var(--subtle-hover);
+}
+.mag-btn:active {
+  background: var(--subtle-pressed);
+}
+.mag-btn:disabled {
+  color: var(--text-disabled);
+  background: transparent;
+}
+.mag-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.mag-btn[data-act="close"]:hover {
+  background: var(--close-hover, var(--danger));
+  color: var(--on-danger, var(--text));
+}
+.mag-level {
+  min-width: 58px;
+  padding: 0 4px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.mag-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--line-soft);
+}
+/* label under a button on hover / keyboard focus */
+.mag-btn[data-label]::after {
+  content: attr(data-label);
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  translate: -50% 0;
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-tooltip);
+  color: var(--text);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small, 18px);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.mag-btn[data-label]:hover::after {
+  opacity: 1;
+  transition-delay: 500ms;
+}
+.mag-btn[data-label]:focus-visible::after {
+  opacity: 1;
+}
+
+/* ---- zoom pill (shown when the toolbar is hidden) */
+.mag-pill[popover] {
+  position: fixed;
+  inset: 16px auto auto 50%;
+  translate: -50% 0;
+  margin: 0;
+  padding: 8px 18px;
+  border: 1px solid var(--glass-line);
+  border-radius: 999px;
+  background-color: var(--glass);
+  box-shadow: var(--shadow-flyout);
+  backdrop-filter: blur(var(--blur)) saturate(var(--blur-sat, 140%));
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--fs-body-large);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.mag-pill.show {
+  opacity: 1;
+}
+:root[data-animations="off"] .mag-pill,
+:root[data-animations="off"] .mag-btn,
+:root[data-animations="off"] .mag-btn[data-label]::after {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mag-pill,
+  .mag-btn,
+  .mag-btn[data-label]::after {
+    transition: none;
+  }
+}

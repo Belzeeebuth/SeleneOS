@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture for test/feeds.test.mjs: RSS 2.0 news feed. {{BASE}} is replaced by the test server's address,
+     the EXTRA marker by extra items (refresh test). The &eacute; entities are not defined in XML: the parser repairs them. -->
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Le Quotidien du Test</title>
+    <link>{{BASE}}/news/</link>
+    <atom:link rel="self" href="{{BASE}}/news.rss" type="application/rss+xml"/>
+    <description>Toutes les nouvelles du banc d&eacute;essai</description>
+    <language>fr</language>
+    <ttl>30</ttl>
+    <image><url>/img/news-logo.png</url><title>Le Quotidien du Test</title><link>{{BASE}}/news/</link></image>
+    {{EXTRA}}
+    <item>
+      <title>Première nouvelle</title>
+      <link>/news/premiere</link>
+      <guid>news-1</guid>
+      <pubDate>Tue, 13 Oct 2026 08:30:00 +0200</pubDate>
+      <dc:creator>Camille Martin</dc:creator>
+      <description>Un résumé court de la première nouvelle.</description>
+      <content:encoded><![CDATA[<p>Le <strong>texte complet</strong> avec un <a href="/news/lien-relatif">lien relatif</a>.</p><p><img src="/img/photo1.png" alt="Photo du jour" width="400" height="300"></p><p>Fin de l'article.</p>]]></content:encoded>
+    </item>
+    <item>
+      <title>Deuxième nouvelle en &eacute;t&eacute;</title>
+      <link>{{BASE}}/news/deuxieme</link>
+      <guid isPermaLink="false">news-2</guid>
+      <pubDate>Mon, 12 Oct 2026 18:00:00 GMT</pubDate>
+      <description>&lt;p&gt;Une description en &lt;em&gt;HTML échappé&lt;/em&gt;.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Troisième nouvelle</title>
+      <link>{{BASE}}/news/troisieme</link>
+      <guid isPermaLink="false">news-3</guid>
+      <pubDate>Sun, 11 Oct 2026 09:15:00 EST</pubDate>
+      <description>Texte simple &amp; sans balise.</description>
+    </item>
+    <item>
+      <title>Quatrième nouvelle</title>
+      <link>{{BASE}}/news/quatrieme</link>
+      <dc:date>2026-10-10T07:00:00+02:00</dc:date>
+      <description>La plus ancienne.</description>
+    </item>
+  </channel>
+</rss>

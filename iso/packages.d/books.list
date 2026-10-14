@@ -1,0 +1,4 @@
+# Livres (EPUB reader): the « Très lisible » reading font (Atkinson Hyperlegible, OFL, ~140 KB, universe).
+# The other reading fonts come from lists already in the image: fonts-noto-core (Noto Serif / Noto Sans),
+# fonts-inter, fonts-dejavu-core, fonts-liberation2. EPUB parsing needs no package (main/ipc/books.js).
+fonts-atkinson-hyperlegible

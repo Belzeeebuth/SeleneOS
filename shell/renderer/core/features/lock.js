@@ -144,10 +144,11 @@ export async function mount(ctx) {
       document.activeElement?.blur?.();
     } catch {}
     document.body.classList.add('aurora-locked');
-    // Dialogs or overlays that open while locked stay behind the lock screen and cannot take input.
+    // Dialogs or overlays that open while locked stay behind the lock screen and cannot take input
+    // (except an overlay marked data-above-lock: the on-screen keyboard, features/osk.js, types the password).
     const overlays = document.getElementById('overlays');
     for (const el of overlays ? [...overlays.children] : []) {
-      if (!el.inert) {
+      if (!el.inert && !el.hasAttribute('data-above-lock')) {
         el.inert = true;
         inerted.push(el);
       }
@@ -156,7 +157,7 @@ export async function mount(ctx) {
       overlayObserver = new MutationObserver((muts) => {
         for (const m of muts) {
           for (const n of m.addedNodes) {
-            if (n.nodeType === 1 && n !== ls?.el && !n.inert) {
+            if (n.nodeType === 1 && n !== ls?.el && !n.inert && !n.hasAttribute('data-above-lock')) {
               n.inert = true;
               inerted.push(n);
             }
@@ -202,6 +203,10 @@ export async function mount(ctx) {
           checked: () => settings.get('transparency') !== false,
           toggle: () => settings.set('transparency', settings.get('transparency') === false),
         },
+        // « Clavier visuel » (features/osk.js): it stays above the lock screen to type the password
+        ...(ctx.osk ? [{ label: () => i18n.t('osk.title'), checked: () => ctx.osk.visible(), toggle: () => ctx.osk.toggle() }] : []),
+        // « Loupe » (features/magnifier.js): the lock screen stays magnified while it runs
+        ...(ctx.magnifier ? [{ label: () => i18n.t('magnifier.title'), checked: () => ctx.magnifier.active, toggle: () => ctx.magnifier.toggle() }] : []),
       ],
     });
     for (const [k, v] of Object.entries(accentVars(settings.get('accent'), 'dark'))) ls.el.style.setProperty(k, v);

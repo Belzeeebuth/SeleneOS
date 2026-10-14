@@ -1,0 +1,312 @@
+{
+  "en": {
+    "appName": "Scan",
+    "folderName": "Scans",
+    "fileBase": "Scan",
+    "pageFile": "page {n}",
+    "scanSection": "Scanning",
+    "saveSection": "Saving",
+    "scanner": "Scanner",
+    "searchAgain": "Search again",
+    "searching": "Looking for scanners…",
+    "loadingOptions": "Reading the scanner’s settings…",
+    "noScanner": "No scanner found",
+    "noScannerHelp": "Plug in a USB scanner and turn it on, or check that your network scanner is on and connected to the same network as this computer.",
+    "notInstalled": "Scanning is not installed",
+    "notInstalledHelp": "The SANE scanning tools (sane-utils) are missing from this system.",
+    "conn": {
+      "usb": "USB",
+      "network": "Network"
+    },
+    "source": "Source",
+    "src": {
+      "flatbed": "Flatbed",
+      "adf": "Document feeder",
+      "adf-duplex": "Document feeder, both sides",
+      "film": "Film and slides"
+    },
+    "mode": "Mode",
+    "modes": {
+      "color": "Color",
+      "gray": "Grayscale",
+      "lineart": "Black and white"
+    },
+    "resolution": "Resolution",
+    "dpi": "{n} dpi",
+    "resHint": {
+      "150": "Light files, fine for text",
+      "300": "Recommended for documents",
+      "600": "Photos and fine details, larger files"
+    },
+    "paper": "Paper size",
+    "papers": {
+      "a4": "A4 (210 × 297 mm)",
+      "a5": "A5 (148 × 210 mm)",
+      "letter": "Letter (8.5 × 11 in)",
+      "legal": "Legal (8.5 × 14 in)",
+      "max": "Largest size"
+    },
+    "format": "Format",
+    "formats": {
+      "pdf": "PDF",
+      "jpeg": "JPEG",
+      "png": "PNG"
+    },
+    "formatHint": {
+      "pdf": "One file with every page",
+      "jpeg": "One picture per page",
+      "png": "One picture per page, lossless"
+    },
+    "autoCrop": "Detect the document after the preview",
+    "preview": "Preview",
+    "scan": "Scan",
+    "previewing": "Preview…",
+    "scanning": "Scanning… {percent} %",
+    "scanningPage": "Page {page}: {percent} %",
+    "warming": "Waking the scanner…",
+    "cancelling": "Stopping the scanner…",
+    "cancelScan": "Cancel the scan",
+    "glassHint": "Place the document face down on the glass, then choose Preview.",
+    "feederHint": "Put the sheets in the document feeder, then choose Scan. Every sheet is scanned whole.",
+    "area": "Scan area",
+    "areaSize": "Scan area: {w} × {h} mm",
+    "areaLabel": "Scan area, {w} × {h} mm. Arrow keys move it, Shift with the arrow keys resizes it.",
+    "wholeGlass": "Whole glass",
+    "detect": "Detect the document",
+    "detectNone": "No document stands out from the lid: the whole glass will be scanned.",
+    "pages": "Pages of the document",
+    "previewTile": "Preview",
+    "pageN": "Page {n}",
+    "pageOf": "Page {n} of {count}",
+    "addPage": "Add a page",
+    "rotateLeft": "Rotate left",
+    "rotateRight": "Rotate right",
+    "moveLeft": "Move left",
+    "moveRight": "Move right",
+    "adjust": "Adjust",
+    "brightness": "Brightness",
+    "contrast": "Contrast",
+    "reset": "Reset",
+    "deletePage": "Delete the page",
+    "pageDeleted": "Page {n} deleted.",
+    "emptyStrip": "Scanned pages appear here.",
+    "newDoc": "New document",
+    "newDocConfirm_one": "Remove the page that is not saved?",
+    "newDocConfirm_other": "Remove the {count} pages that are not saved?",
+    "newDocTitle": "New document",
+    "remove": "Remove",
+    "saveAs": "Save as…",
+    "email": "Send by email",
+    "saving": "Saving… page {n} of {count}",
+    "saved": "Saved in {folder}: {name}",
+    "savedMany": "{count} files saved in {folder}",
+    "showInFiles": "Show in Files",
+    "saveFailed": "Could not save: {error}",
+    "pdfFiles": "PDF document",
+    "jpegFiles": "JPEG picture",
+    "pngFiles": "PNG picture",
+    "closeTitle": "Unsaved pages",
+    "closeConfirm_one": "The scanned page is not saved. Save it before closing?",
+    "closeConfirm_other": "The {count} scanned pages are not saved. Save them before closing?",
+    "cancelled": "Scan cancelled.",
+    "keptPages_one": "The page already scanned is kept.",
+    "keptPages_other": "The {count} pages already scanned are kept.",
+    "err": {
+      "EBUSY": {
+        "title": "The scanner is busy",
+        "help": "Another app may be using it. Wait a moment, then try again."
+      },
+      "ECOVER": {
+        "title": "The scanner cover is open",
+        "help": "Close the cover, then try again."
+      },
+      "ENODOCS": {
+        "title": "The document feeder is empty",
+        "help": "Put the sheets in the feeder, then try again."
+      },
+      "EJAM": {
+        "title": "Paper jam in the document feeder",
+        "help": "Remove the stuck sheet, then try again."
+      },
+      "EGONE": {
+        "title": "The scanner is not answering",
+        "help": "Check that it is on and plugged in (or connected to the network), then choose Search again."
+      },
+      "EACCES": {
+        "title": "Selene cannot use this scanner",
+        "help": "Unplug the scanner and plug it back in. If that is not enough, restart the computer."
+      },
+      "ETIMEDOUT": {
+        "title": "The scanner stopped answering",
+        "help": "Check that it is still on, then try again."
+      },
+      "ENOMEM": {
+        "title": "Not enough memory",
+        "help": "Choose a lower resolution or a smaller area, then try again."
+      },
+      "ENOTSUP": {
+        "title": "Scanning is not installed",
+        "help": "The SANE scanning tools (sane-utils) are missing from this system."
+      },
+      "other": {
+        "title": "The scan did not work",
+        "help": "{message}"
+      }
+    }
+  },
+  "fr": {
+    "appName": "Numérisation",
+    "folderName": "Numérisations",
+    "fileBase": "Numérisation",
+    "pageFile": "page {n}",
+    "scanSection": "Numérisation",
+    "saveSection": "Enregistrement",
+    "scanner": "Scanner",
+    "searchAgain": "Rechercher à nouveau",
+    "searching": "Recherche des scanners…",
+    "loadingOptions": "Lecture des réglages du scanner…",
+    "noScanner": "Aucun scanner détecté",
+    "noScannerHelp": "Branchez un scanner USB et allumez-le, ou vérifiez que votre scanner réseau est allumé et connecté au même réseau que cet ordinateur.",
+    "notInstalled": "La numérisation n’est pas installée",
+    "notInstalledHelp": "Les outils de numérisation SANE (sane-utils) sont absents de ce système.",
+    "conn": {
+      "usb": "USB",
+      "network": "Réseau"
+    },
+    "source": "Source",
+    "src": {
+      "flatbed": "Vitre",
+      "adf": "Chargeur",
+      "adf-duplex": "Chargeur recto verso",
+      "film": "Diapositives et négatifs"
+    },
+    "mode": "Mode",
+    "modes": {
+      "color": "Couleur",
+      "gray": "Niveaux de gris",
+      "lineart": "Noir et blanc"
+    },
+    "resolution": "Résolution",
+    "dpi": "{n} ppp",
+    "resHint": {
+      "150": "Fichiers légers, suffisant pour du texte",
+      "300": "Recommandé pour les documents",
+      "600": "Photos et détails fins, fichiers plus lourds"
+    },
+    "paper": "Format du papier",
+    "papers": {
+      "a4": "A4 (210 × 297 mm)",
+      "a5": "A5 (148 × 210 mm)",
+      "letter": "Lettre US (216 × 279 mm)",
+      "legal": "Légal US (216 × 356 mm)",
+      "max": "Taille maximale"
+    },
+    "format": "Format",
+    "formats": {
+      "pdf": "PDF",
+      "jpeg": "JPEG",
+      "png": "PNG"
+    },
+    "formatHint": {
+      "pdf": "Un seul fichier avec toutes les pages",
+      "jpeg": "Une image par page",
+      "png": "Une image par page, sans perte"
+    },
+    "autoCrop": "Détecter le document après l’aperçu",
+    "preview": "Aperçu",
+    "scan": "Numériser",
+    "previewing": "Aperçu…",
+    "scanning": "Numérisation… {percent} %",
+    "scanningPage": "Page {page} : {percent} %",
+    "warming": "Réveil du scanner…",
+    "cancelling": "Arrêt du scanner…",
+    "cancelScan": "Annuler la numérisation",
+    "glassHint": "Posez le document face contre la vitre, puis choisissez Aperçu.",
+    "feederHint": "Placez les feuilles dans le chargeur, puis choisissez Numériser. Chaque feuille est numérisée en entier.",
+    "area": "Zone à numériser",
+    "areaSize": "Zone à numériser : {w} × {h} mm",
+    "areaLabel": "Zone à numériser, {w} × {h} mm. Les flèches la déplacent, Maj avec les flèches la redimensionne.",
+    "wholeGlass": "Toute la vitre",
+    "detect": "Détecter le document",
+    "detectNone": "Aucun document ne se détache du capot : toute la vitre sera numérisée.",
+    "pages": "Pages du document",
+    "previewTile": "Aperçu",
+    "pageN": "Page {n}",
+    "pageOf": "Page {n} sur {count}",
+    "addPage": "Ajouter une page",
+    "rotateLeft": "Pivoter à gauche",
+    "rotateRight": "Pivoter à droite",
+    "moveLeft": "Déplacer vers la gauche",
+    "moveRight": "Déplacer vers la droite",
+    "adjust": "Retouches",
+    "brightness": "Luminosité",
+    "contrast": "Contraste",
+    "reset": "Réinitialiser",
+    "deletePage": "Supprimer la page",
+    "pageDeleted": "Page {n} supprimée.",
+    "emptyStrip": "Les pages numérisées s’affichent ici.",
+    "newDoc": "Nouveau document",
+    "newDocConfirm_one": "Supprimer la page non enregistrée ?",
+    "newDocConfirm_other": "Supprimer les {count} pages non enregistrées ?",
+    "newDocTitle": "Nouveau document",
+    "remove": "Supprimer",
+    "saveAs": "Enregistrer sous…",
+    "email": "Envoyer par courriel",
+    "saving": "Enregistrement… page {n} sur {count}",
+    "saved": "Enregistré dans {folder} : {name}",
+    "savedMany": "{count} fichiers enregistrés dans {folder}",
+    "showInFiles": "Afficher dans Fichiers",
+    "saveFailed": "Enregistrement impossible : {error}",
+    "pdfFiles": "Document PDF",
+    "jpegFiles": "Image JPEG",
+    "pngFiles": "Image PNG",
+    "closeTitle": "Pages non enregistrées",
+    "closeConfirm_one": "La page numérisée n’est pas enregistrée. Voulez-vous l’enregistrer avant de fermer ?",
+    "closeConfirm_other": "Les {count} pages numérisées ne sont pas enregistrées. Voulez-vous les enregistrer avant de fermer ?",
+    "cancelled": "Numérisation annulée.",
+    "keptPages_one": "La page déjà numérisée est conservée.",
+    "keptPages_other": "Les {count} pages déjà numérisées sont conservées.",
+    "err": {
+      "EBUSY": {
+        "title": "Le scanner est occupé",
+        "help": "Une autre application l’utilise peut-être. Patientez un instant, puis réessayez."
+      },
+      "ECOVER": {
+        "title": "Le capot du scanner est ouvert",
+        "help": "Fermez le capot, puis réessayez."
+      },
+      "ENODOCS": {
+        "title": "Le chargeur est vide",
+        "help": "Placez les feuilles dans le chargeur, puis réessayez."
+      },
+      "EJAM": {
+        "title": "Bourrage papier dans le chargeur",
+        "help": "Retirez la feuille coincée, puis réessayez."
+      },
+      "EGONE": {
+        "title": "Le scanner ne répond pas",
+        "help": "Vérifiez qu’il est allumé et branché (ou connecté au réseau), puis choisissez Rechercher à nouveau."
+      },
+      "EACCES": {
+        "title": "Selene n’a pas accès à ce scanner",
+        "help": "Débranchez le scanner puis rebranchez-le. Si cela ne suffit pas, redémarrez l’ordinateur."
+      },
+      "ETIMEDOUT": {
+        "title": "Le scanner a cessé de répondre",
+        "help": "Vérifiez qu’il est toujours allumé, puis réessayez."
+      },
+      "ENOMEM": {
+        "title": "Mémoire insuffisante",
+        "help": "Choisissez une résolution plus basse ou une zone plus petite, puis réessayez."
+      },
+      "ENOTSUP": {
+        "title": "La numérisation n’est pas installée",
+        "help": "Les outils de numérisation SANE (sane-utils) sont absents de ce système."
+      },
+      "other": {
+        "title": "La numérisation a échoué",
+        "help": "{message}"
+      }
+    }
+  }
+}

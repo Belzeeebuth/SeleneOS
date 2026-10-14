@@ -13,6 +13,9 @@
 //   AudioVolumeUp/Down/Mute, BrightnessUp/Down  -> audio:* / display:* + shell.emit('osd', …)
 //   Super+V  clipboard history flyout (Windows 11 style; off until turned on, setting 'clipboard.history';
 //            text only, pinned items persist in storage 'shell' / 'clipboard-pins')
+//   Super+. / Super+;  emoji and symbols panel (features/emoji.js, shell event 'emoji:toggle')
+//   Super+= (keypad +) / Super+- / Super+Escape / Super+Ctrl+M  Loupe: start or zoom in, zoom out, stop, settings
+//            (features/magnifier.js, shell events 'magnifier:zoomIn' 'magnifier:zoomOut' 'magnifier:stop' 'magnifier:settings')
 //
 // Events this module emits on the shell bus (handled by the other wm-nav features):
 //   'run:open'  'winx:toggle'  'security:open'  'shutdown:dialog'  'sysmenu:open' (win)
@@ -384,7 +387,16 @@ const EXTRA_ACTIONS = {
   browser: () => launch('browser'),
   notepad: () => launch('notepad'),
   calculator: () => launch('calculator'),
+  help: () => launch('help'), // Aide (apps/help)
   screenReader: () => shell.emit('screenreader:toggle', { source: 'hotkey' }), // features/screenreader.js
+  onScreenKeyboard: () => shell.emit('osk:toggle', { source: 'hotkey' }), // features/osk.js (Super+Ctrl+O)
+  emoji: () => shell.emit('emoji:toggle'), // features/emoji.js (Super+.)
+  emojiAlt: () => shell.emit('emoji:toggle'), // (Super+;)
+  // features/magnifier.js (« Loupe »)
+  magnifierZoomIn: () => shell.emit('magnifier:zoomIn'),
+  magnifierZoomOut: () => shell.emit('magnifier:zoomOut'),
+  magnifierStop: () => shell.emit('magnifier:stop'),
+  magnifierSettings: () => shell.emit('magnifier:settings'),
 };
 for (let n = 1; n <= 9; n++) EXTRA_ACTIONS[`taskbarApp${n}`] = () => activateNth(n);
 const actionOf = (s) => EXTRA_ACTIONS[s.id] || (s.combo ? ACTIONS[normalize(s.combo)] : null);
@@ -416,6 +428,20 @@ function rebuild() {
     if (c && fn && !FIXED_COMBOS.has(normalize(c))) {
       map[normalize(c)] = fn;
       ids[normalize(c)] = s.id;
+    }
+  }
+  // Loupe: its zoom keys also answer on the keypad (Super++ / Super+-) and with Shift (the « = + » key gives « + »
+  // with Shift on QWERTY and AZERTY; aurora-xwm names keys without Shift: Super+Shift+=, Super+Shift+-)
+  for (const [id, key, twins] of [['magnifierZoomIn', '=', ['+', 'Shift++', 'Shift+=']], ['magnifierZoomOut', '-', ['Shift+_', 'Shift+-']]]) {
+    const c = combos[id];
+    const fn = c && map[normalize(c)];
+    if (!fn || !c.endsWith(`+${key}`)) continue;
+    for (const twin of twins) {
+      const alias = normalize(`${c.slice(0, -key.length)}${twin}`);
+      if (!(alias in map)) {
+        map[alias] = fn;
+        ids[alias] = id;
+      }
     }
   }
   // …and the user's app shortcuts last (Settings turned off whatever else used their combo)

@@ -7,8 +7,20 @@
 // Renderer API (all geometry in CSS px of the shell page):
 //   xwin:status            -> { enabled, running, ready, screen, restarts }
 //   xwin:list              -> [client]   clients the helper reported so far (latest 'new' + updates)
-//   send xwin:cmd (cmd)    -> { cmd: 'place'|'stack'|'focus'|'close'|'kill'|'state', … } (place in CSS px)
+//   send xwin:cmd (cmd)    -> { cmd: 'place'|'stack'|'focus'|'close'|'kill'|'state'|'paste', … } (place in CSS px)
+//                             osk-key: { id, name | char, mods: ['ctrl','alt','super','shift'], action: 'tap'|'press'|
+//                             'release' } types one key of the on-screen keyboard into client id with XTest; osk-area:
+//                             { rects: [{x,y,width,height}] } CSS rects of the on-screen keyboard: a press there never
+//                             takes the X focus from the client (core/features/osk.js, docs/XWINDOWS.md)
+//                             paste: { id, keys: 'ctrl+v' | 'ctrl+shift+v' | 'shift+insert' } (XTest, answered by
+//                             the event { ev: 'paste', id, ok, code }; features/emoji.js)
 //   send xwin:shape (holes)-> [{x,y,width,height}] CSS rects; the shell window gets screen − holes
+//   xwin:input (holes|null)-> « Loupe » (core/features/magnifier.js): the shell window's X INPUT shape becomes
+//                             window − holes (CSS rects), or the default again (null: input follows the cut). Answers
+//                             once the helper has applied it (ping / pong), so the renderer can move the view after.
+//                             If the helper exits with an input shape set, it is reset here.
+//   send xwin:cmd { cmd: 'wheel-zoom', on } -> while the magnifier runs, Ctrl+Alt+wheel anywhere comes back as the
+//                             combos 'Ctrl+Alt+WheelUp' / 'Ctrl+Alt+WheelDown' (helper grab; replayed after a restart)
 //   xwin:debug             -> { shape, holes, factors }  (tests)
 //   (+xwin:event)          -> helper events: new / title / icon / hints / configure-request / state-request /
 //                             drag / focus / click / gone, plus { ev: 'reset' } when the helper restarted.
@@ -20,7 +32,11 @@ const { spawn } = require('child_process');
 const { helperPath } = require('../lib/exec');
 const region = require('../lib/region');
 
-const COMMANDS = new Set(['place', 'stack', 'focus', 'close', 'kill', 'state', 'ping']);
+const COMMANDS = new Set(['place', 'stack', 'focus', 'close', 'kill', 'state', 'ping', 'paste', 'osk-key', 'osk-area', 'wheel-zoom']);
+// « Clavier visuel » (osk-key): key names (X keysyms) and modifiers the on-screen keyboard may send
+const OSK_NAMES = new Set(['Return', 'BackSpace', 'Tab', 'Escape', 'Delete', 'Insert', 'Home', 'End', 'Prior', 'Next', 'Left', 'Right', 'Up', 'Down', 'space', 'Menu', 'Shift_L', 'Control_L', 'Alt_L', 'Super_L', 'ISO_Level3_Shift', ...Array.from({ length: 12 }, (_, i) => `F${i + 1}`)]);
+const OSK_MODS = new Set(['ctrl', 'alt', 'super', 'shift']);
+const PASTE_KEYS = new Set(['ctrl+v', 'ctrl+shift+v', 'shift+insert']);
 
 module.exports = function register(api) {
   const DEV = api.DEV;
@@ -100,6 +116,7 @@ module.exports = function register(api) {
         ready = true;
         scr = msg.screen || null;
         log(`helper ready (${msg.version || '?'})`);
+        if (wheelZoom) write({ cmd: 'wheel-zoom', on: true });
         api.broadcast('xwin:event', { ev: 'ready', screen: scr });
         return;
       case 'fatal':
@@ -108,8 +125,11 @@ module.exports = function register(api) {
       case 'log':
         if (DEV || msg.level === 'error') log(`helper ${msg.level || 'info'}: ${msg.message}`);
         return;
-      case 'pong':
+      case 'pong': {
+        const done = pongs.get(Number(msg.seq));
+        if (done) done();
         return;
+      }
       case 'key':
         if (typeof msg.combo === 'string') api.broadcast('shell:hotkey', { combo: msg.combo, repeat: !!msg.repeat });
         return;
@@ -189,6 +209,18 @@ module.exports = function register(api) {
         api.broadcast('xwin:event', { ev: 'reset' });
       }
       applyShape([]);
+      if (inputSet) {
+        // nobody can reset the input shape any more: Electron's own reset (a full input rect, harmless: input is
+        // always clipped by the cut)
+        inputSet = false;
+        lastInputCss = null;
+        try {
+          const w = win();
+          w?.setIgnoreMouseEvents(true);
+          w?.setIgnoreMouseEvents(false);
+        } catch {}
+      }
+      for (const done of pongs.values()) done();
       if (stopped || code === 3 || code === 4) return;
       const recent = starts.filter((t) => Date.now() - t < 60000);
       if (recent.length > 3) {
@@ -197,6 +229,52 @@ module.exports = function register(api) {
       }
       setTimeout(start, 500);
     });
+  }
+
+  // ---- « Loupe »: X input shape of the shell window (window-relative device px), Ctrl+Alt+wheel grab
+  let inputSet = false;
+  let lastInputCss = null;
+  let wheelZoom = false;
+  let pingSeq = 0;
+  const pongs = new Map(); // seq -> resolve
+  function helperSync(ms = 300) {
+    if (!proc) return Promise.resolve(false);
+    const seq = ++pingSeq;
+    return new Promise((resolve) => {
+      const done = (v = true) => {
+        clearTimeout(timer);
+        pongs.delete(seq);
+        resolve(v);
+      };
+      const timer = setTimeout(() => done(false), ms);
+      pongs.set(seq, done);
+      if (!write({ cmd: 'ping', seq })) done(false);
+    });
+  }
+  function applyInput(holesCss) {
+    const w = win();
+    if (!w || !enabled || !proc) return Promise.resolve(false);
+    if (holesCss == null) {
+      lastInputCss = null;
+      if (!inputSet) return Promise.resolve(true);
+      inputSet = false;
+      write({ cmd: 'input-shape', rects: null });
+      return helperSync();
+    }
+    const f = factors();
+    const k = f.zoom * f.scale; // CSS px -> window-relative device px
+    const cb = w.getContentBounds();
+    const bounds = { x: 0, y: 0, width: Math.round(cb.width * f.scale), height: Math.round(cb.height * f.scale) };
+    const holes = (Array.isArray(holesCss) ? holesCss : [])
+      .slice(0, 200)
+      .map((r) => (r && [r.x, r.y, r.width, r.height].every(Number.isFinite) ? region.norm({ x: r.x * k, y: r.y * k, width: r.width * k, height: r.height * k }) : null))
+      .filter(Boolean);
+    // (complement() drops the smallest holes first when it needs too many rects: the shell keeps that input)
+    const rects = region.complement(bounds, holes, { max: 250 });
+    lastInputCss = holesCss;
+    inputSet = true;
+    write({ cmd: 'input-shape', rects: rects.map((r) => [r.x, r.y, r.width, r.height]) });
+    return helperSync();
   }
 
   let lastHolesCss = [];
@@ -251,6 +329,29 @@ module.exports = function register(api) {
       case 'ping':
         out.seq = Number(cmd.seq) || 0;
         break;
+      case 'paste':
+        if (!Number.isFinite(out.id)) return false;
+        out.keys = PASTE_KEYS.has(cmd.keys) ? cmd.keys : 'ctrl+v';
+        break;
+      case 'osk-key': {
+        if (!Number.isFinite(out.id)) return false;
+        out.action = ['press', 'release'].includes(cmd.action) ? cmd.action : 'tap';
+        if (typeof cmd.name === 'string' && OSK_NAMES.has(cmd.name)) out.name = cmd.name;
+        else if (typeof cmd.char === 'string' && [...cmd.char].length === 1 && cmd.char.codePointAt(0) >= 0x20 && out.action === 'tap') out.char = cmd.char;
+        else return false;
+        out.mods = [...new Set((Array.isArray(cmd.mods) ? cmd.mods : []).filter((m) => OSK_MODS.has(m)))];
+        break;
+      }
+      case 'wheel-zoom':
+        out.on = !!cmd.on;
+        wheelZoom = out.on;
+        break;
+      case 'osk-area':
+        out.rects = (Array.isArray(cmd.rects) ? cmd.rects : [])
+          .slice(0, 8)
+          .filter((r) => r && [r.x, r.y, r.width, r.height].every(Number.isFinite) && r.width > 0 && r.height > 0)
+          .map((r) => toDevice(r));
+        break;
       default:
         break;
     }
@@ -262,6 +363,7 @@ module.exports = function register(api) {
   api.handle('xwin:debug', () => ({ shape: lastShape, holes: lastHoles, factors: factors(), placed: Object.fromEntries(placed) }));
   api.on('xwin:cmd', (cmd) => command(cmd));
   api.on('xwin:shape', (holes) => applyShape(holes));
+  api.handle('xwin:input', (holes) => applyInput(holes));
 
   if (!enabled) {
     if (wanted) log(`helper not found (${helper}): Linux applications will not be managed`);
@@ -270,7 +372,9 @@ module.exports = function register(api) {
   app.on('browser-window-created', (_e, w) => {
     // The shape is in window coordinates: rebuild it when the window changes size.
     w.on('resize', () => {
-      if (w !== win() || !lastShape) return;
+      if (w !== win()) return;
+      if (lastInputCss) applyInput(lastInputCss);
+      if (!lastShape) return;
       shapeStale = true;
       applyShape(lastHolesCss);
     });

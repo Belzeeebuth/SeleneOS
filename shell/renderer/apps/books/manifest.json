@@ -1,0 +1,17 @@
+{
+  "id": "books",
+  "name": { "en": "Books", "fr": "Livres" },
+  "description": { "en": "Read EPUB books: library, table of contents, bookmarks, search and reading themes", "fr": "Lisez des livres EPUB : bibliothèque, sommaire, signets, recherche et thèmes de lecture" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1120, "height": 780, "minWidth": 480, "minHeight": 420, "background": "mica" },
+  "category": "media",
+  "keywords": {
+    "en": ["books", "ebook", "epub", "reader", "library", "novel", "read"],
+    "fr": ["livres", "livre numérique", "liseuse", "epub", "lecture", "bibliothèque", "roman", "lire"]
+  },
+  "singleInstance": true,
+  "fileTypes": [".epub"],
+  "defaultFor": [".epub"]
+}

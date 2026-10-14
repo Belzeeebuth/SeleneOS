@@ -1,0 +1,4 @@
+# Emoji and symbols panel (Super+. / Super+;, shell/renderer/core/features/emoji.js): the colour emoji font every
+# emoji of assets/emoji/emoji.json is checked against (2.042 in noble, 2.047 in noble-updates: Emoji 15.1).
+# (Also in browser.list.) The X11 paste uses python3-xlib's XTest, already in xwindows.list.
+fonts-noto-color-emoji

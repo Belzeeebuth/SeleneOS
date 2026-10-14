@@ -7,7 +7,8 @@
 // component is vendored as ONE prebuilt, minified ES module. This script installs the pinned packages below into a
 // throwaway folder (they are not dependencies of the shell: package.json stays as it is), writes an entry module that
 // re-exports what apps/code/main.js uses, bundles it with esbuild and writes the result next to the app. The output
-// is committed; run this again only to update CodeMirror (bump the versions, rebuild, run test/code.test.mjs).
+// is committed; run this again only to update CodeMirror (bump the versions, rebuild, run test/code.test.mjs and
+// test/code-extra.test.mjs). @codemirror/merge draws the diff views (side by side and inline) of the editor.
 // Licences: CodeMirror and Lezer are MIT (apps/code/vendor/LICENSE-codemirror.txt).
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -36,6 +37,7 @@ export const PACKAGES = {
   '@codemirror/lang-go': '6.0.1',
   '@codemirror/lang-yaml': '6.1.3',
   '@codemirror/legacy-modes': '6.5.5',
+  '@codemirror/merge': '6.12.2',
   '@lezer/highlight': '1.2.5',
   esbuild: '0.28.2',
 };
@@ -43,7 +45,8 @@ export const PACKAGES = {
 const ENTRY = `
 export { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars,
   drawSelection, dropCursor, rectangularSelection, crosshairCursor } from '@codemirror/view';
-export { EditorState, EditorSelection, Compartment, StateEffect, StateField, Prec } from '@codemirror/state';
+export { EditorState, EditorSelection, Compartment, StateEffect, StateField, Prec, Annotation, Transaction, ChangeSet, Text }
+  from '@codemirror/state';
 export { syntaxHighlighting, HighlightStyle, indentOnInput, bracketMatching, foldGutter, foldKeymap, indentUnit,
   StreamLanguage, LanguageSupport } from '@codemirror/language';
 export { defaultKeymap, history, historyKeymap, indentWithTab, undo, redo, selectAll } from '@codemirror/commands';
@@ -61,6 +64,8 @@ export { cpp } from '@codemirror/lang-cpp';
 export { rust } from '@codemirror/lang-rust';
 export { go } from '@codemirror/lang-go';
 export { yaml } from '@codemirror/lang-yaml';
+export { MergeView, unifiedMergeView, goToNextChunk, goToPreviousChunk, getChunks, acceptChunk, rejectChunk, getOriginalDoc,
+  updateOriginalDoc, originalDocChangeEffect, uncollapseUnchanged, Chunk, diff, presentableDiff } from '@codemirror/merge';
 export { shell as shellMode } from '@codemirror/legacy-modes/mode/shell';
 export { toml as tomlMode } from '@codemirror/legacy-modes/mode/toml';
 `;

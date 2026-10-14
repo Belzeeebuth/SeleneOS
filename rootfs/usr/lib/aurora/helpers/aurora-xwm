@@ -86,6 +86,16 @@ except ImportError as exc:  # pragma: no cover - depends on the system
         fatal('ENOXLIB', 'python3-xlib is not installed (%s)' % exc, 4)
     raise
 
+try:  # XTest: the emoji panel's paste ('paste' command); without it the shell only copies
+    from Xlib.ext import xtest
+except ImportError:  # pragma: no cover - depends on the python3-xlib version
+    xtest = None
+
+try:  # SHAPE: the shell window's input shape while the « Loupe » magnifies the screen ('input-shape' command)
+    from Xlib.ext import shape as xshape
+except ImportError:  # pragma: no cover - depends on the python3-xlib version
+    xshape = None
+
 XK.load_keysym_group('xf86')
 XK.load_keysym_group('xkb')
 
@@ -97,6 +107,7 @@ KEY_NAMES = {
     XK.XK_Left: 'ArrowLeft', XK.XK_Right: 'ArrowRight', XK.XK_Up: 'ArrowUp', XK.XK_Down: 'ArrowDown',
     XK.XK_space: 'Space', XK.XK_period: 'Period', XK.XK_comma: 'Comma', XK.XK_Print: 'PrintScreen',
     XK.XK_Pause: 'Pause', XK.XK_Menu: 'ContextMenu',
+    XK.XK_KP_Add: '+', XK.XK_KP_Subtract: '-',  # keypad + / - as Chromium names them (Loupe: Super++ / Super+-)
     0x1008FF13: 'AudioVolumeUp', 0x1008FF11: 'AudioVolumeDown', 0x1008FF12: 'AudioVolumeMute',
     0x1008FF02: 'BrightnessUp', 0x1008FF03: 'BrightnessDown',
 }
@@ -135,6 +146,9 @@ MOVERESIZE_EDGES = {0: (1, 1, 0, 0), 1: (0, 1, 0, 0), 2: (0, 1, 1, 0), 3: (0, 0,
 MOVERESIZE_MOVE, MOVERESIZE_CANCEL = 8, 11
 BUTTONS_MASK = X.Button1Mask | X.Button2Mask | X.Button3Mask | X.Button4Mask | X.Button5Mask
 WITHDRAWN, NORMAL, ICONIC = 0, 1, 3
+# 'paste' command: the key combination pressed with XTest (modifiers first).
+PASTE_KEYS = {'ctrl+v': ('Control_L', 'v'), 'ctrl+shift+v': ('Control_L', 'Shift_L', 'v'),
+              'shift+insert': ('Shift_L', 'Insert')}
 
 
 def png_data_url(width, height, argb):
@@ -178,6 +192,71 @@ def clamp_geometry(x, y, w, h):
             min(max(w, 1), 32767), min(max(h, 1), 32767))
 
 
+# ---- « Clavier visuel » (on-screen keyboard, shell/renderer/core/features/osk.js): XTest typing ---------------
+# Keys the shell may name in an 'osk-key' command (X keysym names).
+OSK_NAMES = {'Return', 'BackSpace', 'Tab', 'Escape', 'Delete', 'Insert', 'Home', 'End', 'Prior', 'Next', 'Left',
+             'Right', 'Up', 'Down', 'space', 'Menu', 'Shift_L', 'Control_L', 'Alt_L', 'Super_L',
+             'ISO_Level3_Shift'} | {'F%d' % _n for _n in range(1, 13)}
+OSK_MODS = {'shift': 'Shift_L', 'ctrl': 'Control_L', 'alt': 'Alt_L', 'super': 'Super_L'}
+# Characters whose keysym is neither their Latin-1 code point nor 0x01000000 + code point (keysymdef.h).
+LEGACY_KEYSYMS = {0x20ac: 0x20ac, 0x0153: 0x13bd, 0x0152: 0x13bc, 0x0178: 0x13be}
+LEGACY_CHARS = {v: k for k, v in LEGACY_KEYSYMS.items()}
+# Columns of the core keymap, best first (XKB's core mapping: 0 = level 1, 1 = Shift, 4 = AltGr, 5 = AltGr + Shift,
+# 2 / 3 = the second group, reached with Mode_switch), and the modifier keys each one needs.
+LEVEL_ORDER = (0, 1, 4, 5, 2, 3)
+LEVEL_NEEDS = {0: (), 1: ('Shift_L',), 4: ('ISO_Level3_Shift',), 5: ('ISO_Level3_Shift', 'Shift_L'),
+               2: ('Mode_switch',), 3: ('Mode_switch', 'Shift_L')}
+OSK_SPARES = 4            # spare keycodes borrowed for characters the keymap does not have
+OSK_RESTORE_AFTER = 3.0   # seconds a borrowed keycode keeps its character (clients read the new keymap meanwhile)
+
+
+def keysym_for_char(ch):
+    """The X keysym of one character: Latin-1 keysyms are the code point, a few legacy ones (€ œ Œ Ÿ) have their
+    own value, every other character is a Unicode keysym (0x01000000 + code point). None for control characters."""
+    if not isinstance(ch, str) or len(ch) != 1:
+        return None
+    cp = ord(ch)
+    if cp < 0x20 or 0x7f <= cp < 0xa0 or 0xd800 <= cp <= 0xdfff:
+        return None
+    if cp < 0x100:
+        return cp
+    return LEGACY_KEYSYMS.get(cp, 0x01000000 + cp)
+
+
+def char_of_keysym(ks):
+    """The character a keysym types (the reverse of keysym_for_char), or None."""
+    if 0x20 <= ks < 0x7f or 0xa0 <= ks < 0x100:
+        return chr(ks)
+    if ks in LEGACY_CHARS:
+        return chr(LEGACY_CHARS[ks])
+    if ks & 0xff000000 == 0x01000000 and 0x100 <= ks & 0xffffff <= 0x10ffff:
+        return chr(ks & 0xffffff)
+    return None
+
+
+def plan_key(entries, modifier_keycode, lock=False, alphabetic=lambda kc: False):
+    """Choose how to type a keysym on the current keymap.
+    entries: (keycode, column) pairs where the core keymap has it (Display.keysym_to_keycodes);
+    modifier_keycode(name) -> keycode of a modifier key ('Shift_L', 'ISO_Level3_Shift', 'Mode_switch') that is
+    bound to a modifier, or 0; lock: Caps Lock is on; alphabetic(keycode): Caps Lock acts on that key (its two first
+    columns are a letter and its capital), so Caps Lock inverts Shift there.
+    Returns (keycode, [modifier keycodes to hold]) or None when the keymap cannot type it."""
+    best = None
+    for kc, col in entries:
+        if col not in LEVEL_ORDER or not kc:
+            continue
+        needs = list(LEVEL_NEEDS[col])
+        if lock and col in (0, 1) and alphabetic(kc):
+            needs = ['Shift_L'] if col == 0 else []
+        codes = [modifier_keycode(n) for n in needs]
+        if not all(codes):
+            continue
+        rank = (LEVEL_ORDER.index(col), kc)
+        if best is None or rank < best[0]:
+            best = (rank, kc, codes)
+    return (best[1], best[2]) if best else None
+
+
 class Client(object):
     def __init__(self, window):
         self.window = window
@@ -215,6 +294,17 @@ class XWM(object):
         self.last_release = {}
         self.drag = None
         self.last_time = X.CurrentTime
+        # « Clavier visuel »: where the on-screen keyboard is (device px), a shell focus the helper asked for itself,
+        # keycodes borrowed for characters the keymap lacks ({keycode: keysym}), keycodes bound to modifiers
+        self.osk_rects = []
+        self.shell_focus_expected = False
+        self.osk_borrowed = {}
+        self.osk_spares = None
+        self.osk_restore_at = None
+        self.mod_keycodes = set()
+        # « Loupe »: Ctrl+Alt+wheel grabbed on the root while the magnifier runs ('wheel-zoom' command)
+        self.wheel_zoom = False
+        self.wheel_grabbed = False
         self.stdin_buf = b''
         self.atoms = {}
         self.check = None
@@ -313,6 +403,7 @@ class XWM(object):
 
     def compute_modifiers(self):
         mapping = self.d.get_modifier_mapping()
+        self.mod_keycodes = {kc for keycodes in mapping for kc in keycodes if kc}
 
         def mask_of(names, fallback):
             codes = {self.d.keysym_to_keycode(XK.string_to_keysym(n)) for n in names} - {0}
@@ -516,6 +607,17 @@ class XWM(object):
         new = top if top in self.clients else None
         if self.debug:
             log('debug', 'input focus 0x%x top 0x%x (was %r)' % (fid, top, self.focused))
+        # « Clavier visuel »: a press on the on-screen keyboard (a part of the shell window) makes Chromium take the X
+        # focus by itself (XSetInputFocus when it does not use _NET_ACTIVE_WINDOW): the client being typed into keeps
+        # it. A shell focus the helper asked for (focus_shell) is never undone.
+        if new is None and top == self.shell_id and self.focused in self.clients \
+                and not self.shell_focus_expected and self.pointer_in_osk():
+            if self.debug:
+                log('debug', 'osk: focus stays on 0x%x' % self.focused)
+            self.focus_client(self.clients[self.focused])
+            return
+        if top == self.shell_id or new is not None:
+            self.shell_focus_expected = False
         if new is not None:
             self.grab_keys()
         else:
@@ -528,6 +630,7 @@ class XWM(object):
             emit('focus', id=new)
 
     def focus_shell(self):
+        self.shell_focus_expected = True
         try:
             self.shell.set_input_focus(X.RevertToParent, X.CurrentTime)
             self.set_active(self.shell_id)
@@ -750,6 +853,9 @@ class XWM(object):
             if self.super_down:
                 self.super_used = True  # Super+click is not a Super tap (as in shell/main/lib/hotkeys.js)
             wid = e.window.id
+            if wid == self.root.id and self.wheel_grabbed and e.detail in (4, 5):
+                emit('key', combo='Ctrl+Alt+WheelUp' if e.detail == 4 else 'Ctrl+Alt+WheelDown', repeat=False)
+                return
             c = None if self.drag else self.clients.get(wid)
             try:
                 if c:
@@ -778,6 +884,9 @@ class XWM(object):
                 if self.keys_grabbed:
                     self.ungrab_keys()
                     self.grab_keys()
+                if self.wheel_grabbed:
+                    self.set_wheel_zoom(False)
+                    self.set_wheel_zoom(True)
 
     def on_configure_request(self, e):
         m = e.value_mask
@@ -834,6 +943,8 @@ class XWM(object):
         c = self.clients.get(wid)
         if name == '_NET_ACTIVE_WINDOW':
             if wid == self.shell_id:
+                if self.focused is not None and self.pointer_in_osk():
+                    return  # « Clavier visuel »: a press on the on-screen keyboard; the client keeps the focus
                 self.focus_shell()
             elif c:
                 emit('state-request', id=wid, activate=True)
@@ -877,6 +988,175 @@ class XWM(object):
             emit('state-request', id=wid, maximized=wanted(mx[0]))
         if '_NET_WM_STATE_HIDDEN' in names and wanted(names['_NET_WM_STATE_HIDDEN']):
             emit('state-request', id=wid, minimized=True)
+
+    # ---- paste (XTest) ------------------------------------------------------------------------
+    def paste(self, c, keys):
+        """Press the paste combination in client c (it must have X focus) with XTest. Modifier keys the user
+        still holds (Shift of a Shift+click) are released around it, then pressed again, like xdotool's
+        --clearmodifiers. Answers { ev: 'paste', id, ok, code }."""
+        code = None
+        if xtest is None or not self.d.has_extension('XTEST'):
+            code = 'ENOXTEST'
+        else:
+            try:
+                f = self.d.get_input_focus().focus
+                fid = f.id if hasattr(f, 'id') else int(f)
+            except error.XError:
+                fid = 0
+            if self.toplevel_of(fid) != c.id:
+                code = 'EFOCUS'
+        if code is None:
+            names = PASTE_KEYS.get(keys) or PASTE_KEYS['ctrl+v']
+            codes = [self.d.keysym_to_keycode(XK.string_to_keysym(n)) for n in names]
+            if not all(codes):
+                code = 'ENOKEY'
+        if code is not None:
+            emit('paste', id=c.id, ok=False, code=code)
+            return
+        held = []
+        keymap = self.d.query_keymap()
+        for mods in self.d.get_modifier_mapping():
+            for kc in mods:
+                if kc and keymap[kc // 8] & (1 << (kc % 8)) and kc not in held:
+                    held.append(kc)
+        for kc in held:
+            xtest.fake_input(self.d, X.KeyRelease, kc)
+        for kc in codes:
+            xtest.fake_input(self.d, X.KeyPress, kc)
+        for kc in reversed(codes):
+            xtest.fake_input(self.d, X.KeyRelease, kc)
+        for kc in held:
+            xtest.fake_input(self.d, X.KeyPress, kc)
+        self.d.sync()
+        emit('paste', id=c.id, ok=True, code=None)
+
+    # ---- « Clavier visuel »: typing with XTest ----------------------------------------------------
+    def pointer_in_osk(self):
+        """Is the pointer over the on-screen keyboard (osk-area)?"""
+        if not self.osk_rects:
+            return False
+        try:
+            p = self.root.query_pointer()
+        except error.XError:
+            return False
+        return any(x <= p.root_x < x + w and y <= p.root_y < y + h for x, y, w, h in self.osk_rects)
+
+    def modifier_keycode(self, name):
+        """Keycode of a modifier key that is bound to a modifier (0 when the keymap has none)."""
+        kc = self.d.keysym_to_keycode(XK.string_to_keysym(name))
+        return kc if kc and kc in self.mod_keycodes else 0
+
+    def alphabetic(self, kc):
+        """Caps Lock acts on this key: its two first columns are a letter and its capital."""
+        a = char_of_keysym(self.d.keycode_to_keysym(kc, 0))
+        b = char_of_keysym(self.d.keycode_to_keysym(kc, 1))
+        return bool(a and b and a != b and a.upper() == b)
+
+    def osk_borrow(self, keysym):
+        """A spare keycode (no symbol on the keymap) given this keysym for a while, like xdotool does."""
+        for kc, ks in self.osk_borrowed.items():
+            if ks == keysym:
+                self.osk_borrowed[kc] = self.osk_borrowed.pop(kc)  # most recently used last
+                self.osk_restore_at = time.monotonic() + OSK_RESTORE_AFTER
+                return kc
+        if self.osk_spares is None:
+            lo, hi = self.d.display.info.min_keycode, self.d.display.info.max_keycode
+            mapping = self.d.get_keyboard_mapping(lo, hi - lo + 1)
+            self.osk_spares = [lo + i for i, syms in enumerate(mapping) if not any(syms)][-OSK_SPARES:]
+        free = [kc for kc in self.osk_spares if kc not in self.osk_borrowed]
+        if free:
+            kc = free[-1]
+        elif self.osk_borrowed:
+            kc = next(iter(self.osk_borrowed))  # least recently used
+            del self.osk_borrowed[kc]
+        else:
+            return 0
+        self.d.change_keyboard_mapping(kc, [(keysym, keysym)])
+        self.d.sync()
+        self.osk_borrowed[kc] = keysym
+        self.osk_restore_at = time.monotonic() + OSK_RESTORE_AFTER
+        return kc
+
+    def osk_restore(self, force=False):
+        """Give the borrowed keycodes back (no symbol), once the keyboard has been idle for a while."""
+        if not force and self.osk_restore_at is not None and time.monotonic() < self.osk_restore_at:
+            return
+        self.osk_restore_at = None
+        for kc in list(self.osk_borrowed):
+            try:
+                self.d.change_keyboard_mapping(kc, [(X.NoSymbol, X.NoSymbol)])
+            except error.XError:
+                pass
+        self.osk_borrowed = {}
+        self.d.flush()
+
+    def osk_key(self, msg):
+        """'osk-key': type one key of the on-screen keyboard into the focused client with XTest.
+        { id: client (it gets the X focus first), name: OSK_NAMES | char: one character, mods: ['ctrl', 'alt',
+        'super', 'shift'] held around it, action: 'tap' (default) | 'press' | 'release' (name only: a locked
+        modifier stays down) }. A character missing from the keymap is typed through a borrowed spare keycode."""
+        if xtest is None or not self.d.has_extension('XTEST'):
+            log('warn', 'osk-key: the XTEST extension is not available')
+            return
+        action = msg.get('action') or 'tap'
+        if action not in ('tap', 'press', 'release'):
+            raise ValueError('bad action %r' % (action,))
+        wid = msg.get('id')
+        if wid is not None and action != 'release':  # a release always happens (no key stays down)
+            c = self.clients.get(wid)
+            if not c:
+                log('debug', 'osk-key: unknown window %r' % (wid,))
+                return
+            if self.focused != wid:
+                self.focus_client(c)
+                self.d.sync()
+        mods = []
+        for m in msg.get('mods') or []:
+            if m in OSK_MODS and OSK_MODS[m] not in mods:
+                mods.append(OSK_MODS[m])
+        name, ch = msg.get('name'), msg.get('char')
+        level = []
+        if isinstance(name, str):
+            if name not in OSK_NAMES:
+                raise ValueError('unknown key %r' % (name,))
+            kc = self.d.keysym_to_keycode(XK.string_to_keysym(name))
+            if not kc:
+                log('debug', 'osk-key: %s is not on this keymap' % name)
+                return
+            if action != 'tap':
+                xtest.fake_input(self.d, X.KeyPress if action == 'press' else X.KeyRelease, kc)
+                self.d.sync()
+                return
+        elif isinstance(ch, str) and len(ch) == 1 and action == 'tap':
+            keysym = keysym_for_char(ch)
+            if keysym is None:
+                raise ValueError('cannot type %r' % (ch,))
+            lock = False
+            try:
+                lock = bool(self.root.query_pointer().mask & X.LockMask)
+            except error.XError:
+                pass
+            plan = plan_key(list(self.d.keysym_to_keycodes(keysym)), self.modifier_keycode, lock, self.alphabetic)
+            if plan:
+                kc, level = plan
+            else:
+                kc = self.osk_borrow(keysym)
+                if not kc:
+                    log('warn', 'osk-key: no spare keycode for U+%04X' % ord(ch))
+                    return
+        else:
+            raise ValueError('osk-key needs a key name or one character')
+        downs = []
+        for code in [self.d.keysym_to_keycode(XK.string_to_keysym(n)) for n in mods] + list(level):
+            if code and code not in downs and code != kc:
+                downs.append(code)
+        for code in downs:
+            xtest.fake_input(self.d, X.KeyPress, code)
+        xtest.fake_input(self.d, X.KeyPress, kc)
+        xtest.fake_input(self.d, X.KeyRelease, kc)
+        for code in reversed(downs):
+            xtest.fake_input(self.d, X.KeyRelease, code)
+        self.d.sync()
 
     def close(self, c):
         if self.atom('WM_DELETE_WINDOW') in c.protocols:
@@ -925,24 +1205,89 @@ class XWM(object):
             raise ValueError('expected a number, got %r' % (v,))
         return int(round(v))
 
+    # ---- « Loupe » (shell/renderer/core/features/magnifier.js) -----------------------------------
+    def set_input_shape(self, rects):
+        """The shell window's X input shape: rects [[x, y, w, h], ...] in window pixels, or None for the
+        default (input follows the bounding shape). While the screen is magnified the shell is not cut (it draws
+        live copies of the clients) and the pointer reaches a client through these input holes only."""
+        if xshape is None or not self.d.has_extension('SHAPE'):
+            log('warn', 'input-shape: no SHAPE extension')
+            return
+        out = None
+        if rects is not None:
+            try:
+                out = []
+                for r in rects[:400]:
+                    x, y, w, h = (max(-32768, min(32767, self.num(v))) for v in r)
+                    if w > 0 and h > 0:
+                        out.append((x, y, w, h))
+            except (TypeError, ValueError):
+                out = None  # a bad list never opens holes: the default shape covers the whole shell
+                log('warn', 'input-shape: bad rectangles ignored')
+        try:
+            if out is None:
+                self.shell.shape_mask(xshape.SO.Set, xshape.SK.Input, 0, 0, X.NONE)
+            else:
+                self.shell.shape_rectangles(xshape.SO.Set, xshape.SK.Input, X.Unsorted, 0, 0, out)
+            self.d.sync()  # in force before the shell hears the 'pong' that follows
+        except error.XError as exc:
+            log('warn', 'input-shape: %s' % exc.__class__.__name__)
+
+    def set_wheel_zoom(self, on):
+        """Ctrl+Alt+wheel anywhere -> key events 'Ctrl+Alt+WheelUp' / 'Ctrl+Alt+WheelDown' (zoom of the Loupe)."""
+        self.wheel_zoom = on
+        if on == self.wheel_grabbed:
+            return
+        mods = X.ControlMask | self.alt_mask
+        for button in (4, 5):
+            for lock in self.lock_variants:
+                try:
+                    if on:
+                        self.root.grab_button(button, mods | lock, False, X.ButtonPressMask | X.ButtonReleaseMask,
+                                              X.GrabModeAsync, X.GrabModeAsync, X.NONE, X.NONE)
+                    else:
+                        self.root.ungrab_button(button, mods | lock)
+                except error.XError:
+                    pass
+        self.wheel_grabbed = on
+
     def on_command(self, cmd, msg):
         if cmd == 'ping':
             emit('pong', seq=msg.get('seq'))
             return
+        if cmd == 'input-shape':
+            rects = msg.get('rects')
+            self.set_input_shape(rects if isinstance(rects, list) else None)
+            return
+        if cmd == 'wheel-zoom':
+            self.set_wheel_zoom(bool(msg.get('on')))
+            return
         if cmd == 'focus' and msg.get('id') is None:
             self.focus_shell()
+            return
+        if cmd == 'osk-key':
+            self.osk_key(msg)
+            return
+        if cmd == 'osk-area':
+            rects = []
+            for r in (msg.get('rects') or [])[:8]:
+                if isinstance(r, dict):
+                    rects.append(clamp_geometry(self.num(r['x']), self.num(r['y']), self.num(r['width']), self.num(r['height'])))
+            self.osk_rects = rects
             return
         if cmd == 'stack':
             ids = [i for i in (msg.get('ids') or []) if isinstance(i, int) and i in self.clients]
             self.order = [i for i in self.order if i not in ids] + ids
             self.restack()
             return
-        if cmd not in ('place', 'focus', 'close', 'kill', 'state'):
+        if cmd not in ('place', 'focus', 'close', 'kill', 'state', 'paste'):
             log('warn', 'unknown command %r ignored' % cmd)
             return
         c = self.clients.get(msg.get('id'))
         if not c:
             log('debug', '%s: unknown window %r' % (cmd, msg.get('id')))
+            if cmd == 'paste':
+                emit('paste', id=msg.get('id') if isinstance(msg.get('id'), int) else None, ok=False, code='ENOWIN')
             return
         if cmd == 'place':
             x, y, w, h = clamp_geometry(self.num(msg['x']), self.num(msg['y']),
@@ -959,6 +1304,8 @@ class XWM(object):
             self.close(c)
         elif cmd == 'kill':
             c.window.kill_client()
+        elif cmd == 'paste':
+            self.paste(c, msg.get('keys'))
         elif cmd == 'state':
             managed = {self.atom(n): k for n, k in (
                 ('_NET_WM_STATE_FULLSCREEN', 'fullscreen'), ('_NET_WM_STATE_MAXIMIZED_VERT', 'maximized'),
@@ -975,6 +1322,10 @@ class XWM(object):
 
     # ---- main loop -------------------------------------------------------------------------
     def shutdown(self, status=0):
+        try:
+            self.osk_restore(force=True)
+        except Exception:
+            pass
         try:
             if self.drag:
                 self.d.ungrab_pointer(X.CurrentTime)
@@ -1020,10 +1371,15 @@ class XWM(object):
                     log('debug', 'X errors: %s' % ', '.join(errs))
                 if self.drag and self.drag['pending'] is not None and self.drag_timeout() == 0:
                     self.apply_drag()
+                if self.osk_restore_at is not None and time.monotonic() >= self.osk_restore_at:
+                    self.osk_restore()
                 self.d.flush()
                 # flush() also reads whatever the server has sent into Xlib's own queue: never block in
                 # select() while events wait there (that lost a grabbed Alt+Tab until the next X event).
                 timeout = 0 if self.d.pending_events() else self.drag_timeout()
+                if self.osk_restore_at is not None:
+                    left = max(0.0, self.osk_restore_at - time.monotonic())
+                    timeout = left if timeout is None else min(timeout, left)
                 ready, _, _ = select.select([xfd, 0], [], [], timeout)
                 if 0 in ready:
                     self.read_stdin()

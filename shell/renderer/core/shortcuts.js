@@ -31,10 +31,20 @@ const LIST = [
   ['run', 'shell', 'Super+R', 'Run', 'Exécuter'],
   ['powerMenu', 'shell', 'Super+X', 'Quick menu', 'Menu rapide'],
   ['clipboard', 'shell', 'Super+V', 'Clipboard history', 'Historique du Presse-papiers'],
+  // features/emoji.js; Super+; is the key AZERTY keyboards have without Shift (as on Windows)
+  ['emoji', 'shell', 'Super+Period', 'Emoji and symbols', 'Émojis et symboles'],
+  ['emojiAlt', 'shell', 'Super+;', 'Emoji and symbols (second shortcut)', 'Émojis et symboles (second raccourci)'],
   ['focusMode', 'shell', 'Super+Shift+F', 'Turn Focus on or off', 'Activer ou désactiver Concentration'],
   ['screenshot', 'shell', 'Super+Shift+S', 'Screenshot', 'Capture d’écran'],
   ['screenRecord', 'shell', 'Super+Shift+R', 'Start or stop a screen recording', 'Démarrer ou arrêter un enregistrement d’écran'],
   ['screenReader', 'shell', 'Super+Alt+S', 'Turn the screen reader on or off', 'Activer ou désactiver le lecteur d’écran'],
+  ['onScreenKeyboard', 'shell', 'Super+Ctrl+O', 'Show or hide the on-screen keyboard', 'Afficher ou masquer le clavier visuel'], // features/osk.js
+  // features/magnifier.js (« Loupe »). Super+= is the « = + » key; the zoom keys also answer on the keypad (Super++,
+  // Super+-) and with Shift (features/hotkeys.js, magnifier aliases)
+  ['magnifierZoomIn', 'shell', 'Super+=', 'Start the magnifier or zoom in', 'Démarrer la loupe ou zoom avant'],
+  ['magnifierZoomOut', 'shell', 'Super+-', 'Magnifier: zoom out', 'Loupe : zoom arrière'],
+  ['magnifierStop', 'shell', 'Super+Escape', 'Turn off the magnifier', 'Désactiver la loupe'],
+  ['magnifierSettings', 'shell', 'Super+Ctrl+M', 'Magnifier settings', 'Paramètres de la loupe'],
   ['taskView', 'windows', 'Super+Tab', 'Overview', 'Vue d’ensemble'],
   ['snapLayouts', 'windows', 'Super+Z', 'Layouts', 'Dispositions'],
   ['snapLeft', 'windows', 'Super+ArrowLeft', 'Place on the left', 'Placer à gauche'],
@@ -59,6 +69,7 @@ const LIST = [
   ['browser', 'apps', null, 'Browser', 'Navigateur'],
   ['notepad', 'apps', null, 'Text Editor', 'Éditeur de texte'],
   ['calculator', 'apps', null, 'Calculator', 'Calculatrice'],
+  ['help', 'apps', null, 'Help', 'Aide'], // apps/help (no default combo; F1 inside its window focuses its search)
   ['accessibility', 'apps', 'Super+U', 'Accessibility settings', 'Paramètres d’accessibilité'],
   ['display', 'apps', 'Super+P', 'Display settings', 'Paramètres d’affichage'],
 ];

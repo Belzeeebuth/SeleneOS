@@ -1,0 +1,884 @@
+/* Aide (Help) — scoped under .app-help. Tokens only (docs/design/SYSTEM.md). */
+.app-help .hp {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body, 20px);
+  container-type: inline-size;
+}
+
+/* ------------------------------------------------------------------ toolbar */
+.app-help .hp-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.app-help .hp-nav {
+  display: flex;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.app-help .hp-iconbtn {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+}
+.app-help .hp-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 520px;
+  margin-left: auto;
+}
+.app-help .hp-search-icon {
+  position: absolute;
+  left: 10px;
+  display: flex;
+  color: var(--text-2);
+  pointer-events: none;
+}
+.app-help .hp-search-input {
+  width: 100%;
+  padding-left: 34px;
+  padding-right: 34px;
+}
+.app-help .hp-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+.app-help .hp-search-clear {
+  position: absolute;
+  right: 2px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+}
+.app-help .hp-search-clear[hidden] {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ page */
+.app-help .hp-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+}
+.app-help .hp-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 24px 32px 40px;
+}
+.app-help .hp-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  line-height: var(--lh-title, 36px);
+  font-weight: 700;
+  outline: none;
+}
+.app-help .hp-lead {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-body-large);
+  line-height: var(--lh-body-large, 24px);
+}
+.app-help .hp-section-title {
+  margin: 16px 0 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle);
+  line-height: var(--lh-subtitle, 28px);
+  font-weight: 600;
+}
+.app-help .hp-sr,
+.app-help .hp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.app-help a.hp-link,
+.app-help a.hp-crumb {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+.app-help a.hp-crumb {
+  text-decoration: none;
+}
+.app-help a.hp-crumb:hover,
+.app-help a.hp-link:hover {
+  text-decoration-thickness: 2px;
+}
+.app-help a:focus-visible,
+.app-help .hp-row:focus-visible,
+.app-help .hp-tile:focus-visible,
+.app-help .hp-dot:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* breadcrumb */
+.app-help .hp-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.app-help .hp-crumb-sep {
+  display: flex;
+  color: var(--text-3);
+}
+.app-help .hp-crumb.current {
+  color: var(--text-2);
+}
+
+/* ------------------------------------------------------------------ home */
+.app-help .hp-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-help .hp-tourcard {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 20px;
+  margin-top: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+.app-help .hp-tourcard .hp-ill {
+  flex: 0 0 220px;
+}
+.app-help .hp-tourcard-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.app-help .hp-tourcard-text p {
+  margin: 0;
+  color: var(--text-2);
+}
+.app-help .hp-tourcard-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-subtitle);
+  line-height: var(--lh-subtitle, 28px);
+  font-weight: 600;
+}
+.app-help .hp-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.app-help .hp-tile {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  grid-template-rows: auto auto 1fr;
+  column-gap: 12px;
+  row-gap: 2px;
+  align-items: start;
+  padding: 14px;
+  min-height: 92px;
+  border: 1px solid var(--stroke-card, var(--line-soft));
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+  transition: background var(--dur-fast) var(--ease);
+}
+.app-help .hp-tile:hover {
+  background: var(--card-hover);
+}
+.app-help .hp-tile-icon {
+  grid-row: 1 / 4;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-help .hp-tile-title {
+  font-weight: 600;
+}
+.app-help .hp-tile-sub {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small, 18px);
+}
+.app-help .hp-tile-count {
+  margin-top: 4px;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+}
+
+/* ------------------------------------------------------------------ rows (topic lists, results, related) */
+.app-help .hp-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-help .hp-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 14px;
+  border: 1px solid var(--stroke-card, var(--line-soft));
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+  transition: background var(--dur-fast) var(--ease);
+}
+.app-help .hp-row:hover {
+  background: var(--card-hover);
+}
+.app-help .hp-row-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--subtle-hover);
+  color: var(--text-2);
+}
+.app-help .hp-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.app-help .hp-row-title {
+  font-weight: 600;
+}
+.app-help .hp-row-sub {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small, 18px);
+}
+.app-help .hp-row-topic {
+  color: var(--text-2);
+  font-weight: 600;
+}
+.app-help .hp-row-caret {
+  display: flex;
+  color: var(--text-3);
+}
+.app-help .hp-noresults {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.app-help .hp-noresults p {
+  margin: 0;
+}
+.app-help .hp-empty {
+  padding: 48px 0;
+}
+
+/* ------------------------------------------------------------------ article body */
+.app-help .hp-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 72ch;
+}
+.app-help .hp-body p {
+  margin: 0;
+}
+.app-help .hp-h2 {
+  margin: 12px 0 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-body-large);
+  line-height: var(--lh-body-large, 24px);
+  font-weight: 600;
+}
+.app-help .hp-steps,
+.app-help .hp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 24px;
+}
+.app-help .hp-steps li::marker {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+.app-help .hp-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--info-bg);
+}
+.app-help .hp-callout.tip {
+  background: var(--accent-subtle);
+}
+.app-help .hp-callout-icon {
+  display: flex;
+  padding-top: 1px;
+  color: var(--accent-text);
+}
+.app-help .hp-callout.note .hp-callout-icon {
+  color: var(--text-2);
+}
+.app-help .hp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.app-help .hp-action {
+  white-space: normal;
+  text-align: left;
+}
+.app-help .hp-action-img {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+}
+.app-help .hp-howto {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-help .hp-howto-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.app-help .hp-related {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* key caps: <kbd class="hp-combo"><kbd>Super</kbd>+<kbd>S</kbd></kbd> */
+.app-help kbd.hp-combo {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  align-items: center;
+  gap: 3px;
+  margin: 0 1px;
+  font: inherit;
+  vertical-align: baseline;
+}
+.app-help kbd.hp-combo kbd {
+  display: inline-block;
+  min-width: 24px;
+  padding: 0 7px;
+  font-family: var(--font);
+  font-size: var(--fs-small);
+  line-height: 20px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text);
+  background: var(--control);
+  border: 1px solid var(--control-stroke);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+}
+.app-help .hp-plus {
+  color: var(--text-3);
+  font-size: var(--fs-small);
+}
+.app-help .hp-off {
+  color: var(--text-2);
+}
+
+/* live shortcut tables */
+.app-help .hp-sc {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.app-help .hp-sc-intro {
+  margin: 4px 0 -8px;
+  color: var(--text-2);
+}
+.app-help .hp-sc-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.app-help .hp-sc-table caption {
+  padding: 0 0 6px;
+  text-align: left;
+  font-weight: 600;
+}
+.app-help .hp-sc-table th,
+.app-help .hp-sc-table td {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: middle;
+  border-top: 1px solid var(--line-soft);
+}
+.app-help .hp-sc-table tbody tr:first-child th,
+.app-help .hp-sc-table tbody tr:first-child td {
+  border-top: 0;
+}
+.app-help .hp-sc-table th {
+  font-weight: 400;
+}
+.app-help .hp-sc-table td {
+  width: 1%;
+  white-space: nowrap;
+}
+.app-help .hp-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  font-size: var(--fs-caption);
+  line-height: 18px;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ tour */
+.app-help .hp-tour {
+  gap: 16px;
+}
+.app-help .hp-tour-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.app-help .hp-tour-kicker {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.app-help .hp-tour-count {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.app-help .hp-tour-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 28px;
+  align-items: center;
+  padding: 24px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+.app-help .hp-tour-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.app-help .hp-tour-text p {
+  margin: 0;
+}
+.app-help .hp-tour-badge {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-help .hp-tour-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.app-help .hp-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+.app-help .hp-dot {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: default;
+  position: relative;
+}
+.app-help .hp-dot::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: var(--text-3);
+  opacity: 0.55;
+  transition: transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+}
+.app-help .hp-dot:hover::after {
+  opacity: 0.9;
+}
+.app-help .hp-dot.on::after {
+  background: var(--accent);
+  opacity: 1;
+  transform: scale(1.35);
+}
+
+/* ------------------------------------------------------------------ tour illustration: a schematic desktop */
+.app-help .hp-ill {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-soft);
+  background: var(--bg-alt);
+  overflow: hidden;
+}
+.app-help .hp-ill-screen {
+  position: absolute;
+  inset: 6%;
+  border-radius: var(--radius);
+  background: radial-gradient(circle at 78% 18%, var(--accent-subtle), transparent 62%), var(--bg);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+.app-help .hp-ill-screen > * {
+  position: absolute;
+  transition: opacity var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), left var(--dur-slow) var(--ease), top var(--dur-slow) var(--ease), width var(--dur-slow) var(--ease), height var(--dur-slow) var(--ease);
+}
+.app-help .hp-ill-win {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  overflow: hidden;
+}
+.app-help .hp-ill-win.w1 {
+  left: 8%;
+  top: 8%;
+  width: 46%;
+  height: 52%;
+}
+.app-help .hp-ill-win.w2 {
+  left: 42%;
+  top: 18%;
+  width: 46%;
+  height: 50%;
+}
+.app-help .hp-ill-tb {
+  display: flex;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 4px 5px;
+  background: var(--titlebar-bg, var(--bg-alt));
+  border-bottom: 1px solid var(--line-soft);
+}
+.app-help .hp-ill-tb i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-3);
+  opacity: 0.7;
+}
+.app-help .hp-ill-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6%;
+  padding: 8%;
+}
+.app-help .hp-ill-lines i {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+}
+.app-help .hp-ill-lines i:nth-child(2) {
+  width: 80%;
+}
+.app-help .hp-ill-lines i:nth-child(3) {
+  width: 60%;
+}
+.app-help .hp-ill-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 8%;
+}
+.app-help .hp-ill-grid i {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background: var(--accent-subtle);
+  border: 1px solid var(--line-soft);
+}
+.app-help .hp-ill-launcher,
+.app-help .hp-ill-panel {
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-flyout);
+  opacity: 0;
+  transform: translateY(8%);
+}
+.app-help .hp-ill-launcher {
+  left: 4%;
+  bottom: 20%;
+  width: 40%;
+  height: 58%;
+}
+.app-help .hp-ill-search {
+  height: 10%;
+  margin: 7% 8% 0;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--input-bg, var(--bg));
+}
+.app-help .hp-ill-panel {
+  right: 4%;
+  bottom: 20%;
+  width: 34%;
+  height: 54%;
+  display: flex;
+  flex-direction: column;
+  gap: 8%;
+  padding: 6%;
+}
+.app-help .hp-ill-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.app-help .hp-ill-tiles span {
+  display: grid;
+  place-items: center;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-help .hp-ill-tiles span:first-child {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.app-help .hp-ill-slider {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.app-help .hp-ill-slider i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 60%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.app-help .hp-ill-bar {
+  left: 3%;
+  right: 3%;
+  bottom: 4%;
+  height: 11%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 2%;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+}
+.app-help .hp-ill-left,
+.app-help .hp-ill-apps,
+.app-help .hp-ill-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  border-radius: 999px;
+  padding: 0 4px;
+  color: var(--text-2);
+}
+.app-help .hp-ill-moon,
+.app-help .hp-ill-apps span {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  color: var(--text);
+}
+.app-help .hp-ill-field {
+  width: 36px;
+  height: 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.app-help .hp-ill-clock {
+  width: 18px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--text-3);
+  opacity: 0.6;
+}
+.app-help .hp-ill .hl {
+  box-shadow: 0 0 0 2px var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-help .hp-ill.mini .hp-ill-tb {
+  padding: 3px;
+}
+.app-help .hp-ill.mini .hp-ill-tb i {
+  width: 3px;
+  height: 3px;
+}
+.app-help .hp-ill.mini .hp-ill-moon,
+.app-help .hp-ill.mini .hp-ill-apps span {
+  width: 13px;
+  height: 13px;
+}
+.app-help .hp-ill.mini .hp-ill-field {
+  width: 20px;
+}
+
+/* what each step shows */
+.app-help .hp-ill[data-focus="bar"] .hp-ill-launcher,
+.app-help .hp-ill[data-focus="quick"] .hp-ill-panel {
+  opacity: 1;
+  transform: none;
+}
+.app-help .hp-ill[data-focus="bar"] .hp-ill-moon,
+.app-help .hp-ill[data-focus="bar"] .hp-ill-field,
+.app-help .hp-ill[data-focus="quick"] .hp-ill-right,
+.app-help .hp-ill[data-focus="files"] .hp-ill-apps span[data-app="folder-simple"],
+.app-help .hp-ill[data-focus="apps"] .hp-ill-apps span[data-app="storefront"],
+.app-help .hp-ill[data-focus="personalize"] .hp-ill-apps span[data-app="gear-six"] {
+  box-shadow: 0 0 0 2px var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.app-help .hp-ill[data-focus="bar"] .hp-ill-win,
+.app-help .hp-ill[data-focus="quick"] .hp-ill-win {
+  opacity: 0.45;
+}
+.app-help .hp-ill[data-focus="windows"] .hp-ill-win.w1 {
+  left: 2%;
+  top: 3%;
+  width: 47.5%;
+  height: 76%;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.app-help .hp-ill[data-focus="windows"] .hp-ill-win.w2 {
+  left: 50.5%;
+  top: 3%;
+  width: 47.5%;
+  height: 76%;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.app-help .hp-ill[data-focus="files"] .hp-ill-win.w2,
+.app-help .hp-ill[data-focus="apps"] .hp-ill-win.w2,
+.app-help .hp-ill[data-focus="help"] .hp-ill-win.w2 {
+  opacity: 0;
+}
+.app-help .hp-ill[data-focus="files"] .hp-ill-win.w1,
+.app-help .hp-ill[data-focus="apps"] .hp-ill-win.w1,
+.app-help .hp-ill[data-focus="help"] .hp-ill-win.w1 {
+  left: 14%;
+  top: 6%;
+  width: 72%;
+  height: 72%;
+}
+.app-help .hp-ill[data-focus="files"] .hp-ill-lines,
+.app-help .hp-ill[data-focus="apps"] .hp-ill-lines {
+  display: none;
+}
+.app-help .hp-ill-win.w1 .hp-ill-grid {
+  display: none;
+}
+.app-help .hp-ill[data-focus="files"] .hp-ill-win.w1 .hp-ill-grid,
+.app-help .hp-ill[data-focus="apps"] .hp-ill-win.w1 .hp-ill-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+}
+.app-help .hp-ill[data-focus="personalize"] .hp-ill-screen {
+  background: radial-gradient(circle at 20% 30%, var(--accent-subtle), transparent 55%), radial-gradient(circle at 80% 70%, var(--accent-subtle), transparent 55%), var(--bg-alt);
+}
+.app-help .hp-ill[data-focus="personalize"] .hp-ill-win.w2 {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.app-help .hp-ill[data-focus="help"] .hp-ill-win.w1 {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* ------------------------------------------------------------------ narrow windows */
+@container (max-width: 640px) {
+  .app-help .hp-page {
+    padding: 16px 16px 32px;
+  }
+  .app-help .hp-tourcard {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .app-help .hp-tourcard .hp-ill {
+    flex: none;
+    max-width: 260px;
+  }
+  .app-help .hp-tour-card {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px;
+  }
+  .app-help .hp-tour-nav .btn span {
+    display: none;
+  }
+  .app-help .hp-sc-table td {
+    white-space: normal;
+  }
+}
+
+/* no motion */
+:root[data-animations="off"] .app-help .hp-ill-screen > *,
+:root[data-animations="off"] .app-help .hp-dot::after,
+:root[data-animations="off"] .app-help .hp-tile,
+:root[data-animations="off"] .app-help .hp-row {
+  transition: none;
+}

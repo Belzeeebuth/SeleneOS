@@ -817,7 +817,8 @@ apps; loaded by taskbar.js) and `core/features/focus.css` (icons, banner, tray c
 
 - **Catalog** (`SHORTCUTS`, 46 actions in 5 groups, plus the user's own "open this app" actions `app:<appId>`, ≤ 40):
   - *Desktop and Start:* start (Win), search (Win+S), quickSettings (Win+A), notifications (Win+N), widgets (Win+W),
-    showDesktop (Win+D), lock (Win+L), run (Win+R), powerMenu (Win+X), clipboard (Win+V), focusMode (Win+Shift+F),
+    showDesktop (Win+D), lock (Win+L), run (Win+R), powerMenu (Win+X), clipboard (Win+V), emoji / emojiAlt (Win+. /
+    Win+;, the emoji and symbols panel, core/features/emoji.js), focusMode (Win+Shift+F),
     screenshot (Win+Shift+S).
   - *Windows:* taskView (Win+Tab), snapLayouts (Win+Z), snapLeft / snapRight (Win+←/→), maximize (Win+↑),
     minimize (Win+↓), maximizeVertically (Win+Shift+↑), minimizeAll (Win+M), restoreAll (Win+Shift+M),

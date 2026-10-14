@@ -3,7 +3,7 @@
 // /usr/bin/aurora-open (rootfs/) through the NoDisplay aurora-*.desktop handlers and /etc/xdg/mimeapps.list.
 //
 // Socket: $XDG_RUNTIME_DIR/aurora/open.sock (dir 0700, socket 0600; AURORA_OPEN_SOCKET overrides, tests), one JSON
-// line per connection: { v: 1, app: 'browser'|'mail'|'files'|'notepad'|'photos'|'media'|'pdf'|'archive'|'',
+// line per connection: { v: 1, app: 'browser'|'mail'|'files'|'notepad'|'photos'|'media'|'pdf'|'archive'|'books'|'fonts'|'',
 // items: [{ kind: 'url'|'path', value }] } -> { ok: true } | { ok: false, error }.
 // Everything is validated again here: only http(s) / mailto URLs and existing local paths; the request goes to the
 // renderer as `xdg:open` { app, url? , path? } (core/features/xdgopen.js opens it like a click in Selene).
@@ -11,7 +11,7 @@ const fs = require('fs');
 const net = require('net');
 const path = require('path');
 
-const APPS = new Set(['', 'browser', 'mail', 'files', 'notepad', 'photos', 'media', 'pdf', 'archive']);
+const APPS = new Set(['', 'browser', 'mail', 'files', 'notepad', 'photos', 'media', 'pdf', 'archive', 'books', 'fonts']);
 const MAX_ITEMS = 32;
 const MAX_URL = 8192;
 const MAX_LINE = 300 * 1024;

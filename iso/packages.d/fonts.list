@@ -1,0 +1,3 @@
+# Polices (Fonts app, main/ipc/fonts.js): fc-list lists the installed fonts; fc-cache refreshes a user font folder
+# (~/.local/share/fonts/<family>) after an install or a removal. (Also in terminal.list / notepad.list / paint.list.)
+fontconfig

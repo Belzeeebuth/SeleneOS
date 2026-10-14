@@ -72,6 +72,7 @@ The prototype under Xvfb verified the following:
 | `key` | `combo`, `repeat` | A grabbed system shortcut while a client has focus. Same names as `shell/main/lib/hotkeys.js` (`Super`, `Alt+Tab`, `Alt+Shift+Tab`, `Alt+F4`, `Super+D`, `AudioVolumeUp`…), plus `Alt:up`. |
 | `gone` | `id` | Withdrawn (unmapped by the client) or destroyed. |
 | `pong` | `seq` | Reply to `ping`. |
+| `paste` | `id`, `ok`, `code` (`ENOXTEST`, `EFOCUS`, `ENOKEY`, `ENOWIN` when `ok` is false) | Answer to the `paste` command. |
 | `log` | `level`, `message` | Diagnostics for the journal. |
 
 ### Main → helper: commands (`"cmd"`)
@@ -85,6 +86,9 @@ The prototype under Xvfb verified the following:
 | `kill` | `id` | `XKillClient`; the shell's "End task" uses it. |
 | `state` | `id`, `fullscreen`, `maximized`, `minimized` | Keep `_NET_WM_STATE` and `WM_STATE` in step with the frame. A minimised client stays mapped: without a hole it is simply hidden behind the shell. |
 | `ping` | `seq` | Answered with `pong`. |
+| `paste` | `id`, `keys` (`ctrl+v` default, `ctrl+shift+v`, `shift+insert`) | Press that combination with XTest in the client, which must have X focus (else `EFOCUS`, no key sent). Modifier keys the user still holds are released around it and pressed again. Used by the emoji panel (`core/features/emoji.js`) after it put the character on the CLIPBOARD (and PRIMARY for `shift+insert`). |
+| `osk-key` | `id`, `name` (an X keysym name: `Return`, `BackSpace`, `Tab`, `Escape`, `Delete`, `Home`, `End`, `Prior`, `Next`, `Left`/`Right`/`Up`/`Down`, `space`, `Shift_L`, `Control_L`, `Alt_L`, `Super_L`, `ISO_Level3_Shift`, `F1`–`F12`…) or `char` (one character), `mods` (`ctrl`, `alt`, `super`, `shift`), `action` (`tap` default, `press`, `release`: a name only) | « Clavier visuel » (`core/features/osk.js`): type one key into client `id` with XTest, after giving it the X focus if it lost it (a `release` is always sent, whatever the window). A character is looked up on the server's keymap (its keysym: Latin-1 code point, legacy € œ Œ Ÿ, else Unicode `0x01000000 + code point`) in the columns plain, Shift, AltGr (`ISO_Level3_Shift`), AltGr + Shift, then Mode_switch; Caps Lock is compensated on letter keys. A character the keymap lacks is typed through a spare keycode (no symbol) given that keysym for 3 s (at most 4 at once, like xdotool), then given back. `mods` are pressed around the key and released after. |
+| `osk-area` | `rects` (device px, at most 8; empty = none) | Where the on-screen keyboard (and its bar button) is. While a client has X focus, a `_NET_ACTIVE_WINDOW` request from the shell with the pointer there is ignored, and an X focus the shell takes by itself (Chromium's `XSetInputFocus` on a click) is given back to the client: pressing the keyboard never moves the focus away from the application being typed into. A shell focus the helper asked for (`focus null`, Alt+Tab, Super…) is never undone. |
 
 Rules:
 - IDs are XIDs as JSON numbers.
@@ -111,6 +115,10 @@ Rules:
 - Rule in the renderer: whenever the DOM focus moves into shell UI (Start, flyouts, a DOM window,
   dialogs) while a client has X focus, the renderer sends `focus null`. When an external frame
   becomes the focused `wm` window, it sends `focus <id>`.
+- The on-screen keyboard (« Clavier visuel », `core/features/osk.js`) never takes the DOM focus, and
+  its area is sent as `osk-area`, so clicking it keeps the X focus on the client; its keys reach the
+  client as `osk-key` (XTest). XTest events go through the grabs above like real keys (Super twice
+  on the keyboard opens the Lanceur; a locked Alt then Tab opens the switcher).
 
 ### Shape
 
@@ -162,5 +170,8 @@ GTK and Qt applications follow the shell's light or dark mode for the windows th
 - `shell/test/xwin.test.mjs` runs the dev shell with `AURORA_XWM=1`. It opens xterm, then checks the
   hole pixels, typing, the taskbar entry, minimise and restore, close, and Start menu stacking above
   the client.
+- `shell/test/osk.test.mjs` (on-screen keyboard) drives the helper under a private Xvfb with a python-xlib
+  client (`test/fixtures/osk/xkeys.py`): `osk-key` on the fr and us keymaps (AltGr, borrowed keycodes, Caps
+  Lock), `osk-area` focus keeping; then the shell with the real helper, real XTest clicks on the keyboard.
 - `shell/test/xapps.test.mjs` uses fixture `.desktop` files (`AURORA_XAPPS_DIRS`) for parsing,
   icons, the Start entries and launch argument building.

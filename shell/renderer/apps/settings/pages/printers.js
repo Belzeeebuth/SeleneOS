@@ -2,10 +2,13 @@
 // printer found on the network or on USB in one click (driverless IPP Everywhere), test page, pause / resume, rename,
 // remove, and the print queue (cancel). Backend: main/ipc/printers.js (printers:list / discover / testPage / cancel)
 // and the aurora-admin printer-* actions through shell.runAdmin (« Autorisation administrateur »).
+// Scanners: the ones SANE sees (main/ipc/scan.js scan:devices), each opening the « Numérisation » app (apps/scan).
 const CSS = 'app://shell/apps/settings/pages/printers.css';
 
 // Survives page changes while the Settings window is open.
 const state = { found: null, searching: false, adding: null, open: new Set(), error: null };
+// Scanners (scan:devices, listed once per Settings session; « Rechercher à nouveau » asks again).
+const scanners = { list: null, loading: false, available: true, show: null };
 
 const REASON_KEYS = ['media-empty', 'media-jam', 'media-needed', 'toner-low', 'toner-empty', 'marker-supply-low', 'marker-supply-empty', 'cover-open', 'door-open', 'offline', 'connecting-to-device', 'other', 'cups-missing-filter', 'input-tray-missing', 'output-area-full', 'spool-area-full', 'timed-out', 'stopped', 'shutdown'];
 const STATE_ICON = { idle: 'check-circle', printing: 'paper-plane-tilt', paused: 'pause', error: 'warning-circle', offline: 'wifi-slash' };
@@ -299,6 +302,7 @@ async function printers(pc) {
     }
     if (!data || !data.available) {
       nodes.push(h('div', { class: 'st-empty st-prn-nocups' }, icon('printer', { size: 40 }), h('div', { class: 'body-large' }, t('prn.noCups')), h('div', null, t('prn.noCupsDesc'))));
+      nodes.push(scannerSection()); // scanners do not need CUPS
       root.replaceChildren(...nodes);
       return;
     }
@@ -307,8 +311,43 @@ async function printers(pc) {
     if (data.printers.length) nodes.push(kit.group(t('prn.yourPrinters'), ...data.printers.map(printerRow)));
     else nodes.push(h('div', { class: 'st-empty st-prn-empty' }, icon('printer', { size: 40 }), h('div', { class: 'body-large' }, t('prn.none')), h('div', null, t('prn.noneDesc'))));
     nodes.push(queueSection());
-    nodes.push(kit.group(t('prn.scanners'), kit.row({ icon: 'scan', title: t('prn.scanners'), desc: t('prn.scannersDesc') })));
+    nodes.push(scannerSection());
     root.replaceChildren(...nodes);
+  }
+
+  // ---------------------------------------------------------------- scanners (main/ipc/scan.js, app « Numérisation »)
+  // The answer goes to the page on screen (scanners.show), which may be a newer copy of this page.
+  async function loadScanners(force) {
+    if (scanners.loading) return;
+    scanners.loading = true;
+    if (scanners.list) scanners.show?.();
+    const res = await pc.tryInvoke('scan:devices', { refresh: !!force });
+    scanners.loading = false;
+    scanners.available = res ? res.available !== false : true;
+    scanners.list = res?.devices || [];
+    scanners.show?.(force);
+  }
+
+  function scannerSection() {
+    const openBtn = kit.button(t('prn.scanOpen'), () => pc.shell.launch('scan'), { icon: 'scan', className: 'st-scan-open' });
+    const head = kit.row({ icon: 'scan', title: t('prn.scanApp'), desc: t('prn.scannersDesc'), control: openBtn, className: 'st-scan-head' });
+    if (!scanners.available) return kit.group(t('prn.scanners'), head, kit.row({ icon: 'warning-circle', title: t('prn.scanNoSane'), desc: t('prn.scanNoSaneDesc'), className: 'st-scan-nosane' }));
+    if (!scanners.list) return kit.group(t('prn.scanners'), head, kit.spinnerRow(t('prn.scanSearching')));
+    const again = kit.button(t('prn.scanSearch'), () => loadScanners(true), { icon: 'arrows-clockwise', className: 'st-scan-search', disabled: scanners.loading });
+    const rows = scanners.list.map((d) => {
+      const row = kit.row({
+        icon: d.connection === 'network' ? 'wifi-high' : 'usb',
+        title: d.label,
+        desc: [t(`prn.conn.${d.connection}`), d.protocol].filter(Boolean).join(' · '),
+        control: kit.button(t('prn.scanWith'), () => pc.shell.launch('scan', { device: d.name }), { icon: 'scan', className: 'st-scan-use' }),
+        className: 'st-scan-device',
+      });
+      row.dataset.scanner = d.name;
+      return row;
+    });
+    if (!rows.length) rows.push(kit.row({ icon: 'magnifying-glass', title: t('prn.scanNone'), desc: t('prn.scanNoneDesc'), control: again, className: 'st-scan-none' }));
+    else rows.push(kit.row({ icon: 'magnifying-glass', title: t('prn.scanMissingTitle'), desc: t('prn.scanMissingDesc'), control: again, className: 'st-scan-again' }));
+    return kit.group(t('prn.scanners'), head, ...rows);
   }
 
   async function refresh(force) {
@@ -324,6 +363,12 @@ async function printers(pc) {
   await load();
   lastJson = JSON.stringify(data);
   render();
+  scanners.show = (focus) => {
+    if (!root.isConnected) return;
+    render();
+    if (focus) root.querySelector('.st-scan-search')?.focus({ preventScroll: true });
+  };
+  if (!scanners.list) loadScanners(false);
   pc.every(5000, () => refresh(false));
   return root;
 }

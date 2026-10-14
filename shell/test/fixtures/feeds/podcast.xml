@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture for test/feeds.test.mjs: a podcast (itunes and podcast namespaces, short audio enclosures served by the
+     test, Podcasting 2.0 JSON chapters on the first episode, Podlove simple chapters on the second). -->
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0" xmlns:psc="http://podlove.org/simple-chapters" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Podcast de Test</title>
+    <link>{{BASE}}/podcast/</link>
+    <description>Des épisodes très courts pour les tests.</description>
+    <itunes:author>Studio Banc d'essai</itunes:author>
+    <itunes:image href="{{BASE}}/img/cover.png"/>
+    <language>fr</language>
+    <item>
+      <title>Épisode 3 : le long</title>
+      <guid isPermaLink="false">pod-3</guid>
+      <pubDate>Wed, 14 Oct 2026 06:00:00 +0000</pubDate>
+      <enclosure url="{{BASE}}/audio/slow.wav" type="audio/wav" length="{{SLOW_LEN}}"/>
+      <itunes:duration>2:05</itunes:duration>
+      <itunes:episode>3</itunes:episode>
+      <itunes:season>1</itunes:season>
+      <description>Un épisode servi lentement (annulation du téléchargement).</description>
+    </item>
+    <item>
+      <title>Épisode 2 : le court</title>
+      <guid isPermaLink="false">pod-2</guid>
+      <pubDate>Tue, 13 Oct 2026 06:00:00 +0000</pubDate>
+      <enclosure url="{{BASE}}/audio/ep2.wav" type="audio/wav" length="{{EP2_LEN}}"/>
+      <itunes:duration>00:00:05</itunes:duration>
+      <itunes:episode>2</itunes:episode>
+      <itunes:season>1</itunes:season>
+      <description>Le deuxième épisode.</description>
+      <psc:chapters version="1.2"><psc:chapter start="00:00:00.000" title="Ouverture"/><psc:chapter start="00:00:03.000" title="Conclusion"/></psc:chapters>
+    </item>
+    <item>
+      <title>Épisode 1 : le début</title>
+      <guid isPermaLink="false">pod-1</guid>
+      <link>{{BASE}}/podcast/episode-1</link>
+      <pubDate>Mon, 12 Oct 2026 06:00:00 +0000</pubDate>
+      <enclosure url="{{BASE}}/audio/ep1.{{EP1_EXT}}" type="{{EP1_TYPE}}" length="{{EP1_LEN}}"/>
+      <itunes:duration>0:06</itunes:duration>
+      <itunes:episode>1</itunes:episode>
+      <itunes:season>1</itunes:season>
+      <itunes:image href="{{BASE}}/img/ep1.png"/>
+      <podcast:chapters url="{{BASE}}/chapters.json" type="application/json+chapters"/>
+      <content:encoded><![CDATA[<p>Les <b>notes</b> du premier épisode, avec <a href="https://example.org/source">une source</a>.</p>]]></content:encoded>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+# Selene OS: hands links and files from Linux / Flatpak apps to the Selene app (aurora-open -> the shell).
+# NoDisplay: the Lanceur already lists the Selene app itself.
+Name=Selene Fonts
+Name[fr]=Selene Polices
+Exec=aurora-open fonts %U
+TryExec=aurora-open
+NoDisplay=true
+Terminal=false
+StartupNotify=false
+MimeType=font/ttf;font/otf;font/collection;font/sfnt;application/x-font-ttf;application/x-font-otf;application/vnd.ms-opentype;font/woff;font/woff2;

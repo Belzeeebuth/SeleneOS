@@ -370,11 +370,11 @@ grep -qs 'KERNEL=="rfkill".*uaccess' "$S/usr/lib/udev/rules.d/70-uaccess.rules" 
 # Links and files from Linux / Flatpak apps open in Selene (rootfs: aurora-open, NoDisplay aurora-*.desktop handlers,
 # /etc/xdg/mimeapps.list) + local spell-check dictionaries (Chromium .bdic, tools/fetch-dictionaries.sh).
 [[ -x "$S/usr/bin/aurora-open" ]] && head -1 "$S/usr/bin/aurora-open" | grep -q python3 && pass "aurora-open is executable" || fail "aurora-open missing or not executable"
-for a in browser mail files notepad photos media pdf archive; do
+for a in browser mail files notepad photos media pdf archive books fonts; do
   d="$S/usr/share/applications/aurora-$a.desktop"
   grep -qx "Exec=aurora-open $a %U" "$d" 2>/dev/null && grep -qx 'NoDisplay=true' "$d" && pass "aurora-$a.desktop hands requests to aurora-open" || fail "aurora-$a.desktop missing or wrong"
 done
-for m in x-scheme-handler/http=aurora-browser x-scheme-handler/https=aurora-browser x-scheme-handler/mailto=aurora-mail inode/directory=aurora-files application/pdf=aurora-pdf; do
+for m in x-scheme-handler/http=aurora-browser x-scheme-handler/https=aurora-browser x-scheme-handler/mailto=aurora-mail inode/directory=aurora-files application/pdf=aurora-pdf application/epub+zip=aurora-books font/ttf=aurora-fonts; do
   grep -qx "$m.desktop" "$S/etc/xdg/mimeapps.list" 2>/dev/null && pass "mimeapps default $m" || fail "mimeapps default $m missing"
 done
 for f in fr-FR-3-0.bdic en-US-10-1.bdic; do

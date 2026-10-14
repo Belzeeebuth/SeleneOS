@@ -1,0 +1,346 @@
+{
+ "blockdevices": [
+  {
+   "name": "sda",
+   "path": "/dev/sda",
+   "type": "disk",
+   "size": 1000204886016,
+   "model": "Samsung SSD 870 EVO 1TB",
+   "vendor": "ATA     ",
+   "serial": "S75BNL0W123456A",
+   "rev": "SVT02B6Q",
+   "tran": "sata",
+   "rm": false,
+   "hotplug": false,
+   "rota": false,
+   "ro": false,
+   "pttype": "gpt",
+   "log-sec": 512,
+   "children": [
+    {
+     "name": "sda1",
+     "path": "/dev/sda1",
+     "type": "part",
+     "size": 1000202788864,
+     "start": 2048,
+     "fstype": "ext4",
+     "fsver": "1.0",
+     "label": "Projets",
+     "uuid": "5b9e1c2d-3a4f-4e6b-8c7d-9e0f1a2b3c4d",
+     "partlabel": null,
+     "parttypename": "Linux filesystem",
+     "mountpoints": [
+      "/media/user/Projets"
+     ],
+     "fssize": 1000201740288,
+     "fsused": 412000000000,
+     "fsavail": 588201740288
+    }
+   ]
+  },
+  {
+   "name": "sdb",
+   "path": "/dev/sdb",
+   "type": "disk",
+   "size": 1000204886016,
+   "model": "WDC WD10EZEX-08WN4A0",
+   "vendor": "ATA     ",
+   "serial": "WD-WCC6Y5KX1234",
+   "rev": "01.01A01",
+   "tran": "sata",
+   "rm": false,
+   "hotplug": false,
+   "rota": true,
+   "ro": false,
+   "pttype": "gpt",
+   "log-sec": 512,
+   "children": [
+    {
+     "name": "sdb1",
+     "path": "/dev/sdb1",
+     "type": "part",
+     "size": 1000202788864,
+     "start": 2048,
+     "fstype": "ntfs",
+     "fsver": "",
+     "label": "Archives",
+     "uuid": "4E1A2B3C4D5E6F70",
+     "partlabel": null,
+     "parttypename": "Microsoft basic data",
+     "mountpoints": [
+      "/media/user/Archives"
+     ],
+     "fssize": 1000201740288,
+     "fsused": 731000000000,
+     "fsavail": 269201740288
+    }
+   ]
+  },
+  {
+   "name": "sdc",
+   "path": "/dev/sdc",
+   "type": "disk",
+   "size": 30752636928,
+   "model": "Ultra",
+   "vendor": "SanDisk",
+   "serial": "4C530001230817115384",
+   "rev": "1.00",
+   "tran": "usb",
+   "rm": true,
+   "hotplug": false,
+   "rota": false,
+   "ro": false,
+   "pttype": "dos",
+   "log-sec": 512,
+   "children": [
+    {
+     "name": "sdc1",
+     "path": "/dev/sdc1",
+     "type": "part",
+     "size": 30751588352,
+     "start": 2048,
+     "fstype": "vfat",
+     "fsver": "FAT32",
+     "label": "USB STICK",
+     "uuid": "B2E4-91C7",
+     "partlabel": null,
+     "parttypename": "W95 FAT32 (LBA)",
+     "mountpoints": [
+      "/media/user/USB STICK"
+     ],
+     "fssize": 30750539776,
+     "fsused": 9126805504,
+     "fsavail": 21623734272
+    }
+   ]
+  },
+  {
+   "name": "sdd",
+   "path": "/dev/sdd",
+   "type": "disk",
+   "size": 1000204886016,
+   "model": "RTL9210B-CG",
+   "vendor": "Realtek",
+   "serial": "012345678906",
+   "rev": "1.00",
+   "tran": "usb",
+   "rm": false,
+   "hotplug": true,
+   "rota": false,
+   "ro": false,
+   "pttype": "gpt",
+   "log-sec": 512,
+   "children": [
+    {
+     "name": "sdd1",
+     "path": "/dev/sdd1",
+     "type": "part",
+     "size": 1000202788864,
+     "start": 2048,
+     "fstype": "exfat",
+     "fsver": "1.0",
+     "label": "SAUVEGARDE",
+     "uuid": "64A1-2B3C",
+     "partlabel": null,
+     "parttypename": "Microsoft basic data",
+     "mountpoints": [
+      "/media/user/SAUVEGARDE"
+     ],
+     "fssize": 1000201740288,
+     "fsused": 388000000000,
+     "fsavail": 612201740288
+    }
+   ]
+  },
+  {
+   "name": "sde",
+   "path": "/dev/sde",
+   "type": "disk",
+   "size": 4000787030016,
+   "model": "WDC WD40EFRX-68N32N0",
+   "vendor": "ATA     ",
+   "serial": "WD-WCC7K1234567",
+   "rev": "82.00A82",
+   "tran": "sata",
+   "rm": false,
+   "hotplug": false,
+   "rota": true,
+   "ro": false,
+   "pttype": "gpt",
+   "log-sec": 512,
+   "children": [
+    {
+     "name": "sde1",
+     "path": "/dev/sde1",
+     "type": "part",
+     "size": 4000784932864,
+     "start": 2048,
+     "fstype": "ext4",
+     "fsver": "1.0",
+     "label": "Médias",
+     "uuid": "8c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f",
+     "partlabel": null,
+     "parttypename": "Linux filesystem",
+     "mountpoints": [
+      "/media/user/Médias"
+     ],
+     "fssize": 4000783884288,
+     "fsused": 2610000000000,
+     "fsavail": 1390783884288
+    }
+   ]
+  },
+  {
+   "name": "vda",
+   "path": "/dev/vda",
+   "type": "disk",
+   "size": 34359738368,
+   "model": null,
+   "vendor": "0x1af4",
+   "serial": null,
+   "rev": null,
+   "tran": "virtio",
+   "rm": false,
+   "hotplug": false,
+   "rota": false,
+   "ro": false,
+   "pttype": "gpt",
+   "log-sec": 512,
+   "children": [
+    {
+     "name": "vda1",
+     "path": "/dev/vda1",
+     "type": "part",
+     "size": 34357641216,
+     "start": 2048,
+     "fstype": "ext4",
+     "fsver": "1.0",
+     "label": "vm-data",
+     "uuid": "1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b",
+     "partlabel": null,
+     "parttypename": "Linux filesystem",
+     "mountpoints": [
+      null
+     ],
+     "fssize": null,
+     "fsused": null,
+     "fsavail": null
+    }
+   ]
+  },
+  {
+   "name": "nvme0n1",
+   "path": "/dev/nvme0n1",
+   "type": "disk",
+   "size": 1000204886016,
+   "model": "Samsung SSD 990 PRO 1TB",
+   "vendor": null,
+   "serial": "S6Z1NJ0W412345X",
+   "rev": "4B2QJXD7",
+   "tran": "nvme",
+   "rm": false,
+   "hotplug": false,
+   "rota": false,
+   "ro": false,
+   "pttype": "gpt",
+   "log-sec": 512,
+   "children": [
+    {
+     "name": "nvme0n1p1",
+     "path": "/dev/nvme0n1p1",
+     "type": "part",
+     "size": 536870912,
+     "start": 2048,
+     "fstype": "vfat",
+     "fsver": "FAT32",
+     "label": null,
+     "uuid": "7C2D-1E4F",
+     "partlabel": "EFI System Partition",
+     "parttypename": "EFI System",
+     "mountpoints": [
+      "/boot/efi"
+     ],
+     "fssize": 535822336,
+     "fsused": 6553600,
+     "fsavail": 529268736
+    },
+    {
+     "name": "nvme0n1p2",
+     "path": "/dev/nvme0n1p2",
+     "type": "part",
+     "size": 982487367680,
+     "start": 1050624,
+     "fstype": "ext4",
+     "fsver": "1.0",
+     "label": "Selene",
+     "uuid": "2a3b4c5d-6e7f-4a8b-9c0d-1e2f3a4b5c6d",
+     "partlabel": null,
+     "parttypename": "Linux filesystem",
+     "mountpoints": [
+      "/"
+     ],
+     "fssize": 982486319104,
+     "fsused": 61000000000,
+     "fsavail": 921486319104
+    },
+    {
+     "name": "nvme0n1p3",
+     "path": "/dev/nvme0n1p3",
+     "type": "part",
+     "size": 17179869184,
+     "start": 1919971264,
+     "fstype": "swap",
+     "fsver": "1",
+     "label": null,
+     "uuid": "9e8d7c6b-5a49-4382-9172-6a5b4c3d2e1f",
+     "partlabel": null,
+     "parttypename": "Linux swap",
+     "mountpoints": [
+      "[SWAP]"
+     ],
+     "fssize": null,
+     "fsused": null,
+     "fsavail": null
+    }
+   ]
+  },
+  {
+   "name": "nvme1n1",
+   "path": "/dev/nvme1n1",
+   "type": "disk",
+   "size": 500107862016,
+   "model": "WD Blue SN570 500GB",
+   "vendor": null,
+   "serial": "22184F801234",
+   "rev": "234110WD",
+   "tran": "nvme",
+   "rm": false,
+   "hotplug": false,
+   "rota": false,
+   "ro": false,
+   "pttype": "gpt",
+   "log-sec": 512,
+   "children": [
+    {
+     "name": "nvme1n1p1",
+     "path": "/dev/nvme1n1p1",
+     "type": "part",
+     "size": 500105764864,
+     "start": 2048,
+     "fstype": "ext4",
+     "fsver": "1.0",
+     "label": "Données",
+     "uuid": "6d5c4b3a-2918-4f7e-8d6c-5b4a39281706",
+     "partlabel": null,
+     "parttypename": "Linux filesystem",
+     "mountpoints": [
+      "/media/user/Données"
+     ],
+     "fssize": 500104716288,
+     "fsused": 377000000000,
+     "fsavail": 123104716288
+    }
+   ]
+  }
+ ]
+}

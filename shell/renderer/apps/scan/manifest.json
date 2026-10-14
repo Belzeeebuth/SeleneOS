@@ -1,0 +1,15 @@
+{
+  "id": "scan",
+  "name": { "en": "Scan", "fr": "Numérisation" },
+  "description": { "en": "Scan documents and photos with your scanner, save them as PDF or pictures", "fr": "Numérisez des documents et des photos avec votre scanner, enregistrez-les en PDF ou en images" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1120, "height": 740, "minWidth": 760, "minHeight": 540, "background": "mica" },
+  "category": "utilities",
+  "keywords": {
+    "en": ["scan", "scanner", "scanning", "document", "pdf", "flatbed", "feeder", "adf", "copy", "digitize", "sane"],
+    "fr": ["numériser", "numérisation", "scanner", "scanneur", "document", "pdf", "vitre", "chargeur", "copie", "scan"]
+  },
+  "singleInstance": true
+}

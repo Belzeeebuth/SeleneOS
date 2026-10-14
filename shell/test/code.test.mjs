@@ -350,18 +350,19 @@ try {
     const visible = await C(s, () => getComputedStyle(document.querySelector('.app-code .code-panel')).display);
     check('panel visible', visible, 'flex');
     await sleep(800);
-    await C(s, (a) => a.api.send('pty:write', a.ptyId, 'echo "CODE_$((6*7))_$(basename "$PWD")"\r'));
+    // a command every login shell understands (sh, bash, zsh, fish): the user's shell comes from /etc/passwd
+    await C(s, (a) => a.api.send('pty:write', a.ptyId, 'echo CODE_OK; pwd\r'));
     const out = await until(
       s,
-      (a) => {
+      (a, dir) => {
         const b = a.term.buffer.active;
-        let text = '';
-        for (let i = 0; i < b.length; i++) text += `${b.getLine(i)?.translateToString(true) || ''}\n`;
-        return text.includes('CODE_42_lune') && text;
+        const lines = [];
+        for (let i = 0; i < b.length; i++) lines.push((b.getLine(i)?.translateToString(true) || '').trim());
+        return lines.includes('CODE_OK') && lines.includes(dir) && lines;
       },
-      { label: 'terminal output', timeout: 15000 },
+      { label: 'terminal output', timeout: 15000, arg: project },
     ).catch((e) => String(e));
-    check('command ran in the project folder', String(out).includes('CODE_42_lune'), true);
+    check('command ran in the project folder', Array.isArray(out) && out.includes(project), true);
     // Ctrl+` hides it
     await C(s, (a) => a.view.focus());
     await s.page.keyboard.press('Control+`');

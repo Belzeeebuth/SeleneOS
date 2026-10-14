@@ -4,6 +4,8 @@
 import { PAGES } from '../lib/index.js';
 import { textSizeControls, motionControls, transparencyControls } from './personalization-designer.js';
 import { comboKeys } from '../../../core/shortcuts.js';
+import { onScreenKeyboard } from './accessibility-osk.js';
+import { magnifier } from './accessibility-magnifier.js';
 
 async function accessibility(pc) {
   const { h, t, kit, L } = pc;
@@ -11,7 +13,8 @@ async function accessibility(pc) {
   return h(
     'div',
     null,
-    kit.group(t('a11y.vision'), sub('textSize'), sub('visualEffects'), sub('screenReader')),
+    kit.group(t('a11y.vision'), sub('textSize'), sub('magnifier'), sub('visualEffects'), sub('screenReader')),
+    kit.group(L({ en: 'Interaction', fr: 'Interaction' }), sub('onScreenKeyboard')),
     kit.group(
       t('a11y.quick'),
       kit.settingToggleRow({ icon: 'sparkle', title: t('a11y.animations'), desc: t('a11y.animationsDesc'), key: 'animations', def: true }),
@@ -118,4 +121,4 @@ async function screenReader(pc) {
   );
 }
 
-export default { accessibility, textSize, visualEffects, screenReader };
+export default { accessibility, textSize, visualEffects, screenReader, onScreenKeyboard, magnifier };

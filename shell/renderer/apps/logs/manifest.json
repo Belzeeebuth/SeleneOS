@@ -1,0 +1,15 @@
+{
+  "id": "logs",
+  "name": { "en": "System Logs", "fr": "Journaux système" },
+  "description": { "en": "Read the system journal: errors of this boot, the previous boot after a crash, kernel and app messages", "fr": "Consultez le journal du système : erreurs de ce démarrage, démarrage précédent après un plantage, messages du noyau et des applications" },
+  "icon": "icon.svg",
+  "entry": "main.js",
+  "styles": ["style.css"],
+  "window": { "width": 1120, "height": 700, "minWidth": 640, "minHeight": 440, "background": "mica" },
+  "category": "system",
+  "keywords": {
+    "en": ["logs", "journal", "journalctl", "system logs", "event viewer", "errors", "crash", "freeze", "kernel", "dmesg", "syslog", "systemd"],
+    "fr": ["journaux", "journal", "journalctl", "journaux système", "observateur d'événements", "erreurs", "plantage", "blocage", "noyau", "dmesg", "syslog", "systemd"]
+  },
+  "singleInstance": true
+}

@@ -1,0 +1,8 @@
+{
+  "resultCount": 3,
+  "results": [
+    { "wrapperType": "track", "kind": "podcast", "collectionId": 1001, "artistName": "Studio Banc d'essai", "collectionName": "Podcast de Test", "feedUrl": "{{BASE}}/podcast.xml", "artworkUrl100": "{{BASE}}/img/cover.png", "artworkUrl600": "{{BASE}}/img/cover.png", "primaryGenreName": "Technologie", "trackCount": 3 },
+    { "wrapperType": "track", "kind": "podcast", "collectionId": 1002, "artistName": "Autre studio", "collectionName": "Un autre podcast", "feedUrl": "{{BASE}}/comments.rss", "artworkUrl600": "{{BASE}}/img/news-logo.png", "primaryGenreName": "Société", "trackCount": 120 },
+    { "wrapperType": "track", "kind": "podcast", "collectionId": 1003, "artistName": "Sans flux", "collectionName": "Podcast sans flux" }
+  ]
+}
