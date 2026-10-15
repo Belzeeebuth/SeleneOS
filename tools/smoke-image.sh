@@ -50,6 +50,10 @@ while (($#)); do
 done
 
 [[ $EUID -eq 0 ]] || die "run as root (mounts, chroot): sudo $0"
+# Commands run inside the image (chroot) search this PATH: Ubuntu keeps useradd, usermod, apparmor_parser… in /usr/sbin,
+# which hosts that merged sbin into bin (Arch, CachyOS) leave out of PATH.
+for d in /usr/local/sbin /usr/sbin /sbin; do [[ ":$PATH:" == *":$d:"* ]] || PATH="$PATH:$d"; done
+export PATH
 for t in Xvfb mount umount losetup chroot setsid findmnt python3; do
   command -v "$t" >/dev/null 2>&1 || die "$t is required (Ubuntu: apt-get install xvfb util-linux python3; Arch / CachyOS: pacman -S xorg-server-xvfb util-linux python)"
 done

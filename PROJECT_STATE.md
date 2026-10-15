@@ -260,6 +260,11 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
   played on the developer's real PipeWire session. login-lock's « through sudo » checks no longer depend on the host's
   PAM (non-root: must not authenticate). xvfb-run sometimes exits non-zero after a suite passed (« kill: no such
   process » when Xvfb is already gone); run-all's --retry absorbs it.
+- verify-iso / smoke-image on the user's CachyOS host (fixed 2026-10-15): commands run inside the image (chroot) did
+  not find Ubuntu's /usr/sbin tools (useradd, apparmor_parser) because Arch merged sbin into bin and leaves it out of
+  PATH; both scripts now append /usr/local/sbin:/usr/sbin:/sbin. The host has no dpkg: verify-iso runs the image's own
+  dpkg-query / dpkg-divert in a chroot (read-only). smoke-image needs Xvfb on the host (pacman -S xorg-server-xvfb).
+  Checked on the 2026-10-15 ISO's files (unsquashfs, read-only bind): « Selene packages » 20/20, « phase 5 » 45/45.
 - Tests and Wayland (fixed 2026-10-14): when WAYLAND_DISPLAY was set, the tests started Electron on the developer's
   real Wayland session (test windows on the real screen, clipboard overwritten). lib.mjs and login-lock now force
   `--ozone-platform=x11` on xvfb-run's display and drop the Wayland variables.

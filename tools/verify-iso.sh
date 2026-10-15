@@ -22,6 +22,10 @@ while (($#)); do
   esac
 done
 [[ $EUID -eq 0 ]] || { echo "verify-iso: run as root (loop mounts): sudo $0" >&2; exit 1; }
+# Commands run inside the image (chroot) search this PATH: Ubuntu keeps useradd, usermod, apparmor_parser… in /usr/sbin,
+# which hosts that merged sbin into bin (Arch, CachyOS) leave out of PATH.
+for d in /usr/local/sbin /usr/sbin /sbin; do [[ ":$PATH:" == *":$d:"* ]] || PATH="$PATH:$d"; done
+export PATH
 for t in xorriso unsquashfs mount findmnt md5sum sha256sum mdir grub-script-check; do
   command -v "$t" >/dev/null 2>&1 || { echo "verify-iso: $t is required (xorriso squashfs-tools mtools grub-common)" >&2; exit 1; }
 done
@@ -438,7 +442,8 @@ nlists="$(find "$S/var/lib/apt/lists" -type f ! -name lock 2>/dev/null | wc -l)"
 ((nlists == 0 && ndebs == 0)) && pass "apt lists and .deb cache are empty" || fail "apt caches not cleaned ($nlists list files, $ndebs debs)"
 
 # ---- BEGIN Selene packages (self-updates, docs/UPDATES.md) -----------------------------------
-# Selene's files come from its own packages (tools/build-debs.sh), so installed systems can update them.
+# Selene's files come from its own packages (tools/build-debs.sh), so installed systems can update them. dpkg-query and
+# dpkg-divert are the image's own (chroot, read-only): the build host may have no dpkg (Arch, CachyOS).
 if ! grep -qx 'Package: aurora-shell' "$S/var/lib/dpkg/status"; then
   fail "no Selene packages in the image: it was built by an iso/build.sh older than the Selene packaging (copied files); rebuild from the system stage (docs/UPDATES.md)"
 else
@@ -449,15 +454,15 @@ for pf in aurora-electron:/opt/aurora/electron/electron aurora-shell:/opt/aurora
           aurora-shell:/opt/aurora/shell/node_modules aurora-base:/usr/lib/aurora/helpers/aurora-admin \
           aurora-base:/usr/lib/aurora/aurora-xsession aurora-base:/etc/apparmor.d/aurora-shell \
           aurora-base:/etc/apt/sources.list.d/selene.sources aurora-base:/usr/share/keyrings/selene-archive-keyring.gpg; do
-  own="$(dpkg-query --admindir="$S/var/lib/dpkg" -S "${pf#*:}" 2>/dev/null | head -n1 | cut -d: -f1)"
+  own="$(chroot "$S" dpkg-query -S "${pf#*:}" 2>/dev/null | head -n1 | cut -d: -f1)"
   [[ "$own" == "${pf%%:*}" ]] && pass "${pf#*:} belongs to ${pf%%:*} (dpkg -S)" || fail "${pf#*:} is not owned by ${pf%%:*} (dpkg -S: ${own:-none})"
 done
 grep -qx '/etc/sudoers.d/aurora' "$S/var/lib/dpkg/info/aurora-base.conffiles" 2>/dev/null && pass "aurora-base: /etc files are conffiles" || fail "aurora-base: /etc/sudoers.d/aurora is not a conffile"
 for f in /etc/greetd/config.toml /etc/systemd/zram-generator.conf; do
-  [[ "$(dpkg-divert --admindir "$S/var/lib/dpkg" --listpackage "$f" 2>/dev/null)" == aurora-base ]] && pass "$f diverted by aurora-base (Ubuntu's kept as $f.ubuntu)" || fail "$f is not diverted by aurora-base"
+  [[ "$(chroot "$S" dpkg-divert --listpackage "$f" 2>/dev/null)" == aurora-base ]] && pass "$f diverted by aurora-base (Ubuntu's kept as $f.ubuntu)" || fail "$f is not diverted by aurora-base"
   [[ "$(readlink "$S$f")" == "$(basename "$f").selene" ]] && pass "$f -> $(basename "$f").selene (aurora-base)" || fail "$f is not the aurora-base symlink to $(basename "$f").selene"
 done
-[[ -n "$(dpkg-divert --admindir "$S/var/lib/dpkg" --listpackage /usr/lib/os-release 2>/dev/null)" ]] && pass "/usr/lib/os-release is diverted (base-files upgrades keep the Selene one)" || fail "/usr/lib/os-release is not diverted"
+[[ -n "$(chroot "$S" dpkg-divert --listpackage /usr/lib/os-release 2>/dev/null)" ]] && pass "/usr/lib/os-release is diverted (base-files upgrades keep the Selene one)" || fail "/usr/lib/os-release is not diverted"
 src="$S/etc/apt/sources.list.d/selene.sources"
 if [[ -f "$src" ]] && grep -qx 'Signed-By: /usr/share/keyrings/selene-archive-keyring.gpg' "$src" && grep -q '^URIs: https\?://' "$src"; then
   pass "Selene apt source: $(sed -n 's/^URIs: //p' "$src") (Signed-By the Selene keyring)"
