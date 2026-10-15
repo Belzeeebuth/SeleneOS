@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-14 evening — the six « later » items stopped half-way were finished and tested (Éditeur de code search / split / diff, Disques SMART, Outils réseau OpenVPN / traceroute / ports / speed test, Cartes routes, Bureau à distance RDP + VNC clipboard / encodings, Lecteur MPRIS + media keys); the 19 suites they touch passed together (17 min). Tests now run with --mute-audio. Earlier the same day: app phase 5, Mémos / Traducteur removed, docs reviewed, dual boot validated in QEMU/KVM. Previous ISO: 2026-10-13 18:00 (verify-iso 292 checks, 0 failures)._
+_Last updated: 2026-10-15 — verify-iso checks added for the phase 5 / « later » packages and files (block « phase 5 + later items », tested on a root assembled from the 10-13 package layer + the noble .debs: 0 failures once installed, the expected failures without them); next: ISO rebuild by the user. 2026-10-14 night: full sweep on the user's PC, 82/85 (the 3 others host-only). 2026-10-14 evening — the six « later » items stopped half-way were finished and tested (Éditeur de code search / split / diff, Disques SMART, Outils réseau OpenVPN / traceroute / ports / speed test, Cartes routes, Bureau à distance RDP + VNC clipboard / encodings, Lecteur MPRIS + media keys); the 19 suites they touch passed together (17 min). Tests now run with --mute-audio. Earlier the same day: app phase 5, Mémos / Traducteur removed, docs reviewed, dual boot validated in QEMU/KVM. Previous ISO: 2026-10-13 18:00 (verify-iso 292 checks, 0 failures)._
 
 ## What this is
 
@@ -279,12 +279,16 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
    separately, then the 19 suites they touch run together: 19/19 green (code, code.unit and login-lock on retry —
    see Known issues).
 
-3. **Add the verify-iso checks for the
-   new packages.d lists (books, emoji, fonts, scanner, disks: smartmontools, nettools: network-manager-openvpn +
-   iputils-tracepath, remote: freerdp3-x11) and the files the agents suggested (aurora-sessionbus MPRIS name,
-   aurora-xwm media keysyms, aurora-admin smart-info, polkit udisks2 self-test actions, nm-openvpn plugin files,
-   `xfreerdp3 --version` 3.x). Only then: ISO rebuild by the user (`flock work/.build.lock iso/build.sh --from
-   packages`: new package lists), make verify-iso and make smoke-image. Do not rebuild the ISO before the sweep.
+3. **ISO rebuild by the user** (`flock work/.build.lock iso/build.sh --from packages`: new package lists), then
+   make verify-iso and make smoke-image. The verify-iso checks for the new lists are in (2026-10-15, block « phase 5
+   + later items »): apps' shell files and icons (books, scan, logs, fonts, help, feeds, nettools, remote, disks,
+   emoji panel, Loupe, Clavier visuel, media card); packages of books / emoji / fonts / scanner / disks / nettools /
+   remote.list; scanimage + airscan backend enabled, libsane1 hwdb compiled into hwdb.bin + uaccess rule, saned.socket
+   NOT enabled; smartmontools >= 7 (smartctl -j), aurora-admin smart-info, every polkit action 50-aurora.rules names
+   exists (udisks2 ata / nvme self-tests included), smartd enabled (warn only); nm-openvpn plug-in files + its
+   nm-openvpn user, tracepath, ss, nmcli; freerdp3-x11 3.x from dpkg's status (xfreerdp3 itself is not run: an X11
+   client in a chroot without a display) + /args-from in libfreerdp-client3; persistent journal + administrators in adm; MPRIS name
+   in aurora-sessionbus, media keysyms grabbed by aurora-xwm. Paths were taken from the noble .debs, not guessed.
 
 4. **Real-world checks** of the « later » items in the VM / on the user's PC (list under Known issues).
 

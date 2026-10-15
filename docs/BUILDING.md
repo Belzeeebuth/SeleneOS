@@ -172,13 +172,14 @@ make verify-iso           # = sudo tools/verify-iso.sh [--iso PATH]
 make smoke-image          # = sudo tools/smoke-image.sh [--iso PATH] [--secs 20]
 ```
 
-`make verify-iso` checks the ISO statically (about 110 checks, under a minute): SHA-256, El Torito
+`make verify-iso` checks the ISO statically (about 340 checks, under a minute): SHA-256, El Torito
 BIOS and UEFI boot images, GPT with an EFI System Partition and GRUB's MBR code (USB boot), the
 EFI loader, `md5sum.txt`, the GRUB menu (`grub-script-check` and every entry's kernel
 parameters), the casper files and the initramfs (casper, Plymouth theme, virtio-gpu), then the
 content of the squashfs: Electron, `chrome-sandbox` setuid root, the shell and its runtime npm
 dependencies, session scripts and helpers, greetd autologin, enabled services
-(`systemctl --root`), firewall, locales, permissions, and that no build proxy, build CA,
+(`systemctl --root`), firewall, locales, permissions, the packages and system files each app relies on
+(printing, scanning, Bluetooth, OpenVPN, FreeRDP 3, SMART, polkit actions…), and that no build proxy, build CA,
 machine-id or SSH host key was shipped.
 
 `make smoke-image` mounts the ISO's `filesystem.squashfs` read-only with a throwaway overlay, starts a private Xvfb
@@ -584,9 +585,11 @@ la construction occupe 2,7 Go dans `work/` et 0,7 Go dans `cache/`.
 
 ### Vérifier l'image sans VM
 
-`make verify-iso` vérifie l'ISO sans la démarrer (environ 110 contrôles : enregistrements de
+`make verify-iso` vérifie l'ISO sans la démarrer (environ 340 contrôles : enregistrements de
 démarrage BIOS et UEFI, GPT et partition EFI, menu GRUB et paramètres du noyau, fichiers casper,
-initramfs, contenu du squashfs, services activés, permissions, absence de proxy/certificat de
+initramfs, contenu du squashfs, services activés, permissions, paquets et fichiers système dont
+chaque appli a besoin (impression, numérisation, Bluetooth, OpenVPN, FreeRDP 3, SMART, actions
+polkit…), absence de proxy/certificat de
 construction, de machine-id et de clés SSH). `make smoke-image` monte le `filesystem.squashfs` de l'ISO en lecture seule, lance un Xvfb privé
 et exécute les lanceurs de l'image (bureau et écran de connexion) avec un utilisateur temporaire :
 bibliothèques d'Electron toutes présentes, rendu du bureau jusqu'à `body.ready`, page de connexion

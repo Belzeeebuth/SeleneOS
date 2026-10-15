@@ -633,6 +633,113 @@ grep -qs "'Super+Shift+R'" "$S/opt/aurora/shell/renderer/core/features/hotkeys.j
 chroot "$S" ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libx264 && pass "Screen Recorder: ffmpeg has libx264 (MP4)" || warn "Screen Recorder: ffmpeg without libx264 (MP4 export fails, WebM kept)"
 # ---- END screenrec ----------------------------------------------------------------------------------------------
 
+# ---- BEGIN phase 5 + « later » items (PHASEAPP.md, 2026-10-14) ----------------------------------------------------
+# One line per app or feature: its shell files, then the packages of iso/packages.d/{books,emoji,fonts,scanner,disks,
+# nettools,remote}.list and the system files they rely on. Paths checked against the noble .debs.
+shell_has() { # label file... (relative to /opt/aurora/shell)
+  local label="$1" f miss=""; shift
+  for f in "$@"; do [[ -f "$S/opt/aurora/shell/$f" ]] || miss+=" $f"; done
+  [[ -z "$miss" ]] && pass "$label: shell has its $# files" || fail "$label: shell lacks$miss"
+}
+app_has() { # app id, then its backend files
+  local a="$1"; shift
+  shell_has "app $a" renderer/apps/$a/manifest.json renderer/apps/$a/main.js renderer/apps/$a/i18n.json renderer/apps/$a/icon.svg \
+    renderer/assets/icons/packs/halo/$a.svg renderer/assets/icons/packs/prisme/$a.svg "$@"
+}
+pkgver() { awk -v p="$1" '$0 == "Package: " p {f = 1; next} /^$/ {f = 0} f && /^Version: / {print $2; exit}' "$S/var/lib/dpkg/status"; }
+pkgs() { # list-file package... -> one PASS / FAIL line
+  local list="$1" p miss=""; shift
+  for p in "$@"; do installed "$p" || miss+=" $p"; done
+  [[ -z "$miss" ]] && pass "packages installed ($list): $*" || fail "packages missing ($list):$miss (rebuild with --from packages)"
+}
+files_has() { # label path... (in the image)
+  local label="$1" f miss=""; shift
+  for f in "$@"; do compgen -G "$S$f" >/dev/null || miss+=" $f"; done
+  [[ -z "$miss" ]] && pass "$label: $*" || fail "$label: image lacks$miss"
+}
+
+# Livres: EPUB reader, « Très lisible » reading font.
+app_has books main/ipc/books.js
+pkgs books.list fonts-atkinson-hyperlegible
+files_has "Livres: Atkinson Hyperlegible font" /usr/share/fonts/opentype/atkinson-hyperlegible/AtkinsonHyperlegible-Regular.otf
+# Emoji and symbols panel (Super+.): every emoji is checked against Noto Color Emoji.
+shell_has "emoji panel" renderer/core/features/emoji.js renderer/assets/emoji/emoji.json
+pkgs emoji.list fonts-noto-color-emoji
+files_has "emoji panel: colour emoji font" /usr/share/fonts/truetype/noto/NotoColorEmoji.ttf
+# Polices: fc-list lists the fonts, fc-cache refreshes ~/.local/share/fonts after an install.
+app_has fonts main/ipc/fonts.js
+files_has "Polices: fontconfig tools" /usr/bin/fc-list /usr/bin/fc-cache
+# Aide: offline articles + « Bien démarrer » at the first sign-in; Podcasts et actus: no package.
+app_has help main/ipc/help.js renderer/core/features/help-welcome.js
+nhelp="$(find "$S/opt/aurora/shell/renderer/apps/help/content" -maxdepth 1 -type f -name '*.js' 2>/dev/null | wc -l)"
+((nhelp >= 10)) && pass "Aide: $nhelp article files" || fail "Aide: only $nhelp article files in renderer/apps/help/content"
+app_has feeds main/ipc/feeds.js
+# Loupe and Clavier visuel (XTest through python3-xlib, checked above).
+shell_has "Loupe" renderer/core/features/magnifier.js main/ipc/magnifier.js
+shell_has "Clavier visuel" renderer/core/features/osk.js main/ipc/osk.js
+
+# Journaux système: journalctl as the person; administrators are in adm (the whole journal), the journal is persistent
+# (« Démarrage précédent »).
+app_has logs main/ipc/journal.js
+files_has "Journaux système: journalctl" /usr/bin/journalctl
+[[ -d "$S/var/log/journal" ]] && pass "persistent journal (/var/log/journal): previous boots stay readable" || warn "no /var/log/journal: the journal is lost at each reboot (« Démarrage précédent » empty)"
+grep -q '^USER_GROUPS=(sudo adm ' "$S/usr/lib/aurora/helpers/aurora-install" 2>/dev/null && pass "the installer puts administrators in adm (they read the whole journal)" || fail "aurora-install does not add administrators to adm"
+
+# Numérisation: scanimage as the signed-in user; USB scanners reach them through libsane1's hwdb + systemd's uaccess
+# rule (no « scanner » group), network scanners through sane-airscan. saned (network scanner sharing) stays off.
+app_has scan main/ipc/scan.js
+pkgs scanner.list sane-utils sane-airscan libsane1
+files_has "Numérisation: scanimage, airscan backend" /usr/bin/scanimage '/usr/lib/*-linux-gnu/sane/libsane-airscan.so.1'
+grep -qsx 'airscan' "$S/etc/sane.d/dll.d/airscan" && pass "sane-airscan is enabled (/etc/sane.d/dll.d/airscan)" || fail "sane-airscan is not in /etc/sane.d/dll.d (driverless scanners not found)"
+grep -qs 'ENV{libsane_matched}=="yes", TAG+="uaccess"' "$S/usr/lib/udev/rules.d/70-uaccess.rules" && [[ -f "$S/usr/lib/udev/hwdb.d/20-sane.hwdb" ]] \
+  && pass "USB scanners: libsane1's hwdb + the uaccess rule (the session user opens them, no root)" || fail "USB scanners: no 20-sane.hwdb or no libsane_matched uaccess rule"
+grep -aqs 'libsane_matched' "$S/usr/lib/udev/hwdb.bin" "$S/etc/udev/hwdb.bin" && pass "udev hwdb.bin knows the scanners (libsane_matched)" || fail "hwdb.bin was not rebuilt with 20-sane.hwdb (USB scanners would need root)"
+st="$(systemctl --root="$S" is-enabled saned.socket 2>/dev/null || true)"
+[[ "$st" != enabled ]] && pass "saned.socket is not enabled (${st:-not installed}): scanners are not shared on the network" || fail "saned.socket is enabled: scanners are shared on the network (port 6566)"
+
+# Disques › Santé du disque: udisks2 over D-Bus, smartctl read-only through aurora-admin smart-info, self-tests through
+# the polkit rule. Every action 50-aurora.rules names must exist (a typo would silently keep the password prompt).
+app_has disks main/ipc/disks.js main/ipc/disks-smart.js renderer/apps/disks/health.js renderer/core/features/disk-health.js
+pkgs "disks.list, base.list" smartmontools udisks2
+v="$(pkgver smartmontools)"
+[[ "$v" =~ ^([0-9]+:)?([7-9]|[1-9][0-9])\. ]] && pass "smartmontools $v (smartctl -j: JSON output)" || fail "smartmontools '${v:-none}': smartctl 7 or later is needed for -j"
+files_has "Santé du disque: smartctl" /usr/sbin/smartctl
+grep -q '^smart-info)' "$S/usr/lib/aurora/helpers/aurora-admin" && pass "aurora-admin has the smart-info action (read-only smartctl -j -a)" || fail "aurora-admin lacks smart-info"
+grep -q '"org.freedesktop.udisks2.ata-smart-selftest"' "$S/etc/polkit-1/rules.d/50-aurora.rules" && grep -q '"org.freedesktop.udisks2.nvme-smart-selftest"' "$S/etc/polkit-1/rules.d/50-aurora.rules" \
+  && pass "polkit: administrators start SATA / NVMe self-tests without a prompt" || fail "50-aurora.rules lacks the udisks2 ata / nvme self-test actions"
+unknown=""; nids=0
+for id in $(grep -oE '"org\.freedesktop\.[A-Za-z0-9.-]*[A-Za-z0-9]"' "$S/etc/polkit-1/rules.d/50-aurora.rules" | tr -d '"' | sort -u); do
+  nids=$((nids + 1))
+  grep -qsF "id=\"$id\"" "$S"/usr/share/polkit-1/actions/*.policy || unknown+=" $id"
+done
+[[ -z "$unknown" ]] && pass "polkit: the $nids actions 50-aurora.rules names all exist in /usr/share/polkit-1/actions" || fail "polkit: 50-aurora.rules names unknown actions:$unknown"
+st="$(systemctl --root="$S" is-enabled smartmontools.service 2>/dev/null || true)"
+[[ "$st" == enabled ]] && pass "systemctl --root: smartmontools.service (smartd) is $st (not in VMs: ConditionVirtualization=no)" || warn "smartmontools.service is '$st': smartd does not watch the disks"
+
+# Outils réseau: OpenVPN through NetworkManager's plug-in (nm-openvpn drops root to its own user), tracepath, ss.
+app_has nettools main/ipc/nettools.js
+pkgs nettools.list network-manager-openvpn openvpn iputils-tracepath
+files_has "OpenVPN: NetworkManager plug-in" /usr/lib/NetworkManager/VPN/nm-openvpn-service.name /usr/libexec/nm-openvpn-service \
+  '/usr/lib/*-linux-gnu/NetworkManager/libnm-vpn-plugin-openvpn.so' /usr/share/dbus-1/system.d/nm-openvpn-service.conf /usr/sbin/openvpn
+grep -q '^nm-openvpn:' "$S/etc/passwd" && pass "nm-openvpn system user (openvpn runs without root)" || fail "no nm-openvpn user: OpenVPN connections fail"
+files_has "Outils réseau: nmcli, tracepath, ss" /usr/bin/nmcli /usr/bin/tracepath /usr/bin/ss
+
+# Bureau à distance: VNC is the app's own; RDP is FreeRDP 3's xfreerdp3 /args-from:stdin (the password never in argv).
+app_has remote main/ipc/remote.js main/lib/freerdp.js
+pkgs remote.list freerdp3-x11
+files_has "Bureau à distance: xfreerdp3" /usr/bin/xfreerdp3
+v="$(pkgver freerdp3-x11)"
+[[ "$v" =~ ^([0-9]+:)?3\. ]] && pass "FreeRDP $v (3.x)" || fail "freerdp3-x11 '${v:-none}' is not FreeRDP 3"
+grep -aqs 'args-from' "$S"/usr/lib/*-linux-gnu/libfreerdp-client3.so.3 && pass "FreeRDP reads its arguments from stdin (/args-from)" || fail "libfreerdp-client3 has no /args-from: the password would be on the command line"
+
+# Lecteur on MPRIS + media keys: aurora-sessionbus owns org.mpris.MediaPlayer2.selene, aurora-xwm grabs the media
+# keys over Linux apps, the media card lives in Réglages rapides.
+shell_has "media card / MPRIS" renderer/core/features/mediactl.js main/ipc/sessionbus.js
+grep -q "^MPRIS_NAME = 'org.mpris.MediaPlayer2.selene'" "$S/usr/lib/aurora/helpers/aurora-sessionbus" && pass "aurora-sessionbus exports the Lecteur as org.mpris.MediaPlayer2.selene" || fail "aurora-sessionbus has no MPRIS name"
+grep -q '^MEDIA_KEYSYMS = (0x1008FF14, 0x1008FF31, 0x1008FF15, 0x1008FF16, 0x1008FF17)' "$S/usr/lib/aurora/helpers/aurora-xwm" && grep -q '+ MEDIA_KEYSYMS:' "$S/usr/lib/aurora/helpers/aurora-xwm" \
+  && pass "aurora-xwm grabs Play / Pause / Stop / Previous / Next over Linux apps" || fail "aurora-xwm does not grab the media keys"
+# ---- END phase 5 + « later » items ---------------------------------------------------------------------------------
+
 # initramfs: casper + Selene OS splash.
 if [[ -x "$S/usr/bin/lsinitramfs" ]]; then
   mount -t tmpfs tmpfs "$S/tmp" && mount -t tmpfs tmpfs "$S/var/tmp" && mount -t proc proc "$S/proc" && mount --bind /dev "$S/dev"
