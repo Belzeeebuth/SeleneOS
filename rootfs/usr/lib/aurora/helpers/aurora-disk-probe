@@ -346,8 +346,10 @@ def probe_ext4(dev, part):
     m = re.search(r'Estimated minimum size of the filesystem: (\d+)', out)
     if m:
         tool_min = int(m.group(1)) * bs
-    # The system it holds (/etc/os-release is usually a link to ../usr/lib/os-release; debugfs reads, never writes).
-    for p in ('/usr/lib/os-release', '/etc/os-release'):
+    # The system it holds: /etc/os-release first, then /usr/lib/os-release, as os-release(5) says. Derivatives keep their
+    # parent's file in /usr/lib (CachyOS: /usr/lib/os-release is Arch's, /etc/os-release is CachyOS's own); a symlinked
+    # /etc/os-release reads as no NAME and falls through. debugfs reads, never writes.
+    for p in ('/etc/os-release', '/usr/lib/os-release'):
         rc, txt, _ = run(['debugfs', '-R', f'cat {p}', dev], timeout=30)
         osr = parse_os_release(txt) if rc == 0 else {}
         if osr.get('NAME') or osr.get('PRETTY_NAME'):

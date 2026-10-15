@@ -27,8 +27,8 @@
 # the grub-install wrapper and the debconf keys in the target; NVRAM entry skipped.
 # cachy.img (40 GiB): the user's PC at a smaller scale — GPT, 1 GiB FAT32 ESP holding Limine (EFI/limine/BOOTX64.EFI,
 #            EFI/BOOT/BOOTX64.EFI, limine.conf, vmlinuz-linux-cachyos + initramfs: the kernels live on the ESP), ext4 root
-#            (/etc/os-release CachyOS, /etc/fstab mounting the ESP on /boot), no free space. Probe (CachyOS, the chain
-#            owner of the ESP), then an install --alongside --shrink 2 that stops (at copy; with --full: at the boot loader,
+#            (/etc/os-release CachyOS + /usr/lib/os-release Arch Linux, /etc/fstab mounting the ESP on /boot), no free
+#            space. Probe (CachyOS, the chain owner of the ESP), then an install --alongside --shrink 2 that stops (at copy; with --full: at the boot loader,
 #            after copy + configure), then the retry: the probe offers the left « Selene OS » partition (plan reuse),
 #            --reuse-partition 3 (stops at copy; with --full: complete, with an injected `efibootmgr -v` — Limine first in
 #            BootOrder — through AURORA_INSTALL_TEST_EFIBOOTMGR_V): ESP byte-identical except EFI/ubuntu, CachyOS's files
@@ -433,8 +433,10 @@ rand "$W/cachy-bootx64.efi" 90000; rand "$W/vmlinuz-linux-cachyos" 14000000; ran
 printf 'timeout: 5\n\n/+CachyOS\n    comment: CachyOS linux-cachyos\n    //linux-cachyos\n        protocol: linux\n        kernel_path: boot():/vmlinuz-linux-cachyos\n        kernel_cmdline: root=UUID=%s rw quiet\n        module_path: boot():/initramfs-linux-cachyos.img\n' "$CACHY_UUID" >"$W/limine.conf"
 mcopy -i "${CACHY}p1" "$W/limine.efi" ::/EFI/limine/BOOTX64.EFI; mcopy -i "${CACHY}p1" "$W/cachy-bootx64.efi" ::/EFI/BOOT/BOOTX64.EFI
 mcopy -i "${CACHY}p1" "$W/limine.conf" "$W/vmlinuz-linux-cachyos" "$W/initramfs-linux-cachyos.img" ::/
-CR=$W/cachy-root; rm -rf "$CR"; mkdir -p "$CR/etc" "$CR/boot" "$CR/home/anna/Documents" "$CR/home/anna/Images"
+CR=$W/cachy-root; rm -rf "$CR"; mkdir -p "$CR/etc" "$CR/usr/lib" "$CR/boot" "$CR/home/anna/Documents" "$CR/home/anna/Images"
 printf 'NAME=CachyOS\nPRETTY_NAME=CachyOS\nID=cachyos\nID_LIKE=arch\nBUILD_ID=rolling\n' >"$CR/etc/os-release"
+# as on the real system: Arch's filesystem package keeps its own /usr/lib/os-release (os-release(5): /etc wins)
+printf 'NAME="Arch Linux"\nPRETTY_NAME="Arch Linux"\nID=arch\nBUILD_ID=rolling\n' >"$CR/usr/lib/os-release"
 printf '# /etc/fstab (CachyOS)\nUUID=%s  /      ext4  noatime  0 1\nUUID=%s  /boot  vfat  defaults,umask=0077  0 2\n' "$CACHY_UUID" "$CACHY_ESP_UUID" >"$CR/etc/fstab"
 for i in 1 2 3; do rand "$CR/home/anna/Documents/c$i.bin" 4000000; rand "$CR/home/anna/Images/i$i.png" 5000000; done
 (cd "$CR" && find . -type f -print0 | sort -z | xargs -0 sha256sum) >"$W/cachy-files.sha256"
