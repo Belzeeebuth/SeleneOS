@@ -51,7 +51,7 @@ done
 
 [[ $EUID -eq 0 ]] || die "run as root (mounts, chroot): sudo $0"
 for t in Xvfb mount umount losetup chroot setsid findmnt python3; do
-  command -v "$t" >/dev/null 2>&1 || die "$t is required (apt-get install xvfb util-linux python3)"
+  command -v "$t" >/dev/null 2>&1 || die "$t is required (Ubuntu: apt-get install xvfb util-linux python3; Arch / CachyOS: pacman -S xorg-server-xvfb util-linux python)"
 done
 [[ -n "$NODE" && -x "$NODE" ]] || die "node (22+) is required for the DevTools probe (set NODE_BIN)"
 "$NODE" -e 'if (typeof WebSocket !== "function") process.exit(1)' || die "node $("$NODE" --version) has no WebSocket (need node 22+)"
