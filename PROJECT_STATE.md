@@ -279,8 +279,10 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
    separately, then the 19 suites they touch run together: 19/19 green (code, code.unit and login-lock on retry —
    see Known issues).
 
-3. **ISO rebuild by the user** (`flock work/.build.lock iso/build.sh --from packages`: new package lists), then
-   make verify-iso and make smoke-image. The verify-iso checks for the new lists are in (2026-10-15, block « phase 5
+3. **ISO rebuild by the user** (`sudo make docker-iso BUILD_ARGS="--from packages"`: new package lists; the user's
+   CachyOS host has no debootstrap, so always through Docker; never wrap build.sh in an outer `flock work/.build.lock`
+   without AURORA_BUILD_LOCK_HELD=1, build.sh would refuse with « another build is running »), then make verify-iso
+   and make smoke-image. The verify-iso checks for the new lists are in (2026-10-15, block « phase 5
    + later items »): apps' shell files and icons (books, scan, logs, fonts, help, feeds, nettools, remote, disks,
    emoji panel, Loupe, Clavier visuel, media card); packages of books / emoji / fonts / scanner / disks / nettools /
    remote.list; scanimage + airscan backend enabled, libsane1 hwdb compiled into hwdb.bin + uaccess rule, saned.socket
