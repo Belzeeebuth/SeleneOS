@@ -57,6 +57,13 @@ DOCKER      ?= docker
 DOCKER_IMAGE ?= aurora-os-builder:24.04
 
 SUDO := $(if $(filter 0,$(shell id -u)),,sudo -E)
+# docker-iso mounts the git work tree that holds aurora-os/ (its .git is in a parent folder), so that git works in the
+# container: build id + SOURCE_DATE_EPOCH (iso/config.sh) and the Selene package versions (tools/build-debs.sh: commit
+# count). Found without git (make may run as root on a user's tree). Git there never writes: .git is mounted read-only
+# and GIT_OPTIONAL_LOCKS=0 keeps `git status` from refreshing the index.
+GIT_TOP := $(shell d='$(ROOT)'; while [ "$$d" != / ] && [ ! -d "$$d/.git" ]; do d=$$(dirname "$$d"); done; [ -d "$$d/.git" ] && echo "$$d")
+DOCKER_SRC := $(or $(GIT_TOP),$(ROOT))
+DOCKER_WD := /src$(patsubst $(DOCKER_SRC)%,%,$(ROOT))
 # Settings forwarded to iso/build.sh when given on the make command line or in the environment.
 BUILD_VARS := SNAPSHOT SNAPSHOT_STAMP STAMP MIRROR ARCHIVE_MIRROR WITH_FIRMWARE KERNEL_PACKAGE \
   INSTALL_RECOMMENDS ALLOW_MISSING_PACKAGES ISO_VERSION SQUASHFS_COMP SQUASHFS_LEVEL \
@@ -106,7 +113,8 @@ test-all:
 docker-iso:
 	$(DOCKER) build --network host -t $(DOCKER_IMAGE) -f $(ROOT)/iso/Dockerfile \
 	  $(foreach v,https_proxy HTTPS_PROXY http_proxy,$(if $($(v)),--build-arg $(v)='$($(v))')) $(ROOT)/iso
-	$(DOCKER) run --rm --privileged --network host -v /dev:/dev -v $(ROOT):/src -w /src \
+	$(DOCKER) run --rm --privileged --network host -v /dev:/dev -v $(DOCKER_SRC):/src -w $(DOCKER_WD) \
+	  $(if $(GIT_TOP),-v $(GIT_TOP)/.git:/src/.git:ro -e GIT_OPTIONAL_LOCKS=0) \
 	  -e AURORA_OUT_OWNER=$$(id -u):$$(id -g) \
 	  $(foreach v,https_proxy HTTPS_PROXY http_proxy,$(if $($(v)),-e $(v)='$($(v))')) \
 	  $(DOCKER_IMAGE) env $(BUILD_ENV) ./iso/build.sh $(BUILD_ARGS)

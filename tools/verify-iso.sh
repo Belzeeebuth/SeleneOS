@@ -343,7 +343,8 @@ grep -q '^ENABLED=yes' "$S/etc/ufw/ufw.conf" && pass "ufw: ENABLED=yes" || fail 
 grep -q '^DEFAULT_INPUT_POLICY="DROP"' "$S/etc/default/ufw" && pass "ufw: incoming DROP by default" || fail "ufw default input policy"
 pn="$(sed -n 's/^PRETTY_NAME=//p' "$S/usr/lib/os-release")"
 [[ "$pn" == '"Selene OS '* ]] && pass "os-release PRETTY_NAME=$pn, $(grep -E '^(ID|ID_LIKE|VERSION_CODENAME)=' "$S/usr/lib/os-release" | tr '\n' ' ')" || fail "os-release PRETTY_NAME=$pn"
-pass "build id: $(cat "$S/etc/aurora/build-id")"
+bid="$(cat "$S/etc/aurora/build-id")"
+[[ "$bid" != *-unknown* ]] && pass "build id: $bid" || warn "build id $bid has no git commit (built outside git: Selene packages get version -0)"
 for u in greetd NetworkManager systemd-resolved ufw apparmor aurora-apparmor; do
   st="$(systemctl --root="$S" is-enabled "$u.service" 2>/dev/null || true)"
   [[ "$st" == enabled ]] && pass "systemctl --root: $u.service is $st" || fail "systemctl --root: $u.service is '$st'"

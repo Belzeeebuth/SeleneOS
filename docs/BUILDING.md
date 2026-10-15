@@ -111,7 +111,9 @@ make docker-iso
 This builds the `aurora-os-builder:24.04` image from `iso/Dockerfile` (Ubuntu 24.04 + build
 tools + Node.js 22, checked against the official SHASUMS) and runs `iso/build.sh` in a
 **privileged** container (mounts and chroot need it) with the repository mounted at `/src` and
-host networking (so a proxy on `localhost` works). Results land in `out/`, owned by you.
+host networking (so a proxy on `localhost` works). When aurora-os/ sits inside a larger git work tree, that whole
+tree is mounted (its `.git` read-only), so the build id, the build date and the Selene package versions come from
+git as in a native build. Results land in `out/`, owned by you.
 The repository must be on a local Linux file system (ext4, xfs, btrfs) that supports overlay
 mounts. The same build settings can be passed, e.g. `make docker-iso SNAPSHOT=0`.
 
@@ -540,7 +542,9 @@ make docker-iso
 
 Construit l'image `aurora-os-builder:24.04` (`iso/Dockerfile` : Ubuntu 24.04, outils, Node.js 22
 vérifié) puis lance `iso/build.sh` dans un conteneur **privilégié** (nécessaire pour les
-montages et le chroot), dépôt monté sur `/src`, réseau de l'hôte. Le dépôt doit se trouver sur un
+montages et le chroot), dépôt monté sur `/src` (tout le dépôt git qui contient aurora-os/, `.git` en
+lecture seule : identifiant de build, date et versions des paquets Selene viennent de git), réseau de l'hôte. Le
+dépôt doit se trouver sur un
 système de fichiers Linux local (ext4, xfs, btrfs). Les mêmes réglages s'appliquent
 (`make docker-iso SNAPSHOT=0`).
 
