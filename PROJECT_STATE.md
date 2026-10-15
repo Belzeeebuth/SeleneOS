@@ -4,7 +4,7 @@
 > project: everything below already exists on branch `claude/focused-lamport-ogvj6v`.
 > Keep this file updated after every milestone.
 
-_Last updated: 2026-10-15 — verify-iso checks added for the phase 5 / « later » packages and files (block « phase 5 + later items », tested on a root assembled from the 10-13 package layer + the noble .debs: 0 failures once installed, the expected failures without them); next: ISO rebuild by the user. 2026-10-14 night: full sweep on the user's PC, 82/85 (the 3 others host-only). 2026-10-14 evening — the six « later » items stopped half-way were finished and tested (Éditeur de code search / split / diff, Disques SMART, Outils réseau OpenVPN / traceroute / ports / speed test, Cartes routes, Bureau à distance RDP + VNC clipboard / encodings, Lecteur MPRIS + media keys); the 19 suites they touch passed together (17 min). Tests now run with --mute-audio. Earlier the same day: app phase 5, Mémos / Traducteur removed, docs reviewed, dual boot validated in QEMU/KVM. Previous ISO: 2026-10-13 18:00 (verify-iso 292 checks, 0 failures)._
+_Last updated: 2026-10-15 afternoon — new ISO built by the user (`sudo make docker-iso BUILD_ARGS="--from packages"`, 14:14 UTC, 1459376128 bytes, sha256 43e4abcd…, out/selene-os-1.0.0-amd64.iso): make verify-iso 0 failures (with the new « phase 5 + later items » block), make smoke-image all checks passed (shell ready in 4 s, greeter in 1 s, no fatal message, no renderer exception). verify-iso / smoke-image now work on the CachyOS host (sbin PATH, the image's own dpkg). Next: real-world checks in QEMU / on the PC. 2026-10-14 night: full sweep on the user's PC, 82/85 (the 3 others host-only). 2026-10-14 evening — the six « later » items stopped half-way were finished and tested (Éditeur de code search / split / diff, Disques SMART, Outils réseau OpenVPN / traceroute / ports / speed test, Cartes routes, Bureau à distance RDP + VNC clipboard / encodings, Lecteur MPRIS + media keys); the 19 suites they touch passed together (17 min). Tests now run with --mute-audio. Earlier the same day: app phase 5, Mémos / Traducteur removed, docs reviewed, dual boot validated in QEMU/KVM. Previous ISO: 2026-10-13 18:00 (verify-iso 292 checks, 0 failures)._
 
 ## What this is
 
@@ -284,18 +284,21 @@ cd shell && xvfb-run -a -s "-screen 0 1600x900x24" node test/<area>.test.mjs
    separately, then the 19 suites they touch run together: 19/19 green (code, code.unit and login-lock on retry —
    see Known issues).
 
-3. **ISO rebuild by the user** (`sudo make docker-iso BUILD_ARGS="--from packages"`: new package lists; the user's
-   CachyOS host has no debootstrap, so always through Docker; never wrap build.sh in an outer `flock work/.build.lock`
-   without AURORA_BUILD_LOCK_HELD=1, build.sh would refuse with « another build is running »), then make verify-iso
-   and make smoke-image. The verify-iso checks for the new lists are in (2026-10-15, block « phase 5
-   + later items »): apps' shell files and icons (books, scan, logs, fonts, help, feeds, nettools, remote, disks,
-   emoji panel, Loupe, Clavier visuel, media card); packages of books / emoji / fonts / scanner / disks / nettools /
-   remote.list; scanimage + airscan backend enabled, libsane1 hwdb compiled into hwdb.bin + uaccess rule, saned.socket
-   NOT enabled; smartmontools >= 7 (smartctl -j), aurora-admin smart-info, every polkit action 50-aurora.rules names
-   exists (udisks2 ata / nvme self-tests included), smartd enabled (warn only); nm-openvpn plug-in files + its
-   nm-openvpn user, tracepath, ss, nmcli; freerdp3-x11 3.x from dpkg's status (xfreerdp3 itself is not run: an X11
-   client in a chroot without a display) + /args-from in libfreerdp-client3; persistent journal + administrators in adm; MPRIS name
-   in aurora-sessionbus, media keysyms grabbed by aurora-xwm. Paths were taken from the noble .debs, not guessed.
+3. **ISO rebuilt and validated (2026-10-15, by the user):** `sudo make docker-iso BUILD_ARGS="--from packages"` (the
+   user's CachyOS host has no debootstrap, so always through Docker; never wrap build.sh in an outer
+   `flock work/.build.lock` without AURORA_BUILD_LOCK_HELD=1, build.sh would refuse with « another build is running »),
+   make verify-iso 0 failures, make smoke-image all checks passed. The verify-iso block « phase 5 + later items » checks:
+   apps' shell files and icons (books, scan, logs, fonts, help, feeds, nettools, remote, disks, emoji panel, Loupe,
+   Clavier visuel, media card); packages of books / emoji / fonts / scanner / disks / nettools / remote.list; scanimage
+   + airscan backend enabled, libsane1 hwdb compiled into hwdb.bin + uaccess rule, saned.socket NOT enabled;
+   smartmontools >= 7 (smartctl -j), aurora-admin smart-info, every polkit action 50-aurora.rules names exists (udisks2
+   ata / nvme self-tests included), smartd enabled (warn only); nm-openvpn plug-in files + its nm-openvpn user,
+   tracepath, ss, nmcli; freerdp3-x11 3.x from dpkg's status (xfreerdp3 itself is not run: an X11 client in a chroot
+   without a display) + /args-from in libfreerdp-client3; persistent journal + administrators in adm; MPRIS name in
+   aurora-sessionbus, media keysyms grabbed by aurora-xwm. Paths were taken from the noble .debs, not guessed.
+   **Open (offered to the user):** Docker builds get build id `1.0.0-<date>-unknown` and aurora-shell `1.0.0-0`: docker-iso
+   mounts only aurora-os/ while .git is in its parent, so build-debs.sh's `git rev-list --count` fails. Harmless until
+   the Selene apt repository is published; then every Docker-built shell would carry the same version (no upgrade seen).
 
 4. **Real-world checks** of the « later » items in the VM / on the user's PC (list under Known issues).
 
