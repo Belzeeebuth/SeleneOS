@@ -46,6 +46,29 @@ example a `gh-pages` branch), or upload it with the `actions/upload-pages-artifa
 `out/apt/.nojekyll` keeps Pages from processing the files. GitHub refuses files over 100 MB: `aurora-electron` is
 ~86 MB (xz); watch it when Electron grows (another host, or Git LFS is not an option for Pages).
 
+## Publishing from a CachyOS / Arch host (the usual way)
+
+The host needs only Docker, git and gpgv (gnupg); dpkg, Node and the signing all run in the build container, with the
+key in `keys/` that the installed systems already trust.
+
+One time: create the **public** repository `<user>.github.io` on GitHub (for SELENE_APT_URL
+`https://belzeeebuth.github.io/claudeai-test/apt/`: `Belzeeebuth/belzeeebuth.github.io`, initialised with a README),
+and in its Settings > Pages choose « Deploy from a branch », the default branch, folder `/ (root)`. The main repository
+stays private: only the packages are public.
+
+Each update:
+
+```
+git pull
+sudo make docker-repo        # aurora-electron / aurora-shell / aurora-base .debs + signed out/apt (a few minutes)
+make publish-updates         # as yourself: copies out/apt to <user>.github.io/claudeai-test/apt and pushes
+```
+
+`tools/publish-updates.sh` refuses to run as root, checks that InRelease is signed by `iso/keys/selene-archive-keyring.gpg`
+and that no file is over 100 MB, clones the Pages repository into `~/.cache/selene-pages` once, and pushes one commit
+per publication. On Selene: Paramètres > Mises à jour > « Rechercher des mises à jour » (the first time, this also turns
+the Selene source on, see below), then « Tout installer » and « Redémarrer la session ».
+
 ## Before the repository is published
 
 The image build checks `SELENE_APT_URL` for `dists/noble/InRelease`. While nothing answers there, `selene.sources`

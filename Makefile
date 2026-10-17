@@ -73,7 +73,7 @@ QEMU_ENV := MEM='$(MEM)' CPUS='$(CPUS)' DISK='$(DISK)' DISK_SIZE='$(DISK_SIZE)' 
 QEMU_FLAGS := $(if $(filter 1,$(HEADLESS)),--headless) $(if $(filter 1,$(DRY_RUN)),--dry-run)
 QEMU_RUN := $(QEMU_ENV) $(ROOT)/tools/qemu-run.sh
 
-.PHONY: help iso run run-uefi run-disk run-disk-uefi verify-iso smoke-image shell-deps test test-all docker-iso clean clean-vm distclean
+.PHONY: docker-repo publish-updates help iso run run-uefi run-disk run-disk-uefi verify-iso smoke-image shell-deps test test-all docker-iso clean clean-vm distclean
 
 help:
 	@sed -n '1,/^$$/p' $(firstword $(MAKEFILE_LIST)) | sed 's/^# \{0,1\}//'
@@ -118,6 +118,22 @@ docker-iso:
 	  -e AURORA_OUT_OWNER=$$(id -u):$$(id -g) \
 	  $(foreach v,https_proxy HTTPS_PROXY http_proxy,$(if $($(v)),-e $(v)='$($(v))')) \
 	  $(DOCKER_IMAGE) env $(BUILD_ENV) ./iso/build.sh $(BUILD_ARGS)
+
+# Selene updates (docs/UPDATES.md): the Selene packages and the signed apt repository are built in the build container
+# (no dpkg / Node needed on the host; the key in keys/ is the one the images were built with), then out/apt/ is
+# published on GitHub Pages from the host with your own git credentials.
+docker-repo:
+	$(DOCKER) build --network host -t $(DOCKER_IMAGE) -f $(ROOT)/iso/Dockerfile \
+	  $(foreach v,https_proxy HTTPS_PROXY http_proxy,$(if $($(v)),--build-arg $(v)='$($(v))')) $(ROOT)/iso
+	$(DOCKER) run --rm --network host -v $(DOCKER_SRC):/src -w $(DOCKER_WD) \
+	  $(if $(GIT_TOP),-v $(GIT_TOP)/.git:/src/.git:ro -e GIT_OPTIONAL_LOCKS=0) \
+	  -e OWNER="$${SUDO_UID:-$$(id -u)}:$${SUDO_GID:-$$(id -g)}" \
+	  $(foreach v,https_proxy HTTPS_PROXY http_proxy,$(if $($(v)),-e $(v)='$($(v))')) \
+	  $(DOCKER_IMAGE) bash -c 'set -e; PATH=/opt/node22/bin:$$PATH ./tools/build-debs.sh --out out/debs; \
+	    ./tools/build-repo.sh --debs out/debs --out out/apt; chown -R "$$OWNER" out/debs out/apt iso/keys'
+
+publish-updates:
+	$(ROOT)/tools/publish-updates.sh
 
 clean:
 	@if [ -d $(ROOT)/work ]; then \
