@@ -574,6 +574,9 @@ function register(api) {
     }
   }
   function match(q = {}) {
+    // 0. a window the shell opened itself (the Navigateur's sign-in pop-ups, main/lib/own-windows.js)
+    const own = require('../lib/own-windows.js').appFor(q.id);
+    if (own) return own;
     const { list, byId } = get();
     const wm = Array.isArray(q.wmClass) ? q.wmClass.filter((s) => typeof s === 'string' && s) : [];
     const lc = wm.map((s) => s.toLowerCase());

@@ -59,10 +59,11 @@ function createIpc({ env, getMainWindow, RENDERER, ROOT, DEV }) {
       if (!listeners.has(channel)) listeners.set(channel, new Set());
       listeners.get(channel).add(fn);
     },
-    // Send an event to every shell/greeter window (not to webviews).
+    // Send an event to every shell/greeter window (not to webviews, nor to the web pages the shell shows in windows of
+    // their own: the Navigateur's sign-in pop-ups, marked __auroraWebPage by main/ipc/browser.js).
     broadcast(channel, payload) {
       for (const w of BrowserWindow.getAllWindows()) {
-        if (!w.isDestroyed()) w.webContents.send('aurora:event', channel, payload);
+        if (!w.isDestroyed() && !w.webContents.__auroraWebPage) w.webContents.send('aurora:event', channel, payload);
       }
     },
     // Send to one specific renderer (e.g. the one that started a stream).

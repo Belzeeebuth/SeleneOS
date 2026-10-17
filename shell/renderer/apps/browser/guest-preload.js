@@ -40,6 +40,62 @@ try {
   });
 } catch {}
 
+// window.chrome as in Google Chrome on a web page (chrome.app, chrome.csi, chrome.loadTimes): Electron leaves it empty,
+// one of the signs sign-in pages use to spot an embedded browser. Only what is missing is added.
+try {
+  contextBridge.executeInMainWorld({
+    func: () => {
+      const c = window.chrome && typeof window.chrome === 'object' ? window.chrome : {};
+      if (!window.chrome) Object.defineProperty(window, 'chrome', { value: c, writable: true, configurable: true, enumerable: true });
+      const define = (name, value) => {
+        if (!(name in c)) Object.defineProperty(c, name, { value, writable: true, configurable: true, enumerable: true });
+      };
+      const perf = () => (window.performance && performance.timing) || {};
+      const nav = () => (window.performance && performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
+      define('app', {
+        isInstalled: false,
+        InstallState: { DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' },
+        RunningState: { CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' },
+        getDetails: function getDetails() {
+          return null;
+        },
+        getIsInstalled: function getIsInstalled() {
+          return false;
+        },
+        runningState: function runningState() {
+          return 'cannot_run';
+        },
+      });
+      define('csi', function csi() {
+        const t = perf();
+        return { onloadT: t.domContentLoadedEventEnd || Date.now(), pageT: performance.now(), startE: t.navigationStart || Date.now(), tran: 15 };
+      });
+      define('loadTimes', function loadTimes() {
+        const t = perf();
+        const n = nav();
+        const s = (v) => (v || 0) / 1000;
+        const proto = n.nextHopProtocol || 'http/1.1';
+        return {
+          commitLoadTime: s(t.responseStart),
+          connectionInfo: proto,
+          finishDocumentLoadTime: s(t.domContentLoadedEventEnd),
+          finishLoadTime: s(t.loadEventEnd),
+          firstPaintAfterLoadTime: 0,
+          firstPaintTime: s(t.responseEnd),
+          navigationType: 'Other',
+          npnNegotiatedProtocol: proto === 'h2' || proto === 'h3' ? proto : 'unknown',
+          requestTime: s(t.navigationStart),
+          startLoadTime: s(t.navigationStart),
+          wasAlternateProtocolAvailable: false,
+          wasFetchedViaSpdy: proto === 'h2' || proto === 'h3',
+          wasNpnNegotiated: proto === 'h2' || proto === 'h3',
+        };
+      });
+    },
+    args: [],
+  });
+} catch {}
+
 // Screen sharing indicator (main/ipc/browser.js): tells the browser when the tracks this frame got from
 // getDisplayMedia have all ended (the page stopped sharing), and ends them on « Arrêter le partage » (with an
 // 'ended' event, like Chrome's « Arrêter le partage »). The page cannot reach these functions; the originals

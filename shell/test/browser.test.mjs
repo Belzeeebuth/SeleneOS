@@ -657,12 +657,20 @@ console.log(`Local test server: ${srv.url}`);
     await waitFor('!bw.active.web.error && bw.active.web.title === "Aurora Test Page"', { msg: 'back from error page' });
   });
 
-  await test('pop-up with window features opens a new browser window', async () => {
+  await test('pop-up with window features opens a real pop-up window (keeps window.opener; test/browser-signin.test.mjs)', async () => {
+    const tabs = await run('bw.tabs.length');
     await pageJs("document.getElementById('pop').click()");
-    await waitFor('window.__aurora.wm.byApp("browser").length === 2 && window.__aurora.registry.instance(window.__aurora.wm.byApp("browser")[1].id)?.hooks?.ctl?.active', { msg: 'second window' });
-    await waitFor('bw.active.web.title === "Second Page"', { i: 1, msg: 'popup content' });
-    await run('bw.win.close()', 1);
-    await waitFor('window.__aurora.wm.byApp("browser").length === 1');
+    const popupUrl = () =>
+      s.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && !w.webContents.getURL().startsWith('app://')).map((w) => `${w.webContents.getURL()} ${w.webContents.getTitle()}`)[0] || '');
+    const t0 = Date.now();
+    let u = '';
+    while (Date.now() - t0 < 8000 && !/from=popup Second Page$/.test(u)) {
+      u = await popupUrl();
+      await s.page.waitForTimeout(100);
+    }
+    assert(/\/page2\?from=popup Second Page$/.test(u), `pop-up window content (${u})`);
+    assert((await run('bw.tabs.length')) === tabs && (await run('window.__aurora.wm.byApp("browser").length')) === 1, 'no new tab or Selene window');
+    await s.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((w) => !w.webContents.getURL().startsWith('app://')).forEach((w) => w.close()));
   });
 
   await test('toolbar: Stop while loading, Refresh, Home; Ctrl+L from the page selects the address', async () => {

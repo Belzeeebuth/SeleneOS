@@ -3,11 +3,17 @@
 //
 // Guest hooks (only for <webview>s whose session is a browser partition: persist:browser or
 // an in-memory browser-private-<n> partition prepared with browser:initPartition):
-//   setWindowOpenHandler  -> always deny, broadcast 'browser:open' {url, disposition, features, sourceId}
+//   setWindowOpenHandler  -> pop-ups with window features (window.open(url, name, 'width=…'): sign-in with Google /
+//                            Microsoft / Apple…) become a real window (BrowserWindow) in the same session that keeps
+//                            window.opener / postMessage and closes on window.close(); aurora-xwm frames it as a
+//                            Navigateur window (main/lib/own-windows.js). Everything else: deny + broadcast
+//                            'browser:open' {url, disposition, features, sourceId} (tabs). Events of a pop-up are
+//                            reported with its opener tab's id as sourceId (dialogs, permissions, downloads).
 //   context-menu          -> broadcast 'browser:context-menu' {sourceId, params}
 //   before-input-event    -> browser shortcuts: broadcast 'browser:shortcut' {sourceId, combo} (+ preventDefault)
 //   zoom-changed          -> 'browser:shortcut' {combo: 'ZoomIn' | 'ZoomOut'} (Ctrl+wheel)
-// Sessions: Chrome-like user agent (no "Electron/x" token), Accept-Language, downloads into
+// Sessions: the identity of a stable Google Chrome on Linux (main/lib/chrome-identity.js: user agent, Sec-CH-UA*
+// request headers, navigator.userAgentData through the DevTools protocol), Accept-Language, downloads into
 // ~/Downloads ('browser:download' events), permission prompts ('browser:permission'), HTTP auth
 // ('browser:auth'), Do Not Track header, optional third-party cookie blocking.
 //
@@ -28,6 +34,8 @@
 //   browser:jsDialogReply(id, { ok, value, suppress })  answers 'browser:js-dialog' {id, sourceId, kind, message, def, origin, offerSuppress}
 //   browser:displayMediaReply(id, sourceId|null) / browser:stopShare(sourceId) / browser:activeShares()  (screen sharing)
 const { app, session, webContents } = require('electron');
+const identity = require('../lib/chrome-identity.js');
+const ownWindows = require('../lib/own-windows.js');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -117,16 +125,12 @@ function xdgDownloads() {
   return dir;
 }
 
-function cleanUserAgent(ua) {
-  const chrome = /Chrome\/(\d+)/.exec(ua)?.[1] || process.versions.chrome.split('.')[0];
-  const platform = /\(([^)]*)\)/.exec(ua)?.[1] || 'X11; Linux x86_64';
-  // The same reduced user agent string Chrome sends: no Electron or app tokens.
-  return `Mozilla/5.0 (${platform}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chrome}.0.0.0 Safari/537.36`;
-}
-
-function acceptLanguages(lang) {
-  return lang === 'fr' ? 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7' : 'en-US,en;q=0.9';
-}
+// Accept-Language: Electron computes the q-values itself (a list with q-values came out as « fr;q=0.9;q=0.9 »).
+const acceptLanguages = identity.acceptLanguages;
+// Pop-up size limits (window features are the page's wish; Chrome clamps them to the screen too).
+const POPUP_MIN = { width: 360, height: 300 };
+const POPUP_MAX = { width: 1400, height: 1000 };
+const MAX_POPUPS = 3;
 
 module.exports = function register(api) {
   const sessions = new Map(); // partition -> Session
@@ -172,7 +176,8 @@ module.exports = function register(api) {
     const ses = session.fromPartition(partition);
     sessions.set(partition, ses);
     partitionOf.set(ses, partition);
-    ses.setUserAgent(cleanUserAgent(ses.getUserAgent()), acceptLanguages(prefs.lang));
+    // The same reduced user agent string Chrome sends: no Electron or app tokens.
+    ses.setUserAgent(identity.userAgent(), acceptLanguages(prefs.lang));
     // Spell check with the local dictionaries only (main/ipc/spell.js): nothing is fetched from Google servers.
     try {
       require('./spell.js').prepare(ses, api.env.lang);
@@ -199,13 +204,38 @@ module.exports = function register(api) {
     return ses;
   }
 
+  // Client hints a site asked for with Accept-CH, per session and origin (Chrome remembers them the same way).
+  const askedHints = new WeakMap(); // Session -> Map(origin -> Set(hint))
+  const criticalRetries = new Map(); // url -> time of the Critical-CH retry (one retry per URL, like Chrome)
+  function hintsFor(ses, url) {
+    const map = askedHints.get(ses);
+    return (map && map.get(originOf(url))) || new Set();
+  }
+  function rememberHints(ses, details) {
+    if (details.resourceType !== 'mainFrame' && details.resourceType !== 'subFrame') return false;
+    const hdr = (name) => Object.entries(details.responseHeaders || {}).filter(([k]) => k.toLowerCase() === name).flatMap(([, v]) => v);
+    const accept = hdr('accept-ch');
+    if (!accept.length) return false;
+    const origin = originOf(details.url);
+    if (!origin || !identity.isSecureUrl(details.url)) return false;
+    if (!askedHints.has(ses)) askedHints.set(ses, new Map());
+    const map = askedHints.get(ses);
+    const before = map.get(origin) || new Set();
+    const now = identity.parseHintList(accept);
+    map.set(origin, now);
+    if (map.size > 500) map.delete(map.keys().next().value);
+    // Critical-CH: the page needs a hint it did not get: Chrome retries the request once with it.
+    const critical = [...identity.parseHintList(hdr('critical-ch'))].filter((h) => now.has(h) && !before.has(h) && identity.HIGH.includes(h));
+    if (!critical.length || details.method !== 'GET' || details.resourceType !== 'mainFrame') return false;
+    const last = criticalRetries.get(details.url);
+    if (last && Date.now() - last < 10000) return false;
+    criticalRetries.set(details.url, Date.now());
+    if (criticalRetries.size > 200) criticalRetries.delete(criticalRetries.keys().next().value);
+    return true;
+  }
+
   function applyWebRequest(ses) {
-    const filter = { urls: ['http://*/*', 'https://*/*'] };
-    if (!prefs.dnt && !prefs.block3p) {
-      ses.webRequest.onBeforeSendHeaders(null);
-      ses.webRequest.onHeadersReceived(null);
-      return;
-    }
+    const filter = { urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] };
     const thirdParty = (details) => {
       if (!prefs.block3p || details.resourceType === 'mainFrame') return false;
       let top = '';
@@ -217,7 +247,8 @@ module.exports = function register(api) {
       return !!a && !!b && a !== b;
     };
     ses.webRequest.onBeforeSendHeaders(filter, (details, cb) => {
-      const headers = { ...details.requestHeaders };
+      // Chrome's Sec-CH-UA* hints (Electron sends none): low-entropy ones always, the others when the site asked.
+      const headers = identity.withHints(details.requestHeaders, details.url, hintsFor(ses, details.url));
       if (prefs.dnt) headers.DNT = '1';
       if (thirdParty(details)) {
         delete headers.Cookie;
@@ -226,6 +257,8 @@ module.exports = function register(api) {
       cb({ requestHeaders: headers });
     });
     ses.webRequest.onHeadersReceived(filter, (details, cb) => {
+      // Critical-CH retry: answered as a redirect to the same address (webRequest cannot restart a request).
+      if (rememberHints(ses, details)) return cb({ statusLine: 'HTTP/1.1 307 Internal Redirect', responseHeaders: { Location: [details.url], 'Non-Authoritative-Reason': ['Critical-CH'] } });
       if (!thirdParty(details)) return cb({});
       const headers = {};
       for (const [k, v] of Object.entries(details.responseHeaders || {})) if (k.toLowerCase() !== 'set-cookie') headers[k] = v;
@@ -237,37 +270,177 @@ module.exports = function register(api) {
 
   // ------------------------------------------------------------------ guests
   app.on('web-contents-created', (_e, wc) => {
-    if (wc.getType() !== 'webview') return;
     const partition = partitionOf.get(wc.session);
     if (!partition) return; // mail bodies and other webviews are not ours
-    hookGuest(wc, partition);
+    const type = wc.getType();
+    if (type === 'webview') {
+      applyIdentity(wc);
+      hookGuest(wc, partition);
+    } else if (type === 'window') {
+      // A sign-in pop-up a tab opened (allowed by the window open handler): Chrome's identity before it loads
+      // anything; the rest is set up in onPopupCreated. A web page: shell events are never sent to it (main/lib/ipc.js).
+      wc.__auroraWebPage = true;
+      applyIdentity(wc);
+    }
   });
 
-  const popupTimes = new Map(); // wc.id -> [timestamps]
+  // ------------------------------------------------------------------ Chrome identity in pages
+  // navigator.userAgentData (brands with « Google Chrome », getHighEntropyValues), navigator.platform and
+  // navigator.languages as in Chrome, set through the DevTools protocol so frames and workers get them natively
+  // (no page-visible script). Out-of-process frames and workers are attached as they start (paused until they
+  // have the override, then released).
+  const identityFailures = new Set();
+  function overrideParams() {
+    return { userAgent: identity.userAgent(), acceptLanguage: acceptLanguages(prefs.lang), platform: identity.navigatorPlatform(), userAgentMetadata: identity.metadata() };
+  }
+  function applyIdentity(wc) {
+    if (process.env.AURORA_BROWSER_NO_CDP === '1') return;
+    const dbg = wc.debugger;
+    const send = (method, params, sessionId) => {
+      try {
+        return dbg.sendCommand(method, params || {}, sessionId).catch(() => null);
+      } catch {
+        return Promise.resolve(null);
+      }
+    };
+    try {
+      if (!dbg.isAttached()) dbg.attach('1.3');
+    } catch (err) {
+      if (!identityFailures.has(String(err?.message))) console.warn('[browser] identity override unavailable', err?.message || err);
+      identityFailures.add(String(err?.message));
+      return;
+    }
+    if (!wc.__auroraIdentity) {
+      wc.__auroraIdentity = true;
+      dbg.on('message', (_ev, method, params, sessionId) => {
+        if (method !== 'Target.attachedToTarget' || !params?.sessionId) return;
+        const sid = params.sessionId;
+        const type = params.targetInfo?.type || '';
+        const steps = [];
+        if (type === 'iframe' || type === 'page') {
+          steps.push(send('Emulation.setUserAgentOverride', overrideParams(), sid));
+          steps.push(send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }, sid));
+        } else if (/worker/.test(type)) steps.push(send('Network.setUserAgentOverride', overrideParams(), sid));
+        Promise.all(steps).finally(() => send('Runtime.runIfWaitingForDebugger', {}, sid));
+      });
+    }
+    send('Emulation.setUserAgentOverride', overrideParams());
+    send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
+  }
+  function refreshIdentity() {
+    for (const wc of webContents.getAllWebContents()) {
+      if (wc.isDestroyed() || !partitionOf.has(wc.session) || !wc.__auroraIdentity) continue;
+      try {
+        if (wc.debugger.isAttached()) wc.debugger.sendCommand('Emulation.setUserAgentOverride', overrideParams()).catch(() => {});
+      } catch {}
+    }
+  }
 
-  function hookGuest(wc, partition) {
+  const popupTimes = new Map(); // wc.id -> [timestamps]
+  // Pop-up windows: popup wc.id -> the id of the tab (webview) that opened it, directly or through other pop-ups.
+  const popupRoute = new Map();
+  const routeOf = (id) => popupRoute.get(id) ?? id;
+
+  /** window.open with window features (a sign-in pop-up): a real window, not a tab. */
+  function isPopupRequest(url, disposition, features) {
+    if (disposition !== 'new-window') return false;
+    if (!/\b(width|height|left|top|popup)\b/i.test(features || '')) return false;
+    return url === '' || /^(https?:|about:blank)/i.test(url);
+  }
+  function popupOptions(features) {
+    const num = (k) => {
+      const m = new RegExp(`(?:^|[,\\s])${k}\\s*=\\s*(\\d+)`, 'i').exec(features || '');
+      return m ? Number(m[1]) : null;
+    };
+    const clamp = (v, lo, hi, def) => Math.max(lo, Math.min(hi, v || def));
+    return {
+      width: clamp(num('width'), POPUP_MIN.width, POPUP_MAX.width, 500),
+      height: clamp(num('height'), POPUP_MIN.height, POPUP_MAX.height, 600),
+      minWidth: POPUP_MIN.width,
+      minHeight: POPUP_MIN.height,
+      // left / top from the page are ignored: centred on the screen (pages compute them from the tab's own
+      // window.screenX, which inside the shell is not where the tab is); the shell places the frame.
+      x: undefined,
+      y: undefined,
+      center: true,
+      useContentSize: true,
+      show: true,
+      frame: true, // aurora-xwm: the shell draws the frame (title bar, close button)
+      autoHideMenuBar: true,
+      backgroundColor: '#ffffff',
+      title: '',
+      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, webviewTag: false, spellcheck: true, nodeIntegrationInSubFrames: false },
+    };
+  }
+  function popupTitle(url, title) {
+    const host = hostOf(url) || (/^about:/i.test(url) ? '' : String(url || '').slice(0, 60));
+    const t = String(title || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    if (!host) return t || ' ';
+    // While loading, the title is the address itself (« localhost:8080/authorize?… »): the site name alone then.
+    const bare = String(url || '').replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+    return t && t !== url && t !== bare ? `${host} — ${t}` : host;
+  }
+  function onPopupCreated(win, openerId, partition) {
+    const wc = win.webContents;
+    popupRoute.set(wc.id, routeOf(openerId));
+    try {
+      win.removeMenu();
+    } catch {}
+    ownWindows.register(win, 'browser');
+    // The frame title always starts with the real site (pages cannot pretend to be another one).
+    const setTitle = () => {
+      if (!win.isDestroyed()) win.setTitle(popupTitle(wc.getURL(), wc.getTitle()));
+    };
+    win.on('page-title-updated', (ev) => {
+      ev.preventDefault();
+      setTitle();
+    });
+    wc.on('did-navigate', setTitle);
+    wc.on('did-navigate-in-page', setTitle);
+    setTitle();
+    hookGuest(wc, partition, { popup: win });
+    wc.once('destroyed', () => popupRoute.delete(wc.id));
+    api.broadcast('browser:popup-window', { sourceId: routeOf(openerId), popupId: wc.id, url: wc.getURL() });
+  }
+
+  function hookGuest(wc, partition, { popup = null } = {}) {
     const id = wc.id;
+    // A pop-up this page (tab or pop-up) opened: see onPopupCreated.
+    wc.on('did-create-window', (win) => {
+      try {
+        onPopupCreated(win, id, partition);
+      } catch (err) {
+        console.error('[browser] pop-up window setup failed', err);
+      }
+    });
+    const src = () => routeOf(id);
     wc.setWindowOpenHandler(({ url, disposition, features, frameName }) => {
       // Simple pop-up flood protection: at most 3 new tabs per second from one page.
       const now = Date.now();
       const times = (popupTimes.get(id) || []).filter((t) => now - t < 1000);
       if (times.length >= 3) {
-        if (/^(https?|ftp):/i.test(url)) api.broadcast('browser:popup-blocked', { sourceId: id, url });
+        if (/^(https?|ftp):/i.test(url)) api.broadcast('browser:popup-blocked', { sourceId: src(), url });
         return { action: 'deny' };
       }
       times.push(now);
       popupTimes.set(id, times);
       if (/^(mailto|tel|sms|callto|magnet|webcal|xmpp|sip|irc|ircs):/i.test(url)) {
-        api.broadcast('browser:external', { sourceId: id, url });
+        api.broadcast('browser:external', { sourceId: src(), url });
         return { action: 'deny' };
       }
       if (!/^(https?|ftp|data|about|view-source):/i.test(url) && url !== '') return { action: 'deny' };
       // Like Chrome, pages may not open data: documents (phishing vector); plain images are fine.
       if (/^data:/i.test(url) && !SAFE_DATA.test(url)) return { action: 'deny' };
-      api.broadcast('browser:open', { url: url || 'about:blank', disposition, features: features || '', frameName: frameName || '', sourceId: id, partition });
+      // Sign-in pop-ups (window features): a real window that keeps window.opener, in this tab's session.
+      // At most MAX_POPUPS such windows open at once per tab (a page cannot cover the screen with windows): the rest
+      // open as tabs, as before.
+      const openPopups = [...popupRoute.values()].filter((t) => t === src()).length;
+      if (isPopupRequest(url, disposition, features) && openPopups < MAX_POPUPS) return { action: 'allow', outlivesOpener: false, overrideBrowserWindowOptions: popupOptions(features) };
+      api.broadcast('browser:open', { url: url || 'about:blank', disposition, features: features || '', frameName: frameName || '', sourceId: src(), partition });
       return { action: 'deny' };
     });
     wc.on('context-menu', (_ev, p) => {
+      if (popup) return; // the tab's menu would show at the pop-up's coordinates in the tab
       api.broadcast('browser:context-menu', {
         sourceId: id,
         params: {
@@ -294,6 +467,17 @@ module.exports = function register(api) {
       if (input.type !== 'keyDown') return;
       const combo = comboOf(input);
       if (!combo) return;
+      if (popup) {
+        // A pop-up window has no tabs: close / reload / zoom only, the rest goes to the page.
+        if (combo === 'Ctrl+W' || combo === 'Ctrl+F4') {
+          event.preventDefault();
+          if (!popup.isDestroyed()) popup.close();
+        } else if (combo === 'F5' || combo === 'Ctrl+R') {
+          event.preventDefault();
+          wc.reload();
+        }
+        return;
+      }
       if (COMBOS.has(combo) || (api.DEV && DEV_COMBOS.has(combo))) {
         event.preventDefault();
         api.broadcast('browser:shortcut', { sourceId: id, combo, repeat: !!input.isAutoRepeat });
@@ -301,7 +485,7 @@ module.exports = function register(api) {
         api.broadcast('browser:shortcut', { sourceId: id, combo, passThrough: true });
       }
     });
-    wc.on('zoom-changed', (_ev, dir) => api.broadcast('browser:shortcut', { sourceId: id, combo: dir === 'in' ? 'ZoomIn' : 'ZoomOut' }));
+    if (!popup) wc.on('zoom-changed', (_ev, dir) => api.broadcast('browser:shortcut', { sourceId: id, combo: dir === 'in' ? 'ZoomIn' : 'ZoomOut' }));
     // Pages may never navigate a tab to local or privileged schemes.
     wc.on('will-navigate', (ev, url) => {
       if (/^(file|app|media|chrome|devtools|chrome-extension):/i.test(url)) ev.preventDefault();
@@ -400,7 +584,7 @@ module.exports = function register(api) {
       path: savePath,
       mime: item.getMimeType(),
       partition,
-      sourceId: wc && !wc.isDestroyed() ? wc.id : null,
+      sourceId: wc && !wc.isDestroyed() ? routeOf(wc.id) : null,
       startTime: Date.now(),
       total: item.getTotalBytes(),
       received: 0,
@@ -481,14 +665,21 @@ module.exports = function register(api) {
     return [permission];
   }
 
+  // Storage Access API (document.requestStorageAccess, used by sign-in and embedded widgets): granted like Chrome
+  // does while third-party cookies are allowed (its default); refused when the user blocks them.
+  const STORAGE_ACCESS = new Set(['storage-access', 'top-level-storage-access']);
   function onPermissionRequest(partition, wc, permission, callback, details) {
+    // HTML fullscreen in a pop-up window would cover the whole screen, taskbar included, with nothing saying it is a
+    // web page (a fake Selene screen): pop-ups stay windows; tabs go fullscreen inside the Navigateur as before.
+    if (permission === 'fullscreen' && wc && popupRoute.has(wc.id)) return callback(false);
     if (ALLOW.has(permission)) return callback(true);
+    if (STORAGE_ACCESS.has(permission)) return callback(!prefs.block3p);
     // getDisplayMedia asks for 'media' with no camera / microphone type: the screen sharing picker (onDisplayMedia)
     // is where the user consents, so no second « caméra / micro » prompt here.
     if (permission === 'media' && Array.isArray(details.mediaTypes) && details.mediaTypes.length === 0) return callback(true);
     if (permission === 'openExternal') {
       const ext = details.externalURL || '';
-      if (/^(mailto|tel|sms|webcal|magnet):/i.test(ext)) api.broadcast('browser:external', { sourceId: wc?.id, url: ext });
+      if (/^(mailto|tel|sms|webcal|magnet):/i.test(ext)) api.broadcast('browser:external', { sourceId: wc ? routeOf(wc.id) : undefined, url: ext });
       return callback(false);
     }
     if (!ASK.has(permission)) return callback(false);
@@ -501,7 +692,7 @@ module.exports = function register(api) {
     const id = `p${++seq}`;
     const timer = setTimeout(() => finishPermission(id, { allow: false, remember: false }), 180000);
     pendingPerms.set(id, { callback, origin, kinds, partition, timer });
-    api.broadcast('browser:permission', { id, sourceId: wc?.id, origin, permission, kinds });
+    api.broadcast('browser:permission', { id, sourceId: wc ? routeOf(wc.id) : undefined, origin, permission, kinds });
   }
 
   function finishPermission(id, { allow, remember } = {}) {
@@ -524,6 +715,7 @@ module.exports = function register(api) {
 
   function onPermissionCheck(partition, permission, requestingOrigin, details) {
     if (ALLOW.has(permission)) return true;
+    if (STORAGE_ACCESS.has(permission)) return !prefs.block3p;
     const origin = originOf(requestingOrigin || details.requestingUrl || '');
     const store = permStore(partition)[origin] || {};
     if (permission === 'media') {
@@ -708,14 +900,14 @@ module.exports = function register(api) {
 
   // ------------------------------------------------------------------ HTTP authentication
   app.on('login', (event, wc, details, authInfo, callback) => {
-    if (!wc || wc.isDestroyed?.() || !partitionOf.has(wc.session) || wc.getType() !== 'webview') return;
+    if (!wc || wc.isDestroyed?.() || !partitionOf.has(wc.session) || (wc.getType() !== 'webview' && !popupRoute.has(wc.id))) return;
     event.preventDefault();
     const id = `a${++seq}`;
     const timer = setTimeout(() => cancelAuth(id), 300000);
     pendingAuth.set(id, { callback, timer, wcId: wc.id });
     api.broadcast('browser:auth', {
       id,
-      sourceId: wc.id,
+      sourceId: routeOf(wc.id),
       url: details?.url || '',
       host: authInfo?.host || hostOf(details?.url || ''),
       realm: authInfo?.realm || '',
@@ -744,7 +936,7 @@ module.exports = function register(api) {
     } catch {}
     api.broadcast('browser:js-dialog', {
       id,
-      sourceId: wc.id,
+      sourceId: routeOf(wc.id),
       kind,
       message: String(p.message || '').slice(0, 10000),
       def: String(p.def || '').slice(0, 2000),
@@ -822,9 +1014,10 @@ module.exports = function register(api) {
     const langChanged = p.lang && p.lang !== prefs.lang;
     prefs = { ...prefs, ...p };
     for (const ses of sessions.values()) {
-      if (langChanged) ses.setUserAgent(ses.getUserAgent(), acceptLanguages(prefs.lang));
+      if (langChanged) ses.setUserAgent(identity.userAgent(), acceptLanguages(prefs.lang));
       applyWebRequest(ses);
     }
+    if (langChanged) refreshIdentity();
     return prefs;
   });
 
@@ -833,6 +1026,7 @@ module.exports = function register(api) {
     electron: process.versions.electron,
     v8: process.versions.v8,
     ua: sessions.get(PERSIST)?.getUserAgent() || '',
+    hints: identity.hintValues(),
   }));
 
   api.handle('browser:clearData', async ({ partition = PERSIST, cookies = false, cache = false, origin } = {}) => {
