@@ -25,6 +25,7 @@ const SYSTEM = new Set([
   'Alt+Tab', 'Alt+Shift+Tab', 'Ctrl+Alt+Tab', 'Alt+F4', 'Alt+Space', 'Ctrl+Alt+Delete', 'Ctrl+Shift+Escape', 'PrintScreen',
   'Super+D', 'Super+E', 'Super+L', 'Super+I', 'Super+A', 'Super+N', 'Super+S', 'Super+R', 'Super+X',
   'Super+Tab', 'Super+Shift+S', 'Super+M', 'Super+V', 'Super+W', 'Super+Q', 'Super+ArrowLeft', 'Super+ArrowRight',
+  'Super+Shift+ArrowLeft', 'Super+Shift+ArrowRight', // move the window to the other screen (core/wm.js moveToNeighbour)
   'Super+ArrowUp', 'Super+ArrowDown', 'Super+1', 'Super+2', 'Super+3', 'Super+4', 'Super+5',
   'Super+6', 'Super+7', 'Super+8', 'Super+9', 'Super+Period', 'Super+Comma', 'Super+H', 'Super+K', 'Super+P', 'Super+U',
   'AudioVolumeUp', 'AudioVolumeDown', 'AudioVolumeMute', 'BrightnessUp', 'BrightnessDown',

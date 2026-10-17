@@ -22,7 +22,10 @@
 //   wm.list() wm.focused() wm.get(id) wm.byApp(appId) wm.minimizeAll() wm.toggleDesktop()
 //   wm.on('open'|'close'|'focus'|'change', fn)
 //   wm.anchorProvider = (win) => DOMRect | null      (set by the taskbar for minimize animations)
-//   wm.workarea() -> {x, y, width, height}
+//   wm.workarea() -> {x, y, width, height}   (the main screen's; the bar lives there)
+//   Several screens (core/monitors.js): wm.workareaFor(mon) wm.monitorOf(win) wm.moveToMonitor(win, mon)
+//       wm.moveToNeighbour(win, 'left'|'right') (Super+Shift+Left/Right). New windows open on the screen of the pointer;
+//       maximize / snap / Layouts work on the window's screen; a window whose screen is unplugged moves to the main one.
 //   wm.reserve(id, { top, right, bottom, left } | null)  extra space a shell part keeps on an edge, added to the bar's
 //       insets (the docked on-screen keyboard, features/osk.js); wm.insets is the sum, wm.baseInsets() the bar's part
 //
@@ -61,6 +64,7 @@
 import { Emitter } from './api.js';
 import { h, icon, iconSvg } from './ui.js';
 import { i18n, t } from './i18n.js';
+import { monitors, relocate, workareaOf } from './monitors.js';
 
 const MIN_VISIBLE = 64;
 let seq = 0;
@@ -273,7 +277,7 @@ class Win extends Emitter {
   }
   // Keep at least a grabbable part of the title bar inside the work area (resolution changes, taskbar moves).
   _ensureVisible() {
-    const wa = wm.workarea();
+    const wa = wm.workareaFor(wm.monitorOf(this));
     const width = Math.min(this.w, wa.width);
     const height = Math.min(this.h, wa.height);
     let { x, y } = this;
@@ -395,7 +399,7 @@ class Win extends Emitter {
     this.el.classList.remove('snapped');
     this.el.classList.add('maximized');
     this._setMaxButton(true);
-    const wa = wm.workarea();
+    const wa = wm.workareaFor(wm.monitorOf(this));
     this.setRect({ x: wa.x, y: wa.y, width: wa.width, height: wa.height }, true);
     this.emit('maximize');
     wm.emit('change', this);
@@ -415,7 +419,15 @@ class Win extends Emitter {
     this.snap = null;
     this.el.classList.remove('maximized', 'snapped');
     this._setMaxButton(false);
-    if (this.restoreRect) this.setRect(clampRect(this.restoreRect, wm.workarea()), true);
+    if (this.restoreRect) {
+      // back on the screen the window is on now (it may have been moved to another screen while maximized)
+      const mon = wm.monitorOf(this);
+      const wa = wm.workareaFor(mon);
+      let rr = this.restoreRect;
+      const from = monitors.forRect(rr);
+      if (monitors.multi && from !== mon) rr = relocate(rr, wm.workareaFor(from), wa);
+      this.setRect(clampRect(rr, wa), true);
+    }
     this.emit('restore');
     wm.emit('change', this);
   }
@@ -539,6 +551,7 @@ class Win extends Emitter {
     if (want === this.el.classList.contains('fullscreen')) return;
     this.el.classList.toggle('fullscreen', want);
     this.fullscreen = want;
+    wm._fsScreen(this);
     this.el.style.zIndex = String(zBase(this) + nextZ());
     this.emit('fullscreen', want);
     this.emit('resize', this.rect());
@@ -716,14 +729,18 @@ class Win extends Emitter {
       if (!ev) return;
       let nx = ev.clientX - ox;
       let ny = ev.clientY - oy;
-      ny = Math.max(wa.y, Math.min(ny, wa.y + wa.height - 32));
-      nx = Math.max(wa.x - this.w + MIN_VISIBLE, Math.min(nx, wa.x + wa.width - MIN_VISIBLE));
+      // several screens: the work area of the screen under the pointer (windows move across screens)
+      const pw = monitors.multi ? wm.workareaFor(monitors.at(ev.clientX, ev.clientY)) : wa;
+      const span = monitors.multi ? wm._span() : wa;
+      ny = Math.max(pw.y, Math.min(ny, pw.y + pw.height - 32));
+      nx = Math.max(span.x - this.w + MIN_VISIBLE, Math.min(nx, span.x + span.width - MIN_VISIBLE));
       this.x = Math.round(nx);
       this.y = Math.round(ny);
       this._apply();
       wm.emit('drag-move', this, { x: ev.clientX, y: ev.clientY });
       if (this.opts.resizable && wm.snapEnabled !== false) {
-        zone = wm.dragSnapOverride || snapZone(ev.clientX, ev.clientY, wa);
+        this._zoneMon = monitors.multi ? monitors.at(ev.clientX, ev.clientY) : null;
+        zone = wm.dragSnapOverride || snapZone(ev.clientX, ev.clientY, pw);
         wm._showSnapPreview(zone, this);
       }
       this.emit('move', this.rect());
@@ -771,6 +788,7 @@ class Win extends Emitter {
       const end = { x: ev?.clientX ?? 0, y: ev?.clientY ?? 0, zone };
       if (moved && zone && ev?.type !== 'pointercancel') this.snapTo(zone, { source: 'drag' });
       else if (moved) this.restoreRect = this.rect();
+      this._zoneMon = null;
       wm.dragSnapOverride = null;
       if (moved) wm.emit('drag-end', this, end);
     };
@@ -946,6 +964,12 @@ class WindowManager extends Emitter {
     this.snapPreview = h('div', { class: 'snap-preview' });
     layer.appendChild(this.snapPreview);
     window.addEventListener('resize', () => this._refit());
+    monitors.on('change', () => this._refit());
+    const track = (e) => {
+      this._pointer = { x: e.clientX, y: e.clientY };
+    };
+    window.addEventListener('pointermove', track, { capture: true, passive: true });
+    window.addEventListener('pointerdown', track, { capture: true, passive: true });
     i18n.on('change', () => {
       for (const w of this.list()) w._relabel();
     });
@@ -988,12 +1012,66 @@ class WindowManager extends Emitter {
     return { ...(this._baseInsets || this.insets) };
   }
   workarea() {
-    const i = this.insets;
-    return { x: i.left, y: i.top, width: window.innerWidth - i.left - i.right, height: window.innerHeight - i.top - i.bottom };
+    return workareaOf(monitors.main(), this.insets, true);
+  }
+  /** Work area of a screen (the main screen: minus the bar). */
+  workareaFor(mon) {
+    const main = monitors.main();
+    if (!mon || !monitors.multi) return this.workarea();
+    return workareaOf(mon, this.insets, mon === main || mon.id === main.id);
+  }
+  /** The screen a window is on (most of its area). */
+  monitorOf(win) {
+    if (!monitors.multi || !win) return monitors.main();
+    return monitors.forRect({ x: win.x, y: win.y, width: win.w, height: win.h });
+  }
+  _span() {
+    const l = monitors.list;
+    const x = Math.min(...l.map((m) => m.x));
+    const y = Math.min(...l.map((m) => m.y));
+    return { x, y, width: Math.max(...l.map((m) => m.x + m.width)) - x, height: Math.max(...l.map((m) => m.y + m.height)) - y };
+  }
+  /** A fullscreen window covers its own screen (CSS --fs-*; one screen: the whole window). */
+  _fsScreen(win, mon = this.monitorOf(win)) {
+    for (const [k, v] of Object.entries({ x: mon.x, y: mon.y, w: mon.width, h: mon.height })) {
+      if (monitors.multi && win.fullscreen) win.el.style.setProperty(`--fs-${k}`, `${v}px`);
+      else win.el.style.removeProperty(`--fs-${k}`);
+    }
+  }
+  _pointerMonitor() {
+    const p = this._pointer;
+    return monitors.multi && p ? monitors.at(p.x, p.y) : monitors.main();
+  }
+  /** Move a window to another screen: same relative place, same state (maximized / snapped / fullscreen). */
+  moveToMonitor(win, mon, { animate = true } = {}) {
+    if (!win || !mon) return;
+    const from = this.monitorOf(win);
+    if (from === mon || from?.id === mon.id) return;
+    const fa = this.workareaFor(from);
+    const ta = this.workareaFor(mon);
+    if (win.restoreRect) win.restoreRect = relocate(win.restoreRect, fa, ta);
+    if (win.fullscreen) {
+      const r = relocate(win.rect(), fa, ta);
+      Object.assign(win, { x: r.x, y: r.y });
+      win._apply();
+      this._fsScreen(win, mon);
+    } else if (win.state === 'maximized') win.setRect({ x: ta.x, y: ta.y, width: ta.width, height: ta.height }, animate);
+    else if (win.state === 'snapped' && win.snap) {
+      win.setRect(relocate(win.rect(), fa, ta));
+      win._zoneMon = mon;
+      win.snapTo(win.snap, { animate, source: 'monitor' });
+      win._zoneMon = null;
+    } else win.setRect(relocate(win.rect(), fa, ta), animate);
+    this.emit('change', win);
+  }
+  moveToNeighbour(win, dir) {
+    const to = monitors.neighbour(this.monitorOf(win), dir);
+    if (to) this.moveToMonitor(win, to);
+    return !!to;
   }
   // Rectangle of a snap zone in the current work area ('vmax' keeps the window's own x/width).
   zoneRect(zone, win) {
-    const wa = this.workarea();
+    const wa = win && monitors.multi ? this.workareaFor(win._zoneMon || this.monitorOf(win)) : this.workarea();
     const hw = Math.round(wa.width / 2);
     const hh = Math.round(wa.height / 2);
     const t3 = Math.round(wa.width / 3);
@@ -1047,7 +1125,9 @@ class WindowManager extends Emitter {
   }
   create(opts = {}) {
     const win = new Win(opts);
-    const wa = this.workarea();
+    // several screens: the screen of the pointer (or of the position asked for)
+    const mon = monitors.multi ? (opts.x != null && opts.y != null ? monitors.at(opts.x, opts.y) : this._pointerMonitor()) : null;
+    const wa = mon ? this.workareaFor(mon) : this.workarea();
     const w = Math.min(opts.width || 800, wa.width - 16);
     const hgt = Math.min(opts.height || 560, wa.height - 16);
     let x = opts.x;
@@ -1074,6 +1154,7 @@ class WindowManager extends Emitter {
       Object.assign(win, { x: wa.x, y: wa.y, w: wa.width, h: wa.height });
     }
     win._apply();
+    win._lastMon = mon ? { ...mon } : null;
     if (win.desktop !== this.currentDesktop) win.el.classList.add('off-desktop');
     this.windows.set(win.id, win);
     this.layer.appendChild(win.el);
@@ -1279,10 +1360,28 @@ class WindowManager extends Emitter {
     p.classList.add('show');
   }
   _refit() {
-    const wa = this.workarea();
+    const main = monitors.main();
     for (const w of this.list()) {
-      if (w.restoreRect) w.restoreRect = clampRect(w.restoreRect, wa);
-      if (w.fullscreen) continue;
+      // a window whose screen went away (unplugged, lid closed) comes to the main screen, same relative place
+      let mon = this.monitorOf(w);
+      const r = { x: w.x, y: w.y, width: w.w, height: w.h };
+      const visible = monitors.list.some((m) => Math.min(m.x + m.width, r.x + r.width) - Math.max(m.x, r.x) >= MIN_VISIBLE && Math.min(m.y + m.height, r.y + r.height) - Math.max(m.y, r.y) >= 32);
+      if (!visible) {
+        const from = w._lastMon || { x: r.x, y: r.y, width: Math.max(r.width, 1), height: Math.max(r.height, 1) };
+        mon = main;
+        const ta = this.workareaFor(main);
+        const nr = relocate(r, from, ta);
+        Object.assign(w, { x: nr.x, y: nr.y, w: nr.width, h: nr.height });
+        w._apply();
+        if (w.restoreRect) w.restoreRect = relocate(w.restoreRect, from, ta);
+      }
+      w._lastMon = { ...mon };
+      const wa = this.workareaFor(mon);
+      if (w.restoreRect) w.restoreRect = clampRect(w.restoreRect, monitors.multi ? this.workareaFor(monitors.forRect(w.restoreRect)) : wa);
+      if (w.fullscreen) {
+        this._fsScreen(w, mon);
+        continue;
+      }
       if (w.state === 'maximized') w.setRect({ x: wa.x, y: wa.y, width: wa.width, height: wa.height });
       else if (w.state === 'snapped' && w.snap) w.snapTo(w.snap, { animate: false, source: 'refit' });
       else {

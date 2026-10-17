@@ -83,8 +83,23 @@ const ipc = createIpc({ env, getMainWindow: () => mainWindow, RENDERER, ROOT, DE
 
 function screenBounds() {
   const { screen } = require('electron');
+  // The desktop covers every screen (main/ipc/display.js shellBounds: their union; the renderer's core/monitors.js
+  // places the bar, the Lanceur and the windows per screen). The sign-in screen stays on the main screen.
+  if (MODE === 'shell') {
+    try {
+      return require('./ipc/display.js').shellBounds();
+    } catch {}
+  }
   const { x, y, width, height } = screen.getPrimaryDisplay().bounds;
   return { x, y, width, height };
+}
+
+// More than one screen: a window spanning them all must not be in Chromium's fullscreen state (with no window
+// manager, Chromium would size a fullscreen window to one display).
+function spanning(b) {
+  const { screen } = require('electron');
+  const p = screen.getPrimaryDisplay().bounds;
+  return b.x !== p.x || b.y !== p.y || b.width !== p.width || b.height !== p.height;
 }
 
 // Chromium never gives a window exactly the size of a display (it subtracts 1px so that window
@@ -102,7 +117,7 @@ function coverExactly(win, b) {
   });
 }
 
-// Keep the shell window on the whole primary display when the resolution or monitors change.
+// Keep the shell window on every screen (the sign-in screen: the main one) when the resolution or monitors change.
 function followScreen(win) {
   const { screen } = require('electron');
   const fit = () => {
@@ -110,6 +125,13 @@ function followScreen(win) {
     const b = screenBounds();
     const cur = win.getBounds();
     if (cur.x !== b.x || cur.y !== b.y || cur.width !== b.width || cur.height !== b.height) {
+      const span = spanning(b);
+      if (span && (win.isKiosk() || win.isFullScreen())) {
+        win.setKiosk(false);
+        win.setFullScreen(false);
+      } else if (!span && !win.isKiosk()) {
+        win.setKiosk(true);
+      }
       win.setBounds(b);
       setTimeout(() => coverExactly(win, b), 100);
     }
@@ -144,9 +166,10 @@ function createWindow() {
   } else {
     // No window manager runs under the shell (it *is* the window manager), so nothing would
     // honour a fullscreen request: cover the primary display explicitly and follow it.
-    Object.assign(opts, screenBounds());
-    opts.fullscreen = true;
-    opts.kiosk = true;
+    const b = screenBounds();
+    Object.assign(opts, b);
+    opts.fullscreen = !spanning(b);
+    opts.kiosk = !spanning(b);
   }
   mainWindow = new BrowserWindow(opts);
   mainWindow.setMenu(null);

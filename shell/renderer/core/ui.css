@@ -823,6 +823,10 @@ hr.sep {
   z-index: 100000;
   min-width: 200px;
   max-width: 360px;
+  /* a long list (e.g. every app) scrolls instead of running off the screen */
+  max-height: calc(100vh - 8px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px;
   border-radius: var(--radius);
   background: var(--surface-raised);

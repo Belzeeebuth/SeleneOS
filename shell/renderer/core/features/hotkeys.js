@@ -316,7 +316,10 @@ const ACTIONS = {
   'Super+E': () => launch('files'),
   'Super+I': () => launch('settings'),
   'Super+U': () => launch('settings', { page: 'accessibility' }),
-  'Super+P': () => launch('settings', { page: 'display' }),
+  'Super+P': () => {
+    closeTransient();
+    shell.emit('projection:toggle'); // features/projection.js: Étendre / Dupliquer / one screen
+  },
   'Super+Pause': () => launch('settings', { page: 'about' }),
   'Super+L': () => {
     closeTransient();
@@ -344,6 +347,16 @@ const ACTIONS = {
   'Super+ArrowRight': () => snapKey('right'),
   'Super+ArrowUp': () => snapKey('up'),
   'Super+ArrowDown': () => snapKey('down'),
+  'Super+Shift+ArrowLeft': () => {
+    exitTaskView(null, { instant: true });
+    const w = wm.focused();
+    if (w && !w.minimized) wm.moveToNeighbour(w, 'left');
+  },
+  'Super+Shift+ArrowRight': () => {
+    exitTaskView(null, { instant: true });
+    const w = wm.focused();
+    if (w && !w.minimized) wm.moveToNeighbour(w, 'right');
+  },
   'Super+Shift+ArrowUp': () => {
     exitTaskView(null, { instant: true });
     wm.focused()?.maximizeVertically();

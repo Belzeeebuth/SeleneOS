@@ -1,6 +1,7 @@
 // Settings > System: summary (System), Display, Sound, Notifications, Power, Storage, Window management
 // (multitasking), Clipboard, About. Display, Sound and About are their own entries in the navigation.
 import { PAGES } from '../lib/index.js';
+import { multiScreenGroup, arrangementMap } from './display-multi.js';
 
 const SUBPAGES = ['gpuDrivers', 'notifications', 'power', 'storage', 'multitasking', 'clipboard']; // gpuDrivers: pages/drivers.js
 const HOST_RE = /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
@@ -161,6 +162,7 @@ async function display(pc) {
   const { h, t, kit, api, settings } = pc;
   const st = await pc.tryInvoke('display:status');
   const outputs = st?.outputs || [];
+  let lay = st?.layout || null;
   let sel = outputs.find((o) => o.primary) || outputs[0] || null;
   const root = h('div');
 
@@ -168,10 +170,35 @@ async function display(pc) {
     const fresh = await pc.tryInvoke('display:status');
     if (fresh) {
       outputs.splice(0, outputs.length, ...fresh.outputs);
+      lay = fresh.layout || lay;
       sel = outputs.find((o) => o.name === sel?.name) || outputs[0];
     }
     paint();
   };
+
+  // Several screens: apply, « Conserver ces modifications ? », then remember for this set of screens (or go back).
+  async function applyLayout(cfg) {
+    let res;
+    try {
+      res = await api.invoke('display:setLayout', cfg);
+    } catch (err) {
+      pc.toastError(err);
+      return false;
+    }
+    await rerender();
+    const v = await keepDialog(pc);
+    if (v === 'keep') {
+      await pc.tryInvoke('display:saveLayout', { mode: res.current.mode, primary: res.current.primary, position: res.current.position });
+      return true;
+    }
+    try {
+      await api.invoke('display:setLayout', res.previous);
+    } catch (err) {
+      pc.toastError(err);
+    }
+    await rerender();
+    return false;
+  }
 
   async function applyMode(width, height, rate) {
     const o = sel;
@@ -200,7 +227,19 @@ async function display(pc) {
   function paint() {
     pc.ui.clear(root);
     const groups = [];
-    if (outputs.length > 1) {
+    const multi = multiScreenGroup(pc, { outputs, layout: lay, applyLayout });
+    if (multi) {
+      const map = arrangementMap(pc, {
+        outputs,
+        selected: sel,
+        onSelect: (o) => {
+          sel = o;
+          paint();
+        },
+      });
+      if (map) groups.push(map);
+      groups.push(multi);
+    } else if (outputs.length > 1) {
       const maxW = Math.max(...outputs.map((o) => o.width || 1));
       groups.push(
         h(
@@ -292,7 +331,7 @@ async function display(pc) {
         control: kit.combo({ options: scaleOpts, value: scale, label: t('system.scale'), onChange: (v) => settings.set('scale', Number(v)) }),
       }),
     ];
-    if (sel && sel.modes?.length && !sel.readOnly) {
+    if (sel && sel.modes?.length && !sel.readOnly && sel.active !== false) {
       const resOpts = sel.modes.map((m) => ({ value: `${m.width}x${m.height}`, label: resLabel(pc, m, m.preferred) }));
       sl.push(
         kit.row({

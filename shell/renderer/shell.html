@@ -11,12 +11,16 @@
     <script type="module" src="core/boot.js"></script>
   </head>
   <body>
-    <div id="desktop"></div>
+    <!-- core/monitors.js: #screen-desk and #screen-main sit on the main screen, #screen-walls on the other screens -->
+    <div id="screen-walls"></div>
+    <div id="screen-desk"><div id="desktop"></div></div>
     <div id="windows"></div>
-    <div id="toasts"></div>
-    <div id="start" class="flyout"></div>
-    <div id="flyouts"></div>
-    <nav id="taskbar"></nav>
-    <div id="overlays"></div>
+    <div id="screen-main">
+      <div id="toasts"></div>
+      <div id="start" class="flyout"></div>
+      <div id="flyouts"></div>
+      <nav id="taskbar"></nav>
+      <div id="overlays"></div>
+    </div>
   </body>
 </html>

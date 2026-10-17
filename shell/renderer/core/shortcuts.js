@@ -48,6 +48,8 @@ const LIST = [
   ['taskView', 'windows', 'Super+Tab', 'Overview', 'Vue d’ensemble'],
   ['snapLayouts', 'windows', 'Super+Z', 'Layouts', 'Dispositions'],
   ['snapLeft', 'windows', 'Super+ArrowLeft', 'Place on the left', 'Placer à gauche'],
+  ['screenLeft', 'windows', 'Super+Shift+ArrowLeft', 'Move to the screen on the left', 'Déplacer vers l’écran de gauche'],
+  ['screenRight', 'windows', 'Super+Shift+ArrowRight', 'Move to the screen on the right', 'Déplacer vers l’écran de droite'],
   ['snapRight', 'windows', 'Super+ArrowRight', 'Place on the right', 'Placer à droite'],
   ['maximize', 'windows', 'Super+ArrowUp', 'Maximize', 'Agrandir'],
   ['minimize', 'windows', 'Super+ArrowDown', 'Restore or minimize', 'Restaurer ou réduire'],
@@ -71,7 +73,7 @@ const LIST = [
   ['calculator', 'apps', null, 'Calculator', 'Calculatrice'],
   ['help', 'apps', null, 'Help', 'Aide'], // apps/help (no default combo; F1 inside its window focuses its search)
   ['accessibility', 'apps', 'Super+U', 'Accessibility settings', 'Paramètres d’accessibilité'],
-  ['display', 'apps', 'Super+P', 'Display settings', 'Paramètres d’affichage'],
+  ['display', 'apps', 'Super+P', 'Project to a screen (extend, duplicate…)', 'Projeter sur un écran (étendre, dupliquer…)'],
 ];
 export const SHORTCUTS = LIST.map(([id, group, combo, en, fr]) => ({ id, group, combo, name: { en, fr } }));
 export const SHORTCUT_IDS = new Set(SHORTCUTS.map((s) => s.id));

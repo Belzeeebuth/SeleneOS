@@ -440,7 +440,9 @@ async function lightEnglish() {
     await s.page.locator('.st-keep-dialog .dialog-footer .btn.primary').click();
     await sleep(500);
     const saved = await inv(s, 'display:saved');
-    check(saved?.outputs?.['Virtual-1']?.width === 1600, 'Keep changes saves the mode for the next sign-in (display.json)');
+    // display.json version 2: one layout per set of screens (main/ipc/display.js)
+    const savedOut = saved?.version === 2 ? Object.values(saved.layouts || {})[0]?.outputs : saved?.outputs;
+    check(savedOut?.['Virtual-1']?.width === 1600, 'Keep changes saves the mode for the next sign-in (display.json)');
     await pickCombo(s, 'Display resolution', '1920 × 1080');
     await s.page.waitForSelector('.st-keep-dialog');
     await s.page.locator('.st-keep-dialog .dialog-footer .btn', { hasText: 'Revert' }).click();

@@ -2,6 +2,56 @@
 body {
   background: var(--bg);
 }
+/* Several screens (core/monitors.js): the window spans them all; the desktop and the shell's own parts stay on the
+   main screen (each wrapper is the containing block of its fixed children), the wallpaper is drawn on the others. */
+#screen-desk,
+#screen-main {
+  position: fixed;
+  left: var(--scr-x, 0px);
+  top: var(--scr-y, 0px);
+  width: var(--scr-w, 100vw);
+  height: var(--scr-h, 100vh);
+  contain: layout;
+  pointer-events: none;
+}
+#screen-desk > *,
+#screen-main > * {
+  pointer-events: auto;
+}
+#screen-desk {
+  z-index: 0;
+}
+#screen-main {
+  z-index: 20;
+}
+#screen-main > #toasts,
+#screen-main > #flyouts,
+#screen-main > #overlays {
+  pointer-events: none;
+}
+#screen-walls {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.screen-wall {
+  position: absolute;
+  background-color: var(--bg);
+  background-image: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%);
+  background-size: cover;
+  background-position: center;
+}
+body.aurora-locked #screen-walls {
+  z-index: 15;
+}
+body.aurora-locked .screen-wall {
+  filter: blur(24px) brightness(0.7);
+  transform: scale(1.06);
+}
+body.aurora-locked #screen-walls {
+  overflow: hidden;
+}
 #desktop,
 #windows,
 #toasts,
@@ -25,6 +75,9 @@ body {
 #windows {
   bottom: var(--taskbar-h);
   z-index: 10;
+}
+body.multi-screen #windows {
+  bottom: 0;
 }
 #start {
   z-index: 3000;
@@ -326,10 +379,11 @@ body.tb-autohide .desk-icons {
 .win.fullscreen {
   position: fixed;
   inset: 0 !important;
-  left: 0 !important;
-  top: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
+  /* the window's own screen (core/wm.js sets --fs-* when there are several screens) */
+  left: var(--fs-x, 0px) !important;
+  top: var(--fs-y, 0px) !important;
+  width: var(--fs-w, 100vw) !important;
+  height: var(--fs-h, 100vh) !important;
   border-radius: 0;
   border: 0;
 }

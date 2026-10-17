@@ -8,6 +8,8 @@
 #   { "version": 1,
 #     "outputs": { "Virtual-1": { "width": 1920, "height": 1080, "rate": 60.0, "mode": "1920x1080" } } }
 #
+# Version 2 files ({"version": 2, "layouts": {...}}, written since the multi-screen support) are left to the shell.
+#
 # For every connected output with a saved entry whose mode the output still offers, runs
 #   xrandr --output <name> --mode <mode> [--rate <rate>]
 # Outputs, modes or rates that no longer exist are skipped (a different monitor, a VM resized…).
@@ -69,6 +71,10 @@ def main():
         return 0
     except (OSError, ValueError) as e:
         log(f"ignoring {CONFIG}: {e}")
+        return 0
+    # Version 2 (several screens: modes, positions, main screen, per set of screens) is applied by the shell itself
+    # as soon as it starts (shell/main/ipc/display.js), with the lid state; nothing to do here.
+    if isinstance(cfg, dict) and cfg.get("version", 1) >= 2:
         return 0
     saved = cfg.get("outputs") if isinstance(cfg, dict) else None
     if not isinstance(saved, dict) or not saved:

@@ -7,6 +7,7 @@ import { loadIcons } from './icons.js';
 import { settings } from './settings.js';
 import { applyTheme, watchTheme, theme } from './theme.js';
 import { wm } from './wm.js';
+import { monitors } from './monitors.js';
 import { registry, setShellServices } from './registry.js';
 import { shell } from './services.js';
 import { notifications, notify } from './notify.js';
@@ -44,6 +45,7 @@ async function main() {
   }
 
   const $ = (id) => document.getElementById(id);
+  await monitors.init().catch((err) => console.error('[boot] monitors failed', err));
   wm.mount($('windows'));
   wm.setInsets({ bottom: settings.get('taskbar.autohide') ? 0 : 48 });
   notifications.mount($('toasts'), (appId) => (registry.get(appId) ? registry.iconUrl(appId) : null));
@@ -51,7 +53,7 @@ async function main() {
   taskbar.mount($('taskbar'));
   start.mount($('start'));
 
-  const ctx = { api, env, i18n, t, settings, theme, wm, registry, shell, notify, notifications, taskbar, start, desktop, sounds, packs, h, ui };
+  const ctx = { api, env, i18n, t, settings, theme, wm, monitors, registry, shell, notify, notifications, taskbar, start, desktop, sounds, packs, h, ui };
   window.__aurora = ctx; // handy for debugging & tests
   const available = new Set(await api.invoke('shell:features').catch(() => []));
   const ordered = [...FEATURES.filter((f) => available.has(f)), ...[...available].filter((f) => !FEATURES.includes(f)).sort()];
