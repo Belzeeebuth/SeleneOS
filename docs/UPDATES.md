@@ -51,7 +51,7 @@ example a `gh-pages` branch), or upload it with the `actions/upload-pages-artifa
 The host needs only Docker, git and gpgv (gnupg); dpkg, Node and the signing all run in the build container, with the
 key in `keys/` that the installed systems already trust.
 
-One time: create the **public** repository `<user>.github.io` on GitHub (for SELENE_APT_URL
+One time (or let `make publish-updates` do it: with the GitHub CLI signed in — `gh auth login` — it creates the repository and turns Pages on by itself): create the **public** repository `<user>.github.io` on GitHub (for SELENE_APT_URL
 `https://belzeeebuth.github.io/claudeai-test/apt/`: `Belzeeebuth/belzeeebuth.github.io`, initialised with a README),
 and in its Settings > Pages choose « Deploy from a branch », the default branch, folder `/ (root)`. The main repository
 stays private: only the packages are public.

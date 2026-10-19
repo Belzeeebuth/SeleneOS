@@ -57,7 +57,20 @@ if [[ -d "$DIR/.git" ]]; then
 else
   log "cloning $REMOTE into $DIR"
   mkdir -p "$(dirname "$DIR")"
-  git clone -q "$REMOTE" "$DIR" || die "could not clone $REMOTE (create the public repository $GH_USER.github.io on GitHub first: docs/UPDATES.md)"
+  if ! git clone -q "$REMOTE" "$DIR" 2>/dev/null; then
+    # First publication: create the public Pages repository with the GitHub CLI when it is signed in on this machine.
+    if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+      log "creating the public repository $GH_USER/$GH_USER.github.io (GitHub CLI)"
+      gh repo create "$GH_USER/$GH_USER.github.io" --public --add-readme \
+        --description "Selene OS updates (signed apt repository)" >/dev/null \
+        || die "gh could not create $GH_USER/$GH_USER.github.io"
+      sleep 3
+      git clone -q "$REMOTE" "$DIR" || die "could not clone $REMOTE after creating it"
+      PAGES_NEW=1
+    else
+      die "could not clone $REMOTE: create the public repository $GH_USER.github.io on github.com (with a README), or install and sign in the GitHub CLI (« sudo pacman -S github-cli » then « gh auth login ») and run this again"
+    fi
+  fi
 fi
 dest="$DIR/$SUBPATH"
 rm -rf -- "$dest"
@@ -75,6 +88,17 @@ if ((DRY)); then
   exit 0
 fi
 git -C "$DIR" push -q origin HEAD
+# GitHub Pages on: the repository's default branch, root folder (a user site normally gets this by itself).
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  branch="$(git -C "$DIR" rev-parse --abbrev-ref HEAD)"
+  if ! gh api "repos/$GH_USER/$GH_USER.github.io/pages" >/dev/null 2>&1; then
+    gh api -X POST "repos/$GH_USER/$GH_USER.github.io/pages" -f "source[branch]=$branch" -f "source[path]=/" >/dev/null 2>&1 \
+      && log "GitHub Pages turned on ($branch, /)" \
+      || log "turn GitHub Pages on by hand: $GH_USER.github.io > Settings > Pages > Deploy from a branch > $branch, / (root)"
+  fi
+elif [[ -n "${PAGES_NEW:-}" ]]; then
+  log "check GitHub Pages is on: $GH_USER.github.io > Settings > Pages > Deploy from a branch, / (root)"
+fi
 log "published $versions"
 log "GitHub Pages updates the site in about a minute. Check: curl -fsI ${SELENE_APT_URL%/}/dists/noble/InRelease"
 log "Then on Selene: Paramètres > Mises à jour > Rechercher des mises à jour."
