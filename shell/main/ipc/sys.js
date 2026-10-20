@@ -145,6 +145,16 @@ module.exports = function register(api) {
     if (r.code !== 0) throw api.error(r.stderr.trim() || `systemctl ${verb} failed`, 'EPOWER');
     return true;
   };
+  // A restart is pending (Ubuntu writes /run/reboot-required after kernel / driver updates; a reboot clears /run) and the
+  // current boot id, so a « restart needed » remembered by Paramètres > Mises à jour ends with the next boot.
+  api.handle('sys:rebootPending', () => {
+    if (DEV) return { pending: process.env.AURORA_DEV_REBOOT_PENDING === '1', bootId: process.env.AURORA_DEV_BOOT_ID || 'dev-boot' };
+    let bootId = '';
+    try {
+      bootId = fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
+    } catch {}
+    return { pending: fs.existsSync('/run/reboot-required') || fs.existsSync('/var/run/reboot-required'), bootId };
+  });
   api.handle('power:shutdown', () => systemctl('poweroff'));
   api.handle('power:reboot', () => systemctl('reboot'));
   api.handle('power:suspend', () => systemctl('suspend'));

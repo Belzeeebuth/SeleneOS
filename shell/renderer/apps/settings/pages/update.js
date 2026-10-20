@@ -15,13 +15,18 @@ async function loadSaved(pc) {
   if (state.loaded) return;
   state.loaded = true;
   const saved = await pc.storage.get('update-state', null).catch(() => null);
+  // « Restart needed » follows the system (/run/reboot-required) and ends with the boot it was set in: a remembered
+  // flag used to stay forever and hide « Installer » even after the restart.
+  const rp = await pc.api.invoke('sys:rebootPending').catch(() => null);
+  state.bootId = rp?.bootId || '';
   if (saved) {
     state.lastCheck = saved.lastCheck || null;
     state.packages = Array.isArray(saved.packages) ? saved.packages : null;
-    state.reboot = !!saved.reboot;
+    state.reboot = !!saved.reboot && !!saved.bootId && saved.bootId === state.bootId;
   }
+  if (rp?.pending) state.reboot = true;
 }
-const persist = (pc) => pc.storage.set('update-state', { lastCheck: state.lastCheck, packages: state.packages, reboot: state.reboot }).catch(() => {});
+const persist = (pc) => pc.storage.set('update-state', { lastCheck: state.lastCheck, packages: state.packages, reboot: state.reboot, bootId: state.bootId || '' }).catch(() => {});
 
 // ---- BEGIN Selene self-updates (docs/UPDATES.md, main/ipc/selene-update.js) ----
 // Selene's packages are listed as one « Selene x.y.z » entry; after a new aurora-shell (or Electron) is installed the
@@ -276,8 +281,9 @@ async function update(pc) {
       badge ? h('span', { class: ['st-upd-badge', badge] }, icon(badge === 'ok' ? 'checkmark_circle' : 'arrow_circle_down', { size: 18, filled: true })) : null,
     );
     const actions = [];
-    if (state.reboot && !busy) actions.push(kit.button(t('update.restartNow'), () => pc.shell.reboot().catch(pc.toastError), { primary: true, icon: 'arrow_clockwise' }));
-    else if (n && !busy && state.phase !== 'done') actions.push(kit.button(t('update.installNow'), () => install(pc), { primary: true, disabled: !isOnline || !adm?.isAdmin }));
+    // Updates waiting are installable even while a restart is pending (both buttons; « Installer » first).
+    if (n && !busy && state.phase !== 'done') actions.push(kit.button(t('update.installNow'), () => install(pc), { primary: true, disabled: !isOnline || !adm?.isAdmin }));
+    if (state.reboot && !busy) actions.push(kit.button(t('update.restartNow'), () => pc.shell.reboot().catch(pc.toastError), { primary: !(n && state.phase !== 'done'), icon: 'arrow_clockwise' }));
     if (!busy) actions.push(kit.button(t('update.check'), () => check(pc), { primary: !n && !state.reboot, disabled: !isOnline || !adm?.isAdmin }));
     const progress =
       state.phase === 'installing'
