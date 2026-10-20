@@ -192,6 +192,14 @@ export function initShared(ctx) {
       const hit = shared.findTab(p.sourceId);
       (hit?.bw || shared.mostRecent({ allowPrivate: true }))?.openExternal(p.url);
     });
+    // A page wants to open another app (claude://…): « Ouvrir Claude ? » in its tab, queued with the permission
+    // requests (lib/panels.js schemeBubble); app null: the notice that no app can open the link.
+    api.on('browser:scheme', (p) => {
+      const hit = shared.findTab(p.sourceId);
+      if (hit) hit.bw.queuePermission(hit.tab, { ...p, external: true });
+      else api.invoke('browser:schemeReply', p.id, { open: false }).catch(() => {});
+    });
+    api.on('browser:scheme-done', (p) => shared.windows.forEach((w) => w.dropPermission(p.id)));
     api.on('browser:popup-blocked', (p) => {
       const hit = shared.findTab(p.sourceId);
       if (hit) hit.bw.popupBlocked(hit.tab, p.url);

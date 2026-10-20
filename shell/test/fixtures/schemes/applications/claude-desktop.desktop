@@ -1,0 +1,9 @@
+[Desktop Entry]
+# Test fixture (browser-schemes.test.mjs): an app that handles claude:// links, like Claude Desktop.
+Type=Application
+Name=Claude
+Name[fr]=Claude
+Comment=Test fixture
+Exec=/bin/false %u
+MimeType=x-scheme-handler/claude;
+NoDisplay=true

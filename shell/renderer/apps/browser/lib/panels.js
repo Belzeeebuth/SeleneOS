@@ -901,7 +901,7 @@ export async function siteInfo(bw, anchor) {
     if (kinds.length) {
       perms.appendChild(h('div', { class: 'bw-site-sub caption' }, t('site.permissions')));
       for (const k of kinds) {
-        perms.appendChild(h('div', { class: 'bw-site-perm' }, icon(permIcon(k), { size: 16 }), h('span', { class: 'grow' }, t(`perm.kind.${k}`)), h('span', { class: ['caption', saved[k] === 'allow' ? 'ok' : 'no'] }, saved[k] === 'allow' ? t('perm.allowed') : t('perm.blocked'))));
+        perms.appendChild(h('div', { class: 'bw-site-perm' }, icon(permIcon(k), { size: 16 }), h('span', { class: 'grow' }, permLabel(t, k)), h('span', { class: ['caption', saved[k] === 'allow' ? 'ok' : 'no'] }, saved[k] === 'allow' ? t('perm.allowed') : t('perm.blocked'))));
       }
       perms.appendChild(
         h(
@@ -940,6 +940,7 @@ export async function siteInfo(bw, anchor) {
 }
 
 function permIcon(k) {
+  if (String(k).startsWith('app:')) return 'arrow-square-out';
   return { camera: 'camera', microphone: 'mic', geolocation: 'location', notifications: 'alert', midi: 'music_note_2' }[k] || 'shield';
 }
 
@@ -1034,6 +1035,77 @@ export function permissionBubble(bw, tab, p) {
   f.sticky = true;
   bw.setFlyout(f, 'permission');
   bw.flyout.permId = p.id;
+}
+
+/**
+ * A page wants to open another app (claude://login?…): « Ouvrir Claude ? » with « Ouvrir » / « Annuler » and
+ * « Toujours autoriser claude.ai à ouvrir ce type de lien » (main/ipc/browser.js requestExternal). p.app null: the
+ * calm notice that no app on this computer opens such links. Dismissing it counts as « Annuler ».
+ */
+export function schemeBubble(bw, tab, p) {
+  const t = bw.t;
+  const host = hostOf(p.origin) || '';
+  const name = String(p.app?.name || '');
+  let answered = false;
+  const always = p.app && host ? h('input', { type: 'checkbox' }) : null;
+  const answer = (open) => {
+    answered = true;
+    tab.perms = tab.perms.filter((x) => x.id !== p.id);
+    shared.api.invoke('browser:schemeReply', p.id, { open: open && !!p.app, always: open && !!always?.checked }).catch(() => {});
+    f.permId = null;
+    bw.closeFlyout();
+    setTimeout(() => bw.showNextPermission(tab), 200);
+  };
+  const title = p.app ? t('scheme.title', { app: name }) : t('scheme.noneTitle');
+  const content = h(
+    'div',
+    { class: 'bw-perm-pop bw-scheme-pop' },
+    h(
+      'div',
+      { class: 'bw-pop-head' },
+      h('div', { class: 'bw-pop-title' }, title),
+      h('div', { class: 'grow' }),
+      h('button', { class: 'bw-tbtn small', 'aria-label': t('common.close'), onclick: () => answer(false) }, icon('dismiss', { size: 14 })),
+    ),
+    p.app
+      ? h('div', { class: 'bw-perm-kind' }, icon('arrow-square-out', { size: 18 }), h('span', { class: 'bw-wrap' }, t('scheme.body', { app: name })))
+      : h('div', { class: 'bw-perm-kind' }, icon('link-break', { size: 18 }), h('span', { class: 'bw-wrap text-2' }, t('scheme.noneBody', { scheme: p.scheme }))),
+    always ? h('label', { class: 'checkbox bw-check' }, always, h('span', { class: 'bw-wrap' }, t('scheme.always', { host }))) : null,
+    p.app
+      ? h(
+          'div',
+          { class: 'bw-pop-actions' },
+          h('button', { class: 'btn primary', onclick: () => answer(true) }, t('scheme.open')),
+          h('button', { class: 'btn', onclick: () => answer(false) }, t('common.cancel')),
+        )
+      : h('div', { class: 'bw-pop-actions end' }, h('button', { class: 'btn', onclick: () => answer(false) }, t('common.close'))),
+  );
+  const f = flyout({
+    host: bw.root,
+    anchor: bw.omni.siteBtn,
+    content,
+    align: 'left',
+    className: 'bw-pop bw-perm bw-scheme',
+    width: 360,
+    onClose: () => {
+      if (answered) return;
+      tab.perms = tab.perms.filter((x) => x.id !== p.id);
+      shared.api.invoke('browser:schemeReply', p.id, { open: false }).catch(() => {});
+    },
+  });
+  f.el.setAttribute('aria-label', title);
+  f.permId = p.id;
+  f.sticky = true;
+  bw.setFlyout(f, 'scheme');
+  bw.flyout.permId = p.id;
+  // Keyboard: Tab reaches the choices, Escape cancels; nothing is pre-selected (a key press meant for the page must
+  // never open an app).
+  setTimeout(() => f.el.isConnected && f.el.focus({ preventScroll: true }), 30);
+}
+
+/** Label of a saved site permission ('camera', 'app:claude' …). */
+export function permLabel(t, k) {
+  return String(k).startsWith('app:') ? t('perm.kind.app', { scheme: String(k).slice(4) }) : t(`perm.kind.${k}`);
 }
 
 // ================================================================== dialogs

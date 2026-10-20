@@ -277,7 +277,7 @@ export class BrowserWindowCtl {
     this.closeFlyout();
     this.hideHoverCard();
     for (const tab of this.tabs) this.disposeTab(tab);
-    for (const tab of this.tabs) for (const p of tab.perms || []) shared.api.invoke('browser:permissionReply', p.id, { allow: false }).catch(() => {});
+    for (const tab of this.tabs) for (const p of tab.perms || []) this.refuseRequest(p);
     shared.windows = shared.windows.filter((w) => w !== this);
     if (!this.private) {
       const others = shared.windows.filter((w) => !w.private);
@@ -603,7 +603,7 @@ export class BrowserWindowCtl {
       if (url && url !== 'aurora://newtab' && url !== 'about:blank') this.closedTabs.push({ url, title: this.tabTitle(tab), index: i });
       if (this.closedTabs.length > 25) this.closedTabs.shift();
     } else if (!skipStack && tab.lazy) this.closedTabs.push({ url: tab.lazy.url, title: tab.lazy.title, index: i });
-    for (const p of tab.perms) shared.api.invoke('browser:permissionReply', p.id, { allow: false }).catch(() => {});
+    for (const p of tab.perms) this.refuseRequest(p);
     tab.perms = [];
     if (this.tabs.length === 1) {
       // Closing the last tab closes the window (like Edge / Chrome); the window keeps the tab so
@@ -1352,7 +1352,14 @@ export class BrowserWindowCtl {
   showNextPermission(tab) {
     const p = tab.perms[0];
     if (!p || this.active !== tab || this.flyout?.permId === p.id) return;
-    panels.permissionBubble(this, tab, p);
+    if (p.external) panels.schemeBubble(this, tab, p);
+    else panels.permissionBubble(this, tab, p);
+  }
+
+  /** A queued request (permission, link to another app) its tab or window can no longer show: refused. */
+  refuseRequest(p) {
+    if (p.external) shared.api.invoke('browser:schemeReply', p.id, { open: false }).catch(() => {});
+    else shared.api.invoke('browser:permissionReply', p.id, { allow: false }).catch(() => {});
   }
 
   /**

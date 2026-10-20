@@ -1,0 +1,9 @@
+[Desktop Entry]
+# Test fixture (browser-schemes.test.mjs): a Flatpak app (~/.local/share/flatpak/exports/share/applications).
+Type=Application
+Name=Spotify
+Comment=Test fixture
+Exec=/bin/false --file-forwarding com.spotify.Client @@u %U @@
+MimeType=x-scheme-handler/spotify;
+NoDisplay=true
+X-Flatpak=com.spotify.Client

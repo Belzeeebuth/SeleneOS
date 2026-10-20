@@ -857,7 +857,7 @@ function settingsPage(bw, tab, entry) {
           'div',
           { class: 'bp-perm-row' },
           favImg(o),
-          h('div', { class: 'grow' }, h('div', { class: 'ellipsis' }, hostOf(o) || o), h('div', { class: 'caption text-2' }, kinds.map(([k, v]) => `${t(`perm.kind.${k}`)}: ${v === 'allow' ? t('perm.allowed') : t('perm.blocked')}`).join(' · '))),
+          h('div', { class: 'grow' }, h('div', { class: 'ellipsis' }, hostOf(o) || o), h('div', { class: 'caption text-2' }, kinds.map(([k, v]) => `${panels.permLabel(t, k)}: ${v === 'allow' ? t('perm.allowed') : t('perm.blocked')}`).join(' · '))),
           h(
             'button',
             {

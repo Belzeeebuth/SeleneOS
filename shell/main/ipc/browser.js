@@ -33,9 +33,12 @@
 //   browser:navHistory(sourceId)                 -> { index, entries: [{ url, title }] }
 //   browser:jsDialogReply(id, { ok, value, suppress })  answers 'browser:js-dialog' {id, sourceId, kind, message, def, origin, offerSuppress}
 //   browser:displayMediaReply(id, sourceId|null) / browser:stopShare(sourceId) / browser:activeShares()  (screen sharing)
+//   browser:schemeReply(id, { open, always })    answers 'browser:scheme' {id, sourceId, url, scheme, origin, app}
+//                                                (links to other apps: claude://, zoommtg: …, see requestExternal)
 const { app, session, webContents } = require('electron');
 const identity = require('../lib/chrome-identity.js');
 const ownWindows = require('../lib/own-windows.js');
+const schemes = require('../lib/url-schemes.js');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -414,7 +417,7 @@ module.exports = function register(api) {
       }
     });
     const src = () => routeOf(id);
-    wc.setWindowOpenHandler(({ url, disposition, features, frameName }) => {
+    wc.setWindowOpenHandler(({ url, disposition, features, frameName, referrer }) => {
       // Simple pop-up flood protection: at most 3 new tabs per second from one page.
       const now = Date.now();
       const times = (popupTimes.get(id) || []).filter((t) => now - t < 1000);
@@ -424,8 +427,12 @@ module.exports = function register(api) {
       }
       times.push(now);
       popupTimes.set(id, times);
-      if (/^(mailto|tel|sms|callto|magnet|webcal|xmpp|sip|irc|ircs):/i.test(url)) {
+      if (/^mailto:/i.test(url)) {
         api.broadcast('browser:external', { sourceId: src(), url });
+        return { action: 'deny' };
+      }
+      if (schemes.externalScheme(url)) {
+        requestExternal(wc, url, originOf(referrer?.url || '') || originOf(wc.getURL()));
         return { action: 'deny' };
       }
       if (!/^(https?|ftp|data|about|view-source):/i.test(url) && url !== '') return { action: 'deny' };
@@ -490,9 +497,32 @@ module.exports = function register(api) {
     wc.on('will-navigate', (ev, url) => {
       if (/^(file|app|media|chrome|devtools|chrome-extension):/i.test(url)) ev.preventDefault();
     });
+    // Links to other apps (claude://…, zoommtg: …): never a navigation; the tab asks first (requestExternal). The site
+    // asking is the page that started the navigation, or for a server redirect the address that redirected.
+    const navAt = new Map(); // frame tree node -> where its navigation in progress is (before a redirect)
+    const nodeOf = (d) => (d?.isMainFrame ? 'main' : String(d?.frame?.frameTreeNodeId ?? ''));
+    const askingOrigin = (d) => safe(() => originOf(d.initiator?.origin || '') || originOf(d.frame?.url || ''), '') || originOf(wc.getURL());
     wc.on('will-frame-navigate', (ev) => {
-      if (/^(file|app|media|chrome|devtools|chrome-extension):/i.test(ev.url || '')) ev.preventDefault();
+      const url = ev.url || '';
+      if (/^(file|app|media|chrome|devtools|chrome-extension):/i.test(url)) ev.preventDefault();
+      else if (schemes.externalScheme(url)) {
+        ev.preventDefault();
+        requestExternal(wc, url, askingOrigin(ev));
+      }
     });
+    wc.on('will-redirect', (ev) => {
+      const url = ev.url || '';
+      if (!schemes.externalScheme(url)) return;
+      ev.preventDefault();
+      requestExternal(wc, url, originOf(navAt.get(nodeOf(ev)) || '') || askingOrigin(ev));
+    });
+    const track = (d) => {
+      if (d?.isSameDocument) return;
+      navAt.set(nodeOf(d), String(d?.url || ''));
+      if (navAt.size > 64) navAt.delete(navAt.keys().next().value);
+    };
+    wc.on('did-start-navigation', track);
+    wc.on('did-redirect-navigation', track);
     // alert / confirm / prompt from the page (guest-preload.js): the page waits for the answer.
     wc.ipc.on('browser:js-dialog', (event, p) => onJsDialog(wc, event, p || {}));
     // Screen capture state from guest-preload.js (the indicator goes away when the page ends its capture).
@@ -678,8 +708,11 @@ module.exports = function register(api) {
     // is where the user consents, so no second « caméra / micro » prompt here.
     if (permission === 'media' && Array.isArray(details.mediaTypes) && details.mediaTypes.length === 0) return callback(true);
     if (permission === 'openExternal') {
+      // Chromium's own hand-off of a link to another app: always refused here; mail goes to Courrier, other links
+      // get the Navigateur's question (usually already asked from will-frame-navigate / will-redirect).
       const ext = details.externalURL || '';
-      if (/^(mailto|tel|sms|webcal|magnet):/i.test(ext)) api.broadcast('browser:external', { sourceId: wc ? routeOf(wc.id) : undefined, url: ext });
+      if (/^mailto:/i.test(ext)) api.broadcast('browser:external', { sourceId: wc ? routeOf(wc.id) : undefined, url: ext });
+      else if (wc) requestExternal(wc, ext, originOf(details.requestingUrl || '') || originOf(wc.getURL?.() || ''));
       return callback(false);
     }
     if (!ASK.has(permission)) return callback(false);
@@ -896,6 +929,82 @@ module.exports = function register(api) {
     else for (const k of Object.keys(store)) delete store[k];
     if (!isPrivate(part)) saveSitePerms();
     return true;
+  });
+
+  // ------------------------------------------------------------------ links to other apps (custom URL schemes)
+  // A tab, a frame or a pop-up going to claude://… (zoommtg:, steam://, magnet: …) does not navigate: the tab asks
+  // « Ouvrir Claude ? » (main/lib/url-schemes.js finds the app). A pop-up's request goes to its opener tab, so the
+  // question still shows when the page closes the pop-up right after. « Toujours autoriser » is the site permission
+  // 'app:<scheme>' of the asking origin (listed and reset with the other site permissions); with it, the link opens
+  // without asking. Nothing ever opens without a click or that saved choice.
+  //   'browser:scheme' { id, sourceId, url, scheme, origin, app: { id, name } | null }   app null: notice « no app »
+  //   browser:schemeReply(id, { open, always }) -> boolean     open: xdg-open <url> (one argv entry, no shell);
+  //                                                            a notice is answered too (closed), so it never stacks
+  //   'browser:scheme-done' { id }                              answered or expired (2 min): close the question
+  const pendingSchemes = new Map(); // id -> { url, scheme, origin, partition, sourceId, app, timer } (questions and notices)
+  const recentSchemes = new Map(); // `${sourceId} ${url}` -> time (one question per link and tab every 2 s)
+  const lastAutoOpen = new Map(); // sourceId -> time of the last link opened without asking (at most one every 2 s)
+  const appPerm = (scheme) => `app:${scheme}`;
+
+  function requestExternal(wc, url, origin) {
+    const scheme = schemes.checkUrl(url);
+    if (!scheme || !wc || wc.isDestroyed()) return;
+    const sourceId = routeOf(wc.id);
+    const partition = partitionOf.get(wc.session) || PERSIST;
+    const now = Date.now();
+    const key = `${sourceId} ${url}`;
+    if (now - (recentSchemes.get(key) || 0) < 2000) return;
+    recentSchemes.set(key, now);
+    if (recentSchemes.size > 100) recentSchemes.delete(recentSchemes.keys().next().value);
+    // One question (or notice) per tab at a time: a page cannot stack them.
+    for (const p of pendingSchemes.values()) if (p.sourceId === sourceId) return;
+    const id = `s${++seq}`;
+    const req = { url, scheme, origin: origin || '', partition, sourceId, app: null, timer: setTimeout(() => finishScheme(id), 120000) };
+    pendingSchemes.set(id, req);
+    schemes
+      .handlerFor(scheme, prefs.lang)
+      .catch(() => null)
+      .then((found) => {
+        if (pendingSchemes.get(id) !== req) return;
+        req.app = found;
+        const always = !!found && !!req.origin && permStore(partition)[req.origin]?.[appPerm(scheme)] === 'allow';
+        if (always) {
+          pendingSchemes.delete(id);
+          clearTimeout(req.timer);
+          if (Date.now() - (lastAutoOpen.get(sourceId) || 0) < 2000) return; // a page looping over links
+          lastAutoOpen.set(sourceId, Date.now());
+          if (lastAutoOpen.size > 100) lastAutoOpen.delete(lastAutoOpen.keys().next().value);
+          return openWithApp(req);
+        }
+        api.broadcast('browser:scheme', { id, sourceId, url, scheme, origin: req.origin, app: found });
+      });
+  }
+
+  function openWithApp(req) {
+    schemes.launch(req.url).catch((err) => {
+      console.warn(`[browser] xdg-open failed for a ${req.scheme}: link`, err?.message || err);
+      api.broadcast('browser:scheme', { id: `s${++seq}`, sourceId: req.sourceId, url: req.url, scheme: req.scheme, origin: req.origin, app: null });
+    });
+  }
+
+  function finishScheme(id, { open = false, always = false } = {}) {
+    const p = pendingSchemes.get(id);
+    if (!p) return false;
+    pendingSchemes.delete(id);
+    clearTimeout(p.timer);
+    if (!p.app) open = false; // a notice: nothing to open
+    if (open && always && p.origin) {
+      const store = permStore(p.partition);
+      store[p.origin] = { ...(store[p.origin] || {}), [appPerm(p.scheme)]: 'allow' };
+      if (!isPrivate(p.partition)) saveSitePerms();
+    }
+    if (open) openWithApp(p);
+    api.broadcast('browser:scheme-done', { id });
+    return true;
+  }
+  api.handle('browser:schemeReply', (id, answer) => {
+    const a = answer && typeof answer === 'object' ? answer : {};
+    return finishScheme(String(id || ''), { open: a.open === true, always: a.always === true });
   });
 
   // ------------------------------------------------------------------ HTTP authentication

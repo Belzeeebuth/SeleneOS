@@ -1225,6 +1225,29 @@
 .app-browser .bw-perm-pop .bw-pop-actions .btn {
   flex: 1;
 }
+/* « Ouvrir Claude ? » (links to other apps) */
+.app-browser .bw-scheme-pop .bw-perm-kind {
+  align-items: flex-start;
+  line-height: 20px;
+}
+.app-browser .bw-scheme-pop .bw-perm-kind .icon {
+  margin-top: 1px;
+}
+.app-browser .bw-scheme-pop .bw-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 0;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  line-height: 18px;
+}
+.app-browser .bw-scheme-pop .bw-pop-actions.end {
+  justify-content: flex-end;
+}
+.app-browser .bw-scheme-pop .bw-pop-actions.end .btn {
+  flex: none;
+}
 .app-browser .bw-zoom-pop {
   display: flex;
   align-items: center;
