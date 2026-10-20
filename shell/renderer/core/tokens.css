@@ -480,8 +480,11 @@
 }
 :is([data-finish="halo"], [data-finish="prisme"])[data-transparency="on"] .win:is(.bg-mica, .bg-mica-alt) {
   /* grain (Prisme) and top sheen over the tint, over the pre-blurred wallpaper; the opaque tint underneath shows
-     until the Mica copy is ready (and if it cannot be computed) */
-  --win-material: var(--fin-grain, none), linear-gradient(180deg, var(--fin-sheen, transparent), transparent 140px), linear-gradient(rgb(var(--glass-rgb) / var(--a-win)), rgb(var(--glass-rgb) / var(--a-win))), var(--mica-image, none) center / cover fixed, rgb(var(--glass-rgb));
+     until the Mica copy is ready (and if it cannot be computed). The picture and the layers above it are drawn by the
+     window's .win-glass element (shell-personalize.css, core/wm.js) — the look of background-attachment: fixed without
+     repainting the window on every move; the window itself only paints the opaque tint. */
+  --win-glass-layers: var(--fin-grain, none), linear-gradient(180deg, var(--fin-sheen, transparent), transparent 140px), linear-gradient(rgb(var(--glass-rgb) / var(--a-win)), rgb(var(--glass-rgb) / var(--a-win)));
+  --win-material: rgb(var(--glass-rgb));
   --bg: var(--glass-layer);
   --surface: var(--glass-layer);
   --bg-alt: transparent;

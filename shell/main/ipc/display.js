@@ -710,6 +710,50 @@ function register(api) {
     });
   }
   const watch = !api.DEV || process.env.AURORA_DISPLAY_WATCH === '1';
+  // Idle cost: `xrandr --current` is a process spawn and an X round trip every 3 s. With the real backend, run it only
+  // when the kernel's connector state changed (/sys/class/drm/card*-*/status: DRM's cached state, reading it never
+  // probes the screens) or the lid moved (/proc/acpi/button/lid), plus every 30 s as a safety net. Without DRM
+  // connectors in sysfs (NVIDIA without nvidia-drm modeset) or a lid only logind knows about, xrandr is polled as before.
+  // Same with the NVIDIA driver loaded at all (also PRIME laptops whose HDMI port is on the NVIDIA GPU): its X driver
+  // handles hot-plug itself, and nvidia-drm only refreshes the cached sysfs status when a DRM client re-probes, so a
+  // new monitor could wait for the 30 s safety net.
+  const drmDir = process.env.AURORA_DRM_DIR || '/sys/class/drm';
+  const nvidiaLoaded = fs.existsSync(process.env.AURORA_NVIDIA_MODULE_DIR || '/sys/module/nvidia');
+  const drmSig = () => {
+    let names = [];
+    try {
+      names = fs.readdirSync(drmDir).filter((n) => /^card\d+-/.test(n));
+    } catch {}
+    return names
+      .sort()
+      .map((n) => {
+        try {
+          return `${n}=${fs.readFileSync(path.join(drmDir, n, 'status'), 'utf8').trim()}`;
+        } catch {
+          return n;
+        }
+      })
+      .join(',');
+  };
+  const SAFETY_MS = 30000;
+  const cheap = !useMock && !nvidiaLoaded && !!drmSig() && (readLidProc() !== undefined || !which('busctl'));
+  let lastSig = cheap ? `${drmSig()}|${readLidProc() ?? ''}` : '';
+  let lastFull = Date.now();
+  const cheapChanged = () => {
+    const sig = `${drmSig()}|${readLidProc() ?? ''}`;
+    const due = sig !== lastSig || Date.now() - lastFull >= SAFETY_MS;
+    lastSig = sig;
+    if (due) lastFull = Date.now();
+    return due;
+  };
+  if (cheap) {
+    try {
+      const { app, screen } = require('electron');
+      app.whenReady().then(() => {
+        for (const ev of ['display-added', 'display-removed']) screen.on(ev, () => setTimeout(() => tick().catch(() => {}), 200));
+      });
+    } catch {}
+  }
   if (watch && be) {
     const every = Number(process.env.AURORA_DISPLAY_WATCH_MS) || 3000;
     // at sign-in: the remembered layout first (aurora-apply-display leaves version 2 files to the shell)
@@ -721,7 +765,9 @@ function register(api) {
         })
         .catch(() => {})
         .finally(() => {
-          const t = setInterval(() => tick().catch(() => {}), every);
+          const t = setInterval(() => {
+            if (!cheap || cheapChanged()) tick().catch(() => {});
+          }, every);
           t.unref?.();
           tick().catch(() => {});
         });

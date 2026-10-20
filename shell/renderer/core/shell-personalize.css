@@ -666,3 +666,56 @@
 :root .win.bg-mica-alt {
   background: var(--win-material, var(--bg-alt));
 }
+/* The glass picture (core/wm.js): a copy of the pre-blurred wallpaper the size of the screen, translated by minus the
+   window's position so it lines up with the desktop (what background-attachment: fixed did), under the finish's tint,
+   sheen and grain. While a window moves, it and its picture are composited layers moved in the same frame: no repaint. */
+.win-glass {
+  display: none;
+}
+:is([data-finish="halo"], [data-finish="prisme"])[data-transparency="on"] .win:is(.bg-mica, .bg-mica-alt) {
+  isolation: isolate;
+}
+:is([data-finish="halo"], [data-finish="prisme"])[data-transparency="on"] .win:is(.bg-mica, .bg-mica-alt) > .win-glass {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  /* the screen-sized picture must not count as content overflow of the window (it is clipped there anyway): no
+     scrollable .win, no false "content overflows" in the layout checks */
+  overflow: hidden;
+}
+.win-glass-img {
+  position: absolute;
+  /* the padding box starts inside the 1 px glass border; maximized / fullscreen windows have none */
+  left: -1px;
+  top: -1px;
+  width: 100vw;
+  height: 100vh;
+  background: var(--mica-image, none) center / cover no-repeat;
+}
+.win:is(.maximized, .fullscreen) > .win-glass > .win-glass-img {
+  left: 0;
+  top: 0;
+}
+.win-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--win-glass-layers, none);
+}
+/* only while a drag moves the window (core/wm.js adds .moving): no permanent layers (memory, text antialiasing) */
+.win.moving,
+.win.moving > .win-glass > .win-glass-img {
+  will-change: transform;
+}
+
+/* ------------------------------------------------------------------ software rendering (<html data-gfx="soft">, core/gfx.js)
+   Without a usable GPU a live backdrop-filter blur costs 20-30 ms per frame while the Lanceur / Réglages rapides slide
+   in. There they paint the pre-blurred wallpaper (--mica-image, like the windows) under the same glass tint instead:
+   the same look over the desktop, nothing recomputed per frame. With a GPU the live blur stays (and the Lanceur's
+   "Transparent glass" background, an explicit choice of the stronger live blur, keeps it in every mode). */
+:root[data-gfx="soft"]:is([data-finish="halo"], [data-finish="prisme"])[data-transparency="on"] :is(#start:not([data-bg]), #quick-settings) {
+  background: var(--panel-grain, none), linear-gradient(var(--glass), var(--glass)), var(--mica-image, none) center / cover fixed no-repeat, rgb(var(--glass-rgb));
+  backdrop-filter: none;
+}

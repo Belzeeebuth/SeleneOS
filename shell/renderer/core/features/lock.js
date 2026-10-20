@@ -9,6 +9,7 @@
 // mount() locks again at once, behind the black cover features/welcome.js early() put up before the desktop mounted.
 //   window.__aurora.lockScreen = { lock(), locked, el }
 import { LockScreen } from '../greeter/lockui.js';
+import { quiet } from '../quiet.js';
 import { extendStrings } from '../greeter/strings.js';
 import { accentVars, resolveWallpaper } from '../theme.js';
 
@@ -340,6 +341,9 @@ export async function mount(ctx) {
 
   api.on('users:changed', () => loadUser().catch(() => {}));
 
+  // nobody sees the desktop behind the lock screen: background refreshes pause (core/quiet.js)
+  shell.on?.('lock', () => quiet.set('locked', !!ls));
+  shell.on?.('unlock', () => quiet.set('locked', !!ls));
   ctx.lockScreen = {
     lock: () => shell.lock(),
     get locked() {

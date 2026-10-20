@@ -975,7 +975,7 @@ function diagnosticGroup(pc) {
 
 async function about(pc) {
   const { h, t, kit, api, icon } = pc;
-  const [info, host, adm, usage] = await Promise.all([pc.tryInvoke('sys:info'), hostname(pc), pc.adminStatus(), pc.tryInvoke('fs:usage', '/')]);
+  const [info, host, adm, usage, gpu] = await Promise.all([pc.tryInvoke('sys:info'), hostname(pc), pc.adminStatus(), pc.tryInvoke('fs:usage', '/'), pc.tryInvoke('sys:gpu')]);
   const i = info || {};
   const archLabel = { x64: 'x64', arm64: 'ARM64', ia32: 'x86' }[i.arch] || i.arch || '';
   const upMin = Math.round((i.uptime || 0) / 60);
@@ -990,6 +990,7 @@ async function about(pc) {
     [t('about.build'), i.buildId || 'dev'],
     [t('about.base'), i.distro || 'Linux'],
     [t('about.kernel'), i.kernel || '—'],
+    [t('about.gpu'), gpu ? t(gpu.enabled ? 'about.gpuOn' : 'about.gpuOff') : '—'],
     [t('about.uptime'), upMin >= 60 * 24 ? t('about.days', { count: Math.floor(upMin / 1440) }) + ' ' + fmtDuration(pc, upMin % 1440) : fmtDuration(pc, upMin)],
   ];
   if (i.live) rows.push([t('about.session'), t('about.liveSession')]);

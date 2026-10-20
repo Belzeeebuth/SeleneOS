@@ -490,7 +490,10 @@ async function startPart() {
     check(!none.recs && /repeat\(6/.test(none.rows), `all three Recommended switches off: no Recommended section, more pins (${JSON.stringify(none)})`);
     await setMany(s, {}, ['start.showRecentApps', 'start.showMostUsed', 'startShowRecent']);
 
-    // background styles
+    // background styles (the GPU path: live blur; with software rendering, <html data-gfx="soft"> core/gfx.js, the default
+    // background paints the pre-blurred wallpaper instead — checked after)
+    const gfx = await A(() => document.documentElement.dataset.gfx);
+    await A(() => (document.documentElement.dataset.gfx = 'gpu'));
     const bgs = {};
     for (const bg of ['acrylic', 'glass', 'solid', 'accent', 'wallpaper']) {
       await setMany(s, { 'start.background': bg });
@@ -512,6 +515,13 @@ async function startPart() {
     const g1 = await A(() => getComputedStyle(document.getElementById('start')).backdropFilter);
     // (the Selene glass caps the blur at --blur-lg, 70 px at intensity 100: smooth in a VM without 3D)
     check(/blur\(0px\)/.test(g0) && /blur\((\d+)px\)/.test(g1) && +g1.match(/blur\((\d+)px\)/)[1] >= 60, `glass honours the blur intensity (blur 0 → ${g0}; blur 100 → ${g1})`);
+    await setMany(s, { blur: 50 }, ['start.background']);
+    await startOpen();
+    await A(() => (document.documentElement.dataset.gfx = 'soft'));
+    const soft = await A(() => { const st = getComputedStyle(document.getElementById('start')); return { filter: st.backdropFilter, img: st.backgroundImage }; });
+    await A((g) => (document.documentElement.dataset.gfx = g), gfx || 'soft');
+    check(['gpu', 'soft'].includes(gfx) && soft.filter === 'none' && /linear-gradient/.test(soft.img), `software rendering (detected: ${gfx}): the default Lanceur background paints the pre-blurred wallpaper, no live blur (${soft.filter})`);
+    await setMany(s, { 'start.background': 'glass' });
     await setMany(s, { transparency: false });
     await sleep(300);
     const g2 = await A(() => getComputedStyle(document.getElementById('start')).backdropFilter);

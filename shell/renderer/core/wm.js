@@ -65,6 +65,7 @@ import { Emitter } from './api.js';
 import { h, icon, iconSvg } from './ui.js';
 import { i18n, t } from './i18n.js';
 import { monitors, relocate, workareaOf } from './monitors.js';
+import { detectGfx } from './gfx.js';
 
 const MIN_VISIBLE = 64;
 let seq = 0;
@@ -190,6 +191,11 @@ class Win extends Emitter {
       this.controls.classList.add('floating');
       this.el.appendChild(this.controls);
     }
+    // Glass finishes (Halo / Prisme): the pre-blurred wallpaper, positioned at the screen origin (_glassSync) — the look
+    // of background-attachment: fixed, but a window move only translates layers instead of repainting the window.
+    this.glassImg = h('div', { class: 'win-glass-img' });
+    this.glass = h('div', { class: 'win-glass', 'aria-hidden': 'true' }, this.glassImg);
+    this.el.appendChild(this.glass);
     if (o.resizable) {
       for (const d of ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']) {
         const r = h('div', { class: `win-resize r-${d}` });
@@ -245,6 +251,17 @@ class Win extends Emitter {
     s.top = `${this.y}px`;
     s.width = `${this.w}px`;
     s.height = `${this.h}px`;
+    this._glassSync();
+  }
+  // Keep the glass picture at the screen origin: translated by minus the window's position (a fullscreen window sits
+  // at its screen's corner, not at x/y).
+  _glassSync(x = this.x, y = this.y) {
+    if (this.fullscreen) {
+      const mon = monitors.multi ? wm.monitorOf(this) : null;
+      x = mon ? mon.x : 0;
+      y = mon ? mon.y : 0;
+    }
+    this.glassImg.style.transform = `translate3d(${-x}px, ${-y}px, 0)`;
   }
   setRect({ x = this.x, y = this.y, width = this.w, height = this.h }, animate = false) {
     const prev = animate ? this.el.getBoundingClientRect() : null;
@@ -552,6 +569,7 @@ class Win extends Emitter {
     this.el.classList.toggle('fullscreen', want);
     this.fullscreen = want;
     wm._fsScreen(this);
+    this._glassSync();
     this.el.style.zIndex = String(zBase(this) + nextZ());
     this.emit('fullscreen', want);
     this.emit('resize', this.rect());
@@ -717,6 +735,7 @@ class Win extends Emitter {
     let zone = null;
     let last = null;
     let raf = 0;
+    let base = null; // left/top committed when the drag started (the transform is relative to it)
     const wa = wm.workarea();
     const shake = { dir: 0, lastX: startX, turns: [] };
     const pid = e.pointerId;
@@ -736,7 +755,10 @@ class Win extends Emitter {
       nx = Math.max(span.x - this.w + MIN_VISIBLE, Math.min(nx, span.x + span.width - MIN_VISIBLE));
       this.x = Math.round(nx);
       this.y = Math.round(ny);
-      this._apply();
+      // During the gesture the window only moves as a composited layer (transform, no layout / repaint);
+      // left/top are committed when the drag ends.
+      this.el.style.transform = `translate3d(${this.x - base.x}px, ${this.y - base.y}px, 0)`;
+      this._glassSync();
       wm.emit('drag-move', this, { x: ev.clientX, y: ev.clientY });
       if (this.opts.resizable && wm.snapEnabled !== false) {
         this._zoneMon = monitors.multi ? monitors.at(ev.clientX, ev.clientY) : null;
@@ -769,6 +791,9 @@ class Win extends Emitter {
           this.emit('restore');
           wm.emit('change', this);
         }
+        this._apply();
+        base = { x: this.x, y: this.y };
+        this.el.classList.add('moving');
       }
       if (wm.shakeToMinimize) this._trackShake(shake, ev);
       last = ev;
@@ -782,6 +807,12 @@ class Win extends Emitter {
       if (raf) {
         cancelAnimationFrame(raf);
         frame();
+      }
+      if (moved) {
+        // commit the gesture: left/top take over from the transform in the same frame
+        this.el.classList.remove('moving');
+        this.el.style.transform = '';
+        this._apply();
       }
       document.body.classList.remove('wm-dragging');
       wm._showSnapPreview(null);
@@ -960,6 +991,7 @@ class WindowManager extends Emitter {
   }
   mount(layer) {
     this.layer = layer;
+    detectGfx();
     if (!document.getElementById('wm-core-css')) document.head.appendChild(h('style', { id: 'wm-core-css' }, CORE_CSS));
     this.snapPreview = h('div', { class: 'snap-preview' });
     layer.appendChild(this.snapPreview);

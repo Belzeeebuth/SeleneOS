@@ -1108,9 +1108,13 @@ if (!E2E_ONLY) {
       floor: num(r.style.getPropertyValue('--a-floor') || '0'),
       bar: window.__t.alpha(window.__t.cs(window.__t.bar(), 'backgroundColor')), barBlur: window.__t.cs(window.__t.bar(), 'backdropFilter'),
       start: window.__t.cs('#start', 'backdropFilter'), startA: window.__t.alpha(window.__t.cs('#start', 'backgroundColor')),
-      winImg: win ? getComputedStyle(win).backgroundImage : '', tint: r.style.getPropertyValue('--wall-tint-d'),
+      // the glass: the window's own layers + its .win-glass picture and the tint / sheen / grain above it (core/wm.js)
+      winImg: win ? [win, win.querySelector(':scope > .win-glass > .win-glass-img')].map((el) => (el ? getComputedStyle(el).backgroundImage : '')).concat(win.querySelector(':scope > .win-glass') ? getComputedStyle(win.querySelector(':scope > .win-glass'), '::after').backgroundImage : '').join(' ') : '', tint: r.style.getPropertyValue('--wall-tint-d'),
     };
   });
+  // the GPU path (live blur on the bar / Lanceur); the software path (<html data-gfx="soft">, core/gfx.js) is checked below
+  const gfx = await T(s, () => document.documentElement.dataset.gfx);
+  await T(s, () => (document.documentElement.dataset.gfx = 'gpu'));
   await T(s, async () => (await import('app://shell/core/theme.js')).chooseFinish('halo'));
   await sleep(600);
   await waitTransitions(s);
@@ -1122,6 +1126,11 @@ if (!E2E_ONLY) {
   check(h.finish === 'halo' && h.accent === '#7fcbff' && h.wall === 'builtin:halo-nocturne', `chooseFinish('halo'): data-finish, and the accent and wallpaper follow (they were Sobre's defaults): ${h.accent}, ${h.wall}`);
   check(micaOk && /blob:/.test(h.winImg) && /linear-gradient/.test(h.winImg) && h.aWin >= 0.7 && h.aWin <= 0.8, `Halo windows: tinted glass over the pre-blurred wallpaper (Mica-like, no live blur), alpha ${h.aWin}`);
   check(/blur\(48/.test(h.barBlur) && h.bar >= 0.78 && h.bar <= 0.84 && /blur\(48/.test(h.start) && h.startA >= 0.78 && h.startA <= 0.84, `Halo bar and Lanceur: live blur ${h.barBlur} at ${h.bar.toFixed(2)}, Lanceur ${h.startA.toFixed(2)}`);
+  // software rendering: the Lanceur / Réglages rapides paint the pre-blurred wallpaper under the same tint, no live blur
+  await T(s, () => (document.documentElement.dataset.gfx = 'soft'));
+  const sw = await T(s, () => ['#start', '#quick-settings'].map((q) => { const cs = getComputedStyle(document.querySelector(q)); return { bf: cs.backdropFilter, img: cs.backgroundImage }; }));
+  await T(s, (g) => (document.documentElement.dataset.gfx = g), gfx || 'soft');
+  check(['gpu', 'soft'].includes(gfx) && sw.every((x) => x.bf === 'none' && /blob:/.test(x.img) && /linear-gradient/.test(x.img)), `software rendering (detected: ${gfx}): Lanceur and Réglages rapides use the pre-blurred wallpaper under the glass tint, no backdrop-filter (${JSON.stringify(sw.map((x) => x.bf))})`);
   check(/^\d+ \d+ \d+$/.test(h.tint), `tintFromWallpaper: the glass takes the wallpaper's hue (--wall-tint-d ${h.tint})`);
   await setKey(s, 'tintFromWallpaper', false, 700);
   const noTint = await T(s, () => document.documentElement.style.getPropertyValue('--wall-tint-d'));

@@ -24,6 +24,7 @@ import { i18n, t } from '../i18n.js';
 import { wm } from '../wm.js';
 import { registry } from '../registry.js';
 import { shell } from '../services.js';
+import { quiet } from '../quiet.js';
 
 i18n.extend({
   en: { alttab: { label: 'Window switcher', closeWindow: 'Close window' } },
@@ -544,7 +545,7 @@ export function mount(ctx) {
   clearInterval(refreshTimer);
   refreshTimer = setInterval(() => {
     const w = wm.focused();
-    if (w && !document.hidden && !state && !document.body.classList.contains('wm-dragging')) thumbs.captureOne(w);
+    if (w && !document.hidden && !quiet.on && !state && !document.body.classList.contains('wm-dragging')) thumbs.captureOne(w);
   }, 20000);
   ctx.alttab = alttab;
   ctx.thumbs = thumbs;

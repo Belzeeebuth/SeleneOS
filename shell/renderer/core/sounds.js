@@ -24,10 +24,18 @@ import { settings } from './settings.js';
 import { api } from './api.js';
 
 let ctx = null;
+// A running AudioContext keeps an output stream open for good (an audio thread in the shell and in Chromium's audio
+// service waking every few ms, and the sound server never suspends its sink): suspend it once the last sound is over.
+let idleTimer = 0;
 function audio() {
   if (!ctx) ctx = new AudioContext();
-  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  clearTimeout(idleTimer);
+  if (ctx.state !== 'closed') ctx.resume().catch(() => {}); // also undoes a suspend() still in flight
   return ctx;
+}
+function releaseSoon(ms) {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => ctx?.state === 'running' && ctx.suspend().catch(() => {}), ms + 1500);
 }
 
 function tone(ac, { freq, start = 0, dur = 0.25, type = 'sine', gain = 0.18, glide }, vol = 1) {
@@ -247,6 +255,7 @@ function playPattern(p, vol) {
     const ac = audio();
     for (const t of p) tone(ac, t, vol);
   } catch {}
+  releaseSoon(lengthOf(p));
   return new Promise((res) => setTimeout(res, lengthOf(p)));
 }
 function run(what, vol = volume()) {

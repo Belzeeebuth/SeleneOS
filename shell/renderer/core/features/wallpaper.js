@@ -29,6 +29,7 @@ import { dynamicPick, spotlightList } from '../wallpaper/dynamic.js';
 import { daylightAt } from '../wallpaper/solar.js';
 import { lockMode, lockPictureUrl, effectStill, mountLockEffect } from '../wallpaper/lock.js';
 import { setWallpaperOverride, resolveWallpaper } from '../theme.js';
+import { quiet } from '../quiet.js';
 
 const IMAGE_EXT = /\.(jpe?g|png|webp|avif|gif|bmp)$/i;
 const FADE_MS = 4000;
@@ -114,6 +115,7 @@ export async function mount(ctx) {
       if (!r) continue;
       r.setPaused('hidden', document.hidden);
       r.setPaused('locked', locked());
+      r.setPaused('screen-off', quiet.has('screen-off'));
       r.setPaused('covered', animCfg().pauseOnMaximized !== false && covered());
       const was = r.paused.has('motion');
       r.setPaused('motion', motion);
@@ -129,6 +131,7 @@ export async function mount(ctx) {
   document.addEventListener('visibilitychange', syncPause);
   for (const ev of ['change', 'open', 'close', 'desktop']) wm.on?.(ev, () => queueMicrotask(syncPause));
   shell.on('lock', () => setTimeout(syncPause, 0));
+  quiet.onChange(() => setTimeout(syncPause, 0));
   shell.on('unlock', () => setTimeout(syncPause, 0));
   new MutationObserver(syncPause).observe(document.documentElement, { attributes: true, attributeFilter: ['data-animations', 'data-reduced-motion'] });
 

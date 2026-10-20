@@ -346,7 +346,7 @@ body.tb-autohide .desk-icons {
   color: var(--text);
   background-color: var(--bg);
   transition: box-shadow var(--dur) var(--ease);
-  contain: layout;
+  contain: layout style;
 }
 .win.bg-mica {
   background: var(--bg);

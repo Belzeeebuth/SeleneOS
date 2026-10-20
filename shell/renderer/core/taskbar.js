@@ -32,6 +32,7 @@ import { notifications } from './notify.js';
 import { api, Emitter } from './api.js';
 import { LOGO } from './app-glyphs.js';
 import { theme } from './theme.js';
+import { quiet } from './quiet.js';
 
 // ---------------------------------------------------------------- strings
 const STRINGS = {
@@ -1211,7 +1212,7 @@ function renderMinis() {
   }
 }
 async function pollMinis() {
-  if (mini.busy || document.hidden || !minisEl || minisEl.hidden) return;
+  if (mini.busy || document.hidden || quiet.on || !minisEl || minisEl.hidden) return;
   const ids = miniIds();
   mini.busy = true;
   try {
@@ -1571,13 +1572,20 @@ export const taskbar = {
       status.battery = st || null;
       renderTray();
     });
-    setInterval(() => refreshStatus('battery'), 60000);
+    setInterval(() => !quiet.on && refreshStatus('battery'), 60000);
     // Safety net: backends only push changes, and a status read by another component can swallow a
-    // push — re-sync the tray now and then so it can never stay wrong for long.
-    setInterval(() => {
+    // push — re-sync the tray now and then so it can never stay wrong for long (not while nobody looks: the
+    // screen off or locked; it re-syncs as soon as the desktop is back).
+    const resync = () => {
       refreshStatus('net');
       refreshStatus('audio');
-    }, 30000);
+    };
+    setInterval(() => !quiet.on && resync(), 30000);
+    quiet.onChange((on) => {
+      if (on) return;
+      resync();
+      refreshStatus('battery');
+    });
     window.addEventListener('resize', () => {
       hidePreview(true);
       closeOverflow();

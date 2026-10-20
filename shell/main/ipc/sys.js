@@ -3,6 +3,7 @@
 //
 //   sys:info                     -> {hostname, osName, version, distro, kernel, arch, cpu, cores, memTotal, user, fullName, live, machine, uptime}
 //   sys:stats                    -> {cpu, cores:[...], mem:{total, used, available, swapTotal, swapUsed}, net:{rx, tx}, uptime}
+//   sys:gpu                      -> {enabled, rasterization, video, driver, plan, features}  (app.getGPUFeatureStatus())
 //   power:shutdown | power:reboot | power:suspend
 //   session:logout               -> quits the shell (ends the X session -> back to login screen)
 //   apps:list                    -> [manifest]   (renderer/apps/*/manifest.json)
@@ -108,6 +109,15 @@ module.exports = function register(api) {
       uptime: os.uptime(),
       buildId: readFirst('/etc/aurora/build-id') || 'dev',
     };
+  });
+
+  api.handle('sys:gpu', async () => {
+    const { gpuPlan, gpuStatus } = require('../lib/gpu-flags');
+    // the GPU process reports its status once it is up (a moment after the first window)
+    try {
+      await app.getGPUInfo('basic');
+    } catch {}
+    return gpuStatus(app, gpuPlan(process.env));
   });
 
   api.handle('sys:stats', () => {

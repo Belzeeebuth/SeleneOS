@@ -117,10 +117,14 @@ export function cssReady() {
 }
 
 let audioCtx = null;
+let clickIdle = 0;
 function click() {
   try {
     audioCtx = audioCtx || new AudioContext();
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    if (audioCtx.state !== 'closed') audioCtx.resume().catch(() => {});
+    // no output stream left open between key presses (it keeps audio threads awake)
+    clearTimeout(clickIdle);
+    clickIdle = setTimeout(() => audioCtx?.state === 'running' && audioCtx.suspend().catch(() => {}), 3000);
     const t0 = audioCtx.currentTime;
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();

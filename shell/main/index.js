@@ -28,9 +28,11 @@ const FORCE_LANG = arg('lang', process.env.AURORA_LANG || '');
 const ROOT = path.join(__dirname, '..');
 const RENDERER = path.join(ROOT, 'renderer');
 
-if (process.env.AURORA_DISABLE_GPU === '1') app.disableHardwareAcceleration();
+// GPU: software rendering (AURORA_DISABLE_GPU=1), or the full GPU path for the detected driver (main/lib/gpu-flags.js).
+const { applyGpuSwitches, mergeFeatures } = require('./lib/gpu-flags');
+applyGpuSwitches(app);
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,MediaSessionService');
+mergeFeatures(app.commandLine, 'disable-features', ['HardwareMediaKeyHandling', 'MediaSessionService']);
 // Greeter runs as an unprivileged system user with a throwaway profile.
 if (MODE === 'greeter') {
   const dir = process.env.AURORA_GREETER_DATA || path.join(os.tmpdir(), `aurora-greeter-${process.getuid?.() ?? 0}`);

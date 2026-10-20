@@ -123,6 +123,36 @@ aurora_gpu_mode() {
   echo "$_accel"
 }
 
+# GPU on: tell the shell which driver draws the screen; main/lib/gpu-flags.js picks Chromium's GPU switches from it
+# (GPU rasterization, zero-copy, GPU blocklist ignored only for known-good drivers, VA-API video decode).
+#   AURORA_GPU_ACCEL=1  AURORA_GPU_DRIVER=nvidia|i915|xe|amdgpu|radeon|nouveau|…  AURORA_NVIDIA_VERSION=550.120
+#   AURORA_GPU_VAAPI=1  a VA-API driver for a Mesa GPU is installed
+aurora_gpu_env() {
+  export AURORA_GPU_ACCEL=1
+  _gdrv=""
+  if aurora_nvidia_loaded; then
+    _gdrv=nvidia
+    _nv="$(cat "$AURORA_SYSFS/module/nvidia/version" 2>/dev/null || true)"
+    [ -n "$_nv" ] || _nv="$(sed -n 's/.*Kernel Module[^0-9]*\([0-9][0-9.]*\).*/\1/p' "$AURORA_PROCFS/driver/nvidia/version" 2>/dev/null | head -n 1)"
+    [ -n "$_nv" ] && export AURORA_NVIDIA_VERSION="$_nv"
+    # The GL driver sleeps instead of spinning a CPU core while it waits for the GPU, and frames follow the
+    # screen's refresh (vsync); a value the user set wins.
+    export __GL_YIELD="${__GL_YIELD:-USLEEP}" __GL_SYNC_TO_VBLANK="${__GL_SYNC_TO_VBLANK:-1}"
+  else
+    for _c in "$AURORA_SYSFS"/class/drm/card[0-9]*; do
+      [ -e "$_c/device/driver" ] || continue
+      case "${_c##*/}" in *-*) continue ;; esac
+      _d="$(basename "$(readlink -f "$_c/device/driver")")"
+      case "$_d" in i915|xe|amdgpu|radeon|nouveau) _gdrv="$_d"; break ;; esac
+      [ -n "$_gdrv" ] || _gdrv="$_d"
+    done
+  fi
+  export AURORA_GPU_DRIVER="$_gdrv"
+  for _va in /usr/lib/*/dri/iHD_drv_video.so /usr/lib/*/dri/i965_drv_video.so /usr/lib/*/dri/radeonsi_drv_video.so; do
+    if [ -e "$_va" ]; then export AURORA_GPU_VAAPI=1; break; fi
+  done
+}
+
 # Sets AURORA_FLAGS (Chromium/Electron switches) and the environment the shell expects.
 # Call it directly (not in $(...)): it exports variables.
 aurora_electron_setup() {
@@ -130,6 +160,8 @@ aurora_electron_setup() {
   if [ "$(aurora_gpu_mode)" = off ]; then
     export AURORA_DISABLE_GPU=1
     AURORA_FLAGS="$AURORA_FLAGS --disable-gpu"
+  else
+    aurora_gpu_env
   fi
   if [ -n "${AURORA_DEBUG:-}" ] && [ "$AURORA_DEBUG" != 0 ]; then
     AURORA_FLAGS="$AURORA_FLAGS --enable-logging=stderr --v=0"

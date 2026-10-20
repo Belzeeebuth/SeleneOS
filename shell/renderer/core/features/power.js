@@ -17,6 +17,8 @@
 // settings.power is not in the shell defaults: in dev mode (tests) nothing happens unless a test sets it, so long test
 // runs never blank or sleep.
 //   ctx.power = { config(), state, countdownSec, tick(), inhibitors, lastActivity }   (tests)
+import { quiet } from '../quiet.js';
+
 export const POWER_DEFAULTS = { screenOffBattery: 5, screenOffAc: 10, sleepBattery: 15, sleepAc: 0, lockOnScreenOff: true };
 
 const STRINGS = {
@@ -72,6 +74,7 @@ export function mount(ctx) {
   let lastActivity = Date.now();
   const bump = () => {
     lastActivity = Date.now();
+    if (state.screenOff) quiet.set('screen-off', false);
     state.screenOff = false;
     state.slept = false;
   };
@@ -111,10 +114,12 @@ export function mount(ctx) {
     const sleepMin = Number(bat ? cfg.sleepBattery : cfg.sleepAc) || 0;
     // Input since (screen back on / awake again): re-arm.
     if (offMin <= 0 || idle < offMin * 60) state.screenOff = false;
+    quiet.set('screen-off', state.screenOff);
     if (sleepMin <= 0 || idle < sleepMin * 60) state.slept = false;
     if (offMin > 0 && idle >= offMin * 60 && !state.screenOff) {
       state.screenOff = true;
       state.screenOffCount++;
+      quiet.set('screen-off', true);
       if (cfg.lockOnScreenOff && state.needsPassword && !ctx.lockScreen?.locked) shell.lock();
       api.invoke('power:screenOff').catch(() => {});
     }
