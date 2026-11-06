@@ -155,10 +155,11 @@ module.exports = function register(api) {
     } catch {}
     return { pending: fs.existsSync('/run/reboot-required') || fs.existsSync('/var/run/reboot-required'), bootId };
   });
-  api.handle('power:shutdown', () => systemctl('poweroff'));
-  api.handle('power:reboot', () => systemctl('reboot'));
-  api.handle('power:suspend', () => systemctl('suspend'));
+  api.handle('power:shutdown', () => (api.settings?.flush(), systemctl('poweroff')));
+  api.handle('power:reboot', () => (api.settings?.flush(), systemctl('reboot')));
+  api.handle('power:suspend', () => (api.settings?.flush(), systemctl('suspend')));
   api.handle('session:logout', () => {
+    api.settings?.flush();
     setTimeout(() => app.quit(), 50);
     return true;
   });

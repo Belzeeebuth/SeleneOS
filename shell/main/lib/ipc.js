@@ -16,7 +16,17 @@ function createIpc({ env, getMainWindow, RENDERER, ROOT, DEV }) {
   const handlers = new Map();
   const listeners = new Map();
 
+  // Only the shell / greeter page itself may use the API: its top frame on app://shell/. Web pages shown in windows of
+  // their own (__auroraWebPage), subframes and anything else are refused even if a renderer bug lets them reach ipcRenderer.
+  // (The Navigateur's guest preload talks over its own webContents.ipc, not through here.)
+  const trusted = (event) => {
+    const frame = event.senderFrame;
+    if (!frame || frame.parent || event.sender.__auroraWebPage) return false;
+    return typeof frame.url === 'string' && frame.url.startsWith('app://shell/');
+  };
+
   ipcMain.handle('aurora:invoke', async (event, channel, args) => {
+    if (!trusted(event)) return { ok: false, error: { message: 'Not allowed', code: 'EPERM' } };
     const fn = handlers.get(channel);
     if (!fn) return { ok: false, error: { message: `No handler for ${channel}`, code: 'ENOHANDLER' } };
     try {
@@ -29,6 +39,7 @@ function createIpc({ env, getMainWindow, RENDERER, ROOT, DEV }) {
   });
 
   ipcMain.on('aurora:send', (event, channel, args) => {
+    if (!trusted(event)) return;
     const set = listeners.get(channel);
     if (!set) return;
     for (const fn of set) {
@@ -42,7 +53,7 @@ function createIpc({ env, getMainWindow, RENDERER, ROOT, DEV }) {
 
   // Synchronous env lookup used by the sandboxed preload as a fallback.
   ipcMain.on('aurora:env-sync', (event) => {
-    event.returnValue = env;
+    event.returnValue = trusted(event) ? env : {};
   });
 
   const api = {

@@ -347,28 +347,38 @@ module.exports = function register(api) {
   }
   const merged = () => (robust.state.safeMode ? deepMerge(deepMerge(base, user), safeLook(base)) : deepMerge(base, user));
   let saveTimer = null;
+  const writeNow = () => {
+    saveTimer = null;
+    try {
+      writeJsonAtomic(FILE, user);
+      if (robust.state.saveFailed) {
+        robust.state.saveFailed = null;
+        delete robust.state.acked.save;
+      }
+    } catch (err) {
+      console.error('[settings] save failed', err);
+      // Disk full (or read-only home): the previous file is intact; the shell tells the user once.
+      if (!robust.state.saveFailed) {
+        robust.state.saveFailed = { code: err.code || 'EFAIL', at: Date.now() };
+        api.robust?.changed?.();
+      }
+    }
+  };
   const save = () => {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      try {
-        writeJsonAtomic(FILE, user);
-        if (robust.state.saveFailed) {
-          robust.state.saveFailed = null;
-          delete robust.state.acked.save;
-        }
-      } catch (err) {
-        console.error('[settings] save failed', err);
-        // Disk full (or read-only home): the previous file is intact; the shell tells the user once.
-        if (!robust.state.saveFailed) {
-          robust.state.saveFailed = { code: err.code || 'EFAIL', at: Date.now() };
-          api.robust?.changed?.();
-        }
-      }
-    }, 150);
+    saveTimer = setTimeout(writeNow, 150);
   };
+  // A change made just before sign-out / shutdown must not wait for the debounce.
+  const flush = () => {
+    if (!saveTimer) return;
+    clearTimeout(saveTimer);
+    writeNow();
+  };
+  require('electron').app.on('will-quit', flush);
 
   // Main-process access for other backend modules (e.g. locale:setKeyboard persists keyboardLayout).
   api.settings = {
+    flush,
     get: (key) => getPath(merged(), key),
     set: (key, value) => {
       if (!validKey(key)) throw api.error('Invalid settings key', 'EINVAL');

@@ -219,8 +219,11 @@ module.exports = function register(api) {
       throw api.error('Invalid file name', 'EINVAL');
     }
     try {
-      await fsp.lstat(dest);
-      if (dest.toLowerCase() !== from.toLowerCase()) throw api.error('A file with that name already exists', 'EEXIST');
+      const d = await fsp.lstat(dest);
+      // A case-only rename is allowed only when dest is the same file (case-insensitive file system); on ext4 « A.txt »
+      // next to « a.txt » is another file and rename() would replace it.
+      const s = await fsp.lstat(from).catch(() => null);
+      if (!s || s.ino !== d.ino || s.dev !== d.dev) throw api.error('A file with that name already exists', 'EEXIST');
     } catch (err) {
       if (err.code === 'EEXIST') throw err;
     }
@@ -274,8 +277,11 @@ module.exports = function register(api) {
     let n = 0;
     for (const p of Array.isArray(paths) ? paths : [paths]) {
       const abs = path.resolve(p);
-      if (abs.startsWith(TRASH)) {
+      if (abs === TRASH || abs.startsWith(TRASH + path.sep)) {
         await fsp.rm(abs, { recursive: true, force: true });
+        if (path.dirname(abs) === TRASH_FILES) {
+          await fsp.rm(path.join(TRASH_INFO, `${path.basename(abs)}.trashinfo`), { force: true });
+        }
         n++;
         continue;
       }

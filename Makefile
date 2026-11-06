@@ -115,7 +115,7 @@ docker-iso:
 	  $(foreach v,https_proxy HTTPS_PROXY http_proxy,$(if $($(v)),--build-arg $(v)='$($(v))')) $(ROOT)/iso
 	$(DOCKER) run --rm --privileged --network host -v /dev:/dev -v $(DOCKER_SRC):/src -w $(DOCKER_WD) \
 	  $(if $(GIT_TOP),-v $(GIT_TOP)/.git:/src/.git:ro -e GIT_OPTIONAL_LOCKS=0) \
-	  -e AURORA_OUT_OWNER=$$(id -u):$$(id -g) \
+	  -e AURORA_OUT_OWNER="$${SUDO_UID:-$$(id -u)}:$${SUDO_GID:-$$(id -g)}" \
 	  $(foreach v,https_proxy HTTPS_PROXY http_proxy,$(if $($(v)),-e $(v)='$($(v))')) \
 	  $(DOCKER_IMAGE) env $(BUILD_ENV) ./iso/build.sh $(BUILD_ARGS)
 
