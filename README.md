@@ -191,7 +191,7 @@ for the app contract, the UI kit and the backend API.
 ## Credits
 
 Selene OS is designed and directed by [Belzeeebuth](https://github.com/Belzeeebuth). It was built with the help of
-[Claude](https://claude.com/claude-code) (Anthropic), which co-wrote much of the code and documentation.
+[Claude](https://claude.com/claude-code) (Anthropic), which co-wrote some of the code and documentation.
 
 ## License
 
