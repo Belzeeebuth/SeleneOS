@@ -205,7 +205,7 @@ EOF
   make_deb aurora-base "$PKG_VERSION" "$root"
 }
 
-SELENE_APT_URL="${SELENE_APT_URL:-https://belzeeebuth.github.io/claudeai-test/apt/}"
+SELENE_APT_URL="${SELENE_APT_URL:-https://belzeeebuth.github.io/SeleneOS/apt/}"
 build_electron
 build_base
 build_shell

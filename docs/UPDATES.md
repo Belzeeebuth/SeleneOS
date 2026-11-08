@@ -37,7 +37,7 @@ sudo tools/test-selfupdate.sh   # install, update from the signed repo, failing-
 ```
 
 `out/apt/` is a plain static tree: publish it on any HTTPS static host, at the address in `SELENE_APT_URL`
-(`iso/config.sh`, default `https://belzeeebuth.github.io/claudeai-test/apt/`). The pool keeps older versions so that
+(`iso/config.sh`, default `https://belzeeebuth.github.io/SeleneOS/apt/`). The pool keeps older versions so that
 systems that have not updated yet still find their files: keep `out/apt/` between releases (or copy the published
 tree back before `make repo`).
 
@@ -52,16 +52,16 @@ The host needs only Docker, git and gpgv (gnupg); dpkg, Node and the signing all
 key in `keys/` that the installed systems already trust.
 
 One time (or let `make publish-updates` do it: with the GitHub CLI signed in — `gh auth login` — it creates the repository and turns Pages on by itself): create the **public** repository `<user>.github.io` on GitHub (for SELENE_APT_URL
-`https://belzeeebuth.github.io/claudeai-test/apt/`: `Belzeeebuth/belzeeebuth.github.io`, initialised with a README),
-and in its Settings > Pages choose « Deploy from a branch », the default branch, folder `/ (root)`. The main repository
-stays private: only the packages are public.
+`https://belzeeebuth.github.io/SeleneOS/apt/`: `Belzeeebuth/belzeeebuth.github.io`, initialised with a README),
+and in its Settings > Pages choose « Deploy from a branch », the default branch, folder `/ (root)`. The Selene sources live in the public
+`Belzeeebuth/SeleneOS` repository; this one only holds the published packages.
 
 Each update:
 
 ```
 git pull
 sudo make docker-repo        # aurora-electron / aurora-shell / aurora-base .debs + signed out/apt (a few minutes)
-make publish-updates         # as yourself: copies out/apt to <user>.github.io/claudeai-test/apt and pushes
+make publish-updates         # as yourself: copies out/apt to <user>.github.io/SeleneOS/apt and pushes
 ```
 
 `tools/publish-updates.sh` refuses to run as root, checks that InRelease is signed by `iso/keys/selene-archive-keyring.gpg`

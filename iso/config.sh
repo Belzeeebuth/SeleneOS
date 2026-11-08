@@ -141,4 +141,4 @@ BUILD_HTTP_PROXY="${BUILD_HTTP_PROXY:-${http_proxy:-}}"
 # ---- Selene updates (docs/UPDATES.md) -----------------------------------------------------
 # Selene apt repository written into the image (/etc/apt/sources.list.d/selene.sources, signed by
 # iso/keys/selene-archive-keyring.gpg). `make repo` builds it into out/apt/; publish that directory here.
-SELENE_APT_URL="${SELENE_APT_URL:-https://belzeeebuth.github.io/claudeai-test/apt/}"
+SELENE_APT_URL="${SELENE_APT_URL:-https://belzeeebuth.github.io/SeleneOS/apt/}"

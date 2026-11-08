@@ -49,7 +49,7 @@ function scrub(v, depth = 0) {
 const REPORT_NOTICE = `Selene OS diagnostic report
 ===========================
 This archive was created on request from Settings > System > About. Nothing was sent anywhere:
-you decide who receives it (for example attached to https://github.com/Belzeeebuth/claudeai-test/issues).
+you decide who receives it (for example attached to https://github.com/Belzeeebuth/SeleneOS/issues).
 
 What is inside:
   README.txt     this notice

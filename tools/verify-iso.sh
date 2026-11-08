@@ -483,7 +483,7 @@ st="$(systemctl --root="$S" is-enabled earlyoom.service 2>/dev/null || true)"
 [[ "$st" == enabled ]] && pass "systemctl --root: earlyoom.service is $st" || fail "systemctl --root: earlyoom.service is '$st'"
 grep -q -- '--avoid ^(Xorg|Xwayland|greetd|agreety|electron|' "$S/etc/default/aurora-earlyoom" 2>/dev/null && grep -qx 'EnvironmentFile=-/etc/default/aurora-earlyoom' "$S/etc/systemd/system/earlyoom.service.d/aurora.conf" 2>/dev/null \
   && grep -q 'EARLYOOM_ARGS' "$S/usr/lib/systemd/system/earlyoom.service" && pass "earlyoom avoids Xorg, greetd and the shell (/etc/default/aurora-earlyoom + drop-in)" || fail "earlyoom options do not protect Xorg / the shell"
-grep -qx 'BUG_REPORT_URL="https://github.com/Belzeeebuth/claudeai-test/issues"' "$S/usr/lib/os-release" && grep -qx 'SUPPORT_URL="https://github.com/Belzeeebuth/claudeai-test/issues"' "$S/usr/lib/os-release" \
+grep -qx 'BUG_REPORT_URL="https://github.com/Belzeeebuth/SeleneOS/issues"' "$S/usr/lib/os-release" && grep -qx 'SUPPORT_URL="https://github.com/Belzeeebuth/SeleneOS/issues"' "$S/usr/lib/os-release" \
   && pass "os-release BUG_REPORT_URL / SUPPORT_URL point to the Selene issues" || fail "os-release BUG_REPORT_URL / SUPPORT_URL are not the Selene issues page"
 grep -q 'AURORA_SAFE_MODE=1' "$S/usr/lib/aurora/aurora-xsession" && pass "aurora-xsession starts the shell in safe mode after 2 crashes" || fail "aurora-xsession has no safe mode"
 # ---- END robust --------------------------------------------------------------------------------

@@ -771,8 +771,8 @@ write_os_identity() {
   ln -sf ../usr/lib/os-release "$ROOT/etc/os-release"
   # Bug reports and support go to the Selene project, not to Launchpad (track "robust").
   sed -i -e '/^SUPPORT_URL=/d' -e '/^BUG_REPORT_URL=/d' "$ROOT/usr/lib/os-release"
-  printf '%s\n' 'SUPPORT_URL="https://github.com/Belzeeebuth/claudeai-test/issues"' \
-    'BUG_REPORT_URL="https://github.com/Belzeeebuth/claudeai-test/issues"' >>"$ROOT/usr/lib/os-release"
+  printf '%s\n' 'SUPPORT_URL="https://github.com/Belzeeebuth/SeleneOS/issues"' \
+    'BUG_REPORT_URL="https://github.com/Belzeeebuth/SeleneOS/issues"' >>"$ROOT/usr/lib/os-release"
   grep -q '^ID=ubuntu$' "$ROOT/usr/lib/os-release" || die "os-release lost ID=ubuntu"
 
   sed -i "s/^DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION=\"$OS_NAME $ISO_VERSION\"/" "$ROOT/etc/lsb-release"
