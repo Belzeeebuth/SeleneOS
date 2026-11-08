@@ -7,6 +7,10 @@ Everything is available in **English and French**, dark by default, with a light
 
 ![Selene OS desktop](docs/screenshots/shell-desktop.png)
 
+> **Use the ISO in a virtual machine for now.** Selene OS is still young: for the moment, boot and install the ISO
+> in a VM (QEMU, VirtualBox, VMware…) rather than directly on your PC's disk. Installing on real hardware is not
+> recommended yet.
+
 ## Features
 
 **Desktop**
@@ -34,8 +38,9 @@ Everything is available in **English and French**, dark by default, with a light
   settings (screen off, sleep, lid, power modes, battery alerts), automatic security updates
 - Linux and Flatpak apps fit in: their notifications, tray icons and startup entries, links and files they open land in
   Selene apps, spell check in French and English, screen sharing in the browser
-- Selene updates itself like the rest of the system (signed apt repository, see [docs/UPDATES.md](docs/UPDATES.md));
-  crash recovery, safe mode and a diagnostic report
+- Selene updates itself like the rest of the system (signed apt repository, see [docs/UPDATES.md](docs/UPDATES.md)):
+  **Settings → Updates** is connected to Selene Update, so Selene's own updates show up there next to system and
+  firmware updates; crash recovery, safe mode and a diagnostic report
 
 **Personalization** (details in [docs/PERSONALIZATION.md](docs/PERSONALIZATION.md))
 - Theme designer: style, ambiance, accent color, wallpaper, lock screen, bar color, window transparency and blur intensity;
@@ -106,7 +111,6 @@ sudo apt-get install debootstrap ubuntu-keyring squashfs-tools xorriso mtools do
      grub-common grub-pc-bin grub-efi-amd64-bin librsvg2-bin imagemagick unzip curl zstd git
 
 # 2. Build the ISO  ->  out/selene-os-<version>-amd64.iso
-cd aurora-os
 sudo make iso
 
 # 3. Try it in QEMU
@@ -154,7 +158,7 @@ stop you; with less, the desktop gets slow once several apps are open), 12 GB of
 ## Project layout
 
 ```
-aurora-os/
+.
   shell/      Electron app: desktop shell, login screen and all built-in apps
   rootfs/     files copied into the OS image (session scripts, helpers, configs)
   iso/        ISO build scripts (debootstrap -> squashfs -> hybrid BIOS/UEFI ISO)
@@ -174,7 +178,7 @@ aurora-os/
 ## Development
 
 ```sh
-cd aurora-os/shell
+cd shell
 npm ci
 npx electron . --dev --no-sandbox               # run the desktop in a window
 npx electron . --dev --no-sandbox --mode=greeter  # run the login screen
@@ -183,6 +187,11 @@ xvfb-run -a -s "-screen 0 1600x900x24" node test/smoke.mjs
 
 Each app has its own Playwright test in `shell/test/`. See [docs/DEVELOPING.md](docs/DEVELOPING.md)
 for the app contract, the UI kit and the backend API.
+
+## Credits
+
+Selene OS is designed and directed by [Belzeeebuth](https://github.com/Belzeeebuth). It was built with the help of
+[Claude](https://claude.com/claude-code) (Anthropic), which co-wrote much of the code and documentation.
 
 ## License
 
